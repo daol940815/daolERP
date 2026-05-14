@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
+
+:root {
+  --bg-primary: #0f1623;
+  --bg-surface: #1e2433;
+  --bg-surface-light: #252d3d;
+  --border-color: #2e3a4e;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --accent-blue: #3b82f6;
+  --accent-green: #10b981;
+  --accent-red: #ef4444;
+  --accent-yellow: #f59e0b;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html {
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* 스크롤바 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3e4e66;
+}
+
+/* 테이블 기본 스타일 */
+@layer components {
+  .erp-table {
+    @apply w-full border-collapse text-sm;
+  }
+  .erp-table th {
+    @apply px-3 py-2 text-left font-medium text-slate-400 border-b border-slate-700 bg-slate-800/50 whitespace-nowrap;
+  }
+  .erp-table td {
+    @apply px-3 py-2 border-b border-slate-800 whitespace-nowrap;
+  }
+  .erp-table tr:hover td {
+    @apply bg-slate-800/40;
+  }
+
+  /* 카드 */
+  .erp-card {
+    @apply bg-[#1e2433] border border-[#2e3a4e] rounded-lg;
+  }
+
+  /* 버튼 */
+  .btn-primary {
+    @apply bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors;
+  }
+  .btn-secondary {
+    @apply bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 rounded-md text-sm font-medium transition-colors;
+  }
+  .btn-ghost {
+    @apply hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-md text-sm transition-colors;
+  }
+
+  /* 인풋 */
+  .erp-input {
+    @apply bg-slate-800 border border-slate-600 text-slate-200 rounded-md px-3 py-2 text-sm
+           focus:outline-none focus:border-blue-500 placeholder:text-slate-500;
+  }
+
+  /* 배지 */
+  .badge-deposit {
+    @apply text-emerald-400 font-medium;
+  }
+  .badge-withdrawal {
+    @apply text-red-400 font-medium;
+  }
+  .badge-card {
+    @apply text-violet-400 font-medium;
+  }
+}
+
+/* 금액 색상 */
+.amount-positive { color: #10b981; }
+.amount-negative { color: #ef4444; }
+.amount-neutral  { color: #94a3b8; }
