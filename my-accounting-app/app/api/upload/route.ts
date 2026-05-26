@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase-server'
+import { classifyByKeywords } from '@/lib/classifier.server'
 import type { ParsedRow, UploadResult } from '@/types/upload'
 
 interface UploadBody {
@@ -107,6 +108,12 @@ export async function POST(req: NextRequest) {
       completed_at: new Date().toISOString(),
     })
     .eq('id', uploadLogId)
+
+  // ── 업로드 완료 후 키워드 자동 분류 실행 ────────────────
+  if (insertedRows > 0) {
+    // 실패해도 업로드 결과에는 영향 없음
+    classifyByKeywords(admin, uploadLogId).catch(() => null)
+  }
 
   const result: UploadResult = {
     uploadLogId,
