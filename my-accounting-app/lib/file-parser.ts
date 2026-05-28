@@ -203,11 +203,18 @@ async function parseExcel(
   const colMap = detectColumns(headers)
   const detectedFormat = detectFormat(headers)
 
+  // [DEBUG] 브라우저 콘솔에서 파싱 상태 확인
+  console.log('[PARSER] headerIdx:', headerIdx)
+  console.log('[PARSER] headers:', headers)
+  console.log('[PARSER] colMap:', colMap)
+  console.log('[PARSER] firstDataRow:', JSON.stringify(rows[headerIdx + 1]))
+
   if (colMap.date === undefined) {
     warnings.push('날짜 컬럼을 자동으로 찾지 못했습니다. 파일 형식을 확인해주세요.')
   }
 
   const parsedRows = mapRows(rows, headerIdx, colMap, source, warnings)
+  console.log('[PARSER] parsedRows[0]:', JSON.stringify(parsedRows[0]))
   return { rows: parsedRows, detectedFormat, warnings, rawHeaders: headers }
 }
 
