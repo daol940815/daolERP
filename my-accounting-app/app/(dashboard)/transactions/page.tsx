@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { AgGridReact } from 'ag-grid-react'
 import {
   AllCommunityModule,
@@ -15,6 +16,7 @@ import {
 import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-quartz.css'
 import type { Transaction, Account } from '@/types/transaction'
+import type { BankAccount } from '@/types/bank-account'
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
@@ -50,16 +52,26 @@ interface Filters {
   to: string
   status: string
   source: string
+  bankAccountId: string
 }
 
-export default function TransactionsPage() {
+function TransactionsContent() {
+  const searchParams = useSearchParams()
+  const bankAccountIdParam = searchParams.get('bankAccountId') ?? ''
+
   const gridRef = useRef<AgGridReact<Transaction>>(null)
   const [rowData,   setRowData]   = useState<Transaction[]>([])
   const [accounts,  setAccounts]  = useState<Account[]>([])
+  const [banks,     setBanks]     = useState<BankAccount[]>([])
   const [loading,   setLoading]   = useState(false)
   const [classifying, setClassifying] = useState(false)
   const [selectedCount, setSelectedCount] = useState(0)
-  const [filters, setFilters]     = useState<Filters>({ ...defaultDateRange(), status: 'all', source: 'all' })
+  const [filters, setFilters]     = useState<Filters>({
+    ...defaultDateRange(),
+    status: 'all',
+    source: 'all',
+    bankAccountId: bankAccountIdParam,
+  })
   const [toast, setToast]         = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
 
   // 토스트 메시지 (3초 후 자동 닫힘)
@@ -74,11 +86,20 @@ export default function TransactionsPage() {
     [accounts],
   )
 
-  // 계정과목 목록 로드 (마운트 1회)
+  // URL param(bankAccountId) 변경 시 필터 동기화
+  useEffect(() => {
+    setFilters(f => ({ ...f, bankAccountId: bankAccountIdParam }))
+  }, [bankAccountIdParam])
+
+  // 계정과목 + 은행 계좌 목록 로드 (마운트 1회)
   useEffect(() => {
     fetch('/api/accounts')
       .then(r => r.json())
       .then(d => { if (d.data) setAccounts(d.data) })
+      .catch(() => null)
+    fetch('/api/bank-accounts')
+      .then(r => r.json())
+      .then(d => { if (d.data) setBanks(d.data) })
       .catch(() => null)
   }, [])
 
@@ -89,8 +110,9 @@ export default function TransactionsPage() {
       const params = new URLSearchParams({
         status: filters.status,
         source: filters.source,
-        ...(filters.from && { from: filters.from }),
-        ...(filters.to   && { to:   filters.to   }),
+        ...(filters.from           && { from: filters.from }),
+        ...(filters.to             && { to:   filters.to   }),
+        ...(filters.bankAccountId  && { bankAccountId: filters.bankAccountId }),
       })
       const res  = await fetch(`/api/transactions?${params}`)
       const json = await res.json()
@@ -273,9 +295,29 @@ export default function TransactionsPage() {
     },
   ], [accounts, accountMap])
 
+  // 현재 선택된 은행 이름
+  const activeBankName = useMemo(() => {
+    if (!filters.bankAccountId) return null
+    return banks.find(b => b.id === filters.bankAccountId)?.bank_name ?? null
+  }, [filters.bankAccountId, banks])
+
   return (
     <div className="p-6 flex flex-col h-full">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">거래 내역</h1>
+      <div className="flex items-center gap-3 mb-1">
+        <h1 className="text-2xl font-bold text-gray-900">거래 내역</h1>
+        {activeBankName && (
+          <span className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-700 rounded-full text-sm font-medium">
+            🏦 {activeBankName}
+            <a
+              href="/transactions"
+              className="ml-1 text-slate-400 hover:text-slate-600 leading-none"
+              title="필터 해제"
+            >
+              ✕
+            </a>
+          </span>
+        )}
+      </div>
       <p className="text-gray-500 text-sm mb-4">계정과목 클릭으로 직접 분류하거나, 자동 분류를 사용하세요.</p>
 
       {/* 필터 바 */}
@@ -395,5 +437,13 @@ export default function TransactionsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function TransactionsPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-gray-400 text-sm">로딩 중...</div>}>
+      <TransactionsContent />
+    </Suspense>
   )
 }

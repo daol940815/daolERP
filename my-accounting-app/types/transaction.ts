@@ -7,6 +7,7 @@ export interface Transaction {
   balance?: number | null
   source: 'bank' | 'card' | 'manual'
   account_alias?: string | null
+  bank_account_id?: string | null
   status: 'pending' | 'reviewed' | 'confirmed'
   memo?: string | null
   is_journalized: boolean

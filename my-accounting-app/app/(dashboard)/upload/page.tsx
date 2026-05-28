@@ -43,7 +43,7 @@ export default function UploadPage() {
   const [parseResult, setParseResult] = useState<ParseResult | null>(null)
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
   const [sourceType, setSourceType]   = useState<'bank' | 'card'>('bank')
-  const [accountAlias, setAccountAlias] = useState('')
+  const [bankName, setBankName]       = useState('')
   const [isDragging, setIsDragging]   = useState(false)
   const [error, setError]             = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -60,6 +60,13 @@ export default function UploadPage() {
         return
       }
       setParseResult(result)
+      // 은행 명세서인 경우 감지된 은행명을 기본값으로 설정
+      if (sourceType === 'bank' && !bankName) {
+        const detected = result.detectedFormat
+        if (!detected.includes('일반') && !detected.includes('카드') && !detected.includes('명세서')) {
+          setBankName(detected)
+        }
+      }
       setStep('preview')
     } catch (e) {
       setError(e instanceof Error ? e.message : '파일 파싱 중 오류가 발생했습니다.')
@@ -102,7 +109,7 @@ export default function UploadPage() {
           fileSize: parseResult.fileSize,
           fileType: parseResult.fileType,
           source: sourceType,
-          accountAlias,
+          bankName,
           detectedFormat: parseResult.detectedFormat,
         }),
       })
@@ -134,7 +141,7 @@ export default function UploadPage() {
     setParseResult(null)
     setUploadResult(null)
     setError(null)
-    setAccountAlias('')
+    setBankName('')
   }
 
   return (
@@ -249,18 +256,22 @@ export default function UploadPage() {
             />
           </div>
 
-          {/* 계좌 별칭 + 업로드 버튼 */}
+          {/* 은행명/카드명 + 업로드 버튼 */}
           <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-end gap-4">
             <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                계좌/카드 별칭{' '}
-                <span className="text-gray-400 font-normal">(예: 신한은행 001-123456)</span>
+                {sourceType === 'bank' ? '은행명' : '카드사/카드명'}{' '}
+                <span className="text-gray-400 font-normal">
+                  {sourceType === 'bank'
+                    ? '(예: 우리은행, 하나은행 — 사이드바 분류에 사용됩니다)'
+                    : '(예: 신한카드)'}
+                </span>
               </label>
               <input
                 type="text"
-                value={accountAlias}
-                onChange={e => setAccountAlias(e.target.value)}
-                placeholder="선택사항"
+                value={bankName}
+                onChange={e => setBankName(e.target.value)}
+                placeholder={sourceType === 'bank' ? '은행명 입력' : '카드사명 입력 (선택사항)'}
                 disabled={step === 'uploading'}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 disabled:bg-gray-50"
               />

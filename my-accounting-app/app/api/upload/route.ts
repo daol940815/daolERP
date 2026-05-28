@@ -10,7 +10,7 @@ interface UploadBody {
   fileSize: number
   fileType: string
   source: 'bank' | 'card' | 'manual'
-  accountAlias: string
+  bankName: string
   detectedFormat: string
 }
 
@@ -43,6 +43,30 @@ export async function POST(req: NextRequest) {
   }
 
   // ── upload_logs 레코드 생성 (pending) ──────────────────────
+  // ── 은행 계좌 자동 생성 (은행 명세서인 경우) ──────────────────
+  let bankAccountId: string | null = null
+  const bankNameTrimmed = body.bankName?.trim() || null
+
+  if (bankNameTrimmed && body.source === 'bank') {
+    // 같은 이름의 은행 계좌가 있으면 재사용, 없으면 새로 생성
+    const { data: existingBank } = await admin
+      .from('bank_accounts')
+      .select('id')
+      .eq('bank_name', bankNameTrimmed)
+      .maybeSingle()
+
+    if (existingBank) {
+      bankAccountId = existingBank.id
+    } else {
+      const { data: newBank } = await admin
+        .from('bank_accounts')
+        .insert({ bank_name: bankNameTrimmed })
+        .select('id')
+        .single()
+      if (newBank) bankAccountId = newBank.id
+    }
+  }
+
   const { data: uploadLog, error: logError } = await admin
     .from('upload_logs')
     .insert({
@@ -51,7 +75,7 @@ export async function POST(req: NextRequest) {
       file_size: body.fileSize,
       file_hash: body.fileHash,
       source: body.source,
-      account_alias: body.accountAlias || null,
+      account_alias: bankNameTrimmed || null,
       total_rows: body.rows.length,
       status: 'pending',
       uploaded_by: user?.id ?? null,
@@ -76,7 +100,8 @@ export async function POST(req: NextRequest) {
     amount_out: row.amount_out,
     balance: row.balance ?? null,
     source: row.source,
-    account_alias: body.accountAlias || null,
+    account_alias: bankNameTrimmed || null,
+    bank_account_id: bankAccountId,
     upload_log_id: uploadLogId,
     status: 'pending',
   }))

@@ -82,10 +82,12 @@ function detectColumns(headers: string[]): ColMap {
   return result
 }
 
-// 파일 형식 이름 추론
+// 파일 형식에서 은행명 추론
 function detectFormat(headers: string[]): string {
-  const h = headers.join(' ').toLowerCase()
-  if (h.includes('맡기신') || h.includes('찾으신')) return '국민은행(KB)'
+  const h = headers.join(' ')
+  if (h.includes('맡기신') || h.includes('찾으신')) return '국민은행'
+  if (h.includes('기재내용')) return '우리은행'
+  if (h.includes('거래적요') && h.includes('잔액')) return '하나은행'
   if (h.includes('가맹점명') || h.includes('이용가맹점')) return '카드 내역'
   if (h.includes('적요') && h.includes('잔액')) return '은행 명세서'
   if (h.includes('입금') && h.includes('출금')) return '은행 명세서'
@@ -204,18 +206,11 @@ async function parseExcel(
   const colMap = detectColumns(headers)
   const detectedFormat = detectFormat(headers)
 
-  // [DEBUG] 브라우저 콘솔에서 파싱 상태 확인
-  console.log('[PARSER] headerIdx:', headerIdx)
-  console.log('[PARSER] headers:', headers)
-  console.log('[PARSER] colMap:', colMap)
-  console.log('[PARSER] firstDataRow:', JSON.stringify(rows[headerIdx + 1]))
-
   if (colMap.date === undefined) {
     warnings.push('날짜 컬럼을 자동으로 찾지 못했습니다. 파일 형식을 확인해주세요.')
   }
 
   const parsedRows = mapRows(rows, headerIdx, colMap, source, warnings)
-  console.log('[PARSER] parsedRows[0]:', JSON.stringify(parsedRows[0]))
   return { rows: parsedRows, detectedFormat, warnings, rawHeaders: headers }
 }
 

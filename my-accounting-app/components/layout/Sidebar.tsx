@@ -1,52 +1,49 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-
-// 사이드바 메뉴 구조 정의
-const menuItems = [
-  {
-    section: '거래 관리',
-    items: [
-      { label: '대시보드',     href: '/',                icon: '▦' },
-      { label: '거래 내역',    href: '/transactions',    icon: '≡' },
-      { label: '파일 업로드',  href: '/upload',          icon: '↑' },
-    ],
-  },
-  {
-    section: '분개 / 장부',
-    items: [
-      { label: '분개 현황',    href: '/journal',         icon: '📋' },
-      { label: '계정별 원장',  href: '/ledger',          icon: '📒' },
-    ],
-  },
-  {
-    section: '기준 정보',
-    items: [
-      { label: '계정과목',     href: '/accounts',        icon: '🏷' },
-      { label: '거래처 관리',  href: '/vendors',         icon: '🏢' },
-    ],
-  },
-  {
-    section: '설정',
-    items: [
-      { label: '설정',         href: '/settings',        icon: '⚙' },
-    ],
-  },
-]
+import type { BankAccount } from '@/types/bank-account'
 
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
+  const [banks, setBanks] = useState<BankAccount[]>([])
+  const [banksOpen, setBanksOpen] = useState(true)
+  // URL param 기반 active 은행 ID (window.location 에서 읽음 — hydration 후)
+  const [activeBankId, setActiveBankId] = useState<string | null>(null)
+  const hasFetched = useRef(false)
 
-  // 로그아웃 처리
+  // 은행 계좌 목록 로드
+  useEffect(() => {
+    if (hasFetched.current) return
+    hasFetched.current = true
+    fetch('/api/bank-accounts')
+      .then(r => r.json())
+      .then(d => { if (d.data) setBanks(d.data) })
+      .catch(() => null)
+  }, [])
+
+  // URL 변경 시 active 은행 ID 갱신
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    setActiveBankId(params.get('bankAccountId'))
+  }, [pathname])
+
   const handleLogout = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')
     router.refresh()
   }
+
+  const linkCls = (isActive: boolean) =>
+    `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors mb-0.5 ${
+      isActive
+        ? 'bg-slate-700 text-white font-medium'
+        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+    }`
 
   return (
     <aside className="w-60 min-h-screen bg-slate-900 flex flex-col">
@@ -58,39 +55,99 @@ export default function Sidebar() {
 
       {/* 메뉴 목록 */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
-        {menuItems.map((group) => (
-          <div key={group.section} className="mb-5">
-            {/* 섹션 헤더 */}
-            <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
-              {group.section}
-            </p>
+        {/* ── 거래 관리 ── */}
+        <div className="mb-5">
+          <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
+            거래 관리
+          </p>
 
-            {group.items.map((item) => {
-              // 현재 페이지인지 확인 (/ 는 정확히 일치, 나머지는 startsWith)
-              const isActive =
-                item.href === '/'
-                  ? pathname === '/'
-                  : pathname.startsWith(item.href)
+          <Link href="/" className={linkCls(pathname === '/')}>
+            <span className="text-base leading-none">▦</span>
+            <span>대시보드</span>
+          </Link>
 
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`
-                    flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors mb-0.5
-                    ${isActive
-                      ? 'bg-slate-700 text-white font-medium'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    }
-                  `}
-                >
-                  <span className="text-base leading-none">{item.icon}</span>
-                  <span>{item.label}</span>
-                </Link>
-              )
-            })}
-          </div>
-        ))}
+          <Link href="/transactions" className={linkCls(pathname === '/transactions' && !activeBankId)}>
+            <span className="text-base leading-none">≡</span>
+            <span>거래 내역</span>
+          </Link>
+
+          <Link href="/upload" className={linkCls(pathname.startsWith('/upload'))}>
+            <span className="text-base leading-none">↑</span>
+            <span>파일 업로드</span>
+          </Link>
+
+          {/* 은행 계좌 섹션 */}
+          {banks.length > 0 && (
+            <div className="mt-1">
+              <button
+                onClick={() => setBanksOpen(o => !o)}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-800 hover:text-white transition-colors mb-0.5"
+              >
+                <span className="flex items-center gap-2.5">
+                  <span className="text-base leading-none">🏦</span>
+                  <span>은행 계좌</span>
+                </span>
+                <span className="text-xs opacity-60">{banksOpen ? '▾' : '▸'}</span>
+              </button>
+
+              {banksOpen && (
+                <div className="ml-3 pl-3 border-l border-slate-700">
+                  {banks.map(bank => (
+                    <Link
+                      key={bank.id}
+                      href={`/transactions?bankAccountId=${bank.id}`}
+                      className={linkCls(activeBankId === bank.id)}
+                    >
+                      <span className="text-xs leading-none text-slate-500">·</span>
+                      <span>{bank.bank_name}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── 분개 / 장부 ── */}
+        <div className="mb-5">
+          <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
+            분개 / 장부
+          </p>
+          <Link href="/journal" className={linkCls(pathname.startsWith('/journal'))}>
+            <span className="text-base leading-none">📋</span>
+            <span>분개 현황</span>
+          </Link>
+          <Link href="/ledger" className={linkCls(pathname.startsWith('/ledger'))}>
+            <span className="text-base leading-none">📒</span>
+            <span>계정별 원장</span>
+          </Link>
+        </div>
+
+        {/* ── 기준 정보 ── */}
+        <div className="mb-5">
+          <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
+            기준 정보
+          </p>
+          <Link href="/accounts" className={linkCls(pathname.startsWith('/accounts'))}>
+            <span className="text-base leading-none">🏷</span>
+            <span>계정과목</span>
+          </Link>
+          <Link href="/vendors" className={linkCls(pathname.startsWith('/vendors'))}>
+            <span className="text-base leading-none">🏢</span>
+            <span>거래처 관리</span>
+          </Link>
+        </div>
+
+        {/* ── 설정 ── */}
+        <div className="mb-5">
+          <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
+            설정
+          </p>
+          <Link href="/settings" className={linkCls(pathname.startsWith('/settings'))}>
+            <span className="text-base leading-none">⚙</span>
+            <span>설정</span>
+          </Link>
+        </div>
       </nav>
 
       {/* 하단 로그아웃 버튼 */}
