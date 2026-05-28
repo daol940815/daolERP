@@ -58,7 +58,7 @@ const PATTERNS: Record<string, string[]> = {
   description: ['적요', '기재내용', '내용', '가맹점명', '이용가맹점', '거래내용', '메모', '거래처', '상호명', '출금처', '입금처', '거래적요', 'description'],
   amount_in:   ['입금', '입금금액', '맡기신금액', '입금액', '크레딧', '입금(원)'],
   amount_out:  ['출금', '출금금액', '찾으신금액', '이용금액', '승인금액', '출금액', '카드이용금액', '이용액', '데빗', '출금(원)', '카드승인금액', '지급', '지급(원)', '지급액'],
-  amount:      ['거래금액', '금액', '거래액'],  // 부호로 입/출금 구분
+  amount:      ['거래금액', '거래액'],  // 부호로 입/출금 구분 (amount_in/out 없을 때만)
   balance:     ['잔액', '잔고', '현재잔액', '잔액(원)', 'balance'],
 }
 
@@ -132,17 +132,18 @@ function mapRows(
     let amount_in = 0
     let amount_out = 0
 
-    if (colMap.amount !== undefined) {
-      // 부호로 입/출금 구분
+    // amount_in/out 컬럼이 있으면 우선 사용, 없을 때만 단일 amount 컬럼으로 폴백
+    if (colMap.amount_in !== undefined || colMap.amount_out !== undefined) {
+      amount_in  = colMap.amount_in  !== undefined ? parseAmount(row[colMap.amount_in])  : 0
+      amount_out = colMap.amount_out !== undefined ? parseAmount(row[colMap.amount_out]) : 0
+    } else if (colMap.amount !== undefined) {
+      // 단일 금액 컬럼 — 부호로 입/출금 구분
       const raw = String(row[colMap.amount] ?? '').replace(/[,\s원₩]/g, '')
       const num = parseFloat(raw)
       if (!isNaN(num)) {
         if (num >= 0) amount_in = Math.round(num)
         else amount_out = Math.round(Math.abs(num))
       }
-    } else {
-      amount_in  = colMap.amount_in  !== undefined ? parseAmount(row[colMap.amount_in])  : 0
-      amount_out = colMap.amount_out !== undefined ? parseAmount(row[colMap.amount_out]) : 0
     }
 
     const balance = colMap.balance !== undefined ? parseAmount(row[colMap.balance]) : undefined
