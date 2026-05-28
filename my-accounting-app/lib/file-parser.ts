@@ -186,12 +186,14 @@ async function parseExcel(
   buffer: ArrayBuffer,
   source: 'bank' | 'card' | 'manual',
 ): Promise<Omit<ParseResult, 'fileHash' | 'fileName' | 'fileSize' | 'fileType'>> {
-  const workbook = XLSX.read(buffer, { type: 'array', raw: false, cellDates: false })
+  // raw: true 로 읽어야 숫자 셀 값이 브라우저에서도 정확히 반환됨
+  // raw: false 를 XLSX.read에 쓰면 브라우저에서 숫자 셀이 빈 값으로 올 수 있음
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: false })
   const sheetName = workbook.SheetNames[0]
   const sheet = workbook.Sheets[sheetName]
   const rows = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, {
     header: 1,
-    raw: false,
+    raw: true,   // 숫자는 number, 문자는 string 으로 그대로 반환
     defval: '',
   })
 
