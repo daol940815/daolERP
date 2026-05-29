@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 
 // GET /api/bank-accounts — 활성 은행 계좌 목록
 export async function GET() {
-  const admin = await createAdminClient()
+  const admin = createAdminClient()
 
   const { data, error } = await admin
     .from('bank_accounts')

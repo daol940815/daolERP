@@ -2,6 +2,7 @@
 // Next.js App Router의 cookies()를 사용해 세션을 안전하게 관리
 
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
 // 서버 컴포넌트 / Route Handler에서 호출
@@ -34,27 +35,16 @@ export async function createClient() {
   )
 }
 
-// SERVICE_ROLE_KEY를 사용하는 관리자 클라이언트 (RLS 우회 가능 - 서버에서만 사용)
-export async function createAdminClient() {
-  const cookieStore = await cookies()
-
-  return createServerClient(
+// SERVICE_ROLE_KEY를 사용하는 관리자 클라이언트 (RLS 완전 우회 - 서버에서만 사용)
+// @supabase/ssr 대신 @supabase/supabase-js 사용 — 쿠키 세션이 서비스 롤 키를 덮어쓰지 않도록
+export function createAdminClient() {
+  return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!, // 서비스 롤 키 (절대 클라이언트에 노출 금지)
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {
-            // 무시
-          }
-        },
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
       },
     }
   )

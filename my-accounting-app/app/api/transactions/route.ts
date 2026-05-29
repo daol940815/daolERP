@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 
 // GET /api/transactions?status=all&from=YYYY-MM-DD&to=YYYY-MM-DD&source=all&limit=1000
 export async function GET(req: NextRequest) {
-  const admin = await createAdminClient()
+  const admin = createAdminClient()
   const { searchParams } = new URL(req.url)
 
   const status        = searchParams.get('status') ?? 'all'

@@ -7,7 +7,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
-  const admin = await createAdminClient()
+  const admin = createAdminClient()
   const body = await req.json()
 
   const ALLOWED = ['confirmed_account_id', 'memo', 'status', 'vendor_id']

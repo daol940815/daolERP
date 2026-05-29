@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   // RLS 우회가 필요한 쓰기 작업은 관리자 클라이언트 사용
-  const admin = await createAdminClient()
+  const admin = createAdminClient()
 
   const body: UploadBody = await req.json()
 
