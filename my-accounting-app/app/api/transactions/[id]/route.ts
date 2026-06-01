@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 
 // PATCH /api/transactions/[id]
-// 허용 필드: confirmed_account_id, memo, status, vendor_id
+// 허용 필드: confirmed_account_id, memo, status, vendor_id, suggested_side
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } },
@@ -10,7 +10,7 @@ export async function PATCH(
   const admin = createAdminClient()
   const body = await req.json()
 
-  const ALLOWED = ['confirmed_account_id', 'memo', 'status', 'vendor_id']
+  const ALLOWED = ['confirmed_account_id', 'memo', 'status', 'vendor_id', 'suggested_side']
   const updates: Record<string, unknown> = {}
 
   for (const key of ALLOWED) {

@@ -13,6 +13,7 @@ export interface Transaction {
   is_journalized: boolean
   suggested_account_id?: string | null
   confirmed_account_id?: string | null
+  suggested_side?: 'debit' | 'credit' | null
   ai_confidence?: number | null
   ai_reason?: string | null
   upload_log_id?: string | null
