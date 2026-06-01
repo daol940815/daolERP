@@ -8,11 +8,11 @@ export async function PATCH(
 ) {
   const admin = createAdminClient()
   const { id } = await params
-  const body = await req.json() as { account_number?: string }
+  const body = await req.json() as { account_number?: string | null }
 
   const { error } = await admin
     .from('bank_accounts')
-    .update({ account_number: body.account_number ?? null })
+    .update({ account_number: body.account_number === undefined ? null : body.account_number })
     .eq('id', id)
 
   if (error) {

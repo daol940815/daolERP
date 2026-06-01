@@ -41,12 +41,24 @@ export default function Sidebar() {
   const handleEditAccountNumber = async (bankId: string, currentNumber: string | null) => {
     const input = window.prompt('계좌번호를 입력하세요 (예: 1005-804-575410)', currentNumber ?? '')
     if (input === null) return  // 취소
+
+    const newNumber = input.trim() || null
+
     const res = await fetch(`/api/bank-accounts/${bankId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ account_number: input.trim() || null }),
+      body: JSON.stringify({ account_number: newNumber }),
     })
-    if (res.ok) fetchBanks()
+
+    if (res.ok) {
+      // fetchBanks() 재조회 없이 해당 항목만 즉시 상태 반영
+      setBanks(prev => prev.map(b =>
+        b.id === bankId ? { ...b, account_number: newNumber } : b
+      ))
+    } else {
+      const json = await res.json().catch(() => ({}))
+      alert(`저장 실패: ${(json as { error?: string }).error ?? '알 수 없는 오류'}`)
+    }
   }
 
   const handleLogout = async () => {
