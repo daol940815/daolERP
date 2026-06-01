@@ -17,7 +17,7 @@ export default function Sidebar() {
   useEffect(() => {
     fetch('/api/bank-accounts')
       .then(r => r.json())
-      .then(d => { if (d.data) setBanks(d.data) })
+      .then(d => { if (Array.isArray(d.data)) setBanks(d.data) })
       .catch(() => null)
   }, [pathname])
 
@@ -67,36 +67,40 @@ export default function Sidebar() {
             <span>거래 내역</span>
           </Link>
 
-          <Link href="/upload" className={linkCls(pathname.startsWith('/upload'))}>
-            <span className="text-base leading-none">↑</span>
-            <span>파일 업로드</span>
-          </Link>
+          {/* ── 은행 계좌 섹션 (항상 표시) ── */}
+          <div className="mt-0.5">
+            <button
+              onClick={() => setBanksOpen(o => !o)}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-800 hover:text-white transition-colors mb-0.5"
+            >
+              <span className="flex items-center gap-2.5">
+                <span className="text-base leading-none">🏦</span>
+                <span>은행 계좌</span>
+              </span>
+              <span className="text-xs opacity-60">{banksOpen ? '▾' : '▸'}</span>
+            </button>
 
-          {/* 은행 계좌 섹션 */}
-          {banks.length > 0 && (
-            <div className="mt-1">
-              <button
-                onClick={() => setBanksOpen(o => !o)}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-800 hover:text-white transition-colors mb-0.5"
-              >
-                <span className="flex items-center gap-2.5">
-                  <span className="text-base leading-none">🏦</span>
-                  <span>은행 계좌</span>
-                </span>
-                <span className="text-xs opacity-60">{banksOpen ? '▾' : '▸'}</span>
-              </button>
-
-              {banksOpen && (
-                <div className="ml-3 pl-3 border-l border-slate-700">
-                  {banks.map(bank => (
+            {banksOpen && (
+              <div className="ml-3 pl-3 border-l border-slate-700 mb-0.5">
+                {banks.length === 0 ? (
+                  <p className="px-3 py-1.5 text-xs text-slate-600">등록된 계좌가 없습니다</p>
+                ) : (
+                  banks.map(bank => (
                     <Link
                       key={bank.id}
                       href={`/transactions?bankAccountId=${bank.id}`}
                       className={linkCls(activeBankId === bank.id)}
                     >
-                      <span className="text-xs leading-none text-slate-500">·</span>
+                      <span className="text-xs leading-none text-slate-500 shrink-0">·</span>
                       <div className="flex flex-col min-w-0">
-                        <span className="truncate">{bank.bank_name}</span>
+                        <span className="truncate">
+                          {bank.bank_name}
+                          {bank.account_number && (
+                            <span className="text-slate-500 font-normal text-xs ml-1">
+                              {bank.account_number}
+                            </span>
+                          )}
+                        </span>
                         {bank.current_balance !== null && (
                           <span className="text-xs text-slate-500 font-normal">
                             {bank.current_balance.toLocaleString('ko-KR')}원
@@ -104,11 +108,25 @@ export default function Sidebar() {
                         )}
                       </div>
                     </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+                  ))
+                )}
+
+                {/* 계좌 추가 버튼 */}
+                <Link
+                  href="/upload"
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors mt-0.5"
+                >
+                  <span>＋</span>
+                  <span>계좌 추가</span>
+                </Link>
+              </div>
+            )}
+          </div>
+
+          <Link href="/upload" className={linkCls(pathname.startsWith('/upload'))}>
+            <span className="text-base leading-none">↑</span>
+            <span>파일 업로드</span>
+          </Link>
         </div>
 
         {/* ── 분개 / 장부 ── */}
