@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import type { BankAccount } from '@/types/bank-account'
@@ -11,19 +11,15 @@ export default function Sidebar() {
   const router = useRouter()
   const [banks, setBanks] = useState<BankAccount[]>([])
   const [banksOpen, setBanksOpen] = useState(true)
-  // URL param 기반 active 은행 ID (window.location 에서 읽음 — hydration 후)
   const [activeBankId, setActiveBankId] = useState<string | null>(null)
-  const hasFetched = useRef(false)
 
-  // 은행 계좌 목록 로드
+  // 페이지 이동마다 은행 계좌 목록 갱신
   useEffect(() => {
-    if (hasFetched.current) return
-    hasFetched.current = true
     fetch('/api/bank-accounts')
       .then(r => r.json())
       .then(d => { if (d.data) setBanks(d.data) })
       .catch(() => null)
-  }, [])
+  }, [pathname])
 
   // URL 변경 시 active 은행 ID 갱신
   useEffect(() => {
