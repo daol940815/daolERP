@@ -49,6 +49,17 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: '삭제할 항목을 선택하세요.' }, { status: 400 })
   }
 
+  // 삭제 전 영향받는 upload_log_id 목록 수집
+  const { data: txRows } = await admin
+    .from('transactions')
+    .select('upload_log_id')
+    .in('id', ids)
+
+  const affectedLogIds = Array.from(new Set(
+    (txRows ?? []).map(r => r.upload_log_id).filter(Boolean) as string[]
+  ))
+
+  // 거래 내역 삭제
   const { error } = await admin
     .from('transactions')
     .delete()
@@ -56,6 +67,18 @@ export async function DELETE(req: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // 삭제 후 해당 upload_log에 남은 거래가 없으면 업로드 이력도 삭제
+  for (const logId of affectedLogIds) {
+    const { count } = await admin
+      .from('transactions')
+      .select('id', { count: 'exact', head: true })
+      .eq('upload_log_id', logId)
+
+    if ((count ?? 0) === 0) {
+      await admin.from('upload_logs').delete().eq('id', logId)
+    }
   }
 
   return NextResponse.json({ deleted: ids.length })
