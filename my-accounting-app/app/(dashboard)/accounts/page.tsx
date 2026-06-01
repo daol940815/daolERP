@@ -223,6 +223,31 @@ export default function AccountsPage() {
     }
   }
 
+  // ── 템플릿 다운로드 ──────────────────────────────────────────────
+  const handleTemplate = () => {
+    const sample = [
+      { '코드': '4011', '계정명': '매출', '유형': '수익', '키워드': '매출,판매,수입', '활성': 'Y' },
+      { '코드': '5001', '계정명': '급여', '유형': '비용', '키워드': '급여,임금,인건비', '활성': 'Y' },
+      { '코드': '1001', '계정명': '보통예금', '유형': '자산', '키워드': '', '활성': 'Y' },
+      { '코드': '2001', '계정명': '단기차입금', '유형': '부채', '키워드': '대출,차입', '활성': 'Y' },
+      { '코드': '3001', '계정명': '자본금', '유형': '자본', '키워드': '', '활성': 'Y' },
+    ]
+
+    const ws = XLSX.utils.json_to_sheet(sample)
+    ws['!cols'] = [{ wch: 10 }, { wch: 22 }, { wch: 8 }, { wch: 50 }, { wch: 6 }]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '계정과목')
+
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    const blob = new Blob([wbout], { type: 'application/octet-stream' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = '계정과목_업로드양식.xlsx'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   // ── 엑셀 다운로드 ────────────────────────────────────────────────
   const handleDownload = () => {
     const rows = accounts.map(a => ({
@@ -325,6 +350,13 @@ export default function AccountsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
+          <button
+            onClick={handleTemplate}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1.5"
+          >
+            <span className="text-base leading-none">☰</span>
+            업로드 양식
+          </button>
           <button
             onClick={handleDownload}
             disabled={accounts.length === 0}
