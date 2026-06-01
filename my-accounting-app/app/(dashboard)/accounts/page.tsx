@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import * as XLSX from 'xlsx'
 
 interface Account {
   id: string
@@ -20,6 +21,12 @@ const TYPE_META: Record<string, { label: string; cls: string }> = {
 }
 
 const TYPE_ORDER = ['income', 'expense', 'asset', 'liability', 'equity']
+
+// 엑셀 유형 한글 → 영문 매핑
+const TYPE_LABEL_TO_KEY: Record<string, string> = {
+  '수익': 'income', '비용': 'expense', '자산': 'asset', '부채': 'liability', '자본': 'equity',
+  income: 'income', expense: 'expense', asset: 'asset', liability: 'liability', equity: 'equity',
+}
 
 // ── 키워드 칩 컴포넌트 ─────────────────────────────────────────────
 function KeywordChips({
@@ -158,10 +165,12 @@ export default function AccountsPage() {
   const [filter, setFilter]       = useState<string>('all')
   const [showAdd, setShowAdd]     = useState(false)
   const [toast, setToast]         = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const showMsg = (msg: string) => {
     setToast(msg)
-    setTimeout(() => setToast(null), 2500)
+    setTimeout(() => setToast(null), 3000)
   }
 
   const loadAccounts = useCallback(async () => {
@@ -214,6 +223,87 @@ export default function AccountsPage() {
     }
   }
 
+  // ── 엑셀 다운로드 ────────────────────────────────────────────────
+  const handleDownload = () => {
+    const rows = accounts.map(a => ({
+      '코드':     a.code,
+      '계정명':   a.name,
+      '유형':     TYPE_META[a.type]?.label ?? a.type,
+      '키워드':   (a.keywords ?? []).join(','),
+      '활성':     a.is_active ? 'Y' : 'N',
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(rows)
+    ws['!cols'] = [{ wch: 10 }, { wch: 22 }, { wch: 8 }, { wch: 50 }, { wch: 6 }]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '계정과목')
+
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    const blob = new Blob([wbout], { type: 'application/octet-stream' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = '계정과목.xlsx'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // ── 엑셀 업로드 ──────────────────────────────────────────────────
+  const handleUpload = async (file: File) => {
+    setUploading(true)
+    try {
+      const ab = await file.arrayBuffer()
+      const wb = XLSX.read(ab)
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws)
+
+      const existingCodes = new Set(accounts.map(a => a.code))
+
+      const parsed = rows
+        .map(row => ({
+          code:       String(row['코드']   ?? '').trim(),
+          name:       String(row['계정명'] ?? '').trim(),
+          type:       TYPE_LABEL_TO_KEY[String(row['유형'] ?? '').trim()] ?? '',
+          keywords:   String(row['키워드'] ?? '')
+                        .split(',')
+                        .map(k => k.trim())
+                        .filter(Boolean),
+          is_active:  String(row['활성']   ?? 'Y').trim().toUpperCase() !== 'N',
+        }))
+        .filter(a => a.code && a.name && a.type)
+
+      if (parsed.length === 0) {
+        showMsg('유효한 데이터가 없습니다. 형식(코드/계정명/유형/키워드/활성)을 확인해 주세요.')
+        return
+      }
+
+      const addedCount   = parsed.filter(a => !existingCodes.has(a.code)).length
+      const updatedCount = parsed.filter(a =>  existingCodes.has(a.code)).length
+
+      const res = await fetch('/api/accounts/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accounts: parsed }),
+      })
+      const json = await res.json()
+
+      if (!res.ok) {
+        showMsg(json.error ?? '업로드 실패')
+      } else {
+        const parts: string[] = []
+        if (addedCount)   parts.push(`${addedCount}개 추가`)
+        if (updatedCount) parts.push(`${updatedCount}개 수정`)
+        showMsg(parts.join(', ') + '됨')
+        loadAccounts()
+      }
+    } catch {
+      showMsg('파일 파싱 중 오류가 발생했습니다.')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   // 필터 적용
   const filtered = accounts.filter(a => filter === 'all' || a.type === filter)
 
@@ -227,18 +317,54 @@ export default function AccountsPage() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       {/* 헤더 */}
-      <div className="flex items-center justify-between mb-1">
-        <h1 className="text-2xl font-bold text-gray-900">계정과목 관리</h1>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700"
-        >
-          + 계정 추가
-        </button>
+      <div className="flex items-start justify-between mb-1">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">계정과목 관리</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            키워드를 기반으로 거래가 자동 분류됩니다.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <button
+            onClick={handleDownload}
+            disabled={accounts.length === 0}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 flex items-center gap-1.5"
+          >
+            <span className="text-base leading-none">↓</span>
+            엑셀 다운로드
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 flex items-center gap-1.5"
+          >
+            <span className="text-base leading-none">↑</span>
+            {uploading ? '업로드 중...' : '엑셀 업로드'}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={e => {
+              const file = e.target.files?.[0]
+              if (file) handleUpload(file)
+            }}
+          />
+          <button
+            onClick={() => setShowAdd(true)}
+            className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700"
+          >
+            + 계정 추가
+          </button>
+        </div>
       </div>
-      <p className="text-gray-500 text-sm mb-5">
-        키워드를 기반으로 거래가 자동 분류됩니다. 키워드 클릭 후 ✕로 삭제, 입력란에 입력 후 Enter로 추가합니다.
-      </p>
+
+      {/* 엑셀 형식 안내 */}
+      <div className="mt-3 mb-5 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500">
+        엑셀 형식: <span className="font-mono text-gray-700">코드 | 계정명 | 유형(수익/비용/자산/부채/자본) | 키워드(쉼표 구분) | 활성(Y/N)</span>
+        &nbsp;— 코드 기준으로 기존 항목은 수정, 없으면 신규 추가됩니다.
+      </div>
 
       {/* 유형 필터 탭 */}
       <div className="flex gap-1 mb-5 flex-wrap">
