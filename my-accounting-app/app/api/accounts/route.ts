@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 
+const ACCOUNT_FIELDS = 'id, name, code, type, keywords, is_active, side_on_in, side_on_out'
+
 // GET /api/accounts?all=true — 전체(비활성 포함) / 기본: 활성만
 export async function GET(req: NextRequest) {
   const admin = createAdminClient()
@@ -8,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   let query = admin
     .from('accounts')
-    .select('id, name, code, type, keywords, is_active')
+    .select(ACCOUNT_FIELDS)
     .order('type')
     .order('code')
 
@@ -28,6 +30,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient()
   const body = await req.json() as {
     code: string; name: string; type: string; keywords?: string[]
+    side_on_in?: string; side_on_out?: string
   }
 
   if (!body.code?.trim() || !body.name?.trim() || !body.type) {
@@ -37,13 +40,15 @@ export async function POST(req: NextRequest) {
   const { data, error } = await admin
     .from('accounts')
     .insert({
-      code: body.code.trim(),
-      name: body.name.trim(),
-      type: body.type,
-      keywords: body.keywords ?? [],
-      is_active: true,
+      code:        body.code.trim(),
+      name:        body.name.trim(),
+      type:        body.type,
+      keywords:    body.keywords ?? [],
+      is_active:   true,
+      side_on_in:  body.side_on_in  ?? 'credit',
+      side_on_out: body.side_on_out ?? 'debit',
     })
-    .select('id, name, code, type, keywords, is_active')
+    .select(ACCOUNT_FIELDS)
     .single()
 
   if (error) {

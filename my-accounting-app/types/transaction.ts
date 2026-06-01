@@ -27,4 +27,6 @@ export interface Account {
   type: string
   keywords?: string[] | null
   is_active: boolean
+  side_on_in:  'debit' | 'credit'
+  side_on_out: 'debit' | 'credit'
 }

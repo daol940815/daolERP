@@ -10,7 +10,12 @@ interface Account {
   type: 'income' | 'expense' | 'asset' | 'liability' | 'equity'
   keywords: string[]
   is_active: boolean
+  side_on_in:  'debit' | 'credit'
+  side_on_out: 'debit' | 'credit'
 }
+
+const SIDE_LABEL: Record<string, string> = { debit: '차변', credit: '대변' }
+const SIDE_KEY: Record<string, 'debit' | 'credit'> = { '차변': 'debit', '대변': 'credit' }
 
 const TYPE_META: Record<string, { label: string; cls: string }> = {
   income:    { label: '수익', cls: 'bg-green-100 text-green-700' },
@@ -197,6 +202,15 @@ export default function AccountsPage() {
     return res.ok
   }
 
+  const handleChangeSideRule = async (
+    account: Account,
+    field: 'side_on_in' | 'side_on_out',
+    value: 'debit' | 'credit',
+  ) => {
+    const ok = await patch(account.id, { [field]: value })
+    if (ok) showMsg(`${field === 'side_on_in' ? '입금' : '출금'} 시 방향: ${SIDE_LABEL[value]}`)
+  }
+
   const handleRemoveKeyword = async (account: Account, kw: string) => {
     const newKws = account.keywords.filter(k => k !== kw)
     const ok = await patch(account.id, { keywords: newKws })
@@ -226,15 +240,15 @@ export default function AccountsPage() {
   // ── 템플릿 다운로드 ──────────────────────────────────────────────
   const handleTemplate = () => {
     const sample = [
-      { '코드': '4011', '계정명': '매출', '유형': '수익', '키워드': '매출,판매,수입', '활성': 'Y' },
-      { '코드': '5001', '계정명': '급여', '유형': '비용', '키워드': '급여,임금,인건비', '활성': 'Y' },
-      { '코드': '1001', '계정명': '보통예금', '유형': '자산', '키워드': '', '활성': 'Y' },
-      { '코드': '2001', '계정명': '단기차입금', '유형': '부채', '키워드': '대출,차입', '활성': 'Y' },
-      { '코드': '3001', '계정명': '자본금', '유형': '자본', '키워드': '', '활성': 'Y' },
+      { '코드': '4011', '계정명': '매출',      '유형': '수익', '키워드': '매출,판매,수입',  '활성': 'Y', '입금시': '대변', '출금시': '차변' },
+      { '코드': '5001', '계정명': '급여',      '유형': '비용', '키워드': '급여,임금,인건비', '활성': 'Y', '입금시': '대변', '출금시': '차변' },
+      { '코드': '1001', '계정명': '보통예금',   '유형': '자산', '키워드': '',              '활성': 'Y', '입금시': '대변', '출금시': '차변' },
+      { '코드': '2001', '계정명': '단기차입금', '유형': '부채', '키워드': '대출,차입',      '활성': 'Y', '입금시': '대변', '출금시': '차변' },
+      { '코드': '3001', '계정명': '자본금',     '유형': '자본', '키워드': '',              '활성': 'Y', '입금시': '대변', '출금시': '차변' },
     ]
 
     const ws = XLSX.utils.json_to_sheet(sample)
-    ws['!cols'] = [{ wch: 10 }, { wch: 22 }, { wch: 8 }, { wch: 50 }, { wch: 6 }]
+    ws['!cols'] = [{ wch: 10 }, { wch: 22 }, { wch: 8 }, { wch: 50 }, { wch: 6 }, { wch: 8 }, { wch: 8 }]
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '계정과목')
 
@@ -256,10 +270,12 @@ export default function AccountsPage() {
       '유형':     TYPE_META[a.type]?.label ?? a.type,
       '키워드':   (a.keywords ?? []).join(','),
       '활성':     a.is_active ? 'Y' : 'N',
+      '입금시':   SIDE_LABEL[a.side_on_in  ?? 'credit'],
+      '출금시':   SIDE_LABEL[a.side_on_out ?? 'debit'],
     }))
 
     const ws = XLSX.utils.json_to_sheet(rows)
-    ws['!cols'] = [{ wch: 10 }, { wch: 22 }, { wch: 8 }, { wch: 50 }, { wch: 6 }]
+    ws['!cols'] = [{ wch: 10 }, { wch: 22 }, { wch: 8 }, { wch: 50 }, { wch: 6 }, { wch: 8 }, { wch: 8 }]
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '계정과목')
 
@@ -286,14 +302,16 @@ export default function AccountsPage() {
 
       const parsed = rows
         .map(row => ({
-          code:       String(row['코드']   ?? '').trim(),
-          name:       String(row['계정명'] ?? '').trim(),
-          type:       TYPE_LABEL_TO_KEY[String(row['유형'] ?? '').trim()] ?? '',
-          keywords:   String(row['키워드'] ?? '')
-                        .split(',')
-                        .map(k => k.trim())
-                        .filter(Boolean),
-          is_active:  String(row['활성']   ?? 'Y').trim().toUpperCase() !== 'N',
+          code:        String(row['코드']   ?? '').trim(),
+          name:        String(row['계정명'] ?? '').trim(),
+          type:        TYPE_LABEL_TO_KEY[String(row['유형'] ?? '').trim()] ?? '',
+          keywords:    String(row['키워드'] ?? '')
+                         .split(',')
+                         .map(k => k.trim())
+                         .filter(Boolean),
+          is_active:   String(row['활성']   ?? 'Y').trim().toUpperCase() !== 'N',
+          ...(row['입금시'] && { side_on_in:  SIDE_KEY[String(row['입금시']).trim()] }),
+          ...(row['출금시'] && { side_on_out: SIDE_KEY[String(row['출금시']).trim()] }),
         }))
         .filter(a => a.code && a.name && a.type)
 
@@ -394,7 +412,7 @@ export default function AccountsPage() {
 
       {/* 엑셀 형식 안내 */}
       <div className="mt-3 mb-5 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500">
-        엑셀 형식: <span className="font-mono text-gray-700">코드 | 계정명 | 유형(수익/비용/자산/부채/자본) | 키워드(쉼표 구분) | 활성(Y/N)</span>
+        엑셀 형식: <span className="font-mono text-gray-700">코드 | 계정명 | 유형(수익/비용/자산/부채/자본) | 키워드(쉼표 구분) | 활성(Y/N) | 입금시(차변/대변) | 출금시(차변/대변)</span>
         &nbsp;— 코드 기준으로 기존 항목은 수정, 없으면 신규 추가됩니다.
       </div>
 
@@ -442,6 +460,8 @@ export default function AccountsPage() {
                         <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-20">코드</th>
                         <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-36">계정명</th>
                         <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">자동 분류 키워드</th>
+                        <th className="text-center px-4 py-2.5 text-xs font-medium text-gray-500 w-16">입금시</th>
+                        <th className="text-center px-4 py-2.5 text-xs font-medium text-gray-500 w-16">출금시</th>
                         <th className="text-center px-4 py-2.5 text-xs font-medium text-gray-500 w-20">활성</th>
                         <th className="w-10" />
                       </tr>
@@ -460,6 +480,34 @@ export default function AccountsPage() {
                               onRemove={kw => handleRemoveKeyword(account, kw)}
                               onAdd={kw => handleAddKeyword(account, kw)}
                             />
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <select
+                              value={account.side_on_in ?? 'credit'}
+                              onChange={e => handleChangeSideRule(account, 'side_on_in', e.target.value as 'debit' | 'credit')}
+                              className={`text-xs border rounded px-1.5 py-0.5 focus:outline-none focus:border-slate-400 cursor-pointer ${
+                                account.side_on_in === 'debit'
+                                  ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                  : 'border-orange-200 bg-orange-50 text-orange-700'
+                              }`}
+                            >
+                              <option value="credit">대변</option>
+                              <option value="debit">차변</option>
+                            </select>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <select
+                              value={account.side_on_out ?? 'debit'}
+                              onChange={e => handleChangeSideRule(account, 'side_on_out', e.target.value as 'debit' | 'credit')}
+                              className={`text-xs border rounded px-1.5 py-0.5 focus:outline-none focus:border-slate-400 cursor-pointer ${
+                                account.side_on_out === 'debit'
+                                  ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                  : 'border-orange-200 bg-orange-50 text-orange-700'
+                              }`}
+                            >
+                              <option value="debit">차변</option>
+                              <option value="credit">대변</option>
+                            </select>
                           </td>
                           <td className="px-4 py-3 text-center">
                             <button

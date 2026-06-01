@@ -1,25 +1,16 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-// 계정 유형 + 입출금 방향 → 차변/대변 결정
-// 입금(amount_in): 분류 계정 = 대변(credit) / 은행자산 = 차변(debit)
-// 출금(amount_out): 분류 계정 = 차변(debit)  / 은행자산 = 대변(credit)
-function determineSide(
-  amountIn: number | null,
-  amountOut: number | null,
-): 'debit' | 'credit' {
-  return (amountIn ?? 0) > 0 ? 'credit' : 'debit'
-}
-
-// 업로드된 거래에 계정과목 keywords 기반 자동 분류 + 차변/대변 결정 적용
-// upload_log_id를 주면 해당 업로드 건만, 없으면 미분류 전체를 처리
+// 업로드된 거래에 계정과목 keywords 기반 자동 분류 + 차변/대변 결정 (2단계)
+// Step 1: 키워드 매칭 → suggested_account_id
+// Step 2: 계정별 방향 규칙(side_on_in / side_on_out) → suggested_side
 export async function classifyByKeywords(
   admin: SupabaseClient,
   uploadLogId?: string,
 ): Promise<{ classified: number; total: number }> {
-  // 활성 계정과목 + keywords 조회
+  // 활성 계정과목 + keywords + 방향 규칙 조회
   const { data: accounts } = await admin
     .from('accounts')
-    .select('id, type, keywords')
+    .select('id, type, keywords, side_on_in, side_on_out')
     .eq('is_active', true)
 
   if (!accounts?.length) return { classified: 0, total: 0 }
@@ -30,7 +21,7 @@ export async function classifyByKeywords(
   )
   if (!accountsWithKw.length) return { classified: 0, total: 0 }
 
-  // suggested_account_id가 없는 pending 거래 조회 (amount_in/out 포함)
+  // suggested_account_id가 없는 pending 거래 조회
   let query = admin
     .from('transactions')
     .select('id, description, amount_in, amount_out')
@@ -56,7 +47,12 @@ export async function classifyByKeywords(
       )
 
       if (matched) {
-        const side = determineSide(tx.amount_in, tx.amount_out)
+        // Step 2: 계정별 방향 규칙으로 차변/대변 결정
+        const isInflow = (tx.amount_in ?? 0) > 0
+        const side = isInflow
+          ? (account.side_on_in  ?? 'credit')   // 입금 시 방향 (기본: 대변)
+          : (account.side_on_out ?? 'debit')     // 출금 시 방향 (기본: 차변)
+
         await admin
           .from('transactions')
           .update({
