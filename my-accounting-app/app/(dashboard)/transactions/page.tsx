@@ -175,6 +175,26 @@ function TransactionsContent() {
     fetchTransactions()
   }, [fetchTransactions, showToast])
 
+  // 선택된 행 삭제
+  const handleBulkDelete = useCallback(async () => {
+    const selected = gridRef.current?.api.getSelectedRows() as Transaction[]
+    if (!selected?.length) return
+    if (!window.confirm(`선택한 ${selected.length}건을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return
+
+    const ids = selected.map(r => r.id)
+    const res = await fetch('/api/transactions', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
+    if (res.ok) {
+      showToast(`${ids.length}건 삭제 완료`)
+      fetchTransactions()
+    } else {
+      showToast('삭제 실패', 'err')
+    }
+  }, [fetchTransactions, showToast])
+
   // 자동 분류 실행
   const handleClassify = useCallback(async () => {
     setClassifying(true)
@@ -386,12 +406,20 @@ function TransactionsContent() {
             {classifying ? '분류 중...' : '✨ 자동 분류'}
           </button>
           {selectedCount > 0 && (
-            <button
-              onClick={handleBulkConfirm}
-              className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
-            >
-              선택 {selectedCount}건 확정
-            </button>
+            <>
+              <button
+                onClick={handleBulkConfirm}
+                className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
+              >
+                선택 {selectedCount}건 확정
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
+              >
+                선택 {selectedCount}건 삭제
+              </button>
+            </>
           )}
         </div>
       </div>

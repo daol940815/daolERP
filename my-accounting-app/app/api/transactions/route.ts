@@ -39,3 +39,24 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ data: data ?? [] })
 }
+
+// DELETE /api/transactions — body: { ids: string[] }
+export async function DELETE(req: NextRequest) {
+  const admin = createAdminClient()
+  const { ids } = await req.json() as { ids: string[] }
+
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return NextResponse.json({ error: '삭제할 항목을 선택하세요.' }, { status: 400 })
+  }
+
+  const { error } = await admin
+    .from('transactions')
+    .delete()
+    .in('id', ids)
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ deleted: ids.length })
+}
