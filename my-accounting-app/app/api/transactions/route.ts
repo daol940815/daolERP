@@ -69,16 +69,9 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // 삭제 후 해당 upload_log에 남은 거래가 없으면 업로드 이력도 삭제
-  for (const logId of affectedLogIds) {
-    const { count } = await admin
-      .from('transactions')
-      .select('id', { count: 'exact', head: true })
-      .eq('upload_log_id', logId)
-
-    if ((count ?? 0) === 0) {
-      await admin.from('upload_logs').delete().eq('id', logId)
-    }
+  // 관련 업로드 이력 삭제 → 동일 파일 재업로드 허용
+  if (affectedLogIds.length > 0) {
+    await admin.from('upload_logs').delete().in('id', affectedLogIds)
   }
 
   return NextResponse.json({ deleted: ids.length })
