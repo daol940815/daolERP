@@ -33,13 +33,24 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (existing) {
-    return NextResponse.json(
-      {
-        isDuplicate: true,
-        message: `동일한 파일이 이미 업로드되어 있습니다. (파일명: ${existing.file_name}, 업로드일: ${new Date(existing.created_at).toLocaleDateString('ko-KR')})`,
-      },
-      { status: 409 },
-    )
+    // 실제 거래 내역이 남아있는 경우에만 중복으로 처리
+    const { count } = await admin
+      .from('transactions')
+      .select('id', { count: 'exact', head: true })
+      .eq('upload_log_id', existing.id)
+
+    if ((count ?? 0) > 0) {
+      return NextResponse.json(
+        {
+          isDuplicate: true,
+          message: `동일한 파일이 이미 업로드되어 있습니다. (파일명: ${existing.file_name}, 업로드일: ${new Date(existing.created_at).toLocaleDateString('ko-KR')})`,
+        },
+        { status: 409 },
+      )
+    }
+
+    // 거래 내역이 없는 고아 이력은 삭제 후 재업로드 허용
+    await admin.from('upload_logs').delete().eq('id', existing.id)
   }
 
   // ── upload_logs 레코드 생성 (pending) ──────────────────────
