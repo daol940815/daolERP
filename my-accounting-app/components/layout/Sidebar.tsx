@@ -95,7 +95,14 @@ export default function Sidebar() {
                       className={linkCls(activeBankId === bank.id)}
                     >
                       <span className="text-xs leading-none text-slate-500">·</span>
-                      <span>{bank.bank_name}</span>
+                      <div className="flex flex-col min-w-0">
+                        <span className="truncate">{bank.bank_name}</span>
+                        {bank.current_balance !== null && (
+                          <span className="text-xs text-slate-500 font-normal">
+                            {bank.current_balance.toLocaleString('ko-KR')}원
+                          </span>
+                        )}
+                      </div>
                     </Link>
                   ))}
                 </div>

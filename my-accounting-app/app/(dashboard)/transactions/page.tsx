@@ -315,19 +315,24 @@ function TransactionsContent() {
     },
   ], [accounts, accountMap])
 
-  // 현재 선택된 은행 이름
-  const activeBankName = useMemo(() => {
+  // 현재 선택된 은행 정보 (이름 + 잔액)
+  const activeBank = useMemo(() => {
     if (!filters.bankAccountId) return null
-    return banks.find(b => b.id === filters.bankAccountId)?.bank_name ?? null
+    return banks.find(b => b.id === filters.bankAccountId) ?? null
   }, [filters.bankAccountId, banks])
 
   return (
     <div className="p-6 flex flex-col h-full">
-      <div className="flex items-center gap-3 mb-1">
+      <div className="flex items-center gap-3 mb-1 flex-wrap">
         <h1 className="text-2xl font-bold text-gray-900">거래 내역</h1>
-        {activeBankName && (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-700 rounded-full text-sm font-medium">
-            🏦 {activeBankName}
+        {activeBank && (
+          <span className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-full text-sm font-medium">
+            🏦 {activeBank.bank_name}
+            {activeBank.current_balance !== null && (
+              <span className="text-slate-500 font-normal">
+                잔액 <strong className="text-slate-800">{activeBank.current_balance.toLocaleString('ko-KR')}원</strong>
+              </span>
+            )}
             <a
               href="/transactions"
               className="ml-1 text-slate-400 hover:text-slate-600 leading-none"
