@@ -34,9 +34,19 @@ export default function Sidebar() {
     const res = await fetch(`/api/bank-accounts/${bankId}`, { method: 'DELETE' })
     if (res.ok) {
       fetchBanks()
-      // 삭제된 계좌로 필터 중이었다면 전체 보기로 이동
       if (activeBankId === bankId) router.push('/transactions')
     }
+  }
+
+  const handleEditAccountNumber = async (bankId: string, currentNumber: string | null) => {
+    const input = window.prompt('계좌번호를 입력하세요 (예: 1005-804-575410)', currentNumber ?? '')
+    if (input === null) return  // 취소
+    const res = await fetch(`/api/bank-accounts/${bankId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ account_number: input.trim() || null }),
+    })
+    if (res.ok) fetchBanks()
   }
 
   const handleLogout = async () => {
@@ -120,16 +130,25 @@ export default function Sidebar() {
                           )}
                         </div>
                       </Link>
-                      {/* 호버 시 삭제 버튼 */}
-                      <button
-                        onClick={() => handleDeleteBank(bank.id, bank.bank_name)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex
-                                   items-center justify-center w-5 h-5 rounded text-slate-500
-                                   hover:text-red-400 hover:bg-slate-700 transition-colors text-xs"
-                        title="계좌 삭제"
-                      >
-                        ✕
-                      </button>
+                      {/* 호버 시 액션 버튼들 */}
+                      <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-0.5">
+                        <button
+                          onClick={() => handleEditAccountNumber(bank.id, bank.account_number)}
+                          className="flex items-center justify-center w-5 h-5 rounded text-slate-500
+                                     hover:text-slate-300 hover:bg-slate-700 transition-colors text-xs"
+                          title="계좌번호 수정"
+                        >
+                          ✎
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBank(bank.id, bank.bank_name)}
+                          className="flex items-center justify-center w-5 h-5 rounded text-slate-500
+                                     hover:text-red-400 hover:bg-slate-700 transition-colors text-xs"
+                          title="계좌 삭제"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}

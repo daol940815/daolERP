@@ -94,6 +94,18 @@ function detectFormat(headers: string[]): string {
   return '일반 CSV/Excel'
 }
 
+// 헤더 이전 메타데이터 행에서 계좌번호 자동 감지
+// 한국 계좌번호 패턴: 숫자-숫자-숫자 (총 10자리 이상)
+function detectAccountNumber(rows: (string | number)[][], headerIdx: number): string | null {
+  const pattern = /\d{3,6}-\d{2,6}-\d{4,8}(?:-\d+)?/
+  for (let i = 0; i < headerIdx; i++) {
+    const text = rows[i].map(String).join(' ')
+    const match = text.match(pattern)
+    if (match) return match[0]
+  }
+  return null
+}
+
 // 헤더 행 찾기 (앞에 메타데이터 행이 있을 수 있음)
 function findHeaderRow(rows: (string | number)[][]): number {
   for (let i = 0; i < Math.min(10, rows.length); i++) {
@@ -181,7 +193,8 @@ async function parseCSV(
   }
 
   const parsedRows = mapRows(rows, headerIdx, colMap, source, warnings)
-  return { rows: parsedRows, detectedFormat, warnings, rawHeaders: headers }
+  const suggestedAccountNumber = detectAccountNumber(rows, headerIdx)
+  return { rows: parsedRows, detectedFormat, warnings, rawHeaders: headers, suggestedAccountNumber }
 }
 
 // Excel 파싱 (XLSX, XLS)
@@ -211,7 +224,8 @@ async function parseExcel(
   }
 
   const parsedRows = mapRows(rows, headerIdx, colMap, source, warnings)
-  return { rows: parsedRows, detectedFormat, warnings, rawHeaders: headers }
+  const suggestedAccountNumber = detectAccountNumber(rows, headerIdx)
+  return { rows: parsedRows, detectedFormat, warnings, rawHeaders: headers, suggestedAccountNumber }
 }
 
 // 메인 파싱 함수 (확장자로 파서 분기)

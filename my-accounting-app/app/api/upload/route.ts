@@ -11,6 +11,7 @@ interface UploadBody {
   fileType: string
   source: 'bank' | 'card' | 'manual'
   bankName: string
+  accountNumber: string
   detectedFormat: string
 }
 
@@ -57,21 +58,29 @@ export async function POST(req: NextRequest) {
   // ── 은행 계좌 자동 생성 (은행 명세서인 경우) ──────────────────
   let bankAccountId: string | null = null
   const bankNameTrimmed = body.bankName?.trim() || null
+  const accountNumberTrimmed = body.accountNumber?.trim() || null
 
   if (bankNameTrimmed && body.source === 'bank') {
     // 같은 이름의 은행 계좌가 있으면 재사용, 없으면 새로 생성
     const { data: existingBank } = await admin
       .from('bank_accounts')
-      .select('id')
+      .select('id, account_number')
       .eq('bank_name', bankNameTrimmed)
       .maybeSingle()
 
     if (existingBank) {
       bankAccountId = existingBank.id
+      // 계좌번호가 없었다면 이번에 감지/입력된 값으로 업데이트
+      if (accountNumberTrimmed && !existingBank.account_number) {
+        await admin
+          .from('bank_accounts')
+          .update({ account_number: accountNumberTrimmed })
+          .eq('id', existingBank.id)
+      }
     } else {
       const { data: newBank } = await admin
         .from('bank_accounts')
-        .insert({ bank_name: bankNameTrimmed })
+        .insert({ bank_name: bankNameTrimmed, account_number: accountNumberTrimmed })
         .select('id')
         .single()
       if (newBank) bankAccountId = newBank.id

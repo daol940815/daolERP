@@ -18,6 +18,7 @@ export interface ParseResult {
   fileName: string
   fileSize: number        // bytes
   fileType: 'csv' | 'xlsx' | 'xls'
+  suggestedAccountNumber: string | null  // 파일 메타데이터에서 감지된 계좌번호
 }
 
 // 업로드 진행 단계
