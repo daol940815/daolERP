@@ -13,19 +13,31 @@ export default function Sidebar() {
   const [banksOpen, setBanksOpen] = useState(true)
   const [activeBankId, setActiveBankId] = useState<string | null>(null)
 
-  // 페이지 이동마다 은행 계좌 목록 갱신
-  useEffect(() => {
+  const fetchBanks = () => {
     fetch('/api/bank-accounts')
       .then(r => r.json())
       .then(d => { if (Array.isArray(d.data)) setBanks(d.data) })
       .catch(() => null)
-  }, [pathname])
+  }
+
+  // 페이지 이동마다 은행 계좌 목록 갱신
+  useEffect(() => { fetchBanks() }, [pathname])
 
   // URL 변경 시 active 은행 ID 갱신
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     setActiveBankId(params.get('bankAccountId'))
   }, [pathname])
+
+  const handleDeleteBank = async (bankId: string, bankName: string) => {
+    if (!window.confirm(`'${bankName}' 계좌를 삭제하시겠습니까?\n거래 내역은 유지되지만 계좌 연결이 해제됩니다.`)) return
+    const res = await fetch(`/api/bank-accounts/${bankId}`, { method: 'DELETE' })
+    if (res.ok) {
+      fetchBanks()
+      // 삭제된 계좌로 필터 중이었다면 전체 보기로 이동
+      if (activeBankId === bankId) router.push('/transactions')
+    }
+  }
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -86,28 +98,39 @@ export default function Sidebar() {
                   <p className="px-3 py-1.5 text-xs text-slate-600">등록된 계좌가 없습니다</p>
                 ) : (
                   banks.map(bank => (
-                    <Link
-                      key={bank.id}
-                      href={`/transactions?bankAccountId=${bank.id}`}
-                      className={linkCls(activeBankId === bank.id)}
-                    >
-                      <span className="text-xs leading-none text-slate-500 shrink-0">·</span>
-                      <div className="flex flex-col min-w-0">
-                        <span className="truncate">
-                          {bank.bank_name}
-                          {bank.account_number && (
-                            <span className="text-slate-500 font-normal text-xs ml-1">
-                              {bank.account_number}
+                    <div key={bank.id} className="group relative mb-0.5">
+                      <Link
+                        href={`/transactions?bankAccountId=${bank.id}`}
+                        className={linkCls(activeBankId === bank.id)}
+                      >
+                        <span className="text-xs leading-none text-slate-500 shrink-0">·</span>
+                        <div className="flex flex-col min-w-0 flex-1 pr-5">
+                          <span className="truncate">
+                            {bank.bank_name}
+                            {bank.account_number && (
+                              <span className="text-slate-500 font-normal text-xs ml-1">
+                                {bank.account_number}
+                              </span>
+                            )}
+                          </span>
+                          {bank.current_balance !== null && (
+                            <span className="text-xs text-slate-500 font-normal">
+                              {bank.current_balance.toLocaleString('ko-KR')}원
                             </span>
                           )}
-                        </span>
-                        {bank.current_balance !== null && (
-                          <span className="text-xs text-slate-500 font-normal">
-                            {bank.current_balance.toLocaleString('ko-KR')}원
-                          </span>
-                        )}
-                      </div>
-                    </Link>
+                        </div>
+                      </Link>
+                      {/* 호버 시 삭제 버튼 */}
+                      <button
+                        onClick={() => handleDeleteBank(bank.id, bank.bank_name)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex
+                                   items-center justify-center w-5 h-5 rounded text-slate-500
+                                   hover:text-red-400 hover:bg-slate-700 transition-colors text-xs"
+                        title="계좌 삭제"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   ))
                 )}
 
