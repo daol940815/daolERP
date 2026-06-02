@@ -130,14 +130,9 @@ export default function Sidebar() {
                           <span className="truncate">
                             {bank.bank_name}
                           </span>
-                          {(bank.account_number || bank.current_balance !== null) && (
+                          {bank.account_number && (
                             <span className="text-xs text-slate-500 font-normal truncate">
-                              {[
-                                bank.account_number ?? null,
-                                bank.current_balance !== null
-                                  ? bank.current_balance.toLocaleString('ko-KR') + '원'
-                                  : null,
-                              ].filter(Boolean).join(' · ')}
+                              {bank.account_number}
                             </span>
                           )}
                         </div>
