@@ -6,10 +6,10 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import type { BankAccount } from '@/types/bank-account'
 
-export default function Sidebar() {
+export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAccount[] }) {
   const pathname = usePathname()
   const router = useRouter()
-  const [banks, setBanks] = useState<BankAccount[]>([])
+  const [banks, setBanks] = useState<BankAccount[]>(initialBanks)
   const [banksOpen, setBanksOpen] = useState(true)
   const [activeBankId, setActiveBankId] = useState<string | null>(null)
   const [editingBankId, setEditingBankId] = useState<string | null>(null)
