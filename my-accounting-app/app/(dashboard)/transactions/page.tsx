@@ -276,6 +276,14 @@ function TransactionsContent() {
       cellStyle: { color: '#dc2626', fontWeight: 500 },
     },
     {
+      field: 'balance',
+      headerName: '잔액',
+      width: 130,
+      type: 'numericColumn',
+      valueFormatter: (p) => p.value != null ? p.value.toLocaleString('ko-KR') + '원' : '',
+      cellStyle: (p) => ({ color: (p.value ?? 0) < 0 ? '#dc2626' : '#6b7280' }),
+    },
+    {
       // 계정과목 인라인 편집 컬럼
       colId: 'account',
       headerName: '계정과목',
