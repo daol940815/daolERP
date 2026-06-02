@@ -361,7 +361,9 @@ function TransactionsContent() {
             🏦 {activeBank.bank_name}
             {activeBank.current_balance !== null && (
               <span className="text-slate-500 font-normal">
-                잔액 <strong className="text-slate-800">{activeBank.current_balance.toLocaleString('ko-KR')}원</strong>
+                잔액 <strong className={activeBank.current_balance < 0 ? 'text-red-600' : 'text-slate-800'}>
+                  {activeBank.current_balance.toLocaleString('ko-KR')}원
+                </strong>
               </span>
             )}
             <a

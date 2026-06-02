@@ -16,6 +16,10 @@ ModuleRegistry.registerModules([AllCommunityModule])
 const amountFmt = (p: ValueFormatterParams<ParsedRow, number>) =>
   p.value ? p.value.toLocaleString('ko-KR') + '원' : ''
 
+// 잔액 포맷터 (0 및 음수 포함 표시)
+const balanceFmt = (p: ValueFormatterParams<ParsedRow, number | undefined>) =>
+  p.value != null ? p.value.toLocaleString('ko-KR') + '원' : ''
+
 // AG Grid 컬럼 정의
 const COL_DEFS: ColDef<ParsedRow>[] = [
   { field: 'tx_date',     headerName: '거래일자', width: 120, pinned: 'left' },
@@ -32,8 +36,8 @@ const COL_DEFS: ColDef<ParsedRow>[] = [
   },
   {
     field: 'balance', headerName: '잔액', width: 140,
-    type: 'numericColumn', valueFormatter: amountFmt,
-    cellStyle: { color: '#6b7280' },
+    type: 'numericColumn', valueFormatter: balanceFmt,
+    cellStyle: (p) => ({ color: (p.value ?? 0) < 0 ? '#dc2626' : '#6b7280' }),
   },
   { field: 'source', headerName: '출처', width: 80 },
 ]

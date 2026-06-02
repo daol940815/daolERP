@@ -38,13 +38,22 @@ function parseDate(value: string | number | undefined | null): string | null {
   return null
 }
 
-// 금액 문자열 → 정수 (콤마, 원, ₩ 제거)
+// 금액 문자열 → 정수 (콤마, 원, ₩ 제거, 항상 양수)
 function parseAmount(value: string | number | undefined | null): number {
   if (value === undefined || value === null || value === '') return 0
   const str = String(value).replace(/[,\s원₩]/g, '').trim()
   if (!str || str === '-') return 0
   const num = parseFloat(str)
   return isNaN(num) ? 0 : Math.round(Math.abs(num))
+}
+
+// 잔액 문자열 → 정수 (음수 허용 — 마이너스 통장 대응)
+function parseBalance(value: string | number | undefined | null): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  const str = String(value).replace(/[,\s원₩]/g, '').trim()
+  if (!str || str === '-') return undefined
+  const num = parseFloat(str)
+  return isNaN(num) ? undefined : Math.round(num)
 }
 
 // 헤더 정규화 (공백·괄호 제거, 소문자)
@@ -160,7 +169,7 @@ function mapRows(
       }
     }
 
-    const balance = colMap.balance !== undefined ? parseAmount(row[colMap.balance]) : undefined
+    const balance = colMap.balance !== undefined ? parseBalance(row[colMap.balance]) : undefined
 
     result.push({ tx_date, description, amount_in, amount_out, balance, source })
   }
