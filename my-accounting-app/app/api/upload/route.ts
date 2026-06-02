@@ -65,7 +65,8 @@ export async function POST(req: NextRequest) {
     let existingBank: { id: string; account_number: string | null } | null = null
 
     if (accountNumberTrimmed) {
-      // 1순위: (은행명 + 계좌번호) 정확 일치
+      // (은행명 + 계좌번호) 정확 일치 행만 재사용
+      // — 계좌번호 없는 기존 행에 자동 병합하지 않음 (다른 계좌와 뒤섞임 방지)
       const { data } = await admin
         .from('bank_accounts')
         .select('id, account_number')
@@ -73,24 +74,6 @@ export async function POST(req: NextRequest) {
         .eq('account_number', accountNumberTrimmed)
         .maybeSingle()
       existingBank = data
-
-      if (!existingBank) {
-        // 2순위: 같은 은행명이면서 계좌번호가 아직 없는 행 → 계좌번호 채워서 재사용
-        const { data: noNumBank } = await admin
-          .from('bank_accounts')
-          .select('id, account_number')
-          .eq('bank_name', bankNameTrimmed)
-          .is('account_number', null)
-          .maybeSingle()
-
-        if (noNumBank) {
-          await admin
-            .from('bank_accounts')
-            .update({ account_number: accountNumberTrimmed })
-            .eq('id', noNumBank.id)
-          existingBank = { ...noNumBank, account_number: accountNumberTrimmed }
-        }
-      }
     } else {
       // 계좌번호 없음: 같은 은행명이면서 계좌번호도 없는 행만 재사용
       const { data } = await admin
