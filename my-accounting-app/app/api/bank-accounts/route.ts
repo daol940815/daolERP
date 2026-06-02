@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/bank-accounts — 활성 은행 계좌 목록 (최신 잔액 포함)
 export async function GET() {
   const admin = createAdminClient()

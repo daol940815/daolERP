@@ -17,7 +17,7 @@ export default function Sidebar() {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const fetchBanks = () => {
-    fetch('/api/bank-accounts')
+    fetch('/api/bank-accounts', { cache: 'no-store' })
       .then(r => r.json())
       .then(d => { if (Array.isArray(d.data)) setBanks(d.data) })
       .catch(() => null)
@@ -56,6 +56,8 @@ export default function Sidebar() {
         b.id === bankId ? { ...b, account_number: saved } : b
       ))
       setEditingBankId(null)
+      // DB 실제 저장값으로 재동기화
+      fetchBanks()
     } catch {
       alert('네트워크 오류가 발생했습니다.')
     }
