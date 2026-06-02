@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import type { BankAccount } from '@/types/bank-account'
@@ -12,6 +12,9 @@ export default function Sidebar() {
   const [banks, setBanks] = useState<BankAccount[]>([])
   const [banksOpen, setBanksOpen] = useState(true)
   const [activeBankId, setActiveBankId] = useState<string | null>(null)
+  const [editingBankId, setEditingBankId] = useState<string | null>(null)
+  const [editingValue, setEditingValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const fetchBanks = () => {
     fetch('/api/bank-accounts')
@@ -20,14 +23,43 @@ export default function Sidebar() {
       .catch(() => null)
   }
 
-  // 페이지 이동마다 은행 계좌 목록 갱신
   useEffect(() => { fetchBanks() }, [pathname])
 
-  // URL 변경 시 active 은행 ID 갱신
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     setActiveBankId(params.get('bankAccountId'))
   }, [pathname])
+
+  // 편집 모드 시작
+  const startEdit = (bankId: string, currentNumber: string | null) => {
+    setEditingBankId(bankId)
+    setEditingValue(currentNumber ?? '')
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }
+
+  // 계좌번호 저장
+  const handleSaveAccountNumber = async (bankId: string) => {
+    const newNumber = editingValue.trim() || null
+    try {
+      const res = await fetch(`/api/bank-accounts/${bankId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_number: newNumber }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        alert(`저장 실패: ${json.error ?? '알 수 없는 오류'}`)
+        return
+      }
+      const saved = (json.data?.account_number as string | null) ?? null
+      setBanks(prev => prev.map(b =>
+        b.id === bankId ? { ...b, account_number: saved } : b
+      ))
+      setEditingBankId(null)
+    } catch {
+      alert('네트워크 오류가 발생했습니다.')
+    }
+  }
 
   const handleDeleteBank = async (bankId: string, bankName: string) => {
     if (!window.confirm(`'${bankName}' 계좌를 삭제하시겠습니까?\n거래 내역은 유지되지만 계좌 연결이 해제됩니다.`)) return
@@ -35,37 +67,6 @@ export default function Sidebar() {
     if (res.ok) {
       fetchBanks()
       if (activeBankId === bankId) router.push('/transactions')
-    }
-  }
-
-  const handleEditAccountNumber = async (bankId: string, currentNumber: string | null) => {
-    const input = window.prompt('계좌번호를 입력하세요 (예: 1005-804-575410)', currentNumber ?? '')
-    if (input === null) return  // 취소
-
-    const newNumber = input.trim() || null
-
-    try {
-      const res = await fetch(`/api/bank-accounts/${bankId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account_number: newNumber }),
-      })
-
-      const json = await res.json()
-
-      if (!res.ok) {
-        alert(`저장 실패: ${json.error ?? '알 수 없는 오류'}`)
-        return
-      }
-
-      // DB에서 반환된 실제 값으로 상태 갱신
-      const saved = json.data?.account_number ?? null
-      setBanks(prev => prev.map(b =>
-        b.id === bankId ? { ...b, account_number: saved } : b
-      ))
-    } catch {
-      alert('네트워크 오류가 발생했습니다.')
-      fetchBanks()
     }
   }
 
@@ -109,7 +110,7 @@ export default function Sidebar() {
             <span>거래 내역</span>
           </Link>
 
-          {/* ── 은행 계좌 섹션 (항상 표시) ── */}
+          {/* ── 은행 계좌 섹션 ── */}
           <div className="mt-0.5">
             <button
               onClick={() => setBanksOpen(o => !o)}
@@ -128,42 +129,75 @@ export default function Sidebar() {
                   <p className="px-3 py-1.5 text-xs text-slate-600">등록된 계좌가 없습니다</p>
                 ) : (
                   banks.map(bank => (
-                    <div key={bank.id} className="group relative mb-0.5">
-                      <Link
-                        href={`/transactions?bankAccountId=${bank.id}`}
-                        className={linkCls(activeBankId === bank.id)}
-                      >
-                        <span className="text-xs leading-none text-slate-500 shrink-0">·</span>
-                        <div className="flex flex-col min-w-0 flex-1 pr-5">
-                          <span className="truncate">
-                            {bank.bank_name}
-                          </span>
-                          {bank.account_number && (
-                            <span className="text-xs text-slate-500 font-normal truncate">
-                              {bank.account_number}
-                            </span>
-                          )}
+                    <div key={bank.id} className="mb-0.5">
+                      {editingBankId === bank.id ? (
+                        /* 계좌번호 인라인 편집 */
+                        <div className="px-2 py-2 rounded-lg bg-slate-800">
+                          <p className="text-xs text-slate-400 mb-1.5 truncate">{bank.bank_name}</p>
+                          <div className="flex gap-1">
+                            <input
+                              ref={inputRef}
+                              value={editingValue}
+                              onChange={e => setEditingValue(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleSaveAccountNumber(bank.id)
+                                if (e.key === 'Escape') setEditingBankId(null)
+                              }}
+                              placeholder="계좌번호"
+                              className="flex-1 min-w-0 text-xs bg-slate-700 text-white border border-slate-600 rounded px-2 py-1 focus:outline-none focus:border-blue-400 placeholder-slate-500"
+                            />
+                            <button
+                              onClick={() => handleSaveAccountNumber(bank.id)}
+                              className="shrink-0 text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-500"
+                            >
+                              저장
+                            </button>
+                            <button
+                              onClick={() => setEditingBankId(null)}
+                              className="shrink-0 text-xs px-1.5 py-1 text-slate-400 hover:text-white"
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </div>
-                      </Link>
-                      {/* 호버 시 액션 버튼들 */}
-                      <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-0.5">
-                        <button
-                          onClick={() => handleEditAccountNumber(bank.id, bank.account_number)}
-                          className="flex items-center justify-center w-5 h-5 rounded text-slate-500
-                                     hover:text-slate-300 hover:bg-slate-700 transition-colors text-xs"
-                          title="계좌번호 수정"
-                        >
-                          ✎
-                        </button>
-                        <button
-                          onClick={() => handleDeleteBank(bank.id, bank.bank_name)}
-                          className="flex items-center justify-center w-5 h-5 rounded text-slate-500
-                                     hover:text-red-400 hover:bg-slate-700 transition-colors text-xs"
-                          title="계좌 삭제"
-                        >
-                          ✕
-                        </button>
-                      </div>
+                      ) : (
+                        /* 일반 표시 */
+                        <div className="group relative">
+                          <Link
+                            href={`/transactions?bankAccountId=${bank.id}`}
+                            className={linkCls(activeBankId === bank.id)}
+                          >
+                            <span className="text-xs leading-none text-slate-500 shrink-0">·</span>
+                            <div className="flex flex-col min-w-0 flex-1 pr-5">
+                              <span className="truncate">{bank.bank_name}</span>
+                              {bank.account_number && (
+                                <span className="text-xs text-slate-500 font-normal truncate">
+                                  {bank.account_number}
+                                </span>
+                              )}
+                            </div>
+                          </Link>
+                          {/* 호버 시 액션 버튼 */}
+                          <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-0.5">
+                            <button
+                              onClick={() => startEdit(bank.id, bank.account_number)}
+                              className="flex items-center justify-center w-5 h-5 rounded text-slate-500
+                                         hover:text-slate-300 hover:bg-slate-700 transition-colors text-xs"
+                              title="계좌번호 수정"
+                            >
+                              ✎
+                            </button>
+                            <button
+                              onClick={() => handleDeleteBank(bank.id, bank.bank_name)}
+                              className="flex items-center justify-center w-5 h-5 rounded text-slate-500
+                                         hover:text-red-400 hover:bg-slate-700 transition-colors text-xs"
+                              title="계좌 삭제"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))
                 )}
