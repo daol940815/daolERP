@@ -61,22 +61,48 @@ export async function POST(req: NextRequest) {
   const accountNumberTrimmed = body.accountNumber?.trim() || null
 
   if (bankNameTrimmed && body.source === 'bank') {
-    // 같은 이름의 은행 계좌가 있으면 재사용, 없으면 새로 생성
-    const { data: existingBank } = await admin
-      .from('bank_accounts')
-      .select('id, account_number')
-      .eq('bank_name', bankNameTrimmed)
-      .maybeSingle()
+    let existingBank: { id: string; account_number: string | null } | null = null
+
+    if (accountNumberTrimmed) {
+      // 1순위: (은행명 + 계좌번호) 정확 일치
+      const { data } = await admin
+        .from('bank_accounts')
+        .select('id, account_number')
+        .eq('bank_name', bankNameTrimmed)
+        .eq('account_number', accountNumberTrimmed)
+        .maybeSingle()
+      existingBank = data
+
+      if (!existingBank) {
+        // 2순위: 같은 은행명이면서 계좌번호가 아직 없는 행 → 계좌번호 채워서 재사용
+        const { data: noNumBank } = await admin
+          .from('bank_accounts')
+          .select('id, account_number')
+          .eq('bank_name', bankNameTrimmed)
+          .is('account_number', null)
+          .maybeSingle()
+
+        if (noNumBank) {
+          await admin
+            .from('bank_accounts')
+            .update({ account_number: accountNumberTrimmed })
+            .eq('id', noNumBank.id)
+          existingBank = { ...noNumBank, account_number: accountNumberTrimmed }
+        }
+      }
+    } else {
+      // 계좌번호 없음: 같은 은행명이면서 계좌번호도 없는 행만 재사용
+      const { data } = await admin
+        .from('bank_accounts')
+        .select('id, account_number')
+        .eq('bank_name', bankNameTrimmed)
+        .is('account_number', null)
+        .maybeSingle()
+      existingBank = data
+    }
 
     if (existingBank) {
       bankAccountId = existingBank.id
-      // 계좌번호가 없었다면 이번에 감지/입력된 값으로 업데이트
-      if (accountNumberTrimmed && !existingBank.account_number) {
-        await admin
-          .from('bank_accounts')
-          .update({ account_number: accountNumberTrimmed })
-          .eq('id', existingBank.id)
-      }
     } else {
       const { data: newBank } = await admin
         .from('bank_accounts')
