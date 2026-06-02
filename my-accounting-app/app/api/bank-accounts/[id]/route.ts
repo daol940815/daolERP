@@ -10,16 +10,18 @@ export async function PATCH(
   const { id } = await params
   const body = await req.json() as { account_number?: string | null }
 
-  const { error } = await admin
+  const { data, error } = await admin
     .from('bank_accounts')
     .update({ account_number: body.account_number === undefined ? null : body.account_number })
     .eq('id', id)
+    .select('id, account_number')
+    .single()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ data })
 }
 
 // DELETE /api/bank-accounts/:id

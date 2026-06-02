@@ -44,20 +44,28 @@ export default function Sidebar() {
 
     const newNumber = input.trim() || null
 
-    const res = await fetch(`/api/bank-accounts/${bankId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ account_number: newNumber }),
-    })
+    try {
+      const res = await fetch(`/api/bank-accounts/${bankId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_number: newNumber }),
+      })
 
-    if (res.ok) {
-      // fetchBanks() 재조회 없이 해당 항목만 즉시 상태 반영
+      const json = await res.json()
+
+      if (!res.ok) {
+        alert(`저장 실패: ${json.error ?? '알 수 없는 오류'}`)
+        return
+      }
+
+      // DB에서 반환된 실제 값으로 상태 갱신
+      const saved = json.data?.account_number ?? null
       setBanks(prev => prev.map(b =>
-        b.id === bankId ? { ...b, account_number: newNumber } : b
+        b.id === bankId ? { ...b, account_number: saved } : b
       ))
-    } else {
-      const json = await res.json().catch(() => ({}))
-      alert(`저장 실패: ${(json as { error?: string }).error ?? '알 수 없는 오류'}`)
+    } catch {
+      alert('네트워크 오류가 발생했습니다.')
+      fetchBanks()
     }
   }
 
