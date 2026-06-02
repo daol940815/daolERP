@@ -104,11 +104,17 @@ function TransactionsContent() {
       .then(r => r.json())
       .then(d => { if (d.data) setAccounts(d.data) })
       .catch(() => null)
-    fetch('/api/bank-accounts')
+  }, [])
+
+  // 은행 계좌 목록(잔액 포함) 조회 — 거래 변경 후 잔액 갱신에 재사용
+  const fetchBanks = useCallback(() => {
+    fetch('/api/bank-accounts', { cache: 'no-store' })
       .then(r => r.json())
       .then(d => { if (d.data) setBanks(d.data) })
       .catch(() => null)
   }, [])
+
+  useEffect(() => { fetchBanks() }, [fetchBanks])
 
   // 거래 내역 조회
   const fetchTransactions = useCallback(async () => {
@@ -199,10 +205,11 @@ function TransactionsContent() {
     if (res.ok) {
       showToast(`${ids.length}건 삭제 완료`)
       fetchTransactions()
+      fetchBanks()  // 거래 삭제로 최신 잔액이 바뀌므로 계좌 잔액도 갱신
     } else {
       showToast('삭제 실패', 'err')
     }
-  }, [fetchTransactions, showToast])
+  }, [fetchTransactions, fetchBanks, showToast])
 
   // 자동 분류 실행
   const handleClassify = useCallback(async () => {
