@@ -129,15 +129,15 @@ export default function Sidebar() {
                         <div className="flex flex-col min-w-0 flex-1 pr-5">
                           <span className="truncate">
                             {bank.bank_name}
-                            {bank.account_number && (
-                              <span className="text-slate-500 font-normal text-xs ml-1">
-                                {bank.account_number}
-                              </span>
-                            )}
                           </span>
-                          {bank.current_balance !== null && (
-                            <span className="text-xs text-slate-500 font-normal">
-                              {bank.current_balance.toLocaleString('ko-KR')}원
+                          {(bank.account_number || bank.current_balance !== null) && (
+                            <span className="text-xs text-slate-500 font-normal truncate">
+                              {[
+                                bank.account_number ?? null,
+                                bank.current_balance !== null
+                                  ? bank.current_balance.toLocaleString('ko-KR') + '원'
+                                  : null,
+                              ].filter(Boolean).join(' · ')}
                             </span>
                           )}
                         </div>
