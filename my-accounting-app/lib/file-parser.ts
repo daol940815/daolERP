@@ -48,12 +48,41 @@ function parseAmount(value: string | number | undefined | null): number {
 }
 
 // 잔액 문자열 → 정수 (음수 허용 — 마이너스 통장 대응)
+// 한국 은행 명세서의 다양한 음수 표기 처리:
+//   -1,000,000  (앞 마이너스)
+//   1,000,000-  (뒤 마이너스 — 일부 은행/엑셀)
+//   (1,000,000) (괄호 — 회계식 음수)
+//   △1,000,000  (세모 — 일부 명세서)
 function parseBalance(value: string | number | undefined | null): number | undefined {
   if (value === undefined || value === null || value === '') return undefined
-  const str = String(value).replace(/[,\s원₩]/g, '').trim()
+
+  // 숫자 타입은 그대로 (엑셀 셀이 음수 number로 올 수 있음)
+  if (typeof value === 'number') {
+    return isNaN(value) ? undefined : Math.round(value)
+  }
+
+  let str = String(value).replace(/[,\s원₩]/g, '').trim()
   if (!str || str === '-') return undefined
+
+  // 음수 여부 판별 후 부호 문자 제거
+  let negative = false
+  if (/^\(.*\)$/.test(str)) {          // (1000000)
+    negative = true
+    str = str.slice(1, -1)
+  } else if (str.endsWith('-')) {       // 1000000-
+    negative = true
+    str = str.slice(0, -1)
+  } else if (str.startsWith('-')) {     // -1000000
+    negative = true
+    str = str.slice(1)
+  } else if (str.startsWith('△') || str.startsWith('▲')) {  // △1000000
+    negative = true
+    str = str.slice(1)
+  }
+
   const num = parseFloat(str)
-  return isNaN(num) ? undefined : Math.round(num)
+  if (isNaN(num)) return undefined
+  return Math.round(negative ? -Math.abs(num) : num)
 }
 
 // 헤더 정규화 (공백·괄호 제거, 소문자)

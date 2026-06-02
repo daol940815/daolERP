@@ -13,6 +13,7 @@ interface UploadBody {
   bankName: string
   accountNumber: string
   detectedFormat: string
+  isMinusAccount?: boolean
 }
 
 export async function POST(req: NextRequest) {
@@ -180,10 +181,16 @@ export async function POST(req: NextRequest) {
     })
     .eq('id', uploadLogId)
 
-  // ── 업로드 완료 후 키워드 자동 분류 실행 ────────────────
+  // ── 업로드 완료 후 자동 분류 ────────────────────────────
   if (insertedRows > 0) {
-    // 실패해도 업로드 결과에는 영향 없음
-    classifyByKeywords(admin, uploadLogId).catch(() => null)
+    if (body.isMinusAccount) {
+      // 마이너스 통장: 모든 거래를 단기차입금(부채)으로 기본 분류
+      // (개별 거래는 거래 내역 화면에서 변경 가능)
+      classifyAsBorrowing(admin, uploadLogId).catch(() => null)
+    } else {
+      // 일반: 키워드 기반 자동 분류 (실패해도 업로드 결과에는 영향 없음)
+      classifyByKeywords(admin, uploadLogId).catch(() => null)
+    }
   }
 
   const result: UploadResult = {
@@ -195,4 +202,52 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json(result)
+}
+
+// 마이너스 통장 거래를 단기차입금(부채)으로 기본 분류
+// 입금(차입) → side_on_in(대변), 출금(상환) → side_on_out(차변)
+async function classifyAsBorrowing(
+  admin: ReturnType<typeof createAdminClient>,
+  uploadLogId: string,
+) {
+  // 단기차입금 계정 조회 (마이그레이션 011 필요)
+  const { data: account } = await admin
+    .from('accounts')
+    .select('id, side_on_in, side_on_out')
+    .eq('code', '2002')
+    .maybeSingle()
+
+  if (!account) {
+    // 계정이 없으면 일반 키워드 분류로 폴백
+    await classifyByKeywords(admin, uploadLogId)
+    return
+  }
+
+  const sideIn  = account.side_on_in  ?? 'credit'
+  const sideOut = account.side_on_out ?? 'debit'
+
+  // 입금(차입) 거래: amount_in > 0
+  await admin
+    .from('transactions')
+    .update({
+      suggested_account_id: account.id,
+      suggested_side:       sideIn,
+      ai_confidence:        0.9,
+      ai_reason:            '마이너스 통장 기본 분류(차입)',
+    })
+    .eq('upload_log_id', uploadLogId)
+    .gt('amount_in', 0)
+
+  // 출금(상환) 거래: amount_in = 0 이면서 amount_out > 0
+  await admin
+    .from('transactions')
+    .update({
+      suggested_account_id: account.id,
+      suggested_side:       sideOut,
+      ai_confidence:        0.9,
+      ai_reason:            '마이너스 통장 기본 분류(상환)',
+    })
+    .eq('upload_log_id', uploadLogId)
+    .eq('amount_in', 0)
+    .gt('amount_out', 0)
 }

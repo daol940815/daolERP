@@ -49,6 +49,7 @@ export default function UploadPage() {
   const [sourceType, setSourceType]   = useState<'bank' | 'card'>('bank')
   const [bankName, setBankName]       = useState('')
   const [accountNumber, setAccountNumber] = useState('')
+  const [isMinusAccount, setIsMinusAccount] = useState(false)
   const [isDragging, setIsDragging]   = useState(false)
   const [error, setError]             = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -83,6 +84,20 @@ export default function UploadPage() {
       setStep('error')
     }
   }, [sourceType])
+
+  // 마이너스 통장 토글 — 입금/출금 컬럼이 반대로 표기된 명세서 교정
+  // (들어온 돈이 출금, 나간 돈이 입금으로 적힌 형식 → 실제 현금 방향으로 스왑)
+  const handleToggleMinus = (checked: boolean) => {
+    setIsMinusAccount(checked)
+    setParseResult(prev => prev ? {
+      ...prev,
+      rows: prev.rows.map(r => ({
+        ...r,
+        amount_in:  r.amount_out,
+        amount_out: r.amount_in,
+      })),
+    } : prev)
+  }
 
   // 드래그 앤 드롭 핸들러
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -122,6 +137,7 @@ export default function UploadPage() {
           bankName,
           accountNumber,
           detectedFormat: parseResult.detectedFormat,
+          isMinusAccount,
         }),
       })
 
@@ -154,6 +170,7 @@ export default function UploadPage() {
     setError(null)
     setBankName('')
     setAccountNumber('')
+    setIsMinusAccount(false)
   }
 
   return (
@@ -267,6 +284,29 @@ export default function UploadPage() {
               paginationPageSize={15}
             />
           </div>
+
+          {/* 마이너스 통장 옵션 (은행 명세서 전용) */}
+          {sourceType === 'bank' && (
+            <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isMinusAccount}
+                  onChange={e => handleToggleMinus(e.target.checked)}
+                  disabled={step === 'uploading'}
+                  className="mt-0.5 w-4 h-4 accent-amber-600"
+                />
+                <span className="text-sm text-amber-900">
+                  <strong>마이너스 통장(한도대출)입니다</strong>
+                  <span className="block text-amber-700 text-xs mt-0.5">
+                    들어온 돈이 출금, 나간 돈이 입금으로 반대 표기된 명세서를 교정합니다.
+                    체크하면 입금/출금이 서로 바뀌어 표시되고, 거래는 <strong>단기차입금</strong>으로 자동 분류됩니다.
+                    (거래 내역에서 개별 변경 가능)
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
 
           {/* 은행명/카드명 + 업로드 버튼 */}
           <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-end gap-4">
