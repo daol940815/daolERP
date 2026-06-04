@@ -39,7 +39,9 @@ function getPeriodRange(period: string): { from: string; to: string } {
   const y = now.getFullYear()
   const m = now.getMonth()  // 0-based
 
-  const fmt = (d: Date) => d.toISOString().slice(0, 10)
+  // toISOString()은 UTC 변환으로 KST(+9) 환경에서 날짜가 하루 밀리므로 로컬 기준으로 포맷
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
   switch (period) {
     case '당월':
@@ -100,9 +102,12 @@ function StatusBadge(p: ICellRendererParams<Transaction>) {
 // 이번달 기본 날짜 범위 계산
 function defaultDateRange() {
   const now = new Date()
-  const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
-  const to   = now.toISOString().slice(0, 10)
-  return { from, to }
+  const localFmt = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return {
+    from: localFmt(new Date(now.getFullYear(), now.getMonth(), 1)),
+    to:   localFmt(now),
+  }
 }
 
 interface Filters {
