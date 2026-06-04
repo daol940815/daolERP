@@ -6,6 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export async function classifyByKeywords(
   admin: SupabaseClient,
   uploadLogId?: string,
+  bankAccountId?: string,
 ): Promise<{ classified: number; total: number }> {
   // 활성 계정과목 + keywords + 방향 규칙 조회
   const { data: accounts } = await admin
@@ -31,6 +32,9 @@ export async function classifyByKeywords(
 
   if (uploadLogId) {
     query = query.eq('upload_log_id', uploadLogId)
+  }
+  if (bankAccountId) {
+    query = query.eq('bank_account_id', bankAccountId)
   }
 
   const { data: transactions } = await query

@@ -2,19 +2,22 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import type { BankAccount } from '@/types/bank-account'
 
 export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAccount[] }) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const router = useRouter()
   const [banks, setBanks] = useState<BankAccount[]>(initialBanks)
   const [banksOpen, setBanksOpen] = useState(true)
-  const [activeBankId, setActiveBankId] = useState<string | null>(null)
   const [editingBankId, setEditingBankId] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // URL 쿼리 파라미터에서 직접 읽어 pathname 변경 없이도 계좌 선택 상태 반영
+  const activeBankId = searchParams.get('bankAccountId')
 
   const fetchBanks = () => {
     fetch('/api/bank-accounts', { cache: 'no-store' })
@@ -24,11 +27,6 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
   }
 
   useEffect(() => { fetchBanks() }, [pathname])
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    setActiveBankId(params.get('bankAccountId'))
-  }, [pathname])
 
   // 편집 모드 시작
   const startEdit = (bankId: string, currentNumber: string | null) => {

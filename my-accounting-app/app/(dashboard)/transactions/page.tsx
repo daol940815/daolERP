@@ -24,6 +24,57 @@ ModuleRegistry.registerModules([AllCommunityModule])
 const amountFmt = (p: ValueFormatterParams<Transaction, number>) =>
   p.value ? p.value.toLocaleString('ko-KR') + '원' : ''
 
+// 거래일자 포맷터 — 시간 포함 시 "YYYY-MM-DD HH:MM" 표시
+const txDateFmt = (p: ValueFormatterParams<Transaction, string>) => {
+  if (!p.value) return ''
+  if (p.value.length <= 10) return p.value  // DATE 형식 그대로
+  const d = new Date(p.value)
+  const hhmm = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
+  return hhmm === '00:00' ? p.value.slice(0, 10) : `${p.value.slice(0, 10)} ${hhmm}`
+}
+
+// 기간별 조회 구간 계산
+function getPeriodRange(period: string): { from: string; to: string } {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth()  // 0-based
+
+  const fmt = (d: Date) => d.toISOString().slice(0, 10)
+
+  switch (period) {
+    case '당월':
+      return { from: fmt(new Date(y, m, 1)),     to: fmt(new Date(y, m + 1, 0)) }
+    case '전월':
+      return { from: fmt(new Date(y, m - 1, 1)), to: fmt(new Date(y, m, 0)) }
+    case '당분기': {
+      const q = Math.floor(m / 3)
+      return { from: fmt(new Date(y, q * 3, 1)), to: fmt(new Date(y, q * 3 + 3, 0)) }
+    }
+    case '전분기': {
+      const q = Math.floor(m / 3) - 1
+      const aq = q < 0 ? 3 : q
+      const ay = q < 0 ? y - 1 : y
+      return { from: fmt(new Date(ay, aq * 3, 1)), to: fmt(new Date(ay, aq * 3 + 3, 0)) }
+    }
+    case '당반기': {
+      const h = m < 6 ? 0 : 1
+      return { from: fmt(new Date(y, h * 6, 1)), to: fmt(new Date(y, h * 6 + 6, 0)) }
+    }
+    case '전반기': {
+      const h = m < 6 ? 1 : 0
+      const ay = m < 6 ? y - 1 : y
+      return { from: fmt(new Date(ay, h * 6, 1)), to: fmt(new Date(ay, h * 6 + 6, 0)) }
+    }
+    case '당년':
+      return { from: fmt(new Date(y, 0, 1)),     to: fmt(new Date(y, 11, 31)) }
+    case '전년':
+      return { from: fmt(new Date(y - 1, 0, 1)), to: fmt(new Date(y - 1, 11, 31)) }
+    default:
+      return { from: fmt(new Date(y, m, 1)), to: fmt(now) }
+  }
+}
+const PERIOD_PRESETS = ['당월', '전월', '당분기', '전분기', '당반기', '전반기', '당년', '전년'] as const
+
 // 차변/대변 배지 렌더러
 function SideBadge(p: ICellRendererParams<Transaction>) {
   if (p.value === '차변') return <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">차변</span>
@@ -73,6 +124,7 @@ function TransactionsContent() {
   const [loading,   setLoading]   = useState(false)
   const [classifying, setClassifying] = useState(false)
   const [selectedCount, setSelectedCount] = useState(0)
+  const [autoFetchFlag, setAutoFetchFlag] = useState(0)
   const [filters, setFilters]     = useState<Filters>({
     ...defaultDateRange(),
     status: 'all',
@@ -93,9 +145,11 @@ function TransactionsContent() {
     [accounts],
   )
 
-  // URL param(bankAccountId) 변경 시 필터 동기화
+  // URL param(bankAccountId) 변경 시 필터 동기화 + 자동 조회
   useEffect(() => {
     setFilters(f => ({ ...f, bankAccountId: bankAccountIdParam }))
+    // bankAccountId가 바뀌면 현재 필터(날짜·상태·출처)를 유지한 채 즉시 재조회
+    setAutoFetchFlag(n => n + 1)
   }, [bankAccountIdParam])
 
   // 계정과목 + 은행 계좌 목록 로드 (마운트 1회)
@@ -138,8 +192,8 @@ function TransactionsContent() {
     }
   }, [filters, showToast])
 
-  // 초기 로드
-  useEffect(() => { fetchTransactions() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // 초기 로드 + bankAccountId 변경 시 자동 재조회
+  useEffect(() => { fetchTransactions() }, [autoFetchFlag]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 셀 편집 저장 (계정과목 / 메모)
   const onCellValueChanged = useCallback(async (event: CellValueChangedEvent<Transaction>) => {
@@ -215,7 +269,12 @@ function TransactionsContent() {
   const handleClassify = useCallback(async () => {
     setClassifying(true)
     try {
-      const res  = await fetch('/api/transactions/classify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      const body = filters.bankAccountId ? { bank_account_id: filters.bankAccountId } : {}
+      const res  = await fetch('/api/transactions/classify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
       const json = await res.json()
       showToast(json.message ?? '분류 완료')
       fetchTransactions()
@@ -224,7 +283,7 @@ function TransactionsContent() {
     } finally {
       setClassifying(false)
     }
-  }, [fetchTransactions, showToast])
+  }, [filters.bankAccountId, fetchTransactions, showToast])
 
   // 통계 계산
   const stats = useMemo(() => {
@@ -249,9 +308,10 @@ function TransactionsContent() {
     {
       field: 'tx_date',
       headerName: '거래일자',
-      width: 115,
+      width: 145,
       pinned: 'left',
       sort: 'desc',
+      valueFormatter: txDateFmt,
     },
     {
       field: 'description',
@@ -392,6 +452,19 @@ function TransactionsContent() {
         )}
       </div>
       <p className="text-gray-500 text-sm mb-4">계정과목 클릭으로 직접 분류하거나, 자동 분류를 사용하세요.</p>
+
+      {/* 기간 빠른 선택 */}
+      <div className="flex flex-wrap gap-1 mb-2">
+        {PERIOD_PRESETS.map(p => (
+          <button
+            key={p}
+            onClick={() => setFilters(f => ({ ...f, ...getPeriodRange(p) }))}
+            className="px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-slate-100 hover:border-slate-400 transition-colors"
+          >
+            {p}
+          </button>
+        ))}
+      </div>
 
       {/* 필터 바 */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
