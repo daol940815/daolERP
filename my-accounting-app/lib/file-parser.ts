@@ -93,11 +93,11 @@ function norm(h: string): string {
 // 컬럼 자동 매핑 패턴 (한국 주요 은행/카드사 기준)
 const PATTERNS: Record<string, string[]> = {
   date:        ['거래일자', '거래일시', '이용일자', '날짜', '일자', '거래일', '승인일자', '결제일', 'date'],
-  description: ['적요', '기재내용', '내용', '가맹점명', '이용가맹점', '거래내용', '메모', '거래처', '상호명', '출금처', '입금처', '거래적요', 'description'],
-  amount_in:   ['입금', '입금금액', '맡기신금액', '입금액', '크레딧', '입금(원)'],
-  amount_out:  ['출금', '출금금액', '찾으신금액', '이용금액', '승인금액', '출금액', '카드이용금액', '이용액', '데빗', '출금(원)', '카드승인금액', '지급', '지급(원)', '지급액'],
+  description: ['적요', '기재내용', '내용', '가맹점명', '이용가맹점', '거래내용', '메모', '거래처', '상호명', '출금처', '입금처', '거래적요', '보낸분', '받는분', '보낸분/받는분', 'description'],
+  amount_in:   ['맡기신금액', '입금금액', '입금액', '입금(원)', '입금'],
+  amount_out:  ['찾으신금액', '출금금액', '이용금액', '승인금액', '출금액', '출금(원)', '카드이용금액', '이용액', '카드승인금액', '지급금액', '지급(원)', '지급액', '출금'],
   amount:      ['거래금액', '거래액'],  // 부호로 입/출금 구분 (amount_in/out 없을 때만)
-  balance:     ['잔액', '잔고', '현재잔액', '잔액(원)', 'balance'],
+  balance:     ['잔액(원)', '현재잔액', '잔액', '잔고', 'balance'],
 }
 
 interface ColMap { date?: number; description?: number; amount_in?: number; amount_out?: number; amount?: number; balance?: number }
@@ -109,7 +109,8 @@ function detectColumns(headers: string[]): ColMap {
   for (const [field, patterns] of Object.entries(PATTERNS)) {
     for (const pattern of patterns) {
       const pn = norm(pattern)
-      const idx = normalized.findIndex(h => h === pn || h.includes(pn) || pn.includes(h))
+      // pn.includes(h) 는 빈 문자열 헤더가 모든 패턴에 매칭되는 버그 유발 → 제거
+      const idx = normalized.findIndex(h => h.length > 0 && (h === pn || h.includes(pn)))
       if (idx !== -1 && !(field in result)) {
         ;(result as Record<string, number>)[field] = idx
         break
@@ -145,13 +146,34 @@ function detectAccountNumber(rows: (string | number)[][], headerIdx: number): st
 }
 
 // 헤더 행 찾기 (앞에 메타데이터 행이 있을 수 있음)
+// "총잔액", "입출금내역" 같은 메타데이터 행을 헤더로 오인하지 않도록
+// norm() 처리 후 각 셀이 날짜·금액 키워드와 정확히 일치하는지 확인
 function findHeaderRow(rows: (string | number)[][]): number {
-  for (let i = 0; i < Math.min(10, rows.length); i++) {
-    const text = rows[i].join(' ')
-    if (/거래일|이용일|날짜|일자/i.test(text) || /입금|출금|금액|잔액/i.test(text)) {
-      return i
-    }
+  // norm() 적용 후 정확히 일치해야 하는 날짜 키워드
+  const DATE_NORM   = new Set(['거래일자', '거래일시', '이용일자', '날짜', '일자', '거래일', '승인일자', '결제일', 'date'])
+  // norm() 적용 후 정확히 일치해야 하는 금액·잔액 키워드
+  const MONEY_NORM  = new Set([
+    '맡기신금액', '찾으신금액', '입금금액', '출금금액',
+    '입금액', '출금액', '입금액원', '출금액원',  // 입금액(원), 출금액(원) → norm
+    '입금원', '출금원',                          // 입금(원), 출금(원) → norm
+    '거래금액', '잔액', '잔액원', '현재잔액', '잔고',
+    '입금', '출금',
+  ])
+
+  // 1차: 날짜 셀 + 금액·잔액 셀이 독립적으로 존재하는 행 (가장 신뢰도 높음)
+  for (let i = 0; i < Math.min(15, rows.length); i++) {
+    const normCells = rows[i].map(c => norm(String(c)))
+    const hasDate  = normCells.some(c => c.length > 0 && DATE_NORM.has(c))
+    const hasMoney = normCells.some(c => c.length > 0 && MONEY_NORM.has(c))
+    if (hasDate && hasMoney) return i
   }
+
+  // 2차 폴백: 복합 키워드가 행 전체 텍스트에 포함된 경우
+  for (let i = 0; i < Math.min(15, rows.length); i++) {
+    const text = rows[i].map(String).join(' ')
+    if (/맡기신금액|찾으신금액|입금금액|출금금액|입금액|출금액/i.test(text)) return i
+  }
+
   return 0
 }
 
