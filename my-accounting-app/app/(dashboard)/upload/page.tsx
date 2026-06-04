@@ -1,449 +1,358 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { AgGridReact } from 'ag-grid-react'
-import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community'
-import type { ColDef, ValueFormatterParams } from 'ag-grid-community'
-import 'ag-grid-community/styles/ag-grid.css'
-import 'ag-grid-community/styles/ag-theme-quartz.css'
 import { parseFile } from '@/lib/file-parser'
-import type { ParsedRow, ParseResult, UploadResult, UploadStep } from '@/types/upload'
+import type { ParseResult, UploadResult } from '@/types/upload'
 
-// AG Grid 커뮤니티 모듈 등록 (전역 1회)
-ModuleRegistry.registerModules([AllCommunityModule])
+// ── 타입 ────────────────────────────────────────────────────
+type ItemStatus = 'parsing' | 'ready' | 'need_input' | 'uploading' | 'success' | 'duplicate' | 'error'
 
-// 금액 포맷터 (0은 빈 칸으로 표시)
-const amountFmt = (p: ValueFormatterParams<ParsedRow, number>) =>
-  p.value ? p.value.toLocaleString('ko-KR') + '원' : ''
+interface QueueItem {
+  id: string
+  file: File
+  status: ItemStatus
+  parseResult: ParseResult | null
+  bankName: string
+  accountNumber: string
+  isMinusAccount: boolean
+  error: string | null
+  uploadResult: UploadResult | null
+}
 
-// 잔액 포맷터 (0 및 음수 포함 표시)
-const balanceFmt = (p: ValueFormatterParams<ParsedRow, number | undefined>) =>
-  p.value != null ? p.value.toLocaleString('ko-KR') + '원' : ''
+function uid() { return Math.random().toString(36).slice(2, 10) }
 
-// AG Grid 컬럼 정의
-const COL_DEFS: ColDef<ParsedRow>[] = [
-  { field: 'tx_date',     headerName: '거래일자', width: 120, pinned: 'left' },
-  { field: 'description', headerName: '내용/적요', flex: 1, minWidth: 180 },
-  {
-    field: 'amount_in', headerName: '입금액', width: 140,
-    type: 'numericColumn', valueFormatter: amountFmt,
-    cellStyle: { color: '#2563eb', fontWeight: 500 },
-  },
-  {
-    field: 'amount_out', headerName: '출금액', width: 140,
-    type: 'numericColumn', valueFormatter: amountFmt,
-    cellStyle: { color: '#dc2626', fontWeight: 500 },
-  },
-  {
-    field: 'balance', headerName: '잔액', width: 140,
-    type: 'numericColumn', valueFormatter: balanceFmt,
-    cellStyle: (p) => ({ color: (p.value ?? 0) < 0 ? '#dc2626' : '#6b7280' }),
-  },
-  { field: 'source', headerName: '출처', width: 80 },
-]
+// ── 상태 배지 ────────────────────────────────────────────────
+function StatusBadge({ item }: { item: QueueItem }) {
+  switch (item.status) {
+    case 'parsing':    return <span className="text-xs text-slate-400 whitespace-nowrap">분석 중…</span>
+    case 'uploading':  return <span className="text-xs text-blue-500 whitespace-nowrap">업로드 중…</span>
+    case 'need_input': return <span className="px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded-full whitespace-nowrap">은행명 필요</span>
+    case 'duplicate':  return <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded-full whitespace-nowrap">중복 파일</span>
+    case 'error':      return <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded-full whitespace-nowrap">오류</span>
+    case 'success':    return (
+      <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full whitespace-nowrap">
+        완료 {item.uploadResult?.insertedRows.toLocaleString()}건
+      </span>
+    )
+    case 'ready':      return <span className="px-2 py-0.5 text-xs bg-slate-100 text-slate-500 rounded-full whitespace-nowrap">대기</span>
+  }
+}
 
+// ── 메인 페이지 ──────────────────────────────────────────────
 export default function UploadPage() {
-  const [step, setStep]               = useState<UploadStep>('idle')
-  const [parseResult, setParseResult] = useState<ParseResult | null>(null)
-  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
-  const [sourceType, setSourceType]   = useState<'bank' | 'card'>('bank')
-  const [bankName, setBankName]       = useState('')
-  const [accountNumber, setAccountNumber] = useState('')
-  const [isMinusAccount, setIsMinusAccount] = useState(false)
+  const [queue, setQueue]             = useState<QueueItem[]>([])
+  const [isUploading, setIsUploading] = useState(false)
   const [isDragging, setIsDragging]   = useState(false)
-  const [error, setError]             = useState<string | null>(null)
+  const [sourceType, setSourceType]   = useState<'bank' | 'card'>('bank')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // 파일을 받아서 파싱
-  const handleFile = useCallback(async (file: File) => {
-    setError(null)
-    setStep('parsing')
+  const patchItem = useCallback((id: string, patch: Partial<QueueItem>) =>
+    setQueue(q => q.map(item => item.id === id ? { ...item, ...patch } : item)), [])
+
+  // ── 파싱 ───────────────────────────────────────────────────
+  const parseItem = useCallback(async (id: string, file: File, srcType: 'bank' | 'card') => {
     try {
-      const result = await parseFile(file, sourceType)
-      if (result.rows.length === 0) {
-        setError('파싱된 거래 데이터가 없습니다. 파일 형식을 확인해주세요.')
-        setStep('error')
-        return
-      }
-      setParseResult(result)
-      // 은행 명세서인 경우 감지된 은행명/계좌번호를 기본값으로 설정
-      if (sourceType === 'bank') {
-        if (!bankName) {
-          const detected = result.detectedFormat
-          if (!detected.includes('일반') && !detected.includes('카드') && !detected.includes('명세서')) {
-            setBankName(detected)
-          }
-        }
-        if (!accountNumber && result.suggestedAccountNumber) {
-          setAccountNumber(result.suggestedAccountNumber)
-        }
-      }
-      setStep('preview')
+      const result = await parseFile(file, srcType)
+      const fmt = result.detectedFormat ?? ''
+      const detectedBank = (!fmt.includes('일반') && !fmt.includes('카드') && !fmt.includes('명세서') && fmt.length > 0)
+        ? fmt : ''
+      patchItem(id, {
+        status: detectedBank ? 'ready' : 'need_input',
+        parseResult: result,
+        bankName: detectedBank,
+        accountNumber: result.suggestedAccountNumber ?? '',
+      })
     } catch (e) {
-      setError(e instanceof Error ? e.message : '파일 파싱 중 오류가 발생했습니다.')
-      setStep('error')
+      patchItem(id, { status: 'error', error: e instanceof Error ? e.message : '파싱 실패' })
     }
-  }, [sourceType])
+  }, [patchItem])
 
-  // 마이너스 통장 토글 — 입금/출금 컬럼이 반대로 표기된 명세서 교정
-  // (들어온 돈이 출금, 나간 돈이 입금으로 적힌 형식 → 실제 현금 방향으로 스왑)
-  const handleToggleMinus = (checked: boolean) => {
-    setIsMinusAccount(checked)
-    setParseResult(prev => prev ? {
-      ...prev,
-      rows: prev.rows.map(r => ({
-        ...r,
-        amount_in:  r.amount_out,
-        amount_out: r.amount_in,
-      })),
-    } : prev)
-  }
+  // ── 파일 추가 ───────────────────────────────────────────────
+  const addFiles = useCallback((files: FileList | File[]) => {
+    const arr = Array.from(files).filter(f => /\.(csv|xlsx|xls)$/i.test(f.name))
+    if (!arr.length) return
+    const items: QueueItem[] = arr.map(file => ({
+      id: uid(), file,
+      status: 'parsing' as ItemStatus,
+      parseResult: null,
+      bankName: '', accountNumber: '',
+      isMinusAccount: false, error: null, uploadResult: null,
+    }))
+    setQueue(q => [...q, ...items])
+    items.forEach(item => parseItem(item.id, item.file, sourceType))
+  }, [parseItem, sourceType])
 
-  // 드래그 앤 드롭 핸들러
+  // ── 드래그 앤 드롭 ──────────────────────────────────────────
   const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(false)
-    const file = e.dataTransfer.files[0]
-    if (file) handleFile(file)
-  }, [handleFile])
-
+    e.preventDefault(); setIsDragging(false); addFiles(e.dataTransfer.files)
+  }, [addFiles])
   const onDragOver  = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true) }
   const onDragLeave = () => setIsDragging(false)
-
-  // 파일 input 변경
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) handleFile(file)
-    e.target.value = ''
+    if (e.target.files) addFiles(e.target.files); e.target.value = ''
   }
 
-  // 업로드 실행
-  const handleUpload = async () => {
-    if (!parseResult) return
-    setStep('uploading')
-    setError(null)
+  // ── 업로드 ─────────────────────────────────────────────────
+  const handleUploadAll = async () => {
+    const targets = queue.filter(i => i.status === 'ready' || i.status === 'need_input')
+    if (!targets.length) return
+    setIsUploading(true)
 
-    try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rows: parseResult.rows,
-          fileHash: parseResult.fileHash,
-          fileName: parseResult.fileName,
-          fileSize: parseResult.fileSize,
-          fileType: parseResult.fileType,
-          source: sourceType,
-          bankName,
-          accountNumber,
-          detectedFormat: parseResult.detectedFormat,
-          isMinusAccount,
-        }),
-      })
+    for (const item of targets) {
+      if (!item.parseResult) continue
+      patchItem(item.id, { status: 'uploading' })
 
-      if (res.status === 409) {
-        const data = await res.json()
-        setError(data.message)
-        setStep('error')
-        return
+      try {
+        // 마이너스 통장: 업로드 직전 in/out 스왑
+        const rows = item.isMinusAccount
+          ? item.parseResult.rows.map(r => ({ ...r, amount_in: r.amount_out, amount_out: r.amount_in }))
+          : item.parseResult.rows
+
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rows,
+            fileHash:       item.parseResult.fileHash,
+            fileName:       item.parseResult.fileName,
+            fileSize:       item.parseResult.fileSize,
+            fileType:       item.parseResult.fileType,
+            source:         sourceType,
+            bankName:       item.bankName,
+            accountNumber:  item.accountNumber,
+            detectedFormat: item.parseResult.detectedFormat,
+            isMinusAccount: item.isMinusAccount,
+          }),
+        })
+
+        if (res.status === 409) {
+          const data = await res.json()
+          patchItem(item.id, { status: 'duplicate', error: data.message })
+          continue
+        }
+        if (!res.ok) {
+          const data = await res.json()
+          patchItem(item.id, { status: 'error', error: data.error ?? '업로드 오류' })
+          continue
+        }
+        const result: UploadResult = await res.json()
+        patchItem(item.id, { status: 'success', uploadResult: result })
+      } catch (e) {
+        patchItem(item.id, { status: 'error', error: e instanceof Error ? e.message : '네트워크 오류' })
       }
-
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error ?? '업로드 중 오류가 발생했습니다.')
-      }
-
-      const result: UploadResult = await res.json()
-      setUploadResult(result)
-      setStep('success')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '업로드 중 오류가 발생했습니다.')
-      setStep('error')
     }
+
+    setIsUploading(false)
   }
 
-  // 초기화
-  const handleReset = () => {
-    setStep('idle')
-    setParseResult(null)
-    setUploadResult(null)
-    setError(null)
-    setBankName('')
-    setAccountNumber('')
-    setIsMinusAccount(false)
-  }
+  // ── 파생 값 ────────────────────────────────────────────────
+  const parsingCount    = queue.filter(i => i.status === 'parsing').length
+  const uploadableCount = queue.filter(i => i.status === 'ready' || i.status === 'need_input').length
+  const needInputCount  = queue.filter(i => i.status === 'need_input').length
+  const doneCount       = queue.filter(i => ['success', 'duplicate', 'error'].includes(i.status)).length
+  const allDone         = queue.length > 0 && queue.every(i => ['success', 'duplicate', 'error'].includes(i.status))
+  const canUpload       = !isUploading && uploadableCount > 0 && parsingCount === 0
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-1">파일 업로드</h1>
       <p className="text-gray-500 text-sm mb-5">
-        은행 명세서 또는 카드 내역 파일(CSV, XLSX, XLS)을 업로드하세요.
+        파일을 한 번에 여러 개 선택하거나 드래그해서 일괄 업로드하세요.
       </p>
 
-      {/* 단계 인디케이터 */}
-      <StepBar step={step} />
-
-      {/* 에러 배너 */}
-      {error && step === 'error' && (
-        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-start justify-between gap-4">
-          <span>{error}</span>
-          <button onClick={handleReset} className="shrink-0 underline hover:no-underline">
-            다시 시도
-          </button>
-        </div>
-      )}
-
-      {/* ── IDLE: 파일 선택 ── */}
-      {step === 'idle' && (
-        <div className="mt-5">
-          {/* 출처 선택 버튼 */}
-          <div className="flex gap-2 mb-4">
-            {(['bank', 'card'] as const).map(t => (
-              <button
-                key={t}
-                onClick={() => setSourceType(t)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                  sourceType === t
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-gray-600 border-gray-300 hover:border-slate-500'
-                }`}
-              >
-                {t === 'bank' ? '🏦 은행 명세서' : '💳 카드 내역'}
-              </button>
-            ))}
-          </div>
-
-          {/* 드래그 앤 드롭 존 */}
-          <div
-            onDrop={onDrop}
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-xl py-20 text-center cursor-pointer transition-colors select-none ${
-              isDragging
-                ? 'border-slate-700 bg-slate-50'
-                : 'border-gray-300 hover:border-slate-400 hover:bg-gray-50'
+      {/* 출처 선택 */}
+      <div className="flex gap-2 mb-4">
+        {(['bank', 'card'] as const).map(t => (
+          <button key={t} onClick={() => setSourceType(t)} disabled={isUploading}
+            className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+              sourceType === t
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-gray-600 border-gray-300 hover:border-slate-500'
             }`}
           >
-            <div className="text-4xl mb-3">📂</div>
-            <p className="text-gray-700 font-medium">파일을 드래그하거나 클릭해서 선택하세요</p>
-            <p className="text-gray-400 text-sm mt-1">CSV · XLSX · XLS 지원</p>
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv,.xlsx,.xls"
-            onChange={onFileChange}
-            className="hidden"
-          />
-        </div>
-      )}
+            {t === 'bank' ? '🏦 은행 명세서' : '💳 카드 내역'}
+          </button>
+        ))}
+      </div>
 
-      {/* ── PARSING: 파싱 중 ── */}
-      {step === 'parsing' && (
-        <div className="mt-12 text-center py-12">
-          <div className="text-4xl mb-3 animate-pulse">⏳</div>
-          <p className="text-gray-500">파일 분석 중...</p>
-        </div>
-      )}
+      {/* 드롭존 */}
+      <div
+        onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
+        onClick={() => fileInputRef.current?.click()}
+        className={`border-2 border-dashed rounded-xl text-center cursor-pointer transition-colors select-none mb-5 ${
+          isDragging
+            ? 'border-slate-700 bg-slate-50 py-12'
+            : queue.length === 0
+              ? 'py-20 border-gray-300 hover:border-slate-400 hover:bg-gray-50'
+              : 'py-5 border-gray-200 hover:border-slate-400 hover:bg-gray-50'
+        }`}
+      >
+        <div className={`${queue.length > 0 ? 'text-xl' : 'text-4xl'} mb-1.5`}>📂</div>
+        <p className="text-gray-700 font-medium text-sm">
+          {queue.length === 0 ? '파일을 드래그하거나 클릭해서 선택하세요' : '파일 추가 (드래그 또는 클릭)'}
+        </p>
+        <p className="text-gray-400 text-xs mt-0.5">CSV · XLSX · XLS · 다중 선택 가능</p>
+      </div>
+      <input ref={fileInputRef} type="file" multiple accept=".csv,.xlsx,.xls" onChange={onFileChange} className="hidden" />
 
-      {/* ── PREVIEW / UPLOADING: AG Grid 미리보기 ── */}
-      {(step === 'preview' || step === 'uploading') && parseResult && (
-        <div className="mt-5">
-          {/* 파일 정보 요약 */}
-          <div className="bg-white border border-gray-200 rounded-lg px-4 py-3 mb-4 flex flex-wrap gap-x-6 gap-y-1 text-sm">
-            <span><span className="text-gray-400">파일</span> <strong>{parseResult.fileName}</strong></span>
-            <span><span className="text-gray-400">감지 형식</span> <strong>{parseResult.detectedFormat}</strong></span>
-            <span>
-              <span className="text-gray-400">총 건수</span>{' '}
-              <strong className="text-blue-600">{parseResult.rows.length.toLocaleString()}건</strong>
-            </span>
-            <span><span className="text-gray-400">크기</span> <strong>{(parseResult.fileSize / 1024).toFixed(1)} KB</strong></span>
-          </div>
-
-          {/* 경고 메시지 */}
-          {parseResult.warnings.length > 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 mb-4 text-sm text-yellow-800">
-              <strong>⚠ 파싱 경고 ({parseResult.warnings.length}건)</strong>
-              <ul className="mt-1 list-disc list-inside space-y-0.5">
-                {parseResult.warnings.slice(0, 5).map((w, i) => <li key={i}>{w}</li>)}
-                {parseResult.warnings.length > 5 && (
-                  <li className="text-yellow-600">...외 {parseResult.warnings.length - 5}건 더</li>
-                )}
-              </ul>
-            </div>
-          )}
-
-          {/* AG Grid 미리보기 */}
-          <div className="ag-theme-quartz rounded-lg overflow-hidden border border-gray-200" style={{ height: 380 }}>
-            <AgGridReact<ParsedRow>
-              rowData={parseResult.rows}
-              columnDefs={COL_DEFS}
-              defaultColDef={{ sortable: true, resizable: true, filter: true }}
-              pagination
-              paginationPageSize={15}
-            />
+      {/* 파일 큐 */}
+      {queue.length > 0 && (
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-medium text-slate-700">
+              파일 {queue.length}개
+              {parsingCount > 0 && <span className="ml-2 text-slate-400 font-normal text-xs">{parsingCount}개 분석 중…</span>}
+            </p>
+            {!isUploading && !allDone && (
+              <button onClick={() => setQueue([])} className="text-xs text-slate-400 hover:text-slate-700 transition-colors">
+                전체 삭제
+              </button>
+            )}
           </div>
 
-          {/* 마이너스 통장 옵션 (은행 명세서 전용) */}
-          {sourceType === 'bank' && (
-            <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-              <label className="flex items-start gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isMinusAccount}
-                  onChange={e => handleToggleMinus(e.target.checked)}
-                  disabled={step === 'uploading'}
-                  className="mt-0.5 w-4 h-4 accent-amber-600"
-                />
-                <span className="text-sm text-amber-900">
-                  <strong>마이너스 통장(한도대출)입니다</strong>
-                  <span className="block text-amber-700 text-xs mt-0.5">
-                    들어온 돈이 출금, 나간 돈이 입금으로 반대 표기된 명세서를 교정합니다.
-                    체크하면 입금/출금이 서로 바뀌어 표시되고, 거래는 <strong>단기차입금</strong>으로 자동 분류됩니다.
-                    (거래 내역에서 개별 변경 가능)
-                  </span>
-                </span>
-              </label>
-            </div>
-          )}
+          <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+            {queue.map(item => (
+              <div key={item.id} className={`px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 ${
+                item.status === 'error'     ? 'bg-red-50' :
+                item.status === 'success'   ? 'bg-green-50' :
+                item.status === 'duplicate' ? 'bg-amber-50' : 'bg-white'
+              }`}>
 
-          {/* 은행명/카드명 + 업로드 버튼 */}
-          <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-end gap-4">
-            <div className="flex-1 flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {sourceType === 'bank' ? '은행명' : '카드사/카드명'}{' '}
-                  <span className="text-gray-400 font-normal">
-                    {sourceType === 'bank' ? '(예: 우리은행)' : '(예: 신한카드)'}
-                  </span>
-                </label>
-                <input
-                  type="text"
-                  value={bankName}
-                  onChange={e => setBankName(e.target.value)}
-                  placeholder={sourceType === 'bank' ? '은행명 입력' : '카드사명 (선택)'}
-                  disabled={step === 'uploading'}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 disabled:bg-gray-50"
-                />
-              </div>
-              {sourceType === 'bank' && (
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    계좌번호{' '}
-                    <span className="text-gray-400 font-normal">(예: 1005-804-575410)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={accountNumber}
-                    onChange={e => setAccountNumber(e.target.value)}
-                    placeholder="자동 감지 또는 직접 입력"
-                    disabled={step === 'uploading'}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 disabled:bg-gray-50"
-                  />
+                {/* 파일명 + 건수 */}
+                <div className="min-w-0 sm:w-48 shrink-0">
+                  <p className="text-sm font-medium text-gray-800 truncate" title={item.file.name}>
+                    {item.file.name}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {item.parseResult
+                      ? `${item.parseResult.rows.length.toLocaleString()}건`
+                      : `${(item.file.size / 1024).toFixed(1)} KB`}
+                    {(item.parseResult?.warnings.length ?? 0) > 0 && (
+                      <span className="ml-1 text-amber-500" title={item.parseResult!.warnings.join('\n')}>
+                        ⚠{item.parseResult!.warnings.length}
+                      </span>
+                    )}
+                  </p>
+                  {(item.status === 'error' || item.status === 'duplicate') && item.error && (
+                    <p className="text-xs text-red-500 mt-0.5 line-clamp-2">{item.error}</p>
+                  )}
                 </div>
-              )}
-            </div>
-            <div className="flex gap-2 sm:mb-0">
-              <button
-                onClick={handleReset}
-                disabled={step === 'uploading'}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleUpload}
-                disabled={step === 'uploading'}
-                className="px-6 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {step === 'uploading'
-                  ? '업로드 중...'
-                  : `${parseResult.rows.length.toLocaleString()}건 업로드`}
-              </button>
-            </div>
+
+                {/* 편집 필드 (ready / need_input / uploading) */}
+                {['ready', 'need_input', 'uploading'].includes(item.status) && (
+                  <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+                    <input
+                      type="text"
+                      value={item.bankName}
+                      onChange={e => patchItem(item.id, {
+                        bankName: e.target.value,
+                        status: e.target.value.trim() ? 'ready' : 'need_input',
+                      })}
+                      placeholder={sourceType === 'bank' ? '은행명 *' : '카드사명'}
+                      disabled={item.status === 'uploading' || isUploading}
+                      className={`w-28 text-sm border rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:bg-gray-50 disabled:text-gray-400 ${
+                        !item.bankName.trim() ? 'border-orange-300 bg-orange-50' : 'border-gray-300'
+                      }`}
+                    />
+                    {sourceType === 'bank' && (
+                      <input
+                        type="text"
+                        value={item.accountNumber}
+                        onChange={e => patchItem(item.id, { accountNumber: e.target.value })}
+                        placeholder="계좌번호 (선택)"
+                        disabled={item.status === 'uploading' || isUploading}
+                        className="w-36 text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:bg-gray-50 disabled:text-gray-400"
+                      />
+                    )}
+                    {sourceType === 'bank' && (
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={item.isMinusAccount}
+                          onChange={e => patchItem(item.id, { isMinusAccount: e.target.checked })}
+                          disabled={item.status === 'uploading' || isUploading}
+                          className="w-3.5 h-3.5 accent-amber-600"
+                        />
+                        <span className="text-xs text-gray-500 whitespace-nowrap">마이너스통장</span>
+                      </label>
+                    )}
+                  </div>
+                )}
+
+                {/* 상태 + 삭제 */}
+                <div className="flex items-center gap-2 sm:ml-auto shrink-0">
+                  <StatusBadge item={item} />
+                  {!isUploading && !['uploading', 'success'].includes(item.status) && (
+                    <button
+                      onClick={() => setQueue(q => q.filter(i => i.id !== item.id))}
+                      className="w-5 h-5 flex items-center justify-center text-gray-300 hover:text-gray-500 transition-colors text-xs"
+                      title="삭제"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* ── SUCCESS: 완료 ── */}
-      {step === 'success' && uploadResult && (
-        <div className="mt-10 max-w-sm mx-auto">
-          <div className="bg-white border border-gray-200 rounded-xl p-8 text-center shadow-sm">
-            <div className="text-5xl mb-4">✅</div>
-            <h2 className="text-xl font-bold text-gray-900 mb-5">업로드 완료</h2>
-            <div className="grid grid-cols-2 gap-3 text-sm mb-6">
-              <StatCard label="총 건수"  value={uploadResult.totalRows} />
-              <StatCard label="저장 완료" value={uploadResult.insertedRows} color="blue" />
-              <StatCard label="건너뜀"   value={uploadResult.skippedRows} />
-              <StatCard label="오류"     value={uploadResult.errorRows} color={uploadResult.errorRows > 0 ? 'red' : undefined} />
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleReset}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
-              >
-                추가 업로드
-              </button>
-              <a
-                href="/transactions"
-                className="flex-1 px-3 py-2 bg-slate-900 text-white rounded-lg text-sm text-center hover:bg-slate-700"
-              >
-                거래 내역 보기
-              </a>
-            </div>
+      {/* 액션 바 */}
+      {queue.length > 0 && (
+        <div className="flex items-center justify-between gap-4">
+          <div className="text-sm">
+            {allDone ? (
+              <span className="text-green-600 font-medium">
+                업로드 완료 — 성공 {queue.filter(i => i.status === 'success').length}개
+                {queue.filter(i => i.status === 'duplicate').length > 0 && ` · 중복 ${queue.filter(i => i.status === 'duplicate').length}개`}
+                {queue.filter(i => i.status === 'error').length > 0 && ` · 오류 ${queue.filter(i => i.status === 'error').length}개`}
+              </span>
+            ) : needInputCount > 0 ? (
+              <span className="text-orange-500 text-xs">⚠ 은행명 미입력 {needInputCount}개 — 입력 후 업로드하거나 그대로 진행 가능</span>
+            ) : null}
+          </div>
+
+          <div className="flex gap-2 shrink-0">
+            {allDone ? (
+              <>
+                <button
+                  onClick={() => setQueue([])}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  초기화
+                </button>
+                <a
+                  href="/transactions"
+                  className="px-5 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700"
+                >
+                  거래 내역 보기 →
+                </a>
+              </>
+            ) : (
+              <>
+                {!isUploading && (
+                  <button
+                    onClick={() => setQueue([])}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    초기화
+                  </button>
+                )}
+                <button
+                  onClick={handleUploadAll}
+                  disabled={!canUpload}
+                  className="px-6 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isUploading
+                    ? `업로드 중… (${doneCount}/${uploadableCount + doneCount})`
+                    : `${uploadableCount}개 파일 업로드`}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-// ── 단계 인디케이터 ──────────────────────────────────────
-const STEPS: { key: UploadStep; label: string }[] = [
-  { key: 'idle',      label: '파일 선택' },
-  { key: 'parsing',   label: '분석' },
-  { key: 'preview',   label: '미리보기' },
-  { key: 'uploading', label: '저장' },
-  { key: 'success',   label: '완료' },
-]
-
-function StepBar({ step }: { step: UploadStep }) {
-  const activeIdx = STEPS.findIndex(s => s.key === step)
-
-  return (
-    <div className="flex items-center gap-1.5 text-xs">
-      {STEPS.map((s, i) => (
-        <div key={s.key} className="flex items-center gap-1.5">
-          <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold ${
-            i < activeIdx  ? 'bg-green-500 text-white' :
-            i === activeIdx ? 'bg-slate-900 text-white' :
-                              'bg-gray-200 text-gray-400'
-          }`}>
-            {i < activeIdx ? '✓' : i + 1}
-          </div>
-          <span className={i === activeIdx ? 'text-gray-900 font-medium' : 'text-gray-400'}>
-            {s.label}
-          </span>
-          {i < STEPS.length - 1 && <span className="text-gray-300 mx-0.5">›</span>}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ── 통계 카드 ──────────────────────────────────────────
-function StatCard({ label, value, color }: { label: string; value: number; color?: 'blue' | 'red' }) {
-  return (
-    <div className="bg-gray-50 rounded-lg p-3">
-      <p className="text-gray-400 text-xs mb-0.5">{label}</p>
-      <p className={`text-xl font-bold ${
-        color === 'blue' ? 'text-blue-600' :
-        color === 'red'  ? 'text-red-600'  :
-                           'text-gray-900'
-      }`}>
-        {value.toLocaleString()}
-      </p>
     </div>
   )
 }
