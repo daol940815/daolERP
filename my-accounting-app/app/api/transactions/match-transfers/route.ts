@@ -2,6 +2,73 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { randomUUID } from 'crypto'
 
+// GET /api/transactions/match-transfers?bank_account_id=...
+// 드라이런: 실제 저장 없이 매칭 가능한 쌍 목록 반환
+export async function GET(req: NextRequest) {
+  const admin = createAdminClient()
+  const bankAccountId = new URL(req.url).searchParams.get('bank_account_id') ?? undefined
+
+  let outQuery = admin
+    .from('transactions')
+    .select('id, tx_date, amount_out, description, account_alias, bank_account_id')
+    .gt('amount_out', 0)
+    .eq('amount_in', 0)
+    .is('transfer_pair_id', null)
+    .limit(3000)
+
+  if (bankAccountId) outQuery = outQuery.eq('bank_account_id', bankAccountId)
+
+  const inQuery = admin
+    .from('transactions')
+    .select('id, tx_date, amount_in, description, account_alias, bank_account_id')
+    .gt('amount_in', 0)
+    .eq('amount_out', 0)
+    .is('transfer_pair_id', null)
+    .limit(3000)
+
+  const [{ data: outgoing, error: outErr }, { data: incoming, error: inErr }] =
+    await Promise.all([outQuery, inQuery])
+
+  if (outErr || inErr) {
+    return NextResponse.json({ error: (outErr ?? inErr)?.message }, { status: 500 })
+  }
+
+  if (!outgoing?.length || !incoming?.length) {
+    return NextResponse.json({ pairs: [], total: outgoing?.length ?? 0 })
+  }
+
+  const byAmount = new Map<number, typeof incoming>()
+  for (const tx of incoming) {
+    const amt = tx.amount_in as number
+    if (!byAmount.has(amt)) byAmount.set(amt, [])
+    byAmount.get(amt)!.push(tx)
+  }
+
+  const pairs: Array<{ out: (typeof outgoing)[0]; in: (typeof incoming)[0] }> = []
+  const usedIds = new Set<string>()
+
+  for (const out of outgoing) {
+    if (usedIds.has(out.id)) continue
+
+    const amount    = out.amount_out as number
+    const outDate   = new Date(out.tx_date as string).getTime()
+    const candidates = (byAmount.get(amount) ?? []).filter(inTx => {
+      if (usedIds.has(inTx.id))                         return false
+      if (inTx.bank_account_id === out.bank_account_id) return false
+      const dayDiff = Math.abs(new Date(inTx.tx_date as string).getTime() - outDate) / 86_400_000
+      return dayDiff <= 1
+    })
+
+    if (candidates.length === 1) {
+      pairs.push({ out, in: candidates[0] })
+      usedIds.add(out.id)
+      usedIds.add(candidates[0].id)
+    }
+  }
+
+  return NextResponse.json({ pairs, total: outgoing.length })
+}
+
 // POST /api/transactions/match-transfers
 // 법인 내 타계좌 이체 거래 자동 쌍 매칭
 //   - 출금(amount_out > 0, amount_in = 0) ↔ 입금(amount_in > 0, amount_out = 0)

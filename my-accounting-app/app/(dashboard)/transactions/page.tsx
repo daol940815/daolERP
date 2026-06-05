@@ -131,6 +131,17 @@ interface Filters {
   bankAccountId: string
 }
 
+interface PreviewTx {
+  id: string
+  tx_date: string
+  description: string | null
+  account_alias: string | null
+  bank_account_id: string | null
+  amount_out?: number
+  amount_in?: number
+}
+interface PreviewPair { out: PreviewTx; in: PreviewTx }
+
 function TransactionsContent() {
   const searchParams = useSearchParams()
   const bankAccountIdParam = searchParams.get('bankAccountId') ?? ''
@@ -142,6 +153,8 @@ function TransactionsContent() {
   const [loading,   setLoading]   = useState(false)
   const [classifying, setClassifying] = useState(false)
   const [matching,   setMatching]   = useState(false)
+  const [previewing,  setPreviewing] = useState(false)
+  const [previewPairs, setPreviewPairs] = useState<PreviewPair[] | null>(null)
   const [selectedCount, setSelectedCount] = useState(0)
   const [autoFetchFlag, setAutoFetchFlag] = useState(0)
   const [filters, setFilters]     = useState<Filters>({
@@ -327,6 +340,22 @@ function TransactionsContent() {
       setMatching(false)
     }
   }, [filters.bankAccountId, fetchTransactions, showToast])
+
+  // 이체 매칭 미리보기 (드라이런)
+  const handlePreview = useCallback(async () => {
+    setPreviewing(true)
+    try {
+      const params = new URLSearchParams()
+      if (filters.bankAccountId) params.set('bank_account_id', filters.bankAccountId)
+      const res  = await fetch(`/api/transactions/match-transfers?${params}`)
+      const json = await res.json()
+      setPreviewPairs(json.pairs ?? [])
+    } catch {
+      showToast('미리보기 조회 실패', 'err')
+    } finally {
+      setPreviewing(false)
+    }
+  }, [filters.bankAccountId, showToast])
 
   // 통계 계산
   const stats = useMemo(() => {
@@ -582,9 +611,16 @@ function TransactionsContent() {
             {classifying ? '분류 중...' : '✨ 자동 분류'}
           </button>
           <button
+            onClick={handlePreview}
+            disabled={previewing}
+            className="px-3 py-1.5 border border-purple-300 rounded-lg text-sm text-purple-700 hover:bg-purple-50 disabled:opacity-50"
+          >
+            {previewing ? '조회 중...' : '🔍 이체 미리보기'}
+          </button>
+          <button
             onClick={handleMatchTransfers}
             disabled={matching}
-            className="px-3 py-1.5 border border-purple-300 rounded-lg text-sm text-purple-700 hover:bg-purple-50 disabled:opacity-50"
+            className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
           >
             {matching ? '매칭 중...' : '🔗 이체 매칭'}
           </button>
@@ -638,6 +674,94 @@ function TransactionsContent() {
       <p className="text-xs text-gray-400 mt-2">
         계정과목 셀 클릭 → 드롭다운으로 분류 &nbsp;·&nbsp; 메모 셀 클릭 → 직접 입력 &nbsp;·&nbsp; 행 체크 후 선택 확정으로 일괄 확정
       </p>
+
+      {/* 이체 매칭 미리보기 모달 */}
+      {previewPairs !== null && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">이체 매칭 미리보기</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  동일 금액 + ±1일 + 다른 계좌 조건으로 매칭 가능한 쌍 (저장되지 않음)
+                </p>
+              </div>
+              <span className="text-sm font-medium text-purple-700 bg-purple-50 px-3 py-1 rounded-full">
+                {previewPairs.length}쌍
+              </span>
+            </div>
+
+            <div className="overflow-auto flex-1 px-6 py-4">
+              {previewPairs.length === 0 ? (
+                <p className="text-slate-400 text-sm py-8 text-center">매칭 가능한 이체 거래가 없습니다.</p>
+              ) : (
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="text-left text-xs text-slate-500 border-b">
+                      <th className="pb-2 pr-3 font-medium w-5 text-center">#</th>
+                      <th className="pb-2 pr-3 font-medium">출금 계좌</th>
+                      <th className="pb-2 pr-3 font-medium">날짜</th>
+                      <th className="pb-2 pr-3 font-medium">내용</th>
+                      <th className="pb-2 pr-6 font-medium text-right">출금액</th>
+                      <th className="pb-2 px-3 font-medium text-center text-purple-400">↔</th>
+                      <th className="pb-2 pr-3 font-medium">입금 계좌</th>
+                      <th className="pb-2 pr-3 font-medium">날짜</th>
+                      <th className="pb-2 pr-3 font-medium">내용</th>
+                      <th className="pb-2 font-medium text-right">입금액</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewPairs.map((pair, i) => (
+                      <tr key={i} className="border-b border-slate-50 hover:bg-slate-50 text-xs">
+                        <td className="py-2 pr-3 text-slate-400 text-center">{i + 1}</td>
+                        <td className="py-2 pr-3 text-slate-700 font-medium">{pair.out.account_alias ?? '—'}</td>
+                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{(pair.out.tx_date as string).slice(0, 10)}</td>
+                        <td className="py-2 pr-3 text-slate-600 max-w-[160px] truncate" title={pair.out.description ?? ''}>{pair.out.description ?? '—'}</td>
+                        <td className="py-2 pr-6 text-red-600 font-medium text-right whitespace-nowrap">
+                          {(pair.out.amount_out as number).toLocaleString('ko-KR')}원
+                        </td>
+                        <td className="py-2 px-3 text-purple-400 text-center font-bold">↔</td>
+                        <td className="py-2 pr-3 text-slate-700 font-medium">{pair.in.account_alias ?? '—'}</td>
+                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{(pair.in.tx_date as string).slice(0, 10)}</td>
+                        <td className="py-2 pr-3 text-slate-600 max-w-[160px] truncate" title={pair.in.description ?? ''}>{pair.in.description ?? '—'}</td>
+                        <td className="py-2 text-blue-600 font-medium text-right whitespace-nowrap">
+                          {(pair.in.amount_in as number).toLocaleString('ko-KR')}원
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t flex items-center justify-between gap-3">
+              <p className="text-xs text-slate-400">
+                미확정 쌍은 저장되지 않습니다. &quot;이체 매칭 실행&quot;을 눌러야 DB에 반영됩니다.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPreviewPairs(null)}
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50"
+                >
+                  닫기
+                </button>
+                {previewPairs.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setPreviewPairs(null)
+                      handleMatchTransfers()
+                    }}
+                    disabled={matching}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    {matching ? '매칭 중...' : `${previewPairs.length}쌍 이체 매칭 실행`}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 토스트 */}
       {toast && (
