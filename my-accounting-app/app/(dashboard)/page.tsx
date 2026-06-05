@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { unstable_noStore as noStore } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase-server'
+import OrphanedAccountsSection, { type OrphanedGroup } from './_components/OrphanedAccountsSection'
 
 // force-dynamic: 정적 렌더링 방지 (빌드 시 캐싱 금지)
 export const dynamic = 'force-dynamic'
@@ -138,11 +139,12 @@ export default async function DashboardPage() {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
   })
 
-  // 계좌·미분류·당월 거래 병렬 조회
+  // 계좌·미분류·당월 거래·미연결 거래 병렬 조회
   const [
     { data: accounts },
     { data: curMonthTx },
     { data: unclassifiedTx },
+    { data: orphanedRaw },
   ] = await Promise.all([
     admin.from('bank_accounts')
       .select('id, bank_name, account_number, alias')
@@ -159,7 +161,26 @@ export default async function DashboardPage() {
       .select('bank_account_id')
       .is('confirmed_account_id', null)
       .in('status', ['pending', 'reviewed']),
+
+    // bank_account_id 없지만 account_alias(은행명)가 있는 미연결 거래
+    admin.from('transactions')
+      .select('account_alias, amount_in, amount_out')
+      .is('bank_account_id', null)
+      .not('account_alias', 'is', null)
+      .limit(5000),
   ])
+
+  // 미연결 거래를 account_alias 기준으로 그룹핑
+  const orphanedMap: Record<string, OrphanedGroup> = {}
+  for (const tx of (orphanedRaw ?? [])) {
+    const alias = tx.account_alias as string
+    if (!orphanedMap[alias]) orphanedMap[alias] = { alias, count: 0, totalIn: 0, totalOut: 0 }
+    orphanedMap[alias].count++
+    orphanedMap[alias].totalIn  += (tx.amount_in  as number) ?? 0
+    orphanedMap[alias].totalOut += (tx.amount_out as number) ?? 0
+  }
+  const orphanedGroups: OrphanedGroup[] = Object.values(orphanedMap)
+    .sort((a, b) => b.count - a.count)
 
   // 당월 거래가 없으면 전월로 자동 전환 (업로드된 데이터가 전월인 경우 대응)
   let monthlyTx = curMonthTx ?? []
@@ -280,6 +301,9 @@ export default async function DashboardPage() {
           })}
         </div>
       )}
+
+      {/* 미연결 계좌 (bank_account_id 없는 거래 그룹) */}
+      <OrphanedAccountsSection groups={orphanedGroups} />
     </div>
   )
 }

@@ -8,9 +8,10 @@ import type { BankAccount } from '@/types/bank-account'
 
 // ── 계좌 직접 등록 모달 ─────────────────────────────────────────
 function AddBankModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [form, setForm]   = useState({ bank_name: '', account_number: '', alias: '' })
+  const [form, setForm]     = useState({ bank_name: '', account_number: '', alias: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState<string | null>(null)
+  const [linked, setLinked] = useState<number | null>(null)
 
   const handleSave = async () => {
     if (!form.bank_name.trim()) { setError('은행명을 입력하세요.'); return }
@@ -27,8 +28,10 @@ function AddBankModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
     const json = await res.json()
     setSaving(false)
     if (!res.ok) { setError(json.error ?? '저장 실패'); return }
+    // 자동 연결된 거래 건수 표시 후 닫기
+    setLinked(json.linkedTransactions ?? 0)
     onSaved()
-    onClose()
+    setTimeout(() => onClose(), 1200)
   }
 
   return (
@@ -89,12 +92,17 @@ function AddBankModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
           </button>
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || linked !== null}
             className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50"
           >
-            {saving ? '저장 중...' : '등록'}
+            {saving ? '저장 중...' : linked !== null ? '✓ 등록 완료' : '등록'}
           </button>
         </div>
+        {linked !== null && linked > 0 && (
+          <p className="text-xs text-green-600 text-center mt-2">
+            기존 거래 {linked.toLocaleString()}건이 자동 연결되었습니다.
+          </p>
+        )}
       </div>
     </div>
   )

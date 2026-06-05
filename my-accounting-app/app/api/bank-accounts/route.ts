@@ -61,7 +61,6 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) {
-    // 중복 계좌 안내 메시지
     const isDuplicate = error.code === '23505'
     return NextResponse.json(
       { error: isDuplicate ? '동일한 은행명+계좌번호가 이미 존재합니다.' : error.message },
@@ -69,6 +68,15 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  return NextResponse.json({ data })
+  // 등록된 은행명과 account_alias가 일치하는 미연결 거래 자동 연결
+  // (파일 업로드 시 bank_account_id 없이 account_alias만 저장된 거래들)
+  const { data: linked } = await admin
+    .from('transactions')
+    .update({ bank_account_id: data.id })
+    .eq('account_alias', body.bank_name.trim())
+    .is('bank_account_id', null)
+    .select('id')
+
+  return NextResponse.json({ data, linkedTransactions: linked?.length ?? 0 })
 }
 
