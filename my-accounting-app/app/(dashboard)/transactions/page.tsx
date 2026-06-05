@@ -84,6 +84,19 @@ function SideBadge(p: ICellRendererParams<Transaction>) {
   return <span className="text-gray-300 text-xs">—</span>
 }
 
+// 이체쌍 배지 렌더러
+function TransferPairBadge(p: ICellRendererParams<Transaction>) {
+  if (!p.value) return <span className="text-gray-300 text-xs">—</span>
+  return (
+    <span
+      className="inline-block px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-default"
+      title={`이체쌍 ID: ${p.value}`}
+    >
+      🔗 이체쌍
+    </span>
+  )
+}
+
 // 상태 배지 렌더러
 function StatusBadge(p: ICellRendererParams<Transaction>) {
   const map: Record<string, { label: string; cls: string }> = {
@@ -128,6 +141,7 @@ function TransactionsContent() {
   const [banks,     setBanks]     = useState<BankAccount[]>([])
   const [loading,   setLoading]   = useState(false)
   const [classifying, setClassifying] = useState(false)
+  const [matching,   setMatching]   = useState(false)
   const [selectedCount, setSelectedCount] = useState(0)
   const [autoFetchFlag, setAutoFetchFlag] = useState(0)
   const [filters, setFilters]     = useState<Filters>({
@@ -290,6 +304,30 @@ function TransactionsContent() {
     }
   }, [filters.bankAccountId, fetchTransactions, showToast])
 
+  // 이체 거래 쌍 자동 매칭
+  const handleMatchTransfers = useCallback(async () => {
+    setMatching(true)
+    try {
+      const body = filters.bankAccountId ? { bank_account_id: filters.bankAccountId } : {}
+      const res  = await fetch('/api/transactions/match-transfers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const json = await res.json()
+      if (json.matched > 0) {
+        showToast(`${json.matched}쌍 이체 매칭 완료`)
+        fetchTransactions()
+      } else {
+        showToast('매칭 가능한 이체 거래 없음')
+      }
+    } catch {
+      showToast('이체 매칭 실패', 'err')
+    } finally {
+      setMatching(false)
+    }
+  }, [filters.bankAccountId, fetchTransactions, showToast])
+
   // 통계 계산
   const stats = useMemo(() => {
     const totalIn     = rowData.reduce((s, r) => s + (r.amount_in ?? 0), 0)
@@ -414,6 +452,13 @@ function TransactionsContent() {
       cellRenderer: StatusBadge,
     },
     {
+      field: 'transfer_pair_id',
+      headerName: '이체쌍',
+      width: 95,
+      cellRenderer: TransferPairBadge,
+      sortable: false,
+    },
+    {
       field: 'source',
       headerName: '출처',
       width: 70,
@@ -535,6 +580,13 @@ function TransactionsContent() {
             className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
             {classifying ? '분류 중...' : '✨ 자동 분류'}
+          </button>
+          <button
+            onClick={handleMatchTransfers}
+            disabled={matching}
+            className="px-3 py-1.5 border border-purple-300 rounded-lg text-sm text-purple-700 hover:bg-purple-50 disabled:opacity-50"
+          >
+            {matching ? '매칭 중...' : '🔗 이체 매칭'}
           </button>
           {selectedCount > 0 && (
             <>

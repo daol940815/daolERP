@@ -17,6 +17,7 @@ export interface Transaction {
   ai_confidence?: number | null
   ai_reason?: string | null
   upload_log_id?: string | null
+  transfer_pair_id?: string | null
   created_at: string
 }
 
