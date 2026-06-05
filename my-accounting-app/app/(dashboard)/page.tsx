@@ -1,6 +1,10 @@
 import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase-server'
 
+// 서버 컴포넌트를 매 요청마다 동적으로 렌더링 — 캐싱 방지
+// (Supabase 직접 쿼리는 Next.js fetch 캐시를 거치지 않아 static 렌더링으로 굳어버리는 문제 방지)
+export const dynamic = 'force-dynamic'
+
 // ── 금액 포맷 ──────────────────────────────────────────────
 function fmt(n: number): string {
   return (n < 0 ? '-' : '') + Math.abs(n).toLocaleString('ko-KR') + '원'
@@ -140,10 +144,11 @@ export default async function DashboardPage() {
       .gte('tx_date', monthStart)
       .lte('tx_date', monthEnd),
 
+    // 미분류 = confirmed_account_id 없고 pending/reviewed 상태인 전체 거래
     admin.from('transactions')
       .select('bank_account_id')
-      .is('suggested_account_id', null)
-      .eq('status', 'pending'),
+      .is('confirmed_account_id', null)
+      .in('status', ['pending', 'reviewed']),
   ])
 
   // 계좌별 최신 잔액 (병렬 조회)
