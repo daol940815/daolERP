@@ -140,7 +140,11 @@ interface PreviewTx {
   amount_out?: number
   amount_in?: number
 }
-interface PreviewPair { out: PreviewTx; in: PreviewTx }
+interface PreviewPair {
+  out: PreviewTx
+  in: PreviewTx
+  pairType?: string  // 'standard' | 'minus-account'
+}
 
 interface MatchedPair {
   pair_id: string
@@ -831,33 +835,41 @@ function TransactionsContent() {
                       <th className="pb-2 pr-3 font-medium">출금 계좌</th>
                       <th className="pb-2 pr-3 font-medium">날짜</th>
                       <th className="pb-2 pr-3 font-medium">내용</th>
-                      <th className="pb-2 pr-6 font-medium text-right">출금액</th>
-                      <th className="pb-2 px-3 font-medium text-center text-purple-400">↔</th>
+                      <th className="pb-2 pr-4 font-medium text-right">금액</th>
+                      <th className="pb-2 px-2 font-medium text-center text-purple-400">↔</th>
                       <th className="pb-2 pr-3 font-medium">입금 계좌</th>
                       <th className="pb-2 pr-3 font-medium">날짜</th>
                       <th className="pb-2 pr-3 font-medium">내용</th>
-                      <th className="pb-2 font-medium text-right">입금액</th>
+                      <th className="pb-2 font-medium text-right">금액</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {previewPairs.map((pair, i) => (
+                    {previewPairs.map((pair, i) => {
+                      const isMinus = pair.pairType === 'minus-account'
+                      const outAmt  = isMinus ? (pair.out.amount_in as number) : (pair.out.amount_out as number)
+                      const inAmt   = pair.in.amount_in as number
+                      return (
                       <tr key={i} className="border-b border-slate-50 hover:bg-slate-50 text-xs">
                         <td className="py-2 pr-3 text-slate-400 text-center">{i + 1}</td>
-                        <td className="py-2 pr-3 text-slate-700 font-medium">{pair.out.account_alias ?? '—'}</td>
+                        <td className="py-2 pr-3 text-slate-700 font-medium">
+                          {pair.out.account_alias ?? '—'}
+                          {isMinus && <span className="ml-1 text-orange-500 text-[10px]">마이너스</span>}
+                        </td>
                         <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{(pair.out.tx_date as string).slice(0, 10)}</td>
                         <td className="py-2 pr-3 text-slate-600 max-w-[160px] truncate" title={pair.out.description ?? ''}>{pair.out.description ?? '—'}</td>
-                        <td className="py-2 pr-6 text-red-600 font-medium text-right whitespace-nowrap">
-                          {(pair.out.amount_out as number).toLocaleString('ko-KR')}원
+                        <td className="py-2 pr-4 text-red-600 font-medium text-right whitespace-nowrap">
+                          {outAmt?.toLocaleString('ko-KR')}원
                         </td>
-                        <td className="py-2 px-3 text-purple-400 text-center font-bold">↔</td>
+                        <td className="py-2 px-2 text-purple-400 text-center font-bold">↔</td>
                         <td className="py-2 pr-3 text-slate-700 font-medium">{pair.in.account_alias ?? '—'}</td>
                         <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{(pair.in.tx_date as string).slice(0, 10)}</td>
                         <td className="py-2 pr-3 text-slate-600 max-w-[160px] truncate" title={pair.in.description ?? ''}>{pair.in.description ?? '—'}</td>
                         <td className="py-2 text-blue-600 font-medium text-right whitespace-nowrap">
-                          {(pair.in.amount_in as number).toLocaleString('ko-KR')}원
+                          {inAmt?.toLocaleString('ko-KR')}원
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               )}

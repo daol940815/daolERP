@@ -2,17 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { randomUUID } from 'crypto'
 
+// 매칭 조건:
+//   1. description에 '다올' 포함 (ilike)
+//   2. 동일 금액 + ±1일 + 다른 bank_account_id + 유일 매칭
+//   Pass 1: amount_out > 0 ↔ amount_in > 0  (일반 이체)
+//   Pass 2: amount_in > 0 ↔ amount_in > 0   (마이너스 통장 — 차입 출금이 amount_in으로 기록)
+
 // GET /api/transactions/match-transfers?bank_account_id=...
-// 드라이런: 실제 저장 없이 매칭 가능한 쌍 목록 반환
+// 드라이런: DB 저장 없이 매칭 가능 쌍 목록 반환
 export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   const bankAccountId = new URL(req.url).searchParams.get('bank_account_id') ?? undefined
 
+  const sel = 'id, tx_date, amount_in, amount_out, description, account_alias, bank_account_id'
+
   let outQuery = admin
     .from('transactions')
-    .select('id, tx_date, amount_out, description, account_alias, bank_account_id')
+    .select(sel)
     .gt('amount_out', 0)
     .eq('amount_in', 0)
+    .ilike('description', '%다올%')
     .is('transfer_pair_id', null)
     .limit(3000)
 
@@ -20,49 +29,69 @@ export async function GET(req: NextRequest) {
 
   const inQuery = admin
     .from('transactions')
-    .select('id, tx_date, amount_in, description, account_alias, bank_account_id')
+    .select(sel)
     .gt('amount_in', 0)
     .eq('amount_out', 0)
+    .ilike('description', '%다올%')
     .is('transfer_pair_id', null)
     .limit(3000)
 
-  const [{ data: outgoing, error: outErr }, { data: incoming, error: inErr }] =
+  const [{ data: rawOut, error: outErr }, { data: rawIn, error: inErr }] =
     await Promise.all([outQuery, inQuery])
 
   if (outErr || inErr) {
     return NextResponse.json({ error: (outErr ?? inErr)?.message }, { status: 500 })
   }
 
-  if (!outgoing?.length || !incoming?.length) {
-    return NextResponse.json({ pairs: [], total: outgoing?.length ?? 0 })
-  }
+  const outgoing = (rawOut ?? []) as Array<Record<string, unknown>>
+  const incoming = (rawIn  ?? []) as Array<Record<string, unknown>>
 
-  const byAmount = new Map<number, typeof incoming>()
-  for (const tx of incoming) {
-    const amt = tx.amount_in as number
-    if (!byAmount.has(amt)) byAmount.set(amt, [])
-    byAmount.get(amt)!.push(tx)
-  }
-
-  const pairs: Array<{ out: (typeof outgoing)[0]; in: (typeof incoming)[0] }> = []
+  const pairs: Array<{ out: typeof outgoing[0]; in: typeof outgoing[0]; pairType: string }> = []
   const usedIds = new Set<string>()
 
+  // Pass 1: amount_out → amount_in
+  const byAmtIn = new Map<number, typeof incoming>()
+  for (const tx of incoming) {
+    const amt = tx.amount_in as number
+    if (!byAmtIn.has(amt)) byAmtIn.set(amt, [])
+    byAmtIn.get(amt)!.push(tx)
+  }
   for (const out of outgoing) {
-    if (usedIds.has(out.id)) continue
-
-    const amount    = out.amount_out as number
+    if (usedIds.has(out.id as string)) continue
     const outDate   = new Date(out.tx_date as string).getTime()
-    const candidates = (byAmount.get(amount) ?? []).filter(inTx => {
-      if (usedIds.has(inTx.id))                         return false
+    const candidates = (byAmtIn.get(out.amount_out as number) ?? []).filter(inTx => {
+      if (usedIds.has(inTx.id as string)) return false
       if (inTx.bank_account_id === out.bank_account_id) return false
-      const dayDiff = Math.abs(new Date(inTx.tx_date as string).getTime() - outDate) / 86_400_000
-      return dayDiff <= 1
+      return Math.abs(new Date(inTx.tx_date as string).getTime() - outDate) / 86_400_000 <= 1
     })
-
     if (candidates.length === 1) {
-      pairs.push({ out, in: candidates[0] })
-      usedIds.add(out.id)
-      usedIds.add(candidates[0].id)
+      pairs.push({ out, in: candidates[0], pairType: 'standard' })
+      usedIds.add(out.id as string)
+      usedIds.add(candidates[0].id as string)
+    }
+  }
+
+  // Pass 2: amount_in ↔ amount_in (마이너스 통장)
+  const remIn = incoming.filter(tx => !usedIds.has(tx.id as string))
+  const byAmtIn2 = new Map<number, typeof remIn>()
+  for (const tx of remIn) {
+    const amt = tx.amount_in as number
+    if (!byAmtIn2.has(amt)) byAmtIn2.set(amt, [])
+    byAmtIn2.get(amt)!.push(tx)
+  }
+  for (const tx of remIn) {
+    if (usedIds.has(tx.id as string)) continue
+    const txDate = new Date(tx.tx_date as string).getTime()
+    const candidates = (byAmtIn2.get(tx.amount_in as number) ?? []).filter(other => {
+      if (other.id === tx.id) return false
+      if (usedIds.has(other.id as string)) return false
+      if (other.bank_account_id === tx.bank_account_id) return false
+      return Math.abs(new Date(other.tx_date as string).getTime() - txDate) / 86_400_000 <= 1
+    })
+    if (candidates.length === 1) {
+      pairs.push({ out: tx, in: candidates[0], pairType: 'minus-account' })
+      usedIds.add(tx.id as string)
+      usedIds.add(candidates[0].id as string)
     }
   }
 
@@ -70,75 +99,88 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/transactions/match-transfers
-// 법인 내 타계좌 이체 거래 자동 쌍 매칭
-//   - 출금(amount_out > 0, amount_in = 0) ↔ 입금(amount_in > 0, amount_out = 0)
-//   - 동일 금액 + ±1일 + 다른 bank_account_id + 유일 매칭인 경우만 연결
-// Body: { bank_account_id?: string }  — 지정 시 해당 계좌의 출금 기준으로 매칭
+// Body: { bank_account_id?: string }
 export async function POST(req: NextRequest) {
   const admin = createAdminClient()
   const body  = await req.json().catch(() => ({})) as { bank_account_id?: string }
   const bankAccountId = body.bank_account_id
 
-  // 매칭되지 않은 출금 거래 (amount_out > 0, amount_in = 0)
   let outQuery = admin
     .from('transactions')
     .select('id, tx_date, amount_out, bank_account_id')
     .gt('amount_out', 0)
     .eq('amount_in', 0)
+    .ilike('description', '%다올%')
     .is('transfer_pair_id', null)
     .limit(3000)
 
   if (bankAccountId) outQuery = outQuery.eq('bank_account_id', bankAccountId)
 
-  // 매칭되지 않은 입금 거래 (amount_in > 0, amount_out = 0)
-  // 상대 계좌는 bankAccountId와 달라야 하므로 전체 계좌 대상으로 조회
   const inQuery = admin
     .from('transactions')
     .select('id, tx_date, amount_in, bank_account_id')
     .gt('amount_in', 0)
     .eq('amount_out', 0)
+    .ilike('description', '%다올%')
     .is('transfer_pair_id', null)
     .limit(3000)
 
-  const [{ data: outgoing, error: outErr }, { data: incoming, error: inErr }] =
+  const [{ data: rawOut, error: outErr }, { data: rawIn, error: inErr }] =
     await Promise.all([outQuery, inQuery])
 
   if (outErr || inErr) {
     return NextResponse.json({ error: (outErr ?? inErr)?.message }, { status: 500 })
   }
 
-  if (!outgoing?.length || !incoming?.length) {
-    return NextResponse.json({ matched: 0, total: outgoing?.length ?? 0 })
-  }
-
-  // 입금 거래를 금액 기준으로 인덱싱 — 빠른 후보 조회
-  const byAmount = new Map<number, typeof incoming>()
-  for (const tx of incoming) {
-    const amt = tx.amount_in as number
-    if (!byAmount.has(amt)) byAmount.set(amt, [])
-    byAmount.get(amt)!.push(tx)
-  }
+  const outgoing = (rawOut ?? []) as Array<Record<string, unknown>>
+  const incoming = (rawIn  ?? []) as Array<Record<string, unknown>>
 
   const pairs: Array<[string, string]> = []
   const usedIds = new Set<string>()
 
+  // Pass 1: amount_out → amount_in
+  const byAmtIn = new Map<number, typeof incoming>()
+  for (const tx of incoming) {
+    const amt = tx.amount_in as number
+    if (!byAmtIn.has(amt)) byAmtIn.set(amt, [])
+    byAmtIn.get(amt)!.push(tx)
+  }
   for (const out of outgoing) {
-    if (usedIds.has(out.id)) continue
-
-    const amount   = out.amount_out as number
-    const outDate  = new Date(out.tx_date as string).getTime()
-    const candidates = (byAmount.get(amount) ?? []).filter(inTx => {
-      if (usedIds.has(inTx.id))                              return false
-      if (inTx.bank_account_id === out.bank_account_id)      return false
-      const dayDiff = Math.abs(new Date(inTx.tx_date as string).getTime() - outDate) / 86_400_000
-      return dayDiff <= 1
+    if (usedIds.has(out.id as string)) continue
+    const outDate    = new Date(out.tx_date as string).getTime()
+    const candidates = (byAmtIn.get(out.amount_out as number) ?? []).filter(inTx => {
+      if (usedIds.has(inTx.id as string)) return false
+      if (inTx.bank_account_id === out.bank_account_id) return false
+      return Math.abs(new Date(inTx.tx_date as string).getTime() - outDate) / 86_400_000 <= 1
     })
-
-    // 유일 매칭(ambiguous 제외)
     if (candidates.length === 1) {
-      pairs.push([out.id, candidates[0].id])
-      usedIds.add(out.id)
-      usedIds.add(candidates[0].id)
+      pairs.push([out.id as string, candidates[0].id as string])
+      usedIds.add(out.id as string)
+      usedIds.add(candidates[0].id as string)
+    }
+  }
+
+  // Pass 2: amount_in ↔ amount_in (마이너스 통장)
+  const remIn = incoming.filter(tx => !usedIds.has(tx.id as string))
+  const byAmtIn2 = new Map<number, typeof remIn>()
+  for (const tx of remIn) {
+    const amt = tx.amount_in as number
+    if (!byAmtIn2.has(amt)) byAmtIn2.set(amt, [])
+    byAmtIn2.get(amt)!.push(tx)
+  }
+  for (const tx of remIn) {
+    if (usedIds.has(tx.id as string)) continue
+    const txDate     = new Date(tx.tx_date as string).getTime()
+    const candidates = (byAmtIn2.get(tx.amount_in as number) ?? []).filter(other => {
+      if (other.id === tx.id) return false
+      if (usedIds.has(other.id as string)) return false
+      if (other.bank_account_id === tx.bank_account_id) return false
+      return Math.abs(new Date(other.tx_date as string).getTime() - txDate) / 86_400_000 <= 1
+    })
+    if (candidates.length === 1) {
+      pairs.push([tx.id as string, candidates[0].id as string])
+      usedIds.add(tx.id as string)
+      usedIds.add(candidates[0].id as string)
     }
   }
 
@@ -146,7 +188,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ matched: 0, total: outgoing.length })
   }
 
-  // 쌍마다 동일 UUID를 양쪽에 할당
   await Promise.all(
     pairs.flatMap(([outId, inId]) => {
       const pairId = randomUUID()
