@@ -142,6 +142,12 @@ interface PreviewTx {
 }
 interface PreviewPair { out: PreviewTx; in: PreviewTx }
 
+interface MatchedPair {
+  pair_id: string
+  out: PreviewTx
+  in: PreviewTx
+}
+
 function TransactionsContent() {
   const searchParams = useSearchParams()
   const bankAccountIdParam = searchParams.get('bankAccountId') ?? ''
@@ -153,8 +159,11 @@ function TransactionsContent() {
   const [loading,   setLoading]   = useState(false)
   const [classifying, setClassifying] = useState(false)
   const [matching,   setMatching]   = useState(false)
-  const [previewing,  setPreviewing] = useState(false)
+  const [previewing,   setPreviewing]   = useState(false)
   const [previewPairs, setPreviewPairs] = useState<PreviewPair[] | null>(null)
+  const [reviewing,    setReviewing]    = useState(false)
+  const [matchedPairs, setMatchedPairs] = useState<MatchedPair[] | null>(null)
+  const [unlinking,    setUnlinking]    = useState<string | null>(null)
   const [selectedCount, setSelectedCount] = useState(0)
   const [autoFetchFlag, setAutoFetchFlag] = useState(0)
   const [filters, setFilters]     = useState<Filters>({
@@ -356,6 +365,40 @@ function TransactionsContent() {
       setPreviewing(false)
     }
   }, [filters.bankAccountId, showToast])
+
+  // 현재 매칭된 쌍 검토 모달 열기
+  const handleReview = useCallback(async () => {
+    setReviewing(true)
+    try {
+      const res  = await fetch('/api/transactions/matched-pairs')
+      const json = await res.json()
+      setMatchedPairs(json.pairs ?? [])
+    } catch {
+      showToast('매칭 내역 조회 실패', 'err')
+    } finally {
+      setReviewing(false)
+    }
+  }, [showToast])
+
+  // 특정 쌍 매칭 해제
+  const handleUnlink = useCallback(async (pairId: string) => {
+    setUnlinking(pairId)
+    try {
+      const res = await fetch('/api/transactions/match-transfers', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pair_id: pairId }),
+      })
+      if (res.ok) {
+        setMatchedPairs(prev => prev?.filter(p => p.pair_id !== pairId) ?? null)
+        fetchTransactions()
+      } else {
+        showToast('매칭 해제 실패', 'err')
+      }
+    } finally {
+      setUnlinking(null)
+    }
+  }, [fetchTransactions, showToast])
 
   // 통계 계산
   const stats = useMemo(() => {
@@ -611,6 +654,13 @@ function TransactionsContent() {
             {classifying ? '분류 중...' : '✨ 자동 분류'}
           </button>
           <button
+            onClick={handleReview}
+            disabled={reviewing}
+            className="px-3 py-1.5 border border-purple-300 rounded-lg text-sm text-purple-700 hover:bg-purple-50 disabled:opacity-50"
+          >
+            {reviewing ? '조회 중...' : '📋 매칭 검토'}
+          </button>
+          <button
             onClick={handlePreview}
             disabled={previewing}
             className="px-3 py-1.5 border border-purple-300 rounded-lg text-sm text-purple-700 hover:bg-purple-50 disabled:opacity-50"
@@ -674,6 +724,85 @@ function TransactionsContent() {
       <p className="text-xs text-gray-400 mt-2">
         계정과목 셀 클릭 → 드롭다운으로 분류 &nbsp;·&nbsp; 메모 셀 클릭 → 직접 입력 &nbsp;·&nbsp; 행 체크 후 선택 확정으로 일괄 확정
       </p>
+
+      {/* 이체 매칭 검토 모달 (기존 매칭 쌍 — 개별 해제 가능) */}
+      {matchedPairs !== null && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">이체 매칭 검토</h2>
+                <p className="text-xs text-slate-500 mt-0.5">잘못 매칭된 쌍은 &quot;해제&quot; 버튼으로 개별 해제할 수 있습니다.</p>
+              </div>
+              <span className="text-sm font-medium text-purple-700 bg-purple-50 px-3 py-1 rounded-full">
+                {matchedPairs.length}쌍
+              </span>
+            </div>
+
+            <div className="overflow-auto flex-1 px-6 py-4">
+              {matchedPairs.length === 0 ? (
+                <p className="text-slate-400 text-sm py-8 text-center">현재 매칭된 이체 쌍이 없습니다.</p>
+              ) : (
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="text-left text-xs text-slate-500 border-b sticky top-0 bg-white">
+                      <th className="pb-2 pr-2 font-medium w-5 text-center">#</th>
+                      <th className="pb-2 pr-3 font-medium">출금 계좌</th>
+                      <th className="pb-2 pr-3 font-medium">날짜</th>
+                      <th className="pb-2 pr-3 font-medium">내용</th>
+                      <th className="pb-2 pr-4 font-medium text-right">출금액</th>
+                      <th className="pb-2 px-2 font-medium text-center text-purple-400">↔</th>
+                      <th className="pb-2 pr-3 font-medium">입금 계좌</th>
+                      <th className="pb-2 pr-3 font-medium">날짜</th>
+                      <th className="pb-2 pr-3 font-medium">내용</th>
+                      <th className="pb-2 pr-3 font-medium text-right">입금액</th>
+                      <th className="pb-2 font-medium text-center">해제</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {matchedPairs.map((pair, i) => (
+                      <tr key={pair.pair_id} className="border-b border-slate-50 hover:bg-slate-50 text-xs">
+                        <td className="py-2 pr-2 text-slate-400 text-center">{i + 1}</td>
+                        <td className="py-2 pr-3 text-slate-700 font-medium">{pair.out?.account_alias ?? '—'}</td>
+                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{(pair.out?.tx_date as string)?.slice(0, 10) ?? '—'}</td>
+                        <td className="py-2 pr-3 text-slate-600 max-w-[150px] truncate" title={pair.out?.description ?? ''}>{pair.out?.description ?? '—'}</td>
+                        <td className="py-2 pr-4 text-red-600 font-medium text-right whitespace-nowrap">
+                          {pair.out?.amount_out ? (pair.out.amount_out as number).toLocaleString('ko-KR') + '원' : '—'}
+                        </td>
+                        <td className="py-2 px-2 text-purple-400 text-center font-bold">↔</td>
+                        <td className="py-2 pr-3 text-slate-700 font-medium">{pair.in?.account_alias ?? '—'}</td>
+                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{(pair.in?.tx_date as string)?.slice(0, 10) ?? '—'}</td>
+                        <td className="py-2 pr-3 text-slate-600 max-w-[150px] truncate" title={pair.in?.description ?? ''}>{pair.in?.description ?? '—'}</td>
+                        <td className="py-2 pr-3 text-blue-600 font-medium text-right whitespace-nowrap">
+                          {pair.in?.amount_in ? (pair.in.amount_in as number).toLocaleString('ko-KR') + '원' : '—'}
+                        </td>
+                        <td className="py-2 text-center">
+                          <button
+                            onClick={() => handleUnlink(pair.pair_id)}
+                            disabled={unlinking === pair.pair_id}
+                            className="px-2 py-1 text-xs rounded border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                          >
+                            {unlinking === pair.pair_id ? '...' : '해제'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t flex items-center justify-end">
+              <button
+                onClick={() => setMatchedPairs(null)}
+                className="px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 이체 매칭 미리보기 모달 */}
       {previewPairs !== null && (

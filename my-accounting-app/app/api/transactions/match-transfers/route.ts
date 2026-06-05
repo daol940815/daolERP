@@ -161,25 +161,22 @@ export async function POST(req: NextRequest) {
 }
 
 // DELETE /api/transactions/match-transfers
-// 이체 쌍 매칭 전체 초기화 (선택한 계좌 또는 전체)
+// Body:
+//   { pair_id: string }         — 특정 쌍만 해제
+//   { bank_account_id: string } — 특정 계좌의 매칭 전체 해제
+//   {}                          — 전체 매칭 초기화
 export async function DELETE(req: NextRequest) {
   const admin = createAdminClient()
-  const body  = await req.json().catch(() => ({})) as { bank_account_id?: string }
+  const body  = await req.json().catch(() => ({})) as { bank_account_id?: string; pair_id?: string }
 
-  let query = admin
-    .from('transactions')
-    .update({ transfer_pair_id: null })
-    .not('transfer_pair_id', 'is', null)
+  const base = admin.from('transactions').update({ transfer_pair_id: null })
 
-  if (body.bank_account_id) {
-    query = admin
-      .from('transactions')
-      .update({ transfer_pair_id: null })
-      .eq('bank_account_id', body.bank_account_id)
-      .not('transfer_pair_id', 'is', null)
-  }
+  const { error } = body.pair_id
+    ? await base.eq('transfer_pair_id', body.pair_id)
+    : body.bank_account_id
+      ? await base.eq('bank_account_id', body.bank_account_id).not('transfer_pair_id', 'is', null)
+      : await base.not('transfer_pair_id', 'is', null)
 
-  const { error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
