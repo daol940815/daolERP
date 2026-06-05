@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
@@ -40,3 +40,35 @@ export async function GET() {
 
   return NextResponse.json({ data: accountsWithBalance })
 }
+
+// POST /api/bank-accounts — 계좌 직접 등록 (파일 업로드 없이)
+export async function POST(req: NextRequest) {
+  const admin = createAdminClient()
+  const body  = await req.json() as { bank_name: string; account_number?: string; alias?: string }
+
+  if (!body.bank_name?.trim()) {
+    return NextResponse.json({ error: '은행명은 필수입니다.' }, { status: 400 })
+  }
+
+  const { data, error } = await admin
+    .from('bank_accounts')
+    .insert({
+      bank_name:      body.bank_name.trim(),
+      account_number: body.account_number?.trim() || null,
+      alias:          body.alias?.trim()          || null,
+    })
+    .select('id, bank_name, account_number, alias, is_active, created_at, updated_at')
+    .single()
+
+  if (error) {
+    // 중복 계좌 안내 메시지
+    const isDuplicate = error.code === '23505'
+    return NextResponse.json(
+      { error: isDuplicate ? '동일한 은행명+계좌번호가 이미 존재합니다.' : error.message },
+      { status: isDuplicate ? 409 : 500 },
+    )
+  }
+
+  return NextResponse.json({ data })
+}
+

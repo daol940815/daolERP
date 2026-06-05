@@ -6,6 +6,100 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import type { BankAccount } from '@/types/bank-account'
 
+// ── 계좌 직접 등록 모달 ─────────────────────────────────────────
+function AddBankModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [form, setForm]   = useState({ bank_name: '', account_number: '', alias: '' })
+  const [saving, setSaving] = useState(false)
+  const [error, setError]   = useState<string | null>(null)
+
+  const handleSave = async () => {
+    if (!form.bank_name.trim()) { setError('은행명을 입력하세요.'); return }
+    setSaving(true)
+    const res = await fetch('/api/bank-accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bank_name:      form.bank_name.trim(),
+        account_number: form.account_number.trim() || undefined,
+        alias:          form.alias.trim()          || undefined,
+      }),
+    })
+    const json = await res.json()
+    setSaving(false)
+    if (!res.ok) { setError(json.error ?? '저장 실패'); return }
+    onSaved()
+    onClose()
+  }
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl shadow-2xl p-6 w-80 mx-4"
+        onClick={e => e.stopPropagation()}
+      >
+        <h3 className="text-base font-bold text-gray-900 mb-1">계좌 직접 등록</h3>
+        <p className="text-xs text-gray-400 mb-4">파일 업로드 없이 계좌를 먼저 등록합니다.</p>
+        {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              은행명 <span className="text-red-500">*</span>
+            </label>
+            <input
+              autoFocus
+              value={form.bank_name}
+              onChange={e => setForm(f => ({ ...f, bank_name: e.target.value }))}
+              onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
+              placeholder="예: 우리은행"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              계좌번호 <span className="text-gray-400">(선택)</span>
+            </label>
+            <input
+              value={form.account_number}
+              onChange={e => setForm(f => ({ ...f, account_number: e.target.value }))}
+              placeholder="예: 1005-804-575410"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              별칭 <span className="text-gray-400">(선택)</span>
+            </label>
+            <input
+              value={form.alias}
+              onChange={e => setForm(f => ({ ...f, alias: e.target.value }))}
+              placeholder="예: 법인 운영계좌"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+            />
+          </div>
+        </div>
+        <div className="flex gap-2 mt-5">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+          >
+            취소
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50"
+          >
+            {saving ? '저장 중...' : '등록'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAccount[] }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -14,6 +108,7 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
   const [banksOpen, setBanksOpen] = useState(true)
   const [editingBankId, setEditingBankId] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState('')
+  const [showAddModal, setShowAddModal] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // URL 쿼리 파라미터에서 직접 읽어 pathname 변경 없이도 계좌 선택 상태 반영
@@ -85,6 +180,7 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
     }`
 
   return (
+    <>
     <aside className="w-60 min-h-screen bg-slate-900 flex flex-col">
       {/* 서비스 로고 */}
       <div className="px-6 py-5 border-b border-slate-700">
@@ -202,14 +298,14 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
                   ))
                 )}
 
-                {/* 계좌 추가 버튼 */}
-                <Link
-                  href="/upload"
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors mt-0.5"
+                {/* 계좌 추가 */}
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors mt-0.5 w-full text-left"
                 >
                   <span>＋</span>
-                  <span>계좌 추가</span>
-                </Link>
+                  <span>계좌 직접 등록</span>
+                </button>
               </div>
             )}
           </div>
@@ -274,5 +370,14 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
         </button>
       </div>
     </aside>
+
+    {/* 계좌 직접 등록 모달 */}
+    {showAddModal && (
+      <AddBankModal
+        onClose={() => setShowAddModal(false)}
+        onSaved={() => fetchBanks()}
+      />
+    )}
+  </>
   )
 }

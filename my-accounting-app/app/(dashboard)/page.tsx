@@ -34,7 +34,7 @@ function SummaryCard({
 function AccountCard({
   id, name, accountNumber, alias,
   balance, balanceDate,
-  monthlyIn, monthlyOut, unclassifiedCount, confirmedCount,
+  monthlyIn, monthlyOut, unclassifiedCount, confirmedCount, periodLabel,
 }: {
   id: string
   name: string
@@ -46,6 +46,7 @@ function AccountCard({
   monthlyOut: number
   unclassifiedCount: number
   confirmedCount: number
+  periodLabel: string
 }) {
   const displayName = alias || name
   const isNegative = (balance ?? 0) < 0
@@ -84,16 +85,16 @@ function AccountCard({
         )}
       </div>
 
-      {/* 이번달 입금/출금 */}
+      {/* 기간 입금/출금 */}
       <div className="px-5 py-3 grid grid-cols-2 gap-3 border-b border-slate-100">
         <div>
-          <p className="text-xs text-slate-400 mb-0.5">이번달 입금</p>
+          <p className="text-xs text-slate-400 mb-0.5">입금 ({periodLabel})</p>
           <p className={`text-sm font-semibold ${monthlyIn > 0 ? 'text-blue-600' : 'text-slate-300'}`}>
             {monthlyIn > 0 ? fmt(monthlyIn) : '-'}
           </p>
         </div>
         <div>
-          <p className="text-xs text-slate-400 mb-0.5">이번달 출금</p>
+          <p className="text-xs text-slate-400 mb-0.5">출금 ({periodLabel})</p>
           <p className={`text-sm font-semibold ${monthlyOut > 0 ? 'text-red-500' : 'text-slate-300'}`}>
             {monthlyOut > 0 ? fmt(monthlyOut) : '-'}
           </p>
@@ -102,7 +103,7 @@ function AccountCard({
 
       {/* 푸터: 확정 건수 + 바로가기 */}
       <div className="px-5 py-3 flex items-center justify-between mt-auto">
-        <span className="text-xs text-slate-400">이번달 확정 {confirmedCount}건</span>
+        <span className="text-xs text-slate-400">{periodLabel} 확정 {confirmedCount}건</span>
         <Link
           href={`/transactions?bankAccountId=${id}`}
           className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
@@ -121,17 +122,23 @@ export default async function DashboardPage() {
   const now = new Date()
   const y = now.getFullYear()
   const m = now.getMonth() + 1
-  const monthStart = `${y}-${String(m).padStart(2, '0')}-01`
-  const monthEnd   = `${y}-${String(m).padStart(2, '0')}-${new Date(y, m, 0).getDate()}`
+
+  const monthOf = (yr: number, mo: number) => ({
+    start: `${yr}-${String(mo).padStart(2, '0')}-01`,
+    end:   `${yr}-${String(mo).padStart(2, '0')}-${new Date(yr, mo, 0).getDate()}`,
+    label: `${yr}년 ${mo}월`,
+  })
+  const cur  = monthOf(y, m)
+  const prev = m === 1 ? monthOf(y - 1, 12) : monthOf(y, m - 1)
 
   const todayStr = now.toLocaleDateString('ko-KR', {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
   })
 
-  // 병렬로 데이터 조회
+  // 계좌·미분류·당월 거래 병렬 조회
   const [
     { data: accounts },
-    { data: monthlyTx },
+    { data: curMonthTx },
     { data: unclassifiedTx },
   ] = await Promise.all([
     admin.from('bank_accounts')
@@ -141,8 +148,8 @@ export default async function DashboardPage() {
 
     admin.from('transactions')
       .select('bank_account_id, amount_in, amount_out, status')
-      .gte('tx_date', monthStart)
-      .lte('tx_date', monthEnd),
+      .gte('tx_date', cur.start)
+      .lte('tx_date', cur.end),
 
     // 미분류 = confirmed_account_id 없고 pending/reviewed 상태인 전체 거래
     admin.from('transactions')
@@ -150,6 +157,20 @@ export default async function DashboardPage() {
       .is('confirmed_account_id', null)
       .in('status', ['pending', 'reviewed']),
   ])
+
+  // 당월 거래가 없으면 전월로 자동 전환 (업로드된 데이터가 전월인 경우 대응)
+  let monthlyTx = curMonthTx ?? []
+  let periodLabel = cur.label
+  if (!monthlyTx.length) {
+    const { data: prevData } = await admin.from('transactions')
+      .select('bank_account_id, amount_in, amount_out, status')
+      .gte('tx_date', prev.start)
+      .lte('tx_date', prev.end)
+    if (prevData?.length) {
+      monthlyTx = prevData
+      periodLabel = `${prev.label} (전월)`
+    }
+  }
 
   // 계좌별 최신 잔액 (병렬 조회)
   const latestBalances = await Promise.all(
@@ -204,12 +225,12 @@ export default async function DashboardPage() {
       {/* 전체 요약 카드 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <SummaryCard
-          label="이번달 입금"  value={fmt(totalIn)}
-          sub="전 계좌 당월 누적 입금" icon="↓" color="text-blue-600" bg="bg-blue-50"
+          label={`${periodLabel} 입금`}  value={fmt(totalIn)}
+          sub="전 계좌 누적 입금" icon="↓" color="text-blue-600" bg="bg-blue-50"
         />
         <SummaryCard
-          label="이번달 출금"  value={fmt(totalOut)}
-          sub="전 계좌 당월 누적 출금" icon="↑" color="text-red-500" bg="bg-red-50"
+          label={`${periodLabel} 출금`}  value={fmt(totalOut)}
+          sub="전 계좌 누적 출금" icon="↑" color="text-red-500" bg="bg-red-50"
         />
         <SummaryCard
           label="미분류 건수"  value={`${totalUnclassified}건`}
@@ -250,6 +271,7 @@ export default async function DashboardPage() {
                 monthlyOut={stats.out}
                 confirmedCount={stats.confirmed}
                 unclassifiedCount={unclassifiedMap[acc.id] ?? 0}
+                periodLabel={periodLabel}
               />
             )
           })}
