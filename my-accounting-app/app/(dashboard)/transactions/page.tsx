@@ -156,7 +156,8 @@ function TransactionsContent() {
   const searchParams = useSearchParams()
   const bankAccountIdParam = searchParams.get('bankAccountId') ?? ''
 
-  const gridRef = useRef<AgGridReact<Transaction>>(null)
+  const gridRef    = useRef<AgGridReact<Transaction>>(null)
+  const uploadRef  = useRef<HTMLInputElement>(null)
   const [rowData,   setRowData]   = useState<Transaction[]>([])
   const [accounts,  setAccounts]  = useState<Account[]>([])
   const [banks,     setBanks]     = useState<BankAccount[]>([])
@@ -168,6 +169,7 @@ function TransactionsContent() {
   const [reviewing,    setReviewing]    = useState(false)
   const [matchedPairs, setMatchedPairs] = useState<MatchedPair[] | null>(null)
   const [unlinking,    setUnlinking]    = useState<string | null>(null)
+  const [importing,    setImporting]    = useState(false)
   const [selectedCount, setSelectedCount] = useState(0)
   const [autoFetchFlag, setAutoFetchFlag] = useState(0)
   const [filters, setFilters]     = useState<Filters>({
@@ -353,6 +355,45 @@ function TransactionsContent() {
       setMatching(false)
     }
   }, [filters.bankAccountId, fetchTransactions, showToast])
+
+  // 미분류 거래 엑셀 다운로드
+  const handleExport = useCallback(() => {
+    const params = new URLSearchParams({
+      ...(filters.from          && { from: filters.from }),
+      ...(filters.to            && { to:   filters.to   }),
+      ...(filters.bankAccountId && { bankAccountId: filters.bankAccountId }),
+    })
+    const a = document.createElement('a')
+    a.href = `/api/transactions/export-unclassified?${params}`
+    a.click()
+  }, [filters.from, filters.to, filters.bankAccountId])
+
+  // 엑셀 업로드 → 계정과목 일괄 업데이트
+  const handleImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''  // 같은 파일 재업로드 허용
+
+    setImporting(true)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res  = await fetch('/api/transactions/import-classifications', { method: 'POST', body: form })
+      const json = await res.json()
+      if (!res.ok) { showToast(json.error ?? '업로드 실패', 'err'); return }
+
+      let msg = `${json.updated}건 계정과목 업데이트 완료`
+      if (json.unknownAccounts?.length) {
+        msg += ` (미인식 계정: ${(json.unknownAccounts as string[]).join(', ')})`
+      }
+      showToast(msg, json.unknownAccounts?.length ? 'err' : 'ok')
+      fetchTransactions()
+    } catch {
+      showToast('업로드 실패', 'err')
+    } finally {
+      setImporting(false)
+    }
+  }, [fetchTransactions, showToast])
 
   // 이체 매칭 미리보기 (드라이런)
   const handlePreview = useCallback(async () => {
@@ -649,7 +690,28 @@ function TransactionsContent() {
         </div>
 
         {/* 액션 버튼 */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {/* 숨겨진 파일 입력 */}
+          <input
+            ref={uploadRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={handleImport}
+          />
+          <button
+            onClick={handleExport}
+            className="px-3 py-1.5 border border-emerald-300 rounded-lg text-sm text-emerald-700 hover:bg-emerald-50"
+          >
+            📥 미분류 다운로드
+          </button>
+          <button
+            onClick={() => uploadRef.current?.click()}
+            disabled={importing}
+            className="px-3 py-1.5 border border-emerald-300 rounded-lg text-sm text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+          >
+            {importing ? '업로드 중...' : '📤 엑셀 업로드'}
+          </button>
           <button
             onClick={handleClassify}
             disabled={classifying}
