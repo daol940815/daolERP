@@ -46,6 +46,13 @@ export function createAdminClient() {
         autoRefreshToken: false,
         persistSession: false,
       },
+      global: {
+        // Next.js 14 App Router는 전역 fetch를 캐싱 레이어로 래핑함.
+        // Supabase JS가 이 fetch를 그대로 사용하면 서버 컴포넌트에서 쿼리 결과가 캐싱되어
+        // DB 변경사항이 반영되지 않는 문제가 발생 → cache: 'no-store'로 강제 우회
+        fetch: (url: RequestInfo | URL, options: RequestInit = {}) =>
+          fetch(url, { ...options, cache: 'no-store' }),
+      },
     }
   )
 }

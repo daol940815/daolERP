@@ -1,8 +1,8 @@
 import Link from 'next/link'
+import { unstable_noStore as noStore } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase-server'
 
-// 서버 컴포넌트를 매 요청마다 동적으로 렌더링 — 캐싱 방지
-// (Supabase 직접 쿼리는 Next.js fetch 캐시를 거치지 않아 static 렌더링으로 굳어버리는 문제 방지)
+// force-dynamic: 정적 렌더링 방지 (빌드 시 캐싱 금지)
 export const dynamic = 'force-dynamic'
 
 // ── 금액 포맷 ──────────────────────────────────────────────
@@ -117,6 +117,9 @@ function AccountCard({
 
 // ── 메인 페이지 (서버 컴포넌트) ────────────────────────────
 export default async function DashboardPage() {
+  // noStore(): 이 컴포넌트의 fetch 캐시를 완전히 비활성화 (force-dynamic의 보조 수단)
+  noStore()
+
   const admin = createAdminClient()
 
   const now = new Date()
