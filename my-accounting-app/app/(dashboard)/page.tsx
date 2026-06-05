@@ -156,9 +156,9 @@ export default async function DashboardPage() {
       .gte('tx_date', cur.start)
       .lte('tx_date', cur.end),
 
-    // 미분류 = confirmed_account_id 없고 pending/reviewed 상태인 전체 거래
+    // 미확정 = confirmed_account_id 없고 pending/reviewed 상태인 전체 거래 (status도 포함)
     admin.from('transactions')
-      .select('bank_account_id')
+      .select('bank_account_id, status')
       .is('confirmed_account_id', null)
       .in('status', ['pending', 'reviewed']),
 
@@ -233,10 +233,13 @@ export default async function DashboardPage() {
 
   // 전체 요약
   const allTx = monthlyTx ?? []
-  const totalIn          = allTx.reduce((s, t) => s + (t.amount_in  ?? 0), 0)
-  const totalOut         = allTx.reduce((s, t) => s + (t.amount_out ?? 0), 0)
-  const totalUnclassified = (unclassifiedTx ?? []).length
-  const totalConfirmed   = allTx.filter(t => t.status === 'confirmed').length
+  const totalIn           = allTx.reduce((s, t) => s + (t.amount_in  ?? 0), 0)
+  const totalOut          = allTx.reduce((s, t) => s + (t.amount_out ?? 0), 0)
+  const unclassifiedList  = unclassifiedTx ?? []
+  const totalUnclassified = unclassifiedList.length
+  const totalPending      = unclassifiedList.filter(t => t.status === 'pending').length
+  const totalReviewed     = unclassifiedList.filter(t => t.status === 'reviewed').length
+  const totalConfirmed    = allTx.filter(t => t.status === 'confirmed').length
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -257,8 +260,8 @@ export default async function DashboardPage() {
           sub="전 계좌 누적 출금" icon="↑" color="text-red-500" bg="bg-red-50"
         />
         <SummaryCard
-          label="미분류 건수"  value={`${totalUnclassified}건`}
-          sub="분류 대기 중인 전체 거래" icon="⚠" color="text-amber-600" bg="bg-amber-50"
+          label="미확정 건수"  value={`${totalUnclassified}건`}
+          sub={`미검토 ${totalPending}건 · 검토중 ${totalReviewed}건`} icon="⚠" color="text-amber-600" bg="bg-amber-50"
         />
         <SummaryCard
           label="이번달 확정"  value={`${totalConfirmed}건`}

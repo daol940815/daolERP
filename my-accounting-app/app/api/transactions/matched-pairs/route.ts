@@ -8,18 +8,22 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   const admin = createAdminClient()
 
+  const LIMIT = 5000
   const { data, error } = await admin
     .from('transactions')
     .select('id, tx_date, amount_in, amount_out, description, account_alias, bank_account_id, transfer_pair_id')
     .not('transfer_pair_id', 'is', null)
     .order('tx_date', { ascending: false })
-    .limit(5000)
+    .limit(LIMIT + 1)  // 1개 초과 조회로 절단 여부 판별
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  const truncated = (data?.length ?? 0) > LIMIT
+  const rows = truncated ? data!.slice(0, LIMIT) : (data ?? [])
+
   // transfer_pair_id 기준으로 그룹핑
-  const grouped = new Map<string, typeof data>()
-  for (const tx of data ?? []) {
+  const grouped = new Map<string, typeof rows>()
+  for (const tx of rows) {
     const pid = tx.transfer_pair_id as string
     if (!grouped.has(pid)) grouped.set(pid, [])
     grouped.get(pid)!.push(tx)
@@ -31,10 +35,9 @@ export async function GET() {
     return { pair_id, out, in: inp }
   })
 
-  // 출금 날짜 기준 최신순
   pairs.sort((a, b) =>
     new Date(b.out?.tx_date as string).getTime() - new Date(a.out?.tx_date as string).getTime()
   )
 
-  return NextResponse.json({ pairs, total: pairs.length })
+  return NextResponse.json({ pairs, total: pairs.length, truncated })
 }

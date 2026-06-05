@@ -71,21 +71,19 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Pass 2: amount_in ↔ amount_in (마이너스 통장)
+  // Pass 2: amount_in ↔ amount_in (마이너스 통장 — 차입 출금이 amount_in으로 기록)
+  // 인덱스 기반 루프: j !== i 조건으로 자기 자신 제외, usedIds로 이미 매칭된 항목 제외
   const remIn = incoming.filter(tx => !usedIds.has(tx.id as string))
-  const byAmtIn2 = new Map<number, typeof remIn>()
-  for (const tx of remIn) {
-    const amt = tx.amount_in as number
-    if (!byAmtIn2.has(amt)) byAmtIn2.set(amt, [])
-    byAmtIn2.get(amt)!.push(tx)
-  }
-  for (const tx of remIn) {
+  for (let i = 0; i < remIn.length; i++) {
+    const tx = remIn[i]
     if (usedIds.has(tx.id as string)) continue
+    const amt    = tx.amount_in as number
     const txDate = new Date(tx.tx_date as string).getTime()
-    const candidates = (byAmtIn2.get(tx.amount_in as number) ?? []).filter(other => {
-      if (other.id === tx.id) return false
-      if (usedIds.has(other.id as string)) return false
-      if (other.bank_account_id === tx.bank_account_id) return false
+    const candidates = remIn.filter((other, j) => {
+      if (j === i)                                          return false
+      if (usedIds.has(other.id as string))                  return false
+      if (other.bank_account_id === tx.bank_account_id)     return false
+      if ((other.amount_in as number) !== amt)              return false
       return Math.abs(new Date(other.tx_date as string).getTime() - txDate) / 86_400_000 <= 1
     })
     if (candidates.length === 1) {
@@ -162,19 +160,16 @@ export async function POST(req: NextRequest) {
 
   // Pass 2: amount_in ↔ amount_in (마이너스 통장)
   const remIn = incoming.filter(tx => !usedIds.has(tx.id as string))
-  const byAmtIn2 = new Map<number, typeof remIn>()
-  for (const tx of remIn) {
-    const amt = tx.amount_in as number
-    if (!byAmtIn2.has(amt)) byAmtIn2.set(amt, [])
-    byAmtIn2.get(amt)!.push(tx)
-  }
-  for (const tx of remIn) {
+  for (let i = 0; i < remIn.length; i++) {
+    const tx = remIn[i]
     if (usedIds.has(tx.id as string)) continue
-    const txDate     = new Date(tx.tx_date as string).getTime()
-    const candidates = (byAmtIn2.get(tx.amount_in as number) ?? []).filter(other => {
-      if (other.id === tx.id) return false
-      if (usedIds.has(other.id as string)) return false
-      if (other.bank_account_id === tx.bank_account_id) return false
+    const amt    = tx.amount_in as number
+    const txDate = new Date(tx.tx_date as string).getTime()
+    const candidates = remIn.filter((other, j) => {
+      if (j === i)                                         return false
+      if (usedIds.has(other.id as string))                 return false
+      if (other.bank_account_id === tx.bank_account_id)    return false
+      if ((other.amount_in as number) !== amt)             return false
       return Math.abs(new Date(other.tx_date as string).getTime() - txDate) / 86_400_000 <= 1
     })
     if (candidates.length === 1) {

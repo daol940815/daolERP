@@ -167,8 +167,9 @@ function TransactionsContent() {
   const [previewing,   setPreviewing]   = useState(false)
   const [previewPairs, setPreviewPairs] = useState<PreviewPair[] | null>(null)
   const [reviewing,    setReviewing]    = useState(false)
-  const [matchedPairs, setMatchedPairs] = useState<MatchedPair[] | null>(null)
-  const [unlinking,    setUnlinking]    = useState<string | null>(null)
+  const [matchedPairs,    setMatchedPairs]    = useState<MatchedPair[] | null>(null)
+  const [matchedTruncated, setMatchedTruncated] = useState(false)
+  const [unlinking,       setUnlinking]       = useState<string | null>(null)
   const [importing,    setImporting]    = useState(false)
   const [selectedCount, setSelectedCount] = useState(0)
   const [autoFetchFlag, setAutoFetchFlag] = useState(0)
@@ -418,6 +419,7 @@ function TransactionsContent() {
       const res  = await fetch('/api/transactions/matched-pairs')
       const json = await res.json()
       setMatchedPairs(json.pairs ?? [])
+      setMatchedTruncated(json.truncated ?? false)
     } catch {
       showToast('매칭 내역 조회 실패', 'err')
     } finally {
@@ -446,6 +448,17 @@ function TransactionsContent() {
   }, [fetchTransactions, showToast])
 
   // 통계 계산
+  // 이체쌍 조회용 Map: transfer_pair_id → 해당 쌍의 모든 거래 목록
+  const pairMap = useMemo(() => {
+    const m = new Map<string, Transaction[]>()
+    for (const tx of rowData) {
+      if (!tx.transfer_pair_id) continue
+      if (!m.has(tx.transfer_pair_id)) m.set(tx.transfer_pair_id, [])
+      m.get(tx.transfer_pair_id)!.push(tx)
+    }
+    return m
+  }, [rowData])
+
   const stats = useMemo(() => {
     const totalIn     = rowData.reduce((s, r) => s + (r.amount_in ?? 0), 0)
     const totalOut    = rowData.reduce((s, r) => s + (r.amount_out ?? 0), 0)
@@ -571,9 +584,25 @@ function TransactionsContent() {
     {
       field: 'transfer_pair_id',
       headerName: '이체쌍',
-      width: 95,
-      cellRenderer: TransferPairBadge,
+      width: 130,
       sortable: false,
+      cellRenderer: (p: ICellRendererParams<Transaction>) => {
+        if (!p.value) return <span className="text-gray-300 text-xs">—</span>
+        const pair  = pairMap.get(p.value as string)
+        const other = pair?.find(t => t.id !== p.data?.id)
+        const alias = other?.account_alias ?? null
+        const amt   = other
+          ? ((other.amount_in ?? 0) > 0 ? other.amount_in : other.amount_out)
+          : null
+        return (
+          <span
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-default max-w-full"
+            title={`이체쌍 ID: ${p.value}`}
+          >
+            🔗 {alias ?? '이체쌍'}{amt ? ` ${(amt as number).toLocaleString('ko-KR')}` : ''}
+          </span>
+        )
+      },
     },
     {
       field: 'source',
@@ -586,7 +615,7 @@ function TransactionsContent() {
       headerName: '계좌',
       width: 140,
     },
-  ], [accounts, accountMap])
+  ], [accounts, accountMap, pairMap])
 
   // 현재 선택된 은행 정보 (이름 + 잔액)
   const activeBank = useMemo(() => {
@@ -800,9 +829,16 @@ function TransactionsContent() {
                 <h2 className="text-lg font-semibold text-slate-800">이체 매칭 검토</h2>
                 <p className="text-xs text-slate-500 mt-0.5">잘못 매칭된 쌍은 &quot;해제&quot; 버튼으로 개별 해제할 수 있습니다.</p>
               </div>
-              <span className="text-sm font-medium text-purple-700 bg-purple-50 px-3 py-1 rounded-full">
-                {matchedPairs.length}쌍
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-purple-700 bg-purple-50 px-3 py-1 rounded-full">
+                  {matchedPairs.length}쌍
+                </span>
+                {matchedTruncated && (
+                  <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+                    ⚠ 5,000쌍 초과 — 일부만 표시됨
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="overflow-auto flex-1 px-6 py-4">
@@ -860,7 +896,7 @@ function TransactionsContent() {
 
             <div className="px-6 py-4 border-t flex items-center justify-end">
               <button
-                onClick={() => setMatchedPairs(null)}
+                onClick={() => { setMatchedPairs(null); fetchTransactions() }}
                 className="px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50"
               >
                 닫기

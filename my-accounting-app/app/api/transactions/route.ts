@@ -74,5 +74,5 @@ export async function DELETE(req: NextRequest) {
     await admin.from('upload_logs').delete().in('id', affectedLogIds)
   }
 
-  return NextResponse.json({ deleted: ids.length })
+  return NextResponse.json({ ok: true, deleted: ids.length })
 }

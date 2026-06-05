@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
       .from('transactions')
       .update({ confirmed_account_id: acctId, status: 'reviewed' })
       .in('id', ids)
+      .neq('status', 'confirmed')  // 이미 확정된 건 보호
       .select('id')
     updated += data?.length ?? 0
   }
