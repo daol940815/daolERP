@@ -869,14 +869,15 @@ function TransactionsContent() {
                         <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{(pair.out?.tx_date as string)?.slice(0, 10) ?? '—'}</td>
                         <td className="py-2 pr-3 text-slate-600 max-w-[150px] truncate" title={pair.out?.description ?? ''}>{pair.out?.description ?? '—'}</td>
                         <td className="py-2 pr-4 text-red-600 font-medium text-right whitespace-nowrap">
-                          {pair.out?.amount_out ? (pair.out.amount_out as number).toLocaleString('ko-KR') + '원' : '—'}
+                          {/* 마이너스 통장은 amount_out=0이므로 amount_in으로 폴백 */}
+                          {(() => { const a = (pair.out?.amount_out as number) || (pair.out?.amount_in as number); return a ? a.toLocaleString('ko-KR') + '원' : '—' })()}
                         </td>
                         <td className="py-2 px-2 text-purple-400 text-center font-bold">↔</td>
                         <td className="py-2 pr-3 text-slate-700 font-medium">{pair.in?.account_alias ?? '—'}</td>
                         <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{(pair.in?.tx_date as string)?.slice(0, 10) ?? '—'}</td>
                         <td className="py-2 pr-3 text-slate-600 max-w-[150px] truncate" title={pair.in?.description ?? ''}>{pair.in?.description ?? '—'}</td>
                         <td className="py-2 pr-3 text-blue-600 font-medium text-right whitespace-nowrap">
-                          {pair.in?.amount_in ? (pair.in.amount_in as number).toLocaleString('ko-KR') + '원' : '—'}
+                          {(() => { const a = (pair.in?.amount_in as number) || (pair.in?.amount_out as number); return a ? a.toLocaleString('ko-KR') + '원' : '—' })()}
                         </td>
                         <td className="py-2 text-center">
                           <button

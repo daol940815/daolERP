@@ -30,8 +30,13 @@ export async function GET() {
   }
 
   const pairs = Array.from(grouped.entries()).map(([pair_id, txs]) => {
-    const out = txs.find(t => (t.amount_out as number) > 0) ?? txs[0]
-    const inp = txs.find(t => (t.amount_in  as number) > 0) ?? txs[1]
+    // 일반 이체: amount_out > 0 인 쪽이 출금, amount_in > 0 인 다른 쪽이 입금
+    // 마이너스 통장: 양쪽 모두 amount_out = 0 → 배열 순서로 구분
+    const outTx = txs.find(t => (t.amount_out as number) > 0)
+    const inTx  = txs.find(t => (t.amount_in  as number) > 0 && t.id !== outTx?.id)
+
+    const out = outTx ?? txs[0]
+    const inp = inTx  ?? txs.find(t => t.id !== out.id) ?? txs[1]
     return { pair_id, out, in: inp }
   })
 
