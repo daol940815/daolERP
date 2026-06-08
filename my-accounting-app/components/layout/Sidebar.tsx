@@ -262,11 +262,11 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             )}
           </div>
 
-          {/* ── 은행 계좌 섹션 ── */}
-          <div className="mt-0.5">
+          {/* ── 은행 계좌 섹션 (거래 내역 하위) ── */}
+          <div className="ml-3 pl-3 border-l border-slate-700 mt-0.5 mb-0.5">
             <button
               onClick={() => setBanksOpen(o => !o)}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-800 hover:text-white transition-colors mb-0.5"
+              className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-sm text-slate-400 hover:bg-slate-800 hover:text-white transition-colors mb-0.5"
             >
               <span className="flex items-center gap-2.5">
                 <span className="text-base leading-none">🏦</span>
