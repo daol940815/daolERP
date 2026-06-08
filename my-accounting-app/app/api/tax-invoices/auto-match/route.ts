@@ -21,6 +21,19 @@ export async function POST(req: NextRequest) {
   const { data: invoices, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // 매칭된 거래처들의 학습된 별칭(입금자명 등)을 한 번에 조회해 N+1 쿼리 방지
+  const vendorIds = Array.from(new Set((invoices ?? []).map(inv => inv.vendor_id).filter((v): v is string => !!v)))
+  const aliasMap = new Map<string, string[]>()
+  if (vendorIds.length) {
+    const { data: vendors } = await admin
+      .from('vendors')
+      .select('id, match_aliases')
+      .in('id', vendorIds)
+    for (const v of vendors ?? []) {
+      aliasMap.set(v.id as string, (v.match_aliases as string[] | null) ?? [])
+    }
+  }
+
   let matched = 0
   for (const inv of invoices ?? []) {
     const amountCol = inv.direction === 'sales' ? 'amount_in' : 'amount_out'
@@ -32,6 +45,7 @@ export async function POST(req: NextRequest) {
 
     const bizDigits = inv.counterparty_biz_number?.replace(/[^0-9]/g, '') ?? ''
     const name      = inv.counterparty_name?.trim() ?? ''
+    const aliases   = inv.vendor_id ? (aliasMap.get(inv.vendor_id) ?? []) : []
 
     const candidates = (txs ?? []).filter(tx => {
       const desc       = (tx.description as string) ?? ''
@@ -39,6 +53,7 @@ export async function POST(req: NextRequest) {
       return (inv.vendor_id && tx.vendor_id === inv.vendor_id)
         || (bizDigits && descDigits.includes(bizDigits))
         || (name && desc.includes(name))
+        || aliases.some(alias => alias && desc.includes(alias))
     })
 
     if (candidates.length === 1) {

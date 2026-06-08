@@ -34,6 +34,9 @@ function MatchPickerModal({
 }) {
   const [candidates, setCandidates] = useState<Candidate[] | null>(null)
   const [picking, setPicking]       = useState<string | null>(null)
+  const [aliasPrompt, setAliasPrompt] = useState<{ matched: TaxInvoice; suggestion: string } | null>(null)
+  const [aliasInput, setAliasInput]   = useState('')
+  const [savingAlias, setSavingAlias] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -44,7 +47,7 @@ function MatchPickerModal({
     return () => { cancelled = true }
   }, [invoice.id])
 
-  const handlePick = async (txId: string) => {
+  const handlePick = async (txId: string, description: string) => {
     setPicking(txId)
     const res = await fetch(`/api/tax-invoices/${invoice.id}`, {
       method: 'PATCH',
@@ -53,7 +56,73 @@ function MatchPickerModal({
     })
     const json = await res.json()
     setPicking(null)
-    if (res.ok && json.data) { onMatched(json.data); onClose() }
+    if (!res.ok || !json.data) return
+
+    const matched: TaxInvoice = json.data
+    if (matched.vendor_id) {
+      setAliasInput(description.trim())
+      setAliasPrompt({ matched, suggestion: description.trim() })
+      return
+    }
+    onMatched(matched)
+    onClose()
+  }
+
+  const handleSaveAlias = async () => {
+    if (!aliasPrompt) return
+    const alias = aliasInput.trim()
+    if (!alias) { onMatched(aliasPrompt.matched); onClose(); return }
+
+    setSavingAlias(true)
+    const vendorId = aliasPrompt.matched.vendor_id as string
+    const vendorRes = await fetch(`/api/vendors/${vendorId}`).then(r => r.json()).catch(() => null)
+    const existing: string[] = vendorRes?.data?.match_aliases ?? []
+    const merged = existing.includes(alias) ? existing : [...existing, alias]
+
+    await fetch(`/api/vendors/${vendorId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ match_aliases: merged }),
+    })
+    setSavingAlias(false)
+    onMatched(aliasPrompt.matched)
+    onClose()
+  }
+
+  const handleSkipAlias = () => {
+    if (!aliasPrompt) return
+    onMatched(aliasPrompt.matched)
+    onClose()
+  }
+
+  if (aliasPrompt) {
+    return (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+        <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+          <h2 className="text-lg font-bold text-gray-900 mb-1">매칭 별칭으로 저장할까요?</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            거래내역의 표현을 거래처 별칭으로 저장하면, 다음부터 이 거래처의 세금계산서를 자동으로 더 정확하게 매칭할 수 있습니다.
+          </p>
+          <input
+            autoFocus
+            value={aliasInput}
+            onChange={e => setAliasInput(e.target.value)}
+            placeholder="예: 입금자명 또는 적요 표현"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+          />
+          <div className="flex gap-2 mt-5">
+            <button onClick={handleSkipAlias} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">건너뛰기</button>
+            <button
+              onClick={handleSaveAlias}
+              disabled={savingAlias || !aliasInput.trim()}
+              className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50"
+            >
+              {savingAlias ? '저장 중...' : '별칭으로 저장'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -75,7 +144,7 @@ function MatchPickerModal({
             {candidates.map(c => (
               <button
                 key={c.id}
-                onClick={() => handlePick(c.id)}
+                onClick={() => handlePick(c.id, c.description)}
                 disabled={picking !== null}
                 className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3 disabled:opacity-50"
               >

@@ -1,7 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 
-const VENDOR_FIELDS = 'id, name, biz_number, type, contact_name, contact_phone, email, note, is_active, created_at, updated_at'
+const VENDOR_FIELDS = 'id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, is_active, created_at, updated_at'
+
+// GET /api/vendors/:id
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const admin = createAdminClient()
+  const { id } = await params
+
+  const { data, error } = await admin
+    .from('vendors')
+    .select(VENDOR_FIELDS)
+    .eq('id', id)
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 404 })
+
+  return NextResponse.json({ data })
+}
 
 // PATCH /api/vendors/:id — 거래처 정보 수정
 export async function PATCH(
@@ -13,6 +32,7 @@ export async function PATCH(
   const body = await req.json() as {
     name?: string; biz_number?: string | null; type?: string; is_active?: boolean
     contact_name?: string | null; contact_phone?: string | null; email?: string | null; note?: string | null
+    match_aliases?: string[]
   }
 
   const updates: Record<string, unknown> = {}
@@ -24,6 +44,7 @@ export async function PATCH(
   if (body.contact_phone !== undefined) updates.contact_phone = body.contact_phone?.trim() || null
   if (body.email         !== undefined) updates.email         = body.email?.trim()         || null
   if (body.note          !== undefined) updates.note          = body.note?.trim()          || null
+  if (body.match_aliases !== undefined) updates.match_aliases = body.match_aliases
 
   if (!Object.keys(updates).length) {
     return NextResponse.json({ error: '업데이트할 항목이 없습니다.' }, { status: 400 })

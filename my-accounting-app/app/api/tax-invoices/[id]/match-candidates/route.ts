@@ -23,6 +23,17 @@ export async function GET(
     return NextResponse.json({ error: invErr?.message ?? '세금계산서를 찾을 수 없습니다.' }, { status: 404 })
   }
 
+  // 거래처가 매칭되어 있으면 학습된 별칭(입금자명 등)도 함께 검사
+  let aliases: string[] = []
+  if (invoice.vendor_id) {
+    const { data: vendor } = await admin
+      .from('vendors')
+      .select('match_aliases')
+      .eq('id', invoice.vendor_id)
+      .single()
+    aliases = (vendor?.match_aliases as string[] | null) ?? []
+  }
+
   // 매출(받을 돈) → 입금액과 비교 / 매입(줄 돈) → 출금액과 비교
   const amountCol = invoice.direction === 'sales' ? 'amount_in' : 'amount_out'
 
@@ -48,6 +59,7 @@ export async function GET(
     if (invoice.vendor_id && tx.vendor_id === invoice.vendor_id)     score += 3
     if (bizDigits && descDigits.includes(bizDigits))                 score += 2
     if (name && desc.includes(name))                                 score += 2
+    if (aliases.some(alias => alias && desc.includes(alias)))        score += 2
     if (dayDiff <= 31)                                               score += 1
 
     return { tx, score, dayDiff }

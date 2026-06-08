@@ -7,6 +7,7 @@ export interface Vendor {
   contact_phone?: string | null
   email?: string | null
   note?: string | null
+  match_aliases: string[]
   is_active: boolean
   created_at: string
   updated_at: string

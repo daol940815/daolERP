@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Vendor, TaxInvoice } from '@/types/tax-invoice'
 
 const TYPE_META: Record<string, { label: string; cls: string }> = {
@@ -10,6 +10,55 @@ const TYPE_META: Record<string, { label: string; cls: string }> = {
 }
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
+
+// ── 매칭 별칭 칩 입력 (입금자명 등 학습된 표현) ─────────────────────
+function AliasChips({
+  aliases,
+  onRemove,
+  onAdd,
+}: {
+  aliases: string[]
+  onRemove: (alias: string) => void
+  onAdd: (alias: string) => void
+}) {
+  const [input, setInput] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const handleAdd = () => {
+    const alias = input.trim()
+    if (!alias || aliases.includes(alias)) { setInput(''); return }
+    onAdd(alias)
+    setInput('')
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1 items-center">
+      {aliases.map(alias => (
+        <span
+          key={alias}
+          className="group inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-700 hover:bg-gray-200"
+        >
+          {alias}
+          <button
+            onClick={() => onRemove(alias)}
+            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 leading-none transition-opacity"
+          >
+            ✕
+          </button>
+        </span>
+      ))}
+      <input
+        ref={inputRef}
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd() } }}
+        onBlur={handleAdd}
+        placeholder="+ 별칭"
+        className="text-xs px-2 py-0.5 border border-dashed border-gray-300 rounded w-20 focus:outline-none focus:border-slate-500 text-gray-500 placeholder-gray-400"
+      />
+    </div>
+  )
+}
 
 // ── 거래처 등록/수정 모달 ──────────────────────────────────────────
 function VendorModal({
@@ -27,6 +76,7 @@ function VendorModal({
     contact_phone: vendor?.contact_phone ?? '',
     email:         vendor?.email ?? '',
     note:          vendor?.note ?? '',
+    match_aliases: vendor?.match_aliases ?? [] as string[],
   })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState<string | null>(null)
@@ -120,6 +170,15 @@ function VendorModal({
               onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
               rows={2}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">매칭 별칭</label>
+            <p className="text-xs text-gray-400 mb-1.5">입금자명 등 거래내역 적요에 등장하는 표현을 등록하면 자동 매칭에 활용됩니다.</p>
+            <AliasChips
+              aliases={form.match_aliases}
+              onAdd={alias => setForm(f => ({ ...f, match_aliases: [...f.match_aliases, alias] }))}
+              onRemove={alias => setForm(f => ({ ...f, match_aliases: f.match_aliases.filter(a => a !== alias) }))}
             />
           </div>
         </div>
