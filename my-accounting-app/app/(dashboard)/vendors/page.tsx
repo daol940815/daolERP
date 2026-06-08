@@ -60,6 +60,53 @@ function AliasChips({
   )
 }
 
+// ── 카드번호 칩 입력 (카드매출 매칭용 마스킹된 카드번호) ─────────────
+function CardNumberChips({
+  cardNumbers,
+  onRemove,
+  onAdd,
+}: {
+  cardNumbers: string[]
+  onRemove: (card: string) => void
+  onAdd: (card: string) => void
+}) {
+  const [input, setInput] = useState('')
+
+  const handleAdd = () => {
+    const card = input.trim()
+    if (!card || cardNumbers.includes(card)) { setInput(''); return }
+    onAdd(card)
+    setInput('')
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1 items-center">
+      {cardNumbers.map(card => (
+        <span
+          key={card}
+          className="group inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-700 font-mono hover:bg-gray-200"
+        >
+          {card}
+          <button
+            onClick={() => onRemove(card)}
+            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 leading-none transition-opacity"
+          >
+            ✕
+          </button>
+        </span>
+      ))}
+      <input
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd() } }}
+        onBlur={handleAdd}
+        placeholder="+ 4025-96**-****-0302"
+        className="text-xs px-2 py-0.5 border border-dashed border-gray-300 rounded w-44 focus:outline-none focus:border-slate-500 text-gray-500 placeholder-gray-400 font-mono"
+      />
+    </div>
+  )
+}
+
 // ── 거래처 등록/수정 모달 ──────────────────────────────────────────
 function VendorModal({
   vendor, onClose, onSaved,
@@ -77,6 +124,7 @@ function VendorModal({
     email:         vendor?.email ?? '',
     note:          vendor?.note ?? '',
     match_aliases: vendor?.match_aliases ?? [] as string[],
+    card_numbers:  vendor?.card_numbers ?? [] as string[],
   })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState<string | null>(null)
@@ -179,6 +227,15 @@ function VendorModal({
               aliases={form.match_aliases}
               onAdd={alias => setForm(f => ({ ...f, match_aliases: [...f.match_aliases, alias] }))}
               onRemove={alias => setForm(f => ({ ...f, match_aliases: f.match_aliases.filter(a => a !== alias) }))}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">카드번호</label>
+            <p className="text-xs text-gray-400 mb-1.5">카드 매출 상세내역의 마스킹된 카드번호를 등록하면 카드결제내역(매출) 자동 매칭에 활용됩니다.</p>
+            <CardNumberChips
+              cardNumbers={form.card_numbers}
+              onAdd={card => setForm(f => ({ ...f, card_numbers: [...f.card_numbers, card] }))}
+              onRemove={card => setForm(f => ({ ...f, card_numbers: f.card_numbers.filter(c => c !== card) }))}
             />
           </div>
         </div>

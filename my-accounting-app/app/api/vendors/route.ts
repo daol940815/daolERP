@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
 
-const VENDOR_FIELDS = 'id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, is_active, created_at, updated_at'
+const VENDOR_FIELDS = 'id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active, created_at, updated_at'
 
 // GET /api/vendors?q=검색어&type=vendor|customer|both&all=true
 export async function GET(req: NextRequest) {
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json() as {
     name: string; biz_number?: string; type?: string
     contact_name?: string; contact_phone?: string; email?: string; note?: string
-    match_aliases?: string[]
+    match_aliases?: string[]; card_numbers?: string[]
   }
 
   if (!body.name?.trim()) {
@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
       email:         body.email?.trim()        || null,
       note:          body.note?.trim()         || null,
       match_aliases: body.match_aliases ?? [],
+      card_numbers:  body.card_numbers ?? [],
     })
     .select(VENDOR_FIELDS)
     .single()

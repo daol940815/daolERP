@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 
-const VENDOR_FIELDS = 'id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, is_active, created_at, updated_at'
+const VENDOR_FIELDS = 'id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active, created_at, updated_at'
 
 // GET /api/vendors/:id
 export async function GET(
@@ -32,7 +32,7 @@ export async function PATCH(
   const body = await req.json() as {
     name?: string; biz_number?: string | null; type?: string; is_active?: boolean
     contact_name?: string | null; contact_phone?: string | null; email?: string | null; note?: string | null
-    match_aliases?: string[]
+    match_aliases?: string[]; card_numbers?: string[]
   }
 
   const updates: Record<string, unknown> = {}
@@ -45,6 +45,7 @@ export async function PATCH(
   if (body.email         !== undefined) updates.email         = body.email?.trim()         || null
   if (body.note          !== undefined) updates.note          = body.note?.trim()          || null
   if (body.match_aliases !== undefined) updates.match_aliases = body.match_aliases
+  if (body.card_numbers  !== undefined) updates.card_numbers  = body.card_numbers
 
   if (!Object.keys(updates).length) {
     return NextResponse.json({ error: '업데이트할 항목이 없습니다.' }, { status: 400 })
