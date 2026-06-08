@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CardSale, CardSaleTransactionType } from '@/types/card-sale'
 import type { Vendor } from '@/types/tax-invoice'
+import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
@@ -167,6 +168,19 @@ export default function CardSalesPage() {
           <p className="text-lg font-bold text-gray-900">{matchedCount} <span className="text-sm font-normal text-gray-400">/ {sales.length}건</span></p>
           <p className="text-xs text-gray-400">미매칭 {sales.length - matchedCount}건</p>
         </div>
+      </div>
+
+      {/* 기간 빠른 선택 */}
+      <div className="flex flex-wrap gap-1 mb-2">
+        {PERIOD_PRESETS.map(p => (
+          <button
+            key={p}
+            onClick={() => { const r = getPeriodRange(p); setDateFrom(r.from); setDateTo(r.to) }}
+            className="px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-slate-100 hover:border-slate-400 transition-colors"
+          >
+            {p}
+          </button>
+        ))}
       </div>
 
       {/* 필터 */}
