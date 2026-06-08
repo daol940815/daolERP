@@ -387,6 +387,21 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           </Link>
         </div>
 
+        {/* ── 자료출력 ── */}
+        <div className="mb-5">
+          <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
+            자료출력
+          </p>
+          <Link href="/reports/vendor-status/sales" className={linkCls(pathname === '/reports/vendor-status/sales')}>
+            <span className="text-base leading-none">📥</span>
+            <span>매출처 수금현황</span>
+          </Link>
+          <Link href="/reports/vendor-status/purchase" className={linkCls(pathname === '/reports/vendor-status/purchase')}>
+            <span className="text-base leading-none">📤</span>
+            <span>매입처 결제현황</span>
+          </Link>
+        </div>
+
         {/* ── 기준 정보 ── */}
         <div className="mb-5">
           <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
