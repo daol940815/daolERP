@@ -11,13 +11,14 @@ export async function GET(req: NextRequest) {
   const to            = searchParams.get('to')
   const source        = searchParams.get('source') ?? 'all'
   const bankAccountId = searchParams.get('bankAccountId')
+  const vendorId      = searchParams.get('vendorId')
   const limit         = Math.min(parseInt(searchParams.get('limit') ?? '1000'), 5000)
 
   let query = admin
     .from('transactions')
     .select(
       `id, tx_date, description, counterparty_name, amount_in, amount_out, balance,
-       source, account_alias, bank_account_id, status, memo, is_journalized,
+       source, account_alias, bank_account_id, vendor_id, status, memo, is_journalized,
        suggested_account_id, confirmed_account_id, suggested_side,
        ai_confidence, ai_reason, upload_log_id, transfer_pair_id, created_at`,
     )
@@ -30,6 +31,7 @@ export async function GET(req: NextRequest) {
   if (to)                query = query.lte('tx_date', to)
   if (source !== 'all')  query = query.eq('source', source)
   if (bankAccountId)     query = query.eq('bank_account_id', bankAccountId)
+  if (vendorId)          query = query.eq('vendor_id', vendorId)
 
   const { data, error } = await query
 

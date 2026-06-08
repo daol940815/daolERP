@@ -17,6 +17,7 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-quartz.css'
 import type { Transaction, Account } from '@/types/transaction'
 import type { BankAccount } from '@/types/bank-account'
+import type { Vendor } from '@/types/tax-invoice'
 import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
 
 ModuleRegistry.registerModules([AllCommunityModule])
@@ -104,10 +105,12 @@ function TransactionsContent() {
   const uploadRef  = useRef<HTMLInputElement>(null)
   const [rowData,   setRowData]   = useState<Transaction[]>([])
   const [accounts,  setAccounts]  = useState<Account[]>([])
+  const [vendors,   setVendors]   = useState<Vendor[]>([])
   const [banks,     setBanks]     = useState<BankAccount[]>([])
   const [loading,   setLoading]   = useState(false)
   const [classifying, setClassifying] = useState(false)
   const [matching,   setMatching]   = useState(false)
+  const [matchingVendors, setMatchingVendors] = useState(false)
   const [previewing,   setPreviewing]   = useState(false)
   const [previewPairs, setPreviewPairs] = useState<PreviewPair[] | null>(null)
   const [reviewing,    setReviewing]    = useState(false)
@@ -137,6 +140,12 @@ function TransactionsContent() {
     [accounts],
   )
 
+  // 거래처 맵 (id → name)
+  const vendorMap = useMemo(
+    () => Object.fromEntries(vendors.map(v => [v.id, v])),
+    [vendors],
+  )
+
   // URL param(bankAccountId) 변경 시 필터 동기화 + 자동 조회
   useEffect(() => {
     setFilters(f => ({ ...f, bankAccountId: bankAccountIdParam }))
@@ -144,11 +153,15 @@ function TransactionsContent() {
     setAutoFetchFlag(n => n + 1)
   }, [bankAccountIdParam])
 
-  // 계정과목 + 은행 계좌 목록 로드 (마운트 1회)
+  // 계정과목 + 거래처 목록 로드 (마운트 1회)
   useEffect(() => {
     fetch('/api/accounts')
       .then(r => r.json())
       .then(d => { if (d.data) setAccounts(d.data) })
+      .catch(() => null)
+    fetch('/api/vendors?all=true')
+      .then(r => r.json())
+      .then(d => { if (d.data) setVendors(d.data) })
       .catch(() => null)
   }, [])
 
@@ -205,6 +218,9 @@ function TransactionsContent() {
       event.api.refreshCells({ rowNodes: [event.node!], columns: ['status'], force: true })
     } else if (colId === 'side') {
       body = { suggested_side: data.suggested_side ?? null }
+    } else if (colId === 'vendor') {
+      // valueSetter에서 vendor_id를 이미 갱신해 둠
+      body = { vendor_id: data.vendor_id ?? null }
     } else if (colDef.field === 'memo') {
       body = { memo: data.memo ?? null }
     } else {
@@ -300,6 +316,25 @@ function TransactionsContent() {
       setMatching(false)
     }
   }, [filters.bankAccountId, fetchTransactions, showToast])
+
+  // 거래처 자동 매칭 (적요/입금자명 ↔ 거래처명·별칭·사업자번호)
+  const handleMatchVendors = useCallback(async () => {
+    setMatchingVendors(true)
+    try {
+      const res  = await fetch('/api/transactions/match-vendors', { method: 'POST' })
+      const json = await res.json()
+      if (json.matched > 0) {
+        showToast(`${json.matched}건 거래처 매칭 완료`)
+        fetchTransactions()
+      } else {
+        showToast('매칭 가능한 거래 없음')
+      }
+    } catch {
+      showToast('거래처 매칭 실패', 'err')
+    } finally {
+      setMatchingVendors(false)
+    }
+  }, [fetchTransactions, showToast])
 
   // 미분류 거래 엑셀 다운로드
   const handleExport = useCallback(() => {
@@ -497,6 +532,29 @@ function TransactionsContent() {
       },
     },
     {
+      // 거래처 인라인 편집 컬럼
+      colId: 'vendor',
+      headerName: '거래처',
+      width: 150,
+      editable: true,
+      cellEditor: 'agSelectCellEditor',
+      cellEditorParams: () => ({
+        values: ['(미지정)', ...vendors.map(v => v.name)],
+      }),
+      valueGetter: (p: ValueGetterParams<Transaction>) => {
+        const id = p.data?.vendor_id
+        if (!id) return '(미지정)'
+        return vendorMap[id]?.name ?? '(미지정)'
+      },
+      valueSetter: (p: ValueSetterParams<Transaction>) => {
+        if (!p.data) return false
+        const vendor = vendors.find(v => v.name === p.newValue)
+        p.data.vendor_id = vendor?.id ?? null
+        return true
+      },
+      cellClass: (p) => p.data?.vendor_id ? 'text-gray-900' : 'text-gray-300',
+    },
+    {
       colId: 'side',
       headerName: '차/대변',
       width: 90,
@@ -565,7 +623,7 @@ function TransactionsContent() {
       headerName: '계좌',
       width: 140,
     },
-  ], [accounts, accountMap, pairMap])
+  ], [accounts, accountMap, vendors, vendorMap, pairMap])
 
   // 현재 선택된 은행 정보 (이름 + 잔액)
   const activeBank = useMemo(() => {
@@ -718,6 +776,13 @@ function TransactionsContent() {
             className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
           >
             {matching ? '매칭 중...' : '🔗 계정 이체 매칭'}
+          </button>
+          <button
+            onClick={handleMatchVendors}
+            disabled={matchingVendors}
+            className="px-3 py-1.5 border border-indigo-300 rounded-lg text-sm text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+          >
+            {matchingVendors ? '매칭 중...' : '🏢 거래처 자동 매칭'}
           </button>
           {selectedCount > 0 && (
             <>
