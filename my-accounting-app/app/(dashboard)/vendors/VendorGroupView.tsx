@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams } from 'next/navigation'
-import type { Vendor, TaxInvoice } from '@/types/tax-invoice'
+import Link from 'next/link'
+import type { Vendor } from '@/types/tax-invoice'
 
 const GROUP_META: Record<string, {
   title: string; sub: string; color: string
@@ -32,8 +32,6 @@ const TYPE_META: Record<string, { label: string; cls: string }> = {
   customer: { label: '매출처',     cls: 'bg-blue-100 text-blue-700' },
   both:     { label: '매입+매출',  cls: 'bg-purple-100 text-purple-700' },
 }
-
-const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
 
 // ── 매칭 별칭 칩 입력 (입금자명 등 학습된 표현) ─────────────────────
 function AliasChips({
@@ -279,72 +277,14 @@ function VendorModal({
   )
 }
 
-// ── 거래처별 세금계산서 요약 (받을 돈 / 줄 돈 현황) ─────────────────
-function VendorSummary({ vendorId }: { vendorId: string }) {
-  const [invoices, setInvoices] = useState<TaxInvoice[] | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    fetch(`/api/tax-invoices?vendorId=${vendorId}&limit=5000`)
-      .then(r => r.json())
-      .then(d => { if (!cancelled) setInvoices(Array.isArray(d.data) ? d.data : []) })
-      .catch(() => { if (!cancelled) setInvoices([]) })
-    return () => { cancelled = true }
-  }, [vendorId])
-
-  if (invoices === null) {
-    return <div className="py-4 text-center text-xs text-gray-400">불러오는 중...</div>
-  }
-  if (invoices.length === 0) {
-    return <div className="py-4 text-center text-xs text-gray-400">연결된 세금계산서가 없습니다.</div>
-  }
-
-  const summarize = (list: TaxInvoice[]) => {
-    const total    = list.reduce((s, i) => s + (i.total_amount || 0), 0)
-    const matched  = list.filter(i => i.payment_status === 'matched')
-    const matchedAmt = matched.reduce((s, i) => s + (i.total_amount || 0), 0)
-    return { count: list.length, total, matchedCount: matched.length, matchedAmt, remaining: total - matchedAmt }
-  }
-
-  const sales    = summarize(invoices.filter(i => i.direction === 'sales'))
-  const purchase = summarize(invoices.filter(i => i.direction === 'purchase'))
-
-  const Card = ({ label, sub, color, s }: { label: string; sub: string; color: string; s: ReturnType<typeof summarize> }) => (
-    <div className="border border-gray-200 rounded-lg p-3 flex-1 min-w-[220px]">
-      <p className={`text-xs font-semibold ${color} mb-1.5`}>{label} <span className="text-gray-400 font-normal">· {sub}</span></p>
-      {s.count === 0 ? (
-        <p className="text-xs text-gray-400">내역 없음</p>
-      ) : (
-        <div className="space-y-0.5 text-xs text-gray-600">
-          <p>발행 합계 <span className="font-medium text-gray-900">{won(s.total)}</span> ({s.count}건)</p>
-          <p className="text-green-600">확인됨 {won(s.matchedAmt)} ({s.matchedCount}건)</p>
-          <p className={s.remaining > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}>
-            {sub === '받을 돈' ? '미수' : '미지급'} 잔액 {won(s.remaining)}
-          </p>
-        </div>
-      )}
-    </div>
-  )
-
-  return (
-    <div className="flex gap-3 flex-wrap">
-      <Card label="매출 세금계산서" sub="받을 돈"  color="text-blue-700"   s={sales} />
-      <Card label="매입 세금계산서" sub="줄 돈"    color="text-orange-700" s={purchase} />
-    </div>
-  )
-}
-
-export default function VendorGroupPage() {
-  const params = useParams<{ group: string }>()
-  const group  = params.group
-  const meta   = GROUP_META[group]
+export default function VendorGroupView({ group }: { group: 'customers' | 'suppliers' }) {
+  const meta = GROUP_META[group]
 
   const [vendors, setVendors]   = useState<Vendor[]>([])
   const [loading, setLoading]   = useState(true)
   const [search, setSearch]     = useState('')
   const [showAdd, setShowAdd]   = useState(false)
   const [editing, setEditing]   = useState<Vendor | null>(null)
-  const [expanded, setExpanded] = useState<string | null>(null)
   const [toast, setToast]       = useState<string | null>(null)
 
   const showMsg = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
@@ -423,52 +363,46 @@ export default function VendorGroupPage() {
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           {vendors.map(v => {
             const tmeta = TYPE_META[v.type] ?? { label: v.type, cls: 'bg-gray-100 text-gray-600' }
-            const isOpen = expanded === v.id
             return (
-              <div key={v.id} className="border-b border-gray-100 last:border-b-0">
-                <div
-                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 ${!v.is_active ? 'opacity-50' : ''}`}
-                  onClick={() => setExpanded(isOpen ? null : v.id)}
-                >
-                  <span className="text-xs text-gray-400 w-3 shrink-0">{isOpen ? '▾' : '▸'}</span>
-                  <span className={`px-2 py-0.5 rounded text-xs font-semibold shrink-0 ${tmeta.cls}`}>{tmeta.label}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 truncate">{v.name}</p>
-                    <p className="text-xs text-gray-400 truncate">
-                      {v.biz_number ?? '사업자번호 미등록'}
-                      {v.contact_name && ` · ${v.contact_name}`}
-                      {v.contact_phone && ` · ${v.contact_phone}`}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={() => handleToggleActive(v)}
-                      className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
-                      title={v.is_active ? '비활성화' : '활성화'}
-                    >
-                      {v.is_active ? '활성' : '비활성'}
-                    </button>
-                    <button
-                      onClick={() => setEditing(v)}
-                      className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
-                    >
-                      수정
-                    </button>
-                    <button
-                      onClick={() => handleDelete(v)}
-                      className="px-2 py-1 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
-                    >
-                      삭제
-                    </button>
-                  </div>
+              <Link
+                key={v.id}
+                href={`/vendors/${v.id}`}
+                className={`flex items-center gap-3 px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 ${!v.is_active ? 'opacity-50' : ''}`}
+              >
+                <span className={`px-2 py-0.5 rounded text-xs font-semibold shrink-0 ${tmeta.cls}`}>{tmeta.label}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-900 truncate">{v.name}</p>
+                  <p className="text-xs text-gray-400 truncate">
+                    {v.biz_number ?? '사업자번호 미등록'}
+                    {v.contact_name && ` · ${v.contact_name}`}
+                    {v.contact_phone && ` · ${v.contact_phone}`}
+                  </p>
                 </div>
-                {isOpen && (
-                  <div className="px-4 pb-4 pl-10">
-                    {v.note && <p className="text-xs text-gray-500 mb-2">{v.note}</p>}
-                    <VendorSummary vendorId={v.id} />
-                  </div>
-                )}
-              </div>
+                <div
+                  className="flex items-center gap-1 shrink-0"
+                  onClick={e => { e.preventDefault(); e.stopPropagation() }}
+                >
+                  <button
+                    onClick={() => handleToggleActive(v)}
+                    className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+                    title={v.is_active ? '비활성화' : '활성화'}
+                  >
+                    {v.is_active ? '활성' : '비활성'}
+                  </button>
+                  <button
+                    onClick={() => setEditing(v)}
+                    className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+                  >
+                    수정
+                  </button>
+                  <button
+                    onClick={() => handleDelete(v)}
+                    className="px-2 py-1 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
+                  >
+                    삭제
+                  </button>
+                </div>
+              </Link>
             )
           })}
         </div>

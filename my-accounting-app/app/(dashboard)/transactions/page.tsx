@@ -74,6 +74,7 @@ interface Filters {
   status: string
   source: string
   bankAccountId: string
+  vendorId: string
 }
 
 interface PreviewTx {
@@ -100,6 +101,7 @@ interface MatchedPair {
 function TransactionsContent() {
   const searchParams = useSearchParams()
   const bankAccountIdParam = searchParams.get('bankAccountId') ?? ''
+  const vendorIdParam      = searchParams.get('vendorId') ?? ''
 
   const gridRef    = useRef<AgGridReact<Transaction>>(null)
   const uploadRef  = useRef<HTMLInputElement>(null)
@@ -125,6 +127,7 @@ function TransactionsContent() {
     status: 'all',
     source: 'all',
     bankAccountId: bankAccountIdParam,
+    vendorId: vendorIdParam,
   })
   const [toast, setToast]         = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
 
@@ -146,12 +149,12 @@ function TransactionsContent() {
     [vendors],
   )
 
-  // URL param(bankAccountId) 변경 시 필터 동기화 + 자동 조회
+  // URL param(bankAccountId/vendorId) 변경 시 필터 동기화 + 자동 조회
   useEffect(() => {
-    setFilters(f => ({ ...f, bankAccountId: bankAccountIdParam }))
-    // bankAccountId가 바뀌면 현재 필터(날짜·상태·출처)를 유지한 채 즉시 재조회
+    setFilters(f => ({ ...f, bankAccountId: bankAccountIdParam, vendorId: vendorIdParam }))
+    // 필터 파라미터가 바뀌면 현재 필터(날짜·상태·출처)를 유지한 채 즉시 재조회
     setAutoFetchFlag(n => n + 1)
-  }, [bankAccountIdParam])
+  }, [bankAccountIdParam, vendorIdParam])
 
   // 계정과목 + 거래처 목록 로드 (마운트 1회)
   useEffect(() => {
@@ -185,6 +188,7 @@ function TransactionsContent() {
         ...(filters.from           && { from: filters.from }),
         ...(filters.to             && { to:   filters.to   }),
         ...(filters.bankAccountId  && { bankAccountId: filters.bankAccountId }),
+        ...(filters.vendorId       && { vendorId: filters.vendorId }),
       })
       const res  = await fetch(`/api/transactions?${params}`)
       const json = await res.json()
@@ -631,6 +635,12 @@ function TransactionsContent() {
     return banks.find(b => b.id === filters.bankAccountId) ?? null
   }, [filters.bankAccountId, banks])
 
+  // 거래처 필터 배지 표시용
+  const activeVendor = useMemo(() => {
+    if (!filters.vendorId) return null
+    return vendorMap[filters.vendorId] ?? null
+  }, [filters.vendorId, vendorMap])
+
   return (
     <div className="p-6 flex flex-col h-full">
       <div className="flex items-center gap-3 mb-1 flex-wrap">
@@ -648,6 +658,18 @@ function TransactionsContent() {
             <a
               href="/transactions"
               className="ml-1 text-slate-400 hover:text-slate-600 leading-none"
+              title="필터 해제"
+            >
+              ✕
+            </a>
+          </span>
+        )}
+        {activeVendor && (
+          <span className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-full text-sm font-medium">
+            🏢 {activeVendor.name}
+            <a
+              href="/transactions"
+              className="ml-1 text-indigo-400 hover:text-indigo-600 leading-none"
               title="필터 해제"
             >
               ✕
