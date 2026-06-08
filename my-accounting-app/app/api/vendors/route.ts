@@ -6,22 +6,24 @@ export const dynamic = 'force-dynamic'
 const VENDOR_FIELDS = 'id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active, created_at, updated_at'
 
 // GET /api/vendors?q=검색어&type=vendor|customer|both&all=true
+// type은 콤마로 여러 값을 지정할 수 있다 (예: type=vendor,both → 매입처 + 매입·매출 겸용)
 export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   const { searchParams } = new URL(req.url)
 
-  const q    = searchParams.get('q')?.trim()
-  const type = searchParams.get('type')
-  const all  = searchParams.get('all') === 'true'
+  const q     = searchParams.get('q')?.trim()
+  const types = searchParams.get('type')?.split(',').map(t => t.trim()).filter(Boolean) ?? []
+  const all   = searchParams.get('all') === 'true'
 
   let query = admin
     .from('vendors')
     .select(VENDOR_FIELDS)
     .order('name')
 
-  if (!all)  query = query.eq('is_active', true)
-  if (type)  query = query.eq('type', type)
-  if (q)     query = query.or(`name.ilike.%${q}%,biz_number.ilike.%${q}%`)
+  if (!all)            query = query.eq('is_active', true)
+  if (types.length === 1) query = query.eq('type', types[0])
+  else if (types.length > 1) query = query.in('type', types)
+  if (q)               query = query.or(`name.ilike.%${q}%,biz_number.ilike.%${q}%`)
 
   const { data, error } = await query
 

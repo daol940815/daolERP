@@ -10,7 +10,8 @@ const pageTitles: Record<string, string> = {
   '/journal':       '분개 현황',
   '/ledger':        '계정별 원장',
   '/accounts':      '계정과목',
-  '/vendors':       '거래처 관리',
+  '/vendors/customers': '매출처 관리',
+  '/vendors/suppliers': '매입처 관리',
   '/settings':      '설정',
 }
 
