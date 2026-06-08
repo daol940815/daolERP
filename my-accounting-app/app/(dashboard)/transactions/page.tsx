@@ -84,19 +84,6 @@ function SideBadge(p: ICellRendererParams<Transaction>) {
   return <span className="text-gray-300 text-xs">—</span>
 }
 
-// 이체쌍 배지 렌더러
-function TransferPairBadge(p: ICellRendererParams<Transaction>) {
-  if (!p.value) return <span className="text-gray-300 text-xs">—</span>
-  return (
-    <span
-      className="inline-block px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-default"
-      title={`이체쌍 ID: ${p.value}`}
-    >
-      🔗 이체쌍
-    </span>
-  )
-}
-
 // 상태 배지 렌더러
 function StatusBadge(p: ICellRendererParams<Transaction>) {
   const map: Record<string, { label: string; cls: string }> = {

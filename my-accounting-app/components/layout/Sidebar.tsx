@@ -114,6 +114,7 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
   const router = useRouter()
   const [banks, setBanks] = useState<BankAccount[]>(initialBanks)
   const [banksOpen, setBanksOpen] = useState(true)
+  const [taxInvoicesOpen, setTaxInvoicesOpen] = useState(false)
   const [editingBankId, setEditingBankId] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
@@ -352,6 +353,45 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             <span className="text-base leading-none">🏢</span>
             <span>거래처 관리</span>
           </Link>
+
+          {/* ── 세금계산서 섹션 ── */}
+          <div className="mt-0.5">
+            <button
+              onClick={() => setTaxInvoicesOpen(o => !o)}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-800 hover:text-white transition-colors mb-0.5"
+            >
+              <span className="flex items-center gap-2.5">
+                <span className="text-base leading-none">🧾</span>
+                <span>세금계산서</span>
+              </span>
+              <span className="text-xs opacity-60">{taxInvoicesOpen ? '▾' : '▸'}</span>
+            </button>
+
+            {taxInvoicesOpen && (
+              <div className="ml-3 pl-3 border-l border-slate-700 mb-0.5 space-y-2">
+                {([
+                  { dir: 'sales',    label: '매출 세금계산서' },
+                  { dir: 'purchase', label: '매입 세금계산서' },
+                ] as const).map(group => (
+                  <div key={group.dir}>
+                    <p className="px-3 py-1 text-xs text-slate-500">{group.label}</p>
+                    {([
+                      { type: 'taxable', label: '전자세금계산서(과세)' },
+                      { type: 'exempt',  label: '전자계산서(면세)' },
+                    ] as const).map(sub => {
+                      const href = `/tax-invoices/${group.dir}/${sub.type}`
+                      return (
+                        <Link key={sub.type} href={href} className={linkCls(pathname === href)}>
+                          <span className="text-xs leading-none text-slate-500 shrink-0">·</span>
+                          <span className="truncate">{sub.label}</span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── 설정 ── */}
