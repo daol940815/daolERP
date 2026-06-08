@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     const amountCol = inv.direction === 'sales' ? 'amount_in' : 'amount_out'
     const { data: txs } = await admin
       .from('transactions')
-      .select('id, description, vendor_id')
+      .select('id, description, counterparty_name, vendor_id')
       .eq(amountCol, inv.total_amount)
       .is('transfer_pair_id', null)
 
@@ -48,12 +48,14 @@ export async function POST(req: NextRequest) {
     const aliases   = inv.vendor_id ? (aliasMap.get(inv.vendor_id) ?? []) : []
 
     const candidates = (txs ?? []).filter(tx => {
-      const desc       = (tx.description as string) ?? ''
-      const descDigits = desc.replace(/[^0-9]/g, '')
+      const desc           = (tx.description as string) ?? ''
+      const counterparty   = (tx.counterparty_name as string | null) ?? ''
+      const haystack       = `${desc} ${counterparty}`
+      const haystackDigits = haystack.replace(/[^0-9]/g, '')
       return (inv.vendor_id && tx.vendor_id === inv.vendor_id)
-        || (bizDigits && descDigits.includes(bizDigits))
-        || (name && desc.includes(name))
-        || aliases.some(alias => alias && desc.includes(alias))
+        || (bizDigits && haystackDigits.includes(bizDigits))
+        || (name && haystack.includes(name))
+        || aliases.some(alias => alias && haystack.includes(alias))
     })
 
     if (candidates.length === 1) {

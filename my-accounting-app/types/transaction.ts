@@ -2,6 +2,7 @@ export interface Transaction {
   id: string
   tx_date: string
   description: string
+  counterparty_name?: string | null
   amount_in: number
   amount_out: number
   balance?: number | null

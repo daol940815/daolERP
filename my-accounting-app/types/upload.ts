@@ -2,6 +2,7 @@
 export interface ParsedRow {
   tx_date: string       // YYYY-MM-DD
   description: string
+  counterparty_name?: string | null  // 보낸분/받는분 (적요와 별도 컬럼이 있는 경우)
   amount_in: number     // 입금 (원)
   amount_out: number    // 출금 (원)
   balance?: number      // 잔액

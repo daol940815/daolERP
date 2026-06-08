@@ -94,25 +94,30 @@ function norm(h: string): string {
 const PATTERNS: Record<string, string[]> = {
   date:        ['거래일자', '거래일시', '이용일자', '날짜', '일자', '거래일', '승인일자', '결제일', 'date'],
   description: ['적요', '기재내용', '내용', '가맹점명', '이용가맹점', '거래내용', '메모', '거래처', '상호명', '출금처', '입금처', '거래적요', '보낸분', '받는분', '보낸분/받는분', 'description'],
+  counterparty_name: ['보낸분', '받는분', '보낸분/받는분', '입금자명', '출금자명', '예금주명', '예금주', '송금인', '의뢰인'],
   amount_in:   ['맡기신금액', '입금금액', '입금액', '입금(원)', '입금'],
   amount_out:  ['찾으신금액', '출금금액', '이용금액', '승인금액', '출금액', '출금(원)', '카드이용금액', '이용액', '카드승인금액', '지급금액', '지급(원)', '지급액', '출금'],
   amount:      ['거래금액', '거래액'],  // 부호로 입/출금 구분 (amount_in/out 없을 때만)
   balance:     ['잔액(원)', '현재잔액', '잔액', '잔고', 'balance'],
 }
 
-interface ColMap { date?: number; description?: number; amount_in?: number; amount_out?: number; amount?: number; balance?: number }
+interface ColMap { date?: number; description?: number; counterparty_name?: number; amount_in?: number; amount_out?: number; amount?: number; balance?: number }
 
 function detectColumns(headers: string[]): ColMap {
   const normalized = headers.map(norm)
   const result: ColMap = {}
+  const usedIdx = new Set<number>()
 
   for (const [field, patterns] of Object.entries(PATTERNS)) {
     for (const pattern of patterns) {
       const pn = norm(pattern)
       // pn.includes(h) 는 빈 문자열 헤더가 모든 패턴에 매칭되는 버그 유발 → 제거
-      const idx = normalized.findIndex(h => h.length > 0 && (h === pn || h.includes(pn)))
+      // 이미 다른 필드가 차지한 컬럼은 건너뛴다 (예: 적요와 보낸분이 모두 있는 명세서에서
+      // description과 counterparty_name이 같은 컬럼을 가리키지 않도록)
+      const idx = normalized.findIndex((h, i) => h.length > 0 && !usedIdx.has(i) && (h === pn || h.includes(pn)))
       if (idx !== -1 && !(field in result)) {
         ;(result as Record<string, number>)[field] = idx
+        usedIdx.add(idx)
         break
       }
     }
@@ -203,6 +208,10 @@ function mapRows(
       ? String(row[colMap.description] ?? '').trim() || '(내용 없음)'
       : '(내용 없음)'
 
+    const counterparty_name = colMap.counterparty_name !== undefined
+      ? String(row[colMap.counterparty_name] ?? '').trim() || null
+      : null
+
     let amount_in = 0
     let amount_out = 0
 
@@ -222,7 +231,7 @@ function mapRows(
 
     const balance = colMap.balance !== undefined ? parseBalance(row[colMap.balance]) : undefined
 
-    result.push({ tx_date, description, amount_in, amount_out, balance, source })
+    result.push({ tx_date, description, counterparty_name, amount_in, amount_out, balance, source })
   }
 
   return result

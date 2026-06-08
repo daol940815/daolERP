@@ -480,6 +480,12 @@ function TransactionsContent() {
       minWidth: 180,
     },
     {
+      field: 'counterparty_name',
+      headerName: '보낸분/받는분',
+      width: 140,
+      valueFormatter: (p) => p.value ?? '',
+    },
+    {
       field: 'amount_in',
       headerName: '입금액',
       width: 130,

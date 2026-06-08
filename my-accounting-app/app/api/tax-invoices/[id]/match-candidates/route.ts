@@ -39,7 +39,7 @@ export async function GET(
 
   const { data: amountMatches, error } = await admin
     .from('transactions')
-    .select('id, tx_date, description, amount_in, amount_out, account_alias, vendor_id, confirmed_account_id')
+    .select('id, tx_date, description, counterparty_name, amount_in, amount_out, account_alias, vendor_id, confirmed_account_id')
     .eq(amountCol, invoice.total_amount)
     .order('tx_date', { ascending: false })
     .limit(200)
@@ -52,15 +52,17 @@ export async function GET(
 
   const scored = (amountMatches ?? []).map(tx => {
     const desc       = (tx.description as string) ?? ''
-    const descDigits = desc.replace(/[^0-9]/g, '')
+    const counterparty = (tx.counterparty_name as string | null) ?? ''
+    const haystack   = `${desc} ${counterparty}`
+    const haystackDigits = haystack.replace(/[^0-9]/g, '')
     const dayDiff    = Math.abs(new Date(tx.tx_date as string).getTime() - issueTime) / 86_400_000
 
     let score = 0
-    if (invoice.vendor_id && tx.vendor_id === invoice.vendor_id)     score += 3
-    if (bizDigits && descDigits.includes(bizDigits))                 score += 2
-    if (name && desc.includes(name))                                 score += 2
-    if (aliases.some(alias => alias && desc.includes(alias)))        score += 2
-    if (dayDiff <= 31)                                               score += 1
+    if (invoice.vendor_id && tx.vendor_id === invoice.vendor_id)        score += 3
+    if (bizDigits && haystackDigits.includes(bizDigits))                score += 2
+    if (name && haystack.includes(name))                                score += 2
+    if (aliases.some(alias => alias && haystack.includes(alias)))       score += 2
+    if (dayDiff <= 31)                                                  score += 1
 
     return { tx, score, dayDiff }
   })

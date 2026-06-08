@@ -19,6 +19,7 @@ interface Candidate {
   id: string
   tx_date: string
   description: string
+  counterparty_name: string | null
   amount_in: number
   amount_out: number
   account_alias: string | null
@@ -47,7 +48,7 @@ function MatchPickerModal({
     return () => { cancelled = true }
   }, [invoice.id])
 
-  const handlePick = async (txId: string, description: string) => {
+  const handlePick = async (txId: string, suggestion: string) => {
     setPicking(txId)
     const res = await fetch(`/api/tax-invoices/${invoice.id}`, {
       method: 'PATCH',
@@ -60,8 +61,8 @@ function MatchPickerModal({
 
     const matched: TaxInvoice = json.data
     if (matched.vendor_id) {
-      setAliasInput(description.trim())
-      setAliasPrompt({ matched, suggestion: description.trim() })
+      setAliasInput(suggestion.trim())
+      setAliasPrompt({ matched, suggestion: suggestion.trim() })
       return
     }
     onMatched(matched)
@@ -144,13 +145,16 @@ function MatchPickerModal({
             {candidates.map(c => (
               <button
                 key={c.id}
-                onClick={() => handlePick(c.id, c.description)}
+                onClick={() => handlePick(c.id, c.counterparty_name ?? c.description)}
                 disabled={picking !== null}
                 className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3 disabled:opacity-50"
               >
                 <div className="min-w-0">
                   <p className="text-gray-900 truncate">{c.description}</p>
-                  <p className="text-xs text-gray-400">{c.tx_date} · {c.account_alias ?? '-'}</p>
+                  <p className="text-xs text-gray-400">
+                    {c.tx_date} · {c.account_alias ?? '-'}
+                    {c.counterparty_name ? ` · 보낸분/받는분: ${c.counterparty_name}` : ''}
+                  </p>
                 </div>
                 <span className="font-medium text-gray-900 shrink-0">
                   {picking === c.id ? '연결 중...' : won(c.amount_in || c.amount_out)}

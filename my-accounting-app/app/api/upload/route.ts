@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
   const insertData = body.rows.map(row => ({
     tx_date: row.tx_date,
     description: row.description,
+    counterparty_name: row.counterparty_name ?? null,
     amount_in: row.amount_in,
     amount_out: row.amount_out,
     balance: row.balance ?? null,
