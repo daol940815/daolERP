@@ -4,8 +4,10 @@ import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
 
-// 카드 매출 상세내역 다운로드 파일 식별용 필수 컬럼
-const REQUIRED_COLS = ['거래일자', '거래유형', '카드번호', '승인번호', '금액']
+// 카드 매출 상세내역 다운로드 파일 식별용 필수 컬럼 (단말기결제)
+const TERMINAL_REQUIRED_COLS = ['거래일자', '거래유형', '카드번호', '승인번호', '금액']
+// 수기결제(PG) 내역 다운로드 파일 식별용 필수 컬럼 — 승인/취소가 한 행에 같이 담겨있는 형식
+const MANUAL_REQUIRED_COLS = ['결제일', '승인번호', '카드번호', '결제금액', '결제상태']
 
 function findCol(header: unknown[], name: string): number {
   return header.findIndex(h => String(h ?? '').trim() === name)
@@ -20,6 +22,14 @@ function toNumber(v: unknown): number {
 function toDate(v: unknown): string | null {
   const s = String(v ?? '').trim()
   return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null
+}
+
+// '2026-05-14 16:34:06' 형태의 결제일/취소일자를 날짜·시간으로 분리
+function splitDateTime(v: unknown): { date: string | null; time: string | null } {
+  const s = String(v ?? '').trim()
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2})?))?/)
+  if (!m) return { date: null, time: null }
+  return { date: m[1], time: m[2] ?? null }
 }
 
 type ParsedRow = {
@@ -52,71 +62,141 @@ export async function POST(req: NextRequest) {
   const buffer = Buffer.from(await file.arrayBuffer())
   const wb = XLSX.read(buffer, { type: 'buffer' })
 
-  // 헤더 행을 가진 시트를 컬럼 패턴으로 탐색 (시트명/위치가 다를 수 있음)
+  // 헤더 행을 가진 시트를 컬럼 패턴으로 탐색 (시트명/위치가 다를 수 있음, 단말기결제/수기결제 두 형식 모두 지원)
   let header: unknown[] | null = null
   let dataRows: unknown[][] = []
+  let format: 'terminal' | 'manual' | null = null
 
   for (const wsName of wb.SheetNames) {
     const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wsName], { header: 1, raw: false, defval: '' })
     const headerIdx = rows.findIndex(row =>
-      REQUIRED_COLS.every(col => row.some(cell => String(cell ?? '').trim() === col))
+      TERMINAL_REQUIRED_COLS.every(col => row.some(cell => String(cell ?? '').trim() === col)) ||
+      MANUAL_REQUIRED_COLS.every(col => row.some(cell => String(cell ?? '').trim() === col))
     )
     if (headerIdx >= 0) {
       header = rows[headerIdx]
       dataRows = rows.slice(headerIdx + 1)
+      format = TERMINAL_REQUIRED_COLS.every(col => header!.some(cell => String(cell ?? '').trim() === col))
+        ? 'terminal'
+        : 'manual'
       break
     }
   }
 
-  if (!header) {
+  if (!header || !format) {
     return NextResponse.json(
-      { error: '인식할 수 없는 파일 형식입니다. 카드 매출 상세내역 다운로드 파일을 업로드해주세요.' },
+      { error: '인식할 수 없는 파일 형식입니다. 카드 매출 상세내역(단말기결제 또는 수기결제) 다운로드 파일을 업로드해주세요.' },
       { status: 400 },
     )
-  }
-
-  const col = {
-    txDate:      findCol(header, '거래일자'),
-    txTime:      findCol(header, '거래시간'),
-    txType:      findCol(header, '거래유형'),
-    cardNumber:  findCol(header, '카드번호'),
-    approval:    findCol(header, '승인번호'),
-    acquirer:    findCol(header, '매입사'),
-    amount:      findCol(header, '금액'),
-    procStatus:  findCol(header, '처리현황'),
-    depositDate: findCol(header, '입금예정'),
-    cancelledAt: findCol(header, '취소일시'),
-    settlement:  findCol(header, '정산상태'),
-    supply:      findCol(header, '공급가액'),
-    tax:         findCol(header, '세금'),
   }
 
   const parsed: ParsedRow[] = []
   let skipped = 0
 
-  for (const row of dataRows) {
-    const approvalNumber = String(row[col.approval] ?? '').trim()
-    const txDate         = toDate(row[col.txDate])
-    if (!approvalNumber || !txDate) { skipped++; continue }
+  if (format === 'terminal') {
+    const col = {
+      txDate:      findCol(header, '거래일자'),
+      txTime:      findCol(header, '거래시간'),
+      txType:      findCol(header, '거래유형'),
+      cardNumber:  findCol(header, '카드번호'),
+      approval:    findCol(header, '승인번호'),
+      acquirer:    findCol(header, '매입사'),
+      amount:      findCol(header, '금액'),
+      procStatus:  findCol(header, '처리현황'),
+      depositDate: findCol(header, '입금예정'),
+      cancelledAt: findCol(header, '취소일시'),
+      settlement:  findCol(header, '정산상태'),
+      supply:      findCol(header, '공급가액'),
+      tax:         findCol(header, '세금'),
+    }
 
-    const txTypeRaw = String(row[col.txType] ?? '').trim()
-    const transactionType: 'approval' | 'cancel' = txTypeRaw === '취소' ? 'cancel' : 'approval'
+    for (const row of dataRows) {
+      const approvalNumber = String(row[col.approval] ?? '').trim()
+      const txDate         = toDate(row[col.txDate])
+      if (!approvalNumber || !txDate) { skipped++; continue }
 
-    parsed.push({
-      tx_date: txDate,
-      tx_time: String(row[col.txTime] ?? '').trim() || null,
-      transaction_type: transactionType,
-      approval_number: approvalNumber,
-      card_number: String(row[col.cardNumber] ?? '').trim() || null,
-      acquirer: String(row[col.acquirer] ?? '').trim() || null,
-      amount: toNumber(row[col.amount]),
-      supply_amount: toNumber(row[col.supply]),
-      tax_amount: toNumber(row[col.tax]),
-      processing_status: String(row[col.procStatus] ?? '').trim() || null,
-      deposit_expected_date: toDate(row[col.depositDate]),
-      cancelled_at: String(row[col.cancelledAt] ?? '').trim() || null,
-      settlement_status: String(row[col.settlement] ?? '').trim() || null,
-    })
+      const txTypeRaw = String(row[col.txType] ?? '').trim()
+      const transactionType: 'approval' | 'cancel' = txTypeRaw === '취소' ? 'cancel' : 'approval'
+
+      parsed.push({
+        tx_date: txDate,
+        tx_time: String(row[col.txTime] ?? '').trim() || null,
+        transaction_type: transactionType,
+        approval_number: approvalNumber,
+        card_number: String(row[col.cardNumber] ?? '').trim() || null,
+        acquirer: String(row[col.acquirer] ?? '').trim() || null,
+        amount: toNumber(row[col.amount]),
+        supply_amount: toNumber(row[col.supply]),
+        tax_amount: toNumber(row[col.tax]),
+        processing_status: String(row[col.procStatus] ?? '').trim() || null,
+        deposit_expected_date: toDate(row[col.depositDate]),
+        cancelled_at: String(row[col.cancelledAt] ?? '').trim() || null,
+        settlement_status: String(row[col.settlement] ?? '').trim() || null,
+      })
+    }
+  } else {
+    // 수기결제(PG) — 승인/취소 정보가 한 행에 같이 담겨 있으므로,
+    // 취소금액이 있는 건은 기존 card_sales 스키마의 승인/취소 짝(동일 승인번호) 규칙에 맞춰 두 행으로 분리한다.
+    const col = {
+      payDate:      findCol(header, '결제일'),
+      approval:     findCol(header, '승인번호'),
+      acquirer:     findCol(header, '카드사'),
+      cardNumber:   findCol(header, '카드번호'),
+      amount:       findCol(header, '결제금액'),
+      cancelAmount: findCol(header, '취소금액'),
+      cancelDate:   findCol(header, '취소일자'),
+      procStatus:   findCol(header, '결제상태'),
+      settlement:   findCol(header, '최종상태'),
+    }
+
+    for (const row of dataRows) {
+      const approvalNumber = String(row[col.approval] ?? '').trim()
+      const { date: payDate, time: payTime } = splitDateTime(row[col.payDate])
+      if (!approvalNumber || !payDate) { skipped++; continue }
+
+      const cardNumber   = String(row[col.cardNumber] ?? '').trim() || null
+      const acquirer     = String(row[col.acquirer] ?? '').trim() || null
+      const procStatus   = String(row[col.procStatus] ?? '').trim() || null
+      const settlement   = String(row[col.settlement] ?? '').trim() || null
+      const cancelAmount = toNumber(row[col.cancelAmount])
+
+      parsed.push({
+        tx_date: payDate,
+        tx_time: payTime,
+        transaction_type: 'approval',
+        approval_number: approvalNumber,
+        card_number: cardNumber,
+        acquirer,
+        amount: toNumber(row[col.amount]),
+        supply_amount: 0,
+        tax_amount: 0,
+        processing_status: procStatus,
+        deposit_expected_date: null,
+        cancelled_at: null,
+        settlement_status: settlement,
+      })
+
+      if (cancelAmount > 0) {
+        const cancelledAtRaw = String(row[col.cancelDate] ?? '').trim() || null
+        const { date: cancelDate, time: cancelTime } = splitDateTime(row[col.cancelDate])
+
+        parsed.push({
+          tx_date: cancelDate ?? payDate,
+          tx_time: cancelTime,
+          transaction_type: 'cancel',
+          approval_number: approvalNumber,
+          card_number: cardNumber,
+          acquirer,
+          amount: -cancelAmount,
+          supply_amount: 0,
+          tax_amount: 0,
+          processing_status: procStatus,
+          deposit_expected_date: null,
+          cancelled_at: cancelledAtRaw,
+          settlement_status: settlement,
+        })
+      }
+    }
   }
 
   if (!parsed.length) {
