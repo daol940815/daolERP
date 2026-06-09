@@ -25,6 +25,7 @@ export default function CardSalesPage() {
 
   const [selected, setSelected]   = useState<Set<string>>(new Set())
   const [uploading, setUploading] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [deleting, setDeleting]   = useState(false)
   const [toast, setToast]         = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -74,6 +75,20 @@ export default function CardSalesPage() {
     showMsg(msg)
     load()
   }
+
+  const handleExport = useCallback(async () => {
+    setExporting(true)
+    const params = new URLSearchParams()
+    if (typeFilter !== 'all')        params.set('type', typeFilter)
+    if (vendorFilter)                params.set('vendorId', vendorFilter)
+    if (matchFilter === 'unmatched') params.set('unmatched', 'true')
+    if (dateFrom) params.set('from', dateFrom)
+    if (dateTo)   params.set('to', dateTo)
+    const a = document.createElement('a')
+    a.href = `/api/card-sales/export?${params}`
+    a.click()
+    setExporting(false)
+  }, [typeFilter, matchFilter, vendorFilter, dateFrom, dateTo])
 
   const handleAssignVendor = async (row: CardSale, vendorId: string) => {
     const res  = await fetch(`/api/card-sales/${row.id}`, {
@@ -129,6 +144,13 @@ export default function CardSalesPage() {
           <p className="text-sm mt-1 text-blue-700 font-medium">카드 매출 상세내역 — 정산/입금 현황 확인</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
+          <button
+            onClick={handleExport}
+            disabled={exporting || loading}
+            className="px-3 py-2 border border-emerald-300 rounded-lg text-sm text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 flex items-center gap-1.5"
+          >
+            ↓ {exporting ? '다운로드 중...' : '엑셀 다운로드'}
+          </button>
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
