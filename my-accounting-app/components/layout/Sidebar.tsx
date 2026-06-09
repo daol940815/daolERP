@@ -223,6 +223,14 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             </Link>
           </div>
 
+          {/* ── 현금영수증 (거래 내역 하위) ── */}
+          <div className="ml-3 pl-3 border-l border-slate-700 mt-0.5 mb-0.5">
+            <Link href="/cash-receipts" className={linkCls(pathname.startsWith('/cash-receipts'))}>
+              <span className="text-base leading-none">🧾</span>
+              <span>현금영수증</span>
+            </Link>
+          </div>
+
           {/* ── 세금계산서 섹션 (거래 내역 하위) ── */}
           <div className="ml-3 pl-3 border-l border-slate-700 mt-0.5 mb-0.5">
             <button
