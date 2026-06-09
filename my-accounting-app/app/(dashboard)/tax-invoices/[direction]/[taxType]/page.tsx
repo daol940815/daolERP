@@ -181,6 +181,7 @@ export default function TaxInvoiceListPage() {
   const [loading, setLoading]         = useState(true)
   const [statusFilter, setStatusFilter] = useState<'all' | 'matched' | 'unmatched'>('all')
   const [uploading, setUploading]     = useState(false)
+  const [exporting, setExporting]     = useState(false)
   const [matching, setMatching]       = useState(false)
   const [matchingInvoice, setMatchingInvoice] = useState<TaxInvoice | null>(null)
   const [toast, setToast]             = useState<string | null>(null)
@@ -200,6 +201,16 @@ export default function TaxInvoiceListPage() {
   }, [valid, direction, taxType, statusFilter])
 
   useEffect(() => { load() }, [load])
+
+  const handleExport = useCallback(() => {
+    setExporting(true)
+    const p = new URLSearchParams({ direction, taxType })
+    if (statusFilter !== 'all') p.set('paymentStatus', statusFilter)
+    const a = document.createElement('a')
+    a.href = `/api/tax-invoices/export?${p}`
+    a.click()
+    setExporting(false)
+  }, [direction, taxType, statusFilter])
 
   if (!valid) {
     return <div className="text-center py-20 text-gray-400 text-sm">잘못된 경로입니다.</div>
@@ -276,6 +287,13 @@ export default function TaxInvoiceListPage() {
           <p className={`text-sm mt-1 ${meta.color} font-medium`}>{meta.sub}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
+          <button
+            onClick={handleExport}
+            disabled={exporting || loading || invoices.length === 0}
+            className="px-3 py-2 border border-emerald-300 rounded-lg text-sm text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 flex items-center gap-1.5"
+          >
+            ↓ {exporting ? '다운로드 중...' : '엑셀 다운로드'}
+          </button>
           <button
             onClick={handleAutoMatch}
             disabled={matching || invoices.length === 0}

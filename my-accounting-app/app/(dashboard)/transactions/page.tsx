@@ -352,6 +352,21 @@ function TransactionsContent() {
     a.click()
   }, [filters.from, filters.to, filters.bankAccountId])
 
+  // 전체 거래 엑셀 다운로드 (현재 필터 그대로)
+  const handleExportAll = useCallback(() => {
+    const params = new URLSearchParams({
+      ...(filters.status !== 'all' && { status: filters.status }),
+      ...(filters.source !== 'all' && { source: filters.source }),
+      ...(filters.from          && { from: filters.from }),
+      ...(filters.to            && { to:   filters.to   }),
+      ...(filters.bankAccountId && { bankAccountId: filters.bankAccountId }),
+      ...(filters.vendorId      && { vendorId: filters.vendorId }),
+    })
+    const a = document.createElement('a')
+    a.href = `/api/transactions/export?${params}`
+    a.click()
+  }, [filters])
+
   // 엑셀 업로드 → 계정과목 일괄 업데이트
   const handleImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -758,6 +773,12 @@ function TransactionsContent() {
             className="hidden"
             onChange={handleImport}
           />
+          <button
+            onClick={handleExportAll}
+            className="px-3 py-1.5 border border-emerald-300 rounded-lg text-sm text-emerald-700 hover:bg-emerald-50"
+          >
+            ↓ 전체 다운로드
+          </button>
           <button
             onClick={handleExport}
             className="px-3 py-1.5 border border-emerald-300 rounded-lg text-sm text-emerald-700 hover:bg-emerald-50"
