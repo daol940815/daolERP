@@ -38,6 +38,7 @@ export default function VendorStatusReportPage() {
 
   const [rows, setRows]       = useState<VendorStatusRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
   const [search, setSearch]   = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo]     = useState('')
@@ -52,6 +53,18 @@ export default function VendorStatusReportPage() {
     const json = await res.json()
     if (Array.isArray(json.data)) setRows(json.data)
     setLoading(false)
+  }, [valid, direction, dateFrom, dateTo])
+
+  const handleExport = useCallback(() => {
+    if (!valid) return
+    setExporting(true)
+    const p = new URLSearchParams({ direction })
+    if (dateFrom) p.set('from', dateFrom)
+    if (dateTo)   p.set('to', dateTo)
+    const a = document.createElement('a')
+    a.href = `/api/reports/vendor-status/export?${p.toString()}`
+    a.click()
+    setExporting(false)
   }, [valid, direction, dateFrom, dateTo])
 
   useEffect(() => { load() }, [load])
@@ -73,9 +86,18 @@ export default function VendorStatusReportPage() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="mb-1">
-        <h1 className="text-2xl font-bold text-gray-900">{meta.title}</h1>
-        <p className={`text-sm mt-1 ${meta.color} font-medium`}>{meta.sub}</p>
+      <div className="mb-1 flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{meta.title}</h1>
+          <p className={`text-sm mt-1 ${meta.color} font-medium`}>{meta.sub}</p>
+        </div>
+        <button
+          onClick={handleExport}
+          disabled={exporting || loading || filtered.length === 0}
+          className="px-3 py-2 border border-emerald-300 rounded-lg text-sm text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 flex items-center gap-1.5"
+        >
+          ↓ {exporting ? '다운로드 중...' : '엑셀 다운로드'}
+        </button>
       </div>
 
       {/* 기간 빠른 선택 */}
