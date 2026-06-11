@@ -263,15 +263,14 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: `별칭 등록 실패: ${error.message}` }, { status: 500 })
   }
   {
-    const names = Array.from(new Set([...Array.from(customerNames), ...Array.from(purchaseNames)]))
-    for (let i = 0; i < names.length; i += CHUNK) {
-      const { data, error } = await admin
-        .from('erp_vendor_aliases')
-        .select('id, alias_type, erp_name')
-        .in('erp_name', names.slice(i, i + CHUNK))
-      if (error) return NextResponse.json({ error: `별칭 조회 실패: ${error.message}` }, { status: 500 })
-      for (const a of data ?? []) aliasMap.set(`${a.alias_type}|${a.erp_name}`, a.id as string)
-    }
+    // 매입처/매출처명에 괄호·쉼표·따옴표 등이 섞여 있으면 .in() 필터 구문이
+    // 깨질 수 있으므로, 전체 별칭을 가져와 메모리에서 매칭한다.
+    const { data, error } = await admin
+      .from('erp_vendor_aliases')
+      .select('id, alias_type, erp_name')
+      .limit(20000)
+    if (error) return NextResponse.json({ error: `별칭 조회 실패: ${error.message}` }, { status: 500 })
+    for (const a of data ?? []) aliasMap.set(`${a.alias_type}|${a.erp_name}`, a.id as string)
   }
 
   // ── 3) 주문 upsert ──────────────────────────────────
