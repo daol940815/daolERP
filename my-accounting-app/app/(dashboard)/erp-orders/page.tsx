@@ -30,12 +30,17 @@ export default function ErpOrdersPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [msg, setMsg]           = useState<string | null>(null)
+  const [page, setPage]         = useState(1)
+  const [total, setTotal]       = useState(0)
+  const [summary, setSummary]   = useState({ net_sales: 0, outstanding: 0 })
+
+  const PAGE_SIZE = 100
 
   const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 5000) }
 
   const load = useCallback(async () => {
     setLoading(true)
-    const p = new URLSearchParams({ view })
+    const p = new URLSearchParams({ view, page: String(page), limit: String(PAGE_SIZE) })
     if (statusFilter !== 'all') p.set('status', statusFilter)
     if (dateFrom) p.set('from', dateFrom)
     if (dateTo)   p.set('to', dateTo)
@@ -45,14 +50,19 @@ export default function ErpOrdersPage() {
     if (res.ok) {
       setOrders(json.data ?? [])
       setItems(json.items ?? [])
+      setTotal(json.total ?? 0)
+      if (json.summary) setSummary(json.summary)
     } else {
       showMsg(`조회 실패: ${json.error ?? '알 수 없는 오류'}`)
     }
     setSelected(new Set())
     setLoading(false)
-  }, [view, statusFilter, dateFrom, dateTo, search])
+  }, [view, statusFilter, dateFrom, dateTo, search, page])
 
   useEffect(() => { load() }, [load])
+
+  // 필터 변경 시 1페이지로
+  useEffect(() => { setPage(1) }, [view, statusFilter, dateFrom, dateTo, search])
 
   const handleUpload = async (files: FileList | null) => {
     if (!files?.length) return
@@ -133,12 +143,7 @@ export default function ErpOrdersPage() {
     itemsByOrder.set(it.order_id, list)
   }
 
-  // 요약 (취소/VIP/선결제 제외 순매출 + 미수금)
-  const activeItems  = items.filter(it => !it.is_canceled && !it.is_vip && !it.is_prepayment)
-  const netSales     = activeItems.reduce((s, it) => s + (it.line_total || 0), 0)
-  const excludedAmt  = items.filter(it => it.is_vip || it.is_prepayment).reduce((s, it) => s + (it.line_total || 0), 0)
-  const outstanding  = orders.filter(o => o.collect_status !== 'collected')
-    .reduce((s, o) => s + (o.outstanding_amount || 0), 0)
+  const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1)
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -238,23 +243,19 @@ export default function ErpOrdersPage() {
         />
       </div>
 
-      {/* 요약 카드 */}
+      {/* 요약 카드 (필터 전체 범위 기준) */}
       <div className="flex gap-3 flex-wrap mb-5">
         <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
           <p className="text-xs text-gray-400 mb-1">주문 수</p>
-          <p className="text-lg font-bold text-gray-900">{orders.length.toLocaleString()}건</p>
+          <p className="text-lg font-bold text-gray-900">{total.toLocaleString()}건</p>
         </div>
         <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
           <p className="text-xs text-gray-400 mb-1">순매출 (취소·VIP·선결제 제외)</p>
-          <p className="text-lg font-bold text-gray-900">{won(netSales)}</p>
-        </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-          <p className="text-xs text-gray-400 mb-1">VIP·선결제 금액</p>
-          <p className="text-lg font-bold text-violet-600">{won(excludedAmt)}</p>
+          <p className="text-lg font-bold text-gray-900">{won(summary.net_sales)}</p>
         </div>
         <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
           <p className="text-xs text-gray-400 mb-1">미수금</p>
-          <p className={`text-lg font-bold ${outstanding > 0 ? 'text-red-600' : 'text-gray-400'}`}>{won(outstanding)}</p>
+          <p className={`text-lg font-bold ${summary.outstanding > 0 ? 'text-red-600' : 'text-gray-400'}`}>{won(summary.outstanding)}</p>
         </div>
       </div>
 
@@ -367,6 +368,32 @@ export default function ErpOrdersPage() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* 페이지네이션 */}
+      {!loading && total > 0 && (
+        <div className="flex items-center justify-between mt-4 text-sm">
+          <p className="text-gray-400 text-xs">
+            {((page - 1) * PAGE_SIZE + 1).toLocaleString()}–{Math.min(page * PAGE_SIZE, total).toLocaleString()} / {total.toLocaleString()}건
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(p => Math.max(p - 1, 1))}
+              disabled={page <= 1}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-30"
+            >
+              ← 이전
+            </button>
+            <span className="px-3 text-gray-500 text-xs">{page} / {totalPages}</span>
+            <button
+              onClick={() => setPage(p => Math.min(p + 1, totalPages))}
+              disabled={page >= totalPages}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-30"
+            >
+              다음 →
+            </button>
+          </div>
         </div>
       )}
     </div>

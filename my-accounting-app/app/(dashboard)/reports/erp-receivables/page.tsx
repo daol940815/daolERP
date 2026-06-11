@@ -173,7 +173,6 @@ export default function ErpReceivablesPage() {
                 <th className="py-2.5 px-3 font-medium">담당직원</th>
                 <th className="py-2.5 px-3 font-medium text-right">주문</th>
                 <th className="py-2.5 px-3 font-medium text-right">순매출</th>
-                <th className="py-2.5 px-3 font-medium text-right">VIP·선결제</th>
                 <th className="py-2.5 px-3 font-medium text-right">미수금</th>
                 <th className="py-2.5 px-3 font-medium text-right">선결제 잔액</th>
               </tr>
@@ -201,7 +200,6 @@ export default function ErpReceivablesPage() {
                   </td>
                   <td className="py-2 px-3 text-right text-gray-500 whitespace-nowrap">{r.order_count}건</td>
                   <td className="py-2 px-3 text-right whitespace-nowrap">{won(r.total_amount)}</td>
-                  <td className="py-2 px-3 text-right text-violet-500 whitespace-nowrap">{r.excluded_amount ? won(r.excluded_amount) : '-'}</td>
                   <td className={`py-2 px-3 text-right font-medium whitespace-nowrap ${r.outstanding_amount > 0 ? 'text-red-600' : 'text-gray-400'}`}>
                     {won(r.outstanding_amount)}
                     {r.outstanding_count > 0 && <span className="text-xs text-gray-400 ml-1">({r.outstanding_count}건)</span>}
@@ -216,7 +214,6 @@ export default function ErpReceivablesPage() {
               <tr className="border-t border-gray-200 font-medium text-gray-900">
                 <td className="py-2.5 px-3" colSpan={4}>합계</td>
                 <td className="py-2.5 px-3 text-right whitespace-nowrap">{won(totalSales)}</td>
-                <td className="py-2.5 px-3 text-right text-violet-600 whitespace-nowrap">{won(filtered.reduce((s, r) => s + r.excluded_amount, 0))}</td>
                 <td className="py-2.5 px-3 text-right text-red-700 whitespace-nowrap">{won(totalOut)}</td>
                 <td className="py-2.5 px-3 text-right text-sky-700 whitespace-nowrap">{won(totalPrepay)}</td>
               </tr>

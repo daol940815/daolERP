@@ -20,7 +20,6 @@ export async function GET(req: NextRequest) {
     '담당직원':     r.staff_names.join(', '),
     '주문건수':     r.order_count,
     '순매출':       r.total_amount,
-    'VIP·선결제':   r.excluded_amount,
     '미수금':       r.outstanding_amount,
     '미수건수':     r.outstanding_count,
     '선결제잔액':   r.prepay_balance,
@@ -31,7 +30,6 @@ export async function GET(req: NextRequest) {
     '담당직원':     '',
     '주문건수':     result.rows.reduce((s, r) => s + r.order_count, 0),
     '순매출':       result.rows.reduce((s, r) => s + r.total_amount, 0),
-    'VIP·선결제':   result.rows.reduce((s, r) => s + r.excluded_amount, 0),
     '미수금':       result.rows.reduce((s, r) => s + r.outstanding_amount, 0),
     '미수건수':     result.rows.reduce((s, r) => s + r.outstanding_count, 0),
     '선결제잔액':   result.rows.reduce((s, r) => s + r.prepay_balance, 0),
@@ -39,7 +37,7 @@ export async function GET(req: NextRequest) {
 
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.json_to_sheet(sheetRows)
-  ws['!cols'] = [{ wch: 26 }, { wch: 20 }, { wch: 14 }, { wch: 9 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 9 }, { wch: 12 }]
+  ws['!cols'] = [{ wch: 26 }, { wch: 20 }, { wch: 14 }, { wch: 9 }, { wch: 14 }, { wch: 14 }, { wch: 9 }, { wch: 12 }]
   XLSX.utils.book_append_sheet(wb, ws, 'ERP_매출처_미수금현황')
 
   const buf      = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Uint8Array
