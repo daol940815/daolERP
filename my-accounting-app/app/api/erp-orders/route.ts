@@ -34,38 +34,57 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 필터 전체 범위: 요약 계산용 경량 조회
-  let sq = admin
-    .from('erp_orders')
-    .select('id, total_amount, outstanding_amount, collect_status')
-    .limit(50000)
-  if (from)                       sq = sq.gte('order_date', from)
-  if (to)                         sq = sq.lte('order_date', to)
-  if (status && status !== 'all') sq = sq.eq('collect_status', status)
-  if (q) sq = sq.or(`order_no.ilike.%${q}%,bank_name.ilike.%${q}%,branch_name.ilike.%${q}%`)
-  if (viewIds) sq = sq.in('id', viewIds)
+  // 필터 전체 범위 요약: DB 집계 함수로 단일 쿼리 계산 (마이그레이션 020)
+  let total = 0
+  let netSales = 0
+  let outstanding = 0
+  const { data: sumRows, error: se } = await admin.rpc('erp_orders_summary', {
+    p_from:   from,
+    p_to:     to,
+    p_status: status && status !== 'all' ? status : null,
+    p_q:      q || null,
+    p_view:   view,
+  })
+  if (!se) {
+    const s = Array.isArray(sumRows) ? sumRows[0] : sumRows
+    total       = Number(s?.total_count ?? 0)
+    netSales    = Number(s?.net_sales ?? 0)
+    outstanding = Number(s?.outstanding ?? 0)
+  } else if (se.code === 'PGRST202' || /erp_orders_summary/i.test(se.message)) {
+    // 함수 미적용(020 미실행) 시 기존 방식으로 폴백 — 데이터가 많으면 느릴 수 있음
+    let sq = admin
+      .from('erp_orders')
+      .select('id, total_amount, outstanding_amount, collect_status')
+      .limit(50000)
+    if (from)                       sq = sq.gte('order_date', from)
+    if (to)                         sq = sq.lte('order_date', to)
+    if (status && status !== 'all') sq = sq.eq('collect_status', status)
+    if (q) sq = sq.or(`order_no.ilike.%${q}%,bank_name.ilike.%${q}%,branch_name.ilike.%${q}%`)
+    if (viewIds) sq = sq.in('id', viewIds)
 
-  const { data: allOrders, error: se } = await sq
-  if (se) return NextResponse.json({ error: se.message }, { status: 500 })
+    const { data: allOrders, error: fe } = await sq
+    if (fe) return NextResponse.json({ error: fe.message }, { status: 500 })
 
-  const allIds = (allOrders ?? []).map(o => o.id as string)
-  const total  = allIds.length
+    const allIds = (allOrders ?? []).map(o => o.id as string)
+    total = allIds.length
 
-  // 제외 품목(취소/VIP/선결제) 합계 → 순매출 = 총금액 합 − 제외 합
-  let excludedSum = 0
-  for (let i = 0; i < allIds.length; i += 500) {
-    const { data: flagged, error: ie } = await admin
-      .from('erp_order_items')
-      .select('line_total')
-      .in('order_id', allIds.slice(i, i + 500))
-      .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
-    if (ie) return NextResponse.json({ error: ie.message }, { status: 500 })
-    for (const it of flagged ?? []) excludedSum += (it.line_total as number) || 0
+    let excludedSum = 0
+    for (let i = 0; i < allIds.length; i += 500) {
+      const { data: flagged, error: ie } = await admin
+        .from('erp_order_items')
+        .select('line_total')
+        .in('order_id', allIds.slice(i, i + 500))
+        .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
+      if (ie) return NextResponse.json({ error: ie.message }, { status: 500 })
+      for (const it of flagged ?? []) excludedSum += (it.line_total as number) || 0
+    }
+    netSales = (allOrders ?? []).reduce((s, o) => s + ((o.total_amount as number) || 0), 0) - excludedSum
+    outstanding = (allOrders ?? [])
+      .filter(o => o.collect_status !== 'collected')
+      .reduce((s, o) => s + ((o.outstanding_amount as number) || 0), 0)
+  } else {
+    return NextResponse.json({ error: se.message }, { status: 500 })
   }
-  const netSales    = (allOrders ?? []).reduce((s, o) => s + ((o.total_amount as number) || 0), 0) - excludedSum
-  const outstanding = (allOrders ?? [])
-    .filter(o => o.collect_status !== 'collected')
-    .reduce((s, o) => s + ((o.outstanding_amount as number) || 0), 0)
 
   // 현재 페이지 주문 조회
   const offset = (page - 1) * limit
