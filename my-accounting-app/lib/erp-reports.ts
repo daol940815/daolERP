@@ -3,22 +3,36 @@ import type { ErpReceivableRow, ErpPayableRow, ErpPaymentTerm } from '@/types/er
 
 // ── 매출처(은행·지점)별 미수금 현황 집계 ──────────────
 // 취소/VIP/선결제 품목은 순매출에서 제외, 미수금은 ERP 주문 단위 값 사용
+// staff(다올직원) 지정 시 해당 직원이 담당자로 기재된 주문만 집계
 export async function buildReceivableRows(
   admin: SupabaseClient,
   from: string | null,
   to: string | null,
-): Promise<{ rows: ErpReceivableRow[] } | { error: string }> {
+  staff?: string | null,
+): Promise<{ rows: ErpReceivableRow[]; staffNames: string[] } | { error: string }> {
   let oq = admin
     .from('erp_orders')
-    .select('id, customer_alias_id, bank_name, branch_name, total_amount, outstanding_amount, collect_status')
+    .select('id, customer_alias_id, bank_name, branch_name, total_amount, outstanding_amount, collect_status, staff_name')
     .limit(50000)
   if (from) oq = oq.gte('order_date', from)
   if (to)   oq = oq.lte('order_date', to)
 
-  const { data: orders, error: oe } = await oq
+  const { data: allOrders, error: oe } = await oq
   if (oe) return { error: oe.message }
 
-  const orderIds = (orders ?? []).map(o => o.id as string)
+  // 기간 내 전체 담당직원 목록 (필터 드롭다운용)
+  const staffSet = new Set<string>()
+  for (const o of allOrders ?? []) {
+    const s = (o.staff_name as string | null)?.trim()
+    if (s) staffSet.add(s)
+  }
+  const staffNames = Array.from(staffSet).sort((a, b) => a.localeCompare(b, 'ko'))
+
+  const orders = staff
+    ? (allOrders ?? []).filter(o => ((o.staff_name as string | null)?.trim() ?? '') === staff)
+    : (allOrders ?? [])
+
+  const orderIds = orders.map(o => o.id as string)
 
   // 주문별 제외 금액(취소/VIP/선결제 품목 합계)
   const excludedByOrder = new Map<string, number>()
@@ -56,7 +70,8 @@ export async function buildReceivableRows(
   }
 
   const groups = new Map<string, ErpReceivableRow>()
-  for (const o of orders ?? []) {
+  const staffByGroup = new Map<string, Set<string>>()
+  for (const o of orders) {
     const key = (o.customer_alias_id as string | null) ?? '__none__'
     let g = groups.get(key)
     if (!g) {
@@ -74,9 +89,13 @@ export async function buildReceivableRows(
         outstanding_amount: 0,
         outstanding_count: 0,
         prepay_balance: prepayBalance.get(key) ?? 0,
+        staff_names: [],
       }
       groups.set(key, g)
+      staffByGroup.set(key, new Set())
     }
+    const staffName = (o.staff_name as string | null)?.trim()
+    if (staffName) staffByGroup.get(key)!.add(staffName)
     const excluded = excludedByOrder.get(o.id as string) ?? 0
     g.order_count += 1
     g.total_amount += ((o.total_amount as number) || 0) - excluded
@@ -86,10 +105,13 @@ export async function buildReceivableRows(
       g.outstanding_count  += 1
     }
   }
+  for (const [key, g] of Array.from(groups.entries())) {
+    g.staff_names = Array.from(staffByGroup.get(key) ?? []).sort((a, b) => a.localeCompare(b, 'ko'))
+  }
 
   const rows = Array.from(groups.values())
   rows.sort((a, b) => b.outstanding_amount - a.outstanding_amount || b.total_amount - a.total_amount)
-  return { rows }
+  return { rows, staffNames }
 }
 
 // ── 매입처 × 정산월별 미결제 현황 집계 ─────────────────

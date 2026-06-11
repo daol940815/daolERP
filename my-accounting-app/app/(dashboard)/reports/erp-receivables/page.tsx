@@ -16,6 +16,8 @@ export default function ErpReceivablesPage() {
   const [search, setSearch]     = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo]     = useState('')
+  const [staff, setStaff]       = useState('')
+  const [staffNames, setStaffNames] = useState<string[]>([])
   const [msg, setMsg]           = useState<string | null>(null)
 
   const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
@@ -25,12 +27,15 @@ export default function ErpReceivablesPage() {
     const p = new URLSearchParams()
     if (dateFrom) p.set('from', dateFrom)
     if (dateTo)   p.set('to', dateTo)
+    if (staff)    p.set('staff', staff)
     const res  = await fetch(`/api/reports/erp-receivables?${p}`)
     const json = await res.json()
-    if (Array.isArray(json.data)) setRows(json.data)
-    else showMsg(`조회 실패: ${json.error ?? '알 수 없는 오류'}`)
+    if (Array.isArray(json.data)) {
+      setRows(json.data)
+      if (Array.isArray(json.staff_names)) setStaffNames(json.staff_names)
+    } else showMsg(`조회 실패: ${json.error ?? '알 수 없는 오류'}`)
     setLoading(false)
-  }, [dateFrom, dateTo])
+  }, [dateFrom, dateTo, staff])
 
   useEffect(() => { load() }, [load])
 
@@ -46,11 +51,12 @@ export default function ErpReceivablesPage() {
     const p = new URLSearchParams()
     if (dateFrom) p.set('from', dateFrom)
     if (dateTo)   p.set('to', dateTo)
+    if (staff)    p.set('staff', staff)
     const a = document.createElement('a')
     a.href = `/api/reports/erp-receivables/export?${p}`
     a.click()
     setExporting(false)
-  }, [dateFrom, dateTo])
+  }, [dateFrom, dateTo, staff])
 
   const handleLinkVendor = async (row: ErpReceivableRow, vendorId: string) => {
     if (!row.alias_id) return
@@ -120,6 +126,14 @@ export default function ErpReceivablesPage() {
         <span className="text-gray-400 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        <select
+          value={staff}
+          onChange={e => setStaff(e.target.value)}
+          className={`border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 ${staff ? 'border-blue-400 text-blue-700 bg-blue-50' : 'border-gray-300 text-gray-700'}`}
+        >
+          <option value="">담당직원 전체</option>
+          {staffNames.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
@@ -156,6 +170,7 @@ export default function ErpReceivablesPage() {
               <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
                 <th className="py-2.5 px-3 font-medium">매출처 (ERP)</th>
                 <th className="py-2.5 px-3 font-medium">연결 거래처</th>
+                <th className="py-2.5 px-3 font-medium">담당직원</th>
                 <th className="py-2.5 px-3 font-medium text-right">주문</th>
                 <th className="py-2.5 px-3 font-medium text-right">순매출</th>
                 <th className="py-2.5 px-3 font-medium text-right">VIP·선결제</th>
@@ -181,6 +196,9 @@ export default function ErpReceivablesPage() {
                       </select>
                     ) : <span className="text-xs text-gray-400">-</span>}
                   </td>
+                  <td className="py-2 px-3 text-xs text-gray-600">
+                    <p className="truncate max-w-[120px]">{r.staff_names.length ? r.staff_names.join(', ') : '-'}</p>
+                  </td>
                   <td className="py-2 px-3 text-right text-gray-500 whitespace-nowrap">{r.order_count}건</td>
                   <td className="py-2 px-3 text-right whitespace-nowrap">{won(r.total_amount)}</td>
                   <td className="py-2 px-3 text-right text-violet-500 whitespace-nowrap">{r.excluded_amount ? won(r.excluded_amount) : '-'}</td>
@@ -196,7 +214,7 @@ export default function ErpReceivablesPage() {
             </tbody>
             <tfoot>
               <tr className="border-t border-gray-200 font-medium text-gray-900">
-                <td className="py-2.5 px-3" colSpan={3}>합계</td>
+                <td className="py-2.5 px-3" colSpan={4}>합계</td>
                 <td className="py-2.5 px-3 text-right whitespace-nowrap">{won(totalSales)}</td>
                 <td className="py-2.5 px-3 text-right text-violet-600 whitespace-nowrap">{won(filtered.reduce((s, r) => s + r.excluded_amount, 0))}</td>
                 <td className="py-2.5 px-3 text-right text-red-700 whitespace-nowrap">{won(totalOut)}</td>

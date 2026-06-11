@@ -103,6 +103,7 @@ export interface ErpReceivableRow {
   outstanding_amount: number   // ERP 미수금 합
   outstanding_count: number    // 미수 주문 건수
   prepay_balance: number       // 선결제 잔액
+  staff_names: string[]        // 담당직원(다올직원) 목록
 }
 
 export interface ErpPayableRow {
