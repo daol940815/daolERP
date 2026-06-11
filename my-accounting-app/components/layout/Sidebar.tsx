@@ -231,6 +231,14 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             </Link>
           </div>
 
+          {/* ── ERP 주문내역 (거래 내역 하위) ── */}
+          <div className="ml-3 pl-3 border-l border-slate-700 mt-0.5 mb-0.5">
+            <Link href="/erp-orders" className={linkCls(pathname.startsWith('/erp-orders'))}>
+              <span className="text-base leading-none">📦</span>
+              <span>ERP 주문내역</span>
+            </Link>
+          </div>
+
           {/* ── 세금계산서 섹션 (거래 내역 하위) ── */}
           <div className="ml-3 pl-3 border-l border-slate-700 mt-0.5 mb-0.5">
             <button
@@ -407,6 +415,14 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           <Link href="/reports/vendor-status/purchase" className={linkCls(pathname === '/reports/vendor-status/purchase')}>
             <span className="text-base leading-none">📤</span>
             <span>매입처 결제현황</span>
+          </Link>
+          <Link href="/reports/erp-receivables" className={linkCls(pathname.startsWith('/reports/erp-receivables'))}>
+            <span className="text-base leading-none">📦</span>
+            <span>ERP 매출처 미수금</span>
+          </Link>
+          <Link href="/reports/erp-payables" className={linkCls(pathname.startsWith('/reports/erp-payables'))}>
+            <span className="text-base leading-none">🏭</span>
+            <span>ERP 매입처 결제현황</span>
           </Link>
         </div>
 
