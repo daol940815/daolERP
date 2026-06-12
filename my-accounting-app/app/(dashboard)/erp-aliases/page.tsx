@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import type { ErpVendorAlias } from '@/types/erp'
@@ -251,6 +251,8 @@ function ErpAliasesContent() {
   const [draft, setDraft]       = useState<Draft | null>(null)
   const [showAddVendor, setShowAddVendor] = useState(false)
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null)
+  const [importing, setImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const isCustomer = tab === 'customer'
   const tabLabel   = isCustomer ? '매출처' : '매입처'
@@ -464,6 +466,30 @@ function ErpAliasesContent() {
     loadVendors()
   }
 
+  const handleExport = () => {
+    const a = document.createElement('a')
+    a.href = `/api/erp-aliases/export?type=${tab}`
+    a.click()
+  }
+
+  const handleImportFile = async (file: File) => {
+    setImporting(true)
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('type', tab)
+    const res  = await fetch('/api/erp-aliases/import', { method: 'POST', body: fd })
+    const json = await res.json()
+    setImporting(false)
+    if (!res.ok) { showMsg(`업로드 실패: ${json.error ?? '알 수 없는 오류'}`); return }
+    showMsg(
+      `업로드 완료 — 연결 ${json.aliasConnected}건, 연결해제 ${json.aliasDisconnected}건, `
+      + `거래처 생성 ${json.vendorsCreated}건, 정보수정 ${json.vendorsUpdated}건`
+      + (json.skipped ? `, 건너뜀 ${json.skipped}건` : '')
+    )
+    load()
+    loadVendors()
+  }
+
   const q = search.trim()
   const filtered = aliases
     .filter(a => !onlyUnmatched || !a.vendor_id)
@@ -526,6 +552,31 @@ function ErpAliasesContent() {
         />
         <span className="text-xs text-gray-400">미연결 {unmatchedCount} / 전체 {aliases.length}</span>
         <div className="flex-1" />
+        <button
+          onClick={handleExport}
+          disabled={loading || working || importing}
+          className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+        >
+          ⬇ 엑셀 다운로드
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          className="hidden"
+          onChange={e => {
+            const file = e.target.files?.[0]
+            if (file) handleImportFile(file)
+            e.target.value = ''
+          }}
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={loading || working || importing}
+          className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+        >
+          {importing ? '업로드 중...' : '⬆ 엑셀 업로드'}
+        </button>
         <button
           onClick={selectHighConfidence}
           disabled={loading || working}
