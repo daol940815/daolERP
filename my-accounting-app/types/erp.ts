@@ -2,6 +2,12 @@ export type ErpAliasType     = 'customer' | 'purchase'
 export type ErpPaymentTerm   = 'advance' | 'monthly'
 export type ErpCollectStatus = 'collected' | 'outstanding' | 'in_progress'
 
+// 품목 단위 배송상태 (배송조회 연동 전 수동 입력/표시용)
+export type ErpItemDeliveryStatus = 'in_transit' | 'delivered' | 'issue'
+
+// 주문 단위 배송상태 (품목 배송상태를 집계해 계산)
+export type ErpOrderDeliveryStatus = 'invoice_needed' | 'in_progress' | 'issue' | 'delivered'
+
 export interface ErpVendorAlias {
   id: string
   alias_type: ErpAliasType
@@ -59,6 +65,9 @@ export interface ErpOrderItem {
   settlement_month: string | null
   channel: string | null
   memo: string | null
+  tracking_number: string | null
+  delivery_status: ErpItemDeliveryStatus | null
+  is_shipping_exempt: boolean
   created_at: string
   updated_at: string
 }

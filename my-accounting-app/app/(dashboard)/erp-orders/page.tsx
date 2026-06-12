@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ErpOrder, ErpOrderItem } from '@/types/erp'
 import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
+import { computeOrderDeliveryStatus, ITEM_DELIVERY_STATUS_LABEL, ORDER_DELIVERY_STATUS_LABEL } from '@/lib/erp-delivery-status'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
@@ -173,6 +174,26 @@ export default function ErpOrdersPage() {
     if (n.has(id)) { n.delete(id) } else { n.add(id) }
     return n
   })
+  const allSelected = orders.length > 0 && orders.every(o => selected.has(o.id))
+  const toggleSelectAll = () => {
+    setSelected(prev => {
+      if (allSelected) return new Set()
+      const n = new Set(prev)
+      for (const o of orders) n.add(o.id)
+      return n
+    })
+  }
+
+  const handleExport = () => {
+    const p = new URLSearchParams({ view })
+    if (statusFilter !== 'all') p.set('status', statusFilter)
+    if (dateFrom) p.set('from', dateFrom)
+    if (dateTo)   p.set('to', dateTo)
+    if (search.trim()) p.set('q', search.trim())
+    const a = document.createElement('a')
+    a.href = `/api/erp-orders/export?${p}`
+    a.click()
+  }
 
   const itemsByOrder = new Map<string, ErpOrderItem[]>()
   for (const it of items) {
@@ -200,6 +221,13 @@ export default function ErpOrdersPage() {
               {deleting ? '삭제 중...' : `선택 ${selected.size}건 삭제`}
             </button>
           )}
+          <button
+            onClick={handleExport}
+            disabled={loading || total === 0}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+          >
+            ↓ 엑셀 다운로드
+          </button>
           <input
             ref={uploadRef}
             type="file"
@@ -308,7 +336,9 @@ export default function ErpOrdersPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
-                <th className="py-2.5 px-3 w-8"></th>
+                <th className="py-2.5 px-3 w-8">
+                  <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
+                </th>
                 <th className="py-2.5 px-3 font-medium">주문일</th>
                 <th className="py-2.5 px-3 font-medium">주문번호</th>
                 <th className="py-2.5 px-3 font-medium">매출처 (은행·지점)</th>
@@ -316,6 +346,7 @@ export default function ErpOrdersPage() {
                 <th className="py-2.5 px-3 font-medium text-right">총금액</th>
                 <th className="py-2.5 px-3 font-medium text-right">미수금</th>
                 <th className="py-2.5 px-3 font-medium">상태</th>
+                <th className="py-2.5 px-3 font-medium">배송상태</th>
                 <th className="py-2.5 px-3 font-medium text-right">액션</th>
               </tr>
             </thead>
@@ -334,6 +365,7 @@ export default function ErpOrdersPage() {
                 const hasCancel = oItems.some(it => it.is_canceled)
                 const hasVip    = oItems.some(it => it.is_vip)
                 const hasPre    = oItems.some(it => it.is_prepayment)
+                const deliveryStatus = computeOrderDeliveryStatus(oItems)
                 return [
                   <tr key={o.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-2 px-3">
@@ -365,6 +397,13 @@ export default function ErpOrdersPage() {
                       {hasVip    && <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-violet-50 text-violet-600">VIP</span>}
                       {hasPre    && <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-sky-50 text-sky-600">선결제</span>}
                     </td>
+                    <td className="py-2 px-3 whitespace-nowrap">
+                      {deliveryStatus
+                        ? <span className={`px-1.5 py-0.5 rounded text-xs ${ORDER_DELIVERY_STATUS_LABEL[deliveryStatus].cls}`}>
+                            {ORDER_DELIVERY_STATUS_LABEL[deliveryStatus].text}
+                          </span>
+                        : <span className="text-gray-300">-</span>}
+                    </td>
                     <td className="py-2 px-3 text-right whitespace-nowrap">
                       <button
                         onClick={() => handleDeduct(o)}
@@ -377,7 +416,7 @@ export default function ErpOrdersPage() {
                   </tr>,
                   expanded.has(o.id) && (
                     <tr key={`${o.id}-items`} className="bg-slate-50 border-b border-gray-100">
-                      <td colSpan={9} className="py-2 px-6">
+                      <td colSpan={10} className="py-2 px-6">
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="text-left text-gray-400">
@@ -390,6 +429,8 @@ export default function ErpOrdersPage() {
                               <th className="py-1 pr-3 font-medium text-right">매입합계</th>
                               <th className="py-1 pr-3 font-medium text-right">마진율</th>
                               <th className="py-1 pr-3 font-medium">결제일자</th>
+                              <th className="py-1 pr-3 font-medium">송장번호</th>
+                              <th className="py-1 pr-3 font-medium">배송상태</th>
                               <th className="py-1 pr-3 font-medium">구분</th>
                               <th className="py-1 font-medium">비고</th>
                             </tr>
@@ -416,6 +457,16 @@ export default function ErpOrdersPage() {
                                 <td className="py-1 pr-3 whitespace-nowrap">
                                   {payDate
                                     ? <span className={payDate.endsWith('부분') ? 'text-amber-600' : 'text-emerald-700'}>{payDate}</span>
+                                    : <span className="text-gray-300">-</span>}
+                                </td>
+                                <td className="py-1 pr-3 whitespace-nowrap font-mono text-[11px]">
+                                  {it.tracking_number ?? <span className="text-gray-300">-</span>}
+                                </td>
+                                <td className="py-1 pr-3 whitespace-nowrap">
+                                  {it.delivery_status
+                                    ? <span className={`px-1.5 py-0.5 rounded text-xs ${ITEM_DELIVERY_STATUS_LABEL[it.delivery_status].cls}`}>
+                                        {ITEM_DELIVERY_STATUS_LABEL[it.delivery_status].text}
+                                      </span>
                                     : <span className="text-gray-300">-</span>}
                                 </td>
                                 <td className="py-1 pr-3 whitespace-nowrap no-underline">
