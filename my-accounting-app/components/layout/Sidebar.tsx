@@ -237,9 +237,13 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
               <span className="text-base leading-none">📦</span>
               <span>ERP 주문내역</span>
             </Link>
-            <Link href="/erp-aliases" className={linkCls(pathname.startsWith('/erp-aliases'))}>
-              <span className="text-base leading-none">🔗</span>
-              <span>ERP 별칭 매칭</span>
+            <Link href="/erp-aliases?type=customer" className={linkCls(pathname.startsWith('/erp-aliases'))}>
+              <span className="text-base leading-none">🏪</span>
+              <span>매출처 관리</span>
+            </Link>
+            <Link href="/erp-aliases?type=purchase" className={linkCls(pathname.startsWith('/erp-aliases'))}>
+              <span className="text-base leading-none">🏭</span>
+              <span>매입처 관리</span>
             </Link>
           </div>
 
