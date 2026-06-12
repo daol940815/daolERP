@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   let query = admin
     .from('erp_vendor_aliases')
-    .select('*, vendors(name, biz_number, match_aliases, card_numbers)')
+    .select('*, vendors(id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active)')
     .order('erp_name')
     .limit(2000)
 
@@ -46,7 +46,7 @@ export async function PATCH(req: NextRequest) {
     .from('erp_vendor_aliases')
     .update(patch)
     .eq('id', id)
-    .select('*, vendors(name, biz_number, match_aliases, card_numbers)')
+    .select('*, vendors(id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active)')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

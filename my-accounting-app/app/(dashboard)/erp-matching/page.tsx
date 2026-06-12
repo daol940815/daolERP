@@ -149,6 +149,7 @@ export default function ErpMatchingPage() {
           <p className="text-sm mt-1 text-gray-500">
             은행 입금을 ERP 주문에 매칭합니다. 고신뢰 건(같은 거래처·금액 일치·날짜 근접·1:1)은 자동 확정되고,
             합산입금 등 모호한 건만 검토대기에서 수동 배분합니다.
+            매칭 결과는 ERP 주문내역의 미수금에서 자동으로 차감되어 표시됩니다.
           </p>
         </div>
         <div className="flex items-center gap-2">

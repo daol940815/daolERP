@@ -322,8 +322,15 @@ export default function ErpOrdersPage() {
             <tbody>
               {orders.map(o => {
                 const oItems = itemsByOrder.get(o.id) ?? []
-                const payDates = computePayDates(oItems, matches.filter(m => m.order_id === o.id))
-                const status = STATUS_LABEL[o.collect_status]
+                const orderMatches = matches.filter(m => m.order_id === o.id)
+                const payDates = computePayDates(oItems, orderMatches)
+                const allocated = orderMatches.reduce((s, m) => s + m.amount, 0)
+                const remaining = Math.max(o.outstanding_amount - allocated, 0)
+                const status = remaining <= 0
+                  ? STATUS_LABEL.collected
+                  : allocated > 0
+                    ? STATUS_LABEL.in_progress
+                    : STATUS_LABEL[o.collect_status]
                 const hasCancel = oItems.some(it => it.is_canceled)
                 const hasVip    = oItems.some(it => it.is_vip)
                 const hasPre    = oItems.some(it => it.is_prepayment)
@@ -346,8 +353,11 @@ export default function ErpOrdersPage() {
                     </td>
                     <td className="py-2 px-3 text-gray-500 whitespace-nowrap text-xs">{o.manager_name ?? '-'}</td>
                     <td className="py-2 px-3 text-right whitespace-nowrap">{won(o.total_amount)}</td>
-                    <td className={`py-2 px-3 text-right whitespace-nowrap ${o.outstanding_amount > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
-                      {won(o.outstanding_amount)}
+                    <td className={`py-2 px-3 text-right whitespace-nowrap ${remaining > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+                      {won(remaining)}
+                      {allocated > 0 && remaining !== o.outstanding_amount && (
+                        <span className="block text-[11px] text-emerald-600 font-normal">매칭 {won(allocated)} 차감</span>
+                      )}
                     </td>
                     <td className="py-2 px-3 whitespace-nowrap">
                       {status && <span className={`px-1.5 py-0.5 rounded text-xs ${status.cls}`}>{status.text}</span>}

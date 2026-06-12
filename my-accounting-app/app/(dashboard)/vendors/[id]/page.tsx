@@ -26,7 +26,7 @@ const PAYMENT_META: Record<string, { label: string; cls: string }> = {
 }
 
 function listHref(type: string) {
-  return type === 'customer' ? '/vendors/customers' : '/vendors/suppliers'
+  return type === 'customer' ? '/erp-aliases?type=customer' : '/erp-aliases?type=purchase'
 }
 
 function summarizeInvoices(list: TaxInvoice[]) {
@@ -118,7 +118,7 @@ export default function VendorDetailPage() {
   return (
     <div className="max-w-5xl mx-auto">
       <Link href={listHref(vendor.type)} className="text-xs text-gray-400 hover:text-gray-600">
-        ← {listHref(vendor.type) === '/vendors/customers' ? '매출처' : '매입처'} 목록
+        ← {vendor.type === 'customer' ? '매출처' : '매입처'} 관리
       </Link>
 
       {/* 기본 정보 */}
@@ -141,7 +141,7 @@ export default function VendorDetailPage() {
           href={listHref(vendor.type)}
           className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50 shrink-0"
         >
-          정보 수정 (목록에서)
+          정보 수정 (관리 화면에서)
         </Link>
       </div>
 

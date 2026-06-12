@@ -2,21 +2,25 @@
 
 import { Fragment, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import type { ErpVendorAlias } from '@/types/erp'
+import type { Vendor } from '@/types/tax-invoice'
 import { bestNameMatch } from '@/lib/name-similarity'
 
-interface Vendor { id: string; name: string }
-interface VendorMatchInfo {
-  name: string
-  biz_number: string | null
-  match_aliases: string[] | null
-  card_numbers: string[] | null
-}
-interface AliasRow extends ErpVendorAlias { vendors: VendorMatchInfo | null }
+type VendorInfo = Pick<Vendor,
+  'id' | 'name' | 'type' | 'biz_number' | 'contact_name' | 'contact_phone' | 'email' | 'note' | 'match_aliases' | 'card_numbers' | 'is_active'
+>
+interface AliasRow extends ErpVendorAlias { vendors: VendorInfo | null }
 
 type Tab = 'customer' | 'purchase'
 
 const pct = (n: number) => `${Math.round(n * 100)}%`
+
+const TYPE_META: Record<string, { label: string; cls: string }> = {
+  vendor:   { label: '매입처',     cls: 'bg-orange-100 text-orange-700' },
+  customer: { label: '매출처',     cls: 'bg-blue-100 text-blue-700' },
+  both:     { label: '매입+매출',  cls: 'bg-purple-100 text-purple-700' },
+}
 
 // 펼침 편집용 임시 값
 interface Draft {
@@ -25,6 +29,207 @@ interface Draft {
   cards: string[]
   newAlias: string
   newCard: string
+  contactName: string
+  contactPhone: string
+  email: string
+  note: string
+}
+
+// ── 칩 입력 (입금/출금계좌명, 카드번호 공용) ────────────────────────
+function ChipInput({
+  items, onAdd, onRemove, placeholder, mono,
+}: {
+  items: string[]
+  onAdd: (v: string) => void
+  onRemove: (v: string) => void
+  placeholder: string
+  mono?: boolean
+}) {
+  const [input, setInput] = useState('')
+  const handleAdd = () => {
+    const v = input.trim()
+    if (!v || items.includes(v)) { setInput(''); return }
+    onAdd(v)
+    setInput('')
+  }
+  return (
+    <div className="flex flex-wrap gap-1 items-center">
+      {items.map(v => (
+        <span
+          key={v}
+          className={`group inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-700 hover:bg-gray-200 ${mono ? 'font-mono' : ''}`}
+        >
+          {v}
+          <button
+            onClick={() => onRemove(v)}
+            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 leading-none transition-opacity"
+          >✕</button>
+        </span>
+      ))}
+      <input
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd() } }}
+        onBlur={handleAdd}
+        placeholder={placeholder}
+        className={`text-xs px-2 py-0.5 border border-dashed border-gray-300 rounded w-32 focus:outline-none focus:border-slate-500 text-gray-500 placeholder-gray-400 ${mono ? 'font-mono' : ''}`}
+      />
+    </div>
+  )
+}
+
+// ── 거래처 등록/수정 모달 (ERP 미연동 거래처 — "기타 거래처") ────────
+function VendorModal({
+  vendor, defaultType, onClose, onSaved,
+}: {
+  vendor: Vendor | null
+  defaultType: 'vendor' | 'customer'
+  onClose: () => void
+  onSaved: (v: Vendor) => void
+}) {
+  const [form, setForm] = useState({
+    name:          vendor?.name ?? '',
+    biz_number:    vendor?.biz_number ?? '',
+    type:          vendor?.type ?? defaultType,
+    contact_name:  vendor?.contact_name ?? '',
+    contact_phone: vendor?.contact_phone ?? '',
+    email:         vendor?.email ?? '',
+    note:          vendor?.note ?? '',
+    match_aliases: vendor?.match_aliases ?? [] as string[],
+    card_numbers:  vendor?.card_numbers ?? [] as string[],
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError]   = useState<string | null>(null)
+
+  const handleSave = async () => {
+    if (!form.name.trim()) { setError('거래처명은 필수입니다.'); return }
+    setSaving(true)
+    setError(null)
+    const url    = vendor ? `/api/vendors/${vendor.id}` : '/api/vendors'
+    const method = vendor ? 'PATCH' : 'POST'
+    const res  = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    })
+    const json = await res.json()
+    setSaving(false)
+    if (!res.ok) { setError(json.error ?? '저장 실패'); return }
+    onSaved(json.data)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <h2 className="text-lg font-bold text-gray-900 mb-4">{vendor ? '거래처 수정' : '기타 거래처 추가'}</h2>
+        {!vendor && (
+          <p className="text-xs text-gray-400 mb-3">ERP 주문에 아직 등장하지 않는 거래처를 미리 등록합니다.</p>
+        )}
+        {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">거래처명 <span className="text-red-500">*</span></label>
+            <input
+              autoFocus
+              value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">사업자등록번호</label>
+              <input
+                value={form.biz_number}
+                onChange={e => setForm(f => ({ ...f, biz_number: e.target.value }))}
+                placeholder="000-00-00000"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">유형</label>
+              <select
+                value={form.type}
+                onChange={e => setForm(f => ({ ...f, type: e.target.value as 'vendor' | 'customer' | 'both' }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              >
+                <option value="vendor">매입처</option>
+                <option value="customer">매출처</option>
+                <option value="both">매입+매출</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">담당자</label>
+              <input
+                value={form.contact_name}
+                onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">연락처</label>
+              <input
+                value={form.contact_phone}
+                onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">이메일</label>
+            <input
+              value={form.email}
+              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">메모</label>
+            <textarea
+              value={form.note}
+              onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
+              rows={2}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">입금/출금계좌명</label>
+            <p className="text-xs text-gray-400 mb-1.5">은행 거래내역 매칭에 사용됩니다.</p>
+            <ChipInput
+              items={form.match_aliases}
+              placeholder="+ 별칭"
+              onAdd={v => setForm(f => ({ ...f, match_aliases: [...f.match_aliases, v] }))}
+              onRemove={v => setForm(f => ({ ...f, match_aliases: f.match_aliases.filter(a => a !== v) }))}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">카드번호</label>
+            <p className="text-xs text-gray-400 mb-1.5">카드매출 자동 매칭에 사용됩니다.</p>
+            <ChipInput
+              items={form.card_numbers}
+              placeholder="1234-56**-****-7890"
+              mono
+              onAdd={v => setForm(f => ({ ...f, card_numbers: [...f.card_numbers, v] }))}
+              onRemove={v => setForm(f => ({ ...f, card_numbers: f.card_numbers.filter(c => c !== v) }))}
+            />
+          </div>
+        </div>
+        <div className="flex gap-2 mt-5">
+          <button onClick={onClose} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">취소</button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50"
+          >
+            {saving ? '저장 중...' : '저장'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function ErpAliasesContent() {
@@ -44,11 +249,20 @@ function ErpAliasesContent() {
   const [msg, setMsg]           = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [draft, setDraft]       = useState<Draft | null>(null)
+  const [showAddVendor, setShowAddVendor] = useState(false)
+  const [editingVendor, setEditingVendor] = useState<Vendor | null>(null)
 
   const isCustomer = tab === 'customer'
   const tabLabel   = isCustomer ? '매출처' : '매입처'
 
   const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
+
+  const loadVendors = useCallback(() => {
+    fetch('/api/vendors?all=true')
+      .then(r => r.json())
+      .then(d => { if (d.data) setVendors(d.data) })
+      .catch(() => null)
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -64,13 +278,7 @@ function ErpAliasesContent() {
   }, [tab])
 
   useEffect(() => { load() }, [load])
-
-  useEffect(() => {
-    fetch('/api/vendors?all=true')
-      .then(r => r.json())
-      .then(d => { if (d.data) setVendors(d.data) })
-      .catch(() => null)
-  }, [])
+  useEffect(() => { loadVendors() }, [loadVendors])
 
   // 별칭별 추천 매칭 (미연결 건만 계산)
   const suggestions = useMemo(() => {
@@ -93,6 +301,14 @@ function ErpAliasesContent() {
     return m
   }, [aliases])
 
+  // ERP명과 아직 연결되지 않은 "기타 거래처" (탭 유형에 맞는 거래처 중 미연결)
+  const otherVendors = useMemo(() => {
+    const connected = new Set(aliases.filter(a => a.vendor_id).map(a => a.vendor_id as string))
+    return vendors
+      .filter(v => isCustomer ? (v.type === 'customer' || v.type === 'both') : (v.type === 'vendor' || v.type === 'both'))
+      .filter(v => !connected.has(v.id))
+  }, [vendors, aliases, isCustomer])
+
   const patchAlias = async (id: string, vendorId: string | null): Promise<string | null> => {
     const res  = await fetch('/api/erp-aliases', {
       method: 'PATCH',
@@ -113,6 +329,7 @@ function ErpAliasesContent() {
     setWorking(false)
     if (err) { showMsg(`연결 실패: ${err}`); return }
     showMsg(vendorId ? '연결 완료 (이후 업로드에도 자동 적용)' : '연결 해제')
+    loadVendors()
   }
 
   const handleCreateVendor = async (alias: AliasRow) => {
@@ -173,11 +390,15 @@ function ErpAliasesContent() {
     if (expandedId === a.id) { setExpandedId(null); setDraft(null); return }
     setExpandedId(a.id)
     setDraft({
-      biz:      a.vendors?.biz_number ?? '',
-      aliases:  a.vendors?.match_aliases ?? [],
-      cards:    a.vendors?.card_numbers ?? [],
-      newAlias: '',
-      newCard:  '',
+      biz:          a.vendors?.biz_number ?? '',
+      aliases:      a.vendors?.match_aliases ?? [],
+      cards:        a.vendors?.card_numbers ?? [],
+      newAlias:     '',
+      newCard:      '',
+      contactName:  a.vendors?.contact_name ?? '',
+      contactPhone: a.vendors?.contact_phone ?? '',
+      email:        a.vendors?.email ?? '',
+      note:         a.vendors?.note ?? '',
     })
   }
 
@@ -191,22 +412,56 @@ function ErpAliasesContent() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        biz_number: draft.biz.trim() || null,
+        biz_number:    draft.biz.trim() || null,
         match_aliases: aliasList,
-        card_numbers: cardList,
+        card_numbers:  cardList,
+        contact_name:  draft.contactName.trim() || null,
+        contact_phone: draft.contactPhone.trim() || null,
+        email:         draft.email.trim() || null,
+        note:          draft.note.trim() || null,
       }),
     })
     const json = await res.json()
     setWorking(false)
     if (!res.ok) { showMsg(`저장 실패: ${json.error ?? '알 수 없는 오류'}`); return }
     // 같은 거래처를 공유하는 모든 행에 반영
-    const v = json.data as { name: string; biz_number: string | null; match_aliases: string[]; card_numbers: string[] }
-    setAliases(prev => prev.map(r => r.vendor_id === a.vendor_id
-      ? { ...r, vendors: { name: v.name, biz_number: v.biz_number, match_aliases: v.match_aliases, card_numbers: v.card_numbers } }
-      : r))
+    const v = json.data as VendorInfo
+    setAliases(prev => prev.map(r => r.vendor_id === a.vendor_id ? { ...r, vendors: v } : r))
+    setVendors(prev => prev.map(x => x.id === v.id ? { ...x, ...v } : x))
     setExpandedId(null)
     setDraft(null)
-    showMsg('매칭 정보 저장 완료 — 은행·계산서·카드 자동매칭에 사용됩니다.')
+    showMsg('거래처 정보 저장 완료 — 은행·계산서·카드 자동매칭에 사용됩니다.')
+  }
+
+  const handleToggleActive = async (a: AliasRow) => {
+    if (!a.vendor_id || !a.vendors) return
+    setWorking(true)
+    const res = await fetch(`/api/vendors/${a.vendor_id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: !a.vendors.is_active }),
+    })
+    const json = await res.json()
+    setWorking(false)
+    if (!res.ok) { showMsg(`변경 실패: ${json.error ?? '알 수 없는 오류'}`); return }
+    const v = json.data as VendorInfo
+    setAliases(prev => prev.map(r => r.vendor_id === a.vendor_id ? { ...r, vendors: v } : r))
+    setVendors(prev => prev.map(x => x.id === v.id ? { ...x, ...v } : x))
+    showMsg(v.is_active ? '활성화됨' : '비활성화됨')
+  }
+
+  const handleDeleteVendor = async (a: AliasRow) => {
+    if (!a.vendor_id || !a.vendors) return
+    if (!window.confirm(`'${a.vendors.name}' 거래처를 삭제하시겠습니까?\n연결된 ERP명·거래내역·세금계산서의 거래처 정보는 해제됩니다.`)) return
+    setWorking(true)
+    const res = await fetch(`/api/vendors/${a.vendor_id}`, { method: 'DELETE' })
+    setWorking(false)
+    if (!res.ok) { const json = await res.json(); showMsg(`삭제 실패: ${json.error ?? '알 수 없는 오류'}`); return }
+    showMsg('거래처 삭제됨')
+    setExpandedId(null)
+    setDraft(null)
+    load()
+    loadVendors()
   }
 
   const q = search.trim()
@@ -235,7 +490,7 @@ function ErpAliasesContent() {
       <div className="mb-1">
         <h1 className="text-2xl font-bold text-gray-900">{tabLabel} 관리</h1>
         <p className="text-sm mt-1 text-gray-500">
-          ERP에 입력된 {tabLabel}명 기준으로 거래처 연결과 매칭 정보(사업자번호·{isCustomer ? '입금계좌명·카드번호' : '출금계좌명'})를 한곳에서 관리합니다.
+          ERP에 입력된 {tabLabel}명 기준으로 거래처 연결과 거래처 정보(사업자번호·{isCustomer ? '입금계좌명·카드번호' : '출금계좌명'}·담당자 등)를 한곳에서 관리합니다.
           여러 ERP명(부서·지점)을 같은 거래처에 연결할 수 있습니다.
         </p>
       </div>
@@ -314,7 +569,7 @@ function ErpAliasesContent() {
                 const expanded = expandedId === a.id
                 return (
                   <Fragment key={a.id}>
-                    <tr className={`border-b border-gray-100 ${expanded ? 'bg-slate-50' : 'hover:bg-gray-50'}`}>
+                    <tr className={`border-b border-gray-100 ${expanded ? 'bg-slate-50' : 'hover:bg-gray-50'} ${a.vendors && !a.vendors.is_active ? 'opacity-50' : ''}`}>
                       <td className="py-2 px-3">
                         {!a.vendor_id && (
                           <input type="checkbox" checked={selected.has(a.id)} onChange={() => toggleSelect(a.id)} disabled={!sug} />
@@ -327,6 +582,9 @@ function ErpAliasesContent() {
                             <span className="px-1.5 py-0.5 text-[10px] bg-indigo-50 text-indigo-600 border border-indigo-200 rounded shrink-0" title="여러 ERP명이 같은 거래처에 연결됨">
                               공유 {sharedCount}
                             </span>
+                          )}
+                          {a.vendors && !a.vendors.is_active && (
+                            <span className="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-500 rounded shrink-0">비활성</span>
                           )}
                         </div>
                       </td>
@@ -371,7 +629,7 @@ function ErpAliasesContent() {
                               expanded ? 'border-slate-400 bg-slate-100 text-slate-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
                             }`}
                           >
-                            {expanded ? '▲ 닫기' : '✎ 매칭 정보'}
+                            {expanded ? '▲ 닫기' : '✎ 거래처 정보'}
                           </button>
                         ) : (
                           <>
@@ -396,7 +654,7 @@ function ErpAliasesContent() {
                       </td>
                     </tr>
 
-                    {/* 매칭 정보 편집 패널 */}
+                    {/* 거래처 정보 편집 패널 */}
                     {expanded && draft && a.vendor_id && (
                       <tr className="border-b border-gray-200 bg-slate-50">
                         <td colSpan={colCount} className="px-5 py-4">
@@ -410,6 +668,26 @@ function ErpAliasesContent() {
                                 placeholder="123-45-67890"
                                 className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
                               />
+                            </div>
+
+                            {/* 담당자 / 연락처 */}
+                            <div className="flex gap-3">
+                              <div>
+                                <p className="text-xs font-medium text-gray-500 mb-1.5">담당자</p>
+                                <input
+                                  value={draft.contactName}
+                                  onChange={e => setDraft(d => d ? { ...d, contactName: e.target.value } : d)}
+                                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                                />
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-gray-500 mb-1.5">연락처</p>
+                                <input
+                                  value={draft.contactPhone}
+                                  onChange={e => setDraft(d => d ? { ...d, contactPhone: e.target.value } : d)}
+                                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                                />
+                              </div>
                             </div>
 
                             {/* 입금/출금계좌명 별칭 */}
@@ -483,9 +761,20 @@ function ErpAliasesContent() {
                                 </div>
                               </div>
                             )}
+
+                            {/* 메모 */}
+                            <div className="min-w-[200px] flex-1">
+                              <p className="text-xs font-medium text-gray-500 mb-1.5">메모</p>
+                              <textarea
+                                value={draft.note}
+                                onChange={e => setDraft(d => d ? { ...d, note: e.target.value } : d)}
+                                rows={2}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                              />
+                            </div>
                           </div>
 
-                          <div className="flex items-center gap-2 mt-4">
+                          <div className="flex items-center gap-2 mt-4 flex-wrap">
                             <button
                               onClick={() => handleSaveMatchInfo(a)}
                               disabled={working}
@@ -498,9 +787,23 @@ function ErpAliasesContent() {
                               disabled={working}
                               className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-40"
                             >취소</button>
+                            <Link
+                              href={`/vendors/${a.vendor_id}`}
+                              className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-100"
+                            >거래처 상세 →</Link>
+                            <button
+                              onClick={() => handleToggleActive(a)}
+                              disabled={working}
+                              className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-40"
+                            >{a.vendors?.is_active ? '비활성화' : '활성화'}</button>
+                            <button
+                              onClick={() => handleDeleteVendor(a)}
+                              disabled={working}
+                              className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs hover:bg-red-50 disabled:opacity-40"
+                            >거래처 삭제</button>
                             {sharedCount > 1 && (
                               <span className="text-xs text-amber-600">
-                                ⚠ 이 거래처는 ERP명 {sharedCount}개가 공유 중 — 저장하면 모든 공유 항목에 함께 적용됩니다.
+                                ⚠ 이 거래처는 ERP명 {sharedCount}개가 공유 중 — 저장/변경 시 모든 공유 항목에 함께 적용됩니다.
                               </span>
                             )}
                           </div>
@@ -513,6 +816,93 @@ function ErpAliasesContent() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* ── 기타 거래처 (ERP명 미연동) ── */}
+      <div className="mt-8 mb-2 flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-bold text-gray-900">기타 {tabLabel} ({otherVendors.length})</h2>
+          <p className="text-xs text-gray-400 mt-0.5">ERP 주문에 아직 등장하지 않았지만 미리 등록해둔 거래처입니다.</p>
+        </div>
+        <button
+          onClick={() => setShowAddVendor(true)}
+          className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs hover:bg-slate-700"
+        >
+          + 기타 거래처 추가
+        </button>
+      </div>
+
+      {otherVendors.length === 0 ? (
+        <div className="text-center py-10 text-gray-400 text-sm border border-gray-200 rounded-xl">등록된 기타 거래처가 없습니다.</div>
+      ) : (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          {otherVendors.map(v => {
+            const tmeta = TYPE_META[v.type] ?? { label: v.type, cls: 'bg-gray-100 text-gray-600' }
+            return (
+              <div key={v.id} className={`flex items-center gap-3 px-4 py-3 border-b border-gray-100 last:border-b-0 ${!v.is_active ? 'opacity-50' : ''}`}>
+                <span className={`px-2 py-0.5 rounded text-xs font-semibold shrink-0 ${tmeta.cls}`}>{tmeta.label}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-900 truncate">{v.name}</p>
+                  <p className="text-xs text-gray-400 truncate">
+                    {v.biz_number ?? '사업자번호 미등록'}
+                    {v.contact_name && ` · ${v.contact_name}`}
+                    {v.contact_phone && ` · ${v.contact_phone}`}
+                  </p>
+                </div>
+                <Link href={`/vendors/${v.id}`} className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">상세</Link>
+                <button
+                  onClick={async () => {
+                    setWorking(true)
+                    const res = await fetch(`/api/vendors/${v.id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ is_active: !v.is_active }),
+                    })
+                    const json = await res.json()
+                    setWorking(false)
+                    if (res.ok) { setVendors(prev => prev.map(x => x.id === v.id ? json.data : x)); showMsg(v.is_active ? '비활성화됨' : '활성화됨') }
+                  }}
+                  disabled={working}
+                  className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded disabled:opacity-40"
+                >
+                  {v.is_active ? '활성' : '비활성'}
+                </button>
+                <button
+                  onClick={() => setEditingVendor(v)}
+                  className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+                >수정</button>
+                <button
+                  onClick={async () => {
+                    if (!window.confirm(`'${v.name}' 거래처를 삭제하시겠습니까?`)) return
+                    setWorking(true)
+                    const res = await fetch(`/api/vendors/${v.id}`, { method: 'DELETE' })
+                    setWorking(false)
+                    if (res.ok) { setVendors(prev => prev.filter(x => x.id !== v.id)); showMsg(`'${v.name}' 삭제됨`) }
+                  }}
+                  disabled={working}
+                  className="px-2 py-1 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-40"
+                >삭제</button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {showAddVendor && (
+        <VendorModal
+          vendor={null}
+          defaultType={isCustomer ? 'customer' : 'vendor'}
+          onClose={() => setShowAddVendor(false)}
+          onSaved={v => { setVendors(prev => [...prev, v].sort((a, b) => a.name.localeCompare(b.name, 'ko'))); showMsg(`'${v.name}' 등록됨`) }}
+        />
+      )}
+      {editingVendor && (
+        <VendorModal
+          vendor={editingVendor}
+          defaultType={isCustomer ? 'customer' : 'vendor'}
+          onClose={() => setEditingVendor(null)}
+          onSaved={v => { setVendors(prev => prev.map(x => x.id === v.id ? v : x)); showMsg(`'${v.name}' 수정됨`) }}
+        />
       )}
     </div>
   )
