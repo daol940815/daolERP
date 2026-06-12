@@ -16,25 +16,31 @@ export async function GET(req: NextRequest) {
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
 
   const isSales = direction === 'sales'
+  const nameLabel = isSales ? 'ERP 매출처' : 'ERP 매입처'
   const erpLabel  = isSales ? 'ERP 순매출' : 'ERP 매입'
   const bankLabel = isSales ? '은행 입금' : '은행 출금'
 
-  const sheetRows = result.rows.map(r => ({
-    '거래처':          r.vendor_name,
-    [erpLabel]:        r.erp_amount,
-    ...(isSales ? { 'ERP 미수금': r.erp_outstanding } : {}),
-    [bankLabel]:       r.bank_amount,
-    ...(isSales ? { '카드매출': r.card_amount } : {}),
-    '현금영수증':      r.cash_amount,
-    '결제 합계':       r.payment_total,
-    '차액(ERP−결제)':  r.diff_payment,
-    '세금계산서':      r.invoice_amount,
-    '차액(ERP−계산서)': r.diff_invoice,
-  }))
+  // member 행은 결제가 거래처 합계 행에만 있으므로 결제 칸을 비워둔다
+  const sheetRows = result.rows.map(r => {
+    const pay = r.has_payment
+    return {
+      [nameLabel]:       r.kind === 'subtotal' ? `${r.erp_name} 합계` : r.erp_name,
+      '연결 거래처':     r.kind === 'subtotal' ? '' : (r.vendor_name ?? '(미연결)'),
+      [erpLabel]:        r.erp_amount,
+      ...(isSales ? { 'ERP 미수금': r.erp_outstanding } : {}),
+      [bankLabel]:       pay ? r.bank_amount : null,
+      ...(isSales ? { '카드매출': pay ? r.card_amount : null } : {}),
+      '현금영수증':      pay ? r.cash_amount : null,
+      '결제 합계':       pay ? r.payment_total : null,
+      '차액(ERP−결제)':  pay ? r.diff_payment : null,
+      '세금계산서':      pay ? r.invoice_amount : null,
+      '차액(ERP−계산서)': pay ? r.diff_invoice : null,
+    }
+  })
 
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.json_to_sheet(sheetRows)
-  ws['!cols'] = [{ wch: 24 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 14 }, { wch: 13 }, { wch: 15 }]
+  ws['!cols'] = [{ wch: 24 }, { wch: 20 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 14 }, { wch: 13 }, { wch: 15 }]
   XLSX.utils.book_append_sheet(wb, ws, isSales ? '매출_대조' : '매입_대조')
 
   const buf      = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Uint8Array

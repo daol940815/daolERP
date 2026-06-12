@@ -1,19 +1,32 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-// 거래처 단위 대조: ERP 매출/매입 vs 입출금·카드·현금영수증·세금계산서
+// ERP 매출처/매입처명 단위 대조: ERP 매출/매입 vs 입출금·카드·현금영수증·세금계산서
+//
+// 행 구성:
+//  - single   : 별칭 1개 ↔ 거래처 1개(또는 미연결 별칭, ERP 없는 결제전용 거래처) — 한 행에 전부 표시
+//  - member   : 여러 별칭이 같은 거래처를 공유할 때의 개별 별칭 행 — ERP 금액만 (결제는 거래처 단위라 분리 불가)
+//  - subtotal : 공유 거래처의 합계 행 — 그룹 ERP 합계 + 거래처 단위 결제·계산서, 차액은 여기서 판단
 export interface ReconciliationRow {
-  vendor_id: string
-  vendor_name: string
-  erp_amount: number        // sales: 순매출(취소/VIP/선결제 제외) / purchase: 매입 합계
-  erp_outstanding: number   // sales 전용: ERP 기준 미수금
-  bank_amount: number       // sales: 입금 합계 / purchase: 출금 합계
-  card_amount: number       // sales 전용: 카드매출 (취소 차감)
-  cash_amount: number       // 현금영수증 (취소 차감)
-  invoice_amount: number    // 세금계산서 합계
-  payment_total: number     // bank + card + cash
-  diff_payment: number      // erp_amount − payment_total
-  diff_invoice: number      // erp_amount − invoice_amount
+  key: string
+  kind: 'single' | 'member' | 'subtotal'
+  group_key: string          // 같은 거래처를 공유하는 행 묶음 식별자
+  erp_name: string           // ERP 매출처/매입처명 (subtotal·결제전용 행은 거래처명)
+  vendor_id: string | null
+  vendor_name: string | null // 연결 거래처명 (미연결이면 null)
+  has_payment: boolean       // false면 결제·차액 칸을 표시하지 않음 (member, 미연결)
+  erp_amount: number         // sales: 순매출(취소/VIP/선결제 제외) / purchase: 매입 합계
+  erp_outstanding: number    // sales 전용: ERP 기준 미수금
+  bank_amount: number        // sales: 입금 합계 / purchase: 출금 합계
+  card_amount: number        // sales 전용: 카드매출 (취소 차감)
+  cash_amount: number        // 현금영수증 (취소 차감)
+  invoice_amount: number     // 세금계산서 합계
+  payment_total: number      // bank + card + cash
+  diff_payment: number       // erp_amount − payment_total
+  diff_invoice: number       // erp_amount − invoice_amount
 }
+
+interface ErpAgg { amount: number; outstanding: number }
+interface PayAgg { bank: number; card: number; cash: number; invoice: number }
 
 export async function buildReconciliationRows(
   admin: SupabaseClient,
@@ -22,14 +35,13 @@ export async function buildReconciliationRows(
   to: string | null,
 ): Promise<{ rows: ReconciliationRow[] } | { error: string }> {
 
-  // 별칭 → 거래처 매핑 (매칭 완료 건만 대조 대상)
+  // 별칭 전체 (미연결 포함 — ERP 기준으로 빠짐없이 보여준다)
   const { data: aliases, error: ae } = await admin
     .from('erp_vendor_aliases')
-    .select('id, vendor_id')
+    .select('id, erp_name, vendor_id')
     .eq('alias_type', direction === 'sales' ? 'customer' : 'purchase')
-    .not('vendor_id', 'is', null)
+    .limit(20000)
   if (ae) return { error: ae.message }
-  const aliasToVendor = new Map((aliases ?? []).map(a => [a.id as string, a.vendor_id as string]))
 
   const { data: vendorRows, error: ve } = await admin
     .from('vendors')
@@ -38,23 +50,14 @@ export async function buildReconciliationRows(
   if (ve) return { error: ve.message }
   const vendorName = new Map((vendorRows ?? []).map(v => [v.id as string, v.name as string]))
 
-  const rowMap = new Map<string, ReconciliationRow>()
-  const row = (vendorId: string): ReconciliationRow => {
-    let r = rowMap.get(vendorId)
-    if (!r) {
-      r = {
-        vendor_id: vendorId,
-        vendor_name: vendorName.get(vendorId) ?? '(삭제된 거래처)',
-        erp_amount: 0, erp_outstanding: 0,
-        bank_amount: 0, card_amount: 0, cash_amount: 0, invoice_amount: 0,
-        payment_total: 0, diff_payment: 0, diff_invoice: 0,
-      }
-      rowMap.set(vendorId, r)
-    }
-    return r
+  // ── 1) ERP 금액 (별칭 단위) ─────────────────────────
+  const erpByAlias = new Map<string, ErpAgg>()
+  const erpAgg = (aliasId: string): ErpAgg => {
+    let a = erpByAlias.get(aliasId)
+    if (!a) { a = { amount: 0, outstanding: 0 }; erpByAlias.set(aliasId, a) }
+    return a
   }
 
-  // ── 1) ERP 금액 ────────────────────────────────────
   if (direction === 'sales') {
     let oq = admin
       .from('erp_orders')
@@ -67,8 +70,7 @@ export async function buildReconciliationRows(
     if (oe) return { error: oe.message }
 
     // 취소/VIP/선결제 품목 합계 → 순매출에서 제외
-    const matched = (orders ?? []).filter(o => aliasToVendor.has(o.customer_alias_id as string))
-    const orderIds = matched.map(o => o.id as string)
+    const orderIds = (orders ?? []).map(o => o.id as string)
     const excludedByOrder = new Map<string, number>()
     for (let i = 0; i < orderIds.length; i += 500) {
       const { data: items, error: ie } = await admin
@@ -82,11 +84,10 @@ export async function buildReconciliationRows(
         excludedByOrder.set(it.order_id as string, cur + ((it.line_total as number) || 0))
       }
     }
-    for (const o of matched) {
-      const vendorId = aliasToVendor.get(o.customer_alias_id as string)!
-      const r = row(vendorId)
-      r.erp_amount += ((o.total_amount as number) || 0) - (excludedByOrder.get(o.id as string) ?? 0)
-      if (o.collect_status !== 'collected') r.erp_outstanding += (o.outstanding_amount as number) || 0
+    for (const o of orders ?? []) {
+      const a = erpAgg(o.customer_alias_id as string)
+      a.amount += ((o.total_amount as number) || 0) - (excludedByOrder.get(o.id as string) ?? 0)
+      if (o.collect_status !== 'collected') a.outstanding += (o.outstanding_amount as number) || 0
     }
   } else {
     let iq = admin
@@ -102,13 +103,19 @@ export async function buildReconciliationRows(
     const { data: items, error: ie } = await iq
     if (ie) return { error: ie.message }
     for (const it of items ?? []) {
-      const vendorId = aliasToVendor.get(it.purchase_alias_id as string)
-      if (!vendorId) continue
-      row(vendorId).erp_amount += (it.purchase_total as number) || 0
+      erpAgg(it.purchase_alias_id as string).amount += (it.purchase_total as number) || 0
     }
   }
 
-  // ── 2) 은행 입출금 ──────────────────────────────────
+  // ── 2) 결제·계산서 (거래처 단위) ─────────────────────
+  const payByVendor = new Map<string, PayAgg>()
+  const payAgg = (vendorId: string): PayAgg => {
+    let p = payByVendor.get(vendorId)
+    if (!p) { p = { bank: 0, card: 0, cash: 0, invoice: 0 }; payByVendor.set(vendorId, p) }
+    return p
+  }
+
+  // 은행 입출금
   {
     let tq = admin
       .from('transactions')
@@ -123,11 +130,11 @@ export async function buildReconciliationRows(
     if (te) return { error: te.message }
     for (const t of txs ?? []) {
       const amt = direction === 'sales' ? ((t.amount_in as number) || 0) : ((t.amount_out as number) || 0)
-      row(t.vendor_id as string).bank_amount += amt
+      payAgg(t.vendor_id as string).bank += amt
     }
   }
 
-  // ── 3) 카드매출 (매출 대조 전용, 취소 차감) ─────────
+  // 카드매출 (매출 대조 전용, 취소 차감)
   if (direction === 'sales') {
     let cq = admin
       .from('card_sales')
@@ -140,11 +147,11 @@ export async function buildReconciliationRows(
     if (ce) return { error: ce.message }
     for (const c of cards ?? []) {
       const amt = (c.amount as number) || 0
-      row(c.vendor_id as string).card_amount += c.transaction_type === 'cancel' ? -Math.abs(amt) : amt
+      payAgg(c.vendor_id as string).card += c.transaction_type === 'cancel' ? -Math.abs(amt) : amt
     }
   }
 
-  // ── 4) 현금영수증 (취소 차감) ───────────────────────
+  // 현금영수증 (취소 차감)
   {
     let rq = admin
       .from('cash_receipts')
@@ -158,11 +165,11 @@ export async function buildReconciliationRows(
     if (re) return { error: re.message }
     for (const c of receipts ?? []) {
       const amt = (c.amount as number) || 0
-      row(c.vendor_id as string).cash_amount += c.transaction_type === 'cancel' ? -Math.abs(amt) : amt
+      payAgg(c.vendor_id as string).cash += c.transaction_type === 'cancel' ? -Math.abs(amt) : amt
     }
   }
 
-  // ── 5) 세금계산서 ──────────────────────────────────
+  // 세금계산서
   {
     let xq = admin
       .from('tax_invoices')
@@ -175,16 +182,110 @@ export async function buildReconciliationRows(
     const { data: invoices, error: xe } = await xq
     if (xe) return { error: xe.message }
     for (const inv of invoices ?? []) {
-      row(inv.vendor_id as string).invoice_amount += (inv.total_amount as number) || 0
+      payAgg(inv.vendor_id as string).invoice += (inv.total_amount as number) || 0
     }
   }
 
-  const rows = Array.from(rowMap.values())
-  for (const r of rows) {
-    r.payment_total = r.bank_amount + r.card_amount + r.cash_amount
-    r.diff_payment  = r.erp_amount - r.payment_total
-    r.diff_invoice  = r.erp_amount - r.invoice_amount
+  // ── 3) 행 조립 ──────────────────────────────────────
+  const makeRow = (init: Partial<ReconciliationRow> & Pick<ReconciliationRow, 'key' | 'kind' | 'group_key' | 'erp_name'>): ReconciliationRow => ({
+    vendor_id: null, vendor_name: null, has_payment: false,
+    erp_amount: 0, erp_outstanding: 0,
+    bank_amount: 0, card_amount: 0, cash_amount: 0, invoice_amount: 0,
+    payment_total: 0, diff_payment: 0, diff_invoice: 0,
+    ...init,
+  })
+  const applyPay = (r: ReconciliationRow, p: PayAgg | undefined) => {
+    r.bank_amount    = p?.bank ?? 0
+    r.card_amount    = p?.card ?? 0
+    r.cash_amount    = p?.cash ?? 0
+    r.invoice_amount = p?.invoice ?? 0
+    r.payment_total  = r.bank_amount + r.card_amount + r.cash_amount
+    r.diff_payment   = r.erp_amount - r.payment_total
+    r.diff_invoice   = r.erp_amount - r.invoice_amount
+    r.has_payment    = true
   }
-  rows.sort((a, b) => Math.abs(b.diff_payment) - Math.abs(a.diff_payment) || b.erp_amount - a.erp_amount)
-  return { rows }
+
+  // 거래처별 별칭 묶음 / 미연결 별칭
+  const aliasesByVendor = new Map<string, { id: string; erp_name: string }[]>()
+  const unlinked: { id: string; erp_name: string }[] = []
+  for (const a of aliases ?? []) {
+    const item = { id: a.id as string, erp_name: a.erp_name as string }
+    if (a.vendor_id) {
+      const list = aliasesByVendor.get(a.vendor_id as string) ?? []
+      list.push(item)
+      aliasesByVendor.set(a.vendor_id as string, list)
+    } else {
+      unlinked.push(item)
+    }
+  }
+
+  // 정렬 단위(unit): single 1행 또는 member들+subtotal 묶음
+  const units: { sortVal: number; rows: ReconciliationRow[] }[] = []
+
+  for (const [vendorId, list] of Array.from(aliasesByVendor.entries())) {
+    const vName = vendorName.get(vendorId) ?? '(삭제된 거래처)'
+    const pay = payByVendor.get(vendorId)
+    payByVendor.delete(vendorId)
+
+    if (list.length === 1) {
+      const a = list[0]
+      const e = erpByAlias.get(a.id)
+      const r = makeRow({
+        key: a.id, kind: 'single', group_key: a.id, erp_name: a.erp_name,
+        vendor_id: vendorId, vendor_name: vName,
+        erp_amount: e?.amount ?? 0, erp_outstanding: e?.outstanding ?? 0,
+      })
+      applyPay(r, pay)
+      if (r.erp_amount === 0 && r.erp_outstanding === 0 && r.payment_total === 0 && r.invoice_amount === 0) continue
+      units.push({ sortVal: Math.abs(r.diff_payment), rows: [r] })
+    } else {
+      // 여러 ERP 매출처가 한 거래처 공유 (예: 하나은행 경영지원부/영업지원부 → 하나은행 본점)
+      const members = list
+        .map(a => {
+          const e = erpByAlias.get(a.id)
+          return makeRow({
+            key: a.id, kind: 'member', group_key: vendorId, erp_name: a.erp_name,
+            vendor_id: vendorId, vendor_name: vName,
+            erp_amount: e?.amount ?? 0, erp_outstanding: e?.outstanding ?? 0,
+          })
+        })
+        .filter(r => r.erp_amount !== 0 || r.erp_outstanding !== 0)
+        .sort((a, b) => b.erp_amount - a.erp_amount)
+      const sub = makeRow({
+        key: `sub:${vendorId}`, kind: 'subtotal', group_key: vendorId, erp_name: vName,
+        vendor_id: vendorId, vendor_name: vName,
+        erp_amount: members.reduce((s, r) => s + r.erp_amount, 0),
+        erp_outstanding: members.reduce((s, r) => s + r.erp_outstanding, 0),
+      })
+      applyPay(sub, pay)
+      if (members.length === 0 && sub.payment_total === 0 && sub.invoice_amount === 0) continue
+      units.push({ sortVal: Math.abs(sub.diff_payment), rows: [...members, sub] })
+    }
+  }
+
+  // 거래처 미연결 별칭 — ERP 금액만 표시 (매칭 누락 확인용)
+  for (const a of unlinked) {
+    const e = erpByAlias.get(a.id)
+    if (!e || (e.amount === 0 && e.outstanding === 0)) continue
+    const r = makeRow({
+      key: a.id, kind: 'single', group_key: a.id, erp_name: a.erp_name,
+      erp_amount: e.amount, erp_outstanding: e.outstanding,
+    })
+    units.push({ sortVal: r.erp_amount, rows: [r] })
+  }
+
+  // 결제·계산서만 있고 이 방향 ERP 별칭이 없는 거래처
+  for (const [vendorId, pay] of Array.from(payByVendor.entries())) {
+    const r = makeRow({
+      key: `pay:${vendorId}`, kind: 'single', group_key: `pay:${vendorId}`,
+      erp_name: vendorName.get(vendorId) ?? '(삭제된 거래처)',
+      vendor_id: vendorId, vendor_name: vendorName.get(vendorId) ?? '(삭제된 거래처)',
+    })
+    applyPay(r, pay)
+    if (r.payment_total === 0 && r.invoice_amount === 0) continue
+    units.push({ sortVal: Math.abs(r.diff_payment), rows: [r] })
+  }
+
+  units.sort((a, b) => b.sortVal - a.sortVal)
+  return { rows: units.flatMap(u => u.rows) }
 }
