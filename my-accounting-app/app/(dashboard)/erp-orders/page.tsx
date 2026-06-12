@@ -337,20 +337,30 @@ export default function ErpOrdersPage() {
                               <th className="py-1 pr-3 font-medium text-right">판매가</th>
                               <th className="py-1 pr-3 font-medium text-right">수량</th>
                               <th className="py-1 pr-3 font-medium text-right">합계</th>
-                              <th className="py-1 pr-3 font-medium text-right">매입액</th>
+                              <th className="py-1 pr-3 font-medium text-right">매입가</th>
+                              <th className="py-1 pr-3 font-medium text-right">매입합계</th>
+                              <th className="py-1 pr-3 font-medium text-right">마진율</th>
                               <th className="py-1 pr-3 font-medium">정산월</th>
                               <th className="py-1 font-medium">구분</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {oItems.map(it => (
+                            {oItems.map(it => {
+                              const margin = it.line_total > 0 ? ((it.line_total - it.purchase_total) / it.line_total) * 100 : null
+                              return (
                               <tr key={it.id} className={`border-t border-gray-200 ${it.is_canceled ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
                                 <td className="py-1 pr-3 max-w-[260px] truncate">{it.item_name ?? '-'}</td>
                                 <td className="py-1 pr-3 max-w-[140px] truncate">{it.purchase_vendor_name ?? '-'}</td>
                                 <td className="py-1 pr-3 text-right whitespace-nowrap">{won(it.sale_price)}</td>
                                 <td className="py-1 pr-3 text-right">{it.quantity}</td>
                                 <td className="py-1 pr-3 text-right whitespace-nowrap">{won(it.line_total)}</td>
+                                <td className="py-1 pr-3 text-right whitespace-nowrap">{won(it.purchase_price)}</td>
                                 <td className="py-1 pr-3 text-right whitespace-nowrap">{won(it.purchase_total)}</td>
+                                <td className={`py-1 pr-3 text-right whitespace-nowrap ${
+                                  margin === null ? '' : margin < 0 ? 'text-red-500' : margin < 10 ? 'text-amber-600' : ''
+                                }`}>
+                                  {margin === null ? '-' : `${margin.toFixed(1)}%`}
+                                </td>
                                 <td className="py-1 pr-3 whitespace-nowrap">{it.settlement_month ?? '-'}</td>
                                 <td className="py-1 whitespace-nowrap no-underline">
                                   {it.is_canceled   && <span className="px-1 py-0.5 rounded bg-gray-200 text-gray-500 mr-1">취소</span>}
@@ -358,7 +368,7 @@ export default function ErpOrdersPage() {
                                   {it.is_prepayment && <span className="px-1 py-0.5 rounded bg-sky-100 text-sky-600">선결제</span>}
                                 </td>
                               </tr>
-                            ))}
+                            )})}
                           </tbody>
                         </table>
                       </td>
