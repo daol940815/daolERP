@@ -116,9 +116,24 @@ export async function GET(req: NextRequest) {
     items = items.concat(chunk ?? [])
   }
 
+  // 수금 매칭 기록 (품목 결제일자 표시용) — 매칭 테이블(021) 미적용 시 빈 배열
+  let matches: unknown[] = []
+  for (let i = 0; i < orderIds.length; i += 200) {
+    const { data: mchunk, error: me } = await admin
+      .from('erp_payment_matches')
+      .select('order_id, amount, paid_date')
+      .in('order_id', orderIds.slice(i, i + 200))
+    if (me) {
+      if (me.code === '42P01' || /erp_payment_matches/.test(me.message)) { matches = []; break }
+      return NextResponse.json({ error: me.message }, { status: 500 })
+    }
+    matches = matches.concat(mchunk ?? [])
+  }
+
   return NextResponse.json({
     data: orders ?? [],
     items,
+    matches,
     total,
     page,
     limit,

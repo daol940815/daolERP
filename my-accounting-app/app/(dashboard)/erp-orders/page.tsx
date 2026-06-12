@@ -14,11 +14,48 @@ const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
 
 type View = 'all' | 'vip' | 'prepayment'
 
+interface OrderMatch { order_id: string; amount: number; paid_date: string }
+
+// 주문의 매칭 입금을 날짜순으로 위 품목부터 차감해 품목별 결제일자를 계산
+// (회계적 충당 표시이며 실제 품목 단위 입금을 의미하지는 않음)
+function computePayDates(its: ErpOrderItem[], ms: OrderMatch[]): (string | null)[] {
+  const sorted = ms.slice().sort((a, b) => a.paid_date.localeCompare(b.paid_date))
+  const res: (string | null)[] = []
+  let mi = 0
+  let avail = sorted.length ? sorted[0].amount : 0
+  for (const it of its) {
+    if (it.is_canceled || it.is_vip || it.is_prepayment || (it.line_total || 0) <= 0) {
+      res.push(null)
+      continue
+    }
+    let need = it.line_total || 0
+    let covered = 0
+    let lastDate: string | null = null
+    while (need > 0 && mi < sorted.length) {
+      if (avail <= 0) {
+        mi += 1
+        avail = mi < sorted.length ? sorted[mi].amount : 0
+        continue
+      }
+      const take = Math.min(avail, need)
+      need -= take
+      avail -= take
+      covered += take
+      lastDate = sorted[mi].paid_date
+    }
+    if (need === 0 && lastDate) res.push(lastDate)
+    else if (covered > 0 && lastDate) res.push(`${lastDate} 부분`)
+    else res.push(null)
+  }
+  return res
+}
+
 export default function ErpOrdersPage() {
   const uploadRef = useRef<HTMLInputElement>(null)
 
   const [orders, setOrders]     = useState<ErpOrder[]>([])
   const [items, setItems]       = useState<ErpOrderItem[]>([])
+  const [matches, setMatches]   = useState<OrderMatch[]>([])
   const [loading, setLoading]   = useState(true)
   const [uploading, setUploading] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -50,6 +87,7 @@ export default function ErpOrdersPage() {
     if (res.ok) {
       setOrders(json.data ?? [])
       setItems(json.items ?? [])
+      setMatches(json.matches ?? [])
       setTotal(json.total ?? 0)
       if (json.summary) setSummary(json.summary)
     } else {
@@ -284,6 +322,7 @@ export default function ErpOrdersPage() {
             <tbody>
               {orders.map(o => {
                 const oItems = itemsByOrder.get(o.id) ?? []
+                const payDates = computePayDates(oItems, matches.filter(m => m.order_id === o.id))
                 const status = STATUS_LABEL[o.collect_status]
                 const hasCancel = oItems.some(it => it.is_canceled)
                 const hasVip    = oItems.some(it => it.is_vip)
@@ -346,8 +385,9 @@ export default function ErpOrdersPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {oItems.map(it => {
+                            {oItems.map((it, itemIdx) => {
                               const margin = it.line_total > 0 ? ((it.line_total - it.purchase_total) / it.line_total) * 100 : null
+                              const payDate = payDates[itemIdx]
                               return (
                               <tr key={it.id} className={`border-t border-gray-200 ${it.is_canceled ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
                                 <td className="py-1 pr-3 max-w-[260px] truncate">{it.item_name ?? '-'}</td>
@@ -362,8 +402,12 @@ export default function ErpOrdersPage() {
                                 }`}>
                                   {margin === null ? '-' : `${margin.toFixed(1)}%`}
                                 </td>
-                                {/* 결제일자: 입금↔주문 건 단위 매칭(2단계) 구현 시 위 품목부터 차감 방식으로 채워질 예정 */}
-                                <td className="py-1 pr-3 whitespace-nowrap text-gray-300">-</td>
+                                {/* 결제일자: 수금 매칭 기록을 날짜순으로 위 품목부터 차감해 표시 */}
+                                <td className="py-1 pr-3 whitespace-nowrap">
+                                  {payDate
+                                    ? <span className={payDate.endsWith('부분') ? 'text-amber-600' : 'text-emerald-700'}>{payDate}</span>
+                                    : <span className="text-gray-300">-</span>}
+                                </td>
                                 <td className="py-1 pr-3 whitespace-nowrap no-underline">
                                   {it.is_canceled   && <span className="px-1 py-0.5 rounded bg-gray-200 text-gray-500 mr-1">취소</span>}
                                   {it.is_vip        && <span className="px-1 py-0.5 rounded bg-violet-100 text-violet-600 mr-1">VIP</span>}

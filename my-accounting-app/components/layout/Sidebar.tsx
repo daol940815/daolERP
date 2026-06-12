@@ -245,6 +245,10 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
               <span className="text-base leading-none">🏭</span>
               <span>매입처 관리</span>
             </Link>
+            <Link href="/erp-matching" className={linkCls(pathname.startsWith('/erp-matching'))}>
+              <span className="text-base leading-none">💰</span>
+              <span>수금 매칭</span>
+            </Link>
           </div>
 
           {/* ── 세금계산서 섹션 (거래 내역 하위) ── */}
