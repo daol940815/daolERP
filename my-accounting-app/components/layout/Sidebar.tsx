@@ -237,6 +237,10 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
               <span className="text-base leading-none">📦</span>
               <span>ERP 주문내역</span>
             </Link>
+            <Link href="/erp-aliases" className={linkCls(pathname.startsWith('/erp-aliases'))}>
+              <span className="text-base leading-none">🔗</span>
+              <span>ERP 별칭 매칭</span>
+            </Link>
           </div>
 
           {/* ── 세금계산서 섹션 (거래 내역 하위) ── */}
@@ -427,6 +431,10 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           <Link href="/reports/erp-special" className={linkCls(pathname.startsWith('/reports/erp-special'))}>
             <span className="text-base leading-none">💎</span>
             <span>ERP VIP·선결제</span>
+          </Link>
+          <Link href="/reports/vendor-reconciliation" className={linkCls(pathname.startsWith('/reports/vendor-reconciliation'))}>
+            <span className="text-base leading-none">⚖️</span>
+            <span>거래처 정산 대조</span>
           </Link>
         </div>
 
