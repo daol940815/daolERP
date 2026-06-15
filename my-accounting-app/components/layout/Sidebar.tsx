@@ -447,6 +447,14 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             <span className="text-base leading-none">📈</span>
             <span>거래처별 수익성 분석</span>
           </Link>
+          <Link href="/reports/monthly-pl" className={linkCls(pathname.startsWith('/reports/monthly-pl'))}>
+            <span className="text-base leading-none">📋</span>
+            <span>월별 손익현황</span>
+          </Link>
+          <Link href="/reports/vat-estimate" className={linkCls(pathname.startsWith('/reports/vat-estimate'))}>
+            <span className="text-base leading-none">🧾</span>
+            <span>예상 부가세</span>
+          </Link>
           <Link href="/reports/erp-special" className={linkCls(pathname.startsWith('/reports/erp-special'))}>
             <span className="text-base leading-none">💎</span>
             <span>ERP VIP 선결제</span>
