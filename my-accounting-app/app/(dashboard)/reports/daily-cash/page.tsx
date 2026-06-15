@@ -11,6 +11,9 @@ interface DailyCashRow {
   deposit: number
   withdrawal: number
   closing_balance: number
+  held_cash: number
+  overdraft_used: number
+  net_cash: number
 }
 
 interface BankAccount {
@@ -54,7 +57,10 @@ export default function DailyCashPage() {
 
   const totalIn  = rows.reduce((s, r) => s + r.deposit, 0)
   const totalOut = rows.reduce((s, r) => s + r.withdrawal, 0)
-  const lastClosing = rows.length ? rows[rows.length - 1].closing_balance : 0
+  const last = rows.length ? rows[rows.length - 1] : null
+  const lastHeldCash = last?.held_cash ?? 0
+  const lastOverdraftUsed = last?.overdraft_used ?? 0
+  const lastNetCash = last?.net_cash ?? 0
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -106,8 +112,16 @@ export default function DailyCashPage() {
           <p className="text-lg font-bold text-rose-600">{won(totalOut)}</p>
         </div>
         <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">기말 잔액 ({dateTo})</p>
-          <p className="text-lg font-bold text-gray-900">{won(lastClosing)}</p>
+          <p className="text-xs text-gray-400 mb-1">기말 보유현금</p>
+          <p className="text-lg font-bold text-gray-900">{won(lastHeldCash)}</p>
+        </div>
+        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-gray-400 mb-1">기말 마이너스통장 사용액</p>
+          <p className="text-lg font-bold text-rose-600">{won(lastOverdraftUsed)}</p>
+        </div>
+        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-gray-400 mb-1">기말 순현금 ({dateTo})</p>
+          <p className={`text-lg font-bold ${lastNetCash < 0 ? 'text-rose-600' : 'text-gray-900'}`}>{won(lastNetCash)}</p>
         </div>
       </div>
 
@@ -124,7 +138,9 @@ export default function DailyCashPage() {
                 <th className="py-2.5 px-3 font-medium text-right">전일잔액</th>
                 <th className="py-2.5 px-3 font-medium text-right">입금</th>
                 <th className="py-2.5 px-3 font-medium text-right">출금</th>
-                <th className="py-2.5 px-3 font-medium text-right">당일잔액</th>
+                <th className="py-2.5 px-3 font-medium text-right">보유현금</th>
+                <th className="py-2.5 px-3 font-medium text-right">마이너스통장 사용액</th>
+                <th className="py-2.5 px-3 font-medium text-right">순현금</th>
               </tr>
             </thead>
             <tbody>
@@ -134,7 +150,9 @@ export default function DailyCashPage() {
                   <td className="py-2 px-3 text-right whitespace-nowrap text-gray-500">{won(r.opening_balance)}</td>
                   <td className={`py-2 px-3 text-right whitespace-nowrap ${r.deposit > 0 ? 'text-blue-600' : 'text-gray-300'}`}>{won(r.deposit)}</td>
                   <td className={`py-2 px-3 text-right whitespace-nowrap ${r.withdrawal > 0 ? 'text-rose-600' : 'text-gray-300'}`}>{won(r.withdrawal)}</td>
-                  <td className="py-2 px-3 text-right whitespace-nowrap font-medium">{won(r.closing_balance)}</td>
+                  <td className="py-2 px-3 text-right whitespace-nowrap">{won(r.held_cash)}</td>
+                  <td className={`py-2 px-3 text-right whitespace-nowrap ${r.overdraft_used > 0 ? 'text-rose-600' : 'text-gray-300'}`}>{won(r.overdraft_used)}</td>
+                  <td className={`py-2 px-3 text-right whitespace-nowrap font-medium ${r.net_cash < 0 ? 'text-rose-600' : ''}`}>{won(r.net_cash)}</td>
                 </tr>
               ))}
             </tbody>

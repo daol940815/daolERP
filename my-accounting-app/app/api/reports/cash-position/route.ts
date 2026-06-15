@@ -13,5 +13,5 @@ export async function GET(req: NextRequest) {
   const result = await buildCashPositionRows(admin, searchParams.get('from'), searchParams.get('to'))
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
 
-  return NextResponse.json({ data: result.rows, total: result.total })
+  return NextResponse.json({ data: result.rows, total: result.total, summary: result.summary })
 }

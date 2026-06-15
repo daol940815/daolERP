@@ -63,7 +63,7 @@ export default async function ManagementDashboardPage() {
     buildVatEstimate(admin, quarterFrom, quarterTo),
   ])
 
-  const totalCash   = 'rows' in cashPosition ? cashPosition.total : 0
+  const fundSummary = 'summary' in cashPosition ? cashPosition.summary : null
   const accountCount = 'rows' in cashPosition ? cashPosition.rows.length : 0
 
   const dailyRows = 'rows' in dailyCash ? dailyCash.rows : []
@@ -93,9 +93,24 @@ export default async function ManagementDashboardPage() {
       {/* 자금현황 */}
       <SectionHeader title="자금현황" href="/reports/cash-position" linkLabel="계좌 통합현황" />
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card label="총 잔액" value={won(totalCash)} sub={`계좌 ${accountCount}개`} href="/reports/cash-position" />
+        <Card label="보유 현금" value={won(fundSummary?.held_cash)} sub={`계좌 ${accountCount}개`} href="/reports/cash-position" />
         <Card label="이번달 입금" value={won(monthDeposit)} valueClass="text-blue-600" href="/reports/daily-cash" />
         <Card label="이번달 출금" value={won(monthWithdrawal)} valueClass="text-rose-600" href="/reports/daily-cash" />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+        <Card
+          label="마이너스통장 사용액"
+          value={won(fundSummary?.overdraft_used)}
+          valueClass={(fundSummary?.overdraft_used ?? 0) > 0 ? 'text-rose-600' : 'text-gray-900'}
+          href="/reports/cash-position"
+        />
+        <Card
+          label="순현금/순차입 포지션"
+          value={won(fundSummary?.net_cash)}
+          valueClass={(fundSummary?.net_cash ?? 0) < 0 ? 'text-rose-600' : 'text-gray-900'}
+          href="/reports/cash-position"
+        />
+        <Card label="가용 자금" value={won(fundSummary?.available_funds)} valueClass="text-blue-600" href="/reports/cash-position" />
       </div>
 
       {/* 미수금/미지급금 */}

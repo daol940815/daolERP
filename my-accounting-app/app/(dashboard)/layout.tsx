@@ -13,7 +13,7 @@ export default async function DashboardLayout({
   const admin = createAdminClient()
   const { data } = await admin
     .from('bank_accounts')
-    .select('id, bank_name, account_number, alias, is_active, created_at, updated_at')
+    .select('id, bank_name, account_number, alias, is_active, account_type, overdraft_limit, created_at, updated_at')
     .eq('is_active', true)
     .order('bank_name')
 
@@ -21,6 +21,8 @@ export default async function DashboardLayout({
     ...b,
     current_balance: null,
     balance_date: null,
+    overdraft_used: null,
+    overdraft_available: null,
   }))
 
   return (

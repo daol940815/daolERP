@@ -9,7 +9,7 @@ export async function GET() {
 
   const { data: accounts, error } = await admin
     .from('bank_accounts')
-    .select('id, bank_name, account_number, alias, is_active, created_at, updated_at')
+    .select('id, bank_name, account_number, alias, is_active, account_type, overdraft_limit, created_at, updated_at')
     .eq('is_active', true)
     .order('bank_name')
 
@@ -30,10 +30,19 @@ export async function GET() {
         .limit(1)
         .maybeSingle()
 
+      const balance = latestTx?.balance ?? null
+      const isOverdraft = account.account_type === 'overdraft'
+      const overdraftUsed = isOverdraft ? Math.max(-(balance ?? 0), 0) : 0
+      const overdraftAvailable = isOverdraft && account.overdraft_limit != null
+        ? Math.max(Math.abs(account.overdraft_limit) - overdraftUsed, 0)
+        : 0
+
       return {
         ...account,
-        current_balance: latestTx?.balance ?? null,
+        current_balance: balance,
         balance_date: latestTx?.tx_date ?? null,
+        overdraft_used: overdraftUsed,
+        overdraft_available: overdraftAvailable,
       }
     })
   )

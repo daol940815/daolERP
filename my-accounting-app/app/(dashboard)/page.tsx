@@ -31,6 +31,104 @@ function SummaryCard({
   )
 }
 
+// ── 마이너스통장 계좌 카드 ──────────────────────────────────
+function OverdraftAccountCard({
+  id, name, accountNumber, alias,
+  balance, balanceDate, overdraftLimit,
+  monthlyIn, monthlyOut, unclassifiedCount, confirmedCount, periodLabel,
+}: {
+  id: string
+  name: string
+  accountNumber: string | null
+  alias: string | null
+  balance: number | null
+  balanceDate: string | null
+  overdraftLimit: number | null
+  monthlyIn: number
+  monthlyOut: number
+  unclassifiedCount: number
+  confirmedCount: number
+  periodLabel: string
+}) {
+  const displayName = alias || name
+  const limitAbs = overdraftLimit != null ? Math.abs(overdraftLimit) : 0
+  const used = Math.max(-(balance ?? 0), 0)
+  const available = Math.max(limitAbs - used, 0)
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+      <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-semibold text-slate-800 text-sm truncate flex items-center gap-1.5">
+            {displayName}
+            <span className="shrink-0 px-1.5 py-0.5 text-[10px] leading-none rounded bg-amber-100 text-amber-700">마이너스통장</span>
+          </p>
+          {accountNumber && (
+            <p className="text-xs text-slate-400 mt-0.5 truncate">{accountNumber}</p>
+          )}
+        </div>
+        {unclassifiedCount > 0 && (
+          <span className="shrink-0 px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full whitespace-nowrap">
+            미분류 {unclassifiedCount}
+          </span>
+        )}
+      </div>
+
+      {/* 한도/현재잔액/사용액/미사용한도 */}
+      <div className="px-5 py-4 border-b border-slate-100 grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-xs text-slate-400 mb-1">한도</p>
+          <p className="text-sm font-semibold text-slate-700">{fmt(limitAbs)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-400 mb-1">현재 잔액</p>
+          {balance !== null ? (
+            <>
+              <p className={`text-sm font-semibold ${balance < 0 ? 'text-red-500' : 'text-slate-800'}`}>{fmt(balance)}</p>
+              {balanceDate && <p className="text-xs text-slate-400 mt-0.5">{balanceDate} 기준</p>}
+            </>
+          ) : <p className="text-sm text-slate-300">-</p>}
+        </div>
+        <div>
+          <p className="text-xs text-slate-400 mb-1">현재 사용액</p>
+          <p className="text-sm font-semibold text-red-500">{fmt(used)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-400 mb-1">미사용 한도</p>
+          <p className="text-sm font-semibold text-emerald-600">{fmt(available)}</p>
+        </div>
+      </div>
+
+      {/* 기간 입금/출금 */}
+      <div className="px-5 py-3 grid grid-cols-2 gap-3 border-b border-slate-100">
+        <div>
+          <p className="text-xs text-slate-400 mb-0.5">입금 ({periodLabel})</p>
+          <p className={`text-sm font-semibold ${monthlyIn > 0 ? 'text-blue-600' : 'text-slate-300'}`}>
+            {monthlyIn > 0 ? fmt(monthlyIn) : '-'}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-400 mb-0.5">출금 ({periodLabel})</p>
+          <p className={`text-sm font-semibold ${monthlyOut > 0 ? 'text-red-500' : 'text-slate-300'}`}>
+            {monthlyOut > 0 ? fmt(monthlyOut) : '-'}
+          </p>
+        </div>
+      </div>
+
+      {/* 푸터: 확정 건수 + 바로가기 */}
+      <div className="px-5 py-3 flex items-center justify-between mt-auto">
+        <span className="text-xs text-slate-400">{periodLabel} 확정 {confirmedCount}건</span>
+        <Link
+          href={`/transactions?bankAccountId=${id}`}
+          className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
+        >
+          거래내역 →
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 // ── 계좌 카드 ──────────────────────────────────────────────
 function AccountCard({
   id, name, accountNumber, alias,
@@ -147,7 +245,7 @@ export default async function DashboardPage() {
     { data: orphanedRaw },
   ] = await Promise.all([
     admin.from('bank_accounts')
-      .select('id, bank_name, account_number, alias')
+      .select('id, bank_name, account_number, alias, account_type, overdraft_limit')
       .eq('is_active', true)
       .order('bank_name'),
 
@@ -241,6 +339,22 @@ export default async function DashboardPage() {
   const totalReviewed     = unclassifiedList.filter(t => t.status === 'reviewed').length
   const totalConfirmed    = allTx.filter(t => t.status === 'confirmed').length
 
+  // 일반계좌 / 마이너스통장 계좌 분리 + 자금 요약 (5개 지표)
+  const normalAccounts    = (accounts ?? []).filter(a => a.account_type !== 'overdraft')
+  const overdraftAccounts = (accounts ?? []).filter(a => a.account_type === 'overdraft')
+
+  const heldCash = normalAccounts.reduce((s, a) => s + (balanceMap[a.id]?.balance ?? 0), 0)
+  const overdraftUsedTotal = overdraftAccounts.reduce(
+    (s, a) => s + Math.max(-(balanceMap[a.id]?.balance ?? 0), 0), 0)
+  const overdraftAvailableTotal = overdraftAccounts.reduce((s, a) => {
+    const used = Math.max(-(balanceMap[a.id]?.balance ?? 0), 0)
+    const limitAbs = a.overdraft_limit != null ? Math.abs(a.overdraft_limit) : 0
+    return s + Math.max(limitAbs - used, 0)
+  }, 0)
+  const overdraftBalanceSum = overdraftAccounts.reduce((s, a) => s + (balanceMap[a.id]?.balance ?? 0), 0)
+  const netCash = heldCash + overdraftBalanceSum
+  const availableFunds = heldCash + overdraftAvailableTotal
+
   return (
     <div className="max-w-6xl mx-auto">
       {/* 헤더 */}
@@ -269,6 +383,35 @@ export default async function DashboardPage() {
         />
       </div>
 
+      {/* 전체 자금 요약 */}
+      {(accounts ?? []).length > 0 && (
+        <>
+          <h2 className="text-sm font-semibold text-slate-700 mb-3">전체 자금 요약</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-8">
+            <Link href="/reports/cash-position" className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow">
+              <p className="text-xs text-slate-400 mb-1">보유 현금</p>
+              <p className="text-lg font-bold text-slate-900">{fmt(heldCash)}</p>
+            </Link>
+            <Link href="/reports/cash-position" className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow">
+              <p className="text-xs text-slate-400 mb-1">마이너스통장 사용액</p>
+              <p className="text-lg font-bold text-red-500">{fmt(overdraftUsedTotal)}</p>
+            </Link>
+            <Link href="/reports/cash-position" className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow">
+              <p className="text-xs text-slate-400 mb-1">마이너스통장 미사용한도</p>
+              <p className="text-lg font-bold text-emerald-600">{fmt(overdraftAvailableTotal)}</p>
+            </Link>
+            <Link href="/reports/cash-position" className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow">
+              <p className="text-xs text-slate-400 mb-1">순현금/순차입 포지션</p>
+              <p className={`text-lg font-bold ${netCash < 0 ? 'text-red-500' : 'text-slate-900'}`}>{fmt(netCash)}</p>
+            </Link>
+            <Link href="/reports/cash-position" className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow">
+              <p className="text-xs text-slate-400 mb-1">가용 자금</p>
+              <p className="text-lg font-bold text-blue-600">{fmt(availableFunds)}</p>
+            </Link>
+          </div>
+        </>
+      )}
+
       {/* 계좌별 현황 */}
       <h2 className="text-sm font-semibold text-slate-700 mb-3">계좌별 현황</h2>
 
@@ -281,28 +424,66 @@ export default async function DashboardPage() {
           에서 계좌를 추가하세요.
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {(accounts ?? []).map(acc => {
-            const stats = monthlyStats[acc.id] ?? { in: 0, out: 0, confirmed: 0 }
-            const bal   = balanceMap[acc.id]
-            return (
-              <AccountCard
-                key={acc.id}
-                id={acc.id}
-                name={acc.bank_name}
-                accountNumber={acc.account_number ?? null}
-                alias={acc.alias ?? null}
-                balance={bal?.balance ?? null}
-                balanceDate={bal?.balanceDate ?? null}
-                monthlyIn={stats.in}
-                monthlyOut={stats.out}
-                confirmedCount={stats.confirmed}
-                unclassifiedCount={unclassifiedMap[acc.id] ?? 0}
-                periodLabel={periodLabel}
-              />
-            )
-          })}
-        </div>
+        <>
+          {/* 일반 입출금 계좌 */}
+          <h3 className="text-xs font-medium text-slate-400 mb-2">일반 입출금 계좌</h3>
+          {normalAccounts.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-400 text-sm mb-6">등록된 일반 계좌가 없습니다.</div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
+              {normalAccounts.map(acc => {
+                const stats = monthlyStats[acc.id] ?? { in: 0, out: 0, confirmed: 0 }
+                const bal   = balanceMap[acc.id]
+                return (
+                  <AccountCard
+                    key={acc.id}
+                    id={acc.id}
+                    name={acc.bank_name}
+                    accountNumber={acc.account_number ?? null}
+                    alias={acc.alias ?? null}
+                    balance={bal?.balance ?? null}
+                    balanceDate={bal?.balanceDate ?? null}
+                    monthlyIn={stats.in}
+                    monthlyOut={stats.out}
+                    confirmedCount={stats.confirmed}
+                    unclassifiedCount={unclassifiedMap[acc.id] ?? 0}
+                    periodLabel={periodLabel}
+                  />
+                )
+              })}
+            </div>
+          )}
+
+          {/* 마이너스통장 계좌 */}
+          {overdraftAccounts.length > 0 && (
+            <>
+              <h3 className="text-xs font-medium text-slate-400 mb-2">마이너스통장 계좌</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
+                {overdraftAccounts.map(acc => {
+                  const stats = monthlyStats[acc.id] ?? { in: 0, out: 0, confirmed: 0 }
+                  const bal   = balanceMap[acc.id]
+                  return (
+                    <OverdraftAccountCard
+                      key={acc.id}
+                      id={acc.id}
+                      name={acc.bank_name}
+                      accountNumber={acc.account_number ?? null}
+                      alias={acc.alias ?? null}
+                      balance={bal?.balance ?? null}
+                      balanceDate={bal?.balanceDate ?? null}
+                      overdraftLimit={acc.overdraft_limit ?? null}
+                      monthlyIn={stats.in}
+                      monthlyOut={stats.out}
+                      confirmedCount={stats.confirmed}
+                      unclassifiedCount={unclassifiedMap[acc.id] ?? 0}
+                      periodLabel={periodLabel}
+                    />
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </>
       )}
 
       {/* 미연결 계좌 (bank_account_id 없는 거래 그룹) */}

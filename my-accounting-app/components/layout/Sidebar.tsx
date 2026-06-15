@@ -341,7 +341,14 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
                           >
                             <span className="text-xs leading-none text-slate-500 shrink-0">·</span>
                             <div className="flex flex-col min-w-0 flex-1 pr-5">
-                              <span className="truncate">{bank.bank_name}</span>
+                              <span className="truncate flex items-center gap-1.5">
+                                {bank.bank_name}
+                                {bank.account_type === 'overdraft' && (
+                                  <span className="shrink-0 px-1 py-0.5 text-[10px] leading-none rounded bg-amber-500/20 text-amber-400">
+                                    마이너스
+                                  </span>
+                                )}
+                              </span>
                               {bank.account_number && (
                                 <span className="text-xs text-slate-500 font-normal truncate">
                                   {bank.account_number}
