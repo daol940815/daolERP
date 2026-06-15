@@ -205,6 +205,10 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             <span className="text-base leading-none">▦</span>
             <span>대시보드</span>
           </Link>
+          <Link href="/reports/management-dashboard" className={linkCls(pathname.startsWith('/reports/management-dashboard'))}>
+            <span className="text-base leading-none">🧭</span>
+            <span>경영대시보드</span>
+          </Link>
         </div>
 
         {/* ── ERP ── */}
