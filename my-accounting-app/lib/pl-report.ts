@@ -46,27 +46,17 @@ export async function buildMonthlyPL(
   const dateTo = lastDayOfMonth(to)
 
   // ── ERP 매출/매출원가: 주문일 기준 월별 집계 (취소/VIP/선결제 제외) ──
-  // erp_orders를 join으로 함께 가져와 주문일을 얻고, 기간 필터는 JS에서 처리한다.
-  // (대량 order_id를 .in()으로 나눠 조회하면 조회 기간이 길어질 때 URL이 비대해져
-  //  fetch 자체가 실패할 수 있어 이를 피하기 위함)
-  const { data: orderItems, error: ie } = await admin
-    .from('erp_order_items')
-    .select('line_total, purchase_total, erp_orders(order_date)')
-    .eq('is_canceled', false)
-    .eq('is_vip', false)
-    .eq('is_prepayment', false)
-    .limit(100000)
-  if (ie) return { error: ie.message }
+  // DB 함수로 월별 집계를 직접 계산한다 (PostgREST 임베드/페이지네이션을 거치지 않아
+  // 조회 기간이 길어져도 안전하고 결과 누락이 없음)
+  const { data: plRows, error: pe } = await admin
+    .rpc('monthly_pl_order_summary', { p_from: dateFrom, p_to: dateTo })
+  if (pe) return { error: pe.message }
 
   const revenueByMonth = new Map<string, number>()
   const cogsByMonth = new Map<string, number>()
-  for (const it of orderItems ?? []) {
-    const rel = it.erp_orders as { order_date?: string }[] | { order_date?: string } | null
-    const orderDate = Array.isArray(rel) ? rel[0]?.order_date : rel?.order_date
-    if (!orderDate || orderDate < dateFrom || orderDate > dateTo) continue
-    const month = orderDate.slice(0, 7)
-    revenueByMonth.set(month, (revenueByMonth.get(month) ?? 0) + ((it.line_total as number) || 0))
-    cogsByMonth.set(month, (cogsByMonth.get(month) ?? 0) + ((it.purchase_total as number) || 0))
+  for (const row of plRows ?? []) {
+    revenueByMonth.set(row.month as string, (row.revenue as number) || 0)
+    cogsByMonth.set(row.month as string, (row.cogs as number) || 0)
   }
 
   // ── 기타 운영비: 은행거래 중 비용(expense) 계정으로 확정 분류된 출금 ──
