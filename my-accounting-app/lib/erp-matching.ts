@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // 입금 ↔ ERP 주문 건 단위 매칭 (마이그레이션 021: erp_payment_matches)
-// 현재는 은행 입금(매출 수금) 대상. 카드/현금영수증은 스키마만 지원.
+// 은행 입금과 카드결제(거래처 매칭된 card_sales) 대상. 현금영수증은 스키마만 지원.
 
 export interface MatchRow {
   id: string
@@ -16,12 +16,13 @@ export interface MatchRow {
 
 export interface DepositState {
   id: string
+  source_type: 'bank' | 'card'
   tx_date: string
   counterparty_name: string | null
   description: string | null
   vendor_id: string
   vendor_name: string
-  amount: number      // 입금액
+  amount: number      // 입금액 (카드는 승인-취소 상쇄한 순매출액)
   allocated: number   // 이미 배분된 금액
   remaining: number   // 미배분 잔액
 }
@@ -66,8 +67,9 @@ export async function loadMatchingState(
   const allocBySource = new Map<string, number>()
   for (const m of matches) {
     allocByOrder.set(m.order_id, (allocByOrder.get(m.order_id) ?? 0) + m.amount)
-    if (m.source_type === 'bank') {
-      allocBySource.set(m.source_id, (allocBySource.get(m.source_id) ?? 0) + m.amount)
+    if (m.source_type === 'bank' || m.source_type === 'card') {
+      const key = `${m.source_type}:${m.source_id}`
+      allocBySource.set(key, (allocBySource.get(key) ?? 0) + m.amount)
     }
   }
 
@@ -146,9 +148,10 @@ export async function loadMatchingState(
 
   const deposits: DepositState[] = (txRows ?? []).map(t => {
     const amount = (t.amount_in as number) || 0
-    const alloc = allocBySource.get(t.id as string) ?? 0
+    const alloc = allocBySource.get(`bank:${t.id}`) ?? 0
     return {
       id: t.id as string,
+      source_type: 'bank',
       tx_date: t.tx_date as string,
       counterparty_name: t.counterparty_name as string | null,
       description: t.description as string | null,
@@ -160,7 +163,59 @@ export async function loadMatchingState(
     }
   })
 
-  return { deposits, orders, matches }
+  // 카드결제 매출 (거래처 매칭된 건만, 승인/취소 건을 승인번호 기준으로 상쇄해 순매출액 계산)
+  let cq = admin
+    .from('card_sales')
+    .select('id, tx_date, approval_number, card_number, acquirer, amount, transaction_type, vendor_id')
+    .not('vendor_id', 'is', null)
+    .order('tx_date', { ascending: false })
+    .limit(100000)
+  if (from) cq = cq.gte('tx_date', from)
+  if (to)   cq = cq.lte('tx_date', to)
+  const { data: cardRows, error: ce } = await cq
+  if (ce) return { error: ce.message }
+
+  interface CardSaleRow {
+    id: string
+    tx_date: string
+    approval_number: string
+    card_number: string | null
+    acquirer: string | null
+    amount: number
+    transaction_type: 'approval' | 'cancel'
+    vendor_id: string
+  }
+
+  const byApproval = new Map<string, CardSaleRow[]>()
+  for (const r of (cardRows ?? []) as CardSaleRow[]) {
+    const list = byApproval.get(r.approval_number) ?? []
+    list.push(r)
+    byApproval.set(r.approval_number, list)
+  }
+
+  const cardDeposits: DepositState[] = []
+  for (const rows of Array.from(byApproval.values())) {
+    const approvalRow = rows.find(r => r.transaction_type === 'approval')
+    if (!approvalRow) continue
+    const net = rows.reduce((s, r) => s + (r.amount || 0), 0)
+    if (net <= 0) continue
+    const vendorId = approvalRow.vendor_id
+    const alloc = allocBySource.get(`card:${approvalRow.id}`) ?? 0
+    cardDeposits.push({
+      id: approvalRow.id,
+      source_type: 'card',
+      tx_date: approvalRow.tx_date,
+      counterparty_name: approvalRow.card_number,
+      description: approvalRow.acquirer,
+      vendor_id: vendorId,
+      vendor_name: vendorName.get(vendorId) ?? '(삭제된 거래처)',
+      amount: net,
+      allocated: alloc,
+      remaining: net - alloc,
+    })
+  }
+
+  return { deposits: [...deposits, ...cardDeposits], orders, matches }
 }
 
 // 고신뢰 자동 매칭: 같은 거래처 + 잔액 정확 일치 + 날짜 차이 windowDays 이내 + 1:1 유일

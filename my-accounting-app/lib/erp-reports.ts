@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ErpReceivableRow, ErpPayableRow, ErpPaymentTerm } from '@/types/erp'
+import { isMissingMatchTable } from '@/lib/erp-matching'
 
 // ── 매출처(은행·지점)별 미수금 현황 집계 ──────────────
 // 취소/VIP/선결제 품목은 순매출에서 제외, 미수금은 ERP 주문 단위 값 사용
@@ -46,6 +47,23 @@ export async function buildReceivableRows(
     for (const it of items ?? []) {
       const cur = excludedByOrder.get(it.order_id as string) ?? 0
       excludedByOrder.set(it.order_id as string, cur + ((it.line_total as number) || 0))
+    }
+  }
+
+  // 주문별 매칭된 수금액 합계 (은행/카드 등 — 수금 매칭 결과를 미수금에서 차감)
+  const matchedByOrder = new Map<string, number>()
+  for (let i = 0; i < orderIds.length; i += 500) {
+    const { data: matches, error: me } = await admin
+      .from('erp_payment_matches')
+      .select('order_id, amount')
+      .in('order_id', orderIds.slice(i, i + 500))
+    if (me) {
+      if (!isMissingMatchTable(me)) return { error: me.message }
+      break
+    }
+    for (const m of matches ?? []) {
+      const cur = matchedByOrder.get(m.order_id as string) ?? 0
+      matchedByOrder.set(m.order_id as string, cur + ((m.amount as number) || 0))
     }
   }
 
@@ -101,8 +119,10 @@ export async function buildReceivableRows(
     g.total_amount += ((o.total_amount as number) || 0) - excluded
     g.excluded_amount += excluded
     if (o.collect_status !== 'collected') {
-      g.outstanding_amount += (o.outstanding_amount as number) || 0
-      g.outstanding_count  += 1
+      const matched = matchedByOrder.get(o.id as string) ?? 0
+      const remaining = Math.max(((o.outstanding_amount as number) || 0) - matched, 0)
+      g.outstanding_amount += remaining
+      if (remaining > 0) g.outstanding_count += 1
     }
   }
   for (const [key, g] of Array.from(groups.entries())) {

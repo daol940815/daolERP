@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
   const rows = pairs.map(p => ({
     order_id: p.order.id,
-    source_type: 'bank',
+    source_type: p.deposit.source_type,
     source_id: p.deposit.id,
     amount: p.deposit.remaining,
     paid_date: p.deposit.tx_date,

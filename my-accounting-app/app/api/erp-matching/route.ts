@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
-import { loadMatchingState, isMissingMatchTable } from '@/lib/erp-matching'
+import { loadMatchingState } from '@/lib/erp-matching'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/erp-matching — 수동 배분
-// body: { source_type: 'bank', source_id, allocations: [{ order_id, amount }], memo? }
+// body: { source_type: 'bank' | 'card', source_id, allocations: [{ order_id, amount }], memo? }
 export async function POST(req: NextRequest) {
   const admin = createAdminClient()
   const body = await req.json().catch(() => ({})) as {
@@ -74,47 +74,37 @@ export async function POST(req: NextRequest) {
     memo?: string
   }
 
-  if (body.source_type !== 'bank' || !body.source_id) {
-    return NextResponse.json({ error: 'source_type(bank)과 source_id가 필요합니다.' }, { status: 400 })
+  if ((body.source_type !== 'bank' && body.source_type !== 'card') || !body.source_id) {
+    return NextResponse.json({ error: 'source_type(bank/card)과 source_id가 필요합니다.' }, { status: 400 })
   }
   const allocations = (body.allocations ?? []).filter(a => a.order_id && Number(a.amount) > 0)
   if (!allocations.length) {
     return NextResponse.json({ error: '배분할 주문과 금액을 입력하세요.' }, { status: 400 })
   }
 
-  // 입금 잔액 검증
-  const { data: tx, error: te } = await admin
-    .from('transactions')
-    .select('id, tx_date, amount_in')
-    .eq('id', body.source_id)
-    .single()
-  if (te || !tx) return NextResponse.json({ error: '입금 내역을 찾을 수 없습니다.' }, { status: 404 })
-
-  const { data: existing, error: ee } = await admin
-    .from('erp_payment_matches')
-    .select('amount')
-    .eq('source_type', 'bank')
-    .eq('source_id', body.source_id)
-  if (ee) {
+  const state = await loadMatchingState(admin, null, null)
+  if ('error' in state) {
     return NextResponse.json(
-      { error: isMissingMatchTable(ee) ? MIGRATION_MSG : ee.message },
-      { status: isMissingMatchTable(ee) ? 428 : 500 })
+      { error: state.missingTable ? MIGRATION_MSG : state.error },
+      { status: state.missingTable ? 428 : 500 })
   }
-  const allocated = (existing ?? []).reduce((s, r) => s + ((r.amount as number) || 0), 0)
+
+  const source = state.deposits.find(d => d.source_type === body.source_type && d.id === body.source_id)
+  if (!source) return NextResponse.json({ error: '입금/결제 내역을 찾을 수 없습니다.' }, { status: 404 })
+
   const totalAlloc = allocations.reduce((s, a) => s + Math.round(Number(a.amount)), 0)
-  const remaining = ((tx.amount_in as number) || 0) - allocated
-  if (totalAlloc > remaining) {
+  if (totalAlloc > source.remaining) {
     return NextResponse.json(
-      { error: `배분 합계(${totalAlloc.toLocaleString()}원)가 입금 잔액(${remaining.toLocaleString()}원)을 초과합니다.` },
+      { error: `배분 합계(${totalAlloc.toLocaleString()}원)가 잔액(${source.remaining.toLocaleString()}원)을 초과합니다.` },
       { status: 400 })
   }
 
   const rows = allocations.map(a => ({
     order_id: a.order_id,
-    source_type: 'bank',
+    source_type: body.source_type,
     source_id: body.source_id,
     amount: Math.round(Number(a.amount)),
-    paid_date: tx.tx_date as string,
+    paid_date: source.tx_date,
     matched_by: 'manual',
     memo: body.memo?.trim() || null,
   }))

@@ -18,6 +18,7 @@ interface Candidate {
 
 interface PendingDeposit {
   id: string
+  source_type: 'bank' | 'card'
   tx_date: string
   counterparty_name: string | null
   description: string | null
@@ -31,6 +32,7 @@ interface PendingDeposit {
 interface MatchedRow {
   id: string
   order_id: string
+  source_type: 'bank' | 'card'
   amount: number
   paid_date: string
   matched_by: 'auto' | 'manual'
@@ -112,7 +114,7 @@ export default function ErpMatchingPage() {
     const res  = await fetch('/api/erp-matching', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source_type: 'bank', source_id: d.id, allocations }),
+      body: JSON.stringify({ source_type: d.source_type, source_id: d.id, allocations }),
     })
     const json = await res.json()
     setWorking(false)
@@ -147,9 +149,9 @@ export default function ErpMatchingPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">수금 매칭</h1>
           <p className="text-sm mt-1 text-gray-500">
-            은행 입금을 ERP 주문에 매칭합니다. 고신뢰 건(같은 거래처·금액 일치·날짜 근접·1:1)은 자동 확정되고,
+            은행 입금과 카드결제(매출처에 카드번호 등록 시)를 ERP 주문에 매칭합니다. 고신뢰 건(같은 거래처·금액 일치·날짜 근접·1:1)은 자동 확정되고,
             합산입금 등 모호한 건만 검토대기에서 수동 배분합니다.
-            매칭 결과는 ERP 주문내역의 미수금에서 자동으로 차감되어 표시됩니다.
+            매칭 결과는 ERP 주문내역의 미수금 및 수금현황에서 자동으로 차감되어 표시됩니다.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -232,6 +234,7 @@ export default function ErpMatchingPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                  <th className="py-2.5 px-3 font-medium">구분</th>
                   <th className="py-2.5 px-3 font-medium">입금일</th>
                   <th className="py-2.5 px-3 font-medium">거래처</th>
                   <th className="py-2.5 px-3 font-medium">입금자/적요</th>
@@ -251,6 +254,13 @@ export default function ErpMatchingPage() {
                   return (
                     <Fragment key={d.id}>
                       <tr className={`border-b border-gray-100 ${expanded ? 'bg-slate-50' : 'hover:bg-gray-50'}`}>
+                        <td className="py-2 px-3">
+                          <span className={`px-1.5 py-0.5 text-[11px] rounded ${
+                            d.source_type === 'card' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'
+                          }`}>
+                            {d.source_type === 'card' ? '카드' : '계좌'}
+                          </span>
+                        </td>
                         <td className="py-2 px-3 whitespace-nowrap text-gray-600">{d.tx_date}</td>
                         <td className="py-2 px-3"><p className="truncate max-w-[160px]">{d.vendor_name}</p></td>
                         <td className="py-2 px-3">
@@ -273,7 +283,7 @@ export default function ErpMatchingPage() {
                       </tr>
                       {expanded && (
                         <tr className="border-b border-gray-200 bg-slate-50">
-                          <td colSpan={7} className="px-5 py-3">
+                          <td colSpan={8} className="px-5 py-3">
                             <table className="w-full text-xs mb-3">
                               <thead>
                                 <tr className="text-left text-gray-400">
@@ -346,7 +356,7 @@ export default function ErpMatchingPage() {
                   <th className="py-2.5 px-3 font-medium">결제일</th>
                   <th className="py-2.5 px-3 font-medium">주문번호</th>
                   <th className="py-2.5 px-3 font-medium">매출처</th>
-                  <th className="py-2.5 px-3 font-medium">입금자</th>
+                  <th className="py-2.5 px-3 font-medium">입금자/카드번호</th>
                   <th className="py-2.5 px-3 font-medium text-right">매칭 금액</th>
                   <th className="py-2.5 px-3 font-medium">구분</th>
                   <th className="py-2.5 px-3 font-medium text-right">액션</th>
@@ -361,6 +371,11 @@ export default function ErpMatchingPage() {
                     <td className="py-2 px-3"><p className="truncate max-w-[140px] text-gray-600">{m.counterparty_name ?? '-'}</p></td>
                     <td className="py-2 px-3 text-right whitespace-nowrap font-medium">{won(m.amount)}</td>
                     <td className="py-2 px-3">
+                      <span className={`mr-1 px-1.5 py-0.5 text-[11px] rounded ${
+                        m.source_type === 'card' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'
+                      }`}>
+                        {m.source_type === 'card' ? '카드' : '계좌'}
+                      </span>
                       <span className={`px-1.5 py-0.5 text-[11px] rounded ${
                         m.matched_by === 'auto' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'
                       }`}>
