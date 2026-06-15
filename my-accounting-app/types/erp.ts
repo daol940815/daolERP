@@ -147,3 +147,18 @@ export interface ErpAgingRow extends AgingBuckets {
   vendor_id: string | null
   vendor_name: string | null
 }
+
+// ── 거래처별 매출/수익성 분석 ────────────────────────────
+export interface VendorAnalysisRow {
+  alias_id: string | null
+  erp_name: string             // 매출처(은행+지점) 명
+  vendor_id: string | null
+  vendor_name: string | null
+  order_count: number
+  item_count: number
+  quantity: number
+  sales_amount: number         // 순매출 (line_total 합, 취소/VIP/선결제 제외)
+  purchase_amount: number      // 매입원가 (purchase_total 합, 취소/VIP/선결제 제외)
+  profit_amount: number        // 매출이익 = sales_amount - purchase_amount
+  profit_rate: number          // 이익률(%) = profit_amount / sales_amount * 100
+}
