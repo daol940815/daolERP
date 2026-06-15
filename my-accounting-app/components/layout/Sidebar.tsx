@@ -427,9 +427,17 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             <span className="text-base leading-none">📥</span>
             <span>ERP 매출처 수금현황</span>
           </Link>
+          <Link href="/reports/receivables-aging" className={linkCls(pathname.startsWith('/reports/receivables-aging'))}>
+            <span className="text-base leading-none">⏳</span>
+            <span>미수금 Aging 분석</span>
+          </Link>
           <Link href="/reports/erp-payables" className={linkCls(pathname.startsWith('/reports/erp-payables'))}>
             <span className="text-base leading-none">📤</span>
             <span>ERP 매입처 결제현황</span>
+          </Link>
+          <Link href="/reports/payables-aging" className={linkCls(pathname.startsWith('/reports/payables-aging'))}>
+            <span className="text-base leading-none">⏳</span>
+            <span>미지급금 Aging 분석</span>
           </Link>
           <Link href="/reports/erp-special" className={linkCls(pathname.startsWith('/reports/erp-special'))}>
             <span className="text-base leading-none">💎</span>

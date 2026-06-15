@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { ErpReceivableRow, ErpPayableRow, ErpPaymentTerm } from '@/types/erp'
+import type { ErpReceivableRow, ErpPayableRow, ErpPaymentTerm, ErpAgingRow, AgingBuckets } from '@/types/erp'
 import { isMissingMatchTable } from '@/lib/erp-matching'
 
 // ── 매출처(은행·지점)별 미수금 현황 집계 ──────────────
@@ -217,4 +217,155 @@ export async function buildPayableRows(
     (a.status === 'unpaid' ? -1 : 1) - (b.status === 'unpaid' ? -1 : 1) ||
     b.purchase_total - a.purchase_total)
   return { rows }
+}
+
+// ── Aging 분석 공통 유틸 ────────────────────────────────
+function daysBetween(from: string, to: string): number {
+  const a = new Date(`${from}T00:00:00`).getTime()
+  const b = new Date(`${to}T00:00:00`).getTime()
+  return Math.floor((b - a) / 86400000)
+}
+
+function agingBucketKey(days: number): keyof AgingBuckets {
+  if (days <= 30) return 'bucket_30'
+  if (days <= 60) return 'bucket_60'
+  if (days <= 90) return 'bucket_90'
+  return 'bucket_over'
+}
+
+function emptyBuckets(): AgingBuckets {
+  return { bucket_30: 0, bucket_60: 0, bucket_90: 0, bucket_over: 0, total: 0 }
+}
+
+function sumAgingBuckets(rows: AgingBuckets[]): AgingBuckets {
+  const total = emptyBuckets()
+  for (const r of rows) {
+    total.bucket_30   += r.bucket_30
+    total.bucket_60   += r.bucket_60
+    total.bucket_90   += r.bucket_90
+    total.bucket_over += r.bucket_over
+    total.total       += r.total
+  }
+  return total
+}
+
+function lastDayOfMonth(yyyyMm: string): string {
+  const [y, m] = yyyyMm.split('-').map(Number)
+  const d = new Date(y, m, 0)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// ── 미수금 Aging 분석: 매출처별 미수금을 발생일(주문일) 기준 구간별로 집계 ──
+export async function buildReceivableAgingRows(
+  admin: SupabaseClient,
+  asOfDate?: string | null,
+): Promise<{ rows: ErpAgingRow[]; total: AgingBuckets; as_of: string } | { error: string }> {
+  const asOf = asOfDate ?? new Date().toISOString().slice(0, 10)
+
+  const { data: orders, error: oe } = await admin
+    .from('erp_orders')
+    .select('id, customer_alias_id, bank_name, branch_name, order_date, outstanding_amount, collect_status')
+    .neq('collect_status', 'collected')
+    .gt('outstanding_amount', 0)
+    .lte('order_date', asOf)
+    .limit(50000)
+  if (oe) return { error: oe.message }
+
+  const orderIds = (orders ?? []).map(o => o.id as string)
+
+  // 주문별 매칭된 수금액 합계 (미수금에서 차감)
+  const matchedByOrder = new Map<string, number>()
+  for (let i = 0; i < orderIds.length; i += 500) {
+    const { data: matches, error: me } = await admin
+      .from('erp_payment_matches')
+      .select('order_id, amount')
+      .in('order_id', orderIds.slice(i, i + 500))
+    if (me) {
+      if (!isMissingMatchTable(me)) return { error: me.message }
+      break
+    }
+    for (const m of matches ?? []) {
+      const cur = matchedByOrder.get(m.order_id as string) ?? 0
+      matchedByOrder.set(m.order_id as string, cur + ((m.amount as number) || 0))
+    }
+  }
+
+  const { data: aliases, error: ae } = await admin
+    .from('erp_vendor_aliases')
+    .select('id, erp_name, vendor_id, vendors(name)')
+    .eq('alias_type', 'customer')
+  if (ae) return { error: ae.message }
+  const aliasInfo = new Map((aliases ?? []).map(a => [a.id as string, a]))
+
+  const groups = new Map<string, ErpAgingRow>()
+  for (const o of orders ?? []) {
+    const matched = matchedByOrder.get(o.id as string) ?? 0
+    const remaining = Math.max(((o.outstanding_amount as number) || 0) - matched, 0)
+    if (remaining <= 0) continue
+
+    const key = (o.customer_alias_id as string | null) ?? '__none__'
+    let g = groups.get(key)
+    if (!g) {
+      const alias = key === '__none__' ? null : aliasInfo.get(key)
+      g = {
+        alias_id: key === '__none__' ? null : key,
+        erp_name: (alias?.erp_name as string | undefined)
+          ?? [o.bank_name, o.branch_name].filter(Boolean).join(' ')
+          ?? '매출처 미지정',
+        vendor_id: (alias?.vendor_id as string | null) ?? null,
+        vendor_name: (alias?.vendors as { name?: string } | null)?.name ?? null,
+        ...emptyBuckets(),
+      }
+      groups.set(key, g)
+    }
+    const days = Math.max(daysBetween(o.order_date as string, asOf), 0)
+    const bucket = agingBucketKey(days)
+    g[bucket] += remaining
+    g.total += remaining
+  }
+
+  const rows = Array.from(groups.values())
+  rows.sort((a, b) => b.total - a.total)
+  return { rows, total: sumAgingBuckets(rows), as_of: asOf }
+}
+
+// ── 미지급금 Aging 분석: 매입처별 미결제 정산을 정산월 말일 기준 구간별로 집계 ──
+export async function buildPayableAgingRows(
+  admin: SupabaseClient,
+  asOfDate?: string | null,
+): Promise<{ rows: ErpAgingRow[]; total: AgingBuckets; as_of: string } | { error: string }> {
+  const asOf = asOfDate ?? new Date().toISOString().slice(0, 10)
+  const asOfMonth = asOf.slice(0, 7)
+
+  const result = await buildPayableRows(admin, null, asOfMonth)
+  if ('error' in result) return result
+
+  const groups = new Map<string, ErpAgingRow>()
+  for (const r of result.rows) {
+    if (r.status !== 'unpaid') continue
+    const amount = r.purchase_total - (r.paid_amount ?? 0)
+    if (amount <= 0) continue
+
+    let g = groups.get(r.alias_id)
+    if (!g) {
+      g = {
+        alias_id: r.alias_id,
+        erp_name: r.erp_name,
+        vendor_id: r.vendor_id,
+        vendor_name: r.vendor_name,
+        ...emptyBuckets(),
+      }
+      groups.set(r.alias_id, g)
+    }
+    const days = r.settlement_month === '미지정'
+      ? Infinity
+      : Math.max(daysBetween(lastDayOfMonth(r.settlement_month), asOf), 0)
+    const bucket = agingBucketKey(days)
+    g[bucket] += amount
+    g.total += amount
+  }
+
+  const rows = Array.from(groups.values())
+  rows.sort((a, b) => b.total - a.total)
+  return { rows, total: sumAgingBuckets(rows), as_of: asOf }
 }

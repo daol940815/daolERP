@@ -131,3 +131,19 @@ export interface ErpPayableRow {
   settlement_memo: string | null
   prepay_balance: number       // 매입처 선입금 잔액
 }
+
+// ── 미수금/미지급금 Aging 분석 ──────────────────────────
+export interface AgingBuckets {
+  bucket_30: number    // 30일 이내
+  bucket_60: number    // 31~60일
+  bucket_90: number    // 61~90일
+  bucket_over: number  // 90일 초과
+  total: number
+}
+
+export interface ErpAgingRow extends AgingBuckets {
+  alias_id: string | null
+  erp_name: string
+  vendor_id: string | null
+  vendor_name: string | null
+}
