@@ -46,34 +46,28 @@ export async function buildMonthlyPL(
   const dateTo = lastDayOfMonth(to)
 
   // ── ERP 매출/매출원가: 주문일 기준 월별 집계 (취소/VIP/선결제 제외) ──
-  const { data: orders, error: oe } = await admin
-    .from('erp_orders')
-    .select('id, order_date')
-    .gte('order_date', dateFrom)
-    .lte('order_date', dateTo)
-    .limit(50000)
-  if (oe) return { error: oe.message }
-
-  const monthByOrder = new Map((orders ?? []).map(o => [o.id as string, (o.order_date as string).slice(0, 7)]))
-  const orderIds = (orders ?? []).map(o => o.id as string)
+  // erp_orders와 inner join하여 주문일로 직접 필터링 (대량 order_id를 .in()으로 나눠 조회하면
+  // 조회 기간이 길어질 때 URL이 비대해져 fetch 자체가 실패할 수 있음)
+  const { data: orderItems, error: ie } = await admin
+    .from('erp_order_items')
+    .select('line_total, purchase_total, erp_orders!inner(order_date)')
+    .eq('is_canceled', false)
+    .eq('is_vip', false)
+    .eq('is_prepayment', false)
+    .gte('erp_orders.order_date', dateFrom)
+    .lte('erp_orders.order_date', dateTo)
+    .limit(100000)
+  if (ie) return { error: ie.message }
 
   const revenueByMonth = new Map<string, number>()
   const cogsByMonth = new Map<string, number>()
-  for (let i = 0; i < orderIds.length; i += 500) {
-    const { data: items, error: ie } = await admin
-      .from('erp_order_items')
-      .select('order_id, line_total, purchase_total')
-      .in('order_id', orderIds.slice(i, i + 500))
-      .eq('is_canceled', false)
-      .eq('is_vip', false)
-      .eq('is_prepayment', false)
-    if (ie) return { error: ie.message }
-    for (const it of items ?? []) {
-      const month = monthByOrder.get(it.order_id as string)
-      if (!month) continue
-      revenueByMonth.set(month, (revenueByMonth.get(month) ?? 0) + ((it.line_total as number) || 0))
-      cogsByMonth.set(month, (cogsByMonth.get(month) ?? 0) + ((it.purchase_total as number) || 0))
-    }
+  for (const it of orderItems ?? []) {
+    const orderDate = (it.erp_orders as { order_date?: string }[] | { order_date?: string } | null)
+    const dateStr = Array.isArray(orderDate) ? orderDate[0]?.order_date : orderDate?.order_date
+    if (!dateStr) continue
+    const month = dateStr.slice(0, 7)
+    revenueByMonth.set(month, (revenueByMonth.get(month) ?? 0) + ((it.line_total as number) || 0))
+    cogsByMonth.set(month, (cogsByMonth.get(month) ?? 0) + ((it.purchase_total as number) || 0))
   }
 
   // ── 기타 운영비: 은행거래 중 비용(expense) 계정으로 확정 분류된 출금 ──
