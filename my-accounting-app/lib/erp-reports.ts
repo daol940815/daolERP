@@ -36,34 +36,29 @@ export async function buildReceivableRows(
   const orderIds = orders.map(o => o.id as string)
 
   // 주문별 제외 금액(취소/VIP/선결제 품목 합계)
+  // RPC(POST body로 order_id 배열 전달)로 일괄 조회 — .in()으로 나눠 조회하면
+  // 조회 기간이 길어져 주문 건수가 많을 때 URL이 비대해져 fetch가 실패할 수 있음
   const excludedByOrder = new Map<string, number>()
-  for (let i = 0; i < orderIds.length; i += 500) {
-    const { data: items, error: ie } = await admin
-      .from('erp_order_items')
-      .select('order_id, line_total, is_canceled, is_vip, is_prepayment')
-      .in('order_id', orderIds.slice(i, i + 500))
-      .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
+  if (orderIds.length > 0) {
+    const { data: exclusions, error: ie } = await admin
+      .rpc('erp_order_item_exclusions', { p_order_ids: orderIds })
     if (ie) return { error: ie.message }
-    for (const it of items ?? []) {
-      const cur = excludedByOrder.get(it.order_id as string) ?? 0
-      excludedByOrder.set(it.order_id as string, cur + ((it.line_total as number) || 0))
+    for (const row of exclusions ?? []) {
+      excludedByOrder.set(row.order_id as string, (row.excluded_amount as number) || 0)
     }
   }
 
   // 주문별 매칭된 수금액 합계 (은행/카드 등 — 수금 매칭 결과를 미수금에서 차감)
   const matchedByOrder = new Map<string, number>()
-  for (let i = 0; i < orderIds.length; i += 500) {
+  if (orderIds.length > 0) {
     const { data: matches, error: me } = await admin
-      .from('erp_payment_matches')
-      .select('order_id, amount')
-      .in('order_id', orderIds.slice(i, i + 500))
+      .rpc('erp_order_payment_matches', { p_order_ids: orderIds })
     if (me) {
       if (!isMissingMatchTable(me)) return { error: me.message }
-      break
-    }
-    for (const m of matches ?? []) {
-      const cur = matchedByOrder.get(m.order_id as string) ?? 0
-      matchedByOrder.set(m.order_id as string, cur + ((m.amount as number) || 0))
+    } else {
+      for (const row of matches ?? []) {
+        matchedByOrder.set(row.order_id as string, (row.matched_amount as number) || 0)
+      }
     }
   }
 
@@ -275,18 +270,15 @@ export async function buildReceivableAgingRows(
 
   // 주문별 매칭된 수금액 합계 (미수금에서 차감)
   const matchedByOrder = new Map<string, number>()
-  for (let i = 0; i < orderIds.length; i += 500) {
+  if (orderIds.length > 0) {
     const { data: matches, error: me } = await admin
-      .from('erp_payment_matches')
-      .select('order_id, amount')
-      .in('order_id', orderIds.slice(i, i + 500))
+      .rpc('erp_order_payment_matches', { p_order_ids: orderIds })
     if (me) {
       if (!isMissingMatchTable(me)) return { error: me.message }
-      break
-    }
-    for (const m of matches ?? []) {
-      const cur = matchedByOrder.get(m.order_id as string) ?? 0
-      matchedByOrder.set(m.order_id as string, cur + ((m.amount as number) || 0))
+    } else {
+      for (const row of matches ?? []) {
+        matchedByOrder.set(row.order_id as string, (row.matched_amount as number) || 0)
+      }
     }
   }
 
