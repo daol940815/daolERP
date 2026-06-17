@@ -148,20 +148,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '가져올 수 있는 데이터가 없습니다.', skipped }, { status: 400 })
   }
 
-  // ── 매입 계정과목 자동분류용 expense 계정 로드 ──────────────────────
-  let expenseAccounts: { id: string; keywords: string[] }[] = []
-  if (direction === 'purchase') {
-    const { data: accs } = await admin
-      .from('accounts')
-      .select('id, keywords')
-      .eq('type', 'expense')
-      .eq('is_active', true)
-      .order('code')
-    expenseAccounts = (accs ?? []).map(a => ({
-      id: a.id as string,
-      keywords: (a.keywords ?? []) as string[],
-    }))
-  }
+  // ── 계정과목 자동분류용 계정 로드 (매입 → expense, 매출 → income) ──────
+  const classifyType = direction === 'purchase' ? 'expense' : 'income'
+  const { data: classifyAccs } = await admin
+    .from('accounts')
+    .select('id, keywords')
+    .eq('type', classifyType)
+    .eq('is_active', true)
+    .order('code')
+  const classifyAccounts: { id: string; keywords: string[] }[] = (classifyAccs ?? []).map(a => ({
+    id: a.id as string,
+    keywords: (a.keywords ?? []) as string[],
+  }))
 
   // ── 거래처 자동 매칭/등록 (사업자번호 우선, 없으면 상호명) ──────────
   const { data: vendors } = await admin.from('vendors').select('id, name, biz_number, type')
@@ -229,9 +227,9 @@ export async function POST(req: NextRequest) {
 
     // 기존에 계정과목이 이미 분류된 경우 유지; 새 건이면 키워드 자동분류 시도
     let confirmedAccountId: string | null = existing?.confirmed_account_id ?? null
-    if (confirmedAccountId == null && direction === 'purchase' && expenseAccounts.length > 0) {
+    if (confirmedAccountId == null && classifyAccounts.length > 0) {
       const searchText = [row.item_name, row.counterparty_name, row.note].filter(Boolean).join(' ')
-      confirmedAccountId = matchAccount(searchText, expenseAccounts)
+      confirmedAccountId = matchAccount(searchText, classifyAccounts)
     }
 
     return { ...row, vendor_id: vendorId, confirmed_account_id: confirmedAccountId }

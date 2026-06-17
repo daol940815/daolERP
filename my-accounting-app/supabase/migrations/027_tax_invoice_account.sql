@@ -7,9 +7,9 @@ CREATE INDEX IF NOT EXISTS idx_tax_invoices_account
   ON tax_invoices(confirmed_account_id);
 
 COMMENT ON COLUMN tax_invoices.confirmed_account_id
-  IS '매입세금계산서 계정과목 (손익계산서 집계 기준)';
+  IS '세금계산서 계정과목 (손익계산서 집계 기준, 매입/매출 방향 모두 사용)';
 
--- 신규 계정과목 (판관비 확장 6개 + 영업외비용 3개 + 영업외수익 2개 + 자본 2개)
+-- 신규 계정과목 (판관비 확장 6개 + 영업외비용 3개 + 영업외수익 3개 + 자본 2개)
 INSERT INTO accounts (code, name, type, keywords) VALUES
   ('5201', '운반비',      'expense', ARRAY['배송료', '운반비', '화물비', '운송비', '물류비']),
   ('5202', '외주용역비',  'expense', ARRAY['용역비', '도급', '하청', '위탁용역', '아웃소싱']),
@@ -22,6 +22,7 @@ INSERT INTO accounts (code, name, type, keywords) VALUES
   ('5303', '잡손실',      'expense', ARRAY['잡손실', '기타손실']),
   ('4002', '이자수익',    'income',  ARRAY['이자수익', '예금이자', '정기이자', '이자입금']),
   ('4003', '잡이익',      'income',  ARRAY['잡이익', '잡수입', '기타수익']),
+  ('4004', '임대료수익',  'income',  ARRAY['임대료', '임대료수익', '월세수입', '전대료', '임대수익']),
   ('3001', '자본금',      'equity',  ARRAY['자본금', '출자', '납입자본']),
   ('3002', '이익잉여금',  'equity',  ARRAY['이익잉여금', '당기순이익', '전기이월'])
 ON CONFLICT (code) DO NOTHING;

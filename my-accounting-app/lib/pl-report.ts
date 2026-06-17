@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // ── 월별 손익현황 (경영관리용) ───────────────────────────
-// ERP 주문 기준 매출/매출원가 + 매입세금계산서 계정과목 분류분 + 은행거래 계정과목 분류분을
+// ERP 주문 기준 매출/매출원가 + 세금계산서(매입·매출) 계정과목 분류분 + 은행거래 계정과목 분류분을
 // 월별로 집계한다.
 
 export interface PLLineItem {
@@ -68,12 +68,14 @@ export async function buildMonthlyPL(
   if (ae) return { error: ae.message }
   const codeToId = new Map((accountList ?? []).map(a => [a.code as string, a.id as string]))
 
-  // 5. 월별·계정별 집계 맵 구성
-  const tiByAccMonth = new Map<string, Map<string, number>>()
+  // 5. 월별·계정별 집계 맵 구성 (세금계산서는 매입/매출 방향을 분리하여 집계)
+  const tiPurchaseByAccMonth = new Map<string, Map<string, number>>()
+  const tiSalesByAccMonth    = new Map<string, Map<string, number>>()
   for (const r of tiRows ?? []) {
     const accId = r.account_id as string
-    if (!tiByAccMonth.has(accId)) tiByAccMonth.set(accId, new Map())
-    tiByAccMonth.get(accId)!.set(r.month as string, (r.amount as number) || 0)
+    const map = r.direction === 'sales' ? tiSalesByAccMonth : tiPurchaseByAccMonth
+    if (!map.has(accId)) map.set(accId, new Map())
+    map.get(accId)!.set(r.month as string, (r.amount as number) || 0)
   }
 
   const txInByAccMonth  = new Map<string, Map<string, number>>()
@@ -87,17 +89,22 @@ export async function buildMonthlyPL(
   }
 
   // 6. 계정코드로 월별 합계 계산하는 헬퍼
-  const byCode = (code: string, source: 'ti' | 'tx_out' | 'tx_in' | 'both_out'): number[] => {
+  // ti: 매입세금계산서만 / both_out: 매입세금계산서+은행출금 (판관비)
+  // ti_sales: 매출세금계산서만 / both_in: 매출세금계산서+은행입금 (영업외수익)
+  type PLSource = 'ti' | 'tx_out' | 'tx_in' | 'both_out' | 'ti_sales' | 'both_in'
+  const byCode = (code: string, source: PLSource): number[] => {
     const id = codeToId.get(code)
     if (!id) return months.map(() => 0)
     return months.map(m => {
       let total = 0
       if (source === 'ti' || source === 'both_out')
-        total += tiByAccMonth.get(id)?.get(m) ?? 0
+        total += tiPurchaseByAccMonth.get(id)?.get(m) ?? 0
       if (source === 'tx_out' || source === 'both_out')
         total += txOutByAccMonth.get(id)?.get(m) ?? 0
-      if (source === 'tx_in')
+      if (source === 'tx_in' || source === 'both_in')
         total += txInByAccMonth.get(id)?.get(m) ?? 0
+      if (source === 'ti_sales' || source === 'both_in')
+        total += tiSalesByAccMonth.get(id)?.get(m) ?? 0
       return total
     })
   }
@@ -138,11 +145,12 @@ export async function buildMonthlyPL(
   // 9. 영업외 항목
   const nonOpIntIn   = byCode('4002', 'tx_in')
   const nonOpMiscIn  = byCode('4003', 'tx_in')
+  const nonOpRentIn  = byCode('4004', 'both_in')
   const nonOpIntOut  = byCode('5301', 'tx_out')
   const nonOpFinFee  = byCode('5302', 'tx_out')
   const nonOpMiscOut = byCode('5303', 'tx_out')
 
-  const nonOpIncome  = months.map((_, i) => nonOpIntIn[i] + nonOpMiscIn[i])
+  const nonOpIncome  = months.map((_, i) => nonOpIntIn[i] + nonOpMiscIn[i] + nonOpRentIn[i])
   const nonOpExpense = months.map((_, i) => nonOpIntOut[i] + nonOpFinFee[i] + nonOpMiscOut[i])
   const pretaxProfit = months.map((_, i) => operatingProfit[i] + nonOpIncome[i] - nonOpExpense[i])
   const tax          = months.map(() => 0)
@@ -172,6 +180,7 @@ export async function buildMonthlyPL(
     { key: 'non_op_in_header', label: '영업외수익',         is_placeholder: false, is_subtotal: false, is_section_header: true,  values: months.map(() => 0) },
     { key: 'non_op_int_in',    label: '이자수익',           is_placeholder: false, is_subtotal: false, is_section_header: false, values: nonOpIntIn },
     { key: 'non_op_misc_in',   label: '잡이익',             is_placeholder: false, is_subtotal: false, is_section_header: false, values: nonOpMiscIn },
+    { key: 'non_op_rent_in',   label: '임대료수익',         is_placeholder: false, is_subtotal: false, is_section_header: false, values: nonOpRentIn },
     { key: 'non_op_out_header',label: '영업외비용',         is_placeholder: false, is_subtotal: false, is_section_header: true,  values: months.map(() => 0) },
     { key: 'non_op_int_out',   label: '이자비용',           is_placeholder: false, is_subtotal: false, is_section_header: false, values: nonOpIntOut },
     { key: 'non_op_fin_fee',   label: '금융수수료',         is_placeholder: false, is_subtotal: false, is_section_header: false, values: nonOpFinFee },
