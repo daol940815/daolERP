@@ -35,6 +35,7 @@ export interface TaxInvoice {
   matched_transaction_id?: string | null
   payment_status: TaxInvoicePaymentStatus
   payment_memo?: string | null
+  confirmed_account_id?: string | null
   created_at: string
   updated_at: string
 }

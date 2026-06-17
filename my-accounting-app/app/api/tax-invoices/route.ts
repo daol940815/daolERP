@@ -8,6 +8,7 @@ const TAX_INVOICE_FIELDS = `
   vendor_id, counterparty_name, counterparty_biz_number,
   supply_amount, tax_amount, total_amount, item_name, note,
   matched_transaction_id, payment_status, payment_memo,
+  confirmed_account_id,
   created_at, updated_at
 `
 

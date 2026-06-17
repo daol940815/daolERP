@@ -9,6 +9,7 @@ interface PLLineItem {
   label: string
   is_placeholder: boolean
   is_subtotal: boolean
+  is_section_header: boolean
   values: number[]
 }
 
@@ -53,7 +54,7 @@ export default function MonthlyPLPage() {
       <div className="mb-1">
         <h1 className="text-2xl font-bold text-gray-900">월별 손익현황 (경영관리용)</h1>
         <p className="text-sm mt-1 text-gray-500">
-          ERP 매출/매출원가와 은행거래 비용분류 기준 운영비를 월별로 집계합니다.
+          ERP 매출/매출원가, 매입세금계산서·은행거래 계정과목 분류분을 월별로 집계합니다.
           법인카드 매입·급여·감가상각비는 자료 미보유로 &ldquo;미반영&rdquo;으로 표시됩니다.
         </p>
       </div>
@@ -85,7 +86,14 @@ export default function MonthlyPLPage() {
               </tr>
             </thead>
             <tbody>
-              {result.items.map(item => (
+              {result.items.map(item => item.is_section_header ? (
+                <tr key={item.key} className="border-b border-gray-200 bg-slate-100">
+                  <td className="py-1.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide sticky left-0 bg-slate-100">
+                    {item.label}
+                  </td>
+                  {result.months.map(m => <td key={m} className="bg-slate-100" />)}
+                </tr>
+              ) : (
                 <tr
                   key={item.key}
                   className={`border-b border-gray-100 ${item.is_subtotal ? 'bg-slate-50 font-medium text-gray-900' : 'text-gray-700'}`}

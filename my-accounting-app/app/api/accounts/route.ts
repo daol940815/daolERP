@@ -4,9 +4,12 @@ import { createAdminClient } from '@/lib/supabase-server'
 const ACCOUNT_FIELDS = 'id, name, code, type, keywords, is_active, side_on_in, side_on_out'
 
 // GET /api/accounts?all=true — 전체(비활성 포함) / 기본: 활성만
+// GET /api/accounts?type=expense — 특정 유형으로 필터링
 export async function GET(req: NextRequest) {
   const admin = createAdminClient()
-  const all = new URL(req.url).searchParams.get('all') === 'true'
+  const { searchParams } = new URL(req.url)
+  const all = searchParams.get('all') === 'true'
+  const typeFilter = searchParams.get('type')
 
   let query = admin
     .from('accounts')
@@ -15,6 +18,7 @@ export async function GET(req: NextRequest) {
     .order('code')
 
   if (!all) query = query.eq('is_active', true)
+  if (typeFilter) query = query.eq('type', typeFilter)
 
   const { data, error } = await query
 

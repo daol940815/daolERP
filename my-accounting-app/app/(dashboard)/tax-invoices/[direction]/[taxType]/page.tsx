@@ -178,6 +178,7 @@ export default function TaxInvoiceListPage() {
   const valid     = (direction === 'sales' || direction === 'purchase') && (taxType === 'taxable' || taxType === 'exempt')
 
   const [invoices, setInvoices]       = useState<TaxInvoice[]>([])
+  const [accounts, setAccounts]       = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading]         = useState(true)
   const [statusFilter, setStatusFilter] = useState<'all' | 'matched' | 'unmatched'>('all')
   const [uploading, setUploading]     = useState(false)
@@ -201,6 +202,14 @@ export default function TaxInvoiceListPage() {
   }, [valid, direction, taxType, statusFilter])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (direction !== 'purchase') return
+    fetch('/api/accounts?type=expense')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.data)) setAccounts(d.data) })
+      .catch(() => {/* ignore */})
+  }, [direction])
 
   const handleExport = useCallback(() => {
     setExporting(true)
@@ -271,6 +280,18 @@ export default function TaxInvoiceListPage() {
     })
     const json = await res.json()
     if (res.ok && json.data) setInvoices(prev => prev.map(x => x.id === inv.id ? json.data : x))
+  }
+
+  const handleAssignAccount = async (row: TaxInvoice, accountId: string) => {
+    const res = await fetch(`/api/tax-invoices/${row.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirmed_account_id: accountId || null }),
+    })
+    const json = await res.json()
+    if (res.ok && json.data) {
+      setInvoices(prev => prev.map(x => x.id === row.id ? json.data : x))
+    }
   }
 
   // ── 요약 통계 ────────────────────────────────────────────────────
@@ -376,6 +397,7 @@ export default function TaxInvoiceListPage() {
                 <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">공급가액</th>
                 <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">세액</th>
                 <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">합계금액</th>
+                {direction === 'purchase' && <th className="py-2.5 px-3 font-medium">계정과목</th>}
                 <th className="py-2.5 px-3 font-medium whitespace-nowrap">{direction === 'sales' ? '입금 확인' : '출금 확인'}</th>
                 <th className="py-2.5 px-3 font-medium whitespace-nowrap">매칭된 거래</th>
               </tr>
@@ -392,6 +414,22 @@ export default function TaxInvoiceListPage() {
                   <td className="py-2.5 px-3 text-right text-gray-600 whitespace-nowrap">{won(inv.supply_amount)}</td>
                   <td className="py-2.5 px-3 text-right text-gray-600 whitespace-nowrap">{won(inv.tax_amount)}</td>
                   <td className="py-2.5 px-3 text-right font-medium text-gray-900 whitespace-nowrap">{won(inv.total_amount)}</td>
+                  {direction === 'purchase' && (
+                    <td className="px-3 py-2">
+                      <select
+                        value={inv.confirmed_account_id ?? ''}
+                        onChange={e => handleAssignAccount(inv, e.target.value)}
+                        className={`text-xs border rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-slate-900 ${
+                          inv.confirmed_account_id
+                            ? 'border-gray-200 bg-white text-gray-700'
+                            : 'border-dashed border-gray-300 bg-gray-50 text-gray-400'
+                        }`}
+                      >
+                        <option value="">(미분류)</option>
+                        {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      </select>
+                    </td>
+                  )}
                   <td className="py-2.5 px-3">
                     <button
                       onClick={() => handleToggleStatus(inv)}

@@ -36,6 +36,17 @@ type ParsedRow = {
   note: string | null
 }
 
+function matchAccount(
+  text: string,
+  accounts: { id: string; keywords: string[] }[],
+): string | null {
+  const normalized = text.toLowerCase()
+  for (const acc of accounts) {
+    if ((acc.keywords ?? []).some(kw => kw && normalized.includes(kw.toLowerCase()))) return acc.id
+  }
+  return null
+}
+
 // POST /api/tax-invoices/import
 // multipart/form-data: file (홈택스 전자(세금)계산서 목록조회 XLS/XLSX 다운로드 파일)
 //                      direction = sales|purchase, taxType = taxable|exempt
@@ -137,6 +148,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '가져올 수 있는 데이터가 없습니다.', skipped }, { status: 400 })
   }
 
+  // ── 매입 계정과목 자동분류용 expense 계정 로드 ──────────────────────
+  let expenseAccounts: { id: string; keywords: string[] }[] = []
+  if (direction === 'purchase') {
+    const { data: accs } = await admin
+      .from('accounts')
+      .select('id, keywords')
+      .eq('type', 'expense')
+      .eq('is_active', true)
+      .order('code')
+    expenseAccounts = (accs ?? []).map(a => ({
+      id: a.id as string,
+      keywords: (a.keywords ?? []) as string[],
+    }))
+  }
+
   // ── 거래처 자동 매칭/등록 (사업자번호 우선, 없으면 상호명) ──────────
   const { data: vendors } = await admin.from('vendors').select('id, name, biz_number, type')
   const vendorByBiz  = new Map<string, { id: string; type: string }>()
@@ -180,24 +206,35 @@ export async function POST(req: NextRequest) {
     await admin.from('vendors').update({ type: 'both' }).in('id', Array.from(typeUpgrades))
   }
 
-  // 기존에 저장된 건의 vendor_id는 유지 (수동 보정값을 재업로드 시 덮어쓰지 않기 위함)
+  // 기존에 저장된 건의 vendor_id/confirmed_account_id는 유지 (수동 보정값을 재업로드 시 덮어쓰지 않기 위함)
   const { data: existingRows } = await admin
     .from('tax_invoices')
-    .select('approval_number, vendor_id')
+    .select('approval_number, vendor_id, confirmed_account_id')
     .in('approval_number', parsed.map(r => r.approval_number))
-  const existingVendorMap = new Map(
-    (existingRows ?? []).map(r => [r.approval_number as string, r.vendor_id as string | null]),
+  const existingMap = new Map(
+    (existingRows ?? []).map(r => [
+      r.approval_number as string,
+      { vendor_id: r.vendor_id as string | null, confirmed_account_id: r.confirmed_account_id as string | null },
+    ]),
   )
 
   // ── 세금계산서 upsert (승인번호 기준 — 재업로드 시 금액·날짜 등은 갱신, 매칭/확인 상태는 유지) ──
   const rowsToUpsert = parsed.map(row => {
-    const existingVendorId = existingVendorMap.get(row.approval_number)
-    if (existingVendorId !== undefined && existingVendorId !== null) {
-      return { ...row, vendor_id: existingVendorId }
+    const existing = existingMap.get(row.approval_number)
+
+    const vendorId = (existing?.vendor_id != null)
+      ? existing.vendor_id
+      : ((row.counterparty_biz_number ? vendorByBiz.get(row.counterparty_biz_number) : undefined)
+          ?? (row.counterparty_name ? vendorByName.get(row.counterparty_name.toLowerCase()) : undefined))?.id ?? null
+
+    // 기존에 계정과목이 이미 분류된 경우 유지; 새 건이면 키워드 자동분류 시도
+    let confirmedAccountId: string | null = existing?.confirmed_account_id ?? null
+    if (confirmedAccountId == null && direction === 'purchase' && expenseAccounts.length > 0) {
+      const searchText = [row.item_name, row.counterparty_name, row.note].filter(Boolean).join(' ')
+      confirmedAccountId = matchAccount(searchText, expenseAccounts)
     }
-    const vendorMatch = (row.counterparty_biz_number ? vendorByBiz.get(row.counterparty_biz_number) : undefined)
-      ?? (row.counterparty_name ? vendorByName.get(row.counterparty_name.toLowerCase()) : undefined)
-    return { ...row, vendor_id: vendorMatch?.id ?? null }
+
+    return { ...row, vendor_id: vendorId, confirmed_account_id: confirmedAccountId }
   })
 
   const { data: upserted, error } = await admin

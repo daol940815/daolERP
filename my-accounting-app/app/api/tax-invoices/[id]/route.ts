@@ -6,6 +6,7 @@ const TAX_INVOICE_FIELDS = `
   vendor_id, counterparty_name, counterparty_biz_number,
   supply_amount, tax_amount, total_amount, item_name, note,
   matched_transaction_id, payment_status, payment_memo,
+  confirmed_account_id,
   created_at, updated_at
 `
 
@@ -23,6 +24,7 @@ export async function PATCH(
     matched_transaction_id?: string | null
     payment_status?: 'matched' | 'unmatched'
     payment_memo?: string | null
+    confirmed_account_id?: string | null
   }
 
   const updates: Record<string, unknown> = {}
@@ -30,6 +32,7 @@ export async function PATCH(
   if ('matched_transaction_id' in body)  updates.matched_transaction_id = body.matched_transaction_id
   if ('payment_status' in body)          updates.payment_status         = body.payment_status
   if ('payment_memo' in body)            updates.payment_memo           = body.payment_memo?.trim() || null
+  if ('confirmed_account_id' in body)    updates.confirmed_account_id   = body.confirmed_account_id
 
   // 매칭 거래내역을 해제하면 결제 확인 상태도 자동으로 미확인으로 되돌림 (명시적으로 지정하지 않은 경우)
   if ('matched_transaction_id' in body && body.matched_transaction_id == null && !('payment_status' in body)) {
