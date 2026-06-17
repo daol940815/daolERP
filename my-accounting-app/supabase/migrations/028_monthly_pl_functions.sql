@@ -1,5 +1,8 @@
 -- 세금계산서 계정과목별 월별 합계 (confirmed_account_id 기준, 공급가액 기준)
 -- direction을 함께 반환하여 매입(판관비)·매출(영업외수익 등) 양방향 집계에 사용
+-- (기존 반환 타입에서 컬럼이 추가되어 CREATE OR REPLACE로는 변경 불가 → 먼저 DROP)
+DROP FUNCTION IF EXISTS monthly_pl_tax_invoice_summary(DATE, DATE);
+
 CREATE OR REPLACE FUNCTION monthly_pl_tax_invoice_summary(
   p_from DATE,
   p_to   DATE
