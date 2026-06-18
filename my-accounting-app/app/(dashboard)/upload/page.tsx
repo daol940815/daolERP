@@ -103,10 +103,7 @@ export default function UploadPage() {
       patchItem(item.id, { status: 'uploading' })
 
       try {
-        // 마이너스 통장: 업로드 직전 in/out 스왑
-        const rows = item.isMinusAccount
-          ? item.parseResult.rows.map(r => ({ ...r, amount_in: r.amount_out, amount_out: r.amount_in }))
-          : item.parseResult.rows
+        const rows = item.parseResult.rows
 
         const res = await fetch('/api/upload', {
           method: 'POST',

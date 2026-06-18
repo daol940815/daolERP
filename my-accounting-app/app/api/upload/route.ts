@@ -189,7 +189,7 @@ export async function POST(req: NextRequest) {
 }
 
 // 마이너스 통장 거래를 단기차입금(부채)으로 기본 분류
-// 입금(차입) → side_on_in(대변), 출금(상환) → side_on_out(차변)
+// 입금(상환, 부채 감소) → side_on_in, 출금(차입, 부채 증가) → side_on_out
 async function classifyAsBorrowing(
   admin: ReturnType<typeof createAdminClient>,
   uploadLogId: string,
@@ -210,26 +210,26 @@ async function classifyAsBorrowing(
   const sideIn  = account.side_on_in  ?? 'credit'
   const sideOut = account.side_on_out ?? 'debit'
 
-  // 입금(차입) 거래: amount_in > 0
+  // 입금(상환) 거래: amount_in > 0
   await admin
     .from('transactions')
     .update({
       suggested_account_id: account.id,
       suggested_side:       sideIn,
       ai_confidence:        0.9,
-      ai_reason:            '마이너스 통장 기본 분류(차입)',
+      ai_reason:            '마이너스 통장 기본 분류(상환)',
     })
     .eq('upload_log_id', uploadLogId)
     .gt('amount_in', 0)
 
-  // 출금(상환) 거래: amount_in = 0 이면서 amount_out > 0
+  // 출금(차입) 거래: amount_in = 0 이면서 amount_out > 0
   await admin
     .from('transactions')
     .update({
       suggested_account_id: account.id,
       suggested_side:       sideOut,
       ai_confidence:        0.9,
-      ai_reason:            '마이너스 통장 기본 분류(상환)',
+      ai_reason:            '마이너스 통장 기본 분류(차입)',
     })
     .eq('upload_log_id', uploadLogId)
     .eq('amount_in', 0)
