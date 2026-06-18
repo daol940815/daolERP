@@ -24,7 +24,14 @@ export async function GET(req: NextRequest) {
 
   let query = admin
     .from('tax_invoices')
-    .select('issue_date, direction, tax_type, counterparty_name, counterparty_biz_number, supply_amount, tax_amount, total_amount, item_name, approval_number, payment_status, note')
+    .select(`
+      issue_date, direction, tax_type, counterparty_name, counterparty_biz_number,
+      supply_amount, tax_amount, total_amount, item_name, approval_number, payment_status, note,
+      matched_transaction:transactions!matched_transaction_id (
+        account_alias,
+        bank_accounts ( bank_name, account_number, alias )
+      )
+    `)
     .order('issue_date', { ascending: false })
     .limit(50000)
 
@@ -38,20 +45,27 @@ export async function GET(req: NextRequest) {
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const rows = (data ?? []).map(r => ({
-    '작성일자':   r.issue_date,
-    '방향':       DIRECTION_LABEL[r.direction]    ?? r.direction,
-    '세금유형':   TAX_TYPE_LABEL[r.tax_type]      ?? r.tax_type,
-    '거래처명':   r.counterparty_name             ?? '',
-    '사업자번호': r.counterparty_biz_number       ?? '',
-    '공급가액':   r.supply_amount                 ?? 0,
-    '세액':       r.tax_amount                    ?? 0,
-    '합계금액':   r.total_amount                  ?? 0,
-    '품목':       r.item_name                     ?? '',
-    '승인번호':   r.approval_number               ?? '',
-    '확인상태':   STATUS_LABEL[r.payment_status]  ?? (r.payment_status ?? ''),
-    '메모':       r.note                          ?? '',
-  }))
+  const rows = (data ?? []).map(r => {
+    const tx  = r.matched_transaction as unknown as { account_alias: string | null; bank_accounts: { bank_name: string; account_number: string | null } | null } | null
+    const acc = tx?.bank_accounts
+    const matchedAccount = acc ? [acc.bank_name, acc.account_number].filter(Boolean).join(' ') : tx?.account_alias ?? ''
+
+    return {
+      '작성일자':   r.issue_date,
+      '방향':       DIRECTION_LABEL[r.direction]    ?? r.direction,
+      '세금유형':   TAX_TYPE_LABEL[r.tax_type]      ?? r.tax_type,
+      '거래처명':   r.counterparty_name             ?? '',
+      '사업자번호': r.counterparty_biz_number       ?? '',
+      '공급가액':   r.supply_amount                 ?? 0,
+      '세액':       r.tax_amount                    ?? 0,
+      '합계금액':   r.total_amount                  ?? 0,
+      '품목':       r.item_name                     ?? '',
+      '승인번호':   r.approval_number               ?? '',
+      '확인상태':   STATUS_LABEL[r.payment_status]  ?? (r.payment_status ?? ''),
+      '매칭계좌':   matchedAccount,
+      '메모':       r.note                          ?? '',
+    }
+  })
 
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.json_to_sheet(rows)
@@ -67,6 +81,7 @@ export async function GET(req: NextRequest) {
     { wch: 30 }, // 품목
     { wch: 36 }, // 승인번호
     { wch: 10 }, // 확인상태
+    { wch: 26 }, // 매칭계좌
     { wch: 30 }, // 메모
   ]
   const sheetLabel = direction ? `${DIRECTION_LABEL[direction] ?? direction}세금계산서` : '세금계산서'

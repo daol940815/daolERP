@@ -15,6 +15,17 @@ const TAX_TYPE_META: Record<string, string> = {
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
+// "매칭된 거래" 컬럼: 은행명 + 계좌번호(없으면 별칭/은행명만)
+function formatMatchedAccount(inv: TaxInvoice): string {
+  const tx = inv.matched_transaction
+  if (!tx) return '🔗 연결됨'
+  const acc = tx.bank_accounts
+  const accountLabel = acc
+    ? [acc.bank_name, acc.account_number].filter(Boolean).join(' ')
+    : tx.account_alias ?? '계좌 미상'
+  return `${accountLabel} · ${tx.tx_date} · ${won(tx.amount_in || tx.amount_out)}`
+}
+
 interface Candidate {
   id: string
   tx_date: string
@@ -444,10 +455,12 @@ export default function TaxInvoiceListPage() {
                   </td>
                   <td className="py-2.5 px-3 whitespace-nowrap">
                     {inv.matched_transaction_id ? (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-slate-600">🔗 연결됨</span>
-                        <button onClick={() => setMatchingInvoice(inv)} className="text-xs text-slate-500 hover:text-slate-900 underline">변경</button>
-                        <button onClick={() => handleUnlink(inv)} className="text-xs text-gray-400 hover:text-red-600 underline">해제</button>
+                      <div>
+                        <p className="text-xs text-slate-700">{formatMatchedAccount(inv)}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <button onClick={() => setMatchingInvoice(inv)} className="text-xs text-slate-500 hover:text-slate-900 underline">변경</button>
+                          <button onClick={() => handleUnlink(inv)} className="text-xs text-gray-400 hover:text-red-600 underline">해제</button>
+                        </div>
                       </div>
                     ) : (
                       <button onClick={() => setMatchingInvoice(inv)} className="text-xs text-slate-600 hover:text-slate-900 underline">매칭하기</button>

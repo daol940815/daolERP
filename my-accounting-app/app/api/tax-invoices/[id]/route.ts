@@ -7,7 +7,11 @@ const TAX_INVOICE_FIELDS = `
   supply_amount, tax_amount, total_amount, item_name, note,
   matched_transaction_id, payment_status, payment_memo,
   confirmed_account_id,
-  created_at, updated_at
+  created_at, updated_at,
+  matched_transaction:transactions!matched_transaction_id (
+    tx_date, amount_in, amount_out, account_alias,
+    bank_accounts ( bank_name, account_number, alias )
+  )
 `
 
 // PATCH /api/tax-invoices/:id

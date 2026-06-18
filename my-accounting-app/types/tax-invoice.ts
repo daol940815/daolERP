@@ -38,4 +38,11 @@ export interface TaxInvoice {
   confirmed_account_id?: string | null
   created_at: string
   updated_at: string
+  matched_transaction?: {
+    tx_date: string
+    amount_in: number
+    amount_out: number
+    account_alias: string | null
+    bank_accounts: { bank_name: string; account_number: string | null; alias: string | null } | null
+  } | null
 }
