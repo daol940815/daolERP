@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import type { TaxInvoice } from '@/types/tax-invoice'
 import SearchableSelect from '@/components/ui/SearchableSelect'
+import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
 
 const DIRECTION_META: Record<string, { label: string; sub: string; color: string }> = {
   sales:    { label: '매출 세금계산서', sub: '받을 돈 (입금 확인)', color: 'text-blue-700' },
@@ -193,6 +194,9 @@ export default function TaxInvoiceListPage() {
   const [accounts, setAccounts]       = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading]         = useState(true)
   const [statusFilter, setStatusFilter] = useState<'all' | 'matched' | 'unmatched'>('all')
+  const [dateFrom, setDateFrom]       = useState('')
+  const [dateTo, setDateTo]           = useState('')
+  const [search, setSearch]           = useState('')
   const [uploading, setUploading]     = useState(false)
   const [exporting, setExporting]     = useState(false)
   const [matching, setMatching]       = useState(false)
@@ -207,11 +211,13 @@ export default function TaxInvoiceListPage() {
     setLoading(true)
     const params = new URLSearchParams({ direction, taxType })
     if (statusFilter !== 'all') params.set('paymentStatus', statusFilter)
+    if (dateFrom) params.set('from', dateFrom)
+    if (dateTo)   params.set('to', dateTo)
     const res  = await fetch(`/api/tax-invoices?${params.toString()}`)
     const json = await res.json()
     if (Array.isArray(json.data)) setInvoices(json.data)
     setLoading(false)
-  }, [valid, direction, taxType, statusFilter])
+  }, [valid, direction, taxType, statusFilter, dateFrom, dateTo])
 
   useEffect(() => { load() }, [load])
 
@@ -228,11 +234,13 @@ export default function TaxInvoiceListPage() {
     setExporting(true)
     const p = new URLSearchParams({ direction, taxType })
     if (statusFilter !== 'all') p.set('paymentStatus', statusFilter)
+    if (dateFrom) p.set('from', dateFrom)
+    if (dateTo)   p.set('to', dateTo)
     const a = document.createElement('a')
     a.href = `/api/tax-invoices/export?${p}`
     a.click()
     setExporting(false)
-  }, [direction, taxType, statusFilter])
+  }, [direction, taxType, statusFilter, dateFrom, dateTo])
 
   if (!valid) {
     return <div className="text-center py-20 text-gray-400 text-sm">잘못된 경로입니다.</div>
@@ -307,9 +315,19 @@ export default function TaxInvoiceListPage() {
     }
   }
 
+  // ── 검색 (거래처명·품목·비고) ────────────────────────────────────
+  const q = search.trim().toLowerCase()
+  const filtered = q
+    ? invoices.filter(i =>
+        (i.counterparty_name ?? '').toLowerCase().includes(q)
+        || (i.item_name ?? '').toLowerCase().includes(q)
+        || (i.note ?? '').toLowerCase().includes(q),
+      )
+    : invoices
+
   // ── 요약 통계 ────────────────────────────────────────────────────
-  const totalAmt    = invoices.reduce((s, i) => s + (i.total_amount || 0), 0)
-  const matchedList = invoices.filter(i => i.payment_status === 'matched')
+  const totalAmt    = filtered.reduce((s, i) => s + (i.total_amount || 0), 0)
+  const matchedList = filtered.filter(i => i.payment_status === 'matched')
   const matchedAmt  = matchedList.reduce((s, i) => s + (i.total_amount || 0), 0)
   const remaining   = totalAmt - matchedAmt
 
@@ -362,7 +380,7 @@ export default function TaxInvoiceListPage() {
         <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
           <p className="text-xs text-gray-400 mb-1">발행 합계</p>
           <p className="text-lg font-bold text-gray-900">{won(totalAmt)}</p>
-          <p className="text-xs text-gray-400">{invoices.length}건</p>
+          <p className="text-xs text-gray-400">{filtered.length}건</p>
         </div>
         <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
           <p className="text-xs text-gray-400 mb-1">{direction === 'sales' ? '입금 확인' : '출금 확인'}</p>
@@ -372,33 +390,66 @@ export default function TaxInvoiceListPage() {
         <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
           <p className="text-xs text-gray-400 mb-1">{direction === 'sales' ? '미수 잔액' : '미지급 잔액'}</p>
           <p className={`text-lg font-bold ${remaining > 0 ? 'text-red-600' : 'text-gray-400'}`}>{won(remaining)}</p>
-          <p className="text-xs text-gray-400">{invoices.length - matchedList.length}건</p>
+          <p className="text-xs text-gray-400">{filtered.length - matchedList.length}건</p>
         </div>
       </div>
 
-      {/* 상태 필터 */}
-      <div className="flex gap-1 mb-4">
-        {[
-          { key: 'all', label: '전체' },
-          { key: 'matched', label: '확인됨' },
-          { key: 'unmatched', label: '미확인' },
-        ].map(tab => (
+      {/* 기간 빠른 선택 */}
+      <div className="flex flex-wrap items-center gap-1 mb-2">
+        {PERIOD_PRESETS.map(p => (
           <button
-            key={tab.key}
-            onClick={() => setStatusFilter(tab.key as typeof statusFilter)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              statusFilter === tab.key ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+            key={p}
+            onClick={() => { const r = getPeriodRange(p); setDateFrom(r.from); setDateTo(r.to) }}
+            className="px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-slate-100 hover:border-slate-400 transition-colors"
           >
-            {tab.label}
+            {p}
           </button>
         ))}
+        {(dateFrom || dateTo) && (
+          <button onClick={() => { setDateFrom(''); setDateTo('') }} className="px-2.5 py-1 text-xs text-gray-400 hover:text-gray-600">
+            ✕ 전체 기간
+          </button>
+        )}
+      </div>
+
+      {/* 필터: 기간 · 검색 · 확인 상태 */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        <span className="text-gray-400 text-sm">~</span>
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="거래처명·품목·비고 검색"
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-slate-900"
+        />
+        <div className="flex gap-1">
+          {[
+            { key: 'all', label: '전체' },
+            { key: 'matched', label: '확인됨' },
+            { key: 'unmatched', label: '미확인' },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setStatusFilter(tab.key as typeof statusFilter)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                statusFilter === tab.key ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
         <div className="text-center py-20 text-gray-400">로딩 중...</div>
       ) : invoices.length === 0 ? (
         <div className="text-center py-20 text-gray-400 text-sm">등록된 세금계산서가 없습니다. 홈택스 파일을 업로드해주세요.</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-20 text-gray-400 text-sm">검색 결과가 없습니다.</div>
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
@@ -416,7 +467,7 @@ export default function TaxInvoiceListPage() {
               </tr>
             </thead>
             <tbody>
-              {invoices.map(inv => (
+              {filtered.map(inv => (
                 <tr key={inv.id} className="border-b border-gray-100 hover:bg-gray-50 align-top">
                   <td className="py-2.5 px-3 whitespace-nowrap text-gray-600">{inv.issue_date}</td>
                   <td className="py-2.5 px-3 min-w-0">
