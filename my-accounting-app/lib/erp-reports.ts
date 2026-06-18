@@ -2,6 +2,27 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ErpReceivableRow, ErpPayableRow, ErpPaymentTerm, ErpAgingRow, AgingBuckets } from '@/types/erp'
 import { isMissingMatchTable } from '@/lib/erp-matching'
 
+const PAGE_SIZE = 1000
+
+// Supabase 프로젝트의 PostgREST 설정(max-rows, 기본 1000)을 넘는 .limit() 요청은
+// 서버가 조용히 잘라서 반환한다 — 데이터가 늘어나면 큰 .limit() 한 번으로는 전체를
+// 못 읽어와 합계가 실제보다 적게 집계되는 문제가 생긴다. range()로 페이지를 나눠
+// 끝까지 읽어와야 안전하다.
+async function fetchAllRows<T>(
+  buildPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<{ data: T[] } | { error: string }> {
+  const rows: T[] = []
+  let from = 0
+  while (true) {
+    const { data, error } = await buildPage(from, from + PAGE_SIZE - 1)
+    if (error) return { error: error.message }
+    rows.push(...(data ?? []))
+    if (!data || data.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+  return { data: rows }
+}
+
 // ── 매출처(은행·지점)별 미수금 현황 집계 ──────────────
 // 취소/VIP/선결제 품목은 순매출에서 제외, 미수금은 ERP 주문 단위 값 사용
 // staff(다올직원) 지정 시 해당 직원이 담당자로 기재된 주문만 집계
@@ -11,15 +32,17 @@ export async function buildReceivableRows(
   to: string | null,
   staff?: string | null,
 ): Promise<{ rows: ErpReceivableRow[]; staffNames: string[] } | { error: string }> {
-  let oq = admin
-    .from('erp_orders')
-    .select('id, customer_alias_id, bank_name, branch_name, total_amount, outstanding_amount, collect_status, staff_name')
-    .limit(50000)
-  if (from) oq = oq.gte('order_date', from)
-  if (to)   oq = oq.lte('order_date', to)
-
-  const { data: allOrders, error: oe } = await oq
-  if (oe) return { error: oe.message }
+  const ordersResult = await fetchAllRows((rFrom, rTo) => {
+    let oq = admin
+      .from('erp_orders')
+      .select('id, customer_alias_id, bank_name, branch_name, total_amount, outstanding_amount, collect_status, staff_name')
+      .range(rFrom, rTo)
+    if (from) oq = oq.gte('order_date', from)
+    if (to)   oq = oq.lte('order_date', to)
+    return oq
+  })
+  if ('error' in ordersResult) return { error: ordersResult.error }
+  const allOrders = ordersResult.data
 
   // 기간 내 전체 담당직원 목록 (필터 드롭다운용)
   const staffSet = new Set<string>()
@@ -136,19 +159,21 @@ export async function buildPayableRows(
   monthFrom: string | null,  // 'YYYY-MM'
   monthTo: string | null,
 ): Promise<{ rows: ErpPayableRow[] } | { error: string }> {
-  let iq = admin
-    .from('erp_order_items')
-    .select('purchase_alias_id, purchase_vendor_name, purchase_total, settlement_month')
-    .eq('is_canceled', false)
-    .eq('is_vip', false)
-    .eq('is_prepayment', false)
-    .not('purchase_alias_id', 'is', null)
-    .limit(100000)
-  if (monthFrom) iq = iq.gte('settlement_month', monthFrom)
-  if (monthTo)   iq = iq.lte('settlement_month', monthTo)
-
-  const { data: items, error: ie } = await iq
-  if (ie) return { error: ie.message }
+  const itemsResult = await fetchAllRows((rFrom, rTo) => {
+    let iq = admin
+      .from('erp_order_items')
+      .select('purchase_alias_id, purchase_vendor_name, purchase_total, settlement_month')
+      .eq('is_canceled', false)
+      .eq('is_vip', false)
+      .eq('is_prepayment', false)
+      .not('purchase_alias_id', 'is', null)
+      .range(rFrom, rTo)
+    if (monthFrom) iq = iq.gte('settlement_month', monthFrom)
+    if (monthTo)   iq = iq.lte('settlement_month', monthTo)
+    return iq
+  })
+  if ('error' in itemsResult) return { error: itemsResult.error }
+  const items = itemsResult.data
 
   const { data: aliases, error: ae } = await admin
     .from('erp_vendor_aliases')
@@ -257,14 +282,17 @@ export async function buildReceivableAgingRows(
 ): Promise<{ rows: ErpAgingRow[]; total: AgingBuckets; as_of: string } | { error: string }> {
   const asOf = asOfDate ?? new Date().toISOString().slice(0, 10)
 
-  const { data: orders, error: oe } = await admin
-    .from('erp_orders')
-    .select('id, customer_alias_id, bank_name, branch_name, order_date, outstanding_amount, collect_status')
-    .neq('collect_status', 'collected')
-    .gt('outstanding_amount', 0)
-    .lte('order_date', asOf)
-    .limit(50000)
-  if (oe) return { error: oe.message }
+  const ordersResult = await fetchAllRows((rFrom, rTo) =>
+    admin
+      .from('erp_orders')
+      .select('id, customer_alias_id, bank_name, branch_name, order_date, outstanding_amount, collect_status')
+      .neq('collect_status', 'collected')
+      .gt('outstanding_amount', 0)
+      .lte('order_date', asOf)
+      .range(rFrom, rTo)
+  )
+  if ('error' in ordersResult) return { error: ordersResult.error }
+  const orders = ordersResult.data
 
   const orderIds = (orders ?? []).map(o => o.id as string)
 
