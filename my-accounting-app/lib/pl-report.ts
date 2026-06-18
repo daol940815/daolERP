@@ -145,7 +145,7 @@ export async function buildMonthlyPL(
   // 9. 영업외 항목
   const nonOpIntIn   = byCode('4002', 'tx_in')
   const nonOpMiscIn  = byCode('4003', 'tx_in')
-  const nonOpRentIn  = byCode('4004', 'both_in')
+  const nonOpRentIn  = byCode('4005', 'both_in')
   const nonOpIntOut  = byCode('5301', 'tx_out')
   const nonOpFinFee  = byCode('5302', 'tx_out')
   const nonOpMiscOut = byCode('5303', 'tx_out')
