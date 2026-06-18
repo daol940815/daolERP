@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { TAX_INVOICE_SELECT, addInvoicePayment } from '@/lib/tax-invoice-payments.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -94,22 +95,25 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: '계산서 목록과 거래내역이 필요합니다.' }, { status: 400 })
   }
 
+  const { data: invoices, error: invErr } = await admin
+    .from('tax_invoices')
+    .select('id, total_amount')
+    .in('id', invoiceIds)
+
+  if (invErr) return NextResponse.json({ error: invErr.message }, { status: 500 })
+  if (!invoices || invoices.length !== invoiceIds.length) {
+    return NextResponse.json({ error: '일부 계산서를 찾을 수 없습니다.' }, { status: 404 })
+  }
+
+  for (const inv of invoices) {
+    const result = await addInvoicePayment(admin, inv.id as string, transactionId, inv.total_amount as number)
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
+  }
+
   const { data, error } = await admin
     .from('tax_invoices')
-    .update({ matched_transaction_id: transactionId, payment_status: 'matched' })
+    .select(TAX_INVOICE_SELECT)
     .in('id', invoiceIds)
-    .select(`
-      id, approval_number, issue_date, direction, tax_type,
-      vendor_id, counterparty_name, counterparty_biz_number,
-      supply_amount, tax_amount, total_amount, item_name, note,
-      matched_transaction_id, payment_status, payment_memo,
-      confirmed_account_id,
-      created_at, updated_at,
-      matched_transaction:transactions!matched_transaction_id (
-        tx_date, amount_in, amount_out, account_alias,
-        bank_accounts ( bank_name, account_number, alias )
-      )
-    `)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

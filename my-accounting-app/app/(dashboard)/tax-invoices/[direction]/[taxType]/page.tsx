@@ -17,15 +17,22 @@ const TAX_TYPE_META: Record<string, string> = {
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
-// "매칭된 거래" 컬럼: 은행명 + 계좌번호(없으면 별칭/은행명만)
+// "매칭된 거래" 컬럼: 연결 1건이면 계좌·일자·금액, 분할/합산 연결이면 누적 진행률
 function formatMatchedAccount(inv: TaxInvoice): string {
-  const tx = inv.matched_transaction
-  if (!tx) return '🔗 연결됨'
-  const acc = tx.bank_accounts
-  const accountLabel = acc
-    ? [acc.bank_name, acc.account_number].filter(Boolean).join(' ')
-    : tx.account_alias ?? '계좌 미상'
-  return `${accountLabel} · ${tx.tx_date} · ${won(tx.amount_in || tx.amount_out)}`
+  const payments = inv.payments ?? []
+  if (payments.length === 0) return ''
+  if (payments.length === 1) {
+    const p  = payments[0]
+    const tx = p.transaction
+    if (!tx) return won(p.amount)
+    const acc = tx.bank_accounts
+    const accountLabel = acc
+      ? [acc.bank_name, acc.account_number].filter(Boolean).join(' ')
+      : tx.account_alias ?? '계좌 미상'
+    return `${accountLabel} · ${tx.tx_date} · ${won(p.amount)}`
+  }
+  const paidTotal = payments.reduce((s, p) => s + p.amount, 0)
+  return `${won(paidTotal)} / ${won(inv.total_amount)} (${payments.length}건)`
 }
 
 interface Candidate {
@@ -46,11 +53,22 @@ function MatchPickerModal({
   onClose: () => void
   onMatched: (inv: TaxInvoice) => void
 }) {
+  const [currentInvoice, setCurrentInvoice] = useState<TaxInvoice>(invoice)
   const [candidates, setCandidates] = useState<Candidate[] | null>(null)
-  const [picking, setPicking]       = useState<string | null>(null)
   const [aliasPrompt, setAliasPrompt] = useState<{ matched: TaxInvoice; suggestion: string } | null>(null)
   const [aliasInput, setAliasInput]   = useState('')
   const [savingAlias, setSavingAlias] = useState(false)
+
+  // 금액 연결 전 확인 단계 (분할/합산 결제를 위해, 후보 금액 그대로가 아니라 직접 지정한 금액만큼만 연결)
+  const [confirmTarget, setConfirmTarget] = useState<{ txId: string; label: string; suggestion: string } | null>(null)
+  const [confirmAmount, setConfirmAmount] = useState('')
+  const [linking, setLinking]             = useState(false)
+  const [linkError, setLinkError]         = useState<string | null>(null)
+  const [removingId, setRemovingId]       = useState<string | null>(null)
+
+  const payments   = currentInvoice.payments ?? []
+  const paidTotal  = payments.reduce((s, p) => s + p.amount, 0)
+  const remaining  = currentInvoice.total_amount - paidTotal
 
   // 금액이 정확히 일치하지 않는 경우(합계 입금, 수수료 차감 등)를 위한 수동 검색
   const issueOffset = (days: number) => {
@@ -95,25 +113,60 @@ function MatchPickerModal({
     setManualResults(results)
   }
 
-  const handlePick = async (txId: string, suggestion: string) => {
-    setPicking(txId)
-    const res = await fetch(`/api/tax-invoices/${invoice.id}`, {
-      method: 'PATCH',
+  const openConfirm = (c: Candidate) => {
+    const candidateAmount = c.amount_in || c.amount_out
+    const defaultAmount   = remaining > 0 ? Math.min(remaining, candidateAmount) : candidateAmount
+    setLinkError(null)
+    setConfirmAmount(String(defaultAmount))
+    setConfirmTarget({ txId: c.id, label: `${c.description} · ${c.tx_date}`, suggestion: (c.counterparty_name ?? c.description).trim() })
+  }
+
+  const handleConfirmLink = async () => {
+    if (!confirmTarget) return
+    const amount = Number(confirmAmount)
+    if (!Number.isFinite(amount) || amount <= 0) { setLinkError('연결할 금액을 올바르게 입력하세요.'); return }
+
+    setLinking(true)
+    const res = await fetch(`/api/tax-invoices/${invoice.id}/payments`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ matched_transaction_id: txId }),
+      body: JSON.stringify({ transactionId: confirmTarget.txId, amount }),
     })
     const json = await res.json()
-    setPicking(null)
-    if (!res.ok || !json.data) return
+    setLinking(false)
+    if (!res.ok || !json.data) { setLinkError(json.error ?? '연결에 실패했습니다.'); return }
 
-    const matched: TaxInvoice = json.data
-    if (matched.vendor_id) {
-      setAliasInput(suggestion.trim())
-      setAliasPrompt({ matched, suggestion: suggestion.trim() })
-      return
+    const updated: TaxInvoice = json.data
+    setCurrentInvoice(updated)
+    onMatched(updated)
+
+    const suggestion = confirmTarget.suggestion
+    setConfirmTarget(null)
+    setConfirmAmount('')
+
+    if (updated.payment_status === 'matched') {
+      if (updated.vendor_id) {
+        setAliasInput(suggestion)
+        setAliasPrompt({ matched: updated, suggestion })
+        return
+      }
+      onClose()
     }
-    onMatched(matched)
-    onClose()
+  }
+
+  const handleRemovePayment = async (paymentId: string) => {
+    setRemovingId(paymentId)
+    const res = await fetch(`/api/tax-invoices/${invoice.id}/payments`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentId }),
+    })
+    const json = await res.json()
+    setRemovingId(null)
+    if (res.ok && json.data) {
+      setCurrentInvoice(json.data)
+      onMatched(json.data)
+    }
   }
 
   const handleSaveAlias = async () => {
@@ -141,6 +194,44 @@ function MatchPickerModal({
     if (!aliasPrompt) return
     onMatched(aliasPrompt.matched)
     onClose()
+  }
+
+  if (confirmTarget) {
+    return (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+        <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+          <h2 className="text-lg font-bold text-gray-900 mb-1">연결할 금액 확인</h2>
+          <p className="text-sm text-gray-500 mb-4">{confirmTarget.label}</p>
+          <label className="block text-xs text-gray-500 mb-1">이 계산서에 연결할 금액</label>
+          <input
+            type="number"
+            autoFocus
+            value={confirmAmount}
+            onChange={e => setConfirmAmount(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+          />
+          <p className="text-xs text-gray-400 mt-1.5">
+            합계금액 {won(currentInvoice.total_amount)} · 남은 금액 {won(remaining)}
+          </p>
+          {linkError && <p className="text-xs text-red-500 mt-1.5">{linkError}</p>}
+          <div className="flex gap-2 mt-5">
+            <button
+              onClick={() => { setConfirmTarget(null); setLinkError(null) }}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+            >
+              취소
+            </button>
+            <button
+              onClick={handleConfirmLink}
+              disabled={linking}
+              className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50"
+            >
+              {linking ? '연결 중...' : '연결'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (aliasPrompt) {
@@ -178,8 +269,39 @@ function MatchPickerModal({
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <h2 className="text-lg font-bold text-gray-900 mb-1">거래내역 매칭</h2>
         <p className="text-sm text-gray-500 mb-4">
-          {invoice.counterparty_name ?? '거래처 미상'} · {won(invoice.total_amount)} · {invoice.issue_date}
+          {invoice.counterparty_name ?? '거래처 미상'} · {won(currentInvoice.total_amount)} · {invoice.issue_date}
         </p>
+
+        {payments.length > 0 && (
+          <div className="mb-4 border border-gray-200 rounded-lg p-3 bg-gray-50">
+            <p className="text-xs text-gray-500 mb-2">
+              연결된 결제 내역 · {won(paidTotal)} / {won(currentInvoice.total_amount)}
+            </p>
+            <div className="space-y-1">
+              {payments.map(p => (
+                <div key={p.id} className="flex items-center justify-between text-xs bg-white border border-gray-200 rounded px-2 py-1.5 gap-2">
+                  <span className="truncate text-gray-700">
+                    {p.transaction?.tx_date ?? '-'} · {p.transaction?.description ?? '-'}
+                  </span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    <span className="font-medium text-gray-900">{won(p.amount)}</span>
+                    <button
+                      onClick={() => handleRemovePayment(p.id)}
+                      disabled={removingId !== null}
+                      className="text-gray-400 hover:text-red-600 underline disabled:opacity-50"
+                    >
+                      {removingId === p.id ? '해제 중...' : '해제'}
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </div>
+            {remaining > 0 && (
+              <p className="text-xs text-amber-600 mt-2">남은 금액 {won(remaining)}을 추가로 연결해야 확인 완료됩니다.</p>
+            )}
+          </div>
+        )}
+
         <p className="text-xs text-gray-400 mb-3">
           금액이 일치하는 거래내역 중 사업자번호·거래처명이 일치하는 항목을 우선 표시합니다.
         </p>
@@ -192,9 +314,8 @@ function MatchPickerModal({
             {candidates.map(c => (
               <button
                 key={c.id}
-                onClick={() => handlePick(c.id, c.counterparty_name ?? c.description)}
-                disabled={picking !== null}
-                className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3 disabled:opacity-50"
+                onClick={() => openConfirm(c)}
+                className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3"
               >
                 <div className="min-w-0">
                   <p className="text-gray-900 truncate">{c.description}</p>
@@ -203,9 +324,7 @@ function MatchPickerModal({
                     {c.counterparty_name ? ` · 보낸분/받는분: ${c.counterparty_name}` : ''}
                   </p>
                 </div>
-                <span className="font-medium text-gray-900 shrink-0">
-                  {picking === c.id ? '연결 중...' : won(c.amount_in || c.amount_out)}
-                </span>
+                <span className="font-medium text-gray-900 shrink-0">{won(c.amount_in || c.amount_out)}</span>
               </button>
             ))}
           </div>
@@ -245,9 +364,8 @@ function MatchPickerModal({
                     {manualResults.map(c => (
                       <button
                         key={c.id}
-                        onClick={() => handlePick(c.id, c.counterparty_name ?? c.description)}
-                        disabled={picking !== null}
-                        className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3 disabled:opacity-50"
+                        onClick={() => openConfirm(c)}
+                        className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3"
                       >
                         <div className="min-w-0">
                           <p className="text-gray-900 truncate">{c.description}</p>
@@ -256,9 +374,7 @@ function MatchPickerModal({
                             {c.counterparty_name ? ` · 보낸분/받는분: ${c.counterparty_name}` : ''}
                           </p>
                         </div>
-                        <span className="font-medium text-gray-900 shrink-0">
-                          {picking === c.id ? '연결 중...' : won(c.amount_in || c.amount_out)}
-                        </span>
+                        <span className="font-medium text-gray-900 shrink-0">{won(c.amount_in || c.amount_out)}</span>
                       </button>
                     ))}
                   </div>
@@ -480,10 +596,10 @@ export default function TaxInvoiceListPage() {
   }
 
   const handleUnlink = async (inv: TaxInvoice) => {
-    const res  = await fetch(`/api/tax-invoices/${inv.id}`, {
-      method: 'PATCH',
+    const res  = await fetch(`/api/tax-invoices/${inv.id}/payments`, {
+      method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ matched_transaction_id: null }),
+      body: JSON.stringify({}),
     })
     const json = await res.json()
     if (res.ok && json.data) setInvoices(prev => prev.map(x => x.id === inv.id ? json.data : x))

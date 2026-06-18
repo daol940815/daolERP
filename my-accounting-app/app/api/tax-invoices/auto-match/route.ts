@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { addInvoicePayment } from '@/lib/tax-invoice-payments.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +22,17 @@ export async function POST(req: NextRequest) {
   const { data: invoices, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // 이미 부분/분할 결제가 연결된 계산서는 자동매칭이 건너뛰고 수동(직접 찾기)으로 처리
+  const invoiceIds = (invoices ?? []).map(inv => inv.id as string)
+  const partiallyPaidIds = new Set<string>()
+  if (invoiceIds.length) {
+    const { data: existingPayments } = await admin
+      .from('tax_invoice_payments')
+      .select('tax_invoice_id')
+      .in('tax_invoice_id', invoiceIds)
+    for (const p of existingPayments ?? []) partiallyPaidIds.add(p.tax_invoice_id as string)
+  }
+
   // 매칭된 거래처들의 학습된 별칭(입금자명 등)을 한 번에 조회해 N+1 쿼리 방지
   const vendorIds = Array.from(new Set((invoices ?? []).map(inv => inv.vendor_id).filter((v): v is string => !!v)))
   const aliasMap = new Map<string, string[]>()
@@ -36,6 +48,8 @@ export async function POST(req: NextRequest) {
 
   let matched = 0
   for (const inv of invoices ?? []) {
+    if (partiallyPaidIds.has(inv.id as string)) continue
+
     const amountCol = inv.direction === 'sales' ? 'amount_in' : 'amount_out'
     const { data: txs } = await admin
       .from('transactions')
@@ -59,10 +73,8 @@ export async function POST(req: NextRequest) {
     })
 
     if (candidates.length === 1) {
-      await admin.from('tax_invoices')
-        .update({ matched_transaction_id: candidates[0].id, payment_status: 'matched' })
-        .eq('id', inv.id)
-      matched++
+      const result = await addInvoicePayment(admin, inv.id as string, candidates[0].id as string, inv.total_amount as number)
+      if (result.ok) matched++
     }
   }
 

@@ -1,20 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { TAX_INVOICE_SELECT } from '@/lib/tax-invoice-payments.server'
 
 export const dynamic = 'force-dynamic'
-
-const TAX_INVOICE_FIELDS = `
-  id, approval_number, issue_date, direction, tax_type,
-  vendor_id, counterparty_name, counterparty_biz_number,
-  supply_amount, tax_amount, total_amount, item_name, note,
-  matched_transaction_id, payment_status, payment_memo,
-  confirmed_account_id,
-  created_at, updated_at,
-  matched_transaction:transactions!matched_transaction_id (
-    tx_date, amount_in, amount_out, account_alias,
-    bank_accounts ( bank_name, account_number, alias )
-  )
-`
 
 // GET /api/tax-invoices?direction=sales|purchase&taxType=taxable|exempt
 //                       &vendorId=...&paymentStatus=matched|unmatched&from=&to=&limit=
@@ -32,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   let query = admin
     .from('tax_invoices')
-    .select(TAX_INVOICE_FIELDS)
+    .select(TAX_INVOICE_SELECT)
     .order('issue_date', { ascending: false })
     .limit(limit)
 

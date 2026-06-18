@@ -47,4 +47,21 @@ export interface TaxInvoice {
     account_alias: string | null
     bank_accounts: { bank_name: string; account_number: string | null; alias: string | null } | null
   } | null
+  payments?: TaxInvoicePayment[]
+}
+
+export interface TaxInvoicePayment {
+  id: string
+  amount: number
+  transaction_id: string
+  created_at: string
+  transaction?: {
+    tx_date: string
+    description: string | null
+    counterparty_name: string | null
+    amount_in: number
+    amount_out: number
+    account_alias: string | null
+    bank_accounts: { bank_name: string; account_number: string | null; alias: string | null } | null
+  } | null
 }

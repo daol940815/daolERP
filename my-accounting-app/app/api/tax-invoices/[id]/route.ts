@@ -1,22 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
-
-const TAX_INVOICE_FIELDS = `
-  id, approval_number, issue_date, direction, tax_type,
-  vendor_id, counterparty_name, counterparty_biz_number,
-  supply_amount, tax_amount, total_amount, item_name, note,
-  matched_transaction_id, payment_status, payment_memo,
-  confirmed_account_id,
-  created_at, updated_at,
-  matched_transaction:transactions!matched_transaction_id (
-    tx_date, amount_in, amount_out, account_alias,
-    bank_accounts ( bank_name, account_number, alias )
-  )
-`
+import { TAX_INVOICE_SELECT } from '@/lib/tax-invoice-payments.server'
 
 // PATCH /api/tax-invoices/:id
-// 허용 필드: vendor_id, matched_transaction_id, payment_status, payment_memo
-// (입금/출금 확인 여부는 자동 매칭 외에도 수동으로 변경 가능)
+// 허용 필드: vendor_id, payment_status, payment_memo, confirmed_account_id
+// (거래내역 연결/해제는 /api/tax-invoices/:id/payments 에서 처리 — 분할/합산 결제 추적을 위해 분리됨)
+// payment_status는 거래내역 연결과 무관하게 수동으로 확인/미확인 전환할 때 사용 (예: 현금결제 등)
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -25,7 +14,6 @@ export async function PATCH(
   const { id } = await params
   const body = await req.json() as {
     vendor_id?: string | null
-    matched_transaction_id?: string | null
     payment_status?: 'matched' | 'unmatched'
     payment_memo?: string | null
     confirmed_account_id?: string | null
@@ -33,19 +21,9 @@ export async function PATCH(
 
   const updates: Record<string, unknown> = {}
   if ('vendor_id' in body)               updates.vendor_id              = body.vendor_id
-  if ('matched_transaction_id' in body)  updates.matched_transaction_id = body.matched_transaction_id
   if ('payment_status' in body)          updates.payment_status         = body.payment_status
   if ('payment_memo' in body)            updates.payment_memo           = body.payment_memo?.trim() || null
   if ('confirmed_account_id' in body)    updates.confirmed_account_id   = body.confirmed_account_id
-
-  // 매칭 거래내역을 해제하면 결제 확인 상태도 자동으로 미확인으로 되돌림 (명시적으로 지정하지 않은 경우)
-  if ('matched_transaction_id' in body && body.matched_transaction_id == null && !('payment_status' in body)) {
-    updates.payment_status = 'unmatched'
-  }
-  // 매칭 거래내역을 새로 지정하면 결제 확인 상태도 자동으로 확인됨으로 전환 (명시적으로 지정하지 않은 경우)
-  if ('matched_transaction_id' in body && body.matched_transaction_id != null && !('payment_status' in body)) {
-    updates.payment_status = 'matched'
-  }
 
   if (!Object.keys(updates).length) {
     return NextResponse.json({ error: '업데이트할 항목이 없습니다.' }, { status: 400 })
@@ -55,7 +33,7 @@ export async function PATCH(
     .from('tax_invoices')
     .update(updates)
     .eq('id', id)
-    .select(TAX_INVOICE_FIELDS)
+    .select(TAX_INVOICE_SELECT)
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
