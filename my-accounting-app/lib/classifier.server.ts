@@ -66,30 +66,34 @@ export async function classifyByKeywords(
 
     const descLower = (tx.description as string).toLowerCase()
 
+    // 계정 등록 순서가 아니라, 매칭되는 키워드 중 가장 긴(구체적인) 것을 우선 채택
+    // — 짧은 범용 키워드가 더 구체적인 키워드보다 먼저 등록돼 있어도 오분류되지 않도록 함
+    let best: { account: typeof accountsWithKw[number]; keyword: string } | null = null
     for (const account of accountsWithKw) {
-      const matched = (account.keywords as string[]).find((kw: string) =>
-        descLower.includes(kw.toLowerCase()),
-      )
-
-      if (matched) {
-        // Step 2: 계정별 방향 규칙으로 차변/대변 결정
-        const isInflow = (tx.amount_in ?? 0) > 0
-        const side = isInflow
-          ? (account.side_on_in  ?? 'credit')   // 입금 시 방향 (기본: 대변)
-          : (account.side_on_out ?? 'debit')     // 출금 시 방향 (기본: 차변)
-
-        await admin
-          .from('transactions')
-          .update({
-            suggested_account_id: account.id,
-            suggested_side:       side,
-            ai_confidence:        0.8,
-            ai_reason:            `키워드 매칭: "${matched}"`,
-          })
-          .eq('id', tx.id)
-        classified++
-        break
+      for (const kw of account.keywords as string[]) {
+        if (descLower.includes(kw.toLowerCase()) && (!best || kw.length > best.keyword.length)) {
+          best = { account, keyword: kw }
+        }
       }
+    }
+
+    if (best) {
+      // Step 2: 계정별 방향 규칙으로 차변/대변 결정
+      const isInflow = (tx.amount_in ?? 0) > 0
+      const side = isInflow
+        ? (best.account.side_on_in  ?? 'credit')   // 입금 시 방향 (기본: 대변)
+        : (best.account.side_on_out ?? 'debit')     // 출금 시 방향 (기본: 차변)
+
+      await admin
+        .from('transactions')
+        .update({
+          suggested_account_id: best.account.id,
+          suggested_side:       side,
+          ai_confidence:        0.8,
+          ai_reason:            `키워드 매칭: "${best.keyword}"`,
+        })
+        .eq('id', tx.id)
+      classified++
     }
   }
 

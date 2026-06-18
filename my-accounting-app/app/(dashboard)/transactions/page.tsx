@@ -131,6 +131,7 @@ function TransactionsContent() {
     vendorId: vendorIdParam,
   })
   const [toast, setToast]         = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
+  const [keywordPrompt, setKeywordPrompt] = useState<{ accountId: string; accountName: string; keyword: string } | null>(null)
 
   // 토스트 메시지 (3초 후 자동 닫힘)
   const showToast = useCallback((msg: string, type: 'ok' | 'err' = 'ok') => {
@@ -237,8 +238,41 @@ function TransactionsContent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
-    if (!res.ok) showToast('저장 실패', 'err')
-  }, [showToast])
+    if (!res.ok) { showToast('저장 실패', 'err'); return }
+
+    // 자동 분류 결과와 다른 계정으로 직접 분류한 경우 → 키워드 학습 제안
+    if (colId === 'account' && data.confirmed_account_id && data.confirmed_account_id !== data.suggested_account_id) {
+      const account = accounts.find(a => a.id === data.confirmed_account_id)
+      const desc = (data.description ?? '').trim()
+      const already = (account?.keywords ?? []).some(kw => desc.toLowerCase().includes(kw.toLowerCase()))
+      if (account && desc && !already) {
+        setKeywordPrompt({ accountId: account.id, accountName: account.name, keyword: desc })
+      }
+    }
+  }, [showToast, accounts])
+
+  // 키워드 학습 제안 적용
+  const handleAddKeyword = useCallback(async () => {
+    if (!keywordPrompt) return
+    const kw = keywordPrompt.keyword.trim()
+    if (!kw) { setKeywordPrompt(null); return }
+    const account = accounts.find(a => a.id === keywordPrompt.accountId)
+    const existing = account?.keywords ?? []
+    if (existing.includes(kw)) { showToast('이미 등록된 키워드입니다'); setKeywordPrompt(null); return }
+
+    const res = await fetch(`/api/accounts/${keywordPrompt.accountId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keywords: [...existing, kw] }),
+    })
+    if (res.ok) {
+      setAccounts(prev => prev.map(a => a.id === keywordPrompt.accountId ? { ...a, keywords: [...existing, kw] } : a))
+      showToast(`"${kw}" 키워드 추가 완료`)
+    } else {
+      showToast('키워드 추가 실패', 'err')
+    }
+    setKeywordPrompt(null)
+  }, [keywordPrompt, accounts, showToast])
 
   // 선택된 행 확정
   const handleBulkConfirm = useCallback(async () => {
@@ -1061,6 +1095,26 @@ function TransactionsContent() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 키워드 학습 제안 */}
+      {keywordPrompt && (
+        <div className="fixed bottom-6 left-6 max-w-md px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg shadow-lg z-50 flex flex-wrap items-center gap-2">
+          <span className="text-sm text-amber-800">
+            🔖 <strong>{keywordPrompt.accountName}</strong>에 키워드를 추가해 다음에도 자동 분류되게 할까요?
+          </span>
+          <input
+            value={keywordPrompt.keyword}
+            onChange={e => setKeywordPrompt(p => p && { ...p, keyword: e.target.value })}
+            className="border border-amber-300 rounded px-2 py-1 text-sm flex-1 min-w-[140px] focus:outline-none focus:ring-1 focus:ring-amber-500"
+          />
+          <button onClick={handleAddKeyword} className="px-3 py-1 bg-amber-600 text-white rounded text-xs font-medium hover:bg-amber-700">
+            추가
+          </button>
+          <button onClick={() => setKeywordPrompt(null)} className="px-3 py-1 text-xs text-amber-700 hover:underline">
+            건너뛰기
+          </button>
         </div>
       )}
 
