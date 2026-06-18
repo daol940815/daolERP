@@ -27,13 +27,21 @@ ModuleRegistry.registerModules([AllCommunityModule])
 const amountFmt = (p: ValueFormatterParams<Transaction, number>) =>
   p.value ? p.value.toLocaleString('ko-KR') + '원' : ''
 
-// 거래일자 포맷터 — 시간 포함 시 "YYYY-MM-DD HH:MM" 표시
+// 거래일자 포맷터 — tx_time이 있으면 "YYYY-MM-DD HH:MM"으로 표시
 const txDateFmt = (p: ValueFormatterParams<Transaction, string>) => {
   if (!p.value) return ''
-  if (p.value.length <= 10) return p.value  // DATE 형식 그대로
-  const d = new Date(p.value)
-  const hhmm = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
-  return hhmm === '00:00' ? p.value.slice(0, 10) : `${p.value.slice(0, 10)} ${hhmm}`
+  const tx_time = p.data?.tx_time
+  return tx_time ? `${p.value} ${tx_time.slice(0, 5)}` : p.value
+}
+
+// 거래일자+시간 정렬 비교 — tx_time이 없는 행은 같은 날짜 내에서 뒤로 정렬
+const txDateComparator = (
+  valueA: string, valueB: string,
+  nodeA: { data?: Transaction } | null, nodeB: { data?: Transaction } | null,
+) => {
+  const a = `${valueA ?? ''} ${nodeA?.data?.tx_time ?? ''}`
+  const b = `${valueB ?? ''} ${nodeB?.data?.tx_time ?? ''}`
+  return a < b ? -1 : a > b ? 1 : 0
 }
 
 // 차변/대변 배지 렌더러
@@ -518,6 +526,7 @@ function TransactionsContent() {
       pinned: 'left',
       sort: 'desc',
       valueFormatter: txDateFmt,
+      comparator: txDateComparator,
     },
     {
       field: 'description',

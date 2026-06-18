@@ -26,8 +26,9 @@ export async function GET(req: NextRequest) {
 
   let query = admin
     .from('transactions')
-    .select('tx_date, description, counterparty_name, amount_in, amount_out, balance, account_alias, status, confirmed_account_id, memo, vendors(name)')
+    .select('tx_date, tx_time, description, counterparty_name, amount_in, amount_out, balance, account_alias, status, confirmed_account_id, memo, vendors(name)')
     .order('tx_date', { ascending: false })
+    .order('tx_time', { ascending: false, nullsFirst: false })
     .limit(50000)
 
   if (status && status !== 'all') query = query.eq('status', status)

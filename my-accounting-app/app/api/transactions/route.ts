@@ -17,12 +17,13 @@ export async function GET(req: NextRequest) {
   let query = admin
     .from('transactions')
     .select(
-      `id, tx_date, description, counterparty_name, amount_in, amount_out, balance,
+      `id, tx_date, tx_time, description, counterparty_name, amount_in, amount_out, balance,
        source, account_alias, bank_account_id, vendor_id, status, memo, is_journalized,
        suggested_account_id, confirmed_account_id, suggested_side,
        ai_confidence, ai_reason, upload_log_id, transfer_pair_id, created_at`,
     )
     .order('tx_date', { ascending: false })
+    .order('tx_time', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
     .limit(limit)
 

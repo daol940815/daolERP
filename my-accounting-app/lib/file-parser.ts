@@ -38,6 +38,30 @@ function parseDate(value: string | number | undefined | null): string | null {
   return null
 }
 
+// 날짜 셀(또는 별도 시간 셀)에서 시간 추출 — "2026-06-03 14:23:00", "14:23" 등
+function parseTime(value: string | number | undefined | null): string | null {
+  if (value === undefined || value === null || value === '') return null
+
+  // Excel 날짜 일련번호의 소수부 = 하루 중 시각
+  if (typeof value === 'number' || (!isNaN(Number(value)) && /^[\d.]+$/.test(String(value).trim()))) {
+    const num = Number(value)
+    if (!isNaN(num) && num > 30000 && num < 60000) {
+      const frac = num - Math.floor(num)
+      if (frac <= 0) return null
+      const totalSeconds = Math.round(frac * 86400)
+      const hh = Math.floor(totalSeconds / 3600) % 24
+      const mm = Math.floor((totalSeconds % 3600) / 60)
+      const ss = totalSeconds % 60
+      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+    }
+    return null
+  }
+
+  const m = String(value).match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/)
+  if (!m) return null
+  return `${m[1].padStart(2, '0')}:${m[2]}:${m[3] ?? '00'}`
+}
+
 // 금액 문자열 → 정수 (콤마, 원, ₩ 제거, 항상 양수)
 function parseAmount(value: string | number | undefined | null): number {
   if (value === undefined || value === null || value === '') return 0
@@ -93,6 +117,7 @@ function norm(h: string): string {
 // 컬럼 자동 매핑 패턴 (한국 주요 은행/카드사 기준)
 const PATTERNS: Record<string, string[]> = {
   date:        ['거래일자', '거래일시', '이용일자', '날짜', '일자', '거래일', '승인일자', '결제일', 'date'],
+  time:        ['거래시간', '이용시간', '거래시각', '승인시간', '결제시간'],
   description: ['적요', '기재내용', '내용', '가맹점명', '이용가맹점', '거래내용', '메모', '거래처', '상호명', '출금처', '입금처', '거래적요', '보낸분', '받는분', '보낸분/받는분', 'description'],
   counterparty_name: ['보낸분', '받는분', '보낸분/받는분', '입금자명', '출금자명', '예금주명', '예금주', '송금인', '의뢰인'],
   amount_in:   ['맡기신금액', '입금금액', '입금액', '입금(원)', '입금'],
@@ -101,7 +126,7 @@ const PATTERNS: Record<string, string[]> = {
   balance:     ['잔액(원)', '현재잔액', '잔액', '잔고', 'balance'],
 }
 
-interface ColMap { date?: number; description?: number; counterparty_name?: number; amount_in?: number; amount_out?: number; amount?: number; balance?: number }
+interface ColMap { date?: number; time?: number; description?: number; counterparty_name?: number; amount_in?: number; amount_out?: number; amount?: number; balance?: number }
 
 function detectColumns(headers: string[]): ColMap {
   const normalized = headers.map(norm)
@@ -204,6 +229,11 @@ function mapRows(
       continue
     }
 
+    // 별도 시간 컬럼이 있으면 우선 사용, 없으면 날짜 셀에 같이 들어있는 시간을 사용
+    const tx_time = colMap.time !== undefined
+      ? parseTime(row[colMap.time])
+      : parseTime(rawDate)
+
     const description = colMap.description !== undefined
       ? String(row[colMap.description] ?? '').trim() || '(내용 없음)'
       : '(내용 없음)'
@@ -231,7 +261,7 @@ function mapRows(
 
     const balance = colMap.balance !== undefined ? parseBalance(row[colMap.balance]) : undefined
 
-    result.push({ tx_date, description, counterparty_name, amount_in, amount_out, balance, source })
+    result.push({ tx_date, tx_time, description, counterparty_name, amount_in, amount_out, balance, source })
   }
 
   return result

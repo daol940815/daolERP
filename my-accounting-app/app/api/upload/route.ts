@@ -125,6 +125,7 @@ export async function POST(req: NextRequest) {
   // ── transactions 배치 삽입 (1000건씩 나눠서) ───────────────
   const insertData = body.rows.map(row => ({
     tx_date: row.tx_date,
+    tx_time: row.tx_time ?? null,
     description: row.description,
     counterparty_name: row.counterparty_name ?? null,
     amount_in: row.amount_in,

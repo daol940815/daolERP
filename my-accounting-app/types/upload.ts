@@ -1,6 +1,7 @@
 // 파싱된 거래 한 건
 export interface ParsedRow {
   tx_date: string       // YYYY-MM-DD
+  tx_time?: string | null  // HH:MM:SS (있는 경우만 — 정렬용)
   description: string
   counterparty_name?: string | null  // 보낸분/받는분 (적요와 별도 컬럼이 있는 경우)
   amount_in: number     // 입금 (원)

@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
     .is('confirmed_account_id', null)
     .in('status', ['pending', 'reviewed'])
     .order('tx_date', { ascending: false })
+    .order('tx_time', { ascending: false, nullsFirst: false })
     .limit(10000)
 
   if (from)          query = query.gte('tx_date', from)
