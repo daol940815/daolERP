@@ -184,6 +184,98 @@ function MatchPickerModal({
   )
 }
 
+// ── 합계 매칭 후보 선택 모달 (여러 계산서 → 합계가 일치하는 거래 1건) ──
+function SumMatchPickerModal({
+  invoiceIds, onClose, onMatched,
+}: {
+  invoiceIds: string[]
+  onClose: () => void
+  onMatched: (invoices: TaxInvoice[]) => void
+}) {
+  const [candidates, setCandidates] = useState<Candidate[] | null>(null)
+  const [sumAmount, setSumAmount]   = useState<number | null>(null)
+  const [error, setError]           = useState<string | null>(null)
+  const [picking, setPicking]       = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/tax-invoices/match-sum', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoiceIds }),
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return
+        if (d.error) { setError(d.error); setCandidates([]); return }
+        setSumAmount(d.sumAmount ?? null)
+        setCandidates(Array.isArray(d.candidates) ? d.candidates : [])
+      })
+      .catch(() => { if (!cancelled) { setError('후보 검색에 실패했습니다.'); setCandidates([]) } })
+    return () => { cancelled = true }
+  }, [invoiceIds])
+
+  const handlePick = async (txId: string) => {
+    setPicking(txId)
+    const res = await fetch('/api/tax-invoices/match-sum', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoiceIds, transactionId: txId }),
+    })
+    const json = await res.json()
+    setPicking(null)
+    if (!res.ok || !json.data) { setError(json.error ?? '매칭에 실패했습니다.'); return }
+    onMatched(json.data)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <h2 className="text-lg font-bold text-gray-900 mb-1">선택한 계산서 {invoiceIds.length}건 합계로 매칭</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          {sumAmount != null ? `합계 ${won(sumAmount)}` : '합계 계산 중...'}
+        </p>
+        <p className="text-xs text-gray-400 mb-3">
+          선택한 계산서들의 합계금액과 정확히 일치하는 거래내역을 보여줍니다. 고르면 선택한 계산서 전부가 해당 거래 1건에 연결됩니다.
+        </p>
+        {error ? (
+          <div className="py-10 text-center text-red-500 text-sm">{error}</div>
+        ) : candidates === null ? (
+          <div className="py-10 text-center text-gray-400 text-sm">후보 검색 중...</div>
+        ) : candidates.length === 0 ? (
+          <div className="py-10 text-center text-gray-400 text-sm">합계금액이 일치하는 거래내역을 찾지 못했습니다.</div>
+        ) : (
+          <div className="space-y-1.5">
+            {candidates.map(c => (
+              <button
+                key={c.id}
+                onClick={() => handlePick(c.id)}
+                disabled={picking !== null}
+                className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3 disabled:opacity-50"
+              >
+                <div className="min-w-0">
+                  <p className="text-gray-900 truncate">{c.description}</p>
+                  <p className="text-xs text-gray-400">
+                    {c.tx_date} · {c.account_alias ?? '-'}
+                    {c.counterparty_name ? ` · 보낸분/받는분: ${c.counterparty_name}` : ''}
+                  </p>
+                </div>
+                <span className="font-medium text-gray-900 shrink-0">
+                  {picking === c.id ? '연결 중...' : won(c.amount_in || c.amount_out)}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="flex justify-end mt-4">
+          <button onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">닫기</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function TaxInvoiceListPage() {
   const params    = useParams<{ direction: string; taxType: string }>()
   const direction = params.direction
@@ -201,6 +293,8 @@ export default function TaxInvoiceListPage() {
   const [exporting, setExporting]     = useState(false)
   const [matching, setMatching]       = useState(false)
   const [matchingInvoice, setMatchingInvoice] = useState<TaxInvoice | null>(null)
+  const [selected, setSelected]       = useState<Set<string>>(new Set())
+  const [sumMatching, setSumMatching] = useState(false)
   const [toast, setToast]             = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -301,6 +395,15 @@ export default function TaxInvoiceListPage() {
     })
     const json = await res.json()
     if (res.ok && json.data) setInvoices(prev => prev.map(x => x.id === inv.id ? json.data : x))
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
   const handleAssignAccount = async (row: TaxInvoice, accountId: string) => {
@@ -442,6 +545,19 @@ export default function TaxInvoiceListPage() {
             </button>
           ))}
         </div>
+        {selected.size >= 2 && (
+          <button
+            onClick={() => setSumMatching(true)}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600 text-white hover:bg-amber-700"
+          >
+            선택 {selected.size}건 합계로 매칭
+          </button>
+        )}
+        {selected.size > 0 && (
+          <button onClick={() => setSelected(new Set())} className="text-xs text-gray-400 hover:text-gray-600">
+            선택 해제
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -455,6 +571,7 @@ export default function TaxInvoiceListPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                <th className="py-2.5 px-3 font-medium w-8"></th>
                 <th className="py-2.5 px-3 font-medium whitespace-nowrap">작성일자</th>
                 <th className="py-2.5 px-3 font-medium">거래처</th>
                 <th className="py-2.5 px-3 font-medium">품목</th>
@@ -469,6 +586,16 @@ export default function TaxInvoiceListPage() {
             <tbody>
               {filtered.map(inv => (
                 <tr key={inv.id} className="border-b border-gray-100 hover:bg-gray-50 align-top">
+                  <td className="py-2.5 px-3">
+                    {!inv.matched_transaction_id && (
+                      <input
+                        type="checkbox"
+                        checked={selected.has(inv.id)}
+                        onChange={() => toggleSelect(inv.id)}
+                        className="cursor-pointer"
+                      />
+                    )}
+                  </td>
                   <td className="py-2.5 px-3 whitespace-nowrap text-gray-600">{inv.issue_date}</td>
                   <td className="py-2.5 px-3 min-w-0">
                     <p className="text-gray-900 truncate max-w-[180px]">{inv.counterparty_name ?? '-'}</p>
@@ -529,6 +656,19 @@ export default function TaxInvoiceListPage() {
           invoice={matchingInvoice}
           onClose={() => setMatchingInvoice(null)}
           onMatched={inv => { setInvoices(prev => prev.map(x => x.id === inv.id ? inv : x)); showMsg('거래내역과 매칭되었습니다.') }}
+        />
+      )}
+
+      {sumMatching && (
+        <SumMatchPickerModal
+          invoiceIds={Array.from(selected)}
+          onClose={() => setSumMatching(false)}
+          onMatched={updated => {
+            const byId = new Map(updated.map(u => [u.id, u]))
+            setInvoices(prev => prev.map(x => byId.get(x.id) ?? x))
+            setSelected(new Set())
+            showMsg(`${updated.length}건의 계산서가 하나의 거래내역에 매칭되었습니다.`)
+          }}
         />
       )}
 
