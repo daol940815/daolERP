@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CashReceipt, CashReceiptDirection, CashReceiptTransactionType } from '@/types/cash-receipt'
 import type { Vendor } from '@/types/tax-invoice'
 import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
@@ -343,16 +344,15 @@ export default function CashReceiptsPage() {
                           {row.deductible === null  && <span className="text-xs text-gray-300">-</span>}
                         </td>
                         <td className="py-2.5 px-3">
-                          <select
+                          <SearchableSelect
                             value={row.vendor_id ?? ''}
-                            onChange={e => handleAssignVendor(row, e.target.value)}
+                            onChange={id => handleAssignVendor(row, id)}
+                            options={vendors.map(v => ({ id: v.id, label: v.name }))}
+                            emptyLabel="미매칭"
                             className={`text-xs border rounded px-1.5 py-1 max-w-[140px] focus:outline-none focus:ring-1 focus:ring-slate-900 ${
                               row.vendor_id ? 'border-gray-200 bg-white text-gray-700' : 'border-dashed border-gray-300 bg-gray-50 text-gray-400'
                             }`}
-                          >
-                            <option value="">미매칭</option>
-                            {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                          </select>
+                          />
                         </td>
                       </>
                     )}

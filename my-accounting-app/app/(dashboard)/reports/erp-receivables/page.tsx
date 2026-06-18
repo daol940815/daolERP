@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ErpReceivableRow } from '@/types/erp'
 import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 interface Vendor { id: string; name: string }
 
@@ -185,14 +186,13 @@ export default function ErpReceivablesPage() {
                   </td>
                   <td className="py-2 px-3">
                     {r.alias_id ? (
-                      <select
+                      <SearchableSelect
                         value={r.vendor_id ?? ''}
-                        onChange={e => handleLinkVendor(r, e.target.value)}
+                        onChange={id => handleLinkVendor(r, id)}
+                        options={vendors.map(v => ({ id: v.id, label: v.name }))}
+                        emptyLabel="미연결"
                         className={`border rounded px-2 py-1 text-xs w-44 ${r.vendor_id ? 'border-gray-200 text-gray-700' : 'border-amber-300 text-amber-600 bg-amber-50'}`}
-                      >
-                        <option value="">미연결</option>
-                        {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                      </select>
+                      />
                     ) : <span className="text-xs text-gray-400">-</span>}
                   </td>
                   <td className="py-2 px-3 text-xs text-gray-600">

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import type { ErpVendorAlias } from '@/types/erp'
 import type { Vendor } from '@/types/tax-invoice'
 import { bestNameMatch } from '@/lib/name-similarity'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 type VendorInfo = Pick<Vendor,
   'id' | 'name' | 'type' | 'biz_number' | 'contact_name' | 'contact_phone' | 'email' | 'note' | 'match_aliases' | 'card_numbers' | 'is_active'
@@ -640,15 +641,14 @@ function ErpAliasesContent() {
                         </div>
                       </td>
                       <td className="py-2 px-3">
-                        <select
+                        <SearchableSelect
                           value={a.vendor_id ?? ''}
-                          onChange={e => handleConnect(a, e.target.value)}
+                          onChange={id => handleConnect(a, id)}
+                          options={vendors.map(v => ({ id: v.id, label: v.name }))}
+                          emptyLabel="미연결"
                           disabled={working}
                           className={`border rounded px-2 py-1 text-xs w-44 ${a.vendor_id ? 'border-green-200 text-green-700 bg-green-50' : 'border-gray-200 text-gray-500'}`}
-                        >
-                          <option value="">미연결</option>
-                          {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                        </select>
+                        />
                         {!a.vendor_id && sug && (
                           <p className="text-[11px] mt-0.5 text-blue-700 truncate max-w-[180px]">
                             추천: {sug.name}{' '}

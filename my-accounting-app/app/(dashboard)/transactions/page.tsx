@@ -19,6 +19,7 @@ import type { Transaction, Account } from '@/types/transaction'
 import type { BankAccount } from '@/types/bank-account'
 import type { Vendor } from '@/types/tax-invoice'
 import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
+import SearchableCellEditor from '@/components/ui/SearchableCellEditor'
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
@@ -526,7 +527,8 @@ function TransactionsContent() {
       headerName: '계정과목',
       width: 155,
       editable: true,
-      cellEditor: 'agSelectCellEditor',
+      cellEditor: SearchableCellEditor,
+      cellEditorPopup: true,
       cellEditorParams: () => ({
         values: ['(미분류)', ...accounts.map(a => a.name)],
       }),
@@ -556,7 +558,8 @@ function TransactionsContent() {
       headerName: '거래처',
       width: 150,
       editable: true,
-      cellEditor: 'agSelectCellEditor',
+      cellEditor: SearchableCellEditor,
+      cellEditorPopup: true,
       cellEditorParams: () => ({
         values: ['(미지정)', ...vendors.map(v => v.name)],
       }),

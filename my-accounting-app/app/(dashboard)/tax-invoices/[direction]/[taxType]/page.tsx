@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import type { TaxInvoice } from '@/types/tax-invoice'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 const DIRECTION_META: Record<string, { label: string; sub: string; color: string }> = {
   sales:    { label: '매출 세금계산서', sub: '받을 돈 (입금 확인)', color: 'text-blue-700' },
@@ -427,18 +428,17 @@ export default function TaxInvoiceListPage() {
                   <td className="py-2.5 px-3 text-right text-gray-600 whitespace-nowrap">{won(inv.tax_amount)}</td>
                   <td className="py-2.5 px-3 text-right font-medium text-gray-900 whitespace-nowrap">{won(inv.total_amount)}</td>
                   <td className="px-3 py-2">
-                    <select
+                    <SearchableSelect
                       value={inv.confirmed_account_id ?? ''}
-                      onChange={e => handleAssignAccount(inv, e.target.value)}
-                      className={`text-xs border rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-slate-900 ${
+                      onChange={id => handleAssignAccount(inv, id)}
+                      options={accounts.map(a => ({ id: a.id, label: a.name }))}
+                      emptyLabel="(미분류)"
+                      className={`min-w-[100px] text-xs border rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-slate-900 ${
                         inv.confirmed_account_id
                           ? 'border-gray-200 bg-white text-gray-700'
                           : 'border-dashed border-gray-300 bg-gray-50 text-gray-400'
                       }`}
-                    >
-                      <option value="">(미분류)</option>
-                      {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                    </select>
+                    />
                   </td>
                   <td className="py-2.5 px-3">
                     <button

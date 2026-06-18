@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type { ErpPayableRow, ErpOrderItem } from '@/types/erp'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 interface Vendor { id: string; name: string }
 
@@ -288,14 +289,13 @@ export default function ErpPayablesPage() {
                       <span className="text-xs text-gray-400 ml-1">({r.item_count})</span>
                     </td>
                     <td className="py-2 px-3">
-                      <select
+                      <SearchableSelect
                         value={r.vendor_id ?? ''}
-                        onChange={e => handleLinkVendor(r, e.target.value)}
+                        onChange={id => handleLinkVendor(r, id)}
+                        options={vendors.map(v => ({ id: v.id, label: v.name }))}
+                        emptyLabel="미연결"
                         className={`border rounded px-2 py-1 text-xs w-40 ${r.vendor_id ? 'border-gray-200 text-gray-700' : 'border-amber-300 text-amber-600 bg-amber-50'}`}
-                      >
-                        <option value="">미연결</option>
-                        {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                      </select>
+                      />
                     </td>
                     <td className="py-2 px-3">
                       <select
