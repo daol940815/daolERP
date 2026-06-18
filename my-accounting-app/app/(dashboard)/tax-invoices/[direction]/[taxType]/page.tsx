@@ -52,6 +52,19 @@ function MatchPickerModal({
   const [aliasInput, setAliasInput]   = useState('')
   const [savingAlias, setSavingAlias] = useState(false)
 
+  // 금액이 정확히 일치하지 않는 경우(합계 입금, 수수료 차감 등)를 위한 수동 검색
+  const issueOffset = (days: number) => {
+    const d = new Date(invoice.issue_date)
+    d.setDate(d.getDate() + days)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  const [manualOpen, setManualOpen]       = useState(false)
+  const [manualFrom, setManualFrom]       = useState(issueOffset(-30))
+  const [manualTo, setManualTo]           = useState(issueOffset(30))
+  const [manualQuery, setManualQuery]     = useState('')
+  const [manualResults, setManualResults] = useState<Candidate[] | null>(null)
+  const [manualLoading, setManualLoading] = useState(false)
+
   useEffect(() => {
     let cancelled = false
     fetch(`/api/tax-invoices/${invoice.id}/match-candidates`)
@@ -60,6 +73,27 @@ function MatchPickerModal({
       .catch(() => { if (!cancelled) setCandidates([]) })
     return () => { cancelled = true }
   }, [invoice.id])
+
+  const handleManualSearch = async () => {
+    setManualLoading(true)
+    const params = new URLSearchParams({ status: 'all', limit: '500' })
+    if (manualFrom) params.set('from', manualFrom)
+    if (manualTo)   params.set('to', manualTo)
+    const res  = await fetch(`/api/transactions?${params.toString()}`)
+    const json = await res.json()
+    setManualLoading(false)
+    if (!Array.isArray(json.data)) { setManualResults([]); return }
+
+    const amountKey = invoice.direction === 'sales' ? 'amount_in' : 'amount_out'
+    const q = manualQuery.trim().toLowerCase()
+    const results = (json.data as Candidate[])
+      .filter(tx => (tx[amountKey] ?? 0) > 0)
+      .filter(tx => !q
+        || (tx.description ?? '').toLowerCase().includes(q)
+        || (tx.counterparty_name ?? '').toLowerCase().includes(q))
+      .slice(0, 100)
+    setManualResults(results)
+  }
 
   const handlePick = async (txId: string, suggestion: string) => {
     setPicking(txId)
@@ -176,6 +210,64 @@ function MatchPickerModal({
             ))}
           </div>
         )}
+
+        <div className="mt-4 pt-3 border-t border-gray-100">
+          <button onClick={() => setManualOpen(v => !v)} className="text-xs text-slate-500 hover:text-slate-900 underline">
+            {manualOpen ? '직접 찾기 닫기' : '🔍 금액이 일치하는 후보가 없나요? 직접 찾기 (합계 입금, 수수료 차감 등)'}
+          </button>
+          {manualOpen && (
+            <div className="mt-3">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <input type="date" value={manualFrom} onChange={e => setManualFrom(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                <span className="text-gray-400 text-sm">~</span>
+                <input type="date" value={manualTo} onChange={e => setManualTo(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                <input
+                  value={manualQuery}
+                  onChange={e => setManualQuery(e.target.value)}
+                  placeholder="적요·보낸분 검색"
+                  className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm flex-1 min-w-[120px] focus:outline-none focus:ring-2 focus:ring-slate-900"
+                />
+                <button
+                  onClick={handleManualSearch}
+                  disabled={manualLoading}
+                  className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50"
+                >
+                  {manualLoading ? '검색 중...' : '검색'}
+                </button>
+              </div>
+              {manualResults !== null && (
+                manualResults.length === 0 ? (
+                  <div className="py-6 text-center text-gray-400 text-sm">조건에 맞는 거래내역이 없습니다.</div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {manualResults.map(c => (
+                      <button
+                        key={c.id}
+                        onClick={() => handlePick(c.id, c.counterparty_name ?? c.description)}
+                        disabled={picking !== null}
+                        className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3 disabled:opacity-50"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-gray-900 truncate">{c.description}</p>
+                          <p className="text-xs text-gray-400">
+                            {c.tx_date} · {c.account_alias ?? '-'}
+                            {c.counterparty_name ? ` · 보낸분/받는분: ${c.counterparty_name}` : ''}
+                          </p>
+                        </div>
+                        <span className="font-medium text-gray-900 shrink-0">
+                          {picking === c.id ? '연결 중...' : won(c.amount_in || c.amount_out)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="flex justify-end mt-4">
           <button onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">닫기</button>
         </div>
