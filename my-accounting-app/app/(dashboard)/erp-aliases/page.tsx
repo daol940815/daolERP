@@ -98,6 +98,7 @@ function VendorModal({
     note:          vendor?.note ?? '',
     match_aliases: vendor?.match_aliases ?? [] as string[],
     card_numbers:  vendor?.card_numbers ?? [] as string[],
+    ledger_balance: vendor?.ledger_balance != null ? String(vendor.ledger_balance) : '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState<string | null>(null)
@@ -108,10 +109,16 @@ function VendorModal({
     setError(null)
     const url    = vendor ? `/api/vendors/${vendor.id}` : '/api/vendors'
     const method = vendor ? 'PATCH' : 'POST'
+    const payload: Record<string, unknown> = { ...form }
+    if (vendor) {
+      payload.ledger_balance = form.ledger_balance.trim() ? Number(form.ledger_balance) : null
+    } else {
+      delete payload.ledger_balance
+    }
     const res  = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify(payload),
     })
     const json = await res.json()
     setSaving(false)
@@ -206,6 +213,22 @@ function VendorModal({
               onRemove={v => setForm(f => ({ ...f, match_aliases: f.match_aliases.filter(a => a !== v) }))}
             />
           </div>
+          {vendor && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">거래처원장 잔액</label>
+              <p className="text-xs text-gray-400 mb-1.5">
+                거래처가 통보한 원장 기준 잔액 (대사용 참고값, 수기 입력)
+                {vendor.ledger_balance_updated_at && ` · 마지막 갱신 ${vendor.ledger_balance_updated_at}`}
+              </p>
+              <input
+                type="number"
+                value={form.ledger_balance}
+                onChange={e => setForm(f => ({ ...f, ledger_balance: e.target.value }))}
+                placeholder="예: 2919000"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              />
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">카드번호</label>
             <p className="text-xs text-gray-400 mb-1.5">카드매출 자동 매칭에 사용됩니다.</p>

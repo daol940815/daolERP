@@ -9,6 +9,8 @@ export interface Vendor {
   note?: string | null
   match_aliases: string[]
   card_numbers: string[]
+  ledger_balance?: number | null
+  ledger_balance_updated_at?: string | null
   is_active: boolean
   created_at: string
   updated_at: string

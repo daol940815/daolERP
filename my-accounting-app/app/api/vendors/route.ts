@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
 
-const VENDOR_FIELDS = 'id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active, created_at, updated_at'
+const VENDOR_FIELDS = 'id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, card_numbers, ledger_balance, ledger_balance_updated_at, is_active, created_at, updated_at'
 
 // GET /api/vendors?q=검색어&type=vendor|customer|both&all=true
 // type은 콤마로 여러 값을 지정할 수 있다 (예: type=vendor,both → 매입처 + 매입·매출 겸용)

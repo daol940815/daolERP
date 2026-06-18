@@ -169,6 +169,13 @@ export default function VendorDetailPage() {
           value={lastTxDate ?? '—'}
           sub={`입출금 ${transactions.length}건 · 카드결제 ${cardSales.length}건`}
         />
+        {vendor.ledger_balance != null && (
+          <SummaryCard
+            label="거래처원장 잔액"
+            value={won(vendor.ledger_balance)}
+            sub={vendor.ledger_balance_updated_at ? `${vendor.ledger_balance_updated_at} 기준 (거래처 통보값)` : '거래처 통보값'}
+          />
+        )}
       </div>
 
       {/* 세금계산서 내역 */}
