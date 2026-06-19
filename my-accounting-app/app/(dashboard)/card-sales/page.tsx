@@ -1,10 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CardSale, CardSaleTransactionType } from '@/types/card-sale'
 import type { Vendor } from '@/types/tax-invoice'
+import type { ErpVendorAlias } from '@/types/erp'
 import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
 import SearchableSelect from '@/components/ui/SearchableSelect'
+
+const ALIAS_OPTION_PREFIX = 'alias:'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
@@ -16,6 +19,7 @@ const TYPE_META: Record<CardSaleTransactionType, { label: string; cls: string }>
 export default function CardSalesPage() {
   const [sales, setSales]     = useState<CardSale[]>([])
   const [vendors, setVendors] = useState<Vendor[]>([])
+  const [unmatchedAliases, setUnmatchedAliases] = useState<ErpVendorAlias[]>([])
   const [loading, setLoading] = useState(true)
 
   const [typeFilter, setTypeFilter]   = useState<'all' | CardSaleTransactionType>('all')
@@ -59,7 +63,18 @@ export default function CardSalesPage() {
       .then(r => r.json())
       .then(d => { if (Array.isArray(d.data)) setVendors(d.data) })
       .catch(() => null)
+    // ERP주문내역에서 자동 생성됐지만 아직 거래처로 연결되지 않은 매출처 별칭
+    // — 거래처 드롭다운에서 바로 찾아 연결할 수 있도록 후보로 같이 보여준다.
+    fetch('/api/erp-aliases?type=customer&unmatched=true')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.data)) setUnmatchedAliases(d.data) })
+      .catch(() => null)
   }, [])
+
+  const vendorOptions = useMemo(() => [
+    ...vendors.map(v => ({ id: v.id, label: v.name })),
+    ...unmatchedAliases.map(a => ({ id: `${ALIAS_OPTION_PREFIX}${a.id}`, label: `${a.erp_name} (ERP 미연결)` })),
+  ], [vendors, unmatchedAliases])
 
   const handleUpload = async (file: File) => {
     setUploading(true)
@@ -99,6 +114,57 @@ export default function CardSalesPage() {
     })
     const json = await res.json()
     if (res.ok && json.data) setSales(prev => prev.map(x => x.id === row.id ? json.data : x))
+  }
+
+  // 미연결 ERP 별칭 옵션을 선택하면 그 자리에서 거래처를 생성해 별칭과 연결한 뒤 매칭한다.
+  const linkAliasAndAssign = async (row: CardSale, aliasId: string) => {
+    const alias = unmatchedAliases.find(a => a.id === aliasId)
+    if (!alias) return
+
+    const vRes  = await fetch('/api/vendors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: alias.erp_name, type: 'customer' }),
+    })
+    const vJson = await vRes.json()
+    if (!vRes.ok) { showMsg(`거래처 생성 실패: ${vJson.error ?? '알 수 없는 오류'}`); return }
+    const newVendor: Vendor = vJson.data
+
+    await fetch('/api/erp-aliases', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: aliasId, vendor_id: newVendor.id }),
+    })
+
+    setVendors(prev => [...prev, newVendor].sort((a, b) => a.name.localeCompare(b.name)))
+    setUnmatchedAliases(prev => prev.filter(a => a.id !== aliasId))
+    await handleAssignVendor(row, newVendor.id)
+    showMsg(`'${alias.erp_name}' 거래처를 생성하고 연결했습니다.`)
+  }
+
+  // 드롭다운 검색 결과가 없을 때 입력한 이름으로 새 거래처를 즉시 등록해 매칭한다.
+  const createVendorAndAssign = async (row: CardSale, name: string) => {
+    if (!name) return
+    const vRes  = await fetch('/api/vendors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, type: 'customer' }),
+    })
+    const vJson = await vRes.json()
+    if (!vRes.ok) { showMsg(`거래처 생성 실패: ${vJson.error ?? '알 수 없는 오류'}`); return }
+    const newVendor: Vendor = vJson.data
+
+    setVendors(prev => [...prev, newVendor].sort((a, b) => a.name.localeCompare(b.name)))
+    await handleAssignVendor(row, newVendor.id)
+    showMsg(`'${name}' 거래처를 새로 등록했습니다.`)
+  }
+
+  const handleVendorOptionChange = (row: CardSale, selectedId: string) => {
+    if (selectedId.startsWith(ALIAS_OPTION_PREFIX)) {
+      linkAliasAndAssign(row, selectedId.slice(ALIAS_OPTION_PREFIX.length))
+    } else {
+      handleAssignVendor(row, selectedId)
+    }
   }
 
   const toggleSelect = (id: string) => {
@@ -333,9 +399,11 @@ export default function CardSalesPage() {
                     <td className="py-2.5 px-3">
                       <SearchableSelect
                         value={row.vendor_id ?? ''}
-                        onChange={id => handleAssignVendor(row, id)}
-                        options={vendors.map(v => ({ id: v.id, label: v.name }))}
+                        onChange={id => handleVendorOptionChange(row, id)}
+                        options={vendorOptions}
                         emptyLabel="미매칭"
+                        onCreateNew={name => createVendorAndAssign(row, name)}
+                        createNewLabel={q => `+ '${q}' 새 거래처로 추가`}
                         className={`text-xs border rounded px-1.5 py-1 max-w-[140px] focus:outline-none focus:ring-1 focus:ring-slate-900 ${
                           row.vendor_id ? 'border-gray-200 bg-white text-gray-700' : 'border-dashed border-gray-300 bg-gray-50 text-gray-400'
                         }`}

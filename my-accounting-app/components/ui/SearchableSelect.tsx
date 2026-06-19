@@ -15,12 +15,15 @@ interface Props {
   emptyLabel: string
   disabled?: boolean
   className?: string
+  // 검색 결과가 하나도 없을 때 입력한 검색어로 새 항목을 만들 수 있게 하는 콜백 (거래처 즉시 등록 등)
+  onCreateNew?: (query: string) => void
+  createNewLabel?: (query: string) => string
 }
 
 // 거래처·계정과목처럼 옵션이 많아질 수 있는 곳에 쓰는 검색형 드롭다운.
 // 트리거는 기존 <select>와 같은 자리에 들어가도록 className을 그대로 전달받고,
 // 목록 패널은 position:fixed로 띄워 테이블의 overflow-x-auto에 잘리지 않게 한다.
-export default function SearchableSelect({ value, onChange, options, emptyLabel, disabled, className }: Props) {
+export default function SearchableSelect({ value, onChange, options, emptyLabel, disabled, className, onCreateNew, createNewLabel }: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState(0)
@@ -79,14 +82,23 @@ export default function SearchableSelect({ value, onChange, options, emptyLabel,
     setOpen(false)
   }
 
+  const showCreate = !!onCreateNew && query.trim().length > 0 && filtered.length === 0
+
+  const handleCreate = () => {
+    if (!onCreateNew) return
+    onCreateNew(query.trim())
+    setOpen(false)
+  }
+
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    const total = filtered.length + 1 // +1 = emptyLabel 항목
+    const total = filtered.length + 1 + (showCreate ? 1 : 0) // +1 = emptyLabel 항목
     if (e.key === 'ArrowDown') { e.preventDefault(); setHighlight(h => (h + 1) % total) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlight(h => (h - 1 + total) % total) }
     else if (e.key === 'Enter') {
       e.preventDefault()
       if (highlight === 0) handleSelect('')
-      else handleSelect(filtered[highlight - 1].id)
+      else if (highlight <= filtered.length) handleSelect(filtered[highlight - 1].id)
+      else if (showCreate) handleCreate()
     } else if (e.key === 'Escape') {
       e.preventDefault()
       setOpen(false)
@@ -127,7 +139,17 @@ export default function SearchableSelect({ value, onChange, options, emptyLabel,
               {emptyLabel}
             </button>
             {filtered.length === 0 ? (
-              <p className="px-2.5 py-2 text-xs text-gray-400">검색 결과 없음</p>
+              showCreate ? (
+                <button
+                  type="button"
+                  onClick={handleCreate}
+                  className={`w-full text-left px-2.5 py-1.5 text-xs ${highlight === 1 ? 'bg-emerald-100' : 'hover:bg-emerald-50'} text-emerald-700`}
+                >
+                  {createNewLabel ? createNewLabel(query.trim()) : `+ '${query.trim()}' 새로 추가`}
+                </button>
+              ) : (
+                <p className="px-2.5 py-2 text-xs text-gray-400">검색 결과 없음</p>
+              )
             ) : filtered.map((o, i) => (
               <button
                 key={o.id}
