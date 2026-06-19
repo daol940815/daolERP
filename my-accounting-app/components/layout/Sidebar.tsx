@@ -442,10 +442,6 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             <span className="text-base leading-none">⏳</span>
             <span>미수금 Aging 분석</span>
           </Link>
-          <Link href="/reports/erp-payables" className={linkCls(pathname.startsWith('/reports/erp-payables'))}>
-            <span className="text-base leading-none">📤</span>
-            <span>ERP 매입처 결제현황</span>
-          </Link>
           <Link href="/reports/payables-aging" className={linkCls(pathname.startsWith('/reports/payables-aging'))}>
             <span className="text-base leading-none">⏳</span>
             <span>미지급금 Aging 분석</span>
@@ -493,11 +489,18 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             <span>매출처 관리</span>
           </Link>
           <Link
-            href="/erp-aliases?type=purchase"
-            className={linkCls(pathname.startsWith('/erp-aliases') && searchParams.get('type') === 'purchase')}
+            href="/vendors"
+            className={linkCls(pathname.startsWith('/vendors'))}
           >
             <span className="text-base leading-none">🏭</span>
             <span>매입처 관리</span>
+          </Link>
+          <Link
+            href="/erp-aliases?type=purchase"
+            className={linkCls(pathname.startsWith('/erp-aliases') && searchParams.get('type') === 'purchase')}
+          >
+            <span className="text-base leading-none">🔗</span>
+            <span>매입처 연결 키워드</span>
           </Link>
           <Link href="/erp-matching" className={linkCls(pathname.startsWith('/erp-matching'))}>
             <span className="text-base leading-none">💰</span>

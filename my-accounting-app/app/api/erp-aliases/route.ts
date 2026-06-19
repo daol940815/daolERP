@@ -3,13 +3,14 @@ import { createAdminClient } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
 
-// GET /api/erp-aliases?type=customer|purchase&unmatched=true
+// GET /api/erp-aliases?type=customer|purchase&unmatched=true&vendorId=
 export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   const { searchParams } = new URL(req.url)
 
   const type      = searchParams.get('type')
   const unmatched = searchParams.get('unmatched')
+  const vendorId  = searchParams.get('vendorId')
 
   let query = admin
     .from('erp_vendor_aliases')
@@ -19,6 +20,7 @@ export async function GET(req: NextRequest) {
 
   if (type === 'customer' || type === 'purchase') query = query.eq('alias_type', type)
   if (unmatched === 'true') query = query.is('vendor_id', null)
+  if (vendorId) query = query.eq('vendor_id', vendorId)
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

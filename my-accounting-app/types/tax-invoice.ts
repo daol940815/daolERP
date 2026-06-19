@@ -24,6 +24,7 @@ export interface TaxInvoice {
   id: string
   approval_number: string
   issue_date: string
+  issued_date?: string | null
   direction: TaxInvoiceDirection
   tax_type: TaxInvoiceTaxType
   vendor_id?: string | null

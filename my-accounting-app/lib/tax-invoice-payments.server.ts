@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // 목록/상세 API에서 공통으로 사용하는 세금계산서 select — 결제 연결 내역(payments)을
 // 함께 내려줘서 한 계산서에 여러 거래내역이 부분금액으로 연결된 경우도 화면에서 바로 표현한다.
 export const TAX_INVOICE_SELECT = `
-  id, approval_number, issue_date, direction, tax_type,
+  id, approval_number, issue_date, issued_date, direction, tax_type,
   vendor_id, counterparty_name, counterparty_biz_number,
   supply_amount, tax_amount, total_amount, item_name, note,
   matched_transaction_id, payment_status, payment_memo,

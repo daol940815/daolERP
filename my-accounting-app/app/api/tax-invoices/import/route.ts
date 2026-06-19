@@ -25,6 +25,7 @@ function toDate(v: unknown): string | null {
 type ParsedRow = {
   approval_number: string
   issue_date: string
+  issued_date: string | null
   direction: 'sales' | 'purchase'
   tax_type: 'taxable' | 'exempt'
   counterparty_name: string | null
@@ -91,6 +92,7 @@ export async function POST(req: NextRequest) {
 
   const col = {
     issueDate:    findCol(header, '작성일자'),
+    issuedDate:   findCol(header, '발급일자'),
     approval:     findCol(header, '승인번호'),
     supplierBiz:  findCol(header, '공급자사업자등록번호'),
     recipientBiz: findCol(header, '공급받는자사업자등록번호'),
@@ -132,6 +134,7 @@ export async function POST(req: NextRequest) {
     parsed.push({
       approval_number: approvalNumber,
       issue_date: issueDate,
+      issued_date: toDate(row[col.issuedDate]),
       direction: direction as 'sales' | 'purchase',
       tax_type: taxType as 'taxable' | 'exempt',
       counterparty_name: counterpartyName,
