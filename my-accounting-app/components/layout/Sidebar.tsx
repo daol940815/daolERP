@@ -482,11 +482,18 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             <span>계정과목</span>
           </Link>
           <Link
-            href="/erp-aliases?type=customer"
-            className={linkCls(pathname.startsWith('/erp-aliases') && searchParams.get('type') !== 'purchase')}
+            href="/customers"
+            className={linkCls(pathname.startsWith('/customers'))}
           >
             <span className="text-base leading-none">🏪</span>
             <span>매출처 관리</span>
+          </Link>
+          <Link
+            href="/erp-aliases?type=customer"
+            className={linkCls(pathname.startsWith('/erp-aliases') && searchParams.get('type') !== 'purchase')}
+          >
+            <span className="text-base leading-none">🔗</span>
+            <span>매출처 연결 키워드</span>
           </Link>
           <Link
             href="/vendors"

@@ -8,6 +8,7 @@ import type { Transaction } from '@/types/transaction'
 import type { CardSale } from '@/types/card-sale'
 import type { ErpVendorAlias } from '@/types/erp'
 import type { VendorLedgerEntry, VendorLedgerSummary, VendorMonthlyLedgerRow, VendorLedgerEntryType } from '@/types/vendor-ledger'
+import type { VendorSalesDetail } from '@/types/vendor-sales'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 const today = () => new Date().toISOString().slice(0, 10)
@@ -34,8 +35,14 @@ const ENTRY_TYPE_META: Record<VendorLedgerEntryType, { label: string; cls: strin
   adjustment: { label: '조정',     cls: 'bg-purple-100 text-purple-700' },
 }
 
+const COLLECT_META: Record<string, { text: string; cls: string }> = {
+  collected:   { text: '수금완료',   cls: 'bg-green-50 text-green-700' },
+  outstanding: { text: '미수금',     cls: 'bg-red-50 text-red-600' },
+  in_progress: { text: '수금진행중', cls: 'bg-amber-50 text-amber-700' },
+}
+
 function listHref(type: string) {
-  return type === 'customer' ? '/erp-aliases?type=customer' : '/vendors'
+  return type === 'customer' ? '/customers' : '/vendors'
 }
 
 function summarizeInvoices(list: TaxInvoice[]) {
@@ -140,6 +147,7 @@ export default function VendorDetailPage() {
   const [ledgerSummary, setLedgerSummary] = useState<VendorLedgerSummary | null>(null)
   const [monthlyRows,  setMonthlyRows]  = useState<VendorMonthlyLedgerRow[]>([])
   const [ledgerEntries, setLedgerEntries] = useState<VendorLedgerEntry[]>([])
+  const [salesDetail,  setSalesDetail]  = useState<VendorSalesDetail | null>(null)
   const [loading,      setLoading]      = useState(true)
   const [notFound,     setNotFound]     = useState(false)
   const [modalType,    setModalType]    = useState<VendorLedgerEntryType | null>(null)
@@ -175,13 +183,15 @@ export default function VendorDetailPage() {
       fetch(`/api/tax-invoices?vendorId=${id}&limit=5000`).then(r => r.json()),
       fetch(`/api/transactions?vendorId=${id}&limit=2000`).then(r => r.json()),
       fetch(`/api/card-sales?vendorId=${id}&limit=2000`).then(r => r.json()),
-    ]).then(([v, inv, tx, cs]) => {
+      fetch(`/api/vendors/${id}/sales-detail`).then(r => r.json()),
+    ]).then(([v, inv, tx, cs, sd]) => {
       if (cancelled) return
       if (!v.data) { setNotFound(true); setLoading(false); return }
       setVendor(v.data)
       setInvoices(Array.isArray(inv.data) ? inv.data : [])
       setTransactions(Array.isArray(tx.data) ? tx.data : [])
       setCardSales(Array.isArray(cs.data) ? cs.data : [])
+      setSalesDetail(sd.data ?? null)
       setLoading(false)
     }).catch(() => { if (!cancelled) { setNotFound(true); setLoading(false) } })
     loadLedger()
@@ -301,12 +311,24 @@ export default function VendorDetailPage() {
           {vendor.note && <p className="text-xs text-gray-500 mt-1.5">{vendor.note}</p>}
         </div>
         <Link
-          href="/erp-aliases?type=purchase"
+          href={vendor.type === 'customer' ? '/erp-aliases?type=customer' : '/erp-aliases?type=purchase'}
           className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50 shrink-0"
         >
           정보 수정 (관리 화면에서)
         </Link>
       </div>
+
+      {/* 담당직원 (ERP 주문 데이터에 기재된 다올 담당직원) */}
+      {showSalesCards && salesDetail && salesDetail.staff_names.length > 0 && (
+        <div className="mt-3 mb-2">
+          <p className="text-xs text-gray-400 mb-1.5">담당직원</p>
+          <div className="flex flex-wrap gap-1.5">
+            {salesDetail.staff_names.map(name => (
+              <span key={name} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs">{name}</span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 연결 키워드 */}
       {showPurchaseLedger && (
@@ -348,10 +370,25 @@ export default function VendorDetailPage() {
         />
         {showSalesCards && (
           <SummaryCard
-            label="미수금 잔액"
+            label="미수금 잔액 (계산서 기준)"
             value={won(sales.remaining)}
             color={sales.remaining > 0 ? 'text-red-600' : 'text-gray-400'}
             sub={sales.count ? `매출 ${sales.count}건 중 ${sales.matchedCount}건 수금` : '매출 내역 없음'}
+          />
+        )}
+        {showSalesCards && salesDetail && salesDetail.alias_ids.length > 0 && (
+          <SummaryCard
+            label="미수금 (ERP 주문 기준)"
+            value={won(salesDetail.cum_outstanding)}
+            color={salesDetail.cum_outstanding > 0 ? 'text-red-600' : 'text-gray-400'}
+            sub={`주문 ${salesDetail.orders.length}건 · 취소/VIP/선결제 제외, 매칭 수금 차감`}
+          />
+        )}
+        {showSalesCards && salesDetail && salesDetail.alias_ids.length > 0 && (
+          <SummaryCard
+            label="매출액 (ERP, 누적)"
+            value={won(salesDetail.cum_sales)}
+            sub={`당월 ${won(salesDetail.month_sales)}`}
           />
         )}
         <SummaryCard
@@ -484,6 +521,82 @@ export default function VendorDetailPage() {
               </table>
             </div>
           )}
+        </Section>
+      )}
+
+      {/* 주문내역 (ERP) */}
+      {showSalesCards && salesDetail && salesDetail.alias_ids.length > 0 && (
+        <Section title="주문내역 (ERP)">
+          {salesDetail.orders.length === 0 ? (
+            <EmptyRow>연결된 ERP 주문 내역이 없습니다.</EmptyRow>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                    <th className="py-2 px-3 font-medium">주문일</th>
+                    <th className="py-2 px-3 font-medium">주문번호</th>
+                    <th className="py-2 px-3 font-medium">담당직원</th>
+                    <th className="py-2 px-3 font-medium text-right">품목수</th>
+                    <th className="py-2 px-3 font-medium text-right">매출액</th>
+                    <th className="py-2 px-3 font-medium text-right">미수금</th>
+                    <th className="py-2 px-3 font-medium">상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {salesDetail.orders.slice(0, 30).map(o => {
+                    const cmeta = COLLECT_META[o.collect_status] ?? { text: o.collect_status, cls: 'bg-gray-100 text-gray-500' }
+                    return (
+                      <tr key={o.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-2 px-3 whitespace-nowrap text-gray-600">{o.order_date}</td>
+                        <td className="py-2 px-3 whitespace-nowrap text-gray-500 font-mono text-xs">{o.order_no}</td>
+                        <td className="py-2 px-3 whitespace-nowrap text-gray-600">{o.staff_name ?? '—'}</td>
+                        <td className="py-2 px-3 text-right whitespace-nowrap text-gray-500">{o.item_count}</td>
+                        <td className="py-2 px-3 text-right whitespace-nowrap font-medium">{won(o.total_amount)}</td>
+                        <td className={`py-2 px-3 text-right whitespace-nowrap font-medium ${o.outstanding_amount > 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                          {won(o.outstanding_amount)}
+                        </td>
+                        <td className="py-2 px-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${cmeta.cls}`}>{cmeta.text}</span></td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              {salesDetail.orders.length > 30 && (
+                <p className="text-center text-xs text-gray-400 py-2 border-t border-gray-100">
+                  최근 30건만 표시 (전체 {salesDetail.orders.length}건)
+                </p>
+              )}
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* 선호 품목 (ERP, 수량 기준 상위) */}
+      {showSalesCards && salesDetail && salesDetail.preferred_items.length > 0 && (
+        <Section title="선호 품목 (ERP, 수량 기준)">
+          <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                  <th className="py-2 px-3 font-medium">품목명</th>
+                  <th className="py-2 px-3 font-medium text-right">주문건수</th>
+                  <th className="py-2 px-3 font-medium text-right">수량</th>
+                  <th className="py-2 px-3 font-medium text-right">매출액</th>
+                </tr>
+              </thead>
+              <tbody>
+                {salesDetail.preferred_items.map(it => (
+                  <tr key={it.item_name} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-2 px-3 min-w-0"><p className="truncate max-w-[260px] text-gray-700">{it.item_name}</p></td>
+                    <td className="py-2 px-3 text-right whitespace-nowrap text-gray-500">{it.order_count}건</td>
+                    <td className="py-2 px-3 text-right whitespace-nowrap font-medium">{it.quantity.toLocaleString('ko-KR')}</td>
+                    <td className="py-2 px-3 text-right whitespace-nowrap">{won(it.line_total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Section>
       )}
 
