@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { syncTransactionPaymentEntry } from '@/lib/vendor-ledger'
 
 // PATCH /api/transactions/[id]
 // 허용 필드: confirmed_account_id, memo, status, vendor_id, suggested_side
@@ -26,6 +27,17 @@ export async function PATCH(
     updates.status = updates.confirmed_account_id ? 'reviewed' : 'pending'
   }
 
+  let prevVendorId: string | null = null
+  if ('vendor_id' in updates) {
+    const { data: before, error: beforeErr } = await admin
+      .from('transactions')
+      .select('vendor_id')
+      .eq('id', params.id)
+      .single()
+    if (beforeErr) return NextResponse.json({ error: beforeErr.message }, { status: 500 })
+    prevVendorId = before.vendor_id as string | null
+  }
+
   const { data, error } = await admin
     .from('transactions')
     .update(updates)
@@ -35,6 +47,19 @@ export async function PATCH(
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // 거래처가 지정/변경/해제된 출금 거래는 정산 원장의 입금 항목과 동기화한다
+  if ('vendor_id' in updates) {
+    const sync = await syncTransactionPaymentEntry(admin, {
+      transactionId: params.id,
+      prevVendorId,
+      newVendorId: data.vendor_id as string | null,
+      amountOut:   (data.amount_out as number | null) ?? 0,
+      txDate:      data.tx_date as string,
+      description: data.description as string | null,
+    })
+    if ('error' in sync) return NextResponse.json({ error: sync.error }, { status: 500 })
   }
 
   return NextResponse.json(data)

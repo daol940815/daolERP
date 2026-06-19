@@ -201,8 +201,12 @@ export default function VendorDetailPage() {
     return dates.length ? dates.reduce((a, b) => (a > b ? a : b)) : null
   }, [invoices, transactions, cardSales])
 
-  const registeredTxIds = useMemo(
-    () => new Set(ledgerEntries.filter(e => e.entry_type === 'payment' && e.transaction_id).map(e => e.transaction_id)),
+  const registeredTxEntries = useMemo(
+    () => new Map(
+      ledgerEntries
+        .filter(e => e.entry_type === 'payment' && e.transaction_id)
+        .map(e => [e.transaction_id as string, e.id] as const),
+    ),
     [ledgerEntries],
   )
 
@@ -563,8 +567,8 @@ export default function VendorDetailPage() {
                     {showPurchaseLedger && (
                       <td className="py-2 px-3 text-right whitespace-nowrap">
                         {tx.amount_out > 0 && (
-                          registeredTxIds.has(tx.id)
-                            ? <span className="text-xs text-gray-400">등록됨</span>
+                          registeredTxEntries.has(tx.id)
+                            ? <button onClick={() => deleteLedgerEntry(registeredTxEntries.get(tx.id)!)} className="text-xs text-gray-400 hover:text-red-500 underline">등록됨 (취소)</button>
                             : <button onClick={() => registerPayment(tx)} className="text-xs text-slate-500 hover:text-slate-700 underline">입금으로 등록</button>
                         )}
                       </td>

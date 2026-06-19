@@ -94,6 +94,47 @@ export async function computeVendorBalances(
   return result
 }
 
+// 거래처(vendor_id)가 매칭/변경/해제될 때 입출금내역의 출금을 정산 원장의 입금(payment)
+// 항목과 동기화한다. vendor_id가 실제로 바뀐 경우에만 동작하는 전이(transition) 기반이라,
+// 사용자가 등록된 항목을 취소(삭제)한 뒤 동일 거래에 대해 match-vendors 등이 재실행되어도
+// (vendor_id가 그대로이므로) 다시 생성되지 않는다.
+export async function syncTransactionPaymentEntry(
+  admin: SupabaseClient,
+  params: {
+    transactionId: string
+    prevVendorId: string | null
+    newVendorId: string | null
+    amountOut: number
+    txDate: string
+    description: string | null
+  },
+): Promise<{ ok: true } | { error: string }> {
+  const { transactionId, prevVendorId, newVendorId, amountOut, txDate, description } = params
+  if (prevVendorId === newVendorId) return { ok: true }
+
+  const { error: delErr } = await admin
+    .from('vendor_ledger_entries')
+    .delete()
+    .eq('transaction_id', transactionId)
+  if (delErr) return { error: delErr.message }
+
+  if (newVendorId && amountOut > 0) {
+    const { error: insErr } = await admin
+      .from('vendor_ledger_entries')
+      .insert({
+        vendor_id:      newVendorId,
+        entry_type:     'payment',
+        entry_date:     txDate.slice(0, 10),
+        amount:         amountOut,
+        memo:           description,
+        transaction_id: transactionId,
+      })
+    if (insErr) return { error: insErr.message }
+  }
+
+  return { ok: true }
+}
+
 // 매입처 상세 페이지 — 정산 요약 + 월별 정산현황(매입금액/계산서/입금/조정/잔액)
 export async function buildVendorMonthlyLedger(
   admin: SupabaseClient,

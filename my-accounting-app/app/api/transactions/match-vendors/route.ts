@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { normalizeName } from '@/lib/name-similarity'
+import { syncTransactionPaymentEntry } from '@/lib/vendor-ledger'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,7 +32,7 @@ export async function POST() {
 
   const { data: txs, error: tErr } = await admin
     .from('transactions')
-    .select('id, description, counterparty_name')
+    .select('id, description, counterparty_name, amount_out, tx_date')
     .is('vendor_id', null)
     .is('transfer_pair_id', null)
   if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 })
@@ -54,6 +55,14 @@ export async function POST() {
       await admin.from('transactions')
         .update({ vendor_id: hits[0].id })
         .eq('id', tx.id)
+      await syncTransactionPaymentEntry(admin, {
+        transactionId: tx.id as string,
+        prevVendorId:  null,
+        newVendorId:   hits[0].id,
+        amountOut:     (tx.amount_out as number | null) ?? 0,
+        txDate:        tx.tx_date as string,
+        description:   desc || null,
+      })
       matched++
     }
   }
