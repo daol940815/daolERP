@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,13 +23,11 @@ export async function GET(req: NextRequest) {
   let viewIds: string[] | null = null
   if (view === 'vip' || view === 'prepayment') {
     const flagCol = view === 'vip' ? 'is_vip' : 'is_prepayment'
-    const { data: flagged, error: fe } = await admin
-      .from('erp_order_items')
-      .select('order_id')
-      .eq(flagCol, true)
-      .limit(10000)
-    if (fe) return NextResponse.json({ error: fe.message }, { status: 500 })
-    viewIds = Array.from(new Set((flagged ?? []).map(r => r.order_id as string)))
+    const flaggedResult = await fetchAllRows<{ order_id: string }>((from, to) =>
+      admin.from('erp_order_items').select('order_id').eq(flagCol, true).range(from, to),
+    )
+    if ('error' in flaggedResult) return NextResponse.json({ error: flaggedResult.error }, { status: 500 })
+    viewIds = Array.from(new Set(flaggedResult.data.map(r => r.order_id)))
     if (!viewIds.length) {
       return NextResponse.json({ data: [], items: [], total: 0, page, limit, summary: { net_sales: 0, outstanding: 0 } })
     }
@@ -52,36 +51,42 @@ export async function GET(req: NextRequest) {
     outstanding = Number(s?.outstanding ?? 0)
   } else if (se.code === 'PGRST202' || /erp_orders_summary/i.test(se.message)) {
     // 함수 미적용(020 미실행) 시 기존 방식으로 폴백 — 데이터가 많으면 느릴 수 있음
-    let sq = admin
-      .from('erp_orders')
-      .select('id, total_amount, outstanding_amount, collect_status')
-      .limit(50000)
-    if (from)                       sq = sq.gte('order_date', from)
-    if (to)                         sq = sq.lte('order_date', to)
-    if (status && status !== 'all') sq = sq.eq('collect_status', status)
-    if (q) sq = sq.or(`order_no.ilike.%${q}%,bank_name.ilike.%${q}%,branch_name.ilike.%${q}%`)
-    if (viewIds) sq = sq.in('id', viewIds)
+    type OrderSumRow = { id: string; total_amount: number | null; outstanding_amount: number | null; collect_status: string }
+    const allOrdersResult = await fetchAllRows<OrderSumRow>((pFrom, pTo) => {
+      let sq = admin
+        .from('erp_orders')
+        .select('id, total_amount, outstanding_amount, collect_status')
+      if (from)                       sq = sq.gte('order_date', from)
+      if (to)                         sq = sq.lte('order_date', to)
+      if (status && status !== 'all') sq = sq.eq('collect_status', status)
+      if (q) sq = sq.or(`order_no.ilike.%${q}%,bank_name.ilike.%${q}%,branch_name.ilike.%${q}%`)
+      if (viewIds) sq = sq.in('id', viewIds)
+      return sq.range(pFrom, pTo)
+    })
+    if ('error' in allOrdersResult) return NextResponse.json({ error: allOrdersResult.error }, { status: 500 })
+    const allOrders = allOrdersResult.data
 
-    const { data: allOrders, error: fe } = await sq
-    if (fe) return NextResponse.json({ error: fe.message }, { status: 500 })
-
-    const allIds = (allOrders ?? []).map(o => o.id as string)
+    const allIds = allOrders.map(o => o.id)
     total = allIds.length
 
     let excludedSum = 0
     for (let i = 0; i < allIds.length; i += 500) {
-      const { data: flagged, error: ie } = await admin
-        .from('erp_order_items')
-        .select('line_total')
-        .in('order_id', allIds.slice(i, i + 500))
-        .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
-      if (ie) return NextResponse.json({ error: ie.message }, { status: 500 })
-      for (const it of flagged ?? []) excludedSum += (it.line_total as number) || 0
+      const chunkIds = allIds.slice(i, i + 500)
+      const flaggedResult = await fetchAllRows<{ line_total: number | null }>((pFrom, pTo) =>
+        admin
+          .from('erp_order_items')
+          .select('line_total')
+          .in('order_id', chunkIds)
+          .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
+          .range(pFrom, pTo),
+      )
+      if ('error' in flaggedResult) return NextResponse.json({ error: flaggedResult.error }, { status: 500 })
+      for (const it of flaggedResult.data) excludedSum += it.line_total || 0
     }
-    netSales = (allOrders ?? []).reduce((s, o) => s + ((o.total_amount as number) || 0), 0) - excludedSum
-    outstanding = (allOrders ?? [])
+    netSales = allOrders.reduce((s, o) => s + (o.total_amount || 0), 0) - excludedSum
+    outstanding = allOrders
       .filter(o => o.collect_status !== 'collected')
-      .reduce((s, o) => s + ((o.outstanding_amount as number) || 0), 0)
+      .reduce((s, o) => s + (o.outstanding_amount || 0), 0)
   } else {
     return NextResponse.json({ error: se.message }, { status: 500 })
   }
@@ -107,27 +112,26 @@ export async function GET(req: NextRequest) {
   const orderIds = (orders ?? []).map(o => o.id as string)
   let items: unknown[] = []
   for (let i = 0; i < orderIds.length; i += 200) {
-    const { data: chunk, error: ie } = await admin
-      .from('erp_order_items')
-      .select('*')
-      .in('order_id', orderIds.slice(i, i + 200))
-      .order('line_no')
-    if (ie) return NextResponse.json({ error: ie.message }, { status: 500 })
-    items = items.concat(chunk ?? [])
+    const chunkIds = orderIds.slice(i, i + 200)
+    const chunkResult = await fetchAllRows<unknown>((pFrom, pTo) =>
+      admin.from('erp_order_items').select('*').in('order_id', chunkIds).order('line_no').range(pFrom, pTo),
+    )
+    if ('error' in chunkResult) return NextResponse.json({ error: chunkResult.error }, { status: 500 })
+    items = items.concat(chunkResult.data)
   }
 
   // 수금 매칭 기록 (품목 결제일자 표시용) — 매칭 테이블(021) 미적용 시 빈 배열
   let matches: unknown[] = []
   for (let i = 0; i < orderIds.length; i += 200) {
-    const { data: mchunk, error: me } = await admin
-      .from('erp_payment_matches')
-      .select('order_id, amount, paid_date')
-      .in('order_id', orderIds.slice(i, i + 200))
-    if (me) {
-      if (me.code === '42P01' || /erp_payment_matches/.test(me.message)) { matches = []; break }
-      return NextResponse.json({ error: me.message }, { status: 500 })
+    const chunkIds = orderIds.slice(i, i + 200)
+    const mchunkResult = await fetchAllRows<unknown>((pFrom, pTo) =>
+      admin.from('erp_payment_matches').select('order_id, amount, paid_date').in('order_id', chunkIds).range(pFrom, pTo),
+    )
+    if ('error' in mchunkResult) {
+      if (/erp_payment_matches/.test(mchunkResult.error)) { matches = []; break }
+      return NextResponse.json({ error: mchunkResult.error }, { status: 500 })
     }
-    matches = matches.concat(mchunk ?? [])
+    matches = matches.concat(mchunkResult.data)
   }
 
   return NextResponse.json({

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 // ERP 매출처/매입처명 단위 대조: ERP 매출/매입 vs 입출금·카드·현금영수증·세금계산서
 //
@@ -36,19 +37,21 @@ export async function buildReconciliationRows(
 ): Promise<{ rows: ReconciliationRow[] } | { error: string }> {
 
   // 별칭 전체 (미연결 포함 — ERP 기준으로 빠짐없이 보여준다)
-  const { data: aliases, error: ae } = await admin
-    .from('erp_vendor_aliases')
-    .select('id, erp_name, vendor_id')
-    .eq('alias_type', direction === 'sales' ? 'customer' : 'purchase')
-    .limit(20000)
-  if (ae) return { error: ae.message }
+  const aliasesResult = await fetchAllRows<{ id: string; erp_name: string; vendor_id: string | null }>((from, to) =>
+    admin
+      .from('erp_vendor_aliases')
+      .select('id, erp_name, vendor_id')
+      .eq('alias_type', direction === 'sales' ? 'customer' : 'purchase')
+      .range(from, to),
+  )
+  if ('error' in aliasesResult) return { error: aliasesResult.error }
+  const aliases = aliasesResult.data
 
-  const { data: vendorRows, error: ve } = await admin
-    .from('vendors')
-    .select('id, name')
-    .limit(20000)
-  if (ve) return { error: ve.message }
-  const vendorName = new Map((vendorRows ?? []).map(v => [v.id as string, v.name as string]))
+  const vendorRowsResult = await fetchAllRows<{ id: string; name: string }>((from, to) =>
+    admin.from('vendors').select('id, name').range(from, to),
+  )
+  if ('error' in vendorRowsResult) return { error: vendorRowsResult.error }
+  const vendorName = new Map(vendorRowsResult.data.map(v => [v.id, v.name]))
 
   // ── 1) ERP 금액 (별칭 단위) ─────────────────────────
   const erpByAlias = new Map<string, ErpAgg>()
@@ -59,51 +62,64 @@ export async function buildReconciliationRows(
   }
 
   if (direction === 'sales') {
-    let oq = admin
-      .from('erp_orders')
-      .select('id, customer_alias_id, total_amount, outstanding_amount, collect_status')
-      .not('customer_alias_id', 'is', null)
-      .limit(50000)
-    if (from) oq = oq.gte('order_date', from)
-    if (to)   oq = oq.lte('order_date', to)
-    const { data: orders, error: oe } = await oq
-    if (oe) return { error: oe.message }
+    const ordersResult = await fetchAllRows<{
+      id: string
+      customer_alias_id: string
+      total_amount: number | null
+      outstanding_amount: number | null
+      collect_status: string
+    }>((rFrom, rTo) => {
+      let oq = admin
+        .from('erp_orders')
+        .select('id, customer_alias_id, total_amount, outstanding_amount, collect_status')
+        .not('customer_alias_id', 'is', null)
+      if (from) oq = oq.gte('order_date', from)
+      if (to)   oq = oq.lte('order_date', to)
+      return oq.range(rFrom, rTo)
+    })
+    if ('error' in ordersResult) return { error: ordersResult.error }
+    const orders = ordersResult.data
 
     // 취소/VIP/선결제 품목 합계 → 순매출에서 제외
-    const orderIds = (orders ?? []).map(o => o.id as string)
+    const orderIds = orders.map(o => o.id)
     const excludedByOrder = new Map<string, number>()
     for (let i = 0; i < orderIds.length; i += 500) {
-      const { data: items, error: ie } = await admin
-        .from('erp_order_items')
-        .select('order_id, line_total')
-        .in('order_id', orderIds.slice(i, i + 500))
-        .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
-      if (ie) return { error: ie.message }
-      for (const it of items ?? []) {
-        const cur = excludedByOrder.get(it.order_id as string) ?? 0
-        excludedByOrder.set(it.order_id as string, cur + ((it.line_total as number) || 0))
+      const idChunk = orderIds.slice(i, i + 500)
+      const itemsResult = await fetchAllRows<{ order_id: string; line_total: number | null }>((rFrom, rTo) =>
+        admin
+          .from('erp_order_items')
+          .select('order_id, line_total')
+          .in('order_id', idChunk)
+          .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
+          .range(rFrom, rTo),
+      )
+      if ('error' in itemsResult) return { error: itemsResult.error }
+      for (const it of itemsResult.data) {
+        const cur = excludedByOrder.get(it.order_id) ?? 0
+        excludedByOrder.set(it.order_id, cur + ((it.line_total as number) || 0))
       }
     }
-    for (const o of orders ?? []) {
-      const a = erpAgg(o.customer_alias_id as string)
-      a.amount += ((o.total_amount as number) || 0) - (excludedByOrder.get(o.id as string) ?? 0)
+    for (const o of orders) {
+      const a = erpAgg(o.customer_alias_id)
+      a.amount += ((o.total_amount as number) || 0) - (excludedByOrder.get(o.id) ?? 0)
       if (o.collect_status !== 'collected') a.outstanding += (o.outstanding_amount as number) || 0
     }
   } else {
-    let iq = admin
-      .from('erp_order_items')
-      .select('purchase_alias_id, purchase_total, erp_orders!inner(order_date)')
-      .eq('is_canceled', false)
-      .eq('is_vip', false)
-      .eq('is_prepayment', false)
-      .not('purchase_alias_id', 'is', null)
-      .limit(100000)
-    if (from) iq = iq.gte('erp_orders.order_date', from)
-    if (to)   iq = iq.lte('erp_orders.order_date', to)
-    const { data: items, error: ie } = await iq
-    if (ie) return { error: ie.message }
-    for (const it of items ?? []) {
-      erpAgg(it.purchase_alias_id as string).amount += (it.purchase_total as number) || 0
+    const itemsResult = await fetchAllRows<{ purchase_alias_id: string; purchase_total: number | null }>((rFrom, rTo) => {
+      let iq = admin
+        .from('erp_order_items')
+        .select('purchase_alias_id, purchase_total, erp_orders!inner(order_date)')
+        .eq('is_canceled', false)
+        .eq('is_vip', false)
+        .eq('is_prepayment', false)
+        .not('purchase_alias_id', 'is', null)
+      if (from) iq = iq.gte('erp_orders.order_date', from)
+      if (to)   iq = iq.lte('erp_orders.order_date', to)
+      return iq.range(rFrom, rTo)
+    })
+    if ('error' in itemsResult) return { error: itemsResult.error }
+    for (const it of itemsResult.data) {
+      erpAgg(it.purchase_alias_id).amount += (it.purchase_total as number) || 0
     }
   }
 
@@ -117,72 +133,75 @@ export async function buildReconciliationRows(
 
   // 은행 입출금
   {
-    let tq = admin
-      .from('transactions')
-      .select('vendor_id, amount_in, amount_out')
-      .not('vendor_id', 'is', null)
-      .limit(100000)
-    if (from) tq = tq.gte('tx_date', from)
-    if (to)   tq = tq.lte('tx_date', to)
-    if (direction === 'sales') tq = tq.gt('amount_in', 0)
-    else                       tq = tq.gt('amount_out', 0)
-    const { data: txs, error: te } = await tq
-    if (te) return { error: te.message }
-    for (const t of txs ?? []) {
+    const txResult = await fetchAllRows<{ vendor_id: string; amount_in: number | null; amount_out: number | null }>((rFrom, rTo) => {
+      let tq = admin
+        .from('transactions')
+        .select('vendor_id, amount_in, amount_out')
+        .not('vendor_id', 'is', null)
+      if (from) tq = tq.gte('tx_date', from)
+      if (to)   tq = tq.lte('tx_date', to)
+      tq = direction === 'sales' ? tq.gt('amount_in', 0) : tq.gt('amount_out', 0)
+      return tq.range(rFrom, rTo)
+    })
+    if ('error' in txResult) return { error: txResult.error }
+    for (const t of txResult.data) {
       const amt = direction === 'sales' ? ((t.amount_in as number) || 0) : ((t.amount_out as number) || 0)
-      payAgg(t.vendor_id as string).bank += amt
+      payAgg(t.vendor_id).bank += amt
     }
   }
 
   // 카드매출 (매출 대조 전용, 취소 차감)
   if (direction === 'sales') {
-    let cq = admin
-      .from('card_sales')
-      .select('vendor_id, amount, transaction_type')
-      .not('vendor_id', 'is', null)
-      .limit(100000)
-    if (from) cq = cq.gte('tx_date', from)
-    if (to)   cq = cq.lte('tx_date', to)
-    const { data: cards, error: ce } = await cq
-    if (ce) return { error: ce.message }
-    for (const c of cards ?? []) {
+    const cardsResult = await fetchAllRows<{ vendor_id: string; amount: number | null; transaction_type: string }>((rFrom, rTo) => {
+      let cq = admin
+        .from('card_sales')
+        .select('vendor_id, amount, transaction_type')
+        .not('vendor_id', 'is', null)
+      if (from) cq = cq.gte('tx_date', from)
+      if (to)   cq = cq.lte('tx_date', to)
+      return cq.range(rFrom, rTo)
+    })
+    if ('error' in cardsResult) return { error: cardsResult.error }
+    for (const c of cardsResult.data) {
       const amt = (c.amount as number) || 0
-      payAgg(c.vendor_id as string).card += c.transaction_type === 'cancel' ? -Math.abs(amt) : amt
+      payAgg(c.vendor_id).card += c.transaction_type === 'cancel' ? -Math.abs(amt) : amt
     }
   }
 
   // 현금영수증 (취소 차감)
   {
-    let rq = admin
-      .from('cash_receipts')
-      .select('vendor_id, amount, transaction_type')
-      .eq('direction', direction)
-      .not('vendor_id', 'is', null)
-      .limit(100000)
-    if (from) rq = rq.gte('tx_date', from)
-    if (to)   rq = rq.lte('tx_date', to)
-    const { data: receipts, error: re } = await rq
-    if (re) return { error: re.message }
-    for (const c of receipts ?? []) {
+    const receiptsResult = await fetchAllRows<{ vendor_id: string; amount: number | null; transaction_type: string }>((rFrom, rTo) => {
+      let rq = admin
+        .from('cash_receipts')
+        .select('vendor_id, amount, transaction_type')
+        .eq('direction', direction)
+        .not('vendor_id', 'is', null)
+      if (from) rq = rq.gte('tx_date', from)
+      if (to)   rq = rq.lte('tx_date', to)
+      return rq.range(rFrom, rTo)
+    })
+    if ('error' in receiptsResult) return { error: receiptsResult.error }
+    for (const c of receiptsResult.data) {
       const amt = (c.amount as number) || 0
-      payAgg(c.vendor_id as string).cash += c.transaction_type === 'cancel' ? -Math.abs(amt) : amt
+      payAgg(c.vendor_id).cash += c.transaction_type === 'cancel' ? -Math.abs(amt) : amt
     }
   }
 
   // 세금계산서
   {
-    let xq = admin
-      .from('tax_invoices')
-      .select('vendor_id, total_amount')
-      .eq('direction', direction)
-      .not('vendor_id', 'is', null)
-      .limit(100000)
-    if (from) xq = xq.gte('issue_date', from)
-    if (to)   xq = xq.lte('issue_date', to)
-    const { data: invoices, error: xe } = await xq
-    if (xe) return { error: xe.message }
-    for (const inv of invoices ?? []) {
-      payAgg(inv.vendor_id as string).invoice += (inv.total_amount as number) || 0
+    const invoicesResult = await fetchAllRows<{ vendor_id: string; total_amount: number | null }>((rFrom, rTo) => {
+      let xq = admin
+        .from('tax_invoices')
+        .select('vendor_id, total_amount')
+        .eq('direction', direction)
+        .not('vendor_id', 'is', null)
+      if (from) xq = xq.gte('issue_date', from)
+      if (to)   xq = xq.lte('issue_date', to)
+      return xq.range(rFrom, rTo)
+    })
+    if ('error' in invoicesResult) return { error: invoicesResult.error }
+    for (const inv of invoicesResult.data) {
+      payAgg(inv.vendor_id).invoice += (inv.total_amount as number) || 0
     }
   }
 

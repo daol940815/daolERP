@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 // 은행 이체 거래 패턴 — 키워드 분류 대상에서 제외
 // 이체는 비용/수익이 아닌 계좌 간 자산 이동이므로 키워드 매칭을 건너뜀
@@ -41,22 +42,24 @@ export async function classifyByKeywords(
   if (!accountsWithKw.length) return { classified: 0, total: 0 }
 
   // suggested_account_id가 없는 pending 거래 조회
-  let query = admin
-    .from('transactions')
-    .select('id, description, amount_in, amount_out')
-    .is('suggested_account_id', null)
-    .eq('status', 'pending')
-    .limit(2000)
-
-  if (uploadLogId) {
-    query = query.eq('upload_log_id', uploadLogId)
-  }
-  if (bankAccountId) {
-    query = query.eq('bank_account_id', bankAccountId)
-  }
-
-  const { data: transactions } = await query
-  if (!transactions?.length) return { classified: 0, total: 0 }
+  const result = await fetchAllRows<{
+    id: string
+    description: string
+    amount_in: number | null
+    amount_out: number | null
+  }>((from, to) => {
+    let query = admin
+      .from('transactions')
+      .select('id, description, amount_in, amount_out')
+      .is('suggested_account_id', null)
+      .eq('status', 'pending')
+    if (uploadLogId)   query = query.eq('upload_log_id', uploadLogId)
+    if (bankAccountId) query = query.eq('bank_account_id', bankAccountId)
+    return query.range(from, to)
+  })
+  if ('error' in result) return { classified: 0, total: 0 }
+  const transactions = result.data
+  if (!transactions.length) return { classified: 0, total: 0 }
 
   let classified = 0
 

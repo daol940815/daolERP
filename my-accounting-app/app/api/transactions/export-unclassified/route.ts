@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -16,30 +17,40 @@ export async function GET(req: NextRequest) {
   const bankAccountId = searchParams.get('bankAccountId')
 
   // 미분류 거래 조회 (confirmed_account_id 없음 + pending/reviewed 상태)
-  let query = admin
-    .from('transactions')
-    .select('id, tx_date, description, amount_in, amount_out, balance, account_alias, memo, suggested_account_id')
-    .is('confirmed_account_id', null)
-    .in('status', ['pending', 'reviewed'])
-    .order('tx_date', { ascending: false })
-    .order('tx_time', { ascending: false, nullsFirst: false })
-    .limit(10000)
-
-  if (from)          query = query.gte('tx_date', from)
-  if (to)            query = query.lte('tx_date', to)
-  if (bankAccountId) query = query.eq('bank_account_id', bankAccountId)
-
-  const [{ data: txs, error }, { data: accounts }] = await Promise.all([
-    query,
+  const [txsResult, { data: accounts }] = await Promise.all([
+    fetchAllRows<{
+      id: string
+      tx_date: string
+      description: string | null
+      amount_in: number | null
+      amount_out: number | null
+      balance: number | null
+      account_alias: string | null
+      memo: string | null
+      suggested_account_id: string | null
+    }>((rFrom, rTo) => {
+      let query = admin
+        .from('transactions')
+        .select('id, tx_date, description, amount_in, amount_out, balance, account_alias, memo, suggested_account_id')
+        .is('confirmed_account_id', null)
+        .in('status', ['pending', 'reviewed'])
+        .order('tx_date', { ascending: false })
+        .order('tx_time', { ascending: false, nullsFirst: false })
+      if (from)          query = query.gte('tx_date', from)
+      if (to)            query = query.lte('tx_date', to)
+      if (bankAccountId) query = query.eq('bank_account_id', bankAccountId)
+      return query.range(rFrom, rTo)
+    }),
     admin.from('accounts').select('id, name, code').order('code'),
   ])
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if ('error' in txsResult) return NextResponse.json({ error: txsResult.error }, { status: 500 })
+  const txs = txsResult.data
 
   const acctMap = Object.fromEntries((accounts ?? []).map(a => [a.id, a.name]))
 
   // Sheet 1: 미분류 거래 내역 (계정과목 빈칸)
-  const rows = (txs ?? []).map(tx => ({
+  const rows = txs.map(tx => ({
     'id':              tx.id,
     '거래일자':         (tx.tx_date as string).slice(0, 10),
     '내용/적요':        tx.description ?? '',

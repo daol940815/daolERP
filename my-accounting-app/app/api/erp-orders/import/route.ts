@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -265,20 +266,11 @@ export async function POST(req: NextRequest) {
   {
     // 매입처/매출처명에 괄호·쉼표·따옴표 등이 섞여 있으면 .in() 필터 구문이
     // 깨질 수 있으므로, 전체 별칭을 가져와 메모리에서 매칭한다.
-    // PostgREST의 max-rows(기본 1000) 설정 때문에 .limit()을 크게 줘도 한 번에
-    // 1000건까지만 반환되므로, range()로 페이지를 나눠 끝까지 읽어야 한다.
-    const PAGE_SIZE = 1000
-    let from = 0
-    while (true) {
-      const { data, error } = await admin
-        .from('erp_vendor_aliases')
-        .select('id, alias_type, erp_name')
-        .range(from, from + PAGE_SIZE - 1)
-      if (error) return NextResponse.json({ error: `별칭 조회 실패: ${error.message}` }, { status: 500 })
-      for (const a of data ?? []) aliasMap.set(`${a.alias_type}|${a.erp_name}`, a.id as string)
-      if (!data || data.length < PAGE_SIZE) break
-      from += PAGE_SIZE
-    }
+    const result = await fetchAllRows<{ id: string; alias_type: string; erp_name: string }>((from, to) =>
+      admin.from('erp_vendor_aliases').select('id, alias_type, erp_name').range(from, to),
+    )
+    if ('error' in result) return NextResponse.json({ error: `별칭 조회 실패: ${result.error}` }, { status: 500 })
+    for (const a of result.data) aliasMap.set(`${a.alias_type}|${a.erp_name}`, a.id)
   }
 
   // ── 3) 주문 upsert ──────────────────────────────────

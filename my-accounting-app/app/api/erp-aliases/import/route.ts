@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -43,21 +44,25 @@ export async function POST(req: NextRequest) {
   if (!wsName) return NextResponse.json({ error: '시트가 없습니다.' }, { status: 400 })
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wsName])
 
-  const { data: vendors, error: ve } = await admin
-    .from('vendors')
-    .select('id, name, type, biz_number, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active')
-    .limit(5000)
-  if (ve) return NextResponse.json({ error: ve.message }, { status: 500 })
+  const vendorsResult = await fetchAllRows<VendorRow>((from, to) =>
+    admin
+      .from('vendors')
+      .select('id, name, type, biz_number, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active')
+      .range(from, to),
+  )
+  if ('error' in vendorsResult) return NextResponse.json({ error: vendorsResult.error }, { status: 500 })
 
-  const { data: aliases, error: ae } = await admin
-    .from('erp_vendor_aliases')
-    .select('id, erp_name, vendor_id')
-    .eq('alias_type', type)
-    .limit(2000)
-  if (ae) return NextResponse.json({ error: ae.message }, { status: 500 })
+  const aliasesResult = await fetchAllRows<{ id: string; erp_name: string; vendor_id: string | null }>((from, to) =>
+    admin
+      .from('erp_vendor_aliases')
+      .select('id, erp_name, vendor_id')
+      .eq('alias_type', type)
+      .range(from, to),
+  )
+  if ('error' in aliasesResult) return NextResponse.json({ error: aliasesResult.error }, { status: 500 })
 
-  const vendorByName = new Map<string, VendorRow>((vendors ?? []).map(v => [(v.name as string).trim(), v as VendorRow]))
-  const aliasByName  = new Map((aliases ?? []).map(a => [(a.erp_name as string).trim(), a]))
+  const vendorByName = new Map<string, VendorRow>(vendorsResult.data.map(v => [v.name.trim(), v]))
+  const aliasByName  = new Map(aliasesResult.data.map(a => [a.erp_name.trim(), a]))
 
   const defaultType = type === 'customer' ? 'customer' : 'vendor'
 

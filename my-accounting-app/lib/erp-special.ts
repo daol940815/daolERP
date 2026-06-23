@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 export interface ErpSpecialItemRow {
   id: string
@@ -54,16 +55,25 @@ export async function buildErpSpecialData(
   const fetchItems = async (
     flagCol: 'is_vip' | 'is_prepayment',
   ): Promise<{ rows: ErpSpecialItemRow[] } | { error: string }> => {
-    let q = admin
-      .from('erp_order_items')
-      .select('id, item_name, sale_price, quantity, line_total, is_canceled, erp_orders!inner(order_no, order_date, bank_name, branch_name)')
-      .eq(flagCol, true)
-      .limit(10000)
-    if (from) q = q.gte('erp_orders.order_date', from)
-    if (to)   q = q.lte('erp_orders.order_date', to)
-    const { data, error } = await q
-    if (error) return { error: error.message }
-    const rows: ErpSpecialItemRow[] = (data ?? []).map(it => {
+    const result = await fetchAllRows<{
+      id: string
+      item_name: string | null
+      sale_price: number | null
+      quantity: number | null
+      line_total: number | null
+      is_canceled: boolean | null
+      erp_orders: unknown
+    }>((rFrom, rTo) => {
+      let q = admin
+        .from('erp_order_items')
+        .select('id, item_name, sale_price, quantity, line_total, is_canceled, erp_orders!inner(order_no, order_date, bank_name, branch_name)')
+        .eq(flagCol, true)
+      if (from) q = q.gte('erp_orders.order_date', from)
+      if (to)   q = q.lte('erp_orders.order_date', to)
+      return q.range(rFrom, rTo)
+    })
+    if ('error' in result) return { error: result.error }
+    const rows: ErpSpecialItemRow[] = result.data.map(it => {
       const o = (it.erp_orders ?? {}) as JoinedOrder
       return {
         id: it.id as string,
@@ -87,14 +97,25 @@ export async function buildErpSpecialData(
   if ('error' in prepay) return { error: prepay.error }
 
   // 선결제 원장 전체 (잔액은 전체 기간으로 계산해야 정확)
-  const { data: entries, error: le } = await admin
-    .from('erp_prepayments')
-    .select('id, entry_date, entry_type, amount, memo, alias_id, erp_vendor_aliases(erp_name)')
-    .eq('direction', 'customer')
-    .order('entry_date', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(10000)
-  if (le) return { error: le.message }
+  const entriesResult = await fetchAllRows<{
+    id: string
+    entry_date: string
+    entry_type: 'deposit' | 'deduction'
+    amount: number | null
+    memo: string | null
+    alias_id: string
+    erp_vendor_aliases: unknown
+  }>((pFrom, pTo) =>
+    admin
+      .from('erp_prepayments')
+      .select('id, entry_date, entry_type, amount, memo, alias_id, erp_vendor_aliases(erp_name)')
+      .eq('direction', 'customer')
+      .order('entry_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .range(pFrom, pTo),
+  )
+  if ('error' in entriesResult) return { error: entriesResult.error }
+  const entries = entriesResult.data
 
   const balanceMap = new Map<string, ErpSpecialBalanceRow>()
   const ledger: ErpSpecialLedgerRow[] = []

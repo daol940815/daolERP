@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { unstable_noStore as noStore } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 import OrphanedAccountsSection, { type OrphanedGroup } from './_components/OrphanedAccountsSection'
 
 // force-dynamic: 정적 렌더링 방지 (빌드 시 캐싱 금지)
@@ -240,37 +241,49 @@ export default async function DashboardPage() {
   // 계좌·미분류·당월 거래·미연결 거래 병렬 조회
   const [
     { data: accounts },
-    { data: curMonthTx },
-    { data: unclassifiedTx },
-    { data: orphanedRaw },
+    curMonthTxResult,
+    unclassifiedTxResult,
+    orphanedRawResult,
   ] = await Promise.all([
     admin.from('bank_accounts')
       .select('id, bank_name, account_number, alias, account_type, overdraft_limit')
       .eq('is_active', true)
       .order('bank_name'),
 
-    admin.from('transactions')
-      .select('bank_account_id, amount_in, amount_out, status')
-      .gte('tx_date', cur.start)
-      .lte('tx_date', cur.end),
+    fetchAllRows<{ bank_account_id: string | null; amount_in: number | null; amount_out: number | null; status: string }>(
+      (from, to) => admin.from('transactions')
+        .select('bank_account_id, amount_in, amount_out, status')
+        .gte('tx_date', cur.start)
+        .lte('tx_date', cur.end)
+        .range(from, to),
+    ),
 
     // 미확정 = confirmed_account_id 없고 pending/reviewed 상태인 전체 거래 (status도 포함)
-    admin.from('transactions')
-      .select('bank_account_id, status')
-      .is('confirmed_account_id', null)
-      .in('status', ['pending', 'reviewed']),
+    fetchAllRows<{ bank_account_id: string | null; status: string }>(
+      (from, to) => admin.from('transactions')
+        .select('bank_account_id, status')
+        .is('confirmed_account_id', null)
+        .in('status', ['pending', 'reviewed'])
+        .range(from, to),
+    ),
 
     // bank_account_id 없지만 account_alias(은행명)가 있는 미연결 거래
-    admin.from('transactions')
-      .select('account_alias, amount_in, amount_out')
-      .is('bank_account_id', null)
-      .not('account_alias', 'is', null)
-      .limit(5000),
+    fetchAllRows<{ account_alias: string; amount_in: number | null; amount_out: number | null }>(
+      (from, to) => admin.from('transactions')
+        .select('account_alias, amount_in, amount_out')
+        .is('bank_account_id', null)
+        .not('account_alias', 'is', null)
+        .range(from, to),
+    ),
   ])
+
+  const curMonthTx     = 'error' in curMonthTxResult ? [] : curMonthTxResult.data
+  const unclassifiedTx = 'error' in unclassifiedTxResult ? [] : unclassifiedTxResult.data
+  const orphanedRaw    = 'error' in orphanedRawResult ? [] : orphanedRawResult.data
 
   // 미연결 거래를 account_alias 기준으로 그룹핑
   const orphanedMap: Record<string, OrphanedGroup> = {}
-  for (const tx of (orphanedRaw ?? [])) {
+  for (const tx of orphanedRaw) {
     const alias = tx.account_alias as string
     if (!orphanedMap[alias]) orphanedMap[alias] = { alias, count: 0, totalIn: 0, totalOut: 0 }
     orphanedMap[alias].count++
@@ -281,14 +294,18 @@ export default async function DashboardPage() {
     .sort((a, b) => b.count - a.count)
 
   // 당월 거래가 없으면 전월로 자동 전환 (업로드된 데이터가 전월인 경우 대응)
-  let monthlyTx = curMonthTx ?? []
+  let monthlyTx = curMonthTx
   let periodLabel = cur.label
   if (!monthlyTx.length) {
-    const { data: prevData } = await admin.from('transactions')
-      .select('bank_account_id, amount_in, amount_out, status')
-      .gte('tx_date', prev.start)
-      .lte('tx_date', prev.end)
-    if (prevData?.length) {
+    const prevResult = await fetchAllRows<{ bank_account_id: string | null; amount_in: number | null; amount_out: number | null; status: string }>(
+      (from, to) => admin.from('transactions')
+        .select('bank_account_id, amount_in, amount_out, status')
+        .gte('tx_date', prev.start)
+        .lte('tx_date', prev.end)
+        .range(from, to),
+    )
+    const prevData = 'error' in prevResult ? [] : prevResult.data
+    if (prevData.length) {
       monthlyTx = prevData
       periodLabel = `${prev.label} (전월)`
     }

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 // 입금 ↔ ERP 주문 건 단위 매칭 (마이그레이션 021: erp_payment_matches)
 // 은행 입금과 카드결제(거래처 매칭된 card_sales) 대상. 현금영수증은 스키마만 지원.
@@ -56,12 +57,13 @@ export async function loadMatchingState(
   to: string | null,
 ): Promise<MatchingState | { error: string; missingTable?: boolean }> {
 
-  const { data: matchRows, error: me } = await admin
-    .from('erp_payment_matches')
-    .select('*')
-    .limit(100000)
-  if (me) return { error: me.message, missingTable: isMissingMatchTable(me) }
-  const matches = (matchRows ?? []) as MatchRow[]
+  const matchRowsResult = await fetchAllRows<MatchRow>((from, to) =>
+    admin.from('erp_payment_matches').select('*').range(from, to),
+  )
+  if ('error' in matchRowsResult) {
+    return { error: matchRowsResult.error, missingTable: isMissingMatchTable({ message: matchRowsResult.error }) }
+  }
+  const matches = matchRowsResult.data
 
   const allocByOrder = new Map<string, number>()
   const allocBySource = new Map<string, number>()
@@ -74,46 +76,61 @@ export async function loadMatchingState(
   }
 
   // 매출처 별칭 → 거래처
-  const { data: aliases, error: ae } = await admin
-    .from('erp_vendor_aliases')
-    .select('id, vendor_id')
-    .eq('alias_type', 'customer')
-    .not('vendor_id', 'is', null)
-    .limit(20000)
-  if (ae) return { error: ae.message }
-  const aliasToVendor = new Map((aliases ?? []).map(a => [a.id as string, a.vendor_id as string]))
+  const aliasesResult = await fetchAllRows<{ id: string; vendor_id: string }>((from, to) =>
+    admin
+      .from('erp_vendor_aliases')
+      .select('id, vendor_id')
+      .eq('alias_type', 'customer')
+      .not('vendor_id', 'is', null)
+      .range(from, to),
+  )
+  if ('error' in aliasesResult) return { error: aliasesResult.error }
+  const aliasToVendor = new Map(aliasesResult.data.map(a => [a.id, a.vendor_id]))
 
-  const { data: vendorRows, error: ve } = await admin
-    .from('vendors')
-    .select('id, name')
-    .limit(20000)
-  if (ve) return { error: ve.message }
-  const vendorName = new Map((vendorRows ?? []).map(v => [v.id as string, v.name as string]))
+  const vendorRowsResult = await fetchAllRows<{ id: string; name: string }>((from, to) =>
+    admin.from('vendors').select('id, name').range(from, to),
+  )
+  if ('error' in vendorRowsResult) return { error: vendorRowsResult.error }
+  const vendorName = new Map(vendorRowsResult.data.map(v => [v.id, v.name]))
 
   // 주문 (순매출 = total - 취소/VIP/선결제 품목)
-  let oq = admin
-    .from('erp_orders')
-    .select('id, order_no, order_date, bank_name, branch_name, customer_alias_id, total_amount, collect_status')
-    .not('customer_alias_id', 'is', null)
-    .limit(50000)
-  if (from) oq = oq.gte('order_date', from)
-  if (to)   oq = oq.lte('order_date', to)
-  const { data: orderRows, error: oe } = await oq
-  if (oe) return { error: oe.message }
+  const orderRowsResult = await fetchAllRows<{
+    id: string
+    order_no: string
+    order_date: string
+    bank_name: string | null
+    branch_name: string | null
+    customer_alias_id: string
+    total_amount: number | null
+    collect_status: string
+  }>((rFrom, rTo) => {
+    let oq = admin
+      .from('erp_orders')
+      .select('id, order_no, order_date, bank_name, branch_name, customer_alias_id, total_amount, collect_status')
+      .not('customer_alias_id', 'is', null)
+    if (from) oq = oq.gte('order_date', from)
+    if (to)   oq = oq.lte('order_date', to)
+    return oq.range(rFrom, rTo)
+  })
+  if ('error' in orderRowsResult) return { error: orderRowsResult.error }
 
-  const matched = (orderRows ?? []).filter(o => aliasToVendor.has(o.customer_alias_id as string))
-  const orderIds = matched.map(o => o.id as string)
+  const matched = orderRowsResult.data.filter(o => aliasToVendor.has(o.customer_alias_id))
+  const orderIds = matched.map(o => o.id)
   const excludedByOrder = new Map<string, number>()
   for (let i = 0; i < orderIds.length; i += 500) {
-    const { data: items, error: ie } = await admin
-      .from('erp_order_items')
-      .select('order_id, line_total')
-      .in('order_id', orderIds.slice(i, i + 500))
-      .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
-    if (ie) return { error: ie.message }
-    for (const it of items ?? []) {
-      const cur = excludedByOrder.get(it.order_id as string) ?? 0
-      excludedByOrder.set(it.order_id as string, cur + ((it.line_total as number) || 0))
+    const idChunk = orderIds.slice(i, i + 500)
+    const itemsResult = await fetchAllRows<{ order_id: string; line_total: number | null }>((rFrom, rTo) =>
+      admin
+        .from('erp_order_items')
+        .select('order_id, line_total')
+        .in('order_id', idChunk)
+        .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
+        .range(rFrom, rTo),
+    )
+    if ('error' in itemsResult) return { error: itemsResult.error }
+    for (const it of itemsResult.data) {
+      const cur = excludedByOrder.get(it.order_id) ?? 0
+      excludedByOrder.set(it.order_id, cur + ((it.line_total as number) || 0))
     }
   }
 
@@ -134,19 +151,27 @@ export async function loadMatchingState(
   })
 
   // 은행 입금 (거래처 연결 건만)
-  let tq = admin
-    .from('transactions')
-    .select('id, tx_date, counterparty_name, description, vendor_id, amount_in')
-    .not('vendor_id', 'is', null)
-    .gt('amount_in', 0)
-    .order('tx_date', { ascending: false })
-    .limit(100000)
-  if (from) tq = tq.gte('tx_date', from)
-  if (to)   tq = tq.lte('tx_date', to)
-  const { data: txRows, error: te } = await tq
-  if (te) return { error: te.message }
+  const txRowsResult = await fetchAllRows<{
+    id: string
+    tx_date: string
+    counterparty_name: string | null
+    description: string | null
+    vendor_id: string
+    amount_in: number | null
+  }>((rFrom, rTo) => {
+    let tq = admin
+      .from('transactions')
+      .select('id, tx_date, counterparty_name, description, vendor_id, amount_in')
+      .not('vendor_id', 'is', null)
+      .gt('amount_in', 0)
+      .order('tx_date', { ascending: false })
+    if (from) tq = tq.gte('tx_date', from)
+    if (to)   tq = tq.lte('tx_date', to)
+    return tq.range(rFrom, rTo)
+  })
+  if ('error' in txRowsResult) return { error: txRowsResult.error }
 
-  const deposits: DepositState[] = (txRows ?? []).map(t => {
+  const deposits: DepositState[] = txRowsResult.data.map(t => {
     const amount = (t.amount_in as number) || 0
     const alloc = allocBySource.get(`bank:${t.id}`) ?? 0
     return {
@@ -164,16 +189,27 @@ export async function loadMatchingState(
   })
 
   // 카드결제 매출 (거래처 매칭된 건만, 승인/취소 건을 승인번호 기준으로 상쇄해 순매출액 계산)
-  let cq = admin
-    .from('card_sales')
-    .select('id, tx_date, approval_number, card_number, acquirer, amount, transaction_type, vendor_id')
-    .not('vendor_id', 'is', null)
-    .order('tx_date', { ascending: false })
-    .limit(100000)
-  if (from) cq = cq.gte('tx_date', from)
-  if (to)   cq = cq.lte('tx_date', to)
-  const { data: cardRows, error: ce } = await cq
-  if (ce) return { error: ce.message }
+  const cardRowsResult = await fetchAllRows<{
+    id: string
+    tx_date: string
+    approval_number: string
+    card_number: string | null
+    acquirer: string | null
+    amount: number | null
+    transaction_type: 'approval' | 'cancel'
+    vendor_id: string
+  }>((rFrom, rTo) => {
+    let cq = admin
+      .from('card_sales')
+      .select('id, tx_date, approval_number, card_number, acquirer, amount, transaction_type, vendor_id')
+      .not('vendor_id', 'is', null)
+      .order('tx_date', { ascending: false })
+    if (from) cq = cq.gte('tx_date', from)
+    if (to)   cq = cq.lte('tx_date', to)
+    return cq.range(rFrom, rTo)
+  })
+  if ('error' in cardRowsResult) return { error: cardRowsResult.error }
+  const cardRows = cardRowsResult.data
 
   interface CardSaleRow {
     id: string

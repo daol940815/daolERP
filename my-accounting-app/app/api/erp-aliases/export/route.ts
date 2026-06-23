@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -18,42 +19,49 @@ export async function GET(req: NextRequest) {
   const type: 'customer' | 'purchase' = searchParams.get('type') === 'purchase' ? 'purchase' : 'customer'
   const isCustomer = type === 'customer'
 
-  const { data: aliases, error: ae } = await admin
-    .from('erp_vendor_aliases')
-    .select('erp_name, vendor_id, vendors(id, name, type, biz_number, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active)')
-    .eq('alias_type', type)
-    .order('erp_name')
-    .limit(2000)
-  if (ae) return NextResponse.json({ error: ae.message }, { status: 500 })
-
-  const { data: vendors, error: ve } = await admin
-    .from('vendors')
-    .select('id, name, type, biz_number, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active')
-    .order('name')
-    .limit(5000)
-  if (ve) return NextResponse.json({ error: ve.message }, { status: 500 })
-
-  const connectedVendorIds = new Set(
-    (aliases ?? []).filter(a => a.vendor_id).map(a => a.vendor_id as string)
-  )
-  const otherVendors = (vendors ?? []).filter(v =>
-    (isCustomer ? (v.type === 'customer' || v.type === 'both') : (v.type === 'vendor' || v.type === 'both'))
-    && !connectedVendorIds.has(v.id as string)
-  )
-
   type VendorRow = {
     id: string; name: string; type: string
     biz_number: string | null; contact_name: string | null; contact_phone: string | null
     email: string | null; note: string | null
     match_aliases: string[] | null; card_numbers: string[] | null; is_active: boolean
   }
+  type AliasRow = { erp_name: string; vendor_id: string | null; vendors: unknown }
+
+  const aliasesResult = await fetchAllRows<AliasRow>((from, to) =>
+    admin
+      .from('erp_vendor_aliases')
+      .select('erp_name, vendor_id, vendors(id, name, type, biz_number, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active)')
+      .eq('alias_type', type)
+      .order('erp_name')
+      .range(from, to),
+  )
+  if ('error' in aliasesResult) return NextResponse.json({ error: aliasesResult.error }, { status: 500 })
+  const aliases = aliasesResult.data
+
+  const vendorsResult = await fetchAllRows<VendorRow>((from, to) =>
+    admin
+      .from('vendors')
+      .select('id, name, type, biz_number, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active')
+      .order('name')
+      .range(from, to),
+  )
+  if ('error' in vendorsResult) return NextResponse.json({ error: vendorsResult.error }, { status: 500 })
+  const vendors = vendorsResult.data
+
+  const connectedVendorIds = new Set(
+    aliases.filter(a => a.vendor_id).map(a => a.vendor_id as string)
+  )
+  const otherVendors = vendors.filter(v =>
+    (isCustomer ? (v.type === 'customer' || v.type === 'both') : (v.type === 'vendor' || v.type === 'both'))
+    && !connectedVendorIds.has(v.id)
+  )
 
   const rows: Record<string, string>[] = []
 
-  for (const a of aliases ?? []) {
-    const v = a.vendors as unknown as VendorRow | null
+  for (const a of aliases) {
+    const v = a.vendors as VendorRow | null
     rows.push({
-      'ERP명':              a.erp_name as string,
+      'ERP명':              a.erp_name,
       '거래처명':           v?.name ?? '',
       '유형':               v ? (TYPE_LABEL[v.type] ?? v.type) : '',
       '사업자번호':         v?.biz_number ?? '',
@@ -67,7 +75,7 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  for (const v of otherVendors as VendorRow[]) {
+  for (const v of otherVendors) {
     rows.push({
       'ERP명':              '',
       '거래처명':           v.name,

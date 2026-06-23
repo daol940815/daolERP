@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,28 +13,28 @@ export async function GET(req: NextRequest) {
   const direction = searchParams.get('direction')
   const aliasId   = searchParams.get('aliasId')
 
-  let query = admin
-    .from('erp_prepayments')
-    .select('*')
-    .order('entry_date', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(3000)
-
-  if (direction === 'customer' || direction === 'purchase') query = query.eq('direction', direction)
-  if (aliasId) query = query.eq('alias_id', aliasId)
-
-  const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const result = await fetchAllRows((from, to) => {
+    let query = admin
+      .from('erp_prepayments')
+      .select('*')
+      .order('entry_date', { ascending: false })
+      .order('created_at', { ascending: false })
+    if (direction === 'customer' || direction === 'purchase') query = query.eq('direction', direction)
+    if (aliasId) query = query.eq('alias_id', aliasId)
+    return query.range(from, to)
+  })
+  if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
+  const data = result.data
 
   // 별칭별 잔액 (입금 합 − 차감 합)
   const balances = new Map<string, number>()
-  for (const e of data ?? []) {
+  for (const e of data) {
     const cur = balances.get(e.alias_id as string) ?? 0
     balances.set(e.alias_id as string, cur + (e.entry_type === 'deposit' ? e.amount : -e.amount))
   }
 
   return NextResponse.json({
-    data: data ?? [],
+    data,
     balances: Object.fromEntries(balances),
   })
 }
@@ -59,11 +60,11 @@ export async function POST(req: NextRequest) {
   // 차감 시 잔액 확인 (초과해도 경고만 — 강제 차단하지 않음)
   let warning: string | null = null
   if (entry_type === 'deduction') {
-    const { data: entries } = await admin
-      .from('erp_prepayments')
-      .select('entry_type, amount')
-      .eq('alias_id', alias_id)
-    const balance = (entries ?? []).reduce(
+    const entriesResult = await fetchAllRows<{ entry_type: 'deposit' | 'deduction'; amount: number }>((from, to) =>
+      admin.from('erp_prepayments').select('entry_type, amount').eq('alias_id', alias_id).range(from, to),
+    )
+    const entries = 'error' in entriesResult ? [] : entriesResult.data
+    const balance = entries.reduce(
       (s, e) => s + (e.entry_type === 'deposit' ? e.amount : -e.amount), 0)
     if (amt > balance) {
       warning = `차감액(${amt.toLocaleString()}원)이 잔액(${balance.toLocaleString()}원)을 초과합니다.`

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,18 +16,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'aliasId와 month가 필요합니다.' }, { status: 400 })
   }
 
-  const { data, error } = await admin
-    .from('erp_order_items')
-    .select('*')
-    .eq('purchase_alias_id', aliasId)
-    .eq('settlement_month', month)
-    .eq('is_canceled', false)
-    .eq('is_vip', false)
-    .eq('is_prepayment', false)
-    .order('created_at')
-    .limit(2000)
+  const result = await fetchAllRows((from, to) =>
+    admin
+      .from('erp_order_items')
+      .select('*')
+      .eq('purchase_alias_id', aliasId)
+      .eq('settlement_month', month)
+      .eq('is_canceled', false)
+      .eq('is_vip', false)
+      .eq('is_prepayment', false)
+      .order('created_at')
+      .range(from, to),
+  )
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
 
-  return NextResponse.json({ data: data ?? [] })
+  return NextResponse.json({ data: result.data })
 }

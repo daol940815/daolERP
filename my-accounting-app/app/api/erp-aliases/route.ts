@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,20 +13,19 @@ export async function GET(req: NextRequest) {
   const unmatched = searchParams.get('unmatched')
   const vendorId  = searchParams.get('vendorId')
 
-  let query = admin
-    .from('erp_vendor_aliases')
-    .select('*, vendors(id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active)')
-    .order('erp_name')
-    .limit(2000)
+  const result = await fetchAllRows<Record<string, unknown>>((from, to) => {
+    let query = admin
+      .from('erp_vendor_aliases')
+      .select('*, vendors(id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active)')
+      .order('erp_name')
+    if (type === 'customer' || type === 'purchase') query = query.eq('alias_type', type)
+    if (unmatched === 'true') query = query.is('vendor_id', null)
+    if (vendorId) query = query.eq('vendor_id', vendorId)
+    return query.range(from, to)
+  })
+  if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
 
-  if (type === 'customer' || type === 'purchase') query = query.eq('alias_type', type)
-  if (unmatched === 'true') query = query.is('vendor_id', null)
-  if (vendorId) query = query.eq('vendor_id', vendorId)
-
-  const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  return NextResponse.json({ data: data ?? [] })
+  return NextResponse.json({ data: result.data })
 }
 
 // PATCH /api/erp-aliases — body: { id, vendor_id?, payment_term? }
