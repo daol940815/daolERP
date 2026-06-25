@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { buildVendorSalesDetail } from '@/lib/vendor-sales-detail'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/vendors/:id/sales-detail
 // 매출처 상세 페이지의 "주문내역" / "선호 품목" / 매출액·미수금(ERP 기준) 데이터

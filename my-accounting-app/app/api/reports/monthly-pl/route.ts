@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { buildMonthlyPL } from '@/lib/pl-report'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/reports/monthly-pl?from=YYYY-MM&to=YYYY-MM
 // 월별 손익현황(경영관리용): ERP 매출/매출원가 + 은행거래 비용분류 기준 운영비를 월별로 집계

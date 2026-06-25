@@ -4,6 +4,7 @@ import { buildErpSpecialData } from '@/lib/erp-special'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/reports/erp-special/export?from=&to=
 export async function GET(req: NextRequest) {

@@ -5,6 +5,7 @@ import { computeVendorBalances } from '@/lib/vendor-ledger'
 import type { VendorPurchaseListRow } from '@/types/vendor-ledger'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/vendors/list-summary
 // 매입처 목록 페이지: 매입처(vendors, type=vendor|both) + vendor_id가 연결되지 않은 매입 alias를

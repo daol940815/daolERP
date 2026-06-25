@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { buildPayableRows } from '@/lib/erp-reports'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/reports/erp-payables?monthFrom=YYYY-MM&monthTo=YYYY-MM
 export async function GET(req: NextRequest) {

@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { buildCashPositionRows } from '@/lib/cash-reports'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/reports/cash-position?from=&to=
 // 법인계좌 통합현황: 계좌별 최신잔액 + 총잔액 + 기간 내 입출금 합계

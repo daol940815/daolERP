@@ -5,6 +5,7 @@ import type { VendorStatusRow } from '@/types/report'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 const UNASSIGNED_KEY = '__unassigned__'
 

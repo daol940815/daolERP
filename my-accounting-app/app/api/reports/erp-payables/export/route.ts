@@ -4,6 +4,7 @@ import { buildPayableRows } from '@/lib/erp-reports'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 const TERM_LABEL: Record<string, string> = { advance: '선입금', monthly: '월말정산' }
 

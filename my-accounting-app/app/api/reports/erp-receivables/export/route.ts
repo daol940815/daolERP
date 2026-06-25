@@ -4,6 +4,7 @@ import { buildReceivableRows } from '@/lib/erp-reports'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/reports/erp-receivables/export?from=&to=&staff=
 export async function GET(req: NextRequest) {

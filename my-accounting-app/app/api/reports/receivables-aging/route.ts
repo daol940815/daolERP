@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { buildReceivableAgingRows } from '@/lib/erp-reports'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/reports/receivables-aging?asOf=YYYY-MM-DD
 // 미수금 Aging 분석: 매출처별 미수금을 발생일(주문일) 기준 30/60/90/90+일 구간으로 집계

@@ -5,6 +5,7 @@ import { getPeriodRange } from '@/lib/period-presets'
 import type { VendorSalesListRow } from '@/types/vendor-sales'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/customers/list-summary?staff=
 // 매출처 목록 페이지: 매출처(vendors, type=customer|both) + vendor_id가 연결되지 않은 매출 alias를

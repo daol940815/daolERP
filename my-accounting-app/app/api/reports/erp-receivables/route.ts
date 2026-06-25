@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { buildReceivableRows } from '@/lib/erp-reports'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/reports/erp-receivables?from=&to=&staff=
 export async function GET(req: NextRequest) {

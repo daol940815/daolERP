@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { buildPayableAgingRows } from '@/lib/erp-reports'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/reports/payables-aging?asOf=YYYY-MM-DD
 // 미지급금 Aging 분석: 매입처별 미결제 정산금을 정산월 말일 기준 30/60/90/90+일 구간으로 집계

@@ -4,6 +4,7 @@ import { fetchAllRows } from '@/lib/fetch-all-rows'
 import type { VendorStatusRow } from '@/types/report'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 const UNASSIGNED_KEY = '__unassigned__'
 

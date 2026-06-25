@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { buildReconciliationRows } from '@/lib/vendor-reconciliation'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/reports/vendor-reconciliation?direction=sales|purchase&from=&to=
 export async function GET(req: NextRequest) {

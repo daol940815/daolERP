@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { buildDailyCashRows } from '@/lib/cash-reports'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/reports/daily-cash?from=&to=&bankAccountId=
 // 자금일보: 일별 전일잔액/입금/출금/당일잔액 (전체 계좌 합산 또는 특정 계좌)

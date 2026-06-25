@@ -4,6 +4,7 @@ import { buildReconciliationRows } from '@/lib/vendor-reconciliation'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/reports/vendor-reconciliation/export?direction=sales|purchase&from=&to=
 export async function GET(req: NextRequest) {

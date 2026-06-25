@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { buildVatEstimate } from '@/lib/vat-report'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/reports/vat-estimate?from=&to=
 // 예상 부가세: 세금계산서/현금영수증/카드매출 자료 기준 매출세액-매입세액 추정
