@@ -238,6 +238,11 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             <span>카드결제내역(매출)</span>
           </Link>
 
+          <Link href="/card-expenses" className={linkCls(pathname.startsWith('/card-expenses'))}>
+            <span className="text-base leading-none">🧾</span>
+            <span>법인카드 사용내역</span>
+          </Link>
+
           <Link href="/cash-receipts" className={linkCls(pathname.startsWith('/cash-receipts'))}>
             <span className="text-base leading-none">🧾</span>
             <span>현금영수증</span>
