@@ -9,6 +9,7 @@ import { buildVatEstimate } from '@/lib/vat-report'
 import { getPeriodRange } from '@/lib/period-presets'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 const pct = (n: number | null | undefined) => `${(n ?? 0).toFixed(1)}%`

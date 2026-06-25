@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { buildVendorAnalysisRows } from '@/lib/vendor-analysis'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/reports/vendor-profitability?from=&to=
 // 거래처별 수익성 분석: 매출처(고객 alias)별 기간 내 매출/매입원가/매출이익/이익률
