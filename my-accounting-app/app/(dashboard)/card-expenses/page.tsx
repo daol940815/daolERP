@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getPeriodRange } from '@/lib/period-presets'
+import { getPeriodRange, PERIOD_PRESETS } from '@/lib/period-presets'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
@@ -105,6 +105,19 @@ export default function CardExpensesPage() {
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
+
+      {/* 기간 빠른 선택 */}
+      <div className="flex flex-wrap items-center gap-1 mb-2 mt-3">
+        {PERIOD_PRESETS.map(p => (
+          <button
+            key={p}
+            onClick={() => { const r = getPeriodRange(p); setDateFrom(r.from); setDateTo(r.to) }}
+            className="px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-slate-100 hover:border-slate-400 transition-colors"
+          >
+            {p}
+          </button>
+        ))}
+      </div>
 
       {/* 필터 */}
       <div className="flex items-center gap-2 my-3 flex-wrap">
