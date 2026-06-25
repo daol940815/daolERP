@@ -32,8 +32,41 @@ export interface AliasPurchaseAgg {
 
 // 매입처(공급사) 기준 누적/당월 판매·매입 집계 — erp_order_items.purchase_alias_id 그룹핑
 // "당월"은 settlement_month(정산월) 기준 — 매입처 정산요약/월별정산현황과 동일한 기준을 사용한다.
-// (취소/VIP/선결제 품목 제외, lib/vendor-analysis.ts의 customer_alias_id 그룹핑과 대응되는 매입 방향 버전)
+// (취소/VIP/선결제 품목 제외)
+//
+// 1순위: DB 집계 RPC(vendor_purchase_analysis). 폴백: 마이그레이션 036 미적용 시 앱-집계.
 export async function buildVendorPurchaseAnalysisRows(
+  admin: SupabaseClient,
+  currentMonth: string,
+): Promise<{ rows: AliasPurchaseAgg[] } | { error: string }> {
+  const { data, error } = await admin.rpc('vendor_purchase_analysis', { p_current_month: currentMonth })
+
+  if (error) {
+    const missing = error.code === 'PGRST202' || /vendor_purchase_analysis/.test(error.message ?? '')
+    if (!missing) return { error: error.message }
+    return buildFromItems(admin, currentMonth)
+  }
+
+  type AggRow = {
+    alias_id: string | null; erp_name: string | null; vendor_id: string | null; vendor_name: string | null
+    cum_sales: number | string | null; cum_purchase: number | string | null
+    month_sales: number | string | null; month_purchase: number | string | null
+  }
+  const rows: AliasPurchaseAgg[] = ((data ?? []) as AggRow[]).map(r => ({
+    alias_id: r.alias_id ?? null,
+    erp_name: r.erp_name ?? '매입처 미지정',
+    vendor_id: r.vendor_id ?? null,
+    vendor_name: r.vendor_name ?? null,
+    cum_sales: Number(r.cum_sales) || 0,
+    cum_purchase: Number(r.cum_purchase) || 0,
+    month_sales: Number(r.month_sales) || 0,
+    month_purchase: Number(r.month_purchase) || 0,
+  }))
+  return { rows }
+}
+
+// ── 폴백: 앱-사이드 집계 (RPC 미적용 시) ──
+async function buildFromItems(
   admin: SupabaseClient,
   currentMonth: string,
 ): Promise<{ rows: AliasPurchaseAgg[] } | { error: string }> {

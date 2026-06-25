@@ -23,6 +23,55 @@ async function fetchAllRows<T>(
   return { data: rows }
 }
 
+type PayableItemAgg = { purchase_alias_id: string; settlement_month: string | null; item_count: number; purchase_total: number }
+
+// 정산월×매입처 품목 집계 — DB 집계 RPC(erp_payable_item_summary) 우선,
+// 마이그레이션 036 미적용 시 앱-사이드 품목 스캔으로 폴백.
+async function loadPayableItemSummary(
+  admin: SupabaseClient,
+  monthFrom: string | null,
+  monthTo: string | null,
+): Promise<{ rows: PayableItemAgg[] } | { error: string }> {
+  const rpc = await fetchAllRows<{ purchase_alias_id: string; settlement_month: string | null; item_count: number | string; purchase_total: number | string }>((f, t) =>
+    admin.rpc('erp_payable_item_summary', { p_from: monthFrom, p_to: monthTo }).range(f, t),
+  )
+  if (!('error' in rpc)) {
+    return {
+      rows: rpc.data.map(r => ({
+        purchase_alias_id: r.purchase_alias_id,
+        settlement_month: r.settlement_month,
+        item_count: Number(r.item_count) || 0,
+        purchase_total: Number(r.purchase_total) || 0,
+      })),
+    }
+  }
+  if (!/erp_payable_item_summary/.test(rpc.error)) return { error: rpc.error }
+
+  const itemsResult = await fetchAllRows<{ purchase_alias_id: string; settlement_month: string | null; purchase_total: number | null }>((rFrom, rTo) => {
+    let iq = admin
+      .from('erp_order_items')
+      .select('purchase_alias_id, settlement_month, purchase_total')
+      .eq('is_canceled', false)
+      .eq('is_vip', false)
+      .eq('is_prepayment', false)
+      .not('purchase_alias_id', 'is', null)
+      .range(rFrom, rTo)
+    if (monthFrom) iq = iq.gte('settlement_month', monthFrom)
+    if (monthTo)   iq = iq.lte('settlement_month', monthTo)
+    return iq
+  })
+  if ('error' in itemsResult) return { error: itemsResult.error }
+  const m = new Map<string, PayableItemAgg>()
+  for (const it of itemsResult.data) {
+    const key = `${it.purchase_alias_id}|${it.settlement_month ?? ''}`
+    let a = m.get(key)
+    if (!a) { a = { purchase_alias_id: it.purchase_alias_id, settlement_month: it.settlement_month, item_count: 0, purchase_total: 0 }; m.set(key, a) }
+    a.item_count += 1
+    a.purchase_total += it.purchase_total ?? 0
+  }
+  return { rows: Array.from(m.values()) }
+}
+
 // ── 매출처(은행·지점)별 미수금 현황 집계 ──────────────
 // 취소/VIP/선결제 품목은 순매출에서 제외, 미수금은 ERP 주문 단위 값 사용
 // staff(다올직원) 지정 시 해당 직원이 담당자로 기재된 주문만 집계
@@ -165,21 +214,9 @@ export async function buildPayableRows(
   monthFrom: string | null,  // 'YYYY-MM'
   monthTo: string | null,
 ): Promise<{ rows: ErpPayableRow[] } | { error: string }> {
-  const itemsResult = await fetchAllRows((rFrom, rTo) => {
-    let iq = admin
-      .from('erp_order_items')
-      .select('purchase_alias_id, purchase_vendor_name, purchase_total, settlement_month')
-      .eq('is_canceled', false)
-      .eq('is_vip', false)
-      .eq('is_prepayment', false)
-      .not('purchase_alias_id', 'is', null)
-      .range(rFrom, rTo)
-    if (monthFrom) iq = iq.gte('settlement_month', monthFrom)
-    if (monthTo)   iq = iq.lte('settlement_month', monthTo)
-    return iq
-  })
-  if ('error' in itemsResult) return { error: itemsResult.error }
-  const items = itemsResult.data
+  // 정산월×매입처 품목 집계 — DB 집계 RPC 우선, 미적용 시 앱-사이드 스캔 폴백
+  const summary = await loadPayableItemSummary(admin, monthFrom, monthTo)
+  if ('error' in summary) return { error: summary.error }
 
   const aliasesResult = await fetchAllRows<{ id: string; erp_name: string | null; vendor_id: string | null; payment_term: string | null; vendors: unknown }>((rFrom, rTo) =>
     admin
@@ -216,34 +253,28 @@ export async function buildPayableRows(
   }
 
   const groups = new Map<string, ErpPayableRow>()
-  for (const it of items ?? []) {
-    const aliasId = it.purchase_alias_id as string
-    const month   = (it.settlement_month as string | null) ?? '미지정'
+  for (const it of summary.rows) {
+    const aliasId = it.purchase_alias_id
+    const month   = it.settlement_month ?? '미지정'
     const key     = `${aliasId}|${month}`
-    let g = groups.get(key)
-    if (!g) {
-      const alias  = aliasInfo.get(aliasId)
-      const settle = settleMap.get(key)
-      g = {
-        alias_id: aliasId,
-        erp_name: (alias?.erp_name as string | undefined) ?? (it.purchase_vendor_name as string | null) ?? '매입처 미지정',
-        vendor_id: (alias?.vendor_id as string | null) ?? null,
-        vendor_name: (alias?.vendors as { name?: string } | null)?.name ?? null,
-        payment_term: ((alias?.payment_term as ErpPaymentTerm | undefined) ?? 'monthly'),
-        settlement_month: month,
-        item_count: 0,
-        purchase_total: 0,
-        settlement_id: (settle?.id as string | undefined) ?? null,
-        status: ((settle?.status as 'unpaid' | 'paid' | undefined) ?? 'unpaid'),
-        paid_date: (settle?.paid_date as string | null) ?? null,
-        paid_amount: (settle?.paid_amount as number | null) ?? null,
-        settlement_memo: (settle?.memo as string | null) ?? null,
-        prepay_balance: prepayBalance.get(aliasId) ?? 0,
-      }
-      groups.set(key, g)
-    }
-    g.item_count += 1
-    g.purchase_total += (it.purchase_total as number) || 0
+    const alias  = aliasInfo.get(aliasId)
+    const settle = settleMap.get(key)
+    groups.set(key, {
+      alias_id: aliasId,
+      erp_name: (alias?.erp_name as string | undefined) ?? '매입처 미지정',
+      vendor_id: (alias?.vendor_id as string | null) ?? null,
+      vendor_name: (alias?.vendors as { name?: string } | null)?.name ?? null,
+      payment_term: ((alias?.payment_term as ErpPaymentTerm | undefined) ?? 'monthly'),
+      settlement_month: month,
+      item_count: it.item_count,
+      purchase_total: it.purchase_total,
+      settlement_id: (settle?.id as string | undefined) ?? null,
+      status: ((settle?.status as 'unpaid' | 'paid' | undefined) ?? 'unpaid'),
+      paid_date: (settle?.paid_date as string | null) ?? null,
+      paid_amount: (settle?.paid_amount as number | null) ?? null,
+      settlement_memo: (settle?.memo as string | null) ?? null,
+      prepay_balance: prepayBalance.get(aliasId) ?? 0,
+    })
   }
 
   const rows = Array.from(groups.values())
