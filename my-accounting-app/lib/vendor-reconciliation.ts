@@ -29,38 +29,38 @@ export interface ReconciliationRow {
 interface ErpAgg { amount: number; outstanding: number }
 interface PayAgg { bank: number; card: number; cash: number; invoice: number }
 
-export async function buildReconciliationRows(
+type ErpAggFn = (aliasId: string) => ErpAgg
+
+// ERP 금액(별칭 단위) 집계 — DB 집계 RPC 우선, 마이그레이션 037 미적용 시 앱-사이드 스캔 폴백.
+async function loadReconcileErp(
   admin: SupabaseClient,
   direction: 'sales' | 'purchase',
   from: string | null,
   to: string | null,
-): Promise<{ rows: ReconciliationRow[] } | { error: string }> {
-
-  // 별칭 전체 (미연결 포함 — ERP 기준으로 빠짐없이 보여준다)
-  const aliasesResult = await fetchAllRows<{ id: string; erp_name: string; vendor_id: string | null }>((from, to) =>
-    admin
-      .from('erp_vendor_aliases')
-      .select('id, erp_name, vendor_id')
-      .eq('alias_type', direction === 'sales' ? 'customer' : 'purchase')
-      .range(from, to),
-  )
-  if ('error' in aliasesResult) return { error: aliasesResult.error }
-  const aliases = aliasesResult.data
-
-  const vendorRowsResult = await fetchAllRows<{ id: string; name: string }>((from, to) =>
-    admin.from('vendors').select('id, name').range(from, to),
-  )
-  if ('error' in vendorRowsResult) return { error: vendorRowsResult.error }
-  const vendorName = new Map(vendorRowsResult.data.map(v => [v.id, v.name]))
-
-  // ── 1) ERP 금액 (별칭 단위) ─────────────────────────
-  const erpByAlias = new Map<string, ErpAgg>()
-  const erpAgg = (aliasId: string): ErpAgg => {
-    let a = erpByAlias.get(aliasId)
-    if (!a) { a = { amount: 0, outstanding: 0 }; erpByAlias.set(aliasId, a) }
-    return a
+  erpAgg: ErpAggFn,
+): Promise<{ error: string } | null> {
+  const fn = direction === 'sales' ? 'erp_reconcile_sales_by_alias' : 'erp_reconcile_purchase_by_alias'
+  const resp = await admin.rpc(fn, { p_from: from, p_to: to })
+  if (!resp.error) {
+    for (const r of (resp.data ?? []) as { alias_id: string; amount: number | string; outstanding?: number | string }[]) {
+      const a = erpAgg(r.alias_id)
+      a.amount += Number(r.amount) || 0
+      if (direction === 'sales') a.outstanding += Number(r.outstanding) || 0
+    }
+    return null
   }
+  const missing = resp.error.code === 'PGRST202' || new RegExp(fn).test(resp.error.message ?? '')
+  if (!missing) return { error: resp.error.message }
+  return loadReconcileErpFallback(admin, direction, from, to, erpAgg)
+}
 
+async function loadReconcileErpFallback(
+  admin: SupabaseClient,
+  direction: 'sales' | 'purchase',
+  from: string | null,
+  to: string | null,
+  erpAgg: ErpAggFn,
+): Promise<{ error: string } | null> {
   if (direction === 'sales') {
     const ordersResult = await fetchAllRows<{
       id: string
@@ -80,7 +80,6 @@ export async function buildReconciliationRows(
     if ('error' in ordersResult) return { error: ordersResult.error }
     const orders = ordersResult.data
 
-    // 취소/VIP/선결제 품목 합계 → 순매출에서 제외
     const orderIds = orders.map(o => o.id)
     const excludedByOrder = new Map<string, number>()
     for (let i = 0; i < orderIds.length; i += 500) {
@@ -122,6 +121,44 @@ export async function buildReconciliationRows(
       erpAgg(it.purchase_alias_id).amount += (it.purchase_total as number) || 0
     }
   }
+  return null
+}
+
+export async function buildReconciliationRows(
+  admin: SupabaseClient,
+  direction: 'sales' | 'purchase',
+  from: string | null,
+  to: string | null,
+): Promise<{ rows: ReconciliationRow[] } | { error: string }> {
+
+  // 별칭 전체 (미연결 포함 — ERP 기준으로 빠짐없이 보여준다)
+  const aliasesResult = await fetchAllRows<{ id: string; erp_name: string; vendor_id: string | null }>((from, to) =>
+    admin
+      .from('erp_vendor_aliases')
+      .select('id, erp_name, vendor_id')
+      .eq('alias_type', direction === 'sales' ? 'customer' : 'purchase')
+      .range(from, to),
+  )
+  if ('error' in aliasesResult) return { error: aliasesResult.error }
+  const aliases = aliasesResult.data
+
+  const vendorRowsResult = await fetchAllRows<{ id: string; name: string }>((from, to) =>
+    admin.from('vendors').select('id, name').range(from, to),
+  )
+  if ('error' in vendorRowsResult) return { error: vendorRowsResult.error }
+  const vendorName = new Map(vendorRowsResult.data.map(v => [v.id, v.name]))
+
+  // ── 1) ERP 금액 (별칭 단위) ─────────────────────────
+  const erpByAlias = new Map<string, ErpAgg>()
+  const erpAgg = (aliasId: string): ErpAgg => {
+    let a = erpByAlias.get(aliasId)
+    if (!a) { a = { amount: 0, outstanding: 0 }; erpByAlias.set(aliasId, a) }
+    return a
+  }
+
+  // ERP 금액 집계: DB 집계 RPC 우선, 마이그레이션 037 미적용 시 앱-사이드 스캔 폴백
+  const erpErr = await loadReconcileErp(admin, direction, from, to, erpAgg)
+  if (erpErr) return erpErr
 
   // ── 2) 결제·계산서 (거래처 단위) ─────────────────────
   const payByVendor = new Map<string, PayAgg>()

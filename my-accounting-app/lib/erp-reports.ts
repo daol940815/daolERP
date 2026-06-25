@@ -75,7 +75,71 @@ async function loadPayableItemSummary(
 // ── 매출처(은행·지점)별 미수금 현황 집계 ──────────────
 // 취소/VIP/선결제 품목은 순매출에서 제외, 미수금은 ERP 주문 단위 값 사용
 // staff(다올직원) 지정 시 해당 직원이 담당자로 기재된 주문만 집계
+//
+// 1순위: DB 집계 RPC(erp_receivable_summary/erp_receivable_staff_names).
+// 폴백: 마이그레이션 037 미적용 시 앱-사이드 집계(buildReceivableFromOrders).
 export async function buildReceivableRows(
+  admin: SupabaseClient,
+  from: string | null,
+  to: string | null,
+  staff?: string | null,
+): Promise<{ rows: ErpReceivableRow[]; staffNames: string[] } | { error: string }> {
+  const staffArg = staff && staff.trim() ? staff : null
+
+  const sumResp = await admin.rpc('erp_receivable_summary', { p_from: from, p_to: to, p_staff: staffArg })
+  if (sumResp.error) {
+    const missing = sumResp.error.code === 'PGRST202' || /erp_receivable_summary/.test(sumResp.error.message ?? '')
+    if (!missing) return { error: sumResp.error.message }
+    return buildReceivableFromOrders(admin, from, to, staff)
+  }
+
+  const staffResp = await admin.rpc('erp_receivable_staff_names', { p_from: from, p_to: to })
+  if (staffResp.error) return { error: staffResp.error.message }
+  const staffNames = ((staffResp.data ?? []) as { staff_name: string }[])
+    .map(r => r.staff_name)
+    .sort((a, b) => a.localeCompare(b, 'ko'))
+
+  const aliasesResult = await fetchAllRows<{ id: string; erp_name: string | null; vendor_id: string | null; vendors: unknown }>((rFrom, rTo) =>
+    admin.from('erp_vendor_aliases').select('id, erp_name, vendor_id, vendors(name)').eq('alias_type', 'customer').range(rFrom, rTo),
+  )
+  if ('error' in aliasesResult) return { error: aliasesResult.error }
+  const aliasInfo = new Map(aliasesResult.data.map(a => [a.id, a]))
+
+  const prepaysResult = await fetchAllRows<{ alias_id: string; entry_type: string; amount: number }>((rFrom, rTo) =>
+    admin.from('erp_prepayments').select('alias_id, entry_type, amount').eq('direction', 'customer').range(rFrom, rTo),
+  )
+  if ('error' in prepaysResult) return { error: prepaysResult.error }
+  const prepayBalance = new Map<string, number>()
+  for (const e of prepaysResult.data) {
+    prepayBalance.set(e.alias_id, (prepayBalance.get(e.alias_id) ?? 0) + (e.entry_type === 'deposit' ? e.amount : -e.amount))
+  }
+
+  type SumRow = {
+    alias_id: string | null; order_count: number | string; total_amount: number | string; excluded_amount: number | string
+    outstanding_amount: number | string; outstanding_count: number | string; staff_names: string[] | null
+  }
+  const rows: ErpReceivableRow[] = ((sumResp.data ?? []) as SumRow[]).map(s => {
+    const alias = s.alias_id ? aliasInfo.get(s.alias_id) : null
+    return {
+      alias_id: s.alias_id ?? null,
+      erp_name: (alias?.erp_name as string | undefined) ?? '매출처 미지정',
+      vendor_id: (alias?.vendor_id as string | null) ?? null,
+      vendor_name: (alias?.vendors as { name?: string } | null)?.name ?? null,
+      order_count: Number(s.order_count) || 0,
+      total_amount: Number(s.total_amount) || 0,
+      excluded_amount: Number(s.excluded_amount) || 0,
+      outstanding_amount: Number(s.outstanding_amount) || 0,
+      outstanding_count: Number(s.outstanding_count) || 0,
+      prepay_balance: prepayBalance.get(s.alias_id ?? '') ?? 0,
+      staff_names: (s.staff_names ?? []).slice().sort((a, b) => a.localeCompare(b, 'ko')),
+    }
+  })
+  rows.sort((a, b) => b.outstanding_amount - a.outstanding_amount || b.total_amount - a.total_amount)
+  return { rows, staffNames }
+}
+
+// ── 폴백: 앱-사이드 미수금 집계 (RPC 미적용 시) ──
+async function buildReceivableFromOrders(
   admin: SupabaseClient,
   from: string | null,
   to: string | null,
