@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -24,30 +25,27 @@ export async function GET(req: NextRequest) {
   const bankAccountId = searchParams.get('bankAccountId')
   const vendorId      = searchParams.get('vendorId')
 
-  let query = admin
-    .from('transactions')
-    .select('tx_date, tx_time, description, counterparty_name, amount_in, amount_out, balance, account_alias, status, confirmed_account_id, memo, vendors(name)')
-    .order('tx_date', { ascending: false })
-    .order('tx_time', { ascending: false, nullsFirst: false })
-    .limit(50000)
+  const txsResult = await fetchAllRows<Record<string, unknown>>((rFrom, rTo) => {
+    let query = admin
+      .from('transactions')
+      .select('tx_date, tx_time, description, counterparty_name, amount_in, amount_out, balance, account_alias, status, confirmed_account_id, memo, vendors(name)')
+      .order('tx_date', { ascending: false })
+      .order('tx_time', { ascending: false, nullsFirst: false })
+    if (status && status !== 'all') query = query.eq('status', status)
+    if (source && source !== 'all') query = query.eq('source', source)
+    if (from)          query = query.gte('tx_date', from)
+    if (to)            query = query.lte('tx_date', to)
+    if (bankAccountId) query = query.eq('bank_account_id', bankAccountId)
+    if (vendorId)      query = query.eq('vendor_id', vendorId)
+    return query.range(rFrom, rTo)
+  })
+  if ('error' in txsResult) return NextResponse.json({ error: txsResult.error }, { status: 500 })
+  const txs = txsResult.data
 
-  if (status && status !== 'all') query = query.eq('status', status)
-  if (source && source !== 'all') query = query.eq('source', source)
-  if (from)          query = query.gte('tx_date', from)
-  if (to)            query = query.lte('tx_date', to)
-  if (bankAccountId) query = query.eq('bank_account_id', bankAccountId)
-  if (vendorId)      query = query.eq('vendor_id', vendorId)
-
-  const [{ data: txs, error }, { data: accounts }] = await Promise.all([
-    query,
-    admin.from('accounts').select('id, name'),
-  ])
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
+  const { data: accounts } = await admin.from('accounts').select('id, name')
   const acctMap = Object.fromEntries((accounts ?? []).map(a => [a.id, a.name as string]))
 
-  const rows = (txs ?? []).map(r => ({
+  const rows = txs.map(r => ({
     '거래일자':  (r.tx_date as string).slice(0, 10),
     '내용/적요': r.description ?? '',
     '거래처':    (r.vendors as { name?: string } | null)?.name ?? (r.counterparty_name ?? ''),
@@ -56,7 +54,7 @@ export async function GET(req: NextRequest) {
     '잔액':      r.balance    ?? '',
     '계좌':      r.account_alias ?? '',
     '상태':      STATUS_LABEL[r.status as string] ?? (r.status ?? ''),
-    '계정과목':  r.confirmed_account_id ? (acctMap[r.confirmed_account_id] ?? '') : '',
+    '계정과목':  r.confirmed_account_id ? (acctMap[r.confirmed_account_id as string] ?? '') : '',
     '메모':      r.memo ?? '',
   }))
 

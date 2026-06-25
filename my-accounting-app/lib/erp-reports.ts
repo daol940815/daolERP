@@ -86,21 +86,27 @@ export async function buildReceivableRows(
   }
 
   // 별칭 정보 + 거래처명
-  const { data: aliases, error: ae } = await admin
-    .from('erp_vendor_aliases')
-    .select('id, erp_name, vendor_id, vendors(name)')
-    .eq('alias_type', 'customer')
-  if (ae) return { error: ae.message }
-  const aliasInfo = new Map((aliases ?? []).map(a => [a.id as string, a]))
+  const aliasesResult = await fetchAllRows<{ id: string; erp_name: string | null; vendor_id: string | null; vendors: unknown }>((rFrom, rTo) =>
+    admin
+      .from('erp_vendor_aliases')
+      .select('id, erp_name, vendor_id, vendors(name)')
+      .eq('alias_type', 'customer')
+      .range(rFrom, rTo),
+  )
+  if ('error' in aliasesResult) return { error: aliasesResult.error }
+  const aliasInfo = new Map(aliasesResult.data.map(a => [a.id, a]))
 
   // 선결제 잔액 (매출처)
-  const { data: prepays, error: pe } = await admin
-    .from('erp_prepayments')
-    .select('alias_id, entry_type, amount')
-    .eq('direction', 'customer')
-  if (pe) return { error: pe.message }
+  const prepaysResult = await fetchAllRows<{ alias_id: string; entry_type: string; amount: number }>((rFrom, rTo) =>
+    admin
+      .from('erp_prepayments')
+      .select('alias_id, entry_type, amount')
+      .eq('direction', 'customer')
+      .range(rFrom, rTo),
+  )
+  if ('error' in prepaysResult) return { error: prepaysResult.error }
   const prepayBalance = new Map<string, number>()
-  for (const e of prepays ?? []) {
+  for (const e of prepaysResult.data) {
     const cur = prepayBalance.get(e.alias_id as string) ?? 0
     prepayBalance.set(e.alias_id as string, cur + (e.entry_type === 'deposit' ? e.amount : -e.amount))
   }
@@ -175,27 +181,36 @@ export async function buildPayableRows(
   if ('error' in itemsResult) return { error: itemsResult.error }
   const items = itemsResult.data
 
-  const { data: aliases, error: ae } = await admin
-    .from('erp_vendor_aliases')
-    .select('id, erp_name, vendor_id, payment_term, vendors(name)')
-    .eq('alias_type', 'purchase')
-  if (ae) return { error: ae.message }
-  const aliasInfo = new Map((aliases ?? []).map(a => [a.id as string, a]))
+  const aliasesResult = await fetchAllRows<{ id: string; erp_name: string | null; vendor_id: string | null; payment_term: string | null; vendors: unknown }>((rFrom, rTo) =>
+    admin
+      .from('erp_vendor_aliases')
+      .select('id, erp_name, vendor_id, payment_term, vendors(name)')
+      .eq('alias_type', 'purchase')
+      .range(rFrom, rTo),
+  )
+  if ('error' in aliasesResult) return { error: aliasesResult.error }
+  const aliasInfo = new Map(aliasesResult.data.map(a => [a.id, a]))
 
-  const { data: settlements, error: se } = await admin
-    .from('erp_purchase_settlements')
-    .select('id, purchase_alias_id, settlement_month, status, paid_date, paid_amount, memo')
-  if (se) return { error: se.message }
+  const settlementsResult = await fetchAllRows<{ id: string; purchase_alias_id: string; settlement_month: string; status: string; paid_date: string | null; paid_amount: number | null; memo: string | null }>((rFrom, rTo) =>
+    admin
+      .from('erp_purchase_settlements')
+      .select('id, purchase_alias_id, settlement_month, status, paid_date, paid_amount, memo')
+      .range(rFrom, rTo),
+  )
+  if ('error' in settlementsResult) return { error: settlementsResult.error }
   const settleMap = new Map(
-    (settlements ?? []).map(s => [`${s.purchase_alias_id}|${s.settlement_month}`, s]))
+    settlementsResult.data.map(s => [`${s.purchase_alias_id}|${s.settlement_month}`, s]))
 
-  const { data: prepays, error: pe } = await admin
-    .from('erp_prepayments')
-    .select('alias_id, entry_type, amount')
-    .eq('direction', 'purchase')
-  if (pe) return { error: pe.message }
+  const prepaysResult = await fetchAllRows<{ alias_id: string; entry_type: string; amount: number }>((rFrom, rTo) =>
+    admin
+      .from('erp_prepayments')
+      .select('alias_id, entry_type, amount')
+      .eq('direction', 'purchase')
+      .range(rFrom, rTo),
+  )
+  if ('error' in prepaysResult) return { error: prepaysResult.error }
   const prepayBalance = new Map<string, number>()
-  for (const e of prepays ?? []) {
+  for (const e of prepaysResult.data) {
     const cur = prepayBalance.get(e.alias_id as string) ?? 0
     prepayBalance.set(e.alias_id as string, cur + (e.entry_type === 'deposit' ? e.amount : -e.amount))
   }
@@ -310,12 +325,15 @@ export async function buildReceivableAgingRows(
     }
   }
 
-  const { data: aliases, error: ae } = await admin
-    .from('erp_vendor_aliases')
-    .select('id, erp_name, vendor_id, vendors(name)')
-    .eq('alias_type', 'customer')
-  if (ae) return { error: ae.message }
-  const aliasInfo = new Map((aliases ?? []).map(a => [a.id as string, a]))
+  const aliasesResult = await fetchAllRows<{ id: string; erp_name: string | null; vendor_id: string | null; vendors: unknown }>((rFrom, rTo) =>
+    admin
+      .from('erp_vendor_aliases')
+      .select('id, erp_name, vendor_id, vendors(name)')
+      .eq('alias_type', 'customer')
+      .range(rFrom, rTo),
+  )
+  if ('error' in aliasesResult) return { error: aliasesResult.error }
+  const aliasInfo = new Map(aliasesResult.data.map(a => [a.id, a]))
 
   const groups = new Map<string, ErpAgingRow>()
   for (const o of orders ?? []) {

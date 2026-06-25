@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { VendorAnalysisRow } from '@/types/erp'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 // ── 거래처별 매출/수익성 분석 ────────────────────────────
 // 기간 내 erp_orders + erp_order_items(취소/VIP/선결제 제외)를 매출처(고객 alias) 기준으로 집계
@@ -9,39 +10,48 @@ export async function buildVendorAnalysisRows(
   from: string | null,
   to: string | null,
 ): Promise<{ rows: VendorAnalysisRow[] } | { error: string }> {
-  let oq = admin
-    .from('erp_orders')
-    .select('id, customer_alias_id, bank_name, branch_name')
-    .limit(50000)
-  if (from) oq = oq.gte('order_date', from)
-  if (to)   oq = oq.lte('order_date', to)
+  const ordersResult = await fetchAllRows<{ id: string; customer_alias_id: string | null; bank_name: string | null; branch_name: string | null }>((rFrom, rTo) => {
+    let oq = admin
+      .from('erp_orders')
+      .select('id, customer_alias_id, bank_name, branch_name')
+      .range(rFrom, rTo)
+    if (from) oq = oq.gte('order_date', from)
+    if (to)   oq = oq.lte('order_date', to)
+    return oq
+  })
+  if ('error' in ordersResult) return { error: ordersResult.error }
+  const orders = ordersResult.data
 
-  const { data: orders, error: oe } = await oq
-  if (oe) return { error: oe.message }
+  const orderInfo = new Map(orders.map(o => [o.id, o]))
+  const orderIds = orders.map(o => o.id)
 
-  const orderInfo = new Map((orders ?? []).map(o => [o.id as string, o]))
-  const orderIds = (orders ?? []).map(o => o.id as string)
-
-  const { data: aliases, error: ae } = await admin
-    .from('erp_vendor_aliases')
-    .select('id, erp_name, vendor_id, vendors(name)')
-    .eq('alias_type', 'customer')
-  if (ae) return { error: ae.message }
-  const aliasInfo = new Map((aliases ?? []).map(a => [a.id as string, a]))
+  const aliasesResult = await fetchAllRows<{ id: string; erp_name: string | null; vendor_id: string | null; vendors: unknown }>((rFrom, rTo) =>
+    admin
+      .from('erp_vendor_aliases')
+      .select('id, erp_name, vendor_id, vendors(name)')
+      .eq('alias_type', 'customer')
+      .range(rFrom, rTo),
+  )
+  if ('error' in aliasesResult) return { error: aliasesResult.error }
+  const aliasInfo = new Map(aliasesResult.data.map(a => [a.id, a]))
 
   const groups = new Map<string, VendorAnalysisRow & { orderIds: Set<string> }>()
 
   for (let i = 0; i < orderIds.length; i += 500) {
-    const { data: items, error: ie } = await admin
-      .from('erp_order_items')
-      .select('order_id, line_total, purchase_total, quantity')
-      .in('order_id', orderIds.slice(i, i + 500))
-      .eq('is_canceled', false)
-      .eq('is_vip', false)
-      .eq('is_prepayment', false)
-    if (ie) return { error: ie.message }
+    const idChunk = orderIds.slice(i, i + 500)
+    const itemsResult = await fetchAllRows<{ order_id: string; line_total: number | null; purchase_total: number | null; quantity: number | null }>((rFrom, rTo) =>
+      admin
+        .from('erp_order_items')
+        .select('order_id, line_total, purchase_total, quantity')
+        .in('order_id', idChunk)
+        .eq('is_canceled', false)
+        .eq('is_vip', false)
+        .eq('is_prepayment', false)
+        .range(rFrom, rTo),
+    )
+    if ('error' in itemsResult) return { error: itemsResult.error }
 
-    for (const it of items ?? []) {
+    for (const it of itemsResult.data) {
       const orderId = it.order_id as string
       const o = orderInfo.get(orderId)
       if (!o) continue

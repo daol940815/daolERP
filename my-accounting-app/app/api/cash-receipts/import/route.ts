@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -194,14 +195,25 @@ export async function POST(req: NextRequest) {
   }
 
   // 기존에 저장된 건의 vendor_id는 유지 (수동 보정값을 재업로드 시 덮어쓰지 않기 위함)
-  const { data: existingRows } = await admin
-    .from('cash_receipts')
-    .select('approval_number, transaction_type, direction, vendor_id')
-    .in('approval_number', parsed.map(r => r.approval_number))
+  // 승인번호 목록을 청크로 나눠 페이지네이션 조회 (.in() 결과도 PostgREST max-rows(1000)에 걸리므로)
+  const approvalNumbers = Array.from(new Set(parsed.map(r => r.approval_number)))
+  const existingRows: { approval_number: string; transaction_type: string; direction: string; vendor_id: string | null }[] = []
+  for (let i = 0; i < approvalNumbers.length; i += 500) {
+    const chunk = approvalNumbers.slice(i, i + 500)
+    const r = await fetchAllRows<{ approval_number: string; transaction_type: string; direction: string; vendor_id: string | null }>((rFrom, rTo) =>
+      admin
+        .from('cash_receipts')
+        .select('approval_number, transaction_type, direction, vendor_id')
+        .in('approval_number', chunk)
+        .range(rFrom, rTo),
+    )
+    if ('error' in r) return NextResponse.json({ error: r.error }, { status: 500 })
+    existingRows.push(...r.data)
+  }
   const existingVendorMap = new Map(
-    (existingRows ?? []).map(r => [
+    existingRows.map(r => [
       `${r.approval_number}__${r.transaction_type}__${r.direction}`,
-      r.vendor_id as string | null,
+      r.vendor_id,
     ]),
   )
 

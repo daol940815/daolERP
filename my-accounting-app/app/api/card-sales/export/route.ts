@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -19,25 +20,25 @@ export async function GET(req: NextRequest) {
   const type      = searchParams.get('type')
   const unmatched = searchParams.get('unmatched')
 
-  let query = admin
-    .from('card_sales')
-    .select('tx_date, tx_time, transaction_type, approval_number, card_number, acquirer, amount, supply_amount, tax_amount, processing_status, deposit_expected_date, cancelled_at, settlement_status, note, vendors(name)')
-    .order('tx_date', { ascending: false })
-    .limit(50000)
+  const result = await fetchAllRows<Record<string, unknown>>((rFrom, rTo) => {
+    let query = admin
+      .from('card_sales')
+      .select('tx_date, tx_time, transaction_type, approval_number, card_number, acquirer, amount, supply_amount, tax_amount, processing_status, deposit_expected_date, cancelled_at, settlement_status, note, vendors(name)')
+      .order('tx_date', { ascending: false })
+    if (from)                 query = query.gte('tx_date', from)
+    if (to)                   query = query.lte('tx_date', to)
+    if (vendorId)             query = query.eq('vendor_id', vendorId)
+    if (type && type !== 'all') query = query.eq('transaction_type', type)
+    if (unmatched === 'true') query = query.is('vendor_id', null)
+    return query.range(rFrom, rTo)
+  })
+  if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
+  const data = result.data
 
-  if (from)                 query = query.gte('tx_date', from)
-  if (to)                   query = query.lte('tx_date', to)
-  if (vendorId)             query = query.eq('vendor_id', vendorId)
-  if (type && type !== 'all') query = query.eq('transaction_type', type)
-  if (unmatched === 'true') query = query.is('vendor_id', null)
-
-  const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  const rows = (data ?? []).map(r => ({
+  const rows = data.map(r => ({
     '거래일자':   r.tx_date,
     '거래시간':   r.tx_time ?? '',
-    '유형':       TYPE_LABEL[r.transaction_type] ?? r.transaction_type,
+    '유형':       TYPE_LABEL[r.transaction_type as string] ?? r.transaction_type,
     '승인번호':   r.approval_number,
     '카드번호':   r.card_number ?? '',
     '매입사':     r.acquirer ?? '',

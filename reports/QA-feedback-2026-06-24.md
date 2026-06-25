@@ -78,4 +78,41 @@
 3. **LOW-1 수정** — 내보내기 4종.
 4. **재발 방지** — `.limit(아주 큰 수)` 패턴을 금지하고, "전체 조회"는 반드시 `fetchAllRows()`만 쓰도록 규칙화(린트 규칙/리뷰 체크리스트). 현재 `lib/fetch-all-rows.ts`와 `lib/vendor-ledger.ts`에 **동일 헬퍼가 중복 정의**돼 있으니 하나로 통일 권장.
 
-*검증은 모두 읽기전용(SELECT)으로 수행했으며, 본 작업으로 운영 데이터·스키마를 변경하지 않았다.*
+---
+
+## 6. 전수 스캔 & 수정 완료 (2026-06-24 후속)
+
+전 코드에서 "1,000행을 넘을 수 있는 테이블을 페이지네이션 없이 조회/내보내는" 쿼리를 전수 스캔하고 **전부 `fetchAllRows()`로 수정**했다. (타입체크·린트·빌드 모두 통과)
+
+### 전수 스캔으로 추가 발견 (QA 1차에 없던 것)
+- `app/api/reports/vendor-status/route.ts` + `.../export/route.ts` — 매출처 수금현황/매입처 결제현황: `tax_invoices` 무제한 집계 → 1,000행 캡.
+- `lib/erp-reports.ts` — 미수금현황/Aging의 **customer 별칭(1,042건) 무제한 조회 2곳**(현재 활성 결함, ~42개 거래처 메타 누락) + 선결제·정산 무제한 조회.
+- `lib/vendor-sales-detail.ts` — 매출처 상세 품목 청크 무제한.
+- `lib/vendor-purchase-analysis.ts` — 매입 별칭 무제한(잠복).
+- `app/api/tax-invoices/auto-match/route.ts` — 미확인 계산서/결제/거래 조회 3곳 무제한(매칭 누락).
+- 임포트 dedup 3종(`card-sales/cash-receipts/tax-invoices import`) — `.in(승인번호)` 조회가 대형 파일 시 1,000행 캡 → 재업로드 시 vendor_id 보존 누락.
+
+### 수정 완료 파일 (16개)
+| 파일 | 내용 |
+|---|---|
+| lib/vendor-analysis.ts | 주문·품목청크·고객별칭 3쿼리 페이지네이션 (HIGH) |
+| lib/erp-reports.ts | 고객별칭×2·선결제×2·정산 페이지네이션 |
+| lib/vat-report.ts | 세금계산서/현금영수증/카드 5쿼리 |
+| lib/cash-reports.ts | 계좌청크 거래조회 |
+| lib/vendor-sales-detail.ts | 품목 청크 |
+| lib/vendor-purchase-analysis.ts | 매입 별칭 |
+| app/api/reports/vendor-status/route.ts (+export) | 세금계산서 집계 |
+| app/api/{transactions,card-sales,tax-invoices,cash-receipts}/export | 내보내기 4종 |
+| app/api/tax-invoices/auto-match/route.ts | 계산서/결제/거래 3쿼리 |
+| app/api/{card-sales,cash-receipts,tax-invoices}/import | dedup 승인번호 청크+페이지네이션 |
+
+### 안전 확인(수정 불필요)으로 판정된 곳
+`vendor-reconciliation.ts`·`erp-special.ts`(이미 fetchAllRows), `bank-accounts`(`.limit(1).maybeSingle()`·서버측 UPDATE), `upload`(count head·서버측 UPDATE), `vendor-ledger-entries`(단일 거래처 한정), `pl-report.ts`(RPC 서버집계), 목록/검색 라우트의 `.limit(param/200)`(의도된 UI 페이지네이션/후보 캡).
+
+### 남은 권고 (별도 작업)
+- `lib/fetch-all-rows.ts`와 `lib/{vendor-ledger,erp-reports}.ts`의 **중복 헬퍼 정의 통일**.
+- `.limit(4자리 이상)` 및 대형테이블 무제한 select 금지를 **CI/린트 가드**로 추가(재발 방지).
+
+---
+
+*검증은 모두 읽기전용(SELECT)으로 수행했으며, 1차 QA는 운영 데이터·스키마를 변경하지 않았다. 후속 수정(6항)은 애플리케이션 코드 변경이며 운영 DB는 건드리지 않았다.*

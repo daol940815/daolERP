@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -22,38 +23,38 @@ export async function GET(req: NextRequest) {
   const from          = searchParams.get('from')
   const to            = searchParams.get('to')
 
-  let query = admin
-    .from('tax_invoices')
-    .select(`
-      issue_date, direction, tax_type, counterparty_name, counterparty_biz_number,
-      supply_amount, tax_amount, total_amount, item_name, approval_number, payment_status, note,
-      matched_transaction:transactions!matched_transaction_id (
-        account_alias,
-        bank_accounts ( bank_name, account_number, alias )
-      )
-    `)
-    .order('issue_date', { ascending: false })
-    .limit(50000)
+  const result = await fetchAllRows<Record<string, unknown>>((rFrom, rTo) => {
+    let query = admin
+      .from('tax_invoices')
+      .select(`
+        issue_date, direction, tax_type, counterparty_name, counterparty_biz_number,
+        supply_amount, tax_amount, total_amount, item_name, approval_number, payment_status, note,
+        matched_transaction:transactions!matched_transaction_id (
+          account_alias,
+          bank_accounts ( bank_name, account_number, alias )
+        )
+      `)
+      .order('issue_date', { ascending: false })
+    if (direction)     query = query.eq('direction', direction)
+    if (taxType)       query = query.eq('tax_type', taxType)
+    if (vendorId)      query = query.eq('vendor_id', vendorId)
+    if (paymentStatus) query = query.eq('payment_status', paymentStatus)
+    if (from)          query = query.gte('issue_date', from)
+    if (to)            query = query.lte('issue_date', to)
+    return query.range(rFrom, rTo)
+  })
+  if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
+  const data = result.data
 
-  if (direction)     query = query.eq('direction', direction)
-  if (taxType)       query = query.eq('tax_type', taxType)
-  if (vendorId)      query = query.eq('vendor_id', vendorId)
-  if (paymentStatus) query = query.eq('payment_status', paymentStatus)
-  if (from)          query = query.gte('issue_date', from)
-  if (to)            query = query.lte('issue_date', to)
-
-  const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  const rows = (data ?? []).map(r => {
+  const rows = data.map(r => {
     const tx  = r.matched_transaction as unknown as { account_alias: string | null; bank_accounts: { bank_name: string; account_number: string | null } | null } | null
     const acc = tx?.bank_accounts
     const matchedAccount = acc ? [acc.bank_name, acc.account_number].filter(Boolean).join(' ') : tx?.account_alias ?? ''
 
     return {
       '작성일자':   r.issue_date,
-      '방향':       DIRECTION_LABEL[r.direction]    ?? r.direction,
-      '세금유형':   TAX_TYPE_LABEL[r.tax_type]      ?? r.tax_type,
+      '방향':       DIRECTION_LABEL[r.direction as string]    ?? r.direction,
+      '세금유형':   TAX_TYPE_LABEL[r.tax_type as string]      ?? r.tax_type,
       '거래처명':   r.counterparty_name             ?? '',
       '사업자번호': r.counterparty_biz_number       ?? '',
       '공급가액':   r.supply_amount                 ?? 0,
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
       '합계금액':   r.total_amount                  ?? 0,
       '품목':       r.item_name                     ?? '',
       '승인번호':   r.approval_number               ?? '',
-      '확인상태':   STATUS_LABEL[r.payment_status]  ?? (r.payment_status ?? ''),
+      '확인상태':   STATUS_LABEL[r.payment_status as string]  ?? (r.payment_status ?? ''),
       '매칭계좌':   matchedAccount,
       '메모':       r.note                          ?? '',
     }

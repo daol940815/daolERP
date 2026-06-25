@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -19,20 +20,20 @@ export async function GET(req: NextRequest) {
   const type      = searchParams.get('type')
   const unmatched = searchParams.get('unmatched')
 
-  let query = admin
-    .from('cash_receipts')
-    .select('tx_date, tx_time, direction, transaction_type, approval_number, counterparty_name, counterparty_biz_number, issue_type, purpose_type, deductible, amount, supply_amount, tax_amount, service_charge, note, vendors(name)')
-    .order('tx_date', { ascending: false })
-    .limit(50000)
-
-  if (direction)              query = query.eq('direction', direction)
-  if (from)                   query = query.gte('tx_date', from)
-  if (to)                     query = query.lte('tx_date', to)
-  if (type && type !== 'all') query = query.eq('transaction_type', type)
-  if (unmatched === 'true')   query = query.is('vendor_id', null)
-
-  const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const result = await fetchAllRows<Record<string, unknown>>((rFrom, rTo) => {
+    let query = admin
+      .from('cash_receipts')
+      .select('tx_date, tx_time, direction, transaction_type, approval_number, counterparty_name, counterparty_biz_number, issue_type, purpose_type, deductible, amount, supply_amount, tax_amount, service_charge, note, vendors(name)')
+      .order('tx_date', { ascending: false })
+    if (direction)              query = query.eq('direction', direction)
+    if (from)                   query = query.gte('tx_date', from)
+    if (to)                     query = query.lte('tx_date', to)
+    if (type && type !== 'all') query = query.eq('transaction_type', type)
+    if (unmatched === 'true')   query = query.is('vendor_id', null)
+    return query.range(rFrom, rTo)
+  })
+  if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
+  const data = result.data
 
   const isPurchase = direction === 'purchase'
 
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest) {
     ? (data ?? []).map(r => ({
         '거래일자':   r.tx_date,
         '거래시간':   r.tx_time    ?? '',
-        '유형':       TYPE_LABEL[r.transaction_type] ?? r.transaction_type,
+        '유형':       TYPE_LABEL[r.transaction_type as string] ?? r.transaction_type,
         '승인번호':   r.approval_number,
         '가맹점명':   r.counterparty_name       ?? '',
         '사업자번호': r.counterparty_biz_number  ?? '',
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
     : (data ?? []).map(r => ({
         '거래일자':   r.tx_date,
         '거래시간':   r.tx_time    ?? '',
-        '유형':       TYPE_LABEL[r.transaction_type] ?? r.transaction_type,
+        '유형':       TYPE_LABEL[r.transaction_type as string] ?? r.transaction_type,
         '승인번호':   r.approval_number,
         '발행구분':   r.issue_type   ?? '',
         '용도구분':   r.purpose_type ?? '',

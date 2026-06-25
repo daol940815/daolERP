@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 import type { VendorStatusRow } from '@/types/report'
 import * as XLSX from 'xlsx'
 
@@ -40,18 +41,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'direction은 sales 또는 purchase 여야 합니다.' }, { status: 400 })
   }
 
-  let query = admin
-    .from('tax_invoices')
-    .select('vendor_id, total_amount, payment_status')
-    .eq('direction', direction)
-  if (from) query = query.gte('issue_date', from)
-  if (to)   query = query.lte('issue_date', to)
-
-  const { data: invoices, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const invoicesResult = await fetchAllRows<{ vendor_id: string | null; total_amount: number | null; payment_status: string | null }>((rFrom, rTo) => {
+    let query = admin
+      .from('tax_invoices')
+      .select('vendor_id, total_amount, payment_status')
+      .eq('direction', direction)
+    if (from) query = query.gte('issue_date', from)
+    if (to)   query = query.lte('issue_date', to)
+    return query.range(rFrom, rTo)
+  })
+  if ('error' in invoicesResult) return NextResponse.json({ error: invoicesResult.error }, { status: 500 })
+  const invoices = invoicesResult.data
 
   const groups = new Map<string, { count: number; total: number; matchedCount: number; matchedAmount: number }>()
-  for (const inv of invoices ?? []) {
+  for (const inv of invoices) {
     const key = (inv.vendor_id as string | null) ?? UNASSIGNED_KEY
     const g = groups.get(key) ?? { count: 0, total: 0, matchedCount: 0, matchedAmount: 0 }
     g.count += 1

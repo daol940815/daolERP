@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 // ── 계좌 통합현황 / 자금일보 ────────────────────────────────────────
 // transactions.balance(은행 명세서 잔액)을 기준으로 계좌별·일별 잔액을 계산한다.
@@ -73,17 +74,20 @@ async function loadAccountStates(
   if (!accountIds.length) return states
 
   for (let i = 0; i < accountIds.length; i += 50) {
-    const { data, error } = await admin
-      .from('transactions')
-      .select('bank_account_id, tx_date, amount_in, amount_out, balance')
-      .in('bank_account_id', accountIds.slice(i, i + 50))
-      .lte('tx_date', to)
-      .order('tx_date', { ascending: true })
-      .order('created_at', { ascending: true })
-      .limit(200000)
-    if (error) throw new Error(error.message)
+    const idChunk = accountIds.slice(i, i + 50)
+    const result = await fetchAllRows<{ bank_account_id: string; tx_date: string; amount_in: number | null; amount_out: number | null; balance: number | null }>((rFrom, rTo) =>
+      admin
+        .from('transactions')
+        .select('bank_account_id, tx_date, amount_in, amount_out, balance')
+        .in('bank_account_id', idChunk)
+        .lte('tx_date', to)
+        .order('tx_date', { ascending: true })
+        .order('created_at', { ascending: true })
+        .range(rFrom, rTo),
+    )
+    if ('error' in result) throw new Error(result.error)
 
-    for (const t of data ?? []) {
+    for (const t of result.data) {
       const accId = t.bank_account_id as string
       const state = states.get(accId)
       if (!state) continue

@@ -53,12 +53,15 @@ export async function buildVendorPurchaseAnalysisRows(
   )
   if ('error' in itemsResult) return { error: itemsResult.error }
 
-  const { data: aliases, error: ae } = await admin
-    .from('erp_vendor_aliases')
-    .select('id, erp_name, vendor_id, vendors(name)')
-    .eq('alias_type', 'purchase')
-  if (ae) return { error: ae.message }
-  const aliasInfo = new Map((aliases ?? []).map(a => [a.id as string, a]))
+  const aliasesResult = await fetchAllRows<{ id: string; erp_name: string | null; vendor_id: string | null; vendors: unknown }>((rFrom, rTo) =>
+    admin
+      .from('erp_vendor_aliases')
+      .select('id, erp_name, vendor_id, vendors(name)')
+      .eq('alias_type', 'purchase')
+      .range(rFrom, rTo),
+  )
+  if ('error' in aliasesResult) return { error: aliasesResult.error }
+  const aliasInfo = new Map(aliasesResult.data.map(a => [a.id, a]))
 
   const groups = new Map<string, AliasPurchaseAgg>()
 

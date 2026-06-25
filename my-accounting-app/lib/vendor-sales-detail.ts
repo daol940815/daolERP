@@ -94,12 +94,15 @@ export async function buildVendorSalesDetail(
 
   for (let i = 0; i < orderIds.length; i += 500) {
     const chunk = orderIds.slice(i, i + 500)
-    const { data: items, error: ce } = await admin
-      .from('erp_order_items')
-      .select('order_id, item_name, quantity, line_total, is_canceled, is_vip, is_prepayment')
-      .in('order_id', chunk)
-    if (ce) return { error: ce.message }
-    for (const it of items ?? []) {
+    const itemsResult = await fetchAllRows<{ order_id: string; item_name: string | null; quantity: number | null; line_total: number | null; is_canceled: boolean | null; is_vip: boolean | null; is_prepayment: boolean | null }>((rFrom, rTo) =>
+      admin
+        .from('erp_order_items')
+        .select('order_id, item_name, quantity, line_total, is_canceled, is_vip, is_prepayment')
+        .in('order_id', chunk)
+        .range(rFrom, rTo),
+    )
+    if ('error' in itemsResult) return { error: itemsResult.error }
+    for (const it of itemsResult.data) {
       const orderId = it.order_id as string
       itemCountByOrder.set(orderId, (itemCountByOrder.get(orderId) ?? 0) + 1)
       if (it.is_canceled || it.is_vip || it.is_prepayment) continue
