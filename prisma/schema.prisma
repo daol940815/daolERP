@@ -1,0 +1,96 @@
+// daolERP - 자회사 종합관리 데이터 모델
+// SQLite 사용: 데이터는 prisma/erp.db 파일 하나에 저장됩니다 (백업 = 파일 복사)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./erp.db"
+}
+
+// ─────────────────────────────────────────────────────────
+// 세금계산서 (매출/매입, 과세/면세 통합)
+// 엑셀: 매출(과세), 매출(면세), 과세계(입), 면세계(입)
+// ─────────────────────────────────────────────────────────
+model TaxInvoice {
+  id           Int      @id @default(autoincrement())
+  direction    String   // SALES(매출) | PURCHASE(매입)
+  taxType      String   // TAXABLE(과세) | TAX_FREE(면세)
+  monthCode    String?  // 월 (예: "2403" = 2024년 3월)
+  seq          Int?     // 번호
+  writeDate    DateTime? // 작성일 (매입계산서에만 존재)
+  issueDate    DateTime? // 발행일
+  bizNo        String?  // 사업자번호
+  partner      String?  // 거래처 (매출처 / 매입처)
+  total        Int      @default(0) // 합계
+  supplyAmount Int      @default(0) // 공급가액
+  tax          Int      @default(0) // 세액
+  item         String?  // 품명
+  paymentDate  DateTime? // 입금일
+  receiptType  String?  // 영수/청구 (매입계산서)
+  note         String?  // 비고
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([direction, taxType])
+  @@index([issueDate])
+  @@index([partner])
+}
+
+// ─────────────────────────────────────────────────────────
+// 법인카드 사용내역
+// 엑셀: 우리카드및기타지출
+// ─────────────────────────────────────────────────────────
+model CardUsage {
+  id          Int      @id @default(autoincrement())
+  useDate     DateTime? // 이용일자 (정규화된 일시)
+  rawUseDate  String?  // 원본 이용일자 텍스트 (예: "11.19 00:31")
+  domestic    String?  // 국내/해외
+  approvalNo  String?  // 승인번호
+  cardNo      String?  // 이용카드 (뒤 4자리, 예: 3712)
+  userName    String?  // 사용자명
+  merchant    String?  // 이용가맹점명
+  content     String?  // 사용 내용
+  saleType    String?  // 매출구분 (일시불/할부)
+  installment String?  // 할부개월
+  amount      Int      @default(0) // 승인금액/취소(원)
+  amountUsd   Float    @default(0) // 승인금액(USD)
+  status      String?  // 접수/취소
+  category    String?  // 회계 분류 (사용자가 지정)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([useDate])
+  @@index([userName])
+  @@index([cardNo])
+}
+
+// ─────────────────────────────────────────────────────────
+// 통장 거래내역 (입금통장 / 출금통장 통합)
+// 엑셀: 입금통장, 출금통장
+// ─────────────────────────────────────────────────────────
+model BankTransaction {
+  id          Int      @id @default(autoincrement())
+  account     String   // DEPOSIT(입금통장) | WITHDRAWAL(출금통장)
+  txAt        DateTime? // 거래일시
+  rawTxAt     String?  // 원본 거래일시 텍스트
+  summary     String?  // 적요
+  description String?  // 기재내용
+  withdrawal  Int      @default(0) // 지급(원)
+  deposit     Int      @default(0) // 입금(원)
+  balance     Int      @default(0) // 거래후 잔액(원)
+  branch      String?  // 취급점
+  memo        String?  // 메모
+  category    String?  // 계정 / 회계 계정과목
+  note        String?  // 단순 지출/수입 요약
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([account])
+  @@index([txAt])
+}
