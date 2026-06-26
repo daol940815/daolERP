@@ -25,6 +25,7 @@ export default function OpeningBalancesPage() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [edit, setEdit] = useState<Record<string, string>>({})
+  const [suggest, setSuggest] = useState<Record<string, number>>({})
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
 
@@ -39,19 +40,20 @@ export default function OpeningBalancesPage() {
 
   useEffect(() => { load() }, [load])
 
-  const deriveBank = async () => {
-    if (!confirm('은행 거래후잔액을 역산해 보통예금·단기차입금 기초잔액을 자동 계산합니다.\n기존 자동값은 덮어씁니다. 진행할까요?')) return
+  const loadSuggestions = async () => {
     setBusy(true)
-    const res = await fetch('/api/opening-balances/derive-bank', { method: 'POST' })
+    const res = await fetch('/api/opening-balances/suggest-bank')
     const json = await res.json()
     setBusy(false)
-    if (res.ok) { flash(`은행 기초잔액 ${json.derived?.length ?? 0}개 계정 자동 계산 완료`); load() }
-    else flash(`자동 계산 실패: ${json.error ?? '오류'}`)
+    if (res.ok && Array.isArray(json.suggestions)) {
+      const m: Record<string, number> = {}
+      for (const s of json.suggestions) m[s.account_id] = s.suggested
+      setSuggest(m)
+      flash(`은행 추정값 ${json.suggestions.length}건 불러옴 (검토 후 [적용]하세요)`)
+    } else flash(`추정값 조회 실패: ${json.error ?? '오류'}`)
   }
 
-  const saveManual = async (accountId: string) => {
-    const raw = (edit[accountId] ?? '').replace(/,/g, '').trim()
-    const amount = Number(raw || 0)
+  const saveValue = async (accountId: string, amount: number) => {
     if (!Number.isFinite(amount)) { flash('금액이 올바르지 않습니다.'); return }
     setBusy(true)
     const res = await fetch('/api/opening-balances', {
@@ -61,9 +63,16 @@ export default function OpeningBalancesPage() {
     })
     const json = await res.json()
     setBusy(false)
-    if (res.ok) { flash(amount === 0 ? '기초잔액 삭제됨' : '기초잔액 저장됨'); setEdit(e => { const n = { ...e }; delete n[accountId]; return n }); load() }
-    else flash(`저장 실패: ${json.error ?? '오류'}`)
+    if (res.ok) {
+      flash(amount === 0 ? '기초잔액 삭제됨' : '기초잔액 저장됨')
+      setEdit(e => { const n = { ...e }; delete n[accountId]; return n })
+      setSuggest(s => { const n = { ...s }; delete n[accountId]; return n })
+      load()
+    } else flash(`저장 실패: ${json.error ?? '오류'}`)
   }
+
+  const saveManual = (accountId: string) =>
+    saveValue(accountId, Number((edit[accountId] ?? '').replace(/,/g, '').trim() || 0))
 
   const totals = useMemo(() => {
     const t: Record<string, number> = { asset: 0, liability: 0, equity: 0 }
@@ -84,11 +93,11 @@ export default function OpeningBalancesPage() {
       {msg && <div className="mb-3 mt-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
 
       <div className="flex items-center gap-2 my-4">
-        <button onClick={deriveBank} disabled={busy}
-          className="px-3.5 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
-          🏦 은행 기초잔액 자동계산
+        <button onClick={loadSuggestions} disabled={busy}
+          className="px-3.5 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-100 disabled:opacity-50">
+          🏦 은행 추정값 불러오기
         </button>
-        <span className="text-xs text-gray-400">보통예금·단기차입금은 통장 거래후잔액에서 자동 도출됩니다.</span>
+        <span className="text-xs text-amber-600">⚠ 거래 순서 정보(시각)가 없어 추정값은 부정확할 수 있습니다. 도입시점 실제 잔액을 확인해 수기 확정하세요.</span>
       </div>
 
       {loading ? (
@@ -134,13 +143,21 @@ export default function OpeningBalancesPage() {
                             ? <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">수기</span>
                             : <span className="text-xs text-gray-300">-</span>}
                         </td>
-                        <td className="py-1.5 px-3 text-right">
-                          {editing && (
+                        <td className="py-1.5 px-3 text-right whitespace-nowrap">
+                          {editing ? (
                             <button onClick={() => saveManual(r.id)} disabled={busy}
                               className="text-xs px-2 py-1 bg-slate-800 text-white rounded hover:bg-slate-600 disabled:opacity-50">
                               저장
                             </button>
-                          )}
+                          ) : r.id in suggest ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="text-xs text-amber-600">추정 {won(suggest[r.id])}</span>
+                              <button onClick={() => saveValue(r.id, suggest[r.id])} disabled={busy}
+                                className="text-xs px-2 py-1 border border-amber-400 text-amber-700 rounded hover:bg-amber-50 disabled:opacity-50">
+                                적용
+                              </button>
+                            </span>
+                          ) : null}
                         </td>
                       </tr>
                     )
@@ -155,7 +172,7 @@ export default function OpeningBalancesPage() {
       <p className="text-xs text-gray-400 mt-4">
         · 자산·비용은 차변(+), 부채·자본은 대변(+) 기준으로 입력합니다. (예: 단기차입금 기초 = 갚을 차입액을 양수로)<br />
         · 칸을 클릭해 숫자를 입력하고 저장하면 수기로 저장됩니다. 0으로 저장하면 삭제됩니다.<br />
-        · 은행 자동계산은 보통예금·단기차입금을 통장 거래후잔액에서 역산하며, 수기로 덮어쓸 수 있습니다.
+        · &lsquo;은행 추정값 불러오기&rsquo;는 통장 거래후잔액에서 역산한 <b>참고용 추정치</b>일 뿐 자동 저장하지 않습니다. [적용]하면 수기값으로 확정됩니다.
       </p>
     </div>
   )
