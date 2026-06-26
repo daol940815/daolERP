@@ -417,13 +417,10 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             <span className="text-base leading-none">📒</span>
             <span>계정별 원장</span>
           </Link>
-          <button
-            onClick={() => alert('거래처 원장은 준비중입니다.')}
-            className={`${linkCls(false)} w-full text-left`}
-          >
+          <Link href="/vendor-ledger" className={linkCls(pathname.startsWith('/vendor-ledger'))}>
             <span className="text-base leading-none">📇</span>
             <span>거래처 원장</span>
-          </button>
+          </Link>
         </div>
 
         {/* ── 자료출력 ── */}
