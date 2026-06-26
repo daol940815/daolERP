@@ -24,10 +24,12 @@ export async function POST(req: NextRequest) {
         if (parsed.invoices.length) await tx.taxInvoice.deleteMany({});
         if (parsed.cards.length) await tx.cardUsage.deleteMany({});
         if (parsed.bank.length) await tx.bankTransaction.deleteMany({});
+        if (parsed.sales.length) await tx.salesDeal.deleteMany({});
       }
       let inv = 0,
         card = 0,
-        bank = 0;
+        bank = 0,
+        sales = 0;
       if (parsed.invoices.length) {
         const r = await tx.taxInvoice.createMany({ data: parsed.invoices });
         inv = r.count;
@@ -40,7 +42,11 @@ export async function POST(req: NextRequest) {
         const r = await tx.bankTransaction.createMany({ data: parsed.bank });
         bank = r.count;
       }
-      return { inv, card, bank };
+      if (parsed.sales.length) {
+        const r = await tx.salesDeal.createMany({ data: parsed.sales });
+        sales = r.count;
+      }
+      return { inv, card, bank, sales };
     });
 
     return NextResponse.json({

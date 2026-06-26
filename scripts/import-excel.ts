@@ -33,6 +33,7 @@ async function main() {
     await prisma.taxInvoice.deleteMany({});
     await prisma.cardUsage.deleteMany({});
     await prisma.bankTransaction.deleteMany({});
+    await prisma.salesDeal.deleteMany({});
   }
 
   console.log("저장 중...");
@@ -42,9 +43,11 @@ async function main() {
     await prisma.cardUsage.createMany({ data: parsed.cards });
   if (parsed.bank.length)
     await prisma.bankTransaction.createMany({ data: parsed.bank });
+  if (parsed.sales.length)
+    await prisma.salesDeal.createMany({ data: parsed.sales });
 
   console.log(
-    `\n✅ 완료: 세금계산서 ${parsed.invoices.length}건 / 카드 ${parsed.cards.length}건 / 통장 ${parsed.bank.length}건`
+    `\n✅ 완료: 세금계산서 ${parsed.invoices.length}건 / 영업이력 ${parsed.sales.length}건 / 카드 ${parsed.cards.length}건 / 통장 ${parsed.bank.length}건`
   );
 }
 

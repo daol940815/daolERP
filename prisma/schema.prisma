@@ -41,6 +41,43 @@ model TaxInvoice {
 }
 
 // ─────────────────────────────────────────────────────────
+// 영업/매출이력 (견적 → 납품 파이프라인)
+// 엑셀: 매출이력
+// ─────────────────────────────────────────────────────────
+model SalesDeal {
+  id              Int       @id @default(autoincrement())
+  dealDate        DateTime? // 날짜
+  stage           String    @default("견적") // 단계: 견적/계산서발행/입금완료/미납품/손실
+  category        String?   // 구분 (원본: 견적 등)
+  introducer      String?   // 소개자
+  customerOwner   String?   // 고객 (담당자)
+  customerName    String?   // 고객명 (회사)
+  finalCustomer   String?   // 최종 고객사
+  finalOwner      String?   // 최종 고객명
+  title           String?   // 제목
+  model           String?   // 모델명
+  relatedInfo     String?   // 관련 정보
+  channel         String?   // 수신
+  purchasePrice   Int       @default(0) // 매입가
+  salesPrice      Int       @default(0) // 매출가
+  margin          Int       @default(0) // 마진
+  commission      Int       @default(0) // 수수료
+  operatingProfit Int       @default(0) // 영업이익
+  invoiceIssuer   String?   // 계산서 발행처
+  invoiceDate     DateTime? // 계산서 발행일
+  paymentDate     DateTime? // 입금일 (유효 날짜만)
+  paymentAmount   Int       @default(0) // 입금액 (부가세 포함)
+  note            String?   // 기타/상태 메모
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([stage])
+  @@index([dealDate])
+  @@index([customerName])
+}
+
+// ─────────────────────────────────────────────────────────
 // 법인카드 사용내역
 // 엑셀: 우리카드및기타지출
 // ─────────────────────────────────────────────────────────

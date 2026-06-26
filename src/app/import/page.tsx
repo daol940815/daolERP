@@ -5,7 +5,7 @@ import { useState } from "react";
 interface ImportResult {
   ok: boolean;
   replace: boolean;
-  counts: { inv: number; card: number; bank: number };
+  counts: { inv: number; card: number; bank: number; sales: number };
   summary: { sheet: string; type: string; count: number }[];
   warnings: string[];
 }
@@ -96,10 +96,14 @@ export default function ImportPage() {
           <div className="text-lg font-semibold text-emerald-800">
             ✅ 가져오기 완료
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-3 text-center">
+          <div className="mt-3 grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
             <div className="rounded-lg bg-white p-3">
               <div className="text-xs text-slate-500">세금계산서</div>
               <div className="text-xl font-bold text-blue-600">{result.counts.inv}</div>
+            </div>
+            <div className="rounded-lg bg-white p-3">
+              <div className="text-xs text-slate-500">영업/매출이력</div>
+              <div className="text-xl font-bold text-indigo-600">{result.counts.sales}</div>
             </div>
             <div className="rounded-lg bg-white p-3">
               <div className="text-xs text-slate-500">카드사용내역</div>
@@ -149,12 +153,12 @@ export default function ImportPage() {
         <ul className="mt-2 list-inside list-disc space-y-1">
           <li>매출(과세), 매출(면세) → 매출 세금계산서</li>
           <li>과세계(입), 면세계(입) → 매입 세금계산서</li>
+          <li>매출이력 → 영업/매출이력 (견적→납품 파이프라인)</li>
           <li>우리카드및기타지출 → 카드 사용내역</li>
           <li>입금통장, 출금통장 → 통장 입출금</li>
         </ul>
         <p className="mt-2 text-xs text-slate-400">
-          그 외 시트(영업/매출이력, 자금현황 집계 등)는 다음 단계에서 추가될
-          예정입니다.
+          그 외 시트(자금현황 집계 계획 항목 등)는 다음 단계에서 추가될 예정입니다.
         </p>
       </div>
     </div>

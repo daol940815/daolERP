@@ -41,6 +41,31 @@ export interface CardInput {
   category: string | null;
 }
 
+export interface SalesInput {
+  dealDate: Date | null;
+  stage: string;
+  category: string | null;
+  introducer: string | null;
+  customerOwner: string | null;
+  customerName: string | null;
+  finalCustomer: string | null;
+  finalOwner: string | null;
+  title: string | null;
+  model: string | null;
+  relatedInfo: string | null;
+  channel: string | null;
+  purchasePrice: number;
+  salesPrice: number;
+  margin: number;
+  commission: number;
+  operatingProfit: number;
+  invoiceIssuer: string | null;
+  invoiceDate: Date | null;
+  paymentDate: Date | null;
+  paymentAmount: number;
+  note: string | null;
+}
+
 export interface BankInput {
   account: "DEPOSIT" | "WITHDRAWAL";
   txAt: Date | null;
@@ -60,6 +85,7 @@ export interface ParseResult {
   invoices: InvoiceInput[];
   cards: CardInput[];
   bank: BankInput[];
+  sales: SalesInput[];
   summary: { sheet: string; type: string; count: number }[];
   warnings: string[];
 }
@@ -177,16 +203,26 @@ function findHeaderRow(rows: any[][], keywords: string[], maxScan = 8): number {
 }
 
 // 헤더 행에서 라벨 → 열 인덱스 맵 생성
-function headerIndex(headerRow: any[]): { find: (...aliases: string[]) => number } {
+function headerIndex(headerRow: any[]): {
+  find: (...aliases: string[]) => number;
+  findAll: (...aliases: string[]) => number[];
+} {
   const cols = (headerRow ?? []).map((c) => norm(String(c ?? "")));
+  const matches = (i: number, al: string[]) =>
+    cols[i] && al.some((a) => cols[i].includes(a));
   return {
     // 별칭 중 하나라도 헤더에 포함되면 그 열 인덱스 반환 (없으면 -1)
     find: (...aliases: string[]) => {
       const al = aliases.map(norm);
-      for (let i = 0; i < cols.length; i++) {
-        if (cols[i] && al.some((a) => cols[i].includes(a))) return i;
-      }
+      for (let i = 0; i < cols.length; i++) if (matches(i, al)) return i;
       return -1;
+    },
+    // 매칭되는 모든 열 인덱스 반환 (동명 헤더가 여러 개일 때: 예) 기타)
+    findAll: (...aliases: string[]) => {
+      const al = aliases.map(norm);
+      const out: number[] = [];
+      for (let i = 0; i < cols.length; i++) if (matches(i, al)) out.push(i);
+      return out;
     },
   };
 }
@@ -348,6 +384,108 @@ function parseBankSheet(rows: any[][], account: "DEPOSIT" | "WITHDRAWAL"): BankI
   return out;
 }
 
+// 매출이력 단계 자동 도출
+function deriveStage(
+  noteText: string,
+  paymentRaw: string | null,
+  invoiceDate: Date | null,
+  paymentDate: Date | null,
+  paymentAmount: number
+): string {
+  const t = `${noteText} ${paymentRaw ?? ""}`;
+  if (/손실|파산|회생/.test(t)) return "손실";
+  if (paymentDate || paymentAmount > 0) return "입금완료";
+  if (invoiceDate) return "계산서발행";
+  if (/미\s*납품|미입금/.test(t)) return "미납품";
+  return "견적";
+}
+
+function parseSalesSheet(rows: any[][]): SalesInput[] {
+  const out: SalesInput[] = [];
+  const hr = findHeaderRow(rows, ["소개자", "제목", "영업이익"]);
+  if (hr < 0) return out;
+  const h = headerIndex(rows[hr]);
+  const c = {
+    date: h.find("날짜"),
+    category: h.find("구분"),
+    introducer: h.find("소개자"),
+    owner: h.find("고객"), // '고객' (담당자) — 첫 매칭
+    custName: h.find("고객명"),
+    finalCust: h.find("최종고객사"),
+    finalOwner: h.find("최종고객명"),
+    title: h.find("제목"),
+    model: h.find("모델명"),
+    related: h.find("관련정보"),
+    channel: h.find("수신"),
+    purchase: h.find("매입가"),
+    sales: h.find("매출가"),
+    margin: h.find("마진"), // '마진' < '마진률' (첫 매칭)
+    commission: h.find("수수료"), // '수수료' < '수수료율'
+    profit: h.find("영업이익"),
+    invIssuer: h.find("계산서발행처"),
+    invDate: h.find("계산서발행일"),
+    payDate: h.find("입금일"),
+    payAmount: h.find("입금액"),
+  };
+  const etcCols = h.findAll("기타"); // 동명 '기타' 컬럼 모두
+
+  for (let i = hr + 1; i < rows.length; i++) {
+    const r = rows[i] ?? [];
+    const customerName = str(at(r, c.custName));
+    const title = str(at(r, c.title));
+    const model = str(at(r, c.model));
+    const date = parseKDate(at(r, c.date));
+    const salesPrice = num(at(r, c.sales));
+    // 의미 있는 행만 (날짜/고객/제목/모델/매출가 중 하나라도)
+    if (!date && !customerName && !title && !model && salesPrice === 0) continue;
+
+    const noteParts: string[] = [];
+    for (const ci of etcCols) {
+      const v = str(at(r, ci));
+      if (v) noteParts.push(v);
+    }
+    // 수수료가 텍스트인 경우 비고로 보존
+    const commRaw = str(at(r, c.commission));
+    const commission = num(at(r, c.commission));
+    if (commRaw && commission === 0 && /[가-힣A-Za-z]/.test(commRaw)) {
+      noteParts.push(`수수료: ${commRaw}`);
+    }
+    const payRaw = str(at(r, c.payDate));
+    const paymentDate = parseKDate(at(r, c.payDate));
+    if (payRaw && !paymentDate) noteParts.push(`입금일: ${payRaw}`);
+
+    const invoiceDate = parseKDate(at(r, c.invDate));
+    const paymentAmount = num(at(r, c.payAmount));
+    const note = noteParts.length ? noteParts.join(" / ") : null;
+
+    out.push({
+      dealDate: date,
+      stage: deriveStage(note ?? "", payRaw, invoiceDate, paymentDate, paymentAmount),
+      category: str(at(r, c.category)),
+      introducer: str(at(r, c.introducer)),
+      customerOwner: str(at(r, c.owner)),
+      customerName,
+      finalCustomer: str(at(r, c.finalCust)),
+      finalOwner: str(at(r, c.finalOwner)),
+      title,
+      model,
+      relatedInfo: str(at(r, c.related)),
+      channel: str(at(r, c.channel)),
+      purchasePrice: num(at(r, c.purchase)),
+      salesPrice,
+      margin: num(at(r, c.margin)),
+      commission,
+      operatingProfit: num(at(r, c.profit)),
+      invoiceIssuer: str(at(r, c.invIssuer)),
+      invoiceDate,
+      paymentDate,
+      paymentAmount,
+      note,
+    });
+  }
+  return out;
+}
+
 // ── 메인 진입점 ───────────────────────────────────────────
 
 export function parseWorkbook(buffer: Buffer | ArrayBuffer): ParseResult {
@@ -356,6 +494,7 @@ export function parseWorkbook(buffer: Buffer | ArrayBuffer): ParseResult {
     invoices: [],
     cards: [],
     bank: [],
+    sales: [],
     summary: [],
     warnings: [],
   };
@@ -391,6 +530,11 @@ export function parseWorkbook(buffer: Buffer | ArrayBuffer): ParseResult {
       run: (m) => result.invoices.push(...parseInvoiceSheet(m, "PURCHASE", "TAX_FREE", true)),
     },
     {
+      sheet: "매출이력",
+      type: "영업/매출이력",
+      run: (m) => result.sales.push(...parseSalesSheet(m)),
+    },
+    {
       sheet: "우리카드및기타지출",
       type: "카드사용내역",
       run: (m) => result.cards.push(...parseCardSheet(m)),
@@ -414,10 +558,16 @@ export function parseWorkbook(buffer: Buffer | ArrayBuffer): ParseResult {
       continue;
     }
     const before =
-      result.invoices.length + result.cards.length + result.bank.length;
+      result.invoices.length +
+      result.cards.length +
+      result.bank.length +
+      result.sales.length;
     job.run(sheetToMatrix(ws));
     const after =
-      result.invoices.length + result.cards.length + result.bank.length;
+      result.invoices.length +
+      result.cards.length +
+      result.bank.length +
+      result.sales.length;
     result.summary.push({ sheet: job.sheet, type: job.type, count: after - before });
   }
 
