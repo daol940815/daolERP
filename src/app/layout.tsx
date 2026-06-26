@@ -9,6 +9,7 @@ export const metadata: Metadata = {
 
 const NAV = [
   { href: "/", label: "대시보드", icon: "🏠" },
+  { href: "/fund", label: "자금현황", icon: "💰" },
   { href: "/invoices/sales", label: "매출 계산서", icon: "🧾" },
   { href: "/invoices/purchase", label: "매입 계산서", icon: "📑" },
   { href: "/cards", label: "카드 사용내역", icon: "💳" },
