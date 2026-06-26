@@ -28,8 +28,8 @@ export default async function AppLayout({
       <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
         <div className="border-b border-slate-200 px-5 py-4">
           <Link href="/" className="block">
-            <div className="text-lg font-bold text-brand">daolERP</div>
-            <div className="text-xs text-slate-400">자회사 종합관리</div>
+            <div className="text-lg font-bold text-brand">스피어스 ERP</div>
+            <div className="text-xs text-slate-400">(주)스피어스 종합관리</div>
           </Link>
         </div>
         <nav className="flex-1 space-y-1 p-3">
