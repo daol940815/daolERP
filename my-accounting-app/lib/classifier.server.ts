@@ -69,10 +69,19 @@ export async function classifyByKeywords(
 
     const descLower = (tx.description as string).toLowerCase()
 
+    // 거래 방향 — 방향 가드에 사용
+    const isInflow  = (tx.amount_in  ?? 0) > 0   // 입금
+    const isOutflow = (tx.amount_out ?? 0) > 0   // 출금
+
     // 계정 등록 순서가 아니라, 매칭되는 키워드 중 가장 긴(구체적인) 것을 우선 채택
     // — 짧은 범용 키워드가 더 구체적인 키워드보다 먼저 등록돼 있어도 오분류되지 않도록 함
     let best: { account: typeof accountsWithKw[number]; keyword: string } | null = null
     for (const account of accountsWithKw) {
+      // 방향 가드: 거래처명에 우연히 비용/수익 키워드가 섞여도 방향이 어긋나면 제안하지 않는다.
+      //  - 입금(수입)인데 비용계정(expense) 제안 금지  (예: '법무법인신원' 입금 → 지급수수료 ✗)
+      //  - 출금(지출)인데 수익계정(income) 제안 금지
+      if (isInflow  && account.type === 'expense') continue
+      if (isOutflow && account.type === 'income')  continue
       for (const kw of account.keywords as string[]) {
         if (descLower.includes(kw.toLowerCase()) && (!best || kw.length > best.keyword.length)) {
           best = { account, keyword: kw }
@@ -82,7 +91,6 @@ export async function classifyByKeywords(
 
     if (best) {
       // Step 2: 계정별 방향 규칙으로 차변/대변 결정
-      const isInflow = (tx.amount_in ?? 0) > 0
       const side = isInflow
         ? (best.account.side_on_in  ?? 'credit')   // 입금 시 방향 (기본: 대변)
         : (best.account.side_on_out ?? 'debit')     // 출금 시 방향 (기본: 차변)
