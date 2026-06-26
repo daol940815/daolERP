@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { syncCardExpenseJournal } from '@/lib/journal/card-posting'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -298,11 +299,26 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: `사용내역 저장 실패: ${error.message}` }, { status: 500 })
   }
 
+  // ── 확정(파일 계정과목) 건 자동 분개 — "업로드 = 회계 자동 생성" ──
+  let posted = 0
+  for (let i = 0; i < keys.length; i += CHUNK) {
+    const { data: rows } = await admin
+      .from('card_expenses')
+      .select('id')
+      .in('source_key', keys.slice(i, i + CHUNK))
+      .eq('classify_status', 'confirmed')
+    for (const r of rows ?? []) {
+      const jr = await syncCardExpenseJournal(admin, r.id as string)
+      if (!('error' in jr)) posted++
+    }
+  }
+
   return NextResponse.json({
     imported: upsertRows.length,
     card_accounts: cardNumbers.size,
     confirmed: confirmedCount,
     suggested: suggestedCount,
+    posted,
     skipped,
     total_rows: dataRows.length,
   })

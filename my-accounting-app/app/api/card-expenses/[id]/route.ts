@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase-server'
+import { createAdminClient, createClient } from '@/lib/supabase-server'
+import { syncCardExpenseJournal } from '@/lib/journal/card-posting'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,8 +47,36 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
   updates.updated_at = new Date().toISOString()
 
+  // 변경 전 상태(감사필드용)
+  const { data: before } = await admin
+    .from('card_expenses')
+    .select('confirmed_account_id, classify_status, account_changed_count')
+    .eq('id', id)
+    .single()
+
+  // 재분류 감사
+  if ('confirmed_account_id' in updates
+      && updates.confirmed_account_id !== before?.confirmed_account_id
+      && before?.confirmed_account_id) {
+    updates.account_changed_count = ((before.account_changed_count as number) ?? 0) + 1
+    updates.prev_account_id = before.confirmed_account_id
+  }
+  // 확정 전이 시 확정자/시각
+  if (updates.classify_status === 'confirmed' && before?.classify_status !== 'confirmed') {
+    updates.confirmed_at = new Date().toISOString()
+    try {
+      const supa = await createClient()
+      const { data: u } = await supa.auth.getUser()
+      updates.confirmed_by = u.user?.id ?? null
+    } catch { /* 세션 없으면 null */ }
+  }
+
   const { error } = await admin.from('card_expenses').update(updates).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // 분개 동기화 (확정→전기 / 해제→취소 / 재분류→재전기)
+  const jr = await syncCardExpenseJournal(admin, id)
+  if ('error' in jr) return NextResponse.json({ error: `분개 전기 실패: ${jr.error}` }, { status: 500 })
 
   return NextResponse.json({ ok: true })
 }
