@@ -24,6 +24,3 @@ prisma/*.db-journal
 *.log
 npm-debug.log*
 
-# uploads (임시 업로드 파일)
-/uploads/*
-!/uploads/.gitkeep

@@ -1,13 +1,33 @@
 // daolERP - 자회사 종합관리 데이터 모델
-// SQLite 사용: 데이터는 prisma/erp.db 파일 하나에 저장됩니다 (백업 = 파일 복사)
+// PostgreSQL(Neon) 사용. 연결정보는 환경변수로 관리합니다.
+//   DATABASE_URL : 애플리케이션 연결 (Neon은 풀링 연결 권장)
+//   DIRECT_URL   : 마이그레이션용 직접 연결 (Neon은 unpooled 연결)
+// 로컬 개발에서는 둘 다 동일한 로컬 Postgres 주소를 사용해도 됩니다.
 
 generator client {
   provider = "prisma-client-js"
+  // Vercel(Amazon Linux, openssl 3.x) 런타임에서 동작하도록 엔진 타깃 명시
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./erp.db"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────────────────────────────────
+// 사용자 / 인증
+// 우선은 팀 공용 계정 1개로 운영하되, role 로 추후 권한(관리자/직원) 확장 가능
+// ─────────────────────────────────────────────────────────
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String
+  name         String?
+  role         String   @default("admin") // admin | staff (추후 확장)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 // ─────────────────────────────────────────────────────────
