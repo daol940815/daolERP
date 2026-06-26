@@ -503,6 +503,7 @@ export default function TaxInvoiceListPage() {
   const [matchingInvoice, setMatchingInvoice] = useState<TaxInvoice | null>(null)
   const [selected, setSelected]       = useState<Set<string>>(new Set())
   const [sumMatching, setSumMatching] = useState(false)
+  const [bulkBusy, setBulkBusy]       = useState(false)
   const [toast, setToast]             = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -626,6 +627,27 @@ export default function TaxInvoiceListPage() {
     }
   }
 
+  // 매출 일괄분류: 미분류 매출 세금계산서를 매출(4001)로 일괄 지정 + 자동 분개
+  const handleBulkClassifySales = async () => {
+    const unclassified = invoices.filter(i => !i.confirmed_account_id).length
+    if (unclassified === 0) { alert('미분류 매출 세금계산서가 없습니다.'); return }
+    if (!confirm(`미분류 매출 세금계산서를 모두 '매출' 계정으로 분류하고 분개합니다.\n(과세·면세 포함, 현재 화면 외 전체 매출 대상)\n진행할까요?`)) return
+    setBulkBusy(true)
+    try {
+      const res = await fetch('/api/tax-invoices/bulk-classify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ direction: 'sales', accountId: '4f31d98f-e220-4911-9d7c-fba09ceb818e' }),
+      })
+      const json = await res.json()
+      if (!res.ok) { alert(`일괄분류 실패: ${json.error ?? '오류'}`); return }
+      alert(`매출 ${json.classified}건 분류·분개 완료 (오류 ${json.errors?.length ?? 0}건)`)
+      load()
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
   // ── 검색 (거래처명·품목·비고) ────────────────────────────────────
   const q = search.trim().toLowerCase()
   const filtered = q
@@ -736,6 +758,13 @@ export default function TaxInvoiceListPage() {
           placeholder="거래처명·품목·비고 검색"
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
+        {direction === 'sales' && (
+          <button onClick={handleBulkClassifySales} disabled={bulkBusy}
+            className="px-3 py-1.5 text-sm border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 disabled:opacity-50 whitespace-nowrap"
+            title="미분류 매출 세금계산서를 매출 계정으로 일괄 분류하고 분개합니다">
+            {bulkBusy ? '처리 중…' : '매출 일괄분류'}
+          </button>
+        )}
         <div className="flex gap-1">
           {[
             { key: 'all', label: '전체' },
