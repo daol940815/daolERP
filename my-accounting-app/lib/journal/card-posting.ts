@@ -7,7 +7,8 @@ import { postJournal, unpostJournal } from './posting'
 // 규칙(설계: docs/journal-design.md):
 //   카드 사용: (차) 비용계정(confirmed) / (대) 미지급금(2001), 금액 = 승인금액
 //   * 카드대금 결제(은행출금)는 별도로 미지급금 차변 처리 → 이중계상 방지(은행 분개에서 처리).
-//   * 카드 사용내역은 거래처 연결 없음(v1) → vendor_id 미부여.
+//   * 미지급금(2001)의 상대처(vendor)는 가맹점이 아니라 "카드사"다 — 카드사에 갚을 채무이므로,
+//     card_accounts.vendor_id(카드사 거래처)를 미지급금 라인에 태깅한다(거래처별 원장 일관성).
 
 export interface CardExpenseForPosting {
   id: string
@@ -21,6 +22,7 @@ export interface CardExpenseForPosting {
 export function buildCardPosting(
   exp: CardExpenseForPosting,
   payableAccountId: string,
+  cardCompanyVendorId: string | null,
 ): JournalDraft | { error: string } {
   if (exp.classify_status !== 'confirmed' || !exp.confirmed_account_id) {
     return { error: '확정된 계정과목이 없습니다.' }
@@ -37,7 +39,8 @@ export function buildCardPosting(
     entry_type: 'normal',
     lines: [
       { account_id: exp.confirmed_account_id, side: 'debit',  amount, vendor_id: null },
-      { account_id: payableAccountId,         side: 'credit', amount, vendor_id: null },
+      // 미지급금: 상대처 = 카드사
+      { account_id: payableAccountId,         side: 'credit', amount, vendor_id: cardCompanyVendorId },
     ],
   }
 }
@@ -51,10 +54,15 @@ export async function syncCardExpenseJournal(
 ): Promise<{ ok: true } | { error: string }> {
   const { data: exp, error } = await admin
     .from('card_expenses')
-    .select('id, tx_date, merchant_name, approved_amount, confirmed_account_id, classify_status')
+    .select('id, tx_date, merchant_name, approved_amount, confirmed_account_id, classify_status, card_accounts(vendor_id)')
     .eq('id', expenseId)
     .single()
   if (error) return { error: error.message }
+
+  // 미지급금 상대처 = 카드사 거래처 (card_accounts.vendor_id)
+  const ca = (exp as { card_accounts?: { vendor_id: string | null } | { vendor_id: string | null }[] | null }).card_accounts
+  const cardCompanyVendorId =
+    (Array.isArray(ca) ? ca[0]?.vendor_id : ca?.vendor_id) ?? null
 
   const shouldPost =
     exp.classify_status === 'confirmed' &&
@@ -69,7 +77,7 @@ export async function syncCardExpenseJournal(
   const payableId = (payable?.id as string | undefined) ?? null
   if (!payableId) return { error: '미지급금(2001) 계정을 찾을 수 없습니다.' }
 
-  const draft = buildCardPosting(exp as CardExpenseForPosting, payableId)
+  const draft = buildCardPosting(exp as unknown as CardExpenseForPosting, payableId, cardCompanyVendorId)
   if ('error' in draft) {
     await unpostJournal(admin, 'card', expenseId)
     return { error: draft.error }

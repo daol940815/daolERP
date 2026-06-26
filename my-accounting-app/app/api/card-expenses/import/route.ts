@@ -195,6 +195,23 @@ export async function POST(req: NextRequest) {
     .upsert(cardRows, { onConflict: 'card_company,card_number', ignoreDuplicates: true })
   if (caErr) return NextResponse.json({ error: `카드계좌 등록 실패: ${caErr.message}` }, { status: 500 })
 
+  // 카드사 거래처(매입처) 확보 + 연결 — 카드 미지급금의 상대처로 사용(거래처별 원장 일관성)
+  {
+    let { data: vend } = await admin.from('vendors').select('id').eq('name', CARD_COMPANY).limit(1).maybeSingle()
+    if (!vend) {
+      const ins = await admin.from('vendors')
+        .insert({ name: CARD_COMPANY, type: 'vendor', note: '법인카드 카드사 (자동 생성)' })
+        .select('id').single()
+      vend = ins.data
+    }
+    if (vend?.id) {
+      await admin.from('card_accounts')
+        .update({ vendor_id: vend.id })
+        .eq('card_company', CARD_COMPANY)
+        .is('vendor_id', null)
+    }
+  }
+
   const accountsResult = await fetchAllRows<{ id: string; card_number: string }>((f, t) =>
     admin.from('card_accounts').select('id, card_number').eq('card_company', CARD_COMPANY).range(f, t),
   )
