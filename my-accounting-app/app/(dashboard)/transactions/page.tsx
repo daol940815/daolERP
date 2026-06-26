@@ -140,6 +140,13 @@ function TransactionsContent() {
   })
   const [toast, setToast]         = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
   const [keywordPrompt, setKeywordPrompt] = useState<{ accountId: string; accountName: string; keyword: string } | null>(null)
+  const [journalPreview, setJournalPreview] = useState<{
+    tx: Transaction
+    data: {
+      preview: { entry_date: string; description: string | null; lines: { side: string; account_code: string | null; account_name: string; amount: number; vendor_name: string | null }[] } | null
+      reason?: string; balanced?: boolean; debit?: number; credit?: number
+    }
+  } | null>(null)
 
   // 토스트 메시지 (3초 후 자동 닫힘)
   const showToast = useCallback((msg: string, type: 'ok' | 'err' = 'ok') => {
@@ -282,22 +289,48 @@ function TransactionsContent() {
     setKeywordPrompt(null)
   }, [keywordPrompt, accounts, showToast])
 
-  // 선택된 행 확정
+  // 선택된 행 일괄 확정 (분개 자동 전기)
   const handleBulkConfirm = useCallback(async () => {
     const selected = gridRef.current?.api.getSelectedRows() as Transaction[]
     if (!selected?.length) return
-
     const ids = selected.map(r => r.id)
-    await Promise.all(ids.map(id =>
-      fetch(`/api/transactions/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'confirmed' }),
-      }),
-    ))
-    showToast(`${ids.length}건 확정 완료`)
+    const res = await fetch('/api/transactions/confirm', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, confirm: true }),
+    })
+    const json = await res.json()
+    if (!res.ok) { showToast(json.error ?? '확정 실패', 'err'); return }
+    const parts = [`${json.confirmed ?? 0}건 확정·전기`]
+    if (json.skipped?.length) parts.push(`${json.skipped.length}건 건너뜀(계정/이체)`)
+    if (json.errors?.length)  parts.push(`${json.errors.length}건 오류`)
+    showToast(parts.join(' · '), json.errors?.length ? 'err' : 'ok')
     fetchTransactions()
   }, [fetchTransactions, showToast])
+
+  // 선택된 행 일괄 확정 해제 (분개 취소)
+  const handleBulkUnconfirm = useCallback(async () => {
+    const selected = gridRef.current?.api.getSelectedRows() as Transaction[]
+    if (!selected?.length) return
+    const ids = selected.map(r => r.id)
+    const res = await fetch('/api/transactions/confirm', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, confirm: false }),
+    })
+    const json = await res.json()
+    if (!res.ok) { showToast(json.error ?? '해제 실패', 'err'); return }
+    showToast(`${json.unconfirmed ?? 0}건 확정 해제`, 'ok')
+    fetchTransactions()
+  }, [fetchTransactions, showToast])
+
+  // 분개 미리보기 (단건 선택)
+  const handlePreviewJournal = useCallback(async () => {
+    const selected = gridRef.current?.api.getSelectedRows() as Transaction[]
+    if (selected?.length !== 1) { showToast('미리보기는 1건만 선택하세요.', 'err'); return }
+    const res = await fetch(`/api/transactions/${selected[0].id}/journal-preview`)
+    const json = await res.json()
+    if (!res.ok) { showToast(json.error ?? '미리보기 실패', 'err'); return }
+    setJournalPreview({ tx: selected[0], data: json })
+  }, [showToast])
 
   // 선택된 행 삭제
   const handleBulkDelete = useCallback(async () => {
@@ -873,6 +906,14 @@ function TransactionsContent() {
           >
             {matchingVendors ? '매칭 중...' : '🏢 거래처 자동 매칭'}
           </button>
+          {selectedCount === 1 && (
+            <button
+              onClick={handlePreviewJournal}
+              className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50"
+            >
+              🔍 분개 미리보기
+            </button>
+          )}
           {selectedCount > 0 && (
             <>
               <button
@@ -880,6 +921,12 @@ function TransactionsContent() {
                 className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
               >
                 선택 {selectedCount}건 확정
+              </button>
+              <button
+                onClick={handleBulkUnconfirm}
+                className="px-3 py-1.5 border border-green-300 rounded-lg text-sm font-medium text-green-700 hover:bg-green-50"
+              >
+                확정 해제
               </button>
               <button
                 onClick={handleBulkDelete}
@@ -921,8 +968,69 @@ function TransactionsContent() {
 
       {/* 안내 문구 */}
       <p className="text-xs text-gray-400 mt-2">
-        계정과목 셀 클릭 → 드롭다운으로 분류 &nbsp;·&nbsp; 메모 셀 클릭 → 직접 입력 &nbsp;·&nbsp; 행 체크 후 선택 확정으로 일괄 확정
+        계정과목 셀 클릭 → 드롭다운으로 분류 &nbsp;·&nbsp; 메모 셀 클릭 → 직접 입력 &nbsp;·&nbsp; 행 체크 후 선택 확정으로 일괄 확정(분개 자동 생성)
       </p>
+
+      {/* 분개 미리보기 모달 */}
+      {journalPreview && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setJournalPreview(null)}>
+          <div className="bg-white rounded-xl shadow-2xl p-5 w-[440px] max-w-full" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900">분개 미리보기</h3>
+            <p className="text-xs text-gray-400 mb-3 mt-0.5 truncate">{journalPreview.tx.tx_date} · {journalPreview.tx.description ?? ''}</p>
+            {journalPreview.data.preview ? (
+              <>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-gray-400 border-b border-gray-200">
+                      <th className="text-left py-1.5 font-medium">구분</th>
+                      <th className="text-left py-1.5 font-medium">계정과목</th>
+                      <th className="text-right py-1.5 font-medium">금액</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {journalPreview.data.preview.lines.map((l, i) => (
+                      <tr key={i} className="border-b border-gray-50">
+                        <td className="py-1.5">
+                          {l.side === 'debit'
+                            ? <span className="text-blue-600 font-medium">차변</span>
+                            : <span className="text-red-600 font-medium">대변</span>}
+                        </td>
+                        <td className="py-1.5">{l.account_name}{l.vendor_name ? <span className="text-gray-400"> · {l.vendor_name}</span> : null}</td>
+                        <td className="py-1.5 text-right font-medium">{l.amount.toLocaleString()}원</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className={`text-xs mt-2 ${journalPreview.data.balanced ? 'text-gray-400' : 'text-red-600'}`}>
+                  차변 {(journalPreview.data.debit ?? 0).toLocaleString()} / 대변 {(journalPreview.data.credit ?? 0).toLocaleString()} {journalPreview.data.balanced ? '✓ 균형' : '⚠ 불균형'}
+                </p>
+                <div className="flex gap-2 mt-4">
+                  <button onClick={() => setJournalPreview(null)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">닫기</button>
+                  <button
+                    onClick={async () => {
+                      const id = journalPreview.tx.id
+                      const res = await fetch('/api/transactions/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [id], confirm: true }) })
+                      const j = await res.json()
+                      setJournalPreview(null)
+                      if (!res.ok || j.errors?.length) { showToast(j.error ?? '확정 실패', 'err'); return }
+                      showToast('확정·전기 완료', 'ok')
+                      fetchTransactions()
+                    }}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
+                  >
+                    이대로 확정
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-amber-600 py-2">{journalPreview.data.reason ?? '분개를 만들 수 없습니다.'}</p>
+                <button onClick={() => setJournalPreview(null)} className="w-full mt-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">닫기</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 이체 매칭 검토 모달 (기존 매칭 쌍 — 개별 해제 가능) */}
       {matchedPairs !== null && (
