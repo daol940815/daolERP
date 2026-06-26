@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { TAX_INVOICE_SELECT } from '@/lib/tax-invoice-payments.server'
+import { syncTaxInvoiceJournal } from '@/lib/journal/tax-invoice-posting'
 
 // PATCH /api/tax-invoices/:id
 // 허용 필드: vendor_id, payment_status, payment_memo, confirmed_account_id
@@ -37,6 +38,12 @@ export async function PATCH(
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // 분개 동기화 — 계정과목·거래처가 분개에 영향을 주므로 변경 시 재전기(멱등)
+  if ('confirmed_account_id' in updates || 'vendor_id' in updates) {
+    const jr = await syncTaxInvoiceJournal(admin, id)
+    if ('error' in jr) return NextResponse.json({ error: `분개 전기 실패: ${jr.error}` }, { status: 500 })
+  }
 
   return NextResponse.json({ data })
 }

@@ -3,12 +3,13 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { syncTransactionJournal } from '@/lib/journal/bank-posting'
 import { syncCardExpenseJournal } from '@/lib/journal/card-posting'
+import { syncTaxInvoiceJournal } from '@/lib/journal/tax-invoice-posting'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 // POST /api/journal/backfill
-// 이미 확정된 원천(은행거래·법인카드)을 일괄 전기한다(멱등 — 여러 번 실행해도 안전).
+// 이미 확정된 원천(은행거래·법인카드·세금계산서)을 일괄 전기한다(멱등 — 여러 번 실행해도 안전).
 export async function POST() {
   const admin = createAdminClient()
 
@@ -51,9 +52,28 @@ export async function POST() {
     else cardPosted++
   }
 
+  // 3) 계정 확정된 세금계산서
+  const taxResult = await fetchAllRows<{ id: string }>((f, t) =>
+    admin
+      .from('tax_invoices')
+      .select('id')
+      .not('confirmed_account_id', 'is', null)
+      .gt('total_amount', 0)
+      .range(f, t),
+  )
+  if ('error' in taxResult) return NextResponse.json({ error: taxResult.error }, { status: 500 })
+
+  let taxPosted = 0
+  for (const inv of taxResult.data) {
+    const jr = await syncTaxInvoiceJournal(admin, inv.id)
+    if ('error' in jr) errors.push({ source: 'tax_invoice', id: inv.id, error: jr.error })
+    else taxPosted++
+  }
+
   return NextResponse.json({
     bank: { candidates: bankResult.data.length, posted: bankPosted },
     card: { candidates: cardResult.data.length, posted: cardPosted },
+    tax_invoice: { candidates: taxResult.data.length, posted: taxPosted },
     errors,
   })
 }
