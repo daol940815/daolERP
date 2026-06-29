@@ -40,16 +40,21 @@ export default function SearchableSelect({ value, onChange, options, emptyLabel,
     return options.filter(o => o.label.toLowerCase().includes(q))
   }, [options, query])
 
+  // 트리거 위치 기준으로 패널 좌표 계산. 트리거가 화면 밖이면 null(→ 닫기).
+  const place = (): { top: number; left: number; width: number } | null => {
+    const rect = triggerRef.current?.getBoundingClientRect()
+    if (!rect) return null
+    if (rect.bottom < 0 || rect.top > window.innerHeight) return null
+    const width = Math.max(rect.width, 220)
+    const spaceBelow = window.innerHeight - rect.bottom
+    const top  = spaceBelow > 280 ? rect.bottom + 4 : Math.max(8, rect.top - 4 - 280)
+    const left = Math.min(rect.left, window.innerWidth - width - 8)
+    return { top, left: Math.max(8, left), width }
+  }
+
   const openPanel = () => {
     if (disabled) return
-    const rect = triggerRef.current?.getBoundingClientRect()
-    if (rect) {
-      const width = Math.max(rect.width, 220)
-      const spaceBelow = window.innerHeight - rect.bottom
-      const top  = spaceBelow > 280 ? rect.bottom + 4 : Math.max(8, rect.top - 4 - 280)
-      const left = Math.min(rect.left, window.innerWidth - width - 8)
-      setCoords({ top, left: Math.max(8, left), width })
-    }
+    setCoords(place())
     setQuery('')
     setHighlight(0)
     setOpen(true)
@@ -66,14 +71,20 @@ export default function SearchableSelect({ value, onChange, options, emptyLabel,
       if (triggerRef.current?.contains(e.target as Node)) return
       setOpen(false)
     }
-    const handleClose = () => setOpen(false)
+    // 스크롤/리사이즈 시 닫지 않고 위치만 갱신(따라가기). 단, 패널 내부(옵션 목록) 스크롤은 무시.
+    const reposition = (e?: Event) => {
+      if (e && panelRef.current?.contains(e.target as Node)) return
+      const c = place()
+      if (!c) { setOpen(false); return }  // 트리거가 화면 밖으로 나가면 닫기
+      setCoords(c)
+    }
     document.addEventListener('mousedown', handleClick)
-    window.addEventListener('resize', handleClose)
-    window.addEventListener('scroll', handleClose, true)
+    window.addEventListener('resize', reposition)
+    window.addEventListener('scroll', reposition, true)
     return () => {
       document.removeEventListener('mousedown', handleClick)
-      window.removeEventListener('resize', handleClose)
-      window.removeEventListener('scroll', handleClose, true)
+      window.removeEventListener('resize', reposition)
+      window.removeEventListener('scroll', reposition, true)
     }
   }, [open])
 
