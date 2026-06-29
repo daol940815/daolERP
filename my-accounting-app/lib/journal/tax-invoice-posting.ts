@@ -37,24 +37,30 @@ export function buildTaxInvoicePosting(
 ): JournalDraft | { error: string } {
   if (!inv.confirmed_account_id) return { error: '계정과목이 확정되지 않았습니다.' }
   const total = inv.total_amount ?? 0
-  if (total <= 0) return { error: '전기할 금액이 없습니다.' }
+  if (total === 0) return { error: '전기할 금액이 없습니다.' }
 
-  // 세액: 과세이고 세액>0일 때만 분리. 본계정 = 합계 - 세액 (균형 보장)
-  const vat = inv.tax_type === 'taxable' ? Math.max(0, inv.tax_amount ?? 0) : 0
-  const main = total - vat
+  // 음수(수정·취소 세금계산서)는 부호를 뒤집어 역분개한다(양수 금액 + 차/대 반전).
+  const sign = total < 0 ? -1 : 1
+  const absTotal = Math.abs(total)
+  const vat = inv.tax_type === 'taxable' ? Math.abs(inv.tax_amount ?? 0) : 0
+  const main = absTotal - vat
   if (main <= 0) return { error: '공급가액이 올바르지 않습니다.' }
+
+  // 정상분개 기준 side. 음수면 차↔대 반전.
+  const S = (normal: 'debit' | 'credit'): 'debit' | 'credit' =>
+    sign > 0 ? normal : normal === 'debit' ? 'credit' : 'debit'
 
   const desc = inv.item_name?.trim() || inv.counterparty_name || null
   const lines: JournalLineDraft[] = []
 
   if (inv.direction === 'sales') {
-    lines.push({ account_id: acc.receivable, side: 'debit', amount: total, vendor_id: inv.vendor_id ?? null })
-    lines.push({ account_id: inv.confirmed_account_id, side: 'credit', amount: main, vendor_id: null })
-    if (vat > 0) lines.push({ account_id: acc.vatPayable, side: 'credit', amount: vat, vendor_id: null })
+    lines.push({ account_id: acc.receivable, side: S('debit'), amount: absTotal, vendor_id: inv.vendor_id ?? null })
+    lines.push({ account_id: inv.confirmed_account_id, side: S('credit'), amount: main, vendor_id: null })
+    if (vat > 0) lines.push({ account_id: acc.vatPayable, side: S('credit'), amount: vat, vendor_id: null })
   } else {
-    lines.push({ account_id: inv.confirmed_account_id, side: 'debit', amount: main, vendor_id: null })
-    if (vat > 0) lines.push({ account_id: acc.vatReceivable, side: 'debit', amount: vat, vendor_id: null })
-    lines.push({ account_id: acc.payable, side: 'credit', amount: total, vendor_id: inv.vendor_id ?? null })
+    lines.push({ account_id: inv.confirmed_account_id, side: S('debit'), amount: main, vendor_id: null })
+    if (vat > 0) lines.push({ account_id: acc.vatReceivable, side: S('debit'), amount: vat, vendor_id: null })
+    lines.push({ account_id: acc.payable, side: S('credit'), amount: absTotal, vendor_id: inv.vendor_id ?? null })
   }
 
   return {
@@ -92,7 +98,7 @@ export async function syncTaxInvoiceJournal(
     .single()
   if (error) return { error: error.message }
 
-  const shouldPost = !!inv.confirmed_account_id && (inv.total_amount ?? 0) > 0
+  const shouldPost = !!inv.confirmed_account_id && (inv.total_amount ?? 0) !== 0
   if (!shouldPost) {
     return unpostJournal(admin, 'tax_invoice', invoiceId).then(r => ('error' in r ? r : { ok: true as const }))
   }

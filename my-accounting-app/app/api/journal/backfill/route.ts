@@ -58,7 +58,7 @@ export async function POST() {
       .from('tax_invoices')
       .select('id')
       .not('confirmed_account_id', 'is', null)
-      .gt('total_amount', 0)
+      .neq('total_amount', 0)
       .range(f, t),
   )
   if ('error' in taxResult) return NextResponse.json({ error: taxResult.error }, { status: 500 })

@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
 
   // 대상 조회
   const targets = await fetchAllRows<{ id: string }>((f, t) => {
-    let q = admin.from('tax_invoices').select('id').eq('direction', body.direction!).gt('total_amount', 0)
+    let q = admin.from('tax_invoices').select('id').eq('direction', body.direction!).neq('total_amount', 0)
     if (onlyUnclassified) q = q.is('confirmed_account_id', null)
     if (body.taxType) q = q.eq('tax_type', body.taxType)
     return q.range(f, t)

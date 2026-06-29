@@ -423,7 +423,11 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           </Link>
           <Link href="/opening-balances" className={linkCls(pathname.startsWith('/opening-balances'))}>
             <span className="text-base leading-none">⚖</span>
-            <span>기초잔액</span>
+            <span>기초잔액(계정)</span>
+          </Link>
+          <Link href="/vendor-opening-balances" className={linkCls(pathname.startsWith('/vendor-opening-balances'))}>
+            <span className="text-base leading-none">⚖</span>
+            <span>기초잔액(거래처)</span>
           </Link>
         </div>
 

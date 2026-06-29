@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     let query = admin
       .from('journal_entries')
       .select(`
-        id, entry_no, entry_date, description, source_type, entry_type,
+        id, entry_no, entry_date, description, source_type, source_id, entry_type,
         journal_lines ( side, amount, note, accounts ( code, name ), vendors ( name ) )
       `)
       .order('entry_date', { ascending: false })
