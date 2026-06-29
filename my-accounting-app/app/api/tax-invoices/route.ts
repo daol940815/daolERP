@@ -48,9 +48,21 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: '삭제할 항목을 선택하세요.' }, { status: 400 })
   }
 
-  const { error } = await admin.from('tax_invoices').delete().in('id', ids)
+  // 대량 삭제 대비 청크 처리 (.in() URL 길이 한계 회피)
+  const CHUNK = 200
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK)
+    // 분개(전기)된 건이면 고아 전표가 남지 않도록 먼저 분개 제거 (source_id는 FK 아님 → 수동 정리)
+    const { error: jErr } = await admin
+      .from('journal_entries')
+      .delete()
+      .eq('source_type', 'tax_invoice')
+      .in('source_id', chunk)
+    if (jErr) return NextResponse.json({ error: `분개 정리 실패: ${jErr.message}` }, { status: 500 })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    const { error } = await admin.from('tax_invoices').delete().in('id', chunk)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   return NextResponse.json({ ok: true, deleted: ids.length })
 }

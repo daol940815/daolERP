@@ -504,6 +504,7 @@ export default function TaxInvoiceListPage() {
   const [selected, setSelected]       = useState<Set<string>>(new Set())
   const [sumMatching, setSumMatching] = useState(false)
   const [bulkBusy, setBulkBusy]       = useState(false)
+  const [deleting, setDeleting]       = useState(false)
   const [toast, setToast]             = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -613,6 +614,24 @@ export default function TaxInvoiceListPage() {
       else next.add(id)
       return next
     })
+  }
+
+  const handleDeleteSelected = async () => {
+    const ids = Array.from(selected)
+    if (ids.length === 0) return
+    if (!confirm(`선택한 ${ids.length}건을 삭제합니다.\n(잘못 업로드된 계산서 정리 등 — 되돌릴 수 없습니다)\n진행할까요?`)) return
+    setDeleting(true)
+    const res = await fetch('/api/tax-invoices', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
+    const json = await res.json()
+    setDeleting(false)
+    if (!res.ok) { showMsg(`삭제 실패: ${json.error ?? '오류'}`); return }
+    showMsg(`${json.deleted ?? ids.length}건 삭제됨`)
+    setSelected(new Set())
+    load()
   }
 
   const handleAssignAccount = async (row: TaxInvoice, accountId: string) => {
@@ -788,6 +807,18 @@ export default function TaxInvoiceListPage() {
             className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600 text-white hover:bg-amber-700"
           >
             선택 {selected.size}건 합계로 매칭
+          </button>
+        )}
+        {filtered.length > 0 && (
+          <button onClick={() => setSelected(new Set(filtered.map(i => i.id)))}
+            className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
+            전체 선택 ({filtered.length})
+          </button>
+        )}
+        {selected.size > 0 && (
+          <button onClick={handleDeleteSelected} disabled={deleting}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50">
+            {deleting ? '삭제 중…' : `선택 ${selected.size}건 삭제`}
           </button>
         )}
         {selected.size > 0 && (
