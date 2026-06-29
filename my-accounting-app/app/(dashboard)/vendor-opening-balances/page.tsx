@@ -73,6 +73,8 @@ export default function VendorOpeningBalancesPage() {
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm flex-1" />
         <button onClick={() => load(search)} disabled={busy}
           className="px-3.5 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">검색</button>
+        <button onClick={() => { const a = document.createElement('a'); a.href = '/api/vendor-opening-balances/export'; a.click() }}
+          className="px-3.5 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">↓ 엑셀</button>
       </div>
 
       {loading ? (

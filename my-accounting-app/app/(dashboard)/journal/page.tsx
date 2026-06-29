@@ -86,10 +86,21 @@ export default function JournalPage() {
           <h1 className="text-2xl font-bold text-gray-900">분개장</h1>
           <p className="text-sm mt-1 text-gray-500">거래 확정 시 자동 생성된 분개(복식부기) + 수동 분개를 일자순으로 확인합니다.</p>
         </div>
-        <button onClick={() => setShowManual(true)}
-          className="px-3.5 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 whitespace-nowrap">
-          + 수동 분개
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => {
+            const p = new URLSearchParams()
+            if (dateFrom) p.set('from', dateFrom); if (dateTo) p.set('to', dateTo)
+            if (sourceType !== 'all') p.set('sourceType', sourceType); if (search.trim()) p.set('q', search.trim())
+            const a = document.createElement('a'); a.href = `/api/journal/export?${p}`; a.click()
+          }}
+            className="px-3.5 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
+            ↓ 엑셀
+          </button>
+          <button onClick={() => setShowManual(true)}
+            className="px-3.5 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 whitespace-nowrap">
+            + 수동 분개
+          </button>
+        </div>
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}

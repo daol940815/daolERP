@@ -118,6 +118,14 @@ export default function AccountLedgerPage() {
         <span className="text-gray-400 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+        <button onClick={() => {
+          if (!accountId) return
+          const a = document.createElement('a')
+          a.href = `/api/ledger/account/export?accountId=${accountId}&from=${dateFrom}&to=${dateTo}`; a.click()
+        }} disabled={!ledger}
+          className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap">
+          ↓ 엑셀
+        </button>
       </div>
 
       {/* 요약 */}

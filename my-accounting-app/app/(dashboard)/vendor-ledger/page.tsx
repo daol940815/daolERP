@@ -119,6 +119,14 @@ export default function VendorLedgerPage() {
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="거래처명 검색"
             className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-52" />
         )}
+        <button onClick={() => {
+          const p = new URLSearchParams({ from: dateFrom, to: dateTo })
+          if (tab === 'detail' && vendorId) p.set('vendorId', vendorId)
+          const a = document.createElement('a'); a.href = `/api/ledger/vendor/export?${p}`; a.click()
+        }} disabled={tab === 'detail' && !vendorId}
+          className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap">
+          ↓ 엑셀
+        </button>
       </div>
 
       {loading ? (
