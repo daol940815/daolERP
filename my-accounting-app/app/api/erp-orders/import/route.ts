@@ -294,6 +294,16 @@ export async function POST(req: NextRequest) {
     memo: g.memo,
     etc: g.etc,
   }))
+  // 신규 vs 기존갱신(중복) — upsert 전 기존 주문번호 조회
+  const existingOrderNos = new Set<string>()
+  {
+    const nos = orderList.map(g => g.order_no)
+    for (let i = 0; i < nos.length; i += CHUNK) {
+      const { data } = await admin.from('erp_orders').select('order_no').in('order_no', nos.slice(i, i + CHUNK))
+      for (const o of data ?? []) existingOrderNos.add(o.order_no as string)
+    }
+  }
+
   for (let i = 0; i < orderRows.length; i += CHUNK) {
     const { error } = await admin
       .from('erp_orders')
@@ -395,8 +405,13 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: `선결제 등록 실패: ${error.message}` }, { status: 500 })
   }
 
+  const updated = existingOrderNos.size
+  const created = orderList.length - updated
+
   return NextResponse.json({
     imported_orders: orderList.length,
+    created,
+    updated,
     imported_items: itemRows.length,
     prepay_deposits: prepayRows.length,
     skipped,

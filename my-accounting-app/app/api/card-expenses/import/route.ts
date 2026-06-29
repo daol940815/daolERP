@@ -330,8 +330,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const distinctKeys = new Set(keys)
+  const updated = Array.from(distinctKeys).filter(k => preserved.has(k)).length
+  const created = distinctKeys.size - updated
+
   return NextResponse.json({
     imported: upsertRows.length,
+    created,
+    updated,
     card_accounts: cardNumbers.size,
     confirmed: confirmedCount,
     suggested: suggestedCount,

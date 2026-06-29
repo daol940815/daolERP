@@ -233,8 +233,14 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  const fileKeys = new Set(parsed.map(r => `${r.approval_number}__${r.transaction_type}__${r.direction}`))
+  const updated = Array.from(fileKeys).filter(k => existingVendorMap.has(k)).length
+  const created = fileKeys.size - updated
+
   return NextResponse.json({
     imported: upserted?.length ?? 0,
+    created,
+    updated,
     skipped,
     total: dataRows.length,
     format,

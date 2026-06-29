@@ -86,7 +86,7 @@ export default function CardSalesPage() {
     if (fileInputRef.current) fileInputRef.current.value = ''
     if (!res.ok) { showMsg(`업로드 실패: ${json.error ?? '알 수 없는 오류'}`); return }
 
-    let msg = `${json.imported}건 저장`
+    let msg = `${json.imported}건 처리 — 신규 ${json.created ?? 0}건 · 기존갱신(중복) ${json.updated ?? 0}건`
     if (json.skipped) msg += ` · 건너뜀 ${json.skipped}건`
     showMsg(msg)
     load()

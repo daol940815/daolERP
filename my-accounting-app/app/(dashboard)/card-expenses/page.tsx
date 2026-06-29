@@ -73,7 +73,7 @@ export default function CardExpensesPage() {
     setUploading(false)
     if (fileRef.current) fileRef.current.value = ''
     if (!res.ok) { showMsg(`업로드 실패: ${json.error ?? '오류'}`); return }
-    showMsg(`가져오기 완료: ${json.imported}건 (카드 ${json.card_accounts}개 · 확정 ${json.confirmed} · 제안 ${json.suggested} · 건너뜀 ${json.skipped})`)
+    showMsg(`가져오기 완료: ${json.imported}건 — 신규 ${json.created ?? 0} · 기존갱신(중복) ${json.updated ?? 0} (확정 ${json.confirmed} · 제안 ${json.suggested} · 건너뜀 ${json.skipped})`)
     fetch('/api/card-accounts').then(r => r.json()).then(j => setCardAccounts(j.data ?? []))
     load()
   }

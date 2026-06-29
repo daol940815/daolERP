@@ -106,18 +106,18 @@ export default function ErpOrdersPage() {
   const handleUpload = async (files: FileList | null) => {
     if (!files?.length) return
     setUploading(true)
-    let okOrders = 0, okItems = 0, failed = 0
+    let okOrders = 0, okItems = 0, okNew = 0, okUpd = 0, failed = 0
     for (const file of Array.from(files)) {
       const fd = new FormData()
       fd.append('file', file)
       const res  = await fetch('/api/erp-orders/import', { method: 'POST', body: fd })
       const json = await res.json()
-      if (res.ok) { okOrders += json.imported_orders ?? 0; okItems += json.imported_items ?? 0 }
+      if (res.ok) { okOrders += json.imported_orders ?? 0; okItems += json.imported_items ?? 0; okNew += json.created ?? 0; okUpd += json.updated ?? 0 }
       else { failed += 1; showMsg(`업로드 실패 (${file.name}): ${json.error ?? '알 수 없는 오류'}`) }
     }
     setUploading(false)
     if (uploadRef.current) uploadRef.current.value = ''
-    if (okOrders) showMsg(`주문 ${okOrders}건 / 품목 ${okItems}건 업로드 완료${failed ? ` (실패 ${failed}파일)` : ''}`)
+    if (okOrders) showMsg(`주문 ${okOrders}건 (신규 ${okNew} · 기존갱신(중복) ${okUpd}) / 품목 ${okItems}건 업로드 완료${failed ? ` (실패 ${failed}파일)` : ''}`)
     load()
   }
 

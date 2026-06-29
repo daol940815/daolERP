@@ -257,8 +257,14 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // 신규 vs 기존갱신(중복) — 승인번호 기준
+  const updated = approvalNumbers.filter(a => existingMap.has(a)).length
+  const created = approvalNumbers.length - updated
+
   return NextResponse.json({
     imported: upserted?.length ?? 0,
+    created,
+    updated,
     skipped,
     mismatched,
     vendorsCreated,
