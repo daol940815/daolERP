@@ -165,30 +165,7 @@ export default function JournalPage() {
                     <button onClick={() => deleteManual(e)} className="text-xs text-gray-400 hover:text-red-600 shrink-0">삭제</button>
                   )}
                 </div>
-                <table className="w-full text-sm">
-                  <tbody>
-                    {[...e.journal_lines].sort((a, b) => (a.side === 'debit' ? -1 : 1) - (b.side === 'debit' ? -1 : 1)).map((l, i) => (
-                      <tr key={i} className="border-b border-gray-50 last:border-0">
-                        <td className="py-1.5 px-3 w-16">
-                          {l.side === 'debit'
-                            ? <span className="text-blue-600 font-medium text-xs">차변</span>
-                            : <span className="text-red-600 font-medium text-xs">대변</span>}
-                        </td>
-                        <td className="py-1.5 px-2">
-                          <span className="text-gray-400 text-xs mr-1">{l.accounts?.code ?? ''}</span>
-                          {l.accounts?.name ?? '(계정)'}
-                          {l.vendors?.name ? <span className="text-gray-400"> · {l.vendors.name}</span> : null}
-                        </td>
-                        <td className={`py-1.5 px-3 text-right whitespace-nowrap ${l.side === 'debit' ? 'text-blue-700' : 'text-gray-400'}`}>
-                          {l.side === 'debit' ? won(l.amount) : ''}
-                        </td>
-                        <td className={`py-1.5 px-3 text-right whitespace-nowrap ${l.side === 'credit' ? 'text-red-700' : 'text-gray-400'}`}>
-                          {l.side === 'credit' ? won(l.amount) : ''}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <TAccount lines={e.journal_lines} />
               </div>
             )
           })}
@@ -203,6 +180,49 @@ export default function JournalPage() {
         />
       )}
     </div>
+  )
+}
+
+// ── T자형 분개 표시 (차변=좌 / 대변=우) ─────────────────────────────
+function TAccount({ lines }: { lines: Line[] }) {
+  const debits = lines.filter(l => l.side === 'debit')
+  const credits = lines.filter(l => l.side === 'credit')
+  const n = Math.max(debits.length, credits.length)
+  const dtot = debits.reduce((s, l) => s + l.amount, 0)
+  const ctot = credits.reduce((s, l) => s + l.amount, 0)
+
+  const cell = (l: Line | undefined, color: string) => l ? (
+    <div className="flex justify-between gap-2">
+      <span className="text-gray-800">
+        <span className="text-gray-400 text-xs mr-1">{l.accounts?.code ?? ''}</span>
+        {l.accounts?.name ?? '(계정)'}
+        {l.vendors?.name ? <span className="text-gray-400"> · {l.vendors.name}</span> : null}
+      </span>
+      <span className={`text-right whitespace-nowrap tabular-nums ${color}`}>{won(l.amount)}</span>
+    </div>
+  ) : null
+
+  return (
+    <table className="w-full text-sm table-fixed">
+      <thead>
+        <tr className="text-[11px] text-gray-400 border-b border-gray-100">
+          <th className="py-1 px-3 text-left font-medium w-1/2">차변</th>
+          <th className="py-1 px-3 text-left font-medium w-1/2 border-l border-gray-100">대변</th>
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: n }).map((_, i) => (
+          <tr key={i} className="border-b border-gray-50 last:border-0 align-top">
+            <td className="py-1.5 px-3">{cell(debits[i], 'text-blue-700')}</td>
+            <td className="py-1.5 px-3 border-l border-gray-100">{cell(credits[i], 'text-red-700')}</td>
+          </tr>
+        ))}
+        <tr className="bg-gray-50/70 text-xs border-t border-gray-100">
+          <td className="py-1 px-3 text-right text-blue-700 tabular-nums">합계 {won(dtot)}</td>
+          <td className="py-1 px-3 text-right text-red-700 tabular-nums border-l border-gray-100">합계 {won(ctot)}</td>
+        </tr>
+      </tbody>
+    </table>
   )
 }
 
