@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { TAX_INVOICE_SELECT } from '@/lib/tax-invoice-payments.server'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // GET /api/tax-invoices?direction=sales|purchase&taxType=taxable|exempt
 //                       &vendorId=...&paymentStatus=matched|unmatched&from=&to=&limit=
@@ -16,26 +18,25 @@ export async function GET(req: NextRequest) {
   const paymentStatus = searchParams.get('paymentStatus')
   const from          = searchParams.get('from')
   const to            = searchParams.get('to')
-  const limit         = Math.min(parseInt(searchParams.get('limit') ?? '2000'), 5000)
 
-  let query = admin
-    .from('tax_invoices')
-    .select(TAX_INVOICE_SELECT)
-    .order('issue_date', { ascending: false })
-    .limit(limit)
+  // 전체 조회(range 페이지네이션) — PostgREST max-rows(1000) 절단 방지: 합계가 1000건에서 잘리지 않도록
+  const result = await fetchAllRows<Record<string, unknown>>((f, t) => {
+    let query = admin
+      .from('tax_invoices')
+      .select(TAX_INVOICE_SELECT)
+      .order('issue_date', { ascending: false })
+    if (direction)     query = query.eq('direction', direction)
+    if (taxType)       query = query.eq('tax_type', taxType)
+    if (vendorId)      query = query.eq('vendor_id', vendorId)
+    if (paymentStatus) query = query.eq('payment_status', paymentStatus)
+    if (from)          query = query.gte('issue_date', from)
+    if (to)            query = query.lte('issue_date', to)
+    return query.range(f, t)
+  })
 
-  if (direction)     query = query.eq('direction', direction)
-  if (taxType)       query = query.eq('tax_type', taxType)
-  if (vendorId)      query = query.eq('vendor_id', vendorId)
-  if (paymentStatus) query = query.eq('payment_status', paymentStatus)
-  if (from)          query = query.gte('issue_date', from)
-  if (to)            query = query.lte('issue_date', to)
+  if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
 
-  const { data, error } = await query
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  return NextResponse.json({ data: data ?? [] })
+  return NextResponse.json({ data: result.data })
 }
 
 // DELETE /api/tax-invoices — body: { ids: string[] }

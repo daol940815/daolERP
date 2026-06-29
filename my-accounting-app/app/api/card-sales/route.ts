@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 const CARD_SALE_FIELDS = `
   id, tx_date, tx_time, transaction_type, approval_number, card_number, acquirer,
@@ -20,26 +22,25 @@ export async function GET(req: NextRequest) {
   const from      = searchParams.get('from')
   const to        = searchParams.get('to')
   const unmatched = searchParams.get('unmatched') === 'true'
-  const limit     = Math.min(parseInt(searchParams.get('limit') ?? '2000'), 5000)
 
-  let query = admin
-    .from('card_sales')
-    .select(CARD_SALE_FIELDS)
-    .order('tx_date', { ascending: false })
-    .order('tx_time', { ascending: false })
-    .limit(limit)
+  // 전체 조회(range) — PostgREST max-rows(1000) 절단 방지
+  const result = await fetchAllRows<Record<string, unknown>>((f, t) => {
+    let query = admin
+      .from('card_sales')
+      .select(CARD_SALE_FIELDS)
+      .order('tx_date', { ascending: false })
+      .order('tx_time', { ascending: false })
+    if (vendorId)  query = query.eq('vendor_id', vendorId)
+    if (type)      query = query.eq('transaction_type', type)
+    if (from)      query = query.gte('tx_date', from)
+    if (to)        query = query.lte('tx_date', to)
+    if (unmatched) query = query.is('vendor_id', null)
+    return query.range(f, t)
+  })
 
-  if (vendorId)  query = query.eq('vendor_id', vendorId)
-  if (type)      query = query.eq('transaction_type', type)
-  if (from)      query = query.gte('tx_date', from)
-  if (to)        query = query.lte('tx_date', to)
-  if (unmatched) query = query.is('vendor_id', null)
+  if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
 
-  const { data, error } = await query
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  return NextResponse.json({ data: data ?? [] })
+  return NextResponse.json({ data: result.data })
 }
 
 // DELETE /api/card-sales — body: { ids: string[] }

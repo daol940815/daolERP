@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
-// GET /api/transactions?status=all&from=YYYY-MM-DD&to=YYYY-MM-DD&source=all&limit=1000
+export const maxDuration = 60
+
+// GET /api/transactions?status=all&from=YYYY-MM-DD&to=YYYY-MM-DD&source=all
 export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   const { searchParams } = new URL(req.url)
@@ -12,35 +15,32 @@ export async function GET(req: NextRequest) {
   const source        = searchParams.get('source') ?? 'all'
   const bankAccountId = searchParams.get('bankAccountId')
   const vendorId      = searchParams.get('vendorId')
-  const limit         = Math.min(parseInt(searchParams.get('limit') ?? '1000'), 5000)
 
-  let query = admin
-    .from('transactions')
-    .select(
-      `id, tx_date, tx_time, description, counterparty_name, amount_in, amount_out, balance,
-       source, account_alias, bank_account_id, vendor_id, status, memo, is_journalized,
-       suggested_account_id, confirmed_account_id, suggested_side,
-       ai_confidence, ai_reason, upload_log_id, transfer_pair_id, created_at`,
-    )
-    .order('tx_date', { ascending: false })
-    .order('tx_time', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false })
-    .limit(limit)
+  // 전체 조회(range) — PostgREST max-rows(1000) 절단 방지
+  const result = await fetchAllRows<Record<string, unknown>>((f, t) => {
+    let query = admin
+      .from('transactions')
+      .select(
+        `id, tx_date, tx_time, description, counterparty_name, amount_in, amount_out, balance,
+         source, account_alias, bank_account_id, vendor_id, status, memo, is_journalized,
+         suggested_account_id, confirmed_account_id, suggested_side,
+         ai_confidence, ai_reason, upload_log_id, transfer_pair_id, created_at`,
+      )
+      .order('tx_date', { ascending: false })
+      .order('tx_time', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
+    if (status !== 'all')  query = query.eq('status', status)
+    if (from)              query = query.gte('tx_date', from)
+    if (to)                query = query.lte('tx_date', to)
+    if (source !== 'all')  query = query.eq('source', source)
+    if (bankAccountId)     query = query.eq('bank_account_id', bankAccountId)
+    if (vendorId)          query = query.eq('vendor_id', vendorId)
+    return query.range(f, t)
+  })
 
-  if (status !== 'all')  query = query.eq('status', status)
-  if (from)              query = query.gte('tx_date', from)
-  if (to)                query = query.lte('tx_date', to)
-  if (source !== 'all')  query = query.eq('source', source)
-  if (bankAccountId)     query = query.eq('bank_account_id', bankAccountId)
-  if (vendorId)          query = query.eq('vendor_id', vendorId)
+  if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
 
-  const { data, error } = await query
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  return NextResponse.json({ data: data ?? [] })
+  return NextResponse.json({ data: result.data })
 }
 
 // DELETE /api/transactions — body: { ids: string[] }
