@@ -51,6 +51,8 @@ export default function VatEstimatePage() {
       <div className="mb-1">
         <h1 className="text-2xl font-bold text-gray-900">예상 부가세</h1>
         <p className="text-sm mt-1 text-gray-500">세금계산서·현금영수증·카드매출 자료를 바탕으로 기간 내 매출세액 대비 매입세액을 추정합니다. (실제 신고액과 차이가 있을 수 있습니다)</p>
+        <button onClick={() => { const a = document.createElement('a'); a.href = `/api/reports/vat-estimate/export?from=${dateFrom}&to=${dateTo}`; a.click() }}
+          className="mt-2 px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap inline-block">↓ 엑셀</button>
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}

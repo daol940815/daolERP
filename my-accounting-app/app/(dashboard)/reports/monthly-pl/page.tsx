@@ -57,6 +57,8 @@ export default function MonthlyPLPage() {
           ERP 매출/매출원가, 매입세금계산서·은행거래 계정과목 분류분을 월별로 집계합니다.
           법인카드 매입·급여·감가상각비는 자료 미보유로 &ldquo;미반영&rdquo;으로 표시됩니다.
         </p>
+        <button onClick={() => { const a = document.createElement('a'); a.href = `/api/reports/monthly-pl/export?from=${monthFrom}&to=${monthTo}`; a.click() }}
+          className="mt-2 px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap inline-block">↓ 엑셀</button>
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}

@@ -33,9 +33,13 @@ export default function ReceivablesAgingPage() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="mb-1">
-        <h1 className="text-2xl font-bold text-gray-900">미수금 Aging 분석</h1>
-        <p className="text-sm mt-1 text-gray-500">매출처별 미수금을 발생일(주문일) 기준 경과기간 구간별로 분석합니다.</p>
+      <div className="mb-1 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">미수금 Aging 분석</h1>
+          <p className="text-sm mt-1 text-gray-500">매출처별 미수금을 발생일(주문일) 기준 경과기간 구간별로 분석합니다.</p>
+        </div>
+        <button onClick={() => { const a = document.createElement('a'); a.href = `/api/reports/receivables-aging/export?asOf=${asOf}`; a.click() }}
+          className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">↓ 엑셀</button>
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}

@@ -45,6 +45,8 @@ export default function VendorSalesPage() {
       <div className="mb-1">
         <h1 className="text-2xl font-bold text-gray-900">거래처별 매출 분석</h1>
         <p className="text-sm mt-1 text-gray-500">매출처(은행·지점)별 기간 내 순매출과 주문/수량 현황을 확인합니다. (취소/VIP/선결제 제외)</p>
+        <button onClick={() => { const a = document.createElement('a'); a.href = `/api/reports/vendor-sales/export?from=${dateFrom}&to=${dateTo}`; a.click() }}
+          className="mt-2 px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap inline-block">↓ 엑셀</button>
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}

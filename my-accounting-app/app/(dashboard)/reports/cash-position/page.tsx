@@ -67,6 +67,8 @@ export default function CashPositionPage() {
       <div className="mb-1">
         <h1 className="text-2xl font-bold text-gray-900">계좌 통합현황</h1>
         <p className="text-sm mt-1 text-gray-500">법인계좌별 최신 잔액과 기간 내 입출금 합계를 한눈에 확인합니다.</p>
+        <button onClick={() => { const a = document.createElement('a'); a.href = `/api/reports/cash-position/export?from=${dateFrom}&to=${dateTo}`; a.click() }}
+          className="mt-2 px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap inline-block">↓ 엑셀</button>
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}

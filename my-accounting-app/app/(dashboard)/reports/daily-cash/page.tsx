@@ -67,6 +67,12 @@ export default function DailyCashPage() {
       <div className="mb-1">
         <h1 className="text-2xl font-bold text-gray-900">자금일보</h1>
         <p className="text-sm mt-1 text-gray-500">일별 전일잔액·입금·출금·당일잔액 흐름을 확인합니다. (조회 기간 최대 1년)</p>
+        <button onClick={() => {
+          const p = new URLSearchParams({ from: dateFrom, to: dateTo })
+          if (bankAccountId) p.set('bankAccountId', bankAccountId)
+          const a = document.createElement('a'); a.href = `/api/reports/daily-cash/export?${p}`; a.click()
+        }}
+          className="mt-2 px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap inline-block">↓ 엑셀</button>
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}

@@ -48,6 +48,8 @@ export default function VendorProfitabilityPage() {
       <div className="mb-1">
         <h1 className="text-2xl font-bold text-gray-900">거래처별 수익성 분석</h1>
         <p className="text-sm mt-1 text-gray-500">매출처(은행·지점)별 기간 내 매출·매입원가 대비 매출이익/이익률을 확인합니다. (취소/VIP/선결제 제외)</p>
+        <button onClick={() => { const a = document.createElement('a'); a.href = `/api/reports/vendor-profitability/export?from=${dateFrom}&to=${dateTo}`; a.click() }}
+          className="mt-2 px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap inline-block">↓ 엑셀</button>
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
