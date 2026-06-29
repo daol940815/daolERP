@@ -34,9 +34,13 @@ export default function VendorsListPage() {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <div className="mb-1">
-        <h1 className="text-2xl font-bold text-gray-900">매입처 관리</h1>
-        <p className="text-sm mt-1 text-gray-500">매입처별 미지급액(정산 원장 기준)과 ERP 판매·매입·이익 현황을 확인합니다.</p>
+      <div className="mb-1 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">매입처 관리</h1>
+          <p className="text-sm mt-1 text-gray-500">매입처별 미지급액(정산 원장 기준)과 ERP 판매·매입·이익 현황을 확인합니다.</p>
+        </div>
+        <button onClick={() => { const a = document.createElement('a'); a.href = '/api/vendors/export'; a.click() }}
+          className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">↓ 엑셀</button>
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}

@@ -94,7 +94,17 @@ export default function CardExpensesPage() {
           <h1 className="text-2xl font-bold text-gray-900">법인카드 사용내역</h1>
           <p className="text-sm mt-1 text-gray-500">카드사·카드번호별 사용내역. 파일의 계정과목은 확정, 비어 있으면 자동 제안 후 승인하세요.</p>
         </div>
-        <div>
+        <div className="flex gap-2">
+          <button onClick={() => {
+            const p = new URLSearchParams()
+            if (cardAccountId) p.set('cardAccountId', cardAccountId)
+            if (dateFrom) p.set('from', dateFrom); if (dateTo) p.set('to', dateTo)
+            if (status) p.set('status', status)
+            const a = document.createElement('a'); a.href = `/api/card-expenses/export?${p}`; a.click()
+          }}
+            className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
+            ↓ 엑셀
+          </button>
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f) }} />
           <button onClick={() => fileRef.current?.click()} disabled={uploading}
