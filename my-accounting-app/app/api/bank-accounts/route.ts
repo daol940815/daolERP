@@ -25,7 +25,11 @@ export async function GET() {
         .select('balance, tx_date')
         .eq('bank_account_id', account.id)
         .not('balance', 'is', null)
+        // 같은 날 거래가 여러 건이면 거래시간(tx_time)으로 순서를 정한다.
+        // 일괄 업로드는 created_at이 전부 동일해 tie-breaker가 되지 못하므로
+        // tx_time을 우선 적용해야 그날 마지막 거래의 잔액이 선택된다.
         .order('tx_date', { ascending: false })
+        .order('tx_time', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()

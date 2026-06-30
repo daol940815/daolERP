@@ -319,7 +319,9 @@ export default async function DashboardPage() {
         .select('balance, tx_date')
         .eq('bank_account_id', acc.id)
         .not('balance', 'is', null)
+        // 같은 날 거래는 거래시간으로 순서를 정한다(일괄 업로드는 created_at이 동일).
         .order('tx_date', { ascending: false })
+        .order('tx_time', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
