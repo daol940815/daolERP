@@ -319,6 +319,7 @@ body{font-family:var(--f);background:var(--bg);color:var(--tx);height:100vh;disp
           <optgroup label="페이지">
             <option value="pageNum">페이지 번호 (자동)</option>
             <option value="pageNumFmt">페이지 번호 (— N —)</option>
+            <option value="pageNumDash">페이지 번호 (- N -)</option>
           </optgroup>
           <optgroup label="카탈로그">
             <option value="cfgTitle">카탈로그 제목</option>
@@ -446,16 +447,11 @@ function defaultPageElements() {
       x:M, y:A4H-FR+14, w:460, h:20, fontSize:12, color:'#000000', fontWeight:400,
       visible:true, locked:false, italic:false, align:'left', text:'', textDecoration:'', opacity:1, fontFamily:'' },
     // 푸터 페이지번호 중앙 (14pt=19px, 검정, Bold)
-    // 푸터 페이지번호: 하이픈(좌) + 번호 + 하이픈(우) 별도 요소
-    { id:'ft_hypl', scope:'footer', type:'text', label:'푸터 하이픈(좌)', field:'',
-      x:377, y:1058, w:10, h:25, fontSize:12, color:'#000000', fontWeight:700,
-      visible:true, locked:false, italic:false, align:'center', text:'-', textDecoration:'', opacity:1, fontFamily:'Pretendard' },
-    { id:'ft_pgnum', scope:'footer', type:'text', label:'푸터 페이지번호', field:'pageNumPlain',
-      x:377, y:A4H-FR+14, w:40, h:25, fontSize:19, color:'#000000', fontWeight:700,
+    // "- N -" 을 하나의 요소로 통합 → 드래그 시 함께 이동하고 하이픈/번호 정렬이 항상 일치.
+    // (x357·w80 → 중심이 기존 번호 중심 x397과 동일하여 위치 변화 없음)
+    { id:'ft_pgnum', scope:'footer', type:'text', label:'푸터 페이지번호', field:'pageNumDash',
+      x:357, y:A4H-FR+14, w:80, h:25, fontSize:19, color:'#000000', fontWeight:700,
       visible:true, locked:false, italic:false, align:'center', text:'', textDecoration:'', opacity:1, fontFamily:'Pretendard' },
-    { id:'ft_hypr', scope:'footer', type:'text', label:'푸터 하이픈(우)', field:'',
-      x:405, y:1058, w:10, h:25, fontSize:12, color:'#000000', fontWeight:700,
-      visible:true, locked:false, italic:false, align:'center', text:'-', textDecoration:'', opacity:1, fontFamily:'Pretendard' },
 
   ];
 }
@@ -728,6 +724,7 @@ function resolveField(el, p, pageIdx) {
   switch(el.field) {
     case 'pageNum':     return String(displayNum).padStart(3,'0');
     case 'pageNumPlain': return String(displayNum);
+    case 'pageNumDash': return '- '+displayNum+' -';
     case 'pageNumFmt':  return '— '+displayNum+' —';
     case 'cfgTitle':    return cfg.title;
     case 'cfgBrand':    return cfg.brand;
@@ -1433,7 +1430,7 @@ function loadPreset(id) {
   Object.assign(cfg,pr.cfg); Object.assign(grid,pr.grid);
   // Apply page elements and card layout to all pages
   // 필수 요소 ID 목록 - 버전업으로 추가된 요소들
-  var requiredIds=['ft_hypl','ft_hypr','ft_pgnum','hd_num','hd_title','hd_vdiv','hd_notice1','hd_notice2','ft_note'];
+  var requiredIds=['ft_pgnum','hd_num','hd_title','hd_vdiv','hd_notice1','hd_notice2','ft_note'];
   var defaults=defaultPageElements();
   pages.forEach(function(pg){
     pg.pageElements=JSON.parse(JSON.stringify(pr.pageElements));
@@ -1573,7 +1570,9 @@ function parseCSV() {
   const cm={};
   for(const[f,als]of Object.entries(fm)){for(const a of als){const fd=h.find(x=>x.trim().toLowerCase()===a.toLowerCase());if(fd){cm[f]=fd;break;}}}
   products=rows.map((row,i)=>({id:'p'+i,code:(row[cm.code]||'').trim(),name:(row[cm.name]||'').trim(),spec:(row[cm.spec]||'').trim(),carton:(row[cm.carton]||'').trim(),price:parseInt((row[cm.price]||'0').replace(/\D/g,''))||0,sale_price:parseInt((row[cm.sale_price]||'0').replace(/\D/g,''))||0,price2:parseInt((row[cm.price2]||'0').replace(/\D/g,''))||0,sale_price2:parseInt((row[cm.sale_price2]||'0').replace(/\D/g,''))||0,option_text:(row[cm.option_text]||'').trim(),image:(row[cm.image]||'').trim()})).filter(p=>p.name);
-  renderProductList();autoLayout();toast('✅ '+products.length+'개 상품 로드');
+  renderProductList();autoLayout();
+  const miss=missingImageCount();
+  toast('✅ '+products.length+'개 상품 로드'+(miss?(' · ⚠️ 이미지 '+miss+'건 미연결'):''));
 }
 // ── EXCEL DOWNLOAD (양식) ──────────────────────────────
 function downloadExcelTemplate() {
@@ -1667,7 +1666,16 @@ function loadSample() {
 function loadImgs(files) { Array.from(files).forEach(loadImgFile); document.getElementById('img-f').value=''; }
 function loadImgFile(f) {
   const r=new FileReader();
-  r.onload=e=>{images[f.name]=e.target.result;document.getElementById('img-badge').textContent=Object.keys(images).length;renderImgLib();renderAll();};
+  r.onload=e=>{
+    images[f.name]=e.target.result;
+    document.getElementById('img-badge').textContent=Object.keys(images).length;
+    renderImgLib();renderAll();
+    // 상품이 로드된 상태면 남은 미연결 건수 안내 (마지막 파일 기준 표시)
+    if(products.length){
+      const miss=missingImageCount();
+      toast(miss?('이미지 연결 중 · ⚠️ '+miss+'건 미연결'):'✅ 모든 상품 이미지 연결됨');
+    }
+  };
   r.readAsDataURL(f);
 }
 function renderImgLib() {
@@ -1675,10 +1683,22 @@ function renderImgLib() {
   document.getElementById('img-badge').textContent=keys.length;
   lib.innerHTML=keys.map(function(k){var ek=esc(k);return '<div class="ili" title="'+ek+'"><img src="'+images[k]+'" alt="'+ek+'"><div class="ilinm">'+ek+'</div></div>';}).join('');
 }
+// 상품 image 필드는 있는데 업로드된 이미지가 없는(=미연결) 건수
+function missingImageCount() {
+  return products.filter(p=>p.image && !images[p.image]).length;
+}
 function renderProductList() {
   const list=document.getElementById('p-list');
   document.getElementById('p-badge').textContent=products.length;
-  list.innerHTML=products.map(p=>{const src=p.image&&images[p.image]?images[p.image]:null;return '<div class="pi-row"><div class="pt">'+(src?'<img src="'+src+'">'  :'🛒')+'</div><div class="pin2"><div class="pcd">'+esc(p.code||'')+'</div><div class="pnm">'+esc(p.name)+'</div><div class="ppr">₩'+(p.sale_price||0).toLocaleString()+'</div></div></div>';}).join('');
+  const miss=missingImageCount();
+  const warn = miss ? '<div style="background:#FEF3C7;color:#92400E;border:1px solid #FDE68A;border-radius:5px;padding:5px 7px;font-size:9.5px;margin-bottom:5px;line-height:1.45">⚠️ 이미지 미연결 '+miss+'건<br><span style="font-size:8.5px;color:#B45309">CSV의 파일명과 동일한 이름으로 이미지를 업로드하세요</span></div>' : '';
+  list.innerHTML = warn + products.map(p=>{
+    const matched=p.image&&images[p.image];
+    // 파일명이 지정됐는데 미업로드면 ⚠️, 아예 없으면 🛒
+    const thumb = matched ? '<img src="'+images[p.image]+'">'
+      : (p.image ? '<span title="파일 미업로드: '+esc(p.image)+'" style="color:var(--or);font-size:11px">⚠️</span>' : '🛒');
+    return '<div class="pi-row"><div class="pt">'+thumb+'</div><div class="pin2"><div class="pcd">'+esc(p.code||'')+'</div><div class="pnm">'+esc(p.name)+'</div><div class="ppr">₩'+(p.sale_price||0).toLocaleString()+'</div></div></div>';
+  }).join('');
 }
 
 // ============================================================
