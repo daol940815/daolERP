@@ -774,7 +774,7 @@ function TransactionsContent() {
       <p className="text-gray-500 text-sm mb-4">계정과목 클릭으로 직접 분류하거나, 자동 분류를 사용하세요.</p>
 
       {/* 기간 빠른 선택 */}
-      <div className="flex flex-wrap gap-1 mb-2">
+      <div className="flex flex-wrap items-center gap-1 mb-2">
         {PERIOD_PRESETS.map(p => (
           <button
             key={p}
@@ -784,6 +784,15 @@ function TransactionsContent() {
             {p}
           </button>
         ))}
+        <button
+          onClick={() => setFilters(f => ({ ...f, from: '', to: '' }))}
+          className="px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-slate-100 hover:border-slate-400 transition-colors"
+        >
+          전체
+        </button>
+        {(filters.from || filters.to) && (
+          <span className="text-xs text-gray-400 ml-1">· 기간: {filters.from || '처음'} ~ {filters.to || '현재'}</span>
+        )}
       </div>
 
       {/* 필터 바 */}
