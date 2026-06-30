@@ -39,8 +39,14 @@ export default function CardExpensesPage() {
   const [dateTo, setDateTo] = useState(() => getPeriodRange('당월').to)
   const [status, setStatus] = useState('')
   const [search, setSearch] = useState('')
+  const [editClass, setEditClass] = useState<{ id: string; value: string } | null>(null)
 
   const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
+
+  const saveClassification = async (id: string, value: string) => {
+    setEditClass(null)
+    await patch(id, { classification: value.trim() || null })
+  }
 
   useEffect(() => {
     fetch('/api/card-accounts').then(r => r.json()).then(j => setCardAccounts(j.data ?? []))
@@ -209,7 +215,30 @@ export default function CardExpensesPage() {
                         className="ml-1 text-xs px-1.5 py-1 bg-amber-500 text-white rounded hover:bg-amber-600">승인</button>
                     )}
                   </td>
-                  <td className="py-2 px-3 text-gray-500 text-xs">{r.classification ?? ''}</td>
+                  <td className="py-2 px-3 text-xs">
+                    {editClass?.id === r.id ? (
+                      <input
+                        autoFocus
+                        value={editClass.value}
+                        onChange={e => setEditClass({ id: r.id, value: e.target.value })}
+                        onBlur={() => saveClassification(r.id, editClass.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') saveClassification(r.id, editClass.value)
+                          if (e.key === 'Escape') setEditClass(null)
+                        }}
+                        placeholder="분류 입력"
+                        className="border border-slate-400 rounded px-1.5 py-1 text-xs w-28"
+                      />
+                    ) : (
+                      <button
+                        onClick={() => setEditClass({ id: r.id, value: r.classification ?? '' })}
+                        className="text-left min-w-[60px] px-1 py-1 rounded hover:bg-gray-100 text-gray-500"
+                        title="클릭하여 분류 수정"
+                      >
+                        {r.classification ?? <span className="text-gray-300">분류 +</span>}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
