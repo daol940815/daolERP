@@ -702,10 +702,13 @@ function exitLM() {
   renderAll(); renderPanel();
 }
 function applyToAll() {
-  // Apply current page's card element layout to all cards everywhere
+  // 현재 "선택/편집 중인 카드"의 레이아웃을 모든 카드에 복제.
+  // 선택된 카드가 없으면 편집된 첫 카드를 기준으로 폴백.
   const pg=pages[curPage];
-  const srcCard=pg.cards.find(c=>c.cardElements);
-  if(!srcCard){toast('카드를 먼저 선택하여 편집해주세요');return;}
+  const srcCard=(selCardIdx!==null && pg.cards[selCardIdx] && pg.cards[selCardIdx].cardElements)
+    ? pg.cards[selCardIdx]
+    : pg.cards.find(c=>c.cardElements);
+  if(!srcCard || !srcCard.cardElements){toast('카드를 먼저 선택하여 편집해주세요');return;}
   pushUndo();
   const src=JSON.parse(JSON.stringify(srcCard.cardElements));
   pages.forEach(function(pg2){pg2.cards.forEach(function(card){
@@ -713,7 +716,8 @@ function applyToAll() {
     copy.forEach(function(el){el.id=mkId('el');});  // 카드별 고유 id
     card.cardElements=copy;
   });});
-  renderAll(); toast('✅ 카드 레이아웃 전체 적용');
+  renderAll();
+  toast('✅ 카드 레이아웃 전체 적용 (선택한 칸 기준)');
 }
 
 // ============================================================
@@ -980,18 +984,39 @@ function startDrag(e,el,scope,cardIdx,offX,offY) {
 function startResize(e,el,dir,scope,cardIdx,offX,offY) {
   e.preventDefault(); e.stopPropagation();
   if(scope==='card') selCardIdx=cardIdx;
-  const sx=e.clientX, sy=e.clientY, ow=el.w, oh=el.h;
+  const sx=e.clientX, sy=e.clientY;
+  const ox=el.x, oy=el.y, ow=el.w, oh=el.h;
   const maxW=scope==='card'?CW():A4W;
   const maxH=scope==='card'?CH():A4H;
+  const minW=['line','rect','ellipse'].includes(el.type)?1:16;
+  const minH=['line','rect','ellipse'].includes(el.type)?1:6;
+  // dir(tl/tr/br/bl/bm/mr)에서 어느 변을 잡았는지 해석
+  const hasT=dir.indexOf('t')>=0, hasB=dir.indexOf('b')>=0;
+  const hasL=dir.indexOf('l')>=0, hasR=dir.indexOf('r')>=0;
+  const isCard=scope==='card';
   const preSnap=snapState();  // 리사이즈 직전 상태 캡처
   let moved=false;
 
   const onMove=e2=>{
     const dx=(e2.clientX-sx)/zoom, dy=(e2.clientY-sy)/zoom;
     moved=true;
-    if(dir==='br'||dir==='mr') el.w=Math.max(['line','rect','ellipse'].includes(el.type)?1:16,Math.min(maxW-el.x,ow+dx));
-    if(dir==='br'||dir==='bm') el.h=Math.max(['line','rect','ellipse'].includes(el.type)?1:6,Math.min(maxH-el.y,oh+dy));
-    document.querySelectorAll('[data-el-id="'+el.id+'"').forEach(d=>{
+    if(hasR) el.w=Math.max(minW, Math.min(maxW-ox, ow+dx));
+    if(hasB) el.h=Math.max(minH, Math.min(maxH-oy, oh+dy));
+    if(hasL){ // 왼쪽 변: x 감소 → w 증가 (오른쪽 변 고정)
+      let nx=Math.max(0, ox+dx);
+      let nw=ow+(ox-nx);
+      if(nw<minW){ nw=minW; nx=ox+ow-minW; }
+      el.x=nx; el.w=nw;
+    }
+    if(hasT){ // 위쪽 변: y 감소 → h 증가 (아래쪽 변 고정)
+      let ny=Math.max(0, oy+dy);
+      let nh=oh+(oy-ny);
+      if(nh<minH){ nh=minH; ny=oy+oh-minH; }
+      el.y=ny; el.h=nh;
+    }
+    document.querySelectorAll('[data-el-id="'+el.id+'"]').forEach(d=>{
+      d.style.left=(el.x*zoom+(isCard?offX:0))+'px';
+      d.style.top=(el.y*zoom+(isCard?offY:0))+'px';
       d.style.width=(el.w*zoom)+'px';
       d.style.height=(el.h*zoom)+'px';
     });
