@@ -8,17 +8,35 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
 // POST /api/card-expenses/import
-// 법인카드 사용내역(하나카드 양식) 업로드.
-// - 카드번호별로 card_accounts 자동 생성
+// 법인카드 사용내역 업로드 (멀티 카드사·멀티 시트 지원).
+// - 카드사는 '카드구분' 컬럼(없으면 시트명)에서 행 단위로 표준화해 읽는다.
+// - 카드번호는 숫자만 추출해 정규화(대시/마스킹 차이 통일) → 카드계좌·중복키 안정화.
 // - 파일의 '계정과목'은 즉시 확정(confirmed), 비어 있으면 키워드 분류기가 제안(suggested→승인대기)
-// - source_key(카드번호|이용일|이용시간|승인금액|가맹점명 + 동일키 순번)로 멱등 upsert
+// - source_key(카드사|카드번호|이용일|이용시간|승인금액|가맹점명 + 동일키 순번)로 멱등 upsert.
 //   재업로드 시 사용자가 보정한 계정과목/분류는 보존한다.
 
-const CARD_COMPANY = '하나카드' // 본 파서는 하나카드 양식 전용 (추후 카드사별 어댑터 추가)
-
-// 하나카드 양식 식별용 필수 컬럼
+// 카드 양식 식별용 필수 컬럼
 const REQUIRED_COLS = ['카드번호', '이용일', '승인금액', '가맹점명']
 const CHUNK = 500
+
+// 카드구분/시트명 → 표준 카드사명 (그룹핑·거래처 일관성용)
+function canonicalCardCompany(cardType: string | null, sheetName: string): string {
+  const s = `${cardType ?? ''} ${sheetName}`.toLowerCase()
+  if (s.includes('하나')) return '하나카드'
+  if (s.includes('bc') || s.includes('비씨')) return 'BC카드'
+  if (s.includes('롯데')) return '롯데카드'
+  if (s.includes('신한')) return '신한카드'
+  if (s.includes('삼성')) return '삼성카드'
+  if (s.includes('현대')) return '현대카드'
+  if (s.includes('국민') || s.includes('kb')) return '국민카드'
+  if (s.includes('농협') || s.includes('nh')) return '농협카드'
+  if (s.includes('우리')) return '우리카드'
+  return (cardType || sheetName || '기타카드').trim()
+}
+// 카드번호 정규화: 숫자만 추출 (대시/공백/마스킹 표기 차이 통일)
+function normCardNo(v: unknown): string {
+  return String(v ?? '').replace(/\D/g, '')
+}
 
 function norm(name: unknown): string {
   return String(name ?? '').replace(/\s+/g, '').trim()
@@ -37,8 +55,9 @@ function toStr(v: unknown): string | null {
   const s = String(v ?? '').trim()
   return s || null
 }
-// 이용일: '2026.03.31' / Date / 엑셀시리얼 / 'YYYY-MM-DD' 처리
-function toDateStr(v: unknown): string | null {
+// 이용일: '2026.03.31' / Date / 엑셀시리얼 / 'YYYY-MM-DD' / '04.14 10:45'(연도없음) 처리.
+// defaultYear: 연도가 없는 'MM.DD' 형식일 때 보충할 연도(시트에서 추론).
+function toDateStr(v: unknown, defaultYear?: number): string | null {
   if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString().slice(0, 10)
   if (typeof v === 'number' && v > 20000) {
     const d = new Date(Date.UTC(1899, 11, 30) + v * 86400000)
@@ -47,6 +66,11 @@ function toDateStr(v: unknown): string | null {
   const s = String(v ?? '').trim()
   const m = s.match(/^(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})/)
   if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`
+  // 연도 없는 'MM.DD'(예: '04.14 10:45') — 시트에서 추론한 연도로 보충
+  if (defaultYear) {
+    const m2 = s.match(/^(\d{1,2})[.\-/](\d{1,2})(?:\s|$)/)
+    if (m2) return `${defaultYear}-${m2[1].padStart(2, '0')}-${m2[2].padStart(2, '0')}`
+  }
   return null
 }
 // 이용시간: '08:46' / Date / 엑셀 시간 → 'HH:MM'
@@ -85,43 +109,9 @@ export async function POST(req: NextRequest) {
   const buffer = Buffer.from(await file.arrayBuffer())
   const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true })
 
-  // 헤더 자동 탐지
-  let header: unknown[] | null = null
-  let dataRows: unknown[][] = []
-  for (const wsName of wb.SheetNames) {
-    const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wsName], { header: 1, raw: true, defval: '' })
-    const hi = rows.findIndex(row => REQUIRED_COLS.every(col => row.some(cell => norm(cell) === norm(col))))
-    if (hi >= 0) { header = rows[hi]; dataRows = rows.slice(hi + 1); break }
-  }
-  if (!header) {
-    return NextResponse.json(
-      { error: '인식할 수 없는 파일 형식입니다. 하나카드 사용내역 파일을 업로드해주세요.' },
-      { status: 400 },
-    )
-  }
-
-  const col = {
-    cardType:   findCol(header, '카드구분'),
-    date:       findCol(header, '이용일'),
-    time:       findCol(header, '이용시간'),
-    cardNo:     findCol(header, '카드번호'),
-    approved:   findCol(header, '승인금액'),
-    cancel:     findCol(header, '승인취소금액'),
-    merchant:   findCol(header, '가맹점명'),
-    category:   findCol(header, '업종명'),
-    bizNo:      findCol(header, '가맹점사업자번호', '가맹점 사업자번호'),
-    usageType:  findCol(header, '이용구분'),
-    settled:    findCol(header, '매입금액'),
-    status:     findCol(header, '상태'),
-    submall:    findCol(header, '하위몰정보', '하위몰 정보'),
-    sourceSheet:findCol(header, '원본시트'),
-    user:       findCol(header, '사용자'),
-    account:    findCol(header, '계정과목'),
-    classify:   findCol(header, '분류'),
-  }
-
-  // ── 1) 행 파싱 ────────────────────────────────────
+  // ── 1) 행 파싱 (모든 시트 순회 — 시트별 카드사 합본 지원) ──
   type ParsedRow = {
+    card_company: string
     card_number: string
     tx_date: string
     tx_time: string | null
@@ -145,78 +135,128 @@ export async function POST(req: NextRequest) {
   const parsed: ParsedRow[] = []
   const seen = new Map<string, number>()
   let skipped = 0
-  const cardNumbers = new Set<string>()
+  const cardKeys = new Set<string>()   // `${card_company}|${card_number}`
+  let matchedAnySheet = false
 
-  for (const row of dataRows) {
-    const cardNo = toStr(row[col.cardNo])
-    const date = toDateStr(row[col.date])
-    if (!cardNo || !date) { skipped++; continue }
+  for (const wsName of wb.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wsName], { header: 1, raw: true, defval: '' })
+    const hi = rows.findIndex(row => REQUIRED_COLS.every(c => row.some(cell => norm(cell) === norm(c))))
+    if (hi < 0) continue   // 필수 컬럼 없는 시트(안내/요약 등)는 건너뜀
+    matchedAnySheet = true
+    const header = rows[hi]
+    const dataRows = rows.slice(hi + 1)
+    const col0 = findCol(header, '이용일')
+    // 시트의 기준 연도 추론(연도 있는 날짜 중 최빈) — 'MM.DD' 형식 보충용
+    const yearCount = new Map<number, number>()
+    for (const r of dataRows) {
+      const d = toDateStr(r[col0])
+      if (d) { const y = Number(d.slice(0, 4)); yearCount.set(y, (yearCount.get(y) ?? 0) + 1) }
+    }
+    const sheetYear = Array.from(yearCount.entries()).sort((a, b) => b[1] - a[1])[0]?.[0]
+    const col = {
+      cardType:   findCol(header, '카드구분'),
+      date:       findCol(header, '이용일'),
+      time:       findCol(header, '이용시간'),
+      cardNo:     findCol(header, '카드번호'),
+      approved:   findCol(header, '승인금액'),
+      cancel:     findCol(header, '승인취소금액'),
+      merchant:   findCol(header, '가맹점명'),
+      category:   findCol(header, '업종명'),
+      bizNo:      findCol(header, '가맹점사업자번호', '가맹점 사업자번호'),
+      usageType:  findCol(header, '이용구분'),
+      settled:    findCol(header, '매입금액'),
+      status:     findCol(header, '상태'),
+      submall:    findCol(header, '하위몰정보', '하위몰 정보'),
+      sourceSheet:findCol(header, '원본시트'),
+      user:       findCol(header, '사용자'),
+      account:    findCol(header, '계정과목'),
+      classify:   findCol(header, '분류'),
+    }
 
-    const time = col.time >= 0 ? toTimeStr(row[col.time]) : null
-    const approved = toNumber(row[col.approved])
-    const merchant = col.merchant >= 0 ? toStr(row[col.merchant]) : null
+    for (const row of dataRows) {
+      const cardNo = normCardNo(row[col.cardNo])
+      const date = toDateStr(row[col.date], sheetYear)
+      if (!cardNo || !date) { skipped++; continue }
 
-    const baseKey = `${cardNo}|${date}|${time ?? ''}|${approved}|${merchant ?? ''}`
-    const occ = (seen.get(baseKey) ?? 0) + 1
-    seen.set(baseKey, occ)
-    const source_key = occ > 1 ? `${baseKey}#${occ}` : baseKey
+      const company = canonicalCardCompany(col.cardType >= 0 ? toStr(row[col.cardType]) : null, wsName)
+      const time = col.time >= 0 ? toTimeStr(row[col.time]) : null
+      const approved = toNumber(row[col.approved])
+      const merchant = col.merchant >= 0 ? toStr(row[col.merchant]) : null
 
-    cardNumbers.add(cardNo)
-    parsed.push({
-      card_number: cardNo,
-      tx_date: date,
-      tx_time: time,
-      card_type: col.cardType >= 0 ? toStr(row[col.cardType]) : null,
-      merchant_name: merchant,
-      merchant_category: col.category >= 0 ? toStr(row[col.category]) : null,
-      merchant_biz_number: col.bizNo >= 0 ? toStr(row[col.bizNo]) : null,
-      approved_amount: approved,
-      cancel_amount: col.cancel >= 0 ? toNumber(row[col.cancel]) : 0,
-      settled_amount: col.settled >= 0 ? toNumber(row[col.settled]) : 0,
-      statement_status: col.status >= 0 ? toStr(row[col.status]) : null,
-      usage_type: col.usageType >= 0 ? toStr(row[col.usageType]) : null,
-      submall: col.submall >= 0 ? toStr(row[col.submall]) : null,
-      source_sheet: col.sourceSheet >= 0 ? toStr(row[col.sourceSheet]) : null,
-      user_name: col.user >= 0 ? toStr(row[col.user]) : null,
-      account_text: col.account >= 0 ? toStr(row[col.account]) : null,
-      classification: col.classify >= 0 ? toStr(row[col.classify]) : null,
-      source_key,
-    })
+      const baseKey = `${company}|${cardNo}|${date}|${time ?? ''}|${approved}|${merchant ?? ''}`
+      const occ = (seen.get(baseKey) ?? 0) + 1
+      seen.set(baseKey, occ)
+      const source_key = occ > 1 ? `${baseKey}#${occ}` : baseKey
+
+      cardKeys.add(`${company}|${cardNo}`)
+      parsed.push({
+        card_company: company,
+        card_number: cardNo,
+        tx_date: date,
+        tx_time: time,
+        card_type: col.cardType >= 0 ? toStr(row[col.cardType]) : null,
+        merchant_name: merchant,
+        merchant_category: col.category >= 0 ? toStr(row[col.category]) : null,
+        merchant_biz_number: col.bizNo >= 0 ? toStr(row[col.bizNo]) : null,
+        approved_amount: approved,
+        cancel_amount: col.cancel >= 0 ? toNumber(row[col.cancel]) : 0,
+        settled_amount: col.settled >= 0 ? toNumber(row[col.settled]) : 0,
+        statement_status: col.status >= 0 ? toStr(row[col.status]) : null,
+        usage_type: col.usageType >= 0 ? toStr(row[col.usageType]) : null,
+        submall: col.submall >= 0 ? toStr(row[col.submall]) : null,
+        source_sheet: col.sourceSheet >= 0 ? toStr(row[col.sourceSheet]) : wsName,
+        user_name: col.user >= 0 ? toStr(row[col.user]) : null,
+        account_text: col.account >= 0 ? toStr(row[col.account]) : null,
+        classification: col.classify >= 0 ? toStr(row[col.classify]) : null,
+        source_key,
+      })
+    }
   }
 
+  if (!matchedAnySheet) {
+    return NextResponse.json(
+      { error: '인식할 수 없는 파일 형식입니다. (필수 컬럼: 카드번호·이용일·승인금액·가맹점명)' },
+      { status: 400 },
+    )
+  }
   if (!parsed.length) {
     return NextResponse.json({ error: '가져올 수 있는 데이터가 없습니다.', skipped }, { status: 400 })
   }
 
-  // ── 2) 카드계좌 확보 (카드번호별 자동 생성) ─────────
-  const cardRows = Array.from(cardNumbers).map(card_number => ({ card_company: CARD_COMPANY, card_number }))
+  // ── 2) 카드계좌 확보 (카드사·카드번호별 자동 생성) ─────────
+  const cardRows = Array.from(cardKeys).map(key => {
+    const [card_company, card_number] = key.split('|')
+    return { card_company, card_number }
+  })
   const { error: caErr } = await admin
     .from('card_accounts')
     .upsert(cardRows, { onConflict: 'card_company,card_number', ignoreDuplicates: true })
   if (caErr) return NextResponse.json({ error: `카드계좌 등록 실패: ${caErr.message}` }, { status: 500 })
 
   // 카드사 거래처(매입처) 확보 + 연결 — 카드 미지급금의 상대처로 사용(거래처별 원장 일관성)
-  {
-    let { data: vend } = await admin.from('vendors').select('id').eq('name', CARD_COMPANY).limit(1).maybeSingle()
+  const companies = Array.from(new Set(cardRows.map(c => c.card_company)))
+  for (const company of companies) {
+    let { data: vend } = await admin.from('vendors').select('id').eq('name', company).limit(1).maybeSingle()
     if (!vend) {
       const ins = await admin.from('vendors')
-        .insert({ name: CARD_COMPANY, type: 'vendor', note: '법인카드 카드사 (자동 생성)' })
+        .insert({ name: company, type: 'vendor', note: '법인카드 카드사 (자동 생성)' })
         .select('id').single()
       vend = ins.data
     }
     if (vend?.id) {
       await admin.from('card_accounts')
         .update({ vendor_id: vend.id })
-        .eq('card_company', CARD_COMPANY)
+        .eq('card_company', company)
         .is('vendor_id', null)
     }
   }
 
-  const accountsResult = await fetchAllRows<{ id: string; card_number: string }>((f, t) =>
-    admin.from('card_accounts').select('id, card_number').eq('card_company', CARD_COMPANY).range(f, t),
+  // 카드계좌 id 매핑 (카드사|카드번호 → id)
+  const accountsResult = await fetchAllRows<{ id: string; card_company: string; card_number: string }>((f, t) =>
+    admin.from('card_accounts').select('id, card_company, card_number').in('card_company', companies).range(f, t),
   )
   if ('error' in accountsResult) return NextResponse.json({ error: `카드계좌 조회 실패: ${accountsResult.error}` }, { status: 500 })
-  const cardAccountId = new Map(accountsResult.data.map(a => [a.card_number, a.id]))
+  const cardAccountId = new Map(accountsResult.data.map(a => [`${a.card_company}|${a.card_number}`, a.id]))
 
   // ── 3) 계정과목 매핑 + 키워드 분류기 준비 ───────────
   const { data: accounts } = await admin
@@ -283,7 +323,7 @@ export async function POST(req: NextRequest) {
     }
 
     return {
-      card_account_id: cardAccountId.get(p.card_number) ?? null,
+      card_account_id: cardAccountId.get(`${p.card_company}|${p.card_number}`) ?? null,
       tx_date: p.tx_date,
       tx_time: p.tx_time,
       card_type: p.card_type,
@@ -338,11 +378,12 @@ export async function POST(req: NextRequest) {
     imported: upsertRows.length,
     created,
     updated,
-    card_accounts: cardNumbers.size,
+    card_companies: companies.length,
+    card_accounts: cardKeys.size,
     confirmed: confirmedCount,
     suggested: suggestedCount,
     posted,
     skipped,
-    total_rows: dataRows.length,
+    total_rows: parsed.length + skipped,
   })
 }
