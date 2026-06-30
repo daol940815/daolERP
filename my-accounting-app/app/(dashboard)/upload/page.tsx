@@ -14,7 +14,6 @@ interface QueueItem {
   parseResult: ParseResult | null
   bankName: string
   accountNumber: string
-  isMinusAccount: boolean
   error: string | null
   uploadResult: UploadResult | null
 }
@@ -77,7 +76,7 @@ export default function UploadPage() {
       status: 'parsing' as ItemStatus,
       parseResult: null,
       bankName: '', accountNumber: '',
-      isMinusAccount: false, error: null, uploadResult: null,
+      error: null, uploadResult: null,
     }))
     setQueue(q => [...q, ...items])
     items.forEach(item => parseItem(item.id, item.file, sourceType))
@@ -119,7 +118,6 @@ export default function UploadPage() {
             bankName:       item.bankName,
             accountNumber:  item.accountNumber,
             detectedFormat: item.parseResult.detectedFormat,
-            isMinusAccount: item.isMinusAccount,
           }),
         })
 
@@ -261,18 +259,6 @@ export default function UploadPage() {
                         disabled={item.status === 'uploading' || isUploading}
                         className="w-36 text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:bg-gray-50 disabled:text-gray-400"
                       />
-                    )}
-                    {sourceType === 'bank' && (
-                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={item.isMinusAccount}
-                          onChange={e => patchItem(item.id, { isMinusAccount: e.target.checked })}
-                          disabled={item.status === 'uploading' || isUploading}
-                          className="w-3.5 h-3.5 accent-amber-600"
-                        />
-                        <span className="text-xs text-gray-500 whitespace-nowrap">마이너스통장</span>
-                      </label>
                     )}
                   </div>
                 )}
