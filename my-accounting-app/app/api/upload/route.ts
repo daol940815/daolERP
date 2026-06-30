@@ -140,16 +140,23 @@ export async function POST(req: NextRequest) {
 
   const BATCH = 1000
   let insertedRows = 0
+  let duplicateRows = 0
   let errorRows = 0
 
   for (let i = 0; i < insertData.length; i += BATCH) {
     const batch = insertData.slice(i, i + BATCH)
-    const { error: insertError } = await admin.from('transactions').insert(batch)
+    // 행 단위 중복(dedup_key)은 건너뛰고 신규만 삽입 (멱등)
+    const { data: ins, error: insertError } = await admin
+      .from('transactions')
+      .upsert(batch, { onConflict: 'dedup_key', ignoreDuplicates: true })
+      .select('id')
 
     if (insertError) {
       errorRows += batch.length
     } else {
-      insertedRows += batch.length
+      const n = ins?.length ?? 0
+      insertedRows += n
+      duplicateRows += batch.length - n   // 중복으로 건너뛴 건
     }
   }
 
@@ -182,7 +189,7 @@ export async function POST(req: NextRequest) {
     uploadLogId,
     totalRows: body.rows.length,
     insertedRows,
-    skippedRows: 0,
+    skippedRows: duplicateRows,
     errorRows,
   }
 

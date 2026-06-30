@@ -31,7 +31,8 @@ function StatusBadge({ item }: { item: QueueItem }) {
     case 'error':      return <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded-full whitespace-nowrap">오류</span>
     case 'success':    return (
       <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full whitespace-nowrap">
-        완료 {item.uploadResult?.insertedRows.toLocaleString()}건
+        완료 신규 {item.uploadResult?.insertedRows.toLocaleString()}건
+        {(item.uploadResult?.skippedRows ?? 0) > 0 && ` · 중복 ${item.uploadResult?.skippedRows.toLocaleString()}건 건너뜀`}
       </span>
     )
     case 'ready':      return <span className="px-2 py-0.5 text-xs bg-slate-100 text-slate-500 rounded-full whitespace-nowrap">대기</span>
