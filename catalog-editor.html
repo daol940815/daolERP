@@ -844,7 +844,7 @@ function buildPel(el, p, pi, scope, cardIdx, cardOffX, cardOffY) {
   } else if(el.type==='image') {
     div.classList.add('pel-img');
     if(p) {
-      const src=p.image&&images[p.image]?images[p.image]:null;
+      const src=p.image?resolveImage(p.image):null;
       div.innerHTML=src?('<img src="'+src+'" style="width:100%;height:100%;object-fit:contain" alt="">'):'🛒';
     }
   } else {
@@ -1663,11 +1663,36 @@ function loadSample() {
   parseCSV();
 }
 
+// ============================================================
+// 이미지 스마트 매칭
+// CSV의 image 값(예: "1.jpg")과 업로드 파일명이 정확히 같지 않아도
+// 확장자·대소문자를 무시하고 연결. 우선순위: 정확 일치 → 대소문자 무시 → 확장자 무시(basename)
+// ============================================================
+function imgBaseName(n){ return String(n||'').replace(/\.[^./\\]+$/,'').toLowerCase(); }
+var _imgIndex=null;
+function rebuildImageIndex(){
+  _imgIndex={ full:{}, base:{} };
+  Object.keys(images).forEach(function(k){
+    var lk=k.toLowerCase();
+    if(!(lk in _imgIndex.full)) _imgIndex.full[lk]=images[k];
+    var b=imgBaseName(k);
+    if(!(b in _imgIndex.base)) _imgIndex.base[b]=images[k];  // 첫 매칭 우선
+  });
+}
+function resolveImage(name){
+  if(!name) return null;
+  if(images[name]) return images[name];                 // 정확 일치 우선
+  if(!_imgIndex) rebuildImageIndex();
+  var lk=String(name).toLowerCase();
+  return _imgIndex.full[lk] || _imgIndex.base[imgBaseName(name)] || null;
+}
+
 function loadImgs(files) { Array.from(files).forEach(loadImgFile); document.getElementById('img-f').value=''; }
 function loadImgFile(f) {
   const r=new FileReader();
   r.onload=e=>{
     images[f.name]=e.target.result;
+    _imgIndex=null;  // 인덱스 무효화(재빌드 유도)
     document.getElementById('img-badge').textContent=Object.keys(images).length;
     renderImgLib();renderAll();
     // 상품이 로드된 상태면 남은 미연결 건수 안내 (마지막 파일 기준 표시)
@@ -1683,20 +1708,20 @@ function renderImgLib() {
   document.getElementById('img-badge').textContent=keys.length;
   lib.innerHTML=keys.map(function(k){var ek=esc(k);return '<div class="ili" title="'+ek+'"><img src="'+images[k]+'" alt="'+ek+'"><div class="ilinm">'+ek+'</div></div>';}).join('');
 }
-// 상품 image 필드는 있는데 업로드된 이미지가 없는(=미연결) 건수
+// 상품 image 필드는 있는데 연결된 이미지가 없는(=미연결) 건수
 function missingImageCount() {
-  return products.filter(p=>p.image && !images[p.image]).length;
+  return products.filter(p=>p.image && !resolveImage(p.image)).length;
 }
 function renderProductList() {
   const list=document.getElementById('p-list');
   document.getElementById('p-badge').textContent=products.length;
   const miss=missingImageCount();
-  const warn = miss ? '<div style="background:#FEF3C7;color:#92400E;border:1px solid #FDE68A;border-radius:5px;padding:5px 7px;font-size:9.5px;margin-bottom:5px;line-height:1.45">⚠️ 이미지 미연결 '+miss+'건<br><span style="font-size:8.5px;color:#B45309">CSV의 파일명과 동일한 이름으로 이미지를 업로드하세요</span></div>' : '';
+  const warn = miss ? '<div style="background:#FEF3C7;color:#92400E;border:1px solid #FDE68A;border-radius:5px;padding:5px 7px;font-size:9.5px;margin-bottom:5px;line-height:1.45">⚠️ 이미지 미연결 '+miss+'건<br><span style="font-size:8.5px;color:#B45309">확장자·대소문자는 자동 매칭됩니다. 파일명(예: 1)이 CSV(예: 1.jpg)와 다른지 확인하세요</span></div>' : '';
   list.innerHTML = warn + products.map(p=>{
-    const matched=p.image&&images[p.image];
-    // 파일명이 지정됐는데 미업로드면 ⚠️, 아예 없으면 🛒
-    const thumb = matched ? '<img src="'+images[p.image]+'">'
-      : (p.image ? '<span title="파일 미업로드: '+esc(p.image)+'" style="color:var(--or);font-size:11px">⚠️</span>' : '🛒');
+    const src=p.image?resolveImage(p.image):null;
+    // 파일명이 지정됐는데 미연결이면 ⚠️, 아예 없으면 🛒
+    const thumb = src ? '<img src="'+src+'">'
+      : (p.image ? '<span title="이미지 미연결: '+esc(p.image)+'" style="color:var(--or);font-size:11px">⚠️</span>' : '🛒');
     return '<div class="pi-row"><div class="pt">'+thumb+'</div><div class="pin2"><div class="pcd">'+esc(p.code||'')+'</div><div class="pnm">'+esc(p.name)+'</div><div class="ppr">₩'+(p.sale_price||0).toLocaleString()+'</div></div></div>';
   }).join('');
 }
@@ -1735,7 +1760,7 @@ function loadJSON(input) {
   const f=input.files[0];if(!f)return;
   const r=new FileReader();
   r.onload=e=>{
-    try{const d=JSON.parse(e.target.result);if(d.cfg)Object.assign(cfg,d.cfg);if(d.grid)Object.assign(grid,d.grid);if(d.products)products=d.products;if(d.pages)pages=d.pages;if(d.images&&typeof d.images==='object'){images=d.images;document.getElementById('img-badge').textContent=Object.keys(images).length;}if(!pages.length)pages.push(newPage());curPage=0;selElId=null;syncSliders();buildGoGrid();renderAll();renderProductList();renderImgLib();toast('프로젝트 로드됨');}
+    try{const d=JSON.parse(e.target.result);if(d.cfg)Object.assign(cfg,d.cfg);if(d.grid)Object.assign(grid,d.grid);if(d.products)products=d.products;if(d.pages)pages=d.pages;if(d.images&&typeof d.images==='object'){images=d.images;_imgIndex=null;document.getElementById('img-badge').textContent=Object.keys(images).length;}if(!pages.length)pages.push(newPage());curPage=0;selElId=null;syncSliders();buildGoGrid();renderAll();renderProductList();renderImgLib();toast('프로젝트 로드됨');}
     catch(e){toast('파일 형식 오류');}
   };
   r.readAsText(f);input.value='';
@@ -1779,7 +1804,7 @@ function buildPrintPage(pg, pi) {
     if(el.type==='rect') return '<div style="position:absolute;left:'+(el.x+offX)+'px;top:'+(el.y+offY)+'px;width:'+el.w+'px;height:'+el.h+'px;background:'+(el.fillColor||'transparent')+';border:'+(el.strokeW||1)+'px solid '+(el.strokeColor||'#333')+';box-sizing:border-box;opacity:'+(el.opacity||1)+'"></div>';
     if(el.type==='ellipse') return '<div style="position:absolute;left:'+(el.x+offX)+'px;top:'+(el.y+offY)+'px;width:'+el.w+'px;height:'+el.h+'px;background:'+(el.fillColor||'transparent')+';border:'+(el.strokeW||1)+'px solid '+(el.strokeColor||'#333')+';border-radius:50%;box-sizing:border-box;opacity:'+(el.opacity||1)+'"></div>';
     if(el.type==='image') {
-      var src=p&&p.image&&images[p.image]?images[p.image]:null;
+      var src=p&&p.image?resolveImage(p.image):null;
       return '<div style="position:absolute;left:'+(el.x+offX)+'px;top:'+(el.y+offY)+'px;width:'+el.w+'px;height:'+el.h+'px;background:#f5f5f5;overflow:hidden">'+(src?'<img src="'+src+'" style="width:100%;height:100%;object-fit:contain">':'')+'</div>';
     }
     // text
