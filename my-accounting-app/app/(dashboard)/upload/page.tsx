@@ -1,22 +1,33 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import Link from 'next/link'
 import { parseFile } from '@/lib/file-parser'
 import type { ParseResult, UploadResult } from '@/types/upload'
 
 // ── 타입 ────────────────────────────────────────────────────
 type ItemStatus = 'parsing' | 'ready' | 'need_input' | 'uploading' | 'success' | 'duplicate' | 'error'
 
+// 업로드 대상: 은행 명세서(클라이언트 파싱→/api/upload) /
+// 카드매출·법인카드 사용내역(파일 그대로 각 import API가 서버에서 파싱)
+type UploadSource = 'bank' | 'card_sales' | 'card_expenses'
+
+const SOURCE_META: Record<UploadSource, { label: string; hint: string; doneHref: string; doneLabel: string }> = {
+  bank:          { label: '🏦 은행 명세서',        hint: '은행에서 내려받은 입출금 명세서 (CSV·XLSX·XLS)',            doneHref: '/transactions',  doneLabel: '거래 내역 보기 →' },
+  card_sales:    { label: '💳 카드매출',           hint: '카드 매출 상세내역 — 단말기결제·수기결제(PG) 다운로드 파일', doneHref: '/card-sales',    doneLabel: '카드매출 보기 →' },
+  card_expenses: { label: '💳 법인카드 사용내역',  hint: '카드사 이용내역 — 여러 카드사 시트 합본 지원',               doneHref: '/card-expenses', doneLabel: '법인카드 보기 →' },
+}
+
 interface QueueItem {
   id: string
   file: File
+  source: UploadSource
   status: ItemStatus
-  parseResult: ParseResult | null
-  bankName: string
-  accountNumber: string
+  parseResult: ParseResult | null   // 은행만 사용 (클라이언트 파싱)
+  bankName: string                  // 은행만 사용
+  accountNumber: string             // 은행만 사용
   error: string | null
-  uploadResult: UploadResult | null
+  uploadResult: UploadResult | null // 은행 결과
+  resultText: string | null         // 카드 결과 요약
 }
 
 function uid() { return Math.random().toString(36).slice(2, 10) }
@@ -31,8 +42,10 @@ function StatusBadge({ item }: { item: QueueItem }) {
     case 'error':      return <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded-full whitespace-nowrap">오류</span>
     case 'success':    return (
       <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full whitespace-nowrap">
-        완료 신규 {item.uploadResult?.insertedRows.toLocaleString()}건
-        {(item.uploadResult?.skippedRows ?? 0) > 0 && ` · 중복 ${item.uploadResult?.skippedRows.toLocaleString()}건 건너뜀`}
+        {item.resultText ?? (
+          <>완료 신규 {item.uploadResult?.insertedRows.toLocaleString()}건
+          {(item.uploadResult?.skippedRows ?? 0) > 0 && ` · 중복 ${item.uploadResult?.skippedRows.toLocaleString()}건 건너뜀`}</>
+        )}
       </span>
     )
     case 'ready':      return <span className="px-2 py-0.5 text-xs bg-slate-100 text-slate-500 rounded-full whitespace-nowrap">대기</span>
@@ -44,13 +57,13 @@ export default function UploadPage() {
   const [queue, setQueue]             = useState<QueueItem[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const [isDragging, setIsDragging]   = useState(false)
+  const [sourceType, setSourceType]   = useState<UploadSource>('bank')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const patchItem = useCallback((id: string, patch: Partial<QueueItem>) =>
     setQueue(q => q.map(item => item.id === id ? { ...item, ...patch } : item)), [])
 
-  // ── 파싱 ───────────────────────────────────────────────────
-  // 이 화면은 은행 명세서 전용. 카드매출/법인카드는 각 전용 화면에서 업로드.
+  // ── 파싱 (은행 명세서만 — 카드류는 각 import API가 서버에서 파싱) ──
   const parseItem = useCallback(async (id: string, file: File) => {
     try {
       const result = await parseFile(file, 'bank')
@@ -68,20 +81,21 @@ export default function UploadPage() {
     }
   }, [patchItem])
 
-  // ── 파일 추가 ───────────────────────────────────────────────
+  // ── 파일 추가 (현재 선택된 출처 탭 기준) ────────────────────
   const addFiles = useCallback((files: FileList | File[]) => {
     const arr = Array.from(files).filter(f => /\.(csv|xlsx|xls)$/i.test(f.name))
     if (!arr.length) return
     const items: QueueItem[] = arr.map(file => ({
       id: uid(), file,
-      status: 'parsing' as ItemStatus,
+      source: sourceType,
+      status: (sourceType === 'bank' ? 'parsing' : 'ready') as ItemStatus,
       parseResult: null,
       bankName: '', accountNumber: '',
-      error: null, uploadResult: null,
+      error: null, uploadResult: null, resultText: null,
     }))
     setQueue(q => [...q, ...items])
-    items.forEach(item => parseItem(item.id, item.file))
-  }, [parseItem])
+    if (sourceType === 'bank') items.forEach(item => parseItem(item.id, item.file))
+  }, [parseItem, sourceType])
 
   // ── 드래그 앤 드롭 ──────────────────────────────────────────
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -94,46 +108,64 @@ export default function UploadPage() {
   }
 
   // ── 업로드 ─────────────────────────────────────────────────
+  const uploadBank = async (item: QueueItem) => {
+    if (!item.parseResult) return
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        rows:           item.parseResult.rows,
+        fileHash:       item.parseResult.fileHash,
+        fileName:       item.parseResult.fileName,
+        fileSize:       item.parseResult.fileSize,
+        fileType:       item.parseResult.fileType,
+        source:         'bank',
+        bankName:       item.bankName,
+        accountNumber:  item.accountNumber,
+        detectedFormat: item.parseResult.detectedFormat,
+      }),
+    })
+    if (res.status === 409) {
+      const data = await res.json()
+      patchItem(item.id, { status: 'duplicate', error: data.message })
+      return
+    }
+    if (!res.ok) {
+      const data = await res.json()
+      patchItem(item.id, { status: 'error', error: data.error ?? '업로드 오류' })
+      return
+    }
+    const result: UploadResult = await res.json()
+    patchItem(item.id, { status: 'success', uploadResult: result })
+  }
+
+  const uploadCard = async (item: QueueItem) => {
+    const endpoint = item.source === 'card_sales' ? '/api/card-sales/import' : '/api/card-expenses/import'
+    const fd = new FormData()
+    fd.append('file', item.file)
+    const res  = await fetch(endpoint, { method: 'POST', body: fd })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      patchItem(item.id, { status: 'error', error: data.error ?? '업로드 오류' })
+      return
+    }
+    const parts = [`완료 신규 ${(data.created ?? 0).toLocaleString()}건`]
+    if (data.updated) parts.push(`갱신 ${data.updated.toLocaleString()}건`)
+    if (data.posted)  parts.push(`분개 ${data.posted.toLocaleString()}건`)
+    if (data.skipped) parts.push(`제외 ${data.skipped.toLocaleString()}건`)
+    patchItem(item.id, { status: 'success', resultText: parts.join(' · ') })
+  }
+
   const handleUploadAll = async () => {
     const targets = queue.filter(i => i.status === 'ready' || i.status === 'need_input')
     if (!targets.length) return
     setIsUploading(true)
 
     for (const item of targets) {
-      if (!item.parseResult) continue
       patchItem(item.id, { status: 'uploading' })
-
       try {
-        const rows = item.parseResult.rows
-
-        const res = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            rows,
-            fileHash:       item.parseResult.fileHash,
-            fileName:       item.parseResult.fileName,
-            fileSize:       item.parseResult.fileSize,
-            fileType:       item.parseResult.fileType,
-            source:         'bank',
-            bankName:       item.bankName,
-            accountNumber:  item.accountNumber,
-            detectedFormat: item.parseResult.detectedFormat,
-          }),
-        })
-
-        if (res.status === 409) {
-          const data = await res.json()
-          patchItem(item.id, { status: 'duplicate', error: data.message })
-          continue
-        }
-        if (!res.ok) {
-          const data = await res.json()
-          patchItem(item.id, { status: 'error', error: data.error ?? '업로드 오류' })
-          continue
-        }
-        const result: UploadResult = await res.json()
-        patchItem(item.id, { status: 'success', uploadResult: result })
+        if (item.source === 'bank') await uploadBank(item)
+        else await uploadCard(item)
       } catch (e) {
         patchItem(item.id, { status: 'error', error: e instanceof Error ? e.message : '네트워크 오류' })
       }
@@ -149,31 +181,32 @@ export default function UploadPage() {
   const doneCount       = queue.filter(i => ['success', 'duplicate', 'error'].includes(i.status)).length
   const allDone         = queue.length > 0 && queue.every(i => ['success', 'duplicate', 'error'].includes(i.status))
   const canUpload       = !isUploading && uploadableCount > 0 && parsingCount === 0
+  // 완료 후 이동 버튼: 큐의 첫 성공 항목 기준
+  const firstSuccess    = queue.find(i => i.status === 'success')
+  const doneMeta        = SOURCE_META[firstSuccess?.source ?? 'bank']
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-1">파일 업로드</h1>
       <p className="text-gray-500 text-sm mb-5">
-        파일을 한 번에 여러 개 선택하거나 드래그해서 일괄 업로드하세요.
+        업로드할 데이터 종류를 선택한 뒤, 파일을 여러 개 선택하거나 드래그해서 일괄 업로드하세요.
       </p>
 
-      {/* 출처 선택 — 이 화면은 은행 명세서 전용, 카드는 전용 화면으로 이동 */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <span className="px-4 py-2 rounded-lg text-sm font-medium border bg-slate-900 text-white border-slate-900">
-          🏦 은행 명세서
-        </span>
-        <Link href="/card-sales"
-          className="px-4 py-2 rounded-lg text-sm font-medium border bg-white text-gray-600 border-gray-300 hover:border-slate-500 transition-colors"
-        >
-          💳 카드매출 업로드 ↗
-        </Link>
-        <Link href="/card-expenses"
-          className="px-4 py-2 rounded-lg text-sm font-medium border bg-white text-gray-600 border-gray-300 hover:border-slate-500 transition-colors"
-        >
-          💳 법인카드 사용내역 업로드 ↗
-        </Link>
-        <span className="text-xs text-gray-400">카드 내역은 각 전용 화면에서 업로드하세요.</span>
+      {/* 출처 선택 */}
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        {(Object.keys(SOURCE_META) as UploadSource[]).map(t => (
+          <button key={t} onClick={() => setSourceType(t)} disabled={isUploading}
+            className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+              sourceType === t
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-gray-600 border-gray-300 hover:border-slate-500'
+            }`}
+          >
+            {SOURCE_META[t].label}
+          </button>
+        ))}
       </div>
+      <p className="text-xs text-gray-400 mb-4">{SOURCE_META[sourceType].hint}</p>
 
       {/* 드롭존 */}
       <div
@@ -191,7 +224,9 @@ export default function UploadPage() {
         <p className="text-gray-700 font-medium text-sm">
           {queue.length === 0 ? '파일을 드래그하거나 클릭해서 선택하세요' : '파일 추가 (드래그 또는 클릭)'}
         </p>
-        <p className="text-gray-400 text-xs mt-0.5">CSV · XLSX · XLS · 다중 선택 가능</p>
+        <p className="text-gray-400 text-xs mt-0.5">
+          {SOURCE_META[sourceType].label.replace(/^..\s/, '')} · CSV · XLSX · XLS · 다중 선택 가능
+        </p>
       </div>
       <input ref={fileInputRef} type="file" multiple accept=".csv,.xlsx,.xls" onChange={onFileChange} className="hidden" />
 
@@ -218,12 +253,14 @@ export default function UploadPage() {
                 item.status === 'duplicate' ? 'bg-amber-50' : 'bg-white'
               }`}>
 
-                {/* 파일명 + 건수 */}
-                <div className="min-w-0 sm:w-48 shrink-0">
+                {/* 파일명 + 건수 + 종류 */}
+                <div className="min-w-0 sm:w-56 shrink-0">
                   <p className="text-sm font-medium text-gray-800 truncate" title={item.file.name}>
                     {item.file.name}
                   </p>
                   <p className="text-xs text-gray-400">
+                    <span className="text-slate-500">{SOURCE_META[item.source].label.replace(/^..\s/, '')}</span>
+                    {' · '}
                     {item.parseResult
                       ? `${item.parseResult.rows.length.toLocaleString()}건`
                       : `${(item.file.size / 1024).toFixed(1)} KB`}
@@ -238,8 +275,8 @@ export default function UploadPage() {
                   )}
                 </div>
 
-                {/* 편집 필드 (ready / need_input / uploading) */}
-                {['ready', 'need_input', 'uploading'].includes(item.status) && (
+                {/* 편집 필드 (은행 명세서만: 은행명/계좌번호) */}
+                {item.source === 'bank' && ['ready', 'need_input', 'uploading'].includes(item.status) && (
                   <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
                     <input
                       type="text"
@@ -309,10 +346,10 @@ export default function UploadPage() {
                   초기화
                 </button>
                 <a
-                  href="/transactions"
+                  href={doneMeta.doneHref}
                   className="px-5 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700"
                 >
-                  거래 내역 보기 →
+                  {doneMeta.doneLabel}
                 </a>
               </>
             ) : (
