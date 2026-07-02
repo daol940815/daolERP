@@ -29,6 +29,7 @@ interface FormLine { account_id: string; side: 'debit' | 'credit'; amount: strin
 const SOURCE: Record<string, { label: string; cls: string }> = {
   bank:        { label: '은행',       cls: 'bg-blue-100 text-blue-700' },
   card:        { label: '법인카드',   cls: 'bg-purple-100 text-purple-700' },
+  card_sale:   { label: '카드매출',   cls: 'bg-pink-100 text-pink-700' },
   tax_invoice: { label: '세금계산서', cls: 'bg-green-100 text-green-700' },
   manual:      { label: '수동',       cls: 'bg-gray-100 text-gray-600' },
 }
@@ -127,6 +128,7 @@ export default function JournalPage() {
           <option value="all">전체 출처</option>
           <option value="bank">은행</option>
           <option value="card">법인카드</option>
+          <option value="card_sale">카드매출</option>
           <option value="tax_invoice">세금계산서</option>
           <option value="manual">수동</option>
         </select>

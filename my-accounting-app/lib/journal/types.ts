@@ -2,7 +2,7 @@
 // "보이는 분개 = 저장되는 분개": buildPosting() 산출물이자 미리보기·post_journal()이 공유하는 단일 계약.
 
 export type JournalSide = 'debit' | 'credit'
-export type JournalSourceType = 'bank' | 'card' | 'tax_invoice' | 'manual'
+export type JournalSourceType = 'bank' | 'card' | 'card_sale' | 'tax_invoice' | 'manual'
 export type JournalEntryType = 'normal' | 'adjustment' | 'closing'
 
 export interface JournalLineDraft {

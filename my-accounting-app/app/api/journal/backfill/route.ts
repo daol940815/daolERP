@@ -4,6 +4,7 @@ import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { syncTransactionJournal } from '@/lib/journal/bank-posting'
 import { syncCardExpenseJournal } from '@/lib/journal/card-posting'
 import { syncTaxInvoiceJournal } from '@/lib/journal/tax-invoice-posting'
+import { loadCardSaleContext, syncCardSaleJournal } from '@/lib/journal/card-sales-posting'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -70,10 +71,33 @@ export async function POST() {
     else taxPosted++
   }
 
+  // 4) 카드매출 (승인/취소 = 사실 데이터 → 전량 자동 전기, 검토 대상은 사유와 함께 남김)
+  const saleResult = await fetchAllRows<{ id: string }>((f, t) =>
+    admin
+      .from('card_sales')
+      .select('id')
+      .neq('amount', 0)
+      .range(f, t),
+  )
+  if ('error' in saleResult) return NextResponse.json({ error: saleResult.error }, { status: 500 })
+
+  let salePosted = 0
+  let saleReview = 0
+  const saleCtx = await loadCardSaleContext(admin)
+  if ('error' in saleCtx) return NextResponse.json({ error: saleCtx.error }, { status: 500 })
+  for (const sale of saleResult.data) {
+    const jr = await syncCardSaleJournal(admin, sale.id, saleCtx)
+    if ('error' in jr) {
+      saleReview++
+      errors.push({ source: 'card_sale', id: sale.id, error: jr.error })
+    } else salePosted++
+  }
+
   return NextResponse.json({
     bank: { candidates: bankResult.data.length, posted: bankPosted },
     card: { candidates: cardResult.data.length, posted: cardPosted },
     tax_invoice: { candidates: taxResult.data.length, posted: taxPosted },
+    card_sale: { candidates: saleResult.data.length, posted: salePosted, review: saleReview },
     errors,
   })
 }

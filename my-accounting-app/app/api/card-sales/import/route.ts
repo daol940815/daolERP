@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { loadCardSaleContext, syncCardSaleJournal } from '@/lib/journal/card-sales-posting'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -253,6 +254,19 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // ── 자동 전기 — 카드 승인/취소는 사실 데이터 (업로드 = 회계 자동 생성) ──
+  // 공급가 미보유·매입사 인식 불가 건은 전기하지 않고 검토 대상으로 남는다(멱등).
+  let posted = 0
+  let review = 0
+  const ctx = await loadCardSaleContext(admin)
+  if (!('error' in ctx)) {
+    for (const row of upserted ?? []) {
+      const jr = await syncCardSaleJournal(admin, row.id as string, ctx)
+      if ('error' in jr) review++
+      else posted++
+    }
+  }
+
   const fileKeys = new Set(parsed.map(r => `${r.approval_number}__${r.transaction_type}`))
   const updated = Array.from(fileKeys).filter(k => existingVendorMap.has(k)).length
   const created = fileKeys.size - updated
@@ -261,6 +275,8 @@ export async function POST(req: NextRequest) {
     imported: upserted?.length ?? 0,
     created,
     updated,
+    posted,
+    review,
     skipped,
     total: dataRows.length,
   })
