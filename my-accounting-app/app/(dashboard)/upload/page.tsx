@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import Link from 'next/link'
 import { parseFile } from '@/lib/file-parser'
 import type { ParseResult, UploadResult } from '@/types/upload'
 
@@ -43,16 +44,16 @@ export default function UploadPage() {
   const [queue, setQueue]             = useState<QueueItem[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const [isDragging, setIsDragging]   = useState(false)
-  const [sourceType, setSourceType]   = useState<'bank' | 'card'>('bank')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const patchItem = useCallback((id: string, patch: Partial<QueueItem>) =>
     setQueue(q => q.map(item => item.id === id ? { ...item, ...patch } : item)), [])
 
   // ── 파싱 ───────────────────────────────────────────────────
-  const parseItem = useCallback(async (id: string, file: File, srcType: 'bank' | 'card') => {
+  // 이 화면은 은행 명세서 전용. 카드매출/법인카드는 각 전용 화면에서 업로드.
+  const parseItem = useCallback(async (id: string, file: File) => {
     try {
-      const result = await parseFile(file, srcType)
+      const result = await parseFile(file, 'bank')
       const fmt = result.detectedFormat ?? ''
       const detectedBank = (!fmt.includes('일반') && !fmt.includes('카드') && !fmt.includes('명세서') && fmt.length > 0)
         ? fmt : ''
@@ -79,8 +80,8 @@ export default function UploadPage() {
       error: null, uploadResult: null,
     }))
     setQueue(q => [...q, ...items])
-    items.forEach(item => parseItem(item.id, item.file, sourceType))
-  }, [parseItem, sourceType])
+    items.forEach(item => parseItem(item.id, item.file))
+  }, [parseItem])
 
   // ── 드래그 앤 드롭 ──────────────────────────────────────────
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -114,7 +115,7 @@ export default function UploadPage() {
             fileName:       item.parseResult.fileName,
             fileSize:       item.parseResult.fileSize,
             fileType:       item.parseResult.fileType,
-            source:         sourceType,
+            source:         'bank',
             bankName:       item.bankName,
             accountNumber:  item.accountNumber,
             detectedFormat: item.parseResult.detectedFormat,
@@ -156,19 +157,22 @@ export default function UploadPage() {
         파일을 한 번에 여러 개 선택하거나 드래그해서 일괄 업로드하세요.
       </p>
 
-      {/* 출처 선택 */}
-      <div className="flex gap-2 mb-4">
-        {(['bank', 'card'] as const).map(t => (
-          <button key={t} onClick={() => setSourceType(t)} disabled={isUploading}
-            className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-              sourceType === t
-                ? 'bg-slate-900 text-white border-slate-900'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-slate-500'
-            }`}
-          >
-            {t === 'bank' ? '🏦 은행 명세서' : '💳 카드 내역'}
-          </button>
-        ))}
+      {/* 출처 선택 — 이 화면은 은행 명세서 전용, 카드는 전용 화면으로 이동 */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <span className="px-4 py-2 rounded-lg text-sm font-medium border bg-slate-900 text-white border-slate-900">
+          🏦 은행 명세서
+        </span>
+        <Link href="/card-sales"
+          className="px-4 py-2 rounded-lg text-sm font-medium border bg-white text-gray-600 border-gray-300 hover:border-slate-500 transition-colors"
+        >
+          💳 카드매출 업로드 ↗
+        </Link>
+        <Link href="/card-expenses"
+          className="px-4 py-2 rounded-lg text-sm font-medium border bg-white text-gray-600 border-gray-300 hover:border-slate-500 transition-colors"
+        >
+          💳 법인카드 사용내역 업로드 ↗
+        </Link>
+        <span className="text-xs text-gray-400">카드 내역은 각 전용 화면에서 업로드하세요.</span>
       </div>
 
       {/* 드롭존 */}
@@ -244,22 +248,20 @@ export default function UploadPage() {
                         bankName: e.target.value,
                         status: e.target.value.trim() ? 'ready' : 'need_input',
                       })}
-                      placeholder={sourceType === 'bank' ? '은행명 *' : '카드사명'}
+                      placeholder="은행명 *"
                       disabled={item.status === 'uploading' || isUploading}
                       className={`w-28 text-sm border rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:bg-gray-50 disabled:text-gray-400 ${
                         !item.bankName.trim() ? 'border-orange-300 bg-orange-50' : 'border-gray-300'
                       }`}
                     />
-                    {sourceType === 'bank' && (
-                      <input
-                        type="text"
-                        value={item.accountNumber}
-                        onChange={e => patchItem(item.id, { accountNumber: e.target.value })}
-                        placeholder="계좌번호 (선택)"
-                        disabled={item.status === 'uploading' || isUploading}
-                        className="w-36 text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:bg-gray-50 disabled:text-gray-400"
-                      />
-                    )}
+                    <input
+                      type="text"
+                      value={item.accountNumber}
+                      onChange={e => patchItem(item.id, { accountNumber: e.target.value })}
+                      placeholder="계좌번호 (선택)"
+                      disabled={item.status === 'uploading' || isUploading}
+                      className="w-36 text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:bg-gray-50 disabled:text-gray-400"
+                    />
                   </div>
                 )}
 
