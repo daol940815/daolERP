@@ -5,12 +5,13 @@ import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 export const dynamic = 'force-dynamic'
 
-// POST /api/tax-invoices/auto-match — body: { direction?, taxType? }
+// POST /api/tax-invoices/auto-match — body: { direction?, taxType?, invoiceIds? }
 // 미확인(unmatched) 세금계산서 중, 금액이 일치하고 사업자번호 또는 거래처명이
 // 적요에 포함되는 거래내역이 단 하나로 좁혀지는 건만 자동으로 연결 처리한다.
+// invoiceIds가 있으면 그 선택 건들만 대상으로 한다(선택 자동매칭).
 export async function POST(req: NextRequest) {
   const admin = createAdminClient()
-  const body = await req.json().catch(() => ({})) as { direction?: string; taxType?: string }
+  const body = await req.json().catch(() => ({})) as { direction?: string; taxType?: string; invoiceIds?: string[] }
 
   const invoicesResult = await fetchAllRows<{ id: string; direction: string; total_amount: number; issue_date: string; vendor_id: string | null; counterparty_name: string | null; counterparty_biz_number: string | null }>((rFrom, rTo) => {
     let query = admin
@@ -22,7 +23,11 @@ export async function POST(req: NextRequest) {
     return query.range(rFrom, rTo)
   })
   if ('error' in invoicesResult) return NextResponse.json({ error: invoicesResult.error }, { status: 500 })
-  const invoices = invoicesResult.data
+  // 선택 건 한정 (URL 길이 문제를 피하려고 메모리에서 필터)
+  const onlyIds = body.invoiceIds?.length ? new Set(body.invoiceIds) : null
+  const invoices = onlyIds
+    ? invoicesResult.data.filter(inv => onlyIds.has(inv.id))
+    : invoicesResult.data
 
   // 이미 부분/분할 결제가 연결된 계산서는 자동매칭이 건너뛰고 수동(직접 찾기)으로 처리
   const invoiceIds = invoices.map(inv => inv.id)

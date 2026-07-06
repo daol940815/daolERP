@@ -572,17 +572,18 @@ export default function TaxInvoiceListPage() {
     load()
   }
 
-  const handleAutoMatch = async () => {
+  // ids를 주면 그 선택 건들만 자동매칭, 없으면 화면 전체(미확인) 대상
+  const handleAutoMatch = async (ids?: string[]) => {
     setMatching(true)
     const res  = await fetch('/api/tax-invoices/auto-match', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ direction, taxType }),
+      body: JSON.stringify({ direction, taxType, ...(ids?.length ? { invoiceIds: ids } : {}) }),
     })
     const json = await res.json()
     setMatching(false)
     if (!res.ok) { showMsg(`매칭 실패: ${json.error ?? '알 수 없는 오류'}`); return }
-    showMsg(`${json.checked}건 중 ${json.matched}건 자동 매칭됨`)
+    showMsg(`${ids?.length ? `선택 ${ids.length}건 중 ` : `${json.checked}건 중 `}${json.matched}건 자동 매칭됨`)
     load()
   }
 
@@ -699,7 +700,7 @@ export default function TaxInvoiceListPage() {
             ↓ {exporting ? '다운로드 중...' : '엑셀 다운로드'}
           </button>
           <button
-            onClick={handleAutoMatch}
+            onClick={() => handleAutoMatch()}
             disabled={matching || invoices.length === 0}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 flex items-center gap-1.5"
           >
@@ -801,6 +802,15 @@ export default function TaxInvoiceListPage() {
             </button>
           ))}
         </div>
+        {selected.size > 0 && (
+          <button
+            onClick={() => handleAutoMatch(Array.from(selected))}
+            disabled={matching}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-50"
+          >
+            ⚡ 선택 {selected.size}건 자동 매칭
+          </button>
+        )}
         {selected.size >= 2 && (
           <button
             onClick={() => setSumMatching(true)}
