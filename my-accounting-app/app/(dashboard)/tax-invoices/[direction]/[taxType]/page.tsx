@@ -678,6 +678,9 @@ export default function TaxInvoiceListPage() {
       )
     : invoices
 
+  // 체크박스가 보이는(선택 가능한) 행 = 아직 매칭 안 된 건
+  const selectableIds = filtered.filter(i => !i.matched_transaction_id).map(i => i.id)
+
   // ── 요약 통계 ────────────────────────────────────────────────────
   const totalAmt    = filtered.reduce((s, i) => s + (i.total_amount || 0), 0)
   const matchedList = filtered.filter(i => i.payment_status === 'matched')
@@ -819,10 +822,10 @@ export default function TaxInvoiceListPage() {
             선택 {selected.size}건 합계로 매칭
           </button>
         )}
-        {filtered.length > 0 && (
-          <button onClick={() => setSelected(new Set(filtered.map(i => i.id)))}
+        {selectableIds.length > 0 && (
+          <button onClick={() => setSelected(new Set(selectableIds))}
             className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
-            전체 선택 ({filtered.length})
+            전체 선택 ({selectableIds.length})
           </button>
         )}
         {selected.size > 0 && (
@@ -849,7 +852,19 @@ export default function TaxInvoiceListPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
-                <th className="py-2.5 px-3 font-medium w-8"></th>
+                <th className="py-2.5 px-3 font-medium w-8">
+                  <input
+                    type="checkbox"
+                    className="cursor-pointer"
+                    checked={selectableIds.length > 0 && selectableIds.every(id => selected.has(id))}
+                    ref={el => { if (el) el.indeterminate = selected.size > 0 && !selectableIds.every(id => selected.has(id)) }}
+                    onChange={() => {
+                      const all = selectableIds.length > 0 && selectableIds.every(id => selected.has(id))
+                      setSelected(all ? new Set() : new Set(selectableIds))
+                    }}
+                    title="전체 선택/해제"
+                  />
+                </th>
                 <th className="py-2.5 px-3 font-medium whitespace-nowrap">작성일자</th>
                 <th className="py-2.5 px-3 font-medium">거래처</th>
                 <th className="py-2.5 px-3 font-medium">품목</th>
