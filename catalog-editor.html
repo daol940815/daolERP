@@ -724,7 +724,7 @@ function resolveField(el, p, pageIdx) {
   switch(el.field) {
     case 'pageNum':     return String(displayNum).padStart(3,'0');
     case 'pageNumPlain': return String(displayNum);
-    case 'pageNumDash': return '- '+displayNum+' -';
+    case 'pageNumDash': return '-'+displayNum+'-';
     case 'pageNumFmt':  return '— '+displayNum+' —';
     case 'cfgTitle':    return cfg.title;
     case 'cfgBrand':    return cfg.brand;
