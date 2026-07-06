@@ -8,15 +8,19 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
 // POST /api/card-expenses/import
-// 법인카드 사용내역 업로드 (멀티 카드사·멀티 시트 지원).
-// - 카드사는 '카드구분' 컬럼(없으면 시트명)에서 행 단위로 표준화해 읽는다.
-// - 카드번호는 숫자만 추출해 정규화(대시/마스킹 차이 통일) → 카드계좌·중복키 안정화.
-// - 파일의 '계정과목'은 즉시 확정(confirmed), 비어 있으면 키워드 분류기가 제안(suggested→승인대기)
+// 법인카드 사용내역 업로드 (멀티 카드사·멀티 시트·멀티 양식 지원).
+// - 양식 프로파일: ① 표준(하나 등: 이용일·승인금액) ② 롯데(승인일자·승인금액(원화)·취소여부)
+//   ③ 우리(이용일자 MM.DD·접수/취소 — 연도는 상단 기간행에서 추출)
+// - 카드사 판정: 프로파일 고정(롯데/우리) → '카드구분' 컬럼 → 시트명 →
+//   기존 card_accounts 번호 앞자리(BIN) 추론 → 실패 시 '기타카드'(검토)
+// - 부가세 컬럼(하나·롯데)이 있으면 tax_amount로 저장 → 분개에서 부가세대급금 분리
 // - source_key(카드사|카드번호|이용일|이용시간|승인금액|가맹점명 + 동일키 순번)로 멱등 upsert.
 //   재업로드 시 사용자가 보정한 계정과목/분류는 보존한다.
 
-// 카드 양식 식별용 필수 컬럼
-const REQUIRED_COLS = ['카드번호', '이용일', '승인금액', '가맹점명']
+// 양식 프로파일 식별용 컬럼 (norm() 후 비교)
+const STD_COLS   = ['카드번호', '이용일', '승인금액', '가맹점명']            // 표준(하나 등)
+const LOTTE_COLS = ['카드번호', '승인일자', '승인금액(원화)', '가맹점명']     // 롯데 카드승인내역(그룹별)
+const WOORI_COLS = ['이용일자', '승인번호', '이용카드', '이용가맹점명']       // 우리 승인상세내역
 const CHUNK = 500
 
 // 카드구분/시트명 → 표준 카드사명 (그룹핑·거래처 일관성용)
@@ -129,6 +133,7 @@ export async function POST(req: NextRequest) {
     user_name: string | null
     account_text: string | null
     classification: string | null
+    tax_amount: number
     source_key: string
   }
 
@@ -138,13 +143,130 @@ export async function POST(req: NextRequest) {
   const cardKeys = new Set<string>()   // `${card_company}|${card_number}`
   let matchedAnySheet = false
 
+  // 카드사 판정 폴백용: 기존 카드계좌의 번호 앞자리(BIN) → 카드사
+  const { data: knownCards } = await admin
+    .from('card_accounts').select('card_company, card_number')
+  const binOf = (no: string) => normCardNo(no).slice(0, 4)
+  const companyByBin = new Map<string, string>()
+  for (const c of knownCards ?? []) {
+    const bin = binOf(c.card_number as string)
+    if (bin.length === 4) companyByBin.set(bin, c.card_company as string)
+  }
+  const inferCompany = (cardType: string | null, sheetName: string, cardNo: string): string => {
+    const byName = canonicalCardCompany(cardType, sheetName)
+    // canonicalCardCompany는 미인식 시 시트명을 그대로 반환 → 표준 카드사명이 아니면 BIN 추론
+    const KNOWN = ['하나카드','BC카드','롯데카드','신한카드','삼성카드','현대카드','국민카드','농협카드','우리카드']
+    if (KNOWN.includes(byName)) return byName
+    return companyByBin.get(binOf(cardNo)) ?? '기타카드'
+  }
+
+  const push = (p: Omit<ParsedRow, 'source_key'>) => {
+    const baseKey = `${p.card_company}|${p.card_number}|${p.tx_date}|${p.tx_time ?? ''}|${p.approved_amount}|${p.merchant_name ?? ''}`
+    const occ = (seen.get(baseKey) ?? 0) + 1
+    seen.set(baseKey, occ)
+    cardKeys.add(`${p.card_company}|${p.card_number}`)
+    parsed.push({ ...p, source_key: occ > 1 ? `${baseKey}#${occ}` : baseKey })
+  }
+  const has = (header: unknown[], cols: string[]) =>
+    cols.every(c => header.some(cell => norm(cell) === norm(c)))
+
   for (const wsName of wb.SheetNames) {
     const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wsName], { header: 1, raw: true, defval: '' })
-    const hi = rows.findIndex(row => REQUIRED_COLS.every(c => row.some(cell => norm(cell) === norm(c))))
-    if (hi < 0) continue   // 필수 컬럼 없는 시트(안내/요약 등)는 건너뜀
+    const hi = rows.findIndex(row => has(row, STD_COLS) || has(row, LOTTE_COLS) || has(row, WOORI_COLS))
+    if (hi < 0) continue   // 인식 가능한 헤더 없는 시트(안내/요약 등)는 건너뜀
     matchedAnySheet = true
     const header = rows[hi]
     const dataRows = rows.slice(hi + 1)
+
+    // ── 프로파일 ②: 롯데 (승인일자·승인금액(원화)·취소여부, 부가세 포함) ──
+    if (!has(header, STD_COLS) && has(header, LOTTE_COLS)) {
+      const col = {
+        cardNo:   findCol(header, '카드번호'),
+        user:     findCol(header, '회원명'),
+        date:     findCol(header, '승인일자'),
+        time:     findCol(header, '승인시간'),
+        merchant: findCol(header, '가맹점명'),
+        amount:   findCol(header, '승인금액(원화)'),
+        canceled: findCol(header, '취소여부'),
+        vat:      findCol(header, '부가세'),
+        bizNo:    findCol(header, '사업자번호'),
+        category: findCol(header, '가맹점업종'),
+        memo:     findCol(header, '메모(적요)'),
+      }
+      for (const row of dataRows) {
+        const cardNo = normCardNo(row[col.cardNo])
+        const date = toDateStr(row[col.date])
+        if (!cardNo || !date) { skipped++; continue }
+        const amount = toNumber(row[col.amount])
+        const isCanceled = String(row[col.canceled] ?? '').trim().toUpperCase() === 'Y'
+        push({
+          card_company: '롯데카드', card_number: cardNo,
+          tx_date: date, tx_time: col.time >= 0 ? toTimeStr(row[col.time]) : null,
+          card_type: null,
+          merchant_name: toStr(row[col.merchant]),
+          merchant_category: col.category >= 0 ? toStr(row[col.category]) : null,
+          merchant_biz_number: col.bizNo >= 0 ? toStr(row[col.bizNo]) : null,
+          approved_amount: isCanceled ? 0 : amount,
+          cancel_amount: isCanceled ? amount : 0,
+          settled_amount: 0,
+          statement_status: isCanceled ? '취소' : null,
+          usage_type: null, submall: null, source_sheet: wsName,
+          user_name: col.user >= 0 ? toStr(row[col.user]) : null,
+          account_text: null,
+          classification: col.memo >= 0 ? toStr(row[col.memo]) : null,
+          tax_amount: isCanceled ? 0 : (col.vat >= 0 ? toNumber(row[col.vat]) : 0),
+        })
+      }
+      continue
+    }
+
+    // ── 프로파일 ③: 우리 (이용일자 'MM.DD HH:MM', 연도는 상단 기간행) ──
+    if (!has(header, STD_COLS) && has(header, WOORI_COLS)) {
+      // 헤더 위 행들에서 'YYYY.MM.DD ~' 기간을 찾아 연도 결정
+      let periodYear: number | undefined
+      for (let r = 0; r < hi; r++) {
+        for (const cell of rows[r]) {
+          const m = String(cell ?? '').match(/(\d{4})\.\d{2}\.\d{2}\s*~/)
+          if (m) { periodYear = Number(m[1]); break }
+        }
+        if (periodYear) break
+      }
+      const col = {
+        date:     findCol(header, '이용일자'),
+        cardNo:   findCol(header, '이용카드'),
+        merchant: findCol(header, '이용가맹점명'),
+        amount:   findCol(header, '승인금액/취소(원)', '승인금액 /취소(원)', '승인금액/취소'),
+        status:   findCol(header, '접수/취소'),
+      }
+      // 금액 컬럼: 개행 포함 표기 대응 — norm 비교로 재탐색
+      if (col.amount < 0) col.amount = header.findIndex(h => norm(h).startsWith('승인금액'))
+      for (const row of dataRows) {
+        const rawDate = String(row[col.date] ?? '').trim()   // '04.27 12:26'
+        const m = rawDate.match(/^(\d{1,2})[.](\d{1,2})(?:\s+(\d{1,2}:\d{2}))?/)
+        const cardNo = normCardNo(row[col.cardNo])
+        if (!m || !cardNo || !periodYear) { if (rawDate || cardNo) skipped++; continue }
+        const date = `${periodYear}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`
+        const amount = toNumber(row[col.amount])
+        const isCanceled = String(row[col.status] ?? '').includes('취소')
+        push({
+          card_company: '우리카드', card_number: cardNo,
+          tx_date: date, tx_time: m[3] ? m[3].padStart(5, '0') : null,
+          card_type: null,
+          merchant_name: toStr(row[col.merchant]),
+          merchant_category: null, merchant_biz_number: null,
+          approved_amount: isCanceled ? 0 : amount,
+          cancel_amount: isCanceled ? amount : 0,
+          settled_amount: 0,
+          statement_status: isCanceled ? '취소' : null,
+          usage_type: null, submall: null, source_sheet: wsName,
+          user_name: null, account_text: null, classification: null,
+          tax_amount: 0,   // 우리카드 파일엔 부가세 정보 없음
+        })
+      }
+      continue
+    }
+
+    // ── 프로파일 ①: 표준 (하나 및 기존 합본 양식, 부가세 컬럼 지원 추가) ──
     const col0 = findCol(header, '이용일')
     // 시트의 기준 연도 추론(연도 있는 날짜 중 최빈) — 'MM.DD' 형식 보충용
     const yearCount = new Map<number, number>()
@@ -171,6 +293,7 @@ export async function POST(req: NextRequest) {
       user:       findCol(header, '사용자'),
       account:    findCol(header, '계정과목'),
       classify:   findCol(header, '분류'),
+      vat:        findCol(header, '부가세'),
     }
 
     for (const row of dataRows) {
@@ -178,27 +301,17 @@ export async function POST(req: NextRequest) {
       const date = toDateStr(row[col.date], sheetYear)
       if (!cardNo || !date) { skipped++; continue }
 
-      const company = canonicalCardCompany(col.cardType >= 0 ? toStr(row[col.cardType]) : null, wsName)
-      const time = col.time >= 0 ? toTimeStr(row[col.time]) : null
-      const approved = toNumber(row[col.approved])
-      const merchant = col.merchant >= 0 ? toStr(row[col.merchant]) : null
-
-      const baseKey = `${company}|${cardNo}|${date}|${time ?? ''}|${approved}|${merchant ?? ''}`
-      const occ = (seen.get(baseKey) ?? 0) + 1
-      seen.set(baseKey, occ)
-      const source_key = occ > 1 ? `${baseKey}#${occ}` : baseKey
-
-      cardKeys.add(`${company}|${cardNo}`)
-      parsed.push({
+      const company = inferCompany(col.cardType >= 0 ? toStr(row[col.cardType]) : null, wsName, cardNo)
+      push({
         card_company: company,
         card_number: cardNo,
         tx_date: date,
-        tx_time: time,
+        tx_time: col.time >= 0 ? toTimeStr(row[col.time]) : null,
         card_type: col.cardType >= 0 ? toStr(row[col.cardType]) : null,
-        merchant_name: merchant,
+        merchant_name: col.merchant >= 0 ? toStr(row[col.merchant]) : null,
         merchant_category: col.category >= 0 ? toStr(row[col.category]) : null,
         merchant_biz_number: col.bizNo >= 0 ? toStr(row[col.bizNo]) : null,
-        approved_amount: approved,
+        approved_amount: toNumber(row[col.approved]),
         cancel_amount: col.cancel >= 0 ? toNumber(row[col.cancel]) : 0,
         settled_amount: col.settled >= 0 ? toNumber(row[col.settled]) : 0,
         statement_status: col.status >= 0 ? toStr(row[col.status]) : null,
@@ -208,7 +321,7 @@ export async function POST(req: NextRequest) {
         user_name: col.user >= 0 ? toStr(row[col.user]) : null,
         account_text: col.account >= 0 ? toStr(row[col.account]) : null,
         classification: col.classify >= 0 ? toStr(row[col.classify]) : null,
-        source_key,
+        tax_amount: col.vat >= 0 ? toNumber(row[col.vat]) : 0,
       })
     }
   }
@@ -345,6 +458,7 @@ export async function POST(req: NextRequest) {
       ai_reason,
       // 분류: 파일 값 우선, 없으면 기존 보존
       classification: p.classification ?? prev?.classification ?? null,
+      tax_amount: p.tax_amount,
       source_key: p.source_key,
     }
   })
