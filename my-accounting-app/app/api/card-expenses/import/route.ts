@@ -431,22 +431,32 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 4) 기존 분류값 보존 (재업로드 시 사용자 보정 유지) ──
+  // source_key는 한글 가맹점명이 들어가 길다 — .in()으로 수백 개를 넘기면 요청 URL이
+  // 한도를 초과해 조회가 실패하므로, 업로드 파일의 날짜 범위로 조회해 메모리에서 매칭한다.
   const keys = parsed.map(p => p.source_key)
+  const keySet = new Set(keys)
+  const txDates = parsed.map(p => p.tx_date).sort()
+  const minDate = txDates[0]
+  const maxDate = txDates[txDates.length - 1]
   const preserved = new Map<string, { confirmed_account_id: string | null; classify_status: string; classification: string | null }>()
-  for (let i = 0; i < keys.length; i += CHUNK) {
-    const chunk = keys.slice(i, i + CHUNK)
-    const { data, error } = await admin
+  const existingResult = await fetchAllRows<{ source_key: string; confirmed_account_id: string | null; classify_status: string; classification: string | null }>((rFrom, rTo) =>
+    admin
       .from('card_expenses')
       .select('source_key, confirmed_account_id, classify_status, classification')
-      .in('source_key', chunk)
-    if (error) return NextResponse.json({ error: `기존 내역 조회 실패: ${error.message}` }, { status: 500 })
-    for (const r of data ?? []) {
-      preserved.set(r.source_key as string, {
-        confirmed_account_id: r.confirmed_account_id as string | null,
-        classify_status: r.classify_status as string,
-        classification: r.classification as string | null,
-      })
-    }
+      .gte('tx_date', minDate)
+      .lte('tx_date', maxDate)
+      .range(rFrom, rTo),
+  )
+  if ('error' in existingResult) {
+    return NextResponse.json({ error: `기존 내역 조회 실패: ${existingResult.error}` }, { status: 500 })
+  }
+  for (const r of existingResult.data) {
+    if (!keySet.has(r.source_key)) continue
+    preserved.set(r.source_key, {
+      confirmed_account_id: r.confirmed_account_id,
+      classify_status: r.classify_status,
+      classification: r.classification,
+    })
   }
 
   // ── 5) upsert 행 구성 ───────────────────────────────
@@ -528,15 +538,21 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 확정(파일 계정과목) 건 자동 분개 — "업로드 = 회계 자동 생성" ──
+  // 위와 같은 이유로 source_key .in() 대신 날짜 범위 조회 후 메모리 매칭.
   let posted = 0
-  for (let i = 0; i < keys.length; i += CHUNK) {
-    const { data: rows } = await admin
+  const confirmedResult = await fetchAllRows<{ id: string; source_key: string }>((rFrom, rTo) =>
+    admin
       .from('card_expenses')
-      .select('id')
-      .in('source_key', keys.slice(i, i + CHUNK))
+      .select('id, source_key')
+      .gte('tx_date', minDate)
+      .lte('tx_date', maxDate)
       .eq('classify_status', 'confirmed')
-    for (const r of rows ?? []) {
-      const jr = await syncCardExpenseJournal(admin, r.id as string)
+      .range(rFrom, rTo),
+  )
+  if (!('error' in confirmedResult)) {
+    for (const r of confirmedResult.data) {
+      if (!keySet.has(r.source_key)) continue
+      const jr = await syncCardExpenseJournal(admin, r.id)
       if (!('error' in jr)) posted++
     }
   }
