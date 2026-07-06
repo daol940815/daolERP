@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { getPeriodRange, PERIOD_PRESETS } from '@/lib/period-presets'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
@@ -24,7 +25,9 @@ interface Expense {
   suggested: { code: string; name: string } | null
 }
 
-export default function CardExpensesPage() {
+function CardExpensesContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [cardAccounts, setCardAccounts] = useState<CardAccount[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
   const [rows, setRows] = useState<Expense[]>([])
@@ -34,7 +37,7 @@ export default function CardExpensesPage() {
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const [cardAccountId, setCardAccountId] = useState('')
+  const [cardAccountId, setCardAccountId] = useState(() => searchParams.get('cardAccountId') ?? '')
   const [dateFrom, setDateFrom] = useState(() => getPeriodRange('당월').from)
   const [dateTo, setDateTo] = useState(() => getPeriodRange('당월').to)
   const [status, setStatus] = useState('')
@@ -52,6 +55,16 @@ export default function CardExpensesPage() {
     fetch('/api/card-accounts').then(r => r.json()).then(j => setCardAccounts(j.data ?? []))
     fetch('/api/accounts').then(r => r.json()).then(j => setAccounts(j.data ?? []))
   }, [])
+
+  // 사이드바 카드별 링크 클릭 → URL 파라미터 변경을 필터에 반영
+  const urlCardId = searchParams.get('cardAccountId') ?? ''
+  useEffect(() => { setCardAccountId(urlCardId) }, [urlCardId])
+
+  // 화면 내 드롭다운 변경 → URL에도 반영해 사이드바 하이라이트와 일치시킨다
+  const changeCard = (id: string) => {
+    setCardAccountId(id)
+    router.replace(id ? `/card-expenses?cardAccountId=${id}` : '/card-expenses', { scroll: false })
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -137,7 +150,7 @@ export default function CardExpensesPage() {
 
       {/* 필터 */}
       <div className="flex items-center gap-2 my-3 flex-wrap">
-        <select value={cardAccountId} onChange={e => setCardAccountId(e.target.value)}
+        <select value={cardAccountId} onChange={e => changeCard(e.target.value)}
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
           <option value="">전체 카드</option>
           {cardAccounts.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
@@ -246,5 +259,14 @@ export default function CardExpensesPage() {
         </div>
       )}
     </div>
+  )
+}
+
+// useSearchParams는 Suspense 경계가 필요 (transactions 페이지와 동일 패턴)
+export default function CardExpensesPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-gray-400 text-sm">로딩 중...</div>}>
+      <CardExpensesContent />
+    </Suspense>
   )
 }

@@ -108,12 +108,22 @@ function AddBankModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
   )
 }
 
+// 사이드바 카드 목록용 (법인카드 사용내역 카드별 바로가기)
+interface CardAccountItem {
+  id: string
+  card_company: string
+  card_number: string
+  alias: string | null
+}
+
 export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAccount[] }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
   const [banks, setBanks] = useState<BankAccount[]>(initialBanks)
   const [banksOpen, setBanksOpen] = useState(true)
+  const [cards, setCards] = useState<CardAccountItem[]>([])
+  const [cardsOpen, setCardsOpen] = useState(true)
   const [taxInvoicesOpen, setTaxInvoicesOpen] = useState(false)
   const [editingBankId, setEditingBankId] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState('')
@@ -122,6 +132,7 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
 
   // URL 쿼리 파라미터에서 직접 읽어 pathname 변경 없이도 계좌 선택 상태 반영
   const activeBankId = searchParams.get('bankAccountId')
+  const activeCardId = searchParams.get('cardAccountId')
 
   const fetchBanks = () => {
     fetch('/api/bank-accounts', { cache: 'no-store' })
@@ -130,7 +141,14 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
       .catch(() => null)
   }
 
-  useEffect(() => { fetchBanks() }, [pathname])
+  const fetchCards = () => {
+    fetch('/api/card-accounts', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.data)) setCards(d.data) })
+      .catch(() => null)
+  }
+
+  useEffect(() => { fetchBanks(); fetchCards() }, [pathname])
 
   // 편집 모드 시작
   const startEdit = (bankId: string, currentNumber: string | null) => {
@@ -238,10 +256,45 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             <span>카드결제내역(매출)</span>
           </Link>
 
-          <Link href="/card-expenses" className={linkCls(pathname.startsWith('/card-expenses'))}>
-            <span className="text-base leading-none">🧾</span>
-            <span>법인카드 사용내역</span>
-          </Link>
+          {/* ── 법인카드 사용내역 섹션 (카드별 바로가기 — 은행 계좌와 동일 패턴) ── */}
+          <div>
+            <div className="flex items-center mb-0.5">
+              <Link
+                href="/card-expenses"
+                className={`flex-1 min-w-0 ${linkCls(pathname.startsWith('/card-expenses') && !activeCardId)}`}
+              >
+                <span className="text-base leading-none">🧾</span>
+                <span className="truncate">법인카드 사용내역</span>
+              </Link>
+              <button
+                onClick={() => setCardsOpen(o => !o)}
+                className="shrink-0 px-2 py-2 text-xs text-slate-500 hover:text-white transition-colors"
+                title={cardsOpen ? '카드 목록 접기' : '카드 목록 펼치기'}
+              >
+                {cardsOpen ? '▾' : '▸'}
+              </button>
+            </div>
+
+            {cardsOpen && cards.length > 0 && (
+              <div className="ml-3 pl-3 border-l border-slate-700 mb-0.5">
+                {cards.map(card => (
+                  <Link
+                    key={card.id}
+                    href={`/card-expenses?cardAccountId=${card.id}`}
+                    className={linkCls(pathname.startsWith('/card-expenses') && activeCardId === card.id)}
+                  >
+                    <span className="text-xs leading-none text-slate-500 shrink-0">·</span>
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="truncate">{card.alias?.trim() || card.card_company}</span>
+                      <span className="text-xs text-slate-500 font-normal truncate">
+                        {card.alias?.trim() ? `${card.card_company} · ` : ''}끝 {card.card_number.replace(/\D/g, '').slice(-4)}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
 
           <Link href="/cash-receipts" className={linkCls(pathname.startsWith('/cash-receipts'))}>
             <span className="text-base leading-none">🧾</span>
