@@ -1,5 +1,8 @@
 // 기간 빠른 선택 프리셋 — 거래내역/카드결제내역 등 날짜 범위 필터에서 공용으로 사용
-export const PERIOD_PRESETS = ['당월', '전월', '당분기', '전분기', '당반기', '전반기', '당년', '전년'] as const
+// 분기/반기는 상대(당·전)가 아니라 절대(1~4분기, 상·하반기)로 제공한다.
+// 연도 규칙: 기본은 올해. 아직 시작하지 않은 분기/반기를 누르면 작년 것으로 해석한다.
+//   (예: 2026년 7월에 '4분기' 클릭 → 2025-10-01 ~ 12-31)
+export const PERIOD_PRESETS = ['당월', '전월', '1분기', '2분기', '3분기', '4분기', '상반기', '하반기', '당년', '전년'] as const
 
 export function getPeriodRange(period: string): { from: string; to: string } {
   const now = new Date()
@@ -15,6 +18,17 @@ export function getPeriodRange(period: string): { from: string; to: string } {
       return { from: fmt(new Date(y, m, 1)),     to: fmt(new Date(y, m + 1, 0)) }
     case '전월':
       return { from: fmt(new Date(y, m - 1, 1)), to: fmt(new Date(y, m, 0)) }
+    case '1분기': case '2분기': case '3분기': case '4분기': {
+      const q = Number(period[0]) - 1                    // 0-based 분기
+      const qy = new Date(y, q * 3, 1) > now ? y - 1 : y // 미래 분기면 작년으로
+      return { from: fmt(new Date(qy, q * 3, 1)), to: fmt(new Date(qy, q * 3 + 3, 0)) }
+    }
+    case '상반기': case '하반기': {
+      const h = period === '상반기' ? 0 : 1
+      const hy = new Date(y, h * 6, 1) > now ? y - 1 : y
+      return { from: fmt(new Date(hy, h * 6, 1)), to: fmt(new Date(hy, h * 6 + 6, 0)) }
+    }
+    // ── 아래 상대 프리셋은 화면 버튼에서 빠졌지만, 코드에서 직접 쓰는 곳이 있어 유지 ──
     case '당분기': {
       const q = Math.floor(m / 3)
       return { from: fmt(new Date(y, q * 3, 1)), to: fmt(new Date(y, q * 3 + 3, 0)) }
