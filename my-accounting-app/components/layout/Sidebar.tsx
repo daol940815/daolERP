@@ -127,8 +127,11 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
   const [taxInvoicesOpen, setTaxInvoicesOpen] = useState(false)
   const [editingBankId, setEditingBankId] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState('')
+  const [editingCardId, setEditingCardId] = useState<string | null>(null)
+  const [editingCardAlias, setEditingCardAlias] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const cardInputRef = useRef<HTMLInputElement>(null)
 
   // URL 쿼리 파라미터에서 직접 읽어 pathname 변경 없이도 계좌 선택 상태 반영
   const activeBankId = searchParams.get('bankAccountId')
@@ -155,6 +158,32 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
     setEditingBankId(bankId)
     setEditingValue(currentNumber ?? '')
     setTimeout(() => inputRef.current?.focus(), 50)
+  }
+
+  // 카드 별칭 편집
+  const startCardEdit = (cardId: string, currentAlias: string | null) => {
+    setEditingCardId(cardId)
+    setEditingCardAlias(currentAlias ?? '')
+    setTimeout(() => cardInputRef.current?.focus(), 50)
+  }
+
+  const handleSaveCardAlias = async (cardId: string) => {
+    try {
+      const res = await fetch(`/api/card-accounts/${cardId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alias: editingCardAlias.trim() || null }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        alert(`저장 실패: ${json.error ?? '알 수 없는 오류'}`)
+        return
+      }
+      setEditingCardId(null)
+      fetchCards()
+    } catch {
+      alert('네트워크 오류가 발생했습니다.')
+    }
   }
 
   // 계좌번호 저장
@@ -278,19 +307,68 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             {cardsOpen && cards.length > 0 && (
               <div className="ml-3 pl-3 border-l border-slate-700 mb-0.5">
                 {cards.map(card => (
-                  <Link
-                    key={card.id}
-                    href={`/card-expenses?cardAccountId=${card.id}`}
-                    className={linkCls(pathname.startsWith('/card-expenses') && activeCardId === card.id)}
-                  >
-                    <span className="text-xs leading-none text-slate-500 shrink-0">·</span>
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <span className="truncate">{card.alias?.trim() || card.card_company}</span>
-                      <span className="text-xs text-slate-500 font-normal truncate">
-                        {card.alias?.trim() ? `${card.card_company} · ` : ''}끝 {card.card_number.replace(/\D/g, '').slice(-4)}
-                      </span>
-                    </div>
-                  </Link>
+                  <div key={card.id} className="mb-0.5">
+                    {editingCardId === card.id ? (
+                      /* 별칭 인라인 편집 */
+                      <div className="px-2 py-2 rounded-lg bg-slate-800">
+                        <p className="text-xs text-slate-400 mb-1.5 truncate">
+                          {card.card_company} · 끝 {card.card_number.replace(/\D/g, '').slice(-4)}
+                        </p>
+                        <div className="flex gap-1">
+                          <input
+                            ref={cardInputRef}
+                            value={editingCardAlias}
+                            onChange={e => setEditingCardAlias(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleSaveCardAlias(card.id)
+                              if (e.key === 'Escape') setEditingCardId(null)
+                            }}
+                            placeholder="별칭 (예: 대표님 카드)"
+                            className="flex-1 min-w-0 text-xs bg-slate-700 text-white border border-slate-600 rounded px-2 py-1 focus:outline-none focus:border-blue-400 placeholder-slate-500"
+                          />
+                          <button
+                            onClick={() => handleSaveCardAlias(card.id)}
+                            className="shrink-0 text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-500"
+                          >
+                            저장
+                          </button>
+                          <button
+                            onClick={() => setEditingCardId(null)}
+                            className="shrink-0 text-xs px-1.5 py-1 text-slate-400 hover:text-white"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* 일반 표시 */
+                      <div className="group relative">
+                        <Link
+                          href={`/card-expenses?cardAccountId=${card.id}`}
+                          className={linkCls(pathname.startsWith('/card-expenses') && activeCardId === card.id)}
+                        >
+                          <span className="text-xs leading-none text-slate-500 shrink-0">·</span>
+                          <div className="flex flex-col min-w-0 flex-1 pr-5">
+                            <span className="truncate">{card.alias?.trim() || card.card_company}</span>
+                            <span className="text-xs text-slate-500 font-normal truncate">
+                              {card.alias?.trim() ? `${card.card_company} · ` : ''}끝 {card.card_number.replace(/\D/g, '').slice(-4)}
+                            </span>
+                          </div>
+                        </Link>
+                        {/* 호버 시 별칭 수정 버튼 */}
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center">
+                          <button
+                            onClick={() => startCardEdit(card.id, card.alias)}
+                            className="flex items-center justify-center w-5 h-5 rounded text-slate-500
+                                       hover:text-slate-300 hover:bg-slate-700 transition-colors text-xs"
+                            title="별칭 수정"
+                          >
+                            ✎
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
