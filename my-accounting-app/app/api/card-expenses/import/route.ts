@@ -192,6 +192,7 @@ export async function POST(req: NextRequest) {
         bizNo:    findCol(header, '사업자번호'),
         category: findCol(header, '가맹점업종'),
         memo:     findCol(header, '메모(적요)'),
+        account:  findCol(header, '계정과목'),   // 사용자 추가 컬럼 지원 (있으면 즉시 확정)
       }
       for (const row of dataRows) {
         const cardNo = normCardNo(row[col.cardNo])
@@ -212,7 +213,7 @@ export async function POST(req: NextRequest) {
           statement_status: isCanceled ? '취소' : null,
           usage_type: null, submall: null, source_sheet: wsName,
           user_name: col.user >= 0 ? toStr(row[col.user]) : null,
-          account_text: null,
+          account_text: col.account >= 0 ? toStr(row[col.account]) : null,
           classification: col.memo >= 0 ? toStr(row[col.memo]) : null,
           tax_amount: isCanceled ? 0 : (col.vat >= 0 ? toNumber(row[col.vat]) : 0),
         })
@@ -237,6 +238,7 @@ export async function POST(req: NextRequest) {
         merchant: findCol(header, '이용가맹점명'),
         amount:   findCol(header, '승인금액/취소(원)', '승인금액 /취소(원)', '승인금액/취소'),
         status:   findCol(header, '접수/취소'),
+        account:  findCol(header, '계정과목'),   // 사용자 추가 컬럼 지원
       }
       // 금액 컬럼: 개행 포함 표기 대응 — norm 비교로 재탐색
       if (col.amount < 0) col.amount = header.findIndex(h => norm(h).startsWith('승인금액'))
@@ -259,7 +261,9 @@ export async function POST(req: NextRequest) {
           settled_amount: 0,
           statement_status: isCanceled ? '취소' : null,
           usage_type: null, submall: null, source_sheet: wsName,
-          user_name: null, account_text: null, classification: null,
+          user_name: null,
+          account_text: col.account >= 0 ? toStr(row[col.account]) : null,
+          classification: null,
           tax_amount: 0,   // 우리카드 파일엔 부가세 정보 없음
         })
       }
