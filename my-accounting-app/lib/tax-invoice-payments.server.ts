@@ -51,6 +51,59 @@ export async function recalcInvoiceStatus(admin: Admin, invoiceId: string) {
 
 type Result = { ok: true } | { ok: false; error: string }
 
+// ── 매칭 학습 (거래처 마스터 정책 §7) ─────────────────────────
+// 사용자가 계산서와 거래내역을 연결한 판단을 데이터로 축적한다:
+//   ① 거래내역에 거래처 태깅 (다음 자동매칭에서 같은 거래처 거래로 즉시 후보화)
+//   ② 입금자명/적요를 거래처 별칭으로 저장 (같은 표기가 다시 오면 자동 인식)
+//   ③ 거래처에 사업자번호가 없으면 계산서의 번호로 백필 (최상위 매칭 키 확보)
+// 부분결제 연결에서도 학습한다. 실패해도 연결 자체에는 영향을 주지 않는다.
+async function learnFromPaymentLink(admin: Admin, invoiceId: string, transactionId: string) {
+  try {
+    const { data: inv } = await admin
+      .from('tax_invoices')
+      .select('vendor_id, counterparty_biz_number')
+      .eq('id', invoiceId)
+      .single()
+    if (!inv?.vendor_id) return
+
+    const { data: tx } = await admin
+      .from('transactions')
+      .select('vendor_id, counterparty_name, description')
+      .eq('id', transactionId)
+      .single()
+    if (!tx) return
+
+    // ① 거래내역 거래처 태깅 (비어 있을 때만 — 수동 지정 존중)
+    if (!tx.vendor_id) {
+      await admin.from('transactions').update({ vendor_id: inv.vendor_id }).eq('id', transactionId)
+    }
+
+    const { data: vendor } = await admin
+      .from('vendors')
+      .select('name, match_aliases, biz_number')
+      .eq('id', inv.vendor_id)
+      .single()
+    if (!vendor) return
+
+    // ② 입금자명/적요 → 별칭 자동 저장
+    const alias = ((tx.counterparty_name as string | null) ?? (tx.description as string | null) ?? '').trim()
+    const existing = (vendor.match_aliases as string[] | null) ?? []
+    const updates: Record<string, unknown> = {}
+    if (alias.length >= 2 && alias !== vendor.name && !existing.includes(alias)) {
+      updates.match_aliases = [...existing, alias]
+    }
+    // ③ 사업자번호 백필
+    if (!vendor.biz_number && inv.counterparty_biz_number) {
+      updates.biz_number = inv.counterparty_biz_number
+    }
+    if (Object.keys(updates).length) {
+      await admin.from('vendors').update(updates).eq('id', inv.vendor_id)
+    }
+  } catch {
+    // 학습 실패는 조용히 무시 (연결 결과에 영향 없음)
+  }
+}
+
 // 거래내역 1건을 계산서에 지정한 금액만큼 연결 (분할/합산 결제 공용)
 // 같은 거래내역이 이미 연결되어 있으면 금액을 갱신한다.
 export async function addInvoicePayment(
@@ -86,6 +139,7 @@ export async function addInvoicePayment(
   if (error) return { ok: false, error: error.message }
 
   await recalcInvoiceStatus(admin, invoiceId)
+  await learnFromPaymentLink(admin, invoiceId, transactionId)
   return { ok: true }
 }
 
