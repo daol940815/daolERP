@@ -385,6 +385,51 @@ export async function POST(req: NextRequest) {
     .filter(a => Array.isArray(a.keywords) && (a.keywords as string[]).length > 0)
     .map(a => ({ id: a.id as string, keywords: a.keywords as string[] }))
 
+  // ── 3-1) 가맹점 학습 (거래처 마스터 정책 §7 — 확정 이력이 곧 추천 데이터) ──
+  // 과거에 사용자가 확정한 카드 건들을 가맹점(사업자번호 우선, 이름 차선)별로 집계해,
+  // 같은 가맹점의 새 거래에 "이전 확정 계정"을 추천한다(과반 계정만, 추천 전용 — 확정은 사용자).
+  const learnedByBiz = new Map<string, Map<string, number>>()
+  const learnedByName = new Map<string, Map<string, number>>()
+  {
+    const hist = await fetchAllRows<{ merchant_biz_number: string | null; merchant_name: string | null; confirmed_account_id: string }>((f, t) =>
+      admin.from('card_expenses')
+        .select('merchant_biz_number, merchant_name, confirmed_account_id')
+        .eq('classify_status', 'confirmed')
+        .not('confirmed_account_id', 'is', null)
+        .range(f, t))
+    if (!('error' in hist)) {
+      const bump = (m: Map<string, Map<string, number>>, key: string, acc: string) => {
+        const c = m.get(key) ?? new Map<string, number>()
+        c.set(acc, (c.get(acc) ?? 0) + 1)
+        m.set(key, c)
+      }
+      for (const h of hist.data) {
+        const biz = (h.merchant_biz_number ?? '').replace(/\D/g, '')
+        if (biz.length >= 10) bump(learnedByBiz, biz, h.confirmed_account_id)
+        const nm = (h.merchant_name ?? '').trim()
+        if (nm.length >= 2) bump(learnedByName, nm, h.confirmed_account_id)
+      }
+    }
+  }
+  // 과반(50% 초과) 계정만 학습 추천으로 인정 — 확정 이력이 갈리는 가맹점은 추천하지 않음
+  const learnedAccount = (bizNo: string | null, name: string | null): { id: string; hits: number } | null => {
+    const tryMap = (m: Map<string, Map<string, number>>, key: string) => {
+      const c = m.get(key)
+      if (!c) return null
+      const total = Array.from(c.values()).reduce((a, b) => a + b, 0)
+      const [accId, hits] = Array.from(c.entries()).sort((a, b) => b[1] - a[1])[0]
+      return hits * 2 > total ? { id: accId, hits } : null
+    }
+    const biz = (bizNo ?? '').replace(/\D/g, '')
+    if (biz.length >= 10) {
+      const r = tryMap(learnedByBiz, biz)
+      if (r) return r
+    }
+    const nm = (name ?? '').trim()
+    if (nm.length >= 2) return tryMap(learnedByName, nm)
+    return null
+  }
+
   // ── 4) 기존 분류값 보존 (재업로드 시 사용자 보정 유지) ──
   const keys = parsed.map(p => p.source_key)
   const preserved = new Map<string, { confirmed_account_id: string | null; classify_status: string; classification: string | null }>()
@@ -427,14 +472,22 @@ export async function POST(req: NextRequest) {
       confirmed_account_id = prev.confirmed_account_id
       classify_status = 'confirmed'
     } else {
-      // 키워드 분류기로 제안 (승인 대기)
-      const text = [p.merchant_name, p.merchant_category].filter(Boolean).join(' ')
-      const hit = classifyByKeywords(text, accountsWithKw)
-      if (hit) {
-        suggested_account_id = hit.id
-        ai_reason = `키워드 매칭: "${hit.keyword}"`
-        ai_confidence = 0.8
+      // ① 가맹점 학습 추천 (이전 확정 이력) → ② 키워드 제안 — 모두 승인 대기
+      const learned = learnedAccount(p.merchant_biz_number, p.merchant_name)
+      if (learned) {
+        suggested_account_id = learned.id
+        ai_reason = `가맹점 학습: 이전 확정 ${learned.hits}건`
+        ai_confidence = 0.85
         suggestedCount++
+      } else {
+        const text = [p.merchant_name, p.merchant_category].filter(Boolean).join(' ')
+        const hit = classifyByKeywords(text, accountsWithKw)
+        if (hit) {
+          suggested_account_id = hit.id
+          ai_reason = `키워드 매칭: "${hit.keyword}"`
+          ai_confidence = 0.8
+          suggestedCount++
+        }
       }
       classify_status = 'pending'
     }
