@@ -266,11 +266,18 @@ export async function POST(req: NextRequest) {
   {
     // 매입처/매출처명에 괄호·쉼표·따옴표 등이 섞여 있으면 .in() 필터 구문이
     // 깨질 수 있으므로, 전체 별칭을 가져와 메모리에서 매칭한다.
-    const result = await fetchAllRows<{ id: string; alias_type: string; erp_name: string }>((from, to) =>
-      admin.from('erp_vendor_aliases').select('id, alias_type, erp_name').range(from, to),
+    const result = await fetchAllRows<{ id: string; alias_type: string; erp_name: string; merged_into_alias_id: string | null }>((from, to) =>
+      admin.from('erp_vendor_aliases').select('id, alias_type, erp_name, merged_into_alias_id').range(from, to),
     )
     if ('error' in result) return NextResponse.json({ error: `별칭 조회 실패: ${result.error}` }, { status: 500 })
-    for (const a of result.data) aliasMap.set(`${a.alias_type}|${a.erp_name}`, a.id)
+    // 병합 학습(정책 §7): 병합돼 흡수된 이름이 파일에 다시 와도 대표 별칭으로 자동 연결
+    const redirect = new Map(result.data.filter(a => a.merged_into_alias_id).map(a => [a.id, a.merged_into_alias_id!]))
+    const canonical = (id: string): string => {
+      let cur = id
+      for (let i = 0; i < 5 && redirect.has(cur); i++) cur = redirect.get(cur)!
+      return cur
+    }
+    for (const a of result.data) aliasMap.set(`${a.alias_type}|${a.erp_name}`, canonical(a.id))
   }
 
   // ── 3) 주문 upsert ──────────────────────────────────

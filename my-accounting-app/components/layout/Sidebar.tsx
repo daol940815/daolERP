@@ -523,6 +523,10 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             <span className="text-base leading-none">💰</span>
             <span>수금 매칭</span>
           </Link>
+          <Link href="/vendor-dedup" className={linkCls(pathname.startsWith('/vendor-dedup'))}>
+            <span className="text-base leading-none">🧹</span>
+            <span>거래처 중복 정리</span>
+          </Link>
         </div>
 
         {/* ── 설정 ── */}
