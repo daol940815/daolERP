@@ -16,6 +16,7 @@ export interface CardExpenseForPosting {
   tx_date: string
   merchant_name: string | null
   approved_amount: number | null
+  cancel_amount: number | null
   tax_amount: number | null
   confirmed_account_id: string | null
   classify_status: string
@@ -31,7 +32,9 @@ export function buildCardPosting(
     return { error: '확정된 계정과목이 없습니다.' }
   }
   if (!payableAccountId) return { error: '미지급금(2001) 계정이 없습니다.' }
-  const amount = exp.approved_amount ?? 0
+  // 같은 행에 부분취소가 병기된 경우(우리·BC 양식) 순액만 전기한다.
+  // 전액취소면 순액 0 → 전기하지 않음(= 기존 분개가 있으면 취소).
+  const amount = (exp.approved_amount ?? 0) - (exp.cancel_amount ?? 0)
   if (amount <= 0) return { error: '전기할 금액이 없습니다.' }
 
   // 부가세 분리: 파일 제공 세액이 유효 범위(0 < 세액 < 승인금액)이고 계정이 있으면 매입세액 분리
@@ -65,7 +68,7 @@ export async function syncCardExpenseJournal(
 ): Promise<{ ok: true } | { error: string }> {
   const { data: exp, error } = await admin
     .from('card_expenses')
-    .select('id, tx_date, merchant_name, approved_amount, tax_amount, confirmed_account_id, classify_status, card_accounts(vendor_id)')
+    .select('id, tx_date, merchant_name, approved_amount, cancel_amount, tax_amount, confirmed_account_id, classify_status, card_accounts(vendor_id)')
     .eq('id', expenseId)
     .single()
   if (error) return { error: error.message }
@@ -78,7 +81,7 @@ export async function syncCardExpenseJournal(
   const shouldPost =
     exp.classify_status === 'confirmed' &&
     !!exp.confirmed_account_id &&
-    (exp.approved_amount ?? 0) > 0
+    (exp.approved_amount ?? 0) - (exp.cancel_amount ?? 0) > 0
 
   if (!shouldPost) {
     return unpostJournal(admin, 'card', expenseId).then(r => ('error' in r ? r : { ok: true as const }))

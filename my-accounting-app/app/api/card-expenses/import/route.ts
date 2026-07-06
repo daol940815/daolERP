@@ -10,7 +10,7 @@ export const maxDuration = 120
 // POST /api/card-expenses/import
 // 법인카드 사용내역 업로드 (멀티 카드사·멀티 시트·멀티 양식 지원).
 // - 양식 프로파일: ① 표준(하나 등: 이용일·승인금액) ② 롯데(승인일자·승인금액(원화)·취소여부)
-//   ③ 우리(이용일자 MM.DD·접수/취소 — 연도는 상단 기간행에서 추출)
+//   ③ 우리·BC(이용일자 MM.DD·접수/취소 — 연도는 상단 기간행, 카드사는 파일명에서 구분)
 // - 카드사 판정: 프로파일 고정(롯데/우리) → '카드구분' 컬럼 → 시트명 →
 //   기존 card_accounts 번호 앞자리(BIN) 추론 → 실패 시 '기타카드'(검토)
 // - 부가세 컬럼(하나·롯데)이 있으면 tax_amount로 저장 → 분개에서 부가세대급금 분리
@@ -22,6 +22,7 @@ const STD_COLS   = ['카드번호', '이용일', '승인금액', '가맹점명']
 const LOTTE_COLS = ['카드번호', '승인일자', '승인금액(원화)', '가맹점명']     // 롯데 카드승인내역(그룹별)
 const WOORI_COLS = ['이용일자', '승인번호', '이용카드', '이용가맹점명']       // 우리 승인상세내역
 const CHUNK = 500
+const KNOWN_COMPANIES = ['하나카드', 'BC카드', '롯데카드', '신한카드', '삼성카드', '현대카드', '국민카드', '농협카드', '우리카드']
 
 // 카드구분/시트명 → 표준 카드사명 (그룹핑·거래처 일관성용)
 function canonicalCardCompany(cardType: string | null, sheetName: string): string {
@@ -155,8 +156,7 @@ export async function POST(req: NextRequest) {
   const inferCompany = (cardType: string | null, sheetName: string, cardNo: string): string => {
     const byName = canonicalCardCompany(cardType, sheetName)
     // canonicalCardCompany는 미인식 시 시트명을 그대로 반환 → 표준 카드사명이 아니면 BIN 추론
-    const KNOWN = ['하나카드','BC카드','롯데카드','신한카드','삼성카드','현대카드','국민카드','농협카드','우리카드']
-    if (KNOWN.includes(byName)) return byName
+    if (KNOWN_COMPANIES.includes(byName)) return byName
     return companyByBin.get(binOf(cardNo)) ?? '기타카드'
   }
 
@@ -221,8 +221,12 @@ export async function POST(req: NextRequest) {
       continue
     }
 
-    // ── 프로파일 ③: 우리 (이용일자 'MM.DD HH:MM', 연도는 상단 기간행) ──
+    // ── 프로파일 ③: 우리·BC (이용일자 'MM.DD HH:MM', 연도는 상단 기간행) ──
+    // BC카드 다운로드 양식이 우리카드와 동일(BC 프로세싱) — 파일 안에 카드사 표기가
+    // 없으므로 파일명에서 카드사를 구분하고, 단서가 없으면 우리카드로 본다.
     if (!has(header, STD_COLS) && has(header, WOORI_COLS)) {
+      const byFileName = canonicalCardCompany(null, file.name)
+      const profileCompany = KNOWN_COMPANIES.includes(byFileName) ? byFileName : '우리카드'
       // 헤더 위 행들에서 'YYYY.MM.DD ~' 기간을 찾아 연도 결정
       let periodYear: number | undefined
       for (let r = 0; r < hi; r++) {
@@ -248,18 +252,23 @@ export async function POST(req: NextRequest) {
         const cardNo = normCardNo(row[col.cardNo])
         if (!m || !cardNo || !periodYear) { if (rawDate || cardNo) skipped++; continue }
         const date = `${periodYear}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`
-        const amount = toNumber(row[col.amount])
+        // 금액 병기 표기 대응: '20,830  (-11,500)' = 승인 20,830 중 11,500 취소
+        // (괄호를 못 읽으면 toNumber가 NaN→0으로 만들어 금액이 통째로 사라진다)
+        const rawAmount = String(row[col.amount] ?? '').trim()
+        const combo = rawAmount.match(/^([\d,]+)\s*\(\s*-\s*([\d,]+)\s*\)$/)
+        const amount = combo ? toNumber(combo[1]) : toNumber(rawAmount)
+        const canceledPart = combo ? toNumber(combo[2]) : 0
         const isCanceled = String(row[col.status] ?? '').includes('취소')
         push({
-          card_company: '우리카드', card_number: cardNo,
+          card_company: profileCompany, card_number: cardNo,
           tx_date: date, tx_time: m[3] ? m[3].padStart(5, '0') : null,
           card_type: null,
           merchant_name: toStr(row[col.merchant]),
           merchant_category: null, merchant_biz_number: null,
           approved_amount: isCanceled ? 0 : amount,
-          cancel_amount: isCanceled ? amount : 0,
+          cancel_amount: isCanceled ? amount : canceledPart,
           settled_amount: 0,
-          statement_status: isCanceled ? '취소' : null,
+          statement_status: toStr(row[col.status]),
           usage_type: null, submall: null, source_sheet: wsName,
           user_name: null,
           account_text: col.account >= 0 ? toStr(row[col.account]) : null,
