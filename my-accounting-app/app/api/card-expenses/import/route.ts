@@ -10,7 +10,7 @@ export const maxDuration = 120
 // POST /api/card-expenses/import
 // 법인카드 사용내역 업로드 (멀티 카드사·멀티 시트·멀티 양식 지원).
 // - 양식 프로파일: ① 표준(하나 등: 이용일·승인금액) ② 롯데(승인일자·승인금액(원화)·취소여부)
-//   ③ 우리·BC(이용일자 MM.DD·접수/취소 — 연도는 상단 기간행, 카드사는 파일명에서 구분)
+//   ③ 우리·BC(이용일자 MM.DD·접수/취소 — 연도는 상단 기간행, BC 표기는 우리카드로 통일)
 // - 카드사 판정: 프로파일 고정(롯데/우리) → '카드구분' 컬럼 → 시트명 →
 //   기존 card_accounts 번호 앞자리(BIN) 추론 → 실패 시 '기타카드'(검토)
 // - 부가세 컬럼(하나·롯데)이 있으면 tax_amount로 저장 → 분개에서 부가세대급금 분리
@@ -22,13 +22,15 @@ const STD_COLS   = ['카드번호', '이용일', '승인금액', '가맹점명']
 const LOTTE_COLS = ['카드번호', '승인일자', '승인금액(원화)', '가맹점명']     // 롯데 카드승인내역(그룹별)
 const WOORI_COLS = ['이용일자', '승인번호', '이용카드', '이용가맹점명']       // 우리 승인상세내역
 const CHUNK = 500
-const KNOWN_COMPANIES = ['하나카드', 'BC카드', '롯데카드', '신한카드', '삼성카드', '현대카드', '국민카드', '농협카드', '우리카드']
+const KNOWN_COMPANIES = ['하나카드', '롯데카드', '신한카드', '삼성카드', '현대카드', '국민카드', '농협카드', '우리카드']
 
 // 카드구분/시트명 → 표준 카드사명 (그룹핑·거래처 일관성용)
 function canonicalCardCompany(cardType: string | null, sheetName: string): string {
   const s = `${cardType ?? ''} ${sheetName}`.toLowerCase()
   if (s.includes('하나')) return '하나카드'
-  if (s.includes('bc') || s.includes('비씨')) return 'BC카드'
+  // BC 표기는 우리카드로 통일 — 자사 법인카드는 우리BC 계열이라 같은 카드가
+  // 다운로드 원천(BC/우리)에 따라 두 카드사로 갈라져 원장이 분리되는 것을 막는다
+  if (s.includes('bc') || s.includes('비씨')) return '우리카드'
   if (s.includes('롯데')) return '롯데카드'
   if (s.includes('신한')) return '신한카드'
   if (s.includes('삼성')) return '삼성카드'
@@ -207,8 +209,10 @@ export async function POST(req: NextRequest) {
           merchant_name: toStr(row[col.merchant]),
           merchant_category: col.category >= 0 ? toStr(row[col.category]) : null,
           merchant_biz_number: col.bizNo >= 0 ? toStr(row[col.bizNo]) : null,
+          // 취소금액은 파일에 음수로 적히기도 함(-7,500) — 부호를 양수로 통일해 저장
+          // (분개가 승인-취소 순액을 쓰므로 부호가 섞이면 취소가 가산되는 사고가 난다)
           approved_amount: isCanceled ? 0 : amount,
-          cancel_amount: isCanceled ? amount : 0,
+          cancel_amount: isCanceled ? Math.abs(amount) : 0,
           settled_amount: 0,
           statement_status: isCanceled ? '취소' : null,
           usage_type: null, submall: null, source_sheet: wsName,
@@ -222,11 +226,9 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 프로파일 ③: 우리·BC (이용일자 'MM.DD HH:MM', 연도는 상단 기간행) ──
-    // BC카드 다운로드 양식이 우리카드와 동일(BC 프로세싱) — 파일 안에 카드사 표기가
-    // 없으므로 파일명에서 카드사를 구분하고, 단서가 없으면 우리카드로 본다.
+    // BC 다운로드 양식도 우리카드와 동일(BC 프로세싱) — 자사 카드는 우리BC 계열이라
+    // 전부 '우리카드'로 통일 기록한다(같은 카드가 두 카드사로 갈라지는 것 방지).
     if (!has(header, STD_COLS) && has(header, WOORI_COLS)) {
-      const byFileName = canonicalCardCompany(null, file.name)
-      const profileCompany = KNOWN_COMPANIES.includes(byFileName) ? byFileName : '우리카드'
       // 헤더 위 행들에서 'YYYY.MM.DD ~' 기간을 찾아 연도 결정
       let periodYear: number | undefined
       for (let r = 0; r < hi; r++) {
@@ -260,13 +262,13 @@ export async function POST(req: NextRequest) {
         const canceledPart = combo ? toNumber(combo[2]) : 0
         const isCanceled = String(row[col.status] ?? '').includes('취소')
         push({
-          card_company: profileCompany, card_number: cardNo,
+          card_company: '우리카드', card_number: cardNo,
           tx_date: date, tx_time: m[3] ? m[3].padStart(5, '0') : null,
           card_type: null,
           merchant_name: toStr(row[col.merchant]),
           merchant_category: null, merchant_biz_number: null,
           approved_amount: isCanceled ? 0 : amount,
-          cancel_amount: isCanceled ? amount : canceledPart,
+          cancel_amount: Math.abs(isCanceled ? amount : canceledPart),
           settled_amount: 0,
           statement_status: toStr(row[col.status]),
           usage_type: null, submall: null, source_sheet: wsName,
@@ -325,7 +327,8 @@ export async function POST(req: NextRequest) {
         merchant_category: col.category >= 0 ? toStr(row[col.category]) : null,
         merchant_biz_number: col.bizNo >= 0 ? toStr(row[col.bizNo]) : null,
         approved_amount: toNumber(row[col.approved]),
-        cancel_amount: col.cancel >= 0 ? toNumber(row[col.cancel]) : 0,
+        // 취소금액 부호 통일(양수) — 하나 등은 승인취소금액을 음수로 내려준다
+        cancel_amount: col.cancel >= 0 ? Math.abs(toNumber(row[col.cancel])) : 0,
         settled_amount: col.settled >= 0 ? toNumber(row[col.settled]) : 0,
         statement_status: col.status >= 0 ? toStr(row[col.status]) : null,
         usage_type: col.usageType >= 0 ? toStr(row[col.usageType]) : null,
