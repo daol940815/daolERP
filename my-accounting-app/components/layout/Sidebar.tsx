@@ -608,6 +608,10 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             <span className="text-base leading-none">📋</span>
             <span>월별 손익현황</span>
           </Link>
+          <Link href="/reports/double-count" className={linkCls(pathname.startsWith('/reports/double-count'))}>
+            <span className="text-base leading-none">🛡</span>
+            <span>이중계상 검사</span>
+          </Link>
           <Link href="/reports/vat-estimate" className={linkCls(pathname.startsWith('/reports/vat-estimate'))}>
             <span className="text-base leading-none">🧾</span>
             <span>예상 부가세</span>

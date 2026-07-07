@@ -1,8 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-// ── 월별 손익현황 (경영관리용) ───────────────────────────
-// ERP 주문 기준 매출/매출원가 + 세금계산서(매입·매출) 계정과목 분류분 + 은행거래 계정과목 분류분을
-// 월별로 집계한다.
+// ── 월별 손익현황 (경영관리용) — 분개 기반 ───────────────────────
+// 원칙 (2026-07 사장님 결정):
+//   1. 매출·매출원가는 ERP 주문 기준 (취소·VIP·선결제 제외)
+//   2. 매입성 계정(매출원가 5001·상품매입 5002)과 매출 세계 분개(4001)는
+//      역할분리 계정 — 원장·채권채무 관리용으로 분개는 유지하되 손익에선 제외
+//      (ERP 매출·원가가 그 자리를 대신한다. 4004는 legacy 계정으로 제외)
+//   3. 나머지 수익·비용 계정은 분개(journal_lines) 집계로 동적 표시
+//      → 법인카드·세금계산서·통장 등 원천과 무관하게 "확정→분개→손익"이 일치
 
 export interface PLLineItem {
   key: string
@@ -17,6 +22,11 @@ export interface MonthlyPLResult {
   months: string[]   // 'YYYY-MM'
   items: PLLineItem[]
 }
+
+// 손익에서 제외하는 역할분리 계정 (분개는 존재하되 ERP 수치가 대신함)
+const EXCLUDED_CODES = new Set(['4001', '4004', '5001', '5002'])
+// 영업외비용 코드 구간 (53xx) — 그 외 비용은 판매관리비
+const isNonOpExpense = (code: string) => code.startsWith('53')
 
 function monthRange(from: string, to: string): string[] {
   const result: string[] = []
@@ -44,150 +54,106 @@ export async function buildMonthlyPL(
   const months = monthRange(from, to)
   const dateFrom = `${from}-01`
   const dateTo = lastDayOfMonth(to)
+  const monthIdx = new Map(months.map((m, i) => [m, i]))
 
-  // 1. ERP 매출·매출원가 (기존 RPC 유지)
+  // 1. ERP 매출·매출원가
   const { data: plRows, error: pe } = await admin
     .rpc('monthly_pl_order_summary', { p_from: dateFrom, p_to: dateTo })
   if (pe) return { error: pe.message }
 
-  // 2. 매입세금계산서 계정과목별 월별 합계 (신규 RPC)
-  const { data: tiRows, error: tie } = await admin
-    .rpc('monthly_pl_tax_invoice_summary', { p_from: dateFrom, p_to: dateTo })
-  if (tie) return { error: tie.message }
+  // 2. 분개 집계 (월 × 계정 × 차/대변)
+  const { data: jRows, error: je } = await admin
+    .rpc('monthly_pl_journal_summary', { p_from: dateFrom, p_to: dateTo })
+  if (je) {
+    return { error: `분개 집계 실패: ${je.message} — 058 마이그레이션(monthly_pl_journal_summary) 적용이 필요합니다.` }
+  }
 
-  // 3. 은행 거래 계정과목별 월별 합계 (신규 RPC - 기존 청크 방식 대체)
-  const { data: txRows, error: txe } = await admin
-    .rpc('monthly_pl_tx_account_summary', { p_from: dateFrom, p_to: dateTo })
-  if (txe) return { error: txe.message }
-
-  // 4. 계정 코드 조회 (code → id 매핑)
+  // 3. 계정 마스터 (수익/비용 계정만 손익 대상)
   const { data: accountList, error: ae } = await admin
     .from('accounts')
-    .select('id, code')
-    .not('code', 'is', null)
+    .select('id, code, name, type')
   if (ae) return { error: ae.message }
-  const codeToId = new Map((accountList ?? []).map(a => [a.code as string, a.id as string]))
+  const accounts = new Map((accountList ?? []).map(a => [
+    a.id as string,
+    { code: (a.code as string) ?? '', name: (a.name as string) ?? '', type: (a.type as string) ?? '' },
+  ]))
 
-  // 5. 월별·계정별 집계 맵 구성 (세금계산서는 매입/매출 방향을 분리하여 집계)
-  const tiPurchaseByAccMonth = new Map<string, Map<string, number>>()
-  const tiSalesByAccMonth    = new Map<string, Map<string, number>>()
-  for (const r of tiRows ?? []) {
-    const accId = r.account_id as string
-    const map = r.direction === 'sales' ? tiSalesByAccMonth : tiPurchaseByAccMonth
-    if (!map.has(accId)) map.set(accId, new Map())
-    map.get(accId)!.set(r.month as string, (r.amount as number) || 0)
+  // 4. 계정별 월 순액: 수익 = 대변-차변, 비용 = 차변-대변
+  const netByAcc = new Map<string, number[]>()
+  for (const r of jRows ?? []) {
+    const acc = accounts.get(r.account_id as string)
+    if (!acc || (acc.type !== 'income' && acc.type !== 'expense')) continue
+    if (EXCLUDED_CODES.has(acc.code)) continue
+    const i = monthIdx.get(r.month as string)
+    if (i === undefined) continue
+    let arr = netByAcc.get(r.account_id as string)
+    if (!arr) { arr = months.map(() => 0); netByAcc.set(r.account_id as string, arr) }
+    const debit = (r.debit as number) || 0
+    const credit = (r.credit as number) || 0
+    arr[i] += acc.type === 'income' ? credit - debit : debit - credit
   }
 
-  const txInByAccMonth  = new Map<string, Map<string, number>>()
-  const txOutByAccMonth = new Map<string, Map<string, number>>()
-  for (const r of txRows ?? []) {
-    const accId = r.account_id as string
-    if (!txInByAccMonth.has(accId))  txInByAccMonth.set(accId,  new Map())
-    if (!txOutByAccMonth.has(accId)) txOutByAccMonth.set(accId, new Map())
-    txInByAccMonth.get(accId)!.set(r.month as string,  (r.amount_in as number)  || 0)
-    txOutByAccMonth.get(accId)!.set(r.month as string, (r.amount_out as number) || 0)
+  // 5. 섹션 분류 (코드순 정렬, 전월 0인 계정은 숨김)
+  type Row = { code: string; name: string; values: number[] }
+  const sga: Row[] = []
+  const nonOpExp: Row[] = []
+  const nonOpInc: Row[] = []
+  for (const [accId, values] of Array.from(netByAcc.entries())) {
+    const acc = accounts.get(accId)!
+    if (values.every(v => v === 0)) continue
+    const row = { code: acc.code, name: acc.name, values }
+    if (acc.type === 'income') nonOpInc.push(row)
+    else if (isNonOpExpense(acc.code)) nonOpExp.push(row)
+    else sga.push(row)
   }
+  const byCode = (a: Row, b: Row) => a.code.localeCompare(b.code)
+  sga.sort(byCode); nonOpExp.sort(byCode); nonOpInc.sort(byCode)
 
-  // 6. 계정코드로 월별 합계 계산하는 헬퍼
-  // ti: 매입세금계산서만 / both_out: 매입세금계산서+은행출금 (판관비)
-  // ti_sales: 매출세금계산서만 / both_in: 매출세금계산서+은행입금 (영업외수익)
-  type PLSource = 'ti' | 'tx_out' | 'tx_in' | 'both_out' | 'ti_sales' | 'both_in'
-  const byCode = (code: string, source: PLSource): number[] => {
-    const id = codeToId.get(code)
-    if (!id) return months.map(() => 0)
-    return months.map(m => {
-      let total = 0
-      if (source === 'ti' || source === 'both_out')
-        total += tiPurchaseByAccMonth.get(id)?.get(m) ?? 0
-      if (source === 'tx_out' || source === 'both_out')
-        total += txOutByAccMonth.get(id)?.get(m) ?? 0
-      if (source === 'tx_in' || source === 'both_in')
-        total += txInByAccMonth.get(id)?.get(m) ?? 0
-      if (source === 'ti_sales' || source === 'both_in')
-        total += tiSalesByAccMonth.get(id)?.get(m) ?? 0
-      return total
-    })
-  }
-
-  // 7. ERP 집계 (기존과 동일)
+  // 6. ERP 매출·원가
   const revenueByMonth = new Map<string, number>()
-  const cogsByMonth    = new Map<string, number>()
+  const cogsByMonth = new Map<string, number>()
   for (const row of plRows ?? []) {
     revenueByMonth.set(row.month as string, (row.revenue as number) || 0)
-    cogsByMonth.set(row.month as string,    (row.cogs   as number) || 0)
+    cogsByMonth.set(row.month as string, (row.cogs as number) || 0)
   }
-  const revenue      = months.map(m => revenueByMonth.get(m) ?? 0)
-  const cogs         = months.map(m => cogsByMonth.get(m)    ?? 0)
-  const grossProfit  = months.map((_, i) => revenue[i] - cogs[i])
+  const revenue = months.map(m => revenueByMonth.get(m) ?? 0)
+  const cogs = months.map(m => cogsByMonth.get(m) ?? 0)
+  const grossProfit = months.map((_, i) => revenue[i] - cogs[i])
 
-  // 8. 판관비 항목
-  const sgaSalary       = months.map(() => 0)
-  const sgaCard         = months.map(() => 0)
-  const sgaTransport    = byCode('5201', 'ti')
-  const sgaRent         = byCode('5109', 'both_out')
-  const sgaComm         = byCode('5104', 'both_out')
-  const sgaOutsource    = byCode('5202', 'ti')
-  const sgaElectricity  = byCode('5203', 'ti')
-  const sgaCleaning     = byCode('5204', 'ti')
-  const sgaSecurity     = byCode('5205', 'ti')
-  const sgaFee          = byCode('5108', 'both_out')
-  const sgaSupplies     = byCode('5105', 'both_out')
-  const sgaDepreciation = months.map(() => 0)
-  const sgaOtherSga     = byCode('5206', 'ti')
-
-  const sgaTotal = months.map((_, i) =>
-    sgaSalary[i] + sgaCard[i] + sgaTransport[i] + sgaRent[i] +
-    sgaComm[i] + sgaOutsource[i] + sgaElectricity[i] + sgaCleaning[i] +
-    sgaSecurity[i] + sgaFee[i] + sgaSupplies[i] + sgaDepreciation[i] + sgaOtherSga[i]
-  )
+  const sum = (rows: Row[]) => months.map((_, i) => rows.reduce((s, r) => s + r.values[i], 0))
+  const sgaTotal = sum(sga)
+  const nonOpIncome = sum(nonOpInc)
+  const nonOpExpense = sum(nonOpExp)
   const operatingProfit = months.map((_, i) => grossProfit[i] - sgaTotal[i])
-
-  // 9. 영업외 항목
-  const nonOpIntIn   = byCode('4002', 'tx_in')
-  const nonOpMiscIn  = byCode('4003', 'tx_in')
-  const nonOpRentIn  = byCode('4005', 'both_in')
-  const nonOpIntOut  = byCode('5301', 'tx_out')
-  const nonOpFinFee  = byCode('5302', 'tx_out')
-  const nonOpMiscOut = byCode('5303', 'tx_out')
-
-  const nonOpIncome  = months.map((_, i) => nonOpIntIn[i] + nonOpMiscIn[i] + nonOpRentIn[i])
-  const nonOpExpense = months.map((_, i) => nonOpIntOut[i] + nonOpFinFee[i] + nonOpMiscOut[i])
   const pretaxProfit = months.map((_, i) => operatingProfit[i] + nonOpIncome[i] - nonOpExpense[i])
-  const tax          = months.map(() => 0)
-  const netProfit    = months.map((_, i) => pretaxProfit[i] - tax[i])
+  const tax = months.map(() => 0)
+  const netProfit = months.map((_, i) => pretaxProfit[i] - tax[i])
 
-  // 10. items 배열 구성
+  const zero = months.map(() => 0)
+  const line = (key: string, label: string, values: number[], opt: Partial<PLLineItem> = {}): PLLineItem => ({
+    key, label, values,
+    is_placeholder: false, is_subtotal: false, is_section_header: false,
+    ...opt,
+  })
+
   const items: PLLineItem[] = [
-    { key: 'revenue',          label: '매출',             is_placeholder: false, is_subtotal: false, is_section_header: false, values: revenue },
-    { key: 'cogs',             label: '매출원가',          is_placeholder: false, is_subtotal: false, is_section_header: false, values: cogs },
-    { key: 'gross_profit',     label: '매출이익',          is_placeholder: false, is_subtotal: true,  is_section_header: false, values: grossProfit },
-    { key: 'sga_header',       label: '판매관리비',        is_placeholder: false, is_subtotal: false, is_section_header: true,  values: months.map(() => 0) },
-    { key: 'sga_salary',       label: '급여',              is_placeholder: true,  is_subtotal: false, is_section_header: false, values: sgaSalary },
-    { key: 'sga_card',         label: '법인카드 사용액',   is_placeholder: true,  is_subtotal: false, is_section_header: false, values: sgaCard },
-    { key: 'sga_transport',    label: '운반비',             is_placeholder: false, is_subtotal: false, is_section_header: false, values: sgaTransport },
-    { key: 'sga_rent',         label: '임차료',             is_placeholder: false, is_subtotal: false, is_section_header: false, values: sgaRent },
-    { key: 'sga_comm',         label: '통신비',             is_placeholder: false, is_subtotal: false, is_section_header: false, values: sgaComm },
-    { key: 'sga_outsource',    label: '외주용역비',         is_placeholder: false, is_subtotal: false, is_section_header: false, values: sgaOutsource },
-    { key: 'sga_electricity',  label: '전기요금',           is_placeholder: false, is_subtotal: false, is_section_header: false, values: sgaElectricity },
-    { key: 'sga_cleaning',     label: '청소비',             is_placeholder: false, is_subtotal: false, is_section_header: false, values: sgaCleaning },
-    { key: 'sga_security',     label: '보안비',             is_placeholder: false, is_subtotal: false, is_section_header: false, values: sgaSecurity },
-    { key: 'sga_fee',          label: '수수료',             is_placeholder: false, is_subtotal: false, is_section_header: false, values: sgaFee },
-    { key: 'sga_supplies',     label: '소모품비',           is_placeholder: false, is_subtotal: false, is_section_header: false, values: sgaSupplies },
-    { key: 'sga_depreciation', label: '감가상각비',         is_placeholder: true,  is_subtotal: false, is_section_header: false, values: sgaDepreciation },
-    { key: 'sga_other_sga',    label: '기타판관비',         is_placeholder: false, is_subtotal: false, is_section_header: false, values: sgaOtherSga },
-    { key: 'sga_total',        label: '판매관리비 합계',    is_placeholder: false, is_subtotal: true,  is_section_header: false, values: sgaTotal },
-    { key: 'operating_profit', label: '영업이익',           is_placeholder: false, is_subtotal: true,  is_section_header: false, values: operatingProfit },
-    { key: 'non_op_in_header', label: '영업외수익',         is_placeholder: false, is_subtotal: false, is_section_header: true,  values: months.map(() => 0) },
-    { key: 'non_op_int_in',    label: '이자수익',           is_placeholder: false, is_subtotal: false, is_section_header: false, values: nonOpIntIn },
-    { key: 'non_op_misc_in',   label: '잡이익',             is_placeholder: false, is_subtotal: false, is_section_header: false, values: nonOpMiscIn },
-    { key: 'non_op_rent_in',   label: '임대료수익',         is_placeholder: false, is_subtotal: false, is_section_header: false, values: nonOpRentIn },
-    { key: 'non_op_out_header',label: '영업외비용',         is_placeholder: false, is_subtotal: false, is_section_header: true,  values: months.map(() => 0) },
-    { key: 'non_op_int_out',   label: '이자비용',           is_placeholder: false, is_subtotal: false, is_section_header: false, values: nonOpIntOut },
-    { key: 'non_op_fin_fee',   label: '금융수수료',         is_placeholder: false, is_subtotal: false, is_section_header: false, values: nonOpFinFee },
-    { key: 'non_op_misc_out',  label: '잡손실',             is_placeholder: false, is_subtotal: false, is_section_header: false, values: nonOpMiscOut },
-    { key: 'pretax_profit',    label: '법인세차감전순이익', is_placeholder: false, is_subtotal: true,  is_section_header: false, values: pretaxProfit },
-    { key: 'tax',              label: '법인세',             is_placeholder: true,  is_subtotal: false, is_section_header: false, values: tax },
-    { key: 'net_profit',       label: '당기순이익',         is_placeholder: false, is_subtotal: true,  is_section_header: false, values: netProfit },
+    line('revenue', '매출 (ERP)', revenue),
+    line('cogs', '매출원가 (ERP)', cogs),
+    line('gross_profit', '매출이익', grossProfit, { is_subtotal: true }),
+    line('sga_header', '판매관리비', zero, { is_section_header: true }),
+    ...sga.map(r => line(`sga_${r.code}`, r.name, r.values)),
+    // 급여·감가상각은 분개가 생기면 위 동적 목록에 자동 포함 — 없는 동안 미반영 표시
+    ...(sga.some(r => r.code === '5101') ? [] : [line('sga_salary_ph', '급여', zero, { is_placeholder: true })]),
+    ...(sga.some(r => r.code === '5112') ? [] : [line('sga_dep_ph', '감가상각비', zero, { is_placeholder: true })]),
+    line('sga_total', '판매관리비 합계', sgaTotal, { is_subtotal: true }),
+    line('operating_profit', '영업이익', operatingProfit, { is_subtotal: true }),
+    line('non_op_in_header', '영업외수익', zero, { is_section_header: true }),
+    ...nonOpInc.map(r => line(`noi_${r.code}`, r.name, r.values)),
+    line('non_op_out_header', '영업외비용', zero, { is_section_header: true }),
+    ...nonOpExp.map(r => line(`noe_${r.code}`, r.name, r.values)),
+    line('pretax_profit', '법인세차감전순이익', pretaxProfit, { is_subtotal: true }),
+    line('tax', '법인세', tax, { is_placeholder: true }),
+    line('net_profit', '당기순이익', netProfit, { is_subtotal: true }),
   ]
 
   return { result: { months, items } }

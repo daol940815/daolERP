@@ -54,8 +54,8 @@ export default function MonthlyPLPage() {
       <div className="mb-1">
         <h1 className="text-2xl font-bold text-gray-900">월별 손익현황 (경영관리용)</h1>
         <p className="text-sm mt-1 text-gray-500">
-          ERP 매출/매출원가, 매입세금계산서·은행거래 계정과목 분류분을 월별로 집계합니다.
-          법인카드 매입·급여·감가상각비는 자료 미보유로 &ldquo;미반영&rdquo;으로 표시됩니다.
+          매출·매출원가는 ERP 기준, 나머지 수익·비용은 확정된 분개(세금계산서·법인카드·통장) 기준으로 집계합니다.
+          매입성 계정(매출원가·상품매입 분개)은 ERP 원가가 대신하므로 중복 표시하지 않습니다.
         </p>
         <button onClick={() => { const a = document.createElement('a'); a.href = `/api/reports/monthly-pl/export?from=${monthFrom}&to=${monthTo}`; a.click() }}
           className="mt-2 px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap inline-block">↓ 엑셀</button>
