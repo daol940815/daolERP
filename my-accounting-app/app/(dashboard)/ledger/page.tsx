@@ -1,6 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { getPeriodRange, PERIOD_PRESETS } from '@/lib/period-presets'
 
 const won = (n: number | null | undefined) => (n ?? 0).toLocaleString('ko-KR')
@@ -20,6 +22,12 @@ interface Row {
   credit: number
   balance: number
   note: string | null
+  source_type?: string | null   // 059 마이그레이션 이후 제공 (드릴다운)
+  source_id?: string | null
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+  bank: '통장', card: '카드', card_sale: '카드매출', tax_invoice: '세계', manual: '수동',
 }
 interface Ledger {
   account: { id: string; code: string | null; name: string; type: string }
@@ -30,15 +38,17 @@ interface Ledger {
   closing: number
 }
 
-export default function AccountLedgerPage() {
+function AccountLedgerContent() {
+  const searchParams = useSearchParams()
   const [accounts, setAccounts] = useState<AccountOpt[]>([])
-  const [accountId, setAccountId] = useState('')
+  // 손익현황 등에서 드릴다운 진입 시 URL 파라미터로 계정·기간을 받는다
+  const [accountId, setAccountId] = useState(() => searchParams.get('accountId') ?? '')
   const [ledger, setLedger] = useState<Ledger | null>(null)
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
-  const [dateFrom, setDateFrom] = useState(() => getPeriodRange('당월').from)
-  const [dateTo, setDateTo]     = useState(() => getPeriodRange('당월').to)
+  const [dateFrom, setDateFrom] = useState(() => searchParams.get('from') || getPeriodRange('당월').from)
+  const [dateTo, setDateTo]     = useState(() => searchParams.get('to') || getPeriodRange('당월').to)
 
   // 계정 목록 로드
   useEffect(() => {
@@ -179,7 +189,18 @@ export default function AccountLedgerPage() {
                     <td className="py-1.5 px-3 text-right text-blue-700 whitespace-nowrap">{item.r.debit ? won(item.r.debit) : ''}</td>
                     <td className="py-1.5 px-3 text-right text-red-700 whitespace-nowrap">{item.r.credit ? won(item.r.credit) : ''}</td>
                     <td className={`py-1.5 px-3 text-right whitespace-nowrap ${item.r.balance < 0 ? 'text-red-600' : 'text-gray-800'}`}>{won(item.r.balance)}</td>
-                    <td className="py-1.5 px-3 font-mono text-xs text-gray-400">{item.r.entry_no}</td>
+                    <td className="py-1.5 px-3 font-mono text-xs text-gray-400 whitespace-nowrap">
+                      {item.r.entry_no}
+                      {item.r.source_type && item.r.source_type !== 'manual' && item.r.source_id && (
+                        <Link
+                          href={`/source/${item.r.source_type}/${item.r.source_id}`}
+                          className="ml-1.5 px-1 py-0.5 rounded bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 font-sans"
+                          title="원본 레코드 보기"
+                        >
+                          {SOURCE_LABEL[item.r.source_type] ?? '원본'}↗
+                        </Link>
+                      )}
+                    </td>
                   </tr>
                 ) : multiMonth ? (
                   <tr key={`s${i}`} className="bg-slate-50 border-b border-gray-100 text-gray-500 text-xs">
@@ -211,6 +232,15 @@ export default function AccountLedgerPage() {
         </p>
       )}
     </div>
+  )
+}
+
+// useSearchParams는 Suspense 경계 필요 — 손익현황 드릴다운 진입(?accountId&from&to) 지원
+export default function AccountLedgerPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-gray-400 text-sm">로딩 중...</div>}>
+      <AccountLedgerContent />
+    </Suspense>
   )
 }
 

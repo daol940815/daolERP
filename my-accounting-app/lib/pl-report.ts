@@ -16,6 +16,7 @@ export interface PLLineItem {
   is_subtotal: boolean       // true: 계산된 합계/이익 행
   is_section_header: boolean // true: 섹션 구분 헤더 행
   values: number[]           // months와 동일한 길이
+  account_id?: string        // 분개 기반 동적 행 — 계정별 원장 드릴다운용
 }
 
 export interface MonthlyPLResult {
@@ -94,14 +95,14 @@ export async function buildMonthlyPL(
   }
 
   // 5. 섹션 분류 (코드순 정렬, 전월 0인 계정은 숨김)
-  type Row = { code: string; name: string; values: number[] }
+  type Row = { code: string; name: string; values: number[]; accountId: string }
   const sga: Row[] = []
   const nonOpExp: Row[] = []
   const nonOpInc: Row[] = []
   for (const [accId, values] of Array.from(netByAcc.entries())) {
     const acc = accounts.get(accId)!
     if (values.every(v => v === 0)) continue
-    const row = { code: acc.code, name: acc.name, values }
+    const row = { code: acc.code, name: acc.name, values, accountId: accId }
     if (acc.type === 'income') nonOpInc.push(row)
     else if (isNonOpExpense(acc.code)) nonOpExp.push(row)
     else sga.push(row)
@@ -141,16 +142,16 @@ export async function buildMonthlyPL(
     line('cogs', '매출원가 (ERP)', cogs),
     line('gross_profit', '매출이익', grossProfit, { is_subtotal: true }),
     line('sga_header', '판매관리비', zero, { is_section_header: true }),
-    ...sga.map(r => line(`sga_${r.code}`, r.name, r.values)),
+    ...sga.map(r => line(`sga_${r.code}`, r.name, r.values, { account_id: r.accountId })),
     // 급여·감가상각은 분개가 생기면 위 동적 목록에 자동 포함 — 없는 동안 미반영 표시
     ...(sga.some(r => r.code === '5101') ? [] : [line('sga_salary_ph', '급여', zero, { is_placeholder: true })]),
     ...(sga.some(r => r.code === '5112') ? [] : [line('sga_dep_ph', '감가상각비', zero, { is_placeholder: true })]),
     line('sga_total', '판매관리비 합계', sgaTotal, { is_subtotal: true }),
     line('operating_profit', '영업이익', operatingProfit, { is_subtotal: true }),
     line('non_op_in_header', '영업외수익', zero, { is_section_header: true }),
-    ...nonOpInc.map(r => line(`noi_${r.code}`, r.name, r.values)),
+    ...nonOpInc.map(r => line(`noi_${r.code}`, r.name, r.values, { account_id: r.accountId })),
     line('non_op_out_header', '영업외비용', zero, { is_section_header: true }),
-    ...nonOpExp.map(r => line(`noe_${r.code}`, r.name, r.values)),
+    ...nonOpExp.map(r => line(`noe_${r.code}`, r.name, r.values, { account_id: r.accountId })),
     line('pretax_profit', '법인세차감전순이익', pretaxProfit, { is_subtotal: true }),
     line('tax', '법인세', tax, { is_placeholder: true }),
     line('net_profit', '당기순이익', netProfit, { is_subtotal: true }),

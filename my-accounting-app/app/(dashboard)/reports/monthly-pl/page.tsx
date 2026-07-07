@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
@@ -11,6 +12,7 @@ interface PLLineItem {
   is_subtotal: boolean
   is_section_header: boolean
   values: number[]
+  account_id?: string
 }
 
 interface MonthlyPLResult {
@@ -23,6 +25,13 @@ const monthStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).pad
 const formatMonth = (m: string) => {
   const [y, mm] = m.split('-')
   return `${y}.${mm}`
+}
+
+// 'YYYY-MM' → 그 달의 마지막 날짜 (원장 드릴다운 기간용)
+const lastDay = (yyyyMm: string) => {
+  const [y, m] = yyyyMm.split('-').map(Number)
+  const d = new Date(y, m, 0)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 export default function MonthlyPLPage() {
@@ -100,7 +109,17 @@ export default function MonthlyPLPage() {
                   key={item.key}
                   className={`border-b border-gray-100 ${item.is_subtotal ? 'bg-slate-50 font-medium text-gray-900' : 'text-gray-700'}`}
                 >
-                  <td className="py-2 px-3 whitespace-nowrap sticky left-0 bg-inherit">{item.label}</td>
+                  <td className="py-2 px-3 whitespace-nowrap sticky left-0 bg-inherit">
+                    {item.account_id ? (
+                      <Link
+                        href={`/ledger?accountId=${item.account_id}&from=${monthFrom}-01&to=${lastDay(monthTo)}`}
+                        className="hover:text-blue-700 hover:underline"
+                        title="계정별 원장으로 (드릴다운)"
+                      >
+                        {item.label}
+                      </Link>
+                    ) : item.label}
+                  </td>
                   {item.values.map((v, i) => (
                     <td
                       key={result.months[i]}
