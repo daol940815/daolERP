@@ -280,6 +280,11 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             <span>거래 내역</span>
           </Link>
 
+          <Link href="/bank-classify" className={linkCls(pathname.startsWith('/bank-classify'))}>
+            <span className="text-base leading-none">🧮</span>
+            <span>통장 거래 분류</span>
+          </Link>
+
           <Link href="/card-sales" className={linkCls(pathname.startsWith('/card-sales'))}>
             <span className="text-base leading-none">💳</span>
             <span>카드결제내역(매출)</span>
@@ -394,6 +399,10 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
 
             {taxInvoicesOpen && (
               <div className="ml-3 pl-3 border-l border-slate-700 mb-0.5 space-y-2">
+                <Link href="/tax-invoices/classify" className={linkCls(pathname === '/tax-invoices/classify')}>
+                  <span className="text-xs leading-none text-slate-500 shrink-0">·</span>
+                  <span className="truncate">🧮 매입 일괄 분류</span>
+                </Link>
                 {([
                   { dir: 'sales',    label: '매출 세금계산서' },
                   { dir: 'purchase', label: '매입 세금계산서' },

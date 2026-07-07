@@ -7,9 +7,11 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 // POST /api/tax-invoices/bulk-classify
-// body: { direction: 'sales'|'purchase', accountId: uuid, taxType?: 'taxable'|'exempt', onlyUnclassified?: boolean(기본 true) }
-// 미분류(계정 미지정) 세금계산서를 지정 계정으로 일괄 분류하고 자동 분개한다(멱등).
-// 매출은 대부분 매출(4001)로 뻔하므로 일괄 분류에 적합하다.
+// body: { direction: 'sales'|'purchase', accountId: uuid, taxType?, onlyUnclassified?: boolean(기본 true),
+//         invoiceIds?: string[], vendorId?: string, saveAsDefault?: boolean }
+// 세금계산서를 지정 계정으로 일괄 분류하고 자동 분개한다(멱등).
+//  - invoiceIds가 있으면 그 건들만(그룹 분류 화면의 선택 확정), 없으면 direction 전체 일괄.
+//  - saveAsDefault + vendorId면 거래처 기본계정으로 저장 → 다음 분류부터 자동 추천.
 export async function POST(req: NextRequest) {
   const admin = createAdminClient()
   const body = await req.json().catch(() => ({})) as {
@@ -17,9 +19,13 @@ export async function POST(req: NextRequest) {
     accountId?: string
     taxType?: 'taxable' | 'exempt'
     onlyUnclassified?: boolean
+    invoiceIds?: string[]
+    vendorId?: string
+    saveAsDefault?: boolean
   }
-  if (body.direction !== 'sales' && body.direction !== 'purchase') {
-    return NextResponse.json({ error: 'direction(sales|purchase)이 필요합니다.' }, { status: 400 })
+  const selectedIds = (body.invoiceIds ?? []).filter(Boolean)
+  if (!selectedIds.length && body.direction !== 'sales' && body.direction !== 'purchase') {
+    return NextResponse.json({ error: 'direction(sales|purchase) 또는 invoiceIds가 필요합니다.' }, { status: 400 })
   }
   if (!body.accountId) return NextResponse.json({ error: 'accountId가 필요합니다.' }, { status: 400 })
   const onlyUnclassified = body.onlyUnclassified !== false
@@ -28,17 +34,20 @@ export async function POST(req: NextRequest) {
   const { data: acc, error: ae } = await admin.from('accounts').select('id').eq('id', body.accountId).single()
   if (ae || !acc) return NextResponse.json({ error: '유효한 계정과목이 아닙니다.' }, { status: 400 })
 
-  // 대상 조회
-  const targets = await fetchAllRows<{ id: string }>((f, t) => {
-    let q = admin.from('tax_invoices').select('id').eq('direction', body.direction!).neq('total_amount', 0)
-    if (onlyUnclassified) q = q.is('confirmed_account_id', null)
-    if (body.taxType) q = q.eq('tax_type', body.taxType)
-    return q.range(f, t)
-  })
-  if ('error' in targets) return NextResponse.json({ error: targets.error }, { status: 500 })
-
-  // 일괄 계정 지정
-  const ids = targets.data.map(r => r.id)
+  let ids: string[]
+  if (selectedIds.length) {
+    ids = selectedIds
+  } else {
+    // 대상 조회 (direction 전체 일괄)
+    const targets = await fetchAllRows<{ id: string }>((f, t) => {
+      let q = admin.from('tax_invoices').select('id').eq('direction', body.direction!).neq('total_amount', 0)
+      if (onlyUnclassified) q = q.is('confirmed_account_id', null)
+      if (body.taxType) q = q.eq('tax_type', body.taxType)
+      return q.range(f, t)
+    })
+    if ('error' in targets) return NextResponse.json({ error: targets.error }, { status: 500 })
+    ids = targets.data.map(r => r.id)
+  }
   if (ids.length === 0) return NextResponse.json({ classified: 0, posted: 0, errors: [] })
 
   const CHUNK = 200
@@ -59,5 +68,15 @@ export async function POST(req: NextRequest) {
     else posted++
   }
 
-  return NextResponse.json({ classified: ids.length, posted, errors })
+  // 거래처 기본계정 저장(선택) — 다음 분류부터 자동 추천
+  let defaultSaved = false
+  if (body.saveAsDefault && body.vendorId) {
+    const { error } = await admin
+      .from('vendors')
+      .update({ default_account_id: body.accountId })
+      .eq('id', body.vendorId)
+    defaultSaved = !error
+  }
+
+  return NextResponse.json({ classified: ids.length, posted, errors: errors.slice(0, 10), failed: errors.length, defaultSaved })
 }
