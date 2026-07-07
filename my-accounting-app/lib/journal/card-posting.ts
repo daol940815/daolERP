@@ -8,6 +8,7 @@ import { postJournal, unpostJournal } from './posting'
 //   카드 사용: (차) 비용계정(confirmed) [+ 부가세대급금(1102) 세액] / (대) 미지급금(2001) 승인금액
 //   취소행(순액 음수, 롯데처럼 취소가 원거래와 별도 행으로 오는 양식):
 //     역분개 — (차) 미지급금 / (대) 비용계정 — 로 전기해 원거래 비용을 원장에서 상쇄한다.
+//   승인 거절('거절') 건: 실제 청구가 없으므로 금액이 있어도 전기하지 않는다.
 //   * 세액(tax_amount)은 카드사 파일 제공값(하나·롯데 등). 없으면(0) 전액 비용 처리.
 //   * 카드대금 결제(은행출금)는 별도로 미지급금 차변 처리 → 이중계상 방지(은행 분개에서 처리).
 //   * 미지급금(2001)의 상대처(vendor)는 가맹점이 아니라 "카드사"다 — 카드사에 갚을 채무이므로,
@@ -20,8 +21,15 @@ export interface CardExpenseForPosting {
   approved_amount: number | null
   cancel_amount: number | null
   tax_amount: number | null
+  statement_status: string | null
   confirmed_account_id: string | null
   classify_status: string
+}
+
+// 승인 거절 건은 실제 청구되지 않으므로 금액이 찍혀 있어도 전기 대상이 아니다
+// (하나카드 파일은 거절 건에도 시도 금액을 표기한다)
+export function isRejectedExpense(statementStatus: string | null): boolean {
+  return (statementStatus ?? '').includes('거절')
 }
 
 export function buildCardPosting(
@@ -34,6 +42,9 @@ export function buildCardPosting(
     return { error: '확정된 계정과목이 없습니다.' }
   }
   if (!payableAccountId) return { error: '미지급금(2001) 계정이 없습니다.' }
+  if (isRejectedExpense(exp.statement_status)) {
+    return { error: '승인 거절 건은 전기하지 않습니다.' }
+  }
   // 순액 = 승인 - 취소.
   //   양수: 정분개 / 음수(별도 행 취소): 역분개로 원거래 상쇄 / 0(같은 행 전액취소): 전기 없음
   const net = (exp.approved_amount ?? 0) - (exp.cancel_amount ?? 0)
@@ -76,7 +87,7 @@ export async function syncCardExpenseJournal(
 ): Promise<{ ok: true } | { error: string }> {
   const { data: exp, error } = await admin
     .from('card_expenses')
-    .select('id, tx_date, merchant_name, approved_amount, cancel_amount, tax_amount, confirmed_account_id, classify_status, card_accounts(vendor_id)')
+    .select('id, tx_date, merchant_name, approved_amount, cancel_amount, tax_amount, statement_status, confirmed_account_id, classify_status, card_accounts(vendor_id)')
     .eq('id', expenseId)
     .single()
   if (error) return { error: error.message }
@@ -86,10 +97,11 @@ export async function syncCardExpenseJournal(
   const cardCompanyVendorId =
     (Array.isArray(ca) ? ca[0]?.vendor_id : ca?.vendor_id) ?? null
 
-  // 순액이 0이 아니면 전기(양수 정분개·음수 역분개), 0이면 전기 취소
+  // 순액이 0이 아니면 전기(양수 정분개·음수 역분개), 0이거나 승인 거절이면 전기 취소
   const shouldPost =
     exp.classify_status === 'confirmed' &&
     !!exp.confirmed_account_id &&
+    !isRejectedExpense(exp.statement_status as string | null) &&
     (exp.approved_amount ?? 0) - (exp.cancel_amount ?? 0) !== 0
 
   if (!shouldPost) {
