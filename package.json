@@ -1,0 +1,27 @@
+{
+  "name": "daolerp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "daolERP — 근태 관리 시스템 (단일 법인 전용)",
+  "scripts": {
+    "dev:api": "pnpm --filter @daolerp/api dev",
+    "dev:web": "pnpm --filter @daolerp/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "db:migrate": "pnpm --filter @daolerp/api db:migrate",
+    "db:seed": "pnpm --filter @daolerp/api db:seed"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@10.0.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "@nestjs/core",
+      "esbuild"
+    ]
+  }
+}
