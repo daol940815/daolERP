@@ -38,6 +38,8 @@ export const PERMISSION_ACTIONS = [
   'schedule.read',
   'schedule.manage',
   'approval.manage', // 승인라인 정의/배정
+  // M4 — 근태
+  'attendance.read', // 스코프: SELF/DEPT/ALL
 ] as const;
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 
@@ -94,6 +96,42 @@ export type ApprovalStatus = (typeof APPROVAL_STATUS)[number];
 /** 단계 처리 결과 */
 export const STEP_DECISIONS = ['PENDING', 'APPROVED', 'REJECTED'] as const;
 export type StepDecision = (typeof STEP_DECISIONS)[number];
+
+// ── M4 출퇴근 / 근태 판정 ──────────────────────────────────────
+
+/** 출퇴근 이벤트 유형 (기획서 ATT-01. 외근/출장/재택 마커는 M6 확장) */
+export const ATTENDANCE_EVENT_TYPES = ['CLOCK_IN', 'CLOCK_OUT', 'OUTING_START', 'OUTING_END'] as const;
+export type AttendanceEventType = (typeof ATTENDANCE_EVENT_TYPES)[number];
+
+/** 근태 보정 상태 (기획서 5.3 — APPROVED와 APPLIED 분리: 승인=판단, 반영=이벤트 생성) */
+export const CORRECTION_STATUS = ['REQUESTED', 'APPROVED', 'APPLIED', 'REJECTED', 'CANCELLED'] as const;
+export type CorrectionStatus = (typeof CORRECTION_STATUS)[number];
+
+/** 일별 근태 판정 (기획서 5.2 판정 규칙) */
+export const DAY_STATUS = [
+  'NORMAL',      // 정상
+  'LATE',        // 지각
+  'EARLY_LEAVE', // 조퇴
+  'LATE_EARLY',  // 지각+조퇴
+  'ABSENT',      // 결근 (지나간 근무일에만 성립)
+  'INCOMPLETE',  // 짝 없는 이벤트 (마감 검증 대상)
+  'WORKING',     // 근무 중 (오늘, 출근 후 퇴근 전)
+  'SCHEDULED',   // 근무 예정 (미래 근무일)
+  'DAYOFF',      // 휴무일
+  'LEAVE',       // 승인된 휴가 (M5 연결)
+  'NO_SCHEDULE', // 근무일정 없음
+] as const;
+export type DayStatus = (typeof DAY_STATUS)[number];
+
+/** 근태 엔진 일별 결과 (기획서 5.2 출력) */
+export interface DayResult {
+  dateKey: string; // 'YYYY-MM-DD' (KST)
+  status: DayStatus;
+  workMinutes: number;
+  lateMinutes: number;
+  earlyLeaveMinutes: number;
+  anomalies: string[]; // 짝 없는 이벤트 등 — 마감 전 검증(CLS-02) 대상
+}
 
 /** 역할 코드 (기획서 3.2) */
 export const ROLE_CODES = ['EMPLOYEE', 'APPROVER', 'HR', 'ADMIN'] as const;

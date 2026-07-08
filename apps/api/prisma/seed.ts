@@ -7,8 +7,14 @@ const prisma = new PrismaClient();
 
 // 역할별 권한 매핑 (기획서 3.2/3.3 — M1 범위)
 const ROLE_PERMISSIONS: Record<string, { action: string; scope: string }[]> = {
-  EMPLOYEE: [{ action: 'employee.read', scope: 'SELF' }],
-  APPROVER: [{ action: 'employee.read', scope: 'DEPT' }],
+  EMPLOYEE: [
+    { action: 'employee.read', scope: 'SELF' },
+    { action: 'attendance.read', scope: 'SELF' },
+  ],
+  APPROVER: [
+    { action: 'employee.read', scope: 'DEPT' },
+    { action: 'attendance.read', scope: 'DEPT' },
+  ],
   HR: [
     { action: 'employee.read', scope: 'ALL' },
     { action: 'employee.manage', scope: 'ALL' },
@@ -19,6 +25,7 @@ const ROLE_PERMISSIONS: Record<string, { action: string; scope: string }[]> = {
     { action: 'schedule.read', scope: 'ALL' },
     { action: 'schedule.manage', scope: 'ALL' },
     { action: 'approval.manage', scope: 'ALL' },
+    { action: 'attendance.read', scope: 'ALL' },
     { action: 'scheduler.read', scope: 'ALL' },
     { action: 'scheduler.execute', scope: 'ALL' },
     { action: 'audit.read', scope: 'ALL' },
@@ -34,6 +41,7 @@ const ROLE_PERMISSIONS: Record<string, { action: string; scope: string }[]> = {
     { action: 'schedule.read', scope: 'ALL' },
     { action: 'schedule.manage', scope: 'ALL' },
     { action: 'approval.manage', scope: 'ALL' },
+    { action: 'attendance.read', scope: 'ALL' },
     { action: 'settings.manage', scope: 'ALL' },
     { action: 'scheduler.read', scope: 'ALL' },
     { action: 'scheduler.execute', scope: 'ALL' },

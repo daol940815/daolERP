@@ -10,6 +10,7 @@ import { SchedulerPage } from './pages/SchedulerPage';
 import { PoliciesPage } from './pages/PoliciesPage';
 import { SchedulesPage } from './pages/SchedulesPage';
 import { ApprovalsPage } from './pages/ApprovalsPage';
+import { AttendancePage } from './pages/AttendancePage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 
 export default function App() {
@@ -27,7 +28,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route path="/" element={<DashboardPage />} />
         {/* M2+ 에서 구현될 메뉴 — 골격만 (기획서 7장) */}
-        <Route path="/attendance" element={<PlaceholderPage title="내 근태" milestone="M4" />} />
+        <Route path="/attendance" element={<AttendancePage />} />
         <Route path="/leave" element={<PlaceholderPage title="휴가" milestone="M5" />} />
         <Route path="/overtime" element={<PlaceholderPage title="초과근무" milestone="M6" />} />
         <Route path="/approvals" element={<ApprovalsPage />} />

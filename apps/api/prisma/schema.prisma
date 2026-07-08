@@ -76,6 +76,10 @@ model Employee {
   applications        Approval[]              @relation("Applicant")
   approvalDecisions   ApprovalStepRecord[]    @relation("StepApprover")
 
+  // M4 관계
+  attendanceEvents      AttendanceEvent[]
+  attendanceCorrections AttendanceCorrection[]
+
   @@map("employees")
 }
 
@@ -437,6 +441,63 @@ model ApprovalStepRecord {
 
   @@index([approverEmployeeId, decision])
   @@map("approval_step_records")
+}
+
+// ── 출퇴근 모듈 [Transaction] (기획서 4.4) ──────────────────────
+
+// 출퇴근 이벤트 — append-only. 원본은 불변, 보정은 새 이벤트 추가 (기획서 ATT-03).
+model AttendanceEvent {
+  id           Int      @id @default(autoincrement())
+  employeeId   Int      @map("employee_id")
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  eventType    String   @map("event_type") // ATTENDANCE_EVENT_TYPES: CLOCK_IN | CLOCK_OUT | OUTING_START | OUTING_END
+  occurredAt   DateTime @map("occurred_at") // 서버 시간 기준 (KST)
+  ip           String?
+  userAgent    String?  @map("user_agent")
+  isCorrection Boolean  @default(false) @map("is_correction")
+  correctionId Int?     @map("correction_id") // 보정 이벤트의 출처 보정 신청
+  correction   AttendanceCorrection? @relation(fields: [correctionId], references: [id])
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([employeeId, occurredAt])
+  @@map("attendance_events")
+}
+
+// 근태 보정 신청 — 상태기계: REQUESTED → APPROVED → APPLIED / REJECTED / CANCELLED (기획서 5.3)
+model AttendanceCorrection {
+  id         Int      @id @default(autoincrement())
+  employeeId Int      @map("employee_id")
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  date       DateTime @db.Date // 대상 일자 (KST)
+  clockIn    String?  @map("clock_in")  // 보정할 출근 시각 "HH:MM"
+  clockOut   String?  @map("clock_out") // 보정할 퇴근 시각 "HH:MM"
+  reason     String
+  status     String   @default("REQUESTED") // CORRECTION_STATUS
+  appliedAt  DateTime? @map("applied_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  events AttendanceEvent[]
+
+  @@index([employeeId, date])
+  @@map("attendance_corrections")
+}
+
+// ── 첨부파일 (범용 — 참조 유형 + 참조 ID. 기획서 4.8) ───────────
+
+model Attachment {
+  id         Int       @id @default(autoincrement())
+  refType    String?   @map("ref_type") // 'attendance_correction' | 'leave_request' | ...
+  refId      Int?      @map("ref_id")
+  fileName   String    @map("file_name")
+  storedPath String    @map("stored_path")
+  mimeType   String    @map("mime_type")
+  size       Int
+  uploadedBy Int       @map("uploaded_by") // user id
+  deletedAt  DateTime? @map("deleted_at")  // 논리 삭제 (기획서 4.8 — 물리 파기는 보존 기간 배치)
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([refType, refId])
+  @@map("attachments")
 }
 
 // ── 시스템 설정 (법인 복제 시 변경 지점 — 기획서 4.13) ──────────
