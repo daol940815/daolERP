@@ -8,6 +8,8 @@ export interface DepartmentInput {
   headEmployeeId?: number | null;
   sortOrder?: number;
   isActive?: boolean;
+  workPolicyId?: number | null;
+  leavePolicyId?: number | null;
   reason?: string;
 }
 
@@ -68,6 +70,8 @@ export class DepartmentsService {
           headEmployeeId: input.headEmployeeId,
           sortOrder: input.sortOrder,
           isActive: input.isActive,
+          workPolicyId: input.workPolicyId,
+          leavePolicyId: input.leavePolicyId,
         },
       });
       await this.audit.log(

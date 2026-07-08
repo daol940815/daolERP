@@ -95,6 +95,15 @@ export class UpdateEmployeeDto {
   @IsDateString()
   resignDate?: string;
 
+  // 정책 개별 배정 (기획서 4.1.1). null 로 보내면 부서/전사 기본값으로 되돌림.
+  @IsOptional()
+  @IsInt()
+  workPolicyId?: number | null;
+
+  @IsOptional()
+  @IsInt()
+  leavePolicyId?: number | null;
+
   /** 이력 대상 필드 변경 시 필수 */
   @IsOptional()
   @IsString()

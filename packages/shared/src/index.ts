@@ -20,7 +20,7 @@ export type EmployeeChangeType = (typeof EMPLOYEE_CHANGE_TYPES)[number];
 export const PERMISSION_SCOPES = ['SELF', 'DEPT', 'ALL'] as const;
 export type PermissionScope = (typeof PERMISSION_SCOPES)[number];
 
-/** 기능 단위 권한 액션 (기획서 3.3 — M1 범위) */
+/** 기능 단위 권한 액션 (기획서 3.3) */
 export const PERMISSION_ACTIONS = [
   'employee.read',
   'employee.manage',
@@ -31,8 +31,43 @@ export const PERMISSION_ACTIONS = [
   'scheduler.read',
   'scheduler.execute',
   'audit.read',
+  // M2 — 정책 관리
+  'policy.read',
+  'policy.manage',
 ] as const;
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
+
+// ── M2 정책 도메인 ─────────────────────────────────────────────
+
+/** 근무정책 유형 (기획서 4.2) */
+export const WORK_POLICY_TYPES = ['FIXED', 'FLEX', 'AUTONOMOUS'] as const;
+export type WorkPolicyType = (typeof WORK_POLICY_TYPES)[number];
+
+/** 연차 부여 기준 (#1 입사일 확정, 회계연도 구조 지원) */
+export const LEAVE_GRANT_BASIS = ['HIRE_DATE', 'FISCAL_YEAR'] as const;
+export type LeaveGrantBasis = (typeof LEAVE_GRANT_BASIS)[number];
+
+/** 휴가 유급 유형 (기획서 4.5.1) */
+export const LEAVE_PAID_TYPES = ['PAID', 'UNPAID', 'POLICY'] as const;
+export type LeavePaidType = (typeof LEAVE_PAID_TYPES)[number];
+
+/** 첨부파일 요구 규칙 (기획서 4.5.1 / 4.8) */
+export const ATTACHMENT_RULES = ['NONE', 'OPTIONAL', 'REQUIRED'] as const;
+export type AttachmentRule = (typeof ATTACHMENT_RULES)[number];
+
+/** 휴일 유형 (기획서 4.9) */
+export const HOLIDAY_TYPES = [
+  'STATUTORY', // 법정공휴일
+  'SUBSTITUTE', // 대체공휴일
+  'FOUNDATION', // 회사창립기념일
+  'COMPANY', // 회사지정휴무
+  'TEMPORARY', // 임시휴무
+] as const;
+export type HolidayType = (typeof HOLIDAY_TYPES)[number];
+
+/** 정책 배정 출처 — resolve 결과가 어디서 왔는지 (개인/부서/전사 기본값) */
+export const POLICY_SOURCES = ['EMPLOYEE', 'DEPARTMENT', 'DEFAULT', 'NONE'] as const;
+export type PolicySource = (typeof POLICY_SOURCES)[number];
 
 /** 역할 코드 (기획서 3.2) */
 export const ROLE_CODES = ['EMPLOYEE', 'APPROVER', 'HR', 'ADMIN'] as const;

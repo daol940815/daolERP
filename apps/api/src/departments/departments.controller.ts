@@ -49,6 +49,14 @@ class UpdateDepartmentDto {
   isActive?: boolean;
 
   @IsOptional()
+  @IsInt()
+  workPolicyId?: number | null;
+
+  @IsOptional()
+  @IsInt()
+  leavePolicyId?: number | null;
+
+  @IsOptional()
   @IsString()
   reason?: string;
 }

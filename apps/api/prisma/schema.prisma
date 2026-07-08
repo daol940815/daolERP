@@ -55,6 +55,12 @@ model Employee {
   departmentId Int?        @map("department_id")
   department   Department? @relation(fields: [departmentId], references: [id])
 
+  // 정책 개별 배정 (nullable — 미지정 시 부서 → 전사 기본값. 기획서 4.1.1)
+  workPolicyId  Int? @map("work_policy_id")
+  workPolicy    WorkPolicy?  @relation(fields: [workPolicyId], references: [id])
+  leavePolicyId Int? @map("leave_policy_id")
+  leavePolicy   LeavePolicy? @relation(fields: [leavePolicyId], references: [id])
+
   jobGrade       JobGrade?       @relation(fields: [jobGradeCode], references: [code])
   jobTitle       JobTitle?       @relation(fields: [jobTitleCode], references: [code])
   employmentType EmploymentType? @relation(fields: [employmentTypeCode], references: [code])
@@ -95,6 +101,12 @@ model Department {
   isActive       Boolean   @default(true) @map("is_active")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  // 부서 기본 정책 (기획서 4.1.3)
+  workPolicyId  Int? @map("work_policy_id")
+  workPolicy    WorkPolicy?  @relation(fields: [workPolicyId], references: [id])
+  leavePolicyId Int? @map("leave_policy_id")
+  leavePolicy   LeavePolicy? @relation(fields: [leavePolicyId], references: [id])
 
   employees Employee[]
 
@@ -147,6 +159,107 @@ model CommonCode {
 
   @@unique([groupCode, code])
   @@map("common_codes")
+}
+
+// ── 정책 모듈 [Master] (기획서 4.2/4.5/4.9, 5.1) ────────────────
+
+// 근무정책 — 헤더. 실제 규칙 값은 버전(work_policy_versions)에 (기획서 4.2, POL-03)
+model WorkPolicy {
+  id       Int     @id @default(autoincrement())
+  name     String
+  type     String // WORK_POLICY_TYPES: FIXED | FLEX | AUTONOMOUS
+  isActive Boolean @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  versions    WorkPolicyVersion[]
+  employees   Employee[]
+  departments Department[]
+
+  @@map("work_policies")
+}
+
+// 근무정책 버전 — 적용 시작일 기준 이력. 근태 엔진이 일자별로 유효 버전을 참조 (기획서 5.1)
+model WorkPolicyVersion {
+  id            Int      @id @default(autoincrement())
+  workPolicyId  Int      @map("work_policy_id")
+  workPolicy    WorkPolicy @relation(fields: [workPolicyId], references: [id])
+  effectiveDate DateTime @map("effective_date") @db.Date
+
+  // 고정/시차 공통
+  startTime           String? @map("start_time") // "09:00" (자율은 null)
+  endTime             String? @map("end_time")   // "18:00"
+  breakMinutes        Int     @default(60) @map("break_minutes")
+  standardWorkMinutes Int     @default(480) @map("standard_work_minutes") // 소정근로(분)
+  lateGraceMinutes    Int     @default(0) @map("late_grace_minutes")      // 지각 유예(분)
+
+  // 시차출퇴근용 출근 허용 범위 (FLEX)
+  flexStartFrom String? @map("flex_start_from") // "08:00"
+  flexStartTo   String? @map("flex_start_to")   // "10:00"
+
+  ipRestricted Boolean @default(false) @map("ip_restricted")
+
+  reason    String
+  createdBy Int      @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([workPolicyId, effectiveDate])
+  @@index([workPolicyId, effectiveDate])
+  @@map("work_policy_versions")
+}
+
+// 연차정책 — 발생·소멸 규칙 (휴가 유형과 분리. 기획서 4.5.2)
+// 부여 기준은 입사일 확정(#1)이나 회계연도도 구조상 지원.
+model LeavePolicy {
+  id          Int     @id @default(autoincrement())
+  name        String
+  isActive    Boolean @default(true) @map("is_active")
+
+  grantBasis      String  @default("HIRE_DATE") @map("grant_basis") // HIRE_DATE | FISCAL_YEAR
+  fiscalStartMonth Int    @default(1) @map("fiscal_start_month")    // 회계연도 기준일 때 시작 월
+  expireMonths    Int     @default(12) @map("expire_months")        // 사용기한(개월)
+  carryOver       Boolean @default(false) @map("carry_over")        // 이월 허용
+  carryOverLimit  Int?    @map("carry_over_limit")                  // 이월 한도(일)
+  autoExpire      Boolean @default(true) @map("auto_expire")        // 기한 도래 자동 소멸
+  promotionDays   Int[]   @default([60, 30]) @map("promotion_days") // 촉진 알림 시점(D-n)
+  minUnit         Float   @default(0.5) @map("min_unit")            // 사용 단위: 1 | 0.5 | 0.25
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  employees   Employee[]
+  departments Department[]
+
+  @@map("leave_policies")
+}
+
+// 휴가 유형 — 속성 있는 정책 데이터(공통 코드 아님. 기획서 4.5.1, 5.1)
+model LeaveType {
+  id             Int     @id @default(autoincrement())
+  code           String  @unique
+  name           String
+  paidType       String  @default("PAID") @map("paid_type") // PAID | UNPAID | POLICY
+  deductsAnnual  Boolean @default(false) @map("deducts_annual") // 연차 잔여에서 차감하는 유형인가
+  attachmentRule String  @default("NONE") @map("attachment_rule") // NONE | OPTIONAL | REQUIRED
+  allowHalfDay   Boolean @default(false) @map("allow_half_day")
+  sortOrder      Int     @default(0) @map("sort_order")
+  isActive       Boolean @default(true) @map("is_active")
+
+  @@map("leave_types")
+}
+
+// 휴일 — 유형·범위 (향후 캘린더 이벤트로 이관 가능 구조. 기획서 4.9)
+model Holiday {
+  id           Int      @id @default(autoincrement())
+  date         DateTime @db.Date
+  name         String
+  holidayType  String   @map("holiday_type") // HOLIDAY_TYPES
+  departmentId Int?     @map("department_id") // null = 전사, 값 = 특정 부서만
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([date, departmentId])
+  @@index([date])
+  @@map("holidays")
 }
 
 // ── 권한 (기능 단위 RBAC, action + scope 분리 — 기획서 3.3) ─────

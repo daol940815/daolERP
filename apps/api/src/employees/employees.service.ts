@@ -127,6 +127,8 @@ export class EmployeesService {
           workTypeCode: dto.workTypeCode,
           status: dto.status,
           resignDate: dto.resignDate ? new Date(dto.resignDate) : undefined,
+          workPolicyId: dto.workPolicyId,
+          leavePolicyId: dto.leavePolicyId,
         },
       });
 

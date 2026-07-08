@@ -7,6 +7,7 @@ import { EmployeesPage } from './pages/EmployeesPage';
 import { DepartmentsPage } from './pages/DepartmentsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SchedulerPage } from './pages/SchedulerPage';
+import { PoliciesPage } from './pages/PoliciesPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 
 export default function App() {
@@ -29,7 +30,7 @@ export default function App() {
         <Route path="/overtime" element={<PlaceholderPage title="초과근무" milestone="M6" />} />
         <Route path="/approvals" element={<PlaceholderPage title="승인함" milestone="M3" />} />
         <Route path="/schedules" element={<PlaceholderPage title="근무일정 관리" milestone="M3" />} />
-        <Route path="/policies" element={<PlaceholderPage title="정책 관리" milestone="M2" />} />
+        <Route path="/policies" element={<PoliciesPage />} />
         <Route path="/closing" element={<PlaceholderPage title="근태 마감" milestone="M7" />} />
         <Route path="/reports" element={<PlaceholderPage title="통계/리포트" milestone="M7" />} />
         {/* M1 구현 완료 메뉴 */}

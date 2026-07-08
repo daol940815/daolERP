@@ -14,6 +14,8 @@ const ROLE_PERMISSIONS: Record<string, { action: string; scope: string }[]> = {
     { action: 'employee.manage', scope: 'ALL' },
     { action: 'department.manage', scope: 'ALL' },
     { action: 'code.manage', scope: 'ALL' },
+    { action: 'policy.read', scope: 'ALL' },
+    { action: 'policy.manage', scope: 'ALL' },
     { action: 'scheduler.read', scope: 'ALL' },
     { action: 'scheduler.execute', scope: 'ALL' },
     { action: 'audit.read', scope: 'ALL' },
@@ -24,6 +26,8 @@ const ROLE_PERMISSIONS: Record<string, { action: string; scope: string }[]> = {
     { action: 'department.manage', scope: 'ALL' },
     { action: 'user.manage', scope: 'ALL' },
     { action: 'code.manage', scope: 'ALL' },
+    { action: 'policy.read', scope: 'ALL' },
+    { action: 'policy.manage', scope: 'ALL' },
     { action: 'settings.manage', scope: 'ALL' },
     { action: 'scheduler.read', scope: 'ALL' },
     { action: 'scheduler.execute', scope: 'ALL' },
@@ -124,12 +128,98 @@ async function seedSettings() {
     'mail.sender': '',
     'attendance.allowedIpRanges': [],
     'attendance.weeklyHourAlertThreshold': 48,
+    // 전사 기본 정책 (배정 우선순위의 최종 fallback — 기획서 4.1.1). 0 = 미지정
+    'policy.defaultWorkPolicyId': 0,
+    'policy.defaultLeavePolicyId': 0,
   };
   for (const [key, value] of Object.entries(defaults)) {
     await prisma.systemSetting.upsert({
       where: { key },
       create: { key, value: value as never },
       update: {},
+    });
+  }
+}
+
+// M2 — 기본 근무정책/연차정책/휴가유형 (기획서 4.2/4.5). 값은 화면에서 조정 가능.
+async function seedPolicies() {
+  // 근무정책: 사무직 표준(고정) — 전사 기본값 후보
+  let office = await prisma.workPolicy.findFirst({ where: { name: '사무직 표준' } });
+  if (!office) {
+    office = await prisma.workPolicy.create({ data: { name: '사무직 표준', type: 'FIXED' } });
+    await prisma.workPolicyVersion.create({
+      data: {
+        workPolicyId: office.id,
+        effectiveDate: new Date('2020-01-01'),
+        startTime: '09:00',
+        endTime: '18:00',
+        breakMinutes: 60,
+        standardWorkMinutes: 480,
+        lateGraceMinutes: 0,
+        reason: '초기 등록',
+        createdBy: 1,
+      },
+    });
+  }
+  // 임원(자율) — 예시
+  let exec = await prisma.workPolicy.findFirst({ where: { name: '임원' } });
+  if (!exec) {
+    exec = await prisma.workPolicy.create({ data: { name: '임원', type: 'AUTONOMOUS' } });
+    await prisma.workPolicyVersion.create({
+      data: {
+        workPolicyId: exec.id,
+        effectiveDate: new Date('2020-01-01'),
+        breakMinutes: 60,
+        standardWorkMinutes: 480,
+        reason: '초기 등록',
+        createdBy: 1,
+      },
+    });
+  }
+
+  // 연차정책: 표준(입사일 기준 — #1 확정) — 전사 기본값 후보
+  let leaveStd = await prisma.leavePolicy.findFirst({ where: { name: '표준 연차정책' } });
+  if (!leaveStd) {
+    leaveStd = await prisma.leavePolicy.create({
+      data: {
+        name: '표준 연차정책',
+        grantBasis: 'HIRE_DATE',
+        expireMonths: 12,
+        carryOver: false,
+        autoExpire: true,
+        promotionDays: [60, 30],
+        minUnit: 0.5,
+      },
+    });
+  }
+
+  // 전사 기본값 지정
+  await prisma.systemSetting.update({
+    where: { key: 'policy.defaultWorkPolicyId' },
+    data: { value: office.id as never },
+  });
+  await prisma.systemSetting.update({
+    where: { key: 'policy.defaultLeavePolicyId' },
+    data: { value: leaveStd.id as never },
+  });
+
+  // 휴가 유형 (기획서 4.5.1)
+  const leaveTypes: {
+    code: string; name: string; paidType: string; deductsAnnual: boolean;
+    attachmentRule: string; allowHalfDay: boolean;
+  }[] = [
+    { code: 'ANNUAL', name: '연차', paidType: 'PAID', deductsAnnual: true, attachmentRule: 'NONE', allowHalfDay: true },
+    { code: 'SUBSTITUTE', name: '대체휴가', paidType: 'PAID', deductsAnnual: false, attachmentRule: 'NONE', allowHalfDay: true },
+    { code: 'CONDOLENCE', name: '경조휴가', paidType: 'PAID', deductsAnnual: false, attachmentRule: 'OPTIONAL', allowHalfDay: false },
+    { code: 'SICK', name: '병가', paidType: 'POLICY', deductsAnnual: false, attachmentRule: 'REQUIRED', allowHalfDay: false },
+    { code: 'OFFICIAL', name: '공가', paidType: 'PAID', deductsAnnual: false, attachmentRule: 'OPTIONAL', allowHalfDay: false },
+    { code: 'UNPAID', name: '무급휴가', paidType: 'UNPAID', deductsAnnual: false, attachmentRule: 'NONE', allowHalfDay: false },
+  ];
+  for (const [i, t] of leaveTypes.entries()) {
+    await prisma.leaveType.upsert({
+      where: { code: t.code },
+      create: { ...t, sortOrder: i },
+      update: { name: t.name, sortOrder: i },
     });
   }
 }
@@ -189,6 +279,7 @@ async function main() {
   await seedSettings();
   await seedSchedulerJobs();
   await seedAdmin();
+  await seedPolicies();
   console.log('시드 완료');
 }
 
