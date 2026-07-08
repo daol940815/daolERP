@@ -69,6 +69,13 @@ model Employee {
   histories       EmployeeHistory[]
   headOfDepts     Department[]      @relation("DepartmentHead")
 
+  // M3 관계
+  workSchedules       WorkSchedule[]
+  approvalAssignments ApprovalLineAssignment[]
+  approvalStepDefs    ApprovalLineStep[]      @relation("StepSpecificApprover")
+  applications        Approval[]              @relation("Applicant")
+  approvalDecisions   ApprovalStepRecord[]    @relation("StepApprover")
+
   @@map("employees")
 }
 
@@ -108,7 +115,8 @@ model Department {
   leavePolicyId Int? @map("leave_policy_id")
   leavePolicy   LeavePolicy? @relation(fields: [leavePolicyId], references: [id])
 
-  employees Employee[]
+  employees           Employee[]
+  approvalAssignments ApprovalLineAssignment[]
 
   @@map("departments")
 }
@@ -192,6 +200,7 @@ model WorkPolicyVersion {
   breakMinutes        Int     @default(60) @map("break_minutes")
   standardWorkMinutes Int     @default(480) @map("standard_work_minutes") // 소정근로(분)
   lateGraceMinutes    Int     @default(0) @map("late_grace_minutes")      // 지각 유예(분)
+  workDays            Int[]   @default([1, 2, 3, 4, 5]) @map("work_days") // 근무 요일 0=일..6=토 (기본 월~금)
 
   // 시차출퇴근용 출근 허용 범위 (FLEX)
   flexStartFrom String? @map("flex_start_from") // "08:00"
@@ -304,6 +313,130 @@ model UserRole {
 
   @@id([userId, roleId])
   @@map("user_roles")
+}
+
+// ── 근무일정 모듈 [Master] (기획서 4.3) ─────────────────────────
+
+// 시프트 정의 — 교대근무 대비, 구조만 우선 (기획서 SCH-04)
+model Shift {
+  id        Int     @id @default(autoincrement())
+  name      String
+  startTime String  @map("start_time")
+  endTime   String  @map("end_time")
+  isActive  Boolean @default(true) @map("is_active")
+
+  schedules WorkSchedule[]
+
+  @@map("shifts")
+}
+
+// 근무일정 — 직원×일자. 근태 판정의 기준 데이터 (기획서 4.3).
+// 정책+휴일로 자동 생성(AUTO)하거나 개별 조정(MANUAL). 재생성 시 MANUAL 보존.
+model WorkSchedule {
+  id           Int      @id @default(autoincrement())
+  employeeId   Int      @map("employee_id")
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  date         DateTime @db.Date
+  isWorkday    Boolean  @map("is_workday")
+  plannedStart String?  @map("planned_start") // "09:00" (휴무/자율은 null)
+  plannedEnd   String?  @map("planned_end")
+  breakMinutes Int      @default(0) @map("break_minutes")
+  shiftId      Int?     @map("shift_id")
+  shift        Shift?   @relation(fields: [shiftId], references: [id])
+  source       String   @default("AUTO") // SCHEDULE_SOURCES: AUTO | MANUAL
+  workPolicyId Int?     @map("work_policy_id") // 생성 근거 정책 (추적)
+  adjustReason String?  @map("adjust_reason")  // 개별 조정 사유
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([employeeId, date])
+  @@index([date])
+  @@map("work_schedules")
+}
+
+// ── 승인 모듈 (독립 — 전 신청 유형 공통. 기획서 4.7/5.3) ─────────
+
+// 승인라인 템플릿 — 신청 유형별
+model ApprovalLine {
+  id          Int     @id @default(autoincrement())
+  name        String
+  requestType String  @map("request_type") // REQUEST_TYPES: LEAVE | OVERTIME | ATTENDANCE_CORRECTION
+  isDefault   Boolean @default(false) @map("is_default") // 유형별 전사 기본 라인
+  isActive    Boolean @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  steps       ApprovalLineStep[]
+  assignments ApprovalLineAssignment[]
+  approvals   Approval[]
+
+  @@map("approval_lines")
+}
+
+// 단계 정의 — 순번 + 승인자 지정 방식 (기획서 APV-02)
+model ApprovalLineStep {
+  id             Int          @id @default(autoincrement())
+  approvalLineId Int          @map("approval_line_id")
+  approvalLine   ApprovalLine @relation(fields: [approvalLineId], references: [id], onDelete: Cascade)
+  stepOrder      Int          @map("step_order")
+  approverType   String       @map("approver_type") // APPROVER_TYPES: SPECIFIC | DEPT_HEAD | PARENT_DEPT_HEAD | JOB_TITLE
+  approverEmployeeId  Int?     @map("approver_employee_id") // SPECIFIC 일 때
+  approverEmployee    Employee? @relation("StepSpecificApprover", fields: [approverEmployeeId], references: [id])
+  approverJobTitleCode String? @map("approver_job_title_code") // JOB_TITLE 일 때
+
+  @@unique([approvalLineId, stepOrder])
+  @@map("approval_line_steps")
+}
+
+// 승인라인 배정 — 직원/부서에 라인 연결 (우선순위 개인>부서>기본. 기획서 APV-03)
+model ApprovalLineAssignment {
+  id             Int          @id @default(autoincrement())
+  approvalLineId Int          @map("approval_line_id")
+  approvalLine   ApprovalLine @relation(fields: [approvalLineId], references: [id], onDelete: Cascade)
+  employeeId     Int?         @map("employee_id")
+  employee       Employee?    @relation(fields: [employeeId], references: [id])
+  departmentId   Int?         @map("department_id")
+  department     Department?  @relation(fields: [departmentId], references: [id])
+
+  @@index([employeeId])
+  @@index([departmentId])
+  @@map("approval_line_assignments")
+}
+
+// 승인 인스턴스 — 신청 유형 + 신청 ID 공통. 상태기계 기획서 5.3
+model Approval {
+  id                  Int      @id @default(autoincrement())
+  requestType         String   @map("request_type")
+  requestId           Int      @map("request_id")
+  applicantEmployeeId Int      @map("applicant_employee_id")
+  applicant           Employee @relation("Applicant", fields: [applicantEmployeeId], references: [id])
+  approvalLineId      Int?     @map("approval_line_id")
+  approvalLine        ApprovalLine? @relation(fields: [approvalLineId], references: [id])
+  currentStep         Int      @default(1) @map("current_step")
+  status              String   @default("IN_PROGRESS") // APPROVAL_STATUS
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  stepRecords ApprovalStepRecord[]
+
+  @@unique([requestType, requestId])
+  @@index([status])
+  @@map("approvals")
+}
+
+// 단계별 처리 이력 (승인자, 처리 일시, 의견. 기획서 8장)
+model ApprovalStepRecord {
+  id                 Int       @id @default(autoincrement())
+  approvalId         Int       @map("approval_id")
+  approval           Approval  @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+  stepOrder          Int       @map("step_order")
+  approverEmployeeId Int?      @map("approver_employee_id") // 확정된 승인자
+  approverEmployee   Employee? @relation("StepApprover", fields: [approverEmployeeId], references: [id])
+  decision           String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  comment            String?
+  decidedAt          DateTime? @map("decided_at")
+
+  @@index([approverEmployeeId, decision])
+  @@map("approval_step_records")
 }
 
 // ── 시스템 설정 (법인 복제 시 변경 지점 — 기획서 4.13) ──────────

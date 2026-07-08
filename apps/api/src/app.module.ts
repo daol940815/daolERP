@@ -14,6 +14,8 @@ import { UsersModule } from './users/users.module';
 import { SettingsModule } from './settings/settings.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { PolicyModule } from './policy/policy.module';
+import { ScheduleModule as WorkScheduleModule } from './schedule/schedule.module';
+import { ApprovalModule } from './approval/approval.module';
 
 @Module({
   imports: [
@@ -29,6 +31,8 @@ import { PolicyModule } from './policy/policy.module';
     SettingsModule,
     SchedulerModule,
     PolicyModule,
+    WorkScheduleModule,
+    ApprovalModule,
   ],
   providers: [
     // 전역 인증 → 권한 순서로 적용. @Public() 로 예외 지정.

@@ -16,6 +16,9 @@ const ROLE_PERMISSIONS: Record<string, { action: string; scope: string }[]> = {
     { action: 'code.manage', scope: 'ALL' },
     { action: 'policy.read', scope: 'ALL' },
     { action: 'policy.manage', scope: 'ALL' },
+    { action: 'schedule.read', scope: 'ALL' },
+    { action: 'schedule.manage', scope: 'ALL' },
+    { action: 'approval.manage', scope: 'ALL' },
     { action: 'scheduler.read', scope: 'ALL' },
     { action: 'scheduler.execute', scope: 'ALL' },
     { action: 'audit.read', scope: 'ALL' },
@@ -28,6 +31,9 @@ const ROLE_PERMISSIONS: Record<string, { action: string; scope: string }[]> = {
     { action: 'code.manage', scope: 'ALL' },
     { action: 'policy.read', scope: 'ALL' },
     { action: 'policy.manage', scope: 'ALL' },
+    { action: 'schedule.read', scope: 'ALL' },
+    { action: 'schedule.manage', scope: 'ALL' },
+    { action: 'approval.manage', scope: 'ALL' },
     { action: 'settings.manage', scope: 'ALL' },
     { action: 'scheduler.read', scope: 'ALL' },
     { action: 'scheduler.execute', scope: 'ALL' },
@@ -227,7 +233,7 @@ async function seedPolicies() {
 async function seedSchedulerJobs() {
   // M2+ 에서 핸들러가 구현될 작업 정의 (기획서 5.4) — 기본 비활성
   const jobs: [string, string, string][] = [
-    ['work-schedule-generate', '0 2 25 * *', '익월 근무일정 생성 (M3 구현)'],
+    ['work-schedule-generate', '0 2 25 * *', '익월 근무일정 생성'],
     ['leave-grant', '0 3 * * *', '연차 발생 (M5 구현)'],
     ['leave-expire', '0 4 * * *', '연차 소멸 (M5 구현)'],
     ['leave-promotion-alert', '0 5 * * *', '연차 촉진 알림 (M5 구현)'],
@@ -273,6 +279,30 @@ async function seedAdmin() {
   }
 }
 
+// M3 — 기본 승인라인 (기획서 4.7). 유형별 전사 기본 라인 1개씩.
+async function seedApprovalLines() {
+  const defaults: { name: string; requestType: string }[] = [
+    { name: '일반 휴가 라인', requestType: 'LEAVE' },
+    { name: '초과근무 라인', requestType: 'OVERTIME' },
+    { name: '근태 보정 라인', requestType: 'ATTENDANCE_CORRECTION' },
+  ];
+  for (const d of defaults) {
+    const existing = await prisma.approvalLine.findFirst({
+      where: { requestType: d.requestType, isDefault: true },
+    });
+    if (existing) continue;
+    await prisma.approvalLine.create({
+      data: {
+        name: d.name,
+        requestType: d.requestType,
+        isDefault: true,
+        // 1단계: 직속 부서장 (기획서 예시)
+        steps: { create: [{ stepOrder: 1, approverType: 'DEPT_HEAD' }] },
+      },
+    });
+  }
+}
+
 async function main() {
   await seedRolesAndPermissions();
   await seedCodes();
@@ -280,6 +310,7 @@ async function main() {
   await seedSchedulerJobs();
   await seedAdmin();
   await seedPolicies();
+  await seedApprovalLines();
   console.log('시드 완료');
 }
 

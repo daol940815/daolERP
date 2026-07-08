@@ -3,12 +3,14 @@ import { WorkPoliciesTab } from './policies/WorkPoliciesTab';
 import { LeavePoliciesTab } from './policies/LeavePoliciesTab';
 import { LeaveTypesTab } from './policies/LeaveTypesTab';
 import { HolidaysTab } from './policies/HolidaysTab';
+import { ApprovalLinesTab } from './policies/ApprovalLinesTab';
 
 const TABS = [
   { key: 'work', label: '근무정책' },
   { key: 'leave', label: '연차정책' },
   { key: 'types', label: '휴가유형' },
   { key: 'holidays', label: '휴일' },
+  { key: 'approval', label: '승인라인' },
 ] as const;
 
 export function PoliciesPage() {
@@ -32,6 +34,7 @@ export function PoliciesPage() {
       {tab === 'leave' && <LeavePoliciesTab />}
       {tab === 'types' && <LeaveTypesTab />}
       {tab === 'holidays' && <HolidaysTab />}
+      {tab === 'approval' && <ApprovalLinesTab />}
     </>
   );
 }

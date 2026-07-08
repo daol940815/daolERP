@@ -34,6 +34,10 @@ export const PERMISSION_ACTIONS = [
   // M2 — 정책 관리
   'policy.read',
   'policy.manage',
+  // M3 — 근무일정 / 승인
+  'schedule.read',
+  'schedule.manage',
+  'approval.manage', // 승인라인 정의/배정
 ] as const;
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 
@@ -68,6 +72,28 @@ export type HolidayType = (typeof HOLIDAY_TYPES)[number];
 /** 정책 배정 출처 — resolve 결과가 어디서 왔는지 (개인/부서/전사 기본값) */
 export const POLICY_SOURCES = ['EMPLOYEE', 'DEPARTMENT', 'DEFAULT', 'NONE'] as const;
 export type PolicySource = (typeof POLICY_SOURCES)[number];
+
+// ── M3 근무일정 / 승인 도메인 ──────────────────────────────────
+
+/** 근무일정 생성 근거 (기획서 4.3) */
+export const SCHEDULE_SOURCES = ['AUTO', 'MANUAL'] as const;
+export type ScheduleSource = (typeof SCHEDULE_SOURCES)[number];
+
+/** 신청 유형 — 승인이 공통 처리 (기획서 4.7) */
+export const REQUEST_TYPES = ['LEAVE', 'OVERTIME', 'ATTENDANCE_CORRECTION'] as const;
+export type RequestType = (typeof REQUEST_TYPES)[number];
+
+/** 승인 단계의 승인자 지정 방식 (기획서 APV-02) */
+export const APPROVER_TYPES = ['SPECIFIC', 'DEPT_HEAD', 'PARENT_DEPT_HEAD', 'JOB_TITLE'] as const;
+export type ApproverType = (typeof APPROVER_TYPES)[number];
+
+/** 승인 인스턴스 상태 (기획서 5.3) */
+export const APPROVAL_STATUS = ['IN_PROGRESS', 'APPROVED', 'REJECTED', 'CANCELLED'] as const;
+export type ApprovalStatus = (typeof APPROVAL_STATUS)[number];
+
+/** 단계 처리 결과 */
+export const STEP_DECISIONS = ['PENDING', 'APPROVED', 'REJECTED'] as const;
+export type StepDecision = (typeof STEP_DECISIONS)[number];
 
 /** 역할 코드 (기획서 3.2) */
 export const ROLE_CODES = ['EMPLOYEE', 'APPROVER', 'HR', 'ADMIN'] as const;
