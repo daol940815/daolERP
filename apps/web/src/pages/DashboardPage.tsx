@@ -17,12 +17,19 @@ export function DashboardPage() {
   const [week, setWeek] = useState<DayRow[]>([]);
   const [message, setMessage] = useState('');
 
+  const [available, setAvailable] = useState<number | null>(null);
+
   const load = useCallback(async () => {
     if (!user?.employee) return;
     const now = new Date();
     const day = now.getDay(); // 0=일
     const monday = new Date(now.getTime() - ((day + 6) % 7) * 86400000);
-    setWeek(await api<DayRow[]>(`/attendance/me?from=${kstKey(monday)}&to=${kstKey(now)}`));
+    const [w, b] = await Promise.all([
+      api<DayRow[]>(`/attendance/me?from=${kstKey(monday)}&to=${kstKey(now)}`),
+      api<{ summary: { available: number } }>('/leaves/balance').catch(() => null),
+    ]);
+    setWeek(w);
+    setAvailable(b?.summary.available ?? null);
   }, [user]);
 
   useEffect(() => { void load(); }, [load]);
@@ -68,12 +75,12 @@ export function DashboardPage() {
           <div className="value">{fmtMin(weekMinutes)}</div>
         </div>
         <div className="card stat">
-          <div className="label">잔여 연차</div>
-          <div className="value">—</div>
+          <div className="label">가용 연차</div>
+          <div className="value">{available != null ? `${available}일` : '—'}</div>
         </div>
       </div>
       <p style={{ marginTop: 20, color: '#8a93a8' }}>
-        {user?.employee?.name ?? user?.email}님, 환영합니다. 잔여 연차는 휴가 모듈(M5) 오픈 시 표시됩니다.
+        {user?.employee?.name ?? user?.email}님, 환영합니다.
       </p>
     </>
   );

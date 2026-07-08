@@ -80,6 +80,10 @@ model Employee {
   attendanceEvents      AttendanceEvent[]
   attendanceCorrections AttendanceCorrection[]
 
+  // M5 관계
+  leaveGrants   LeaveGrant[]
+  leaveRequests LeaveRequest[]
+
   @@map("employees")
 }
 
@@ -258,7 +262,67 @@ model LeaveType {
   sortOrder      Int     @default(0) @map("sort_order")
   isActive       Boolean @default(true) @map("is_active")
 
+  requests LeaveRequest[]
+
   @@map("leave_types")
+}
+
+// ── 휴가 모듈 [Transaction] (기획서 4.5, 8장) ───────────────────
+
+// 연차/휴가 발생 건 — 잔여는 저장하지 않고 grants − usages 로 계산 (기획서 8장)
+model LeaveGrant {
+  id            Int      @id @default(autoincrement())
+  employeeId    Int      @map("employee_id")
+  employee      Employee @relation(fields: [employeeId], references: [id])
+  leaveTypeCode String   @default("ANNUAL") @map("leave_type_code")
+  grantKey      String?  @unique @map("grant_key") // 자동 발생 멱등키 (직원:구분:발생일). 수동 조정은 null
+  grantDate     DateTime @map("grant_date") @db.Date
+  days          Float // 수동 차감 조정은 음수 허용 (기획서 LEV-06)
+  expireDate    DateTime @map("expire_date") @db.Date
+  reason        String
+  status        String   @default("ACTIVE") // GRANT_STATUS: ACTIVE | EXHAUSTED | EXPIRED
+  expiredDays   Float?   @map("expired_days") // 소멸 시점 잔여 기록
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  usages LeaveUsage[]
+
+  @@index([employeeId, status])
+  @@map("leave_grants")
+}
+
+// 휴가 신청 — 상태기계 기획서 5.3 (가차감: REQUESTED 상태가 available 에서 차감됨)
+model LeaveRequest {
+  id          Int       @id @default(autoincrement())
+  employeeId  Int       @map("employee_id")
+  employee    Employee  @relation(fields: [employeeId], references: [id])
+  leaveTypeId Int       @map("leave_type_id")
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id])
+  startDate   DateTime  @map("start_date") @db.Date
+  endDate     DateTime  @map("end_date") @db.Date
+  halfDay     Boolean   @default(false) @map("half_day") // 반차 (단일일만)
+  days        Float // 근무일정 기준 산정 일수 (주말·휴일 자동 제외)
+  reason      String
+  status      String    @default("REQUESTED") // LEAVE_REQUEST_STATUS
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  usages LeaveUsage[]
+
+  @@index([employeeId, startDate])
+  @@map("leave_requests")
+}
+
+// 발생 건별 사용 매핑 — 선입선출(만료 임박 순) 차감 (기획서 8장)
+model LeaveUsage {
+  id        Int          @id @default(autoincrement())
+  grantId   Int          @map("grant_id")
+  grant     LeaveGrant   @relation(fields: [grantId], references: [id])
+  requestId Int          @map("request_id")
+  request   LeaveRequest @relation(fields: [requestId], references: [id])
+  days      Float
+
+  @@unique([grantId, requestId])
+  @@map("leave_usages")
 }
 
 // 휴일 — 유형·범위 (향후 캘린더 이벤트로 이관 가능 구조. 기획서 4.9)

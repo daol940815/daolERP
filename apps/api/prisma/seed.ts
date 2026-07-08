@@ -10,10 +10,12 @@ const ROLE_PERMISSIONS: Record<string, { action: string; scope: string }[]> = {
   EMPLOYEE: [
     { action: 'employee.read', scope: 'SELF' },
     { action: 'attendance.read', scope: 'SELF' },
+    { action: 'leave.read', scope: 'SELF' },
   ],
   APPROVER: [
     { action: 'employee.read', scope: 'DEPT' },
     { action: 'attendance.read', scope: 'DEPT' },
+    { action: 'leave.read', scope: 'DEPT' },
   ],
   HR: [
     { action: 'employee.read', scope: 'ALL' },
@@ -26,6 +28,8 @@ const ROLE_PERMISSIONS: Record<string, { action: string; scope: string }[]> = {
     { action: 'schedule.manage', scope: 'ALL' },
     { action: 'approval.manage', scope: 'ALL' },
     { action: 'attendance.read', scope: 'ALL' },
+    { action: 'leave.read', scope: 'ALL' },
+    { action: 'leave.adjust', scope: 'ALL' },
     { action: 'scheduler.read', scope: 'ALL' },
     { action: 'scheduler.execute', scope: 'ALL' },
     { action: 'audit.read', scope: 'ALL' },
@@ -42,6 +46,8 @@ const ROLE_PERMISSIONS: Record<string, { action: string; scope: string }[]> = {
     { action: 'schedule.manage', scope: 'ALL' },
     { action: 'approval.manage', scope: 'ALL' },
     { action: 'attendance.read', scope: 'ALL' },
+    { action: 'leave.read', scope: 'ALL' },
+    { action: 'leave.adjust', scope: 'ALL' },
     { action: 'settings.manage', scope: 'ALL' },
     { action: 'scheduler.read', scope: 'ALL' },
     { action: 'scheduler.execute', scope: 'ALL' },
@@ -291,6 +297,7 @@ async function seedAdmin() {
 async function seedApprovalLines() {
   const defaults: { name: string; requestType: string }[] = [
     { name: '일반 휴가 라인', requestType: 'LEAVE' },
+    { name: '휴가 취소 라인', requestType: 'LEAVE_CANCEL' },
     { name: '초과근무 라인', requestType: 'OVERTIME' },
     { name: '근태 보정 라인', requestType: 'ATTENDANCE_CORRECTION' },
   ];

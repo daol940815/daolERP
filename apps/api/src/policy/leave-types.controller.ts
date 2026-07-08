@@ -9,8 +9,8 @@ import { LeaveTypeInput } from './leave-types.dto';
 export class LeaveTypesController {
   constructor(private readonly service: LeaveTypesService) {}
 
+  // 조회는 전 직원 허용 — 휴가 신청 화면의 유형 선택에 필요
   @Get()
-  @RequirePermission('policy.read')
   list() {
     return this.service.list();
   }

@@ -15,6 +15,7 @@ interface InboxItem {
 
 const REQUEST_LABEL: Record<string, string> = {
   LEAVE: '휴가',
+  LEAVE_CANCEL: '휴가 취소',
   OVERTIME: '초과근무',
   ATTENDANCE_CORRECTION: '근태 보정',
 };

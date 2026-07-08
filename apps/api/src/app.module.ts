@@ -19,6 +19,7 @@ import { ApprovalModule } from './approval/approval.module';
 import { AttendanceEngineModule } from './attendance-engine/attendance-engine.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { AttachmentModule } from './attachment/attachment.module';
+import { LeaveModule } from './leave/leave.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { AttachmentModule } from './attachment/attachment.module';
     WorkScheduleModule,
     ApprovalModule,
     AttendanceEngineModule,
+    LeaveModule,
     AttendanceModule,
     AttachmentModule,
   ],

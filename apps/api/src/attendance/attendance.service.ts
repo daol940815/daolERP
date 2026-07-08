@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ApprovalService } from '../approval/approval.service';
 import { AttendanceEngineService, kstDateKey } from '../attendance-engine/attendance-engine.service';
+import { LeavesService } from '../leave/leaves.service';
 
 /** "YYYY-MM-DD" + "HH:MM" (KST) → Date */
 function kstDateTime(dateKey: string, hhmm: string): Date {
@@ -16,6 +17,7 @@ export class AttendanceService {
     private readonly audit: AuditService,
     private readonly approval: ApprovalService,
     private readonly engine: AttendanceEngineService,
+    private readonly leaves: LeavesService,
   ) {}
 
   /** 출퇴근 체크 — 서버 시간 기준, 메타데이터 수집 (기획서 ATT-01/02) */
@@ -39,8 +41,10 @@ export class AttendanceService {
   async daily(employeeId: number, from: string, to: string) {
     const fromDate = new Date(from);
     const toDate = new Date(to);
+    // 승인된 휴가 → 엔진 LEAVE 판정 입력 (기획서 5.2: 승인된 휴가는 결근 아님)
+    const leaveDates = await this.leaves.approvedDates(employeeId, fromDate, toDate);
     const [results, events] = await Promise.all([
-      this.engine.calculateRange(employeeId, fromDate, toDate),
+      this.engine.calculateRange(employeeId, fromDate, toDate, leaveDates),
       this.prisma.attendanceEvent.findMany({
         where: {
           employeeId,

@@ -2,6 +2,7 @@ import { Module, OnModuleInit } from '@nestjs/common';
 import { ApprovalModule } from '../approval/approval.module';
 import { ApprovalService } from '../approval/approval.service';
 import { AttendanceEngineModule } from '../attendance-engine/attendance-engine.module';
+import { LeaveModule } from '../leave/leave.module';
 import { AttendanceService } from './attendance.service';
 import { AttendanceController } from './attendance.controller';
 
@@ -10,7 +11,7 @@ import { AttendanceController } from './attendance.controller';
  * 보정 신청의 승인 후처리(반영/반려)를 승인 모듈에 훅으로 등록한다.
  */
 @Module({
-  imports: [ApprovalModule, AttendanceEngineModule],
+  imports: [ApprovalModule, AttendanceEngineModule, LeaveModule],
   controllers: [AttendanceController],
   providers: [AttendanceService],
   exports: [AttendanceService],

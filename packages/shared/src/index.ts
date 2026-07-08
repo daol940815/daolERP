@@ -40,6 +40,9 @@ export const PERMISSION_ACTIONS = [
   'approval.manage', // 승인라인 정의/배정
   // M4 — 근태
   'attendance.read', // 스코프: SELF/DEPT/ALL
+  // M5 — 휴가
+  'leave.read',   // 스코프: SELF/DEPT/ALL
+  'leave.adjust', // 연차 수동 조정 (HR)
 ] as const;
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 
@@ -81,8 +84,8 @@ export type PolicySource = (typeof POLICY_SOURCES)[number];
 export const SCHEDULE_SOURCES = ['AUTO', 'MANUAL'] as const;
 export type ScheduleSource = (typeof SCHEDULE_SOURCES)[number];
 
-/** 신청 유형 — 승인이 공통 처리 (기획서 4.7) */
-export const REQUEST_TYPES = ['LEAVE', 'OVERTIME', 'ATTENDANCE_CORRECTION'] as const;
+/** 신청 유형 — 승인이 공통 처리 (기획서 4.7). LEAVE_CANCEL = 승인 후 휴가 취소 신청 */
+export const REQUEST_TYPES = ['LEAVE', 'LEAVE_CANCEL', 'OVERTIME', 'ATTENDANCE_CORRECTION'] as const;
 export type RequestType = (typeof REQUEST_TYPES)[number];
 
 /** 승인 단계의 승인자 지정 방식 (기획서 APV-02) */
@@ -122,6 +125,22 @@ export const DAY_STATUS = [
   'NO_SCHEDULE', // 근무일정 없음
 ] as const;
 export type DayStatus = (typeof DAY_STATUS)[number];
+
+// ── M5 휴가 ────────────────────────────────────────────────────
+
+/** 휴가 신청 상태 (기획서 5.3 — CANCEL_REQUESTED: 승인 후 취소 신청 중) */
+export const LEAVE_REQUEST_STATUS = [
+  'REQUESTED',
+  'APPROVED',
+  'REJECTED',
+  'CANCELLED',
+  'CANCEL_REQUESTED',
+] as const;
+export type LeaveRequestStatus = (typeof LEAVE_REQUEST_STATUS)[number];
+
+/** 연차 발생 건 상태 (기획서 5.3) */
+export const GRANT_STATUS = ['ACTIVE', 'EXHAUSTED', 'EXPIRED'] as const;
+export type GrantStatus = (typeof GRANT_STATUS)[number];
 
 /** 근태 엔진 일별 결과 (기획서 5.2 출력) */
 export interface DayResult {

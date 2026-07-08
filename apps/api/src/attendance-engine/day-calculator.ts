@@ -64,10 +64,11 @@ export function calculateDay(input: DayCalcInput): DayResult {
     anomalies,
   };
 
-  // ── 판정 우선순위: 일정 없음 → 휴가 → 휴무 → 근무일 규칙 ──
+  // ── 판정 우선순위: 일정 없음 → 휴무 → 휴가 → 근무일 규칙 ──
+  // (휴무일에 휴가 기간이 겹치면 휴무가 우선 — 휴가 일수 산정도 휴무일은 제외되므로 일관)
   if (!input.schedule) return { ...base, status: 'NO_SCHEDULE' };
-  if (input.hasApprovedLeave) return { ...base, status: 'LEAVE' };
   if (!input.schedule.isWorkday) return { ...base, status: 'DAYOFF' }; // 휴일근무 시간은 workMinutes 로 집계 (M6 OT)
+  if (input.hasApprovedLeave) return { ...base, status: 'LEAVE' };
 
   // 근무일
   if (!hasAnyEvent) {
