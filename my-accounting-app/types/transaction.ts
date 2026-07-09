@@ -22,6 +22,17 @@ export interface Transaction {
   upload_log_id?: string | null
   transfer_pair_id?: string | null
   created_at: string
+  // 이 거래에 연결된 세금계산서 결제연결 (계산서 쪽에서 매칭해도 통장 쪽에 표시 — 양방향)
+  invoice_links?: {
+    amount: number
+    invoice: {
+      id: string
+      direction: string
+      issue_date: string
+      counterparty_name: string | null
+      total_amount: number
+    }
+  }[]
 }
 
 export interface Account {

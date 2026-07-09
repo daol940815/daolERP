@@ -40,6 +40,37 @@ export async function GET(req: NextRequest) {
 
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
 
+  // 계산서 결제연결을 거래 쪽에도 붙인다 — 계산서에서 매칭하면 통장 화면에서도
+  // 어떤 계산서와 연결됐는지 보여야 한다(양방향). 연결 테이블 전체를 한 번에
+  // 읽어 메모리에서 붙인다(거래 id로 .in() 하면 수십 번의 청크 조회가 필요).
+  type PayLink = {
+    transaction_id: string
+    amount: number
+    tax_invoice: {
+      id: string; direction: string; issue_date: string
+      counterparty_name: string | null; total_amount: number
+    } | null
+  }
+  const payResult = await fetchAllRows<PayLink>((f, t) =>
+    admin
+      .from('tax_invoice_payments')
+      .select('transaction_id, amount, tax_invoice:tax_invoices(id, direction, issue_date, counterparty_name, total_amount)')
+      .range(f, t) as unknown as PromiseLike<{ data: PayLink[] | null; error: { message: string } | null }>,
+  )
+  if (!('error' in payResult)) {
+    const linksByTx = new Map<string, { amount: number; invoice: NonNullable<PayLink['tax_invoice']> }[]>()
+    for (const p of payResult.data) {
+      if (!p.tax_invoice) continue
+      const arr = linksByTx.get(p.transaction_id) ?? []
+      arr.push({ amount: p.amount, invoice: p.tax_invoice })
+      linksByTx.set(p.transaction_id, arr)
+    }
+    for (const tx of result.data) {
+      const links = linksByTx.get(tx.id as string)
+      if (links) tx.invoice_links = links
+    }
+  }
+
   return NextResponse.json({ data: result.data })
 }
 

@@ -688,6 +688,35 @@ function TransactionsContent() {
       cellRenderer: StatusBadge,
     },
     {
+      // 계산서 결제연결 (계산서 쪽에서 매칭해도 여기 표시 — 양방향)
+      colId: 'invoice_links',
+      headerName: '계산서',
+      width: 160,
+      sortable: false,
+      filter: false,
+      cellRenderer: (p: ICellRendererParams<Transaction>) => {
+        const links = p.data?.invoice_links
+        if (!links?.length) return <span className="text-gray-300 text-xs">—</span>
+        const first = links[0].invoice
+        const label = links.length === 1
+          ? `${(first.counterparty_name ?? '계산서').slice(0, 8)} ${links[0].amount.toLocaleString('ko-KR')}`
+          : `계산서 ${links.length}건 연결`
+        const tip = links.map(l =>
+          `${l.invoice.issue_date?.slice(0, 10) ?? ''} · ${l.invoice.counterparty_name ?? '-'} · 연결 ${l.amount.toLocaleString('ko-KR')}원 (총액 ${l.invoice.total_amount.toLocaleString('ko-KR')}원)`,
+        ).join('\n')
+        return (
+          <a
+            href={`/source/tax_invoice/${first.id}`}
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-700 hover:bg-sky-200 max-w-full overflow-hidden"
+            title={tip}
+            onClick={e => e.stopPropagation()}
+          >
+            {label}
+          </a>
+        )
+      },
+    },
+    {
       field: 'transfer_pair_id',
       headerName: '이체쌍',
       width: 130,
