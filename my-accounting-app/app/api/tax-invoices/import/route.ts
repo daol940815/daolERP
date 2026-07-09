@@ -4,6 +4,7 @@ import { fetchAllRows } from '@/lib/fetch-all-rows'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 120
 
 // 홈택스 "전자(세금)계산서 목록조회" 다운로드 파일 식별용 필수 컬럼
 const REQUIRED_COLS = ['작성일자', '승인번호', '공급자사업자등록번호', '공급받는자사업자등록번호', '합계금액']
@@ -65,23 +66,30 @@ export async function POST(req: NextRequest) {
   if (direction !== 'sales' && direction !== 'purchase')  return NextResponse.json({ error: 'direction 값이 올바르지 않습니다.' }, { status: 400 })
   if (taxType !== 'taxable' && taxType !== 'exempt')      return NextResponse.json({ error: 'taxType 값이 올바르지 않습니다.' }, { status: 400 })
 
-  const buffer = Buffer.from(await file.arrayBuffer())
-  const wb = XLSX.read(buffer, { type: 'buffer' })
-
-  // 헤더 행을 가진 시트를 컬럼 패턴으로 탐색 (시트명/위치가 다를 수 있음)
+  // 파일 파싱은 손상·비정형 파일에서 예외를 던질 수 있다 — 크래시("Failed to fetch") 대신 메시지 반환
   let header: unknown[] | null = null
   let dataRows: unknown[][] = []
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer())
+    const wb = XLSX.read(buffer, { type: 'buffer' })
 
-  for (const wsName of wb.SheetNames) {
-    const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wsName], { header: 1, raw: false, defval: '' })
-    const headerIdx = rows.findIndex(row =>
-      REQUIRED_COLS.every(col => row.some(cell => String(cell ?? '').trim() === col))
-    )
-    if (headerIdx >= 0) {
-      header = rows[headerIdx]
-      dataRows = rows.slice(headerIdx + 1)
-      break
+    // 헤더 행을 가진 시트를 컬럼 패턴으로 탐색 (시트명/위치가 다를 수 있음)
+    for (const wsName of wb.SheetNames) {
+      const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wsName], { header: 1, raw: false, defval: '' })
+      const headerIdx = rows.findIndex(row =>
+        REQUIRED_COLS.every(col => row.some(cell => String(cell ?? '').trim() === col))
+      )
+      if (headerIdx >= 0) {
+        header = rows[headerIdx]
+        dataRows = rows.slice(headerIdx + 1)
+        break
+      }
     }
+  } catch (e) {
+    return NextResponse.json(
+      { error: `파일을 읽는 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}. 홈택스에서 받은 엑셀 파일이 맞는지 확인해주세요.` },
+      { status: 400 },
+    )
   }
 
   if (!header) {
@@ -152,6 +160,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '가져올 수 있는 데이터가 없습니다.', skipped }, { status: 400 })
   }
 
+  try {
   // ── 계정과목 자동분류용 계정 로드 (매입 → expense, 매출 → income) ──────
   const classifyType = direction === 'purchase' ? 'expense' : 'income'
   const { data: classifyAccs } = await admin
@@ -270,4 +279,11 @@ export async function POST(req: NextRequest) {
     vendorsCreated,
     total: dataRows.length,
   })
+  } catch (e) {
+    // DB 처리 중 예외(제약 위반 등) — 크래시 대신 메시지 반환
+    return NextResponse.json(
+      { error: `저장 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}` },
+      { status: 500 },
+    )
+  }
 }
