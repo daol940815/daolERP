@@ -175,12 +175,40 @@ export async function POST(req: NextRequest) {
   }))
 
   // ── 거래처 자동 매칭/등록 (사업자번호 우선, 없으면 상호명) ──────────
-  const { data: vendors } = await admin.from('vendors').select('id, name, biz_number, type')
+  const { data: vendors } = await admin.from('vendors').select('id, name, biz_number, type, default_account_id')
   const vendorByBiz  = new Map<string, { id: string; type: string }>()
   const vendorByName = new Map<string, { id: string; type: string }>()
+  const vendorDefaultAcc = new Map<string, string>()   // vendor_id → default_account_id
   for (const v of vendors ?? []) {
     if (v.biz_number) vendorByBiz.set(v.biz_number as string, { id: v.id as string, type: v.type as string })
     vendorByName.set((v.name as string).trim().toLowerCase(), { id: v.id as string, type: v.type as string })
+    if (v.default_account_id) vendorDefaultAcc.set(v.id as string, v.default_account_id as string)
+  }
+
+  // ── 거래처별 확정 이력 (과반 계정) — 자동분류 최우선 추천 재료 ──────────
+  // 같은 방향(sales/purchase)의 확정된 계산서를 거래처별로 집계해 과반 계정을 구한다.
+  const histResult = await fetchAllRows<{ vendor_id: string; confirmed_account_id: string }>((f, t) =>
+    admin.from('tax_invoices')
+      .select('vendor_id, confirmed_account_id')
+      .eq('direction', direction)
+      .not('vendor_id', 'is', null)
+      .not('confirmed_account_id', 'is', null)
+      .range(f, t),
+  )
+  const vendorHistory = new Map<string, string>()   // vendor_id → 과반 계정
+  if (!('error' in histResult)) {
+    const counts = new Map<string, Map<string, number>>()
+    for (const h of histResult.data) {
+      const c = counts.get(h.vendor_id) ?? new Map<string, number>()
+      c.set(h.confirmed_account_id, (c.get(h.confirmed_account_id) ?? 0) + 1)
+      counts.set(h.vendor_id, c)
+    }
+    for (const [vid, c] of Array.from(counts.entries())) {
+      let best: [string, number] | null = null
+      let total = 0
+      c.forEach((n, acc) => { total += n; if (!best || n > best![1]) best = [acc, n] })
+      if (best && (best as [string, number])[1] * 2 > total) vendorHistory.set(vid, (best as [string, number])[0])
+    }
   }
 
   const desiredType = direction === 'sales' ? 'customer' : 'vendor'
@@ -249,8 +277,13 @@ export async function POST(req: NextRequest) {
       : ((row.counterparty_biz_number ? vendorByBiz.get(row.counterparty_biz_number) : undefined)
           ?? (row.counterparty_name ? vendorByName.get(row.counterparty_name.toLowerCase()) : undefined))?.id ?? null
 
-    // 기존에 계정과목이 이미 분류된 경우 유지; 새 건이면 키워드 자동분류 시도
+    // 자동분류 우선순위 (매입 일괄 분류 화면과 동일):
+    //   ① 기존 확정값 유지 → ② 거래처 확정 이력 과반 → ③ 거래처 기본계정 → ④ 품목 키워드
+    //   (자동은 채움까지만 — 최종 확정은 사용자. confirmed_account_id는 추천 채움값)
     let confirmedAccountId: string | null = existing?.confirmed_account_id ?? null
+    if (confirmedAccountId == null && vendorId) {
+      confirmedAccountId = vendorHistory.get(vendorId) ?? vendorDefaultAcc.get(vendorId) ?? null
+    }
     if (confirmedAccountId == null && classifyAccounts.length > 0) {
       const searchText = [row.item_name, row.counterparty_name, row.note].filter(Boolean).join(' ')
       confirmedAccountId = matchAccount(searchText, classifyAccounts)
