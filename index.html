@@ -1,0 +1,1705 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1d4ed8">
+<title>재고 관리 앱</title>
+<style>
+  /* ===== CSS 변수 & 기본 설정 ===== */
+  :root {
+    --bg: #f0f2f5;
+    --surface: #ffffff;
+    --border: #d0d5dd;
+    --border-light: #e4e7ec;
+    --text-primary: #101828;
+    --text-secondary: #475467;
+    --text-muted: #98a2b3;
+
+    /* 그룹 색상 */
+    --pallet-bg: #dbeafe;
+    --pallet-head: #1d4ed8;
+    --pallet-sub: #eff6ff;
+    --box-bg: #d1fae5;
+    --box-head: #065f46;
+    --box-sub: #f0fdf4;
+    --loose-bg: #fef3c7;
+    --loose-head: #92400e;
+    --loose-sub: #fffbeb;
+
+    --calc-bg: #f8fafc;
+    --error: #fee2e2;
+    --error-border: #ef4444;
+
+    --btn-primary: #1d4ed8;
+    --btn-danger: #dc2626;
+    --btn-success: #16a34a;
+    --btn-neutral: #475467;
+
+    --font: 'Pretendard', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif;
+    --radius: 8px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text-primary);
+    font-size: 13px;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    position: fixed;
+    overflow: hidden;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ===== 헤더 (고정) ===== */
+  .app-header {
+    background: linear-gradient(135deg, var(--btn-primary) 0%, #1e40af 100%);
+    color: white;
+    padding: 12px 16px;
+    flex-shrink: 0;
+    box-shadow: var(--shadow-md);
+    z-index: 100;
+  }
+
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    gap: 8px;
+  }
+
+  .app-title {
+    font-size: 18px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .ctrl-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.15);
+    padding: 6px 10px;
+    border-radius: 6px;
+  }
+
+  label.ctrl-label {
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: 0.9;
+  }
+
+  input[type="date"],
+  select.ctrl-select {
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-family: var(--font);
+    background: rgba(255,255,255,0.1);
+    color: white;
+    outline: none;
+  }
+
+  input[type="date"]::placeholder,
+  select.ctrl-select {
+    color: rgba(255,255,255,0.7);
+  }
+
+  select.ctrl-select option { color: #101828; }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 8px 14px;
+    border-radius: var(--radius);
+    border: none;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: all .15s;
+    white-space: nowrap;
+  }
+
+  .btn:active { transform: scale(0.95); }
+
+  .btn-primary { background: var(--btn-primary); color: white; }
+  .btn-primary:hover { background: #1e40af; }
+  .btn-white { background: white; color: var(--btn-primary); font-weight: 600; }
+  .btn-white:hover { background: #f0f4ff; }
+  .btn-danger { background: var(--btn-danger); color: white; }
+  .btn-danger:hover { background: #b91c1c; }
+  .btn-ghost { background: rgba(255,255,255,0.15); color: white; }
+  .btn-ghost:hover { background: rgba(255,255,255,0.28); }
+
+  /* ===== 연결 상태 배지 ===== */
+  .conn-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.15);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .conn-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #9ca3af;
+    box-shadow: 0 0 0 0 rgba(255,255,255,0.4);
+  }
+  .conn-dot.online { background: #22c55e; animation: pulse 2s infinite; }
+  .conn-dot.connecting { background: #f59e0b; animation: pulse 1s infinite; }
+  .conn-dot.error { background: #ef4444; }
+  .conn-dot.local { background: #9ca3af; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+    70% { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+    100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+  }
+
+  /* ===== 메인 콘텐츠 ===== */
+  .main-content {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px;
+  }
+
+  /* ===== 테이블 래퍼 ===== */
+  .table-wrapper {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ===== 테이블 스타일 ===== */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 1300px;
+  }
+
+  th, td {
+    border: 1px solid var(--border-light);
+    padding: 0;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  thead th {
+    font-weight: 700;
+    font-size: 11px;
+    white-space: nowrap;
+    padding: 8px 4px;
+    position: sticky;
+    top: 0;
+  }
+
+  .th-group {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: white;
+    padding: 6px 8px;
+  }
+
+  .th-pallet { background: var(--pallet-head); }
+  .th-box { background: var(--box-head); }
+  .th-loose { background: var(--loose-head); }
+  .th-product { background: #1e293b; color: white; }
+
+  .sub-pallet { background: var(--pallet-bg); color: var(--pallet-head); font-size: 10px; }
+  .sub-box { background: var(--box-bg); color: var(--box-head); font-size: 10px; }
+  .sub-loose { background: var(--loose-bg); color: var(--loose-head); font-size: 10px; }
+
+  .col-name {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background: var(--surface);
+    min-width: 90px;
+    max-width: 110px;
+    font-weight: 600;
+    text-align: left;
+    padding: 8px 10px;
+    font-size: 12px;
+    border-right: 2px solid var(--border);
+  }
+
+  thead .col-name {
+    background: #1e293b;
+    color: white;
+    z-index: 20;
+  }
+
+  .product-btn {
+    background: none;
+    border: none;
+    color: var(--btn-primary);
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    font-size: 12px;
+    text-decoration: underline;
+    font-family: var(--font);
+  }
+
+  .product-btn:active { opacity: 0.7; }
+
+  tbody tr:nth-child(even) td { background: #fafbfc; }
+  tbody tr:nth-child(even) td.col-name { background: #f8fafc; }
+  tbody tr:hover td { background: #f0f4ff; }
+  tbody tr:hover td.col-name { background: #e8eef8; }
+
+  td.calc {
+    background: var(--calc-bg);
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 12px;
+    padding: 6px 4px;
+  }
+
+  td.calc-pallet { background: var(--pallet-sub); color: var(--pallet-head); }
+  td.calc-box { background: var(--box-sub); color: var(--box-head); }
+  td.calc-loose { background: var(--loose-sub); color: var(--loose-head); }
+  td.calc-std { background: #f1f5f9; color: #475467; font-size: 11px; }
+  td.calc-total { background: #ede9fe; color: #5b21b6; font-weight: 700; }
+
+  .foot-pallet { background: var(--pallet-sub); color: var(--pallet-head); font-weight: 700; padding: 8px; }
+  .foot-box { background: var(--box-sub); color: var(--box-head); font-weight: 700; padding: 8px; }
+  .foot-loose { background: var(--loose-sub); color: var(--loose-head); font-weight: 700; padding: 8px; }
+  .foot-total { background: #ede9fe; color: #5b21b6; font-weight: 700; padding: 8px; }
+  .foot-std { background: #f1f5f9; color: #475467; font-weight: 600; padding: 8px; }
+
+  /* ===== 모달 ===== */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 500;
+  }
+
+  .modal-overlay.active {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .modal-content {
+    background: var(--surface);
+    width: 100%;
+    max-width: 560px;
+    border-radius: 12px 12px 0 0;
+    padding: 20px;
+    max-height: 88vh;
+    overflow-y: auto;
+    animation: slideUp .3s;
+  }
+
+  @media (min-width: 640px) {
+    .modal-overlay.active { align-items: center; }
+    .modal-content { border-radius: 12px; }
+  }
+
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+  }
+
+  .modal-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--btn-primary);
+  }
+
+  .modal-close-btn {
+    background: none;
+    border: none;
+    font-size: 28px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .input-group {
+    margin-bottom: 20px;
+  }
+
+  .modal-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: white;
+    padding: 10px 14px;
+    margin: 16px 0 12px 0;
+    border-radius: var(--radius);
+  }
+
+  .modal-section-title.pallet { background: var(--pallet-head); }
+  .modal-section-title.box { background: var(--box-head); }
+  .modal-section-title.loose { background: var(--loose-head); }
+
+  .input-wrapper {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .input-wrapper.full {
+    grid-template-columns: 1fr;
+  }
+
+  .input-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .input-field label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+
+  .input-field input {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 14px;
+    font-family: var(--font);
+    background: white;
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+
+  .input-field input:focus {
+    border-color: var(--btn-primary);
+    box-shadow: 0 0 0 3px rgba(29,78,216,.1);
+  }
+
+  .calc-display {
+    background: var(--calc-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-top: 12px;
+  }
+
+  .calc-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    font-size: 13px;
+  }
+
+  .calc-row .label {
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .calc-row .value {
+    font-weight: 700;
+    color: var(--btn-primary);
+    font-size: 14px;
+  }
+
+  .modal-footer {
+    display: flex;
+    gap: 10px;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .modal-footer .btn {
+    flex: 1;
+  }
+
+  /* 설정 모달 공통 */
+  .field-block { margin-bottom: 16px; }
+  .field-block > label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+  .field-block input.text-input {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 11px 12px;
+    font-size: 14px;
+    font-family: var(--font);
+    background: white;
+    color: var(--text-primary);
+    outline: none;
+  }
+  .field-block input.text-input:focus {
+    border-color: var(--btn-primary);
+    box-shadow: 0 0 0 3px rgba(29,78,216,.1);
+  }
+  .field-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 5px;
+    line-height: 1.5;
+  }
+  .info-box {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-size: 12px;
+    color: #1e40af;
+    line-height: 1.6;
+    margin-bottom: 16px;
+  }
+  .info-box code {
+    background: rgba(29,78,216,0.1);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 11px;
+    word-break: break-all;
+  }
+  .info-box a { color: #1d4ed8; font-weight: 700; }
+  details.setup-guide { margin-bottom: 16px; }
+  details.setup-guide summary {
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--btn-primary);
+    padding: 8px 0;
+  }
+  details.setup-guide ol { margin: 8px 0 0 18px; font-size: 12px; line-height: 1.8; color: var(--text-secondary); }
+  details.setup-guide pre {
+    background: #0f172a; color: #e2e8f0;
+    padding: 12px; border-radius: 6px;
+    font-size: 11px; overflow-x: auto; margin: 8px 0;
+    white-space: pre; line-height: 1.5;
+  }
+
+  /* 단위/제품 설정 표 */
+  .unit-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .unit-table th, .unit-table td { border: 1px solid var(--border-light); padding: 6px; text-align: center; }
+  .unit-table th { background: #f1f5f9; font-size: 11px; color: var(--text-secondary); }
+  .unit-table td.name-cell { text-align: left; }
+  .unit-table input {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 8px 6px;
+    font-size: 13px;
+    font-family: var(--font);
+    outline: none;
+    text-align: center;
+  }
+  .unit-table input.name-input { text-align: left; }
+  .unit-table input:focus { border-color: var(--btn-primary); box-shadow: 0 0 0 2px rgba(29,78,216,.1); }
+  .row-del-btn {
+    background: var(--error); color: var(--btn-danger);
+    border: none; border-radius: 5px; width: 28px; height: 28px;
+    font-size: 16px; font-weight: 700; cursor: pointer; line-height: 1;
+  }
+
+  /* ===== 토스트 ===== */
+  .toast {
+    position: fixed;
+    bottom: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text-secondary);
+    color: white;
+    padding: 12px 20px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 1000;
+    transition: bottom .3s ease-out;
+    box-shadow: var(--shadow-md);
+    max-width: 90vw;
+    text-align: center;
+  }
+
+  .toast.show { bottom: 20px; }
+  .toast.error { background: var(--btn-danger); }
+  .toast.success { background: var(--btn-success); }
+
+  /* 히스토리 */
+  .history-section {
+    display: none;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,0.2);
+  }
+
+  .history-section.active {
+    display: block;
+  }
+
+  #historyList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .history-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255,255,255,0.2);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.3);
+  }
+
+  .history-chip:active { opacity: 0.7; }
+
+  .chip-del {
+    cursor: pointer;
+    font-weight: 700;
+    padding: 0 2px;
+  }
+
+  /* 반응형 */
+  @media (max-width: 768px) {
+    :root { font-size: 12px; }
+
+    .app-header { padding: 10px 12px; }
+    .app-title { font-size: 16px; }
+    .header-controls { gap: 6px; }
+
+    table { min-width: 1100px; font-size: 11px; }
+    thead th { padding: 6px 2px; font-size: 9px; }
+    td { padding: 5px 2px; }
+
+    .modal-content { padding: 16px; }
+    .input-wrapper { gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<div class="app-header">
+  <div class="header-top">
+    <div class="app-title">📦 재고 관리</div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <div class="conn-badge" id="connBadge" onclick="openCloudModal()">
+        <span class="conn-dot local" id="connDot"></span>
+        <span id="connText">오프라인</span>
+      </div>
+      <button class="btn btn-white" onclick="saveData()">💾 저장</button>
+      <button class="btn btn-white" onclick="downloadCSV()">📥 CSV</button>
+    </div>
+  </div>
+  <div class="header-controls">
+    <div class="ctrl-group">
+      <label class="ctrl-label">기준일</label>
+      <input type="date" id="dateInput">
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label">시간</label>
+      <select class="ctrl-select" id="timeSlot">
+        <option value="오전">오전</option>
+        <option value="오후">오후</option>
+        <option value="야간">야간</option>
+      </select>
+    </div>
+    <button class="btn btn-ghost" onclick="openUnitsModal()">⚙️ 단위설정</button>
+    <button class="btn btn-ghost" onclick="openCloudModal()">☁️ 연동</button>
+    <button class="btn btn-ghost" onclick="resetData()">🔄 초기화</button>
+    <button class="btn btn-ghost" onclick="toggleHistory()">📋 이력</button>
+  </div>
+  <div class="history-section" id="historySection">
+    <div id="historyList"></div>
+  </div>
+</div>
+
+<!-- 메인 콘텐츠 -->
+<div class="main-content">
+  <div class="table-wrapper">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th rowspan="3" class="th-product col-name">제품명</th>
+            <th colspan="4" class="th-pallet">📦 파렛트</th>
+            <th colspan="6" class="th-box">📫 박스(카톤)</th>
+            <th colspan="4" class="th-loose">🔖 낱개</th>
+            <th rowspan="3" class="th-pallet">합계</th>
+          </tr>
+          <tr>
+            <th rowspan="2" class="sub-pallet">기준</th>
+            <th rowspan="2" class="sub-pallet">A</th>
+            <th rowspan="2" class="sub-pallet">B</th>
+            <th rowspan="2" class="sub-pallet">합</th>
+            <th rowspan="2" class="sub-box">기준</th>
+            <th colspan="2" class="sub-box">A</th>
+            <th colspan="2" class="sub-box">B</th>
+            <th class="sub-box">합</th>
+            <th colspan="2" class="sub-loose">포장/비포장</th>
+            <th class="sub-loose">진열</th>
+            <th class="sub-loose">합</th>
+          </tr>
+          <tr>
+            <th class="sub-box">포장</th>
+            <th class="sub-box">비포장</th>
+            <th class="sub-box">포장</th>
+            <th class="sub-box">비포장</th>
+            <th class="sub-loose">포장</th>
+            <th class="sub-loose">비포장</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+        <tfoot id="tableFoot"></tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 입력 모달 -->
+<div id="modalOverlay" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">제품명</div>
+      <button class="modal-close-btn" onclick="closeModal()">×</button>
+    </div>
+
+    <form id="modalForm">
+      <!-- 파렛트 -->
+      <div class="modal-section-title pallet">📦 파렛트</div>
+      <div class="input-wrapper">
+        <div class="input-field">
+          <label>A</label>
+          <input type="number" id="modalPalletA" min="0" step="1" inputmode="numeric">
+        </div>
+        <div class="input-field">
+          <label>B</label>
+          <input type="number" id="modalPalletB" min="0" step="1" inputmode="numeric">
+        </div>
+      </div>
+
+      <!-- 박스 -->
+      <div class="modal-section-title box">📫 박스(카톤)</div>
+      <div class="input-wrapper">
+        <div class="input-field">
+          <label>A - 포장</label>
+          <input type="number" id="modalBoxAPacked" min="0" step="1" inputmode="numeric">
+        </div>
+        <div class="input-field">
+          <label>A - 비포장</label>
+          <input type="number" id="modalBoxAUnpacked" min="0" step="1" inputmode="numeric">
+        </div>
+      </div>
+      <div class="input-wrapper">
+        <div class="input-field">
+          <label>B - 포장</label>
+          <input type="number" id="modalBoxBPacked" min="0" step="1" inputmode="numeric">
+        </div>
+        <div class="input-field">
+          <label>B - 비포장</label>
+          <input type="number" id="modalBoxBUnpacked" min="0" step="1" inputmode="numeric">
+        </div>
+      </div>
+
+      <!-- 낱개 -->
+      <div class="modal-section-title loose">🔖 낱개</div>
+      <div class="input-wrapper">
+        <div class="input-field">
+          <label>포장</label>
+          <input type="number" id="modalLoosePacked" min="0" step="1" inputmode="numeric">
+        </div>
+        <div class="input-field">
+          <label>비포장</label>
+          <input type="number" id="modalLooseUnpacked" min="0" step="1" inputmode="numeric">
+        </div>
+      </div>
+      <div class="input-field" style="margin-bottom:16px;">
+        <label>진열</label>
+        <input type="number" id="modalLooseDisplay" min="0" step="1" inputmode="numeric">
+      </div>
+
+      <!-- 계산 표시 -->
+      <div id="modalCalcDisplay"></div>
+
+      <!-- 버튼 -->
+      <div class="modal-footer">
+        <button type="button" class="btn btn-white" onclick="closeModal()">취소</button>
+        <button type="button" class="btn btn-primary" onclick="saveModalData()">저장</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 클라우드 연동 설정 모달 -->
+<div id="cloudModal" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">☁️ 앱-웹 연동 설정</div>
+      <button class="modal-close-btn" onclick="closeCloudModal()">×</button>
+    </div>
+
+    <div class="info-box">
+      PC와 휴대폰에서 <b>같은 데이터를 실시간으로 공유</b>하려면 아래 Supabase 정보를 입력하세요.
+      한 번만 설정하면 됩니다. 모든 기기에 <b>동일한 URL·Key·공유코드</b>를 입력하면 서로 연동됩니다.
+    </div>
+
+    <details class="setup-guide">
+      <summary>📖 처음이신가요? Supabase 설정 방법 (약 3분, 무료)</summary>
+      <ol>
+        <li><a href="https://supabase.com" target="_blank">supabase.com</a> 가입 후 <b>New project</b> 생성</li>
+        <li>왼쪽 메뉴 <b>SQL Editor</b> → 아래 코드 붙여넣고 <b>Run</b></li>
+        <pre>create table if not exists inventory (
+  room text not null,
+  date text not null,
+  slot text not null,
+  data jsonb not null default '[]',
+  updated_at timestamptz not null default now(),
+  updated_by text,
+  primary key (room, date, slot)
+);
+create table if not exists inventory_config (
+  room text primary key,
+  products jsonb not null default '[]',
+  updated_at timestamptz not null default now(),
+  updated_by text
+);
+alter table inventory enable row level security;
+alter table inventory_config enable row level security;
+create policy "all inv" on inventory
+  for all using (true) with check (true);
+create policy "all cfg" on inventory_config
+  for all using (true) with check (true);
+alter publication supabase_realtime add table inventory;
+alter publication supabase_realtime add table inventory_config;</pre>
+        <li>왼쪽 <b>Project Settings → API</b> 이동</li>
+        <li><b>Project URL</b> 과 <b>anon public</b> key 를 복사해 아래에 입력</li>
+        <li><b>공유코드</b>는 팀에서 정한 아무 단어(예: <code>daol-창고</code>)를 모든 기기에 동일하게 입력</li>
+      </ol>
+    </details>
+
+    <div class="field-block">
+      <label>Supabase Project URL</label>
+      <input class="text-input" id="cfgUrl" placeholder="https://xxxxx.supabase.co" autocapitalize="off" autocorrect="off" spellcheck="false">
+    </div>
+    <div class="field-block">
+      <label>anon public Key</label>
+      <input class="text-input" id="cfgKey" placeholder="eyJhbGciOi..." autocapitalize="off" autocorrect="off" spellcheck="false">
+    </div>
+    <div class="field-block">
+      <label>공유코드 (모든 기기 동일하게)</label>
+      <input class="text-input" id="cfgRoom" placeholder="예: daol-창고" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <div class="field-hint">같은 공유코드를 쓰는 기기끼리 데이터가 연동됩니다.</div>
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn btn-danger" onclick="disconnectCloud()">연동 해제</button>
+      <button type="button" class="btn btn-primary" onclick="saveCloudConfig()">연결하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 단위/제품 설정 모달 -->
+<div id="unitsModal" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">⚙️ 단위 · 제품 설정</div>
+      <button class="modal-close-btn" onclick="closeUnitsModal()">×</button>
+    </div>
+
+    <div class="info-box">
+      제품별 <b>파렛트 기준</b>(파렛트 1개당 개수)과 <b>카톤(박스) 기준</b>(박스 1개당 개수)을 설정합니다.
+      제품 추가 · 이름 변경 · 삭제도 가능합니다. 연동된 경우 모든 기기에 반영됩니다.
+    </div>
+
+    <div class="table-scroll">
+      <table class="unit-table">
+        <thead>
+          <tr>
+            <th style="min-width:120px;">제품명</th>
+            <th style="width:90px;">파렛트기준</th>
+            <th style="width:90px;">카톤기준</th>
+            <th style="width:40px;"></th>
+          </tr>
+        </thead>
+        <tbody id="unitsBody"></tbody>
+      </table>
+    </div>
+
+    <button type="button" class="btn btn-white" style="margin-top:12px;width:100%;border:1px dashed var(--border);" onclick="addUnitRow()">➕ 제품 추가</button>
+
+    <div class="modal-footer">
+      <button type="button" class="btn btn-white" onclick="closeUnitsModal()">취소</button>
+      <button type="button" class="btn btn-primary" onclick="saveUnitsConfig()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 토스트 -->
+<div id="toast" class="toast"></div>
+
+<script>
+// ===== 기본 제품 설정 (연동/저장된 값이 없을 때 초기값) =====
+const DEFAULT_PRODUCTS = [
+  { name: '바디케어', palletStd: 480, boxStd: 50 },
+  { name: '블렉', palletStd: 480, boxStd: 50 },
+  { name: '화이트', palletStd: 480, boxStd: 50 },
+  { name: '에메랄드', palletStd: 480, boxStd: 50 },
+  { name: '앰버', palletStd: 480, boxStd: 50 },
+  { name: '블렉 바디케어 2종', palletStd: 480, boxStd: 50 },
+  { name: '라즈베리', palletStd: 480, boxStd: 50 },
+  { name: '핸드', palletStd: 288, boxStd: 50 },
+  { name: '풀바디', palletStd: 288, boxStd: 50 },
+  { name: '슬바디', palletStd: 288, boxStd: 50 },
+  { name: '헤어', palletStd: 480, boxStd: 50 },
+  { name: '울포유', palletStd: 240, boxStd: 50 },
+  { name: '블렉울포유', palletStd: 240, boxStd: 50 },
+  { name: '퍼플', palletStd: 480, boxStd: 50 }
+];
+
+const EMPTY_ROW = () => ({
+  palletB: 0, palletA: 0,
+  boxAPacked: 0, boxAUnpacked: 0,
+  boxBPacked: 0, boxBUnpacked: 0,
+  loosePacked: 0, looseUnpacked: 0, looseDisplay: 0
+});
+
+// ===== 전역 상태 =====
+let products = loadLocalProducts();
+let rowData = products.map(EMPTY_ROW);
+let currentModalIdx = -1;
+
+// 클라우드 상태
+let supa = null;
+let cloudReady = false;
+let rtChannel = null;
+let applyingRemote = false;   // 원격 데이터 적용 중 (push 방지)
+let pushTimer = null;
+const CLIENT_ID = getClientId();
+
+// ===== 로컬 스토리지 키 =====
+const CLOUD_CFG_KEY = 'inv_cloud_cfg';
+const PRODUCTS_KEY = 'inv_products';
+function workingKey() {
+  const c = getCloudCfg();
+  const room = (c && c.room) ? c.room : 'local';
+  return `inv_work_${room}_${curDate()}_${curSlot()}`;
+}
+
+// ===== 유틸리티 =====
+const num = (v) => isNaN(v) || v === '' || v === null ? 0 : parseFloat(v);
+const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
+const curDate = () => document.getElementById('dateInput').value;
+const curSlot = () => document.getElementById('timeSlot').value;
+
+function getClientId() {
+  let id = localStorage.getItem('inv_client_id');
+  if (!id) {
+    id = 'c_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    try { localStorage.setItem('inv_client_id', id); } catch (e) {}
+  }
+  return id;
+}
+
+// 제품 배열 정규화 (형식 보정)
+function normalizeProducts(arr) {
+  if (!Array.isArray(arr) || !arr.length) return DEFAULT_PRODUCTS.map(p => ({ ...p }));
+  return arr.map(p => ({
+    name: String(p && p.name != null ? p.name : '제품'),
+    palletStd: num(p && p.palletStd) || 0,
+    boxStd: num(p && p.boxStd) || 0
+  }));
+}
+
+// rowData 를 products 길이에 맞춰 보정
+function normalizeRows(arr) {
+  const src = Array.isArray(arr) ? arr : [];
+  return products.map((_, i) => {
+    const d = src[i] || {};
+    return {
+      palletB: num(d.palletB), palletA: num(d.palletA),
+      boxAPacked: num(d.boxAPacked), boxAUnpacked: num(d.boxAUnpacked),
+      boxBPacked: num(d.boxBPacked), boxBUnpacked: num(d.boxBUnpacked),
+      loosePacked: num(d.loosePacked), looseUnpacked: num(d.looseUnpacked),
+      looseDisplay: num(d.looseDisplay)
+    };
+  });
+}
+
+function loadLocalProducts() {
+  try {
+    const raw = localStorage.getItem(PRODUCTS_KEY);
+    if (raw) return normalizeProducts(JSON.parse(raw));
+  } catch (e) { console.warn('제품 설정 읽기 실패', e); }
+  return DEFAULT_PRODUCTS.map(p => ({ ...p }));
+}
+function saveLocalProducts() {
+  try { localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products)); } catch (e) {}
+}
+
+// ===== 계산 =====
+function calcRow(d, product) {
+  const pStd = num(product.palletStd);
+  const bStd = num(product.boxStd);
+
+  const palletB = num(d.palletB);
+  const palletA = num(d.palletA);
+  const palletSum = palletB + palletA;
+  const palletTotal = palletSum * pStd;
+
+  const boxAPacked = num(d.boxAPacked);
+  const boxAUnpacked = num(d.boxAUnpacked);
+  const boxBPacked = num(d.boxBPacked);
+  const boxBUnpacked = num(d.boxBUnpacked);
+  const boxSum = boxAPacked + boxAUnpacked + boxBPacked + boxBUnpacked;
+  const boxTotal = boxSum * bStd;
+
+  const loosePacked = num(d.loosePacked);
+  const looseUnpacked = num(d.looseUnpacked);
+  const looseDisplay = num(d.looseDisplay);
+  const looseSum = loosePacked + looseUnpacked + looseDisplay;
+
+  const grandTotal = palletTotal + boxTotal + looseSum;
+
+  return { palletSum, palletTotal, boxSum, boxTotal, looseSum, grandTotal };
+}
+
+// ===== 입력 모달 =====
+function openModal(idx) {
+  currentModalIdx = idx;
+  const product = products[idx];
+  const data = rowData[idx];
+
+  document.getElementById('modalTitle').textContent = product.name;
+  document.getElementById('modalPalletB').value = num(data.palletB) || '';
+  document.getElementById('modalPalletA').value = num(data.palletA) || '';
+  document.getElementById('modalBoxAPacked').value = num(data.boxAPacked) || '';
+  document.getElementById('modalBoxAUnpacked').value = num(data.boxAUnpacked) || '';
+  document.getElementById('modalBoxBPacked').value = num(data.boxBPacked) || '';
+  document.getElementById('modalBoxBUnpacked').value = num(data.boxBUnpacked) || '';
+  document.getElementById('modalLoosePacked').value = num(data.loosePacked) || '';
+  document.getElementById('modalLooseUnpacked').value = num(data.looseUnpacked) || '';
+  document.getElementById('modalLooseDisplay').value = num(data.looseDisplay) || '';
+
+  updateModalCalc();
+  document.getElementById('modalOverlay').classList.add('active');
+  document.getElementById('modalPalletA').focus();
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+  currentModalIdx = -1;
+}
+
+function readModalInputs() {
+  return {
+    palletB: num(document.getElementById('modalPalletB').value),
+    palletA: num(document.getElementById('modalPalletA').value),
+    boxAPacked: num(document.getElementById('modalBoxAPacked').value),
+    boxAUnpacked: num(document.getElementById('modalBoxAUnpacked').value),
+    boxBPacked: num(document.getElementById('modalBoxBPacked').value),
+    boxBUnpacked: num(document.getElementById('modalBoxBUnpacked').value),
+    loosePacked: num(document.getElementById('modalLoosePacked').value),
+    looseUnpacked: num(document.getElementById('modalLooseUnpacked').value),
+    looseDisplay: num(document.getElementById('modalLooseDisplay').value)
+  };
+}
+
+function updateModalCalc() {
+  const idx = currentModalIdx;
+  if (idx < 0) return;
+  const product = products[idx];
+  const calc = calcRow(readModalInputs(), product);
+
+  const html = `
+    <div class="calc-display">
+      <div class="calc-row">
+        <span class="label">파렛트 합계:</span>
+        <span class="value">${fmt(calc.palletSum)}</span>
+      </div>
+      <div class="calc-row">
+        <span class="label">박스 합계:</span>
+        <span class="value">${fmt(calc.boxSum)}</span>
+      </div>
+      <div class="calc-row">
+        <span class="label">낱개 합계:</span>
+        <span class="value">${fmt(calc.looseSum)}</span>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
+      <div class="calc-row" style="font-size:14px;">
+        <span class="label" style="font-weight:700;">총 수량:</span>
+        <span class="value" style="font-size:16px;">${fmt(calc.grandTotal)}</span>
+      </div>
+    </div>
+  `;
+  document.getElementById('modalCalcDisplay').innerHTML = html;
+}
+
+function saveModalData() {
+  const idx = currentModalIdx;
+  if (idx < 0) return;
+  rowData[idx] = readModalInputs();
+
+  renderTable();
+  persistWorking();   // 자동 저장 (로컬 + 클라우드)
+  closeModal();
+  showToast(`${products[idx].name} 저장됨`, 'success');
+}
+
+// 모달 입력값 변경 시 실시간 계산
+document.addEventListener('DOMContentLoaded', function () {
+  const modalInputs = [
+    'modalPalletB', 'modalPalletA',
+    'modalBoxAPacked', 'modalBoxAUnpacked', 'modalBoxBPacked', 'modalBoxBUnpacked',
+    'modalLoosePacked', 'modalLooseUnpacked', 'modalLooseDisplay'
+  ];
+  modalInputs.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateModalCalc);
+  });
+});
+
+// ===== 테이블 렌더링 =====
+function renderTable() {
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+
+  products.forEach((product, i) => {
+    const d = rowData[i] || (rowData[i] = EMPTY_ROW());
+    const c = calcRow(d, product);
+
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td class="col-name">
+        <button type="button" class="product-btn" onclick="openModal(${i})" title="클릭하여 입력">
+          ${escapeHtml(product.name)}
+        </button>
+      </td>
+      <td class="calc calc-std">${fmt(product.palletStd)}</td>
+      <td class="calc calc-pallet">${fmt(d.palletA)}</td>
+      <td class="calc calc-pallet">${fmt(d.palletB)}</td>
+      <td class="calc calc-pallet" id="palletSum_${i}">${fmt(c.palletSum)}</td>
+      <td class="calc calc-std">${fmt(product.boxStd)}</td>
+      <td class="calc calc-box">${fmt(d.boxAPacked)}</td>
+      <td class="calc calc-box">${fmt(d.boxAUnpacked)}</td>
+      <td class="calc calc-box">${fmt(d.boxBPacked)}</td>
+      <td class="calc calc-box">${fmt(d.boxBUnpacked)}</td>
+      <td class="calc calc-box" id="boxSum_${i}">${fmt(c.boxSum)}</td>
+      <td class="calc calc-loose">${fmt(d.loosePacked)}</td>
+      <td class="calc calc-loose">${fmt(d.looseUnpacked)}</td>
+      <td class="calc calc-loose">${fmt(d.looseDisplay)}</td>
+      <td class="calc calc-loose" id="looseSum_${i}">${fmt(c.looseSum)}</td>
+      <td class="calc calc-total" id="grandTotal_${i}">${fmt(c.grandTotal)}</td>
+    `;
+    tbody.appendChild(row);
+  });
+
+  renderFooter();
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, m => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]
+  ));
+}
+
+function renderFooter() {
+  const tfoot = document.getElementById('tableFoot');
+
+  let totPalletB = 0, totPalletA = 0, totPalletSum = 0;
+  let totBoxAPacked = 0, totBoxAUnpacked = 0, totBoxBPacked = 0, totBoxBUnpacked = 0, totBoxSum = 0;
+  let totLoosePacked = 0, totLooseUnpacked = 0, totLooseDisp = 0, totLooseSum = 0;
+  let totGrand = 0;
+
+  products.forEach((product, i) => {
+    const d = rowData[i] || EMPTY_ROW();
+    const c = calcRow(d, product);
+    totPalletB += num(d.palletB);
+    totPalletA += num(d.palletA);
+    totPalletSum += c.palletSum;
+    totBoxAPacked += num(d.boxAPacked);
+    totBoxAUnpacked += num(d.boxAUnpacked);
+    totBoxBPacked += num(d.boxBPacked);
+    totBoxBUnpacked += num(d.boxBUnpacked);
+    totBoxSum += c.boxSum;
+    totLoosePacked += num(d.loosePacked);
+    totLooseUnpacked += num(d.looseUnpacked);
+    totLooseDisp += num(d.looseDisplay);
+    totLooseSum += c.looseSum;
+    totGrand += c.grandTotal;
+  });
+
+  tfoot.innerHTML = `
+    <tr>
+      <td class="col-name">합계</td>
+      <td class="foot-std">-</td>
+      <td class="foot-pallet">${fmt(totPalletA)}</td>
+      <td class="foot-pallet">${fmt(totPalletB)}</td>
+      <td class="foot-pallet">${fmt(totPalletSum)}</td>
+      <td class="foot-std">-</td>
+      <td class="foot-box">${fmt(totBoxAPacked)}</td>
+      <td class="foot-box">${fmt(totBoxAUnpacked)}</td>
+      <td class="foot-box">${fmt(totBoxBPacked)}</td>
+      <td class="foot-box">${fmt(totBoxBUnpacked)}</td>
+      <td class="foot-box">${fmt(totBoxSum)}</td>
+      <td class="foot-loose">${fmt(totLoosePacked)}</td>
+      <td class="foot-loose">${fmt(totLooseUnpacked)}</td>
+      <td class="foot-loose">${fmt(totLooseDisp)}</td>
+      <td class="foot-loose">${fmt(totLooseSum)}</td>
+      <td class="foot-total">${fmt(totGrand)}</td>
+    </tr>
+  `;
+}
+
+// ===== 자동 저장 (로컬 즉시 + 클라우드 디바운스) =====
+function persistWorking() {
+  // 1) 로컬 즉시 저장 (오프라인·새로고침 대비)
+  try {
+    localStorage.setItem(workingKey(), JSON.stringify({
+      date: curDate(), slot: curSlot(), data: rowData, savedAt: Date.now()
+    }));
+  } catch (e) { console.warn('로컬 자동저장 실패', e); }
+
+  // 2) 클라우드 저장 (디바운스)
+  if (applyingRemote) return;
+  if (cloudReady) {
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(pushRecord, 600);
+  }
+}
+
+function loadWorking() {
+  // 로컬 작업본을 먼저 복원 (즉시)
+  try {
+    const raw = localStorage.getItem(workingKey());
+    if (raw) {
+      const p = JSON.parse(raw);
+      rowData = normalizeRows(p.data);
+      return true;
+    }
+  } catch (e) { console.warn('로컬 복원 실패', e); }
+  rowData = products.map(EMPTY_ROW);
+  return false;
+}
+
+// ===== 클라우드(Supabase) =====
+function getCloudCfg() {
+  try {
+    const raw = localStorage.getItem(CLOUD_CFG_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+function setStatus(state) {
+  const dot = document.getElementById('connDot');
+  const text = document.getElementById('connText');
+  dot.className = 'conn-dot ' + state;
+  const labels = { online: '연동됨', connecting: '연결 중…', error: '연결 오류', local: '오프라인' };
+  text.textContent = labels[state] || '오프라인';
+}
+
+function ensureSupabaseLib() {
+  return new Promise((resolve, reject) => {
+    if (window.supabase && window.supabase.createClient) return resolve();
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Supabase 라이브러리 로드 실패 (인터넷 연결 확인)'));
+    document.head.appendChild(s);
+  });
+}
+
+async function initCloud() {
+  const c = getCloudCfg();
+  if (!c || !c.url || !c.key || !c.room) { setStatus('local'); return; }
+  setStatus('connecting');
+  try {
+    await ensureSupabaseLib();
+    supa = window.supabase.createClient(c.url, c.key, {
+      realtime: { params: { eventsPerSecond: 5 } }
+    });
+    cloudReady = true;
+    await pullConfig();      // 제품/단위 설정 동기화
+    await pullRecord();      // 현재 날짜·시간 데이터 동기화
+    subscribeRealtime();     // 실시간 구독
+    setStatus('online');
+  } catch (e) {
+    console.error('클라우드 연결 실패:', e);
+    cloudReady = false;
+    setStatus('error');
+    showToast('연동 실패: ' + e.message, 'error');
+  }
+}
+
+async function pullConfig() {
+  if (!cloudReady) return;
+  const c = getCloudCfg();
+  try {
+    const { data, error } = await supa
+      .from('inventory_config').select('products')
+      .eq('room', c.room).maybeSingle();
+    if (error) { console.warn('config pull:', error.message); return; }
+    if (data && Array.isArray(data.products) && data.products.length) {
+      products = normalizeProducts(data.products);
+      saveLocalProducts();
+      rowData = normalizeRows(rowData);
+    } else {
+      // 클라우드에 설정이 없으면 현재 로컬 설정을 업로드
+      await pushConfig();
+    }
+  } catch (e) { console.warn(e); }
+}
+
+async function pushConfig() {
+  if (!cloudReady) return;
+  const c = getCloudCfg();
+  try {
+    const { error } = await supa.from('inventory_config').upsert({
+      room: c.room, products, updated_at: new Date().toISOString(), updated_by: CLIENT_ID
+    }, { onConflict: 'room' });
+    if (error) console.warn('config push:', error.message);
+  } catch (e) { console.warn(e); }
+}
+
+async function pullRecord() {
+  if (!cloudReady) return false;
+  const c = getCloudCfg();
+  try {
+    const { data, error } = await supa
+      .from('inventory').select('data')
+      .eq('room', c.room).eq('date', curDate()).eq('slot', curSlot()).maybeSingle();
+    if (error) { console.warn('record pull:', error.message); return false; }
+    if (data && data.data) {
+      applyingRemote = true;
+      rowData = normalizeRows(data.data);
+      renderTable();
+      applyingRemote = false;
+      try {
+        localStorage.setItem(workingKey(), JSON.stringify({
+          date: curDate(), slot: curSlot(), data: rowData, savedAt: Date.now()
+        }));
+      } catch (e) {}
+      return true;
+    }
+  } catch (e) { console.warn(e); }
+  return false;
+}
+
+async function pushRecord() {
+  if (!cloudReady) return;
+  const c = getCloudCfg();
+  try {
+    const { error } = await supa.from('inventory').upsert({
+      room: c.room, date: curDate(), slot: curSlot(),
+      data: rowData, updated_at: new Date().toISOString(), updated_by: CLIENT_ID
+    }, { onConflict: 'room,date,slot' });
+    if (error) { console.warn('record push:', error.message); setStatus('error'); }
+    else { setStatus('online'); }
+  } catch (e) { console.warn(e); setStatus('error'); }
+}
+
+function subscribeRealtime() {
+  if (!cloudReady) return;
+  const c = getCloudCfg();
+  if (rtChannel) { try { supa.removeChannel(rtChannel); } catch (e) {} }
+
+  rtChannel = supa.channel('inv_' + c.room)
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'inventory', filter: 'room=eq.' + c.room },
+      payload => {
+        const r = payload.new;
+        if (!r || r.updated_by === CLIENT_ID) return;         // 내 변경은 무시
+        if (r.date === curDate() && r.slot === curSlot()) {
+          applyingRemote = true;
+          rowData = normalizeRows(r.data);
+          renderTable();
+          applyingRemote = false;
+          try {
+            localStorage.setItem(workingKey(), JSON.stringify({
+              date: curDate(), slot: curSlot(), data: rowData, savedAt: Date.now()
+            }));
+          } catch (e) {}
+          showToast('다른 기기에서 업데이트됨 ↻', 'success');
+        }
+      })
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'inventory_config', filter: 'room=eq.' + c.room },
+      payload => {
+        const r = payload.new;
+        if (!r || r.updated_by === CLIENT_ID) return;
+        if (Array.isArray(r.products) && r.products.length) {
+          products = normalizeProducts(r.products);
+          saveLocalProducts();
+          rowData = normalizeRows(rowData);
+          renderTable();
+          showToast('제품/단위 설정이 업데이트됨 ↻', 'success');
+        }
+      })
+    .subscribe();
+}
+
+// ===== 클라우드 설정 모달 =====
+function openCloudModal() {
+  const c = getCloudCfg() || {};
+  document.getElementById('cfgUrl').value = c.url || '';
+  document.getElementById('cfgKey').value = c.key || '';
+  document.getElementById('cfgRoom').value = c.room || '';
+  document.getElementById('cloudModal').classList.add('active');
+}
+function closeCloudModal() {
+  document.getElementById('cloudModal').classList.remove('active');
+}
+
+async function saveCloudConfig() {
+  const url = document.getElementById('cfgUrl').value.trim().replace(/\/+$/, '');
+  const key = document.getElementById('cfgKey').value.trim();
+  const room = document.getElementById('cfgRoom').value.trim();
+
+  if (!url || !key || !room) { showToast('URL·Key·공유코드를 모두 입력하세요.', 'error'); return; }
+  if (!/^https:\/\/.+\.supabase\.co$/.test(url)) {
+    showToast('Project URL 형식을 확인하세요. (https://xxx.supabase.co)', 'error'); return;
+  }
+
+  try { localStorage.setItem(CLOUD_CFG_KEY, JSON.stringify({ url, key, room })); }
+  catch (e) { showToast('설정 저장 실패', 'error'); return; }
+
+  closeCloudModal();
+  showToast('연결 중…', 'success');
+
+  // 기존 연결 정리 후 재연결
+  cloudReady = false;
+  if (rtChannel && supa) { try { supa.removeChannel(rtChannel); } catch (e) {} rtChannel = null; }
+  supa = null;
+  await initCloud();
+  if (cloudReady) showToast('연동 완료 ✓ 이제 기기 간 공유됩니다.', 'success');
+}
+
+function disconnectCloud() {
+  if (!confirm('연동을 해제하시겠습니까? (로컬 데이터는 유지됩니다)')) return;
+  try { localStorage.removeItem(CLOUD_CFG_KEY); } catch (e) {}
+  if (rtChannel && supa) { try { supa.removeChannel(rtChannel); } catch (e) {} }
+  rtChannel = null; supa = null; cloudReady = false;
+  setStatus('local');
+  closeCloudModal();
+  showToast('연동 해제됨', 'error');
+}
+
+// ===== 단위/제품 설정 모달 =====
+function openUnitsModal() {
+  const tbody = document.getElementById('unitsBody');
+  tbody.innerHTML = '';
+  products.forEach((p, i) => tbody.appendChild(unitRowEl(p, i)));
+  document.getElementById('unitsModal').classList.add('active');
+}
+function closeUnitsModal() {
+  document.getElementById('unitsModal').classList.remove('active');
+}
+function unitRowEl(p, i) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="name-cell"><input class="name-input u-name" type="text" value="${escapeHtml(p.name)}" placeholder="제품명"></td>
+    <td><input class="u-pallet" type="number" min="0" step="1" inputmode="numeric" value="${num(p.palletStd)}"></td>
+    <td><input class="u-box" type="number" min="0" step="1" inputmode="numeric" value="${num(p.boxStd)}"></td>
+    <td><button type="button" class="row-del-btn" title="삭제">×</button></td>
+  `;
+  tr.querySelector('.row-del-btn').addEventListener('click', () => {
+    if (products.length <= 1 && document.querySelectorAll('#unitsBody tr').length <= 1) {
+      showToast('최소 1개 제품은 필요합니다.', 'error'); return;
+    }
+    tr.remove();
+  });
+  return tr;
+}
+function addUnitRow() {
+  document.getElementById('unitsBody').appendChild(
+    unitRowEl({ name: '', palletStd: 480, boxStd: 50 })
+  );
+}
+
+function saveUnitsConfig() {
+  const rows = Array.from(document.querySelectorAll('#unitsBody tr'));
+  const newProducts = [];
+  for (const tr of rows) {
+    const name = tr.querySelector('.u-name').value.trim();
+    if (!name) continue; // 이름 없는 행은 건너뜀
+    newProducts.push({
+      name,
+      palletStd: num(tr.querySelector('.u-pallet').value),
+      boxStd: num(tr.querySelector('.u-box').value)
+    });
+  }
+  if (!newProducts.length) { showToast('제품을 최소 1개 입력하세요.', 'error'); return; }
+
+  // 제품 이름 기준으로 기존 입력 데이터 최대한 보존
+  const oldByName = {};
+  products.forEach((p, i) => { oldByName[p.name] = rowData[i]; });
+
+  products = newProducts;
+  rowData = products.map(p => oldByName[p.name] || EMPTY_ROW());
+
+  saveLocalProducts();
+  renderTable();
+  persistWorking();
+  pushConfig();           // 클라우드에 설정 반영
+  closeUnitsModal();
+  showToast('단위/제품 설정 저장됨 ✓', 'success');
+}
+
+// ===== 수동 저장 (스냅샷 이력) =====
+async function saveData() {
+  const date = curDate();
+  const time = curSlot();
+  if (!date) { showToast('날짜를 선택해주세요.', 'error'); return; }
+
+  const key = `inv_${date}_${time}`;
+  const payload = {
+    date, time,
+    data: JSON.parse(JSON.stringify(rowData)),
+    savedAt: new Date().toLocaleString('ko-KR'),
+    version: 2
+  };
+
+  try {
+    localStorage.setItem(key, JSON.stringify(payload));
+    let history = getHistory();
+    if (!history.includes(key)) {
+      history.push(key);
+      localStorage.setItem('inv_history', JSON.stringify(history));
+    }
+    renderHistory();
+  } catch (e) {
+    console.warn('로컬 스냅샷 실패:', e);
+  }
+
+  // 클라우드에도 즉시 반영
+  if (cloudReady) { await pushRecord(); }
+
+  persistWorking();
+  showToast(`저장 완료 ✓ (${date} ${time})${cloudReady ? ' · 연동' : ''}`, 'success');
+}
+
+// ===== 이력 관리 =====
+function getHistory() {
+  try {
+    const raw = localStorage.getItem('inv_history');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+
+async function deleteHistory(key, e) {
+  e.stopPropagation();
+  if (!confirm('이 저장본을 삭제하시겠습니까?')) return;
+  try {
+    localStorage.removeItem(key);
+    const history = getHistory().filter(k => k !== key);
+    localStorage.setItem('inv_history', JSON.stringify(history));
+    renderHistory();
+    showToast('삭제됨', 'error');
+  } catch (e) { showToast('삭제 실패', 'error'); }
+}
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  const history = getHistory();
+  if (!history.length) {
+    list.innerHTML = '<span style="color:rgba(255,255,255,0.6);font-size:11px;">저장된 데이터가 없습니다</span>';
+    return;
+  }
+  const chips = history.sort().reverse().map(key => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return '';
+      const p = JSON.parse(raw);
+      return `<span class="history-chip" onclick="loadSnapshot('${key}')">
+        📅 ${p.date} ${p.time}
+        <span class="chip-del" onclick="deleteHistory('${key}', event)">×</span>
+      </span>`;
+    } catch (e) { return ''; }
+  }).filter(Boolean).join('');
+  list.innerHTML = chips || '<span style="color:rgba(255,255,255,0.6);font-size:11px;">저장된 데이터가 없습니다</span>';
+}
+
+function loadSnapshot(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) { showToast('데이터를 찾을 수 없습니다.', 'error'); return; }
+    const payload = JSON.parse(raw);
+    document.getElementById('dateInput').value = payload.date;
+    document.getElementById('timeSlot').value = payload.time;
+    rowData = normalizeRows(payload.data);
+    renderTable();
+    persistWorking();
+    showToast(`불러오기 완료 ✓ (${payload.date} ${payload.time})`, 'success');
+  } catch (e) { showToast('불러오기 실패', 'error'); }
+}
+
+function toggleHistory() {
+  document.getElementById('historySection').classList.toggle('active');
+}
+
+// ===== 초기화 =====
+function resetData() {
+  if (!confirm('현재 화면의 입력값을 모두 0으로 초기화하시겠습니까?')) return;
+  rowData = products.map(EMPTY_ROW);
+  renderTable();
+  persistWorking();
+  showToast('초기화됨 ✓', 'error');
+}
+
+// ===== CSV 다운로드 =====
+function downloadCSV() {
+  const date = curDate() || '날짜없음';
+  const time = curSlot();
+
+  const headers = [
+    '제품명',
+    '파렛트기준', '파렛트A', '파렛트B', '파렛트합계',
+    '카톤기준', '박스A포장', '박스A비포장', '박스B포장', '박스B비포장', '박스합계',
+    '낱개포장', '낱개비포장', '낱개진열', '낱개합계',
+    '총합계'
+  ];
+
+  const rows = products.map((p, i) => {
+    const d = rowData[i];
+    const c = calcRow(d, p);
+    return [
+      '"' + String(p.name).replace(/"/g, '""') + '"',
+      num(p.palletStd), num(d.palletA), num(d.palletB), c.palletSum,
+      num(p.boxStd), num(d.boxAPacked), num(d.boxAUnpacked), num(d.boxBPacked), num(d.boxBUnpacked), c.boxSum,
+      num(d.loosePacked), num(d.looseUnpacked), num(d.looseDisplay), c.looseSum,
+      c.grandTotal
+    ].join(',');
+  });
+
+  const csv = '﻿' + [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `재고_${date}_${time}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('CSV 다운로드 완료', 'success');
+}
+
+// ===== 토스트 =====
+function showToast(msg, type = 'info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.className = `toast ${type}`; }, 2500);
+}
+
+// ===== 날짜/시간 변경 시 해당 데이터 로드 =====
+async function onSelectionChange() {
+  loadWorking();      // 로컬 즉시 복원
+  renderTable();
+  if (cloudReady) { await pullRecord(); }  // 클라우드 우선 반영
+}
+
+// ===== 초기화 실행 =====
+function init() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('dateInput').value = today;
+
+  loadWorking();      // 마지막 입력값 자동 복원
+  renderTable();
+  renderHistory();
+
+  document.getElementById('dateInput').addEventListener('change', onSelectionChange);
+  document.getElementById('timeSlot').addEventListener('change', onSelectionChange);
+
+  // 모달 외부 클릭으로 닫기
+  document.getElementById('modalOverlay').addEventListener('click', function (e) {
+    if (e.target === this) closeModal();
+  });
+  document.getElementById('cloudModal').addEventListener('click', function (e) {
+    if (e.target === this) closeCloudModal();
+  });
+  document.getElementById('unitsModal').addEventListener('click', function (e) {
+    if (e.target === this) closeUnitsModal();
+  });
+  document.getElementById('modalForm').addEventListener('submit', (e) => e.preventDefault());
+
+  // 클라우드 연동 시작 (설정 있으면 자동 연결)
+  initCloud();
+
+  console.log('재고 관리 앱 시작됨. clientId:', CLIENT_ID);
+}
+
+init();
+</script>
+</body>
+</html>
