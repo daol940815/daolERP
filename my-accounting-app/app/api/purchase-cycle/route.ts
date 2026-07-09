@@ -152,8 +152,27 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      if (c.erp_amount === 0 && c.invoice_supply > 0) summary['경비성']++
-      else if (c.erp_amount > 0) summary['완료']++
+      if (c.erp_amount === 0 && c.invoice_supply > 0) {
+        summary['경비성']++
+        exceptions.push({
+          vendor_id: vendorId, vendor_name: name, month: c.month,
+          status: '경비성', severity: '정상 대기',
+          erp_amount: 0, invoice_supply: c.invoice_supply, paid_amount: c.paid_amount,
+          gap: 0,
+          detail: `계산서 ${won(c.invoice_supply)} (${c.invoice_count}건) · ERP 무관 경비성 매입`,
+          cause: null,
+        })
+      } else if (c.erp_amount > 0) {
+        summary['완료']++
+        exceptions.push({
+          vendor_id: vendorId, vendor_name: name, month: c.month,
+          status: '완료', severity: '정상 대기',
+          erp_amount: c.erp_amount, invoice_supply: c.invoice_supply, paid_amount: c.paid_amount,
+          gap: 0,
+          detail: `ERP ${won(c.erp_amount)} · 계산서 ${won(c.invoice_supply)} — 근사 일치`,
+          cause: null,
+        })
+      }
     }
 
     // ── 지급 대기: 거래처 단위 1행으로 롤업 (월별로 나열하면 결제매칭이 진행되기 전까지

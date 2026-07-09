@@ -4,11 +4,14 @@ import { addInvoicePayment } from '@/lib/tax-invoice-payments.server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 300
 
 // POST /api/tax-invoices/auto-match — body: { direction?, taxType?, invoiceIds? }
 // 미확인(unmatched) 세금계산서 중, 금액이 일치하고 사업자번호 또는 거래처명이
 // 적요에 포함되는 거래내역이 단 하나로 좁혀지는 건만 자동으로 연결 처리한다.
 // invoiceIds가 있으면 그 선택 건들만 대상으로 한다(선택 자동매칭).
+// 거래내역은 한 번에 프리페치해 메모리에서 매칭한다 — 계산서 건마다 개별 조회하면
+// 미매칭 수천 건 × 요청이 되어 라우트가 죽는다(fetch failed).
 export async function POST(req: NextRequest) {
   const admin = createAdminClient()
   const body = await req.json().catch(() => ({})) as { direction?: string; taxType?: string; invoiceIds?: string[] }
@@ -58,21 +61,37 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // 거래내역 프리페치 (1회) — 금액별 인덱스 구성
+  const allTxResult = await fetchAllRows<{ id: string; description: string | null; counterparty_name: string | null; vendor_id: string | null; amount_in: number | null; amount_out: number | null }>((rFrom, rTo) =>
+    admin
+      .from('transactions')
+      .select('id, description, counterparty_name, vendor_id, amount_in, amount_out')
+      .is('transfer_pair_id', null)
+      .range(rFrom, rTo),
+  )
+  if ('error' in allTxResult) return NextResponse.json({ error: allTxResult.error }, { status: 500 })
+  type TxRow = typeof allTxResult.data[number]
+  const txByAmountIn = new Map<number, TxRow[]>()
+  const txByAmountOut = new Map<number, TxRow[]>()
+  for (const t of allTxResult.data) {
+    if ((t.amount_in ?? 0) > 0) {
+      const arr = txByAmountIn.get(t.amount_in!) ?? []
+      arr.push(t); txByAmountIn.set(t.amount_in!, arr)
+    }
+    if ((t.amount_out ?? 0) > 0) {
+      const arr = txByAmountOut.get(t.amount_out!) ?? []
+      arr.push(t); txByAmountOut.set(t.amount_out!, arr)
+    }
+  }
+
   let matched = 0
+  const usedTx = new Set<string>()   // 이번 실행에서 이미 연결한 거래는 재사용 금지
   for (const inv of invoices) {
     if (partiallyPaidIds.has(inv.id)) continue
 
-    const amountCol = inv.direction === 'sales' ? 'amount_in' : 'amount_out'
-    const txsResult = await fetchAllRows<{ id: string; description: string | null; counterparty_name: string | null; vendor_id: string | null }>((rFrom, rTo) =>
-      admin
-        .from('transactions')
-        .select('id, description, counterparty_name, vendor_id')
-        .eq(amountCol, inv.total_amount)
-        .is('transfer_pair_id', null)
-        .range(rFrom, rTo),
-    )
-    if ('error' in txsResult) continue
-    const txs = txsResult.data
+    const txs = ((inv.direction === 'sales' ? txByAmountIn : txByAmountOut).get(inv.total_amount) ?? [])
+      .filter(t => !usedTx.has(t.id))
+    if (!txs.length) continue
 
     const bizDigits = inv.counterparty_biz_number?.replace(/[^0-9]/g, '') ?? ''
     const name      = inv.counterparty_name?.trim() ?? ''
@@ -91,7 +110,7 @@ export async function POST(req: NextRequest) {
 
     if (candidates.length === 1) {
       const result = await addInvoicePayment(admin, inv.id as string, candidates[0].id as string, inv.total_amount as number)
-      if (result.ok) matched++
+      if (result.ok) { matched++; usedTx.add(candidates[0].id) }
     }
   }
 

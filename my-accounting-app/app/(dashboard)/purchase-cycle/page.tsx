@@ -247,9 +247,12 @@ export default function PurchaseCyclePage() {
             () => setStatusFilter(f => f === '금액 차이' ? '' : '금액 차이'), 'bg-rose-50 border-rose-200 text-rose-800')}
           {chip('과다 지급', summary['과다 지급'], statusFilter === '과다 지급',
             () => setStatusFilter(f => f === '과다 지급' ? '' : '과다 지급'), 'bg-purple-50 border-purple-200 text-purple-800')}
-          <span className="px-3 py-1.5 rounded-lg text-sm border bg-green-50 border-green-200 text-green-700">
-            완료 {summary['완료'].toLocaleString()} · 경비성 {summary['경비성'].toLocaleString()} (정상)
-          </span>
+          {/* 완료·경비성은 severity가 '정상 대기'라 기본 필터(주의 이상)에서 숨겨지므로
+              클릭 시 심각도 필터를 '전체'로 함께 전환한다 */}
+          {chip('완료', summary['완료'], statusFilter === '완료',
+            () => { setStatusFilter(f => f === '완료' ? '' : '완료'); setMinSeverity('전체') }, 'bg-green-50 border-green-200 text-green-700')}
+          {chip('경비성', summary['경비성'], statusFilter === '경비성',
+            () => { setStatusFilter(f => f === '경비성' ? '' : '경비성'); setMinSeverity('전체') }, 'bg-emerald-50 border-emerald-200 text-emerald-700')}
         </div>
       )}
 
