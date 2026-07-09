@@ -96,7 +96,8 @@ export async function GET(
       { label: '공급가/세액/합계', value: `${won(r.supply_amount as number)} / ${won(r.tax_amount as number)} / ${won(r.total_amount as number)}` },
       { label: '결제상태', value: r.payment_status === 'matched' ? '매칭됨' : '미매칭' },
     )
-    link = { href: `/tax-invoices/${r.direction}/${r.tax_type}`, label: '세금계산서 화면으로' }
+    // invoiceId를 넘겨 목록 화면이 이 계산서만 바로 보여주게 한다 (별도 검색 불필요)
+    link = { href: `/tax-invoices/${r.direction}/${r.tax_type}?invoiceId=${id}`, label: '세금계산서 화면으로' }
   } else if (type === 'manual') {
     title = '수동 분개'
     fields.push({ label: '안내', value: '수동으로 입력된 분개입니다. 분개 현황 화면에서 확인하세요.' })

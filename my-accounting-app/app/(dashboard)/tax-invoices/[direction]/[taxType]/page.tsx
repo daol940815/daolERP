@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { useParams, useSearchParams } from 'next/navigation'
 import type { TaxInvoice } from '@/types/tax-invoice'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
@@ -485,7 +485,16 @@ function SumMatchPickerModal({
 }
 
 export default function TaxInvoiceListPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-gray-400 text-sm">로딩 중...</div>}>
+      <TaxInvoiceListContent />
+    </Suspense>
+  )
+}
+
+function TaxInvoiceListContent() {
   const params    = useParams<{ direction: string; taxType: string }>()
+  const searchParams = useSearchParams()
   const direction = params.direction
   const taxType   = params.taxType
   const valid     = (direction === 'sales' || direction === 'purchase') && (taxType === 'taxable' || taxType === 'exempt')
@@ -497,6 +506,8 @@ export default function TaxInvoiceListPage() {
   const [dateFrom, setDateFrom]       = useState('')
   const [dateTo, setDateTo]           = useState('')
   const [search, setSearch]           = useState('')
+  // 원본 상세 등에서 특정 계산서로 바로 진입 (?invoiceId=) — 그 건만 표시
+  const [focusId, setFocusId]         = useState<string | null>(() => searchParams.get('invoiceId'))
   const [uploading, setUploading]     = useState(false)
   const [exporting, setExporting]     = useState(false)
   const [matching, setMatching]       = useState(false)
@@ -668,9 +679,11 @@ export default function TaxInvoiceListPage() {
     }
   }
 
-  // ── 검색 (거래처명·품목·비고) ────────────────────────────────────
+  // ── 검색 (거래처명·품목·비고) · 특정 계산서 진입(focusId)이 있으면 그 건만 ──
   const q = search.trim().toLowerCase()
-  const filtered = q
+  const filtered = focusId
+    ? invoices.filter(i => i.id === focusId)
+    : q
     ? invoices.filter(i =>
         (i.counterparty_name ?? '').toLowerCase().includes(q)
         || (i.item_name ?? '').toLowerCase().includes(q)
@@ -730,6 +743,22 @@ export default function TaxInvoiceListPage() {
         홈택스 &gt; 조회/발급 &gt; {taxLbl.includes('과세') ? '전자세금계산서' : '전자계산서'} &gt; 목록조회에서 다운로드한 파일을 그대로 업로드하세요.
         승인번호 기준으로 중복 없이 저장되며, 사업자번호·상호로 거래처가 자동 등록/매칭됩니다.
       </div>
+
+      {/* 특정 계산서 진입 배지 (원본 상세 → 세금계산서 화면으로) */}
+      {focusId && (
+        <div className="flex items-center gap-3 mb-4 px-4 py-2.5 bg-sky-50 border border-sky-200 rounded-lg text-sm text-sky-800">
+          <span>
+            연결된 계산서 1건만 표시하고 있습니다.
+            {filtered.length === 0 && !loading && ' — 현재 필터(기간·확인 상태)에서는 보이지 않습니다. 전체 보기를 눌러주세요.'}
+          </span>
+          <button
+            onClick={() => { setFocusId(null); setStatusFilter('all'); setDateFrom(''); setDateTo('') }}
+            className="ml-auto px-2.5 py-1 border border-sky-300 rounded-md text-xs text-sky-700 hover:bg-sky-100 whitespace-nowrap"
+          >
+            전체 보기
+          </button>
+        </div>
+      )}
 
       {/* 요약 카드 */}
       <div className="flex gap-3 flex-wrap mb-5">
