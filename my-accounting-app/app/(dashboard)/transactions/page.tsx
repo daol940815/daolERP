@@ -533,13 +533,25 @@ function TransactionsContent() {
     return m
   }, [rowData])
 
+  // 요약은 "화면에 실제로 보이는(그리드 필터 적용 후) 행" 기준으로 계산한다.
+  // rowData만 보면 컬럼 헤더 필터로 걸러도 전체 합계가 그대로 표시된다.
+  const [visibleRows, setVisibleRows] = useState<Transaction[] | null>(null)
+  const recomputeVisible = useCallback(() => {
+    const api = gridRef.current?.api
+    if (!api) return
+    const rows: Transaction[] = []
+    api.forEachNodeAfterFilter(n => { if (n.data) rows.push(n.data) })
+    setVisibleRows(rows)
+  }, [])
+
   const stats = useMemo(() => {
-    const totalIn     = rowData.reduce((s, r) => s + (r.amount_in ?? 0), 0)
-    const totalOut    = rowData.reduce((s, r) => s + (r.amount_out ?? 0), 0)
-    const pending     = rowData.filter(r => r.status === 'pending').length
-    const unclassified = rowData.filter(r => !r.confirmed_account_id && !r.suggested_account_id).length
-    return { totalIn, totalOut, pending, unclassified, total: rowData.length }
-  }, [rowData])
+    const rows = visibleRows ?? rowData
+    const totalIn     = rows.reduce((s, r) => s + (r.amount_in ?? 0), 0)
+    const totalOut    = rows.reduce((s, r) => s + (r.amount_out ?? 0), 0)
+    const pending     = rows.filter(r => r.status === 'pending').length
+    const unclassified = rows.filter(r => !r.confirmed_account_id && !r.suggested_account_id).length
+    return { totalIn, totalOut, pending, unclassified, total: rows.length }
+  }, [visibleRows, rowData])
 
   // AG Grid 컬럼 정의 (accounts 로드 후 memo 필드 처리 포함)
   const colDefs = useMemo<ColDef<Transaction>[]>(() => [
@@ -988,6 +1000,8 @@ function TransactionsContent() {
           suppressRowClickSelection
           onSelectionChanged={(e) => setSelectedCount(e.api.getSelectedRows().length)}
           onCellValueChanged={onCellValueChanged}
+          onFilterChanged={recomputeVisible}
+          onModelUpdated={recomputeVisible}
           getRowStyle={(p) => {
             if (p.data?.status === 'confirmed') return { background: '#f0fdf4' }
             if (p.data?.status === 'reviewed')  return { background: '#fefce8' }
