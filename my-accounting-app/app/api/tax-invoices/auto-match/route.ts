@@ -32,30 +32,34 @@ export async function POST(req: NextRequest) {
     ? invoicesResult.data.filter(inv => onlyIds.has(inv.id))
     : invoicesResult.data
 
-  // 이미 부분/분할 결제가 연결된 계산서는 자동매칭이 건너뛰고 수동(직접 찾기)으로 처리
-  const invoiceIds = invoices.map(inv => inv.id)
+  // 결제연결 전체를 1회에 프리페치 — 대상 계산서 id로 .in() 하면 URL 한도에 걸리고
+  // 요청 수도 늘어난다. 여기서 두 가지를 얻는다:
+  //   ① 이미 부분/분할 결제가 연결된 계산서 → 자동매칭 건너뜀 (수동 처리)
+  //   ② 거래별 기연결 금액 → 이전 실행에서 이미 쓴 거래를 다시 연결하지 않음
+  const allPaysResult = await fetchAllRows<{ tax_invoice_id: string; transaction_id: string; amount: number }>((rFrom, rTo) =>
+    admin
+      .from('tax_invoice_payments')
+      .select('tax_invoice_id, transaction_id, amount')
+      .range(rFrom, rTo),
+  )
+  if ('error' in allPaysResult) return NextResponse.json({ error: allPaysResult.error }, { status: 500 })
   const partiallyPaidIds = new Set<string>()
-  for (let i = 0; i < invoiceIds.length; i += 500) {
-    const idChunk = invoiceIds.slice(i, i + 500)
-    const paymentsResult = await fetchAllRows<{ tax_invoice_id: string }>((rFrom, rTo) =>
-      admin
-        .from('tax_invoice_payments')
-        .select('tax_invoice_id')
-        .in('tax_invoice_id', idChunk)
-        .range(rFrom, rTo),
-    )
-    if ('error' in paymentsResult) return NextResponse.json({ error: paymentsResult.error }, { status: 500 })
-    for (const p of paymentsResult.data) partiallyPaidIds.add(p.tax_invoice_id)
+  const usedAmountByTx = new Map<string, number>()
+  const targetIds = new Set(invoices.map(inv => inv.id))
+  for (const p of allPaysResult.data) {
+    if (targetIds.has(p.tax_invoice_id)) partiallyPaidIds.add(p.tax_invoice_id)
+    usedAmountByTx.set(p.transaction_id, (usedAmountByTx.get(p.transaction_id) ?? 0) + p.amount)
   }
 
-  // 매칭된 거래처들의 학습된 별칭(입금자명 등)을 한 번에 조회해 N+1 쿼리 방지
+  // 매칭된 거래처들의 학습된 별칭(입금자명 등)을 조회해 N+1 쿼리 방지 (URL 한도 대비 100개 청크)
   const vendorIds = Array.from(new Set((invoices ?? []).map(inv => inv.vendor_id).filter((v): v is string => !!v)))
   const aliasMap = new Map<string, string[]>()
-  if (vendorIds.length) {
-    const { data: vendors } = await admin
+  for (let i = 0; i < vendorIds.length; i += 100) {
+    const { data: vendors, error: vErr } = await admin
       .from('vendors')
       .select('id, match_aliases')
-      .in('id', vendorIds)
+      .in('id', vendorIds.slice(i, i + 100))
+    if (vErr) return NextResponse.json({ error: vErr.message }, { status: 500 })
     for (const v of vendors ?? []) {
       aliasMap.set(v.id as string, (v.match_aliases as string[] | null) ?? [])
     }
@@ -89,8 +93,14 @@ export async function POST(req: NextRequest) {
   for (const inv of invoices) {
     if (partiallyPaidIds.has(inv.id)) continue
 
+    // 이번 실행에서 쓴 거래(usedTx)뿐 아니라 이전 실행/수동 매칭에서
+    // 이미 다른 계산서에 연결된 거래(usedAmountByTx)도 제외한다
     const txs = ((inv.direction === 'sales' ? txByAmountIn : txByAmountOut).get(inv.total_amount) ?? [])
-      .filter(t => !usedTx.has(t.id))
+      .filter(t => {
+        if (usedTx.has(t.id)) return false
+        const cap = (inv.direction === 'sales' ? t.amount_in : t.amount_out) ?? 0
+        return cap - (usedAmountByTx.get(t.id) ?? 0) >= inv.total_amount
+      })
     if (!txs.length) continue
 
     const bizDigits = inv.counterparty_biz_number?.replace(/[^0-9]/g, '') ?? ''
