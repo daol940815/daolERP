@@ -86,6 +86,10 @@ interface Filters {
   vendorId: string
 }
 
+// 렌더마다 새 객체로 넘기면 AG Grid가 컬럼 정의를 매번 재적용해
+// 헤더가 계속 재구성된다(필터 버튼 클릭 불가·모델 갱신 루프) — 모듈 상수로 고정
+const DEFAULT_COL_DEF = { sortable: true, resizable: true, filter: true }
+
 interface PreviewTx {
   id: string
   tx_date: string
@@ -535,13 +539,17 @@ function TransactionsContent() {
 
   // 요약은 "화면에 실제로 보이는(그리드 필터 적용 후) 행" 기준으로 계산한다.
   // rowData만 보면 컬럼 헤더 필터로 걸러도 전체 합계가 그대로 표시된다.
+  // 주의: 결과가 같으면 상태를 갱신하지 않는다 — 매번 새 배열로 setState하면
+  // 재렌더 → 그리드 모델 갱신 이벤트 → 재계산의 무한 루프가 된다.
   const [visibleRows, setVisibleRows] = useState<Transaction[] | null>(null)
   const recomputeVisible = useCallback(() => {
     const api = gridRef.current?.api
     if (!api) return
     const rows: Transaction[] = []
     api.forEachNodeAfterFilter(n => { if (n.data) rows.push(n.data) })
-    setVisibleRows(rows)
+    setVisibleRows(prev =>
+      prev && prev.length === rows.length && prev.every((r, i) => r.id === rows[i].id) ? prev : rows,
+    )
   }, [])
 
   const stats = useMemo(() => {
@@ -995,7 +1003,7 @@ function TransactionsContent() {
           ref={gridRef}
           rowData={rowData}
           columnDefs={colDefs}
-          defaultColDef={{ sortable: true, resizable: true, filter: true }}
+          defaultColDef={DEFAULT_COL_DEF}
           rowSelection="multiple"
           suppressRowClickSelection
           onSelectionChanged={(e) => setSelectedCount(e.api.getSelectedRows().length)}
