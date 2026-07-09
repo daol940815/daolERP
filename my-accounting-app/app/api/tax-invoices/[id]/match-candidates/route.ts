@@ -41,16 +41,34 @@ export async function GET(
     .from('transactions')
     .select('id, tx_date, description, counterparty_name, amount_in, amount_out, account_alias, vendor_id, confirmed_account_id')
     .eq(amountCol, invoice.total_amount)
+    .is('transfer_pair_id', null)
     .order('tx_date', { ascending: false })
     .limit(200)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // 이미 다른 계산서에 연결된 거래는 남은 금액이 부족하면 후보에서 제외
+  // (제외하지 않으면 같은 금액 계산서를 연달아 매칭할 때 방금 연결한 거래가 계속 후보로 나온다)
+  const txIds = (amountMatches ?? []).map(t => t.id as string)
+  const usedByTx = new Map<string, number>()
+  for (let i = 0; i < txIds.length; i += 100) {
+    const { data: pays, error: payErr } = await admin
+      .from('tax_invoice_payments')
+      .select('transaction_id, amount')
+      .in('transaction_id', txIds.slice(i, i + 100))
+    if (payErr) return NextResponse.json({ error: payErr.message }, { status: 500 })
+    for (const p of pays ?? []) usedByTx.set(p.transaction_id as string, (usedByTx.get(p.transaction_id as string) ?? 0) + (p.amount as number))
+  }
+  const available = (amountMatches ?? []).filter(tx => {
+    const cap = (invoice.direction === 'sales' ? tx.amount_in : tx.amount_out) as number | null
+    return (cap ?? 0) - (usedByTx.get(tx.id as string) ?? 0) >= (invoice.total_amount as number)
+  })
+
   const bizDigits = invoice.counterparty_biz_number?.replace(/[^0-9]/g, '') ?? ''
   const name      = invoice.counterparty_name?.trim() ?? ''
   const issueTime = new Date(invoice.issue_date as string).getTime()
 
-  const scored = (amountMatches ?? []).map(tx => {
+  const scored = available.map(tx => {
     const desc       = (tx.description as string) ?? ''
     const counterparty = (tx.counterparty_name as string | null) ?? ''
     const haystack   = `${desc} ${counterparty}`
