@@ -43,7 +43,13 @@ interface Candidate {
   amount_in: number
   amount_out: number
   account_alias: string | null
+  // 이미 계산서에 연결된 결제 내역 (거래 목록 API가 내려줌) — 잔여 금액 계산용
+  invoice_links?: { amount: number }[]
 }
+
+// 거래에서 계산서 연결에 아직 쓸 수 있는 잔여 금액
+const txRemaining = (tx: Candidate, amountKey: 'amount_in' | 'amount_out') =>
+  (tx[amountKey] ?? 0) - (tx.invoice_links ?? []).reduce((s, l) => s + l.amount, 0)
 
 // ── 매칭 후보 선택 모달 ────────────────────────────────────────────
 function MatchPickerModal({
@@ -106,6 +112,8 @@ function MatchPickerModal({
     const q = manualQuery.trim().toLowerCase()
     const results = (json.data as Candidate[])
       .filter(tx => (tx[amountKey] ?? 0) > 0)
+      // 이미 다른 계산서 연결에 전액 사용된 거래는 제외 (잔여 금액이 있으면 표시)
+      .filter(tx => txRemaining(tx, amountKey) > 0)
       .filter(tx => !q
         || (tx.description ?? '').toLowerCase().includes(q)
         || (tx.counterparty_name ?? '').toLowerCase().includes(q))
@@ -114,7 +122,9 @@ function MatchPickerModal({
   }
 
   const openConfirm = (c: Candidate) => {
-    const candidateAmount = c.amount_in || c.amount_out
+    // 거래의 잔여 금액(이미 다른 계산서에 연결된 만큼 차감)을 기본값 상한으로
+    const amountKey = invoice.direction === 'sales' ? 'amount_in' : 'amount_out'
+    const candidateAmount = txRemaining(c, amountKey) || (c.amount_in || c.amount_out)
     const defaultAmount   = remaining > 0 ? Math.min(remaining, candidateAmount) : candidateAmount
     setLinkError(null)
     setConfirmAmount(String(defaultAmount))
@@ -361,22 +371,32 @@ function MatchPickerModal({
                   <div className="py-6 text-center text-gray-400 text-sm">조건에 맞는 거래내역이 없습니다.</div>
                 ) : (
                   <div className="space-y-1.5">
-                    {manualResults.map(c => (
-                      <button
-                        key={c.id}
-                        onClick={() => openConfirm(c)}
-                        className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-gray-900 truncate">{c.description}</p>
-                          <p className="text-xs text-gray-400">
-                            {c.tx_date} · {c.account_alias ?? '-'}
-                            {c.counterparty_name ? ` · 보낸분/받는분: ${c.counterparty_name}` : ''}
-                          </p>
-                        </div>
-                        <span className="font-medium text-gray-900 shrink-0">{won(c.amount_in || c.amount_out)}</span>
-                      </button>
-                    ))}
+                    {manualResults.map(c => {
+                      const amountKey = invoice.direction === 'sales' ? 'amount_in' as const : 'amount_out' as const
+                      const remain = txRemaining(c, amountKey)
+                      const full = c.amount_in || c.amount_out
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => openConfirm(c)}
+                          className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-gray-900 truncate">{c.description}</p>
+                            <p className="text-xs text-gray-400">
+                              {c.tx_date} · {c.account_alias ?? '-'}
+                              {c.counterparty_name ? ` · 보낸분/받는분: ${c.counterparty_name}` : ''}
+                            </p>
+                          </div>
+                          <span className="font-medium text-gray-900 shrink-0 text-right">
+                            {won(full)}
+                            {remain < full && (
+                              <span className="block text-[11px] font-normal text-sky-600">잔여 {won(remain)}</span>
+                            )}
+                          </span>
+                        </button>
+                      )
+                    })}
                   </div>
                 )
               )}
