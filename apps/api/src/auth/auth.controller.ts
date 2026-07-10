@@ -14,6 +14,16 @@ class LoginDto {
   password: string;
 }
 
+class ChangePasswordDto {
+  @IsString()
+  @MinLength(8)
+  currentPassword: string;
+
+  @IsString()
+  @MinLength(8)
+  newPassword: string;
+}
+
 function meta(req: Request) {
   return { ip: req.ip, userAgent: req.headers['user-agent'] };
 }
@@ -37,5 +47,15 @@ export class AuthController {
   @Get('me')
   me(@CurrentUser() user: AuthUser) {
     return this.auth.buildMe(user.id);
+  }
+
+  @Post('change-password')
+  async changePassword(
+    @Body() dto: ChangePasswordDto,
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+  ) {
+    await this.auth.changePassword(user.id, dto.currentPassword, dto.newPassword, meta(req));
+    return { ok: true };
   }
 }

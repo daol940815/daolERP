@@ -32,6 +32,24 @@ pnpm dev:web           # http://localhost:5173 (API 프록시 포함)
 
 초기 관리자 계정: `admin@daolerp.local` / `admin1234!` (최초 로그인 후 변경)
 
+## 테스트
+
+```bash
+cd apps/api
+pnpm test               # 단위 테스트 (근태 엔진 판정 15 + 연차 발생 8 케이스)
+pnpm test:integration   # 통합 테스트 — 신규 DB에서 전체 수명주기 28항목 (오픈 리허설 겸용)
+```
+
+## 운영 배포
+
+```bash
+cp .env.production.example .env   # POSTGRES_PASSWORD, JWT_SECRET 필수 설정
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+오픈 절차는 [docs/attendance/오픈_체크리스트.md](docs/attendance/오픈_체크리스트.md) 참고.
+법인 복제 배포: 이 저장소 그대로 + `.env` + 시스템 설정 화면만 변경 (기획서 1.3).
+
 ## 개발 진행 상황
 
 | 단계 | 내용 | 상태 |
@@ -43,4 +61,4 @@ pnpm dev:web           # http://localhost:5173 (API 프록시 포함)
 | M5 | 휴가 (연차 발생/소멸, 신청·승인, 잔여 관리, 촉진) | ✅ 완료 |
 | M6 | 초과근무, 52시간 모니터링, 알림 아웃박스, 퇴사 프로세스 | ✅ 완료 |
 | M7 | 월 마감 (검증+스냅샷), 통계/리포트, 관리자 대시보드, Excel Import/Export | ✅ 완료 |
-| M8 | 통합 테스트, 실데이터 검증, 배포 | 예정 |
+| M8 | 통합 테스트, 실데이터 검증, 배포 | ✅ 완료 |

@@ -52,6 +52,34 @@ export class AuthService {
     });
   }
 
+  /** 비밀번호 변경 — 현재 비밀번호 확인 필수. 운영 오픈 시 초기 비밀번호 교체용 */
+  async changePassword(
+    userId: number,
+    currentPassword: string,
+    newPassword: string,
+    meta: RequestMeta,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) throw new UnauthorizedException('현재 비밀번호가 올바르지 않습니다.');
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { passwordHash: await bcrypt.hash(newPassword, 10) },
+      }),
+      this.prisma.accessLog.create({
+        data: {
+          userId,
+          event: 'LOGIN', // 접속 이벤트 체계 유지 — 상세는 detail 로 구분
+          detail: 'PASSWORD_CHANGED',
+          ip: meta.ip,
+          userAgent: meta.userAgent,
+        },
+      }),
+    ]);
+  }
+
   /** 사용자 정보 + 역할 + 권한(action/scope) 조회 — 가드와 /auth/me 가 공용 */
   async buildMe(userId: number): Promise<MeResponse> {
     const user = await this.prisma.user.findUniqueOrThrow({

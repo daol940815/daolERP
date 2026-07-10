@@ -10,7 +10,8 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "ts-node prisma/seed.ts",
-    "test": "jest"
+    "test": "jest",
+    "test:integration": "node test/integration.mjs"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
