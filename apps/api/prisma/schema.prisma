@@ -661,6 +661,49 @@ model SchedulerJobRun {
   @@map("scheduler_job_runs")
 }
 
+// ── 월 마감 [Snapshot] (기획서 4.10, 5.3 상태기계) ──────────────
+
+model MonthlyClosing {
+  id               Int       @id @default(autoincrement())
+  yearMonth        String    @unique @map("year_month") // "YYYY-MM"
+  status           String    @default("OPEN") // CLOSING_STATUS: OPEN | VALIDATING | CLOSED | REOPENED
+  validationResult Json?     @map("validation_result") // 마감 시점 검증 결과 (경고 포함)
+  executedBy       Int?      @map("executed_by")
+  closedAt         DateTime? @map("closed_at")
+  reopenReason     String?   @map("reopen_reason")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  snapshots ClosingSnapshot[]
+
+  @@map("monthly_closings")
+}
+
+// 마감 스냅샷 — 직원×월 확정 집계. 마감 후 불변, 급여 계산의 근거 (기획서 1.4)
+model ClosingSnapshot {
+  id              Int            @id @default(autoincrement())
+  closingId       Int            @map("closing_id")
+  closing         MonthlyClosing @relation(fields: [closingId], references: [id], onDelete: Cascade)
+  employeeId      Int            @map("employee_id")
+  empNo           String         @map("emp_no") // 마감 시점 값 고정 (직원 정보 변경과 무관)
+  employeeName    String         @map("employee_name")
+  departmentName  String?        @map("department_name")
+  workdayCount    Int            @map("workday_count")    // 소정 근무일수
+  presentDays     Int            @map("present_days")     // 출근일수
+  absentDays      Int            @map("absent_days")
+  lateCount       Int            @map("late_count")
+  lateMinutes     Int            @map("late_minutes")
+  earlyLeaveCount Int            @map("early_leave_count")
+  incompleteCount Int            @map("incomplete_count")
+  leaveDays       Int            @map("leave_days")
+  workMinutes     Int            @map("work_minutes")
+  overtimeMinutes Int            @map("overtime_minutes") // 승인된 초과근무 합
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  @@unique([closingId, employeeId])
+  @@map("closing_snapshots")
+}
+
 // ── 감사/접속 로그 (변경 로그와 접속 로그 분리 — 기획서 6장) ─────
 
 model AuditLog {

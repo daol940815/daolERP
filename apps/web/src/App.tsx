@@ -14,6 +14,10 @@ import { AttendancePage } from './pages/AttendancePage';
 import { LeavePage } from './pages/LeavePage';
 import { OvertimePage } from './pages/OvertimePage';
 import { NotificationsPage } from './pages/NotificationsPage';
+import { ClosingPage } from './pages/ClosingPage';
+import { ReportsPage } from './pages/ReportsPage';
+import { HrDashboardPage } from './pages/HrDashboardPage';
+import { ImportPage } from './pages/ImportPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 
 export default function App() {
@@ -38,8 +42,10 @@ export default function App() {
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/schedules" element={<SchedulesPage />} />
         <Route path="/policies" element={<PoliciesPage />} />
-        <Route path="/closing" element={<PlaceholderPage title="근태 마감" milestone="M7" />} />
-        <Route path="/reports" element={<PlaceholderPage title="통계/리포트" milestone="M7" />} />
+        <Route path="/closing" element={<ClosingPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/hr-dashboard" element={<HrDashboardPage />} />
+        <Route path="/import" element={<ImportPage />} />
         {/* M1 구현 완료 메뉴 */}
         <Route path="/employees" element={<EmployeesPage />} />
         <Route path="/departments" element={<DepartmentsPage />} />

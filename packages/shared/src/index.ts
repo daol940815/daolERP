@@ -43,6 +43,9 @@ export const PERMISSION_ACTIONS = [
   // M5 — 휴가
   'leave.read',   // 스코프: SELF/DEPT/ALL
   'leave.adjust', // 연차 수동 조정 (HR)
+  // M7 — 마감/리포트
+  'closing.execute', // 월 마감 실행/해제 (HR)
+  'report.read',     // 통계/리포트, 관리자 대시보드
 ] as const;
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 
@@ -155,6 +158,12 @@ export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 /** 아웃박스 상태 (기획서 5.5) */
 export const OUTBOX_STATUS = ['PENDING', 'SENT', 'FAILED', 'DEAD'] as const;
 export type OutboxStatus = (typeof OUTBOX_STATUS)[number];
+
+// ── M7 월 마감 ─────────────────────────────────────────────────
+
+/** 월 마감 상태 (기획서 5.3) */
+export const CLOSING_STATUS = ['OPEN', 'VALIDATING', 'CLOSED', 'REOPENED'] as const;
+export type ClosingStatus = (typeof CLOSING_STATUS)[number];
 
 /** 근태 엔진 일별 결과 (기획서 5.2 출력) */
 export interface DayResult {

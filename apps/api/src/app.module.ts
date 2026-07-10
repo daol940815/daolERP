@@ -22,6 +22,10 @@ import { AttachmentModule } from './attachment/attachment.module';
 import { LeaveModule } from './leave/leave.module';
 import { NotificationModule } from './notification/notification.module';
 import { OvertimeModule } from './overtime/overtime.module';
+import { ClosingGuardModule } from './closing/closing-guard.module';
+import { ClosingModule } from './closing/closing.module';
+import { ReportModule } from './report/report.module';
+import { ImportModule } from './import/import.module';
 
 @Module({
   imports: [
@@ -45,6 +49,10 @@ import { OvertimeModule } from './overtime/overtime.module';
     AttendanceModule,
     AttachmentModule,
     OvertimeModule,
+    ClosingGuardModule,
+    ReportModule,
+    ClosingModule,
+    ImportModule,
   ],
   providers: [
     // 전역 인증 → 권한 순서로 적용. @Public() 로 예외 지정.

@@ -5,6 +5,7 @@ import { ApprovalService } from '../approval/approval.service';
 import { AttendanceEngineService, kstDateKey } from '../attendance-engine/attendance-engine.service';
 import { LeavesService } from '../leave/leaves.service';
 import { NotificationService } from '../notification/notification.service';
+import { ClosingGuardService } from '../closing/closing-guard.service';
 
 /** "YYYY-MM-DD" + "HH:MM" (KST) → Date */
 function kstDateTime(dateKey: string, hhmm: string): Date {
@@ -20,6 +21,7 @@ export class AttendanceService {
     private readonly engine: AttendanceEngineService,
     private readonly leaves: LeavesService,
     private readonly notifications: NotificationService,
+    private readonly closingGuard: ClosingGuardService,
   ) {}
 
   /**
@@ -135,6 +137,7 @@ export class AttendanceService {
   ) {
     if (!input.clockIn && !input.clockOut)
       throw new BadRequestException('보정할 출근 또는 퇴근 시각을 입력해야 합니다.');
+    await this.closingGuard.assertOpen(input.date); // 마감된 월 기록 변경 차단 (CLS-01)
 
     return this.prisma.$transaction(async (tx) => {
       const correction = await tx.attendanceCorrection.create({

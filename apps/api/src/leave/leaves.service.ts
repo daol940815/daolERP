@@ -6,6 +6,7 @@ import { PolicyResolverService } from '../policy/policy-resolver.service';
 import { WorkPoliciesService } from '../policy/work-policies.service';
 import { HolidaysService } from '../policy/holidays.service';
 import { NotificationService } from '../notification/notification.service';
+import { ClosingGuardService } from '../closing/closing-guard.service';
 import { addMonthsClamped, computeAccruals } from './accrual-calculator';
 
 const dayKey = (d: Date) => d.toISOString().slice(0, 10);
@@ -29,6 +30,7 @@ export class LeavesService {
     private readonly workPolicies: WorkPoliciesService,
     private readonly holidays: HolidaysService,
     private readonly notifications: NotificationService,
+    private readonly closingGuard: ClosingGuardService,
   ) {}
 
   // ── 잔여 계산 (저장하지 않음 — grants − usages. 기획서 8장) ──
@@ -130,6 +132,7 @@ export class LeavesService {
     const start = new Date(input.startDate);
     const end = new Date(input.endDate);
     if (end < start) throw new BadRequestException('종료일이 시작일보다 빠릅니다.');
+    await this.closingGuard.assertOpen(input.startDate); // 마감된 월 기록 변경 차단 (CLS-01)
     if (input.halfDay && input.startDate !== input.endDate)
       throw new BadRequestException('반차는 하루 단위로만 신청할 수 있습니다.');
     if (input.halfDay && !leaveType.allowHalfDay)

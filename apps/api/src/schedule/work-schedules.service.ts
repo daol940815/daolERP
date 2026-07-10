@@ -4,6 +4,7 @@ import { AuditService } from '../audit/audit.service';
 import { PolicyResolverService } from '../policy/policy-resolver.service';
 import { WorkPoliciesService } from '../policy/work-policies.service';
 import { HolidaysService } from '../policy/holidays.service';
+import { ClosingGuardService } from '../closing/closing-guard.service';
 
 interface GenerateOptions {
   preserveManual?: boolean; // 재생성 시 개별 조정(MANUAL) 보존 (기획서 SCH-03)
@@ -29,6 +30,7 @@ export class WorkSchedulesService {
     private readonly resolver: PolicyResolverService,
     private readonly workPolicies: WorkPoliciesService,
     private readonly holidays: HolidaysService,
+    private readonly closingGuard: ClosingGuardService,
   ) {}
 
   list(params: { employeeId: number; from: string; to: string }) {
@@ -139,6 +141,7 @@ export class WorkSchedulesService {
     },
     actor: { userId: number; ip?: string },
   ) {
+    await this.closingGuard.assertOpen(input.date); // 마감된 월 기록 변경 차단 (CLS-01)
     const date = new Date(input.date);
     const before = await this.prisma.workSchedule.findUnique({
       where: { employeeId_date: { employeeId: input.employeeId, date } },

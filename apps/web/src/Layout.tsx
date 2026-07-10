@@ -19,12 +19,14 @@ export function Layout() {
         {hasPermission('employee.manage') && (
           <>
             <div className="group">HR</div>
+            <NavLink to="/hr-dashboard">관리자 대시보드</NavLink>
             <NavLink to="/employees">직원 관리</NavLink>
             <NavLink to="/departments">부서 관리</NavLink>
             <NavLink to="/schedules">근무일정 관리</NavLink>
             <NavLink to="/policies">정책 관리</NavLink>
             <NavLink to="/closing">근태 마감</NavLink>
             <NavLink to="/reports">통계/리포트</NavLink>
+            <NavLink to="/import">데이터 Import</NavLink>
           </>
         )}
         {hasPermission('settings.manage') && (
