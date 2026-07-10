@@ -211,6 +211,10 @@ export default function CardSalesPage() {
           <p className="text-sm mt-1 text-blue-700 font-medium">카드 매출 상세내역 — 정산/입금 현황 확인</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
+          <a href="/card-sales/customer-links"
+            className="px-3 py-2 border border-blue-300 rounded-lg text-sm text-blue-700 hover:bg-blue-50 flex items-center gap-1.5">
+            카드번호 매출처 연결
+          </a>
           <button
             onClick={handleExport}
             disabled={exporting || loading}
