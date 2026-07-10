@@ -391,6 +391,27 @@
   .log-detail .chg { display: inline-block; background: #eef2ff; color: #3730a3; padding: 1px 6px; border-radius: 10px; margin: 2px 4px 0 0; }
   .log-date { font-size: 10px; color: var(--text-muted); }
 
+  /* ===== 변동 비교 ===== */
+  .diff-controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; }
+  .diff-controls .fld { display: flex; flex-direction: column; gap: 4px; }
+  .diff-controls label { font-size: 11px; color: var(--text-secondary); font-weight: 700; }
+  .diff-controls input[type="date"] {
+    border: 1px solid var(--border); border-radius: 6px; padding: 9px 10px;
+    font-family: var(--font); font-size: 13px; color: var(--text-primary); background: #fff; outline: none;
+  }
+  .diff-controls input[type="date"]::-webkit-calendar-picker-indicator { filter: none; }
+  .diff-summary { background: var(--calc-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; font-size: 13px; line-height: 1.6; }
+  .diff-summary b { font-size: 15px; }
+  .diff-missing { color: var(--btn-danger); font-size: 12px; margin-bottom: 8px; }
+  .diff-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .diff-table th, .diff-table td { border: 1px solid var(--border-light); padding: 8px 6px; text-align: center; white-space: nowrap; }
+  .diff-table th { background: #f1f5f9; font-size: 11px; color: var(--text-secondary); position: sticky; top: 0; }
+  .diff-table td.name { text-align: left; font-weight: 600; }
+  .diff-up { color: #1d4ed8; font-weight: 700; }
+  .diff-down { color: #dc2626; font-weight: 700; }
+  .diff-zero { color: var(--text-muted); }
+  .diff-total-row td { background: #ede9fe; color: #5b21b6; font-weight: 700; }
+
   .toast {
     position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
     background: var(--text-secondary); color: white; padding: 12px 20px;
@@ -434,10 +455,11 @@
       <label class="ctrl-label">기준일</label>
       <input type="date" id="dateInput">
     </div>
+    <button class="btn btn-white" onclick="openDiffModal()">📊 변동비교</button>
+    <button class="btn btn-ghost" onclick="openLogModal()">📋 변경이력</button>
     <button class="btn btn-ghost" onclick="openUnitsModal()">⚙️ 단위설정</button>
     <button class="btn btn-ghost" onclick="openCloudModal()">☁️ 연동</button>
     <button class="btn btn-ghost" onclick="resetData()">🔄 초기화</button>
-    <button class="btn btn-ghost" onclick="openLogModal()">📋 변경이력</button>
   </div>
 </div>
 
@@ -640,6 +662,43 @@ alter publication supabase_realtime add table inventory_log;</pre>
       <button type="button" class="btn btn-white" onclick="clearLog()" style="padding:6px 10px;">🗑 이력 지우기</button>
     </div>
     <div class="log-list" id="logList"></div>
+  </div>
+</div>
+
+<!-- 변동 비교 모달 -->
+<div id="diffModal" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">📊 재고 변동 비교</div>
+      <button class="modal-close-btn" onclick="closeDiffModal()">×</button>
+    </div>
+    <div class="info-box">두 날짜의 재고 조사 결과를 비교해 제품별 <b>차이 수량</b>을 자동으로 보여줍니다. 기본값은 <b>어제 → 오늘</b>입니다. 과거 날짜를 골라 1~2일 전 변동도 조회할 수 있습니다.</div>
+    <div class="diff-controls">
+      <div class="fld"><label>기준일 (이전)</label><input type="date" id="diffBaseDate"></div>
+      <div class="fld"><label>비교일 (이후)</label><input type="date" id="diffCmpDate"></div>
+      <button type="button" class="btn btn-primary" onclick="runDiff()" style="padding:9px 16px;">비교</button>
+    </div>
+    <label class="log-filter" style="display:block;margin-bottom:10px;">
+      <input type="checkbox" id="diffHideZero"> 변동 없는 제품 숨기기
+    </label>
+    <div class="diff-summary" id="diffSummary"></div>
+    <div class="table-scroll">
+      <table class="diff-table">
+        <thead>
+          <tr>
+            <th style="min-width:110px;">제품명</th>
+            <th id="diffBaseTh">기준일</th>
+            <th id="diffCmpTh">비교일</th>
+            <th style="min-width:90px;">차이</th>
+          </tr>
+        </thead>
+        <tbody id="diffBody"></tbody>
+      </table>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-white" onclick="exportDiffCsv()">📥 비교결과 CSV</button>
+      <button type="button" class="btn btn-primary" onclick="closeDiffModal()">닫기</button>
+    </div>
   </div>
 </div>
 
@@ -1303,6 +1362,116 @@ function downloadCSV() {
   showToast('CSV 다운로드 완료', 'success');
 }
 
+// ===== 재고 변동 비교 =====
+function shiftDate(str, days) {
+  const d = new Date(str + 'T00:00:00');
+  if (isNaN(d)) return str;
+  d.setDate(d.getDate() + days);
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
+// 특정 날짜의 재고 데이터 가져오기 (현재 날짜는 라이브값, 그 외는 클라우드→로컬 순)
+async function fetchDateData(date) {
+  if (date === curDate()) return rowData.slice();
+  if (cloudReady) {
+    try {
+      const c = getCloudCfg();
+      const { data } = await supa.from('inventory').select('data')
+        .eq('room', c.room).eq('date', date).eq('slot', SLOT).maybeSingle();
+      if (data && data.data) return normalizeRows(data.data);
+    } catch (e) { console.warn(e); }
+  }
+  try {
+    const raw = localStorage.getItem(`inv_work_${roomName()}_${date}`);
+    if (raw) return normalizeRows(JSON.parse(raw).data);
+  } catch (e) {}
+  return null;
+}
+
+function openDiffModal() {
+  const cmp = curDate();
+  document.getElementById('diffCmpDate').value = cmp;
+  document.getElementById('diffBaseDate').value = shiftDate(cmp, -1);
+  document.getElementById('diffModal').classList.add('active');
+  runDiff();
+}
+function closeDiffModal() { document.getElementById('diffModal').classList.remove('active'); }
+
+let lastDiff = null;
+async function runDiff() {
+  const baseDate = document.getElementById('diffBaseDate').value;
+  const cmpDate = document.getElementById('diffCmpDate').value;
+  const hideZero = document.getElementById('diffHideZero').checked;
+  const body = document.getElementById('diffBody');
+  const summary = document.getElementById('diffSummary');
+  document.getElementById('diffBaseTh').textContent = baseDate || '기준일';
+  document.getElementById('diffCmpTh').textContent = cmpDate || '비교일';
+
+  if (!baseDate || !cmpDate) {
+    body.innerHTML = ''; summary.innerHTML = '<div class="diff-missing">기준일과 비교일을 선택하세요.</div>'; return;
+  }
+
+  summary.innerHTML = '불러오는 중…';
+  const [base, cmp] = await Promise.all([fetchDateData(baseDate), fetchDateData(cmpDate)]);
+
+  let miss = '';
+  if (!base) miss += `기준일(${baseDate}) 저장된 재고 없음. `;
+  if (!cmp) miss += `비교일(${cmpDate}) 저장된 재고 없음.`;
+
+  const rows = []; let baseGrand = 0, cmpGrand = 0;
+  products.forEach((p, i) => {
+    const b = base ? calcRow(base[i] || EMPTY_ROW(), p).grandTotal : 0;
+    const c = cmp ? calcRow(cmp[i] || EMPTY_ROW(), p).grandTotal : 0;
+    baseGrand += b; cmpGrand += c;
+    rows.push({ name: p.name, b, c, diff: c - b });
+  });
+  lastDiff = { baseDate, cmpDate, rows, baseGrand, cmpGrand };
+
+  const cls = v => v > 0 ? 'diff-up' : (v < 0 ? 'diff-down' : 'diff-zero');
+  const arrow = v => v > 0 ? '▲' : (v < 0 ? '▼' : '–');
+  const sign = v => (v > 0 ? '+' : '') + fmt(v);
+
+  const visible = hideZero ? rows.filter(r => r.diff !== 0) : rows;
+  let rowsHtml = visible.map(r => `
+    <tr>
+      <td class="name">${escapeHtml(r.name)}</td>
+      <td>${fmt(r.b)}</td>
+      <td>${fmt(r.c)}</td>
+      <td class="${cls(r.diff)}">${arrow(r.diff)} ${sign(r.diff)}</td>
+    </tr>`).join('');
+  if (!visible.length) rowsHtml = `<tr><td colspan="4" style="padding:18px;color:var(--text-muted);">변동된 제품이 없습니다.</td></tr>`;
+
+  body.innerHTML = rowsHtml + `
+    <tr class="diff-total-row">
+      <td class="name">합계</td>
+      <td>${fmt(baseGrand)}</td>
+      <td>${fmt(cmpGrand)}</td>
+      <td>${sign(cmpGrand - baseGrand)}</td>
+    </tr>`;
+
+  const totalDiff = cmpGrand - baseGrand;
+  summary.innerHTML = (miss ? `<div class="diff-missing">⚠️ ${miss}</div>` : '') +
+    `<b>${baseDate}</b> → <b>${cmpDate}</b> 총 변동 :
+     <b class="${cls(totalDiff)}">${sign(totalDiff)}</b>
+     <span style="color:var(--text-muted);">(${fmt(baseGrand)} → ${fmt(cmpGrand)})</span>`;
+}
+
+function exportDiffCsv() {
+  if (!lastDiff) { showToast('먼저 비교를 실행하세요.', 'error'); return; }
+  const { baseDate, cmpDate, rows, baseGrand, cmpGrand } = lastDiff;
+  const header = ['제품명', `${baseDate}(기준)`, `${cmpDate}(비교)`, '차이'];
+  const lines = rows.map(r => ['"' + String(r.name).replace(/"/g, '""') + '"', r.b, r.c, r.diff].join(','));
+  lines.push(['합계', baseGrand, cmpGrand, cmpGrand - baseGrand].join(','));
+  const csv = '﻿' + [header.join(','), ...lines].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `재고변동_${baseDate}_${cmpDate}.csv`; a.click();
+  URL.revokeObjectURL(url);
+  showToast('변동 비교 CSV 다운로드', 'success');
+}
+
 // ===== 토스트 =====
 function showToast(msg, type = 'info') {
   const t = document.getElementById('toast');
@@ -1328,11 +1497,15 @@ function init() {
 
   document.getElementById('dateInput').addEventListener('change', onDateChange);
   document.getElementById('logOnlyToday').addEventListener('change', renderLog);
+  document.getElementById('diffBaseDate').addEventListener('change', runDiff);
+  document.getElementById('diffCmpDate').addEventListener('change', runDiff);
+  document.getElementById('diffHideZero').addEventListener('change', runDiff);
 
   document.getElementById('modalOverlay').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
   document.getElementById('cloudModal').addEventListener('click', function (e) { if (e.target === this) closeCloudModal(); });
   document.getElementById('unitsModal').addEventListener('click', function (e) { if (e.target === this) closeUnitsModal(); });
   document.getElementById('logModal').addEventListener('click', function (e) { if (e.target === this) closeLogModal(); });
+  document.getElementById('diffModal').addEventListener('click', function (e) { if (e.target === this) closeDiffModal(); });
   document.getElementById('modalForm').addEventListener('submit', (e) => e.preventDefault());
 
   initCloud();
