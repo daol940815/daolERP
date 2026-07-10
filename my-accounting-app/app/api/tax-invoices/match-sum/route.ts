@@ -38,7 +38,14 @@ export async function POST(req: NextRequest) {
 
   const direction = invoices[0].direction as 'sales' | 'purchase'
   const vendorId  = invoices[0].vendor_id as string | null
+  // 수정(음수) 계산서가 섞이면 순액으로 거래를 찾는다 (예: 319,500 - 297,500 = 22,000 출금)
   const sumAmount = invoices.reduce((s, i) => s + (i.total_amount as number), 0)
+  if (sumAmount <= 0) {
+    return NextResponse.json(
+      { error: '선택한 계산서의 합계가 0원 이하입니다. 전액 취소 상계(합계 0)는 거래 연결 없이 상태 배지 클릭으로 확인 처리하세요.' },
+      { status: 400 },
+    )
+  }
 
   let aliases: string[] = []
   if (vendorId) {

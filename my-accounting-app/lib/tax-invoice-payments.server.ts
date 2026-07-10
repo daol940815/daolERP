@@ -40,7 +40,12 @@ export async function recalcInvoiceStatus(admin: Admin, invoiceId: string) {
     .order('created_at', { ascending: false })
 
   const paidTotal = (payments ?? []).reduce((s, p) => s + (p.amount as number), 0)
-  const status = paidTotal >= (invoice.total_amount as number) ? 'matched' : 'unmatched'
+  // 음수(수정) 계산서는 상계 연결(음수 금액)이 총액에 도달해야 확인됨 —
+  // 부호 없이 비교하면 연결 0원일 때도 0 >= 음수총액이라 잘못 matched가 된다
+  const total = invoice.total_amount as number
+  const status = total >= 0
+    ? (paidTotal >= total ? 'matched' : 'unmatched')
+    : (paidTotal <= total ? 'matched' : 'unmatched')
   const latestTransactionId = (payments?.[0]?.transaction_id as string | undefined) ?? null
 
   await admin
@@ -106,11 +111,13 @@ async function learnFromPaymentLink(admin: Admin, invoiceId: string, transaction
 
 // 거래내역 1건을 계산서에 지정한 금액만큼 연결 (분할/합산 결제 공용)
 // 같은 거래내역이 이미 연결되어 있으면 금액을 갱신한다.
+// 수정(음수) 계산서는 음수 금액으로 연결한다(상계) — 순액 지급 시 원 계산서와
+// 같은 출금에 함께 연결하면 거래 배분 합이 실제 출금액과 일치한다 (063).
 export async function addInvoicePayment(
   admin: Admin, invoiceId: string, transactionId: string, amount: number,
 ): Promise<Result> {
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return { ok: false, error: '연결할 금액은 0보다 커야 합니다.' }
+  if (!Number.isFinite(amount) || amount === 0) {
+    return { ok: false, error: '연결할 금액은 0이 될 수 없습니다.' }
   }
 
   const { data: invoice } = await admin
@@ -120,6 +127,14 @@ export async function addInvoicePayment(
     .single()
   if (!invoice) return { ok: false, error: '세금계산서를 찾을 수 없습니다.' }
 
+  const total = invoice.total_amount as number
+  if (total >= 0 && amount < 0) {
+    return { ok: false, error: '양수 계산서에는 양수 금액만 연결할 수 있습니다.' }
+  }
+  if (total < 0 && amount > 0) {
+    return { ok: false, error: '수정(음수) 계산서는 음수 금액(상계)으로 연결됩니다. — 063 마이그레이션 적용 필요' }
+  }
+
   const { data: existing } = await admin
     .from('tax_invoice_payments')
     .select('amount, transaction_id')
@@ -128,15 +143,23 @@ export async function addInvoicePayment(
     .filter(p => p.transaction_id !== transactionId)
     .reduce((s, p) => s + (p.amount as number), 0)
 
-  const remaining = (invoice.total_amount as number) - alreadyPaid
-  if (amount > remaining) {
+  const remaining = total - alreadyPaid
+  // 양수: 초과 금지 / 음수: 더 큰 음수(과상계) 금지
+  if ((total >= 0 && amount > remaining) || (total < 0 && amount < remaining)) {
     return { ok: false, error: `합계금액을 초과합니다. (연결 가능 금액: ${remaining.toLocaleString('ko-KR')}원)` }
   }
 
   const { error } = await admin
     .from('tax_invoice_payments')
     .upsert({ tax_invoice_id: invoiceId, transaction_id: transactionId, amount }, { onConflict: 'tax_invoice_id,transaction_id' })
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    return {
+      ok: false,
+      error: /amount_check/.test(error.message)
+        ? '수정(음수) 계산서 상계 연결에는 063 마이그레이션(payment_netting) 적용이 필요합니다.'
+        : error.message,
+    }
+  }
 
   await recalcInvoiceStatus(admin, invoiceId)
   await learnFromPaymentLink(admin, invoiceId, transactionId)
