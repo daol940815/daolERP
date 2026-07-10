@@ -115,6 +115,13 @@ export async function POST(req: NextRequest) {
   const supplierNameIdx  = col.supplierBiz  + 2
   const recipientNameIdx = col.recipientBiz + 2
 
+  // 과세/면세는 탭 선택이 아니라 파일 양식으로 판별한다:
+  // 홈택스 전자세금계산서(과세) 파일에는 '세액' 컬럼이 있고, 전자계산서(면세)에는 없다.
+  // 면세 파일을 과세 탭에 올리는 실수(화환 계산서 등)를 여기서 바로잡는다.
+  const detectedTaxType: 'taxable' | 'exempt' = col.tax >= 0 ? 'taxable' : 'exempt'
+  const taxTypeCorrected = detectedTaxType !== taxType
+  const effectiveTaxType = detectedTaxType
+
   // "우리 회사" 사업자번호 추정 — 선택한 방향 기준 자기 쪽 컬럼에서 가장 많이 등장하는 값
   const selfBizCounts = new Map<string, number>()
   for (const row of dataRows) {
@@ -145,7 +152,7 @@ export async function POST(req: NextRequest) {
       issue_date: issueDate,
       issued_date: toDate(row[col.issuedDate]),
       direction: direction as 'sales' | 'purchase',
-      tax_type: taxType as 'taxable' | 'exempt',
+      tax_type: effectiveTaxType,
       counterparty_name: counterpartyName,
       counterparty_biz_number: counterpartyBiz || null,
       supply_amount: toNumber(row[col.supply]),
@@ -311,6 +318,8 @@ export async function POST(req: NextRequest) {
     mismatched,
     vendorsCreated,
     total: dataRows.length,
+    // 파일 양식으로 과세/면세를 판별해 탭 선택과 달랐던 경우 (자동 보정됨)
+    taxTypeCorrected: taxTypeCorrected ? effectiveTaxType : null,
   })
   } catch (e) {
     // DB 처리 중 예외(제약 위반 등) — 크래시 대신 메시지 반환
