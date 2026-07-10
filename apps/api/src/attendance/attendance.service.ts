@@ -4,6 +4,7 @@ import { AuditService } from '../audit/audit.service';
 import { ApprovalService } from '../approval/approval.service';
 import { AttendanceEngineService, kstDateKey } from '../attendance-engine/attendance-engine.service';
 import { LeavesService } from '../leave/leaves.service';
+import { NotificationService } from '../notification/notification.service';
 
 /** "YYYY-MM-DD" + "HH:MM" (KST) → Date */
 function kstDateTime(dateKey: string, hhmm: string): Date {
@@ -18,7 +19,60 @@ export class AttendanceService {
     private readonly approval: ApprovalService,
     private readonly engine: AttendanceEngineService,
     private readonly leaves: LeavesService,
+    private readonly notifications: NotificationService,
   ) {}
+
+  /**
+   * 주 52시간 모니터링 배치 (기획서 OT-03) — 엔진 계산값 기준.
+   * 임계(시간)는 system_settings 'attendance.weeklyHourAlertThreshold'.
+   * 초과자: 본인 + 부서장 + HR 에게 알림 발행.
+   */
+  async runWeeklyHoursCheck(): Promise<number> {
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: 'attendance.weeklyHourAlertThreshold' },
+    });
+    const thresholdHours = typeof setting?.value === 'number' ? setting.value : 48;
+
+    // 이번 주 월요일 ~ 오늘 (KST)
+    const todayKey = kstDateKey(new Date());
+    const today = new Date(todayKey);
+    const dow = (today.getUTCDay() + 6) % 7; // 월=0
+    const monday = new Date(today.getTime() - dow * 86400000);
+
+    const employees = await this.prisma.employee.findMany({
+      where: { status: 'ACTIVE' },
+      include: { department: true },
+    });
+    const hrUsers = await this.prisma.user.findMany({
+      where: { isActive: true, userRoles: { some: { role: { code: 'HR' } } } },
+      select: { id: true },
+    });
+
+    let alerted = 0;
+    for (const emp of employees) {
+      const leaveDates = await this.leaves.approvedDates(emp.id, monday, today);
+      const results = await this.engine.calculateRange(emp.id, monday, today, leaveDates);
+      const totalMinutes = results.reduce((s, r) => s + r.workMinutes, 0);
+      if (totalMinutes < thresholdHours * 60) continue;
+
+      const hours = Math.round((totalMinutes / 60) * 10) / 10;
+      const targets = [emp.id];
+      if (emp.department?.headEmployeeId && emp.department.headEmployeeId !== emp.id)
+        targets.push(emp.department.headEmployeeId);
+      await this.notifications.publishToEmployees(targets, 'attendance.weekly-hours', {
+        employeeName: emp.name,
+        hours,
+        threshold: thresholdHours,
+      });
+      await this.notifications.publish(
+        hrUsers.map((u) => u.id),
+        'attendance.weekly-hours',
+        { employeeName: emp.name, hours, threshold: thresholdHours },
+      );
+      alerted++;
+    }
+    return alerted;
+  }
 
   /** 출퇴근 체크 — 서버 시간 기준, 메타데이터 수집 (기획서 ATT-01/02) */
   async clock(

@@ -3,6 +3,8 @@ import { ApprovalModule } from '../approval/approval.module';
 import { ApprovalService } from '../approval/approval.service';
 import { AttendanceEngineModule } from '../attendance-engine/attendance-engine.module';
 import { LeaveModule } from '../leave/leave.module';
+import { SchedulerModule } from '../scheduler/scheduler.module';
+import { SchedulerService } from '../scheduler/scheduler.service';
 import { AttendanceService } from './attendance.service';
 import { AttendanceController } from './attendance.controller';
 
@@ -11,7 +13,7 @@ import { AttendanceController } from './attendance.controller';
  * 보정 신청의 승인 후처리(반영/반려)를 승인 모듈에 훅으로 등록한다.
  */
 @Module({
-  imports: [ApprovalModule, AttendanceEngineModule, LeaveModule],
+  imports: [ApprovalModule, AttendanceEngineModule, LeaveModule, SchedulerModule],
   controllers: [AttendanceController],
   providers: [AttendanceService],
   exports: [AttendanceService],
@@ -19,6 +21,7 @@ import { AttendanceController } from './attendance.controller';
 export class AttendanceModule implements OnModuleInit {
   constructor(
     private readonly approval: ApprovalService,
+    private readonly scheduler: SchedulerService,
     private readonly attendance: AttendanceService,
   ) {}
 
@@ -27,5 +30,8 @@ export class AttendanceModule implements OnModuleInit {
       onApproved: (id) => this.attendance.applyCorrection(id),
       onRejected: (id) => this.attendance.rejectCorrection(id),
     });
+    this.scheduler.registerHandler('weekly-hours-check', async () => ({
+      processedCount: await this.attendance.runWeeklyHoursCheck(),
+    }));
   }
 }

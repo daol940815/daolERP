@@ -5,6 +5,7 @@ import { ApprovalService } from '../approval/approval.service';
 import { PolicyResolverService } from '../policy/policy-resolver.service';
 import { WorkPoliciesService } from '../policy/work-policies.service';
 import { HolidaysService } from '../policy/holidays.service';
+import { NotificationService } from '../notification/notification.service';
 import { addMonthsClamped, computeAccruals } from './accrual-calculator';
 
 const dayKey = (d: Date) => d.toISOString().slice(0, 10);
@@ -27,6 +28,7 @@ export class LeavesService {
     private readonly resolver: PolicyResolverService,
     private readonly workPolicies: WorkPoliciesService,
     private readonly holidays: HolidaysService,
+    private readonly notifications: NotificationService,
   ) {}
 
   // ── 잔여 계산 (저장하지 않음 — grants − usages. 기획서 8장) ──
@@ -489,7 +491,22 @@ export class LeavesService {
         continue;
       }
       const dLeft = Math.round((g.expireDate.getTime() - today.getTime()) / 86400000);
-      if (policy.promotionDays.includes(dLeft)) targets++; // M6: 알림 아웃박스 발행 지점
+      if (policy.promotionDays.includes(dLeft)) {
+        // 촉진 알림: 본인 + HR (기획서 4.12)
+        await this.notifications.publishToEmployees([g.employeeId], 'leave.promotion', {
+          daysLeft: dLeft,
+          remaining,
+        });
+        const hrUsers = await this.prisma.user.findMany({
+          where: { isActive: true, userRoles: { some: { role: { code: 'HR' } } } },
+          select: { id: true },
+        });
+        await this.notifications.publish(hrUsers.map((u) => u.id), 'leave.promotion', {
+          daysLeft: dLeft,
+          remaining,
+        });
+        targets++;
+      }
     }
     return targets;
   }

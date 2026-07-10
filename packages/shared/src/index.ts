@@ -142,6 +142,20 @@ export type LeaveRequestStatus = (typeof LEAVE_REQUEST_STATUS)[number];
 export const GRANT_STATUS = ['ACTIVE', 'EXHAUSTED', 'EXPIRED'] as const;
 export type GrantStatus = (typeof GRANT_STATUS)[number];
 
+// ── M6 초과근무 / 알림 ─────────────────────────────────────────
+
+/** 초과근무 신청 상태 */
+export const OVERTIME_STATUS = ['REQUESTED', 'APPROVED', 'REJECTED', 'CANCELLED'] as const;
+export type OvertimeStatus = (typeof OVERTIME_STATUS)[number];
+
+/** 알림 채널 (기획서 5.5 — 어댑터 추가로 확장) */
+export const NOTIFICATION_CHANNELS = ['INAPP', 'EMAIL'] as const;
+export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
+
+/** 아웃박스 상태 (기획서 5.5) */
+export const OUTBOX_STATUS = ['PENDING', 'SENT', 'FAILED', 'DEAD'] as const;
+export type OutboxStatus = (typeof OUTBOX_STATUS)[number];
+
 /** 근태 엔진 일별 결과 (기획서 5.2 출력) */
 export interface DayResult {
   dateKey: string; // 'YYYY-MM-DD' (KST)

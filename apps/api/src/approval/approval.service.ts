@@ -3,6 +3,8 @@ import type { Prisma } from '@prisma/client';
 import type { PolicySource } from '@daolerp/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApproverResolverService } from './approver-resolver.service';
+import { NotificationService } from '../notification/notification.service';
+import { REQUEST_LABELS } from '../notification/notification.templates';
 
 export interface StartApprovalInput {
   requestType: string;
@@ -29,6 +31,7 @@ export class ApprovalService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly approverResolver: ApproverResolverService,
+    private readonly notifications: NotificationService,
   ) {}
 
   registerHooks(requestType: string, hooks: ApprovalHooks): void {
@@ -99,12 +102,14 @@ export class ApprovalService {
       },
     });
 
+    let firstApproverId: number | null = null;
     for (const step of steps) {
       const approverId = await this.approverResolver.resolve(
         step,
         input.applicantEmployeeId,
         tx,
       );
+      if (step.stepOrder === 1) firstApproverId = approverId;
       await db.approvalStepRecord.create({
         data: {
           approvalId: approval.id,
@@ -113,6 +118,20 @@ export class ApprovalService {
           decision: 'PENDING',
         },
       });
+    }
+
+    // 승인 요청 알림 — 1단계 승인자 (기획서 4.12)
+    if (firstApproverId) {
+      const applicant = await db.employee.findUnique({ where: { id: input.applicantEmployeeId } });
+      await this.notifications.publishToEmployees(
+        [firstApproverId],
+        'approval.requested',
+        {
+          applicantName: applicant?.name ?? '',
+          requestLabel: REQUEST_LABELS[input.requestType] ?? input.requestType,
+        },
+        tx,
+      );
     }
     return approval;
   }
@@ -179,6 +198,28 @@ export class ApprovalService {
     const hooks = this.hooks.get(updated.requestType);
     if (updated.status === 'APPROVED' && hooks?.onApproved) await hooks.onApproved(updated.requestId);
     if (updated.status === 'REJECTED' && hooks?.onRejected) await hooks.onRejected(updated.requestId);
+
+    // 알림 발행 (기획서 4.12): 다음 단계 승인자 / 최종 결과는 신청자에게
+    const label = REQUEST_LABELS[updated.requestType] ?? updated.requestType;
+    if (updated.status === 'IN_PROGRESS') {
+      const next = updated.stepRecords.find((r) => r.stepOrder === updated.currentStep);
+      if (next?.approverEmployeeId) {
+        const applicant = await this.prisma.employee.findUnique({
+          where: { id: updated.applicantEmployeeId },
+        });
+        await this.notifications.publishToEmployees(
+          [next.approverEmployeeId],
+          'approval.requested',
+          { applicantName: applicant?.name ?? '', requestLabel: label },
+        );
+      }
+    } else if (updated.status === 'APPROVED' || updated.status === 'REJECTED') {
+      await this.notifications.publishToEmployees(
+        [updated.applicantEmployeeId],
+        updated.status === 'APPROVED' ? 'approval.approved' : 'approval.rejected',
+        { requestLabel: label, comment: comment ?? '' },
+      );
+    }
     return updated;
   }
 

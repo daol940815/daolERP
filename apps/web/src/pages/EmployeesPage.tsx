@@ -118,7 +118,7 @@ export function EmployeesPage() {
       <table>
         <thead>
           <tr>
-            <th>사번</th><th>이름</th><th>부서</th><th>직급</th><th>고용형태</th><th>입사일</th><th>상태</th>
+            <th>사번</th><th>이름</th><th>부서</th><th>직급</th><th>고용형태</th><th>입사일</th><th>상태</th><th></th>
           </tr>
         </thead>
         <tbody>
@@ -131,10 +131,34 @@ export function EmployeesPage() {
               <td>{r.employmentType?.name ?? '-'}</td>
               <td>{r.hireDate.slice(0, 10)}</td>
               <td>{STATUS_LABEL[r.status] ?? r.status}</td>
+              <td>
+                {r.status === 'ACTIVE' && (
+                  <button className="secondary" onClick={() => void resign(r)}>퇴사 처리</button>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
     </>
   );
+
+  /** 퇴사 프로세스 (기획서 4.1.4) — 검증 실패 시 서버 메시지(부서장 대체 지정 등) 표시 */
+  async function resign(r: EmployeeRow) {
+    const resignDate = prompt(`${r.name}(${r.empNo}) 퇴사일 (YYYY-MM-DD)`);
+    if (!resignDate) return;
+    const reason = prompt('퇴사 사유 (필수)');
+    if (!reason) return;
+    setError('');
+    try {
+      const res = await api<{ cancelledRequests: number; deletedFutureSchedules: number; leaveSettlement: { remaining: number } }>(
+        `/employees/${r.id}/resign`,
+        { method: 'POST', body: JSON.stringify({ resignDate, reason }) },
+      );
+      alert(`퇴사 처리 완료\n- 자동 취소된 신청: ${res.cancelledRequests}건\n- 삭제된 미래 일정: ${res.deletedFutureSchedules}건\n- 정산 대상 잔여 연차: ${res.leaveSettlement.remaining}일`);
+      await load();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
 }

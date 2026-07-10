@@ -148,6 +148,7 @@ async function seedSettings() {
     'mail.sender': '',
     'attendance.allowedIpRanges': [],
     'attendance.weeklyHourAlertThreshold': 48,
+    'overtime.allowPastRequest': true, // 사후 초과근무 신청 허용 (기획서 OT-01 정책)
     // 전사 기본 정책 (배정 우선순위의 최종 fallback — 기획서 4.1.1). 0 = 미지정
     'policy.defaultWorkPolicyId': 0,
     'policy.defaultLeavePolicyId': 0,

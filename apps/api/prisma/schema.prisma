@@ -84,6 +84,9 @@ model Employee {
   leaveGrants   LeaveGrant[]
   leaveRequests LeaveRequest[]
 
+  // M6 관계
+  overtimeRequests OvertimeRequest[]
+
   @@map("employees")
 }
 
@@ -562,6 +565,58 @@ model Attachment {
 
   @@index([refType, refId])
   @@map("attachments")
+}
+
+// ── 초과근무 모듈 [Transaction] (기획서 4.6) ────────────────────
+
+model OvertimeRequest {
+  id              Int      @id @default(autoincrement())
+  employeeId      Int      @map("employee_id")
+  employee        Employee @relation(fields: [employeeId], references: [id])
+  date            DateTime @db.Date // 대상 일자 (KST)
+  startTime       String   @map("start_time") // "HH:MM"
+  endTime         String   @map("end_time")
+  expectedMinutes Int      @map("expected_minutes")
+  reason          String
+  status          String   @default("REQUESTED") // REQUESTED | APPROVED | REJECTED | CANCELLED
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([employeeId, date])
+  @@map("overtime_requests")
+}
+
+// ── 알림 모듈 (독립 — ERP Core Service. 기획서 5.5) ─────────────
+
+// 시스템 내 알림 (수신함)
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  title     String
+  body      String
+  link      String? // 웹 라우트 (예: /approvals)
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// 발송 아웃박스 — 발행(업무 트랜잭션과 원자적)과 발송(스케줄러 폴링) 분리
+model NotificationOutbox {
+  id         Int       @id @default(autoincrement())
+  userId     Int       @map("user_id")
+  channel    String // NOTIFICATION_CHANNELS: INAPP | EMAIL
+  template   String // 템플릿 키 (notification.templates.ts)
+  params     Json
+  status     String    @default("PENDING") // OUTBOX_STATUS: PENDING | SENT | FAILED | DEAD
+  retryCount Int       @default(0) @map("retry_count")
+  lastError  String?   @map("last_error")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  sentAt     DateTime? @map("sent_at")
+
+  @@index([status, createdAt])
+  @@map("notification_outbox")
 }
 
 // ── 시스템 설정 (법인 복제 시 변경 지점 — 기획서 4.13) ──────────

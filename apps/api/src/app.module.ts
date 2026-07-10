@@ -20,6 +20,8 @@ import { AttendanceEngineModule } from './attendance-engine/attendance-engine.mo
 import { AttendanceModule } from './attendance/attendance.module';
 import { AttachmentModule } from './attachment/attachment.module';
 import { LeaveModule } from './leave/leave.module';
+import { NotificationModule } from './notification/notification.module';
+import { OvertimeModule } from './overtime/overtime.module';
 
 @Module({
   imports: [
@@ -27,6 +29,7 @@ import { LeaveModule } from './leave/leave.module';
     ScheduleModule.forRoot(),
     PrismaModule,
     AuditModule,
+    NotificationModule,
     AuthModule,
     UsersModule,
     EmployeesModule,
@@ -41,6 +44,7 @@ import { LeaveModule } from './leave/leave.module';
     LeaveModule,
     AttendanceModule,
     AttachmentModule,
+    OvertimeModule,
   ],
   providers: [
     // 전역 인증 → 권한 순서로 적용. @Public() 로 예외 지정.

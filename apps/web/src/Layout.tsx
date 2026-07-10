@@ -15,6 +15,7 @@ export function Layout() {
         <NavLink to="/leave">휴가</NavLink>
         <NavLink to="/overtime">초과근무</NavLink>
         <NavLink to="/approvals">승인함</NavLink>
+        <NavLink to="/notifications">알림함</NavLink>
         {hasPermission('employee.manage') && (
           <>
             <div className="group">HR</div>
