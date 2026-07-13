@@ -1,0 +1,57 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
+
+export const dynamic = 'force-dynamic'
+
+// GET /api/erp-aliases?type=customer|purchase&unmatched=true&vendorId=
+export async function GET(req: NextRequest) {
+  const admin = createAdminClient()
+  const { searchParams } = new URL(req.url)
+
+  const type      = searchParams.get('type')
+  const unmatched = searchParams.get('unmatched')
+  const vendorId  = searchParams.get('vendorId')
+
+  const result = await fetchAllRows<Record<string, unknown>>((from, to) => {
+    let query = admin
+      .from('erp_vendor_aliases')
+      .select('*, vendors(id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active)')
+      .order('erp_name')
+    if (type === 'customer' || type === 'purchase') query = query.eq('alias_type', type)
+    if (unmatched === 'true') query = query.is('vendor_id', null)
+    if (vendorId) query = query.eq('vendor_id', vendorId)
+    return query.range(from, to)
+  })
+  if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
+
+  return NextResponse.json({ data: result.data })
+}
+
+// PATCH /api/erp-aliases — body: { id, vendor_id?, payment_term? }
+export async function PATCH(req: NextRequest) {
+  const admin = createAdminClient()
+  const body  = await req.json().catch(() => ({}))
+
+  const id = body.id as string | undefined
+  if (!id) return NextResponse.json({ error: 'id가 필요합니다.' }, { status: 400 })
+
+  const patch: Record<string, unknown> = {}
+  if ('vendor_id' in body)    patch.vendor_id = body.vendor_id
+  if ('payment_term' in body) patch.payment_term = body.payment_term
+
+  if (!Object.keys(patch).length) {
+    return NextResponse.json({ error: '수정할 필드가 없습니다.' }, { status: 400 })
+  }
+
+  const { data, error } = await admin
+    .from('erp_vendor_aliases')
+    .update(patch)
+    .eq('id', id)
+    .select('*, vendors(id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active)')
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ data })
+}

@@ -1,0 +1,161 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
+
+export const dynamic = 'force-dynamic'
+
+// GET /api/erp-orders?from=&to=&status=&view=&q=&page=&limit=
+// view: all(기본) | vip | prepayment — vip/선결제 별도 보기
+// 페이지네이션 + 필터 전체 범위 요약(주문수/순매출/미수금) 반환
+export async function GET(req: NextRequest) {
+  const admin = createAdminClient()
+  const { searchParams } = new URL(req.url)
+
+  const from   = searchParams.get('from')
+  const to     = searchParams.get('to')
+  const status = searchParams.get('status')
+  const view   = searchParams.get('view') ?? 'all'
+  const q      = searchParams.get('q')?.trim()
+  const page   = Math.max(parseInt(searchParams.get('page') ?? '1') || 1, 1)
+  const limit  = Math.min(Math.max(parseInt(searchParams.get('limit') ?? '100') || 100, 10), 500)
+
+  // VIP/선결제 보기: 해당 품목이 있는 주문 id 목록
+  let viewIds: string[] | null = null
+  if (view === 'vip' || view === 'prepayment') {
+    const flagCol = view === 'vip' ? 'is_vip' : 'is_prepayment'
+    const flaggedResult = await fetchAllRows<{ order_id: string }>((from, to) =>
+      admin.from('erp_order_items').select('order_id').eq(flagCol, true).range(from, to),
+    )
+    if ('error' in flaggedResult) return NextResponse.json({ error: flaggedResult.error }, { status: 500 })
+    viewIds = Array.from(new Set(flaggedResult.data.map(r => r.order_id)))
+    if (!viewIds.length) {
+      return NextResponse.json({ data: [], items: [], total: 0, page, limit, summary: { net_sales: 0, outstanding: 0 } })
+    }
+  }
+
+  // 필터 전체 범위 요약: DB 집계 함수로 단일 쿼리 계산 (마이그레이션 020)
+  let total = 0
+  let netSales = 0
+  let outstanding = 0
+  const { data: sumRows, error: se } = await admin.rpc('erp_orders_summary', {
+    p_from:   from,
+    p_to:     to,
+    p_status: status && status !== 'all' ? status : null,
+    p_q:      q || null,
+    p_view:   view,
+  })
+  if (!se) {
+    const s = Array.isArray(sumRows) ? sumRows[0] : sumRows
+    total       = Number(s?.total_count ?? 0)
+    netSales    = Number(s?.net_sales ?? 0)
+    outstanding = Number(s?.outstanding ?? 0)
+  } else if (se.code === 'PGRST202' || /erp_orders_summary/i.test(se.message)) {
+    // 함수 미적용(020 미실행) 시 기존 방식으로 폴백 — 데이터가 많으면 느릴 수 있음
+    type OrderSumRow = { id: string; total_amount: number | null; outstanding_amount: number | null; collect_status: string }
+    const allOrdersResult = await fetchAllRows<OrderSumRow>((pFrom, pTo) => {
+      let sq = admin
+        .from('erp_orders')
+        .select('id, total_amount, outstanding_amount, collect_status')
+      if (from)                       sq = sq.gte('order_date', from)
+      if (to)                         sq = sq.lte('order_date', to)
+      if (status && status !== 'all') sq = sq.eq('collect_status', status)
+      if (q) sq = sq.or(`order_no.ilike.%${q}%,bank_name.ilike.%${q}%,branch_name.ilike.%${q}%`)
+      if (viewIds) sq = sq.in('id', viewIds)
+      return sq.range(pFrom, pTo)
+    })
+    if ('error' in allOrdersResult) return NextResponse.json({ error: allOrdersResult.error }, { status: 500 })
+    const allOrders = allOrdersResult.data
+
+    const allIds = allOrders.map(o => o.id)
+    total = allIds.length
+
+    let excludedSum = 0
+    for (let i = 0; i < allIds.length; i += 500) {
+      const chunkIds = allIds.slice(i, i + 500)
+      const flaggedResult = await fetchAllRows<{ line_total: number | null }>((pFrom, pTo) =>
+        admin
+          .from('erp_order_items')
+          .select('line_total')
+          .in('order_id', chunkIds)
+          .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
+          .range(pFrom, pTo),
+      )
+      if ('error' in flaggedResult) return NextResponse.json({ error: flaggedResult.error }, { status: 500 })
+      for (const it of flaggedResult.data) excludedSum += it.line_total || 0
+    }
+    netSales = allOrders.reduce((s, o) => s + (o.total_amount || 0), 0) - excludedSum
+    outstanding = allOrders
+      .filter(o => o.collect_status !== 'collected')
+      .reduce((s, o) => s + (o.outstanding_amount || 0), 0)
+  } else {
+    return NextResponse.json({ error: se.message }, { status: 500 })
+  }
+
+  // 현재 페이지 주문 조회
+  const offset = (page - 1) * limit
+  let pq = admin
+    .from('erp_orders')
+    .select('*')
+    .order('order_date', { ascending: false })
+    .order('order_no')
+    .range(offset, offset + limit - 1)
+  if (from)                       pq = pq.gte('order_date', from)
+  if (to)                         pq = pq.lte('order_date', to)
+  if (status && status !== 'all') pq = pq.eq('collect_status', status)
+  if (q) pq = pq.or(`order_no.ilike.%${q}%,bank_name.ilike.%${q}%,branch_name.ilike.%${q}%`)
+  if (viewIds) pq = pq.in('id', viewIds)
+
+  const { data: orders, error } = await pq
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // 조회된 주문들의 품목 일괄 로드
+  const orderIds = (orders ?? []).map(o => o.id as string)
+  let items: unknown[] = []
+  for (let i = 0; i < orderIds.length; i += 200) {
+    const chunkIds = orderIds.slice(i, i + 200)
+    const chunkResult = await fetchAllRows<unknown>((pFrom, pTo) =>
+      admin.from('erp_order_items').select('*').in('order_id', chunkIds).order('line_no').range(pFrom, pTo),
+    )
+    if ('error' in chunkResult) return NextResponse.json({ error: chunkResult.error }, { status: 500 })
+    items = items.concat(chunkResult.data)
+  }
+
+  // 수금 매칭 기록 (품목 결제일자 표시용) — 매칭 테이블(021) 미적용 시 빈 배열
+  let matches: unknown[] = []
+  for (let i = 0; i < orderIds.length; i += 200) {
+    const chunkIds = orderIds.slice(i, i + 200)
+    const mchunkResult = await fetchAllRows<unknown>((pFrom, pTo) =>
+      admin.from('erp_payment_matches').select('order_id, amount, paid_date').in('order_id', chunkIds).range(pFrom, pTo),
+    )
+    if ('error' in mchunkResult) {
+      if (/erp_payment_matches/.test(mchunkResult.error)) { matches = []; break }
+      return NextResponse.json({ error: mchunkResult.error }, { status: 500 })
+    }
+    matches = matches.concat(mchunkResult.data)
+  }
+
+  return NextResponse.json({
+    data: orders ?? [],
+    items,
+    matches,
+    total,
+    page,
+    limit,
+    summary: { net_sales: netSales, outstanding },
+  })
+}
+
+// DELETE /api/erp-orders — body: { ids: string[] } (주문 단위 삭제, 품목 CASCADE)
+export async function DELETE(req: NextRequest) {
+  const admin = createAdminClient()
+  const { ids } = await req.json().catch(() => ({ ids: null })) as { ids: string[] | null }
+
+  if (!Array.isArray(ids) || !ids.length) {
+    return NextResponse.json({ error: '삭제할 주문을 선택하세요.' }, { status: 400 })
+  }
+
+  const { error } = await admin.from('erp_orders').delete().in('id', ids)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ ok: true, deleted: ids.length })
+}
