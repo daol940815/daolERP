@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 
@@ -14,7 +14,7 @@ export const maxDuration = 60
 
 const WINDOW_DAYS = 7
 
-export async function GET(_req: NextRequest) {
+export async function GET() {
   const admin = createAdminClient()
 
   // 미연결 카드매출 (승인만 — 취소는 그룹 통계에서 상쇄)
