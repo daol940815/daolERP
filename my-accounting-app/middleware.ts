@@ -51,6 +51,12 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
+  // API는 리다이렉트 대신 401 — 외부 공개 시 로그인 없이 API를 직접 호출하는 것을 차단
+  // (페이지만 검사하면 API 주소를 아는 사람은 데이터에 접근할 수 있다)
+  if (!user && pathname.startsWith('/api')) {
+    return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+  }
+
   // 로그인하지 않은 사용자가 /login 이외의 페이지에 접근 시 → /login 으로 이동
   if (!user && pathname !== '/login') {
     return NextResponse.redirect(new URL('/login', request.url))
@@ -65,9 +71,9 @@ export async function middleware(request: NextRequest) {
 }
 
 // 미들웨어를 적용할 경로 설정
-// _next/static, _next/image, favicon.ico, api 등 정적 리소스는 제외
+// 정적 리소스만 제외 — /api도 검사 대상 (미로그인 API 호출은 401)
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js)$).*)',
   ],
 }
