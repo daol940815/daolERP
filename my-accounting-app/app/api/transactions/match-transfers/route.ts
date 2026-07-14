@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
   type TxRow = Record<string, unknown>
 
-  const sel = 'id, tx_date, amount_in, amount_out, description, account_alias, bank_account_id'
+  const sel = 'id, tx_date, tx_time, amount_in, amount_out, description, account_alias, bank_account_id'
 
   const [outResult, inResult] = await Promise.all([
     fetchAllRows<TxRow>((from, to) => {

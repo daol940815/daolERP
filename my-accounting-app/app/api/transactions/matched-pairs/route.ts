@@ -11,7 +11,7 @@ export async function GET() {
   const LIMIT = 5000
   const { data, error } = await admin
     .from('transactions')
-    .select('id, tx_date, amount_in, amount_out, description, account_alias, bank_account_id, transfer_pair_id')
+    .select('id, tx_date, tx_time, amount_in, amount_out, description, account_alias, bank_account_id, transfer_pair_id')
     .not('transfer_pair_id', 'is', null)
     .order('tx_date', { ascending: false })
     .limit(LIMIT + 1)  // 1개 초과 조회로 절단 여부 판별

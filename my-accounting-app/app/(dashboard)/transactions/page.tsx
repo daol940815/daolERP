@@ -93,11 +93,19 @@ const DEFAULT_COL_DEF = { sortable: true, resizable: true, filter: true }
 interface PreviewTx {
   id: string
   tx_date: string
+  tx_time?: string | null
   description: string | null
   account_alias: string | null
   bank_account_id: string | null
   amount_out?: number
   amount_in?: number
+}
+
+// 이체쌍 검토용 일시 표시 — 시간까지 있어야 같은 날 여러 이체를 구분할 수 있다
+const dateTimeStr = (tx: { tx_date?: string | null; tx_time?: string | null } | null | undefined) => {
+  if (!tx?.tx_date) return '—'
+  const t = (tx.tx_time ?? '').slice(0, 5)
+  return t ? `${tx.tx_date.slice(0, 10)} ${t}` : tx.tx_date.slice(0, 10)
 }
 interface PreviewPair {
   out: PreviewTx
@@ -1138,7 +1146,7 @@ function TransactionsContent() {
                       <tr key={pair.pair_id} className="border-b border-slate-50 hover:bg-slate-50 text-xs">
                         <td className="py-2 pr-2 text-slate-400 text-center">{i + 1}</td>
                         <td className="py-2 pr-3 text-slate-700 font-medium">{pair.out?.account_alias ?? '—'}</td>
-                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{(pair.out?.tx_date as string)?.slice(0, 10) ?? '—'}</td>
+                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{dateTimeStr(pair.out)}</td>
                         <td className="py-2 pr-3 text-slate-600 max-w-[150px] truncate" title={pair.out?.description ?? ''}>{pair.out?.description ?? '—'}</td>
                         <td className="py-2 pr-4 text-red-600 font-medium text-right whitespace-nowrap">
                           {/* 마이너스 통장은 amount_out=0이므로 amount_in으로 폴백 */}
@@ -1146,7 +1154,7 @@ function TransactionsContent() {
                         </td>
                         <td className="py-2 px-2 text-purple-400 text-center font-bold">↔</td>
                         <td className="py-2 pr-3 text-slate-700 font-medium">{pair.in?.account_alias ?? '—'}</td>
-                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{(pair.in?.tx_date as string)?.slice(0, 10) ?? '—'}</td>
+                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{dateTimeStr(pair.in)}</td>
                         <td className="py-2 pr-3 text-slate-600 max-w-[150px] truncate" title={pair.in?.description ?? ''}>{pair.in?.description ?? '—'}</td>
                         <td className="py-2 pr-3 text-blue-600 font-medium text-right whitespace-nowrap">
                           {(() => { const a = (pair.in?.amount_in as number) || (pair.in?.amount_out as number); return a ? a.toLocaleString('ko-KR') + '원' : '—' })()}
@@ -1226,14 +1234,14 @@ function TransactionsContent() {
                           {pair.out.account_alias ?? '—'}
                           {isMinus && <span className="ml-1 text-orange-500 text-[10px]">마이너스</span>}
                         </td>
-                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{(pair.out.tx_date as string).slice(0, 10)}</td>
+                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{dateTimeStr(pair.out)}</td>
                         <td className="py-2 pr-3 text-slate-600 max-w-[160px] truncate" title={pair.out.description ?? ''}>{pair.out.description ?? '—'}</td>
                         <td className="py-2 pr-4 text-red-600 font-medium text-right whitespace-nowrap">
                           {outAmt?.toLocaleString('ko-KR')}원
                         </td>
                         <td className="py-2 px-2 text-purple-400 text-center font-bold">↔</td>
                         <td className="py-2 pr-3 text-slate-700 font-medium">{pair.in.account_alias ?? '—'}</td>
-                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{(pair.in.tx_date as string).slice(0, 10)}</td>
+                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{dateTimeStr(pair.in)}</td>
                         <td className="py-2 pr-3 text-slate-600 max-w-[160px] truncate" title={pair.in.description ?? ''}>{pair.in.description ?? '—'}</td>
                         <td className="py-2 text-blue-600 font-medium text-right whitespace-nowrap">
                           {inAmt?.toLocaleString('ko-KR')}원
