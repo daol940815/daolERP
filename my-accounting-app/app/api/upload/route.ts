@@ -26,6 +26,11 @@ export async function POST(req: NextRequest) {
   const body: UploadBody = await req.json()
 
   // ── 중복 파일 체크 (파일 해시 기준) ─────────────────────────
+  // 동일 파일이어도 거절하지 않고 "행 단위 재검사"로 진행한다.
+  // 행 중복 키(065: 시각 포함)가 정확하므로 멱등 — 기존 행은 전부 건너뛰고,
+  // 과거에 잘못 건너뛰었던 행만 새로 들어온다 (재결제 누락 복구 경로).
+  // 기존 업로드 이력을 재사용해 새 행도 같은 파일 소속으로 남긴다.
+  let reuseLogId: string | null = null
   const { data: existing } = await admin
     .from('upload_logs')
     .select('id, file_name, created_at')
@@ -34,24 +39,17 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (existing) {
-    // 실제 거래 내역이 남아있는 경우에만 중복으로 처리
     const { count } = await admin
       .from('transactions')
       .select('id', { count: 'exact', head: true })
       .eq('upload_log_id', existing.id)
 
     if ((count ?? 0) > 0) {
-      return NextResponse.json(
-        {
-          isDuplicate: true,
-          message: `동일한 파일이 이미 업로드되어 있습니다. (파일명: ${existing.file_name}, 업로드일: ${new Date(existing.created_at).toLocaleDateString('ko-KR')})`,
-        },
-        { status: 409 },
-      )
+      reuseLogId = existing.id
+    } else {
+      // 거래 내역이 없는 고아 이력은 삭제 후 새 이력으로 재업로드
+      await admin.from('upload_logs').delete().eq('id', existing.id)
     }
-
-    // 거래 내역이 없는 고아 이력은 삭제 후 재업로드 허용
-    await admin.from('upload_logs').delete().eq('id', existing.id)
   }
 
   // ── upload_logs 레코드 생성 (pending) ──────────────────────
@@ -96,30 +94,34 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const { data: uploadLog, error: logError } = await admin
-    .from('upload_logs')
-    .insert({
-      file_name: body.fileName,
-      file_type: body.fileType,
-      file_size: body.fileSize,
-      file_hash: body.fileHash,
-      source: body.source,
-      account_alias: bankNameTrimmed || null,
-      total_rows: body.rows.length,
-      status: 'pending',
-      uploaded_by: user?.id ?? null,
-    })
-    .select('id')
-    .single()
+  let uploadLogId: string
+  if (reuseLogId) {
+    uploadLogId = reuseLogId
+  } else {
+    const { data: uploadLog, error: logError } = await admin
+      .from('upload_logs')
+      .insert({
+        file_name: body.fileName,
+        file_type: body.fileType,
+        file_size: body.fileSize,
+        file_hash: body.fileHash,
+        source: body.source,
+        account_alias: bankNameTrimmed || null,
+        total_rows: body.rows.length,
+        status: 'pending',
+        uploaded_by: user?.id ?? null,
+      })
+      .select('id')
+      .single()
 
-  if (logError || !uploadLog) {
-    return NextResponse.json(
-      { error: '업로드 이력 생성 실패: ' + logError?.message },
-      { status: 500 },
-    )
+    if (logError || !uploadLog) {
+      return NextResponse.json(
+        { error: '업로드 이력 생성 실패: ' + logError?.message },
+        { status: 500 },
+      )
+    }
+    uploadLogId = uploadLog.id
   }
-
-  const uploadLogId: string = uploadLog.id
 
   // ── transactions 배치 삽입 (1000건씩 나눠서) ───────────────
   const insertData = body.rows.map(row => ({
@@ -162,15 +164,28 @@ export async function POST(req: NextRequest) {
   // ── upload_logs 결과 업데이트 ────────────────────────────
   const finalStatus = errorRows === 0 ? 'success' : insertedRows > 0 ? 'partial' : 'failed'
 
-  await admin
-    .from('upload_logs')
-    .update({
-      inserted_rows: insertedRows,
-      error_rows: errorRows,
-      status: finalStatus,
-      completed_at: new Date().toISOString(),
-    })
-    .eq('id', uploadLogId)
+  if (reuseLogId) {
+    // 재검사: 기존 이력에 신규분만 누적 (원래 업로드 기록은 보존)
+    const { data: cur } = await admin
+      .from('upload_logs').select('inserted_rows').eq('id', uploadLogId).single()
+    await admin
+      .from('upload_logs')
+      .update({
+        inserted_rows: (cur?.inserted_rows ?? 0) + insertedRows,
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', uploadLogId)
+  } else {
+    await admin
+      .from('upload_logs')
+      .update({
+        inserted_rows: insertedRows,
+        error_rows: errorRows,
+        status: finalStatus,
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', uploadLogId)
+  }
 
   // ── 업로드 완료 후 자동 분류 ────────────────────────────
   // 키워드 기반 자동 분류 (실패해도 업로드 결과에는 영향 없음).
@@ -189,5 +204,6 @@ export async function POST(req: NextRequest) {
     errorRows,
   }
 
-  return NextResponse.json(result)
+  // 재검사였음을 화면에 알림 (기존 파일 — 신규 행만 추가됨)
+  return NextResponse.json(reuseLogId ? { ...result, recheckedExisting: true } : result)
 }

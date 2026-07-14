@@ -135,8 +135,15 @@ export default function UploadPage() {
       patchItem(item.id, { status: 'error', error: data.error ?? '업로드 오류' })
       return
     }
-    const result: UploadResult = await res.json()
-    patchItem(item.id, { status: 'success', uploadResult: result })
+    const result: UploadResult & { recheckedExisting?: boolean } = await res.json()
+    patchItem(item.id, {
+      status: 'success',
+      uploadResult: result,
+      // 동일 파일 재업로드(행 단위 재검사)였음을 표시 — 신규분만 추가됨
+      resultText: result.recheckedExisting
+        ? `기존 파일 재검사 — 신규 ${result.insertedRows.toLocaleString()}건 추가 · 기존 ${result.skippedRows.toLocaleString()}건 유지`
+        : undefined,
+    })
   }
 
   const uploadCard = async (item: QueueItem) => {
