@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { loadCardSaleContext, syncCardSaleJournal } from '@/lib/journal/card-sales-posting'
+import { cardNumberKey } from '@/lib/card-number'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -211,10 +212,13 @@ export async function POST(req: NextRequest) {
     .select('id, card_numbers')
     .not('card_numbers', 'eq', '{}')
 
+  // 학습된 카드번호(전체 번호)와 명세서의 마스킹 번호를 매칭할 수 있게
+  // 완전일치가 아니라 정규화 키(앞6+뒤4)로 비교한다
   const vendorByCard = new Map<string, string>()
   for (const v of vendors ?? []) {
     for (const card of (v.card_numbers as string[] | null) ?? []) {
-      if (card) vendorByCard.set(card, v.id as string)
+      const key = cardNumberKey(card)
+      if (key) vendorByCard.set(key, v.id as string)
     }
   }
 
@@ -243,7 +247,10 @@ export async function POST(req: NextRequest) {
     const existingVendorId = existingVendorMap.get(key)
     const vendorId = existingVendorId !== undefined && existingVendorId !== null
       ? existingVendorId
-      : (row.card_number ? vendorByCard.get(row.card_number) : undefined) ?? null
+      : (() => {
+          const key = cardNumberKey(row.card_number)
+          return (key ? vendorByCard.get(key) : undefined) ?? null
+        })()
     return { ...row, vendor_id: vendorId }
   })
 
