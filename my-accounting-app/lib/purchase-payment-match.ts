@@ -18,6 +18,7 @@ export interface CandidateInvoice {
 export interface CandidateTx {
   id: string
   tx_date: string
+  tx_time?: string | null
   description: string | null
   amount_out: number
   remaining: number      // 출금액 - 이미 다른 계산서에 연결된 금액
@@ -99,9 +100,9 @@ export async function buildPaymentCandidates(
     .sort((a, b) => a.issue_date.localeCompare(b.issue_date))
 
   // ── 이 거래처의 미연결 출금 (거래처 태깅 기준 — 별칭 학습이 태깅을 채워준다) ──
-  const txResult = await fetchAllRows<{ id: string; tx_date: string; description: string | null; amount_out: number; transfer_pair_id: string | null }>((f, t) =>
+  const txResult = await fetchAllRows<{ id: string; tx_date: string; tx_time: string | null; description: string | null; amount_out: number; transfer_pair_id: string | null }>((f, t) =>
     admin.from('transactions')
-      .select('id, tx_date, description, amount_out, transfer_pair_id')
+      .select('id, tx_date, tx_time, description, amount_out, transfer_pair_id')
       .eq('vendor_id', vendorId)
       .gt('amount_out', 0)
       .is('transfer_pair_id', null)
@@ -125,7 +126,7 @@ export async function buildPaymentCandidates(
   }
 
   const txs: CandidateTx[] = txResult.data
-    .map(t => ({ id: t.id, tx_date: t.tx_date, description: t.description, amount_out: t.amount_out, remaining: t.amount_out - (usedByTx.get(t.id) ?? 0) }))
+    .map(t => ({ id: t.id, tx_date: t.tx_date, tx_time: t.tx_time, description: t.description, amount_out: t.amount_out, remaining: t.amount_out - (usedByTx.get(t.id) ?? 0) }))
     .filter(t => t.remaining > 0)
     .sort((a, b) => a.tx_date.localeCompare(b.tx_date))
 

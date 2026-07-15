@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   const amountCol = direction === 'sales' ? 'amount_in' : 'amount_out'
   const { data: amountMatches, error } = await admin
     .from('transactions')
-    .select('id, tx_date, description, counterparty_name, amount_in, amount_out, account_alias, vendor_id, confirmed_account_id')
+    .select('id, tx_date, tx_time, description, counterparty_name, amount_in, amount_out, account_alias, vendor_id, confirmed_account_id')
     .eq(amountCol, sumAmount)
     .is('transfer_pair_id', null)
     .order('tx_date', { ascending: false })

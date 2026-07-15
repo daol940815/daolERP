@@ -10,13 +10,13 @@ export const TAX_INVOICE_SELECT = `
   confirmed_account_id,
   created_at, updated_at,
   matched_transaction:transactions!matched_transaction_id (
-    tx_date, amount_in, amount_out, account_alias,
+    tx_date, tx_time, amount_in, amount_out, account_alias,
     bank_accounts ( bank_name, account_number, alias )
   ),
   payments:tax_invoice_payments (
     id, amount, transaction_id, created_at,
     transaction:transactions (
-      tx_date, description, counterparty_name, amount_in, amount_out, account_alias,
+      tx_date, tx_time, description, counterparty_name, amount_in, amount_out, account_alias,
       bank_accounts ( bank_name, account_number, alias )
     )
   )
