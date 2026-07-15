@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 
 interface CandInvoice { id: string; issue_date: string; item_name: string | null; total_amount: number; remaining: number }
-interface CandTx { id: string; tx_date: string; description: string | null; amount_out: number; remaining: number }
+interface CandTx { id: string; tx_date: string; tx_time?: string | null; description: string | null; amount_out: number; remaining: number }
 interface CandGroup {
   type: string; label: string
   invoices: CandInvoice[]; txs: CandTx[]; amount: number
@@ -87,7 +87,7 @@ export function CandidateModal({ vendorId, vendorName, onClose, onApplied }: {
                     <div>
                       <p className="text-gray-400 mb-1">통장 출금</p>
                       {g.txs.map(tx => (
-                        <p key={tx.id} className="text-gray-700">{tx.tx_date.slice(0, 10)} · {(tx.description ?? '').slice(0, 14) || '-'} · {won(tx.remaining)}</p>
+                        <p key={tx.id} className="text-gray-700">{tx.tx_date.slice(0, 10)}{tx.tx_time ? ' ' + tx.tx_time.slice(0, 5) : ''} · {(tx.description ?? '').slice(0, 14) || '-'} · {won(tx.remaining)}</p>
                       ))}
                     </div>
                   </div>

@@ -17,6 +17,10 @@ const TAX_TYPE_META: Record<string, string> = {
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
+// 거래 일시 표시 — 같은 날 여러 거래를 구분할 수 있게 시각까지
+const txDT = (d?: string | null, t?: string | null) =>
+  d ? (t ? `${d.slice(0, 10)} ${t.slice(0, 5)}` : d.slice(0, 10)) : '-'
+
 // "매칭된 거래" 컬럼: 연결 1건이면 계좌·일자·금액, 분할/합산 연결이면 누적 진행률
 function formatMatchedAccount(inv: TaxInvoice): string {
   const payments = inv.payments ?? []
@@ -29,7 +33,7 @@ function formatMatchedAccount(inv: TaxInvoice): string {
     const accountLabel = acc
       ? [acc.bank_name, acc.account_number].filter(Boolean).join(' ')
       : tx.account_alias ?? '계좌 미상'
-    return `${accountLabel} · ${tx.tx_date} · ${won(p.amount)}`
+    return `${accountLabel} · ${txDT(tx.tx_date, (tx as { tx_time?: string | null }).tx_time)} · ${won(p.amount)}`
   }
   const paidTotal = payments.reduce((s, p) => s + p.amount, 0)
   return `${won(paidTotal)} / ${won(inv.total_amount)} (${payments.length}건)`
@@ -38,6 +42,7 @@ function formatMatchedAccount(inv: TaxInvoice): string {
 interface Candidate {
   id: string
   tx_date: string
+  tx_time?: string | null
   description: string
   counterparty_name: string | null
   amount_in: number
@@ -128,7 +133,7 @@ function MatchPickerModal({
     const defaultAmount   = remaining > 0 ? Math.min(remaining, candidateAmount) : candidateAmount
     setLinkError(null)
     setConfirmAmount(String(defaultAmount))
-    setConfirmTarget({ txId: c.id, label: `${c.description} · ${c.tx_date}`, suggestion: (c.counterparty_name ?? c.description).trim() })
+    setConfirmTarget({ txId: c.id, label: `${c.description} · ${txDT(c.tx_date, c.tx_time)}`, suggestion: (c.counterparty_name ?? c.description).trim() })
   }
 
   const handleConfirmLink = async () => {
@@ -291,7 +296,7 @@ function MatchPickerModal({
               {payments.map(p => (
                 <div key={p.id} className="flex items-center justify-between text-xs bg-white border border-gray-200 rounded px-2 py-1.5 gap-2">
                   <span className="truncate text-gray-700">
-                    {p.transaction?.tx_date ?? '-'} · {p.transaction?.description ?? '-'}
+                    {txDT(p.transaction?.tx_date, (p.transaction as { tx_time?: string | null } | null)?.tx_time)} · {p.transaction?.description ?? '-'}
                   </span>
                   <span className="flex items-center gap-2 shrink-0">
                     <span className="font-medium text-gray-900">{won(p.amount)}</span>
@@ -330,7 +335,7 @@ function MatchPickerModal({
                 <div className="min-w-0">
                   <p className="text-gray-900 truncate">{c.description}</p>
                   <p className="text-xs text-gray-400">
-                    {c.tx_date} · {c.account_alias ?? '-'}
+                    {txDT(c.tx_date, c.tx_time)} · {c.account_alias ?? '-'}
                     {c.counterparty_name ? ` · 보낸분/받는분: ${c.counterparty_name}` : ''}
                   </p>
                 </div>
@@ -384,7 +389,7 @@ function MatchPickerModal({
                           <div className="min-w-0">
                             <p className="text-gray-900 truncate">{c.description}</p>
                             <p className="text-xs text-gray-400">
-                              {c.tx_date} · {c.account_alias ?? '-'}
+                              {txDT(c.tx_date, c.tx_time)} · {c.account_alias ?? '-'}
                               {c.counterparty_name ? ` · 보낸분/받는분: ${c.counterparty_name}` : ''}
                             </p>
                           </div>
@@ -485,7 +490,7 @@ function SumMatchPickerModal({
                 <div className="min-w-0">
                   <p className="text-gray-900 truncate">{c.description}</p>
                   <p className="text-xs text-gray-400">
-                    {c.tx_date} · {c.account_alias ?? '-'}
+                    {txDT(c.tx_date, c.tx_time)} · {c.account_alias ?? '-'}
                     {c.counterparty_name ? ` · 보낸분/받는분: ${c.counterparty_name}` : ''}
                   </p>
                 </div>

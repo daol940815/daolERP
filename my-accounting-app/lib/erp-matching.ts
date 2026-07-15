@@ -19,6 +19,7 @@ export interface DepositState {
   id: string
   source_type: 'bank' | 'card'
   tx_date: string
+  tx_time?: string | null
   counterparty_name: string | null
   description: string | null
   vendor_id: string
@@ -161,7 +162,7 @@ export async function loadMatchingState(
   }>((rFrom, rTo) => {
     let tq = admin
       .from('transactions')
-      .select('id, tx_date, counterparty_name, description, vendor_id, amount_in')
+      .select('id, tx_date, tx_time, counterparty_name, description, vendor_id, amount_in')
       .not('vendor_id', 'is', null)
       .gt('amount_in', 0)
       .order('tx_date', { ascending: false })
@@ -178,6 +179,7 @@ export async function loadMatchingState(
       id: t.id as string,
       source_type: 'bank',
       tx_date: t.tx_date as string,
+      tx_time: (t as { tx_time?: string | null }).tx_time ?? null,
       counterparty_name: t.counterparty_name as string | null,
       description: t.description as string | null,
       vendor_id: t.vendor_id as string,
@@ -198,10 +200,11 @@ export async function loadMatchingState(
     amount: number | null
     transaction_type: 'approval' | 'cancel'
     vendor_id: string
+    tx_time?: string | null
   }>((rFrom, rTo) => {
     let cq = admin
       .from('card_sales')
-      .select('id, tx_date, approval_number, card_number, acquirer, amount, transaction_type, vendor_id')
+      .select('id, tx_date, tx_time, approval_number, card_number, acquirer, amount, transaction_type, vendor_id')
       .not('vendor_id', 'is', null)
       .order('tx_date', { ascending: false })
     if (from) cq = cq.gte('tx_date', from)
@@ -214,6 +217,7 @@ export async function loadMatchingState(
   interface CardSaleRow {
     id: string
     tx_date: string
+    tx_time?: string | null
     approval_number: string
     card_number: string | null
     acquirer: string | null
@@ -241,6 +245,7 @@ export async function loadMatchingState(
       id: approvalRow.id,
       source_type: 'card',
       tx_date: approvalRow.tx_date,
+      tx_time: approvalRow.tx_time ?? null,
       counterparty_name: approvalRow.card_number,
       description: approvalRow.acquirer,
       vendor_id: vendorId,
