@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,21 +16,24 @@ export async function GET(req: NextRequest) {
   const types = searchParams.get('type')?.split(',').map(t => t.trim()).filter(Boolean) ?? []
   const all   = searchParams.get('all') === 'true'
 
-  let query = admin
-    .from('vendors')
-    .select(VENDOR_FIELDS)
-    .order('name')
+  // 거래처가 1,000곳을 넘으면 PostgREST 기본 한도에 잘려 드롭다운에서 조용히
+  // 사라진다 — 페이지네이션으로 전체를 가져온다.
+  const result = await fetchAllRows<Record<string, unknown>>((from, to) => {
+    let query = admin
+      .from('vendors')
+      .select(VENDOR_FIELDS)
+      .order('name')
 
-  if (!all)            query = query.eq('is_active', true)
-  if (types.length === 1) query = query.eq('type', types[0])
-  else if (types.length > 1) query = query.in('type', types)
-  if (q)               query = query.or(`name.ilike.%${q}%,biz_number.ilike.%${q}%`)
+    if (!all)            query = query.eq('is_active', true)
+    if (types.length === 1) query = query.eq('type', types[0])
+    else if (types.length > 1) query = query.in('type', types)
+    if (q)               query = query.or(`name.ilike.%${q}%,biz_number.ilike.%${q}%`)
+    return query.range(from, to)
+  })
 
-  const { data, error } = await query
+  if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  return NextResponse.json({ data: data ?? [] })
+  return NextResponse.json({ data: result.data })
 }
 
 // POST /api/vendors — 거래처 등록
