@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { dateRank, isPrepayVendor, lagDays, makeIdentityScorer } from '@/lib/matching-rules'
 
 export const dynamic = 'force-dynamic'
 
 // GET /api/tax-invoices/:id/match-candidates
 // 금액이 일치하는 거래내역 중, 사업자번호·거래처명이 적요에 포함되거나
-// 동일 거래처로 태깅된 건을 우선순위로 정렬해 매칭 후보로 제시
+// 동일 거래처로 태깅된 건을 우선순위로 정렬해 매칭 후보로 제시.
+// 정렬은 매칭 공통 규칙(lib/matching-rules.ts)을 따른다:
+//   신원 점수 → 발행 후(직전 7일 유예, 선지급 관행 거래처는 31일) 우선 → 발행일 최근접.
+// 발행 전 후보도 숨기지 않고 보여준다(선지급 예외는 사용자가 판단) — 화면에서 배지로 구분.
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -64,28 +68,20 @@ export async function GET(
     return (cap ?? 0) - (usedByTx.get(tx.id as string) ?? 0) >= (invoice.total_amount as number)
   })
 
-  const bizDigits = invoice.counterparty_biz_number?.replace(/[^0-9]/g, '') ?? ''
-  const name      = invoice.counterparty_name?.trim() ?? ''
-  const issueTime = new Date(invoice.issue_date as string).getTime()
+  const scoreOf = makeIdentityScorer(invoice, aliases)
+  const prepayVendor = await isPrepayVendor(admin, invoice.vendor_id as string | null)
 
   const scored = available.map(tx => {
-    const desc       = (tx.description as string) ?? ''
-    const counterparty = (tx.counterparty_name as string | null) ?? ''
-    const haystack   = `${desc} ${counterparty}`
-    const haystackDigits = haystack.replace(/[^0-9]/g, '')
-    const dayDiff    = Math.abs(new Date(tx.tx_date as string).getTime() - issueTime) / 86_400_000
-
-    let score = 0
-    if (invoice.vendor_id && tx.vendor_id === invoice.vendor_id)        score += 3
-    if (bizDigits && haystackDigits.includes(bizDigits))                score += 2
-    if (name && haystack.includes(name))                                score += 2
-    if (aliases.some(alias => alias && haystack.includes(alias)))       score += 2
-    if (dayDiff <= 31)                                                  score += 1
-
-    return { tx, score, dayDiff }
+    const lag = lagDays(tx.tx_date as string, invoice.issue_date as string)
+    // 발행일 ±31일 이내면 가점 (기존 점수 체계 유지)
+    const score = scoreOf(tx) + (Math.abs(lag) <= 31 ? 1 : 0)
+    return { tx, score, lag }
   })
 
-  scored.sort((a, b) => b.score - a.score || a.dayDiff - b.dayDiff)
+  scored.sort((a, b) =>
+    b.score - a.score
+    || dateRank(a.lag, prepayVendor) - dateRank(b.lag, prepayVendor)
+    || Math.abs(a.lag) - Math.abs(b.lag))
 
-  return NextResponse.json({ candidates: scored.map(s => s.tx) })
+  return NextResponse.json({ candidates: scored.map(s => s.tx), prepayVendor })
 }

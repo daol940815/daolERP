@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { TAX_INVOICE_SELECT, addInvoicePayment } from '@/lib/tax-invoice-payments.server'
+import { dateRank, isPrepayVendor, lagDays, makeIdentityScorer } from '@/lib/matching-rules'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,30 +81,31 @@ export async function POST(req: NextRequest) {
     return (cap ?? 0) - (usedByTx.get(tx.id as string) ?? 0) >= sumAmount
   })
 
-  const bizDigits = invoices.find(i => i.counterparty_biz_number)?.counterparty_biz_number?.replace(/[^0-9]/g, '') ?? ''
-  const names      = Array.from(new Set(invoices.map(i => i.counterparty_name?.trim()).filter(Boolean))) as string[]
-  const latestIssueTime = Math.max(...invoices.map(i => new Date(i.issue_date as string).getTime()))
+  // 여러 장 합계 매칭은 가장 늦게 발행된 계산서를 기준일로 본다 (그 이후에 몰아서 지급)
+  const latestIssueDate = invoices.map(i => i.issue_date as string).sort().at(-1) as string
+  // 상호명은 계산서마다 표기가 다를 수 있어 스코어러 밖에서 이름 목록으로 검사
+  const scoreOf = makeIdentityScorer(
+    { vendor_id: vendorId, counterparty_biz_number: invoices.find(i => i.counterparty_biz_number)?.counterparty_biz_number ?? null, counterparty_name: null },
+    aliases,
+  )
+  const names = Array.from(new Set(invoices.map(i => i.counterparty_name?.trim()).filter(Boolean))) as string[]
+  const prepayVendor = await isPrepayVendor(admin, vendorId)
 
   const scored = available.map(tx => {
-    const desc          = (tx.description as string) ?? ''
-    const counterparty  = (tx.counterparty_name as string | null) ?? ''
-    const haystack       = `${desc} ${counterparty}`
-    const haystackDigits = haystack.replace(/[^0-9]/g, '')
-    const dayDiff        = Math.abs(new Date(tx.tx_date as string).getTime() - latestIssueTime) / 86_400_000
-
-    let score = 0
-    if (vendorId && tx.vendor_id === vendorId)                          score += 3
-    if (bizDigits && haystackDigits.includes(bizDigits))                score += 2
-    if (names.some(name => haystack.includes(name)))                    score += 2
-    if (aliases.some(alias => alias && haystack.includes(alias)))       score += 2
-    if (dayDiff <= 31)                                                  score += 1
-
-    return { tx, score, dayDiff }
+    const haystack = `${(tx.description as string) ?? ''} ${(tx.counterparty_name as string | null) ?? ''}`
+    const lag = lagDays(tx.tx_date as string, latestIssueDate)
+    let score = scoreOf(tx)
+    if (names.some(name => name && haystack.includes(name))) score += 2
+    if (Math.abs(lag) <= 31) score += 1
+    return { tx, score, lag }
   })
 
-  scored.sort((a, b) => b.score - a.score || a.dayDiff - b.dayDiff)
+  scored.sort((a, b) =>
+    b.score - a.score
+    || dateRank(a.lag, prepayVendor) - dateRank(b.lag, prepayVendor)
+    || Math.abs(a.lag) - Math.abs(b.lag))
 
-  return NextResponse.json({ sumAmount, candidates: scored.map(s => s.tx) })
+  return NextResponse.json({ sumAmount, candidates: scored.map(s => s.tx), prepayVendor, latestIssueDate })
 }
 
 // PATCH /api/tax-invoices/match-sum

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { addInvoicePayment } from '@/lib/tax-invoice-payments.server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { MATCH_RULES, lagDays, makeIdentityScorer } from '@/lib/matching-rules'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -94,11 +95,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 날짜 판정 기준값
-  const MARGIN_DAYS    = 15 // 후보가 여럿일 때 최근접이 2등보다 이만큼 가까워야 유일 판정 (월 정기거래 구분)
-  const MAX_LAG_DAYS   = 35 // 후보가 여럿일 때 최근접 거래가 발행 후 이 일수 이내여야 연결
-  const PRE_GUARD_DAYS = 7  // 발행일 이전 거래가 (최근접 이후 거래 + 이 값)보다 가까우면 애매 → 수동
-  const DAY = 86_400_000
+  // 날짜 판정 기준값은 매칭 공통 규칙(lib/matching-rules.ts)을 따른다
+  const { AUTO_MARGIN_DAYS, AUTO_MAX_LAG_DAYS, AUTO_PRE_GUARD_DAYS } = MATCH_RULES
 
   let matched = 0
   const usedTx = new Set<string>()   // 이번 실행에서 이미 연결한 거래는 재사용 금지
@@ -118,25 +116,13 @@ export async function POST(req: NextRequest) {
       })
     if (!txs.length) continue
 
-    const bizDigits = inv.counterparty_biz_number?.replace(/[^0-9]/g, '') ?? ''
-    const name      = inv.counterparty_name?.trim() ?? ''
-    const aliases   = inv.vendor_id ? (aliasMap.get(inv.vendor_id) ?? []) : []
-
-    const identified = txs.filter(tx => {
-      const desc           = (tx.description as string) ?? ''
-      const counterparty   = (tx.counterparty_name as string | null) ?? ''
-      const haystack       = `${desc} ${counterparty}`
-      const haystackDigits = haystack.replace(/[^0-9]/g, '')
-      return (inv.vendor_id && tx.vendor_id === inv.vendor_id)
-        || (bizDigits && haystackDigits.includes(bizDigits))
-        || (name && haystack.includes(name))
-        || aliases.some(alias => alias && haystack.includes(alias))
-    })
+    const aliases = inv.vendor_id ? (aliasMap.get(inv.vendor_id) ?? []) : []
+    const scoreOf = makeIdentityScorer(inv, aliases)
+    const identified = txs.filter(tx => scoreOf(tx) > 0)
     if (!identified.length) continue
 
     // ── 날짜 규칙 적용 ──
-    const issueTime = new Date(inv.issue_date).getTime()
-    const lagOf = (tx: TxRow) => Math.round((new Date(tx.tx_date).getTime() - issueTime) / DAY)
+    const lagOf = (tx: TxRow) => lagDays(tx.tx_date, inv.issue_date)
     // 발행일 이전 거래는 후보 제외 (선지급/선입금은 예외 케이스 → 수동 확인·승인)
     const dated = identified.filter(tx => lagOf(tx) >= 0).sort((a, b) => lagOf(a) - lagOf(b))
     if (!dated.length) continue
@@ -146,15 +132,15 @@ export async function POST(req: NextRequest) {
     // 발행일 이전 거래가 선택 대상과 비슷하게 가깝다면 (월말 발행 + 월중 선지급 패턴 가능성)
     // 어느 쪽인지 자동으로 단정하지 않고 수동에 남긴다
     const preLags = identified.filter(tx => lagOf(tx) < 0).map(tx => -lagOf(tx))
-    if (preLags.length && Math.min(...preLags) <= nearestLag + PRE_GUARD_DAYS) continue
+    if (preLags.length && Math.min(...preLags) <= nearestLag + AUTO_PRE_GUARD_DAYS) continue
 
     if (dated.length >= 2) {
       // 여러 달 치 정기 지급이 모두 후보인 경우 — 전부 같은 거래처이고,
       // 최근접이 발행 후 35일 이내이며 2등보다 15일 이상 가까울 때만 그 달 건으로 확정
       const vendorSet = new Set(dated.map(tx => tx.vendor_id))
       if (vendorSet.size !== 1 || vendorSet.has(null)) continue
-      if (nearestLag > MAX_LAG_DAYS) continue
-      if (lagOf(dated[1]) - nearestLag < MARGIN_DAYS) continue
+      if (nearestLag > AUTO_MAX_LAG_DAYS) continue
+      if (lagOf(dated[1]) - nearestLag < AUTO_MARGIN_DAYS) continue
     }
 
     const result = await addInvoicePayment(admin, inv.id as string, nearest.id as string, inv.total_amount as number)

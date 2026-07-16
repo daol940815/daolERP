@@ -21,6 +21,7 @@ export function CandidateModal({ vendorId, vendorName, onClose, onApplied }: {
   const [error, setError] = useState<string | null>(null)
   const [applying, setApplying] = useState(false)
   const [summary, setSummary] = useState<{ unpaid_invoices: number; available_txs: number; coverable_amount: number } | null>(null)
+  const [prepayVendor, setPrepayVendor] = useState(false)
 
   useEffect(() => {
     fetch(`/api/purchase-cycle/payment-candidates?vendorId=${vendorId}`, { cache: 'no-store' })
@@ -29,6 +30,7 @@ export function CandidateModal({ vendorId, vendorName, onClose, onApplied }: {
         if (!ok) { setError(j.error ?? '후보 조회 실패'); return }
         setGroups(j.groups ?? [])
         setSummary(j.summary ?? null)
+        setPrepayVendor(!!j.prepayVendor)
         setChecked(new Set((j.groups ?? []).map((_: unknown, i: number) => i)))  // 기본 전체 선택
       })
       .catch(() => setError('네트워크 오류'))
@@ -57,6 +59,11 @@ export function CandidateModal({ vendorId, vendorName, onClose, onApplied }: {
           금액이 정확히 맞는 조합만 제시합니다. 확인 후 확정하세요 (연결은 언제든 해제 가능).
           {summary && ` · 미결제 계산서 ${summary.unpaid_invoices}건 · 미연결 출금 ${summary.available_txs}건`}
         </p>
+        {prepayVendor && (
+          <p className="text-xs text-sky-700 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2 mb-3">
+            선지급 관행 거래처 — 계산서 발행 전에 지급한 확정 이력이 많아, 발행 전 한 달까지의 출금도 후보에 포함합니다.
+          </p>
+        )}
         {error && <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
         {!groups ? (
           <p className="text-gray-400 text-sm py-8 text-center">후보 계산 중...</p>
