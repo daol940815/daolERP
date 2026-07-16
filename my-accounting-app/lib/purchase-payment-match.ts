@@ -35,7 +35,10 @@ export interface CandidateGroup {
 
 const MAX_COMBO = 8          // 합산 조합 최대 크기
 const MAX_NODES = 30000      // 부분합 탐색 상한 (폭주 방지)
-const DATE_WINDOW_DAYS = 120 // 계산서 발행일 기준 지급 탐색 범위 (전 30일 ~ 후 120일)
+// 지급 탐색 범위: 발행일 이후만 (다올커머스는 계산서 발행 후 지급 — 선지급은 예외 → 수동 확인).
+// 발행일 이전을 포함하면 월 정기 거래(매달 같은 금액)에서 전 달 출금이 합산 후보에 섞인다.
+const DATE_WINDOW_DAYS = 120 // 발행일 후 최대 탐색 일수
+const NEAR_WINDOW_DAYS = 30  // 1차 탐색 창 — 그 달 지급을 우선으로 묶고, 없을 때만 120일로 확장
 
 const dayDiff = (a: string, b: string) =>
   (new Date(a.slice(0, 10)).getTime() - new Date(b.slice(0, 10)).getTime()) / 86_400_000
@@ -134,16 +137,16 @@ export async function buildPaymentCandidates(
   const groups: CandidateGroup[] = []
   const usedInv = new Set<string>()
   const usedTx = new Set<string>()
-  const txWindow = (inv: CandidateInvoice) => txs.filter(t =>
+  const txWindow = (inv: CandidateInvoice, maxDays: number) => txs.filter(t =>
     !usedTx.has(t.id) &&
-    dayDiff(t.tx_date, inv.issue_date) >= -30 &&
-    dayDiff(t.tx_date, inv.issue_date) <= DATE_WINDOW_DAYS)
+    dayDiff(t.tx_date, inv.issue_date) >= 0 &&
+    dayDiff(t.tx_date, inv.issue_date) <= maxDays)
 
-  // A. 1:1 정확 일치 (후보가 여럿이면 날짜가 가장 가까운 것)
+  // A. 1:1 정확 일치 (후보가 여럿이면 발행일 이후 가장 가까운 것)
   for (const inv of invoices) {
-    const cands = txWindow(inv).filter(t => t.remaining === inv.remaining)
+    const cands = txWindow(inv, DATE_WINDOW_DAYS).filter(t => t.remaining === inv.remaining)
     if (!cands.length) continue
-    const tx = cands.sort((a, b) => Math.abs(dayDiff(a.tx_date, inv.issue_date)) - Math.abs(dayDiff(b.tx_date, inv.issue_date)))[0]
+    const tx = cands.sort((a, b) => dayDiff(a.tx_date, inv.issue_date) - dayDiff(b.tx_date, inv.issue_date))[0]
     usedInv.add(inv.id); usedTx.add(tx.id)
     groups.push({
       type: 'exact', label: '1:1 정확 일치',
@@ -153,11 +156,17 @@ export async function buildPaymentCandidates(
   }
 
   // B. 계산서 1장 = 출금 여러 건 합 (분할 지급)
+  // 월 정기 거래는 매달 같은 금액이 반복되므로, 발행 후 30일 이내(그 달 지급)에서
+  // 먼저 조합을 찾고 없을 때만 120일까지 넓힌다 — 다음 달 출금이 섞이는 것을 방지.
   for (const inv of invoices) {
     if (usedInv.has(inv.id)) continue
-    const pool = txWindow(inv).map(t => ({ id: t.id, amount: t.remaining }))
-    if (pool.length < 2) continue
-    const picked = findSubset(pool, inv.remaining)
+    let picked: string[] | null = null
+    for (const maxDays of [NEAR_WINDOW_DAYS, DATE_WINDOW_DAYS]) {
+      const pool = txWindow(inv, maxDays).map(t => ({ id: t.id, amount: t.remaining }))
+      if (pool.length < 2) continue
+      picked = findSubset(pool, inv.remaining)
+      if (picked) break
+    }
     if (!picked) continue
     const chosen = txs.filter(t => picked.includes(t.id))
     usedInv.add(inv.id); chosen.forEach(t => usedTx.add(t.id))
@@ -172,7 +181,7 @@ export async function buildPaymentCandidates(
   for (const tx of txs) {
     if (usedTx.has(tx.id)) continue
     const pool = invoices
-      .filter(i => !usedInv.has(i.id) && dayDiff(tx.tx_date, i.issue_date) >= -30 && dayDiff(tx.tx_date, i.issue_date) <= DATE_WINDOW_DAYS)
+      .filter(i => !usedInv.has(i.id) && dayDiff(tx.tx_date, i.issue_date) >= 0 && dayDiff(tx.tx_date, i.issue_date) <= DATE_WINDOW_DAYS)
       .map(i => ({ id: i.id, amount: i.remaining }))
     if (pool.length < 2) continue
     const picked = findSubset(pool, tx.remaining)
