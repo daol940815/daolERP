@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
-import { dateRank, isPrepayVendor, lagDays, makeIdentityScorer } from '@/lib/matching-rules'
+import { MATCH_RULES, dateRank, isPrepayVendor, lagDays, makeIdentityScorer } from '@/lib/matching-rules'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,8 +73,7 @@ export async function GET(
 
   const scored = available.map(tx => {
     const lag = lagDays(tx.tx_date as string, invoice.issue_date as string)
-    // 발행일 ±31일 이내면 가점 (기존 점수 체계 유지)
-    const score = scoreOf(tx) + (Math.abs(lag) <= 31 ? 1 : 0)
+    const score = scoreOf(tx) + (Math.abs(lag) <= MATCH_RULES.SCORE_NEAR_BONUS_DAYS ? 1 : 0)
     return { tx, score, lag }
   })
 

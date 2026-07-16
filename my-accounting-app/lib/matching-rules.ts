@@ -18,6 +18,7 @@ export const MATCH_RULES = {
   // 수동 후보 정렬(개별 매칭 · 합계 매칭) — C안
   MANUAL_PRE_GRACE_DAYS: 7,   // 발행 직전 이 일수 이내 후보는 발행 후와 동급 (월말 정산 관행)
   PREPAY_PRE_GRACE_DAYS: 31,  // 선지급 관행 거래처는 발행 전 한 달까지 동급
+  SCORE_NEAR_BONUS_DAYS: 31,  // 발행일 ±이 일수 이내 후보에 신원 점수 +1 가점
 
   // 지급연결후보(매입 사이클 분할/합산) 탐색 창
   SPLIT_NEAR_WINDOW_DAYS: 30,  // 1차: 그 달 지급 우선
