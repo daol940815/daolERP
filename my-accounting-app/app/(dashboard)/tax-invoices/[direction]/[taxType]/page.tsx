@@ -631,6 +631,7 @@ function TaxInvoiceListContent() {
     setMatching(false)
     if (!res.ok) { showMsg(`매칭 실패: ${json.error ?? '알 수 없는 오류'}`); return }
     showMsg(`${ids?.length ? `선택 ${ids.length}건 중 ` : `${json.checked}건 중 `}${json.matched}건 자동 매칭됨`)
+    setSelected(new Set())
     load()
   }
 
@@ -1013,7 +1014,11 @@ function TaxInvoiceListContent() {
         <MatchPickerModal
           invoice={matchingInvoice}
           onClose={() => setMatchingInvoice(null)}
-          onMatched={inv => { setInvoices(prev => prev.map(x => x.id === inv.id ? inv : x)); showMsg('거래내역과 매칭되었습니다.') }}
+          onMatched={inv => {
+            setInvoices(prev => prev.map(x => x.id === inv.id ? inv : x))
+            setSelected(prev => { const next = new Set(prev); next.delete(inv.id); return next })
+            showMsg('거래내역과 매칭되었습니다.')
+          }}
         />
       )}
 
