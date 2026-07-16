@@ -160,10 +160,20 @@ function MatchPickerModal({
     setConfirmAmount('')
 
     if (updated.payment_status === 'matched') {
-      if (updated.vendor_id) {
-        setAliasInput(suggestion)
-        setAliasPrompt({ matched: updated, suggestion })
-        return
+      if (updated.vendor_id && suggestion) {
+        // 제안된 표현이 이미 별칭에 있거나 거래처명과 같으면 물어볼 필요가 없다
+        // (없을 때만 프롬프트 — "이미 저장된 별칭도 계속 확인" 반복 제거)
+        const norm = (s: string) => s.replace(/\s|주식회사|\(주\)|㈜/g, '').toLowerCase()
+        const v = await fetch(`/api/vendors/${updated.vendor_id}`).then(r => r.json()).catch(() => null)
+        const vname = v?.data?.name as string | undefined
+        const aliases = (v?.data?.match_aliases as string[] | null) ?? []
+        const known = (vname && norm(vname) === norm(suggestion))
+          || aliases.some(a => norm(a) === norm(suggestion))
+        if (!known) {
+          setAliasInput(suggestion)
+          setAliasPrompt({ matched: updated, suggestion })
+          return
+        }
       }
       onClose()
     }
