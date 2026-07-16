@@ -3,6 +3,7 @@ import { unstable_noStore as noStore } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import OrphanedAccountsSection, { type OrphanedGroup } from './_components/OrphanedAccountsSection'
+import { buildVendorLinkStatus } from '@/lib/vendor-link-status'
 
 // force-dynamic: 정적 렌더링 방지 (빌드 시 캐싱 금지)
 export const dynamic = 'force-dynamic'
@@ -293,6 +294,9 @@ export default async function DashboardPage() {
   const orphanedGroups: OrphanedGroup[] = Object.values(orphanedMap)
     .sort((a, b) => b.count - a.count)
 
+  // 거래처 연동 현황 (실패해도 대시보드 전체는 뜨도록 오류는 카드 생략으로 처리)
+  const linkStatus = await buildVendorLinkStatus(admin)
+
   // 당월 거래가 없으면 전월로 자동 전환 (업로드된 데이터가 전월인 경우 대응)
   let monthlyTx = curMonthTx
   let periodLabel = cur.label
@@ -507,6 +511,42 @@ export default async function DashboardPage() {
 
       {/* 미연결 계좌 (bank_account_id 없는 거래 그룹) */}
       <OrphanedAccountsSection groups={orphanedGroups} />
+
+      {/* 거래처 연동 현황 (재정비 4단계) — 미연동이 다시 쌓이면 여기서 드러난다 */}
+      {linkStatus && !('error' in linkStatus) && (
+        <div className="mt-8">
+          <h2 className="text-sm font-semibold text-slate-600 mb-3">거래처 연동 현황</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+              <p className="text-xs font-medium text-slate-500">ERP 주문 거래처 연동률</p>
+              <p className="text-xl font-bold text-slate-900 mt-2">{Math.round(linkStatus.erp.ratio * 100)}%</p>
+              <p className="text-xs text-slate-400 mt-1">
+                {fmt(linkStatus.erp.amount_linked)} / {fmt(linkStatus.erp.amount_total)}
+              </p>
+              <div className="h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden">
+                <div className="h-full bg-indigo-600" style={{ width: `${Math.round(linkStatus.erp.ratio * 100)}%` }} />
+              </div>
+            </div>
+            <Link href="/erp-aliases/pending" className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:border-indigo-300 transition-colors">
+              <p className="text-xs font-medium text-slate-500">ERP 거래처 등록 대기</p>
+              <p className={`text-xl font-bold mt-2 ${linkStatus.alias_pending > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
+                {linkStatus.alias_pending.toLocaleString()}건
+              </p>
+              <p className="text-xs text-slate-400 mt-1">정리하기 →</p>
+            </Link>
+            <Link href="/transactions" className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:border-indigo-300 transition-colors">
+              <p className="text-xs font-medium text-slate-500">통장 거래처 미태깅</p>
+              <p className="text-xl font-bold text-slate-900 mt-2">{linkStatus.untagged_transactions.toLocaleString()}건</p>
+              <p className="text-xs text-slate-400 mt-1">자사 이체·정산 포함 · 자동매칭 실행 →</p>
+            </Link>
+            <Link href="/card-sales/customer-links" className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:border-indigo-300 transition-colors">
+              <p className="text-xs font-medium text-slate-500">카드매출 미태깅</p>
+              <p className="text-xl font-bold text-slate-900 mt-2">{linkStatus.untagged_card_sales.toLocaleString()}건</p>
+              <p className="text-xs text-slate-400 mt-1">카드번호 연결하기 →</p>
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
