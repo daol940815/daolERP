@@ -89,7 +89,7 @@ export default function PurchaseClassifyPage() {
     const json = await res.json()
     setBusyKey(null)
     if (!res.ok) { showMsg(`확정 실패: ${json.error ?? '오류'}`); return }
-    showMsg(`✓ ${g.counterparty_name}: 확정 ${json.classified}건 · 분개 ${json.posted}건${json.failed ? ` · 실패 ${json.failed}건` : ''}${json.defaultSaved ? ' · 기본계정 저장됨' : ''}`)
+    showMsg(`${g.counterparty_name}: 확정 ${json.classified}건 · 분개 ${json.posted}건${json.skippedConfirmed ? ` · 기확정 건너뜀 ${json.skippedConfirmed}건` : ''}${json.failed ? ` · 실패 ${json.failed}건` : ''}${json.defaultSaved ? ' · 기본계정 저장됨' : ''}`)
     load()
   }
 

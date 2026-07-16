@@ -35,8 +35,23 @@ export async function POST(req: NextRequest) {
   if (ae || !acc) return NextResponse.json({ error: '유효한 계정과목이 아닙니다.' }, { status: 400 })
 
   let ids: string[]
+  let skippedConfirmed = 0
   if (selectedIds.length) {
-    ids = selectedIds
+    // 이미 계정이 확정된 계산서는 건너뛴다 — 일괄 경로가 사용자 확정값을 덮어쓰지 않도록
+    // (골프맥스 사례: 그룹 일괄 확정이 기확정 상품매입을 접대비로 덮어씀).
+    // 기확정 건의 계정 변경은 개별 화면에서만 한다.
+    const confirmed = new Set<string>()
+    for (let i = 0; i < selectedIds.length; i += 100) {
+      const { data, error } = await admin
+        .from('tax_invoices')
+        .select('id')
+        .in('id', selectedIds.slice(i, i + 100))
+        .not('confirmed_account_id', 'is', null)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      for (const r of data ?? []) confirmed.add(r.id as string)
+    }
+    ids = selectedIds.filter(id => !confirmed.has(id))
+    skippedConfirmed = confirmed.size
   } else {
     // 대상 조회 (direction 전체 일괄)
     const targets = await fetchAllRows<{ id: string }>((f, t) => {
@@ -48,7 +63,7 @@ export async function POST(req: NextRequest) {
     if ('error' in targets) return NextResponse.json({ error: targets.error }, { status: 500 })
     ids = targets.data.map(r => r.id)
   }
-  if (ids.length === 0) return NextResponse.json({ classified: 0, posted: 0, errors: [] })
+  if (ids.length === 0) return NextResponse.json({ classified: 0, posted: 0, skippedConfirmed, errors: [] })
 
   const CHUNK = 200
   for (let i = 0; i < ids.length; i += CHUNK) {
@@ -78,5 +93,5 @@ export async function POST(req: NextRequest) {
     defaultSaved = !error
   }
 
-  return NextResponse.json({ classified: ids.length, posted, errors: errors.slice(0, 10), failed: errors.length, defaultSaved })
+  return NextResponse.json({ classified: ids.length, posted, skippedConfirmed, errors: errors.slice(0, 10), failed: errors.length, defaultSaved })
 }
