@@ -8,8 +8,14 @@ export const maxDuration = 300
 
 // POST /api/tax-invoices/auto-match — body: { direction?, taxType?, invoiceIds? }
 // 미확인(unmatched) 세금계산서 중, 금액이 일치하고 사업자번호 또는 거래처명이
-// 적요에 포함되는 거래내역이 단 하나로 좁혀지는 건만 자동으로 연결 처리한다.
+// 적요에 포함되는 거래내역을 자동으로 연결 처리한다.
 // invoiceIds가 있으면 그 선택 건들만 대상으로 한다(선택 자동매칭).
+//
+// 날짜 규칙 (다올커머스 업무 특성): 매출은 선입금, 매입은 선지급이 거의 없다 —
+// 지급/수금은 계산서 발행 이후에 이뤄진다. 따라서 발행일 이전 거래는 후보에서
+// 제외하고(선지급은 예외 → 수동 확인), 발행일 이후 후보가 여럿이면 월 정기거래
+// (매달 같은 금액: 렌탈료·보험료 등)를 전제로 발행일에 가장 가까운 거래를 고른다.
+// 단 아래 안전장치를 모두 통과할 때만 연결하고, 하나라도 애매하면 수동으로 남긴다.
 // 거래내역은 한 번에 프리페치해 메모리에서 매칭한다 — 계산서 건마다 개별 조회하면
 // 미매칭 수천 건 × 요청이 되어 라우트가 죽는다(fetch failed).
 export async function POST(req: NextRequest) {
@@ -66,10 +72,10 @@ export async function POST(req: NextRequest) {
   }
 
   // 거래내역 프리페치 (1회) — 금액별 인덱스 구성
-  const allTxResult = await fetchAllRows<{ id: string; description: string | null; counterparty_name: string | null; vendor_id: string | null; amount_in: number | null; amount_out: number | null }>((rFrom, rTo) =>
+  const allTxResult = await fetchAllRows<{ id: string; tx_date: string; description: string | null; counterparty_name: string | null; vendor_id: string | null; amount_in: number | null; amount_out: number | null }>((rFrom, rTo) =>
     admin
       .from('transactions')
-      .select('id, description, counterparty_name, vendor_id, amount_in, amount_out')
+      .select('id, tx_date, description, counterparty_name, vendor_id, amount_in, amount_out')
       .is('transfer_pair_id', null)
       .range(rFrom, rTo),
   )
@@ -88,9 +94,18 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // 날짜 판정 기준값
+  const MARGIN_DAYS    = 15 // 후보가 여럿일 때 최근접이 2등보다 이만큼 가까워야 유일 판정 (월 정기거래 구분)
+  const MAX_LAG_DAYS   = 35 // 후보가 여럿일 때 최근접 거래가 발행 후 이 일수 이내여야 연결
+  const PRE_GUARD_DAYS = 7  // 발행일 이전 거래가 (최근접 이후 거래 + 이 값)보다 가까우면 애매 → 수동
+  const DAY = 86_400_000
+
   let matched = 0
   const usedTx = new Set<string>()   // 이번 실행에서 이미 연결한 거래는 재사용 금지
-  for (const inv of invoices) {
+  // 발행일 오름차순으로 처리 — 월 정기거래(매달 같은 금액)에서 각 달의 계산서가
+  // 그 달의 지급을 순서대로 가져가야 뒤 계산서가 앞 달 지급을 잘못 집지 않는다.
+  const ordered = [...invoices].sort((a, b) => (a.issue_date < b.issue_date ? -1 : a.issue_date > b.issue_date ? 1 : 0))
+  for (const inv of ordered) {
     if (partiallyPaidIds.has(inv.id)) continue
 
     // 이번 실행에서 쓴 거래(usedTx)뿐 아니라 이전 실행/수동 매칭에서
@@ -107,7 +122,7 @@ export async function POST(req: NextRequest) {
     const name      = inv.counterparty_name?.trim() ?? ''
     const aliases   = inv.vendor_id ? (aliasMap.get(inv.vendor_id) ?? []) : []
 
-    const candidates = txs.filter(tx => {
+    const identified = txs.filter(tx => {
       const desc           = (tx.description as string) ?? ''
       const counterparty   = (tx.counterparty_name as string | null) ?? ''
       const haystack       = `${desc} ${counterparty}`
@@ -117,11 +132,33 @@ export async function POST(req: NextRequest) {
         || (name && haystack.includes(name))
         || aliases.some(alias => alias && haystack.includes(alias))
     })
+    if (!identified.length) continue
 
-    if (candidates.length === 1) {
-      const result = await addInvoicePayment(admin, inv.id as string, candidates[0].id as string, inv.total_amount as number)
-      if (result.ok) { matched++; usedTx.add(candidates[0].id) }
+    // ── 날짜 규칙 적용 ──
+    const issueTime = new Date(inv.issue_date).getTime()
+    const lagOf = (tx: TxRow) => Math.round((new Date(tx.tx_date).getTime() - issueTime) / DAY)
+    // 발행일 이전 거래는 후보 제외 (선지급/선입금은 예외 케이스 → 수동 확인·승인)
+    const dated = identified.filter(tx => lagOf(tx) >= 0).sort((a, b) => lagOf(a) - lagOf(b))
+    if (!dated.length) continue
+
+    const nearest    = dated[0]
+    const nearestLag = lagOf(nearest)
+    // 발행일 이전 거래가 선택 대상과 비슷하게 가깝다면 (월말 발행 + 월중 선지급 패턴 가능성)
+    // 어느 쪽인지 자동으로 단정하지 않고 수동에 남긴다
+    const preLags = identified.filter(tx => lagOf(tx) < 0).map(tx => -lagOf(tx))
+    if (preLags.length && Math.min(...preLags) <= nearestLag + PRE_GUARD_DAYS) continue
+
+    if (dated.length >= 2) {
+      // 여러 달 치 정기 지급이 모두 후보인 경우 — 전부 같은 거래처이고,
+      // 최근접이 발행 후 35일 이내이며 2등보다 15일 이상 가까울 때만 그 달 건으로 확정
+      const vendorSet = new Set(dated.map(tx => tx.vendor_id))
+      if (vendorSet.size !== 1 || vendorSet.has(null)) continue
+      if (nearestLag > MAX_LAG_DAYS) continue
+      if (lagOf(dated[1]) - nearestLag < MARGIN_DAYS) continue
     }
+
+    const result = await addInvoicePayment(admin, inv.id as string, nearest.id as string, inv.total_amount as number)
+    if (result.ok) { matched++; usedTx.add(nearest.id) }
   }
 
   return NextResponse.json({ matched, checked: invoices?.length ?? 0 })
