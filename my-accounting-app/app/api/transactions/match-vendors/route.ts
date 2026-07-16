@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { normalizeName } from '@/lib/name-similarity'
 import { syncTransactionPaymentEntry } from '@/lib/vendor-ledger'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 300
 
 // POST /api/transactions/match-vendors
 // 거래처가 지정되지 않은 입출금 내역 중, 적요·입금자명에 거래처의 사업자번호·상호명·
@@ -30,12 +32,18 @@ export async function POST() {
       .filter(Boolean),
   }))
 
-  const { data: txs, error: tErr } = await admin
-    .from('transactions')
-    .select('id, description, counterparty_name, amount_out, tx_date')
-    .is('vendor_id', null)
-    .is('transfer_pair_id', null)
-  if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 })
+  // 미태깅 거래가 6천 건이 넘어 PostgREST 기본 1000행 한도에 잘렸다 —
+  // 페이지네이션으로 전체를 가져와야 뒤쪽 거래(예: 반환 입금)도 매칭된다.
+  const txResult = await fetchAllRows<{ id: string; description: string | null; counterparty_name: string | null; amount_out: number | null; tx_date: string }>((from, to) =>
+    admin
+      .from('transactions')
+      .select('id, description, counterparty_name, amount_out, tx_date')
+      .is('vendor_id', null)
+      .is('transfer_pair_id', null)
+      .range(from, to),
+  )
+  if ('error' in txResult) return NextResponse.json({ error: txResult.error }, { status: 500 })
+  const txs = txResult.data
 
   let matched = 0
   for (const tx of txs ?? []) {
