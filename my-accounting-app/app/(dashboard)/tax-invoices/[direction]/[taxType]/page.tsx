@@ -56,6 +56,21 @@ interface Candidate {
 const txRemaining = (tx: Candidate, amountKey: 'amount_in' | 'amount_out') =>
   (tx[amountKey] ?? 0) - (tx.invoice_links ?? []).reduce((s, l) => s + l.amount, 0)
 
+// 거래일 - 계산서 발행일 (일 단위, 음수 = 발행 전 거래)
+const lagFromIssue = (txDate: string, issueDate: string) =>
+  Math.round((new Date(txDate.slice(0, 10)).getTime() - new Date(issueDate.slice(0, 10)).getTime()) / 86_400_000)
+
+// 발행 전 거래 배지 — 원칙(발행 후 지급/수금)의 예외임을 한눈에 보여준다
+function PreIssueBadge({ txDate, issueDate }: { txDate: string; issueDate: string }) {
+  const lag = lagFromIssue(txDate, issueDate)
+  if (lag >= 0) return null
+  return (
+    <span className="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[11px] font-medium shrink-0">
+      발행 전 {-lag}일
+    </span>
+  )
+}
+
 // ── 매칭 후보 선택 모달 ────────────────────────────────────────────
 function MatchPickerModal({
   invoice, onClose, onMatched,
@@ -66,6 +81,7 @@ function MatchPickerModal({
 }) {
   const [currentInvoice, setCurrentInvoice] = useState<TaxInvoice>(invoice)
   const [candidates, setCandidates] = useState<Candidate[] | null>(null)
+  const [prepayVendor, setPrepayVendor] = useState(false)
   const [aliasPrompt, setAliasPrompt] = useState<{ matched: TaxInvoice; suggestion: string } | null>(null)
   const [aliasInput, setAliasInput]   = useState('')
   const [savingAlias, setSavingAlias] = useState(false)
@@ -98,7 +114,11 @@ function MatchPickerModal({
     let cancelled = false
     fetch(`/api/tax-invoices/${invoice.id}/match-candidates`)
       .then(r => r.json())
-      .then(d => { if (!cancelled) setCandidates(Array.isArray(d.candidates) ? d.candidates : []) })
+      .then(d => {
+        if (cancelled) return
+        setCandidates(Array.isArray(d.candidates) ? d.candidates : [])
+        setPrepayVendor(!!d.prepayVendor)
+      })
       .catch(() => { if (!cancelled) setCandidates([]) })
     return () => { cancelled = true }
   }, [invoice.id])
@@ -329,7 +349,13 @@ function MatchPickerModal({
 
         <p className="text-xs text-gray-400 mb-3">
           금액이 일치하는 거래내역 중 사업자번호·거래처명이 일치하는 항목을 우선 표시합니다.
+          발행일 이후 거래가 위로 정렬되며, 발행 전 거래는 배지로 구분됩니다.
         </p>
+        {prepayVendor && (
+          <p className="text-xs text-sky-700 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2 mb-3">
+            선지급 관행 거래처 — 이 거래처는 계산서 발행 전에 지급한 확정 이력이 많아, 발행 전 거래도 동급으로 표시합니다.
+          </p>
+        )}
         {candidates === null ? (
           <div className="py-10 text-center text-gray-400 text-sm">후보 검색 중...</div>
         ) : candidates.length === 0 ? (
@@ -343,7 +369,10 @@ function MatchPickerModal({
                 className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3"
               >
                 <div className="min-w-0">
-                  <p className="text-gray-900 truncate">{c.description}</p>
+                  <p className="text-gray-900 truncate flex items-center gap-1.5">
+                    <span className="truncate">{c.description}</span>
+                    <PreIssueBadge txDate={c.tx_date} issueDate={invoice.issue_date} />
+                  </p>
                   <p className="text-xs text-gray-400">
                     {txDT(c.tx_date, c.tx_time)} · {c.account_alias ?? '-'}
                     {c.counterparty_name ? ` · 보낸분/받는분: ${c.counterparty_name}` : ''}
@@ -397,7 +426,10 @@ function MatchPickerModal({
                           className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3"
                         >
                           <div className="min-w-0">
-                            <p className="text-gray-900 truncate">{c.description}</p>
+                            <p className="text-gray-900 truncate flex items-center gap-1.5">
+                              <span className="truncate">{c.description}</span>
+                              <PreIssueBadge txDate={c.tx_date} issueDate={invoice.issue_date} />
+                            </p>
                             <p className="text-xs text-gray-400">
                               {txDT(c.tx_date, c.tx_time)} · {c.account_alias ?? '-'}
                               {c.counterparty_name ? ` · 보낸분/받는분: ${c.counterparty_name}` : ''}
@@ -437,6 +469,8 @@ function SumMatchPickerModal({
 }) {
   const [candidates, setCandidates] = useState<Candidate[] | null>(null)
   const [sumAmount, setSumAmount]   = useState<number | null>(null)
+  const [latestIssueDate, setLatestIssueDate] = useState<string | null>(null)
+  const [prepayVendor, setPrepayVendor]       = useState(false)
   const [error, setError]           = useState<string | null>(null)
   const [picking, setPicking]       = useState<string | null>(null)
 
@@ -452,6 +486,8 @@ function SumMatchPickerModal({
         if (cancelled) return
         if (d.error) { setError(d.error); setCandidates([]); return }
         setSumAmount(d.sumAmount ?? null)
+        setLatestIssueDate(d.latestIssueDate ?? null)
+        setPrepayVendor(!!d.prepayVendor)
         setCandidates(Array.isArray(d.candidates) ? d.candidates : [])
       })
       .catch(() => { if (!cancelled) { setError('후보 검색에 실패했습니다.'); setCandidates([]) } })
@@ -481,7 +517,13 @@ function SumMatchPickerModal({
         </p>
         <p className="text-xs text-gray-400 mb-3">
           선택한 계산서들의 합계금액과 정확히 일치하는 거래내역을 보여줍니다. 고르면 선택한 계산서 전부가 해당 거래 1건에 연결됩니다.
+          발행일(가장 늦은 계산서 기준) 이후 거래가 위로 정렬됩니다.
         </p>
+        {prepayVendor && (
+          <p className="text-xs text-sky-700 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2 mb-3">
+            선지급 관행 거래처 — 계산서 발행 전에 지급한 확정 이력이 많아, 발행 전 거래도 동급으로 표시합니다.
+          </p>
+        )}
         {error ? (
           <div className="py-10 text-center text-red-500 text-sm">{error}</div>
         ) : candidates === null ? (
@@ -498,7 +540,10 @@ function SumMatchPickerModal({
                 className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3 disabled:opacity-50"
               >
                 <div className="min-w-0">
-                  <p className="text-gray-900 truncate">{c.description}</p>
+                  <p className="text-gray-900 truncate flex items-center gap-1.5">
+                    <span className="truncate">{c.description}</span>
+                    {latestIssueDate && <PreIssueBadge txDate={c.tx_date} issueDate={latestIssueDate} />}
+                  </p>
                   <p className="text-xs text-gray-400">
                     {txDT(c.tx_date, c.tx_time)} · {c.account_alias ?? '-'}
                     {c.counterparty_name ? ` · 보낸분/받는분: ${c.counterparty_name}` : ''}

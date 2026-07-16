@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { MATCH_RULES, isPrepayVendor } from '@/lib/matching-rules'
 
 // ── 매입 지급 후보 탐색 (매입 사이클 3단계 — 설계 v3 로드맵 4) ─────────────
 // 한 거래처의 "미결제 매입 계산서"와 "미연결 통장 출금"을 놓고 연결 후보를 찾는다.
@@ -37,8 +38,9 @@ const MAX_COMBO = 8          // 합산 조합 최대 크기
 const MAX_NODES = 30000      // 부분합 탐색 상한 (폭주 방지)
 // 지급 탐색 범위: 발행일 이후만 (다올커머스는 계산서 발행 후 지급 — 선지급은 예외 → 수동 확인).
 // 발행일 이전을 포함하면 월 정기 거래(매달 같은 금액)에서 전 달 출금이 합산 후보에 섞인다.
-const DATE_WINDOW_DAYS = 120 // 발행일 후 최대 탐색 일수
-const NEAR_WINDOW_DAYS = 30  // 1차 탐색 창 — 그 달 지급을 우선으로 묶고, 없을 때만 120일로 확장
+// 단 선지급 관행 거래처(확정 이력 학습, 파인갤러리 유형)는 발행 전 한 달까지 후보에 포함한다.
+const DATE_WINDOW_DAYS = MATCH_RULES.SPLIT_MAX_WINDOW_DAYS  // 발행일 후 최대 탐색 일수
+const NEAR_WINDOW_DAYS = MATCH_RULES.SPLIT_NEAR_WINDOW_DAYS // 1차 탐색 창 — 그 달 지급 우선
 
 const dayDiff = (a: string, b: string) =>
   (new Date(a.slice(0, 10)).getTime() - new Date(b.slice(0, 10)).getTime()) / 86_400_000
@@ -68,7 +70,11 @@ function findSubset(items: { id: string; amount: number }[], target: number): st
 export async function buildPaymentCandidates(
   admin: SupabaseClient,
   vendorId: string,
-): Promise<{ invoices: CandidateInvoice[]; txs: CandidateTx[]; groups: CandidateGroup[] } | { error: string }> {
+): Promise<{ invoices: CandidateInvoice[]; txs: CandidateTx[]; groups: CandidateGroup[]; prepayVendor: boolean } | { error: string }> {
+  // 선지급 관행 거래처면 발행 전 한 달까지 탐색 (사용자 확정 이력에서 자동 학습)
+  const prepayVendor = await isPrepayVendor(admin, vendorId)
+  const preWindow = prepayVendor ? MATCH_RULES.PREPAY_PRE_GRACE_DAYS : 0
+
   // ── 미결제 매입 계산서 (양수 총액만 — 음수 수정계산서는 자동 매칭 대상 아님) ──
   const invResult = await fetchAllRows<{ id: string; issue_date: string; item_name: string | null; total_amount: number }>((f, t) =>
     admin.from('tax_invoices')
@@ -139,14 +145,14 @@ export async function buildPaymentCandidates(
   const usedTx = new Set<string>()
   const txWindow = (inv: CandidateInvoice, maxDays: number) => txs.filter(t =>
     !usedTx.has(t.id) &&
-    dayDiff(t.tx_date, inv.issue_date) >= 0 &&
+    dayDiff(t.tx_date, inv.issue_date) >= -preWindow &&
     dayDiff(t.tx_date, inv.issue_date) <= maxDays)
 
-  // A. 1:1 정확 일치 (후보가 여럿이면 발행일 이후 가장 가까운 것)
+  // A. 1:1 정확 일치 (후보가 여럿이면 발행일에서 가장 가까운 것)
   for (const inv of invoices) {
     const cands = txWindow(inv, DATE_WINDOW_DAYS).filter(t => t.remaining === inv.remaining)
     if (!cands.length) continue
-    const tx = cands.sort((a, b) => dayDiff(a.tx_date, inv.issue_date) - dayDiff(b.tx_date, inv.issue_date))[0]
+    const tx = cands.sort((a, b) => Math.abs(dayDiff(a.tx_date, inv.issue_date)) - Math.abs(dayDiff(b.tx_date, inv.issue_date)))[0]
     usedInv.add(inv.id); usedTx.add(tx.id)
     groups.push({
       type: 'exact', label: '1:1 정확 일치',
@@ -181,7 +187,7 @@ export async function buildPaymentCandidates(
   for (const tx of txs) {
     if (usedTx.has(tx.id)) continue
     const pool = invoices
-      .filter(i => !usedInv.has(i.id) && dayDiff(tx.tx_date, i.issue_date) >= 0 && dayDiff(tx.tx_date, i.issue_date) <= DATE_WINDOW_DAYS)
+      .filter(i => !usedInv.has(i.id) && dayDiff(tx.tx_date, i.issue_date) >= -preWindow && dayDiff(tx.tx_date, i.issue_date) <= DATE_WINDOW_DAYS)
       .map(i => ({ id: i.id, amount: i.remaining }))
     if (pool.length < 2) continue
     const picked = findSubset(pool, tx.remaining)
@@ -195,5 +201,5 @@ export async function buildPaymentCandidates(
     })
   }
 
-  return { invoices, txs, groups }
+  return { invoices, txs, groups, prepayVendor }
 }
