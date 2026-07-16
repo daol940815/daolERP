@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation'
 import type { TaxInvoice } from '@/types/tax-invoice'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
+import { lagDays } from '@/lib/matching-rules'
 
 const DIRECTION_META: Record<string, { label: string; sub: string; color: string }> = {
   sales:    { label: '매출 세금계산서', sub: '받을 돈 (입금 확인)', color: 'text-blue-700' },
@@ -56,13 +57,9 @@ interface Candidate {
 const txRemaining = (tx: Candidate, amountKey: 'amount_in' | 'amount_out') =>
   (tx[amountKey] ?? 0) - (tx.invoice_links ?? []).reduce((s, l) => s + l.amount, 0)
 
-// 거래일 - 계산서 발행일 (일 단위, 음수 = 발행 전 거래)
-const lagFromIssue = (txDate: string, issueDate: string) =>
-  Math.round((new Date(txDate.slice(0, 10)).getTime() - new Date(issueDate.slice(0, 10)).getTime()) / 86_400_000)
-
 // 발행 전 거래 배지 — 원칙(발행 후 지급/수금)의 예외임을 한눈에 보여준다
 function PreIssueBadge({ txDate, issueDate }: { txDate: string; issueDate: string }) {
-  const lag = lagFromIssue(txDate, issueDate)
+  const lag = lagDays(txDate, issueDate)
   if (lag >= 0) return null
   return (
     <span className="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[11px] font-medium shrink-0">

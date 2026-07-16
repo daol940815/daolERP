@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { TAX_INVOICE_SELECT, addInvoicePayment } from '@/lib/tax-invoice-payments.server'
-import { dateRank, isPrepayVendor, lagDays, makeIdentityScorer } from '@/lib/matching-rules'
+import { MATCH_RULES, dateRank, isPrepayVendor, lagDays, makeIdentityScorer } from '@/lib/matching-rules'
 
 export const dynamic = 'force-dynamic'
 
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     const lag = lagDays(tx.tx_date as string, latestIssueDate)
     let score = scoreOf(tx)
     if (names.some(name => name && haystack.includes(name))) score += 2
-    if (Math.abs(lag) <= 31) score += 1
+    if (Math.abs(lag) <= MATCH_RULES.SCORE_NEAR_BONUS_DAYS) score += 1
     return { tx, score, lag }
   })
 
