@@ -90,6 +90,95 @@ interface Filters {
 // 헤더가 계속 재구성된다(필터 버튼 클릭 불가·모델 갱신 루프) — 모듈 상수로 고정
 const DEFAULT_COL_DEF = { sortable: true, resizable: true, filter: true }
 
+// 거래처 셀 에디터의 신규 등록 진입 옵션 — 계산서·ERP 어디에도 없는 실거래처를
+// 통장 화면에서 만나는 즉시 등록하기 위한 흐름 (거래처 연동 재정비 3단계)
+const NEW_VENDOR_OPTION = '+ 새 거래처로 등록'
+
+// 새 거래처 등록 모달 — 등록과 동시에 해당 거래에 연결한다.
+function NewVendorModal({ tx, vendors, onClose, onCreated }: {
+  tx: Transaction
+  vendors: Vendor[]
+  onClose: () => void
+  onCreated: (vendor: Vendor, txId: string) => void
+}) {
+  const [name, setName] = useState(((tx.counterparty_name ?? tx.description) ?? '').trim())
+  const [type, setType] = useState((tx.amount_out ?? 0) > 0 ? 'vendor' : 'customer')
+  const [bizNumber, setBizNumber] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // 유사 이름 기존 거래처 경고 (중복 생성 방지)
+  const normSimple = (s: string) => s.replace(/\s|주식회사|\(주\)|㈜|（주）/g, '').toLowerCase()
+  const similar = useMemo(() => {
+    const n = normSimple(name)
+    if (n.length < 2) return []
+    return vendors.filter(v => {
+      const vn = normSimple(v.name)
+      return vn === n || (n.length >= 3 && (vn.includes(n) || n.includes(vn)))
+    }).slice(0, 3)
+  }, [name, vendors])
+
+  const submit = async () => {
+    if (!name.trim()) { setError('거래처명을 입력하세요.'); return }
+    setSaving(true)
+    setError(null)
+    const res = await fetch('/api/vendors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), type, biz_number: bizNumber.trim() || undefined }),
+    })
+    const json = await res.json()
+    if (!res.ok || !json.data) { setSaving(false); setError(json.error ?? '등록에 실패했습니다.'); return }
+    const vendor: Vendor = json.data
+    const patch = await fetch(`/api/transactions/${tx.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vendor_id: vendor.id }),
+    })
+    setSaving(false)
+    if (!patch.ok) { setError('거래처는 등록됐지만 거래 연결에 실패했습니다. 셀에서 다시 선택해주세요.') ; return }
+    onCreated(vendor, tx.id)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <h2 className="text-lg font-bold text-gray-900 mb-1">새 거래처 등록</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          등록과 동시에 이 거래에 연결됩니다. 이후 세금계산서가 올라오면 사업자번호가 자동 보완됩니다.
+        </p>
+        <label className="block text-xs text-gray-500 mb-1">거래처명</label>
+        <input autoFocus value={name} onChange={e => setName(e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        <label className="block text-xs text-gray-500 mb-1 mt-3">유형</label>
+        <select value={type} onChange={e => setType(e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+          <option value="vendor">매입처{(tx.amount_out ?? 0) > 0 ? ' (출금 거래라 기본값)' : ''}</option>
+          <option value="customer">매출처{(tx.amount_in ?? 0) > 0 ? ' (입금 거래라 기본값)' : ''}</option>
+          <option value="both">매입·매출 겸용</option>
+        </select>
+        <label className="block text-xs text-gray-500 mb-1 mt-3">사업자번호 (선택)</label>
+        <input value={bizNumber} onChange={e => setBizNumber(e.target.value)} placeholder="000-00-00000"
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        {similar.length > 0 && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
+            유사한 기존 거래처가 있습니다: {similar.map(v => v.name).join(', ')} — 같은 곳이면 등록 대신 셀에서 그 거래처를 선택하세요.
+          </p>
+        )}
+        {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
+        <div className="flex gap-2 mt-5">
+          <button onClick={onClose} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">취소</button>
+          <button onClick={submit} disabled={saving}
+            className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+            {saving ? '등록 중...' : '등록하고 이 거래에 연결'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface PreviewTx {
   id: string
   tx_date: string
@@ -133,6 +222,8 @@ function TransactionsContent() {
   const [loading,   setLoading]   = useState(false)
   const [classifying, setClassifying] = useState(false)
   const [matching,   setMatching]   = useState(false)
+  // 새 거래처 등록 모달 — 대상 거래 행
+  const [newVendorFor, setNewVendorFor] = useState<Transaction | null>(null)
   const [matchingVendors, setMatchingVendors] = useState(false)
   const [previewing,   setPreviewing]   = useState(false)
   const [previewPairs, setPreviewPairs] = useState<PreviewPair[] | null>(null)
@@ -665,7 +756,7 @@ function TransactionsContent() {
       cellEditor: SearchableCellEditor,
       cellEditorPopup: true,
       cellEditorParams: () => ({
-        values: ['(미지정)', ...vendors.map(v => v.name)],
+        values: ['(미지정)', NEW_VENDOR_OPTION, ...vendors.map(v => v.name)],
       }),
       valueGetter: (p: ValueGetterParams<Transaction>) => {
         const id = p.data?.vendor_id
@@ -674,6 +765,11 @@ function TransactionsContent() {
       },
       valueSetter: (p: ValueSetterParams<Transaction>) => {
         if (!p.data) return false
+        // 새 거래처 등록 선택 — 값을 바꾸지 않고 등록 모달을 연다 (계산서·ERP 없는 실거래처용)
+        if (p.newValue === NEW_VENDOR_OPTION) {
+          setNewVendorFor({ ...p.data })
+          return false
+        }
         const vendor = vendors.find(v => v.name === p.newValue)
         p.data.vendor_id = vendor?.id ?? null
         return true
@@ -1301,6 +1397,20 @@ function TransactionsContent() {
             건너뛰기
           </button>
         </div>
+      )}
+
+      {/* 새 거래처 등록 (거래처 셀에서 진입) */}
+      {newVendorFor && (
+        <NewVendorModal
+          tx={newVendorFor}
+          vendors={vendors}
+          onClose={() => setNewVendorFor(null)}
+          onCreated={(vendor, txId) => {
+            setVendors(prev => [...prev, vendor].sort((a, b) => a.name.localeCompare(b.name)))
+            setRowData(prev => prev.map(r => r.id === txId ? { ...r, vendor_id: vendor.id } : r))
+            showToast(`'${vendor.name}' 등록 후 거래에 연결했습니다.`)
+          }}
+        />
       )}
 
       {/* 토스트 */}

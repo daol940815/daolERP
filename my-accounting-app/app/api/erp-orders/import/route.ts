@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { normalizeName } from '@/lib/name-similarity'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -280,6 +281,55 @@ export async function POST(req: NextRequest) {
     for (const a of result.data) aliasMap.set(`${a.alias_type}|${a.erp_name}`, canonical(a.id))
   }
 
+  // ── 2.5) 미연결 별칭 자동 연결 (거래처 연동 재정비 — ERP도 거래처 원천) ──
+  // 기존 거래처와 정규화(법인표기·공백 무시) 동일 표기면 자동 연결하고,
+  // 아니면 "등록 대기"로 남긴다 (별칭 관리 > 등록 대기에서 일괄 생성·연결).
+  let aliasAutoLinked = 0
+  let aliasPending = 0
+  {
+    // excluded 컬럼(066)이 아직 없으면 컬럼 없이 재시도 — 업로드가 마이그레이션에 막히지 않게
+    let unlinked = await fetchAllRows<{ id: string; erp_name: string; excluded?: boolean | null }>((from, to) =>
+      admin.from('erp_vendor_aliases')
+        .select('id, erp_name, excluded')
+        .is('vendor_id', null)
+        .is('merged_into_alias_id', null)
+        .range(from, to),
+    )
+    if ('error' in unlinked) {
+      unlinked = await fetchAllRows<{ id: string; erp_name: string }>((from, to) =>
+        admin.from('erp_vendor_aliases')
+          .select('id, erp_name')
+          .is('vendor_id', null)
+          .is('merged_into_alias_id', null)
+          .range(from, to),
+      )
+    }
+    if (!('error' in unlinked)) {
+      const active = unlinked.data.filter(a => !a.excluded)
+      if (active.length) {
+        const vendorsResult = await fetchAllRows<{ id: string; name: string }>((from, to) =>
+          admin.from('vendors').select('id, name').eq('is_active', true).range(from, to),
+        )
+        if (!('error' in vendorsResult)) {
+          const byNorm = new Map<string, string[]>()
+          for (const v of vendorsResult.data) {
+            const n = normalizeName(v.name)
+            byNorm.set(n, [...(byNorm.get(n) ?? []), v.id])
+          }
+          for (const a of active) {
+            const hits = byNorm.get(normalizeName(a.erp_name)) ?? []
+            if (hits.length === 1) {
+              await admin.from('erp_vendor_aliases').update({ vendor_id: hits[0] }).eq('id', a.id)
+              aliasAutoLinked++
+            } else {
+              aliasPending++
+            }
+          }
+        }
+      }
+    }
+  }
+
   // ── 3) 주문 upsert ──────────────────────────────────
   const orderList = Array.from(orders.values())
   const orderRows = orderList.map(g => ({
@@ -423,5 +473,8 @@ export async function POST(req: NextRequest) {
     prepay_deposits: prepayRows.length,
     skipped,
     total_rows: dataRows.length,
+    // 거래처 연동: 이름 일치로 자동 연결된 별칭 / 등록 대기로 남은 별칭
+    alias_auto_linked: aliasAutoLinked,
+    alias_pending: aliasPending,
   })
 }

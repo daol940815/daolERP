@@ -538,7 +538,13 @@ function ErpAliasesContent() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-1">
-        <h1 className="text-2xl font-bold text-gray-900">{tabLabel} 관리</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-gray-900">{tabLabel} 관리</h1>
+          <a href="/erp-aliases/pending"
+            className="px-3 py-1.5 rounded-lg text-sm border border-indigo-300 text-indigo-700 hover:bg-indigo-50">
+            거래처 등록 대기
+          </a>
+        </div>
         <p className="text-sm mt-1 text-gray-500">
           ERP에 입력된 {tabLabel}명 기준으로 거래처 연결과 거래처 정보(사업자번호·{isCustomer ? '입금계좌명·카드번호' : '출금계좌명'}·담당자 등)를 한곳에서 관리합니다.
           여러 ERP명(부서·지점)을 같은 거래처에 연결할 수 있습니다.
