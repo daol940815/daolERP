@@ -169,7 +169,7 @@ export default function ErpMatchingPage() {
             disabled={loading || working}
             className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700 disabled:opacity-40"
           >
-            {working ? '처리 중...' : '⚡ 자동 매칭 실행'}
+            {working ? '처리 중...' : '자동 매칭 실행'}
           </button>
         </div>
       </div>

@@ -372,7 +372,6 @@ export default function AccountsPage() {
             onClick={handleTemplate}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1.5"
           >
-            <span className="text-base leading-none">☰</span>
             업로드 양식
           </button>
           <button
@@ -380,7 +379,6 @@ export default function AccountsPage() {
             disabled={accounts.length === 0}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 flex items-center gap-1.5"
           >
-            <span className="text-base leading-none">↓</span>
             엑셀 다운로드
           </button>
           <button
@@ -388,7 +386,6 @@ export default function AccountsPage() {
             disabled={uploading}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 flex items-center gap-1.5"
           >
-            <span className="text-base leading-none">↑</span>
             {uploading ? '업로드 중...' : '엑셀 업로드'}
           </button>
           <input

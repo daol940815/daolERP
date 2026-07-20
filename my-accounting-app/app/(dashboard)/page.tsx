@@ -398,7 +398,7 @@ export default async function DashboardPage() {
         />
         <SummaryCard
           label="미확정 건수"  value={`${totalUnclassified}건`}
-          sub={`미검토 ${totalPending}건 · 검토중 ${totalReviewed}건`} icon="⚠" color="text-amber-600" bg="bg-amber-50"
+          sub={`미검토 ${totalPending}건 · 검토중 ${totalReviewed}건`} icon="" color="text-amber-600" bg="bg-amber-50"
         />
         <SummaryCard
           label="이번달 확정"  value={`${totalConfirmed}건`}

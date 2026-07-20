@@ -587,7 +587,7 @@ function ErpAliasesContent() {
           disabled={loading || working || importing}
           className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40"
         >
-          ⬇ 엑셀 다운로드
+          엑셀 다운로드
         </button>
         <input
           ref={fileInputRef}
@@ -605,7 +605,7 @@ function ErpAliasesContent() {
           disabled={loading || working || importing}
           className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40"
         >
-          {importing ? '업로드 중...' : '⬆ 엑셀 업로드'}
+          {importing ? '업로드 중...' : '엑셀 업로드'}
         </button>
         <button
           onClick={selectHighConfidence}
@@ -627,7 +627,7 @@ function ErpAliasesContent() {
         <div className="text-center py-20 text-gray-400">로딩 중...</div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 text-gray-400 text-sm">
-          {onlyUnmatched ? '미연결 항목이 없습니다. 모든 매칭이 완료되었습니다. 🎉' : '표시할 항목이 없습니다. ERP 주문 파일을 먼저 업로드해주세요.'}
+          {onlyUnmatched ? '미연결 항목이 없습니다. 모든 매칭이 완료되었습니다. ' : '표시할 항목이 없습니다. ERP 주문 파일을 먼저 업로드해주세요.'}
         </div>
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
@@ -883,7 +883,7 @@ function ErpAliasesContent() {
                             >거래처 삭제</button>
                             {sharedCount > 1 && (
                               <span className="text-xs text-amber-600">
-                                ⚠ 이 거래처는 ERP명 {sharedCount}개가 공유 중 — 저장/변경 시 모든 공유 항목에 함께 적용됩니다.
+                                이 거래처는 ERP명 {sharedCount}개가 공유 중 — 저장/변경 시 모든 공유 항목에 함께 적용됩니다.
                               </span>
                             )}
                           </div>

@@ -78,7 +78,7 @@ export default function VendorDedupPage() {
             <h2 className="text-base font-semibold text-slate-800 mb-2">
               {sec.label} <span className="text-slate-400 font-normal">— {groups.length}그룹</span>
             </h2>
-            {groups.length === 0 && <p className="text-sm text-gray-400">중복 후보가 없습니다. 🎉</p>}
+            {groups.length === 0 && <p className="text-sm text-gray-400">중복 후보가 없습니다. </p>}
             <div className="space-y-3">
               {groups.map((g, gi) => {
                 const key = groupKey(sec.key, g)

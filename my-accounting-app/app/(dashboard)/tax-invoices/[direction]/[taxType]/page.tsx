@@ -383,7 +383,7 @@ function MatchPickerModal({
 
         <div className="mt-4 pt-3 border-t border-gray-100">
           <button onClick={() => setManualOpen(v => !v)} className="text-xs text-slate-500 hover:text-slate-900 underline">
-            {manualOpen ? '직접 찾기 닫기' : '🔍 금액이 일치하는 후보가 없나요? 직접 찾기 (합계 입금, 수수료 차감 등)'}
+            {manualOpen ? '직접 찾기 닫기' : '금액이 일치하는 후보가 없나요? 직접 찾기 (합계 입금, 수수료 차감 등)'}
           </button>
           {manualOpen && (
             <div className="mt-3">
@@ -655,7 +655,7 @@ function TaxInvoiceListContent() {
 
     let msg = `${json.imported}건 처리 — 신규 ${json.created ?? 0}건 · 기존갱신(중복) ${json.updated ?? 0}건 (신규 거래처 ${json.vendorsCreated}곳)`
     if (json.skipped)    msg += ` · 건너뜀 ${json.skipped}건`
-    if (json.mismatched) msg += ` · ⚠ 방향이 다른 것으로 보이는 건 ${json.mismatched}개 (메뉴를 다시 확인해주세요)`
+    if (json.mismatched) msg += ` · 방향이 다른 것으로 보이는 건 ${json.mismatched}개 (메뉴를 다시 확인해주세요)`
     if (json.taxTypeCorrected) msg += ` · 파일이 ${json.taxTypeCorrected === 'exempt' ? '전자계산서(면세)' : '전자세금계산서(과세)'} 양식이라 해당 유형으로 저장했습니다 (해당 탭에서 확인)`
     showMsg(msg)
     load()
@@ -799,7 +799,7 @@ function TaxInvoiceListContent() {
             disabled={matching || invoices.length === 0}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 flex items-center gap-1.5"
           >
-            ⚡ {matching ? '매칭 중...' : '자동 매칭'}
+            {matching ? '매칭 중...' : '자동 매칭'}
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -919,7 +919,7 @@ function TaxInvoiceListContent() {
             disabled={matching}
             className="px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-50"
           >
-            ⚡ 선택 {selected.size}건 자동 매칭
+            선택 {selected.size}건 자동 매칭
           </button>
         )}
         {selected.size >= 2 && (

@@ -95,13 +95,13 @@ export default function OpeningBalancesPage() {
       <div className="flex items-center gap-2 my-4">
         <button onClick={loadSuggestions} disabled={busy}
           className="px-3.5 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-100 disabled:opacity-50">
-          🏦 은행 추정값 불러오기
+          은행 추정값 불러오기
         </button>
         <button onClick={() => { const a = document.createElement('a'); a.href = '/api/opening-balances/export'; a.click() }}
           className="px-3.5 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
           ↓ 엑셀
         </button>
-        <span className="text-xs text-amber-600">⚠ 거래 순서 정보(시각)가 없어 추정값은 부정확할 수 있습니다. 도입시점 실제 잔액을 확인해 수기 확정하세요.</span>
+        <span className="text-xs text-amber-600">거래 순서 정보(시각)가 없어 추정값은 부정확할 수 있습니다. 도입시점 실제 잔액을 확인해 수기 확정하세요.</span>
       </div>
 
       {loading ? (

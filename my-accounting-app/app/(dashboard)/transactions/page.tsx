@@ -858,7 +858,7 @@ function TransactionsContent() {
             className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 cursor-default max-w-full"
             title={`이체쌍 ID: ${p.value}`}
           >
-            🔗 {alias ?? '이체쌍'}{amt ? ` ${(amt as number).toLocaleString('ko-KR')}` : ''}
+            {alias ?? '이체쌍'}{amt ? ` ${(amt as number).toLocaleString('ko-KR')}` : ''}
           </span>
         )
       },
@@ -894,7 +894,7 @@ function TransactionsContent() {
         <h1 className="text-2xl font-bold text-gray-900">거래 내역</h1>
         {activeBank && (
           <span className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-full text-sm font-medium">
-            🏦 {activeBank.bank_name}
+            {activeBank.bank_name}
             {activeBank.current_balance !== null && (
               <span className="text-slate-500 font-normal">
                 잔액 <strong className={activeBank.current_balance < 0 ? 'text-red-600' : 'text-slate-800'}>
@@ -913,7 +913,7 @@ function TransactionsContent() {
         )}
         {activeVendor && (
           <span className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-full text-sm font-medium">
-            🏢 {activeVendor.name}
+            {activeVendor.name}
             <a
               href="/transactions"
               className="ml-1 text-indigo-400 hover:text-indigo-600 leading-none"
@@ -1024,56 +1024,56 @@ function TransactionsContent() {
             onClick={handleExport}
             className="px-3 py-1.5 border border-emerald-300 rounded-lg text-sm text-emerald-700 hover:bg-emerald-50"
           >
-            📥 미분류 다운로드
+            미분류 다운로드
           </button>
           <button
             onClick={() => uploadRef.current?.click()}
             disabled={importing}
             className="px-3 py-1.5 border border-emerald-300 rounded-lg text-sm text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
           >
-            {importing ? '업로드 중...' : '📤 엑셀 업로드'}
+            {importing ? '업로드 중...' : '엑셀 업로드'}
           </button>
           <button
             onClick={handleClassify}
             disabled={classifying}
             className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
-            {classifying ? '분류 중...' : '✨ 자동 분류'}
+            {classifying ? '분류 중...' : '자동 분류'}
           </button>
           <button
             onClick={handleReview}
             disabled={reviewing}
             className="px-3 py-1.5 border border-purple-300 rounded-lg text-sm text-purple-700 hover:bg-purple-50 disabled:opacity-50"
           >
-            {reviewing ? '조회 중...' : '📋 매칭 검토'}
+            {reviewing ? '조회 중...' : '매칭 검토'}
           </button>
           <button
             onClick={handlePreview}
             disabled={previewing}
             className="px-3 py-1.5 border border-purple-300 rounded-lg text-sm text-purple-700 hover:bg-purple-50 disabled:opacity-50"
           >
-            {previewing ? '조회 중...' : '🔍 매칭 확인'}
+            {previewing ? '조회 중...' : '매칭 확인'}
           </button>
           <button
             onClick={handleMatchTransfers}
             disabled={matching}
             className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
           >
-            {matching ? '매칭 중...' : '🔗 계정 이체 매칭'}
+            {matching ? '매칭 중...' : '계정 이체 매칭'}
           </button>
           <button
             onClick={handleMatchVendors}
             disabled={matchingVendors}
             className="px-3 py-1.5 border border-indigo-300 rounded-lg text-sm text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
           >
-            {matchingVendors ? '매칭 중...' : '🏢 거래처 자동 매칭'}
+            {matchingVendors ? '매칭 중...' : '거래처 자동 매칭'}
           </button>
           {selectedCount === 1 && (
             <button
               onClick={handlePreviewJournal}
               className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50"
             >
-              🔍 분개 미리보기
+              분개 미리보기
             </button>
           )}
           {selectedCount > 0 && (
@@ -1166,7 +1166,7 @@ function TransactionsContent() {
                   </tbody>
                 </table>
                 <p className={`text-xs mt-2 ${journalPreview.data.balanced ? 'text-gray-400' : 'text-red-600'}`}>
-                  차변 {(journalPreview.data.debit ?? 0).toLocaleString()} / 대변 {(journalPreview.data.credit ?? 0).toLocaleString()} {journalPreview.data.balanced ? '✓ 균형' : '⚠ 불균형'}
+                  차변 {(journalPreview.data.debit ?? 0).toLocaleString()} / 대변 {(journalPreview.data.credit ?? 0).toLocaleString()} {journalPreview.data.balanced ? '✓ 균형' : '불균형'}
                 </p>
                 <div className="flex gap-2 mt-4">
                   <button onClick={() => setJournalPreview(null)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">닫기</button>
@@ -1211,7 +1211,7 @@ function TransactionsContent() {
                 </span>
                 {matchedTruncated && (
                   <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
-                    ⚠ 5,000쌍 초과 — 일부만 표시됨
+                    5,000쌍 초과 — 일부만 표시됨
                   </span>
                 )}
               </div>
@@ -1383,7 +1383,7 @@ function TransactionsContent() {
       {keywordPrompt && (
         <div className="fixed bottom-6 left-6 max-w-md px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg shadow-lg z-50 flex flex-wrap items-center gap-2">
           <span className="text-sm text-amber-800">
-            🔖 <strong>{keywordPrompt.accountName}</strong>에 키워드를 추가해 다음에도 자동 분류되게 할까요?
+            <strong>{keywordPrompt.accountName}</strong>에 키워드를 추가해 다음에도 자동 분류되게 할까요?
           </span>
           <input
             value={keywordPrompt.keyword}

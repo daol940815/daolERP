@@ -128,7 +128,7 @@ export default function PurchaseClassifyPage() {
       {loading ? (
         <p className="text-gray-400 text-sm py-10 text-center">불러오는 중...</p>
       ) : filtered.length === 0 ? (
-        <p className="text-gray-400 text-sm py-10 text-center">미분류 계산서가 없습니다. 🎉</p>
+        <p className="text-gray-400 text-sm py-10 text-center">미분류 계산서가 없습니다. </p>
       ) : (
         <div className="overflow-x-auto border border-gray-200 rounded-lg">
           <table className="w-full text-sm">

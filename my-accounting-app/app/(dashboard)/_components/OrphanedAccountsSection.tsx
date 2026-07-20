@@ -44,7 +44,7 @@ export default function OrphanedAccountsSection({ groups }: { groups: OrphanedGr
   return (
     <div className="mt-8">
       <div className="flex items-center gap-2 mb-1">
-        <h2 className="text-sm font-semibold text-amber-700">⚠ 계좌 미연결 거래</h2>
+        <h2 className="text-sm font-semibold text-amber-700">계좌 미연결 거래</h2>
         <span className="text-xs text-slate-400">{groups.length}개 계좌명 감지됨</span>
       </div>
       <p className="text-xs text-slate-500 mb-3">
