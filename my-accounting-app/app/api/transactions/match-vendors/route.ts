@@ -45,6 +45,26 @@ export async function POST() {
   if ('error' in txResult) return NextResponse.json({ error: txResult.error }, { status: 500 })
   const txs = txResult.data
 
+  // 짧은 이름(정규화 3자 이하)은 다른 단어 속에 우연히 포함되기 쉽다
+  // (예: '채움'이 '내일채움공제'에, '아이티'가 '한국아이티평가'에 걸림).
+  // 앞뒤가 한글이 아닌 경계 위치에서 나타날 때만 인정한다 — '문대호(렌켄)'은 통과.
+  const HANGUL = /[가-힣]/
+  const boundaryMatch = (hayNoSpace: string, token: string): boolean => {
+    let from = 0
+    for (;;) {
+      const idx = hayNoSpace.indexOf(token, from)
+      if (idx < 0) return false
+      const pre  = idx > 0 ? hayNoSpace[idx - 1] : ''
+      const post = idx + token.length < hayNoSpace.length ? hayNoSpace[idx + token.length] : ''
+      if (!HANGUL.test(pre) && !HANGUL.test(post)) return true
+      from = idx + 1
+    }
+  }
+  const nameMatches = (hayNorm: string, hayNoSpace: string, token: string): boolean => {
+    if (token.length < 2 || !hayNorm.includes(token)) return false
+    return token.length > 3 || boundaryMatch(hayNoSpace, token)
+  }
+
   let matched = 0
   for (const tx of txs ?? []) {
     const desc          = (tx.description as string) ?? ''
@@ -52,11 +72,12 @@ export async function POST() {
     const haystack       = `${desc} ${counterparty}`
     const haystackDigits = haystack.replace(/[^0-9]/g, '')
     const normHaystack   = normalizeName(haystack)
+    const hayNoSpace     = haystack.replace(/\s/g, '')
 
     const hits = candidates.filter(v =>
       (v.bizDigits && haystackDigits.includes(v.bizDigits))
-      || (v.normName.length >= 2 && normHaystack.includes(v.normName))
-      || v.normAliases.some(alias => alias.length >= 2 && normHaystack.includes(alias))
+      || nameMatches(normHaystack, hayNoSpace, v.normName)
+      || v.normAliases.some(alias => nameMatches(normHaystack, hayNoSpace, alias))
     )
 
     if (hits.length === 1) {
