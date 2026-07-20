@@ -1,15 +1,27 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-// GET /api/sales-cycle/pipeline
+const lastDay = (m: string) => {
+  const [y, mo] = m.split('-').map(Number)
+  return `${m}-${String(new Date(y, mo, 0).getDate()).padStart(2, '0')}`
+}
+
+// GET /api/sales-cycle/pipeline?from=YYYY-MM&to=YYYY-MM
 // 매출 사이클 현황판: 매출처별 "ERP 주문 → 계산서 발행 → 수금 배분 → 미수 잔액".
 // 상태는 저장하지 않고 조회 시 계산한다 (매입 사이클과 동일 원칙).
-export async function GET() {
+// 기간은 주문일·계산서 발행일 기준 — 기간 밖 주문의 미수는 집계에 안 잡히므로
+// 화면 기본값은 전체 기간이고, 사용자가 좁혀서 볼 때만 범위가 줄어든다.
+export async function GET(req: NextRequest) {
   const admin = createAdminClient()
+  const sp = new URL(req.url).searchParams
+  const from = sp.get('from') // YYYY-MM
+  const to = sp.get('to')
+  const fromDate = from ? `${from}-01` : null
+  const toDate = to ? lastDay(to) : null
 
   const aliasResult = await fetchAllRows<{ id: string; vendor_id: string }>((f, t) =>
     admin.from('erp_vendor_aliases')
@@ -20,11 +32,14 @@ export async function GET() {
   if ('error' in aliasResult) return NextResponse.json({ error: aliasResult.error }, { status: 500 })
   const aliasToVendor = new Map(aliasResult.data.map(a => [a.id, a.vendor_id]))
 
-  const ordersResult = await fetchAllRows<{ id: string; order_date: string; customer_alias_id: string | null; total_amount: number | null }>((f, t) =>
-    admin.from('erp_orders')
+  const ordersResult = await fetchAllRows<{ id: string; order_date: string; customer_alias_id: string | null; total_amount: number | null }>((f, t) => {
+    let q = admin.from('erp_orders')
       .select('id, order_date, customer_alias_id, total_amount')
       .not('customer_alias_id', 'is', null)
-      .range(f, t))
+    if (fromDate) q = q.gte('order_date', fromDate)
+    if (toDate) q = q.lte('order_date', toDate)
+    return q.range(f, t)
+  })
   if ('error' in ordersResult) return NextResponse.json({ error: ordersResult.error }, { status: 500 })
   const orders = ordersResult.data.filter(o => aliasToVendor.has(o.customer_alias_id as string))
 
@@ -52,11 +67,14 @@ export async function GET() {
   for (const m of matchesResult.data) allocByOrder.set(m.order_id, (allocByOrder.get(m.order_id) ?? 0) + m.amount)
 
   // 매출 계산서 (거래처별 발행 현황)
-  const invResult = await fetchAllRows<{ vendor_id: string | null; total_amount: number | null; payment_status: string }>((f, t) =>
-    admin.from('tax_invoices')
+  const invResult = await fetchAllRows<{ vendor_id: string | null; total_amount: number | null; payment_status: string }>((f, t) => {
+    let q = admin.from('tax_invoices')
       .select('vendor_id, total_amount, payment_status')
       .eq('direction', 'sales')
-      .range(f, t))
+    if (fromDate) q = q.gte('issue_date', fromDate)
+    if (toDate) q = q.lte('issue_date', toDate)
+    return q.range(f, t)
+  })
   if ('error' in invResult) return NextResponse.json({ error: invResult.error }, { status: 500 })
 
   const vendorsResult = await fetchAllRows<{ id: string; name: string }>((f, t) =>

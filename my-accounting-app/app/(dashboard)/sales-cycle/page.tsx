@@ -10,6 +10,10 @@ import CollectionModal from './collection-modal'
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
 const eok = (n: number) => n >= 100_000_000 ? `${(n / 100_000_000).toFixed(1)}억` : won(n)
 
+// ERP 주문 데이터 시작 월 — 기본값은 전체 기간(미수 잔액이 빠짐없이 잡히도록)
+const DATA_START = '2025-01'
+const monthStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+
 interface Row {
   vendor_id: string
   vendor_name: string
@@ -43,18 +47,23 @@ export default function SalesCyclePage() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [filter, setFilter] = useState<'all' | 'none' | 'partial' | 'done' | 'no_invoice'>('all')
   const [search, setSearch] = useState('')
+  const [monthFrom, setMonthFrom] = useState(DATA_START)
+  const [monthTo, setMonthTo] = useState(() => monthStr(new Date()))
   const [modal, setModal] = useState<{ id: string; name: string } | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 5000) }
 
   const load = useCallback(async () => {
     setRows(null)
-    const res = await fetch('/api/sales-cycle/pipeline', { cache: 'no-store' })
+    const p = new URLSearchParams()
+    if (monthFrom) p.set('from', monthFrom)
+    if (monthTo) p.set('to', monthTo)
+    const res = await fetch(`/api/sales-cycle/pipeline?${p}`, { cache: 'no-store' })
     const json = await res.json()
     if (!res.ok) { showMsg(`조회 실패: ${json.error ?? '오류'}`); setRows([]); return }
     setRows(json.rows ?? [])
     setSummary(json.summary ?? null)
-  }, [])
+  }, [monthFrom, monthTo])
 
   useEffect(() => { load() }, [load])
 
@@ -105,6 +114,17 @@ export default function SalesCyclePage() {
       )}
 
       <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <input type="month" value={monthFrom} min={DATA_START} onChange={e => setMonthFrom(e.target.value)}
+          className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm" />
+        <span className="text-gray-400 text-sm">~</span>
+        <input type="month" value={monthTo} onChange={e => setMonthTo(e.target.value)}
+          className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm" />
+        <button onClick={() => { setMonthFrom(DATA_START); setMonthTo(monthStr(new Date())) }}
+          className="px-2.5 py-1.5 rounded-lg text-xs border border-gray-300 text-gray-600 hover:bg-gray-50"
+          title="전체 기간 (주문일 기준 — 기간을 좁히면 그 기간의 주문·계산서만 집계됩니다)">
+          전체 기간
+        </button>
+        <span className="w-px h-5 bg-gray-200 mx-1" />
         {([['all', '전체'], ['none', '미수금'], ['partial', '부분수금'], ['done', '수금완료'], ['no_invoice', '계산서 미발행']] as const).map(([k, label]) => (
           <button key={k} onClick={() => setFilter(k)}
             className={`px-3 py-1.5 rounded-lg text-sm border ${filter === k ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
