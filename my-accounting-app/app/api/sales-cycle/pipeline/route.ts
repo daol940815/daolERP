@@ -29,17 +29,20 @@ export async function GET() {
   const orders = ordersResult.data.filter(o => aliasToVendor.has(o.customer_alias_id as string))
 
   // 순매출 보정 (취소/VIP/선결제 품목 차감)
-  const orderIds = orders.map(o => o.id)
+  // 주의: 주문 ID를 .in()으로 URL에 싣지 않는다 — ID 500개면 URL이 18KB를 넘어
+  // 경로에 따라 연결이 끊기며 'fetch failed'가 난다. 해당 품목은 전체가 수천 행
+  // 수준이라 짧은 URL로 전부 읽고 메모리에서 거르는 쪽이 안전하고 빠르다.
+  const orderIdSet = new Set(orders.map(o => o.id))
   const excluded = new Map<string, number>()
-  for (let i = 0; i < orderIds.length; i += 500) {
-    const r = await fetchAllRows<{ order_id: string; line_total: number | null }>((f, t) =>
-      admin.from('erp_order_items')
-        .select('order_id, line_total')
-        .in('order_id', orderIds.slice(i, i + 500))
-        .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
-        .range(f, t))
-    if ('error' in r) return NextResponse.json({ error: r.error }, { status: 500 })
-    for (const it of r.data) excluded.set(it.order_id, (excluded.get(it.order_id) ?? 0) + (it.line_total ?? 0))
+  const flaggedResult = await fetchAllRows<{ order_id: string; line_total: number | null }>((f, t) =>
+    admin.from('erp_order_items')
+      .select('order_id, line_total')
+      .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
+      .range(f, t))
+  if ('error' in flaggedResult) return NextResponse.json({ error: flaggedResult.error }, { status: 500 })
+  for (const it of flaggedResult.data) {
+    if (!orderIdSet.has(it.order_id)) continue
+    excluded.set(it.order_id, (excluded.get(it.order_id) ?? 0) + (it.line_total ?? 0))
   }
 
   const matchesResult = await fetchAllRows<{ order_id: string; amount: number }>((f, t) =>
