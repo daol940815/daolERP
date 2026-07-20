@@ -7,6 +7,7 @@ import { buildVendorAnalysisRows } from '@/lib/vendor-analysis'
 import { buildMonthlyPL } from '@/lib/pl-report'
 import { buildVatEstimate } from '@/lib/vat-report'
 import { getPeriodRange } from '@/lib/period-presets'
+import PeriodFilter from './period-filter'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -36,15 +37,24 @@ function SectionHeader({ title, href, linkLabel }: { title: string; href: string
   )
 }
 
-export default async function ManagementDashboardPage() {
+export default async function ManagementDashboardPage({
+  searchParams,
+}: { searchParams?: { from?: string; to?: string } }) {
   noStore()
   const admin = createAdminClient()
 
   const now = new Date()
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  const curMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  const { from: monthFrom, to: monthTo } = getPeriodRange('당월')
-  const { from: quarterFrom, to: quarterTo } = getPeriodRange('당분기')
+
+  // 기간: URL 파라미터(YYYY-MM-DD), 없으면 당월
+  const def = getPeriodRange('당월')
+  const isDate = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s)
+  const from = isDate(searchParams?.from) ? searchParams!.from! : def.from
+  const to = isDate(searchParams?.to) ? searchParams!.to! : def.to
+  const monthFrom = from.slice(0, 7)
+  const monthTo = to.slice(0, 7)
+  // 미수·미지급 Aging은 시점 기준이라 기간 종료일(미래면 오늘)을 기준일로 쓴다
+  const asOf = to < todayStr ? to : todayStr
 
   const [
     cashPosition,
@@ -55,13 +65,13 @@ export default async function ManagementDashboardPage() {
     monthlyPL,
     vatEstimate,
   ] = await Promise.all([
-    buildCashPositionRows(admin, monthFrom, monthTo),
-    buildDailyCashRows(admin, monthFrom, monthTo, null),
-    buildReceivableAgingRows(admin, todayStr),
-    buildPayableAgingRows(admin, todayStr),
-    buildVendorAnalysisRows(admin, monthFrom, monthTo),
-    buildMonthlyPL(admin, curMonth, curMonth),
-    buildVatEstimate(admin, quarterFrom, quarterTo),
+    buildCashPositionRows(admin, from, to),
+    buildDailyCashRows(admin, from, to, null),
+    buildReceivableAgingRows(admin, asOf),
+    buildPayableAgingRows(admin, asOf),
+    buildVendorAnalysisRows(admin, from, to),
+    buildMonthlyPL(admin, monthFrom, monthTo),
+    buildVatEstimate(admin, from, to),
   ])
 
   const fundSummary = 'summary' in cashPosition ? cashPosition.summary : null
@@ -77,7 +87,9 @@ export default async function ManagementDashboardPage() {
   const topVendors = 'rows' in vendorSales ? vendorSales.rows.slice(0, 5) : []
 
   const plItems = 'result' in monthlyPL ? monthlyPL.result.items : []
-  const findItem = (key: string) => plItems.find(i => i.key === key)?.values[0] ?? 0
+  // 기간이 여러 달이면 월별 값을 합산한다
+  const findItem = (key: string) =>
+    (plItems.find(i => i.key === key)?.values ?? []).reduce((s, v) => s + v, 0)
   const revenue = findItem('revenue')
   const grossProfit = findItem('gross_profit')
   const operatingProfit = findItem('operating_profit')
@@ -88,15 +100,16 @@ export default async function ManagementDashboardPage() {
     <div className="max-w-6xl mx-auto">
       <div className="mb-1">
         <h1 className="text-2xl font-bold text-gray-900">경영대시보드</h1>
-        <p className="text-sm mt-1 text-gray-500">자금·미수금·미지급금·손익·부가세 현황을 한눈에 확인합니다.</p>
+        <p className="text-sm mt-1 text-gray-500">자금·미수금·미지급금·손익·부가세 현황을 한눈에 확인합니다. (기간: {from} ~ {to})</p>
+        <PeriodFilter from={from} to={to} />
       </div>
 
       {/* 자금현황 */}
       <SectionHeader title="자금현황" href="/reports/cash-position" linkLabel="계좌 통합현황" />
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card label="보유 현금" value={won(fundSummary?.held_cash)} sub={`계좌 ${accountCount}개`} href="/reports/cash-position" />
-        <Card label="이번달 입금" value={won(monthDeposit)} valueClass="text-blue-600" href="/reports/daily-cash" />
-        <Card label="이번달 출금" value={won(monthWithdrawal)} valueClass="text-rose-600" href="/reports/daily-cash" />
+        <Card label="기간 입금" value={won(monthDeposit)} valueClass="text-blue-600" href="/reports/daily-cash" />
+        <Card label="기간 출금" value={won(monthWithdrawal)} valueClass="text-rose-600" href="/reports/daily-cash" />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
         <Card
@@ -115,7 +128,7 @@ export default async function ManagementDashboardPage() {
       </div>
 
       {/* 미수금/미지급금 */}
-      <SectionHeader title="미수금 · 미지급금" href="/reports/receivables-aging" linkLabel="Aging 분석" />
+      <SectionHeader title={`미수금 · 미지급금 (기준일 ${asOf})`} href="/reports/receivables-aging" linkLabel="Aging 분석" />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card
           label="미수금 총계"
@@ -134,7 +147,7 @@ export default async function ManagementDashboardPage() {
       </div>
 
       {/* 이번달 손익 */}
-      <SectionHeader title={`이번달 손익 (${curMonth})`} href="/reports/monthly-pl" linkLabel="월별 손익현황" />
+      <SectionHeader title={`손익 (${monthFrom === monthTo ? monthFrom : `${monthFrom} ~ ${monthTo}`})`} href="/reports/monthly-pl" linkLabel="월별 손익현황" />
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card label="매출" value={won(revenue)} href="/reports/monthly-pl" />
         <Card label="매출이익" value={won(grossProfit)} valueClass={grossProfit >= 0 ? 'text-blue-600' : 'text-red-600'} href="/reports/monthly-pl" />
@@ -142,7 +155,7 @@ export default async function ManagementDashboardPage() {
       </div>
 
       {/* 예상 부가세 */}
-      <SectionHeader title="예상 부가세 (당분기)" href="/reports/vat-estimate" linkLabel="예상 부가세" />
+      <SectionHeader title="예상 부가세 (선택 기간)" href="/reports/vat-estimate" linkLabel="예상 부가세" />
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card label="매출세액" value={won(vat?.sales_tax ?? 0)} valueClass="text-blue-600" href="/reports/vat-estimate" />
         <Card label="매입세액" value={won(vat?.purchase_tax ?? 0)} valueClass="text-rose-600" href="/reports/vat-estimate" />
@@ -155,9 +168,9 @@ export default async function ManagementDashboardPage() {
       </div>
 
       {/* 매출처 Top 5 */}
-      <SectionHeader title={`이번달 매출처 TOP 5`} href="/reports/vendor-sales" linkLabel="거래처별 매출 분석" />
+      <SectionHeader title="매출처 TOP 5 (선택 기간)" href="/reports/vendor-sales" linkLabel="거래처별 매출 분석" />
       {topVendors.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">이번달 매출 데이터가 없습니다.</div>
+        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">선택 기간에 매출 데이터가 없습니다.</div>
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
