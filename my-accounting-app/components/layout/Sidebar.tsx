@@ -578,6 +578,9 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           <Link href="/purchase-cycle" className={linkCls(pathname.startsWith('/purchase-cycle'))}>
             <span>매입 사이클 (예외 관리)</span>
           </Link>
+          <Link href="/sales-cycle" className={linkCls(pathname.startsWith('/sales-cycle'))}>
+            <span>매출 사이클 (수금 관리)</span>
+          </Link>
           <Link href="/reports/vendor-sales" className={linkCls(pathname.startsWith('/reports/vendor-sales'))}>
             <span>거래처별 매출 분석</span>
           </Link>
