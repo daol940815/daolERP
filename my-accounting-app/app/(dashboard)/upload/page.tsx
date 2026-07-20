@@ -12,9 +12,9 @@ type ItemStatus = 'parsing' | 'ready' | 'need_input' | 'uploading' | 'success' |
 type UploadSource = 'bank' | 'card_sales' | 'card_expenses'
 
 const SOURCE_META: Record<UploadSource, { label: string; hint: string; doneHref: string; doneLabel: string }> = {
-  bank:          { label: '🏦 은행 명세서',        hint: '은행에서 내려받은 입출금 명세서 (CSV·XLSX·XLS)',            doneHref: '/transactions',  doneLabel: '거래 내역 보기 →' },
-  card_sales:    { label: '💳 카드매출',           hint: '카드 매출 상세내역 — 단말기결제·수기결제(PG) 다운로드 파일', doneHref: '/card-sales',    doneLabel: '카드매출 보기 →' },
-  card_expenses: { label: '💳 법인카드 사용내역',  hint: '카드사 이용내역 — 여러 카드사 시트 합본 지원',               doneHref: '/card-expenses', doneLabel: '법인카드 보기 →' },
+  bank:          { label: '은행 명세서',        hint: '은행에서 내려받은 입출금 명세서 (CSV·XLSX·XLS)',            doneHref: '/transactions',  doneLabel: '거래 내역 보기 →' },
+  card_sales:    { label: '카드매출',           hint: '카드 매출 상세내역 — 단말기결제·수기결제(PG) 다운로드 파일', doneHref: '/card-sales',    doneLabel: '카드매출 보기 →' },
+  card_expenses: { label: '법인카드 사용내역',  hint: '카드사 이용내역 — 여러 카드사 시트 합본 지원',               doneHref: '/card-expenses', doneLabel: '법인카드 보기 →' },
 }
 
 interface QueueItem {
@@ -227,7 +227,7 @@ export default function UploadPage() {
               : 'py-5 border-gray-200 hover:border-slate-400 hover:bg-gray-50'
         }`}
       >
-        <div className={`${queue.length > 0 ? 'text-xl' : 'text-4xl'} mb-1.5`}>📂</div>
+        <div className={`${queue.length > 0 ? 'text-xl' : 'text-4xl'} mb-1.5`}></div>
         <p className="text-gray-700 font-medium text-sm">
           {queue.length === 0 ? '파일을 드래그하거나 클릭해서 선택하세요' : '파일 추가 (드래그 또는 클릭)'}
         </p>
@@ -273,7 +273,7 @@ export default function UploadPage() {
                       : `${(item.file.size / 1024).toFixed(1)} KB`}
                     {(item.parseResult?.warnings.length ?? 0) > 0 && (
                       <span className="ml-1 text-amber-500" title={item.parseResult!.warnings.join('\n')}>
-                        ⚠{item.parseResult!.warnings.length}
+                        {item.parseResult!.warnings.length}
                       </span>
                     )}
                   </p>
@@ -339,7 +339,7 @@ export default function UploadPage() {
                 {queue.filter(i => i.status === 'error').length > 0 && ` · 오류 ${queue.filter(i => i.status === 'error').length}개`}
               </span>
             ) : needInputCount > 0 ? (
-              <span className="text-orange-500 text-xs">⚠ 은행명 미입력 {needInputCount}개 — 입력 후 업로드하거나 그대로 진행 가능</span>
+              <span className="text-orange-500 text-xs">은행명 미입력 {needInputCount}개 — 입력 후 업로드하거나 그대로 진행 가능</span>
             ) : null}
           </div>
 
