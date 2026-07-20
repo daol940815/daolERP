@@ -1,0 +1,24 @@
+# HTTPS 오버레이 — 도메인 + 자동 인증서(Let's Encrypt, Caddy)
+# 사용법:
+#   1) .env 에 DOMAIN 설정 + WEB_PORT=127.0.0.1:8080 로 변경 (80 포트를 Caddy 에 양보)
+#   2) 도메인의 DNS A 레코드가 이 서버 IP 를 가리키는지 확인
+#   3) docker compose -f docker-compose.prod.yml -f deploy/docker-compose.https.yml up -d --build
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN 환경변수를 .env 에 설정하세요}
+    command: sh -c 'echo "$$DOMAIN { reverse_proxy web:80 }" > /etc/caddy/Caddyfile && caddy run --config /etc/caddy/Caddyfile'
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+volumes:
+  caddy_data:
+  caddy_config:
