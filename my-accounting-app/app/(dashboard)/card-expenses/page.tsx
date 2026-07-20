@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getPeriodRange, PERIOD_PRESETS } from '@/lib/period-presets'
 
@@ -25,13 +25,15 @@ interface Expense {
   suggested: { code: string; name: string } | null
 }
 
+// 일괄 승인은 개별 PATCH를 나눠 호출한다 — 서버 60초 제한과 무관하게 완주 가능
+const BULK_CONCURRENCY = 4
+
 function CardExpensesContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [cardAccounts, setCardAccounts] = useState<CardAccount[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
   const [rows, setRows] = useState<Expense[]>([])
-  const [summary, setSummary] = useState({ count: 0, approved_total: 0, pending_count: 0 })
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -42,9 +44,16 @@ function CardExpensesContent() {
   const [dateTo, setDateTo] = useState(() => getPeriodRange('당월').to)
   const [status, setStatus] = useState('')
   const [search, setSearch] = useState('')
+  const [accountFilter, setAccountFilter] = useState('') // '' 전체 | 'none' 미추천 | 계정 code
   const [editClass, setEditClass] = useState<{ id: string; value: string } | null>(null)
 
-  const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
+  // 체크박스 일괄 승인
+  const [checked, setChecked] = useState<Set<string>>(new Set())
+  const [bulkAccountId, setBulkAccountId] = useState('')
+  const [bulkProgress, setBulkProgress] = useState<string | null>(null)
+  const headerCheckRef = useRef<HTMLInputElement>(null)
+
+  const showMsg = (m: string, ms = 5000) => { setMsg(m); setTimeout(() => setMsg(null), ms) }
 
   const saveClassification = async (id: string, value: string) => {
     setEditClass(null)
@@ -76,12 +85,80 @@ function CardExpensesContent() {
     if (search.trim()) p.set('q', search.trim())
     const res = await fetch(`/api/card-expenses?${p}`)
     const json = await res.json()
-    if (Array.isArray(json.data)) { setRows(json.data); setSummary(json.summary) }
+    if (Array.isArray(json.data)) setRows(json.data)
     else { showMsg(`조회 실패: ${json.error ?? '오류'}`); setRows([]) }
     setLoading(false)
   }, [cardAccountId, dateFrom, dateTo, status, search])
 
   useEffect(() => { load() }, [load])
+
+  // 계정과목 필터: 확정 계정이 있으면 확정, 없으면 추천 계정 기준
+  const effectiveAccount = (r: Expense) => r.confirmed ?? r.suggested
+
+  const accountOptions = useMemo(() => {
+    const map = new Map<string, { name: string; count: number }>()
+    let noneCount = 0
+    for (const r of rows) {
+      const acc = effectiveAccount(r)
+      if (!acc) { noneCount++; continue }
+      const cur = map.get(acc.code)
+      if (cur) cur.count++
+      else map.set(acc.code, { name: acc.name, count: 1 })
+    }
+    const list = Array.from(map.entries())
+      .map(([code, v]) => ({ code, ...v }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+    return { list, noneCount }
+  }, [rows])
+
+  const filteredRows = useMemo(() => rows.filter(r => {
+    if (!accountFilter) return true
+    if (accountFilter === 'none') return !effectiveAccount(r)
+    return effectiveAccount(r)?.code === accountFilter
+  }), [rows, accountFilter])
+
+  const viewSummary = useMemo(() => ({
+    count: filteredRows.length,
+    approved_total: filteredRows.reduce((s, r) => s + (r.approved_amount || 0), 0),
+    pending_count: filteredRows.filter(r => r.classify_status === 'pending').length,
+  }), [filteredRows])
+
+  // 선택 가능 = 현재 필터 결과의 미확정 행 (기확정 덮어쓰기 방지)
+  const selectableIds = useMemo(
+    () => filteredRows.filter(r => r.classify_status === 'pending').map(r => r.id),
+    [filteredRows]
+  )
+  const selectedRows = useMemo(
+    () => filteredRows.filter(r => r.classify_status === 'pending' && checked.has(r.id)),
+    [filteredRows, checked]
+  )
+
+  // 필터·재조회로 화면에서 사라진 선택은 정리
+  useEffect(() => {
+    setChecked(prev => {
+      const valid = new Set(selectableIds)
+      const next = new Set(Array.from(prev).filter(id => valid.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [selectableIds])
+
+  const allChecked = selectableIds.length > 0 && selectedRows.length === selectableIds.length
+  useEffect(() => {
+    if (headerCheckRef.current)
+      headerCheckRef.current.indeterminate = selectedRows.length > 0 && !allChecked
+  }, [selectedRows.length, allChecked])
+
+  const toggleAll = () => {
+    setChecked(allChecked ? new Set() : new Set(selectableIds))
+  }
+  const toggleOne = (id: string) => {
+    setChecked(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const handleUpload = async (file: File) => {
     setUploading(true)
@@ -103,6 +180,47 @@ function CardExpensesContent() {
     })
     const json = await res.json()
     if (!res.ok) { showMsg(json.error ?? '수정 실패'); return }
+    load()
+  }
+
+  // 일괄 확정 — approve: 추천 계정이 있는 건만 / assign: 선택 전부를 지정 계정으로
+  const runBulk = async (kind: 'approve' | 'assign') => {
+    if (bulkProgress) return
+    const targets = kind === 'approve' ? selectedRows.filter(r => r.suggested) : selectedRows
+    const skipped = selectedRows.length - targets.length
+    if (kind === 'assign' && !bulkAccountId) { showMsg('확정할 계정과목을 먼저 선택하세요.'); return }
+    if (targets.length === 0) {
+      showMsg(kind === 'approve' ? '선택한 건에 추천 계정이 없습니다. 계정 직접 지정을 사용하세요.' : '처리할 대상이 없습니다.')
+      return
+    }
+
+    let done = 0, fail = 0
+    setBulkProgress(`0 / ${targets.length}`)
+    const body = kind === 'approve'
+      ? JSON.stringify({ approve: true })
+      : JSON.stringify({ confirmed_account_id: bulkAccountId })
+    for (let i = 0; i < targets.length; i += BULK_CONCURRENCY) {
+      const chunk = targets.slice(i, i + BULK_CONCURRENCY)
+      await Promise.all(chunk.map(async r => {
+        try {
+          const res = await fetch(`/api/card-expenses/${r.id}`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body,
+          })
+          if (res.ok) done++
+          else fail++
+        } catch { fail++ }
+      }))
+      setBulkProgress(`${Math.min(i + BULK_CONCURRENCY, targets.length)} / ${targets.length}`)
+    }
+    setBulkProgress(null)
+    setChecked(new Set())
+    setBulkAccountId('')
+    showMsg(
+      `일괄 확정 완료: ${done}건`
+      + (skipped > 0 ? ` · 추천 없음 제외 ${skipped}건` : '')
+      + (fail > 0 ? ` · 실패 ${fail}건` : ''),
+      8000
+    )
     load()
   }
 
@@ -166,6 +284,14 @@ function CardExpensesContent() {
           <option value="pending">미확정</option>
           <option value="confirmed">확정</option>
         </select>
+        <select value={accountFilter} onChange={e => setAccountFilter(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+          <option value="">전체 계정과목</option>
+          <option value="none">추천 없음 ({accountOptions.noneCount})</option>
+          {accountOptions.list.map(a => (
+            <option key={a.code} value={a.code}>{a.name} ({a.count})</option>
+          ))}
+        </select>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="가맹점 검색"
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-44" />
       </div>
@@ -174,24 +300,62 @@ function CardExpensesContent() {
       <div className="flex gap-3 flex-wrap mb-4">
         <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
           <p className="text-xs text-gray-400 mb-1">사용액 합계(승인금액)</p>
-          <p className="text-lg font-bold text-gray-900">{won(summary.approved_total)}</p>
-          <p className="text-xs text-gray-400">{summary.count.toLocaleString()}건</p>
+          <p className="text-lg font-bold text-gray-900">{won(viewSummary.approved_total)}</p>
+          <p className="text-xs text-gray-400">{viewSummary.count.toLocaleString()}건</p>
         </div>
         <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
           <p className="text-xs text-gray-400 mb-1">미확정(승인 필요)</p>
-          <p className="text-lg font-bold text-amber-600">{summary.pending_count.toLocaleString()}건</p>
+          <p className="text-lg font-bold text-amber-600">{viewSummary.pending_count.toLocaleString()}건</p>
         </div>
       </div>
 
+      {/* 선택 일괄 작업 바 */}
+      {selectedRows.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap mb-3 px-4 py-2.5 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-900">
+          <b>{selectedRows.length.toLocaleString()}건 선택</b>
+          <span className="text-indigo-700">승인금액 {won(selectedRows.reduce((s, r) => s + (r.approved_amount || 0), 0))}</span>
+          {bulkProgress ? (
+            <span className="ml-2 font-medium">처리 중 {bulkProgress} — 창을 닫지 마세요</span>
+          ) : (
+            <>
+              <button onClick={() => runBulk('approve')}
+                className="ml-2 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-700">
+                선택 승인 (추천 계정으로 확정)
+              </button>
+              <span className="inline-flex items-center gap-1.5">
+                <select value={bulkAccountId} onChange={e => setBulkAccountId(e.target.value)}
+                  className="border border-indigo-300 rounded-lg px-2 py-1.5 text-xs bg-white">
+                  <option value="">계정 직접 지정...</option>
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+                <button onClick={() => runBulk('assign')}
+                  className="px-2.5 py-1.5 border border-indigo-300 bg-white text-indigo-800 rounded-lg text-xs font-semibold hover:bg-indigo-100">
+                  선택에 적용
+                </button>
+              </span>
+              <button onClick={() => setChecked(new Set())}
+                className="ml-auto px-2.5 py-1.5 border border-indigo-300 bg-white text-indigo-800 rounded-lg text-xs hover:bg-indigo-100">
+                선택 해제
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className="text-center py-20 text-gray-400">로딩 중...</div>
-      ) : rows.length === 0 ? (
+      ) : filteredRows.length === 0 ? (
         <div className="text-center py-20 text-gray-400 text-sm">표시할 데이터가 없습니다.</div>
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                <th className="py-2.5 px-3 w-9">
+                  <input ref={headerCheckRef} type="checkbox" checked={allChecked} onChange={toggleAll}
+                    disabled={selectableIds.length === 0 || !!bulkProgress}
+                    title="전체 선택 (현재 필터 결과의 미확정 건)" className="align-middle" />
+                </th>
                 <th className="py-2.5 px-3 font-medium">이용일시</th>
                 <th className="py-2.5 px-3 font-medium">카드</th>
                 <th className="py-2.5 px-3 font-medium">가맹점</th>
@@ -201,8 +365,16 @@ function CardExpensesContent() {
               </tr>
             </thead>
             <tbody>
-              {rows.map(r => (
-                <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50">
+              {filteredRows.map(r => (
+                <tr key={r.id} className={`border-b border-gray-100 ${checked.has(r.id) ? 'bg-indigo-50/60' : 'hover:bg-gray-50'}`}>
+                  <td className="py-2 px-3">
+                    <input type="checkbox"
+                      checked={checked.has(r.id)}
+                      onChange={() => toggleOne(r.id)}
+                      disabled={r.classify_status === 'confirmed' || !!bulkProgress}
+                      title={r.classify_status === 'confirmed' ? '확정된 건은 선택할 수 없습니다 (개별 행에서만 변경)' : undefined}
+                      className="align-middle" />
+                  </td>
                   <td className="py-2 px-3 whitespace-nowrap text-gray-500">
                     {r.tx_date}<span className="text-gray-300"> {r.tx_time ?? ''}</span>
                   </td>
