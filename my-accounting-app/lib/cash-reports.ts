@@ -75,13 +75,16 @@ async function loadAccountStates(
 
   for (let i = 0; i < accountIds.length; i += 50) {
     const idChunk = accountIds.slice(i, i + 50)
+    // 같은 날 거래는 거래시간으로 순서를 정한다 — 일괄 업로드는 created_at이 전부
+    // 동일해서 created_at만으로는 "그날의 마지막 잔액"이 무작위로 뽑힌다 (대시보드와 동일 기준)
     const result = await fetchAllRows<{ bank_account_id: string; tx_date: string; amount_in: number | null; amount_out: number | null; balance: number | null }>((rFrom, rTo) =>
       admin
         .from('transactions')
-        .select('bank_account_id, tx_date, amount_in, amount_out, balance')
+        .select('bank_account_id, tx_date, tx_time, amount_in, amount_out, balance')
         .in('bank_account_id', idChunk)
         .lte('tx_date', to)
         .order('tx_date', { ascending: true })
+        .order('tx_time', { ascending: true, nullsFirst: true })
         .order('created_at', { ascending: true })
         .range(rFrom, rTo),
     )
