@@ -584,6 +584,7 @@ function TaxInvoiceListContent() {
   const [dateFrom, setDateFrom]       = useState('')
   const [dateTo, setDateTo]           = useState('')
   const [search, setSearch]           = useState('')
+  const [searchField, setSearchField] = useState<'all' | 'counterparty' | 'item' | 'note' | 'approval' | 'biz' | 'amount' | 'memo'>('all')
   // 원본 상세 등에서 특정 계산서로 바로 진입 (?invoiceId=) — 그 건만 표시
   const [focusId, setFocusId]         = useState<string | null>(() => searchParams.get('invoiceId'))
   const [uploading, setUploading]     = useState(false)
@@ -808,16 +809,29 @@ function TaxInvoiceListContent() {
     }
   }
 
-  // ── 검색 (거래처명·품목·비고) · 특정 계산서 진입(focusId)이 있으면 그 건만 ──
+  // ── 검색 — 항목 선택(전체/거래처명/품목/비고/승인번호/사업자번호/금액/결제메모) ──
   const q = search.trim().toLowerCase()
+  const qDigits = q.replace(/[^0-9]/g, '')
+  const matchesSearch = (i: TaxInvoice): boolean => {
+    const text = (v: string | null | undefined) => (v ?? '').toLowerCase().includes(q)
+    switch (searchField) {
+      case 'counterparty': return text(i.counterparty_name)
+      case 'item':         return text(i.item_name)
+      case 'note':         return text(i.note)
+      case 'memo':         return text(i.payment_memo)
+      case 'approval':     return text(i.approval_number)
+      case 'biz':          return qDigits.length >= 2 && (i.counterparty_biz_number ?? '').replace(/[^0-9]/g, '').includes(qDigits)
+      case 'amount':       return qDigits.length >= 1 && Math.abs(i.total_amount || 0) === Number(qDigits)
+      default:
+        return text(i.counterparty_name) || text(i.item_name) || text(i.note)
+          || text(i.payment_memo) || text(i.approval_number)
+          || (qDigits.length >= 4 && Math.abs(i.total_amount || 0) === Number(qDigits))
+    }
+  }
   const filtered = focusId
     ? invoices.filter(i => i.id === focusId)
     : q
-    ? invoices.filter(i =>
-        (i.counterparty_name ?? '').toLowerCase().includes(q)
-        || (i.item_name ?? '').toLowerCase().includes(q)
-        || (i.note ?? '').toLowerCase().includes(q),
-      )
+    ? invoices.filter(matchesSearch)
     : invoices
 
   // 체크박스가 보이는(선택 가능한) 행 = 아직 매칭 안 된 건
@@ -942,12 +956,25 @@ function TaxInvoiceListContent() {
         <span className="text-gray-400 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="거래처명·품목·비고 검색"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-slate-900"
-        />
+        <div className="flex items-center">
+          <select value={searchField} onChange={e => setSearchField(e.target.value as typeof searchField)}
+            className="border border-gray-300 rounded-l-lg border-r-0 px-2 py-1.5 text-sm bg-gray-50 text-gray-600 focus:outline-none">
+            <option value="all">전체 항목</option>
+            <option value="counterparty">거래처명</option>
+            <option value="item">품목</option>
+            <option value="note">비고</option>
+            <option value="approval">승인번호</option>
+            <option value="biz">사업자번호</option>
+            <option value="amount">금액(정확 일치)</option>
+            <option value="memo">결제메모</option>
+          </select>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={searchField === 'amount' ? '예: 364000' : '검색어 입력'}
+            className="border border-gray-300 rounded-r-lg px-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          />
+        </div>
         {direction === 'sales' && (
           <button onClick={handleBulkClassifySales} disabled={bulkBusy}
             className="px-3 py-1.5 text-sm border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 disabled:opacity-50 whitespace-nowrap"
