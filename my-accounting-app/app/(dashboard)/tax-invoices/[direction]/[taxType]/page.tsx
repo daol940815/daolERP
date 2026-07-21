@@ -737,11 +737,11 @@ function TaxInvoiceListContent() {
     }
   }
 
-  // 매출 일괄분류: 미분류 매출 세금계산서를 매출(4001)로 일괄 지정 + 자동 분개
+  // 매출 일괄분류: 미분류 매출 세금계산서를 상품매출(4001)로 일괄 지정 + 자동 분개
   const handleBulkClassifySales = async () => {
     const unclassified = invoices.filter(i => !i.confirmed_account_id).length
     if (unclassified === 0) { alert('미분류 매출 세금계산서가 없습니다.'); return }
-    if (!confirm(`미분류 매출 세금계산서를 모두 '매출' 계정으로 분류하고 분개합니다.\n(과세·면세 포함, 현재 화면 외 전체 매출 대상)\n진행할까요?`)) return
+    if (!confirm(`미분류 매출 세금계산서를 모두 '상품매출' 계정으로 분류하고 분개합니다.\n(과세·면세 포함, 현재 화면 외 전체 매출 대상)\n진행할까요?`)) return
     setBulkBusy(true)
     try {
       const res = await fetch('/api/tax-invoices/bulk-classify', {
