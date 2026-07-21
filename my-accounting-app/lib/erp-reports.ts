@@ -386,6 +386,50 @@ function lastDayOfMonth(yyyyMm: string): string {
 }
 
 // ── 미수금 Aging 분석: 매출처별 미수금을 발생일(주문일) 기준 구간별로 집계 ──
+// 거래처별 기초잔액(전기이월, 048)을 Aging에 합산 — 양수=미수, 음수=미지급.
+// 기초분의 회수/지급은 이후 발생분과 기록상 구분할 수 없으므로 자동 차감하지 않는다.
+// 기초분이 회수되면 기초잔액 화면에서 금액을 직접 감액하는 방식으로 운영한다.
+// 테이블이 비어 있으면 아무 영향 없음 — 기초잔액 입력이 시작되는 순간부터 반영된다.
+async function mergeOpeningBalances(
+  admin: SupabaseClient,
+  groups: Map<string, ErpAgingRow>,
+  asOf: string,
+  side: 'receivable' | 'payable',
+): Promise<void> {
+  const { data, error } = await admin
+    .from('vendor_opening_balances')
+    .select('vendor_id, amount, as_of_date, vendors(name)')
+    .lte('as_of_date', asOf)
+  if (error || !data?.length) return
+
+  const byVendor = new Map<string, ErpAgingRow>()
+  for (const g of Array.from(groups.values())) {
+    if (g.vendor_id && !byVendor.has(g.vendor_id)) byVendor.set(g.vendor_id, g)
+  }
+  for (const o of data) {
+    const raw = (o.amount as number) || 0
+    const amount = side === 'receivable' ? raw : -raw
+    if (amount <= 0) continue
+    const vendorName = (o.vendors as { name?: string } | null)?.name ?? null
+    let g = byVendor.get(o.vendor_id as string)
+    if (!g) {
+      g = {
+        alias_id: null,
+        erp_name: `${vendorName ?? '(거래처)'} (기초이월)`,
+        vendor_id: o.vendor_id as string,
+        vendor_name: vendorName,
+        ...emptyBuckets(),
+      }
+      groups.set(`open:${o.vendor_id}`, g)
+      byVendor.set(o.vendor_id as string, g)
+    }
+    const days = Math.max(daysBetween(o.as_of_date as string, asOf), 0)
+    const bucket = agingBucketKey(days)
+    g[bucket] += amount
+    g.total += amount
+  }
+}
+
 export async function buildReceivableAgingRows(
   admin: SupabaseClient,
   asOfDate?: string | null,
@@ -457,6 +501,8 @@ export async function buildReceivableAgingRows(
     g.total += remaining
   }
 
+  await mergeOpeningBalances(admin, groups, asOf, 'receivable')
+
   const rows = Array.from(groups.values())
   rows.sort((a, b) => b.total - a.total)
   return { rows, total: sumAgingBuckets(rows), as_of: asOf }
@@ -497,6 +543,8 @@ export async function buildPayableAgingRows(
     g[bucket] += amount
     g.total += amount
   }
+
+  await mergeOpeningBalances(admin, groups, asOf, 'payable')
 
   const rows = Array.from(groups.values())
   rows.sort((a, b) => b.total - a.total)
