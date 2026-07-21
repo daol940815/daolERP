@@ -8,7 +8,8 @@ interface Row {
   vendor_id: string
   name: string
   type: string | null
-  amount: number      // 양수=미수, 음수=미지급
+  amount: number            // 양수=미수, 음수=미지급
+  collected_amount: number  // 기초분 회수/지급 누계(절대값) — Aging에서만 차감
   note: string | null
   has_value: boolean
 }
@@ -19,8 +20,8 @@ export default function VendorOpeningBalancesPage() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
-  // 편집중 입력: vendor_id -> { sign: '미수'|'미지급', value: string }
-  const [edit, setEdit] = useState<Record<string, { sign: '미수' | '미지급'; value: string }>>({})
+  // 편집중 입력: vendor_id -> { sign, value(기초잔액), collected(회수 누계) }
+  const [edit, setEdit] = useState<Record<string, { sign: '미수' | '미지급'; value: string; collected: string }>>({})
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
 
@@ -37,18 +38,25 @@ export default function VendorOpeningBalancesPage() {
 
   const startEdit = (r: Row) => setEdit(e => ({
     ...e,
-    [r.vendor_id]: { sign: r.amount < 0 ? '미지급' : '미수', value: r.amount ? String(Math.abs(r.amount)) : '' },
+    [r.vendor_id]: {
+      sign: r.amount < 0 ? '미지급' : '미수',
+      value: r.amount ? String(Math.abs(r.amount)) : '',
+      collected: r.collected_amount ? String(r.collected_amount) : '',
+    },
   }))
 
   const save = async (vendorId: string) => {
     const ed = edit[vendorId]; if (!ed) return
     const mag = Number((ed.value || '').replace(/,/g, '').trim() || 0)
     if (!Number.isFinite(mag) || mag < 0) { flash('금액이 올바르지 않습니다.'); return }
+    const collected = Number((ed.collected || '').replace(/,/g, '').trim() || 0)
+    if (!Number.isFinite(collected) || collected < 0) { flash('회수 누계가 올바르지 않습니다.'); return }
+    if (collected > mag) { flash('회수 누계가 기초잔액을 초과할 수 없습니다.'); return }
     const amount = ed.sign === '미지급' ? -mag : mag
     setBusy(true)
     const res = await fetch('/api/vendor-opening-balances', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ vendor_id: vendorId, amount }),
+      body: JSON.stringify({ vendor_id: vendorId, amount, collected_amount: collected }),
     })
     const json = await res.json()
     setBusy(false)
@@ -90,7 +98,9 @@ export default function VendorOpeningBalancesPage() {
               <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
                 <th className="py-2 px-3 text-left font-medium">거래처</th>
                 <th className="py-2 px-3 text-left font-medium w-28">구분</th>
-                <th className="py-2 px-3 text-right font-medium w-40">금액</th>
+                <th className="py-2 px-3 text-right font-medium w-36">기초잔액</th>
+                <th className="py-2 px-3 text-right font-medium w-36">회수 누계</th>
+                <th className="py-2 px-3 text-right font-medium w-32">잔여(Aging)</th>
                 <th className="py-2 px-3 text-right font-medium w-20"></th>
               </tr>
             </thead>
@@ -118,12 +128,30 @@ export default function VendorOpeningBalancesPage() {
                         <input autoFocus value={ed.value}
                           onChange={e => setEdit(s => ({ ...s, [r.vendor_id]: { ...ed, value: e.target.value } }))}
                           onKeyDown={e => { if (e.key === 'Enter') save(r.vendor_id) }}
-                          placeholder="0" className="w-32 text-right border border-slate-400 rounded px-2 py-1 text-sm" />
+                          placeholder="0" className="w-28 text-right border border-slate-400 rounded px-2 py-1 text-sm" />
                       ) : (
                         <button onClick={() => startEdit(r)} className={`tabular-nums ${r.amount < 0 ? 'text-red-600' : r.amount > 0 ? 'text-blue-700' : 'text-gray-400'}`}>
                           {r.has_value ? won(r.amount) : '입력'}
                         </button>
                       )}
+                    </td>
+                    <td className="py-1.5 px-3 text-right">
+                      {ed ? (
+                        <input value={ed.collected}
+                          onChange={e => setEdit(s => ({ ...s, [r.vendor_id]: { ...ed, collected: e.target.value } }))}
+                          onKeyDown={e => { if (e.key === 'Enter') save(r.vendor_id) }}
+                          placeholder="0" title="기초분 회수/지급 누계 (절대값)"
+                          className="w-28 text-right border border-slate-400 rounded px-2 py-1 text-sm" />
+                      ) : (
+                        <span className={`tabular-nums ${r.collected_amount > 0 ? 'text-emerald-700' : 'text-gray-300'}`}>
+                          {r.has_value ? won(r.collected_amount) : '-'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-1.5 px-3 text-right">
+                      <span className="tabular-nums text-gray-700">
+                        {r.has_value ? won(Math.abs(r.amount) - r.collected_amount) : '-'}
+                      </span>
                     </td>
                     <td className="py-1.5 px-3 text-right">
                       {ed && (
@@ -141,7 +169,10 @@ export default function VendorOpeningBalancesPage() {
 
       <p className="text-xs text-gray-400 mt-4">
         · <b>미수(채권)</b>는 받을 돈(매출처), <b>미지급(채무)</b>은 줄 돈(매입처)입니다. 금액은 양수로 입력하고 구분으로 부호를 정합니다.<br />
-        · 0으로 저장하면 삭제됩니다. 거래처원장 잔액/내용 탭의 전월이월에 반영됩니다.
+        · 기초잔액을 0으로 저장하면 삭제됩니다. 거래처원장 잔액/내용 탭의 전월이월에 반영됩니다.<br />
+        · <b>회수 누계</b>: 기초분이 실제로 회수/지급되면 여기에 누계로 기록하세요(기초잔액은 깎지 않습니다).
+        미수·미지급 Aging에는 잔여(기초잔액-회수 누계)만 표시되고, 원장 이월은 기초잔액 그대로 유지되어 이중 차감이 없습니다.
+        회수 입금/지급 출금의 계정과목은 평소처럼 매출채권/미지급금으로 확정하면 됩니다.
       </p>
     </div>
   )

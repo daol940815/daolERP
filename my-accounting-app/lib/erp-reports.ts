@@ -387,8 +387,8 @@ function lastDayOfMonth(yyyyMm: string): string {
 
 // ── 미수금 Aging 분석: 매출처별 미수금을 발생일(주문일) 기준 구간별로 집계 ──
 // 거래처별 기초잔액(전기이월, 048)을 Aging에 합산 — 양수=미수, 음수=미지급.
-// 기초분의 회수/지급은 이후 발생분과 기록상 구분할 수 없으므로 자동 차감하지 않는다.
-// 기초분이 회수되면 기초잔액 화면에서 금액을 직접 감액하는 방식으로 운영한다.
+// 기초분의 회수/지급 누계(collected_amount, 068)를 차감한 잔여만 표시한다.
+// 원장의 전월이월은 amount 그대로 쓰므로(회수는 통장 분개가 처리) 이중 차감이 없다.
 // 테이블이 비어 있으면 아무 영향 없음 — 기초잔액 입력이 시작되는 순간부터 반영된다.
 async function mergeOpeningBalances(
   admin: SupabaseClient,
@@ -396,11 +396,21 @@ async function mergeOpeningBalances(
   asOf: string,
   side: 'receivable' | 'payable',
 ): Promise<void> {
-  const { data, error } = await admin
+  const first = await admin
     .from('vendor_opening_balances')
-    .select('vendor_id, amount, as_of_date, vendors(name)')
+    .select('vendor_id, amount, collected_amount, as_of_date, vendors(name)')
     .lte('as_of_date', asOf)
-  if (error || !data?.length) return
+  let data = first.data
+  if (first.error) {
+    // 068 미적용 환경 폴백 — 회수 누계 없이 동작
+    const legacy = await admin
+      .from('vendor_opening_balances')
+      .select('vendor_id, amount, as_of_date, vendors(name)')
+      .lte('as_of_date', asOf)
+    if (legacy.error) return
+    data = legacy.data as typeof data
+  }
+  if (!data?.length) return
 
   const byVendor = new Map<string, ErpAgingRow>()
   for (const g of Array.from(groups.values())) {
@@ -408,8 +418,10 @@ async function mergeOpeningBalances(
   }
   for (const o of data) {
     const raw = (o.amount as number) || 0
-    const amount = side === 'receivable' ? raw : -raw
-    if (amount <= 0) continue
+    const collected = ((o as { collected_amount?: number }).collected_amount as number) || 0
+    const gross = side === 'receivable' ? raw : -raw
+    const amount = gross - collected
+    if (gross <= 0 || amount <= 0) continue
     const vendorName = (o.vendors as { name?: string } | null)?.name ?? null
     let g = byVendor.get(o.vendor_id as string)
     if (!g) {
