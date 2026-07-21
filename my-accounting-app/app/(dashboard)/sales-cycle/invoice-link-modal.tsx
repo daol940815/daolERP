@@ -39,6 +39,7 @@ export default function InvoiceLinkModal({ vendorId, vendorName, onClose, onAppl
   const [orderQuery, setOrderQuery] = useState('')
   const [invoiceQuery, setInvoiceQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [applying, setApplying] = useState(false)
 
   const load = () => {
@@ -121,6 +122,7 @@ export default function InvoiceLinkModal({ vendorId, vendorName, onClose, onAppl
     if (!confirm(confirmMsg)) return
     setApplying(true)
     setError(null)
+    setNotice(null)
     const res = await fetch('/api/sales-cycle/invoice-candidates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -129,6 +131,13 @@ export default function InvoiceLinkModal({ vendorId, vendorName, onClose, onAppl
     const json = await res.json()
     setApplying(false)
     if (!res.ok) { setError(json.error ?? '확정 실패'); return }
+    const prop = json.propagated as { count: number; amount: number } | undefined
+    setNotice(
+      `연결 ${json.linked}건 확정 (${won(json.amount ?? 0)})`
+      + (prop && prop.count > 0
+        ? ` · 계산서에 매칭된 입금 ${prop.count}건(${won(prop.amount)})을 수금배분으로 이월했습니다.`
+        : '')
+    )
     onApplied()
     load() // 모달을 닫지 않고 다음 연결을 이어서 할 수 있게 갱신
   }
@@ -172,6 +181,7 @@ export default function InvoiceLinkModal({ vendorId, vendorName, onClose, onAppl
           {summary && ` · 미연결 주문 ${summary.open_orders}건 · 미배분 계산서 ${summary.available_invoices}장`}
         </p>
         {error && <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
+        {notice && <div className="mb-3 px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-lg">{notice}</div>}
 
         {!groups ? (
           <p className="text-gray-400 text-sm py-8 text-center">불러오는 중...</p>
