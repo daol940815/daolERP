@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 // 매입 지급후보 모달과 동일한 구조: 금액이 정확히 맞는 조합만 제시한다.
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
-const dt = (d: string, t?: string | null) => (t ? `${d.slice(0, 10)} ${t.slice(0, 5)}` : d.slice(0, 10))
+const dt = (d: string, t?: string | null) => (t ? `${d.slice(0, 10)} ${t.slice(0, 8)}` : d.slice(0, 10))
 
 interface Group {
   type: 'exact' | 'combined_orders' | 'split_collection'

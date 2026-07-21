@@ -94,7 +94,7 @@ export function CandidateModal({ vendorId, vendorName, onClose, onApplied }: {
                     <div>
                       <p className="text-gray-400 mb-1">통장 출금</p>
                       {g.txs.map(tx => (
-                        <p key={tx.id} className="text-gray-700">{tx.tx_date.slice(0, 10)}{tx.tx_time ? ' ' + tx.tx_time.slice(0, 5) : ''} · {(tx.description ?? '').slice(0, 14) || '-'} · {won(tx.remaining)}</p>
+                        <p key={tx.id} className="text-gray-700">{tx.tx_date.slice(0, 10)}{tx.tx_time ? ' ' + tx.tx_time.slice(0, 8) : ''} · {(tx.description ?? '').slice(0, 14) || '-'} · {won(tx.remaining)}</p>
                       ))}
                     </div>
                   </div>
