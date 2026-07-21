@@ -65,7 +65,9 @@ export default async function ManagementDashboardPage({
     monthlyPL,
     vatEstimate,
   ] = await Promise.all([
-    buildCashPositionRows(admin, from, to),
+    // 자금현황은 저량(현재 시점) 지표 — 기간 선택과 무관하게 항상 최신 잔액 기준.
+    // 과거 시점 잔액이 필요하면 계좌 통합현황 화면에서 기간을 조정한다.
+    buildCashPositionRows(admin, null, null),
     buildDailyCashRows(admin, from, to, null),
     buildReceivableAgingRows(admin, asOf),
     buildPayableAgingRows(admin, asOf),
@@ -105,7 +107,7 @@ export default async function ManagementDashboardPage({
       </div>
 
       {/* 자금현황 */}
-      <SectionHeader title="자금현황" href="/reports/cash-position" linkLabel="계좌 통합현황" />
+      <SectionHeader title="자금현황 (잔액은 현재 시점 기준 · 입출금만 선택 기간)" href="/reports/cash-position" linkLabel="계좌 통합현황" />
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card label="보유 현금" value={won(fundSummary?.held_cash)} sub={`계좌 ${accountCount}개`} href="/reports/cash-position" />
         <Card label="기간 입금" value={won(monthDeposit)} valueClass="text-blue-600" href="/reports/daily-cash" />
