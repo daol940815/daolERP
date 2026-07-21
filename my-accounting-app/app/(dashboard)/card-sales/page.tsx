@@ -27,6 +27,7 @@ export default function CardSalesPage() {
   const [vendorFilter, setVendorFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo]     = useState('')
+  const [search, setSearch]     = useState('')
 
   const [selected, setSelected]   = useState<Set<string>>(new Set())
   const [uploading, setUploading] = useState(false)
@@ -175,7 +176,7 @@ export default function CardSalesPage() {
     })
   }
   const toggleSelectAll = () => {
-    setSelected(prev => prev.size === sales.length ? new Set<string>() : new Set(sales.map(s => s.id)))
+    setSelected(prev => prev.size === visible.length ? new Set<string>() : new Set(visible.map(s => s.id)))
   }
 
   const handleBulkDelete = async () => {
@@ -195,13 +196,34 @@ export default function CardSalesPage() {
     load()
   }
 
-  // ── 요약 통계 ────────────────────────────────────────────────────
-  const approvalList = sales.filter(s => s.transaction_type === 'approval')
-  const cancelList   = sales.filter(s => s.transaction_type === 'cancel')
+  // ── 텍스트 검색 (카드번호·승인번호·매입사·거래처명·금액) — 화면 내 즉시 필터 ──
+  const vendorNameById = useMemo(() => new Map(vendors.map(v => [v.id, v.name])), [vendors])
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return sales
+    const qDigits = q.replace(/[^0-9]/g, '')
+    return sales.filter(r => {
+      const hay = [
+        r.card_number, r.approval_number, r.acquirer, r.note,
+        r.vendor_id ? vendorNameById.get(r.vendor_id) : null,
+      ].filter(Boolean).join(' ').toLowerCase()
+      if (hay.includes(q)) return true
+      if (qDigits.length >= 2) {
+        if ((r.card_number ?? '').replace(/[^0-9]/g, '').includes(qDigits)) return true
+        if ((r.approval_number ?? '').replace(/[^0-9]/g, '').includes(qDigits)) return true
+        if (Math.abs(r.amount ?? 0) === Number(qDigits)) return true
+      }
+      return false
+    })
+  }, [sales, search, vendorNameById])
+
+  // ── 요약 통계 (검색·필터 결과 기준) ─────────────────────────────
+  const approvalList = visible.filter(s => s.transaction_type === 'approval')
+  const cancelList   = visible.filter(s => s.transaction_type === 'cancel')
   const approvalSum  = approvalList.reduce((s, r) => s + (r.amount || 0), 0)
   const cancelSum    = cancelList.reduce((s, r) => s + (r.amount || 0), 0)
   const netSum       = approvalSum + cancelSum
-  const matchedCount = sales.filter(s => s.vendor_id).length
+  const matchedCount = visible.filter(s => s.vendor_id).length
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -249,7 +271,7 @@ export default function CardSalesPage() {
         <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
           <p className="text-xs text-gray-400 mb-1">순 매출 (취소 반영)</p>
           <p className="text-lg font-bold text-gray-900">{won(netSum)}</p>
-          <p className="text-xs text-gray-400">{sales.length}건</p>
+          <p className="text-xs text-gray-400">{visible.length}건</p>
         </div>
         <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
           <p className="text-xs text-gray-400 mb-1">취소</p>
@@ -258,8 +280,8 @@ export default function CardSalesPage() {
         </div>
         <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
           <p className="text-xs text-gray-400 mb-1">거래처 매칭</p>
-          <p className="text-lg font-bold text-gray-900">{matchedCount} <span className="text-sm font-normal text-gray-400">/ {sales.length}건</span></p>
-          <p className="text-xs text-gray-400">미매칭 {sales.length - matchedCount}건</p>
+          <p className="text-lg font-bold text-gray-900">{matchedCount} <span className="text-sm font-normal text-gray-400">/ {visible.length}건</span></p>
+          <p className="text-xs text-gray-400">미매칭 {visible.length - matchedCount}건</p>
         </div>
       </div>
 
@@ -332,6 +354,12 @@ export default function CardSalesPage() {
             </button>
           ))}
         </div>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="검색: 카드번호·승인번호·매입사·거래처·금액"
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-slate-900"
+        />
 
         {selected.size > 0 && (
           <button
@@ -346,8 +374,10 @@ export default function CardSalesPage() {
 
       {loading ? (
         <div className="text-center py-20 text-gray-400">로딩 중...</div>
-      ) : sales.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 text-sm">등록된 카드 매출 내역이 없습니다. 매출 상세내역 파일을 업로드해주세요.</div>
+      ) : visible.length === 0 ? (
+        <div className="text-center py-20 text-gray-400 text-sm">
+          {search.trim() ? '검색 결과가 없습니다.' : '등록된 카드 매출 내역이 없습니다. 매출 상세내역 파일을 업로드해주세요.'}
+        </div>
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
@@ -356,7 +386,7 @@ export default function CardSalesPage() {
                 <th className="py-2.5 px-3 font-medium w-8">
                   <input
                     type="checkbox"
-                    checked={selected.size > 0 && selected.size === sales.length}
+                    checked={selected.size > 0 && selected.size === visible.length}
                     onChange={toggleSelectAll}
                     className="rounded border-gray-300"
                   />
@@ -371,7 +401,7 @@ export default function CardSalesPage() {
               </tr>
             </thead>
             <tbody>
-              {sales.map(row => {
+              {visible.map(row => {
                 const meta = TYPE_META[row.transaction_type]
                 return (
                   <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50 align-top">
