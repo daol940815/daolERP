@@ -6,6 +6,7 @@ import type { TaxInvoice } from '@/types/tax-invoice'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
 import { lagDays } from '@/lib/matching-rules'
+import CancelPairsModal from './cancel-pairs-modal'
 
 const DIRECTION_META: Record<string, { label: string; sub: string; color: string }> = {
   sales:    { label: '매출 세금계산서', sub: '받을 돈 (입금 확인)', color: 'text-blue-700' },
@@ -590,6 +591,8 @@ function TaxInvoiceListContent() {
   const [matching, setMatching]       = useState(false)
   const [matchingInvoice, setMatchingInvoice] = useState<TaxInvoice | null>(null)
   const [selected, setSelected]       = useState<Set<string>>(new Set())
+  const [showCancelPairs, setShowCancelPairs] = useState(false)
+  const [cancelPairIds, setCancelPairIds] = useState<Set<string>>(new Set())
   const [sumMatching, setSumMatching] = useState(false)
   const [bulkBusy, setBulkBusy]       = useState(false)
   const [deleting, setDeleting]       = useState(false)
@@ -612,6 +615,21 @@ function TaxInvoiceListContent() {
   }, [valid, direction, taxType, statusFilter, dateFrom, dateTo])
 
   useEffect(() => { load() }, [load])
+
+  // 취소쌍 탐지 — 목록 행 배지·상단 버튼 카운트용 (확정은 모달에서 사용자가)
+  const loadCancelPairs = useCallback(async () => {
+    if (direction !== 'purchase' && direction !== 'sales') return
+    try {
+      const res = await fetch(`/api/tax-invoices/cancel-pairs?direction=${direction}`)
+      const json = await res.json()
+      if (Array.isArray(json.pairs)) {
+        const ids = new Set<string>()
+        for (const p of json.pairs) { ids.add(p.pos_id); ids.add(p.neg_id) }
+        setCancelPairIds(ids)
+      }
+    } catch { /* 탐지 실패는 조용히 무시 */ }
+  }, [direction])
+  useEffect(() => { loadCancelPairs() }, [loadCancelPairs])
 
   useEffect(() => {
     if (direction !== 'purchase' && direction !== 'sales') return
@@ -801,6 +819,15 @@ function TaxInvoiceListContent() {
           >
             {matching ? '매칭 중...' : '자동 매칭'}
           </button>
+          {cancelPairIds.size > 0 && (
+            <button
+              onClick={() => setShowCancelPairs(true)}
+              className="px-3 py-2 border border-amber-300 rounded-lg text-sm text-amber-700 hover:bg-amber-50 flex items-center gap-1.5"
+              title="원 계산서와 취소(음수) 계산서가 합계 0으로 남은 쌍을 상계 확인합니다"
+            >
+              취소쌍 상계 ({cancelPairIds.size / 2})
+            </button>
+          )}
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
@@ -1031,6 +1058,15 @@ function TaxInvoiceListContent() {
                     >
                       {inv.payment_status === 'matched' ? '✓ 확인됨' : '미확인'}
                     </button>
+                    {inv.payment_status !== 'matched' && cancelPairIds.has(inv.id) && (
+                      <button
+                        onClick={() => setShowCancelPairs(true)}
+                        className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[11px] hover:bg-amber-200"
+                        title="취소발행 상계 대상 — 클릭하면 취소쌍 목록을 엽니다"
+                      >
+                        취소쌍
+                      </button>
+                    )}
                   </td>
                   <td className="py-2.5 px-3 whitespace-nowrap">
                     {inv.matched_transaction_id ? (
@@ -1073,6 +1109,19 @@ function TaxInvoiceListContent() {
             setInvoices(prev => prev.map(x => byId.get(x.id) ?? x))
             setSelected(new Set())
             showMsg(`${updated.length}건의 계산서가 하나의 거래내역에 매칭되었습니다.`)
+          }}
+        />
+      )}
+
+      {showCancelPairs && (
+        <CancelPairsModal
+          direction={direction}
+          onClose={() => setShowCancelPairs(false)}
+          onApplied={confirmed => {
+            setShowCancelPairs(false)
+            showMsg(`취소쌍 ${confirmed}쌍(${confirmed * 2}건)을 상계 확인 처리했습니다.`)
+            load()
+            loadCancelPairs()
           }}
         />
       )}
