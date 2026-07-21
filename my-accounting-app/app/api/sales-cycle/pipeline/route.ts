@@ -66,6 +66,16 @@ export async function GET(req: NextRequest) {
   const allocByOrder = new Map<string, number>()
   for (const m of matchesResult.data) allocByOrder.set(m.order_id, (allocByOrder.get(m.order_id) ?? 0) + m.amount)
 
+  // 주문 ↔ 계산서 연결 배분 (067) — 테이블 미적용 환경은 0으로 폴백
+  const invAllocByOrder = new Map<string, number>()
+  let invoiceLinkReady = true
+  {
+    const r = await fetchAllRows<{ order_id: string; amount: number }>((f, t) =>
+      admin.from('erp_order_invoices').select('order_id, amount').range(f, t))
+    if ('error' in r) invoiceLinkReady = false
+    else for (const m of r.data) invAllocByOrder.set(m.order_id, (invAllocByOrder.get(m.order_id) ?? 0) + m.amount)
+  }
+
   // 매출 계산서 (거래처별 발행 현황)
   const invResult = await fetchAllRows<{ vendor_id: string | null; total_amount: number | null; payment_status: string }>((f, t) => {
     let q = admin.from('tax_invoices')
@@ -89,6 +99,7 @@ export async function GET(req: NextRequest) {
     order_net: number
     allocated: number
     remaining: number
+    invoice_linked: number
     invoice_count: number
     invoice_total: number
     status: 'done' | 'partial' | 'none' | 'no_order'
@@ -98,7 +109,7 @@ export async function GET(req: NextRequest) {
   const row = (vid: string): Row => {
     let r = rows.get(vid)
     if (!r) {
-      r = { vendor_id: vid, vendor_name: vName.get(vid) ?? '(삭제된 거래처)', order_count: 0, order_net: 0, allocated: 0, remaining: 0, invoice_count: 0, invoice_total: 0, status: 'none', no_invoice: false }
+      r = { vendor_id: vid, vendor_name: vName.get(vid) ?? '(삭제된 거래처)', order_count: 0, order_net: 0, allocated: 0, remaining: 0, invoice_linked: 0, invoice_count: 0, invoice_total: 0, status: 'none', no_invoice: false }
       rows.set(vid, r)
     }
     return r
@@ -112,6 +123,7 @@ export async function GET(req: NextRequest) {
     r.order_count++
     r.order_net += net
     r.allocated += alloc
+    r.invoice_linked += Math.min(invAllocByOrder.get(o.id) ?? 0, net)
   }
   for (const inv of invResult.data) {
     if (!inv.vendor_id) continue
@@ -132,6 +144,7 @@ export async function GET(req: NextRequest) {
 
   const totalNet = list.reduce((s, r) => s + r.order_net, 0)
   const totalAlloc = list.reduce((s, r) => s + r.allocated, 0)
+  const totalInvLinked = list.reduce((s, r) => s + r.invoice_linked, 0)
   return NextResponse.json({
     rows: list,
     summary: {
@@ -141,6 +154,9 @@ export async function GET(req: NextRequest) {
       remaining_total: totalNet - totalAlloc,
       collect_ratio: totalNet > 0 ? totalAlloc / totalNet : 1,
       match_count: matchesResult.data.length,
+      invoice_linked_total: totalInvLinked,
+      invoice_link_ratio: totalNet > 0 ? totalInvLinked / totalNet : 1,
+      invoice_link_ready: invoiceLinkReady,
     },
   })
 }
