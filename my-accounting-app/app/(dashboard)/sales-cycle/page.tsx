@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import CollectionModal from './collection-modal'
+import InvoiceLinkModal from './invoice-link-modal'
 
 // 매출 사이클 파이프라인 — 매출처별 "ERP 주문 → 계산서 발행 → 수금 배분 → 미수 잔액".
 // 매입 사이클과 같은 원칙: 상태는 저장하지 않고 조회 시 계산, 확정은 사용자.
@@ -21,6 +22,7 @@ interface Row {
   order_net: number
   allocated: number
   remaining: number
+  invoice_linked: number
   invoice_count: number
   invoice_total: number
   status: 'done' | 'partial' | 'none' | 'no_order'
@@ -33,6 +35,9 @@ interface Summary {
   remaining_total: number
   collect_ratio: number
   match_count: number
+  invoice_linked_total: number
+  invoice_link_ratio: number
+  invoice_link_ready: boolean
 }
 
 const STATUS_META: Record<Row['status'], { label: string; cls: string }> = {
@@ -50,6 +55,7 @@ export default function SalesCyclePage() {
   const [monthFrom, setMonthFrom] = useState(DATA_START)
   const [monthTo, setMonthTo] = useState(() => monthStr(new Date()))
   const [modal, setModal] = useState<{ id: string; name: string } | null>(null)
+  const [invModal, setInvModal] = useState<{ id: string; name: string } | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 5000) }
 
@@ -90,10 +96,23 @@ export default function SalesCyclePage() {
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
 
       {summary && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 my-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 my-4">
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
             <p className="text-xs text-gray-500">ERP 주문 총액(순매출)</p>
             <p className="text-lg font-bold text-gray-900 mt-1">{eok(summary.order_total)}</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
+            <p className="text-xs text-gray-500">계산서 연결률</p>
+            {summary.invoice_link_ready ? (
+              <>
+                <p className="text-lg font-bold text-gray-900 mt-1">{Math.round(summary.invoice_link_ratio * 100)}%</p>
+                <div className="h-1.5 bg-gray-100 rounded-full mt-1.5 overflow-hidden">
+                  <div className="h-full bg-emerald-600" style={{ width: `${Math.round(summary.invoice_link_ratio * 100)}%` }} />
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-amber-600 mt-1.5">067 마이그레이션 적용 필요</p>
+            )}
           </div>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
             <p className="text-xs text-gray-500">수금 대사율</p>
@@ -147,7 +166,7 @@ export default function SalesCyclePage() {
                 <th className="px-3 py-2 text-left">매출처</th>
                 <th className="px-3 py-2 text-right">주문</th>
                 <th className="px-3 py-2 text-right">주문금액(순)</th>
-                <th className="px-3 py-2 text-right">계산서</th>
+                <th className="px-3 py-2 text-right">계산서 연결</th>
                 <th className="px-3 py-2 text-right">수금 배분</th>
                 <th className="px-3 py-2 text-right">미수 잔액</th>
                 <th className="px-3 py-2 text-center">상태</th>
@@ -163,13 +182,25 @@ export default function SalesCyclePage() {
                   </td>
                   <td className="px-3 py-2 text-right">{r.order_count.toLocaleString()}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{won(r.order_net)}</td>
-                  <td className="px-3 py-2 text-right text-gray-500">{r.invoice_count ? `${r.invoice_count}건` : '-'}</td>
+                  <td className="px-3 py-2 text-right">
+                    <p className={`tabular-nums ${r.invoice_linked > 0 ? 'text-gray-900' : 'text-gray-400'}`}>{won(r.invoice_linked)}</p>
+                    <p className="text-[11px] text-gray-400">
+                      발행 {r.invoice_count ? `${r.invoice_count}건` : '-'}
+                      {r.order_net > 0 && ` · ${Math.round(r.invoice_linked / r.order_net * 100)}%`}
+                    </p>
+                  </td>
                   <td className="px-3 py-2 text-right tabular-nums">{won(r.allocated)}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${r.remaining > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>{won(r.remaining)}</td>
                   <td className="px-3 py-2 text-center">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_META[r.status].cls}`}>{STATUS_META[r.status].label}</span>
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                    {r.order_net > r.invoice_linked && (
+                      <button onClick={() => setInvModal({ id: r.vendor_id, name: r.vendor_name })}
+                        className="px-2.5 py-1 rounded-lg text-xs font-medium border border-indigo-300 text-indigo-700 hover:bg-indigo-50 mr-1">
+                        계산서연결
+                      </button>
+                    )}
                     {r.remaining > 0 && (
                       <button onClick={() => setModal({ id: r.vendor_id, name: r.vendor_name })}
                         className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-900 text-white hover:bg-slate-700">
@@ -193,6 +224,15 @@ export default function SalesCyclePage() {
           vendorName={modal.name}
           onClose={() => setModal(null)}
           onApplied={() => { showMsg(`${modal.name} 수금 확정 완료`); load() }}
+        />
+      )}
+
+      {invModal && (
+        <InvoiceLinkModal
+          vendorId={invModal.id}
+          vendorName={invModal.name}
+          onClose={() => setInvModal(null)}
+          onApplied={() => { showMsg(`${invModal.name} 계산서 연결 완료`); load() }}
         />
       )}
     </div>
