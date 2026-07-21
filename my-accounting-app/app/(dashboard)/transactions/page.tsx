@@ -27,11 +27,12 @@ ModuleRegistry.registerModules([AllCommunityModule])
 const amountFmt = (p: ValueFormatterParams<Transaction, number>) =>
   p.value ? p.value.toLocaleString('ko-KR') + '원' : ''
 
-// 거래일자 포맷터 — tx_time이 있으면 "YYYY-MM-DD HH:MM"으로 표시
+// 거래일자 포맷터 — tx_time이 있으면 "YYYY-MM-DD HH:MM:SS"로 표시
+// (같은 분 안에 여러 거래가 있는 날이 흔해서 초까지 보여야 순서 확인이 된다)
 const txDateFmt = (p: ValueFormatterParams<Transaction, string>) => {
   if (!p.value) return ''
   const tx_time = p.data?.tx_time
-  return tx_time ? `${p.value} ${tx_time.slice(0, 5)}` : p.value
+  return tx_time ? `${p.value} ${tx_time.slice(0, 8)}` : p.value
 }
 
 // 거래일자+시간 정렬 비교 — tx_time이 없는 행은 같은 날짜 내에서 뒤로 정렬
@@ -190,10 +191,10 @@ interface PreviewTx {
   amount_in?: number
 }
 
-// 이체쌍 검토용 일시 표시 — 시간까지 있어야 같은 날 여러 이체를 구분할 수 있다
+// 이체쌍 검토용 일시 표시 — 초까지 있어야 같은 분의 여러 이체를 구분할 수 있다
 const dateTimeStr = (tx: { tx_date?: string | null; tx_time?: string | null } | null | undefined) => {
   if (!tx?.tx_date) return '—'
-  const t = (tx.tx_time ?? '').slice(0, 5)
+  const t = (tx.tx_time ?? '').slice(0, 8)
   return t ? `${tx.tx_date.slice(0, 10)} ${t}` : tx.tx_date.slice(0, 10)
 }
 interface PreviewPair {
