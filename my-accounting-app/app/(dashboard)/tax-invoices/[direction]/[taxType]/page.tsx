@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import type { TaxInvoice } from '@/types/tax-invoice'
 import SearchableSelect from '@/components/ui/SearchableSelect'
@@ -593,6 +593,7 @@ function TaxInvoiceListContent() {
   const [selected, setSelected]       = useState<Set<string>>(new Set())
   const [showCancelPairs, setShowCancelPairs] = useState(false)
   const [cancelPairIds, setCancelPairIds] = useState<Set<string>>(new Set())
+  const [netting, setNetting] = useState(false)
   const [sumMatching, setSumMatching] = useState(false)
   const [bulkBusy, setBulkBusy]       = useState(false)
   const [deleting, setDeleting]       = useState(false)
@@ -652,6 +653,16 @@ function TaxInvoiceListContent() {
     setExporting(false)
   }, [direction, taxType, statusFilter, dateFrom, dateTo])
 
+  // 직접 고른 취소쌍 상계 — 자동 탐지(같은 거래처·90일)에 안 잡힌 조합도
+  // 사용자가 원+취소를 선택하면 합계 0원일 때만 상계 확인 버튼이 나타난다.
+  const selectedNetZero = useMemo(() => {
+    if (selected.size < 2) return false
+    const rows = invoices.filter(i => selected.has(i.id))
+    if (rows.length !== selected.size) return false
+    if (!rows.some(r => (r.total_amount || 0) < 0)) return false
+    return rows.reduce((s, r) => s + (r.total_amount || 0), 0) === 0
+  }, [invoices, selected])
+
   if (!valid) {
     return <div className="text-center py-20 text-gray-400 text-sm">잘못된 경로입니다.</div>
   }
@@ -704,6 +715,27 @@ function TaxInvoiceListContent() {
     })
     const json = await res.json()
     if (res.ok && json.data) setInvoices(prev => prev.map(x => x.id === inv.id ? json.data : x))
+  }
+
+  const handleManualNetting = async () => {
+    if (netting) return
+    const targets = invoices.filter(i => selected.has(i.id) && i.payment_status !== 'matched')
+    if (!targets.length) { showMsg('선택한 건이 모두 이미 확인됨 상태입니다.'); return }
+    setNetting(true)
+    let ok = 0
+    for (const inv of targets) {
+      const body: Record<string, unknown> = { payment_status: 'matched' }
+      if (!inv.payment_memo) body.payment_memo = '취소발행 상계 확인(직접 선택)'
+      const res = await fetch(`/api/tax-invoices/${inv.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      })
+      if (res.ok) ok++
+    }
+    setNetting(false)
+    setSelected(new Set())
+    showMsg(`상계 확인 완료: ${ok}건 (선택 합계 0원)`)
+    load()
+    loadCancelPairs()
   }
 
   const handleUnlink = async (inv: TaxInvoice) => {
@@ -955,6 +987,16 @@ function TaxInvoiceListContent() {
             className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600 text-white hover:bg-amber-700"
           >
             선택 {selected.size}건 합계로 매칭
+          </button>
+        )}
+        {selected.size >= 2 && selectedNetZero && (
+          <button
+            onClick={handleManualNetting}
+            disabled={netting}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 disabled:opacity-50"
+            title="선택한 계산서 합계가 0원 — 거래 연결 없이 상계로 확인 처리합니다"
+          >
+            {netting ? '처리 중...' : `선택 ${selected.size}건 상계 확인 (합계 0원)`}
           </button>
         )}
         {selectableIds.length > 0 && (
