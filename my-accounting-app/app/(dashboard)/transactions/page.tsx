@@ -665,6 +665,9 @@ function TransactionsContent() {
   const colDefs = useMemo<ColDef<Transaction>[]>(() => [
     {
       headerCheckboxSelection: true,
+      // 헤더 전체선택은 현재 필터에 걸린 행만 대상으로 한다
+      // (기본값은 필터 무시 전체선택이라 필터 밖 행까지 일괄 확정될 위험)
+      headerCheckboxSelectionFilteredOnly: true,
       checkboxSelection: true,
       width: 48,
       pinned: 'left',
