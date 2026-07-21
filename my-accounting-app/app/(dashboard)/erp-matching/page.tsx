@@ -262,7 +262,7 @@ export default function ErpMatchingPage() {
                             {d.source_type === 'card' ? '카드' : '계좌'}
                           </span>
                         </td>
-                        <td className="py-2 px-3 whitespace-nowrap text-gray-600">{d.tx_date}{d.tx_time ? ` ${d.tx_time.slice(0, 5)}` : ''}</td>
+                        <td className="py-2 px-3 whitespace-nowrap text-gray-600">{d.tx_date}{d.tx_time ? ` ${d.tx_time.slice(0, 8)}` : ''}</td>
                         <td className="py-2 px-3"><p className="truncate max-w-[160px]">{d.vendor_name}</p></td>
                         <td className="py-2 px-3">
                           <p className="truncate max-w-[200px] text-gray-600">{d.counterparty_name || d.description || '-'}</p>

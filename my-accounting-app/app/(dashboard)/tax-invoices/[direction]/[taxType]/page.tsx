@@ -21,7 +21,7 @@ const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR'
 
 // 거래 일시 표시 — 같은 날 여러 거래를 구분할 수 있게 시각까지
 const txDT = (d?: string | null, t?: string | null) =>
-  d ? (t ? `${d.slice(0, 10)} ${t.slice(0, 5)}` : d.slice(0, 10)) : '-'
+  d ? (t ? `${d.slice(0, 10)} ${t.slice(0, 8)}` : d.slice(0, 10)) : '-'
 
 // "매칭된 거래" 컬럼: 연결 1건이면 계좌·일자·금액, 분할/합산 연결이면 누적 진행률
 function formatMatchedAccount(inv: TaxInvoice): string {
