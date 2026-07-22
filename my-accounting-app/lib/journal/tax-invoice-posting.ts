@@ -80,7 +80,7 @@ async function resolveTaxAccounts(admin: SupabaseClient): Promise<TaxAccountIds 
   const receivable = byCode.get('1101'); const payable = byCode.get('2001')
   const vatPayable = byCode.get('2003'); const vatReceivable = byCode.get('1102')
   if (!receivable || !payable || !vatPayable || !vatReceivable) {
-    return { error: '필수 계정(매출채권1101·미지급금2001·부가세예수금2003·부가세대급금1102)을 찾을 수 없습니다.' }
+    return { error: '필수 계정(외상매출금1101·미지급금2001·부가세예수금2003·부가세대급금1102)을 찾을 수 없습니다.' }
   }
   return { receivable, payable, vatPayable, vatReceivable }
 }

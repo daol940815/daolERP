@@ -57,7 +57,7 @@ export async function loadCardSaleContext(
   const byCode = new Map((accounts ?? []).map(a => [a.code as string, a.id as string]))
   const receivableId = byCode.get('1101'); const salesId = byCode.get('4001'); const vatPayableId = byCode.get('2003')
   if (!receivableId || !salesId || !vatPayableId) {
-    return { error: '필수 계정(매출채권1101·매출4001·부가세예수금2003)을 찾을 수 없습니다.' }
+    return { error: '필수 계정(외상매출금1101·상품매출4001·부가세예수금2003)을 찾을 수 없습니다.' }
   }
   const { data: vendors, error: vErr } = await admin
     .from('vendors').select('id, name').eq('is_card_company', true)
