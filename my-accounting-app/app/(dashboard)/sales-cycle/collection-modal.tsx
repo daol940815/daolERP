@@ -17,9 +17,10 @@ interface Group {
   links: { orderId: string; sourceType: 'bank' | 'card'; sourceId: string; amount: number; paidDate: string }[]
 }
 
-export default function CollectionModal({ vendorId, vendorName, onClose, onApplied }: {
+export default function CollectionModal({ vendorId, vendorName, from, onClose, onApplied }: {
   vendorId: string
   vendorName: string
+  from?: string   // 주문일 하한 — 화면의 조회 기간과 연동
   onClose: () => void
   onApplied: () => void
 }) {
@@ -31,7 +32,7 @@ export default function CollectionModal({ vendorId, vendorName, onClose, onAppli
   const [applying, setApplying] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/sales-cycle/collection-candidates?vendorId=${vendorId}`, { cache: 'no-store' })
+    fetch(`/api/sales-cycle/collection-candidates?vendorId=${vendorId}${from ? `&from=${from}` : ''}`, { cache: 'no-store' })
       .then(r => r.json().then(j => ({ ok: r.ok, j })))
       .then(({ ok, j }) => {
         if (!ok) { setError(j.error ?? '후보 조회 실패'); setGroups([]); return }
@@ -41,7 +42,7 @@ export default function CollectionModal({ vendorId, vendorName, onClose, onAppli
         setChecked(new Set((j.groups ?? []).map((_: unknown, i: number) => i)))
       })
       .catch(() => { setError('네트워크 오류'); setGroups([]) })
-  }, [vendorId])
+  }, [vendorId, from])
 
   const toggle = (i: number) => setChecked(prev => {
     const next = new Set(prev)

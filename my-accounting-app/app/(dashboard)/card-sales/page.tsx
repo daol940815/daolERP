@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CardSale, CardSaleTransactionType } from '@/types/card-sale'
 import type { Vendor } from '@/types/tax-invoice'
 import type { ErpVendorAlias } from '@/types/erp'
-import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
+import { DEFAULT_VIEW_FROM, PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 
 const ALIAS_OPTION_PREFIX = 'alias:'
@@ -25,7 +25,8 @@ export default function CardSalesPage() {
   const [typeFilter, setTypeFilter]   = useState<'all' | CardSaleTransactionType>('all')
   const [matchFilter, setMatchFilter] = useState<'all' | 'matched' | 'unmatched'>('all')
   const [vendorFilter, setVendorFilter] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
+  // 기본 조회는 2026년부터 — 과거는 시작일을 비우거나 넓혀서 조회
+  const [dateFrom, setDateFrom] = useState(DEFAULT_VIEW_FROM)
   const [dateTo, setDateTo]     = useState('')
   const [search, setSearch]     = useState('')
 

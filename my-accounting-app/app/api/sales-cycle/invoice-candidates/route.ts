@@ -10,11 +10,12 @@ const MIGRATION_HINT = '067 마이그레이션(erp_order_invoices) 적용이 필
 // GET /api/sales-cycle/invoice-candidates?vendorId=...
 // 한 매출처의 주문 ↔ 계산서 연결 후보(1:1·합산·분할)를 계산해 내려준다. 추천만 — 확정은 POST.
 export async function GET(req: NextRequest) {
-  const vendorId = new URL(req.url).searchParams.get('vendorId')
+  const sp = new URL(req.url).searchParams
+  const vendorId = sp.get('vendorId')
   if (!vendorId) return NextResponse.json({ error: 'vendorId가 필요합니다.' }, { status: 400 })
 
   const admin = createAdminClient()
-  const result = await buildInvoiceLinkCandidates(admin, vendorId)
+  const result = await buildInvoiceLinkCandidates(admin, vendorId, sp.get('from'))
   if ('error' in result) {
     return NextResponse.json(
       { error: result.missingTable ? MIGRATION_HINT : result.error },

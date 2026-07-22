@@ -84,6 +84,7 @@ async function isPrepayCustomer(admin: SupabaseClient, orderIds: string[], order
 export async function buildCollectionCandidates(
   admin: SupabaseClient,
   vendorId: string,
+  fromDate?: string | null,  // 주문일 하한 — 화면의 조회 기간과 연동 (과거는 기간을 넓혀 실행)
 ): Promise<{ orders: CollectionOrder[]; deposits: CollectionDeposit[]; groups: CollectionGroup[]; prepayCustomer: boolean } | { error: string }> {
 
   // 이 매출처의 ERP 별칭 → 주문
@@ -95,11 +96,13 @@ export async function buildCollectionCandidates(
 
   const orderRows: { id: string; order_no: string; order_date: string; total_amount: number | null }[] = []
   for (let i = 0; i < aliasIds.length; i += 50) {
-    const r = await fetchAllRows<typeof orderRows[number]>((f, t) =>
-      admin.from('erp_orders')
+    const r = await fetchAllRows<typeof orderRows[number]>((f, t) => {
+      let q = admin.from('erp_orders')
         .select('id, order_no, order_date, total_amount')
         .in('customer_alias_id', aliasIds.slice(i, i + 50))
-        .range(f, t))
+      if (fromDate) q = q.gte('order_date', fromDate)
+      return q.range(f, t)
+    })
     if ('error' in r) return { error: r.error }
     orderRows.push(...r.data)
   }

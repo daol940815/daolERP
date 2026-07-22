@@ -21,8 +21,9 @@ export const maxDuration = 300
 // 미매칭 수천 건 × 요청이 되어 라우트가 죽는다(fetch failed).
 export async function POST(req: NextRequest) {
   const admin = createAdminClient()
-  const body = await req.json().catch(() => ({})) as { direction?: string; taxType?: string; invoiceIds?: string[] }
+  const body = await req.json().catch(() => ({})) as { direction?: string; taxType?: string; invoiceIds?: string[]; from?: string; to?: string }
 
+  // 실행 범위 = 화면의 조회 기간(from/to, 발행일 기준) — 과거를 매칭하려면 기간을 넓혀 실행
   const invoicesResult = await fetchAllRows<{ id: string; direction: string; total_amount: number; issue_date: string; vendor_id: string | null; counterparty_name: string | null; counterparty_biz_number: string | null }>((rFrom, rTo) => {
     let query = admin
       .from('tax_invoices')
@@ -30,6 +31,8 @@ export async function POST(req: NextRequest) {
       .eq('payment_status', 'unmatched')
     if (body.direction) query = query.eq('direction', body.direction)
     if (body.taxType)   query = query.eq('tax_type', body.taxType)
+    if (body.from)      query = query.gte('issue_date', body.from)
+    if (body.to)        query = query.lte('issue_date', body.to)
     return query.range(rFrom, rTo)
   })
   if ('error' in invoicesResult) return NextResponse.json({ error: invoicesResult.error }, { status: 500 })
@@ -73,13 +76,15 @@ export async function POST(req: NextRequest) {
   }
 
   // 거래내역 프리페치 (1회) — 금액별 인덱스 구성
-  const allTxResult = await fetchAllRows<{ id: string; tx_date: string; description: string | null; counterparty_name: string | null; vendor_id: string | null; amount_in: number | null; amount_out: number | null }>((rFrom, rTo) =>
-    admin
+  // 자동매칭은 발행 전 거래를 연결하지 않으므로, from이 있으면 그 이전 거래는 후보가 될 수 없다
+  const allTxResult = await fetchAllRows<{ id: string; tx_date: string; description: string | null; counterparty_name: string | null; vendor_id: string | null; amount_in: number | null; amount_out: number | null }>((rFrom, rTo) => {
+    let txQuery = admin
       .from('transactions')
       .select('id, tx_date, description, counterparty_name, vendor_id, amount_in, amount_out')
       .is('transfer_pair_id', null)
-      .range(rFrom, rTo),
-  )
+    if (body.from) txQuery = txQuery.gte('tx_date', body.from)
+    return txQuery.range(rFrom, rTo)
+  })
   if ('error' in allTxResult) return NextResponse.json({ error: allTxResult.error }, { status: 500 })
   type TxRow = typeof allTxResult.data[number]
   const txByAmountIn = new Map<number, TxRow[]>()

@@ -22,9 +22,10 @@ interface Group {
 interface OpenOrder { id: string; order_no: string; order_date: string; net_amount: number; remaining: number }
 interface OpenInvoice { id: string; issue_date: string; total_amount: number; item_name: string | null; remaining: number }
 
-export default function InvoiceLinkModal({ vendorId, vendorName, onClose, onApplied }: {
+export default function InvoiceLinkModal({ vendorId, vendorName, from, onClose, onApplied }: {
   vendorId: string
   vendorName: string
+  from?: string   // 주문일 하한 — 화면의 조회 기간과 연동
   onClose: () => void
   onApplied: () => void
 }) {
@@ -44,7 +45,7 @@ export default function InvoiceLinkModal({ vendorId, vendorName, onClose, onAppl
 
   const load = () => {
     setGroups(null)
-    fetch(`/api/sales-cycle/invoice-candidates?vendorId=${vendorId}`, { cache: 'no-store' })
+    fetch(`/api/sales-cycle/invoice-candidates?vendorId=${vendorId}${from ? `&from=${from}` : ''}`, { cache: 'no-store' })
       .then(r => r.json().then(j => ({ ok: r.ok, j })))
       .then(({ ok, j }) => {
         if (!ok) { setError(j.error ?? '후보 조회 실패'); setGroups([]); return }
@@ -58,7 +59,7 @@ export default function InvoiceLinkModal({ vendorId, vendorName, onClose, onAppl
       })
       .catch(() => { setError('네트워크 오류'); setGroups([]) })
   }
-  useEffect(load, [vendorId])
+  useEffect(load, [vendorId, from])
 
   const toggle = (i: number) => setChecked(prev => {
     const next = new Set(prev)
