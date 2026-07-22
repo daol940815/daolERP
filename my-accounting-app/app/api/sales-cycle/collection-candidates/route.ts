@@ -8,11 +8,12 @@ export const maxDuration = 60
 // GET /api/sales-cycle/collection-candidates?vendorId=...
 // 한 매출처의 수금 연결 후보(1:1·분할·합산)를 계산해 내려준다. 추천만 — 확정은 POST.
 export async function GET(req: NextRequest) {
-  const vendorId = new URL(req.url).searchParams.get('vendorId')
+  const sp = new URL(req.url).searchParams
+  const vendorId = sp.get('vendorId')
   if (!vendorId) return NextResponse.json({ error: 'vendorId가 필요합니다.' }, { status: 400 })
 
   const admin = createAdminClient()
-  const result = await buildCollectionCandidates(admin, vendorId)
+  const result = await buildCollectionCandidates(admin, vendorId, sp.get('from'))
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
 
   return NextResponse.json({

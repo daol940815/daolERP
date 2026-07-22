@@ -11,8 +11,10 @@ import InvoiceLinkModal from './invoice-link-modal'
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
 const eok = (n: number) => n >= 100_000_000 ? `${(n / 100_000_000).toFixed(1)}억` : won(n)
 
-// ERP 주문 데이터 시작 월 — 기본값은 전체 기간(미수 잔액이 빠짐없이 잡히도록)
+// ERP 주문 데이터 시작 월 — [전체 기간] 버튼이 여기까지 되돌린다
 const DATA_START = '2025-01'
+// 기본 조회는 2026년부터 (2025년 미수는 [전체 기간]으로 조회)
+const DEFAULT_FROM_MONTH = '2026-01'
 const monthStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 
 interface Row {
@@ -52,7 +54,7 @@ export default function SalesCyclePage() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [filter, setFilter] = useState<'all' | 'none' | 'partial' | 'done' | 'no_invoice'>('all')
   const [search, setSearch] = useState('')
-  const [monthFrom, setMonthFrom] = useState(DATA_START)
+  const [monthFrom, setMonthFrom] = useState(DEFAULT_FROM_MONTH)
   const [monthTo, setMonthTo] = useState(() => monthStr(new Date()))
   const [modal, setModal] = useState<{ id: string; name: string } | null>(null)
   const [invModal, setInvModal] = useState<{ id: string; name: string } | null>(null)
@@ -222,6 +224,7 @@ export default function SalesCyclePage() {
         <CollectionModal
           vendorId={modal.id}
           vendorName={modal.name}
+          from={monthFrom ? `${monthFrom}-01` : undefined}
           onClose={() => setModal(null)}
           onApplied={() => { showMsg(`${modal.name} 수금 확정 완료`); load() }}
         />
@@ -231,6 +234,7 @@ export default function SalesCyclePage() {
         <InvoiceLinkModal
           vendorId={invModal.id}
           vendorName={invModal.name}
+          from={monthFrom ? `${monthFrom}-01` : undefined}
           onClose={() => setInvModal(null)}
           onApplied={() => { showMsg(`${invModal.name} 계산서 연결 완료`); load() }}
         />

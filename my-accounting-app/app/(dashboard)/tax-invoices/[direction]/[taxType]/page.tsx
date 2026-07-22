@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useParams, useSearchParams } from 'next/navigation'
 import type { TaxInvoice } from '@/types/tax-invoice'
 import SearchableSelect from '@/components/ui/SearchableSelect'
-import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
+import { DEFAULT_VIEW_FROM, PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
 import { lagDays } from '@/lib/matching-rules'
 import CancelPairsModal from './cancel-pairs-modal'
 
@@ -581,7 +581,8 @@ function TaxInvoiceListContent() {
   const [accounts, setAccounts]       = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading]         = useState(true)
   const [statusFilter, setStatusFilter] = useState<'all' | 'matched' | 'unmatched'>('all')
-  const [dateFrom, setDateFrom]       = useState('')
+  // 기본 조회는 2026년부터 — 2025년은 시작일을 비우거나 넓혀서 조회
+  const [dateFrom, setDateFrom]       = useState(DEFAULT_VIEW_FROM)
   const [dateTo, setDateTo]           = useState('')
   const [search, setSearch]           = useState('')
   const [searchField, setSearchField] = useState<'all' | 'counterparty' | 'item' | 'note' | 'approval' | 'biz' | 'amount' | 'memo'>('all')
@@ -691,13 +692,19 @@ function TaxInvoiceListContent() {
     load()
   }
 
-  // ids를 주면 그 선택 건들만 자동매칭, 없으면 화면 전체(미확인) 대상
+  // ids를 주면 그 선택 건들만 자동매칭, 없으면 현재 조회 기간의 미확인 건 대상
+  // (실행 범위 = 화면의 기간 필터 — 2025년을 매칭하려면 기간을 넓히고 실행)
   const handleAutoMatch = async (ids?: string[]) => {
     setMatching(true)
     const res  = await fetch('/api/tax-invoices/auto-match', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ direction, taxType, ...(ids?.length ? { invoiceIds: ids } : {}) }),
+      body: JSON.stringify({
+        direction, taxType,
+        ...(dateFrom ? { from: dateFrom } : {}),
+        ...(dateTo ? { to: dateTo } : {}),
+        ...(ids?.length ? { invoiceIds: ids } : {}),
+      }),
     })
     const json = await res.json()
     setMatching(false)
