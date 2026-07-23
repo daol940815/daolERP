@@ -335,3 +335,25 @@ CRM은 사람 단위 관계 관리):
 
 기존 화면과의 연결: `/customers`·`/reports/vendor-sales`의 거래처 행에서 해당
 거래처 소속 고객 목록(`/crm?vendor=`)으로 이동하는 링크를 추가한다.
+
+---
+
+## 9. 기존 시스템과의 충돌 검토 (2026-07-23 코드 확인)
+
+CRM은 기존 데이터를 **읽기만** 하고(분개·원장·수금 로직 무변경), 쓰기는 신규 테이블과
+`erp_orders`의 추가 컬럼 2개뿐이다. 실제 코드로 확인한 충돌 지점과 대응:
+
+| # | 지점 | 확인 결과 | 대응 |
+|---|---|---|---|
+| 1 | **재업로드 시 품목 삭제·재생성** — ERP 임포트는 `erp_order_items`를 DELETE 후 INSERT (item id가 매번 바뀜, `settlement_month`만 별도 보존) | CRM이 품목 id를 참조하면 재업로드마다 끊어짐 | **설계 원칙: CRM은 `erp_order_items`에 FK·컬럼을 일절 두지 않는다.** 귀속 정보는 전부 주문(`erp_orders`) 레벨(`season_code`, `crm_contact_id`)과 별도 crm_* 테이블에만 둔다 (현 설계 그대로) |
+| 2 | **재업로드 시 주문 upsert** — `onConflict: 'order_no'`로 임포트가 보내는 컬럼만 갱신 | 추가 컬럼(`season_code`, `crm_contact_id`)은 payload에 없으므로 **보존됨** | 단, 재업로드로 은행/지점/담당자명이 바뀔 수 있음 → 매칭 RPC는 "키 3요소가 현재 매칭 키와 불일치하면 `crm_contact_id` 재평가"까지 포함해 멱등으로 설계 (NULL 건만 채우는 방식 금지) |
+| 3 | **RLS** (064) — 전 테이블 RLS 활성, 정책 없음(서버 API가 service_role로 접근) | 신규 테이블도 같은 전제 | crm_* 마이그레이션에서 `ENABLE ROW LEVEL SECURITY`만 걸고 정책은 만들지 않는다 (기존 관례 동일) |
+| 4 | **거래처 병합** (055 `merge_vendors`) — 참조 테이블들의 `vendor_id`를 명시적으로 승계 | `crm_contacts.vendor_id`는 병합 목록에 없음 → 병합 시 고아 참조 발생 | 마이그레이션에서 `merge_vendors` RPC에 `UPDATE crm_contacts SET vendor_id = p_into WHERE vendor_id = p_from` 1줄 추가 (기존 패턴과 동일) |
+| 5 | **마이그레이션 번호** | 현재 068까지 사용 | 069부터 사용 |
+| 6 | **updated_at 트리거** | 공용 함수 `update_updated_at_column()` 존재 | 재사용 (신규 정의 금지) |
+| 7 | **화면/API 네임스페이스** | `/customers`, `/api/customers` 사용 중 (회사 단위 수금) | CRM은 `/crm`, `/api/crm`으로 분리 — 라우트 충돌 없음 |
+| 8 | **성능** | 3만+ 행 매칭 UPDATE | `erp_orders(bank_name, branch_name, manager_name)` 복합 인덱스 + `crm_contact_id`·`season_code` 인덱스 추가. 집계는 RPC 단일 쿼리(기존 패턴)라 화면 영향 없음 |
+
+**회계 무결성**: CRM은 journal/ledger/수금(`collect_status`)/정산(`settlement_month`)에
+쓰기를 하지 않으므로 이중계상·분개 정합에 영향이 없다. 유일한 기존 테이블 변경은
+`erp_orders`에 nullable 컬럼 2개 추가이며, 기존 조회·집계 RPC는 컬럼을 명시 선택하므로 무영향.
