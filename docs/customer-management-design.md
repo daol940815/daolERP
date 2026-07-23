@@ -203,6 +203,32 @@ CREATE TABLE crm_grade_snapshots (
 - 현재 등급은 항상 실시간 계산(아래 §4). 스냅샷은 **월 1회 저장해 변동 추이·신규/이탈
   리포트의 재현성**을 보장하는 용도 (엑셀에는 없던 기능).
 
+### 3-7. `crm_legacy_sales` — 엑셀 과거 매출 집계 (2024년 등 DB 미보유 기간)
+
+현재 DB의 `erp_orders`는 **2025-01-01 ~ 2026-07-13**만 보유한다 (사장님 확인).
+그러나 연속성 등급(최근 3개년)과 2025년 신규/이탈 판정에는 2024년 거래 사실이 필요하다.
+2024년 엑셀 원장(9,651행)은 주문번호가 없어 `erp_orders`로 넣을 수 없고,
+회계 흐름(수금·정산·분개)에 섞여서도 안 되므로 **CRM 전용 집계 테이블**로 1회 이관한다.
+
+```sql
+CREATE TABLE crm_legacy_sales (
+  id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  contact_id   UUID NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
+  -- 명절 버킷이면 season_code, 상시 버킷이면 sales_month 중 하나만 채움
+  season_code  VARCHAR(10) REFERENCES crm_seasons(code),
+  sales_month  VARCHAR(7),              -- 'YYYY-MM' (상시)
+  amount       BIGINT NOT NULL,         -- 엑셀 매출 인정 규칙 적용 후 합계
+  source       VARCHAR(50) NOT NULL DEFAULT 'excel-2024',  -- 이관 출처 표기
+  created_at   TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (contact_id, season_code, sales_month),
+  CHECK ((season_code IS NULL) <> (sales_month IS NULL))
+);
+```
+
+- 등급·신규/이탈 RPC는 `erp_orders`(2025~) + `crm_legacy_sales`(2024)를 UNION해 집계한다.
+- 라인이 아닌 집계값이므로 drill-down은 "엑셀 이관값(2024)" 배지로 표시하고 라인 추적은 하지 않는다.
+- 2024년은 마감된 과거라 재이관·갱신이 없다 (1회성, `source`로 추적).
+
 ---
 
 ## 4. 등급 산정 (실시간 계산 RPC)
@@ -210,17 +236,24 @@ CREATE TABLE crm_grade_snapshots (
 `crm_contact_stats(p_from, p_to)` — 고객별 매출 버킷과 등급을 단일 집계 쿼리로 반환
 (3,011행 SUMIFS의 대체. `erp_orders_summary` 패턴과 동일하게 DB에서 집계).
 
-**매출 인정 라인** (엑셀 규칙 계승, 기존 플래그와 통합):
+**매출 인정 라인** (엑셀 규칙 계승 + 기존 순매출 규칙과 통일 — 2026-07-23 사장님 확정):
 
 ```
 erp_order_items 중
   NOT is_canceled
   AND NOT is_prepayment              -- 엑셀 '선결제' 제외와 동일
+  AND NOT is_vip                     -- 기존 순매출 규칙과 동일 (확정 #2)
+  AND COALESCE(order_kind, '') <> '샘플'   -- 샘플 제외 (확정 #3) — 금액·거래여부 판정 모두
   AND item_name NOT LIKE '%퀵%'
   AND item_name NOT LIKE '%택배비%'
   AND item_name NOT LIKE '%배송비%'
 의 line_total 합
 ```
+
+> 참고 — 기존 순매출 규칙(`erp_orders_summary`, 020): 취소(`is_canceled`) ·
+> VIP(`is_vip`: 품명='VIP'이고 판매가=매입가, 업로드 시 판정) · 선결제(`is_prepayment`)
+> 라인을 순매출에서 제외. CRM 매출도 같은 플래그를 그대로 쓰고, 여기에
+> 엑셀 고객관리 고유의 배송비류·샘플 제외를 더한 것이다.
 
 **버킷**: 주문의 `season_code`가 있으면 해당 명절, 없으면 상시(주문 연·월).
 
@@ -244,14 +277,17 @@ erp_order_items 중
 |---|---|---|---|
 | ① | 명절 마스터 시드 | 구분값 (24설~26설) + 실제 주문일 분포로 기간 산정 | `crm_seasons` |
 | ② | 고객 3,011명 임포트 | 통계 시트 상세 (거래처·지점·지점장·실무자·상담자·친밀도 522건) | `crm_contacts` + `crm_contact_keys`(source='import') |
-| ③ | 주문 매칭 | `crm_contact_keys` 정확 일치 | `erp_orders.crm_contact_id` |
+| ③ | 주문 매칭 | `crm_contact_keys` 정확 일치 | `erp_orders.crm_contact_id` (2025-01~2026-07 보유분) |
 | ④ | 시즌 백필 | data 시트의 구분 컬럼 ↔ `erp_orders` 대응 건 | `erp_orders.season_code` |
-| ⑤ | 검증 보고서 | 엑셀 통계 시트 집계값 vs RPC 결과 대조 (등급 분포·신규/이탈 수) | — |
+| ⑤ | 2024년 과거 매출 이관 | data 시트 2024년 9,651행 → 매출 인정 규칙 적용 후 고객×버킷 집계 | `crm_legacy_sales` |
+| ⑥ | 검증 보고서 | 엑셀 통계 시트 집계값 vs RPC 결과 대조 (등급 분포·신규/이탈 수) | — |
 
 - ②에서 담당자 원문("안아영 차장님")은 키에 보존하고, `name`/`title` 분리는 파싱 추천 +
   일괄 확인 화면으로 처리 (자동 확정 금지).
-- ⑤가 이 설계의 **검증 기준**: 엑셀 결과(매출등급 A 188 · B 246 · C 1,079 · D 1,498,
+- ⑥이 이 설계의 **검증 기준**: 엑셀 결과(매출등급 A 188 · B 246 · C 1,079 · D 1,498,
   2025 신규 228/이탈 120, 2026 신규 102/이탈 217)를 시스템이 재현하거나 차이 원인을 전부 규명.
+  단, VIP·샘플 제외 규칙이 엑셀 SUMIFS와 다르게 확정되었으므로(§4) 그로 인한 차이는
+  건별로 분리해 보고한다 (엑셀 기준 재현 → 확정 규칙 적용 순으로 2단 검증).
 
 ---
 
@@ -264,13 +300,38 @@ erp_order_items 중
 
 ---
 
-## 7. 확인 필요 (사장님 결정)
+## 7. 확정 사항 (2026-07-23 사장님)
 
-1. **주문 데이터 커버리지**: 현재 DB의 `erp_orders`가 2024~2026 전 기간을 포함하는지.
-   엑셀 data 시트(32,168행)와 건수·금액 대조 후, 부족 기간은 이행 계획 별도 수립.
-2. **VIP 처리**: 기존 순매출 집계는 VIP 제외, 엑셀 고객관리 SUMIFS는 VIP 미제외.
-   고객 등급용 매출에 VIP를 포함할지 결정 필요 (제안: 기존 순매출 기준에 맞춰 **제외**).
-3. **샘플 주문**: 매출 0원이라 금액엔 영향 없으나 "거래 여부" 판정에 포함할지
-   (엑셀은 합계 0이면 연속성 D — 사실상 미포함. 제안: 동일하게 미포함).
-4. **친밀도 입력 우선순위**: 미입력 2,489명 중 어느 그룹부터 채울지
-   (제안: 매출 A·B등급 & 2026 거래 고객 우선).
+1. **주문 데이터 커버리지**: DB는 **2025-01-01 ~ 2026-07-13**만 보유 →
+   2024년은 엑셀에서 `crm_legacy_sales`로 1회 이관 (§3-7). 2025-01 이후는
+   `erp_orders`가 유일한 원천 (엑셀 data 시트와의 건수·금액 대조는 검증 ⑥에서 수행).
+2. **VIP 제외 확정** — 기존 순매출 규칙(취소·VIP·선결제 제외, `erp_orders_summary`)을
+   그대로 따른다. VIP 판정: 품명='VIP'이고 판매가=매입가(업로드 시 `is_vip` 플래그).
+3. **샘플 제외 확정** — 금액 집계와 거래 여부(연속성·신규/이탈) 판정 모두에서 제외.
+4. **친밀도 입력 우선순위** — 매출 A·B등급 & 2026년 거래 고객부터. 관리 워크리스트
+   화면(§6-4)의 기본 정렬에 반영한다.
+
+---
+
+## 8. 구현 위치와 배포 형태
+
+이 시스템은 **별도 프로그램이 아니라 기존 회계 웹앱(`my-accounting-app`)에 메뉴로 추가**된다.
+
+| 계층 | 위치 |
+|---|---|
+| DB | Supabase(PostgreSQL) — 기존 프로젝트에 마이그레이션 추가 (`supabase/migrations/069_crm_*.sql`~) |
+| 집계 | PostgreSQL RPC (기존 `erp_orders_summary` 패턴 — 서버에서 단일 쿼리 집계) |
+| API | Next.js Route Handler `app/api/crm/*` |
+| 화면 | Next.js 대시보드 `app/(dashboard)/crm/*` — 브라우저로 접속하는 기존 앱 화면 |
+| 접근 | 기존 로그인/사이드바 그대로. 사이드바에 **"고객관리" 그룹** 신설 |
+
+화면 라우트 (기존 `/customers`(매출처 수금현황)와 별개 — 그쪽은 회사 단위 수금 관리,
+CRM은 사람 단위 관계 관리):
+
+- `/crm` — 고객 목록 (등급·상담자 필터, 최종 관리일 정렬)
+- `/crm/[id]` — 고객 상세 (명절·월별 매출 그리드, 활동 타임라인, 등급 추이)
+- `/crm/matching` — 미귀속 주문 매칭 (별칭 화면 패턴)
+- `/crm/worklist` — 관리 워크리스트 (팔로업 도래·이탈 위험·친밀도 미입력 우선순위)
+
+기존 화면과의 연결: `/customers`·`/reports/vendor-sales`의 거래처 행에서 해당
+거래처 소속 고객 목록(`/crm?vendor=`)으로 이동하는 링크를 추가한다.
