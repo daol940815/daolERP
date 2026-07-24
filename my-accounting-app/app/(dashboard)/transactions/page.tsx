@@ -45,13 +45,6 @@ const txDateComparator = (
   return a < b ? -1 : a > b ? 1 : 0
 }
 
-// 차변/대변 배지 렌더러
-function SideBadge(p: ICellRendererParams<Transaction>) {
-  if (p.value === '차변') return <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">차변</span>
-  if (p.value === '대변') return <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700">대변</span>
-  return <span className="text-gray-300 text-xs">—</span>
-}
-
 // 상태 배지 렌더러
 function StatusBadge(p: ICellRendererParams<Transaction>) {
   const map: Record<string, { label: string; cls: string }> = {
@@ -341,8 +334,6 @@ function TransactionsContent() {
       // 행 상태도 즉시 반영
       data.status = data.confirmed_account_id ? 'reviewed' : 'pending'
       event.api.refreshCells({ rowNodes: [event.node!], columns: ['status'], force: true })
-    } else if (colId === 'side') {
-      body = { suggested_side: data.suggested_side ?? null }
     } else if (colId === 'vendor') {
       // valueSetter에서 vendor_id를 이미 갱신해 둠
       body = { vendor_id: data.vendor_id ?? null }
@@ -779,28 +770,6 @@ function TransactionsContent() {
         return true
       },
       cellClass: (p) => p.data?.vendor_id ? 'text-gray-900' : 'text-gray-300',
-    },
-    {
-      colId: 'side',
-      headerName: '차/대변',
-      width: 90,
-      editable: true,
-      cellEditor: 'agSelectCellEditor',
-      cellEditorParams: { values: ['차변', '대변', '(초기화)'] },
-      valueGetter: (p: ValueGetterParams<Transaction>) => {
-        const s = p.data?.suggested_side
-        if (s === 'debit')  return '차변'
-        if (s === 'credit') return '대변'
-        return null
-      },
-      valueSetter: (p: ValueSetterParams<Transaction>) => {
-        if (!p.data) return false
-        if (p.newValue === '차변')      p.data.suggested_side = 'debit'
-        else if (p.newValue === '대변') p.data.suggested_side = 'credit'
-        else                            p.data.suggested_side = null
-        return true
-      },
-      cellRenderer: SideBadge,
     },
     {
       field: 'memo',
