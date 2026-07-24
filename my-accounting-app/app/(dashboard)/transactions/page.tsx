@@ -227,6 +227,7 @@ function TransactionsContent() {
   const [unlinking,       setUnlinking]       = useState<string | null>(null)
   const [importing,    setImporting]    = useState(false)
   const [selectedCount, setSelectedCount] = useState(0)
+  const [confirmProgress, setConfirmProgress] = useState<string | null>(null)
   const [autoFetchFlag, setAutoFetchFlag] = useState(0)
   const [filters, setFilters]     = useState<Filters>({
     ...defaultDateRange(),
@@ -384,38 +385,42 @@ function TransactionsContent() {
     setKeywordPrompt(null)
   }, [keywordPrompt, accounts, showToast])
 
-  // 선택된 행 일괄 확정 (분개 자동 전기)
-  const handleBulkConfirm = useCallback(async () => {
+  // 일괄 확정/해제 — 대량 선택 시 URL·시간 제한을 피하기 위해 청크로 나눠 순차 호출
+  const CONFIRM_CHUNK = 150
+
+  const runBulkConfirm = useCallback(async (confirm: boolean) => {
     const selected = gridRef.current?.api.getSelectedRows() as Transaction[]
-    if (!selected?.length) return
+    if (!selected?.length || confirmProgress) return
     const ids = selected.map(r => r.id)
-    const res = await fetch('/api/transactions/confirm', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids, confirm: true }),
-    })
-    const json = await res.json()
-    if (!res.ok) { showToast(json.error ?? '확정 실패', 'err'); return }
-    const parts = [`${json.confirmed ?? 0}건 확정·전기`]
-    if (json.skipped?.length) parts.push(`${json.skipped.length}건 건너뜀(계정/이체)`)
-    if (json.errors?.length)  parts.push(`${json.errors.length}건 오류`)
-    showToast(parts.join(' · '), json.errors?.length ? 'err' : 'ok')
-    fetchTransactions()
-  }, [fetchTransactions, showToast])
+    let done = 0, skipped = 0, errors = 0
+    try {
+      for (let i = 0; i < ids.length; i += CONFIRM_CHUNK) {
+        setConfirmProgress(`${confirm ? '확정' : '해제'} ${Math.min(i + CONFIRM_CHUNK, ids.length)}/${ids.length}건 처리 중...`)
+        const res = await fetch('/api/transactions/confirm', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: ids.slice(i, i + CONFIRM_CHUNK), confirm }),
+        })
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) { showToast(json.error ?? `${confirm ? '확정' : '해제'} 실패 (${done}건 처리 후 중단)`, 'err'); return }
+        done    += (confirm ? json.confirmed : json.unconfirmed) ?? 0
+        skipped += json.skipped?.length ?? 0
+        errors  += json.errors?.length ?? 0
+      }
+      const parts = [`${done}건 ${confirm ? '확정·전기' : '확정 해제'}`]
+      if (skipped) parts.push(`${skipped}건 건너뜀(계정/이체)`)
+      if (errors)  parts.push(`${errors}건 오류`)
+      showToast(parts.join(' · '), errors ? 'err' : 'ok')
+    } finally {
+      setConfirmProgress(null)
+      fetchTransactions()
+    }
+  }, [confirmProgress, fetchTransactions, showToast])
+
+  // 선택된 행 일괄 확정 (분개 자동 전기)
+  const handleBulkConfirm = useCallback(() => runBulkConfirm(true), [runBulkConfirm])
 
   // 선택된 행 일괄 확정 해제 (분개 취소)
-  const handleBulkUnconfirm = useCallback(async () => {
-    const selected = gridRef.current?.api.getSelectedRows() as Transaction[]
-    if (!selected?.length) return
-    const ids = selected.map(r => r.id)
-    const res = await fetch('/api/transactions/confirm', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids, confirm: false }),
-    })
-    const json = await res.json()
-    if (!res.ok) { showToast(json.error ?? '해제 실패', 'err'); return }
-    showToast(`${json.unconfirmed ?? 0}건 확정 해제`, 'ok')
-    fetchTransactions()
-  }, [fetchTransactions, showToast])
+  const handleBulkUnconfirm = useCallback(() => runBulkConfirm(false), [runBulkConfirm])
 
   // 분개 미리보기 (단건 선택)
   const handlePreviewJournal = useCallback(async () => {
@@ -1053,13 +1058,15 @@ function TransactionsContent() {
             <>
               <button
                 onClick={handleBulkConfirm}
-                className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
+                disabled={!!confirmProgress}
+                className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-60"
               >
-                선택 {selectedCount}건 확정
+                {confirmProgress ?? `선택 ${selectedCount}건 확정`}
               </button>
               <button
                 onClick={handleBulkUnconfirm}
-                className="px-3 py-1.5 border border-green-300 rounded-lg text-sm font-medium text-green-700 hover:bg-green-50"
+                disabled={!!confirmProgress}
+                className="px-3 py-1.5 border border-green-300 rounded-lg text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-60"
               >
                 확정 해제
               </button>

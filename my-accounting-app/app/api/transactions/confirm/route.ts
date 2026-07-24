@@ -24,11 +24,17 @@ export async function POST(req: NextRequest) {
   } catch { /* 세션 없으면 null */ }
 
   // 대상 조회 (확정엔 계정과목 필수)
-  const { data: txs, error } = await admin
-    .from('transactions')
-    .select('id, confirmed_account_id, status, transfer_pair_id')
-    .in('id', ids)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // .in()은 URL 쿼리로 전달되므로 ID가 많으면 요청이 거부된다(Bad Request) → 청크 분할
+  const SELECT_CHUNK = 200
+  const txs: { id: string; confirmed_account_id: string | null; status: string; transfer_pair_id: string | null }[] = []
+  for (let i = 0; i < ids.length; i += SELECT_CHUNK) {
+    const { data, error } = await admin
+      .from('transactions')
+      .select('id, confirmed_account_id, status, transfer_pair_id')
+      .in('id', ids.slice(i, i + SELECT_CHUNK))
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    txs.push(...(data ?? []))
+  }
 
   let done = 0
   const skipped: { id: string; reason: string }[] = []
