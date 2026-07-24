@@ -266,6 +266,22 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           </Link>
         </div>
 
+        {/* ── 고객관리 ── */}
+        <div className="mb-5">
+          <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
+            고객관리
+          </p>
+          <Link href="/crm" className={linkCls(pathname === '/crm' || (pathname.startsWith('/crm/') && !pathname.startsWith('/crm/matching') && !pathname.startsWith('/crm/worklist')))}>
+            <span>고객 목록</span>
+          </Link>
+          <Link href="/crm/worklist" className={linkCls(pathname.startsWith('/crm/worklist'))}>
+            <span>관리 워크리스트</span>
+          </Link>
+          <Link href="/crm/matching" className={linkCls(pathname.startsWith('/crm/matching'))}>
+            <span>주문 매칭</span>
+          </Link>
+        </div>
+
         {/* ── 거래내역 ── */}
         <div className="mb-5">
           <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
