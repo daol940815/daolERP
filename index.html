@@ -738,11 +738,11 @@ const FIELD_LABELS = {
   loosePacked: '낱개포장', looseUnpacked: '낱개비포장', looseDisplay: '낱개진열'
 };
 
-// ===== 전역 상태 =====
-let products = loadLocalProducts();
-let rowData = products.map(EMPTY_ROW);
+// ===== 전역 상태 (초기값은 init()에서 로드 — 상수 정의 이후 실행을 보장) =====
+let products = [];
+let rowData = [];
 let currentModalIdx = -1;
-let changeLog = loadLog();
+let changeLog = [];
 
 // 클라우드
 let supa = null;
@@ -1491,6 +1491,9 @@ async function onDateChange() {
 
 // ===== 시작 =====
 function init() {
+  products = loadLocalProducts();   // 상수 정의 이후 안전하게 로드
+  rowData = products.map(EMPTY_ROW);
+  changeLog = loadLog();
   document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
   loadWorking();
   renderTable();
