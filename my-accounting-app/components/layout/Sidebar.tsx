@@ -246,8 +246,11 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
 
       {/* 메뉴 목록 */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
-        {/* ── 대시보드 ── */}
+        {/* ── 1. 경영관리 ── */}
         <div className="mb-5">
+          <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
+            경영관리
+          </p>
           <Link href="/" className={linkCls(pathname === '/')}>
             <span>대시보드</span>
           </Link>
@@ -259,28 +262,55 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           </Link>
         </div>
 
-        {/* ── ERP ── */}
+        {/* ── 2. 회계 ── */}
         <div className="mb-5">
           <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
-            ERP
+            회계
           </p>
-          <Link href="/erp-orders" className={linkCls(pathname.startsWith('/erp-orders'))}>
-            <span>ERP 주문내역</span>
+          <Link href="/reports/monthly-pl" className={linkCls(pathname.startsWith('/reports/monthly-pl'))}>
+            <span>월별 손익현황</span>
+          </Link>
+          <Link href="/reports/vat-estimate" className={linkCls(pathname.startsWith('/reports/vat-estimate'))}>
+            <span>예상 부가세</span>
+          </Link>
+          <Link href="/reports/daily-cash" className={linkCls(pathname.startsWith('/reports/daily-cash'))}>
+            <span>자금일보</span>
+          </Link>
+          <Link href="/reports/cash-position" className={linkCls(pathname.startsWith('/reports/cash-position'))}>
+            <span>계좌 통합현황</span>
+          </Link>
+          <Link href="/journal" className={linkCls(pathname.startsWith('/journal'))}>
+            <span>분개 현황</span>
+          </Link>
+          <Link href="/ledger" className={linkCls(pathname.startsWith('/ledger'))}>
+            <span>계정별 원장</span>
+          </Link>
+          <Link href="/vendor-ledger" className={linkCls(pathname.startsWith('/vendor-ledger'))}>
+            <span>거래처 원장</span>
+          </Link>
+          <Link href="/opening-balances" className={linkCls(pathname.startsWith('/opening-balances'))}>
+            <span>기초잔액(계정)</span>
+          </Link>
+          <Link href="/vendor-opening-balances" className={linkCls(pathname.startsWith('/vendor-opening-balances'))}>
+            <span>기초잔액(거래처)</span>
+          </Link>
+          <Link href="/accounts" className={linkCls(pathname.startsWith('/accounts'))}>
+            <span>계정과목</span>
           </Link>
         </div>
 
-        {/* ── 거래내역 ── */}
+        {/* ── 3. 원본데이터 ── */}
         <div className="mb-5">
           <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
-            거래내역
+            원본데이터
           </p>
+
+          <Link href="/erp-orders" className={linkCls(pathname.startsWith('/erp-orders'))}>
+            <span>ERP 주문내역</span>
+          </Link>
 
           <Link href="/transactions" className={linkCls(pathname === '/transactions' && !activeBankId)}>
             <span>거래 내역</span>
-          </Link>
-
-          <Link href="/bank-classify" className={linkCls(pathname.startsWith('/bank-classify'))}>
-            <span>통장 거래 분류</span>
           </Link>
 
           <Link href="/card-sales" className={linkCls(pathname.startsWith('/card-sales'))}>
@@ -536,90 +566,28 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           </Link>
         </div>
 
-        {/* ── 분개 / 장부 ── */}
+        {/* ── 4. 정리 도구 ── */}
         <div className="mb-5">
           <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
-            분개 / 장부
+            정리 도구
           </p>
-          <Link href="/journal" className={linkCls(pathname.startsWith('/journal'))}>
-            <span>분개 현황</span>
-          </Link>
-          <Link href="/ledger" className={linkCls(pathname.startsWith('/ledger'))}>
-            <span>계정별 원장</span>
-          </Link>
-          <Link href="/vendor-ledger" className={linkCls(pathname.startsWith('/vendor-ledger'))}>
-            <span>거래처 원장</span>
-          </Link>
-          <Link href="/opening-balances" className={linkCls(pathname.startsWith('/opening-balances'))}>
-            <span>기초잔액(계정)</span>
-          </Link>
-          <Link href="/vendor-opening-balances" className={linkCls(pathname.startsWith('/vendor-opening-balances'))}>
-            <span>기초잔액(거래처)</span>
-          </Link>
-        </div>
-
-        {/* ── 자료출력 ── */}
-        <div className="mb-5">
-          <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
-            자료출력
-          </p>
-          <Link href="/reports/daily-cash" className={linkCls(pathname.startsWith('/reports/daily-cash'))}>
-            <span>자금일보</span>
-          </Link>
-          <Link href="/reports/cash-position" className={linkCls(pathname.startsWith('/reports/cash-position'))}>
-            <span>계좌 통합현황</span>
-          </Link>
-          <Link href="/reports/erp-receivables" className={linkCls(pathname.startsWith('/reports/erp-receivables'))}>
-            <span>ERP 매출처 수금현황</span>
-          </Link>
-          <Link href="/reports/receivables-aging" className={linkCls(pathname.startsWith('/reports/receivables-aging'))}>
-            <span>미수금 Aging 분석</span>
-          </Link>
-          <Link href="/reports/payables-aging" className={linkCls(pathname.startsWith('/reports/payables-aging'))}>
-            <span>미지급금 Aging 분석</span>
-          </Link>
-          <Link href="/purchase-cycle" className={linkCls(pathname.startsWith('/purchase-cycle'))}>
-            <span>매입 사이클 (예외 관리)</span>
+          <Link href="/bank-classify" className={linkCls(pathname.startsWith('/bank-classify'))}>
+            <span>통장 거래 분류</span>
           </Link>
           <Link href="/sales-cycle" className={linkCls(pathname.startsWith('/sales-cycle'))}>
             <span>매출 사이클 (수금 관리)</span>
           </Link>
-          <Link href="/reports/vendor-sales" className={linkCls(pathname.startsWith('/reports/vendor-sales'))}>
-            <span>거래처별 매출 분석</span>
+          <Link href="/purchase-cycle" className={linkCls(pathname.startsWith('/purchase-cycle'))}>
+            <span>매입 사이클 (예외 관리)</span>
           </Link>
-          <Link href="/reports/vendor-profitability" className={linkCls(pathname.startsWith('/reports/vendor-profitability'))}>
-            <span>거래처별 수익성 분석</span>
-          </Link>
-          <Link href="/reports/monthly-pl" className={linkCls(pathname.startsWith('/reports/monthly-pl'))}>
-            <span>월별 손익현황</span>
-          </Link>
-          <Link href="/reports/double-count" className={linkCls(pathname.startsWith('/reports/double-count'))}>
-            <span>이중계상 검사</span>
-          </Link>
-          <Link href="/reports/vat-estimate" className={linkCls(pathname.startsWith('/reports/vat-estimate'))}>
-            <span>예상 부가세</span>
-          </Link>
-          <Link href="/reports/erp-special" className={linkCls(pathname.startsWith('/reports/erp-special'))}>
-            <span>ERP VIP 선결제</span>
-          </Link>
-          <Link href="/reports/vendor-reconciliation" className={linkCls(pathname.startsWith('/reports/vendor-reconciliation'))}>
-            <span>거래처 정산 대조</span>
-          </Link>
-        </div>
-
-        {/* ── 기준 정보 ── */}
-        <div className="mb-5">
-          <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
-            기준 정보
-          </p>
-          <Link href="/accounts" className={linkCls(pathname.startsWith('/accounts'))}>
-            <span>계정과목</span>
+          <Link href="/erp-matching" className={linkCls(pathname.startsWith('/erp-matching'))}>
+            <span>수금 매칭</span>
           </Link>
           <Link
             href="/customers"
             className={linkCls(pathname.startsWith('/customers'))}
           >
-            <span>매출처 관리</span>
+            <span>매출처 관리(구)</span>
           </Link>
           <Link
             href="/erp-aliases?type=customer"
@@ -639,11 +607,32 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           >
             <span>매입처 연결 키워드</span>
           </Link>
-          <Link href="/erp-matching" className={linkCls(pathname.startsWith('/erp-matching'))}>
-            <span>수금 매칭</span>
-          </Link>
           <Link href="/vendor-dedup" className={linkCls(pathname.startsWith('/vendor-dedup'))}>
             <span>거래처 중복 정리</span>
+          </Link>
+          <Link href="/reports/erp-receivables" className={linkCls(pathname.startsWith('/reports/erp-receivables'))}>
+            <span>ERP 매출처 수금현황</span>
+          </Link>
+          <Link href="/reports/receivables-aging" className={linkCls(pathname.startsWith('/reports/receivables-aging'))}>
+            <span>미수금 Aging 분석</span>
+          </Link>
+          <Link href="/reports/payables-aging" className={linkCls(pathname.startsWith('/reports/payables-aging'))}>
+            <span>미지급금 Aging 분석</span>
+          </Link>
+          <Link href="/reports/vendor-sales" className={linkCls(pathname.startsWith('/reports/vendor-sales'))}>
+            <span>거래처별 매출 분석</span>
+          </Link>
+          <Link href="/reports/vendor-profitability" className={linkCls(pathname.startsWith('/reports/vendor-profitability'))}>
+            <span>거래처별 수익성 분석</span>
+          </Link>
+          <Link href="/reports/erp-special" className={linkCls(pathname.startsWith('/reports/erp-special'))}>
+            <span>ERP VIP 선결제</span>
+          </Link>
+          <Link href="/reports/vendor-reconciliation" className={linkCls(pathname.startsWith('/reports/vendor-reconciliation'))}>
+            <span>거래처 정산 대조</span>
+          </Link>
+          <Link href="/reports/double-count" className={linkCls(pathname.startsWith('/reports/double-count'))}>
+            <span>이중계상 검사</span>
           </Link>
         </div>
 
