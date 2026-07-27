@@ -122,6 +122,34 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
   const router = useRouter()
   const [banks, setBanks] = useState<BankAccount[]>(initialBanks)
   const [banksOpen, setBanksOpen] = useState(true)
+
+  // ── 상위 4개 그룹 접기/펴기 (localStorage 유지 + 현재 화면 그룹 자동 열기) ──
+  const GROUP_ROUTES: Record<string, string[]> = {
+    mgmt:   ['/reports/management-dashboard', '/sales-hub'],
+    acct:   ['/reports/monthly-pl', '/reports/vat-estimate', '/reports/daily-cash', '/reports/cash-position',
+             '/journal', '/ledger', '/vendor-ledger', '/opening-balances', '/vendor-opening-balances', '/accounts'],
+    source: ['/erp-orders', '/transactions', '/card-sales', '/card-expenses', '/cash-receipts', '/tax-invoices', '/upload'],
+    tools:  ['/bank-classify', '/sales-cycle', '/purchase-cycle', '/erp-matching', '/customers', '/erp-aliases',
+             '/vendors', '/vendor-dedup', '/reports/erp-receivables', '/reports/receivables-aging',
+             '/reports/payables-aging', '/reports/vendor-sales', '/reports/vendor-profitability',
+             '/reports/erp-special', '/reports/vendor-reconciliation', '/reports/double-count'],
+  }
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ mgmt: true, acct: false, source: false, tools: false })
+  useEffect(() => {
+    let saved: Record<string, boolean> = {}
+    try { saved = JSON.parse(localStorage.getItem('sidebar-groups') ?? '{}') } catch { /* 무시 */ }
+    const active = Object.entries(GROUP_ROUTES).find(([, routes]) =>
+      routes.some(r => pathname === r || pathname.startsWith(r + '/') || pathname.startsWith(r + '?')) ||
+      (pathname === '/' && false))?.[0]
+    setOpenGroups(g => ({ ...g, ...saved, ...(active ? { [active]: true } : {}) }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const toggleGroup = (k: string) => setOpenGroups(g => {
+    const next = { ...g, [k]: !g[k] }
+    try { localStorage.setItem('sidebar-groups', JSON.stringify(next)) } catch { /* 무시 */ }
+    return next
+  })
+  const groupBtnCls = 'w-full flex items-center justify-between px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider hover:text-slate-300 transition-colors'
   const [cards, setCards] = useState<CardAccountItem[]>([])
   const [cardsOpen, setCardsOpen] = useState(true)
   const [taxInvoicesOpen, setTaxInvoicesOpen] = useState(false)
@@ -248,9 +276,11 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
         {/* ── 1. 경영관리 ── */}
         <div className="mb-5">
-          <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
-            경영관리
-          </p>
+          <button onClick={() => toggleGroup('mgmt')} className={groupBtnCls}>
+            <span>경영관리</span>
+            <span className="opacity-60">{openGroups.mgmt ? '▾' : '▸'}</span>
+          </button>
+          {openGroups.mgmt && (<>
           <Link href="/" className={linkCls(pathname === '/')}>
             <span>대시보드</span>
           </Link>
@@ -260,13 +290,16 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           <Link href="/sales-hub" className={linkCls(pathname.startsWith('/sales-hub'))}>
             <span>매출처 허브</span>
           </Link>
+          </>)}
         </div>
 
         {/* ── 2. 회계 ── */}
         <div className="mb-5">
-          <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
-            회계
-          </p>
+          <button onClick={() => toggleGroup('acct')} className={groupBtnCls}>
+            <span>회계</span>
+            <span className="opacity-60">{openGroups.acct ? '▾' : '▸'}</span>
+          </button>
+          {openGroups.acct && (<>
           <Link href="/reports/monthly-pl" className={linkCls(pathname.startsWith('/reports/monthly-pl'))}>
             <span>월별 손익현황</span>
           </Link>
@@ -297,13 +330,16 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           <Link href="/accounts" className={linkCls(pathname.startsWith('/accounts'))}>
             <span>계정과목</span>
           </Link>
+          </>)}
         </div>
 
         {/* ── 3. 원본데이터 ── */}
         <div className="mb-5">
-          <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
-            원본데이터
-          </p>
+          <button onClick={() => toggleGroup('source')} className={groupBtnCls}>
+            <span>원본데이터</span>
+            <span className="opacity-60">{openGroups.source ? '▾' : '▸'}</span>
+          </button>
+          {openGroups.source && (<>
 
           <Link href="/erp-orders" className={linkCls(pathname.startsWith('/erp-orders'))}>
             <span>ERP 주문내역</span>
@@ -564,13 +600,16 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           <Link href="/upload" className={linkCls(pathname.startsWith('/upload'))}>
             <span>파일 업로드</span>
           </Link>
+          </>)}
         </div>
 
         {/* ── 4. 정리 도구 ── */}
         <div className="mb-5">
-          <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
-            정리 도구
-          </p>
+          <button onClick={() => toggleGroup('tools')} className={groupBtnCls}>
+            <span>정리 도구</span>
+            <span className="opacity-60">{openGroups.tools ? '▾' : '▸'}</span>
+          </button>
+          {openGroups.tools && (<>
           <Link href="/bank-classify" className={linkCls(pathname.startsWith('/bank-classify'))}>
             <span>통장 거래 분류</span>
           </Link>
@@ -634,6 +673,7 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           <Link href="/reports/double-count" className={linkCls(pathname.startsWith('/reports/double-count'))}>
             <span>이중계상 검사</span>
           </Link>
+          </>)}
         </div>
 
         {/* ── 설정 ── */}
