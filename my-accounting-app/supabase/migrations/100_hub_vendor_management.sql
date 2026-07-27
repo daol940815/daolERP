@@ -1,6 +1,7 @@
 -- =====================================================
--- 070_vendor_management.sql
+-- 100_hub_vendor_management.sql
 -- 매출처 허브 — 담당 관리 구조
+-- (번호 규칙: 매출처 허브 트랙은 100번대 사용 — 06x~07x는 CRM 트랙이 사용 중)
 --
 -- 자사 담당직원: employees(마스터) + vendor_staff(거래처 배정, 다대다·주담당)
 -- 거래처 담당자: contacts(인물 마스터) + contact_assignments(거래처 배정 이력)
