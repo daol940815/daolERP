@@ -100,6 +100,12 @@ export default function ErpOrdersPage() {
 
   useEffect(() => { load() }, [load])
 
+  // 딥링크: ?q=주문번호 로 진입하면 검색어로 반영 (매출처 허브 드릴다운)
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('q')
+    if (q) setSearch(q)
+  }, [])
+
   // 필터 변경 시 1페이지로
   useEffect(() => { setPage(1) }, [view, statusFilter, dateFrom, dateTo, search])
 
