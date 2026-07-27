@@ -38,11 +38,10 @@ const won = (n: number) => n.toLocaleString('ko-KR')
 const eok = (n: number) => n >= 100000000 ? `${(n / 100000000).toFixed(2)}억` : n >= 10000 ? `${Math.round(n / 10000).toLocaleString()}만` : won(n)
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
-  vip:         { label: 'VIP',      cls: 'bg-violet-100 text-violet-700' },
   normal:      { label: '정상',     cls: 'bg-green-100 text-green-700' },
   outstanding: { label: '미수',     cls: 'bg-amber-100 text-amber-700' },
   late:        { label: '수금지연', cls: 'bg-orange-100 text-orange-700' },
-  over90:      { label: '90일 초과', cls: 'bg-red-100 text-red-700' },
+  over90:      { label: '미수 90일 초과', cls: 'bg-red-100 text-red-700' },
   dormant:     { label: '휴면 전환', cls: 'bg-gray-100 text-gray-500' },
 }
 

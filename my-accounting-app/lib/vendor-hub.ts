@@ -19,7 +19,8 @@ import type { ErpOrderDeliveryStatus } from '@/types/erp'
 
 export const DORMANT_MONTHS = 6
 
-export type HubStatus = 'vip' | 'normal' | 'outstanding' | 'late' | 'over90' | 'dormant'
+// VIP는 상태가 아니라 별도 지표(VIP 누적 매출)로만 표시한다.
+export type HubStatus = 'normal' | 'outstanding' | 'late' | 'over90' | 'dormant'
 
 export interface HubListRow {
   vendor_id: string
@@ -191,7 +192,6 @@ export async function buildHubList(
     else if (a.over90 > 0) status = 'over90'
     else if (a.outstanding > 0 && a.net > 0 && collected / a.net < 0.5) status = 'late'
     else if (a.outstanding > 0) status = 'outstanding'
-    else if (a.vip_total > 0) status = 'vip'
     else status = 'normal'
     rows.push({
       vendor_id: vid,
@@ -575,7 +575,6 @@ export async function buildHubDetail(
   else if (over90 > 0) status = 'over90'
   else if (outstanding > 0 && net > 0 && collected / net < 0.5) status = 'late'
   else if (outstanding > 0) status = 'outstanding'
-  else if (vipTotal > 0) status = 'vip'
   else status = 'normal'
 
   const pick = (flag: 'is_vip' | 'is_prepayment'): HubSpecialItem[] => {
