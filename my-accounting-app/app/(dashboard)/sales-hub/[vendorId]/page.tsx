@@ -164,15 +164,21 @@ export default function SalesHubDetailPage() {
             <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${meta.cls}`}>{meta.label}</span>
           </div>
           <div className="flex gap-1.5 flex-wrap mt-2">
-            <span className={`px-2 py-0.5 rounded-full text-[11px] border ${data.links.alias_count ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
+            <Link href={`/erp-aliases?type=customer&q=${encodeURIComponent(data.vendor.name)}`}
+              title="매출처 연결 키워드에서 별칭 관리"
+              className={`px-2 py-0.5 rounded-full text-[11px] border hover:underline ${data.links.alias_count ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               ERP 별칭 {data.links.alias_count || '미'}연동
-            </span>
-            <span className={`px-2 py-0.5 rounded-full text-[11px] border ${data.links.card_count ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
+            </Link>
+            <Link href={data.links.card_count ? `/card-sales?q=${encodeURIComponent(data.vendor.name)}` : '/card-sales/customer-links'}
+              title={data.links.card_count ? '이 거래처의 카드매출 내역 보기' : '카드번호 연결 도구로 이동'}
+              className={`px-2 py-0.5 rounded-full text-[11px] border hover:underline ${data.links.card_count ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               카드번호 {data.links.card_count ? `${data.links.card_count}건` : '미연동'}
-            </span>
-            <span className={`px-2 py-0.5 rounded-full text-[11px] border ${data.links.has_opening ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
+            </Link>
+            <Link href={`/vendor-opening-balances?q=${encodeURIComponent(data.vendor.name)}`}
+              title="기초잔액 입력 화면으로 이동"
+              className={`px-2 py-0.5 rounded-full text-[11px] border hover:underline ${data.links.has_opening ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               기초잔액 {data.links.has_opening ? '입력됨' : '미입력'}
-            </span>
+            </Link>
           </div>
         </div>
         <div className="text-right text-xs text-gray-500">
@@ -453,7 +459,7 @@ export default function SalesHubDetailPage() {
                   {data.timeline.slice(0, 12).map((e, i) => {
                     const href = tlHref(e)
                     return (
-                      <li key={i} className="flex items-baseline gap-2 py-1.5 border-b border-gray-50 last:border-0 text-sm">
+                      <li key={i} className={`flex items-baseline gap-2 py-1.5 border-b border-gray-50 last:border-0 text-sm ${e.kind === 'alloc' ? 'opacity-60' : ''}`}>
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold w-12 text-center ${TL_META[e.kind].cls}`}>{TL_META[e.kind].label}</span>
                         <span className="text-xs text-gray-400 tabular-nums w-20">{e.date}</span>
                         {href
@@ -472,6 +478,10 @@ export default function SalesHubDetailPage() {
 
         {tab === '수금 내역' && (
           <div className="bg-white border border-gray-200 rounded-xl">
+            <div className="px-4 pt-3 text-[11px] text-gray-400">
+              [배분]은 통장·카드로 들어온 돈을 어느 주문의 수금으로 연결했는지 기록한 항목입니다 —
+              같은 돈이 [통장]/[카드] 줄에 이미 표시되므로 금액을 이중으로 세지 않습니다. 괄호 안은 매칭 방식 메모입니다.
+            </div>
             <ul className="px-4 py-2">
               {data.timeline.map((e, i) => {
                 const href = tlHref(e)

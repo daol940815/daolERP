@@ -34,7 +34,12 @@ export default function VendorOpeningBalancesPage() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { load('') }, [load])
+  useEffect(() => {
+    // 딥링크: ?q=거래처명 진입 시 해당 거래처로 바로 검색 (매출처 허브 드릴다운)
+    const q = new URLSearchParams(window.location.search).get('q') ?? ''
+    if (q) setSearch(q)
+    load(q)
+  }, [load])
 
   const startEdit = (r: Row) => setEdit(e => ({
     ...e,

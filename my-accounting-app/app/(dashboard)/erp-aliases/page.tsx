@@ -306,6 +306,12 @@ function ErpAliasesContent() {
   useEffect(() => { load() }, [load])
   useEffect(() => { loadVendors() }, [loadVendors])
 
+  // 딥링크: ?q=거래처명 진입 시 검색어 반영 (매출처 허브 드릴다운)
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('q')
+    if (q) setSearch(q)
+  }, [])
+
   // 별칭별 추천 매칭 (미연결 건만 계산)
   const suggestions = useMemo(() => {
     const map = new Map<string, { id: string; name: string; score: number }>()
