@@ -1,5 +1,5 @@
 -- =====================================================
--- 069_vendor_management.sql
+-- 070_vendor_management.sql
 -- 매출처 허브 — 담당 관리 구조
 --
 -- 자사 담당직원: employees(마스터) + vendor_staff(거래처 배정, 다대다·주담당)
