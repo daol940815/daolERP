@@ -108,7 +108,8 @@
     opacity: 0.9;
   }
 
-  input[type="date"] {
+  input[type="date"],
+  select.ctrl-select {
     border: 1px solid rgba(255,255,255,0.3);
     border-radius: 4px;
     padding: 6px 8px;
@@ -118,6 +119,8 @@
     color: white;
     outline: none;
   }
+
+  select.ctrl-select option { color: #101828; }
 
   input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
 
@@ -382,6 +385,10 @@
     border-radius: var(--radius); background: var(--calc-bg);
   }
   .log-item.reset { background: #fff7ed; border-color: #fed7aa; }
+  .log-slot-select { border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-family: var(--font); font-size: 12px; color: var(--text-primary); background: #fff; }
+  .slot-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 10px; vertical-align: middle; }
+  .slot-badge.slot-am { background: #dbeafe; color: #1d4ed8; }
+  .slot-badge.slot-pm { background: #fef3c7; color: #92400e; }
   .log-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; min-width: 78px; font-weight: 600; line-height: 1.7; }
   .log-body { flex: 1; font-size: 13px; line-height: 1.6; }
   .log-body .prod { font-weight: 700; color: var(--text-primary); }
@@ -400,6 +407,7 @@
     font-family: var(--font); font-size: 13px; color: var(--text-primary); background: #fff; outline: none;
   }
   .diff-controls input[type="date"]::-webkit-calendar-picker-indicator { filter: none; }
+  .diff-slot-select { border: 1px solid var(--border); border-radius: 6px; padding: 9px 8px; font-family: var(--font); font-size: 13px; color: var(--text-primary); background: #fff; }
   .diff-summary { background: var(--calc-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; font-size: 13px; line-height: 1.6; }
   .diff-summary b { font-size: 15px; }
   .diff-missing { color: var(--btn-danger); font-size: 12px; margin-bottom: 8px; }
@@ -454,6 +462,13 @@
     <div class="ctrl-group">
       <label class="ctrl-label">기준일</label>
       <input type="date" id="dateInput">
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label">시간대</label>
+      <select class="ctrl-select" id="slotInput">
+        <option value="오전">오전</option>
+        <option value="오후">오후</option>
+      </select>
     </div>
     <button class="btn btn-white" onclick="openDiffModal()">📊 변동비교</button>
     <button class="btn btn-ghost" onclick="openLogModal()">📋 변경이력</button>
@@ -643,9 +658,14 @@ alter publication supabase_realtime add table inventory_log;</pre>
       <button class="modal-close-btn" onclick="closeLogModal()">×</button>
     </div>
     <div class="log-toolbar">
-      <label class="log-filter">
-        <input type="checkbox" id="logOnlyToday"> 오늘(기준일)만 보기
-      </label>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <label class="log-filter"><input type="checkbox" id="logOnlyToday"> 오늘(기준일)만</label>
+        <select id="logSlotFilter" class="log-slot-select">
+          <option value="">오전+오후</option>
+          <option value="오전">오전만</option>
+          <option value="오후">오후만</option>
+        </select>
+      </div>
       <button type="button" class="btn btn-white" onclick="clearLog()" style="padding:6px 10px;">🗑 이력 지우기</button>
     </div>
     <div class="log-list" id="logList"></div>
@@ -661,8 +681,14 @@ alter publication supabase_realtime add table inventory_log;</pre>
     </div>
     <div class="info-box">두 날짜의 재고 조사 결과를 비교해 제품별 <b>차이 수량</b>을 자동으로 보여줍니다. 기본값은 <b>어제 → 오늘</b>입니다. 과거 날짜를 골라 1~2일 전 변동도 조회할 수 있습니다.</div>
     <div class="diff-controls">
-      <div class="fld"><label>기준일 (이전)</label><input type="date" id="diffBaseDate"></div>
-      <div class="fld"><label>비교일 (이후)</label><input type="date" id="diffCmpDate"></div>
+      <div class="fld"><label>기준 (이전)</label><input type="date" id="diffBaseDate"></div>
+      <div class="fld"><label>&nbsp;</label>
+        <select id="diffBaseSlot" class="diff-slot-select"><option value="오전">오전</option><option value="오후">오후</option></select>
+      </div>
+      <div class="fld"><label>비교 (이후)</label><input type="date" id="diffCmpDate"></div>
+      <div class="fld"><label>&nbsp;</label>
+        <select id="diffCmpSlot" class="diff-slot-select"><option value="오전">오전</option><option value="오후">오후</option></select>
+      </div>
       <button type="button" class="btn btn-primary" onclick="runDiff()" style="padding:9px 16px;">비교</button>
     </div>
     <label class="log-filter" style="display:block;margin-bottom:10px;">
@@ -736,19 +762,20 @@ let rtChannel = null;
 let applyingRemote = false;
 let pushTimer = null;
 const CLIENT_ID = getClientId();
-const SLOT = 'main'; // 시간대 제거: 날짜당 1건 (DB 스키마 호환용 고정값)
+// 시간대: 오전/오후 (하루 2회 기록). 클라우드 inventory 테이블의 slot 컬럼에 저장
 
 // ===== 스토리지 키 =====
 const CLOUD_CFG_KEY = 'inv_cloud_cfg';
 const PRODUCTS_KEY = 'inv_products';
 function roomName() { const c = getCloudCfg(); return (c && c.room) ? c.room : 'local'; }
-function workingKey() { return `inv_work_${roomName()}_${curDate()}`; }
+function workingKey() { return `inv_work_${roomName()}_${curDate()}_${curSlot()}`; }
 function logKey() { return `inv_log_${roomName()}`; }
 
 // ===== 유틸 =====
 const num = (v) => isNaN(v) || v === '' || v === null ? 0 : parseFloat(v);
 const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
 const curDate = () => document.getElementById('dateInput').value;
+const curSlot = () => document.getElementById('slotInput').value;
 
 function getClientId() {
   let id = localStorage.getItem('inv_client_id');
@@ -871,7 +898,7 @@ function saveModalData() {
 
   if (diff) {
     addLog({
-      lid: genLid(), ts: nowIso(), date: curDate(),
+      lid: genLid(), ts: nowIso(), date: curDate(), slot: curSlot(),
       product: products[idx].name, detail: diff
     });
   }
@@ -965,6 +992,9 @@ function saveLog() {
 function addLog(entry, opts) {
   opts = opts || {};
   if (changeLog.some(e => e.lid === entry.lid)) return;   // 중복 방지
+  // slot을 detail 안에도 저장(클라우드 log 테이블엔 slot 컬럼이 없어 detail로 왕복)
+  if (entry.detail && entry.slot != null && entry.detail.slot == null) entry.detail.slot = entry.slot;
+  if (entry.slot == null && entry.detail && entry.detail.slot != null) entry.slot = entry.detail.slot;
   entry.pending = !cloudReady;
   changeLog.unshift(entry);
   changeLog = changeLog.slice(0, 300);
@@ -993,7 +1023,7 @@ async function pullLog() {
       .order('ts', { ascending: false }).limit(300);
     if (error) { console.warn('log pull:', error.message); return; }
     const have = new Set(changeLog.map(e => e.lid));
-    (data || []).forEach(r => { if (!have.has(r.lid)) changeLog.push({ ...r, pending: false }); });
+    (data || []).forEach(r => { if (!have.has(r.lid)) changeLog.push({ ...r, slot: r.detail && r.detail.slot, pending: false }); });
     changeLog.sort((a, b) => (a.ts < b.ts ? 1 : -1));
     changeLog = changeLog.slice(0, 300);
     saveLog();
@@ -1014,11 +1044,21 @@ function fmtTs(ts) {
 function isOpen(id) { return document.getElementById(id).classList.contains('active'); }
 function renderLogIfOpen() { if (isOpen('logModal')) renderLog(); }
 
+function slotOf(e) { return e.slot || (e.detail && e.detail.slot) || ''; }
+function slotBadge(e) {
+  const s = slotOf(e);
+  if (!s) return '';
+  const cls = s === '오전' ? 'slot-am' : 'slot-pm';
+  return `<span class="slot-badge ${cls}">${escapeHtml(s)}</span>`;
+}
+
 function renderLog() {
   const list = document.getElementById('logList');
   const onlyToday = document.getElementById('logOnlyToday').checked;
+  const slotFilter = document.getElementById('logSlotFilter').value;
   let items = changeLog;
   if (onlyToday) items = items.filter(e => e.date === curDate());
+  if (slotFilter) items = items.filter(e => slotOf(e) === slotFilter);
 
   if (!items.length) {
     list.innerHTML = '<div class="log-empty">변경 이력이 없습니다.</div>';
@@ -1029,7 +1069,7 @@ function renderLog() {
     if (d.reset) {
       return `<div class="log-item reset">
         <div class="log-time">${fmtTs(e.ts)}</div>
-        <div class="log-body"><span class="prod">전체 초기화</span>
+        <div class="log-body"><span class="prod">전체 초기화</span> ${slotBadge(e)}
           <div class="log-date">기준일 ${escapeHtml(e.date || '')}</div>
         </div></div>`;
     }
@@ -1039,7 +1079,7 @@ function renderLog() {
     return `<div class="log-item">
       <div class="log-time">${fmtTs(e.ts)}</div>
       <div class="log-body">
-        <span class="prod">${escapeHtml(e.product || '')}</span>
+        <span class="prod">${escapeHtml(e.product || '')}</span> ${slotBadge(e)}
         <span class="log-total"> · 총 ${fmt(d.grandFrom)} → <b>${fmt(d.grandTo)}</b></span>
         <div class="log-date">기준일 ${escapeHtml(e.date || '')}</div>
         <div class="log-detail">${chips}</div>
@@ -1147,7 +1187,7 @@ async function pullRecord() {
   const c = getCloudCfg();
   try {
     const { data, error } = await supa.from('inventory').select('data')
-      .eq('room', c.room).eq('date', curDate()).eq('slot', SLOT).maybeSingle();
+      .eq('room', c.room).eq('date', curDate()).eq('slot', curSlot()).maybeSingle();
     if (error) { console.warn('record pull:', error.message); return false; }
     if (data && data.data) {
       applyingRemote = true; rowData = normalizeRows(data.data); renderTable(); applyingRemote = false;
@@ -1162,7 +1202,7 @@ async function pushRecord() {
   const c = getCloudCfg();
   try {
     const { error } = await supa.from('inventory').upsert(
-      { room: c.room, date: curDate(), slot: SLOT, data: rowData, updated_at: nowIso(), updated_by: CLIENT_ID },
+      { room: c.room, date: curDate(), slot: curSlot(), data: rowData, updated_at: nowIso(), updated_by: CLIENT_ID },
       { onConflict: 'room,date,slot' });
     if (error) { console.warn('record push:', error.message); setStatus('error'); }
     else setStatus('online');
@@ -1176,7 +1216,7 @@ function subscribeRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory', filter: 'room=eq.' + c.room }, payload => {
       const r = payload.new;
       if (!r || r.updated_by === CLIENT_ID) return;
-      if (r.date === curDate()) {
+      if (r.date === curDate() && r.slot === curSlot()) {
         applyingRemote = true; rowData = normalizeRows(r.data); renderTable(); applyingRemote = false;
         try { localStorage.setItem(workingKey(), JSON.stringify({ date: curDate(), data: rowData, savedAt: Date.now() })); } catch (e) {}
         showToast('다른 기기에서 업데이트됨 ↻', 'success');
@@ -1309,7 +1349,7 @@ function resetData() {
   renderTable();
   persistWorking();
   if (hadData) {
-    addLog({ lid: genLid(), ts: nowIso(), date: curDate(), product: '전체', detail: { reset: true } });
+    addLog({ lid: genLid(), ts: nowIso(), date: curDate(), slot: curSlot(), product: '전체', detail: { reset: true } });
   }
   showToast('초기화됨 ✓', 'error');
 }
@@ -1331,7 +1371,7 @@ function downloadCSV() {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `재고_${date}.csv`; a.click();
+  a.href = url; a.download = `재고_${date}_${curSlot()}.csv`; a.click();
   URL.revokeObjectURL(url);
   showToast('CSV 다운로드 완료', 'success');
 }
@@ -1345,28 +1385,36 @@ function shiftDate(str, days) {
   return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
 }
 
-// 특정 날짜의 재고 데이터 가져오기 (현재 날짜는 라이브값, 그 외는 클라우드→로컬 순)
-async function fetchDateData(date) {
-  if (date === curDate()) return rowData.slice();
+// 직전 시간대 계산: 오후→같은날 오전, 오전→전일 오후
+function prevSlot(date, slot) {
+  return slot === '오후' ? { date, slot: '오전' } : { date: shiftDate(date, -1), slot: '오후' };
+}
+
+// 특정 (날짜, 시간대)의 재고 데이터 가져오기 (현재값은 라이브, 그 외는 클라우드→로컬 순)
+async function fetchDateData(date, slot) {
+  if (date === curDate() && slot === curSlot()) return rowData.slice();
   if (cloudReady) {
     try {
       const c = getCloudCfg();
       const { data } = await supa.from('inventory').select('data')
-        .eq('room', c.room).eq('date', date).eq('slot', SLOT).maybeSingle();
+        .eq('room', c.room).eq('date', date).eq('slot', slot).maybeSingle();
       if (data && data.data) return normalizeRows(data.data);
     } catch (e) { console.warn(e); }
   }
   try {
-    const raw = localStorage.getItem(`inv_work_${roomName()}_${date}`);
+    const raw = localStorage.getItem(`inv_work_${roomName()}_${date}_${slot}`);
     if (raw) return normalizeRows(JSON.parse(raw).data);
   } catch (e) {}
   return null;
 }
 
 function openDiffModal() {
-  const cmp = curDate();
-  document.getElementById('diffCmpDate').value = cmp;
-  document.getElementById('diffBaseDate').value = shiftDate(cmp, -1);
+  const cmpDate = curDate(), cmpSlot = curSlot();
+  const prev = prevSlot(cmpDate, cmpSlot);
+  document.getElementById('diffCmpDate').value = cmpDate;
+  document.getElementById('diffCmpSlot').value = cmpSlot;
+  document.getElementById('diffBaseDate').value = prev.date;
+  document.getElementById('diffBaseSlot').value = prev.slot;
   document.getElementById('diffModal').classList.add('active');
   runDiff();
 }
@@ -1375,23 +1423,26 @@ function closeDiffModal() { document.getElementById('diffModal').classList.remov
 let lastDiff = null;
 async function runDiff() {
   const baseDate = document.getElementById('diffBaseDate').value;
+  const baseSlot = document.getElementById('diffBaseSlot').value;
   const cmpDate = document.getElementById('diffCmpDate').value;
+  const cmpSlot = document.getElementById('diffCmpSlot').value;
   const hideZero = document.getElementById('diffHideZero').checked;
   const body = document.getElementById('diffBody');
   const summary = document.getElementById('diffSummary');
-  document.getElementById('diffBaseTh').textContent = baseDate || '기준일';
-  document.getElementById('diffCmpTh').textContent = cmpDate || '비교일';
+  const lbl = (d, s) => `${d.slice(5)} ${s}`;
+  document.getElementById('diffBaseTh').textContent = baseDate ? lbl(baseDate, baseSlot) : '기준';
+  document.getElementById('diffCmpTh').textContent = cmpDate ? lbl(cmpDate, cmpSlot) : '비교';
 
   if (!baseDate || !cmpDate) {
-    body.innerHTML = ''; summary.innerHTML = '<div class="diff-missing">기준일과 비교일을 선택하세요.</div>'; return;
+    body.innerHTML = ''; summary.innerHTML = '<div class="diff-missing">기준·비교 날짜를 선택하세요.</div>'; return;
   }
 
   summary.innerHTML = '불러오는 중…';
-  const [base, cmp] = await Promise.all([fetchDateData(baseDate), fetchDateData(cmpDate)]);
+  const [base, cmp] = await Promise.all([fetchDateData(baseDate, baseSlot), fetchDateData(cmpDate, cmpSlot)]);
 
   let miss = '';
-  if (!base) miss += `기준일(${baseDate}) 저장된 재고 없음. `;
-  if (!cmp) miss += `비교일(${cmpDate}) 저장된 재고 없음.`;
+  if (!base) miss += `기준(${lbl(baseDate, baseSlot)}) 저장된 재고 없음. `;
+  if (!cmp) miss += `비교(${lbl(cmpDate, cmpSlot)}) 저장된 재고 없음.`;
 
   const rows = []; let baseGrand = 0, cmpGrand = 0;
   products.forEach((p, i) => {
@@ -1400,7 +1451,7 @@ async function runDiff() {
     baseGrand += b; cmpGrand += c;
     rows.push({ name: p.name, b, c, diff: c - b });
   });
-  lastDiff = { baseDate, cmpDate, rows, baseGrand, cmpGrand };
+  lastDiff = { baseDate, baseSlot, cmpDate, cmpSlot, rows, baseGrand, cmpGrand };
 
   const cls = v => v > 0 ? 'diff-up' : (v < 0 ? 'diff-down' : 'diff-zero');
   const arrow = v => v > 0 ? '▲' : (v < 0 ? '▼' : '–');
@@ -1426,22 +1477,22 @@ async function runDiff() {
 
   const totalDiff = cmpGrand - baseGrand;
   summary.innerHTML = (miss ? `<div class="diff-missing">⚠️ ${miss}</div>` : '') +
-    `<b>${baseDate}</b> → <b>${cmpDate}</b> 총 변동 :
+    `<b>${lbl(baseDate, baseSlot)}</b> → <b>${lbl(cmpDate, cmpSlot)}</b> 총 변동 :
      <b class="${cls(totalDiff)}">${sign(totalDiff)}</b>
      <span style="color:var(--text-muted);">(${fmt(baseGrand)} → ${fmt(cmpGrand)})</span>`;
 }
 
 function exportDiffCsv() {
   if (!lastDiff) { showToast('먼저 비교를 실행하세요.', 'error'); return; }
-  const { baseDate, cmpDate, rows, baseGrand, cmpGrand } = lastDiff;
-  const header = ['제품명', `${baseDate}(기준)`, `${cmpDate}(비교)`, '차이'];
+  const { baseDate, baseSlot, cmpDate, cmpSlot, rows, baseGrand, cmpGrand } = lastDiff;
+  const header = ['제품명', `${baseDate} ${baseSlot}(기준)`, `${cmpDate} ${cmpSlot}(비교)`, '차이'];
   const lines = rows.map(r => ['"' + String(r.name).replace(/"/g, '""') + '"', r.b, r.c, r.diff].join(','));
   lines.push(['합계', baseGrand, cmpGrand, cmpGrand - baseGrand].join(','));
   const csv = '﻿' + [header.join(','), ...lines].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `재고변동_${baseDate}_${cmpDate}.csv`; a.click();
+  a.href = url; a.download = `재고변동_${baseDate}${baseSlot}_${cmpDate}${cmpSlot}.csv`; a.click();
   URL.revokeObjectURL(url);
   showToast('변동 비교 CSV 다운로드', 'success');
 }
@@ -1455,8 +1506,8 @@ function showToast(msg, type = 'info') {
   t._timer = setTimeout(() => { t.className = `toast ${type}`; }, 2500);
 }
 
-// ===== 날짜 변경 =====
-async function onDateChange() {
+// ===== 날짜/시간대 변경 =====
+async function onSelectionChange() {
   loadWorking();
   renderTable();
   if (cloudReady) await pullRecord();
@@ -1469,13 +1520,18 @@ function init() {
   rowData = products.map(EMPTY_ROW);
   changeLog = loadLog();
   document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+  document.getElementById('slotInput').value = (new Date().getHours() < 12) ? '오전' : '오후';
   loadWorking();
   renderTable();
 
-  document.getElementById('dateInput').addEventListener('change', onDateChange);
+  document.getElementById('dateInput').addEventListener('change', onSelectionChange);
+  document.getElementById('slotInput').addEventListener('change', onSelectionChange);
   document.getElementById('logOnlyToday').addEventListener('change', renderLog);
+  document.getElementById('logSlotFilter').addEventListener('change', renderLog);
   document.getElementById('diffBaseDate').addEventListener('change', runDiff);
+  document.getElementById('diffBaseSlot').addEventListener('change', runDiff);
   document.getElementById('diffCmpDate').addEventListener('change', runDiff);
+  document.getElementById('diffCmpSlot').addEventListener('change', runDiff);
   document.getElementById('diffHideZero').addEventListener('change', runDiff);
 
   document.getElementById('modalOverlay').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
