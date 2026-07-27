@@ -254,6 +254,9 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           <Link href="/reports/management-dashboard" className={linkCls(pathname.startsWith('/reports/management-dashboard'))}>
             <span>경영대시보드</span>
           </Link>
+          <Link href="/sales-hub" className={linkCls(pathname.startsWith('/sales-hub'))}>
+            <span>매출처 허브</span>
+          </Link>
         </div>
 
         {/* ── ERP ── */}
