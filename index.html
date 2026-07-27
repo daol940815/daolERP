@@ -189,7 +189,7 @@
 
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-  table { border-collapse: collapse; width: 100%; min-width: 1300px; }
+  table { border-collapse: collapse; width: 100%; min-width: 980px; }
 
   th, td {
     border: 1px solid var(--border-light);
@@ -427,7 +427,7 @@
     .app-header { padding: 10px 12px; }
     .app-title { font-size: 16px; }
     .header-controls { gap: 6px; }
-    table { min-width: 1100px; font-size: 11px; }
+    table { min-width: 820px; font-size: 11px; }
     thead th { padding: 6px 2px; font-size: 9px; }
     td { padding: 5px 2px; }
     .modal-content { padding: 16px; }
@@ -470,32 +470,24 @@
       <table>
         <thead>
           <tr>
-            <th rowspan="3" class="th-product col-name">제품명</th>
+            <th rowspan="2" class="th-product col-name">제품명</th>
             <th colspan="4" class="th-pallet">📦 파렛트</th>
-            <th colspan="6" class="th-box">📫 박스(카톤)</th>
-            <th colspan="4" class="th-loose">🔖 낱개</th>
-            <th rowspan="3" class="th-pallet">합계</th>
+            <th colspan="4" class="th-box">📫 박스(카톤)</th>
+            <th colspan="3" class="th-loose">🔖 낱개</th>
+            <th rowspan="2" class="th-pallet">합계</th>
           </tr>
           <tr>
-            <th rowspan="2" class="sub-pallet">기준</th>
-            <th rowspan="2" class="sub-pallet">A</th>
-            <th rowspan="2" class="sub-pallet">B</th>
-            <th rowspan="2" class="sub-pallet">합</th>
-            <th rowspan="2" class="sub-box">기준</th>
-            <th colspan="2" class="sub-box">A</th>
-            <th colspan="2" class="sub-box">B</th>
-            <th rowspan="2" class="sub-box">합</th>
-            <th colspan="2" class="sub-loose">포장/비포장</th>
-            <th rowspan="2" class="sub-loose">진열</th>
-            <th rowspan="2" class="sub-loose">합</th>
-          </tr>
-          <tr>
-            <th class="sub-box">포장</th>
-            <th class="sub-box">비포장</th>
-            <th class="sub-box">포장</th>
-            <th class="sub-box">비포장</th>
-            <th class="sub-loose">포장</th>
-            <th class="sub-loose">비포장</th>
+            <th class="sub-pallet">기준</th>
+            <th class="sub-pallet">A</th>
+            <th class="sub-pallet">B</th>
+            <th class="sub-pallet">합</th>
+            <th class="sub-box">기준</th>
+            <th class="sub-box">A</th>
+            <th class="sub-box">B</th>
+            <th class="sub-box">합</th>
+            <th class="sub-loose">낱개</th>
+            <th class="sub-loose">진열</th>
+            <th class="sub-loose">합</th>
           </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -520,19 +512,14 @@
       </div>
       <div class="modal-section-title box">📫 박스(카톤)</div>
       <div class="input-wrapper">
-        <div class="input-field"><label>A - 포장</label><input type="number" id="modalBoxAPacked" min="0" step="1" inputmode="numeric"></div>
-        <div class="input-field"><label>A - 비포장</label><input type="number" id="modalBoxAUnpacked" min="0" step="1" inputmode="numeric"></div>
-      </div>
-      <div class="input-wrapper">
-        <div class="input-field"><label>B - 포장</label><input type="number" id="modalBoxBPacked" min="0" step="1" inputmode="numeric"></div>
-        <div class="input-field"><label>B - 비포장</label><input type="number" id="modalBoxBUnpacked" min="0" step="1" inputmode="numeric"></div>
+        <div class="input-field"><label>A</label><input type="number" id="modalBoxA" min="0" step="1" inputmode="numeric"></div>
+        <div class="input-field"><label>B</label><input type="number" id="modalBoxB" min="0" step="1" inputmode="numeric"></div>
       </div>
       <div class="modal-section-title loose">🔖 낱개</div>
       <div class="input-wrapper">
-        <div class="input-field"><label>포장</label><input type="number" id="modalLoosePacked" min="0" step="1" inputmode="numeric"></div>
-        <div class="input-field"><label>비포장</label><input type="number" id="modalLooseUnpacked" min="0" step="1" inputmode="numeric"></div>
+        <div class="input-field"><label>낱개</label><input type="number" id="modalLoose" min="0" step="1" inputmode="numeric"></div>
+        <div class="input-field"><label>진열</label><input type="number" id="modalLooseDisplay" min="0" step="1" inputmode="numeric"></div>
       </div>
-      <div class="input-field" style="margin-bottom:16px;"><label>진열</label><input type="number" id="modalLooseDisplay" min="0" step="1" inputmode="numeric"></div>
       <div id="modalCalcDisplay"></div>
       <div class="modal-footer">
         <button type="button" class="btn btn-white" onclick="closeModal()">취소</button>
@@ -726,16 +713,14 @@ const DEFAULT_PRODUCTS = [
 
 const EMPTY_ROW = () => ({
   palletB: 0, palletA: 0,
-  boxAPacked: 0, boxAUnpacked: 0,
-  boxBPacked: 0, boxBUnpacked: 0,
-  loosePacked: 0, looseUnpacked: 0, looseDisplay: 0
+  boxA: 0, boxB: 0,
+  loose: 0, looseDisplay: 0
 });
 
 const FIELD_LABELS = {
   palletA: '파렛트A', palletB: '파렛트B',
-  boxAPacked: '박스A포장', boxAUnpacked: '박스A비포장',
-  boxBPacked: '박스B포장', boxBUnpacked: '박스B비포장',
-  loosePacked: '낱개포장', looseUnpacked: '낱개비포장', looseDisplay: '낱개진열'
+  boxA: '박스A', boxB: '박스B',
+  loose: '낱개', looseDisplay: '진열'
 };
 
 // ===== 전역 상태 (초기값은 init()에서 로드 — 상수 정의 이후 실행을 보장) =====
@@ -796,12 +781,14 @@ function normalizeRows(arr) {
   const src = Array.isArray(arr) ? arr : [];
   return products.map((_, i) => {
     const d = src[i] || {};
+    // 구버전(포장/비포장 분리) 데이터 호환: 분리값이 있으면 합산해서 이어받음
+    const boxA = d.boxA != null ? num(d.boxA) : (num(d.boxAPacked) + num(d.boxAUnpacked));
+    const boxB = d.boxB != null ? num(d.boxB) : (num(d.boxBPacked) + num(d.boxBUnpacked));
+    const loose = d.loose != null ? num(d.loose) : (num(d.loosePacked) + num(d.looseUnpacked));
     return {
       palletB: num(d.palletB), palletA: num(d.palletA),
-      boxAPacked: num(d.boxAPacked), boxAUnpacked: num(d.boxAUnpacked),
-      boxBPacked: num(d.boxBPacked), boxBUnpacked: num(d.boxBUnpacked),
-      loosePacked: num(d.loosePacked), looseUnpacked: num(d.looseUnpacked),
-      looseDisplay: num(d.looseDisplay)
+      boxA, boxB,
+      loose, looseDisplay: num(d.looseDisplay)
     };
   });
 }
@@ -823,9 +810,9 @@ function calcRow(d, product) {
   const bStd = num(product.boxStd);
   const palletSum = num(d.palletB) + num(d.palletA);
   const palletTotal = palletSum * pStd;
-  const boxSum = num(d.boxAPacked) + num(d.boxAUnpacked) + num(d.boxBPacked) + num(d.boxBUnpacked);
+  const boxSum = num(d.boxA) + num(d.boxB);
   const boxTotal = boxSum * bStd;
-  const looseSum = num(d.loosePacked) + num(d.looseUnpacked) + num(d.looseDisplay);
+  const looseSum = num(d.loose) + num(d.looseDisplay);
   const grandTotal = palletTotal + boxTotal + looseSum;
   return { palletSum, palletTotal, boxSum, boxTotal, looseSum, grandTotal };
 }
@@ -838,12 +825,9 @@ function openModal(idx) {
   document.getElementById('modalTitle').textContent = product.name;
   document.getElementById('modalPalletB').value = num(data.palletB) || '';
   document.getElementById('modalPalletA').value = num(data.palletA) || '';
-  document.getElementById('modalBoxAPacked').value = num(data.boxAPacked) || '';
-  document.getElementById('modalBoxAUnpacked').value = num(data.boxAUnpacked) || '';
-  document.getElementById('modalBoxBPacked').value = num(data.boxBPacked) || '';
-  document.getElementById('modalBoxBUnpacked').value = num(data.boxBUnpacked) || '';
-  document.getElementById('modalLoosePacked').value = num(data.loosePacked) || '';
-  document.getElementById('modalLooseUnpacked').value = num(data.looseUnpacked) || '';
+  document.getElementById('modalBoxA').value = num(data.boxA) || '';
+  document.getElementById('modalBoxB').value = num(data.boxB) || '';
+  document.getElementById('modalLoose').value = num(data.loose) || '';
   document.getElementById('modalLooseDisplay').value = num(data.looseDisplay) || '';
   updateModalCalc();
   document.getElementById('modalOverlay').classList.add('active');
@@ -857,12 +841,9 @@ function readModalInputs() {
   return {
     palletB: num(document.getElementById('modalPalletB').value),
     palletA: num(document.getElementById('modalPalletA').value),
-    boxAPacked: num(document.getElementById('modalBoxAPacked').value),
-    boxAUnpacked: num(document.getElementById('modalBoxAUnpacked').value),
-    boxBPacked: num(document.getElementById('modalBoxBPacked').value),
-    boxBUnpacked: num(document.getElementById('modalBoxBUnpacked').value),
-    loosePacked: num(document.getElementById('modalLoosePacked').value),
-    looseUnpacked: num(document.getElementById('modalLooseUnpacked').value),
+    boxA: num(document.getElementById('modalBoxA').value),
+    boxB: num(document.getElementById('modalBoxB').value),
+    loose: num(document.getElementById('modalLoose').value),
     looseDisplay: num(document.getElementById('modalLooseDisplay').value)
   };
 }
@@ -902,8 +883,7 @@ function saveModalData() {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-  ['modalPalletB', 'modalPalletA', 'modalBoxAPacked', 'modalBoxAUnpacked', 'modalBoxBPacked',
-   'modalBoxBUnpacked', 'modalLoosePacked', 'modalLooseUnpacked', 'modalLooseDisplay']
+  ['modalPalletB', 'modalPalletA', 'modalBoxA', 'modalBoxB', 'modalLoose', 'modalLooseDisplay']
     .forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('input', updateModalCalc); });
 });
 
@@ -922,13 +902,10 @@ function renderTable() {
       <td class="calc calc-pallet">${fmt(d.palletB)}</td>
       <td class="calc calc-pallet">${fmt(c.palletSum)}</td>
       <td class="calc calc-std">${fmt(product.boxStd)}</td>
-      <td class="calc calc-box">${fmt(d.boxAPacked)}</td>
-      <td class="calc calc-box">${fmt(d.boxAUnpacked)}</td>
-      <td class="calc calc-box">${fmt(d.boxBPacked)}</td>
-      <td class="calc calc-box">${fmt(d.boxBUnpacked)}</td>
+      <td class="calc calc-box">${fmt(d.boxA)}</td>
+      <td class="calc calc-box">${fmt(d.boxB)}</td>
       <td class="calc calc-box">${fmt(c.boxSum)}</td>
-      <td class="calc calc-loose">${fmt(d.loosePacked)}</td>
-      <td class="calc calc-loose">${fmt(d.looseUnpacked)}</td>
+      <td class="calc calc-loose">${fmt(d.loose)}</td>
       <td class="calc calc-loose">${fmt(d.looseDisplay)}</td>
       <td class="calc calc-loose">${fmt(c.looseSum)}</td>
       <td class="calc calc-total">${fmt(c.grandTotal)}</td>`;
@@ -939,13 +916,13 @@ function renderTable() {
 
 function renderFooter() {
   const tfoot = document.getElementById('tableFoot');
-  let tPA = 0, tPB = 0, tPS = 0, tBAP = 0, tBAU = 0, tBBP = 0, tBBU = 0, tBS = 0, tLP = 0, tLU = 0, tLD = 0, tLS = 0, tG = 0;
+  let tPA = 0, tPB = 0, tPS = 0, tBA = 0, tBB = 0, tBS = 0, tL = 0, tLD = 0, tLS = 0, tG = 0;
   products.forEach((product, i) => {
     const d = rowData[i] || EMPTY_ROW();
     const c = calcRow(d, product);
     tPA += num(d.palletA); tPB += num(d.palletB); tPS += c.palletSum;
-    tBAP += num(d.boxAPacked); tBAU += num(d.boxAUnpacked); tBBP += num(d.boxBPacked); tBBU += num(d.boxBUnpacked); tBS += c.boxSum;
-    tLP += num(d.loosePacked); tLU += num(d.looseUnpacked); tLD += num(d.looseDisplay); tLS += c.looseSum;
+    tBA += num(d.boxA); tBB += num(d.boxB); tBS += c.boxSum;
+    tL += num(d.loose); tLD += num(d.looseDisplay); tLS += c.looseSum;
     tG += c.grandTotal;
   });
   tfoot.innerHTML = `
@@ -956,13 +933,10 @@ function renderFooter() {
       <td class="foot-pallet">${fmt(tPB)}</td>
       <td class="foot-pallet">${fmt(tPS)}</td>
       <td class="foot-std">-</td>
-      <td class="foot-box">${fmt(tBAP)}</td>
-      <td class="foot-box">${fmt(tBAU)}</td>
-      <td class="foot-box">${fmt(tBBP)}</td>
-      <td class="foot-box">${fmt(tBBU)}</td>
+      <td class="foot-box">${fmt(tBA)}</td>
+      <td class="foot-box">${fmt(tBB)}</td>
       <td class="foot-box">${fmt(tBS)}</td>
-      <td class="foot-loose">${fmt(tLP)}</td>
-      <td class="foot-loose">${fmt(tLU)}</td>
+      <td class="foot-loose">${fmt(tL)}</td>
       <td class="foot-loose">${fmt(tLD)}</td>
       <td class="foot-loose">${fmt(tLS)}</td>
       <td class="foot-total">${fmt(tG)}</td>
@@ -1344,14 +1318,14 @@ function resetData() {
 function downloadCSV() {
   const date = curDate() || '날짜없음';
   const headers = ['제품명', '파렛트기준', '파렛트A', '파렛트B', '파렛트합계',
-    '카톤기준', '박스A포장', '박스A비포장', '박스B포장', '박스B비포장', '박스합계',
-    '낱개포장', '낱개비포장', '낱개진열', '낱개합계', '총합계'];
+    '카톤기준', '박스A', '박스B', '박스합계',
+    '낱개', '진열', '낱개합계', '총합계'];
   const rows = products.map((p, i) => {
     const d = rowData[i]; const c = calcRow(d, p);
     return ['"' + String(p.name).replace(/"/g, '""') + '"',
       num(p.palletStd), num(d.palletA), num(d.palletB), c.palletSum,
-      num(p.boxStd), num(d.boxAPacked), num(d.boxAUnpacked), num(d.boxBPacked), num(d.boxBUnpacked), c.boxSum,
-      num(d.loosePacked), num(d.looseUnpacked), num(d.looseDisplay), c.looseSum, c.grandTotal].join(',');
+      num(p.boxStd), num(d.boxA), num(d.boxB), c.boxSum,
+      num(d.loose), num(d.looseDisplay), c.looseSum, c.grandTotal].join(',');
   });
   const csv = '﻿' + [headers.join(','), ...rows].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
