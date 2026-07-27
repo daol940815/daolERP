@@ -99,6 +99,23 @@ export default function SalesHubPage() {
     return true
   }), [rows, search, staffFilter, statusFilter, vipOnly, outstandingOnly])
 
+  const filterActive = !!(search || staffFilter || statusFilter || vipOnly || outstandingOnly)
+
+  // KPI는 화면에 보이는(필터 적용된) 매출처 기준으로 집계
+  const kpi = useMemo(() => {
+    const active = visible.filter(r => r.order_count > 0)
+    const net = active.reduce((s, r) => s + r.net, 0)
+    const out = active.reduce((s, r) => s + r.outstanding, 0)
+    return {
+      active_vendors: active.length,
+      net_total: net,
+      collected_total: net - out,
+      outstanding_total: out,
+      over90_total: active.reduce((s, r) => s + r.over90, 0),
+      collect_ratio: net > 0 ? (net - out) / net : 1,
+    }
+  }, [visible])
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900">매출처 관리</h1>
@@ -140,28 +157,32 @@ export default function SalesHubPage() {
           className="border border-gray-300 rounded-lg px-3 py-1 text-xs flex-1 min-w-[160px]" />
       </div>
 
-      {/* KPI */}
+      {/* KPI — 필터 적용된 목록 기준으로 집계 */}
       {summary && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-            <div className="text-xs text-gray-500">활성 매출처</div>
-            <div className="text-xl font-bold mt-0.5">{summary.active_vendors.toLocaleString()}곳</div>
-            <div className="text-[11px] text-gray-400 mt-0.5">기간 내 주문 발생 기준</div>
+            <div className="text-xs text-gray-500">활성 매출처{filterActive && <span className="ml-1 text-blue-600 font-semibold">(필터 적용)</span>}</div>
+            <div className="text-xl font-bold mt-0.5">{kpi.active_vendors.toLocaleString()}곳</div>
+            <div className="text-[11px] text-gray-400 mt-0.5">
+              {filterActive ? `전체 ${summary.active_vendors.toLocaleString()}곳 중` : '기간 내 주문 발생 기준'}
+            </div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
             <div className="text-xs text-gray-500">기간 매출 (ERP 순매출)</div>
-            <div className="text-xl font-bold mt-0.5 tabular-nums">{eok(summary.net_total)}</div>
-            <div className="text-[11px] text-gray-400 mt-0.5">취소·VIP·선결제 품목 제외</div>
+            <div className="text-xl font-bold mt-0.5 tabular-nums">{eok(kpi.net_total)}</div>
+            <div className="text-[11px] text-gray-400 mt-0.5">
+              {filterActive ? `전체 ${eok(summary.net_total)} 중` : '취소·VIP·선결제 품목 제외'}
+            </div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
             <div className="text-xs text-gray-500">수금율 (ERP 기준)</div>
-            <div className="text-xl font-bold mt-0.5 tabular-nums">{(summary.collect_ratio * 100).toFixed(1)}%</div>
-            <div className="text-[11px] text-gray-400 mt-0.5">수금 {eok(summary.collected_total)}</div>
+            <div className="text-xl font-bold mt-0.5 tabular-nums">{(kpi.collect_ratio * 100).toFixed(1)}%</div>
+            <div className="text-[11px] text-gray-400 mt-0.5">수금 {eok(kpi.collected_total)}</div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
             <div className="text-xs text-gray-500">미수 잔액</div>
-            <div className="text-xl font-bold mt-0.5 tabular-nums text-red-600">{eok(summary.outstanding_total)}</div>
-            <div className="text-[11px] text-gray-400 mt-0.5">90일 초과 {eok(summary.over90_total)} 포함</div>
+            <div className="text-xl font-bold mt-0.5 tabular-nums text-red-600">{eok(kpi.outstanding_total)}</div>
+            <div className="text-[11px] text-gray-400 mt-0.5">90일 초과 {eok(kpi.over90_total)} 포함</div>
           </div>
         </div>
       )}
