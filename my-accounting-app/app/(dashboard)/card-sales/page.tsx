@@ -60,6 +60,12 @@ export default function CardSalesPage() {
 
   useEffect(() => { load() }, [load])
 
+  // 딥링크: ?q=승인번호 등으로 진입하면 검색어로 반영 (매출처 허브 드릴다운)
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('q')
+    if (q) setSearch(q)
+  }, [])
+
   useEffect(() => {
     fetch('/api/vendors?all=true')
       .then(r => r.json())

@@ -118,6 +118,16 @@ export default function SalesHubDetailPage() {
 
   const agingTotal = useMemo(() => data ? data.aging.b30 + data.aging.b60 + data.aging.b90 + data.aging.over90 : 0, [data])
 
+  // 계산서 딥링크용 tax_type 맵 + 타임라인 이벤트별 원본 화면 링크
+  const invTaxType = useMemo(() => new Map((data?.invoices ?? []).map(i => [i.id, i.tax_type ?? 'taxable'])), [data])
+  const tlHref = useCallback((e: { kind: string; ref_id: string | null }): string | null => {
+    if (e.kind === 'invoice' && e.ref_id) return `/tax-invoices/sales/${invTaxType.get(e.ref_id) ?? 'taxable'}?invoiceId=${e.ref_id}`
+    if (e.kind === 'bank') return `/transactions?vendorId=${vendorId}`
+    if (e.kind === 'card') return e.ref_id ? `/card-sales?q=${encodeURIComponent(e.ref_id)}` : '/card-sales'
+    if (e.kind === 'alloc' && e.ref_id) return null
+    return null
+  }, [invTaxType, vendorId])
+
   if (loading && !data) return <div className="text-center py-24 text-gray-400">거래처 데이터를 모으는 중...</div>
   if (error) return <div className="mt-8 px-4 py-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>
   if (!data) return null
@@ -414,7 +424,11 @@ export default function SalesHubDetailPage() {
                       : { t: '미수', c: 'bg-red-100 text-red-700' }
                     return (
                       <tr key={o.id} className="border-b border-gray-50">
-                        <td className="py-1.5 px-3 text-xs text-gray-500 tabular-nums">{o.order_no ?? '-'}</td>
+                        <td className="py-1.5 px-3 text-xs tabular-nums">
+                          {o.order_no
+                            ? <Link href={`/erp-orders?q=${encodeURIComponent(o.order_no)}`} className="text-blue-600 hover:underline" title="ERP 주문내역에서 열기">{o.order_no}</Link>
+                            : <span className="text-gray-500">-</span>}
+                        </td>
                         <td className="py-1.5 px-3 tabular-nums text-xs">{o.order_date}</td>
                         <td className="py-1.5 px-3">{o.item_summary}</td>
                         <td className="py-1.5 px-3 text-right tabular-nums">{won(o.net)}</td>
@@ -436,14 +450,19 @@ export default function SalesHubDetailPage() {
                 <div className="px-4 pt-3 text-sm font-bold text-gray-800">수금 타임라인</div>
                 <div className="px-4 pb-1 text-[11px] text-gray-400">계산서·통장·카드 통합 (최근)</div>
                 <ul className="px-4 pb-3">
-                  {data.timeline.slice(0, 12).map((e, i) => (
-                    <li key={i} className="flex items-baseline gap-2 py-1.5 border-b border-gray-50 last:border-0 text-sm">
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold w-12 text-center ${TL_META[e.kind].cls}`}>{TL_META[e.kind].label}</span>
-                      <span className="text-xs text-gray-400 tabular-nums w-20">{e.date}</span>
-                      <span className="flex-1 truncate">{e.label}</span>
-                      <span className="font-semibold tabular-nums">{won(e.amount)}</span>
-                    </li>
-                  ))}
+                  {data.timeline.slice(0, 12).map((e, i) => {
+                    const href = tlHref(e)
+                    return (
+                      <li key={i} className="flex items-baseline gap-2 py-1.5 border-b border-gray-50 last:border-0 text-sm">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold w-12 text-center ${TL_META[e.kind].cls}`}>{TL_META[e.kind].label}</span>
+                        <span className="text-xs text-gray-400 tabular-nums w-20">{e.date}</span>
+                        {href
+                          ? <Link href={href} className="flex-1 truncate text-blue-700 hover:underline" title="원본 화면에서 열기">{e.label}</Link>
+                          : <span className="flex-1 truncate">{e.label}</span>}
+                        <span className="font-semibold tabular-nums">{won(e.amount)}</span>
+                      </li>
+                    )
+                  })}
                   {!data.timeline.length && <li className="text-xs text-gray-400 py-4">수금·발행 이력이 없습니다.</li>}
                 </ul>
               </div>
@@ -454,14 +473,19 @@ export default function SalesHubDetailPage() {
         {tab === '수금 내역' && (
           <div className="bg-white border border-gray-200 rounded-xl">
             <ul className="px-4 py-2">
-              {data.timeline.map((e, i) => (
-                <li key={i} className="flex items-baseline gap-2 py-1.5 border-b border-gray-50 last:border-0 text-sm">
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold w-12 text-center ${TL_META[e.kind].cls}`}>{TL_META[e.kind].label}</span>
-                  <span className="text-xs text-gray-400 tabular-nums w-20">{e.date}</span>
-                  <span className="flex-1 truncate">{e.label}</span>
-                  <span className="font-semibold tabular-nums">{won(e.amount)}</span>
-                </li>
-              ))}
+              {data.timeline.map((e, i) => {
+                const href = tlHref(e)
+                return (
+                  <li key={i} className="flex items-baseline gap-2 py-1.5 border-b border-gray-50 last:border-0 text-sm">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold w-12 text-center ${TL_META[e.kind].cls}`}>{TL_META[e.kind].label}</span>
+                    <span className="text-xs text-gray-400 tabular-nums w-20">{e.date}</span>
+                    {href
+                      ? <Link href={href} className="flex-1 truncate text-blue-700 hover:underline" title="원본 화면에서 열기">{e.label}</Link>
+                      : <span className="flex-1 truncate">{e.label}</span>}
+                    <span className="font-semibold tabular-nums">{won(e.amount)}</span>
+                  </li>
+                )
+              })}
               {!data.timeline.length && <li className="text-xs text-gray-400 py-6">이력이 없습니다.</li>}
             </ul>
           </div>
@@ -480,7 +504,10 @@ export default function SalesHubDetailPage() {
               <tbody>
                 {data.invoices.map(inv => (
                   <tr key={inv.id} className="border-b border-gray-50">
-                    <td className="py-1.5 px-3 tabular-nums">{inv.issue_date}</td>
+                    <td className="py-1.5 px-3 tabular-nums">
+                      <Link href={`/tax-invoices/sales/${inv.tax_type ?? 'taxable'}?invoiceId=${inv.id}`}
+                        className="text-blue-600 hover:underline" title="계산서 화면에서 열기">{inv.issue_date}</Link>
+                    </td>
                     <td className="py-1.5 px-3 text-right tabular-nums">{won(inv.total_amount)}</td>
                     <td className="py-1.5 px-3">
                       <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${inv.payment_status === 'matched' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>

@@ -291,7 +291,7 @@ export interface HubDetail {
   aging: { b30: number; b60: number; b90: number; over90: number; opening: number }
   orders: HubOrderRow[]
   timeline: HubTimelineEvent[]
-  invoices: { id: string; issue_date: string; total_amount: number; payment_status: string }[]
+  invoices: { id: string; issue_date: string; total_amount: number; payment_status: string; tax_type: string | null }[]
   vip_items: HubSpecialItem[]
   prepay_items: HubSpecialItem[]
   prepay_ledger: HubPrepayEntry[]
@@ -388,9 +388,9 @@ export async function buildHubDetail(
   }
 
   // 매출 계산서 + 매칭 입금
-  const invR = await fetchAllRows<{ id: string; issue_date: string; total_amount: number | null; payment_status: string }>((f, t) =>
+  const invR = await fetchAllRows<{ id: string; issue_date: string; total_amount: number | null; payment_status: string; tax_type: string | null }>((f, t) =>
     admin.from('tax_invoices')
-      .select('id, issue_date, total_amount, payment_status')
+      .select('id, issue_date, total_amount, payment_status, tax_type')
       .eq('direction', 'sales').eq('vendor_id', vendorId)
       .order('issue_date', { ascending: false })
       .range(f, t))
@@ -408,9 +408,9 @@ export async function buildHubDetail(
   const txInfo = new Map(txR.data.map(t => [t.id, t]))
 
   // 카드매출 (승인 기준, 취소 제외)
-  const cardR = await fetchAllRows<{ id: string; tx_date: string; amount: number | null; transaction_type: string | null; cancelled_at: string | null; acquirer: string | null; card_number: string | null }>((f, t) =>
+  const cardR = await fetchAllRows<{ id: string; tx_date: string; amount: number | null; transaction_type: string | null; cancelled_at: string | null; acquirer: string | null; card_number: string | null; approval_number: string | null }>((f, t) =>
     admin.from('card_sales')
-      .select('id, tx_date, amount, transaction_type, cancelled_at, acquirer, card_number')
+      .select('id, tx_date, amount, transaction_type, cancelled_at, acquirer, card_number, approval_number')
       .eq('vendor_id', vendorId)
       .order('tx_date', { ascending: false })
       .range(f, t))
@@ -556,7 +556,7 @@ export async function buildHubDetail(
     timeline.push({
       kind: 'card', date: c.tx_date,
       label: `카드매출 (${c.acquirer ?? '매입사 미상'}${c.card_number ? ' ' + c.card_number.slice(-4) : ''})`,
-      amount: c.amount ?? 0, ref_id: c.id,
+      amount: c.amount ?? 0, ref_id: c.approval_number ?? null,  // 카드매출 화면 검색 딥링크용
     })
   }
   for (const inv of invR.data) {
@@ -633,7 +633,7 @@ export async function buildHubDetail(
     aging,
     orders: orderRows,
     timeline: timeline.slice(0, 200),
-    invoices: invR.data.map(i => ({ id: i.id, issue_date: i.issue_date, total_amount: i.total_amount ?? 0, payment_status: i.payment_status })),
+    invoices: invR.data.map(i => ({ id: i.id, issue_date: i.issue_date, total_amount: i.total_amount ?? 0, payment_status: i.payment_status, tax_type: i.tax_type })),
     vip_items: pick('is_vip'),
     prepay_items: pick('is_prepayment'),
     prepay_ledger: prepayLedger,
