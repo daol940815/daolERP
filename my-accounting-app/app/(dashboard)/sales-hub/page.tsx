@@ -10,6 +10,8 @@ import { getPeriodRange, DEFAULT_VIEW_FROM } from '@/lib/period-presets'
 interface Row {
   vendor_id: string
   vendor_name: string
+  biz_number: string | null
+  alias_names: string[]
   alias_count: number
   card_count: number
   staff_primary: string | null
@@ -89,8 +91,17 @@ export default function SalesHubPage() {
     return Array.from(s).sort((a, b) => a.localeCompare(b, 'ko'))
   }, [rows])
 
+  // 검색: 거래처명 + ERP 별칭 표기 + 사업자번호(숫자 3자리 이상), 공백·대소문자 무시
+  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, '')
   const visible = useMemo(() => rows.filter(r => {
-    if (search && !r.vendor_name.toLowerCase().includes(search.toLowerCase())) return false
+    if (search) {
+      const q = norm(search)
+      const digits = search.replace(/\D/g, '')
+      const hit = norm(r.vendor_name).includes(q)
+        || r.alias_names.some(a => norm(a).includes(q))
+        || (digits.length >= 3 && (r.biz_number ?? '').replace(/\D/g, '').includes(digits))
+      if (!hit) return false
+    }
     if (staffFilter && r.staff_primary !== staffFilter) return false
     if (statusFilter && r.status !== statusFilter) return false
     if (vipOnly && r.vip_total <= 0) return false
@@ -152,7 +163,7 @@ export default function SalesHubPage() {
         <label className="text-xs text-gray-600 flex items-center gap-1">
           <input type="checkbox" checked={outstandingOnly} onChange={e => setOutstandingOnly(e.target.checked)} /> 미수 있는 곳만
         </label>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="매출처명 검색"
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="매출처명 · ERP 별칭 · 사업자번호 검색"
           className="border border-gray-300 rounded-lg px-3 py-1 text-xs flex-1 min-w-[160px]" />
       </div>
 

@@ -25,6 +25,8 @@ export type HubStatus = 'normal' | 'outstanding' | 'late' | 'over90' | 'dormant'
 export interface HubListRow {
   vendor_id: string
   vendor_name: string
+  biz_number: string | null
+  alias_names: string[]   // ERP 표기 검색용
   alias_count: number
   card_count: number
   staff_primary: string | null
@@ -129,11 +131,11 @@ export async function buildHubList(
 ): Promise<{ rows: HubListRow[]; summary: HubListSummary } | { error: string }> {
   // 보조 데이터(별칭·거래처·담당·담당자)와 주문 집계를 병렬로 진행
   const sidePromise = Promise.all([
-    fetchAllRows<{ id: string; vendor_id: string }>((f, t) =>
-      admin.from('erp_vendor_aliases').select('id, vendor_id')
+    fetchAllRows<{ id: string; vendor_id: string; erp_name: string | null }>((f, t) =>
+      admin.from('erp_vendor_aliases').select('id, vendor_id, erp_name')
         .eq('alias_type', 'customer').not('vendor_id', 'is', null).range(f, t)),
-    fetchAllRows<{ id: string; name: string; card_numbers: string[] | null }>((f, t) =>
-      admin.from('vendors').select('id, name, card_numbers').range(f, t)),
+    fetchAllRows<{ id: string; name: string; card_numbers: string[] | null; biz_number: string | null }>((f, t) =>
+      admin.from('vendors').select('id, name, card_numbers, biz_number').range(f, t)),
     fetchAllRows<{ vendor_id: string; is_primary: boolean; employees: unknown }>((f, t) =>
       admin.from('vendor_staff').select('vendor_id, is_primary, employees(name)')
         .is('ended_at', null).range(f, t)),
@@ -170,7 +172,14 @@ export async function buildHubList(
   if ('error' in staffResult) return staffResult
   const aliasToVendor = new Map(aliasResult.data.map(a => [a.id, a.vendor_id]))
   const aliasCount = new Map<string, number>()
-  for (const a of aliasResult.data) aliasCount.set(a.vendor_id, (aliasCount.get(a.vendor_id) ?? 0) + 1)
+  const aliasNames = new Map<string, string[]>()  // 검색용 (거래처당 최대 12개)
+  for (const a of aliasResult.data) {
+    aliasCount.set(a.vendor_id, (aliasCount.get(a.vendor_id) ?? 0) + 1)
+    if (a.erp_name) {
+      const arr = aliasNames.get(a.vendor_id) ?? []
+      if (arr.length < 12) { arr.push(a.erp_name); aliasNames.set(a.vendor_id, arr) }
+    }
+  }
   const vInfo = new Map(vendorsResult.data.map(v => [v.id, v]))
   const staffByVendor = new Map<string, { primary: string | null; extra: number }>()
   for (const s of staffResult.data) {
@@ -256,6 +265,8 @@ export async function buildHubList(
     rows.push({
       vendor_id: vid,
       vendor_name: v?.name ?? '(삭제된 거래처)',
+      biz_number: v?.biz_number ?? null,
+      alias_names: aliasNames.get(vid) ?? [],
       alias_count: aliasCount.get(vid) ?? 0,
       card_count: v?.card_numbers?.length ?? 0,
       staff_primary: st?.primary ?? null,
