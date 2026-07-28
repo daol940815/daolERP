@@ -1,6 +1,8 @@
 import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
 import { createAdminClient } from '@/lib/supabase-server'
+import { getCurrentUser } from '@/lib/user-role'
+import { redirect } from 'next/navigation'
 import type { BankAccount } from '@/types/bank-account'
 
 export const dynamic = 'force-dynamic'
@@ -10,6 +12,10 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
+  // 영업(sales) 역할은 회계·경영 모드 접근 불가 → 주문 관리로
+  const me = await getCurrentUser()
+  if (me && me.role !== 'admin') redirect('/orders')
+
   const admin = createAdminClient()
   const { data } = await admin
     .from('bank_accounts')
