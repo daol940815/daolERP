@@ -53,7 +53,7 @@ export default async function PortalPage() {
       </div>
 
       <p className="text-slate-600 text-[11px] mt-10">
-        역할: {me.role === 'admin' ? '전체 관리자' : me.role === 'manager' ? '중간 관리자 (주문 관리 + 승인 권한)' : '영업 (주문 관리)'}
+        역할: {me.role === 'admin' ? '전체 관리자' : me.role === 'manager' ? '중간 관리자 (주문 관리 + 승인 권한)' : '직원 (주문 관리)'}
       </p>
     </div>
   )
