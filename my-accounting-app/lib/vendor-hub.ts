@@ -69,6 +69,37 @@ const addDays = (iso: string, days: number) => {
   return d.toISOString().slice(0, 10)
 }
 
+// 대형 테이블 전량 조회를 페이지 병렬로 수행 (순차 30+회 왕복 → 동시 6회씩)
+// 총 건수를 먼저 세고 범위를 나눠 동시에 읽는다. 조회 사이에 행이 추가되는
+// 미세한 경합은 대시보드 용도에서 허용한다(순차 페이지네이션도 동일한 한계).
+async function fetchAllParallel<T>(
+  countPage: () => PromiseLike<{ count: number | null; error: { message: string } | null }>,
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  concurrency = 6,
+): Promise<{ data: T[] } | { error: string }> {
+  const { count, error: cErr } = await countPage()
+  if (cErr) return { error: cErr.message }
+  const total = count ?? 0
+  if (total === 0) return { data: [] }
+  const ranges: [number, number][] = []
+  for (let f = 0; f < total; f += 1000) ranges.push([f, f + 999])
+  const out: T[][] = new Array(ranges.length)
+  let next = 0
+  let failed: string | null = null
+  const worker = async () => {
+    while (next < ranges.length && !failed) {
+      const i = next++
+      const [f, t] = ranges[i]
+      const { data, error } = await page(f, t)
+      if (error) { failed = error.message; return }
+      out[i] = data ?? []
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, ranges.length) }, worker))
+  if (failed) return { error: failed }
+  return { data: out.flat() }
+}
+
 // 취소/VIP/선결제 품목을 주문별로 집계 (순매출 차감 + VIP 누적 계산용)
 async function loadFlaggedLines(admin: SupabaseClient) {
   const r = await fetchAllRows<{ order_id: string; line_total: number | null; is_canceled: boolean; is_vip: boolean; is_prepayment: boolean }>((f, t) =>
@@ -96,35 +127,51 @@ export async function buildHubList(
   fromDate: string | null,
   toDate: string | null,
 ): Promise<{ rows: HubListRow[]; summary: HubListSummary } | { error: string }> {
-  const aliasResult = await fetchAllRows<{ id: string; vendor_id: string }>((f, t) =>
-    admin.from('erp_vendor_aliases').select('id, vendor_id')
-      .eq('alias_type', 'customer').not('vendor_id', 'is', null).range(f, t))
+  // 보조 데이터(별칭·거래처·담당·담당자)와 주문 집계를 병렬로 진행
+  const sidePromise = Promise.all([
+    fetchAllRows<{ id: string; vendor_id: string }>((f, t) =>
+      admin.from('erp_vendor_aliases').select('id, vendor_id')
+        .eq('alias_type', 'customer').not('vendor_id', 'is', null).range(f, t)),
+    fetchAllRows<{ id: string; name: string; card_numbers: string[] | null }>((f, t) =>
+      admin.from('vendors').select('id, name, card_numbers').range(f, t)),
+    fetchAllRows<{ vendor_id: string; is_primary: boolean; employees: unknown }>((f, t) =>
+      admin.from('vendor_staff').select('vendor_id, is_primary, employees(name)')
+        .is('ended_at', null).range(f, t)),
+  ])
+
+  // DB 집계 RPC 우선 (마이그레이션 101) — 미적용이면 전량 조회 폴백
+  const rpc = await admin.rpc('hub_vendor_summary', { p_from: fromDate, p_to: toDate })
+  type RpcRow = {
+    vendor_id: string; order_count: number; net: number; outstanding: number
+    over90: number; vip_total: number; last_order_date: string | null
+  }
+  let aggRows: RpcRow[] | null = null
+  if (!rpc.error) aggRows = (rpc.data ?? []) as RpcRow[]
+
+  let fallback: { ordersResult: { data: OrderLite[] }; flagged: { data: Map<string, FlagAgg> } } | null = null
+  if (!aggRows) {
+    const [ordersResult, flagged] = await Promise.all([
+      fetchAllParallel<OrderLite>(
+        () => admin.from('erp_orders').select('id', { count: 'exact', head: true }).not('customer_alias_id', 'is', null),
+        (f, t) => admin.from('erp_orders')
+          .select('id, order_no, order_date, customer_alias_id, total_amount, outstanding_amount, staff_name')
+          .not('customer_alias_id', 'is', null)
+          .range(f, t)),
+      loadFlaggedLines(admin),
+    ])
+    if ('error' in ordersResult) return ordersResult
+    if ('error' in flagged) return flagged
+    fallback = { ordersResult, flagged }
+  }
+
+  const [aliasResult, vendorsResult, staffResult] = await sidePromise
   if ('error' in aliasResult) return aliasResult
+  if ('error' in vendorsResult) return vendorsResult
+  if ('error' in staffResult) return staffResult
   const aliasToVendor = new Map(aliasResult.data.map(a => [a.id, a.vendor_id]))
   const aliasCount = new Map<string, number>()
   for (const a of aliasResult.data) aliasCount.set(a.vendor_id, (aliasCount.get(a.vendor_id) ?? 0) + 1)
-
-  // 전체 주문 (기간 집계 + 최근 주문일·휴면 판정을 한 번에)
-  const ordersResult = await fetchAllRows<OrderLite>((f, t) =>
-    admin.from('erp_orders')
-      .select('id, order_no, order_date, customer_alias_id, total_amount, outstanding_amount, staff_name')
-      .not('customer_alias_id', 'is', null)
-      .range(f, t))
-  if ('error' in ordersResult) return ordersResult
-
-  const flagged = await loadFlaggedLines(admin)
-  if ('error' in flagged) return flagged
-
-  const vendorsResult = await fetchAllRows<{ id: string; name: string; card_numbers: string[] | null }>((f, t) =>
-    admin.from('vendors').select('id, name, card_numbers').range(f, t))
-  if ('error' in vendorsResult) return vendorsResult
   const vInfo = new Map(vendorsResult.data.map(v => [v.id, v]))
-
-  // 담당직원(현재 배정) — 주담당 우선
-  const staffResult = await fetchAllRows<{ vendor_id: string; is_primary: boolean; employees: unknown }>((f, t) =>
-    admin.from('vendor_staff').select('vendor_id, is_primary, employees(name)')
-      .is('ended_at', null).range(f, t))
-  if ('error' in staffResult) return staffResult
   const staffByVendor = new Map<string, { primary: string | null; extra: number }>()
   for (const s of staffResult.data) {
     const name = (s.employees as { name?: string } | null)?.name ?? null
@@ -164,21 +211,34 @@ export async function buildHubList(
     return a
   }
 
-  for (const o of ordersResult.data) {
-    const vid = aliasToVendor.get(o.customer_alias_id as string)
-    if (!vid) continue
-    const a = get(vid)
-    if (!a.last || o.order_date > a.last) a.last = o.order_date
-    const flags = flagged.data.get(o.id)
-    a.vip_total += flags?.vip ?? 0
-    const inPeriod = (!fromDate || o.order_date >= fromDate) && (!toDate || o.order_date <= toDate)
-    if (!inPeriod) continue
-    const net = Math.max(0, (o.total_amount ?? 0) - (flags?.excluded ?? 0))
-    const out = Math.min(Math.max(0, o.outstanding_amount ?? 0), net)
-    a.order_count++
-    a.net += net
-    a.outstanding += out
-    if (out > 0 && o.order_date < over90Before) a.over90 += out
+  if (aggRows) {
+    // RPC 경로: DB에서 집계 완료 (JS 폴백과 동일한 규칙 — 101_hub_vendor_summary.sql)
+    for (const r of aggRows) {
+      const a = get(r.vendor_id)
+      a.order_count = r.order_count
+      a.net = r.net
+      a.outstanding = r.outstanding
+      a.over90 = r.over90
+      a.vip_total = r.vip_total
+      a.last = r.last_order_date
+    }
+  } else if (fallback) {
+    for (const o of fallback.ordersResult.data) {
+      const vid = aliasToVendor.get(o.customer_alias_id as string)
+      if (!vid) continue
+      const a = get(vid)
+      if (!a.last || o.order_date > a.last) a.last = o.order_date
+      const flags = fallback.flagged.data.get(o.id)
+      a.vip_total += flags?.vip ?? 0
+      const inPeriod = (!fromDate || o.order_date >= fromDate) && (!toDate || o.order_date <= toDate)
+      if (!inPeriod) continue
+      const net = Math.max(0, (o.total_amount ?? 0) - (flags?.excluded ?? 0))
+      const out = Math.min(Math.max(0, o.outstanding_amount ?? 0), net)
+      a.order_count++
+      a.net += net
+      a.outstanding += out
+      if (out > 0 && o.order_date < over90Before) a.over90 += out
+    }
   }
 
   const rows: HubListRow[] = []
@@ -320,17 +380,51 @@ export async function buildHubDetail(
   fromDate: string | null,
   toDate: string | null,
 ): Promise<HubDetail | { error: string }> {
-  const { data: vendor, error: vErr } = await admin
-    .from('vendors').select('id, name, biz_number, note, card_numbers').eq('id', vendorId).single()
-  if (vErr) return { error: vErr.message }
+  const [vendorRes, aliasRes] = await Promise.all([
+    admin.from('vendors').select('id, name, biz_number, note, card_numbers').eq('id', vendorId).single(),
+    admin.from('erp_vendor_aliases').select('id').eq('alias_type', 'customer').eq('vendor_id', vendorId),
+  ])
+  if (vendorRes.error) return { error: vendorRes.error.message }
+  if (aliasRes.error) return { error: aliasRes.error.message }
+  const vendor = vendorRes.data
+  const aliasIds = (aliasRes.data ?? []).map(a => a.id as string)
 
-  const { data: aliases, error: aErr } = await admin
-    .from('erp_vendor_aliases').select('id').eq('alias_type', 'customer').eq('vendor_id', vendorId)
-  if (aErr) return { error: aErr.message }
-  const aliasIds = (aliases ?? []).map(a => a.id as string)
-
-  const { data: opening } = await admin
+  // 주문에 의존하지 않는 조회는 먼저 출발시켜 병렬로 진행
+  const openingP = admin
     .from('vendor_opening_balances').select('amount, collected_amount').eq('vendor_id', vendorId).maybeSingle()
+  const invP = fetchAllRows<{ id: string; issue_date: string; total_amount: number | null; payment_status: string; tax_type: string | null }>((f, t) =>
+    admin.from('tax_invoices')
+      .select('id, issue_date, total_amount, payment_status, tax_type')
+      .eq('direction', 'sales').eq('vendor_id', vendorId)
+      .order('issue_date', { ascending: false })
+      .range(f, t))
+  const cardP = fetchAllRows<{ id: string; tx_date: string; amount: number | null; transaction_type: string | null; cancelled_at: string | null; acquirer: string | null; card_number: string | null; approval_number: string | null }>((f, t) =>
+    admin.from('card_sales')
+      .select('id, tx_date, amount, transaction_type, cancelled_at, acquirer, card_number, approval_number')
+      .eq('vendor_id', vendorId)
+      .order('tx_date', { ascending: false })
+      .range(f, t))
+  const prepayP = aliasIds.length
+    ? fetchAllRows<{ entry_date: string; entry_type: 'deposit' | 'deduction'; amount: number | null; memo: string | null }>((f, t) =>
+        admin.from('erp_prepayments')
+          .select('entry_date, entry_type, amount, memo')
+          .eq('direction', 'customer')
+          .in('alias_id', aliasIds)
+          .order('entry_date', { ascending: false })
+          .range(f, t))
+    : Promise.resolve({ data: [] as { entry_date: string; entry_type: 'deposit' | 'deduction'; amount: number | null; memo: string | null }[] })
+  const staffP = admin
+    .from('vendor_staff')
+    .select('id, employee_id, is_primary, started_at, employees(name, team)')
+    .eq('vendor_id', vendorId).is('ended_at', null)
+  const caP = admin
+    .from('contact_assignments')
+    .select('id, contact_id, title, role_memo, is_representative, started_at, ended_at, contacts(name, phone, email)')
+    .eq('vendor_id', vendorId)
+    .order('ended_at', { ascending: true, nullsFirst: true })
+    .order('is_representative', { ascending: false })
+
+  const { data: opening } = await openingP
   const openingRemain = opening && (opening.amount as number) > 0
     ? Math.max(0, (opening.amount as number) - ((opening.collected_amount as number | null) ?? 0))
     : 0
@@ -355,10 +449,19 @@ export async function buildHubDetail(
     is_canceled: boolean; is_vip: boolean; is_prepayment: boolean; is_shipping_exempt: boolean
     tracking_number: string | null; delivery_status: string | null
   }
-  const itemsR = await fetchByIds<ItemRow>(orderIds, 60, slice =>
-    admin.from('erp_order_items')
-      .select('order_id, item_name, quantity, line_total, is_canceled, is_vip, is_prepayment, is_shipping_exempt, tracking_number, delivery_status')
-      .in('order_id', slice))
+  const [itemsR, invAllocR, payAllocR, invR] = await Promise.all([
+    fetchByIds<ItemRow>(orderIds, 60, slice =>
+      admin.from('erp_order_items')
+        .select('order_id, item_name, quantity, line_total, is_canceled, is_vip, is_prepayment, is_shipping_exempt, tracking_number, delivery_status')
+        .in('order_id', slice)),
+    // 계산서 연결(067) — 미적용 환경 폴백 0
+    fetchByIds<{ order_id: string; amount: number }>(orderIds, 60, slice =>
+      admin.from('erp_order_invoices').select('order_id, amount').in('order_id', slice)),
+    // 주문 수금배분
+    fetchByIds<{ order_id: string; amount: number; paid_date: string | null; memo: string | null }>(orderIds, 60, slice =>
+      admin.from('erp_payment_matches').select('order_id, amount, paid_date, memo').in('order_id', slice)),
+    invP,
+  ])
   if ('error' in itemsR) return itemsR
   const itemsByOrder = new Map<string, ItemRow[]>()
   for (const it of itemsR.data) {
@@ -366,34 +469,17 @@ export async function buildHubDetail(
     arr.push(it); itemsByOrder.set(it.order_id, arr)
   }
 
-  // 계산서 연결(067) — 미적용 환경 폴백 0
   const invAlloc = new Map<string, number>()
-  {
-    const r = await fetchByIds<{ order_id: string; amount: number }>(orderIds, 60, slice =>
-      admin.from('erp_order_invoices').select('order_id, amount').in('order_id', slice))
-    if (!('error' in r)) for (const m of r.data) invAlloc.set(m.order_id, (invAlloc.get(m.order_id) ?? 0) + m.amount)
-  }
+  if (!('error' in invAllocR)) for (const m of invAllocR.data) invAlloc.set(m.order_id, (invAlloc.get(m.order_id) ?? 0) + m.amount)
 
-  // 주문 수금배분
   const payAlloc = new Map<string, number>()
   const allocEvents: { order_id: string; amount: number; paid_date: string | null; memo: string | null }[] = []
-  {
-    const r = await fetchByIds<{ order_id: string; amount: number; paid_date: string | null; memo: string | null }>(orderIds, 60, slice =>
-      admin.from('erp_payment_matches').select('order_id, amount, paid_date, memo').in('order_id', slice))
-    if ('error' in r) return r
-    for (const m of r.data) {
-      payAlloc.set(m.order_id, (payAlloc.get(m.order_id) ?? 0) + m.amount)
-      allocEvents.push(m)
-    }
+  if ('error' in payAllocR) return payAllocR
+  for (const m of payAllocR.data) {
+    payAlloc.set(m.order_id, (payAlloc.get(m.order_id) ?? 0) + m.amount)
+    allocEvents.push(m)
   }
 
-  // 매출 계산서 + 매칭 입금
-  const invR = await fetchAllRows<{ id: string; issue_date: string; total_amount: number | null; payment_status: string; tax_type: string | null }>((f, t) =>
-    admin.from('tax_invoices')
-      .select('id, issue_date, total_amount, payment_status, tax_type')
-      .eq('direction', 'sales').eq('vendor_id', vendorId)
-      .order('issue_date', { ascending: false })
-      .range(f, t))
   if ('error' in invR) return invR
   const invoiceIds = invR.data.map(i => i.id)
   const invDate = new Map(invR.data.map(i => [i.id, i.issue_date]))
@@ -408,26 +494,15 @@ export async function buildHubDetail(
   const txInfo = new Map(txR.data.map(t => [t.id, t]))
 
   // 카드매출 (승인 기준, 취소 제외)
-  const cardR = await fetchAllRows<{ id: string; tx_date: string; amount: number | null; transaction_type: string | null; cancelled_at: string | null; acquirer: string | null; card_number: string | null; approval_number: string | null }>((f, t) =>
-    admin.from('card_sales')
-      .select('id, tx_date, amount, transaction_type, cancelled_at, acquirer, card_number, approval_number')
-      .eq('vendor_id', vendorId)
-      .order('tx_date', { ascending: false })
-      .range(f, t))
+  const cardR = await cardP
   if ('error' in cardR) return cardR
   const cardOk = cardR.data.filter(c => !c.cancelled_at && (c.transaction_type ?? '승인') !== '취소')
 
   // 선결제 원장 (erp_prepayments, 매출처 별칭 기준)
   const prepayLedger: HubPrepayEntry[] = []
   let prepayDeposit = 0, prepayDeduction = 0
-  if (aliasIds.length) {
-    const r = await fetchAllRows<{ entry_date: string; entry_type: 'deposit' | 'deduction'; amount: number | null; memo: string | null }>((f, t) =>
-      admin.from('erp_prepayments')
-        .select('entry_date, entry_type, amount, memo')
-        .eq('direction', 'customer')
-        .in('alias_id', aliasIds)
-        .order('entry_date', { ascending: false })
-        .range(f, t))
+  {
+    const r = await prepayP
     if (!('error' in r)) {
       for (const e of r.data) {
         const amt = e.amount ?? 0
@@ -439,10 +514,7 @@ export async function buildHubDetail(
   }
 
   // 담당직원 패널
-  const { data: staffRows, error: sErr } = await admin
-    .from('vendor_staff')
-    .select('id, employee_id, is_primary, started_at, employees(name, team)')
-    .eq('vendor_id', vendorId).is('ended_at', null)
+  const { data: staffRows, error: sErr } = await staffP
   if (sErr) return { error: sErr.message }
   const empIds = (staffRows ?? []).map(s => s.employee_id as string)
   const vendorCountByEmp = new Map<string, number>()
@@ -469,12 +541,7 @@ export async function buildHubDetail(
   }
 
   // 거래처 담당자 패널 (이력 포함)
-  const { data: caRows, error: caErr } = await admin
-    .from('contact_assignments')
-    .select('id, contact_id, title, role_memo, is_representative, started_at, ended_at, contacts(name, phone, email)')
-    .eq('vendor_id', vendorId)
-    .order('ended_at', { ascending: true, nullsFirst: true })
-    .order('is_representative', { ascending: false })
+  const { data: caRows, error: caErr } = await caP
   if (caErr) return { error: caErr.message }
 
   // ── 집계 ──
