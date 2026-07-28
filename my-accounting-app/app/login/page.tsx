@@ -41,8 +41,8 @@ export default function LoginPage() {
       return
     }
 
-    // 로그인 성공 시 대시보드로 이동
-    router.push('/')
+    // 로그인 성공 시 모드 선택 화면으로 이동 (주문 관리 / 회계·경영 관리)
+    router.push('/portal')
     router.refresh()
   }
 

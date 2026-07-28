@@ -62,9 +62,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // 이미 로그인된 사용자가 /login에 접근 시 → / (대시보드)로 이동
+  // 이미 로그인된 사용자가 /login에 접근 시 → 모드 선택으로 이동
   if (user && pathname === '/login') {
-    return NextResponse.redirect(new URL('/', request.url))
+    return NextResponse.redirect(new URL('/portal', request.url))
   }
 
   return response
