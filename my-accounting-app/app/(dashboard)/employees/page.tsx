@@ -19,7 +19,7 @@ interface Emp {
 }
 
 const ROLE_LABEL: Record<string, string> = {
-  sales: '영업', manager: '중간 관리자', admin: '전체 관리자',
+  sales: '직원', manager: '중간 관리자', admin: '전체 관리자',
 }
 const EMPTY = { name: '', team: '', position: '', phone: '', hire_date: '', role: 'sales', login_id: '', password: '' }
 
@@ -97,7 +97,7 @@ export default function EmployeesPage() {
     <div className="max-w-6xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900">직원 · 계정 관리</h1>
       <p className="text-sm mt-1 text-gray-500">
-        직원 등록 시 로그인 계정(ID 방식)이 함께 발급됩니다. 등급: 영업(주문 관리) ·
+        직원 등록 시 로그인 계정(ID 방식)이 함께 발급됩니다. 등급: 직원(주문 관리) ·
         중간 관리자(주문 관리 + 수정·승인 권한, 회계 접근 불가) · 전체 관리자(전체 접근).
       </p>
 
@@ -129,7 +129,7 @@ export default function EmployeesPage() {
               <label className="block text-[11px] text-gray-500 font-semibold mb-1">등급</label>
               <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-                <option value="sales">영업 (주문 관리)</option>
+                <option value="sales">직원 (주문 관리)</option>
                 <option value="manager">중간 관리자 (주문 관리 + 승인)</option>
                 <option value="admin">전체 관리자</option>
               </select>
@@ -197,7 +197,7 @@ export default function EmployeesPage() {
                     <select value={r.role} disabled={busy}
                       onChange={async e => { if (await post({ action: 'update', id: r.id, role: e.target.value })) { flash('등급 변경됨'); load() } }}
                       className="border border-gray-200 rounded px-1.5 py-0.5 text-xs">
-                      <option value="sales">영업</option>
+                      <option value="sales">직원</option>
                       <option value="manager">중간 관리자</option>
                       <option value="admin">전체 관리자</option>
                     </select>
