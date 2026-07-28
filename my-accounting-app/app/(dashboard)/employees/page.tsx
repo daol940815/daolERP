@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
-// 직원·계정 관리 (관리자 전용)
-// 직원을 등록하면서 로그인 계정을 함께 발급한다. 담당 배정용으로만 등록된
-// 직원(계정 없음)도 여기서 정보를 채우고 계정을 붙일 수 있다.
+// 직원·계정 관리 (전체 관리자 전용)
+// 직원 등록 시 로그인 계정(ID 방식)을 함께 발급한다. 목록에서 수정·삭제·비번 재설정 가능.
 
 interface Emp {
   id: string
@@ -12,14 +11,17 @@ interface Emp {
   team: string | null
   position: string | null
   phone: string | null
-  email: string | null
   hire_date: string | null
-  role: 'sales' | 'admin'
+  role: 'sales' | 'manager' | 'admin'
   is_active: boolean
   auth_user_id: string | null
+  login_id: string | null
 }
 
-const EMPTY = { name: '', team: '', position: '', phone: '', email: '', hire_date: '', role: 'sales', password: '' }
+const ROLE_LABEL: Record<string, string> = {
+  sales: '영업', manager: '중간 관리자', admin: '전체 관리자',
+}
+const EMPTY = { name: '', team: '', position: '', phone: '', hire_date: '', role: 'sales', login_id: '', password: '' }
 
 export default function EmployeesPage() {
   const [rows, setRows] = useState<Emp[]>([])
@@ -29,6 +31,8 @@ export default function EmployeesPage() {
   const [form, setForm] = useState({ ...EMPTY })
   const [showForm, setShowForm] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [edit, setEdit] = useState({ name: '', team: '', position: '', phone: '', hire_date: '', login_id: '' })
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
 
@@ -55,19 +59,46 @@ export default function EmployeesPage() {
 
   const create = async () => {
     if (!form.name.trim()) { flash('이름을 입력하세요.'); return }
-    if (form.email && !form.password) { flash('계정을 발급하려면 비밀번호도 입력하세요.'); return }
+    if (form.login_id && !form.password) { flash('계정을 발급하려면 비밀번호도 입력하세요.'); return }
     if (await post({ action: 'create', ...form })) {
-      flash('직원 등록 완료' + (form.email ? ' (로그인 계정 발급됨)' : ''))
+      flash('직원 등록 완료' + (form.login_id ? ' (로그인 계정 발급됨)' : ''))
       setForm({ ...EMPTY }); setShowForm(false); load()
     }
   }
 
+  const startEdit = (r: Emp) => {
+    setEditId(r.id)
+    setEdit({
+      name: r.name, team: r.team ?? '', position: r.position ?? '',
+      phone: r.phone ?? '', hire_date: r.hire_date ?? '', login_id: r.login_id ?? '',
+    })
+  }
+  const saveEdit = async () => {
+    if (!editId) return
+    if (await post({ action: 'update', id: editId, ...edit })) {
+      flash('수정 완료'); setEditId(null); load()
+    }
+  }
+
+  const resetPassword = async (r: Emp) => {
+    const pw = window.prompt(`${r.name} 님의 새 비밀번호를 입력하세요:`)
+    if (!pw) return
+    if (await post({ action: 'set_password', id: r.id, password: pw })) flash('비밀번호가 재설정되었습니다.')
+  }
+
+  const remove = async (r: Emp) => {
+    if (!window.confirm(`${r.name} 님을 완전히 삭제할까요?\n로그인 계정과 거래처 담당 배정이 함께 삭제되며 되돌릴 수 없습니다.\n(퇴사 처리는 삭제 대신 '비활성화'를 권장합니다)`)) return
+    if (await post({ action: 'delete', id: r.id })) { flash('삭제되었습니다.'); load() }
+  }
+
+  const inp = 'w-full border border-gray-300 rounded px-2 py-1 text-xs'
+
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900">직원 · 계정 관리</h1>
       <p className="text-sm mt-1 text-gray-500">
-        직원을 등록하면 로그인 계정이 함께 발급됩니다. 역할에 따라 접근 모드가 제한됩니다
-        (영업 = 주문 관리만 · 관리자 = 전체). 여기 등록된 정보는 담당 배정과 추후 근태·직원 관리에 사용됩니다.
+        직원 등록 시 로그인 계정(ID 방식)이 함께 발급됩니다. 등급: 영업(주문 관리) ·
+        중간 관리자(주문 관리 + 수정·승인 권한, 회계 접근 불가) · 전체 관리자(전체 접근).
       </p>
 
       {msg && <div className="my-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
@@ -86,7 +117,7 @@ export default function EmployeesPage() {
             {([
               ['name', '이름 *', 'text'], ['team', '부서/팀', 'text'], ['position', '직급', 'text'],
               ['phone', '연락처', 'text'], ['hire_date', '입사일', 'date'],
-              ['email', '로그인 이메일', 'email'], ['password', '초기 비밀번호 (8자+)', 'text'],
+              ['login_id', '로그인 ID (영문·숫자)', 'text'], ['password', '초기 비밀번호', 'text'],
             ] as const).map(([k, label, type]) => (
               <div key={k}>
                 <label className="block text-[11px] text-gray-500 font-semibold mb-1">{label}</label>
@@ -95,17 +126,19 @@ export default function EmployeesPage() {
               </div>
             ))}
             <div>
-              <label className="block text-[11px] text-gray-500 font-semibold mb-1">역할</label>
+              <label className="block text-[11px] text-gray-500 font-semibold mb-1">등급</label>
               <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-                <option value="sales">영업 (주문 관리만)</option>
-                <option value="admin">관리자 (전체)</option>
+                <option value="sales">영업 (주문 관리)</option>
+                <option value="manager">중간 관리자 (주문 관리 + 승인)</option>
+                <option value="admin">전체 관리자</option>
               </select>
             </div>
           </div>
           <div className="flex justify-between items-center mt-3">
             <p className="text-[11px] text-gray-400">
-              이메일·비밀번호를 비우면 담당 배정용 직원으로만 등록됩니다(로그인 불가, 나중에 계정 발급 가능).
+              ID를 비우면 담당 배정용 직원으로만 등록됩니다(로그인 불가, 나중에 발급 가능).
+              비밀번호는 인증 서버 최소 기준(6자)만 넘으면 됩니다.
             </p>
             <button onClick={create} disabled={busy}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
@@ -117,54 +150,81 @@ export default function EmployeesPage() {
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
         {loading ? <div className="text-center py-16 text-gray-400">로딩 중...</div> : (
-          <table className="w-full text-sm min-w-[760px]">
+          <table className="w-full text-sm min-w-[880px]">
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
                 <th className="py-2 px-3 text-left font-medium">이름</th>
                 <th className="py-2 px-3 text-left font-medium">부서/직급</th>
                 <th className="py-2 px-3 text-left font-medium">연락처</th>
-                <th className="py-2 px-3 text-left font-medium">로그인 계정</th>
-                <th className="py-2 px-3 text-left font-medium">역할</th>
+                <th className="py-2 px-3 text-left font-medium">로그인 ID</th>
+                <th className="py-2 px-3 text-left font-medium">등급</th>
                 <th className="py-2 px-3 text-left font-medium">입사일</th>
                 <th className="py-2 px-3 text-left font-medium">상태</th>
-                <th className="py-2 px-3 text-right font-medium"></th>
+                <th className="py-2 px-3 text-right font-medium w-56"></th>
               </tr>
             </thead>
             <tbody>
-              {rows.map(r => (
+              {rows.map(r => editId === r.id ? (
+                <tr key={r.id} className="border-b border-gray-50 bg-blue-50/40">
+                  <td className="py-2 px-3"><input value={edit.name} onChange={e => setEdit(s => ({ ...s, name: e.target.value }))} className={inp} /></td>
+                  <td className="py-2 px-3">
+                    <div className="flex gap-1">
+                      <input value={edit.team} onChange={e => setEdit(s => ({ ...s, team: e.target.value }))} placeholder="부서" className={inp} />
+                      <input value={edit.position} onChange={e => setEdit(s => ({ ...s, position: e.target.value }))} placeholder="직급" className={inp} />
+                    </div>
+                  </td>
+                  <td className="py-2 px-3"><input value={edit.phone} onChange={e => setEdit(s => ({ ...s, phone: e.target.value }))} className={inp} /></td>
+                  <td className="py-2 px-3"><input value={edit.login_id} onChange={e => setEdit(s => ({ ...s, login_id: e.target.value }))} className={inp} /></td>
+                  <td className="py-2 px-3 text-xs text-gray-400">{ROLE_LABEL[r.role]}</td>
+                  <td className="py-2 px-3"><input type="date" value={edit.hire_date} onChange={e => setEdit(s => ({ ...s, hire_date: e.target.value }))} className={inp} /></td>
+                  <td className="py-2 px-3"></td>
+                  <td className="py-2 px-3 text-right whitespace-nowrap">
+                    <button onClick={saveEdit} disabled={busy} className="text-xs px-2 py-1 bg-slate-900 text-white rounded mr-1">저장</button>
+                    <button onClick={() => setEditId(null)} className="text-xs px-2 py-1 border border-gray-300 rounded">취소</button>
+                  </td>
+                </tr>
+              ) : (
                 <tr key={r.id} className={`border-b border-gray-50 ${r.is_active ? '' : 'opacity-45'}`}>
                   <td className="py-2 px-3 font-semibold">{r.name}</td>
                   <td className="py-2 px-3 text-gray-600">{[r.team, r.position].filter(Boolean).join(' · ') || '-'}</td>
                   <td className="py-2 px-3 text-gray-600">{r.phone ?? '-'}</td>
                   <td className="py-2 px-3">
-                    {r.auth_user_id
-                      ? <span className="text-gray-800">{r.email}</span>
-                      : <span className="text-gray-300 text-xs">미발급 (담당 배정용)</span>}
+                    {r.login_id
+                      ? <span className="text-gray-800 font-mono text-xs">{r.login_id}</span>
+                      : <span className="text-gray-300 text-xs">미발급</span>}
                   </td>
                   <td className="py-2 px-3">
                     <select value={r.role} disabled={busy}
-                      onChange={async e => { if (await post({ action: 'update', id: r.id, role: e.target.value })) { flash('역할 변경됨'); load() } }}
+                      onChange={async e => { if (await post({ action: 'update', id: r.id, role: e.target.value })) { flash('등급 변경됨'); load() } }}
                       className="border border-gray-200 rounded px-1.5 py-0.5 text-xs">
                       <option value="sales">영업</option>
-                      <option value="admin">관리자</option>
+                      <option value="manager">중간 관리자</option>
+                      <option value="admin">전체 관리자</option>
                     </select>
                   </td>
                   <td className="py-2 px-3 tabular-nums text-gray-500 text-xs">{r.hire_date ?? '-'}</td>
                   <td className="py-2 px-3">
                     <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${r.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {r.is_active ? '재직' : '퇴사/비활성'}
+                      {r.is_active ? '재직' : '비활성'}
                     </span>
                   </td>
-                  <td className="py-2 px-3 text-right">
+                  <td className="py-2 px-3 text-right whitespace-nowrap">
+                    <button onClick={() => startEdit(r)} className="text-xs px-2 py-1 border border-gray-300 rounded mr-1 hover:bg-gray-50">수정</button>
+                    {r.auth_user_id && (
+                      <button onClick={() => resetPassword(r)} disabled={busy}
+                        className="text-xs px-2 py-1 border border-gray-300 rounded mr-1 hover:bg-gray-50">비번</button>
+                    )}
                     <button disabled={busy}
                       onClick={async () => {
                         const act = r.is_active ? 'deactivate' : 'reactivate'
-                        if (r.is_active && !window.confirm(`${r.name} 님을 비활성화할까요? 로그인이 차단됩니다 (이력은 유지).`)) return
-                        if (await post({ action: act, id: r.id })) { flash(r.is_active ? '비활성화됨 (로그인 차단)' : '재활성화됨'); load() }
+                        if (r.is_active && !window.confirm(`${r.name} 님을 비활성화할까요? 로그인이 차단됩니다 (이력 유지).`)) return
+                        if (await post({ action: act, id: r.id })) { flash(r.is_active ? '비활성화됨' : '재활성화됨'); load() }
                       }}
-                      className={`text-xs px-2 py-1 border rounded ${r.is_active ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+                      className="text-xs px-2 py-1 border border-gray-300 rounded mr-1 hover:bg-gray-50">
                       {r.is_active ? '비활성화' : '재활성화'}
                     </button>
+                    <button onClick={() => remove(r)} disabled={busy}
+                      className="text-xs px-2 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50">삭제</button>
                   </td>
                 </tr>
               ))}

@@ -21,15 +21,18 @@ export default function LoginPage() {
 
     const supabase = createClient()
 
+    // ID 로그인 지원: @가 없으면 내부 도메인을 붙여 인증 (직원 계정은 ID 방식)
+    const loginEmail = email.includes('@') ? email : `${email.trim().toLowerCase()}@daol.internal`
+
     const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
+      email: loginEmail,
       password,
     })
 
     if (authError) {
       // Supabase 영문 오류를 한국어로 변환
       if (authError.message.includes('Invalid login credentials')) {
-        setError('이메일 또는 비밀번호가 올바르지 않습니다.')
+        setError('아이디(이메일) 또는 비밀번호가 올바르지 않습니다.')
       } else if (authError.message.includes('Email not confirmed')) {
         setError('이메일 인증이 완료되지 않았습니다. 메일함을 확인해 주세요.')
       } else if (authError.message.includes('Too many requests')) {
@@ -66,14 +69,14 @@ export default function LoginPage() {
                 htmlFor="email"
                 className="block text-sm font-medium text-slate-700 mb-1.5"
               >
-                이메일
+                아이디 또는 이메일
               </label>
               <input
                 id="email"
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="example@company.com"
+                placeholder="직원 ID 또는 이메일"
                 required
                 disabled={loading}
                 className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg

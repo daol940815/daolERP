@@ -17,7 +17,8 @@ export default async function OrdersLayout({ children }: { children: React.React
           <Link href="/portal" className="font-bold">다올 주문관리</Link>
           <OrdersNav />
           <span className="ml-auto text-xs text-slate-400">
-            {me.employeeName ?? me.email}{me.role === 'admin' ? ' · 관리자' : ''}
+            {me.employeeName ?? me.email}
+            {me.role === 'admin' ? ' · 전체 관리자' : me.role === 'manager' ? ' · 중간 관리자' : ''}
           </span>
           {me.role === 'admin' && (
             <Link href="/" className="text-xs text-slate-300 hover:text-white border border-slate-700 rounded px-2 py-1">
