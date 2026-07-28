@@ -149,9 +149,16 @@ export async function buildHubList(
   }
   let aggRows: RpcRow[] | null = null
   {
-    const rpcAll = await fetchAllRows<RpcRow>((f, t) =>
-      admin.rpc('hub_vendor_summary', { p_from: fromDate, p_to: toDate }).range(f, t))
-    if (!('error' in rpcAll)) aggRows = rpcAll.data
+    // 1순위: JSONB 단일 응답(102) — 함수 1회 실행, 절단 없음
+    const j = await admin.rpc('hub_vendor_summary_json', { p_from: fromDate, p_to: toDate })
+    if (!j.error && Array.isArray(j.data)) {
+      aggRows = j.data as RpcRow[]
+    } else {
+      // 2순위: 행 반환 RPC(101) — 페이지네이션 필수(페이지당 함수 재실행 비용 있음)
+      const rpcAll = await fetchAllRows<RpcRow>((f, t) =>
+        admin.rpc('hub_vendor_summary', { p_from: fromDate, p_to: toDate }).range(f, t))
+      if (!('error' in rpcAll)) aggRows = rpcAll.data
+    }
   }
 
   let fallback: { ordersResult: { data: OrderLite[] }; flagged: { data: Map<string, FlagAgg> } } | null = null
