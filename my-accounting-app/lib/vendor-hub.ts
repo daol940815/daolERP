@@ -142,13 +142,17 @@ export async function buildHubList(
   ])
 
   // DB 집계 RPC 우선 (마이그레이션 101) — 미적용이면 전량 조회 폴백
-  const rpc = await admin.rpc('hub_vendor_summary', { p_from: fromDate, p_to: toDate })
+  // 주의: RPC 결과도 PostgREST max-rows(1000)에 잘리므로 반드시 range로 끝까지 읽는다.
   type RpcRow = {
     vendor_id: string; order_count: number; net: number; outstanding: number
     over90: number; vip_total: number; last_order_date: string | null
   }
   let aggRows: RpcRow[] | null = null
-  if (!rpc.error) aggRows = (rpc.data ?? []) as RpcRow[]
+  {
+    const rpcAll = await fetchAllRows<RpcRow>((f, t) =>
+      admin.rpc('hub_vendor_summary', { p_from: fromDate, p_to: toDate }).range(f, t))
+    if (!('error' in rpcAll)) aggRows = rpcAll.data
+  }
 
   let fallback: { ordersResult: { data: OrderLite[] }; flagged: { data: Map<string, FlagAgg> } } | null = null
   if (!aggRows) {
@@ -370,17 +374,24 @@ export interface HubDetail {
   status: HubStatus
 }
 
-// .in() URL 폭발 방지 — ID 배열을 청크로 나눠 조회
+// .in() URL 폭발 방지 — ID 배열을 청크로 나눠 조회.
+// 청크 하나의 결과가 max-rows(1000)를 넘을 수 있으므로 청크 안에서도 range로 끝까지 읽는다.
 async function fetchByIds<T>(
   ids: string[],
   chunk: number,
-  page: (slice: string[]) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  page: (slice: string[], from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
 ): Promise<{ data: T[] } | { error: string }> {
   const out: T[] = []
   for (let i = 0; i < ids.length; i += chunk) {
-    const { data, error } = await page(ids.slice(i, i + chunk))
-    if (error) return { error: error.message }
-    out.push(...(data ?? []))
+    const slice = ids.slice(i, i + chunk)
+    let from = 0
+    while (true) {
+      const { data, error } = await page(slice, from, from + 999)
+      if (error) return { error: error.message }
+      out.push(...(data ?? []))
+      if (!data || data.length < 1000) break
+      from += 1000
+    }
   }
   return { data: out }
 }
@@ -461,16 +472,16 @@ export async function buildHubDetail(
     tracking_number: string | null; delivery_status: string | null
   }
   const [itemsR, invAllocR, payAllocR, invR] = await Promise.all([
-    fetchByIds<ItemRow>(orderIds, 60, slice =>
+    fetchByIds<ItemRow>(orderIds, 60, (slice, f, t) =>
       admin.from('erp_order_items')
         .select('order_id, item_name, quantity, line_total, is_canceled, is_vip, is_prepayment, is_shipping_exempt, tracking_number, delivery_status')
-        .in('order_id', slice)),
+        .in('order_id', slice).range(f, t)),
     // 계산서 연결(067) — 미적용 환경 폴백 0
-    fetchByIds<{ order_id: string; amount: number }>(orderIds, 60, slice =>
-      admin.from('erp_order_invoices').select('order_id, amount').in('order_id', slice)),
+    fetchByIds<{ order_id: string; amount: number }>(orderIds, 60, (slice, f, t) =>
+      admin.from('erp_order_invoices').select('order_id, amount').in('order_id', slice).range(f, t)),
     // 주문 수금배분
-    fetchByIds<{ order_id: string; amount: number; paid_date: string | null; memo: string | null }>(orderIds, 60, slice =>
-      admin.from('erp_payment_matches').select('order_id, amount, paid_date, memo').in('order_id', slice)),
+    fetchByIds<{ order_id: string; amount: number; paid_date: string | null; memo: string | null }>(orderIds, 60, (slice, f, t) =>
+      admin.from('erp_payment_matches').select('order_id, amount, paid_date, memo').in('order_id', slice).range(f, t)),
     invP,
   ])
   if ('error' in itemsR) return itemsR
@@ -495,12 +506,12 @@ export async function buildHubDetail(
   const invoiceIds = invR.data.map(i => i.id)
   const invDate = new Map(invR.data.map(i => [i.id, i.issue_date]))
 
-  const tipR = await fetchByIds<{ tax_invoice_id: string; transaction_id: string; amount: number }>(invoiceIds, 60, slice =>
-    admin.from('tax_invoice_payments').select('tax_invoice_id, transaction_id, amount').in('tax_invoice_id', slice))
+  const tipR = await fetchByIds<{ tax_invoice_id: string; transaction_id: string; amount: number }>(invoiceIds, 60, (slice, f, t) =>
+    admin.from('tax_invoice_payments').select('tax_invoice_id, transaction_id, amount').in('tax_invoice_id', slice).range(f, t))
   if ('error' in tipR) return tipR
   const txIds = Array.from(new Set(tipR.data.map(p => p.transaction_id)))
-  const txR = await fetchByIds<{ id: string; tx_date: string; description: string | null }>(txIds, 60, slice =>
-    admin.from('transactions').select('id, tx_date, description').in('id', slice))
+  const txR = await fetchByIds<{ id: string; tx_date: string; description: string | null }>(txIds, 60, (slice, f, t) =>
+    admin.from('transactions').select('id, tx_date, description').in('id', slice).range(f, t))
   if ('error' in txR) return txR
   const txInfo = new Map(txR.data.map(t => [t.id, t]))
 
@@ -530,8 +541,8 @@ export async function buildHubDetail(
   const empIds = (staffRows ?? []).map(s => s.employee_id as string)
   const vendorCountByEmp = new Map<string, number>()
   if (empIds.length) {
-    const r = await fetchByIds<{ employee_id: string }>(empIds, 60, slice =>
-      admin.from('vendor_staff').select('employee_id').in('employee_id', slice).is('ended_at', null))
+    const r = await fetchByIds<{ employee_id: string }>(empIds, 60, (slice, f, t) =>
+      admin.from('vendor_staff').select('employee_id').in('employee_id', slice).is('ended_at', null).range(f, t))
     if (!('error' in r)) for (const s of r.data) vendorCountByEmp.set(s.employee_id, (vendorCountByEmp.get(s.employee_id) ?? 0) + 1)
   }
 

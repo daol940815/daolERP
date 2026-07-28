@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,9 +17,11 @@ export async function GET() {
   const { data: emps, error } = await admin
     .from('employees').select('id, name, team, is_active').eq('is_active', true).order('name')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  const { data: asgn } = await admin.from('vendor_staff').select('employee_id').is('ended_at', null)
+  // 배정이 1,000건을 넘어도 잘리지 않게 페이지네이션으로 전량 조회
+  const asgnR = await fetchAllRows<{ employee_id: string }>((f, t) =>
+    admin.from('vendor_staff').select('employee_id').is('ended_at', null).range(f, t))
   const counts = new Map<string, number>()
-  for (const a of asgn ?? []) counts.set(a.employee_id, (counts.get(a.employee_id) ?? 0) + 1)
+  if (!('error' in asgnR)) for (const a of asgnR.data) counts.set(a.employee_id, (counts.get(a.employee_id) ?? 0) + 1)
   return NextResponse.json({
     employees: (emps ?? []).map(e => ({ ...e, vendor_count: counts.get(e.id) ?? 0 })),
   })
