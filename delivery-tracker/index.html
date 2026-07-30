@@ -1,0 +1,2279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>운송장 조회</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --black: #0a0a0a;
+  --gray-900: #111111;
+  --gray-800: #1c1c1c;
+  --gray-700: #2a2a2a;
+  --gray-600: #3d3d3d;
+  --gray-500: #5c5c5c;
+  --gray-400: #888888;
+  --gray-300: #b0b0b0;
+  --gray-200: #d4d4d4;
+  --gray-100: #ebebeb;
+  --gray-50:  #f5f5f5;
+  --white: #ffffff;
+  --accent: #0a0a0a;
+  --radius: 6px;
+  --font: 'Noto Sans KR', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:var(--font); background:var(--gray-50); color:var(--black); height:100vh; overflow:hidden; font-size:14px; }
+
+/* ── 헤더 ── */
+header {
+  background:var(--black);
+  color:var(--white);
+  padding:0 2rem;
+  height:56px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  position:fixed;
+  top:0; left:0; right:0;
+  z-index:200;
+}
+.logo { font-size:15px; font-weight:700; letter-spacing:-0.3px; }
+.logo span { opacity:0.4; font-weight:300; margin-left:8px; font-size:12px; }
+.header-stats { display:flex; gap:2rem; }
+.hstat { text-align:center; }
+.hstat-val { font-family:var(--mono); font-size:16px; font-weight:500; }
+.hstat-label { font-size:10px; opacity:0.45; text-transform:uppercase; letter-spacing:1px; margin-top:1px; }
+
+/* ── 레이아웃: 헤더 아래 전체 높이를 채우고 넘치지 않음 ── */
+.layout {
+  display:grid;
+  grid-template-columns:220px 1fr;
+  height:calc(100vh - 56px);
+  margin-top:56px;
+  overflow:hidden;
+}
+
+/* ── 사이드바: 독립 스크롤 ── */
+.sidebar {
+  background:var(--white);
+  border-right:1px solid var(--gray-100);
+  padding:1.5rem 0;
+  height:100%;
+  overflow-y:auto;
+  overflow-x:hidden;
+}
+.sidebar-section { padding:0 1rem; margin-bottom:0.5rem; }
+.sidebar-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; color:var(--gray-400); padding:0 0.5rem; margin-bottom:0.5rem; }
+.nav-item {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:8px 12px;
+  border-radius:var(--radius);
+  cursor:pointer;
+  font-size:13px;
+  font-weight:500;
+  color:var(--gray-700);
+  transition:all 0.12s;
+  margin-bottom:2px;
+  border:none;
+  background:transparent;
+  width:100%;
+  text-align:left;
+}
+.nav-item:hover { background:var(--gray-50); }
+.nav-item.active { background:var(--black); color:var(--white); }
+.nav-item:disabled { opacity:0.45; cursor:not-allowed; pointer-events:none; }
+.nav-item .count {
+  font-family:var(--mono);
+  font-size:11px;
+  background:rgba(0,0,0,0.08);
+  border-radius:20px;
+  padding:1px 7px;
+  min-width:22px;
+  text-align:center;
+}
+.nav-item.active .count { background:rgba(255,255,255,0.2); }
+.nav-divider { height:1px; background:var(--gray-100); margin:0.75rem 1rem; }
+
+/* 자동조회 상태 */
+.auto-status {
+  margin:0 1rem;
+  padding:10px 12px;
+  border-radius:var(--radius);
+  border:1px solid var(--gray-200);
+  font-size:12px;
+}
+.auto-dot { width:7px; height:7px; border-radius:50%; background:var(--gray-300); display:inline-block; margin-right:6px; }
+.auto-dot.on { background:#22c55e; animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* ── 메인: 독립 스크롤 ── */
+.main {
+  height:100%;
+  overflow:hidden;
+  padding:1.5rem 2rem;
+  display:flex;
+  flex-direction:column;
+  gap:0;
+}
+
+/* ── 카드 ── */
+.card {
+  background:var(--white);
+  border:1px solid var(--gray-200);
+  border-radius:8px;
+  margin-bottom:1rem;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+/* 테이블 카드는 남은 공간을 모두 차지 */
+.card.table-card {
+  flex:1;
+  min-height:0;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  margin-bottom:0;
+}
+.card-header {
+  padding:1rem 1.25rem;
+  border-bottom:1px solid var(--gray-100);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  flex-shrink:0;
+}
+.card-title { font-size:13px; font-weight:700; }
+.card-body { padding:1.25rem; }
+
+/* ── 입력 ── */
+input, select, textarea {
+  font-family:var(--font);
+  font-size:13px;
+  background:var(--white);
+  border:1px solid var(--gray-200);
+  border-radius:var(--radius);
+  padding:8px 12px;
+  color:var(--black);
+  outline:none;
+  transition:border-color 0.12s;
+  width:100%;
+}
+input:focus, select:focus { border-color:var(--black); }
+input::placeholder { color:var(--gray-300); }
+
+/* ── 버튼 ── */
+.btn {
+  font-family:var(--font);
+  font-size:13px;
+  font-weight:600;
+  padding:8px 16px;
+  border-radius:var(--radius);
+  border:none;
+  cursor:pointer;
+  transition:all 0.12s;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  white-space:nowrap;
+}
+.btn-black { background:var(--black); color:var(--white); }
+.btn-black:hover { background:var(--gray-800); }
+.btn-outline { background:var(--white); border:1px solid var(--gray-200); color:var(--gray-700); }
+.btn-outline:hover { border-color:var(--black); color:var(--black); }
+.btn-sm { padding:5px 12px; font-size:12px; }
+.btn:disabled { opacity:0.35; cursor:not-allowed; }
+
+/* ── 검색 드롭다운+인풋 ── */
+.search-combo {
+  display:flex;
+  border:1px solid var(--gray-200);
+  border-radius:var(--radius);
+  overflow:hidden;
+  background:var(--white);
+}
+.search-combo select {
+  border:none;
+  border-right:1px solid var(--gray-200);
+  border-radius:0;
+  width:90px;
+  flex-shrink:0;
+  background:var(--gray-50);
+  font-size:12px;
+}
+.search-combo input {
+  border:none;
+  border-radius:0;
+  flex:1;
+  min-width:140px;
+}
+.search-combo:focus-within { border-color:var(--black); }
+
+/* ── 배지 ── */
+.badge {
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:2px 9px;
+  border-radius:20px;
+  font-size:11px;
+  font-weight:600;
+  white-space:nowrap;
+}
+.badge-done    { background:#dcfce7; color:#15803d; }
+.badge-transit { background:#e0f2fe; color:#0369a1; }
+.badge-pending { background:#e0e7ff; color:#3730a3; }
+.badge-delay   { background:#fef9c3; color:#854d0e; }
+.badge-error   { background:#fee2e2; color:#b91c1c; }
+.badge-fail    { background:#f3f4f6; color:#6b7280; border:1px solid #d1d5db; }
+.badge-pickup  { background:#ede9fe; color:#6d28d9; }
+
+/* ── 테이블 ── */
+.table-wrap {
+  overflow-x:auto;
+  overflow-y:auto;
+  flex:1;
+  min-height:0;
+}
+table { width:100%; border-collapse:collapse; font-size:12.5px; }
+thead th {
+  padding:9px 12px;
+  text-align:left;
+  font-size:10.5px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.8px;
+  color:var(--gray-500);
+  border-bottom:1px solid var(--gray-100);
+  white-space:nowrap;
+  background:var(--gray-50);
+  position:sticky;
+  top:0;
+  z-index:10;
+}
+td {
+  padding:10px 12px;
+  border-bottom:1px solid var(--gray-100);
+  color:var(--gray-700);
+  vertical-align:middle;
+}
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:var(--gray-50); }
+td.mono { font-family:var(--mono); font-size:12px; color:var(--black); }
+td.strong { color:var(--black); font-weight:500; }
+
+/* ── 드롭존 ── */
+.dropzone {
+  border:2px dashed var(--gray-200);
+  border-radius:8px;
+  padding:2.5rem;
+  text-align:center;
+  cursor:pointer;
+  transition:all 0.15s;
+  background:var(--gray-50);
+}
+.dropzone:hover, .dropzone.over { border-color:var(--black); background:var(--white); }
+.dropzone-icon { font-size:2rem; margin-bottom:0.75rem; }
+.dropzone-title { font-size:14px; font-weight:600; color:var(--black); margin-bottom:4px; }
+.dropzone-sub { font-size:12px; color:var(--gray-400); }
+
+/* ── 프로그레스 ── */
+.progress-wrap { background:var(--gray-100); border-radius:20px; height:4px; flex:1; overflow:hidden; min-width:80px; }
+.progress-bar { height:100%; border-radius:20px; background:var(--black); transition:width 0.3s; width:0%; }
+
+/* ── 모달 ── */
+.modal-bg {
+  display:none;
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.5);
+  z-index:500;
+  align-items:center;
+  justify-content:center;
+}
+.modal-bg.open { display:flex; }
+.modal {
+  background:var(--white);
+  border-radius:10px;
+  width:480px;
+  max-width:95vw;
+  max-height:85vh;
+  overflow-y:auto;
+  padding:1.75rem;
+  animation:slideUp 0.2s ease;
+}
+@keyframes slideUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+.modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; }
+.modal-title { font-size:15px; font-weight:700; }
+.modal-close { background:none; border:none; font-size:18px; cursor:pointer; color:var(--gray-400); }
+
+/* ── 폼 그리드 ── */
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.form-field label { display:block; font-size:11px; font-weight:600; color:var(--gray-500); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.5px; }
+.form-field.full { grid-column:1/-1; }
+
+/* ── 타임라인 ── */
+.timeline { padding:0.5rem 0; }
+.tl-item { display:flex; gap:12px; padding-bottom:14px; position:relative; }
+.tl-item:last-child { padding-bottom:0; }
+.tl-dot { width:8px; height:8px; border-radius:50%; background:var(--gray-300); margin-top:4px; flex-shrink:0; z-index:1; }
+.tl-item.done .tl-dot { background:var(--gray-700); }
+.tl-item.current .tl-dot { background:var(--black); box-shadow:0 0 0 3px rgba(0,0,0,0.12); }
+.tl-item:not(:last-child)::after { content:''; position:absolute; left:3px; top:12px; bottom:0; width:2px; background:var(--gray-100); }
+.tl-item.done:not(:last-child)::after { background:var(--gray-300); }
+.tl-text { font-size:12.5px; color:var(--gray-700); line-height:1.4; }
+.tl-time { font-size:11px; color:var(--gray-400); font-family:var(--mono); margin-top:2px; }
+
+/* ── 토스트 ── */
+.toast {
+  position:fixed; bottom:1.5rem; right:1.5rem;
+  background:var(--black); color:var(--white);
+  padding:10px 16px; border-radius:var(--radius);
+  font-size:13px; z-index:999;
+  display:none;
+  animation:fadeIn 0.2s ease;
+}
+.toast.show { display:block; }
+
+/* ── 스피너 ── */
+.spinner { width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; animation:spin 0.6s linear infinite; }
+.spinner-dark { border-color:rgba(0,0,0,0.15); border-top-color:var(--black); }
+@keyframes spin { to{ transform:rotate(360deg) } }
+
+/* ── 빈 상태 ── */
+.empty { text-align:center; padding:3rem 1rem; color:var(--gray-400); }
+.empty-icon { font-size:2.5rem; margin-bottom:0.75rem; opacity:0.3; }
+.empty-text { font-size:13px; }
+
+/* ── 배송지연 강조 ── */
+tr.delay td { background:#fffbeb; }
+
+/* ── 변동 집계 ── */
+.summary-meta { font-size:12px; color:var(--gray-500); margin-bottom:0.75rem; }
+.summary-table { width:100%; border-collapse:collapse; font-size:13px; }
+.summary-table th { text-align:left; padding:8px 10px; border-bottom:1px solid var(--gray-200); color:var(--gray-500); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; }
+.summary-table th:last-child { text-align:right; }
+.summary-table td { padding:8px 10px; border-bottom:1px solid var(--gray-100); color:var(--gray-700); }
+.summary-table td:last-child { text-align:right; font-family:var(--mono); font-weight:600; color:var(--black); }
+.summary-table tr:last-child td { border-bottom:none; }
+
+.status-fail-reason {
+  font-size:10px;
+  color:var(--gray-500);
+  margin-top:4px;
+  max-width:220px;
+  line-height:1.35;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+
+@media(max-width:768px) {
+  .layout { grid-template-columns:1fr; height:auto; overflow:visible; }
+  .sidebar { position:static; height:auto; border-right:none; border-bottom:1px solid var(--gray-100); padding:1rem 0; overflow:visible; }
+  .main { height:auto; overflow:visible; padding:1rem; }
+  .card.table-card { flex:none; }
+  .table-wrap { max-height:60vh; }
+  .header-stats { display:none; }
+  .form-grid { grid-template-columns:1fr; }
+  body { height:auto; overflow:auto; }
+}
+</style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<header>
+  <div class="logo">운송장 조회 <span>Delivery Tracker</span></div>
+  <div class="header-stats">
+    <div class="hstat"><div class="hstat-val" id="stat-total">0</div><div class="hstat-label">전체</div></div>
+    <div class="hstat"><div class="hstat-val" id="stat-done">0</div><div class="hstat-label">배송완료</div></div>
+    <div class="hstat"><div class="hstat-val" id="stat-transit">0</div><div class="hstat-label">배송중</div></div>
+    <div class="hstat"><div class="hstat-val" id="stat-delay">0</div><div class="hstat-label">배송지연</div></div>
+    <div class="hstat"><div class="hstat-val" id="stat-pending">0</div><div class="hstat-label">출고전</div></div>
+    <div class="hstat"><div class="hstat-val" id="stat-fail">0</div><div class="hstat-label">조회실패</div></div>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- 사이드바 -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">필터</div>
+      <button class="nav-item active" onclick="setFilter('all',this)">전체 <span class="count" id="cnt-all">0</span></button>
+      <button class="nav-item" onclick="setFilter('배송완료',this)">배송완료 <span class="count" id="cnt-done">0</span></button>
+      <button class="nav-item" onclick="setFilter('배송중',this)">배송중 <span class="count" id="cnt-transit">0</span></button>
+      <button class="nav-item" onclick="setFilter('출고전',this)">출고전 <span class="count" id="cnt-pending">0</span></button>
+      <button class="nav-item" onclick="setFilter('배송지연',this)">배송지연 <span class="count" id="cnt-delay">0</span></button>
+      <button class="nav-item" onclick="setFilter('조회실패',this)">조회실패 <span class="count" id="cnt-fail">0</span></button>
+      <button class="nav-item" onclick="setFilter('사고',this)">사고 <span class="count" id="cnt-error">0</span></button>
+    </div>
+
+    <div class="nav-divider"></div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">자동 조회</div>
+      <div class="auto-status" id="auto-status-box">
+        <div style="display:flex;align-items:center;margin-bottom:8px">
+          <span class="auto-dot" id="auto-dot"></span>
+          <span id="auto-label" style="font-weight:600;font-size:12px">꺼짐</span>
+        </div>
+        <div style="font-size:11px;color:var(--gray-400);margin-bottom:8px" id="auto-next">—</div>
+        <div style="margin-bottom:8px">
+          <label for="auto-interval-min" style="display:block;font-size:10px;color:var(--gray-500);margin-bottom:4px;font-weight:600">조회 주기 (분)</label>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" id="auto-interval-min" min="1" max="120" step="1" value="5"
+              style="flex:1;min-width:0;padding:6px 8px;border:1px solid var(--gray-200);border-radius:var(--radius);font-size:12px;font-family:var(--font)"
+              onchange="onAutoIntervalChange()" title="1~120분">
+            <span style="font-size:11px;color:var(--gray-500);white-space:nowrap">분마다</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-black btn-sm" style="flex:1" onclick="startAuto()">켜기</button>
+          <button class="btn btn-outline btn-sm" style="flex:1" onclick="stopAuto()">끄기</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-divider"></div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">액션</div>
+      <button class="nav-item" onclick="openSingleModal()">+ 단건 등록</button>
+      <button class="nav-item" onclick="openUploadModal()">↑ 파일 업로드</button>
+      <button class="nav-item" id="btn-full-refresh" onclick="runManualFullRefresh()">🔄 전체 조회</button>
+      <button class="nav-item" onclick="exportExcel()">↓ 엑셀 다운로드</button>
+      <button class="nav-item" onclick="downloadTemplate()">↓ 템플릿 다운로드</button>
+    </div>
+  </aside>
+
+  <!-- 메인 -->
+  <main class="main">
+
+    <!-- 검색 + 컨트롤 -->
+    <div class="card table-card">
+      <div class="card-header" id="search-bar" style="flex-direction:column;align-items:stretch;gap:8px">
+        <!-- 1행: 검색어 + 드롭다운 필터들 -->
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div class="search-combo">
+            <select id="search-field">
+              <option value="shipper">수하인</option>
+              <option value="companyName">수취인</option>
+              <option value="productName">상품명</option>
+              <option value="num">송장번호</option>
+              <option value="orderSource">주문처</option>
+            </select>
+            <input type="text" id="search-input" placeholder="검색어 입력…"
+              onkeydown="if(event.key==='Enter')runSearch()"
+              oninput="if(!this.value.trim())runSearch()">
+          </div>
+          <button class="btn btn-black btn-sm" onclick="runSearch()">검색</button>
+          <select id="filter-carrier" onchange="runSearch()" style="width:120px">
+            <option value="">전체 택배사</option>
+            <option value="cj">CJ대한통운</option>
+            <option value="lotte">롯데택배</option>
+            <option value="hanjin">한진택배</option>
+            <option value="epost">우체국택배</option>
+            <option value="logen">로젠택배</option>
+          </select>
+          <select id="filter-status" onchange="runSearch()" style="width:120px">
+            <option value="">전체 상태</option>
+            <option value="배송완료">배송완료</option>
+            <option value="배송중">배송중</option>
+            <option value="출고전">출고전</option>
+            <option value="배송지연">배송지연</option>
+            <option value="조회실패">조회실패</option>
+            <option value="사고">사고</option>
+          </select>
+        </div>
+        <!-- 2행: 주문일 기간 + 우측 버튼들 -->
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <span style="font-size:12px;color:var(--gray-500);white-space:nowrap;font-weight:600">정렬</span>
+            <select id="sort-order" onchange="onSortChange()" style="width:110px;padding:5px 8px;font-size:12px">
+              <option value="addedAt">등록순</option>
+              <option value="orderDate">주문일순</option>
+            </select>
+            <span style="font-size:12px;color:var(--gray-500);white-space:nowrap;font-weight:600;margin-left:4px">주문일</span>
+            <input type="date" id="filter-date-from" onchange="runSearch()"
+              style="width:136px;padding:5px 8px;font-size:12px">
+            <span style="font-size:12px;color:var(--gray-400)">~</span>
+            <input type="date" id="filter-date-to" onchange="runSearch()"
+              style="width:136px;padding:5px 8px;font-size:12px">
+            <button class="btn btn-outline btn-sm" onclick="clearDateFilter()" style="font-size:11px;padding:4px 10px">초기화</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span id="result-count" style="font-size:12px;color:var(--gray-400)"></span>
+            <button class="btn btn-outline btn-sm" id="btn-select-all" onclick="toggleSelectAll()">전체선택</button>
+            <button class="btn btn-black btn-sm" id="btn-refresh-selected" onclick="refreshSelected()" style="display:none">선택 조회 (<span id="selected-refresh-count">0</span>)</button>
+            <button class="btn btn-outline btn-sm" id="btn-delete-selected" onclick="deleteSelected()" style="color:#b91c1c;border-color:#fecaca;display:none">선택삭제 (<span id="selected-count">0</span>)</button>
+            <button class="btn btn-outline btn-sm" onclick="clearAll()" style="color:#b91c1c;border-color:#fecaca">전체 삭제</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 테이블 -->
+      <div class="table-wrap">
+        <table id="main-table">
+          <thead>
+            <tr>
+              <th style="width:36px;text-align:center"><input type="checkbox" id="chk-all" onchange="onChkAllChange(this)" title="전체선택"></th>
+              <th>주문일</th>
+              <th>주문처</th>
+              <th>상품명</th>
+              <th style="text-align:center">수량</th>
+              <th>수하인</th>
+              <th>수취인</th>
+              <th>택배사</th>
+              <th>운송장번호</th>
+              <th>상태</th>
+              <th>메모</th>
+              <th style="text-align:center">상세</th>
+              <th style="text-align:center">삭제</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <tr><td colspan="13"><div class="empty"><div class="empty-icon">📦</div><div class="empty-text">등록된 운송장이 없습니다<br>단건 등록 또는 파일 업로드로 시작하세요</div></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── 단건 등록 모달 ── -->
+<div class="modal-bg" id="modal-single">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="single-modal-title">단건 등록</div>
+      <button class="modal-close" onclick="closeModal('modal-single')">✕</button>
+    </div>
+    <input type="hidden" id="s-edit-key">
+    <div class="form-grid">
+      <div class="form-field">
+        <label>주문일</label>
+        <input type="text" id="s-orderDate" placeholder="2026-03-27">
+      </div>
+      <div class="form-field">
+        <label>주문처</label>
+        <input type="text" id="s-orderSource" placeholder="OO은행 OO지점">
+      </div>
+      <div class="form-field full">
+        <label>상품명</label>
+        <input type="text" id="s-productName" placeholder="상품명 입력">
+      </div>
+      <div class="form-field">
+        <label>수량</label>
+        <input type="text" id="s-qty" placeholder="1">
+      </div>
+      <div class="form-field">
+        <label>수하인</label>
+        <input type="text" id="s-shipper" placeholder="홍길동">
+      </div>
+      <div class="form-field full">
+        <label>수취인</label>
+        <input type="text" id="s-companyName" placeholder="수취인 또는 업체명">
+      </div>
+      <div class="form-field">
+        <label>택배사</label>
+        <select id="s-carrier">
+          <option value="lotte">롯데택배</option>
+          <option value="cj">CJ대한통운</option>
+          <option value="hanjin">한진택배</option>
+          <option value="epost">우체국택배</option>
+          <option value="logen">로젠택배</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>운송장번호 <span style="font-size:10px;color:var(--gray-400);font-weight:400">(선택)</span></label>
+        <input type="text" id="s-trackNum" placeholder="없으면 비워두세요">
+      </div>
+      <div class="form-field full">
+        <label>메모 (출고예정일 등)</label>
+        <input type="text" id="s-memo" placeholder="예: 출고예정일 4/3, 특이사항 등">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:1.25rem;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="closeModal('modal-single')">취소</button>
+      <button class="btn btn-outline" id="btn-single-save" onclick="submitSingleSave()" style="display:none">저장</button>
+      <button class="btn btn-black" id="btn-single-submit" onclick="submitSingle()">등록 및 조회</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 파일 업로드 모달 ── -->
+<div class="modal-bg" id="modal-upload">
+  <div class="modal" style="width:560px">
+    <div class="modal-header">
+      <div class="modal-title">파일 업로드</div>
+      <button class="modal-close" onclick="closeModal('modal-upload')">✕</button>
+    </div>
+    <!-- 업로드 모드 선택 -->
+    <div style="display:flex;gap:6px;margin-bottom:1rem">
+      <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius);cursor:pointer;font-size:12px" id="upload-mode-label-new">
+        <input type="radio" name="upload-mode" value="new" checked onchange="onUploadModeChange()"> 신규 등록
+      </label>
+      <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius);cursor:pointer;font-size:12px" id="upload-mode-label-update">
+        <input type="radio" name="upload-mode" value="update" onchange="onUploadModeChange()"> 송장번호 업데이트
+      </label>
+    </div>
+    <div id="upload-mode-desc" style="font-size:11px;color:var(--gray-500);margin-bottom:0.75rem;padding:8px 10px;background:var(--gray-50);border-radius:var(--radius)">
+      송장번호 없이 등록된 항목도 포함해서 일괄 등록합니다.
+    </div>
+    <div class="dropzone" id="dropzone"
+      onclick="document.getElementById('file-input').click()"
+      ondragover="event.preventDefault();this.classList.add('over')"
+      ondragleave="this.classList.remove('over')"
+      ondrop="handleDrop(event)">
+      <div class="dropzone-icon">📂</div>
+      <div class="dropzone-title">엑셀 파일을 드래그하거나 클릭하세요</div>
+      <div class="dropzone-sub">.xlsx · .xls · .csv 지원 — 주문일/주문처/상품명/수량/수하인/수취인/택배사/운송장번호/메모</div>
+    </div>
+    <input type="file" id="file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFile(this.files[0])">
+
+    <div id="upload-preview" style="margin-top:1rem;display:none">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:0.75rem;flex-wrap:wrap">
+        <span id="upload-count" style="font-size:13px;font-weight:600"></span>
+        <div class="progress-wrap" style="flex:1"><div class="progress-bar" id="upload-progress"></div></div>
+        <span id="upload-text" style="font-size:12px;color:var(--gray-400);font-family:var(--mono)">0 / 0</span>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" onclick="closeModal('modal-upload')">닫기</button>
+        <button class="btn btn-black" id="btn-bulk" onclick="runBulkOrUpdate()">⚡ 시작</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── 상세/수정 통합 모달 ── -->
+<div class="modal-bg" id="modal-detail" onclick="if(event.target===this)closeModal('modal-detail')">
+  <div class="modal" style="width:560px">
+    <div class="modal-header">
+      <div class="modal-title" id="detail-title">상세 / 수정</div>
+      <button class="modal-close" onclick="closeModal('modal-detail')">✕</button>
+    </div>
+    <div id="detail-body"></div>
+  </div>
+</div>
+
+<!-- ── 변동 집계 모달 ── -->
+<div class="modal-bg" id="modal-summary" onclick="if(event.target===this)closeModal('modal-summary')">
+  <div class="modal" style="width:440px">
+    <div class="modal-header">
+      <div class="modal-title" id="summary-title">조회 결과 변동 집계</div>
+      <button class="modal-close" onclick="closeModal('modal-summary')">✕</button>
+    </div>
+    <div id="summary-body"></div>
+    <div style="margin-top:1.25rem;text-align:right">
+      <button class="btn btn-black" onclick="closeModal('modal-summary')">확인</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══ 환경 설정 — 배포 환경이 바뀌면 이 두 값만 수정하면 됨 ══
+const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbz1DLn7OXsZRufcIIvKJ_xvdGqeYVr3TDmrycOYyeFiXiP25ttOk8RHK1LlCwhVQwv2xQ/exec';
+
+// ── 상태 ──
+let allItems = []; // 전체 등록 데이터
+let bulkData = []; // 업로드 대기 데이터
+let currentFilter = 'all';
+let autoTimer = null;
+let autoCountdown = null;
+let autoRemain = 0;
+let manualFullRefreshRunning = false;
+let autoRefreshRunning = false;
+const AUTO_MINUTES_MIN = 1;
+const AUTO_MINUTES_MAX = 120;
+const PARALLEL_CHUNK = 3; // 동시 조회 건수
+
+// ── 택배사 정보 ──
+const carriers = {
+  cj:    { name:'CJ대한통운', courierCode:'cj',     url: n=>`https://www.cjlogistics.com/ko/tool/parcel/tracking?gnbInvcNo=${n}` },
+  lotte: { name:'롯데택배',   courierCode:'lotte',  url: n=>`https://www.lotteglogis.com/home/reservation/tracking/linkView?InvNo=${n}` },
+  hanjin:{ name:'한진택배',   courierCode:'hanjin', url: n=>`https://www.hanjin.co.kr/kor/CMS/DeliveryMgr/WaybillResult.do?mCode=MN038&schLang=KR&wblnumText2=${n}` },
+  epost: { name:'우체국택배', courierCode:'epost',  url: n=>`https://service.epost.go.kr/trace.RetrieveEmsRigiTraceList.comm?POST_CODE=${n}` },
+  logen: { name:'로젠택배',   courierCode:'logen',  url: n=>`https://www.ilogen.com/web/personal/trace/${n}` },
+};
+
+function carrierFromStr(s) {
+  if (!s) return 'lotte';
+  const t = s.toLowerCase().replace(/\s/g,'');
+  if (t.includes('cj')||t.includes('대한통운')) return 'cj';
+  if (t.includes('lotte')||t.includes('롯데')) return 'lotte';
+  if (t.includes('hanjin')||t.includes('한진')) return 'hanjin';
+  if (t.includes('epost')||t.includes('우체국')) return 'epost';
+  if (t.includes('logen')||t.includes('로젠')) return 'logen';
+  return 'lotte';
+}
+
+// ── 상태 분류 ──
+const STATUS_MAP = {
+  'DELIVERED':'배송완료',
+  'OUT_FOR_DELIVERY':'배송중 (배달출발)',
+  'IN_TRANSIT':'배송중',
+  'ARRIVED_AT_DEST':'배송중 (도착)',
+  'PICKED_UP':'집화완료',
+  'AT_PICKUP':'집화완료',
+  'INFORMATION_RECEIVED':'접수대기',
+  'PENDING':'접수대기',
+  'UNKNOWN':'배송준비중',
+  'FAILED':'배송실패',
+  'DELIVERY_FAILED':'배송실패',
+  'EXCEPTION':'배송이상',
+  'RETURNED':'반송처리',
+  'RETURN_TO_SENDER':'반송처리',
+  'DAMAGED':'파손처리',
+  'LOST':'분실처리',
+  'CANCELLED':'취소',
+};
+
+const DELIVERED_KEYWORDS = ['배송완료','배달완료','수령완료','고객님의 상품이 배송완료'];
+const ACCIDENT_STATUSES  = ['배송실패','배송이상','반송처리','파손처리','분실처리','취소'];
+const TRANSIT_STATUSES   = ['배송중','배송중 (배달출발)','배송중 (이동중)','배송중 (도착)','집화완료','배송준비중'];
+const PENDING_STATUSES   = ['접수대기','출고전','대기중'];
+const STATUS_LOOKUP_FAIL = '조회실패';
+
+function escapeHtml(s) {
+  if (s == null || s === '') return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function inferLookupFailReason(e) {
+  if (e == null || e === undefined) return '알 수 없음';
+  const m = typeof e === 'string' ? e : (e.message != null ? e.message : String(e));
+  if (m === 'NOT_FOUND') return '운송장 미등록 또는 조회 불가';
+  return (m || '알 수 없음').trim();
+}
+
+// NOT_FOUND 에러면 출고전, 그 외 에러면 조회실패로 처리
+function resolveTrackingError(e, base) {
+  const m = typeof e === 'string' ? e : (e?.message || String(e));
+  if (m === 'NOT_FOUND') {
+    return { ...base, status: '출고전', steps: [], error: null };
+  }
+  return { ...base, status: STATUS_LOOKUP_FAIL, steps: [], error: inferLookupFailReason(e) };
+}
+
+function truncateReason(s, n) {
+  if (!s) return '';
+  const t = String(s).trim();
+  return t.length > n ? t.slice(0, n) + '…' : t;
+}
+
+/** 문구에 배송완료 의미가 있으면 true (택배사별 표현·공백 차이 보완) */
+function textImpliesDelivered(text) {
+  if (!text || typeof text !== 'string') return false;
+  const compact = text.replace(/\s/g, '');
+  if (DELIVERED_KEYWORDS.some(k => compact.includes(String(k).replace(/\s/g, '')))) return true;
+  const extra = ['교부완료','인수완료','수취완료','전달완료','배송이완료','배달이완료','배송완료되었','배달완료되었','인수확인','수취인수'];
+  if (extra.some(k => compact.includes(k))) return true;
+  if (/배송\s*완료|배달\s*완료|수령\s*완료|인수\s*완료|교부\s*완료|전달\s*완료/i.test(text)) return true;
+  if (/delivered|delivery\s*completed/i.test(text)) return true;
+  return false;
+}
+
+function progressStepImpliesDelivered(p) {
+  if (!p || typeof p !== 'object') return false;
+  const blob = [p.description, p.status, p.remark, p.detail].filter(Boolean).join(' ');
+  if (textImpliesDelivered(blob)) return true;
+  const code = String(p.deliveryStatus || p.statusCode || p.code || '').toUpperCase();
+  if (code && (code.includes('DELIVERED') || code.includes('COMPLETED'))) return true;
+  const ds = p.deliveryStatus;
+  if (ds && STATUS_MAP[String(ds).toUpperCase()] === '배송완료') return true;
+  return false;
+}
+
+/** API 최상단은 배달출발인데 타임라인에 완료 행이 섞여 있는 경우 대비: 한 건이라도 완료면 배송완료로 간주 */
+function rawImpliesDelivered(raw) {
+  if (!raw) return false;
+  if (raw.delivered === true || raw.isDelivered === true || raw.deliveryComplete === true) return true;
+  const ds = raw.deliveryStatus;
+  const dsU = (ds == null ? '' : String(ds)).toUpperCase();
+  if (STATUS_MAP[ds] === '배송완료' || STATUS_MAP[dsU] === '배송완료') return true;
+  if (dsU === 'DELIVERED' || dsU === 'DELIVERY_COMPLETED' || dsU === 'COMPLETED') return true;
+  if (textImpliesDelivered(String(raw.deliveryStatusText || ''))) return true;
+  return (raw.progresses || []).some(p => progressStepImpliesDelivered(p));
+}
+
+function getFilterGroup(item) {
+  if (item.status === '배송완료') return '배송완료';
+  if (item.status === STATUS_LOOKUP_FAIL || item.status === '오류') {
+    const hours = item.addedAt
+      ? (Date.now() - new Date(item.addedAt).getTime()) / (1000*60*60)
+      : 999;
+    return hours < 12 ? '출고전' : '조회실패';
+  }
+  if (isDelay(item)) return '배송지연';
+  if (ACCIDENT_STATUSES.includes(item.status)) return '사고';
+  if (TRANSIT_STATUSES.includes(item.status)) return '배송중';
+  return '출고전';
+}
+
+function isDelay(item) {
+  if (item.status === '배송완료') return false;
+  if (!item.addedAt) return false;
+  const diff = (Date.now() - new Date(item.addedAt).getTime()) / (1000*60*60*24);
+  return diff >= 2;
+}
+
+// ── 배지 ──
+function recordTransition(counts, beforeGroup, afterGroup) {
+  if (beforeGroup === afterGroup) return;
+  const key = `${beforeGroup}→${afterGroup}`;
+  counts[key] = (counts[key] || 0) + 1;
+}
+
+function showChangeSummary(transitions, title) {
+  const elTitle = document.getElementById('summary-title');
+  const body = document.getElementById('summary-body');
+  if (elTitle) elTitle.textContent = title || '조회 결과 변동 집계';
+  const keys = Object.keys(transitions).filter(k => transitions[k] > 0);
+  const totalChanged = keys.reduce((s, k) => s + transitions[k], 0);
+  if (!keys.length) {
+    body.innerHTML = '<div class="summary-meta" style="margin-bottom:0">분류 기준상 상태 변동이 없습니다.</div>';
+  } else {
+    keys.sort((a, b) => transitions[b] - transitions[a] || a.localeCompare(b, 'ko'));
+    const rows = keys.map(k => {
+      const parts = k.split('→');
+      const from = parts[0] || '';
+      const to = parts.slice(1).join('→') || '';
+      return `<tr><td>${from} → ${to}</td><td>${transitions[k]}건</td></tr>`;
+    }).join('');
+    body.innerHTML = `
+      <div class="summary-meta">변동 발생 <strong style="color:var(--black)">${totalChanged}</strong>건 (유형 ${keys.length}가지)</div>
+      <table class="summary-table"><thead><tr><th>변동</th><th>건수</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+  document.getElementById('modal-summary').classList.add('open');
+}
+
+function statusBadge(item) {
+  const group = getFilterGroup(item);
+  const cls = {
+    '배송완료':'badge-done',
+    '배송중':'badge-transit',
+    '출고전':'badge-pending',
+    '배송지연':'badge-delay',
+    '사고':'badge-error',
+    '조회실패':'badge-fail',
+  }[group] || 'badge-pending';
+  if (group === '조회실패') {
+    const reason = item.error ? item.error : '';
+    const sub = reason
+      ? `<div class="status-fail-reason" title="${escapeHtml(reason)}">${escapeHtml(truncateReason(reason, 120))}</div>`
+      : '';
+    return `<div><span class="badge ${cls}">${STATUS_LOOKUP_FAIL}</span>${sub}</div>`;
+  }
+  const label = group === '배송중' ? (item.status||'배송중') : (item.status||group);
+  return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
+}
+
+// ── API 호출 ──
+async function fetchTracking(carrier, num) {
+  const res = await fetch(`${API_BASE}/`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ items:[{ courierCode: carriers[carrier]?.courierCode || carrier, trackingNumber:num }] }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json();
+  const result = json.data?.results?.[0];
+  if (!result?.success) {
+    const code = result?.error?.code || '';
+    if (code === 'NOT_FOUND') throw new Error('NOT_FOUND');
+    throw new Error(result?.error?.message || '조회 실패');
+  }
+  return result.data;
+}
+
+async function fetchWithRetry(carrier, num, retries=3) {
+  for (let i=0; i<=retries; i++) {
+    try { return await fetchTracking(carrier, num); }
+    catch(e) {
+      const m = String(e.message||'');
+      if (i >= retries) throw e;
+      // 미등록(출고전)은 재시도해도 의미 없으므로 즉시 종료
+      if (m === 'NOT_FOUND') throw e;
+      // 택배사가 "N초 후" 안내를 주면 그만큼 대기 후 재시도
+      const delay = m.match(/(\d+)\s*초/)?.[1];
+      if (delay) { await sleep(Number(delay)*1000+300); continue; }
+      // 그 외 일시적 실패는 지수 백오프로 재시도 (0.5s → 1s → 2s)
+      await sleep(500 * Math.pow(2, i));
+    }
+  }
+}
+
+function parseTracking(raw, carrier, num) {
+  if (!raw) return { status: STATUS_LOOKUP_FAIL, steps:[], error: '응답 없음' };
+  // deliveryStatus 또는 progresses[0].statusCode 기준으로 상태 결정
+  const dsCode = raw.deliveryStatus || raw.progresses?.[0]?.statusCode || '';
+  let status = STATUS_MAP[dsCode] || STATUS_MAP[dsCode.toUpperCase()]
+    || raw.deliveryStatusText
+    || raw.progresses?.[0]?.status
+    || dsCode
+    || '알수없음';
+  const steps = (raw.progresses||[]).map((p,i)=>({
+    text: p.description || p.status || '',
+    location: p.location || '',
+    time: p.dateTime || '',
+    done: i > 0,
+    current: i === 0,
+  }));
+  if (rawImpliesDelivered(raw)) status = '배송완료';
+  return { status, steps, error: null };
+}
+
+// ── 합포장: 같은 송장번호 모든 건에 조회 결과 동기화 ──
+function syncSameNumItems(carrier, num, trackingResult) {
+  if (!num) return;
+  allItems.forEach((r, i) => {
+    if (r.carrier === carrier && r.num === num) {
+      allItems[i] = {
+        ...r,
+        status:    trackingResult.status,
+        steps:     trackingResult.steps,
+        error:     trackingResult.error,
+        updatedAt: new Date().toISOString(),
+      };
+      saveToStorage(allItems[i]);
+    }
+  });
+}
+
+// ── 아이템 추가/갱신 ──
+function makeLocalId() {
+  return 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+}
+
+// 송장번호 있으면 carrier+num, 없으면 localId로 식별
+function findItemIdx(data) {
+  // localId가 있으면 localId 우선 (합포장·미등록 건 식별)
+  if (data.localId) return allItems.findIndex(r=>r.localId===data.localId);
+  // 송장번호+택배사 조합으로 찾되, 상품명이 다르면 다른 건으로 간주
+  if (data.num) {
+    const candidates = allItems
+      .map((r, i) => ({ r, i }))
+      .filter(({ r }) => r.num === data.num && r.carrier === data.carrier);
+    // 상품명이 같은 건 매칭 (합포장 건은 상품명이 다르므로 신규 추가)
+    const exact = candidates.find(({ r }) =>
+      (r.productName||'').trim() === (data.productName||'').trim()
+    );
+    if (exact) return exact.i;
+  }
+  return -1;
+}
+
+function upsertItem(data) {
+  data = { ...data, orderDate: normalizeDate(data.orderDate) };
+  const idx = findItemIdx(data);
+  if (idx>=0) {
+    const existing = allItems[idx];
+    allItems[idx] = {
+      ...existing,
+      ...data,
+      memo: data.memo !== undefined ? data.memo : existing.memo,
+      addedAt: existing.addedAt,
+      updatedAt: new Date().toISOString()
+    };
+  } else {
+    const newItem = {
+      ...data,
+      memo: data.memo || '',
+      localId: data.localId || (!data.num ? makeLocalId() : ''),
+      addedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    allItems.unshift(newItem);
+  }
+  const entry = data.num
+    ? allItems.find(r=>r.num===data.num && r.carrier===data.carrier)
+    : allItems.find(r=>r.localId===data.localId);
+  if (entry) saveToStorage(entry);
+  updateStats();
+  renderTable();
+}
+
+// 매칭키: 주문일+주문처+상품명+수량+수하인+수취인 조합
+function makeMatchKey(r) {
+  return [r.orderDate||'', r.orderSource||'', r.productName||'', String(r.qty||''), r.shipper||'', r.companyName||'']
+    .map(s=>String(s).trim().toLowerCase()).join('|');
+}
+
+// ── 중복 송장번호 체크 ──
+// excludeKey: 수정 시 자기 자신은 중복에서 제외 (carrier__num 또는 localId)
+function isDuplicateNum(carrier, num, excludeKey, productName) {
+  if (!num) return false;
+  return allItems.some(r => {
+    if (!r.num) return false;
+    if (excludeKey) {
+      const selfKey = r.localId ? r.localId : r.carrier+'__'+r.num;
+      if (selfKey === excludeKey) return false;
+    }
+    if (r.carrier !== carrier || r.num !== num) return false;
+    // 상품명이 둘 다 있고 다르면 합포장으로 간주 → 중복 아님
+    if (productName && r.productName && productName.trim() !== r.productName.trim()) return false;
+    return true;
+  });
+}
+
+// ── 단건 등록 / 수정 ──
+function openSingleModal() {
+  document.getElementById('single-modal-title').textContent = '단건 등록';
+  document.getElementById('s-edit-key').value = '';
+  document.getElementById('btn-single-submit').style.display = '';
+  document.getElementById('btn-single-save').style.display = 'none';
+  ['s-orderDate','s-orderSource','s-productName','s-qty','s-shipper','s-companyName','s-memo','s-trackNum'].forEach(id=>document.getElementById(id).value='');
+  const t = new Date();
+  document.getElementById('s-orderDate').value =
+    t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+  document.getElementById('modal-single').classList.add('open');
+  document.getElementById('s-trackNum').focus();
+}
+
+function openEditModal(carrier, num, localId) {
+  const r = localId
+    ? allItems.find(x=>x.localId===localId)
+    : allItems.find(x=>x.carrier===carrier && x.num===num);
+  if (!r) return;
+  document.getElementById('single-modal-title').textContent = '내용 수정';
+  document.getElementById('s-edit-key').value = localId || (carrier+'__'+num);
+  document.getElementById('s-orderDate').value   = r.orderDate   || '';
+  document.getElementById('s-orderSource').value = r.orderSource || '';
+  document.getElementById('s-productName').value = r.productName || '';
+  document.getElementById('s-qty').value         = r.qty         || '';
+  document.getElementById('s-shipper').value     = r.shipper     || '';
+  document.getElementById('s-companyName').value = r.companyName || '';
+  document.getElementById('s-carrier').value     = r.carrier     || 'lotte';
+  document.getElementById('s-trackNum').value    = r.num         || '';
+  document.getElementById('s-memo').value        = r.memo        || '';
+  document.getElementById('btn-single-submit').style.display = 'none';
+  document.getElementById('btn-single-save').style.display = '';
+  document.getElementById('modal-single').classList.add('open');
+}
+
+// 수정 저장 (조회 없이 정보만 저장)
+async function submitSingleSave() {
+  const editKey = document.getElementById('s-edit-key').value;
+  if (!editKey) return;
+  const newNum = document.getElementById('s-trackNum').value.replace(/[^0-9A-Za-z]/g,'');
+  const carrier = document.getElementById('s-carrier').value;
+
+  // 기존 항목 찾기
+  let existing;
+  if (editKey.startsWith('local_')) {
+    existing = allItems.find(r=>r.localId===editKey);
+  } else {
+    const [ec, en] = editKey.split('__');
+    existing = allItems.find(r=>r.carrier===ec && r.num===en);
+  }
+  if (!existing) { toast('항목을 찾을 수 없습니다'); return; }
+
+  const btn = document.getElementById('btn-single-save');
+  btn.disabled=true; btn.textContent='저장 중...';
+
+  const updated = {
+    ...existing,
+    carrier,
+    num:         newNum,
+    localId:     newNum ? '' : (existing.localId || makeLocalId()),
+    orderDate:   normalizeDate(document.getElementById('s-orderDate').value),
+    orderSource: document.getElementById('s-orderSource').value,
+    productName: document.getElementById('s-productName').value,
+    qty:         document.getElementById('s-qty').value,
+    shipper:     document.getElementById('s-shipper').value,
+    companyName: document.getElementById('s-companyName').value,
+    memo:        document.getElementById('s-memo').value,
+    updatedAt:   new Date().toISOString(),
+  };
+
+  // 기존 항목 제거 후 갱신 항목 삽입 (위치 유지)
+  const idx = allItems.indexOf(existing);
+  allItems[idx] = updated;
+  saveLocal();
+  saveToStorage(updated);
+
+  // 송장번호가 새로 입력됐으면 조회 시도
+  if (newNum && !existing.num) {
+    try {
+      const raw = await fetchWithRetry(carrier, newNum);
+      const pr = parseTracking(raw, carrier, newNum);
+      allItems[idx] = { ...updated, status: pr.status, steps: pr.steps, error: null };
+      saveLocal(); saveToStorage(allItems[idx]);
+      toast('수정 및 조회 완료!');
+    } catch(e) {
+      allItems[idx] = resolveTrackingError(e, updated);
+      saveLocal(); saveToStorage(allItems[idx]);
+      toast('저장 완료 (조회 실패)');
+    }
+  } else {
+    toast('수정 완료!');
+  }
+
+  updateStats(); renderTable();
+  closeModal('modal-single');
+  btn.disabled=false; btn.textContent='저장';
+}
+
+async function submitSingle() {
+  const num = document.getElementById('s-trackNum').value.replace(/[^0-9A-Za-z]/g,'');
+  const carrier = document.getElementById('s-carrier').value;
+
+  const base = {
+    num, carrier,
+    orderDate:   normalizeDate(document.getElementById('s-orderDate').value),
+    orderSource: document.getElementById('s-orderSource').value,
+    productName: document.getElementById('s-productName').value,
+    qty:         document.getElementById('s-qty').value,
+    shipper:     document.getElementById('s-shipper').value,
+    companyName: document.getElementById('s-companyName').value,
+    memo:        document.getElementById('s-memo').value,
+  };
+
+  const btn = document.getElementById('btn-single-submit');
+
+  // 송장번호 없이 등록
+  if (!num) {
+    base.localId = makeLocalId();
+    base.status = '출고전';
+    base.steps = [];
+    base.error = null;
+    upsertItem(base);
+    toast('송장번호 없이 등록됐습니다');
+    closeModal('modal-single');
+    return;
+  }
+
+  // 중복 체크
+  if (isDuplicateNum(carrier, num, null, base.productName)) {
+    toast(`이미 등록된 송장번호입니다 (${carriers[carrier]?.name||carrier} ${num})`);
+    return;
+  }
+
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 조회 중...';
+  // 항상 localId 부여 → 같은 송장번호 합포장 건도 독립 항목으로 등록
+  base.localId = makeLocalId();
+  try {
+    const raw = await fetchWithRetry(carrier, num);
+    const pr = parseTracking(raw, carrier, num);
+    upsertItem({ ...base, status: pr.status, steps: pr.steps, error: pr.error != null ? pr.error : null });
+    syncSameNumItems(carrier, num, pr);
+    toast('등록 완료!');
+    closeModal('modal-single');
+  } catch(e) {
+    upsertItem(resolveTrackingError(e, base));
+    toast('조회 실패 — 사유가 목록에 저장됨');
+    closeModal('modal-single');
+  }
+  btn.disabled=false; btn.innerHTML='등록 및 조회';
+}
+
+// ── 파일 업로드 ──
+
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropzone').classList.remove('over');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+}
+
+function handleFile(file) {
+  if (!file) return;
+  if (typeof XLSX==='undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, {type:'binary'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, {defval:''});
+      const get = (row,...keys)=>{ for(const k of keys){ const v=row[k]; if(v!==undefined&&v!=='') return String(v).trim(); } return ''; };
+      // 날짜 파싱: 엑셀 시리얼 → YYYY-MM-DD (로컬 기준, UTC 오프셋 오류 방지)
+      const parseDate = (row,...keys) => {
+        for(const k of keys){
+          const v = row[k];
+          if(v===undefined||v==='') continue;
+          if(typeof v === 'number' && v > 1000) {
+            // 엑셀 시리얼: 1900-01-00 기준, 로컬 자정으로 계산
+            const totalDays = Math.floor(v);
+            const ms = (totalDays - 25569) * 86400 * 1000;
+            const d = new Date(ms);
+            // UTC 날짜 그대로 사용 (엑셀 시리얼은 timezone-naive)
+            const y = d.getUTCFullYear();
+            const m = String(d.getUTCMonth()+1).padStart(2,'0');
+            const day = String(d.getUTCDate()).padStart(2,'0');
+            return `${y}-${m}-${day}`;
+          }
+          const s = String(v).trim();
+          // ISO 형식(2026-03-31T...) → 날짜만 추출
+          if(/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.slice(0,10);
+          return s;
+        }
+        return '';
+      };
+      const uploadMode = document.querySelector('input[name="upload-mode"]:checked')?.value || 'new';
+      bulkData = json.map((row,i)=>({
+        id:i,
+        orderDate:   parseDate(row,'주문일','주문일자','날짜','date'),
+        orderSource: get(row,'주문처','발주처','주문사','source'),
+        productName: get(row,'상품명','제품명','품목','product'),
+        qty:         get(row,'수량','qty','Qty'),
+        shipper:     get(row,'수하인','발송인','보내는분','sender'),
+        companyName: get(row,'수취인','업체명','받는분','수신자','이름','customer'),
+        carrier:     carrierFromStr(get(row,'택배사','배송사','carrier')),
+        carrierRaw:  get(row,'택배사','배송사','carrier'),
+        num:         get(row,'운송장번호','운송장 번호','송장번호','tracking').replace(/[^0-9A-Za-z]/g,''),
+        memo:        get(row,'메모','비고','note','memo'),
+        status:'대기중', steps:[], error:null,
+      }));
+
+      // 모드별 필터: 신규는 전체 허용, 업데이트는 송장번호 있는 행만
+      if (uploadMode === 'update') {
+        bulkData = bulkData.filter(r=>r.num);
+      } else {
+        bulkData = bulkData.filter(r=>r.orderDate||r.productName||r.num); // 완전히 빈 행 제외
+      }
+
+      if (!bulkData.length) { toast('처리할 행이 없습니다'); return; }
+      const noNumCount = bulkData.filter(r=>!r.num).length;
+      const countMsg = noNumCount > 0
+        ? `${bulkData.length}건 인식됨 (송장번호 없음 ${noNumCount}건 포함)`
+        : `${bulkData.length}건 인식됨`;
+      document.getElementById('upload-count').textContent = countMsg;
+      document.getElementById('upload-text').textContent = `0 / ${bulkData.length}`;
+      document.getElementById('upload-preview').style.display='block';
+      toast(`${bulkData.length}건 불러왔습니다`);
+    } catch(err) { toast('파일 읽기 실패'); console.error(err); }
+  };
+  reader.readAsBinaryString(file);
+}
+
+async function runBulkOrUpdate() {
+  const uploadMode = document.querySelector('input[name="upload-mode"]:checked')?.value || 'new';
+  if (uploadMode === 'update') {
+    await runBulkUpdate();
+  } else {
+    await runBulk();
+  }
+}
+
+// 신규 등록 (송장번호 없는 항목 포함) — 병렬 처리
+async function runBulk() {
+  if (!bulkData.length) return;
+  const btn = document.getElementById('btn-bulk');
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 조회 중...';
+  let done=0, duplicates=0;
+  const transitionCounts = {};
+
+  // 송장번호 없는 건 즉시 등록, 조회 대상만 추려서 병렬 처리
+  const toQuery = [];
+  for (const item of bulkData) {
+    if (!item.num) {
+      item.localId = makeLocalId();
+      upsertItem({ ...item, status: '출고전', steps:[], error:null });
+      done++;
+    } else if (isDuplicateNum(item.carrier, item.num, null, item.productName)) {
+      duplicates++;
+      done++;
+    } else {
+      if (!item.localId) item.localId = makeLocalId();
+      toQuery.push(item);
+    }
+  }
+  updateStats(); renderTable();
+
+  // PARALLEL_CHUNK씩 병렬 조회
+  for (let i=0; i<toQuery.length; i+=PARALLEL_CHUNK) {
+    const chunk = toQuery.slice(i, i+PARALLEL_CHUNK);
+    await Promise.all(chunk.map(async item => {
+      const before = getFilterGroup(item);
+      try {
+        const raw = await fetchWithRetry(item.carrier, item.num);
+        const pr = parseTracking(raw, item.carrier, item.num);
+        upsertItem({ ...item, status: pr.status, steps: pr.steps, error: pr.error != null ? pr.error : null });
+        syncSameNumItems(item.carrier, item.num, pr);
+      } catch(e) {
+        upsertItem(resolveTrackingError(e, item));
+      }
+      const afterItem = allItems.find(x => x.localId===item.localId);
+      if (afterItem) recordTransition(transitionCounts, before, getFilterGroup(afterItem));
+      done++;
+    }));
+    document.getElementById('upload-progress').style.width=Math.round(done/bulkData.length*100)+'%';
+    document.getElementById('upload-text').textContent=`${done} / ${bulkData.length}`;
+    updateStats(); renderTable();
+    if (i+PARALLEL_CHUNK < toQuery.length) await sleep(800);
+  }
+
+  btn.disabled=false; btn.innerHTML='⚡ 시작';
+  closeModal('modal-upload');
+  showChangeSummary(transitionCounts, '일괄 등록 결과');
+  toast(duplicates > 0 ? `처리 완료 (중복 제외 ${duplicates}건)` : `${bulkData.length}건 처리 완료`);
+}
+
+// 송장번호 업데이트 (매칭: 주문일+주문처+상품명+수량+수하인+수취인)
+async function runBulkUpdate() {
+  if (!bulkData.length) return;
+  const btn = document.getElementById('btn-bulk');
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 업데이트 중...';
+  let matched=0, notFound=0, done=0;
+  const updateProgress = () => {
+    document.getElementById('upload-progress').style.width=Math.round(done/bulkData.length*100)+'%';
+    document.getElementById('upload-text').textContent=`${done} / ${bulkData.length}`;
+  };
+
+  // 1단계: 매칭 (순차) — 조회 대상만 추림
+  const toQuery = [];
+  for (const item of bulkData) {
+    if (!item.num) { done++; continue; }
+    const key = makeMatchKey(item);
+    const idx = allItems.findIndex(r => makeMatchKey(r)===key);
+    if (idx < 0) { notFound++; done++; continue; }
+    const existing = allItems[idx];
+    const updated = {
+      ...existing,
+      carrier: item.carrier || existing.carrier,
+      num:     item.num,
+      localId: '',
+      memo:    item.memo || existing.memo,
+      updatedAt: new Date().toISOString(),
+    };
+    allItems[idx] = updated;
+    toQuery.push({ idx, updated });
+    matched++;
+  }
+  updateProgress();
+
+  // 2단계: 송장번호 생긴 건 PARALLEL_CHUNK씩 병렬 조회
+  for (let i=0; i<toQuery.length; i+=PARALLEL_CHUNK) {
+    const chunk = toQuery.slice(i, i+PARALLEL_CHUNK);
+    await Promise.all(chunk.map(async ({ idx, updated }) => {
+      try {
+        const raw = await fetchWithRetry(updated.carrier, updated.num);
+        const pr = parseTracking(raw, updated.carrier, updated.num);
+        allItems[idx] = { ...updated, status: pr.status, steps: pr.steps, error: null };
+      } catch(e) {
+        allItems[idx] = resolveTrackingError(e, updated);
+      }
+      saveToStorage(allItems[idx]);
+      done++;
+    }));
+    updateProgress();
+    updateStats(); renderTable();
+    if (i+PARALLEL_CHUNK < toQuery.length) await sleep(800);
+  }
+  saveLocal(); updateStats(); renderTable();
+  btn.disabled=false; btn.innerHTML='⚡ 시작';
+  closeModal('modal-upload');
+  toast(`업데이트 완료 — 매칭 ${matched}건 / 미매칭 ${notFound}건`);
+}
+
+// ── 자동 조회 주기 (분) — localStorage `tracker_auto_interval_min` ──
+function getAutoIntervalMinutes() {
+  const raw = localStorage.getItem('tracker_auto_interval_min');
+  let min = parseInt(raw || '5', 10);
+  if (Number.isNaN(min)) min = 5;
+  return Math.max(AUTO_MINUTES_MIN, Math.min(AUTO_MINUTES_MAX, min));
+}
+
+function getAutoIntervalSeconds() {
+  return getAutoIntervalMinutes() * 60;
+}
+
+function onAutoIntervalChange() {
+  const el = document.getElementById('auto-interval-min');
+  if (!el) return;
+  let min = parseInt(el.value, 10);
+  if (Number.isNaN(min)) min = getAutoIntervalMinutes();
+  min = Math.max(AUTO_MINUTES_MIN, Math.min(AUTO_MINUTES_MAX, min));
+  el.value = String(min);
+  localStorage.setItem('tracker_auto_interval_min', String(min));
+  if (autoTimer) {
+    autoRemain = getAutoIntervalSeconds();
+    updateAutoUI();
+  }
+}
+
+function initAutoIntervalUI() {
+  const el = document.getElementById('auto-interval-min');
+  if (!el) return;
+  el.value = String(getAutoIntervalMinutes());
+}
+
+// ── 자동 조회 ──
+function startAuto() {
+  if (autoTimer) return;
+  if (!allItems.length) { toast('먼저 운송장을 등록하세요'); return; }
+  onAutoIntervalChange();
+  autoRemain = getAutoIntervalSeconds();
+  updateAutoUI();
+  autoCountdown = setInterval(()=>{
+    autoRemain--;
+    updateAutoUI();
+    if (autoRemain<=0) { autoRemain=getAutoIntervalSeconds(); runAutoRefresh(); }
+  }, 1000);
+  autoTimer = true;
+  const mm = getAutoIntervalMinutes();
+  toast(`자동 조회 시작 — 즉시 1회 조회 후 ${mm}분마다 갱신됩니다`);
+  runAutoRefresh();
+}
+
+function stopAuto() {
+  clearInterval(autoCountdown);
+  autoTimer=null; autoCountdown=null;
+  document.getElementById('auto-dot').classList.remove('on');
+  document.getElementById('auto-label').textContent='꺼짐';
+  document.getElementById('auto-next').textContent='—';
+  toast('자동 조회 중지');
+}
+
+function updateAutoUI() {
+  const dot = document.getElementById('auto-dot');
+  const label = document.getElementById('auto-label');
+  const next = document.getElementById('auto-next');
+  if (autoTimer) {
+    dot.classList.add('on');
+    label.textContent='켜짐';
+    const m=String(Math.floor(autoRemain/60)).padStart(2,'0');
+    const s=String(autoRemain%60).padStart(2,'0');
+    next.textContent=`다음 조회 ${m}:${s}`;
+  }
+}
+
+async function runAutoRefresh() {
+  if (autoRefreshRunning) return;
+  autoRefreshRunning = true;
+  try {
+    const targets = allItems.filter(r=>r.status!=='배송완료');
+    if (!targets.length) { toast('모든 배송 완료 ✓'); stopAuto(); return; }
+    toast(`${targets.length}건 재조회 중…`);
+    const transitionCounts = {};
+    for (let i=0; i<targets.length; i+=PARALLEL_CHUNK) {
+      const chunk = targets.slice(i, i+PARALLEL_CHUNK);
+      await Promise.all(chunk.map(async r => {
+        const before = getFilterGroup(r);
+        try {
+          const raw = await fetchWithRetry(r.carrier, r.num);
+          const pr = parseTracking(raw, r.carrier, r.num);
+          upsertItem({ ...r, status: pr.status, steps: pr.steps, error: pr.error != null ? pr.error : null });
+          syncSameNumItems(r.carrier, r.num, pr);
+        } catch(e) {
+          upsertItem(resolveTrackingError(e, r));
+        }
+        const afterItem = allItems.find(x => x.localId ? x.localId===r.localId : (x.carrier===r.carrier && x.num===r.num));
+        if (afterItem) recordTransition(transitionCounts, before, getFilterGroup(afterItem));
+      }));
+      if (i+PARALLEL_CHUNK < targets.length) await sleep(800);
+    }
+    updateStats();
+    renderTable();
+    showChangeSummary(transitionCounts, '자동 조회 변동 집계');
+    toast('자동 조회 완료');
+  } finally {
+    autoRefreshRunning = false;
+  }
+}
+
+// ── 수동 전체 조회 (배송완료 건은 재조회에서 제외) ──
+async function runManualFullRefresh() {
+  if (manualFullRefreshRunning) return;
+  if (!allItems.length) { toast('먼저 운송장을 등록하세요'); return; }
+  const targets = allItems.filter(r => r.status !== '배송완료');
+  if (!targets.length) { toast('재조회할 건이 없습니다 (모두 배송완료)'); return; }
+  const skipped = allItems.length - targets.length;
+  const msg = skipped > 0
+    ? `등록 ${allItems.length}건 중 배송완료 ${skipped}건을 제외하고 ${targets.length}건을 다시 조회합니다. 계속할까요?`
+    : `등록된 ${targets.length}건을 다시 조회합니다. 계속할까요?`;
+  if (!confirm(msg)) return;
+
+  manualFullRefreshRunning = true;
+  const btn = document.getElementById('btn-full-refresh');
+  if (btn) { btn.disabled = true; }
+
+  toast(`${targets.length}건 조회 중… (배송완료 제외)`);
+  const transitionCounts = {};
+  try {
+    for (let i=0; i<targets.length; i+=PARALLEL_CHUNK) {
+      const chunk = targets.slice(i, i+PARALLEL_CHUNK);
+      await Promise.all(chunk.map(async r => {
+        const before = getFilterGroup(r);
+        try {
+          const raw = await fetchWithRetry(r.carrier, r.num);
+          const pr = parseTracking(raw, r.carrier, r.num);
+          upsertItem({ ...r, status: pr.status, steps: pr.steps, error: pr.error != null ? pr.error : null });
+          syncSameNumItems(r.carrier, r.num, pr);
+        } catch(e) {
+          upsertItem(resolveTrackingError(e, r));
+        }
+        const afterItem = allItems.find(x => x.localId ? x.localId===r.localId : (x.carrier===r.carrier && x.num===r.num));
+        if (afterItem) recordTransition(transitionCounts, before, getFilterGroup(afterItem));
+      }));
+      updateStats(); renderTable();
+      if (i+PARALLEL_CHUNK < targets.length) await sleep(800);
+    }
+    showChangeSummary(transitionCounts, '전체 조회 변동 집계');
+    toast('전체 조회 완료');
+  } finally {
+    manualFullRefreshRunning = false;
+    if (btn) { btn.disabled = false; }
+  }
+}
+
+// ── 백그라운드 Sheets 동기화 ──
+let _syncBusy = false;
+async function syncFromSheets() {
+  if (_syncBusy || manualFullRefreshRunning || autoRefreshRunning) return;
+  _syncBusy = true;
+  try {
+    const data = await sheetsRequest({ action: 'load' });
+    if (!data.ok || !data.rows?.length) return;
+    const remote = data.rows.map(r => ({
+      carrier:     carrierFromStr(r['택배사']),
+      num:         String(r['운송장번호'] || ''),
+      orderDate:   normalizeDate(r['주문일']   || ''),
+      orderSource: r['주문처']   || '',
+      productName: r['상품명']   || '',
+      qty:         r['수량']     || '',
+      shipper:     r['수하인']   || '',
+      companyName: r['수취인']   || '',
+      memo:        r['메모']     || '',
+      status:      r['상태']     || '',
+      steps:       r['최근이벤트'] && r['최근이벤트'] !== '-'
+                     ? [{ text: r['최근이벤트'], time: r['최근시간'], done: true, current: false }]
+                     : [],
+      localId:     r['localId'] || '',
+      error:       null,
+      addedAt:     r['등록일시'] || '',
+      updatedAt:   r['수정일시'] || '',
+    })).filter(r => r.num || r.localId || r.productName);
+
+    let changed = false;
+    remote.forEach(rem => {
+      const local = rem.num
+        ? allItems.find(x => x.carrier===rem.carrier && x.num===rem.num)
+        : (rem.localId ? allItems.find(x => x.localId===rem.localId) : null);
+      if (!local) {
+        allItems.push(rem);
+        changed = true;
+      } else {
+        const remT   = rem.updatedAt   ? new Date(rem.updatedAt).getTime()   : 0;
+        const localT = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+        if (remT > localT) {
+          Object.assign(local, rem, { memo: local.memo || rem.memo });
+          changed = true;
+        }
+      }
+    });
+    const remoteKeys = new Set(remote.map(r => r.num ? r.carrier+'__'+r.num : 'lid__'+(r.localId||'')));
+    const before = allItems.length;
+    allItems = allItems.filter(r => {
+      const k = r.num ? r.carrier+'__'+r.num : 'lid__'+(r.localId||'');
+      return remoteKeys.has(k);
+    });
+    if (allItems.length !== before) changed = true;
+
+    if (changed) {
+      saveLocal();
+      updateStats();
+      renderTable();
+    }
+  } catch(e) {}
+  finally { _syncBusy = false; }
+}
+
+// ── 필터 ──
+function setFilter(f, el) {
+  currentFilter=f;
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  syncFromSheets();
+  renderTable();
+}
+
+function searchFieldMatches(r, field, query) {
+  if (!query) return true;
+  const q = query.toLowerCase().trim();
+  if (field === 'num') {
+    const digits = (s) => String(s||'').toLowerCase().replace(/[^0-9A-Za-z]/g,'');
+    return digits(r.num).includes(digits(q));
+  }
+  return (String(r[field]||'').toLowerCase().includes(q));
+}
+
+function getFiltered() {
+  const carrier   = document.getElementById('filter-carrier').value;
+  const statusF   = document.getElementById('filter-status').value;
+  const field     = document.getElementById('search-field').value;
+  const query     = document.getElementById('search-input').value.trim();
+  const dateFrom  = document.getElementById('filter-date-from').value;
+  const dateTo    = document.getElementById('filter-date-to').value;
+
+  return allItems.filter(r=>{
+    if (currentFilter!=='all' && getFilterGroup(r)!==currentFilter) return false;
+    if (carrier && r.carrier!==carrier) return false;
+    if (statusF && getFilterGroup(r)!==statusF) return false;
+    if (!searchFieldMatches(r, field, query)) return false;
+    if (dateFrom && (r.orderDate||'') < dateFrom) return false;
+    if (dateTo   && (r.orderDate||'') > dateTo)   return false;
+    return true;
+  });
+}
+
+function renderTable() {
+  const sortKey = localStorage.getItem('tracker_sort') || 'addedAt';
+  allItems.sort((a,b)=>{
+    if (sortKey === 'orderDate') {
+      const da = a.orderDate || '';
+      const db = b.orderDate || '';
+      return db < da ? -1 : db > da ? 1 : 0;
+    }
+    // 기본: 등록순 (addedAt 내림차순)
+    const ta = a.addedAt ? new Date(a.addedAt).getTime() : 0;
+    const tb = b.addedAt ? new Date(b.addedAt).getTime() : 0;
+    return tb - ta;
+  });
+  const data = getFiltered();
+  const tbody = document.getElementById('table-body');
+  document.getElementById('result-count').textContent = `${data.length}건`;
+
+  if (!data.length) {
+    tbody.innerHTML=`<tr><td colspan="13"><div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">조건에 맞는 결과가 없습니다</div></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.map(r=>{
+    const delay = isDelay(r);
+    const esc = s => escapeHtml(s);
+    const memoVal = esc(r.memo||'');
+    const rowKey = r.localId ? `lid__${r.localId}` : `${r.carrier}__${r.num}`;
+    return `<tr class="${delay&&r.status!=='배송완료'?'delay':''}">
+      <td style="text-align:center"><input type="checkbox" class="row-chk" data-key="${rowKey}" onchange="onRowChkChange()"></td>
+      <td style="font-size:11px;color:var(--gray-500);white-space:nowrap">${esc(r.orderDate)||'-'}</td>
+      <td style="font-size:12px">${esc(r.orderSource)||'-'}</td>
+      <td class="strong" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.productName)}">${esc(r.productName)||'-'}</td>
+      <td style="text-align:center;font-size:12px">${esc(String(r.qty||''))||'-'}</td>
+      <td style="font-size:12px;white-space:nowrap">${esc(r.shipper)||'-'}</td>
+      <td style="font-size:12px">${esc(r.companyName)||'-'}</td>
+      <td style="font-size:12px;white-space:nowrap">${carriers[r.carrier]?.name||esc(r.carrier)}</td>
+      <td class="mono">${esc(r.num) || '<span style="color:var(--gray-300);font-size:11px">미등록</span>'}</td>
+      <td>${statusBadge(r)}</td>
+      <td style="min-width:130px">
+        <div style="display:flex;align-items:center;gap:4px">
+          <input type="text" value="${memoVal}"
+            placeholder="메모 입력..."
+            style="border:1px solid transparent;border-radius:4px;padding:3px 6px;font-size:11px;color:var(--gray-700);background:transparent;width:100%;min-width:100px"
+            onfocus="this.style.borderColor='var(--gray-300)';this.style.background='var(--white)'"
+            onblur="this.style.borderColor='transparent';this.style.background='transparent';saveMemo('${rowKey}',this.value)"
+            onkeydown="if(event.key==='Enter'){this.blur()}"
+            title="${memoVal}">
+        </div>
+      </td>
+      <td style="text-align:center">
+        <button class="btn btn-outline btn-sm" onclick="openDetail('${r.carrier}','${r.num}','${r.localId||''}')">상세/수정</button>
+      </td>
+      <td style="text-align:center">
+        <button onclick="deleteItem('${r.carrier}','${r.num}','${r.localId||''}')" style="background:none;border:none;cursor:pointer;color:var(--gray-300);font-size:16px;padding:2px 6px" title="삭제">×</button>
+      </td>
+    </tr>`;
+  }).join('');
+  onRowChkChange();
+}
+
+// 날짜 문자열 정규화 → YYYY-MM-DD (로컬 기준, 어떤 형식이든 처리)
+function normalizeDate(s) {
+  if (!s && s !== 0) return '';
+  // 숫자(엑셀/Sheets 시리얼)
+  if (typeof s === 'number' && s > 1000) {
+    const d = new Date(Math.floor(s - 25569) * 86400 * 1000);
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth()+1).padStart(2,'0');
+    const day = String(d.getUTCDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  const str = String(s).trim();
+  if (!str) return '';
+  // 이미 YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  // ISO 형식 → 로컬 Date로 파싱
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) {
+    const d = new Date(str);
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  return str;
+}
+// rowKey: 'lid__{localId}' 또는 '{carrier}__{num}' — 송장 미등록·합포장 건도 정확히 매칭
+function saveMemo(rowKey, val) {
+  const idx = allItems.findIndex(r => (r.localId ? 'lid__'+r.localId : r.carrier+'__'+r.num) === rowKey);
+  if (idx<0) return;
+  allItems[idx].memo = val;
+  allItems[idx].updatedAt = new Date().toISOString();
+  saveToStorage(allItems[idx]);
+}
+
+// ── 상세/수정 통합 모달 ──
+function openDetail(carrier, num, localId) {
+  syncFromSheets();
+  const r = localId
+    ? allItems.find(x=>x.localId===localId)
+    : allItems.find(x=>x.carrier===carrier&&x.num===num);
+  if (!r) return;
+
+  const titleStr = r.num
+    ? `${carriers[r.carrier]?.name||r.carrier} · ${r.num}`
+    : `${carriers[r.carrier]?.name||r.carrier} · 송장번호 미등록`;
+  document.getElementById('detail-title').textContent = titleStr;
+
+  const editKey = r.localId || (r.carrier+'__'+r.num);
+
+  const failReasonHtml = getFilterGroup(r) === '조회실패'
+    ? `<div style="padding:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:var(--radius);margin-bottom:1rem">
+        <div style="color:var(--gray-500);font-size:10px;margin-bottom:6px;font-weight:700;letter-spacing:0.5px">조회 실패 사유</div>
+        <div style="font-size:13px;color:#b91c1c;line-height:1.45;word-break:break-word">${escapeHtml(r.error||'사유 없음')}</div>
+      </div>`
+    : '';
+
+  const stepsHtml = r.steps?.length
+    ? r.steps.map(s=>`
+      <div class="tl-item ${s.done?'done':''} ${s.current?'current':''}">
+        <div class="tl-dot"></div>
+        <div>
+          <div class="tl-text" style="color:${s.current?'var(--black)':'var(--gray-600)'};font-weight:${s.current?600:400}">${escapeHtml(s.text)}</div>
+          ${s.location?`<div style="font-size:11px;color:var(--gray-400)">${escapeHtml(s.location)}</div>`:''}
+          <div class="tl-time">${escapeHtml(s.time)}</div>
+        </div>
+      </div>`).join('')
+    : `<div style="color:var(--gray-400);font-size:13px;padding:0.75rem 0">${escapeHtml(r.error)||'배송 내역이 없습니다'}</div>`;
+
+  const carrierOpts = Object.entries(carriers).map(([k,v])=>
+    `<option value="${k}" ${r.carrier===k?'selected':''}>${v.name}</option>`).join('');
+
+  document.getElementById('detail-body').innerHTML=`
+    ${failReasonHtml}
+
+    <!-- 편집 섹션 -->
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray-400);margin-bottom:0.6rem">기본 정보</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:1.25rem">
+      <div>
+        <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">주문일</div>
+        <input id="de-orderDate" type="text" value="${escapeHtml(r.orderDate||'')}" placeholder="2026-03-27"
+          style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">주문처</div>
+        <input id="de-orderSource" type="text" value="${escapeHtml(r.orderSource||'')}" placeholder="OO은행 OO지점"
+          style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
+      </div>
+      <div style="grid-column:1/-1">
+        <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">상품명</div>
+        <input id="de-productName" type="text" value="${escapeHtml(r.productName||'')}" placeholder="상품명"
+          style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">수량</div>
+        <input id="de-qty" type="text" value="${escapeHtml(String(r.qty||''))}" placeholder="1"
+          style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">수하인</div>
+        <input id="de-shipper" type="text" value="${escapeHtml(r.shipper||'')}" placeholder="홍길동"
+          style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
+      </div>
+      <div style="grid-column:1/-1">
+        <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">수취인</div>
+        <input id="de-companyName" type="text" value="${escapeHtml(r.companyName||'')}" placeholder="수취인 또는 업체명"
+          style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">택배사</div>
+        <select id="de-carrier" style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">${carrierOpts}</select>
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">운송장번호 <span style="font-weight:400;text-transform:none;letter-spacing:0">(선택)</span></div>
+        <input id="de-num" type="text" value="${escapeHtml(r.num||'')}" placeholder="없으면 비워두세요"
+          style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
+      </div>
+      <div style="grid-column:1/-1">
+        <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">메모</div>
+        <input id="de-memo" type="text" value="${escapeHtml(r.memo||'')}" placeholder="출고예정일, 특이사항 등"
+          style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
+      </div>
+    </div>
+
+    <!-- 배송 진행 내역 -->
+    ${r.num ? `
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray-400);margin-bottom:0.6rem">배송 진행 내역</div>
+    <div class="timeline">${stepsHtml}</div>` : ''}
+
+    <!-- 하단 버튼 -->
+    <div style="display:flex;gap:8px;margin-top:1.25rem;justify-content:space-between;align-items:center;flex-wrap:wrap">
+      <div>
+        ${r.num ? `<a href="${carriers[r.carrier]?.url(r.num)}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none">공식 사이트에서 확인 ↗</a>` : ''}
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline" onclick="closeModal('modal-detail')">닫기</button>
+        <button class="btn btn-black" id="btn-detail-save" onclick="saveDetail('${editKey}')">저장</button>
+      </div>
+    </div>`;
+
+  document.getElementById('modal-detail').classList.add('open');
+}
+
+// 상세 모달에서 저장
+async function saveDetail(editKey) {
+  let existing;
+  if (editKey.startsWith('local_')) {
+    existing = allItems.find(r=>r.localId===editKey);
+  } else {
+    const sep = editKey.indexOf('__');
+    const ec = editKey.slice(0, sep);
+    const en = editKey.slice(sep+2);
+    existing = allItems.find(r=>r.carrier===ec && r.num===en);
+  }
+  if (!existing) { toast('항목을 찾을 수 없습니다'); return; }
+
+  const btn = document.getElementById('btn-detail-save');
+  btn.disabled=true; btn.textContent='저장 중...';
+
+  const newNum     = (document.getElementById('de-num').value||'').replace(/[^0-9A-Za-z]/g,'');
+  const newCarrier = document.getElementById('de-carrier').value;
+  const idx = allItems.indexOf(existing);
+
+  // 중복 체크 (자기 자신 제외)
+  if (newNum && isDuplicateNum(newCarrier, newNum, editKey, document.getElementById('de-productName').value)) {
+    toast(`이미 등록된 송장번호입니다 (${carriers[newCarrier]?.name||newCarrier} ${newNum})`);
+    btn.disabled=false; btn.textContent='저장';
+    return;
+  }
+
+  // 송장번호가 변경됐거나, 미등록건에 새로 송장번호가 생긴 경우 기존 행 삭제
+  const numChanged = existing.num && newNum && existing.num !== newNum;
+  const numAdded   = !existing.num && newNum && existing.localId;
+  if (numChanged || numAdded) {
+    await deleteFromSheets(existing.carrier, existing.num, existing.localId);
+  }
+
+  const updated = {
+    ...existing,
+    carrier:     newCarrier,
+    num:         newNum,
+    localId:     newNum ? '' : (existing.localId || makeLocalId()),
+    orderDate:   normalizeDate(document.getElementById('de-orderDate').value),
+    orderSource: document.getElementById('de-orderSource').value,
+    productName: document.getElementById('de-productName').value,
+    qty:         document.getElementById('de-qty').value,
+    shipper:     document.getElementById('de-shipper').value,
+    companyName: document.getElementById('de-companyName').value,
+    memo:        document.getElementById('de-memo').value,
+    updatedAt:   new Date().toISOString(),
+  };
+
+  allItems[idx] = updated;
+  saveLocal();
+
+  // 송장번호가 새로 생겼거나 변경됐으면 조회 시도
+  if (newNum && (!existing.num || numChanged)) {
+    try {
+      const raw = await fetchWithRetry(newCarrier, newNum);
+      const pr = parseTracking(raw, newCarrier, newNum);
+      allItems[idx] = { ...updated, status: pr.status, steps: pr.steps, error: null };
+      toast('저장 및 조회 완료!');
+    } catch(e) {
+      allItems[idx] = resolveTrackingError(e, updated);
+      toast('저장 완료 (조회 실패)');
+    }
+  } else {
+    toast('저장 완료!');
+  }
+
+  saveLocal();
+  await saveToStorage(allItems[idx]);
+  updateStats(); renderTable();
+  closeModal('modal-detail');
+  btn.disabled=false; btn.textContent='저장';
+}
+
+// ── 업로드 모드 전환 ──
+function onUploadModeChange() {
+  const mode = document.querySelector('input[name="upload-mode"]:checked')?.value || 'new';
+  const desc = document.getElementById('upload-mode-desc');
+  const btnBulk = document.getElementById('btn-bulk');
+  // 파일 선택 초기화
+  document.getElementById('upload-preview').style.display='none';
+  document.getElementById('file-input').value='';
+  bulkData=[];
+  if (mode === 'update') {
+    desc.textContent = '송장번호가 있는 행을 읽어, 주문일+주문처+상품명+수량+수하인+수취인으로 기존 항목을 찾아 송장번호를 업데이트합니다.';
+    if (btnBulk) btnBulk.textContent = '⚡ 업데이트 시작';
+  } else {
+    desc.textContent = '송장번호 없이 등록된 항목도 포함해서 일괄 등록합니다.';
+    if (btnBulk) btnBulk.textContent = '⚡ 시작';
+  }
+}
+
+function openUploadModal() {
+  document.getElementById('upload-preview').style.display='none';
+  document.getElementById('upload-progress').style.width='0%';
+  document.getElementById('upload-text').textContent='0 / 0';
+  // 모드 초기화
+  const radios = document.querySelectorAll('input[name="upload-mode"]');
+  if (radios.length) { radios[0].checked=true; onUploadModeChange(); }
+  document.getElementById('modal-upload').classList.add('open');
+}
+
+// ── 정렬 ──
+function onSortChange() {
+  const val = document.getElementById('sort-order').value;
+  localStorage.setItem('tracker_sort', val);
+  renderTable();
+}
+
+function initSortUI() {
+  const saved = localStorage.getItem('tracker_sort') || 'addedAt';
+  const el = document.getElementById('sort-order');
+  if (el) el.value = saved;
+}
+
+// ── 검색 실행 ──
+function runSearch() { syncFromSheets(); renderTable(); }
+
+function clearDateFilter() {
+  document.getElementById('filter-date-from').value = '';
+  document.getElementById('filter-date-to').value   = '';
+  renderTable();
+}
+
+// ── 삭제 ──
+function deleteItem(carrier, num, localId) {
+  if (!confirm('삭제하시겠습니까?')) return;
+  if (localId) {
+    allItems = allItems.filter(r=>r.localId!==localId);
+  } else {
+    allItems = allItems.filter(r=>!(r.carrier===carrier&&r.num===num));
+  }
+  saveLocal();
+  if (num || localId) deleteFromSheets(carrier, num, localId);
+  updateStats(); renderTable();
+  toast('삭제했습니다');
+}
+
+// ── 체크박스 상태 관리 ──
+function onRowChkChange() {
+  const all = document.querySelectorAll('.row-chk');
+  const checked = document.querySelectorAll('.row-chk:checked');
+  const chkAll = document.getElementById('chk-all');
+  const btnDel = document.getElementById('btn-delete-selected');
+  const cntEl  = document.getElementById('selected-count');
+  if (chkAll) {
+    chkAll.checked       = all.length > 0 && checked.length === all.length;
+    chkAll.indeterminate = checked.length > 0 && checked.length < all.length;
+  }
+  if (btnDel) btnDel.style.display = checked.length > 0 ? '' : 'none';
+  if (cntEl)  cntEl.textContent = checked.length;
+  const btnRef = document.getElementById('btn-refresh-selected');
+  const refCnt = document.getElementById('selected-refresh-count');
+  if (btnRef) btnRef.style.display = checked.length > 0 ? '' : 'none';
+  if (refCnt) refCnt.textContent = checked.length;
+}
+
+function onChkAllChange(el) {
+  document.querySelectorAll('.row-chk').forEach(c => c.checked = el.checked);
+  onRowChkChange();
+}
+
+function toggleSelectAll() {
+  const all     = document.querySelectorAll('.row-chk');
+  const checked = document.querySelectorAll('.row-chk:checked');
+  const toCheck = checked.length < all.length;
+  all.forEach(c => c.checked = toCheck);
+  const chkAll = document.getElementById('chk-all');
+  if (chkAll) { chkAll.checked = toCheck; chkAll.indeterminate = false; }
+  onRowChkChange();
+}
+
+// 선택한 항목만 조회 — 전체 조회와 동일한 병렬·재시도 로직 사용
+async function refreshSelected() {
+  if (manualFullRefreshRunning || autoRefreshRunning) { toast('다른 조회가 진행 중입니다'); return; }
+  const checked = document.querySelectorAll('.row-chk:checked');
+  if (!checked.length) { toast('선택된 항목이 없습니다'); return; }
+  const keys = new Set([...checked].map(c => c.dataset.key));
+  const targets = allItems.filter(r => {
+    const k = r.localId ? 'lid__'+r.localId : r.carrier+'__'+r.num;
+    return keys.has(k) && r.num; // 송장번호 있는 건만 조회 대상
+  });
+  if (!targets.length) { toast('선택 항목 중 조회 가능한 송장번호가 없습니다'); return; }
+
+  manualFullRefreshRunning = true;
+  const btn = document.getElementById('btn-refresh-selected');
+  if (btn) btn.disabled = true;
+  toast(`선택 ${targets.length}건 조회 중…`);
+  const transitionCounts = {};
+  try {
+    for (let i=0; i<targets.length; i+=PARALLEL_CHUNK) {
+      const chunk = targets.slice(i, i+PARALLEL_CHUNK);
+      await Promise.all(chunk.map(async r => {
+        const before = getFilterGroup(r);
+        try {
+          const raw = await fetchWithRetry(r.carrier, r.num);
+          const pr = parseTracking(raw, r.carrier, r.num);
+          upsertItem({ ...r, status: pr.status, steps: pr.steps, error: pr.error != null ? pr.error : null });
+          syncSameNumItems(r.carrier, r.num, pr);
+        } catch(e) {
+          upsertItem(resolveTrackingError(e, r));
+        }
+        const afterItem = allItems.find(x => x.localId ? x.localId===r.localId : (x.carrier===r.carrier && x.num===r.num));
+        if (afterItem) recordTransition(transitionCounts, before, getFilterGroup(afterItem));
+      }));
+      updateStats(); renderTable();
+      if (i+PARALLEL_CHUNK < targets.length) await sleep(800);
+    }
+    showChangeSummary(transitionCounts, '선택 조회 변동 집계');
+    toast('선택 조회 완료');
+  } finally {
+    manualFullRefreshRunning = false;
+    if (btn) btn.disabled = false;
+  }
+}
+
+function deleteSelected() {
+  const checked = document.querySelectorAll('.row-chk:checked');
+  if (!checked.length) { toast('선택된 항목이 없습니다'); return; }
+  if (!confirm(`선택한 ${checked.length}건을 삭제하시겠습니까?`)) return;
+  const keys = new Set([...checked].map(c => c.dataset.key));
+  const toDelete = allItems.filter(r => {
+    const k = r.localId ? 'lid__'+r.localId : r.carrier+'__'+r.num;
+    return keys.has(k);
+  });
+  allItems = allItems.filter(r => {
+    const k = r.localId ? 'lid__'+r.localId : r.carrier+'__'+r.num;
+    return !keys.has(k);
+  });
+  saveLocal();
+  toDelete.forEach(r => { if(r.num || r.localId) deleteFromSheets(r.carrier, r.num, r.localId); });
+  updateStats(); renderTable();
+  alert(`${toDelete.length}건 삭제했습니다`);
+  toast(`${toDelete.length}건 삭제했습니다`);
+}
+
+function clearAll() {
+  if (!confirm('전체 삭제하시겠습니까?')) return;
+  const toDelete = [...allItems];
+  allItems=[];
+  saveLocal();
+  toDelete.forEach(r => deleteFromSheets(r.carrier, r.num, r.localId));
+  updateStats(); renderTable();
+  toast('전체 삭제했습니다');
+}
+
+// ── 통계 ──
+function updateStats() {
+  const counts = { done:0, transit:0, delay:0, pending:0, error:0, fail:0 };
+  allItems.forEach(r=>{
+    const g=getFilterGroup(r);
+    if (g==='배송완료') counts.done++;
+    else if (g==='배송중') counts.transit++;
+    else if (g==='배송지연') counts.delay++;
+    else if (g==='출고전') counts.pending++;
+    else if (g==='조회실패') counts.fail++;
+    else if (g==='사고') counts.error++;
+  });
+  document.getElementById('stat-total').textContent   = allItems.length;
+  document.getElementById('stat-done').textContent    = counts.done;
+  document.getElementById('stat-transit').textContent = counts.transit;
+  document.getElementById('stat-delay').textContent   = counts.delay;
+  document.getElementById('stat-pending').textContent = counts.pending;
+  const statFail = document.getElementById('stat-fail');
+  if (statFail) statFail.textContent = counts.fail;
+  // 사이드바 카운트
+  document.getElementById('cnt-all').textContent     = allItems.length;
+  document.getElementById('cnt-done').textContent    = counts.done;
+  document.getElementById('cnt-transit').textContent = counts.transit;
+  document.getElementById('cnt-pending').textContent = counts.pending;
+  document.getElementById('cnt-delay').textContent   = counts.delay;
+  const cntFail = document.getElementById('cnt-fail');
+  if (cntFail) cntFail.textContent = counts.fail;
+  document.getElementById('cnt-error').textContent   = counts.error;
+}
+
+// ── 엑셀 내보내기 ──
+function exportExcel() {
+  if (typeof XLSX==='undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
+  const data = getFiltered();
+  if (!data.length) { toast('내보낼 데이터가 없습니다'); return; }
+  const rows = data.map(r=>({
+    '주문일': r.orderDate||'-',
+    '주문처': r.orderSource||'-',
+    '상품명': r.productName||'-',
+    '수량':   r.qty||'-',
+    '수하인': r.shipper||'-',
+    '수취인': r.companyName||'-',
+    '택배사': carriers[r.carrier]?.name||r.carrier,
+    '운송장번호': r.num,
+    '배송상태': r.status,
+    '분류': getFilterGroup(r),
+    '조회실패사유': getFilterGroup(r)==='조회실패' ? (r.error||'') : '',
+    '배송지연여부': isDelay(r)?'지연':'정상',
+    '메모': r.memo||'',
+    '조회URL': carriers[r.carrier]?.url(r.num)||'',
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[12,14,30,6,12,16,10,18,12,8,28,8,20,40].map(w=>({wch:w}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '운송장조회');
+  const fname = `운송장조회_${new Date().toLocaleDateString('ko-KR').replace(/\.\s*/g,'-').replace(/-$/,'')}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  toast('엑셀 다운로드 완료!');
+}
+
+// ── 템플릿 다운로드 ──
+function downloadTemplate() {
+  if (typeof XLSX==='undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['주문일','주문처','상품명','수량','수하인','수취인','택배사','운송장번호','메모'],
+    [new Date('2026-03-27'), 'OO은행 OO지점', '탑쉐프 크런백50매 1P(세트)', 50, '다올커머스', 'OOO 님', '롯데택배', 257988409512, '출고예정일 4/3'],
+    [new Date('2026-03-27'), 'OO은행 OO지점', '위생장갑 크런백 컬러지퍼백(3종)(세트)', 16, '다올커머스', 'OOO 님', '롯데택배', 257988409501, ''],
+  ]);
+  // 날짜 셀 형식 지정
+  ['A2','A3'].forEach(cell => {
+    if (ws[cell]) ws[cell].z = 'yyyy-mm-dd';
+  });
+  ws['!cols']=[12,14,36,6,12,14,10,20,20].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws,'Sheet1');
+  XLSX.writeFile(wb,'운송장조회_템플릿.xlsx');
+  toast('템플릿 다운로드 완료!');
+}
+
+// ── Google Sheets + localStorage 연동 ──
+async function sheetsRequest(payload) {
+  const res = await fetch(SHEETS_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return res.json();
+}
+
+function saveLocal() {
+  try { localStorage.setItem('tracker_items', JSON.stringify(allItems)); } catch(e){}
+}
+
+async function saveToStorage(entry) {
+  try {
+    localStorage.setItem('tracker_items', JSON.stringify(allItems));
+    await sheetsRequest({
+      action: 'save',
+      '택배사':     carriers[entry.carrier]?.name || entry.carrier,
+      '운송장번호': entry.num,
+      '이름':       entry.shipper || entry.companyName || '',
+      '상태':       entry.status,
+      '최근이벤트': entry.steps?.[0]?.text || entry.error || '-',
+      '최근시간':   entry.steps?.[0]?.time || '-',
+      '등록일시':   entry.addedAt,
+      '수정일시':   entry.updatedAt,
+      '주문일':     entry.orderDate   || '',
+      '주문처':     entry.orderSource || '',
+      '상품명':     entry.productName || '',
+      '수량':       entry.qty         || '',
+      '수하인':     entry.shipper     || '',
+      '수취인':     entry.companyName || '',
+      '메모':       entry.memo        || '',
+      'localId':    entry.localId     || '',
+    });
+  } catch(e) { console.warn('Sheets 저장 실패:', e); }
+}
+
+async function deleteFromSheets(carrier, num, localId) {
+  try {
+    await sheetsRequest({ action: 'delete', '운송장번호': num || '', 'localId': localId || '' });
+  } catch(e) { console.warn('Sheets 삭제 실패:', e); }
+}
+
+async function loadFromStorage() {
+  try {
+    const data = await sheetsRequest({ action: 'load' });
+    if (data.ok && data.rows?.length) {
+      allItems = data.rows.map(r => ({
+        carrier:     carrierFromStr(r['택배사']),
+        num:         String(r['운송장번호'] || ''),
+        localId:     String(r['localId'] || ''),
+        orderDate:   normalizeDate(r['주문일']   || ''),
+        orderSource: r['주문처']   || '',
+        productName: r['상품명']   || '',
+        qty:         r['수량']     || '',
+        shipper:     r['수하인']   || '',
+        companyName: r['수취인']   || '',
+        memo:        r['메모']     || '',
+        status:      r['상태']     || '',
+        steps:       r['최근이벤트'] && r['최근이벤트'] !== '-'
+                       ? [{ text: r['최근이벤트'], time: r['최근시간'], done: true, current: false }]
+                       : [],
+        error:       null,
+        addedAt:     r['등록일시'] || '',
+        updatedAt:   r['수정일시'] || '',
+      })).filter(r => r.num || r.localId || r.productName);
+      localStorage.setItem('tracker_items', JSON.stringify(allItems));
+      toast(`시트에서 ${allItems.length}건 불러왔습니다 ☁️`);
+    } else {
+      const saved = localStorage.getItem('tracker_items');
+      if (saved) {
+        allItems = JSON.parse(saved).map(r=>({memo:'', ...r, orderDate: normalizeDate(r.orderDate)}));
+        toast(`로컬에서 ${allItems.length}건 불러왔습니다`);
+      }
+    }
+  } catch(e) {
+    try {
+      const saved = localStorage.getItem('tracker_items');
+      if (saved) {
+        allItems = JSON.parse(saved).map(r=>({memo:'', ...r, orderDate: normalizeDate(r.orderDate)}));
+        toast(`로컬에서 ${allItems.length}건 불러왔습니다`);
+      }
+    } catch(e2) {}
+  }
+  if (allItems.length) { updateStats(); renderTable(); }
+}
+
+// ── 유틸 ──
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(window._toast);
+  window._toast=setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+// ── 키보드 ──
+document.addEventListener('keydown', e=>{
+  if (e.key==='Escape') {
+    ['modal-single','modal-upload','modal-detail','modal-summary'].forEach(closeModal);
+  }
+  if (e.key==='Enter' && document.getElementById('modal-single').classList.contains('open')) {
+    // 수정 모드(저장 버튼 표시 중)면 저장, 아니면 신규 등록
+    const isEditMode = document.getElementById('btn-single-save').style.display !== 'none';
+    if (isEditMode) submitSingleSave(); else submitSingle();
+  }
+});
+
+// ── 초기화 ──
+document.addEventListener('DOMContentLoaded', () => {
+  initAutoIntervalUI();
+  initSortUI();
+  loadFromStorage();
+});
+</script>
+</body>
+</html>
