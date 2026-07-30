@@ -349,6 +349,7 @@ export default function ErpOrdersPage() {
                 <th className="py-2.5 px-3 font-medium">주문번호</th>
                 <th className="py-2.5 px-3 font-medium">매출처 (은행·지점)</th>
                 <th className="py-2.5 px-3 font-medium">담당자</th>
+                <th className="py-2.5 px-3 font-medium">상담자(채널)</th>
                 <th className="py-2.5 px-3 font-medium text-right">총금액</th>
                 <th className="py-2.5 px-3 font-medium text-right">미수금</th>
                 <th className="py-2.5 px-3 font-medium">상태</th>
@@ -372,6 +373,8 @@ export default function ErpOrdersPage() {
                 const hasVip    = oItems.some(it => it.is_vip)
                 const hasPre    = oItems.some(it => it.is_prepayment)
                 const deliveryStatus = computeOrderDeliveryStatus(oItems)
+                // 상담자(채널)는 품목 라인에 저장되므로 주문 단위 고유값을 모아 표시
+                const channels = Array.from(new Set(oItems.map(it => it.channel?.trim()).filter(Boolean))) as string[]
                 return [
                   <tr key={o.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-2 px-3">
@@ -390,6 +393,9 @@ export default function ErpOrdersPage() {
                       </p>
                     </td>
                     <td className="py-2 px-3 text-gray-500 whitespace-nowrap text-xs">{o.manager_name ?? '-'}</td>
+                    <td className="py-2 px-3 text-gray-500 whitespace-nowrap text-xs max-w-[120px] truncate" title={channels.join(' · ')}>
+                      {channels.length ? channels.join(' · ') : '-'}
+                    </td>
                     <td className="py-2 px-3 text-right whitespace-nowrap">{won(o.total_amount)}</td>
                     <td className={`py-2 px-3 text-right whitespace-nowrap ${remaining > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
                       {won(remaining)}
@@ -422,7 +428,7 @@ export default function ErpOrdersPage() {
                   </tr>,
                   expanded.has(o.id) && (
                     <tr key={`${o.id}-items`} className="bg-slate-50 border-b border-gray-100">
-                      <td colSpan={10} className="py-2 px-6">
+                      <td colSpan={11} className="py-2 px-6">
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="text-left text-gray-400">
