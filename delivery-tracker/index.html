@@ -377,8 +377,34 @@ tr.delay td { background:#fffbeb; }
   overflow:hidden;
 }
 
+/* ── 대시보드 ── */
+.card.dash-card { flex:1; min-height:0; overflow-y:auto; margin-bottom:0; padding:1.5rem; }
+.dash-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px; }
+.dash-tile { border:1px solid var(--gray-200); border-radius:8px; padding:12px 14px; background:var(--white); transition:border-color 0.12s; }
+.dash-tile.clickable { cursor:pointer; }
+.dash-tile.clickable:hover { border-color:var(--black); }
+.dt-val { font-family:var(--mono); font-size:22px; font-weight:600; line-height:1.1; }
+.dt-label { font-size:11px; color:var(--gray-500); margin-top:3px; }
+.dash-sec-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--gray-400); margin:1.5rem 0 0.6rem; }
+.dash-stack { display:flex; gap:2px; height:14px; border-radius:7px; overflow:hidden; background:var(--gray-100); }
+.dash-legend { display:flex; flex-wrap:wrap; gap:12px; margin-top:8px; font-size:11px; color:var(--gray-600); }
+.lg-dot { width:8px; height:8px; border-radius:2px; display:inline-block; margin-right:4px; vertical-align:baseline; }
+.dash-cols { display:grid; grid-template-columns:1fr 1fr; gap:2rem; }
+.hbar-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:12px; }
+.hbar-label { width:100px; color:var(--gray-600); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0; }
+.hbar-track { flex:1; background:var(--gray-100); border-radius:4px; height:10px; overflow:hidden; }
+.hbar-fill { height:100%; border-radius:4px; background:var(--gray-700); }
+.hbar-val { font-family:var(--mono); font-size:11px; width:36px; text-align:right; color:var(--black); flex-shrink:0; }
+.vbars { display:flex; align-items:flex-end; gap:6px; }
+.vbar-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; min-width:0; }
+.vbar-cnt { font-size:9px; font-family:var(--mono); color:var(--gray-500); height:12px; }
+.vbar { width:100%; max-width:28px; background:var(--gray-700); border-radius:3px 3px 0 0; }
+.vbar-lb { font-size:9px; color:var(--gray-400); font-family:var(--mono); white-space:nowrap; }
+
 @media(max-width:768px) {
   .layout { grid-template-columns:1fr; height:auto; overflow:visible; }
+  .dash-cols { grid-template-columns:1fr; }
+  .card.dash-card { flex:none; }
   .sidebar { position:static; height:auto; border-right:none; border-bottom:1px solid var(--gray-100); padding:1rem 0; overflow:visible; }
   .main { height:auto; overflow:visible; padding:1rem; }
   .card.table-card { flex:none; }
@@ -409,14 +435,22 @@ tr.delay td { background:#fffbeb; }
   <!-- 사이드바 -->
   <aside class="sidebar">
     <div class="sidebar-section">
+      <div class="sidebar-label">보기</div>
+      <button class="nav-item" id="nav-view-dash" onclick="showView('dash')">📊 대시보드</button>
+      <button class="nav-item active" id="nav-view-list" onclick="showView('list')">📋 배송 목록</button>
+    </div>
+
+    <div class="nav-divider"></div>
+
+    <div class="sidebar-section">
       <div class="sidebar-label">필터</div>
-      <button class="nav-item active" onclick="setFilter('all',this)">전체 <span class="count" id="cnt-all">0</span></button>
-      <button class="nav-item" onclick="setFilter('배송완료',this)">배송완료 <span class="count" id="cnt-done">0</span></button>
-      <button class="nav-item" onclick="setFilter('배송중',this)">배송중 <span class="count" id="cnt-transit">0</span></button>
-      <button class="nav-item" onclick="setFilter('출고전',this)">출고전 <span class="count" id="cnt-pending">0</span></button>
-      <button class="nav-item" onclick="setFilter('배송지연',this)">배송지연 <span class="count" id="cnt-delay">0</span></button>
-      <button class="nav-item" onclick="setFilter('조회실패',this)">조회실패 <span class="count" id="cnt-fail">0</span></button>
-      <button class="nav-item" onclick="setFilter('사고',this)">사고 <span class="count" id="cnt-error">0</span></button>
+      <button class="nav-item filter-item active" data-filter="all" onclick="setFilter('all',this)">전체 <span class="count" id="cnt-all">0</span></button>
+      <button class="nav-item filter-item" data-filter="배송완료" onclick="setFilter('배송완료',this)">배송완료 <span class="count" id="cnt-done">0</span></button>
+      <button class="nav-item filter-item" data-filter="배송중" onclick="setFilter('배송중',this)">배송중 <span class="count" id="cnt-transit">0</span></button>
+      <button class="nav-item filter-item" data-filter="출고전" onclick="setFilter('출고전',this)">출고전 <span class="count" id="cnt-pending">0</span></button>
+      <button class="nav-item filter-item" data-filter="배송지연" onclick="setFilter('배송지연',this)">배송지연 <span class="count" id="cnt-delay">0</span></button>
+      <button class="nav-item filter-item" data-filter="조회실패" onclick="setFilter('조회실패',this)">조회실패 <span class="count" id="cnt-fail">0</span></button>
+      <button class="nav-item filter-item" data-filter="사고" onclick="setFilter('사고',this)">사고 <span class="count" id="cnt-error">0</span></button>
     </div>
 
     <div class="nav-divider"></div>
@@ -461,7 +495,7 @@ tr.delay td { background:#fffbeb; }
   <main class="main">
 
     <!-- 검색 + 컨트롤 -->
-    <div class="card table-card">
+    <div class="card table-card" id="view-list">
       <div class="card-header" id="search-bar" style="flex-direction:column;align-items:stretch;gap:8px">
         <!-- 1행: 검색어 + 드롭다운 필터들 -->
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -514,6 +548,7 @@ tr.delay td { background:#fffbeb; }
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <span id="result-count" style="font-size:12px;color:var(--gray-400)"></span>
+            <button class="btn btn-outline btn-sm" onclick="exportExcel()" title="현재 필터·검색 결과를 엑셀로 저장">↓ 목록 다운로드</button>
             <button class="btn btn-outline btn-sm" id="btn-select-all" onclick="toggleSelectAll()">전체선택</button>
             <button class="btn btn-black btn-sm" id="btn-refresh-selected" onclick="refreshSelected()" style="display:none">선택 조회 (<span id="selected-refresh-count">0</span>)</button>
             <button class="btn btn-outline btn-sm" id="btn-delete-selected" onclick="deleteSelected()" style="color:#b91c1c;border-color:#fecaca;display:none">선택삭제 (<span id="selected-count">0</span>)</button>
@@ -547,6 +582,11 @@ tr.delay td { background:#fffbeb; }
           </tbody>
         </table>
       </div>
+    </div>
+
+    <!-- 대시보드 -->
+    <div class="card dash-card" id="view-dash" style="display:none">
+      <div id="dash-body"></div>
     </div>
 
   </main>
@@ -597,7 +637,7 @@ tr.delay td { background:#fffbeb; }
       </div>
       <div class="form-field">
         <label>운송장번호 <span style="font-size:10px;color:var(--gray-400);font-weight:400">(선택)</span></label>
-        <input type="text" id="s-trackNum" placeholder="없으면 비워두세요">
+        <input type="text" id="s-trackNum" placeholder="없으면 비워두세요 · 여러 개는 쉼표(,)로 구분">
       </div>
       <div class="form-field full">
         <label>메모 (출고예정일 등)</label>
@@ -638,7 +678,7 @@ tr.delay td { background:#fffbeb; }
       ondrop="handleDrop(event)">
       <div class="dropzone-icon">📂</div>
       <div class="dropzone-title">엑셀 파일을 드래그하거나 클릭하세요</div>
-      <div class="dropzone-sub">.xlsx · .xls · .csv 지원 — 주문일/주문처/상품명/수량/수하인/수취인/택배사/운송장번호/메모</div>
+      <div class="dropzone-sub">.xlsx · .xls · .csv 지원 — 주문일/주문처/상품명/수량/수하인/수취인/택배사/운송장번호/메모<br>운송장번호 한 칸에 여러 개를 넣을 땐 쉼표(,)로 구분하면 각각 행으로 분리됩니다</div>
     </div>
     <input type="file" id="file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFile(this.files[0])">
 
@@ -700,6 +740,13 @@ let autoRefreshRunning = false;
 const AUTO_MINUTES_MIN = 1;
 const AUTO_MINUTES_MAX = 120;
 const PARALLEL_CHUNK = 3; // 동시 조회 건수
+let currentView = 'list'; // 'list' | 'dash'
+
+// 대시보드 상태 색상 (색각이상 검증 완료 — 조회실패는 의도된 중립 회색)
+const GROUP_COLORS = {
+  '배송완료':'#15803d', '배송중':'#0369a1', '배송지연':'#b45309',
+  '출고전':'#4f46e5', '사고':'#b91c1c', '조회실패':'#6b7280',
+};
 
 // ── 택배사 정보 ──
 const carriers = {
@@ -719,6 +766,15 @@ function carrierFromStr(s) {
   if (t.includes('epost')||t.includes('우체국')) return 'epost';
   if (t.includes('logen')||t.includes('로젠')) return 'logen';
   return 'lotte';
+}
+
+// 송장번호 문자열 → 배열 (쉼표/세미콜론/슬래시/줄바꿈으로 여러 개 구분 입력 지원)
+function splitTrackingNums(s) {
+  if (!s) return [];
+  return String(s).split(/[,;/\n\r]+/)
+    .map(t => t.replace(/[^0-9A-Za-z]/g,''))
+    .filter(Boolean)
+    .filter((v,i,a) => a.indexOf(v) === i);
 }
 
 // ── 상태 분류 ──
@@ -1069,7 +1125,8 @@ function openEditModal(carrier, num, localId) {
 async function submitSingleSave() {
   const editKey = document.getElementById('s-edit-key').value;
   if (!editKey) return;
-  const newNum = document.getElementById('s-trackNum').value.replace(/[^0-9A-Za-z]/g,'');
+  // 수정 모달은 한 행 = 한 송장 — 여러 개가 입력되면 첫 번째만 사용
+  const newNum = splitTrackingNums(document.getElementById('s-trackNum').value)[0] || '';
   const carrier = document.getElementById('s-carrier').value;
 
   // 기존 항목 찾기
@@ -1129,11 +1186,12 @@ async function submitSingleSave() {
 }
 
 async function submitSingle() {
-  const num = document.getElementById('s-trackNum').value.replace(/[^0-9A-Za-z]/g,'');
+  // 쉼표/세미콜론/슬래시로 여러 송장번호 입력 가능 → 각각 별도 행으로 등록
+  const nums = splitTrackingNums(document.getElementById('s-trackNum').value);
   const carrier = document.getElementById('s-carrier').value;
 
   const base = {
-    num, carrier,
+    carrier,
     orderDate:   normalizeDate(document.getElementById('s-orderDate').value),
     orderSource: document.getElementById('s-orderSource').value,
     productName: document.getElementById('s-productName').value,
@@ -1146,38 +1204,47 @@ async function submitSingle() {
   const btn = document.getElementById('btn-single-submit');
 
   // 송장번호 없이 등록
-  if (!num) {
-    base.localId = makeLocalId();
-    base.status = '출고전';
-    base.steps = [];
-    base.error = null;
-    upsertItem(base);
+  if (!nums.length) {
+    upsertItem({ ...base, num:'', localId: makeLocalId(), status:'출고전', steps:[], error:null });
     toast('송장번호 없이 등록됐습니다');
     closeModal('modal-single');
     return;
   }
 
-  // 중복 체크
-  if (isDuplicateNum(carrier, num, null, base.productName)) {
-    toast(`이미 등록된 송장번호입니다 (${carriers[carrier]?.name||carrier} ${num})`);
+  // 중복 제외
+  const fresh = nums.filter(n => !isDuplicateNum(carrier, n, null, base.productName));
+  const dupCnt = nums.length - fresh.length;
+  if (!fresh.length) {
+    toast(`이미 등록된 송장번호입니다 (${carriers[carrier]?.name||carrier})`);
     return;
   }
 
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 조회 중...';
-  // 항상 localId 부여 → 같은 송장번호 합포장 건도 독립 항목으로 등록
-  base.localId = makeLocalId();
-  try {
-    const raw = await fetchWithRetry(carrier, num);
-    const pr = parseTracking(raw, carrier, num);
-    upsertItem({ ...base, status: pr.status, steps: pr.steps, error: pr.error != null ? pr.error : null });
-    syncSameNumItems(carrier, num, pr);
-    toast('등록 완료!');
-    closeModal('modal-single');
-  } catch(e) {
-    upsertItem(resolveTrackingError(e, base));
-    toast('조회 실패 — 사유가 목록에 저장됨');
-    closeModal('modal-single');
+  let failCnt = 0;
+  for (let i=0; i<fresh.length; i+=PARALLEL_CHUNK) {
+    const chunk = fresh.slice(i, i+PARALLEL_CHUNK);
+    await Promise.all(chunk.map(async n => {
+      // 항상 localId 부여 → 같은 송장번호 합포장 건도 독립 항목으로 등록
+      const item = { ...base, num:n, localId: makeLocalId() };
+      try {
+        const raw = await fetchWithRetry(carrier, n);
+        const pr = parseTracking(raw, carrier, n);
+        upsertItem({ ...item, status: pr.status, steps: pr.steps, error: pr.error != null ? pr.error : null });
+        syncSameNumItems(carrier, n, pr);
+      } catch(e) {
+        upsertItem(resolveTrackingError(e, item));
+        failCnt++;
+      }
+    }));
+    if (i+PARALLEL_CHUNK < fresh.length) await sleep(800);
   }
+  const parts = [];
+  if (fresh.length > 1) parts.push(`송장번호 ${fresh.length}건으로 분리 등록`);
+  else parts.push(failCnt ? '조회 실패 — 사유가 목록에 저장됨' : '등록 완료!');
+  if (dupCnt) parts.push(`중복 ${dupCnt}건 제외`);
+  if (fresh.length > 1 && failCnt) parts.push(`조회실패 ${failCnt}건`);
+  toast(parts.join(' · '));
+  closeModal('modal-single');
   btn.disabled=false; btn.innerHTML='등록 및 조회';
 }
 
@@ -1234,10 +1301,18 @@ function handleFile(file) {
         companyName: get(row,'수취인','업체명','받는분','수신자','이름','customer'),
         carrier:     carrierFromStr(get(row,'택배사','배송사','carrier')),
         carrierRaw:  get(row,'택배사','배송사','carrier'),
-        num:         get(row,'운송장번호','운송장 번호','송장번호','tracking').replace(/[^0-9A-Za-z]/g,''),
+        numsRaw:     get(row,'운송장번호','운송장 번호','송장번호','tracking'),
         memo:        get(row,'메모','비고','note','memo'),
         status:'대기중', steps:[], error:null,
       }));
+
+      // 한 행에 여러 송장번호(쉼표 등 구분)가 있으면 별도 행으로 분리
+      bulkData = bulkData.flatMap(r => {
+        const { numsRaw, ...rest } = r;
+        const nums = splitTrackingNums(numsRaw);
+        if (nums.length <= 1) return [{ ...rest, num: nums[0] || '' }];
+        return nums.map(n => ({ ...rest, num: n }));
+      });
 
       // 모드별 필터: 신규는 전체 허용, 업데이트는 송장번호 있는 행만
       if (uploadMode === 'update') {
@@ -1334,40 +1409,62 @@ async function runBulkUpdate() {
     document.getElementById('upload-text').textContent=`${done} / ${bulkData.length}`;
   };
 
-  // 1단계: 매칭 (순차) — 조회 대상만 추림
+  // 1단계: 매칭 (순차) — 같은 주문(매칭키)에 여러 송장번호면 첫 건은 기존 행 갱신, 이후는 새 행으로 분리
+  let extra=0, dup=0;
   const toQuery = [];
+  const seenKeys = new Map(); // matchKey → 원본 항목 (분리 등록의 주문정보 출처)
   for (const item of bulkData) {
     if (!item.num) { done++; continue; }
     const key = makeMatchKey(item);
-    const idx = allItems.findIndex(r => makeMatchKey(r)===key);
-    if (idx < 0) { notFound++; done++; continue; }
-    const existing = allItems[idx];
-    const updated = {
-      ...existing,
-      carrier: item.carrier || existing.carrier,
-      num:     item.num,
-      localId: '',
-      memo:    item.memo || existing.memo,
-      updatedAt: new Date().toISOString(),
-    };
-    allItems[idx] = updated;
-    toQuery.push({ idx, updated });
-    matched++;
+    let target;
+    if (!seenKeys.has(key)) {
+      const idx = allItems.findIndex(r => makeMatchKey(r)===key);
+      if (idx < 0) { notFound++; done++; continue; }
+      const existing = allItems[idx];
+      seenKeys.set(key, existing);
+      target = {
+        ...existing,
+        carrier: item.carrier || existing.carrier,
+        num:     item.num,
+        localId: '',
+        memo:    item.memo || existing.memo,
+        updatedAt: new Date().toISOString(),
+      };
+      allItems[idx] = target;
+      matched++;
+    } else {
+      // 같은 주문의 2번째 이후 송장번호 → 주문정보를 복사해 새 행으로 등록
+      if (isDuplicateNum(item.carrier, item.num, null, item.productName)) { dup++; done++; continue; }
+      const src = seenKeys.get(key);
+      target = {
+        ...src,
+        carrier: item.carrier || src.carrier,
+        num:     item.num,
+        localId: '',
+        status:  '대기중', steps: [], error: null,
+        memo:    item.memo || src.memo,
+        addedAt:   new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      allItems.push(target);
+      extra++;
+    }
+    toQuery.push(target);
   }
   updateProgress();
 
-  // 2단계: 송장번호 생긴 건 PARALLEL_CHUNK씩 병렬 조회
+  // 2단계: PARALLEL_CHUNK씩 병렬 조회 — 중간 렌더링(정렬)에도 안전하도록 객체 참조로 갱신
   for (let i=0; i<toQuery.length; i+=PARALLEL_CHUNK) {
     const chunk = toQuery.slice(i, i+PARALLEL_CHUNK);
-    await Promise.all(chunk.map(async ({ idx, updated }) => {
+    await Promise.all(chunk.map(async target => {
       try {
-        const raw = await fetchWithRetry(updated.carrier, updated.num);
-        const pr = parseTracking(raw, updated.carrier, updated.num);
-        allItems[idx] = { ...updated, status: pr.status, steps: pr.steps, error: null };
+        const raw = await fetchWithRetry(target.carrier, target.num);
+        const pr = parseTracking(raw, target.carrier, target.num);
+        Object.assign(target, { status: pr.status, steps: pr.steps, error: null });
       } catch(e) {
-        allItems[idx] = resolveTrackingError(e, updated);
+        Object.assign(target, resolveTrackingError(e, target));
       }
-      saveToStorage(allItems[idx]);
+      saveToStorage(target);
       done++;
     }));
     updateProgress();
@@ -1377,7 +1474,10 @@ async function runBulkUpdate() {
   saveLocal(); updateStats(); renderTable();
   btn.disabled=false; btn.innerHTML='⚡ 시작';
   closeModal('modal-upload');
-  toast(`업데이트 완료 — 매칭 ${matched}건 / 미매칭 ${notFound}건`);
+  const extras = [];
+  if (extra) extras.push(`추가 송장 분리 등록 ${extra}건`);
+  if (dup) extras.push(`중복 제외 ${dup}건`);
+  toast(`업데이트 완료 — 매칭 ${matched}건${extras.length?' · '+extras.join(' · '):''} / 미매칭 ${notFound}건`);
 }
 
 // ── 자동 조회 주기 (분) — localStorage `tracker_auto_interval_min` ──
@@ -1593,11 +1693,134 @@ async function syncFromSheets() {
   finally { _syncBusy = false; }
 }
 
+// ── 보기 전환 (목록 ↔ 대시보드) ──
+function showView(v) {
+  currentView = v;
+  document.getElementById('view-list').style.display = v==='list' ? 'flex' : 'none';
+  document.getElementById('view-dash').style.display = v==='dash' ? 'flex' : 'none';
+  document.getElementById('nav-view-list').classList.toggle('active', v==='list');
+  document.getElementById('nav-view-dash').classList.toggle('active', v==='dash');
+  if (v === 'dash') { syncFromSheets(); renderDashboard(); }
+}
+
+// 대시보드 타일/차트 클릭 → 해당 필터로 목록 이동
+function dashGo(g) {
+  const btn = document.querySelector(`.filter-item[data-filter="${g}"]`);
+  setFilter(g, btn);
+}
+
+// ── 대시보드 렌더링 ──
+function renderDashboard() {
+  const el = document.getElementById('dash-body');
+  if (!el) return;
+  const total = allItems.length;
+  if (!total) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">데이터가 없습니다<br>운송장을 등록하면 배송현황이 표시됩니다</div></div>';
+    return;
+  }
+  const groups = { '배송완료':0,'배송중':0,'출고전':0,'배송지연':0,'조회실패':0,'사고':0 };
+  const byCarrier = {}, bySource = {};
+  const delayed = [];
+  allItems.forEach(r => {
+    const g = getFilterGroup(r);
+    if (groups[g] !== undefined) groups[g]++;
+    const cn = carriers[r.carrier]?.name || r.carrier;
+    byCarrier[cn] = (byCarrier[cn]||0) + 1;
+    const src = r.orderSource || '(주문처 미지정)';
+    bySource[src] = (bySource[src]||0) + 1;
+    if (g === '배송지연') delayed.push(r);
+  });
+  const doneRate = Math.round(groups['배송완료'] / total * 100);
+
+  // 상단 요약 타일 (클릭 시 해당 필터의 목록으로 이동)
+  const tiles = [
+    { label:'전체', val:total, f:'all', color:'var(--black)' },
+    ...Object.keys(groups).map(g => ({ label:g, val:groups[g], f:g, color:GROUP_COLORS[g] })),
+    { label:'완료율', val:doneRate+'%', f:null, color:'var(--black)' },
+  ].map(t => `
+    <div class="dash-tile${t.f?' clickable':''}" ${t.f?`onclick="dashGo('${t.f}')" title="${t.label} 목록 보기"`:''}>
+      <div class="dt-val" style="color:${t.color}">${t.val}</div>
+      <div class="dt-label">${t.label}</div>
+    </div>`).join('');
+
+  // 상태 분포 스택바 + 범례
+  const order = Object.keys(groups).filter(g => groups[g] > 0);
+  const stack = order.map(g =>
+    `<div style="width:${groups[g]/total*100}%;background:${GROUP_COLORS[g]};cursor:pointer" title="${g} ${groups[g]}건" onclick="dashGo('${g}')"></div>`).join('');
+  const legend = Object.keys(groups).map(g =>
+    `<span><span class="lg-dot" style="background:${GROUP_COLORS[g]}"></span>${g} ${groups[g]}건 (${total?Math.round(groups[g]/total*100):0}%)</span>`).join('');
+
+  // 가로 막대 (택배사별 / 주문처별)
+  const hbars = (obj, topN) => {
+    const entries = Object.entries(obj).sort((a,b) => b[1]-a[1]);
+    const shown = entries.slice(0, topN);
+    const max = shown[0]?.[1] || 1;
+    const rest = entries.length - shown.length;
+    return shown.map(([k,v]) => `
+      <div class="hbar-row">
+        <div class="hbar-label" title="${escapeHtml(k)}">${escapeHtml(k)}</div>
+        <div class="hbar-track"><div class="hbar-fill" style="width:${Math.max(3, v/max*100)}%"></div></div>
+        <div class="hbar-val">${v}</div>
+      </div>`).join('')
+      + (rest > 0 ? `<div style="font-size:11px;color:var(--gray-400);margin-top:4px">외 ${rest}곳</div>` : '');
+  };
+
+  // 최근 14일 주문 추이 (주문일 기준)
+  const days = [];
+  const today = new Date();
+  for (let i=13; i>=0; i--) {
+    const d = new Date(today); d.setDate(d.getDate()-i);
+    const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    days.push({ key, label:(d.getMonth()+1)+'/'+d.getDate(), count:0 });
+  }
+  const dayMap = {}; days.forEach(d => dayMap[d.key] = d);
+  allItems.forEach(r => { if (dayMap[r.orderDate]) dayMap[r.orderDate].count++; });
+  const maxDay = Math.max(1, ...days.map(d => d.count));
+  const vbars = days.map(d => `
+    <div class="vbar-col" title="${d.key} · ${d.count}건">
+      <div class="vbar-cnt">${d.count||''}</div>
+      <div class="vbar" style="height:${Math.max(2, d.count/maxDay*70)}px;${d.count?'':'background:var(--gray-100)'}"></div>
+      <div class="vbar-lb">${d.label}</div>
+    </div>`).join('');
+
+  // 배송지연 목록 (오래된 순, 최대 10건)
+  delayed.sort((a,b) => (a.orderDate||'') < (b.orderDate||'') ? -1 : 1);
+  const delayRows = delayed.slice(0,10).map(r => `
+    <tr>
+      <td style="white-space:nowrap;font-size:11px;color:var(--gray-500)">${escapeHtml(r.orderDate)||'-'}</td>
+      <td class="strong" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.productName)}">${escapeHtml(r.productName)||'-'}</td>
+      <td>${escapeHtml(r.companyName)||'-'}</td>
+      <td style="white-space:nowrap">${carriers[r.carrier]?.name||escapeHtml(r.carrier)}</td>
+      <td class="mono">${escapeHtml(r.num)||'-'}</td>
+      <td>${statusBadge(r)}</td>
+    </tr>`).join('');
+  const delaySec = delayed.length ? `
+    <div class="dash-sec-title" style="color:#b45309">⚠ 배송지연 (${delayed.length}건${delayed.length>10?' 중 10건 표시':''})</div>
+    <div style="border:1px solid var(--gray-200);border-radius:8px;overflow:auto">
+      <table><thead><tr><th>주문일</th><th>상품명</th><th>수취인</th><th>택배사</th><th>운송장번호</th><th>상태</th></tr></thead>
+      <tbody>${delayRows}</tbody></table>
+    </div>` : '';
+
+  el.innerHTML = `
+    <div class="dash-grid">${tiles}</div>
+    <div class="dash-sec-title">상태 분포</div>
+    <div class="dash-stack">${stack}</div>
+    <div class="dash-legend">${legend}</div>
+    <div class="dash-cols">
+      <div><div class="dash-sec-title">택배사별 현황</div>${hbars(byCarrier, 8)}</div>
+      <div><div class="dash-sec-title">주문처별 상위 8</div>${hbars(bySource, 8)}</div>
+    </div>
+    <div class="dash-sec-title">최근 14일 주문 추이 (주문일 기준)</div>
+    <div class="vbars">${vbars}</div>
+    ${delaySec}`;
+}
+
 // ── 필터 ──
 function setFilter(f, el) {
   currentFilter=f;
-  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
-  el.classList.add('active');
+  document.querySelectorAll('.filter-item').forEach(b=>b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  if (currentView !== 'list') showView('list');
   syncFromSheets();
   renderTable();
 }
@@ -1849,7 +2072,8 @@ async function saveDetail(editKey) {
   const btn = document.getElementById('btn-detail-save');
   btn.disabled=true; btn.textContent='저장 중...';
 
-  const newNum     = (document.getElementById('de-num').value||'').replace(/[^0-9A-Za-z]/g,'');
+  // 상세 모달은 한 행 = 한 송장 — 여러 개가 입력되면 첫 번째만 사용
+  const newNum     = splitTrackingNums(document.getElementById('de-num').value)[0] || '';
   const newCarrier = document.getElementById('de-carrier').value;
   const idx = allItems.indexOf(existing);
 
@@ -2107,6 +2331,8 @@ function updateStats() {
   const cntFail = document.getElementById('cnt-fail');
   if (cntFail) cntFail.textContent = counts.fail;
   document.getElementById('cnt-error').textContent   = counts.error;
+  // 대시보드 보기 중이면 함께 갱신
+  if (currentView === 'dash') renderDashboard();
 }
 
 // ── 엑셀 내보내기 ──
