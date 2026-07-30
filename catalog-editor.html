@@ -51,7 +51,9 @@ body{font-family:var(--f);background:var(--bg);color:var(--tx);height:100vh;disp
 .dz input{display:none}
 .csvta{width:100%;height:75px;border:1px solid var(--bd);border-radius:5px;font-family:monospace;font-size:9.5px;padding:5px;resize:vertical;outline:none;color:var(--t2)}
 .csvta:focus{border-color:var(--bl)}
-.pi-row{display:flex;align-items:center;gap:5px;padding:5px 6px;border:1px solid var(--bd);border-radius:5px;margin-bottom:3px;background:var(--sur)}
+.pi-row{display:flex;align-items:center;gap:5px;padding:5px 6px;border:1px solid var(--bd);border-radius:5px;margin-bottom:3px;background:var(--sur);cursor:pointer}
+.pi-row.sel{border-color:var(--bl);background:#EEF2FF}
+.ili{position:relative}
 .pt{width:28px;height:28px;border-radius:3px;background:var(--s2);border:1px solid var(--bd);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--bd2)}
 .pt img{width:100%;height:100%;object-fit:contain}
 .pin2{flex:1;min-width:0}
@@ -79,11 +81,11 @@ body{font-family:var(--f);background:var(--bg);color:var(--tx);height:100vh;disp
 .preset-it:hover{border-color:var(--bl);background:#F5F8FF}
 
 /* CANVAS */
-#ca{flex:1;overflow:auto;background:var(--bg);display:flex;flex-direction:column;align-items:center;padding:22px;gap:14px}
+#ca{flex:1;overflow:auto;background:var(--bg);padding:22px}
 #ca::-webkit-scrollbar{width:7px;height:7px}#ca::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:4px}
 
 /* A4 page */
-.a4{background:#fff;position:relative;box-shadow:0 4px 24px rgba(0,0,0,.13);flex-shrink:0}
+.a4{background:#fff;position:relative;box-shadow:0 4px 24px rgba(0,0,0,.13);margin:0 auto}
 /* Page element — universal draggable block on the page */
 .pel{position:absolute;cursor:default;overflow:hidden;line-height:1.3;user-select:none}
 .pel.draggable{cursor:move}.pel.sel{outline:none;}
@@ -221,7 +223,7 @@ body{font-family:var(--f);background:var(--bg);color:var(--tx);height:100vh;disp
   </div>
   <div class="sbody spane on" id="sp-products">
     <div class="dz" onclick="document.getElementById('csv-f').click()"><div style="font-size:18px">📊</div><p>CSV 업로드</p></div>
-    <textarea class="csvta" id="csv-ta" placeholder="code,name,spec,carton,price,sale_price,price2,sale_price2,option_text,image"></textarea>
+    <textarea class="csvta" id="csv-ta" placeholder="code,name,spec,carton,price,sale_price,price2,sale_price2,option_text,image,image2,image3"></textarea>
     <button class="B bl" style="width:100%;justify-content:center;margin-top:4px" onclick="parseCSV()">CSV 파싱 적용</button>
     <div style="display:flex;gap:4px;margin-top:3px">
       <button class="B" style="flex:1;justify-content:center;font-size:10px" onclick="document.getElementById('xlsx-f').click()">📥 엑셀 업로드</button>
@@ -234,7 +236,7 @@ body{font-family:var(--f);background:var(--bg);color:var(--tx);height:100vh;disp
     <div id="p-list"></div>
   </div>
   <div class="sbody spane" id="sp-images">
-    <div class="dz" onclick="document.getElementById('img-f').click()"><div style="font-size:18px">🖼</div><p>이미지 업로드<br><span style="font-size:9px">JPG · PNG · WebP</span></p></div>
+    <div class="dz" onclick="document.getElementById('img-f').click()"><div style="font-size:18px">🖼</div><p>이미지 업로드 · 드래그 · Ctrl+V 붙여넣기<br><span style="font-size:9px">JPG · PNG · WebP</span></p></div>
     <div class="sec">라이브러리 <span class="bdg" id="img-badge">0</span></div>
     <div id="img-lib" class="ilib"></div>
   </div>
@@ -337,6 +339,8 @@ body{font-family:var(--f);background:var(--bg);color:var(--tx);height:100vh;disp
             <option value="sale">할인가</option>
             <option value="option">옵션텍스트</option>
             <option value="image">상품이미지</option>
+            <option value="image2">상품이미지2</option>
+            <option value="image3">상품이미지3</option>
           </optgroup>
         </select>
       </div>
@@ -528,6 +532,7 @@ function defaultCardElements() {
 let products = [], images = {}, pages = [];
 let curPage = 0, zoom = 1, lmMode = false;
 let selElId = null, selScope = null, selCardIdx = null; // selected element
+let selProductIdx = null; // 붙여넣기/라이브러리 클릭 시 이미지 연결 대상 상품
 let addScope = 'header', addElType = null;
 let undoStack = [], redoStack = [];
 let presets = [];
@@ -611,6 +616,7 @@ window.addEventListener('DOMContentLoaded', () => {
   fitZoom();
   renderPresetList();
   document.addEventListener('keydown', onKey);
+  document.addEventListener('paste', onPaste);
   document.getElementById('ca').addEventListener('dragover', e => e.preventDefault());
   document.getElementById('ca').addEventListener('drop', e => {
     e.preventDefault();
@@ -844,8 +850,10 @@ function buildPel(el, p, pi, scope, cardIdx, cardOffX, cardOffY) {
   } else if(el.type==='image') {
     div.classList.add('pel-img');
     if(p) {
-      const src=p.image?resolveImage(p.image):null;
-      div.innerHTML=src?('<img src="'+src+'" style="width:100%;height:100%;object-fit:contain" alt="">'):'🛒';
+      const imgName=p[el.field||'image'];
+      const src=imgName?resolveImage(imgName):null;
+      const fit=el.objectFit||'contain';
+      div.innerHTML=src?('<img src="'+src+'" style="width:100%;height:100%;object-fit:'+fit+'" alt="">'):'🛒';
     }
   } else {
     // text
@@ -946,6 +954,36 @@ function clampEl(el, scope) {
   el.y=Math.max(b.minY,Math.min(b.maxY,el.y));
 }
 
+// 스냅 대상: 컨테이너(카드/페이지) 가장자리·중심 + 이웃 요소의 가장자리·중심
+function snapTargets(el, scope, cardIdx){
+  var contW = scope==='card'?CW():A4W;
+  var contH = scope==='card'?CH():A4H;
+  var xs=[0, contW/2, contW];
+  var ys=[0, contH/2, contH];
+  var sibs=[];
+  var pg=pages[curPage];
+  if(scope==='card'){ var c=cardIdx!=null?pg.cards[cardIdx]:null; if(c&&c.cardElements) sibs=c.cardElements; }
+  else sibs=pg.pageElements;
+  sibs.forEach(function(s){ if(s.id===el.id||!s.visible) return;
+    xs.push(s.x, s.x+s.w/2, s.x+s.w);
+    ys.push(s.y, s.y+s.h/2, s.y+s.h);
+  });
+  return {xs:xs, ys:ys};
+}
+// 요소의 좌/중심/우 및 상/중심/하를 가장 가까운 대상선에 맞춤(임계 6px)
+function applySnap(el, scope, cardIdx){
+  var T=6;
+  var t=snapTargets(el, scope, cardIdx);
+  var guidesX=[], guidesY=[];
+  var ax=[0, el.w/2, el.w], bestX=null;
+  ax.forEach(function(off){ t.xs.forEach(function(p){ var d=Math.abs((el.x+off)-p); if(d<=T&&(bestX===null||d<bestX.d)) bestX={d:d,nx:p-off,line:p}; }); });
+  if(bestX){ el.x=bestX.nx; guidesX.push(bestX.line); }
+  var ay=[0, el.h/2, el.h], bestY=null;
+  ay.forEach(function(off){ t.ys.forEach(function(p){ var d=Math.abs((el.y+off)-p); if(d<=T&&(bestY===null||d<bestY.d)) bestY={d:d,ny:p-off,line:p}; }); });
+  if(bestY){ el.y=bestY.ny; guidesY.push(bestY.line); }
+  return {guidesX:guidesX, guidesY:guidesY};
+}
+
 function startDrag(e,el,scope,cardIdx,offX,offY) {
   e.preventDefault(); e.stopPropagation();
   selElId=el.id; selScope=scope;
@@ -955,20 +993,31 @@ function startDrag(e,el,scope,cardIdx,offX,offY) {
   const preSnap=snapState();  // 드래그 직전 상태 캡처
   let moved=false;
 
+  const a4El=document.querySelector('.a4');
+  const clearGuides=()=>{ if(a4El) a4El.querySelectorAll('.snapguide').forEach(g=>g.remove()); };
   const onMove=e2=>{
     const dx=(e2.clientX-sx)/zoom, dy=(e2.clientY-sy)/zoom;
     moved=true;
     el.x=ox+dx; el.y=oy+dy;
     clampEl(el,scope);
+    // 스냅 정렬 + 가이드선
+    clearGuides();
+    const sg=applySnap(el, scope, isCard?cardIdx:null);
+    clampEl(el,scope);
+    if(a4El){
+      sg.guidesX.forEach(function(gx){ var g=document.createElement('div'); g.className='snapguide'; g.style.cssText='position:absolute;top:0;bottom:0;left:'+(gx*zoom+(isCard?offX:0))+'px;width:1px;background:#F43F5E;z-index:40;pointer-events:none'; a4El.appendChild(g); });
+      sg.guidesY.forEach(function(gy){ var g=document.createElement('div'); g.className='snapguide'; g.style.cssText='position:absolute;left:0;right:0;top:'+(gy*zoom+(isCard?offY:0))+'px;height:1px;background:#F43F5E;z-index:40;pointer-events:none'; a4El.appendChild(g); });
+    }
     // Live update: card elements position relative to card offset
     const px=el.x*zoom+(isCard?offX:0);
     const py=el.y*zoom+(isCard?offY:0);
-    document.querySelectorAll('[data-el-id="'+el.id+'"').forEach(d=>{
+    document.querySelectorAll('[data-el-id="'+el.id+'"]').forEach(d=>{
       d.style.left=px+'px'; d.style.top=py+'px';
     });
     renderPanel();
   };
   const onUp=()=>{
+    clearGuides();
     if(moved) commitUndo(preSnap);  // 실제 이동했을 때만 기록
     renderAll(); renderPanel();
     document.removeEventListener('mousemove',onMove);
@@ -1065,7 +1114,8 @@ function pickElType(type) {
 }
 function confirmAddEl() {
   if(!addElType){toast('종류를 선택해주세요');return;}
-  const field=addElType==='line'?'':(document.getElementById('el-field-sel').value||'');
+  let field=addElType==='line'?'':(document.getElementById('el-field-sel').value||'');
+  if(addElType==='image'&&!field) field='image';
   const label=document.getElementById('el-label-in').value.trim()||(field||'새 요소');
   const text=document.getElementById('el-text-in').value.trim();
   pushUndo();
@@ -1085,6 +1135,7 @@ function confirmAddEl() {
     fillColor: isShape?'transparent':'',
     strokeColor: isShape?'#333333':'',
     strokeW: isShape?1:0,
+    objectFit: addElType==='image'?'contain':undefined,
   };
   if(isCard) {
     pg.cards.forEach(card=>{ ensureCardEls(card).push(JSON.parse(JSON.stringify({...newEl,id:mkId('el')}))); });
@@ -1243,6 +1294,24 @@ function renderPanel() {
       });
       body.appendChild(posDiv);
 
+      // 정렬 (컨테이너 기준 맞춤)
+      var alDiv=document.createElement('div'); alDiv.className='ps';
+      var contW2=ref.scope==='card'?CW():A4W, contH2=ref.scope==='card'?CH():A4H;
+      alDiv.innerHTML='<div class="pst">정렬 ('+(ref.scope==='card'?'카드':'페이지')+' 기준)</div>';
+      var alH=document.createElement('div'); alH.className='pbr';
+      [['⬅','x',0,'왼쪽'],['↔','x',(contW2-el.w)/2,'가로 가운데'],['➡','x',contW2-el.w,'오른쪽']].forEach(function(a){
+        var b=document.createElement('button'); b.className='pb'; b.textContent=a[0]; b.title=a[3];
+        b.addEventListener('click',(function(k,v){return function(){updateElProp(el.id,k,Math.round(v));};})(a[1],a[2]));
+        alH.appendChild(b);
+      });
+      var alV=document.createElement('div'); alV.className='pbr'; alV.style.marginTop='2px';
+      [['⬆','y',0,'위'],['↕','y',(contH2-el.h)/2,'세로 가운데'],['⬇','y',contH2-el.h,'아래']].forEach(function(a){
+        var b=document.createElement('button'); b.className='pb'; b.textContent=a[0]; b.title=a[3];
+        b.addEventListener('click',(function(k,v){return function(){updateElProp(el.id,k,Math.round(v));};})(a[1],a[2]));
+        alV.appendChild(b);
+      });
+      alDiv.appendChild(alH); alDiv.appendChild(alV); body.appendChild(alDiv);
+
       if(isText) {
         var fonts=[['','Pretendard (기본)'],['NanumGothic','나눔고딕'],['NanumMyeongjo','나눔명조'],
           ['MalgunGothic','맑은고딕'],['NotoSansKR','Noto Sans KR'],['Arial','Arial'],['Georgia','Georgia']];
@@ -1344,6 +1413,28 @@ function renderPanel() {
           row.appendChild(lbl); row.appendChild(inp); shDiv.appendChild(row);
         });
         body.appendChild(shDiv);
+      }
+
+      if(el.type==='image') {
+        var imDiv=document.createElement('div'); imDiv.className='ps';
+        imDiv.innerHTML='<div class="pst">이미지</div>';
+        var ifRow=document.createElement('div'); ifRow.className='pr';
+        var ifLbl=document.createElement('span'); ifLbl.className='pl'; ifLbl.textContent='연결';
+        var ifSel=document.createElement('select'); ifSel.className='pin';
+        [['image','상품이미지1'],['image2','상품이미지2'],['image3','상품이미지3']].forEach(function(o){
+          var op=document.createElement('option'); op.value=o[0]; op.textContent=o[1]; if((el.field||'image')===o[0])op.selected=true; ifSel.appendChild(op);
+        });
+        ifSel.addEventListener('change',function(){updateElProp(el.id,'field',this.value);});
+        ifRow.appendChild(ifLbl); ifRow.appendChild(ifSel); imDiv.appendChild(ifRow);
+        var fitRow=document.createElement('div'); fitRow.className='pr';
+        var fitLbl=document.createElement('span'); fitLbl.className='pl'; fitLbl.textContent='채우기';
+        var fitSel=document.createElement('select'); fitSel.className='pin';
+        [['contain','맞춤(여백)'],['cover','꽉채움(잘림)'],['fill','늘려채움']].forEach(function(o){
+          var op=document.createElement('option'); op.value=o[0]; op.textContent=o[1]; if((el.objectFit||'contain')===o[0])op.selected=true; fitSel.appendChild(op);
+        });
+        fitSel.addEventListener('change',function(){updateElProp(el.id,'objectFit',this.value);});
+        fitRow.appendChild(fitLbl); fitRow.appendChild(fitSel); imDiv.appendChild(fitRow);
+        body.appendChild(imDiv);
       }
 
       // 기타
@@ -1566,11 +1657,11 @@ function parseCSV() {
     return obj;
   });
   if(!rows.length){toast('파싱 실패');return;}
-  const fm={code:['code','품번'],name:['name','상품명'],spec:['spec','구성'],carton:['carton','카톤단위'],price:['price','정상가'],sale_price:['sale_price','할인가'],price2:['price2','정상가2'],sale_price2:['sale_price2','할인가2'],option_text:['option_text','옵션'],image:['image','이미지']};
+  const fm={code:['code','품번'],name:['name','상품명'],spec:['spec','구성'],carton:['carton','카톤단위'],price:['price','정상가'],sale_price:['sale_price','할인가'],price2:['price2','정상가2'],sale_price2:['sale_price2','할인가2'],option_text:['option_text','옵션'],image:['image','이미지'],image2:['image2','이미지2'],image3:['image3','이미지3']};
   const cm={};
   for(const[f,als]of Object.entries(fm)){for(const a of als){const fd=h.find(x=>x.trim().toLowerCase()===a.toLowerCase());if(fd){cm[f]=fd;break;}}}
-  products=rows.map((row,i)=>({id:'p'+i,code:(row[cm.code]||'').trim(),name:(row[cm.name]||'').trim(),spec:(row[cm.spec]||'').trim(),carton:(row[cm.carton]||'').trim(),price:parseInt((row[cm.price]||'0').replace(/\D/g,''))||0,sale_price:parseInt((row[cm.sale_price]||'0').replace(/\D/g,''))||0,price2:parseInt((row[cm.price2]||'0').replace(/\D/g,''))||0,sale_price2:parseInt((row[cm.sale_price2]||'0').replace(/\D/g,''))||0,option_text:(row[cm.option_text]||'').trim(),image:(row[cm.image]||'').trim()})).filter(p=>p.name);
-  renderProductList();autoLayout();
+  products=rows.map((row,i)=>({id:'p'+i,code:(row[cm.code]||'').trim(),name:(row[cm.name]||'').trim(),spec:(row[cm.spec]||'').trim(),carton:(row[cm.carton]||'').trim(),price:parseInt((row[cm.price]||'0').replace(/\D/g,''))||0,sale_price:parseInt((row[cm.sale_price]||'0').replace(/\D/g,''))||0,price2:parseInt((row[cm.price2]||'0').replace(/\D/g,''))||0,sale_price2:parseInt((row[cm.sale_price2]||'0').replace(/\D/g,''))||0,option_text:(row[cm.option_text]||'').trim(),image:(row[cm.image]||'').trim(),image2:(row[cm.image2]||'').trim(),image3:(row[cm.image3]||'').trim()})).filter(p=>p.name);
+  selProductIdx=null;renderProductList();autoLayout();
   const miss=missingImageCount();
   toast('✅ '+products.length+'개 상품 로드'+(miss?(' · ⚠️ 이미지 '+miss+'건 미연결'):''));
 }
@@ -1578,9 +1669,9 @@ function parseCSV() {
 function downloadExcelTemplate() {
   var bom = String.fromCharCode(0xFEFF);
   var lines = [
-    'code,name,spec,carton,price,sale_price,price2,sale_price2,option_text,image',
-    '06-01,바디클렌저,바디클렌저 300ml,30개/1BOX,38000,8300,,,1.jpg',
-    '06-02,바디로션 1+1세트,로션 350ml x2,30개/1BOX,38000,6300,76000,11900,,2.jpg'
+    'code,name,spec,carton,price,sale_price,price2,sale_price2,option_text,image,image2,image3',
+    '06-01,바디클렌저,바디클렌저 300ml,30개/1BOX,38000,8300,,,,1.jpg,,',
+    '06-02,바디로션 1+1세트,로션 350ml x2,30개/1BOX,38000,6300,76000,11900,,2.jpg,,'
   ];
   var csv = bom + lines.join('\r\n');
   var blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
@@ -1706,23 +1797,69 @@ function loadImgFile(f) {
 function renderImgLib() {
   const lib=document.getElementById('img-lib'),keys=Object.keys(images);
   document.getElementById('img-badge').textContent=keys.length;
-  lib.innerHTML=keys.map(function(k){var ek=esc(k);return '<div class="ili" title="'+ek+'"><img src="'+images[k]+'" alt="'+ek+'"><div class="ilinm">'+ek+'</div></div>';}).join('');
+  lib.innerHTML=keys.map(function(k,ix){var ek=esc(k);return '<div class="ili" title="'+ek+' · 클릭하면 선택한 상품에 연결" onclick="assignLibImage('+ix+')"><img src="'+images[k]+'" alt="'+ek+'"><div class="ilinm">'+ek+'</div></div>';}).join('');
 }
 // 상품 image 필드는 있는데 연결된 이미지가 없는(=미연결) 건수
 function missingImageCount() {
   return products.filter(p=>p.image && !resolveImage(p.image)).length;
+}
+// 상품 선택 (붙여넣기/라이브러리 클릭 연결 대상 토글)
+function selectProduct(idx){
+  selProductIdx = (selProductIdx===idx? null : idx);
+  renderProductList();
+}
+// 라이브러리 이미지를 선택된 상품에 연결
+function assignLibImage(ix){
+  var name=Object.keys(images)[ix];
+  if(!name) return;
+  if(selProductIdx==null || !products[selProductIdx]){ toast('먼저 상품 목록에서 상품을 선택하세요'); return; }
+  products[selProductIdx].image=name;
+  toast('"'+name+'" → '+(products[selProductIdx].code||products[selProductIdx].name||'상품')+' 연결');
+  renderProductList(); renderAll();
+}
+// 클립보드 이미지 붙여넣기 → 라이브러리 추가(+선택 상품 자동 연결)
+function pasteImageFile(f){
+  var r=new FileReader();
+  r.onload=function(e){
+    images[f.name]=e.target.result; _imgIndex=null;
+    document.getElementById('img-badge').textContent=Object.keys(images).length;
+    if(selProductIdx!=null && products[selProductIdx]){
+      products[selProductIdx].image=f.name;
+      toast('📋 붙여넣기 → '+(products[selProductIdx].code||products[selProductIdx].name||'상품')+' 연결');
+    } else {
+      toast('📋 라이브러리에 추가됨 (상품 선택 후 붙여넣으면 자동 연결)');
+    }
+    renderImgLib(); renderProductList(); renderAll();
+  };
+  r.readAsDataURL(f);
+}
+function onPaste(e){
+  var tag=document.activeElement&&document.activeElement.tagName;
+  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return; // 입력 중엔 일반 붙여넣기 허용
+  var items=e.clipboardData&&e.clipboardData.items; if(!items) return;
+  for(var i=0;i<items.length;i++){
+    if(items[i].type && items[i].type.indexOf('image/')===0){
+      var f=items[i].getAsFile();
+      if(f){
+        e.preventDefault();
+        var ext=(f.type.split('/')[1]||'png').replace('jpeg','jpg');
+        pasteImageFile(new File([f], 'paste_'+Date.now()+'.'+ext, {type:f.type}));
+      }
+      return;
+    }
+  }
 }
 function renderProductList() {
   const list=document.getElementById('p-list');
   document.getElementById('p-badge').textContent=products.length;
   const miss=missingImageCount();
   const warn = miss ? '<div style="background:#FEF3C7;color:#92400E;border:1px solid #FDE68A;border-radius:5px;padding:5px 7px;font-size:9.5px;margin-bottom:5px;line-height:1.45">⚠️ 이미지 미연결 '+miss+'건<br><span style="font-size:8.5px;color:#B45309">확장자·대소문자는 자동 매칭됩니다. 파일명(예: 1)이 CSV(예: 1.jpg)와 다른지 확인하세요</span></div>' : '';
-  list.innerHTML = warn + products.map(p=>{
+  list.innerHTML = warn + products.map((p,idx)=>{
     const src=p.image?resolveImage(p.image):null;
     // 파일명이 지정됐는데 미연결이면 ⚠️, 아예 없으면 🛒
     const thumb = src ? '<img src="'+src+'">'
       : (p.image ? '<span title="이미지 미연결: '+esc(p.image)+'" style="color:var(--or);font-size:11px">⚠️</span>' : '🛒');
-    return '<div class="pi-row"><div class="pt">'+thumb+'</div><div class="pin2"><div class="pcd">'+esc(p.code||'')+'</div><div class="pnm">'+esc(p.name)+'</div><div class="ppr">₩'+(p.sale_price||0).toLocaleString()+'</div></div></div>';
+    return '<div class="pi-row'+(selProductIdx===idx?' sel':'')+'" onclick="selectProduct('+idx+')" title="클릭: 이미지 연결 대상으로 선택 (붙여넣기/라이브러리 클릭으로 연결)"><div class="pt">'+thumb+'</div><div class="pin2"><div class="pcd">'+esc(p.code||'')+'</div><div class="pnm">'+esc(p.name)+'</div><div class="ppr">₩'+(p.sale_price||0).toLocaleString()+'</div></div></div>';
   }).join('');
 }
 
@@ -1804,8 +1941,10 @@ function buildPrintPage(pg, pi) {
     if(el.type==='rect') return '<div style="position:absolute;left:'+(el.x+offX)+'px;top:'+(el.y+offY)+'px;width:'+el.w+'px;height:'+el.h+'px;background:'+(el.fillColor||'transparent')+';border:'+(el.strokeW||1)+'px solid '+(el.strokeColor||'#333')+';box-sizing:border-box;opacity:'+(el.opacity||1)+'"></div>';
     if(el.type==='ellipse') return '<div style="position:absolute;left:'+(el.x+offX)+'px;top:'+(el.y+offY)+'px;width:'+el.w+'px;height:'+el.h+'px;background:'+(el.fillColor||'transparent')+';border:'+(el.strokeW||1)+'px solid '+(el.strokeColor||'#333')+';border-radius:50%;box-sizing:border-box;opacity:'+(el.opacity||1)+'"></div>';
     if(el.type==='image') {
-      var src=p&&p.image?resolveImage(p.image):null;
-      return '<div style="position:absolute;left:'+(el.x+offX)+'px;top:'+(el.y+offY)+'px;width:'+el.w+'px;height:'+el.h+'px;background:transparent;overflow:hidden">'+(src?'<img src="'+src+'" style="width:100%;height:100%;object-fit:contain">':'')+'</div>';
+      var imgName=p?p[el.field||'image']:null;
+      var src=imgName?resolveImage(imgName):null;
+      var fit=el.objectFit||'contain';
+      return '<div style="position:absolute;left:'+(el.x+offX)+'px;top:'+(el.y+offY)+'px;width:'+el.w+'px;height:'+el.h+'px;background:transparent;overflow:hidden">'+(src?'<img src="'+src+'" style="width:100%;height:100%;object-fit:'+fit+'">':'')+'</div>';
     }
     // text
     var txt=resolveField(el,p,pi);
