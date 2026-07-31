@@ -395,6 +395,8 @@ tr.delay td { background:#fffbeb; }
 .hbar-track { flex:1; background:var(--gray-100); border-radius:4px; height:10px; overflow:hidden; }
 .hbar-fill { height:100%; border-radius:4px; background:var(--gray-700); }
 .hbar-val { font-family:var(--mono); font-size:11px; width:36px; text-align:right; color:var(--black); flex-shrink:0; }
+.rate-cell { display:flex; align-items:center; gap:8px; min-width:120px; }
+.rate-val { font-family:var(--mono); font-size:11px; width:38px; text-align:right; color:var(--black); flex-shrink:0; }
 .vbars { display:flex; align-items:flex-end; gap:6px; }
 .vbar-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; min-width:0; }
 .vbar-cnt { font-size:9px; font-family:var(--mono); color:var(--gray-500); height:12px; }
@@ -436,8 +438,8 @@ tr.delay td { background:#fffbeb; }
   <aside class="sidebar">
     <div class="sidebar-section">
       <div class="sidebar-label">보기</div>
-      <button class="nav-item" id="nav-view-dash" onclick="showView('dash')">📊 대시보드</button>
-      <button class="nav-item active" id="nav-view-list" onclick="showView('list')">📋 배송 목록</button>
+      <button class="nav-item active" id="nav-view-dash" onclick="showView('dash')">📊 대시보드</button>
+      <button class="nav-item" id="nav-view-list" onclick="showView('list')">📋 배송 목록</button>
     </div>
 
     <div class="nav-divider"></div>
@@ -456,11 +458,12 @@ tr.delay td { background:#fffbeb; }
     <div class="nav-divider"></div>
 
     <div class="sidebar-section">
-      <div class="sidebar-label">자동 조회</div>
-      <div class="auto-status" id="auto-status-box">
+      <div class="sidebar-label">조회</div>
+      <button class="nav-item refresh-ctl" id="btn-full-refresh" onclick="runManualFullRefresh()">🔄 전체 조회</button>
+      <div class="auto-status" id="auto-status-box" style="margin-top:6px">
         <div style="display:flex;align-items:center;margin-bottom:8px">
           <span class="auto-dot" id="auto-dot"></span>
-          <span id="auto-label" style="font-weight:600;font-size:12px">꺼짐</span>
+          <span id="auto-label" style="font-weight:600;font-size:12px">자동 조회 꺼짐</span>
         </div>
         <div style="font-size:11px;color:var(--gray-400);margin-bottom:8px" id="auto-next">—</div>
         <div style="margin-bottom:8px">
@@ -485,8 +488,6 @@ tr.delay td { background:#fffbeb; }
       <div class="sidebar-label">액션</div>
       <button class="nav-item" onclick="openSingleModal()">+ 단건 등록</button>
       <button class="nav-item" onclick="openUploadModal()">↑ 파일 업로드</button>
-      <button class="nav-item" id="btn-full-refresh" onclick="runManualFullRefresh()">🔄 전체 조회</button>
-      <button class="nav-item" onclick="exportExcel()">↓ 엑셀 다운로드</button>
       <button class="nav-item" onclick="downloadTemplate()">↓ 템플릿 다운로드</button>
     </div>
   </aside>
@@ -506,6 +507,7 @@ tr.delay td { background:#fffbeb; }
               <option value="productName">상품명</option>
               <option value="num">송장번호</option>
               <option value="orderSource">주문처</option>
+              <option value="supplier">매입처</option>
             </select>
             <input type="text" id="search-input" placeholder="검색어 입력…"
               onkeydown="if(event.key==='Enter')runSearch()"
@@ -548,6 +550,7 @@ tr.delay td { background:#fffbeb; }
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <span id="result-count" style="font-size:12px;color:var(--gray-400)"></span>
+            <button class="btn btn-black btn-sm refresh-ctl" onclick="runManualFullRefresh()" title="배송완료 제외 전체 재조회">🔄 전체 조회</button>
             <button class="btn btn-outline btn-sm" onclick="exportExcel()" title="현재 필터·검색 결과를 엑셀로 저장">↓ 목록 다운로드</button>
             <button class="btn btn-outline btn-sm" id="btn-select-all" onclick="toggleSelectAll()">전체선택</button>
             <button class="btn btn-black btn-sm" id="btn-refresh-selected" onclick="refreshSelected()" style="display:none">선택 조회 (<span id="selected-refresh-count">0</span>)</button>
@@ -565,6 +568,7 @@ tr.delay td { background:#fffbeb; }
               <th style="width:36px;text-align:center"><input type="checkbox" id="chk-all" onchange="onChkAllChange(this)" title="전체선택"></th>
               <th>주문일</th>
               <th>주문처</th>
+              <th>매입처</th>
               <th>상품명</th>
               <th style="text-align:center">수량</th>
               <th>수하인</th>
@@ -578,7 +582,7 @@ tr.delay td { background:#fffbeb; }
             </tr>
           </thead>
           <tbody id="table-body">
-            <tr><td colspan="13"><div class="empty"><div class="empty-icon">📦</div><div class="empty-text">등록된 운송장이 없습니다<br>단건 등록 또는 파일 업로드로 시작하세요</div></div></td></tr>
+            <tr><td colspan="14"><div class="empty"><div class="empty-icon">📦</div><div class="empty-text">등록된 운송장이 없습니다<br>단건 등록 또는 파일 업로드로 시작하세요</div></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -609,19 +613,23 @@ tr.delay td { background:#fffbeb; }
         <label>주문처</label>
         <input type="text" id="s-orderSource" placeholder="OO은행 OO지점">
       </div>
-      <div class="form-field full">
-        <label>상품명</label>
-        <input type="text" id="s-productName" placeholder="상품명 입력">
+      <div class="form-field">
+        <label>매입처</label>
+        <input type="text" id="s-supplier" placeholder="매입처명">
       </div>
       <div class="form-field">
         <label>수량</label>
         <input type="text" id="s-qty" placeholder="1">
       </div>
+      <div class="form-field full">
+        <label>상품명</label>
+        <input type="text" id="s-productName" placeholder="상품명 입력">
+      </div>
       <div class="form-field">
         <label>수하인</label>
         <input type="text" id="s-shipper" placeholder="홍길동">
       </div>
-      <div class="form-field full">
+      <div class="form-field">
         <label>수취인</label>
         <input type="text" id="s-companyName" placeholder="수취인 또는 업체명">
       </div>
@@ -678,7 +686,7 @@ tr.delay td { background:#fffbeb; }
       ondrop="handleDrop(event)">
       <div class="dropzone-icon">📂</div>
       <div class="dropzone-title">엑셀 파일을 드래그하거나 클릭하세요</div>
-      <div class="dropzone-sub">.xlsx · .xls · .csv 지원 — 주문일/주문처/상품명/수량/수하인/수취인/택배사/운송장번호/메모<br>운송장번호 한 칸에 여러 개를 넣을 땐 쉼표(,)로 구분하면 각각 행으로 분리됩니다</div>
+      <div class="dropzone-sub">.xlsx · .xls · .csv 지원 — 주문일/주문처/매입처/상품명/수량/수하인/수취인/택배사/운송장번호/메모<br>운송장번호 한 칸에 여러 개를 넣을 땐 쉼표(,)로 구분하면 각각 행으로 분리됩니다</div>
     </div>
     <input type="file" id="file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFile(this.files[0])">
 
@@ -974,7 +982,7 @@ async function fetchWithRetry(carrier, num, retries=3) {
 }
 
 function parseTracking(raw, carrier, num) {
-  if (!raw) return { status: STATUS_LOOKUP_FAIL, steps:[], error: '응답 없음' };
+  if (!raw) return { status: STATUS_LOOKUP_FAIL, steps:[], error: '응답 없음', shippedAt:'' };
   // deliveryStatus 또는 progresses[0].statusCode 기준으로 상태 결정
   const dsCode = raw.deliveryStatus || raw.progresses?.[0]?.statusCode || '';
   let status = STATUS_MAP[dsCode] || STATUS_MAP[dsCode.toUpperCase()]
@@ -990,7 +998,11 @@ function parseTracking(raw, carrier, num) {
     current: i === 0,
   }));
   if (rawImpliesDelivered(raw)) status = '배송완료';
-  return { status, steps, error: null };
+  // 출고일 = 타임라인에서 가장 오래된 이벤트(집화/접수) 시각
+  const prog = raw.progresses || [];
+  const oldest = prog[prog.length - 1];
+  const shippedAt = oldest ? (oldest.dateTime || oldest.time || '') : '';
+  return { status, steps, error: null, shippedAt };
 }
 
 // ── 합포장: 같은 송장번호 모든 건에 조회 결과 동기화 ──
@@ -1042,6 +1054,7 @@ function upsertItem(data) {
       ...existing,
       ...data,
       memo: data.memo !== undefined ? data.memo : existing.memo,
+      shippedAt: data.shippedAt ? data.shippedAt : (existing.shippedAt || ''),
       addedAt: existing.addedAt,
       updatedAt: new Date().toISOString()
     };
@@ -1092,7 +1105,7 @@ function openSingleModal() {
   document.getElementById('s-edit-key').value = '';
   document.getElementById('btn-single-submit').style.display = '';
   document.getElementById('btn-single-save').style.display = 'none';
-  ['s-orderDate','s-orderSource','s-productName','s-qty','s-shipper','s-companyName','s-memo','s-trackNum'].forEach(id=>document.getElementById(id).value='');
+  ['s-orderDate','s-orderSource','s-supplier','s-productName','s-qty','s-shipper','s-companyName','s-memo','s-trackNum'].forEach(id=>document.getElementById(id).value='');
   const t = new Date();
   document.getElementById('s-orderDate').value =
     t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
@@ -1109,6 +1122,7 @@ function openEditModal(carrier, num, localId) {
   document.getElementById('s-edit-key').value = localId || (carrier+'__'+num);
   document.getElementById('s-orderDate').value   = r.orderDate   || '';
   document.getElementById('s-orderSource').value = r.orderSource || '';
+  document.getElementById('s-supplier').value    = r.supplier    || '';
   document.getElementById('s-productName').value = r.productName || '';
   document.getElementById('s-qty').value         = r.qty         || '';
   document.getElementById('s-shipper').value     = r.shipper     || '';
@@ -1149,6 +1163,7 @@ async function submitSingleSave() {
     localId:     newNum ? '' : (existing.localId || makeLocalId()),
     orderDate:   normalizeDate(document.getElementById('s-orderDate').value),
     orderSource: document.getElementById('s-orderSource').value,
+    supplier:    document.getElementById('s-supplier').value,
     productName: document.getElementById('s-productName').value,
     qty:         document.getElementById('s-qty').value,
     shipper:     document.getElementById('s-shipper').value,
@@ -1168,7 +1183,7 @@ async function submitSingleSave() {
     try {
       const raw = await fetchWithRetry(carrier, newNum);
       const pr = parseTracking(raw, carrier, newNum);
-      allItems[idx] = { ...updated, status: pr.status, steps: pr.steps, error: null };
+      allItems[idx] = { ...updated, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || updated.shippedAt || '', error: null };
       saveLocal(); saveToStorage(allItems[idx]);
       toast('수정 및 조회 완료!');
     } catch(e) {
@@ -1194,6 +1209,7 @@ async function submitSingle() {
     carrier,
     orderDate:   normalizeDate(document.getElementById('s-orderDate').value),
     orderSource: document.getElementById('s-orderSource').value,
+    supplier:    document.getElementById('s-supplier').value,
     productName: document.getElementById('s-productName').value,
     qty:         document.getElementById('s-qty').value,
     shipper:     document.getElementById('s-shipper').value,
@@ -1229,7 +1245,7 @@ async function submitSingle() {
       try {
         const raw = await fetchWithRetry(carrier, n);
         const pr = parseTracking(raw, carrier, n);
-        upsertItem({ ...item, status: pr.status, steps: pr.steps, error: pr.error != null ? pr.error : null });
+        upsertItem({ ...item, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: pr.error != null ? pr.error : null });
         syncSameNumItems(carrier, n, pr);
       } catch(e) {
         upsertItem(resolveTrackingError(e, item));
@@ -1295,6 +1311,7 @@ function handleFile(file) {
         id:i,
         orderDate:   parseDate(row,'주문일','주문일자','날짜','date'),
         orderSource: get(row,'주문처','발주처','주문사','source'),
+        supplier:    get(row,'매입처','매입사','구매처','vendor','supplier'),
         productName: get(row,'상품명','제품명','품목','product'),
         qty:         get(row,'수량','qty','Qty'),
         shipper:     get(row,'수하인','발송인','보내는분','sender'),
@@ -1377,7 +1394,7 @@ async function runBulk() {
       try {
         const raw = await fetchWithRetry(item.carrier, item.num);
         const pr = parseTracking(raw, item.carrier, item.num);
-        upsertItem({ ...item, status: pr.status, steps: pr.steps, error: pr.error != null ? pr.error : null });
+        upsertItem({ ...item, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: pr.error != null ? pr.error : null });
         syncSameNumItems(item.carrier, item.num, pr);
       } catch(e) {
         upsertItem(resolveTrackingError(e, item));
@@ -1428,6 +1445,7 @@ async function runBulkUpdate() {
         num:     item.num,
         localId: '',
         memo:    item.memo || existing.memo,
+        supplier: item.supplier || existing.supplier || '',
         updatedAt: new Date().toISOString(),
       };
       allItems[idx] = target;
@@ -1443,6 +1461,7 @@ async function runBulkUpdate() {
         localId: '',
         status:  '대기중', steps: [], error: null,
         memo:    item.memo || src.memo,
+        supplier: item.supplier || src.supplier || '',
         addedAt:   new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -1460,7 +1479,7 @@ async function runBulkUpdate() {
       try {
         const raw = await fetchWithRetry(target.carrier, target.num);
         const pr = parseTracking(raw, target.carrier, target.num);
-        Object.assign(target, { status: pr.status, steps: pr.steps, error: null });
+        Object.assign(target, { status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || target.shippedAt || '', error: null });
       } catch(e) {
         Object.assign(target, resolveTrackingError(e, target));
       }
@@ -1534,7 +1553,7 @@ function stopAuto() {
   clearInterval(autoCountdown);
   autoTimer=null; autoCountdown=null;
   document.getElementById('auto-dot').classList.remove('on');
-  document.getElementById('auto-label').textContent='꺼짐';
+  document.getElementById('auto-label').textContent='자동 조회 꺼짐';
   document.getElementById('auto-next').textContent='—';
   toast('자동 조회 중지');
 }
@@ -1545,7 +1564,7 @@ function updateAutoUI() {
   const next = document.getElementById('auto-next');
   if (autoTimer) {
     dot.classList.add('on');
-    label.textContent='켜짐';
+    label.textContent='자동 조회 켜짐';
     const m=String(Math.floor(autoRemain/60)).padStart(2,'0');
     const s=String(autoRemain%60).padStart(2,'0');
     next.textContent=`다음 조회 ${m}:${s}`;
@@ -1567,7 +1586,7 @@ async function runAutoRefresh() {
         try {
           const raw = await fetchWithRetry(r.carrier, r.num);
           const pr = parseTracking(raw, r.carrier, r.num);
-          upsertItem({ ...r, status: pr.status, steps: pr.steps, error: pr.error != null ? pr.error : null });
+          upsertItem({ ...r, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: pr.error != null ? pr.error : null });
           syncSameNumItems(r.carrier, r.num, pr);
         } catch(e) {
           upsertItem(resolveTrackingError(e, r));
@@ -1599,8 +1618,8 @@ async function runManualFullRefresh() {
   if (!confirm(msg)) return;
 
   manualFullRefreshRunning = true;
-  const btn = document.getElementById('btn-full-refresh');
-  if (btn) { btn.disabled = true; }
+  const refreshBtns = document.querySelectorAll('.refresh-ctl');
+  refreshBtns.forEach(b => b.disabled = true);
 
   toast(`${targets.length}건 조회 중… (배송완료 제외)`);
   const transitionCounts = {};
@@ -1612,7 +1631,7 @@ async function runManualFullRefresh() {
         try {
           const raw = await fetchWithRetry(r.carrier, r.num);
           const pr = parseTracking(raw, r.carrier, r.num);
-          upsertItem({ ...r, status: pr.status, steps: pr.steps, error: pr.error != null ? pr.error : null });
+          upsertItem({ ...r, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: pr.error != null ? pr.error : null });
           syncSameNumItems(r.carrier, r.num, pr);
         } catch(e) {
           upsertItem(resolveTrackingError(e, r));
@@ -1627,7 +1646,7 @@ async function runManualFullRefresh() {
     toast('전체 조회 완료');
   } finally {
     manualFullRefreshRunning = false;
-    if (btn) { btn.disabled = false; }
+    refreshBtns.forEach(b => b.disabled = false);
   }
 }
 
@@ -1644,6 +1663,8 @@ async function syncFromSheets() {
       num:         String(r['운송장번호'] || ''),
       orderDate:   normalizeDate(r['주문일']   || ''),
       orderSource: r['주문처']   || '',
+      supplier:    r['매입처']   || '',
+      shippedAt:   r['출고일']   || '',
       productName: r['상품명']   || '',
       qty:         r['수량']     || '',
       shipper:     r['수하인']   || '',
@@ -1671,7 +1692,12 @@ async function syncFromSheets() {
         const remT   = rem.updatedAt   ? new Date(rem.updatedAt).getTime()   : 0;
         const localT = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
         if (remT > localT) {
-          Object.assign(local, rem, { memo: local.memo || rem.memo });
+          // 시트에 아직 없는 필드(매입처·출고일)는 로컬 값 보존
+          Object.assign(local, rem, {
+            memo:      local.memo || rem.memo,
+            supplier:  rem.supplier  || local.supplier  || '',
+            shippedAt: rem.shippedAt || local.shippedAt || '',
+          });
           changed = true;
         }
       }
@@ -1719,17 +1745,35 @@ function renderDashboard() {
     return;
   }
   const groups = { '배송완료':0,'배송중':0,'출고전':0,'배송지연':0,'조회실패':0,'사고':0 };
-  const byCarrier = {}, bySource = {};
-  const delayed = [];
+  const bySupplier = {};
   allItems.forEach(r => {
     const g = getFilterGroup(r);
     if (groups[g] !== undefined) groups[g]++;
-    const cn = carriers[r.carrier]?.name || r.carrier;
-    byCarrier[cn] = (byCarrier[cn]||0) + 1;
-    const src = r.orderSource || '(주문처 미지정)';
-    bySource[src] = (bySource[src]||0) + 1;
-    if (g === '배송지연') delayed.push(r);
+    const sp = r.supplier || '(매입처 미지정)';
+    const o = bySupplier[sp] || (bySupplier[sp] = { total:0, withNum:0, done:0 });
+    o.total++;
+    if (r.num) o.withNum++;
+    if (g === '배송완료') o.done++;
   });
+
+  // 배송지연 위험도: 출고일(조회 이력 없으면 등록일) 기준 경과일 3·5·7일 구간
+  const RISK = [
+    { min:7, label:'심각', bg:'#fee2e2', fg:'#b91c1c' },
+    { min:5, label:'경고', bg:'#ffedd5', fg:'#9a3412' },
+    { min:3, label:'주의', bg:'#fef9c3', fg:'#854d0e' },
+  ];
+  const riskItems = [];
+  allItems.forEach(r => {
+    if (!r.num) return;
+    if (getFilterGroup(r) === '배송완료') return;
+    const basisIso = r.shippedAt || r.addedAt || '';
+    const t = basisIso ? new Date(basisIso).getTime() : NaN;
+    if (isNaN(t)) return;
+    const days = Math.floor((Date.now() - t) / 86400000);
+    const tier = RISK.find(x => days >= x.min);
+    if (tier) riskItems.push({ r, days, tier, basis: r.shippedAt ? '출고' : '등록' });
+  });
+  riskItems.sort((a,b) => b.days - a.days);
   const doneRate = Math.round(groups['배송완료'] / total * 100);
 
   // 상단 요약 타일 (클릭 시 해당 필터의 목록으로 이동)
@@ -1750,20 +1794,31 @@ function renderDashboard() {
   const legend = Object.keys(groups).map(g =>
     `<span><span class="lg-dot" style="background:${GROUP_COLORS[g]}"></span>${g} ${groups[g]}건 (${total?Math.round(groups[g]/total*100):0}%)</span>`).join('');
 
-  // 가로 막대 (택배사별 / 주문처별)
-  const hbars = (obj, topN) => {
-    const entries = Object.entries(obj).sort((a,b) => b[1]-a[1]);
-    const shown = entries.slice(0, topN);
-    const max = shown[0]?.[1] || 1;
-    const rest = entries.length - shown.length;
-    return shown.map(([k,v]) => `
-      <div class="hbar-row">
-        <div class="hbar-label" title="${escapeHtml(k)}">${escapeHtml(k)}</div>
-        <div class="hbar-track"><div class="hbar-fill" style="width:${Math.max(3, v/max*100)}%"></div></div>
-        <div class="hbar-val">${v}</div>
-      </div>`).join('')
-      + (rest > 0 ? `<div style="font-size:11px;color:var(--gray-400);margin-top:4px">외 ${rest}곳</div>` : '');
-  };
+  // 매입처별 송장회신율 / 배송완료율
+  const rateBar = (pct, color) => `
+    <div class="rate-cell">
+      <div class="hbar-track"><div class="hbar-fill" style="width:${pct}%;background:${color}"></div></div>
+      <span class="rate-val">${pct}%</span>
+    </div>`;
+  const supRows = Object.entries(bySupplier).sort((a,b) => b[1].total - a[1].total).map(([k,v]) => {
+    const replyRate = Math.round(v.withNum / v.total * 100);
+    const supDoneRate = Math.round(v.done / v.total * 100);
+    return `<tr>
+      <td class="strong" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(k)}">${escapeHtml(k)}</td>
+      <td class="mono" style="text-align:center">${v.total}</td>
+      <td class="mono" style="text-align:center">${v.withNum}</td>
+      <td>${rateBar(replyRate, '#0369a1')}</td>
+      <td class="mono" style="text-align:center">${v.done}</td>
+      <td>${rateBar(supDoneRate, '#15803d')}</td>
+    </tr>`;
+  }).join('');
+  const supSec = `
+    <div class="dash-sec-title">매입처별 송장회신율 · 배송완료율</div>
+    <div style="border:1px solid var(--gray-200);border-radius:8px;overflow:auto">
+      <table><thead><tr><th>매입처</th><th style="text-align:center">주문</th><th style="text-align:center">송장기재</th><th>송장회신율</th><th style="text-align:center">배송완료</th><th>배송완료율</th></tr></thead>
+      <tbody>${supRows}</tbody></table>
+    </div>
+    <div style="font-size:11px;color:var(--gray-400);margin-top:6px">송장회신율 = 송장번호 기재 건 ÷ 전체 주문건 · 배송완료율 = 배송완료 건 ÷ 전체 주문건</div>`;
 
   // 최근 14일 주문 추이 (주문일 기준)
   const days = [];
@@ -1783,36 +1838,42 @@ function renderDashboard() {
       <div class="vbar-lb">${d.label}</div>
     </div>`).join('');
 
-  // 배송지연 목록 (오래된 순, 최대 10건)
-  delayed.sort((a,b) => (a.orderDate||'') < (b.orderDate||'') ? -1 : 1);
-  const delayRows = delayed.slice(0,10).map(r => `
+  // 배송지연 위험도 섹션
+  const riskCounts = RISK.map(t => ({ ...t, n: riskItems.filter(x => x.tier.label === t.label).length }));
+  const riskRows = riskItems.slice(0, 15).map(({ r, days, tier, basis }) => `
     <tr>
+      <td style="white-space:nowrap"><span class="badge" style="background:${tier.bg};color:${tier.fg}">${tier.label} D+${days}</span></td>
+      <td style="white-space:nowrap;font-size:11px">${escapeHtml(String((basis==='출고' ? r.shippedAt : r.addedAt) || '').slice(0,10))}<span style="color:var(--gray-400)"> (${basis})</span></td>
       <td style="white-space:nowrap;font-size:11px;color:var(--gray-500)">${escapeHtml(r.orderDate)||'-'}</td>
-      <td class="strong" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.productName)}">${escapeHtml(r.productName)||'-'}</td>
+      <td>${escapeHtml(r.supplier)||'-'}</td>
+      <td class="strong" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.productName)}">${escapeHtml(r.productName)||'-'}</td>
       <td>${escapeHtml(r.companyName)||'-'}</td>
       <td style="white-space:nowrap">${carriers[r.carrier]?.name||escapeHtml(r.carrier)}</td>
-      <td class="mono">${escapeHtml(r.num)||'-'}</td>
+      <td class="mono">${escapeHtml(r.num)}</td>
       <td>${statusBadge(r)}</td>
     </tr>`).join('');
-  const delaySec = delayed.length ? `
-    <div class="dash-sec-title" style="color:#b45309">⚠ 배송지연 (${delayed.length}건${delayed.length>10?' 중 10건 표시':''})</div>
+  const riskSec = `
+    <div class="dash-sec-title">⚠ 배송지연 위험도 (출고일 기준 3·5·7일)</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:0.6rem">
+      ${riskCounts.map(t => `<span class="badge" style="background:${t.bg};color:${t.fg}">${t.min}일 이상 ${t.label} ${t.n}건</span>`).join('')}
+    </div>
+    ${riskItems.length ? `
     <div style="border:1px solid var(--gray-200);border-radius:8px;overflow:auto">
-      <table><thead><tr><th>주문일</th><th>상품명</th><th>수취인</th><th>택배사</th><th>운송장번호</th><th>상태</th></tr></thead>
-      <tbody>${delayRows}</tbody></table>
-    </div>` : '';
+      <table><thead><tr><th>위험도</th><th>기준일</th><th>주문일</th><th>매입처</th><th>상품명</th><th>수취인</th><th>택배사</th><th>운송장번호</th><th>상태</th></tr></thead>
+      <tbody>${riskRows}</tbody></table>
+      ${riskItems.length > 15 ? `<div style="padding:8px 12px;font-size:11px;color:var(--gray-400)">외 ${riskItems.length-15}건 — 목록에서 배송지연 필터로 확인하세요</div>` : ''}
+    </div>` : '<div style="font-size:12px;color:var(--gray-400);padding:4px 0">3일 이상 경과한 미배송 건이 없습니다 ✓</div>'}
+    <div style="font-size:11px;color:var(--gray-400);margin-top:6px">기준일: 택배사 최초 집화(출고) 시각 · 조회 이력이 없어 출고일을 알 수 없는 건은 (등록)일 기준</div>`;
 
   el.innerHTML = `
     <div class="dash-grid">${tiles}</div>
     <div class="dash-sec-title">상태 분포</div>
     <div class="dash-stack">${stack}</div>
     <div class="dash-legend">${legend}</div>
-    <div class="dash-cols">
-      <div><div class="dash-sec-title">택배사별 현황</div>${hbars(byCarrier, 8)}</div>
-      <div><div class="dash-sec-title">주문처별 상위 8</div>${hbars(bySource, 8)}</div>
-    </div>
+    ${riskSec}
+    ${supSec}
     <div class="dash-sec-title">최근 14일 주문 추이 (주문일 기준)</div>
-    <div class="vbars">${vbars}</div>
-    ${delaySec}`;
+    <div class="vbars">${vbars}</div>`;
 }
 
 // ── 필터 ──
@@ -1872,7 +1933,7 @@ function renderTable() {
   document.getElementById('result-count').textContent = `${data.length}건`;
 
   if (!data.length) {
-    tbody.innerHTML=`<tr><td colspan="13"><div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">조건에 맞는 결과가 없습니다</div></div></td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="14"><div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">조건에 맞는 결과가 없습니다</div></div></td></tr>`;
     return;
   }
 
@@ -1885,6 +1946,7 @@ function renderTable() {
       <td style="text-align:center"><input type="checkbox" class="row-chk" data-key="${rowKey}" onchange="onRowChkChange()"></td>
       <td style="font-size:11px;color:var(--gray-500);white-space:nowrap">${esc(r.orderDate)||'-'}</td>
       <td style="font-size:12px">${esc(r.orderSource)||'-'}</td>
+      <td style="font-size:12px">${esc(r.supplier)||'-'}</td>
       <td class="strong" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.productName)}">${esc(r.productName)||'-'}</td>
       <td style="text-align:center;font-size:12px">${esc(String(r.qty||''))||'-'}</td>
       <td style="font-size:12px;white-space:nowrap">${esc(r.shipper)||'-'}</td>
@@ -2001,9 +2063,9 @@ function openDetail(carrier, num, localId) {
         <input id="de-orderSource" type="text" value="${escapeHtml(r.orderSource||'')}" placeholder="OO은행 OO지점"
           style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
       </div>
-      <div style="grid-column:1/-1">
-        <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">상품명</div>
-        <input id="de-productName" type="text" value="${escapeHtml(r.productName||'')}" placeholder="상품명"
+      <div>
+        <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">매입처</div>
+        <input id="de-supplier" type="text" value="${escapeHtml(r.supplier||'')}" placeholder="매입처명"
           style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
       </div>
       <div>
@@ -2011,12 +2073,17 @@ function openDetail(carrier, num, localId) {
         <input id="de-qty" type="text" value="${escapeHtml(String(r.qty||''))}" placeholder="1"
           style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
       </div>
+      <div style="grid-column:1/-1">
+        <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">상품명</div>
+        <input id="de-productName" type="text" value="${escapeHtml(r.productName||'')}" placeholder="상품명"
+          style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
+      </div>
       <div>
         <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">수하인</div>
         <input id="de-shipper" type="text" value="${escapeHtml(r.shipper||'')}" placeholder="홍길동"
           style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
       </div>
-      <div style="grid-column:1/-1">
+      <div>
         <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">수취인</div>
         <input id="de-companyName" type="text" value="${escapeHtml(r.companyName||'')}" placeholder="수취인 또는 업체명"
           style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
@@ -2098,6 +2165,7 @@ async function saveDetail(editKey) {
     localId:     newNum ? '' : (existing.localId || makeLocalId()),
     orderDate:   normalizeDate(document.getElementById('de-orderDate').value),
     orderSource: document.getElementById('de-orderSource').value,
+    supplier:    document.getElementById('de-supplier').value,
     productName: document.getElementById('de-productName').value,
     qty:         document.getElementById('de-qty').value,
     shipper:     document.getElementById('de-shipper').value,
@@ -2114,7 +2182,7 @@ async function saveDetail(editKey) {
     try {
       const raw = await fetchWithRetry(newCarrier, newNum);
       const pr = parseTracking(raw, newCarrier, newNum);
-      allItems[idx] = { ...updated, status: pr.status, steps: pr.steps, error: null };
+      allItems[idx] = { ...updated, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || updated.shippedAt || '', error: null };
       toast('저장 및 조회 완료!');
     } catch(e) {
       allItems[idx] = resolveTrackingError(e, updated);
@@ -2254,7 +2322,7 @@ async function refreshSelected() {
         try {
           const raw = await fetchWithRetry(r.carrier, r.num);
           const pr = parseTracking(raw, r.carrier, r.num);
-          upsertItem({ ...r, status: pr.status, steps: pr.steps, error: pr.error != null ? pr.error : null });
+          upsertItem({ ...r, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: pr.error != null ? pr.error : null });
           syncSameNumItems(r.carrier, r.num, pr);
         } catch(e) {
           upsertItem(resolveTrackingError(e, r));
@@ -2343,6 +2411,7 @@ function exportExcel() {
   const rows = data.map(r=>({
     '주문일': r.orderDate||'-',
     '주문처': r.orderSource||'-',
+    '매입처': r.supplier||'-',
     '상품명': r.productName||'-',
     '수량':   r.qty||'-',
     '수하인': r.shipper||'-',
@@ -2357,7 +2426,7 @@ function exportExcel() {
     '조회URL': carriers[r.carrier]?.url(r.num)||'',
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
-  ws['!cols']=[12,14,30,6,12,16,10,18,12,8,28,8,20,40].map(w=>({wch:w}));
+  ws['!cols']=[12,14,14,30,6,12,16,10,18,12,8,28,8,20,40].map(w=>({wch:w}));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '운송장조회');
   const fname = `운송장조회_${new Date().toLocaleDateString('ko-KR').replace(/\.\s*/g,'-').replace(/-$/,'')}.xlsx`;
@@ -2370,15 +2439,15 @@ function downloadTemplate() {
   if (typeof XLSX==='undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet([
-    ['주문일','주문처','상품명','수량','수하인','수취인','택배사','운송장번호','메모'],
-    [new Date('2026-03-27'), 'OO은행 OO지점', '탑쉐프 크런백50매 1P(세트)', 50, '다올커머스', 'OOO 님', '롯데택배', 257988409512, '출고예정일 4/3'],
-    [new Date('2026-03-27'), 'OO은행 OO지점', '위생장갑 크런백 컬러지퍼백(3종)(세트)', 16, '다올커머스', 'OOO 님', '롯데택배', 257988409501, ''],
+    ['주문일','주문처','매입처','상품명','수량','수하인','수취인','택배사','운송장번호','메모'],
+    [new Date('2026-03-27'), 'OO은행 OO지점', 'OO상사', '탑쉐프 크런백50매 1P(세트)', 50, '다올커머스', 'OOO 님', '롯데택배', 257988409512, '출고예정일 4/3'],
+    [new Date('2026-03-27'), 'OO은행 OO지점', 'OO상사', '위생장갑 크런백 컬러지퍼백(3종)(세트)', 16, '다올커머스', 'OOO 님', '롯데택배', 257988409501, ''],
   ]);
   // 날짜 셀 형식 지정
   ['A2','A3'].forEach(cell => {
     if (ws[cell]) ws[cell].z = 'yyyy-mm-dd';
   });
-  ws['!cols']=[12,14,36,6,12,14,10,20,20].map(w=>({wch:w}));
+  ws['!cols']=[12,14,12,36,6,12,14,10,20,20].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb,ws,'Sheet1');
   XLSX.writeFile(wb,'운송장조회_템플릿.xlsx');
   toast('템플릿 다운로드 완료!');
@@ -2417,6 +2486,8 @@ async function saveToStorage(entry) {
       '수하인':     entry.shipper     || '',
       '수취인':     entry.companyName || '',
       '메모':       entry.memo        || '',
+      '매입처':     entry.supplier    || '',
+      '출고일':     entry.shippedAt   || '',
       'localId':    entry.localId     || '',
     });
   } catch(e) { console.warn('Sheets 저장 실패:', e); }
@@ -2438,6 +2509,8 @@ async function loadFromStorage() {
         localId:     String(r['localId'] || ''),
         orderDate:   normalizeDate(r['주문일']   || ''),
         orderSource: r['주문처']   || '',
+        supplier:    r['매입처']   || '',
+        shippedAt:   r['출고일']   || '',
         productName: r['상품명']   || '',
         qty:         r['수량']     || '',
         shipper:     r['수하인']   || '',
@@ -2451,12 +2524,25 @@ async function loadFromStorage() {
         addedAt:     r['등록일시'] || '',
         updatedAt:   r['수정일시'] || '',
       })).filter(r => r.num || r.localId || r.productName);
+      // 시트에 매입처·출고일 컬럼이 없는 경우 로컬 캐시에서 보충
+      try {
+        const cached = JSON.parse(localStorage.getItem('tracker_items') || '[]');
+        const keyOf = r => r.num ? r.carrier+'__'+r.num : 'lid__'+(r.localId||'');
+        const cacheMap = {};
+        cached.forEach(c => { cacheMap[keyOf(c)] = c; });
+        allItems.forEach(it => {
+          const c = cacheMap[keyOf(it)];
+          if (!c) return;
+          if (!it.supplier)  it.supplier  = c.supplier  || '';
+          if (!it.shippedAt) it.shippedAt = c.shippedAt || '';
+        });
+      } catch(e) {}
       localStorage.setItem('tracker_items', JSON.stringify(allItems));
       toast(`시트에서 ${allItems.length}건 불러왔습니다 ☁️`);
     } else {
       const saved = localStorage.getItem('tracker_items');
       if (saved) {
-        allItems = JSON.parse(saved).map(r=>({memo:'', ...r, orderDate: normalizeDate(r.orderDate)}));
+        allItems = JSON.parse(saved).map(r=>({memo:'', supplier:'', shippedAt:'', ...r, orderDate: normalizeDate(r.orderDate)}));
         toast(`로컬에서 ${allItems.length}건 불러왔습니다`);
       }
     }
@@ -2464,7 +2550,7 @@ async function loadFromStorage() {
     try {
       const saved = localStorage.getItem('tracker_items');
       if (saved) {
-        allItems = JSON.parse(saved).map(r=>({memo:'', ...r, orderDate: normalizeDate(r.orderDate)}));
+        allItems = JSON.parse(saved).map(r=>({memo:'', supplier:'', shippedAt:'', ...r, orderDate: normalizeDate(r.orderDate)}));
         toast(`로컬에서 ${allItems.length}건 불러왔습니다`);
       }
     } catch(e2) {}
@@ -2498,6 +2584,7 @@ document.addEventListener('keydown', e=>{
 document.addEventListener('DOMContentLoaded', () => {
   initAutoIntervalUI();
   initSortUI();
+  showView('dash'); // 실행 시 대시보드를 메인 화면으로
   loadFromStorage();
 });
 </script>
