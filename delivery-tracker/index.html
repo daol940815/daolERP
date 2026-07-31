@@ -356,6 +356,9 @@ td.strong { color:var(--black); font-weight:500; }
 /* ── 배송지연 강조 ── */
 tr.delay td { background:#fffbeb; }
 
+/* ── 같은 주문 묶음: 묶음 내부 행 사이는 점선으로 연결감 표시 ── */
+tr.bundle-inner td { border-bottom-style:dashed; }
+
 /* ── 변동 집계 ── */
 .summary-meta { font-size:12px; color:var(--gray-500); margin-bottom:0.75rem; }
 .summary-table { width:100%; border-collapse:collapse; font-size:13px; }
@@ -1022,6 +1025,32 @@ function syncSameNumItems(carrier, num, trackingResult) {
   });
 }
 
+// ── 수정 화면에서 추가 입력된 송장번호들을 새 행으로 분리 등록 ──
+async function registerExtraNums(baseItem, extraNums) {
+  const fresh = extraNums.filter(n => !isDuplicateNum(baseItem.carrier, n, null, baseItem.productName));
+  const dup = extraNums.length - fresh.length;
+  await Promise.all(fresh.map(async n => {
+    const item = {
+      ...baseItem,
+      num: n, localId: '',
+      status: '대기중', steps: [], error: null, shippedAt: '',
+      addedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    allItems.push(item);
+    try {
+      const raw = await fetchWithRetry(item.carrier, n);
+      const pr = parseTracking(raw, item.carrier, n);
+      Object.assign(item, { status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: null });
+    } catch(e) {
+      Object.assign(item, resolveTrackingError(e, item));
+    }
+    saveToStorage(item);
+  }));
+  saveLocal();
+  return { added: fresh.length, dup };
+}
+
 // ── 아이템 추가/갱신 ──
 function makeLocalId() {
   return 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
@@ -1139,8 +1168,10 @@ function openEditModal(carrier, num, localId) {
 async function submitSingleSave() {
   const editKey = document.getElementById('s-edit-key').value;
   if (!editKey) return;
-  // 수정 모달은 한 행 = 한 송장 — 여러 개가 입력되면 첫 번째만 사용
-  const newNum = splitTrackingNums(document.getElementById('s-trackNum').value)[0] || '';
+  // 첫 번째 번호는 이 행에 저장, 나머지는 새 행으로 분리 등록
+  const editNums = splitTrackingNums(document.getElementById('s-trackNum').value);
+  const newNum = editNums[0] || '';
+  const extraNums = editNums.slice(1);
   const carrier = document.getElementById('s-carrier').value;
 
   // 기존 항목 찾기
@@ -1193,6 +1224,14 @@ async function submitSingleSave() {
     }
   } else {
     toast('수정 완료!');
+  }
+
+  // 추가 입력된 송장번호는 이 행의 주문정보를 복사해 새 행으로 분리 등록
+  if (extraNums.length) {
+    const res = await registerExtraNums(allItems[idx], extraNums);
+    if (res.added || res.dup) {
+      toast(`저장 완료 · 추가 송장 ${res.added}건 분리 등록${res.dup ? ` (중복 ${res.dup}건 제외)` : ''}`);
+    }
   }
 
   updateStats(); renderTable();
@@ -1937,20 +1976,45 @@ function renderTable() {
     return;
   }
 
-  tbody.innerHTML = data.map(r=>{
+  // 같은 주문 묶음(주문일+주문처+상품명+수량+수하인+수취인 동일)은 연속 배치
+  // 첫 행만 주문정보·수량을 표시하고, 이후 행은 └ 로 같은 묶음임을 표시
+  const bundleKeyOf = r => {
+    const hasInfo = r.orderDate || r.orderSource || r.productName || r.companyName || r.shipper;
+    return hasInfo ? 'g__' + makeMatchKey(r) : 'solo__' + (r.localId || r.carrier + '__' + r.num);
+  };
+  const bundles = [];
+  const bundleMap = {};
+  data.forEach(r => {
+    const k = bundleKeyOf(r);
+    if (bundleMap[k]) bundleMap[k].push(r);
+    else { bundleMap[k] = [r]; bundles.push(bundleMap[k]); }
+  });
+  const flat = [];
+  bundles.forEach(g => g.forEach((r, gi) => flat.push({ r, size: g.length, gi })));
+
+  tbody.innerHTML = flat.map(({ r, size, gi })=>{
     const delay = isDelay(r);
     const esc = s => escapeHtml(s);
     const memoVal = esc(r.memo||'');
     const rowKey = r.localId ? `lid__${r.localId}` : `${r.carrier}__${r.num}`;
-    return `<tr class="${delay&&r.status!=='배송완료'?'delay':''}">
+    const isCont = size > 1 && gi > 0;          // 묶음의 2번째 이후 행
+    const isBundleFirst = size > 1 && gi === 0; // 묶음의 첫 행
+    const rowCls = [
+      delay && r.status !== '배송완료' ? 'delay' : '',
+      size > 1 && gi < size - 1 ? 'bundle-inner' : '',
+    ].filter(Boolean).join(' ');
+    const prodCell = isCont
+      ? `<span style="color:var(--gray-400);font-size:11px;font-weight:400">└ 같은 주문 (${gi+1}/${size})</span>`
+      : `${esc(r.productName)||'-'}${isBundleFirst ? ` <span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:10px;padding:1px 6px" title="같은 주문에 송장 ${size}개">📦 ${size}</span>` : ''}`;
+    return `<tr class="${rowCls}">
       <td style="text-align:center"><input type="checkbox" class="row-chk" data-key="${rowKey}" onchange="onRowChkChange()"></td>
-      <td style="font-size:11px;color:var(--gray-500);white-space:nowrap">${esc(r.orderDate)||'-'}</td>
-      <td style="font-size:12px">${esc(r.orderSource)||'-'}</td>
-      <td style="font-size:12px">${esc(r.supplier)||'-'}</td>
-      <td class="strong" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.productName)}">${esc(r.productName)||'-'}</td>
-      <td style="text-align:center;font-size:12px">${esc(String(r.qty||''))||'-'}</td>
-      <td style="font-size:12px;white-space:nowrap">${esc(r.shipper)||'-'}</td>
-      <td style="font-size:12px">${esc(r.companyName)||'-'}</td>
+      <td style="font-size:11px;color:var(--gray-500);white-space:nowrap">${isCont ? '<span style="color:var(--gray-300);font-family:var(--mono);font-size:13px;padding-left:4px">└</span>' : (esc(r.orderDate)||'-')}</td>
+      <td style="font-size:12px">${isCont ? '' : (esc(r.orderSource)||'-')}</td>
+      <td style="font-size:12px">${isCont ? '' : (esc(r.supplier)||'-')}</td>
+      <td class="strong" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.productName)}">${prodCell}</td>
+      <td style="text-align:center;font-size:12px">${isCont ? '' : (esc(String(r.qty||''))||'-')}</td>
+      <td style="font-size:12px;white-space:nowrap">${isCont ? '' : (esc(r.shipper)||'-')}</td>
+      <td style="font-size:12px">${isCont ? '' : (esc(r.companyName)||'-')}</td>
       <td style="font-size:12px;white-space:nowrap">${carriers[r.carrier]?.name||esc(r.carrier)}</td>
       <td class="mono">${esc(r.num) || '<span style="color:var(--gray-300);font-size:11px">미등록</span>'}</td>
       <td>${statusBadge(r)}</td>
@@ -2094,7 +2158,7 @@ function openDetail(carrier, num, localId) {
       </div>
       <div>
         <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">운송장번호 <span style="font-weight:400;text-transform:none;letter-spacing:0">(선택)</span></div>
-        <input id="de-num" type="text" value="${escapeHtml(r.num||'')}" placeholder="없으면 비워두세요"
+        <input id="de-num" type="text" value="${escapeHtml(r.num||'')}" placeholder="없으면 비워두세요 · 여러 개는 쉼표(,)로 구분"
           style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
       </div>
       <div style="grid-column:1/-1">
@@ -2139,8 +2203,10 @@ async function saveDetail(editKey) {
   const btn = document.getElementById('btn-detail-save');
   btn.disabled=true; btn.textContent='저장 중...';
 
-  // 상세 모달은 한 행 = 한 송장 — 여러 개가 입력되면 첫 번째만 사용
-  const newNum     = splitTrackingNums(document.getElementById('de-num').value)[0] || '';
+  // 첫 번째 번호는 이 행에 저장, 나머지는 새 행으로 분리 등록
+  const detailNums = splitTrackingNums(document.getElementById('de-num').value);
+  const newNum     = detailNums[0] || '';
+  const extraNums  = detailNums.slice(1);
   const newCarrier = document.getElementById('de-carrier').value;
   const idx = allItems.indexOf(existing);
 
@@ -2194,6 +2260,15 @@ async function saveDetail(editKey) {
 
   saveLocal();
   await saveToStorage(allItems[idx]);
+
+  // 추가 입력된 송장번호는 이 행의 주문정보를 복사해 새 행으로 분리 등록
+  if (extraNums.length) {
+    const res = await registerExtraNums(allItems[idx], extraNums);
+    if (res.added || res.dup) {
+      toast(`저장 완료 · 추가 송장 ${res.added}건 분리 등록${res.dup ? ` (중복 ${res.dup}건 제외)` : ''}`);
+    }
+  }
+
   updateStats(); renderTable();
   closeModal('modal-detail');
   btn.disabled=false; btn.textContent='저장';
