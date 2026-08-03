@@ -13,15 +13,17 @@ export default async function DashboardLayout({
   children: React.ReactNode
 }) {
   // 영업(sales) 역할은 회계·경영 모드 접근 불가 → 주문 관리로
-  const me = await getCurrentUser()
-  if (me && me.role !== 'admin') redirect('/orders')
-
+  // 역할 확인과 은행계좌 조회는 서로 독립이므로 병렬 실행 (순차 왕복 제거)
   const admin = createAdminClient()
-  const { data } = await admin
-    .from('bank_accounts')
-    .select('id, bank_name, account_number, alias, is_active, account_type, overdraft_limit, created_at, updated_at')
-    .eq('is_active', true)
-    .order('bank_name')
+  const [me, { data }] = await Promise.all([
+    getCurrentUser(),
+    admin
+      .from('bank_accounts')
+      .select('id, bank_name, account_number, alias, is_active, account_type, overdraft_limit, created_at, updated_at')
+      .eq('is_active', true)
+      .order('bank_name'),
+  ])
+  if (me && me.role !== 'admin') redirect('/orders')
 
   const initialBanks: BankAccount[] = (data ?? []).map(b => ({
     ...b,
