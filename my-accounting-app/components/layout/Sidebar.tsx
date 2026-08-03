@@ -287,8 +287,11 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           <Link href="/reports/management-dashboard" className={linkCls(pathname.startsWith('/reports/management-dashboard'))}>
             <span>경영대시보드</span>
           </Link>
-          <Link href="/sales-hub" className={linkCls(pathname.startsWith('/sales-hub'))}>
+          <Link href="/sales-hub" className={linkCls(pathname.startsWith('/sales-hub') && !pathname.startsWith('/sales-hub/contacts'))}>
             <span>매출처 허브</span>
+          </Link>
+          <Link href="/sales-hub/contacts" className={linkCls(pathname.startsWith('/sales-hub/contacts'))}>
+            <span>거래처 담당자</span>
           </Link>
           <Link href="/employees" className={linkCls(pathname.startsWith('/employees'))}>
             <span>직원·계정 관리</span>
