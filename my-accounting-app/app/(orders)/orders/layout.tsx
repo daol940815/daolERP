@@ -1,34 +1,24 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/user-role'
-import OrdersNav from './orders-nav'
+import OrdersSidebar from './orders-sidebar'
 
 export const dynamic = 'force-dynamic'
 
-// 주문 관리 모드 공통 레이아웃 — 영업·관리자 모두 접근 가능
+// 주문 관리 모드 공통 레이아웃 — 회계·경영 모드와 동일한 좌측 사이드바 구조
 export default async function OrdersLayout({ children }: { children: React.ReactNode }) {
   const me = await getCurrentUser()
   if (!me) redirect('/login')
 
+  const roleLabel = me.role === 'admin' ? '전체 관리자' : me.role === 'manager' ? '중간 관리자' : '직원'
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-slate-900 text-white">
-        <div className="max-w-6xl mx-auto px-5 h-14 flex items-center gap-6">
-          <Link href="/portal" className="font-bold">다올 주문관리</Link>
-          <OrdersNav />
-          <span className="ml-auto text-xs text-slate-400">
-            {me.employeeName ?? me.email}
-            {me.role === 'admin' ? ' · 전체 관리자' : me.role === 'manager' ? ' · 중간 관리자' : ''}
-          </span>
-          {me.role === 'admin' && (
-            <Link href="/" className="text-xs text-slate-300 hover:text-white border border-slate-700 rounded px-2 py-1">
-              회계·경영 모드
-            </Link>
-          )}
-          <Link href="/portal" className="text-xs text-slate-300 hover:text-white">모드 선택</Link>
-        </div>
-      </header>
-      <main className="max-w-6xl mx-auto px-5 py-6">{children}</main>
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
+      <OrdersSidebar
+        name={me.employeeName ?? me.email ?? '사용자'}
+        roleLabel={roleLabel}
+        isAdmin={me.role === 'admin'}
+      />
+      <main className="flex-1 overflow-y-auto p-6">{children}</main>
     </div>
   )
 }
