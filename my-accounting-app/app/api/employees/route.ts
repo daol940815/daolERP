@@ -163,6 +163,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
+  if (action === 'bulk_delete') {
+    const ids = body.ids as unknown
+    if (!Array.isArray(ids) || !ids.length) {
+      return NextResponse.json({ error: '삭제할 직원을 선택하세요.' }, { status: 400 })
+    }
+    const me = await getCurrentUser()
+    // 본인 계정은 목록에서 제외하고 진행
+    const targetIds = (ids as string[]).filter(id => id !== me?.employeeId)
+    const skippedSelf = ids.length - targetIds.length
+    if (!targetIds.length) {
+      return NextResponse.json({ error: '본인 계정은 삭제할 수 없습니다.' }, { status: 400 })
+    }
+    const { data: emps, error: e1 } = await admin.from('employees')
+      .select('id, auth_user_id').in('id', targetIds)
+    if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
+    // 직원 행 삭제 (거래처 배정은 FK CASCADE) → 인증 계정 삭제
+    const { error } = await admin.from('employees').delete().in('id', targetIds)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    for (const emp of emps ?? []) {
+      if (emp.auth_user_id) await admin.auth.admin.deleteUser(emp.auth_user_id as string)
+    }
+    return NextResponse.json({ ok: true, deleted: targetIds.length, skipped_self: skippedSelf })
+  }
+
   if (action === 'delete') {
     const id = body.id
     if (!id) return NextResponse.json({ error: 'id가 필요합니다.' }, { status: 400 })
