@@ -125,7 +125,7 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
 
   // ── 상위 4개 그룹 접기/펴기 (localStorage 유지 + 현재 화면 그룹 자동 열기) ──
   const GROUP_ROUTES: Record<string, string[]> = {
-    mgmt:   ['/reports/management-dashboard', '/sales-hub'],
+    mgmt:   ['/reports/management-dashboard', '/sales-hub', '/employees'],
     acct:   ['/reports/monthly-pl', '/reports/vat-estimate', '/reports/daily-cash', '/reports/cash-position',
              '/journal', '/ledger', '/vendor-ledger', '/opening-balances', '/vendor-opening-balances', '/accounts'],
     source: ['/erp-orders', '/transactions', '/card-sales', '/card-expenses', '/cash-receipts', '/tax-invoices', '/upload'],
@@ -298,6 +298,9 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           </Link>
           <Link href="/orders" className={linkCls(false)}>
             <span>주문 관리 모드로 이동</span>
+          </Link>
+          <Link href="/hr/admin" className={linkCls(false)}>
+            <span>직원 관리 모드로 이동</span>
           </Link>
           </>)}
         </div>
