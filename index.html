@@ -776,6 +776,12 @@ const num = (v) => isNaN(v) || v === '' || v === null ? 0 : parseFloat(v);
 const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
 const curDate = () => document.getElementById('dateInput').value;
 const curSlot = () => document.getElementById('slotInput').value;
+// 오늘 날짜를 '로컬(사용자) 시간대' 기준으로 반환 (toISOString은 UTC라 한국 새벽시간대에 하루 밀림)
+function todayStr() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
 
 function getClientId() {
   let id = localStorage.getItem('inv_client_id');
@@ -1543,7 +1549,7 @@ async function init() {
   products = loadLocalProducts();   // 상수 정의 이후 안전하게 로드
   rowData = products.map(EMPTY_ROW);
   changeLog = loadLog();
-  document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+  document.getElementById('dateInput').value = todayStr();
   document.getElementById('slotInput').value = (new Date().getHours() < 12) ? '오전' : '오후';
   loadWorking();
   renderTable();
