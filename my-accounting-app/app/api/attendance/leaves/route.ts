@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 
   const admin = createAdminClient()
   let q = admin.from('attendance_leaves')
-    .select(`${LEAVE_COLS}, employee:employees!attendance_leaves_employee_id_fkey(name, team)`)
+    .select(LEAVE_COLS)
     .order('created_at', { ascending: false }).limit(200)
   if (scope === 'self') q = q.eq('employee_id', me.employeeId!)
   if (status) q = q.eq('status', status)
@@ -45,7 +45,18 @@ export async function GET(req: NextRequest) {
   if (error) {
     return NextResponse.json({ error: missingTable(error.message) ? MIGRATION_HINT : error.message }, { status: 500 })
   }
-  return NextResponse.json({ leaves: data ?? [], myEmployeeId: me.employeeId })
+
+  // 직원명은 별도 조회 후 합침 (FK 임베드 대신 — 관계명 의존 없이 동작)
+  let leaves: Record<string, unknown>[] = data ?? []
+  if (scope === 'all' && leaves.length) {
+    const ids = Array.from(new Set(leaves.map(l => l.employee_id as string)))
+    const { data: emps, error: eErr } = await admin.from('employees')
+      .select('id, name, team').in('id', ids)
+    if (eErr) return NextResponse.json({ error: eErr.message }, { status: 500 })
+    const byId = new Map((emps ?? []).map(e => [e.id as string, e]))
+    leaves = leaves.map(l => ({ ...l, employee: byId.get(l.employee_id as string) ?? null }))
+  }
+  return NextResponse.json({ leaves, myEmployeeId: me.employeeId })
 }
 
 export async function POST(req: NextRequest) {

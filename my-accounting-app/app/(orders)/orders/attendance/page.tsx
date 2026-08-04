@@ -61,13 +61,15 @@ export default function MyAttendancePage() {
   const loadMonth = useCallback(async () => {
     const res = await fetch(`/api/attendance/records?month=${month}&scope=self`)
     const json = await res.json()
-    if (res.ok) setMonthData(json)
+    if (!res.ok) { setError(json.error ?? '월별 기록 조회 실패'); return }
+    setMonthData(json)
   }, [month])
 
   const loadLeaves = useCallback(async () => {
     const res = await fetch('/api/attendance/leaves?scope=self')
     const json = await res.json()
-    if (res.ok) { setMyLeaves(json.leaves); setMyEmployeeId(json.myEmployeeId) }
+    if (!res.ok) { setError(json.error ?? '휴가 조회 실패'); return }
+    setMyLeaves(json.leaves); setMyEmployeeId(json.myEmployeeId)
     // 승인 권한이 있으면(관리자) 대기 건도 조회 — 403이면 권한 없는 일반 직원
     const res2 = await fetch('/api/attendance/leaves?scope=all&status=requested')
     if (res2.ok) { setCanApprove(true); setPending((await res2.json()).leaves) }
@@ -184,7 +186,12 @@ export default function MyAttendancePage() {
               </tr>
             </thead>
             <tbody>
-              {monthData && monthDates(monthData.month).filter(d => d <= monthData.today).reverse().map(date => {
+              {/* 지난 날짜 + 기록·승인 휴가가 있는 미래 날짜 표시 (예정 휴가가 보이도록) */}
+              {monthData && monthDates(monthData.month).filter(d =>
+                d <= monthData.today ||
+                monthData.records.some(r => r.work_date === d) ||
+                monthData.leaves.some(l => l.start_date <= d && d <= l.end_date)
+              ).reverse().map(date => {
                 const record = monthData.records.find(r => r.work_date === date) ?? null
                 const st = judgeDay({ date, today: monthData.today, record, leaves: monthData.leaves, policy: monthData.policy })
                 if (st.kind === 'weekend' && !record) return null

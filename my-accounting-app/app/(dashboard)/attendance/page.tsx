@@ -64,7 +64,9 @@ export default function AttendanceAdminPage() {
     const json = await res.json()
     if (!res.ok) { setError(json.error ?? '조회 실패'); setLoading(false); return }
     setError(null); setData(json)
-    if (res2.ok) setPending((await res2.json()).leaves)
+    const json2 = await res2.json().catch(() => ({}))
+    if (res2.ok) setPending(json2.leaves)
+    else setError(json2.error ?? '휴가 승인 대기 조회 실패')
     setLoading(false)
   }, [month])
   useEffect(() => { load() }, [load])
@@ -315,7 +317,12 @@ function FragmentRow({ emp, sum, records, leaves, data, open, onToggle, adjust, 
       <tr className="border-b border-gray-100 bg-slate-50/60">
         <td colSpan={7} className="px-4 py-3">
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-1.5">
-            {monthDates(data.month).filter(d => d <= data.today).map(date => {
+            {/* 지난 날짜 + 기록·승인 휴가가 있는 미래 날짜 (예정 휴가가 보이도록) */}
+            {monthDates(data.month).filter(d =>
+              d <= data.today ||
+              records.some(r => r.work_date === d) ||
+              leaves.some(l => l.start_date <= d && d <= l.end_date)
+            ).map(date => {
               const record = records.find(r => r.work_date === date) ?? null
               const st = judgeDay({ date, today: data.today, record, leaves, policy: data.policy, hireDate: emp.hire_date })
               if (st.kind === 'weekend' && !record) return null
