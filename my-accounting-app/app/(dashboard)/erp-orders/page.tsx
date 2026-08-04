@@ -68,6 +68,7 @@ export default function ErpOrdersPage() {
   const [staffFilter, setStaffFilter]     = useState('all')   // 다올직원 (정확 일치)
   const [channelFilter, setChannelFilter] = useState('all')   // 상담자 (품목 channel)
   const [managerFilter, setManagerFilter] = useState('')      // 담당자 (부분 일치)
+  const [itemFilter, setItemFilter]       = useState('')      // 품목 (품명·품번 부분 일치)
   const [options, setOptions] = useState<{ staff: string[]; channels: string[] }>({ staff: [], channels: [] })
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -90,6 +91,7 @@ export default function ErpOrdersPage() {
     if (staffFilter !== 'all')   p.set('staff', staffFilter)
     if (channelFilter !== 'all') p.set('channel', channelFilter)
     if (managerFilter.trim())    p.set('manager', managerFilter.trim())
+    if (itemFilter.trim())       p.set('item', itemFilter.trim())
     const res  = await fetch(`/api/erp-orders?${p}`)
     const json = await res.json()
     if (res.ok) {
@@ -103,7 +105,7 @@ export default function ErpOrdersPage() {
     }
     setSelected(new Set())
     setLoading(false)
-  }, [view, statusFilter, dateFrom, dateTo, search, staffFilter, channelFilter, managerFilter, page])
+  }, [view, statusFilter, dateFrom, dateTo, search, staffFilter, channelFilter, managerFilter, itemFilter, page])
 
   useEffect(() => { load() }, [load])
 
@@ -121,7 +123,7 @@ export default function ErpOrdersPage() {
   }, [])
 
   // 필터 변경 시 1페이지로
-  useEffect(() => { setPage(1) }, [view, statusFilter, dateFrom, dateTo, search, staffFilter, channelFilter, managerFilter])
+  useEffect(() => { setPage(1) }, [view, statusFilter, dateFrom, dateTo, search, staffFilter, channelFilter, managerFilter, itemFilter])
 
   const handleUpload = async (files: FileList | null) => {
     if (!files?.length) return
@@ -213,6 +215,7 @@ export default function ErpOrdersPage() {
     if (staffFilter !== 'all')   p.set('staff', staffFilter)
     if (channelFilter !== 'all') p.set('channel', channelFilter)
     if (managerFilter.trim())    p.set('manager', managerFilter.trim())
+    if (itemFilter.trim())       p.set('item', itemFilter.trim())
     const a = document.createElement('a')
     a.href = `/api/erp-orders/export?${p}`
     a.click()
@@ -346,8 +349,14 @@ export default function ErpOrdersPage() {
           placeholder="담당자 검색"
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
-        {(staffFilter !== 'all' || channelFilter !== 'all' || managerFilter) && (
-          <button onClick={() => { setStaffFilter('all'); setChannelFilter('all'); setManagerFilter('') }}
+        <input
+          value={itemFilter}
+          onChange={e => setItemFilter(e.target.value)}
+          placeholder="품목(품명·품번) 검색"
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-slate-900"
+        />
+        {(staffFilter !== 'all' || channelFilter !== 'all' || managerFilter || itemFilter) && (
+          <button onClick={() => { setStaffFilter('all'); setChannelFilter('all'); setManagerFilter(''); setItemFilter('') }}
             className="px-2 py-1 text-xs text-gray-400 hover:text-gray-600">
             ✕ 필터 해제
           </button>

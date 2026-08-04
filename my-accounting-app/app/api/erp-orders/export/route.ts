@@ -28,6 +28,8 @@ export async function GET(req: NextRequest) {
   const staff   = searchParams.get('staff')?.trim()
   const manager = searchParams.get('manager')?.trim()
   const channel = searchParams.get('channel')?.trim()
+  const item    = searchParams.get('item')?.trim()
+  const needItemJoin = !!(channel || item)
 
   let viewIds: string[] | null = null
   if (view === 'vip' || view === 'prepayment') {
@@ -43,7 +45,7 @@ export async function GET(req: NextRequest) {
   const ordersResult = await fetchAllRows<Record<string, unknown>>((pFrom, pTo) => {
     let query = admin
       .from('erp_orders')
-      .select(channel ? '*, erp_order_items!inner(order_id)' : '*')
+      .select(needItemJoin ? '*, erp_order_items!inner(order_id)' : '*')
       .order('order_date', { ascending: false })
       .order('order_no')
     if (from)                       query = query.gte('order_date', from)
@@ -53,6 +55,7 @@ export async function GET(req: NextRequest) {
     if (staff)   query = query.eq('staff_name', staff)
     if (manager) query = query.ilike('manager_name', `%${manager}%`)
     if (channel) query = query.ilike('erp_order_items.channel', `%${channel}%`)
+    if (item)    query = query.or(`item_name.ilike.%${item}%,item_code.ilike.%${item}%`, { referencedTable: 'erp_order_items' })
     if (viewIds) query = query.in('id', viewIds)
     // '*, ...!inner()' 셀렉트 문자열은 supabase-js 타입 파서가 해석하지 못해 명시 캐스팅
     return query.range(pFrom, pTo) as unknown as PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>
