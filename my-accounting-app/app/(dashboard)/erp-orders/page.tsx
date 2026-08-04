@@ -65,6 +65,10 @@ export default function ErpOrdersPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo]     = useState('')
   const [search, setSearch]     = useState('')
+  const [staffFilter, setStaffFilter]     = useState('all')   // 다올직원 (정확 일치)
+  const [channelFilter, setChannelFilter] = useState('all')   // 상담자 (품목 channel)
+  const [managerFilter, setManagerFilter] = useState('')      // 담당자 (부분 일치)
+  const [options, setOptions] = useState<{ staff: string[]; channels: string[] }>({ staff: [], channels: [] })
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [msg, setMsg]           = useState<string | null>(null)
@@ -83,6 +87,9 @@ export default function ErpOrdersPage() {
     if (dateFrom) p.set('from', dateFrom)
     if (dateTo)   p.set('to', dateTo)
     if (search.trim()) p.set('q', search.trim())
+    if (staffFilter !== 'all')   p.set('staff', staffFilter)
+    if (channelFilter !== 'all') p.set('channel', channelFilter)
+    if (managerFilter.trim())    p.set('manager', managerFilter.trim())
     const res  = await fetch(`/api/erp-orders?${p}`)
     const json = await res.json()
     if (res.ok) {
@@ -96,9 +103,16 @@ export default function ErpOrdersPage() {
     }
     setSelected(new Set())
     setLoading(false)
-  }, [view, statusFilter, dateFrom, dateTo, search, page])
+  }, [view, statusFilter, dateFrom, dateTo, search, staffFilter, channelFilter, managerFilter, page])
 
   useEffect(() => { load() }, [load])
+
+  // 필터 드롭다운 옵션 (실데이터 고유값, 빈도순)
+  useEffect(() => {
+    fetch('/api/erp-orders/options').then(r => r.json()).then(json => {
+      if (json.staff) setOptions({ staff: json.staff, channels: json.channels ?? [] })
+    }).catch(() => {})
+  }, [])
 
   // 딥링크: ?q=주문번호 로 진입하면 검색어로 반영 (매출처 허브 드릴다운)
   useEffect(() => {
@@ -107,7 +121,7 @@ export default function ErpOrdersPage() {
   }, [])
 
   // 필터 변경 시 1페이지로
-  useEffect(() => { setPage(1) }, [view, statusFilter, dateFrom, dateTo, search])
+  useEffect(() => { setPage(1) }, [view, statusFilter, dateFrom, dateTo, search, staffFilter, channelFilter, managerFilter])
 
   const handleUpload = async (files: FileList | null) => {
     if (!files?.length) return
@@ -196,6 +210,9 @@ export default function ErpOrdersPage() {
     if (dateFrom) p.set('from', dateFrom)
     if (dateTo)   p.set('to', dateTo)
     if (search.trim()) p.set('q', search.trim())
+    if (staffFilter !== 'all')   p.set('staff', staffFilter)
+    if (channelFilter !== 'all') p.set('channel', channelFilter)
+    if (managerFilter.trim())    p.set('manager', managerFilter.trim())
     const a = document.createElement('a')
     a.href = `/api/erp-orders/export?${p}`
     a.click()
@@ -313,6 +330,28 @@ export default function ErpOrdersPage() {
           placeholder="주문번호/은행/지점 검색"
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
+        <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+          <option value="all">직원 전체</option>
+          {options.staff.map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+        <select value={channelFilter} onChange={e => setChannelFilter(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+          <option value="all">상담자 전체</option>
+          {options.channels.map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+        <input
+          value={managerFilter}
+          onChange={e => setManagerFilter(e.target.value)}
+          placeholder="담당자 검색"
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-slate-900"
+        />
+        {(staffFilter !== 'all' || channelFilter !== 'all' || managerFilter) && (
+          <button onClick={() => { setStaffFilter('all'); setChannelFilter('all'); setManagerFilter('') }}
+            className="px-2 py-1 text-xs text-gray-400 hover:text-gray-600">
+            ✕ 필터 해제
+          </button>
+        )}
       </div>
 
       {/* 요약 카드 (필터 전체 범위 기준) */}

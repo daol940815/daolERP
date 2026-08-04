@@ -25,6 +25,9 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get('status')
   const view   = searchParams.get('view') ?? 'all'
   const q      = searchParams.get('q')?.trim()
+  const staff   = searchParams.get('staff')?.trim()
+  const manager = searchParams.get('manager')?.trim()
+  const channel = searchParams.get('channel')?.trim()
 
   let viewIds: string[] | null = null
   if (view === 'vip' || view === 'prepayment') {
@@ -40,15 +43,19 @@ export async function GET(req: NextRequest) {
   const ordersResult = await fetchAllRows<Record<string, unknown>>((pFrom, pTo) => {
     let query = admin
       .from('erp_orders')
-      .select('*')
+      .select(channel ? '*, erp_order_items!inner(order_id)' : '*')
       .order('order_date', { ascending: false })
       .order('order_no')
     if (from)                       query = query.gte('order_date', from)
     if (to)                         query = query.lte('order_date', to)
     if (status && status !== 'all') query = query.eq('collect_status', status)
     if (q) query = query.or(`order_no.ilike.%${q}%,bank_name.ilike.%${q}%,branch_name.ilike.%${q}%`)
+    if (staff)   query = query.eq('staff_name', staff)
+    if (manager) query = query.ilike('manager_name', `%${manager}%`)
+    if (channel) query = query.ilike('erp_order_items.channel', `%${channel}%`)
     if (viewIds) query = query.in('id', viewIds)
-    return query.range(pFrom, pTo)
+    // '*, ...!inner()' 셀렉트 문자열은 supabase-js 타입 파서가 해석하지 못해 명시 캐스팅
+    return query.range(pFrom, pTo) as unknown as PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>
   })
   if ('error' in ordersResult) return NextResponse.json({ error: ordersResult.error }, { status: 500 })
   const orders = ordersResult.data
