@@ -134,9 +134,29 @@ export async function POST(req: NextRequest) {
     const password = body.password ?? ''
     if (!id || !password) return NextResponse.json({ error: 'id와 비밀번호가 필요합니다.' }, { status: 400 })
     const { data: emp, error: e1 } = await admin.from('employees')
-      .select('auth_user_id').eq('id', id).single()
+      .select('auth_user_id, login_id').eq('id', id).single()
     if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
-    if (!emp.auth_user_id) return NextResponse.json({ error: '로그인 계정이 없는 직원입니다.' }, { status: 400 })
+    // ID만 기재되고 인증 계정이 없는 직원: 이 자리에서 계정을 발급하고 연결
+    if (!emp.auth_user_id) {
+      if (!emp.login_id) return NextResponse.json({ error: '로그인 ID가 없는 직원입니다. 먼저 수정에서 ID를 입력하세요.' }, { status: 400 })
+      const { data: created, error: cErr } = await admin.auth.admin.createUser({
+        email: loginIdToEmail(emp.login_id as string),
+        password,
+        email_confirm: true,
+      })
+      if (cErr || !created?.user) {
+        const msg = /password/i.test(cErr?.message ?? '')
+          ? '비밀번호가 인증 서버 최소 기준(기본 6자)에 미달합니다.'
+          : /already|exists|registered/i.test(cErr?.message ?? '')
+            ? '이미 같은 ID의 인증 계정이 존재합니다. 다른 ID로 변경 후 다시 시도하세요.'
+            : (cErr?.message ?? '계정 생성 실패')
+        return NextResponse.json({ error: msg }, { status: 400 })
+      }
+      const { error: lErr } = await admin.from('employees')
+        .update({ auth_user_id: created.user.id }).eq('id', id)
+      if (lErr) return NextResponse.json({ error: lErr.message }, { status: 500 })
+      return NextResponse.json({ ok: true, issued: true })
+    }
     const { error } = await admin.auth.admin.updateUserById(emp.auth_user_id as string, { password })
     if (error) {
       const msg = /password/i.test(error.message)
