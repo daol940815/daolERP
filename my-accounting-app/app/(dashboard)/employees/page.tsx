@@ -33,6 +33,7 @@ export default function EmployeesPage() {
   const [busy, setBusy] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [edit, setEdit] = useState({ name: '', team: '', position: '', phone: '', hire_date: '', login_id: '' })
+  const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
 
@@ -42,11 +43,12 @@ export default function EmployeesPage() {
     const json = await res.json()
     if (!res.ok) setError(json.error ?? '조회 실패')
     else setRows(json.employees)
+    setSelected(new Set())
     setLoading(false)
   }, [])
   useEffect(() => { load() }, [load])
 
-  const post = async (body: Record<string, string>) => {
+  const post = async (body: Record<string, unknown>) => {
     setBusy(true)
     const res = await fetch('/api/employees', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -91,6 +93,30 @@ export default function EmployeesPage() {
     if (await post({ action: 'delete', id: r.id })) { flash('삭제되었습니다.'); load() }
   }
 
+  const toggleSelect = (id: string) => setSelected(prev => {
+    const n = new Set(prev)
+    if (n.has(id)) { n.delete(id) } else { n.add(id) }
+    return n
+  })
+  const allSelected = rows.length > 0 && rows.every(r => selected.has(r.id))
+  const toggleSelectAll = () => setSelected(allSelected ? new Set() : new Set(rows.map(r => r.id)))
+
+  const bulkRemove = async () => {
+    if (!selected.size) return
+    const names = rows.filter(r => selected.has(r.id)).map(r => r.name).slice(0, 8).join(', ')
+    if (!window.confirm(`선택한 ${selected.size}명을 완전히 삭제할까요?\n(${names}${selected.size > 8 ? ' 외' : ''})\n로그인 계정과 거래처 담당 배정이 함께 삭제되며 되돌릴 수 없습니다.\n(퇴사 처리는 삭제 대신 '비활성화'를 권장합니다)`)) return
+    setBusy(true)
+    const res = await fetch('/api/employees', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'bulk_delete', ids: Array.from(selected) }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setBusy(false)
+    if (!res.ok) { flash(json.error ?? '삭제 실패'); return }
+    flash(`${json.deleted}명 삭제됨${json.skipped_self ? ' (본인 계정은 제외됨)' : ''}`)
+    load()
+  }
+
   const inp = 'w-full border border-gray-300 rounded px-2 py-1 text-xs'
 
   return (
@@ -104,7 +130,13 @@ export default function EmployeesPage() {
       {msg && <div className="my-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
       {error && <div className="my-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
 
-      <div className="flex justify-end my-4">
+      <div className="flex justify-end items-center gap-2 my-4">
+        {selected.size > 0 && (
+          <button onClick={bulkRemove} disabled={busy}
+            className="px-3.5 py-2 border border-red-300 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 disabled:opacity-50">
+            선택 {selected.size}명 삭제
+          </button>
+        )}
         <button onClick={() => setShowForm(s => !s)}
           className="px-3.5 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">
           {showForm ? '입력 닫기' : '+ 직원 등록'}
@@ -153,6 +185,9 @@ export default function EmployeesPage() {
           <table className="w-full text-sm min-w-[880px]">
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+                <th className="py-2 px-3 w-8">
+                  <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
+                </th>
                 <th className="py-2 px-3 text-left font-medium">이름</th>
                 <th className="py-2 px-3 text-left font-medium">부서/직급</th>
                 <th className="py-2 px-3 text-left font-medium">연락처</th>
@@ -166,6 +201,7 @@ export default function EmployeesPage() {
             <tbody>
               {rows.map(r => editId === r.id ? (
                 <tr key={r.id} className="border-b border-gray-50 bg-blue-50/40">
+                  <td className="py-2 px-3"></td>
                   <td className="py-2 px-3"><input value={edit.name} onChange={e => setEdit(s => ({ ...s, name: e.target.value }))} className={inp} /></td>
                   <td className="py-2 px-3">
                     <div className="flex gap-1">
@@ -184,7 +220,10 @@ export default function EmployeesPage() {
                   </td>
                 </tr>
               ) : (
-                <tr key={r.id} className={`border-b border-gray-50 ${r.is_active ? '' : 'opacity-45'}`}>
+                <tr key={r.id} className={`border-b border-gray-50 ${r.is_active ? '' : 'opacity-45'} ${selected.has(r.id) ? 'bg-red-50/40' : ''}`}>
+                  <td className="py-2 px-3">
+                    <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} />
+                  </td>
                   <td className="py-2 px-3 font-semibold">{r.name}</td>
                   <td className="py-2 px-3 text-gray-600">{[r.team, r.position].filter(Boolean).join(' · ') || '-'}</td>
                   <td className="py-2 px-3 text-gray-600">{r.phone ?? '-'}</td>
@@ -228,7 +267,7 @@ export default function EmployeesPage() {
                   </td>
                 </tr>
               ))}
-              {!rows.length && <tr><td colSpan={8} className="text-center py-12 text-gray-400 text-sm">등록된 직원이 없습니다.</td></tr>}
+              {!rows.length && <tr><td colSpan={9} className="text-center py-12 text-gray-400 text-sm">등록된 직원이 없습니다.</td></tr>}
             </tbody>
           </table>
         )}
