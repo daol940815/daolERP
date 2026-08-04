@@ -50,10 +50,16 @@
 
 ## 화면·API
 
-- 직원용 `/orders/attendance` (주문 포털 "근태" 탭): 출퇴근 체크 · 월별 내 기록 ·
-  휴가 신청. manager/admin에게는 승인 대기 결재 섹션 추가.
-- 관리자용 `/attendance` (사이드바 경영관리 > 근태 현황): KPI 카드(클릭=필터) ·
-  직원별 월 요약 · 행 클릭 시 일별 드릴다운·보정 · 휴가 승인 · 대상/정책 관리.
+근태는 별도의 **직원 관리 모드**(`/hr`, 라우트 그룹 `(hr)`)로 분리 — `/portal`의
+세 번째 카드. 주문 관리 모드와 동일한 헤더형 레이아웃이며 전 직원 접근 가능.
+
+- `/hr/attendance` 내 근태 (전 직원): 출퇴근 체크 · 월별 내 기록 · 휴가 신청.
+- `/hr/approvals` 휴가 승인 (manager·admin): 대기 결재 + 최근 처리 내역.
+- `/hr/admin` 근태 현황 (admin): KPI 카드(클릭=필터) · 직원별 월 요약 ·
+  행 클릭 시 일별 드릴다운·보정 · 휴가 승인 · 대상/정책 관리.
+- 주문 관리 모드 헤더에 출퇴근 체크 위젯 유지 (매일 쓰는 체크만 원클릭,
+  상세는 직원 관리 모드). 구주소 `/orders/attendance`·`/attendance`는
+  새 모드로 리다이렉트.
 - API: `/api/attendance/status`(체크), `/api/attendance/records`(월별 조회·관리자 액션),
   `/api/attendance/leaves`(신청·승인). 월별 기록 조회는 `fetchAllRows`로
   PostgREST 1000행 제한 회피.

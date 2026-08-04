@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/user-role'
 
 export const dynamic = 'force-dynamic'
 
-// 로그인 후 모드 선택 — 주문 관리 / 회계·경영 관리
+// 로그인 후 모드 선택 — 주문 관리 / 직원 관리 / 회계·경영 관리
 // 역할이 sales면 회계·경영 카드는 비활성으로 표시된다.
 export default async function PortalPage() {
   const me = await getCurrentUser()
@@ -24,6 +24,17 @@ export default async function PortalPage() {
           <div className="text-base font-bold text-slate-900">주문 관리</div>
           <div className="text-xs text-slate-500 mt-1.5 leading-relaxed">
             주문 입력 · 주문 현황<br />발주서 작성 · 발송 · 배송 관리
+          </div>
+          <div className="mt-4 inline-block px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-semibold">
+            들어가기
+          </div>
+        </Link>
+
+        <Link href="/hr"
+          className="block bg-white rounded-2xl p-7 w-64 hover:-translate-y-0.5 hover:shadow-xl transition-all">
+          <div className="text-base font-bold text-slate-900">직원 관리</div>
+          <div className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+            출퇴근 체크 · 휴가 신청<br />휴가 승인 · 근태 현황 (관리자)
           </div>
           <div className="mt-4 inline-block px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-semibold">
             들어가기

@@ -8,7 +8,6 @@ const MENUS = [
   { href: '/orders/new', label: '신규 주문', ready: false },
   { href: '/orders/purchase', label: '발주서', ready: false },
   { href: '/orders/delivery', label: '배송 관리', ready: false },
-  { href: '/orders/attendance', label: '근태', ready: true },
 ]
 
 export default function OrdersNav() {
