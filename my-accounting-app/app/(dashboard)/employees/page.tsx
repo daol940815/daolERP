@@ -83,9 +83,15 @@ export default function EmployeesPage() {
   }
 
   const resetPassword = async (r: Emp) => {
-    const pw = window.prompt(`${r.name} 님의 새 비밀번호를 입력하세요:`)
+    const issuing = !r.auth_user_id
+    const pw = window.prompt(issuing
+      ? `${r.name} 님의 로그인 계정(ID: ${r.login_id})을 발급합니다. 초기 비밀번호를 입력하세요:`
+      : `${r.name} 님의 새 비밀번호를 입력하세요:`)
     if (!pw) return
-    if (await post({ action: 'set_password', id: r.id, password: pw })) flash('비밀번호가 재설정되었습니다.')
+    if (await post({ action: 'set_password', id: r.id, password: pw })) {
+      flash(issuing ? '로그인 계정이 발급되었습니다.' : '비밀번호가 재설정되었습니다.')
+      load()
+    }
   }
 
   const remove = async (r: Emp) => {
@@ -229,7 +235,12 @@ export default function EmployeesPage() {
                   <td className="py-2 px-3 text-gray-600">{r.phone ?? '-'}</td>
                   <td className="py-2 px-3">
                     {r.login_id
-                      ? <span className="text-gray-800 font-mono text-xs">{r.login_id}</span>
+                      ? <>
+                          <span className="text-gray-800 font-mono text-xs">{r.login_id}</span>
+                          {!r.auth_user_id && (
+                            <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-50 text-amber-700">계정 미발급</span>
+                          )}
+                        </>
                       : <span className="text-gray-300 text-xs">미발급</span>}
                   </td>
                   <td className="py-2 px-3">
@@ -249,10 +260,14 @@ export default function EmployeesPage() {
                   </td>
                   <td className="py-2 px-3 text-right whitespace-nowrap">
                     <button onClick={() => startEdit(r)} className="text-xs px-2 py-1 border border-gray-300 rounded mr-1 hover:bg-gray-50">수정</button>
-                    {r.auth_user_id && (
+                    {r.auth_user_id ? (
                       <button onClick={() => resetPassword(r)} disabled={busy}
                         className="text-xs px-2 py-1 border border-gray-300 rounded mr-1 hover:bg-gray-50">비번</button>
-                    )}
+                    ) : r.login_id ? (
+                      <button onClick={() => resetPassword(r)} disabled={busy}
+                        title="ID는 있으나 로그인 계정이 아직 발급되지 않았습니다"
+                        className="text-xs px-2 py-1 border border-amber-300 text-amber-700 rounded mr-1 hover:bg-amber-50">계정 발급</button>
+                    ) : null}
                     <button disabled={busy}
                       onClick={async () => {
                         const act = r.is_active ? 'deactivate' : 'reactivate'
