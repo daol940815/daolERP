@@ -4,8 +4,9 @@ import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 export const dynamic = 'force-dynamic'
 
-// GET /api/erp-orders?from=&to=&status=&view=&q=&page=&limit=
+// GET /api/erp-orders?from=&to=&status=&view=&q=&page=&limit=&staff=&manager=&channel=
 // view: all(기본) | vip | prepayment — vip/선결제 별도 보기
+// staff: 다올직원(정확 일치) / manager: 담당자(부분 일치) / channel: 상담자(품목, 부분 일치)
 // 페이지네이션 + 필터 전체 범위 요약(주문수/순매출/미수금) 반환
 export async function GET(req: NextRequest) {
   const admin = createAdminClient()
@@ -16,6 +17,11 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get('status')
   const view   = searchParams.get('view') ?? 'all'
   const q      = searchParams.get('q')?.trim()
+  const staff   = searchParams.get('staff')?.trim()
+  const manager = searchParams.get('manager')?.trim()
+  const channel = searchParams.get('channel')?.trim()
+  // 추가 필터가 있으면 요약 RPC(020)가 해당 조건을 모르므로 JS 집계로 폴백
+  const hasExtra = !!(staff || manager || channel)
   const page   = Math.max(parseInt(searchParams.get('page') ?? '1') || 1, 1)
   const limit  = Math.min(Math.max(parseInt(searchParams.get('limit') ?? '100') || 100, 10), 500)
 
@@ -37,31 +43,38 @@ export async function GET(req: NextRequest) {
   let total = 0
   let netSales = 0
   let outstanding = 0
-  const { data: sumRows, error: se } = await admin.rpc('erp_orders_summary', {
-    p_from:   from,
-    p_to:     to,
-    p_status: status && status !== 'all' ? status : null,
-    p_q:      q || null,
-    p_view:   view,
-  })
+  const { data: sumRows, error: se } = hasExtra
+    ? { data: null, error: { code: 'EXTRA_FILTER', message: 'extra filters — JS 집계 사용' } }
+    : await admin.rpc('erp_orders_summary', {
+        p_from:   from,
+        p_to:     to,
+        p_status: status && status !== 'all' ? status : null,
+        p_q:      q || null,
+        p_view:   view,
+      })
   if (!se) {
     const s = Array.isArray(sumRows) ? sumRows[0] : sumRows
     total       = Number(s?.total_count ?? 0)
     netSales    = Number(s?.net_sales ?? 0)
     outstanding = Number(s?.outstanding ?? 0)
-  } else if (se.code === 'PGRST202' || /erp_orders_summary/i.test(se.message)) {
-    // 함수 미적용(020 미실행) 시 기존 방식으로 폴백 — 데이터가 많으면 느릴 수 있음
+  } else if (se.code === 'EXTRA_FILTER' || se.code === 'PGRST202' || /erp_orders_summary/i.test(se.message)) {
+    // 함수 미적용(020 미실행) 또는 추가 필터 사용 시 JS 집계 폴백
     type OrderSumRow = { id: string; total_amount: number | null; outstanding_amount: number | null; collect_status: string }
     const allOrdersResult = await fetchAllRows<OrderSumRow>((pFrom, pTo) => {
       let sq = admin
         .from('erp_orders')
-        .select('id, total_amount, outstanding_amount, collect_status')
+        .select(channel
+          ? 'id, total_amount, outstanding_amount, collect_status, erp_order_items!inner(order_id)'
+          : 'id, total_amount, outstanding_amount, collect_status')
       if (from)                       sq = sq.gte('order_date', from)
       if (to)                         sq = sq.lte('order_date', to)
       if (status && status !== 'all') sq = sq.eq('collect_status', status)
       if (q) sq = sq.or(`order_no.ilike.%${q}%,bank_name.ilike.%${q}%,branch_name.ilike.%${q}%`)
+      if (staff)   sq = sq.eq('staff_name', staff)
+      if (manager) sq = sq.ilike('manager_name', `%${manager}%`)
+      if (channel) sq = sq.ilike('erp_order_items.channel', `%${channel}%`)
       if (viewIds) sq = sq.in('id', viewIds)
-      return sq.range(pFrom, pTo)
+      return sq.range(pFrom, pTo) as unknown as PromiseLike<{ data: OrderSumRow[] | null; error: { message: string } | null }>
     })
     if ('error' in allOrdersResult) return NextResponse.json({ error: allOrdersResult.error }, { status: 500 })
     const allOrders = allOrdersResult.data
@@ -91,11 +104,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: se.message }, { status: 500 })
   }
 
-  // 현재 페이지 주문 조회
+  // 현재 페이지 주문 조회 (상담자 필터는 품목 내부조인으로 처리 — id 목록 URL 폭발 방지)
   const offset = (page - 1) * limit
   let pq = admin
     .from('erp_orders')
-    .select('*')
+    .select(channel ? '*, erp_order_items!inner(order_id)' : '*')
     .order('order_date', { ascending: false })
     .order('order_no')
     .range(offset, offset + limit - 1)
@@ -103,9 +116,13 @@ export async function GET(req: NextRequest) {
   if (to)                         pq = pq.lte('order_date', to)
   if (status && status !== 'all') pq = pq.eq('collect_status', status)
   if (q) pq = pq.or(`order_no.ilike.%${q}%,bank_name.ilike.%${q}%,branch_name.ilike.%${q}%`)
+  if (staff)   pq = pq.eq('staff_name', staff)
+  if (manager) pq = pq.ilike('manager_name', `%${manager}%`)
+  if (channel) pq = pq.ilike('erp_order_items.channel', `%${channel}%`)
   if (viewIds) pq = pq.in('id', viewIds)
 
-  const { data: orders, error } = await pq
+  const { data: orders, error } = await (pq as unknown as PromiseLike<{
+    data: Record<string, unknown>[] | null; error: { message: string } | null }>)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // 조회된 주문들의 품목 일괄 로드
