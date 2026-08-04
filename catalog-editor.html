@@ -376,7 +376,7 @@ body{font-family:var(--f);background:var(--bg);color:var(--tx);height:100vh;disp
 // ============================================================
 // CONSTANTS
 // ============================================================
-const A4W = 794, A4H = 1123;
+const A4W = 836, A4H = 1157; // 221.152 x 306.015mm @96dpi (기존 일러스트 양식 크기)
 const GRID_PRESETS = [{c:1,r:1},{c:1,r:2},{c:2,r:2},{c:2,r:3},{c:2,r:4},{c:3,r:3},{c:3,r:4},{c:4,r:3},{c:4,r:4}];
 
 // 폰트 매핑 (단일 출처 - 편집/PDF/측정 공용)
@@ -390,6 +390,8 @@ const FONT_MAP = {
 };
 const DEFAULT_FONT = "'Pretendard','Apple SD Gothic Neo',sans-serif";
 function resolveFont(el){ return (el && el.fontFamily && FONT_MAP[el.fontFamily]) || DEFAULT_FONT; }
+// 가로 비율(%) — 기본 100(압축 없음). 요소별로 조절.
+function hScaleOf(el){ var v=(el&&el.hScale!=null)?el.hScale:100; return v/100; }
 
 // ============================================================
 // ELEMENT SCHEMA
@@ -533,6 +535,8 @@ let products = [], images = {}, pages = [];
 let curPage = 0, zoom = 1, lmMode = false;
 let selElId = null, selScope = null, selCardIdx = null; // selected element
 let selProductIdx = null; // 붙여넣기/라이브러리 클릭 시 이미지 연결 대상 상품
+let multiSel = []; // 다중 선택된 요소 id 목록 (같은 스코프/카드 내)
+let _suppressClick = false; // 드래그 직후 발생하는 click 무시용
 let addScope = 'header', addElType = null;
 let undoStack = [], redoStack = [];
 let presets = [];
@@ -578,8 +582,9 @@ function buildPriceArrowSVG(text, el, sf) {
   var fam   = resolveFont(el);
   var fs    = el.fontSize * sf;
   var boxW  = el.w * sf;
-  var sx    = calcHorizontalScale(text, boxW-4, fs, fam, el.fontWeight||400);
-  var txtW  = Math.min(Math.round(measureTextWidth(text, fs, fam, el.fontWeight||400)*sx)+4, boxW-4);
+  var sx    = hScaleOf(el);
+  var lsp   = (el.letterSpacing||0)*sf*Math.max(0, text.length-1);
+  var txtW  = Math.min(Math.round(measureTextWidth(text, fs, fam, el.fontWeight||400)*sx + lsp)+4, boxW-4);
   var startX= el.align==='center' ? Math.round((boxW-txtW)/2)
             : el.align==='right'  ? (boxW-txtW-4) : 2;
   var ah    = Math.round(fs*1.3);              // svg 높이
@@ -664,7 +669,7 @@ function resetGrid() { pushUndo(); grid={cols:4,rows:4,margin:52,gap:3,pageBg:'#
 // PAGE MANAGEMENT
 // ============================================================
 function addPage() { pushUndo(); pages.push(newPage()); renderAll(); renderPgPanel(); }
-function goPage(i) { curPage=i; selElId=null; selScope=null; selCardIdx=null; renderAll(); renderPgPanel(); renderPanel(); }
+function goPage(i) { curPage=i; selElId=null; selScope=null; selCardIdx=null; multiSel=[]; renderAll(); renderPgPanel(); renderPanel(); }
 function delPage(i) {
   if(pages.length===1){toast('마지막 페이지 삭제 불가');return;}
   pushUndo(); pages.splice(i,1);
@@ -692,15 +697,15 @@ function toggleLM() {
   lmMode=!lmMode;
   document.getElementById('lm-btn').classList.toggle('on',lmMode);
   document.getElementById('lmbar').classList.toggle('on',lmMode);
-  selElId=null; selScope=null; selCardIdx=null;
+  selElId=null; selScope=null; selCardIdx=null; multiSel=[];
   renderAll(); renderPanel();
-  if(lmMode) toast('요소를 클릭하면 선택됩니다 — 헤더/푸터/카드 모두 편집 가능');
+  if(lmMode) toast('요소 클릭 선택 · Shift+클릭으로 여러 개 선택 후 함께 이동');
 }
 function exitLM() {
   lmMode=false;
   document.getElementById('lm-btn').classList.remove('on');
   document.getElementById('lmbar').classList.remove('on');
-  selElId=null; selScope=null; selCardIdx=null;
+  selElId=null; selScope=null; selCardIdx=null; multiSel=[];
   renderAll(); renderPanel();
 }
 function applyToAll() {
@@ -816,7 +821,7 @@ function buildPel(el, p, pi, scope, cardIdx, cardOffX, cardOffY) {
   const z=zoom;
   const isCard=scope==='card';
   const offX=isCard?cardOffX:0, offY=isCard?cardOffY:0;
-  const isSel=lmMode&&selElId===el.id&&(scope!=='card'||selCardIdx===cardIdx);
+  const isSel=lmMode&&multiSel.indexOf(el.id)>=0&&(scope===selScope)&&(scope!=='card'||selCardIdx===cardIdx);
 
   const div=document.createElement('div');
   div.className='pel'+(lmMode&&!el.locked?' draggable':'')+(isSel?' sel':'');
@@ -870,6 +875,7 @@ function buildPel(el, p, pi, scope, cardIdx, cardOffX, cardOffY) {
     div.style.textDecoration=el.textDecoration||'';
     div.style.background=el.bg||'transparent';
     div.style.lineHeight='1.3';
+    div.style.letterSpacing=((el.letterSpacing||0)*z)+'px';
     div.style.padding='1px 2px';
     div.style.whiteSpace='nowrap';
     div.style.overflow='hidden';
@@ -879,17 +885,11 @@ function buildPel(el, p, pi, scope, cardIdx, cardOffX, cardOffY) {
       div.innerHTML=lines.map(function(l){return '<div>★ '+esc(l)+'</div>';}).join('');
     } else {
       var txt=resolveField(el,p,pi);
-            // 가로 비율 압축: container는 고정, 내부 span에만 scaleX 적용
-      if(txt && el.w > 0) {
-        var fam2 = resolveFont(el);
-        var scaleX = calcHorizontalScale(txt, el.w*z-4, el.fontSize*z, fam2, el.fontWeight||400);
-        if(scaleX < 1) {
-          // container 고정, 내부 span만 압축
-          var origin = el.align==='right'?'right center':el.align==='center'?'center center':'left center';
-          div.innerHTML = '<span style="display:inline-block;white-space:nowrap;transform:scaleX('+scaleX+');transform-origin:'+origin+';line-height:inherit">'+esc(txt)+'</span>';
-        } else {
-          div.textContent = txt;
-        }
+      // 가로 비율: 요소별 hScale(%) 적용 (기본 100 = 압축 없음)
+      var scaleX = hScaleOf(el);
+      if(txt && scaleX!==1) {
+        var origin = el.align==='right'?'right center':el.align==='center'?'center center':'left center';
+        div.innerHTML = '<span style="display:inline-block;white-space:nowrap;transform:scaleX('+scaleX+');transform-origin:'+origin+';line-height:inherit">'+esc(txt)+'</span>';
       } else {
         div.textContent = txt||'';
       }
@@ -898,20 +898,29 @@ function buildPel(el, p, pi, scope, cardIdx, cardOffX, cardOffY) {
 
   if(lmMode&&!el.locked) {
     div.innerHTML+='<div class="po"></div>';
-    if(isSel) {div.innerHTML+='<div class="rh rh-tl" data-dir="tl"></div>'+'<div class="rh rh-tr" data-dir="tr"></div>'+'<div class="rh rh-br" data-dir="br"></div>'+'<div class="rh rh-bl" data-dir="bl"></div>'+'<div class="rh rh-bm" data-dir="bm"></div>'+'<div class="rh rh-mr" data-dir="mr"></div>';}
+    if(isSel && multiSel.length<=1) {div.innerHTML+='<div class="rh rh-tl" data-dir="tl"></div>'+'<div class="rh rh-tr" data-dir="tr"></div>'+'<div class="rh rh-br" data-dir="br"></div>'+'<div class="rh rh-bl" data-dir="bl"></div>'+'<div class="rh rh-bm" data-dir="bm"></div>'+'<div class="rh rh-mr" data-dir="mr"></div>';}
 
     div.addEventListener('click', e=>{
       e.stopPropagation();
-      selElId=el.id; selScope=scope;
-      selCardIdx=(scope==='card'?cardIdx:null);
+      if(_suppressClick){ _suppressClick=false; return; }  // 드래그 직후 click 무시
+      var nCard=(scope==='card'?cardIdx:null);
+      if(e.shiftKey && selScope===scope && (scope!=='card'||selCardIdx===nCard) && multiSel.length){
+        var mi=multiSel.indexOf(el.id);
+        if(mi>=0){ multiSel.splice(mi,1); if(selElId===el.id) selElId=multiSel[multiSel.length-1]||null; }
+        else { multiSel.push(el.id); selElId=el.id; }
+      } else {
+        selScope=scope; selCardIdx=nCard; selElId=el.id; multiSel=[el.id];
+      }
       renderAll(); renderPanel();
     });
     div.addEventListener('mousedown', e=>{
+      _suppressClick=false;
+      if(e.shiftKey) return;  // Shift는 다중선택 토글(클릭에서 처리)
       if(e.target.classList.contains('rh')) startResize(e,el,e.target.dataset.dir,scope,cardIdx,cardOffX,cardOffY);
       else startDrag(e,el,scope,cardIdx,cardOffX,cardOffY);
     });
   } else if(lmMode&&el.locked) {
-    div.addEventListener('click',e=>{ e.stopPropagation(); selElId=el.id; selScope=scope; selCardIdx=(scope==='card'?cardIdx:null); renderAll(); renderPanel(); });
+    div.addEventListener('click',e=>{ e.stopPropagation(); selElId=el.id; selScope=scope; selCardIdx=(scope==='card'?cardIdx:null); multiSel=[el.id]; renderAll(); renderPanel(); });
   }
   return div;
 }
@@ -983,13 +992,27 @@ function applySnap(el, scope, cardIdx){
   if(bestY){ el.y=bestY.ny; guidesY.push(bestY.line); }
   return {guidesX:guidesX, guidesY:guidesY};
 }
+// 다중 선택 대상 컨테이너의 요소 배열
+function containerEls(scope, cardIdx){
+  var pg=pages[curPage];
+  if(scope==='card'){ var c=cardIdx!=null?pg.cards[cardIdx]:null; return c&&c.cardElements?c.cardElements:[]; }
+  return pg.pageElements;
+}
+function getElsByIds(ids, scope, cardIdx){
+  var els=containerEls(scope,cardIdx);
+  return ids.map(function(id){return els.find(function(e){return e.id===id;});}).filter(Boolean);
+}
 
 function startDrag(e,el,scope,cardIdx,offX,offY) {
   e.preventDefault(); e.stopPropagation();
-  selElId=el.id; selScope=scope;
-  if(scope==='card') selCardIdx=cardIdx;
-  const sx=e.clientX, sy=e.clientY, ox=el.x, oy=el.y;
   const isCard=scope==='card';
+  const nCard=isCard?cardIdx:null;
+  // 눌린 요소가 다중선택에 포함되면 그룹 이동, 아니면 단일 선택으로 리셋
+  const isGroup = multiSel.length>1 && multiSel.indexOf(el.id)>=0 && selScope===scope && (!isCard||selCardIdx===nCard);
+  if(!isGroup){ selElId=el.id; selScope=scope; selCardIdx=nCard; multiSel=[el.id]; }
+  const group = isGroup ? getElsByIds(multiSel, scope, nCard) : [el];
+  const starts = group.map(function(g){return {el:g, ox:g.x, oy:g.y};});
+  const sx=e.clientX, sy=e.clientY;
   const preSnap=snapState();  // 드래그 직전 상태 캡처
   let moved=false;
 
@@ -998,27 +1021,27 @@ function startDrag(e,el,scope,cardIdx,offX,offY) {
   const onMove=e2=>{
     const dx=(e2.clientX-sx)/zoom, dy=(e2.clientY-sy)/zoom;
     moved=true;
-    el.x=ox+dx; el.y=oy+dy;
-    clampEl(el,scope);
-    // 스냅 정렬 + 가이드선
     clearGuides();
-    const sg=applySnap(el, scope, isCard?cardIdx:null);
-    clampEl(el,scope);
-    if(a4El){
-      sg.guidesX.forEach(function(gx){ var g=document.createElement('div'); g.className='snapguide'; g.style.cssText='position:absolute;top:0;bottom:0;left:'+(gx*zoom+(isCard?offX:0))+'px;width:1px;background:#F43F5E;z-index:40;pointer-events:none'; a4El.appendChild(g); });
-      sg.guidesY.forEach(function(gy){ var g=document.createElement('div'); g.className='snapguide'; g.style.cssText='position:absolute;left:0;right:0;top:'+(gy*zoom+(isCard?offY:0))+'px;height:1px;background:#F43F5E;z-index:40;pointer-events:none'; a4El.appendChild(g); });
+    starts.forEach(function(s){ s.el.x=s.ox+dx; s.el.y=s.oy+dy; clampEl(s.el,scope); });
+    // 스냅은 단일 이동일 때만 (그룹은 상대 위치 유지)
+    if(group.length===1){
+      const sg=applySnap(el, scope, nCard);
+      clampEl(el,scope);
+      if(a4El){
+        sg.guidesX.forEach(function(gx){ var g=document.createElement('div'); g.className='snapguide'; g.style.cssText='position:absolute;top:0;bottom:0;left:'+(gx*zoom+(isCard?offX:0))+'px;width:1px;background:#F43F5E;z-index:40;pointer-events:none'; a4El.appendChild(g); });
+        sg.guidesY.forEach(function(gy){ var g=document.createElement('div'); g.className='snapguide'; g.style.cssText='position:absolute;left:0;right:0;top:'+(gy*zoom+(isCard?offY:0))+'px;height:1px;background:#F43F5E;z-index:40;pointer-events:none'; a4El.appendChild(g); });
+      }
     }
-    // Live update: card elements position relative to card offset
-    const px=el.x*zoom+(isCard?offX:0);
-    const py=el.y*zoom+(isCard?offY:0);
-    document.querySelectorAll('[data-el-id="'+el.id+'"]').forEach(d=>{
-      d.style.left=px+'px'; d.style.top=py+'px';
+    // Live update: 그룹 각 요소 위치 갱신 (같은 카드 오프셋 공유)
+    group.forEach(function(g){
+      var px=g.x*zoom+(isCard?offX:0), py=g.y*zoom+(isCard?offY:0);
+      document.querySelectorAll('[data-el-id="'+g.id+'"]').forEach(function(d){ d.style.left=px+'px'; d.style.top=py+'px'; });
     });
     renderPanel();
   };
   const onUp=()=>{
     clearGuides();
-    if(moved) commitUndo(preSnap);  // 실제 이동했을 때만 기록
+    if(moved){ _suppressClick=true; commitUndo(preSnap); }  // 실제 이동 시 기록 + 뒤따르는 click 무시
     renderAll(); renderPanel();
     document.removeEventListener('mousemove',onMove);
     document.removeEventListener('mouseup',onUp);
@@ -1079,7 +1102,7 @@ function startResize(e,el,dir,scope,cardIdx,offX,offY) {
 }
 
 function caBgClick(e) {
-  if(e.target.id==='ca'||e.target.classList.contains('a4')) { selElId=null; selScope=null; selCardIdx=null; renderPanel(); }
+  if(e.target.id==='ca'||e.target.classList.contains('a4')) { selElId=null; selScope=null; selCardIdx=null; multiSel=[]; renderAll(); renderPanel(); }
 }
 
 // ============================================================
@@ -1135,6 +1158,7 @@ function confirmAddEl() {
     fillColor: isShape?'transparent':'',
     strokeColor: isShape?'#333333':'',
     strokeW: isShape?1:0,
+    hScale:100, letterSpacing:0,
     objectFit: addElType==='image'?'contain':undefined,
   };
   if(isCard) {
@@ -1257,6 +1281,12 @@ function renderPanel() {
 
   body.innerHTML = '';
   body.appendChild(banner);
+  if(multiSel.length>1){
+    var mban=document.createElement('div'); mban.className='lbanner';
+    mban.style.cssText='background:#EEF2FF;border:1px solid #C7D2FE;color:#3730A3';
+    mban.innerHTML='<strong>🔗 '+multiSel.length+'개 선택됨</strong>드래그·화살표키로 함께 이동 · Shift+클릭으로 추가/해제';
+    body.appendChild(mban);
+  }
   body.appendChild(scopeSection('헤더','header','tag-hd',hdEls,'header'));
   body.appendChild(scopeSection('카드','card','tag-cd',cdEls,'card'));
   body.appendChild(scopeSection('푸터','footer','tag-ft',ftEls,'footer'));
@@ -1363,6 +1393,16 @@ function renderPanel() {
           alignRow.appendChild(btn);
         });
         tDiv.appendChild(alignRow);
+
+        // 자간 / 가로 비율(%)
+        var advRow=document.createElement('div'); advRow.className='pr'; advRow.style.marginTop='3px';
+        var lsLbl=document.createElement('span'); lsLbl.className='pl'; lsLbl.textContent='자간'; lsLbl.title='글자 간격(px)';
+        var lsInp=document.createElement('input'); lsInp.className='pin'; lsInp.type='number'; lsInp.step='0.1'; lsInp.min=-5; lsInp.max=30; lsInp.value=(el.letterSpacing||0);
+        lsInp.addEventListener('change',function(){updateElProp(el.id,'letterSpacing',+this.value);});
+        var hsLbl=document.createElement('span'); hsLbl.className='pl'; hsLbl.textContent='가로%'; hsLbl.style.marginLeft='4px'; hsLbl.title='가로 비율 (100=원본, 낮추면 좁아짐)';
+        var hsInp=document.createElement('input'); hsInp.className='pin'; hsInp.type='number'; hsInp.step='1'; hsInp.min=30; hsInp.max=200; hsInp.value=(el.hScale!=null?el.hScale:100);
+        hsInp.addEventListener('change',function(){updateElProp(el.id,'hScale',+this.value);});
+        advRow.appendChild(lsLbl); advRow.appendChild(lsInp); advRow.appendChild(hsLbl); advRow.appendChild(hsInp); tDiv.appendChild(advRow);
 
         // 내용 / 직접입력 전환
         if(el.field) {
@@ -1477,7 +1517,7 @@ function detachField(elId) {
 
 
 
-function selEl(id,scope,cIdx) { selElId=id; selScope=scope; if(typeof cIdx!=='undefined') selCardIdx=cIdx; renderAll(); renderPanel(); }
+function selEl(id,scope,cIdx) { selElId=id; selScope=scope; if(typeof cIdx!=='undefined') selCardIdx=cIdx; multiSel=[id]; renderAll(); renderPanel(); }
 
 // ============================================================
 // PAGES PANEL
@@ -1908,7 +1948,7 @@ function printPDF() {
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>카탈로그</title>'
     +'<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">'
     +'<style>'
-    +'@page{size:A4;margin:0}'
+    +'@page{size:221.152mm 306.015mm;margin:0}'
     +'*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
     +"body{font-family:'Pretendard','Apple SD Gothic Neo',sans-serif;background:#fff}"
     +'div{box-sizing:border-box}'
@@ -1966,13 +2006,14 @@ function buildPrintPage(pg, pi) {
     // price 필드: 텍스트만 (취소선은 price_arrow에서)
     if(el.field==='price' && txt) {
       var famA=resolveFont(el);
-      var sxA=calcHorizontalScale(txt,el.w-4,el.fontSize,famA,el.fontWeight||400);
+      var sxA=hScaleOf(el);
       var originA=el.align==='right'?'right center':el.align==='center'?'center center':'left center';
       var spanA='<span style="position:relative;z-index:1;display:inline-block;white-space:nowrap;transform:scaleX('+sxA+');transform-origin:'+originA+';line-height:inherit">'+esc(txt)+'</span>';
       return '<div style="position:absolute;left:'+(el.x+offX)+'px;top:'+(el.y+offY)+'px;width:'+el.w+'px;height:'+el.h+'px'
         +';font-size:'+el.fontSize+'px;color:'+(el.color||'#AAAAAA')
         +';font-weight:'+(el.fontWeight||400)
         +';text-align:'+(el.align||'center')
+        +';letter-spacing:'+(el.letterSpacing||0)+'px'
         +';padding:1px 2px;overflow:hidden;white-space:nowrap">'+spanA+'</div>';
     }
 
@@ -1983,15 +2024,16 @@ function buildPrintPage(pg, pi) {
       : esc(txt);
     // Horizontal Scale
     var pfam=resolveFont(el);
-    var pscale=(el.field!=='cfgNotice'&&txt)?calcHorizontalScale(txt,el.w-4,el.fontSize,pfam,el.fontWeight||400):1;
+    var pscale=(el.field!=='cfgNotice')?hScaleOf(el):1;
     var pOrigin=el.align==='right'?'right center':el.align==='center'?'center center':'left center';
-    var innerFinal=pscale<1?('<span style="display:inline-block;white-space:nowrap;transform:scaleX('+pscale+');transform-origin:'+pOrigin+';line-height:inherit">'+inner+'</span>'):inner;
+    var innerFinal=pscale!==1?('<span style="display:inline-block;white-space:nowrap;transform:scaleX('+pscale+');transform-origin:'+pOrigin+';line-height:inherit">'+inner+'</span>'):inner;
     return '<div style="position:absolute;left:'+(el.x+offX)+'px;top:'+(el.y+offY)+'px;width:'+el.w+'px;height:'+el.h+'px'
       +';font-size:'+el.fontSize+'px;color:'+(el.color||'#1a1a1a')
       +';font-weight:'+(el.fontWeight||400)
       +';font-style:'+(el.italic?'italic':'normal')
       +';text-align:'+(el.align||'left')
       +';text-decoration:'+(el.textDecoration||'')
+      +';letter-spacing:'+(el.letterSpacing||0)+'px'
       +';background:'+(el.bg||'transparent')
       +';opacity:'+(el.opacity!=null?el.opacity:1)
       +';padding:1px 2px;overflow:hidden;white-space:nowrap">'+innerFinal+'</div>';
@@ -2010,7 +2052,7 @@ function buildPrintPage(pg, pi) {
     return '<div style="position:absolute;left:'+cx+'px;top:'+cy+'px;width:'+cw+'px;height:'+ch+'px;'+brd+'overflow:hidden">'+els+'</div>';
   }).join('');
 
-  return '<div style="width:210mm;height:297mm;position:relative;overflow:hidden;page-break-after:always;background:'+(G.pageBg||'#ffffff')+'">'+pageEls+cardEls+'</div>';
+  return '<div style="width:221.152mm;height:306.015mm;position:relative;overflow:hidden;page-break-after:always;background:'+(G.pageBg||'#ffffff')+'">'+pageEls+cardEls+'</div>';
 }
 
 
@@ -2054,21 +2096,26 @@ function onKey(e) {
   if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;
   if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();e.shiftKey?doRedo():doUndo();return;}
   if((e.ctrlKey||e.metaKey)&&e.key==='y'){e.preventDefault();doRedo();return;}
-  if(e.key==='Escape'){selElId=null;selScope=null;renderAll();renderPanel();return;}
+  if(e.key==='Escape'){selElId=null;selScope=null;multiSel=[];renderAll();renderPanel();return;}
   if(lmMode&&selElId&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){
     e.preventDefault();
-    const ref=getElRef(selElId);if(!ref)return;
-    const el=ref.el,d=e.shiftKey?5:1;
-    const cw=ref.scope==='card'?CW():A4W, ch=ref.scope==='card'?CH():A4H;
-    pushUndo(); // 변경 직전 상태 저장
-    if(e.key==='ArrowLeft')  el.x=Math.max(0,el.x-d);
-    if(e.key==='ArrowRight') el.x=Math.min(cw-el.w,el.x+d);
-    if(e.key==='ArrowUp')    el.y=Math.max(0,el.y-d);
-    if(e.key==='ArrowDown')  el.y=Math.min(ch-el.h,el.y+d);
-    clampEl(ref.el,ref.scope);
+    var d=e.shiftKey?5:1;
+    var dx=e.key==='ArrowLeft'?-d:e.key==='ArrowRight'?d:0;
+    var dy=e.key==='ArrowUp'?-d:e.key==='ArrowDown'?d:0;
+    var ids=multiSel.length?multiSel:[selElId];
+    pushUndo(); // 변경 직전 상태 저장 (그룹 이동도 1회로 기록)
+    ids.forEach(function(id){
+      var ref=getElRef(id); if(!ref) return;
+      ref.el.x=ref.el.x+dx; ref.el.y=ref.el.y+dy;
+      clampEl(ref.el,ref.scope);
+    });
     renderAll();renderPanel();
   }
-  if(lmMode&&selElId&&(e.key==='Delete'||e.key==='Backspace')) deleteEl(selElId);
+  if(lmMode&&selElId&&(e.key==='Delete'||e.key==='Backspace')){
+    var delIds=multiSel.length?multiSel.slice():[selElId];
+    multiSel=[];
+    delIds.forEach(function(id){ deleteEl(id); });
+  }
 }
 
 // ============================================================
