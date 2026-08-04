@@ -20,8 +20,10 @@ export async function GET(req: NextRequest) {
   const staff   = searchParams.get('staff')?.trim()
   const manager = searchParams.get('manager')?.trim()
   const channel = searchParams.get('channel')?.trim()
+  const item    = searchParams.get('item')?.trim()      // 품명·품번 부분 일치 (품목 내부조인)
+  const needItemJoin = !!(channel || item)
   // 추가 필터가 있으면 요약 RPC(020)가 해당 조건을 모르므로 JS 집계로 폴백
-  const hasExtra = !!(staff || manager || channel)
+  const hasExtra = !!(staff || manager || channel || item)
   const page   = Math.max(parseInt(searchParams.get('page') ?? '1') || 1, 1)
   const limit  = Math.min(Math.max(parseInt(searchParams.get('limit') ?? '100') || 100, 10), 500)
 
@@ -63,7 +65,7 @@ export async function GET(req: NextRequest) {
     const allOrdersResult = await fetchAllRows<OrderSumRow>((pFrom, pTo) => {
       let sq = admin
         .from('erp_orders')
-        .select(channel
+        .select(needItemJoin
           ? 'id, total_amount, outstanding_amount, collect_status, erp_order_items!inner(order_id)'
           : 'id, total_amount, outstanding_amount, collect_status')
       if (from)                       sq = sq.gte('order_date', from)
@@ -73,6 +75,7 @@ export async function GET(req: NextRequest) {
       if (staff)   sq = sq.eq('staff_name', staff)
       if (manager) sq = sq.ilike('manager_name', `%${manager}%`)
       if (channel) sq = sq.ilike('erp_order_items.channel', `%${channel}%`)
+      if (item)    sq = sq.or(`item_name.ilike.%${item}%,item_code.ilike.%${item}%`, { referencedTable: 'erp_order_items' })
       if (viewIds) sq = sq.in('id', viewIds)
       return sq.range(pFrom, pTo) as unknown as PromiseLike<{ data: OrderSumRow[] | null; error: { message: string } | null }>
     })
@@ -108,7 +111,7 @@ export async function GET(req: NextRequest) {
   const offset = (page - 1) * limit
   let pq = admin
     .from('erp_orders')
-    .select(channel ? '*, erp_order_items!inner(order_id)' : '*')
+    .select(needItemJoin ? '*, erp_order_items!inner(order_id)' : '*')
     .order('order_date', { ascending: false })
     .order('order_no')
     .range(offset, offset + limit - 1)
@@ -119,6 +122,7 @@ export async function GET(req: NextRequest) {
   if (staff)   pq = pq.eq('staff_name', staff)
   if (manager) pq = pq.ilike('manager_name', `%${manager}%`)
   if (channel) pq = pq.ilike('erp_order_items.channel', `%${channel}%`)
+  if (item)    pq = pq.or(`item_name.ilike.%${item}%,item_code.ilike.%${item}%`, { referencedTable: 'erp_order_items' })
   if (viewIds) pq = pq.in('id', viewIds)
 
   const { data: orders, error } = await (pq as unknown as PromiseLike<{
