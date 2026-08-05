@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import OrphanedAccountsSection, { type OrphanedGroup } from './_components/OrphanedAccountsSection'
 import { buildVendorLinkStatus } from '@/lib/vendor-link-status'
+import DashboardPeriodFilter from '@/components/dashboard/DashboardPeriodFilter'
 
 // force-dynamic: 정적 렌더링 방지 (빌드 시 캐싱 금지)
 export const dynamic = 'force-dynamic'
@@ -217,7 +218,9 @@ function AccountCard({
 }
 
 // ── 메인 페이지 (서버 컴포넌트) ────────────────────────────
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: {
+  searchParams?: { from?: string; to?: string }
+}) {
   // noStore(): 이 컴포넌트의 fetch 캐시를 완전히 비활성화 (force-dynamic의 보조 수단)
   noStore()
 
@@ -234,6 +237,15 @@ export default async function DashboardPage() {
   })
   const cur  = monthOf(y, m)
   const prev = m === 1 ? monthOf(y - 1, 12) : monthOf(y, m - 1)
+
+  // 기간 설정(?from=&to=): 입출금은 기간 내 합계, 잔액은 기간 종료일 기준
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+  let pFrom = searchParams?.from && DATE_RE.test(searchParams.from) ? searchParams.from : null
+  let pTo   = searchParams?.to   && DATE_RE.test(searchParams.to)   ? searchParams.to   : null
+  if (pFrom && pTo && pFrom > pTo) [pFrom, pTo] = [pTo, pFrom]
+  const hasPeriod = !!(pFrom && pTo)
+  const txStart = hasPeriod ? pFrom! : cur.start
+  const txEnd   = hasPeriod ? pTo!   : cur.end
 
   const todayStr = now.toLocaleDateString('ko-KR', {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
@@ -254,8 +266,8 @@ export default async function DashboardPage() {
     fetchAllRows<{ bank_account_id: string | null; amount_in: number | null; amount_out: number | null; status: string }>(
       (from, to) => admin.from('transactions')
         .select('bank_account_id, amount_in, amount_out, status')
-        .gte('tx_date', cur.start)
-        .lte('tx_date', cur.end)
+        .gte('tx_date', txStart)
+        .lte('tx_date', txEnd)
         .range(from, to),
     ),
 
@@ -298,9 +310,12 @@ export default async function DashboardPage() {
   const linkStatus = await buildVendorLinkStatus(admin)
 
   // 당월 거래가 없으면 전월로 자동 전환 (업로드된 데이터가 전월인 경우 대응)
+  // 기간이 지정되면 그 기간을 그대로 사용 (전월 폴백 없음)
   let monthlyTx = curMonthTx
-  let periodLabel = cur.label
-  if (!monthlyTx.length) {
+  let periodLabel = hasPeriod
+    ? (pFrom === pTo ? pFrom! : `${pFrom} ~ ${pTo}`)
+    : cur.label
+  if (!hasPeriod && !monthlyTx.length) {
     const prevResult = await fetchAllRows<{ bank_account_id: string | null; amount_in: number | null; amount_out: number | null; status: string }>(
       (from, to) => admin.from('transactions')
         .select('bank_account_id, amount_in, amount_out, status')
@@ -315,14 +330,16 @@ export default async function DashboardPage() {
     }
   }
 
-  // 계좌별 최신 잔액 (병렬 조회)
+  // 계좌별 잔액 — 기본은 최신, 기간 지정 시 기간 종료일 이전 마지막 거래의 잔액(기간말 잔액)
   const latestBalances = await Promise.all(
     (accounts ?? []).map(async (acc) => {
-      const { data } = await admin
+      let bq = admin
         .from('transactions')
         .select('balance, tx_date')
         .eq('bank_account_id', acc.id)
         .not('balance', 'is', null)
+      if (hasPeriod) bq = bq.lte('tx_date', pTo!)
+      const { data } = await bq
         // 같은 날 거래는 거래시간으로 순서를 정한다(일괄 업로드는 created_at이 동일).
         .order('tx_date', { ascending: false })
         .order('tx_time', { ascending: false, nullsFirst: false })
@@ -380,10 +397,16 @@ export default async function DashboardPage() {
 
   return (
     <div className="max-w-6xl mx-auto">
-      {/* 헤더 */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">대시보드</h1>
-        <p className="text-slate-500 mt-0.5 text-sm">{todayStr}</p>
+      {/* 헤더 + 기간 필터 */}
+      <div className="mb-6 flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">대시보드</h1>
+          <p className="text-slate-500 mt-0.5 text-sm">
+            {todayStr}
+            {hasPeriod && <span className="ml-2 text-blue-600 font-medium">— {periodLabel} 조회 중 (잔액은 {pTo} 기준)</span>}
+          </p>
+        </div>
+        <DashboardPeriodFilter from={pFrom} to={pTo} />
       </div>
 
       {/* 전체 요약 카드 */}
@@ -409,7 +432,7 @@ export default async function DashboardPage() {
       {/* 전체 자금 요약 */}
       {(accounts ?? []).length > 0 && (
         <>
-          <h2 className="text-sm font-semibold text-slate-700 mb-3">전체 자금 요약</h2>
+          <h2 className="text-sm font-semibold text-slate-700 mb-3">전체 자금 요약{hasPeriod ? ` (${pTo} 기준)` : ''}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-8">
             <Link href="/reports/cash-position" className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow">
               <p className="text-xs text-slate-400 mb-1">보유 현금</p>
@@ -436,7 +459,7 @@ export default async function DashboardPage() {
       )}
 
       {/* 계좌별 현황 */}
-      <h2 className="text-sm font-semibold text-slate-700 mb-3">계좌별 현황</h2>
+      <h2 className="text-sm font-semibold text-slate-700 mb-3">계좌별 현황{hasPeriod ? ` — ${periodLabel} 입출금 · 잔액 ${pTo} 기준` : ''}</h2>
 
       {(accounts ?? []).length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-sm">
