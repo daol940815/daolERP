@@ -1,9 +1,11 @@
 'use client'
 
-// 주문 관리 모드 사이드바 — 회계·경영 모드(Sidebar.tsx)와 동일한 구조·팔레트
+// 직원 워크스페이스 사이드바 (B안: 단일 워크스페이스) — 회계·경영 모드(Sidebar.tsx)와
+// 동일한 구조·팔레트. 내 대시보드 / 주문 / 근태·휴가 / 내 영업일지를 한 곳에서 잇는다.
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import type { UserRole } from '@/lib/user-role'
 import CheckWidget from './check-widget'
 
 const MENUS = [
@@ -13,8 +15,8 @@ const MENUS = [
   { href: '/orders/delivery', label: '배송 관리', ready: false },
 ]
 
-export default function OrdersSidebar({ name, roleLabel, isAdmin }: {
-  name: string; roleLabel: string; isAdmin: boolean
+export default function OrdersSidebar({ name, roleLabel, role }: {
+  name: string; roleLabel: string; role: UserRole
 }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -35,11 +37,23 @@ export default function OrdersSidebar({ name, roleLabel, isAdmin }: {
     <aside className="w-64 bg-slate-900 flex flex-col shrink-0">
       {/* 로고 영역 — 회계 모드와 동일 배치 */}
       <div className="px-6 py-5 border-b border-slate-700">
-        <h1 className="text-white font-bold text-lg tracking-tight">다올 주문관리</h1>
+        <h1 className="text-white font-bold text-lg tracking-tight">다올 워크스페이스</h1>
         <p className="text-slate-400 text-xs mt-0.5">{name} · {roleLabel}</p>
       </div>
 
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
+        <div className="mb-5">
+          <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
+            내 업무
+          </p>
+          <Link href="/me" className={linkCls(pathname === '/me')}>
+            <span>내 대시보드</span>
+          </Link>
+          <Link href="/me/journal" className={linkCls(pathname === '/me/journal')}>
+            <span>내 영업일지</span>
+          </Link>
+        </div>
+
         <div className="mb-5">
           <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
             주문 관리
@@ -61,27 +75,33 @@ export default function OrdersSidebar({ name, roleLabel, isAdmin }: {
 
         <div className="mb-5">
           <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
-            근태
+            근태 · 휴가
           </p>
           <CheckWidget />
           <Link href="/hr/attendance" className={linkCls(false)}>
-            <span>내 근태 (직원 관리 모드)</span>
+            <span>근태 · 휴가</span>
           </Link>
-        </div>
-
-        <div className="mb-5">
-          <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
-            모드
-          </p>
-          <Link href="/portal" className={linkCls(false)}>
-            <span>모드 선택</span>
-          </Link>
-          {isAdmin && (
-            <Link href="/" className={linkCls(false)}>
-              <span>회계·경영 모드로 이동</span>
+          {role !== 'sales' && (
+            <Link href="/hr/approvals" className={linkCls(false)}>
+              <span>휴가 승인</span>
             </Link>
           )}
         </div>
+
+        {/* 모드 선택은 admin 전용 — 일반 직원·중간 관리자는 워크스페이스가 유일한 홈 */}
+        {role === 'admin' && (
+          <div className="mb-5">
+            <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
+              모드
+            </p>
+            <Link href="/portal" className={linkCls(false)}>
+              <span>모드 선택</span>
+            </Link>
+            <Link href="/" className={linkCls(false)}>
+              <span>회계·경영 모드로 이동</span>
+            </Link>
+          </div>
+        )}
       </nav>
 
       {/* 하단 로그아웃 — 회계 모드와 동일 */}

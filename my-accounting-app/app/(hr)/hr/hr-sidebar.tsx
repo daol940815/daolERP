@@ -54,16 +54,18 @@ export default function HrSidebar({ name, roleLabel, role }: {
           <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
             모드
           </p>
-          <Link href="/portal" className={linkCls(false)}>
-            <span>모드 선택</span>
-          </Link>
-          <Link href="/orders" className={linkCls(false)}>
-            <span>주문 관리 모드로 이동</span>
+          <Link href="/me" className={linkCls(false)}>
+            <span>내 워크스페이스로 이동</span>
           </Link>
           {role === 'admin' && (
-            <Link href="/" className={linkCls(false)}>
-              <span>회계·경영 모드로 이동</span>
-            </Link>
+            <>
+              <Link href="/portal" className={linkCls(false)}>
+                <span>모드 선택</span>
+              </Link>
+              <Link href="/" className={linkCls(false)}>
+                <span>회계·경영 모드로 이동</span>
+              </Link>
+            </>
           )}
         </div>
       </nav>
