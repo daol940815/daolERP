@@ -91,15 +91,24 @@ export async function buildVatEstimate(
   if ('error' in purchaseReceipts) return { error: purchaseReceipts.error }
 
   // 카드매출 (승인/취소 합산, 취소는 음수)
-  const cardSales = await fetchAllRows<TaxRow>((rFrom, rTo) =>
+  // 원본이 건별 공급가액/세액을 구분 제공 — 면세 건은 세액 0이라 자동 제외된다.
+  // 공급가·세액이 모두 0인데 승인금액이 있는 건은 구분 미기재(원자료 누락)로 별도 표시.
+  const cardSales = await fetchAllRows<{ amount: number | null; supply_amount: number | null; tax_amount: number | null }>((rFrom, rTo) =>
     admin
       .from('card_sales')
-      .select('tax_amount')
+      .select('amount, supply_amount, tax_amount')
       .gte('tx_date', from)
       .lte('tx_date', to)
       .range(rFrom, rTo),
   )
   if ('error' in cardSales) return { error: cardSales.error }
+  let cardTaxableSupply = 0, cardFreeAmount = 0, cardMissingCount = 0, cardMissingAmount = 0
+  for (const r of cardSales.data) {
+    const amt = r.amount || 0, sup = r.supply_amount || 0, tax = r.tax_amount || 0
+    if (tax !== 0) cardTaxableSupply += sup
+    else if (sup === 0 && amt !== 0) { cardMissingCount += 1; cardMissingAmount += amt }
+    else cardFreeAmount += sup
+  }
 
   // 법인카드 사용분 매입세액 (공제분만 — 파일 상단 규칙 참조)
   const cardExpensesResult = await fetchAllRows<{ tax_amount: number | null; confirmed_account_id: string | null; statement_status: string | null; classify_status: string }>((rFrom, rTo) =>
@@ -144,7 +153,11 @@ export async function buildVatEstimate(
       sales_breakdown: [
         { label: '세금계산서(매출)', amount: salesInvoiceTax },
         { label: '현금영수증(발행)', amount: salesReceiptTax },
-        { label: '카드매출', amount: cardSalesTax },
+        {
+          label: `카드매출 (과세 공급가 ${cardTaxableSupply.toLocaleString('ko-KR')}원 · 면세 ${cardFreeAmount.toLocaleString('ko-KR')}원 세액 제외${
+            cardMissingCount ? ` · 구분 미기재 ${cardMissingCount}건 ${cardMissingAmount.toLocaleString('ko-KR')}원 — 확인 필요` : ''}`,
+          amount: cardSalesTax,
+        },
       ],
       purchase_breakdown: [
         { label: '세금계산서(매입)', amount: purchaseInvoiceTax },
