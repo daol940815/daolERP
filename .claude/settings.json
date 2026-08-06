@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -n --rawfile t \"${CLAUDE_PROJECT_DIR:-.}/.claude/compact-preserve.md\" '{hookSpecificOutput:{hookEventName:\"PreCompact\",additionalContext:$t},systemMessage:\"압축 전 보존 지침을 적용했습니다 (결정·미결·검증 이력 보존)\"}'",
+            "timeout": 15,
+            "statusMessage": "압축 보존 지침 주입 중"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -n --rawfile t \"${CLAUDE_PROJECT_DIR:-.}/.claude/compact-followup.md\" '{hookSpecificOutput:{hookEventName:\"PostCompact\",additionalContext:$t},systemMessage:\"압축 완료 — 미기록 결정사항이 있으면 docs에 저장하도록 안내했습니다\"}'",
+            "timeout": 15,
+            "statusMessage": "압축 후 기록 루틴 안내 중"
+          }
+        ]
+      }
+    ]
+  }
+}
