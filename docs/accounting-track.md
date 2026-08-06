@@ -50,6 +50,12 @@
 6. 부가세 마이그레이션 106 실행 확인 + 신고기간별 수동 항목 입력.
 7. 현금 매출 데이터 원천 논의(현재 수동) — 원천 확정 시 자동 집계 전환.
 
+### 미결 현황 점검 스크립트
+
+- `my-accounting-app/supabase/checks/400_accounting_pending_check.sql` (읽기 전용):
+  미결 1·4·5·6번의 DB 현황을 한 번에 점검. Supabase SQL 편집기에서 블록별 실행 후
+  결과를 회계 세션에 전달하면 후속 작업(확정 범위 결정·보정 드라이런)으로 진행.
+
 ## 자주 쓰는 코드 위치
 
 - 분류: `app/(dashboard)/bank-classify`, 확정 API `app/api/transactions/confirm`(청크)
