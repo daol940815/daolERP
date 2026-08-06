@@ -9,502 +9,198 @@
 <title>재고 관리 앱</title>
 <style>
   :root {
-    --bg: #f0f2f5;
-    --surface: #ffffff;
-    --border: #d0d5dd;
-    --border-light: #e4e7ec;
-    --text-primary: #101828;
-    --text-secondary: #475467;
-    --text-muted: #98a2b3;
-
-    --pallet-bg: #dbeafe;
-    --pallet-head: #1d4ed8;
-    --pallet-sub: #eff6ff;
-    --box-bg: #d1fae5;
-    --box-head: #065f46;
-    --box-sub: #f0fdf4;
-    --loose-bg: #fef3c7;
-    --loose-head: #92400e;
-    --loose-sub: #fffbeb;
-
-    --calc-bg: #f8fafc;
-    --error: #fee2e2;
-    --error-border: #ef4444;
-
-    --btn-primary: #1d4ed8;
-    --btn-danger: #dc2626;
-    --btn-success: #16a34a;
-    --btn-neutral: #475467;
-
-    --font: 'Pretendard', 'Apple SD Gothic Neo', 'Nanum Gothic', sans-serif;
-    --radius: 8px;
-    --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
-    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+    --bg:#f0f2f5; --surface:#fff; --border:#d0d5dd; --border-light:#e4e7ec;
+    --text-primary:#101828; --text-secondary:#475467; --text-muted:#98a2b3;
+    --pallet-bg:#dbeafe; --pallet-head:#1d4ed8; --pallet-sub:#eff6ff;
+    --box-bg:#d1fae5; --box-head:#065f46; --box-sub:#f0fdf4;
+    --loose-bg:#fef3c7; --loose-head:#92400e; --loose-sub:#fffbeb;
+    --calc-bg:#f8fafc; --error:#fee2e2;
+    --btn-primary:#1d4ed8; --btn-danger:#dc2626; --btn-success:#16a34a;
+    --font:'Pretendard','Apple SD Gothic Neo','Nanum Gothic',sans-serif;
+    --radius:8px; --shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
+    --shadow-md:0 4px 6px -1px rgba(0,0,0,.1),0 2px 4px -1px rgba(0,0,0,.06);
   }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{width:100%;height:100%;font-family:var(--font);background:var(--bg);color:var(--text-primary);font-size:13px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;position:fixed;overflow:hidden;}
+  body{display:flex;flex-direction:column;}
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  .app-header{background:linear-gradient(135deg,var(--btn-primary),#1e40af);color:#fff;padding:12px 16px;flex-shrink:0;box-shadow:var(--shadow-md);z-index:100;}
+  .header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;}
+  .app-title{font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px;}
+  .header-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .ctrl-group{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.15);padding:6px 10px;border-radius:6px;}
+  label.ctrl-label{font-size:11px;font-weight:500;white-space:nowrap;opacity:.9;}
+  input[type="date"],select.ctrl-select{border:1px solid rgba(255,255,255,.3);border-radius:4px;padding:6px 8px;font-size:12px;font-family:var(--font);background:rgba(255,255,255,.1);color:#fff;outline:none;}
+  select.ctrl-select option{color:#101828;}
+  input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1);}
 
-  html, body {
-    width: 100%;
-    height: 100%;
-    font-family: var(--font);
-    background: var(--bg);
-    color: var(--text-primary);
-    font-size: 13px;
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
-    position: fixed;
-    overflow: hidden;
-  }
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:8px 14px;border-radius:var(--radius);border:none;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;transition:all .15s;white-space:nowrap;}
+  .btn:active{transform:scale(.95);}
+  .btn-primary{background:var(--btn-primary);color:#fff;} .btn-primary:hover{background:#1e40af;}
+  .btn-white{background:#fff;color:var(--btn-primary);font-weight:600;} .btn-white:hover{background:#f0f4ff;}
+  .btn-danger{background:var(--btn-danger);color:#fff;} .btn-danger:hover{background:#b91c1c;}
+  .btn-ghost{background:rgba(255,255,255,.15);color:#fff;} .btn-ghost:hover{background:rgba(255,255,255,.28);}
 
-  body { display: flex; flex-direction: column; }
+  .conn-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:20px;background:rgba(255,255,255,.15);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .conn-dot{width:8px;height:8px;border-radius:50%;background:#9ca3af;}
+  .conn-dot.online{background:#22c55e;animation:pulse 2s infinite;}
+  .conn-dot.connecting{background:#f59e0b;animation:pulse 1s infinite;}
+  .conn-dot.error{background:#ef4444;} .conn-dot.local{background:#9ca3af;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.5);}70%{box-shadow:0 0 0 6px rgba(34,197,94,0);}100%{box-shadow:0 0 0 0 rgba(34,197,94,0);}}
 
-  .app-header {
-    background: linear-gradient(135deg, var(--btn-primary) 0%, #1e40af 100%);
-    color: white;
-    padding: 12px 16px;
-    flex-shrink: 0;
-    box-shadow: var(--shadow-md);
-    z-index: 100;
-  }
+  .main-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;}
 
-  .header-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 10px;
-    gap: 8px;
-  }
+  /* ===== 탭 바 (변형 A: 엑셀 시트/폴더) ===== */
+  .tab-bar{display:flex;align-items:flex-end;gap:4px;padding-left:2px;max-width:1600px;margin:0 auto;overflow-x:auto;}
+  .tab-item{padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;background:#e2e8f0;color:#64748b;border:1px solid var(--border);border-bottom:none;border-radius:8px 8px 0 0;position:relative;top:1px;white-space:nowrap;display:flex;align-items:center;gap:7px;}
+  .tab-item.active{background:#fff;color:#1d4ed8;box-shadow:0 -2px 4px rgba(0,0,0,.04);}
+  .tab-item.active::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:#fff;}
+  .tab-item .tab-x{color:#cbd5e1;font-weight:700;font-size:13px;}
+  .tab-item.active .tab-x{color:#94a3b8;}
+  .tab-item .tab-x:hover{color:var(--btn-danger);}
+  .tab-add{padding:9px 14px;font-size:14px;font-weight:800;color:#1d4ed8;background:none;border:none;cursor:pointer;align-self:center;flex-shrink:0;}
 
-  .app-title {
-    font-size: 18px;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .header-controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .ctrl-group {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(255,255,255,0.15);
-    padding: 6px 10px;
-    border-radius: 6px;
-  }
-
-  label.ctrl-label {
-    font-size: 11px;
-    font-weight: 500;
-    white-space: nowrap;
-    opacity: 0.9;
-  }
-
-  input[type="date"],
-  select.ctrl-select {
-    border: 1px solid rgba(255,255,255,0.3);
-    border-radius: 4px;
-    padding: 6px 8px;
-    font-size: 12px;
-    font-family: var(--font);
-    background: rgba(255,255,255,0.1);
-    color: white;
-    outline: none;
-  }
-
-  select.ctrl-select option { color: #101828; }
-
-  input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
-
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    padding: 8px 14px;
-    border-radius: var(--radius);
-    border: none;
-    font-size: 12px;
-    font-weight: 600;
-    font-family: var(--font);
-    cursor: pointer;
-    transition: all .15s;
-    white-space: nowrap;
-  }
-
-  .btn:active { transform: scale(0.95); }
-  .btn-primary { background: var(--btn-primary); color: white; }
-  .btn-primary:hover { background: #1e40af; }
-  .btn-white { background: white; color: var(--btn-primary); font-weight: 600; }
-  .btn-white:hover { background: #f0f4ff; }
-  .btn-danger { background: var(--btn-danger); color: white; }
-  .btn-danger:hover { background: #b91c1c; }
-  .btn-ghost { background: rgba(255,255,255,0.15); color: white; }
-  .btn-ghost:hover { background: rgba(255,255,255,0.28); }
-
-  .conn-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 10px;
-    border-radius: 20px;
-    background: rgba(255,255,255,0.15);
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; }
-  .conn-dot.online { background: #22c55e; animation: pulse 2s infinite; }
-  .conn-dot.connecting { background: #f59e0b; animation: pulse 1s infinite; }
-  .conn-dot.error { background: #ef4444; }
-  .conn-dot.local { background: #9ca3af; }
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
-    70% { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
-    100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
-  }
-
-  .main-content {
-    flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 12px;
-  }
-
-  .table-wrapper {
-    background: var(--surface);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-md);
-    overflow: hidden;
-    border: 1px solid var(--border);
-    max-width: 1600px;
-    margin: 0 auto;
-  }
-
-  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-
-  table { border-collapse: collapse; width: 100%; min-width: 980px; }
-
-  th, td {
-    border: 1px solid var(--border-light);
-    padding: 0;
-    text-align: center;
-    vertical-align: middle;
-  }
-
-  thead th {
-    font-weight: 700;
-    font-size: 11px;
-    white-space: nowrap;
-    padding: 8px 4px;
-    position: sticky;
-    top: 0;
-  }
-
-  .th-group { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; color: white; padding: 6px 8px; }
-  .th-pallet { background: var(--pallet-head); }
-  .th-box { background: var(--box-head); }
-  .th-loose { background: var(--loose-head); }
-  .th-product { background: #1e293b; color: white; }
-
-  .sub-pallet { background: var(--pallet-bg); color: var(--pallet-head); font-size: 10px; }
-  .sub-box { background: var(--box-bg); color: var(--box-head); font-size: 10px; }
-  .sub-loose { background: var(--loose-bg); color: var(--loose-head); font-size: 10px; }
-
-  .col-name {
-    position: sticky;
-    left: 0;
-    z-index: 10;
-    background: var(--surface);
-    min-width: 90px;
-    max-width: 110px;
-    font-weight: 600;
-    text-align: left;
-    padding: 8px 10px;
-    font-size: 12px;
-    border-right: 2px solid var(--border);
-  }
-
-  thead .col-name { background: #1e293b; color: white; z-index: 20; }
-
-  .product-btn {
-    background: none;
-    border: none;
-    color: var(--btn-primary);
-    font-weight: 600;
-    cursor: pointer;
-    padding: 0;
-    font-size: 12px;
-    text-decoration: underline;
-    font-family: var(--font);
-  }
-  .product-btn:active { opacity: 0.7; }
-
-  tbody tr:nth-child(even) td { background: #fafbfc; }
-  tbody tr:nth-child(even) td.col-name { background: #f8fafc; }
-  tbody tr:hover td { background: #f0f4ff; }
-  tbody tr:hover td.col-name { background: #e8eef8; }
-
-  td.calc { background: var(--calc-bg); font-weight: 600; color: var(--text-secondary); font-size: 12px; padding: 6px 4px; }
-  td.calc-pallet { background: var(--pallet-sub); color: var(--pallet-head); }
-  td.calc-box { background: var(--box-sub); color: var(--box-head); }
-  td.calc-loose { background: var(--loose-sub); color: var(--loose-head); }
-  td.calc-std { background: #f1f5f9; color: #475467; font-size: 11px; }
-  td.calc-total { background: #ede9fe; color: #5b21b6; font-weight: 700; }
-
-  .foot-pallet { background: var(--pallet-sub); color: var(--pallet-head); font-weight: 700; padding: 8px; }
-  .foot-box { background: var(--box-sub); color: var(--box-head); font-weight: 700; padding: 8px; }
-  .foot-loose { background: var(--loose-sub); color: var(--loose-head); font-weight: 700; padding: 8px; }
-  .foot-total { background: #ede9fe; color: #5b21b6; font-weight: 700; padding: 8px; }
-  .foot-std { background: #f1f5f9; color: #475467; font-weight: 600; padding: 8px; }
+  .table-wrapper{background:var(--surface);border-radius:0 8px 8px 8px;box-shadow:var(--shadow-md);overflow:hidden;border:1px solid var(--border);max-width:1600px;margin:0 auto;}
+  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  table{border-collapse:collapse;width:100%;}
+  table.t-inventory{min-width:980px;} table.t-simple{min-width:520px;}
+  th,td{border:1px solid var(--border-light);padding:0;text-align:center;vertical-align:middle;}
+  thead th{font-weight:700;font-size:11px;white-space:nowrap;padding:8px 4px;position:sticky;top:0;}
+  .th-pallet{background:var(--pallet-head);color:#fff;} .th-box{background:var(--box-head);color:#fff;} .th-loose{background:var(--loose-head);color:#fff;} .th-product{background:#1e293b;color:#fff;}
+  .sub-pallet{background:var(--pallet-bg);color:var(--pallet-head);font-size:10px;} .sub-box{background:var(--box-bg);color:var(--box-head);font-size:10px;} .sub-loose{background:var(--loose-bg);color:var(--loose-head);font-size:10px;}
+  .col-name{position:sticky;left:0;z-index:10;background:var(--surface);min-width:90px;max-width:150px;font-weight:600;text-align:left;padding:8px 10px;font-size:12px;border-right:2px solid var(--border);}
+  thead .col-name{background:#1e293b;color:#fff;z-index:20;}
+  .product-btn{background:none;border:none;color:var(--btn-primary);font-weight:600;cursor:pointer;padding:0;font-size:12px;text-decoration:underline;font-family:var(--font);text-align:left;}
+  .product-btn:active{opacity:.7;}
+  tbody tr:nth-child(even) td{background:#fafbfc;} tbody tr:nth-child(even) td.col-name{background:#f8fafc;}
+  tbody tr:hover td{background:#f0f4ff;} tbody tr:hover td.col-name{background:#e8eef8;}
+  td.calc{background:var(--calc-bg);font-weight:600;color:var(--text-secondary);font-size:12px;padding:6px 4px;}
+  td.calc-pallet{background:var(--pallet-sub);color:var(--pallet-head);} td.calc-box{background:var(--box-sub);color:var(--box-head);} td.calc-loose{background:var(--loose-sub);color:var(--loose-head);}
+  td.calc-std{background:#f1f5f9;color:#475467;font-size:11px;} td.calc-total{background:#ede9fe;color:#5b21b6;font-weight:700;}
+  td.qty-cell{background:#eff6ff;color:#1d4ed8;font-weight:700;font-size:13px;padding:7px 6px;}
+  td.note-cell{text-align:left;padding:6px 10px;color:#667085;font-size:11px;max-width:260px;}
+  td.no-cell{color:var(--text-muted);font-size:11px;width:42px;}
+  .foot-pallet{background:var(--pallet-sub);color:var(--pallet-head);font-weight:700;padding:8px;} .foot-box{background:var(--box-sub);color:var(--box-head);font-weight:700;padding:8px;}
+  .foot-loose{background:var(--loose-sub);color:var(--loose-head);font-weight:700;padding:8px;} .foot-total{background:#ede9fe;color:#5b21b6;font-weight:700;padding:8px;} .foot-std{background:#f1f5f9;color:#475467;font-weight:600;padding:8px;}
 
   /* ===== 모달 ===== */
-  .modal-overlay {
-    display: none;
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 500;
-  }
-  .modal-overlay.active { display: flex; align-items: flex-end; justify-content: center; }
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;}
+  .modal-overlay.active{display:flex;align-items:flex-end;justify-content:center;}
+  .modal-content{background:var(--surface);width:100%;max-width:560px;border-radius:12px 12px 0 0;padding:20px;max-height:88vh;overflow-y:auto;animation:slideUp .3s;}
+  @media(min-width:640px){.modal-overlay.active{align-items:center;}.modal-content{border-radius:12px;}}
+  @keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
+  .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-bottom:12px;border-bottom:2px solid var(--border);}
+  .modal-title{font-size:18px;font-weight:700;color:var(--btn-primary);}
+  .modal-close-btn{background:none;border:none;font-size:28px;color:var(--text-muted);cursor:pointer;width:40px;height:40px;display:flex;align-items:center;justify-content:center;}
+  .modal-section-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#fff;padding:10px 14px;margin:16px 0 12px;border-radius:var(--radius);}
+  .modal-section-title.pallet{background:var(--pallet-head);} .modal-section-title.box{background:var(--box-head);} .modal-section-title.loose{background:var(--loose-head);}
+  .input-wrapper{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+  .input-field{display:flex;flex-direction:column;gap:6px;}
+  .input-field label{font-size:12px;color:var(--text-muted);font-weight:600;}
+  .input-field input,.input-field textarea{border:1px solid var(--border);border-radius:6px;padding:12px;font-size:14px;font-family:var(--font);background:#fff;color:var(--text-primary);outline:none;transition:border-color .15s,box-shadow .15s;}
+  .input-field input:focus,.input-field textarea:focus{border-color:var(--btn-primary);box-shadow:0 0 0 3px rgba(29,78,216,.1);}
+  .calc-display{background:var(--calc-bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-top:12px;}
+  .calc-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;font-size:13px;}
+  .calc-row .label{color:var(--text-secondary);font-weight:500;} .calc-row .value{font-weight:700;color:var(--btn-primary);font-size:14px;}
+  .modal-footer{display:flex;gap:10px;margin-top:24px;padding-top:16px;border-top:1px solid var(--border);}
+  .modal-footer .btn{flex:1;}
 
-  .modal-content {
-    background: var(--surface);
-    width: 100%;
-    max-width: 560px;
-    border-radius: 12px 12px 0 0;
-    padding: 20px;
-    max-height: 88vh;
-    overflow-y: auto;
-    animation: slideUp .3s;
-  }
+  .field-block{margin-bottom:16px;}
+  .field-block>label{display:block;font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:6px;}
+  .field-block input.text-input{width:100%;border:1px solid var(--border);border-radius:6px;padding:11px 12px;font-size:14px;font-family:var(--font);background:#fff;color:var(--text-primary);outline:none;}
+  .field-block input.text-input:focus{border-color:var(--btn-primary);box-shadow:0 0 0 3px rgba(29,78,216,.1);}
+  .field-hint{font-size:11px;color:var(--text-muted);margin-top:5px;line-height:1.5;}
+  .info-box{background:#eff6ff;border:1px solid #bfdbfe;border-radius:var(--radius);padding:12px 14px;font-size:12px;color:#1e40af;line-height:1.6;margin-bottom:16px;}
+  .info-box code{background:rgba(29,78,216,.1);padding:1px 5px;border-radius:4px;font-size:11px;word-break:break-all;}
+  .info-box a{color:#1d4ed8;font-weight:700;}
+  details.setup-guide{margin-bottom:16px;}
+  details.setup-guide summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--btn-primary);padding:8px 0;}
+  details.setup-guide ol{margin:8px 0 0 18px;font-size:12px;line-height:1.8;color:var(--text-secondary);}
+  details.setup-guide pre{background:#0f172a;color:#e2e8f0;padding:12px;border-radius:6px;font-size:11px;overflow-x:auto;margin:8px 0;white-space:pre;line-height:1.5;}
 
-  @media (min-width: 640px) {
-    .modal-overlay.active { align-items: center; }
-    .modal-content { border-radius: 12px; }
-  }
+  .unit-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .unit-table th,.unit-table td{border:1px solid var(--border-light);padding:6px;text-align:center;}
+  .unit-table th{background:#f1f5f9;font-size:11px;color:var(--text-secondary);}
+  .unit-table td.name-cell{text-align:left;}
+  .unit-table input{width:100%;border:1px solid var(--border);border-radius:5px;padding:8px 6px;font-size:13px;font-family:var(--font);outline:none;text-align:center;}
+  .unit-table input.name-input{text-align:left;}
+  .unit-table input:focus{border-color:var(--btn-primary);box-shadow:0 0 0 2px rgba(29,78,216,.1);}
+  .row-del-btn{background:var(--error);color:var(--btn-danger);border:none;border-radius:5px;width:28px;height:28px;font-size:16px;font-weight:700;cursor:pointer;line-height:1;}
 
-  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .log-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;}
+  .log-filter{font-size:12px;color:var(--text-secondary);}
+  .log-slot-select{border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-family:var(--font);font-size:12px;color:var(--text-primary);background:#fff;}
+  .log-list{display:flex;flex-direction:column;gap:8px;}
+  .log-empty{text-align:center;color:var(--text-muted);padding:30px 0;font-size:13px;}
+  .log-item{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--border-light);border-radius:var(--radius);background:var(--calc-bg);}
+  .log-item.reset{background:#fff7ed;border-color:#fed7aa;}
+  .slot-badge{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;vertical-align:middle;}
+  .slot-badge.slot-am{background:#dbeafe;color:#1d4ed8;} .slot-badge.slot-pm{background:#fef3c7;color:#92400e;}
+  .log-time{font-size:11px;color:var(--text-muted);white-space:nowrap;min-width:78px;font-weight:600;line-height:1.7;}
+  .log-body{flex:1;font-size:13px;line-height:1.6;}
+  .log-body .prod{font-weight:700;color:var(--text-primary);}
+  .log-total{color:var(--text-secondary);} .log-total b{color:var(--btn-primary);}
+  .log-detail{margin-top:4px;font-size:11px;color:var(--text-secondary);}
+  .log-detail .chg{display:inline-block;background:#eef2ff;color:#3730a3;padding:1px 6px;border-radius:10px;margin:2px 4px 0 0;}
+  .log-date{font-size:10px;color:var(--text-muted);}
 
-  .modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
-    padding-bottom: 12px;
-    border-bottom: 2px solid var(--border);
-  }
-  .modal-title { font-size: 18px; font-weight: 700; color: var(--btn-primary); }
-  .modal-close-btn {
-    background: none; border: none; font-size: 28px; color: var(--text-muted);
-    cursor: pointer; padding: 0; width: 40px; height: 40px;
-    display: flex; align-items: center; justify-content: center;
-  }
+  .diff-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;}
+  .diff-controls .fld{display:flex;flex-direction:column;gap:4px;}
+  .diff-controls label{font-size:11px;color:var(--text-secondary);font-weight:700;}
+  .diff-controls input[type="date"]{border:1px solid var(--border);border-radius:6px;padding:9px 10px;font-family:var(--font);font-size:13px;color:var(--text-primary);background:#fff;outline:none;}
+  .diff-controls input[type="date"]::-webkit-calendar-picker-indicator{filter:none;}
+  .diff-slot-select{border:1px solid var(--border);border-radius:6px;padding:9px 8px;font-family:var(--font);font-size:13px;color:var(--text-primary);background:#fff;}
+  .diff-summary{background:var(--calc-bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;font-size:13px;line-height:1.6;}
+  .diff-summary b{font-size:15px;}
+  .diff-missing{color:var(--btn-danger);font-size:12px;margin-bottom:8px;}
+  .diff-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .diff-table th,.diff-table td{border:1px solid var(--border-light);padding:8px 6px;text-align:center;white-space:nowrap;}
+  .diff-table th{background:#f1f5f9;font-size:11px;color:var(--text-secondary);position:sticky;top:0;}
+  .diff-table td.name{text-align:left;font-weight:600;}
+  .diff-up{color:#1d4ed8;font-weight:700;} .diff-down{color:#dc2626;font-weight:700;} .diff-zero{color:var(--text-muted);}
+  .diff-total-row td{background:#ede9fe;color:#5b21b6;font-weight:700;}
 
-  .modal-section-title {
-    display: flex; align-items: center; gap: 8px;
-    font-size: 13px; font-weight: 700; color: white;
-    padding: 10px 14px; margin: 16px 0 12px 0; border-radius: var(--radius);
-  }
-  .modal-section-title.pallet { background: var(--pallet-head); }
-  .modal-section-title.box { background: var(--box-head); }
-  .modal-section-title.loose { background: var(--loose-head); }
+  .toast{position:fixed;bottom:-100px;left:50%;transform:translateX(-50%);background:var(--text-secondary);color:#fff;padding:12px 20px;border-radius:var(--radius);font-size:13px;font-weight:500;z-index:1000;transition:bottom .3s ease-out;box-shadow:var(--shadow-md);max-width:90vw;text-align:center;}
+  .toast.show{bottom:20px;} .toast.error{background:var(--btn-danger);} .toast.success{background:var(--btn-success);}
 
-  .input-wrapper { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
-  .input-field { display: flex; flex-direction: column; gap: 6px; }
-  .input-field label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
-  .input-field input {
-    border: 1px solid var(--border); border-radius: 6px; padding: 12px;
-    font-size: 14px; font-family: var(--font); background: white; color: var(--text-primary);
-    outline: none; transition: border-color .15s, box-shadow .15s;
-  }
-  .input-field input:focus { border-color: var(--btn-primary); box-shadow: 0 0 0 3px rgba(29,78,216,.1); }
-
-  .calc-display { background: var(--calc-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-top: 12px; }
-  .calc-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; font-size: 13px; }
-  .calc-row .label { color: var(--text-secondary); font-weight: 500; }
-  .calc-row .value { font-weight: 700; color: var(--btn-primary); font-size: 14px; }
-
-  .modal-footer { display: flex; gap: 10px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); }
-  .modal-footer .btn { flex: 1; }
-
-  .field-block { margin-bottom: 16px; }
-  .field-block > label { display: block; font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; }
-  .field-block input.text-input {
-    width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 11px 12px;
-    font-size: 14px; font-family: var(--font); background: white; color: var(--text-primary); outline: none;
-  }
-  .field-block input.text-input:focus { border-color: var(--btn-primary); box-shadow: 0 0 0 3px rgba(29,78,216,.1); }
-  .field-hint { font-size: 11px; color: var(--text-muted); margin-top: 5px; line-height: 1.5; }
-  .info-box {
-    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--radius);
-    padding: 12px 14px; font-size: 12px; color: #1e40af; line-height: 1.6; margin-bottom: 16px;
-  }
-  .info-box code { background: rgba(29,78,216,0.1); padding: 1px 5px; border-radius: 4px; font-size: 11px; word-break: break-all; }
-  .info-box a { color: #1d4ed8; font-weight: 700; }
-  details.setup-guide { margin-bottom: 16px; }
-  details.setup-guide summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--btn-primary); padding: 8px 0; }
-  details.setup-guide ol { margin: 8px 0 0 18px; font-size: 12px; line-height: 1.8; color: var(--text-secondary); }
-  details.setup-guide pre {
-    background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 6px;
-    font-size: 11px; overflow-x: auto; margin: 8px 0; white-space: pre; line-height: 1.5;
-  }
-
-  .unit-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .unit-table th, .unit-table td { border: 1px solid var(--border-light); padding: 6px; text-align: center; }
-  .unit-table th { background: #f1f5f9; font-size: 11px; color: var(--text-secondary); }
-  .unit-table td.name-cell { text-align: left; }
-  .unit-table input {
-    width: 100%; border: 1px solid var(--border); border-radius: 5px; padding: 8px 6px;
-    font-size: 13px; font-family: var(--font); outline: none; text-align: center;
-  }
-  .unit-table input.name-input { text-align: left; }
-  .unit-table input:focus { border-color: var(--btn-primary); box-shadow: 0 0 0 2px rgba(29,78,216,.1); }
-  .row-del-btn {
-    background: var(--error); color: var(--btn-danger); border: none; border-radius: 5px;
-    width: 28px; height: 28px; font-size: 16px; font-weight: 700; cursor: pointer; line-height: 1;
-  }
-
-  /* ===== 변경 로그 ===== */
-  .log-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; }
-  .log-filter { font-size: 12px; color: var(--text-secondary); }
-  .log-list { display: flex; flex-direction: column; gap: 8px; }
-  .log-empty { text-align: center; color: var(--text-muted); padding: 30px 0; font-size: 13px; }
-  .log-item {
-    display: flex; gap: 10px; align-items: flex-start;
-    padding: 10px 12px; border: 1px solid var(--border-light);
-    border-radius: var(--radius); background: var(--calc-bg);
-  }
-  .log-item.reset { background: #fff7ed; border-color: #fed7aa; }
-  .log-slot-select { border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-family: var(--font); font-size: 12px; color: var(--text-primary); background: #fff; }
-  .slot-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 10px; vertical-align: middle; }
-  .slot-badge.slot-am { background: #dbeafe; color: #1d4ed8; }
-  .slot-badge.slot-pm { background: #fef3c7; color: #92400e; }
-  .log-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; min-width: 78px; font-weight: 600; line-height: 1.7; }
-  .log-body { flex: 1; font-size: 13px; line-height: 1.6; }
-  .log-body .prod { font-weight: 700; color: var(--text-primary); }
-  .log-total { color: var(--text-secondary); }
-  .log-total b { color: var(--btn-primary); }
-  .log-detail { margin-top: 4px; font-size: 11px; color: var(--text-secondary); }
-  .log-detail .chg { display: inline-block; background: #eef2ff; color: #3730a3; padding: 1px 6px; border-radius: 10px; margin: 2px 4px 0 0; }
-  .log-date { font-size: 10px; color: var(--text-muted); }
-
-  /* ===== 변동 비교 ===== */
-  .diff-controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; }
-  .diff-controls .fld { display: flex; flex-direction: column; gap: 4px; }
-  .diff-controls label { font-size: 11px; color: var(--text-secondary); font-weight: 700; }
-  .diff-controls input[type="date"] {
-    border: 1px solid var(--border); border-radius: 6px; padding: 9px 10px;
-    font-family: var(--font); font-size: 13px; color: var(--text-primary); background: #fff; outline: none;
-  }
-  .diff-controls input[type="date"]::-webkit-calendar-picker-indicator { filter: none; }
-  .diff-slot-select { border: 1px solid var(--border); border-radius: 6px; padding: 9px 8px; font-family: var(--font); font-size: 13px; color: var(--text-primary); background: #fff; }
-  .diff-summary { background: var(--calc-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; font-size: 13px; line-height: 1.6; }
-  .diff-summary b { font-size: 15px; }
-  .diff-missing { color: var(--btn-danger); font-size: 12px; margin-bottom: 8px; }
-  .diff-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .diff-table th, .diff-table td { border: 1px solid var(--border-light); padding: 8px 6px; text-align: center; white-space: nowrap; }
-  .diff-table th { background: #f1f5f9; font-size: 11px; color: var(--text-secondary); position: sticky; top: 0; }
-  .diff-table td.name { text-align: left; font-weight: 600; }
-  .diff-up { color: #1d4ed8; font-weight: 700; }
-  .diff-down { color: #dc2626; font-weight: 700; }
-  .diff-zero { color: var(--text-muted); }
-  .diff-total-row td { background: #ede9fe; color: #5b21b6; font-weight: 700; }
-
-  .toast {
-    position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
-    background: var(--text-secondary); color: white; padding: 12px 20px;
-    border-radius: var(--radius); font-size: 13px; font-weight: 500; z-index: 1000;
-    transition: bottom .3s ease-out; box-shadow: var(--shadow-md); max-width: 90vw; text-align: center;
-  }
-  .toast.show { bottom: 20px; }
-  .toast.error { background: var(--btn-danger); }
-  .toast.success { background: var(--btn-success); }
-
-  @media (max-width: 768px) {
-    :root { font-size: 12px; }
-    .app-header { padding: 10px 12px; }
-    .app-title { font-size: 16px; }
-    .header-controls { gap: 6px; }
-    table { min-width: 820px; font-size: 11px; }
-    thead th { padding: 6px 2px; font-size: 9px; }
-    td { padding: 5px 2px; }
-    .modal-content { padding: 16px; }
-    .input-wrapper { gap: 8px; }
+  @media(max-width:768px){
+    :root{font-size:12px;}
+    .app-header{padding:10px 12px;} .app-title{font-size:16px;} .header-controls{gap:6px;}
+    table.t-inventory{min-width:820px;} thead th{padding:6px 2px;font-size:9px;} td{padding:5px 2px;}
+    .modal-content{padding:16px;} .input-wrapper{gap:8px;}
   }
 </style>
 </head>
 <body>
 
-<!-- 헤더 -->
 <div class="app-header">
   <div class="header-top">
     <div class="app-title">📦 재고 관리</div>
     <div style="display:flex;gap:8px;align-items:center;">
-      <div class="conn-badge" id="connBadge" onclick="openCloudModal()">
-        <span class="conn-dot local" id="connDot"></span>
-        <span id="connText">오프라인</span>
-      </div>
+      <div class="conn-badge" id="connBadge" onclick="openCloudModal()"><span class="conn-dot local" id="connDot"></span><span id="connText">오프라인</span></div>
       <button class="btn btn-white" onclick="saveData()">💾 저장</button>
       <button class="btn btn-white" onclick="downloadCSV()">📥 CSV</button>
     </div>
   </div>
   <div class="header-controls">
-    <div class="ctrl-group">
-      <label class="ctrl-label">기준일</label>
-      <input type="date" id="dateInput">
-    </div>
-    <div class="ctrl-group">
-      <label class="ctrl-label">시간대</label>
-      <select class="ctrl-select" id="slotInput">
-        <option value="오전">오전</option>
-        <option value="오후">오후</option>
-      </select>
+    <div class="ctrl-group"><label class="ctrl-label">기준일</label><input type="date" id="dateInput"></div>
+    <div class="ctrl-group" id="slotGroup"><label class="ctrl-label">시간대</label>
+      <select class="ctrl-select" id="slotInput"><option value="오전">오전</option><option value="오후">오후</option></select>
     </div>
     <button class="btn btn-white" onclick="openDiffModal()">📊 변동비교</button>
     <button class="btn btn-ghost" onclick="openLogModal()">📋 변경이력</button>
-    <button class="btn btn-ghost" onclick="openUnitsModal()">⚙️ 단위설정</button>
+    <button class="btn btn-ghost" id="settingsBtn" onclick="openSettings()">⚙️ 품목설정</button>
     <button class="btn btn-ghost" onclick="openCloudModal()">☁️ 연동</button>
     <button class="btn btn-ghost" onclick="resetData()">🔄 초기화</button>
   </div>
 </div>
 
-<!-- 메인 콘텐츠 -->
 <div class="main-content">
+  <div class="tab-bar" id="tabBar"></div>
   <div class="table-wrapper">
     <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th rowspan="2" class="th-product col-name">제품명</th>
-            <th colspan="4" class="th-pallet">📦 파렛트</th>
-            <th colspan="4" class="th-box">📫 박스(카톤)</th>
-            <th colspan="3" class="th-loose">🔖 낱개</th>
-            <th rowspan="2" class="th-pallet">합계</th>
-          </tr>
-          <tr>
-            <th class="sub-pallet">기준</th>
-            <th class="sub-pallet">A</th>
-            <th class="sub-pallet">B</th>
-            <th class="sub-pallet">합</th>
-            <th class="sub-box">기준</th>
-            <th class="sub-box">A</th>
-            <th class="sub-box">B</th>
-            <th class="sub-box">합</th>
-            <th class="sub-loose">낱개</th>
-            <th class="sub-loose">진열</th>
-            <th class="sub-loose">합</th>
-          </tr>
-        </thead>
+      <table id="mainTable">
+        <thead id="tableHead"></thead>
         <tbody id="tableBody"></tbody>
         <tfoot id="tableFoot"></tfoot>
       </table>
@@ -512,13 +208,10 @@
   </div>
 </div>
 
-<!-- 입력 모달 -->
+<!-- 재고형 입력 모달 -->
 <div id="modalOverlay" class="modal-overlay">
   <div class="modal-content">
-    <div class="modal-header">
-      <div class="modal-title" id="modalTitle">제품명</div>
-      <button class="modal-close-btn" onclick="closeModal()">×</button>
-    </div>
+    <div class="modal-header"><div class="modal-title" id="modalTitle">제품명</div><button class="modal-close-btn" onclick="closeModal()">×</button></div>
     <form id="modalForm">
       <div class="modal-section-title pallet">📦 파렛트</div>
       <div class="input-wrapper">
@@ -536,54 +229,44 @@
         <div class="input-field"><label>진열</label><input type="number" id="modalLooseDisplay" min="0" step="1" inputmode="numeric"></div>
       </div>
       <div id="modalCalcDisplay"></div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-white" onclick="closeModal()">취소</button>
-        <button type="button" class="btn btn-primary" onclick="saveModalData()">저장</button>
-      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-white" onclick="closeModal()">취소</button><button type="button" class="btn btn-primary" onclick="saveModalData()">저장</button></div>
     </form>
   </div>
 </div>
 
-<!-- 클라우드 연동 설정 모달 -->
+<!-- 수량형 입력 모달 -->
+<div id="simpleModal" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header"><div class="modal-title" id="simpleTitle">품목명</div><button class="modal-close-btn" onclick="closeSimpleModal()">×</button></div>
+    <div class="input-field" style="margin-bottom:14px;"><label>수량</label><input type="number" id="simpleQty" min="0" step="1" inputmode="numeric"></div>
+    <div class="input-field" style="margin-bottom:8px;"><label>비고</label><input type="text" id="simpleNote" placeholder="예: 26/6/19 3,200개 입고"></div>
+    <div class="modal-footer"><button type="button" class="btn btn-white" onclick="closeSimpleModal()">취소</button><button type="button" class="btn btn-primary" onclick="saveSimpleModal()">저장</button></div>
+  </div>
+</div>
+
+<!-- 클라우드 연동 모달 -->
 <div id="cloudModal" class="modal-overlay">
   <div class="modal-content">
-    <div class="modal-header">
-      <div class="modal-title">☁️ 앱-웹 연동 설정</div>
-      <button class="modal-close-btn" onclick="closeCloudModal()">×</button>
-    </div>
-    <div class="info-box">
-      PC와 휴대폰에서 <b>같은 데이터를 실시간으로 공유</b>하려면 아래 Supabase 정보를 입력하세요.
-      모든 기기에 <b>동일한 URL·Key·공유코드</b>를 입력하면 서로 연동됩니다.
-    </div>
+    <div class="modal-header"><div class="modal-title">☁️ 앱-웹 연동 설정</div><button class="modal-close-btn" onclick="closeCloudModal()">×</button></div>
+    <div class="info-box">PC와 휴대폰에서 <b>같은 데이터를 실시간으로 공유</b>하려면 아래 Supabase 정보를 입력하세요. 모든 기기에 <b>동일한 URL·Key·공유코드</b>를 입력하면 연동됩니다.</div>
     <details class="setup-guide">
       <summary>📖 처음이신가요? Supabase 설정 방법 (약 3분, 무료)</summary>
       <ol>
         <li><a href="https://supabase.com" target="_blank">supabase.com</a> 가입 후 <b>New project</b> 생성</li>
-        <li>왼쪽 메뉴 <b>SQL Editor</b> → 아래 코드 붙여넣고 <b>Run</b></li>
+        <li>왼쪽 <b>SQL Editor</b> → 아래 코드 붙여넣고 <b>Run</b></li>
         <pre>create table if not exists inventory (
-  room text not null,
-  date text not null,
+  room text not null, date text not null,
   slot text not null default 'main',
   data jsonb not null default '[]',
   updated_at timestamptz not null default now(),
-  updated_by text,
-  primary key (room, date, slot)
-);
+  updated_by text, primary key (room, date, slot));
 create table if not exists inventory_config (
-  room text primary key,
-  products jsonb not null default '[]',
-  updated_at timestamptz not null default now(),
-  updated_by text
-);
+  room text primary key, products jsonb not null default '[]',
+  updated_at timestamptz not null default now(), updated_by text);
 create table if not exists inventory_log (
-  lid text primary key,
-  room text not null,
-  date text not null,
-  ts timestamptz not null default now(),
-  product text,
-  detail jsonb,
-  updated_by text
-);
+  lid text primary key, room text not null, date text not null,
+  ts timestamptz not null default now(), product text,
+  detail jsonb, updated_by text);
 alter table inventory enable row level security;
 alter table inventory_config enable row level security;
 alter table inventory_log enable row level security;
@@ -593,78 +276,46 @@ create policy "all log" on inventory_log for all using (true) with check (true);
 alter publication supabase_realtime add table inventory;
 alter publication supabase_realtime add table inventory_config;
 alter publication supabase_realtime add table inventory_log;</pre>
-        <li>왼쪽 <b>Project Settings → API</b> → <b>Project URL</b>과 <b>anon public</b> key 복사</li>
-        <li>아래에 입력. Project URL은 <code>https://xxx.supabase.co</code> 형태 (뒤에 /rest/v1 등은 빼세요 — 자동 정리됨)</li>
-        <li><b>공유코드</b>는 팀에서 정한 아무 단어(예: <code>daol-창고</code>)를 모든 기기에 동일하게 입력</li>
+        <li><b>Project Settings → API</b> → <b>Project URL</b>, <b>anon public</b> key 복사</li>
       </ol>
     </details>
-    <div class="field-block">
-      <label>Supabase Project URL</label>
-      <input class="text-input" id="cfgUrl" placeholder="https://xxxxx.supabase.co" autocapitalize="off" autocorrect="off" spellcheck="false">
-    </div>
-    <div class="field-block">
-      <label>anon public Key</label>
-      <input class="text-input" id="cfgKey" placeholder="eyJhbGciOi..." autocapitalize="off" autocorrect="off" spellcheck="false">
-    </div>
-    <div class="field-block">
-      <label>공유코드 (모든 기기 동일하게)</label>
-      <input class="text-input" id="cfgRoom" placeholder="예: daol-창고" autocapitalize="off" autocorrect="off" spellcheck="false">
-      <div class="field-hint">같은 공유코드를 쓰는 기기끼리 데이터가 연동됩니다.</div>
-    </div>
-    <div class="modal-footer">
-      <button type="button" class="btn btn-danger" onclick="disconnectCloud()">연동 해제</button>
-      <button type="button" class="btn btn-primary" onclick="saveCloudConfig()">연결하기</button>
-    </div>
+    <div class="field-block"><label>Supabase Project URL</label><input class="text-input" id="cfgUrl" placeholder="https://xxxxx.supabase.co" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="field-block"><label>anon public Key</label><input class="text-input" id="cfgKey" placeholder="eyJhbGciOi..." autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="field-block"><label>공유코드 (모든 기기 동일하게)</label><input class="text-input" id="cfgRoom" placeholder="예: daol-창고" autocapitalize="off" autocorrect="off" spellcheck="false"><div class="field-hint">같은 공유코드를 쓰는 기기끼리 데이터가 연동됩니다.</div></div>
+    <div class="modal-footer"><button type="button" class="btn btn-danger" onclick="disconnectCloud()">연동 해제</button><button type="button" class="btn btn-primary" onclick="saveCloudConfig()">연결하기</button></div>
   </div>
 </div>
 
-<!-- 단위/제품 설정 모달 -->
+<!-- 재고형 단위설정 모달 -->
 <div id="unitsModal" class="modal-overlay">
   <div class="modal-content">
-    <div class="modal-header">
-      <div class="modal-title">⚙️ 단위 · 제품 설정</div>
-      <button class="modal-close-btn" onclick="closeUnitsModal()">×</button>
-    </div>
-    <div class="info-box">
-      제품별 <b>파렛트 기준</b>(파렛트 1개당 개수)과 <b>카톤(박스) 기준</b>(박스 1개당 개수)을 설정합니다.
-      제품 추가 · 이름 변경 · 삭제도 가능합니다. 연동된 경우 모든 기기에 반영됩니다.
-    </div>
-    <div class="table-scroll">
-      <table class="unit-table">
-        <thead>
-          <tr>
-            <th style="min-width:120px;">제품명</th>
-            <th style="width:90px;">파렛트기준</th>
-            <th style="width:90px;">카톤기준</th>
-            <th style="width:40px;"></th>
-          </tr>
-        </thead>
-        <tbody id="unitsBody"></tbody>
-      </table>
-    </div>
+    <div class="modal-header"><div class="modal-title">⚙️ 단위 · 제품 설정</div><button class="modal-close-btn" onclick="closeUnitsModal()">×</button></div>
+    <div class="info-box">제품별 <b>파렛트 기준</b>·<b>카톤(박스) 기준</b>(1개당 개수)을 설정합니다. 제품 추가·이름변경·삭제 가능. 이 탭에만 적용됩니다.</div>
+    <div class="table-scroll"><table class="unit-table"><thead><tr><th style="min-width:120px;">제품명</th><th style="width:90px;">파렛트기준</th><th style="width:90px;">카톤기준</th><th style="width:40px;"></th></tr></thead><tbody id="unitsBody"></tbody></table></div>
     <button type="button" class="btn btn-white" style="margin-top:12px;width:100%;border:1px dashed var(--border);" onclick="addUnitRow()">➕ 제품 추가</button>
-    <div class="modal-footer">
-      <button type="button" class="btn btn-white" onclick="closeUnitsModal()">취소</button>
-      <button type="button" class="btn btn-primary" onclick="saveUnitsConfig()">저장</button>
-    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-white" onclick="closeUnitsModal()">취소</button><button type="button" class="btn btn-primary" onclick="saveUnitsConfig()">저장</button></div>
+  </div>
+</div>
+
+<!-- 수량형 품목설정 모달 -->
+<div id="itemsModal" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header"><div class="modal-title">⚙️ 품목 설정</div><button class="modal-close-btn" onclick="closeItemsModal()">×</button></div>
+    <div class="info-box">품목명과 비고를 관리합니다. 추가·이름변경·삭제 가능. 이 탭에만 적용됩니다. 수량은 표에서 품목을 눌러 입력하세요.</div>
+    <div class="table-scroll"><table class="unit-table"><thead><tr><th style="width:40px;">No</th><th style="min-width:140px;">품목명</th><th style="min-width:120px;">비고</th><th style="width:40px;"></th></tr></thead><tbody id="itemsBody"></tbody></table></div>
+    <button type="button" class="btn btn-white" style="margin-top:12px;width:100%;border:1px dashed var(--border);" onclick="addItemRow()">➕ 품목 추가</button>
+    <div class="modal-footer"><button type="button" class="btn btn-white" onclick="closeItemsModal()">취소</button><button type="button" class="btn btn-primary" onclick="saveItemsConfig()">저장</button></div>
   </div>
 </div>
 
 <!-- 변경 이력 모달 -->
 <div id="logModal" class="modal-overlay">
   <div class="modal-content">
-    <div class="modal-header">
-      <div class="modal-title">📋 변경 이력</div>
-      <button class="modal-close-btn" onclick="closeLogModal()">×</button>
-    </div>
+    <div class="modal-header"><div class="modal-title">📋 변경 이력</div><button class="modal-close-btn" onclick="closeLogModal()">×</button></div>
     <div class="log-toolbar">
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
         <label class="log-filter"><input type="checkbox" id="logOnlyToday"> 오늘(기준일)만</label>
-        <select id="logSlotFilter" class="log-slot-select">
-          <option value="">오전+오후</option>
-          <option value="오전">오전만</option>
-          <option value="오후">오후만</option>
-        </select>
+        <select id="logSlotFilter" class="log-slot-select"><option value="">오전+오후</option><option value="오전">오전만</option><option value="오후">오후만</option></select>
       </div>
       <button type="button" class="btn btn-white" onclick="clearLog()" style="padding:6px 10px;">🗑 이력 지우기</button>
     </div>
@@ -675,908 +326,712 @@ alter publication supabase_realtime add table inventory_log;</pre>
 <!-- 변동 비교 모달 -->
 <div id="diffModal" class="modal-overlay">
   <div class="modal-content">
-    <div class="modal-header">
-      <div class="modal-title">📊 재고 변동 비교</div>
-      <button class="modal-close-btn" onclick="closeDiffModal()">×</button>
-    </div>
-    <div class="info-box">두 날짜의 재고 조사 결과를 비교해 제품별 <b>차이 수량</b>을 자동으로 보여줍니다. 기본값은 <b>어제 → 오늘</b>입니다. 과거 날짜를 골라 1~2일 전 변동도 조회할 수 있습니다.</div>
+    <div class="modal-header"><div class="modal-title">📊 재고 변동 비교</div><button class="modal-close-btn" onclick="closeDiffModal()">×</button></div>
+    <div class="info-box">두 시점의 데이터를 비교해 항목별 <b>차이</b>를 보여줍니다.</div>
     <div class="diff-controls">
       <div class="fld"><label>기준 (이전)</label><input type="date" id="diffBaseDate"></div>
-      <div class="fld"><label>&nbsp;</label>
-        <select id="diffBaseSlot" class="diff-slot-select"><option value="오전">오전</option><option value="오후">오후</option></select>
-      </div>
+      <div class="fld diff-slot-fld"><label>&nbsp;</label><select id="diffBaseSlot" class="diff-slot-select"><option value="오전">오전</option><option value="오후">오후</option></select></div>
       <div class="fld"><label>비교 (이후)</label><input type="date" id="diffCmpDate"></div>
-      <div class="fld"><label>&nbsp;</label>
-        <select id="diffCmpSlot" class="diff-slot-select"><option value="오전">오전</option><option value="오후">오후</option></select>
-      </div>
+      <div class="fld diff-slot-fld"><label>&nbsp;</label><select id="diffCmpSlot" class="diff-slot-select"><option value="오전">오전</option><option value="오후">오후</option></select></div>
       <button type="button" class="btn btn-primary" onclick="runDiff()" style="padding:9px 16px;">비교</button>
     </div>
-    <label class="log-filter" style="display:block;margin-bottom:10px;">
-      <input type="checkbox" id="diffHideZero"> 변동 없는 제품 숨기기
-    </label>
+    <label class="log-filter" style="display:block;margin-bottom:10px;"><input type="checkbox" id="diffHideZero"> 변동 없는 항목 숨기기</label>
     <div class="diff-summary" id="diffSummary"></div>
-    <div class="table-scroll">
-      <table class="diff-table">
-        <thead>
-          <tr>
-            <th style="min-width:110px;">제품명</th>
-            <th id="diffBaseTh">기준일</th>
-            <th id="diffCmpTh">비교일</th>
-            <th style="min-width:90px;">차이</th>
-          </tr>
-        </thead>
-        <tbody id="diffBody"></tbody>
-      </table>
-    </div>
-    <div class="modal-footer">
-      <button type="button" class="btn btn-white" onclick="exportDiffCsv()">📥 비교결과 CSV</button>
-      <button type="button" class="btn btn-primary" onclick="closeDiffModal()">닫기</button>
-    </div>
+    <div class="table-scroll"><table class="diff-table"><thead><tr><th style="min-width:110px;">항목</th><th id="diffBaseTh">기준</th><th id="diffCmpTh">비교</th><th style="min-width:90px;">차이</th></tr></thead><tbody id="diffBody"></tbody></table></div>
+    <div class="modal-footer"><button type="button" class="btn btn-white" onclick="exportDiffCsv()">📥 비교결과 CSV</button><button type="button" class="btn btn-primary" onclick="closeDiffModal()">닫기</button></div>
   </div>
 </div>
 
-<!-- 토스트 -->
 <div id="toast" class="toast"></div>
 
 <script>
-// ===== 기본 제품 설정 =====
+// ===== 기본값 =====
 const DEFAULT_PRODUCTS = [
-  { name: '바디케어', palletStd: 480, boxStd: 50 },
-  { name: '블렉', palletStd: 480, boxStd: 50 },
-  { name: '화이트', palletStd: 480, boxStd: 50 },
-  { name: '에메랄드', palletStd: 480, boxStd: 50 },
-  { name: '앰버', palletStd: 480, boxStd: 50 },
-  { name: '블렉 바디케어 2종', palletStd: 480, boxStd: 50 },
-  { name: '라즈베리', palletStd: 480, boxStd: 50 },
-  { name: '핸드', palletStd: 288, boxStd: 50 },
-  { name: '풀바디', palletStd: 288, boxStd: 50 },
-  { name: '슬바디', palletStd: 288, boxStd: 50 },
-  { name: '헤어', palletStd: 480, boxStd: 50 },
-  { name: '울포유', palletStd: 240, boxStd: 50 },
-  { name: '블렉울포유', palletStd: 240, boxStd: 50 },
-  { name: '퍼플', palletStd: 480, boxStd: 50 }
+  {name:'바디케어',palletStd:480,boxStd:50},{name:'블렉',palletStd:480,boxStd:50},{name:'화이트',palletStd:480,boxStd:50},
+  {name:'에메랄드',palletStd:480,boxStd:50},{name:'앰버',palletStd:480,boxStd:50},{name:'블렉 바디케어 2종',palletStd:480,boxStd:50},
+  {name:'라즈베리',palletStd:480,boxStd:50},{name:'핸드',palletStd:288,boxStd:50},{name:'풀바디',palletStd:288,boxStd:50},
+  {name:'슬바디',palletStd:288,boxStd:50},{name:'헤어',palletStd:480,boxStd:50},{name:'울포유',palletStd:240,boxStd:50},
+  {name:'블렉울포유',palletStd:240,boxStd:50},{name:'퍼플',palletStd:480,boxStd:50}
 ];
 
-const EMPTY_ROW = () => ({
-  palletB: 0, palletA: 0,
-  boxA: 0, boxB: 0,
-  loose: 0, looseDisplay: 0
-});
+// 부자재(수량형) 초기 품목 + 비고 + 07-31 수량
+const BUJA_ITEMS = [
+  {name:'바이탈라이징 바디로션 1P 케이스',note:'26/6/19 3,200개 입고'},
+  {name:'바이탈라이징 바디클렌저 1P 케이스',note:'26/6/19 3,200개 입고'},
+  {name:'블랙에디션 바디로션 1P 케이스',note:'4/24 3,520 입고'},
+  {name:'블랙에디션 바디클렌저 1P 케이스',note:'8/12 3,300 입고'},
+  {name:'화이트에디션 바디로션 1P 케이스',note:''},
+  {name:'화이트에디션 바디클렌저 1P 케이스',note:''},
+  {name:'에메랄드비치 바디로션 1P 케이스',note:'2/28 3,000개 입고'},
+  {name:'에메랄드비치 바디클렌저 1P 케이스',note:'8/4 3,000개 입고'},
+  {name:'블랙 샴푸 케이스',note:'12/11 1,800개 입고'},
+  {name:'블랙 컨디셔서 케이스',note:'12/11 1,800개 입고'},
+  {name:'만다린 바질릭 슬리브',note:'1/2 3,000개 입고'},
+  {name:'시트러스 프루티 슬리브',note:'1/14 3,200개 입고'},
+  {name:'화이트에디션 슬리브',note:'3P'},
+  {name:'현대 슬리브',note:'3P'},
+  {name:'선크림 슬리브',note:'3P'},
+  {name:'겐또바시 2P',note:''},
+  {name:'리빙컬렉션 카톤박스',note:''},
+  {name:'[기아] 슬리브 (소)',note:''},
+  {name:'[기아] 슬리브 (중)',note:''},
+  {name:'[현대] 슬리브 (소)',note:''},
+  {name:'[현대] 슬리브 (대)',note:''},
+  {name:'요아럽쇼핑백',note:'5/21 20,000개 입고'},
+  {name:'요아럽쇼핑백',note:'에메랄드'},
+  {name:'엘쇼핑백',note:'26/07/20 30,000개 입고'},
+  {name:'고급쇼핑백',note:'3/19 20,000개 입고'},
+  {name:'요아럽포장지',note:'원장 기준'},
+  {name:'롯데포장지',note:'(원장 기준) 2/11 5,000장 입고'},
+  {name:'롯데 포장지 (바디케어용)',note:'26/6/30 20,000개 입고'},
+  {name:'롯데 포장지 (올포유용)',note:'26/6/30 4,000개 입고'},
+  {name:'롯데 포장지 (폼,솝바디용)',note:'26/6/30 3,000개 입고'},
+  {name:'롯데 포장지 (핸드바디용)',note:'26/6/30 3,000개 입고'},
+  {name:'롯데 포장지 (핸드크림용)',note:''},
+  {name:'요아럽 포장지 (바디케어용)',note:'5/28 20,000개 입고'},
+  {name:'요아럽 포장지 (올포유용)',note:'5/28 5,000개 입고'},
+  {name:'요아럽 포장지 (폼,솝바디용)',note:'5/28 2,500개 입고'},
+  {name:'요아럽 포장지 (핸드바디용)',note:'5/28 2,500개 입고'},
+  {name:'롯데쇼핑백 (정품)',note:'26/7/21 2,000개 입고'},
+  {name:'롯데포장지 (정품)',note:'26/7/21 2,000개 입고'},
+  {name:'핸드크림 3P용 종이 케이스 (녹색)',note:'1/14 1,800개 입고'},
+  {name:'핸드크림 3P용 종이 케이스 (아이보리)',note:'1/14 1,800개 입고'},
+  {name:'핸드크림 3P용 끈: 녹색케이스(빨간색)',note:'6/5 입고 1,000개 입고'},
+  {name:'핸드크림 3P용 끈:아이보리케이스(황동색)',note:'26/08/03 1,000개 입고'}
+];
+const BUJA_QTY = [3200,3200,2023,2977,0,0,2507,960,1640,1710,754,2092,0,1402,2872,217,390,1434,1642,1464,2445,7600,0,27800,16000,0,1000,7500,6500,3700,4100,2600,19520,4150,2350,3400,37206,37600,2268,2079,1220,20];
+const BUJA_DATE = '2026-07-31';
 
-const FIELD_LABELS = {
-  palletA: '파렛트A', palletB: '파렛트B',
-  boxA: '박스A', boxB: '박스B',
-  loose: '낱개', looseDisplay: '진열'
-};
+const DEFAULT_TABS = [
+  {id:'yoarup',name:'요아럽',type:'inventory'},
+  {id:'buja',name:'부자재',type:'simple'},
+  {id:'commerce',name:'다올커머스',type:'inventory'}
+];
 
-// ===== 전역 상태 (초기값은 init()에서 로드 — 상수 정의 이후 실행을 보장) =====
-let products = [];
-let rowData = [];
+// ===== 전역 상태 =====
+let tabs = [];
+let activeTab = 'yoarup';
+let products = [];   // 활성 탭의 품목/제품 설정
+let rowData = [];    // 활성 탭의 (날짜,시간대) 데이터
 let currentModalIdx = -1;
 let changeLog = [];
 
-// 클라우드
-let supa = null;
-let cloudReady = false;
-let rtChannel = null;
-let applyingRemote = false;
-let pushTimer = null;
+let supa=null, cloudReady=false, rtChannel=null, applyingRemote=false, pushTimer=null;
 const CLIENT_ID = getClientId();
-// 시간대: 오전/오후 (하루 2회 기록). 클라우드 inventory 테이블의 slot 컬럼에 저장
-
-// ===== 스토리지 키 =====
-const CLOUD_CFG_KEY = 'inv_cloud_cfg';
-const PRODUCTS_KEY = 'inv_products';
-function roomName() { const c = getCloudCfg(); return (c && c.room) ? c.room : 'local'; }
-function workingKey() { return `inv_work_${roomName()}_${curDate()}_${curSlot()}`; }
-function logKey() { return `inv_log_${roomName()}`; }
 
 // ===== 유틸 =====
-const num = (v) => isNaN(v) || v === '' || v === null ? 0 : parseFloat(v);
-const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
+const num = v => isNaN(v)||v===''||v===null?0:parseFloat(v);
+const fmt = n => Number(n||0).toLocaleString('ko-KR');
 const curDate = () => document.getElementById('dateInput').value;
-const curSlot = () => document.getElementById('slotInput').value;
-// 오늘 날짜를 '로컬(사용자) 시간대' 기준으로 반환 (toISOString은 UTC라 한국 새벽시간대에 하루 밀림)
-function todayStr() {
-  const d = new Date();
-  const p = n => String(n).padStart(2, '0');
-  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+function activeType(){ const t=tabs.find(t=>t.id===activeTab); return t?t.type:'inventory'; }
+const curSlot = () => activeType()==='simple' ? 'day' : document.getElementById('slotInput').value;
+function todayStr(){ const d=new Date(),p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+function nowIso(){ return new Date().toISOString(); }
+function getClientId(){ let id=localStorage.getItem('inv_client_id'); if(!id){ id='c_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8); try{localStorage.setItem('inv_client_id',id);}catch(e){} } return id; }
+function genLid(){ return CLIENT_ID+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7); }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+// ===== 키 (요아럽=구버전 키로 하위호환 → 기존 데이터 자동 승계) =====
+function baseRoom(){ const c=getCloudCfg(); return (c&&c.room)?c.room:'local'; }
+function cloudRoom(){ return activeTab==='yoarup' ? baseRoom() : baseRoom()+'::'+activeTab; }
+function productsKey(){ return activeTab==='yoarup' ? 'inv_products' : 'inv_products_'+activeTab; }
+function logKey(){ return activeTab==='yoarup' ? 'inv_log_'+baseRoom() : 'inv_log_'+baseRoom()+'_'+activeTab; }
+function workKeyFor(date,slot){ const b=baseRoom(); return activeTab==='yoarup' ? `inv_work_${b}_${date}_${slot}` : `inv_work_${b}_${activeTab}_${date}_${slot}`; }
+function workingKey(){ return workKeyFor(curDate(),curSlot()); }
+function tabsKey(){ return 'inv_tabs'; }
+
+// ===== 탭 =====
+function loadTabs(){ try{ const r=localStorage.getItem(tabsKey()); if(r){ const a=JSON.parse(r); if(Array.isArray(a)&&a.length) return a; } }catch(e){} return DEFAULT_TABS.map(t=>({...t})); }
+function saveTabs(){ try{ localStorage.setItem(tabsKey(),JSON.stringify(tabs)); }catch(e){} }
+function loadActiveTab(){ const id=localStorage.getItem('inv_active_tab'); return (id&&tabs.some(t=>t.id===id))?id:tabs[0].id; }
+function saveActiveTab(){ try{ localStorage.setItem('inv_active_tab',activeTab); }catch(e){} }
+
+function renderTabs(){
+  const bar=document.getElementById('tabBar');
+  bar.innerHTML = tabs.map(t=>`
+    <div class="tab-item ${t.id===activeTab?'active':''}" onclick="switchTab('${t.id}')">
+      <span ondblclick="renameTab(event,'${t.id}')">${escapeHtml(t.name)}</span>
+      <span class="tab-x" onclick="deleteTab(event,'${t.id}')" title="탭 삭제">✕</span>
+    </div>`).join('') + `<button class="tab-add" onclick="addTab()" title="새 탭">＋</button>`;
 }
 
-function getClientId() {
-  let id = localStorage.getItem('inv_client_id');
-  if (!id) {
-    id = 'c_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    try { localStorage.setItem('inv_client_id', id); } catch (e) {}
-  }
-  return id;
-}
-function genLid() {
-  return CLIENT_ID + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
-}
-function nowIso() { return new Date().toISOString(); }
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, m => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]
-  ));
+async function switchTab(id){
+  if(id===activeTab) return;
+  if(pushTimer){ clearTimeout(pushTimer); pushTimer=null; }
+  activeTab=id; saveActiveTab();
+  products=loadLocalProducts();
+  changeLog=loadLog();
+  updateTypeUI();
+  const had=loadWorking();
+  renderTabs(); renderTable();
+  if(cloudReady){ subscribeRealtime(); await pullConfig(); await pullRecord(); await pullLog(); await pushPendingLogs(); }
+  if(!currentHasSaved()) await seedFromPrevious();
+  renderLogIfOpen();
 }
 
-function normalizeProducts(arr) {
-  if (!Array.isArray(arr) || !arr.length) return DEFAULT_PRODUCTS.map(p => ({ ...p }));
-  return arr.map(p => ({
-    name: String(p && p.name != null ? p.name : '제품'),
-    palletStd: num(p && p.palletStd) || 0,
-    boxStd: num(p && p.boxStd) || 0
-  }));
+function addTab(){
+  const name=prompt('새 탭 이름을 입력하세요:'); if(!name||!name.trim()) return;
+  const type=confirm('이 탭을 "재고형(파렛트/박스/낱개)"으로 만들까요?\n\n확인 = 재고형,  취소 = 수량형(품목·수량·비고)')?'inventory':'simple';
+  const id='tab_'+Date.now().toString(36);
+  tabs.push({id,name:name.trim(),type}); saveTabs(); pushTabs();
+  switchTab(id);
 }
-function normalizeRows(arr) {
-  const src = Array.isArray(arr) ? arr : [];
-  return products.map((_, i) => {
-    const d = src[i] || {};
-    // 구버전(포장/비포장 분리) 데이터 호환: 분리값이 있으면 합산해서 이어받음
-    const boxA = d.boxA != null ? num(d.boxA) : (num(d.boxAPacked) + num(d.boxAUnpacked));
-    const boxB = d.boxB != null ? num(d.boxB) : (num(d.boxBPacked) + num(d.boxBUnpacked));
-    const loose = d.loose != null ? num(d.loose) : (num(d.loosePacked) + num(d.looseUnpacked));
-    return {
-      palletB: num(d.palletB), palletA: num(d.palletA),
-      boxA, boxB,
-      loose, looseDisplay: num(d.looseDisplay)
-    };
+function renameTab(e,id){ e.stopPropagation(); const t=tabs.find(x=>x.id===id); if(!t) return; const n=prompt('탭 이름 변경:',t.name); if(n&&n.trim()){ t.name=n.trim(); saveTabs(); pushTabs(); renderTabs(); } }
+function deleteTab(e,id){
+  e.stopPropagation();
+  if(tabs.length<=1){ showToast('최소 1개 탭은 필요합니다.','error'); return; }
+  const t=tabs.find(x=>x.id===id); if(!t) return;
+  if(!confirm(`"${t.name}" 탭을 삭제하시겠습니까?\n이 탭의 데이터/이력도 함께 삭제됩니다.`)) return;
+  tabs=tabs.filter(x=>x.id!==id); saveTabs(); pushTabs();
+  if(activeTab===id){ activeTab=tabs[0].id; saveActiveTab(); switchTab(tabs[0].id); }
+  else renderTabs();
+}
+
+function updateTypeUI(){
+  const simple = activeType()==='simple';
+  document.getElementById('slotGroup').style.display = simple ? 'none' : 'flex';
+  document.getElementById('settingsBtn').textContent = simple ? '⚙️ 품목설정' : '⚙️ 단위설정';
+  document.querySelectorAll('.diff-slot-fld').forEach(el=>el.style.display = simple ? 'none' : 'flex');
+}
+
+// ===== 품목/제품 설정 (탭별) =====
+function tabDefaultProducts(){
+  if(activeTab==='buja') return BUJA_ITEMS.map(x=>({...x}));
+  if(activeType()==='simple') return [];
+  return DEFAULT_PRODUCTS.map(p=>({...p}));
+}
+function normalizeProducts(arr){
+  if(!Array.isArray(arr)) return tabDefaultProducts();
+  if(activeType()==='simple') return arr.map(p=>({name:String(p&&p.name!=null?p.name:'품목'),note:String(p&&p.note!=null?p.note:'')}));
+  if(!arr.length) return tabDefaultProducts();
+  return arr.map(p=>({name:String(p&&p.name!=null?p.name:'제품'),palletStd:num(p&&p.palletStd)||0,boxStd:num(p&&p.boxStd)||0}));
+}
+function loadLocalProducts(){ try{ const r=localStorage.getItem(productsKey()); if(r) return normalizeProducts(JSON.parse(r)); }catch(e){} return tabDefaultProducts(); }
+function saveLocalProducts(){ try{ localStorage.setItem(productsKey(),JSON.stringify(products)); }catch(e){} }
+
+// ===== 데이터 모델 (탭 타입별) =====
+function EMPTY_ROW(){ return activeType()==='simple' ? {qty:0} : {palletB:0,palletA:0,boxA:0,boxB:0,loose:0,looseDisplay:0}; }
+function fieldLabels(){ return activeType()==='simple' ? {qty:'수량'} : {palletA:'파렛트A',palletB:'파렛트B',boxA:'박스A',boxB:'박스B',loose:'낱개',looseDisplay:'진열'}; }
+function normalizeRows(arr){
+  const src=Array.isArray(arr)?arr:[];
+  if(activeType()==='simple') return products.map((_,i)=>({qty:num((src[i]||{}).qty)}));
+  return products.map((_,i)=>{
+    const d=src[i]||{};
+    const boxA=d.boxA!=null?num(d.boxA):(num(d.boxAPacked)+num(d.boxAUnpacked));
+    const boxB=d.boxB!=null?num(d.boxB):(num(d.boxBPacked)+num(d.boxBUnpacked));
+    const loose=d.loose!=null?num(d.loose):(num(d.loosePacked)+num(d.looseUnpacked));
+    return {palletB:num(d.palletB),palletA:num(d.palletA),boxA,boxB,loose,looseDisplay:num(d.looseDisplay)};
   });
 }
-
-function loadLocalProducts() {
-  try {
-    const raw = localStorage.getItem(PRODUCTS_KEY);
-    if (raw) return normalizeProducts(JSON.parse(raw));
-  } catch (e) {}
-  return DEFAULT_PRODUCTS.map(p => ({ ...p }));
-}
-function saveLocalProducts() {
-  try { localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products)); } catch (e) {}
+function calcRow(d,product){
+  if(activeType()==='simple'){ const q=num(d.qty); return {qty:q,grandTotal:q}; }
+  const pStd=num(product.palletStd),bStd=num(product.boxStd);
+  const palletSum=num(d.palletB)+num(d.palletA), palletTotal=palletSum*pStd;
+  const boxSum=num(d.boxA)+num(d.boxB), boxTotal=boxSum*bStd;
+  const looseSum=num(d.loose)+num(d.looseDisplay);
+  return {palletSum,palletTotal,boxSum,boxTotal,looseSum,grandTotal:palletTotal+boxTotal+looseSum};
 }
 
-// ===== 계산 =====
-function calcRow(d, product) {
-  const pStd = num(product.palletStd);
-  const bStd = num(product.boxStd);
-  const palletSum = num(d.palletB) + num(d.palletA);
-  const palletTotal = palletSum * pStd;
-  const boxSum = num(d.boxA) + num(d.boxB);
-  const boxTotal = boxSum * bStd;
-  const looseSum = num(d.loose) + num(d.looseDisplay);
-  const grandTotal = palletTotal + boxTotal + looseSum;
-  return { palletSum, palletTotal, boxSum, boxTotal, looseSum, grandTotal };
-}
-
-// ===== 입력 모달 =====
-function openModal(idx) {
-  currentModalIdx = idx;
-  const product = products[idx];
-  const data = rowData[idx];
-  document.getElementById('modalTitle').textContent = product.name;
-  document.getElementById('modalPalletB').value = num(data.palletB) || '';
-  document.getElementById('modalPalletA').value = num(data.palletA) || '';
-  document.getElementById('modalBoxA').value = num(data.boxA) || '';
-  document.getElementById('modalBoxB').value = num(data.boxB) || '';
-  document.getElementById('modalLoose').value = num(data.loose) || '';
-  document.getElementById('modalLooseDisplay').value = num(data.looseDisplay) || '';
+// ===== 재고형 입력 모달 =====
+function openModal(idx){
+  if(activeType()==='simple'){ openSimpleModal(idx); return; }
+  currentModalIdx=idx;
+  const p=products[idx], d=rowData[idx];
+  document.getElementById('modalTitle').textContent=p.name;
+  document.getElementById('modalPalletB').value=num(d.palletB)||'';
+  document.getElementById('modalPalletA').value=num(d.palletA)||'';
+  document.getElementById('modalBoxA').value=num(d.boxA)||'';
+  document.getElementById('modalBoxB').value=num(d.boxB)||'';
+  document.getElementById('modalLoose').value=num(d.loose)||'';
+  document.getElementById('modalLooseDisplay').value=num(d.looseDisplay)||'';
   updateModalCalc();
   document.getElementById('modalOverlay').classList.add('active');
   document.getElementById('modalPalletA').focus();
 }
-function closeModal() {
-  document.getElementById('modalOverlay').classList.remove('active');
-  currentModalIdx = -1;
+function closeModal(){ document.getElementById('modalOverlay').classList.remove('active'); currentModalIdx=-1; }
+function readModalInputs(){ return {
+  palletB:num(document.getElementById('modalPalletB').value),palletA:num(document.getElementById('modalPalletA').value),
+  boxA:num(document.getElementById('modalBoxA').value),boxB:num(document.getElementById('modalBoxB').value),
+  loose:num(document.getElementById('modalLoose').value),looseDisplay:num(document.getElementById('modalLooseDisplay').value)
+};}
+function updateModalCalc(){
+  const idx=currentModalIdx; if(idx<0) return;
+  const c=calcRow(readModalInputs(),products[idx]);
+  document.getElementById('modalCalcDisplay').innerHTML=`<div class="calc-display">
+    <div class="calc-row"><span class="label">파렛트 합계:</span><span class="value">${fmt(c.palletSum)}</span></div>
+    <div class="calc-row"><span class="label">박스 합계:</span><span class="value">${fmt(c.boxSum)}</span></div>
+    <div class="calc-row"><span class="label">낱개 합계:</span><span class="value">${fmt(c.looseSum)}</span></div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
+    <div class="calc-row" style="font-size:14px;"><span class="label" style="font-weight:700;">총 수량:</span><span class="value" style="font-size:16px;">${fmt(c.grandTotal)}</span></div></div>`;
 }
-function readModalInputs() {
-  return {
-    palletB: num(document.getElementById('modalPalletB').value),
-    palletA: num(document.getElementById('modalPalletA').value),
-    boxA: num(document.getElementById('modalBoxA').value),
-    boxB: num(document.getElementById('modalBoxB').value),
-    loose: num(document.getElementById('modalLoose').value),
-    looseDisplay: num(document.getElementById('modalLooseDisplay').value)
-  };
-}
-function updateModalCalc() {
-  const idx = currentModalIdx;
-  if (idx < 0) return;
-  const calc = calcRow(readModalInputs(), products[idx]);
-  document.getElementById('modalCalcDisplay').innerHTML = `
-    <div class="calc-display">
-      <div class="calc-row"><span class="label">파렛트 합계:</span><span class="value">${fmt(calc.palletSum)}</span></div>
-      <div class="calc-row"><span class="label">박스 합계:</span><span class="value">${fmt(calc.boxSum)}</span></div>
-      <div class="calc-row"><span class="label">낱개 합계:</span><span class="value">${fmt(calc.looseSum)}</span></div>
-      <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
-      <div class="calc-row" style="font-size:14px;"><span class="label" style="font-weight:700;">총 수량:</span><span class="value" style="font-size:16px;">${fmt(calc.grandTotal)}</span></div>
-    </div>`;
-}
-function saveModalData() {
-  const idx = currentModalIdx;
-  if (idx < 0) return;
-  const oldData = rowData[idx];
-  const newData = readModalInputs();
-
-  const diff = buildDiff(products[idx], oldData, newData);
-  rowData[idx] = newData;
-
-  if (diff) {
-    addLog({
-      lid: genLid(), ts: nowIso(), date: curDate(), slot: curSlot(),
-      product: products[idx].name, detail: diff
-    });
-  }
-
-  renderTable();
-  persistWorking();
-  closeModal();
-  showToast(diff ? `${products[idx].name} 저장됨` : '변경 없음', diff ? 'success' : 'info');
+function saveModalData(){
+  const idx=currentModalIdx; if(idx<0) return;
+  const oldData=rowData[idx], newData=readModalInputs();
+  const diff=buildDiff(products[idx],oldData,newData);
+  rowData[idx]=newData;
+  if(diff) addLog({lid:genLid(),ts:nowIso(),date:curDate(),slot:curSlot(),product:products[idx].name,detail:diff});
+  renderTable(); persistWorking(); closeModal();
+  showToast(diff?`${products[idx].name} 저장됨`:'변경 없음', diff?'success':'info');
 }
 
-document.addEventListener('DOMContentLoaded', function () {
-  ['modalPalletB', 'modalPalletA', 'modalBoxA', 'modalBoxB', 'modalLoose', 'modalLooseDisplay']
-    .forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('input', updateModalCalc); });
+// ===== 수량형 입력 모달 =====
+function openSimpleModal(idx){
+  currentModalIdx=idx;
+  const p=products[idx], d=rowData[idx];
+  document.getElementById('simpleTitle').textContent=p.name;
+  document.getElementById('simpleQty').value=num(d.qty)||'';
+  document.getElementById('simpleNote').value=p.note||'';
+  document.getElementById('simpleModal').classList.add('active');
+  document.getElementById('simpleQty').focus();
+}
+function closeSimpleModal(){ document.getElementById('simpleModal').classList.remove('active'); currentModalIdx=-1; }
+function saveSimpleModal(){
+  const idx=currentModalIdx; if(idx<0) return;
+  const oldData=rowData[idx], newData={qty:num(document.getElementById('simpleQty').value)};
+  const note=document.getElementById('simpleNote').value.trim();
+  const diff=buildDiff(products[idx],oldData,newData);
+  rowData[idx]=newData;
+  if(note!==(products[idx].note||'')){ products[idx].note=note; saveLocalProducts(); pushConfig(); }
+  if(diff) addLog({lid:genLid(),ts:nowIso(),date:curDate(),slot:curSlot(),product:products[idx].name,detail:diff});
+  renderTable(); persistWorking(); closeSimpleModal();
+  showToast(diff?`${products[idx].name} 저장됨`:'저장됨','success');
+}
+
+document.addEventListener('DOMContentLoaded',function(){
+  ['modalPalletB','modalPalletA','modalBoxA','modalBoxB','modalLoose','modalLooseDisplay']
+    .forEach(id=>{const el=document.getElementById(id); if(el) el.addEventListener('input',updateModalCalc);});
 });
 
-// ===== 테이블 렌더링 =====
-function renderTable() {
-  const tbody = document.getElementById('tableBody');
-  tbody.innerHTML = '';
-  products.forEach((product, i) => {
-    const d = rowData[i] || (rowData[i] = EMPTY_ROW());
-    const c = calcRow(d, product);
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td class="col-name"><button type="button" class="product-btn" onclick="openModal(${i})" title="클릭하여 입력">${escapeHtml(product.name)}</button></td>
-      <td class="calc calc-std">${fmt(product.palletStd)}</td>
-      <td class="calc calc-pallet">${fmt(d.palletA)}</td>
-      <td class="calc calc-pallet">${fmt(d.palletB)}</td>
-      <td class="calc calc-pallet">${fmt(c.palletSum)}</td>
-      <td class="calc calc-std">${fmt(product.boxStd)}</td>
-      <td class="calc calc-box">${fmt(d.boxA)}</td>
-      <td class="calc calc-box">${fmt(d.boxB)}</td>
-      <td class="calc calc-box">${fmt(c.boxSum)}</td>
-      <td class="calc calc-loose">${fmt(d.loose)}</td>
-      <td class="calc calc-loose">${fmt(d.looseDisplay)}</td>
-      <td class="calc calc-loose">${fmt(c.looseSum)}</td>
+// ===== 테이블 렌더 =====
+function renderTable(){ if(activeType()==='simple') renderSimple(); else renderInventory(); }
+
+function renderInventory(){
+  document.getElementById('mainTable').className='t-inventory';
+  document.getElementById('tableHead').innerHTML=`
+    <tr>
+      <th rowspan="2" class="th-product col-name">제품명</th>
+      <th colspan="4" class="th-pallet">📦 파렛트</th>
+      <th colspan="4" class="th-box">📫 박스(카톤)</th>
+      <th colspan="3" class="th-loose">🔖 낱개</th>
+      <th rowspan="2" class="th-pallet">합계</th>
+    </tr>
+    <tr>
+      <th class="sub-pallet">기준</th><th class="sub-pallet">A</th><th class="sub-pallet">B</th><th class="sub-pallet">합</th>
+      <th class="sub-box">기준</th><th class="sub-box">A</th><th class="sub-box">B</th><th class="sub-box">합</th>
+      <th class="sub-loose">낱개</th><th class="sub-loose">진열</th><th class="sub-loose">합</th>
+    </tr>`;
+  const tb=document.getElementById('tableBody'); tb.innerHTML='';
+  products.forEach((p,i)=>{
+    const d=rowData[i]||(rowData[i]=EMPTY_ROW()); const c=calcRow(d,p);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="col-name"><button type="button" class="product-btn" onclick="openModal(${i})">${escapeHtml(p.name)}</button></td>
+      <td class="calc calc-std">${fmt(p.palletStd)}</td><td class="calc calc-pallet">${fmt(d.palletA)}</td><td class="calc calc-pallet">${fmt(d.palletB)}</td><td class="calc calc-pallet">${fmt(c.palletSum)}</td>
+      <td class="calc calc-std">${fmt(p.boxStd)}</td><td class="calc calc-box">${fmt(d.boxA)}</td><td class="calc calc-box">${fmt(d.boxB)}</td><td class="calc calc-box">${fmt(c.boxSum)}</td>
+      <td class="calc calc-loose">${fmt(d.loose)}</td><td class="calc calc-loose">${fmt(d.looseDisplay)}</td><td class="calc calc-loose">${fmt(c.looseSum)}</td>
       <td class="calc calc-total">${fmt(c.grandTotal)}</td>`;
-    tbody.appendChild(row);
+    tb.appendChild(tr);
   });
-  renderFooter();
+  let tPA=0,tPB=0,tPS=0,tBA=0,tBB=0,tBS=0,tL=0,tLD=0,tLS=0,tG=0;
+  products.forEach((p,i)=>{const d=rowData[i]||EMPTY_ROW();const c=calcRow(d,p);tPA+=num(d.palletA);tPB+=num(d.palletB);tPS+=c.palletSum;tBA+=num(d.boxA);tBB+=num(d.boxB);tBS+=c.boxSum;tL+=num(d.loose);tLD+=num(d.looseDisplay);tLS+=c.looseSum;tG+=c.grandTotal;});
+  document.getElementById('tableFoot').innerHTML=`<tr><td class="col-name">합계</td><td class="foot-std">-</td><td class="foot-pallet">${fmt(tPA)}</td><td class="foot-pallet">${fmt(tPB)}</td><td class="foot-pallet">${fmt(tPS)}</td><td class="foot-std">-</td><td class="foot-box">${fmt(tBA)}</td><td class="foot-box">${fmt(tBB)}</td><td class="foot-box">${fmt(tBS)}</td><td class="foot-loose">${fmt(tL)}</td><td class="foot-loose">${fmt(tLD)}</td><td class="foot-loose">${fmt(tLS)}</td><td class="foot-total">${fmt(tG)}</td></tr>`;
 }
 
-function renderFooter() {
-  const tfoot = document.getElementById('tableFoot');
-  let tPA = 0, tPB = 0, tPS = 0, tBA = 0, tBB = 0, tBS = 0, tL = 0, tLD = 0, tLS = 0, tG = 0;
-  products.forEach((product, i) => {
-    const d = rowData[i] || EMPTY_ROW();
-    const c = calcRow(d, product);
-    tPA += num(d.palletA); tPB += num(d.palletB); tPS += c.palletSum;
-    tBA += num(d.boxA); tBB += num(d.boxB); tBS += c.boxSum;
-    tL += num(d.loose); tLD += num(d.looseDisplay); tLS += c.looseSum;
-    tG += c.grandTotal;
+function renderSimple(){
+  document.getElementById('mainTable').className='t-simple';
+  document.getElementById('tableHead').innerHTML=`<tr>
+    <th class="th-product no-cell">No</th><th class="th-product col-name">품목명</th><th class="th-box">수량</th><th class="th-loose">비고</th></tr>`;
+  const tb=document.getElementById('tableBody'); tb.innerHTML='';
+  let total=0;
+  products.forEach((p,i)=>{
+    const d=rowData[i]||(rowData[i]=EMPTY_ROW()); total+=num(d.qty);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="no-cell">${i+1}</td>
+      <td class="col-name"><button type="button" class="product-btn" onclick="openModal(${i})">${escapeHtml(p.name)}</button></td>
+      <td class="qty-cell">${fmt(d.qty)}</td>
+      <td class="note-cell">${escapeHtml(p.note||'')}</td>`;
+    tb.appendChild(tr);
   });
-  tfoot.innerHTML = `
-    <tr>
-      <td class="col-name">합계</td>
-      <td class="foot-std">-</td>
-      <td class="foot-pallet">${fmt(tPA)}</td>
-      <td class="foot-pallet">${fmt(tPB)}</td>
-      <td class="foot-pallet">${fmt(tPS)}</td>
-      <td class="foot-std">-</td>
-      <td class="foot-box">${fmt(tBA)}</td>
-      <td class="foot-box">${fmt(tBB)}</td>
-      <td class="foot-box">${fmt(tBS)}</td>
-      <td class="foot-loose">${fmt(tL)}</td>
-      <td class="foot-loose">${fmt(tLD)}</td>
-      <td class="foot-loose">${fmt(tLS)}</td>
-      <td class="foot-total">${fmt(tG)}</td>
-    </tr>`;
+  document.getElementById('tableFoot').innerHTML=`<tr><td class="foot-std"></td><td class="col-name">합계</td><td class="foot-total">${fmt(total)}</td><td class="foot-std"></td></tr>`;
 }
 
 // ===== 변경 로그 =====
-function buildDiff(product, oldD, newD) {
-  const changes = [];
-  for (const f in FIELD_LABELS) {
-    const a = num(oldD[f]), b = num(newD[f]);
-    if (a !== b) changes.push({ field: f, label: FIELD_LABELS[f], from: a, to: b });
-  }
-  if (!changes.length) return null;
-  return { changes, grandFrom: calcRow(oldD, product).grandTotal, grandTo: calcRow(newD, product).grandTotal };
+function buildDiff(product,oldD,newD){
+  const changes=[]; const F=fieldLabels();
+  for(const f in F){ const a=num(oldD[f]),b=num(newD[f]); if(a!==b) changes.push({field:f,label:F[f],from:a,to:b}); }
+  if(!changes.length) return null;
+  return {changes,grandFrom:calcRow(oldD,product).grandTotal,grandTo:calcRow(newD,product).grandTotal};
 }
-
-function loadLog() {
-  try { const raw = localStorage.getItem(`inv_log_${(getCloudCfgSafe().room) || 'local'}`); return raw ? JSON.parse(raw) : []; }
-  catch (e) { return []; }
+function loadLog(){ try{ const r=localStorage.getItem(logKey()); return r?JSON.parse(r):[]; }catch(e){ return []; } }
+function saveLog(){ try{ localStorage.setItem(logKey(),JSON.stringify(changeLog.slice(0,300))); }catch(e){} }
+function addLog(entry,opts){
+  opts=opts||{};
+  if(changeLog.some(e=>e.lid===entry.lid)) return;
+  if(entry.detail&&entry.slot!=null&&entry.detail.slot==null) entry.detail.slot=entry.slot;
+  if(entry.slot==null&&entry.detail&&entry.detail.slot!=null) entry.slot=entry.detail.slot;
+  entry.pending=!cloudReady;
+  changeLog.unshift(entry); changeLog=changeLog.slice(0,300);
+  saveLog(); renderLogIfOpen();
+  if(opts.push!==false&&cloudReady) pushLog(entry);
 }
-function getCloudCfgSafe() { try { return JSON.parse(localStorage.getItem('inv_cloud_cfg')) || {}; } catch (e) { return {}; } }
-function saveLog() {
-  try { localStorage.setItem(logKey(), JSON.stringify(changeLog.slice(0, 300))); } catch (e) {}
+async function pushLog(entry){
+  if(!cloudReady) return;
+  try{ const {error}=await supa.from('inventory_log').upsert({lid:entry.lid,room:cloudRoom(),date:entry.date,ts:entry.ts,product:entry.product,detail:entry.detail,updated_by:CLIENT_ID},{onConflict:'lid'});
+    if(!error){ entry.pending=false; saveLog(); } else console.warn('log push:',error.message);
+  }catch(e){ console.warn(e); }
 }
-function addLog(entry, opts) {
-  opts = opts || {};
-  if (changeLog.some(e => e.lid === entry.lid)) return;   // 중복 방지
-  // slot을 detail 안에도 저장(클라우드 log 테이블엔 slot 컬럼이 없어 detail로 왕복)
-  if (entry.detail && entry.slot != null && entry.detail.slot == null) entry.detail.slot = entry.slot;
-  if (entry.slot == null && entry.detail && entry.detail.slot != null) entry.slot = entry.detail.slot;
-  entry.pending = !cloudReady;
-  changeLog.unshift(entry);
-  changeLog = changeLog.slice(0, 300);
-  saveLog();
-  renderLogIfOpen();
-  if (opts.push !== false && cloudReady) pushLog(entry);
+async function pullLog(){
+  if(!cloudReady) return;
+  try{ const {data,error}=await supa.from('inventory_log').select('lid,date,ts,product,detail').eq('room',cloudRoom()).order('ts',{ascending:false}).limit(300);
+    if(error){ console.warn('log pull:',error.message); return; }
+    const have=new Set(changeLog.map(e=>e.lid));
+    (data||[]).forEach(r=>{ if(!have.has(r.lid)) changeLog.push({...r,slot:r.detail&&r.detail.slot,pending:false}); });
+    changeLog.sort((a,b)=>(a.ts<b.ts?1:-1)); changeLog=changeLog.slice(0,300); saveLog(); renderLogIfOpen();
+  }catch(e){ console.warn(e); }
 }
-async function pushLog(entry) {
-  if (!cloudReady) return;
-  const c = getCloudCfg();
-  try {
-    const { error } = await supa.from('inventory_log').upsert({
-      lid: entry.lid, room: c.room, date: entry.date, ts: entry.ts,
-      product: entry.product, detail: entry.detail, updated_by: CLIENT_ID
-    }, { onConflict: 'lid' });
-    if (!error) { entry.pending = false; saveLog(); }
-    else console.warn('log push:', error.message);
-  } catch (e) { console.warn(e); }
-}
-async function pullLog() {
-  if (!cloudReady) return;
-  const c = getCloudCfg();
-  try {
-    const { data, error } = await supa.from('inventory_log')
-      .select('lid,date,ts,product,detail').eq('room', c.room)
-      .order('ts', { ascending: false }).limit(300);
-    if (error) { console.warn('log pull:', error.message); return; }
-    const have = new Set(changeLog.map(e => e.lid));
-    (data || []).forEach(r => { if (!have.has(r.lid)) changeLog.push({ ...r, slot: r.detail && r.detail.slot, pending: false }); });
-    changeLog.sort((a, b) => (a.ts < b.ts ? 1 : -1));
-    changeLog = changeLog.slice(0, 300);
-    saveLog();
-    renderLogIfOpen();
-  } catch (e) { console.warn(e); }
-}
-async function pushPendingLogs() {
-  const pend = changeLog.filter(e => e.pending);
-  for (const e of pend) await pushLog(e);
-}
-
-function fmtTs(ts) {
-  const d = new Date(ts);
-  if (isNaN(d)) return '';
-  const p = n => String(n).padStart(2, '0');
-  return `${p(d.getMonth() + 1)}-${p(d.getDate())}<br>${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-function isOpen(id) { return document.getElementById(id).classList.contains('active'); }
-function renderLogIfOpen() { if (isOpen('logModal')) renderLog(); }
-
-function slotOf(e) { return e.slot || (e.detail && e.detail.slot) || ''; }
-function slotBadge(e) {
-  const s = slotOf(e);
-  if (!s) return '';
-  const cls = s === '오전' ? 'slot-am' : 'slot-pm';
-  return `<span class="slot-badge ${cls}">${escapeHtml(s)}</span>`;
-}
-
-function renderLog() {
-  const list = document.getElementById('logList');
-  const onlyToday = document.getElementById('logOnlyToday').checked;
-  const slotFilter = document.getElementById('logSlotFilter').value;
-  let items = changeLog;
-  if (onlyToday) items = items.filter(e => e.date === curDate());
-  if (slotFilter) items = items.filter(e => slotOf(e) === slotFilter);
-
-  if (!items.length) {
-    list.innerHTML = '<div class="log-empty">변경 이력이 없습니다.</div>';
-    return;
-  }
-  list.innerHTML = items.map(e => {
-    const d = e.detail || {};
-    if (d.reset) {
-      return `<div class="log-item reset">
-        <div class="log-time">${fmtTs(e.ts)}</div>
-        <div class="log-body"><span class="prod">전체 초기화</span> ${slotBadge(e)}
-          <div class="log-date">기준일 ${escapeHtml(e.date || '')}</div>
-        </div></div>`;
-    }
-    const chips = (d.changes || []).map(ch =>
-      `<span class="chg">${escapeHtml(ch.label)} ${fmt(ch.from)}→${fmt(ch.to)}</span>`
-    ).join('');
-    return `<div class="log-item">
-      <div class="log-time">${fmtTs(e.ts)}</div>
-      <div class="log-body">
-        <span class="prod">${escapeHtml(e.product || '')}</span> ${slotBadge(e)}
-        <span class="log-total"> · 총 ${fmt(d.grandFrom)} → <b>${fmt(d.grandTo)}</b></span>
-        <div class="log-date">기준일 ${escapeHtml(e.date || '')}</div>
-        <div class="log-detail">${chips}</div>
-      </div></div>`;
+async function pushPendingLogs(){ for(const e of changeLog.filter(e=>e.pending)) await pushLog(e); }
+function fmtTs(ts){ const d=new Date(ts); if(isNaN(d)) return ''; const p=n=>String(n).padStart(2,'0'); return `${p(d.getMonth()+1)}-${p(d.getDate())}<br>${p(d.getHours())}:${p(d.getMinutes())}`; }
+function isOpen(id){ return document.getElementById(id).classList.contains('active'); }
+function renderLogIfOpen(){ if(isOpen('logModal')) renderLog(); }
+function slotOf(e){ return e.slot||(e.detail&&e.detail.slot)||''; }
+function slotBadge(e){ const s=slotOf(e); if(!s||s==='day') return ''; return `<span class="slot-badge ${s==='오전'?'slot-am':'slot-pm'}">${escapeHtml(s)}</span>`; }
+function renderLog(){
+  const list=document.getElementById('logList');
+  const onlyToday=document.getElementById('logOnlyToday').checked;
+  const slotFilter=document.getElementById('logSlotFilter').value;
+  let items=changeLog;
+  if(onlyToday) items=items.filter(e=>e.date===curDate());
+  if(slotFilter) items=items.filter(e=>slotOf(e)===slotFilter);
+  if(!items.length){ list.innerHTML='<div class="log-empty">변경 이력이 없습니다.</div>'; return; }
+  list.innerHTML=items.map(e=>{
+    const d=e.detail||{};
+    if(d.reset) return `<div class="log-item reset"><div class="log-time">${fmtTs(e.ts)}</div><div class="log-body"><span class="prod">전체 초기화</span> ${slotBadge(e)}<div class="log-date">기준일 ${escapeHtml(e.date||'')}</div></div></div>`;
+    const chips=(d.changes||[]).map(ch=>`<span class="chg">${escapeHtml(ch.label)} ${fmt(ch.from)}→${fmt(ch.to)}</span>`).join('');
+    return `<div class="log-item"><div class="log-time">${fmtTs(e.ts)}</div><div class="log-body"><span class="prod">${escapeHtml(e.product||'')}</span> ${slotBadge(e)}<span class="log-total"> · 총 ${fmt(d.grandFrom)} → <b>${fmt(d.grandTo)}</b></span><div class="log-date">기준일 ${escapeHtml(e.date||'')}</div><div class="log-detail">${chips}</div></div></div>`;
   }).join('');
 }
-
-function openLogModal() { document.getElementById('logModal').classList.add('active'); renderLog(); }
-function closeLogModal() { document.getElementById('logModal').classList.remove('active'); }
-
-async function clearLog() {
-  if (!confirm('변경 이력을 모두 지우시겠습니까? (연동된 경우 모든 기기에서 삭제됩니다)')) return;
-  changeLog = [];
-  saveLog();
-  renderLog();
-  if (cloudReady) {
-    const c = getCloudCfg();
-    try { await supa.from('inventory_log').delete().eq('room', c.room); } catch (e) { console.warn(e); }
-  }
-  showToast('이력이 삭제되었습니다.', 'error');
+function openLogModal(){ document.getElementById('logModal').classList.add('active'); renderLog(); }
+function closeLogModal(){ document.getElementById('logModal').classList.remove('active'); }
+async function clearLog(){
+  if(!confirm('이 탭의 변경 이력을 모두 지우시겠습니까? (연동 시 모든 기기에서 삭제)')) return;
+  changeLog=[]; saveLog(); renderLog();
+  if(cloudReady){ try{ await supa.from('inventory_log').delete().eq('room',cloudRoom()); }catch(e){ console.warn(e); } }
+  showToast('이력이 삭제되었습니다.','error');
 }
 
 // ===== 자동 저장 =====
-function persistWorking() {
-  try {
-    localStorage.setItem(workingKey(), JSON.stringify({ date: curDate(), data: rowData, savedAt: Date.now() }));
-  } catch (e) {}
-  if (applyingRemote) return;
-  if (cloudReady) { clearTimeout(pushTimer); pushTimer = setTimeout(pushRecord, 600); }
+function persistWorking(){
+  try{ localStorage.setItem(workingKey(),JSON.stringify({date:curDate(),slot:curSlot(),data:rowData,savedAt:Date.now()})); }catch(e){}
+  if(applyingRemote) return;
+  if(cloudReady){ clearTimeout(pushTimer); pushTimer=setTimeout(pushRecord,600); }
 }
-function loadWorking() {
-  try {
-    const raw = localStorage.getItem(workingKey());
-    if (raw) { rowData = normalizeRows(JSON.parse(raw).data); return true; }
-  } catch (e) {}
-  rowData = products.map(EMPTY_ROW);
+function loadWorking(){
+  try{ const r=localStorage.getItem(workingKey()); if(r){ rowData=normalizeRows(JSON.parse(r).data); return true; } }catch(e){}
+  rowData=products.map(EMPTY_ROW); return false;
+}
+function rowHasValue(d){ return Object.keys(fieldLabels()).some(f=>num(d[f])>0); }
+function currentHasSaved(){ try{ return !!localStorage.getItem(workingKey()); }catch(e){ return false; } }
+function prevSlot(date,slot){ if(activeType()==='simple') return {date:shiftDate(date,-1),slot:'day'}; return slot==='오후'?{date,slot:'오전'}:{date:shiftDate(date,-1),slot:'오후'}; }
+function slotRank(s){ return s==='오후'?1:0; }
+function ord(date,slot){ return date+'_'+slotRank(slot); }
+function scanLocalDates(){
+  const b=baseRoom();
+  const prefix = activeTab==='yoarup' ? `inv_work_${b}_` : `inv_work_${b}_${activeTab}_`;
+  const out=[];
+  for(const k of Object.keys(localStorage)){
+    if(!k.startsWith(prefix)) continue;
+    const m=k.slice(prefix.length).match(/^(\d{4}-\d{2}-\d{2})_(.+)$/);
+    if(m) out.push({date:m[1],slot:m[2],key:k});
+  }
+  return out;
+}
+// 날짜 간격과 무관하게 '현재보다 이전'인 가장 최근 기록의 수량을 승계
+async function seedFromPrevious(){
+  const curO=ord(curDate(),curSlot());
+  let best=null, bestData=null;
+  // 로컬 후보
+  const cand=scanLocalDates().filter(e=>ord(e.date,e.slot)<curO).sort((a,b)=>ord(a.date,a.slot)<ord(b.date,b.slot)?1:-1);
+  for(const e of cand){ try{ const d=normalizeRows(JSON.parse(localStorage.getItem(e.key)).data); if(d.some(rowHasValue)){ best=e; bestData=d; break; } }catch(err){} }
+  // 클라우드 후보 (더 최근이면 우선)
+  if(cloudReady){
+    try{
+      const {data}=await supa.from('inventory').select('date,slot,data').eq('room',cloudRoom()).lte('date',curDate()).order('date',{ascending:false}).limit(8);
+      const prior=(data||[]).filter(r=>ord(r.date,r.slot||'day')<curO).sort((a,b)=>ord(a.date,a.slot||'day')<ord(b.date,b.slot||'day')?1:-1);
+      for(const r of prior){ const d=normalizeRows(r.data); if(d.some(rowHasValue)){ if(!best||ord(r.date,r.slot||'day')>ord(best.date,best.slot)){ best={date:r.date,slot:r.slot||'day'}; bestData=d; } break; } }
+    }catch(e){ console.warn(e); }
+  }
+  if(best&&bestData){
+    rowData=bestData; renderTable();
+    try{ localStorage.setItem(workingKey(),JSON.stringify({date:curDate(),slot:curSlot(),data:rowData,savedAt:Date.now()})); }catch(e){}
+    showToast(`직전 기록(${best.date.slice(5)}${best.slot&&best.slot!=='day'?' '+best.slot:''}) 수량을 불러왔습니다`,'success');
+    return true;
+  }
   return false;
 }
 
 // ===== 클라우드 =====
-function getCloudCfg() {
-  try { const raw = localStorage.getItem(CLOUD_CFG_KEY); return raw ? JSON.parse(raw) : null; }
-  catch (e) { return null; }
-}
-function setStatus(state) {
-  document.getElementById('connDot').className = 'conn-dot ' + state;
-  const labels = { online: '연동됨', connecting: '연결 중…', error: '연결 오류', local: '오프라인' };
-  document.getElementById('connText').textContent = labels[state] || '오프라인';
-}
-function ensureSupabaseLib() {
-  return new Promise((resolve, reject) => {
-    if (window.supabase && window.supabase.createClient) return resolve();
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error('Supabase 라이브러리 로드 실패 (인터넷 연결 확인)'));
-    document.head.appendChild(s);
-  });
-}
-async function initCloud() {
-  const c = getCloudCfg();
-  if (!c || !c.url || !c.key || !c.room) { setStatus('local'); return; }
+function getCloudCfg(){ try{ const r=localStorage.getItem('inv_cloud_cfg'); return r?JSON.parse(r):null; }catch(e){ return null; } }
+function setStatus(s){ document.getElementById('connDot').className='conn-dot '+s; const L={online:'연동됨',connecting:'연결 중…',error:'연결 오류',local:'오프라인'}; document.getElementById('connText').textContent=L[s]||'오프라인'; }
+function ensureSupabaseLib(){ return new Promise((res,rej)=>{ if(window.supabase&&window.supabase.createClient) return res(); const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; s.onload=()=>res(); s.onerror=()=>rej(new Error('Supabase 라이브러리 로드 실패 (인터넷 확인)')); document.head.appendChild(s); }); }
+async function initCloud(){
+  const c=getCloudCfg(); if(!c||!c.url||!c.key||!c.room){ setStatus('local'); return; }
   setStatus('connecting');
-  try {
+  try{
     await ensureSupabaseLib();
-    supa = window.supabase.createClient(c.url, c.key, { realtime: { params: { eventsPerSecond: 5 } } });
-    cloudReady = true;
-    // 방(room)이 바뀌었을 수 있으니 로컬 로그 재적재
-    changeLog = loadLog();
-    await pullConfig();
-    await pullRecord();
-    await pullLog();
-    await pushPendingLogs();
-    subscribeRealtime();
-    setStatus('online');
-  } catch (e) {
-    console.error('클라우드 연결 실패:', e);
-    cloudReady = false;
-    setStatus('error');
-    showToast('연동 실패: ' + e.message, 'error');
-  }
+    supa=window.supabase.createClient(c.url,c.key,{realtime:{params:{eventsPerSecond:5}}});
+    cloudReady=true;
+    await pullTabs();
+    products=loadLocalProducts(); changeLog=loadLog();
+    await pullConfig(); await pullRecord(); await pullLog(); await pushPendingLogs();
+    subscribeRealtime(); setStatus('online');
+  }catch(e){ console.error('클라우드 연결 실패:',e); cloudReady=false; setStatus('error'); showToast('연동 실패: '+e.message,'error'); }
 }
-async function pullConfig() {
-  if (!cloudReady) return;
-  const c = getCloudCfg();
-  try {
-    const { data, error } = await supa.from('inventory_config').select('products').eq('room', c.room).maybeSingle();
-    if (error) { console.warn('config pull:', error.message); return; }
-    if (data && Array.isArray(data.products) && data.products.length) {
-      products = normalizeProducts(data.products); saveLocalProducts(); rowData = normalizeRows(rowData);
-    } else { await pushConfig(); }
-  } catch (e) { console.warn(e); }
+async function pullTabs(){
+  if(!cloudReady) return;
+  try{ const {data,error}=await supa.from('inventory_config').select('products').eq('room',baseRoom()+'::__tabs__').maybeSingle();
+    if(error){ console.warn('tabs pull:',error.message); return; }
+    if(data&&Array.isArray(data.products)&&data.products.length){ tabs=data.products; saveTabs(); if(!tabs.some(t=>t.id===activeTab)) activeTab=tabs[0].id; renderTabs(); updateTypeUI(); }
+    else await pushTabs();
+  }catch(e){ console.warn(e); }
 }
-async function pushConfig() {
-  if (!cloudReady) return;
-  const c = getCloudCfg();
-  try {
-    const { error } = await supa.from('inventory_config').upsert(
-      { room: c.room, products, updated_at: nowIso(), updated_by: CLIENT_ID }, { onConflict: 'room' });
-    if (error) console.warn('config push:', error.message);
-  } catch (e) { console.warn(e); }
+async function pushTabs(){
+  if(!cloudReady) return;
+  try{ await supa.from('inventory_config').upsert({room:baseRoom()+'::__tabs__',products:tabs,updated_at:nowIso(),updated_by:CLIENT_ID},{onConflict:'room'}); }catch(e){ console.warn(e); }
 }
-async function pullRecord() {
-  if (!cloudReady) return false;
-  const c = getCloudCfg();
-  try {
-    const { data, error } = await supa.from('inventory').select('data')
-      .eq('room', c.room).eq('date', curDate()).eq('slot', curSlot()).maybeSingle();
-    if (error) { console.warn('record pull:', error.message); return false; }
-    if (data && data.data) {
-      applyingRemote = true; rowData = normalizeRows(data.data); renderTable(); applyingRemote = false;
-      try { localStorage.setItem(workingKey(), JSON.stringify({ date: curDate(), data: rowData, savedAt: Date.now() })); } catch (e) {}
-      return true;
-    }
-  } catch (e) { console.warn(e); }
+async function pullConfig(){
+  if(!cloudReady) return;
+  try{ const {data,error}=await supa.from('inventory_config').select('products').eq('room',cloudRoom()).maybeSingle();
+    if(error){ console.warn('config pull:',error.message); return; }
+    if(data&&Array.isArray(data.products)&&data.products.length){ products=normalizeProducts(data.products); saveLocalProducts(); rowData=normalizeRows(rowData); renderTable(); }
+    else await pushConfig();
+  }catch(e){ console.warn(e); }
+}
+async function pushConfig(){ if(!cloudReady) return; try{ await supa.from('inventory_config').upsert({room:cloudRoom(),products,updated_at:nowIso(),updated_by:CLIENT_ID},{onConflict:'room'}); }catch(e){ console.warn(e); } }
+async function pullRecord(){
+  if(!cloudReady) return false;
+  try{ const {data,error}=await supa.from('inventory').select('data').eq('room',cloudRoom()).eq('date',curDate()).eq('slot',curSlot()).maybeSingle();
+    if(error){ console.warn('record pull:',error.message); return false; }
+    if(data&&data.data){ applyingRemote=true; rowData=normalizeRows(data.data); renderTable(); applyingRemote=false;
+      try{ localStorage.setItem(workingKey(),JSON.stringify({date:curDate(),slot:curSlot(),data:rowData,savedAt:Date.now()})); }catch(e){} return true; }
+  }catch(e){ console.warn(e); }
   return false;
 }
-async function pushRecord() {
-  if (!cloudReady) return;
-  const c = getCloudCfg();
-  try {
-    const { error } = await supa.from('inventory').upsert(
-      { room: c.room, date: curDate(), slot: curSlot(), data: rowData, updated_at: nowIso(), updated_by: CLIENT_ID },
-      { onConflict: 'room,date,slot' });
-    if (error) { console.warn('record push:', error.message); setStatus('error'); }
-    else setStatus('online');
-  } catch (e) { console.warn(e); setStatus('error'); }
+async function pushRecord(){
+  if(!cloudReady) return;
+  try{ const {error}=await supa.from('inventory').upsert({room:cloudRoom(),date:curDate(),slot:curSlot(),data:rowData,updated_at:nowIso(),updated_by:CLIENT_ID},{onConflict:'room,date,slot'});
+    if(error){ console.warn('record push:',error.message); setStatus('error'); } else setStatus('online');
+  }catch(e){ console.warn(e); setStatus('error'); }
 }
-function subscribeRealtime() {
-  if (!cloudReady) return;
-  const c = getCloudCfg();
-  if (rtChannel) { try { supa.removeChannel(rtChannel); } catch (e) {} }
-  rtChannel = supa.channel('inv_' + c.room)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory', filter: 'room=eq.' + c.room }, payload => {
-      const r = payload.new;
-      if (!r || r.updated_by === CLIENT_ID) return;
-      if (r.date === curDate() && r.slot === curSlot()) {
-        applyingRemote = true; rowData = normalizeRows(r.data); renderTable(); applyingRemote = false;
-        try { localStorage.setItem(workingKey(), JSON.stringify({ date: curDate(), data: rowData, savedAt: Date.now() })); } catch (e) {}
-        showToast('다른 기기에서 업데이트됨 ↻', 'success');
-      }
+function subscribeRealtime(){
+  if(!cloudReady) return;
+  const room=cloudRoom();
+  if(rtChannel){ try{ supa.removeChannel(rtChannel); }catch(e){} }
+  rtChannel=supa.channel('inv_'+room)
+    .on('postgres_changes',{event:'*',schema:'public',table:'inventory',filter:'room=eq.'+room},payload=>{
+      const r=payload.new; if(!r||r.updated_by===CLIENT_ID) return;
+      if(r.date===curDate()&&r.slot===curSlot()){ applyingRemote=true; rowData=normalizeRows(r.data); renderTable(); applyingRemote=false;
+        try{ localStorage.setItem(workingKey(),JSON.stringify({date:curDate(),slot:curSlot(),data:rowData,savedAt:Date.now()})); }catch(e){}
+        showToast('다른 기기에서 업데이트됨 ↻','success'); }
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_config', filter: 'room=eq.' + c.room }, payload => {
-      const r = payload.new;
-      if (!r || r.updated_by === CLIENT_ID) return;
-      if (Array.isArray(r.products) && r.products.length) {
-        products = normalizeProducts(r.products); saveLocalProducts(); rowData = normalizeRows(rowData); renderTable();
-        showToast('제품/단위 설정이 업데이트됨 ↻', 'success');
-      }
+    .on('postgres_changes',{event:'*',schema:'public',table:'inventory_config',filter:'room=eq.'+room},payload=>{
+      const r=payload.new; if(!r||r.updated_by===CLIENT_ID) return;
+      if(Array.isArray(r.products)){ products=normalizeProducts(r.products); saveLocalProducts(); rowData=normalizeRows(rowData); renderTable(); showToast('품목/단위 설정 업데이트됨 ↻','success'); }
     })
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'inventory_log', filter: 'room=eq.' + c.room }, payload => {
-      const r = payload.new;
-      if (!r || r.updated_by === CLIENT_ID) return;
-      addLog({ lid: r.lid, ts: r.ts, date: r.date, product: r.product, detail: r.detail }, { push: false });
-    })
-    .subscribe();
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'inventory_log',filter:'room=eq.'+room},payload=>{
+      const r=payload.new; if(!r||r.updated_by===CLIENT_ID) return;
+      addLog({lid:r.lid,ts:r.ts,date:r.date,product:r.product,detail:r.detail},{push:false});
+    }).subscribe();
 }
 
-// ===== 클라우드 설정 모달 =====
-function openCloudModal() {
-  const c = getCloudCfg() || {};
-  document.getElementById('cfgUrl').value = c.url || '';
-  document.getElementById('cfgKey').value = c.key || '';
-  document.getElementById('cfgRoom').value = c.room || '';
-  document.getElementById('cloudModal').classList.add('active');
-}
-function closeCloudModal() { document.getElementById('cloudModal').classList.remove('active'); }
-
-function cleanUrl(raw) {
-  let u = raw.trim();
-  u = u.replace(/\/rest\/v1\/?$/i, '');   // /rest/v1 경로 제거
-  u = u.replace(/\/+$/, '');              // 끝 슬래시 제거
-  return u;
-}
-async function saveCloudConfig() {
-  const url = cleanUrl(document.getElementById('cfgUrl').value);
-  const key = document.getElementById('cfgKey').value.trim();
-  const room = document.getElementById('cfgRoom').value.trim();
-  if (!url || !key || !room) { showToast('URL·Key·공유코드를 모두 입력하세요.', 'error'); return; }
-  if (!/^https:\/\/.+\.supabase\.co$/.test(url)) {
-    showToast('Project URL 형식을 확인하세요. (https://xxx.supabase.co)', 'error'); return;
-  }
-  try { localStorage.setItem(CLOUD_CFG_KEY, JSON.stringify({ url, key, room })); }
-  catch (e) { showToast('설정 저장 실패', 'error'); return; }
-
-  closeCloudModal();
-  showToast('연결 중…', 'success');
-  cloudReady = false;
-  if (rtChannel && supa) { try { supa.removeChannel(rtChannel); } catch (e) {} rtChannel = null; }
-  supa = null;
+// ===== 연동 설정 =====
+function openCloudModal(){ const c=getCloudCfg()||{}; document.getElementById('cfgUrl').value=c.url||''; document.getElementById('cfgKey').value=c.key||''; document.getElementById('cfgRoom').value=c.room||''; document.getElementById('cloudModal').classList.add('active'); }
+function closeCloudModal(){ document.getElementById('cloudModal').classList.remove('active'); }
+function cleanUrl(raw){ return raw.trim().replace(/\/rest\/v1\/?$/i,'').replace(/\/+$/,''); }
+async function saveCloudConfig(){
+  const url=cleanUrl(document.getElementById('cfgUrl').value), key=document.getElementById('cfgKey').value.trim(), room=document.getElementById('cfgRoom').value.trim();
+  if(!url||!key||!room){ showToast('URL·Key·공유코드를 모두 입력하세요.','error'); return; }
+  if(!/^https:\/\/.+\.supabase\.co$/.test(url)){ showToast('Project URL 형식을 확인하세요.','error'); return; }
+  try{ localStorage.setItem('inv_cloud_cfg',JSON.stringify({url,key,room})); }catch(e){ showToast('설정 저장 실패','error'); return; }
+  closeCloudModal(); showToast('연결 중…','success');
+  cloudReady=false; if(rtChannel&&supa){ try{ supa.removeChannel(rtChannel); }catch(e){} rtChannel=null; } supa=null;
   await initCloud();
-  if (cloudReady) showToast('연동 완료 ✓ 이제 기기 간 공유됩니다.', 'success');
+  if(cloudReady) showToast('연동 완료 ✓ 이제 기기 간 공유됩니다.','success');
 }
-function disconnectCloud() {
-  if (!confirm('연동을 해제하시겠습니까? (로컬 데이터는 유지됩니다)')) return;
-  try { localStorage.removeItem(CLOUD_CFG_KEY); } catch (e) {}
-  if (rtChannel && supa) { try { supa.removeChannel(rtChannel); } catch (e) {} }
-  rtChannel = null; supa = null; cloudReady = false;
-  changeLog = loadLog();
-  setStatus('local');
-  closeCloudModal();
-  showToast('연동 해제됨', 'error');
+function disconnectCloud(){
+  if(!confirm('연동을 해제하시겠습니까? (로컬 데이터는 유지)')) return;
+  try{ localStorage.removeItem('inv_cloud_cfg'); }catch(e){}
+  if(rtChannel&&supa){ try{ supa.removeChannel(rtChannel); }catch(e){} } rtChannel=null; supa=null; cloudReady=false;
+  products=loadLocalProducts(); changeLog=loadLog(); setStatus('local'); closeCloudModal(); showToast('연동 해제됨','error');
 }
 
-// ===== 단위/제품 설정 =====
-function openUnitsModal() {
-  const tbody = document.getElementById('unitsBody');
-  tbody.innerHTML = '';
-  products.forEach(p => tbody.appendChild(unitRowEl(p)));
-  document.getElementById('unitsModal').classList.add('active');
-}
-function closeUnitsModal() { document.getElementById('unitsModal').classList.remove('active'); }
-function unitRowEl(p) {
-  const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td class="name-cell"><input class="name-input u-name" type="text" value="${escapeHtml(p.name)}" placeholder="제품명"></td>
-    <td><input class="u-pallet" type="number" min="0" step="1" inputmode="numeric" value="${num(p.palletStd)}"></td>
-    <td><input class="u-box" type="number" min="0" step="1" inputmode="numeric" value="${num(p.boxStd)}"></td>
-    <td><button type="button" class="row-del-btn" title="삭제">×</button></td>`;
-  tr.querySelector('.row-del-btn').addEventListener('click', () => {
-    if (document.querySelectorAll('#unitsBody tr').length <= 1) { showToast('최소 1개 제품은 필요합니다.', 'error'); return; }
-    tr.remove();
-  });
-  return tr;
-}
-function addUnitRow() {
-  document.getElementById('unitsBody').appendChild(unitRowEl({ name: '', palletStd: 480, boxStd: 50 }));
-}
-function saveUnitsConfig() {
-  const rows = Array.from(document.querySelectorAll('#unitsBody tr'));
-  const newProducts = [];
-  for (const tr of rows) {
-    const name = tr.querySelector('.u-name').value.trim();
-    if (!name) continue;
-    newProducts.push({ name, palletStd: num(tr.querySelector('.u-pallet').value), boxStd: num(tr.querySelector('.u-box').value) });
-  }
-  if (!newProducts.length) { showToast('제품을 최소 1개 입력하세요.', 'error'); return; }
+// ===== 설정 (탭 타입별) =====
+function openSettings(){ if(activeType()==='simple') openItemsModal(); else openUnitsModal(); }
 
-  const oldByName = {};
-  products.forEach((p, i) => { oldByName[p.name] = rowData[i]; });
-  products = newProducts;
-  rowData = products.map(p => oldByName[p.name] || EMPTY_ROW());
+function openUnitsModal(){ const tb=document.getElementById('unitsBody'); tb.innerHTML=''; products.forEach(p=>tb.appendChild(unitRowEl(p))); document.getElementById('unitsModal').classList.add('active'); }
+function closeUnitsModal(){ document.getElementById('unitsModal').classList.remove('active'); }
+function unitRowEl(p){ const tr=document.createElement('tr'); tr.innerHTML=`<td class="name-cell"><input class="name-input u-name" type="text" value="${escapeHtml(p.name)}" placeholder="제품명"></td><td><input class="u-pallet" type="number" min="0" step="1" value="${num(p.palletStd)}"></td><td><input class="u-box" type="number" min="0" step="1" value="${num(p.boxStd)}"></td><td><button type="button" class="row-del-btn">×</button></td>`; tr.querySelector('.row-del-btn').addEventListener('click',()=>{ if(document.querySelectorAll('#unitsBody tr').length<=1){ showToast('최소 1개 필요','error'); return; } tr.remove(); }); return tr; }
+function addUnitRow(){ document.getElementById('unitsBody').appendChild(unitRowEl({name:'',palletStd:480,boxStd:50})); }
+function saveUnitsConfig(){
+  const rows=Array.from(document.querySelectorAll('#unitsBody tr')), np=[];
+  for(const tr of rows){ const name=tr.querySelector('.u-name').value.trim(); if(!name) continue; np.push({name,palletStd:num(tr.querySelector('.u-pallet').value),boxStd:num(tr.querySelector('.u-box').value)}); }
+  if(!np.length){ showToast('제품을 최소 1개 입력하세요.','error'); return; }
+  applyProductsChange(np); closeUnitsModal(); showToast('단위/제품 설정 저장됨 ✓','success');
+}
 
-  saveLocalProducts();
-  renderTable();
+function openItemsModal(){ const tb=document.getElementById('itemsBody'); tb.innerHTML=''; products.forEach((p,i)=>tb.appendChild(itemRowEl(p,i))); document.getElementById('itemsModal').classList.add('active'); }
+function closeItemsModal(){ document.getElementById('itemsModal').classList.remove('active'); }
+function itemRowEl(p,i){ const tr=document.createElement('tr'); tr.innerHTML=`<td class="no-cell">${(i!=null?i+1:'')}</td><td class="name-cell"><input class="name-input i-name" type="text" value="${escapeHtml(p.name)}" placeholder="품목명"></td><td class="name-cell"><input class="name-input i-note" type="text" value="${escapeHtml(p.note||'')}" placeholder="비고"></td><td><button type="button" class="row-del-btn">×</button></td>`; tr.querySelector('.row-del-btn').addEventListener('click',()=>{ tr.remove(); renumberItems(); }); return tr; }
+function renumberItems(){ Array.from(document.querySelectorAll('#itemsBody tr')).forEach((tr,i)=>{ tr.querySelector('.no-cell').textContent=i+1; }); }
+function addItemRow(){ const tb=document.getElementById('itemsBody'); tb.appendChild(itemRowEl({name:'',note:''},tb.children.length)); }
+function saveItemsConfig(){
+  const rows=Array.from(document.querySelectorAll('#itemsBody tr')), np=[];
+  for(const tr of rows){ const name=tr.querySelector('.i-name').value.trim(); if(!name) continue; np.push({name,note:tr.querySelector('.i-note').value.trim()}); }
+  if(!np.length){ showToast('품목을 최소 1개 입력하세요.','error'); return; }
+  applyProductsChange(np); closeItemsModal(); showToast('품목 설정 저장됨 ✓','success');
+}
+
+// 제품/품목 변경 시 기존 수량 최대한 보존(이름 기준)
+function applyProductsChange(np){
+  const oldByName={}; products.forEach((p,i)=>{ oldByName[p.name]=rowData[i]; });
+  products=np; rowData=products.map(p=>oldByName[p.name]||EMPTY_ROW());
+  saveLocalProducts(); renderTable(); persistWorking(); pushConfig();
+}
+
+// ===== 수동 저장 =====
+async function saveData(){
+  const date=curDate(); if(!date){ showToast('날짜를 선택해주세요.','error'); return; }
   persistWorking();
-  pushConfig();
-  closeUnitsModal();
-  showToast('단위/제품 설정 저장됨 ✓', 'success');
-}
-
-// ===== 수동 저장 (강제 동기화) =====
-async function saveData() {
-  const date = curDate();
-  if (!date) { showToast('날짜를 선택해주세요.', 'error'); return; }
-  persistWorking();
-  if (cloudReady) { await pushRecord(); await pushPendingLogs(); }
-  showToast(`저장 완료 ✓ (${date})${cloudReady ? ' · 연동' : ''}`, 'success');
+  if(cloudReady){ await pushRecord(); await pushPendingLogs(); }
+  showToast(`저장 완료 ✓ (${date}${activeType()==='simple'?'':' '+curSlot()})${cloudReady?' · 연동':''}`,'success');
 }
 
 // ===== 초기화 =====
-function resetData() {
-  if (!confirm('현재 화면의 입력값을 모두 0으로 초기화하시겠습니까? (변경 이력에 기록됩니다)')) return;
-  const hadData = rowData.some(d => calcRow(d, { palletStd: 0, boxStd: 0 }).looseSum > 0 ||
-    Object.keys(FIELD_LABELS).some(f => num(d[f]) > 0));
-  rowData = products.map(EMPTY_ROW);
-  renderTable();
-  persistWorking();
-  if (hadData) {
-    addLog({ lid: genLid(), ts: nowIso(), date: curDate(), slot: curSlot(), product: '전체', detail: { reset: true } });
-  }
-  showToast('초기화됨 ✓', 'error');
+function resetData(){
+  if(!confirm('현재 화면의 값을 모두 0으로 초기화하시겠습니까? (변경 이력에 기록됨)')) return;
+  const had=rowData.some(d=>Object.keys(fieldLabels()).some(f=>num(d[f])>0));
+  rowData=products.map(EMPTY_ROW); renderTable(); persistWorking();
+  if(had) addLog({lid:genLid(),ts:nowIso(),date:curDate(),slot:curSlot(),product:'전체',detail:{reset:true}});
+  showToast('초기화됨 ✓','error');
 }
 
 // ===== CSV =====
-function downloadCSV() {
-  const date = curDate() || '날짜없음';
-  const headers = ['제품명', '파렛트기준', '파렛트A', '파렛트B', '파렛트합계',
-    '카톤기준', '박스A', '박스B', '박스합계',
-    '낱개', '진열', '낱개합계', '총합계'];
-  const rows = products.map((p, i) => {
-    const d = rowData[i]; const c = calcRow(d, p);
-    return ['"' + String(p.name).replace(/"/g, '""') + '"',
-      num(p.palletStd), num(d.palletA), num(d.palletB), c.palletSum,
-      num(p.boxStd), num(d.boxA), num(d.boxB), c.boxSum,
-      num(d.loose), num(d.looseDisplay), c.looseSum, c.grandTotal].join(',');
-  });
-  const csv = '﻿' + [headers.join(','), ...rows].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `재고_${date}_${curSlot()}.csv`; a.click();
-  URL.revokeObjectURL(url);
-  showToast('CSV 다운로드 완료', 'success');
-}
-
-// ===== 재고 변동 비교 =====
-function shiftDate(str, days) {
-  const d = new Date(str + 'T00:00:00');
-  if (isNaN(d)) return str;
-  d.setDate(d.getDate() + days);
-  const p = n => String(n).padStart(2, '0');
-  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
-}
-
-// 직전 시간대 계산: 오후→같은날 오전, 오전→전일 오후
-function prevSlot(date, slot) {
-  return slot === '오후' ? { date, slot: '오전' } : { date: shiftDate(date, -1), slot: '오후' };
-}
-
-// 특정 (날짜, 시간대)의 재고 데이터 가져오기 (현재값은 라이브, 그 외는 클라우드→로컬 순)
-async function fetchDateData(date, slot) {
-  if (date === curDate() && slot === curSlot()) return rowData.slice();
-  if (cloudReady) {
-    try {
-      const c = getCloudCfg();
-      const { data } = await supa.from('inventory').select('data')
-        .eq('room', c.room).eq('date', date).eq('slot', slot).maybeSingle();
-      if (data && data.data) return normalizeRows(data.data);
-    } catch (e) { console.warn(e); }
+function downloadCSV(){
+  const date=curDate()||'날짜없음'; let headers,rows;
+  if(activeType()==='simple'){
+    headers=['No','품목명','수량','비고'];
+    rows=products.map((p,i)=>{const d=rowData[i];return [i+1,'"'+String(p.name).replace(/"/g,'""')+'"',num(d.qty),'"'+String(p.note||'').replace(/"/g,'""')+'"'].join(',');});
+  }else{
+    headers=['제품명','파렛트기준','파렛트A','파렛트B','파렛트합계','카톤기준','박스A','박스B','박스합계','낱개','진열','낱개합계','총합계'];
+    rows=products.map((p,i)=>{const d=rowData[i],c=calcRow(d,p);return ['"'+String(p.name).replace(/"/g,'""')+'"',num(p.palletStd),num(d.palletA),num(d.palletB),c.palletSum,num(p.boxStd),num(d.boxA),num(d.boxB),c.boxSum,num(d.loose),num(d.looseDisplay),c.looseSum,c.grandTotal].join(',');});
   }
-  try {
-    const raw = localStorage.getItem(`inv_work_${roomName()}_${date}_${slot}`);
-    if (raw) return normalizeRows(JSON.parse(raw).data);
-  } catch (e) {}
+  const csv='﻿'+[headers.join(','),...rows].join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}), url=URL.createObjectURL(blob), a=document.createElement('a');
+  const tabName=(tabs.find(t=>t.id===activeTab)||{}).name||'';
+  a.href=url; a.download=`${tabName}_${date}${activeType()==='simple'?'':'_'+curSlot()}.csv`; a.click(); URL.revokeObjectURL(url);
+  showToast('CSV 다운로드 완료','success');
+}
+
+// ===== 변동 비교 =====
+function shiftDate(str,days){ const d=new Date(str+'T00:00:00'); if(isNaN(d)) return str; d.setDate(d.getDate()+days); const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+async function fetchDateData(date,slot){
+  if(date===curDate()&&slot===curSlot()) return rowData.slice();
+  if(cloudReady){ try{ const {data}=await supa.from('inventory').select('data').eq('room',cloudRoom()).eq('date',date).eq('slot',slot).maybeSingle(); if(data&&data.data) return normalizeRows(data.data); }catch(e){ console.warn(e); } }
+  try{ const r=localStorage.getItem(workKeyFor(date,slot)); if(r) return normalizeRows(JSON.parse(r).data); }catch(e){}
   return null;
 }
-
-function openDiffModal() {
-  const cmpDate = curDate(), cmpSlot = curSlot();
-  const prev = prevSlot(cmpDate, cmpSlot);
-  document.getElementById('diffCmpDate').value = cmpDate;
-  document.getElementById('diffCmpSlot').value = cmpSlot;
-  document.getElementById('diffBaseDate').value = prev.date;
-  document.getElementById('diffBaseSlot').value = prev.slot;
-  document.getElementById('diffModal').classList.add('active');
-  runDiff();
+function openDiffModal(){
+  const simple=activeType()==='simple';
+  const cmpDate=curDate(), cmpSlot=curSlot();
+  const prev = simple ? {date:shiftDate(cmpDate,-1),slot:'day'} : prevSlot(cmpDate,cmpSlot);
+  document.getElementById('diffCmpDate').value=cmpDate; document.getElementById('diffCmpSlot').value=simple?'오전':cmpSlot;
+  document.getElementById('diffBaseDate').value=prev.date; document.getElementById('diffBaseSlot').value=simple?'오전':prev.slot;
+  document.getElementById('diffModal').classList.add('active'); runDiff();
 }
-function closeDiffModal() { document.getElementById('diffModal').classList.remove('active'); }
-
-let lastDiff = null;
-async function runDiff() {
-  const baseDate = document.getElementById('diffBaseDate').value;
-  const baseSlot = document.getElementById('diffBaseSlot').value;
-  const cmpDate = document.getElementById('diffCmpDate').value;
-  const cmpSlot = document.getElementById('diffCmpSlot').value;
-  const hideZero = document.getElementById('diffHideZero').checked;
-  const body = document.getElementById('diffBody');
-  const summary = document.getElementById('diffSummary');
-  const lbl = (d, s) => `${d.slice(5)} ${s}`;
-  document.getElementById('diffBaseTh').textContent = baseDate ? lbl(baseDate, baseSlot) : '기준';
-  document.getElementById('diffCmpTh').textContent = cmpDate ? lbl(cmpDate, cmpSlot) : '비교';
-
-  if (!baseDate || !cmpDate) {
-    body.innerHTML = ''; summary.innerHTML = '<div class="diff-missing">기준·비교 날짜를 선택하세요.</div>'; return;
-  }
-
-  summary.innerHTML = '불러오는 중…';
-  const [base, cmp] = await Promise.all([fetchDateData(baseDate, baseSlot), fetchDateData(cmpDate, cmpSlot)]);
-
-  let miss = '';
-  if (!base) miss += `기준(${lbl(baseDate, baseSlot)}) 저장된 재고 없음. `;
-  if (!cmp) miss += `비교(${lbl(cmpDate, cmpSlot)}) 저장된 재고 없음.`;
-
-  const rows = []; let baseGrand = 0, cmpGrand = 0;
-  products.forEach((p, i) => {
-    const b = base ? calcRow(base[i] || EMPTY_ROW(), p).grandTotal : 0;
-    const c = cmp ? calcRow(cmp[i] || EMPTY_ROW(), p).grandTotal : 0;
-    baseGrand += b; cmpGrand += c;
-    rows.push({ name: p.name, b, c, diff: c - b });
-  });
-  lastDiff = { baseDate, baseSlot, cmpDate, cmpSlot, rows, baseGrand, cmpGrand };
-
-  const cls = v => v > 0 ? 'diff-up' : (v < 0 ? 'diff-down' : 'diff-zero');
-  const arrow = v => v > 0 ? '▲' : (v < 0 ? '▼' : '–');
-  const sign = v => (v > 0 ? '+' : '') + fmt(v);
-
-  const visible = hideZero ? rows.filter(r => r.diff !== 0) : rows;
-  let rowsHtml = visible.map(r => `
-    <tr>
-      <td class="name">${escapeHtml(r.name)}</td>
-      <td>${fmt(r.b)}</td>
-      <td>${fmt(r.c)}</td>
-      <td class="${cls(r.diff)}">${arrow(r.diff)} ${sign(r.diff)}</td>
-    </tr>`).join('');
-  if (!visible.length) rowsHtml = `<tr><td colspan="4" style="padding:18px;color:var(--text-muted);">변동된 제품이 없습니다.</td></tr>`;
-
-  body.innerHTML = rowsHtml + `
-    <tr class="diff-total-row">
-      <td class="name">합계</td>
-      <td>${fmt(baseGrand)}</td>
-      <td>${fmt(cmpGrand)}</td>
-      <td>${sign(cmpGrand - baseGrand)}</td>
-    </tr>`;
-
-  const totalDiff = cmpGrand - baseGrand;
-  summary.innerHTML = (miss ? `<div class="diff-missing">⚠️ ${miss}</div>` : '') +
-    `<b>${lbl(baseDate, baseSlot)}</b> → <b>${lbl(cmpDate, cmpSlot)}</b> 총 변동 :
-     <b class="${cls(totalDiff)}">${sign(totalDiff)}</b>
-     <span style="color:var(--text-muted);">(${fmt(baseGrand)} → ${fmt(cmpGrand)})</span>`;
+function closeDiffModal(){ document.getElementById('diffModal').classList.remove('active'); }
+let lastDiff=null;
+async function runDiff(){
+  const simple=activeType()==='simple';
+  const baseDate=document.getElementById('diffBaseDate').value, cmpDate=document.getElementById('diffCmpDate').value;
+  const baseSlot=simple?'day':document.getElementById('diffBaseSlot').value, cmpSlot=simple?'day':document.getElementById('diffCmpSlot').value;
+  const hideZero=document.getElementById('diffHideZero').checked;
+  const body=document.getElementById('diffBody'), summary=document.getElementById('diffSummary');
+  const lbl=(d,s)=>d.slice(5)+(s&&s!=='day'?' '+s:'');
+  document.getElementById('diffBaseTh').textContent=baseDate?lbl(baseDate,baseSlot):'기준';
+  document.getElementById('diffCmpTh').textContent=cmpDate?lbl(cmpDate,cmpSlot):'비교';
+  if(!baseDate||!cmpDate){ body.innerHTML=''; summary.innerHTML='<div class="diff-missing">기준·비교 날짜를 선택하세요.</div>'; return; }
+  summary.innerHTML='불러오는 중…';
+  const [base,cmp]=await Promise.all([fetchDateData(baseDate,baseSlot),fetchDateData(cmpDate,cmpSlot)]);
+  let miss=''; if(!base) miss+=`기준(${lbl(baseDate,baseSlot)}) 데이터 없음. `; if(!cmp) miss+=`비교(${lbl(cmpDate,cmpSlot)}) 데이터 없음.`;
+  const rows=[]; let bG=0,cG=0;
+  products.forEach((p,i)=>{ const b=base?calcRow(base[i]||EMPTY_ROW(),p).grandTotal:0; const c=cmp?calcRow(cmp[i]||EMPTY_ROW(),p).grandTotal:0; bG+=b; cG+=c; rows.push({name:p.name,b,c,diff:c-b}); });
+  lastDiff={baseDate,baseSlot,cmpDate,cmpSlot,rows,baseGrand:bG,cmpGrand:cG};
+  const cls=v=>v>0?'diff-up':(v<0?'diff-down':'diff-zero'), arrow=v=>v>0?'▲':(v<0?'▼':'–'), sign=v=>(v>0?'+':'')+fmt(v);
+  const vis=hideZero?rows.filter(r=>r.diff!==0):rows;
+  let html=vis.map(r=>`<tr><td class="name">${escapeHtml(r.name)}</td><td>${fmt(r.b)}</td><td>${fmt(r.c)}</td><td class="${cls(r.diff)}">${arrow(r.diff)} ${sign(r.diff)}</td></tr>`).join('');
+  if(!vis.length) html=`<tr><td colspan="4" style="padding:18px;color:var(--text-muted);">변동된 항목이 없습니다.</td></tr>`;
+  body.innerHTML=html+`<tr class="diff-total-row"><td class="name">합계</td><td>${fmt(bG)}</td><td>${fmt(cG)}</td><td>${sign(cG-bG)}</td></tr>`;
+  const td=cG-bG;
+  summary.innerHTML=(miss?`<div class="diff-missing">⚠️ ${miss}</div>`:'')+`<b>${lbl(baseDate,baseSlot)}</b> → <b>${lbl(cmpDate,cmpSlot)}</b> 총 변동 : <b class="${cls(td)}">${sign(td)}</b> <span style="color:var(--text-muted);">(${fmt(bG)} → ${fmt(cG)})</span>`;
 }
-
-function exportDiffCsv() {
-  if (!lastDiff) { showToast('먼저 비교를 실행하세요.', 'error'); return; }
-  const { baseDate, baseSlot, cmpDate, cmpSlot, rows, baseGrand, cmpGrand } = lastDiff;
-  const header = ['제품명', `${baseDate} ${baseSlot}(기준)`, `${cmpDate} ${cmpSlot}(비교)`, '차이'];
-  const lines = rows.map(r => ['"' + String(r.name).replace(/"/g, '""') + '"', r.b, r.c, r.diff].join(','));
-  lines.push(['합계', baseGrand, cmpGrand, cmpGrand - baseGrand].join(','));
-  const csv = '﻿' + [header.join(','), ...lines].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `재고변동_${baseDate}${baseSlot}_${cmpDate}${cmpSlot}.csv`; a.click();
-  URL.revokeObjectURL(url);
-  showToast('변동 비교 CSV 다운로드', 'success');
+function exportDiffCsv(){
+  if(!lastDiff){ showToast('먼저 비교를 실행하세요.','error'); return; }
+  const {baseDate,baseSlot,cmpDate,cmpSlot,rows,baseGrand,cmpGrand}=lastDiff;
+  const sfx=s=>s&&s!=='day'?' '+s:'';
+  const header=['항목',`${baseDate}${sfx(baseSlot)}(기준)`,`${cmpDate}${sfx(cmpSlot)}(비교)`,'차이'];
+  const lines=rows.map(r=>['"'+String(r.name).replace(/"/g,'""')+'"',r.b,r.c,r.diff].join(','));
+  lines.push(['합계',baseGrand,cmpGrand,cmpGrand-baseGrand].join(','));
+  const csv='﻿'+[header.join(','),...lines].join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url; a.download=`변동_${baseDate}_${cmpDate}.csv`; a.click(); URL.revokeObjectURL(url);
+  showToast('변동 비교 CSV 다운로드','success');
 }
 
 // ===== 토스트 =====
-function showToast(msg, type = 'info') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = `toast ${type} show`;
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => { t.className = `toast ${type}`; }, 2500);
-}
-
-// ===== 직전 기록 수량 승계 =====
-function rowHasValue(d) { return Object.keys(FIELD_LABELS).some(f => num(d[f]) > 0); }
-function currentHasSaved() { try { return !!localStorage.getItem(workingKey()); } catch (e) { return false; } }
-
-// 현재 (날짜,시간대)에 저장분이 없을 때, 가장 최근 직전 기록의 수량을 불러와 시작값으로 사용
-async function seedFromPrevious() {
-  let cur = { date: curDate(), slot: curSlot() };
-  for (let i = 0; i < 4; i++) {           // 최대 4단계(≈2일) 뒤로 탐색
-    cur = prevSlot(cur.date, cur.slot);
-    const data = await fetchDateData(cur.date, cur.slot);
-    if (data && data.some(rowHasValue)) {
-      rowData = normalizeRows(data);
-      renderTable();
-      // 로컬에만 시작값으로 저장(클라우드 덮어쓰기 방지 — 실제 수정 시 동기화됨)
-      try { localStorage.setItem(workingKey(), JSON.stringify({ date: curDate(), slot: curSlot(), data: rowData, savedAt: Date.now() })); } catch (e) {}
-      showToast(`직전 기록(${cur.date.slice(5)} ${cur.slot}) 수량을 불러왔습니다`, 'success');
-      return true;
-    }
-  }
-  return false;
-}
+function showToast(msg,type='info'){ const t=document.getElementById('toast'); t.textContent=msg; t.className=`toast ${type} show`; clearTimeout(t._timer); t._timer=setTimeout(()=>{t.className=`toast ${type}`;},2500); }
 
 // ===== 날짜/시간대 변경 =====
-async function onSelectionChange() {
-  const hadLocal = loadWorking();
-  renderTable();
-  let hasData = hadLocal;
-  if (cloudReady) { if (await pullRecord()) hasData = true; }
-  if (!hasData) await seedFromPrevious();
+async function onSelectionChange(){
+  const had=loadWorking(); renderTable();
+  let hasData=had;
+  if(cloudReady){ if(await pullRecord()) hasData=true; }
+  if(!hasData) await seedFromPrevious();
   renderLogIfOpen();
 }
 
-// ===== 시작 =====
-async function init() {
-  products = loadLocalProducts();   // 상수 정의 이후 안전하게 로드
-  rowData = products.map(EMPTY_ROW);
-  changeLog = loadLog();
-  document.getElementById('dateInput').value = todayStr();
-  document.getElementById('slotInput').value = (new Date().getHours() < 12) ? '오전' : '오후';
-  loadWorking();
-  renderTable();
-
-  document.getElementById('dateInput').addEventListener('change', onSelectionChange);
-  document.getElementById('slotInput').addEventListener('change', onSelectionChange);
-  document.getElementById('logOnlyToday').addEventListener('change', renderLog);
-  document.getElementById('logSlotFilter').addEventListener('change', renderLog);
-  document.getElementById('diffBaseDate').addEventListener('change', runDiff);
-  document.getElementById('diffBaseSlot').addEventListener('change', runDiff);
-  document.getElementById('diffCmpDate').addEventListener('change', runDiff);
-  document.getElementById('diffCmpSlot').addEventListener('change', runDiff);
-  document.getElementById('diffHideZero').addEventListener('change', runDiff);
-
-  document.getElementById('modalOverlay').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
-  document.getElementById('cloudModal').addEventListener('click', function (e) { if (e.target === this) closeCloudModal(); });
-  document.getElementById('unitsModal').addEventListener('click', function (e) { if (e.target === this) closeUnitsModal(); });
-  document.getElementById('logModal').addEventListener('click', function (e) { if (e.target === this) closeLogModal(); });
-  document.getElementById('diffModal').addEventListener('click', function (e) { if (e.target === this) closeDiffModal(); });
-  document.getElementById('modalForm').addEventListener('submit', (e) => e.preventDefault());
-
-  await initCloud();
-  // 현재 시간대에 저장분이 없으면 직전 기록 수량을 시작값으로 승계
-  if (!currentHasSaved()) await seedFromPrevious();
-  console.log('재고 관리 앱 시작됨. clientId:', CLIENT_ID);
+// ===== 부자재 초기 데이터 미리 넣기 (로컬) =====
+function preloadBujaIfNeeded(){
+  const b=baseRoom();
+  if(!localStorage.getItem('inv_products_buja')){
+    try{ localStorage.setItem('inv_products_buja',JSON.stringify(BUJA_ITEMS)); }catch(e){}
+  }
+  const wk=`inv_work_${b}_buja_${BUJA_DATE}_day`;
+  if(!localStorage.getItem(wk)){
+    try{ localStorage.setItem(wk,JSON.stringify({date:BUJA_DATE,slot:'day',data:BUJA_QTY.map(q=>({qty:q})),savedAt:Date.now()})); }catch(e){}
+  }
 }
 
+// ===== 시작 =====
+async function init(){
+  tabs=loadTabs(); activeTab=loadActiveTab();
+  preloadBujaIfNeeded();
+  products=loadLocalProducts(); changeLog=loadLog();
+  document.getElementById('dateInput').value=todayStr();
+  document.getElementById('slotInput').value=(new Date().getHours()<12)?'오전':'오후';
+  updateTypeUI();
+  loadWorking(); renderTabs(); renderTable();
+
+  document.getElementById('dateInput').addEventListener('change',onSelectionChange);
+  document.getElementById('slotInput').addEventListener('change',onSelectionChange);
+  document.getElementById('logOnlyToday').addEventListener('change',renderLog);
+  document.getElementById('logSlotFilter').addEventListener('change',renderLog);
+  ['diffBaseDate','diffBaseSlot','diffCmpDate','diffCmpSlot','diffHideZero'].forEach(id=>document.getElementById(id).addEventListener('change',runDiff));
+  [['modalOverlay',closeModal],['simpleModal',closeSimpleModal],['cloudModal',closeCloudModal],['unitsModal',closeUnitsModal],['itemsModal',closeItemsModal],['logModal',closeLogModal],['diffModal',closeDiffModal]]
+    .forEach(([id,fn])=>document.getElementById(id).addEventListener('click',function(e){ if(e.target===this) fn(); }));
+  document.getElementById('modalForm').addEventListener('submit',e=>e.preventDefault());
+
+  await initCloud();
+  if(!currentHasSaved()) await seedFromPrevious();
+  console.log('재고 관리 앱 시작. tab:',activeTab,'client:',CLIENT_ID);
+}
 init();
 </script>
 </body>
