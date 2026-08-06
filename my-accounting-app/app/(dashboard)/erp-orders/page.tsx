@@ -410,7 +410,15 @@ export default function ErpOrdersPage() {
                 const oItems = itemsByOrder.get(o.id) ?? []
                 const orderMatches = matches.filter(m => m.order_id === o.id)
                 const payDates = computePayDates(oItems, orderMatches)
-                const allocated = orderMatches.reduce((s, m) => s + m.amount, 0)
+                // 업로드 컷오프: upload 주문은 마지막 업로드(updated_at) 이후 입금 매칭만 차감
+                // (이전 매칭은 ERP 미수금 값에 이미 반영된 것으로 간주 — 이중차감 방지)
+                // direct 주문(자체 입력)은 재업로드가 없으므로 전액 차감
+                const isDirect = (o.source ?? 'upload') === 'direct'
+                const uploadCut = (o.updated_at ?? '').slice(0, 10)
+                const allocated = orderMatches
+                  .filter(m => isDirect || (m.paid_date && m.paid_date > uploadCut))
+                  .reduce((s, m) => s + m.amount, 0)
+                const preUpload = orderMatches.reduce((s, m) => s + m.amount, 0) - allocated
                 const remaining = Math.max(o.outstanding_amount - allocated, 0)
                 const status = remaining <= 0
                   ? STATUS_LABEL.collected
@@ -449,6 +457,12 @@ export default function ErpOrdersPage() {
                       {won(remaining)}
                       {allocated > 0 && remaining !== o.outstanding_amount && (
                         <span className="block text-[11px] text-emerald-600 font-normal">매칭 {won(allocated)} 차감</span>
+                      )}
+                      {preUpload > 0 && (
+                        <span className="block text-[11px] text-gray-400 font-normal"
+                          title="업로드 이전 입금 매칭 — ERP 미수금 값에 이미 반영된 것으로 간주해 중복 차감하지 않음">
+                          업로드 반영분 {won(preUpload)} 제외
+                        </span>
                       )}
                     </td>
                     <td className="py-2 px-3 whitespace-nowrap">
