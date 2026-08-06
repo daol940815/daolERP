@@ -32,6 +32,133 @@ function sumTax(rows: { tax_amount: number | null }[] | null): number {
   return (rows ?? []).reduce((s, r) => s + ((r.tax_amount as number) || 0), 0)
 }
 
+// ── 신고기간·월별 보기 (신고서 서식 구조) ─────────────────
+// 자동 집계 행은 월별로, 수동 입력 항목(vat_manual_entries)은 신고기간 단위로 반환.
+// 파생 합계(계·차감계·납부세액·차가감)는 화면에서 계산한다.
+export interface VatCell { supply: number; tax: number }
+export interface VatReturnView {
+  year: number
+  m1: number
+  m2: number
+  months: number[]
+  period_key: string
+  // 각 배열은 months 순서 + 마지막에 기간 합계 1개
+  auto: {
+    sales_invoice: VatCell[]
+    sales_card_cash: VatCell[]
+    purchase_invoice: VatCell[]
+    purchase_card_cash: VatCell[]
+    purchase_nondeduct: VatCell[]
+  }
+  manual: Record<string, VatCell>
+  card_missing: { count: number; amount: number }
+  migration106: boolean
+}
+
+export async function buildVatReturnView(
+  admin: SupabaseClient,
+  year: number,
+  m1: number,
+  m2: number,
+): Promise<{ result: VatReturnView } | { error: string }> {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const from = `${year}-${pad(m1)}-01`
+  const to = `${year}-${pad(m2)}-${new Date(year, m2, 0).getDate()}`
+  const months: number[] = []
+  for (let m = m1; m <= m2; m++) months.push(m)
+  const idxOf = (date: string) => {
+    const m = parseInt(date.slice(5, 7), 10)
+    return m - m1
+  }
+  const zero = (): VatCell[] => months.map(() => ({ supply: 0, tax: 0 })).concat([{ supply: 0, tax: 0 }])
+  const add = (cells: VatCell[], date: string, supply: number, tax: number) => {
+    const i = idxOf(date)
+    if (i < 0 || i >= months.length) return
+    cells[i].supply += supply; cells[i].tax += tax
+    cells[months.length].supply += supply; cells[months.length].tax += tax
+  }
+
+  const [invR, receiptR, cardSalesR, cardExpR, nonDeductAcc] = await Promise.all([
+    fetchAllRows<{ issue_date: string; direction: string; tax_type: string; supply_amount: number | null; tax_amount: number | null }>(
+      (f, t) => admin.from('tax_invoices')
+        .select('issue_date, direction, tax_type, supply_amount, tax_amount')
+        .eq('tax_type', 'taxable').gte('issue_date', from).lte('issue_date', to).range(f, t)),
+    fetchAllRows<{ tx_date: string; direction: string; deductible: boolean | null; supply_amount: number | null; tax_amount: number | null }>(
+      (f, t) => admin.from('cash_receipts')
+        .select('tx_date, direction, deductible, supply_amount, tax_amount')
+        .gte('tx_date', from).lte('tx_date', to).range(f, t)),
+    fetchAllRows<{ tx_date: string; amount: number | null; supply_amount: number | null; tax_amount: number | null }>(
+      (f, t) => admin.from('card_sales')
+        .select('tx_date, amount, supply_amount, tax_amount')
+        .gte('tx_date', from).lte('tx_date', to).range(f, t)),
+    fetchAllRows<{ tx_date: string; tax_amount: number | null; settled_amount: number | null; approved_amount: number | null; cancel_amount: number | null; confirmed_account_id: string | null; statement_status: string | null; classify_status: string }>(
+      (f, t) => admin.from('card_expenses')
+        .select('tx_date, tax_amount, settled_amount, approved_amount, cancel_amount, confirmed_account_id, statement_status, classify_status')
+        .gte('tx_date', from).lte('tx_date', to).range(f, t)),
+    admin.from('accounts').select('id').in('name', CARD_NON_DEDUCTIBLE_ACCOUNTS),
+  ])
+  for (const r of [invR, receiptR, cardSalesR, cardExpR]) {
+    if ('error' in r) return { error: r.error }
+  }
+  const nonDeductibleIds = new Set((nonDeductAcc.data ?? []).map(a => a.id as string))
+
+  const auto = {
+    sales_invoice: zero(),
+    sales_card_cash: zero(),
+    purchase_invoice: zero(),
+    purchase_card_cash: zero(),
+    purchase_nondeduct: zero(),
+  }
+
+  for (const r of (invR as { data: { issue_date: string; direction: string; supply_amount: number | null; tax_amount: number | null }[] }).data) {
+    const target = r.direction === 'sales' ? auto.sales_invoice : auto.purchase_invoice
+    add(target, r.issue_date, r.supply_amount || 0, r.tax_amount || 0)
+  }
+  for (const r of (receiptR as { data: { tx_date: string; direction: string; deductible: boolean | null; supply_amount: number | null; tax_amount: number | null }[] }).data) {
+    if (r.direction === 'sales') {
+      add(auto.sales_card_cash, r.tx_date, r.supply_amount || 0, r.tax_amount || 0)
+    } else {
+      add(auto.purchase_card_cash, r.tx_date, r.supply_amount || 0, r.tax_amount || 0)
+      // 공제 여부 미기재(NULL)는 판단 불가 — 보수적으로 불공제 처리 (기존 요약 로직과 동일)
+      if (r.deductible !== true) add(auto.purchase_nondeduct, r.tx_date, r.supply_amount || 0, r.tax_amount || 0)
+    }
+  }
+  const card_missing = { count: 0, amount: 0 }
+  for (const r of (cardSalesR as { data: { tx_date: string; amount: number | null; supply_amount: number | null; tax_amount: number | null }[] }).data) {
+    const amt = r.amount || 0, sup = r.supply_amount || 0, tax = r.tax_amount || 0
+    if (sup === 0 && tax === 0 && amt !== 0) { card_missing.count += 1; card_missing.amount += amt }
+    add(auto.sales_card_cash, r.tx_date, sup, tax)
+  }
+  for (const r of (cardExpR as { data: { tx_date: string; tax_amount: number | null; settled_amount: number | null; approved_amount: number | null; cancel_amount: number | null; confirmed_account_id: string | null; statement_status: string | null; classify_status: string }[] }).data) {
+    if ((r.statement_status ?? '').includes('거절')) continue
+    if (r.classify_status !== 'confirmed' || !r.confirmed_account_id) continue
+    const tax = r.tax_amount || 0
+    if (!tax) continue
+    const used = r.settled_amount ?? ((r.approved_amount || 0) - (r.cancel_amount || 0))
+    const supply = used - tax
+    add(auto.purchase_card_cash, r.tx_date, supply, tax)
+    if (nonDeductibleIds.has(r.confirmed_account_id)) add(auto.purchase_nondeduct, r.tx_date, supply, tax)
+  }
+
+  // 수동 입력 항목 (106 미적용 시 빈 값 폴백)
+  const period_key = `${year}-${m1}-${m2}`
+  const manual: Record<string, VatCell> = {}
+  let migration106 = true
+  {
+    const { data, error } = await admin.from('vat_manual_entries')
+      .select('item_key, supply_amount, tax_amount').eq('period_key', period_key)
+    if (error) {
+      if (/vat_manual_entries/.test(error.message)) migration106 = false
+      else return { error: error.message }
+    } else {
+      for (const r of data ?? []) manual[r.item_key as string] = {
+        supply: Number(r.supply_amount) || 0, tax: Number(r.tax_amount) || 0 }
+    }
+  }
+
+  return { result: { year, m1, m2, months, period_key, auto, manual, card_missing, migration106 } }
+}
+
 export async function buildVatEstimate(
   admin: SupabaseClient,
   from: string,
