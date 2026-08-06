@@ -63,6 +63,21 @@
   새 트랙은 다음 100번대를 사용.
 - 현재 적용 완료: 100~105.
 
+## 기본 루틴 (모든 트랙 공통)
+
+1. **결정 즉시 기록**: 사용자 결정·승인, 미결 항목, DB 변경·검증 결과가 나오면
+   그 자리에서 해당 트랙 docs 문서에 기록하고 main에 반영한다. 대화는 기억 장소가
+   아니다 — 저장소가 기억 장소다.
+   - 트랙 문서: 회계 `docs/accounting-track.md` / 근태 `docs/attendance-design.md` /
+     새 트랙은 `docs/<트랙>-track.md` 생성. 전체 규칙 변경은 CLAUDE.md에.
+2. **압축 안전망**: `.claude/settings.json`의 PreCompact/PostCompact 훅이
+   압축 시 보존 지침을 주입하고, 압축 직후 미기록 사항의 docs 저장을 안내한다.
+   지침 문구는 `.claude/compact-preserve.md` / `.claude/compact-followup.md`에서 수정.
+3. **DB 변경 루틴**: 승인 → 드라이런(대조 통계) → 실행 → 검증 보고(건수 대사·표본 대조).
+4. **배포 루틴**: 빌드 통과 → 브랜치 커밋·push → 원격 main pull → `--no-ff` 병합 → push.
+5. **화면 신설 루틴**: 시안(HTML) → 사용자 확인 → 구현. 목록 화면은 UI 관례의
+   KPI+칩 필터 패턴을 따른다.
+
 ## 개발·배포 규칙
 
 - 빌드 검증: `cd my-accounting-app && npx next build` (통과 후에만 커밋)
