@@ -1,2 +1,7 @@
-.claude/
+# .claude는 공유 설정만 커밋 (개인 설정·로컬 상태는 제외)
+.claude/*
+!.claude/settings.json
+!.claude/compact-preserve.md
+!.claude/compact-followup.md
+.claude/settings.local.json
 .next/
