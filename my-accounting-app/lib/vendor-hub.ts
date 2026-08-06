@@ -60,9 +60,28 @@ interface OrderLite {
   total_amount: number | null
   outstanding_amount: number | null
   staff_name: string | null
+  updated_at?: string | null
+  source?: string | null
 }
 
 interface FlagAgg { excluded: number; vip: number; vipCanceled: number }
+
+// 업로드 컷오프 규칙 (107과 동일해야 한다):
+// upload 주문은 마지막 업로드(updated_at) 이후 입금 매칭만 차감,
+// direct 주문(자체 주문시스템)은 재업로드가 없으므로 전액 차감.
+function cutoffAlloc(
+  o: { updated_at?: string | null; source?: string | null },
+  events: { amount: number; paid_date: string | null }[] | undefined,
+): number {
+  if (!events?.length) return 0
+  const isDirect = (o.source ?? 'upload') === 'direct'
+  const cut = (o.updated_at ?? '').slice(0, 10)
+  let sum = 0
+  for (const e of events) {
+    if (isDirect || (e.paid_date && cut && e.paid_date > cut)) sum += e.amount
+  }
+  return sum
+}
 
 const today = () => new Date().toISOString().slice(0, 10)
 const addDays = (iso: string, days: number) => {
@@ -161,20 +180,32 @@ export async function buildHubList(
     }
   }
 
-  let fallback: { ordersResult: { data: OrderLite[] }; flagged: { data: Map<string, FlagAgg> } } | null = null
+  let fallback: {
+    ordersResult: { data: OrderLite[] }; flagged: { data: Map<string, FlagAgg> }
+    payEvents: Map<string, { amount: number; paid_date: string | null }[]>
+  } | null = null
   if (!aggRows) {
-    const [ordersResult, flagged] = await Promise.all([
+    const [ordersResult, flagged, matchesR] = await Promise.all([
       fetchAllParallel<OrderLite>(
         () => admin.from('erp_orders').select('id', { count: 'exact', head: true }).not('customer_alias_id', 'is', null),
         (f, t) => admin.from('erp_orders')
-          .select('id, order_no, order_date, customer_alias_id, total_amount, outstanding_amount, staff_name')
+          .select('id, order_no, order_date, customer_alias_id, total_amount, outstanding_amount, staff_name, updated_at, source')
           .not('customer_alias_id', 'is', null)
           .range(f, t)),
       loadFlaggedLines(admin),
+      fetchAllRows<{ order_id: string; amount: number; paid_date: string | null }>((f, t) =>
+        admin.from('erp_payment_matches').select('order_id, amount, paid_date').range(f, t)),
     ])
     if ('error' in ordersResult) return ordersResult
     if ('error' in flagged) return flagged
-    fallback = { ordersResult, flagged }
+    const payEvents = new Map<string, { amount: number; paid_date: string | null }[]>()
+    if (!('error' in matchesR)) {
+      for (const m of matchesR.data) {
+        const arr = payEvents.get(m.order_id) ?? []
+        arr.push(m); payEvents.set(m.order_id, arr)
+      }
+    }
+    fallback = { ordersResult, flagged, payEvents }
   }
 
   const [aliasResult, vendorsResult, staffResult] = await sidePromise
@@ -253,7 +284,7 @@ export async function buildHubList(
       const inPeriod = (!fromDate || o.order_date >= fromDate) && (!toDate || o.order_date <= toDate)
       if (!inPeriod) continue
       const net = Math.max(0, (o.total_amount ?? 0) - (flags?.excluded ?? 0))
-      const out = Math.min(Math.max(0, o.outstanding_amount ?? 0), net)
+      const out = Math.min(Math.max(0, (o.outstanding_amount ?? 0) - cutoffAlloc(o, fallback.payEvents.get(o.id))), net)
       a.order_count++
       a.net += net
       a.outstanding += out
@@ -463,7 +494,7 @@ export async function buildHubDetail(
   if (aliasIds.length) {
     const r = await fetchAllRows<OrderLite>((f, t) =>
       admin.from('erp_orders')
-        .select('id, order_no, order_date, customer_alias_id, total_amount, outstanding_amount, staff_name')
+        .select('id, order_no, order_date, customer_alias_id, total_amount, outstanding_amount, staff_name, updated_at, source')
         .in('customer_alias_id', aliasIds)
         .order('order_date', { ascending: false })
         .range(f, t))
@@ -502,10 +533,13 @@ export async function buildHubDetail(
   if (!('error' in invAllocR)) for (const m of invAllocR.data) invAlloc.set(m.order_id, (invAlloc.get(m.order_id) ?? 0) + m.amount)
 
   const payAlloc = new Map<string, number>()
+  const payEventsByOrder = new Map<string, { amount: number; paid_date: string | null }[]>()
   const allocEvents: { order_id: string; amount: number; paid_date: string | null; memo: string | null }[] = []
   if ('error' in payAllocR) return payAllocR
   for (const m of payAllocR.data) {
     payAlloc.set(m.order_id, (payAlloc.get(m.order_id) ?? 0) + m.amount)
+    const arr = payEventsByOrder.get(m.order_id) ?? []
+    arr.push(m); payEventsByOrder.set(m.order_id, arr)
     allocEvents.push(m)
   }
 
@@ -597,7 +631,8 @@ export async function buildHubDetail(
     const flags = flaggedLocal.get(o.id)
     vipTotal += flags?.vip ?? 0
     const oNet = Math.max(0, (o.total_amount ?? 0) - (flags?.excluded ?? 0))
-    const oOut = Math.min(Math.max(0, o.outstanding_amount ?? 0), oNet)
+    // 업로드 컷오프 반영 잔여 미수 (upload=업로드 이후 매칭만 차감 / direct=전액 차감)
+    const oOut = Math.min(Math.max(0, (o.outstanding_amount ?? 0) - cutoffAlloc(o, payEventsByOrder.get(o.id))), oNet)
     if (oOut > 0) {
       const age = Math.floor((new Date(t0).getTime() - new Date(o.order_date).getTime()) / 86400000)
       if (age <= 30) aging.b30 += oOut

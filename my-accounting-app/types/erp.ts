@@ -37,6 +37,7 @@ export interface ErpOrder {
   collect_status: ErpCollectStatus
   memo: string | null
   etc: string | null
+  source?: 'upload' | 'direct' | null
   created_at: string
   updated_at: string
 }
