@@ -4,6 +4,8 @@
 -- 전체를 한 번에 실행하면 JSON 하나로 모든 점검 결과가 나온다.
 -- 결과(JSON)를 복사해 회계 세션에 전달할 것.
 -- v2 (2026-08-06): 계좌 구분을 은행명이 아닌 bank_account_id 기준으로 수정.
+-- v3 (2026-08-06): B2 추가 — pending을 이체쌍 연결 여부로 분리
+--   (이체쌍 행은 전기 대상이 아니어서 pending으로 남는 구조 확인용).
 -- =====================================================
 
 SELECT jsonb_pretty(jsonb_build_object(
@@ -33,6 +35,20 @@ SELECT jsonb_pretty(jsonb_build_object(
       FROM transactions tx
       LEFT JOIN bank_accounts b ON b.id = tx.bank_account_id
       GROUP BY b.bank_name, b.account_number
+    ) s
+  ),
+
+  -- [B2] 상태 x 이체쌍 연결 여부 분포
+  -- 가설(2026-08-06): 이체쌍 2,010행이 전부 pending → 실제 분류 대기는 약 1,115건
+  'B2_status_by_transfer', (
+    SELECT jsonb_agg(t ORDER BY t->>'is_transfer', t->>'status')
+    FROM (
+      SELECT jsonb_build_object(
+        'is_transfer', transfer_pair_id IS NOT NULL,
+        'status', status, 'count', count(*)
+      ) AS t
+      FROM transactions
+      GROUP BY transfer_pair_id IS NOT NULL, status
     ) s
   ),
 
