@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>주문목록 — 신규 UI 시안</title>
+<style>
+  :root {
+    --surface: #f6f7f9; --panel: #fff; --line: #e5e7eb;
+    --ink: #111827; --ink2: #4b5563; --ink3: #9ca3af;
+    --navy: #0f172a; --blue: #2a78d6; --blue-d: #1c5cab;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+         background: var(--surface); color: var(--ink); font-size: 13px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .topbar { background: var(--navy); color: #fff; height: 52px; display: flex; align-items: center;
+            padding: 0 24px; gap: 22px; }
+  .topbar b { font-size: 14.5px; }
+  .topbar a { color: #cbd5e1; font-size: 13px; text-decoration: none; }
+  .topbar a.on { color: #fff; font-weight: 700; background: rgba(255,255,255,.14); padding: 6px 12px; border-radius: 8px; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 22px 24px 60px; }
+
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2.5px 9px; border-radius: 999px;
+           font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .b-green { background: #e7f6ec; color: #147339; }
+  .b-amber { background: #fdf3df; color: #92600a; }
+  .b-red   { background: #fdeaea; color: #b42222; }
+  .b-gray  { background: #f1f2f4; color: #6b7280; }
+  .b-blue  { background: #e6effc; color: #1c5cab; }
+  .b-violet{ background: #efeafd; color: #6631c9; }
+  .dotb::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  .btn  { padding: 8px 16px; border-radius: 9px; font-size: 13px; font-weight: 700;
+          background: var(--navy); color: #fff; border: 0; }
+  .btn2 { padding: 8px 14px; border-radius: 9px; font-size: 13px; border: 1px solid var(--line);
+          background: var(--panel); color: var(--ink2); }
+  .chip { display: inline-block; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px;
+          font-size: 12.5px; color: var(--ink2); background: var(--panel); cursor: default; }
+  .chip.on { background: var(--navy); color: #fff; border-color: var(--navy); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11.5px; color: var(--ink3); font-weight: 600;
+       padding: 10px 12px; border-bottom: 1px solid var(--line); background: #fafbfc; white-space: nowrap; }
+  td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; white-space: nowrap; vertical-align: middle; }
+  th.r, td.r { text-align: right; }
+  tr.click:hover { background: #f3f7fd; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<!-- 주문 포털 공통 헤더 -->
+<div class="topbar">
+  <b>다올 주문관리</b>
+  <a class="on">주문 목록</a>
+  <a>신규 주문</a>
+  <a>발주서</a>
+  <a>배송 관리</a>
+  <span style="margin-left:auto;font-size:12px;color:#94a3b8">김보현 · 직원</span>
+</div>
+
+<div class="wrap">
+
+  <!-- 제목 + 액션 -->
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+    <h1 style="font-size:20px">주문 목록</h1>
+    <span style="flex:1"></span>
+    <button class="btn2">엑셀 다운로드</button>
+    <button class="btn">+ 주문 추가</button>
+  </div>
+
+  <!-- KPI 요약 (검색 결과 기준으로 변동) -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+    <div class="panel" style="padding:12px 16px">
+      <div style="font-size:11px;color:var(--ink3)">기간 주문</div>
+      <div class="num" style="font-size:19px;font-weight:800;margin-top:2px">18건</div>
+    </div>
+    <div class="panel" style="padding:12px 16px">
+      <div style="font-size:11px;color:var(--ink3)">총 금액</div>
+      <div class="num" style="font-size:19px;font-weight:800;margin-top:2px">62,622,770원</div>
+    </div>
+    <div class="panel" style="padding:12px 16px">
+      <div style="font-size:11px;color:var(--ink3)">미수금</div>
+      <div class="num" style="font-size:19px;font-weight:800;margin-top:2px;color:#b42222">44,125,870원</div>
+      <div style="font-size:10.5px;color:var(--ink3)">4건 미수 · 2건 수금 진행중</div>
+    </div>
+    <div class="panel" style="padding:12px 16px">
+      <div style="font-size:11px;color:var(--ink3)">배송 지연</div>
+      <div class="num" style="font-size:19px;font-weight:800;margin-top:2px;color:#b45309">2건</div>
+      <div style="font-size:10.5px;color:var(--ink3)">송장 등록 후 3일 초과</div>
+    </div>
+  </div>
+
+  <!-- 필터 바: 통합 검색 하나 + 칩 -->
+  <div class="panel" style="padding:12px 14px;margin-bottom:14px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input style="flex:1;min-width:300px;border:1px solid var(--line);border-radius:10px;padding:9px 14px;font-size:13.5px"
+        value="" placeholder="통합 검색 — 주문번호 · 주문처(은행/지점) · 담당자 · 상담자 · 상품명 · 품번">
+      <span class="chip on">7일</span><span class="chip">오늘</span><span class="chip">1개월</span>
+      <span class="chip">3개월</span><span class="chip">6개월</span>
+      <span class="chip">2026-07-21 ~ 07-28</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px">
+      <span style="font-size:11.5px;color:var(--ink3)">수금</span>
+      <span class="chip on">전체</span><span class="chip">수금완료</span><span class="chip">진행중</span><span class="chip">미수금</span>
+      <span style="width:8px"></span>
+      <span style="font-size:11.5px;color:var(--ink3)">검사</span>
+      <span class="chip on">전체</span><span class="chip">검사완료</span><span class="chip">미검사</span>
+      <span style="width:8px"></span>
+      <span style="font-size:11.5px;color:var(--ink3)">배송</span>
+      <span class="chip on">전체</span><span class="chip">지연만</span>
+      <span style="width:8px"></span>
+      <span class="chip">선결제만</span><span class="chip">계산서 발행건만</span>
+      <span style="flex:1"></span>
+      <span class="chip">내 주문만</span>
+    </div>
+  </div>
+
+  <!-- 목록 -->
+  <div class="panel" style="overflow:hidden">
+    <table>
+      <thead><tr>
+        <th>주문일 / 번호</th>
+        <th>주문처</th>
+        <th>담당자 (주문처)</th>
+        <th>직원 / 상담자</th>
+        <th class="r">총금액</th>
+        <th class="r">미수금</th>
+        <th>수금</th>
+        <th>검사</th>
+        <th>배송</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+        <tr class="click">
+          <td><div class="num" style="font-weight:600">07-28</div><div class="num" style="font-size:11px;color:var(--ink3)">CWcnweb</div></td>
+          <td><b>푸본현대생명</b></td>
+          <td>조와덕 사업단장님</td>
+          <td>김보현 <span style="color:var(--ink3)">/ 옥광일</span></td>
+          <td class="r num">100,000</td>
+          <td class="r num" style="color:#9ca3af">0</td>
+          <td><span class="badge b-green dotb">수금완료</span></td>
+          <td><span class="badge b-red dotb">미검사</span></td>
+          <td><span class="badge b-gray">송장기입</span></td>
+          <td><span style="font-size:11.5px;color:var(--blue-d)">상품 1 ▾</span></td>
+        </tr>
+        <tr>
+          <td colspan="10" style="background:#f8fafd;padding:8px 20px 10px">
+            <div style="font-size:11px;color:var(--ink3);margin-bottom:4px">주문 상품 — 행에서 바로 펼쳐보기 (별도 팝업 없음)</div>
+            <div style="display:flex;gap:26px;font-size:12.5px">
+              <span>근조화환 × 1</span>
+              <span class="num">판매가 100,000</span>
+              <span class="num" style="color:var(--ink3)">매입가 70,000 · 화환월드</span>
+              <span class="num" style="color:#147339">마진 30,000</span>
+            </div>
+          </td>
+        </tr>
+        <tr class="click">
+          <td><div class="num" style="font-weight:600">07-28</div><div class="num" style="font-size:11px;color:var(--ink3)">6oadVE_</div></td>
+          <td><b>하나은행</b> <span style="color:var(--ink3)">충주지점</span></td>
+          <td>나윤희 팀장님 <span style="font-size:11px;color:var(--ink3)">010-8678-4088</span></td>
+          <td>김보현</td>
+          <td class="r num">144,000</td>
+          <td class="r num" style="color:#b42222;font-weight:700">144,000</td>
+          <td><span class="badge b-red dotb">미수금</span></td>
+          <td><span class="badge b-red dotb">미검사</span></td>
+          <td><span class="badge b-amber">진행중</span></td>
+          <td><span style="font-size:11.5px;color:var(--blue-d)">상품 2 ▸</span></td>
+        </tr>
+        <tr class="click">
+          <td><div class="num" style="font-weight:600">07-27</div><div class="num" style="font-size:11px;color:var(--ink3)">kR2mfQx</div></td>
+          <td><b>IBK기업은행</b> <span style="color:var(--ink3)">중부지역본부</span></td>
+          <td>최민아 과장님</td>
+          <td>단시연</td>
+          <td class="r num">7,260,000</td>
+          <td class="r num" style="color:#9ca3af">0</td>
+          <td><span class="badge b-green dotb">수금완료</span></td>
+          <td><span class="badge b-green dotb">검사완료</span></td>
+          <td><span class="badge b-green">배송완료</span></td>
+          <td><span style="font-size:11.5px;color:var(--blue-d)">상품 3 ▸</span></td>
+        </tr>
+        <tr class="click">
+          <td><div class="num" style="font-weight:600">07-26</div><div class="num" style="font-size:11px;color:var(--ink3)">pQ81sJd</div></td>
+          <td><b>하나생명</b> <span style="color:var(--ink3)">GA사업부</span> <span class="badge b-violet" style="margin-left:4px">선결제</span></td>
+          <td>이재원 부장님</td>
+          <td>김보현 <span style="color:var(--ink3)">/ 옥광일</span></td>
+          <td class="r num">9,830,000</td>
+          <td class="r num" style="color:#b42222;font-weight:700">4,000,000</td>
+          <td><span class="badge b-amber dotb">진행중</span></td>
+          <td><span class="badge b-green dotb">검사완료</span></td>
+          <td><span class="badge b-red">지연 4일</span></td>
+          <td><span style="font-size:11.5px;color:var(--blue-d)">상품 5 ▸</span></td>
+        </tr>
+        <tr class="click">
+          <td><div class="num" style="font-weight:600">07-25</div><div class="num" style="font-size:11px;color:var(--ink3)">zW3nKp2</div></td>
+          <td><b>교보생명</b> <span style="color:var(--ink3)">GFP사업부</span> <span class="badge b-blue" style="margin-left:4px">계산서</span></td>
+          <td>-</td>
+          <td>함초롱</td>
+          <td class="r num">22,150,000</td>
+          <td class="r num" style="color:#b42222;font-weight:700">22,150,000</td>
+          <td><span class="badge b-red dotb">미수금</span></td>
+          <td><span class="badge b-green dotb">검사완료</span></td>
+          <td><span class="badge b-gray">송장기입</span></td>
+          <td><span style="font-size:11.5px;color:var(--blue-d)">상품 1 ▸</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="display:flex;align-items:center;padding:10px 14px;font-size:12px;color:var(--ink3)">
+      <span>18건 중 1-5 표시</span>
+      <span style="margin-left:auto;display:flex;gap:4px">
+        <span class="chip on" style="padding:3px 10px">1</span>
+        <span class="chip" style="padding:3px 10px">2</span>
+        <span class="chip" style="padding:3px 10px">3</span>
+        <span class="chip" style="padding:3px 10px">다음</span>
+      </span>
+    </div>
+  </div>
+
+  <p style="font-size:11.5px;color:var(--ink3);margin-top:14px;line-height:1.7">
+    기존 화면과의 차이 —
+    검색어 5줄 → <b>통합 검색 1줄</b>(주문번호·주문처·담당자·상품 어느 것이든) ·
+    상태 라디오 → <b>클릭형 칩 필터</b>(KPI 요약이 필터를 따라 변동) ·
+    상태 점 2개 → <b>글자 있는 배지</b>(초록/빨강의 의미를 외울 필요 없음) ·
+    주문상품보기 팝업 → <b>행에서 바로 펼치기</b> ·
+    배송현황 컬럼 신설(지연 자동 경고) ·
+    행 클릭 시 주문 상세로 이동은 동일.
+  </p>
+
+</div>
+</body>
+</html>
