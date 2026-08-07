@@ -138,8 +138,10 @@ export default function OrderDetailPage() {
             ['다올직원', String(order.staff_name ?? '-')],
             ['연락처', String(order.contact ?? '-')],
             ['핸드폰', String(order.phone ?? '-')],
-            ['소개자', String(order.introducer ?? '-')],
-            ['책임자', [order.supervisor, order.supervisor_contact].filter(Boolean).join(' / ') || '-'],
+            // 소개자·책임자는 direct 입력에서 제거된 항목 — 값이 있는 기존 업로드 주문만 표시
+            ...(order.introducer ? [['소개자', String(order.introducer)]] : []),
+            ...(order.supervisor || order.supervisor_contact
+              ? [['책임자', [order.supervisor, order.supervisor_contact].filter(Boolean).join(' / ')]] : []),
             ['수금 상태', STATUS_KO[String(order.collect_status)] ?? String(order.collect_status ?? '-')],
             ['총금액', `${won(total)}원`],
             ['미수금', `${won(order.outstanding_amount as number)}원`],

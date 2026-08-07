@@ -70,14 +70,20 @@ export async function POST(req: NextRequest) {
   }
 
   const col = {
-    code:     findCol(header, '품번', '상품코드', '품목코드'),
-    name:     findCol(header, '품명', '상품명', '품목명'),
-    purchase: findCol(header, '매입처', '매입처이름', '매입처명'),
-    sale:     findCol(header, '판매가', '판매가격'),
-    cost:     findCol(header, '매입가', '매입가격'),
+    code:      findCol(header, '품번', '상품코드', '품목코드'),
+    name:      findCol(header, '품명', '상품명', '품목명'),
+    purchase:  findCol(header, '매입처', '매입처이름', '매입처명'),
+    sale:      findCol(header, '판매가', '판매가격'),
+    cost:      findCol(header, '매입가', '매입가격'),
+    carton:    findCol(header, '카톤단위', '카톤당수량', '카톤수량', '카톤입수', '카톤'),
+    cartonFee: findCol(header, '카톤배송비', '박스배송비', '배송비'),
   }
 
-  type Row = { item_code: string | null; item_name: string; purchase_vendor_name: string | null; sale_price: number; purchase_price: number }
+  type Row = {
+    item_code: string | null; item_name: string; purchase_vendor_name: string | null
+    sale_price: number; purchase_price: number
+    carton_unit: number | null; carton_shipping_fee: number
+  }
   const parsed: Row[] = []
   let skipped = 0
   const seenCodes = new Set<string>()
@@ -89,12 +95,15 @@ export async function POST(req: NextRequest) {
       if (seenCodes.has(code)) { skipped++; continue }   // 파일 내 품번 중복은 첫 행만
       seenCodes.add(code)
     }
+    const cartonUnit = col.carton >= 0 ? toNumber(row[col.carton]) : 0
     parsed.push({
       item_code: code,
       item_name: name,
       purchase_vendor_name: col.purchase >= 0 ? toStr(row[col.purchase]) : null,
       sale_price: col.sale >= 0 ? toNumber(row[col.sale]) : 0,
       purchase_price: col.cost >= 0 ? toNumber(row[col.cost]) : 0,
+      carton_unit: cartonUnit > 0 ? cartonUnit : null,
+      carton_shipping_fee: col.cartonFee >= 0 ? toNumber(row[col.cartonFee]) : 0,
     })
   }
   if (!parsed.length) {
@@ -132,6 +141,8 @@ export async function POST(req: NextRequest) {
       purchase_alias_id: r.purchase_vendor_name ? (aliasByName.get(r.purchase_vendor_name) ?? null) : null,
       sale_price: r.sale_price,
       purchase_price: r.purchase_price,
+      carton_unit: r.carton_unit,
+      carton_shipping_fee: r.carton_shipping_fee,
     }
     const existingId = r.item_code
       ? byCode.get(r.item_code)

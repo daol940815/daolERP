@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 interface Product {
   id: string; item_code: string | null; item_name: string
   purchase_vendor_name: string | null; sale_price: number; purchase_price: number
+  carton_unit: number | null; carton_shipping_fee: number
   is_active: boolean; memo: string | null; updated_at: string
 }
 
@@ -18,7 +19,10 @@ const toInt = (s: string) => {
   return Number.isFinite(n) ? Math.round(n) : 0
 }
 
-const emptyDraft = { item_code: '', item_name: '', purchase_vendor_name: '', sale_price: 0, purchase_price: 0, memo: '' }
+const emptyDraft = {
+  item_code: '', item_name: '', purchase_vendor_name: '',
+  sale_price: 0, purchase_price: 0, carton_unit: 0, carton_shipping_fee: 0, memo: '',
+}
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -84,7 +88,9 @@ export default function ProductsPage() {
     setDraft({
       item_code: p.item_code ?? '', item_name: p.item_name,
       purchase_vendor_name: p.purchase_vendor_name ?? '',
-      sale_price: p.sale_price, purchase_price: p.purchase_price, memo: p.memo ?? '',
+      sale_price: p.sale_price, purchase_price: p.purchase_price,
+      carton_unit: p.carton_unit ?? 0, carton_shipping_fee: p.carton_shipping_fee ?? 0,
+      memo: p.memo ?? '',
     })
   }
 
@@ -176,9 +182,19 @@ export default function ProductsPage() {
               className={`${inputCls} w-28 text-right tabular-nums`} placeholder="0" />
           </div>
           <div>
+            <label className="block text-[11px] text-gray-500 mb-0.5">카톤단위</label>
+            <input value={draft.carton_unit || ''} onChange={e => setDraft(d => ({ ...d, carton_unit: toInt(e.target.value) }))}
+              className={`${inputCls} w-20 text-right tabular-nums`} placeholder="개/카톤" title="1카톤에 들어가는 수량 — 비우면 배송비 자동 계산 안 함" />
+          </div>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-0.5">카톤배송비</label>
+            <input value={draft.carton_shipping_fee ? won(draft.carton_shipping_fee) : ''} onChange={e => setDraft(d => ({ ...d, carton_shipping_fee: toInt(e.target.value) }))}
+              className={`${inputCls} w-24 text-right tabular-nums`} placeholder="0" title="카톤당 배송비 — 주문 시 ceil(갯수/카톤단위)×이 값" />
+          </div>
+          <div>
             <label className="block text-[11px] text-gray-500 mb-0.5">메모</label>
             <input value={draft.memo} onChange={e => setDraft(d => ({ ...d, memo: e.target.value }))}
-              className={`${inputCls} w-48`} />
+              className={`${inputCls} w-40`} />
           </div>
           <button onClick={save} className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm">
             {editingId === 'new' ? '등록' : '저장'}
@@ -199,6 +215,8 @@ export default function ProductsPage() {
                 <th className="py-2 px-3 text-right font-medium">판매가</th>
                 <th className="py-2 px-3 text-right font-medium">매입가</th>
                 <th className="py-2 px-3 text-right font-medium">마진</th>
+                <th className="py-2 px-3 text-right font-medium">카톤단위</th>
+                <th className="py-2 px-3 text-right font-medium">카톤배송비</th>
                 <th className="py-2 px-3 text-left font-medium">메모</th>
                 <th className="py-2 px-3 text-left font-medium">상태</th>
                 <th className="py-2 px-3" />
@@ -213,6 +231,8 @@ export default function ProductsPage() {
                   <td className="py-1.5 px-3 text-right tabular-nums">{won(p.sale_price)}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{won(p.purchase_price)}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums text-emerald-700">{won(p.sale_price - p.purchase_price)}</td>
+                  <td className="py-1.5 px-3 text-right tabular-nums">{p.carton_unit ?? '-'}</td>
+                  <td className="py-1.5 px-3 text-right tabular-nums">{p.carton_unit ? won(p.carton_shipping_fee) : '-'}</td>
                   <td className="py-1.5 px-3 text-xs">{p.memo ?? '-'}</td>
                   <td className="py-1.5 px-3">
                     <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${p.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -229,7 +249,7 @@ export default function ProductsPage() {
                 </tr>
               ))}
               {!filtered.length && (
-                <tr><td colSpan={9} className="text-center py-12 text-gray-400 text-sm">
+                <tr><td colSpan={11} className="text-center py-12 text-gray-400 text-sm">
                   품목이 없습니다. 상품 엑셀 업로드 또는 개별 등록으로 시작하세요.
                 </td></tr>
               )}
@@ -238,7 +258,8 @@ export default function ProductsPage() {
         )}
       </div>
       <p className="text-xs text-gray-400 mt-2">
-        엑셀 컬럼: 품번(선택) · 품명(필수) · 매입처 · 판매가 · 매입가 — 품번이 있으면 품번 기준으로 갱신됩니다
+        엑셀 컬럼: 품번(선택) · 품명(필수) · 매입처 · 판매가 · 매입가 · 카톤단위 · 카톤배송비 —
+        품번이 있으면 품번 기준으로 갱신됩니다. 카톤단위가 있으면 주문 입력 시 배송비가 자동 계산됩니다.
       </p>
     </div>
   )
