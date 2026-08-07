@@ -223,7 +223,7 @@ body{font-family:var(--f);background:var(--bg);color:var(--tx);height:100vh;disp
   </div>
   <div class="sbody spane on" id="sp-products">
     <div class="dz" onclick="document.getElementById('csv-f').click()"><div style="font-size:18px">📊</div><p>CSV 업로드</p></div>
-    <textarea class="csvta" id="csv-ta" placeholder="code,name,spec,carton,price,sale_price,price2,sale_price2,option_text,image,image2,image3"></textarea>
+    <textarea class="csvta" id="csv-ta" placeholder="품번,상품명,구성,카톤단위,소비자가격,판매가,소비자가격2,판매가2,옵션명,이미지,이미지2,이미지3 (영문 헤더도 인식)"></textarea>
     <button class="B bl" style="width:100%;justify-content:center;margin-top:4px" onclick="parseCSV()">CSV 파싱 적용</button>
     <div style="display:flex;gap:4px;margin-top:3px">
       <button class="B" style="flex:1;justify-content:center;font-size:10px" onclick="document.getElementById('xlsx-f').click()">📥 엑셀 업로드</button>
@@ -1697,7 +1697,7 @@ function parseCSV() {
     return obj;
   });
   if(!rows.length){toast('파싱 실패');return;}
-  const fm={code:['code','품번'],name:['name','상품명'],spec:['spec','구성'],carton:['carton','카톤단위'],price:['price','정상가'],sale_price:['sale_price','할인가'],price2:['price2','정상가2'],sale_price2:['sale_price2','할인가2'],option_text:['option_text','옵션'],image:['image','이미지'],image2:['image2','이미지2'],image3:['image3','이미지3']};
+  const fm={code:['code','품번'],name:['name','상품명'],spec:['spec','구성'],carton:['carton','카톤단위'],price:['price','소비자가격','정상가'],sale_price:['sale_price','판매가','할인가'],price2:['price2','소비자가격2','정상가2'],sale_price2:['sale_price2','판매가2','할인가2'],option_text:['option_text','옵션명','옵션'],image:['image','이미지'],image2:['image2','이미지2'],image3:['image3','이미지3']};
   const cm={};
   for(const[f,als]of Object.entries(fm)){for(const a of als){const fd=h.find(x=>x.trim().toLowerCase()===a.toLowerCase());if(fd){cm[f]=fd;break;}}}
   products=rows.map((row,i)=>({id:'p'+i,code:(row[cm.code]||'').trim(),name:(row[cm.name]||'').trim(),spec:(row[cm.spec]||'').trim(),carton:(row[cm.carton]||'').trim(),price:parseInt((row[cm.price]||'0').replace(/\D/g,''))||0,sale_price:parseInt((row[cm.sale_price]||'0').replace(/\D/g,''))||0,price2:parseInt((row[cm.price2]||'0').replace(/\D/g,''))||0,sale_price2:parseInt((row[cm.sale_price2]||'0').replace(/\D/g,''))||0,option_text:(row[cm.option_text]||'').trim(),image:(row[cm.image]||'').trim(),image2:(row[cm.image2]||'').trim(),image3:(row[cm.image3]||'').trim()})).filter(p=>p.name);
@@ -1709,7 +1709,7 @@ function parseCSV() {
 function downloadExcelTemplate() {
   var bom = String.fromCharCode(0xFEFF);
   var lines = [
-    'code,name,spec,carton,price,sale_price,price2,sale_price2,option_text,image,image2,image3',
+    '품번,상품명,구성,카톤단위,소비자가격,판매가,소비자가격2,판매가2,옵션명,이미지,이미지2,이미지3',
     '06-01,바디클렌저,바디클렌저 300ml,30개/1BOX,38000,8300,,,,1.jpg,,',
     '06-02,바디로션 1+1세트,로션 350ml x2,30개/1BOX,38000,6300,76000,11900,,2.jpg,,'
   ];
