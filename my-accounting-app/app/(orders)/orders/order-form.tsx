@@ -510,10 +510,10 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
                     placeholder="품번·품명 검색"
                   />
                 </td>
-                <td className="py-1 px-1.5">
+                <td className="py-1 px-1.5 min-w-[13rem]">
                   <input value={it.item_name} onChange={e => setItem(i, { item_name: e.target.value, product_id: null })}
-                    placeholder="마스터에 없으면 직접 입력"
-                    className="w-40 border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs" />
+                    placeholder="마스터에 없으면 직접 입력" title={it.item_name}
+                    className="w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs" />
                 </td>
                 <td className="py-1 px-1.5">
                   <select value={it.order_kind} onChange={e => setItem(i, { order_kind: e.target.value })}
@@ -523,7 +523,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
                 </td>
                 <td className="py-1 px-1.5">
                   <input value={it.purchase_vendor_name} onChange={e => setItem(i, { purchase_vendor_name: e.target.value })}
-                    placeholder="품번 선택 시 자동"
+                    placeholder="품번 선택 시 자동" title={it.purchase_vendor_name}
                     className="w-28 border border-gray-200 bg-gray-50 rounded px-1.5 py-1 text-xs" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
@@ -554,7 +554,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
                     className={numCell} placeholder="0" />
                 </td>
                 <td className="py-1 px-1.5">
-                  <input value={it.memo} onChange={e => setItem(i, { memo: e.target.value })}
+                  <input value={it.memo} onChange={e => setItem(i, { memo: e.target.value })} title={it.memo}
                     className="w-24 border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs" />
                 </td>
                 <td className="py-1 px-1 text-center">

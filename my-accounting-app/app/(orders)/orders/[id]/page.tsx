@@ -196,8 +196,10 @@ export default function OrderDetailPage() {
                 <td className="py-1.5 px-2.5 text-right tabular-nums font-semibold">{won(it.line_total)}</td>
                 <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_price)}</td>
                 <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_total)}</td>
-                <td className="py-1.5 px-2.5">{it.channel ?? '-'}</td>
-                <td className="py-1.5 px-2.5">{it.memo ?? '-'}</td>
+                <td className="py-1.5 px-2.5 whitespace-nowrap">{it.channel ?? '-'}</td>
+                <td className="py-1.5 px-2.5">
+                  <div className="max-w-[11rem] truncate" title={it.memo ?? undefined}>{it.memo ?? '-'}</div>
+                </td>
               </tr>
             ))}
           </tbody>
