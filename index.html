@@ -433,10 +433,12 @@ function escapeHtml(s){ return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<'
 
 // ===== 키 (요아럽=구버전 키로 하위호환 → 기존 데이터 자동 승계) =====
 function baseRoom(){ const c=getCloudCfg(); return (c&&c.room)?c.room:'local'; }
-function cloudRoom(){ return activeTab==='yoarup' ? baseRoom() : baseRoom()+'::'+activeTab; }
+function cloudRoom(){ return activeTab==='yoarup' ? baseRoom() : baseRoom()+'__'+activeTab; }
+function tabsMetaRoom(){ return baseRoom()+'__meta_tabs'; }
+// 신규 탭은 로컬 키를 공유코드와 무관하게(roomless) 저장 → 연동 켜도 데이터 유지. 요아럽만 기존 데이터 하위호환.
 function productsKey(){ return activeTab==='yoarup' ? 'inv_products' : 'inv_products_'+activeTab; }
-function logKey(){ return activeTab==='yoarup' ? 'inv_log_'+baseRoom() : 'inv_log_'+baseRoom()+'_'+activeTab; }
-function workKeyFor(date,slot){ const b=baseRoom(); return activeTab==='yoarup' ? `inv_work_${b}_${date}_${slot}` : `inv_work_${b}_${activeTab}_${date}_${slot}`; }
+function logKey(){ return activeTab==='yoarup' ? 'inv_log_'+baseRoom() : 'inv_log_'+activeTab; }
+function workKeyFor(date,slot){ return activeTab==='yoarup' ? `inv_work_${baseRoom()}_${date}_${slot}` : `inv_work_${activeTab}_${date}_${slot}`; }
 function workingKey(){ return workKeyFor(curDate(),curSlot()); }
 function tabsKey(){ return 'inv_tabs'; }
 
@@ -464,7 +466,7 @@ async function switchTab(id){
   updateTypeUI();
   const had=loadWorking();
   renderTabs(); renderTable();
-  if(cloudReady){ subscribeRealtime(); await pullConfig(); await pullRecord(); await pullLog(); await pushPendingLogs(); }
+  if(cloudReady){ subscribeRealtime(); await pullConfig(); await uploadTabToCloud(); await pullRecord(); await pullLog(); await pushPendingLogs(); }
   if(!currentHasSaved()) await seedFromPrevious();
   renderLogIfOpen();
 }
@@ -735,7 +737,7 @@ function slotRank(s){ return s==='오후'?1:0; }
 function ord(date,slot){ return date+'_'+slotRank(slot); }
 function scanLocalDates(){
   const b=baseRoom();
-  const prefix = activeTab==='yoarup' ? `inv_work_${b}_` : `inv_work_${b}_${activeTab}_`;
+  const prefix = activeTab==='yoarup' ? `inv_work_${b}_` : `inv_work_${activeTab}_`;
   const out=[];
   for(const k of Object.keys(localStorage)){
     if(!k.startsWith(prefix)) continue;
@@ -781,13 +783,13 @@ async function initCloud(){
     cloudReady=true;
     await pullTabs();
     products=loadLocalProducts(); changeLog=loadLog();
-    await pullConfig(); await pullRecord(); await pullLog(); await pushPendingLogs();
+    await pullConfig(); await uploadTabToCloud(); await pullRecord(); await pullLog(); await pushPendingLogs();
     subscribeRealtime(); setStatus('online');
   }catch(e){ console.error('클라우드 연결 실패:',e); cloudReady=false; setStatus('error'); showToast('연동 실패: '+e.message,'error'); }
 }
 async function pullTabs(){
   if(!cloudReady) return;
-  try{ const {data,error}=await supa.from('inventory_config').select('products').eq('room',baseRoom()+'::__tabs__').maybeSingle();
+  try{ const {data,error}=await supa.from('inventory_config').select('products').eq('room',tabsMetaRoom()).maybeSingle();
     if(error){ console.warn('tabs pull:',error.message); return; }
     if(data&&Array.isArray(data.products)&&data.products.length){ tabs=data.products; saveTabs(); if(!tabs.some(t=>t.id===activeTab)) activeTab=tabs[0].id; renderTabs(); updateTypeUI(); }
     else await pushTabs();
@@ -795,7 +797,20 @@ async function pullTabs(){
 }
 async function pushTabs(){
   if(!cloudReady) return;
-  try{ await supa.from('inventory_config').upsert({room:baseRoom()+'::__tabs__',products:tabs,updated_at:nowIso(),updated_by:CLIENT_ID},{onConflict:'room'}); }catch(e){ console.warn(e); }
+  try{ await supa.from('inventory_config').upsert({room:tabsMetaRoom(),products:tabs,updated_at:nowIso(),updated_by:CLIENT_ID},{onConflict:'room'}); }catch(e){ console.warn(e); }
+}
+// 연동 시 활성 탭의 로컬 기록 중 클라우드에 없는 것을 업로드
+async function uploadTabToCloud(){
+  if(!cloudReady) return;
+  const locals=scanLocalDates(); if(!locals.length) return;
+  const have=new Set();
+  try{ const {data}=await supa.from('inventory').select('date,slot').eq('room',cloudRoom()); (data||[]).forEach(r=>have.add(r.date+'|'+(r.slot||''))); }catch(e){ return; }
+  for(const e of locals){
+    if(have.has(e.date+'|'+e.slot)) continue;
+    try{ const d=normalizeRows(JSON.parse(localStorage.getItem(e.key)).data);
+      await supa.from('inventory').upsert({room:cloudRoom(),date:e.date,slot:e.slot,data:d,updated_at:nowIso(),updated_by:CLIENT_ID},{onConflict:'room,date,slot'});
+    }catch(err){ console.warn(err); }
+  }
 }
 async function pullConfig(){
   if(!cloudReady) return;
@@ -805,7 +820,7 @@ async function pullConfig(){
     else await pushConfig();
   }catch(e){ console.warn(e); }
 }
-async function pushConfig(){ if(!cloudReady) return; try{ await supa.from('inventory_config').upsert({room:cloudRoom(),products,updated_at:nowIso(),updated_by:CLIENT_ID},{onConflict:'room'}); }catch(e){ console.warn(e); } }
+async function pushConfig(){ if(!cloudReady) return; try{ const {error}=await supa.from('inventory_config').upsert({room:cloudRoom(),products,updated_at:nowIso(),updated_by:CLIENT_ID},{onConflict:'room'}); if(error){ console.warn('config push:',error.message); showToast('설정 저장 오류: '+error.message,'error'); } }catch(e){ console.warn(e); showToast('설정 저장 오류: '+(e&&e.message||e),'error'); } }
 async function pullRecord(){
   if(!cloudReady) return false;
   try{ const {data,error}=await supa.from('inventory').select('data').eq('room',cloudRoom()).eq('date',curDate()).eq('slot',curSlot()).maybeSingle();
@@ -818,8 +833,8 @@ async function pullRecord(){
 async function pushRecord(){
   if(!cloudReady) return;
   try{ const {error}=await supa.from('inventory').upsert({room:cloudRoom(),date:curDate(),slot:curSlot(),data:rowData,updated_at:nowIso(),updated_by:CLIENT_ID},{onConflict:'room,date,slot'});
-    if(error){ console.warn('record push:',error.message); setStatus('error'); } else setStatus('online');
-  }catch(e){ console.warn(e); setStatus('error'); }
+    if(error){ console.warn('record push:',error.message); setStatus('error'); showToast('저장 오류: '+error.message,'error'); } else setStatus('online');
+  }catch(e){ console.warn(e); setStatus('error'); showToast('저장 오류: '+(e&&e.message||e),'error'); }
 }
 function subscribeRealtime(){
   if(!cloudReady) return;
@@ -999,11 +1014,10 @@ async function onSelectionChange(){
 
 // ===== 부자재 초기 데이터 미리 넣기 (로컬) =====
 function preloadBujaIfNeeded(){
-  const b=baseRoom();
   if(!localStorage.getItem('inv_products_buja')){
     try{ localStorage.setItem('inv_products_buja',JSON.stringify(BUJA_ITEMS)); }catch(e){}
   }
-  const wk=`inv_work_${b}_buja_${BUJA_DATE}_day`;
+  const wk=`inv_work_buja_${BUJA_DATE}_day`;   // roomless
   if(!localStorage.getItem(wk)){
     try{ localStorage.setItem(wk,JSON.stringify({date:BUJA_DATE,slot:'day',data:BUJA_QTY.map(q=>({qty:q})),savedAt:Date.now()})); }catch(e){}
   }
