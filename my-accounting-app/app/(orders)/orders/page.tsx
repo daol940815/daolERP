@@ -1,9 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
-// 주문 현황 (1단계 — 조회 전용 셸)
-// 기존 업로드 주문과 직접 입력 주문을 함께 보여준다. 입력·발주·배송은 다음 단계.
+// 주문 현황 — 기존 업로드 주문과 직접 입력 주문을 함께 보여준다.
+// 행 클릭 시 상세로 이동, 신규 입력은 /orders/new (2단계).
 
 interface Row {
   id: string
@@ -19,6 +21,7 @@ interface Row {
 const won = (n: number) => n.toLocaleString('ko-KR')
 
 export default function OrdersHomePage() {
+  const router = useRouter()
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -49,7 +52,8 @@ export default function OrdersHomePage() {
           onKeyDown={e => { if (e.key === 'Enter') load() }}
           placeholder="주문처 · 주문번호 검색 후 Enter"
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-64" />
-        <span className="ml-auto text-xs text-gray-400">신규 주문 입력은 2단계에서 열립니다</span>
+        <Link href="/orders/new"
+          className="ml-auto px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">+ 주문 추가</Link>
       </div>
 
       {error && <div className="mt-4 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
@@ -70,7 +74,8 @@ export default function OrdersHomePage() {
             </thead>
             <tbody>
               {rows.map(r => (
-                <tr key={r.id} className="border-b border-gray-50">
+                <tr key={r.id} onClick={() => router.push(`/orders/${r.id}`)}
+                  className="border-b border-gray-50 cursor-pointer hover:bg-blue-50/40">
                   <td className="py-2 px-3 text-xs text-gray-500 tabular-nums">{r.order_no ?? '-'}</td>
                   <td className="py-2 px-3 tabular-nums text-xs">{r.order_date}</td>
                   <td className="py-2 px-3 font-semibold">{r.customer}</td>
