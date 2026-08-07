@@ -5,7 +5,13 @@
 
 ## 2단계 구현 현황 (2026-08-07, 브랜치 claude/daol-erp-order-system-phase2-5kp7rq)
 
-구현 완료(빌드 통과) — main 병합 전 사용자 확인 대기:
+**배포 상태**: main에 병합했다가(f549d63) 사용자 요청으로 revert(6171ac7).
+브랜치의 Vercel 프리뷰 배포로 테스트 중.
+**주의 — 정식 병합 시**: main에 revert 커밋이 있으므로 그냥 merge하면 revert된
+파일들이 조용히 빠진다. 병합 전에 main에서 `git revert 6171ac7`(revert의 revert)
+먼저 실행한 뒤 브랜치를 `--no-ff` 병합할 것.
+
+구현 완료(빌드 통과):
 
 - **마이그레이션 500** (`500_order_system_phase2.sql`, 사용자 실행 필요):
   `erp_products` 품목 마스터 / `erp_orders`에 vendor_id·contact_id·
