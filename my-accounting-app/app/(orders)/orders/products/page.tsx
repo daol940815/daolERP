@@ -8,7 +8,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 interface Product {
   id: string; item_code: string | null; item_name: string
-  purchase_vendor_name: string | null; sale_price: number; purchase_price: number
+  purchase_vendor_name: string | null
+  sale_price: number; individual_sale_price: number; purchase_price: number
   carton_unit: number | null; carton_shipping_fee: number
   is_active: boolean; memo: string | null; updated_at: string
 }
@@ -21,7 +22,8 @@ const toInt = (s: string) => {
 
 const emptyDraft = {
   item_code: '', item_name: '', purchase_vendor_name: '',
-  sale_price: 0, purchase_price: 0, carton_unit: 0, carton_shipping_fee: 0, memo: '',
+  sale_price: 0, individual_sale_price: 0, purchase_price: 0,
+  carton_unit: 0, carton_shipping_fee: 0, memo: '',
 }
 
 export default function ProductsPage() {
@@ -88,7 +90,8 @@ export default function ProductsPage() {
     setDraft({
       item_code: p.item_code ?? '', item_name: p.item_name,
       purchase_vendor_name: p.purchase_vendor_name ?? '',
-      sale_price: p.sale_price, purchase_price: p.purchase_price,
+      sale_price: p.sale_price, individual_sale_price: p.individual_sale_price ?? 0,
+      purchase_price: p.purchase_price,
       carton_unit: p.carton_unit ?? 0, carton_shipping_fee: p.carton_shipping_fee ?? 0,
       memo: p.memo ?? '',
     })
@@ -172,9 +175,16 @@ export default function ProductsPage() {
               className={`${inputCls} w-40`} placeholder="발주서 분리 기준" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">판매가</label>
+            <label className="block text-[11px] text-gray-500 mb-0.5">지점판매가</label>
             <input value={draft.sale_price ? won(draft.sale_price) : ''} onChange={e => setDraft(d => ({ ...d, sale_price: toInt(e.target.value) }))}
-              className={`${inputCls} w-28 text-right tabular-nums`} placeholder="0" />
+              className={`${inputCls} w-28 text-right tabular-nums`} placeholder="0"
+              title="한 곳 묶음 배송 — 배송비는 카톤 기준 별도" />
+          </div>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-0.5">개별판매가</label>
+            <input value={draft.individual_sale_price ? won(draft.individual_sale_price) : ''} onChange={e => setDraft(d => ({ ...d, individual_sale_price: toInt(e.target.value) }))}
+              className={`${inputCls} w-28 text-right tabular-nums`} placeholder="미지정"
+              title="여러 곳 개별 배송 — 배송비 포함가. 비우면 지점판매가 사용" />
           </div>
           <div>
             <label className="block text-[11px] text-gray-500 mb-0.5">매입가</label>
@@ -212,9 +222,10 @@ export default function ProductsPage() {
                 <th className="py-2 px-3 text-left font-medium">품번</th>
                 <th className="py-2 px-3 text-left font-medium">품명</th>
                 <th className="py-2 px-3 text-left font-medium">매입처</th>
-                <th className="py-2 px-3 text-right font-medium">판매가</th>
+                <th className="py-2 px-3 text-right font-medium">지점판매가</th>
+                <th className="py-2 px-3 text-right font-medium">개별판매가</th>
                 <th className="py-2 px-3 text-right font-medium">매입가</th>
-                <th className="py-2 px-3 text-right font-medium">마진</th>
+                <th className="py-2 px-3 text-right font-medium">마진(지점)</th>
                 <th className="py-2 px-3 text-right font-medium">카톤단위</th>
                 <th className="py-2 px-3 text-right font-medium">카톤배송비</th>
                 <th className="py-2 px-3 text-left font-medium">메모</th>
@@ -229,6 +240,7 @@ export default function ProductsPage() {
                   <td className="py-1.5 px-3 font-medium">{p.item_name}</td>
                   <td className="py-1.5 px-3">{p.purchase_vendor_name ?? '-'}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{won(p.sale_price)}</td>
+                  <td className="py-1.5 px-3 text-right tabular-nums">{p.individual_sale_price ? won(p.individual_sale_price) : '-'}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{won(p.purchase_price)}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums text-emerald-700">{won(p.sale_price - p.purchase_price)}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{p.carton_unit ?? '-'}</td>
@@ -249,7 +261,7 @@ export default function ProductsPage() {
                 </tr>
               ))}
               {!filtered.length && (
-                <tr><td colSpan={11} className="text-center py-12 text-gray-400 text-sm">
+                <tr><td colSpan={12} className="text-center py-12 text-gray-400 text-sm">
                   품목이 없습니다. 상품 엑셀 업로드 또는 개별 등록으로 시작하세요.
                 </td></tr>
               )}
@@ -258,8 +270,9 @@ export default function ProductsPage() {
         )}
       </div>
       <p className="text-xs text-gray-400 mt-2">
-        엑셀 컬럼: 품번(선택) · 품명(필수) · 매입처 · 판매가 · 매입가 · 카톤단위 · 카톤배송비 —
-        품번이 있으면 품번 기준으로 갱신됩니다. 카톤단위가 있으면 주문 입력 시 배송비가 자동 계산됩니다.
+        엑셀 컬럼: 품번(선택) · 품명(필수) · 매입처 · 지점판매가(또는 판매가) · 개별판매가 · 매입가 · 카톤단위 · 카톤배송비 —
+        품번이 있으면 품번 기준으로 갱신됩니다. 주문 입력의 구분에 따라 지점=지점판매가+카톤 배송비 자동 /
+        개별=개별판매가(배송비 포함, 배송비 0)가 적용됩니다.
       </p>
     </div>
   )

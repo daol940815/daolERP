@@ -13,7 +13,8 @@ interface Employee { id: string; name: string; position: string | null; team: st
 interface ContactOpt { contact_id: string; name: string; phone: string | null; title: string | null; is_representative: boolean }
 interface Product {
   id: string; item_code: string | null; item_name: string
-  purchase_vendor_name: string | null; sale_price: number; purchase_price: number
+  purchase_vendor_name: string | null
+  sale_price: number; individual_sale_price: number; purchase_price: number
   carton_unit: number | null; carton_shipping_fee: number; is_active: boolean
 }
 
@@ -30,7 +31,9 @@ export interface ItemDraft {
   purchase_price: number
   purchase_shipping: number
   memo: string
-  // 카톤 배송비 자동 계산용 (품목 마스터에서 복사 — 서버 전송 안 함)
+  // 구분별 가격·카톤 배송비 자동 적용용 (품목 마스터에서 복사 — 서버 전송 안 함)
+  branch_sale_price: number       // 지점판매가
+  individual_sale_price: number   // 개별판매가 (배송비 포함, 0=미지정)
   carton_unit: number
   carton_shipping_fee: number
 }
@@ -39,7 +42,7 @@ const emptyItem = (): ItemDraft => ({
   product_id: null, item_code: '', item_name: '', order_kind: '지점',
   purchase_vendor_name: '', sale_price: 0, quantity: 1, shipping_fee: 0,
   discount_amount: 0, purchase_price: 0, purchase_shipping: 0, memo: '',
-  carton_unit: 0, carton_shipping_fee: 0,
+  branch_sale_price: 0, individual_sale_price: 0, carton_unit: 0, carton_shipping_fee: 0,
 })
 
 // 배송비 자동: ceil(갯수/카톤단위) × 카톤배송비 (카톤단위 없으면 계산 안 함)
@@ -195,6 +198,8 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
               purchase_price: (it.purchase_price as number) ?? 0,
               purchase_shipping: (it.purchase_shipping as number) ?? 0,
               memo: (it.memo as string) ?? '',
+              branch_sale_price: prod?.sale_price ?? 0,
+              individual_sale_price: prod?.individual_sale_price ?? 0,
               carton_unit: prod?.carton_unit ?? 0,
               carton_shipping_fee: prod?.carton_shipping_fee ?? 0,
             }
@@ -242,11 +247,40 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
   const setItem = (i: number, patch: Partial<ItemDraft>) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, ...patch } : it))
 
+  // 구분별 가격·배송비 규칙 (원가표 관행: 지점판매가/개별판매가 분리)
+  //  지점: 지점판매가 + 카톤 기준 배송비 자동 (한 곳 묶음 배송)
+  //  개별: 개별판매가(배송비 포함, 미지정이면 지점판매가), 배송비 0
+  //  샘플: 자동 적용 없음 — 직접 입력
+  const priceRule = (it: Pick<ItemDraft, 'order_kind' | 'branch_sale_price' | 'individual_sale_price' | 'carton_unit' | 'carton_shipping_fee'>, qty: number) => {
+    if (it.order_kind === '개별') {
+      return {
+        sale_price: it.individual_sale_price > 0 ? it.individual_sale_price : it.branch_sale_price,
+        shipping_fee: 0,
+      }
+    }
+    if (it.order_kind === '지점') {
+      return {
+        sale_price: it.branch_sale_price,
+        ...(it.carton_unit > 0
+          ? { shipping_fee: cartonShipping(it.carton_unit, it.carton_shipping_fee, qty) }
+          : {}),
+      }
+    }
+    return {}
+  }
+
   const pickProduct = (i: number, pid: string | null) => {
     const p = products.find(x => x.id === pid)
     if (!p) return
-    const qty = items[i]?.quantity ?? 1
-    const unit = p.carton_unit ?? 0
+    const cur = items[i]
+    const qty = cur?.quantity ?? 1
+    const master = {
+      order_kind: cur?.order_kind ?? '지점',
+      branch_sale_price: p.sale_price,
+      individual_sale_price: p.individual_sale_price ?? 0,
+      carton_unit: p.carton_unit ?? 0,
+      carton_shipping_fee: p.carton_shipping_fee ?? 0,
+    }
     setItem(i, {
       product_id: p.id,
       item_code: p.item_code ?? '',
@@ -254,18 +288,25 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
       purchase_vendor_name: p.purchase_vendor_name ?? '',
       sale_price: p.sale_price,
       purchase_price: p.purchase_price,
-      carton_unit: unit,
-      carton_shipping_fee: p.carton_shipping_fee ?? 0,
-      ...(unit > 0 ? { shipping_fee: cartonShipping(unit, p.carton_shipping_fee ?? 0, qty) } : {}),
+      ...master,
+      ...priceRule(master, qty),
     })
   }
 
-  // 갯수 변경 시 카톤단위가 있으면 배송비 재계산 (칸은 수정 가능 — 추천값)
+  // 구분 변경 시 마스터 기준으로 판매가·배송비 재적용 (칸은 수정 가능 — 추천값)
+  const setKind = (i: number, kind: string) => {
+    const it = items[i]
+    if (!it) return
+    const next = { ...it, order_kind: kind }
+    setItem(i, { order_kind: kind, ...(it.product_id ? priceRule(next, it.quantity) : {}) })
+  }
+
+  // 갯수 변경 시 지점 구분 + 카톤단위가 있으면 배송비 재계산
   const setQuantity = (i: number, qty: number) => {
     const it = items[i]
     setItem(i, {
       quantity: qty,
-      ...(it && it.carton_unit > 0
+      ...(it && it.order_kind === '지점' && it.carton_unit > 0
         ? { shipping_fee: cartonShipping(it.carton_unit, it.carton_shipping_fee, qty) }
         : {}),
     })
@@ -380,11 +421,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
             <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)}
               className="w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2 py-1.5 text-sm" />
           </div>
-          <div>
-            <label className={label}>주문번호</label>
-            <div className={auto}>{orderNo ?? '저장 시 자동 발번'}</div>
-          </div>
-          <div className="col-span-2">
+          <div className="col-span-2 md:col-span-3">
             <label className={label}>주문처 <em className="not-italic text-red-500">*</em></label>
             <Combo
               value={vendorId}
@@ -448,7 +485,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
             <input value={phone} onChange={e => setPhone(e.target.value)} className={free} placeholder="담당자 선택 시 자동" />
           </div>
           <div className="col-span-2">
-            <label className={label}>메모 (주문 단위)</label>
+            <label className={label}>메모</label>
             <input value={memo} onChange={e => setMemo(e.target.value)} className={free} />
           </div>
         </div>
@@ -524,7 +561,8 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
                     className="w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs" />
                 </td>
                 <td className="py-1 px-1.5">
-                  <select value={it.order_kind} onChange={e => setItem(i, { order_kind: e.target.value })}
+                  <select value={it.order_kind} onChange={e => setKind(i, e.target.value)}
+                    title="지점: 지점판매가+카톤 배송비 자동 / 개별: 개별판매가(배송비 포함) / 샘플: 직접 입력"
                     className="border border-blue-200 bg-blue-50/40 rounded px-1 py-1 text-xs">
                     <option>지점</option><option>개별</option><option>샘플</option>
                   </select>
