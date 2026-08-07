@@ -180,6 +180,8 @@
       <div class="conn-badge" id="connBadge" onclick="openCloudModal()"><span class="conn-dot local" id="connDot"></span><span id="connText">오프라인</span></div>
       <button class="btn btn-white" onclick="saveData()">💾 저장</button>
       <button class="btn btn-white" onclick="downloadCSV()">📥 CSV</button>
+      <button class="btn btn-white" onclick="document.getElementById('csvFile').click()">📤 불러오기</button>
+      <input type="file" id="csvFile" accept=".csv,text/csv" style="display:none">
     </div>
   </div>
   <div class="header-controls">
@@ -945,6 +947,55 @@ function downloadCSV(){
   showToast('CSV 다운로드 완료','success');
 }
 
+// ===== CSV 불러오기(복원) =====
+function parseCSV(text){
+  text=text.replace(/^﻿/,'');
+  const rows=[]; let row=[],field='',inQ=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(inQ){ if(ch==='"'){ if(text[i+1]==='"'){ field+='"'; i++; } else inQ=false; } else field+=ch; }
+    else{ if(ch==='"') inQ=true; else if(ch===','){ row.push(field); field=''; } else if(ch==='\n'){ row.push(field); rows.push(row); row=[]; field=''; } else if(ch==='\r'){} else field+=ch; }
+  }
+  if(field!==''||row.length){ row.push(field); rows.push(row); }
+  return rows.filter(r=>r.length&&r.some(c=>String(c).trim()!==''));
+}
+function importCSV(text){
+  const rows=parseCSV(text);
+  if(rows.length<2){ showToast('데이터가 없는 CSV입니다.','error'); return; }
+  const header=rows[0].map(h=>h.trim());
+  const idx=n=>header.indexOf(n), has=n=>idx(n)>=0;
+  const simpleFmt=has('품목명'), invFmt=has('제품명');
+  const isSimple=activeType()==='simple';
+  if(isSimple&&!simpleFmt){ showToast('이 탭은 수량형입니다. "품목명·수량" CSV를 넣어주세요.','error'); return; }
+  if(!isSimple&&!invFmt){ showToast('이 탭은 재고형입니다. "제품명·파렛트…" CSV를 넣어주세요.','error'); return; }
+  // 같은 이름 품목(예: '요아럽쇼핑백' 2개)도 정확히 복원되도록 '이름+등장순서'로 매칭
+  const idxByName={}; products.forEach((p,i)=>{ (idxByName[p.name]=idxByName[p.name]||[]).push(i); });
+  const cursor={};
+  function targetIdx(nm){ const list=idxByName[nm]; if(!list) return -1; const c=cursor[nm]||0; if(c>=list.length) return -1; cursor[nm]=c+1; return list[c]; }
+  let matched=0;
+  if(isSimple){
+    const ni=idx('품목명'),qi=idx('수량'),bi=idx('비고');
+    for(let r=1;r<rows.length;r++){ const row=rows[r]; const nm=(row[ni]||'').trim(); if(!nm) continue;
+      const pi=targetIdx(nm); if(pi<0) continue;
+      rowData[pi]={qty:num(row[qi])}; const note=bi>=0?(row[bi]||'').trim():null; if(note!=null&&note!=='') products[pi].note=note; matched++;
+    }
+  }else{
+    const ni=idx('제품명'), g=(row,n)=>{ const k=idx(n); return k>=0?num(row[k]):0; };
+    for(let r=1;r<rows.length;r++){ const row=rows[r]; const nm=(row[ni]||'').trim(); if(!nm) continue;
+      const pi=targetIdx(nm); if(pi<0) continue;
+      const boxA=has('박스A')?g(row,'박스A'):(g(row,'박스A포장')+g(row,'박스A비포장'));
+      const boxB=has('박스B')?g(row,'박스B'):(g(row,'박스B포장')+g(row,'박스B비포장'));
+      const loose=has('낱개')?g(row,'낱개'):(g(row,'낱개포장')+g(row,'낱개비포장'));
+      const looseDisplay=has('진열')?g(row,'진열'):g(row,'낱개진열');
+      rowData[pi]={palletA:g(row,'파렛트A'),palletB:g(row,'파렛트B'),boxA,boxB,loose,looseDisplay}; matched++;
+    }
+  }
+  if(!matched){ showToast('일치하는 품목이 없습니다. 탭·품목명을 확인하세요.','error'); return; }
+  saveLocalProducts(); renderTable(); persistWorking();
+  const tabName=(tabs.find(t=>t.id===activeTab)||{}).name||'';
+  showToast(`CSV 복원 완료 · ${tabName} ${curDate()}${isSimple?'':' '+curSlot()} · ${matched}개 항목`,'success');
+}
+
 // ===== 변동 비교 =====
 function shiftDate(str,days){ const d=new Date(str+'T00:00:00'); if(isNaN(d)) return str; d.setDate(d.getDate()+days); const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
 async function fetchDateData(date,slot){
@@ -1041,6 +1092,12 @@ async function init(){
   [['modalOverlay',closeModal],['simpleModal',closeSimpleModal],['cloudModal',closeCloudModal],['unitsModal',closeUnitsModal],['itemsModal',closeItemsModal],['logModal',closeLogModal],['diffModal',closeDiffModal]]
     .forEach(([id,fn])=>document.getElementById(id).addEventListener('click',function(e){ if(e.target===this) fn(); }));
   document.getElementById('modalForm').addEventListener('submit',e=>e.preventDefault());
+  document.getElementById('csvFile').addEventListener('change',function(e){
+    const f=e.target.files[0]; if(!f){ return; }
+    const tabName=(tabs.find(t=>t.id===activeTab)||{}).name||'';
+    if(!confirm(`[${tabName}] 탭의 ${curDate()}${activeType()==='simple'?'':' '+curSlot()} 데이터를 이 CSV로 덮어씁니다.\n계속할까요?`)){ e.target.value=''; return; }
+    const rd=new FileReader(); rd.onload=()=>{ try{ importCSV(String(rd.result)); }catch(err){ showToast('불러오기 오류: '+err.message,'error'); } e.target.value=''; }; rd.onerror=()=>{ showToast('파일 읽기 실패','error'); e.target.value=''; }; rd.readAsText(f,'utf-8');
+  });
 
   await initCloud();
   if(!currentHasSaved()) await seedFromPrevious();
