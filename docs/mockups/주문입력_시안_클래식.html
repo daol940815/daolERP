@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>주문 등록 — 클래식(기존 ERP풍) 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Gulim','굴림','Dotum','돋움','Malgun Gothic',sans-serif; background:#c8cfd8; font-size:12px; color:#222; }
+  .frame { max-width:1200px; margin:18px auto 40px; }
+
+  /* 창 껍데기 — 클래식 업무 시스템 창 느낌 */
+  .win { background:#f2f4f7; border:1px solid #6b7686; box-shadow:2px 3px 8px rgba(0,0,0,.25); }
+  .titlebar { background:linear-gradient(#3a5a8c,#274468); color:#fff; padding:6px 12px; font-weight:bold; font-size:13px; display:flex; }
+  .titlebar span { margin-left:auto; font-weight:normal; font-size:11px; color:#c9d6ea; }
+  .menubar { background:linear-gradient(#fdfdfd,#dde3ec); border-bottom:1px solid #9aa5b4; padding:5px 10px; display:flex; gap:4px; }
+  .mbtn { border:1px solid #8d99ab; background:linear-gradient(#ffffff,#dfe5ee); padding:4px 14px; font-size:12px; color:#223; }
+  .mbtn.on { background:linear-gradient(#dce8fa,#b8cdf0); border-color:#4a6da8; font-weight:bold; }
+  .body { padding:12px; }
+
+  .caption { background:#e3e9f2; border:1px solid #9aa5b4; border-bottom:none; padding:5px 10px; font-weight:bold; color:#223a5e; font-size:12px; }
+  table.form { width:100%; border-collapse:collapse; margin-bottom:12px; }
+  table.form th { background:#e8edf4; border:1px solid #9aa5b4; padding:6px 8px; font-weight:bold; color:#334; text-align:center; width:9%; white-space:nowrap; }
+  table.form th em { font-style:normal; color:#c00; }
+  table.form td { background:#fff; border:1px solid #9aa5b4; padding:4px 6px; }
+  .inp { width:100%; border:1px solid #7f8ea3; background:#fff; padding:4px 6px; font-size:12px; min-height:25px; position:relative; }
+  .inp.sel { background:#eef4ff; }     /* 마스터 선택 */
+  .inp.auto { background:#eceff3; color:#556; }  /* 자동 */
+  .inp.free { background:#fffbe8; }    /* 자유 입력 */
+  .inp .caret { float:right; color:#667; font-size:10px; }
+  .ph { color:#98a2b0; }
+
+  .dd { position:absolute; z-index:9; background:#fff; border:1px solid #4a6da8; width:230px; box-shadow:2px 3px 6px rgba(0,0,0,.25); }
+  .dd div { padding:4px 8px; border-bottom:1px solid #e3e9f2; }
+  .dd .hl { background:#2f5597; color:#fff; }
+  .dd small { color:#98a2b0; margin-left:4px; }
+  .dd .hl small { color:#c9d6ea; }
+  .dd .new { color:#1c4a9c; font-weight:bold; }
+
+  table.grid { width:100%; border-collapse:collapse; }
+  table.grid th { background:linear-gradient(#eef2f8,#d7dfeb); border:1px solid #9aa5b4; padding:5px 6px; font-weight:bold; color:#334; white-space:nowrap; }
+  table.grid td { border:1px solid #b3bcc9; padding:3px 4px; background:#fff; white-space:nowrap; }
+  table.grid td.r, table.grid th.r { text-align:right; }
+  table.grid .inp { min-height:23px; padding:3px 5px; }
+  table.grid tr.sumrow td { background:#e8edf4; font-weight:bold; }
+
+  .btnrow { display:flex; justify-content:center; gap:6px; margin-top:12px; }
+  .btn { border:1px solid #6b7686; background:linear-gradient(#ffffff,#d9dfe9); padding:6px 22px; font-size:12px; font-weight:bold; color:#223; }
+  .btn.pri { background:linear-gradient(#4a72ad,#2f5597); color:#fff; border-color:#223a5e; }
+
+  .legend { display:flex; gap:14px; margin:10px 2px 0; font-size:11px; color:#445; }
+  .sw { display:inline-block; width:11px; height:11px; border:1px solid #7f8ea3; vertical-align:-1px; margin-right:4px; }
+
+  .note { max-width:1200px; margin:12px auto 0; background:#fbf6df; border:1px solid #cdbd7c; padding:9px 12px; font-size:11.5px; color:#5d4d12; line-height:1.7; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="win">
+    <div class="titlebar">다올 주문관리 — 주문 등록 <span>김보현 (직원) | 2026-08-12</span></div>
+    <div class="menubar">
+      <span class="mbtn">주문 목록</span>
+      <span class="mbtn on">주문 등록</span>
+      <span class="mbtn">발주서</span>
+      <span class="mbtn">배송 관리</span>
+    </div>
+    <div class="body">
+
+      <div class="caption">주문 정보</div>
+      <table class="form">
+        <tr>
+          <th>주문일 <em>*</em></th><td style="width:12%"><div class="inp auto">2026-08-12</div></td>
+          <th>주문번호</th><td style="width:12%"><div class="inp auto">자동 발번</div></td>
+          <th>은행명 <em>*</em></th><td style="width:16%"><div class="inp sel">하나은행<span class="caret">▼</span></div></td>
+          <th>지점명 <em>*</em></th>
+          <td style="width:16%; position:relative">
+            <div class="inp sel">화곡역<span class="caret">▼</span></div>
+            <div class="dd">
+              <div class="hl">화곡역지점 <small>하나은행 소속</small></div>
+              <div>화곡동지점</div>
+              <div class="new">+ "화곡역" 신규 지점 등록 요청</div>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <th>담당자 <em>*</em></th><td><div class="inp sel">김수영 지점장<span class="caret">▼</span></div></td>
+          <th>다올직원</th><td><div class="inp auto">김보현</div></td>
+          <th>상담자 <em>*</em></th><td><div class="inp sel">옥광일<span class="caret">▼</span></div></td>
+          <th>연락처</th><td><div class="inp auto">02-1234-5678</div></td>
+        </tr>
+        <tr>
+          <th>핸드폰</th><td><div class="inp auto">010-1234-5678</div></td>
+          <th>소개자</th><td><div class="inp free ph">직접 입력</div></td>
+          <th>책임자</th><td><div class="inp free ph">직접 입력</div></td>
+          <th>책임자연락처</th><td><div class="inp free ph">직접 입력</div></td>
+        </tr>
+        <tr>
+          <th>메모</th><td colspan="7"><div class="inp free ph">주문 단위 메모</div></td>
+        </tr>
+      </table>
+
+      <div class="caption">주문 상품</div>
+      <table class="grid">
+        <tr>
+          <th style="width:9%">품번</th><th>품명</th><th style="width:6%">구분</th><th style="width:9%">매입처</th>
+          <th class="r" style="width:8%">판매가</th><th class="r" style="width:5%">갯수</th><th class="r" style="width:7%">배송비</th>
+          <th class="r" style="width:7%">할인금액</th><th class="r" style="width:9%">합계금액</th>
+          <th class="r" style="width:8%">매입가</th><th class="r" style="width:7%">매입배송비</th><th style="width:8%">메모</th><th style="width:3%"></th>
+        </tr>
+        <tr>
+          <td><div class="inp sel">HN-0021<span class="caret">▼</span></div></td>
+          <td><div class="inp auto">한라봉 5kg 선물세트</div></td>
+          <td><div class="inp sel">지점<span class="caret">▼</span></div></td>
+          <td><div class="inp auto">화환월드</div></td>
+          <td class="r"><div class="inp auto">100,000</div></td>
+          <td class="r"><div class="inp free">3</div></td>
+          <td class="r"><div class="inp free">0</div></td>
+          <td class="r"><div class="inp free">0</div></td>
+          <td class="r"><div class="inp auto"><b>300,000</b></div></td>
+          <td class="r"><div class="inp auto">70,000</div></td>
+          <td class="r"><div class="inp free">0</div></td>
+          <td><div class="inp free ph">-</div></td>
+          <td style="text-align:center; color:#c00; font-weight:bold">X</td>
+        </tr>
+        <tr>
+          <td><div class="inp sel ph">품번 검색<span class="caret">▼</span></div></td>
+          <td><div class="inp auto ph">자동</div></td>
+          <td><div class="inp sel">개별<span class="caret">▼</span></div></td>
+          <td><div class="inp auto ph">자동</div></td>
+          <td class="r"><div class="inp auto ph">자동</div></td>
+          <td class="r"><div class="inp free ph">1</div></td>
+          <td class="r"><div class="inp free ph">0</div></td>
+          <td class="r"><div class="inp free ph">0</div></td>
+          <td class="r"><div class="inp auto ph">자동</div></td>
+          <td class="r"><div class="inp auto ph">자동</div></td>
+          <td class="r"><div class="inp free ph">0</div></td>
+          <td><div class="inp free ph">-</div></td>
+          <td></td>
+        </tr>
+        <tr class="sumrow">
+          <td colspan="8" style="text-align:right">합계</td>
+          <td class="r">300,000</td>
+          <td class="r">70,000</td>
+          <td class="r">0</td>
+          <td colspan="2">미수금 300,000</td>
+        </tr>
+      </table>
+      <div style="margin-top:6px"><span class="btn" style="font-weight:normal; padding:4px 12px">+ 행 추가</span>
+        <span style="font-size:11px; color:#556; margin-left:8px">Enter 키로도 행이 추가됩니다</span></div>
+
+      <div class="btnrow">
+        <span class="btn pri">저 장</span>
+        <span class="btn">저장 후 계속 입력</span>
+        <span class="btn">임시 저장</span>
+        <span class="btn">취 소</span>
+      </div>
+
+      <div class="legend">
+        <span><span class="sw" style="background:#eef4ff"></span>마스터 선택(자동완성, 오타 차단)</span>
+        <span><span class="sw" style="background:#eceff3"></span>자동 채움</span>
+        <span><span class="sw" style="background:#fffbe8"></span>자유 입력(기존과 동일)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    · 겉모습은 기존 ERP풍(촘촘한 표 양식·각진 버튼·클래식 팔레트)으로, 동작은 신규 방식(마스터 선택·자동 채움·자동 합산·승인 워크플로)입니다.<br>
+    · 필드 배치·순서·Tab 이동은 기존 데이터 구조 순서 그대로입니다. 기존 입력 화면 실제 캡처를 주시면 배치를 실물에 더 맞추겠습니다.<br>
+    · 조회(주문 목록) 화면도 같은 클래식 톤으로 통일할지, 앞서 보여드린 신규 스타일로 갈지는 실무자 의견에 따라 정하면 됩니다 — 두 톤 모두 구현 비용 차이는 없습니다.
+  </div>
+</div>
+</body>
+</html>

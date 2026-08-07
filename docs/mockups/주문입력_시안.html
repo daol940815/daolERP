@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>주문 입력 시안 — 기존 순서 유지 + 마스터 선택</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1240px; margin:0 auto; padding:24px 20px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; }
+
+  .legend { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; font-size:11.5px; }
+  .lg { display:flex; align-items:center; gap:5px; color:#475569; }
+  .dot { width:12px; height:12px; border-radius:3px; display:inline-block; }
+
+  .topnav { background:#0f172a; border-radius:10px; padding:10px 16px; color:#94a3b8; font-size:12.5px; display:flex; gap:18px; margin-bottom:14px; }
+  .topnav b { color:#fff; }
+  .topnav .on { color:#fff; font-weight:bold; border-bottom:2px solid #3b82f6; padding-bottom:2px; }
+
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .sec { font-size:13px; font-weight:bold; color:#0f172a; margin-bottom:10px; }
+  .sec small { font-weight:normal; color:#94a3b8; font-size:11px; margin-left:6px; }
+
+  .grid { display:grid; grid-template-columns:repeat(6, 1fr); gap:10px 12px; }
+  .f label { display:block; font-size:11px; color:#64748b; margin-bottom:3px; }
+  .f label em { font-style:normal; color:#c22525; }
+  .box { border:1.5px solid #cbd5e1; border-radius:8px; padding:7px 10px; background:#fff; font-size:12.5px; color:#0f172a; position:relative; min-height:33px; }
+  .box.sel { border-color:#93b8e8; background:#f5f9ff; }        /* 마스터 선택 */
+  .box.auto { border-color:#e2e8f0; background:#f8fafc; color:#64748b; } /* 자동 */
+  .box.free { border-color:#e8d9a8; background:#fffdf5; }       /* 자유 입력 유지 */
+  .box .caret { position:absolute; right:8px; top:7px; color:#94a3b8; font-size:10px; }
+  .hint { font-size:10px; color:#94a3b8; margin-top:2px; }
+  .ph { color:#94a3b8; }
+  .sp2 { grid-column:span 2; }
+  .sp3 { grid-column:span 3; }
+
+  .dropdown { position:absolute; top:36px; left:0; right:0; background:#fff; border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 8px 20px rgba(15,23,42,.12); z-index:5; font-size:12px; }
+  .dropdown div { padding:6px 10px; border-bottom:1px solid #f1f5f9; }
+  .dropdown div.hl { background:#eff6ff; }
+  .dropdown .new { color:#1b5aa8; font-weight:bold; }
+  .dropdown small { color:#94a3b8; margin-left:6px; }
+
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th { background:#f1f5f9; color:#475569; font-size:11px; padding:7px 8px; text-align:left; white-space:nowrap; border-bottom:1.5px solid #d8dee6; }
+  th.r, td.r { text-align:right; }
+  td { padding:6px 8px; border-bottom:1px solid #eef1f5; white-space:nowrap; }
+  td .cell { border:1.5px solid #cbd5e1; border-radius:6px; padding:5px 8px; min-width:60px; background:#fff; }
+  td .cell.sel { border-color:#93b8e8; background:#f5f9ff; }
+  td .cell.auto { border-color:#e2e8f0; background:#f8fafc; color:#64748b; }
+  td .cell.free { border-color:#e8d9a8; background:#fffdf5; }
+  .addrow { margin-top:8px; display:inline-block; border:1.5px dashed #cbd5e1; color:#64748b; border-radius:8px; padding:6px 14px; font-size:12px; }
+
+  .foot { display:flex; align-items:center; justify-content:space-between; margin-top:4px; flex-wrap:wrap; gap:10px; }
+  .totals { display:flex; gap:18px; font-size:13px; }
+  .totals b { color:#0f172a; }
+  .btns { display:flex; gap:8px; }
+  .btn { border-radius:9px; padding:9px 18px; font-size:13px; font-weight:bold; }
+  .btn.pri { background:#0f172a; color:#fff; }
+  .btn.gho { background:#fff; border:1.5px solid #cbd5e1; color:#334155; font-weight:normal; }
+
+  .note { margin-top:16px; background:#fffbeb; border:1px solid #f5e6b8; border-radius:10px; padding:12px 16px; font-size:12px; color:#7c5e10; line-height:1.8; }
+  .cmp { margin-top:14px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; font-size:12px; }
+  .cmp h3 { font-size:12.5px; color:#0f172a; margin-bottom:8px; }
+  .cmp table td { white-space:normal; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>주문 입력 — 시안 ("입력은 기존을 닮게, 조회는 새롭게")</h1>
+  <p class="desc">필드 구성·순서는 기존 ERP 입력 구조 그대로. 각 칸의 성격만 업그레이드 — 오타의 원천(자유 입력)을 마스터 선택으로 바꾸되 손에 익은 흐름은 유지합니다.</p>
+
+  <div class="legend">
+    <span class="lg"><span class="dot" style="background:#f5f9ff; border:1.5px solid #93b8e8"></span>마스터 선택 (자동완성, 오타 원천 차단)</span>
+    <span class="lg"><span class="dot" style="background:#f8fafc; border:1.5px solid #e2e8f0"></span>자동 채움 (입력 불필요)</span>
+    <span class="lg"><span class="dot" style="background:#fffdf5; border:1.5px solid #e8d9a8"></span>자유 입력 (기존과 동일)</span>
+  </div>
+
+  <div class="topnav">
+    <b>다올 주문관리</b>
+    <span>주문 현황</span>
+    <span class="on">신규 주문</span>
+    <span>발주서</span>
+    <span>배송 관리</span>
+    <span style="margin-left:auto">김보현 · 직원</span>
+  </div>
+
+  <!-- 주문 기본 정보: 기존 컬럼 순서 (주문일 → 은행 → 지점 → 담당자 → 직원 → 연락처...) -->
+  <div class="panel">
+    <div class="sec">주문 정보 <small>기존 입력 순서 그대로 — Tab 이동 순서도 동일</small></div>
+    <div class="grid">
+      <div class="f"><label>주문일 <em>*</em></label><div class="box auto">2026-08-12 (오늘)</div></div>
+      <div class="f"><label>주문번호</label><div class="box auto">저장 시 자동 발번</div></div>
+      <div class="f sp2"><label>은행명(주문처) <em>*</em></label><div class="box sel">하나은행<span class="caret">▾</span></div><div class="hint">거래처 마스터 자동완성 — 자유 입력 불가</div></div>
+      <div class="f sp2" style="position:relative">
+        <label>지점명 <em>*</em></label>
+        <div class="box sel">화곡역<span class="caret">▾</span></div>
+        <div class="dropdown">
+          <div class="hl">화곡역지점 <small>하나은행 소속 지점</small></div>
+          <div>화곡동지점</div>
+          <div class="new">+ "화곡역" 신규 지점으로 등록 요청</div>
+        </div>
+      </div>
+
+      <div class="f sp2"><label>담당자(거래처) <em>*</em></label><div class="box sel">김수영 지점장<span class="caret">▾</span></div><div class="hint">담당자 마스터 — 선택 시 연락처 자동</div></div>
+      <div class="f"><label>다올직원</label><div class="box auto">김보현 (로그인)</div></div>
+      <div class="f"><label>상담자 <em>*</em></label><div class="box sel">옥광일<span class="caret">▾</span></div></div>
+      <div class="f"><label>연락처</label><div class="box auto">02-1234-5678</div></div>
+      <div class="f"><label>핸드폰</label><div class="box auto">010-1234-5678</div></div>
+
+      <div class="f"><label>소개자</label><div class="box free ph">직접 입력</div></div>
+      <div class="f sp2"><label>책임자</label><div class="box free ph">직접 입력</div></div>
+      <div class="f"><label>책임자연락처</label><div class="box free ph">직접 입력</div></div>
+      <div class="f sp2"><label>메모</label><div class="box free ph">주문 단위 메모</div></div>
+    </div>
+  </div>
+
+  <!-- 품목: 기존 컬럼 순서 그대로 -->
+  <div class="panel">
+    <div class="sec">주문 상품 <small>기존 컬럼 순서 그대로 — 품번 선택 시 품명·매입처·가격 자동</small></div>
+    <table>
+      <tr>
+        <th>품번</th><th>품명</th><th>구분</th><th>매입처</th>
+        <th class="r">판매가</th><th class="r">갯수</th><th class="r">배송비</th><th class="r">할인금액</th>
+        <th class="r">합계금액</th><th class="r">매입가</th><th class="r">매입배송비</th><th>메모</th><th></th>
+      </tr>
+      <tr>
+        <td><div class="cell sel">HN-0021 ▾</div></td>
+        <td><div class="cell auto">한라봉 5kg 선물세트</div></td>
+        <td><div class="cell sel">지점 ▾</div></td>
+        <td><div class="cell auto">화환월드</div></td>
+        <td class="r"><div class="cell auto">100,000</div></td>
+        <td class="r"><div class="cell free">3</div></td>
+        <td class="r"><div class="cell free">0</div></td>
+        <td class="r"><div class="cell free">0</div></td>
+        <td class="r"><div class="cell auto"><b>300,000</b></div></td>
+        <td class="r"><div class="cell auto">70,000</div></td>
+        <td class="r"><div class="cell free">0</div></td>
+        <td><div class="cell free ph">-</div></td>
+        <td style="color:#c22525">✕</td>
+      </tr>
+      <tr>
+        <td><div class="cell sel ph">품번·품명 검색 ▾</div></td>
+        <td><div class="cell auto ph">자동</div></td>
+        <td><div class="cell sel">개별 ▾</div></td>
+        <td><div class="cell auto ph">자동</div></td>
+        <td class="r"><div class="cell auto ph">자동</div></td>
+        <td class="r"><div class="cell free ph">1</div></td>
+        <td class="r"><div class="cell free ph">0</div></td>
+        <td class="r"><div class="cell free ph">0</div></td>
+        <td class="r"><div class="cell auto ph">자동</div></td>
+        <td class="r"><div class="cell auto ph">자동</div></td>
+        <td class="r"><div class="cell free ph">0</div></td>
+        <td><div class="cell free ph">-</div></td>
+        <td></td>
+      </tr>
+    </table>
+    <span class="addrow">+ 상품 행 추가 (Enter로도 추가)</span>
+
+    <div class="foot">
+      <div class="totals">
+        <span>총금액 <b>300,000원</b> <span style="color:#94a3b8;font-size:11px">(자동 합산)</span></span>
+        <span>미수금 <b>300,000원</b> <span style="color:#94a3b8;font-size:11px">(수금 전 자동)</span></span>
+        <span>예상 마진 <b style="color:#0a7d0a">90,000원</b></span>
+      </div>
+      <div class="btns">
+        <span class="btn gho">임시 저장</span>
+        <span class="btn gho">저장 후 계속 입력</span>
+        <span class="btn pri">주문 저장</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="cmp">
+    <h3>기존 입력과 무엇이 같고 무엇이 다른가</h3>
+    <table>
+      <tr><th style="width:18%">항목</th><th style="width:41%">동일 (익숙함 유지)</th><th>개선 (시스템이 대신함)</th></tr>
+      <tr><td><b>필드 순서</b></td><td>주문일 → 은행 → 지점 → 담당자 → 직원 → 연락처 → 소개자·책임자 → 상품 행. Tab 이동 순서 동일</td><td>—</td></tr>
+      <tr><td><b>주문처</b></td><td>은행·지점 두 칸 구조 유지</td><td>자유 입력 → 마스터 자동완성. 오타·별칭 문제 원천 차단. 신규 거래처는 등록 요청으로</td></tr>
+      <tr><td><b>담당자·상담자</b></td><td>같은 위치의 칸</td><td>담당자·직원 마스터에서 선택(필수). 연락처 자동 채움. 다올직원은 로그인 계정 자동</td></tr>
+      <tr><td><b>상품 행</b></td><td>컬럼 순서·행 추가 방식 동일</td><td>품번 검색 시 품명·매입처·판매가·매입가 자동. 합계·총금액·마진 자동 계산</td></tr>
+      <tr><td><b>수정</b></td><td>—</td><td>당일 수정 가능. 익일 이후는 수정 요청 → 중간 관리자 승인 (음수 상계 주문 불필요)</td></tr>
+    </table>
+  </div>
+
+  <div class="note">
+    · 조회(주문 목록) 화면은 앞서 전달한 신규 UI 시안(통합 검색 + 칩 필터 + KPI + 행내 상품 펼치기)을 그대로 사용합니다 — 이 입력 화면과 한 세트입니다.<br>
+    · 기존 입력 화면의 실제 캡처를 아직 받지 못해, 필드 순서는 기존 ERP 데이터 구조(업로드 파일 컬럼 순서)를 근거로 재구성했습니다.
+    캡처를 주시면 실물 순서에 맞춰 조정합니다.<br>
+    · 소개자·책임자·메모는 자유 입력 그대로 두었습니다 — 마스터화가 필요 없는 참고 정보이기 때문입니다.
+  </div>
+</div>
+</body>
+</html>
