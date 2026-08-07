@@ -1,0 +1,606 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+
+// 주문 입력 폼 (신규·수정 공용) — 시안 "입력은 기존을 닮게" 기준
+// 필드 구성·순서는 기존 ERP 업로드 컬럼 순서. 오타의 원천(자유 입력)만
+// 마스터 선택으로 바꾼다: 주문처=vendors, 담당자=contacts, 상담자=employees,
+// 품번=erp_products. 소개자·책임자·메모는 기존대로 자유 입력.
+
+interface Vendor { id: string; name: string; type: string | null }
+interface Employee { id: string; name: string; position: string | null; team: string | null }
+interface ContactOpt { contact_id: string; name: string; phone: string | null; title: string | null; is_representative: boolean }
+interface Product {
+  id: string; item_code: string | null; item_name: string
+  purchase_vendor_name: string | null; sale_price: number; purchase_price: number; is_active: boolean
+}
+
+export interface ItemDraft {
+  product_id: string | null
+  item_code: string
+  item_name: string
+  order_kind: string
+  purchase_vendor_name: string
+  sale_price: number
+  quantity: number
+  shipping_fee: number
+  discount_amount: number
+  purchase_price: number
+  purchase_shipping: number
+  memo: string
+}
+
+const emptyItem = (): ItemDraft => ({
+  product_id: null, item_code: '', item_name: '', order_kind: '지점',
+  purchase_vendor_name: '', sale_price: 0, quantity: 1, shipping_fee: 0,
+  discount_amount: 0, purchase_price: 0, purchase_shipping: 0, memo: '',
+})
+
+const won = (n: number) => n.toLocaleString('ko-KR')
+const toInt = (s: string) => {
+  const n = Number(s.replace(/[^\d-]/g, ''))
+  return Number.isFinite(n) ? Math.round(n) : 0
+}
+const lineTotal = (it: ItemDraft) => it.sale_price * it.quantity + it.shipping_fee - it.discount_amount
+
+// ── 자동완성 콤보 (마스터 선택 전용 — 목록에 없는 값은 확정 불가) ──
+function Combo({ value, display, options, onSelect, placeholder, required, footer }: {
+  value: string | null
+  display: string
+  options: { id: string; label: string; sub?: string }[]
+  onSelect: (id: string | null) => void
+  placeholder: string
+  required?: boolean
+  footer?: React.ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+  const boxRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (!boxRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
+
+  const q = text.trim().toLowerCase()
+  const filtered = useMemo(() => {
+    if (!q) return options.slice(0, 50)
+    return options.filter(o =>
+      o.label.toLowerCase().includes(q) || (o.sub ?? '').toLowerCase().includes(q),
+    ).slice(0, 50)
+  }, [options, q])
+
+  return (
+    <div ref={boxRef} className="relative">
+      <input
+        value={open ? text : display}
+        onFocus={() => { setOpen(true); setText('') }}
+        onChange={e => setText(e.target.value)}
+        placeholder={placeholder}
+        className={`w-full border rounded-lg px-2.5 py-1.5 text-sm bg-blue-50/40 ${
+          required && !value ? 'border-red-300' : 'border-blue-200'
+        }`}
+      />
+      {open && (
+        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto text-sm">
+          {filtered.map(o => (
+            <button type="button" key={o.id}
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => { onSelect(o.id); setOpen(false) }}
+              className="w-full text-left px-3 py-1.5 hover:bg-blue-50 border-b border-gray-50">
+              {o.label}
+              {o.sub && <span className="text-xs text-gray-400 ml-1.5">{o.sub}</span>}
+            </button>
+          ))}
+          {!filtered.length && <div className="px-3 py-2 text-xs text-gray-400">일치하는 항목이 없습니다</div>}
+          {footer}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function OrderForm({ orderId }: { orderId?: string }) {
+  const router = useRouter()
+  const isEdit = !!orderId
+
+  // 마스터
+  const [vendors, setVendors] = useState<Vendor[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [meName, setMeName] = useState('')
+  const [contacts, setContacts] = useState<ContactOpt[]>([])
+
+  // 폼 상태 (기존 컬럼 순서)
+  const [orderDate, setOrderDate] = useState(() => new Date().toLocaleDateString('sv-SE'))
+  const [orderNo, setOrderNo] = useState<string | null>(null)
+  const [vendorId, setVendorId] = useState<string | null>(null)
+  const [contactId, setContactId] = useState<string | null>(null)
+  const [counselorId, setCounselorId] = useState<string | null>(null)
+  const [contactTel, setContactTel] = useState('')
+  const [phone, setPhone] = useState('')
+  const [introducer, setIntroducer] = useState('')
+  const [supervisor, setSupervisor] = useState('')
+  const [supervisorContact, setSupervisorContact] = useState('')
+  const [memo, setMemo] = useState('')
+  const [items, setItems] = useState<ItemDraft[]>([emptyItem()])
+
+  // 수정 모드 정보
+  const [canEdit, setCanEdit] = useState(true)
+  const [needsRequest, setNeedsRequest] = useState(false)
+  const [reason, setReason] = useState('')
+
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+
+  // 신규 담당자 인라인 등록
+  const [addingContact, setAddingContact] = useState(false)
+  const [newContact, setNewContact] = useState({ name: '', title: '', phone: '' })
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [mRes, pRes] = await Promise.all([
+          fetch('/api/orders-portal/masters'),
+          fetch('/api/orders-portal/products'),
+        ])
+        const m = await mRes.json()
+        if (!mRes.ok) throw new Error(m.error ?? '마스터 조회 실패')
+        setVendors(m.vendors ?? [])
+        setEmployees(m.employees ?? [])
+        setMeName(m.me?.name ?? '')
+        const p = await pRes.json()
+        if (pRes.ok) setProducts((p.products ?? []).filter((x: Product) => x.is_active))
+
+        if (orderId) {
+          const oRes = await fetch(`/api/orders-portal/orders/${orderId}`)
+          const o = await oRes.json()
+          if (!oRes.ok) throw new Error(o.error ?? '주문 조회 실패')
+          const ord = o.order
+          setOrderDate(ord.order_date)
+          setOrderNo(ord.order_no)
+          setVendorId(ord.vendor_id)
+          setContactId(ord.contact_id)
+          setCounselorId(ord.counselor_employee_id)
+          setContactTel(ord.contact ?? '')
+          setPhone(ord.phone ?? '')
+          setIntroducer(ord.introducer ?? '')
+          setSupervisor(ord.supervisor ?? '')
+          setSupervisorContact(ord.supervisor_contact ?? '')
+          setMemo(ord.memo ?? '')
+          setCanEdit(o.can_edit)
+          setNeedsRequest(o.needs_request)
+          setItems((o.items as Record<string, unknown>[]).map(it => ({
+            product_id: (it.product_id as string) ?? null,
+            item_code: (it.item_code as string) ?? '',
+            item_name: (it.item_name as string) ?? '',
+            order_kind: (it.order_kind as string) ?? '지점',
+            purchase_vendor_name: (it.purchase_vendor_name as string) ?? '',
+            sale_price: (it.sale_price as number) ?? 0,
+            quantity: (it.quantity as number) ?? 1,
+            shipping_fee: (it.shipping_fee as number) ?? 0,
+            discount_amount: (it.discount_amount as number) ?? 0,
+            purchase_price: (it.purchase_price as number) ?? 0,
+            purchase_shipping: (it.purchase_shipping as number) ?? 0,
+            memo: (it.memo as string) ?? '',
+          })))
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '조회 실패')
+      }
+      setLoading(false)
+    })()
+  }, [orderId])
+
+  // 주문처 선택 → 담당자 목록
+  const loadContacts = useCallback(async (vid: string) => {
+    const res = await fetch(`/api/orders-portal/masters?vendor_id=${vid}`)
+    const json = await res.json()
+    setContacts(res.ok ? (json.contacts ?? []) : [])
+  }, [])
+  useEffect(() => {
+    if (vendorId) loadContacts(vendorId)
+    else setContacts([])
+  }, [vendorId, loadContacts])
+
+  const pickContact = (cid: string | null) => {
+    setContactId(cid)
+    const c = contacts.find(x => x.contact_id === cid)
+    if (c?.phone) setPhone(c.phone)
+  }
+
+  const createContact = async () => {
+    if (!vendorId || !newContact.name.trim()) return
+    const res = await fetch('/api/orders-portal/masters', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'create_contact', vendor_id: vendorId, ...newContact }),
+    })
+    const json = await res.json()
+    if (!res.ok) { setError(json.error); return }
+    await loadContacts(vendorId)
+    setContactId(json.contact_id)
+    if (newContact.phone) setPhone(newContact.phone)
+    setAddingContact(false)
+    setNewContact({ name: '', title: '', phone: '' })
+  }
+
+  const setItem = (i: number, patch: Partial<ItemDraft>) =>
+    setItems(prev => prev.map((it, idx) => idx === i ? { ...it, ...patch } : it))
+
+  const pickProduct = (i: number, pid: string | null) => {
+    const p = products.find(x => x.id === pid)
+    if (!p) return
+    setItem(i, {
+      product_id: p.id,
+      item_code: p.item_code ?? '',
+      item_name: p.item_name,
+      purchase_vendor_name: p.purchase_vendor_name ?? '',
+      sale_price: p.sale_price,
+      purchase_price: p.purchase_price,
+    })
+  }
+
+  const totals = useMemo(() => {
+    const filled = items.filter(it => it.item_name.trim())
+    const total = filled.reduce((s, it) => s + lineTotal(it), 0)
+    const cost = filled.reduce((s, it) => s + it.purchase_price * it.quantity + it.purchase_shipping, 0)
+    return { total, margin: total - cost }
+  }, [items])
+
+  const submit = async (andContinue?: boolean) => {
+    setError(null); setNotice(null)
+    const payload = {
+      order_date: orderDate,
+      vendor_id: vendorId,
+      contact_id: contactId,
+      counselor_employee_id: counselorId,
+      contact: contactTel || null,
+      phone: phone || null,
+      introducer: introducer || null,
+      supervisor: supervisor || null,
+      supervisor_contact: supervisorContact || null,
+      memo: memo || null,
+      items: items.filter(it => it.item_name.trim()),
+    }
+    if (!payload.vendor_id) { setError('주문처를 선택해주세요.'); return }
+    if (!payload.contact_id) { setError('거래처 담당자를 선택해주세요. (없으면 "+ 신규 담당자"로 등록)'); return }
+    if (!payload.counselor_employee_id) { setError('상담자를 선택해주세요.'); return }
+    if (!payload.items.length) { setError('품목을 1개 이상 입력해주세요.'); return }
+
+    setSaving(true)
+    try {
+      if (!isEdit) {
+        const res = await fetch('/api/orders-portal/orders', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error ?? '저장 실패')
+        if (andContinue) {
+          setNotice(`주문 ${json.order_no} 저장 완료 — 이어서 입력하세요.`)
+          setVendorId(null); setContactId(null); setContactTel(''); setPhone('')
+          setIntroducer(''); setSupervisor(''); setSupervisorContact(''); setMemo('')
+          setItems([emptyItem()])
+        } else {
+          router.push(`/orders/${json.id}`)
+        }
+      } else if (canEdit) {
+        const res = await fetch(`/api/orders-portal/orders/${orderId}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error ?? '수정 실패')
+        router.push(`/orders/${orderId}`)
+      } else {
+        if (!reason.trim()) throw new Error('수정 요청 사유를 입력해주세요.')
+        const res = await fetch('/api/orders-portal/change-requests', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: orderId, request_type: 'edit', reason, payload }),
+        })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error ?? '요청 실패')
+        setNotice('수정 요청이 접수되었습니다. 관리자 승인 후 반영됩니다.')
+        setTimeout(() => router.push(`/orders/${orderId}`), 1200)
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '저장 실패')
+    }
+    setSaving(false)
+  }
+
+  if (loading) return <div className="text-center py-16 text-gray-400">로딩 중...</div>
+  if (isEdit && !canEdit && !needsRequest) {
+    return (
+      <div className="px-4 py-3 bg-red-50 text-red-700 text-sm rounded-lg">
+        이 주문은 수정할 수 없습니다. (업로드 주문이거나 권한이 없습니다)
+      </div>
+    )
+  }
+
+  const label = 'block text-[11px] text-gray-500 mb-0.5'
+  const free = 'w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2.5 py-1.5 text-sm'
+  const auto = 'w-full border border-gray-200 bg-gray-50 rounded-lg px-2.5 py-1.5 text-sm text-gray-500'
+  const numCell = 'w-24 border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs text-right tabular-nums'
+  const autoCell = 'w-24 border border-gray-200 bg-gray-50 rounded px-1.5 py-1 text-xs text-right tabular-nums text-gray-500'
+
+  return (
+    <div>
+      <div className="flex items-center gap-3 flex-wrap">
+        <h1 className="text-xl font-bold text-gray-900">{isEdit ? (canEdit ? '주문 수정' : '주문 수정 요청') : '신규 주문'}</h1>
+        {isEdit && orderNo && <span className="text-sm text-gray-400 tabular-nums">{orderNo}</span>}
+        <span className="text-[11px] text-gray-400 ml-auto">
+          <span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-50 border border-blue-200 align-middle mr-1" />마스터 선택
+          <span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-50 border border-gray-200 align-middle ml-3 mr-1" />자동
+          <span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-50 border border-amber-200 align-middle ml-3 mr-1" />자유 입력
+        </span>
+      </div>
+
+      {isEdit && !canEdit && needsRequest && (
+        <div className="mt-3 px-4 py-2.5 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg">
+          입력 당일이 지난 주문입니다 — 저장하면 수정 요청으로 접수되고, 관리자 승인 후 반영됩니다.
+        </div>
+      )}
+      {error && <div className="mt-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
+      {notice && <div className="mt-3 px-4 py-2.5 bg-emerald-50 text-emerald-700 text-sm rounded-lg">{notice}</div>}
+
+      {/* 주문 정보 — 기존 입력 순서 그대로 */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-4">
+        <div className="text-sm font-bold text-gray-900 mb-3">
+          주문 정보 <span className="text-[11px] font-normal text-gray-400 ml-1">기존 입력 순서 그대로</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-x-3 gap-y-2.5">
+          <div>
+            <label className={label}>주문일 <em className="not-italic text-red-500">*</em></label>
+            <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)}
+              className="w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2 py-1.5 text-sm" />
+          </div>
+          <div>
+            <label className={label}>주문번호</label>
+            <div className={auto}>{orderNo ?? '저장 시 자동 발번'}</div>
+          </div>
+          <div className="col-span-2">
+            <label className={label}>주문처 <em className="not-italic text-red-500">*</em></label>
+            <Combo
+              value={vendorId}
+              display={vendors.find(v => v.id === vendorId)?.name ?? ''}
+              options={vendors.map(v => ({ id: v.id, label: v.name }))}
+              onSelect={id => { setVendorId(id); setContactId(null) }}
+              placeholder="거래처 마스터 검색 — 자유 입력 불가"
+              required
+            />
+          </div>
+          <div className="col-span-2">
+            <label className={label}>담당자(거래처) <em className="not-italic text-red-500">*</em></label>
+            <Combo
+              value={contactId}
+              display={(() => {
+                const c = contacts.find(x => x.contact_id === contactId)
+                return c ? [c.name, c.title].filter(Boolean).join(' ') : ''
+              })()}
+              options={contacts.map(c => ({
+                id: c.contact_id,
+                label: [c.name, c.title].filter(Boolean).join(' '),
+                sub: [c.is_representative ? '대표' : '', c.phone ?? ''].filter(Boolean).join(' · '),
+              }))}
+              onSelect={pickContact}
+              placeholder={vendorId ? '담당자 선택' : '주문처를 먼저 선택'}
+              required
+              footer={vendorId && (
+                <button type="button" onMouseDown={e => e.preventDefault()}
+                  onClick={() => setAddingContact(true)}
+                  className="w-full text-left px-3 py-1.5 text-blue-700 font-medium hover:bg-blue-50">
+                  + 신규 담당자 등록
+                </button>
+              )}
+            />
+          </div>
+
+          <div>
+            <label className={label}>다올직원</label>
+            <div className={auto}>{meName || '(로그인 계정)'}</div>
+          </div>
+          <div>
+            <label className={label}>상담자 <em className="not-italic text-red-500">*</em></label>
+            <Combo
+              value={counselorId}
+              display={employees.find(e => e.id === counselorId)?.name ?? ''}
+              options={employees.map(e => ({
+                id: e.id, label: e.name,
+                sub: [e.team, e.position].filter(Boolean).join(' · '),
+              }))}
+              onSelect={setCounselorId}
+              placeholder="직원 마스터 검색"
+              required
+            />
+          </div>
+          <div>
+            <label className={label}>연락처</label>
+            <input value={contactTel} onChange={e => setContactTel(e.target.value)} className={free} placeholder="02-" />
+          </div>
+          <div>
+            <label className={label}>핸드폰</label>
+            <input value={phone} onChange={e => setPhone(e.target.value)} className={free} placeholder="담당자 선택 시 자동" />
+          </div>
+          <div>
+            <label className={label}>소개자</label>
+            <input value={introducer} onChange={e => setIntroducer(e.target.value)} className={free} />
+          </div>
+          <div>
+            <label className={label}>책임자</label>
+            <input value={supervisor} onChange={e => setSupervisor(e.target.value)} className={free} />
+          </div>
+
+          <div>
+            <label className={label}>책임자연락처</label>
+            <input value={supervisorContact} onChange={e => setSupervisorContact(e.target.value)} className={free} />
+          </div>
+          <div className="col-span-2 md:col-span-5">
+            <label className={label}>메모 (주문 단위)</label>
+            <input value={memo} onChange={e => setMemo(e.target.value)} className={free} />
+          </div>
+        </div>
+
+        {addingContact && (
+          <div className="mt-3 p-3 bg-blue-50/50 border border-blue-200 rounded-lg flex items-end gap-2 flex-wrap">
+            <div>
+              <label className={label}>이름 *</label>
+              <input value={newContact.name} onChange={e => setNewContact(p => ({ ...p, name: e.target.value }))}
+                className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm w-32" />
+            </div>
+            <div>
+              <label className={label}>직함</label>
+              <input value={newContact.title} onChange={e => setNewContact(p => ({ ...p, title: e.target.value }))}
+                placeholder="지점장 등" className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm w-28" />
+            </div>
+            <div>
+              <label className={label}>휴대폰</label>
+              <input value={newContact.phone} onChange={e => setNewContact(p => ({ ...p, phone: e.target.value }))}
+                placeholder="010-" className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm w-36" />
+            </div>
+            <button type="button" onClick={createContact}
+              className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm">등록</button>
+            <button type="button" onClick={() => setAddingContact(false)}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">취소</button>
+            <span className="text-[11px] text-gray-400">거래처 담당자 마스터에 즉시 등록됩니다</span>
+          </div>
+        )}
+      </div>
+
+      {/* 주문 상품 — 기존 컬럼 순서 그대로 */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3 overflow-x-auto">
+        <div className="text-sm font-bold text-gray-900 mb-3">
+          주문 상품 <span className="text-[11px] font-normal text-gray-400 ml-1">품번·품명 검색 시 매입처·가격 자동</span>
+        </div>
+        <table className="w-full text-xs min-w-[1080px]">
+          <thead>
+            <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
+              <th className="py-1.5 px-1.5 text-left font-medium w-56">품번 · 품명 검색</th>
+              <th className="py-1.5 px-1.5 text-left font-medium">품명</th>
+              <th className="py-1.5 px-1.5 text-left font-medium">구분</th>
+              <th className="py-1.5 px-1.5 text-left font-medium">매입처</th>
+              <th className="py-1.5 px-1.5 text-right font-medium">판매가</th>
+              <th className="py-1.5 px-1.5 text-right font-medium">갯수</th>
+              <th className="py-1.5 px-1.5 text-right font-medium">배송비</th>
+              <th className="py-1.5 px-1.5 text-right font-medium">할인금액</th>
+              <th className="py-1.5 px-1.5 text-right font-medium">합계금액</th>
+              <th className="py-1.5 px-1.5 text-right font-medium">매입가</th>
+              <th className="py-1.5 px-1.5 text-right font-medium">매입배송비</th>
+              <th className="py-1.5 px-1.5 text-left font-medium">메모</th>
+              <th className="w-8" />
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((it, i) => (
+              <tr key={i} className="border-b border-gray-50 align-top">
+                <td className="py-1 px-1.5">
+                  <Combo
+                    value={it.product_id}
+                    display={it.item_code || (it.product_id ? it.item_name : '')}
+                    options={products.map(p => ({
+                      id: p.id,
+                      label: [p.item_code, p.item_name].filter(Boolean).join(' · '),
+                      sub: p.purchase_vendor_name ?? '',
+                    }))}
+                    onSelect={id => pickProduct(i, id)}
+                    placeholder="품번·품명 검색"
+                  />
+                </td>
+                <td className="py-1 px-1.5">
+                  <input value={it.item_name} onChange={e => setItem(i, { item_name: e.target.value, product_id: null })}
+                    placeholder="마스터에 없으면 직접 입력"
+                    className="w-40 border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs" />
+                </td>
+                <td className="py-1 px-1.5">
+                  <select value={it.order_kind} onChange={e => setItem(i, { order_kind: e.target.value })}
+                    className="border border-blue-200 bg-blue-50/40 rounded px-1 py-1 text-xs">
+                    <option>지점</option><option>개별</option><option>샘플</option>
+                  </select>
+                </td>
+                <td className="py-1 px-1.5">
+                  <input value={it.purchase_vendor_name} onChange={e => setItem(i, { purchase_vendor_name: e.target.value })}
+                    placeholder="품번 선택 시 자동"
+                    className="w-28 border border-gray-200 bg-gray-50 rounded px-1.5 py-1 text-xs" />
+                </td>
+                <td className="py-1 px-1.5 text-right">
+                  <input value={it.sale_price ? won(it.sale_price) : ''} onChange={e => setItem(i, { sale_price: toInt(e.target.value) })}
+                    className={numCell} placeholder="0" />
+                </td>
+                <td className="py-1 px-1.5 text-right">
+                  <input value={it.quantity || ''} onChange={e => setItem(i, { quantity: toInt(e.target.value) })}
+                    className="w-14 border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs text-right tabular-nums" placeholder="1" />
+                </td>
+                <td className="py-1 px-1.5 text-right">
+                  <input value={it.shipping_fee ? won(it.shipping_fee) : ''} onChange={e => setItem(i, { shipping_fee: toInt(e.target.value) })}
+                    className={numCell} placeholder="0" />
+                </td>
+                <td className="py-1 px-1.5 text-right">
+                  <input value={it.discount_amount ? won(it.discount_amount) : ''} onChange={e => setItem(i, { discount_amount: toInt(e.target.value) })}
+                    className={numCell} placeholder="0" />
+                </td>
+                <td className="py-1 px-1.5 text-right">
+                  <div className={autoCell + ' font-semibold text-gray-700'}>{won(lineTotal(it))}</div>
+                </td>
+                <td className="py-1 px-1.5 text-right">
+                  <input value={it.purchase_price ? won(it.purchase_price) : ''} onChange={e => setItem(i, { purchase_price: toInt(e.target.value) })}
+                    className={numCell} placeholder="0" />
+                </td>
+                <td className="py-1 px-1.5 text-right">
+                  <input value={it.purchase_shipping ? won(it.purchase_shipping) : ''} onChange={e => setItem(i, { purchase_shipping: toInt(e.target.value) })}
+                    className={numCell} placeholder="0" />
+                </td>
+                <td className="py-1 px-1.5">
+                  <input value={it.memo} onChange={e => setItem(i, { memo: e.target.value })}
+                    className="w-24 border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs" />
+                </td>
+                <td className="py-1 px-1 text-center">
+                  {items.length > 1 && (
+                    <button type="button" onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))}
+                      className="text-red-400 hover:text-red-600 text-sm" title="행 삭제">✕</button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <button type="button" onClick={() => setItems(prev => [...prev, emptyItem()])}
+          className="mt-2 px-3.5 py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-gray-400">
+          + 상품 행 추가
+        </button>
+
+        <div className="flex items-center justify-between mt-4 flex-wrap gap-3">
+          <div className="flex gap-5 text-sm">
+            <span>총금액 <b className="tabular-nums">{won(totals.total)}원</b>
+              <span className="text-[11px] text-gray-400 ml-1">자동 합산</span></span>
+            <span>예상 마진 <b className="tabular-nums text-emerald-700">{won(totals.margin)}원</b></span>
+          </div>
+          <div className="flex gap-2">
+            {!isEdit && (
+              <button type="button" disabled={saving} onClick={() => submit(true)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 disabled:opacity-50">
+                저장 후 계속 입력
+              </button>
+            )}
+            <button type="button" disabled={saving} onClick={() => submit(false)}
+              className="px-5 py-2 bg-slate-900 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+              {saving ? '저장 중...' : isEdit ? (canEdit ? '수정 저장' : '수정 요청 제출') : '주문 저장'}
+            </button>
+          </div>
+        </div>
+
+        {isEdit && !canEdit && needsRequest && (
+          <div className="mt-3">
+            <label className={label}>수정 요청 사유 <em className="not-italic text-red-500">*</em></label>
+            <input value={reason} onChange={e => setReason(e.target.value)}
+              placeholder="예: 지점 요청으로 수량 변경"
+              className="w-full max-w-xl border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
