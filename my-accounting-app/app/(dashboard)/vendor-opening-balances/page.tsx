@@ -105,7 +105,7 @@ export default function VendorOpeningBalancesPage() {
                 <th className="py-2 px-3 text-left font-medium w-28">구분</th>
                 <th className="py-2 px-3 text-right font-medium w-36">기초잔액</th>
                 <th className="py-2 px-3 text-right font-medium w-36">회수 누계</th>
-                <th className="py-2 px-3 text-right font-medium w-32">잔여(Aging)</th>
+                <th className="py-2 px-3 text-right font-medium w-32">잔여(경과기간 분석용)</th>
                 <th className="py-2 px-3 text-right font-medium w-20"></th>
               </tr>
             </thead>
@@ -176,7 +176,7 @@ export default function VendorOpeningBalancesPage() {
         · <b>미수(채권)</b>는 받을 돈(매출처), <b>미지급(채무)</b>은 줄 돈(매입처)입니다. 금액은 양수로 입력하고 구분으로 부호를 정합니다.<br />
         · 기초잔액을 0으로 저장하면 삭제됩니다. 거래처원장 잔액/내용 탭의 전월이월에 반영됩니다.<br />
         · <b>회수 누계</b>: 기초분이 실제로 회수/지급되면 여기에 누계로 기록하세요(기초잔액은 깎지 않습니다).
-        미수·미지급 Aging에는 잔여(기초잔액-회수 누계)만 표시되고, 원장 이월은 기초잔액 그대로 유지되어 이중 차감이 없습니다.
+        미수·미지급 경과기간 분석에는 잔여(기초잔액-회수 누계)만 표시되고, 원장 이월은 기초잔액 그대로 유지되어 이중 차감이 없습니다.
         회수 입금/지급 출금의 계정과목은 평소처럼 외상매출금/미지급금으로 확정하면 됩니다.
       </p>
     </div>

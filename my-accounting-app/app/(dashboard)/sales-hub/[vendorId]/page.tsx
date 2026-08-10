@@ -353,10 +353,10 @@ export default function SalesHubDetailPage() {
         ))}
       </div>
 
-      {/* 미수 Aging */}
+      {/* 미수 경과기간 */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
         <div className="flex items-center justify-between">
-          <div className="text-sm font-bold text-gray-800">미수 Aging <span className="font-normal text-gray-400 text-xs">(전체 기간, 주문일 기준)</span></div>
+          <div className="text-sm font-bold text-gray-800">미수 경과기간별 현황 <span className="font-normal text-gray-400 text-xs">(전체 기간, 주문일 기준)</span></div>
           {data.aging.opening > 0 && <div className="text-[11px] text-gray-500">기초이월 잔여 {eok(data.aging.opening)} 별도</div>}
         </div>
         {agingTotal > 0 ? (

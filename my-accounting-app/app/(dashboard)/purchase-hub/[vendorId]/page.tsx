@@ -367,10 +367,10 @@ export default function PurchaseHubDetailPage() {
         ))}
       </div>
 
-      {/* 미지급 Aging */}
+      {/* 미지급 경과기간 */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
         <div className="flex items-center justify-between">
-          <div className="text-sm font-bold text-gray-800">미지급 Aging <span className="font-normal text-gray-400 text-xs">(전체 기간, 계산서 발행일 기준 FIFO)</span></div>
+          <div className="text-sm font-bold text-gray-800">미지급 경과기간별 현황 <span className="font-normal text-gray-400 text-xs">(전체 기간 · 지급 누계가 오래된 계산서부터 갚은 것으로 보고 계산)</span></div>
           {data.aging.opening > 0 && <div className="text-[11px] text-gray-500">기초이월 잔여 {eok(data.aging.opening)} 별도</div>}
         </div>
         {agingTotal > 0 ? (
@@ -412,7 +412,9 @@ export default function PurchaseHubDetailPage() {
           <div className={tab === '개요' ? 'grid xl:grid-cols-5 gap-3' : ''}>
             <div className={`bg-white border border-gray-200 rounded-xl overflow-x-auto ${tab === '개요' ? 'xl:col-span-3' : ''}`}>
               <div className="px-4 pt-3 text-sm font-bold text-gray-800">매입 세금계산서{tab === '개요' ? ' (최근)' : ''}</div>
-              <div className="px-4 pb-1 text-[11px] text-gray-400">발행 → 지급 배분 → 미지급 잔여까지 한 줄 (잔여 = FIFO 배분 기준)</div>
+              <div className="px-4 pb-1 text-[11px] text-gray-400">
+                지급·잔여는 이 계산서에 실제로 연결된 출금 기준입니다. 매입처 전체 잔액·경과기간 막대는 오래된 계산서부터 지급된 것으로 보는 총액 방식이라 건별 합계와 다를 수 있습니다.
+              </div>
               <table className="w-full text-sm min-w-[640px]">
                 <thead>
                   <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
@@ -420,16 +422,18 @@ export default function PurchaseHubDetailPage() {
                     <th className="py-2 px-3 text-left font-medium">구분</th>
                     <th className="py-2 px-3 text-right font-medium">공급가</th>
                     <th className="py-2 px-3 text-right font-medium">총액</th>
-                    <th className="py-2 px-3 text-left font-medium">지급</th>
-                    <th className="py-2 px-3 text-right font-medium">미지급 잔여</th>
+                    <th className="py-2 px-3 text-left font-medium">지급 연결</th>
+                    <th className="py-2 px-3 text-right font-medium">미연결 잔여</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(tab === '개요' ? data.invoices.slice(0, 8) : data.invoices).map(inv => {
-                    const payBadge = inv.unpaid === 0
+                    // 연결 기준: 이 계산서에 매칭된 출금 합(paid_alloc)으로 판정 (잔액 합계의 FIFO와 별개)
+                    const linkUnpaid = Math.max(0, inv.total_amount - inv.paid_alloc)
+                    const payBadge = inv.total_amount > 0 && linkUnpaid === 0
                       ? { t: '완료', c: 'bg-green-100 text-green-700' }
-                      : inv.unpaid < inv.total_amount ? { t: '일부', c: 'bg-amber-100 text-amber-700' }
-                      : { t: '미지급', c: 'bg-red-100 text-red-700' }
+                      : inv.paid_alloc > 0 ? { t: '일부', c: 'bg-amber-100 text-amber-700' }
+                      : { t: '미연결', c: 'bg-red-100 text-red-700' }
                     return (
                       <tr key={inv.id} className="border-b border-gray-50">
                         <td className="py-1.5 px-3 tabular-nums">
@@ -440,7 +444,7 @@ export default function PurchaseHubDetailPage() {
                         <td className="py-1.5 px-3 text-right tabular-nums">{won(inv.supply_amount)}</td>
                         <td className="py-1.5 px-3 text-right tabular-nums">{won(inv.total_amount)}</td>
                         <td className="py-1.5 px-3"><span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${payBadge.c}`}>{payBadge.t}</span></td>
-                        <td className={`py-1.5 px-3 text-right tabular-nums ${inv.unpaid > 0 ? 'text-red-600' : 'text-gray-400'}`}>{won(inv.unpaid)}</td>
+                        <td className={`py-1.5 px-3 text-right tabular-nums ${linkUnpaid > 0 ? 'text-red-600' : 'text-gray-400'}`}>{won(linkUnpaid)}</td>
                       </tr>
                     )
                   })}
