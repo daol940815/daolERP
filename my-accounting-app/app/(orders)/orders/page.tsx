@@ -104,6 +104,7 @@ export default function OrdersHomePage() {
   // 행내 펼치기
   const [expanded, setExpanded] = useState<string | null>(null)
   const [itemsCache, setItemsCache] = useState<Record<string, Item[]>>({})
+  const [exporting, setExporting] = useState(false)
 
   const applyPreset = (key: PeriodKey) => {
     const def = PERIODS.find(p => p.key === key)!
@@ -139,6 +140,38 @@ export default function OrdersHomePage() {
   // 필터 변경 시 1페이지로
   useEffect(() => { setPage(1) }, [q, from, to, collect, source, prepay, invoice, mine])
 
+  // 현재 필터 그대로 품목 행 단위 엑셀 다운로드
+  const exportExcel = async () => {
+    setExporting(true); setError(null)
+    const p = new URLSearchParams()
+    if (q) p.set('q', q)
+    if (from) p.set('from', from)
+    if (to) p.set('to', to)
+    if (collect !== 'all') p.set('collect', collect)
+    if (source !== 'all') p.set('source', source)
+    if (prepay) p.set('prepay', '1')
+    if (invoice) p.set('invoice', '1')
+    if (mine) p.set('mine', '1')
+    try {
+      const res = await fetch(`/api/orders-portal/export?${p}`)
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error ?? '내보내기 실패')
+      }
+      const blob = await res.blob()
+      const cd = res.headers.get('Content-Disposition') ?? ''
+      const m = cd.match(/filename\*=UTF-8''([^;]+)/)
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = m ? decodeURIComponent(m[1]) : '주문내역.xlsx'
+      a.click()
+      URL.revokeObjectURL(a.href)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '내보내기 실패')
+    }
+    setExporting(false)
+  }
+
   const toggleExpand = async (id: string) => {
     if (expanded === id) { setExpanded(null); return }
     setExpanded(id)
@@ -156,8 +189,14 @@ export default function OrdersHomePage() {
     <div>
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-xl font-bold text-gray-900">주문 현황</h1>
-        <Link href="/orders/new"
-          className="ml-auto px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">+ 주문 추가</Link>
+        <span className="ml-auto flex gap-2">
+          <button onClick={exportExcel} disabled={exporting}
+            className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 disabled:opacity-50">
+            {exporting ? '내보내는 중...' : '엑셀 다운로드'}
+          </button>
+          <Link href="/orders/new"
+            className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">+ 주문 추가</Link>
+        </span>
       </div>
 
       {/* KPI — 클릭=필터 */}
