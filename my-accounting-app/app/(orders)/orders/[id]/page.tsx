@@ -93,7 +93,7 @@ export default function OrderDetailPage() {
         <Link href="/orders" className="text-sm text-gray-400 hover:text-gray-600">← 주문 현황</Link>
         <h1 className="text-xl font-bold text-gray-900">주문 상세</h1>
         <span className="text-sm text-gray-400 tabular-nums">{String(order.order_no ?? '')}</span>
-        <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${isDirect ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+        <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${isDirect ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
           {isDirect ? '직접입력' : '업로드'}
         </span>
         <span className="ml-auto flex gap-2">
@@ -222,7 +222,7 @@ export default function OrderDetailPage() {
               const s = REQ_STATUS[r.status] ?? { label: r.status, cls: 'bg-gray-100 text-gray-500' }
               return (
                 <div key={r.id} className="flex items-center gap-2.5 text-sm flex-wrap">
-                  <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${s.cls}`}>{s.label}</span>
+                  <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${s.cls}`}>{s.label}</span>
                   <span className="text-[11px] text-gray-400">{r.request_type === 'cancel' ? '취소' : '수정'}</span>
                   <span className="text-gray-700">{r.reason}</span>
                   {r.decision_memo && <span className="text-xs text-gray-400">→ {r.decision_memo}</span>}

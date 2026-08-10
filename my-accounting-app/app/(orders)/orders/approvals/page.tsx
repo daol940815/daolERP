@@ -98,8 +98,8 @@ export default function ApprovalsPage() {
           return (
             <div key={r.id} className="bg-white border border-gray-200 rounded-xl p-4">
               <div className="flex items-center gap-2.5 flex-wrap text-sm">
-                <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${badge.cls}`}>{badge.label}</span>
-                <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${r.request_type === 'cancel' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-700'}`}>
+                <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${badge.cls}`}>{badge.label}</span>
+                <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${r.request_type === 'cancel' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-700'}`}>
                   {r.request_type === 'cancel' ? '취소 요청' : '수정 요청'}
                 </span>
                 <Link href={`/orders/${r.order_id}`} className="font-semibold hover:underline">

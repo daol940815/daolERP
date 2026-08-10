@@ -85,7 +85,7 @@ export default function OrdersHomePage() {
                     {won(r.outstanding_amount)}
                   </td>
                   <td className="py-2 px-3">
-                    <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${r.source === 'direct' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${r.source === 'direct' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                       {r.source === 'direct' ? '직접입력' : '업로드'}
                     </span>
                   </td>

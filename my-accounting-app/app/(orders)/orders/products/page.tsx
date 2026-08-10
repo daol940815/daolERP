@@ -263,7 +263,7 @@ export default function ProductsPage() {
                   <td className="py-1.5 px-3 text-right tabular-nums">{p.loose_shipping_fee ? won(p.loose_shipping_fee) : '-'}</td>
                   <td className="py-1.5 px-3 text-xs">{p.memo ?? '-'}</td>
                   <td className="py-1.5 px-3">
-                    <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${p.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${p.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
                       {p.is_active ? '사용' : '중지'}
                     </span>
                   </td>
