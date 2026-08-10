@@ -11,7 +11,7 @@ interface Product {
   purchase_vendor_name: string | null; category: string | null
   sale_price: number; individual_sale_price: number; purchase_price: number
   carton_unit: number | null; carton_shipping_fee: number; loose_shipping_fee: number
-  is_active: boolean; memo: string | null; updated_at: string
+  is_addon: boolean; is_active: boolean; memo: string | null; updated_at: string
 }
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
@@ -23,7 +23,8 @@ const toInt = (s: string) => {
 const emptyDraft = {
   item_code: '', item_name: '', purchase_vendor_name: '', category: '',
   sale_price: 0, individual_sale_price: 0, purchase_price: 0,
-  carton_unit: 0, carton_shipping_fee: 0, loose_shipping_fee: 0, memo: '',
+  carton_unit: 0, carton_shipping_fee: 0, loose_shipping_fee: 0,
+  is_addon: false, memo: '',
 }
 
 export default function ProductsPage() {
@@ -94,6 +95,7 @@ export default function ProductsPage() {
       purchase_price: p.purchase_price,
       carton_unit: p.carton_unit ?? 0, carton_shipping_fee: p.carton_shipping_fee ?? 0,
       loose_shipping_fee: p.loose_shipping_fee ?? 0,
+      is_addon: p.is_addon ?? false,
       memo: p.memo ?? '',
     })
   }
@@ -218,6 +220,12 @@ export default function ProductsPage() {
             <input value={draft.memo} onChange={e => setDraft(d => ({ ...d, memo: e.target.value }))}
               className={`${inputCls} w-40`} />
           </div>
+          <label className="flex items-center gap-1.5 text-xs text-gray-600 pb-2 cursor-pointer"
+            title="포장지·쇼핑백 등 — 주문 입력에서 같은 매입처 상품의 옵션 추가 칩으로 노출">
+            <input type="checkbox" checked={draft.is_addon}
+              onChange={e => setDraft(d => ({ ...d, is_addon: e.target.checked }))} />
+            부가상품
+          </label>
           <button onClick={save} className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm">
             {editingId === 'new' ? '등록' : '저장'}
           </button>
@@ -251,7 +259,12 @@ export default function ProductsPage() {
               {filtered.map(p => (
                 <tr key={p.id} className={`border-b border-gray-50 ${p.is_active ? '' : 'text-gray-400'}`}>
                   <td className="py-1.5 px-3 text-xs tabular-nums whitespace-nowrap">{p.item_code ?? '-'}</td>
-                  <td className="py-1.5 px-3 font-medium">{p.item_name}</td>
+                  <td className="py-1.5 px-3 font-medium">
+                    {p.item_name}
+                    {p.is_addon && (
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-600">옵션</span>
+                    )}
+                  </td>
                   <td className="py-1.5 px-3 text-xs whitespace-nowrap">{p.category ?? '-'}</td>
                   <td className="py-1.5 px-3 whitespace-nowrap">{p.purchase_vendor_name ?? '-'}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{won(p.sale_price)}</td>

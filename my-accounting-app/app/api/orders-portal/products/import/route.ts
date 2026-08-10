@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
     purchase_vendor_name: string | null; category: string | null
     sale_price: number; individual_sale_price: number; purchase_price: number
     carton_unit: number | null; carton_shipping_fee: number; loose_shipping_fee: number
-    memo: string | null
+    is_addon: boolean; memo: string | null
   }
   const parsed: Row[] = []
   let skipped = 0
@@ -136,6 +136,8 @@ export async function POST(req: NextRequest) {
     const cartonUnit = col.carton >= 0 ? toNumber(row[col.carton]) : 0
     // 원가표의 자리 채움 값('1'/'0')은 메모로 취급하지 않음
     const memoRaw = col.memo >= 0 ? toStr(row[col.memo]) : null
+    // 부가상품 자동 표시: 품번 XX-01 대역(기타 부자재 페이지), VIP·선결제 제외 — 화면에서 수정 가능
+    const isAddon = !!code && /^\d{2}-01(-|$)/.test(code) && !['VIP', '선결제'].includes(name)
     parsed.push({
       item_code: code,
       item_name: name,
@@ -148,6 +150,7 @@ export async function POST(req: NextRequest) {
       carton_unit: cartonUnit > 0 ? cartonUnit : null,
       carton_shipping_fee: cartonFeeCol >= 0 ? toNumber(row[cartonFeeCol]) : 0,
       loose_shipping_fee: looseFeeCol >= 0 ? toNumber(row[looseFeeCol]) : 0,
+      is_addon: isAddon,
       memo: memoRaw && !/^[01]$/.test(memoRaw) ? memoRaw : null,
     })
   }
@@ -198,6 +201,7 @@ export async function POST(req: NextRequest) {
       carton_unit: r.carton_unit,
       carton_shipping_fee: r.carton_shipping_fee,
       loose_shipping_fee: r.loose_shipping_fee,
+      is_addon: r.is_addon,
       memo: r.memo,
     }
     const existingId = r.item_code

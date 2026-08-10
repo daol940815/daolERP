@@ -25,6 +25,7 @@ export interface OrderItemInput {
   purchase_price?: number
   purchase_shipping?: number
   memo?: string | null
+  parent_line_no?: number | null      // 옵션(부가상품) 행이 딸린 본 상품 행 번호
 }
 
 export interface OrderInput {
@@ -75,6 +76,7 @@ export function validateOrderInput(raw: unknown): { input: OrderInput } | { erro
       purchase_price: toInt(r.purchase_price),
       purchase_shipping: toInt(r.purchase_shipping),
       memo: String(r.memo ?? '').trim() || null,
+      parent_line_no: toInt(r.parent_line_no) > 0 ? toInt(r.parent_line_no) : null,
     })
   }
   if (!items.length) return { error: '품목을 1개 이상 입력해주세요.' }
@@ -198,6 +200,9 @@ export function buildOrderRows(input: OrderInput, ctx: ApplyContext) {
   }
   const itemRows = input.items.map((it, i) => ({
     line_no: i + 1,
+    // 본 상품 행 번호 — 자기 자신·범위 밖 참조는 무시
+    parent_line_no: it.parent_line_no && it.parent_line_no !== i + 1 && it.parent_line_no <= input.items.length
+      ? it.parent_line_no : null,
     is_canceled: false,
     is_vip: false,
     is_prepayment: it.item_name === '선결제',
@@ -228,14 +233,24 @@ export async function insertOrderItems(
   orderId: string,
   itemRows: ReturnType<typeof buildOrderRows>['itemRows'],
 ): Promise<string | null> {
+  // 504 미적용 환경 호환: 옵션 연결이 전혀 없으면 parent_line_no 컬럼을 아예 보내지 않는다
+  const hasParent = itemRows.some(it => it.parent_line_no != null)
   const rows = []
   for (const it of itemRows) {
     const aliasId = it.purchase_vendor_name
       ? await ensureAlias(admin, 'purchase', it.purchase_vendor_name)
       : null
-    rows.push({ ...it, order_id: orderId, purchase_alias_id: aliasId })
+    const { parent_line_no, ...rest } = it
+    rows.push({
+      ...(hasParent ? { ...rest, parent_line_no } : rest),
+      order_id: orderId,
+      purchase_alias_id: aliasId,
+    })
   }
   const { error } = await admin.from('erp_order_items').insert(rows)
+  if (error && /parent_line_no/i.test(error.message)) {
+    return '504 마이그레이션(부가상품 옵션)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
+  }
   return error ? error.message : null
 }
 

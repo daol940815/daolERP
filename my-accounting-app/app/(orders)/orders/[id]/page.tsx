@@ -9,6 +9,7 @@ import Link from 'next/link'
 
 interface Item {
   id: string; line_no: number; is_canceled: boolean; is_prepayment: boolean
+  parent_line_no: number | null
   item_code: string | null; item_name: string | null; order_kind: string | null
   purchase_vendor_name: string | null; sale_price: number; quantity: number
   shipping_fee: number; discount_amount: number; line_total: number
@@ -184,7 +185,8 @@ export default function OrderDetailPage() {
               <tr key={it.id} className={`border-b border-gray-50 ${it.is_canceled ? 'text-gray-300 line-through' : ''}`}>
                 <td className="py-1.5 px-2.5 tabular-nums">{it.line_no}</td>
                 <td className="py-1.5 px-2.5">{it.item_code ?? '-'}</td>
-                <td className="py-1.5 px-2.5 font-medium">
+                <td className={`py-1.5 px-2.5 font-medium ${it.parent_line_no ? 'pl-6' : ''}`}>
+                  {it.parent_line_no && <span className="text-gray-400 mr-1 font-normal" title={`${it.parent_line_no}번 행의 옵션`}>└</span>}
                   {it.item_name}
                   {it.is_canceled && <span className="ml-1.5 no-underline text-[10px] text-red-400">취소</span>}
                   {it.is_prepayment && <span className="ml-1.5 text-[10px] text-violet-500">선결제</span>}

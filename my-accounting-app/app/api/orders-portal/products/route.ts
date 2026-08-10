@@ -22,7 +22,7 @@ export async function GET() {
   const admin = createAdminClient()
   const result = await fetchAllRows<Record<string, unknown>>((from, to) =>
     admin.from('erp_products')
-      .select('id, item_code, item_name, option_name, purchase_vendor_name, category, sale_price, individual_sale_price, purchase_price, carton_unit, carton_shipping_fee, loose_shipping_fee, is_active, memo, updated_at')
+      .select('id, item_code, item_name, option_name, purchase_vendor_name, category, sale_price, individual_sale_price, purchase_price, carton_unit, carton_shipping_fee, loose_shipping_fee, is_addon, is_active, memo, updated_at')
       .order('item_name').range(from, to),
   )
   if ('error' in result) {
@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
       carton_unit: toInt(body.carton_unit) > 0 ? toInt(body.carton_unit) : null,
       carton_shipping_fee: toInt(body.carton_shipping_fee),
       loose_shipping_fee: toInt(body.loose_shipping_fee),
+      is_addon: body.is_addon === true,
       category: String(body.category ?? '').trim() || null,
       option_name: String(body.option_name ?? '').trim() || null,
       memo: String(body.memo ?? '').trim() || null,

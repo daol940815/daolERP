@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 // 주문 입력 폼 (신규·수정 공용) — 시안 "입력은 기존을 닮게" 기준
@@ -16,10 +16,12 @@ interface Product {
   purchase_vendor_name: string | null; category: string | null
   sale_price: number; individual_sale_price: number; purchase_price: number
   carton_unit: number | null; carton_shipping_fee: number; loose_shipping_fee: number
-  is_active: boolean
+  is_addon: boolean; is_active: boolean
 }
 
 export interface ItemDraft {
+  uid: number                     // 행 식별자 (옵션 연결용, 화면 전용)
+  parent_uid: number | null       // 옵션(부가상품) 행이 딸린 본 상품 행의 uid
   product_id: string | null
   item_code: string
   item_name: string
@@ -41,7 +43,8 @@ export interface ItemDraft {
   loose_shipping_fee: number      // 카톤외(낱개 1건) 택배비
 }
 
-const emptyItem = (): ItemDraft => ({
+const emptyItem = (uid: number): ItemDraft => ({
+  uid, parent_uid: null,
   product_id: null, item_code: '', item_name: '', order_kind: '지점',
   purchase_vendor_name: '', sale_price: 0, quantity: 1, shipping_fee: 0,
   discount_amount: 0, purchase_price: 0, purchase_shipping: 0, memo: '',
@@ -142,7 +145,9 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
   const [contactTel, setContactTel] = useState('')
   const [phone, setPhone] = useState('')
   const [memo, setMemo] = useState('')
-  const [items, setItems] = useState<ItemDraft[]>([emptyItem()])
+  const uidRef = useRef(2)
+  const nextUid = () => uidRef.current++
+  const [items, setItems] = useState<ItemDraft[]>(() => [emptyItem(1)])
 
   // 수정 모드 정보
   const [canEdit, setCanEdit] = useState(true)
@@ -189,9 +194,16 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
           setCanEdit(o.can_edit)
           setNeedsRequest(o.needs_request)
           const prodList: Product[] = pRes.ok ? (p.products ?? []) : []
-          setItems((o.items as Record<string, unknown>[]).map(it => {
+          // line_no → uid 매핑으로 옵션 연결 복원 (품목은 line_no 순으로 로드됨)
+          const lineToUid = new Map<number, number>(
+            (o.items as Record<string, unknown>[]).map((it, idx) => [it.line_no as number, idx + 1]),
+          )
+          uidRef.current = (o.items as unknown[]).length + 1
+          setItems((o.items as Record<string, unknown>[]).map((it, idx) => {
             const prod = prodList.find(x => x.id === it.product_id)
             return {
+              uid: idx + 1,
+              parent_uid: it.parent_line_no ? (lineToUid.get(it.parent_line_no as number) ?? null) : null,
               product_id: (it.product_id as string) ?? null,
               item_code: (it.item_code as string) ?? '',
               item_name: (it.item_name as string) ?? '',
@@ -319,6 +331,44 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
     setItem(i, { order_kind: kind, ...(it.product_id ? priceRule(next, it.quantity) : {}) })
   }
 
+  // 옵션(부가상품) 추가 — 같은 매입처의 부가상품을 본 상품 행 바로 아래에 붙인다
+  const addAddon = (parentIdx: number, p: Product) => {
+    setItems(prev => {
+      const parent = prev[parentIdx]
+      if (!parent) return prev
+      const master = {
+        order_kind: parent.order_kind,
+        branch_sale_price: p.sale_price,
+        individual_sale_price: p.individual_sale_price ?? 0,
+        branch_purchase_price: p.purchase_price,
+        carton_unit: p.carton_unit ?? 0,
+        carton_shipping_fee: p.carton_shipping_fee ?? 0,
+        loose_shipping_fee: p.loose_shipping_fee ?? 0,
+      }
+      const draft: ItemDraft = {
+        ...emptyItem(nextUid()),
+        parent_uid: parent.uid,
+        product_id: p.id,
+        item_code: p.item_code ?? '',
+        item_name: p.item_name,
+        purchase_vendor_name: p.purchase_vendor_name ?? '',
+        sale_price: p.sale_price,
+        purchase_price: p.purchase_price,
+        quantity: parent.quantity,
+        ...master,
+        ...priceRule(master, parent.quantity),
+      }
+      // 본 상품 행의 기존 옵션 묶음 뒤에 삽입
+      let at = parentIdx + 1
+      while (at < prev.length && prev[at].parent_uid === parent.uid) at++
+      return [...prev.slice(0, at), draft, ...prev.slice(at)]
+    })
+  }
+
+  // 행 삭제 — 본 상품 행을 지우면 딸린 옵션 행도 함께 삭제
+  const removeRow = (uid: number) =>
+    setItems(prev => prev.filter(it => it.uid !== uid && it.parent_uid !== uid))
+
   // 갯수 변경 시 지점 구분 + 카톤단위가 있으면 배송비 재계산
   const setQuantity = (i: number, qty: number) => {
     const it = items[i]
@@ -347,7 +397,14 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
       contact: contactTel || null,
       phone: phone || null,
       memo: memo || null,
-      items: items.filter(it => it.item_name.trim()),
+      items: (() => {
+        const filled = items.filter(it => it.item_name.trim())
+        const posByUid = new Map(filled.map((it, idx) => [it.uid, idx + 1]))
+        return filled.map(it => ({
+          ...it,
+          parent_line_no: it.parent_uid ? (posByUid.get(it.parent_uid) ?? null) : null,
+        }))
+      })(),
     }
     if (!payload.vendor_id) { setError('주문처를 선택해주세요.'); return }
     if (!payload.contact_id) { setError('거래처 담당자를 선택해주세요. (없으면 "+ 신규 담당자"로 등록)'); return }
@@ -365,7 +422,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
         if (andContinue) {
           setNotice(`주문 ${json.order_no} 저장 완료 — 이어서 입력하세요.`)
           setVendorId(null); setContactId(null); setContactTel(''); setPhone(''); setMemo('')
-          setItems([emptyItem()])
+          setItems([emptyItem(nextUid())])
         } else {
           router.push(`/orders/${json.id}`)
         }
@@ -558,20 +615,31 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
             </tr>
           </thead>
           <tbody>
-            {items.map((it, i) => (
-              <tr key={i} className="border-b border-gray-50 align-top">
+            {items.map((it, i) => {
+              // 옵션 추가 후보: 같은 매입처의 부가상품 (본 상품 행에만 노출)
+              const addonCands = !it.parent_uid && it.purchase_vendor_name
+                ? products.filter(p => p.is_addon && p.purchase_vendor_name === it.purchase_vendor_name)
+                : []
+              return (
+              <Fragment key={it.uid}>
+              <tr className={`border-b border-gray-50 align-top ${it.parent_uid ? 'bg-slate-50/60' : ''}`}>
                 <td className="py-1 px-1.5">
-                  <Combo
-                    value={it.product_id}
-                    display={it.item_code || (it.product_id ? it.item_name : '')}
-                    options={products.map(p => ({
-                      id: p.id,
-                      label: [p.item_code, p.item_name].filter(Boolean).join(' · '),
-                      sub: [p.category, p.purchase_vendor_name].filter(Boolean).join(' · '),
-                    }))}
-                    onSelect={id => pickProduct(i, id)}
-                    placeholder="품번·품명 검색"
-                  />
+                  <div className="flex items-center gap-1">
+                    {it.parent_uid != null && <span className="text-gray-400 text-xs shrink-0" title="옵션 (부가상품)">└</span>}
+                    <div className="flex-1">
+                      <Combo
+                        value={it.product_id}
+                        display={it.item_code || (it.product_id ? it.item_name : '')}
+                        options={products.map(p => ({
+                          id: p.id,
+                          label: [p.item_code, p.item_name].filter(Boolean).join(' · '),
+                          sub: [p.category, p.purchase_vendor_name].filter(Boolean).join(' · '),
+                        }))}
+                        onSelect={id => pickProduct(i, id)}
+                        placeholder="품번·품명 검색"
+                      />
+                    </div>
+                  </div>
                 </td>
                 <td className="py-1 px-1.5 min-w-[13rem]">
                   <input value={it.item_name} onChange={e => setItem(i, { item_name: e.target.value, product_id: null })}
@@ -626,15 +694,33 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
                 </td>
                 <td className="py-1 px-1 text-center">
                   {items.length > 1 && (
-                    <button type="button" onClick={() => setItems(prev => prev.filter((_, idx) => idx !== i))}
-                      className="text-red-400 hover:text-red-600 text-sm" title="행 삭제">✕</button>
+                    <button type="button" onClick={() => removeRow(it.uid)}
+                      className="text-red-400 hover:text-red-600 text-sm"
+                      title={it.parent_uid ? '옵션 행 삭제' : '행 삭제 (딸린 옵션도 함께 삭제)'}>✕</button>
                   )}
                 </td>
               </tr>
-            ))}
+              {addonCands.length > 0 && (
+                <tr className="border-b border-gray-50">
+                  <td colSpan={13} className="pb-1.5 pt-0 px-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap pl-4">
+                      <span className="text-[10px] text-gray-400">옵션 추가 ({it.purchase_vendor_name})</span>
+                      {addonCands.map(p => (
+                        <button key={p.id} type="button" onClick={() => addAddon(i, p)}
+                          className="px-2 py-0.5 border border-violet-200 bg-violet-50/60 text-violet-700 rounded-full text-[11px] hover:bg-violet-100">
+                          + {p.item_name}{p.sale_price > 0 ? ` (${won(p.sale_price)})` : ''}
+                        </button>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              )}
+              </Fragment>
+              )
+            })}
           </tbody>
         </table>
-        <button type="button" onClick={() => setItems(prev => [...prev, emptyItem()])}
+        <button type="button" onClick={() => setItems(prev => [...prev, emptyItem(nextUid())])}
           className="mt-2 px-3.5 py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-gray-400">
           + 상품 행 추가
         </button>
