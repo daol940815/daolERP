@@ -52,6 +52,13 @@ const emptyItem = (uid: number): ItemDraft => ({
   carton_unit: 0, carton_shipping_fee: 0, loose_shipping_fee: 0,
 })
 
+// 품명 칸 자동 높이 — 내용 길이에 맞춰 줄바꿈되어 항상 전체가 보인다 (2안)
+const autoGrow = (el: HTMLTextAreaElement | null) => {
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
+}
+
 // 지점 배송비 공식(사용자 확정): 꽉 찬 카톤 수 × 카톤택배비 + (나머지 낱개 있으면 카톤외택배비 1건)
 const cartonShipping = (unit: number, cartonFee: number, looseFee: number, qty: number) => {
   if (unit <= 0 || qty <= 0) return 0
@@ -462,8 +469,9 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
   const label = 'block text-[11px] text-gray-500 mb-0.5'
   const free = 'w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2.5 py-1.5 text-sm'
   const auto = 'w-full border border-gray-200 bg-gray-50 rounded-lg px-2.5 py-1.5 text-sm text-gray-500'
-  const numCell = 'w-24 border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs text-right tabular-nums'
-  const autoCell = 'w-24 border border-gray-200 bg-gray-50 rounded px-1.5 py-1 text-xs text-right tabular-nums text-gray-500'
+  // 금액 칸은 colgroup으로 전부 동일 폭 — 칸 안 요소는 폭을 채운다
+  const numCell = 'w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs text-right tabular-nums'
+  const autoCell = 'w-full border border-gray-200 bg-gray-50 rounded px-1.5 py-1 text-xs text-right tabular-nums text-gray-500'
 
   return (
     <div>
@@ -596,10 +604,26 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
         <div className="text-sm font-bold text-gray-900 mb-3">
           주문 상품 <span className="text-[11px] font-normal text-gray-400 ml-1">품번·품명 검색 시 매입처·가격 자동</span>
         </div>
-        <table className="w-full text-xs min-w-[1080px]">
+        <table className="w-full text-xs min-w-[1240px] table-fixed">
+          {/* 그룹별 동일 폭: 금액 칸 6개는 같은 폭으로 세로 정렬을 맞춘다. 품명이 남는 폭 전부 차지 */}
+          <colgroup>
+            <col className="w-[8.5rem]" />{/* 검색 */}
+            <col />{/* 품명 — 남는 폭 전부 */}
+            <col className="w-16" />{/* 구분 */}
+            <col className="w-28" />{/* 매입처 */}
+            <col className="w-[5.75rem]" />{/* 판매가 */}
+            <col className="w-14" />{/* 갯수 */}
+            <col className="w-[5.75rem]" />{/* 배송비 */}
+            <col className="w-[5.75rem]" />{/* 할인 */}
+            <col className="w-[5.75rem]" />{/* 합계 */}
+            <col className="w-[5.75rem]" />{/* 매입가 */}
+            <col className="w-[5.75rem]" />{/* 매입배송비 */}
+            <col className="w-24" />{/* 메모 */}
+            <col className="w-8" />
+          </colgroup>
           <thead>
             <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
-              <th className="py-1.5 px-1.5 text-left font-medium w-56">품번 · 품명 검색</th>
+              <th className="py-1.5 px-1.5 text-left font-medium">품번 · 품명 검색</th>
               <th className="py-1.5 px-1.5 text-left font-medium">품명</th>
               <th className="py-1.5 px-1.5 text-left font-medium">구분</th>
               <th className="py-1.5 px-1.5 text-left font-medium">매입처</th>
@@ -611,7 +635,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
               <th className="py-1.5 px-1.5 text-right font-medium">매입가</th>
               <th className="py-1.5 px-1.5 text-right font-medium">매입배송비</th>
               <th className="py-1.5 px-1.5 text-left font-medium">메모</th>
-              <th className="w-8" />
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -641,10 +665,13 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
                     </div>
                   </div>
                 </td>
-                <td className="py-1 px-1.5 min-w-[13rem]">
-                  <input value={it.item_name} onChange={e => setItem(i, { item_name: e.target.value, product_id: null })}
-                    placeholder="마스터에 없으면 직접 입력" title={it.item_name}
-                    className="w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs" />
+                <td className="py-1 px-1.5">
+                  {/* key에 product_id 포함 — 품번 선택으로 품명이 바뀌면 리마운트되어 높이 재계산 */}
+                  <textarea key={`${it.uid}:${it.product_id ?? ''}`} value={it.item_name} rows={1} ref={autoGrow}
+                    onChange={e => { setItem(i, { item_name: e.target.value, product_id: null }); autoGrow(e.target) }}
+                    placeholder="마스터에 없으면 직접 입력"
+                    className="w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs
+                               resize-none overflow-hidden leading-relaxed block" />
                 </td>
                 <td className="py-1 px-1.5">
                   <select value={it.order_kind} onChange={e => setKind(i, e.target.value)}
@@ -656,7 +683,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
                 <td className="py-1 px-1.5">
                   <input value={it.purchase_vendor_name} onChange={e => setItem(i, { purchase_vendor_name: e.target.value })}
                     placeholder="품번 선택 시 자동" title={it.purchase_vendor_name}
-                    className="w-28 border border-gray-200 bg-gray-50 rounded px-1.5 py-1 text-xs" />
+                    className="w-full border border-gray-200 bg-gray-50 rounded px-1.5 py-1 text-xs" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   <input value={it.sale_price ? won(it.sale_price) : ''} onChange={e => setItem(i, { sale_price: toInt(e.target.value) })}
@@ -664,7 +691,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   <input value={it.quantity || ''} onChange={e => setQuantity(i, toInt(e.target.value))}
-                    className="w-14 border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs text-right tabular-nums" placeholder="1" />
+                    className="w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs text-right tabular-nums" placeholder="1" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   <input value={it.shipping_fee ? won(it.shipping_fee) : ''} onChange={e => setItem(i, { shipping_fee: toInt(e.target.value) })}
@@ -690,7 +717,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
                 </td>
                 <td className="py-1 px-1.5">
                   <input value={it.memo} onChange={e => setItem(i, { memo: e.target.value })} title={it.memo}
-                    className="w-24 border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs" />
+                    className="w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs" />
                 </td>
                 <td className="py-1 px-1 text-center">
                   {items.length > 1 && (
