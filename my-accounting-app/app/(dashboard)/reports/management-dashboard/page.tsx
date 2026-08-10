@@ -130,7 +130,7 @@ export default async function ManagementDashboardPage({
       </div>
 
       {/* 미수금/미지급금 */}
-      <SectionHeader title={`미수금 · 미지급금 (기준일 ${asOf})`} href="/reports/receivables-aging" linkLabel="Aging 분석" />
+      <SectionHeader title={`미수금 · 미지급금 (기준일 ${asOf})`} href="/reports/receivables-aging" linkLabel="경과기간 분석" />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card
           label="미수금 총계"
