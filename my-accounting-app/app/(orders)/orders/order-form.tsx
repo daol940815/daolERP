@@ -8,7 +8,8 @@ import { useRouter } from 'next/navigation'
 // 마스터 선택으로 바꾼다: 주문처=vendors, 담당자=contacts, 상담자=employees,
 // 품번=erp_products. 소개자·책임자·메모는 기존대로 자유 입력.
 
-interface Vendor { id: string; name: string; type: string | null }
+interface Vendor { id: string; name: string; type: string | null; group_id?: string | null }
+interface VendorGroup { id: string; name: string }
 interface Employee { id: string; name: string; position: string | null; team: string | null }
 interface ContactOpt { contact_id: string; name: string; phone: string | null; title: string | null; is_representative: boolean }
 interface Product {
@@ -138,6 +139,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
 
   // 마스터
   const [vendors, setVendors] = useState<Vendor[]>([])
+  const [groups, setGroups] = useState<VendorGroup[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [meName, setMeName] = useState('')
@@ -146,7 +148,8 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
   // 폼 상태 (기존 컬럼 순서)
   const [orderDate, setOrderDate] = useState(() => new Date().toLocaleDateString('sv-SE'))
   const [orderNo, setOrderNo] = useState<string | null>(null)
-  const [vendorId, setVendorId] = useState<string | null>(null)
+  const [groupId, setGroupId] = useState<string | null>(null)   // 업체 (vendor_groups)
+  const [vendorId, setVendorId] = useState<string | null>(null) // 지점(부서) = vendors
   const [contactId, setContactId] = useState<string | null>(null)
   const [counselorId, setCounselorId] = useState<string | null>(null)
   const [contactTel, setContactTel] = useState('')
@@ -180,6 +183,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
         const m = await mRes.json()
         if (!mRes.ok) throw new Error(m.error ?? '마스터 조회 실패')
         setVendors(m.vendors ?? [])
+        setGroups(m.groups ?? [])
         setEmployees(m.employees ?? [])
         setMeName(m.me?.name ?? '')
         const p = await pRes.json()
@@ -193,6 +197,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
           setOrderDate(ord.order_date)
           setOrderNo(ord.order_no)
           setVendorId(ord.vendor_id)
+          setGroupId(((m.vendors ?? []) as Vendor[]).find(v => v.id === ord.vendor_id)?.group_id ?? null)
           setContactId(ord.contact_id)
           setCounselorId(ord.counselor_employee_id)
           setContactTel(ord.contact ?? '')
@@ -428,7 +433,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
         if (!res.ok) throw new Error(json.error ?? '저장 실패')
         if (andContinue) {
           setNotice(`주문 ${json.order_no} 저장 완료 — 이어서 입력하세요.`)
-          setVendorId(null); setContactId(null); setContactTel(''); setPhone(''); setMemo('')
+          setGroupId(null); setVendorId(null); setContactId(null); setContactTel(''); setPhone(''); setMemo('')
           setItems([emptyItem(nextUid())])
         } else {
           router.push(`/orders/${json.id}`)
@@ -504,14 +509,39 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
             <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)}
               className="w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2 py-1.5 text-sm" />
           </div>
+          <div className="col-span-2">
+            <label className={label}>업체 (은행·그룹)</label>
+            <Combo
+              value={groupId}
+              display={groups.find(g => g.id === groupId)?.name ?? ''}
+              options={groups.map(g => ({ id: g.id, label: g.name }))}
+              onSelect={id => {
+                setGroupId(id)
+                const branches = vendors.filter(v => v.group_id === id)
+                // 소속 지점이 1곳이면 자동 선택, 여러 곳이면 지점 칸에서 선택
+                setVendorId(branches.length === 1 ? branches[0].id : null)
+                setContactId(null)
+              }}
+              placeholder="업체 검색 (지점에서 바로 검색도 가능)"
+            />
+            <div className="text-[10px] text-gray-400 mt-0.5">업체별 통계의 기준 — 단일 업체는 비워두고 지점만 선택</div>
+          </div>
           <div className="col-span-2 md:col-span-3">
-            <label className={label}>주문처 <em className="not-italic text-red-500">*</em></label>
+            <label className={label}>지점(부서) — 주문처 <em className="not-italic text-red-500">*</em></label>
             <Combo
               value={vendorId}
               display={vendors.find(v => v.id === vendorId)?.name ?? ''}
-              options={vendors.map(v => ({ id: v.id, label: v.name }))}
-              onSelect={id => { setVendorId(id); setContactId(null) }}
-              placeholder="거래처 마스터 검색 — 자유 입력 불가"
+              options={(groupId ? vendors.filter(v => v.group_id === groupId) : vendors)
+                .map(v => ({
+                  id: v.id, label: v.name,
+                  sub: groups.find(g => g.id === v.group_id)?.name ?? '',
+                }))}
+              onSelect={id => {
+                setVendorId(id)
+                setGroupId(vendors.find(v => v.id === id)?.group_id ?? null)
+                setContactId(null)
+              }}
+              placeholder={groupId ? '소속 지점 선택' : '거래처 마스터 검색 — 자유 입력 불가'}
               required
             />
           </div>

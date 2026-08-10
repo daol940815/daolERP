@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>주문 현황 개편 시안 v2 — 2단계 구현 정합판</title>
+<style>
+  :root { --line:#e5e7eb; --ink:#111827; --ink2:#4b5563; --ink3:#9ca3af; --navy:#0f172a; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#f6f7f9; color:var(--ink); font-size:13px; }
+  .num { font-variant-numeric:tabular-nums; }
+  .wrap { max-width:1240px; margin:0 auto; padding:22px 24px 60px; }
+  h1 { font-size:19px; }
+  .desc { font-size:12px; color:var(--ink3); margin:4px 0 14px; }
+
+  .badge { display:inline-flex; align-items:center; gap:4px; padding:2.5px 9px; border-radius:999px;
+           font-size:11px; font-weight:600; white-space:nowrap; }
+  .b-green { background:#e7f6ec; color:#147339; }
+  .b-amber { background:#fdf3df; color:#92600a; }
+  .b-red   { background:#fdeaea; color:#b42222; }
+  .b-gray  { background:#f1f2f4; color:#6b7280; }
+  .b-blue  { background:#e6effc; color:#1c5cab; }
+  .b-violet{ background:#efeafd; color:#6631c9; }
+  .dotb::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; }
+
+  .btn  { padding:8px 16px; border-radius:9px; font-size:13px; font-weight:700; background:var(--navy); color:#fff; border:0; }
+  .btn2 { padding:8px 14px; border-radius:9px; font-size:13px; border:1px solid var(--line); background:#fff; color:var(--ink2); }
+  .chip { display:inline-block; padding:5px 12px; border:1px solid var(--line); border-radius:999px;
+          font-size:12.5px; color:var(--ink2); background:#fff; }
+  .chip.on { background:var(--navy); color:#fff; border-color:var(--navy); }
+  .panel { background:#fff; border:1px solid var(--line); border-radius:14px; }
+
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; font-size:11.5px; color:var(--ink3); font-weight:600;
+       padding:10px 12px; border-bottom:1px solid var(--line); background:#fafbfc; white-space:nowrap; }
+  td { padding:10px 12px; border-bottom:1px solid #f3f4f6; white-space:nowrap; vertical-align:middle; }
+  th.r, td.r { text-align:right; }
+  tr.click:hover { background:#f3f7fd; cursor:pointer; }
+  .kpi { padding:12px 16px; cursor:pointer; }
+  .kpi.on { outline:2px solid var(--navy); }
+  .kpi .t { font-size:11px; color:var(--ink3); }
+  .kpi .v { font-size:19px; font-weight:800; margin-top:2px; }
+  .note { margin-top:16px; background:#fffbeb; border:1px solid #f5e6b8; border-radius:10px; padding:12px 16px; font-size:12px; color:#7c5e10; line-height:1.8; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>주문 현황 개편 — 시안 v2</h1>
+  <p class="desc">
+    기존 사이드바 레이아웃 안의 본문 영역. 원래 시안(주문목록_신규UI_시안.html)에서
+    2단계 확정 사항을 반영: 검사상태(정의 미확정)·배송 컬럼(3단계)은 제외, 출처(직접입력/업로드)·옵션 행 표시 추가.
+  </p>
+
+  <!-- 제목 + 액션 -->
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+    <h1 style="font-size:19px">주문 현황</h1>
+    <span style="flex:1"></span>
+    <button class="btn2">엑셀 다운로드</button>
+    <button class="btn">+ 주문 추가</button>
+  </div>
+
+  <!-- KPI (클릭=필터, 검색·기간 결과 기준으로 변동) -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+    <div class="panel kpi on"><div class="t">기간 주문</div><div class="v num">18건</div></div>
+    <div class="panel kpi"><div class="t">총 금액</div><div class="v num">62,622,770원</div></div>
+    <div class="panel kpi"><div class="t">미수금 (클릭=미수만)</div><div class="v num" style="color:#b42222">44,125,870원</div>
+      <div style="font-size:10.5px;color:var(--ink3)">4건 미수 · 2건 진행중</div></div>
+    <div class="panel kpi"><div class="t">직접입력 (클릭=직접만)</div><div class="v num" style="color:#1c5cab">3건</div>
+      <div style="font-size:10.5px;color:var(--ink3)">시범 운용 입력분</div></div>
+  </div>
+
+  <!-- 필터: 통합 검색 1줄 + 칩 -->
+  <div class="panel" style="padding:12px 14px;margin-bottom:14px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input style="flex:1;min-width:300px;border:1px solid var(--line);border-radius:10px;padding:9px 14px;font-size:13.5px"
+        placeholder="통합 검색 — 주문번호 · 주문처 · 담당자 · 상담자 · 다올직원 · 상품명 · 품번">
+      <span class="chip">오늘</span><span class="chip on">7일</span><span class="chip">1개월</span>
+      <span class="chip">3개월</span><span class="chip">6개월</span>
+      <span class="chip">2026-08-03 ~ 08-10</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px">
+      <span style="font-size:11.5px;color:var(--ink3)">수금</span>
+      <span class="chip on">전체</span><span class="chip">수금완료</span><span class="chip">진행중</span><span class="chip">미수금</span>
+      <span style="width:8px"></span>
+      <span style="font-size:11.5px;color:var(--ink3)">출처</span>
+      <span class="chip on">전체</span><span class="chip">직접입력</span><span class="chip">업로드</span>
+      <span style="width:8px"></span>
+      <span class="chip">선결제만</span><span class="chip">계산서 발행건만</span>
+      <span style="flex:1"></span>
+      <span class="chip on">내 주문만</span>
+    </div>
+  </div>
+
+  <!-- 목록 -->
+  <div class="panel" style="overflow:hidden">
+    <table>
+      <thead><tr>
+        <th>주문일 / 번호</th>
+        <th>주문처</th>
+        <th>담당자 (주문처)</th>
+        <th>직원 / 상담자</th>
+        <th class="r">총금액</th>
+        <th class="r">미수금</th>
+        <th>수금</th>
+        <th>출처</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+        <!-- 직접입력 주문 — 펼친 상태 (옵션 행 포함) -->
+        <tr class="click" style="background:#f3f7fd">
+          <td><div class="num" style="font-weight:600">08-10</div><div class="num" style="font-size:11px;color:var(--ink3)">D250810-001</div></td>
+          <td><b>하나은행 화곡역지점</b></td>
+          <td>김수영 지점장 <span style="font-size:11px;color:var(--ink3)">010-1234-5678</span></td>
+          <td>김보현 <span style="color:var(--ink3)">/ 옥광일</span></td>
+          <td class="r num">551,500</td>
+          <td class="r num" style="color:#b42222;font-weight:700">551,500</td>
+          <td><span class="badge b-red dotb">미수금</span></td>
+          <td><span class="badge b-blue">직접입력</span></td>
+          <td><span style="font-size:11.5px;color:#1c5cab">상품 2 ▾</span></td>
+        </tr>
+        <tr>
+          <td colspan="9" style="background:#f8fafd;padding:8px 20px 10px;white-space:normal">
+            <div style="font-size:11px;color:var(--ink3);margin-bottom:4px">행에서 바로 펼치기 — 팝업 없음. 옵션(부가상품)은 └ 로 표시</div>
+            <div style="display:grid;grid-template-columns:1fr auto auto auto;gap:3px 26px;font-size:12.5px;max-width:860px">
+              <span>LG생활건강 벨먼 센티드 모먼트 바디케어 세트 (바디워시 415ml, 로션 415ml) × 40 <span class="badge b-gray" style="margin-left:4px">지점</span></span>
+              <span class="num">판매 540,000</span>
+              <span class="num" style="color:var(--ink3)">배송비 11,500</span>
+              <span class="num" style="color:#147339">마진 148,000</span>
+              <span style="color:var(--ink2)">└ 롯데쇼핑백 × 40</span>
+              <span class="num">판매 0</span>
+              <span class="num" style="color:var(--ink3)">매입 7,200 · 유비코리아</span>
+              <span class="num" style="color:#b42222">마진 -7,200</span>
+            </div>
+          </td>
+        </tr>
+        <tr class="click">
+          <td><div class="num" style="font-weight:600">08-09</div><div class="num" style="font-size:11px;color:var(--ink3)">6oadVE_</div></td>
+          <td><b>하나은행</b> <span style="color:var(--ink3)">충주지점</span></td>
+          <td>나윤희 팀장님</td>
+          <td>김보현</td>
+          <td class="r num">144,000</td>
+          <td class="r num" style="color:#b42222;font-weight:700">144,000</td>
+          <td><span class="badge b-red dotb">미수금</span></td>
+          <td><span class="badge b-gray">업로드</span></td>
+          <td><span style="font-size:11.5px;color:#1c5cab">상품 2 ▸</span></td>
+        </tr>
+        <tr class="click">
+          <td><div class="num" style="font-weight:600">08-08</div><div class="num" style="font-size:11px;color:var(--ink3)">kR2mfQx</div></td>
+          <td><b>IBK기업은행</b> <span style="color:var(--ink3)">중부지역본부</span></td>
+          <td>최민아 과장님</td>
+          <td>단시연</td>
+          <td class="r num">7,260,000</td>
+          <td class="r num" style="color:#9ca3af">0</td>
+          <td><span class="badge b-green dotb">수금완료</span></td>
+          <td><span class="badge b-gray">업로드</span></td>
+          <td><span style="font-size:11.5px;color:#1c5cab">상품 3 ▸</span></td>
+        </tr>
+        <tr class="click">
+          <td><div class="num" style="font-weight:600">08-07</div><div class="num" style="font-size:11px;color:var(--ink3)">pQ81sJd</div></td>
+          <td><b>하나생명</b> <span style="color:var(--ink3)">GA사업부</span> <span class="badge b-violet" style="margin-left:4px">선결제</span></td>
+          <td>이재원 부장님</td>
+          <td>김보현 <span style="color:var(--ink3)">/ 옥광일</span></td>
+          <td class="r num">9,830,000</td>
+          <td class="r num" style="color:#b42222;font-weight:700">4,000,000</td>
+          <td><span class="badge b-amber dotb">진행중</span></td>
+          <td><span class="badge b-gray">업로드</span></td>
+          <td><span style="font-size:11.5px;color:#1c5cab">상품 5 ▸</span></td>
+        </tr>
+        <tr class="click">
+          <td><div class="num" style="font-weight:600">08-06</div><div class="num" style="font-size:11px;color:var(--ink3)">zW3nKp2</div></td>
+          <td><b>교보생명</b> <span style="color:var(--ink3)">GFP사업부</span> <span class="badge b-blue" style="margin-left:4px">계산서</span></td>
+          <td>-</td>
+          <td>함초롱</td>
+          <td class="r num">22,150,000</td>
+          <td class="r num" style="color:#b42222;font-weight:700">22,150,000</td>
+          <td><span class="badge b-red dotb">미수금</span></td>
+          <td><span class="badge b-gray">업로드</span></td>
+          <td><span style="font-size:11.5px;color:#1c5cab">상품 1 ▸</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="display:flex;align-items:center;padding:10px 14px;font-size:12px;color:var(--ink3)">
+      <span>18건 중 1-5 표시 · 50건씩</span>
+      <span style="margin-left:auto;display:flex;gap:4px">
+        <span class="chip on" style="padding:3px 10px">1</span>
+        <span class="chip" style="padding:3px 10px">2</span>
+        <span class="chip" style="padding:3px 10px">3</span>
+        <span class="chip" style="padding:3px 10px">다음</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>원래 시안과 달라진 점</b><br>
+    · 검사 상태 컬럼 제외 — 기존 화면의 검사상태 정의가 아직 미확인(미답 3건 중 하나). 정의 확인되면 추가.<br>
+    · 배송 컬럼 제외 — 배송 데이터는 3단계(배송 관리 통합)에서 생김. 그때 지연 경고와 함께 추가.<br>
+    · 출처 컬럼·칩 추가 — 병행 운용 중이라 직접입력/업로드 구분이 필요. KPI 4번째 칸도 배송 지연 → 직접입력 건수로 교체.<br>
+    · 행내 펼치기에 옵션(└)·구분 배지·배송비 표시 — 2단계 데이터 구조 반영.<br>
+    · 마진은 admin/manager에게만 표시 (sales에게는 숨김) — 원가 노출 방지. <b>(확인 요망)</b><br>
+    · 검색은 상품명·품번까지 포함(품목 테이블 조인) · 기본 50건 페이지네이션 · 행 클릭=상세, 상품 N=행내 펼치기.
+  </div>
+</div>
+</body>
+</html>

@@ -125,6 +125,34 @@ export async function resolveDisplayNames(
   }
 }
 
+// 주문처 업체/지점 이름 해석 (505 — vendor_groups)
+//  bank_name=업체명, branch_name=지점명(거래처명에서 업체명 접두 제거).
+//  그룹 없으면 업체=거래처명, 지점=NULL (단일 업체). 505 미적용 환경도 동일 동작.
+export async function resolveVendorNames(
+  admin: SupabaseClient,
+  vendorId: string,
+): Promise<{ vendorName: string; bankName: string; branchName: string | null } | { error: string }> {
+  let name: string | null = null
+  let groupName: string | null = null
+  const withGroup = await admin.from('vendors')
+    .select('id, name, group_id, vendor_groups(name)').eq('id', vendorId).maybeSingle()
+  if (!withGroup.error && withGroup.data) {
+    name = withGroup.data.name as string
+    const g = withGroup.data.vendor_groups as unknown as { name: string } | null
+    groupName = g?.name ?? null
+  } else {
+    const plain = await admin.from('vendors').select('id, name').eq('id', vendorId).maybeSingle()
+    if (!plain.data) return { error: '주문처 거래처를 찾을 수 없습니다.' }
+    name = plain.data.name as string
+  }
+  if (!name) return { error: '주문처 거래처를 찾을 수 없습니다.' }
+
+  if (!groupName) return { vendorName: name, bankName: name, branchName: null }
+  let branch = name
+  if (name.startsWith(groupName)) branch = name.slice(groupName.length).trim()
+  return { vendorName: name, bankName: groupName, branchName: branch || null }
+}
+
 // 별칭 확보: alias_type+erp_name 으로 upsert 후 id 조회. vendor_id 미연결이면 연결.
 export async function ensureAlias(
   admin: SupabaseClient,
@@ -271,15 +299,16 @@ export async function applyOrderEdit(
   const collectStatus = outstanding === 0 ? 'collected'
     : collected > 0 ? 'in_progress' : snap.order.collect_status
 
-  // 주문처 변경 시 별칭도 갱신
-  const { data: vendor } = await admin.from('vendors').select('id, name').eq('id', input.vendor_id).maybeSingle()
-  if (!vendor) return '주문처 거래처를 찾을 수 없습니다.'
-  const aliasId = await ensureAlias(admin, 'customer', vendor.name as string, vendor.id as string)
+  // 주문처 변경 시 업체/지점 이름·별칭도 갱신
+  const names = await resolveVendorNames(admin, input.vendor_id)
+  if ('error' in names) return names.error
+  const aliasName = [names.bankName, names.branchName].filter(Boolean).join(' ')
+  const aliasId = await ensureAlias(admin, 'customer', aliasName, input.vendor_id)
 
   const { error: upErr } = await admin.from('erp_orders').update({
     ...orderFields,
-    bank_name: vendor.name,
-    branch_name: null,
+    bank_name: names.bankName,
+    branch_name: names.branchName,
     customer_alias_id: aliasId,
     outstanding_amount: outstanding,
     collect_status: collectStatus,

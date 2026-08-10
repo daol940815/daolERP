@@ -40,6 +40,7 @@ export default function OrderDetailPage() {
   const [requests, setRequests] = useState<ChangeRequest[]>([])
   const [canEdit, setCanEdit] = useState(false)
   const [needsRequest, setNeedsRequest] = useState(false)
+  const [role, setRole] = useState('sales')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [cancelReason, setCancelReason] = useState('')
@@ -54,6 +55,7 @@ export default function OrderDetailPage() {
       setOrder(json.order); setItems(json.items)
       setRequests(json.change_requests ?? [])
       setCanEdit(json.can_edit); setNeedsRequest(json.needs_request)
+      setRole(json.role ?? 'sales')
     }
     setLoading(false)
   }, [id])
@@ -84,6 +86,7 @@ export default function OrderDetailPage() {
   if (!order) return null
 
   const isDirect = order.source === 'direct'
+  const showCost = role !== 'sales'   // 매입가·마진은 manager/admin만
   const activeItems = items.filter(it => !it.is_canceled)
   const cost = activeItems.reduce((s, it) => s + (it.purchase_total ?? 0), 0)
   const total = order.total_amount as number
@@ -174,8 +177,8 @@ export default function OrderDetailPage() {
               <th className="py-2 px-2.5 text-right font-medium">배송비</th>
               <th className="py-2 px-2.5 text-right font-medium">할인</th>
               <th className="py-2 px-2.5 text-right font-medium">합계</th>
-              <th className="py-2 px-2.5 text-right font-medium">매입가</th>
-              <th className="py-2 px-2.5 text-right font-medium">매입합계</th>
+              {showCost && <th className="py-2 px-2.5 text-right font-medium">매입가</th>}
+              {showCost && <th className="py-2 px-2.5 text-right font-medium">매입합계</th>}
               <th className="py-2 px-2.5 text-left font-medium">상담자</th>
               <th className="py-2 px-2.5 text-left font-medium">메모</th>
             </tr>
@@ -198,8 +201,8 @@ export default function OrderDetailPage() {
                 <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.shipping_fee)}</td>
                 <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.discount_amount)}</td>
                 <td className="py-1.5 px-2.5 text-right tabular-nums font-semibold">{won(it.line_total)}</td>
-                <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_price)}</td>
-                <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_total)}</td>
+                {showCost && <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_price)}</td>}
+                {showCost && <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_total)}</td>}
                 <td className="py-1.5 px-2.5 whitespace-nowrap">{it.channel ?? '-'}</td>
                 <td className="py-1.5 px-2.5">
                   <div className="max-w-[11rem] truncate" title={it.memo ?? undefined}>{it.memo ?? '-'}</div>
@@ -210,8 +213,8 @@ export default function OrderDetailPage() {
         </table>
         <div className="flex gap-6 px-4 py-2.5 text-sm border-t border-gray-100">
           <span>총금액 <b className="tabular-nums">{won(total)}원</b></span>
-          <span className="text-gray-500">매입 합계 <span className="tabular-nums">{won(cost)}원</span></span>
-          <span className="text-emerald-700">예상 마진 <b className="tabular-nums">{won(total - cost)}원</b></span>
+          {showCost && <span className="text-gray-500">매입 합계 <span className="tabular-nums">{won(cost)}원</span></span>}
+          {showCost && <span className="text-emerald-700">예상 마진 <b className="tabular-nums">{won(total - cost)}원</b></span>}
         </div>
       </div>
 

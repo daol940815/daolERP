@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import {
   validateOrderInput, buildOrderRows, insertOrderItems, ensureAlias, nextOrderNo,
-  resolveDisplayNames,
+  resolveDisplayNames, resolveVendorNames,
 } from '@/lib/orders-portal'
 
 export const dynamic = 'force-dynamic'
@@ -22,13 +22,14 @@ export async function POST(req: NextRequest) {
   if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
   const input = parsed.input
 
-  const { data: vendor } = await admin.from('vendors').select('id, name').eq('id', input.vendor_id).maybeSingle()
-  if (!vendor) return NextResponse.json({ error: '주문처 거래처를 찾을 수 없습니다.' }, { status: 400 })
+  const vendorNames = await resolveVendorNames(admin, input.vendor_id)
+  if ('error' in vendorNames) return NextResponse.json({ error: vendorNames.error }, { status: 400 })
 
   const names = await resolveDisplayNames(admin, input)
   if (names.error) return NextResponse.json({ error: names.error }, { status: 400 })
 
-  const aliasId = await ensureAlias(admin, 'customer', vendor.name as string, vendor.id as string)
+  const aliasName = [vendorNames.bankName, vendorNames.branchName].filter(Boolean).join(' ')
+  const aliasId = await ensureAlias(admin, 'customer', aliasName, input.vendor_id)
   const { orderFields, itemRows, total } = buildOrderRows(input, {
     managerName: names.managerName,
     counselorName: names.counselorName,
@@ -43,8 +44,8 @@ export async function POST(req: NextRequest) {
       ...orderFields,
       order_no: orderNo,
       source: 'direct',
-      bank_name: vendor.name,
-      branch_name: null,
+      bank_name: vendorNames.bankName,
+      branch_name: vendorNames.branchName,
       customer_alias_id: aliasId,
       staff_name: me.employeeName,
       created_by_employee_id: me.employeeId,
