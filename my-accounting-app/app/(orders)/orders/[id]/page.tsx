@@ -9,6 +9,7 @@ import Link from 'next/link'
 
 interface Item {
   id: string; line_no: number; is_canceled: boolean; is_prepayment: boolean
+  parent_line_no: number | null
   item_code: string | null; item_name: string | null; order_kind: string | null
   purchase_vendor_name: string | null; sale_price: number; quantity: number
   shipping_fee: number; discount_amount: number; line_total: number
@@ -93,7 +94,7 @@ export default function OrderDetailPage() {
         <Link href="/orders" className="text-sm text-gray-400 hover:text-gray-600">← 주문 현황</Link>
         <h1 className="text-xl font-bold text-gray-900">주문 상세</h1>
         <span className="text-sm text-gray-400 tabular-nums">{String(order.order_no ?? '')}</span>
-        <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${isDirect ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+        <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${isDirect ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
           {isDirect ? '직접입력' : '업로드'}
         </span>
         <span className="ml-auto flex gap-2">
@@ -138,8 +139,10 @@ export default function OrderDetailPage() {
             ['다올직원', String(order.staff_name ?? '-')],
             ['연락처', String(order.contact ?? '-')],
             ['핸드폰', String(order.phone ?? '-')],
-            ['소개자', String(order.introducer ?? '-')],
-            ['책임자', [order.supervisor, order.supervisor_contact].filter(Boolean).join(' / ') || '-'],
+            // 소개자·책임자는 direct 입력에서 제거된 항목 — 값이 있는 기존 업로드 주문만 표시
+            ...(order.introducer ? [['소개자', String(order.introducer)]] : []),
+            ...(order.supervisor || order.supervisor_contact
+              ? [['책임자', [order.supervisor, order.supervisor_contact].filter(Boolean).join(' / ')]] : []),
             ['수금 상태', STATUS_KO[String(order.collect_status)] ?? String(order.collect_status ?? '-')],
             ['총금액', `${won(total)}원`],
             ['미수금', `${won(order.outstanding_amount as number)}원`],
@@ -182,7 +185,8 @@ export default function OrderDetailPage() {
               <tr key={it.id} className={`border-b border-gray-50 ${it.is_canceled ? 'text-gray-300 line-through' : ''}`}>
                 <td className="py-1.5 px-2.5 tabular-nums">{it.line_no}</td>
                 <td className="py-1.5 px-2.5">{it.item_code ?? '-'}</td>
-                <td className="py-1.5 px-2.5 font-medium">
+                <td className={`py-1.5 px-2.5 font-medium ${it.parent_line_no ? 'pl-6' : ''}`}>
+                  {it.parent_line_no && <span className="text-gray-400 mr-1 font-normal" title={`${it.parent_line_no}번 행의 옵션`}>└</span>}
                   {it.item_name}
                   {it.is_canceled && <span className="ml-1.5 no-underline text-[10px] text-red-400">취소</span>}
                   {it.is_prepayment && <span className="ml-1.5 text-[10px] text-violet-500">선결제</span>}
@@ -220,7 +224,7 @@ export default function OrderDetailPage() {
               const s = REQ_STATUS[r.status] ?? { label: r.status, cls: 'bg-gray-100 text-gray-500' }
               return (
                 <div key={r.id} className="flex items-center gap-2.5 text-sm flex-wrap">
-                  <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${s.cls}`}>{s.label}</span>
+                  <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${s.cls}`}>{s.label}</span>
                   <span className="text-[11px] text-gray-400">{r.request_type === 'cancel' ? '취소' : '수정'}</span>
                   <span className="text-gray-700">{r.reason}</span>
                   {r.decision_memo && <span className="text-xs text-gray-400">→ {r.decision_memo}</span>}

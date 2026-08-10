@@ -7,9 +7,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 // 조회는 전 직원, 등록·수정·엑셀 업로드는 manager/admin (API에서 차단).
 
 interface Product {
-  id: string; item_code: string | null; item_name: string
-  purchase_vendor_name: string | null; sale_price: number; purchase_price: number
-  is_active: boolean; memo: string | null; updated_at: string
+  id: string; item_code: string | null; item_name: string; option_name: string | null
+  purchase_vendor_name: string | null; category: string | null
+  sale_price: number; individual_sale_price: number; purchase_price: number
+  carton_unit: number | null; carton_shipping_fee: number; loose_shipping_fee: number
+  is_addon: boolean; is_active: boolean; memo: string | null; updated_at: string
 }
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
@@ -18,7 +20,12 @@ const toInt = (s: string) => {
   return Number.isFinite(n) ? Math.round(n) : 0
 }
 
-const emptyDraft = { item_code: '', item_name: '', purchase_vendor_name: '', sale_price: 0, purchase_price: 0, memo: '' }
+const emptyDraft = {
+  item_code: '', item_name: '', purchase_vendor_name: '', category: '',
+  sale_price: 0, individual_sale_price: 0, purchase_price: 0,
+  carton_unit: 0, carton_shipping_fee: 0, loose_shipping_fee: 0,
+  is_addon: false, memo: '',
+}
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -48,7 +55,7 @@ export default function ProductsPage() {
       if (filter === 'active' && !p.is_active) return false
       if (filter === 'inactive' && p.is_active) return false
       if (!q) return true
-      return [p.item_code, p.item_name, p.purchase_vendor_name].some(v => (v ?? '').toLowerCase().includes(q))
+      return [p.item_code, p.item_name, p.purchase_vendor_name, p.category].some(v => (v ?? '').toLowerCase().includes(q))
     })
   }, [products, search, filter])
 
@@ -83,8 +90,13 @@ export default function ProductsPage() {
     setEditingId(p.id)
     setDraft({
       item_code: p.item_code ?? '', item_name: p.item_name,
-      purchase_vendor_name: p.purchase_vendor_name ?? '',
-      sale_price: p.sale_price, purchase_price: p.purchase_price, memo: p.memo ?? '',
+      purchase_vendor_name: p.purchase_vendor_name ?? '', category: p.category ?? '',
+      sale_price: p.sale_price, individual_sale_price: p.individual_sale_price ?? 0,
+      purchase_price: p.purchase_price,
+      carton_unit: p.carton_unit ?? 0, carton_shipping_fee: p.carton_shipping_fee ?? 0,
+      loose_shipping_fee: p.loose_shipping_fee ?? 0,
+      is_addon: p.is_addon ?? false,
+      memo: p.memo ?? '',
     })
   }
 
@@ -166,9 +178,16 @@ export default function ProductsPage() {
               className={`${inputCls} w-40`} placeholder="발주서 분리 기준" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">판매가</label>
+            <label className="block text-[11px] text-gray-500 mb-0.5">지점판매가</label>
             <input value={draft.sale_price ? won(draft.sale_price) : ''} onChange={e => setDraft(d => ({ ...d, sale_price: toInt(e.target.value) }))}
-              className={`${inputCls} w-28 text-right tabular-nums`} placeholder="0" />
+              className={`${inputCls} w-28 text-right tabular-nums`} placeholder="0"
+              title="한 곳 묶음 배송 — 배송비는 카톤 기준 별도" />
+          </div>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-0.5">개별판매가</label>
+            <input value={draft.individual_sale_price ? won(draft.individual_sale_price) : ''} onChange={e => setDraft(d => ({ ...d, individual_sale_price: toInt(e.target.value) }))}
+              className={`${inputCls} w-28 text-right tabular-nums`} placeholder="미지정"
+              title="여러 곳 개별 배송 — 배송비 포함가. 비우면 지점판매가 사용" />
           </div>
           <div>
             <label className="block text-[11px] text-gray-500 mb-0.5">매입가</label>
@@ -176,10 +195,37 @@ export default function ProductsPage() {
               className={`${inputCls} w-28 text-right tabular-nums`} placeholder="0" />
           </div>
           <div>
+            <label className="block text-[11px] text-gray-500 mb-0.5">카톤단위</label>
+            <input value={draft.carton_unit || ''} onChange={e => setDraft(d => ({ ...d, carton_unit: toInt(e.target.value) }))}
+              className={`${inputCls} w-20 text-right tabular-nums`} placeholder="개/카톤" title="1카톤에 들어가는 수량 — 비우면 배송비 자동 계산 안 함" />
+          </div>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-0.5">카톤택배비</label>
+            <input value={draft.carton_shipping_fee ? won(draft.carton_shipping_fee) : ''} onChange={e => setDraft(d => ({ ...d, carton_shipping_fee: toInt(e.target.value) }))}
+              className={`${inputCls} w-24 text-right tabular-nums`} placeholder="0" title="카톤당 택배비" />
+          </div>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-0.5">카톤외택배비</label>
+            <input value={draft.loose_shipping_fee ? won(draft.loose_shipping_fee) : ''} onChange={e => setDraft(d => ({ ...d, loose_shipping_fee: toInt(e.target.value) }))}
+              className={`${inputCls} w-24 text-right tabular-nums`} placeholder="0"
+              title="낱개 1건 택배비 — 지점 배송 나머지 낱개분·개별 배송 파생가 계산에 사용" />
+          </div>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-0.5">분류</label>
+            <input value={draft.category} onChange={e => setDraft(d => ({ ...d, category: e.target.value }))}
+              className={`${inputCls} w-24`} placeholder="타올 등" />
+          </div>
+          <div>
             <label className="block text-[11px] text-gray-500 mb-0.5">메모</label>
             <input value={draft.memo} onChange={e => setDraft(d => ({ ...d, memo: e.target.value }))}
-              className={`${inputCls} w-48`} />
+              className={`${inputCls} w-40`} />
           </div>
+          <label className="flex items-center gap-1.5 text-xs text-gray-600 pb-2 cursor-pointer"
+            title="포장지·쇼핑백 등 — 주문 입력에서 같은 매입처 상품의 옵션 추가 칩으로 노출">
+            <input type="checkbox" checked={draft.is_addon}
+              onChange={e => setDraft(d => ({ ...d, is_addon: e.target.checked }))} />
+            부가상품
+          </label>
           <button onClick={save} className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm">
             {editingId === 'new' ? '등록' : '저장'}
           </button>
@@ -195,10 +241,15 @@ export default function ProductsPage() {
               <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
                 <th className="py-2 px-3 text-left font-medium">품번</th>
                 <th className="py-2 px-3 text-left font-medium">품명</th>
+                <th className="py-2 px-3 text-left font-medium">분류</th>
                 <th className="py-2 px-3 text-left font-medium">매입처</th>
-                <th className="py-2 px-3 text-right font-medium">판매가</th>
+                <th className="py-2 px-3 text-right font-medium">지점판매가</th>
+                <th className="py-2 px-3 text-right font-medium">개별판매가</th>
                 <th className="py-2 px-3 text-right font-medium">매입가</th>
-                <th className="py-2 px-3 text-right font-medium">마진</th>
+                <th className="py-2 px-3 text-right font-medium">마진(지점)</th>
+                <th className="py-2 px-3 text-right font-medium">카톤단위</th>
+                <th className="py-2 px-3 text-right font-medium">카톤택배비</th>
+                <th className="py-2 px-3 text-right font-medium">카톤외택배비</th>
                 <th className="py-2 px-3 text-left font-medium">메모</th>
                 <th className="py-2 px-3 text-left font-medium">상태</th>
                 <th className="py-2 px-3" />
@@ -207,15 +258,25 @@ export default function ProductsPage() {
             <tbody>
               {filtered.map(p => (
                 <tr key={p.id} className={`border-b border-gray-50 ${p.is_active ? '' : 'text-gray-400'}`}>
-                  <td className="py-1.5 px-3 text-xs tabular-nums">{p.item_code ?? '-'}</td>
-                  <td className="py-1.5 px-3 font-medium">{p.item_name}</td>
-                  <td className="py-1.5 px-3">{p.purchase_vendor_name ?? '-'}</td>
+                  <td className="py-1.5 px-3 text-xs tabular-nums whitespace-nowrap">{p.item_code ?? '-'}</td>
+                  <td className="py-1.5 px-3 font-medium">
+                    {p.item_name}
+                    {p.is_addon && (
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-600">옵션</span>
+                    )}
+                  </td>
+                  <td className="py-1.5 px-3 text-xs whitespace-nowrap">{p.category ?? '-'}</td>
+                  <td className="py-1.5 px-3 whitespace-nowrap">{p.purchase_vendor_name ?? '-'}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{won(p.sale_price)}</td>
+                  <td className="py-1.5 px-3 text-right tabular-nums">{p.individual_sale_price ? won(p.individual_sale_price) : '-'}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{won(p.purchase_price)}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums text-emerald-700">{won(p.sale_price - p.purchase_price)}</td>
+                  <td className="py-1.5 px-3 text-right tabular-nums">{p.carton_unit ?? '-'}</td>
+                  <td className="py-1.5 px-3 text-right tabular-nums">{p.carton_unit ? won(p.carton_shipping_fee) : '-'}</td>
+                  <td className="py-1.5 px-3 text-right tabular-nums">{p.loose_shipping_fee ? won(p.loose_shipping_fee) : '-'}</td>
                   <td className="py-1.5 px-3 text-xs">{p.memo ?? '-'}</td>
                   <td className="py-1.5 px-3">
-                    <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${p.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${p.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
                       {p.is_active ? '사용' : '중지'}
                     </span>
                   </td>
@@ -229,7 +290,7 @@ export default function ProductsPage() {
                 </tr>
               ))}
               {!filtered.length && (
-                <tr><td colSpan={9} className="text-center py-12 text-gray-400 text-sm">
+                <tr><td colSpan={14} className="text-center py-12 text-gray-400 text-sm">
                   품목이 없습니다. 상품 엑셀 업로드 또는 개별 등록으로 시작하세요.
                 </td></tr>
               )}
@@ -238,7 +299,9 @@ export default function ProductsPage() {
         )}
       </div>
       <p className="text-xs text-gray-400 mt-2">
-        엑셀 컬럼: 품번(선택) · 품명(필수) · 매입처 · 판매가 · 매입가 — 품번이 있으면 품번 기준으로 갱신됩니다
+        회사 원가표 엑셀을 그대로 업로드하면 됩니다 (원가표 시트의 품번 · 상품명(원가표 등록용) · 옵션명 · 매입처 ·
+        지점배송매입가 · 지점/개별배송판매가 · 목차 · 카톤단위 · 택배비(카톤단위/카톤외)를 인식, 카탈로그 제작용 컬럼은 무시).
+        품번 기준으로 갱신되며, 주문 입력에서 지점=지점판매가+카톤 공식 배송비 / 개별=개별판매가(배송비 포함)가 자동 적용됩니다.
       </p>
     </div>
   )
