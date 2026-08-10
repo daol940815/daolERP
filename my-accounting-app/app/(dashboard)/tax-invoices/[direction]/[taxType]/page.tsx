@@ -581,8 +581,9 @@ function TaxInvoiceListContent() {
   const [accounts, setAccounts]       = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading]         = useState(true)
   const [statusFilter, setStatusFilter] = useState<'all' | 'matched' | 'unmatched'>('all')
-  // 기본 조회는 2026년부터 — 2025년은 시작일을 비우거나 넓혀서 조회
-  const [dateFrom, setDateFrom]       = useState(DEFAULT_VIEW_FROM)
+  // 기본 조회는 2026년부터 — 2025년은 시작일을 비우거나 넓혀서 조회.
+  // 단, 특정 계산서 딥링크(?invoiceId=) 진입 시에는 기간을 비워 과거 계산서도 바로 보이게 한다.
+  const [dateFrom, setDateFrom]       = useState(() => searchParams.get('invoiceId') ? '' : DEFAULT_VIEW_FROM)
   const [dateTo, setDateTo]           = useState('')
   const [search, setSearch]           = useState('')
   const [searchField, setSearchField] = useState<'all' | 'counterparty' | 'item' | 'note' | 'approval' | 'biz' | 'amount' | 'memo'>('all')
