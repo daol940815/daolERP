@@ -420,8 +420,7 @@ export default function PurchaseHubDetailPage() {
                   <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
                     <th className="py-2 px-3 text-left font-medium">발행일</th>
                     <th className="py-2 px-3 text-left font-medium">구분</th>
-                    <th className="py-2 px-3 text-right font-medium">공급가</th>
-                    <th className="py-2 px-3 text-right font-medium">총액</th>
+                    <th className="py-2 px-3 text-right font-medium">총액 (부가세 포함)</th>
                     <th className="py-2 px-3 text-left font-medium">지급 연결</th>
                     <th className="py-2 px-3 text-right font-medium">미연결 잔여</th>
                   </tr>
@@ -441,14 +440,13 @@ export default function PurchaseHubDetailPage() {
                             className="text-blue-600 hover:underline" title="계산서 화면에서 열기">{inv.issue_date}</Link>
                         </td>
                         <td className="py-1.5 px-3 text-xs text-gray-500">{inv.tax_type === 'exempt' ? '면세' : '과세'}</td>
-                        <td className="py-1.5 px-3 text-right tabular-nums">{won(inv.supply_amount)}</td>
                         <td className="py-1.5 px-3 text-right tabular-nums">{won(inv.total_amount)}</td>
                         <td className="py-1.5 px-3"><span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${payBadge.c}`}>{payBadge.t}</span></td>
                         <td className={`py-1.5 px-3 text-right tabular-nums ${linkUnpaid > 0 ? 'text-red-600' : 'text-gray-400'}`}>{won(linkUnpaid)}</td>
                       </tr>
                     )
                   })}
-                  {!data.invoices.length && <tr><td colSpan={6} className="text-center py-10 text-gray-400 text-sm">수취한 매입 계산서가 없습니다.</td></tr>}
+                  {!data.invoices.length && <tr><td colSpan={5} className="text-center py-10 text-gray-400 text-sm">수취한 매입 계산서가 없습니다.</td></tr>}
                 </tbody>
               </table>
             </div>
