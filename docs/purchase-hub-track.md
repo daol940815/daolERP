@@ -38,6 +38,41 @@
 - 상태는 데이터에서 자동 판정 (수동 상태 입력 금지)
 - 담당 관리: 매입처 담당자도 contacts/contact_assignments(인물 마스터) 재사용 가능
 
+## 진행 상황 (2026-08-10, 1차 구현)
+
+구현 완료 (브랜치 claude/purchase-hub-implementation-344zhl):
+
+- `supabase/migrations/600_purchase_hub.sql` — **미적용, 사용자 실행 필요**
+  - `purchase_opening_balances`: 매입처 미결제금 기초원장 (vendor_id PK, 기준일 as_of_date,
+    기초 미지급 잔액 amount(양수), note). vendor_opening_balances(048)와 분리 —
+    VOB.amount는 원장 이월 규약(양수=미수/음수=미지급)과 얽혀 있고 collected_amount(068)는
+    매출 Aging 전용이라, 기준일 컷오프 증분 방식과 섞으면 이중계상 위험이 있어 별도 테이블로 확정.
+  - `hub_purchase_summary(_json)`: 목록 집계 RPC (102 JSONB 패턴).
+    지급 인식은 060 purchase_cycle_summary와 동일 규칙(계산서 연결 지급 + 2001 상계
+    확정 출금 중 미연결분). FIFO: 기준일 이후 지급이 기초잔액을 먼저 갚고 남은 몫이
+    계산서를 발행일 오래된 순으로 커버. outstanding 음수 = 과다지급.
+- `lib/purchase-hub.ts` — 목록·상세 집계 (RPC 우선, 600 미적용 시 동일 규칙 JS 폴백).
+  카드 매입은 가맹점 사업자번호=매입처 사업자번호 매칭의 보조 지표(카드 대금은 카드사
+  채무이므로 미지급 잔액에서 제외).
+- API: `/api/purchase-hub`(목록), `/api/purchase-hub/[vendorId]`(상세 GET,
+  PATCH: note 또는 opening 개별 upsert/삭제).
+- 화면: `/purchase-hub`(KPI+칩 필터+통합검색 목록, 미연결 큐 알림 → 매입처 연결 키워드),
+  `/purchase-hub/[vendorId]`(기간칩·담당 패널·KPI 6·미지급 Aging·탭: 개요/계산서/지급
+  내역/ERP 발주/활동 메모, 기초원장 개별 입력 폼). 담당 배정은 매출처 허브의 범용 API
+  (`/api/vendor-hub/staff`·`contacts`) 재사용 — 매출처 허브 코드는 수정하지 않음.
+- 사이드바: 경영관리 그룹, 매출처 허브 아래에 '매입처 허브' 추가.
+- 상태 자동 판정: 정상 / 미지급 / 미지급 90일 초과 / 과다지급 / 휴면(6개월).
+
+미결 항목:
+
+1. **600 마이그레이션 실행** — 사용자가 Supabase SQL 편집기에서 실행할 것.
+   실행 전에도 화면은 JS 폴백으로 동작(기초원장 기능만 비활성).
+2. **미결제금 기초원장 엑셀 적재** — 결제현황 엑셀과 기준일을 사용자에게 요청해야 함.
+   받으면 승인 → 드라이런(대조 통계) → 실행 → 검증 보고 루틴으로 이 트랙이 적재.
+   상세 화면의 개별 입력 폼은 소수 건 수동 입력용.
+3. **실데이터 검증** — 목록 합계를 매입 사이클·미지급 Aging 리포트와 대사(건수·금액 표본).
+   서비스 키가 세션에 전달되지 않아 DB 직접 검증은 미수행.
+
 ## 주의
 
 - 사이드바 `components/layout/Sidebar.tsx`는 여러 트랙이 수정하는 공유 파일 —
