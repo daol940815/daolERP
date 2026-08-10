@@ -3,6 +3,48 @@
 기존 외부 ERP를 대체하는 자체 주문관리 시스템. 총괄 세션에서 1단계까지 진행했고,
 2단계부터 이 트랙(별도 세션)이 이어받는다. 마이그레이션 번호는 **500번대**.
 
+## 2단계 구현 현황 (2026-08-07, 브랜치 claude/daol-erp-order-system-phase2-5kp7rq)
+
+구현 완료(빌드 통과) — main 병합 전 사용자 확인 대기:
+
+- **마이그레이션 500** (`500_order_system_phase2.sql`, 사용자 실행 필요):
+  `erp_products` 품목 마스터 / `erp_orders`에 vendor_id·contact_id·
+  counselor_employee_id·created_by_employee_id / `erp_order_items.product_id` /
+  `erp_order_change_requests` 수정·취소 요청.
+- **품목 마스터** `/orders/products`: 목록(KPI+검색)·개별 등록·수정·중지 +
+  상품 엑셀 업로드(품번 선택·품명 필수·매입처·판매가·매입가, 품번 기준 갱신).
+  조회 전 직원, 변경 manager/admin. 매입처명은 purchase 별칭 자동 연결(발주서 대비).
+- **주문 입력** `/orders/new`: 기존 컬럼 순서 유지 + 마스터 선택(주문처=vendors,
+  담당자=contacts+신규 인라인 등록, 상담자=employees, 품번=erp_products 자동완성).
+  다올직원은 로그인 자동. source='direct', 주문번호 자동 발번(`DYYMMDD-###`).
+  하류 호환: bank_name·manager_name·staff_name·channel 텍스트를 FK와 병기,
+  customer 별칭 upsert로 허브·수금 매칭이 수정 없이 소비.
+- **주문 상세** `/orders/[id]` + **수정** `/orders/[id]/edit`(입력 폼 공용):
+  당일(KST, created_at 기준)+본인 또는 manager/admin은 직접 수정·삭제,
+  익일 이후 sales는 같은 폼에서 수정 요청/취소 요청 제출.
+- **수정 승인** `/orders/approvals` (manager/admin): 변경 전·후 품목 비교,
+  승인 시 주문에 반영(취소 승인은 품목 is_canceled + 금액 0, 행은 이력 보존).
+  요청·처리 이력은 erp_order_change_requests에 before 스냅샷과 함께 남는다.
+- 사이드바: 신규 주문·품목 마스터 열림, 주문 수정 승인(manager+) 추가.
+  주문 현황 행 클릭 → 상세 이동.
+
+### 구현하며 내린 결정 (사용자 확인 필요 항목 포함)
+
+1. **주문처 입력은 vendors 단일 선택** — 시안의 은행/지점 2칸 구조 대신.
+   vendors에 은행-지점 계층이 없어 2칸을 유지하면 자유 입력이 부활하기 때문.
+   direct 주문은 bank_name=거래처명, branch_name=NULL로 병기. *(확인 요망)*
+2. **UI 톤은 신규 톤**으로 구현 (실무자 의견 미수렴 상태) — 필드 구성·순서는
+   기존 ERP 그대로이므로 클래식 톤 전환은 스타일 교체만으로 가능.
+3. 수정 시 미수금 보존: 기수금액(총액-미수) 차감 후 재계산.
+   품목 행은 삭제 후 재삽입(업로드 파서와 동일 패턴) — settlement_month는
+   주문월로 재설정되므로 이월 보정된 direct 품목 수정 시 주의.
+4. 품번 체계 미확정 → item_code NULL 허용(있으면 유일). 품목 마스터에 없는
+   상품은 품명 자유 입력 허용(초기 마스터 공백 대비). *(마스터 정착 후 재검토)*
+5. 주문 엑셀 업로드는 기존 관리 모드 `/upload`(erp-orders/import) 그대로 사용
+   (병행 운용). 주문 포털에는 별도 업로드 화면을 만들지 않았다.
+6. 주문 목록의 신규 UI 시안(KPI·칩 필터·행내 상품 펼치기)은 아직 미적용 —
+   1단계 조회 셸 유지. 실무자 의견 수렴 후 적용.
+
 ## 배경 — 왜 만드는가 (기존 ERP의 4대 한계)
 
 1. 주문처 수기 입력 → 오타 → 별칭 지옥 (회계 매칭 문제의 뿌리)
