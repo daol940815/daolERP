@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>주문 입력 — 긴 품명 표시 조정 시안 (3안 비교)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1280px; margin:0 auto; padding:24px 20px 60px; }
+  h1 { font-size:19px; color:#0f172a; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 18px; }
+  h2 { font-size:14px; color:#0f172a; margin:26px 0 4px; }
+  h2 .tag { font-size:11px; font-weight:normal; border-radius:99px; padding:2px 9px; margin-left:6px; vertical-align:1px; }
+  .tag.rec { background:#dcfce7; color:#15803d; font-weight:bold; }
+  .tag.cur { background:#f1f5f9; color:#64748b; }
+  .note { font-size:11.5px; color:#64748b; margin-bottom:8px; line-height:1.6; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; box-shadow:0 1px 3px rgba(15,23,42,.05); overflow-x:auto; }
+
+  table { border-collapse:collapse; font-size:11.5px; width:100%; }
+  th { background:#f8fafc; color:#64748b; font-size:10.5px; padding:5px 6px; text-align:left; white-space:nowrap; border-bottom:1px solid #e2e8f0; font-weight:600; }
+  th.r, td.r { text-align:right; }
+  td { padding:4px 6px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
+
+  .cell { border:1.5px solid #cbd5e1; border-radius:6px; padding:4px 7px; background:#fff; font-size:11.5px; min-height:26px; }
+  .sel  { border-color:#93b8e8; background:#f5f9ff; }
+  .auto { border-color:#e2e8f0; background:#f8fafc; color:#64748b; }
+  .free { border-color:#e8d9a8; background:#fffdf5; }
+  .r .cell { text-align:right; font-variant-numeric:tabular-nums; }
+  .clip { white-space:nowrap; overflow:hidden; }
+  .ellip { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .wrap { white-space:normal; line-height:1.5; }
+  .chips { padding:2px 6px 8px 26px; font-size:10.5px; color:#94a3b8; }
+  .chip { display:inline-block; border:1px solid #ddd0f5; background:#f8f5fe; color:#7c4fd0; border-radius:99px; padding:2px 9px; font-size:10.5px; margin-left:4px; }
+  .sub { color:#94a3b8; }
+  .warn { color:#c22525; font-size:10.5px; }
+  .ok { color:#15803d; font-size:10.5px; }
+
+  .l2 { display:grid; grid-template-columns:210px 1fr 90px; gap:8px; margin-bottom:6px; }
+  .l2row { display:grid; grid-template-columns:110px 64px 90px 90px 100px 100px 96px 1fr; gap:8px; }
+  .lbl { font-size:9.5px; color:#94a3b8; margin-bottom:2px; }
+  .itemblock { border:1px solid #eef1f5; border-radius:10px; padding:10px 12px; margin-bottom:8px; }
+
+  .cmp { margin-top:26px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; font-size:12px; }
+  .cmp h3 { font-size:12.5px; margin-bottom:8px; }
+  .cmp td { white-space:normal; vertical-align:top; padding:6px 8px; }
+  .cmp th { font-size:11px; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>주문 입력 — 긴 품명 표시 조정 시안</h1>
+  <p class="desc">
+    같은 주문(긴 품명 2건 + 옵션 1건)을 세 가지 안으로 비교합니다. 표시 색은 실제 화면과 동일 —
+    파란 칸=마스터 선택 · 회색 칸=자동 · 노란 칸=자유 입력.
+  </p>
+
+  <!-- 현재 상태 -->
+  <h2>현재 <span class="tag cur">참고 — 문제 재현</span></h2>
+  <p class="note">품명이 한 줄 input이라 칸 폭에서 끝나고, 잘렸다는 표시도 없음. 옵션 구분(1P/2P, 세트 구성)이 품명 뒤쪽에 있어 잘못 골라도 알 수 없음.</p>
+  <div class="panel">
+    <table style="min-width:1080px">
+      <tr><th style="width:150px">품번 · 품명 검색</th><th style="width:190px">품명</th><th>구분</th><th>매입처</th><th class="r">판매가</th><th class="r">갯수</th><th class="r">배송비</th><th class="r">할인금액</th><th class="r">합계금액</th><th class="r">매입가</th><th class="r">매입배송비</th><th>메모</th><th></th></tr>
+      <tr>
+        <td><div class="cell sel">111-238927</div></td>
+        <td><div class="cell free clip">LG생활건강 벨먼 센티드 모먼트 바디</div><div class="warn">← 여기서 끝. "바디케어인지 헤어케어인지" 안 보임</div></td>
+        <td><div class="cell sel">지점 ▾</div></td>
+        <td><div class="cell auto">유비코리아</div></td>
+        <td class="r"><div class="cell auto">13,500</div></td>
+        <td class="r"><div class="cell free">40</div></td>
+        <td class="r"><div class="cell free">11,500</div></td>
+        <td class="r"><div class="cell free">0</div></td>
+        <td class="r"><div class="cell auto"><b>551,500</b></div></td>
+        <td class="r"><div class="cell auto">9,800</div></td>
+        <td class="r"><div class="cell free">0</div></td>
+        <td><div class="cell free" style="width:80px"></div></td>
+        <td style="color:#c22525">✕</td>
+      </tr>
+      <tr>
+        <td><div class="cell sel">25-25-14-01</div></td>
+        <td><div class="cell free clip">송월,항균코마40수무지40(180g) 1</div><div class="warn">← 1P인지 2P인지 안 보임</div></td>
+        <td><div class="cell sel">지점 ▾</div></td>
+        <td><div class="cell auto">송월타올수건이야기</div></td>
+        <td class="r"><div class="cell auto">6,800</div></td>
+        <td class="r"><div class="cell free">50</div></td>
+        <td class="r"><div class="cell free">5,500</div></td>
+        <td class="r"><div class="cell free">0</div></td>
+        <td class="r"><div class="cell auto"><b>345,500</b></div></td>
+        <td class="r"><div class="cell auto">5,082</div></td>
+        <td class="r"><div class="cell free">0</div></td>
+        <td><div class="cell free" style="width:80px"></div></td>
+        <td style="color:#c22525">✕</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- 2안 -->
+  <h2>2안 — 품명 칸 줄바꿈 (표 구조 유지) <span class="tag rec">추천</span></h2>
+  <p class="note">
+    품명 칸만 자동 높이 칸으로 교체 — 긴 품명은 칸 안에서 2~3줄로 꺾여 <b>항상 끝까지 보임</b>. 편집도 그대로.
+    숫자 칸 폭을 조금 줄여 품명 최소폭을 늘림. 컬럼 구조·순서·Tab 이동은 지금과 동일.
+  </p>
+  <div class="panel">
+    <table style="min-width:1040px">
+      <tr><th style="width:130px">품번 · 품명 검색</th><th style="min-width:240px">품명</th><th>구분</th><th>매입처</th><th class="r">판매가</th><th class="r">갯수</th><th class="r">배송비</th><th class="r">할인</th><th class="r">합계금액</th><th class="r">매입가</th><th class="r">매입배송비</th><th>메모</th><th></th></tr>
+      <tr>
+        <td><div class="cell sel">111-238927</div></td>
+        <td><div class="cell free wrap">LG생활건강 벨먼 센티드 모먼트 바디케어 세트 (바디워시 415ml, 로션 415ml) &lt;케이스, 쇼핑백 포함&gt; 111-238927</div><div class="ok">전체 표시 — 행 높이만 늘어남</div></td>
+        <td><div class="cell sel">지점 ▾</div></td>
+        <td><div class="cell auto">유비코리아</div></td>
+        <td class="r"><div class="cell auto">13,500</div></td>
+        <td class="r"><div class="cell free">40</div></td>
+        <td class="r"><div class="cell free">11,500</div></td>
+        <td class="r"><div class="cell free">0</div></td>
+        <td class="r"><div class="cell auto"><b>551,500</b></div></td>
+        <td class="r"><div class="cell auto">9,800</div></td>
+        <td class="r"><div class="cell free">0</div></td>
+        <td><div class="cell free" style="width:70px"></div></td>
+        <td style="color:#c22525">✕</td>
+      </tr>
+      <tr>
+        <td><div class="cell sel">25-25-14-01</div></td>
+        <td><div class="cell free wrap">송월,항균코마40수무지40(180g) 1P+종이케이스</div></td>
+        <td><div class="cell sel">지점 ▾</div></td>
+        <td><div class="cell auto">송월타올수건이야기</div></td>
+        <td class="r"><div class="cell auto">6,800</div></td>
+        <td class="r"><div class="cell free">50</div></td>
+        <td class="r"><div class="cell free">5,500</div></td>
+        <td class="r"><div class="cell free">0</div></td>
+        <td class="r"><div class="cell auto"><b>345,500</b></div></td>
+        <td class="r"><div class="cell auto">5,082</div></td>
+        <td class="r"><div class="cell free">0</div></td>
+        <td><div class="cell free" style="width:70px"></div></td>
+        <td style="color:#c22525">✕</td>
+      </tr>
+      <tr><td colspan="13" class="chips">옵션 추가 (송월타올수건이야기) <span class="chip">+ 송월 쇼핑백 (500)</span><span class="chip">+ 종이케이스</span></td></tr>
+    </table>
+  </div>
+
+  <!-- 1안 -->
+  <h2>1안 — 품목 1건 = 2줄 배치 (구조 개편)</h2>
+  <p class="note">
+    첫 줄에 검색·품명(전체 폭)·구분, 둘째 줄에 숫자 칸. 가로 스크롤이 완전히 없어지고 품명 폭이 가장 넓음.
+    대신 품목당 세로 2배, "기존 한 줄 표" 익숙함에서 멀어짐. 숫자 칸끼리의 세로 비교(위아래 행 판매가 훑기)도 약해짐.
+  </p>
+  <div class="panel">
+    <div class="itemblock">
+      <div class="l2">
+        <div><div class="lbl">품번 · 품명 검색</div><div class="cell sel">111-238927 ▾</div></div>
+        <div><div class="lbl">품명</div><div class="cell free wrap">LG생활건강 벨먼 센티드 모먼트 바디케어 세트 (바디워시 415ml, 로션 415ml) &lt;케이스, 쇼핑백 포함&gt; 111-238927</div></div>
+        <div><div class="lbl">구분</div><div class="cell sel">지점 ▾</div></div>
+      </div>
+      <div class="l2row">
+        <div><div class="lbl">매입처</div><div class="cell auto ellip" title="유비코리아">유비코리아</div></div>
+        <div><div class="lbl">갯수</div><div class="cell free" style="text-align:right">40</div></div>
+        <div><div class="lbl">판매가</div><div class="cell auto" style="text-align:right">13,500</div></div>
+        <div><div class="lbl">배송비</div><div class="cell free" style="text-align:right">11,500</div></div>
+        <div><div class="lbl">할인금액</div><div class="cell free" style="text-align:right">0</div></div>
+        <div><div class="lbl">합계금액</div><div class="cell auto" style="text-align:right"><b>551,500</b></div></div>
+        <div><div class="lbl">매입가</div><div class="cell auto" style="text-align:right">9,800</div></div>
+        <div><div class="lbl">메모</div><div class="cell free"></div></div>
+      </div>
+    </div>
+    <div class="itemblock">
+      <div class="l2">
+        <div><div class="lbl">품번 · 품명 검색</div><div class="cell sel">25-25-14-01 ▾</div></div>
+        <div><div class="lbl">품명</div><div class="cell free wrap">송월,항균코마40수무지40(180g) 1P+종이케이스</div></div>
+        <div><div class="lbl">구분</div><div class="cell sel">지점 ▾</div></div>
+      </div>
+      <div class="l2row">
+        <div><div class="lbl">매입처</div><div class="cell auto ellip">송월타올수건이야기</div></div>
+        <div><div class="lbl">갯수</div><div class="cell free" style="text-align:right">50</div></div>
+        <div><div class="lbl">판매가</div><div class="cell auto" style="text-align:right">6,800</div></div>
+        <div><div class="lbl">배송비</div><div class="cell free" style="text-align:right">5,500</div></div>
+        <div><div class="lbl">할인금액</div><div class="cell free" style="text-align:right">0</div></div>
+        <div><div class="lbl">합계금액</div><div class="cell auto" style="text-align:right"><b>345,500</b></div></div>
+        <div><div class="lbl">매입가</div><div class="cell auto" style="text-align:right">5,082</div></div>
+        <div><div class="lbl">메모</div><div class="cell free"></div></div>
+      </div>
+      <div style="font-size:10.5px; color:#94a3b8; margin-top:6px">옵션 추가 (송월타올수건이야기) <span class="chip">+ 송월 쇼핑백 (500)</span><span class="chip">+ 종이케이스</span></div>
+    </div>
+  </div>
+
+  <!-- 3안 -->
+  <h2>3안 — 폭 재분배 + 말줄임·툴팁 (최소 변경)</h2>
+  <p class="note">
+    구조 그대로, 숫자 칸 폭을 줄여 품명에 몰아주고 잘리면 "…" 표시 + 마우스 올리면 전체 툴팁.
+    보통 품명은 해결되지만 <b>아주 긴 품명은 여전히 잘리고</b>, 마우스를 올려야만 확인 가능(입력 흐름 끊김).
+  </p>
+  <div class="panel">
+    <table style="min-width:1040px">
+      <tr><th style="width:130px">품번 · 품명 검색</th><th style="min-width:280px">품명</th><th>구분</th><th>매입처</th><th class="r">판매가</th><th class="r">갯수</th><th class="r">배송비</th><th class="r">할인</th><th class="r">합계금액</th><th class="r">매입가</th><th class="r">매입배송비</th><th>메모</th><th></th></tr>
+      <tr>
+        <td><div class="cell sel">111-238927</div></td>
+        <td><div class="cell free ellip" title="LG생활건강 벨먼 센티드 모먼트 바디케어 세트 (바디워시 415ml, 로션 415ml) <케이스, 쇼핑백 포함> 111-238927">LG생활건강 벨먼 센티드 모먼트 바디케어 세트 (바디워시 415…</div><div class="warn">여전히 잘림 — 마우스 올려야 전체 확인</div></td>
+        <td><div class="cell sel">지점 ▾</div></td>
+        <td><div class="cell auto ellip" title="유비코리아">유비코리아</div></td>
+        <td class="r"><div class="cell auto">13,500</div></td>
+        <td class="r"><div class="cell free">40</div></td>
+        <td class="r"><div class="cell free">11,500</div></td>
+        <td class="r"><div class="cell free">0</div></td>
+        <td class="r"><div class="cell auto"><b>551,500</b></div></td>
+        <td class="r"><div class="cell auto">9,800</div></td>
+        <td class="r"><div class="cell free">0</div></td>
+        <td><div class="cell free" style="width:70px"></div></td>
+        <td style="color:#c22525">✕</td>
+      </tr>
+      <tr>
+        <td><div class="cell sel">25-25-14-01</div></td>
+        <td><div class="cell free ellip">송월,항균코마40수무지40(180g) 1P+종이케이스</div><div class="ok">이 정도 길이는 해결됨</div></td>
+        <td><div class="cell sel">지점 ▾</div></td>
+        <td><div class="cell auto ellip">송월타올수건이야기</div></td>
+        <td class="r"><div class="cell auto">6,800</div></td>
+        <td class="r"><div class="cell free">50</div></td>
+        <td class="r"><div class="cell free">5,500</div></td>
+        <td class="r"><div class="cell free">0</div></td>
+        <td class="r"><div class="cell auto"><b>345,500</b></div></td>
+        <td class="r"><div class="cell auto">5,082</div></td>
+        <td class="r"><div class="cell free">0</div></td>
+        <td><div class="cell free" style="width:70px"></div></td>
+        <td style="color:#c22525">✕</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="cmp">
+    <h3>비교 요약</h3>
+    <table>
+      <tr><th style="width:12%"></th><th style="width:30%">품명 전체 표시</th><th style="width:29%">기존 입력 익숙함</th><th>비고</th></tr>
+      <tr><td><b>2안 (추천)</b></td><td>항상 전체 표시 (칸 안 줄바꿈)</td><td>유지 — 컬럼 구조·순서 동일, 행 높이만 가변</td><td>변경 최소. 옵션 구분이 품명 끝에 있는 실데이터 특성에 맞음</td></tr>
+      <tr><td><b>1안</b></td><td>항상 전체 표시 (폭 가장 넓음)</td><td>낮음 — 배치를 새로 익혀야 함</td><td>가로 스크롤 제거가 꼭 필요할 때의 선택지</td></tr>
+      <tr><td><b>3안</b></td><td>보통 품명만. 긴 품명은 잘림+툴팁</td><td>유지</td><td>근본 해결 아님</td></tr>
+    </table>
+  </div>
+</div>
+</body>
+</html>
