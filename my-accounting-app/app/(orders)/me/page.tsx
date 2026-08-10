@@ -85,7 +85,7 @@ export default function MyDashboardPage() {
   return (
     <div>
       <div className="flex items-baseline gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-900">내 대시보드</h1>
+        <h1 className="text-xl font-bold text-gray-900">대시보드</h1>
         <span className="text-sm text-gray-500">{data.me.name ?? ''} · {data.month}</span>
       </div>
 
@@ -224,7 +224,7 @@ export default function MyDashboardPage() {
           </table>
         ) : (
           <p className="mt-3 text-sm text-gray-400">
-            아직 영업일지가 없습니다. <Link href="/me/journal" className="underline">내 영업일지</Link>에서 작성할 수 있습니다.
+            아직 영업일지가 없습니다. <Link href="/me/journal" className="underline">영업일지</Link>에서 작성할 수 있습니다.
           </p>
         )}
       </div>
