@@ -7,10 +7,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 // 조회는 전 직원, 등록·수정·엑셀 업로드는 manager/admin (API에서 차단).
 
 interface Product {
-  id: string; item_code: string | null; item_name: string
-  purchase_vendor_name: string | null
+  id: string; item_code: string | null; item_name: string; option_name: string | null
+  purchase_vendor_name: string | null; category: string | null
   sale_price: number; individual_sale_price: number; purchase_price: number
-  carton_unit: number | null; carton_shipping_fee: number
+  carton_unit: number | null; carton_shipping_fee: number; loose_shipping_fee: number
   is_active: boolean; memo: string | null; updated_at: string
 }
 
@@ -21,9 +21,9 @@ const toInt = (s: string) => {
 }
 
 const emptyDraft = {
-  item_code: '', item_name: '', purchase_vendor_name: '',
+  item_code: '', item_name: '', purchase_vendor_name: '', category: '',
   sale_price: 0, individual_sale_price: 0, purchase_price: 0,
-  carton_unit: 0, carton_shipping_fee: 0, memo: '',
+  carton_unit: 0, carton_shipping_fee: 0, loose_shipping_fee: 0, memo: '',
 }
 
 export default function ProductsPage() {
@@ -54,7 +54,7 @@ export default function ProductsPage() {
       if (filter === 'active' && !p.is_active) return false
       if (filter === 'inactive' && p.is_active) return false
       if (!q) return true
-      return [p.item_code, p.item_name, p.purchase_vendor_name].some(v => (v ?? '').toLowerCase().includes(q))
+      return [p.item_code, p.item_name, p.purchase_vendor_name, p.category].some(v => (v ?? '').toLowerCase().includes(q))
     })
   }, [products, search, filter])
 
@@ -89,10 +89,11 @@ export default function ProductsPage() {
     setEditingId(p.id)
     setDraft({
       item_code: p.item_code ?? '', item_name: p.item_name,
-      purchase_vendor_name: p.purchase_vendor_name ?? '',
+      purchase_vendor_name: p.purchase_vendor_name ?? '', category: p.category ?? '',
       sale_price: p.sale_price, individual_sale_price: p.individual_sale_price ?? 0,
       purchase_price: p.purchase_price,
       carton_unit: p.carton_unit ?? 0, carton_shipping_fee: p.carton_shipping_fee ?? 0,
+      loose_shipping_fee: p.loose_shipping_fee ?? 0,
       memo: p.memo ?? '',
     })
   }
@@ -197,9 +198,20 @@ export default function ProductsPage() {
               className={`${inputCls} w-20 text-right tabular-nums`} placeholder="개/카톤" title="1카톤에 들어가는 수량 — 비우면 배송비 자동 계산 안 함" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">카톤배송비</label>
+            <label className="block text-[11px] text-gray-500 mb-0.5">카톤택배비</label>
             <input value={draft.carton_shipping_fee ? won(draft.carton_shipping_fee) : ''} onChange={e => setDraft(d => ({ ...d, carton_shipping_fee: toInt(e.target.value) }))}
-              className={`${inputCls} w-24 text-right tabular-nums`} placeholder="0" title="카톤당 배송비 — 주문 시 ceil(갯수/카톤단위)×이 값" />
+              className={`${inputCls} w-24 text-right tabular-nums`} placeholder="0" title="카톤당 택배비" />
+          </div>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-0.5">카톤외택배비</label>
+            <input value={draft.loose_shipping_fee ? won(draft.loose_shipping_fee) : ''} onChange={e => setDraft(d => ({ ...d, loose_shipping_fee: toInt(e.target.value) }))}
+              className={`${inputCls} w-24 text-right tabular-nums`} placeholder="0"
+              title="낱개 1건 택배비 — 지점 배송 나머지 낱개분·개별 배송 파생가 계산에 사용" />
+          </div>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-0.5">분류</label>
+            <input value={draft.category} onChange={e => setDraft(d => ({ ...d, category: e.target.value }))}
+              className={`${inputCls} w-24`} placeholder="타올 등" />
           </div>
           <div>
             <label className="block text-[11px] text-gray-500 mb-0.5">메모</label>
@@ -221,13 +233,15 @@ export default function ProductsPage() {
               <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
                 <th className="py-2 px-3 text-left font-medium">품번</th>
                 <th className="py-2 px-3 text-left font-medium">품명</th>
+                <th className="py-2 px-3 text-left font-medium">분류</th>
                 <th className="py-2 px-3 text-left font-medium">매입처</th>
                 <th className="py-2 px-3 text-right font-medium">지점판매가</th>
                 <th className="py-2 px-3 text-right font-medium">개별판매가</th>
                 <th className="py-2 px-3 text-right font-medium">매입가</th>
                 <th className="py-2 px-3 text-right font-medium">마진(지점)</th>
                 <th className="py-2 px-3 text-right font-medium">카톤단위</th>
-                <th className="py-2 px-3 text-right font-medium">카톤배송비</th>
+                <th className="py-2 px-3 text-right font-medium">카톤택배비</th>
+                <th className="py-2 px-3 text-right font-medium">카톤외택배비</th>
                 <th className="py-2 px-3 text-left font-medium">메모</th>
                 <th className="py-2 px-3 text-left font-medium">상태</th>
                 <th className="py-2 px-3" />
@@ -236,15 +250,17 @@ export default function ProductsPage() {
             <tbody>
               {filtered.map(p => (
                 <tr key={p.id} className={`border-b border-gray-50 ${p.is_active ? '' : 'text-gray-400'}`}>
-                  <td className="py-1.5 px-3 text-xs tabular-nums">{p.item_code ?? '-'}</td>
+                  <td className="py-1.5 px-3 text-xs tabular-nums whitespace-nowrap">{p.item_code ?? '-'}</td>
                   <td className="py-1.5 px-3 font-medium">{p.item_name}</td>
-                  <td className="py-1.5 px-3">{p.purchase_vendor_name ?? '-'}</td>
+                  <td className="py-1.5 px-3 text-xs whitespace-nowrap">{p.category ?? '-'}</td>
+                  <td className="py-1.5 px-3 whitespace-nowrap">{p.purchase_vendor_name ?? '-'}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{won(p.sale_price)}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{p.individual_sale_price ? won(p.individual_sale_price) : '-'}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{won(p.purchase_price)}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums text-emerald-700">{won(p.sale_price - p.purchase_price)}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{p.carton_unit ?? '-'}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{p.carton_unit ? won(p.carton_shipping_fee) : '-'}</td>
+                  <td className="py-1.5 px-3 text-right tabular-nums">{p.loose_shipping_fee ? won(p.loose_shipping_fee) : '-'}</td>
                   <td className="py-1.5 px-3 text-xs">{p.memo ?? '-'}</td>
                   <td className="py-1.5 px-3">
                     <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${p.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -261,7 +277,7 @@ export default function ProductsPage() {
                 </tr>
               ))}
               {!filtered.length && (
-                <tr><td colSpan={12} className="text-center py-12 text-gray-400 text-sm">
+                <tr><td colSpan={14} className="text-center py-12 text-gray-400 text-sm">
                   품목이 없습니다. 상품 엑셀 업로드 또는 개별 등록으로 시작하세요.
                 </td></tr>
               )}
@@ -270,9 +286,9 @@ export default function ProductsPage() {
         )}
       </div>
       <p className="text-xs text-gray-400 mt-2">
-        엑셀 컬럼: 품번(선택) · 품명(필수) · 매입처 · 지점판매가(또는 판매가) · 개별판매가 · 매입가 · 카톤단위 · 카톤배송비 —
-        품번이 있으면 품번 기준으로 갱신됩니다. 주문 입력의 구분에 따라 지점=지점판매가+카톤 배송비 자동 /
-        개별=개별판매가(배송비 포함, 배송비 0)가 적용됩니다.
+        회사 원가표 엑셀을 그대로 업로드하면 됩니다 (원가표 시트의 품번 · 상품명(원가표 등록용) · 옵션명 · 매입처 ·
+        지점배송매입가 · 지점/개별배송판매가 · 목차 · 카톤단위 · 택배비(카톤단위/카톤외)를 인식, 카탈로그 제작용 컬럼은 무시).
+        품번 기준으로 갱신되며, 주문 입력에서 지점=지점판매가+카톤 공식 배송비 / 개별=개별판매가(배송비 포함)가 자동 적용됩니다.
       </p>
     </div>
   )

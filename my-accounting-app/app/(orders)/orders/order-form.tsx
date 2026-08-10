@@ -12,10 +12,11 @@ interface Vendor { id: string; name: string; type: string | null }
 interface Employee { id: string; name: string; position: string | null; team: string | null }
 interface ContactOpt { contact_id: string; name: string; phone: string | null; title: string | null; is_representative: boolean }
 interface Product {
-  id: string; item_code: string | null; item_name: string
-  purchase_vendor_name: string | null
+  id: string; item_code: string | null; item_name: string; option_name: string | null
+  purchase_vendor_name: string | null; category: string | null
   sale_price: number; individual_sale_price: number; purchase_price: number
-  carton_unit: number | null; carton_shipping_fee: number; is_active: boolean
+  carton_unit: number | null; carton_shipping_fee: number; loose_shipping_fee: number
+  is_active: boolean
 }
 
 export interface ItemDraft {
@@ -34,20 +35,25 @@ export interface ItemDraft {
   // 구분별 가격·카톤 배송비 자동 적용용 (품목 마스터에서 복사 — 서버 전송 안 함)
   branch_sale_price: number       // 지점판매가
   individual_sale_price: number   // 개별판매가 (배송비 포함, 0=미지정)
+  branch_purchase_price: number   // 지점매입가
   carton_unit: number
-  carton_shipping_fee: number
+  carton_shipping_fee: number     // 카톤당 택배비
+  loose_shipping_fee: number      // 카톤외(낱개 1건) 택배비
 }
 
 const emptyItem = (): ItemDraft => ({
   product_id: null, item_code: '', item_name: '', order_kind: '지점',
   purchase_vendor_name: '', sale_price: 0, quantity: 1, shipping_fee: 0,
   discount_amount: 0, purchase_price: 0, purchase_shipping: 0, memo: '',
-  branch_sale_price: 0, individual_sale_price: 0, carton_unit: 0, carton_shipping_fee: 0,
+  branch_sale_price: 0, individual_sale_price: 0, branch_purchase_price: 0,
+  carton_unit: 0, carton_shipping_fee: 0, loose_shipping_fee: 0,
 })
 
-// 배송비 자동: ceil(갯수/카톤단위) × 카톤배송비 (카톤단위 없으면 계산 안 함)
-const cartonShipping = (unit: number, fee: number, qty: number) =>
-  unit > 0 && qty > 0 ? Math.ceil(qty / unit) * fee : 0
+// 지점 배송비 공식(사용자 확정): 꽉 찬 카톤 수 × 카톤택배비 + (나머지 낱개 있으면 카톤외택배비 1건)
+const cartonShipping = (unit: number, cartonFee: number, looseFee: number, qty: number) => {
+  if (unit <= 0 || qty <= 0) return 0
+  return Math.floor(qty / unit) * cartonFee + (qty % unit > 0 ? looseFee : 0)
+}
 
 const won = (n: number) => n.toLocaleString('ko-KR')
 const toInt = (s: string) => {
@@ -200,8 +206,10 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
               memo: (it.memo as string) ?? '',
               branch_sale_price: prod?.sale_price ?? 0,
               individual_sale_price: prod?.individual_sale_price ?? 0,
+              branch_purchase_price: prod?.purchase_price ?? 0,
               carton_unit: prod?.carton_unit ?? 0,
               carton_shipping_fee: prod?.carton_shipping_fee ?? 0,
+              loose_shipping_fee: prod?.loose_shipping_fee ?? 0,
             }
           }))
         }
@@ -247,22 +255,30 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
   const setItem = (i: number, patch: Partial<ItemDraft>) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, ...patch } : it))
 
-  // 구분별 가격·배송비 규칙 (원가표 관행: 지점판매가/개별판매가 분리)
-  //  지점: 지점판매가 + 카톤 기준 배송비 자동 (한 곳 묶음 배송)
-  //  개별: 개별판매가(배송비 포함, 미지정이면 지점판매가), 배송비 0
+  // 구분별 가격·배송비 규칙 (원가표 확정 구조)
+  //  지점: 지점판매가·지점매입가 + 배송비 = 꽉 찬 카톤×카톤택배비 + (낱개 있으면 카톤외택배비)
+  //  개별: 판매가 = 개별판매가(배송비 포함, 미지정이면 지점판매가+카톤외택배비),
+  //        매입가 = 지점매입가 + 카톤외택배비 (원가표의 '개별매입가' 파생 개념), 배송비 0
   //  샘플: 자동 적용 없음 — 직접 입력
-  const priceRule = (it: Pick<ItemDraft, 'order_kind' | 'branch_sale_price' | 'individual_sale_price' | 'carton_unit' | 'carton_shipping_fee'>, qty: number) => {
+  const priceRule = (
+    it: Pick<ItemDraft, 'order_kind' | 'branch_sale_price' | 'individual_sale_price' | 'branch_purchase_price' | 'carton_unit' | 'carton_shipping_fee' | 'loose_shipping_fee'>,
+    qty: number,
+  ) => {
     if (it.order_kind === '개별') {
       return {
-        sale_price: it.individual_sale_price > 0 ? it.individual_sale_price : it.branch_sale_price,
+        sale_price: it.individual_sale_price > 0
+          ? it.individual_sale_price
+          : it.branch_sale_price + it.loose_shipping_fee,
+        purchase_price: it.branch_purchase_price + it.loose_shipping_fee,
         shipping_fee: 0,
       }
     }
     if (it.order_kind === '지점') {
       return {
         sale_price: it.branch_sale_price,
+        purchase_price: it.branch_purchase_price,
         ...(it.carton_unit > 0
-          ? { shipping_fee: cartonShipping(it.carton_unit, it.carton_shipping_fee, qty) }
+          ? { shipping_fee: cartonShipping(it.carton_unit, it.carton_shipping_fee, it.loose_shipping_fee, qty) }
           : {}),
       }
     }
@@ -278,8 +294,10 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
       order_kind: cur?.order_kind ?? '지점',
       branch_sale_price: p.sale_price,
       individual_sale_price: p.individual_sale_price ?? 0,
+      branch_purchase_price: p.purchase_price,
       carton_unit: p.carton_unit ?? 0,
       carton_shipping_fee: p.carton_shipping_fee ?? 0,
+      loose_shipping_fee: p.loose_shipping_fee ?? 0,
     }
     setItem(i, {
       product_id: p.id,
@@ -293,7 +311,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
     })
   }
 
-  // 구분 변경 시 마스터 기준으로 판매가·배송비 재적용 (칸은 수정 가능 — 추천값)
+  // 구분 변경 시 마스터 기준으로 판매가·매입가·배송비 재적용 (칸은 수정 가능 — 추천값)
   const setKind = (i: number, kind: string) => {
     const it = items[i]
     if (!it) return
@@ -307,7 +325,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
     setItem(i, {
       quantity: qty,
       ...(it && it.order_kind === '지점' && it.carton_unit > 0
-        ? { shipping_fee: cartonShipping(it.carton_unit, it.carton_shipping_fee, qty) }
+        ? { shipping_fee: cartonShipping(it.carton_unit, it.carton_shipping_fee, it.loose_shipping_fee, qty) }
         : {}),
     })
   }
@@ -549,7 +567,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
                     options={products.map(p => ({
                       id: p.id,
                       label: [p.item_code, p.item_name].filter(Boolean).join(' · '),
-                      sub: p.purchase_vendor_name ?? '',
+                      sub: [p.category, p.purchase_vendor_name].filter(Boolean).join(' · '),
                     }))}
                     onSelect={id => pickProduct(i, id)}
                     placeholder="품번·품명 검색"
@@ -584,7 +602,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
                   <input value={it.shipping_fee ? won(it.shipping_fee) : ''} onChange={e => setItem(i, { shipping_fee: toInt(e.target.value) })}
                     className={numCell} placeholder="0"
                     title={it.carton_unit > 0
-                      ? `카톤단위 ${it.carton_unit} × 카톤배송비 ${won(it.carton_shipping_fee)} 기준 자동 계산 — 수정 가능`
+                      ? `자동: 꽉 찬 카톤 × ${won(it.carton_shipping_fee)} + 낱개 있으면 카톤외 ${won(it.loose_shipping_fee)} (카톤단위 ${it.carton_unit}) — 수정 가능`
                       : undefined} />
                 </td>
                 <td className="py-1 px-1.5 text-right">
