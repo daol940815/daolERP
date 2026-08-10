@@ -37,11 +37,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ contacts })
   }
 
-  const [vendorsResult, employeesResult] = await Promise.all([
-    fetchAllRows<{ id: string; name: string; type: string | null }>((from, to) =>
-      admin.from('vendors').select('id, name, type')
+  // 505 미적용 폴백: group_id 없이 재시도
+  let vendorsResult = await fetchAllRows<{ id: string; name: string; type: string | null; group_id?: string | null }>(
+    (from, to) => admin.from('vendors').select('id, name, type, group_id')
+      .eq('is_active', true).order('name').range(from, to),
+  )
+  if ('error' in vendorsResult) {
+    vendorsResult = await fetchAllRows<{ id: string; name: string; type: string | null }>(
+      (from, to) => admin.from('vendors').select('id, name, type')
         .eq('is_active', true).order('name').range(from, to),
-    ),
+    )
+  }
+  const [groupsResult, employeesResult] = await Promise.all([
+    admin.from('vendor_groups').select('id, name').eq('is_active', true).order('name'),
     admin.from('employees').select('id, name, position, team')
       .eq('is_active', true).order('name'),
   ])
@@ -50,6 +58,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     vendors: vendorsResult.data,
+    groups: groupsResult.error ? [] : (groupsResult.data ?? []),   // 505 미적용 시 빈 배열
     employees: employeesResult.data ?? [],
     me: { employee_id: me.employeeId, name: me.employeeName, role: me.role },
   })
