@@ -44,13 +44,13 @@ const daysAgo = (n: number) => {
   d.setDate(d.getDate() - n)
   return d.toLocaleDateString('sv-SE')
 }
+// 기간 프리셋 — 클릭 시 좌측 날짜 칸에 채워진다 (날짜를 직접 고치면 프리셋 해제)
 const PERIODS = [
-  { key: 'today', label: '오늘' },
-  { key: '7d', label: '7일' },
-  { key: '1m', label: '1개월' },
-  { key: '3m', label: '3개월' },
-  { key: '6m', label: '6개월' },
-  { key: 'custom', label: '직접 지정' },
+  { key: 'today', label: '오늘', days: 0 },
+  { key: '7d', label: '7일', days: 7 },
+  { key: '1m', label: '1개월', days: 30 },
+  { key: '3m', label: '3개월', days: 91 },
+  { key: '6m', label: '6개월', days: 182 },
 ] as const
 type PeriodKey = typeof PERIODS[number]['key']
 
@@ -87,12 +87,12 @@ export default function OrdersHomePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // 필터
+  // 필터 — 기간은 날짜 칸(from/to)이 단일 기준, 프리셋 칩은 채우기 도우미
   const [qInput, setQInput] = useState('')
   const [q, setQ] = useState('')
-  const [period, setPeriod] = useState<PeriodKey>('1m')
-  const [customFrom, setCustomFrom] = useState(daysAgo(30))
-  const [customTo, setCustomTo] = useState(kstToday())
+  const [preset, setPreset] = useState<PeriodKey | null>('1m')
+  const [from, setFrom] = useState(daysAgo(30))
+  const [to, setTo] = useState(kstToday())
   const [collect, setCollect] = useState('all')
   const [source, setSource] = useState('all')
   const [prepay, setPrepay] = useState(false)
@@ -105,24 +105,19 @@ export default function OrdersHomePage() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [itemsCache, setItemsCache] = useState<Record<string, Item[]>>({})
 
-  const range = useCallback((): { from?: string; to?: string } => {
-    switch (period) {
-      case 'today': return { from: kstToday() }
-      case '7d': return { from: daysAgo(7) }
-      case '1m': return { from: daysAgo(30) }
-      case '3m': return { from: daysAgo(91) }
-      case '6m': return { from: daysAgo(182) }
-      case 'custom': return { from: customFrom || undefined, to: customTo || undefined }
-    }
-  }, [period, customFrom, customTo])
+  const applyPreset = (key: PeriodKey) => {
+    const def = PERIODS.find(p => p.key === key)!
+    setPreset(key)
+    setFrom(daysAgo(def.days))
+    setTo(kstToday())
+  }
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     const p = new URLSearchParams()
     if (q) p.set('q', q)
-    const r = range()
-    if (r.from) p.set('from', r.from)
-    if (r.to) p.set('to', r.to)
+    if (from) p.set('from', from)
+    if (to) p.set('to', to)
     if (collect !== 'all') p.set('collect', collect)
     if (source !== 'all') p.set('source', source)
     if (prepay) p.set('prepay', '1')
@@ -138,11 +133,11 @@ export default function OrdersHomePage() {
       setExpanded(null)
     }
     setLoading(false)
-  }, [q, range, collect, source, prepay, invoice, mine, page])
+  }, [q, from, to, collect, source, prepay, invoice, mine, page])
   useEffect(() => { load() }, [load])
 
   // 필터 변경 시 1페이지로
-  useEffect(() => { setPage(1) }, [q, period, customFrom, customTo, collect, source, prepay, invoice, mine])
+  useEffect(() => { setPage(1) }, [q, from, to, collect, source, prepay, invoice, mine])
 
   const toggleExpand = async (id: string) => {
     if (expanded === id) { setExpanded(null); return }
@@ -189,9 +184,23 @@ export default function OrdersHomePage() {
         </button>
       </div>
 
-      {/* 필터 바 */}
+      {/* 필터 바 — 1줄: 기간(날짜 직접설정 좌측 + 프리셋) / 2줄: 통합 검색 / 3줄: 상태 칩 */}
       <div className="bg-white border border-gray-200 rounded-xl p-3 mt-3">
         <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] text-gray-400">주문일</span>
+          <input type="date" value={from}
+            onChange={e => { setFrom(e.target.value); setPreset(null) }}
+            className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm tabular-nums" />
+          <span className="text-xs text-gray-400">~</span>
+          <input type="date" value={to}
+            onChange={e => { setTo(e.target.value); setPreset(null) }}
+            className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm tabular-nums" />
+          <span className="w-1.5" />
+          {PERIODS.map(p => (
+            <button key={p.key} onClick={() => applyPreset(p.key)} className={chip(preset === p.key)}>{p.label}</button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap mt-2">
           <input value={qInput} onChange={e => setQInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') setQ(qInput.trim()) }}
             placeholder="통합 검색 — 여러 조건은 띄어쓰기로 (예: 담당자-홍창의 업체-하나은행 품목-요아럽) Enter"
@@ -199,18 +208,6 @@ export default function OrdersHomePage() {
           {q && (
             <button onClick={() => { setQ(''); setQInput('') }}
               className="text-xs text-gray-400 hover:text-gray-600">검색 해제 ✕</button>
-          )}
-          {PERIODS.map(p => (
-            <button key={p.key} onClick={() => setPeriod(p.key)} className={chip(period === p.key)}>{p.label}</button>
-          ))}
-          {period === 'custom' && (
-            <span className="flex items-center gap-1">
-              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
-                className="border border-gray-300 rounded-lg px-2 py-1 text-xs" />
-              <span className="text-xs text-gray-400">~</span>
-              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
-                className="border border-gray-300 rounded-lg px-2 py-1 text-xs" />
-            </span>
           )}
         </div>
         {q && (
@@ -251,7 +248,8 @@ export default function OrdersHomePage() {
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
                 <th className="py-2 px-3 text-left font-medium">주문일 / 번호</th>
-                <th className="py-2 px-3 text-left font-medium">주문처</th>
+                <th className="py-2 px-3 text-left font-medium">업체(은행)</th>
+                <th className="py-2 px-3 text-left font-medium">부서(지점)</th>
                 <th className="py-2 px-3 text-left font-medium">담당자 (주문처)</th>
                 <th className="py-2 px-3 text-left font-medium">직원 / 상담자</th>
                 <th className="py-2 px-3 text-right font-medium">총금액</th>
@@ -273,9 +271,9 @@ export default function OrdersHomePage() {
                         <div className="tabular-nums text-xs font-semibold">{r.order_date}</div>
                         <div className="tabular-nums text-[11px] text-gray-400">{r.order_no ?? '-'}</div>
                       </td>
+                      <td className="py-2 px-3 font-semibold">{r.bank_name ?? '(주문처 미상)'}</td>
                       <td className="py-2 px-3">
-                        <span className="font-semibold">{r.bank_name ?? '(주문처 미상)'}</span>
-                        {r.branch_name && <span className="text-gray-400 ml-1">{r.branch_name}</span>}
+                        {r.branch_name ?? <span className="text-gray-300">-</span>}
                         {r.is_prepay && (
                           <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-600">선결제</span>
                         )}
@@ -313,7 +311,7 @@ export default function OrdersHomePage() {
                     </tr>
                     {expanded === r.id && (
                       <tr className="border-b border-gray-100">
-                        <td colSpan={9} className="bg-blue-50/30 px-6 py-2.5">
+                        <td colSpan={10} className="bg-blue-50/30 px-6 py-2.5">
                           {!items ? <div className="text-xs text-gray-400 py-1">불러오는 중...</div> : (
                             <div className="space-y-0.5">
                               {items.map(it => (
@@ -346,7 +344,7 @@ export default function OrdersHomePage() {
                 )
               })}
               {!rows.length && (
-                <tr><td colSpan={9} className="text-center py-12 text-gray-400 text-sm">조건에 맞는 주문이 없습니다.</td></tr>
+                <tr><td colSpan={10} className="text-center py-12 text-gray-400 text-sm">조건에 맞는 주문이 없습니다.</td></tr>
               )}
             </tbody>
           </table>
