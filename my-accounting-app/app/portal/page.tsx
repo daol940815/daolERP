@@ -24,7 +24,7 @@ export default async function PortalPage() {
           className="block bg-white rounded-2xl p-7 w-64 hover:-translate-y-0.5 hover:shadow-xl transition-all">
           <div className="text-base font-bold text-slate-900">직원 워크스페이스</div>
           <div className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-            내 대시보드 · 주문 현황<br />근태 · 휴가 · 내 영업일지
+            대시보드 · 주문 현황<br />근태 · 휴가 · 영업일지
           </div>
           <div className="mt-4 inline-block px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-semibold">
             들어가기

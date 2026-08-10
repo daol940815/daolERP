@@ -47,10 +47,10 @@ export default function OrdersSidebar({ name, roleLabel, role }: {
             내 업무
           </p>
           <Link href="/me" className={linkCls(pathname === '/me')}>
-            <span>내 대시보드</span>
+            <span>대시보드</span>
           </Link>
           <Link href="/me/journal" className={linkCls(pathname === '/me/journal')}>
-            <span>내 영업일지</span>
+            <span>영업일지</span>
           </Link>
         </div>
 
