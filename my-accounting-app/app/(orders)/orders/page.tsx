@@ -65,6 +65,20 @@ const chip = (on: boolean) =>
     on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-gray-300 text-gray-500 hover:border-gray-400'
   }`
 
+// 다중 조건 파싱 미리보기 (서버 파서와 동일 규칙 — 필드 지정어 화이트리스트)
+const FIELD_LABEL: Record<string, string> = {
+  '업체': '업체', '은행': '업체', '지점': '지점', '부서': '지점', '주문처': '주문처',
+  '담당자': '담당자', '직원': '다올직원', '다올직원': '다올직원', '상담자': '상담자',
+  '상품': '품목', '품목': '품목', '품명': '품목', '품번': '품번', '매입처': '매입처',
+  '주문번호': '주문번호', '번호': '주문번호',
+}
+const parseTokens = (q: string) =>
+  q.split(/[\s,]+/).filter(Boolean).map(raw => {
+    const m = raw.match(/^(.+?)[-:](.+)$/)
+    if (m && FIELD_LABEL[m[1]]) return { label: FIELD_LABEL[m[1]], value: m[2] }
+    return { label: null, value: raw }
+  })
+
 export default function OrdersHomePage() {
   const router = useRouter()
   const [rows, setRows] = useState<Row[]>([])
@@ -180,7 +194,7 @@ export default function OrdersHomePage() {
         <div className="flex items-center gap-2 flex-wrap">
           <input value={qInput} onChange={e => setQInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') setQ(qInput.trim()) }}
-            placeholder="통합 검색 — 주문번호 · 주문처 · 담당자 · 상담자 · 다올직원 · 상품명 · 품번 (Enter)"
+            placeholder="통합 검색 — 여러 조건은 띄어쓰기로 (예: 담당자-홍창의 업체-하나은행 품목-요아럽) Enter"
             className="flex-1 min-w-[280px] border border-gray-300 rounded-lg px-3.5 py-2 text-sm" />
           {q && (
             <button onClick={() => { setQ(''); setQInput('') }}
@@ -199,6 +213,17 @@ export default function OrdersHomePage() {
             </span>
           )}
         </div>
+        {q && (
+          <div className="flex items-center gap-1.5 flex-wrap mt-2 text-[11px] text-gray-400">
+            <span>적용 조건 (모두 만족):</span>
+            {parseTokens(q).map((tk, i) => (
+              <span key={i} className="inline-block px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                {tk.label ? `${tk.label}: ${tk.value}` : tk.value}
+              </span>
+            ))}
+            <span className="text-gray-300">· 필드 지정어: 업체 지점 주문처 담당자 상담자 다올직원 품목 품번 매입처 주문번호</span>
+          </div>
+        )}
         <div className="flex items-center gap-1.5 flex-wrap mt-2">
           <span className="text-[11px] text-gray-400 mr-0.5">수금</span>
           {([['all', '전체'], ['collected', '수금완료'], ['in_progress', '진행중'], ['outstanding', '미수금']] as const).map(([k, l]) => (
