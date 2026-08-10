@@ -5,11 +5,10 @@
 
 ## 2단계 구현 현황 (2026-08-07, 브랜치 claude/daol-erp-order-system-phase2-5kp7rq)
 
-**배포 상태**: main에 병합했다가(f549d63) 사용자 요청으로 revert(6171ac7).
-브랜치의 Vercel 프리뷰 배포로 테스트 중.
-**주의 — 정식 병합 시**: main에 revert 커밋이 있으므로 그냥 merge하면 revert된
-파일들이 조용히 빠진다. 병합 전에 main에서 `git revert 6171ac7`(revert의 revert)
-먼저 실행한 뒤 브랜치를 `--no-ff` 병합할 것.
+**배포 상태**: 2026-08-10 main 정식 병합 완료(5cde9bb — revert의 revert 94db8e9
+포함) → Vercel 운영 배포. 프리뷰 테스트·revert 이력은 해소됨.
+**마이그레이션**: 500~504 실행 필요 (사용자 실행 — 미실행 시 새 화면은 안내
+메시지로 동작).
 
 구현 완료(빌드 통과):
 
