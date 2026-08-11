@@ -182,6 +182,9 @@ export default function PurchaseHubDetailPage() {
             <h1 className="text-xl font-bold text-gray-900">{data.vendor.name}</h1>
             <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${meta.cls}`}>{meta.label}</span>
           </div>
+          {data.vendor.biz_number && (
+            <div className="text-xs text-gray-500 mt-0.5">사업자번호 {data.vendor.biz_number}</div>
+          )}
           <div className="flex gap-1.5 flex-wrap mt-2">
             <Link href={`/erp-aliases?type=purchase&q=${encodeURIComponent(data.vendor.name)}`}
               title="매입처 연결 키워드에서 별칭 관리"
@@ -210,7 +213,6 @@ export default function PurchaseHubDetailPage() {
           )}
         </div>
         <div className="text-right text-xs text-gray-500">
-          {data.vendor.biz_number && <>사업자번호 {data.vendor.biz_number}<br /></>}
           {data.vendor.note && <>최근 메모: &quot;{data.vendor.note.slice(0, 40)}{data.vendor.note.length > 40 ? '…' : ''}&quot;</>}
         </div>
       </div>
@@ -426,7 +428,7 @@ export default function PurchaseHubDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(tab === '개요' ? data.invoices.slice(0, 8) : data.invoices).map(inv => {
+                  {(tab === '개요' ? data.invoices.slice(0, 12) : data.invoices).map(inv => {
                     // 연결 기준: 이 계산서에 매칭된 출금 합(paid_alloc)으로 판정 (잔액 합계의 FIFO와 별개)
                     const linkUnpaid = Math.max(0, inv.total_amount - inv.paid_alloc)
                     const payBadge = inv.total_amount > 0 && linkUnpaid === 0
@@ -449,6 +451,12 @@ export default function PurchaseHubDetailPage() {
                   {!data.invoices.length && <tr><td colSpan={5} className="text-center py-10 text-gray-400 text-sm">수취한 매입 계산서가 없습니다.</td></tr>}
                 </tbody>
               </table>
+              {tab === '개요' && data.invoices.length > 12 && (
+                <button onClick={() => setTab('계산서')}
+                  className="w-full px-4 py-2 text-left text-[11px] text-blue-600 hover:bg-blue-50/40 border-t border-gray-100">
+                  최근 12건만 표시 중 — 외 {data.invoices.length - 12}건은 계산서 탭에서 확인
+                </button>
+              )}
             </div>
             {tab === '개요' && (
               <div className="bg-white border border-gray-200 rounded-xl xl:col-span-2">
