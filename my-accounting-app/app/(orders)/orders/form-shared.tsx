@@ -63,6 +63,17 @@ export const cartonShipping = (unit: number, cartonFee: number, looseFee: number
   return Math.floor(qty / unit) * cartonFee + (qty % unit > 0 ? looseFee : 0)
 }
 
+// 지점(부서) 표시명 — 거래처 전체 이름에서 업체명 접두를 뗀다.
+// "하나은행 경영지원실" + 업체 "하나은행" → "경영지원실". 접두가 없으면 전체 이름 그대로.
+export const branchLabel = (vendorName: string, groupName?: string | null): string => {
+  if (!groupName) return vendorName
+  if (vendorName.startsWith(groupName)) {
+    const rest = vendorName.slice(groupName.length).trim()
+    return rest || vendorName
+  }
+  return vendorName
+}
+
 export const won = (n: number) => n.toLocaleString('ko-KR')
 export const toInt = (s: string) => {
   const n = Number(s.replace(/[^\d-]/g, ''))

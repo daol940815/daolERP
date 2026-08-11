@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Combo, autoGrow, cartonShipping, draftFromProduct, emptyItem, lineTotal,
+  Combo, autoGrow, branchLabel, cartonShipping, draftFromProduct, emptyItem, lineTotal,
   priceRule, toInt, won,
 } from './form-shared'
 import type { ContactOpt, Employee, ItemDraft, Product, Vendor, VendorGroup } from './form-shared'
@@ -407,12 +407,16 @@ export default function OrderForm({ orderId, consultId }: { orderId?: string; co
             <label className={label}>지점(부서) — 주문처 <em className="not-italic text-red-500">*</em></label>
             <Combo
               value={vendorId}
-              display={vendors.find(v => v.id === vendorId)?.name ?? ''}
+              display={(() => {
+                const v = vendors.find(x => x.id === vendorId)
+                if (!v) return ''
+                return branchLabel(v.name, groups.find(g => g.id === v.group_id)?.name)
+              })()}
               options={(groupId ? vendors.filter(v => v.group_id === groupId) : vendors)
-                .map(v => ({
-                  id: v.id, label: v.name,
-                  sub: groups.find(g => g.id === v.group_id)?.name ?? '',
-                }))}
+                .map(v => {
+                  const gName = groups.find(g => g.id === v.group_id)?.name
+                  return { id: v.id, label: branchLabel(v.name, gName), sub: gName ?? '' }
+                })}
               onSelect={id => {
                 setVendorId(id)
                 setGroupId(vendors.find(v => v.id === id)?.group_id ?? null)

@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Combo, ComboFree, autoGrow, cartonShipping, draftFromProduct, emptyItem,
+  Combo, ComboFree, autoGrow, branchLabel, cartonShipping, draftFromProduct, emptyItem,
   lineTotal, priceRule, toInt, won,
 } from '../form-shared'
 import type { ContactOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
@@ -325,18 +325,30 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
           <div className="col-span-2">
             <label className={label}>부서(지점)</label>
             {locked ? <div className={free}>{branchText || '-'}</div> : (
-              <ComboFree text={vendorId ? (vendors.find(v => v.id === vendorId)?.name ?? branchText) : branchText}
+              <ComboFree text={branchText}
                 selectedId={vendorId}
                 options={(groupId ? vendors.filter(v => v.group_id === groupId) : vendors)
-                  .map(v => ({ id: v.id, label: v.name, sub: groups.find(g => g.id === v.group_id)?.name ?? '' }))}
+                  .map(v => {
+                    const gName = groups.find(g => g.id === v.group_id)?.name
+                    return { id: v.id, label: branchLabel(v.name, gName), sub: gName ?? '' }
+                  })}
                 onChange={({ id, text }) => {
-                  setVendorId(id); setBranchText(id ? '' : text)
+                  setVendorId(id)
                   if (id) {
                     const v = vendors.find(x => x.id === id)
-                    if (v?.group_id) {
+                    const gName = v?.group_id ? groups.find(g => g.id === v.group_id)?.name : null
+                    if (v?.group_id && gName) {
+                      // 업체 소속 지점: 업체=그룹명, 부서=접두 뗀 지점명
                       setGroupId(v.group_id)
-                      setBankText(groups.find(g => g.id === v.group_id)?.name ?? bankText)
+                      setBankText(gName)
+                      setBranchText(branchLabel(v.name, gName))
+                    } else if (v) {
+                      // 단일 업체: 업체=거래처명, 부서 비움
+                      setBankText(v.name)
+                      setBranchText('')
                     }
+                  } else {
+                    setBranchText(text)
                   }
                   setContactId(null)
                 }}
