@@ -293,6 +293,9 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           <Link href="/purchase-hub" className={linkCls(pathname.startsWith('/purchase-hub'))}>
             <span>매입처 허브</span>
           </Link>
+          <Link href="/loans" className={linkCls(pathname.startsWith('/loans'))}>
+            <span>대출 관리</span>
+          </Link>
           <Link href="/sales-hub/contacts" className={linkCls(pathname.startsWith('/sales-hub/contacts'))}>
             <span>거래처 담당자</span>
           </Link>
