@@ -211,7 +211,8 @@ export async function POST(req: NextRequest) {
     const qty       = toNumber(row[col.qty])
     const purShip   = toNumber(row[col.purShipping])
     const isCanceled = String(row[col.canceled] ?? '').trim().toLowerCase() === 'cancel'
-    const isVip      = itemName === 'VIP' && salePrice === purPrice
+    // 품명 'VIP'는 판매가·매입가와 무관하게 무조건 매출 집계 제외 (2026-08 결정)
+    const isVip      = itemName === 'VIP'
     const isPrepay   = itemName === '선결제'
 
     g.items.push({
