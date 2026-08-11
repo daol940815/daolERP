@@ -1,139 +1,21 @@
 'use client'
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import {
+  Combo, autoGrow, branchLabel, cartonShipping, draftFromProduct, emptyItem, lineTotal,
+  priceRule, toInt, won,
+} from './form-shared'
+import type { ContactOpt, Employee, ItemDraft, Product, Vendor, VendorGroup } from './form-shared'
 
 // 주문 입력 폼 (신규·수정 공용) — 시안 "입력은 기존을 닮게" 기준
 // 필드 구성·순서는 기존 ERP 업로드 컬럼 순서. 오타의 원천(자유 입력)만
 // 마스터 선택으로 바꾼다: 주문처=vendors, 담당자=contacts, 상담자=employees,
-// 품번=erp_products. 소개자·책임자·메모는 기존대로 자유 입력.
+// 품번=erp_products. 공용 부품(콤보·가격 규칙)은 form-shared.tsx.
+// consultId가 오면 상담일지 내용으로 미리 채워 전환 모드로 동작한다.
 
-interface Vendor { id: string; name: string; type: string | null; group_id?: string | null }
-interface VendorGroup { id: string; name: string }
-interface Employee { id: string; name: string; position: string | null; team: string | null }
-interface ContactOpt { contact_id: string; name: string; phone: string | null; title: string | null; is_representative: boolean }
-interface Product {
-  id: string; item_code: string | null; item_name: string; option_name: string | null
-  purchase_vendor_name: string | null; category: string | null
-  sale_price: number; individual_sale_price: number; purchase_price: number
-  carton_unit: number | null; carton_shipping_fee: number; loose_shipping_fee: number
-  is_addon: boolean; is_active: boolean
-}
-
-export interface ItemDraft {
-  uid: number                     // 행 식별자 (옵션 연결용, 화면 전용)
-  parent_uid: number | null       // 옵션(부가상품) 행이 딸린 본 상품 행의 uid
-  product_id: string | null
-  item_code: string
-  item_name: string
-  order_kind: string
-  purchase_vendor_name: string
-  sale_price: number
-  quantity: number
-  shipping_fee: number
-  discount_amount: number
-  purchase_price: number
-  purchase_shipping: number
-  memo: string
-  // 구분별 가격·카톤 배송비 자동 적용용 (품목 마스터에서 복사 — 서버 전송 안 함)
-  branch_sale_price: number       // 지점판매가
-  individual_sale_price: number   // 개별판매가 (배송비 포함, 0=미지정)
-  branch_purchase_price: number   // 지점매입가
-  carton_unit: number
-  carton_shipping_fee: number     // 카톤당 택배비
-  loose_shipping_fee: number      // 카톤외(낱개 1건) 택배비
-}
-
-const emptyItem = (uid: number): ItemDraft => ({
-  uid, parent_uid: null,
-  product_id: null, item_code: '', item_name: '', order_kind: '지점',
-  purchase_vendor_name: '', sale_price: 0, quantity: 1, shipping_fee: 0,
-  discount_amount: 0, purchase_price: 0, purchase_shipping: 0, memo: '',
-  branch_sale_price: 0, individual_sale_price: 0, branch_purchase_price: 0,
-  carton_unit: 0, carton_shipping_fee: 0, loose_shipping_fee: 0,
-})
-
-// 품명 칸 자동 높이 — 내용 길이에 맞춰 줄바꿈되어 항상 전체가 보인다 (2안)
-const autoGrow = (el: HTMLTextAreaElement | null) => {
-  if (!el) return
-  el.style.height = 'auto'
-  el.style.height = `${el.scrollHeight}px`
-}
-
-// 지점 배송비 공식(사용자 확정): 꽉 찬 카톤 수 × 카톤택배비 + (나머지 낱개 있으면 카톤외택배비 1건)
-const cartonShipping = (unit: number, cartonFee: number, looseFee: number, qty: number) => {
-  if (unit <= 0 || qty <= 0) return 0
-  return Math.floor(qty / unit) * cartonFee + (qty % unit > 0 ? looseFee : 0)
-}
-
-const won = (n: number) => n.toLocaleString('ko-KR')
-const toInt = (s: string) => {
-  const n = Number(s.replace(/[^\d-]/g, ''))
-  return Number.isFinite(n) ? Math.round(n) : 0
-}
-const lineTotal = (it: ItemDraft) => it.sale_price * it.quantity + it.shipping_fee - it.discount_amount
-
-// ── 자동완성 콤보 (마스터 선택 전용 — 목록에 없는 값은 확정 불가) ──
-function Combo({ value, display, options, onSelect, placeholder, required, footer }: {
-  value: string | null
-  display: string
-  options: { id: string; label: string; sub?: string }[]
-  onSelect: (id: string | null) => void
-  placeholder: string
-  required?: boolean
-  footer?: React.ReactNode
-}) {
-  const [open, setOpen] = useState(false)
-  const [text, setText] = useState('')
-  const boxRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (!boxRef.current?.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [])
-
-  const q = text.trim().toLowerCase()
-  const filtered = useMemo(() => {
-    if (!q) return options.slice(0, 50)
-    return options.filter(o =>
-      o.label.toLowerCase().includes(q) || (o.sub ?? '').toLowerCase().includes(q),
-    ).slice(0, 50)
-  }, [options, q])
-
-  return (
-    <div ref={boxRef} className="relative">
-      <input
-        value={open ? text : display}
-        onFocus={() => { setOpen(true); setText('') }}
-        onChange={e => setText(e.target.value)}
-        placeholder={placeholder}
-        className={`w-full border rounded-lg px-2.5 py-1.5 text-sm bg-blue-50/40 ${
-          required && !value ? 'border-red-300' : 'border-blue-200'
-        }`}
-      />
-      {open && (
-        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto text-sm">
-          {filtered.map(o => (
-            <button type="button" key={o.id}
-              onMouseDown={e => e.preventDefault()}
-              onClick={() => { onSelect(o.id); setOpen(false) }}
-              className="w-full text-left px-3 py-1.5 hover:bg-blue-50 border-b border-gray-50">
-              {o.label}
-              {o.sub && <span className="text-xs text-gray-400 ml-1.5">{o.sub}</span>}
-            </button>
-          ))}
-          {!filtered.length && <div className="px-3 py-2 text-xs text-gray-400">일치하는 항목이 없습니다</div>}
-          {footer}
-        </div>
-      )}
-    </div>
-  )
-}
-
-export default function OrderForm({ orderId }: { orderId?: string }) {
+export default function OrderForm({ orderId, consultId }: { orderId?: string; consultId?: string }) {
   const router = useRouter()
   const isEdit = !!orderId
 
@@ -172,6 +54,9 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
   // 신규 담당자 인라인 등록
   const [addingContact, setAddingContact] = useState(false)
   const [newContact, setNewContact] = useState({ name: '', title: '', phone: '' })
+
+  // 상담일지 전환 모드 정보
+  const [consultInfo, setConsultInfo] = useState<{ label: string; needMaster: boolean } | null>(null)
 
   useEffect(() => {
     (async () => {
@@ -236,13 +121,62 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
               loose_shipping_fee: prod?.loose_shipping_fee ?? 0,
             }
           }))
+        } else if (consultId) {
+          // 상담일지 → 주문 전환: 상담 내용으로 미리 채움
+          const cRes = await fetch(`/api/orders-portal/consultations/${consultId}`)
+          const c = await cRes.json()
+          if (!cRes.ok) throw new Error(c.error ?? '상담일지 조회 실패')
+          const consult = c.consult
+          setVendorId(consult.vendor_id)
+          setGroupId(consult.vendor_group_id
+            ?? ((m.vendors ?? []) as Vendor[]).find(v => v.id === consult.vendor_id)?.group_id ?? null)
+          setContactId(consult.contact_id)
+          setCounselorId(consult.employee_id)   // 상담자 = 상담 작성자
+          setPhone(consult.phone ?? '')
+          setContactTel(consult.tel ?? '')
+          setMemo(consult.memo ?? '')
+          const label = [consult.bank_name, consult.branch_name, consult.manager_name].filter(Boolean).join(' ')
+          setConsultInfo({
+            label: `${consult.consult_date} 상담 (${consult.consult_type})${label ? ` — ${label}` : ''}`,
+            needMaster: !consult.vendor_id || !consult.contact_id,
+          })
+          const prodList: Product[] = pRes.ok ? (p.products ?? []) : []
+          const cItems = (c.items ?? []) as Record<string, unknown>[]
+          if (cItems.length) {
+            uidRef.current = cItems.length + 1
+            setItems(cItems.map((it, idx) => {
+              const prod = prodList.find(x => x.id === it.product_id)
+              return {
+                uid: idx + 1,
+                parent_uid: null,
+                product_id: (it.product_id as string) ?? null,
+                item_code: (it.item_code as string) ?? '',
+                item_name: (it.item_name as string) ?? '',
+                order_kind: (it.order_kind as string) ?? '지점',
+                purchase_vendor_name: (it.purchase_vendor_name as string) ?? '',
+                sale_price: (it.sale_price as number) ?? 0,
+                quantity: (it.quantity as number) ?? 1,
+                shipping_fee: (it.shipping_fee as number) ?? 0,
+                discount_amount: (it.discount_amount as number) ?? 0,
+                purchase_price: (it.purchase_price as number) ?? 0,
+                purchase_shipping: (it.purchase_shipping as number) ?? 0,
+                memo: (it.memo as string) ?? '',
+                branch_sale_price: prod?.sale_price ?? 0,
+                individual_sale_price: prod?.individual_sale_price ?? 0,
+                branch_purchase_price: prod?.purchase_price ?? 0,
+                carton_unit: prod?.carton_unit ?? 0,
+                carton_shipping_fee: prod?.carton_shipping_fee ?? 0,
+                loose_shipping_fee: prod?.loose_shipping_fee ?? 0,
+              }
+            }))
+          }
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : '조회 실패')
       }
       setLoading(false)
     })()
-  }, [orderId])
+  }, [orderId, consultId])
 
   // 주문처 선택 → 담당자 목록
   const loadContacts = useCallback(async (vid: string) => {
@@ -279,68 +213,12 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
   const setItem = (i: number, patch: Partial<ItemDraft>) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, ...patch } : it))
 
-  // 구분별 가격·배송비 규칙 (원가표 확정 구조)
-  //  지점: 지점판매가·지점매입가 + 배송비 = 꽉 찬 카톤×카톤택배비 + (낱개 있으면 카톤외택배비)
-  //  개별: 판매가 = 개별판매가(배송비 포함, 미지정이면 지점판매가+카톤외택배비),
-  //        매입가 = 지점매입가 + 카톤외택배비 (원가표의 '개별매입가' 파생 개념), 배송비 0
-  //  샘플: 판매용 견본 무상 발송 — 판매가 0·배송비 0, 매입가는 정상 발생
-  //        (낱개 발송이라 개별 방식: 지점매입가 + 카톤외택배비. 칸은 수정 가능)
-  const priceRule = (
-    it: Pick<ItemDraft, 'order_kind' | 'branch_sale_price' | 'individual_sale_price' | 'branch_purchase_price' | 'carton_unit' | 'carton_shipping_fee' | 'loose_shipping_fee'>,
-    qty: number,
-  ) => {
-    if (it.order_kind === '개별') {
-      return {
-        sale_price: it.individual_sale_price > 0
-          ? it.individual_sale_price
-          : it.branch_sale_price + it.loose_shipping_fee,
-        purchase_price: it.branch_purchase_price + it.loose_shipping_fee,
-        shipping_fee: 0,
-      }
-    }
-    if (it.order_kind === '지점') {
-      return {
-        sale_price: it.branch_sale_price,
-        purchase_price: it.branch_purchase_price,
-        ...(it.carton_unit > 0
-          ? { shipping_fee: cartonShipping(it.carton_unit, it.carton_shipping_fee, it.loose_shipping_fee, qty) }
-          : {}),
-      }
-    }
-    if (it.order_kind === '샘플') {
-      return {
-        sale_price: 0,
-        shipping_fee: 0,
-        purchase_price: it.branch_purchase_price + it.loose_shipping_fee,
-      }
-    }
-    return {}
-  }
-
   const pickProduct = (i: number, pid: string | null) => {
     const p = products.find(x => x.id === pid)
     if (!p) return
     const cur = items[i]
-    const qty = cur?.quantity ?? 1
-    const master = {
-      order_kind: cur?.order_kind ?? '지점',
-      branch_sale_price: p.sale_price,
-      individual_sale_price: p.individual_sale_price ?? 0,
-      branch_purchase_price: p.purchase_price,
-      carton_unit: p.carton_unit ?? 0,
-      carton_shipping_fee: p.carton_shipping_fee ?? 0,
-      loose_shipping_fee: p.loose_shipping_fee ?? 0,
-    }
-    setItem(i, {
-      product_id: p.id,
-      item_code: p.item_code ?? '',
-      item_name: p.item_name,
-      purchase_vendor_name: p.purchase_vendor_name ?? '',
-      sale_price: p.sale_price,
-      purchase_price: p.purchase_price,
-      ...master,
-      ...priceRule(master, qty),
-    })
+    if (!cur) return
+    setItem(i, draftFromProduct(p, cur))
   }
 
   // 구분 변경 시 마스터 기준으로 판매가·매입가·배송비 재적용 (칸은 수정 가능 — 추천값)
@@ -356,28 +234,8 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
     setItems(prev => {
       const parent = prev[parentIdx]
       if (!parent) return prev
-      const master = {
-        order_kind: parent.order_kind,
-        branch_sale_price: p.sale_price,
-        individual_sale_price: p.individual_sale_price ?? 0,
-        branch_purchase_price: p.purchase_price,
-        carton_unit: p.carton_unit ?? 0,
-        carton_shipping_fee: p.carton_shipping_fee ?? 0,
-        loose_shipping_fee: p.loose_shipping_fee ?? 0,
-      }
-      const draft: ItemDraft = {
-        ...emptyItem(nextUid()),
-        parent_uid: parent.uid,
-        product_id: p.id,
-        item_code: p.item_code ?? '',
-        item_name: p.item_name,
-        purchase_vendor_name: p.purchase_vendor_name ?? '',
-        sale_price: p.sale_price,
-        purchase_price: p.purchase_price,
-        quantity: parent.quantity,
-        ...master,
-        ...priceRule(master, parent.quantity),
-      }
+      const base: ItemDraft = { ...emptyItem(nextUid()), parent_uid: parent.uid, order_kind: parent.order_kind, quantity: parent.quantity }
+      const draft: ItemDraft = { ...base, ...draftFromProduct(p, base) }
       // 본 상품 행의 기존 옵션 묶음 뒤에 삽입
       let at = parentIdx + 1
       while (at < prev.length && prev[at].parent_uid === parent.uid) at++
@@ -435,7 +293,8 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
     try {
       if (!isEdit) {
         const res = await fetch('/api/orders-portal/orders', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(consultId ? { ...payload, consultation_id: consultId } : payload),
         })
         const json = await res.json()
         if (!res.ok) throw new Error(json.error ?? '저장 실패')
@@ -503,6 +362,16 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
           입력 당일이 지난 주문입니다 — 저장하면 수정 요청으로 접수되고, 관리자 승인 후 반영됩니다.
         </div>
       )}
+      {consultInfo && (
+        <div className="mt-3 px-4 py-2.5 bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-lg">
+          상담일지에서 전환 중: {consultInfo.label}
+          {consultInfo.needMaster && (
+            <span className="block text-xs mt-0.5 text-blue-600">
+              상담에 자유 입력된 주문처·담당자가 있습니다 — 마스터에서 선택(없으면 등록)해야 저장할 수 있습니다.
+            </span>
+          )}
+        </div>
+      )}
       {error && <div className="mt-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
       {notice && <div className="mt-3 px-4 py-2.5 bg-emerald-50 text-emerald-700 text-sm rounded-lg">{notice}</div>}
 
@@ -538,12 +407,16 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
             <label className={label}>지점(부서) — 주문처 <em className="not-italic text-red-500">*</em></label>
             <Combo
               value={vendorId}
-              display={vendors.find(v => v.id === vendorId)?.name ?? ''}
+              display={(() => {
+                const v = vendors.find(x => x.id === vendorId)
+                if (!v) return ''
+                return branchLabel(v.name, groups.find(g => g.id === v.group_id)?.name)
+              })()}
               options={(groupId ? vendors.filter(v => v.group_id === groupId) : vendors)
-                .map(v => ({
-                  id: v.id, label: v.name,
-                  sub: groups.find(g => g.id === v.group_id)?.name ?? '',
-                }))}
+                .map(v => {
+                  const gName = groups.find(g => g.id === v.group_id)?.name
+                  return { id: v.id, label: branchLabel(v.name, gName), sub: gName ?? '' }
+                })}
               onSelect={id => {
                 setVendorId(id)
                 setGroupId(vendors.find(v => v.id === id)?.group_id ?? null)

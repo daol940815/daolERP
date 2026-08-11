@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 // 기록은 인물(contacts) 기준(105 트랙과 동일 테이블) — 담당자가 거래처를
 // 옮겨도 이력이 인물을 따라간다. 여기서는 본인(employee_id) 기록만 다룬다.
 
-const ACTIVITY_TYPES = ['방문', '전화', '미팅', '식사', '제안', '기타'] as const
+const ACTIVITY_TYPES = ['방문', '전화', '미팅', '식사', '제안', '상담', '기타'] as const
 
 interface Row {
   id: string
