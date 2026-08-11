@@ -146,8 +146,22 @@
 - **업무일지 연동 (사용자 목표)**: 상담일지에 거래처·담당자가 기록되므로
   "00월 00일 A지점 A담당자와 상담" 형태로 업무일지(영업일지)에 자동 기재.
   개인화면 트랙(contact_activities·/me/journal)과 공유 영역 — 병합 시 조율.
-- **다음**: 실물 상담일지 엑셀 수령 대기 → 항목 구성을 실물에 맞춰 시안 제작
-  ("입력은 기존을 닮게").
+- **구현 완료 (2026-08-12, 마이그레이션 506)**: 실물 '주문상담' 시트(3,588행)
+  분석 → 시안(docs/mockups/상담일지_시안.html) 확정 → 구현.
+  - erp_consultations + erp_consultation_items + erp_orders.consultation_id.
+    contact_activities 활동 유형에 '상담' 추가.
+  - 화면: /orders/consultations 목록(상태·구분 칩, 다중 조건 검색, 본인 기본 /
+    manager+ 전체 토글) · 작성/수정 폼(실물 컬럼 순서, 필수는 상담일·구분뿐,
+    업체·지점·담당자 마스터+자유 입력 겸용 ComboFree, 품목은 주문과 동일 가격
+    규칙 — form-shared.tsx 공용화).
+  - 전환: 목록·폼의 전환 버튼 → /orders/new?consult=id 프리필(상담자=작성자,
+    자유 입력분은 마스터 등록 안내 배너) → 저장 시 consultation_id 연결 +
+    상담 상태 '주문전환'(수정 잠금, 추가 전환으로 분할 주문 가능).
+  - 결제정보: AES-256-GCM 앱 레벨 암호화(lib/payment-crypto), 마스킹 표시 +
+    본인 열람. **PAYMENT_ENC_KEY 환경변수 필요 (Vercel Production·Preview) —
+    키 변경 시 기존 암호문 복호화 불가, 변경 금지.**
+  - 영업일지 자동 기재: 담당자가 마스터 인물(contact_id)일 때 '상담' 활동 삽입.
+    실물 시트의 최신품번 컬럼은 제거(사용자 확정), 카탈로그성 컬럼 없음.
 
 ### 구현하며 내린 결정 (사용자 확인 필요 항목 포함)
 

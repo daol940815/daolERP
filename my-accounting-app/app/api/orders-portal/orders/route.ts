@@ -18,9 +18,21 @@ export async function POST(req: NextRequest) {
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   const admin = createAdminClient()
 
-  const parsed = validateOrderInput(await req.json().catch(() => null))
+  const rawBody = await req.json().catch(() => null)
+  const parsed = validateOrderInput(rawBody)
   if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
   const input = parsed.input
+
+  // 상담일지 전환: consultation_id가 오면 소유 확인 후 주문에 연결
+  const consultationId = ((rawBody ?? {}) as Record<string, unknown>).consultation_id as string | undefined
+  if (consultationId) {
+    const { data: consult } = await admin.from('erp_consultations')
+      .select('id, employee_id').eq('id', consultationId).maybeSingle()
+    if (!consult) return NextResponse.json({ error: '연결할 상담일지를 찾을 수 없습니다.' }, { status: 400 })
+    if (me.role === 'sales' && consult.employee_id !== me.employeeId) {
+      return NextResponse.json({ error: '본인 상담일지만 주문으로 전환할 수 있습니다.' }, { status: 403 })
+    }
+  }
 
   const vendorNames = await resolveVendorNames(admin, input.vendor_id)
   if ('error' in vendorNames) return NextResponse.json({ error: vendorNames.error }, { status: 400 })
@@ -51,6 +63,7 @@ export async function POST(req: NextRequest) {
       created_by_employee_id: me.employeeId,
       outstanding_amount: total,
       collect_status: 'outstanding',
+      ...(consultationId ? { consultation_id: consultationId } : {}),
     }).select('id').single()
     if (!error) { orderId = data.id as string; break }
     if (!/duplicate|unique/i.test(error.message)) {
@@ -68,6 +81,11 @@ export async function POST(req: NextRequest) {
   if (itemErr) {
     await admin.from('erp_orders').delete().eq('id', orderId)   // 반쪽 저장 방지
     return NextResponse.json({ error: `품목 저장 실패: ${itemErr}` }, { status: 500 })
+  }
+
+  // 상담일지 상태 갱신 — 주문 전환 완료
+  if (consultationId) {
+    await admin.from('erp_consultations').update({ status: '주문전환' }).eq('id', consultationId)
   }
 
   return NextResponse.json({ id: orderId, order_no: orderNo, total_amount: total })

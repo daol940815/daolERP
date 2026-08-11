@@ -10,6 +10,7 @@ import CheckWidget from './check-widget'
 
 const MENUS = [
   { href: '/orders', label: '주문 현황', ready: true },
+  { href: '/orders/consultations', label: '상담일지', ready: true },
   { href: '/orders/new', label: '신규 주문', ready: true },
   { href: '/orders/products', label: '품목 마스터', ready: true },
   { href: '/orders/purchase', label: '발주서', ready: false },
