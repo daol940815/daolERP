@@ -283,7 +283,8 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
   //  지점: 지점판매가·지점매입가 + 배송비 = 꽉 찬 카톤×카톤택배비 + (낱개 있으면 카톤외택배비)
   //  개별: 판매가 = 개별판매가(배송비 포함, 미지정이면 지점판매가+카톤외택배비),
   //        매입가 = 지점매입가 + 카톤외택배비 (원가표의 '개별매입가' 파생 개념), 배송비 0
-  //  샘플: 자동 적용 없음 — 직접 입력
+  //  샘플: 판매용 견본 무상 발송 — 판매가 0·배송비 0, 매입가는 정상 발생
+  //        (낱개 발송이라 개별 방식: 지점매입가 + 카톤외택배비. 칸은 수정 가능)
   const priceRule = (
     it: Pick<ItemDraft, 'order_kind' | 'branch_sale_price' | 'individual_sale_price' | 'branch_purchase_price' | 'carton_unit' | 'carton_shipping_fee' | 'loose_shipping_fee'>,
     qty: number,
@@ -304,6 +305,13 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
         ...(it.carton_unit > 0
           ? { shipping_fee: cartonShipping(it.carton_unit, it.carton_shipping_fee, it.loose_shipping_fee, qty) }
           : {}),
+      }
+    }
+    if (it.order_kind === '샘플') {
+      return {
+        sale_price: 0,
+        shipping_fee: 0,
+        purchase_price: it.branch_purchase_price + it.loose_shipping_fee,
       }
     }
     return {}
@@ -705,7 +713,7 @@ export default function OrderForm({ orderId }: { orderId?: string }) {
                 </td>
                 <td className="py-1 px-1.5">
                   <select value={it.order_kind} onChange={e => setKind(i, e.target.value)}
-                    title="지점: 지점판매가+카톤 배송비 자동 / 개별: 개별판매가(배송비 포함) / 샘플: 직접 입력"
+                    title="지점: 지점판매가+카톤 배송비 자동 / 개별: 개별판매가(배송비 포함) / 샘플: 판매가·배송비 0, 매입가만 발생"
                     className="border border-blue-200 bg-blue-50/40 rounded px-1 py-1 text-xs">
                     <option>지점</option><option>개별</option><option>샘플</option>
                   </select>
