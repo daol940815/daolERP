@@ -56,7 +56,8 @@
       <thead>
         <tr class="text-left text-xs text-gray-400 border-b border-gray-200">
           <th class="py-2.5 px-3 font-medium">NO</th>
-          <th class="py-2.5 px-3 font-medium">은행 / 내용</th>
+          <th class="py-2.5 px-3 font-medium">대출명</th>
+          <th class="py-2.5 px-3 font-medium">은행</th>
           <th class="py-2.5 px-3 font-medium">출금 계좌</th>
           <th class="py-2.5 px-3 font-medium text-right">현 잔액</th>
           <th class="py-2.5 px-3 font-medium text-right">이율</th>
@@ -72,10 +73,11 @@
       <tbody class="text-gray-700">
         <tr class="border-b border-gray-100">
           <td class="py-2 px-3">5</td>
-          <td class="py-2 px-3">하나은행 · 시설대출
+          <td class="py-2 px-3">시설대출
             <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">확인 필요</span>
             <div class="text-[11px] text-amber-700 mt-0.5">신규일&gt;만기일·만기 경과 — 기재 오류 또는 연장 확인</div>
           </td>
+          <td class="py-2 px-3">하나은행</td>
           <td class="py-2 px-3 text-gray-500">하나 …7804</td>
           <td class="py-2 px-3 text-right font-medium">1,929,000,000</td>
           <td class="py-2 px-3 text-right">3.633%</td>
@@ -89,10 +91,11 @@
         </tr>
         <tr class="border-b border-gray-100 bg-blue-50/40">
           <td class="py-2 px-3">6</td>
-          <td class="py-2 px-3">하나은행 · 운전대출
+          <td class="py-2 px-3">운전대출
             <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">확인 필요</span>
             <div class="text-[11px] text-amber-700 mt-0.5">만기 경과 — 연장 여부·조건 확인</div>
           </td>
+          <td class="py-2 px-3">하나은행</td>
           <td class="py-2 px-3 text-gray-500">하나 …7804</td>
           <td class="py-2 px-3 text-right font-medium">580,000,000</td>
           <td class="py-2 px-3 text-right">4.173%</td>
@@ -106,10 +109,11 @@
         </tr>
         <tr class="border-b border-gray-100">
           <td class="py-2 px-3">2</td>
-          <td class="py-2 px-3">하나은행 · 신용보증기금(24년)
+          <td class="py-2 px-3">신용보증기금(24년)
             <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">확인 필요</span>
             <div class="text-[11px] text-amber-700 mt-0.5">분할상환 3,000만 방식(비정기 여부) 확인</div>
           </td>
+          <td class="py-2 px-3">하나은행</td>
           <td class="py-2 px-3 text-gray-500">하나 …7804</td>
           <td class="py-2 px-3 text-right font-medium">270,000,000</td>
           <td class="py-2 px-3 text-right">3.856%</td>
@@ -123,7 +127,8 @@
         </tr>
         <tr class="border-b border-gray-100">
           <td class="py-2 px-3">9</td>
-          <td class="py-2 px-3">우리은행 · 중소기업진흥공단(21년)</td>
+          <td class="py-2 px-3">중소기업진흥공단(21년)</td>
+          <td class="py-2 px-3">우리은행</td>
           <td class="py-2 px-3 text-gray-500">우리 …3633</td>
           <td class="py-2 px-3 text-right font-medium">33,000,000</td>
           <td class="py-2 px-3 text-right">2.820%</td>
@@ -137,7 +142,8 @@
         </tr>
         <tr class="border-b border-gray-100 text-gray-400">
           <td class="py-2 px-3">1</td>
-          <td class="py-2 px-3">하나은행 · 마이너스(미사용)</td>
+          <td class="py-2 px-3">마이너스(미사용)</td>
+          <td class="py-2 px-3">하나은행</td>
           <td class="py-2 px-3">하나 …7804</td>
           <td class="py-2 px-3 text-right">0</td>
           <td class="py-2 px-3 text-right">6.485%</td>
@@ -150,12 +156,12 @@
           <td class="py-2 px-3"><button class="text-xs px-2 py-1 border border-gray-300 rounded-lg hover:bg-gray-50">수정</button></td>
         </tr>
         <tr>
-          <td colspan="12" class="py-2 px-3 text-center text-xs text-gray-400">… 나머지 4건 (③④⑦⑧) 동일 형식 …</td>
+          <td colspan="13" class="py-2 px-3 text-center text-xs text-gray-400">… 나머지 4건 (③④⑦⑧) 동일 형식 …</td>
         </tr>
       </tbody>
       <tfoot>
         <tr class="border-t border-gray-200 bg-slate-50 font-medium">
-          <td class="py-2 px-3" colspan="3">합계 (9건)</td>
+          <td class="py-2 px-3" colspan="4">합계 (9건)</td>
           <td class="py-2 px-3 text-right">3,417,000,000</td>
           <td class="py-2 px-3"></td>
           <td class="py-2 px-3 text-right">7,500,000</td>
@@ -171,12 +177,14 @@
     <div class="text-xs text-gray-400 mb-2 text-center">[수정 클릭 시 편집 모달]</div>
     <div class="bg-white border border-gray-300 rounded-2xl shadow-xl p-5">
       <div class="flex items-center justify-between">
-        <h2 class="font-bold">대출 수정 — ⑥ 하나은행 운전대출</h2>
+        <h2 class="font-bold">대출 수정 — ⑥ 운전대출 (하나은행)</h2>
         <button class="text-gray-400 text-sm">닫기</button>
       </div>
       <div class="grid grid-cols-2 gap-3 mt-4 text-sm">
-        <label class="block"><span class="text-xs text-gray-500">내용</span>
+        <label class="block"><span class="text-xs text-gray-500">대출명</span>
           <input value="운전대출" class="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-1.5"></label>
+        <label class="block"><span class="text-xs text-gray-500">은행</span>
+          <input value="하나은행" class="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-1.5"></label>
         <label class="block"><span class="text-xs text-gray-500">출금 계좌</span>
           <select class="mt-1 w-full border border-gray-300 rounded-lg px-2 py-1.5"><option>하나은행 …7804</option></select></label>
         <label class="block"><span class="text-xs text-gray-500">현 잔액 (원)</span>
