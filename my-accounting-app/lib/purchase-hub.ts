@@ -12,6 +12,8 @@ import { fetchAllRows } from '@/lib/fetch-all-rows'
 //  - 미지급 잔액 = 기초원장(purchase_opening_balances) 기준일 컷오프 방식:
 //                  기초잔액 + 기준일 이후 계산서(+) - 기준일 이후 지급(-)
 //                  기준일 이전 원본은 제외(이중계상 방지). 음수 = 과다지급.
+//                  601 보강: 기준일 이전 발행 계산서에 연결된 지급은 지급일이
+//                  기준일 이후라도 제외 — 그 채무는 기초잔액에 이미 확정되어 있다.
 //  - FIFO: 지급이 기초잔액을 먼저 갚고, 남은 몫이 계산서를 오래된 순으로 커버
 //  - ERP 발주    = erp_order_items.purchase_total (취소 제외, 정산월 우선 귀속)
 //                  — 발주 관점 매입 규모(보조 지표, 잔액 계산과 무관)
@@ -193,7 +195,13 @@ function judgeStatus(
 }
 
 // ── 지급 이벤트 로딩 (목록 폴백·상세 공용 원천) ─────────────
-interface PayEvent { vendor_id: string; tx_date: string; amount: number }
+// linked_issue = 연결된 계산서의 발행일 (연결 없는 2001 상계 출금은 null) — 컷오프 판정용
+interface PayEvent { vendor_id: string; tx_date: string; amount: number; linked_issue: string | null }
+
+// 컷오프 지급 인식 규칙 (600/601과 동일해야 한다):
+// 지급일이 기준일 이후이고, 연결 계산서가 있다면 그 발행일도 기준일 이후여야 집계
+const paidCountsAfterCutoff = (cutoff: string | null, tx_date: string, linked_issue: string | null) =>
+  !cutoff || (!!tx_date && tx_date > cutoff && (!linked_issue || linked_issue > cutoff))
 
 // ── 목록 ─────────────────────────────────────────────────
 export async function buildPurchaseHubList(
@@ -372,18 +380,24 @@ async function buildListFallback(
   for (const p of tipR.data) {
     const inv = invById.get(p.tax_invoice_id)
     if (!inv) continue
-    payEvents.push({ vendor_id: inv.vendor_id, tx_date: txDate.get(p.transaction_id) ?? '', amount: p.amount })
+    payEvents.push({ vendor_id: inv.vendor_id, tx_date: txDate.get(p.transaction_id) ?? '', amount: p.amount, linked_issue: inv.issue_date })
   }
   // 미지급금(2001) 상계 확정 출금 중 계산서 연결 없는 것
+  // 카드사 거래처는 제외 — 카드대금 출금은 계산서 지급이 아니다 (601과 동일 규칙)
   if (acc2001) {
-    const r = await fetchAllRows<{ id: string; vendor_id: string; tx_date: string; amount_out: number | null }>((f, t) =>
-      admin.from('transactions').select('id, vendor_id, tx_date, amount_out')
-        .eq('status', 'confirmed').eq('confirmed_account_id', acc2001)
-        .not('vendor_id', 'is', null).gt('amount_out', 0).range(f, t))
+    const [r, cardVendorsR] = await Promise.all([
+      fetchAllRows<{ id: string; vendor_id: string; tx_date: string; amount_out: number | null }>((f, t) =>
+        admin.from('transactions').select('id, vendor_id, tx_date, amount_out')
+          .eq('status', 'confirmed').eq('confirmed_account_id', acc2001)
+          .not('vendor_id', 'is', null).gt('amount_out', 0).range(f, t)),
+      admin.from('card_accounts').select('vendor_id').not('vendor_id', 'is', null),
+    ])
     if ('error' in r) return r
+    const cardVendors = new Set((cardVendorsR.data ?? []).map(c => c.vendor_id as string))
     for (const tx of r.data) {
       if (linkedTxIds.has(tx.id)) continue
-      payEvents.push({ vendor_id: tx.vendor_id, tx_date: tx.tx_date, amount: tx.amount_out ?? 0 })
+      if (cardVendors.has(tx.vendor_id)) continue
+      payEvents.push({ vendor_id: tx.vendor_id, tx_date: tx.tx_date, amount: tx.amount_out ?? 0, linked_issue: null })
     }
   }
 
@@ -436,7 +450,7 @@ async function buildListFallback(
     const a = get(p.vendor_id)
     if (inPeriod(p.tx_date)) a.paid_amount += p.amount
     const cutoff = openings.get(p.vendor_id)?.as_of_date ?? null
-    if (!cutoff || (p.tx_date && p.tx_date > cutoff)) a.paidAfter += p.amount
+    if (paidCountsAfterCutoff(cutoff, p.tx_date, p.linked_issue)) a.paidAfter += p.amount
   }
   for (const it of itemsR.data) {
     const vid = aliasVendor.get(it.purchase_alias_id)
@@ -588,8 +602,11 @@ export async function buildPurchaseHubDetail(
   const txInfo = new Map(txR.data.map(t => [t.id, t]))
 
   // 미지급금(2001) 상계 확정 출금 (계산서 연결 없는 것만 — 전역 연결 여부로 판정)
+  // 카드사 거래처는 제외 — 카드대금 출금은 계산서 지급이 아니다 (601과 동일 규칙)
+  const { data: cardAcc } = await admin.from('card_accounts')
+    .select('id').eq('vendor_id', vendorId).limit(1).maybeSingle()
   let tx2001: { id: string; tx_date: string; description: string | null; amount_out: number | null }[] = []
-  if (acc2001) {
+  if (acc2001 && !cardAcc) {
     const r = await fetchAllRows<{ id: string; tx_date: string; description: string | null; amount_out: number | null }>((f, t) =>
       admin.from('transactions').select('id, tx_date, description, amount_out')
         .eq('vendor_id', vendorId).eq('status', 'confirmed').eq('confirmed_account_id', acc2001)
@@ -663,7 +680,7 @@ export async function buildPurchaseHubDetail(
   const t0 = today()
 
   // 지급 이벤트 (기간 지표·컷오프 잔액 공용)
-  const payAll: { tx_date: string; amount: number }[] = []
+  const payAll: { tx_date: string; amount: number; linked_issue: string | null }[] = []
   const paidByInvoice = new Map<string, number>()
   let avgWeighted = 0, avgAmount = 0
   const timeline: PurchaseHubTimelineEvent[] = []
@@ -671,7 +688,7 @@ export async function buildPurchaseHubDetail(
   for (const p of tipR.data) {
     const tx = txInfo.get(p.transaction_id)
     const d = tx?.tx_date ?? ''
-    payAll.push({ tx_date: d, amount: p.amount })
+    payAll.push({ tx_date: d, amount: p.amount, linked_issue: invDate.get(p.tax_invoice_id) ?? null })
     paidByInvoice.set(p.tax_invoice_id, (paidByInvoice.get(p.tax_invoice_id) ?? 0) + p.amount)
     const issue = invDate.get(p.tax_invoice_id)
     if (d && issue) {
@@ -684,7 +701,7 @@ export async function buildPurchaseHubDetail(
     }
   }
   for (const tx of tx2001) {
-    payAll.push({ tx_date: tx.tx_date, amount: tx.amount_out ?? 0 })
+    payAll.push({ tx_date: tx.tx_date, amount: tx.amount_out ?? 0, linked_issue: null })
     timeline.push({ kind: 'bank', date: tx.tx_date, label: tx.description ?? '출금 (미지급금 상계)', amount: tx.amount_out ?? 0, ref_id: tx.id })
   }
 
@@ -698,7 +715,7 @@ export async function buildPurchaseHubDetail(
   }
   invsAfterCutoff.sort((x, y) => x.issue_date.localeCompare(y.issue_date))
 
-  const paidAfterCutoff = payAll.reduce((s, p) => s + ((!cutoff || (p.tx_date && p.tx_date > cutoff)) ? p.amount : 0), 0)
+  const paidAfterCutoff = payAll.reduce((s, p) => s + (paidCountsAfterCutoff(cutoff, p.tx_date, p.linked_issue) ? p.amount : 0), 0)
   const paidPeriod = payAll.reduce((s, p) => s + (inPeriod(p.tx_date) ? p.amount : 0), 0)
   const fifo = computeFifo(invsAfterCutoff, paidAfterCutoff, opening?.amount ?? 0, t0)
 
