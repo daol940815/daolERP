@@ -20,8 +20,9 @@ export async function GET(req: NextRequest) {
   const rows = items.map(it => {
     const row: Record<string, unknown> = { '항목': it.is_section_header ? `[${it.label}]` : it.label }
     months.forEach((m, i) => { row[m] = it.is_section_header ? '' : (it.values[i] ?? 0) })
+    row['합계'] = it.is_section_header ? '' : it.values.reduce((s, v) => s + (v ?? 0), 0)
     return row
   })
-  const cols = [28, ...months.map(() => 14)]
+  const cols = [28, ...months.map(() => 14), 14]
   return xlsxResponse(rows, '월별손익현황', cols)
 }
