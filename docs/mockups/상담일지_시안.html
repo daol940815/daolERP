@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>상담일지 시안 — 실물 주문상담 시트 기반</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1280px; margin:0 auto; padding:24px 20px 60px; }
+  h1 { font-size:19px; color:#0f172a; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; }
+  h2 { font-size:14px; color:#0f172a; margin:26px 0 8px; }
+
+  .legend { display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap; font-size:11.5px; }
+  .lg { display:flex; align-items:center; gap:5px; color:#475569; }
+  .dot { width:12px; height:12px; border-radius:3px; display:inline-block; }
+
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .sec { font-size:13px; font-weight:bold; color:#0f172a; margin-bottom:10px; }
+  .sec small { font-weight:normal; color:#94a3b8; font-size:11px; margin-left:6px; }
+
+  .grid { display:grid; grid-template-columns:repeat(6, 1fr); gap:10px 12px; }
+  .f label { display:block; font-size:11px; color:#64748b; margin-bottom:3px; }
+  .box { border:1.5px solid #cbd5e1; border-radius:8px; padding:6px 10px; background:#fff; font-size:12.5px; min-height:31px; }
+  .sel  { border-color:#93b8e8; background:#f5f9ff; }
+  .auto { border-color:#e2e8f0; background:#f8fafc; color:#64748b; }
+  .free { border-color:#e8d9a8; background:#fffdf5; }
+  .ph { color:#94a3b8; }
+  .sp2 { grid-column:span 2; }
+  .sp3 { grid-column:span 3; }
+  .hint { font-size:10px; color:#94a3b8; margin-top:2px; }
+
+  table { width:100%; border-collapse:collapse; font-size:11.5px; }
+  th { background:#f1f5f9; color:#475569; font-size:10.5px; padding:6px 7px; text-align:left; white-space:nowrap; border-bottom:1.5px solid #d8dee6; }
+  th.r, td.r { text-align:right; }
+  td { padding:5px 7px; border-bottom:1px solid #eef1f5; vertical-align:top; }
+  td .cell { border:1.5px solid #cbd5e1; border-radius:6px; padding:4px 7px; background:#fff; }
+  td .cell.sel { border-color:#93b8e8; background:#f5f9ff; }
+  td .cell.auto { border-color:#e2e8f0; background:#f8fafc; color:#64748b; }
+  td .cell.free { border-color:#e8d9a8; background:#fffdf5; }
+  .r .cell { text-align:right; font-variant-numeric:tabular-nums; }
+
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:10.5px; font-weight:600; white-space:nowrap; }
+  .b-blue { background:#e6effc; color:#1c5cab; }
+  .b-green{ background:#e7f6ec; color:#147339; }
+  .b-gray { background:#f1f2f4; color:#6b7280; }
+  .b-amber{ background:#fdf3df; color:#92600a; }
+  .b-violet{ background:#efeafd; color:#6631c9; }
+  .chip { display:inline-block; padding:4px 11px; border:1px solid #e5e7eb; border-radius:999px; font-size:12px; color:#4b5563; background:#fff; }
+  .chip.on { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .btn { border-radius:9px; padding:8px 16px; font-size:13px; font-weight:bold; display:inline-block; }
+  .btn.pri { background:#0f172a; color:#fff; }
+  .btn.gho { background:#fff; border:1.5px solid #cbd5e1; color:#334155; font-weight:normal; }
+  .btn.cv { background:#1c5cab; color:#fff; }
+  .num { font-variant-numeric:tabular-nums; }
+
+  .note { margin-top:14px; background:#fffbeb; border:1px solid #f5e6b8; border-radius:10px; padding:12px 16px; font-size:12px; color:#7c5e10; line-height:1.8; }
+  tr.hov:hover { background:#f3f7fd; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>상담일지 — 시안 (실물 '주문상담' 시트 기반)</h1>
+  <p class="desc">
+    항목 구성·순서는 실물 엑셀 그대로, 오타의 원천만 마스터 선택으로 교체.
+    상담 단계는 신규 고객이 흔하므로 <b>마스터에 없으면 자유 입력 허용</b> (주문 전환 때 마스터 등록을 안내).
+  </p>
+  <div class="legend">
+    <span class="lg"><span class="dot" style="background:#f5f9ff; border:1.5px solid #93b8e8"></span>마스터 선택 (자유 입력 겸용)</span>
+    <span class="lg"><span class="dot" style="background:#f8fafc; border:1.5px solid #e2e8f0"></span>자동 계산</span>
+    <span class="lg"><span class="dot" style="background:#fffdf5; border:1.5px solid #e8d9a8"></span>자유 입력</span>
+  </div>
+
+  <!-- ── 1. 목록 화면 ── -->
+  <h2>1. 내 상담일지 목록 (/orders/consultations)</h2>
+  <div class="panel" style="padding:12px 14px">
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:9px">
+      <span style="font-size:15px; font-weight:bold">상담일지</span>
+      <span style="font-size:11px; color:#94a3b8">기본 본인 작성분만 표시 (manager/admin은 전체 조회 가능)</span>
+      <span style="flex:1"></span>
+      <span class="btn pri" style="padding:6px 14px; font-size:12px">+ 상담 기록</span>
+    </div>
+    <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:10px">
+      <input style="flex:1; min-width:240px; border:1px solid #e5e7eb; border-radius:9px; padding:7px 12px; font-size:12.5px"
+        placeholder="검색 — 업체 · 지점 · 담당자 · 상품명 (다중 조건 지원)">
+      <span class="chip on">전체</span><span class="chip">진행중</span><span class="chip">주문전환</span><span class="chip">종결</span>
+      <span style="width:6px"></span>
+      <span class="chip">주문</span><span class="chip">문의</span><span class="chip">요청</span><span class="chip">결제</span><span class="chip">기타</span>
+    </div>
+    <table>
+      <thead><tr>
+        <th>상담일</th><th>구분</th><th>업체(은행)</th><th>부서(지점)</th><th>담당자</th>
+        <th>품목 요약</th><th class="r">예상 합계</th><th>상태</th><th></th>
+      </tr></thead>
+      <tbody>
+        <tr class="hov">
+          <td class="num">08-11</td>
+          <td><span class="badge b-blue">주문</span></td>
+          <td><b>하나은행</b></td><td>외환자본거래센터</td><td>이재진 센터장님</td>
+          <td>도자기머그 2P세트 외 2건</td>
+          <td class="r num">1,254,000</td>
+          <td><span class="badge b-amber">진행중</span></td>
+          <td><span class="btn cv" style="padding:4px 12px; font-size:11.5px">주문서로 전환</span></td>
+        </tr>
+        <tr class="hov">
+          <td class="num">08-10</td>
+          <td><span class="badge b-gray">문의</span></td>
+          <td><b>노들행복안전문화협동조합</b></td><td>-</td><td>조형복 이사장님</td>
+          <td>도나티 에코팩 대혼합5조 × 1,000</td>
+          <td class="r num">6,800,000</td>
+          <td><span class="badge b-amber">진행중</span></td>
+          <td><span class="btn cv" style="padding:4px 12px; font-size:11.5px">주문서로 전환</span></td>
+        </tr>
+        <tr class="hov">
+          <td class="num">08-08</td>
+          <td><span class="badge b-blue">주문</span></td>
+          <td><b>하나은행</b></td><td>범어동지점</td><td>최소용 과장님</td>
+          <td>순수소프티 150매 3입 × 36</td>
+          <td class="r num">136,800</td>
+          <td><span class="badge b-green">주문전환</span> <span style="font-size:10px; color:#94a3b8">D250808-002</span></td>
+          <td></td>
+        </tr>
+        <tr class="hov">
+          <td class="num">08-05</td>
+          <td><span class="badge b-gray">기타</span></td>
+          <td><b>우리은행</b></td><td>선릉역지점</td><td>김희연 팀장님</td>
+          <td>-</td>
+          <td class="r num" style="color:#94a3b8">-</td>
+          <td><span class="badge b-gray">종결</span></td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="font-size:11px; color:#94a3b8; margin-top:8px">
+      행 클릭 = 상세(추가 상담 이어서 기록) · 전환된 상담은 주문번호로 연결 · 전환 시 상담일지는 수정 잠금(이력 보존)
+    </div>
+  </div>
+
+  <!-- ── 2. 작성 화면 ── -->
+  <h2>2. 상담 기록 작성 — 실물 컬럼 순서 그대로</h2>
+  <div class="panel">
+    <div class="sec">상담 정보 <small>필수는 상담일·구분뿐 — 아는 만큼만 기록</small></div>
+    <div class="grid">
+      <div class="f"><label>상담일 *</label><div class="box free">2026-08-11</div></div>
+      <div class="f"><label>구분 *</label><div class="box sel">주문 ▾</div><div class="hint">주문/문의/요청/결제/기타</div></div>
+      <div class="f"><label>업체(은행)</label><div class="box sel">하나은행 ▾</div><div class="hint">마스터 검색 + 신규명 자유 입력</div></div>
+      <div class="f sp2"><label>부서(지점)</label><div class="box sel">외환자본거래센터 ▾</div><div class="hint">소속 지점 필터 · 없으면 자유 입력</div></div>
+      <div class="f"><label>담당자</label><div class="box sel">이재진 센터장님 ▾</div></div>
+      <div class="f"><label>핸드폰</label><div class="box auto">010-4008-2918</div></div>
+      <div class="f"><label>연락처(유선)</label><div class="box free ph">02-</div></div>
+      <div class="f sp2"><label>상태 (품절·단가변경 등)</label><div class="box free ph">예: 품절 (9/16 입고)</div></div>
+      <div class="f sp2"><label>색상, 옵션 등 기타사항</label><div class="box free ph"></div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="sec">상담 품목 <small>주문 입력과 동일 — 품번 검색 시 원가표 기준 자동, 칸은 수정 가능</small></div>
+    <table>
+      <tr>
+        <th style="width:110px">품번 검색</th><th style="min-width:200px">상품명</th><th>구분</th><th class="r">수량</th>
+        <th class="r">판매가</th><th class="r">판매합계</th><th>매입처</th><th class="r">매입가</th><th class="r">매입합계</th>
+        <th class="r">배송비</th><th class="r">마진</th><th></th>
+      </tr>
+      <tr>
+        <td><div class="cell sel">25-31-04 ▾</div></td>
+        <td><div class="cell free">도자기머그 2P세트</div></td>
+        <td><div class="cell sel">지점 ▾</div></td>
+        <td class="r"><div class="cell free">60</div></td>
+        <td class="r"><div class="cell auto">18,500</div></td>
+        <td class="r"><div class="cell auto"><b>1,110,000</b></div></td>
+        <td><div class="cell auto">유비코리아</div></td>
+        <td class="r"><div class="cell auto">13,200</div></td>
+        <td class="r"><div class="cell auto">792,000</div></td>
+        <td class="r"><div class="cell auto">16,500</div></td>
+        <td class="r"><div class="cell auto" style="color:#0a7d0a">301,500</div></td>
+        <td style="color:#c22525">✕</td>
+      </tr>
+      <tr>
+        <td><div class="cell sel ph">품번·품명 검색 ▾</div></td>
+        <td><div class="cell free ph">마스터에 없으면 직접 입력</div></td>
+        <td><div class="cell sel">지점 ▾</div></td>
+        <td class="r"><div class="cell free ph">1</div></td>
+        <td class="r"><div class="cell auto ph">자동</div></td>
+        <td class="r"><div class="cell auto ph">자동</div></td>
+        <td><div class="cell auto ph">자동</div></td>
+        <td class="r"><div class="cell auto ph">자동</div></td>
+        <td class="r"><div class="cell auto ph">자동</div></td>
+        <td class="r"><div class="cell auto ph">자동</div></td>
+        <td class="r"><div class="cell auto ph">자동</div></td>
+        <td></td>
+      </tr>
+    </table>
+    <span class="btn gho" style="padding:5px 12px; font-size:11.5px; border-style:dashed; margin-top:8px">+ 품목 행 추가</span>
+    <div style="font-size:10.5px; color:#94a3b8; margin-top:6px">
+      부가상품 옵션 칩(같은 매입처 포장지·쇼핑백)·카톤 배송비 공식·지점/개별/샘플 가격 규칙 모두 주문 입력과 동일하게 동작
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="sec">결제·발송 정보 <small>상담 때 받은 내용 — 발주서·배송 관리(3단계)로 흘러감</small></div>
+    <div class="grid">
+      <div class="f sp2"><label>결제정보 <span style="color:#1c5cab">(암호화 저장)</span></label>
+        <div class="box free num">9450-8190-****-**** <span style="color:#94a3b8; font-size:10.5px; margin-left:4px">[열람]</span></div>
+        <div class="hint">입력은 평문, 저장은 암호화 — 화면엔 마스킹, 열람 클릭 시 표시(본인·admin)</div>
+      </div>
+      <div class="f"><label>보내는분 명의</label><div class="box free ph">다올 / 지점명 등</div></div>
+      <div class="f"><label>배송요청일</label><div class="box free ph">날짜 선택</div></div>
+      <div class="f"><label>인사장·명함</label><div class="box free ph">동봉 여부</div></div>
+      <div class="f"><label>주소확인여부</label><div class="box free ph"></div></div>
+      <div class="f"><label>고객명단수단</label><div class="box free ph">엑셀/문자 등</div></div>
+      <div class="f sp3"><label>메모 (감사 문구 등)</label><div class="box free ph">[문구] 여러 계절을 함께 보내며...</div></div>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; flex-wrap:wrap; gap:8px">
+      <span style="font-size:11.5px; color:#64748b">
+        저장 시 업무일지 자동 기재: <b>"08월 11일 하나은행 외환자본거래센터 이재진 센터장님과 상담 (주문)"</b>
+      </span>
+      <span style="display:flex; gap:8px">
+        <span class="btn gho">저장</span>
+        <span class="btn cv">저장 후 주문서로 전환</span>
+      </span>
+    </div>
+  </div>
+
+  <!-- ── 3. 전환 흐름 ── -->
+  <h2>3. 주문서 전환 흐름</h2>
+  <div class="panel" style="font-size:12.5px; line-height:2">
+    <b>[주문서로 전환]</b> 클릭 →
+    주문 입력 화면이 상담 내용으로 <b>미리 채워진 채</b> 열림
+    (업체·지점·담당자·품목·수량·가격·메모) →
+    빠진 필수값만 보완 (마스터 미등록 업체·담당자는 이 단계에서 등록 안내) →
+    <b>주문 저장</b> → 상담일지 상태 '주문전환' + 주문번호 연결.<br>
+    <span style="color:#64748b">· 상담 1건에서 여러 주문 전환 가능 (분할 주문) · 전환 없이 종결 처리도 가능 ·
+    상담만 하고 전환 안 된 건은 목록 '진행중' 필터로 추적</span>
+  </div>
+
+  <div class="note">
+    <b>실물 시트와 달라진 점</b><br>
+    · 판매합계·매입합계·마진율·배송비: 수기·수식 → 원가표 기준 자동 계산 (수정 가능)<br>
+    · 업체/지점/담당자/품번: 자유 입력 → 마스터 자동완성 (상담 단계는 자유 입력 겸용 — 신규 고객 대비)<br>
+    · 결제정보·패스워드: 평문 보관 → 암호화 저장 + 화면 마스킹 (사용자 확정)<br>
+    · 최신품번 컬럼 제거 (사용자 확정 — 품번 검색이 항상 최신 마스터 참조)<br>
+    · 상담 1건 = 문서 1건 + 품목 N행 (엑셀의 연속 행 방식을 구조화)<br>
+    · 저장 시 업무일지(영업일지) 자동 기재 · 구분(주문/문의 등)과 전환 상태는 별도 관리 (사용자 확정)
+  </div>
+</div>
+</body>
+</html>
