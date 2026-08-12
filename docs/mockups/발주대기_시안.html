@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>발주 관리 시안 — 발주 대기 + 발주 이력</title>
+<title>발주 시안 v2 — 주문 단위 발주 (주문 상세 하위 섹션)</title>
 <style>
   :root { --line:#e5e7eb; --ink:#111827; --ink2:#4b5563; --ink3:#9ca3af; --navy:#0f172a; }
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -11,7 +11,7 @@
   .wrap { max-width:1240px; margin:0 auto; padding:22px 24px 60px; }
   h1 { font-size:19px; }
   .desc { font-size:12px; color:var(--ink3); margin:4px 0 14px; }
-  h2 { font-size:14px; margin:24px 0 8px; }
+  h2 { font-size:14px; margin:26px 0 8px; }
 
   .panel { background:#fff; border:1px solid var(--line); border-radius:14px; }
   .badge { display:inline-flex; align-items:center; gap:4px; padding:2.5px 9px; border-radius:999px; font-size:11px; font-weight:600; white-space:nowrap; }
@@ -20,7 +20,6 @@
   .b-red   { background:#fdeaea; color:#b42222; }
   .b-gray  { background:#f1f2f4; color:#6b7280; }
   .b-blue  { background:#e6effc; color:#1c5cab; }
-  .b-violet{ background:#efeafd; color:#6631c9; }
   .btn  { padding:7px 15px; border-radius:9px; font-size:12.5px; font-weight:700; background:var(--navy); color:#fff; border:0; }
   .btn2 { padding:6px 13px; border-radius:9px; font-size:12px; border:1px solid var(--line); background:#fff; color:var(--ink2); }
   .chip { display:inline-block; padding:5px 12px; border:1px solid var(--line); border-radius:999px; font-size:12px; color:var(--ink2); background:#fff; }
@@ -30,213 +29,223 @@
   th { text-align:left; font-size:11px; color:var(--ink3); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--line); background:#fafbfc; white-space:nowrap; }
   td { padding:7px 10px; border-bottom:1px solid #f3f4f6; vertical-align:middle; }
   th.r, td.r { text-align:right; }
-
-  .kpi { padding:12px 16px; }
-  .kpi .t { font-size:11px; color:var(--ink3); }
-  .kpi .v { font-size:19px; font-weight:800; margin-top:2px; }
-
-  .vhead { display:flex; align-items:center; gap:10px; padding:11px 14px; background:#f8fafc; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .vhead { display:flex; align-items:center; gap:10px; padding:10px 14px; background:#f8fafc; border-bottom:1px solid var(--line); flex-wrap:wrap; }
   .note { margin-top:16px; background:#fffbeb; border:1px solid #f5e6b8; border-radius:10px; padding:12px 16px; font-size:12px; color:#7c5e10; line-height:1.8; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>발주 관리 — 시안 (3단계 1차)</h1>
+  <h1>발주 — 시안 v2 (주문 단위)</h1>
   <p class="desc">
-    /orders/purchase (사이드바 '발주서' 자리). 발주 대상 = <b>직접입력(direct) 주문의 미발주 품목</b>
-    — 업로드 주문은 기존 ERP에서 발주하므로 제외 (병행 운용). 매입처별로 모아 선택 → 발주서 생성 → 메일 발송.
+    개념 정정 반영: 발주는 <b>주문 1건의 품목을 발주서로 작성해 발송</b>하는 주문 하위 작업.
+    주문 상세 화면 하단에 "발주" 섹션이 붙고, 품목이 매입처별로 나뉘어 각 매입처에 발주서 1장씩 나간다.
   </p>
 
-  <!-- KPI -->
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
-    <div class="panel kpi"><div class="t">발주 대기 품목</div><div class="v num">14건</div>
-      <div style="font-size:10.5px;color:var(--ink3)">매입처 5곳</div></div>
-    <div class="panel kpi"><div class="t">대기 매입액</div><div class="v num">3,842,000원</div></div>
-    <div class="panel kpi"><div class="t">오늘 발주</div><div class="v num" style="color:#1c5cab">2건</div>
-      <div style="font-size:10.5px;color:var(--ink3)">메일 2 · 수동 0</div></div>
-    <div class="panel kpi"><div class="t">이메일 미등록 매입처</div><div class="v num" style="color:#b42222">1곳</div>
-      <div style="font-size:10.5px;color:var(--ink3)">클릭하여 등록</div></div>
-  </div>
-
-  <!-- 필터 -->
-  <div class="panel" style="padding:11px 14px;margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <input style="flex:1;min-width:240px;border:1px solid var(--line);border-radius:9px;padding:8px 12px;font-size:12.5px"
-      placeholder="매입처 · 품명 · 주문처 검색">
-    <span class="chip on">발주 대기</span><span class="chip">발주 이력</span>
-    <span style="width:8px"></span>
-    <span class="chip">주문일 7일</span><span class="chip on">전체</span>
-  </div>
-
-  <h2>발주 대기 — 매입처별 묶음</h2>
-
-  <!-- 매입처 카드 1 -->
-  <div class="panel" style="margin-bottom:12px;overflow:hidden">
-    <div class="vhead">
-      <input type="checkbox" checked>
-      <b style="font-size:13.5px">송월타올수건이야기</b>
-      <span style="font-size:11.5px;color:var(--ink3)">담당 정이경 본부장님 · yoaluv@naver.com</span>
-      <span class="badge b-blue">자사 양식</span>
+  <!-- ── 1. 주문 상세의 발주 섹션 ── -->
+  <h2>1. 주문 상세 하단 — 발주 섹션 (핵심 화면)</h2>
+  <div class="panel" style="padding:14px 16px; margin-bottom:8px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:14px;font-weight:bold">주문 상세</span>
+      <span class="num" style="color:var(--ink3)">D260812-001</span>
+      <b>하나은행</b><span style="color:var(--ink3)">화곡역지점</span>
+      <span class="badge b-blue">직접입력</span>
+      <span class="badge b-amber">부분 발주</span>
       <span style="flex:1"></span>
-      <span style="font-size:12px" class="num">선택 3건 · 매입 합계 <b>1,842,000원</b></span>
-      <button class="btn">발주서 생성</button>
+      <span style="font-size:11.5px;color:var(--ink3)">(기존 주문 정보·품목 표는 그대로 — 아래에 발주 섹션 추가)</span>
+    </div>
+  </div>
+
+  <div class="panel" style="overflow:hidden;margin-bottom:12px">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--line)">
+      <b style="font-size:13.5px">발주</b>
+      <span style="font-size:11.5px;color:var(--ink3);margin-left:8px">이 주문의 품목을 매입처별로 발주 — 매입처 2곳 → 발주서 2장</span>
+    </div>
+
+    <!-- 매입처 묶음 1: 발주 완료 -->
+    <div class="vhead">
+      <b>송월타올수건이야기</b>
+      <span style="font-size:11.5px;color:var(--ink3)">yoaluv@naver.com</span>
+      <span class="badge b-green">발주 완료 · PO260812-01</span>
+      <span style="font-size:11px;color:var(--ink3)">08-12 14:20 메일 발송 (김보현)</span>
+      <span style="flex:1"></span>
+      <span class="btn2">엑셀</span><span class="btn2">재발송</span>
     </div>
     <table>
-      <thead><tr>
-        <th style="width:34px"></th><th>주문일 / 번호</th><th>주문처</th><th>품번</th><th>품명</th>
-        <th>구분</th><th class="r">수량</th><th class="r">매입단가</th><th class="r">매입합계</th><th>배송 참고</th>
-      </tr></thead>
       <tbody>
-        <tr>
-          <td><input type="checkbox" checked></td>
-          <td><div class="num" style="font-weight:600">08-12</div><div class="num" style="font-size:11px;color:var(--ink3)">D260812-001</div></td>
-          <td><b>하나은행</b> <span style="color:var(--ink3)">화곡역지점</span></td>
-          <td class="num">25-25-14-01</td>
+        <tr style="color:#6b7280">
+          <td style="width:30px" class="num">1</td>
           <td>송월,항균코마40수무지40(180g) 1P+종이케이스</td>
           <td><span class="badge b-gray">지점</span></td>
-          <td class="r num">50</td><td class="r num">5,082</td><td class="r num">254,100</td>
-          <td style="font-size:11.5px;color:var(--ink3)">배송요청 8/16 · 인사장 동봉</td>
+          <td class="r num" style="width:70px">50</td>
+          <td class="r num" style="width:90px">5,082</td>
+          <td class="r num" style="width:110px">254,100</td>
+          <td style="width:150px;font-size:11.5px;color:var(--ink3)">발주됨</td>
         </tr>
-        <tr>
-          <td><input type="checkbox" checked></td>
-          <td><div class="num" style="font-weight:600">08-12</div><div class="num" style="font-size:11px;color:var(--ink3)">D260812-001</div></td>
-          <td><b>하나은행</b> <span style="color:var(--ink3)">화곡역지점</span></td>
-          <td class="num">25-25-13-03</td>
+        <tr style="color:#6b7280">
+          <td class="num">2</td>
           <td>송월 포인트40 3P+종이케이스</td>
           <td><span class="badge b-gray">지점</span></td>
-          <td class="r num">20</td><td class="r num">15,961</td><td class="r num">319,220</td>
-          <td style="font-size:11.5px;color:var(--ink3)"></td>
-        </tr>
-        <tr>
-          <td><input type="checkbox" checked></td>
-          <td><div class="num" style="font-weight:600">08-11</div><div class="num" style="font-size:11px;color:var(--ink3)">D260811-002</div></td>
-          <td><b>우리은행</b> <span style="color:var(--ink3)">선릉역지점</span></td>
-          <td class="num">25-25-14-02</td>
-          <td>송월,항균코마40수무지40(180g) 2P+종이케이스</td>
-          <td><span class="badge b-violet">개별</span></td>
-          <td class="r num">85</td><td class="r num">14,894</td><td class="r num">1,265,990</td>
-          <td style="font-size:11.5px;color:var(--ink3)">명단 엑셀 수령</td>
+          <td class="r num">20</td>
+          <td class="r num">15,961</td>
+          <td class="r num">319,220</td>
+          <td style="font-size:11.5px;color:var(--ink3)">발주됨</td>
         </tr>
       </tbody>
     </table>
-  </div>
 
-  <!-- 매입처 카드 2: 자체 양식 -->
-  <div class="panel" style="margin-bottom:12px;overflow:hidden">
+    <!-- 매입처 묶음 2: 미발주 -->
     <div class="vhead">
-      <input type="checkbox">
-      <b style="font-size:13.5px">인스푼</b>
-      <span style="font-size:11.5px;color:var(--ink3)">담당 김선희 팀장님 · inspoon@naver.com</span>
-      <span class="badge b-amber">자체 양식 매입처</span>
+      <input type="checkbox" checked>
+      <b>인스푼</b>
+      <span style="font-size:11.5px;color:var(--ink3)">inspoon@naver.com</span>
+      <span class="badge b-red">미발주</span>
       <span style="flex:1"></span>
-      <span style="font-size:12px" class="num">2건 · 979,000원</span>
-      <button class="btn2">발주서 생성 (참고용) → 수동 발송</button>
+      <span class="num" style="font-size:12px">선택 2건 · 매입 합계 <b>924,000원</b></span>
+      <button class="btn">발주서 작성·발송</button>
     </div>
     <table>
       <tbody>
         <tr>
-          <td style="width:34px"><input type="checkbox"></td>
-          <td><div class="num" style="font-weight:600">08-12</div><div class="num" style="font-size:11px;color:var(--ink3)">D260812-002</div></td>
-          <td><b>하나은행</b> <span style="color:var(--ink3)">외환자본거래센터</span></td>
-          <td class="num">-</td>
-          <td>달보드레 방짜유기위스키잔2P세트</td>
+          <td style="width:30px"><input type="checkbox" checked></td>
+          <td>달보드레 방짜유기위스키잔2P세트 <span style="font-size:11px;color:var(--ink3)">비고: 파란색 케이스/청색 보자기</span></td>
           <td><span class="badge b-gray">지점</span></td>
-          <td class="r num">10</td><td class="r num">88,000</td><td class="r num">880,000</td>
-          <td style="font-size:11.5px;color:var(--ink3)">청색 보자기</td>
+          <td class="r num" style="width:70px">10</td>
+          <td class="r num" style="width:90px">88,000</td>
+          <td class="r num" style="width:110px">880,000</td>
+          <td style="width:150px"></td>
         </tr>
         <tr>
-          <td><input type="checkbox"></td>
-          <td><div class="num" style="font-weight:600">08-12</div><div class="num" style="font-size:11px;color:var(--ink3)">D260812-002</div></td>
-          <td><b>하나은행</b> <span style="color:var(--ink3)">외환자본거래센터</span></td>
-          <td class="num">-</td>
+          <td><input type="checkbox" checked></td>
           <td>케이스 외부 일괄 인쇄</td>
           <td><span class="badge b-gray">지점</span></td>
-          <td class="r num">1</td><td class="r num">44,000</td><td class="r num">44,000</td>
-          <td style="font-size:11.5px;color:var(--ink3)"></td>
+          <td class="r num">1</td>
+          <td class="r num">44,000</td>
+          <td class="r num">44,000</td>
+          <td></td>
         </tr>
       </tbody>
     </table>
-  </div>
-
-  <!-- 이메일 미등록 매입처 -->
-  <div class="panel" style="margin-bottom:12px;overflow:hidden;border-color:#f3c9c9">
-    <div class="vhead" style="background:#fdf6f6">
-      <input type="checkbox" disabled>
-      <b style="font-size:13.5px">유비코리아</b>
-      <span class="badge b-red">이메일 미등록</span>
-      <input style="border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12px;width:210px" placeholder="발주 이메일 입력 후 저장">
-      <button class="btn2">저장</button>
-      <span style="flex:1"></span>
-      <span style="font-size:12px" class="num">9건 · 1,021,000원</span>
-      <button class="btn" disabled style="opacity:.4">발주서 생성</button>
+    <div style="padding:9px 16px;font-size:11.5px;color:var(--ink3);border-top:1px solid #f3f4f6">
+      배송 참고 (발주서 비고로 들어감): 배송요청 8/16 · 인사장 동봉 · 보내는분 "다올"
+      <span style="color:#c9cdd3">— 주문 메모 + 연결된 상담일지에서 자동, 발송 전 수정 가능</span>
     </div>
   </div>
 
-  <!-- 발주서 생성 확인 (모달 개념) -->
-  <h2>발주서 생성 → 발송 확인</h2>
-  <div class="panel" style="padding:14px 18px;max-width:680px">
-    <b style="font-size:13.5px">발주서 PO260812-01 — 송월타올수건이야기</b>
+  <!-- 발송 확인 -->
+  <div class="panel" style="padding:14px 18px;max-width:680px;margin-bottom:8px">
+    <b style="font-size:13px">발주서 작성·발송 — PO260812-02 (인스푼)</b>
     <div style="font-size:12px;color:var(--ink2);margin-top:6px;line-height:1.9">
-      품목 3건 · 매입 합계 1,842,000원 · 첨부: 발주서_송월타올수건이야기_260812.xlsx (자사 양식)<br>
-      받는 사람: yoaluv@naver.com <span style="color:var(--ink3)">(수정 가능)</span> ·
-      참조(백업 CC): daol@daolcommerce.co.kr<br>
-      메일 본문: 표준 문구 + 담당자 서명 <span style="color:var(--ink3)">(발송 전 수정 가능)</span>
+      품목 2건 · 매입 합계 924,000원 · 첨부: 발주서_인스푼_D260812-001.xlsx (자사 양식)<br>
+      받는 사람: inspoon@naver.com <span style="color:var(--ink3)">(수정 가능)</span> ·
+      참조(백업 CC): 자사 백업 주소<br>
+      본문: 표준 문구 + 배송 참고 + 발송자 서명 <span style="color:var(--ink3)">(발송 전 수정 가능)</span>
     </div>
     <div style="display:flex;gap:8px;margin-top:10px">
       <button class="btn2">엑셀만 다운로드</button>
       <button class="btn2">수동 발송으로 기록</button>
       <button class="btn">메일 발송</button>
     </div>
+    <div style="font-size:11px;color:var(--ink3);margin-top:8px">
+      자체 양식 매입처면 안내 표시: "이 매입처는 자체 양식 사용 — 자사 양식은 참고용, 발송 후 '수동 발송'으로 기록"
+    </div>
   </div>
 
-  <!-- 발주 이력 -->
-  <h2>발주 이력 탭</h2>
+  <!-- ── 2. 주문 현황 목록의 발주 상태 ── -->
+  <h2>2. 주문 현황 목록 — 발주 컬럼 추가 (direct 주문만)</h2>
   <div class="panel" style="overflow:hidden">
     <table>
       <thead><tr>
-        <th>발주번호</th><th>발주일시</th><th>매입처</th><th class="r">품목</th><th class="r">매입 합계</th>
-        <th>발송</th><th>발송자</th><th></th>
+        <th>주문일 / 번호</th><th>업체(은행)</th><th>부서(지점)</th><th class="r">총금액</th>
+        <th>수금</th><th>출처</th><th>발주</th><th></th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td><div class="num" style="font-weight:600">08-12</div><div class="num" style="font-size:11px;color:var(--ink3)">D260812-001</div></td>
+          <td><b>하나은행</b></td><td>화곡역지점</td>
+          <td class="r num">1,847,320</td>
+          <td><span class="badge b-red">미수금</span></td>
+          <td><span class="badge b-blue">직접입력</span></td>
+          <td><span class="badge b-amber">부분 발주 1/2</span></td>
+          <td style="font-size:11.5px;color:#1c5cab">발주하기</td>
+        </tr>
+        <tr>
+          <td><div class="num" style="font-weight:600">08-12</div><div class="num" style="font-size:11px;color:var(--ink3)">D260812-002</div></td>
+          <td><b>하나은행</b></td><td>외환자본거래센터</td>
+          <td class="r num">979,000</td>
+          <td><span class="badge b-red">미수금</span></td>
+          <td><span class="badge b-blue">직접입력</span></td>
+          <td><span class="badge b-red">미발주</span></td>
+          <td style="font-size:11.5px;color:#1c5cab">발주하기</td>
+        </tr>
+        <tr>
+          <td><div class="num" style="font-weight:600">08-11</div><div class="num" style="font-size:11px;color:var(--ink3)">D260811-002</div></td>
+          <td><b>우리은행</b></td><td>선릉역지점</td>
+          <td class="r num">1,265,990</td>
+          <td><span class="badge b-green">수금완료</span></td>
+          <td><span class="badge b-blue">직접입력</span></td>
+          <td><span class="badge b-green">발주 완료</span></td>
+          <td></td>
+        </tr>
+        <tr style="color:#9ca3af">
+          <td><div class="num" style="font-weight:600">08-09</div><div class="num" style="font-size:11px">6oadVE_</div></td>
+          <td><b>하나은행</b></td><td>충주지점</td>
+          <td class="r num">144,000</td>
+          <td><span class="badge b-red">미수금</span></td>
+          <td><span class="badge b-gray">업로드</span></td>
+          <td><span style="font-size:11px">- (기존 ERP에서 발주)</span></td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:11.5px;color:var(--ink3);margin-top:6px">
+    발주 칩 필터 추가: [미발주] [부분 발주] [발주 완료] — 처리 안 된 주문을 놓치지 않게. KPI에도 "미발주 주문 N건".
+  </p>
+
+  <!-- ── 3. 사이드바 '발주서' 메뉴 ── -->
+  <h2>3. 사이드바 '발주서' 메뉴 = 발주 이력 (보조 화면)</h2>
+  <div class="panel" style="overflow:hidden">
+    <div style="padding:10px 14px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input style="flex:1;min-width:220px;border:1px solid var(--line);border-radius:9px;padding:7px 12px;font-size:12px" placeholder="매입처 · 주문번호 검색">
+      <span class="chip on">전체</span><span class="chip">메일 발송</span><span class="chip">수동 발송</span><span class="chip">실패</span>
+    </div>
+    <table>
+      <thead><tr>
+        <th>발주번호</th><th>발주일시</th><th>매입처</th><th>주문번호</th><th class="r">품목</th><th class="r">매입 합계</th><th>발송</th><th>발송자</th><th></th>
       </tr></thead>
       <tbody>
         <tr>
           <td class="num" style="font-weight:600">PO260812-01</td>
           <td class="num" style="font-size:12px">08-12 14:20</td>
           <td><b>송월타올수건이야기</b></td>
-          <td class="r num">3</td><td class="r num">1,842,000</td>
-          <td><span class="badge b-green">메일 발송됨</span> <span style="font-size:10.5px;color:var(--ink3)">yoaluv@naver.com</span></td>
+          <td class="num" style="font-size:12px;color:#1c5cab">D260812-001</td>
+          <td class="r num">2</td><td class="r num">573,320</td>
+          <td><span class="badge b-green">메일 발송됨</span></td>
           <td>김보현</td>
-          <td><span style="font-size:11.5px;color:#1c5cab">엑셀 · 재발송</span></td>
-        </tr>
-        <tr>
-          <td class="num" style="font-weight:600">PO260812-02</td>
-          <td class="num" style="font-size:12px">08-12 15:02</td>
-          <td><b>인스푼</b></td>
-          <td class="r num">2</td><td class="r num">979,000</td>
-          <td><span class="badge b-gray">수동 발송</span> <span style="font-size:10.5px;color:var(--ink3)">자체 양식</span></td>
-          <td>김보현</td>
-          <td><span style="font-size:11.5px;color:#1c5cab">엑셀</span></td>
+          <td style="font-size:11.5px;color:#1c5cab">엑셀 · 재발송</td>
         </tr>
         <tr>
           <td class="num" style="font-weight:600">PO260811-03</td>
           <td class="num" style="font-size:12px">08-11 17:44</td>
-          <td><b>송월타올수건이야기</b></td>
+          <td><b>인스푼</b></td>
+          <td class="num" style="font-size:12px;color:#1c5cab">D260811-002</td>
           <td class="r num">1</td><td class="r num">254,100</td>
-          <td><span class="badge b-red">발송 실패</span> <span style="font-size:10.5px;color:var(--ink3)">SMTP 인증 오류</span></td>
+          <td><span class="badge b-red">발송 실패</span> <span style="font-size:10.5px;color:var(--ink3)">SMTP 오류</span></td>
           <td>단시연</td>
-          <td><span style="font-size:11.5px;color:#1c5cab">엑셀 · 재발송</span></td>
+          <td style="font-size:11.5px;color:#1c5cab">엑셀 · 재발송</td>
         </tr>
       </tbody>
     </table>
   </div>
 
   <div class="note">
-    <b>동작 규칙</b><br>
-    · 발주 대상: direct 주문의 취소 아닌 품목 중 아직 발주서에 안 담긴 것 (품목 단위 추적 — 같은 품목 중복 발주 방지, 분할 발주 가능)<br>
-    · 발주서 생성 시 발주번호(POyymmdd-##) 발번 + 품목 잠금. 발주서 삭제(취소) 시 품목은 대기로 복귀<br>
-    · 배송 참고 컬럼: 주문 메모 + 연결된 상담일지의 배송요청일·인사장·명단수단 표시 (consultation_id 조인)<br>
-    · 메일: 네이버 SMTP, 백업 CC 자동 포함, 발송 성공·실패가 이력에 남고 실패 건은 재발송<br>
-    · 자체 양식 매입처: vendors에 플래그 — 1차는 자사 양식 참고용 생성 + 수동 발송 기록, 2차에서 빈도 높은 곳부터 템플릿 재현<br>
-    · 이메일 미등록 매입처는 그 자리에서 등록 (vendors.email 저장 — 매입처 허브와 공유)<br>
-    · 발주서 엑셀 양식은 실물 수령 후 재현 — 그 전까지는 표준 임시 양식(품번·품명·구분·수량·매입단가·합계·비고)으로 시안 검증
+    <b>v1 대비 달라진 점 (개념 정정)</b><br>
+    · 발주의 단위: 여러 주문을 매입처별로 모아 일괄 발주 (v1) → <b>주문 1건 안에서 매입처별 발주서 작성·발송 (v2)</b><br>
+    · 핵심 화면: 별도 발주 대기 화면 → <b>주문 상세의 발주 섹션</b> (주문내역의 하위 작업)<br>
+    · 주문 현황 목록에 발주 상태 배지·필터 (미발주/부분/완료 — 품목 발주 여부로 자동 판정, direct만)<br>
+    · 사이드바 '발주서' 메뉴는 발주 이력 조회로 축소 (주문번호 클릭 → 해당 주문 상세)<br>
+    <b>유지되는 규칙</b> — 품목 단위 발주 추적(중복 방지·분할 발주), 발주 취소 시 미발주 복귀, 배송 참고(주문 메모+상담일지) 자동,
+    네이버 SMTP + 백업 CC + 발송 이력, 자체 양식 매입처는 참고용 생성+수동 발송 기록, 이메일 미등록 시 그 자리 등록(vendors.email)
   </div>
 </div>
 </body>
