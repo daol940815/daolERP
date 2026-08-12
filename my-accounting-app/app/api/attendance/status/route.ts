@@ -18,7 +18,7 @@ async function loadContext() {
   const me = await getCurrentUser()
   if (!me) return { error: '로그인이 필요합니다.', status: 401 as const }
   if (!me.employeeId) {
-    return { error: '직원 정보와 연결되지 않은 계정입니다. 직원·계정 관리에서 연결 후 이용하세요.', status: 400 as const }
+    return { error: '직원 정보와 연결되지 않은 계정입니다. 내 근태 화면에서 본인 직원 정보를 연결하세요.', status: 400 as const }
   }
   const admin = createAdminClient()
   const [{ data: emp, error: e1 }, { data: policy, error: e2 }] = await Promise.all([
