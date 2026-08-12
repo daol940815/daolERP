@@ -222,5 +222,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
+  // 직원 등록 이전부터 쓰던 관리자 계정(employees 미연결)을 본인 직원 정보와 연결
+  // { employee_id } — 계정 미발급 기존 직원 행에 연결 / { name } — 새 직원 행을 만들어 연결
+  // 연결된 행은 admin 등급·근태 대상으로 승격 (연결 주체가 admin 폴백 계정이므로)
+  if (action === 'link_self') {
+    const me = await getCurrentUser()
+    if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+    if (me.employeeId) return NextResponse.json({ error: '이미 직원 정보와 연결된 계정입니다.' }, { status: 400 })
+
+    const fields = {
+      auth_user_id: me.userId, role: 'admin', is_active: true, attendance_target: true,
+      email: me.email,
+    }
+    if (body.employee_id) {
+      const { data: emp, error: e1 } = await admin.from('employees')
+        .select('auth_user_id, name').eq('id', body.employee_id).single()
+      if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
+      if (emp.auth_user_id) {
+        return NextResponse.json({ error: '이미 다른 로그인 계정과 연결된 직원입니다.' }, { status: 400 })
+      }
+      const { error } = await admin.from('employees').update(fields).eq('id', body.employee_id)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ ok: true, linked: emp.name })
+    }
+    const name = (body.name ?? '').trim()
+    if (!name) return NextResponse.json({ error: '연결할 직원을 선택하거나 이름을 입력하세요.' }, { status: 400 })
+    const { error } = await admin.from('employees').insert({ name, ...fields })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, linked: name })
+  }
+
   return NextResponse.json({ error: '알 수 없는 action' }, { status: 400 })
 }
