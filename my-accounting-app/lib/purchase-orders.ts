@@ -277,7 +277,16 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
 
 // 네이버 SMTP 발송 (NAVER_SMTP_USER/PASS, PO_CC_EMAIL 환경변수)
 export function smtpReady() {
-  return !!process.env.NAVER_SMTP_USER && !!process.env.NAVER_SMTP_PASS
+  return !!process.env.NAVER_SMTP_USER?.trim() && !!process.env.NAVER_SMTP_PASS?.trim()
+}
+
+// 네이버 SMTP 인증 계정은 "아이디만" 받는다 (id@naver.com을 넣으면 535 인증 실패).
+// 환경변수에 전체 주소를 넣어도 동작하도록 도메인을 떼고, 앞뒤 공백도 정리한다.
+// 발신 주소(from)는 반대로 항상 전체 주소여야 한다.
+function naverAccount() {
+  const raw = (process.env.NAVER_SMTP_USER ?? '').trim()
+  const id = raw.includes('@') ? raw.slice(0, raw.indexOf('@')) : raw
+  return { id, from: `${id}@naver.com`, pass: (process.env.NAVER_SMTP_PASS ?? '').trim() }
 }
 
 export async function sendPoMail(opts: {
@@ -290,17 +299,15 @@ export async function sendPoMail(opts: {
   if (!smtpReady()) {
     return { ok: false, error: 'SMTP 환경변수(NAVER_SMTP_USER/NAVER_SMTP_PASS)가 설정되지 않았습니다. Vercel 환경변수 등록 후 사용 가능합니다.' }
   }
+  const { id, from, pass } = naverAccount()
   try {
     const nodemailer = (await import('nodemailer')).default
     const transporter = nodemailer.createTransport({
       host: 'smtp.naver.com',
       port: 465,
       secure: true,
-      auth: { user: process.env.NAVER_SMTP_USER, pass: process.env.NAVER_SMTP_PASS },
+      auth: { user: id, pass },
     })
-    const from = process.env.NAVER_SMTP_USER!.includes('@')
-      ? process.env.NAVER_SMTP_USER!
-      : `${process.env.NAVER_SMTP_USER}@naver.com`
     await transporter.sendMail({
       from,
       to: opts.to,
@@ -311,6 +318,14 @@ export async function sendPoMail(opts: {
     })
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : '발송 실패' }
+    const raw = e instanceof Error ? e.message : '발송 실패'
+    // 네이버 인증 거부(535)는 설정 문제라 원인 안내를 덧붙인다
+    if (/535|Invalid login|not accepted/i.test(raw)) {
+      return {
+        ok: false,
+        error: `네이버 로그인 거부 (${id} 계정). 확인: (1) 네이버 메일 환경설정 > POP3/IMAP 설정에서 "IMAP/SMTP 사용함" (2) 2단계 인증 사용 중이면 로그인 비밀번호가 아닌 "애플리케이션 비밀번호" (3) NAVER_SMTP_USER는 아이디만`,
+      }
+    }
+    return { ok: false, error: raw }
   }
 }
