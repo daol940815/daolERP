@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
+import { getAttendanceEmployee } from '@/lib/attendance-employee.server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import {
   kstToday, kstToUtcIso, monthRange,
@@ -25,17 +26,16 @@ const missingTable = (msg: string) => /attendance_|relation .* does not exist/i.
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
 
 export async function GET(req: NextRequest) {
-  const me = await getCurrentUser()
-  if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+  // 직원 정보가 없는 계정도 자동 연결되므로 등급 구분 없이 본인 기록을 볼 수 있다
+  const ctx = await getAttendanceEmployee()
+  if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
+  const { me, employeeId } = ctx
 
   const month = req.nextUrl.searchParams.get('month') ?? kstToday().slice(0, 7)
   if (!/^\d{4}-\d{2}$/.test(month)) return NextResponse.json({ error: 'month 형식은 YYYY-MM' }, { status: 400 })
   const scope = req.nextUrl.searchParams.get('scope') === 'all' ? 'all' : 'self'
   if (scope === 'all' && me.role === 'sales') {
     return NextResponse.json({ error: '전 직원 조회는 관리자만 가능합니다.' }, { status: 403 })
-  }
-  if (scope === 'self' && !me.employeeId) {
-    return NextResponse.json({ error: '직원 정보와 연결되지 않은 계정입니다.' }, { status: 400 })
   }
 
   const admin = createAdminClient()
@@ -50,14 +50,14 @@ export async function GET(req: NextRequest) {
       .select('id, employee_id, work_date, check_in_at, check_out_at, source, edited_by, edit_note')
       .gte('work_date', mStart).lte('work_date', mEnd)
       .order('work_date').range(from, to)
-    if (scope === 'self') q = q.eq('employee_id', me.employeeId!)
+    if (scope === 'self') q = q.eq('employee_id', employeeId)
     return q
   }
   const leaveQuery = () => {
     let q = admin.from('attendance_leaves')
       .select('id, employee_id, leave_type, start_date, end_date, reason, status, decided_by, decide_note, created_at')
       .eq('status', 'approved').lte('start_date', mEnd).gte('end_date', mStart)
-    if (scope === 'self') q = q.eq('employee_id', me.employeeId!)
+    if (scope === 'self') q = q.eq('employee_id', employeeId)
     return q
   }
 
