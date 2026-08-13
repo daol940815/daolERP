@@ -44,45 +44,27 @@ export default function MyAttendancePage() {
   const [busy, setBusy] = useState(false)
   const [showLeaveForm, setShowLeaveForm] = useState(false)
   const [form, setForm] = useState({ ...EMPTY_FORM })
-  // 직원 마스터 미연결 계정(직원 등록 이전부터 쓰던 관리자) — 본인 직원 정보 연결 카드
-  const [unlinked, setUnlinked] = useState(false)
-  const [candidates, setCandidates] = useState<{ id: string; name: string; team: string | null }[]>([])
-  const [linkChoice, setLinkChoice] = useState('')
-  const [linkName, setLinkName] = useState('')
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
-  const isUnlinkedErr = (e: string | undefined) => /연결되지 않은 계정/.test(e ?? '')
 
   const loadStatus = useCallback(async () => {
     const res = await fetch('/api/attendance/status')
     const json = await res.json()
-    if (!res.ok) {
-      if (isUnlinkedErr(json.error)) {
-        setUnlinked(true)
-        // 연결 후보: 계정 미발급 재직 직원 (미연결 계정은 admin 폴백이라 조회 가능)
-        const r2 = await fetch('/api/employees')
-        if (r2.ok) {
-          const emps = (await r2.json()).employees as { id: string; name: string; team: string | null; auth_user_id: string | null; is_active: boolean }[]
-          setCandidates(emps.filter(e => !e.auth_user_id && e.is_active))
-        }
-        return
-      }
-      setError(json.error ?? '조회 실패'); return
-    }
-    setError(null); setUnlinked(false); setStatus(json)
+    if (!res.ok) { setError(json.error ?? '조회 실패'); return }
+    setError(null); setStatus(json)
   }, [])
 
   const loadMonth = useCallback(async () => {
     const res = await fetch(`/api/attendance/records?month=${month}&scope=self`)
     const json = await res.json()
-    if (!res.ok) { if (!isUnlinkedErr(json.error)) setError(json.error ?? '월별 기록 조회 실패'); return }
+    if (!res.ok) { setError(json.error ?? '월별 기록 조회 실패'); return }
     setMonthData(json)
   }, [month])
 
   const loadLeaves = useCallback(async () => {
     const res = await fetch('/api/attendance/leaves?scope=self')
     const json = await res.json()
-    if (!res.ok) { if (!isUnlinkedErr(json.error)) setError(json.error ?? '휴가 조회 실패'); return }
+    if (!res.ok) { setError(json.error ?? '휴가 조회 실패'); return }
     setMyLeaves(json.leaves)
   }, [])
 
@@ -123,17 +105,6 @@ export default function MyAttendancePage() {
     if (await post('/api/attendance/leaves', { action: 'cancel', id })) { flash('취소했습니다.'); loadLeaves() }
   }
 
-  const linkSelf = async () => {
-    const body: Record<string, string> = { action: 'link_self' }
-    if (linkChoice) body.employee_id = linkChoice
-    else if (linkName.trim()) body.name = linkName.trim()
-    else { flash('연결할 직원을 선택하거나 이름을 입력하세요.'); return }
-    if (await post('/api/employees', body)) {
-      flash('직원 정보가 연결되었습니다. 이제 출퇴근 체크를 사용할 수 있습니다.')
-      setUnlinked(false); loadStatus(); loadMonth(); loadLeaves()
-    }
-  }
-
   const inTime = kstTime(status?.record?.check_in_at ?? null)
   const outTime = kstTime(status?.record?.check_out_at ?? null)
   const summary = monthData ? summarizeMonth({
@@ -146,44 +117,6 @@ export default function MyAttendancePage() {
       <h1 className="text-xl font-bold text-gray-900">내 근태</h1>
       {msg && <div className="my-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
       {error && <div className="my-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
-
-      {/* 직원 마스터 미연결 계정 — 본인 직원 정보 연결 */}
-      {unlinked && (
-        <div className="bg-white border border-amber-300 rounded-xl p-5 mt-4">
-          <h2 className="font-bold text-gray-900">본인 직원 정보 연결</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            이 계정은 직원 등록 이전부터 사용하던 관리자 계정이라 직원 마스터와 연결되어 있지
-            않습니다. 출퇴근 체크·휴가를 사용하려면 본인 직원 정보를 연결하세요.
-            연결하면 관리자 등급·근태 대상으로 등록됩니다.
-          </p>
-          <div className="flex flex-wrap items-end gap-3 mt-3">
-            {candidates.length > 0 && (
-              <div>
-                <label className="block text-[11px] text-gray-500 font-semibold mb-1">기존 직원과 연결 (계정 미발급)</label>
-                <select value={linkChoice}
-                  onChange={e => { setLinkChoice(e.target.value); if (e.target.value) setLinkName('') }}
-                  className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm min-w-[180px]">
-                  <option value="">선택 안 함</option>
-                  {candidates.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}{c.team ? ` (${c.team})` : ''}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <div>
-              <label className="block text-[11px] text-gray-500 font-semibold mb-1">또는 새 직원으로 등록 (이름)</label>
-              <input value={linkName}
-                onChange={e => { setLinkName(e.target.value); if (e.target.value) setLinkChoice('') }}
-                placeholder="예: 홍길동"
-                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-            </div>
-            <button onClick={linkSelf} disabled={busy}
-              className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
-              연결
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* 오늘 출퇴근 체크 */}
       {status && (

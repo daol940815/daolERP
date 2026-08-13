@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase-server'
-import { getCurrentUser } from '@/lib/user-role'
+import { getAttendanceEmployee } from '@/lib/attendance-employee.server'
 import { HALF_DAY_TYPES, type LeaveType } from '@/lib/attendance'
 
 export const dynamic = 'force-dynamic'
@@ -22,23 +21,21 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const LEAVE_COLS = 'id, employee_id, leave_type, start_date, end_date, reason, status, decided_by, decided_at, decide_note, created_at'
 
 export async function GET(req: NextRequest) {
-  const me = await getCurrentUser()
-  if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+  // 직원 정보가 없는 계정도 자동 연결되므로 등급 구분 없이 본인 휴가를 볼 수 있다
+  const ctx = await getAttendanceEmployee()
+  if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
+  const { me, employeeId, admin } = ctx
 
   const scope = req.nextUrl.searchParams.get('scope') === 'all' ? 'all' : 'self'
   const status = req.nextUrl.searchParams.get('status')
   if (scope === 'all' && me.role === 'sales') {
     return NextResponse.json({ error: '전 직원 조회는 관리자만 가능합니다.' }, { status: 403 })
   }
-  if (scope === 'self' && !me.employeeId) {
-    return NextResponse.json({ error: '직원 정보와 연결되지 않은 계정입니다.' }, { status: 400 })
-  }
 
-  const admin = createAdminClient()
   let q = admin.from('attendance_leaves')
     .select(LEAVE_COLS)
     .order('created_at', { ascending: false }).limit(200)
-  if (scope === 'self') q = q.eq('employee_id', me.employeeId!)
+  if (scope === 'self') q = q.eq('employee_id', employeeId)
   if (status) q = q.eq('status', status)
 
   const { data, error } = await q
@@ -56,20 +53,19 @@ export async function GET(req: NextRequest) {
     const byId = new Map((emps ?? []).map(e => [e.id as string, e]))
     leaves = leaves.map(l => ({ ...l, employee: byId.get(l.employee_id as string) ?? null }))
   }
-  return NextResponse.json({ leaves, myEmployeeId: me.employeeId })
+  return NextResponse.json({ leaves, myEmployeeId: employeeId })
 }
 
 export async function POST(req: NextRequest) {
-  const me = await getCurrentUser()
-  if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+  const ctx = await getAttendanceEmployee()
+  if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
+  const { me, employeeId, admin } = ctx
 
-  const admin = createAdminClient()
   const body = await req.json().catch(() => ({})) as Record<string, string | undefined>
   const action = body.action
   const now = new Date().toISOString()
 
   if (action === 'request') {
-    if (!me.employeeId) return NextResponse.json({ error: '직원 정보와 연결되지 않은 계정입니다.' }, { status: 400 })
     const leaveType = body.leave_type as LeaveType
     const start = body.start_date ?? ''
     const end = body.end_date ?? ''
@@ -83,7 +79,7 @@ export async function POST(req: NextRequest) {
     // 기간이 겹치는 기존 신청(대기·승인)이 있으면 중복 신청 차단
     const { data: overlap, error: oErr } = await admin.from('attendance_leaves')
       .select('id, start_date, end_date, status')
-      .eq('employee_id', me.employeeId)
+      .eq('employee_id', employeeId)
       .in('status', ['requested', 'approved'])
       .lte('start_date', end).gte('end_date', start).limit(1)
     if (oErr) {
@@ -94,7 +90,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { error } = await admin.from('attendance_leaves').insert({
-      employee_id: me.employeeId, leave_type: leaveType,
+      employee_id: employeeId, leave_type: leaveType,
       start_date: start, end_date: end,
       reason: (body.reason ?? '').trim() || null,
     })
@@ -108,14 +104,14 @@ export async function POST(req: NextRequest) {
     const { data: leave, error: e1 } = await admin.from('attendance_leaves')
       .select('employee_id, status').eq('id', id).single()
     if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
-    const mine = leave.employee_id === me.employeeId
+    const mine = leave.employee_id === employeeId
     const canCancel = (mine && leave.status === 'requested') ||
       (me.role === 'admin' && ['requested', 'approved'].includes(leave.status))
     if (!canCancel) {
       return NextResponse.json({ error: '취소할 수 없습니다. 본인의 승인 대기 건만 취소 가능하며, 승인된 건은 전체 관리자에게 요청하세요.' }, { status: 403 })
     }
     const { error } = await admin.from('attendance_leaves')
-      .update({ status: 'canceled', decided_by: me.employeeId, decided_at: now }).eq('id', id)
+      .update({ status: 'canceled', decided_by: employeeId, decided_at: now }).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true })
   }
@@ -130,12 +126,12 @@ export async function POST(req: NextRequest) {
     if (leave.status !== 'requested') {
       return NextResponse.json({ error: '승인 대기 상태가 아닙니다.' }, { status: 400 })
     }
-    if (me.role === 'manager' && leave.employee_id === me.employeeId) {
+    if (me.role === 'manager' && leave.employee_id === employeeId) {
       return NextResponse.json({ error: '본인 신청은 본인이 결재할 수 없습니다.' }, { status: 403 })
     }
     const { error } = await admin.from('attendance_leaves').update({
       status: action === 'approve' ? 'approved' : 'rejected',
-      decided_by: me.employeeId, decided_at: now,
+      decided_by: employeeId, decided_at: now,
       decide_note: (body.note ?? '').trim() || null,
     }).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
