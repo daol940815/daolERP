@@ -27,31 +27,62 @@ interface PoRecord {
   sent_at: string | null
   status: string
   created_at: string
+  creator: { name: string; phone: string | null } | { name: string; phone: string | null }[] | null
 }
+const one = <T,>(v: T | T[] | null | undefined): T | null =>
+  Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
 
 async function loadPo(admin: SupabaseClient, id: string) {
   const { data: po, error } = await admin.from('erp_purchase_orders')
-    .select('id, po_no, order_id, vendor_id, vendor_name, total_amount, delivery_note, email_to, send_method, sent_at, status, created_at')
+    .select('id, po_no, order_id, vendor_id, vendor_name, total_amount, delivery_note, email_to, send_method, sent_at, status, created_at, creator:employees!erp_purchase_orders_created_by_fkey(name, phone)')
     .eq('id', id).maybeSingle()
   if (error || !po) return null
   const { data: items } = await admin.from('erp_purchase_order_items')
     .select('line_no, order_item_id, item_code, item_name, order_kind, quantity, purchase_price, purchase_shipping, purchase_total, memo')
     .eq('po_id', id).order('line_no')
   const { data: order } = await admin.from('erp_orders')
-    .select('order_no, order_date, bank_name, branch_name')
+    .select('order_no, order_date, bank_name, branch_name, manager_name, contact, phone, consultation_id')
     .eq('id', po.order_id).maybeSingle()
-  return { po: po as PoRecord, items: items ?? [], order }
+  return { po: po as unknown as PoRecord, items: items ?? [], order }
 }
 
-function excelOf(data: NonNullable<Awaited<ReturnType<typeof loadPo>>>) {
+// 자사 양식 데이터 조립 — 양식이 요구하는 항목 중 ERP가 아는 값을 채운다
+async function excelOf(admin: SupabaseClient, data: NonNullable<Awaited<ReturnType<typeof loadPo>>>) {
   const { po, items, order } = data
+
+  // 출고요청일: 주문에 연결된 상담일지의 배송요청일 (없으면 공란 — 수기 기입)
+  let shipRequest: string | null = null
+  if (order?.consultation_id) {
+    const { data: c } = await admin.from('erp_consultations')
+      .select('delivery_request').eq('id', order.consultation_id).maybeSingle()
+    shipRequest = (c?.delivery_request as string) ?? null
+  }
+  // 공급처 연락처: 매입처 마스터
+  let vendorPhone: string | null = null
+  if (po.vendor_id) {
+    const { data: v } = await admin.from('vendors')
+      .select('contact_phone').eq('id', po.vendor_id).maybeSingle()
+    vendorPhone = (v?.contact_phone as string) ?? null
+  }
+  // 배송구분: 품목 구분(지점/개별/샘플)에서 판정 — 혼재 시 '+'로 병기
+  const kinds = Array.from(new Set(items.map(it => it.order_kind).filter(Boolean))) as string[]
+  const kindLabel: Record<string, string> = { 지점: '지점배송', 개별: '개별배송', 샘플: '샘플' }
+  const deliveryKind = kinds.length ? kinds.map(k => kindLabel[k] ?? k).join('+') : null
+
   return buildPoExcel({
     po_no: po.po_no,
+    order_date: order?.order_date ?? null,
+    ship_request: shipRequest,
     vendor_name: po.vendor_name,
-    created_at: po.created_at,
-    delivery_note: po.delivery_note,
-    order_no: order?.order_no ?? null,
+    vendor_phone: vendorPhone,
+    delivery_kind: deliveryKind,
     customer: [order?.bank_name, order?.branch_name].filter(Boolean).join(' ') || '-',
+    customer_manager: order?.manager_name ?? null,
+    customer_phone: (order?.phone as string) || (order?.contact as string) || null,
+    staff_name: one(po.creator)?.name ?? null,
+    staff_phone: one(po.creator)?.phone ?? null,
+    total_amount: po.total_amount ?? 0,
+    delivery_note: po.delivery_note,
     items: items.map(it => ({
       item_code: it.item_code, item_name: it.item_name, order_kind: it.order_kind,
       quantity: it.quantity ?? 0, purchase_price: it.purchase_price ?? 0,
@@ -70,7 +101,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   if (!data) return NextResponse.json({ error: '발주서를 찾을 수 없습니다.' }, { status: 404 })
 
   if (new URL(req.url).searchParams.get('excel') === '1') {
-    const buf = excelOf(data)
+    const buf = await excelOf(admin, data)
     const filename = encodeURIComponent(`발주서_${data.po.po_no}_${data.po.vendor_name}.xlsx`)
     return new NextResponse(new Uint8Array(buf), {
       headers: {
@@ -131,7 +162,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: '받는 이메일 주소를 확인해주세요.' }, { status: 400 })
     }
 
-    const buf = excelOf(data)
+    const buf = await excelOf(admin, data)
     const result = await sendPoMail({
       to,
       subject: `[다올] 발주서 ${po.po_no} - ${po.vendor_name}`,
