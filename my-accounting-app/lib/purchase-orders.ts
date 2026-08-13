@@ -1,5 +1,4 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import * as XLSX from 'xlsx'
 
 // 발주서 공용 로직 (3단계 — 주문 단위 발주)
 // 발주서 1장 = 주문 1건 × 매입처 1곳. 품목 연결로 중복 발주를 막고
@@ -111,39 +110,168 @@ export async function loadPurchaseSection(admin: SupabaseClient, orderId: string
   return { order, items: items ?? [], pos: pos ?? [], poItemMap, vendorInfo, deliveryNote }
 }
 
-// 발주서 표준 엑셀 (자사 양식 실물 수령 전 임시 양식)
-export function buildPoExcel(po: {
+// ── 발주서 엑셀 (자사 양식 — 2026-08-13 실물 파일 재현) ─────────────
+// 양식 원본: 발주서(데이터) 시트 1장. 상단 정보 그리드(발주번호·주문일·출고요청일·
+// 공급처·주문처·담당자·총액) + 품목 표(발송인~송장번호 15열, 가로 인쇄).
+// 골드색 열(발송인·수령인·주소·배송메모·송장번호)은 배송 관련 수기 보완란 —
+// ERP가 아는 값은 미리 채우고 나머지는 비워 보낸다 (송장번호는 매입처 기입).
+
+const COMPANY_NAME = '다올커머스'
+const COMPANY_PHONE = '070-7007-4582'   // 발송인·발주자 연락처 (양식 원본 값)
+
+// 양식 색상 (원본에서 추출)
+const C = {
+  navy: 'FF1F2A44', gold: 'FFC0810A', labelBg: 'FFEEF2F7', totalBg: 'FFFDECC8',
+  goldRowBg: 'FFFFF7E6', ink: 'FF111827', label: 'FF334155', totalInk: 'FFB00020',
+  white: 'FFFFFFFF',
+}
+const FONT = '맑은 고딕'
+
+export interface PoExcelData {
   po_no: string
-  vendor_name: string
-  created_at: string
-  delivery_note: string | null
-  order_no: string | null
-  customer: string
-  items: { item_code: string | null; item_name: string | null; order_kind: string | null; quantity: number; purchase_price: number; purchase_shipping: number; purchase_total: number; memo: string | null }[]
-}): Buffer {
-  const total = po.items.reduce((s, it) => s + (it.purchase_total ?? 0), 0)
-  const aoa: (string | number | null)[][] = [
-    ['발  주  서'],
-    [],
-    ['발주번호', po.po_no, null, '발주일', po.created_at.slice(0, 10)],
-    ['매입처', po.vendor_name, null, '발주사', '다올'],
-    ['주문번호', po.order_no ?? '', null, '납품처(주문처)', po.customer],
-    [],
-    ['NO', '품번', '품명', '구분', '수량', '매입단가', '매입배송비', '합계금액', '비고'],
-    ...po.items.map((it, i) => [
-      i + 1, it.item_code ?? '', it.item_name ?? '', it.order_kind ?? '',
-      it.quantity ?? 0, it.purchase_price ?? 0, it.purchase_shipping ?? 0,
-      it.purchase_total ?? 0, it.memo ?? '',
-    ]),
-    [null, null, null, null, null, null, '합계', total, null],
-    [],
-    ['배송 참고', po.delivery_note ?? ''],
+  order_date: string | null        // 주문일
+  ship_request: string | null      // 출고요청일 (상담일지 배송요청일)
+  vendor_name: string              // 공급처(매입처)
+  vendor_phone: string | null      // 공급처 연락처 (매입처 마스터)
+  delivery_kind: string | null     // 배송구분 (품목 구분에서 판정)
+  customer: string                 // 주문처(거래처)
+  customer_manager: string | null  // 주문처 담당자
+  customer_phone: string | null    // 주문처 연락처
+  staff_name: string | null        // 발주 담당자 (발주서 작성자)
+  total_amount: number
+  delivery_note: string | null     // 배송메모 (첫 품목 행에 기재)
+  items: {
+    item_code: string | null; item_name: string | null; order_kind: string | null
+    quantity: number; purchase_price: number; purchase_shipping: number
+    purchase_total: number; memo: string | null
+  }[]
+}
+
+export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
+  const ExcelJS = (await import('exceljs')).default
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('발주서(데이터)', {
+    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  })
+  ws.columns = [
+    { width: 5 }, { width: 11 }, { width: 13 }, { width: 11 }, { width: 13 },
+    { width: 8 }, { width: 22 }, { width: 18 }, { width: 9 }, { width: 5 },
+    { width: 8 }, { width: 10 }, { width: 16 }, { width: 14 }, { width: 15 },
   ]
-  const ws = XLSX.utils.aoa_to_sheet(aoa)
-  ws['!cols'] = [{ wch: 5 }, { wch: 13 }, { wch: 42 }, { wch: 7 }, { wch: 8 }, { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 24 }]
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, '발주서')
-  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+
+  const thin = { style: 'thin' as const }
+  const box = { top: thin, bottom: thin, left: thin, right: thin }
+  const fill = (rgb: string) => ({ type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: rgb } })
+
+  // 제목
+  ws.mergeCells('A1:O1')
+  ws.getRow(1).height = 42
+  const title = ws.getCell('A1')
+  title.value = `${COMPANY_NAME} 발주서`
+  title.font = { name: FONT, size: 20, bold: true, color: { argb: C.navy } }
+  title.alignment = { horizontal: 'center', vertical: 'middle' }
+
+  // 정보 그리드 (2~5행): [라벨 병합, 값 병합, 값] × 3열 구성
+  const info: [string, string, string, string | number | null][] = [
+    ['A2:B2', 'C2:E2', '발주번호', po.po_no],
+    ['F2:G2', 'H2:J2', '주문일', po.order_date],
+    ['K2:L2', 'M2:O2', '출고요청일', po.ship_request],
+    ['A3:B3', 'C3:E3', '공급처(매입처)', po.vendor_name],
+    ['F3:G3', 'H3:J3', '공급처 연락처', po.vendor_phone],
+    ['K3:L3', 'M3:O3', '배송구분', po.delivery_kind],
+    ['A4:B4', 'C4:E4', '주문처(거래처)', po.customer],
+    ['F4:G4', 'H4:J4', '주문처 담당자', po.customer_manager],
+    ['K4:L4', 'M4:O4', '주문처 연락처', po.customer_phone],
+    ['A5:B5', 'C5:E5', '발주 담당자', po.staff_name],
+    ['F5:G5', 'H5:J5', '발주자 연락처', COMPANY_PHONE],
+    ['K5:L5', 'M5:O5', '총 합계금액 (VAT 포함)', po.total_amount],
+  ]
+  for (let r = 2; r <= 5; r++) ws.getRow(r).height = r === 5 ? 26 : 24
+  for (const [labelRange, valueRange, label, value] of info) {
+    ws.mergeCells(labelRange)
+    ws.mergeCells(valueRange)
+    const lc = ws.getCell(labelRange.split(':')[0])
+    lc.value = label
+    lc.font = { name: FONT, size: 10, bold: true, color: { argb: C.label } }
+    lc.fill = fill(C.labelBg)
+    lc.alignment = { horizontal: 'center', vertical: 'middle' }
+    const vc = ws.getCell(valueRange.split(':')[0])
+    vc.value = value ?? ''
+    vc.font = { name: FONT, size: 10, color: { argb: C.ink } }
+    vc.alignment = { horizontal: 'left', vertical: 'middle' }
+    // 발주번호·배송구분은 원본과 같이 굵게
+    if (label === '발주번호' || label === '배송구분') vc.font = { ...vc.font, bold: true }
+  }
+  // 총액 칸은 강조 (원본: 진한 글씨·연주황 배경·"원" 표기, 품목 합계 수식)
+  const totalCell = ws.getCell('M5')
+  totalCell.font = { name: FONT, size: 12, bold: true, color: { argb: C.totalInk } }
+  totalCell.fill = fill(C.totalBg)
+  totalCell.alignment = { horizontal: 'right', vertical: 'middle' }
+  totalCell.numFmt = '#,##0 "원"'
+  if (po.items.length) {
+    totalCell.value = {
+      formula: `SUM(L7:L${6 + po.items.length})`,
+      result: po.total_amount,
+    } as import('exceljs').CellFormulaValue
+  }
+
+  // 품목 표 헤더 (6행) — 남색: 발주 내용 / 골드: 배송 수기 보완란
+  const headers: [string, 'navy' | 'gold'][] = [
+    ['NO', 'navy'], ['발송인', 'gold'], ['발송인 연락처', 'gold'], ['수령인', 'gold'],
+    ['수령인 연락처', 'gold'], ['우편번호', 'gold'], ['배송지 주소', 'gold'],
+    ['제품명', 'navy'], ['규격/옵션', 'navy'], ['수량', 'navy'], ['단가', 'navy'],
+    ['합계', 'navy'], ['배송메모', 'gold'], ['비고', 'navy'], ['송장번호', 'gold'],
+  ]
+  ws.getRow(6).height = 30
+  headers.forEach(([label, tone], i) => {
+    const cell = ws.getCell(6, i + 1)
+    cell.value = label
+    cell.font = { name: FONT, size: 9.5, bold: true, color: { argb: C.white } }
+    cell.fill = fill(tone === 'navy' ? C.navy : C.gold)
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+  })
+
+  // 품목 행 — 골드 열(B~G, M, O)은 연한 골드 배경으로 수기란 표시
+  const GOLD_COLS = new Set([2, 3, 4, 5, 6, 7, 13, 15])
+  po.items.forEach((it, i) => {
+    const r = 7 + i
+    ws.getRow(r).height = 30
+    // 합계(purchase_total)에는 매입배송비가 포함 — 단가×수량과 다르면 비고에 명시
+    const noteParts: string[] = []
+    if (it.memo) noteParts.push(it.memo)
+    if ((it.purchase_shipping ?? 0) > 0) noteParts.push(`배송비 ${it.purchase_shipping.toLocaleString('ko-KR')}원 포함`)
+    const values: (string | number | null)[] = [
+      i + 1,
+      COMPANY_NAME, COMPANY_PHONE,
+      po.customer_manager ?? '', po.customer_phone ?? '',
+      '', '',                                    // 우편번호·배송지 주소 — 수기 기입
+      it.item_name ?? '', it.item_code ?? '',
+      it.quantity ?? 0, it.purchase_price ?? 0, it.purchase_total ?? 0,
+      i === 0 ? po.delivery_note ?? '' : '',     // 배송메모 — 주문의 배송 참고를 첫 행에
+      noteParts.join(' · '),
+      '',                                        // 송장번호 — 매입처 기입
+    ]
+    values.forEach((v, ci) => {
+      const cell = ws.getCell(r, ci + 1)
+      cell.value = v
+      cell.font = { name: FONT, size: 9.5, color: { argb: C.ink } }
+      const right = ci >= 9 && ci <= 11
+      cell.alignment = {
+        horizontal: ci === 0 || ci === 5 ? 'center' : right ? 'right' : 'left',
+        vertical: 'middle', wrapText: true,
+      }
+      if (right) cell.numFmt = '#,##0'
+      if (GOLD_COLS.has(ci + 1)) cell.fill = fill(C.goldRowBg)
+    })
+  })
+
+  // 표 전체 테두리 (정보 그리드 + 품목 표)
+  const lastRow = 6 + Math.max(po.items.length, 1)
+  for (let r = 2; r <= lastRow; r++) {
+    for (let c = 1; c <= 15; c++) ws.getCell(r, c).border = box
+  }
+
+  return Buffer.from(await wb.xlsx.writeBuffer())
 }
 
 // 네이버 SMTP 발송 (NAVER_SMTP_USER/PASS, PO_CC_EMAIL 환경변수)

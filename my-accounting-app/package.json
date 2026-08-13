@@ -14,6 +14,7 @@
     "@types/papaparse": "^5.5.2",
     "ag-grid-community": "^35.3.0",
     "ag-grid-react": "^35.3.0",
+    "exceljs": "^4.4.0",
     "next": "14.2.35",
     "nodemailer": "^9.0.5",
     "papaparse": "^5.5.3",
