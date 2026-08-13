@@ -21,7 +21,7 @@ interface Judgement {
 interface MonthRow {
   month: string
   erp_amount: number; erp_items: number
-  invoice_supply: number; invoice_count: number
+  invoice_supply: number; invoice_total?: number; invoice_count: number
   paid_amount: number
   judgement: Judgement | null
 }
@@ -126,7 +126,8 @@ function VendorCycleInner() {
 
   // 지급 비교는 부가세 포함 총액 기준 (지급이 총액으로 이뤄지므로)
   const unpaid = totals ? Math.max(0, totals.invoice_total - totals.paid) : 0
-  const erpInvGap = totals ? totals.erp - totals.invoice : 0
+  // ERP 매입가도 부가세 포함이므로 계산서와의 대조는 총액 기준 (2026-08-10 확정)
+  const erpInvGap = totals ? totals.erp - totals.invoice_total : 0
   // 롤업 배지: 거래처 단위 예외가 있으면 그중 최악, 없으면 월별 판정 중 최악 (설계 §2-0)
   const sevOrder: Record<Severity, number> = { '확인 필요': 0, '주의': 1, '정상 대기': 2 }
   const worst = [...vendorLevel, ...months.map(m => m.judgement).filter((j): j is Judgement => !!j && j.status !== '완료' && j.status !== '경비성')]
@@ -184,9 +185,9 @@ function VendorCycleInner() {
           {/* 파이프라인: 단계 사이 화살표에 막힘 표시 (설계 §3) */}
           <div className="flex items-center gap-1 mb-3">
             {stage('ERP 주문 (매입)', won(totals.erp), `품목 ${totals.erp_items.toLocaleString()}건`, false)}
-            {arrow(Math.abs(erpInvGap) > Math.max(totals.erp, totals.invoice, 1) * 0.10 && totals.erp > 0)}
-            {stage('세금계산서 (공급가)', won(totals.invoice), `계산서 ${totals.invoice_count.toLocaleString()}건 · 부가세 포함 ${won(totals.invoice_total)}`,
-              totals.erp > 0 && totals.invoice < totals.erp * 0.90)}
+            {arrow(Math.abs(erpInvGap) > Math.max(totals.erp, totals.invoice_total, 1) * 0.05 && totals.erp > 0)}
+            {stage('세금계산서 (부가세 포함)', won(totals.invoice_total), `계산서 ${totals.invoice_count.toLocaleString()}건 · 공급가 ${won(totals.invoice)}`,
+              totals.erp > 0 && totals.invoice_total < totals.erp * 0.95)}
             {arrow(unpaid > totals.invoice_total * 0.05 && totals.invoice_total > 0)}
             {stage('지급', won(totals.paid),
               unpaid > 0 ? `미지급 잔액 ${won(unpaid)} (총액 기준)` : '지급 완료 수준',
@@ -220,7 +221,7 @@ function VendorCycleInner() {
                   <th className="px-3 py-2 text-left w-24">월</th>
                   <th className="px-3 py-2 text-left w-28">상태</th>
                   <th className="px-3 py-2 text-right">ERP 매입</th>
-                  <th className="px-3 py-2 text-right">계산서</th>
+                  <th className="px-3 py-2 text-right">계산서(총액)</th>
                   <th className="px-3 py-2 text-right">지급</th>
                   <th className="px-3 py-2 text-left">비고 (추정 원인)</th>
                   <th className="px-3 py-2 w-32"></th>
@@ -251,7 +252,7 @@ function VendorCycleInner() {
                         )}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">{mrow.erp_amount ? won(mrow.erp_amount) : <span className="text-gray-300">-</span>}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{mrow.invoice_supply ? won(mrow.invoice_supply) : <span className="text-gray-300">-</span>}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{(mrow.invoice_total ?? mrow.invoice_supply) ? won(mrow.invoice_total ?? mrow.invoice_supply) : <span className="text-gray-300">-</span>}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{mrow.paid_amount ? won(mrow.paid_amount) : <span className="text-gray-300">-</span>}</td>
                       <td className="px-3 py-2 text-xs text-gray-500">{j?.cause ?? ''}</td>
                       <td className="px-3 py-2 text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>

@@ -100,7 +100,7 @@ export default function MyJournalPage() {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-900">내 영업일지</h1>
+        <h1 className="text-xl font-bold text-gray-900">영업일지</h1>
         <button onClick={() => setOpen(v => !v)}
           className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">
           {open ? '작성 닫기' : '일지 작성'}

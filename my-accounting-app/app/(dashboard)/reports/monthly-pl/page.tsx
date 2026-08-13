@@ -94,6 +94,7 @@ export default function MonthlyPLPage() {
                 {result.months.map(m => (
                   <th key={m} className="py-2.5 px-3 font-medium text-right whitespace-nowrap">{formatMonth(m)}</th>
                 ))}
+                <th className="py-2.5 px-3 font-semibold text-right whitespace-nowrap border-l border-gray-200 text-gray-500">합계</th>
               </tr>
             </thead>
             <tbody>
@@ -103,6 +104,7 @@ export default function MonthlyPLPage() {
                     {item.label}
                   </td>
                   {result.months.map(m => <td key={m} className="bg-slate-100" />)}
+                  <td className="bg-slate-100 border-l border-gray-200" />
                 </tr>
               ) : (
                 <tr
@@ -134,6 +136,16 @@ export default function MonthlyPLPage() {
                       {item.is_placeholder ? '미반영' : won(v)}
                     </td>
                   ))}
+                  {(() => {
+                    const total = item.values.reduce((s, v) => s + v, 0)
+                    return (
+                      <td className={`py-2 px-3 text-right whitespace-nowrap font-medium border-l border-gray-200 ${
+                        item.is_placeholder ? 'text-gray-300 italic font-normal' : total < 0 ? 'text-red-600' : ''
+                      }`}>
+                        {item.is_placeholder ? '미반영' : won(total)}
+                      </td>
+                    )
+                  })()}
                 </tr>
               ))}
             </tbody>

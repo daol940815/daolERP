@@ -125,7 +125,7 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
 
   // ── 상위 4개 그룹 접기/펴기 (localStorage 유지 + 현재 화면 그룹 자동 열기) ──
   const GROUP_ROUTES: Record<string, string[]> = {
-    mgmt:   ['/reports/management-dashboard', '/sales-hub', '/employees'],
+    mgmt:   ['/reports/management-dashboard', '/sales-hub', '/purchase-hub', '/employees'],
     acct:   ['/reports/monthly-pl', '/reports/vat-estimate', '/reports/daily-cash', '/reports/cash-position',
              '/journal', '/ledger', '/vendor-ledger', '/opening-balances', '/vendor-opening-balances', '/accounts'],
     source: ['/erp-orders', '/transactions', '/card-sales', '/card-expenses', '/cash-receipts', '/tax-invoices', '/upload'],
@@ -289,6 +289,12 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           </Link>
           <Link href="/sales-hub" className={linkCls(pathname.startsWith('/sales-hub') && !pathname.startsWith('/sales-hub/contacts'))}>
             <span>매출처 허브</span>
+          </Link>
+          <Link href="/purchase-hub" className={linkCls(pathname.startsWith('/purchase-hub'))}>
+            <span>매입처 허브</span>
+          </Link>
+          <Link href="/loans" className={linkCls(pathname.startsWith('/loans'))}>
+            <span>대출 관리</span>
           </Link>
           <Link href="/sales-hub/contacts" className={linkCls(pathname.startsWith('/sales-hub/contacts'))}>
             <span>거래처 담당자</span>
@@ -665,10 +671,10 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             <span>ERP 매출처 수금현황</span>
           </Link>
           <Link href="/reports/receivables-aging" className={linkCls(pathname.startsWith('/reports/receivables-aging'))}>
-            <span>미수금 Aging 분석</span>
+            <span>미수금 경과기간 분석</span>
           </Link>
           <Link href="/reports/payables-aging" className={linkCls(pathname.startsWith('/reports/payables-aging'))}>
-            <span>미지급금 Aging 분석</span>
+            <span>미지급금 경과기간 분석</span>
           </Link>
           <Link href="/reports/vendor-sales" className={linkCls(pathname.startsWith('/reports/vendor-sales'))}>
             <span>거래처별 매출 분석</span>

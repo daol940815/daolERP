@@ -15,7 +15,11 @@ export type Cell = {
   paid_amount: number
 }
 
-// 지급은 부가세 포함 총액으로 이뤄지므로 계산서↔지급 비교는 총액 기준 (062 검증에서 확인)
+// 모든 금액 비교는 부가세 포함 총액 기준으로 통일 (2026-08-10 확정):
+//  - 지급은 부가세 포함 총액으로 이뤄진다 (062 검증에서 확인)
+//  - ERP 매입가(purchase_total)도 부가세 포함이다 (면세 상품은 세액 0일 뿐 — 사용자 확인).
+//    종전의 ERP↔계산서 공급가 비교는 과세 매입처에 약 9.1% 상시 편차를 깔아
+//    TOL 10%가 이를 흡수하는 구조였다 (실질 허용오차 0.9%, 과세/면세 비대칭).
 export const invTotal = (c: Cell) => c.invoice_total ?? c.invoice_supply
 
 export type CycleStatus = '완료' | '계산서 대기' | '지급 대기' | '금액 차이' | '과다 지급' | '경비성'
@@ -28,7 +32,7 @@ export interface ExceptionRow {
   status: CycleStatus
   severity: Severity
   erp_amount: number
-  invoice_supply: number
+  invoice_supply: number   // 계산서 금액 — 부가세 포함 총액 기준 (필드명은 API 호환 위해 유지)
   paid_amount: number
   gap: number              // 상태별 핵심 차이 금액 (미지급액·차이액 등)
   detail: string           // "무엇을·얼마나·왜" 한 줄
@@ -40,7 +44,9 @@ export interface CycleSummary {
   '금액 차이': number; '과다 지급': number; 경비성: number
 }
 
-export const TOL = 0.10      // 금액차이 허용범위 (실데이터로 조정 예정)
+// 금액차이 허용범위 — 총액 기준 전환과 함께 실데이터로 조정 (2026-08-10, 2026년 셀 360개 측정):
+// 총액 기준 차이 중앙값 0.62%, 5% 이내 73% — 5% 초과는 실제 확인 대상(부분 발행·시차 등)
+export const TOL = 0.05
 export const PAY_TOL = 0.95  // 지급 완료로 보는 커버리지
 export const OVER = 1.05     // 과다 지급 경계
 
@@ -76,16 +82,17 @@ export function computeCycle(
   for (const [vendorId, arr] of Array.from(byVendor.entries())) {
     arr.sort((a, b) => a.month.localeCompare(b.month))
     const name = vname.get(vendorId) ?? '(알 수 없음)'
-    const invByMonth = new Map(arr.map(c => [c.month, c.invoice_supply]))
-    // ERP↔계산서 비교는 공급가, 계산서↔지급 비교는 부가세 포함 총액
+    // ERP·계산서·지급 모두 부가세 포함 총액 기준 (ERP 매입가도 부가세 포함 — 상단 주석)
+    const invByMonth = new Map(arr.map(c => [c.month, invTotal(c)]))
     const totalInvoiceTotal = arr.reduce((s, c) => s + invTotal(c), 0)
     const totalPaid = arr.reduce((s, c) => s + c.paid_amount, 0)
 
     // ── 월 셀별 판정: 계산서 대기 / 금액 차이 / 완료 / 경비성 ──
     for (const c of arr) {
       const elapsed = monthsBetween(c.month, now)
+      const inv = invTotal(c)
 
-      if (c.erp_amount > 0 && c.invoice_supply === 0) {
+      if (c.erp_amount > 0 && inv === 0) {
         summary['계산서 대기']++
         const sev = severityByElapsed(elapsed)
         exceptions.push({
@@ -99,21 +106,21 @@ export function computeCycle(
         continue
       }
 
-      if (c.erp_amount > 0 && c.invoice_supply > 0) {
-        const base = Math.max(c.erp_amount, c.invoice_supply)
-        const diff = Math.abs(c.erp_amount - c.invoice_supply)
+      if (c.erp_amount > 0 && inv > 0) {
+        const base = Math.max(c.erp_amount, inv)
+        const diff = Math.abs(c.erp_amount - inv)
         if (diff > base * TOL) {
           // 원인 추정: 전월/익월 계산서 합산 시 근사하면 시차
           const [y, m] = c.month.split('-').map(Number)
           const prev = `${m === 1 ? y - 1 : y}-${String(m === 1 ? 12 : m - 1).padStart(2, '0')}`
           const next = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}`
-          const withAdj = c.invoice_supply + (invByMonth.get(prev) ?? 0) + (invByMonth.get(next) ?? 0)
+          const withAdj = inv + (invByMonth.get(prev) ?? 0) + (invByMonth.get(next) ?? 0)
           let cause: string
           let sev: Severity
           if (Math.abs(c.erp_amount - withAdj) <= Math.max(c.erp_amount, withAdj) * TOL) {
             cause = '전월/익월 발행 추정 (시차)'
             sev = '정상 대기'
-          } else if (c.invoice_supply < c.erp_amount) {
+          } else if (inv < c.erp_amount) {
             cause = '부분 발행 또는 미발행 추정'
             sev = severityByElapsed(elapsed)
           } else {
@@ -124,23 +131,23 @@ export function computeCycle(
           exceptions.push({
             vendor_id: vendorId, vendor_name: name, month: c.month,
             status: '금액 차이', severity: sev,
-            erp_amount: c.erp_amount, invoice_supply: c.invoice_supply, paid_amount: c.paid_amount,
-            gap: c.erp_amount - c.invoice_supply,
-            detail: `ERP ${won(c.erp_amount)} · 계산서 ${won(c.invoice_supply)} · 차이 ${won(diff)}`,
+            erp_amount: c.erp_amount, invoice_supply: inv, paid_amount: c.paid_amount,
+            gap: c.erp_amount - inv,
+            detail: `ERP ${won(c.erp_amount)} · 계산서(총액) ${won(inv)} · 차이 ${won(diff)}`,
             cause,
           })
           continue
         }
       }
 
-      if (c.erp_amount === 0 && c.invoice_supply > 0) {
+      if (c.erp_amount === 0 && inv > 0) {
         summary['경비성']++
         exceptions.push({
           vendor_id: vendorId, vendor_name: name, month: c.month,
           status: '경비성', severity: '정상 대기',
-          erp_amount: 0, invoice_supply: c.invoice_supply, paid_amount: c.paid_amount,
+          erp_amount: 0, invoice_supply: inv, paid_amount: c.paid_amount,
           gap: 0,
-          detail: `계산서 ${won(c.invoice_supply)} (${c.invoice_count}건) · ERP 무관 경비성 매입`,
+          detail: `계산서(총액) ${won(inv)} (${c.invoice_count}건) · ERP 무관 경비성 매입`,
           cause: null,
         })
       } else if (c.erp_amount > 0) {
@@ -148,9 +155,9 @@ export function computeCycle(
         exceptions.push({
           vendor_id: vendorId, vendor_name: name, month: c.month,
           status: '완료', severity: '정상 대기',
-          erp_amount: c.erp_amount, invoice_supply: c.invoice_supply, paid_amount: c.paid_amount,
+          erp_amount: c.erp_amount, invoice_supply: inv, paid_amount: c.paid_amount,
           gap: 0,
-          detail: `ERP ${won(c.erp_amount)} · 계산서 ${won(c.invoice_supply)} — 근사 일치`,
+          detail: `ERP ${won(c.erp_amount)} · 계산서(총액) ${won(inv)} — 근사 일치`,
           cause: null,
         })
       }

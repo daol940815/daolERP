@@ -64,6 +64,7 @@ export default async function ManagementDashboardPage({
     vendorSales,
     monthlyPL,
     vatEstimate,
+    loansRes,
   ] = await Promise.all([
     // 자금현황은 저량(현재 시점) 지표 — 기간 선택과 무관하게 항상 최신 잔액 기준.
     // 과거 시점 잔액이 필요하면 계좌 통합현황 화면에서 기간을 조정한다.
@@ -74,6 +75,7 @@ export default async function ManagementDashboardPage({
     buildVendorAnalysisRows(admin, from, to),
     buildMonthlyPL(admin, monthFrom, monthTo),
     buildVatEstimate(admin, from, to),
+    admin.from('loans').select('current_balance, monthly_principal, monthly_interest, maturity_date, status'),
   ])
 
   const fundSummary = 'summary' in cashPosition ? cashPosition.summary : null
@@ -97,6 +99,17 @@ export default async function ManagementDashboardPage({
   const operatingProfit = findItem('operating_profit')
 
   const vat = 'result' in vatEstimate ? vatEstimate.result : null
+
+  // 대출 현황 (loans 마스터 — 402 미실행이면 빈 목록으로 표시)
+  type LoanRow = { current_balance: number; monthly_principal: number; monthly_interest: number; maturity_date: string | null; status: string }
+  const loanRows: LoanRow[] = loansRes.error ? [] : ((loansRes.data ?? []) as LoanRow[])
+  const activeLoans = loanRows.filter(l => l.status === 'active')
+  const loanBalance   = activeLoans.reduce((s, l) => s + (l.current_balance ?? 0), 0)
+  const loanPrincipal = activeLoans.reduce((s, l) => s + (l.monthly_principal ?? 0), 0)
+  const loanInterest  = activeLoans.reduce((s, l) => s + (l.monthly_interest ?? 0), 0)
+  const in6Months = new Date(now.getFullYear(), now.getMonth() + 6, now.getDate()).toISOString().slice(0, 10)
+  const loanOverdue = activeLoans.filter(l => l.maturity_date && l.maturity_date < todayStr).length
+  const loanDueSoon = activeLoans.filter(l => l.maturity_date && l.maturity_date >= todayStr && l.maturity_date <= in6Months).length
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -129,8 +142,33 @@ export default async function ManagementDashboardPage({
         <Card label="가용 자금" value={won(fundSummary?.available_funds)} valueClass="text-blue-600" href="/reports/cash-position" />
       </div>
 
+      {/* 대출 현황 */}
+      <SectionHeader title="대출 현황 (대출 마스터 기준)" href="/loans" linkLabel="대출 관리" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card
+          label="대출 잔액 합계"
+          value={won(loanBalance)}
+          sub={`상환 중 ${activeLoans.length}건`}
+          valueClass={loanBalance > 0 ? 'text-rose-600' : 'text-gray-900'}
+          href="/loans"
+        />
+        <Card
+          label="월 원리금 상환 (참고)"
+          value={won(loanPrincipal + loanInterest)}
+          sub={`원금 ${won(loanPrincipal)} · 이자 ${won(loanInterest)} (변동)`}
+          href="/loans"
+        />
+        <Card
+          label="만기 경과 · 6개월 내 도래"
+          value={`${loanOverdue}건 · ${loanDueSoon}건`}
+          sub={loanOverdue > 0 ? '만기 경과 대출 확인 필요' : undefined}
+          valueClass={loanOverdue > 0 ? 'text-red-600' : 'text-gray-900'}
+          href="/loans"
+        />
+      </div>
+
       {/* 미수금/미지급금 */}
-      <SectionHeader title={`미수금 · 미지급금 (기준일 ${asOf})`} href="/reports/receivables-aging" linkLabel="Aging 분석" />
+      <SectionHeader title={`미수금 · 미지급금 (기준일 ${asOf})`} href="/reports/receivables-aging" linkLabel="경과기간 분석" />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card
           label="미수금 총계"
