@@ -27,14 +27,14 @@ interface PoRecord {
   sent_at: string | null
   status: string
   created_at: string
-  creator: { name: string } | { name: string }[] | null
+  creator: { name: string; phone: string | null } | { name: string; phone: string | null }[] | null
 }
 const one = <T,>(v: T | T[] | null | undefined): T | null =>
   Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
 
 async function loadPo(admin: SupabaseClient, id: string) {
   const { data: po, error } = await admin.from('erp_purchase_orders')
-    .select('id, po_no, order_id, vendor_id, vendor_name, total_amount, delivery_note, email_to, send_method, sent_at, status, created_at, creator:employees!erp_purchase_orders_created_by_fkey(name)')
+    .select('id, po_no, order_id, vendor_id, vendor_name, total_amount, delivery_note, email_to, send_method, sent_at, status, created_at, creator:employees!erp_purchase_orders_created_by_fkey(name, phone)')
     .eq('id', id).maybeSingle()
   if (error || !po) return null
   const { data: items } = await admin.from('erp_purchase_order_items')
@@ -80,6 +80,7 @@ async function excelOf(admin: SupabaseClient, data: NonNullable<Awaited<ReturnTy
     customer_manager: order?.manager_name ?? null,
     customer_phone: (order?.phone as string) || (order?.contact as string) || null,
     staff_name: one(po.creator)?.name ?? null,
+    staff_phone: one(po.creator)?.phone ?? null,
     total_amount: po.total_amount ?? 0,
     delivery_note: po.delivery_note,
     items: items.map(it => ({

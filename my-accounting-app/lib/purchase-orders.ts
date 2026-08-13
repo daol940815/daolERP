@@ -135,9 +135,10 @@ export interface PoExcelData {
   vendor_phone: string | null      // 공급처 연락처 (매입처 마스터)
   delivery_kind: string | null     // 배송구분 (품목 구분에서 판정)
   customer: string                 // 주문처(거래처)
-  customer_manager: string | null  // 주문처 담당자
-  customer_phone: string | null    // 주문처 연락처
+  customer_manager: string | null  // 주문처 담당자 (고객처 담당자 — 주문의 거래처 담당자)
+  customer_phone: string | null    // 주문처 연락처 (고객처 담당자 연락처)
   staff_name: string | null        // 발주 담당자 (발주서 작성자)
+  staff_phone: string | null       // 발주자 연락처 (작성자 직원 연락처, 없으면 회사 번호)
   total_amount: number
   delivery_note: string | null     // 배송메모 (첫 품목 행에 기재)
   items: {
@@ -156,7 +157,7 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
   ws.columns = [
     { width: 5 }, { width: 11 }, { width: 13 }, { width: 11 }, { width: 13 },
     { width: 8 }, { width: 22 }, { width: 18 }, { width: 9 }, { width: 5 },
-    { width: 8 }, { width: 10 }, { width: 16 }, { width: 14 }, { width: 15 },
+    { width: 8 }, { width: 10 }, { width: 14 }, { width: 16 }, { width: 15 },
   ]
 
   const thin = { style: 'thin' as const }
@@ -183,7 +184,7 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
     ['F4:G4', 'H4:J4', '주문처 담당자', po.customer_manager],
     ['K4:L4', 'M4:O4', '주문처 연락처', po.customer_phone],
     ['A5:B5', 'C5:E5', '발주 담당자', po.staff_name],
-    ['F5:G5', 'H5:J5', '발주자 연락처', COMPANY_PHONE],
+    ['F5:G5', 'H5:J5', '발주자 연락처', po.staff_phone || COMPANY_PHONE],
     ['K5:L5', 'M5:O5', '총 합계금액 (VAT 포함)', po.total_amount],
   ]
   for (let r = 2; r <= 5; r++) ws.getRow(r).height = r === 5 ? 26 : 24
@@ -220,7 +221,7 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
     ['NO', 'navy'], ['발송인', 'gold'], ['발송인 연락처', 'gold'], ['수령인', 'gold'],
     ['수령인 연락처', 'gold'], ['우편번호', 'gold'], ['배송지 주소', 'gold'],
     ['제품명', 'navy'], ['규격/옵션', 'navy'], ['수량', 'navy'], ['단가', 'navy'],
-    ['합계', 'navy'], ['배송메모', 'gold'], ['비고', 'navy'], ['송장번호', 'gold'],
+    ['합계', 'navy'], ['비고', 'navy'], ['배송메모', 'gold'], ['송장번호', 'gold'],
   ]
   ws.getRow(6).height = 30
   headers.forEach(([label, tone], i) => {
@@ -231,8 +232,8 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
     cell.alignment = { horizontal: 'center', vertical: 'middle' }
   })
 
-  // 품목 행 — 골드 열(B~G, M, O)은 연한 골드 배경으로 수기란 표시
-  const GOLD_COLS = new Set([2, 3, 4, 5, 6, 7, 13, 15])
+  // 품목 행 — 골드 열(B~G, N, O)은 연한 골드 배경으로 수기란 표시
+  const GOLD_COLS = new Set([2, 3, 4, 5, 6, 7, 14, 15])
   po.items.forEach((it, i) => {
     const r = 7 + i
     ws.getRow(r).height = 30
@@ -247,8 +248,8 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
       '', '',                                    // 우편번호·배송지 주소 — 수기 기입
       it.item_name ?? '', it.item_code ?? '',
       it.quantity ?? 0, it.purchase_price ?? 0, it.purchase_total ?? 0,
+      noteParts.join(' · '),                     // 비고 (품목 메모·배송비 포함 표기)
       i === 0 ? po.delivery_note ?? '' : '',     // 배송메모 — 주문의 배송 참고를 첫 행에
-      noteParts.join(' · '),
       '',                                        // 송장번호 — 매입처 기입
     ]
     values.forEach((v, ci) => {
