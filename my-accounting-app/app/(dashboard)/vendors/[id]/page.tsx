@@ -306,8 +306,17 @@ export default function VendorDetailPage() {
             {vendor.biz_number ?? '사업자번호 미등록'}
             {vendor.contact_name  && ` · 담당자 ${vendor.contact_name}`}
             {vendor.contact_phone && ` · ${vendor.contact_phone}`}
-            {vendor.email         && ` · ${vendor.email}`}
+            {!showPurchaseLedger && vendor.email && ` · ${vendor.email}`}
           </p>
+          {/* 매입처는 발주서 메일 발송 주소로 쓰이므로 이메일을 별도 표기 */}
+          {showPurchaseLedger && (
+            <p className="text-sm mt-1">
+              <span className="text-gray-400">발주 이메일</span>{' '}
+              {vendor.email
+                ? <span className="text-gray-700">{vendor.email}</span>
+                : <span className="text-gray-300">미등록 — 주문 포털 발주서 메일 발송 시 사용됩니다</span>}
+            </p>
+          )}
           {vendor.note && <p className="text-xs text-gray-500 mt-1.5">{vendor.note}</p>}
         </div>
         <Link

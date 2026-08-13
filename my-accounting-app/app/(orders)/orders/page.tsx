@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 
 // 주문 현황 (시안 v2) — KPI(클릭=필터) + 통합 검색 + 칩 필터 + 행내 상품 펼치기.
 // 검사 상태(정의 미확정)·배송 컬럼(3단계)은 제외 상태 — 트랙 문서 참고.
-// 마진·매입 정보는 manager/admin에게만 표시.
+// 마진·매입 정보는 전 직원 공개 (2026-08-13 사용자 결정).
 
 interface Row {
   id: string
@@ -24,10 +24,12 @@ interface Row {
   channel: string | null
   is_prepay: boolean
   has_invoice: boolean
+  po_status: 'none' | 'partial' | 'full' | null
 }
 interface Kpi {
   count: number; total: number; outstanding: number
   outstanding_cnt: number; in_progress_cnt: number; direct_cnt: number
+  po_none_cnt: number; po_partial_cnt: number; po_full_cnt: number
 }
 interface Item {
   id: string; line_no: number; parent_line_no: number | null
@@ -59,6 +61,12 @@ const COLLECT_BADGE: Record<string, { label: string; cls: string }> = {
   in_progress: { label: '진행중',   cls: 'bg-amber-100 text-amber-800' },
   outstanding: { label: '미수금',   cls: 'bg-red-100 text-red-700' },
 }
+// 발주 상태 (direct 주문만 — 업로드 주문은 기존 ERP에서 발주 완료된 건이라 '-')
+const PO_BADGE: Record<string, { label: string; cls: string }> = {
+  none:    { label: '미발주',   cls: 'bg-orange-100 text-orange-700' },
+  partial: { label: '부분발주', cls: 'bg-amber-100 text-amber-800' },
+  full:    { label: '발주완료', cls: 'bg-emerald-100 text-emerald-700' },
+}
 
 const chip = (on: boolean) =>
   `px-3 py-1 rounded-full text-xs border whitespace-nowrap ${
@@ -83,7 +91,6 @@ export default function OrdersHomePage() {
   const router = useRouter()
   const [rows, setRows] = useState<Row[]>([])
   const [kpi, setKpi] = useState<Kpi | null>(null)
-  const [role, setRole] = useState('sales')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -95,6 +102,7 @@ export default function OrdersHomePage() {
   const [to, setTo] = useState(kstToday())
   const [collect, setCollect] = useState('all')
   const [source, setSource] = useState('all')
+  const [po, setPo] = useState('all')
   const [prepay, setPrepay] = useState(false)
   const [invoice, setInvoice] = useState(false)
   const [mine, setMine] = useState(false)
@@ -121,6 +129,7 @@ export default function OrdersHomePage() {
     if (to) p.set('to', to)
     if (collect !== 'all') p.set('collect', collect)
     if (source !== 'all') p.set('source', source)
+    if (po !== 'all') p.set('po', po)
     if (prepay) p.set('prepay', '1')
     if (invoice) p.set('invoice', '1')
     if (mine) p.set('mine', '1')
@@ -129,16 +138,16 @@ export default function OrdersHomePage() {
     const json = await res.json()
     if (!res.ok) setError(json.error ?? '조회 실패')
     else {
-      setRows(json.rows); setKpi(json.kpi); setRole(json.role ?? 'sales')
+      setRows(json.rows); setKpi(json.kpi)
       setTotalPages(json.total_pages ?? 1)
       setExpanded(null)
     }
     setLoading(false)
-  }, [q, from, to, collect, source, prepay, invoice, mine, page])
+  }, [q, from, to, collect, source, po, prepay, invoice, mine, page])
   useEffect(() => { load() }, [load])
 
   // 필터 변경 시 1페이지로
-  useEffect(() => { setPage(1) }, [q, from, to, collect, source, prepay, invoice, mine])
+  useEffect(() => { setPage(1) }, [q, from, to, collect, source, po, prepay, invoice, mine])
 
   // 현재 필터 그대로 품목 행 단위 엑셀 다운로드
   const exportExcel = async () => {
@@ -149,6 +158,7 @@ export default function OrdersHomePage() {
     if (to) p.set('to', to)
     if (collect !== 'all') p.set('collect', collect)
     if (source !== 'all') p.set('source', source)
+    if (po !== 'all') p.set('po', po)
     if (prepay) p.set('prepay', '1')
     if (invoice) p.set('invoice', '1')
     if (mine) p.set('mine', '1')
@@ -182,7 +192,7 @@ export default function OrdersHomePage() {
     }
   }
 
-  const showCost = role !== 'sales'
+  const showCost = true   // 매입가·마진 전 직원 공개 (2026-08-13 사용자 결정)
   const kpiCard = 'text-left bg-white border rounded-xl px-4 py-3 transition-colors'
 
   return (
@@ -271,6 +281,13 @@ export default function OrdersHomePage() {
             <button key={k} onClick={() => setSource(k)} className={chip(source === k)}>{l}</button>
           ))}
           <span className="w-2" />
+          <span className="text-[11px] text-gray-400 mr-0.5">발주</span>
+          {([['all', '전체'], ['none', '미발주'], ['partial', '부분발주'], ['full', '발주완료']] as const).map(([k, l]) => (
+            <button key={k} onClick={() => setPo(k)} className={chip(po === k)}>
+              {l}{k !== 'all' && kpi ? ` ${kpi[`po_${k}_cnt` as keyof Kpi] ?? 0}` : ''}
+            </button>
+          ))}
+          <span className="w-2" />
           <button onClick={() => setPrepay(v => !v)} className={chip(prepay)}>선결제만</button>
           <button onClick={() => setInvoice(v => !v)} className={chip(invoice)}>계산서 발행건만</button>
           <span className="flex-1" />
@@ -294,6 +311,7 @@ export default function OrdersHomePage() {
                 <th className="py-2 px-3 text-right font-medium">총금액</th>
                 <th className="py-2 px-3 text-right font-medium">미수금</th>
                 <th className="py-2 px-3 text-left font-medium">수금</th>
+                <th className="py-2 px-3 text-left font-medium">발주</th>
                 <th className="py-2 px-3 text-left font-medium">출처</th>
                 <th className="py-2 px-3" />
               </tr>
@@ -335,6 +353,13 @@ export default function OrdersHomePage() {
                         <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${badge.cls}`}>{badge.label}</span>
                       </td>
                       <td className="py-2 px-3">
+                        {r.po_status && PO_BADGE[r.po_status] ? (
+                          <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${PO_BADGE[r.po_status].cls}`}>
+                            {PO_BADGE[r.po_status].label}
+                          </span>
+                        ) : <span className="text-gray-300 text-xs">-</span>}
+                      </td>
+                      <td className="py-2 px-3">
                         <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${r.source === 'direct' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                           {r.source === 'direct' ? '직접입력' : '업로드'}
                         </span>
@@ -350,7 +375,7 @@ export default function OrdersHomePage() {
                     </tr>
                     {expanded === r.id && (
                       <tr className="border-b border-gray-100">
-                        <td colSpan={10} className="bg-blue-50/30 px-6 py-2.5">
+                        <td colSpan={11} className="bg-blue-50/30 px-6 py-2.5">
                           {!items ? <div className="text-xs text-gray-400 py-1">불러오는 중...</div> : (
                             <div className="space-y-0.5">
                               {items.map(it => (
@@ -383,7 +408,7 @@ export default function OrdersHomePage() {
                 )
               })}
               {!rows.length && (
-                <tr><td colSpan={10} className="text-center py-12 text-gray-400 text-sm">조건에 맞는 주문이 없습니다.</td></tr>
+                <tr><td colSpan={11} className="text-center py-12 text-gray-400 text-sm">조건에 맞는 주문이 없습니다.</td></tr>
               )}
             </tbody>
           </table>

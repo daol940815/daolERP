@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
   const result = await loadFilteredOrders(admin, me, filterFromSearchParams(sp))
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
-  const { filtered, prepayIds, invoiceIds } = result
+  const { filtered, prepayIds, invoiceIds, poStatus } = result
 
   const kpi = {
     count: filtered.length,
@@ -33,6 +33,10 @@ export async function GET(req: NextRequest) {
     outstanding_cnt: filtered.filter(o => o.collect_status === 'outstanding').length,
     in_progress_cnt: filtered.filter(o => o.collect_status === 'in_progress').length,
     direct_cnt: filtered.filter(o => o.source === 'direct').length,
+    // 발주 상태 (direct 주문만 집계 — 업로드 주문은 대상 아님)
+    po_none_cnt: filtered.filter(o => poStatus.get(o.id) === 'none').length,
+    po_partial_cnt: filtered.filter(o => poStatus.get(o.id) === 'partial').length,
+    po_full_cnt: filtered.filter(o => poStatus.get(o.id) === 'full').length,
   }
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
@@ -62,6 +66,7 @@ export async function GET(req: NextRequest) {
       channel: itemInfo.get(o.id)?.channel ?? null,
       is_prepay: prepayIds.has(o.id),
       has_invoice: invoiceIds.has(o.id),
+      po_status: poStatus.get(o.id) ?? null,   // direct 외에는 null
     })),
     kpi,
     page,

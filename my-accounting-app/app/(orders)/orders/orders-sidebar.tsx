@@ -13,7 +13,7 @@ const MENUS = [
   { href: '/orders/consultations', label: '상담일지', ready: true },
   { href: '/orders/new', label: '신규 주문', ready: true },
   { href: '/orders/products', label: '품목 마스터', ready: true },
-  { href: '/orders/purchase', label: '발주서', ready: false },
+  { href: '/orders/purchase', label: '발주서', ready: true },
   { href: '/orders/delivery', label: '배송 관리', ready: false },
 ]
 

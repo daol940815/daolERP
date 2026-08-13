@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import PurchaseSection from './purchase-section'
 
 // 주문 상세 (2단계) — 업로드·직접입력 공통 조회.
 // direct 주문: 당일(본인)·관리자는 수정/삭제, 익일 이후 본인은 수정요청·취소요청.
@@ -40,7 +41,6 @@ export default function OrderDetailPage() {
   const [requests, setRequests] = useState<ChangeRequest[]>([])
   const [canEdit, setCanEdit] = useState(false)
   const [needsRequest, setNeedsRequest] = useState(false)
-  const [role, setRole] = useState('sales')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [cancelReason, setCancelReason] = useState('')
@@ -55,7 +55,6 @@ export default function OrderDetailPage() {
       setOrder(json.order); setItems(json.items)
       setRequests(json.change_requests ?? [])
       setCanEdit(json.can_edit); setNeedsRequest(json.needs_request)
-      setRole(json.role ?? 'sales')
     }
     setLoading(false)
   }, [id])
@@ -86,7 +85,7 @@ export default function OrderDetailPage() {
   if (!order) return null
 
   const isDirect = order.source === 'direct'
-  const showCost = role !== 'sales'   // 매입가·마진은 manager/admin만
+  const showCost = true   // 매입가·마진 전 직원 공개 (2026-08-13 사용자 결정)
   const activeItems = items.filter(it => !it.is_canceled)
   const cost = activeItems.reduce((s, it) => s + (it.purchase_total ?? 0), 0)
   const total = order.total_amount as number
@@ -217,6 +216,9 @@ export default function OrderDetailPage() {
           {showCost && <span className="text-emerald-700">예상 마진 <b className="tabular-nums">{won(total - cost)}원</b></span>}
         </div>
       </div>
+
+      {/* 발주 (3단계) — direct 주문만. 업로드 주문은 기존 ERP에서 발주 완료된 건 */}
+      {isDirect && showCost && <PurchaseSection orderId={String(id)} />}
 
       {/* 수정 요청 이력 */}
       {requests.length > 0 && (
