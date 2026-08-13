@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import PurchaseSection from './purchase-section'
 
 // 주문 상세 (2단계) — 업로드·직접입력 공통 조회.
 // direct 주문: 당일(본인)·관리자는 수정/삭제, 익일 이후 본인은 수정요청·취소요청.
@@ -217,6 +218,9 @@ export default function OrderDetailPage() {
           {showCost && <span className="text-emerald-700">예상 마진 <b className="tabular-nums">{won(total - cost)}원</b></span>}
         </div>
       </div>
+
+      {/* 발주 (3단계) — direct 주문 × manager/admin. 업로드 주문은 기존 ERP에서 발주 완료된 건 */}
+      {isDirect && showCost && <PurchaseSection orderId={String(id)} />}
 
       {/* 수정 요청 이력 */}
       {requests.length > 0 && (

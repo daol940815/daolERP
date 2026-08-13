@@ -8,12 +8,13 @@ import { createClient } from '@/lib/supabase'
 import type { UserRole } from '@/lib/user-role'
 import CheckWidget from './check-widget'
 
+// managerUp: 발주서는 매입가가 담기므로 manager/admin에게만 노출 (sales 확대는 미결)
 const MENUS = [
   { href: '/orders', label: '주문 현황', ready: true },
   { href: '/orders/consultations', label: '상담일지', ready: true },
   { href: '/orders/new', label: '신규 주문', ready: true },
   { href: '/orders/products', label: '품목 마스터', ready: true },
-  { href: '/orders/purchase', label: '발주서', ready: false },
+  { href: '/orders/purchase', label: '발주서', ready: true, managerUp: true },
   { href: '/orders/delivery', label: '배송 관리', ready: false },
 ]
 
@@ -60,7 +61,7 @@ export default function OrdersSidebar({ name, roleLabel, role }: {
           <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
             주문 관리
           </p>
-          {MENUS.map(m =>
+          {MENUS.filter(m => !m.managerUp || role !== 'sales').map(m =>
             m.ready ? (
               <Link key={m.href} href={m.href} className={linkCls(pathname === m.href)}>
                 <span>{m.label}</span>

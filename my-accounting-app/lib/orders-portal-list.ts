@@ -65,6 +65,7 @@ export interface OrderListFilter {
   to?: string | null
   collect?: string | null    // all|collected|in_progress|outstanding
   source?: string | null     // all|direct|upload
+  po?: string | null         // all|none|partial|full (direct 주문 전용)
   prepayOnly?: boolean
   invoiceOnly?: boolean
   mine?: boolean
@@ -77,10 +78,73 @@ export function filterFromSearchParams(sp: URLSearchParams): OrderListFilter {
     to: sp.get('to'),
     collect: sp.get('collect') ?? 'all',
     source: sp.get('source') ?? 'all',
+    po: sp.get('po') ?? 'all',
     prepayOnly: sp.get('prepay') === '1',
     invoiceOnly: sp.get('invoice') === '1',
     mine: sp.get('mine') === '1',
   }
+}
+
+// ── 발주 상태 (3단계) ──────────────────────────────────
+// direct 주문만 대상 — 업로드 주문은 기존 ERP에서 이미 발주 처리된 건.
+// 유효(active) 발주서에 연결된 품목 수 vs 취소 제외 품목 수로 판정한다.
+export type PoStatus = 'none' | 'partial' | 'full'
+
+const chunk = <T,>(arr: T[], n: number): T[][] => {
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n))
+  return out
+}
+
+export async function loadPoStatusMap(
+  admin: SupabaseClient,
+  orderIds: string[],
+): Promise<Map<string, PoStatus>> {
+  const map = new Map<string, PoStatus>()
+  if (!orderIds.length) return map
+  const chunks = chunk(orderIds, 150)
+
+  // 유효 발주서 (507 마이그레이션 미적용이면 전부 미발주로 표시)
+  const poOrder = new Map<string, string>()   // po_id → order_id
+  const poResults = await Promise.all(chunks.map(ch =>
+    admin.from('erp_purchase_orders').select('id, order_id').eq('status', 'active').in('order_id', ch),
+  ))
+  for (const r of poResults) {
+    if (r.error) { for (const id of orderIds) map.set(id, 'none'); return map }
+    for (const p of r.data ?? []) poOrder.set(p.id as string, p.order_id as string)
+  }
+
+  // 발주서에 연결된 주문 품목 id (주문 수정으로 연결이 끊긴 행은 제외 → 미발주로 복귀)
+  const linked = new Set<string>()
+  await Promise.all(chunk(Array.from(poOrder.keys()), 150).map(async ch => {
+    const r = await fetchAllRows<{ order_item_id: string }>((pf, pt) =>
+      admin.from('erp_purchase_order_items').select('order_item_id')
+        .in('po_id', ch).not('order_item_id', 'is', null).range(pf, pt),
+    )
+    if (!('error' in r)) for (const row of r.data) linked.add(row.order_item_id)
+  }))
+
+  // 주문별 유효 품목 수 대비 발주된 품목 수
+  const counts = new Map<string, { total: number; done: number }>()
+  await Promise.all(chunks.map(async ch => {
+    const r = await fetchAllRows<{ id: string; order_id: string; is_canceled: boolean }>((pf, pt) =>
+      admin.from('erp_order_items').select('id, order_id, is_canceled').in('order_id', ch).range(pf, pt),
+    )
+    if ('error' in r) return
+    for (const it of r.data) {
+      if (it.is_canceled) continue
+      let c = counts.get(it.order_id)
+      if (!c) { c = { total: 0, done: 0 }; counts.set(it.order_id, c) }
+      c.total += 1
+      if (linked.has(it.id)) c.done += 1
+    }
+  }))
+
+  for (const id of orderIds) {
+    const c = counts.get(id)
+    map.set(id, !c || c.done === 0 ? 'none' : c.done >= c.total ? 'full' : 'partial')
+  }
+  return map
 }
 
 // 필터를 적용한 주문 집합 (정렬: 주문일·입력시각 내림차순)
@@ -88,7 +152,7 @@ export async function loadFilteredOrders(
   admin: SupabaseClient,
   me: CurrentUser,
   f: OrderListFilter,
-): Promise<{ filtered: OrderListRow[]; prepayIds: Set<string>; invoiceIds: Set<string> } | { error: string }> {
+): Promise<{ filtered: OrderListRow[]; prepayIds: Set<string>; invoiceIds: Set<string>; poStatus: Map<string, PoStatus> } | { error: string }> {
   // 1) 기간 필터로 주문 로드 (나머지 필터는 메모리)
   const base = await fetchAllRows<OrderListRow>((pf, pt) => {
     let query = admin.from('erp_orders')
@@ -148,7 +212,7 @@ export async function loadFilteredOrders(
     return orderMatch || (itemIds?.has(o.id) ?? false)
   }
 
-  const filtered = base.data.filter(o => {
+  let filtered = base.data.filter(o => {
     if (tokens.length && !tokens.every((tk, i) => tokenMatches(o, tk, tokenItemIds[i]))) return false
     if (f.collect && f.collect !== 'all' && o.collect_status !== f.collect) return false
     if (f.source && f.source !== 'all' && (o.source ?? 'upload') !== f.source) return false
@@ -158,10 +222,17 @@ export async function loadFilteredOrders(
     return true
   })
 
+  // 4) 발주 상태 (direct 주문 전용 배지·필터)
+  const directIds = filtered.filter(o => (o.source ?? 'upload') === 'direct').map(o => o.id)
+  const poStatus = await loadPoStatusMap(admin, directIds)
+  if (f.po && f.po !== 'all') {
+    filtered = filtered.filter(o => poStatus.get(o.id) === f.po)
+  }
+
   filtered.sort((a, b) =>
     a.order_date !== b.order_date
       ? (a.order_date < b.order_date ? 1 : -1)
       : (a.created_at < b.created_at ? 1 : -1))
 
-  return { filtered, prepayIds, invoiceIds }
+  return { filtered, prepayIds, invoiceIds, poStatus }
 }
