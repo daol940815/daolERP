@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>발주 시안 v2 — 주문 단위 발주 (주문 상세 하위 섹션)</title>
+<title>발주 시안 v3 — 업무 플로우 반영 (상담일지 → 주문서 → 발주서 → 발송 → 대금결제)</title>
 <style>
   :root { --line:#e5e7eb; --ink:#111827; --ink2:#4b5563; --ink3:#9ca3af; --navy:#0f172a; }
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -20,6 +20,7 @@
   .b-red   { background:#fdeaea; color:#b42222; }
   .b-gray  { background:#f1f2f4; color:#6b7280; }
   .b-blue  { background:#e6effc; color:#1c5cab; }
+  .b-violet{ background:#efeafd; color:#6631c9; }
   .btn  { padding:7px 15px; border-radius:9px; font-size:12.5px; font-weight:700; background:var(--navy); color:#fff; border:0; }
   .btn2 { padding:6px 13px; border-radius:9px; font-size:12px; border:1px solid var(--line); background:#fff; color:var(--ink2); }
   .chip { display:inline-block; padding:5px 12px; border:1px solid var(--line); border-radius:999px; font-size:12px; color:var(--ink2); background:#fff; }
@@ -31,14 +32,54 @@
   th.r, td.r { text-align:right; }
   .vhead { display:flex; align-items:center; gap:10px; padding:10px 14px; background:#f8fafc; border-bottom:1px solid var(--line); flex-wrap:wrap; }
   .note { margin-top:16px; background:#fffbeb; border:1px solid #f5e6b8; border-radius:10px; padding:12px 16px; font-size:12px; color:#7c5e10; line-height:1.8; }
+
+  /* 플로우 스트립 */
+  .flow { display:flex; align-items:stretch; gap:0; margin:14px 0 4px; flex-wrap:wrap; }
+  .fstep { flex:1; min-width:150px; background:#fff; border:1px solid var(--line); padding:10px 12px; position:relative; }
+  .fstep:first-child { border-radius:10px 0 0 10px; }
+  .fstep:last-child { border-radius:0 10px 10px 0; }
+  .fstep + .fstep { border-left:0; }
+  .fstep .t { font-size:12.5px; font-weight:700; }
+  .fstep .s { font-size:10.5px; color:var(--ink3); margin-top:2px; line-height:1.5; }
+  .fstep.done { background:#f4faf6; }
+  .fstep.now { background:#eef4fd; border-color:#9dbdea; border-left:1px solid #9dbdea; }
+  .fstep .arrow { position:absolute; right:-7px; top:50%; transform:translateY(-50%); color:#c9cdd3; font-size:13px; z-index:2; background:transparent; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>발주 — 시안 v2 (주문 단위)</h1>
-  <p class="desc">
-    개념 정정 반영: 발주는 <b>주문 1건의 품목을 발주서로 작성해 발송</b>하는 주문 하위 작업.
-    주문 상세 화면 하단에 "발주" 섹션이 붙고, 품목이 매입처별로 나뉘어 각 매입처에 발주서 1장씩 나간다.
+  <h1>발주 — 시안 v3</h1>
+  <p class="desc">주문 처리 업무 플로우(사용자 확정)에서 발주가 어디에 위치하고 무엇과 연결되는지까지 반영.</p>
+
+  <!-- 업무 플로우 -->
+  <div class="flow">
+    <div class="fstep done">
+      <div class="t">1. 상담일지 작성</div>
+      <div class="s">/orders/consultations<br>구현 완료</div>
+      <span class="arrow">▶</span>
+    </div>
+    <div class="fstep done">
+      <div class="t">2. 주문서로 전환</div>
+      <div class="s">상담 내용 프리필 → 주문 저장<br>구현 완료</div>
+      <span class="arrow">▶</span>
+    </div>
+    <div class="fstep now">
+      <div class="t">3. 발주서 작성</div>
+      <div class="s">주문 상세의 발주 섹션 —<br>품목을 매입처별로 발주서화</div>
+      <span class="arrow">▶</span>
+    </div>
+    <div class="fstep now">
+      <div class="t">4. 발주서 발송</div>
+      <div class="s">자사 양식 엑셀 첨부 + 네이버 SMTP<br>(백업 CC) 또는 수동 발송 기록</div>
+      <span class="arrow">▶</span>
+    </div>
+    <div class="fstep">
+      <div class="t">5. 대금결제</div>
+      <div class="s">기존 매입처 정산 축과 연결 —<br>선입금: 발주 직후 / 월정산: 월말</div>
+    </div>
+  </div>
+  <p style="font-size:11px;color:var(--ink3);margin-bottom:4px">
+    3·4단계가 이번 구현 범위. 5단계는 기존 매입처 정산(선입금/월정산)·매입처 허브가 그대로 처리 — 발주 이력에서 참조만 연결.
   </p>
 
   <!-- ── 1. 주문 상세의 발주 섹션 ── -->
@@ -49,26 +90,28 @@
       <span class="num" style="color:var(--ink3)">D260812-001</span>
       <b>하나은행</b><span style="color:var(--ink3)">화곡역지점</span>
       <span class="badge b-blue">직접입력</span>
-      <span class="badge b-amber">부분 발주</span>
+      <span class="badge b-violet">상담 08-11 ↗</span>
+      <span class="badge b-amber">부분 발주 1/2</span>
       <span style="flex:1"></span>
-      <span style="font-size:11.5px;color:var(--ink3)">(기존 주문 정보·품목 표는 그대로 — 아래에 발주 섹션 추가)</span>
+      <span style="font-size:11.5px;color:var(--ink3)">상담 배지 = 이 주문의 출발점(상담일지)으로 이동</span>
     </div>
   </div>
 
   <div class="panel" style="overflow:hidden;margin-bottom:12px">
     <div style="padding:12px 16px;border-bottom:1px solid var(--line)">
       <b style="font-size:13.5px">발주</b>
-      <span style="font-size:11.5px;color:var(--ink3);margin-left:8px">이 주문의 품목을 매입처별로 발주 — 매입처 2곳 → 발주서 2장</span>
+      <span style="font-size:11.5px;color:var(--ink3);margin-left:8px">이 주문의 품목을 매입처별로 발주서 작성·발송 — 매입처 2곳 → 발주서 2장</span>
     </div>
 
-    <!-- 매입처 묶음 1: 발주 완료 -->
+    <!-- 매입처 묶음 1: 발주 완료 + 대금결제 연결 -->
     <div class="vhead">
       <b>송월타올수건이야기</b>
       <span style="font-size:11.5px;color:var(--ink3)">yoaluv@naver.com</span>
       <span class="badge b-green">발주 완료 · PO260812-01</span>
       <span style="font-size:11px;color:var(--ink3)">08-12 14:20 메일 발송 (김보현)</span>
+      <span class="badge b-gray">월정산 · 8월 귀속</span>
       <span style="flex:1"></span>
-      <span class="btn2">엑셀</span><span class="btn2">재발송</span>
+      <span class="btn2">엑셀</span><span class="btn2">재발송</span><span class="btn2" style="color:#b42222">발주 취소</span>
     </div>
     <table>
       <tbody>
@@ -79,7 +122,7 @@
           <td class="r num" style="width:70px">50</td>
           <td class="r num" style="width:90px">5,082</td>
           <td class="r num" style="width:110px">254,100</td>
-          <td style="width:150px;font-size:11.5px;color:var(--ink3)">발주됨</td>
+          <td style="width:120px;font-size:11.5px;color:var(--ink3)">발주됨</td>
         </tr>
         <tr style="color:#6b7280">
           <td class="num">2</td>
@@ -93,12 +136,13 @@
       </tbody>
     </table>
 
-    <!-- 매입처 묶음 2: 미발주 -->
+    <!-- 매입처 묶음 2: 미발주 (선입금 매입처) -->
     <div class="vhead">
       <input type="checkbox" checked>
       <b>인스푼</b>
       <span style="font-size:11.5px;color:var(--ink3)">inspoon@naver.com</span>
       <span class="badge b-red">미발주</span>
+      <span class="badge b-amber">선입금 매입처 — 발주 후 결제 필요</span>
       <span style="flex:1"></span>
       <span class="num" style="font-size:12px">선택 2건 · 매입 합계 <b>924,000원</b></span>
       <button class="btn">발주서 작성·발송</button>
@@ -112,7 +156,7 @@
           <td class="r num" style="width:70px">10</td>
           <td class="r num" style="width:90px">88,000</td>
           <td class="r num" style="width:110px">880,000</td>
-          <td style="width:150px"></td>
+          <td style="width:120px"></td>
         </tr>
         <tr>
           <td><input type="checkbox" checked></td>
@@ -126,18 +170,19 @@
       </tbody>
     </table>
     <div style="padding:9px 16px;font-size:11.5px;color:var(--ink3);border-top:1px solid #f3f4f6">
-      배송 참고 (발주서 비고로 들어감): 배송요청 8/16 · 인사장 동봉 · 보내는분 "다올"
-      <span style="color:#c9cdd3">— 주문 메모 + 연결된 상담일지에서 자동, 발송 전 수정 가능</span>
+      배송 참고 (발주서 비고·메일 본문에 들어감): 배송요청 8/16 · 인사장 동봉 · 보내는분 "다올"
+      <span style="color:#c9cdd3">— 주문 메모 + 출발점 상담일지(1단계)의 발송 정보에서 자동, 발송 전 수정 가능</span>
     </div>
   </div>
 
   <!-- 발송 확인 -->
+  <h2>2. 발주서 작성·발송 확인 (4단계)</h2>
   <div class="panel" style="padding:14px 18px;max-width:680px;margin-bottom:8px">
-    <b style="font-size:13px">발주서 작성·발송 — PO260812-02 (인스푼)</b>
+    <b style="font-size:13px">발주서 PO260812-02 — 인스푼</b>
     <div style="font-size:12px;color:var(--ink2);margin-top:6px;line-height:1.9">
       품목 2건 · 매입 합계 924,000원 · 첨부: 발주서_인스푼_D260812-001.xlsx (자사 양식)<br>
-      받는 사람: inspoon@naver.com <span style="color:var(--ink3)">(수정 가능)</span> ·
-      참조(백업 CC): 자사 백업 주소<br>
+      받는 사람: inspoon@naver.com <span style="color:var(--ink3)">(수정 가능 · 미등록 시 이 자리에서 입력→vendors 저장)</span><br>
+      참조(백업 CC): 자사 백업 주소 — SMTP는 보낸메일함에 안 남으므로 여기에 사본 보관<br>
       본문: 표준 문구 + 배송 참고 + 발송자 서명 <span style="color:var(--ink3)">(발송 전 수정 가능)</span>
     </div>
     <div style="display:flex;gap:8px;margin-top:10px">
@@ -146,12 +191,12 @@
       <button class="btn">메일 발송</button>
     </div>
     <div style="font-size:11px;color:var(--ink3);margin-top:8px">
-      자체 양식 매입처면 안내 표시: "이 매입처는 자체 양식 사용 — 자사 양식은 참고용, 발송 후 '수동 발송'으로 기록"
+      자체 양식 매입처면: "이 매입처는 자체 양식 사용 — 자사 양식은 참고용, 발송 후 '수동 발송'으로 기록" 안내 + 메일 발송 버튼 대신 수동 발송이 기본
     </div>
   </div>
 
-  <!-- ── 2. 주문 현황 목록의 발주 상태 ── -->
-  <h2>2. 주문 현황 목록 — 발주 컬럼 추가 (direct 주문만)</h2>
+  <!-- ── 3. 주문 현황 목록의 발주 상태 ── -->
+  <h2>3. 주문 현황 목록 — 발주 컬럼 (direct 주문만)</h2>
   <div class="panel" style="overflow:hidden">
     <table>
       <thead><tr>
@@ -199,19 +244,19 @@
     </table>
   </div>
   <p style="font-size:11.5px;color:var(--ink3);margin-top:6px">
-    발주 칩 필터 추가: [미발주] [부분 발주] [발주 완료] — 처리 안 된 주문을 놓치지 않게. KPI에도 "미발주 주문 N건".
+    발주 칩 필터: [미발주] [부분 발주] [발주 완료] + KPI "미발주 주문 N건" — 3단계에서 멈춘 주문을 놓치지 않게.
   </p>
 
-  <!-- ── 3. 사이드바 '발주서' 메뉴 ── -->
-  <h2>3. 사이드바 '발주서' 메뉴 = 발주 이력 (보조 화면)</h2>
+  <!-- ── 4. 발주 이력 ── -->
+  <h2>4. 사이드바 '발주서' 메뉴 = 발주 이력 (대금결제 연결 표시)</h2>
   <div class="panel" style="overflow:hidden">
     <div style="padding:10px 14px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <input style="flex:1;min-width:220px;border:1px solid var(--line);border-radius:9px;padding:7px 12px;font-size:12px" placeholder="매입처 · 주문번호 검색">
-      <span class="chip on">전체</span><span class="chip">메일 발송</span><span class="chip">수동 발송</span><span class="chip">실패</span>
+      <span class="chip on">전체</span><span class="chip">메일 발송</span><span class="chip">수동 발송</span><span class="chip">실패</span><span class="chip">미발송</span>
     </div>
     <table>
       <thead><tr>
-        <th>발주번호</th><th>발주일시</th><th>매입처</th><th>주문번호</th><th class="r">품목</th><th class="r">매입 합계</th><th>발송</th><th>발송자</th><th></th>
+        <th>발주번호</th><th>발주일시</th><th>매입처</th><th>주문번호</th><th class="r">품목</th><th class="r">매입 합계</th><th>발송</th><th>대금결제 (5단계)</th><th></th>
       </tr></thead>
       <tbody>
         <tr>
@@ -221,7 +266,17 @@
           <td class="num" style="font-size:12px;color:#1c5cab">D260812-001</td>
           <td class="r num">2</td><td class="r num">573,320</td>
           <td><span class="badge b-green">메일 발송됨</span></td>
-          <td>김보현</td>
+          <td><span class="badge b-gray">월정산 · 8월 귀속</span></td>
+          <td style="font-size:11.5px;color:#1c5cab">엑셀 · 재발송</td>
+        </tr>
+        <tr>
+          <td class="num" style="font-weight:600">PO260812-02</td>
+          <td class="num" style="font-size:12px">08-12 15:02</td>
+          <td><b>인스푼</b></td>
+          <td class="num" style="font-size:12px;color:#1c5cab">D260812-001</td>
+          <td class="r num">2</td><td class="r num">924,000</td>
+          <td><span class="badge b-green">메일 발송됨</span></td>
+          <td><span class="badge b-amber">선입금 — 결제 필요</span></td>
           <td style="font-size:11.5px;color:#1c5cab">엑셀 · 재발송</td>
         </tr>
         <tr>
@@ -231,21 +286,25 @@
           <td class="num" style="font-size:12px;color:#1c5cab">D260811-002</td>
           <td class="r num">1</td><td class="r num">254,100</td>
           <td><span class="badge b-red">발송 실패</span> <span style="font-size:10.5px;color:var(--ink3)">SMTP 오류</span></td>
-          <td>단시연</td>
+          <td><span class="badge b-amber">선입금 — 결제 필요</span></td>
           <td style="font-size:11.5px;color:#1c5cab">엑셀 · 재발송</td>
         </tr>
       </tbody>
     </table>
   </div>
+  <p style="font-size:11.5px;color:var(--ink3);margin-top:6px">
+    대금결제 컬럼: 매입처 별칭의 결제 방식(선입금/월정산)을 그대로 표시 — 선입금 매입처는 발주 직후 결제 대상임이 바로 보이고,
+    월정산은 기존 매입처 정산·허브에서 월말 처리. 발주서가 별도 결제 관리를 만들지 않고 기존 축에 얹힌다.
+  </p>
 
   <div class="note">
-    <b>v1 대비 달라진 점 (개념 정정)</b><br>
-    · 발주의 단위: 여러 주문을 매입처별로 모아 일괄 발주 (v1) → <b>주문 1건 안에서 매입처별 발주서 작성·발송 (v2)</b><br>
-    · 핵심 화면: 별도 발주 대기 화면 → <b>주문 상세의 발주 섹션</b> (주문내역의 하위 작업)<br>
-    · 주문 현황 목록에 발주 상태 배지·필터 (미발주/부분/완료 — 품목 발주 여부로 자동 판정, direct만)<br>
-    · 사이드바 '발주서' 메뉴는 발주 이력 조회로 축소 (주문번호 클릭 → 해당 주문 상세)<br>
-    <b>유지되는 규칙</b> — 품목 단위 발주 추적(중복 방지·분할 발주), 발주 취소 시 미발주 복귀, 배송 참고(주문 메모+상담일지) 자동,
-    네이버 SMTP + 백업 CC + 발송 이력, 자체 양식 매입처는 참고용 생성+수동 발송 기록, 이메일 미등록 시 그 자리 등록(vendors.email)
+    <b>동작 규칙 요약</b><br>
+    · 발주 단위: 주문 1건 안에서 매입처별 발주서 1장 (분할 발주 가능 — 품목 선택)<br>
+    · 품목 단위 발주 추적: 발주된 품목은 재발주 불가, 발주 취소 시 미발주 복귀. 발주 후 주문이 수정되면 해당 품목은 미발주로 복귀 + 경고 표시(재발주 검토)<br>
+    · 발주번호 POyymmdd-## 자동 발번 · 발송 성공/실패/수동이 이력에 남고 실패 건 재발송<br>
+    · 매입처 이메일: 원가표에서 112곳 적재(마이그레이션 508), 미등록은 발송 화면에서 입력 → vendors 저장(매입처 허브와 공유)<br>
+    · 자체 양식 매입처(vendors 표시): 1차 자사 양식 참고용 + 수동 발송 기록, 2차에 템플릿 재현<br>
+    · 발주서 엑셀: 자사 양식 실물 수령 전까지 표준 임시 양식(품번·품명·구분·수량·매입단가·합계·비고 + 배송 참고)
   </div>
 </div>
 </body>
