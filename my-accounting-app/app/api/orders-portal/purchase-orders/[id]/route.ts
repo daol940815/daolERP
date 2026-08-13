@@ -6,7 +6,8 @@ import { buildPoExcel, sendPoMail, smtpReady } from '@/lib/purchase-orders'
 
 export const dynamic = 'force-dynamic'
 
-// 발주서 1건 — 조회(?excel=1 = 엑셀 다운로드) / 발송·취소 처리. manager/admin 전용.
+// 발주서 1건 — 조회(?excel=1 = 엑셀 다운로드) / 발송·취소 처리. 전 직원 사용 가능
+// (2026-08-13 사용자 결정: 매입가 전 직원 공개).
 // PATCH { action: 'send_email' | 'manual_sent' | 'cancel' | 'update', ... }
 //  - send_email: { to? } — 엑셀 첨부 메일 발송 (성공·실패 이력 보존)
 //  - manual_sent: 자체 양식 등 수동 발송 완료 기록
@@ -63,7 +64,6 @@ function excelOf(data: NonNullable<Awaited<ReturnType<typeof loadPo>>>) {
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
-  if (me.role === 'sales') return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 })
   const admin = createAdminClient()
 
   const data = await loadPo(admin, params.id)
@@ -85,7 +85,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
-  if (me.role === 'sales') return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 })
   const admin = createAdminClient()
 
   const body = await req.json().catch(() => null) as {

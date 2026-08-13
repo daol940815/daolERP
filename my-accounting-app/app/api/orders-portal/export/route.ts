@@ -10,7 +10,7 @@ export const maxDuration = 120
 
 // 주문 현황 엑셀 내보내기 — 목록과 동일 필터(lib/orders-portal-list.ts 공용).
 // 품목 행 단위로 전개: 주문 정보가 각 품목 행에 반복되는 기존 ERP 다운로드 형식.
-// 원가 노출 정책: 매입가·매입배송비·매입합계·마진 컬럼은 manager/admin만 포함.
+// 원가 노출 정책: 매입가·매입배송비·매입합계·마진 컬럼 전 직원 공개 (2026-08-13 사용자 결정).
 //
 // GET ?q=&from=&to=&collect=&source=&prepay=1&invoice=1&mine=1
 
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const showCost = me.role !== 'sales'
+  const showCost = true   // 매입가·마진 전 직원 공개 (2026-08-13 사용자 결정)
   const rows: Record<string, unknown>[] = []
   for (const o of filtered) {
     const items = itemsByOrder.get(o.id) ?? []

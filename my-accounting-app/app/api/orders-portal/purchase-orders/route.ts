@@ -6,7 +6,8 @@ import { PO_MIGRATION_HINT } from '@/lib/purchase-orders'
 
 export const dynamic = 'force-dynamic'
 
-// 발주서 이력 (3단계) — 기간·상태·검색 필터 + KPI. manager/admin 전용.
+// 발주서 이력 (3단계) — 기간·상태·검색 필터 + KPI. 전 직원 사용 가능
+// (2026-08-13 사용자 결정: 매입가 전 직원 공개).
 // 대금결제 축: 발주서의 매입처 별칭 payment_term(선입금/월정산)을 함께 표시 —
 // 실제 정산은 기존 매입처 정산 화면과 같은 축이므로 별도 상태를 만들지 않는다.
 //
@@ -39,9 +40,6 @@ const kstDate = (iso: string) =>
 export async function GET(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
-  if (me.role === 'sales') {
-    return NextResponse.json({ error: '발주서 이력은 관리자·중간 관리자만 볼 수 있습니다.' }, { status: 403 })
-  }
   const admin = createAdminClient()
   const sp = new URL(req.url).searchParams
   const from = sp.get('from')

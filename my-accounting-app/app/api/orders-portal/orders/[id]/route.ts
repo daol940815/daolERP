@@ -45,7 +45,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     change_requests: requests ?? [],
     can_edit: edit.canEdit,
     needs_request: edit.needsRequest,
-    role: me.role,   // sales에게는 화면에서 매입가·마진 숨김
+    role: me.role,   // 매입가·마진은 전 직원 공개로 전환 (2026-08-13) — role은 참고용
   })
 }
 

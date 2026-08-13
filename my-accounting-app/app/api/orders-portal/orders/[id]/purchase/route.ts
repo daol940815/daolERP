@@ -6,17 +6,11 @@ import { loadPurchaseSection, nextPoNo, smtpReady, type OrderItemRow } from '@/l
 export const dynamic = 'force-dynamic'
 
 // 주문 상세의 발주 섹션 (3단계) — 매입처별 품목 묶음 조회 + 발주서 생성.
-// 발주서에는 매입가가 담기므로 manager/admin 전용.
-// (sales 확대 여부는 미결 — 트랙 문서. 결정되면 이 가드만 조정)
-
-function forbidden() {
-  return NextResponse.json({ error: '발주 기능은 관리자·중간 관리자만 사용할 수 있습니다.' }, { status: 403 })
-}
+// 전 직원 사용 가능 (2026-08-13 사용자 결정: 매입가 전 직원 공개 — 발주도 직원 업무)
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
-  if (me.role === 'sales') return forbidden()
   const admin = createAdminClient()
 
   const section = await loadPurchaseSection(admin, params.id)
@@ -86,7 +80,6 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
-  if (me.role === 'sales') return forbidden()
   const admin = createAdminClient()
 
   const body = await req.json().catch(() => null) as {

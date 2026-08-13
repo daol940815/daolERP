@@ -41,7 +41,6 @@ export default function OrderDetailPage() {
   const [requests, setRequests] = useState<ChangeRequest[]>([])
   const [canEdit, setCanEdit] = useState(false)
   const [needsRequest, setNeedsRequest] = useState(false)
-  const [role, setRole] = useState('sales')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [cancelReason, setCancelReason] = useState('')
@@ -56,7 +55,6 @@ export default function OrderDetailPage() {
       setOrder(json.order); setItems(json.items)
       setRequests(json.change_requests ?? [])
       setCanEdit(json.can_edit); setNeedsRequest(json.needs_request)
-      setRole(json.role ?? 'sales')
     }
     setLoading(false)
   }, [id])
@@ -87,7 +85,7 @@ export default function OrderDetailPage() {
   if (!order) return null
 
   const isDirect = order.source === 'direct'
-  const showCost = role !== 'sales'   // 매입가·마진은 manager/admin만
+  const showCost = true   // 매입가·마진 전 직원 공개 (2026-08-13 사용자 결정)
   const activeItems = items.filter(it => !it.is_canceled)
   const cost = activeItems.reduce((s, it) => s + (it.purchase_total ?? 0), 0)
   const total = order.total_amount as number
@@ -219,7 +217,7 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* 발주 (3단계) — direct 주문 × manager/admin. 업로드 주문은 기존 ERP에서 발주 완료된 건 */}
+      {/* 발주 (3단계) — direct 주문만. 업로드 주문은 기존 ERP에서 발주 완료된 건 */}
       {isDirect && showCost && <PurchaseSection orderId={String(id)} />}
 
       {/* 수정 요청 이력 */}

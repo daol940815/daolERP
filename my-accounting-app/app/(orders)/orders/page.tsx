@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 
 // 주문 현황 (시안 v2) — KPI(클릭=필터) + 통합 검색 + 칩 필터 + 행내 상품 펼치기.
 // 검사 상태(정의 미확정)·배송 컬럼(3단계)은 제외 상태 — 트랙 문서 참고.
-// 마진·매입 정보는 manager/admin에게만 표시.
+// 마진·매입 정보는 전 직원 공개 (2026-08-13 사용자 결정).
 
 interface Row {
   id: string
@@ -91,7 +91,6 @@ export default function OrdersHomePage() {
   const router = useRouter()
   const [rows, setRows] = useState<Row[]>([])
   const [kpi, setKpi] = useState<Kpi | null>(null)
-  const [role, setRole] = useState('sales')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -139,7 +138,7 @@ export default function OrdersHomePage() {
     const json = await res.json()
     if (!res.ok) setError(json.error ?? '조회 실패')
     else {
-      setRows(json.rows); setKpi(json.kpi); setRole(json.role ?? 'sales')
+      setRows(json.rows); setKpi(json.kpi)
       setTotalPages(json.total_pages ?? 1)
       setExpanded(null)
     }
@@ -193,7 +192,7 @@ export default function OrdersHomePage() {
     }
   }
 
-  const showCost = role !== 'sales'
+  const showCost = true   // 매입가·마진 전 직원 공개 (2026-08-13 사용자 결정)
   const kpiCard = 'text-left bg-white border rounded-xl px-4 py-3 transition-colors'
 
   return (

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
-// 주문 상세의 발주 섹션 (3단계, 시안 v3) — direct 주문 × manager/admin 전용.
+// 주문 상세의 발주 섹션 (3단계, 시안 v3) — direct 주문 전용, 전 직원 사용 가능.
 // 매입처별 미발주 품목을 골라 발주서를 만들고, 엑셀 다운로드·메일 발송·수동
 // 발송 기록·취소를 이 자리에서 처리한다. 발주서 1장 = 주문 1건 × 매입처 1곳.
 
