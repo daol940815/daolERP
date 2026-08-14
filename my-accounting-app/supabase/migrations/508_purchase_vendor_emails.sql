@@ -3,11 +3,20 @@
 -- 매입처 발주 이메일 적재 — 원가표(사용자 제공, 2,358행)에서 추출
 -- 매입처명 -> purchase 별칭 -> vendors 연결로 매칭, 기존 이메일은 덮어쓰지 않음.
 --
--- 실행 순서: 1) 드라이런 SELECT로 반영 대상 확인  2) UPDATE 실행  3) 검증 SELECT
+-- 실행 순서: 1) 아래 1~2단계 실행  2) 드라이런 SELECT로 대상 확인
+--            3) 3단계 UPDATE 실행  4) 4단계 검증  5) 5단계 정리(테이블 삭제)
+--
+-- 주의: TEMP 테이블을 쓰지 않는다. Supabase SQL 편집기는 문장마다 연결이 바뀔 수
+-- 있어 임시 테이블이 다음 문장에서 사라진다(relation does not exist). 일반 테이블로
+-- 만들고 마지막 5단계에서 삭제한다. 전체를 한 번에 실행해도 되고, 단계별로 나눠
+-- 실행해도 된다.
 -- =====================================================
 
--- 임시 매핑 (원가표 추출 112곳)
-CREATE TEMP TABLE _po_emails (vendor_name TEXT PRIMARY KEY, email TEXT NOT NULL);
+-- ── 1단계: 매핑 테이블 생성 (재실행 대비 초기화) ──
+DROP TABLE IF EXISTS _po_emails;
+CREATE TABLE _po_emails (vendor_name TEXT PRIMARY KEY, email TEXT NOT NULL);
+
+-- ── 2단계: 원가표 추출 이메일 112곳 적재 ──
 INSERT INTO _po_emails (vendor_name, email) VALUES
   ('(주)다이아', 'daiya1991@naver.com'),
   ('(주)소셜빈', 'kisung@socialbean.co.kr'),
@@ -122,14 +131,15 @@ INSERT INTO _po_emails (vendor_name, email) VALUES
   ('협성트레이드', 'hst2503@hanmail.net'),
   ('혜토', 'rh360@hanmail.net');
 
--- ── 드라이런: 반영될 거래처 목록 (실행 전 확인) ──
--- SELECT p.vendor_name, p.email, v.id, v.name AS vendors_name, v.email AS 기존이메일
+-- ── 드라이런 (선택): 반영될 거래처 목록 미리보기. 주석을 풀고 이 SELECT만 실행 ──
+-- SELECT p.vendor_name, p.email, v.id, v.name AS vendors_name, v.email AS 기존이메일,
+--        CASE WHEN v.email IS NULL OR trim(v.email) = '' THEN '채움' ELSE '기존값 보존' END AS 처리
 -- FROM _po_emails p
 -- JOIN erp_vendor_aliases a ON a.alias_type = 'purchase' AND a.erp_name = p.vendor_name
 -- JOIN vendors v ON v.id = a.vendor_id
 -- ORDER BY p.vendor_name;
 
--- ── 적재: 별칭으로 연결된 거래처에 이메일 채움 (기존 값 보존) ──
+-- ── 3단계: 별칭으로 연결된 거래처에 이메일 채움 (기존 값 보존) ──
 UPDATE vendors v
 SET email = p.email
 FROM _po_emails p
@@ -137,7 +147,7 @@ JOIN erp_vendor_aliases a ON a.alias_type = 'purchase' AND a.erp_name = p.vendor
 WHERE a.vendor_id = v.id
   AND (v.email IS NULL OR trim(v.email) = '');
 
--- ── 검증 ──
+-- ── 4단계: 검증 (이 숫자를 보고하면 대사 가능) ──
 SELECT
   (SELECT count(*) FROM _po_emails) AS 원가표_이메일_매입처,
   (SELECT count(DISTINCT a.vendor_id) FROM _po_emails p
@@ -146,6 +156,11 @@ SELECT
   (SELECT count(*) FROM _po_emails p
     LEFT JOIN erp_vendor_aliases a ON a.alias_type='purchase' AND a.erp_name=p.vendor_name
     WHERE a.vendor_id IS NULL) AS 미연결_별칭없거나_거래처미연결,
+  (SELECT count(DISTINCT a.vendor_id) FROM _po_emails p
+    JOIN erp_vendor_aliases a ON a.alias_type='purchase' AND a.erp_name=p.vendor_name
+    JOIN vendors v ON v.id = a.vendor_id
+    WHERE v.email = p.email) AS 이메일_적용확인,
   (SELECT count(*) FROM vendors WHERE email IS NOT NULL AND trim(email)<>'') AS 이메일_보유_거래처_총;
 
-DROP TABLE _po_emails;
+-- ── 5단계: 정리 (검증 후 실행) ──
+DROP TABLE IF EXISTS _po_emails;
