@@ -127,6 +127,61 @@ SELECT jsonb_pretty(jsonb_build_object(
     JOIN erp_orders eo ON eo.id = m.order_id
     WHERE COALESCE(eo.source, 'upload') <> 'direct'
       AND m.paid_date <= eo.updated_at::date
+  ),
+
+  -- [8] 미수금 정의 4종 동시 비교 (같은 전체 기간, 같은 원본)
+  --   D1 허브식        : outstanding - 컷오프매칭, 상한 = 순매출        (vendor-hub / 107)
+  --   D2 전체매칭 차감 : outstanding - 전체매칭, 상한 없음              (erp-reports Aging / 037 RPC / vendor-sales-detail)
+  --   D3 원본 그대로   : outstanding 원본                              (vendor-reconciliation / contact-manager)
+  --   D4 허브 집계     : hub_vendor_summary 실제 반환값 (별칭 미연결 제외됨)
+  'D_receivable_definitions', (
+    WITH ex AS (
+      SELECT order_id, SUM(COALESCE(line_total, 0)) AS excluded
+      FROM erp_order_items WHERE is_canceled OR is_vip OR is_prepayment GROUP BY order_id
+    ),
+    m_all AS (SELECT order_id, SUM(amount) AS amt FROM erp_payment_matches GROUP BY order_id),
+    m_cut AS (
+      SELECT m.order_id, SUM(m.amount) AS amt
+      FROM erp_payment_matches m JOIN erp_orders eo ON eo.id = m.order_id
+      WHERE COALESCE(eo.source, 'upload') = 'direct' OR m.paid_date > eo.updated_at::date
+      GROUP BY m.order_id
+    ),
+    o AS (
+      SELECT eo.id,
+             GREATEST(0, COALESCE(eo.total_amount, 0) - COALESCE(ex.excluded, 0)) AS net,
+             COALESCE(eo.outstanding_amount, 0) AS outs,
+             COALESCE(ma.amt, 0) AS all_matched,
+             COALESCE(mc.amt, 0) AS cut_matched
+      FROM erp_orders eo
+      LEFT JOIN ex    ON ex.order_id = eo.id
+      LEFT JOIN m_all ma ON ma.order_id = eo.id
+      LEFT JOIN m_cut mc ON mc.order_id = eo.id
+      WHERE eo.collect_status <> 'collected'
+    )
+    SELECT jsonb_build_object(
+      'D1_hub_rule',      COALESCE(SUM(LEAST(GREATEST(0, outs - cut_matched), net)), 0),
+      'D2_all_matched',   COALESCE(SUM(GREATEST(0, outs - all_matched)), 0),
+      'D3_raw',           COALESCE(SUM(outs), 0),
+      'D4_hub_actual',    (SELECT COALESCE(SUM(outstanding), 0) FROM hub_vendor_summary(NULL, NULL))
+    )
+    FROM o
+  ),
+
+  -- [9] 별칭 미연결 노출 — 허브는 erp_vendor_aliases.vendor_id IS NOT NULL 만 집계한다.
+  -- 미연결분은 허브 합계에서 아예 빠지므로 "허브 = 단일 진실"의 전제 조건.
+  'U_unlinked_exposure', jsonb_build_object(
+    'customer_orders_no_alias', (
+      SELECT jsonb_build_object('orders', COUNT(*), 'outstanding', COALESCE(SUM(outstanding_amount), 0))
+      FROM erp_orders WHERE customer_alias_id IS NULL),
+    'customer_alias_no_vendor', (
+      SELECT jsonb_build_object('orders', COUNT(*), 'outstanding', COALESCE(SUM(eo.outstanding_amount), 0))
+      FROM erp_orders eo JOIN erp_vendor_aliases a ON a.id = eo.customer_alias_id
+      WHERE a.alias_type = 'customer' AND a.vendor_id IS NULL),
+    'purchase_items_no_vendor', (
+      SELECT jsonb_build_object('items', COUNT(*), 'purchase_total', COALESCE(SUM(i.purchase_total), 0))
+      FROM erp_order_items i
+      LEFT JOIN erp_vendor_aliases a ON a.id = i.purchase_alias_id
+      WHERE NOT i.is_canceled AND (i.purchase_alias_id IS NULL OR a.vendor_id IS NULL))
   )
 
 )) AS check_result;

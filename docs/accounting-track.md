@@ -54,6 +54,44 @@
   출금 매칭(-)의 원본 증분으로만 변동. 기준일 이전 원본은 잔액 계산에서 제외.
   → 결제현황 엑셀·기준일 수령 대기 (적재는 승인·드라이런·검증 루틴).
 
+### 허브 단일 진실 감사 (2026-08-12) — 지표 정의가 여러 갈래로 갈라져 있음
+
+사용자 방침: 매출처 관련 정보는 매출처 허브, 매입처 관련 정보는 매입처 허브에 모이고
+참조도 허브를 경유해야 한다. 코드 감사 결과 **모이는 것은 대체로 맞고, 참조는 거의 안
+되고 있다.**
+
+- **허브 소비자 전수**(`grep`): `lib/vendor-hub.ts`·`lib/purchase-hub.ts`를 import하는 곳은
+  각 허브 자신의 API 4개(`app/api/vendor-hub`, `app/api/purchase-hub`)와 상세 화면 2개뿐.
+  `hub_vendor_summary`/`hub_purchase_summary` RPC도 두 허브 lib 안에서만 호출된다.
+  → 경영대시보드·경과기간분석·미수금현황·거래처별 매출 분석·수금 매칭·월별 손익은
+  **전부 허브를 우회**한다.
+- **미수금 정의 4가지 공존**:
+  1) 허브: `outstanding - 컷오프매칭`, 상한 `LEAST(순매출)`, source 분기 有
+     (`lib/vendor-hub.ts:77`, `107_hub_outstanding_cutoff.sql:40`)
+  2) 전체매칭 차감(상한 없음): `lib/erp-reports.ts:492`(대시보드·경과기간분석),
+     `037_receivable_reconcile_rpcs.sql:36`(미수금현황), `lib/vendor-sales-detail.ts:135`
+  3) 원본 그대로(매칭 차감 없음): `lib/vendor-reconciliation.ts:104`,
+     `lib/contact-manager.ts:228`
+  4) 미지급금은 별도로 3가지: 허브(600/601 기초원장 컷오프) / `lib/erp-reports.ts`
+     buildPayableRows(ERP 정산월 + `erp_purchase_settlements`) / 매입 사이클 상태 엔진
+- **매출 정의 차이**: 허브·025·035·036·037은 취소·VIP·선결제를 제외하지만
+  `lib/contact-manager.ts:227`은 `total_amount` 원본을 쓴다(담당자별 매출 과대).
+  `lib/vendor-link-status.ts`도 원본 총액 기준(추정: 연결 상태 판정용).
+- **기초원장 테이블 2개**: `vendor_opening_balances`(048, 매출 Aging용 — 음수로 매입까지
+  겸용) vs `purchase_opening_balances`(600, 매입 기준일 컷오프용). 대시보드 미지급금은
+  전자를, 매입처 허브는 후자를 쓴다.
+- **source(upload/direct) 분기는 2곳뿐**: `lib/vendor-hub.ts:77`과 107 RPC.
+  나머지 집계는 source를 보지 않는다 → direct 주문이 늘어나면 컷오프 규칙이
+  허브에서만 맞고 나머지는 전부 틀린다(현재는 direct 주문이 적어 잠재 상태).
+- **허브의 전제 조건**: 허브 RPC는 `erp_vendor_aliases.vendor_id IS NOT NULL`을
+  INNER JOIN한다(107:54-57, 600:105-107, 601:73-75). 별칭 미연결 주문·품목은 허브 합계에
+  아예 없다 → 허브를 단일 진실로 승격하려면 미연결 큐 해소가 선행 조건.
+- **정상 사례**: direct 주문은 `lib/orders-portal.ts:306`의 `ensureAlias`로 customer 별칭을
+  vendor_id까지 연결해 생성하고, 품목은 `purchase_alias_id`(268-275)를 세팅한다 →
+  신규 주문도 두 허브에 정상 도달한다. 병행 운용 설계 자체는 문제가 아니다.
+- 대사 스크립트: `supabase/checks/dashboard_vs_hub_check.sql`(읽기 전용) — 미수 4정의
+  동시 비교, 미지급 2경로 비교, 주문 source 분포, 별칭 미연결 노출 규모 포함.
+
 ### 경영대시보드 미수·미지급 값이 컷오프를 반영하지 않는 문제 (2026-08-12 진단)
 
 증상: "26.06까지 정산 완료 전제 · 26.07부터 반영" 컷오프 조치를 했는데 경영대시보드
