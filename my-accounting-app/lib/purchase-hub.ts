@@ -28,10 +28,14 @@ import { contactLabel } from '@/lib/contact-label'
 
 export const DORMANT_MONTHS = 6
 
-// online = 온라인 구매처 (602) — 거래처가 아니라 온라인 구매처라 발주·미지급 관리 대상이
-// 아니다. 다른 상태 판정보다 우선하며, 구매 규모 지표만 의미를 갖는다.
-export type PurchaseHubStatus = 'normal' | 'unpaid' | 'over90' | 'overpaid' | 'dormant' | 'online'
-export type PurchaseKind = 'partner' | 'online'
+// 매입처 구분 (602):
+//   partner 정기 거래 매입처 — 발주·미지급·담당 관리 대상
+//   retail  별도 구매처       — 온·오프라인에서 사 온 곳. 즉시 결제라 미지급 개념이 없어
+//                              다른 상태 판정보다 우선하고, 구매 규모 지표만 의미를 갖는다.
+//   expense 경비성            — 발주 대상은 아니지만 지급 의무는 있으므로
+//                              미지급 상태 판정·KPI는 정상대로 유지한다.
+export type PurchaseHubStatus = 'normal' | 'unpaid' | 'over90' | 'overpaid' | 'dormant' | 'retail'
+export type PurchaseKind = 'partner' | 'retail' | 'expense'
 
 export interface PurchaseHubListRow {
   vendor_id: string
@@ -194,8 +198,9 @@ function judgeStatus(
   outstanding: number, over90: number, last: string | null, dormantBefore: string,
   kind: PurchaseKind = 'partner',
 ): PurchaseHubStatus {
-  // 온라인 구매처는 발주·미지급 관리 대상이 아니므로 구분 자체가 상태다 (602)
-  if (kind === 'online') return 'online'
+  // 별도 구매처는 즉시 결제라 미지급 개념이 없어 구분 자체가 상태다 (602).
+  // 경비성은 지급 의무가 있으므로 아래 일반 판정을 그대로 탄다.
+  if (kind === 'retail') return 'retail'
   if (!last || last < dormantBefore) return 'dormant'
   if (outstanding < 0) return 'overpaid'
   if (over90 > 0) return 'over90'
@@ -225,9 +230,9 @@ export async function buildPurchaseHubList(
         .eq('alias_type', 'purchase').range(f, t)),
     fetchAllRows<{ id: string; name: string; biz_number: string | null; email: string | null }>((f, t) =>
       admin.from('vendors').select('id, name, biz_number, email').range(f, t)),
-    // 온라인 구매처 구분 (602) — 미적용 환경이면 오류를 삼키고 전부 partner로 동작
-    fetchAllRows<{ id: string }>((f, t) =>
-      admin.from('vendors').select('id').eq('purchase_kind', 'online').range(f, t)),
+    // 매입처 구분 (602) — 미적용 환경이면 오류를 삼키고 전부 partner로 동작
+    fetchAllRows<{ id: string; purchase_kind: string }>((f, t) =>
+      admin.from('vendors').select('id, purchase_kind').neq('purchase_kind', 'partner').range(f, t)),
     fetchAllRows<{ vendor_id: string; is_primary: boolean; employees: unknown }>((f, t) =>
       admin.from('vendor_staff').select('vendor_id, is_primary, employees(name)')
         .is('ended_at', null).range(f, t)),
@@ -269,7 +274,8 @@ export async function buildPurchaseHubList(
   }
 
   const [aliasResult, vendorsResult, onlineResult, staffResult, contactResult, unlinkedItemsRes] = await sidePromise
-  const onlineIds = new Set('error' in onlineResult ? [] : onlineResult.data.map(v => v.id))
+  const kindById = new Map<string, PurchaseKind>(
+    'error' in onlineResult ? [] : onlineResult.data.map(v => [v.id, v.purchase_kind as PurchaseKind]))
   if ('error' in aliasResult) return aliasResult
   if ('error' in vendorsResult) return vendorsResult
   if ('error' in staffResult) return staffResult
@@ -311,7 +317,7 @@ export async function buildPurchaseHubList(
     const v = vInfo.get(vid)
     const st = staffByVendor.get(vid)
     const ct = contactByVendor.get(vid)
-    const kind: PurchaseKind = onlineIds.has(vid) ? 'online' : 'partner'
+    const kind: PurchaseKind = kindById.get(vid) ?? 'partner'
     rows.push({
       vendor_id: vid,
       vendor_name: v?.name ?? '(삭제된 거래처)',
@@ -346,9 +352,9 @@ export async function buildPurchaseHubList(
       active_vendors: active.length,
       invoice_total: invTotal,
       paid_total: paidTotal,
-      // 미지급 지표는 관리 대상(정기 거래 매입처)만 — 온라인 구매처는 즉시 결제라 제외 (602)
-      outstanding_total: rows.reduce((s, r) => s + (r.purchase_kind === 'online' ? 0 : Math.max(0, r.outstanding)), 0),
-      over90_total: rows.reduce((s, r) => s + (r.purchase_kind === 'online' ? 0 : r.over90), 0),
+      // 별도 구매처는 즉시 결제라 미지급 지표에서 제외 (경비성은 지급 의무가 있어 포함) — 602
+      outstanding_total: rows.reduce((s, r) => s + (r.purchase_kind === 'retail' ? 0 : Math.max(0, r.outstanding)), 0),
+      over90_total: rows.reduce((s, r) => s + (r.purchase_kind === 'retail' ? 0 : r.over90), 0),
       pay_ratio: invTotal > 0 ? Math.min(1, paidTotal / invTotal) : 1,
       unlinked_items: unlinkedItemsRes.count ?? 0,
       unlinked_aliases: unlinkedAliases,
@@ -599,8 +605,8 @@ export async function buildPurchaseHubDetail(
 
   // 매입처 구분 (602) — 미적용 환경이면 partner로 동작
   const kindRes = await admin.from('vendors').select('purchase_kind').eq('id', vendorId).maybeSingle()
-  const purchaseKind: PurchaseKind =
-    (!kindRes.error && (kindRes.data as { purchase_kind?: string } | null)?.purchase_kind === 'online') ? 'online' : 'partner'
+  const rawKind = kindRes.error ? null : (kindRes.data as { purchase_kind?: string } | null)?.purchase_kind
+  const purchaseKind: PurchaseKind = (rawKind === 'retail' || rawKind === 'expense') ? rawKind : 'partner'
 
   // 매입 계산서 (전체 — 기간 필터는 메모리)
   const invR = await fetchAllRows<{ id: string; issue_date: string; tax_type: string | null; supply_amount: number | null; total_amount: number | null; payment_status: string }>((f, t) =>

@@ -34,8 +34,8 @@ export async function PATCH(
   // 매입처 구분 (602) — partner=정기 거래 매입처 / online=온라인 구매처
   if ('purchase_kind' in body) {
     const kind = body.purchase_kind
-    if (kind !== 'partner' && kind !== 'online') {
-      return NextResponse.json({ error: "purchase_kind는 'partner' 또는 'online'이어야 합니다." }, { status: 400 })
+    if (kind !== 'partner' && kind !== 'retail' && kind !== 'expense') {
+      return NextResponse.json({ error: "purchase_kind는 partner · retail · expense 중 하나여야 합니다." }, { status: 400 })
     }
     const { error } = await admin.from('vendors').update({ purchase_kind: kind }).eq('id', params.vendorId)
     if (error) {
