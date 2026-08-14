@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/user-role'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { filterFromSearchParams, loadFilteredOrders } from '@/lib/orders-portal-list'
 import { xlsxResponse } from '@/lib/xlsx-export'
+import { honorify } from '@/lib/contact-label'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -84,7 +85,7 @@ export async function GET(req: NextRequest) {
       '주문번호': o.order_no ?? '',
       '업체(은행)': o.bank_name ?? '',
       '부서(지점)': o.branch_name ?? '',
-      '담당자': o.manager_name ?? '',
+      '담당자': honorify(o.manager_name as string | null),
       '다올직원': o.staff_name ?? '',
       '수금상태': STATUS_LABEL[o.collect_status ?? ''] ?? (o.collect_status ?? ''),
       '출처': (o.source ?? 'upload') === 'direct' ? '직접입력' : '업로드',

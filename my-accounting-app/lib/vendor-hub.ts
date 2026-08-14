@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { computeOrderDeliveryStatus } from '@/lib/erp-delivery-status'
+import { contactLabel } from '@/lib/contact-label'
 import type { ErpOrderDeliveryStatus } from '@/types/erp'
 
 // ─────────────────────────────────────────────────────────
@@ -240,7 +241,7 @@ export async function buildHubList(
   const contactByVendor = new Map<string, { rep: string | null; extra: number }>()
   for (const c of contactResult.data) {
     const name = (c.contacts as { name?: string } | null)?.name ?? null
-    const label = name ? (c.title ? `${name} ${c.title}` : name) : null
+    const label = name ? contactLabel(name, c.title) : null
     let e = contactByVendor.get(c.vendor_id)
     if (!e) { e = { rep: null, extra: 0 }; contactByVendor.set(c.vendor_id, e) }
     if (c.is_representative && label) { if (e.rep) e.extra++; e.rep = label }

@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { contactLabel } from '@/lib/contact-label'
 
 const won = (n: number) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 const norm = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, '').toLowerCase()
@@ -276,7 +277,7 @@ export default function ContactManagerPage() {
                   <tr key={c.contact_id}
                     onClick={() => router.push(`/sales-hub/contacts/${c.contact_id}`)}
                     className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer">
-                    <td className="py-2 px-3 whitespace-nowrap font-medium text-gray-900">{c.name}</td>
+                    <td className="py-2 px-3 whitespace-nowrap font-medium text-gray-900">{contactLabel(c.name)}</td>
                     <td className="py-2 px-3 min-w-0 max-w-[280px]">
                       {c.vendor_name ? (
                         <span className="text-gray-800">

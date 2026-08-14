@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { contactLabel } from '@/lib/contact-label'
 
 // 내 영업일지 — 본인 활동 기록 목록 + 작성.
 // 기록은 인물(contacts) 기준(105 트랙과 동일 테이블) — 담당자가 거래처를
@@ -195,7 +196,7 @@ export default function MyJournalPage() {
                 <tr key={r.id} className="border-b border-gray-50 align-top">
                   <td className="py-2 px-3 tabular-nums text-xs text-gray-500">{r.activity_date}</td>
                   <td className="py-2 px-3 text-xs">{r.activity_type}</td>
-                  <td className="py-2 px-3 font-medium">{r.contact_name ?? '-'}</td>
+                  <td className="py-2 px-3 font-medium">{contactLabel(r.contact_name) || '-'}</td>
                   <td className="py-2 px-3 text-xs text-gray-500">{r.vendor_name ?? '-'}</td>
                   <td className="py-2 px-3 text-gray-700 whitespace-pre-wrap">{r.content}</td>
                   <td className="py-2 px-3 text-xs text-gray-500">{r.next_action ?? '-'}</td>

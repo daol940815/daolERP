@@ -8,6 +8,7 @@ import {
   priceRule, toInt, won,
 } from './form-shared'
 import type { ContactOpt, Employee, ItemDraft, Product, Vendor, VendorGroup } from './form-shared'
+import { contactLabel } from '@/lib/contact-label'
 
 // 주문 입력 폼 (신규·수정 공용) — 시안 "입력은 기존을 닮게" 기준
 // 필드 구성·순서는 기존 ERP 업로드 컬럼 순서. 오타의 원천(자유 입력)만
@@ -432,11 +433,11 @@ export default function OrderForm({ orderId, consultId }: { orderId?: string; co
               value={contactId}
               display={(() => {
                 const c = contacts.find(x => x.contact_id === contactId)
-                return c ? [c.name, c.title].filter(Boolean).join(' ') : ''
+                return c ? contactLabel(c.name, c.title) : ''
               })()}
               options={contacts.map(c => ({
                 id: c.contact_id,
-                label: [c.name, c.title].filter(Boolean).join(' '),
+                label: contactLabel(c.name, c.title),
                 sub: [c.is_representative ? '대표' : '', c.phone ?? ''].filter(Boolean).join(' · '),
               }))}
               onSelect={pickContact}
