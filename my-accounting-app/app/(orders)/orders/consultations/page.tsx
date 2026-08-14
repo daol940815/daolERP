@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { honorify } from '@/lib/contact-label'
 
 // 상담일지 목록 — 기본 본인 작성분, manager/admin은 전체 보기 전환 가능.
 // 행 클릭 = 상세(수정), 진행중 상담은 목록에서 바로 주문 전환.
@@ -134,7 +135,7 @@ export default function ConsultationsPage() {
                   </td>
                   <td className="py-2 px-3 font-semibold">{r.bank_name ?? '-'}</td>
                   <td className="py-2 px-3">{r.branch_name ?? <span className="text-gray-300">-</span>}</td>
-                  <td className="py-2 px-3">{r.manager_name ?? '-'}</td>
+                  <td className="py-2 px-3">{honorify(r.manager_name) || '-'}</td>
                   {all && <td className="py-2 px-3 text-xs">{r.writer ?? '-'}</td>}
                   <td className="py-2 px-3 text-xs">{r.item_summary ?? <span className="text-gray-300">-</span>}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{r.item_total ? won(r.item_total) : <span className="text-gray-300">-</span>}</td>

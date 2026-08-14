@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import { getPeriodRange, DEFAULT_VIEW_FROM } from '@/lib/period-presets'
 import type { PurchaseHubDetail } from '@/lib/purchase-hub'
+import { contactLabel } from '@/lib/contact-label'
 
 // 매입처 허브 — 매입처 360° 상세(B)
 // 목록(A)의 기간이 URL로 넘어와 기본값이 되고, 여기서 바꿔도 목록에는 영향이 없다.
@@ -284,7 +285,7 @@ export default function PurchaseHubDetailPage() {
           {data.contacts.map(c => (
             <div key={c.assignment_id} className={`flex items-start justify-between py-2 border-b border-gray-50 last:border-0 ${c.ended_at ? 'opacity-50' : ''}`}>
               <div>
-                <span className="font-semibold text-sm">{c.name}{c.title ? ` ${c.title}` : ''}</span>
+                <span className="font-semibold text-sm">{contactLabel(c.name, c.title)}</span>
                 {c.is_representative && <span className="ml-1.5 px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-full text-[10px] font-bold">대표</span>}
                 <div className="text-[11px] text-gray-400">
                   {[c.role_memo, c.phone, c.email].filter(Boolean).join(' · ') || '연락처 미입력'}

@@ -7,6 +7,7 @@ import {
   lineTotal, priceRule, toInt, won,
 } from '../form-shared'
 import type { ContactOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
+import { contactLabel } from '@/lib/contact-label'
 
 // 상담일지 폼 (신규·수정 공용) — 실물 '주문상담' 시트 컬럼 구성.
 // 필수는 상담일·구분뿐. 업체·지점·담당자는 마스터 검색 + 자유 입력 겸용
@@ -362,7 +363,7 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
               <ComboFree text={managerText} selectedId={contactId}
                 options={contacts.map(c => ({
                   id: c.contact_id,
-                  label: [c.name, c.title].filter(Boolean).join(' '),
+                  label: contactLabel(c.name, c.title),
                   sub: [c.is_representative ? '대표' : '', c.phone ?? ''].filter(Boolean).join(' · '),
                 }))}
                 onChange={({ id, text }) => {
