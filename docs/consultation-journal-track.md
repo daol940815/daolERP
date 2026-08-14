@@ -72,6 +72,31 @@ contact_activities에 '상담' 활동을 자동 기재하도록 구현했다 —
   드릴다운. **직원(sales)은 접근 불가, manager/admin만.**
 - 셋 다 신규 기능이므로 **일단 구현 후 사용하면서 피드백**으로 다듬기로 함.
 
+## 업무일지 1차 구현 (2026-08-14, 마이그레이션 700 — 사용자 실행 대기)
+
+- **마이그레이션 `700_work_logs.sql`**: `erp_work_logs` 신설
+  (employee_id, work_date(KST), logged_at, source auto|manual, action,
+  category, content, ref_type/ref_id 드릴다운). 같은 파일에서 **잠정 구현 이관** —
+  contact_activities의 자동 기재분(activity_type='상담' AND content가
+  '…와 상담 (구분)' 형식)을 업무일지로 INSERT 후 원본 DELETE. 파일 안에
+  드라이런·검증 쿼리 주석 포함. 재실행해도 중복되지 않음(NOT EXISTS 가드).
+  영업일지의 '상담' 활동 유형 자체는 유지(직접 기재용).
+- **자동 기재 연결** (`lib/work-log.ts`의 `recordWorkLog` — 실패해도 본 저장 유지):
+  - 상담 생성 POST → '상담작성' / 상담 수정 PATCH → '상담수정'
+  - 주문 생성 POST → '주문작성' (consultation_id 있으면 '주문전환')
+  - 주문 수정 PATCH → '주문수정'
+  - 영업일지 작성 POST(`/api/me/journal`) → '영업일지'
+  - 상담 POST 응답 필드가 `journal_logged` → `work_logged`로 바뀜.
+- **API**: `/api/me/worklog` GET(월·유형 필터, manager+는 ?employee=로 팀원 열람) ·
+  POST(직접 기재) · PATCH/DELETE(본인 직접 기재분만 — 자동 기재 줄은 잠금).
+  `/api/team/worklog` GET(period=today|week|month, sales 403).
+- **화면**: `/me/worklog`(KPI 4장 + 월 셀렉트 + 유형 칩 + 한 줄 직접 기재 폼 +
+  날짜 그룹 목록, 각 줄 원본 드릴다운) · `/me/team-worklog`(관리자 전용,
+  직원 × 유형 집계 표, 활동 0건 직원도 표시, 이름 클릭 시 그 직원 업무일지로).
+- **사이드바**: "내 업무" 그룹에 업무일지 추가, 팀 업무 현황은 role !== 'sales'만.
+- 직접 기재 구분 기본값: 회의 / 출고·포장 / 재고 / 고객응대 / 기타
+  (`lib/work-log.ts` WORK_LOG_CATEGORIES — 사용해보고 조정).
+
 ## 남은 논의 항목
 
 - 상담일지·영업일지 자체의 개선 요구 수렴.

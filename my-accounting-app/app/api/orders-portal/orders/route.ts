@@ -5,6 +5,7 @@ import {
   validateOrderInput, buildOrderRows, insertOrderItems, ensureAlias, nextOrderNo,
   resolveDisplayNames, resolveVendorNames,
 } from '@/lib/orders-portal'
+import { recordWorkLog, orderContent } from '@/lib/work-log'
 
 export const dynamic = 'force-dynamic'
 
@@ -87,6 +88,19 @@ export async function POST(req: NextRequest) {
   if (consultationId) {
     await admin.from('erp_consultations').update({ status: '주문전환' }).eq('id', consultationId)
   }
+
+  // 업무일지 자동 기재 — 상담에서 전환된 주문은 '주문전환'으로 구분
+  await recordWorkLog(admin, {
+    employeeId: me.employeeId,
+    action: consultationId ? '주문전환' : '주문작성',
+    content: orderContent({
+      customer: [vendorNames.bankName, vendorNames.branchName].filter(Boolean).join(' '),
+      orderNo, itemCount: itemRows.length, total,
+    }, consultationId ? '상담을 주문서로 전환' : '주문서 작성'),
+    workDate: input.order_date,
+    refType: 'order',
+    refId: orderId,
+  })
 
   return NextResponse.json({ id: orderId, order_no: orderNo, total_amount: total })
 }

@@ -54,6 +54,15 @@ export default function OrdersSidebar({ name, roleLabel, role }: {
           <Link href="/me/journal" className={linkCls(pathname === '/me/journal')}>
             <span>영업일지</span>
           </Link>
+          <Link href="/me/worklog" className={linkCls(pathname === '/me/worklog')}>
+            <span>업무일지</span>
+          </Link>
+          {/* 팀 업무 현황은 관리자 전용 — 직원에게는 노출하지 않는다 (사용자 확정) */}
+          {role !== 'sales' && (
+            <Link href="/me/team-worklog" className={linkCls(pathname === '/me/team-worklog')}>
+              <span>팀 업무 현황</span>
+            </Link>
+          )}
         </div>
 
         <div className="mb-5">

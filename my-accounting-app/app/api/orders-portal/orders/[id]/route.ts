@@ -5,6 +5,7 @@ import {
   validateOrderInput, applyOrderEdit, resolveDisplayNames, loadOrderSnapshot,
   kstToday, kstDateOf,
 } from '@/lib/orders-portal'
+import { recordWorkLog, orderContent } from '@/lib/work-log'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,6 +80,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     counselorName: names.counselorName,
   })
   if (err) return NextResponse.json({ error: err }, { status: 500 })
+
+  await recordWorkLog(admin, {
+    employeeId: me.employeeId,
+    action: '주문수정',
+    content: orderContent({
+      customer: [snap.order.bank_name, snap.order.branch_name].filter(Boolean).join(' '),
+      orderNo: (snap.order.order_no as string) ?? null,
+      itemCount: parsed.input.items.length,
+    }, '주문서 수정'),
+    refType: 'order',
+    refId: params.id,
+  })
   return NextResponse.json({ ok: true })
 }
 
