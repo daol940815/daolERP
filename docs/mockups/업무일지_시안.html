@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>업무일지 시안 — 계정 단위 ERP 활동 이력</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1080px; margin:0 auto; padding:24px 20px 60px; }
+  h1 { font-size:19px; color:#0f172a; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.7; }
+  h2 { font-size:14px; color:#0f172a; margin:26px 0 8px; }
+
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+
+  /* KPI 카드 */
+  .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
+  .kpi { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px; cursor:pointer; }
+  .kpi.on { border-color:#0f172a; box-shadow:0 0 0 1px #0f172a inset; }
+  .kpi .t { font-size:11px; color:#64748b; }
+  .kpi .v { font-size:20px; font-weight:bold; color:#0f172a; margin-top:2px; font-variant-numeric:tabular-nums; }
+  .kpi .s { font-size:10.5px; color:#94a3b8; margin-top:1px; }
+
+  /* 필터 줄 */
+  .filters { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+  .chip { display:inline-block; padding:4px 11px; border:1px solid #e5e7eb; border-radius:999px; font-size:12px; color:#4b5563; background:#fff; cursor:pointer; }
+  .chip.on { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .selbox { border:1.5px solid #cbd5e1; border-radius:8px; padding:5px 10px; background:#fff; font-size:12px; color:#334155; }
+  .selbox.mgr { border-color:#93b8e8; background:#f5f9ff; }
+  .mgr-note { font-size:10.5px; color:#5b8ac6; }
+
+  /* 날짜 그룹 + 항목 */
+  .day { margin-top:16px; }
+  .dayhead { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .dayhead b { font-size:13px; color:#0f172a; }
+  .dayhead span { font-size:11px; color:#94a3b8; }
+  .entries { background:#fff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; }
+  .entry { display:flex; align-items:center; gap:12px; padding:10px 14px; border-bottom:1px solid #eef1f5; }
+  .entry:last-child { border-bottom:none; }
+  .entry:hover { background:#f3f7fd; }
+  .time { font-size:11px; color:#94a3b8; width:44px; font-variant-numeric:tabular-nums; flex-shrink:0; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:10.5px; font-weight:600; white-space:nowrap; width:64px; text-align:center; flex-shrink:0; }
+  .b-blue  { background:#e6effc; color:#1c5cab; }   /* 상담 작성 */
+  .b-sky   { background:#e8f4f8; color:#0e6a8a; }   /* 상담 수정 */
+  .b-green { background:#e7f6ec; color:#147339; }   /* 주문 작성 */
+  .b-teal  { background:#e6f5f2; color:#0c6b5d; }   /* 주문 수정 */
+  .b-violet{ background:#efeafd; color:#6631c9; }   /* 주문 전환 */
+  .txt { flex:1; font-size:12.5px; color:#1e293b; }
+  .txt small { color:#94a3b8; font-size:11px; margin-left:6px; }
+  .go { font-size:11px; color:#5b8ac6; white-space:nowrap; }
+
+  .note { margin-top:18px; background:#fffbeb; border:1px solid #f5e6b8; border-radius:10px; padding:12px 16px; font-size:12px; color:#7c5e10; line-height:1.9; }
+  .note b { color:#5c470a; }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <h1>업무일지 시안</h1>
+  <p class="desc">
+    해당 계정이 ERP에서 진행한 업무 내용이 자동으로 기재되는 화면.
+    직접 작성하지 않는다 — 상담일지·주문서를 저장하는 순간 시스템이 한 줄씩 쌓는다.<br>
+    위치: 직원 워크스페이스 사이드바 "내 업무" 그룹, 영업일지 아래 "업무일지".
+    경로 <b>/me/worklog</b>. 1차 기록 범위: 상담일지 작성·수정·주문전환 / 주문서 작성·수정.
+  </p>
+
+  <!-- KPI (클릭 = 필터) -->
+  <div class="kpis">
+    <div class="kpi on"><div class="t">이번 주 활동</div><div class="v">23</div><div class="s">클릭 = 전체 보기</div></div>
+    <div class="kpi"><div class="t">상담일지</div><div class="v">9</div><div class="s">작성 7 · 수정 2</div></div>
+    <div class="kpi"><div class="t">주문서</div><div class="v">14</div><div class="s">작성 11 · 수정 3</div></div>
+    <div class="kpi"><div class="t">주문 전환</div><div class="v">4</div><div class="s">상담 → 주문</div></div>
+  </div>
+
+  <!-- 필터 줄 -->
+  <div class="filters">
+    <select class="selbox"><option>2026년 8월</option><option>2026년 7월</option></select>
+    <span class="chip on">전체</span>
+    <span class="chip">상담 작성</span>
+    <span class="chip">상담 수정</span>
+    <span class="chip">주문 작성</span>
+    <span class="chip">주문 수정</span>
+    <span class="chip">주문 전환</span>
+    <span style="flex:1"></span>
+    <select class="selbox mgr"><option>내 업무일지</option><option>김직원</option><option>이직원</option><option>박직원</option></select>
+    <span class="mgr-note">← manager/admin에게만 표시 (팀원 선택)</span>
+  </div>
+
+  <!-- 날짜 그룹 목록 -->
+  <div class="day">
+    <div class="dayhead"><b>08월 14일 (금)</b><span>5건</span></div>
+    <div class="entries">
+      <div class="entry">
+        <span class="time">16:42</span><span class="badge b-violet">주문 전환</span>
+        <span class="txt">온양농협 배방지점 김민수 과장 상담을 주문서로 전환<small>주문 D-20260814-031</small></span>
+        <span class="go">주문서 보기 →</span>
+      </div>
+      <div class="entry">
+        <span class="time">15:10</span><span class="badge b-blue">상담 작성</span>
+        <span class="txt">천안축협 성환지점 박영희 대리와 상담 (주문)</span>
+        <span class="go">상담일지 보기 →</span>
+      </div>
+      <div class="entry">
+        <span class="time">13:55</span><span class="badge b-teal">주문 수정</span>
+        <span class="txt">주문 D-20260812-007 수정<small>아산농협 본점</small></span>
+        <span class="go">주문서 보기 →</span>
+      </div>
+      <div class="entry">
+        <span class="time">10:31</span><span class="badge b-green">주문 작성</span>
+        <span class="txt">예산농협 삽교지점 주문서 작성<small>품목 3건 · 214,000원</small></span>
+        <span class="go">주문서 보기 →</span>
+      </div>
+      <div class="entry">
+        <span class="time">09:12</span><span class="badge b-blue">상담 작성</span>
+        <span class="txt">신규 고객 무궁화신협 홍길동 팀장과 상담 (문의)</span>
+        <span class="go">상담일지 보기 →</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="day">
+    <div class="dayhead"><b>08월 13일 (목)</b><span>3건</span></div>
+    <div class="entries">
+      <div class="entry">
+        <span class="time">17:20</span><span class="badge b-sky">상담 수정</span>
+        <span class="txt">온양농협 배방지점 김민수 과장 상담 내용 수정</span>
+        <span class="go">상담일지 보기 →</span>
+      </div>
+      <div class="entry">
+        <span class="time">14:02</span><span class="badge b-blue">상담 작성</span>
+        <span class="txt">온양농협 배방지점 김민수 과장과 상담 (주문)</span>
+        <span class="go">상담일지 보기 →</span>
+      </div>
+      <div class="entry">
+        <span class="time">11:47</span><span class="badge b-green">주문 작성</span>
+        <span class="txt">당진수협 본점 주문서 작성<small>품목 1건 · 88,000원</small></span>
+        <span class="go">주문서 보기 →</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>동작 방식 요약</b><br>
+    1. 기록은 전부 자동 — 상담일지·주문서 API가 저장 성공 직후 업무일지 테이블(erp_work_logs)에 한 줄을 남긴다.
+       기재 실패해도 원래 저장은 유지(영업일지 잠정 구현과 같은 방식).<br>
+    2. 모든 줄은 원본 문서로 드릴다운 — "상담일지 보기 / 주문서 보기" 클릭 시 해당 상세 화면으로 이동.<br>
+    3. 조회 권한 — 본인은 자기 것만, manager/admin은 우상단 셀렉트로 팀원 업무일지 열람.<br>
+    4. 기존 잠정 구현 이관 — 상담 저장 시 영업일지(contact_activities)에 넣던 '상담' 활동 자동 기재는 폐지.
+       이미 쌓인 자동 기재분은 마이그레이션(700번대)에서 업무일지로 이동. 영업일지의 '상담' 유형 자체는
+       유지(방문상담 등 직접 기재용).
+  </div>
+
+</div>
+</body>
+</html>
