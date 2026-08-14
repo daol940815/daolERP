@@ -31,6 +31,7 @@ export default function SearchableSelect({ value, onChange, options, emptyLabel,
   const triggerRef = useRef<HTMLButtonElement>(null)
   const inputRef   = useRef<HTMLInputElement>(null)
   const panelRef   = useRef<HTMLDivElement>(null)
+  const listRef    = useRef<HTMLDivElement>(null)
 
   const selected = options.find(o => o.id === value) ?? null
 
@@ -63,6 +64,12 @@ export default function SearchableSelect({ value, onChange, options, emptyLabel,
   useEffect(() => {
     if (open) inputRef.current?.focus()
   }, [open])
+
+  // 방향키로 이동한 항목이 목록 밖으로 나가지 않도록 따라 스크롤
+  useEffect(() => {
+    if (!open) return
+    listRef.current?.querySelector<HTMLElement>('[data-hl="1"]')?.scrollIntoView({ block: 'nearest' })
+  }, [highlight, open])
 
   useEffect(() => {
     if (!open) return
@@ -102,6 +109,9 @@ export default function SearchableSelect({ value, onChange, options, emptyLabel,
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    // 한글 IME 조합 중 Enter는 글자 확정용이므로 가로채지 않는다.
+    // (막지 않으면 "화곡"을 확정하려는 Enter에 엉뚱한 항목이 선택된다)
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
     const total = filtered.length + 1 + (showCreate ? 1 : 0) // +1 = emptyLabel 항목
     if (e.key === 'ArrowDown') { e.preventDefault(); setHighlight(h => (h + 1) % total) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlight(h => (h - 1 + total) % total) }
@@ -141,9 +151,10 @@ export default function SearchableSelect({ value, onChange, options, emptyLabel,
             placeholder="검색..."
             className="w-full px-2.5 py-1.5 text-xs border-b border-gray-200 focus:outline-none"
           />
-          <div className="max-h-60 overflow-y-auto py-1">
+          <div ref={listRef} className="max-h-60 overflow-y-auto py-1">
             <button
               type="button"
+              data-hl={highlight === 0 ? '1' : undefined}
               onClick={() => handleSelect('')}
               className={`w-full text-left px-2.5 py-1.5 text-xs ${highlight === 0 ? 'bg-slate-100' : 'hover:bg-gray-50'} ${!value ? 'text-gray-400' : 'text-gray-700'}`}
             >
@@ -153,6 +164,7 @@ export default function SearchableSelect({ value, onChange, options, emptyLabel,
               showCreate ? (
                 <button
                   type="button"
+                  data-hl={highlight === 1 ? '1' : undefined}
                   onClick={handleCreate}
                   className={`w-full text-left px-2.5 py-1.5 text-xs ${highlight === 1 ? 'bg-emerald-100' : 'hover:bg-emerald-50'} text-emerald-700`}
                 >
@@ -165,6 +177,7 @@ export default function SearchableSelect({ value, onChange, options, emptyLabel,
               <button
                 key={o.id}
                 type="button"
+                data-hl={highlight === i + 1 ? '1' : undefined}
                 onClick={() => handleSelect(o.id)}
                 className={`w-full text-left px-2.5 py-1.5 text-xs truncate ${highlight === i + 1 ? 'bg-slate-100' : 'hover:bg-gray-50'} ${o.id === value ? 'font-medium text-slate-900' : 'text-gray-700'}`}
               >
