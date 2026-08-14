@@ -149,11 +149,12 @@ export default function MyWorklogPage() {
 
   const counts = data?.counts ?? {}
   const sum = (...keys: string[]) => keys.reduce((s, k) => s + (counts[k] ?? 0), 0)
+  // KPI 클릭 = 그 묶음으로 필터 (카드 숫자와 목록 건수가 일치하도록 콤마 묶음을 넘긴다)
   const kpis = [
     { key: 'all', label: '이번 달 업무', value: Object.values(counts).reduce((a, b) => a + b, 0), sub: '전체 보기' },
-    { key: '상담작성', label: '상담일지', value: sum('상담작성', '상담수정'), sub: `작성 ${counts['상담작성'] ?? 0} · 수정 ${counts['상담수정'] ?? 0}` },
-    { key: '주문작성', label: '주문서', value: sum('주문작성', '주문수정', '주문전환'), sub: `작성 ${counts['주문작성'] ?? 0} · 수정 ${counts['주문수정'] ?? 0} · 전환 ${counts['주문전환'] ?? 0}` },
-    { key: '직접기재', label: '직접 기재', value: sum('직접기재', '영업일지'), sub: `직접 ${counts['직접기재'] ?? 0} · 영업일지 ${counts['영업일지'] ?? 0}` },
+    { key: '상담작성,상담수정', label: '상담일지', value: sum('상담작성', '상담수정'), sub: `작성 ${counts['상담작성'] ?? 0} · 수정 ${counts['상담수정'] ?? 0}` },
+    { key: '주문작성,주문수정,주문전환', label: '주문서', value: sum('주문작성', '주문수정', '주문전환'), sub: `작성 ${counts['주문작성'] ?? 0} · 수정 ${counts['주문수정'] ?? 0} · 전환 ${counts['주문전환'] ?? 0}` },
+    { key: '직접기재,영업일지', label: '직접 기재 · 영업', value: sum('직접기재', '영업일지'), sub: `직접 ${counts['직접기재'] ?? 0} · 영업일지 ${counts['영업일지'] ?? 0}` },
   ]
 
   const isManager = data?.role === 'manager' || data?.role === 'admin'
@@ -192,9 +193,9 @@ export default function MyWorklogPage() {
       {/* KPI — 클릭 시 유형 필터 */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4">
         {kpis.map(k => {
-          const on = k.key === 'all' ? action === 'all' : action === k.key
+          const on = action === k.key
           return (
-            <button key={k.key} onClick={() => setAction(k.key === 'all' ? 'all' : k.key)}
+            <button key={k.key} onClick={() => setAction(k.key)}
               className={`text-left bg-white border rounded-xl px-3.5 py-3 transition-colors ${
                 on ? 'border-slate-900 ring-1 ring-slate-900' : 'border-gray-200 hover:border-gray-300'}`}>
               <div className="text-xs text-gray-500">{k.label}</div>

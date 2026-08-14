@@ -226,7 +226,7 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
         router.push(`/orders/new?consult=${id}`)
         return
       }
-      if (!isEdit && json.journal_logged) setNotice('저장 완료 — 영업일지에 상담 활동이 기재되었습니다.')
+      if (!isEdit && json.work_logged) setNotice('저장 완료 — 업무일지에 기재되었습니다.')
       router.push('/orders/consultations')
     } catch (e) {
       setError(e instanceof Error ? e.message : '저장 실패')

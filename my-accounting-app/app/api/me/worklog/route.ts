@@ -46,7 +46,11 @@ export async function GET(req: NextRequest) {
     .order('work_date', { ascending: false })
     .order('logged_at', { ascending: false })
     .limit(1000)
-  if (action !== 'all') query = query.eq('action', action)
+  // action은 단일 유형 또는 KPI 카드용 묶음(콤마 구분) — 카드 숫자와 목록 건수를 일치시킨다
+  if (action !== 'all') {
+    const list = action.split(',').map(s => s.trim()).filter(Boolean)
+    query = list.length > 1 ? query.in('action', list) : query.eq('action', list[0] ?? action)
+  }
 
   const { data, error } = await query
   if (error) {
