@@ -101,6 +101,22 @@ SELECT jsonb_pretty(jsonb_build_object(
     FROM hub_vendor_summary(NULL, NULL)
   ),
 
+  -- [6b] 주문 소스 분포 — direct(자체 주문시스템) 주문이 실제로 생겼는지
+  -- 컷오프 규칙은 source에 따라 분기하는데, 그 분기는 허브 경로에만 있다.
+  -- direct 주문이 0건이면 병행 참조 문제는 아직 잠재 상태.
+  'R2b_orders_by_source', (
+    SELECT jsonb_agg(t ORDER BY t->>'source')
+    FROM (
+      SELECT jsonb_build_object(
+        'source', COALESCE(source, 'upload'),
+        'orders', count(*),
+        'outstanding_sum', COALESCE(SUM(outstanding_amount), 0),
+        'first_order', MIN(order_date), 'last_order', MAX(order_date)
+      ) AS t
+      FROM erp_orders GROUP BY COALESCE(source, 'upload')
+    ) s
+  ),
+
   -- [7] 미수금 이중차감 규모 — upload 주문에서 "마지막 업로드 이전 입금" 매칭액
   -- 이 금액은 ERP outstanding_amount에 이미 반영돼 있는데 대시보드가 또 차감한다.
   'R3_double_deduction', (
