@@ -20,6 +20,7 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
   over90:   { label: '미지급 90일 초과', cls: 'bg-red-100 text-red-700' },
   overpaid: { label: '과다지급',        cls: 'bg-violet-100 text-violet-700' },
   dormant:  { label: '휴면 전환',       cls: 'bg-gray-100 text-gray-500' },
+  online:   { label: '온라인 구매처',    cls: 'bg-sky-100 text-sky-700' },
 }
 const TL_META: Record<string, { label: string; cls: string }> = {
   invoice: { label: '계산서', cls: 'bg-blue-100 text-blue-700' },
@@ -131,6 +132,17 @@ export default function PurchaseHubDetailPage() {
     if (ok) load()
   }
 
+  // 매입처 구분 전환 (602) — 온라인 구매처는 발주·미지급 관리 대상에서 빠진다
+  const toggleKind = async () => {
+    const next = data?.vendor.purchase_kind === 'online' ? 'partner' : 'online'
+    if (!window.confirm(next === 'online'
+      ? '온라인 구매처로 지정할까요?\n발주 이메일·담당자 경고와 미지급 상태 판정에서 제외되고, 구매 규모만 집계됩니다.'
+      : '정기 거래 매입처로 되돌릴까요?\n발주·미지급 관리 대상에 다시 포함됩니다.')) return
+    const { ok, json } = await patch({ purchase_kind: next })
+    flash(ok ? (next === 'online' ? '온라인 구매처로 지정됨' : '정기 거래 매입처로 변경됨') : (json.error ?? '변경 실패'))
+    if (ok) load()
+  }
+
   const saveEmail = async () => {
     const { ok, json } = await patch({ email: emailForm.value })
     flash(ok ? '발주 이메일 저장됨' : (json.error ?? '저장 실패'))
@@ -190,6 +202,13 @@ export default function PurchaseHubDetailPage() {
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-gray-900">{data.vendor.name}</h1>
             <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${meta.cls}`}>{meta.label}</span>
+            <button onClick={toggleKind}
+              title={data.vendor.purchase_kind === 'online'
+                ? '온라인에서 상품을 구매한 곳으로 지정되어 있습니다 — 발주·미지급 관리 대상이 아닙니다'
+                : '온라인에서 상품만 구매하는 곳이면 지정하세요 — 발주·미지급 관리 대상에서 빠집니다'}
+              className="text-[11px] text-gray-400 hover:text-gray-600 underline">
+              {data.vendor.purchase_kind === 'online' ? '정기 거래 매입처로 변경' : '온라인 구매처로 지정'}
+            </button>
           </div>
           {data.vendor.biz_number && (
             <div className="text-xs text-gray-500 mt-0.5">사업자번호 {data.vendor.biz_number}</div>
@@ -211,7 +230,9 @@ export default function PurchaseHubDetailPage() {
               <>
                 {data.vendor.email
                   ? <a href={`mailto:${data.vendor.email}`} className="text-blue-600 hover:underline">{data.vendor.email}</a>
-                  : <span className="text-orange-600">미입력</span>}
+                  : data.vendor.purchase_kind === 'online'
+                    ? <span className="text-gray-400">관리 대상 아님</span>
+                    : <span className="text-orange-600">미입력</span>}
                 <button onClick={() => setEmailForm({ open: true, value: data.vendor.email ?? '' })}
                   className="text-[11px] text-gray-400 hover:text-gray-600 underline">수정</button>
               </>

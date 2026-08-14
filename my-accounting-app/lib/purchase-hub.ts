@@ -28,13 +28,17 @@ import { contactLabel } from '@/lib/contact-label'
 
 export const DORMANT_MONTHS = 6
 
-export type PurchaseHubStatus = 'normal' | 'unpaid' | 'over90' | 'overpaid' | 'dormant'
+// online = 온라인 구매처 (602) — 거래처가 아니라 온라인 구매처라 발주·미지급 관리 대상이
+// 아니다. 다른 상태 판정보다 우선하며, 구매 규모 지표만 의미를 갖는다.
+export type PurchaseHubStatus = 'normal' | 'unpaid' | 'over90' | 'overpaid' | 'dormant' | 'online'
+export type PurchaseKind = 'partner' | 'online'
 
 export interface PurchaseHubListRow {
   vendor_id: string
   vendor_name: string
   biz_number: string | null
   email: string | null      // 발주서 발송용 (원가표 적재 508 · vendors.email)
+  purchase_kind: PurchaseKind
   alias_names: string[]     // ERP 매입처 표기 검색용
   alias_count: number
   staff_primary: string | null
@@ -188,7 +192,10 @@ function computeFifo(
 
 function judgeStatus(
   outstanding: number, over90: number, last: string | null, dormantBefore: string,
+  kind: PurchaseKind = 'partner',
 ): PurchaseHubStatus {
+  // 온라인 구매처는 발주·미지급 관리 대상이 아니므로 구분 자체가 상태다 (602)
+  if (kind === 'online') return 'online'
   if (!last || last < dormantBefore) return 'dormant'
   if (outstanding < 0) return 'overpaid'
   if (over90 > 0) return 'over90'
@@ -218,6 +225,9 @@ export async function buildPurchaseHubList(
         .eq('alias_type', 'purchase').range(f, t)),
     fetchAllRows<{ id: string; name: string; biz_number: string | null; email: string | null }>((f, t) =>
       admin.from('vendors').select('id, name, biz_number, email').range(f, t)),
+    // 온라인 구매처 구분 (602) — 미적용 환경이면 오류를 삼키고 전부 partner로 동작
+    fetchAllRows<{ id: string }>((f, t) =>
+      admin.from('vendors').select('id').eq('purchase_kind', 'online').range(f, t)),
     fetchAllRows<{ vendor_id: string; is_primary: boolean; employees: unknown }>((f, t) =>
       admin.from('vendor_staff').select('vendor_id, is_primary, employees(name)')
         .is('ended_at', null).range(f, t)),
@@ -258,7 +268,8 @@ export async function buildPurchaseHubList(
     for (const r of fb.data) acc.set(r.vendor_id, r)
   }
 
-  const [aliasResult, vendorsResult, staffResult, contactResult, unlinkedItemsRes] = await sidePromise
+  const [aliasResult, vendorsResult, onlineResult, staffResult, contactResult, unlinkedItemsRes] = await sidePromise
+  const onlineIds = new Set('error' in onlineResult ? [] : onlineResult.data.map(v => v.id))
   if ('error' in aliasResult) return aliasResult
   if ('error' in vendorsResult) return vendorsResult
   if ('error' in staffResult) return staffResult
@@ -300,11 +311,13 @@ export async function buildPurchaseHubList(
     const v = vInfo.get(vid)
     const st = staffByVendor.get(vid)
     const ct = contactByVendor.get(vid)
+    const kind: PurchaseKind = onlineIds.has(vid) ? 'online' : 'partner'
     rows.push({
       vendor_id: vid,
       vendor_name: v?.name ?? '(삭제된 거래처)',
       biz_number: v?.biz_number ?? null,
       email: v?.email ?? null,
+      purchase_kind: kind,
       alias_names: aliasNames.get(vid) ?? [],
       alias_count: aliasCount.get(vid) ?? 0,
       staff_primary: st?.primary ?? null,
@@ -319,7 +332,7 @@ export async function buildPurchaseHubList(
       over90: a.over90,
       opening_remain: a.opening_remain,
       last_purchase_date: a.last_purchase_date,
-      status: judgeStatus(a.outstanding, a.over90, a.last_purchase_date, dormantBefore),
+      status: judgeStatus(a.outstanding, a.over90, a.last_purchase_date, dormantBefore, kind),
     })
   }
   rows.sort((x, y) => y.invoice_total - x.invoice_total || y.outstanding - x.outstanding)
@@ -333,8 +346,9 @@ export async function buildPurchaseHubList(
       active_vendors: active.length,
       invoice_total: invTotal,
       paid_total: paidTotal,
-      outstanding_total: rows.reduce((s, r) => s + Math.max(0, r.outstanding), 0),
-      over90_total: rows.reduce((s, r) => s + r.over90, 0),
+      // 미지급 지표는 관리 대상(정기 거래 매입처)만 — 온라인 구매처는 즉시 결제라 제외 (602)
+      outstanding_total: rows.reduce((s, r) => s + (r.purchase_kind === 'online' ? 0 : Math.max(0, r.outstanding)), 0),
+      over90_total: rows.reduce((s, r) => s + (r.purchase_kind === 'online' ? 0 : r.over90), 0),
       pay_ratio: invTotal > 0 ? Math.min(1, paidTotal / invTotal) : 1,
       unlinked_items: unlinkedItemsRes.count ?? 0,
       unlinked_aliases: unlinkedAliases,
@@ -527,7 +541,7 @@ export interface PurchaseHubErpItem {
 }
 
 export interface PurchaseHubDetail {
-  vendor: { id: string; name: string; biz_number: string | null; email: string | null; note: string | null }
+  vendor: { id: string; name: string; biz_number: string | null; email: string | null; note: string | null; purchase_kind: PurchaseKind }
   links: {
     alias_count: number
     opening: { as_of_date: string; amount: number; note: string | null } | null
@@ -582,6 +596,11 @@ export async function buildPurchaseHubDetail(
     .select('as_of_date, amount, note').eq('vendor_id', vendorId).maybeSingle()
   const opening = openingRes.error ? null : (openingRes.data as { as_of_date: string; amount: number; note: string | null } | null)
   const cutoff = opening?.as_of_date ?? null
+
+  // 매입처 구분 (602) — 미적용 환경이면 partner로 동작
+  const kindRes = await admin.from('vendors').select('purchase_kind').eq('id', vendorId).maybeSingle()
+  const purchaseKind: PurchaseKind =
+    (!kindRes.error && (kindRes.data as { purchase_kind?: string } | null)?.purchase_kind === 'online') ? 'online' : 'partner'
 
   // 매입 계산서 (전체 — 기간 필터는 메모리)
   const invR = await fetchAllRows<{ id: string; issue_date: string; tax_type: string | null; supply_amount: number | null; total_amount: number | null; payment_status: string }>((f, t) =>
@@ -766,10 +785,10 @@ export async function buildPurchaseHubDetail(
   }
 
   const dormantBefore = addDays(t0, -DORMANT_MONTHS * 30)
-  const status = judgeStatus(fifo.outstanding, fifo.over90, lastPurchase, dormantBefore)
+  const status = judgeStatus(fifo.outstanding, fifo.over90, lastPurchase, dormantBefore, purchaseKind)
 
   return {
-    vendor: { id: vendor.id, name: vendor.name, biz_number: vendor.biz_number, email: vendor.email, note: vendor.note },
+    vendor: { id: vendor.id, name: vendor.name, biz_number: vendor.biz_number, email: vendor.email, note: vendor.note, purchase_kind: purchaseKind },
     links: { alias_count: aliasIds.length, opening },
     staff: staffRows.map(s => ({
       id: s.id as string,
