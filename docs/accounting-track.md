@@ -54,6 +54,34 @@
   출금 매칭(-)의 원본 증분으로만 변동. 기준일 이전 원본은 잔액 계산에서 제외.
   → 결제현황 엑셀·기준일 수령 대기 (적재는 승인·드라이런·검증 루틴).
 
+### 경영대시보드 미수·미지급 값이 컷오프를 반영하지 않는 문제 (2026-08-12 진단)
+
+증상: "26.06까지 정산 완료 전제 · 26.07부터 반영" 컷오프 조치를 했는데 경영대시보드
+미수금·미지급금에 반영되지 않음. 원인은 **집계 경로가 둘로 갈라져 있고 컷오프가 허브
+경로에만 적용된 것** — 조치 자체는 실행됐다.
+
+| 지표 | 허브 화면 (컷오프 적용) | 경영대시보드 (미적용) |
+|---|---|---|
+| 미수금 | `hub_vendor_summary`(107) + `lib/vendor-hub.ts` | `buildReceivableAgingRows`(`lib/erp-reports.ts`) |
+| 미지급금 | `hub_purchase_summary`(600/601) + `lib/purchase-hub.ts` + `purchase_opening_balances` | `buildPayableAgingRows` → `buildPayableRows` |
+
+- **미지급금(과대 계상)**: 대시보드는 ERP 주문 품목(`erp_order_items`)을 정산월별로 모아
+  `erp_purchase_settlements`에 paid 표시가 없으면 전액 미지급으로 계상한다. monthFrom이
+  null이라 26.06 이전 정산월이 전부 포함되고, 기준일 기초원장(`purchase_opening_balances`,
+  406행·잔액 0)은 아예 참조하지 않는다. 기초원장 적재 드라이런의 "적재 전 양수 150곳
+  17.04억"과 비슷한 과거분이 대시보드에 그대로 남아 있을 것.
+  기초이월도 다른 테이블(`vendor_opening_balances` 음수분 — 매출 Aging 전용)을 쓴다.
+- **미수금(과소 계상)**: 대시보드는 `erp_order_payment_matches`(026, 컷오프 없음)로 모든
+  매칭을 차감한다. 업로드 이전 입금은 ERP `outstanding_amount`에 이미 반영돼 있어
+  이중차감 → 미수금이 실제보다 작게 나온다. 허브의 순매출 상한(LEAST)도 없다.
+- 즉 두 지표의 오차 방향이 반대다(미지급 과대·미수 과소).
+- 대사 스크립트: `my-accounting-app/supabase/checks/dashboard_vs_hub_check.sql`(읽기 전용).
+- 같은 경로를 쓰는 화면: 미수금 경과기간 분석(`reports/receivables-aging`)·
+  미지급금 경과기간 분석(`reports/payables-aging`) 및 각 export — 함께 어긋나 있다.
+- **해결 방향(사용자 결정 대기)**: (A) 대시보드·Aging이 허브 RPC를 단일 진실로 참조하도록
+  전환(권장 — 정의 하나로 통일) / (B) `lib/erp-reports.ts`에 컷오프 규칙을 복제
+  (규칙이 3곳으로 늘어 재발 위험) / (C) 대시보드에 두 값을 병기.
+
 ## 미결 항목 (다음 회계 세션이 이어받을 것)
 
 1. 통장 분류 대기 2계좌: 하나 …1704(618건), 우리 …3634(378건) — 분류용 엑셀은
