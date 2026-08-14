@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { contactLabel } from '@/lib/contact-label'
 
 // ─────────────────────────────────────────────────────────
 // 매입처 허브 집계 (docs/purchase-hub-track.md)
@@ -285,7 +286,7 @@ export async function buildPurchaseHubList(
   const contactByVendor = new Map<string, { rep: string | null; extra: number }>()
   for (const c of contactResult.data) {
     const name = (c.contacts as { name?: string } | null)?.name ?? null
-    const label = name ? (c.title ? `${name} ${c.title}` : name) : null
+    const label = name ? contactLabel(name, c.title) : null
     let e = contactByVendor.get(c.vendor_id)
     if (!e) { e = { rep: null, extra: 0 }; contactByVendor.set(c.vendor_id, e) }
     if (c.is_representative && label) { if (e.rep) e.extra++; e.rep = label }

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { contactLabel } from '@/lib/contact-label'
 
 // 주문 포털 공용 로직 (2단계 — 직접 입력 주문)
 //  - 입력 payload 검증·금액 계산은 서버에서 다시 한다 (클라이언트 계산값 불신)
@@ -120,7 +121,8 @@ export async function resolveDisplayNames(
   if (!empRes.data) return { managerName: null, counselorName: null, error: '상담자 직원을 찾을 수 없습니다.' }
   const title = (asgnRes.data?.title as string | null) ?? null
   return {
-    managerName: [contactRes.data.name, title].filter(Boolean).join(' '),
+    // 거래처 담당자는 존칭을 붙여 기록한다 (기존 ERP 표기와 동일 — lib/contact-label.ts)
+    managerName: contactLabel(contactRes.data.name as string, title),
     counselorName: empRes.data.name as string,
   }
 }
