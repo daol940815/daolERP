@@ -26,7 +26,19 @@ export async function PATCH(
   const admin = createAdminClient()
   const body = await req.json().catch(() => ({})) as {
     note?: string | null
+    email?: string | null
     opening?: { amount?: number; as_of_date?: string; note?: string | null } | null
+  }
+
+  // 발주 이메일 (vendors.email) — 원가표 적재(508) 누락분을 여기서 보완
+  if ('email' in body) {
+    const email = body.email?.trim() || null
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: '이메일 형식이 올바르지 않습니다.' }, { status: 400 })
+    }
+    const { error } = await admin.from('vendors').update({ email }).eq('id', params.vendorId)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
   }
 
   if ('note' in body) {
@@ -63,5 +75,5 @@ export async function PATCH(
     return NextResponse.json({ ok: true })
   }
 
-  return NextResponse.json({ error: 'note 또는 opening이 필요합니다.' }, { status: 400 })
+  return NextResponse.json({ error: 'note · email · opening 중 하나가 필요합니다.' }, { status: 400 })
 }

@@ -53,6 +53,8 @@ export default function PurchaseHubDetailPage() {
   const [note, setNote] = useState('')
   // 미결제금 기초원장 입력 (개별 수동 입력 — 엑셀 일괄 적재는 별도 루틴)
   const [openingForm, setOpeningForm] = useState<{ open: boolean; amount: string; asOf: string; note: string }>({ open: false, amount: '', asOf: '', note: '' })
+  // 발주 이메일 인라인 수정 (원가표 적재 508 누락분 보완)
+  const [emailForm, setEmailForm] = useState<{ open: boolean; value: string }>({ open: false, value: '' })
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -129,6 +131,12 @@ export default function PurchaseHubDetailPage() {
     if (ok) load()
   }
 
+  const saveEmail = async () => {
+    const { ok, json } = await patch({ email: emailForm.value })
+    flash(ok ? '발주 이메일 저장됨' : (json.error ?? '저장 실패'))
+    if (ok) { setEmailForm(f => ({ ...f, open: false })); load() }
+  }
+
   const saveOpening = async () => {
     const amount = Number(openingForm.amount.replace(/[^\d]/g, ''))
     if (!openingForm.asOf) { flash('기준일을 입력하세요.'); return }
@@ -186,6 +194,29 @@ export default function PurchaseHubDetailPage() {
           {data.vendor.biz_number && (
             <div className="text-xs text-gray-500 mt-0.5">사업자번호 {data.vendor.biz_number}</div>
           )}
+          {/* 발주 이메일 — 발주서 발송에 쓰는 주소 (원가표 적재분, 누락 시 여기서 보완) */}
+          <div className="text-xs mt-0.5 flex items-center gap-1.5 flex-wrap">
+            <span className="text-gray-500">발주 이메일</span>
+            {emailForm.open ? (
+              <>
+                <input value={emailForm.value} onChange={e => setEmailForm(f => ({ ...f, value: e.target.value }))}
+                  placeholder="example@company.com" autoFocus
+                  onKeyDown={e => { if (e.key === 'Enter') saveEmail() }}
+                  className="border border-gray-300 rounded px-2 py-0.5 text-xs w-56" />
+                <button onClick={saveEmail} className="px-2 py-0.5 bg-slate-900 text-white rounded text-[11px]">저장</button>
+                <button onClick={() => setEmailForm({ open: false, value: '' })}
+                  className="text-[11px] text-gray-400 hover:text-gray-600">취소</button>
+              </>
+            ) : (
+              <>
+                {data.vendor.email
+                  ? <a href={`mailto:${data.vendor.email}`} className="text-blue-600 hover:underline">{data.vendor.email}</a>
+                  : <span className="text-orange-600">미입력</span>}
+                <button onClick={() => setEmailForm({ open: true, value: data.vendor.email ?? '' })}
+                  className="text-[11px] text-gray-400 hover:text-gray-600 underline">수정</button>
+              </>
+            )}
+          </div>
           <div className="flex gap-1.5 flex-wrap mt-2">
             <Link href={`/erp-aliases?type=purchase&q=${encodeURIComponent(data.vendor.name)}`}
               title="매입처 연결 키워드에서 별칭 관리"

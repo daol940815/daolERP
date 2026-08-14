@@ -34,6 +34,7 @@ export interface PurchaseHubListRow {
   vendor_id: string
   vendor_name: string
   biz_number: string | null
+  email: string | null      // 발주서 발송용 (원가표 적재 508 · vendors.email)
   alias_names: string[]     // ERP 매입처 표기 검색용
   alias_count: number
   staff_primary: string | null
@@ -215,8 +216,8 @@ export async function buildPurchaseHubList(
     fetchAllRows<{ id: string; vendor_id: string | null; erp_name: string | null }>((f, t) =>
       admin.from('erp_vendor_aliases').select('id, vendor_id, erp_name')
         .eq('alias_type', 'purchase').range(f, t)),
-    fetchAllRows<{ id: string; name: string; biz_number: string | null }>((f, t) =>
-      admin.from('vendors').select('id, name, biz_number').range(f, t)),
+    fetchAllRows<{ id: string; name: string; biz_number: string | null; email: string | null }>((f, t) =>
+      admin.from('vendors').select('id, name, biz_number, email').range(f, t)),
     fetchAllRows<{ vendor_id: string; is_primary: boolean; employees: unknown }>((f, t) =>
       admin.from('vendor_staff').select('vendor_id, is_primary, employees(name)')
         .is('ended_at', null).range(f, t)),
@@ -303,6 +304,7 @@ export async function buildPurchaseHubList(
       vendor_id: vid,
       vendor_name: v?.name ?? '(삭제된 거래처)',
       biz_number: v?.biz_number ?? null,
+      email: v?.email ?? null,
       alias_names: aliasNames.get(vid) ?? [],
       alias_count: aliasCount.get(vid) ?? 0,
       staff_primary: st?.primary ?? null,
@@ -525,7 +527,7 @@ export interface PurchaseHubErpItem {
 }
 
 export interface PurchaseHubDetail {
-  vendor: { id: string; name: string; biz_number: string | null; note: string | null }
+  vendor: { id: string; name: string; biz_number: string | null; email: string | null; note: string | null }
   links: {
     alias_count: number
     opening: { as_of_date: string; amount: number; note: string | null } | null
@@ -566,7 +568,7 @@ export async function buildPurchaseHubDetail(
   const inPeriod = (d: string | null) => !!d && (!fromDate || d >= fromDate) && (!toDate || d <= toDate)
 
   const [vendorRes, aliasRes, acc2001] = await Promise.all([
-    admin.from('vendors').select('id, name, biz_number, note').eq('id', vendorId).single(),
+    admin.from('vendors').select('id, name, biz_number, email, note').eq('id', vendorId).single(),
     admin.from('erp_vendor_aliases').select('id').eq('alias_type', 'purchase').eq('vendor_id', vendorId),
     payableAccountId(admin),
   ])
@@ -767,7 +769,7 @@ export async function buildPurchaseHubDetail(
   const status = judgeStatus(fifo.outstanding, fifo.over90, lastPurchase, dormantBefore)
 
   return {
-    vendor: { id: vendor.id, name: vendor.name, biz_number: vendor.biz_number, note: vendor.note },
+    vendor: { id: vendor.id, name: vendor.name, biz_number: vendor.biz_number, email: vendor.email, note: vendor.note },
     links: { alias_count: aliasIds.length, opening },
     staff: staffRows.map(s => ({
       id: s.id as string,

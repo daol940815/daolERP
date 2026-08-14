@@ -12,6 +12,7 @@ interface Row {
   vendor_id: string
   vendor_name: string
   biz_number: string | null
+  email: string | null
   alias_names: string[]
   alias_count: number
   staff_primary: string | null
@@ -220,10 +221,11 @@ export default function PurchaseHubPage() {
         {loading ? (
           <div className="text-center py-20 text-gray-400">집계 중...</div>
         ) : (
-          <table className="w-full text-sm min-w-[1020px]">
+          <table className="w-full text-sm min-w-[1180px]">
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
                 <th className="py-2 px-3 text-left font-medium">매입처</th>
+                <th className="py-2 px-3 text-left font-medium">발주 이메일</th>
                 <th className="py-2 px-3 text-left font-medium">담당직원</th>
                 <th className="py-2 px-3 text-left font-medium">거래처 담당자</th>
                 <th className="py-2 px-3 text-right font-medium">기간 매입</th>
@@ -248,6 +250,12 @@ export default function PurchaseHubPage() {
                           별칭 {r.alias_count || '-'}{r.opening_remain > 0 ? ` · 기초이월 ${eok(r.opening_remain)}` : ''}
                         </div>
                       </Link>
+                    </td>
+                    <td className="py-2 px-3">
+                      {r.email
+                        ? <a href={`mailto:${r.email}`} title={r.email}
+                            className="text-blue-600 hover:underline text-xs block max-w-[180px] truncate">{r.email}</a>
+                        : <span className="text-orange-600 text-[11px]">미입력</span>}
                     </td>
                     <td className="py-2 px-3 whitespace-nowrap">
                       {r.staff_primary ?? <span className="text-gray-300">-</span>}
@@ -279,7 +287,7 @@ export default function PurchaseHubPage() {
                 )
               })}
               {!visible.length && (
-                <tr><td colSpan={10} className="text-center py-14 text-gray-400 text-sm">조건에 맞는 매입처가 없습니다.</td></tr>
+                <tr><td colSpan={11} className="text-center py-14 text-gray-400 text-sm">조건에 맞는 매입처가 없습니다.</td></tr>
               )}
             </tbody>
           </table>
