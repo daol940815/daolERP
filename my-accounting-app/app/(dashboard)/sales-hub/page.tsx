@@ -133,20 +133,25 @@ export default function SalesHubPage() {
         ERP 주문 기준 매출·수금·미수와 담당을 매출처 단위로 봅니다. 행 클릭 시 거래처 360° 상세로 이동합니다.
       </p>
 
-      {/* 기간 + 필터 */}
-      <div className="flex items-center gap-1.5 flex-wrap mt-4">
+      {/* 기간 빠른 선택 — 다른 목록 화면(거래내역·법인카드·ERP 주문내역)과 동일하게 필터 바 위 별도 행 */}
+      <div className="flex items-center gap-1.5 flex-wrap mt-4 mb-2">
         {['당월', '1분기', '2분기', '상반기', '당년', '전체 기간'].map(p => (
           <button key={p} onClick={() => applyPreset(p)}
             className={`px-2.5 py-1 rounded-full text-xs border ${preset === p ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
             {p}
           </button>
         ))}
+      </div>
+
+      {/* 필터 — 검색창이 맨 앞 */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="매출처명 · ERP 별칭 · 사업자번호 검색"
+          className="border border-gray-300 rounded-lg px-3 py-1 text-xs w-72" />
         <input type="date" value={from} onChange={e => { setPreset(''); setFrom(e.target.value) }}
           className="border border-gray-300 rounded px-2 py-1 text-xs" />
         <span className="text-gray-400 text-xs">~</span>
         <input type="date" value={to} onChange={e => { setPreset(''); setTo(e.target.value) }}
           className="border border-gray-300 rounded px-2 py-1 text-xs" />
-        <span className="w-3" />
         <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)}
           className="border border-gray-300 rounded px-2 py-1 text-xs">
           <option value="">담당직원: 전체</option>
@@ -163,8 +168,6 @@ export default function SalesHubPage() {
         <label className="text-xs text-gray-600 flex items-center gap-1">
           <input type="checkbox" checked={outstandingOnly} onChange={e => setOutstandingOnly(e.target.checked)} /> 미수 있는 곳만
         </label>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="매출처명 · ERP 별칭 · 사업자번호 검색"
-          className="border border-gray-300 rounded-lg px-3 py-1 text-xs flex-1 min-w-[160px]" />
       </div>
 
       {/* KPI — 필터 적용된 목록 기준으로 집계 */}
