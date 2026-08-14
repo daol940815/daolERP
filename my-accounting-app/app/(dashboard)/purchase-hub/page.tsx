@@ -13,7 +13,7 @@ interface Row {
   vendor_name: string
   biz_number: string | null
   email: string | null
-  purchase_kind: 'partner' | 'online'
+  purchase_kind: 'partner' | 'retail' | 'expense'
   alias_names: string[]
   alias_count: number
   staff_primary: string | null
@@ -50,7 +50,7 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
   over90:   { label: '미지급 90일 초과', cls: 'bg-red-100 text-red-700' },
   overpaid: { label: '과다지급',        cls: 'bg-violet-100 text-violet-700' },
   dormant:  { label: '휴면 전환',       cls: 'bg-gray-100 text-gray-500' },
-  online:   { label: '온라인 구매처',    cls: 'bg-sky-100 text-sky-700' },
+  retail:   { label: '별도 구매처',      cls: 'bg-sky-100 text-sky-700' },
 }
 
 export default function PurchaseHubPage() {
@@ -67,7 +67,7 @@ export default function PurchaseHubPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [erpOnly, setErpOnly] = useState(false)
   const [outstandingOnly, setOutstandingOnly] = useState(false)
-  // 온라인 구매처(602) — 발주·미지급 관리 대상이 아니라 목록에서 걷어낼 수 있게 한다
+  // 별도 구매처·경비성(602) — 발주·정산 관리 대상이 아니라 목록에서 걷어낼 수 있게 한다
   const [hideOnline, setHideOnline] = useState(false)
 
   const load = useCallback(async (f: string, t: string) => {
@@ -114,7 +114,7 @@ export default function PurchaseHubPage() {
     if (statusFilter && r.status !== statusFilter) return false
     if (erpOnly && r.erp_amount <= 0) return false
     if (outstandingOnly && r.outstanding <= 0) return false
-    if (hideOnline && r.purchase_kind === 'online') return false
+    if (hideOnline && r.purchase_kind !== 'partner') return false
     return true
   }), [rows, search, staffFilter, statusFilter, erpOnly, outstandingOnly, hideOnline])
 
@@ -129,9 +129,9 @@ export default function PurchaseHubPage() {
       active_vendors: active.length,
       invoice_total: inv,
       paid_total: paid,
-      // 미지급 지표는 관리 대상만 — 온라인 구매처는 즉시 결제라 제외 (602)
-      outstanding_total: visible.reduce((s, r) => s + (r.purchase_kind === 'online' ? 0 : Math.max(0, r.outstanding)), 0),
-      over90_total: visible.reduce((s, r) => s + (r.purchase_kind === 'online' ? 0 : r.over90), 0),
+      // 별도 구매처는 즉시 결제라 미지급 지표에서 제외 (경비성은 지급 의무가 있어 포함) — 602
+      outstanding_total: visible.reduce((s, r) => s + (r.purchase_kind === 'retail' ? 0 : Math.max(0, r.outstanding)), 0),
+      over90_total: visible.reduce((s, r) => s + (r.purchase_kind === 'retail' ? 0 : r.over90), 0),
       pay_ratio: inv > 0 ? Math.min(1, paid / inv) : 1,
     }
   }, [visible])
@@ -178,8 +178,8 @@ export default function PurchaseHubPage() {
         <label className="text-xs text-gray-600 flex items-center gap-1">
           <input type="checkbox" checked={outstandingOnly} onChange={e => setOutstandingOnly(e.target.checked)} /> 미지급 있는 곳만
         </label>
-        <label className="text-xs text-gray-600 flex items-center gap-1" title="온라인에서 상품을 구매한 곳 — 발주·미지급 관리 대상이 아닙니다">
-          <input type="checkbox" checked={hideOnline} onChange={e => setHideOnline(e.target.checked)} /> 온라인 구매처 제외
+        <label className="text-xs text-gray-600 flex items-center gap-1" title="별도 구매처(사 온 곳)·경비성(택배·전기·리스 등) — 발주 관리 대상이 아닙니다">
+          <input type="checkbox" checked={hideOnline} onChange={e => setHideOnline(e.target.checked)} /> 거래 매입처만
         </label>
       </div>
 
@@ -256,6 +256,7 @@ export default function PurchaseHubPage() {
                       <Link href={`/purchase-hub/${r.vendor_id}?from=${from}&to=${to}`} className="block">
                         <div className="font-semibold text-gray-900">{r.vendor_name}</div>
                         <div className="text-[11px] text-gray-400">
+                          {r.purchase_kind === 'expense' && <span className="text-amber-700 font-medium">경비성 · </span>}
                           별칭 {r.alias_count || '-'}{r.opening_remain > 0 ? ` · 기초이월 ${eok(r.opening_remain)}` : ''}
                         </div>
                       </Link>
@@ -264,8 +265,8 @@ export default function PurchaseHubPage() {
                       {r.email
                         ? <a href={`mailto:${r.email}`} title={r.email}
                             className="text-blue-600 hover:underline text-xs block max-w-[180px] truncate">{r.email}</a>
-                        : r.purchase_kind === 'online'
-                          ? <span className="text-gray-300 text-[11px]" title="온라인 구매처 — 발주 대상이 아닙니다">-</span>
+                        : r.purchase_kind !== 'partner'
+                          ? <span className="text-gray-300 text-[11px]" title="발주 대상이 아닙니다">-</span>
                           : <span className="text-orange-600 text-[11px]">미입력</span>}
                     </td>
                     <td className="py-2 px-3 whitespace-nowrap">
@@ -287,8 +288,8 @@ export default function PurchaseHubPage() {
                       </div>
                     </td>
                     <td className="py-2 px-3 text-right tabular-nums text-gray-500">{r.erp_amount > 0 ? won(r.erp_amount) : <span className="text-gray-300">-</span>}</td>
-                    <td className={`py-2 px-3 text-right tabular-nums ${r.purchase_kind === 'online' ? 'text-gray-300' : r.outstanding > 0 ? 'text-red-600 font-medium' : r.outstanding < 0 ? 'text-violet-600 font-medium' : 'text-gray-400'}`}
-                      title={r.purchase_kind === 'online' ? '온라인 구매처 — 즉시 결제라 미지급 관리 대상이 아닙니다' : undefined}>
+                    <td className={`py-2 px-3 text-right tabular-nums ${r.purchase_kind === 'retail' ? 'text-gray-300' : r.outstanding > 0 ? 'text-red-600 font-medium' : r.outstanding < 0 ? 'text-violet-600 font-medium' : 'text-gray-400'}`}
+                      title={r.purchase_kind === 'retail' ? '별도 구매처 — 즉시 결제라 미지급 관리 대상이 아닙니다' : undefined}>
                       {won(r.outstanding)}
                     </td>
                     <td className="py-2 px-3 tabular-nums text-gray-500 text-xs">{r.last_purchase_date ?? '-'}</td>
