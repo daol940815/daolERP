@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import PoDetail from '../po-detail'
 
 // 주문 상세의 발주 섹션 (3단계, 시안 v3) — direct 주문 전용, 전 직원 사용 가능.
 // 매입처별 미발주 품목을 골라 발주서를 만들고, 엑셀 다운로드·메일 발송·수동
@@ -40,6 +41,7 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
   const [checked, setChecked] = useState<Record<string, boolean>>({})
   const [emails, setEmails] = useState<Record<string, string>>({})   // group.key → email
   const [poEmails, setPoEmails] = useState<Record<string, string>>({})   // po.id → email
+  const [openPo, setOpenPo] = useState<string | null>(null)   // 내용 펼친 발주서 (생성 직후 자동 펼침)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -81,7 +83,8 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
     const json = await res.json()
     setBusy(false)
     if (!res.ok) { setError(json.error ?? '발주서 생성 실패'); return }
-    setNotice(`발주서 ${json.po_no}가 생성되었습니다. 엑셀 다운로드 또는 메일 발송으로 이어가세요.`)
+    setNotice(`발주서 ${json.po_no}가 생성되었습니다. 아래에서 내용을 확인하고 엑셀 다운로드 또는 메일 발송으로 이어가세요.`)
+    setOpenPo(json.po_id ?? null)   // 방금 만든 발주서 내용을 바로 펼쳐 보여준다
     load()
   }
 
@@ -150,8 +153,13 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
             <div key={p.id}
               className={`border rounded-lg px-3.5 py-2.5 ${p.status === 'canceled' ? 'border-gray-100 bg-gray-50/60' : 'border-gray-200'}`}>
               <div className="flex items-center gap-2.5 flex-wrap text-sm">
-                <span className="font-semibold tabular-nums">{p.po_no}</span>
-                <span className={p.status === 'canceled' ? 'text-gray-400' : 'text-gray-700'}>{p.vendor_name}</span>
+                <button type="button" onClick={() => setOpenPo(v => v === p.id ? null : p.id)}
+                  title="발주서 내용 펼치기/접기"
+                  className="flex items-center gap-1.5 hover:opacity-70">
+                  <span className="text-gray-400 text-xs">{openPo === p.id ? '▾' : '▸'}</span>
+                  <span className="font-semibold tabular-nums">{p.po_no}</span>
+                  <span className={p.status === 'canceled' ? 'text-gray-400' : 'text-gray-700'}>{p.vendor_name}</span>
+                </button>
                 <span className="text-xs text-gray-400">품목 {p.item_count}건 · {won(p.total_amount)}원</span>
                 {sendBadge(p)}
                 {p.sent_at && (
@@ -165,6 +173,10 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
                   </span>
                 )}
                 <span className="ml-auto flex items-center gap-1.5">
+                  <button onClick={() => setOpenPo(v => v === p.id ? null : p.id)}
+                    className="px-2.5 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:border-gray-400">
+                    {openPo === p.id ? '내용 접기' : '내용 보기'}
+                  </button>
                   <button onClick={() => downloadExcel(p)} disabled={busy}
                     className="px-2.5 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:border-gray-400">엑셀</button>
                   {p.status === 'active' && (
@@ -203,6 +215,7 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
                   {p.send_error && <span className="text-[11px] text-red-600">최근 발송 실패: {p.send_error}</span>}
                 </div>
               )}
+              {openPo === p.id && <div className="mt-2.5"><PoDetail poId={p.id} /></div>}
             </div>
           ))}
         </div>
