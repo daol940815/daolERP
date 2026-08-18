@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>옵션(부가상품) 사용 안내 시안</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #1e293b; padding: 28px 16px 60px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 21px; margin-bottom: 4px; }
+  .sub { color: #64748b; font-size: 13px; margin-bottom: 24px; }
+  .step { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px 20px; margin-bottom: 18px; }
+  .step h2 { font-size: 15px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .badge { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 999px; background: #0f172a; color: #fff; font-size: 12px; flex-shrink: 0; }
+  .desc { font-size: 13px; color: #475569; margin-bottom: 12px; line-height: 1.65; }
+  .desc b { color: #0f172a; }
+  .hint { font-size: 12px; color: #94a3b8; margin-top: 10px; line-height: 1.6; }
+  .hint b { color: #64748b; }
+
+  /* 미니 UI 재현 */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { background: #f8fafc; color: #64748b; font-weight: 500; text-align: left; padding: 7px 8px; border-bottom: 1px solid #e2e8f0; font-size: 11px; white-space: nowrap; }
+  td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .cell { border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 7px; background: #fff; display: inline-block; min-width: 54px; }
+  .cell.amber { border-color: #fde68a; background: #fffbeb; }
+  .cell.blue { border-color: #bfdbfe; background: #eff6ff; }
+  .cell.gray { border-color: #e2e8f0; background: #f8fafc; }
+  .addon-row td { background: #f8fafc; }
+  .tree { color: #94a3b8; margin-right: 3px; }
+  .chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 7px 8px 10px 26px; }
+  .chips .label { font-size: 10px; color: #94a3b8; }
+  .chip { border: 1px solid #ddd6fe; background: #f5f3ff; color: #6d28d9; border-radius: 999px; padding: 3px 10px; font-size: 11px; cursor: default; }
+  .chip.hover { background: #ede9fe; outline: 2px solid #c4b5fd; }
+  .arrow-note { font-size: 11px; color: #7c3aed; margin-left: 4px; }
+  .x { color: #f87171; }
+  .pill { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+  .pill.violet { background: #ede9fe; color: #6d28d9; }
+  .check { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; font-size: 12px; background: #fff; }
+  .box { border: 1px dashed #cbd5e1; border-radius: 10px; padding: 10px 12px; margin-top: 10px; font-size: 12px; color: #475569; line-height: 1.7; background: #f8fafc; }
+  .flow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: #475569; margin-bottom: 22px; }
+  .flow span.node { background: #fff; border: 1px solid #e2e8f0; border-radius: 999px; padding: 5px 12px; }
+  .flow span.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .caption { font-size: 11px; color: #94a3b8; margin-top: 8px; }
+  .callout { position: relative; border: 2px solid #8b5cf6; border-radius: 10px; padding: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>옵션(부가상품) 사용 안내</h1>
+  <p class="sub">포장지·쇼핑백 등 부자재를 본 상품에 딸린 옵션 행으로 붙이는 기능 — 이미 운영에 반영되어 있습니다</p>
+
+  <div class="flow">
+    <span class="node on">1. 품목 마스터에서 부가상품 지정</span> →
+    <span class="node on">2. 주문 입력에서 옵션 칩 클릭</span> →
+    <span class="node on">3. 저장 — 옵션 행이 본 상품에 연결</span> →
+    <span class="node">상세·엑셀·발주서에 그대로 반영</span>
+  </div>
+
+  <!-- 1단계 -->
+  <div class="step">
+    <h2><span class="badge">1</span>품목 마스터 — 어떤 상품이 옵션인지 지정</h2>
+    <p class="desc">
+      원가표 엑셀을 업로드하면 품번이 <b>XX-01 대역(기타 부자재 페이지)</b>인 상품은 자동으로
+      부가상품으로 표시됩니다 (VIP·선결제는 제외). 자동 판정이 틀린 경우 품목 마스터 화면에서
+      상품 편집을 열어 체크박스로 직접 바꿀 수 있습니다.
+    </p>
+    <span class="check"><input type="checkbox" checked disabled> 부가상품</span>
+    <span class="caption" style="margin-left:10px;">품목 마스터 &gt; 상품 편집 폼의 체크박스</span>
+    <div class="box">
+      현재 부가상품으로 잡혀 있는 예: 롯데포장지(소) · 롯데쇼핑백 · 고급쇼핑백 (매입처 요아럽 대역)
+      — 목록 화면에서 <span class="pill violet">부가상품</span> 표시가 붙은 상품들입니다.
+    </div>
+  </div>
+
+  <!-- 2단계 -->
+  <div class="step">
+    <h2><span class="badge">2</span>주문 입력 — 본 상품을 고르면 옵션 칩이 나타남</h2>
+    <p class="desc">
+      본 상품의 품번을 선택하면 매입처가 자동으로 채워지고, <b>같은 매입처에 부가상품이 있으면</b>
+      그 행 바로 아래에 보라색 <b>옵션 추가 칩</b>이 자동으로 나타납니다. 칩을 클릭하면 끝입니다.
+    </p>
+    <table>
+      <thead>
+        <tr><th>품번</th><th>품명</th><th>구분</th><th>매입처</th><th class="num">판매가</th><th class="num">갯수</th><th class="num">배송비</th><th class="num">합계</th><th></th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="cell">31-05</span></td>
+          <td><span class="cell amber">요아럽 명절 선물세트 5호</span></td>
+          <td><span class="cell blue">지점</span></td>
+          <td><span class="cell gray">요아럽</span></td>
+          <td class="num"><span class="cell amber">28,000</span></td>
+          <td class="num"><span class="cell amber">30</span></td>
+          <td class="num"><span class="cell">4,000</span></td>
+          <td class="num"><b>844,000</b></td>
+          <td><span class="x">✕</span></td>
+        </tr>
+        <tr>
+          <td colspan="9" style="padding:0;">
+            <div class="chips">
+              <span class="label">옵션 추가 (요아럽)</span>
+              <span class="chip hover">+ 롯데쇼핑백 (500)</span>
+              <span class="chip">+ 롯데포장지(소) (300)</span>
+              <span class="chip">+ 고급쇼핑백 (800)</span>
+              <span class="arrow-note">← 클릭하면 아래 3단계처럼 옵션 행이 삽입됩니다</span>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="hint">칩은 <b>본 상품 행에만</b> 나타나고, 옵션 행 밑으로는 다시 나타나지 않습니다.
+      매입처가 다른 상품에는 그 매입처의 부가상품 칩만 뜹니다 (부자재는 같은 매입처 상품에만 쓴다는 원칙).</p>
+  </div>
+
+  <!-- 3단계 -->
+  <div class="step">
+    <h2><span class="badge">3</span>칩 클릭 후 — 옵션 행이 본 상품 바로 아래에 붙음</h2>
+    <p class="desc">
+      옵션 행은 <b>└ 표시</b>가 붙고 회색 배경으로 구분됩니다. 본 상품의 <b>구분과 수량을 그대로 물려받아</b>
+      가격·배송비가 자동 계산되고, 수량이 다르면 그 칸만 고치면 됩니다.
+    </p>
+    <table>
+      <thead>
+        <tr><th>품번</th><th>품명</th><th>구분</th><th>매입처</th><th class="num">판매가</th><th class="num">갯수</th><th class="num">배송비</th><th class="num">합계</th><th></th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="cell">31-05</span></td>
+          <td><span class="cell amber">요아럽 명절 선물세트 5호</span></td>
+          <td><span class="cell blue">지점</span></td>
+          <td><span class="cell gray">요아럽</span></td>
+          <td class="num"><span class="cell amber">28,000</span></td>
+          <td class="num"><span class="cell amber">30</span></td>
+          <td class="num"><span class="cell">4,000</span></td>
+          <td class="num"><b>844,000</b></td>
+          <td><span class="x">✕</span></td>
+        </tr>
+        <tr class="addon-row">
+          <td><span class="tree">└</span><span class="cell">10-01</span></td>
+          <td><span class="cell amber">롯데쇼핑백</span></td>
+          <td><span class="cell blue">지점</span></td>
+          <td><span class="cell gray">요아럽</span></td>
+          <td class="num"><span class="cell amber">500</span></td>
+          <td class="num"><span class="cell amber">30</span></td>
+          <td class="num"><span class="cell">0</span></td>
+          <td class="num"><b>15,000</b></td>
+          <td><span class="x">✕</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="hint">
+      <b>본 상품 행을 삭제하면 딸린 옵션 행도 함께 삭제</b>됩니다. 옵션 행만 지우는 것은 옵션 행의 ✕로 가능합니다.
+      옵션을 여러 개 붙일 수도 있습니다 (쇼핑백 + 포장지 동시).
+    </p>
+  </div>
+
+  <!-- 저장 후 -->
+  <div class="step">
+    <h2><span class="badge">4</span>저장 후 — 어디에 어떻게 보이나</h2>
+    <div class="box">
+      <b>주문 상세</b>: 옵션 행에 └ 표시와 "N번 행의 옵션" 안내가 붙어 본 상품 아래 들여쓰기로 표시됩니다.<br>
+      <b>주문 목록 엑셀</b>: 옵션 컬럼에 "N번 행 옵션"으로 출력되어 본 상품과의 관계가 남습니다.<br>
+      <b>발주서</b>: 옵션도 같은 매입처 품목이므로 본 상품과 <b>한 장의 발주서에 함께</b> 담겨 발송됩니다.<br>
+      <b>수정</b>: 주문 수정 화면에서도 같은 방식으로 동작합니다 (옵션 연결이 그대로 복원됨).
+    </div>
+  </div>
+
+  <p class="caption">이 문서는 사용 안내 시안입니다 — 실제 화면: 주문 입력(/orders/new), 품목 마스터(/orders/products)</p>
+</div>
+</body>
+</html>
