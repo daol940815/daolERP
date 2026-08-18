@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser, type CurrentUser } from '@/lib/user-role'
 import { decryptPayment, encryptPayment, encryptionReady, maskPayment } from '@/lib/payment-crypto'
-import { parseConsultBody, consultItemRows } from '@/lib/consultations'
+import { parseConsultBody, consultItemRows, insertConsultItems } from '@/lib/consultations'
 import { recordWorkLog, consultContent } from '@/lib/work-log'
 
 export const dynamic = 'force-dynamic'
@@ -110,11 +110,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { error: dErr } = await admin.from('erp_consultation_items')
     .delete().eq('consultation_id', params.id)
   if (dErr) return NextResponse.json({ error: `품목 교체 실패: ${dErr.message}` }, { status: 500 })
-  const rows = consultItemRows(parsed.items).map(it => ({ ...it, consultation_id: params.id }))
-  if (rows.length) {
-    const { error: iErr } = await admin.from('erp_consultation_items').insert(rows)
-    if (iErr) return NextResponse.json({ error: `품목 저장 실패: ${iErr.message}` }, { status: 500 })
-  }
+  const itemErr = await insertConsultItems(admin, params.id, consultItemRows(parsed.items))
+  if (itemErr) return NextResponse.json({ error: `품목 저장 실패: ${itemErr}` }, { status: 500 })
 
   await recordWorkLog(admin, {
     employeeId: me.employeeId,

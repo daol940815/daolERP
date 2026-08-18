@@ -105,11 +105,14 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
           const prodList: Product[] = pRes.ok ? (p.products ?? []) : []
           const cItems = (c.items ?? []) as Record<string, unknown>[]
           if (cItems.length) {
+            // line_no → uid 매핑으로 옵션 연결 복원 (품목은 line_no 순으로 로드됨)
+            const lineToUid = new Map<number, number>(cItems.map((it, idx) => [it.line_no as number, idx + 1]))
             uidRef.current = cItems.length + 1
             setItems(cItems.map((it, idx) => {
               const prod = prodList.find(x => x.id === it.product_id)
               return {
                 ...emptyItem(idx + 1),
+                parent_uid: it.parent_line_no ? (lineToUid.get(it.parent_line_no as number) ?? null) : null,
                 product_id: (it.product_id as string) ?? null,
                 item_code: (it.item_code as string) ?? '',
                 item_name: (it.item_name as string) ?? '',
@@ -151,6 +154,24 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
 
   const setItem = (i: number, patch: Partial<ItemDraft>) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, ...patch } : it))
+
+  // 옵션(부가상품) 추가 — 본 상품 행 아래 붙는다 (주문 입력과 동일 동작)
+  const addAddon = (parentIdx: number, p: Product) => {
+    setItems(prev => {
+      const parent = prev[parentIdx]
+      if (!parent) return prev
+      const base: ItemDraft = { ...emptyItem(nextUid()), parent_uid: parent.uid, order_kind: parent.order_kind, quantity: parent.quantity }
+      const draft: ItemDraft = { ...base, ...draftFromProduct(p, base) }
+      // 본 상품 행의 기존 옵션 묶음 뒤에 삽입
+      let at = parentIdx + 1
+      while (at < prev.length && prev[at].parent_uid === parent.uid) at++
+      return [...prev.slice(0, at), draft, ...prev.slice(at)]
+    })
+  }
+
+  // 행 삭제 — 본 상품 행을 지우면 딸린 옵션 행도 함께 삭제
+  const removeRow = (uid: number) =>
+    setItems(prev => prev.filter(it => it.uid !== uid && it.parent_uid !== uid))
 
   const pickProduct = (i: number, pid: string | null) => {
     const p = products.find(x => x.id === pid)
@@ -207,7 +228,15 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
     address_checked: addressChecked || null,
     roster_method: rosterMethod || null,
     memo: memo || null,
-    items: items.filter(it => it.item_name.trim()),
+    items: (() => {
+      // 옵션 연결(parent_uid)을 저장용 행 번호(parent_line_no)로 직렬화 — 주문 입력과 동일
+      const filled = items.filter(it => it.item_name.trim())
+      const posByUid = new Map(filled.map((it, idx) => [it.uid, idx + 1]))
+      return filled.map(it => ({
+        ...it,
+        parent_line_no: it.parent_uid ? (posByUid.get(it.parent_uid) ?? null) : null,
+      }))
+    })(),
   })
 
   const save = async (convertAfter?: boolean): Promise<void> => {
@@ -423,19 +452,29 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
             </tr>
           </thead>
           <tbody>
-            {items.map((it, i) => (
+            {items.map((it, i) => {
+              // 옵션 추가 후보: 같은 매입처의 부가상품 (본 상품 행에만 노출)
+              const addonCands = !locked && !it.parent_uid && it.purchase_vendor_name
+                ? products.filter(p => p.is_addon && p.purchase_vendor_name === it.purchase_vendor_name)
+                : []
+              return (
               <Fragment key={it.uid}>
-              <tr className="border-b border-gray-50 align-top">
+              <tr className={`border-b border-gray-50 align-top ${it.parent_uid ? 'bg-slate-50/60' : ''}`}>
                 <td className="py-1 px-1.5">
-                  <Combo value={it.product_id}
-                    display={it.item_code || (it.product_id ? it.item_name : '')}
-                    options={products.map(p => ({
-                      id: p.id,
-                      label: [p.item_code, p.item_name].filter(Boolean).join(' · '),
-                      sub: [p.category, p.purchase_vendor_name].filter(Boolean).join(' · '),
-                    }))}
-                    onSelect={id => pickProduct(i, id)}
-                    placeholder="품번·품명 검색" />
+                  <div className="flex items-center gap-1">
+                    {it.parent_uid != null && <span className="text-gray-400 text-xs shrink-0" title="옵션 (부가상품)">└</span>}
+                    <div className="flex-1">
+                      <Combo value={it.product_id}
+                        display={it.item_code || (it.product_id ? it.item_name : '')}
+                        options={products.map(p => ({
+                          id: p.id,
+                          label: [p.item_code, p.item_name].filter(Boolean).join(' · '),
+                          sub: [p.category, p.purchase_vendor_name].filter(Boolean).join(' · '),
+                        }))}
+                        onSelect={id => pickProduct(i, id)}
+                        placeholder="품번·품명 검색" />
+                    </div>
+                  </div>
                 </td>
                 <td className="py-1 px-1.5">
                   <textarea key={`${it.uid}:${it.product_id ?? ''}`} value={it.item_name} rows={1} ref={autoGrow}
@@ -482,13 +521,30 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
                 </td>
                 <td className="py-1 px-1 text-center">
                   {!locked && items.length > 1 && (
-                    <button type="button" onClick={() => setItems(prev => prev.filter(x => x.uid !== it.uid))}
-                      className="text-red-400 hover:text-red-600 text-sm">✕</button>
+                    <button type="button" onClick={() => removeRow(it.uid)}
+                      className="text-red-400 hover:text-red-600 text-sm"
+                      title={it.parent_uid ? '옵션 행 삭제' : '행 삭제 (딸린 옵션도 함께 삭제)'}>✕</button>
                   )}
                 </td>
               </tr>
+              {addonCands.length > 0 && (
+                <tr className="border-b border-gray-50">
+                  <td colSpan={11} className="pb-1.5 pt-0 px-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap pl-4">
+                      <span className="text-[10px] text-gray-400">옵션 추가 ({it.purchase_vendor_name})</span>
+                      {addonCands.map(p => (
+                        <button key={p.id} type="button" onClick={() => addAddon(i, p)}
+                          className="px-2 py-0.5 border border-violet-200 bg-violet-50/60 text-violet-700 rounded-full text-[11px] hover:bg-violet-100">
+                          + {p.item_name}{p.sale_price > 0 ? ` (${won(p.sale_price)})` : ''}
+                        </button>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              )}
               </Fragment>
-            ))}
+              )
+            })}
           </tbody>
         </table>
         {!locked && (

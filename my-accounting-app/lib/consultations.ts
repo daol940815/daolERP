@@ -23,6 +23,7 @@ export interface ConsultItemInput {
   purchase_price: number
   purchase_shipping: number
   memo: string | null
+  parent_line_no: number | null      // 옵션(부가상품) 행이 딸린 본 상품 행 번호 (701)
 }
 
 // 상담 본문 파싱 — 필수는 상담일·구분뿐 (아는 만큼만 기록)
@@ -48,6 +49,7 @@ export function parseConsultBody(body: Record<string, unknown>) {
       purchase_price: toInt(r.purchase_price),
       purchase_shipping: toInt(r.purchase_shipping),
       memo: toStr(r.memo),
+      parent_line_no: toInt(r.parent_line_no) > 0 ? toInt(r.parent_line_no) : null,
     }))
     .filter(it => it.item_name)
 
@@ -75,11 +77,36 @@ export function parseConsultBody(body: Record<string, unknown>) {
 }
 
 // 품목 행 구성 — 합계는 서버 재계산 (주문과 동일 공식)
+// parent_line_no는 자기 자신·범위 밖 참조를 무효화 (orders-portal과 동일 규칙)
 export function consultItemRows(items: ConsultItemInput[]) {
   return items.map((it, i) => ({
     ...it,
     line_no: i + 1,
+    parent_line_no: it.parent_line_no && it.parent_line_no !== i + 1 && it.parent_line_no <= items.length
+      ? it.parent_line_no : null,
     line_total: it.sale_price * it.quantity + it.shipping_fee - it.discount_amount,
     purchase_total: it.purchase_price * it.quantity + it.purchase_shipping,
   }))
+}
+
+// 품목 삽입 — 701 미적용 환경 호환: 옵션 연결이 전혀 없으면 parent_line_no를 보내지 않는다
+export async function insertConsultItems(
+  admin: { from: (t: string) => { insert: (rows: unknown[]) => PromiseLike<{ error: { message: string } | null }> } },
+  consultationId: string,
+  rows: ReturnType<typeof consultItemRows>,
+): Promise<string | null> {
+  if (!rows.length) return null
+  const hasParent = rows.some(it => it.parent_line_no != null)
+  const payload = rows.map(it => {
+    const { parent_line_no, ...rest } = it
+    return {
+      ...(hasParent ? { ...rest, parent_line_no } : rest),
+      consultation_id: consultationId,
+    }
+  })
+  const { error } = await admin.from('erp_consultation_items').insert(payload)
+  if (error && /parent_line_no/i.test(error.message)) {
+    return '701 마이그레이션(상담 품목 옵션)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
+  }
+  return error ? error.message : null
 }

@@ -144,12 +144,14 @@ export default function OrderForm({ orderId, consultId }: { orderId?: string; co
           const prodList: Product[] = pRes.ok ? (p.products ?? []) : []
           const cItems = (c.items ?? []) as Record<string, unknown>[]
           if (cItems.length) {
+            // 상담 품목의 옵션 연결(parent_line_no)도 전환 시 그대로 복원 (701)
+            const lineToUid = new Map<number, number>(cItems.map((it, idx) => [it.line_no as number, idx + 1]))
             uidRef.current = cItems.length + 1
             setItems(cItems.map((it, idx) => {
               const prod = prodList.find(x => x.id === it.product_id)
               return {
                 uid: idx + 1,
-                parent_uid: null,
+                parent_uid: it.parent_line_no ? (lineToUid.get(it.parent_line_no as number) ?? null) : null,
                 product_id: (it.product_id as string) ?? null,
                 item_code: (it.item_code as string) ?? '',
                 item_name: (it.item_name as string) ?? '',
