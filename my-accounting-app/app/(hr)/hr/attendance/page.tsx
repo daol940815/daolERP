@@ -25,6 +25,7 @@ interface MonthRes {
   records: AttendanceRecord[]
   leaves: AttendanceLeave[]
   holidays: HolidayMap
+  holidayYearCount: number
 }
 
 const STATUS_COLOR: Record<DayStatusKind, string> = {
@@ -163,6 +164,12 @@ export default function MyAttendancePage() {
             </span>
           )}
         </div>
+        {monthData && monthData.holidayYearCount === 0 && (
+          <p className="text-xs text-amber-700 mt-2">
+            {month.slice(0, 4)}년 공휴일이 등록되지 않아 공휴일이 미기록으로 표시될 수 있습니다.
+            관리자에게 공휴일 등록을 요청하세요.
+          </p>
+        )}
         <div className="overflow-x-auto mt-3">
           <table className="w-full text-sm min-w-[560px]">
             <thead>

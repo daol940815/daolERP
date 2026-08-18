@@ -29,6 +29,7 @@ interface MonthRes {
   records: AttendanceRecord[]
   leaves: AttendanceLeave[]
   holidays: HolidayMap
+  holidayYearCount: number
 }
 interface HolidayRow { holiday_date: string; name: string; source: 'public' | 'company' }
 type LeaveRow = AttendanceLeave & { employee?: { name: string; team: string | null } | null }
@@ -223,6 +224,20 @@ export default function AttendanceAdminPage() {
 
       {msg && <div className="my-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
       {error && <div className="my-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
+
+      {/* 공휴일 미등록 경고 — 등록 전까지 공휴일이 결근으로 판정된다 */}
+      {data && data.holidayYearCount === 0 && (
+        <div className="my-3 px-4 py-3 bg-amber-50 border border-amber-300 text-amber-800 text-sm rounded-lg flex items-center gap-3 flex-wrap">
+          <span>
+            <b>{month.slice(0, 4)}년 공휴일이 등록되지 않았습니다.</b> 등록 전까지 이 해의 공휴일은
+            근무일로 계산되어 미기록(결근)으로 표시됩니다.
+          </span>
+          <button onClick={() => setShowHolidays(true)}
+            className="ml-auto px-3 py-1.5 bg-amber-700 text-white rounded-lg text-xs font-medium hover:bg-amber-800">
+            공휴일 등록하기
+          </button>
+        </div>
+      )}
 
       {/* 근태 대상 관리 */}
       {showTargets && data && (

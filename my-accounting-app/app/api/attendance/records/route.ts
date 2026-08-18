@@ -61,7 +61,8 @@ export async function GET(req: NextRequest) {
     return q
   }
 
-  const [emps, recs, { data: leaves, error: e3 }, { data: policy, error: e4 }, { data: hols, error: e5 }] =
+  const [emps, recs, { data: leaves, error: e3 }, { data: policy, error: e4 }, { data: hols, error: e5 },
+    { count: holidayYearCount }] =
     await Promise.all([
       scope === 'all' ? empQuery : Promise.resolve({ data: null, error: null }),
       fetchAllRows<AttendanceRecord>((from, to) => recQuery(from, to)),
@@ -70,6 +71,10 @@ export async function GET(req: NextRequest) {
       // 휴가 일수 계산이 월 경계를 넘을 수 있어 앞뒤 한 달을 함께 읽는다
       admin.from('attendance_holidays').select('holiday_date, name')
         .gte('holiday_date', addDays(mStart, -31)).lte('holiday_date', addDays(mEnd, 31)),
+      // 해당 연도 공휴일 등록 건수 — 0이면 화면에서 '공휴일 미등록' 경고를 띄운다
+      // (등록하지 않으면 공휴일이 조용히 결근으로 판정되므로)
+      admin.from('attendance_holidays').select('holiday_date', { count: 'exact', head: true })
+        .gte('holiday_date', `${month.slice(0, 4)}-01-01`).lte('holiday_date', `${month.slice(0, 4)}-12-31`),
     ])
 
   const err = ('error' in recs ? { message: recs.error } : null)
@@ -84,6 +89,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     month, today: kstToday(), policy, holidays,
+    holidayYearCount: holidayYearCount ?? 0,
     employees: emps && 'data' in emps ? emps.data : null,
     records: 'data' in recs ? recs.data : [],
     leaves: (leaves ?? []) as AttendanceLeave[],
