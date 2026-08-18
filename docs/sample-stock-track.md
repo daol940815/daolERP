@@ -77,8 +77,13 @@
 - [x] 800 마이그레이션 파일 작성 (2026-08-18): `800_sample_stock.sql` —
       `erp_sample_moves` 원장 + `erp_sample_stocktakes` 실사 + `erp_products.is_sample_stock`
       플래그. quantity(in/out 양수, adjust 부호·0 금지)·purpose(출고만) CHECK 포함.
-      **사용자 SQL 편집기 실행 대기.**
+      **사용자 SQL 편집기 실행 완료 (2026-08-18).**
+- [x] 이관 스크립트 준비: `my-accounting-app/scripts/sample-stock-import.mjs` —
+      정규화 규칙·별칭·담당자 매칭 인코딩. 기본 드라이런, `--execute`로만 적재
+      (중복 가드·500행 청크·건수 대사). 원본 엑셀 재첨부 후 드라이런 예정.
 - [ ] 품목 마스터 3종 등록 (사용자 직접, 화면에서) — 이관 시 등록 여부·매입가를 엑셀과 대조 검증
+- [ ] 이관 행 용도(purpose) 결정: 엑셀에 용도 컬럼이 없어 미지정(NULL) 적재 예정 —
+      과거분 일괄 영업샘플 간주 여부는 사용자 피드백 대기
 - [ ] 엑셀 이관: 사용자 엑셀 재첨부 → 드라이런 → 승인 → 실행 → 검증
 - [ ] 화면 구현 (시안 확정됨) → 빌드·배포 루틴
 
