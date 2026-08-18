@@ -116,37 +116,15 @@ export async function loadPurchaseSection(admin: SupabaseClient, orderId: string
 // 골드색 열(발송인·수령인·주소·배송메모·송장번호)은 배송 관련 수기 보완란 —
 // ERP가 아는 값은 미리 채우고 나머지는 비워 보낸다 (송장번호는 매입처 기입).
 
-const COMPANY_NAME = '다올커머스'
-const COMPANY_PHONE = '070-7007-4582'   // 발송인·발주자 연락처 (양식 원본 값)
+// 셀 값·순서·색 정의는 lib/po-form.ts 공용 (화면 미리보기와 항상 동일해야 함)
+import {
+  COMPANY_NAME, PO_COLORS, PO_HEADERS, PO_GOLD_COLS, PO_NUM_COLS,
+  poFormInfo, poFormItemRows, type PoExcelData,
+} from './po-form'
+export type { PoExcelData } from './po-form'
 
-// 양식 색상 (원본에서 추출)
-const C = {
-  navy: 'FF1F2A44', gold: 'FFC0810A', labelBg: 'FFEEF2F7', totalBg: 'FFFDECC8',
-  goldRowBg: 'FFFFF7E6', ink: 'FF111827', label: 'FF334155', totalInk: 'FFB00020',
-  white: 'FFFFFFFF',
-}
 const FONT = '맑은 고딕'
-
-export interface PoExcelData {
-  po_no: string
-  order_date: string | null        // 주문일
-  ship_request: string | null      // 출고요청일 (상담일지 배송요청일)
-  vendor_name: string              // 공급처(매입처)
-  vendor_phone: string | null      // 공급처 연락처 (매입처 마스터)
-  delivery_kind: string | null     // 배송구분 (품목 구분에서 판정)
-  customer: string                 // 주문처(거래처)
-  customer_manager: string | null  // 주문처 담당자 (고객처 담당자 — 주문의 거래처 담당자)
-  customer_phone: string | null    // 주문처 연락처 (고객처 담당자 연락처)
-  staff_name: string | null        // 발주 담당자 (발주서 작성자)
-  staff_phone: string | null       // 발주자 연락처 (작성자 직원 연락처, 없으면 회사 번호)
-  total_amount: number
-  delivery_note: string | null     // 배송메모 (첫 품목 행에 기재)
-  items: {
-    item_code: string | null; item_name: string | null; order_kind: string | null
-    quantity: number; purchase_price: number; purchase_shipping: number
-    purchase_total: number; memo: string | null
-  }[]
-}
+const argb = (hex: string) => `FF${hex}`
 
 export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
   const ExcelJS = (await import('exceljs')).default
@@ -169,44 +147,35 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
   ws.getRow(1).height = 42
   const title = ws.getCell('A1')
   title.value = `${COMPANY_NAME} 발주서`
-  title.font = { name: FONT, size: 20, bold: true, color: { argb: C.navy } }
+  title.font = { name: FONT, size: 20, bold: true, color: { argb: argb(PO_COLORS.navy) } }
   title.alignment = { horizontal: 'center', vertical: 'middle' }
 
-  // 정보 그리드 (2~5행): [라벨 병합, 값 병합, 값] × 3열 구성
-  const info: [string, string, string, string | number | null][] = [
-    ['A2:B2', 'C2:E2', '발주번호', po.po_no],
-    ['F2:G2', 'H2:J2', '주문일', po.order_date],
-    ['K2:L2', 'M2:O2', '출고요청일', po.ship_request],
-    ['A3:B3', 'C3:E3', '공급처(매입처)', po.vendor_name],
-    ['F3:G3', 'H3:J3', '공급처 연락처', po.vendor_phone],
-    ['K3:L3', 'M3:O3', '배송구분', po.delivery_kind],
-    ['A4:B4', 'C4:E4', '주문처(거래처)', po.customer],
-    ['F4:G4', 'H4:J4', '주문처 담당자', po.customer_manager],
-    ['K4:L4', 'M4:O4', '주문처 연락처', po.customer_phone],
-    ['A5:B5', 'C5:E5', '발주 담당자', po.staff_name],
-    ['F5:G5', 'H5:J5', '발주자 연락처', po.staff_phone || COMPANY_PHONE],
-    ['K5:L5', 'M5:O5', '총 합계금액 (VAT 포함)', po.total_amount],
+  // 정보 그리드 (2~5행): 병합 범위는 엑셀 전용, 라벨·값은 po-form 공용 정의
+  const infoRanges: [string, string][] = [
+    ['A2:B2', 'C2:E2'], ['F2:G2', 'H2:J2'], ['K2:L2', 'M2:O2'],
+    ['A3:B3', 'C3:E3'], ['F3:G3', 'H3:J3'], ['K3:L3', 'M3:O3'],
+    ['A4:B4', 'C4:E4'], ['F4:G4', 'H4:J4'], ['K4:L4', 'M4:O4'],
+    ['A5:B5', 'C5:E5'], ['F5:G5', 'H5:J5'], ['K5:L5', 'M5:O5'],
   ]
   for (let r = 2; r <= 5; r++) ws.getRow(r).height = r === 5 ? 26 : 24
-  for (const [labelRange, valueRange, label, value] of info) {
+  poFormInfo(po).forEach((cell, i) => {
+    const [labelRange, valueRange] = infoRanges[i]
     ws.mergeCells(labelRange)
     ws.mergeCells(valueRange)
     const lc = ws.getCell(labelRange.split(':')[0])
-    lc.value = label
-    lc.font = { name: FONT, size: 10, bold: true, color: { argb: C.label } }
-    lc.fill = fill(C.labelBg)
+    lc.value = cell.label
+    lc.font = { name: FONT, size: 10, bold: true, color: { argb: argb(PO_COLORS.label) } }
+    lc.fill = fill(argb(PO_COLORS.labelBg))
     lc.alignment = { horizontal: 'center', vertical: 'middle' }
     const vc = ws.getCell(valueRange.split(':')[0])
-    vc.value = value ?? ''
-    vc.font = { name: FONT, size: 10, color: { argb: C.ink } }
+    vc.value = cell.value ?? ''
+    vc.font = { name: FONT, size: 10, bold: !!cell.bold, color: { argb: argb(PO_COLORS.ink) } }
     vc.alignment = { horizontal: 'left', vertical: 'middle' }
-    // 발주번호·배송구분은 원본과 같이 굵게
-    if (label === '발주번호' || label === '배송구분') vc.font = { ...vc.font, bold: true }
-  }
+  })
   // 총액 칸은 강조 (원본: 진한 글씨·연주황 배경·"원" 표기, 품목 합계 수식)
   const totalCell = ws.getCell('M5')
-  totalCell.font = { name: FONT, size: 12, bold: true, color: { argb: C.totalInk } }
-  totalCell.fill = fill(C.totalBg)
+  totalCell.font = { name: FONT, size: 12, bold: true, color: { argb: argb(PO_COLORS.totalInk) } }
+  totalCell.fill = fill(argb(PO_COLORS.totalBg))
   totalCell.alignment = { horizontal: 'right', vertical: 'middle' }
   totalCell.numFmt = '#,##0 "원"'
   if (po.items.length) {
@@ -216,53 +185,31 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
     } as import('exceljs').CellFormulaValue
   }
 
-  // 품목 표 헤더 (6행) — 남색: 발주 내용 / 골드: 배송 수기 보완란
-  const headers: [string, 'navy' | 'gold'][] = [
-    ['NO', 'navy'], ['발송인', 'gold'], ['발송인 연락처', 'gold'], ['수령인', 'gold'],
-    ['수령인 연락처', 'gold'], ['우편번호', 'gold'], ['배송지 주소', 'gold'],
-    ['제품명', 'navy'], ['규격/옵션', 'navy'], ['수량', 'navy'], ['단가', 'navy'],
-    ['합계', 'navy'], ['비고', 'navy'], ['배송메모', 'gold'], ['송장번호', 'gold'],
-  ]
+  // 품목 표 헤더 (6행) — 남색: 발주 내용 / 골드: 배송 수기 보완란 (po-form 공용)
   ws.getRow(6).height = 30
-  headers.forEach(([label, tone], i) => {
+  PO_HEADERS.forEach((h, i) => {
     const cell = ws.getCell(6, i + 1)
-    cell.value = label
-    cell.font = { name: FONT, size: 9.5, bold: true, color: { argb: C.white } }
-    cell.fill = fill(tone === 'navy' ? C.navy : C.gold)
+    cell.value = h.label
+    cell.font = { name: FONT, size: 9.5, bold: true, color: { argb: 'FFFFFFFF' } }
+    cell.fill = fill(argb(h.tone === 'navy' ? PO_COLORS.navy : PO_COLORS.gold))
     cell.alignment = { horizontal: 'center', vertical: 'middle' }
   })
 
-  // 품목 행 — 골드 열(B~G, N, O)은 연한 골드 배경으로 수기란 표시
-  const GOLD_COLS = new Set([2, 3, 4, 5, 6, 7, 14, 15])
-  po.items.forEach((it, i) => {
+  // 품목 행 — 값은 po-form 공용(미리보기와 동일), 골드 열은 연한 골드 배경
+  poFormItemRows(po).forEach((values, i) => {
     const r = 7 + i
     ws.getRow(r).height = 30
-    // 합계(purchase_total)에는 매입배송비가 포함 — 단가×수량과 다르면 비고에 명시
-    const noteParts: string[] = []
-    if (it.memo) noteParts.push(it.memo)
-    if ((it.purchase_shipping ?? 0) > 0) noteParts.push(`배송비 ${it.purchase_shipping.toLocaleString('ko-KR')}원 포함`)
-    const values: (string | number | null)[] = [
-      i + 1,
-      COMPANY_NAME, COMPANY_PHONE,
-      po.customer_manager ?? '', po.customer_phone ?? '',
-      '', '',                                    // 우편번호·배송지 주소 — 수기 기입
-      it.item_name ?? '', it.item_code ?? '',
-      it.quantity ?? 0, it.purchase_price ?? 0, it.purchase_total ?? 0,
-      noteParts.join(' · '),                     // 비고 (품목 메모·배송비 포함 표기)
-      i === 0 ? po.delivery_note ?? '' : '',     // 배송메모 — 주문의 배송 참고를 첫 행에
-      '',                                        // 송장번호 — 매입처 기입
-    ]
     values.forEach((v, ci) => {
       const cell = ws.getCell(r, ci + 1)
       cell.value = v
-      cell.font = { name: FONT, size: 9.5, color: { argb: C.ink } }
-      const right = ci >= 9 && ci <= 11
+      cell.font = { name: FONT, size: 9.5, color: { argb: argb(PO_COLORS.ink) } }
+      const right = PO_NUM_COLS.has(ci)
       cell.alignment = {
         horizontal: ci === 0 || ci === 5 ? 'center' : right ? 'right' : 'left',
         vertical: 'middle', wrapText: true,
       }
       if (right) cell.numFmt = '#,##0'
-      if (GOLD_COLS.has(ci + 1)) cell.fill = fill(C.goldRowBg)
+      if (PO_GOLD_COLS.has(ci + 1)) cell.fill = fill(argb(PO_COLORS.goldRowBg))
     })
   })
 

@@ -46,8 +46,9 @@ async function loadPo(admin: SupabaseClient, id: string) {
   return { po: po as unknown as PoRecord, items: items ?? [], order }
 }
 
-// 자사 양식 데이터 조립 — 양식이 요구하는 항목 중 ERP가 아는 값을 채운다
-async function excelOf(admin: SupabaseClient, data: NonNullable<Awaited<ReturnType<typeof loadPo>>>) {
+// 자사 양식 데이터 조립 — 양식이 요구하는 항목 중 ERP가 아는 값을 채운다.
+// 엑셀 생성과 화면 미리보기(GET의 form)가 같은 조립 결과를 쓴다.
+async function assembleForm(admin: SupabaseClient, data: NonNullable<Awaited<ReturnType<typeof loadPo>>>) {
   const { po, items, order } = data
 
   // 출고요청일: 주문에 연결된 상담일지의 배송요청일 (없으면 공란 — 수기 기입)
@@ -69,7 +70,7 @@ async function excelOf(admin: SupabaseClient, data: NonNullable<Awaited<ReturnTy
   const kindLabel: Record<string, string> = { 지점: '지점배송', 개별: '개별배송', 샘플: '샘플' }
   const deliveryKind = kinds.length ? kinds.map(k => kindLabel[k] ?? k).join('+') : null
 
-  return buildPoExcel({
+  return {
     po_no: po.po_no,
     order_date: order?.order_date ?? null,
     ship_request: shipRequest,
@@ -89,7 +90,11 @@ async function excelOf(admin: SupabaseClient, data: NonNullable<Awaited<ReturnTy
       purchase_shipping: it.purchase_shipping ?? 0, purchase_total: it.purchase_total ?? 0,
       memo: it.memo,
     })),
-  })
+  }
+}
+
+async function excelOf(admin: SupabaseClient, data: NonNullable<Awaited<ReturnType<typeof loadPo>>>) {
+  return buildPoExcel(await assembleForm(admin, data))
 }
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -110,7 +115,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       },
     })
   }
-  return NextResponse.json({ ...data, smtp_ready: smtpReady() })
+  // form: 화면 미리보기용 양식 데이터 — 엑셀과 같은 조립 함수를 거친다
+  return NextResponse.json({ ...data, form: await assembleForm(admin, data), smtp_ready: smtpReady() })
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

@@ -1,34 +1,23 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
+import {
+  COMPANY_NAME, PO_COLORS, PO_HEADERS, PO_GOLD_COLS, PO_NUM_COLS,
+  poFormInfo, poFormItemRows, type PoExcelData,
+} from '@/lib/po-form'
 
-// 발주서 내용 미리보기 — 엑셀 다운로드 없이 발송될(된) 실제 내용을 화면에서 확인.
-// 데이터는 발주 시점 스냅샷이라 주문을 수정해도 이 내용은 변하지 않는다.
+// 발주서 미리보기 — 엑셀에 찍히는 실제 양식(다올커머스 발주서)을 그대로 재현.
+// 값·순서·색은 lib/po-form.ts 공용 정의를 써서 엑셀 출력과 항상 동일하다.
 // 주문 상세의 발주 섹션과 발주서 이력 화면에서 공용.
 
-interface PoItem {
-  line_no: number
-  order_item_id: string | null
-  item_code: string | null
-  item_name: string | null
-  order_kind: string | null
-  quantity: number
-  purchase_price: number
-  purchase_shipping: number
-  purchase_total: number
-  memo: string | null
-}
 interface Data {
-  po: {
-    po_no: string; vendor_name: string; total_amount: number
-    delivery_note: string | null; email_to: string | null
-    created_at: string; status: string
-  }
-  items: PoItem[]
-  order: { order_no: string | null; order_date: string; bank_name: string | null; branch_name: string | null } | null
+  form: PoExcelData
+  items: { order_item_id: string | null }[]
+  po: { status: string; email_to: string | null }
 }
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
+const hex = (c: string) => `#${c}`
 
 export default function PoDetail({ poId }: { poId: string }) {
   const [data, setData] = useState<Data | null>(null)
@@ -48,84 +37,110 @@ export default function PoDetail({ poId }: { poId: string }) {
   }, [poId])
 
   if (error) return <div className="px-3 py-2 text-xs text-red-600">{error}</div>
-  if (!data) return <div className="px-3 py-2 text-xs text-gray-400">발주서 내용을 불러오는 중...</div>
+  if (!data?.form) return <div className="px-3 py-2 text-xs text-gray-400">발주서 내용을 불러오는 중...</div>
 
-  const { po, items, order } = data
-  const broken = items.filter(it => !it.order_item_id).length
+  const form = data.form
+  const info = poFormInfo(form)
+  const rows = poFormItemRows(form)
+  const broken = (data.items ?? []).filter(it => !it.order_item_id).length
+  const cellBorder = { border: '1px solid #cbd5e1' }
+
+  // 정보 그리드: 12칸을 3칸 × 4행으로 배치 (엑셀 병합 배치와 동일)
+  const infoRows = [info.slice(0, 3), info.slice(3, 6), info.slice(6, 9), info.slice(9, 12)]
 
   return (
-    <div className="border border-slate-200 rounded-lg bg-slate-50/60 p-3 text-xs">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1 mb-2">
-        {([
-          ['발주번호', po.po_no],
-          ['매입처', po.vendor_name],
-          ['주문번호', order?.order_no ?? '-'],
-          ['주문처', [order?.bank_name, order?.branch_name].filter(Boolean).join(' ') || '-'],
-        ] as const).map(([k, v]) => (
-          <div key={k}>
-            <span className="text-gray-400 mr-1.5">{k}</span>
-            <span className="text-gray-700 font-medium">{v}</span>
+    <div>
+      <div className="overflow-x-auto">
+        <div className="min-w-[900px] bg-white border border-gray-300 rounded-lg p-3 shadow-sm">
+          {/* 제목 */}
+          <div className="text-center text-lg font-extrabold py-1.5 tracking-tight"
+            style={{ color: hex(PO_COLORS.navy) }}>
+            {COMPANY_NAME} 발주서
           </div>
-        ))}
-      </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg overflow-x-auto">
-        <table className="w-full min-w-[560px]">
-          <thead>
-            <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
-              <th className="py-1.5 px-2 text-left font-medium">NO</th>
-              <th className="py-1.5 px-2 text-left font-medium">품번</th>
-              <th className="py-1.5 px-2 text-left font-medium">품명</th>
-              <th className="py-1.5 px-2 text-left font-medium">구분</th>
-              <th className="py-1.5 px-2 text-right font-medium">수량</th>
-              <th className="py-1.5 px-2 text-right font-medium">매입단가</th>
-              <th className="py-1.5 px-2 text-right font-medium">매입배송비</th>
-              <th className="py-1.5 px-2 text-right font-medium">합계</th>
-              <th className="py-1.5 px-2 text-left font-medium">비고</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map(it => (
-              <tr key={it.line_no} className="border-b border-gray-50">
-                <td className="py-1.5 px-2 tabular-nums">{it.line_no}</td>
-                <td className="py-1.5 px-2 tabular-nums whitespace-nowrap">{it.item_code ?? '-'}</td>
-                <td className="py-1.5 px-2 font-medium">
-                  {it.item_name}
-                  {!it.order_item_id && (
-                    <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-[10px] bg-red-50 text-red-500"
-                      title="주문 수정으로 품목 행이 교체됨 — 발주서 내용은 발주 시점 그대로 보존">
-                      주문과 연결 끊김
-                    </span>
-                  )}
-                </td>
-                <td className="py-1.5 px-2">{it.order_kind ?? '-'}</td>
-                <td className="py-1.5 px-2 text-right tabular-nums">{won(it.quantity)}</td>
-                <td className="py-1.5 px-2 text-right tabular-nums">{won(it.purchase_price)}</td>
-                <td className="py-1.5 px-2 text-right tabular-nums">{it.purchase_shipping ? won(it.purchase_shipping) : '-'}</td>
-                <td className="py-1.5 px-2 text-right tabular-nums font-semibold">{won(it.purchase_total)}</td>
-                <td className="py-1.5 px-2 text-gray-500">{it.memo ?? '-'}</td>
+          {/* 정보 그리드 */}
+          <table className="w-full border-collapse text-[11px]">
+            <colgroup>
+              {[0, 1, 2].map(i => (
+                <Fragment key={i}>
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '22.3%' }} />
+                </Fragment>
+              ))}
+            </colgroup>
+            <tbody>
+              {infoRows.map((cells, ri) => (
+                <tr key={ri}>
+                  {cells.map(c => {
+                    const isTotal = c.label.startsWith('총 합계금액')
+                    return (
+                      <Fragment key={c.label}>
+                        <td className="px-2 py-1.5 text-center font-semibold"
+                          style={{ ...cellBorder, background: hex(PO_COLORS.labelBg), color: hex(PO_COLORS.label) }}>
+                          {c.label}
+                        </td>
+                        <td className={`px-2 py-1.5 ${isTotal ? 'text-right font-bold' : c.bold ? 'font-semibold' : ''}`}
+                          style={{
+                            ...cellBorder,
+                            ...(isTotal
+                              ? { background: hex(PO_COLORS.totalBg), color: hex(PO_COLORS.totalInk), fontSize: '12px' }
+                              : { color: hex(PO_COLORS.ink) }),
+                          }}>
+                          {isTotal ? `${won(Number(c.value ?? 0))} 원` : (c.value ?? '')}
+                        </td>
+                      </Fragment>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* 품목 표 (엑셀과 동일한 15열) */}
+          <table className="w-full border-collapse text-[11px] mt-1.5">
+            <thead>
+              <tr>
+                {PO_HEADERS.map(h => (
+                  <th key={h.label} className="px-1.5 py-1.5 font-semibold text-white whitespace-nowrap"
+                    style={{ ...cellBorder, background: hex(h.tone === 'navy' ? PO_COLORS.navy : PO_COLORS.gold) }}>
+                    {h.label}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={7} className="py-1.5 px-2 text-right text-gray-500">합계</td>
-              <td className="py-1.5 px-2 text-right tabular-nums font-bold">{won(po.total_amount)}</td>
-              <td />
-            </tr>
-          </tfoot>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((values, ri) => (
+                <tr key={ri}>
+                  {values.map((v, ci) => (
+                    <td key={ci}
+                      className={`px-1.5 py-1.5 align-middle ${
+                        ci === 0 || ci === 5 ? 'text-center' : PO_NUM_COLS.has(ci) ? 'text-right tabular-nums' : 'text-left'
+                      } ${ci === 11 ? 'font-semibold' : ''}`}
+                      style={{
+                        ...cellBorder,
+                        color: hex(PO_COLORS.ink),
+                        ...(PO_GOLD_COLS.has(ci + 1) ? { background: hex(PO_COLORS.goldRowBg) } : {}),
+                      }}>
+                      {PO_NUM_COLS.has(ci) ? won(Number(v)) : v}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <div className="mt-2 space-y-0.5">
-        {po.delivery_note && (
-          <div><span className="text-gray-400 mr-1.5">배송 참고</span><span className="text-gray-700">{po.delivery_note}</span></div>
-        )}
-        {po.email_to && (
-          <div><span className="text-gray-400 mr-1.5">받는 이메일</span><span className="text-gray-700">{po.email_to}</span></div>
-        )}
+      <div className="mt-1.5 space-y-0.5 text-[11px] text-gray-400">
+        <div>
+          엑셀 다운로드·메일 첨부와 동일한 내용입니다. 골드색 칸(발송인·수령인·주소·배송메모·송장번호)은
+          배송 관련 수기 보완란 — 아는 값은 미리 채워져 있고 나머지는 다운로드 후 기입합니다.
+        </div>
+        {data.po?.email_to && <div>받는 이메일: <span className="text-gray-600">{data.po.email_to}</span></div>}
         {broken > 0 && (
-          <div className="text-red-500">주문 수정으로 연결이 끊긴 품목 {broken}건 — 발주서는 발주 시점 내용으로 보존되며, 해당 품목은 주문에서 미발주로 표시됩니다.</div>
+          <div className="text-red-500">
+            주문 수정으로 연결이 끊긴 품목 {broken}건 — 발주서는 발주 시점 내용으로 보존되며, 해당 품목은 주문에서 미발주로 표시됩니다.
+          </div>
         )}
       </div>
     </div>
