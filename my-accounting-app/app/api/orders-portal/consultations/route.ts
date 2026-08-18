@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { encryptPayment, encryptionReady } from '@/lib/payment-crypto'
-import { parseConsultBody, consultItemRows, CONSULT_MIGRATION_HINT } from '@/lib/consultations'
+import { parseConsultBody, consultItemRows, insertConsultItems, CONSULT_MIGRATION_HINT } from '@/lib/consultations'
 import { recordWorkLog, consultContent } from '@/lib/work-log'
 
 export const dynamic = 'force-dynamic'
@@ -113,13 +113,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: missing ? MIGRATION_HINT : error.message }, { status: 500 })
   }
 
-  const itemRows = consultItemRows(parsed.items).map(it => ({ ...it, consultation_id: created.id }))
-  if (itemRows.length) {
-    const { error: iErr } = await admin.from('erp_consultation_items').insert(itemRows)
-    if (iErr) {
-      await admin.from('erp_consultations').delete().eq('id', created.id)
-      return NextResponse.json({ error: `품목 저장 실패: ${iErr.message}` }, { status: 500 })
-    }
+  const itemErr = await insertConsultItems(admin, created.id as string, consultItemRows(parsed.items))
+  if (itemErr) {
+    await admin.from('erp_consultations').delete().eq('id', created.id)
+    return NextResponse.json({ error: `품목 저장 실패: ${itemErr}` }, { status: 500 })
   }
 
   // 업무일지 자동 기재 (실패해도 상담 저장은 유지)
