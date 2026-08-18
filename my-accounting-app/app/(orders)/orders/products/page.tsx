@@ -33,7 +33,7 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<'active' | 'inactive' | 'all'>('active')
+  const [filter, setFilter] = useState<'active' | 'inactive' | 'addon' | 'all'>('active')
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [draft, setDraft] = useState(emptyDraft)
   const [uploading, setUploading] = useState(false)
@@ -54,6 +54,7 @@ export default function ProductsPage() {
     return products.filter(p => {
       if (filter === 'active' && !p.is_active) return false
       if (filter === 'inactive' && p.is_active) return false
+      if (filter === 'addon' && !p.is_addon) return false   // 부가상품(옵션)만 — 중지 포함
       if (!q) return true
       return [p.item_code, p.item_name, p.purchase_vendor_name, p.category].some(v => (v ?? '').toLowerCase().includes(q))
     })
@@ -62,6 +63,7 @@ export default function ProductsPage() {
   const kpi = useMemo(() => ({
     active: products.filter(p => p.is_active).length,
     inactive: products.filter(p => !p.is_active).length,
+    addon: products.filter(p => p.is_addon).length,
     vendors: new Set(products.filter(p => p.is_active && p.purchase_vendor_name).map(p => p.purchase_vendor_name)).size,
   }), [products])
 
@@ -135,10 +137,11 @@ export default function ProductsPage() {
       </div>
 
       {/* KPI 카드 (클릭=필터) */}
-      <div className="grid grid-cols-3 gap-2.5 mt-4 max-w-xl">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 max-w-3xl">
         {([
           ['active', '사용 중 품목', kpi.active, ''],
           ['inactive', '중지 품목', kpi.inactive, 'text-gray-400'],
+          ['addon', '부가상품(옵션)', kpi.addon, 'text-violet-600'],
           ['all', '매입처 수', kpi.vendors, 'text-blue-700'],
         ] as const).map(([key, title, val, cls]) => (
           <button key={key} onClick={() => setFilter(key)}
