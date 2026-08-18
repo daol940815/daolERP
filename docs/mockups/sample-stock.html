@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 샘플 재고 관리 (요아럽)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 16px; }
+  .page-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; }
+  h1 { font-size: 20px; font-weight: 700; }
+  .sub { font-size: 12.5px; color: #64748b; margin-top: 4px; }
+  .actions button { border: 0; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; margin-left: 6px; }
+  .btn-dark { background: #0f172a; color: #fff; }
+  .btn-line { background: #fff; color: #334155; border: 1px solid #cbd5e1 !important; }
+
+  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px; }
+  .kpi { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; cursor: pointer; }
+  .kpi.on { border-color: #0f172a; box-shadow: 0 0 0 1px #0f172a; }
+  .kpi .k { font-size: 12px; color: #64748b; }
+  .kpi .v { font-size: 20px; font-weight: 700; margin-top: 4px; }
+  .kpi .d { font-size: 11.5px; color: #94a3b8; margin-top: 2px; }
+  .kpi .v.warn { color: #b45309; }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+  .tab { padding: 8px 16px; border-radius: 8px 8px 0 0; font-size: 13.5px; font-weight: 600; cursor: pointer; color: #64748b; background: #e2e8f0; }
+  .tab.on { background: #fff; color: #0f172a; border: 1px solid #e2e8f0; border-bottom: 0; }
+
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 0 12px 12px 12px; padding: 16px; margin-bottom: 20px; }
+  .filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .search { flex: 0 0 260px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 12px; font-size: 13px; color: #94a3b8; background: #fff; }
+  .chip { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px; padding: 5px 12px; font-size: 12.5px; color: #475569; cursor: pointer; }
+  .chip.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .chip-label { font-size: 12px; color: #94a3b8; margin-left: 8px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 12px; color: #64748b; font-weight: 600; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; white-space: nowrap; }
+  td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; white-space: nowrap; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  th.num { text-align: right; }
+  .name { font-weight: 600; }
+  .muted { color: #94a3b8; }
+  .neg { color: #dc2626; font-weight: 700; }
+  .pos-strong { font-weight: 700; }
+  .badge { display: inline-block; font-size: 11px; border-radius: 999px; padding: 2px 8px; font-weight: 600; }
+  .b-in { background: #ecfdf5; color: #047857; }
+  .b-out { background: #eff6ff; color: #1d4ed8; }
+  .b-adj { background: #fefce8; color: #a16207; }
+  .b-sales { background: #f1f5f9; color: #475569; }
+  .b-gift { background: #fdf2f8; color: #be185d; }
+  .b-office { background: #f0fdfa; color: #0f766e; }
+  .b-wh { background: #f5f3ff; color: #6d28d9; }
+  .b-unlinked { background: #fef2f2; color: #b91c1c; }
+  tfoot td { background: #f8fafc; font-weight: 700; border-top: 2px solid #e2e8f0; }
+  .section-title { font-size: 14px; font-weight: 700; margin: 4px 0 10px; }
+  .hint { font-size: 12px; color: #94a3b8; margin-top: 10px; line-height: 1.6; }
+  .grp-head td { background: #f8fafc; font-size: 12px; color: #64748b; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="note">시안입니다 — 수치는 엑셀 원장 드라이런 실측 기반 예시. 확정 후 실제 구현에서 실데이터로 연결됩니다. (경영관리 그룹 &gt; 샘플 재고 관리)</div>
+
+  <div class="page-head">
+    <div>
+      <h1>샘플 재고 관리 <span style="font-size:13px; font-weight:500; color:#64748b;">요아럽 · 사무실 재고</span></h1>
+      <p class="sub">사무실 입출고 원장 기준 전산재고와 창고·사무실 통합 소진 비용. 재고는 입고 누계 − 출고 누계로 자동 계산됩니다.</p>
+    </div>
+    <div class="actions">
+      <button class="btn-line">실사 입력</button>
+      <button class="btn-line">입고 입력</button>
+      <button class="btn-dark">출고 입력</button>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi on">
+      <div class="k">재고 품목</div>
+      <div class="v">28<span style="font-size:13px; font-weight:500;">종</span></div>
+      <div class="d">재고 관리 대상 품목</div>
+    </div>
+    <div class="kpi">
+      <div class="k">전산재고 수량</div>
+      <div class="v">1,242<span style="font-size:13px; font-weight:500;">개</span></div>
+      <div class="d">입고 7,170 − 출고 5,928</div>
+    </div>
+    <div class="kpi">
+      <div class="k">재고 금액 (매입가)</div>
+      <div class="v">4,187,350<span style="font-size:13px; font-weight:500;">원</span></div>
+      <div class="d">전산재고 × 품목 매입가</div>
+    </div>
+    <div class="kpi">
+      <div class="k">8월 소진 비용 (통합)</div>
+      <div class="v">1,238,400<span style="font-size:13px; font-weight:500;">원</span></div>
+      <div class="d">사무실 421,900 + 창고 816,500</div>
+    </div>
+    <div class="kpi">
+      <div class="k">실사 오차</div>
+      <div class="v warn">1<span style="font-size:13px; font-weight:500;">품목</span></div>
+      <div class="d">최근 실사 2026-08-18 (김승현)</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab on" data-t="t1">재고 현황</div>
+    <div class="tab" data-t="t2">소진 비용 집계</div>
+    <div class="tab" data-t="t3">입출고 원장</div>
+  </div>
+
+  <!-- 탭 1: 재고 현황 -->
+  <div class="card" id="t1">
+    <div class="filters">
+      <div class="search">품명 검색...</div>
+      <span class="chip on">전체</span>
+      <span class="chip">세트</span>
+      <span class="chip">핸드크림</span>
+      <span class="chip">디퓨저</span>
+      <span class="chip">부자재</span>
+      <span class="chip" style="border-color:#f59e0b; color:#b45309;">오차 있음</span>
+      <span class="chip" style="border-color:#dc2626; color:#b91c1c;">재고 음수</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>품명</th><th class="num">매입가</th>
+          <th class="num">입고 누계</th><th class="num">출고 누계</th>
+          <th class="num">전산재고</th><th class="num">실재고 (08-18)</th><th class="num">오차</th>
+          <th class="num">재고 금액</th><th class="num">최근 출고</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="name">요아럽 바이탈라이징 바디케어세트</td><td class="num">9,100</td><td class="num">535</td><td class="num">519</td><td class="num pos-strong">16</td><td class="num">16</td><td class="num muted">0</td><td class="num">145,600</td><td class="num muted">08-14</td></tr>
+        <tr><td class="name">요아럽 화이트에디션 바디케어세트</td><td class="num">9,300</td><td class="num">282</td><td class="num">256</td><td class="num pos-strong">26</td><td class="num">26</td><td class="num muted">0</td><td class="num">241,800</td><td class="num muted">08-12</td></tr>
+        <tr><td class="name">요아럽 프리지아엠버 바디케어세트</td><td class="num">9,300</td><td class="num">772</td><td class="num">752</td><td class="num pos-strong">20</td><td class="num">20</td><td class="num muted">0</td><td class="num">186,000</td><td class="num muted">08-17</td></tr>
+        <tr><td class="name">요아럽 UV 하이브리드 선크림 1P</td><td class="num">5,600</td><td class="num">195</td><td class="num">146</td><td class="num pos-strong">49</td><td class="num">49</td><td class="num muted">0</td><td class="num">274,400</td><td class="num muted">08-11</td></tr>
+        <tr><td class="name">요아럽 디퓨저 리드스틱 (8개입)</td><td class="num">1,800</td><td class="num">144</td><td class="num">69</td><td class="num pos-strong">75</td><td class="num">75</td><td class="num muted">0</td><td class="num">135,000</td><td class="num muted">08-05</td></tr>
+        <tr><td class="name">요아럽 핸드크림 3P 공용 종이케이스 (아이보리)</td><td class="num">500</td><td class="num">0</td><td class="num">2</td><td class="num neg">-2</td><td class="num">0</td><td class="num neg">+2</td><td class="num neg">-1,000</td><td class="num muted">07-30</td></tr>
+        <tr><td class="name">고급쇼핑백</td><td class="num">600</td><td class="num">2,008</td><td class="num">1,753</td><td class="num pos-strong">255</td><td class="num">255</td><td class="num muted">0</td><td class="num">153,000</td><td class="num muted">08-18</td></tr>
+        <tr><td class="name">브랜드쇼핑백</td><td class="num">250</td><td class="num">362</td><td class="num">205</td><td class="num pos-strong">157</td><td class="num">157</td><td class="num muted">0</td><td class="num">39,250</td><td class="num muted">08-13</td></tr>
+        <tr><td class="muted" colspan="9">... 전체 28품목 (칩 필터·검색으로 축소)</td></tr>
+      </tbody>
+      <tfoot>
+        <tr><td>합계</td><td class="num"></td><td class="num">7,170</td><td class="num">5,928</td><td class="num">1,242</td><td class="num">1,244</td><td class="num">2</td><td class="num">4,187,350</td><td></td></tr>
+      </tfoot>
+    </table>
+    <p class="hint">
+      · 전산재고는 저장값이 아니라 원장 합계에서 실시간 계산 — 숫자를 클릭하면 해당 품목 원장으로 드릴다운.<br>
+      · 실재고는 최근 실사 기록. 오차가 있으면 "실사 조정" 행을 원장에 추가해 해소 (원본 무수정).<br>
+      · 재고 음수는 이관 원본의 기록 누락 신호 — 붉은 칩으로 즉시 드러나게.
+    </p>
+  </div>
+
+  <!-- 탭 2: 소진 비용 집계 -->
+  <div class="card" id="t2" style="display:none;">
+    <div class="filters">
+      <span class="chip-label">기간</span>
+      <span class="chip">2025</span>
+      <span class="chip on">2026</span>
+      <span class="chip-label">출처</span>
+      <span class="chip on">통합</span>
+      <span class="chip">사무실</span>
+      <span class="chip">요아럽 창고</span>
+      <span class="chip-label">용도</span>
+      <span class="chip on">전체</span>
+      <span class="chip">영업샘플</span>
+      <span class="chip">선물증정</span>
+    </div>
+    <p class="section-title">담당자별 월별 소진 비용 (매입가 기준, 2026년)</p>
+    <table>
+      <thead>
+        <tr>
+          <th>담당자</th>
+          <th class="num">1월</th><th class="num">2월</th><th class="num">3월</th><th class="num">4월</th>
+          <th class="num">5월</th><th class="num">6월</th><th class="num">7월</th><th class="num">8월</th>
+          <th class="num">연간 계</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="name">사장님</td><td class="num">512,300</td><td class="num">488,100</td><td class="num">601,250</td><td class="num">545,900</td><td class="num">498,700</td><td class="num">610,400</td><td class="num">571,200</td><td class="num">486,300</td><td class="num pos-strong">4,314,150</td></tr>
+        <tr><td class="name">김재형</td><td class="num">130,400</td><td class="num">98,200</td><td class="num">145,800</td><td class="num">122,500</td><td class="num">88,300</td><td class="num">153,000</td><td class="num">140,900</td><td class="num">118,600</td><td class="num pos-strong">997,700</td></tr>
+        <tr><td class="name">옥광일</td><td class="num">210,800</td><td class="num">185,400</td><td class="num">232,100</td><td class="num">198,600</td><td class="num">176,200</td><td class="num">241,500</td><td class="num">225,300</td><td class="num">201,400</td><td class="num pos-strong">1,671,300</td></tr>
+        <tr><td class="name">홍창의</td><td class="num">142,600</td><td class="num">120,900</td><td class="num">158,300</td><td class="num">135,700</td><td class="num">118,400</td><td class="num">162,800</td><td class="num">150,100</td><td class="num">128,900</td><td class="num pos-strong">1,117,700</td></tr>
+        <tr><td class="name">영업지원팀</td><td class="num">88,200</td><td class="num">72,400</td><td class="num">95,600</td><td class="num">81,300</td><td class="num">69,800</td><td class="num">98,200</td><td class="num">90,500</td><td class="num">77,300</td><td class="num pos-strong">673,300</td></tr>
+        <tr><td class="name">기타</td><td class="num">45,100</td><td class="num">38,600</td><td class="num">52,300</td><td class="num">44,200</td><td class="num">36,900</td><td class="num">54,100</td><td class="num">48,700</td><td class="num">41,200</td><td class="num pos-strong">361,100</td></tr>
+      </tbody>
+      <tfoot>
+        <tr><td>월 계</td><td class="num">1,129,400</td><td class="num">1,003,600</td><td class="num">1,285,350</td><td class="num">1,128,200</td><td class="num">988,300</td><td class="num">1,320,000</td><td class="num">1,226,700</td><td class="num">1,053,700</td><td class="num">9,135,250</td></tr>
+      </tfoot>
+    </table>
+    <p class="hint">
+      · 통합 = 사무실 원장 출고 + 기존 ERP 주문내역 샘플 행(요아럽 창고). 창고 행은 업로드된 매입합계액 기록값 사용.<br>
+      · 담당자 그룹은 직원 마스터 연결 기준, 미연결 이름(퇴사자 등)은 원본 표기 그대로 "기타"에 집계.<br>
+      · 셀 클릭 시 해당 담당자·월의 출고 내역으로 드릴다운. 용도 칩은 사무실 원장에만 적용(창고 행은 용도 없음 — 영업으로 간주).
+    </p>
+  </div>
+
+  <!-- 탭 3: 입출고 원장 -->
+  <div class="card" id="t3" style="display:none;">
+    <div class="filters">
+      <div class="search">품명 · 출고처 · 담당자 검색...</div>
+      <span class="chip on">전체</span>
+      <span class="chip">입고</span>
+      <span class="chip">출고</span>
+      <span class="chip">실사 조정</span>
+      <span class="chip">선물증정만</span>
+      <span class="chip">직원 미연결</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>날짜</th><th>구분</th><th>품명</th><th class="num">수량</th>
+          <th class="num">매입가</th><th class="num">합계액</th>
+          <th>용도</th><th>출고처</th><th>담당자</th><th>비고</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2026-08-18</td><td><span class="badge b-out">출고</span></td>
+          <td class="name">요아럽 프리지아엠버 바디케어세트</td><td class="num">2</td>
+          <td class="num">9,300</td><td class="num">18,600</td>
+          <td><span class="badge b-gift">선물증정</span></td>
+          <td>세브란스</td><td>사장님</td><td class="muted"></td>
+        </tr>
+        <tr>
+          <td>2026-08-17</td><td><span class="badge b-out">출고</span></td>
+          <td class="name">요아럽 핸드크림 만다린 바질릭 3P</td><td class="num">3</td>
+          <td class="num">7,700</td><td class="num">23,100</td>
+          <td><span class="badge b-sales">영업샘플</span></td>
+          <td>한림대의료원지부 (김형철 지부장)</td><td>옥광일</td><td class="muted"></td>
+        </tr>
+        <tr>
+          <td>2026-08-14</td><td><span class="badge b-in">입고</span></td>
+          <td class="name">요아럽 UV 하이브리드 선크림 1P</td><td class="num">48</td>
+          <td class="num">5,600</td><td class="num">268,800</td>
+          <td class="muted">—</td><td class="muted">요아럽 → 사무실</td><td>김승현</td><td class="muted"></td>
+        </tr>
+        <tr>
+          <td>2026-08-12</td><td><span class="badge b-out">출고</span></td>
+          <td class="name">요아럽 화이트에디션 바디케어세트</td><td class="num">1</td>
+          <td class="num">9,300</td><td class="num">9,300</td>
+          <td><span class="badge b-sales">영업샘플</span></td>
+          <td>리얼닥터 미팅</td><td>김대희 <span class="badge b-unlinked">직원 미연결</span></td><td class="muted"></td>
+        </tr>
+        <tr>
+          <td>2026-08-01</td><td><span class="badge b-adj">조정</span></td>
+          <td class="name">요아럽 핸드크림 3P 공용 종이케이스 (아이보리)</td><td class="num">+2</td>
+          <td class="num muted">—</td><td class="num muted">—</td>
+          <td class="muted">—</td><td class="muted">실사 조정</td><td>김승현</td><td class="muted">3P 분리 기록 누락 보정</td>
+        </tr>
+        <tr><td class="muted" colspan="10">... 전체 2,087행 + 신규 입력분 (페이지네이션)</td></tr>
+      </tbody>
+    </table>
+    <p class="hint">
+      · 원장이 원본 — 수정 대신 조정 행 추가. 이관 행은 source=excel로 표시되어 구분 가능.<br>
+      · 출고처는 자유 입력이되 거래처·거래처 담당자 선택 연결 가능 → 담당자 관리의 영업일지에서 "이 담당자에게 나간 샘플" 역조회.<br>
+      · 담당자는 직원 드롭다운 + 원본 표기 보존. 퇴사자 등 미연결 이름은 배지로 표시.
+    </p>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
+    t.classList.add('on');
+    ['t1','t2','t3'].forEach(id => document.getElementById(id).style.display = id === t.dataset.t ? '' : 'none');
+  }));
+</script>
+</body>
+</html>
