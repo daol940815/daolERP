@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>상담 품목 개편 시안 — 배송비 옵션 행·카톤단위·상태/색상옵션</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1240px; margin:0 auto; padding:24px 20px 60px; }
+  h1 { font-size:19px; color:#0f172a; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.7; }
+
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .sec { font-size:13px; font-weight:bold; color:#0f172a; margin-bottom:10px; }
+  .sec small { font-weight:normal; color:#94a3b8; font-size:11px; margin-left:6px; }
+
+  table { width:100%; border-collapse:collapse; font-size:11.5px; table-layout:fixed; }
+  th { background:#f1f5f9; color:#475569; font-size:10.5px; padding:6px 7px; text-align:left; white-space:nowrap; border-bottom:1.5px solid #d8dee6; }
+  th.r, td.r { text-align:right; }
+  td { padding:5px 7px; border-bottom:1px solid #eef1f5; vertical-align:top; }
+  td .cell { border:1.5px solid #e8d9a8; border-radius:6px; padding:4px 7px; background:#fffdf5; min-height:26px; }
+  td .cell.auto { border-color:#e2e8f0; background:#f8fafc; color:#64748b; }
+  td .cell.sel { border-color:#93b8e8; background:#f5f9ff; }
+  .r .cell { text-align:right; font-variant-numeric:tabular-nums; }
+  .ph { color:#94a3b8; }
+
+  tr.optrow td { background:#f8fafc; }
+  tr.shiprow td { background:#fbf9f2; }
+  .lead { color:#94a3b8; margin-right:3px; }
+
+  .chip { display:inline-block; padding:2px 9px; border:1px solid #ddd6fe; background:#f5f3ff; color:#6d28d9; border-radius:999px; font-size:10.5px; cursor:pointer; }
+  .chip.ship { border-color:#fde68a; background:#fffbeb; color:#92600a; }
+  .chiplabel { font-size:10px; color:#94a3b8; margin-right:4px; }
+
+  .subline { display:flex; gap:8px; align-items:center; padding:2px 0 4px; }
+  .subline label { font-size:10px; color:#94a3b8; white-space:nowrap; }
+  .subline .cell { flex:1; font-size:11px; min-height:24px; padding:3px 7px; }
+
+  .totals { display:flex; gap:22px; margin-top:12px; font-size:13px; align-items:center; }
+  .totals b { font-variant-numeric:tabular-nums; }
+  .rate { color:#0e7a4e; background:#e7f6ec; border-radius:6px; padding:2px 8px; font-size:12px; font-weight:bold; }
+
+  .note { margin-top:16px; background:#fffbeb; border:1px solid #f5e6b8; border-radius:10px; padding:12px 16px; font-size:12px; color:#7c5e10; line-height:1.9; }
+  .note b { color:#5c470a; }
+  .flow { margin-top:14px; background:#f0f7ff; border:1px solid #cfe3f8; border-radius:10px; padding:12px 16px; font-size:12px; color:#1e4e79; line-height:1.9; }
+  .flow b { color:#143a5c; }
+  code { background:#eef1f5; border-radius:4px; padding:1px 5px; font-size:11px; }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <h1>상담 품목 개편 시안</h1>
+  <p class="desc">
+    변경점: 품번 열 확대(상품명과 동급) · 카톤단위 열 추가 · 배송비 열 삭제 →
+    <b>배송비 옵션 행</b>(카톤단위/카톤외 2종) · 품목별 상태/색상옵션 입력줄 · 합계에 마진율.
+  </p>
+
+  <div class="panel">
+    <div class="sec">상담 품목 <small>품번 검색 시 원가표 기준 자동 — 수정 가능</small></div>
+    <table>
+      <colgroup>
+        <col style="width:19%"><col style="width:19%"><col style="width:6%"><col style="width:5.5%">
+        <col style="width:6.5%"><col style="width:8%"><col style="width:8.5%"><col style="width:11%">
+        <col style="width:8%"><col style="width:8%"><col style="width:3%">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>품번 검색</th><th>상품명</th><th>구분</th><th class="r">수량</th>
+          <th class="r">카톤단위</th><th class="r">판매가</th><th class="r">판매합계</th>
+          <th>매입처</th><th class="r">매입가</th><th class="r">마진</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- 본 상품 -->
+        <tr>
+          <td><div class="cell sel">25-14-03 · 양말세트 3P</div></td>
+          <td><div class="cell">양말세트 3P (남녀공용)</div></td>
+          <td><div class="cell sel">지점</div></td>
+          <td class="r"><div class="cell">120</div></td>
+          <td class="r"><div class="cell auto">60</div></td>
+          <td class="r"><div class="cell">4,500</div></td>
+          <td class="r"><div class="cell auto"><b>540,000</b></div></td>
+          <td><div class="cell auto">한별무역</div></td>
+          <td class="r"><div class="cell">2,900</div></td>
+          <td class="r"><div class="cell auto" style="color:#0e7a4e">192,000</div></td>
+          <td style="color:#f87171; text-align:center;">✕</td>
+        </tr>
+        <!-- 품목별 상태·색상옵션 (2번째 줄) -->
+        <tr>
+          <td colspan="11" style="padding:2px 7px 6px;">
+            <div class="subline" style="padding-left:14px;">
+              <label>상태</label><div class="cell" style="max-width:220px;"><span class="ph">품절·단가변경 등</span></div>
+              <label>색상·옵션 등 기타사항</label><div class="cell">네이비/그레이 혼합, 지점명 각인</div>
+            </div>
+            <div style="padding-left:14px; display:flex; gap:5px; align-items:center; flex-wrap:wrap;">
+              <span class="chiplabel">옵션 추가 (한별무역)</span>
+              <span class="chip">+ 쇼핑백(소) (300)</span>
+              <span class="chip">+ 포장지 (200)</span>
+              <span class="chip ship">+ 배송비(카톤단위)</span>
+              <span class="chip ship">+ 배송비(카톤외)</span>
+            </div>
+          </td>
+        </tr>
+        <!-- 부가상품 옵션 행 -->
+        <tr class="optrow">
+          <td><div class="cell sel"><span class="lead">└</span>25-01-07 · 쇼핑백(소)</div></td>
+          <td><div class="cell">쇼핑백(소)</div></td>
+          <td><div class="cell sel">지점</div></td>
+          <td class="r"><div class="cell">120</div></td>
+          <td class="r"><div class="cell auto">-</div></td>
+          <td class="r"><div class="cell">300</div></td>
+          <td class="r"><div class="cell auto">36,000</div></td>
+          <td><div class="cell auto">한별무역</div></td>
+          <td class="r"><div class="cell">180</div></td>
+          <td class="r"><div class="cell auto" style="color:#0e7a4e">14,400</div></td>
+          <td style="color:#f87171; text-align:center;">✕</td>
+        </tr>
+        <!-- 배송비 옵션 행 (카톤단위) -->
+        <tr class="shiprow">
+          <td><div class="cell auto"><span class="lead">└</span>배송비(카톤단위)</div></td>
+          <td><div class="cell auto">120개 ÷ 카톤 60 = 2카톤 × 6,000</div></td>
+          <td><div class="cell auto">-</div></td>
+          <td class="r"><div class="cell auto">2</div></td>
+          <td class="r"><div class="cell auto">-</div></td>
+          <td class="r"><div class="cell">6,000</div></td>
+          <td class="r"><div class="cell auto">12,000</div></td>
+          <td><div class="cell auto">-</div></td>
+          <td class="r"><div class="cell auto">-</div></td>
+          <td class="r"><div class="cell auto">-</div></td>
+          <td style="color:#f87171; text-align:center;">✕</td>
+        </tr>
+        <!-- 배송비 옵션 행 (카톤외) -->
+        <tr class="shiprow">
+          <td><div class="cell auto"><span class="lead">└</span>배송비(카톤외)</div></td>
+          <td><div class="cell auto">낱개·택배 등 (금액 직접 수정)</div></td>
+          <td><div class="cell auto">-</div></td>
+          <td class="r"><div class="cell auto">1</div></td>
+          <td class="r"><div class="cell auto">-</div></td>
+          <td class="r"><div class="cell">4,000</div></td>
+          <td class="r"><div class="cell auto">4,000</div></td>
+          <td><div class="cell auto">-</div></td>
+          <td class="r"><div class="cell auto">-</div></td>
+          <td class="r"><div class="cell auto">-</div></td>
+          <td style="color:#f87171; text-align:center;">✕</td>
+        </tr>
+        <!-- 두 번째 본 상품 (빈 행 예시) -->
+        <tr>
+          <td><div class="cell"><span class="ph">품번·품명 검색 (넓어진 칸)</span></div></td>
+          <td><div class="cell"><span class="ph">마스터에 없으면 직접 입력</span></div></td>
+          <td><div class="cell sel">지점</div></td>
+          <td class="r"><div class="cell"><span class="ph">1</span></div></td>
+          <td class="r"><div class="cell auto">-</div></td>
+          <td class="r"><div class="cell"><span class="ph">0</span></div></td>
+          <td class="r"><div class="cell auto">0</div></td>
+          <td><div class="cell"><span class="ph"></span></div></td>
+          <td class="r"><div class="cell"><span class="ph">0</span></div></td>
+          <td class="r"><div class="cell auto">0</div></td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="totals">
+      <span>예상 합계 <b>592,000원</b></span>
+      <span>예상 마진 <b style="color:#0e7a4e">190,400원</b></span>
+      <span class="rate">마진율 32.2%</span>
+      <span style="font-size:11px; color:#94a3b8;">마진 = 합계 − (매입가×수량 + 배송비 행) · 마진율 = 마진 ÷ 합계</span>
+    </div>
+  </div>
+
+  <div class="flow">
+    <b>주문서 전환 시 배송비 행 처리 (확정 필요)</b><br>
+    상담에서는 배송비가 눈에 보이는 행이지만, 주문 데이터에는 배송비 컬럼이 품목별로
+    존재하고 허브·회계 하류가 그 구조를 소비한다. 그래서 전환 시 배송비 행은
+    <b>본 상품 행의 배송비 컬럼으로 합산되어 접힌다</b> (카톤단위 12,000 + 카톤외 4,000
+    → 본 상품 배송비 16,000). 주문 폼에서는 지금처럼 배송비 컬럼으로 보이고,
+    하류 집계는 무변경.<br>
+    상태·색상옵션은 주문 품목 메모로 합쳐 넘긴다 (추후 발주서 개편 시
+    비고/메모/옵션 항목으로 매핑 변경 예정 — 사용자 예고).
+  </div>
+
+  <div class="note">
+    <b>동작 요약</b><br>
+    1. 배송비 칩은 본 상품에 원가표 배송비 정보가 있으면 금액 자동 계산
+       (카톤단위: 수량÷카톤단위 올림 × 카톤배송비), 없으면 0원으로 추가 후 직접 입력.<br>
+    2. 배송비 행은 품번 검색 없이 이름 고정, 금액(판매가)과 수량만 수정.
+       마진 계산에서 비용으로 반영.<br>
+    3. 카톤단위 열은 원가표에서 자동 표시(읽기 전용). 부가상품·배송비 행은 "-".<br>
+    4. 상태·색상옵션 입력줄은 본 상품 행 아래에만 표시 (옵션·배송비 행에는 없음).
+  </div>
+
+</div>
+</body>
+</html>
