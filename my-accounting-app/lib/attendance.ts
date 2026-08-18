@@ -86,8 +86,15 @@ export const dayOfWeek = (date: string) => new Date(`${date}T00:00:00Z`).getUTCD
 export const isWeekend = (date: string) => [0, 6].includes(dayOfWeek(date))
 export const DOW_LABEL = ['일', '월', '화', '수', '목', '금', '토']
 
+/** 공휴일: 'YYYY-MM-DD' → 공휴일명 (attendance_holidays) */
+export type HolidayMap = Record<string, string>
+/** 근무일이 아닌 날 — 주말 또는 공휴일 */
+export const isOffDate = (date: string, holidays?: HolidayMap) =>
+  isWeekend(date) || !!holidays?.[date]
+
 // ── 일별 상태 판정 ──────────────────────────────────────────
-// weekend  주말 (근무일 아님 — 공휴일은 1단계 미반영, 설계 문서 참고)
+// holiday  공휴일·회사 휴무 (근무일 아님)
+// weekend  주말 (근무일 아님)
 // leave    종일 휴가 (연차·병가·공가·기타)
 // present  정상 출근 (반차와 겹치면 halfLeave에 표시)
 // late     지각 — 출근 기준 시각 + 유예를 지난 체크인. 오전 반차 날은 판정 제외
@@ -95,17 +102,21 @@ export const DOW_LABEL = ['일', '월', '화', '수', '목', '금', '토']
 // absent   지난 근무일인데 기록·휴가 없음
 // none     미래·오늘(기록 전)·입사 전 등 판정 대상 아님
 export type DayStatusKind =
-  | 'weekend' | 'leave' | 'present' | 'late' | 'missing_out' | 'absent' | 'none'
+  | 'holiday' | 'weekend' | 'leave' | 'present' | 'late' | 'missing_out' | 'absent' | 'none'
+
+/** 근무일 아님 — 목록에서 숨기거나 집계에서 제외할 때 사용 */
+export const isOffKind = (kind: DayStatusKind) => kind === 'weekend' || kind === 'holiday'
 
 export interface DayStatus {
   kind: DayStatusKind
   record: AttendanceRecord | null
   leave: AttendanceLeave | null       // 그날을 덮는 승인된 휴가 (반차 포함)
   halfLeave: boolean                  // leave가 반차인지
+  holidayName: string | null          // 공휴일명 (공휴일이 아니면 null)
 }
 
 export const DAY_STATUS_LABEL: Record<DayStatusKind, string> = {
-  weekend: '주말', leave: '휴가', present: '출근', late: '지각',
+  holiday: '공휴일', weekend: '주말', leave: '휴가', present: '출근', late: '지각',
   missing_out: '퇴근 미기록', absent: '미기록(결근)', none: '-',
 }
 
@@ -121,13 +132,17 @@ export function judgeDay(args: {
   leaves: AttendanceLeave[]          // 해당 직원의 승인된 휴가
   policy: AttendancePolicy
   hireDate?: string | null
+  holidays?: HolidayMap
 }): DayStatus {
-  const { date, today, record, leaves, policy, hireDate } = args
+  const { date, today, record, leaves, policy, hireDate, holidays } = args
   const leave = leaves.find(l =>
     l.status === 'approved' && l.start_date <= date && date <= l.end_date) ?? null
   const halfLeave = !!leave && HALF_DAY_TYPES.includes(leave.leave_type)
-  const base = { record, leave, halfLeave }
+  const holidayName = holidays?.[date] ?? null
+  const base = { record, leave, halfLeave, holidayName }
 
+  // 공휴일을 주말보다 먼저 — 주말과 겹쳐도 공휴일명을 보여준다
+  if (holidayName) return { kind: 'holiday', ...base }
   if (isWeekend(date)) return { kind: 'weekend', ...base }
   if (hireDate && date < hireDate) return { kind: 'none', ...base }
   if (leave && !halfLeave) return { kind: 'leave', ...base }
@@ -145,12 +160,14 @@ export function judgeDay(args: {
   return { kind: 'none', ...base }
 }
 
-/** 휴가 일수 — 주말 제외 영업일 기준, 반차 0.5일. 월 경계로 자를 수 있다. */
-export function leaveDays(l: AttendanceLeave, clampStart?: string, clampEnd?: string): number {
+/** 휴가 일수 — 주말·공휴일 제외 영업일 기준, 반차 0.5일. 월 경계로 자를 수 있다. */
+export function leaveDays(
+  l: AttendanceLeave, clampStart?: string, clampEnd?: string, holidays?: HolidayMap,
+): number {
   const s = clampStart && clampStart > l.start_date ? clampStart : l.start_date
   const e = clampEnd && clampEnd < l.end_date ? clampEnd : l.end_date
   let days = 0
-  for (let d = s; d <= e; d = addDays(d, 1)) if (!isWeekend(d)) days += 1
+  for (let d = s; d <= e; d = addDays(d, 1)) if (!isOffDate(d, holidays)) days += 1
   return HALF_DAY_TYPES.includes(l.leave_type) ? days * 0.5 : days
 }
 
@@ -171,14 +188,15 @@ export function summarizeMonth(args: {
   leaves: AttendanceLeave[]          // 해당 직원의 승인 휴가 (기간 겹침 포함)
   policy: AttendancePolicy
   hireDate?: string | null
+  holidays?: HolidayMap
 }): MonthSummary {
-  const { month, today, records, leaves, policy, hireDate } = args
+  const { month, today, records, leaves, policy, hireDate, holidays } = args
   const byDate = new Map(records.map(r => [r.work_date, r]))
   const [mStart, mEnd] = monthRange(month)
   const sum: MonthSummary = { workDays: 0, present: 0, late: 0, missingOut: 0, absent: 0, leaveDays: 0 }
   for (const date of monthDates(month)) {
-    const st = judgeDay({ date, today, record: byDate.get(date) ?? null, leaves, policy, hireDate })
-    if (st.kind === 'weekend' || st.kind === 'none') continue
+    const st = judgeDay({ date, today, record: byDate.get(date) ?? null, leaves, policy, hireDate, holidays })
+    if (isOffKind(st.kind) || st.kind === 'none') continue
     sum.workDays += 1
     if (st.kind === 'present') sum.present += 1
     if (st.kind === 'late') sum.late += 1
@@ -187,6 +205,6 @@ export function summarizeMonth(args: {
   }
   sum.leaveDays = leaves
     .filter(l => l.status === 'approved' && l.start_date <= mEnd && l.end_date >= mStart)
-    .reduce((acc, l) => acc + leaveDays(l, mStart, mEnd), 0)
+    .reduce((acc, l) => acc + leaveDays(l, mStart, mEnd, holidays), 0)
   return sum
 }

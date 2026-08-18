@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   DAY_STATUS_LABEL, DOW_LABEL, LEAVE_STATUS_LABEL, LEAVE_TYPE_LABEL,
-  dayOfWeek, judgeDay, kstMonthNow, kstTime, monthDates, summarizeMonth,
+  dayOfWeek, isOffKind, judgeDay, kstMonthNow, kstTime, monthDates, summarizeMonth,
   type AttendanceLeave, type AttendancePolicy, type AttendanceRecord,
-  type DayStatusKind, type LeaveType,
+  type DayStatusKind, type HolidayMap, type LeaveType,
 } from '@/lib/attendance'
 
 // 내 근태 (직원 관리 모드) — 출퇴근 체크 + 월별 내 기록 + 휴가 신청
@@ -24,13 +24,14 @@ interface MonthRes {
   policy: AttendancePolicy
   records: AttendanceRecord[]
   leaves: AttendanceLeave[]
+  holidays: HolidayMap
 }
 
 const STATUS_COLOR: Record<DayStatusKind, string> = {
   present: 'bg-green-100 text-green-700', late: 'bg-amber-100 text-amber-700',
   leave: 'bg-blue-100 text-blue-700', missing_out: 'bg-orange-100 text-orange-700',
   absent: 'bg-red-100 text-red-700', weekend: 'bg-gray-100 text-gray-400',
-  none: 'bg-gray-50 text-gray-300',
+  holiday: 'bg-rose-100 text-rose-600', none: 'bg-gray-50 text-gray-300',
 }
 const EMPTY_FORM = { leave_type: 'annual' as LeaveType, start_date: '', end_date: '', reason: '' }
 
@@ -110,7 +111,9 @@ export default function MyAttendancePage() {
   const summary = monthData ? summarizeMonth({
     month: monthData.month, today: monthData.today,
     records: monthData.records, leaves: monthData.leaves, policy: monthData.policy,
+    holidays: monthData.holidays,
   }) : null
+  const todayHoliday = monthData?.holidays?.[monthData.today] ?? null
 
   return (
     <div>
@@ -124,6 +127,7 @@ export default function MyAttendancePage() {
           <div>
             <p className="text-xs text-gray-400">{status.today} · 근무 {status.policy.work_start.slice(0, 5)}~{status.policy.work_end.slice(0, 5)}</p>
             <p className="text-lg font-bold mt-1">
+              {todayHoliday && <span className="text-rose-600 mr-2">{todayHoliday}</span>}
               {status.todayLeave && <span className="text-blue-600 mr-2">{LEAVE_TYPE_LABEL[status.todayLeave.leave_type]}</span>}
               {inTime ? `출근 ${inTime}` : '출근 전'}
               {outTime && <span className="text-gray-500"> · 퇴근 {outTime}</span>}
@@ -178,8 +182,11 @@ export default function MyAttendancePage() {
                 monthData.leaves.some(l => l.start_date <= d && d <= l.end_date)
               ).reverse().map(date => {
                 const record = monthData.records.find(r => r.work_date === date) ?? null
-                const st = judgeDay({ date, today: monthData.today, record, leaves: monthData.leaves, policy: monthData.policy })
-                if (st.kind === 'weekend' && !record) return null
+                const st = judgeDay({
+                  date, today: monthData.today, record,
+                  leaves: monthData.leaves, policy: monthData.policy, holidays: monthData.holidays,
+                })
+                if (isOffKind(st.kind) && !record) return null
                 return (
                   <tr key={date} className="border-b border-gray-50">
                     <td className="py-1.5 px-3 tabular-nums text-xs">
@@ -189,7 +196,7 @@ export default function MyAttendancePage() {
                     <td className="py-1.5 px-3 tabular-nums">{kstTime(record?.check_out_at ?? null) ?? '-'}</td>
                     <td className="py-1.5 px-3">
                       <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS_COLOR[st.kind]}`}>
-                        {st.leave ? LEAVE_TYPE_LABEL[st.leave.leave_type] : DAY_STATUS_LABEL[st.kind]}
+                        {st.holidayName ?? (st.leave ? LEAVE_TYPE_LABEL[st.leave.leave_type] : DAY_STATUS_LABEL[st.kind])}
                       </span>
                       {st.halfLeave && st.kind !== 'none' && st.record && (
                         <span className="ml-1 text-[11px] text-gray-400">{DAY_STATUS_LABEL[st.kind]}</span>
