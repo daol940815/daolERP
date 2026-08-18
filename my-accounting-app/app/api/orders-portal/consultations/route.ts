@@ -3,13 +3,14 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { encryptPayment, encryptionReady } from '@/lib/payment-crypto'
 import { parseConsultBody, consultItemRows, CONSULT_MIGRATION_HINT } from '@/lib/consultations'
+import { recordWorkLog, consultContent } from '@/lib/work-log'
 
 export const dynamic = 'force-dynamic'
 
 // 상담일지 (사용자 확정 설계)
 // GET  ?q=&status=&type=&all=1&page=1 — 기본 본인 작성분, manager/admin은 all=1로 전체
 // POST — 상담 생성. 필수는 상담일·구분뿐 (아는 만큼만 기록).
-//        저장 시 담당자(contact_id)가 마스터 인물이면 영업일지에 '상담' 활동 자동 기재.
+//        저장 시 업무일지(erp_work_logs)에 '상담작성' 한 줄 자동 기재.
 
 const PER_PAGE = 50
 const MIGRATION_HINT = CONSULT_MIGRATION_HINT
@@ -121,21 +122,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 영업일지 자동 기재 — 담당자가 마스터 인물일 때만 (실패해도 상담 저장은 유지)
-  let journalLogged = false
-  if (parsed.fields.contact_id) {
-    const label = [parsed.fields.bank_name, parsed.fields.branch_name, parsed.fields.manager_name]
-      .filter(Boolean).join(' ')
-    const { error: aErr } = await admin.from('contact_activities').insert({
-      contact_id: parsed.fields.contact_id,
-      vendor_id: parsed.fields.vendor_id,
-      employee_id: me.employeeId,
-      activity_date: parsed.fields.consult_date,
-      activity_type: '상담',
-      content: `${label}와 상담 (${parsed.fields.consult_type})`,
-    })
-    journalLogged = !aErr
-  }
+  // 업무일지 자동 기재 (실패해도 상담 저장은 유지)
+  // 영업일지(contact_activities)가 아니라 업무일지 — 상담일지 작성은 "ERP에서 한 업무"다.
+  const workLogged = await recordWorkLog(admin, {
+    employeeId: me.employeeId,
+    action: '상담작성',
+    content: consultContent(parsed.fields, '상담'),
+    workDate: parsed.fields.consult_date,
+    refType: 'consultation',
+    refId: created.id as string,
+  })
 
-  return NextResponse.json({ id: created.id, journal_logged: journalLogged })
+  return NextResponse.json({ id: created.id, work_logged: workLogged })
 }

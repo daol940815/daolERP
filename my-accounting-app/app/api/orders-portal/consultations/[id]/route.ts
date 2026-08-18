@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser, type CurrentUser } from '@/lib/user-role'
 import { decryptPayment, encryptPayment, encryptionReady, maskPayment } from '@/lib/payment-crypto'
 import { parseConsultBody, consultItemRows } from '@/lib/consultations'
+import { recordWorkLog, consultContent } from '@/lib/work-log'
 
 export const dynamic = 'force-dynamic'
 
@@ -114,6 +115,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { error: iErr } = await admin.from('erp_consultation_items').insert(rows)
     if (iErr) return NextResponse.json({ error: `품목 저장 실패: ${iErr.message}` }, { status: 500 })
   }
+
+  await recordWorkLog(admin, {
+    employeeId: me.employeeId,
+    action: '상담수정',
+    content: consultContent(parsed.fields, '상담 내용 수정'),
+    refType: 'consultation',
+    refId: params.id,
+  })
   return NextResponse.json({ ok: true })
 }
 

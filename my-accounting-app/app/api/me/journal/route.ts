@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
+import { recordWorkLog, journalContent } from '@/lib/work-log'
 
 export const dynamic = 'force-dynamic'
 
@@ -92,16 +93,32 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = createAdminClient()
-  const { error } = await admin.from('contact_activities').insert({
+  const activityType = body.activity_type || '기타'
+  const { data: created, error } = await admin.from('contact_activities').insert({
     contact_id: body.contact_id,
     vendor_id: body.vendor_id || null,
     employee_id: me.employeeId,          // 본인 기록으로 강제
     activity_date: body.activity_date || undefined,
-    activity_type: body.activity_type || '기타',
+    activity_type: activityType,
     content: body.content.trim(),
     next_action: body.next_action?.trim() || null,
-  })
+  }).select('id, activity_date').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // 업무일지 자동 기재 — 영업일지 작성도 "ERP에서 한 업무"다 (사용자 확정)
+  const { data: who } = await admin.from('contacts')
+    .select('name').eq('id', body.contact_id).maybeSingle()
+  await recordWorkLog(admin, {
+    employeeId: me.employeeId,
+    action: '영업일지',
+    content: journalContent({
+      contactName: (who?.name as string) ?? null,
+      activityType,
+    }),
+    workDate: (created?.activity_date as string) ?? null,
+    refType: 'activity',
+    refId: created?.id as string,
+  })
   return NextResponse.json({ ok: true })
 }
 
