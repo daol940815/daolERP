@@ -62,6 +62,8 @@
   `400번대` 회계 트랙(인수인계: docs/accounting-track.md) /
   `500번대` 주문시스템 트랙(인수인계: docs/order-system-track.md) /
   **`600번대` 매입처 허브 트랙(인수인계: docs/purchase-hub-track.md)** /
+  `700번대` 상담·영업·업무일지 트랙(인수인계: docs/consultation-journal-track.md) /
+  **`800번대` 요아럽 샘플 재고 트랙(인수인계: docs/sample-stock-track.md)** /
   새 트랙은 다음 100번대를 사용.
 - 현재 적용 완료: 100~105.
 
