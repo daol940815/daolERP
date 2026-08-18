@@ -302,12 +302,6 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
           <Link href="/employees" className={linkCls(pathname.startsWith('/employees'))}>
             <span>직원·계정 관리</span>
           </Link>
-          <Link href="/orders" className={linkCls(false)}>
-            <span>주문 관리 모드로 이동</span>
-          </Link>
-          <Link href="/hr/admin" className={linkCls(false)}>
-            <span>직원 관리 모드로 이동</span>
-          </Link>
           </>)}
         </div>
 
@@ -705,8 +699,22 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
         </div>
       </nav>
 
-      {/* 하단 로그아웃 버튼 */}
-      <div className="px-3 py-4 border-t border-slate-700">
+      {/* 하단 고정 영역 — 모드 전환·로그아웃은 메뉴가 길어도 항상 보이도록 nav 밖에 둔다 */}
+      <div className="px-3 py-3 border-t border-slate-700">
+        <div className="mb-2">
+          <p className="px-3 mb-1 text-xs font-medium text-slate-500 uppercase tracking-wider">
+            모드 전환
+          </p>
+          <Link href="/orders" className={linkCls(false)}>
+            <span>주문 관리 모드</span>
+          </Link>
+          <Link href="/hr/admin" className={linkCls(false)}>
+            <span>직원 관리 모드</span>
+          </Link>
+          <Link href="/portal" className={linkCls(false)}>
+            <span>모드 선택</span>
+          </Link>
+        </div>
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm
