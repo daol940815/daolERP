@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import PoDetail from '../po-detail'
 
 // 발주서 이력 (3단계, 시안 v3) — manager/admin 전용.
 // 발주서 작성·발송은 주문 상세의 발주 섹션에서, 여기서는 전체 이력 조회·엑셀 재다운로드.
@@ -50,6 +51,7 @@ export default function PurchaseHistoryPage() {
   const [status, setStatus] = useState('all')
   const [qInput, setQInput] = useState('')
   const [q, setQ] = useState('')
+  const [openPo, setOpenPo] = useState<string | null>(null)   // 내용 펼친 발주서
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -156,10 +158,16 @@ export default function PurchaseHistoryPage() {
             </thead>
             <tbody>
               {rows.map(r => (
-                <tr key={r.id} className={`border-b border-gray-50 ${r.status === 'canceled' ? 'text-gray-400' : ''}`}>
+                <Fragment key={r.id}>
+                <tr className={`border-b border-gray-50 ${r.status === 'canceled' ? 'text-gray-400' : ''}`}>
                   <td className="py-2 px-3">
-                    <div className="tabular-nums text-xs font-semibold">{r.po_date}</div>
-                    <div className="tabular-nums text-[11px] text-gray-400">{r.po_no}</div>
+                    <button type="button" onClick={() => setOpenPo(v => v === r.id ? null : r.id)}
+                      title="발주서 내용 펼치기/접기" className="text-left hover:opacity-70">
+                      <div className="tabular-nums text-xs font-semibold">
+                        <span className="text-gray-400 mr-1">{openPo === r.id ? '▾' : '▸'}</span>{r.po_date}
+                      </div>
+                      <div className="tabular-nums text-[11px] text-gray-400 pl-3.5">{r.po_no}</div>
+                    </button>
                   </td>
                   <td className="py-2 px-3 font-medium">{r.vendor_name}</td>
                   <td className="py-2 px-3">
@@ -183,10 +191,20 @@ export default function PurchaseHistoryPage() {
                   <td className="py-2 px-3 text-xs text-gray-500">{r.email_to ?? '-'}</td>
                   <td className="py-2 px-3 text-xs text-gray-500">{r.payment_term ?? '-'}</td>
                   <td className="py-2 px-3 text-right whitespace-nowrap">
+                    <button onClick={() => setOpenPo(v => v === r.id ? null : r.id)}
+                      className="px-2.5 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:border-gray-400 mr-1.5">
+                      {openPo === r.id ? '접기' : '내용'}
+                    </button>
                     <a href={`/api/orders-portal/purchase-orders/${r.id}?excel=1`}
                       className="px-2.5 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:border-gray-400">엑셀</a>
                   </td>
                 </tr>
+                {openPo === r.id && (
+                  <tr className="border-b border-gray-50">
+                    <td colSpan={8} className="bg-slate-50/40 px-4 py-3"><PoDetail poId={r.id} /></td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
               {!rows.length && (
                 <tr><td colSpan={8} className="text-center py-12 text-gray-400 text-sm">조건에 맞는 발주서가 없습니다.</td></tr>
