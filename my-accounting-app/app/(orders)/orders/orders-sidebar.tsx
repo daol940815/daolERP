@@ -104,24 +104,24 @@ export default function OrdersSidebar({ name, roleLabel, role }: {
           )}
         </div>
 
-        {/* 모드 선택은 admin 전용 — 일반 직원·중간 관리자는 워크스페이스가 유일한 홈 */}
+      </nav>
+
+      {/* 하단 고정 영역 — 모드 전환·로그아웃은 메뉴가 길어도 항상 보이도록 nav 밖에 둔다.
+          모드 전환은 admin 전용(일반 직원·중간 관리자는 워크스페이스가 유일한 홈). */}
+      <div className="px-3 py-3 border-t border-slate-700">
         {role === 'admin' && (
-          <div className="mb-5">
-            <p className="px-3 mb-1.5 text-xs font-medium text-slate-500 uppercase tracking-wider">
-              모드
+          <div className="mb-2">
+            <p className="px-3 mb-1 text-xs font-medium text-slate-500 uppercase tracking-wider">
+              모드 전환
             </p>
+            <Link href="/" className={linkCls(false)}>
+              <span>회계·경영 모드</span>
+            </Link>
             <Link href="/portal" className={linkCls(false)}>
               <span>모드 선택</span>
             </Link>
-            <Link href="/" className={linkCls(false)}>
-              <span>회계·경영 모드로 이동</span>
-            </Link>
           </div>
         )}
-      </nav>
-
-      {/* 하단 로그아웃 — 회계 모드와 동일 */}
-      <div className="px-3 py-4 border-t border-slate-700">
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm
