@@ -59,6 +59,9 @@ export default function AttendanceAdminPage() {
   const [showHolidays, setShowHolidays] = useState(false)
   const [holidayRows, setHolidayRows] = useState<HolidayRow[]>([])
   const [holidayForm, setHolidayForm] = useState({ date: '', name: '' })
+  const [holidayYear, setHolidayYear] = useState(kstMonthNow().slice(0, 4))
+  const [canSync, setCanSync] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
 
@@ -125,18 +128,36 @@ export default function AttendanceAdminPage() {
   }
 
   const loadHolidays = useCallback(async () => {
-    const res = await fetch(`/api/attendance/holidays?year=${month.slice(0, 4)}`)
+    const res = await fetch(`/api/attendance/holidays?year=${holidayYear}`)
     const json = await res.json().catch(() => ({}))
     if (!res.ok) { flash(json.error ?? '공휴일 조회 실패'); return }
-    setHolidayRows(json.holidays)
-  }, [month])
+    setHolidayRows(json.holidays); setCanSync(!!json.canSync)
+  }, [holidayYear])
   useEffect(() => { if (showHolidays) loadHolidays() }, [showHolidays, loadHolidays])
+  // 공휴일 관리를 열면 보고 있는 달의 연도부터 보여준다
+  useEffect(() => { if (showHolidays) setHolidayYear(month.slice(0, 4)) }, [showHolidays, month])
 
   const addHoliday = async () => {
     if (!holidayForm.date || !holidayForm.name.trim()) { flash('날짜와 휴일명을 입력하세요.'); return }
     if (await post('/api/attendance/holidays', {
       action: 'add', date: holidayForm.date, name: holidayForm.name.trim(), source: 'company',
     })) { flash('등록되었습니다.'); setHolidayForm({ date: '', name: '' }); loadHolidays(); load() }
+  }
+
+  // 공공데이터포털 특일정보 API에서 그 해 법정공휴일을 받아 교체 (회사 휴무는 보존)
+  const syncHolidays = async () => {
+    if (holidayRows.some(h => h.source === 'public') &&
+      !window.confirm(`${holidayYear}년 법정공휴일을 공식 데이터로 다시 불러옵니다.\n기존 법정공휴일은 교체되고, 직접 등록한 회사 휴무는 그대로 유지됩니다.`)) return
+    setSyncing(true)
+    const res = await fetch('/api/attendance/holidays', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'sync', year: holidayYear }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setSyncing(false)
+    if (!res.ok) { flash(json.error ?? '불러오기 실패'); return }
+    flash(`${holidayYear}년 공휴일 ${json.count}건을 불러왔습니다.`)
+    loadHolidays(); load()
   }
 
   const deleteHoliday = async (date: string, name: string) => {
@@ -265,9 +286,29 @@ export default function AttendanceAdminPage() {
       {/* 공휴일 관리 */}
       {showHolidays && (
         <div className="bg-white border border-gray-200 rounded-xl p-4 my-4">
+          <div className="flex items-center gap-2 flex-wrap mb-2">
+            <select value={holidayYear} onChange={e => setHolidayYear(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2 py-1 text-sm">
+              {Array.from({ length: 5 }, (_, i) => String(Number(kstMonthNow().slice(0, 4)) - 1 + i)).map(y => (
+                <option key={y} value={y}>{y}년</option>
+              ))}
+            </select>
+            <span className="text-xs text-gray-400">{holidayRows.length}건 등록됨</span>
+            {canSync ? (
+              <button onClick={syncHolidays} disabled={syncing || busy}
+                className="ml-auto px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
+                {syncing ? '불러오는 중...' : `${holidayYear}년 공휴일 불러오기`}
+              </button>
+            ) : (
+              <span className="ml-auto text-[11px] text-gray-400">
+                공휴일 API 키(DATA_GO_KR_SERVICE_KEY) 미설정 — 아래에서 직접 등록
+              </span>
+            )}
+          </div>
           <p className="text-xs text-gray-500 mb-2">
-            {month.slice(0, 4)}년 휴일 목록입니다. 여기 있는 날짜는 근무일에서 제외되어 결근·지각으로
-            판정되지 않습니다. 임시공휴일·창립기념일 등 회사 휴무도 등록하세요.
+            여기 있는 날짜는 근무일에서 제외되어 결근·지각으로 판정되지 않습니다.
+            불러오기는 공공데이터포털(한국천문연구원) 공식 데이터로 법정공휴일을 교체하며,
+            직접 등록한 회사 휴무는 유지됩니다.
           </p>
           <div className="flex flex-wrap items-end gap-2 mb-3">
             <input type="date" value={holidayForm.date}
@@ -296,7 +337,10 @@ export default function AttendanceAdminPage() {
               </div>
             ))}
             {!holidayRows.length && (
-              <p className="text-sm text-gray-400 py-4">등록된 휴일이 없습니다. 201 마이그레이션을 실행했는지 확인하세요.</p>
+              <p className="text-sm text-gray-400 py-4">
+                {holidayYear}년에 등록된 휴일이 없습니다.
+                {canSync ? ' 위의 불러오기 버튼을 누르세요.' : ' 아래에서 직접 등록하세요.'}
+              </p>
             )}
           </div>
         </div>
