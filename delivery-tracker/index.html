@@ -1212,6 +1212,13 @@ async function submitSingleSave() {
     updatedAt:   new Date().toISOString(),
   };
 
+  // 송장번호가 새로 생겼거나 변경됐으면 시트의 옛 행 삭제 (유령 행 방지)
+  const saveNumChanged = existing.num && newNum && existing.num !== newNum;
+  const saveNumAdded   = !existing.num && newNum && existing.localId;
+  if (saveNumChanged || saveNumAdded) {
+    await deleteFromSheets(existing.carrier, existing.num, existing.localId, existing.productName);
+  }
+
   // 기존 항목 제거 후 갱신 항목 삽입 (위치 유지)
   const idx = allItems.indexOf(existing);
   allItems[idx] = updated;
@@ -1489,6 +1496,10 @@ async function runBulkUpdate() {
       if (idx < 0) { notFound++; done++; continue; }
       const existing = allItems[idx];
       seenKeys.set(key, existing);
+      // 무번호 행에 번호가 부여되거나 번호가 바뀌면 시트의 옛 행 삭제 (유령 행 방지)
+      if ((existing.localId && !existing.num && item.num) || (existing.num && item.num && existing.num !== item.num)) {
+        deleteFromSheets(existing.carrier, existing.num, existing.localId, existing.productName);
+      }
       target = {
         ...existing,
         carrier: item.carrier || existing.carrier,
@@ -2107,7 +2118,7 @@ async function saveInlineNum(rowKey, inputEl) {
   inputEl.disabled = true;
 
   // 무번호 행에 번호 부여 — 시트의 옛 무번호 행 삭제 후 갱신
-  await deleteFromSheets(existing.carrier, existing.num, existing.localId);
+  await deleteFromSheets(existing.carrier, existing.num, existing.localId, existing.productName);
   const updated = { ...existing, num: firstNum, localId: '', updatedAt: new Date().toISOString() };
   allItems[idx] = updated;
   toast(`${firstNum} 조회 중…`);
@@ -2316,7 +2327,7 @@ async function saveDetail(editKey) {
   const numChanged = existing.num && newNum && existing.num !== newNum;
   const numAdded   = !existing.num && newNum && existing.localId;
   if (numChanged || numAdded) {
-    await deleteFromSheets(existing.carrier, existing.num, existing.localId);
+    await deleteFromSheets(existing.carrier, existing.num, existing.localId, existing.productName);
   }
 
   const updated = {
@@ -2422,13 +2433,16 @@ function clearDateFilter() {
 // ── 삭제 ──
 function deleteItem(carrier, num, localId) {
   if (!confirm('삭제하시겠습니까?')) return;
+  const target = localId
+    ? allItems.find(r=>r.localId===localId)
+    : allItems.find(r=>r.carrier===carrier&&r.num===num);
   if (localId) {
     allItems = allItems.filter(r=>r.localId!==localId);
   } else {
     allItems = allItems.filter(r=>!(r.carrier===carrier&&r.num===num));
   }
   saveLocal();
-  if (num || localId) deleteFromSheets(carrier, num, localId);
+  if (num || localId) deleteFromSheets(carrier, num, localId, target?.productName);
   updateStats(); renderTable();
   toast('삭제했습니다');
 }
@@ -2525,7 +2539,7 @@ function deleteSelected() {
     return !keys.has(k);
   });
   saveLocal();
-  toDelete.forEach(r => { if(r.num || r.localId) deleteFromSheets(r.carrier, r.num, r.localId); });
+  toDelete.forEach(r => { if(r.num || r.localId) deleteFromSheets(r.carrier, r.num, r.localId, r.productName); });
   updateStats(); renderTable();
   alert(`${toDelete.length}건 삭제했습니다`);
   toast(`${toDelete.length}건 삭제했습니다`);
@@ -2536,7 +2550,7 @@ function clearAll() {
   const toDelete = [...allItems];
   allItems=[];
   saveLocal();
-  toDelete.forEach(r => deleteFromSheets(r.carrier, r.num, r.localId));
+  toDelete.forEach(r => deleteFromSheets(r.carrier, r.num, r.localId, r.productName));
   updateStats(); renderTable();
   toast('전체 삭제했습니다');
 }
@@ -2663,9 +2677,10 @@ async function saveToStorage(entry) {
   } catch(e) { console.warn('Sheets 저장 실패:', e); }
 }
 
-async function deleteFromSheets(carrier, num, localId) {
+async function deleteFromSheets(carrier, num, localId, productName) {
   try {
-    await sheetsRequest({ action: 'delete', '운송장번호': num || '', 'localId': localId || '' });
+    // 상품명은 합포장(같은 송장번호, 다른 상품) 행을 구분해 삭제하기 위한 보조 키
+    await sheetsRequest({ action: 'delete', '운송장번호': num || '', 'localId': localId || '', '상품명': productName || '' });
   } catch(e) { console.warn('Sheets 삭제 실패:', e); }
 }
 
