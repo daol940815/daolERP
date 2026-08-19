@@ -26,12 +26,12 @@ function doPost(e) {
       if (payload['localId'] && localIdCol >= 0) {
         rowIdx = rows.findIndex(r => String(r[localIdCol]) === String(payload['localId']));
       }
-      // 매칭 2순위: 송장번호 + 상품명 — 합포장(같은 송장번호, 다른 상품) 행을 서로 덮어쓰지 않도록 구분
+      // 매칭 2순위: 송장번호 + 상품명 — 합포장(같은 송장번호, 다른 상품) 행을 서로 덮어쓰지 않도록 구분.
+      // localId가 달라도 송장번호+상품명이 같으면 같은 행으로 취급해 기기 간 중복 생성을 방지
       if (rowIdx < 0 && payload['운송장번호']) {
         rowIdx = rows.findIndex(r =>
           String(r[numCol]) === String(payload['운송장번호']) &&
-          (prodCol < 0 || !payload['상품명'] || String(r[prodCol]).trim() === String(payload['상품명']).trim()) &&
-          (localIdCol < 0 || !r[localIdCol] || String(r[localIdCol]) === String(payload['localId'] || '')));
+          (prodCol < 0 || !payload['상품명'] || String(r[prodCol]).trim() === String(payload['상품명']).trim()));
       }
 
       // 갱신 시 payload에 없는 컬럼은 기존 값 유지 (수동 추가 컬럼 보호)

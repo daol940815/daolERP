@@ -1041,7 +1041,7 @@ async function registerExtraNums(baseItem, extraNums) {
   await Promise.all(fresh.map(async n => {
     const item = {
       ...baseItem,
-      num: n, localId: '',
+      num: n, localId: makeLocalId(),
       status: '대기중', steps: [], error: null, shippedAt: '',
       addedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1100,7 +1100,7 @@ function upsertItem(data) {
     const newItem = {
       ...data,
       memo: data.memo || '',
-      localId: data.localId || (!data.num ? makeLocalId() : ''),
+      localId: data.localId || makeLocalId(), // 영구 행 ID — 송장번호가 생겨도 유지
       addedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -1200,7 +1200,7 @@ async function submitSingleSave() {
     ...existing,
     carrier,
     num:         newNum,
-    localId:     newNum ? '' : (existing.localId || makeLocalId()),
+    localId:     existing.localId || makeLocalId(), // 영구 행 ID — 번호가 생기거나 지워져도 유지
     orderDate:   normalizeDate(document.getElementById('s-orderDate').value),
     orderSource: document.getElementById('s-orderSource').value,
     supplier:    document.getElementById('s-supplier').value,
@@ -1212,11 +1212,9 @@ async function submitSingleSave() {
     updatedAt:   new Date().toISOString(),
   };
 
-  // 송장번호가 새로 생겼거나 변경됐으면 시트의 옛 행 삭제 (유령 행 방지)
-  const saveNumChanged = existing.num && newNum && existing.num !== newNum;
-  const saveNumAdded   = !existing.num && newNum && existing.localId;
-  if (saveNumChanged || saveNumAdded) {
-    await deleteFromSheets(existing.carrier, existing.num, existing.localId, existing.productName);
+  // 송장번호를 지운 경우: 상태를 출고전으로 초기화 (행 ID는 유지되므로 시트 행이 제자리에서 갱신됨)
+  if (existing.num && !newNum) {
+    updated.status = '출고전'; updated.steps = []; updated.shippedAt = ''; updated.error = null;
   }
 
   // 기존 항목 제거 후 갱신 항목 삽입 (위치 유지)
@@ -1430,6 +1428,8 @@ async function runBulk() {
   const toQuery = [];
   for (const item of bulkData) {
     if (!item.num) {
+      // 같은 주문정보의 무번호(또는 기존) 행이 이미 있으면 중복 등록 방지
+      if (allItems.some(x => makeMatchKey(x) === makeMatchKey(item))) { duplicates++; done++; continue; }
       item.localId = makeLocalId();
       upsertItem({ ...item, status: '출고전', steps:[], error:null });
       done++;
@@ -1496,15 +1496,12 @@ async function runBulkUpdate() {
       if (idx < 0) { notFound++; done++; continue; }
       const existing = allItems[idx];
       seenKeys.set(key, existing);
-      // 무번호 행에 번호가 부여되거나 번호가 바뀌면 시트의 옛 행 삭제 (유령 행 방지)
-      if ((existing.localId && !existing.num && item.num) || (existing.num && item.num && existing.num !== item.num)) {
-        deleteFromSheets(existing.carrier, existing.num, existing.localId, existing.productName);
-      }
       target = {
         ...existing,
         carrier: item.carrier || existing.carrier,
         num:     item.num,
-        localId: '',
+        localId: existing.localId || makeLocalId(), // 영구 행 ID 유지
+
         memo:    item.memo || existing.memo,
         supplier: item.supplier || existing.supplier || '',
         updatedAt: new Date().toISOString(),
@@ -1519,7 +1516,7 @@ async function runBulkUpdate() {
         ...src,
         carrier: item.carrier || src.carrier,
         num:     item.num,
-        localId: '',
+        localId: makeLocalId(), // 분리 등록 행의 새 영구 ID
         status:  '대기중', steps: [], error: null,
         memo:    item.memo || src.memo,
         supplier: item.supplier || src.supplier || '',
@@ -1636,8 +1633,8 @@ async function runAutoRefresh() {
   if (autoRefreshRunning) return;
   autoRefreshRunning = true;
   try {
-    const targets = allItems.filter(r=>r.status!=='배송완료');
-    if (!targets.length) { toast('모든 배송 완료 ✓'); stopAuto(); return; }
+    const targets = allItems.filter(r=>r.status!=='배송완료' && r.num);
+    if (!targets.length) { toast('재조회할 송장이 없습니다 ✓'); stopAuto(); return; }
     toast(`${targets.length}건 재조회 중…`);
     const transitionCounts = {};
     for (let i=0; i<targets.length; i+=PARALLEL_CHUNK) {
@@ -1670,11 +1667,11 @@ async function runAutoRefresh() {
 async function runManualFullRefresh() {
   if (manualFullRefreshRunning) return;
   if (!allItems.length) { toast('먼저 운송장을 등록하세요'); return; }
-  const targets = allItems.filter(r => r.status !== '배송완료');
-  if (!targets.length) { toast('재조회할 건이 없습니다 (모두 배송완료)'); return; }
+  const targets = allItems.filter(r => r.status !== '배송완료' && r.num);
+  if (!targets.length) { toast('재조회할 송장이 없습니다 (배송완료·송장 미등록 제외)'); return; }
   const skipped = allItems.length - targets.length;
   const msg = skipped > 0
-    ? `등록 ${allItems.length}건 중 배송완료 ${skipped}건을 제외하고 ${targets.length}건을 다시 조회합니다. 계속할까요?`
+    ? `등록 ${allItems.length}건 중 배송완료·송장 미등록 ${skipped}건을 제외하고 ${targets.length}건을 다시 조회합니다. 계속할까요?`
     : `등록된 ${targets.length}건을 다시 조회합니다. 계속할까요?`;
   if (!confirm(msg)) return;
 
@@ -1716,6 +1713,7 @@ let _syncBusy = false;
 async function syncFromSheets() {
   if (_syncBusy || manualFullRefreshRunning || autoRefreshRunning) return;
   _syncBusy = true;
+  const syncStart = Date.now(); // 동기화 중 수정된 행 보호 기준 시각
   try {
     const data = await sheetsRequest({ action: 'load' });
     if (!data.ok || !data.rows?.length) return;
@@ -1743,9 +1741,13 @@ async function syncFromSheets() {
 
     let changed = false;
     remote.forEach(rem => {
-      const local = rem.num
-        ? allItems.find(x => x.carrier===rem.carrier && x.num===rem.num)
-        : (rem.localId ? allItems.find(x => x.localId===rem.localId) : null);
+      // 매칭: 영구 행 ID(localId) 우선 → 송장번호+상품명(합포장 구분) → 송장번호
+      const local = (rem.localId && allItems.find(x => x.localId === rem.localId))
+        || (rem.num && (
+              allItems.find(x => x.carrier===rem.carrier && x.num===rem.num
+                && (x.productName||'').trim() === (rem.productName||'').trim())
+           || allItems.find(x => x.carrier===rem.carrier && x.num===rem.num)))
+        || null;
       if (!local) {
         // 유령 방지: 송장번호 없는 원격 행인데 같은 주문정보로 이미 번호가 부여된 행이 있으면 무시
         if (!rem.num && allItems.some(x => x.num && makeMatchKey(x) === makeMatchKey(rem))) return;
@@ -1755,11 +1757,12 @@ async function syncFromSheets() {
         const remT   = rem.updatedAt   ? new Date(rem.updatedAt).getTime()   : 0;
         const localT = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
         if (remT > localT) {
-          // 시트에 아직 없는 필드(매입처·출고일)는 로컬 값 보존
+          // 시트에 아직 없는 필드(매입처·출고일)와 영구 행 ID는 로컬 값 보존
           Object.assign(local, rem, {
             memo:      local.memo || rem.memo,
             supplier:  rem.supplier  || local.supplier  || '',
             shippedAt: rem.shippedAt || local.shippedAt || '',
+            localId:   rem.localId   || local.localId   || '',
           });
           changed = true;
         }
@@ -1769,7 +1772,10 @@ async function syncFromSheets() {
     const before = allItems.length;
     allItems = allItems.filter(r => {
       const k = r.num ? r.carrier+'__'+r.num : 'lid__'+(r.localId||'');
-      return remoteKeys.has(k);
+      if (remoteKeys.has(k)) return true;
+      // 동기화가 시작된 후 수정·추가된 행은 아직 시트에 반영 전일 수 있으므로 보존
+      const t = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
+      return t >= syncStart;
     });
     if (allItems.length !== before) changed = true;
 
@@ -2117,9 +2123,8 @@ async function saveInlineNum(rowKey, inputEl) {
   }
   inputEl.disabled = true;
 
-  // 무번호 행에 번호 부여 — 시트의 옛 무번호 행 삭제 후 갱신
-  await deleteFromSheets(existing.carrier, existing.num, existing.localId, existing.productName);
-  const updated = { ...existing, num: firstNum, localId: '', updatedAt: new Date().toISOString() };
+  // 행 ID(localId)는 유지 — 시트의 같은 행이 제자리에서 갱신됨
+  const updated = { ...existing, num: firstNum, updatedAt: new Date().toISOString() };
   allItems[idx] = updated;
   toast(`${firstNum} 조회 중…`);
   try {
@@ -2323,18 +2328,13 @@ async function saveDetail(editKey) {
     return;
   }
 
-  // 송장번호가 변경됐거나, 미등록건에 새로 송장번호가 생긴 경우 기존 행 삭제
   const numChanged = existing.num && newNum && existing.num !== newNum;
-  const numAdded   = !existing.num && newNum && existing.localId;
-  if (numChanged || numAdded) {
-    await deleteFromSheets(existing.carrier, existing.num, existing.localId, existing.productName);
-  }
 
   const updated = {
     ...existing,
     carrier:     newCarrier,
     num:         newNum,
-    localId:     newNum ? '' : (existing.localId || makeLocalId()),
+    localId:     existing.localId || makeLocalId(), // 영구 행 ID — 번호가 생기거나 지워져도 유지
     orderDate:   normalizeDate(document.getElementById('de-orderDate').value),
     orderSource: document.getElementById('de-orderSource').value,
     supplier:    document.getElementById('de-supplier').value,
@@ -2345,6 +2345,11 @@ async function saveDetail(editKey) {
     memo:        document.getElementById('de-memo').value,
     updatedAt:   new Date().toISOString(),
   };
+
+  // 송장번호를 지운 경우: 상태를 출고전으로 초기화 (행 ID는 유지되므로 시트 행이 제자리에서 갱신됨)
+  if (existing.num && !newNum) {
+    updated.status = '출고전'; updated.steps = []; updated.shippedAt = ''; updated.error = null;
+  }
 
   allItems[idx] = updated;
   saveLocal();
@@ -2722,15 +2727,33 @@ async function loadFromStorage() {
           if (!it.shippedAt) it.shippedAt = c.shippedAt || '';
         });
       } catch(e) {}
-      // 유령 방지: 같은 주문정보로 송장번호가 부여된 행이 있으면 무번호 잔여 행은 무시
+      // 마이그레이션: 영구 행 ID(localId)가 없는 기존 항목에 부여 — 다음 저장 때 시트에도 기록됨
+      allItems.forEach(r => { if (!r.localId) r.localId = makeLocalId(); });
+      // 유령 방지: 같은 주문정보로 송장번호가 부여된 행이 있으면 무번호 잔여 행은 제거 + 시트에서도 삭제
       const numberedKeys = new Set(allItems.filter(r => r.num).map(makeMatchKey));
+      const ghosts = allItems.filter(r => !r.num && numberedKeys.has(makeMatchKey(r)));
       allItems = allItems.filter(r => r.num || !numberedKeys.has(makeMatchKey(r)));
+      ghosts.forEach(r => { if (r.localId) deleteFromSheets(r.carrier, '', r.localId, r.productName); });
+      // 과거 버그로 생긴 중복 정리: 같은 송장번호+상품명은 최신 수정본만 유지, 버려진 행은 시트에서도 삭제
+      const dedupKey = r => r.num ? r.carrier+'__'+r.num+'__'+(r.productName||'').trim() : 'lid__'+(r.localId||'');
+      const keepMap = {};
+      allItems.forEach(r => {
+        const k = dedupKey(r);
+        if (!keepMap[k] || String(r.updatedAt||'') > String(keepMap[k].updatedAt||'')) keepMap[k] = r;
+      });
+      const discarded = allItems.filter(r => keepMap[dedupKey(r)] !== r);
+      allItems = allItems.filter(r => keepMap[dedupKey(r)] === r);
+      discarded.forEach(r => { if (r.localId) deleteFromSheets(r.carrier, '', r.localId, r.productName); });
       localStorage.setItem('tracker_items', JSON.stringify(allItems));
       toast(`시트에서 ${allItems.length}건 불러왔습니다 ☁️`);
     } else {
       const saved = localStorage.getItem('tracker_items');
       if (saved) {
-        allItems = JSON.parse(saved).map(r=>({memo:'', supplier:'', shippedAt:'', ...r, orderDate: normalizeDate(r.orderDate)}));
+        allItems = JSON.parse(saved).map(r=>{
+          const o = {memo:'', supplier:'', shippedAt:'', ...r, orderDate: normalizeDate(r.orderDate)};
+          if (!o.localId) o.localId = makeLocalId(); // 영구 행 ID 마이그레이션
+          return o;
+        });
         toast(`로컬에서 ${allItems.length}건 불러왔습니다`);
       }
     }
@@ -2738,7 +2761,11 @@ async function loadFromStorage() {
     try {
       const saved = localStorage.getItem('tracker_items');
       if (saved) {
-        allItems = JSON.parse(saved).map(r=>({memo:'', supplier:'', shippedAt:'', ...r, orderDate: normalizeDate(r.orderDate)}));
+        allItems = JSON.parse(saved).map(r=>{
+          const o = {memo:'', supplier:'', shippedAt:'', ...r, orderDate: normalizeDate(r.orderDate)};
+          if (!o.localId) o.localId = makeLocalId(); // 영구 행 ID 마이그레이션
+          return o;
+        });
         toast(`로컬에서 ${allItems.length}건 불러왔습니다`);
       }
     } catch(e2) {}
