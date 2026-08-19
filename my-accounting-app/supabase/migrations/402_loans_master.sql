@@ -11,8 +11,10 @@
 -- ── 1. 장기차입금 계정 (멱등) ────────────────────────────
 -- 일반 계좌 거래 관점: 입금 = 차입 실행 → 대변 / 출금 = 원금 상환 → 차변.
 -- (2002 단기차입금은 마이너스통장 관점이라 side가 반대 — 042 참조)
+-- 주의: 최초 작성 시 코드를 '2003'으로 잘못 지정했다(이미 부가세예수금이 쓰는 코드).
+--   2003으로 실행한 DB는 403_fix_long_term_borrowing_code.sql로 원복할 것.
 INSERT INTO accounts (code, name, type, side_on_in, side_on_out, is_active)
-VALUES ('2003', '장기차입금', 'liability', 'credit', 'debit', true)
+VALUES ('2004', '장기차입금', 'liability', 'credit', 'debit', true)
 ON CONFLICT (code) DO UPDATE
   SET name = EXCLUDED.name,
       type = EXCLUDED.type,
