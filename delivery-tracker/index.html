@@ -358,6 +358,8 @@ tr.delay td { background:#fffbeb; }
 
 /* ── 같은 주문 묶음: 묶음 내부 행 사이는 점선으로 연결감 표시 ── */
 tr.bundle-inner td { border-bottom-style:dashed; }
+.bundle-badge { background:var(--gray-100); color:var(--gray-600); font-family:var(--mono); font-size:10px; padding:2px 7px; cursor:help; }
+.bundle-badge.bundle-all-done { background:#dcfce7; color:#15803d; }
 
 /* ── 변동 집계 ── */
 .summary-meta { font-size:12px; color:var(--gray-500); margin-bottom:0.75rem; }
@@ -441,8 +443,8 @@ tr.bundle-inner td { border-bottom-style:dashed; }
   <aside class="sidebar">
     <div class="sidebar-section">
       <div class="sidebar-label">보기</div>
-      <button class="nav-item active" id="nav-view-dash" onclick="showView('dash')">📊 대시보드</button>
-      <button class="nav-item" id="nav-view-list" onclick="showView('list')">📋 배송 목록</button>
+      <button class="nav-item active" id="nav-view-dash" onclick="showView('dash')">대시보드</button>
+      <button class="nav-item" id="nav-view-list" onclick="showView('list')">배송 목록</button>
     </div>
 
     <div class="nav-divider"></div>
@@ -462,7 +464,7 @@ tr.bundle-inner td { border-bottom-style:dashed; }
 
     <div class="sidebar-section">
       <div class="sidebar-label">조회</div>
-      <button class="nav-item refresh-ctl" id="btn-full-refresh" onclick="runManualFullRefresh()">🔄 전체 조회</button>
+      <button class="nav-item refresh-ctl" id="btn-full-refresh" onclick="runManualFullRefresh()">전체 조회</button>
       <div class="auto-status" id="auto-status-box" style="margin-top:6px">
         <div style="display:flex;align-items:center;margin-bottom:8px">
           <span class="auto-dot" id="auto-dot"></span>
@@ -553,7 +555,7 @@ tr.bundle-inner td { border-bottom-style:dashed; }
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <span id="result-count" style="font-size:12px;color:var(--gray-400)"></span>
-            <button class="btn btn-black btn-sm refresh-ctl" onclick="runManualFullRefresh()" title="배송완료 제외 전체 재조회">🔄 전체 조회</button>
+            <button class="btn btn-black btn-sm refresh-ctl" onclick="runManualFullRefresh()" title="배송완료 제외 전체 재조회">전체 조회</button>
             <button class="btn btn-outline btn-sm" onclick="exportExcel()" title="현재 필터·검색 결과를 엑셀로 저장">↓ 목록 다운로드</button>
             <button class="btn btn-outline btn-sm" id="btn-select-all" onclick="toggleSelectAll()">전체선택</button>
             <button class="btn btn-black btn-sm" id="btn-refresh-selected" onclick="refreshSelected()" style="display:none">선택 조회 (<span id="selected-refresh-count">0</span>)</button>
@@ -573,6 +575,7 @@ tr.bundle-inner td { border-bottom-style:dashed; }
               <th>주문처</th>
               <th>매입처</th>
               <th>상품명</th>
+              <th style="text-align:center">묶음</th>
               <th style="text-align:center">수량</th>
               <th>송하인</th>
               <th>수하인</th>
@@ -585,7 +588,7 @@ tr.bundle-inner td { border-bottom-style:dashed; }
             </tr>
           </thead>
           <tbody id="table-body">
-            <tr><td colspan="14"><div class="empty"><div class="empty-icon">📦</div><div class="empty-text">등록된 운송장이 없습니다<br>단건 등록 또는 파일 업로드로 시작하세요</div></div></td></tr>
+            <tr><td colspan="15"><div class="empty"><div class="empty-text">등록된 운송장이 없습니다<br>단건 등록 또는 파일 업로드로 시작하세요</div></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -687,7 +690,7 @@ tr.bundle-inner td { border-bottom-style:dashed; }
       ondragover="event.preventDefault();this.classList.add('over')"
       ondragleave="this.classList.remove('over')"
       ondrop="handleDrop(event)">
-      <div class="dropzone-icon">📂</div>
+      <div class="dropzone-icon" style="font-size:1.5rem;color:var(--gray-400)">↑</div>
       <div class="dropzone-title">엑셀 파일을 드래그하거나 클릭하세요</div>
       <div class="dropzone-sub">.xlsx · .xls · .csv 지원 — 주문일/주문처/매입처/상품명/수량/송하인(보내는 분)/수하인(받는 분)/택배사/운송장번호/메모<br>운송장번호 한 칸에 여러 개를 넣을 땐 쉼표(,)로 구분하면 각각 행으로 분리됩니다 · 구양식(수하인/수취인)도 자동 인식</div>
     </div>
@@ -701,7 +704,7 @@ tr.bundle-inner td { border-bottom-style:dashed; }
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-outline" onclick="closeModal('modal-upload')">닫기</button>
-        <button class="btn btn-black" id="btn-bulk" onclick="runBulkOrUpdate()">⚡ 시작</button>
+        <button class="btn btn-black" id="btn-bulk" onclick="runBulkOrUpdate()">시작</button>
       </div>
     </div>
   </div>
@@ -1466,7 +1469,7 @@ async function runBulk() {
     if (i+PARALLEL_CHUNK < toQuery.length) await sleep(800);
   }
 
-  btn.disabled=false; btn.innerHTML='⚡ 시작';
+  btn.disabled=false; btn.innerHTML='시작';
   closeModal('modal-upload');
   showChangeSummary(transitionCounts, '일괄 등록 결과');
   toast(duplicates > 0 ? `처리 완료 (중복 제외 ${duplicates}건)` : `${bulkData.length}건 처리 완료`);
@@ -1549,7 +1552,7 @@ async function runBulkUpdate() {
     if (i+PARALLEL_CHUNK < toQuery.length) await sleep(800);
   }
   saveLocal(); updateStats(); renderTable();
-  btn.disabled=false; btn.innerHTML='⚡ 시작';
+  btn.disabled=false; btn.innerHTML='시작';
   closeModal('modal-upload');
   const extras = [];
   if (extra) extras.push(`추가 송장 분리 등록 ${extra}건`);
@@ -1810,7 +1813,7 @@ function renderDashboard() {
   if (!el) return;
   const total = allItems.length;
   if (!total) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">데이터가 없습니다<br>운송장을 등록하면 배송현황이 표시됩니다</div></div>';
+    el.innerHTML = '<div class="empty"><div class="empty-text">데이터가 없습니다<br>운송장을 등록하면 배송현황이 표시됩니다</div></div>';
     return;
   }
   const groups = { '배송완료':0,'배송중':0,'출고전':0,'배송지연':0,'조회실패':0,'사고':0 };
@@ -1922,7 +1925,7 @@ function renderDashboard() {
       <td>${statusBadge(r)}</td>
     </tr>`).join('');
   const riskSec = `
-    <div class="dash-sec-title">⚠ 배송지연 위험도 (출고일 기준 3·5·7일)</div>
+    <div class="dash-sec-title">배송지연 위험도 (출고일 기준 3·5·7일)</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:0.6rem">
       ${riskCounts.map(t => `<span class="badge" style="background:${t.bg};color:${t.fg}">${t.min}일 이상 ${t.label} ${t.n}건</span>`).join('')}
     </div>
@@ -2008,16 +2011,37 @@ function renderTable() {
   document.getElementById('result-count').textContent = `${data.length}건`;
 
   if (!data.length) {
-    tbody.innerHTML=`<tr><td colspan="14"><div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">조건에 맞는 결과가 없습니다</div></div></td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="15"><div class="empty"><div class="empty-text">조건에 맞는 결과가 없습니다</div></div></td></tr>`;
     return;
   }
 
-  // 같은 주문 묶음(주문일+주문처+상품명+수량+수하인+수취인 동일)은 연속 배치
-  // 첫 행만 주문정보·수량을 표시하고, 이후 행은 └ 로 같은 묶음임을 표시
+  // 묶음 정보는 전체 데이터 기준으로 계산 — 필터·검색으로 쪼개져 혼자 보여도
+  // n/N과 형제 송장들의 상태를 확인할 수 있음 (배지에 마우스를 올리면 목록 표시)
   const bundleKeyOf = r => {
     const hasInfo = r.orderDate || r.orderSource || r.productName || r.companyName || r.shipper;
     return hasInfo ? 'g__' + makeMatchKey(r) : 'solo__' + (r.localId || r.carrier + '__' + r.num);
   };
+  const rowKeyOf = r => r.localId ? `lid__${r.localId}` : `${r.carrier}__${r.num}`;
+  const bundleInfo = {}; // rowKey → { idx, size, doneCnt, tip }
+  {
+    const groupsAll = {};
+    allItems.forEach(r => {
+      const k = bundleKeyOf(r);
+      (groupsAll[k] = groupsAll[k] || []).push(r);
+    });
+    Object.values(groupsAll).forEach(g => {
+      if (g.length < 2) return;
+      const doneCnt = g.filter(s => getFilterGroup(s) === '배송완료').length;
+      g.forEach((r, i) => {
+        const tip = g.map((s, j) =>
+          `${j+1}/${g.length}  ${s.num || '미등록'}  ${getFilterGroup(s)==='배송완료' ? '배송완료' : (s.status||'-')}${s===r ? '  ← 현재 행' : ''}`
+        ).join('\n');
+        bundleInfo[rowKeyOf(r)] = { idx: i+1, size: g.length, doneCnt, tip };
+      });
+    });
+  }
+
+  // 같은 주문 묶음은 목록에서 연속 배치 (보이는 행 기준 정렬)
   const bundles = [];
   const bundleMap = {};
   data.forEach(r => {
@@ -2032,25 +2056,25 @@ function renderTable() {
     const delay = isDelay(r);
     const esc = s => escapeHtml(s);
     const memoVal = esc(r.memo||'');
-    const rowKey = r.localId ? `lid__${r.localId}` : `${r.carrier}__${r.num}`;
-    const isCont = size > 1 && gi > 0;          // 묶음의 2번째 이후 행
-    const isBundleFirst = size > 1 && gi === 0; // 묶음의 첫 행
+    const rowKey = rowKeyOf(r);
     const rowCls = [
       delay && r.status !== '배송완료' ? 'delay' : '',
       size > 1 && gi < size - 1 ? 'bundle-inner' : '',
     ].filter(Boolean).join(' ');
-    const prodCell = isCont
-      ? `<span style="color:var(--gray-400);font-size:11px;font-weight:400">└ 같은 주문 (${gi+1}/${size})</span>`
-      : `${esc(r.productName)||'-'}${isBundleFirst ? ` <span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:10px;padding:1px 6px" title="같은 주문에 송장 ${size}개">📦 ${size}</span>` : ''}`;
+    const b = bundleInfo[rowKey];
+    const bundleCell = b
+      ? `<span class="badge bundle-badge${b.doneCnt===b.size?' bundle-all-done':''}" title="${esc('동일 주문 송장 '+b.size+'건\n'+b.tip)}">${b.idx}/${b.size}${b.doneCnt?` · 완료${b.doneCnt}`:''}</span>`
+      : '';
     return `<tr class="${rowCls}">
       <td style="text-align:center"><input type="checkbox" class="row-chk" data-key="${rowKey}" onchange="onRowChkChange()"></td>
-      <td style="font-size:11px;color:var(--gray-500);white-space:nowrap">${isCont ? '<span style="color:var(--gray-300);font-family:var(--mono);font-size:13px;padding-left:4px">└</span>' : (esc(r.orderDate)||'-')}</td>
-      <td style="font-size:12px">${isCont ? '' : (esc(r.orderSource)||'-')}</td>
-      <td style="font-size:12px">${isCont ? '' : (esc(r.supplier)||'-')}</td>
-      <td class="strong" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.productName)}">${prodCell}</td>
-      <td style="text-align:center;font-size:12px">${isCont ? '' : (esc(String(r.qty||''))||'-')}</td>
-      <td style="font-size:12px;white-space:nowrap">${isCont ? '' : (esc(r.shipper)||'-')}</td>
-      <td style="font-size:12px">${isCont ? '' : (esc(r.companyName)||'-')}</td>
+      <td style="font-size:11px;color:var(--gray-500);white-space:nowrap">${esc(r.orderDate)||'-'}</td>
+      <td style="font-size:12px">${esc(r.orderSource)||'-'}</td>
+      <td style="font-size:12px">${esc(r.supplier)||'-'}</td>
+      <td class="strong" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.productName)}">${esc(r.productName)||'-'}</td>
+      <td style="text-align:center;white-space:nowrap">${bundleCell}</td>
+      <td style="text-align:center;font-size:12px">${esc(String(r.qty||''))||'-'}</td>
+      <td style="font-size:12px;white-space:nowrap">${esc(r.shipper)||'-'}</td>
+      <td style="font-size:12px">${esc(r.companyName)||'-'}</td>
       <td style="font-size:12px;white-space:nowrap">${carriers[r.carrier]?.name||esc(r.carrier)}</td>
       <td class="mono">${esc(r.num) || `<input type="text" class="inline-num" placeholder="송장번호 입력 ⏎"
         style="border:1px dashed var(--gray-300);border-radius:4px;padding:3px 6px;font-size:11px;font-family:var(--mono);background:transparent;width:140px;color:var(--black)"
@@ -2396,10 +2420,10 @@ function onUploadModeChange() {
   bulkData=[];
   if (mode === 'update') {
     desc.textContent = '송장번호가 있는 행을 읽어, 주문일+주문처+상품명+수량+수하인+수취인으로 기존 항목을 찾아 송장번호를 업데이트합니다.';
-    if (btnBulk) btnBulk.textContent = '⚡ 업데이트 시작';
+    if (btnBulk) btnBulk.textContent = '업데이트 시작';
   } else {
     desc.textContent = '송장번호 없이 등록된 항목도 포함해서 일괄 등록합니다.';
-    if (btnBulk) btnBulk.textContent = '⚡ 시작';
+    if (btnBulk) btnBulk.textContent = '시작';
   }
 }
 
@@ -2745,7 +2769,7 @@ async function loadFromStorage() {
       allItems = allItems.filter(r => keepMap[dedupKey(r)] === r);
       discarded.forEach(r => { if (r.localId) deleteFromSheets(r.carrier, '', r.localId, r.productName); });
       localStorage.setItem('tracker_items', JSON.stringify(allItems));
-      toast(`시트에서 ${allItems.length}건 불러왔습니다 ☁️`);
+      toast(`시트에서 ${allItems.length}건 불러왔습니다`);
     } else {
       const saved = localStorage.getItem('tracker_items');
       if (saved) {
