@@ -127,6 +127,16 @@ export default function ProductsPage() {
         <span className="ml-auto flex gap-2">
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) upload(f) }} />
+          <button onClick={() => {
+              const p = new URLSearchParams()
+              if (filter !== 'active') p.set('filter', filter)
+              if (search.trim()) p.set('q', search.trim())
+              window.location.href = `/api/orders-portal/products/export?${p}`
+            }}
+            title="현재 필터·검색 조건 그대로 원가표 양식으로 다운로드 — 수정 후 그대로 재업로드 가능"
+            className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">
+            엑셀 다운로드
+          </button>
           <button onClick={() => fileRef.current?.click()} disabled={uploading}
             className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 disabled:opacity-50">
             {uploading ? '업로드 중...' : '상품 엑셀 업로드'}
