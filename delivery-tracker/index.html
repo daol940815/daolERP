@@ -505,8 +505,8 @@ tr.bundle-inner td { border-bottom-style:dashed; }
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <div class="search-combo">
             <select id="search-field">
-              <option value="shipper">수하인</option>
-              <option value="companyName">수취인</option>
+              <option value="shipper">송하인</option>
+              <option value="companyName">수하인</option>
               <option value="productName">상품명</option>
               <option value="num">송장번호</option>
               <option value="orderSource">주문처</option>
@@ -574,8 +574,8 @@ tr.bundle-inner td { border-bottom-style:dashed; }
               <th>매입처</th>
               <th>상품명</th>
               <th style="text-align:center">수량</th>
+              <th>송하인</th>
               <th>수하인</th>
-              <th>수취인</th>
               <th>택배사</th>
               <th>운송장번호</th>
               <th>상태</th>
@@ -629,12 +629,12 @@ tr.bundle-inner td { border-bottom-style:dashed; }
         <input type="text" id="s-productName" placeholder="상품명 입력">
       </div>
       <div class="form-field">
-        <label>수하인</label>
-        <input type="text" id="s-shipper" placeholder="홍길동">
+        <label>송하인</label>
+        <input type="text" id="s-shipper" placeholder="보내는 분 (예: 다올커머스)">
       </div>
       <div class="form-field">
-        <label>수취인</label>
-        <input type="text" id="s-companyName" placeholder="수취인 또는 업체명">
+        <label>수하인</label>
+        <input type="text" id="s-companyName" placeholder="받는 분 또는 업체명">
       </div>
       <div class="form-field">
         <label>택배사</label>
@@ -689,7 +689,7 @@ tr.bundle-inner td { border-bottom-style:dashed; }
       ondrop="handleDrop(event)">
       <div class="dropzone-icon">📂</div>
       <div class="dropzone-title">엑셀 파일을 드래그하거나 클릭하세요</div>
-      <div class="dropzone-sub">.xlsx · .xls · .csv 지원 — 주문일/주문처/매입처/상품명/수량/수하인/수취인/택배사/운송장번호/메모<br>운송장번호 한 칸에 여러 개를 넣을 땐 쉼표(,)로 구분하면 각각 행으로 분리됩니다</div>
+      <div class="dropzone-sub">.xlsx · .xls · .csv 지원 — 주문일/주문처/매입처/상품명/수량/송하인(보내는 분)/수하인(받는 분)/택배사/운송장번호/메모<br>운송장번호 한 칸에 여러 개를 넣을 땐 쉼표(,)로 구분하면 각각 행으로 분리됩니다 · 구양식(수하인/수취인)도 자동 인식</div>
     </div>
     <input type="file" id="file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFile(this.files[0])">
 
@@ -834,6 +834,15 @@ function resolveTrackingError(e, base) {
     return { ...base, status: '출고전', steps: [], error: null };
   }
   return { ...base, status: STATUS_LOOKUP_FAIL, steps: [], error: inferLookupFailReason(e) };
+}
+
+// 시트에서 불러온 조회실패 건은 최근이벤트 칸에 저장된 실패 사유를 error로 복원
+function restoreFailReason(r) {
+  if ((r.status === STATUS_LOOKUP_FAIL || r.status === '오류') && r.steps?.length) {
+    const t = r.steps[0].text;
+    return { ...r, error: t && t !== '-' ? t : null, steps: [] };
+  }
+  return r;
 }
 
 function truncateReason(s, n) {
@@ -1346,6 +1355,8 @@ function handleFile(file) {
         return '';
       };
       const uploadMode = document.querySelector('input[name="upload-mode"]:checked')?.value || 'new';
+      // 컬럼 규칙 판별 — 신양식: 송하인(보내는 분)/수하인(받는 분) · 구양식: 수하인(보내는 분)/수취인(받는 분)
+      const hasSongha = json.length ? Object.keys(json[0]).some(k => String(k).trim() === '송하인') : false;
       bulkData = json.map((row,i)=>({
         id:i,
         orderDate:   parseDate(row,'주문일','주문일자','날짜','date'),
@@ -1353,8 +1364,8 @@ function handleFile(file) {
         supplier:    get(row,'매입처','매입사','구매처','vendor','supplier'),
         productName: get(row,'상품명','제품명','품목','product'),
         qty:         get(row,'수량','qty','Qty'),
-        shipper:     get(row,'수하인','발송인','보내는분','sender'),
-        companyName: get(row,'수취인','업체명','받는분','수신자','이름','customer'),
+        shipper:     hasSongha ? get(row,'송하인','발송인','보내는분','sender') : get(row,'수하인','발송인','보내는분','sender'),
+        companyName: hasSongha ? get(row,'수하인','수취인','업체명','받는분','수신자','이름','customer') : get(row,'수취인','업체명','받는분','수신자','이름','customer'),
         carrier:     carrierFromStr(get(row,'택배사','배송사','carrier')),
         carrierRaw:  get(row,'택배사','배송사','carrier'),
         numsRaw:     get(row,'운송장번호','운송장 번호','송장번호','tracking'),
@@ -1717,7 +1728,7 @@ async function syncFromSheets() {
       error:       null,
       addedAt:     r['등록일시'] || '',
       updatedAt:   r['수정일시'] || '',
-    })).filter(r => r.num || r.localId || r.productName);
+    })).filter(r => r.num || r.localId || r.productName).map(restoreFailReason);
 
     let changed = false;
     remote.forEach(rem => {
@@ -1725,6 +1736,8 @@ async function syncFromSheets() {
         ? allItems.find(x => x.carrier===rem.carrier && x.num===rem.num)
         : (rem.localId ? allItems.find(x => x.localId===rem.localId) : null);
       if (!local) {
+        // 유령 방지: 송장번호 없는 원격 행인데 같은 주문정보로 이미 번호가 부여된 행이 있으면 무시
+        if (!rem.num && allItems.some(x => x.num && makeMatchKey(x) === makeMatchKey(rem))) return;
         allItems.push(rem);
         changed = true;
       } else {
@@ -1898,7 +1911,7 @@ function renderDashboard() {
     </div>
     ${riskItems.length ? `
     <div style="border:1px solid var(--gray-200);border-radius:8px;overflow:auto">
-      <table><thead><tr><th>위험도</th><th>기준일</th><th>주문일</th><th>매입처</th><th>상품명</th><th>수취인</th><th>택배사</th><th>운송장번호</th><th>상태</th></tr></thead>
+      <table><thead><tr><th>위험도</th><th>기준일</th><th>주문일</th><th>매입처</th><th>상품명</th><th>수하인</th><th>택배사</th><th>운송장번호</th><th>상태</th></tr></thead>
       <tbody>${riskRows}</tbody></table>
       ${riskItems.length > 15 ? `<div style="padding:8px 12px;font-size:11px;color:var(--gray-400)">외 ${riskItems.length-15}건 — 목록에서 배송지연 필터로 확인하세요</div>` : ''}
     </div>` : '<div style="font-size:12px;color:var(--gray-400);padding:4px 0">3일 이상 경과한 미배송 건이 없습니다 ✓</div>'}
@@ -1920,6 +1933,12 @@ function setFilter(f, el) {
   currentFilter=f;
   document.querySelectorAll('.filter-item').forEach(b=>b.classList.remove('active'));
   if (el) el.classList.add('active');
+  // 다른 목록으로 이동하면 검색 조건 초기화 (정렬 설정은 유지)
+  document.getElementById('search-input').value = '';
+  document.getElementById('filter-carrier').value = '';
+  document.getElementById('filter-status').value = '';
+  document.getElementById('filter-date-from').value = '';
+  document.getElementById('filter-date-to').value = '';
   if (currentView !== 'list') showView('list');
   syncFromSheets();
   renderTable();
@@ -2016,7 +2035,12 @@ function renderTable() {
       <td style="font-size:12px;white-space:nowrap">${isCont ? '' : (esc(r.shipper)||'-')}</td>
       <td style="font-size:12px">${isCont ? '' : (esc(r.companyName)||'-')}</td>
       <td style="font-size:12px;white-space:nowrap">${carriers[r.carrier]?.name||esc(r.carrier)}</td>
-      <td class="mono">${esc(r.num) || '<span style="color:var(--gray-300);font-size:11px">미등록</span>'}</td>
+      <td class="mono">${esc(r.num) || `<input type="text" class="inline-num" placeholder="송장번호 입력 ⏎"
+        style="border:1px dashed var(--gray-300);border-radius:4px;padding:3px 6px;font-size:11px;font-family:var(--mono);background:transparent;width:140px;color:var(--black)"
+        onfocus="this.style.borderColor='var(--gray-500)';this.style.background='var(--white)'"
+        onblur="this.style.borderColor='var(--gray-300)';this.style.background='transparent'"
+        onkeydown="if(event.key==='Enter'){saveInlineNum('${rowKey}',this)}"
+        title="송장번호 입력 후 Enter — 즉시 등록·조회됩니다 (쉼표로 여러 개 입력 가능)">`}</td>
       <td>${statusBadge(r)}</td>
       <td style="min-width:130px">
         <div style="display:flex;align-items:center;gap:4px">
@@ -2065,6 +2089,47 @@ function normalizeDate(s) {
   }
   return str;
 }
+// ── 목록에서 미등록 건에 송장번호 바로 기입 (Enter로 즉시 등록·조회, 쉼표 다중 입력 지원) ──
+async function saveInlineNum(rowKey, inputEl) {
+  const nums = splitTrackingNums(inputEl.value);
+  if (!nums.length) return;
+  const idx = allItems.findIndex(r => (r.localId ? 'lid__'+r.localId : r.carrier+'__'+r.num) === rowKey);
+  if (idx < 0) { toast('항목을 찾을 수 없습니다'); return; }
+  const existing = allItems[idx];
+  const firstNum = nums[0];
+  const extraNums = nums.slice(1);
+
+  const selfKey = existing.localId ? existing.localId : existing.carrier+'__'+existing.num;
+  if (isDuplicateNum(existing.carrier, firstNum, selfKey, existing.productName)) {
+    toast(`이미 등록된 송장번호입니다 (${firstNum})`);
+    return;
+  }
+  inputEl.disabled = true;
+
+  // 무번호 행에 번호 부여 — 시트의 옛 무번호 행 삭제 후 갱신
+  await deleteFromSheets(existing.carrier, existing.num, existing.localId);
+  const updated = { ...existing, num: firstNum, localId: '', updatedAt: new Date().toISOString() };
+  allItems[idx] = updated;
+  toast(`${firstNum} 조회 중…`);
+  try {
+    const raw = await fetchWithRetry(updated.carrier, firstNum);
+    const pr = parseTracking(raw, updated.carrier, firstNum);
+    allItems[idx] = { ...updated, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: null };
+  } catch(e) {
+    allItems[idx] = resolveTrackingError(e, updated);
+  }
+  saveLocal(); saveToStorage(allItems[idx]);
+
+  let extraMsg = '';
+  if (extraNums.length) {
+    const res = await registerExtraNums(allItems[idx], extraNums);
+    if (res.added) extraMsg = ` · 추가 송장 ${res.added}건 분리 등록`;
+    if (res.dup)   extraMsg += ` (중복 ${res.dup}건 제외)`;
+  }
+  updateStats(); renderTable();
+  toast(`송장번호 등록 완료${extraMsg}`);
+}
+
 // rowKey: 'lid__{localId}' 또는 '{carrier}__{num}' — 송장 미등록·합포장 건도 정확히 매칭
 function saveMemo(rowKey, val) {
   const idx = allItems.findIndex(r => (r.localId ? 'lid__'+r.localId : r.carrier+'__'+r.num) === rowKey);
@@ -2143,13 +2208,13 @@ function openDetail(carrier, num, localId) {
           style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
       </div>
       <div>
-        <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">수하인</div>
-        <input id="de-shipper" type="text" value="${escapeHtml(r.shipper||'')}" placeholder="홍길동"
+        <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">송하인</div>
+        <input id="de-shipper" type="text" value="${escapeHtml(r.shipper||'')}" placeholder="보내는 분"
           style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
       </div>
       <div>
-        <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">수취인</div>
-        <input id="de-companyName" type="text" value="${escapeHtml(r.companyName||'')}" placeholder="수취인 또는 업체명"
+        <div style="font-size:10px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">수하인</div>
+        <input id="de-companyName" type="text" value="${escapeHtml(r.companyName||'')}" placeholder="받는 분 또는 업체명"
           style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:4px">
       </div>
       <div>
@@ -2175,8 +2240,9 @@ function openDetail(carrier, num, localId) {
 
     <!-- 하단 버튼 -->
     <div style="display:flex;gap:8px;margin-top:1.25rem;justify-content:space-between;align-items:center;flex-wrap:wrap">
-      <div>
-        ${r.num ? `<a href="${carriers[r.carrier]?.url(r.num)}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none">공식 사이트에서 확인 ↗</a>` : ''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${r.num ? `<button class="btn btn-outline btn-sm" id="btn-detail-refresh" onclick="refreshDetail('${editKey}')">↻ 다시 조회</button>
+        <a href="${carriers[r.carrier]?.url(r.num)}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none">공식 사이트에서 확인 ↗</a>` : ''}
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline" onclick="closeModal('modal-detail')">닫기</button>
@@ -2185,6 +2251,35 @@ function openDetail(carrier, num, localId) {
     </div>`;
 
   document.getElementById('modal-detail').classList.add('open');
+}
+
+// 상세 모달에서 이 건만 다시 조회
+async function refreshDetail(editKey) {
+  let r;
+  if (editKey.startsWith('local_')) {
+    r = allItems.find(x=>x.localId===editKey);
+  } else {
+    const sep = editKey.indexOf('__');
+    const ec = editKey.slice(0, sep);
+    const en = editKey.slice(sep+2);
+    r = allItems.find(x=>x.carrier===ec && x.num===en);
+  }
+  if (!r || !r.num) return;
+  const btn = document.getElementById('btn-detail-refresh');
+  if (btn) { btn.disabled = true; btn.textContent = '조회 중…'; }
+  try {
+    const raw = await fetchWithRetry(r.carrier, r.num);
+    const pr = parseTracking(raw, r.carrier, r.num);
+    Object.assign(r, { status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || r.shippedAt || '', error: null, updatedAt: new Date().toISOString() });
+    syncSameNumItems(r.carrier, r.num, pr);
+    toast('조회 완료');
+  } catch(e) {
+    Object.assign(r, resolveTrackingError(e, r), { updatedAt: new Date().toISOString() });
+    toast('조회 실패 — 사유가 저장됐습니다');
+  }
+  saveLocal(); saveToStorage(r);
+  updateStats(); renderTable();
+  openDetail(r.carrier, r.num, r.localId || ''); // 모달 내용 갱신
 }
 
 // 상세 모달에서 저장
@@ -2489,8 +2584,8 @@ function exportExcel() {
     '매입처': r.supplier||'-',
     '상품명': r.productName||'-',
     '수량':   r.qty||'-',
-    '수하인': r.shipper||'-',
-    '수취인': r.companyName||'-',
+    '송하인': r.shipper||'-',
+    '수하인': r.companyName||'-',
     '택배사': carriers[r.carrier]?.name||r.carrier,
     '운송장번호': r.num,
     '배송상태': r.status,
@@ -2514,7 +2609,7 @@ function downloadTemplate() {
   if (typeof XLSX==='undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet([
-    ['주문일','주문처','매입처','상품명','수량','수하인','수취인','택배사','운송장번호','메모'],
+    ['주문일','주문처','매입처','상품명','수량','송하인','수하인','택배사','운송장번호','메모'],
     [new Date('2026-03-27'), 'OO은행 OO지점', 'OO상사', '탑쉐프 크런백50매 1P(세트)', 50, '다올커머스', 'OOO 님', '롯데택배', 257988409512, '출고예정일 4/3'],
     [new Date('2026-03-27'), 'OO은행 OO지점', 'OO상사', '위생장갑 크런백 컬러지퍼백(3종)(세트)', 16, '다올커머스', 'OOO 님', '롯데택배', 257988409501, ''],
   ]);
@@ -2598,7 +2693,7 @@ async function loadFromStorage() {
         error:       null,
         addedAt:     r['등록일시'] || '',
         updatedAt:   r['수정일시'] || '',
-      })).filter(r => r.num || r.localId || r.productName);
+      })).filter(r => r.num || r.localId || r.productName).map(restoreFailReason);
       // 시트에 매입처·출고일 컬럼이 없는 경우 로컬 캐시에서 보충
       try {
         const cached = JSON.parse(localStorage.getItem('tracker_items') || '[]');
@@ -2612,6 +2707,9 @@ async function loadFromStorage() {
           if (!it.shippedAt) it.shippedAt = c.shippedAt || '';
         });
       } catch(e) {}
+      // 유령 방지: 같은 주문정보로 송장번호가 부여된 행이 있으면 무번호 잔여 행은 무시
+      const numberedKeys = new Set(allItems.filter(r => r.num).map(makeMatchKey));
+      allItems = allItems.filter(r => r.num || !numberedKeys.has(makeMatchKey(r)));
       localStorage.setItem('tracker_items', JSON.stringify(allItems));
       toast(`시트에서 ${allItems.length}건 불러왔습니다 ☁️`);
     } else {
