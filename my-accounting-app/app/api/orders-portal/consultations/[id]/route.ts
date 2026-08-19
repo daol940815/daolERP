@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser, type CurrentUser } from '@/lib/user-role'
 import { decryptPayment, encryptPayment, encryptionReady, maskPayment } from '@/lib/payment-crypto'
-import { parseConsultBody, consultItemRows, insertConsultItems } from '@/lib/consultations'
+import { parseConsultBody, consultItemRows, insertConsultItems, compatConsultFields, CONSULT_509_HINT } from '@/lib/consultations'
 import { recordWorkLog, consultContent } from '@/lib/work-log'
 
 export const dynamic = 'force-dynamic'
@@ -104,8 +104,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const { error } = await admin.from('erp_consultations')
-    .update({ ...parsed.fields, payment_info_enc: paymentEnc }).eq('id', params.id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    .update({ ...compatConsultFields(parsed.fields), payment_info_enc: paymentEnc }).eq('id', params.id)
+  if (error) {
+    if (/invoice_email|biz_number|ceo_name|fax/i.test(error.message)) {
+      return NextResponse.json({ error: CONSULT_509_HINT }, { status: 500 })
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   const { error: dErr } = await admin.from('erp_consultation_items')
     .delete().eq('consultation_id', params.id)

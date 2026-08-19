@@ -114,6 +114,7 @@ export default function OrderForm({ orderId, consultId }: { orderId?: string; co
               purchase_price: (it.purchase_price as number) ?? 0,
               purchase_shipping: (it.purchase_shipping as number) ?? 0,
               memo: (it.memo as string) ?? '',
+              status: '', option_note: '',   // 상담일지 전용 필드 — 주문 폼에서는 미사용
               branch_sale_price: prod?.sale_price ?? 0,
               individual_sale_price: prod?.individual_sale_price ?? 0,
               branch_purchase_price: prod?.purchase_price ?? 0,
@@ -163,7 +164,13 @@ export default function OrderForm({ orderId, consultId }: { orderId?: string; co
                 discount_amount: (it.discount_amount as number) ?? 0,
                 purchase_price: (it.purchase_price as number) ?? 0,
                 purchase_shipping: (it.purchase_shipping as number) ?? 0,
-                memo: (it.memo as string) ?? '',
+                // 상담 품목의 상태·기타사항은 주문 품목 메모로 병합 (전환 시 유실 방지)
+                memo: [
+                  (it.memo as string) ?? '',
+                  (it.status as string) ? `상태 ${it.status}` : '',
+                  (it.option_note as string) ?? '',
+                ].filter(Boolean).join(' · '),
+                status: '', option_note: '',
                 branch_sale_price: prod?.sale_price ?? 0,
                 individual_sale_price: prod?.individual_sale_price ?? 0,
                 branch_purchase_price: prod?.purchase_price ?? 0,
@@ -572,6 +579,7 @@ export default function OrderForm({ orderId, consultId }: { orderId?: string; co
                           id: p.id,
                           label: [p.item_code, p.item_name].filter(Boolean).join(' · '),
                           sub: [p.category, p.purchase_vendor_name].filter(Boolean).join(' · '),
+                          soldout: !!p.is_soldout,
                         }))}
                         onSelect={id => pickProduct(i, id)}
                         placeholder="품번·품명 검색"

@@ -36,7 +36,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const groupMap = new Map<string, {
     key: string; alias_id: string | null; vendor_name: string
     vendor_id: string | null; email: string | null; payment_term: string | null
-    uses_custom_po: boolean
+    uses_custom_po: boolean; po_use_sale_price: boolean
     items: (OrderItemRow & { po_id: string | null; po_no: string | null })[]
   }>()
   for (const it of items as OrderItemRow[]) {
@@ -53,6 +53,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         email: info?.email ?? null,
         payment_term: info?.payment_term ?? null,
         uses_custom_po: info?.uses_custom_po ?? false,
+        po_use_sale_price: info?.po_use_sale_price ?? false,   // 요아럽 — 발주서 금액을 판매가로
         items: [],
       }
       groupMap.set(key, g)
@@ -64,13 +65,18 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({
     order,
     groups: Array.from(groupMap.values()),
-    pos: pos.map(p => ({
-      ...p,
-      sender_name: (p.sender as unknown as { name: string } | null)?.name ?? null,
-      sender: undefined,
-      item_count: poStats.get(p.id)?.item_count ?? 0,
-      broken_count: p.status === 'active' ? poStats.get(p.id)?.broken_count ?? 0 : 0,
-    })),
+    pos: pos.map(p => {
+      const info = p.purchase_alias_id ? vendorInfo.get(p.purchase_alias_id as string) : undefined
+      return {
+        ...p,
+        sender_name: (p.sender as unknown as { name: string } | null)?.name ?? null,
+        sender: undefined,
+        item_count: poStats.get(p.id)?.item_count ?? 0,
+        broken_count: p.status === 'active' ? poStats.get(p.id)?.broken_count ?? 0 : 0,
+        uses_custom_po: info?.uses_custom_po ?? false,
+        po_use_sale_price: info?.po_use_sale_price ?? false,
+      }
+    }),
     delivery_note: deliveryNote,
     smtp_ready: smtpReady(),
   })
@@ -111,7 +117,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const first = picked[0]
   const info = first.purchase_alias_id ? vendorInfo.get(first.purchase_alias_id) : undefined
-  const totalAmount = picked.reduce((s, it) => s + (it.purchase_total ?? 0), 0)
+  // 판매가 발주 매입처(요아럽 — 사용자 확정 2026-08-19): 발주서 금액을 매입가 대신
+  // 판매가로 스냅샷 — 단가=판매가, 배송비=판매 배송비, 합계=판매합계(할인 반영)
+  const useSale = info?.po_use_sale_price ?? false
+  const totalAmount = picked.reduce(
+    (s, it) => s + ((useSale ? it.line_total : it.purchase_total) ?? 0), 0)
 
   // 발번 → 생성 (동시 생성으로 번호가 겹치면 1회 재시도)
   let poId: string | null = null
@@ -145,9 +155,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       item_name: it.item_name,
       order_kind: it.order_kind,
       quantity: it.quantity ?? 0,
-      purchase_price: it.purchase_price ?? 0,
-      purchase_shipping: it.purchase_shipping ?? 0,
-      purchase_total: it.purchase_total ?? 0,
+      purchase_price: (useSale ? it.sale_price : it.purchase_price) ?? 0,
+      purchase_shipping: (useSale ? it.shipping_fee : it.purchase_shipping) ?? 0,
+      purchase_total: (useSale ? it.line_total : it.purchase_total) ?? 0,
       memo: it.memo,
     }))
   const { error: itemErr } = await admin.from('erp_purchase_order_items').insert(rows)

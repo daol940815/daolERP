@@ -21,6 +21,10 @@ export interface OrderItemRow {
   purchase_price: number | null
   purchase_shipping: number | null
   purchase_total: number | null
+  // 판매가 발주 매입처(요아럽 — vendors.po_use_sale_price)의 스냅샷 원천
+  sale_price: number | null
+  shipping_fee: number | null
+  line_total: number | null
   memo: string | null
 }
 
@@ -66,13 +70,13 @@ export async function loadPurchaseSection(admin: SupabaseClient, orderId: string
   if (oErr || !order) return { error: '주문을 찾을 수 없습니다.' }
 
   const { data: items, error: iErr } = await admin.from('erp_order_items')
-    .select('id, line_no, parent_line_no, is_canceled, item_code, item_name, order_kind, purchase_vendor_name, purchase_alias_id, quantity, purchase_price, purchase_shipping, purchase_total, memo')
+    .select('id, line_no, parent_line_no, is_canceled, item_code, item_name, order_kind, purchase_vendor_name, purchase_alias_id, quantity, purchase_price, purchase_shipping, purchase_total, sale_price, shipping_fee, line_total, memo')
     .eq('order_id', orderId).order('line_no')
   if (iErr) return { error: iErr.message }
 
   // 유효 발주서 + 품목 연결
   const { data: pos, error: pErr } = await admin.from('erp_purchase_orders')
-    .select('id, po_no, vendor_name, vendor_id, total_amount, send_method, sent_at, send_error, email_to, status, created_at, sender:employees!erp_purchase_orders_sent_by_fkey(name)')
+    .select('id, po_no, vendor_name, vendor_id, purchase_alias_id, total_amount, send_method, sent_at, send_error, email_to, status, created_at, sender:employees!erp_purchase_orders_sent_by_fkey(name)')
     .eq('order_id', orderId).order('created_at')
   if (pErr) {
     const missing = /relation|erp_purchase_orders|does not exist/i.test(pErr.message)
@@ -88,20 +92,31 @@ export async function loadPurchaseSection(admin: SupabaseClient, orderId: string
     }
   }
 
-  // 매입처 정보 (별칭 → vendors: 이메일·결제방식·자체양식)
-  const aliasIds = Array.from(new Set((items ?? []).map(it => it.purchase_alias_id).filter(Boolean))) as string[]
-  const vendorInfo = new Map<string, { vendor_id: string | null; email: string | null; payment_term: string | null; uses_custom_po: boolean }>()
+  // 매입처 정보 (별칭 → vendors: 이메일·결제방식·자체양식·판매가 발주)
+  // 발주서에 담긴 매입처(기발주분 배지용)도 포함해 조회한다
+  const aliasIds = Array.from(new Set([
+    ...(items ?? []).map(it => it.purchase_alias_id),
+    ...(pos ?? []).map(p => p.purchase_alias_id as string | null),
+  ].filter(Boolean))) as string[]
+  const vendorInfo = new Map<string, { vendor_id: string | null; email: string | null; payment_term: string | null; uses_custom_po: boolean; po_use_sale_price: boolean }>()
   if (aliasIds.length) {
-    const { data: aliases } = await admin.from('erp_vendor_aliases')
-      .select('id, payment_term, vendor_id, vendors(id, email, uses_custom_po)')
+    // po_use_sale_price는 509 — 미적용 환경이면 해당 컬럼 없이 재조회
+    let aliases = await admin.from('erp_vendor_aliases')
+      .select('id, payment_term, vendor_id, vendors(id, email, uses_custom_po, po_use_sale_price)' as string)
       .in('id', aliasIds)
-    for (const a of aliases ?? []) {
-      const v = a.vendors as unknown as { id: string; email: string | null; uses_custom_po: boolean } | null
+    if (aliases.error && /po_use_sale_price/i.test(aliases.error.message)) {
+      aliases = await admin.from('erp_vendor_aliases')
+        .select('id, payment_term, vendor_id, vendors(id, email, uses_custom_po)' as string)
+        .in('id', aliasIds)
+    }
+    for (const a of (aliases.data ?? []) as unknown as Record<string, unknown>[]) {
+      const v = a.vendors as { id: string; email: string | null; uses_custom_po: boolean; po_use_sale_price?: boolean } | null
       vendorInfo.set(a.id as string, {
         vendor_id: v?.id ?? null,
         email: v?.email ?? null,
         payment_term: (a.payment_term as string) ?? null,
         uses_custom_po: v?.uses_custom_po ?? false,
+        po_use_sale_price: v?.po_use_sale_price ?? false,
       })
     }
   }

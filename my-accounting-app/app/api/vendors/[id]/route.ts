@@ -34,6 +34,7 @@ export async function PATCH(
     contact_name?: string | null; contact_phone?: string | null; email?: string | null; note?: string | null
     match_aliases?: string[]; card_numbers?: string[]
     ledger_balance?: number | null
+    uses_custom_po?: boolean; po_use_sale_price?: boolean   // 발주 관련 플래그 (507·509)
   }
 
   const updates: Record<string, unknown> = {}
@@ -47,6 +48,8 @@ export async function PATCH(
   if (body.note          !== undefined) updates.note          = body.note?.trim()          || null
   if (body.match_aliases !== undefined) updates.match_aliases = body.match_aliases
   if (body.card_numbers  !== undefined) updates.card_numbers  = body.card_numbers
+  if (body.uses_custom_po    !== undefined) updates.uses_custom_po    = body.uses_custom_po
+  if (body.po_use_sale_price !== undefined) updates.po_use_sale_price = body.po_use_sale_price
   // 거래처원장 잔액은 거래처가 통보할 때마다 사람이 수기로 갱신하는 값 — 입력 시점을 갱신일자로 기록
   if (body.ledger_balance !== undefined) {
     updates.ledger_balance             = body.ledger_balance

@@ -30,6 +30,7 @@ interface PoRow {
   order: OrderJoin | OrderJoin[] | null
   sender: { name: string } | { name: string }[] | null
   alias: { payment_term: string | null } | { payment_term: string | null }[] | null
+  vendor: { uses_custom_po: boolean; po_use_sale_price?: boolean } | { uses_custom_po: boolean; po_use_sale_price?: boolean }[] | null
 }
 const one = <T,>(v: T | T[] | null | undefined): T | null =>
   Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
@@ -47,14 +48,19 @@ export async function GET(req: NextRequest) {
   const status = sp.get('status') ?? 'all'
   const q = (sp.get('q') ?? '').trim().toLowerCase()
 
-  const base = await fetchAllRows<PoRow>((pf, pt) => {
+  const runQuery = (withSalePrice: boolean) => fetchAllRows<PoRow>((pf, pt) => {
     let query = admin.from('erp_purchase_orders')
-      .select('id, po_no, order_id, vendor_name, total_amount, email_to, send_method, sent_at, send_error, status, created_at, order:erp_orders(order_no, order_date, bank_name, branch_name, staff_name), sender:employees!erp_purchase_orders_sent_by_fkey(name), alias:erp_vendor_aliases(payment_term)')
+      .select((withSalePrice
+        ? 'id, po_no, order_id, vendor_name, total_amount, email_to, send_method, sent_at, send_error, status, created_at, order:erp_orders(order_no, order_date, bank_name, branch_name, staff_name), sender:employees!erp_purchase_orders_sent_by_fkey(name), alias:erp_vendor_aliases(payment_term), vendor:vendors(uses_custom_po, po_use_sale_price)'
+        : 'id, po_no, order_id, vendor_name, total_amount, email_to, send_method, sent_at, send_error, status, created_at, order:erp_orders(order_no, order_date, bank_name, branch_name, staff_name), sender:employees!erp_purchase_orders_sent_by_fkey(name), alias:erp_vendor_aliases(payment_term), vendor:vendors(uses_custom_po)') as string)
     // 발주일(KST) 기준 기간 — created_at은 UTC라 여유 1일을 두고 메모리에서 재필터
     if (from) query = query.gte('created_at', `${from}T00:00:00+09:00`)
     if (to) query = query.lte('created_at', `${to}T23:59:59+09:00`)
-    return query.order('created_at', { ascending: false }).range(pf, pt)
+    return query.order('created_at', { ascending: false }).range(pf, pt) as unknown as PromiseLike<{ data: PoRow[] | null; error: { message: string } | null }>
   })
+  // po_use_sale_price는 509 — 미적용 환경이면 해당 컬럼 없이 재조회
+  let base = await runQuery(true)
+  if ('error' in base && /po_use_sale_price/i.test(base.error)) base = await runQuery(false)
   if ('error' in base) {
     const missing = /relation|erp_purchase_orders|does not exist/i.test(base.error)
     return NextResponse.json({ error: missing ? PO_MIGRATION_HINT : base.error }, { status: 500 })
@@ -82,6 +88,8 @@ export async function GET(req: NextRequest) {
         staff_name: order?.staff_name ?? null,
         sender_name: one(p.sender)?.name ?? null,
         payment_term: one(p.alias)?.payment_term ?? null,
+        uses_custom_po: one(p.vendor)?.uses_custom_po ?? false,
+        po_use_sale_price: one(p.vendor)?.po_use_sale_price ?? false,
       }
     })
     .filter(r => {

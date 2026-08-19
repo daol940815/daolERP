@@ -10,19 +10,22 @@ import PoDetail from '../po-detail'
 interface GroupItem {
   id: string; line_no: number; item_code: string | null; item_name: string | null
   order_kind: string | null; quantity: number | null
-  purchase_price: number | null; purchase_total: number | null; memo: string | null
+  purchase_price: number | null; purchase_total: number | null
+  sale_price: number | null; line_total: number | null
+  memo: string | null
   po_id: string | null; po_no: string | null
 }
 interface Group {
   key: string; alias_id: string | null; vendor_name: string
   vendor_id: string | null; email: string | null; payment_term: string | null
-  uses_custom_po: boolean; items: GroupItem[]
+  uses_custom_po: boolean; po_use_sale_price: boolean; items: GroupItem[]
 }
 interface Po {
   id: string; po_no: string; vendor_name: string; total_amount: number
   send_method: string | null; sent_at: string | null; send_error: string | null
   email_to: string | null; status: string; created_at: string
   sender_name: string | null; item_count: number; broken_count: number
+  uses_custom_po?: boolean; po_use_sale_price?: boolean
 }
 
 const won = (n: number | null) => (n ?? 0).toLocaleString('ko-KR')
@@ -161,6 +164,14 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
                   <span className={p.status === 'canceled' ? 'text-gray-400' : 'text-gray-700'}>{p.vendor_name}</span>
                 </button>
                 <span className="text-xs text-gray-400">품목 {p.item_count}건 · {won(p.total_amount)}원</span>
+                {p.uses_custom_po && (
+                  <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-violet-50 text-violet-600"
+                    title="자체 발주서 양식을 쓰는 매입처 — 자사 양식은 참고용, 수동 발송 기록 권장">자체 양식</span>
+                )}
+                {p.po_use_sale_price && (
+                  <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-600"
+                    title="발주서 금액이 매입가 대신 판매가로 기재되는 매입처 (요아럽)">판매가 발주</span>
+                )}
                 {sendBadge(p)}
                 {p.sent_at && (
                   <span className="text-[11px] text-gray-400 tabular-nums">
@@ -233,7 +244,10 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
           <div className="space-y-2.5">
             {pendingGroups.map(g => {
               const selected = g.pending.filter(it => checked[it.id])
-              const sum = selected.reduce((s, it) => s + (it.purchase_total ?? 0), 0)
+              // 판매가 발주 매입처(요아럽)는 발주서에 기재될 판매 금액으로 집계
+              const amountOf = (it: GroupItem) =>
+                (g.po_use_sale_price ? it.line_total : it.purchase_total) ?? 0
+              const sum = selected.reduce((s, it) => s + amountOf(it), 0)
               return (
                 <div key={g.key} className="border border-gray-200 rounded-lg overflow-hidden">
                   <div className="flex items-center gap-2 px-3.5 py-2 bg-gray-50 border-b border-gray-100 flex-wrap">
@@ -241,7 +255,11 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
                     {g.payment_term && <span className="text-[11px] text-gray-400">{g.payment_term}</span>}
                     {g.uses_custom_po && (
                       <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-violet-50 text-violet-600"
-                        title="자체 양식 매입처 — 자사 양식은 참고용, 발송 후 수동 발송 기록 권장">자체 양식</span>
+                        title="자체 발주서 양식을 쓰는 매입처 — 자사 양식은 참고용, 발송 후 수동 발송 기록 권장">자체 양식</span>
+                    )}
+                    {g.po_use_sale_price && (
+                      <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-600"
+                        title="발주서 금액이 매입가 대신 판매가로 기재됩니다 (요아럽 — 사용자 확정)">판매가 발주</span>
                     )}
                     {!g.alias_id && (
                       <span className="text-[11px] text-red-500">매입처 미연결 — 발주서에 매입처 정보가 비어 나갑니다</span>
@@ -259,12 +277,15 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
                         <span className="font-medium">{it.item_name}</span>
                         {it.order_kind && <span className="text-gray-400">{it.order_kind}</span>}
                         <span className="ml-auto tabular-nums">× {it.quantity ?? 0}</span>
-                        <span className="tabular-nums w-24 text-right">{won(it.purchase_total)}원</span>
+                        <span className="tabular-nums w-24 text-right">{won(amountOf(it))}원</span>
                       </label>
                     ))}
                   </div>
                   <div className="flex items-center gap-3 px-3.5 py-2 border-t border-gray-100 text-xs">
-                    <span className="text-gray-500">선택 {selected.length}건 · 매입 합계 <b className="tabular-nums">{won(sum)}원</b></span>
+                    <span className="text-gray-500">
+                      선택 {selected.length}건 · {g.po_use_sale_price ? '판매가 합계(발주서 기재액)' : '매입 합계'}{' '}
+                      <b className="tabular-nums">{won(sum)}원</b>
+                    </span>
                     <button onClick={() => createPo(g)} disabled={busy || !selected.length}
                       className="ml-auto px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-medium disabled:opacity-40">
                       발주서 생성

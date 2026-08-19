@@ -30,6 +30,7 @@ interface P {
   loose_shipping_fee: number
   is_addon: boolean
   is_active: boolean
+  is_soldout?: boolean
   memo: string | null
 }
 
@@ -41,12 +42,17 @@ export async function GET(req: NextRequest) {
   const filter = sp.get('filter') ?? 'active'
   const q = (sp.get('q') ?? '').trim().toLowerCase()
 
-  const result = await fetchAllRows<P>((from, to) =>
+  const load = (withSoldout: boolean) => fetchAllRows<P>((from, to) =>
     admin.from('erp_products')
-      .select('item_code, item_name, option_name, purchase_vendor_name, category, sale_price, individual_sale_price, purchase_price, carton_unit, carton_shipping_fee, loose_shipping_fee, is_addon, is_active, memo')
+      .select((withSoldout
+        ? 'item_code, item_name, option_name, purchase_vendor_name, category, sale_price, individual_sale_price, purchase_price, carton_unit, carton_shipping_fee, loose_shipping_fee, is_addon, is_active, is_soldout, memo'
+        : 'item_code, item_name, option_name, purchase_vendor_name, category, sale_price, individual_sale_price, purchase_price, carton_unit, carton_shipping_fee, loose_shipping_fee, is_addon, is_active, memo') as string)
       .order('item_code', { ascending: true, nullsFirst: false })
-      .range(from, to),
+      .range(from, to) as unknown as PromiseLike<{ data: P[] | null; error: { message: string } | null }>,
   )
+  // is_soldout은 509 — 미적용 환경이면 컬럼 없이 재조회
+  let result = await load(true)
+  if ('error' in result && /is_soldout/i.test(result.error)) result = await load(false)
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
 
   // 화면과 동일한 필터 (page.tsx의 filtered 로직과 맞출 것)
@@ -64,8 +70,8 @@ export async function GET(req: NextRequest) {
   // (택배비 컬럼은 헤더 1행에 '택배비', 2행에 카톤단위/카톤외 서브헤더)
   const header1 = ['목차', '품번', '상품명(원가표 등록용)', '옵션명', '매입처',
     '지점배송매입가', '개별배송매입가', '지점배송판매가', '개별배송판매가',
-    '카톤단위', '택배비', '', '메모', '부가상품', '상태']
-  const header2 = ['', '', '', '', '', '', '', '', '', '', '카톤단위', '카톤외', '', '', '']
+    '카톤단위', '택배비', '', '메모', '부가상품', '품절', '상태']
+  const header2 = ['', '', '', '', '', '', '', '', '', '', '카톤단위', '카톤외', '', '', '', '']
 
   const aoa: (string | number | null)[][] = [
     header1,
@@ -86,6 +92,7 @@ export async function GET(req: NextRequest) {
       p.loose_shipping_fee || '',
       p.memo ?? '',
       p.is_addon ? 'Y' : '',
+      p.is_soldout ? 'Y' : '',
       p.is_active ? '사용' : '중지',
     ]),
   ]
@@ -94,7 +101,7 @@ export async function GET(req: NextRequest) {
   ws['!cols'] = [
     { wch: 10 }, { wch: 10 }, { wch: 40 }, { wch: 14 }, { wch: 14 },
     { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
-    { wch: 8 }, { wch: 9 }, { wch: 9 }, { wch: 20 }, { wch: 8 }, { wch: 6 },
+    { wch: 8 }, { wch: 9 }, { wch: 9 }, { wch: 20 }, { wch: 8 }, { wch: 6 }, { wch: 6 },
   ]
   // 택배비 헤더 병합 (K1:L1) — 원가표 형식과 동일한 모양
   ws['!merges'] = [{ s: { r: 0, c: 10 }, e: { r: 0, c: 11 } }]

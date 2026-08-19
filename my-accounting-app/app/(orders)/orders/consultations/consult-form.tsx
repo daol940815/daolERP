@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Combo, ComboFree, autoGrow, branchLabel, cartonShipping, draftFromProduct, emptyItem,
-  lineTotal, priceRule, toInt, won,
+  lineTotal, priceRule, splitByGroupPrefix, toInt, won,
 } from '../form-shared'
 import type { ContactOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
 import { contactLabel } from '@/lib/contact-label'
@@ -37,6 +37,7 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
   const [managerText, setManagerText] = useState('')
   const [phone, setPhone] = useState('')
   const [tel, setTel] = useState('')
+  // 상담 단위 상태·기타사항은 품목별로 이동(509, 실무자 요청) — 기존 기록은 읽기 전용 표시·보존
   const [productStatus, setProductStatus] = useState('')
   const [optionNote, setOptionNote] = useState('')
   const [payment, setPayment] = useState('')            // 새로 입력하는 결제정보 (평문)
@@ -48,6 +49,11 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
   const [addressChecked, setAddressChecked] = useState('')
   const [rosterMethod, setRosterMethod] = useState('')
   const [memo, setMemo] = useState('')
+  // 결제·발송 정보 확장 (509 — 계산서 발행용)
+  const [invoiceEmail, setInvoiceEmail] = useState('')
+  const [fax, setFax] = useState('')
+  const [bizNumber, setBizNumber] = useState('')
+  const [ceoName, setCeoName] = useState('')
 
   const uidRef = useRef(2)
   const nextUid = () => uidRef.current++
@@ -100,6 +106,10 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
           setAddressChecked(v.address_checked ?? '')
           setRosterMethod(v.roster_method ?? '')
           setMemo(v.memo ?? '')
+          setInvoiceEmail(v.invoice_email ?? '')
+          setFax(v.fax ?? '')
+          setBizNumber(v.biz_number ?? '')
+          setCeoName(v.ceo_name ?? '')
           setStatus(v.status)
           setOrders(c.orders ?? [])
           const prodList: Product[] = pRes.ok ? (p.products ?? []) : []
@@ -125,6 +135,8 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
                 purchase_price: (it.purchase_price as number) ?? 0,
                 purchase_shipping: (it.purchase_shipping as number) ?? 0,
                 memo: (it.memo as string) ?? '',
+                status: (it.status as string) ?? '',
+                option_note: (it.option_note as string) ?? '',
                 branch_sale_price: prod?.sale_price ?? 0,
                 individual_sale_price: prod?.individual_sale_price ?? 0,
                 branch_purchase_price: prod?.purchase_price ?? 0,
@@ -198,8 +210,23 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
     const filled = items.filter(it => it.item_name.trim())
     const total = filled.reduce((s, it) => s + lineTotal(it), 0)
     const cost = filled.reduce((s, it) => s + it.purchase_price * it.quantity + it.purchase_shipping, 0)
-    return { total, margin: total - cost }
+    const discount = filled.reduce((s, it) => s + (it.discount_amount || 0), 0)
+    return { total, margin: total - cost, discount }
   }, [items])
+
+  // 단가변경 자동 판정 — 입력 판매가가 원가표(구분별 규칙) 자동가와 다르면 표기 (실무자 요청)
+  const priceChanged = (it: ItemDraft): boolean => {
+    if (!it.product_id) return false
+    const auto = priceRule(it, it.quantity || 1)
+    return auto.sale_price !== undefined && it.sale_price !== auto.sale_price
+  }
+  // 매입배송비 선택 상태 (값에서 역산 — 별도 상태 불필요)
+  const shipMode = (it: ItemDraft): 'none' | 'carton' | 'loose' | 'custom' => {
+    if (!it.purchase_shipping) return 'none'
+    if (it.carton_shipping_fee > 0 && it.purchase_shipping === it.carton_shipping_fee) return 'carton'
+    if (it.loose_shipping_fee > 0 && it.purchase_shipping === it.loose_shipping_fee) return 'loose'
+    return 'custom'
+  }
 
   const revealPayment = async () => {
     const res = await fetch(`/api/orders-portal/consultations/${consultId}?reveal=1`)
@@ -228,12 +255,22 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
     address_checked: addressChecked || null,
     roster_method: rosterMethod || null,
     memo: memo || null,
+    invoice_email: invoiceEmail || null,
+    fax: fax || null,
+    biz_number: bizNumber || null,
+    ceo_name: ceoName || null,
     items: (() => {
       // 옵션 연결(parent_uid)을 저장용 행 번호(parent_line_no)로 직렬화 — 주문 입력과 동일
       const filled = items.filter(it => it.item_name.trim())
       const posByUid = new Map(filled.map((it, idx) => [it.uid, idx + 1]))
       return filled.map(it => ({
         ...it,
+        // 단가변경 자동 표기 — 저장 시점에 원가표 대조 결과를 상태에 병기
+        status: (() => {
+          const parts = it.status.trim() ? [it.status.trim()] : []
+          if (priceChanged(it) && !parts.some(p => p.includes('단가변경'))) parts.push('단가변경')
+          return parts.join(' · ') || null
+        })(),
         parent_line_no: it.parent_uid ? (posByUid.get(it.parent_uid) ?? null) : null,
       }))
     })(),
@@ -360,18 +397,30 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
                 options={(groupId ? vendors.filter(v => v.group_id === groupId) : vendors)
                   .map(v => {
                     const gName = groups.find(g => g.id === v.group_id)?.name
-                    return { id: v.id, label: branchLabel(v.name, gName), sub: gName ?? '' }
+                    // 그룹 미연결이어도 업체명 접두가 있으면 지점명만 표시 (은행명 잔존 보정)
+                    const split = !gName ? splitByGroupPrefix(v.name, groups) : null
+                    return {
+                      id: v.id,
+                      label: gName ? branchLabel(v.name, gName) : (split?.branch ?? v.name),
+                      sub: gName ?? split?.group.name ?? '',
+                    }
                   })}
                 onChange={({ id, text }) => {
                   setVendorId(id)
                   if (id) {
                     const v = vendors.find(x => x.id === id)
                     const gName = v?.group_id ? groups.find(g => g.id === v.group_id)?.name : null
+                    const split = v && !gName ? splitByGroupPrefix(v.name, groups) : null
                     if (v?.group_id && gName) {
                       // 업체 소속 지점: 업체=그룹명, 부서=접두 뗀 지점명
                       setGroupId(v.group_id)
                       setBankText(gName)
                       setBranchText(branchLabel(v.name, gName))
+                    } else if (v && split) {
+                      // 그룹 미연결이지만 업체명 접두 매칭: 업체/지점으로 분리 저장
+                      setGroupId(split.group.id)
+                      setBankText(split.group.name)
+                      setBranchText(split.branch)
                     } else if (v) {
                       // 단일 업체: 업체=거래처명, 부서 비움
                       setBankText(v.name)
@@ -413,15 +462,13 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
             <label className={label}>연락처(유선)</label>
             <input value={tel} disabled={locked} onChange={e => setTel(e.target.value)} className={free} placeholder="02-" />
           </div>
-          <div className="col-span-2">
-            <label className={label}>상태 (품절·단가변경 등)</label>
-            <input value={productStatus} disabled={locked} onChange={e => setProductStatus(e.target.value)} className={free} />
-          </div>
-
-          <div className="col-span-2 md:col-span-6">
-            <label className={label}>색상, 옵션 등 기타사항</label>
-            <input value={optionNote} disabled={locked} onChange={e => setOptionNote(e.target.value)} className={free} />
-          </div>
+          {/* 상태·기타사항은 품목별 입력으로 이동 (509, 실무자 요청) — 이전 기록만 표시 */}
+          {(productStatus || optionNote) && (
+            <div className="col-span-2 md:col-span-6 text-xs text-gray-400">
+              이전 기록(상담 단위): {[productStatus && `상태 ${productStatus}`, optionNote && `기타 ${optionNote}`].filter(Boolean).join(' · ')}
+              <span className="ml-1.5">— 이제 상담 품목의 행별 상태·기타사항 칸에 입력합니다</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -430,11 +477,12 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
         <div className="text-sm font-bold text-gray-900 mb-3">
           상담 품목 <span className="text-[11px] font-normal text-gray-400 ml-1">품번 검색 시 원가표 기준 자동 — 수정 가능</span>
         </div>
-        <table className="w-full text-xs min-w-[1100px] table-fixed">
+        <table className="w-full text-xs min-w-[1420px] table-fixed">
           <colgroup>
-            <col className="w-[8.5rem]" /><col /><col className="w-16" /><col className="w-14" />
-            <col className="w-[5.75rem]" /><col className="w-[5.75rem]" /><col className="w-28" />
-            <col className="w-[5.75rem]" /><col className="w-[5.75rem]" /><col className="w-[5.75rem]" /><col className="w-8" />
+            <col className="w-[8.5rem]" /><col /><col className="w-16" /><col className="w-12" />
+            <col className="w-[4.25rem]" /><col className="w-[5.5rem]" /><col className="w-[5.5rem]" />
+            <col className="w-[5.5rem]" /><col className="w-[5.5rem]" /><col className="w-24" />
+            <col className="w-[5.5rem]" /><col className="w-[6.75rem]" /><col className="w-[5.5rem]" /><col className="w-8" />
           </colgroup>
           <thead>
             <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
@@ -442,11 +490,14 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
               <th className="py-1.5 px-1.5 text-left font-medium">상품명</th>
               <th className="py-1.5 px-1.5 text-left font-medium">구분</th>
               <th className="py-1.5 px-1.5 text-right font-medium">수량</th>
+              <th className="py-1.5 px-1.5 text-right font-medium" title="원가표 카톤단위 — 자동 표기">카톤</th>
               <th className="py-1.5 px-1.5 text-right font-medium">판매가</th>
+              <th className="py-1.5 px-1.5 text-right font-medium" title="할인 적용 시 별도 표기">할인</th>
+              <th className="py-1.5 px-1.5 text-right font-medium">배송비</th>
               <th className="py-1.5 px-1.5 text-right font-medium">판매합계</th>
               <th className="py-1.5 px-1.5 text-left font-medium">매입처</th>
               <th className="py-1.5 px-1.5 text-right font-medium">매입가</th>
-              <th className="py-1.5 px-1.5 text-right font-medium">배송비</th>
+              <th className="py-1.5 px-1.5 text-left font-medium" title="카톤단위/카톤외 택배비 중 선택">매입배송비</th>
               <th className="py-1.5 px-1.5 text-right font-medium">마진</th>
               <th />
             </tr>
@@ -470,6 +521,7 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
                           id: p.id,
                           label: [p.item_code, p.item_name].filter(Boolean).join(' · '),
                           sub: [p.category, p.purchase_vendor_name].filter(Boolean).join(' · '),
+                          soldout: !!p.is_soldout,
                         }))}
                         onSelect={id => pickProduct(i, id)}
                         placeholder="품번·품명 검색" />
@@ -494,11 +546,34 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
                     className={numCell} placeholder="1" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
+                  {/* 카톤단위 자동 표기 (원가표) */}
+                  <div className={autoCell}
+                    title={it.carton_unit > 0 ? `1카톤 ${it.carton_unit}개 — 지점 배송비 자동 계산에 사용` : '카톤단위 미지정'}>
+                    {it.carton_unit > 0 ? `${it.carton_unit}개` : '-'}
+                  </div>
+                </td>
+                <td className="py-1 px-1.5 text-right">
                   <input value={it.sale_price ? won(it.sale_price) : ''} disabled={locked}
                     onChange={e => setItem(i, { sale_price: toInt(e.target.value) })} className={numCell} placeholder="0" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  <div className={autoCell + ' font-semibold text-gray-700'}>{won(lineTotal(it))}</div>
+                  {/* 할인 별도 표기란 — 적용 시 붉은 강조 */}
+                  <input value={it.discount_amount ? won(it.discount_amount) : ''} disabled={locked}
+                    onChange={e => setItem(i, { discount_amount: toInt(e.target.value) })}
+                    className={`${numCell} ${it.discount_amount > 0 ? 'text-red-600 font-semibold border-red-200 bg-red-50/40' : ''}`}
+                    placeholder="0" />
+                </td>
+                <td className="py-1 px-1.5 text-right">
+                  <input value={it.shipping_fee ? won(it.shipping_fee) : ''} disabled={locked}
+                    onChange={e => setItem(i, { shipping_fee: toInt(e.target.value) })} className={numCell} placeholder="0" />
+                </td>
+                <td className="py-1 px-1.5 text-right">
+                  <div className={autoCell + ' font-semibold text-gray-700'}>
+                    {won(lineTotal(it))}
+                    {it.discount_amount > 0 && (
+                      <div className="text-[10px] text-red-500 font-normal">할인 -{won(it.discount_amount)}</div>
+                    )}
+                  </div>
                 </td>
                 <td className="py-1 px-1.5">
                   <input value={it.purchase_vendor_name} disabled={locked}
@@ -510,14 +585,40 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
                   <input value={it.purchase_price ? won(it.purchase_price) : ''} disabled={locked}
                     onChange={e => setItem(i, { purchase_price: toInt(e.target.value) })} className={numCell} placeholder="0" />
                 </td>
-                <td className="py-1 px-1.5 text-right">
-                  <input value={it.shipping_fee ? won(it.shipping_fee) : ''} disabled={locked}
-                    onChange={e => setItem(i, { shipping_fee: toInt(e.target.value) })} className={numCell} placeholder="0" />
+                <td className="py-1 px-1.5">
+                  {/* 매입배송비 — 카톤단위/카톤외 택배비 중 선택 (실무자 요청) */}
+                  <select value={shipMode(it)} disabled={locked}
+                    onChange={e => {
+                      const m = e.target.value
+                      setItem(i, {
+                        purchase_shipping: m === 'carton' ? it.carton_shipping_fee
+                          : m === 'loose' ? it.loose_shipping_fee : 0,
+                      })
+                    }}
+                    className="w-full border border-blue-200 bg-blue-50/40 rounded px-1 py-1 text-xs disabled:opacity-60">
+                    <option value="none">없음</option>
+                    <option value="carton" disabled={it.carton_shipping_fee <= 0}>
+                      카톤단위{it.carton_shipping_fee > 0 ? ` ${won(it.carton_shipping_fee)}` : ''}
+                    </option>
+                    <option value="loose" disabled={it.loose_shipping_fee <= 0}>
+                      카톤외{it.loose_shipping_fee > 0 ? ` ${won(it.loose_shipping_fee)}` : ''}
+                    </option>
+                    {shipMode(it) === 'custom' && <option value="custom">직접 {won(it.purchase_shipping)}</option>}
+                  </select>
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  <div className={`${autoCell} ${lineTotal(it) - it.purchase_price * it.quantity - it.purchase_shipping >= 0 ? 'text-emerald-700' : 'text-red-500'}`}>
-                    {won(lineTotal(it) - it.purchase_price * it.quantity - it.purchase_shipping)}
-                  </div>
+                  {(() => {
+                    const total = lineTotal(it)
+                    const margin = total - it.purchase_price * it.quantity - it.purchase_shipping
+                    const pct = total > 0 ? Math.round((margin / total) * 1000) / 10 : null
+                    return (
+                      <div className={`${autoCell} ${margin >= 0 ? 'text-emerald-700' : 'text-red-500'}`}>
+                        {won(margin)}
+                        {/* 마진율(%) 표기 — 실무자 요청 */}
+                        {pct !== null && <div className="text-[10px] font-normal">{pct}%</div>}
+                      </div>
+                    )
+                  })()}
                 </td>
                 <td className="py-1 px-1 text-center">
                   {!locked && items.length > 1 && (
@@ -527,9 +628,31 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
                   )}
                 </td>
               </tr>
+              {/* 품목별 상태·기타사항 (509 — 상담정보에서 이동) */}
+              <tr className={`border-b border-gray-50 ${it.parent_uid ? 'bg-slate-50/60' : ''}`}>
+                <td colSpan={14} className="pb-1.5 pt-0 px-1.5">
+                  <div className="flex items-center gap-2 pl-4 flex-wrap">
+                    <span className="text-[10px] text-gray-400 shrink-0">상태</span>
+                    <input value={it.status} disabled={locked}
+                      onChange={e => setItem(i, { status: e.target.value })}
+                      placeholder="품절·단가변경 등 (품절 상품 선택 시 자동)"
+                      className={`w-56 border rounded px-1.5 py-0.5 text-[11px] disabled:opacity-60 ${
+                        it.status ? 'border-red-200 bg-red-50/40 text-red-700' : 'border-gray-200 bg-gray-50'}`} />
+                    {priceChanged(it) && (
+                      <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800"
+                        title="입력 판매가가 원가표 자동가와 다릅니다 — 저장 시 상태에 병기">단가변경</span>
+                    )}
+                    <span className="text-[10px] text-gray-400 shrink-0 ml-2">색상·옵션 등 기타</span>
+                    <input value={it.option_note} disabled={locked}
+                      onChange={e => setItem(i, { option_note: e.target.value })}
+                      placeholder="색상, 각인 문구 등"
+                      className="flex-1 min-w-48 border border-gray-200 bg-gray-50 rounded px-1.5 py-0.5 text-[11px] disabled:opacity-60" />
+                  </div>
+                </td>
+              </tr>
               {addonCands.length > 0 && (
                 <tr className="border-b border-gray-50">
-                  <td colSpan={11} className="pb-1.5 pt-0 px-1.5">
+                  <td colSpan={14} className="pb-1.5 pt-0 px-1.5">
                     <div className="flex items-center gap-1.5 flex-wrap pl-4">
                       <span className="text-[10px] text-gray-400">옵션 추가 ({it.purchase_vendor_name})</span>
                       {addonCands.map(p => (
@@ -553,9 +676,16 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
             + 품목 행 추가
           </button>
         )}
-        <div className="flex gap-5 text-sm mt-3">
+        <div className="flex gap-5 text-sm mt-3 flex-wrap">
           <span>예상 합계 <b className="tabular-nums">{won(totals.total)}원</b></span>
-          <span>예상 마진 <b className="tabular-nums text-emerald-700">{won(totals.margin)}원</b></span>
+          {totals.discount > 0 && (
+            <span className="text-red-600">할인 합계 <b className="tabular-nums">-{won(totals.discount)}원</b></span>
+          )}
+          <span>예상 마진 <b className="tabular-nums text-emerald-700">{won(totals.margin)}원</b>
+            {totals.total > 0 && (
+              <span className="text-xs text-emerald-700 ml-1">({Math.round((totals.margin / totals.total) * 1000) / 10}%)</span>
+            )}
+          </span>
         </div>
       </div>
 
@@ -598,6 +728,23 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
           <div>
             <label className={label}>고객명단수단</label>
             <input value={rosterMethod} disabled={locked} onChange={e => setRosterMethod(e.target.value)} className={free} placeholder="엑셀/문자 등" />
+          </div>
+          {/* 계산서 발행용 정보 (509 — 실무자 요청) */}
+          <div className="col-span-2">
+            <label className={label}>계산서 이메일</label>
+            <input value={invoiceEmail} disabled={locked} onChange={e => setInvoiceEmail(e.target.value)} className={free} placeholder="세금계산서 수신" />
+          </div>
+          <div>
+            <label className={label}>팩스</label>
+            <input value={fax} disabled={locked} onChange={e => setFax(e.target.value)} className={free} placeholder="02-" />
+          </div>
+          <div>
+            <label className={label}>사업자등록번호</label>
+            <input value={bizNumber} disabled={locked} onChange={e => setBizNumber(e.target.value)} className={free} placeholder="000-00-00000" />
+          </div>
+          <div>
+            <label className={label}>대표자명</label>
+            <input value={ceoName} disabled={locked} onChange={e => setCeoName(e.target.value)} className={free} />
           </div>
           <div className="col-span-2 md:col-span-5">
             <label className={label}>메모 (감사 문구 등)</label>

@@ -14,7 +14,7 @@ export interface Product {
   purchase_vendor_name: string | null; category: string | null
   sale_price: number; individual_sale_price: number; purchase_price: number
   carton_unit: number | null; carton_shipping_fee: number; loose_shipping_fee: number
-  is_addon: boolean; is_active: boolean
+  is_addon: boolean; is_active: boolean; is_soldout?: boolean
 }
 
 export interface ItemDraft {
@@ -32,6 +32,8 @@ export interface ItemDraft {
   purchase_price: number
   purchase_shipping: number
   memo: string
+  status: string                  // 품목 상태 (품절·단가변경 등 — 상담일지에서 사용)
+  option_note: string             // 색상·옵션 등 기타사항 (품목별 — 상담일지에서 사용)
   // 구분별 가격·카톤 배송비 자동 적용용 (품목 마스터에서 복사 — 서버 전송 안 함)
   branch_sale_price: number       // 지점판매가
   individual_sale_price: number   // 개별판매가 (배송비 포함, 0=미지정)
@@ -46,6 +48,7 @@ export const emptyItem = (uid: number): ItemDraft => ({
   product_id: null, item_code: '', item_name: '', order_kind: '지점',
   purchase_vendor_name: '', sale_price: 0, quantity: 1, shipping_fee: 0,
   discount_amount: 0, purchase_price: 0, purchase_shipping: 0, memo: '',
+  status: '', option_note: '',
   branch_sale_price: 0, individual_sale_price: 0, branch_purchase_price: 0,
   carton_unit: 0, carton_shipping_fee: 0, loose_shipping_fee: 0,
 })
@@ -72,6 +75,18 @@ export const branchLabel = (vendorName: string, groupName?: string | null): stri
     return rest || vendorName
   }
   return vendorName
+}
+
+// 그룹 미연결 거래처의 업체명 접두 분리 — "하나은행오류동지점"처럼 그룹에 안 이어진
+// 거래처도 이름이 어느 업체(그룹)명으로 시작하면 업체/지점으로 나눠 보여준다
+// (실무자 지적 2026-08-19: 부서(지점)에 은행명이 붙어 나오는 잔존 사례의 원인)
+export function splitByGroupPrefix(name: string, groups: { id: string; name: string }[]) {
+  const g = groups
+    .filter(x => name.startsWith(x.name) && name.length > x.name.length)
+    .sort((a, b) => b.name.length - a.name.length)[0]   // 긴 이름 우선
+  if (!g) return null
+  const rest = name.slice(g.name.length).trim()
+  return rest ? { group: g, branch: rest } : null
 }
 
 export const won = (n: number) => n.toLocaleString('ko-KR')
@@ -136,6 +151,7 @@ export function draftFromProduct(p: Product, base: ItemDraft): Partial<ItemDraft
     purchase_vendor_name: p.purchase_vendor_name ?? '',
     sale_price: p.sale_price,
     purchase_price: p.purchase_price,
+    status: p.is_soldout ? '품절' : '',   // 마스터 품절 자동표기 (수정 가능)
     ...master,
     ...priceRule({ ...base, ...master }, base.quantity || 1),
   }
@@ -145,7 +161,7 @@ export function draftFromProduct(p: Product, base: ItemDraft): Partial<ItemDraft
 export function Combo({ value, display, options, onSelect, placeholder, required, footer }: {
   value: string | null
   display: string
-  options: { id: string; label: string; sub?: string }[]
+  options: { id: string; label: string; sub?: string; soldout?: boolean }[]
   onSelect: (id: string | null) => void
   placeholder: string
   required?: boolean
@@ -183,13 +199,18 @@ export function Combo({ value, display, options, onSelect, placeholder, required
         }`}
       />
       {open && (
-        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto text-sm">
+        // 행 길이 확대(실무자 요청): 입력칸보다 넓게 펼쳐 긴 품명이 잘리지 않게 한다
+        <div className="absolute z-20 top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg
+                        max-h-80 overflow-y-auto text-sm min-w-full w-max max-w-[34rem]">
           {filtered.map(o => (
             <button type="button" key={o.id}
               onMouseDown={e => e.preventDefault()}
               onClick={() => { onSelect(o.id); setOpen(false) }}
-              className="w-full text-left px-3 py-1.5 hover:bg-blue-50 border-b border-gray-50">
+              className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-gray-50 whitespace-normal leading-snug">
               {o.label}
+              {o.soldout && (
+                <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-600 align-middle">품절</span>
+              )}
               {o.sub && <span className="text-xs text-gray-400 ml-1.5">{o.sub}</span>}
             </button>
           ))}

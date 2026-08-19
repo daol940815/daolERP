@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { encryptPayment, encryptionReady } from '@/lib/payment-crypto'
-import { parseConsultBody, consultItemRows, insertConsultItems, CONSULT_MIGRATION_HINT } from '@/lib/consultations'
+import { parseConsultBody, consultItemRows, insertConsultItems, compatConsultFields, CONSULT_MIGRATION_HINT, CONSULT_509_HINT } from '@/lib/consultations'
 import { recordWorkLog, consultContent } from '@/lib/work-log'
 
 export const dynamic = 'force-dynamic'
@@ -104,11 +104,14 @@ export async function POST(req: NextRequest) {
   }
 
   const { data: created, error } = await admin.from('erp_consultations').insert({
-    ...parsed.fields,
+    ...compatConsultFields(parsed.fields),
     payment_info_enc: paymentEnc,
     employee_id: me.employeeId,
   }).select('id').single()
   if (error) {
+    if (/invoice_email|biz_number|ceo_name|fax/i.test(error.message)) {
+      return NextResponse.json({ error: CONSULT_509_HINT }, { status: 500 })
+    }
     const missing = /relation|erp_consultations|does not exist/i.test(error.message)
     return NextResponse.json({ error: missing ? MIGRATION_HINT : error.message }, { status: 500 })
   }

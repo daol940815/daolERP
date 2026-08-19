@@ -20,11 +20,16 @@ export async function GET() {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   const admin = createAdminClient()
-  const result = await fetchAllRows<Record<string, unknown>>((from, to) =>
+  const load = (withSoldout: boolean) => fetchAllRows<Record<string, unknown>>((from, to) =>
     admin.from('erp_products')
-      .select('id, item_code, item_name, option_name, purchase_vendor_name, category, sale_price, individual_sale_price, purchase_price, carton_unit, carton_shipping_fee, loose_shipping_fee, is_addon, is_active, memo, updated_at')
-      .order('item_name').range(from, to),
+      .select((withSoldout
+        ? 'id, item_code, item_name, option_name, purchase_vendor_name, category, sale_price, individual_sale_price, purchase_price, carton_unit, carton_shipping_fee, loose_shipping_fee, is_addon, is_active, is_soldout, memo, updated_at'
+        : 'id, item_code, item_name, option_name, purchase_vendor_name, category, sale_price, individual_sale_price, purchase_price, carton_unit, carton_shipping_fee, loose_shipping_fee, is_addon, is_active, memo, updated_at') as string)
+      .order('item_name').range(from, to) as unknown as PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>,
   )
+  // is_soldout은 509 마이그레이션 — 미적용 환경이면 컬럼 없이 재조회 (조회는 계속 동작)
+  let result = await load(true)
+  if ('error' in result && /is_soldout/i.test(result.error)) result = await load(false)
   if ('error' in result) {
     const missing = /relation|erp_products|does not exist/i.test(result.error)
     return NextResponse.json({ error: missing ? MIGRATION_HINT : result.error }, { status: 500 })
@@ -93,6 +98,20 @@ export async function POST(req: NextRequest) {
     const { error } = await admin.from('erp_products')
       .update({ is_active: action === 'reactivate' }).eq('id', body.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
+
+  // 품절 처리 (실무자 요청 2026-08-19 — 수동 관리, 상담·주문 입력 검색에 표시)
+  if (action === 'soldout' || action === 'restock') {
+    if (!body.id) return NextResponse.json({ error: 'id가 필요합니다.' }, { status: 400 })
+    const { error } = await admin.from('erp_products')
+      .update({ is_soldout: action === 'soldout' }).eq('id', body.id)
+    if (error) {
+      const missing = /is_soldout|column/i.test(error.message)
+      return NextResponse.json({
+        error: missing ? '509 마이그레이션(품절 관리)이 아직 적용되지 않았습니다.' : error.message,
+      }, { status: 500 })
+    }
     return NextResponse.json({ ok: true })
   }
 

@@ -10,7 +10,7 @@ import SearchableSelect from '@/components/ui/SearchableSelect'
 
 type VendorInfo = Pick<Vendor,
   'id' | 'name' | 'type' | 'biz_number' | 'contact_name' | 'contact_phone' | 'email' | 'note' | 'match_aliases' | 'card_numbers' | 'is_active'
->
+> & { uses_custom_po?: boolean; po_use_sale_price?: boolean }   // 발주 관련 플래그 (507·509)
 interface AliasRow extends ErpVendorAlias { vendors: VendorInfo | null }
 
 type Tab = 'customer' | 'purchase'
@@ -34,6 +34,8 @@ interface Draft {
   contactPhone: string
   email: string
   note: string
+  usesCustomPo: boolean      // 자체 발주서 양식 매입처
+  poUseSalePrice: boolean    // 발주서 금액을 판매가로 기재 (요아럽)
 }
 
 // ── 칩 입력 (입금/출금계좌명, 카드번호 공용) ────────────────────────
@@ -431,6 +433,8 @@ function ErpAliasesContent() {
       contactPhone: a.vendors?.contact_phone ?? '',
       email:        a.vendors?.email ?? '',
       note:         a.vendors?.note ?? '',
+      usesCustomPo:   a.vendors?.uses_custom_po ?? false,
+      poUseSalePrice: a.vendors?.po_use_sale_price ?? false,
     })
   }
 
@@ -451,13 +455,19 @@ function ErpAliasesContent() {
         contact_phone: draft.contactPhone.trim() || null,
         email:         draft.email.trim() || null,
         note:          draft.note.trim() || null,
+        uses_custom_po:    draft.usesCustomPo,
+        po_use_sale_price: draft.poUseSalePrice,
       }),
     })
     const json = await res.json()
     setWorking(false)
     if (!res.ok) { showMsg(`저장 실패: ${json.error ?? '알 수 없는 오류'}`); return }
-    // 같은 거래처를 공유하는 모든 행에 반영
-    const v = json.data as VendorInfo
+    // 같은 거래처를 공유하는 모든 행에 반영 (발주 플래그는 응답에 없어 draft 값으로 보충)
+    const v = {
+      ...(json.data as VendorInfo),
+      uses_custom_po: draft.usesCustomPo,
+      po_use_sale_price: draft.poUseSalePrice,
+    } as VendorInfo
     setAliases(prev => prev.map(r => r.vendor_id === a.vendor_id ? { ...r, vendors: v } : r))
     setVendors(prev => prev.map(x => x.id === v.id ? { ...x, ...v } : x))
     setExpandedId(null)
@@ -859,6 +869,24 @@ function ErpAliasesContent() {
                               />
                             </div>
                           </div>
+
+                          {/* 발주 설정 (매입처 전용) — 발주서 화면 배지·금액 기재 방식에 반영 */}
+                          {a.alias_type === 'purchase' && (
+                            <div className="flex items-center gap-5 mt-3 flex-wrap text-xs text-gray-600">
+                              <label className="flex items-center gap-1.5 cursor-pointer"
+                                title="이 매입처가 자기 발주서 양식을 요구하는 경우 — 발주 화면에 '자체 양식' 표시, 수동 발송 기록 권장">
+                                <input type="checkbox" checked={draft.usesCustomPo}
+                                  onChange={e => setDraft(d => d ? { ...d, usesCustomPo: e.target.checked } : d)} />
+                                자체 발주서 양식 사용
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer"
+                                title="발주서 금액을 매입가 대신 판매가로 기재 (요아럽 — 2026-08-19 확정)">
+                                <input type="checkbox" checked={draft.poUseSalePrice}
+                                  onChange={e => setDraft(d => d ? { ...d, poUseSalePrice: e.target.checked } : d)} />
+                                발주서 금액을 판매가로 기재
+                              </label>
+                            </div>
+                          )}
 
                           <div className="flex items-center gap-2 mt-4 flex-wrap">
                             <button

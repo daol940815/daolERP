@@ -11,7 +11,7 @@ interface Product {
   purchase_vendor_name: string | null; category: string | null
   sale_price: number; individual_sale_price: number; purchase_price: number
   carton_unit: number | null; carton_shipping_fee: number; loose_shipping_fee: number
-  is_addon: boolean; is_active: boolean; memo: string | null; updated_at: string
+  is_addon: boolean; is_active: boolean; is_soldout?: boolean; memo: string | null; updated_at: string
 }
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
@@ -277,6 +277,9 @@ export default function ProductsPage() {
                     {p.is_addon && (
                       <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-600">옵션</span>
                     )}
+                    {p.is_soldout && (
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-600">품절</span>
+                    )}
                   </td>
                   <td className="py-1.5 px-3 text-xs whitespace-nowrap">{p.category ?? '-'}</td>
                   <td className="py-1.5 px-3 whitespace-nowrap">{p.purchase_vendor_name ?? '-'}</td>
@@ -295,6 +298,11 @@ export default function ProductsPage() {
                   </td>
                   <td className="py-1.5 px-3 text-right whitespace-nowrap">
                     <button onClick={() => startEdit(p)} className="text-xs text-blue-700 hover:underline mr-2.5">수정</button>
+                    <button onClick={() => act({ action: p.is_soldout ? 'restock' : 'soldout', id: p.id },
+                        p.is_soldout ? '품절이 해제되었습니다.' : '품절 처리되었습니다. 상담·주문 입력 검색에 품절로 표시됩니다.')}
+                      className={`text-xs mr-2.5 hover:underline ${p.is_soldout ? 'text-red-500' : 'text-gray-400'}`}>
+                      {p.is_soldout ? '품절해제' : '품절'}
+                    </button>
                     <button onClick={() => act({ action: p.is_active ? 'deactivate' : 'reactivate', id: p.id })}
                       className="text-xs text-gray-400 hover:underline">
                       {p.is_active ? '중지' : '재사용'}

@@ -25,6 +25,8 @@ interface Row {
   staff_name: string | null
   sender_name: string | null
   payment_term: string | null
+  uses_custom_po?: boolean
+  po_use_sale_price?: boolean
 }
 interface Kpi { count: number; total: number; unsent_cnt: number; sent_cnt: number; canceled_cnt: number }
 
@@ -169,7 +171,17 @@ export default function PurchaseHistoryPage() {
                       <div className="tabular-nums text-[11px] text-gray-400 pl-3.5">{r.po_no}</div>
                     </button>
                   </td>
-                  <td className="py-2 px-3 font-medium">{r.vendor_name}</td>
+                  <td className="py-2 px-3 font-medium">
+                    {r.vendor_name}
+                    {r.uses_custom_po && (
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-600"
+                        title="자체 발주서 양식을 쓰는 매입처">자체 양식</span>
+                    )}
+                    {r.po_use_sale_price && (
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-600"
+                        title="발주서 금액이 판매가로 기재되는 매입처">판매가</span>
+                    )}
+                  </td>
                   <td className="py-2 px-3">
                     <Link href={`/orders/${r.order_id}`} className="text-blue-700 hover:underline tabular-nums text-xs">
                       {r.order_no ?? '(주문으로 이동)'}

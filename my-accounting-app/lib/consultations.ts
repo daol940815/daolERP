@@ -23,6 +23,8 @@ export interface ConsultItemInput {
   purchase_price: number
   purchase_shipping: number
   memo: string | null
+  status: string | null              // 품목 상태 — 품절·단가변경 등 (509, 실무자 요청)
+  option_note: string | null         // 색상·옵션 등 기타사항 (품목별, 509)
   parent_line_no: number | null      // 옵션(부가상품) 행이 딸린 본 상품 행 번호 (701)
 }
 
@@ -49,6 +51,8 @@ export function parseConsultBody(body: Record<string, unknown>) {
       purchase_price: toInt(r.purchase_price),
       purchase_shipping: toInt(r.purchase_shipping),
       memo: toStr(r.memo),
+      status: toStr(r.status),
+      option_note: toStr(r.option_note),
       parent_line_no: toInt(r.parent_line_no) > 0 ? toInt(r.parent_line_no) : null,
     }))
     .filter(it => it.item_name)
@@ -72,6 +76,11 @@ export function parseConsultBody(body: Record<string, unknown>) {
     address_checked: toStr(body.address_checked),
     roster_method: toStr(body.roster_method),
     memo: toStr(body.memo),
+    // 결제·발송 정보 확장 (509, 계산서 발행용 — 실무자 요청)
+    invoice_email: toStr(body.invoice_email),
+    fax: toStr(body.fax),
+    biz_number: toStr(body.biz_number),
+    ceo_name: toStr(body.ceo_name),
   }
   return { fields, items, paymentPlain: String(body.payment_info ?? '').trim() }
 }
@@ -89,7 +98,19 @@ export function consultItemRows(items: ConsultItemInput[]) {
   }))
 }
 
-// 품목 삽입 — 701 미적용 환경 호환: 옵션 연결이 전혀 없으면 parent_line_no를 보내지 않는다
+// 509 미적용 호환 — 결제·발송 확장 필드에 값이 전혀 없으면 컬럼을 보내지 않는다
+export const CONSULT_509_HINT =
+  '509 마이그레이션(실무자 보완)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
+const NEW_CONSULT_KEYS = ['invoice_email', 'fax', 'biz_number', 'ceo_name'] as const
+export function compatConsultFields<T extends Record<string, unknown>>(fields: T): Record<string, unknown> {
+  if (NEW_CONSULT_KEYS.some(k => fields[k] != null)) return fields
+  const out: Record<string, unknown> = { ...fields }
+  for (const k of NEW_CONSULT_KEYS) delete out[k]
+  return out
+}
+
+// 품목 삽입 — 미적용 마이그레이션 호환:
+//  701(parent_line_no)·509(status·option_note)는 값이 전혀 없으면 컬럼을 보내지 않는다
 export async function insertConsultItems(
   admin: { from: (t: string) => { insert: (rows: unknown[]) => PromiseLike<{ error: { message: string } | null }> } },
   consultationId: string,
@@ -97,16 +118,22 @@ export async function insertConsultItems(
 ): Promise<string | null> {
   if (!rows.length) return null
   const hasParent = rows.some(it => it.parent_line_no != null)
+  const hasItemMeta = rows.some(it => it.status != null || it.option_note != null)
   const payload = rows.map(it => {
-    const { parent_line_no, ...rest } = it
+    const { parent_line_no, status, option_note, ...rest } = it
     return {
-      ...(hasParent ? { ...rest, parent_line_no } : rest),
+      ...rest,
+      ...(hasParent ? { parent_line_no } : {}),
+      ...(hasItemMeta ? { status, option_note } : {}),
       consultation_id: consultationId,
     }
   })
   const { error } = await admin.from('erp_consultation_items').insert(payload)
   if (error && /parent_line_no/i.test(error.message)) {
     return '701 마이그레이션(상담 품목 옵션)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
+  }
+  if (error && /status|option_note/i.test(error.message)) {
+    return '509 마이그레이션(품목별 상태·기타사항)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
   }
   return error ? error.message : null
 }

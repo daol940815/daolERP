@@ -13,16 +13,21 @@ export async function GET(req: NextRequest) {
   const unmatched = searchParams.get('unmatched')
   const vendorId  = searchParams.get('vendorId')
 
-  const result = await fetchAllRows<Record<string, unknown>>((from, to) => {
+  const run = (withPoFlags: boolean) => fetchAllRows<Record<string, unknown>>((from, to) => {
     let query = admin
       .from('erp_vendor_aliases')
-      .select('*, vendors(id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active)')
+      .select((withPoFlags
+        ? '*, vendors(id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active, uses_custom_po, po_use_sale_price)'
+        : '*, vendors(id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active)') as string)
       .order('erp_name')
     if (type === 'customer' || type === 'purchase') query = query.eq('alias_type', type)
     if (unmatched === 'true') query = query.is('vendor_id', null)
     if (vendorId) query = query.eq('vendor_id', vendorId)
-    return query.range(from, to)
+    return query.range(from, to) as unknown as PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>
   })
+  // 발주 관련 플래그(507 uses_custom_po·509 po_use_sale_price)는 미적용 환경이면 없이 재조회
+  let result = await run(true)
+  if ('error' in result && /uses_custom_po|po_use_sale_price/i.test(result.error)) result = await run(false)
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
 
   return NextResponse.json({ data: result.data })
