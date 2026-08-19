@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   if (me.role === 'sales') {
-    return NextResponse.json({ error: '품목 마스터 변경은 관리자 권한이 필요합니다.' }, { status: 403 })
+    return NextResponse.json({ error: '품목 등록·수정은 관리자 권한이 필요합니다.' }, { status: 403 })
   }
   const admin = createAdminClient()
   const body = await req.json().catch(() => ({})) as Record<string, unknown>

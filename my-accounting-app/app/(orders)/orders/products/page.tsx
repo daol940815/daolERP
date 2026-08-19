@@ -122,7 +122,7 @@ export default function ProductsPage() {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-900">품목 마스터</h1>
+        <h1 className="text-xl font-bold text-gray-900">품목 관리</h1>
         <span className="text-xs text-gray-400">주문 입력의 품번 검색 원천 — 품번 선택 시 품명·매입처·가격 자동</span>
         <span className="ml-auto flex gap-2">
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
