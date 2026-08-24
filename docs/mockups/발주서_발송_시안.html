@@ -121,11 +121,12 @@
         <label class="f">프리셋</label>
         <div class="row" style="flex-wrap:nowrap;">
           <select style="flex:1;">
-            <option>기본 발주 안내</option>
+            <option>기본 발주 안내 (기본)</option>
             <option>명절 발주 (납기 강조)</option>
             <option>수정 발주 재발송</option>
           </select>
           <span class="btn sm" style="white-space:nowrap;">현재 내용을 프리셋으로 저장</span>
+          <span class="btn sm" style="white-space:nowrap; border-color:#94a3b8;">프리셋 관리</span>
         </div>
       </div>
     </div>
@@ -177,6 +178,59 @@
     </div>
     <div class="hint">송장번호를 입력하면 주문 목록·주문 상세에 배송상태가 <b>송장등록</b>으로 표시됩니다.
       배송현황은 별도 페이지 없이 주문내역에서 함께 확인합니다 (확정 방향).</div>
+  </div>
+
+  <!-- 프리셋 관리 모달 (시안 — 실제로는 '프리셋 관리' 클릭 시 팝업으로 표시) -->
+  <div class="card" style="border:2px solid #94a3b8; box-shadow:0 8px 30px rgba(15,23,42,.12);">
+    <h2>프리셋 관리 <span class="sub">모달 시안 — 발송 페이지·발주서 이력의 "프리셋 관리" 버튼으로 열림 · 전 직원 공용</span></h2>
+    <table style="width:100%; border-collapse:collapse; font-size:12px; margin-top:10px;">
+      <thead>
+        <tr style="background:#f8fafc; color:#64748b; font-size:11px; text-align:left;">
+          <th style="padding:7px 10px; border-bottom:1px solid #e2e8f0;">이름</th>
+          <th style="padding:7px 10px; border-bottom:1px solid #e2e8f0;">제목 미리보기</th>
+          <th style="padding:7px 10px; border-bottom:1px solid #e2e8f0;">기본</th>
+          <th style="padding:7px 10px; border-bottom:1px solid #e2e8f0;">수정</th>
+          <th style="padding:7px 10px; border-bottom:1px solid #e2e8f0;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:7px 10px; border-bottom:1px solid #f1f5f9; font-weight:600;">기본 발주 안내</td>
+          <td style="padding:7px 10px; border-bottom:1px solid #f1f5f9; color:#64748b;">[다올커머스] 발주서 송부 - {발주번호} {매입처명}</td>
+          <td style="padding:7px 10px; border-bottom:1px solid #f1f5f9;"><span class="badge b-blue">기본</span></td>
+          <td style="padding:7px 10px; border-bottom:1px solid #f1f5f9; color:#94a3b8; font-size:11px;">김주연 · 08-19</td>
+          <td style="padding:7px 10px; border-bottom:1px solid #f1f5f9; text-align:right; white-space:nowrap;">
+            <span class="btn sm">수정</span> <span class="btn sm">복제</span> <span class="btn sm" style="color:#dc2626;">삭제</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:7px 10px; border-bottom:1px solid #f1f5f9; font-weight:600;">명절 발주 (납기 강조)</td>
+          <td style="padding:7px 10px; border-bottom:1px solid #f1f5f9; color:#64748b;">[다올커머스] 명절 발주서 - {발주번호} (출고요청일 {출고요청일} 엄수 부탁드립니다)</td>
+          <td style="padding:7px 10px; border-bottom:1px solid #f1f5f9;"><span class="btn sm">기본 지정</span></td>
+          <td style="padding:7px 10px; border-bottom:1px solid #f1f5f9; color:#94a3b8; font-size:11px;">김주연 · 08-19</td>
+          <td style="padding:7px 10px; border-bottom:1px solid #f1f5f9; text-align:right; white-space:nowrap;">
+            <span class="btn sm">수정</span> <span class="btn sm">복제</span> <span class="btn sm" style="color:#dc2626;">삭제</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:7px 10px; border-bottom:1px solid #f1f5f9; font-weight:600;">수정 발주 재발송</td>
+          <td style="padding:7px 10px; border-bottom:1px solid #f1f5f9; color:#64748b;">[다올커머스] (수정) 발주서 재송부 - {발주번호}</td>
+          <td style="padding:7px 10px; border-bottom:1px solid #f1f5f9;"><span class="btn sm">기본 지정</span></td>
+          <td style="padding:7px 10px; border-bottom:1px solid #f1f5f9; color:#94a3b8; font-size:11px;">홍창의 · 08-18</td>
+          <td style="padding:7px 10px; border-bottom:1px solid #f1f5f9; text-align:right; white-space:nowrap;">
+            <span class="btn sm">수정</span> <span class="btn sm">복제</span> <span class="btn sm" style="color:#dc2626;">삭제</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="row" style="margin-top:10px;">
+      <span class="btn primary sm">+ 새 프리셋</span>
+      <span class="sub">수정·새 프리셋 클릭 시 이름·제목·본문 편집 폼이 아래로 펼쳐짐 (치환 변수 사용 가능)</span>
+    </div>
+    <div class="hint">
+      <b>기본</b>으로 지정된 프리셋 1개가 발송 페이지를 열 때 자동으로 채워집니다.
+      삭제는 확인 후 진행되며, 발송 이력에는 실제 발송된 제목·본문이 저장되므로 프리셋을 지워도 과거 이력은 남습니다.
+    </div>
   </div>
 
   <p style="font-size:11px; color:#94a3b8;">
