@@ -65,22 +65,17 @@ function orderFreeKey(raw) {
   return normalizeName(raw).split(' ').filter(Boolean).sort().join('|')
 }
 
-// ── 확정 별칭 (엑셀 표기 → 마스터 품명) ─────────────────
-// 2026-08-18 사용자 확정: 솝&바디 세트 / 핸드크림 3P 케이스 / 고급쇼핑백(대표 25-01-06-01)
-// + 내츄럴 마일드 선크림 1P·3P는 '요아럽 마일드 선크림'과 동일품으로 통합.
-const ALIAS_TO_ITEM_CODE = {
-  // '고급쇼핑백' 은 마스터 2종 중 품번 25-01-06-01 을 대표로 사용 (사용자 확정)
-}
-const ALIAS_TO_MASTER_NAME = [
-  { test: (n) => n.includes('솝') && n.includes('바디'), master: '바이탈라이징 솝&바디세트' },
+// ── 확정 별칭 (엑셀 표기 → 마스터 품번) ─────────────────
+// 2026-08-18 사용자 확정 3건. 품번으로 직접 지정 — 정규화의 괄호 제거가
+// (아이보리)/(그린), 고급쇼핑백/(변경) 구분을 지우므로 이름 매칭에 맡기지 않는다.
+const ALIASES = [
+  { test: (n) => n.includes('솝') && n.includes('바디'), item_code: '25-03-04' },      // 요아럽 바이탈라이징 솝&바디세트
   { test: (n) => n.includes('핸드크림') && n.includes('3P') && n.includes('공용') && n.includes('아이보리'),
-    master: '핸드크림 3P 공용 종이케이스(아이보리)' },
-  { test: (n) => n.includes('내츄럴') && n.includes('마일드') && n.includes('선크림') && n.includes('1P'),
-    master: '요아럽 마일드 선크림 1P' },
-  { test: (n) => n.includes('내츄럴') && n.includes('마일드') && n.includes('선크림') && n.includes('3P'),
-    master: '요아럽 마일드 선크림 3P' },
+    item_code: '25-03-10-01' },                                                        // 핸드크림 3P 공용 종이케이스 (아이보리)
+  { test: (n) => normalizeName(n) === '고급쇼핑백', item_code: '25-01-06-01' },        // 대표 품목 (사용자 확정, (변경)은 미사용)
 ]
-const PREMIUM_BAG_ITEM_CODE = '25-01-06-01' // 고급쇼핑백 대표 품목 (사용자 확정)
+// 내츄럴/요아럽 마일드 선크림 1P·3P: 동일품 표기 변형(사용자 승인). 마스터 미등록
+// 상태 확인됨(2026-08-18 DB 점검) — 등록되면 아래에 품번 별칭을 추가할 것.
 
 // ── 엑셀 파싱: "상세내역" 시트, 머리글 6행 · 데이터 7행부터 ──
 // 컬럼: NO·날짜·품명·매입가·입고·출고·출고처·담당자·매입합계액·출고합계액·비고
@@ -146,33 +141,49 @@ async function main() {
   console.log('  (드라이런 기준치: 2,087행 / 입고 239행·7,170개·33,406,200원 / 출고 1,848행·5,942개·29,963,250원)')
 
   // ── 품목 마스터 매칭 ──────────────────────────────────
-  const { data: products, error: pErr } = await sb
-    .from('erp_products')
-    .select('id, item_code, item_name, purchase_price')
-    .limit(2000)
-  if (pErr) throw pErr
-  console.log(`\n품목 마스터: ${products.length}종 로드`)
-
-  const byNorm = new Map()
-  const byOrderFree = new Map()
-  for (const p of products) {
-    byNorm.set(normalizeName(p.item_name), p)
-    byOrderFree.set(orderFreeKey(p.item_name), p)
+  // PostgREST max-rows=1000 — 전체 품목(2,358종)은 range 페이지네이션으로 로드
+  const products = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await sb
+      .from('erp_products')
+      .select('id, item_code, item_name, purchase_price')
+      .range(from, from + 999)
+    if (error) throw error
+    products.push(...data)
+    if (data.length < 1000) break
   }
-  const premiumBag = products.find((p) => p.item_code === PREMIUM_BAG_ITEM_CODE)
+  console.log(`\n품목 마스터: ${products.length}종 로드`)
+  const byCode = new Map(products.filter((p) => p.item_code).map((p) => [p.item_code, p]))
 
-  function matchProduct(rawName) {
-    // 1) 고급쇼핑백 → 대표 품목 고정
-    if (normalizeName(rawName) === '고급쇼핑백') return premiumBag || null
-    // 2) 확정 별칭
-    for (const a of ALIAS_TO_MASTER_NAME) {
-      if (a.test(rawName)) {
-        const hit = byNorm.get(normalizeName(a.master)) || byOrderFree.get(orderFreeKey(a.master))
-        if (hit) return hit
-      }
+  // 정규화 키가 여러 품목과 충돌하면(예: 괄호 제거로 색상 구분 소실) 자동 매칭에서
+  // 제외하고 드라이런에 보고 — 별칭으로만 해소한다.
+  function buildMap(keyFn) {
+    const map = new Map()
+    const ambiguous = new Set()
+    for (const p of products) {
+      const k = keyFn(p.item_name)
+      if (!k) continue
+      if (map.has(k) && map.get(k).id !== p.id) ambiguous.add(k)
+      else map.set(k, p)
     }
-    // 3) 정규화 일치 → 4) 어순 무시 일치
-    return byNorm.get(normalizeName(rawName)) || byOrderFree.get(orderFreeKey(rawName)) || null
+    for (const k of ambiguous) map.delete(k)
+    return { map, ambiguous }
+  }
+  const norm = buildMap(normalizeName)
+  const orderFree = buildMap(orderFreeKey)
+
+  const ambiguousHits = new Map()
+  function matchProduct(rawName) {
+    // 1) 확정 별칭 (품번 직접 지정)
+    for (const a of ALIASES) {
+      if (a.test(rawName)) return byCode.get(a.item_code) || null
+    }
+    // 2) 정규화 일치 → 3) 어순 무시 일치 (충돌 키는 제외됨)
+    const hit = norm.map.get(normalizeName(rawName)) || orderFree.map.get(orderFreeKey(rawName)) || null
+    if (!hit && (norm.ambiguous.has(normalizeName(rawName)) || orderFree.ambiguous.has(orderFreeKey(rawName)))) {
+      ambiguousHits.set(rawName, (ambiguousHits.get(rawName) || 0) + 1)
+    }
+    return hit
   }
 
   const unmatched = new Map()
@@ -187,6 +198,10 @@ async function main() {
   if (unmatched.size) {
     console.log('미매칭 품명 (등록·별칭 확인 필요):')
     for (const [n, c] of [...unmatched.entries()].sort((a, b) => b[1] - a[1])) console.log(`  - ${n} (${c}행)`)
+  }
+  if (ambiguousHits.size) {
+    console.log('충돌로 자동 매칭 제외된 품명 (별칭 지정 필요):')
+    for (const [n, c] of ambiguousHits.entries()) console.log(`  - ${n} (${c}행)`)
   }
 
   // ── 담당자 → 직원 마스터 매칭 ─────────────────────────
