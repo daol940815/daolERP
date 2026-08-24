@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { buildCashPositionRows } from '@/lib/cash-reports'
+import { buildCreditLineInterest } from '@/lib/loan-interest'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -45,10 +46,49 @@ export async function GET() {
         }))
     : []
 
+  // 한도대출 당월 이자 — 통장 일별 잔액 기준(경과일 실적) + 잔여일 추정
+  const creditLoans = (loans ?? [])
+    .filter(l => (l.product_type ?? 'term') === 'credit_line')
+    .map(l => ({ id: l.id as string, bank_account_id: l.bank_account_id as string | null,
+                 interest_rate: l.interest_rate as number | null }))
+  const now = new Date()
+  const y = now.getFullYear(), m = now.getMonth()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const monthFirst = `${y}-${pad(m + 1)}-01`
+  const todayStr = `${y}-${pad(m + 1)}-${pad(now.getDate())}`
+  const daysInMonth = new Date(y, m + 1, 0).getDate()
+  const remainingDays = daysInMonth - now.getDate()
+
+  let creditInterest: {
+    loan_id: string; mtd_interest: number; projected_interest: number
+    last_used: number; days_elapsed: number; days_in_month: number
+  }[] = []
+  if (creditLoans.length) {
+    const ci = await buildCreditLineInterest(admin, creditLoans, monthFirst, todayStr)
+    if (!('error' in ci)) {
+      const rateById = new Map(creditLoans.map(l => [l.id, l.interest_rate]))
+      creditInterest = ci.rows.map(r => {
+        const rate = rateById.get(r.loan_id) ?? null
+        const projected = rate == null
+          ? r.total
+          : r.total + Math.round(r.last_used * (rate / 100) / 365 * remainingDays)
+        return {
+          loan_id: r.loan_id,
+          mtd_interest: r.total,
+          projected_interest: projected,
+          last_used: r.last_used,
+          days_elapsed: now.getDate(),
+          days_in_month: daysInMonth,
+        }
+      })
+    }
+  }
+
   return NextResponse.json({
     loans: loans ?? [],
     bankAccounts: bankRes.data ?? [],
     overdrafts,
+    creditInterest,
     migration402: true,
     migration404,
   })

@@ -15,6 +15,14 @@ interface Overdraft {
   overdraft_available: number
   balance_date: string | null
 }
+interface CreditInterest {
+  loan_id: string
+  mtd_interest: number        // 당월 경과일 이자 (통장 일별 잔액 기준 실적)
+  projected_interest: number  // 위 + 잔여일 추정
+  last_used: number
+  days_elapsed: number
+  days_in_month: number
+}
 interface Loan {
   id: string
   seq: number | null
@@ -78,6 +86,7 @@ export default function LoansPage() {
   const [loans, setLoans] = useState<Loan[]>([])
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
   const [overdrafts, setOverdrafts] = useState<Overdraft[]>([])
+  const [creditInterest, setCreditInterest] = useState<CreditInterest[]>([])
   const [migrationOk, setMigrationOk] = useState(true)
   const [migration404, setMigration404] = useState(true)
   const [loading, setLoading] = useState(true)
@@ -109,6 +118,7 @@ export default function LoansPage() {
       setLoans(json.loans ?? [])
       setBankAccounts(json.bankAccounts ?? [])
       setOverdrafts(json.overdrafts ?? [])
+      setCreditInterest(json.creditInterest ?? [])
       setMigrationOk(json.migration402 !== false)
       setMigration404(json.migration404 !== false)
     } else showMsg(`조회 실패: ${json.error ?? '알 수 없는 오류'}`)
@@ -119,6 +129,16 @@ export default function LoansPage() {
 
   const odByAccount = useMemo(
     () => new Map(overdrafts.map(o => [o.bank_account_id, o])), [overdrafts])
+  const ciByLoan = useMemo(
+    () => new Map(creditInterest.map(c => [c.loan_id, c])), [creditInterest])
+
+  // 당월 이자: 통장 일별 잔액 기준(경과일 실적 + 잔여일 추정).
+  // 서버 계산이 없으면 현재 사용액이 한 달 유지된다고 본 단순 추정으로 대체한다.
+  const monthInterest = (l: Loan, used: number) => {
+    const ci = ciByLoan.get(l.id)
+    if (ci) return ci.projected_interest
+    return estMonthlyInterest(used, l.interest_rate)
+  }
 
   // 한도대출 사용액·미사용 한도는 통장 원본에서 산출 (loans에는 저장하지 않음)
   const usage = (l: Loan) => {
@@ -157,7 +177,7 @@ export default function LoansPage() {
     limit: lines.filter(l => l.status !== 'closed').reduce((s, l) => s + usage(l).limit, 0),
     used: lines.filter(l => l.status !== 'closed').reduce((s, l) => s + usage(l).used, 0),
     lineInterest: lines.filter(l => l.status !== 'closed')
-      .reduce((s, l) => s + estMonthlyInterest(usage(l).used, l.interest_rate), 0),
+      .reduce((s, l) => s + monthInterest(l, usage(l).used), 0),
   }
   kpi.check = loans.filter(l => needsCheck(l) || isOverdue(l)).length
   const banks = Array.from(new Set(loans.map(l => l.bank_name)))
@@ -460,12 +480,27 @@ export default function LoansPage() {
                       </td>
                       <td className="py-2 px-3 text-right whitespace-nowrap">{won(u.available)}</td>
                       <td className="py-2 px-3 text-right whitespace-nowrap">{l.interest_rate != null ? `${l.interest_rate}%` : '-'}</td>
-                      <td className={`py-2 px-3 text-right whitespace-nowrap ${u.used > 0 ? '' : 'text-gray-400'}`}
-                        title={u.used > 0 && l.interest_rate != null
-                          ? `일 이자 ${won(estDailyInterest(u.used, l.interest_rate))}원 x ${daysInThisMonth()}일`
-                          : undefined}>
-                        {u.used > 0 && l.interest_rate != null ? won(estMonthlyInterest(u.used, l.interest_rate)) : '-'}
-                      </td>
+                      {(() => {
+                        const ci = ciByLoan.get(l.id)
+                        const amount = monthInterest(l, u.used)
+                        const tip = ci
+                          ? `통장 일별 잔액 기준 — 경과 ${ci.days_elapsed}일 실적 ${won(ci.mtd_interest)}원 `
+                            + `+ 잔여 ${ci.days_in_month - ci.days_elapsed}일 추정 `
+                            + `(최근 사용액 ${won(ci.last_used)}원, 일 이자 ${won(estDailyInterest(ci.last_used, l.interest_rate))}원)`
+                          : l.interest_rate != null
+                            ? `현재 사용액 기준 단순 추정 — 일 이자 ${won(estDailyInterest(u.used, l.interest_rate))}원 x ${daysInThisMonth()}일`
+                            : undefined
+                        return (
+                          <td className={`py-2 px-3 text-right whitespace-nowrap ${amount ? '' : 'text-gray-400'}`} title={tip}>
+                            {amount ? won(amount) : '-'}
+                            {ci && amount > 0 && (
+                              <div className="text-[10px] text-gray-400 font-normal">
+                                경과 {ci.days_elapsed}일 {won(ci.mtd_interest)}
+                              </div>
+                            )}
+                          </td>
+                        )
+                      })()}
                       <td className="py-2 px-3 text-center whitespace-nowrap">{l.payment_day ? `${l.payment_day}일` : '-'}</td>
                       <td className={`py-2 px-3 whitespace-nowrap ${isOverdue(l) ? 'text-red-600' : ''}`}>{l.maturity_date ?? '-'}</td>
                       <td className="py-2 px-3 text-center whitespace-nowrap">
@@ -491,7 +526,7 @@ export default function LoansPage() {
                   <td className="py-2 px-3 text-right">{won(visibleLines.reduce((s, l) => s + usage(l).available, 0))}</td>
                   <td className="py-2 px-3" />
                   <td className="py-2 px-3 text-right">
-                    {won(visibleLines.reduce((s, l) => s + estMonthlyInterest(usage(l).used, l.interest_rate), 0))}
+                    {won(visibleLines.reduce((s, l) => s + monthInterest(l, usage(l).used), 0))}
                   </td>
                   <td className="py-2 px-3" colSpan={4} />
                 </tr>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { buildCreditLineInterest } from '@/lib/loan-interest'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -27,7 +28,10 @@ export async function GET(req: NextRequest) {
     .rpc('monthly_pl_journal_summary', { p_from: `${year}-01-01`, p_to: `${year}-12-31` })
   if (error) {
     // 058 미적용 등 — 실적 없이 계획만 보이게 한다
-    return NextResponse.json({ year, months, interest_expense: zero, interest_income: zero, journal_ok: false })
+    return NextResponse.json({
+      year, months, interest_expense: zero, interest_income: zero,
+      credit_interest: zero, credit_ok: false, journal_ok: false,
+    })
   }
 
   const idx = new Map(months.map((m, i) => [m, i]))
@@ -42,5 +46,35 @@ export async function GET(req: NextRequest) {
     if (r.account_id === interestIncomeId)  income[i]  += credit - debit   // 수익: 대변 - 차변
   }
 
-  return NextResponse.json({ year, months, interest_expense: expense, interest_income: income, journal_ok: true })
+  // 한도대출 이자 — 통장 일별 잔액 기준으로 월별 산출 (사용액 변동이 그대로 반영됨)
+  const { data: creditLoans } = await admin
+    .from('loans')
+    .select('id, bank_account_id, interest_rate, product_type, status')
+    .eq('product_type', 'credit_line')
+  const targets = (creditLoans ?? []).filter(l => l.status !== 'closed')
+  const creditByMonth = months.map(() => 0)
+  let creditOk = false
+  if (targets.length) {
+    const ci = await buildCreditLineInterest(
+      admin,
+      targets.map(l => ({ id: l.id as string, bank_account_id: l.bank_account_id as string | null,
+                          interest_rate: l.interest_rate as number | null })),
+      `${year}-01-01`, `${year}-12-31`,
+    )
+    if (!('error' in ci)) {
+      creditOk = true
+      for (const r of ci.rows) {
+        months.forEach((mth, i) => { creditByMonth[i] += r.by_month[mth] ?? 0 })
+      }
+    }
+  }
+
+  return NextResponse.json({
+    year, months,
+    interest_expense: expense,
+    interest_income: income,
+    credit_interest: creditByMonth,
+    credit_ok: creditOk,
+    journal_ok: true,
+  })
 }
