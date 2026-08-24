@@ -54,9 +54,29 @@ async function loadPo(admin: SupabaseClient, id: string) {
   return { po: poRec, items: items ?? [], order }
 }
 
-// 자사 양식 데이터 조립 — 양식이 요구하는 항목 중 ERP가 아는 값을 채운다.
+// 발주담당자·연락처: 발주 진행(다운로드·발송) 시점의 로그인 직원 기준 (사용자 확정
+// 2026-08-24). 직원 정보가 없으면 발주서 작성자로 대체.
+async function currentStaff(
+  admin: SupabaseClient,
+  employeeId: string | null | undefined,
+  po: PoRecord,
+): Promise<{ name: string | null; phone: string | null }> {
+  if (employeeId) {
+    const { data } = await admin.from('employees')
+      .select('name, phone').eq('id', employeeId).maybeSingle()
+    if (data) return { name: (data.name as string) ?? null, phone: (data.phone as string) ?? null }
+  }
+  const c = one(po.creator)
+  return { name: c?.name ?? null, phone: c?.phone ?? null }
+}
+
+// 개정 양식 데이터 조립 — 양식이 요구하는 항목 중 ERP가 아는 값을 채운다.
 // 엑셀 생성과 화면 미리보기(GET의 form)가 같은 조립 결과를 쓴다.
-async function assembleForm(admin: SupabaseClient, data: NonNullable<Awaited<ReturnType<typeof loadPo>>>) {
+async function assembleForm(
+  admin: SupabaseClient,
+  data: NonNullable<Awaited<ReturnType<typeof loadPo>>>,
+  staff: { name: string | null; phone: string | null },
+) {
   const { po, items, order } = data
 
   // 출고요청일: 주문에 연결된 상담일지의 배송요청일 (없으면 공란 — 수기 기입)
@@ -66,30 +86,17 @@ async function assembleForm(admin: SupabaseClient, data: NonNullable<Awaited<Ret
       .select('delivery_request').eq('id', order.consultation_id).maybeSingle()
     shipRequest = (c?.delivery_request as string) ?? null
   }
-  // 공급처 연락처: 매입처 마스터
-  let vendorPhone: string | null = null
-  if (po.vendor_id) {
-    const { data: v } = await admin.from('vendors')
-      .select('contact_phone').eq('id', po.vendor_id).maybeSingle()
-    vendorPhone = (v?.contact_phone as string) ?? null
-  }
-  // 배송구분: 품목 구분(지점/개별/샘플)에서 판정 — 혼재 시 '+'로 병기
-  const kinds = Array.from(new Set(items.map(it => it.order_kind).filter(Boolean))) as string[]
-  const kindLabel: Record<string, string> = { 지점: '지점배송', 개별: '개별배송', 샘플: '샘플' }
-  const deliveryKind = kinds.length ? kinds.map(k => kindLabel[k] ?? k).join('+') : null
 
   return {
     po_no: po.po_no,
     order_date: order?.order_date ?? null,
     ship_request: shipRequest,
     vendor_name: po.vendor_name,
-    vendor_phone: vendorPhone,
-    delivery_kind: deliveryKind,
     customer: [order?.bank_name, order?.branch_name].filter(Boolean).join(' ') || '-',
     customer_manager: order?.manager_name ?? null,
     customer_phone: (order?.phone as string) || (order?.contact as string) || null,
-    staff_name: one(po.creator)?.name ?? null,
-    staff_phone: one(po.creator)?.phone ?? null,
+    staff_name: staff.name,
+    staff_phone: staff.phone,
     total_amount: po.total_amount ?? 0,
     delivery_note: po.delivery_note,
     items: items.map(it => ({
@@ -101,8 +108,12 @@ async function assembleForm(admin: SupabaseClient, data: NonNullable<Awaited<Ret
   }
 }
 
-async function excelOf(admin: SupabaseClient, data: NonNullable<Awaited<ReturnType<typeof loadPo>>>) {
-  return buildPoExcel(await assembleForm(admin, data))
+async function excelOf(
+  admin: SupabaseClient,
+  data: NonNullable<Awaited<ReturnType<typeof loadPo>>>,
+  staff: { name: string | null; phone: string | null },
+) {
+  return buildPoExcel(await assembleForm(admin, data, staff))
 }
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -113,8 +124,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const data = await loadPo(admin, params.id)
   if (!data) return NextResponse.json({ error: '발주서를 찾을 수 없습니다.' }, { status: 404 })
 
+  const staff = await currentStaff(admin, me.employeeId, data.po)
   if (new URL(req.url).searchParams.get('excel') === '1') {
-    const buf = await excelOf(admin, data)
+    const buf = await excelOf(admin, data, staff)
     const filename = encodeURIComponent(`발주서_${data.po.po_no}_${data.po.vendor_name}.xlsx`)
     return new NextResponse(new Uint8Array(buf), {
       headers: {
@@ -143,13 +155,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       sender_name: (l.sender as unknown as { name: string } | null)?.name ?? null,
       sender: undefined,
     })),
-    form: await assembleForm(admin, data),
+    form: await assembleForm(admin, data, staff),
     smtp_ready: smtpReady(),
   })
 }
 
 // 발송 첨부 조립 (510): 수정본(replace)이 있으면 자동 생성본 대신, 추가 자료(extra)는 항상 함께
-async function buildAttachments(admin: SupabaseClient, data: NonNullable<Awaited<ReturnType<typeof loadPo>>>) {
+async function buildAttachments(
+  admin: SupabaseClient,
+  data: NonNullable<Awaited<ReturnType<typeof loadPo>>>,
+  staff: { name: string | null; phone: string | null },
+) {
   const { po } = data
   const autoName = `발주서_${po.po_no}_${po.vendor_name}.xlsx`
   const { data: rows, error } = await admin.from('erp_po_attachments')
@@ -159,7 +175,7 @@ async function buildAttachments(admin: SupabaseClient, data: NonNullable<Awaited
   const files: { filename: string; content: Buffer }[] = []
   const replaces = uploads.filter(r => r.kind === 'replace')
   if (!replaces.length) {
-    files.push({ filename: autoName, content: await excelOf(admin, data) })
+    files.push({ filename: autoName, content: await excelOf(admin, data, staff) })
   }
   for (const r of uploads) {
     const { data: blob, error: dErr } = await admin.storage.from('po-attachments').download(r.storage_path as string)
@@ -229,7 +245,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     // 제목·본문: 발송 페이지에서 작성한 내용 (미지정 시 기존 기본 문구).
     // 치환 변수({발주번호} 등)는 서버에서 한 번 더 채운다 — 화면과 동일 규칙.
-    const form = await assembleForm(admin, data)
+    const staff = await currentStaff(admin, me.employeeId, data.po)
+    const form = await assembleForm(admin, data, staff)
     const vars = poMailVars(form, data.order?.order_no ?? null)
     const subject = fillMailTemplate(
       (body.subject ?? '').trim() || `[다올커머스] 발주서 송부 - ${po.po_no} ${po.vendor_name}`, vars)
@@ -238,7 +255,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       `안녕하세요, 다올커머스입니다.\n\n발주서를 첨부하여 송부드립니다.\n- 발주번호: ${po.po_no}\n- 합계금액: ${(po.total_amount ?? 0).toLocaleString('ko-KR')}원\n\n확인 부탁드립니다. 감사합니다.`, vars)
 
     // 첨부 조립: 수정본 업로드가 있으면 자동 생성본 대신 그 파일이 나간다
-    const att = await buildAttachments(admin, data)
+    const att = await buildAttachments(admin, data, staff)
     if ('error' in att) return NextResponse.json({ error: att.error }, { status: 500 })
 
     const result = await sendPoMail({ to, subject, body: mailBody, attachments: att.files })

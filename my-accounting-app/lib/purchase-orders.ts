@@ -125,16 +125,13 @@ export async function loadPurchaseSection(admin: SupabaseClient, orderId: string
   return { order, items: items ?? [], pos: pos ?? [], poItemMap, vendorInfo, deliveryNote }
 }
 
-// ── 발주서 엑셀 (자사 양식 — 2026-08-13 실물 파일 재현) ─────────────
-// 양식 원본: 발주서(데이터) 시트 1장. 상단 정보 그리드(발주번호·주문일·출고요청일·
-// 공급처·주문처·담당자·총액) + 품목 표(발송인~송장번호 15열, 가로 인쇄).
-// 골드색 열(발송인·수령인·주소·배송메모·송장번호)은 배송 관련 수기 보완란 —
-// ERP가 아는 값은 미리 채우고 나머지는 비워 보낸다 (송장번호는 매입처 기입).
-
+// ── 발주서 엑셀 (다올커머스 발주서 — 2026-08-24 영업지원팀 개정 양식) ─────
+// 시트 2장: '발주서'(명세 — 발주번호 헤더·품목 6열·택배비 행·합계) +
+// '배송명단'(수령인별 배송 리스트 — 아는 값 프리필, 주소 등은 수기 보완).
 // 셀 값·순서·색 정의는 lib/po-form.ts 공용 (화면 미리보기와 항상 동일해야 함)
 import {
-  COMPANY_NAME, PO_COLORS, PO_HEADERS, PO_GOLD_COLS, PO_NUM_COLS,
-  poFormInfo, poFormItemRows, type PoExcelData,
+  COMPANY_NAME, PO_COLORS, PO_HEADERS, ROSTER_HEADERS,
+  poFormInfo, poFormItemRows, poRosterRows, type PoExcelData,
 } from './po-form'
 export type { PoExcelData } from './po-form'
 
@@ -144,94 +141,139 @@ const argb = (hex: string) => `FF${hex}`
 export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
   const ExcelJS = (await import('exceljs')).default
   const wb = new ExcelJS.Workbook()
-  const ws = wb.addWorksheet('발주서(데이터)', {
-    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
-  })
-  ws.columns = [
-    { width: 5 }, { width: 11 }, { width: 13 }, { width: 11 }, { width: 13 },
-    { width: 8 }, { width: 22 }, { width: 18 }, { width: 9 }, { width: 5 },
-    { width: 8 }, { width: 10 }, { width: 14 }, { width: 16 }, { width: 15 },
-  ]
-
   const thin = { style: 'thin' as const }
   const box = { top: thin, bottom: thin, left: thin, right: thin }
-  const fill = (rgb: string) => ({ type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: rgb } })
+  const fill = (hex: string) => ({ type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: argb(hex) } })
+  const center = { horizontal: 'center' as const, vertical: 'middle' as const, wrapText: true }
+
+  // ── 시트1: 발주서 (명세) ────────────────────────────
+  const ws = wb.addWorksheet('발주서', {
+    pageSetup: { orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  })
+  ws.columns = [
+    { width: 5.6 }, { width: 12.6 }, { width: 19.5 }, { width: 6 },
+    { width: 12.6 }, { width: 12.6 }, { width: 12.6 }, { width: 12.6 },
+  ]
 
   // 제목
-  ws.mergeCells('A1:O1')
-  ws.getRow(1).height = 42
+  ws.mergeCells('A1:H1')
+  ws.getRow(1).height = 30
   const title = ws.getCell('A1')
   title.value = `${COMPANY_NAME} 발주서`
-  title.font = { name: FONT, size: 20, bold: true, color: { argb: argb(PO_COLORS.navy) } }
-  title.alignment = { horizontal: 'center', vertical: 'middle' }
+  title.font = { name: FONT, size: 17, bold: true, color: { argb: argb(PO_COLORS.navy) } }
+  title.alignment = center
 
-  // 정보 그리드 (2~5행): 병합 범위는 엑셀 전용, 라벨·값은 po-form 공용 정의
-  const infoRanges: [string, string][] = [
-    ['A2:B2', 'C2:E2'], ['F2:G2', 'H2:J2'], ['K2:L2', 'M2:O2'],
-    ['A3:B3', 'C3:E3'], ['F3:G3', 'H3:J3'], ['K3:L3', 'M3:O3'],
-    ['A4:B4', 'C4:E4'], ['F4:G4', 'H4:J4'], ['K4:L4', 'M4:O4'],
-    ['A5:B5', 'C5:E5'], ['F5:G5', 'H5:J5'], ['K5:L5', 'M5:O5'],
-  ]
-  for (let r = 2; r <= 5; r++) ws.getRow(r).height = r === 5 ? 26 : 24
-  poFormInfo(po).forEach((cell, i) => {
-    const [labelRange, valueRange] = infoRanges[i]
-    ws.mergeCells(labelRange)
-    ws.mergeCells(valueRange)
+  // 헤더 정보 (2~4행): [A:B 라벨, C:D 값] + [E 라벨, F 값] + [G 라벨, H 값]
+  // 발주번호가 맨 위, 출고요청일 라벨은 노란 배경·파란 글씨 강조 (사용자 확정)
+  const info = poFormInfo(po)
+  const infoRanges: [string, string][][] = [
+    [['A2:B2', 'C2:D2'], ['E2', 'F2'], ['G2', 'H2']],
+    [['A3:B3', 'C3:D3'], ['E3', 'F3'], ['G3', 'H3']],
+    [['A4:B4', 'C4:D4'], ['E4', 'F4'], ['G4', 'H4']],
+  ] as unknown as [string, string][][]
+  infoRanges.flat().forEach((pair, i) => {
+    const cell = info[i]
+    const [labelRange, valueRange] = pair
+    if (labelRange.includes(':')) ws.mergeCells(labelRange)
+    if (valueRange.includes(':')) ws.mergeCells(valueRange)
     const lc = ws.getCell(labelRange.split(':')[0])
     lc.value = cell.label
-    lc.font = { name: FONT, size: 10, bold: true, color: { argb: argb(PO_COLORS.label) } }
-    lc.fill = fill(argb(PO_COLORS.labelBg))
-    lc.alignment = { horizontal: 'center', vertical: 'middle' }
+    lc.font = {
+      name: FONT, size: 10, bold: true,
+      color: { argb: argb(cell.accent ? PO_COLORS.accentInk : PO_COLORS.label) },
+    }
+    lc.fill = fill(cell.accent ? PO_COLORS.accentBg : PO_COLORS.labelBg)
+    lc.alignment = center
     const vc = ws.getCell(valueRange.split(':')[0])
     vc.value = cell.value ?? ''
     vc.font = { name: FONT, size: 10, bold: !!cell.bold, color: { argb: argb(PO_COLORS.ink) } }
-    vc.alignment = { horizontal: 'left', vertical: 'middle' }
+    vc.alignment = center
   })
-  // 총액 칸은 강조 (원본: 진한 글씨·연주황 배경·"원" 표기, 품목 합계 수식)
-  const totalCell = ws.getCell('M5')
-  totalCell.font = { name: FONT, size: 12, bold: true, color: { argb: argb(PO_COLORS.totalInk) } }
-  totalCell.fill = fill(argb(PO_COLORS.totalBg))
-  totalCell.alignment = { horizontal: 'right', vertical: 'middle' }
-  totalCell.numFmt = '#,##0 "원"'
-  if (po.items.length) {
-    totalCell.value = {
-      formula: `SUM(L7:L${6 + po.items.length})`,
-      result: po.total_amount,
-    } as import('exceljs').CellFormulaValue
-  }
+  for (let r = 2; r <= 4; r++) ws.getRow(r).height = 20
 
-  // 품목 표 헤더 (6행) — 남색: 발주 내용 / 골드: 배송 수기 보완란 (po-form 공용)
-  ws.getRow(6).height = 30
-  PO_HEADERS.forEach((h, i) => {
-    const cell = ws.getCell(6, i + 1)
-    cell.value = h.label
-    cell.font = { name: FONT, size: 9.5, bold: true, color: { argb: 'FFFFFFFF' } }
-    cell.fill = fill(argb(h.tone === 'navy' ? PO_COLORS.navy : PO_COLORS.gold))
-    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+  // 품목 표 헤더 (5행): NO | 제품명(B:C) | 수량 | 단가 | 금액 | 비고(G:H)
+  ws.mergeCells('B5:C5')
+  ws.mergeCells('G5:H5')
+  const headerCells = ['A5', 'B5', 'D5', 'E5', 'F5', 'G5']
+  PO_HEADERS.forEach((label, i) => {
+    const cell = ws.getCell(headerCells[i])
+    cell.value = label
+    cell.font = { name: FONT, size: 10, bold: true, color: { argb: argb(PO_COLORS.label) } }
+    cell.fill = fill(PO_COLORS.labelBg)
+    cell.alignment = center
   })
 
-  // 품목 행 — 값은 po-form 공용(미리보기와 동일), 골드 열은 연한 골드 배경
-  poFormItemRows(po).forEach((values, i) => {
-    const r = 7 + i
-    ws.getRow(r).height = 30
+  // 품목 행 — 택배비는 별도 행 (poFormItemRows에서 분리), 수량은 빨간 글씨
+  const rows = poFormItemRows(po)
+  rows.forEach((values, i) => {
+    const r = 6 + i
+    ws.mergeCells(`B${r}:C${r}`)
+    ws.mergeCells(`G${r}:H${r}`)
+    const cells = [`A${r}`, `B${r}`, `D${r}`, `E${r}`, `F${r}`, `G${r}`]
     values.forEach((v, ci) => {
-      const cell = ws.getCell(r, ci + 1)
+      const cell = ws.getCell(cells[ci])
       cell.value = v
-      cell.font = { name: FONT, size: 9.5, color: { argb: argb(PO_COLORS.ink) } }
-      const right = PO_NUM_COLS.has(ci)
-      cell.alignment = {
-        horizontal: ci === 0 || ci === 5 ? 'center' : right ? 'right' : 'left',
-        vertical: 'middle', wrapText: true,
+      cell.font = {
+        name: FONT, size: 10,
+        color: { argb: argb(ci === 2 ? PO_COLORS.qtyInk : PO_COLORS.ink) },   // 수량 빨강
       }
-      if (right) cell.numFmt = '#,##0'
-      if (PO_GOLD_COLS.has(ci + 1)) cell.fill = fill(argb(PO_COLORS.goldRowBg))
+      cell.alignment = center
+      if (ci === 3 || ci === 4) cell.numFmt = '#,##0'
     })
   })
 
-  // 표 전체 테두리 (정보 그리드 + 품목 표)
-  const lastRow = 6 + Math.max(po.items.length, 1)
-  for (let r = 2; r <= lastRow; r++) {
-    for (let c = 1; c <= 15; c++) ws.getCell(r, c).border = box
+  // 합계 행: A:F 라벨 + G:H 값 (붉은 굵은 글씨, 금액 열 SUM 수식)
+  const totalRow = 6 + rows.length
+  ws.mergeCells(`A${totalRow}:F${totalRow}`)
+  ws.mergeCells(`G${totalRow}:H${totalRow}`)
+  const tl = ws.getCell(`A${totalRow}`)
+  tl.value = '합계금액(vat포함)'
+  tl.font = { name: FONT, size: 10, bold: true, color: { argb: argb(PO_COLORS.label) } }
+  tl.fill = fill(PO_COLORS.labelBg)
+  tl.alignment = center
+  const tv = ws.getCell(`G${totalRow}`)
+  tv.value = rows.length
+    ? ({ formula: `SUM(F6:F${totalRow - 1})`, result: po.total_amount } as import('exceljs').CellFormulaValue)
+    : po.total_amount
+  tv.font = { name: FONT, size: 10, bold: true, color: { argb: argb(PO_COLORS.totalInk) } }
+  tv.alignment = center
+  tv.numFmt = '#,##0'
+
+  // 표 전체 테두리
+  for (let r = 2; r <= totalRow; r++) {
+    for (let c = 1; c <= 8; c++) ws.getCell(r, c).border = box
+  }
+
+  // ── 시트2: 배송명단 ─────────────────────────────────
+  const ws2 = wb.addWorksheet('배송명단', {
+    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  })
+  ws2.columns = [
+    { width: 4.6 }, { width: 20.6 }, { width: 15.6 }, { width: 14 }, { width: 50.6 },
+    { width: 15.6 }, { width: 40.6 }, { width: 10.6 }, { width: 30.6 },
+  ]
+  ROSTER_HEADERS.forEach((label, i) => {
+    const cell = ws2.getCell(1, i + 1)
+    cell.value = label
+    cell.font = { name: FONT, size: 10, bold: true, color: { argb: argb(PO_COLORS.label) } }
+    cell.fill = fill(PO_COLORS.labelBg)
+    cell.alignment = center
+  })
+  poRosterRows(po).forEach((values, i) => {
+    const r = 2 + i
+    values.forEach((v, ci) => {
+      const cell = ws2.getCell(r, ci + 1)
+      cell.value = v
+      cell.font = { name: FONT, size: 10, color: { argb: argb(PO_COLORS.ink) } }
+      // 주소·배송메모는 좌측 정렬 (원본과 동일), 나머지 가운데
+      cell.alignment = ci === 4 || ci === 8
+        ? { horizontal: 'left', vertical: 'middle', wrapText: true }
+        : center
+    })
+  })
+  const rosterLast = 1 + poRosterRows(po).length
+  for (let r = 1; r <= rosterLast; r++) {
+    for (let c = 1; c <= 9; c++) ws2.getCell(r, c).border = box
   }
 
   return Buffer.from(await wb.xlsx.writeBuffer())
