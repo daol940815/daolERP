@@ -26,6 +26,7 @@ export interface ConsultItemInput {
   status: string | null              // 품목 상태 — 품절·단가변경 등 (509, 실무자 요청)
   option_note: string | null         // 색상·옵션 등 기타사항 (품목별, 509)
   parent_line_no: number | null      // 옵션(부가상품) 행이 딸린 본 상품 행 번호 (701)
+  is_shipping: boolean               // 배송비 행 — 주문 전환 시 본 상품 배송비로 합산 (702)
 }
 
 // 상담 본문 파싱 — 필수는 상담일·구분뿐 (아는 만큼만 기록)
@@ -54,6 +55,7 @@ export function parseConsultBody(body: Record<string, unknown>) {
       status: toStr(r.status),
       option_note: toStr(r.option_note),
       parent_line_no: toInt(r.parent_line_no) > 0 ? toInt(r.parent_line_no) : null,
+      is_shipping: r.is_shipping === true,
     }))
     .filter(it => it.item_name)
 
@@ -119,18 +121,23 @@ export async function insertConsultItems(
   if (!rows.length) return null
   const hasParent = rows.some(it => it.parent_line_no != null)
   const hasItemMeta = rows.some(it => it.status != null || it.option_note != null)
+  const hasShipping = rows.some(it => it.is_shipping)
   const payload = rows.map(it => {
-    const { parent_line_no, status, option_note, ...rest } = it
+    const { parent_line_no, status, option_note, is_shipping, ...rest } = it
     return {
       ...rest,
       ...(hasParent ? { parent_line_no } : {}),
       ...(hasItemMeta ? { status, option_note } : {}),
+      ...(hasShipping ? { is_shipping } : {}),
       consultation_id: consultationId,
     }
   })
   const { error } = await admin.from('erp_consultation_items').insert(payload)
   if (error && /parent_line_no/i.test(error.message)) {
     return '701 마이그레이션(상담 품목 옵션)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
+  }
+  if (error && /is_shipping/i.test(error.message)) {
+    return '702 마이그레이션(배송비 행·지점명 보정)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
   }
   if (error && /status|option_note/i.test(error.message)) {
     return '509 마이그레이션(품목별 상태·기타사항)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'

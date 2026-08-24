@@ -146,13 +146,23 @@ export default function OrderForm({ orderId, consultId }: { orderId?: string; co
           const cItems = (c.items ?? []) as Record<string, unknown>[]
           if (cItems.length) {
             // 상담 품목의 옵션 연결(parent_line_no)도 전환 시 그대로 복원 (701)
-            const lineToUid = new Map<number, number>(cItems.map((it, idx) => [it.line_no as number, idx + 1]))
-            uidRef.current = cItems.length + 1
-            setItems(cItems.map((it, idx) => {
+            // 배송비 행(702)은 주문 품목이 아니라 본 상품의 배송비 컬럼으로 합산해 접는다 (하류 무변경)
+            const shipByParent = new Map<number, number>()   // 키 -1 = 부모 미상 (첫 품목에 합산 — 유실 방지)
+            for (const s of cItems) {
+              if (s.is_shipping === true) {
+                const fee = ((s.sale_price as number) ?? 0) * ((s.quantity as number) ?? 1)
+                const key = (s.parent_line_no as number) || -1
+                shipByParent.set(key, (shipByParent.get(key) ?? 0) + fee)
+              }
+            }
+            const realItems = cItems.filter(s => s.is_shipping !== true)
+            const realLineToUid = new Map<number, number>(realItems.map((s, idx) => [s.line_no as number, idx + 1]))
+            uidRef.current = realItems.length + 1
+            setItems(realItems.map((it, idx) => {
               const prod = prodList.find(x => x.id === it.product_id)
               return {
                 uid: idx + 1,
-                parent_uid: it.parent_line_no ? (lineToUid.get(it.parent_line_no as number) ?? null) : null,
+                parent_uid: it.parent_line_no ? (realLineToUid.get(it.parent_line_no as number) ?? null) : null,
                 product_id: (it.product_id as string) ?? null,
                 item_code: (it.item_code as string) ?? '',
                 item_name: (it.item_name as string) ?? '',
@@ -160,7 +170,9 @@ export default function OrderForm({ orderId, consultId }: { orderId?: string; co
                 purchase_vendor_name: (it.purchase_vendor_name as string) ?? '',
                 sale_price: (it.sale_price as number) ?? 0,
                 quantity: (it.quantity as number) ?? 1,
-                shipping_fee: (it.shipping_fee as number) ?? 0,
+                shipping_fee: ((it.shipping_fee as number) ?? 0)
+                  + (shipByParent.get(it.line_no as number) ?? 0)
+                  + (idx === 0 ? (shipByParent.get(-1) ?? 0) : 0),
                 discount_amount: (it.discount_amount as number) ?? 0,
                 purchase_price: (it.purchase_price as number) ?? 0,
                 purchase_shipping: (it.purchase_shipping as number) ?? 0,
