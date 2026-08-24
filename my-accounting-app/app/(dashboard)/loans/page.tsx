@@ -236,8 +236,8 @@ export default function LoansPage() {
                 <th className="py-2.5 px-3 font-medium text-right">월 이자(참고)</th>
                 <th className="py-2.5 px-3 font-medium text-center">상환일</th>
                 <th className="py-2.5 px-3 font-medium">만기</th>
-                <th className="py-2.5 px-3 font-medium text-center">구분</th>
-                <th className="py-2.5 px-3 font-medium text-center">상태</th>
+                <th className="py-2.5 px-3 font-medium text-center whitespace-nowrap">구분</th>
+                <th className="py-2.5 px-3 font-medium text-center whitespace-nowrap">상태</th>
                 <th className="py-2.5 px-3 font-medium"></th>
               </tr>
             </thead>
@@ -264,8 +264,8 @@ export default function LoansPage() {
                   </td>
                   <td className="py-2 px-3 text-center whitespace-nowrap">{l.payment_day ? `${l.payment_day}일` : '-'}</td>
                   <td className={`py-2 px-3 whitespace-nowrap ${isOverdue(l) ? 'text-red-600' : ''}`}>{l.maturity_date ?? '-'}</td>
-                  <td className="py-2 px-3 text-center">
-                    <span className="text-[11px] px-1.5 py-0.5 rounded bg-slate-100">{TERM_LABEL[l.term_type]}</span>
+                  <td className="py-2 px-3 text-center whitespace-nowrap">
+                    <span className="inline-block whitespace-nowrap text-[11px] px-1.5 py-0.5 rounded bg-slate-100">{TERM_LABEL[l.term_type]}</span>
                   </td>
                   <td className="py-2 px-3 text-center whitespace-nowrap">
                     <span className={`text-[11px] px-1.5 py-0.5 rounded ${l.status === 'active'
