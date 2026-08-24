@@ -57,12 +57,14 @@ function normalizeName(raw) {
   s = s.replace(/클렌져/g, '클렌저')
   s = s.replace(/유주/g, '유즈')
   s = s.replace(/케어/g, '')                // '케어' 유무 흡수 (바디케어세트/바디세트)
-  s = s.replace(/\s+/g, ' ').trim()
+  s = s.replace(/요아럽/g, '')              // '요아럽' 접두 유무 흡수 (요아럽 브랜드쇼핑백/브랜드쇼핑백)
+  s = s.replace(/\s+/g, '')                 // 공백 차이 흡수 (프리지아 앰버/프리지아엠버, 클렌징 폼/클렌징폼)
   return s
 }
-// 어순 무시 키: 정규화 후 공백 분리 토큰을 정렬해 결합
+// 어순 무시 키: 정규화 후 문자 단위 정렬 — 어순(디퓨저 향명)·띄어쓰기 위치 차이를 함께 흡수.
+// 애너그램 오매칭 위험은 buildMap의 충돌 키 제외로 방어한다.
 function orderFreeKey(raw) {
-  return normalizeName(raw).split(' ').filter(Boolean).sort().join('|')
+  return [...normalizeName(raw)].sort().join('')
 }
 
 // ── 확정 별칭 (엑셀 표기 → 마스터 품번) ─────────────────
@@ -234,6 +236,52 @@ async function main() {
   console.log('\n품목별 전산재고 (입고−출고) — 엑셀 "집계" 시트와 대조할 것:')
   for (const [name, s] of [...stockByProduct.entries()].sort()) {
     console.log(`  ${name}: 입고 ${s.in} − 출고 ${s.out} = ${s.in - s.out}`)
+  }
+
+  // ── 검증: 집계 시트 대조 (품명은 동일 정규화로 대응) ──
+  const aggSheet = wb.Sheets['집계']
+  if (aggSheet) {
+    const aggRows = xlsx.utils.sheet_to_json(aggSheet, { header: 1, raw: true, defval: null })
+    // 4행부터: 분류 / NO / 구분 / 품명 / 전산재고 / 실재고 / 오차
+    const ledgerByNorm = new Map()
+    const ledgerNormByOrderFree = new Map()
+    for (const [name, s] of stockByProduct.entries()) {
+      const bare = name.replace(/^\[미매칭\] /, '')
+      const k = normalizeName(bare)
+      const cur = ledgerByNorm.get(k) || { in: 0, out: 0, names: [] }
+      cur.in += s.in
+      cur.out += s.out
+      cur.names.push(name)
+      ledgerByNorm.set(k, cur)
+      ledgerNormByOrderFree.set(orderFreeKey(bare), k)
+    }
+    const usedKeys = new Set()
+    let mismatch = 0
+    console.log('\n[검증] 집계 시트 대조 (품목별 전산재고):')
+    for (let i = 3; i < aggRows.length; i++) {
+      const r = aggRows[i]
+      if (!r || r[3] == null) continue
+      const aggName = String(r[3]).trim()
+      const aggStock = num(r[4])
+      // 이관 매칭과 동일 규칙으로 대응: 별칭·마스터 매칭 → 정규화 → 어순 무시
+      const aggProduct = matchProduct(aggName)
+      let k = aggProduct ? normalizeName(aggProduct.item_name) : normalizeName(aggName)
+      if (!ledgerByNorm.has(k)) k = ledgerNormByOrderFree.get(orderFreeKey(aggName)) ?? k
+      const led = ledgerByNorm.get(k)
+      usedKeys.add(k)
+      const computed = led ? led.in - led.out : null
+      const ok = computed !== null && computed === aggStock
+      if (!ok) mismatch++
+      console.log(`  ${ok ? '일치' : '불일치!'} ${aggName}: 집계 ${aggStock} / 원장 ${computed ?? '대응 품목 없음'}`)
+    }
+    const extras = [...ledgerByNorm.entries()].filter(([k]) => !usedKeys.has(k))
+    if (extras.length) {
+      console.log('  집계 시트에 없는 원장 품목 (재고 0이 아니면 확인 필요):')
+      for (const [, v] of extras) console.log(`    ${v.names.join(' + ')}: ${v.in - v.out}`)
+    }
+    console.log(mismatch === 0 ? '  → 집계 시트와 전 품목 일치' : `  → 불일치 ${mismatch}건 — 실행 전 원인 확인 필요`)
+  } else {
+    console.log('\n[주의] "집계" 시트가 없어 자동 대조를 건너뜀')
   }
 
   if (!EXECUTE) {
