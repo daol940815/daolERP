@@ -32,6 +32,19 @@ const daysUntil = (d: string) =>
 const exposure = (l: ReportLoan) =>
   l.product_type === 'credit_line' ? (l.usage?.used ?? 0) : l.current_balance
 
+// 마이너스 통장 이자 = 사용액 x 연이율 / 365 x 일수 (일할 후취)
+const daysInThisMonth = () => {
+  const d = new Date()
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+}
+// 대출별 월 이자: 일반 대출은 마스터에 입력된 값, 한도대출은 사용액 기준 계산값
+const monthlyInterestOf = (l: ReportLoan) => {
+  if (l.product_type !== 'credit_line') return l.monthly_interest
+  const used = l.usage?.used ?? 0
+  if (!used || l.interest_rate == null) return 0
+  return Math.round((used * (l.interest_rate / 100) / 365) * daysInThisMonth())
+}
+
 export default function AnnualReport({ loans }: { loans: ReportLoan[] }) {
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
@@ -63,8 +76,12 @@ export default function AnnualReport({ loans }: { loans: ReportLoan[] }) {
       rated.reduce((s, l) => s + exposure(l), 0)
     : 0
 
-  const planMonthly = live.filter(l => l.product_type !== 'credit_line' && l.status === 'active')
+  // 계획 월 이자 = 일반 대출(마스터 입력) + 한도대출(사용액 기준 일할 계산)
+  const planTerm = live.filter(l => l.product_type !== 'credit_line' && l.status === 'active')
     .reduce((s, l) => s + l.monthly_interest, 0)
+  const planLine = live.filter(l => l.product_type === 'credit_line')
+    .reduce((s, l) => s + monthlyInterestOf(l), 0)
+  const planMonthly = planTerm + planLine
   const planYear = planMonthly * 12
   const actualYear = (actual?.interest_expense ?? []).reduce((s, v) => s + v, 0)
 
@@ -226,7 +243,9 @@ export default function AnnualReport({ loans }: { loans: ReportLoan[] }) {
           </thead>
           <tbody className="text-gray-700">
             <tr className="border-b border-gray-100">
-              <td className="py-2 px-3 text-gray-500 whitespace-nowrap">계획 (계약 조건)</td>
+              <td className="py-2 px-3 text-gray-500 whitespace-nowrap" title={`일반 ${won(planTerm)} + 한도대출 ${won(planLine)}`}>
+                계획 (계약 조건)
+              </td>
               {Array.from({ length: 12 }, (_, i) => (
                 <td key={i} className="py-2 px-3 text-right whitespace-nowrap">{won(planMonthly)}</td>
               ))}
@@ -262,7 +281,8 @@ export default function AnnualReport({ loans }: { loans: ReportLoan[] }) {
       </div>
       )}
       <p className="text-xs text-gray-400 mt-1.5">
-        계획은 대출 마스터의 월 이자를 그대로 12개월에 적용한 단순 계산입니다(중도 상환·금리 변동 미반영).
+        계획 = 일반 대출 월 이자({won(planTerm)}원) + 한도대출 예상 이자({won(planLine)}원, 사용액 × 연이율 ÷ 365 × 당월 일수)를
+        12개월에 그대로 적용한 단순 계산입니다(중도 상환·금리 변동·사용액 변동 미반영).
         {actualYear === 0 && ' 실적은 확정된 이자비용(5301) 분개에서 집계하며, 대출 원리금 거래의 원금·이자 분리가 끝나면 채워집니다.'}
       </p>
 
@@ -312,6 +332,7 @@ export default function AnnualReport({ loans }: { loans: ReportLoan[] }) {
             <div className={card}>
               <div className="text-xs text-gray-400">미사용 한도 (여신 여력)</div>
               <div className="text-lg font-bold mt-1 text-blue-600">{eok(Math.max(creditLimit - creditUsed, 0))}</div>
+              <div className="text-[11px] text-gray-400 mt-0.5">예상 월이자 {won(planLine)}원</div>
             </div>
           </div>
         </>
