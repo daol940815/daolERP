@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import AnnualReport from './annual-report'
 
 const won = (n: number | null | undefined) => (n ?? 0).toLocaleString('ko-KR')
 const eok = (n: number) => `${(n / 1e8).toFixed(2)}억`
@@ -74,6 +75,18 @@ export default function LoansPage() {
   const [editing, setEditing] = useState<Loan | 'new' | null>(null)
   const [form, setForm] = useState<EditForm>(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [tab, setTab] = useState<'list' | 'report'>('list')
+
+  // 탭 상태를 주소(?tab=report)와 맞춘다 — 새로고침·북마크에서 유지
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('tab')
+    if (t === 'report') setTab('report')
+  }, [])
+  const goTab = (t: 'list' | 'report') => {
+    setTab(t)
+    const url = t === 'report' ? '/loans?tab=report' : '/loans'
+    window.history.replaceState(null, '', url)
+  }
 
   const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
 
@@ -109,6 +122,8 @@ export default function LoansPage() {
 
   const terms = loans.filter(l => !isCreditLine(l))
   const lines = loans.filter(l => isCreditLine(l))
+  // 연간 리포트에는 한도대출의 통장 기준 사용액을 함께 넘긴다
+  const reportLoans = loans.map(l => ({ ...l, usage: isCreditLine(l) ? usage(l) : undefined }))
 
   const matchFilter = (l: Loan) => {
     if (filter === 'all') return true
@@ -202,15 +217,31 @@ export default function LoansPage() {
       <div className="flex items-start justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">대출 관리</h1>
-          <p className="text-sm mt-1 text-gray-500">
-            일반 대출은 약정 원금과 상환 스케줄로, 한도대출(마이너스 통장)은 약정한도와 사용액으로 관리합니다.
-            한도대출의 사용액은 통장 잔액에서 자동으로 계산되며 별도 입력이 필요 없습니다.
-          </p>
+          {tab === 'list' && (
+            <p className="text-sm mt-1 text-gray-500">
+              일반 대출은 약정 원금과 상환 스케줄로, 한도대출(마이너스 통장)은 약정한도와 사용액으로 관리합니다.
+              한도대출의 사용액은 통장 잔액에서 자동으로 계산되며 별도 입력이 필요 없습니다.
+            </p>
+          )}
         </div>
-        <button onClick={() => openEdit('new')}
-          className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 whitespace-nowrap">
-          + 대출 등록
-        </button>
+        {tab === 'list' && (
+          <button onClick={() => openEdit('new')}
+            className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 whitespace-nowrap">
+            + 대출 등록
+          </button>
+        )}
+      </div>
+
+      {/* 탭 */}
+      <div className="flex items-center gap-1 mt-4 border-b border-gray-200">
+        {([['list', '대출 현황'], ['report', '연간 리포트']] as const).map(([k, label]) => (
+          <button key={k} onClick={() => goTab(k)}
+            className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap ${tab === k
+              ? 'border-slate-900 text-slate-900'
+              : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            {label}
+          </button>
+        ))}
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
@@ -226,6 +257,7 @@ export default function LoansPage() {
         </div>
       )}
 
+      {tab === 'list' && (<>
       {/* KPI */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
         <button onClick={() => setFilter('all')} className="bg-white border border-gray-200 rounded-xl p-4 text-left hover:border-slate-400">
@@ -444,6 +476,9 @@ export default function LoansPage() {
           </p>
         </>
       )}
+      </>)}
+
+      {tab === 'report' && <AnnualReport loans={reportLoans} />}
 
       {/* 편집 모달 */}
       {editing && (
