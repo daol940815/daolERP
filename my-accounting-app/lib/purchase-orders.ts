@@ -255,8 +255,7 @@ export async function sendPoMail(opts: {
   to: string
   subject: string
   body: string
-  attachName: string
-  attachBuffer: Buffer
+  attachments: { filename: string; content: Buffer }[]
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!smtpReady()) {
     return { ok: false, error: 'SMTP 환경변수(NAVER_SMTP_USER/NAVER_SMTP_PASS)가 설정되지 않았습니다. Vercel 환경변수 등록 후 사용 가능합니다.' }
@@ -276,7 +275,7 @@ export async function sendPoMail(opts: {
       cc: process.env.PO_CC_EMAIL || undefined,   // 백업 CC — 보낸메일함 미보존 보완
       subject: opts.subject,
       text: opts.body,
-      attachments: [{ filename: opts.attachName, content: opts.attachBuffer }],
+      attachments: opts.attachments,
     })
     return { ok: true }
   } catch (e) {

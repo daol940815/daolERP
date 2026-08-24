@@ -73,6 +73,25 @@ export function poFormInfo(po: PoExcelData): { label: string; value: string | nu
   ]
 }
 
+// ── 메일 프리셋 치환 (발송 페이지·서버 발송 공용) ──────────────────
+// {발주번호} 같은 변수를 실제 값으로 바꾼다. 값이 없는 변수는 그대로 남겨
+// 사용자가 발송 전에 알아챌 수 있게 한다.
+export function fillMailTemplate(tpl: string, vars: Record<string, string>): string {
+  return tpl.replace(/\{([^{}\n]+)\}/g, (raw, key: string) => vars[key.trim()] ?? raw)
+}
+
+export function poMailVars(form: PoExcelData, orderNo?: string | null): Record<string, string> {
+  return {
+    '발주번호': form.po_no,
+    '매입처명': form.vendor_name,
+    '주문번호': orderNo ?? '',
+    '주문처': form.customer,
+    '합계금액': (form.total_amount ?? 0).toLocaleString('ko-KR'),
+    '출고요청일': form.ship_request ?? '',
+    '발주담당자': form.staff_name ?? '',
+  }
+}
+
 // 품목 행 값 15열 — 엑셀 출력과 완전히 동일한 값
 // (합계에 매입배송비 포함 시 비고에 명시, 배송메모는 첫 행에만)
 export function poFormItemRows(po: PoExcelData): (string | number)[][] {

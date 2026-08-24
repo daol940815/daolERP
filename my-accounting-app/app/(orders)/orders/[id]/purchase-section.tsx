@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import PoDetail from '../po-detail'
 
 // 주문 상세의 발주 섹션 (3단계, 시안 v3) — direct 주문 전용, 전 직원 사용 가능.
@@ -31,6 +33,7 @@ interface Po {
 const won = (n: number | null) => (n ?? 0).toLocaleString('ko-KR')
 
 export default function PurchaseSection({ orderId }: { orderId: string }) {
+  const router = useRouter()
   const [groups, setGroups] = useState<Group[]>([])
   const [pos, setPos] = useState<Po[]>([])
   const [smtpReady, setSmtpReady] = useState(false)
@@ -43,8 +46,7 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
   // 그룹별 선택 품목·이메일 입력
   const [checked, setChecked] = useState<Record<string, boolean>>({})
   const [emails, setEmails] = useState<Record<string, string>>({})   // group.key → email
-  const [poEmails, setPoEmails] = useState<Record<string, string>>({})   // po.id → email
-  const [openPo, setOpenPo] = useState<string | null>(null)   // 내용 펼친 발주서 (생성 직후 자동 펼침)
+  const [openPo, setOpenPo] = useState<string | null>(null)   // 내용 펼친 발주서
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -64,9 +66,6 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
     }
     setChecked(prev => ({ ...ck, ...prev }))
     setEmails(prev => ({ ...em, ...prev }))
-    const pe: Record<string, string> = {}
-    for (const p of (json.pos ?? []) as Po[]) pe[p.id] = p.email_to ?? ''
-    setPoEmails(prev => ({ ...pe, ...prev }))
     setLoading(false)
   }, [orderId])
   useEffect(() => { load() }, [load])
@@ -86,23 +85,8 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
     const json = await res.json()
     setBusy(false)
     if (!res.ok) { setError(json.error ?? '발주서 생성 실패'); return }
-    setNotice(`발주서 ${json.po_no}가 생성되었습니다. 아래에서 내용을 확인하고 엑셀 다운로드 또는 메일 발송으로 이어가세요.`)
-    setOpenPo(json.po_id ?? null)   // 방금 만든 발주서 내용을 바로 펼쳐 보여준다
-    load()
-  }
-
-  const patchPo = async (poId: string, body: Record<string, unknown>, confirmMsg?: string) => {
-    if (confirmMsg && !confirm(confirmMsg)) return
-    setBusy(true); setError(null); setNotice(null)
-    const res = await fetch(`/api/orders-portal/purchase-orders/${poId}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    const json = await res.json().catch(() => ({}))
-    setBusy(false)
-    if (!res.ok) { setError(json.error ?? '처리 실패'); load(); return }
-    if (body.action === 'send_email') setNotice('메일이 발송되었습니다.')
-    load()
+    // 생성 즉시 발송 페이지로 — 다운로드 확인 → 첨부 → 메일 작성 → 발송 (시안 v3)
+    router.push(`/orders/purchase/${json.po_id}`)
   }
 
   const downloadExcel = (po: Po) => {
@@ -190,41 +174,15 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
                   </button>
                   <button onClick={() => downloadExcel(p)} disabled={busy}
                     className="px-2.5 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:border-gray-400">엑셀</button>
-                  {p.status === 'active' && (
-                    <>
-                      <button
-                        onClick={() => patchPo(p.id, { action: 'manual_sent' },
-                          p.sent_at ? '발송 기록을 지금 시각으로 다시 남길까요?' : '수동 발송(메일 외 방법)으로 기록할까요?')}
-                        disabled={busy}
-                        className="px-2.5 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:border-gray-400">수동 발송 기록</button>
-                      <button
-                        onClick={() => patchPo(p.id, { action: 'cancel' },
-                          '이 발주서를 취소할까요? 담긴 품목은 미발주로 돌아갑니다.')}
-                        disabled={busy}
-                        className="px-2.5 py-1 border border-red-200 rounded text-xs text-red-600 hover:bg-red-50">취소</button>
-                    </>
-                  )}
+                  {/* 발송·첨부·수동 기록은 발송 페이지에서 (시안 v3 — 화면 분리) */}
+                  <Link href={`/orders/purchase/${p.id}`}
+                    className="px-2.5 py-1 bg-slate-900 text-white rounded text-xs">
+                    {p.status === 'active' && !p.sent_at ? '발송 페이지' : '발송 상세'}
+                  </Link>
                 </span>
               </div>
-              {p.status === 'active' && (
-                <div className="flex items-center gap-1.5 mt-2">
-                  <input value={poEmails[p.id] ?? ''} onChange={e => setPoEmails(prev => ({ ...prev, [p.id]: e.target.value }))}
-                    placeholder="받는 이메일" type="email"
-                    className="w-64 border border-gray-300 rounded px-2.5 py-1 text-xs" />
-                  <button
-                    onClick={() => {
-                      const to = (poEmails[p.id] ?? '').trim()
-                      if (!to) { setError('받는 이메일을 입력해주세요.'); return }
-                      patchPo(p.id, { action: 'send_email', to },
-                        `${to} 주소로 발주서 ${p.po_no}를 발송할까요?${p.sent_at ? ' (재발송)' : ''}`)
-                    }}
-                    disabled={busy || !smtpReady}
-                    title={smtpReady ? undefined : 'SMTP 환경변수 설정 후 사용 가능'}
-                    className="px-2.5 py-1 bg-slate-900 text-white rounded text-xs disabled:opacity-40">
-                    {p.sent_at && p.send_method === 'email' ? '메일 재발송' : '메일 발송'}
-                  </button>
-                  {p.send_error && <span className="text-[11px] text-red-600">최근 발송 실패: {p.send_error}</span>}
-                </div>
+              {p.send_error && p.status === 'active' && (
+                <div className="mt-1.5 text-[11px] text-red-600">최근 발송 실패: {p.send_error} — 발송 페이지에서 재시도하세요</div>
               )}
               {openPo === p.id && <div className="mt-2.5"><PoDetail poId={p.id} /></div>}
             </div>

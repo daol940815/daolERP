@@ -88,7 +88,7 @@ export default function PurchaseHistoryPage() {
     <div>
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-xl font-bold text-gray-900">발주서</h1>
-        <span className="text-xs text-gray-400">작성·발송은 주문 상세의 발주 섹션에서 · 여기서는 이력 조회</span>
+        <span className="text-xs text-gray-400">작성은 주문 상세의 발주 섹션에서 · 행 클릭 = 발송 페이지 (다운로드·첨부·메일 발송)</span>
       </div>
 
       {/* KPI — 클릭=필터 */}
@@ -163,13 +163,12 @@ export default function PurchaseHistoryPage() {
                 <Fragment key={r.id}>
                 <tr className={`border-b border-gray-50 ${r.status === 'canceled' ? 'text-gray-400' : ''}`}>
                   <td className="py-2 px-3">
-                    <button type="button" onClick={() => setOpenPo(v => v === r.id ? null : r.id)}
-                      title="발주서 내용 펼치기/접기" className="text-left hover:opacity-70">
-                      <div className="tabular-nums text-xs font-semibold">
-                        <span className="text-gray-400 mr-1">{openPo === r.id ? '▾' : '▸'}</span>{r.po_date}
-                      </div>
-                      <div className="tabular-nums text-[11px] text-gray-400 pl-3.5">{r.po_no}</div>
-                    </button>
+                    {/* 발주일·번호 클릭 = 발송 페이지 (작성 확인·첨부·메일·발송 이력) */}
+                    <Link href={`/orders/purchase/${r.id}`} className="block hover:opacity-70"
+                      title="발송 페이지로 이동">
+                      <div className="tabular-nums text-xs font-semibold text-blue-700">{r.po_date}</div>
+                      <div className="tabular-nums text-[11px] text-gray-400">{r.po_no}</div>
+                    </Link>
                   </td>
                   <td className="py-2 px-3 font-medium">
                     {r.vendor_name}
@@ -226,7 +225,7 @@ export default function PurchaseHistoryPage() {
         )}
       </div>
       <p className="text-xs text-gray-400 mt-2">
-        주문번호 클릭 = 해당 주문 상세(발주 섹션) · 발주 취소·재발송도 주문 상세에서 처리합니다
+        발주일·번호 클릭 = 발송 페이지 (다운로드·첨부·메일 작성·발송 이력·취소) · 주문번호 클릭 = 주문 상세
       </p>
     </div>
   )
