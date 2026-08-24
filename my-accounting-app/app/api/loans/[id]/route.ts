@@ -7,6 +7,7 @@ const EDITABLE = [
   'title', 'bank_name', 'bank_account_id', 'original_amount', 'current_balance',
   'balance_date', 'interest_rate', 'rate_note', 'monthly_principal', 'monthly_interest',
   'payment_day', 'start_date', 'maturity_date', 'term_type', 'status', 'memo',
+  'product_type', 'credit_limit',
 ] as const
 
 // PATCH /api/loans/[id] — 대출 정보 수정 (잔액·금리·만기·구분·상태 등)
