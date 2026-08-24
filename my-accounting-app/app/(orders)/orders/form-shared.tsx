@@ -34,6 +34,7 @@ export interface ItemDraft {
   memo: string
   status: string                  // 품목 상태 (품절·단가변경 등 — 상담일지에서 사용)
   option_note: string             // 색상·옵션 등 기타사항 (품목별 — 상담일지에서 사용)
+  is_shipping?: boolean           // 배송비 행 (상담일지 전용, 702)
   // 구분별 가격·카톤 배송비 자동 적용용 (품목 마스터에서 복사 — 서버 전송 안 함)
   branch_sale_price: number       // 지점판매가
   individual_sale_price: number   // 개별판매가 (배송비 포함, 0=미지정)
@@ -48,10 +49,13 @@ export const emptyItem = (uid: number): ItemDraft => ({
   product_id: null, item_code: '', item_name: '', order_kind: '지점',
   purchase_vendor_name: '', sale_price: 0, quantity: 1, shipping_fee: 0,
   discount_amount: 0, purchase_price: 0, purchase_shipping: 0, memo: '',
-  status: '', option_note: '',
+  status: '', option_note: '', is_shipping: false,
   branch_sale_price: 0, individual_sale_price: 0, branch_purchase_price: 0,
   carton_unit: 0, carton_shipping_fee: 0, loose_shipping_fee: 0,
 })
+
+// 배송비 행 이름 (상담 품목 — 702)
+export const SHIPPING_ROW_NAMES = ['배송비(카톤단위)', '배송비(카톤외)'] as const
 
 // 품명 칸 자동 높이 — 내용 길이에 맞춰 줄바꿈되어 항상 전체가 보인다
 export const autoGrow = (el: HTMLTextAreaElement | null) => {
@@ -68,10 +72,15 @@ export const cartonShipping = (unit: number, cartonFee: number, looseFee: number
 
 // 지점(부서) 표시명 — 거래처 전체 이름에서 업체명 접두를 뗀다.
 // "하나은행 경영지원실" + 업체 "하나은행" → "경영지원실". 접두가 없으면 전체 이름 그대로.
+// 법인 접두("(주)", "㈜", "주식회사")는 양쪽에서 무시하고 매칭한다 —
+// "(주)하나은행오류동지점" + "하나은행" → "오류동지점" (2026-08-18 보정, 702와 동일 규칙)
+const stripCorpPrefix = (s: string) => s.replace(/^\s*(\(주\)|㈜|주식회사)\s*/, '')
 export const branchLabel = (vendorName: string, groupName?: string | null): string => {
   if (!groupName) return vendorName
-  if (vendorName.startsWith(groupName)) {
-    const rest = vendorName.slice(groupName.length).trim()
+  const vn = stripCorpPrefix(vendorName)
+  const gn = stripCorpPrefix(groupName)
+  if (vn.startsWith(gn)) {
+    const rest = vn.slice(gn.length).trim()
     return rest || vendorName
   }
   return vendorName
