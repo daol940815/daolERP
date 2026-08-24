@@ -49,7 +49,7 @@
   <div class="flow">
     <span class="n">1 상담일지</span> → <span class="n">2 주문서</span> →
     <span class="n">3 발주서 작성 (주문 상세)</span> → <span class="n on">3-2 발주서 발송 (이 화면)</span> →
-    <span class="n">4 배송 (송장·상태)</span>
+    <span class="n">4 배송현황 (주문서 내역에서)</span>
   </div>
 
   <div class="head">
@@ -163,22 +163,8 @@
     <div class="hist" style="margin-top:12px;">발송 이력 없음 — 아직 발송 전입니다</div>
   </div>
 
-  <!-- 5. 배송 (발송 후 활성) -->
-  <div class="card" style="opacity:.65;">
-    <h2><span class="stepno">5</span>배송 <span class="sub">발송 후 활성화 — 매입처가 알려준 송장번호를 기록</span></h2>
-    <div class="grid2" style="margin-top:8px; max-width:560px;">
-      <div>
-        <label class="f">송장번호</label>
-        <input type="text" placeholder="발송 후 입력 가능">
-      </div>
-      <div>
-        <label class="f">배송 메모</label>
-        <input type="text" placeholder="택배사, 도착 예정 등">
-      </div>
-    </div>
-    <div class="hint">송장번호를 입력하면 주문 목록·주문 상세에 배송상태가 <b>송장등록</b>으로 표시됩니다.
-      배송현황은 별도 페이지 없이 주문내역에서 함께 확인합니다 (확정 방향).</div>
-  </div>
+  <!-- 배송(송장번호·배송현황)은 이 화면에 없음 — 발송 시점에는 존재하지 않는 정보.
+       4단계 배송현황 관리에서 주문서 내역 페이지에 구현 예정 (사용자 확정 2026-08-20) -->
 
   <!-- 프리셋 관리 모달 (시안 — 실제로는 '프리셋 관리' 클릭 시 팝업으로 표시) -->
   <div class="card" style="border:2px solid #94a3b8; box-shadow:0 8px 30px rgba(15,23,42,.12);">
