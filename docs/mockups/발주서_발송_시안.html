@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>발주서 발송 페이지 시안</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #1e293b; padding: 24px 16px 60px; font-size: 13px; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  .flow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: #64748b; margin-bottom: 14px; }
+  .flow .n { background: #fff; border: 1px solid #e2e8f0; border-radius: 999px; padding: 4px 11px; }
+  .flow .on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .head h1 { font-size: 19px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .b-amber { background: #fef3c7; color: #92400e; }
+  .b-blue { background: #dbeafe; color: #1d4ed8; }
+  .b-violet { background: #ede9fe; color: #6d28d9; }
+  .b-gray { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 18px; margin-bottom: 14px; }
+  .card h2 { font-size: 14px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .stepno { display: inline-flex; align-items: center; justify-content: center; width: 21px; height: 21px; border-radius: 999px; background: #0f172a; color: #fff; font-size: 11px; flex-shrink: 0; }
+  .sub { font-size: 11px; color: #94a3b8; font-weight: 400; }
+  .btn { display: inline-block; border-radius: 8px; padding: 7px 14px; font-size: 12px; cursor: default; border: 1px solid #cbd5e1; background: #fff; color: #475569; }
+  .btn.primary { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .btn.blue { background: #1d4ed8; color: #fff; border-color: #1d4ed8; font-weight: 600; }
+  .btn.sm { padding: 4px 10px; font-size: 11px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  input[type=text], textarea, select { border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 10px; font-size: 12px; font-family: inherit; background: #fff; width: 100%; }
+  textarea { resize: vertical; }
+  label.f { display: block; font-size: 11px; color: #64748b; margin-bottom: 3px; }
+  .file { display: flex; align-items: center; gap: 8px; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 12px; background: #f8fafc; font-size: 12px; }
+  .file .name { font-weight: 600; color: #334155; }
+  .file .meta { color: #94a3b8; font-size: 11px; }
+  .hint { font-size: 11px; color: #94a3b8; margin-top: 8px; line-height: 1.6; }
+  .hint b { color: #64748b; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .info { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px 16px; font-size: 12px; margin-top: 6px; }
+  .info .k { color: #94a3b8; font-size: 11px; }
+  .preview { border: 1px dashed #cbd5e1; border-radius: 10px; padding: 10px; margin-top: 10px; background: #f8fafc; color: #94a3b8; text-align: center; font-size: 12px; }
+  .var { display: inline-block; background: #eff6ff; color: #1d4ed8; border-radius: 4px; padding: 1px 6px; font-size: 11px; margin-right: 4px; }
+  .hist { font-size: 12px; color: #475569; padding: 6px 0; border-top: 1px dashed #e2e8f0; }
+  .note { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 10px; padding: 9px 12px; font-size: 12px; margin-bottom: 14px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="flow">
+    <span class="n">1 상담일지</span> → <span class="n">2 주문서</span> →
+    <span class="n">3 발주서 작성 (주문 상세)</span> → <span class="n on">3-2 발주서 발송 (이 화면)</span> →
+    <span class="n">4 배송 (송장·상태)</span>
+  </div>
+
+  <div class="head">
+    <span style="color:#94a3b8; font-size:12px;">← 발주서 이력</span>
+    <h1>발주서 PO260820-01</h1>
+    <span class="badge b-gray">유비코리아</span>
+    <span class="badge b-amber">미발송</span>
+    <span style="margin-left:auto;" class="row">
+      <span class="btn sm">발주 취소</span>
+    </span>
+  </div>
+
+  <div class="note">
+    발송 전 확인 흐름: <b>1. 발주서 다운로드로 내용 확인</b> → 2. 수정이 필요하면 고친 파일을 첨부(자동 생성본 대체)
+    → 3. 메일 제목·내용 확인 → 4. 발송. 발송된 메일은 백업 참조(PO_CC_EMAIL)로도 보관됩니다.
+  </div>
+
+  <!-- 1. 발주서 확인 -->
+  <div class="card">
+    <h2><span class="stepno">1</span>발주서 확인 <span class="sub">작성된 발주서를 내려받아 검토하세요</span></h2>
+    <div class="row" style="margin-top:8px;">
+      <span class="btn blue">발주서 엑셀 다운로드</span>
+      <span class="btn">화면 미리보기 펼치기</span>
+      <span class="sub">주문 D260820-003 · 하나은행 경영지원실 · 품목 4건 · 합계 853,000원</span>
+    </div>
+    <div class="preview">▼ 미리보기 펼침 시 — 실제 양식(다올커머스 발주서) 그대로 표시 (기존 미리보기와 동일)</div>
+    <div class="info">
+      <div><div class="k">주문번호</div><div>D260820-003 (클릭=주문 상세)</div></div>
+      <div><div class="k">주문처</div><div>하나은행 경영지원실</div></div>
+      <div><div class="k">발주 담당자</div><div>김주연</div></div>
+      <div><div class="k">대금결제</div><div>월정산</div></div>
+    </div>
+  </div>
+
+  <!-- 2. 첨부 파일 -->
+  <div class="card">
+    <h2><span class="stepno">2</span>첨부 파일 <span class="sub">기본은 자동 생성 발주서 — 수정본을 올리면 그 파일로 발송</span></h2>
+    <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
+      <div class="file">
+        <span class="badge b-gray">자동</span>
+        <span class="name">발주서_PO260820-01_유비코리아.xlsx</span>
+        <span class="meta">발주 데이터로 발송 시점에 생성</span>
+        <span style="margin-left:auto;" class="btn sm">다운로드</span>
+      </div>
+      <div class="file" style="border-color:#bfdbfe; background:#eff6ff;">
+        <span class="badge b-blue">수정본</span>
+        <span class="name">발주서_PO260820-01_수정.xlsx</span>
+        <span class="meta">김주연 · 오늘 14:22 업로드 — 이 파일이 자동 생성본 대신 첨부됩니다</span>
+        <span style="margin-left:auto;" class="row">
+          <span class="btn sm">다운로드</span><span class="btn sm" style="color:#dc2626;">제거</span>
+        </span>
+      </div>
+      <div class="row">
+        <span class="btn">+ 파일 업로드 (수정본·추가 자료)</span>
+        <span class="sub">엑셀·PDF·이미지 — 여러 개 첨부 가능</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 메일 작성 -->
+  <div class="card">
+    <h2><span class="stepno">3</span>메일 작성 <span class="sub">프리셋을 고르면 제목·본문이 채워지고, 자유롭게 수정해 발송</span></h2>
+    <div class="grid2" style="margin-top:8px;">
+      <div>
+        <label class="f">받는 이메일</label>
+        <input type="text" value="ub3@ubkorea.co.kr">
+      </div>
+      <div>
+        <label class="f">프리셋</label>
+        <div class="row" style="flex-wrap:nowrap;">
+          <select style="flex:1;">
+            <option>기본 발주 안내</option>
+            <option>명절 발주 (납기 강조)</option>
+            <option>수정 발주 재발송</option>
+          </select>
+          <span class="btn sm" style="white-space:nowrap;">현재 내용을 프리셋으로 저장</span>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:10px;">
+      <label class="f">제목</label>
+      <input type="text" value="[다올커머스] 발주서 송부 - {발주번호} {매입처명}">
+    </div>
+    <div style="margin-top:10px;">
+      <label class="f">본문</label>
+      <textarea rows="6">안녕하세요, 다올커머스입니다.
+
+{매입처명} 담당자님, 발주서를 첨부하여 송부드립니다.
+- 발주번호: {발주번호}
+- 합계금액: {합계금액}원
+- 출고요청일: {출고요청일}
+
+확인 부탁드립니다. 감사합니다.</textarea>
+    </div>
+    <div class="hint">
+      치환 변수: <span class="var">{발주번호}</span><span class="var">{매입처명}</span><span class="var">{주문번호}</span>
+      <span class="var">{합계금액}</span><span class="var">{출고요청일}</span><span class="var">{발주담당자}</span>
+      — 발송 시 실제 값으로 바뀝니다. 프리셋은 전 직원 공용입니다.
+    </div>
+  </div>
+
+  <!-- 4. 발송 -->
+  <div class="card">
+    <h2><span class="stepno">4</span>발송</h2>
+    <div class="row" style="margin-top:8px;">
+      <span class="btn blue">메일 발송</span>
+      <span class="btn">수동 발송 기록 (메일 외 방법)</span>
+      <span class="sub">발송 후에는 발송 시각·발송자·첨부 파일명이 이력으로 남습니다</span>
+    </div>
+    <div class="hist" style="margin-top:12px;">발송 이력 없음 — 아직 발송 전입니다</div>
+  </div>
+
+  <!-- 5. 배송 (발송 후 활성) -->
+  <div class="card" style="opacity:.65;">
+    <h2><span class="stepno">5</span>배송 <span class="sub">발송 후 활성화 — 매입처가 알려준 송장번호를 기록</span></h2>
+    <div class="grid2" style="margin-top:8px; max-width:560px;">
+      <div>
+        <label class="f">송장번호</label>
+        <input type="text" placeholder="발송 후 입력 가능">
+      </div>
+      <div>
+        <label class="f">배송 메모</label>
+        <input type="text" placeholder="택배사, 도착 예정 등">
+      </div>
+    </div>
+    <div class="hint">송장번호를 입력하면 주문 목록·주문 상세에 배송상태가 <b>송장등록</b>으로 표시됩니다.
+      배송현황은 별도 페이지 없이 주문내역에서 함께 확인합니다 (확정 방향).</div>
+  </div>
+
+  <p style="font-size:11px; color:#94a3b8;">
+    시안 참고: 주문 상세의 발주 섹션은 "품목 선택 → 발주서 생성 + 요약"까지만 남고,
+    생성 직후 이 발송 페이지로 이동합니다. 발주서 이력 목록의 각 행도 이 페이지로 연결됩니다.
+  </p>
+</div>
+</body>
+</html>
