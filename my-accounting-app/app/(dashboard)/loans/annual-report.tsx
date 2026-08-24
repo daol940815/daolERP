@@ -101,7 +101,9 @@ export default function AnnualReport({ loans }: { loans: ReportLoan[] }) {
     overdue: { count: 0, amount: 0 }, y1: { count: 0, amount: 0 },
     y2: { count: 0, amount: 0 }, y3: { count: 0, amount: 0 }, over: { count: 0, amount: 0 },
   }
-  const maturityRows = live.filter(l => !!l.maturity_date)
+  // 만기 스케줄은 일반 대출만 — 한도대출(마이너스 통장)은 만기를 관리하지 않으므로
+  // 여기 섞이면 1년 이내 만기 금액에 한도 사용액이 잘못 더해진다.
+  const maturityRows = live.filter(l => l.product_type !== 'credit_line' && !!l.maturity_date)
     .sort((a, b) => (a.maturity_date ?? '').localeCompare(b.maturity_date ?? ''))
   for (const l of maturityRows) {
     const b = buckets[bucketOf(l.maturity_date as string)]
@@ -230,7 +232,8 @@ export default function AnnualReport({ loans }: { loans: ReportLoan[] }) {
         </table>
       </div>
       <p className="text-xs text-gray-400 mt-1.5">
-        만기 90일 이내는 노란색, 경과 건은 붉은색으로 표시합니다. 한도대출의 만기 익스포저는 현재 사용액입니다.
+        만기 90일 이내는 노란색, 경과 건은 붉은색으로 표시합니다.
+        한도대출(마이너스 통장)은 만기를 관리하지 않으므로 이 표에서 제외합니다.
       </p>
 
       {/* 금융비용 계획 대비 실적 */}

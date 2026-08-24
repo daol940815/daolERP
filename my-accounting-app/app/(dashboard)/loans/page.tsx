@@ -149,7 +149,9 @@ export default function LoansPage() {
   }
 
   const needsCheck = (l: Loan) => !!l.memo && l.memo.includes('확인 필요')
-  const isOverdue = (l: Loan) => !!l.maturity_date && l.maturity_date < today() && l.status === 'active'
+  // 만기 경과 경고는 일반 대출만 — 한도대출(마이너스 통장)은 만기를 관리하지 않는다
+  const isOverdue = (l: Loan) =>
+    !isCreditLine(l) && !!l.maturity_date && l.maturity_date < today() && l.status === 'active'
 
   const terms = loans.filter(l => !isCreditLine(l))
   const lines = loans.filter(l => isCreditLine(l))
@@ -441,7 +443,6 @@ export default function LoansPage() {
                   <th className={`${th} text-right`}>이율</th>
                   <th className={`${th} text-right`}>월 이자(예상)</th>
                   <th className={`${th} text-center`}>이자 납부일</th>
-                  <th className={th}>만기</th>
                   <th className={`${th} text-center`}>상태</th>
                   <th className={th}></th>
                 </tr>
@@ -484,8 +485,8 @@ export default function LoansPage() {
                         const ci = ciByLoan.get(l.id)
                         const amount = monthInterest(l, u.used)
                         const tip = ci
-                          ? `통장 일별 잔액 기준 — 경과 ${ci.days_elapsed}일 실적 ${won(ci.mtd_interest)}원 `
-                            + `+ 잔여 ${ci.days_in_month - ci.days_elapsed}일 추정 `
+                          ? `통장 일별 잔액 기준 — 당월 1~${ci.days_elapsed}일 실제 사용액으로 계산한 ${won(ci.mtd_interest)}원 `
+                            + `+ 남은 ${ci.days_in_month - ci.days_elapsed}일 추정 `
                             + `(최근 사용액 ${won(ci.last_used)}원, 일 이자 ${won(estDailyInterest(ci.last_used, l.interest_rate))}원)`
                           : l.interest_rate != null
                             ? `현재 사용액 기준 단순 추정 — 일 이자 ${won(estDailyInterest(u.used, l.interest_rate))}원 x ${daysInThisMonth()}일`
@@ -495,14 +496,13 @@ export default function LoansPage() {
                             {amount ? won(amount) : '-'}
                             {ci && amount > 0 && (
                               <div className="text-[10px] text-gray-400 font-normal">
-                                경과 {ci.days_elapsed}일 {won(ci.mtd_interest)}
+                                1~{ci.days_elapsed}일 실적 {won(ci.mtd_interest)}
                               </div>
                             )}
                           </td>
                         )
                       })()}
                       <td className="py-2 px-3 text-center whitespace-nowrap">{l.payment_day ? `${l.payment_day}일` : '-'}</td>
-                      <td className={`py-2 px-3 whitespace-nowrap ${isOverdue(l) ? 'text-red-600' : ''}`}>{l.maturity_date ?? '-'}</td>
                       <td className="py-2 px-3 text-center whitespace-nowrap">
                         <span className={`inline-block whitespace-nowrap text-[11px] px-1.5 py-0.5 rounded ${
                           u.used > 0 ? 'bg-rose-50 text-rose-700' : 'bg-gray-100'}`}>
@@ -528,7 +528,7 @@ export default function LoansPage() {
                   <td className="py-2 px-3 text-right">
                     {won(visibleLines.reduce((s, l) => s + monthInterest(l, usage(l).used), 0))}
                   </td>
-                  <td className="py-2 px-3" colSpan={4} />
+                  <td className="py-2 px-3" colSpan={3} />
                 </tr>
               </tfoot>
             </table>
