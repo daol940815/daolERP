@@ -83,11 +83,8 @@ export default function OrdersSidebar({ name, roleLabel, role }: {
               </span>
             ),
           )}
-          {role !== 'sales' && (
-            <Link href="/orders/approvals" className={linkCls(pathname === '/orders/approvals')}>
-              <span>주문 수정 승인</span>
-            </Link>
-          )}
+          {/* 주문 수정 승인 메뉴 제거 (2026-08-25): 취소·재등록 방식 도입으로 승인 절차 폐지.
+              /orders/approvals 페이지는 과거 요청 이력 열람용으로 URL 접근만 유지 */}
         </div>
 
         <div className="mb-5">

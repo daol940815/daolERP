@@ -74,7 +74,9 @@ export default function ApprovalsPage() {
     <div>
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-xl font-bold text-gray-900">주문 수정 승인</h1>
-        <span className="text-xs text-gray-400">익일 이후 주문의 수정·취소 요청 — 승인 시 주문에 반영</span>
+        <span className="text-xs text-amber-600">
+          제도 폐지(2026-08-25) — 신규 요청은 취소·재등록 방식으로 대체. 이 화면은 남은 대기 건 처리·과거 이력 열람용
+        </span>
         <span className="ml-auto flex gap-1.5">
           {(['pending', 'all'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}

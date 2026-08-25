@@ -3,7 +3,8 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import {
   validateOrderInput, buildOrderRows, insertOrderItems, ensureAlias, nextOrderNo,
-  resolveDisplayNames, resolveVendorNames,
+  resolveDisplayNames, resolveVendorNames, loadOrderSnapshot, cancelOrder,
+  inheritToReissued, writeEditLogs,
 } from '@/lib/orders-portal'
 import { recordWorkLog, orderContent } from '@/lib/work-log'
 
@@ -24,9 +25,32 @@ export async function POST(req: NextRequest) {
   if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
   const input = parsed.input
 
+  // 취소·재등록 (홈택스 방식): reissue_of가 오면 저장 성공 시 원본을 취소 처리하고
+  // 상호 링크·수금·발주 상태를 승계한다. 먼저 원본·511 적용 여부를 확인해
+  // 새 주문만 생기고 원본이 살아남는 반쪽 상태를 막는다.
+  const reissueOf = ((rawBody ?? {}) as Record<string, unknown>).reissue_of as string | undefined
+  let reissueSnap: Awaited<ReturnType<typeof loadOrderSnapshot>> = null
+  if (reissueOf) {
+    reissueSnap = await loadOrderSnapshot(admin, reissueOf)
+    if (!reissueSnap) return NextResponse.json({ error: '재등록할 원본 주문을 찾을 수 없습니다.' }, { status: 400 })
+    if (reissueSnap.order.source !== 'direct') {
+      return NextResponse.json({ error: '업로드 주문은 취소·재등록할 수 없습니다. (원본 보존)' }, { status: 403 })
+    }
+    if (reissueSnap.order.canceled_at) {
+      return NextResponse.json({ error: '이미 취소된 주문입니다. 재등록 주문에서 진행해주세요.' }, { status: 400 })
+    }
+    const probe = await admin.from('erp_orders').select('canceled_at').limit(1)
+    if (probe.error) {
+      return NextResponse.json({
+        error: '511 마이그레이션(취소·재등록)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.',
+      }, { status: 400 })
+    }
+  }
+
   // 상담일지 전환: consultation_id가 오면 소유 확인 후 주문에 연결
-  const consultationId = ((rawBody ?? {}) as Record<string, unknown>).consultation_id as string | undefined
-  if (consultationId) {
+  const consultationId = (((rawBody ?? {}) as Record<string, unknown>).consultation_id as string | undefined)
+    ?? (reissueSnap?.order.consultation_id as string | undefined)   // 재등록 시 상담 연결 승계
+  if (consultationId && !reissueOf) {
     const { data: consult } = await admin.from('erp_consultations')
       .select('id, employee_id').eq('id', consultationId).maybeSingle()
     if (!consult) return NextResponse.json({ error: '연결할 상담일지를 찾을 수 없습니다.' }, { status: 400 })
@@ -84,19 +108,41 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `품목 저장 실패: ${itemErr}` }, { status: 500 })
   }
 
-  // 상담일지 상태 갱신 — 주문 전환 완료
-  if (consultationId) {
+  // 취소·재등록 마무리: 원본 취소 + 상호 링크 + 수금·발주 승계 + 변경 이력
+  if (reissueOf && reissueSnap) {
+    const editor = { employeeId: me.employeeId, employeeName: me.employeeName }
+    const cancelErr = await cancelOrder(
+      admin, reissueOf, editor, `재등록 → ${orderNo}`, orderId,
+    )
+    if (cancelErr) {
+      // 원본 취소 실패 시 새 주문을 되돌려 이중 집계를 막는다
+      await admin.from('erp_orders').delete().eq('id', orderId)
+      return NextResponse.json({ error: cancelErr }, { status: 500 })
+    }
+    await inheritToReissued(admin, reissueSnap.order, reissueSnap.items, orderId, total)
+    await writeEditLogs(admin, orderId, editor, [{
+      field: '재등록',
+      before: (reissueSnap.order.order_no as string) ?? null,
+      after: orderNo,
+    }])
+  }
+
+  // 상담일지 상태 갱신 — 주문 전환 완료 (재등록은 이미 전환 상태)
+  if (consultationId && !reissueOf) {
     await admin.from('erp_consultations').update({ status: '주문전환' }).eq('id', consultationId)
   }
 
   // 업무일지 자동 기재 — 상담에서 전환된 주문은 '주문전환'으로 구분
   await recordWorkLog(admin, {
     employeeId: me.employeeId,
-    action: consultationId ? '주문전환' : '주문작성',
+    // erp_work_logs.action CHECK(700 트랙) 범위 내에서 기재 — 재등록은 내용으로 구분
+    action: reissueOf ? '주문작성' : consultationId ? '주문전환' : '주문작성',
     content: orderContent({
       customer: [vendorNames.bankName, vendorNames.branchName].filter(Boolean).join(' '),
       orderNo, itemCount: itemRows.length, total,
-    }, consultationId ? '상담을 주문서로 전환' : '주문서 작성'),
+    }, reissueOf
+      ? `주문 취소·재등록 (원본 ${reissueSnap?.order.order_no ?? ''})`
+      : consultationId ? '상담을 주문서로 전환' : '주문서 작성'),
     workDate: input.order_date,
     refType: 'order',
     refId: orderId,

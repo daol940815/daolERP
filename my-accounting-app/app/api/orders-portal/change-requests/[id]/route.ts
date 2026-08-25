@@ -53,11 +53,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }
       const names = await resolveDisplayNames(admin, parsed.input)
       if (names.error) return NextResponse.json({ error: names.error }, { status: 400 })
-      const err = await applyOrderEdit(admin, reqRow.order_id as string, parsed.input, {
+      // 잔여 pending 요청 처리용 — 신규 요청은 취소·재등록 방식 도입으로 더 받지 않는다
+      const result = await applyOrderEdit(admin, reqRow.order_id as string, parsed.input, {
         managerName: names.managerName,
         counselorName: names.counselorName,
-      })
-      if (err) return NextResponse.json({ error: `반영 실패: ${err}` }, { status: 500 })
+      }, { employeeId: me.employeeId, employeeName: me.employeeName })
+      if ('error' in result) return NextResponse.json({ error: `반영 실패: ${result.error}` }, { status: 500 })
     } else {
       // 취소 승인: 품목 전체 취소 처리 + 금액 0. 원본 행은 남겨 이력 보존.
       const { error: iErr } = await admin.from('erp_order_items')

@@ -284,16 +284,80 @@ export async function insertOrderItems(
   return error ? error.message : null
 }
 
-// 기존 주문에 수정 내용 반영 (당일 직접 수정 · 수정요청 승인 공용)
+// ── 취소·재등록 (2026-08-25 확정 — 홈택스 방식) ────────────────────
+// 당일 수정: 기본정보 직접 갱신+변경 로그, 품목은 변경분만 행 취소+새 행 등록
+//   (변경 없는 품목 행 보존 → 발주 링크 유지). 익일 이후: 전체 취소+재등록.
+// 삭제는 물리 삭제 폐지 — 취소 처리로 상계 (집계는 취소 제외라 음수 행 불필요).
+
+export interface Editor { employeeId: string | null; employeeName: string | null }
+
+// 변경 로그 기록 — 511 미적용이면 경고 문구만 반환 (수정 자체는 유지)
+export async function writeEditLogs(
+  admin: SupabaseClient,
+  orderId: string,
+  editor: Editor,
+  rows: { field: string; before?: string | null; after?: string | null }[],
+): Promise<string | null> {
+  if (!rows.length) return null
+  const { error } = await admin.from('erp_order_edit_logs').insert(rows.map(r => ({
+    order_id: orderId,
+    employee_id: editor.employeeId,
+    employee_name: editor.employeeName,
+    field_label: r.field,
+    before_text: r.before ?? null,
+    after_text: r.after ?? null,
+  })))
+  return error ? '변경 로그 저장 실패 — 511 마이그레이션을 SQL 편집기에서 실행해주세요.' : null
+}
+
+// last_edited_at 표시 갱신 — 511 미적용이면 조용히 무시 (부가 정보)
+async function touchLastEdited(admin: SupabaseClient, orderId: string) {
+  await admin.from('erp_orders').update({ last_edited_at: new Date().toISOString() }).eq('id', orderId)
+}
+
+// 품목 내용 키 — 이 값이 전부 같으면 "변경 없음"으로 보고 행을 보존한다
+type AnyRow = Record<string, unknown>
+const itemKey = (r: AnyRow) => [
+  r.product_id ?? '', r.item_code ?? '', r.item_name ?? '', r.order_kind ?? '',
+  r.purchase_vendor_name ?? '', r.sale_price ?? 0, r.quantity ?? 0,
+  r.shipping_fee ?? 0, r.discount_amount ?? 0,
+  r.purchase_price ?? 0, r.purchase_shipping ?? 0, r.memo ?? '',
+].join('|')
+
+const itemBrief = (r: AnyRow) =>
+  `${r.item_name ?? ''} ×${r.quantity ?? 0} (판매 ${Number(r.line_total ?? 0).toLocaleString('ko-KR')}원)`
+
+// 헤더 필드 변경 로그 계산
+function headerDiffs(
+  before: AnyRow,
+  after: { orderFields: AnyRow; bankName: string; branchName: string | null },
+): { field: string; before?: string | null; after?: string | null }[] {
+  const customerOf = (b: unknown, br: unknown) => [b, br].filter(Boolean).join(' ')
+  const pairs: [string, unknown, unknown][] = [
+    ['주문일', before.order_date, after.orderFields.order_date],
+    ['주문처', customerOf(before.bank_name, before.branch_name), customerOf(after.bankName, after.branchName)],
+    ['담당자', before.manager_name, after.orderFields.manager_name],
+    ['연락처', before.contact, after.orderFields.contact],
+    ['핸드폰', before.phone, after.orderFields.phone],
+    ['메모', before.memo, after.orderFields.memo],
+  ]
+  return pairs
+    .filter(([, b, a]) => String(b ?? '') !== String(a ?? ''))
+    .map(([field, b, a]) => ({ field, before: String(b ?? '') || null, after: String(a ?? '') || null }))
+}
+
+// 기존 주문에 수정 내용 반영 (당일 직접 수정)
 // 수금 반영분 보존: 기수금액 = 기존 총액 - 기존 미수 → 새 미수 = max(0, 새 총액 - 기수금액)
+// 품목은 내용이 같은 행을 보존(발주 링크 유지)하고, 바뀐 행만 취소+새 행 등록한다.
 export async function applyOrderEdit(
   admin: SupabaseClient,
   orderId: string,
   input: OrderInput,
   ctx: ApplyContext,
-): Promise<string | null> {
+  editor?: Editor,
+): Promise<{ error: string } | { warning: string | null }> {
   const snap = await loadOrderSnapshot(admin, orderId)
-  if (!snap) return '주문을 찾을 수 없습니다.'
+  if (!snap) return { error: '주문을 찾을 수 없습니다.' }
   const { orderFields, itemRows, total } = buildOrderRows(input, ctx)
 
   const collected = Math.max(0, (snap.order.total_amount ?? 0) - (snap.order.outstanding_amount ?? 0))
@@ -303,7 +367,7 @@ export async function applyOrderEdit(
 
   // 주문처 변경 시 업체/지점 이름·별칭도 갱신
   const names = await resolveVendorNames(admin, input.vendor_id)
-  if ('error' in names) return names.error
+  if ('error' in names) return { error: names.error }
   const aliasName = [names.bankName, names.branchName].filter(Boolean).join(' ')
   const aliasId = await ensureAlias(admin, 'customer', aliasName, input.vendor_id)
 
@@ -315,9 +379,141 @@ export async function applyOrderEdit(
     outstanding_amount: outstanding,
     collect_status: collectStatus,
   }).eq('id', orderId)
-  if (upErr) return `주문 저장 실패: ${upErr.message}`
+  if (upErr) return { error: `주문 저장 실패: ${upErr.message}` }
 
-  const { error: delErr } = await admin.from('erp_order_items').delete().eq('order_id', orderId)
-  if (delErr) return `기존 품목 교체 실패: ${delErr.message}`
-  return insertOrderItems(admin, orderId, itemRows)
+  // ── 품목 대사: 내용 키가 같은 행 보존, 나머지 취소+등록 ──
+  const existing = (snap.items as AnyRow[]).filter(it => !it.is_canceled)
+  const pool = new Map<string, AnyRow[]>()   // key → 기존 행들 (같은 내용 여러 행 허용)
+  for (const it of existing) {
+    const k = itemKey(it)
+    pool.set(k, [...(pool.get(k) ?? []), it])
+  }
+  const kept: { row: AnyRow; newRow: (typeof itemRows)[number] }[] = []
+  const added: (typeof itemRows)[number][] = []
+  for (const nr of itemRows) {
+    const bucket = pool.get(itemKey(nr))
+    const match = bucket?.shift()
+    if (match) kept.push({ row: match, newRow: nr })
+    else added.push(nr)
+  }
+  const dropped = Array.from(pool.values()).flat()
+
+  // line_no 유일 제약 회피: 보존 행을 임시 대역(+10000)으로 옮긴 뒤 최종 번호 부여
+  for (const { row } of kept) {
+    await admin.from('erp_order_items')
+      .update({ line_no: Number(row.line_no) + 10000 }).eq('id', row.id as string)
+  }
+  // 취소 행: 1000번대로 이동 (표시 순서 뒤, 기존 취소 행과 충돌 방지)
+  const canceledBase = 1000 + (snap.items as AnyRow[]).filter(it => it.is_canceled).length
+  for (let i = 0; i < dropped.length; i++) {
+    const { error } = await admin.from('erp_order_items')
+      .update({ is_canceled: true, line_no: canceledBase + i, line_outstanding: 0 })
+      .eq('id', dropped[i].id as string)
+    if (error) return { error: `품목 취소 처리 실패: ${error.message}` }
+  }
+  for (const { row, newRow } of kept) {
+    const { error } = await admin.from('erp_order_items').update({
+      line_no: newRow.line_no,
+      parent_line_no: newRow.parent_line_no,
+      channel: newRow.channel,
+      settlement_month: newRow.settlement_month,
+    }).eq('id', row.id as string)
+    if (error) return { error: `품목 갱신 실패: ${error.message}` }
+  }
+  if (added.length) {
+    const insErr = await insertOrderItems(admin, orderId, added)
+    if (insErr) return { error: insErr }
+  }
+
+  // ── 변경 로그 + '수정됨' 표시 ──
+  let warning: string | null = null
+  if (editor) {
+    const logs = headerDiffs(snap.order as AnyRow, { orderFields, bankName: names.bankName, branchName: names.branchName })
+    for (const d of dropped) logs.push({ field: '품목 취소', before: itemBrief(d), after: null })
+    for (const a of added) logs.push({ field: '품목 추가', before: null, after: itemBrief(a as unknown as AnyRow) })
+    warning = await writeEditLogs(admin, orderId, editor, logs)
+    if (logs.length) await touchLastEdited(admin, orderId)
+  }
+  return { warning }
+}
+
+// 주문 취소 (삭제 대체·재등록 공용) — 품목 전체 취소 + 주문 취소 표시, 미수 0
+export async function cancelOrder(
+  admin: SupabaseClient,
+  orderId: string,
+  editor: Editor,
+  reason: string | null,
+  reissuedTo?: string | null,
+): Promise<string | null> {
+  const { error: itemErr } = await admin.from('erp_order_items')
+    .update({ is_canceled: true, line_outstanding: 0 })
+    .eq('order_id', orderId).eq('is_canceled', false)
+  if (itemErr) return `품목 취소 실패: ${itemErr.message}`
+
+  const { error } = await admin.from('erp_orders').update({
+    canceled_at: new Date().toISOString(),
+    canceled_by: editor.employeeId,
+    cancel_reason: reason,
+    outstanding_amount: 0,
+    ...(reissuedTo ? { reissued_to_order_id: reissuedTo } : {}),
+  }).eq('id', orderId)
+  if (error) {
+    return /column|canceled/i.test(error.message)
+      ? '511 마이그레이션(취소·재등록)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
+      : `주문 취소 실패: ${error.message}`
+  }
+  await writeEditLogs(admin, orderId, editor, [{
+    field: reissuedTo ? '취소 (재등록)' : '취소',
+    before: null,
+    after: reason,
+  }])
+  return null
+}
+
+// 재등록 주문으로 수금·발주 승계 (원본 → 새 주문)
+//  - 기수금액 승계 후 새 미수 재계산
+//  - 발주서 order_id 이관, 내용이 같은 품목은 발주 링크 승계 (바뀐 품목은 미발주 표시)
+export async function inheritToReissued(
+  admin: SupabaseClient,
+  origOrder: AnyRow,
+  origItems: AnyRow[],
+  newOrderId: string,
+  newTotal: number,
+): Promise<void> {
+  const collected = Math.max(0, Number(origOrder.total_amount ?? 0) - Number(origOrder.outstanding_amount ?? 0))
+  const outstanding = Math.max(0, newTotal - collected)
+  await admin.from('erp_orders').update({
+    outstanding_amount: outstanding,
+    collect_status: outstanding === 0 ? 'collected' : collected > 0 ? 'in_progress' : 'outstanding',
+    reissued_from_order_id: origOrder.id,
+  }).eq('id', newOrderId)
+
+  // 발주서 이관
+  const { data: pos } = await admin.from('erp_purchase_orders')
+    .select('id').eq('order_id', origOrder.id as string)
+  if (!pos?.length) return
+  await admin.from('erp_purchase_orders')
+    .update({ order_id: newOrderId }).eq('order_id', origOrder.id as string)
+
+  // 품목 링크 승계 — 원본 품목 id → 내용 키 → 새 품목 행 매칭
+  const { data: newItems } = await admin.from('erp_order_items')
+    .select('*').eq('order_id', newOrderId).order('line_no')
+  const byKey = new Map<string, AnyRow[]>()
+  for (const it of (newItems ?? []) as AnyRow[]) {
+    const k = itemKey(it)
+    byKey.set(k, [...(byKey.get(k) ?? []), it])
+  }
+  const origById = new Map(origItems.map(it => [it.id as string, it]))
+  const { data: poItems } = await admin.from('erp_purchase_order_items')
+    .select('id, order_item_id').in('po_id', pos.map(p => p.id as string))
+    .not('order_item_id', 'is', null)
+  for (const pi of (poItems ?? []) as AnyRow[]) {
+    const orig = origById.get(pi.order_item_id as string)
+    if (!orig) continue
+    const match = byKey.get(itemKey(orig))?.shift()
+    if (match) {
+      await admin.from('erp_purchase_order_items')
+        .update({ order_item_id: match.id as string }).eq('id', pi.id as string)
+    }
+  }
 }

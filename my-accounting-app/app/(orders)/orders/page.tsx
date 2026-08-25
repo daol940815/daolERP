@@ -25,6 +25,8 @@ interface Row {
   is_prepay: boolean
   has_invoice: boolean
   po_status: 'none' | 'partial' | 'full' | null
+  canceled_at?: string | null
+  last_edited_at?: string | null
 }
 interface Kpi {
   count: number; total: number; outstanding: number
@@ -323,7 +325,7 @@ export default function OrdersHomePage() {
                 return (
                   <Fragment key={r.id}>
                     <tr onClick={() => router.push(`/orders/${r.id}`)}
-                      className="border-b border-gray-50 cursor-pointer hover:bg-blue-50/40">
+                      className={`border-b border-gray-50 cursor-pointer hover:bg-blue-50/40 ${r.canceled_at ? 'opacity-60' : ''}`}>
                       <td className="py-2 px-3">
                         <div className="tabular-nums text-xs font-semibold">{r.order_date}</div>
                         <div className="tabular-nums text-[11px] text-gray-400">{r.order_no ?? '-'}</div>
@@ -331,6 +333,13 @@ export default function OrdersHomePage() {
                       <td className="py-2 px-3 font-semibold">{r.bank_name ?? '(주문처 미상)'}</td>
                       <td className="py-2 px-3">
                         {r.branch_name ?? <span className="text-gray-300">-</span>}
+                        {/* 취소·재등록(511): 취소 주문은 집계 제외 상계, 당일 수정건은 '수정됨' 표시 */}
+                        {r.canceled_at && (
+                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-600">취소</span>
+                        )}
+                        {!r.canceled_at && r.last_edited_at && (
+                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-600">수정됨</span>
+                        )}
                         {r.is_prepay && (
                           <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-600">선결제</span>
                         )}

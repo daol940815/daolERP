@@ -3,26 +3,24 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser, type CurrentUser } from '@/lib/user-role'
 import {
   validateOrderInput, applyOrderEdit, resolveDisplayNames, loadOrderSnapshot,
-  kstToday, kstDateOf,
+  cancelOrder, kstToday, kstDateOf,
 } from '@/lib/orders-portal'
 import { recordWorkLog, orderContent } from '@/lib/work-log'
 
 export const dynamic = 'force-dynamic'
 
-// 주문 상세 / 당일 직접 수정 / 당일 삭제
-// 수정 정책 (확정 설계): direct 주문만 수정 대상.
-//  - 입력 당일(KST, created_at 기준)은 입력자 본인이 자유 수정·삭제
-//  - manager/admin은 언제든 직접 수정 (승인권자)
-//  - 그 외(익일 이후의 sales)는 수정요청 API로 — 음수 상계 주문 방식 폐지
+// 주문 상세 / 당일 직접 수정 / 취소 (홈택스 방식 — 2026-08-25 확정)
+//  - 당일(KST, created_at 기준) 입력자 본인·manager/admin: 직접 수정 (변경 로그 기록)
+//  - 익일 이후: 직접 수정 불가 → 취소·재등록 (승인 없음, 이력 보존)
+//  - 삭제(DELETE)는 물리 삭제 폐지 → 취소 처리 (집계 제외로 상계)
 type OrderRow = Record<string, unknown>
 
 function editability(order: OrderRow, me: CurrentUser) {
-  if (order.source !== 'direct') return { canEdit: false, needsRequest: false }
-  if (me.role === 'manager' || me.role === 'admin') return { canEdit: true, needsRequest: false }
+  if (order.source !== 'direct' || order.canceled_at) return { canEdit: false }
+  if (me.role === 'manager' || me.role === 'admin') return { canEdit: true }
   const isOwner = !!me.employeeId && order.created_by_employee_id === me.employeeId
   const isToday = kstDateOf(String(order.created_at)) === kstToday()
-  if (isOwner && isToday) return { canEdit: true, needsRequest: false }
-  return { canEdit: false, needsRequest: isOwner }
+  return { canEdit: isOwner && isToday }
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -33,6 +31,19 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const snap = await loadOrderSnapshot(admin, params.id)
   if (!snap) return NextResponse.json({ error: '주문을 찾을 수 없습니다.' }, { status: 404 })
 
+  // 변경 로그 (511 미적용이면 빈 목록) + 재등록 링크 주문번호
+  const { data: logs } = await admin.from('erp_order_edit_logs')
+    .select('id, employee_name, field_label, before_text, after_text, created_at')
+    .eq('order_id', params.id).order('created_at', { ascending: false })
+  const linkIds = [snap.order.reissued_to_order_id, snap.order.reissued_from_order_id]
+    .filter(Boolean) as string[]
+  const linkNos = new Map<string, string>()
+  if (linkIds.length) {
+    const { data } = await admin.from('erp_orders').select('id, order_no').in('id', linkIds)
+    for (const o of data ?? []) linkNos.set(o.id as string, (o.order_no as string) ?? '')
+  }
+
+  // 과거 수정요청 이력 (제도 폐지 — 남은 기록 열람용)
   const { data: requests } = await admin
     .from('erp_order_change_requests')
     .select('id, request_type, reason, status, decision_memo, created_at, decided_at')
@@ -44,8 +55,15 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     order: snap.order,
     items: snap.items,
     change_requests: requests ?? [],
+    edit_logs: logs ?? [],
     can_edit: edit.canEdit,
-    needs_request: edit.needsRequest,
+    // direct 주문이면 누구나 취소·재등록 가능 (B안 — 승인 없음, 이력 기록)
+    can_reissue: snap.order.source === 'direct' && !snap.order.canceled_at,
+    canceled: !!snap.order.canceled_at,
+    reissued_to_no: snap.order.reissued_to_order_id
+      ? linkNos.get(snap.order.reissued_to_order_id as string) ?? null : null,
+    reissued_from_no: snap.order.reissued_from_order_id
+      ? linkNos.get(snap.order.reissued_from_order_id as string) ?? null : null,
     role: me.role,   // 매입가·마진은 전 직원 공개로 전환 (2026-08-13) — role은 참고용
   })
 }
@@ -60,12 +78,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (snap.order.source !== 'direct') {
     return NextResponse.json({ error: '업로드 주문은 수정할 수 없습니다. (원본 보존)' }, { status: 403 })
   }
+  if (snap.order.canceled_at) {
+    return NextResponse.json({ error: '취소된 주문입니다. 재등록 주문에서 수정해주세요.' }, { status: 403 })
+  }
   const edit = editability(snap.order, me)
   if (!edit.canEdit) {
     return NextResponse.json({
-      error: edit.needsRequest
-        ? '입력 당일이 지난 주문입니다. 수정 요청을 올려 관리자 승인을 받아주세요.'
-        : '이 주문을 수정할 권한이 없습니다.',
+      error: '입력 당일이 지난 주문은 직접 수정 대신 취소·재등록으로 진행해주세요.',
     }, { status: 403 })
   }
 
@@ -75,11 +94,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const names = await resolveDisplayNames(admin, parsed.input)
   if (names.error) return NextResponse.json({ error: names.error }, { status: 400 })
 
-  const err = await applyOrderEdit(admin, params.id, parsed.input, {
+  const result = await applyOrderEdit(admin, params.id, parsed.input, {
     managerName: names.managerName,
     counselorName: names.counselorName,
-  })
-  if (err) return NextResponse.json({ error: err }, { status: 500 })
+  }, { employeeId: me.employeeId, employeeName: me.employeeName })
+  if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
 
   await recordWorkLog(admin, {
     employeeId: me.employeeId,
@@ -92,10 +111,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     refType: 'order',
     refId: params.id,
   })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, warning: result.warning })
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+// 주문 취소 (삭제 대체) — 물리 삭제 없이 취소 처리, 원본·이력 보존
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   const admin = createAdminClient()
@@ -103,16 +123,29 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const snap = await loadOrderSnapshot(admin, params.id)
   if (!snap) return NextResponse.json({ error: '주문을 찾을 수 없습니다.' }, { status: 404 })
   if (snap.order.source !== 'direct') {
-    return NextResponse.json({ error: '업로드 주문은 삭제할 수 없습니다. (원본 보존)' }, { status: 403 })
+    return NextResponse.json({ error: '업로드 주문은 취소할 수 없습니다. (원본 보존)' }, { status: 403 })
   }
-  const edit = editability(snap.order, me)
-  if (!edit.canEdit) {
-    return NextResponse.json({
-      error: '입력 당일이 지난 주문은 삭제 대신 취소 요청을 올려주세요.',
-    }, { status: 403 })
+  if (snap.order.canceled_at) {
+    return NextResponse.json({ error: '이미 취소된 주문입니다.' }, { status: 400 })
   }
 
-  const { error } = await admin.from('erp_orders').delete().eq('id', params.id)
-  if (error) return NextResponse.json({ error: `삭제 실패: ${error.message}` }, { status: 500 })
+  const reason = new URL(req.url).searchParams.get('reason')
+  const err = await cancelOrder(admin, params.id, {
+    employeeId: me.employeeId, employeeName: me.employeeName,
+  }, reason || null)
+  if (err) return NextResponse.json({ error: err }, { status: 500 })
+
+  await recordWorkLog(admin, {
+    employeeId: me.employeeId,
+    // erp_work_logs.action CHECK(700 트랙) 범위 내에서 기재 — 내용으로 취소를 구분
+    action: '주문수정',
+    content: orderContent({
+      customer: [snap.order.bank_name, snap.order.branch_name].filter(Boolean).join(' '),
+      orderNo: (snap.order.order_no as string) ?? null,
+      itemCount: snap.items.length,
+    }, reason ? `주문 취소 (${reason})` : '주문 취소'),
+    refType: 'order',
+    refId: params.id,
+  })
   return NextResponse.json({ ok: true })
 }

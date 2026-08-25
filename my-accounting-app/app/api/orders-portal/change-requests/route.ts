@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
-import { validateOrderInput, loadOrderSnapshot } from '@/lib/orders-portal'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,57 +43,10 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ requests: data ?? [] })
 }
 
-export async function POST(req: NextRequest) {
-  const me = await getCurrentUser()
-  if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
-  const admin = createAdminClient()
-  const body = await req.json().catch(() => ({})) as Record<string, unknown>
-
-  const orderId = String(body.order_id ?? '')
-  const requestType = String(body.request_type ?? '')
-  const reason = String(body.reason ?? '').trim()
-  if (!orderId) return NextResponse.json({ error: 'order_id가 필요합니다.' }, { status: 400 })
-  if (!['edit', 'cancel'].includes(requestType)) {
-    return NextResponse.json({ error: 'request_type은 edit 또는 cancel이어야 합니다.' }, { status: 400 })
-  }
-  if (!reason) return NextResponse.json({ error: '요청 사유를 입력해주세요.' }, { status: 400 })
-
-  const snap = await loadOrderSnapshot(admin, orderId)
-  if (!snap) return NextResponse.json({ error: '주문을 찾을 수 없습니다.' }, { status: 404 })
-  if (snap.order.source !== 'direct') {
-    return NextResponse.json({ error: '업로드 주문은 수정 요청 대상이 아닙니다.' }, { status: 403 })
-  }
-  if (me.role === 'sales' && (!me.employeeId || snap.order.created_by_employee_id !== me.employeeId)) {
-    return NextResponse.json({ error: '본인이 입력한 주문만 수정 요청할 수 있습니다.' }, { status: 403 })
-  }
-
-  const { data: pending } = await admin
-    .from('erp_order_change_requests')
-    .select('id').eq('order_id', orderId).eq('status', 'pending').limit(1)
-  if (pending?.length) {
-    return NextResponse.json({ error: '이미 대기 중인 요청이 있습니다. 처리 후 다시 올려주세요.' }, { status: 409 })
-  }
-
-  let payload: unknown = null
-  if (requestType === 'edit') {
-    const parsed = validateOrderInput(body.payload)
-    if ('error' in parsed) return NextResponse.json({ error: `제안 내용 오류: ${parsed.error}` }, { status: 400 })
-    payload = parsed.input
-  }
-
-  const { data, error } = await admin.from('erp_order_change_requests').insert({
-    order_id: orderId,
-    request_type: requestType,
-    requested_by: me.employeeId,
-    reason,
-    before_snapshot: snap,
-    payload,
-  }).select('id').single()
-  if (error) {
-    const missing = /relation|erp_order_change_requests|does not exist/i.test(error.message)
-    return NextResponse.json({
-      error: missing ? '500 마이그레이션(수정요청)이 아직 적용되지 않았습니다.' : `요청 저장 실패: ${error.message}`,
-    }, { status: 500 })
-  }
-  return NextResponse.json({ id: data.id })
+export async function POST() {
+  // 수정요청 제도 폐지 (2026-08-25 취소·재등록 확정) — 신규 접수는 받지 않는다.
+  // 잔여 pending 요청의 승인·반려([id] 라우트)와 이력 조회(GET)는 유지.
+  return NextResponse.json({
+    error: '수정요청 제도가 취소·재등록 방식으로 대체되었습니다. 주문 상세에서 취소·재등록으로 진행해주세요.',
+  }, { status: 400 })
 }

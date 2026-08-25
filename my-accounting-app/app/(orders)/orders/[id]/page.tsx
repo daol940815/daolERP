@@ -1,12 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import PurchaseSection from './purchase-section'
 
 // 주문 상세 (2단계) — 업로드·직접입력 공통 조회.
-// direct 주문: 당일(본인)·관리자는 수정/삭제, 익일 이후 본인은 수정요청·취소요청.
+// direct 주문 (2026-08-25 취소·재등록 확정): 당일(본인)·관리자는 직접 수정(변경 로그),
+// 익일 이후는 취소·재등록. 삭제는 취소 처리로 통일 — 승인 절차 없음, 이력 보존.
 
 interface Item {
   id: string; line_no: number; is_canceled: boolean; is_prepayment: boolean
@@ -20,6 +21,10 @@ interface Item {
 interface ChangeRequest {
   id: string; request_type: string; reason: string; status: string
   decision_memo: string | null; created_at: string; decided_at: string | null
+}
+interface EditLog {
+  id: string; employee_name: string | null; field_label: string
+  before_text: string | null; after_text: string | null; created_at: string
 }
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
@@ -35,12 +40,16 @@ const REQ_STATUS: Record<string, { label: string; cls: string }> = {
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const router = useRouter()
   const [order, setOrder] = useState<Record<string, unknown> | null>(null)
   const [items, setItems] = useState<Item[]>([])
   const [requests, setRequests] = useState<ChangeRequest[]>([])
+  const [editLogs, setEditLogs] = useState<EditLog[]>([])
+  const [showLogs, setShowLogs] = useState(false)
   const [canEdit, setCanEdit] = useState(false)
-  const [needsRequest, setNeedsRequest] = useState(false)
+  const [canReissue, setCanReissue] = useState(false)
+  const [canceled, setCanceled] = useState(false)
+  const [reissuedToNo, setReissuedToNo] = useState<string | null>(null)
+  const [reissuedFromNo, setReissuedFromNo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [cancelReason, setCancelReason] = useState('')
@@ -54,26 +63,23 @@ export default function OrderDetailPage() {
     else {
       setOrder(json.order); setItems(json.items)
       setRequests(json.change_requests ?? [])
-      setCanEdit(json.can_edit); setNeedsRequest(json.needs_request)
+      setEditLogs(json.edit_logs ?? [])
+      setCanEdit(json.can_edit)
+      setCanReissue(json.can_reissue ?? false)
+      setCanceled(json.canceled ?? false)
+      setReissuedToNo(json.reissued_to_no ?? null)
+      setReissuedFromNo(json.reissued_from_no ?? null)
     }
     setLoading(false)
   }, [id])
   useEffect(() => { load() }, [load])
 
-  const removeOrder = async () => {
-    if (!confirm('이 주문을 삭제할까요? (당일 입력분만 가능)')) return
-    const res = await fetch(`/api/orders-portal/orders/${id}`, { method: 'DELETE' })
-    const json = await res.json()
-    if (!res.ok) { setError(json.error); return }
-    router.push('/orders')
-  }
-
-  const requestCancel = async () => {
-    if (!cancelReason.trim()) { setError('취소 사유를 입력해주세요.'); return }
-    const res = await fetch('/api/orders-portal/change-requests', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ order_id: id, request_type: 'cancel', reason: cancelReason }),
-    })
+  // 주문 취소 (삭제 대체) — 물리 삭제 없이 취소 처리, 집계에서 제외 (상계)
+  const cancelOrder = async () => {
+    const res = await fetch(
+      `/api/orders-portal/orders/${id}?reason=${encodeURIComponent(cancelReason.trim())}`,
+      { method: 'DELETE' },
+    )
     const json = await res.json()
     if (!res.ok) { setError(json.error); return }
     setAskingCancel(false); setCancelReason('')
@@ -99,6 +105,9 @@ export default function OrderDetailPage() {
         <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${isDirect ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
           {isDirect ? '직접입력' : '업로드'}
         </span>
+        {canceled && (
+          <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-red-100 text-red-700">취소됨</span>
+        )}
         <span className="ml-auto flex gap-2">
           {/* 거래명세서 — 판매가(할인 반영) 기준, 실무자 양식 그대로 출력 */}
           <a href={`/api/orders-portal/orders/${id}/statement`}
@@ -106,33 +115,48 @@ export default function OrderDetailPage() {
             거래명세서
           </a>
           {isDirect && canEdit && (
-            <>
-              <Link href={`/orders/${id}/edit`}
-                className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">수정</Link>
-              <button onClick={removeOrder}
-                className="px-3.5 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm">삭제</button>
-            </>
+            <Link href={`/orders/${id}/edit`}
+              className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">수정</Link>
           )}
-          {isDirect && !canEdit && needsRequest && (
-            <>
-              <Link href={`/orders/${id}/edit`}
-                className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">수정 요청</Link>
-              <button onClick={() => setAskingCancel(v => !v)}
-                className="px-3.5 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm">취소 요청</button>
-            </>
+          {isDirect && !canEdit && canReissue && (
+            <Link href={`/orders/new?reissue=${id}`}
+              className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm"
+              title="원본을 취소 처리하고 내용을 프리필해 새 주문으로 등록합니다">취소·재등록</Link>
+          )}
+          {isDirect && canReissue && (
+            <button onClick={() => setAskingCancel(v => !v)}
+              className="px-3.5 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm">주문 취소</button>
           )}
         </span>
       </div>
 
       {error && <div className="mt-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
 
+      {/* 취소·재등록 링크 안내 */}
+      {canceled && (
+        <div className="mt-3 px-4 py-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
+          취소된 주문입니다 — 매출·미수 집계에서 제외됩니다.
+          {typeof order.cancel_reason === 'string' && order.cancel_reason && (
+            <span className="text-red-500"> (사유: {order.cancel_reason})</span>
+          )}
+          {reissuedToNo && <span className="ml-2">재등록 주문: <b className="tabular-nums">{reissuedToNo}</b></span>}
+        </div>
+      )}
+      {reissuedFromNo && !canceled && (
+        <div className="mt-3 px-4 py-2.5 bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-lg">
+          취소·재등록으로 만들어진 주문입니다 — 원본: <b className="tabular-nums">{reissuedFromNo}</b> (취소 처리됨)
+        </div>
+      )}
+
       {askingCancel && (
         <div className="mt-3 p-3 bg-red-50/60 border border-red-200 rounded-lg flex items-center gap-2 flex-wrap">
           <input value={cancelReason} onChange={e => setCancelReason(e.target.value)}
-            placeholder="취소 사유 (필수)"
+            placeholder="취소 사유 (선택)"
             className="flex-1 min-w-64 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-          <button onClick={requestCancel} className="px-3.5 py-1.5 bg-red-600 text-white rounded-lg text-sm">취소 요청 제출</button>
-          <span className="text-[11px] text-gray-500">관리자 승인 시 전체 품목이 취소 처리됩니다</span>
+          <button onClick={cancelOrder} className="px-3.5 py-1.5 bg-red-600 text-white rounded-lg text-sm">주문 취소 확정</button>
+          <span className="text-[11px] text-gray-500">
+            삭제 대신 취소로 처리됩니다 — 원본은 보존되고 집계에서만 빠집니다 (되돌리려면 재등록)
+          </span>
         </div>
       )}
 
@@ -222,13 +246,55 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* 발주 (3단계) — direct 주문만. 업로드 주문은 기존 ERP에서 발주 완료된 건 */}
-      {isDirect && showCost && <PurchaseSection orderId={String(id)} />}
+      {/* 발주 (3단계) — direct 주문만. 업로드 주문은 기존 ERP에서 발주 완료된 건.
+          취소 주문은 새 발주를 막기 위해 숨긴다 (기존 발주서는 발주서 이력에서 확인) */}
+      {isDirect && showCost && !canceled && <PurchaseSection orderId={String(id)} />}
+
+      {/* 변경 이력 (511) — 접이식: 누가·언제·무엇을 어떻게 바꿨는지 */}
+      {editLogs.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
+          <button onClick={() => setShowLogs(v => !v)}
+            className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+            변경 이력 <span className="text-[11px] font-normal text-gray-400">{editLogs.length}건</span>
+            <span className="text-gray-400 text-xs">{showLogs ? '▾' : '▸'}</span>
+          </button>
+          {showLogs && (
+            <table className="w-full text-xs mt-2.5">
+              <thead>
+                <tr className="text-gray-400 border-b border-gray-100">
+                  <th className="py-1.5 pr-3 text-left font-medium whitespace-nowrap">일시</th>
+                  <th className="py-1.5 pr-3 text-left font-medium whitespace-nowrap">직원</th>
+                  <th className="py-1.5 pr-3 text-left font-medium whitespace-nowrap">항목</th>
+                  <th className="py-1.5 text-left font-medium">변경 내용</th>
+                </tr>
+              </thead>
+              <tbody>
+                {editLogs.map(l => (
+                  <tr key={l.id} className="border-b border-gray-50 align-top">
+                    <td className="py-1.5 pr-3 tabular-nums text-gray-400 whitespace-nowrap">
+                      {l.created_at.slice(0, 16).replace('T', ' ')}
+                    </td>
+                    <td className="py-1.5 pr-3 whitespace-nowrap">{l.employee_name ?? '-'}</td>
+                    <td className="py-1.5 pr-3 whitespace-nowrap font-medium text-gray-700">{l.field_label}</td>
+                    <td className="py-1.5 text-gray-600">
+                      {l.before_text && l.after_text
+                        ? <>{l.before_text} <span className="text-gray-300">→</span> {l.after_text}</>
+                        : l.after_text ?? l.before_text ?? '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       {/* 수정 요청 이력 */}
       {requests.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
-          <div className="text-sm font-bold text-gray-900 mb-2">수정·취소 요청 이력</div>
+          <div className="text-sm font-bold text-gray-900 mb-2">
+            수정·취소 요청 이력 <span className="text-[11px] font-normal text-gray-400">과거 승인 제도 기록 — 현재는 취소·재등록 방식</span>
+          </div>
           <div className="space-y-1.5">
             {requests.map(r => {
               const s = REQ_STATUS[r.status] ?? { label: r.status, cls: 'bg-gray-100 text-gray-500' }

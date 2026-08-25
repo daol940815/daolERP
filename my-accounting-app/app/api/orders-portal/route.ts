@@ -26,12 +26,15 @@ export async function GET(req: NextRequest) {
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
   const { filtered, prepayIds, invoiceIds, poStatus } = result
 
+  // 취소 주문(511)은 금액·수금 KPI에서 제외 — 목록에는 취소 배지로 표시 (상계 효과)
+  const active = filtered.filter(o => !o.canceled_at)
   const kpi = {
     count: filtered.length,
-    total: filtered.reduce((s, o) => s + (o.total_amount ?? 0), 0),
-    outstanding: filtered.reduce((s, o) => s + (o.outstanding_amount ?? 0), 0),
-    outstanding_cnt: filtered.filter(o => o.collect_status === 'outstanding').length,
-    in_progress_cnt: filtered.filter(o => o.collect_status === 'in_progress').length,
+    total: active.reduce((s, o) => s + (o.total_amount ?? 0), 0),
+    outstanding: active.reduce((s, o) => s + (o.outstanding_amount ?? 0), 0),
+    outstanding_cnt: active.filter(o => o.collect_status === 'outstanding').length,
+    in_progress_cnt: active.filter(o => o.collect_status === 'in_progress').length,
+    canceled_cnt: filtered.filter(o => o.canceled_at).length,
     direct_cnt: filtered.filter(o => o.source === 'direct').length,
     // 발주 상태 (direct 주문만 집계 — 업로드 주문은 대상 아님)
     po_none_cnt: filtered.filter(o => poStatus.get(o.id) === 'none').length,
