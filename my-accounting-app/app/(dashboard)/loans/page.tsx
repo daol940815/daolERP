@@ -294,28 +294,35 @@ export default function LoansPage() {
 
       {tab === 'list' && (<>
       {/* KPI */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
         <button onClick={() => setFilter('all')} className="bg-white border border-gray-200 rounded-xl p-4 text-left hover:border-slate-400">
           <div className="text-xs text-gray-400">대출 잔액 (일반)</div>
           <div className="text-xl font-bold mt-1">{eok(kpi.balance)}</div>
           <div className="text-[11px] text-gray-400 mt-0.5">원 대출 {eok(kpi.original)}</div>
         </button>
+        {/* 원금·이자를 같은 크기로 나란히 — 이자도 중요 지표로 본다(한도대출 예상 이자 포함) */}
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <div className="text-xs text-gray-400">월 원리금 (참고)</div>
-          <div className="text-xl font-bold mt-1">{manwon(kpi.principal + kpi.interest)}</div>
-          <div className="text-[11px] text-gray-400 mt-0.5">원금 {manwon(kpi.principal)} · 이자 {manwon(kpi.interest)}</div>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <div className="text-xs text-gray-400">한도대출 약정한도</div>
-          <div className="text-xl font-bold mt-1">{eok(kpi.limit)}</div>
-          <div className="text-[11px] text-gray-400 mt-0.5">마이너스 통장 {lines.length}건</div>
+          <div className="flex items-start gap-4 mt-1">
+            <div>
+              <div className="text-[11px] text-gray-400">원금</div>
+              <div className="text-xl font-bold leading-tight">{manwon(kpi.principal)}</div>
+            </div>
+            <div>
+              <div className="text-[11px] text-gray-400">이자</div>
+              <div className="text-xl font-bold leading-tight">{manwon(kpi.interest + kpi.lineInterest)}</div>
+            </div>
+          </div>
+          <div className="text-[11px] text-gray-400 mt-0.5">
+            합계 {manwon(kpi.principal + kpi.interest + kpi.lineInterest)}
+            {kpi.lineInterest > 0 && ` · 이자에 한도대출 ${manwon(kpi.lineInterest)} 포함`}
+          </div>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <div className="text-xs text-gray-400">한도 사용액</div>
           <div className={`text-xl font-bold mt-1 ${kpi.used > 0 ? 'text-rose-600' : ''}`}>{eok(kpi.used)}</div>
           <div className="text-[11px] text-gray-400 mt-0.5">
-            미사용 {eok(Math.max(kpi.limit - kpi.used, 0))}
-            {kpi.lineInterest > 0 && ` · 예상 월이자 ${manwon(kpi.lineInterest)}`}
+            한도 {eok(kpi.limit)} · 미사용 {eok(Math.max(kpi.limit - kpi.used, 0))}
           </div>
         </div>
         <button onClick={() => setFilter('check')}
