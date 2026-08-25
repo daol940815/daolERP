@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { getPeriodRange, DEFAULT_VIEW_FROM } from '@/lib/period-presets'
+import CustomerKpiTiles, { matchCategory, OTYPE_META } from './_components/CustomerKpiTiles'
+import type { KpiCategory, KpiFlags, VendorFlag } from './_components/CustomerKpiTiles'
 
 // 매출처 관리 허브 — 목록(A)
 // 기간 매출·수금·미수·담당·상태를 매출처 단위로 요약하고, 행 클릭 시 360° 상세로 드릴다운.
@@ -62,6 +64,21 @@ export default function SalesHubPage() {
   const [vipOnly, setVipOnly] = useState(false)
   const [outstandingOnly, setOutstandingOnly] = useState(false)
 
+  // 고객관리 집계 (108 RPC) — 기간 필터와 독립, 기준연도 자동
+  const [kpiFlags, setKpiFlags] = useState<KpiFlags | null>(null)
+  const [catFilter, setCatFilter] = useState<KpiCategory | null>(null)
+  useEffect(() => {
+    fetch('/api/vendor-hub/customer-kpi')
+      .then(r => r.json())
+      .then(j => { if (j.available) setKpiFlags(j) })
+      .catch(() => {})
+  }, [])
+  const vendorFlagMap = useMemo(() => {
+    const m = new Map<string, VendorFlag>()
+    kpiFlags?.vendors.forEach(f => m.set(f.vendor_id, f))
+    return m
+  }, [kpiFlags])
+
   const load = useCallback(async (f: string, t: string) => {
     setLoading(true); setError(null)
     try {
@@ -106,10 +123,14 @@ export default function SalesHubPage() {
     if (statusFilter && r.status !== statusFilter) return false
     if (vipOnly && r.vip_total <= 0) return false
     if (outstandingOnly && r.outstanding <= 0) return false
+    if (catFilter) {
+      const f = vendorFlagMap.get(r.vendor_id)
+      if (!f || !matchCategory(f, catFilter)) return false
+    }
     return true
-  }), [rows, search, staffFilter, statusFilter, vipOnly, outstandingOnly])
+  }), [rows, search, staffFilter, statusFilter, vipOnly, outstandingOnly, catFilter, vendorFlagMap])
 
-  const filterActive = !!(search || staffFilter || statusFilter || vipOnly || outstandingOnly)
+  const filterActive = !!(search || staffFilter || statusFilter || vipOnly || outstandingOnly || catFilter)
 
   // KPI는 화면에 보이는(필터 적용된) 매출처 기준으로 집계
   const kpi = useMemo(() => {
@@ -200,6 +221,9 @@ export default function SalesHubPage() {
         </div>
       )}
 
+      {/* 고객관리 집계 — 투트랙 타일 (108 미적용 시 자동 숨김) */}
+      <CustomerKpiTiles mode="vendor" flags={kpiFlags} filter={catFilter} onFilter={setCatFilter} />
+
       {error && <div className="mt-4 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
 
       {/* 목록 */}
@@ -213,6 +237,7 @@ export default function SalesHubPage() {
                 <th className="py-2 px-3 text-left font-medium">매출처</th>
                 <th className="py-2 px-3 text-left font-medium">담당직원</th>
                 <th className="py-2 px-3 text-left font-medium">거래처 담당자</th>
+                {kpiFlags && <th className="py-2 px-3 text-left font-medium">고객관리</th>}
                 <th className="py-2 px-3 text-right font-medium">기간 매출</th>
                 <th className="py-2 px-3 text-right font-medium">수금액</th>
                 <th className="py-2 px-3 text-left font-medium w-32">수금율</th>
@@ -243,6 +268,18 @@ export default function SalesHubPage() {
                       {r.contact_rep ?? <span className="text-gray-300">-</span>}
                       {r.contact_extra > 0 && <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[10px] font-bold">+{r.contact_extra}</span>}
                     </td>
+                    {kpiFlags && (() => {
+                      const f = vendorFlagMap.get(r.vendor_id)
+                      const ot = f ? OTYPE_META[f.otype] : null
+                      return (
+                        <td className="py-2 px-3 whitespace-nowrap">
+                          {ot && <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${ot.cls}`}>{ot.label}</span>}
+                          {f?.is_new && <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">신규</span>}
+                          {f?.is_churn && <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700">이탈</span>}
+                          {!f && <span className="text-gray-300">-</span>}
+                        </td>
+                      )
+                    })()}
                     <td className="py-2 px-3 text-right tabular-nums">{won(r.net)}</td>
                     <td className="py-2 px-3 text-right tabular-nums">{won(r.collected)}</td>
                     <td className="py-2 px-3">
@@ -264,7 +301,7 @@ export default function SalesHubPage() {
                 )
               })}
               {!visible.length && (
-                <tr><td colSpan={9} className="text-center py-14 text-gray-400 text-sm">조건에 맞는 매출처가 없습니다.</td></tr>
+                <tr><td colSpan={kpiFlags ? 10 : 9} className="text-center py-14 text-gray-400 text-sm">조건에 맞는 매출처가 없습니다.</td></tr>
               )}
             </tbody>
           </table>
