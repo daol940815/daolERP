@@ -84,8 +84,24 @@ export default function PoDetail({ poId }: { poId: string }) {
             </tbody>
           </table>
 
-          {/* 품목 표 6열 (배송구분 열 없음 — 비고 통일), 택배비는 별도 행 */}
+          {/* 합계 행 (v4: 품목 표 위로 이동) */}
           <table className="w-full border-collapse text-[11px] mt-1.5">
+            <tbody>
+              <tr>
+                <td className="px-2 py-1.5 text-center font-semibold"
+                  style={{ ...cellBorder, background: hex(PO_COLORS.labelBg), color: hex(PO_COLORS.label), width: '83%' }}>
+                  합계금액(vat포함)
+                </td>
+                <td className="px-2 py-1.5 text-center font-bold tabular-nums"
+                  style={{ ...cellBorder, background: hex(PO_COLORS.totalBg), color: hex(PO_COLORS.totalInk) }}>
+                  {won(form.total_amount)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* 품목 표 6열 (배송구분 열 없음 — 비고 통일), 택배비는 별도 행 */}
+          <table className="w-full border-collapse text-[11px]">
             <thead>
               <tr>
                 {PO_HEADERS.map(label => (
@@ -112,14 +128,22 @@ export default function PoDetail({ poId }: { poId: string }) {
                   ))}
                 </tr>
               ))}
+            </tbody>
+          </table>
+
+          {/* 하단 비고 (v4 추가): 라벨 + 자유기입 칸 — 배송 참고 자동 기입 */}
+          <table className="w-full border-collapse text-[11px]">
+            <tbody>
               <tr>
-                <td colSpan={5} className="px-2 py-1.5 text-center font-semibold"
+                <td className="px-2 py-1.5 text-center font-semibold"
                   style={{ ...cellBorder, background: hex(PO_COLORS.labelBg), color: hex(PO_COLORS.label) }}>
-                  합계금액(vat포함)
+                  비고
                 </td>
-                <td className="px-2 py-1.5 text-center font-bold tabular-nums"
-                  style={{ ...cellBorder, background: hex(PO_COLORS.totalBg), color: hex(PO_COLORS.totalInk) }}>
-                  {won(form.total_amount)}
+              </tr>
+              <tr>
+                <td className="px-2 py-2 text-center align-middle whitespace-pre-wrap"
+                  style={{ ...cellBorder, color: hex(PO_COLORS.ink), height: '3.5rem' }}>
+                  {form.delivery_note ?? ''}
                 </td>
               </tr>
             </tbody>
