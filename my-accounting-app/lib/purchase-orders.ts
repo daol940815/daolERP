@@ -144,7 +144,8 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
   const thin = { style: 'thin' as const }
   const box = { top: thin, bottom: thin, left: thin, right: thin }
   const fill = (hex: string) => ({ type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: argb(hex) } })
-  const center = { horizontal: 'center' as const, vertical: 'middle' as const, wrapText: true }
+  // 줄바꿈 미사용 기준 (사용자 확정 2026-08-25) — 대신 열 너비를 내용에 맞춰 확보
+  const center = { horizontal: 'center' as const, vertical: 'middle' as const }
   // 날짜 칸은 원본과 동일하게 날짜 값 + mm-dd-yy 서식 (파싱 불가한 자유 표기는 문자열 유지)
   const asDate = (s: string | null) => {
     if (!s) return ''
@@ -156,10 +157,11 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
   const ws = wb.addWorksheet('발주서', {
     pageSetup: { orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   })
-  // 열 폭·행 높이 — 원본 그대로 (F~H는 기본 폭)
+  // 열 폭 — 원본 기준 + F~H는 전화번호·날짜가 줄바꿈 없이 들어가게 확대
+  // (사용자 확정 2026-08-25: 줄바꿈 미사용 기준으로 폭 조정)
   ws.columns = [
     { width: 5.62 }, { width: 12.62 }, { width: 19.5 }, { width: 4.75 },
-    { width: 12.62 }, { width: 8.43 }, { width: 8.43 }, { width: 8.43 },
+    { width: 12.62 }, { width: 13.5 }, { width: 13.5 }, { width: 13.5 },
   ]
 
   // 제목 (원본: 검정 17pt 굵게, 행 높이 63.75)
@@ -273,7 +275,7 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
     pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   })
   ws2.columns = [
-    { width: 4.62 }, { width: 20.62 }, { width: 15.62 }, { width: 8.43 }, { width: 50.62 },
+    { width: 4.62 }, { width: 20.62 }, { width: 15.62 }, { width: 14 }, { width: 50.62 },
     { width: 15.62 }, { width: 40.62 }, { width: 10.62 }, { width: 30.62 },
   ]
   ROSTER_HEADERS.forEach((label, i) => {
@@ -289,9 +291,9 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
       const cell = ws2.getCell(r, ci + 1)
       cell.value = v
       cell.font = { name: FONT, size: 10, color: { argb: argb(PO_COLORS.ink) } }
-      // 주소만 좌측 정렬 (원본과 동일), 나머지 가운데
+      // 주소만 좌측 정렬 (원본과 동일), 나머지 가운데 — 줄바꿈 미사용
       cell.alignment = ci === 4
-        ? { horizontal: 'left', vertical: 'middle', wrapText: true }
+        ? { horizontal: 'left', vertical: 'middle' }
         : center
     })
   })
