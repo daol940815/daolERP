@@ -58,18 +58,48 @@ SELECT jsonb_pretty(jsonb_build_object(
                       + (SELECT COALESCE(SUM(amount), 0) FROM cut_offset)
   ),
 
-  -- [2] 허브가 계산한 음수 잔액 (대조용 — 위 합계와 부호만 달라야 한다)
-  '허브_음수잔액', (
-    SELECT COALESCE(SUM(outstanding) FILTER (WHERE outstanding < 0), 0)
+  -- [2] 허브 미결제금 현황 (양수 = 실제 미지급 / 음수 = 과다지급)
+  '허브_미결제금', (
+    SELECT jsonb_build_object(
+      'total',          COALESCE(SUM(outstanding), 0),
+      'positive_sum',   COALESCE(SUM(outstanding) FILTER (WHERE outstanding > 0), 0),
+      'negative_sum',   COALESCE(SUM(outstanding) FILTER (WHERE outstanding < 0), 0),
+      'over90',         COALESCE(SUM(over90), 0),
+      'opening_remain', COALESCE(SUM(opening_remain), 0),
+      'vendors',        COUNT(*)
+    )
     FROM hub_purchase_summary(NULL, NULL)
   ),
 
-  -- [3] 기준일 이후 매입 계산서 건수 (0이면 채무가 없어 지급이 전부 과다지급이 된다)
+  -- [3] 기준일 이후 매입 계산서 (0이면 채무가 없어 지급이 전부 과다지급이 된다)
   '기준일이후_매입계산서', (
     SELECT jsonb_build_object('건수', COUNT(*), '금액', COALESCE(SUM(t.total_amount), 0))
     FROM tax_invoices t
     WHERE t.direction = 'purchase' AND t.vendor_id IS NOT NULL
       AND t.issue_date > DATE '2026-06-30'
+  ),
+
+  -- [3b] 계산서 업로드 검증 — 방향·월별 건수/금액 (2026-06 이후)
+  '계산서_월별', (
+    SELECT coalesce(jsonb_agg(t ORDER BY t->>'월', t->>'구분'), '[]'::jsonb)
+    FROM (
+      SELECT jsonb_build_object(
+        '구분', direction, '월', to_char(issue_date, 'YYYY-MM'),
+        '건수', COUNT(*), '금액', COALESCE(SUM(total_amount), 0),
+        '거래처미연결', COUNT(*) FILTER (WHERE vendor_id IS NULL)
+      ) AS t
+      FROM tax_invoices
+      WHERE issue_date >= DATE '2026-06-01'
+      GROUP BY direction, to_char(issue_date, 'YYYY-MM')
+    ) s
+  ),
+
+  -- [3c] 거래처(vendor_id) 미연결 매입 계산서 — 미연결이면 허브 집계에 잡히지 않는다
+  '매입계산서_거래처미연결', (
+    SELECT jsonb_build_object('건수', COUNT(*), '금액', COALESCE(SUM(total_amount), 0))
+    FROM tax_invoices
+    WHERE direction = 'purchase' AND vendor_id IS NULL
+      AND issue_date > DATE '2026-06-30'
   ),
 
   -- [4] 과다지급 상위 거래처 (금액순 15곳)
