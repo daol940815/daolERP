@@ -44,6 +44,7 @@ interface MoveRow {
   employee_id: string | null
   note: string | null
   source: 'excel' | 'manual'
+  created_by_name?: string | null
 }
 
 const TYPE_LABEL: Record<string, string> = { in: '입고', out: '출고', adjust: '조정' }
@@ -229,7 +230,7 @@ export default function SampleStockPage() {
     `rounded-t-lg px-4 py-2 text-[13.5px] font-semibold cursor-pointer ${on ? 'bg-white text-slate-900 border border-b-0 border-slate-200' : 'bg-slate-200 text-slate-500'}`
 
   return (
-    <div className="mx-auto max-w-[1280px] p-6">
+    <div className="mx-auto max-w-[1280px]">
       {/* 헤더 */}
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -473,11 +474,12 @@ export default function SampleStockPage() {
                     <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold">출고처</th>
                     <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold">담당자</th>
                     <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold">비고</th>
+                    <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold">입력 계정</th>
                   </tr>
                 </thead>
                 <tbody>
                   {movesLoading && (
-                    <tr><td colSpan={10} className="px-2.5 py-8 text-center text-slate-400">원장 불러오는 중...</td></tr>
+                    <tr><td colSpan={11} className="px-2.5 py-8 text-center text-slate-400">원장 불러오는 중...</td></tr>
                   )}
                   {!movesLoading && ledgerPageRows.map((m) => (
                     <tr key={m.id} className="hover:bg-slate-50">
@@ -508,10 +510,13 @@ export default function SampleStockPage() {
                         {m.staff_name && !m.employee_id && <span className="ml-1">{badge('bg-red-50 text-red-700', '미연결')}</span>}
                       </td>
                       <td className="border-b border-slate-100 px-2.5 py-2 max-w-[180px] truncate text-slate-500" title={m.note ?? ''}>{m.note ?? ''}</td>
+                      <td className="border-b border-slate-100 px-2.5 py-2 whitespace-nowrap text-slate-500">
+                        {m.source === 'excel' ? <span className="text-slate-300">이관분</span> : m.created_by_name ?? <span className="text-slate-300">-</span>}
+                      </td>
                     </tr>
                   ))}
                   {!movesLoading && !ledgerPageRows.length && (
-                    <tr><td colSpan={10} className="px-2.5 py-8 text-center text-slate-400">조건에 맞는 원장 행이 없습니다.</td></tr>
+                    <tr><td colSpan={11} className="px-2.5 py-8 text-center text-slate-400">조건에 맞는 원장 행이 없습니다.</td></tr>
                   )}
                 </tbody>
               </table>
