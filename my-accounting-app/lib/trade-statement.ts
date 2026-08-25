@@ -78,6 +78,7 @@ export async function buildStatementExcel(data: StatementData): Promise<Buffer> 
   const ExcelJS = (await import('exceljs')).default
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet('거래명세서', {
+    views: [{ showGridLines: false }],   // 눈금선 숨김 — 그린 테두리만 보이게 (사용자 요청)
     properties: { defaultRowHeight: 20.1 },
     pageSetup: {
       paperSize: 9, orientation: 'portrait', scale: 64,
