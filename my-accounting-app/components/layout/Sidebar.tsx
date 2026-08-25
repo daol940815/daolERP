@@ -281,11 +281,9 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             <span className="opacity-60">{openGroups.mgmt ? '▾' : '▸'}</span>
           </button>
           {openGroups.mgmt && (<>
+          {/* 대시보드는 하나로 통합 — 경영/자금·계좌/작업은 화면 안 탭(?tab=)으로 나뉜다 */}
           <Link href="/" className={linkCls(pathname === '/')}>
             <span>대시보드</span>
-          </Link>
-          <Link href="/reports/management-dashboard" className={linkCls(pathname.startsWith('/reports/management-dashboard'))}>
-            <span>경영대시보드</span>
           </Link>
           <Link href="/sales-hub" className={linkCls(pathname.startsWith('/sales-hub') && !pathname.startsWith('/sales-hub/contacts'))}>
             <span>매출처 허브</span>
