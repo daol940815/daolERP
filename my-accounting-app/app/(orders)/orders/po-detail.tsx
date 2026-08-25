@@ -53,7 +53,7 @@ export default function PoDetail({ poId }: { poId: string }) {
       <div className="overflow-x-auto">
         <div className="min-w-[640px] max-w-3xl bg-white border border-gray-300 rounded-lg p-3 shadow-sm">
           <div className="text-center text-lg font-extrabold py-1.5 tracking-tight"
-            style={{ color: hex(PO_COLORS.navy) }}>
+            style={{ color: hex(PO_COLORS.title) }}>
             {COMPANY_NAME} 발주서
           </div>
 
@@ -90,7 +90,7 @@ export default function PoDetail({ poId }: { poId: string }) {
               <tr>
                 {PO_HEADERS.map(label => (
                   <th key={label} className="px-1.5 py-1.5 font-semibold whitespace-nowrap"
-                    style={{ ...cellBorder, background: hex(PO_COLORS.labelBg), color: hex(PO_COLORS.label) }}>
+                    style={{ ...cellBorder, background: hex(PO_COLORS.itemHeadBg), color: hex(PO_COLORS.itemHeadInk) }}>
                     {label}
                   </th>
                 ))}
@@ -104,7 +104,8 @@ export default function PoDetail({ poId }: { poId: string }) {
                       className={`px-1.5 py-1.5 text-center align-middle ${PO_NUM_COLS.has(ci) ? 'tabular-nums' : ''}`}
                       style={{
                         ...cellBorder,
-                        color: hex(ci === 2 ? PO_COLORS.qtyInk : PO_COLORS.ink),   // 수량 빨강
+                        // 수량 빨강·비고 파랑 (원본 관례)
+                        color: hex(ci === 2 ? PO_COLORS.qtyInk : ci === 5 ? PO_COLORS.noteInk : PO_COLORS.ink),
                       }}>
                       {ci === 3 || ci === 4 ? won(Number(v)) : v}
                     </td>
@@ -117,7 +118,7 @@ export default function PoDetail({ poId }: { poId: string }) {
                   합계금액(vat포함)
                 </td>
                 <td className="px-2 py-1.5 text-center font-bold tabular-nums"
-                  style={{ ...cellBorder, color: hex(PO_COLORS.totalInk) }}>
+                  style={{ ...cellBorder, background: hex(PO_COLORS.totalBg), color: hex(PO_COLORS.totalInk) }}>
                   {won(form.total_amount)}
                 </td>
               </tr>

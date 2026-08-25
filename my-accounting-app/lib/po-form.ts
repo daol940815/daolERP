@@ -14,13 +14,16 @@ export const COMPANY_PHONE = '070-7007-4582'   // 직원 연락처 미등록 시
 export const COMPANY_TEL = '031-922-4582'      // 양식 고정값 (사용자 확정)
 export const COMPANY_FAX = '031-624-4584'      // 양식 고정값 (사용자 확정)
 
-// 양식 색상 (개정 양식 원본에서 추출, RGB hex — 사용처에서 접두사 FF/# 부여)
+// 양식 색상 (개정 양식 원본에서 셀 단위 추출 — 테마 색은 RGB로 환산)
 export const PO_COLORS = {
-  labelBg: 'EEF2F7', label: '334155', ink: '111827',
+  labelBg: 'EEF2F7', label: '334155', ink: '000000',
   accentBg: 'FFFF00', accentInk: '0000FF',   // 출고요청일 강조 (노란 배경·파란 글씨)
+  itemHeadBg: '44546A', itemHeadInk: 'FFFFFF',   // 품목 헤더 (남색 배경·흰 글씨)
   qtyInk: 'FF0000',                          // 수량 강조 (빨간 글씨)
-  totalInk: 'CC0000',                        // 합계 강조 (붉은 굵은 글씨)
-  navy: '1F2A44',                            // 제목
+  noteInk: '0000FF',                         // 비고 열 (파란 글씨 관례)
+  totalInk: 'CC0000',                        // 합계 값 (붉은 굵은 글씨)
+  totalBg: 'FFF2CC',                         // 합계 값 배경 (FFC000의 80% 밝기)
+  title: '000000',                           // 제목 (검정 17pt 굵게)
 }
 
 export interface PoExcelData {
@@ -47,7 +50,7 @@ export interface PoExcelData {
 // 헤더 정보 9칸 — 3칸 × 3행 (배치 순서 = 엑셀 병합 순서)
 export function poFormInfo(po: PoExcelData): { label: string; value: string | number | null; bold?: boolean; accent?: boolean }[] {
   return [
-    { label: '발주번호', value: po.po_no, bold: true },
+    { label: '발주번호', value: po.po_no },   // 값 셀은 원본과 같이 일반 굵기
     { label: '주문일', value: po.order_date },
     { label: '출고요청일', value: po.ship_request, accent: true },
     { label: '공급처', value: po.vendor_name },

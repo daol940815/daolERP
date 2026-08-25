@@ -145,35 +145,41 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
   const box = { top: thin, bottom: thin, left: thin, right: thin }
   const fill = (hex: string) => ({ type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: argb(hex) } })
   const center = { horizontal: 'center' as const, vertical: 'middle' as const, wrapText: true }
+  // 날짜 칸은 원본과 동일하게 날짜 값 + mm-dd-yy 서식 (파싱 불가한 자유 표기는 문자열 유지)
+  const asDate = (s: string | null) => {
+    if (!s) return ''
+    const d = new Date(`${s}T00:00:00+09:00`)
+    return Number.isNaN(d.getTime()) ? s : d
+  }
 
   // ── 시트1: 발주서 (명세) ────────────────────────────
   const ws = wb.addWorksheet('발주서', {
     pageSetup: { orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   })
+  // 열 폭·행 높이 — 원본 그대로 (F~H는 기본 폭)
   ws.columns = [
-    { width: 5.6 }, { width: 12.6 }, { width: 19.5 }, { width: 6 },
-    { width: 12.6 }, { width: 12.6 }, { width: 12.6 }, { width: 12.6 },
+    { width: 5.62 }, { width: 12.62 }, { width: 19.5 }, { width: 4.75 },
+    { width: 12.62 }, { width: 8.43 }, { width: 8.43 }, { width: 8.43 },
   ]
 
-  // 제목
+  // 제목 (원본: 검정 17pt 굵게, 행 높이 63.75)
   ws.mergeCells('A1:H1')
-  ws.getRow(1).height = 30
+  ws.getRow(1).height = 63.75
   const title = ws.getCell('A1')
   title.value = `${COMPANY_NAME} 발주서`
-  title.font = { name: FONT, size: 17, bold: true, color: { argb: argb(PO_COLORS.navy) } }
+  title.font = { name: FONT, size: 17, bold: true, color: { argb: argb(PO_COLORS.title) } }
   title.alignment = center
 
   // 헤더 정보 (2~4행): [A:B 라벨, C:D 값] + [E 라벨, F 값] + [G 라벨, H 값]
-  // 발주번호가 맨 위, 출고요청일 라벨은 노란 배경·파란 글씨 강조 (사용자 확정)
+  // 발주번호가 맨 위, 출고요청일 라벨은 노란 배경·파란 글씨 (사용자 확정)
   const info = poFormInfo(po)
-  const infoRanges: [string, string][][] = [
-    [['A2:B2', 'C2:D2'], ['E2', 'F2'], ['G2', 'H2']],
-    [['A3:B3', 'C3:D3'], ['E3', 'F3'], ['G3', 'H3']],
-    [['A4:B4', 'C4:D4'], ['E4', 'F4'], ['G4', 'H4']],
-  ] as unknown as [string, string][][]
-  infoRanges.flat().forEach((pair, i) => {
+  const infoRanges: [string, string][] = [
+    ['A2:B2', 'C2:D2'], ['E2', 'F2'], ['G2', 'H2'],
+    ['A3:B3', 'C3:D3'], ['E3', 'F3'], ['G3', 'H3'],
+    ['A4:B4', 'C4:D4'], ['E4', 'F4'], ['G4', 'H4'],
+  ]
+  infoRanges.forEach(([labelRange, valueRange], i) => {
     const cell = info[i]
-    const [labelRange, valueRange] = pair
     if (labelRange.includes(':')) ws.mergeCells(labelRange)
     if (valueRange.includes(':')) ws.mergeCells(valueRange)
     const lc = ws.getCell(labelRange.split(':')[0])
@@ -185,45 +191,64 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
     lc.fill = fill(cell.accent ? PO_COLORS.accentBg : PO_COLORS.labelBg)
     lc.alignment = center
     const vc = ws.getCell(valueRange.split(':')[0])
-    vc.value = cell.value ?? ''
+    const isDate = cell.label === '주문일' || cell.label === '출고요청일'
+    vc.value = isDate ? asDate(cell.value as string | null) : (cell.value ?? '')
+    if (isDate && vc.value instanceof Date) vc.numFmt = 'mm-dd-yy'
     vc.font = { name: FONT, size: 10, bold: !!cell.bold, color: { argb: argb(PO_COLORS.ink) } }
     vc.alignment = center
   })
-  for (let r = 2; r <= 4; r++) ws.getRow(r).height = 20
+  for (let r = 2; r <= 4; r++) ws.getRow(r).height = 30
 
-  // 품목 표 헤더 (5행): NO | 제품명(B:C) | 수량 | 단가 | 금액 | 비고(G:H)
+  // 품목 표 헤더 (5행, 원본: 남색 배경·흰 글씨): NO | 제품명(B:C) | 수량 | 단가 | 금액 | 비고(G:H)
+  ws.getRow(5).height = 30
   ws.mergeCells('B5:C5')
   ws.mergeCells('G5:H5')
   const headerCells = ['A5', 'B5', 'D5', 'E5', 'F5', 'G5']
   PO_HEADERS.forEach((label, i) => {
     const cell = ws.getCell(headerCells[i])
     cell.value = label
-    cell.font = { name: FONT, size: 10, bold: true, color: { argb: argb(PO_COLORS.label) } }
-    cell.fill = fill(PO_COLORS.labelBg)
+    cell.font = { name: FONT, size: 10, bold: true, color: { argb: argb(PO_COLORS.itemHeadInk) } }
+    cell.fill = fill(PO_COLORS.itemHeadBg)
     cell.alignment = center
   })
 
-  // 품목 행 — 택배비는 별도 행 (poFormItemRows에서 분리), 수량은 빨간 글씨
+  // 품목 행 — 원본은 6~15행 고정 10행 (빈 행도 서식 유지), 초과 시 확장.
+  // 수량 빨간 글씨, 비고 파란 글씨, 금액은 원본과 같은 수식(=단가×수량 — 값이
+  // 다르면(할인 등) 값으로 기재), 택배비는 별도 행(poFormItemRows에서 분리)
   const rows = poFormItemRows(po)
-  rows.forEach((values, i) => {
+  const itemRowCount = Math.max(rows.length, 10)
+  for (let i = 0; i < itemRowCount; i++) {
     const r = 6 + i
+    ws.getRow(r).height = 30
     ws.mergeCells(`B${r}:C${r}`)
     ws.mergeCells(`G${r}:H${r}`)
+    const values = rows[i]
     const cells = [`A${r}`, `B${r}`, `D${r}`, `E${r}`, `F${r}`, `G${r}`]
-    values.forEach((v, ci) => {
-      const cell = ws.getCell(cells[ci])
-      cell.value = v
+    cells.forEach((addr, ci) => {
+      const cell = ws.getCell(addr)
+      const v = values ? values[ci] : ''
+      if (ci === 4 && values) {
+        // 금액 = 단가×수량 수식 (원본 방식) — 어긋나면 값으로
+        const qty = Number(values[2]) || 0
+        const price = Number(values[3]) || 0
+        cell.value = qty * price === Number(v)
+          ? ({ formula: `E${r}*D${r}`, result: Number(v) } as import('exceljs').CellFormulaValue)
+          : Number(v)
+      } else {
+        cell.value = v
+      }
       cell.font = {
         name: FONT, size: 10,
-        color: { argb: argb(ci === 2 ? PO_COLORS.qtyInk : PO_COLORS.ink) },   // 수량 빨강
+        color: { argb: argb(ci === 2 ? PO_COLORS.qtyInk : ci === 5 ? PO_COLORS.noteInk : PO_COLORS.ink) },
       }
       cell.alignment = center
       if (ci === 3 || ci === 4) cell.numFmt = '#,##0'
     })
-  })
+  }
 
-  // 합계 행: A:F 라벨 + G:H 값 (붉은 굵은 글씨, 금액 열 SUM 수식)
-  const totalRow = 6 + rows.length
+  // 합계 행: A:F 라벨 + G:H 값 (연주황 배경·붉은 굵은 글씨, 금액 열 SUM 수식)
+  const totalRow = 6 + itemRowCount
+  ws.getRow(totalRow).height = 30
   ws.mergeCells(`A${totalRow}:F${totalRow}`)
   ws.mergeCells(`G${totalRow}:H${totalRow}`)
   const tl = ws.getCell(`A${totalRow}`)
@@ -232,15 +257,14 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
   tl.fill = fill(PO_COLORS.labelBg)
   tl.alignment = center
   const tv = ws.getCell(`G${totalRow}`)
-  tv.value = rows.length
-    ? ({ formula: `SUM(F6:F${totalRow - 1})`, result: po.total_amount } as import('exceljs').CellFormulaValue)
-    : po.total_amount
+  tv.value = { formula: `SUM(F6:F${totalRow - 1})`, result: po.total_amount } as import('exceljs').CellFormulaValue
   tv.font = { name: FONT, size: 10, bold: true, color: { argb: argb(PO_COLORS.totalInk) } }
+  tv.fill = fill(PO_COLORS.totalBg)
   tv.alignment = center
   tv.numFmt = '#,##0'
 
-  // 표 전체 테두리
-  for (let r = 2; r <= totalRow; r++) {
+  // 표 전체 테두리 (제목 포함 — 원본과 동일)
+  for (let r = 1; r <= totalRow; r++) {
     for (let c = 1; c <= 8; c++) ws.getCell(r, c).border = box
   }
 
@@ -249,8 +273,8 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
     pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   })
   ws2.columns = [
-    { width: 4.6 }, { width: 20.6 }, { width: 15.6 }, { width: 14 }, { width: 50.6 },
-    { width: 15.6 }, { width: 40.6 }, { width: 10.6 }, { width: 30.6 },
+    { width: 4.62 }, { width: 20.62 }, { width: 15.62 }, { width: 8.43 }, { width: 50.62 },
+    { width: 15.62 }, { width: 40.62 }, { width: 10.62 }, { width: 30.62 },
   ]
   ROSTER_HEADERS.forEach((label, i) => {
     const cell = ws2.getCell(1, i + 1)
@@ -265,8 +289,8 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
       const cell = ws2.getCell(r, ci + 1)
       cell.value = v
       cell.font = { name: FONT, size: 10, color: { argb: argb(PO_COLORS.ink) } }
-      // 주소·배송메모는 좌측 정렬 (원본과 동일), 나머지 가운데
-      cell.alignment = ci === 4 || ci === 8
+      // 주소만 좌측 정렬 (원본과 동일), 나머지 가운데
+      cell.alignment = ci === 4
         ? { horizontal: 'left', vertical: 'middle', wrapText: true }
         : center
     })
