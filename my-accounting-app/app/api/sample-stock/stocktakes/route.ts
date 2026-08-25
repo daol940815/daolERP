@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { getCurrentUser } from '@/lib/user-role'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -41,6 +42,10 @@ export async function POST(req: NextRequest) {
     computed.set(m.product_id as string, cur + (m.move_type === 'out' ? -m.quantity : m.quantity))
   }
 
+  // 입력 계정 로그 (2026-08-24 사용자 확정)
+  const me = await getCurrentUser()
+  if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+
   const rows = entries.map((e) => ({
     take_date: takeDate,
     product_id: e.product_id,
@@ -48,13 +53,23 @@ export async function POST(req: NextRequest) {
     computed_qty: computed.get(e.product_id) ?? 0,
     staff_name: (body?.staff_name ?? '').trim() || null,
     employee_id: body?.employee_id || null,
+    created_by_employee_id: me.employeeId,
+    created_by_name: me.employeeName ?? me.email ?? '알 수 없음',
   }))
 
   // 같은 날 같은 품목 재실사는 갱신 (uq_sample_stocktakes_date_product)
   const { error } = await admin
     .from('erp_sample_stocktakes')
     .upsert(rows, { onConflict: 'take_date,product_id' })
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    if (/created_by/.test(error.message)) {
+      return NextResponse.json(
+        { error: '입력 계정 로그 컬럼이 없습니다. SQL 편집기에서 801_sample_stock_created_by.sql을 실행해 주세요.' },
+        { status: 500 },
+      )
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   const diffs = rows
     .filter((r) => r.counted_qty !== r.computed_qty)

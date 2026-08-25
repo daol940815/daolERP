@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { getCurrentUser } from '@/lib/user-role'
+
+const MIGRATION_801_MSG =
+  '입력 계정 로그 컬럼이 없습니다. SQL 편집기에서 801_sample_stock_created_by.sql을 실행해 주세요.'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -20,16 +24,18 @@ interface LedgerRow {
   employee_id: string | null
   note: string | null
   source: string
+  created_by_name?: string | null
 }
 
 // GET /api/sample-stock/moves — 입출고 원장 전체 (화면에서 검색·칩 필터·페이지네이션)
 export async function GET() {
   const admin = createAdminClient()
 
+  // select('*'): 801(created_by 컬럼) 적용 전후 모두 동작하도록 컬럼을 명시하지 않는다
   const movesRes = await fetchAllRows<LedgerRow>((from, to) =>
     admin
       .from('erp_sample_moves')
-      .select('id, move_date, move_type, product_id, item_name_raw, quantity, unit_cost, total_cost, purpose, dest_name, staff_name, employee_id, note, source')
+      .select('*')
       .order('id')
       .range(from, to),
   )
@@ -93,6 +99,10 @@ export async function POST(req: NextRequest) {
     unitCost = p?.purchase_price ?? null
   }
 
+  // 입력 계정 로그 (2026-08-24 사용자 확정: 전 직원 열람·입력, 누가 입력했는지 기록)
+  const me = await getCurrentUser()
+  if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+
   const row = {
     move_date: body.move_date,
     move_type: moveType,
@@ -107,8 +117,15 @@ export async function POST(req: NextRequest) {
     employee_id: (body.employee_id as string) || null,
     note: ((body.note as string) || '').trim() || null,
     source: 'manual',
+    created_by_employee_id: me.employeeId,
+    created_by_name: me.employeeName ?? me.email ?? '알 수 없음',
   }
   const { data, error } = await admin.from('erp_sample_moves').insert(row).select('id').single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    if (/created_by/.test(error.message)) {
+      return NextResponse.json({ error: MIGRATION_801_MSG }, { status: 500 })
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json({ ok: true, id: data.id })
 }
