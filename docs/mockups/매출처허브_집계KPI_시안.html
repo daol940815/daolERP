@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>매출처 허브 — 고객관리 집계 KPI 시안</title>
+<style>
+  :root { --line:#e5e7eb; --ink:#111827; --ink2:#4b5563; --ink3:#9ca3af; --navy:#0f172a; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#f6f7f9; color:var(--ink); font-size:13px; }
+  .num { font-variant-numeric:tabular-nums; }
+  .wrap { max-width:1240px; margin:0 auto; padding:22px 24px 60px; }
+  h1 { font-size:19px; }
+  .desc { font-size:12px; color:var(--ink3); margin:4px 0 14px; }
+  .panel { background:#fff; border:1px solid var(--line); border-radius:14px; }
+  .chip { display:inline-block; padding:5px 12px; border:1px solid var(--line); border-radius:999px;
+          font-size:12.5px; color:var(--ink2); background:#fff; cursor:pointer; }
+  .chip.on { background:var(--navy); color:#fff; border-color:var(--navy); }
+  .note { background:#fffbe8; border:1px solid #f1e2a6; border-radius:10px; padding:10px 14px;
+          font-size:12px; color:#7a6414; margin:14px 0; line-height:1.6; }
+  .sec-title { font-size:13px; font-weight:700; margin:18px 0 8px; display:flex; align-items:center; gap:8px; }
+  .sec-title .sub { font-weight:400; font-size:11.5px; color:var(--ink3); }
+
+  /* 기존 KPI (현행 유지 — 흐리게) */
+  .kpi-old { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; opacity:.45; }
+  .kpi-old .panel { padding:10px 14px; }
+  .kpi-old .t { font-size:11px; color:var(--ink3); }
+  .kpi-old .v { font-size:17px; font-weight:800; margin-top:2px; }
+
+  /* 투트랙 토글 */
+  .toggle { display:inline-flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+  .toggle button { padding:6px 14px; font-size:12.5px; border:0; background:#fff; color:var(--ink2); cursor:pointer; }
+  .toggle button.on { background:var(--navy); color:#fff; font-weight:700; }
+
+  /* 집계 타일 */
+  .grid3 { display:grid; grid-template-columns: 1.1fr 1.6fr 1.6fr; gap:10px; }
+  .tile { padding:12px 14px; }
+  .tile h3 { font-size:12px; color:var(--ink2); display:flex; justify-content:space-between; align-items:baseline; }
+  .tile h3 .hint { font-size:10.5px; color:var(--ink3); font-weight:400; }
+  .duo { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
+  .cell { border:1px solid var(--line); border-radius:10px; padding:9px 11px; cursor:pointer; }
+  .cell:hover { border-color:#94a3b8; }
+  .cell.on { border-color:var(--navy); box-shadow:0 0 0 1px var(--navy) inset; }
+  .cell .lb { font-size:11px; color:var(--ink2); display:flex; align-items:center; gap:5px; }
+  .cell .vv { margin-top:4px; font-size:16px; font-weight:800; }
+  .cell .duo2 { font-size:10.5px; color:var(--ink3); margin-top:2px; }
+  .dot { width:7px; height:7px; border-radius:50%; display:inline-block; }
+  .g { background:#16a34a; } .r { background:#dc2626; } .b1 { background:#0e7490; }
+  .b2 { background:#0891b2; } .b3 { background:#67c3d4; } .b4 { background:#cbd5e1; }
+  .a1 { background:#7c3aed; } .a2 { background:#2563eb; } .a3 { background:#d97706; } .a4 { background:#9ca3af; }
+
+  /* 금액대 누적 막대 */
+  .bar { display:flex; height:9px; border-radius:999px; overflow:hidden; margin-top:9px; }
+  .bar div { height:100%; }
+  .tier-list { margin-top:8px; display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; }
+  .tier { display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--ink2);
+          padding:5px 9px; border:1px solid var(--line); border-radius:9px; cursor:pointer; }
+  .tier:hover { border-color:#94a3b8; }
+  .tier .n { margin-left:auto; font-weight:700; color:var(--ink); }
+  .tier .m { color:var(--ink3); font-weight:400; font-size:10.5px; }
+
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th { text-align:left; font-size:11px; color:var(--ink3); font-weight:600; padding:8px 12px; border-bottom:1px solid var(--line); }
+  td { padding:8px 12px; border-bottom:1px solid #f1f2f4; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:10.5px; font-weight:600; }
+  .bg-new { background:#e7f6ec; color:#147339; } .bg-churn { background:#fdeaea; color:#b42222; }
+  .bg-t { background:#e6effc; color:#1c5cab; }
+  .variant { margin-top:34px; padding-top:18px; border-top:2px dashed var(--line); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>매출처 허브 — 고객관리 집계 KPI 시안</h1>
+  <p class="desc">
+    영업지원팀 고객관리 문서의 집계표(신규/이탈 · 금액대 · 주문유형)를 <b>/sales-hub 화면 상단</b>에 상시 집계로 추가.
+    숫자는 문서가 아니라 <b>시스템 실데이터에서 실시간 계산</b>되며, 모든 타일은 클릭 시 아래 목록을 필터링(현행 KPI 관례).
+    수치 예시는 2026-08-24 실측 기준.
+  </p>
+
+  <!-- 기존 KPI: 그대로 유지 -->
+  <div class="sec-title">현행 KPI <span class="sub">(변경 없음 — 참고용으로 흐리게 표시)</span></div>
+  <div class="kpi-old">
+    <div class="panel"><div class="t">활성 매출처</div><div class="v">647곳</div></div>
+    <div class="panel"><div class="t">기간 매출 (ERP 순매출)</div><div class="v">18.2억</div></div>
+    <div class="panel"><div class="t">수금율</div><div class="v">96.4%</div></div>
+    <div class="panel"><div class="t">미수 잔액</div><div class="v">6,540만</div></div>
+  </div>
+
+  <!-- 신설: 고객관리 집계 -->
+  <div class="sec-title">
+    신설 — 고객관리 집계
+    <span class="toggle"><button class="on">지점 기준</button><button>담당자 기준</button></span>
+    <span class="sub">토글 = 집계 단위 + 아래 목록 전환 (지점 목록 ↔ 담당자 목록). 투트랙 관리 반영</span>
+  </div>
+
+  <div class="grid3">
+    <!-- 1) 신규 / 이탈 -->
+    <div class="panel tile">
+      <h3>신규 · 이탈 <span class="hint">기준연도 2026 (자동)</span></h3>
+      <div class="duo">
+        <div class="cell">
+          <div class="lb"><span class="dot g"></span>신규</div>
+          <div class="vv num">149곳</div>
+          <div class="duo2">담당자 기준 292명 · 최초 주문이 올해</div>
+        </div>
+        <div class="cell">
+          <div class="lb"><span class="dot r"></span>이탈</div>
+          <div class="vv num">400곳</div>
+          <div class="duo2">담당자 기준 676명 · 올해 주문 없음</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2) 주문 금액대 -->
+    <div class="panel tile">
+      <h3>주문 금액대 <span class="hint">최근 2개년 누적 순매출</span></h3>
+      <div class="bar">
+        <div class="b1" style="width:14%"></div><div class="b2" style="width:14%"></div>
+        <div class="b3" style="width:38%"></div><div class="b4" style="width:34%"></div>
+      </div>
+      <div class="tier-list">
+        <div class="tier"><span class="dot b1"></span>1,000만 이상 <span class="n num">135 <span class="m">/ 139명</span></span></div>
+        <div class="tier"><span class="dot b2"></span>500만 ~ 1,000만 <span class="n num">135 <span class="m">/ 148명</span></span></div>
+        <div class="tier"><span class="dot b3"></span>100만 ~ 500만 <span class="n num">372 <span class="m">/ 552명</span></span></div>
+        <div class="tier"><span class="dot b4"></span>100만 미만 <span class="n num">331 <span class="m">/ 563명</span></span></div>
+      </div>
+    </div>
+
+    <!-- 3) 주문 유형 -->
+    <div class="panel tile">
+      <h3>주문 유형 <span class="hint">명절(설·추석) · 상시 조합</span></h3>
+      <div class="duo">
+        <div class="cell on">
+          <div class="lb"><span class="dot a1"></span>명절+상시</div>
+          <div class="vv num">321곳</div>
+          <div class="duo2">341명 · 핵심 단골</div>
+        </div>
+        <div class="cell">
+          <div class="lb"><span class="dot a2"></span>상시만</div>
+          <div class="vv num">429곳</div>
+          <div class="duo2">710명 · 명절 공략 대상</div>
+        </div>
+        <div class="cell">
+          <div class="lb"><span class="dot a3"></span>명절만</div>
+          <div class="vv num">206곳</div>
+          <div class="duo2">324명 · 상시 전환 대상</div>
+        </div>
+        <div class="cell">
+          <div class="lb"><span class="dot a4"></span>주문없음</div>
+          <div class="vv num">17곳</div>
+          <div class="duo2">27명 · 인맥 관리</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 필터 결과 미리보기 -->
+  <div class="sec-title" style="margin-top:16px;">↓ 타일 클릭 시 목록 필터 예시 <span class="sub">('명절+상시' 클릭 상태 — 표에 유형·신규/이탈 배지 열 추가</span></div>
+  <div style="margin-bottom:8px;">
+    <span class="chip on">유형: 명절+상시 ✕</span>
+    <span class="chip">담당직원: 전체</span>
+    <span class="chip">검색</span>
+  </div>
+  <div class="panel">
+    <table>
+      <tr><th>매출처</th><th>유형</th><th>신규/이탈</th><th>담당자 수</th><th>주담당</th><th>누적 매출</th><th>최근 주문</th></tr>
+      <tr><td>하나은행 계동지점</td><td><span class="badge bg-t">명절+상시</span></td><td>—</td><td class="num">12명</td><td>김재형</td><td class="num">4,120만</td><td class="num">2026-07-02</td></tr>
+      <tr><td>우리은행 중림동금융센터</td><td><span class="badge bg-t">명절+상시</span></td><td>—</td><td class="num">4명</td><td>홍창의</td><td class="num">2,780만</td><td class="num">2026-06-19</td></tr>
+      <tr><td>하나은행 청량리금융센터</td><td><span class="badge bg-t">명절+상시</span></td><td><span class="badge bg-new">신규</span></td><td class="num">3명</td><td>옥광일</td><td class="num">1,940만</td><td class="num">2026-08-11</td></tr>
+    </table>
+  </div>
+
+  <div class="note">
+    <b>구현 메모</b> — ① 집계는 RPC 1회(JSONB 단일 응답, 102 패턴)로 계산해 목록과 함께 로드.
+    ② 신규 = 최초 주문일이 기준연도 / 이탈 = 기준연도 주문 없음(전년엔 있음) — 문서 집계표와 동일한 정의로 검증 완료
+    (하나은행: 신규 84명·31곳, 이탈 214명 정확 일치). ③ 명절 판정은 erp_orders.season_code(이행 완료) 사용.
+    ④ '담당자 기준' 토글 시 아래 목록이 담당자(인물) 목록으로 전환 — 행 클릭 시 담당자 상세(배정 이력·영업일지).
+  </div>
+
+  <!-- 대안: 한 줄 압축형 -->
+  <div class="variant">
+    <div class="sec-title">대안 B — 한 줄 압축형 <span class="sub">공간 절약. 타일 대신 배지 스트립 (기존 KPI 4개 옆에 끼워 넣기 어려울 때)</span></div>
+    <div class="panel" style="padding:10px 14px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+      <span style="font-size:11px; color:var(--ink3);">고객관리:</span>
+      <span class="chip"><span class="dot g" style="margin-right:4px;"></span>신규 149곳·292명</span>
+      <span class="chip"><span class="dot r" style="margin-right:4px;"></span>이탈 400곳·676명</span>
+      <span class="chip">1,000만↑ 135곳</span>
+      <span class="chip">명절+상시 321곳</span>
+      <span class="chip">명절만 206곳</span>
+      <span class="chip">주문없음 17곳</span>
+      <span style="font-size:11px; color:var(--ink3); margin-left:auto;">클릭=필터 · 자세히 ▸</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>
