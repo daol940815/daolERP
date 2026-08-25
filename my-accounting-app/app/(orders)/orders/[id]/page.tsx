@@ -100,6 +100,11 @@ export default function OrderDetailPage() {
           {isDirect ? '직접입력' : '업로드'}
         </span>
         <span className="ml-auto flex gap-2">
+          {/* 거래명세서 — 판매가(할인 반영) 기준, 실무자 양식 그대로 출력 */}
+          <a href={`/api/orders-portal/orders/${id}/statement`}
+            className="px-3.5 py-1.5 border border-emerald-300 text-emerald-700 rounded-lg text-sm hover:bg-emerald-50">
+            거래명세서
+          </a>
           {isDirect && canEdit && (
             <>
               <Link href={`/orders/${id}/edit`}
