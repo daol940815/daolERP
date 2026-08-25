@@ -115,6 +115,41 @@ SELECT jsonb_pretty(jsonb_build_object(
     ) s
   ),
 
+  -- [4b] 배포된 hub_purchase_summary가 601 규칙을 담고 있는지 확인
+  -- 601은 (1) 카드사 거래처 제외 (2) 기준일 이전 발행 계산서 연결 지급 제외를 추가한다.
+  -- 둘 다 false면 DB에는 600 버전이 살아 있는 것 — 601을 실행해야 한다.
+  '함수버전', (
+    SELECT jsonb_build_object(
+      'has_601_카드사제외', position('card_accounts' in pg_get_functiondef(p.oid)) > 0,
+      'has_601_계산서발행일', position('linked_issue' in pg_get_functiondef(p.oid)) > 0
+    )
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE p.proname = 'hub_purchase_summary' AND n.nspname = 'public'
+    LIMIT 1
+  ),
+
+  -- [4c] 601 미적용 시 추가로 지급에 잡히는 금액 (과다지급의 실제 원인 후보)
+  '601미적용_추가집계', jsonb_build_object(
+    '카드사거래처_2001출금', (
+      SELECT jsonb_build_object('건수', COUNT(*), '금액', COALESCE(SUM(tx.amount_out), 0))
+      FROM transactions tx
+      JOIN accounts ac ON ac.id = tx.confirmed_account_id AND ac.code = '2001'
+      JOIN card_accounts ca ON ca.vendor_id = tx.vendor_id
+      WHERE tx.status = 'confirmed' AND COALESCE(tx.amount_out, 0) > 0
+        AND tx.tx_date > DATE '2026-06-30'
+        AND NOT EXISTS (SELECT 1 FROM tax_invoice_payments p2 WHERE p2.transaction_id = tx.id)
+    ),
+    '기준일이전계산서_연결지급', (
+      SELECT jsonb_build_object('건수', COUNT(*), '금액', COALESCE(SUM(p.amount), 0))
+      FROM tax_invoice_payments p
+      JOIN tax_invoices ti ON ti.id = p.tax_invoice_id AND ti.direction = 'purchase'
+      JOIN transactions tx ON tx.id = p.transaction_id
+      WHERE ti.vendor_id IS NOT NULL
+        AND tx.tx_date > DATE '2026-06-30'
+        AND ti.issue_date <= DATE '2026-06-30'
+    )
+  ),
+
   -- [5] 월별 분포 (7월·8월에 몰려 있는지)
   '월별', (
     SELECT coalesce(jsonb_agg(t ORDER BY t->>'월'), '[]'::jsonb)
