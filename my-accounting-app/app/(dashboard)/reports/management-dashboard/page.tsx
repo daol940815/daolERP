@@ -2,7 +2,11 @@ import Link from 'next/link'
 import { unstable_noStore as noStore } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase-server'
 import { buildCashPositionRows, buildDailyCashRows } from '@/lib/cash-reports'
-import { buildReceivableAgingRows, buildPayableAgingRows } from '@/lib/erp-reports'
+// 미수·미지급은 허브를 단일 진실로 삼는다 (2026-08-25 전환).
+// 기존 erp-reports의 Aging 집계는 업로드 컷오프·기준일 기초원장을 반영하지 않아
+// 대시보드와 허브 숫자가 어긋났다 — docs/accounting-track.md '허브 단일 진실 감사' 참조.
+import { buildHubList } from '@/lib/vendor-hub'
+import { buildPurchaseHubList } from '@/lib/purchase-hub'
 import { buildVendorAnalysisRows } from '@/lib/vendor-analysis'
 import { buildMonthlyPL } from '@/lib/pl-report'
 import { buildVatEstimate } from '@/lib/vat-report'
@@ -53,8 +57,6 @@ export default async function ManagementDashboardPage({
   const to = isDate(searchParams?.to) ? searchParams!.to! : def.to
   const monthFrom = from.slice(0, 7)
   const monthTo = to.slice(0, 7)
-  // 미수·미지급 Aging은 시점 기준이라 기간 종료일(미래면 오늘)을 기준일로 쓴다
-  const asOf = to < todayStr ? to : todayStr
 
   const [
     cashPosition,
@@ -70,8 +72,10 @@ export default async function ManagementDashboardPage({
     // 과거 시점 잔액이 필요하면 계좌 통합현황 화면에서 기간을 조정한다.
     buildCashPositionRows(admin, null, null),
     buildDailyCashRows(admin, from, to, null),
-    buildReceivableAgingRows(admin, asOf),
-    buildPayableAgingRows(admin, asOf),
+    // 허브는 현재 시점 잔액(저량) 지표라 기간을 넘기지 않는다 —
+    // 기간을 주면 그 기간에 주문이 있는 거래처로 한정되어 총계가 줄어든다.
+    buildHubList(admin, null, null),
+    buildPurchaseHubList(admin, null, null),
     buildVendorAnalysisRows(admin, from, to),
     buildMonthlyPL(admin, monthFrom, monthTo),
     buildVatEstimate(admin, from, to),
@@ -85,8 +89,14 @@ export default async function ManagementDashboardPage({
   const monthDeposit    = dailyRows.reduce((s, r) => s + r.deposit, 0)
   const monthWithdrawal = dailyRows.reduce((s, r) => s + r.withdrawal, 0)
 
-  const recvTotal = 'total' in receivableAging ? receivableAging.total : null
-  const payTotal  = 'total' in payableAging ? payableAging.total : null
+  // 미수금 — 매출처 허브 (업로드 컷오프·순매출 상한 적용)
+  const recv = 'summary' in receivableAging ? receivableAging.summary : null
+  // 미지급금 — 매입처 허브 (기준일 기초원장 + 기준일 이후 증분).
+  // outstanding_total은 양수 잔액 합이라, 과다지급(음수)은 따로 집계해 함께 보여준다.
+  const pay = 'summary' in payableAging ? payableAging.summary : null
+  const payOverpaid = 'rows' in payableAging
+    ? payableAging.rows.reduce((s, r) => s + (r.purchase_kind === 'retail' ? 0 : Math.min(0, r.outstanding)), 0)
+    : 0
 
   const topVendors = 'rows' in vendorSales ? vendorSales.rows.slice(0, 5) : []
 
@@ -167,24 +177,34 @@ export default async function ManagementDashboardPage({
         />
       </div>
 
-      {/* 미수금/미지급금 */}
-      <SectionHeader title={`미수금 · 미지급금 (기준일 ${asOf})`} href="/reports/receivables-aging" linkLabel="경과기간 분석" />
+      {/* 미수금/미지급금 — 허브 기준 (현재 시점 잔액) */}
+      <SectionHeader title="미수금 · 미지급금 (허브 기준 · 현재 시점 잔액)" href="/sales-hub" linkLabel="매출처 허브" />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card
           label="미수금 총계"
-          value={won(recvTotal?.total ?? 0)}
-          sub={recvTotal ? `90일 초과: ${won(recvTotal.bucket_over)}` : undefined}
-          valueClass={recvTotal && recvTotal.total > 0 ? 'text-red-600' : 'text-gray-900'}
-          href="/reports/receivables-aging"
+          value={won(recv?.outstanding_total ?? 0)}
+          sub={recv ? `90일 초과: ${won(recv.over90_total)} · 거래처 ${recv.active_vendors.toLocaleString('ko-KR')}곳` : undefined}
+          valueClass={recv && recv.outstanding_total > 0 ? 'text-red-600' : 'text-gray-900'}
+          href="/sales-hub"
         />
         <Card
           label="미지급금 총계"
-          value={won(payTotal?.total ?? 0)}
-          sub={payTotal ? `90일 초과: ${won(payTotal.bucket_over)}` : undefined}
-          valueClass={payTotal && payTotal.total > 0 ? 'text-rose-600' : 'text-gray-900'}
-          href="/reports/payables-aging"
+          value={won(pay?.outstanding_total ?? 0)}
+          sub={pay
+            ? `90일 초과: ${won(pay.over90_total)}`
+              + (payOverpaid < 0 ? ` · 과다지급 ${won(Math.abs(payOverpaid))}` : '')
+            : undefined}
+          valueClass={pay && pay.outstanding_total > 0 ? 'text-rose-600' : 'text-gray-900'}
+          href="/purchase-hub"
         />
       </div>
+      {payOverpaid < 0 && (
+        <p className="text-xs text-amber-700 mt-2">
+          매입처 허브에 과다지급(음수 잔액)이 {won(Math.abs(payOverpaid))} 있습니다 —
+          기준일(2026-06-30) 이후 매입 세금계산서가 아직 업로드되지 않아 지급만 집계된 상태일 수 있습니다.
+          계산서를 올리면 해소됩니다.
+        </p>
+      )}
 
       {/* 이번달 손익 */}
       <SectionHeader title={`손익 (${monthFrom === monthTo ? monthFrom : `${monthFrom} ~ ${monthTo}`})`} href="/reports/monthly-pl" linkLabel="월별 손익현황" />

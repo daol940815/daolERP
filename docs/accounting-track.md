@@ -92,6 +92,23 @@
 - 대사 스크립트: `supabase/checks/dashboard_vs_hub_check.sql`(읽기 전용) — 미수 4정의
   동시 비교, 미지급 2경로 비교, 주문 source 분포, 별칭 미연결 노출 규모 포함.
 
+### 경영대시보드 미수·미지급 → 허브 기준 전환 (2026-08-25 완료)
+
+A안(허브를 단일 진실로) 채택. `reports/management-dashboard/page.tsx`가
+`buildReceivableAgingRows`/`buildPayableAgingRows`(erp-reports) 대신
+`buildHubList`(vendor-hub) / `buildPurchaseHubList`(purchase-hub)를 호출한다.
+
+- 허브는 **현재 시점 잔액(저량) 지표**라 기간을 넘기지 않는다(`null, null`).
+  기간을 주면 그 기간에 주문/거래가 있는 거래처로 한정되어 총계가 줄어든다.
+- 미수금 = `HubListSummary.outstanding_total`, 보조에 90일 초과·거래처 수.
+- 미지급금 = `PurchaseHubListSummary.outstanding_total`(**양수 잔액 합**, retail 제외).
+  음수(과다지급)는 합계에 섞지 않고 rows에서 따로 집계해 보조 문구로 노출 +
+  계산서 미업로드 안내 배너.
+- 카드 드릴다운 링크도 경과기간분석 → 매출처 허브 / 매입처 허브로 변경(숫자 일치).
+- **남은 우회 경로**: `reports/receivables-aging`·`reports/payables-aging` 및 각 export,
+  `erp_receivable_summary`(037) 기반 미수금현황 화면은 아직 옛 계산을 쓴다 —
+  다음 단계에서 정리 필요.
+
 ### 미수·미지급 실측 (2026-08-25, 기준일 2026-08-25)
 
 점검: `supabase/checks/receivable_payable_dashboard_check.sql` (대시보드 계산 재현 + 허브 대조).
