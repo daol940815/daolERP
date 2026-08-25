@@ -14,6 +14,7 @@ const MENUS = [
   { href: '/orders/new', label: '신규 주문', ready: true },
   { href: '/orders/products', label: '품목 관리', ready: true },
   { href: '/orders/purchase', label: '발주서', ready: true },
+  { href: '/orders/sample-stock', label: '샘플 재고', ready: true },
   { href: '/orders/delivery', label: '배송 관리', ready: false },
 ]
 

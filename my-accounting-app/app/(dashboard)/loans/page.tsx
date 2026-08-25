@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import AnnualReport from './annual-report'
 
 const won = (n: number | null | undefined) => (n ?? 0).toLocaleString('ko-KR')
 const eok = (n: number) => `${(n / 1e8).toFixed(2)}억`
@@ -13,6 +14,14 @@ interface Overdraft {
   overdraft_used: number
   overdraft_available: number
   balance_date: string | null
+}
+interface CreditInterest {
+  loan_id: string
+  mtd_interest: number        // 당월 경과일 이자 (통장 일별 잔액 기준 실적)
+  projected_interest: number  // 위 + 잔여일 추정
+  last_used: number
+  days_elapsed: number
+  days_in_month: number
 }
 interface Loan {
   id: string
@@ -47,6 +56,17 @@ const acctLabel = (b: { bank_name: string; account_number: string | null } | nul
 const today = () => new Date().toISOString().slice(0, 10)
 const isCreditLine = (l: Loan) => (l.product_type ?? 'term') === 'credit_line'
 
+// 마이너스 통장 이자 = 사용액 x 연이율 / 365 x 사용일수 (일할 후취)
+// 화면에는 "현재 사용액이 당월 내내 유지된다고 가정한" 예상 월 이자를 표시한다.
+const daysInThisMonth = () => {
+  const d = new Date()
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+}
+const estMonthlyInterest = (used: number, rate: number | null) =>
+  !used || rate == null ? 0 : Math.round((used * (rate / 100) / 365) * daysInThisMonth())
+const estDailyInterest = (used: number, rate: number | null) =>
+  !used || rate == null ? 0 : Math.round(used * (rate / 100) / 365)
+
 type EditForm = {
   title: string; bank_name: string; bank_account_id: string
   product_type: string; credit_limit: string
@@ -66,6 +86,7 @@ export default function LoansPage() {
   const [loans, setLoans] = useState<Loan[]>([])
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
   const [overdrafts, setOverdrafts] = useState<Overdraft[]>([])
+  const [creditInterest, setCreditInterest] = useState<CreditInterest[]>([])
   const [migrationOk, setMigrationOk] = useState(true)
   const [migration404, setMigration404] = useState(true)
   const [loading, setLoading] = useState(true)
@@ -74,6 +95,18 @@ export default function LoansPage() {
   const [editing, setEditing] = useState<Loan | 'new' | null>(null)
   const [form, setForm] = useState<EditForm>(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [tab, setTab] = useState<'list' | 'report'>('list')
+
+  // 탭 상태를 주소(?tab=report)와 맞춘다 — 새로고침·북마크에서 유지
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('tab')
+    if (t === 'report') setTab('report')
+  }, [])
+  const goTab = (t: 'list' | 'report') => {
+    setTab(t)
+    const url = t === 'report' ? '/loans?tab=report' : '/loans'
+    window.history.replaceState(null, '', url)
+  }
 
   const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
 
@@ -85,6 +118,7 @@ export default function LoansPage() {
       setLoans(json.loans ?? [])
       setBankAccounts(json.bankAccounts ?? [])
       setOverdrafts(json.overdrafts ?? [])
+      setCreditInterest(json.creditInterest ?? [])
       setMigrationOk(json.migration402 !== false)
       setMigration404(json.migration404 !== false)
     } else showMsg(`조회 실패: ${json.error ?? '알 수 없는 오류'}`)
@@ -95,6 +129,16 @@ export default function LoansPage() {
 
   const odByAccount = useMemo(
     () => new Map(overdrafts.map(o => [o.bank_account_id, o])), [overdrafts])
+  const ciByLoan = useMemo(
+    () => new Map(creditInterest.map(c => [c.loan_id, c])), [creditInterest])
+
+  // 당월 이자: 통장 일별 잔액 기준(경과일 실적 + 잔여일 추정).
+  // 서버 계산이 없으면 현재 사용액이 한 달 유지된다고 본 단순 추정으로 대체한다.
+  const monthInterest = (l: Loan, used: number) => {
+    const ci = ciByLoan.get(l.id)
+    if (ci) return ci.projected_interest
+    return estMonthlyInterest(used, l.interest_rate)
+  }
 
   // 한도대출 사용액·미사용 한도는 통장 원본에서 산출 (loans에는 저장하지 않음)
   const usage = (l: Loan) => {
@@ -105,10 +149,14 @@ export default function LoansPage() {
   }
 
   const needsCheck = (l: Loan) => !!l.memo && l.memo.includes('확인 필요')
-  const isOverdue = (l: Loan) => !!l.maturity_date && l.maturity_date < today() && l.status === 'active'
+  // 만기 경과 경고는 일반 대출만 — 한도대출(마이너스 통장)은 만기를 관리하지 않는다
+  const isOverdue = (l: Loan) =>
+    !isCreditLine(l) && !!l.maturity_date && l.maturity_date < today() && l.status === 'active'
 
   const terms = loans.filter(l => !isCreditLine(l))
   const lines = loans.filter(l => isCreditLine(l))
+  // 연간 리포트에는 한도대출의 통장 기준 사용액을 함께 넘긴다
+  const reportLoans = loans.map(l => ({ ...l, usage: isCreditLine(l) ? usage(l) : undefined }))
 
   const matchFilter = (l: Loan) => {
     if (filter === 'all') return true
@@ -130,6 +178,8 @@ export default function LoansPage() {
     check: loans.filter(l => needsCheck(l) || isOverdue(l)).length,
     limit: lines.filter(l => l.status !== 'closed').reduce((s, l) => s + usage(l).limit, 0),
     used: lines.filter(l => l.status !== 'closed').reduce((s, l) => s + usage(l).used, 0),
+    lineInterest: lines.filter(l => l.status !== 'closed')
+      .reduce((s, l) => s + monthInterest(l, usage(l).used), 0),
   }
   kpi.check = loans.filter(l => needsCheck(l) || isOverdue(l)).length
   const banks = Array.from(new Set(loans.map(l => l.bank_name)))
@@ -202,15 +252,31 @@ export default function LoansPage() {
       <div className="flex items-start justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">대출 관리</h1>
-          <p className="text-sm mt-1 text-gray-500">
-            일반 대출은 약정 원금과 상환 스케줄로, 한도대출(마이너스 통장)은 약정한도와 사용액으로 관리합니다.
-            한도대출의 사용액은 통장 잔액에서 자동으로 계산되며 별도 입력이 필요 없습니다.
-          </p>
+          {tab === 'list' && (
+            <p className="text-sm mt-1 text-gray-500">
+              일반 대출은 약정 원금과 상환 스케줄로, 한도대출(마이너스 통장)은 약정한도와 사용액으로 관리합니다.
+              한도대출의 사용액은 통장 잔액에서 자동으로 계산되며 별도 입력이 필요 없습니다.
+            </p>
+          )}
         </div>
-        <button onClick={() => openEdit('new')}
-          className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 whitespace-nowrap">
-          + 대출 등록
-        </button>
+        {tab === 'list' && (
+          <button onClick={() => openEdit('new')}
+            className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 whitespace-nowrap">
+            + 대출 등록
+          </button>
+        )}
+      </div>
+
+      {/* 탭 */}
+      <div className="flex items-center gap-1 mt-4 border-b border-gray-200">
+        {([['list', '대출 현황'], ['report', '연간 리포트']] as const).map(([k, label]) => (
+          <button key={k} onClick={() => goTab(k)}
+            className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap ${tab === k
+              ? 'border-slate-900 text-slate-900'
+              : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            {label}
+          </button>
+        ))}
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
@@ -226,27 +292,38 @@ export default function LoansPage() {
         </div>
       )}
 
+      {tab === 'list' && (<>
       {/* KPI */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
         <button onClick={() => setFilter('all')} className="bg-white border border-gray-200 rounded-xl p-4 text-left hover:border-slate-400">
           <div className="text-xs text-gray-400">대출 잔액 (일반)</div>
           <div className="text-xl font-bold mt-1">{eok(kpi.balance)}</div>
           <div className="text-[11px] text-gray-400 mt-0.5">원 대출 {eok(kpi.original)}</div>
         </button>
+        {/* 원금·이자를 같은 크기로 나란히 — 이자도 중요 지표로 본다(한도대출 예상 이자 포함) */}
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <div className="text-xs text-gray-400">월 원리금 (참고)</div>
-          <div className="text-xl font-bold mt-1">{manwon(kpi.principal + kpi.interest)}</div>
-          <div className="text-[11px] text-gray-400 mt-0.5">원금 {manwon(kpi.principal)} · 이자 {manwon(kpi.interest)}</div>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <div className="text-xs text-gray-400">한도대출 약정한도</div>
-          <div className="text-xl font-bold mt-1">{eok(kpi.limit)}</div>
-          <div className="text-[11px] text-gray-400 mt-0.5">마이너스 통장 {lines.length}건</div>
+          <div className="flex items-start gap-4 mt-1">
+            <div>
+              <div className="text-[11px] text-gray-400">원금</div>
+              <div className="text-xl font-bold leading-tight">{manwon(kpi.principal)}</div>
+            </div>
+            <div>
+              <div className="text-[11px] text-gray-400">이자</div>
+              <div className="text-xl font-bold leading-tight">{manwon(kpi.interest + kpi.lineInterest)}</div>
+            </div>
+          </div>
+          <div className="text-[11px] text-gray-400 mt-0.5">
+            합계 {manwon(kpi.principal + kpi.interest + kpi.lineInterest)}
+            {kpi.lineInterest > 0 && ` · 이자에 한도대출 ${manwon(kpi.lineInterest)} 포함`}
+          </div>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <div className="text-xs text-gray-400">한도 사용액</div>
           <div className={`text-xl font-bold mt-1 ${kpi.used > 0 ? 'text-rose-600' : ''}`}>{eok(kpi.used)}</div>
-          <div className="text-[11px] text-gray-400 mt-0.5">미사용 {eok(Math.max(kpi.limit - kpi.used, 0))}</div>
+          <div className="text-[11px] text-gray-400 mt-0.5">
+            한도 {eok(kpi.limit)} · 미사용 {eok(Math.max(kpi.limit - kpi.used, 0))}
+          </div>
         </div>
         <button onClick={() => setFilter('check')}
           className={`border rounded-xl p-4 text-left ${kpi.check > 0
@@ -371,7 +448,8 @@ export default function LoansPage() {
                   <th className={th}>사용률</th>
                   <th className={`${th} text-right`}>미사용 한도</th>
                   <th className={`${th} text-right`}>이율</th>
-                  <th className={th}>만기</th>
+                  <th className={`${th} text-right`}>월 이자(예상)</th>
+                  <th className={`${th} text-center`}>이자 납부일</th>
                   <th className={`${th} text-center`}>상태</th>
                   <th className={th}></th>
                 </tr>
@@ -410,7 +488,28 @@ export default function LoansPage() {
                       </td>
                       <td className="py-2 px-3 text-right whitespace-nowrap">{won(u.available)}</td>
                       <td className="py-2 px-3 text-right whitespace-nowrap">{l.interest_rate != null ? `${l.interest_rate}%` : '-'}</td>
-                      <td className={`py-2 px-3 whitespace-nowrap ${isOverdue(l) ? 'text-red-600' : ''}`}>{l.maturity_date ?? '-'}</td>
+                      {(() => {
+                        const ci = ciByLoan.get(l.id)
+                        const amount = monthInterest(l, u.used)
+                        const tip = ci
+                          ? `통장 일별 잔액 기준 — 당월 1~${ci.days_elapsed}일 실제 사용액으로 계산한 ${won(ci.mtd_interest)}원 `
+                            + `+ 남은 ${ci.days_in_month - ci.days_elapsed}일 추정 `
+                            + `(최근 사용액 ${won(ci.last_used)}원, 일 이자 ${won(estDailyInterest(ci.last_used, l.interest_rate))}원)`
+                          : l.interest_rate != null
+                            ? `현재 사용액 기준 단순 추정 — 일 이자 ${won(estDailyInterest(u.used, l.interest_rate))}원 x ${daysInThisMonth()}일`
+                            : undefined
+                        return (
+                          <td className={`py-2 px-3 text-right whitespace-nowrap ${amount ? '' : 'text-gray-400'}`} title={tip}>
+                            {amount ? won(amount) : '-'}
+                            {ci && amount > 0 && (
+                              <div className="text-[10px] text-gray-400 font-normal">
+                                1~{ci.days_elapsed}일 실적 {won(ci.mtd_interest)}
+                              </div>
+                            )}
+                          </td>
+                        )
+                      })()}
+                      <td className="py-2 px-3 text-center whitespace-nowrap">{l.payment_day ? `${l.payment_day}일` : '-'}</td>
                       <td className="py-2 px-3 text-center whitespace-nowrap">
                         <span className={`inline-block whitespace-nowrap text-[11px] px-1.5 py-0.5 rounded ${
                           u.used > 0 ? 'bg-rose-50 text-rose-700' : 'bg-gray-100'}`}>
@@ -432,7 +531,11 @@ export default function LoansPage() {
                   <td className="py-2 px-3 text-right">{won(visibleLines.reduce((s, l) => s + usage(l).used, 0))}</td>
                   <td className="py-2 px-3" />
                   <td className="py-2 px-3 text-right">{won(visibleLines.reduce((s, l) => s + usage(l).available, 0))}</td>
-                  <td className="py-2 px-3" colSpan={4} />
+                  <td className="py-2 px-3" />
+                  <td className="py-2 px-3 text-right">
+                    {won(visibleLines.reduce((s, l) => s + monthInterest(l, usage(l).used), 0))}
+                  </td>
+                  <td className="py-2 px-3" colSpan={3} />
                 </tr>
               </tfoot>
             </table>
@@ -441,9 +544,15 @@ export default function LoansPage() {
           <p className="text-xs text-gray-400 mt-2">
             한도대출 사용액은 마이너스 통장의 최신 잔액에서 계산합니다(자금현황과 같은 기준).
             사용액이 0으로만 보이면 해당 계좌가 통장 관리에서 마이너스통장으로 설정되어 있는지 확인해 주세요.
+            <br />
+            월 이자(예상) = 사용액 × 연이율 ÷ 365 × 당월 일수({daysInThisMonth()}일). 마이너스 통장은 일할 후취라
+            사용액이 바뀌면 실제 이자도 달라집니다 — 확정 금액이 아니라 현재 사용액이 유지된다고 가정한 추정치입니다.
           </p>
         </>
       )}
+      </>)}
+
+      {tab === 'report' && <AnnualReport loans={reportLoans} />}
 
       {/* 편집 모달 */}
       {editing && (
@@ -483,9 +592,12 @@ export default function LoansPage() {
                   <label className="block"><span className="text-xs text-gray-500">이율 (%)</span>
                     <input value={form.interest_rate} onChange={e => setForm(f => ({ ...f, interest_rate: e.target.value }))}
                       className={`${input} text-right`} inputMode="decimal" /></label>
+                  <label className="block"><span className="text-xs text-gray-500">이자 납부일 (1~31, 말일=31)</span>
+                    <input value={form.payment_day} onChange={e => setForm(f => ({ ...f, payment_day: e.target.value }))}
+                      className={`${input} text-right`} inputMode="numeric" /></label>
                   <p className="col-span-2 text-[11px] text-gray-500 bg-slate-50 border border-gray-200 rounded-lg px-2.5 py-2">
-                    한도대출은 사용액이 매일 변하고 이자도 사용액과 사용일수로 계산되므로, 잔액·월 원금·월 이자는 입력하지 않습니다.
-                    사용액과 미사용 한도는 연결 계좌의 통장 잔액에서 자동으로 산출됩니다.
+                    한도대출은 잔액·월 원금·월 이자를 입력하지 않습니다. 사용액과 미사용 한도는 연결 계좌의 통장 잔액에서
+                    자동 산출되고, 월 이자는 사용액 × 연이율 ÷ 365 × 당월 일수로 계산해 표시합니다(일할 후취).
                   </p>
                 </>
               ) : (
