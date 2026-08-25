@@ -133,7 +133,7 @@ export async function buildStatementExcel(data: StatementData): Promise<Buffer> 
   }
   const customer = [data.bank_name, data.branch_name].filter(Boolean).join(' ')
   // [행, 병합·값 목록] — label은 회색 배경·양쪽 맞춤, 값은 가운데(대표자 등 O열 단칸은 좌측)
-  type Cell = { range: string; v: string | number | Date; label?: boolean; left?: boolean; date?: boolean }
+  type Cell = { range: string; v: string | number | Date; label?: boolean; date?: boolean }
   const info: Cell[][] = [
     [
       { range: 'B4:C4', v: '일자', label: true }, { range: 'D4:G4', v: asDate(data.order_date), date: true },
@@ -142,7 +142,7 @@ export async function buildStatementExcel(data: StatementData): Promise<Buffer> 
     [
       { range: 'B5:C5', v: '제목', label: true }, { range: 'D5:G5', v: '거래명세서' },
       { range: 'I5:J5', v: '상호', label: true }, { range: 'K5:L5', v: STMT_COMPANY },
-      { range: 'M5:N5', v: '대표자', label: true }, { range: 'O5', v: STMT_CEO, left: true },
+      { range: 'M5:N5', v: '대표자', label: true }, { range: 'O5', v: STMT_CEO },
     ],
     [
       { range: 'B6:C6', v: '거래처', label: true }, { range: 'D6:G6', v: customer },
@@ -167,9 +167,10 @@ export async function buildStatementExcel(data: StatementData): Promise<Buffer> 
     cell.font = font()
     if (cellDef.label) {
       cell.fill = grayFill
-      cell.alignment = { horizontal: 'distributed', vertical: 'distributed' }
+      // 들여쓰기 1 — 양쪽 맞춤이 테두리에 붙지 않게 여백을 주고 글자 간격도 좁힌다 (사용자 요청)
+      cell.alignment = { horizontal: 'distributed', vertical: 'distributed', indent: 1 }
     } else {
-      cell.alignment = cellDef.left ? { horizontal: 'left', vertical: 'middle' } : center
+      cell.alignment = center   // 값 셀은 전부 가운데 (대표자 포함 — 사용자 확정)
     }
     if (cellDef.date && cell.value instanceof Date) cell.numFmt = 'mm-dd-yy'
   })
@@ -192,12 +193,18 @@ export async function buildStatementExcel(data: StatementData): Promise<Buffer> 
     result: `총 금액 : 일금${koreanAmount(data.total_amount)}원정`,
   } as import('exceljs').CellFormulaValue
   amtText.font = font({ size: 13 })
-  amtText.alignment = { horizontal: 'left', vertical: 'middle' }
+  amtText.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 }   // 들여쓰기 (사용자 요청)
   const vat = ws.getCell('O12')
   vat.value = '(VAT포함)'
   vat.font = font({ size: 13, color: { argb: RED } })
   vat.alignment = center
-  boxRange(12, 2, 12, 15)
+  // 12행은 윤곽선만 — 중간 세로선 없이 상하 + 양 끝만 (사용자 요청)
+  for (let c = 2; c <= 15; c++) {
+    ws.getCell(12, c).border = {
+      top: thin, bottom: thin,
+      ...(c === 2 ? { left: thin } : {}), ...(c === 15 ? { right: thin } : {}),
+    }
+  }
 
   // ── 품목 표 (14행 헤더 + 품목 + 합계) ──
   const headers: [string, string][] = [
