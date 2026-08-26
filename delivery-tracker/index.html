@@ -822,7 +822,10 @@ let manualFullRefreshRunning = false;
 let autoRefreshRunning = false;
 const AUTO_MINUTES_MIN = 1;
 const AUTO_MINUTES_MAX = 120;
-const PARALLEL_CHUNK = 3; // 동시 조회 건수
+const PARALLEL_CHUNK = 3;    // 개별 재시도 시 동시 조회 건수
+const QUERY_BATCH_SIZE = 10; // 배치 API 1회 요청당 건수
+let bulkRunning = false;     // 파일 업로드 처리 중 (모달 닫기 방지)
+let suppressRender = false;  // 대량 처리 중 렌더링 억제
 let currentView = 'list'; // 'list' | 'dash'
 const expandedKeys = new Set(); // 목록 행 펼침 상태
 
@@ -1066,6 +1069,90 @@ async function fetchWithRetry(carrier, num, retries=3) {
   }
 }
 
+// 여러 건을 한 번의 API 호출로 조회 — 대량 업로드·전체 조회 가속
+async function fetchTrackingBatch(list) {
+  const res = await fetch(`${API_BASE}/`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ items: list.map(it => ({ courierCode: carriers[it.carrier]?.courierCode || it.carrier, trackingNumber: it.num })) }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json();
+  const results = json.data?.results;
+  if (!Array.isArray(results) || results.length !== list.length) throw new Error('BATCH_MISMATCH');
+  return results; // items와 같은 순서의 [{success, data, error}]
+}
+
+// 대량 조회 엔진: 배치 API로 묶어 조회하고, 배치가 실패하거나 일시 오류가 난 건만
+// 기존 개별 조회(재시도 포함)로 폴백. 처리 중에는 행 단위 렌더링을 억제해 속도 확보.
+async function runTrackingQueries(targets, transitionCounts, onProgress) {
+  let processed = 0;
+  const prevSuppress = suppressRender;
+  suppressRender = true;
+  const applyResult = (item, pr) => {
+    upsertItem({ ...item, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: pr.error != null ? pr.error : null });
+    syncSameNumItems(item.carrier, item.num, pr);
+  };
+  const applyError = (item, e) => upsertItem(resolveTrackingError(e, item));
+  const recordAfter = (item, before) => {
+    if (!transitionCounts) return;
+    const afterItem = allItems.find(x => x.localId ? x.localId===item.localId : (x.carrier===item.carrier && x.num===item.num));
+    if (afterItem) recordTransition(transitionCounts, before, getFilterGroup(afterItem));
+  };
+  const tick = () => {
+    if (onProgress) onProgress(processed, targets.length);
+    updateStats(); renderTable();
+  };
+  try {
+    const retryQueue = [];
+    // 1차: 배치 조회
+    for (let i=0; i<targets.length; i+=QUERY_BATCH_SIZE) {
+      const chunk = targets.slice(i, i+QUERY_BATCH_SIZE);
+      let results = null;
+      try { results = await fetchTrackingBatch(chunk); } catch(e) { results = null; }
+      if (results) {
+        chunk.forEach((item, j) => {
+          const before = getFilterGroup(item);
+          const rr = results[j];
+          if (rr?.success) {
+            applyResult(item, parseTracking(rr.data, item.carrier, item.num));
+            recordAfter(item, before); processed++;
+          } else if ((rr?.error?.code || '') === 'NOT_FOUND') {
+            applyError(item, new Error('NOT_FOUND'));
+            recordAfter(item, before); processed++;
+          } else {
+            retryQueue.push(item); // 일시 오류 → 개별 재시도
+          }
+        });
+      } else {
+        retryQueue.push(...chunk); // 배치 요청 자체 실패 → 개별 재시도
+      }
+      tick();
+      if (i+QUERY_BATCH_SIZE < targets.length) await sleep(300);
+    }
+    // 2차: 폴백 — 기존 개별 조회(지수 백오프 재시도 포함)
+    for (let i=0; i<retryQueue.length; i+=PARALLEL_CHUNK) {
+      const chunk = retryQueue.slice(i, i+PARALLEL_CHUNK);
+      await Promise.all(chunk.map(async item => {
+        const before = getFilterGroup(item);
+        try {
+          const raw = await fetchWithRetry(item.carrier, item.num);
+          applyResult(item, parseTracking(raw, item.carrier, item.num));
+        } catch(e) {
+          applyError(item, e);
+        }
+        recordAfter(item, before);
+        processed++;
+      }));
+      tick();
+      if (i+PARALLEL_CHUNK < retryQueue.length) await sleep(800);
+    }
+  } finally {
+    suppressRender = prevSuppress;
+  }
+  return processed;
+}
+
 function parseTracking(raw, carrier, num) {
   if (!raw) return { status: STATUS_LOOKUP_FAIL, steps:[], error: '응답 없음', shippedAt:'' };
   // deliveryStatus 또는 progresses[0].statusCode 기준으로 상태 결정
@@ -1183,8 +1270,7 @@ function upsertItem(data) {
     ? allItems.find(r=>r.num===data.num && r.carrier===data.carrier)
     : allItems.find(r=>r.localId===data.localId);
   if (entry) saveToStorage(entry);
-  updateStats();
-  renderTable();
+  if (!suppressRender) { updateStats(); renderTable(); }
 }
 
 // 매칭키: 주문일+은행명+지점명+품번+품명+보내는이+받는이
@@ -1406,57 +1492,48 @@ async function runBulkOrUpdate() {
   }
 }
 
-// 신규 등록 (송장번호 없는 항목 포함) — 병렬 처리
+// 신규 등록 (송장번호 없는 항목 포함) — 배치 조회
 async function runBulk() {
   if (!bulkData.length) return;
   const btn = document.getElementById('btn-bulk');
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 조회 중...';
+  bulkRunning = true;
   let done=0, duplicates=0;
   const transitionCounts = {};
-
-  // 송장번호 없는 건 즉시 등록, 조회 대상만 추려서 병렬 처리
-  const toQuery = [];
-  for (const item of bulkData) {
-    if (!item.num) {
-      // 같은 주문정보의 무번호(또는 기존) 행이 이미 있으면 중복 등록 방지
-      if (allItems.some(x => makeMatchKey(x) === makeMatchKey(item))) { duplicates++; done++; continue; }
-      item.localId = makeLocalId();
-      upsertItem({ ...item, status: '출고전', steps:[], error:null });
-      done++;
-    } else if (isDuplicateNum(item.carrier, item.num, null, item.productName)) {
-      duplicates++;
-      done++;
-    } else {
-      if (!item.localId) item.localId = makeLocalId();
-      toQuery.push(item);
-    }
-  }
-  updateStats(); renderTable();
-
-  // PARALLEL_CHUNK씩 병렬 조회
-  for (let i=0; i<toQuery.length; i+=PARALLEL_CHUNK) {
-    const chunk = toQuery.slice(i, i+PARALLEL_CHUNK);
-    await Promise.all(chunk.map(async item => {
-      const before = getFilterGroup(item);
-      try {
-        const raw = await fetchWithRetry(item.carrier, item.num);
-        const pr = parseTracking(raw, item.carrier, item.num);
-        upsertItem({ ...item, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: pr.error != null ? pr.error : null });
-        syncSameNumItems(item.carrier, item.num, pr);
-      } catch(e) {
-        upsertItem(resolveTrackingError(e, item));
+  try {
+    // 송장번호 없는 건 즉시 등록, 조회 대상만 추려서 배치 처리
+    suppressRender = true;
+    const toQuery = [];
+    try {
+      for (const item of bulkData) {
+        if (!item.num) {
+          // 같은 주문정보의 행이 이미 있으면 중복 등록 방지
+          if (allItems.some(x => makeMatchKey(x) === makeMatchKey(item))) { duplicates++; done++; continue; }
+          item.localId = makeLocalId();
+          upsertItem({ ...item, status: '출고전', steps:[], error:null });
+          done++;
+        } else if (isDuplicateNum(item.carrier, item.num, null, item.productName)) {
+          duplicates++;
+          done++;
+        } else {
+          if (!item.localId) item.localId = makeLocalId();
+          toQuery.push(item);
+        }
       }
-      const afterItem = allItems.find(x => x.localId===item.localId);
-      if (afterItem) recordTransition(transitionCounts, before, getFilterGroup(afterItem));
-      done++;
-    }));
-    document.getElementById('upload-progress').style.width=Math.round(done/bulkData.length*100)+'%';
-    document.getElementById('upload-text').textContent=`${done} / ${bulkData.length}`;
+    } finally { suppressRender = false; }
     updateStats(); renderTable();
-    if (i+PARALLEL_CHUNK < toQuery.length) await sleep(800);
-  }
 
-  btn.disabled=false; btn.innerHTML='시작';
+    // 배치 API 조회 (실패분은 자동 개별 재시도)
+    const preDone = done;
+    await runTrackingQueries(toQuery, transitionCounts, (p) => {
+      done = preDone + p;
+      document.getElementById('upload-progress').style.width=Math.round(done/bulkData.length*100)+'%';
+      document.getElementById('upload-text').textContent=`${done} / ${bulkData.length}`;
+    });
+  } finally {
+    bulkRunning = false;
+    btn.disabled=false; btn.innerHTML='시작';
+  }
   closeModal('modal-upload');
   showChangeSummary(transitionCounts, '일괄 등록 결과');
   toast(duplicates > 0 ? `처리 완료 (중복 제외 ${duplicates}건)` : `${bulkData.length}건 처리 완료`);
@@ -1467,6 +1544,7 @@ async function runBulkUpdate() {
   if (!bulkData.length) return;
   const btn = document.getElementById('btn-bulk');
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 업데이트 중...';
+  bulkRunning = true;
   let matched=0, notFound=0, done=0;
   const updateProgress = () => {
     document.getElementById('upload-progress').style.width=Math.round(done/bulkData.length*100)+'%';
@@ -1520,25 +1598,11 @@ async function runBulkUpdate() {
   }
   updateProgress();
 
-  // 2단계: PARALLEL_CHUNK씩 병렬 조회 — 중간 렌더링(정렬)에도 안전하도록 객체 참조로 갱신
-  for (let i=0; i<toQuery.length; i+=PARALLEL_CHUNK) {
-    const chunk = toQuery.slice(i, i+PARALLEL_CHUNK);
-    await Promise.all(chunk.map(async target => {
-      try {
-        const raw = await fetchWithRetry(target.carrier, target.num);
-        const pr = parseTracking(raw, target.carrier, target.num);
-        Object.assign(target, { status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || target.shippedAt || '', error: null });
-      } catch(e) {
-        Object.assign(target, resolveTrackingError(e, target));
-      }
-      saveToStorage(target);
-      done++;
-    }));
-    updateProgress();
-    updateStats(); renderTable();
-    if (i+PARALLEL_CHUNK < toQuery.length) await sleep(800);
-  }
+  // 2단계: 배치 API로 조회 (영구 행 ID로 매칭되므로 제자리 갱신, 실패분은 개별 재시도)
+  const preDone = done;
+  await runTrackingQueries(toQuery, null, (p) => { done = preDone + p; updateProgress(); });
   saveLocal(); updateStats(); renderTable();
+  bulkRunning = false;
   btn.disabled=false; btn.innerHTML='시작';
   closeModal('modal-upload');
   const extras = [];
@@ -1627,23 +1691,7 @@ async function runAutoRefresh() {
     if (!targets.length) { toast('재조회할 송장이 없습니다 ✓'); stopAuto(); return; }
     toast(`${targets.length}건 재조회 중…`);
     const transitionCounts = {};
-    for (let i=0; i<targets.length; i+=PARALLEL_CHUNK) {
-      const chunk = targets.slice(i, i+PARALLEL_CHUNK);
-      await Promise.all(chunk.map(async r => {
-        const before = getFilterGroup(r);
-        try {
-          const raw = await fetchWithRetry(r.carrier, r.num);
-          const pr = parseTracking(raw, r.carrier, r.num);
-          upsertItem({ ...r, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: pr.error != null ? pr.error : null });
-          syncSameNumItems(r.carrier, r.num, pr);
-        } catch(e) {
-          upsertItem(resolveTrackingError(e, r));
-        }
-        const afterItem = allItems.find(x => x.localId ? x.localId===r.localId : (x.carrier===r.carrier && x.num===r.num));
-        if (afterItem) recordTransition(transitionCounts, before, getFilterGroup(afterItem));
-      }));
-      if (i+PARALLEL_CHUNK < targets.length) await sleep(800);
-    }
+    await runTrackingQueries(targets, transitionCounts);
     updateStats();
     renderTable();
     showChangeSummary(transitionCounts, '자동 조회 변동 집계');
@@ -1672,24 +1720,7 @@ async function runManualFullRefresh() {
   toast(`${targets.length}건 조회 중… (배송완료 제외)`);
   const transitionCounts = {};
   try {
-    for (let i=0; i<targets.length; i+=PARALLEL_CHUNK) {
-      const chunk = targets.slice(i, i+PARALLEL_CHUNK);
-      await Promise.all(chunk.map(async r => {
-        const before = getFilterGroup(r);
-        try {
-          const raw = await fetchWithRetry(r.carrier, r.num);
-          const pr = parseTracking(raw, r.carrier, r.num);
-          upsertItem({ ...r, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: pr.error != null ? pr.error : null });
-          syncSameNumItems(r.carrier, r.num, pr);
-        } catch(e) {
-          upsertItem(resolveTrackingError(e, r));
-        }
-        const afterItem = allItems.find(x => x.localId ? x.localId===r.localId : (x.carrier===r.carrier && x.num===r.num));
-        if (afterItem) recordTransition(transitionCounts, before, getFilterGroup(afterItem));
-      }));
-      updateStats(); renderTable();
-      if (i+PARALLEL_CHUNK < targets.length) await sleep(800);
-    }
+    await runTrackingQueries(targets, transitionCounts);
     showChangeSummary(transitionCounts, '전체 조회 변동 집계');
     toast('전체 조회 완료');
   } finally {
@@ -2412,6 +2443,7 @@ async function saveEditGrid() {
 
 // ── 업로드 모드 전환 ──
 function onUploadModeChange() {
+  if (bulkRunning) return; // 처리 중 모드 변경 방지
   const mode = document.querySelector('input[name="upload-mode"]:checked')?.value || 'new';
   const desc = document.getElementById('upload-mode-desc');
   const btnBulk = document.getElementById('btn-bulk');
@@ -2515,24 +2547,7 @@ async function refreshSelected() {
   toast(`선택 ${targets.length}건 조회 중…`);
   const transitionCounts = {};
   try {
-    for (let i=0; i<targets.length; i+=PARALLEL_CHUNK) {
-      const chunk = targets.slice(i, i+PARALLEL_CHUNK);
-      await Promise.all(chunk.map(async r => {
-        const before = getFilterGroup(r);
-        try {
-          const raw = await fetchWithRetry(r.carrier, r.num);
-          const pr = parseTracking(raw, r.carrier, r.num);
-          upsertItem({ ...r, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: pr.error != null ? pr.error : null });
-          syncSameNumItems(r.carrier, r.num, pr);
-        } catch(e) {
-          upsertItem(resolveTrackingError(e, r));
-        }
-        const afterItem = allItems.find(x => x.localId ? x.localId===r.localId : (x.carrier===r.carrier && x.num===r.num));
-        if (afterItem) recordTransition(transitionCounts, before, getFilterGroup(afterItem));
-      }));
-      updateStats(); renderTable();
-      if (i+PARALLEL_CHUNK < targets.length) await sleep(800);
-    }
+    await runTrackingQueries(targets, transitionCounts);
     showChangeSummary(transitionCounts, '선택 조회 변동 집계');
     toast('선택 조회 완료');
   } finally {
@@ -2871,7 +2886,11 @@ async function loadFromStorage() {
 
 // ── 유틸 ──
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
-function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function closeModal(id){
+  // 업로드 처리 중에는 실수로 닫아 중단되는 사고 방지
+  if (id === 'modal-upload' && bulkRunning) { toast('업로드 처리 중에는 창을 닫을 수 없습니다'); return; }
+  document.getElementById(id).classList.remove('open');
+}
 function toast(msg){
   const t=document.getElementById('toast');
   t.textContent=msg; t.classList.add('show');
@@ -2890,6 +2909,11 @@ document.addEventListener('keydown', e=>{
 });
 
 // ── 초기화 ──
+// 대량 처리 중 새로고침·창 닫기 실수 방지
+window.addEventListener('beforeunload', (e) => {
+  if (bulkRunning || manualFullRefreshRunning || autoRefreshRunning) { e.preventDefault(); e.returnValue = ''; }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
   initAutoIntervalUI();
   initSortUI();
