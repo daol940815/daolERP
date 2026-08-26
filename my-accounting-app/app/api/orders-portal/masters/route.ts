@@ -10,6 +10,11 @@ export const dynamic = 'force-dynamic'
 // GET ?vendor_id=<id>     → { contacts }            (주문처 선택 시 담당자 목록)
 // POST { action: 'create_contact', vendor_id, name, phone?, title? }
 //   → 담당자 마스터에 없는 인물을 그 자리에서 등록 (contacts + 현재 배정)
+// POST { action: 'create_sales_vendor', group_id?, group_name?, branch_name?,
+//        contact_name?, contact_title?, contact_phone? }
+//   → 상담일지 인라인 등록 (2026-08-26 사용자 확정): 자유 입력한 업체·지점·담당자를
+//     매출처 마스터에 그 자리에서 등록. 정규화 이름이 같은 기존 지점·담당자가 있으면
+//     새로 만들지 않고 연결(reused) — 중복 오염 방지.
 export async function GET(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
@@ -69,6 +74,88 @@ export async function POST(req: NextRequest) {
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   const admin = createAdminClient()
   const body = await req.json().catch(() => ({})) as Record<string, string | undefined>
+
+  if (body.action === 'create_sales_vendor') {
+    // 정규화: 법인 접두·공백 제거 후 비교 (branchLabel·702 보정과 동일 규칙)
+    const norm = (s: string) =>
+      s.replace(/^\s*(\(주\)|㈜|주식회사)\s*/, '').replace(/\s+/g, '').toLowerCase()
+    const groupIdIn = (body.group_id ?? '').trim() || null
+    const groupName = (body.group_name ?? '').trim()
+    const branchName = (body.branch_name ?? '').trim()
+    if (!groupIdIn && !groupName) {
+      return NextResponse.json({ error: '업체명을 입력해주세요.' }, { status: 400 })
+    }
+
+    // 1) 업체(그룹) — 지점명이 있을 때만 그룹을 쓴다. 없으면 단일 업체(vendors 단독).
+    let groupId = groupIdIn
+    let groupLabel = groupName
+    if (groupIdIn) {
+      const { data: g } = await admin.from('vendor_groups').select('id, name').eq('id', groupIdIn).maybeSingle()
+      if (!g) return NextResponse.json({ error: '선택한 업체를 찾을 수 없습니다.' }, { status: 400 })
+      groupLabel = g.name as string
+    } else if (branchName) {
+      const { data: groups } = await admin.from('vendor_groups')
+        .select('id, name').eq('is_active', true)
+      const hit = (groups ?? []).find(g => norm(g.name as string) === norm(groupName))
+      if (hit) { groupId = hit.id as string; groupLabel = hit.name as string }
+      else {
+        const { data: created, error } = await admin.from('vendor_groups')
+          .insert({ name: groupName }).select('id').single()
+        if (error) return NextResponse.json({ error: `업체 등록 실패: ${error.message}` }, { status: 500 })
+        groupId = created.id as string
+      }
+    }
+
+    // 2) 지점(vendors) — 정규화 동일명이 있으면 재사용 (매출처 목록 오염 방지)
+    const vendorName = branchName ? `${groupLabel} ${branchName}` : groupLabel
+    const { data: sameGroup } = groupId
+      ? await admin.from('vendors').select('id, name').eq('group_id', groupId).eq('is_active', true)
+      : await admin.from('vendors').select('id, name').is('group_id', null).eq('is_active', true)
+    const existing = (sameGroup ?? []).find(v => norm(v.name as string) === norm(vendorName))
+    let vendorId = existing?.id as string | undefined
+    const vendorReused = !!existing
+    if (!vendorId) {
+      const { data: created, error } = await admin.from('vendors')
+        .insert({ name: vendorName, type: 'customer', group_id: groupId }).select('id').single()
+      if (error) return NextResponse.json({ error: `지점 등록 실패: ${error.message}` }, { status: 500 })
+      vendorId = created.id as string
+    }
+
+    // 3) 담당자(선택) — 같은 지점에 정규화 동일명이 배정되어 있으면 재사용
+    const contactName = (body.contact_name ?? '').trim()
+    let contactId: string | null = null
+    let contactReused = false
+    if (contactName) {
+      const { data: asgn } = await admin.from('contact_assignments')
+        .select('contact_id, ended_at, contacts(name)')
+        .eq('vendor_id', vendorId).is('ended_at', null)
+      const hit = (asgn ?? []).find(a => {
+        const n = (a.contacts as unknown as { name: string } | null)?.name ?? ''
+        return norm(n) === norm(contactName)
+      })
+      if (hit) { contactId = hit.contact_id as string; contactReused = true }
+      else {
+        const phone = (body.contact_phone ?? '').trim() || null
+        const title = (body.contact_title ?? '').trim() || null
+        const { data: contact, error: cErr } = await admin
+          .from('contacts').insert({ name: contactName, phone }).select('id').single()
+        if (cErr) return NextResponse.json({ error: `담당자 등록 실패: ${cErr.message}` }, { status: 500 })
+        const { error: aErr } = await admin.from('contact_assignments').insert({
+          contact_id: contact.id, vendor_id: vendorId, title,
+          started_at: new Date().toISOString().slice(0, 10),
+        })
+        if (aErr) return NextResponse.json({ error: `담당자 배정 실패: ${aErr.message}` }, { status: 500 })
+        contactId = contact.id as string
+      }
+    }
+
+    return NextResponse.json({
+      group_id: groupId, group_name: groupLabel || null,
+      vendor_id: vendorId, vendor_name: vendorName,
+      vendor_reused: vendorReused,
+      contact_id: contactId, contact_reused: contactReused,
+    })
+  }
 
   if (body.action === 'create_contact') {
     const vendorId = body.vendor_id
