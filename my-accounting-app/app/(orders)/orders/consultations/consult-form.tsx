@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Combo, ComboFree, SHIPPING_ROW_NAMES, autoGrow, branchLabel, draftFromProduct, emptyItem,
+  Combo, ComboFree, autoGrow, branchLabel, draftFromProduct, emptyItem,
   lineTotal, priceRule, splitByGroupPrefix, toInt, won,
 } from '../form-shared'
 import type { ContactOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
@@ -16,7 +16,11 @@ import { contactLabel } from '@/lib/contact-label'
 
 const TYPES = ['주문', '문의', '요청', '결제', '기타'] as const
 
-export default function ConsultForm({ consultId }: { consultId?: string }) {
+// copyId·copyLines: 목록 체크박스 "선택 복사" — 원본 상담의 선택 품목(line_no)으로
+// 새 상담을 프리필한다 (고객이 이전 주문 품목을 다시 찾는 경우). 결제정보는 복사 안 함.
+export default function ConsultForm({ consultId, copyId, copyLines }: {
+  consultId?: string; copyId?: string; copyLines?: number[]
+}) {
   const router = useRouter()
   const isEdit = !!consultId
 
@@ -165,13 +169,77 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
             uidRef.current = nextId
             setItems(converted)
           }
+        } else if (copyId) {
+          // 선택 복사 — 원본 상담의 머리 정보 + 선택 품목(딸린 옵션·배송비 포함)으로 새 상담 프리필
+          const cRes = await fetch(`/api/orders-portal/consultations/${copyId}`)
+          const c = await cRes.json()
+          if (!cRes.ok) throw new Error(c.error ?? '복사할 상담일지 조회 실패')
+          const v = c.consult
+          setConsultType(v.consult_type ?? '문의')     // 상담일은 오늘 유지, 상태·결제정보는 복사 안 함
+          setGroupId(v.vendor_group_id)
+          setVendorId(v.vendor_id)
+          setContactId(v.contact_id)
+          setBankText(v.bank_name ?? '')
+          setBranchText(v.branch_name ?? '')
+          setManagerText(v.manager_name ?? '')
+          setPhone(v.phone ?? '')
+          setTel(v.tel ?? '')
+          setSenderName(v.sender_name ?? '')
+          setInvoiceEmail(v.invoice_email ?? '')
+          setFax(v.fax ?? '')
+          setBizNumber(v.biz_number ?? '')
+          setCeoName(v.ceo_name ?? '')
+          const prodList: Product[] = pRes.ok ? (p.products ?? []) : []
+          const src = (c.items ?? []) as Record<string, unknown>[]
+          const wantAll = !copyLines?.length
+          const wanted = new Set(copyLines ?? [])
+          const picked = src.filter(it => {
+            const line = it.line_no as number
+            const parent = it.parent_line_no as number | null
+            return wantAll || wanted.has(line) || (parent != null && wanted.has(parent))
+          })
+          if (picked.length) {
+            const lineToUid = new Map<number, number>(picked.map((it, idx) => [it.line_no as number, idx + 1]))
+            uidRef.current = picked.length + 1
+            setItems(picked.map((it, idx) => {
+              const prod = prodList.find(x => x.id === it.product_id)
+              return {
+                ...emptyItem(idx + 1),
+                parent_uid: it.parent_line_no ? (lineToUid.get(it.parent_line_no as number) ?? null) : null,
+                product_id: (it.product_id as string) ?? null,
+                item_code: (it.item_code as string) ?? '',
+                item_name: (it.item_name as string) ?? '',
+                order_kind: (it.order_kind as string) ?? '지점',
+                purchase_vendor_name: (it.purchase_vendor_name as string) ?? '',
+                sale_price: (it.sale_price as number) ?? 0,
+                quantity: (it.quantity as number) ?? 1,
+                shipping_fee: 0,
+                discount_amount: (it.discount_amount as number) ?? 0,
+                purchase_price: (it.purchase_price as number) ?? 0,
+                purchase_shipping: (it.purchase_shipping as number) ?? 0,
+                memo: (it.memo as string) ?? '',
+                status: '',                                  // 상태는 복사 시점 기준 아님 — 새로 판정
+                option_note: (it.option_note as string) ?? '',
+                is_shipping: it.is_shipping === true,
+                branch_sale_price: prod?.sale_price ?? 0,
+                individual_sale_price: prod?.individual_sale_price ?? 0,
+                branch_purchase_price: prod?.purchase_price ?? 0,
+                carton_unit: prod?.carton_unit ?? 0,
+                carton_shipping_fee: prod?.carton_shipping_fee ?? 0,
+                loose_shipping_fee: prod?.loose_shipping_fee ?? 0,
+              }
+            }))
+          }
+          setNotice('이전 상담을 복사했습니다 — 내용 확인 후 저장해주세요. (결제정보는 복사되지 않습니다)')
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : '조회 실패')
       }
       setLoading(false)
     })()
-  }, [consultId])
+    // copyLines는 URL에서 한 번 파싱되어 바뀌지 않는다 — 의존성에서 제외
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consultId, copyId])
 
   // 지점(vendors) 선택 시 담당자 목록
   useEffect(() => {
@@ -222,28 +290,8 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
   }
   const setQuantity = (i: number, qty: number) => setItem(i, { quantity: qty })
 
-  // 배송비 행 추가 — 카톤단위: 꽉 찬 카톤 수 × 카톤택배비 자동 계산 (수정 가능), 카톤외: 직접 입력
-  const addShipping = (parentIdx: number, kind: (typeof SHIPPING_ROW_NAMES)[number]) => {
-    setItems(prev => {
-      const parent = prev[parentIdx]
-      if (!parent) return prev
-      const isCarton = kind === '배송비(카톤단위)'
-      const cartons = isCarton && parent.carton_unit > 0
-        ? Math.max(1, Math.floor(parent.quantity / parent.carton_unit)) : 1
-      const draft: ItemDraft = {
-        ...emptyItem(nextUid()),
-        parent_uid: parent.uid,
-        is_shipping: true,
-        item_name: kind,
-        order_kind: parent.order_kind,
-        quantity: cartons,
-        sale_price: isCarton ? parent.carton_shipping_fee : parent.loose_shipping_fee,
-      }
-      let at = parentIdx + 1
-      while (at < prev.length && prev[at].parent_uid === parent.uid) at++
-      return [...prev.slice(0, at), draft, ...prev.slice(at)]
-    })
-  }
+  // 배송비는 703부터 품목 마스터의 배송비 품목(is_shipping)을 옵션 칩으로 추가한다 —
+  // 702의 이름 고정 의사 행은 과거 저장분 표시용으로만 남는다.
 
   const totals = useMemo(() => {
     const filled = items.filter(it => it.item_name.trim())
@@ -545,13 +593,14 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
             {items.map((it, i) => {
               // 옵션 추가 후보: 같은 매입처의 부가상품 (본 상품 행에만 노출)
               const isMain = !it.parent_uid && !it.is_shipping
+              // 부가상품 + 배송비 품목(703) — 같은 매입처만
               const addonCands = !locked && isMain && it.purchase_vendor_name
-                ? products.filter(p => p.is_addon && p.purchase_vendor_name === it.purchase_vendor_name)
+                ? products.filter(p => (p.is_addon || p.is_shipping) && p.purchase_vendor_name === it.purchase_vendor_name)
                 : []
-              const showChips = !locked && isMain && !!it.item_name.trim()
 
               // 배송비 행 (702) — 이름 고정, 수량·금액만 수정. 주문 전환 시 본 상품 배송비로 합산
-              if (it.is_shipping) {
+              // 702 의사 행(품목 미연결 배송비)만 특수 렌더 — 703 배송비 품목은 일반 행
+              if (it.is_shipping && !it.product_id) {
                 return (
                 <tr key={it.uid} className="border-b border-gray-50 align-top bg-amber-50/40">
                   <td className="py-1 px-1.5">
@@ -728,27 +777,27 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
                       onChange={e => setItem(i, { option_note: e.target.value })}
                       placeholder="색상, 각인 문구 등"
                       className="flex-1 min-w-48 border border-gray-200 bg-gray-50 rounded px-1.5 py-0.5 text-[11px] disabled:opacity-60" />
+                    <span className="text-[10px] text-gray-400 shrink-0 ml-2">비고</span>
+                    <input value={it.memo} disabled={locked}
+                      onChange={e => setItem(i, { memo: e.target.value })}
+                      className="flex-1 min-w-40 border border-gray-200 bg-gray-50 rounded px-1.5 py-0.5 text-[11px] disabled:opacity-60" />
                   </div>
                 </td>
               </tr>
-              {(addonCands.length > 0 || showChips) && (
+              {addonCands.length > 0 && (
                 <tr className="border-b border-gray-50">
                   <td colSpan={13} className="pb-1.5 pt-0 px-1.5">
                     <div className="flex items-center gap-1.5 flex-wrap pl-4">
-                      {addonCands.length > 0 && (
-                        <span className="text-[10px] text-gray-400">옵션 추가 ({it.purchase_vendor_name})</span>
-                      )}
+                      <span className="text-[10px] text-gray-400">옵션 추가 ({it.purchase_vendor_name})</span>
                       {addonCands.map(p => (
                         <button key={p.id} type="button" onClick={() => addAddon(i, p)}
-                          className="px-2 py-0.5 border border-violet-200 bg-violet-50/60 text-violet-700 rounded-full text-[11px] hover:bg-violet-100">
-                          + {p.item_name}{p.sale_price > 0 ? ` (${won(p.sale_price)})` : ''}
-                        </button>
-                      ))}
-                      {/* 배송비 행 추가 (702) — 판매 배송비는 열이 아니라 옵션 행 */}
-                      {showChips && SHIPPING_ROW_NAMES.map(name => (
-                        <button key={name} type="button" onClick={() => addShipping(i, name)}
-                          className="px-2 py-0.5 border border-amber-300 bg-amber-50 text-amber-800 rounded-full text-[11px] hover:bg-amber-100">
-                          + {name}
+                          className={p.is_shipping
+                            ? 'px-2 py-0.5 border border-amber-300 bg-amber-50 text-amber-800 rounded-full text-[11px] hover:bg-amber-100'
+                            : 'px-2 py-0.5 border border-violet-200 bg-violet-50/60 text-violet-700 rounded-full text-[11px] hover:bg-violet-100'}>
+                          + {p.item_name}
+                          {p.is_shipping
+                            ? (p.purchase_price > 0 ? ` (매입 ${won(p.purchase_price)})` : '')
+                            : (p.sale_price > 0 ? ` (${won(p.sale_price)})` : '')}
                         </button>
                       ))}
                     </div>
@@ -799,10 +848,6 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
               placeholder={paymentMasked ? '새 값 입력 시 교체 (비우면 유지)' : '카드번호 등 — 평문 입력, 암호화 저장'}
               className={free} />
           </div>
-          <div>
-            <label className={label}>보내는분 명의</label>
-            <input value={senderName} disabled={locked} onChange={e => setSenderName(e.target.value)} className={free} />
-          </div>
           {/* 계산서 발행용 정보 (509 — 실무자 요청) */}
           <div className="col-span-2 md:col-span-1">
             <label className={label}>계산서 이메일</label>
@@ -829,6 +874,11 @@ export default function ConsultForm({ consultId }: { consultId?: string }) {
           발송 정보 <span className="text-[11px] font-normal text-gray-400 ml-1">발주서·배송 관리(3단계)로 흘러감</span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-6 gap-x-3 gap-y-2.5">
+          {/* 보내는분 명의 — 결제에서 발송으로 이동 (실무자 피드백 3, 선물대행배송 다수) */}
+          <div>
+            <label className={label}>보내는분 명의</label>
+            <input value={senderName} disabled={locked} onChange={e => setSenderName(e.target.value)} className={free} />
+          </div>
           <div>
             <label className={label}>배송요청일</label>
             <input value={deliveryRequest} disabled={locked} onChange={e => setDeliveryRequest(e.target.value)} className={free} placeholder="예: 9/16" />
