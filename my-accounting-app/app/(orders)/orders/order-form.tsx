@@ -160,16 +160,19 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           const cItems = (c.items ?? []) as Record<string, unknown>[]
           if (cItems.length) {
             // 상담 품목의 옵션 연결(parent_line_no)도 전환 시 그대로 복원 (701)
-            // 배송비 행(702)은 주문 품목이 아니라 본 상품의 배송비 컬럼으로 합산해 접는다 (하류 무변경)
+            // 배송비 처리 (703 확정): 배송비 "품목"(product_id 있음, 판매 0·매입만)은
+            // 일반 품목 행으로 그대로 넘긴다. 702의 이름 고정 의사 행(품목 미연결)만
+            // 과거 호환으로 본 상품의 배송비 컬럼에 합산해 접는다.
+            const isLegacyShip = (s: Record<string, unknown>) => s.is_shipping === true && !s.product_id
             const shipByParent = new Map<number, number>()   // 키 -1 = 부모 미상 (첫 품목에 합산 — 유실 방지)
             for (const s of cItems) {
-              if (s.is_shipping === true) {
+              if (isLegacyShip(s)) {
                 const fee = ((s.sale_price as number) ?? 0) * ((s.quantity as number) ?? 1)
                 const key = (s.parent_line_no as number) || -1
                 shipByParent.set(key, (shipByParent.get(key) ?? 0) + fee)
               }
             }
-            const realItems = cItems.filter(s => s.is_shipping !== true)
+            const realItems = cItems.filter(s => !isLegacyShip(s))
             const realLineToUid = new Map<number, number>(realItems.map((s, idx) => [s.line_no as number, idx + 1]))
             uidRef.current = realItems.length + 1
             setItems(realItems.map((it, idx) => {
