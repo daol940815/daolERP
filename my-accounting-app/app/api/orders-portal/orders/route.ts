@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/user-role'
 import {
   validateOrderInput, buildOrderRows, insertOrderItems, ensureAlias, nextOrderNo,
   resolveDisplayNames, resolveVendorNames, loadOrderSnapshot, cancelOrder,
-  inheritToReissued, writeEditLogs,
+  canCancelReissue, inheritToReissued, writeEditLogs,
 } from '@/lib/orders-portal'
 import { recordWorkLog, orderContent } from '@/lib/work-log'
 
@@ -38,6 +38,9 @@ export async function POST(req: NextRequest) {
     }
     if (reissueSnap.order.canceled_at) {
       return NextResponse.json({ error: '이미 취소된 주문입니다. 재등록 주문에서 진행해주세요.' }, { status: 400 })
+    }
+    if (!canCancelReissue(reissueSnap.order, me)) {
+      return NextResponse.json({ error: '본인이 입력한 주문만 취소·재등록할 수 있습니다. (관리자 제외)' }, { status: 403 })
     }
     const probe = await admin.from('erp_orders').select('canceled_at').limit(1)
     if (probe.error) {

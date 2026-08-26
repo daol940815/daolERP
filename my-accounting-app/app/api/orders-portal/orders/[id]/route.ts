@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser, type CurrentUser } from '@/lib/user-role'
 import {
   validateOrderInput, applyOrderEdit, resolveDisplayNames, loadOrderSnapshot,
-  cancelOrder, kstToday, kstDateOf,
+  cancelOrder, canCancelReissue, kstToday, kstDateOf,
 } from '@/lib/orders-portal'
 import { recordWorkLog, orderContent } from '@/lib/work-log'
 
@@ -57,8 +57,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     change_requests: requests ?? [],
     edit_logs: logs ?? [],
     can_edit: edit.canEdit,
-    // direct 주문이면 누구나 취소·재등록 가능 (B안 — 승인 없음, 이력 기록)
-    can_reissue: snap.order.source === 'direct' && !snap.order.canceled_at,
+    // 취소·재등록: 입력자 본인 + manager/admin (2026-08-25 제한 확정 — 승인은 없음)
+    can_reissue: canCancelReissue(snap.order, me),
     canceled: !!snap.order.canceled_at,
     reissued_to_no: snap.order.reissued_to_order_id
       ? linkNos.get(snap.order.reissued_to_order_id as string) ?? null : null,
@@ -127,6 +127,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   }
   if (snap.order.canceled_at) {
     return NextResponse.json({ error: '이미 취소된 주문입니다.' }, { status: 400 })
+  }
+  if (!canCancelReissue(snap.order, me)) {
+    return NextResponse.json({ error: '본인이 입력한 주문만 취소할 수 있습니다. (관리자 제외)' }, { status: 403 })
   }
 
   const reason = new URL(req.url).searchParams.get('reason')

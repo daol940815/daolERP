@@ -291,6 +291,17 @@ export async function insertOrderItems(
 
 export interface Editor { employeeId: string | null; employeeName: string | null }
 
+// 취소·재등록 권한 (2026-08-25 사용자 확정): 입력자 본인 + manager/admin만.
+// 입력자 기록이 없는 옛 주문은 관리자만 처리할 수 있다.
+export function canCancelReissue(
+  order: Record<string, unknown>,
+  me: { role: string; employeeId: string | null },
+): boolean {
+  if (order.source !== 'direct' || order.canceled_at) return false
+  if (me.role === 'manager' || me.role === 'admin') return true
+  return !!me.employeeId && order.created_by_employee_id === me.employeeId
+}
+
 // 변경 로그 기록 — 511 미적용이면 경고 문구만 반환 (수정 자체는 유지)
 export async function writeEditLogs(
   admin: SupabaseClient,
