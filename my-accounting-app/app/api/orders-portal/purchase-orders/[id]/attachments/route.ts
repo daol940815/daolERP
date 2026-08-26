@@ -74,9 +74,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   const buf = Buffer.from(await file.arrayBuffer())
-  // 경로: <po_id>/<타임스탬프>_<파일명> — 같은 이름 재업로드 충돌 방지
+  // Storage 객체 키는 한글 등 비ASCII를 허용하지 않는다 ("Invalid key" 실패) —
+  // 경로는 ASCII로만 만들고, 원본 파일명은 DB(file_name)에 보존해 표시·메일 첨부에 쓴다.
   const safeName = file.name.replace(/[/\\]/g, '_')
-  const path = `${params.id}/${Date.now()}_${safeName}`
+  const ext = (safeName.match(/\.[A-Za-z0-9]+$/)?.[0] ?? '').toLowerCase()
+  const asciiBase = safeName.replace(/\.[A-Za-z0-9]+$/, '')
+    .replace(/[^A-Za-z0-9._-]/g, '').slice(0, 40) || 'file'
+  const path = `${params.id}/${Date.now()}_${asciiBase}${ext}`
   const { error: upErr } = await admin.storage.from(BUCKET)
     .upload(path, buf, { contentType: file.type || 'application/octet-stream' })
   if (upErr) {
