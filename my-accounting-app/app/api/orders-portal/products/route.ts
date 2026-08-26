@@ -20,16 +20,16 @@ export async function GET() {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   const admin = createAdminClient()
-  const load = (withSoldout: boolean) => fetchAllRows<Record<string, unknown>>((from, to) =>
+  const BASE_COLS = 'id, item_code, item_name, option_name, purchase_vendor_name, category, sale_price, individual_sale_price, purchase_price, carton_unit, carton_shipping_fee, loose_shipping_fee, is_addon, is_active, memo, updated_at'
+  const load = (extra: string[]) => fetchAllRows<Record<string, unknown>>((from, to) =>
     admin.from('erp_products')
-      .select((withSoldout
-        ? 'id, item_code, item_name, option_name, purchase_vendor_name, category, sale_price, individual_sale_price, purchase_price, carton_unit, carton_shipping_fee, loose_shipping_fee, is_addon, is_active, is_soldout, memo, updated_at'
-        : 'id, item_code, item_name, option_name, purchase_vendor_name, category, sale_price, individual_sale_price, purchase_price, carton_unit, carton_shipping_fee, loose_shipping_fee, is_addon, is_active, memo, updated_at') as string)
+      .select([BASE_COLS, ...extra].join(', '))
       .order('item_name').range(from, to) as unknown as PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>,
   )
-  // is_soldout은 509 마이그레이션 — 미적용 환경이면 컬럼 없이 재조회 (조회는 계속 동작)
-  let result = await load(true)
-  if ('error' in result && /is_soldout/i.test(result.error)) result = await load(false)
+  // is_soldout(509)·is_shipping(703)은 미적용 환경이면 컬럼 없이 재조회 (조회는 계속 동작)
+  let result = await load(['is_soldout', 'is_shipping'])
+  if ('error' in result && /is_shipping/i.test(result.error)) result = await load(['is_soldout'])
+  if ('error' in result && /is_soldout/i.test(result.error)) result = await load([])
   if ('error' in result) {
     const missing = /relation|erp_products|does not exist/i.test(result.error)
     return NextResponse.json({ error: missing ? MIGRATION_HINT : result.error }, { status: 500 })
@@ -70,26 +70,27 @@ export async function POST(req: NextRequest) {
       carton_shipping_fee: toInt(body.carton_shipping_fee),
       loose_shipping_fee: toInt(body.loose_shipping_fee),
       is_addon: body.is_addon === true,
+      // 배송비 품목 (703) — 미적용 환경 호환: 켤 때만 전송
+      ...(body.is_shipping !== undefined ? { is_shipping: body.is_shipping === true } : {}),
       category: String(body.category ?? '').trim() || null,
       option_name: String(body.option_name ?? '').trim() || null,
       memo: String(body.memo ?? '').trim() || null,
     }
 
+    const saveError = (message: string) => {
+      if (/duplicate|unique/i.test(message)) return `이미 등록된 품번입니다: ${fields.item_code}`
+      if (/is_shipping/i.test(message)) return '703 마이그레이션(배송비 품목)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
+      return message
+    }
     if (action === 'create') {
       const { error } = await admin.from('erp_products').insert(fields)
-      if (error) {
-        const dup = /duplicate|unique/i.test(error.message)
-        return NextResponse.json({ error: dup ? `이미 등록된 품번입니다: ${fields.item_code}` : error.message }, { status: 400 })
-      }
+      if (error) return NextResponse.json({ error: saveError(error.message) }, { status: 400 })
       return NextResponse.json({ ok: true })
     }
     if (!body.id) return NextResponse.json({ error: 'id가 필요합니다.' }, { status: 400 })
     if (!itemName) delete fields.item_name
     const { error } = await admin.from('erp_products').update(fields).eq('id', body.id)
-    if (error) {
-      const dup = /duplicate|unique/i.test(error.message)
-      return NextResponse.json({ error: dup ? `이미 등록된 품번입니다: ${fields.item_code}` : error.message }, { status: 400 })
-    }
+    if (error) return NextResponse.json({ error: saveError(error.message) }, { status: 400 })
     return NextResponse.json({ ok: true })
   }
 
