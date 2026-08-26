@@ -70,6 +70,15 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
+  // 신규 매출처 인라인 등록 (자유 입력분 → 마스터)
+  const [regOpen, setRegOpen] = useState(false)
+  const [regBusy, setRegBusy] = useState(false)
+  const [regGroupName, setRegGroupName] = useState('')
+  const [regBranch, setRegBranch] = useState('')
+  const [regContactName, setRegContactName] = useState('')
+  const [regContactTitle, setRegContactTitle] = useState('')
+  const [regContactPhone, setRegContactPhone] = useState('')
+
   const locked = status === '주문전환'   // 전환 후 수정 잠금 (이력 보존)
 
   useEffect(() => {
@@ -315,6 +324,58 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     return 'custom'
   }
 
+  // 인라인 등록 대상: 지점 미연결 자유 입력, 또는 지점은 연결됐는데 담당자만 자유 입력
+  const needsRegister =
+    (!vendorId && !!(bankText.trim() || branchText.trim())) ||
+    (!!vendorId && !contactId && !!managerText.trim())
+
+  const openRegister = () => {
+    setRegGroupName(bankText.trim())
+    setRegBranch(vendorId ? '' : branchText.trim())
+    setRegContactName(managerText.trim())   // 직함 포함 입력이면 직접 나눠 적도록 안내
+    setRegContactTitle('')
+    setRegContactPhone(phone.trim())
+    setRegOpen(true)
+  }
+
+  const registerVendor = async () => {
+    if (!vendorId && !regGroupName.trim()) { alert('업체명을 입력해주세요.'); return }
+    setRegBusy(true)
+    try {
+      const res = await fetch('/api/orders-portal/masters', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create_sales_vendor',
+          // 지점이 이미 연결된 경우: 그 지점에 담당자만 등록
+          ...(vendorId
+            ? { group_id: groupId ?? undefined, group_name: bankText, branch_name: branchText }
+            : { group_id: groupId ?? undefined, group_name: regGroupName, branch_name: regBranch }),
+          contact_name: regContactName || undefined,
+          contact_title: regContactTitle || undefined,
+          contact_phone: regContactPhone || undefined,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? '등록 실패')
+      setGroupId(json.group_id ?? null)
+      setVendorId(json.vendor_id)
+      setBankText(json.group_name ?? regGroupName)
+      setBranchText(branchLabel(json.vendor_name as string, json.group_name as string | null))
+      if (json.contact_id) {
+        setContactId(json.contact_id)
+        setManagerText(contactLabel(regContactName, regContactTitle || null))
+      }
+      setRegOpen(false)
+      setNotice([
+        json.vendor_reused ? '기존 지점에 연결했습니다' : '지점을 매출처 마스터에 등록했습니다',
+        json.contact_id ? (json.contact_reused ? '기존 담당자에 연결했습니다' : '담당자를 등록했습니다') : '',
+      ].filter(Boolean).join(' · ') + ' — 매출처 목록에 반영됩니다.')
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '등록 실패')
+    }
+    setRegBusy(false)
+  }
+
   const revealPayment = async () => {
     const res = await fetch(`/api/orders-portal/consultations/${consultId}?reveal=1`)
     const json = await res.json()
@@ -557,6 +618,74 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             </div>
           )}
         </div>
+
+        {/* 신규 매출처 인라인 등록 (2026-08-26 사용자 확정) — 자유 입력분을 그 자리에서
+            마스터에 올린다. 정규화 동일명이 있으면 새로 만들지 않고 연결 (중복 방지). */}
+        {!locked && needsRegister && !regOpen && (
+          <div className="mt-3 px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2 flex-wrap">
+            <span>
+              {!vendorId
+                ? '자유 입력한 업체·지점이 매출처 마스터에 없습니다 — 등록하면 매출처 목록에 반영되고 주문 전환 시 바로 쓸 수 있습니다.'
+                : '자유 입력한 담당자가 마스터에 없습니다 — 등록하면 담당자 목록에 반영됩니다.'}
+            </span>
+            <button type="button" onClick={openRegister}
+              className="ml-auto px-3 py-1 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700">
+              + 매출처 마스터 등록
+            </button>
+          </div>
+        )}
+        {!locked && regOpen && (
+          <div className="mt-3 p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
+            <div className="text-xs font-bold text-gray-700 mb-2">
+              신규 매출처 등록 <span className="font-normal text-gray-400 ml-1">이름이 같은 기존 지점·담당자가 있으면 새로 만들지 않고 연결됩니다</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-x-3 gap-y-2">
+              <div>
+                <label className={label}>업체명 {groupId && <span className="text-blue-600">(선택됨)</span>}</label>
+                <input value={regGroupName} disabled={!!groupId || regBusy}
+                  onChange={e => setRegGroupName(e.target.value)}
+                  className={free} placeholder="예: 하나은행" />
+              </div>
+              <div>
+                <label className={label}>지점명 <span className="text-gray-400">(없으면 단일 업체)</span></label>
+                <input value={regBranch} disabled={regBusy || !!vendorId}
+                  onChange={e => setRegBranch(e.target.value)}
+                  className={free} placeholder="예: 오류동지점" />
+              </div>
+              <div>
+                <label className={label}>담당자 이름 <span className="text-gray-400">(직함 제외)</span></label>
+                <input value={regContactName} disabled={regBusy}
+                  onChange={e => setRegContactName(e.target.value)}
+                  className={free} placeholder="예: 권오병" />
+              </div>
+              <div>
+                <label className={label}>직함</label>
+                <input value={regContactTitle} disabled={regBusy}
+                  onChange={e => setRegContactTitle(e.target.value)}
+                  className={free} placeholder="예: 부장" />
+              </div>
+              <div>
+                <label className={label}>핸드폰</label>
+                <input value={regContactPhone} disabled={regBusy}
+                  onChange={e => setRegContactPhone(e.target.value)}
+                  className={free} placeholder="010-" />
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mt-2.5">
+              <span className="text-[11px] text-gray-400">
+                인물 마스터에는 이름만 저장됩니다 — 직함은 배정 정보로, 존칭은 표시에서 붙습니다.
+              </span>
+              <span className="ml-auto flex gap-2">
+                <button type="button" disabled={regBusy} onClick={() => setRegOpen(false)}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600">닫기</button>
+                <button type="button" disabled={regBusy} onClick={registerVendor}
+                  className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-medium disabled:opacity-50">
+                  {regBusy ? '등록 중...' : '마스터에 등록'}
+                </button>
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 상담 품목 — 주문 입력과 동일 규칙 */}
