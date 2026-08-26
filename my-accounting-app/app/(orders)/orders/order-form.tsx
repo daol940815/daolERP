@@ -60,6 +60,13 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
   const [addingContact, setAddingContact] = useState(false)
   const [newContact, setNewContact] = useState({ name: '', title: '', phone: '' })
 
+  // 신규 매출처 인라인 등록 (2026-08-25 확정) — vendors 마스터 단일 원천에 등록
+  const [addingVendor, setAddingVendor] = useState(false)
+  const [newVendor, setNewVendor] = useState({ group_name: '', branch_name: '' })
+  // 상담 전환: 자유 입력 담당자명 — 담당자 목록 로드 후 자동 매칭/프리필
+  const [pendingManager, setPendingManager] = useState<string | null>(null)
+  const [contactsLoadedFor, setContactsLoadedFor] = useState<string | null>(null)
+
   // 상담일지 전환 모드 정보
   const [consultInfo, setConsultInfo] = useState<{ label: string; needMaster: boolean } | null>(null)
 
@@ -147,6 +154,27 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           setGroupId(consult.vendor_group_id
             ?? ((m.vendors ?? []) as Vendor[]).find(v => v.id === consult.vendor_id)?.group_id ?? null)
           setContactId(consult.contact_id)
+          // 상담에 자유 입력된 업체·지점: 마스터에 같은 이름이 있으면 자동 선택,
+          // 없으면 신규 매출처 폼에 미리 채워 한 번에 등록되게 한다 (2026-08-25 확정)
+          if (!consult.vendor_id && (consult.bank_name || consult.branch_name)) {
+            const bank = String(consult.bank_name ?? '').trim()
+            const branch = String(consult.branch_name ?? '').trim()
+            const full = [bank, branch].filter(Boolean).join(' ')
+            const vlist = (m.vendors ?? []) as Vendor[]
+            const matched = vlist.find(v => v.name === full)
+              ?? (branch && branch !== full ? vlist.find(v => v.name === branch) : undefined)
+            if (matched) {
+              setVendorId(matched.id)
+              setGroupId(matched.group_id ?? null)
+            } else {
+              setNewVendor({ group_name: bank || branch, branch_name: bank ? branch : '' })
+              setAddingVendor(true)
+            }
+          }
+          // 자유 입력 담당자: 담당자 목록 로드 후 자동 매칭/신규 등록 프리필
+          if (!consult.contact_id && consult.manager_name) {
+            setPendingManager(String(consult.manager_name))
+          }
           setCounselorId(consult.employee_id)   // 상담자 = 상담 작성자
           setPhone(consult.phone ?? '')
           setContactTel(consult.tel ?? '')
@@ -222,11 +250,31 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
     const res = await fetch(`/api/orders-portal/masters?vendor_id=${vid}`)
     const json = await res.json()
     setContacts(res.ok ? (json.contacts ?? []) : [])
+    setContactsLoadedFor(vid)
   }, [])
   useEffect(() => {
     if (vendorId) loadContacts(vendorId)
-    else setContacts([])
+    else { setContacts([]); setContactsLoadedFor(null) }
   }, [vendorId, loadContacts])
+
+  // 상담 전환의 자유 입력 담당자명 처리 — 목록 로드가 끝난 뒤에만 판정한다.
+  // "권오병 부장님" → 이름 권오병·직함 부장 (인물 마스터는 순수 이름만 저장)
+  useEffect(() => {
+    if (!pendingManager || !vendorId || contactsLoadedFor !== vendorId) return
+    const stripped = pendingManager.trim().replace(/님$/, '').trim()
+    const parts = stripped.split(/\s+/)
+    const name = parts.length >= 2 ? parts.slice(0, -1).join(' ') : stripped
+    const title = parts.length >= 2 ? parts[parts.length - 1] : ''
+    const found = contacts.find(c => c.name === name)
+    if (found) {
+      setContactId(found.contact_id)
+      if (found.phone) setPhone(found.phone)
+    } else {
+      setNewContact({ name, title, phone: '' })
+      setAddingContact(true)
+    }
+    setPendingManager(null)
+  }, [pendingManager, vendorId, contactsLoadedFor, contacts])
 
   const pickContact = (cid: string | null) => {
     setContactId(cid)
@@ -247,6 +295,30 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
     if (newContact.phone) setPhone(newContact.phone)
     setAddingContact(false)
     setNewContact({ name: '', title: '', phone: '' })
+  }
+
+  // 신규 매출처 등록 — 같은 이름이 이미 있으면 만들지 않고 그걸 선택 (서버 판정)
+  const createVendor = async () => {
+    if (!newVendor.group_name.trim()) { setError('업체명을 입력해주세요.'); return }
+    setError(null)
+    const res = await fetch('/api/orders-portal/masters', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'create_vendor', ...newVendor }),
+    })
+    const json = await res.json()
+    if (!res.ok) { setError(json.error); return }
+    // 마스터 목록 갱신 후 방금 등록한 매출처 선택
+    const mRes = await fetch('/api/orders-portal/masters')
+    const m = await mRes.json()
+    if (mRes.ok) { setVendors(m.vendors ?? []); setGroups(m.groups ?? []) }
+    setGroupId(json.group_id ?? null)
+    setVendorId(json.vendor_id)
+    setContactId(null)
+    setAddingVendor(false)
+    setNewVendor({ group_name: '', branch_name: '' })
+    setNotice(json.existed
+      ? '같은 이름의 매출처가 이미 있어 선택했습니다.'
+      : '매출처가 등록되었습니다 — 담당자를 선택하거나 신규 등록해주세요.')
   }
 
   const setItem = (i: number, patch: Partial<ItemDraft>) =>
@@ -410,7 +482,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           상담일지에서 전환 중: {consultInfo.label}
           {consultInfo.needMaster && (
             <span className="block text-xs mt-0.5 text-blue-600">
-              상담에 자유 입력된 주문처·담당자가 있습니다 — 마스터에서 선택(없으면 등록)해야 저장할 수 있습니다.
+              상담에 자유 입력된 주문처·담당자가 있습니다 — 마스터에 같은 이름이 있으면 자동
+              선택했고, 없으면 아래 신규 등록 칸에 미리 채워 두었습니다. 등록 버튼만 누르면 됩니다.
             </span>
           )}
         </div>
@@ -467,6 +540,16 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               }}
               placeholder={groupId ? '소속 지점 선택' : '거래처 마스터 검색 — 자유 입력 불가'}
               required
+              footer={
+                <button type="button" onMouseDown={e => e.preventDefault()}
+                  onClick={() => {
+                    setNewVendor(p => ({ ...p, group_name: groups.find(g => g.id === groupId)?.name ?? p.group_name }))
+                    setAddingVendor(true)
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-blue-700 font-medium hover:bg-blue-50">
+                  + 신규 매출처 등록
+                </button>
+              }
             />
           </div>
           <div className="col-span-2">
@@ -526,6 +609,31 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
             <input value={memo} onChange={e => setMemo(e.target.value)} className={free} />
           </div>
         </div>
+
+        {addingVendor && (
+          <div className="mt-3 p-3 bg-blue-50/50 border border-blue-200 rounded-lg flex items-end gap-2 flex-wrap">
+            <div className="text-xs font-semibold text-blue-800 w-full">신규 매출처 등록</div>
+            <div>
+              <label className={label}>업체명 *</label>
+              <input value={newVendor.group_name}
+                onChange={e => setNewVendor(p => ({ ...p, group_name: e.target.value }))}
+                placeholder="하나은행" className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm w-40" />
+            </div>
+            <div>
+              <label className={label}>지점(부서)명</label>
+              <input value={newVendor.branch_name}
+                onChange={e => setNewVendor(p => ({ ...p, branch_name: e.target.value }))}
+                placeholder="OO지점 (단일 업체는 비움)" className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm w-44" />
+            </div>
+            <button type="button" onClick={createVendor}
+              className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm">등록</button>
+            <button type="button" onClick={() => setAddingVendor(false)}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">취소</button>
+            <span className="text-[11px] text-gray-400">
+              거래처 마스터에 즉시 등록됩니다 (매출처 허브에도 보임) — 같은 이름이 있으면 새로 만들지 않고 선택합니다
+            </span>
+          </div>
+        )}
 
         {addingContact && (
           <div className="mt-3 p-3 bg-blue-50/50 border border-blue-200 rounded-lg flex items-end gap-2 flex-wrap">

@@ -88,5 +88,44 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ contact_id: contact.id })
   }
 
+  // 신규 매출처 인라인 등록 (2026-08-25 확정) — 데이터는 vendors 마스터 단일 원천에
+  // 쓴다 (허브에서도 즉시 보임). 같은 이름이 이미 있으면 만들지 않고 그걸 선택한다.
+  if (body.action === 'create_vendor') {
+    const groupName = (body.group_name ?? '').trim()    // 업체명
+    const branchName = (body.branch_name ?? '').trim()  // 지점명 (선택 — 단일 업체는 비움)
+    if (!groupName) return NextResponse.json({ error: '업체명을 입력해주세요.' }, { status: 400 })
+    const fullName = [groupName, branchName].filter(Boolean).join(' ')
+
+    const { data: existing } = await admin.from('vendors')
+      .select('id, group_id').eq('name', fullName).eq('is_active', true)
+      .limit(1).maybeSingle()
+    if (existing) {
+      return NextResponse.json({ vendor_id: existing.id, group_id: existing.group_id ?? null, existed: true })
+    }
+
+    // 지점이 있으면 업체 그룹 연결 (없으면 생성). 505 미적용 환경은 그룹 없이 등록.
+    let groupId: string | null = null
+    if (branchName) {
+      const g = await admin.from('vendor_groups').select('id').eq('name', groupName).maybeSingle()
+      if (g.data) groupId = g.data.id as string
+      else if (!g.error) {
+        const ins = await admin.from('vendor_groups').insert({ name: groupName }).select('id').single()
+        if (!ins.error) groupId = ins.data.id as string
+      }
+    }
+
+    let created = await admin.from('vendors')
+      .insert({ name: fullName, type: 'customer', is_active: true, ...(groupId ? { group_id: groupId } : {}) })
+      .select('id').single()
+    if (created.error && groupId && /group_id/i.test(created.error.message)) {
+      created = await admin.from('vendors')
+        .insert({ name: fullName, type: 'customer', is_active: true }).select('id').single()
+    }
+    if (created.error) {
+      return NextResponse.json({ error: `매출처 등록 실패: ${created.error.message}` }, { status: 500 })
+    }
+    return NextResponse.json({ vendor_id: created.data.id, group_id: groupId, existed: false })
+  }
+
   return NextResponse.json({ error: '알 수 없는 요청입니다.' }, { status: 400 })
 }
