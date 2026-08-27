@@ -236,6 +236,7 @@ input::placeholder { color:var(--gray-300); }
 .badge-error   { background:#fee2e2; color:#b91c1c; }
 .badge-fail    { background:#f3f4f6; color:#6b7280; border:1px solid #d1d5db; }
 .badge-pickup  { background:#ede9fe; color:#6d28d9; }
+.badge-nonum   { background:var(--gray-50); color:var(--gray-500); border:1px dashed var(--gray-300); }
 
 /* ── 테이블 ── */
 .table-wrap {
@@ -464,6 +465,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
     <div class="hstat"><div class="hstat-val" id="stat-transit">0</div><div class="hstat-label">배송중</div></div>
     <div class="hstat"><div class="hstat-val" id="stat-delay">0</div><div class="hstat-label">배송지연</div></div>
     <div class="hstat"><div class="hstat-val" id="stat-pending">0</div><div class="hstat-label">출고전</div></div>
+    <div class="hstat"><div class="hstat-val" id="stat-nonum">0</div><div class="hstat-label">송장미등록</div></div>
     <div class="hstat"><div class="hstat-val" id="stat-fail">0</div><div class="hstat-label">조회실패</div></div>
   </div>
 </header>
@@ -480,6 +482,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
   <button class="pill filter-item" data-filter="배송완료" onclick="setFilter('배송완료',this)">배송완료 <span class="count" id="cnt-done">0</span></button>
   <button class="pill filter-item" data-filter="배송중" onclick="setFilter('배송중',this)">배송중 <span class="count" id="cnt-transit">0</span></button>
   <button class="pill filter-item" data-filter="출고전" onclick="setFilter('출고전',this)">출고전 <span class="count" id="cnt-pending">0</span></button>
+  <button class="pill filter-item" data-filter="송장미등록" onclick="setFilter('송장미등록',this)">송장미등록 <span class="count" id="cnt-nonum">0</span></button>
   <button class="pill filter-item" data-filter="배송지연" onclick="setFilter('배송지연',this)">배송지연 <span class="count" id="cnt-delay">0</span></button>
   <button class="pill filter-item" data-filter="조회실패" onclick="setFilter('조회실패',this)">조회실패 <span class="count" id="cnt-fail">0</span></button>
   <button class="pill filter-item" data-filter="사고" onclick="setFilter('사고',this)">사고 <span class="count" id="cnt-error">0</span></button>
@@ -526,9 +529,9 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
               <option value="num">송장번호</option>
               <option value="bankName">은행명</option>
               <option value="branchName">지점명</option>
-              <option value="manager">담당자</option>
+              <option value="manager">고객명</option>
               <option value="supplier">매입처</option>
-              <option value="staff">직원</option>
+              <option value="staff">다올직원</option>
               <option value="phone">연락처</option>
             </select>
             <input type="text" id="search-input" placeholder="검색어 입력…"
@@ -549,6 +552,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
             <option value="배송완료">배송완료</option>
             <option value="배송중">배송중</option>
             <option value="출고전">출고전</option>
+            <option value="송장미등록">송장미등록</option>
             <option value="배송지연">배송지연</option>
             <option value="조회실패">조회실패</option>
             <option value="사고">사고</option>
@@ -557,7 +561,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
             <option value="">전체 은행명</option>
           </select>
           <select id="filter-staff" onchange="runSearch()" style="width:110px">
-            <option value="">전체 직원</option>
+            <option value="">전체 다올직원</option>
           </select>
         </div>
         <!-- 2행: 주문일 기간 + 우측 버튼들 -->
@@ -605,7 +609,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
               <th style="text-align:center">총수량</th>
               <th>보내는이</th>
               <th>받는이</th>
-              <th>직원</th>
+              <th>다올직원</th>
               <th>택배사</th>
               <th>운송장번호</th>
               <th>상태</th>
@@ -648,7 +652,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
         <input type="text" id="s-branch" placeholder="OO지점">
       </div>
       <div class="form-field">
-        <label>담당자</label>
+        <label>고객명</label>
         <input type="text" id="s-manager" placeholder="OOO 팀장님">
       </div>
       <div class="form-field">
@@ -669,8 +673,8 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
         <input type="text" id="s-supplier" placeholder="매입처명">
       </div>
       <div class="form-field">
-        <label>직원</label>
-        <input type="text" id="s-staff" placeholder="담당 직원명">
+        <label>다올직원</label>
+        <input type="text" id="s-staff" placeholder="다올 담당 직원">
       </div>
       <div class="form-field full">
         <label>품명</label>
@@ -748,7 +752,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
       ondrop="handleDrop(event)">
       <div class="dropzone-icon" style="font-size:1.5rem;color:var(--gray-400)">↑</div>
       <div class="dropzone-title">엑셀 파일을 드래그하거나 클릭하세요</div>
-      <div class="dropzone-sub">.xlsx · .xls · .csv 지원 — 주문일/은행명/지점명/담당자/품번/품명/배송타입/직원/매입처/수량/보내는이/받는이/고객주소/전화번호/택배사/운송장번호/비고<br>운송장번호 한 칸에 여러 개는 쉼표(,)로 구분 시 행 분리 · 구양식(주문처·채널·수하인/수취인 등)도 자동 인식됩니다</div>
+      <div class="dropzone-sub">.xlsx · .xls · .csv 지원 — 주문일/은행명/지점명/고객명/품번/품명/배송타입/다올직원/매입처/수량/보내는이/받는이/고객주소/전화번호/택배사/운송장번호/비고<br>운송장번호 한 칸에 여러 개는 쉼표(,)로 구분 시 행 분리 · 구양식(주문처·담당자·채널·수하인/수취인 등)도 자동 인식됩니다</div>
     </div>
     <input type="file" id="file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFile(this.files[0])">
 
@@ -832,7 +836,7 @@ const expandedKeys = new Set(); // 목록 행 펼침 상태
 // 대시보드 상태 색상 (색각이상 검증 완료 — 조회실패는 의도된 중립 회색)
 const GROUP_COLORS = {
   '배송완료':'#15803d', '배송중':'#0369a1', '배송지연':'#b45309',
-  '출고전':'#4f46e5', '사고':'#b91c1c', '조회실패':'#6b7280',
+  '출고전':'#4f46e5', '송장미등록':'#94a3b8', '사고':'#b91c1c', '조회실패':'#6b7280',
 };
 
 // ── 택배사 정보 ──
@@ -971,6 +975,7 @@ function getFilterGroup(item) {
     return hours < 12 ? '출고전' : '조회실패';
   }
   if (isDelay(item)) return '배송지연';
+  if (!item.num) return '송장미등록'; // 송장번호 미회신 (2일 경과 시 위의 배송지연으로 편입)
   if (ACCIDENT_STATUSES.includes(item.status)) return '사고';
   if (TRANSIT_STATUSES.includes(item.status)) return '배송중';
   return '출고전';
@@ -1019,6 +1024,7 @@ function statusBadge(item) {
     '배송완료':'badge-done',
     '배송중':'badge-transit',
     '출고전':'badge-pending',
+    '송장미등록':'badge-nonum',
     '배송지연':'badge-delay',
     '사고':'badge-error',
     '조회실패':'badge-fail',
@@ -1030,7 +1036,9 @@ function statusBadge(item) {
       : '';
     return `<div><span class="badge ${cls}">${STATUS_LOOKUP_FAIL}</span>${sub}</div>`;
   }
-  const label = group === '배송중' ? (item.status||'배송중') : (item.status||group);
+  // 송장번호가 없는 건은 어느 그룹에 있든 '송장미등록'으로 표기 (배송지연 편입 시에도 구분 유지)
+  const label = !item.num ? '송장미등록'
+    : (group === '배송중' ? (item.status||'배송중') : (item.status||group));
   return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
 }
 
@@ -1432,11 +1440,11 @@ function handleFile(file) {
         orderDate:   parseDate(row,'주문일','주문일자','날짜','date'),
         bankName:    get(row,'은행명','주문처','발주처','거래처','주문사','source'),
         branchName:  get(row,'지점명','지점'),
-        manager:     get(row,'담당자'),
+        manager:     get(row,'고객명','담당자'),
         productCode: get(row,'품번','품목코드','상품코드'),
         productName: get(row,'품명','상품명','제품명','품목','product'),
         shipType:    get(row,'배송타입','배송유형'),
-        staff:       get(row,'직원','채널','담당직원'),
+        staff:       get(row,'다올직원','직원','채널','담당직원'),
         supplier:    get(row,'매입처','매입사','구매처','vendor','supplier'),
         qty:         get(row,'수량_1','수량','qty','Qty'), // 구문서에 수량이 2개면 뒤(송장별 수량)를 사용
         shipper:     hasNewSender
@@ -1744,10 +1752,10 @@ async function syncFromSheets() {
       orderDate:   normalizeDate(r['주문일']   || ''),
       bankName:    r['은행명']   || r['주문처'] || '',
       branchName:  r['지점명']   || '',
-      manager:     r['담당자']   || '',
+      manager:     r['고객명']   || r['담당자'] || '',
       productCode: r['품번']     || '',
       shipType:    r['배송타입'] || '',
-      staff:       r['직원']     || r['채널'] || '',
+      staff:       r['다올직원'] || r['직원'] || r['채널'] || '',
       address:     r['고객주소'] || r['배송주소'] || '',
       phone:       r['전화번호'] || '',
       supplier:    r['매입처']   || '',
@@ -1840,7 +1848,7 @@ function renderDashboard() {
     el.innerHTML = '<div class="empty"><div class="empty-text">데이터가 없습니다<br>운송장을 등록하면 배송현황이 표시됩니다</div></div>';
     return;
   }
-  const groups = { '배송완료':0,'배송중':0,'출고전':0,'배송지연':0,'조회실패':0,'사고':0 };
+  const groups = { '배송완료':0,'배송중':0,'출고전':0,'송장미등록':0,'배송지연':0,'조회실패':0,'사고':0 };
   const bySupplier = {};
   const byBank = {};
   allItems.forEach(r => {
@@ -1866,7 +1874,6 @@ function renderDashboard() {
   ];
   const riskItems = [];
   allItems.forEach(r => {
-    if (!r.num) return;
     if (getFilterGroup(r) === '배송완료') return;
     const basisIso = r.shippedAt || r.addedAt || '';
     const t = basisIso ? new Date(basisIso).getTime() : NaN;
@@ -1953,7 +1960,7 @@ function renderDashboard() {
       <td class="strong" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.productName)}">${escapeHtml(r.productName)||'-'}</td>
       <td>${escapeHtml(r.companyName)||'-'}</td>
       <td style="white-space:nowrap">${carriers[r.carrier]?.name||escapeHtml(r.carrier)}</td>
-      <td class="mono">${escapeHtml(r.num)}</td>
+      <td class="mono">${escapeHtml(r.num)||'<span style="color:var(--gray-400);font-size:11px">미등록</span>'}</td>
       <td>${statusBadge(r)}</td>
     </tr>`).join('');
   const riskSec = `
@@ -1967,7 +1974,7 @@ function renderDashboard() {
       <tbody>${riskRows}</tbody></table>
       ${riskItems.length > 15 ? `<div style="padding:8px 12px;font-size:11px;color:var(--gray-400)">외 ${riskItems.length-15}건 — 목록에서 배송지연 필터로 확인하세요</div>` : ''}
     </div>` : '<div style="font-size:12px;color:var(--gray-400);padding:4px 0">3일 이상 경과한 미배송 건이 없습니다 ✓</div>'}
-    <div style="font-size:11px;color:var(--gray-400);margin-top:6px">기준일: 택배사 최초 집화(출고) 시각 · 조회 이력이 없어 출고일을 알 수 없는 건은 (등록)일 기준</div>`;
+    <div style="font-size:11px;color:var(--gray-400);margin-top:6px">기준일: 택배사 최초 집화(출고) 시각 · 출고일을 알 수 없는 건(송장미등록 포함)은 (등록)일 기준</div>`;
 
   el.innerHTML = `
     <div class="dash-grid">${tiles}</div>
@@ -2117,12 +2124,12 @@ function renderTable() {
     <tr class="expand-strip"><td colspan="17">
       <span class="es-item"><b>배송주소</b> ${esc(r.address)||'-'}${r.address?` <button class="copy-btn" data-copy="${esc(r.address)}" onclick="copyText(this)">복사</button>`:''}</span>
       <span class="es-item"><b>연락처</b> ${esc(r.phone)||'-'}${r.phone?` <button class="copy-btn" data-copy="${esc(r.phone)}" onclick="copyText(this)">복사</button>`:''}</span>
-      <span class="es-item"><b>담당자</b> ${esc(r.manager)||'-'}</span>
+      <span class="es-item"><b>고객명</b> ${esc(r.manager)||'-'}</span>
       <span class="es-item"><b>품번</b> ${esc(r.productCode)||'-'}</span>
       <span class="es-item"><b>배송타입</b> ${esc(r.shipType)||'-'}</span>
     </td></tr>` : '';
     return `<tr class="${rowCls}" ondblclick="openEditGrid(['${rowKey}'])" title="더블클릭: 상세/수정">
-      <td class="exp" onclick="toggleExpand('${rowKey}')" ondblclick="event.stopPropagation()" title="펼치기/접기 — 주소·담당자 등">${expanded?'▾':'▸'}</td>
+      <td class="exp" onclick="toggleExpand('${rowKey}')" ondblclick="event.stopPropagation()" title="펼치기/접기 — 주소·고객명 등">${expanded?'▾':'▸'}</td>
       <td style="text-align:center"><input type="checkbox" class="row-chk" data-key="${rowKey}" ondblclick="event.stopPropagation()" onchange="onRowChkChange()"></td>
       <td style="font-size:11px;color:var(--gray-500);white-space:nowrap">${esc(r.orderDate)||'-'}</td>
       <td style="font-size:12px">${esc(r.bankName)||'-'}</td>
@@ -2247,11 +2254,11 @@ const GRID_FIELDS = [
   { key:'orderDate',   label:'주문일',     w:88 },
   { key:'bankName',    label:'은행명',     w:88 },
   { key:'branchName',  label:'지점명',     w:88 },
-  { key:'manager',     label:'담당자',     w:90 },
+  { key:'manager',     label:'고객명',     w:90 },
   { key:'productCode', label:'품번',       w:78 },
   { key:'productName', label:'품명',       w:150 },
   { key:'shipType',    label:'배송타입',   w:66 },
-  { key:'staff',       label:'직원',       w:64 },
+  { key:'staff',       label:'다올직원',   w:72 },
   { key:'supplier',    label:'매입처',     w:84 },
   { key:'qty',         label:'수량',       w:42 },
   { key:'shipper',     label:'보내는이',   w:104 },
@@ -2577,13 +2584,14 @@ function deleteSelected() {
 
 // ── 통계 ──
 function updateStats() {
-  const counts = { done:0, transit:0, delay:0, pending:0, error:0, fail:0 };
+  const counts = { done:0, transit:0, delay:0, pending:0, nonum:0, error:0, fail:0 };
   allItems.forEach(r=>{
     const g=getFilterGroup(r);
     if (g==='배송완료') counts.done++;
     else if (g==='배송중') counts.transit++;
     else if (g==='배송지연') counts.delay++;
     else if (g==='출고전') counts.pending++;
+    else if (g==='송장미등록') counts.nonum++;
     else if (g==='조회실패') counts.fail++;
     else if (g==='사고') counts.error++;
   });
@@ -2592,6 +2600,8 @@ function updateStats() {
   document.getElementById('stat-transit').textContent = counts.transit;
   document.getElementById('stat-delay').textContent   = counts.delay;
   document.getElementById('stat-pending').textContent = counts.pending;
+  const statNonum = document.getElementById('stat-nonum');
+  if (statNonum) statNonum.textContent = counts.nonum;
   const statFail = document.getElementById('stat-fail');
   if (statFail) statFail.textContent = counts.fail;
   // 사이드바 카운트
@@ -2599,6 +2609,8 @@ function updateStats() {
   document.getElementById('cnt-done').textContent    = counts.done;
   document.getElementById('cnt-transit').textContent = counts.transit;
   document.getElementById('cnt-pending').textContent = counts.pending;
+  const cntNonum = document.getElementById('cnt-nonum');
+  if (cntNonum) cntNonum.textContent = counts.nonum;
   document.getElementById('cnt-delay').textContent   = counts.delay;
   const cntFail = document.getElementById('cnt-fail');
   if (cntFail) cntFail.textContent = counts.fail;
@@ -2619,7 +2631,7 @@ function populateDynamicFilters() {
     if ([...el.options].some(o => o.value === cur)) el.value = cur;
   };
   fill('filter-bank',  [...new Set(allItems.map(r => r.bankName).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko')), '전체 은행명');
-  fill('filter-staff', [...new Set(allItems.map(r => r.staff).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko')), '전체 직원');
+  fill('filter-staff', [...new Set(allItems.map(r => r.staff).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko')), '전체 다올직원');
 }
 
 // ── 엑셀 내보내기 (목록 다운로드) ──
@@ -2638,11 +2650,11 @@ function exportExcel() {
     '주문일': r.orderDate||'-',
     '은행명': r.bankName||'-',
     '지점명': r.branchName||'',
-    '담당자': r.manager||'',
+    '고객명': r.manager||'',
     '품번':   r.productCode||'',
     '품명':   r.productName||'-',
     '배송타입': r.shipType||'',
-    '직원':   r.staff||'',
+    '다올직원': r.staff||'',
     '매입처': r.supplier||'-',
     '수량':   r.qty||'-',
     '총수량': totalQtyOf(r),
@@ -2673,7 +2685,7 @@ function downloadTemplate() {
   if (typeof XLSX==='undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet([
-    ['주문일','은행명','지점명','담당자','품번','품명','배송타입','직원','매입처','수량','보내는이','받는이','고객주소','전화번호','택배사','운송장번호','비고'],
+    ['주문일','은행명','지점명','고객명','품번','품명','배송타입','다올직원','매입처','수량','보내는이','받는이','고객주소','전화번호','택배사','운송장번호','비고'],
     [new Date('2026-09-01'), 'OO은행', 'OO지점', 'OOO 팀장님', '22-80-15', '에스파뇰라 올리브유5', '지점', '홍창의', 'OO상사', 60, '다올커머스', 'OOO 팀장님', '경기 파주시 경의로 1204', '010-0000-0000', '롯데택배', '2554-4921-8382', ''],
     [new Date('2026-09-05'), 'OO약품', '', 'OOO 이사님', '259-49-02', '칸 쇠고기육포(국내산)', '지점', '김보현', 'OO물산', 5, '다올커머스', 'OOO 이사님', '충남 천안시 동남구 대흥로 261', '010-0000-0000', 'CJ대한통운', '6934-8452-0756, 6934-8452-0760', '수량은 송장 1건당 · 여러 송장은 쉼표 구분'],
   ]);
@@ -2766,9 +2778,11 @@ async function saveToStorage(entry) {
       '은행명':     entry.bankName    || '',
       '지점명':     entry.branchName  || '',
       '담당자':     entry.manager     || '',
+      '고객명':     entry.manager     || '',
       '품번':       entry.productCode || '',
       '배송타입':   entry.shipType    || '',
       '직원':       entry.staff       || '',
+      '다올직원':   entry.staff       || '',
       '고객주소':   entry.address     || '',
       '전화번호':   entry.phone       || '',
       '상품명':     entry.productName || '',
@@ -2801,10 +2815,10 @@ async function loadFromStorage() {
         orderDate:   normalizeDate(r['주문일']   || ''),
         bankName:    r['은행명']   || r['주문처'] || '',
         branchName:  r['지점명']   || '',
-        manager:     r['담당자']   || '',
+        manager:     r['고객명']   || r['담당자'] || '',
         productCode: r['품번']     || '',
         shipType:    r['배송타입'] || '',
-        staff:       r['직원']     || r['채널'] || '',
+        staff:       r['다올직원'] || r['직원'] || r['채널'] || '',
         address:     r['고객주소'] || r['배송주소'] || '',
         phone:       r['전화번호'] || '',
         supplier:    r['매입처']   || '',
