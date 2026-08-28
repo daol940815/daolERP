@@ -289,7 +289,7 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             <span>매출처 허브</span>
           </Link>
           <Link href="/purchase-hub" className={linkCls(pathname.startsWith('/purchase-hub'))}>
-            <span>매입처 허브</span>
+            <span>매입처 관리</span>
           </Link>
           <Link href="/loans" className={linkCls(pathname.startsWith('/loans'))}>
             <span>대출 관리</span>
@@ -649,7 +649,7 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             href="/vendors"
             className={linkCls(pathname.startsWith('/vendors'))}
           >
-            <span>매입처 관리</span>
+            <span>매입처 관리(구)</span>
           </Link>
           <Link
             href="/erp-aliases?type=purchase"

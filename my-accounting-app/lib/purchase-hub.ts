@@ -547,7 +547,10 @@ export interface PurchaseHubErpItem {
 }
 
 export interface PurchaseHubDetail {
-  vendor: { id: string; name: string; biz_number: string | null; email: string | null; note: string | null; purchase_kind: PurchaseKind }
+  vendor: {
+    id: string; name: string; biz_number: string | null; email: string | null
+    note: string | null; purchase_kind: PurchaseKind; is_active: boolean
+  }
   links: {
     alias_count: number
     opening: { as_of_date: string; amount: number; note: string | null } | null
@@ -588,7 +591,7 @@ export async function buildPurchaseHubDetail(
   const inPeriod = (d: string | null) => !!d && (!fromDate || d >= fromDate) && (!toDate || d <= toDate)
 
   const [vendorRes, aliasRes, acc2001] = await Promise.all([
-    admin.from('vendors').select('id, name, biz_number, email, note').eq('id', vendorId).single(),
+    admin.from('vendors').select('id, name, biz_number, email, note, is_active').eq('id', vendorId).single(),
     admin.from('erp_vendor_aliases').select('id').eq('alias_type', 'purchase').eq('vendor_id', vendorId),
     payableAccountId(admin),
   ])
@@ -794,7 +797,10 @@ export async function buildPurchaseHubDetail(
   const status = judgeStatus(fifo.outstanding, fifo.over90, lastPurchase, dormantBefore, purchaseKind)
 
   return {
-    vendor: { id: vendor.id, name: vendor.name, biz_number: vendor.biz_number, email: vendor.email, note: vendor.note, purchase_kind: purchaseKind },
+    vendor: {
+      id: vendor.id, name: vendor.name, biz_number: vendor.biz_number, email: vendor.email,
+      note: vendor.note, purchase_kind: purchaseKind, is_active: vendor.is_active !== false,
+    },
     links: { alias_count: aliasIds.length, opening },
     staff: staffRows.map(s => ({
       id: s.id as string,
