@@ -1888,7 +1888,11 @@ function renderDashboard() {
   // 상단 요약 타일 (클릭 시 해당 필터의 목록으로 이동)
   const tiles = [
     { label:'전체', val:total, f:'all', color:'var(--black)' },
-    ...Object.keys(groups).map(g => ({ label:g, val:groups[g], f:g, color:GROUP_COLORS[g] })),
+    ...Object.keys(groups).map(g => ({
+      label:g,
+      val: g === '송장미등록' ? allItems.filter(r => !r.num).length : groups[g],
+      f:g, color:GROUP_COLORS[g],
+    })),
     { label:'완료율', val:doneRate+'%', f:null, color:'var(--black)' },
   ].map(t => `
     <div class="dash-tile${t.f?' clickable':''}" ${t.f?`onclick="dashGo('${t.f}')" title="${t.label} 목록 보기"`:''}>
@@ -2026,10 +2030,12 @@ function getFiltered() {
   const dateFrom  = document.getElementById('filter-date-from').value;
   const dateTo    = document.getElementById('filter-date-to').value;
 
+  // 송장미등록 필터는 지연 편입 여부와 무관하게 송장번호 없는 모든 건을 표시
+  const groupMatch = (r, want) => want === '송장미등록' ? !r.num : getFilterGroup(r) === want;
   return allItems.filter(r=>{
-    if (currentFilter!=='all' && getFilterGroup(r)!==currentFilter) return false;
+    if (currentFilter!=='all' && !groupMatch(r, currentFilter)) return false;
     if (carrier && r.carrier!==carrier) return false;
-    if (statusF && getFilterGroup(r)!==statusF) return false;
+    if (statusF && !groupMatch(r, statusF)) return false;
     if (bankF && (r.bankName||'') !== bankF) return false;
     if (staffF && (r.staff||'') !== staffF) return false;
     if (!searchFieldMatches(r, field, query)) return false;
@@ -2600,8 +2606,9 @@ function updateStats() {
   document.getElementById('stat-transit').textContent = counts.transit;
   document.getElementById('stat-delay').textContent   = counts.delay;
   document.getElementById('stat-pending').textContent = counts.pending;
+  const nonumAll = allItems.filter(r => !r.num).length; // 지연 편입분 포함 (탭 표시와 일치)
   const statNonum = document.getElementById('stat-nonum');
-  if (statNonum) statNonum.textContent = counts.nonum;
+  if (statNonum) statNonum.textContent = nonumAll;
   const statFail = document.getElementById('stat-fail');
   if (statFail) statFail.textContent = counts.fail;
   // 사이드바 카운트
@@ -2610,7 +2617,7 @@ function updateStats() {
   document.getElementById('cnt-transit').textContent = counts.transit;
   document.getElementById('cnt-pending').textContent = counts.pending;
   const cntNonum = document.getElementById('cnt-nonum');
-  if (cntNonum) cntNonum.textContent = counts.nonum;
+  if (cntNonum) cntNonum.textContent = nonumAll;
   document.getElementById('cnt-delay').textContent   = counts.delay;
   const cntFail = document.getElementById('cnt-fail');
   if (cntFail) cntFail.textContent = counts.fail;
