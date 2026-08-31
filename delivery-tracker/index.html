@@ -1776,6 +1776,7 @@ async function syncFromSheets() {
     })).filter(r => r.num || r.localId || r.productName).map(restoreFailReason);
 
     let changed = false;
+    const tombs = loadTombstones();
     remote.forEach(rem => {
       // 매칭: 영구 행 ID(localId) 우선 → 송장번호+상품명(합포장 구분) → 송장번호
       const local = (rem.localId && allItems.find(x => x.localId === rem.localId))
@@ -1787,6 +1788,11 @@ async function syncFromSheets() {
       if (!local) {
         // 유령 방지: 송장번호 없는 원격 행인데 같은 주문정보로 이미 번호가 부여된 행이 있으면 무시
         if (!rem.num && allItems.some(x => x.num && makeMatchKey(x) === makeMatchKey(rem))) return;
+        // 삭제 잔재 방지: 최근 삭제한 행이면 되살리지 않고 시트에서 재삭제
+        if (tombs.length && matchesTombstone(rem, tombs)) {
+          deleteFromSheets(rem.carrier, rem.num, rem.localId, rem.productName);
+          return;
+        }
         allItems.push(rem);
         changed = true;
       } else {
@@ -2611,6 +2617,7 @@ function deleteSelected() {
     return !keys.has(k);
   });
   saveLocal();
+  addTombstones(toDelete); // 시트 삭제가 실패해도 부활하지 않도록 기록
   toDelete.forEach(r => { if(r.num || r.localId) deleteFromSheets(r.carrier, r.num, r.localId, r.productName); });
   updateStats(); renderTable();
   toast(`${toDelete.length}건 삭제했습니다`);
@@ -2832,10 +2839,46 @@ async function saveToStorage(entry) {
   } catch(e) { console.warn('Sheets 저장 실패:', e); }
 }
 
+// ── 삭제 기록(tombstone): 시트 삭제가 실패해도 삭제한 행이 부활하지 않도록 로컬에 기억 ──
+const TOMBSTONE_TTL = 7 * 86400000; // 7일
+function loadTombstones() {
+  try { return (JSON.parse(localStorage.getItem('tracker_tombstones') || '[]')).filter(tb => Date.now() - tb.t < TOMBSTONE_TTL); }
+  catch(e) { return []; }
+}
+function saveTombstones(list) {
+  try { localStorage.setItem('tracker_tombstones', JSON.stringify(list)); } catch(e) {}
+}
+function addTombstones(items) {
+  const list = loadTombstones();
+  const now = Date.now();
+  items.forEach(r => list.push({ carrier: r.carrier, num: r.num || '', localId: r.localId || '', productName: (r.productName || '').trim(), t: now }));
+  saveTombstones(list);
+}
+// 삭제 시점 이후에 다시 등록된 행(updatedAt이 더 최신)은 부활이 아니므로 제외
+function matchesTombstone(r, list) {
+  const rT = new Date(r.updatedAt || 0).getTime();
+  return list.some(tb => {
+    if (rT > tb.t) return false; // 삭제 이후 다시 등록·수정된 행은 부활이 아님
+    if (tb.localId && r.localId && tb.localId === r.localId) return true;
+    if (tb.num && r.num && tb.carrier === r.carrier && tb.num === r.num) {
+      const tp = tb.productName, rp = (r.productName || '').trim();
+      return !tp || !rp || tp === rp;
+    }
+    return false;
+  });
+}
+
 async function deleteFromSheets(carrier, num, localId, productName) {
   try {
-    // 상품명은 합포장(같은 송장번호, 다른 상품) 행을 구분해 삭제하기 위한 보조 키
-    await sheetsRequest({ action: 'delete', '운송장번호': num || '', 'localId': localId || '', '상품명': productName || '' });
+    // 1차: 영구 행 ID(localId)로 삭제
+    if (localId) {
+      await sheetsRequest({ action: 'delete', '운송장번호': '', 'localId': localId, '상품명': productName || '' });
+    }
+    // 2차: 송장번호+품명으로도 삭제 — localId가 비어 있는 구버전 시트 행 정리
+    // (품명은 합포장 행을 보호하는 보조 키. 품명이 없고 localId 삭제가 이미 수행된 경우는 생략)
+    if (num && (productName || !localId)) {
+      await sheetsRequest({ action: 'delete', '운송장번호': num, 'localId': '', '상품명': productName || '' });
+    }
   } catch(e) { console.warn('Sheets 삭제 실패:', e); }
 }
 
@@ -2909,6 +2952,16 @@ async function loadFromStorage() {
       const discarded = allItems.filter(r => keepMap[dedupKey(r)] !== r);
       allItems = allItems.filter(r => keepMap[dedupKey(r)] === r);
       discarded.forEach(r => { if (r.localId) deleteFromSheets(r.carrier, '', r.localId, r.productName); });
+      // 삭제 잔재 방지: 최근 삭제 기록과 일치하는 행은 무시하고 시트에서 재삭제 (자가 복구)
+      const tombs = loadTombstones();
+      saveTombstones(tombs); // 만료분 정리
+      if (tombs.length) {
+        const resurrected = allItems.filter(r => matchesTombstone(r, tombs));
+        if (resurrected.length) {
+          allItems = allItems.filter(r => !matchesTombstone(r, tombs));
+          resurrected.forEach(r => deleteFromSheets(r.carrier, r.num, r.localId, r.productName));
+        }
+      }
       localStorage.setItem('tracker_items', JSON.stringify(allItems));
       toast(`시트에서 ${allItems.length}건 불러왔습니다`);
     } else {

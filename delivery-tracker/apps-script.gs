@@ -68,17 +68,23 @@ function doPost(e) {
       const numCol     = headers.indexOf('운송장번호');
       const localIdCol = headers.indexOf('localId');
       const prodCol    = headers.indexOf('상품명');
-      // localId가 오면 localId로만, 없으면 송장번호(+상품명)로 매칭.
-      // 매칭되는 모든 행을 삭제해 누적된 유령 중복 행까지 정리
-      for (let i = data.length - 1; i >= 1; i--) {
-        const byLocalId = payload['localId'] && localIdCol >= 0 &&
-          String(data[i][localIdCol]) === String(payload['localId']);
-        const byNum = !payload['localId'] && payload['운송장번호'] &&
-          String(data[i][numCol]) === String(payload['운송장번호']) &&
-          (prodCol < 0 || !payload['상품명'] || String(data[i][prodCol]).trim() === String(payload['상품명']).trim());
-        if (byLocalId || byNum) sh.deleteRow(i + 1);
+      // 1차: localId 매칭 삭제 (매칭되는 모든 행 — 누적된 중복까지 정리)
+      let removed = 0;
+      if (payload['localId'] && localIdCol >= 0) {
+        for (let i = data.length - 1; i >= 1; i--) {
+          if (String(data[i][localIdCol]) === String(payload['localId'])) { sh.deleteRow(i + 1); removed++; }
+        }
       }
-      return json_({ ok: true });
+      // 2차: localId로 못 지웠으면 송장번호(+상품명) 매칭 삭제 — localId가 비어 있는 구버전 행 정리
+      if (!removed && payload['운송장번호']) {
+        const data2 = sh.getDataRange().getValues();
+        for (let i = data2.length - 1; i >= 1; i--) {
+          const okNum = String(data2[i][numCol]) === String(payload['운송장번호']);
+          const okProd = prodCol < 0 || !payload['상품명'] || String(data2[i][prodCol]).trim() === String(payload['상품명']).trim();
+          if (okNum && okProd) { sh.deleteRow(i + 1); removed++; }
+        }
+      }
+      return json_({ ok: true, removed });
     }
 
     return json_({ ok: false, error: 'unknown action' });
