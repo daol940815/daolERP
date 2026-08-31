@@ -2324,6 +2324,11 @@ function openEditGrid(keys) {
     site.innerHTML = r.num
       ? `<a href="${carriers[r.carrier]?.url(r.num)}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none">공식 사이트에서 확인 ↗</a>`
       : '';
+    // 전체 타임라인이 로컬에 없으면(새로고침 후 등) 자동으로 한 번 조회해 채움 — 배송완료 건 포함
+    if (r.num && (r.steps?.length || 0) <= 1) {
+      tl.innerHTML += '<div id="tl-loading" style="font-size:11px;color:var(--gray-400);margin-top:6px"><span class="spinner spinner-dark" style="display:inline-block;vertical-align:-2px;margin-right:6px"></span>전체 배송 내역 불러오는 중…</div>';
+      autoFillTimeline(gridKeys[0]);
+    }
   } else {
     tl.style.display = 'none'; tl.innerHTML = ''; site.innerHTML = '';
   }
@@ -2346,6 +2351,29 @@ function renderTimelineHtml(r) {
       </div>`).join('')
     : `<div style="color:var(--gray-400);font-size:12px">배송 내역이 없습니다</div>`;
   return `<div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--gray-400);margin-bottom:8px">배송 진행 내역${r.num?` — ${carriers[r.carrier]?.name||r.carrier} ${escapeHtml(r.num)}`:''}</div>${fail}<div class="timeline">${steps}</div>`;
+}
+
+// 상세(1건) 자동 타임라인 보충 — 실패해도 기존 표시 유지 (완료 건을 격하시키지 않음)
+async function autoFillTimeline(key) {
+  const r = findByRowKey(key);
+  if (!r || !r.num) return;
+  try {
+    const raw = await fetchWithRetry(r.carrier, r.num);
+    const pr = parseTracking(raw, r.carrier, r.num);
+    Object.assign(r, { status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || r.shippedAt || '', error: null, updatedAt: new Date().toISOString() });
+    syncSameNumItems(r.carrier, r.num, pr);
+    saveLocal(); saveToStorage(r);
+    updateStats(); renderTable();
+  } catch(e) {
+    const loading = document.getElementById('tl-loading');
+    if (loading) loading.remove();
+    return;
+  }
+  // 모달이 아직 이 건을 보고 있을 때만 타임라인 갱신
+  const tl = document.getElementById('grid-timeline');
+  if (tl && gridKeys.length === 1 && gridKeys[0] === key && document.getElementById('modal-grid').classList.contains('open')) {
+    tl.innerHTML = renderTimelineHtml(r);
+  }
 }
 
 // 그리드의 행들만 다시 조회
@@ -2855,6 +2883,13 @@ async function loadFromStorage() {
           ['supplier','shippedAt','bankName','branchName','manager','productCode','shipType','staff','address','phone'].forEach(f => {
             if (!it[f]) it[f] = c[f] || '';
           });
+          // 배송 진행 내역 보존: 시트에는 최근 1건만 저장되므로, 다른 기기에서 더 최신으로
+          // 갱신된 경우가 아니라면 로컬 캐시의 전체 타임라인을 유지
+          const cT = new Date(c.updatedAt || 0).getTime();
+          const iT = new Date(it.updatedAt || 0).getTime();
+          if ((c.steps?.length || 0) > (it.steps?.length || 0) && cT >= iT - 60000) {
+            it.steps = c.steps;
+          }
         });
       } catch(e) {}
       // 마이그레이션: 영구 행 ID(localId)가 없는 기존 항목에 부여 — 다음 저장 때 시트에도 기록됨
