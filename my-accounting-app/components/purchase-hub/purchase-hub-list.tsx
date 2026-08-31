@@ -57,16 +57,29 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
 }
 
 // ── 신규 매입처 등록 모달 ───────────────────────────────────────
-// vendors는 매출처와 공유하는 마스터라 중복 등록이 곧 집계 분산이 된다.
-// 서버가 유사 이름을 찾아 되돌려주면 사용자가 확인한 뒤에만 새로 만든다.
-function NewVendorModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
-  const [form, setForm] = useState({ name: '', biz_number: '', email: '', purchase_kind: 'partner' })
+// 매출처 등록과 같은 모양: 업체명(필수) + 지점명 + 담당자 정보. 나머지는 접어둔다.
+// 이름이 완전히 같으면 서버가 조용히 기존 거래처를 재사용하고,
+// 비슷하기만 하면 후보를 돌려준다 — 그때만 사용자가 확인한다.
+function NewVendorModal({ onClose, onCreated, showKind }: {
+  onClose: () => void
+  onCreated: (id: string, reused: boolean) => void
+  showKind: boolean
+}) {
+  const [form, setForm] = useState({
+    group_name: '', branch_name: '',
+    contact_name: '', contact_phone: '', contact_title: '',
+    biz_number: '', email: '', purchase_kind: 'partner',
+  })
+  const [more, setMore] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dups, setDups] = useState<{ id: string; name: string; biz_number: string | null; type: string }[] | null>(null)
 
+  const set = (k: keyof typeof form) => (e: { target: { value: string } }) =>
+    setForm(f => ({ ...f, [k]: e.target.value }))
+
   const submit = async (force = false) => {
-    if (!form.name.trim()) { setError('거래처명을 입력하세요.'); return }
+    if (!form.group_name.trim()) { setError('업체명을 입력하세요.'); return }
     setSaving(true); setError(null)
     const res = await fetch('/api/purchase-hub', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -76,45 +89,80 @@ function NewVendorModal({ onClose, onCreated }: { onClose: () => void; onCreated
     setSaving(false)
     if (!res.ok) { setError(json.error ?? '등록 실패'); return }
     if (json.needs_confirm) { setDups(json.candidates); return }
-    onCreated(json.vendor.id)
+    onCreated(json.vendor.id, !!json.reused)
   }
 
+  const field = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm'
+  const label = 'block text-xs font-medium text-gray-700 mb-1'
+
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl p-6 w-96 mx-4" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl p-6 w-[26rem] max-h-full overflow-y-auto" onClick={e => e.stopPropagation()}>
         <h3 className="text-base font-bold text-gray-900 mb-1">신규 매입처 등록</h3>
-        <p className="text-xs text-gray-400 mb-4">거래처 마스터에 등록됩니다. 기초 미결제는 0으로 시작합니다.</p>
+        <p className="text-xs text-gray-400 mb-4">업체명만 있으면 등록됩니다. 등록 즉시 사용할 수 있습니다.</p>
         {error && <p className="text-red-600 text-xs mb-3">{error}</p>}
+
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">거래처명 <span className="text-red-500">*</span></label>
-            <input autoFocus value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              placeholder="예: 제주 담은 귤" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            <label className={label}>업체명 <span className="text-red-500">*</span></label>
+            <input autoFocus value={form.group_name} onChange={set('group_name')}
+              placeholder="예: 제주 담은 귤" className={field} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">사업자번호 <span className="text-gray-400">(선택)</span></label>
-            <input value={form.biz_number} onChange={e => setForm(f => ({ ...f, biz_number: e.target.value }))}
-              placeholder="숫자 10자리" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            <label className={label}>지점명 <span className="text-gray-400">(선택)</span></label>
+            <input value={form.branch_name} onChange={set('branch_name')}
+              placeholder="예: 인천점 — 지점이 없으면 비워두세요" className={field} />
+            {form.group_name.trim() && form.branch_name.trim() && (
+              <p className="text-[11px] text-gray-400 mt-1">
+                거래처명: {form.group_name.trim()} {form.branch_name.trim()}
+              </p>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className={label}>담당자명 <span className="text-gray-400">(선택)</span></label>
+              <input value={form.contact_name} onChange={set('contact_name')} placeholder="예: 김담당" className={field} />
+            </div>
+            <div>
+              <label className={label}>직함 <span className="text-gray-400">(선택)</span></label>
+              <input value={form.contact_title} onChange={set('contact_title')} placeholder="예: 과장" className={field} />
+            </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">발주 이메일 <span className="text-gray-400">(선택)</span></label>
-            <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-              placeholder="example@company.com" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            <label className={label}>담당자 연락처 <span className="text-gray-400">(선택)</span></label>
+            <input value={form.contact_phone} onChange={set('contact_phone')} placeholder="예: 010-0000-0000" className={field} />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">구분</label>
-            <select value={form.purchase_kind} onChange={e => setForm(f => ({ ...f, purchase_kind: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
-              <option value="partner">거래 매입처 (발주·미지급 관리)</option>
-              <option value="retail">별도 구매처 (사 온 곳, 즉시 결제)</option>
-              <option value="expense">경비성 (택배·전기·리스 등)</option>
-            </select>
-          </div>
+
+          <button onClick={() => setMore(v => !v)} className="text-xs text-gray-500 hover:text-gray-700 underline">
+            {more ? '추가 정보 접기' : '사업자번호 · 발주 이메일 입력'}
+          </button>
+          {more && (
+            <div className="space-y-3 pt-1">
+              <div>
+                <label className={label}>사업자번호</label>
+                <input value={form.biz_number} onChange={set('biz_number')} placeholder="숫자 10자리" className={field} />
+              </div>
+              <div>
+                <label className={label}>발주 이메일</label>
+                <input value={form.email} onChange={set('email')} placeholder="example@company.com" className={field} />
+              </div>
+              {showKind && (
+                <div>
+                  <label className={label}>구분</label>
+                  <select value={form.purchase_kind} onChange={set('purchase_kind')} className={`${field} bg-white`}>
+                    <option value="partner">거래 매입처 (발주·미지급 관리)</option>
+                    <option value="retail">별도 구매처 (사 온 곳, 즉시 결제)</option>
+                    <option value="expense">경비성 (택배·전기·리스 등)</option>
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {dups && (
           <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs">
-            <div className="font-semibold text-amber-800 mb-1">이름이 비슷한 거래처가 이미 있습니다 — 확인해주세요.</div>
+            <div className="font-semibold text-amber-800 mb-1">이름이 비슷한 거래처가 있습니다 — 확인해주세요.</div>
             {dups.map(d => (
               <div key={d.id} className="py-0.5 text-gray-700">
                 {d.name} <span className="text-gray-400">
@@ -242,6 +290,7 @@ export default function PurchaseHubList({ basePath, canDrilldown }: {
       </div>
       {showNew && (
         <NewVendorModal
+          showKind={canDrilldown}
           onClose={() => setShowNew(false)}
           onCreated={id => { setShowNew(false); router.push(`${basePath}/${id}?from=${from}&to=${to}`) }}
         />
