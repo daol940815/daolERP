@@ -507,6 +507,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
     <button class="btn btn-outline btn-sm" onclick="openUploadModal()">↑ 파일 업로드</button>
     <button class="btn btn-outline btn-sm" onclick="downloadTemplate()">↓ 템플릿 다운로드</button>
     <button class="btn btn-outline btn-sm" onclick="exportReport()">↓ 보고서 다운로드</button>
+    <button class="btn btn-outline btn-sm" onclick="exportReplyRequest()" title="송장미등록 건을 매입처별 시트로 정리한 회신 요청 문서 생성">↓ 회신요청서</button>
   </div>
 </div>
 </div>
@@ -1448,17 +1449,17 @@ function handleFile(file) {
         supplier:    get(row,'매입처','매입사','구매처','vendor','supplier'),
         qty:         get(row,'수량_1','수량','qty','Qty'), // 구문서에 수량이 2개면 뒤(송장별 수량)를 사용
         shipper:     hasNewSender
-                       ? get(row,'보내는이','보내는이 (발송인)','송하인','발송인','보내는분','sender')
+                       ? get(row,'보내는이','보내는이(발송인)','보내는이 (발송인)','송하인','발송인','보내는분','sender')
                        : get(row,'수하인','발송인','보내는분','sender'),
         companyName: hasNewSender
                        ? get(row,'받는이','수하인','수취인','업체명','받는분','수신자','customer')
                        : get(row,'수취인','업체명','받는분','수신자','이름','customer'),
         address:     get(row,'고객주소','배송주소','주소','address'),
-        phone:       get(row,'전화번호','연락처','휴대폰','phone'),
+        phone:       get(row,'전화번호','연락처','받는이 연락처','휴대폰','phone'),
         carrier:     carrierFromStr(get(row,'택배사','배송사','carrier')),
         carrierRaw:  get(row,'택배사','배송사','carrier'),
         numsRaw:     get(row,'운송장번호','운송장 번호','송장번호','tracking'),
-        memo:        get(row,'비고','비고(택배관련 메모사항)','메모','note','memo'),
+        memo:        get(row,'비고','비고(택배관련메모사항)','비고(택배관련 메모사항)','메모','note','memo'),
         status:'대기중', steps:[], error:null,
       }));
 
@@ -2787,6 +2788,52 @@ function exportReport() {
   XLSX.utils.book_append_sheet(wb, ws, '배송현황보고');
   XLSX.writeFile(wb, `배송현황보고_${new Date().toISOString().slice(0,10)}.xlsx`);
   toast('보고서 다운로드 완료!');
+}
+
+// ── 회신요청서 다운로드: 송장미등록 건을 매입처별 시트로 정리 ──
+function exportReplyRequest() {
+  if (typeof XLSX==='undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
+  const targets = allItems.filter(r => !r.num);
+  if (!targets.length) { toast('송장미등록(미회신) 건이 없습니다'); return; }
+
+  // 같은 주문 묶음의 총수량·순번 계산
+  const groups = {};
+  allItems.forEach(r => { const k = makeMatchKey(r); (groups[k] = groups[k] || []).push(r); });
+
+  const bySup = {};
+  targets.forEach(r => { const k = (r.supplier || '매입처미지정').trim() || '매입처미지정'; (bySup[k] = bySup[k] || []).push(r); });
+
+  const HD = ['주문일','은행명','지점명','고객명','품번','품명','배송타입','수량','다올직원','NO','보내는이(발송인)','받는이','고객주소','받는이 연락처','수량','택배사','송장번호','배송상태','비고(택배관련메모사항)'];
+  const wb = XLSX.utils.book_new();
+  const today = new Date().toISOString().slice(0,10);
+
+  Object.entries(bySup).sort((a,b)=>b[1].length-a[1].length).forEach(([sup, list]) => {
+    const aoa = [];
+    aoa.push([`${sup} — 송장번호 회신 요청 (${today}) · 택배사/송장번호 칸을 기입해 회신해 주세요`]);
+    aoa.push(HD);
+    list.forEach(r => {
+      const g = groups[makeMatchKey(r)] || [r];
+      const totalQty = g.length > 1 ? g.reduce((s,x)=>s+(parseFloat(x.qty)||0),0) : (r.qty || '');
+      const no = g.length > 1 ? (g.indexOf(r) + 1) : 1;
+      aoa.push([
+        r.orderDate || '', r.bankName || '', r.branchName || '', r.manager || '',
+        r.productCode || '', r.productName || '', r.shipType || '', totalQty,
+        r.staff || '', no, r.shipper || '', r.companyName || '', r.address || '',
+        r.phone || '', r.qty || '',
+        '', '', '',            // 택배사 · 송장번호 · 배송상태 — 매입처 기입 칸
+        r.memo || '',
+      ]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:HD.length-1} }]; // 1행 제목 병합
+    ws['!cols'] = [11,10,10,11,9,22,8,7,8,4,14,11,24,13,7,10,16,9,22].map(w=>({wch:w}));
+    // 시트명: 엑셀 제한 문자 제거 + 31자 제한
+    const sheetName = sup.replace(/[\[\]:*?\/\\]/g,'').slice(0,31) || '매입처';
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  });
+
+  XLSX.writeFile(wb, `송장회신요청_${today}.xlsx`);
+  toast(`회신요청서 생성 완료 — 매입처 ${Object.keys(bySup).length}곳 · ${targets.length}건`);
 }
 
 // ── Google Sheets + localStorage 연동 ──
