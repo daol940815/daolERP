@@ -847,7 +847,7 @@ const carriers = {
   hanjin:{ name:'한진택배',   courierCode:'hanjin', url: n=>`https://www.hanjin.co.kr/kor/CMS/DeliveryMgr/WaybillResult.do?mCode=MN038&schLang=KR&wblnumText2=${n}` },
   epost: { name:'우체국택배', courierCode:'epost',  url: n=>`https://service.epost.go.kr/trace.RetrieveEmsRigiTraceList.comm?POST_CODE=${n}` },
   logen: { name:'로젠택배',   courierCode:'logen',  url: n=>`https://www.ilogen.com/web/personal/trace/${n}` },
-  lottedept: { name:'롯데백화점', courierCode:'lottedept', url: n=>`${API_BASE}/lottedept-view?num=${n}` },
+  lottedept: { name:'롯데백화점', courierCode:'lottedept', url: n=>`https://bs.dpt.co.kr/shipping-form/search-delivery/` },
 };
 
 // 실행 시 API에서 지원 택배사 전체 목록을 불러와 선택지에 추가
@@ -2375,8 +2375,12 @@ function openEditGrid(keys) {
     const r = findByRowKey(gridKeys[0]);
     tl.style.display = '';
     tl.innerHTML = renderTimelineHtml(r);
+    // 롯데백화점 공식 페이지는 URL로 번호를 넘길 수 없어, 클릭 시 전표번호를 자동 복사해 붙여넣기만 하면 되게 함
+    const copyAttr = r.carrier === 'lottedept' && r.num
+      ? ` data-copy="${escapeHtml(r.num)}" onclick="copyText(this)" title="전표번호가 자동 복사됩니다 — 사이트 조회란에 붙여넣기(Ctrl+V) 후 조회"`
+      : '';
     site.innerHTML = (r.num && carriers[r.carrier]?.url)
-      ? `<a href="${carriers[r.carrier].url(r.num)}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none">공식 사이트에서 확인 ↗</a>`
+      ? `<a href="${carriers[r.carrier].url(r.num)}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none"${copyAttr}>공식 사이트에서 확인 ↗</a>`
       : '';
     // 전체 타임라인이 로컬에 없으면(새로고침 후 등) 자동으로 한 번 조회해 채움 — 배송완료 건 포함
     if (r.num && (r.steps?.length || 0) <= 1) {
