@@ -812,9 +812,9 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 <div class="toast" id="toast"></div>
 
 <script>
-// ══ 환경 설정 — 배포 환경이 바뀌면 이 두 값만 수정하면 됨 ══
+// ══ 환경 설정 — 배포 환경이 바뀌면 이 값만 수정하면 됨 ══
+// 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxlkGbq9BNBw9iDCgXkI0oxnYZZSNqjTqvVobUtSxd7vOFSnafEQdF48H-E9kS7Qemuqw/exec';
 
 // ── 상태 ──
 let allItems = []; // 전체 등록 데이터
@@ -1804,43 +1804,20 @@ async function runManualFullRefresh() {
   }
 }
 
-// ── 백그라운드 Sheets 동기화 ──
+// ── 백그라운드 DB 동기화 (다른 기기에서 저장한 변경분 반영) ──
 let _syncBusy = false;
-async function syncFromSheets() {
+async function syncFromDb() {
   if (_syncBusy || manualFullRefreshRunning || autoRefreshRunning) return;
+  // 저장 큐에 미전송분이 있으면 이번 동기화는 건너뜀 (막 저장한 내용을 덮어쓰지 않도록)
+  if (_savePending.size || _deletePending.size) return;
   _syncBusy = true;
   const syncStart = Date.now(); // 동기화 중 수정된 행 보호 기준 시각
   try {
-    const data = await sheetsRequest({ action: 'load' });
+    const res = await fetch(`${API_BASE}/db/load`);
+    const data = await res.json();
     if (!data.ok || !data.rows?.length) return;
-    const remote = data.rows.map(r => ({
-      carrier:     carrierFromStr(r['택배사']),
-      num:         String(r['운송장번호'] || ''),
-      orderDate:   normalizeDate(r['주문일']   || ''),
-      bankName:    r['은행명']   || r['주문처'] || '',
-      branchName:  r['지점명']   || '',
-      manager:     r['고객명']   || r['담당자'] || '',
-      productCode: r['품번']     || '',
-      shipType:    r['배송타입'] || '',
-      staff:       r['다올직원'] || r['직원'] || r['채널'] || '',
-      address:     r['고객주소'] || r['배송주소'] || '',
-      phone:       r['전화번호'] || '',
-      supplier:    r['매입처']   || '',
-      shippedAt:   r['출고일']   || '',
-      productName: r['상품명']   || '',
-      qty:         r['수량']     || '',
-      shipper:     r['수하인']   || '',
-      companyName: r['수취인']   || '',
-      memo:        r['메모']     || '',
-      status:      r['상태']     || '',
-      steps:       r['최근이벤트'] && r['최근이벤트'] !== '-'
-                     ? [{ text: r['최근이벤트'], time: r['최근시간'], done: true, current: false }]
-                     : [],
-      localId:     r['localId'] || '',
-      error:       null,
-      addedAt:     r['등록일시'] || '',
-      updatedAt:   r['수정일시'] || '',
-    })).filter(r => r.num || r.localId || r.productName).map(restoreFailReason);
+    const remote = data.rows.map(dbRowToItem)
+      .filter(r => r.num || r.localId || r.productName).map(restoreFailReason);
 
     let changed = false;
     const tombs = loadTombstones();
@@ -1857,7 +1834,7 @@ async function syncFromSheets() {
         if (!rem.num && allItems.some(x => x.num && makeMatchKey(x) === makeMatchKey(rem))) return;
         // 삭제 잔재 방지: 최근 삭제한 행이면 되살리지 않고 시트에서 재삭제
         if (tombs.length && matchesTombstone(rem, tombs)) {
-          deleteFromSheets(rem.carrier, rem.num, rem.localId, rem.productName);
+          deleteFromDb(rem.carrier, rem.num, rem.localId, rem.productName);
           return;
         }
         allItems.push(rem);
@@ -1903,7 +1880,7 @@ function showView(v) {
   document.getElementById('view-dash').style.display = v==='dash' ? 'flex' : 'none';
   document.getElementById('nav-view-list').classList.toggle('active', v==='list');
   document.getElementById('nav-view-dash').classList.toggle('active', v==='dash');
-  if (v === 'dash') { syncFromSheets(); renderDashboard(); }
+  if (v === 'dash') { syncFromDb(); renderDashboard(); }
 }
 
 // 대시보드 타일/차트 클릭 → 해당 필터로 목록 이동
@@ -2079,7 +2056,7 @@ function setFilter(f, el) {
   document.getElementById('filter-date-from').value = '';
   document.getElementById('filter-date-to').value = '';
   if (currentView !== 'list') showView('list');
-  syncFromSheets();
+  syncFromDb();
   renderTable();
 }
 
@@ -2602,7 +2579,7 @@ function initSortUI() {
 }
 
 // ── 검색 실행 ──
-function runSearch() { syncFromSheets(); renderTable(); }
+function runSearch() { syncFromDb(); renderTable(); }
 
 function clearDateFilter() {
   document.getElementById('filter-date-from').value = '';
@@ -2689,7 +2666,7 @@ function deleteSelected() {
   });
   saveLocal();
   addTombstones(toDelete); // 시트 삭제가 실패해도 부활하지 않도록 기록
-  toDelete.forEach(r => { if(r.num || r.localId) deleteFromSheets(r.carrier, r.num, r.localId, r.productName); });
+  toDelete.forEach(r => { if(r.num || r.localId) deleteFromDb(r.carrier, r.num, r.localId, r.productName); });
   updateStats(); renderTable();
   toast(`${toDelete.length}건 삭제했습니다`);
 }
@@ -2909,55 +2886,119 @@ async function exportReplyRequest() {
   toast(`회신요청서 생성 완료 — 매입처 ${entries.length}곳 · ${targets.length}건 (파일 ${entries.length}개)`);
 }
 
-// ── Google Sheets + localStorage 연동 ──
-async function sheetsRequest(payload) {
-  const res = await fetch(SHEETS_URL, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-  return res.json();
-}
-
+// ── Supabase(Workers /db) + localStorage 연동 ──
 function saveLocal() {
   try { localStorage.setItem('tracker_items', JSON.stringify(allItems)); } catch(e){}
 }
 
-async function saveToStorage(entry) {
-  try {
-    localStorage.setItem('tracker_items', JSON.stringify(allItems));
-    await sheetsRequest({
-      action: 'save',
-      '택배사':     carriers[entry.carrier]?.name || entry.carrier,
-      '운송장번호': entry.num,
-      '이름':       entry.shipper || entry.companyName || '',
-      '상태':       entry.status,
-      '최근이벤트': entry.steps?.[0]?.text || entry.error || '-',
-      '최근시간':   entry.steps?.[0]?.time || '-',
-      '등록일시':   entry.addedAt,
-      '수정일시':   entry.updatedAt,
-      '주문일':     entry.orderDate   || '',
-      '주문처':     entry.bankName    || '', // 구버전 시트 컬럼 호환
-      '은행명':     entry.bankName    || '',
-      '지점명':     entry.branchName  || '',
-      '담당자':     entry.manager     || '',
-      '고객명':     entry.manager     || '',
-      '품번':       entry.productCode || '',
-      '배송타입':   entry.shipType    || '',
-      '직원':       entry.staff       || '',
-      '다올직원':   entry.staff       || '',
-      '고객주소':   entry.address     || '',
-      '전화번호':   entry.phone       || '',
-      '상품명':     entry.productName || '',
-      '수량':       entry.qty         || '',
-      '수하인':     entry.shipper     || '',
-      '수취인':     entry.companyName || '',
-      '메모':       entry.memo        || '',
-      '매입처':     entry.supplier    || '',
-      '출고일':     entry.shippedAt   || '',
-      'localId':    entry.localId     || '',
-    });
-  } catch(e) { console.warn('Sheets 저장 실패:', e); }
+// 프로그램 항목 → DB 행 (snake_case)
+function itemToDbRow(entry) {
+  return {
+    local_id:     entry.localId,
+    carrier:      entry.carrier || 'lotte',
+    num:          String(entry.num || ''),
+    order_date:   entry.orderDate   || '',
+    bank_name:    entry.bankName    || '',
+    branch_name:  entry.branchName  || '',
+    manager:      entry.manager     || '',
+    product_code: entry.productCode || '',
+    product_name: entry.productName || '',
+    ship_type:    entry.shipType    || '',
+    staff:        entry.staff       || '',
+    supplier:     entry.supplier    || '',
+    qty:          String(entry.qty == null ? '' : entry.qty),
+    shipper:      entry.shipper     || '',
+    company_name: entry.companyName || '',
+    address:      entry.address     || '',
+    phone:        entry.phone       || '',
+    memo:         entry.memo        || '',
+    status:       entry.status      || '',
+    steps:        Array.isArray(entry.steps) ? entry.steps : [],
+    shipped_at:   entry.shippedAt   || '',
+    added_at:     entry.addedAt     || '',
+    updated_at:   entry.updatedAt   || '',
+  };
 }
+
+// DB 행 → 프로그램 항목
+function dbRowToItem(r) {
+  return {
+    carrier:     carrierFromStr(r.carrier),
+    num:         String(r.num || ''),
+    localId:     String(r.local_id || ''),
+    orderDate:   normalizeDate(r.order_date || ''),
+    bankName:    r.bank_name   || '',
+    branchName:  r.branch_name || '',
+    manager:     r.manager     || '',
+    productCode: r.product_code || '',
+    shipType:    r.ship_type   || '',
+    staff:       r.staff       || '',
+    address:     r.address     || '',
+    phone:       r.phone       || '',
+    supplier:    r.supplier    || '',
+    shippedAt:   r.shipped_at  || '',
+    productName: r.product_name || '',
+    qty:         r.qty         || '',
+    shipper:     r.shipper     || '',
+    companyName: r.company_name || '',
+    memo:        r.memo        || '',
+    status:      r.status      || '',
+    steps:       Array.isArray(r.steps) ? r.steps : [],
+    error:       null,
+    addedAt:     r.added_at    || '',
+    updatedAt:   r.updated_at  || '',
+  };
+}
+
+// 저장 큐: 대량 처리 시 건별 요청 대신 잠깐 모아서 일괄 저장 (속도·요청 수 절감)
+const _savePending = new Map(); // localId → 항목 참조
+let _saveTimer = null;
+let _saveRetryDelay = 0;
+
+function saveToStorage(entry) {
+  saveLocal();
+  if (!entry || !entry.localId) return;
+  _savePending.set(entry.localId, entry);
+  if (!_saveTimer) _saveTimer = setTimeout(flushSaves, 400);
+}
+
+async function flushSaves() {
+  _saveTimer = null;
+  if (!_savePending.size) return;
+  const batch = [..._savePending.values()].map(itemToDbRow);
+  _savePending.clear();
+  try {
+    const res = await fetch(`${API_BASE}/db/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(batch),
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || '저장 실패');
+    _saveRetryDelay = 0;
+  } catch(e) {
+    console.warn('DB 저장 실패, 재시도 예약:', e);
+    // 실패분 복원 (그 사이 더 최신 수정이 큐에 들어온 항목은 그대로 둠)
+    batch.forEach(row => {
+      if (!_savePending.has(row.local_id)) {
+        const cur = allItems.find(x => x.localId === row.local_id);
+        if (cur) _savePending.set(row.local_id, cur);
+      }
+    });
+    _saveRetryDelay = Math.min((_saveRetryDelay || 2000) * 2, 60000);
+    if (!_saveTimer) _saveTimer = setTimeout(flushSaves, _saveRetryDelay);
+  }
+}
+
+// 창을 닫을 때 미전송 저장분을 beacon으로 마지막 전송 시도
+window.addEventListener('pagehide', () => {
+  if (!_savePending.size) return;
+  try {
+    const batch = [..._savePending.values()].map(itemToDbRow);
+    navigator.sendBeacon(`${API_BASE}/db/save`, JSON.stringify(batch));
+    _savePending.clear();
+  } catch(e) {}
+});
 
 // ── 삭제 기록(tombstone): 시트 삭제가 실패해도 삭제한 행이 부활하지 않도록 로컬에 기억 ──
 const TOMBSTONE_TTL = 7 * 86400000; // 7일
@@ -2988,53 +3029,44 @@ function matchesTombstone(r, list) {
   });
 }
 
-async function deleteFromSheets(carrier, num, localId, productName) {
+// 삭제 큐: DB의 모든 행은 local_id(PK)를 가지므로 localId만으로 삭제 (모아서 일괄 처리)
+const _deletePending = new Set();
+let _deleteTimer = null;
+
+function deleteFromDb(carrier, num, localId, productName) {
+  if (!localId) return;
+  _deletePending.add(String(localId));
+  if (!_deleteTimer) _deleteTimer = setTimeout(flushDeletes, 400);
+}
+
+async function flushDeletes() {
+  _deleteTimer = null;
+  if (!_deletePending.size) return;
+  const ids = [..._deletePending];
+  _deletePending.clear();
   try {
-    // 1차: 영구 행 ID(localId)로 삭제
-    if (localId) {
-      await sheetsRequest({ action: 'delete', '운송장번호': '', 'localId': localId, '상품명': productName || '' });
-    }
-    // 2차: 송장번호+품명으로도 삭제 — localId가 비어 있는 구버전 시트 행 정리
-    // (품명은 합포장 행을 보호하는 보조 키. 품명이 없고 localId 삭제가 이미 수행된 경우는 생략)
-    if (num && (productName || !localId)) {
-      await sheetsRequest({ action: 'delete', '운송장번호': num, 'localId': '', '상품명': productName || '' });
-    }
-  } catch(e) { console.warn('Sheets 삭제 실패:', e); }
+    const res = await fetch(`${API_BASE}/db/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ local_ids: ids }),
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || '삭제 실패');
+  } catch(e) {
+    console.warn('DB 삭제 실패, 재시도 예약:', e);
+    ids.forEach(id => _deletePending.add(id));
+    if (!_deleteTimer) _deleteTimer = setTimeout(flushDeletes, 5000);
+  }
 }
 
 async function loadFromStorage() {
   try {
-    const data = await sheetsRequest({ action: 'load' });
+    const res = await fetch(`${API_BASE}/db/load`);
+    const data = await res.json();
     if (data.ok && data.rows?.length) {
-      allItems = data.rows.map(r => ({
-        carrier:     carrierFromStr(r['택배사']),
-        num:         String(r['운송장번호'] || ''),
-        localId:     String(r['localId'] || ''),
-        orderDate:   normalizeDate(r['주문일']   || ''),
-        bankName:    r['은행명']   || r['주문처'] || '',
-        branchName:  r['지점명']   || '',
-        manager:     r['고객명']   || r['담당자'] || '',
-        productCode: r['품번']     || '',
-        shipType:    r['배송타입'] || '',
-        staff:       r['다올직원'] || r['직원'] || r['채널'] || '',
-        address:     r['고객주소'] || r['배송주소'] || '',
-        phone:       r['전화번호'] || '',
-        supplier:    r['매입처']   || '',
-        shippedAt:   r['출고일']   || '',
-        productName: r['상품명']   || '',
-        qty:         r['수량']     || '',
-        shipper:     r['수하인']   || '',
-        companyName: r['수취인']   || '',
-        memo:        r['메모']     || '',
-        status:      r['상태']     || '',
-        steps:       r['최근이벤트'] && r['최근이벤트'] !== '-'
-                       ? [{ text: r['최근이벤트'], time: r['최근시간'], done: true, current: false }]
-                       : [],
-        error:       null,
-        addedAt:     r['등록일시'] || '',
-        updatedAt:   r['수정일시'] || '',
-      })).filter(r => r.num || r.localId || r.productName).map(restoreFailReason);
-      // 시트에 매입처·출고일 컬럼이 없는 경우 로컬 캐시에서 보충
+      allItems = data.rows.map(dbRowToItem)
+        .filter(r => r.num || r.localId || r.productName).map(restoreFailReason);
+      // 시트에서 이전한 직후에는 DB에 최근 1건의 진행 내역만 있으므로 로컬 캐시에서 보충
       try {
         const cached = JSON.parse(localStorage.getItem('tracker_items') || '[]');
         const keyOf = r => r.num ? r.carrier+'__'+r.num : 'lid__'+(r.localId||'');
@@ -3061,7 +3093,7 @@ async function loadFromStorage() {
       const numberedKeys = new Set(allItems.filter(r => r.num).map(makeMatchKey));
       const ghosts = allItems.filter(r => !r.num && numberedKeys.has(makeMatchKey(r)));
       allItems = allItems.filter(r => r.num || !numberedKeys.has(makeMatchKey(r)));
-      ghosts.forEach(r => { if (r.localId) deleteFromSheets(r.carrier, '', r.localId, r.productName); });
+      ghosts.forEach(r => { if (r.localId) deleteFromDb(r.carrier, '', r.localId, r.productName); });
       // 과거 버그로 생긴 중복 정리: 같은 송장번호+상품명은 최신 수정본만 유지, 버려진 행은 시트에서도 삭제
       const dedupKey = r => r.num ? r.carrier+'__'+r.num+'__'+(r.productName||'').trim() : 'lid__'+(r.localId||'');
       const keepMap = {};
@@ -3071,7 +3103,7 @@ async function loadFromStorage() {
       });
       const discarded = allItems.filter(r => keepMap[dedupKey(r)] !== r);
       allItems = allItems.filter(r => keepMap[dedupKey(r)] === r);
-      discarded.forEach(r => { if (r.localId) deleteFromSheets(r.carrier, '', r.localId, r.productName); });
+      discarded.forEach(r => { if (r.localId) deleteFromDb(r.carrier, '', r.localId, r.productName); });
       // 삭제 잔재 방지: 최근 삭제 기록과 일치하는 행은 무시하고 시트에서 재삭제 (자가 복구)
       const tombs = loadTombstones();
       saveTombstones(tombs); // 만료분 정리
@@ -3079,11 +3111,11 @@ async function loadFromStorage() {
         const resurrected = allItems.filter(r => matchesTombstone(r, tombs));
         if (resurrected.length) {
           allItems = allItems.filter(r => !matchesTombstone(r, tombs));
-          resurrected.forEach(r => deleteFromSheets(r.carrier, r.num, r.localId, r.productName));
+          resurrected.forEach(r => deleteFromDb(r.carrier, r.num, r.localId, r.productName));
         }
       }
       localStorage.setItem('tracker_items', JSON.stringify(allItems));
-      toast(`시트에서 ${allItems.length}건 불러왔습니다`);
+      toast(`서버에서 ${allItems.length}건 불러왔습니다`);
     } else {
       const saved = localStorage.getItem('tracker_items');
       if (saved) {
