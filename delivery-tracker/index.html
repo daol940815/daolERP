@@ -847,6 +847,7 @@ const carriers = {
   hanjin:{ name:'한진택배',   courierCode:'hanjin', url: n=>`https://www.hanjin.co.kr/kor/CMS/DeliveryMgr/WaybillResult.do?mCode=MN038&schLang=KR&wblnumText2=${n}` },
   epost: { name:'우체국택배', courierCode:'epost',  url: n=>`https://service.epost.go.kr/trace.RetrieveEmsRigiTraceList.comm?POST_CODE=${n}` },
   logen: { name:'로젠택배',   courierCode:'logen',  url: n=>`https://www.ilogen.com/web/personal/trace/${n}` },
+  lottedept: { name:'롯데백화점', courierCode:'lottedept', url: n=>`https://www.lotteshopping.com/service/shipping` },
 };
 
 // 실행 시 API에서 지원 택배사 전체 목록을 불러와 선택지에 추가
@@ -891,6 +892,7 @@ function populateCarrierSelects() {
 function carrierFromStr(s) {
   if (!s) return 'lotte';
   const t = s.toLowerCase().replace(/\s/g,'');
+  if (t.includes('백화점')||t.includes('lottedept')) return 'lottedept';
   if (t.includes('cj')||t.includes('대한통운')) return 'cj';
   if (t.includes('lotte')||t.includes('롯데')) return 'lotte';
   if (t.includes('hanjin')||t.includes('한진')) return 'hanjin';
