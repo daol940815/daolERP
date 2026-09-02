@@ -1043,7 +1043,7 @@ function recordTransition(counts, beforeGroup, afterGroup) {
   counts[key] = (counts[key] || 0) + 1;
 }
 
-function showChangeSummary(transitions, title) {
+function showChangeSummary(transitions, title, extraHtml) {
   const elTitle = document.getElementById('summary-title');
   const body = document.getElementById('summary-body');
   if (elTitle) elTitle.textContent = title || '조회 결과 변동 집계';
@@ -1063,6 +1063,7 @@ function showChangeSummary(transitions, title) {
       <div class="summary-meta">변동 발생 <strong style="color:var(--black)">${totalChanged}</strong>건 (유형 ${keys.length}가지)</div>
       <table class="summary-table"><thead><tr><th>변동</th><th>건수</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
+  if (extraHtml) body.innerHTML += extraHtml;
   document.getElementById('modal-summary').classList.add('open');
 }
 
@@ -1555,6 +1556,7 @@ async function runBulk() {
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 조회 중...';
   bulkRunning = true;
   let done=0, duplicates=0;
+  const skippedRows = []; // 제외된 행과 사유
   const transitionCounts = {};
   try {
     // 송장번호 없는 건 즉시 등록, 조회 대상만 추려서 배치 처리
@@ -1564,13 +1566,19 @@ async function runBulk() {
       for (const item of bulkData) {
         if (!item.num) {
           // 같은 주문정보의 행이 이미 있으면 중복 등록 방지
-          if (allItems.some(x => makeMatchKey(x) === makeMatchKey(item))) { duplicates++; done++; continue; }
+          const dup = allItems.find(x => makeMatchKey(x) === makeMatchKey(item));
+          if (dup) {
+            duplicates++; done++;
+            skippedRows.push({ item, reason: dup.num ? `동일 주문이 이미 등록됨 (송장 ${dup.num})` : '동일 주문이 이미 등록됨 (송장미등록 상태)' });
+            continue;
+          }
           item.localId = makeLocalId();
           upsertItem({ ...item, status: '출고전', steps:[], error:null });
           done++;
         } else if (isDuplicateNum(item.carrier, item.num, null, item.productName)) {
           duplicates++;
           done++;
+          skippedRows.push({ item, reason: `송장번호 ${item.num} 이미 등록됨` });
         } else {
           if (!item.localId) item.localId = makeLocalId();
           toQuery.push(item);
@@ -1591,7 +1599,18 @@ async function runBulk() {
     btn.disabled=false; btn.innerHTML='시작';
   }
   closeModal('modal-upload');
-  showChangeSummary(transitionCounts, '일괄 등록 결과');
+  // 제외된 행이 있으면 어떤 행이 왜 빠졌는지 목록으로 안내
+  let skipHtml = '';
+  if (skippedRows.length) {
+    const rows = skippedRows.slice(0, 30).map(({item, reason}) =>
+      `<tr><td>${escapeHtml(item.productName||'-')}</td><td>${escapeHtml(item.companyName||'-')}</td><td style="color:var(--gray-500)">${escapeHtml(reason)}</td></tr>`).join('');
+    skipHtml = `
+      <div style="margin-top:1rem;font-size:12px;font-weight:700;color:#854d0e">중복으로 제외된 ${skippedRows.length}건${skippedRows.length>30?' (30건 표시)':''}</div>
+      <div style="max-height:200px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:6px;margin-top:6px">
+      <table class="summary-table"><thead><tr><th>품명</th><th>받는이</th><th>사유</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div style="font-size:11px;color:var(--gray-400);margin-top:6px">같은 주문(주문일·은행명·지점명·품번·품명·보내는이·받는이가 모두 동일)이 이미 등록되어 있으면 제외됩니다. 실제로 별개 주문이라면 품번이나 비고를 다르게 해서 다시 업로드하세요.</div>`;
+  }
+  showChangeSummary(transitionCounts, '일괄 등록 결과', skipHtml);
   toast(duplicates > 0 ? `처리 완료 (중복 제외 ${duplicates}건)` : `${bulkData.length}건 처리 완료`);
 }
 
