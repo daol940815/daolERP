@@ -410,6 +410,19 @@ const CARRIER_NAME_TO_CODE = {
   '우체국택배': 'epost', '로젠택배': 'logen', '롯데백화점': 'lottedept',
 };
 
+// 구글 시트가 '269-04-02' 같은 텍스트(품번 등)를 날짜로 오인 변환한 값 복원.
+// GAS가 JSON으로 내보내면 '0269-04-01T15:32:08.000Z' 형태(과거 한국 표준시 오프셋)가 되므로
+// Asia/Seoul 기준 날짜로 되돌리고 연도 앞의 0을 제거해 원래 텍스트로 복구한다.
+function fixGasDate(v) {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v)) return v;
+  const d = new Date(v);
+  if (isNaN(d)) return v;
+  const ymd = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(d);
+  return ymd.replace(/^0+(?=\d)/, '');
+}
+
 function sheetRowToDb(r) {
   const s = k => String(r[k] === undefined || r[k] === null ? '' : r[k]).trim();
   const rawCarrier = s('택배사');
@@ -423,11 +436,11 @@ function sheetRowToDb(r) {
     local_id:     localId,
     carrier:      CARRIER_NAME_TO_CODE[rawCarrier] || rawCarrier || 'lotte',
     num:          num,
-    order_date:   s('주문일'),
+    order_date:   fixGasDate(s('주문일')),  // 시트가 날짜로 변환한 값 → YYYY-MM-DD 복원
     bank_name:    s('은행명') || s('주문처'),
     branch_name:  s('지점명'),
     manager:      s('고객명') || s('담당자'),
-    product_code: s('품번'),
+    product_code: fixGasDate(s('품번')),    // '269-04-02' 같은 품번이 날짜로 변환된 경우 복원
     product_name: productName,
     ship_type:    s('배송타입'),
     staff:        s('다올직원') || s('직원') || s('채널'),
