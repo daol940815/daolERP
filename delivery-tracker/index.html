@@ -849,6 +849,45 @@ const carriers = {
   logen: { name:'로젠택배',   courierCode:'logen',  url: n=>`https://www.ilogen.com/web/personal/trace/${n}` },
 };
 
+// 실행 시 API에서 지원 택배사 전체 목록을 불러와 선택지에 추가
+// (Workers에 GET /couriers 프록시가 있어야 동작 — 없으면 기본 5개 유지)
+async function loadCarrierList() {
+  try {
+    const res = await fetch(`${API_BASE}/couriers`);
+    if (!res.ok) return;
+    const json = await res.json();
+    const list = json.data?.couriers || json.couriers || json.data || [];
+    if (!Array.isArray(list)) return;
+    let added = 0;
+    list.forEach(c => {
+      const code = c.courierCode || c.code || c.id;
+      const name = c.courierName || c.name || c.nameKo || code;
+      if (!code || carriers[code]) return;
+      carriers[code] = { name: String(name), courierCode: String(code), url: null };
+      added++;
+    });
+    if (added) populateCarrierSelects();
+  } catch(e) {}
+}
+
+// 택배사 선택지(검색 필터·단건 등록)를 현재 carriers 목록으로 재구성
+function populateCarrierSelects() {
+  const opts = Object.entries(carriers)
+    .map(([k,v]) => `<option value="${escapeHtml(k)}">${escapeHtml(v.name)}</option>`).join('');
+  const f = document.getElementById('filter-carrier');
+  if (f) {
+    const cur = f.value;
+    f.innerHTML = `<option value="">전체 택배사</option>` + opts;
+    if ([...f.options].some(o => o.value === cur)) f.value = cur;
+  }
+  const s = document.getElementById('s-carrier');
+  if (s) {
+    const cur = s.value;
+    s.innerHTML = opts;
+    s.value = [...s.options].some(o => o.value === cur) ? cur : 'lotte';
+  }
+}
+
 function carrierFromStr(s) {
   if (!s) return 'lotte';
   const t = s.toLowerCase().replace(/\s/g,'');
@@ -857,6 +896,12 @@ function carrierFromStr(s) {
   if (t.includes('hanjin')||t.includes('한진')) return 'hanjin';
   if (t.includes('epost')||t.includes('우체국')) return 'epost';
   if (t.includes('logen')||t.includes('로젠')) return 'logen';
+  if (carriers[t]) return t; // 코드로 직접 기입한 경우
+  // 동적으로 불러온 택배사 이름과 매칭
+  for (const [k, v] of Object.entries(carriers)) {
+    const n = String(v.name || '').toLowerCase().replace(/\s/g,'');
+    if (n && (t.includes(n) || n.includes(t))) return k;
+  }
   return 'lotte';
 }
 
@@ -2328,8 +2373,8 @@ function openEditGrid(keys) {
     const r = findByRowKey(gridKeys[0]);
     tl.style.display = '';
     tl.innerHTML = renderTimelineHtml(r);
-    site.innerHTML = r.num
-      ? `<a href="${carriers[r.carrier]?.url(r.num)}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none">공식 사이트에서 확인 ↗</a>`
+    site.innerHTML = (r.num && carriers[r.carrier]?.url)
+      ? `<a href="${carriers[r.carrier].url(r.num)}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none">공식 사이트에서 확인 ↗</a>`
       : '';
     // 전체 타임라인이 로컬에 없으면(새로고침 후 등) 자동으로 한 번 조회해 채움 — 배송완료 건 포함
     if (r.num && (r.steps?.length || 0) <= 1) {
@@ -2712,7 +2757,7 @@ function exportExcel() {
     '조회실패사유': getFilterGroup(r)==='조회실패' ? (r.error||'') : '',
     '배송지연여부': isDelay(r)?'지연':'정상',
     '비고': r.memo||'',
-    '조회URL': r.num ? (carriers[r.carrier]?.url(r.num)||'') : '',
+    '조회URL': (r.num && carriers[r.carrier]?.url) ? carriers[r.carrier].url(r.num) : '',
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
   ws['!cols']=[11,11,13,11,10,26,8,7,10,6,7,13,13,26,13,10,16,10,8,24,9,16,40].map(w=>({wch:w}));
@@ -3077,7 +3122,9 @@ document.addEventListener('DOMContentLoaded', () => {
   initAutoIntervalUI();
   initSortUI();
   showView('dash'); // 실행 시 대시보드를 메인 화면으로
-  loadFromStorage();
+  populateCarrierSelects();
+  // 택배사 목록을 먼저 불러와야 시트의 택배사명 → 코드 매칭이 정확함
+  loadCarrierList().finally(() => loadFromStorage());
 });
 </script>
 </body>
