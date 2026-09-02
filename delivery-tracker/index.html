@@ -2790,8 +2790,8 @@ function exportReport() {
   toast('보고서 다운로드 완료!');
 }
 
-// ── 회신요청서 다운로드: 송장미등록 건을 매입처별 시트로 정리 ──
-function exportReplyRequest() {
+// ── 회신요청서 다운로드: 송장미등록 건을 매입처별 '개별 파일'로 생성 ──
+async function exportReplyRequest() {
   if (typeof XLSX==='undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
   const targets = allItems.filter(r => !r.num);
   if (!targets.length) { toast('송장미등록(미회신) 건이 없습니다'); return; }
@@ -2804,10 +2804,10 @@ function exportReplyRequest() {
   targets.forEach(r => { const k = (r.supplier || '매입처미지정').trim() || '매입처미지정'; (bySup[k] = bySup[k] || []).push(r); });
 
   const HD = ['주문일','은행명','지점명','고객명','품번','품명','배송타입','수량','다올직원','NO','보내는이(발송인)','받는이','고객주소','받는이 연락처','수량','택배사','송장번호','배송상태','비고(택배관련메모사항)'];
-  const wb = XLSX.utils.book_new();
   const today = new Date().toISOString().slice(0,10);
 
-  Object.entries(bySup).sort((a,b)=>b[1].length-a[1].length).forEach(([sup, list]) => {
+  const entries = Object.entries(bySup).sort((a,b)=>b[1].length-a[1].length);
+  for (const [sup, list] of entries) {
     const aoa = [];
     aoa.push([`${sup} — 송장번호 회신 요청 (${today}) · 택배사/송장번호 칸을 기입해 회신해 주세요`]);
     aoa.push(HD);
@@ -2827,13 +2827,16 @@ function exportReplyRequest() {
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:HD.length-1} }]; // 1행 제목 병합
     ws['!cols'] = [11,10,10,11,9,22,8,7,8,4,14,11,24,13,7,10,16,9,22].map(w=>({wch:w}));
-    // 시트명: 엑셀 제한 문자 제거 + 31자 제한
-    const sheetName = sup.replace(/[\[\]:*?\/\\]/g,'').slice(0,31) || '매입처';
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-  });
+    // 엑셀 시트명·파일명 제한 문자 제거
+    const safeName = sup.replace(/[\[\]:*?\/\\]/g,'').slice(0,31) || '매입처';
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, safeName);
+    XLSX.writeFile(wb, `송장회신요청_${safeName}_${today}.xlsx`);
+    // 브라우저가 연속 다운로드를 차단하지 않도록 간격을 둠
+    if (entries.length > 1) await sleep(400);
+  }
 
-  XLSX.writeFile(wb, `송장회신요청_${today}.xlsx`);
-  toast(`회신요청서 생성 완료 — 매입처 ${Object.keys(bySup).length}곳 · ${targets.length}건`);
+  toast(`회신요청서 생성 완료 — 매입처 ${entries.length}곳 · ${targets.length}건 (파일 ${entries.length}개)`);
 }
 
 // ── Google Sheets + localStorage 연동 ──
