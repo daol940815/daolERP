@@ -753,9 +753,9 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
       ondrop="handleDrop(event)">
       <div class="dropzone-icon" style="font-size:1.5rem;color:var(--gray-400)">↑</div>
       <div class="dropzone-title">엑셀 파일을 드래그하거나 클릭하세요</div>
-      <div class="dropzone-sub">.xlsx · .xls · .csv 지원 — 주문일/은행명/지점명/고객명/품번/품명/배송타입/다올직원/매입처/수량/보내는이/받는이/고객주소/전화번호/택배사/운송장번호/비고<br>운송장번호 한 칸에 여러 개는 쉼표(,)로 구분 시 행 분리 · 구양식(주문처·담당자·채널·수하인/수취인 등)도 자동 인식됩니다</div>
+      <div class="dropzone-sub">.xlsx · .xls · .xlsm · .csv 지원 — 주문일/은행명/지점명/고객명/품번/품명/배송타입/다올직원/매입처/수량/보내는이/받는이/고객주소/전화번호/택배사/운송장번호/비고<br>운송장번호 한 칸에 여러 개는 쉼표(,)로 구분 시 행 분리 · 구양식(주문처·담당자·채널·수하인/수취인 등)도 자동 인식됩니다<br><b>개별배송 명단</b>: 주문 정보는 첫 행에만 쓰고 아래 행은 비워두면 자동으로 이어받습니다 — 받는이·주소·전화번호·수량·송장번호·비고만 행마다 기재</div>
     </div>
-    <input type="file" id="file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFile(this.files[0])">
+    <input type="file" id="file-input" accept=".xlsx,.xls,.xlsm,.csv" style="display:none" onchange="handleFile(this.files[0])">
 
     <div id="upload-preview" style="margin-top:1rem;display:none">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:0.75rem;flex-wrap:wrap">
@@ -763,6 +763,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
         <div class="progress-wrap" style="flex:1"><div class="progress-bar" id="upload-progress"></div></div>
         <span id="upload-text" style="font-size:12px;color:var(--gray-400);font-family:var(--mono)">0 / 0</span>
       </div>
+      <div id="upload-preview-table" style="margin-bottom:0.75rem"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-outline" onclick="closeModal('modal-upload')">닫기</button>
         <button class="btn btn-black" id="btn-bulk" onclick="runBulkOrUpdate()">시작</button>
@@ -1511,6 +1512,22 @@ function handleFile(file) {
         status:'대기중', steps:[], error:null,
       }));
 
+      // ── 주문정보 이어받기(fill-down): 발주서 배송명단 그대로 붙여넣기 지원 ──
+      // 주문정보 열이 전부 비어 있고 배송정보(받는이·주소·전화번호·수량·송장번호·비고)가
+      // 하나라도 있는 행은 위 주문의 주문정보를 이어받는다. 주문정보가 하나라도 적혀 있으면
+      // 새 주문으로 간주해 이어받지 않음 (엉뚱한 주문에 붙는 사고 방지). 병합 셀 양식도 동일하게 처리됨.
+      const ORDER_FIELDS = ['orderDate','bankName','branchName','manager','productCode','productName','shipType','staff','supplier','shipper'];
+      const SHIP_FIELDS  = ['companyName','address','phone','qty','numsRaw','memo'];
+      let lastOrder = null;
+      bulkData.forEach(r => {
+        const noOrder = ORDER_FIELDS.every(f => !r[f]);
+        if (!noOrder) { lastOrder = r; return; }
+        if (!SHIP_FIELDS.some(f => r[f]) || !lastOrder) return;
+        r._inherited = true;
+        ORDER_FIELDS.forEach(f => { r[f] = lastOrder[f]; });
+        if (!r.carrierRaw) { r.carrier = lastOrder.carrier; r.carrierRaw = lastOrder.carrierRaw; }
+      });
+
       // 한 행에 여러 송장번호(쉼표 등 구분)가 있으면 별도 행으로 분리
       bulkData = bulkData.flatMap(r => {
         const { numsRaw, ...rest } = r;
@@ -1528,16 +1545,48 @@ function handleFile(file) {
 
       if (!bulkData.length) { toast('처리할 행이 없습니다'); return; }
       const noNumCount = bulkData.filter(r=>!r.num).length;
-      const countMsg = noNumCount > 0
-        ? `${bulkData.length}건 인식됨 (송장번호 없음 ${noNumCount}건 포함)`
-        : `${bulkData.length}건 인식됨`;
-      document.getElementById('upload-count').textContent = countMsg;
+      const inhCount = bulkData.filter(r=>r._inherited).length;
+      const parts = [`${bulkData.length}건 인식됨`];
+      if (noNumCount > 0) parts.push(`송장번호 없음 ${noNumCount}건`);
+      if (inhCount > 0) parts.push(`주문정보 이어받음 ${inhCount}건`);
+      document.getElementById('upload-count').textContent =
+        parts.length > 1 ? `${parts[0]} (${parts.slice(1).join(' · ')})` : parts[0];
+      renderUploadPreview();
       document.getElementById('upload-text').textContent = `0 / ${bulkData.length}`;
       document.getElementById('upload-preview').style.display='block';
       toast(`${bulkData.length}건 불러왔습니다`);
     } catch(err) { toast('파일 읽기 실패'); console.error(err); }
   };
   reader.readAsBinaryString(file);
+}
+
+// 업로드 미리보기 표 — 이어받은 주문정보는 회색으로 표시해 어느 주문에 붙었는지 확인 가능
+function renderUploadPreview() {
+  const box = document.getElementById('upload-preview-table');
+  if (!box) return;
+  const MAX = 15;
+  const cols = [
+    ['orderDate','주문일',true], ['bankName','은행명',true], ['branchName','지점명',true],
+    ['productName','품명',true], ['qty','수량',false], ['companyName','받는이',false],
+    ['address','주소',false], ['num','송장번호',false],
+  ];
+  const head = cols.map(c=>`<th>${c[1]}</th>`).join('');
+  const body = bulkData.slice(0, MAX).map(r => {
+    const tds = cols.map(([f,,isOrder]) => {
+      const v = escapeHtml(String(r[f] ?? ''));
+      return (isOrder && r._inherited)
+        ? `<td style="color:var(--gray-400)">${v}</td>`
+        : `<td>${v}</td>`;
+    }).join('');
+    return `<tr>${tds}</tr>`;
+  }).join('');
+  const more = bulkData.length > MAX
+    ? `<div style="font-size:11px;color:var(--gray-400);margin-top:4px">외 ${bulkData.length - MAX}건 — 회색 글씨는 위 주문에서 이어받은 값입니다</div>`
+    : `<div style="font-size:11px;color:var(--gray-400);margin-top:4px">회색 글씨는 위 주문에서 이어받은 값입니다</div>`;
+  box.innerHTML = `
+    <div style="max-height:180px;overflow:auto;border:1px solid var(--gray-200);border-radius:6px">
+      <table class="summary-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
+    </div>${bulkData.some(r=>r._inherited) ? more : ''}`;
 }
 
 async function runBulkOrUpdate() {
