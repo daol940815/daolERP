@@ -1457,12 +1457,14 @@ function handleFile(file) {
       const wb = XLSX.read(e.target.result, {type:'binary'});
       const ws = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(ws, {defval:''});
-      const get = (row,...keys)=>{ for(const k of keys){ const v=row[k]; if(v!==undefined&&v!=='') return String(v).trim(); } return ''; };
+      // 수식 오류값(#VALUE! 등)은 빈 칸으로 처리 — 수식형 양식에서 데이터 없는 행이 오류로 올라오는 것 방지
+      const isErrVal = v => typeof v === 'string' && /^#(VALUE|CALC|N\/A|REF|NAME\?|DIV\/0|NULL|SPILL)!?/i.test(v.trim());
+      const get = (row,...keys)=>{ for(const k of keys){ const v=row[k]; if(v!==undefined&&v!==''&&!isErrVal(v)) return String(v).trim(); } return ''; };
       // 날짜 파싱: 엑셀 시리얼 → YYYY-MM-DD (로컬 기준, UTC 오프셋 오류 방지)
       const parseDate = (row,...keys) => {
         for(const k of keys){
           const v = row[k];
-          if(v===undefined||v==='') continue;
+          if(v===undefined||v===''||isErrVal(v)) continue;
           if(typeof v === 'number' && v > 1000) {
             // 엑셀 시리얼: 1900-01-00 기준, 로컬 자정으로 계산
             const totalDays = Math.floor(v);
@@ -1481,6 +1483,8 @@ function handleFile(file) {
         }
         return '';
       };
+      // 엑셀이 전화번호를 숫자로 저장해 앞의 0이 사라진 경우 복원 (1012345678 → 01012345678)
+      const fixPhone = p => /^1[016789]\d{7,8}$/.test(p) ? '0' + p : p;
       const uploadMode = document.querySelector('input[name="upload-mode"]:checked')?.value || 'new';
       // 발신/수신 컬럼 규칙 판별 — 신양식: 보내는이/받는이(또는 송하인/수하인) · 구양식: 수하인(보내는 분)/수취인(받는 분)
       const keys0 = json.length ? Object.keys(json[0]).map(k => String(k).trim()) : [];
@@ -1504,7 +1508,7 @@ function handleFile(file) {
                        ? get(row,'받는이','수하인','수취인','업체명','받는분','수신자','customer')
                        : get(row,'수취인','업체명','받는분','수신자','이름','customer'),
         address:     get(row,'고객주소','배송주소','주소','address'),
-        phone:       get(row,'전화번호','연락처','받는이 연락처','휴대폰','phone'),
+        phone:       fixPhone(get(row,'전화번호','연락처','받는이 연락처','휴대폰','phone')),
         carrier:     carrierFromStr(get(row,'택배사','배송사','carrier')),
         carrierRaw:  get(row,'택배사','배송사','carrier'),
         numsRaw:     get(row,'운송장번호','운송장 번호','송장번호','tracking'),
