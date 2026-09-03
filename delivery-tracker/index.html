@@ -752,10 +752,10 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
       ondragleave="this.classList.remove('over')"
       ondrop="handleDrop(event)">
       <div class="dropzone-icon" style="font-size:1.5rem;color:var(--gray-400)">↑</div>
-      <div class="dropzone-title">엑셀 파일을 드래그하거나 클릭하세요</div>
+      <div class="dropzone-title">엑셀 파일을 드래그하거나 클릭하세요 (여러 파일 동시 가능)</div>
       <div class="dropzone-sub">.xlsx · .xls · .xlsm · .csv 지원 — 주문일/은행명/지점명/고객명/품번/품명/배송타입/다올직원/매입처/수량/보내는이/받는이/고객주소/전화번호/택배사/운송장번호/비고<br>운송장번호 한 칸에 여러 개는 쉼표(,)로 구분 시 행 분리 · 구양식(주문처·담당자·채널·수하인/수취인 등)도 자동 인식됩니다<br><b>개별배송 명단</b>: 주문 정보는 첫 행에만 쓰고 아래 행은 비워두면 자동으로 이어받습니다 — 받는이·주소·전화번호·수량·송장번호·비고만 행마다 기재</div>
     </div>
-    <input type="file" id="file-input" accept=".xlsx,.xls,.xlsm,.csv" style="display:none" onchange="handleFile(this.files[0])">
+    <input type="file" id="file-input" accept=".xlsx,.xls,.xlsm,.csv" multiple style="display:none" onchange="handleFiles(this.files); this.value=''">
 
     <div id="upload-preview" style="margin-top:1rem;display:none">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:0.75rem;flex-wrap:wrap">
@@ -1445,13 +1445,49 @@ async function submitSingle() {
 function handleDrop(e) {
   e.preventDefault();
   document.getElementById('dropzone').classList.remove('over');
-  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
 }
 
-function handleFile(file) {
-  if (!file) return;
+// 여러 파일 동시 업로드: 각 파일을 읽어 하나의 업로드 목록으로 합침
+function handleFiles(fileList) {
+  const files = Array.from(fileList || []).filter(Boolean);
+  if (!files.length) return;
   if (typeof XLSX==='undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
+  const uploadMode = document.querySelector('input[name="upload-mode"]:checked')?.value || 'new';
+  Promise.all(files.map(f =>
+    readFileRows(f, uploadMode)
+      .then(rows => ({ name: f.name, rows }))
+      .catch(err => { console.error(f.name, err); return { name: f.name, rows: null }; })
+  )).then(results => {
+    const failed = results.filter(r => !r.rows).map(r => r.name);
+    const okFiles = results.filter(r => r.rows);
+    bulkData = okFiles.flatMap(r => r.rows);
+    bulkData.forEach((r, i) => r.id = i);
+    if (failed.length) toast(`파일 읽기 실패: ${failed.join(', ')}`);
+    if (!bulkData.length) { if (!failed.length) toast('처리할 행이 없습니다'); return; }
+    const noNumCount = bulkData.filter(r=>!r.num).length;
+    const inhCount = bulkData.filter(r=>r._inherited).length;
+    const head = okFiles.length > 1
+      ? `파일 ${okFiles.length}개 · 총 ${bulkData.length}건 인식됨`
+      : `${bulkData.length}건 인식됨`;
+    const parts = [];
+    if (okFiles.length > 1) parts.push(okFiles.map(f => `${f.name.replace(/\.[^.]+$/,'')} ${f.rows.length}건`).join(' · '));
+    if (noNumCount > 0) parts.push(`송장번호 없음 ${noNumCount}건`);
+    if (inhCount > 0) parts.push(`주문정보 이어받음 ${inhCount}건`);
+    document.getElementById('upload-count').textContent = parts.length ? `${head} (${parts.join(' · ')})` : head;
+    renderUploadPreview();
+    document.getElementById('upload-text').textContent = `0 / ${bulkData.length}`;
+    document.getElementById('upload-preview').style.display='block';
+    toast(okFiles.length > 1 ? `파일 ${okFiles.length}개에서 ${bulkData.length}건 불러왔습니다` : `${bulkData.length}건 불러왔습니다`);
+  });
+}
+function handleFile(file) { handleFiles(file ? [file] : []); } // 단일 파일 하위 호환
+
+// 파일 1개 → 업로드 행 배열로 변환 (주문정보 이어받기는 같은 파일 안에서만 작동)
+function readFileRows(file, uploadMode) {
+  return new Promise((resolve, reject) => {
   const reader = new FileReader();
+  reader.onerror = () => reject(new Error('파일 읽기 오류'));
   reader.onload = e => {
     try {
       const wb = XLSX.read(e.target.result, {type:'binary'});
@@ -1486,11 +1522,10 @@ function handleFile(file) {
       };
       // 엑셀이 전화번호를 숫자로 저장해 앞의 0이 사라진 경우 복원 (1012345678 → 01012345678)
       const fixPhone = p => /^1[016789]\d{7,8}$/.test(p) ? '0' + p : p;
-      const uploadMode = document.querySelector('input[name="upload-mode"]:checked')?.value || 'new';
       // 발신/수신 컬럼 규칙 판별 — 신양식: 보내는이/받는이(또는 송하인/수하인) · 구양식: 수하인(보내는 분)/수취인(받는 분)
       const keys0 = json.length ? Object.keys(json[0]).map(k => String(k).trim()) : [];
       const hasNewSender = keys0.some(k => k.startsWith('보내는이') || k === '송하인');
-      bulkData = json.map((row,i)=>({
+      let rows = json.map((row,i)=>({
         id:i,
         orderDate:   parseDate(row,'주문일','주문일자','날짜','date'),
         bankName:    get(row,'은행명','주문처','발주처','거래처','주문사','source'),
@@ -1524,7 +1559,7 @@ function handleFile(file) {
       const ORDER_FIELDS = ['orderDate','bankName','branchName','manager','productCode','productName','shipType','staff','supplier','shipper'];
       const SHIP_FIELDS  = ['companyName','address','phone','qty','numsRaw','memo'];
       let lastOrder = null;
-      bulkData.forEach(r => {
+      rows.forEach(r => {
         const noOrder = ORDER_FIELDS.every(f => !r[f]);
         if (!noOrder) { lastOrder = r; return; }
         if (!SHIP_FIELDS.some(f => r[f]) || !lastOrder) return;
@@ -1534,7 +1569,7 @@ function handleFile(file) {
       });
 
       // 한 행에 여러 송장번호(쉼표 등 구분)가 있으면 별도 행으로 분리
-      bulkData = bulkData.flatMap(r => {
+      rows = rows.flatMap(r => {
         const { numsRaw, ...rest } = r;
         const nums = splitTrackingNums(numsRaw);
         if (nums.length <= 1) return [{ ...rest, num: nums[0] || '' }];
@@ -1543,26 +1578,16 @@ function handleFile(file) {
 
       // 모드별 필터: 신규는 전체 허용, 업데이트는 송장번호 있는 행만
       if (uploadMode === 'update') {
-        bulkData = bulkData.filter(r=>r.num);
+        rows = rows.filter(r=>r.num);
       } else {
-        bulkData = bulkData.filter(r=>r.orderDate||r.productName||r.num); // 완전히 빈 행 제외
+        rows = rows.filter(r=>r.orderDate||r.productName||r.num); // 완전히 빈 행 제외
       }
-
-      if (!bulkData.length) { toast('처리할 행이 없습니다'); return; }
-      const noNumCount = bulkData.filter(r=>!r.num).length;
-      const inhCount = bulkData.filter(r=>r._inherited).length;
-      const parts = [`${bulkData.length}건 인식됨`];
-      if (noNumCount > 0) parts.push(`송장번호 없음 ${noNumCount}건`);
-      if (inhCount > 0) parts.push(`주문정보 이어받음 ${inhCount}건`);
-      document.getElementById('upload-count').textContent =
-        parts.length > 1 ? `${parts[0]} (${parts.slice(1).join(' · ')})` : parts[0];
-      renderUploadPreview();
-      document.getElementById('upload-text').textContent = `0 / ${bulkData.length}`;
-      document.getElementById('upload-preview').style.display='block';
-      toast(`${bulkData.length}건 불러왔습니다`);
-    } catch(err) { toast('파일 읽기 실패'); console.error(err); }
+      rows.forEach(r => { r._file = file.name; });
+      resolve(rows);
+    } catch(err) { reject(err); }
   };
   reader.readAsBinaryString(file);
+  });
 }
 
 // 업로드 미리보기 표 — 이어받은 주문정보는 회색으로 표시해 어느 주문에 붙었는지 확인 가능
@@ -1570,7 +1595,9 @@ function renderUploadPreview() {
   const box = document.getElementById('upload-preview-table');
   if (!box) return;
   const MAX = 15;
+  const multiFile = new Set(bulkData.map(r=>r._file)).size > 1;
   const cols = [
+    ...(multiFile ? [['_file','파일',false]] : []),
     ['orderDate','주문일',true], ['bankName','은행명',true], ['branchName','지점명',true],
     ['productName','품명',true], ['qty','수량',false], ['companyName','받는이',false],
     ['address','주소',false], ['num','송장번호',false],
@@ -1578,7 +1605,8 @@ function renderUploadPreview() {
   const head = cols.map(c=>`<th>${c[1]}</th>`).join('');
   const body = bulkData.slice(0, MAX).map(r => {
     const tds = cols.map(([f,,isOrder]) => {
-      const v = escapeHtml(String(r[f] ?? ''));
+      const raw = f === '_file' ? String(r._file||'').replace(/\.[^.]+$/,'') : String(r[f] ?? '');
+      const v = escapeHtml(raw);
       return (isOrder && r._inherited)
         ? `<td style="color:var(--gray-400)">${v}</td>`
         : `<td>${v}</td>`;
@@ -1656,12 +1684,13 @@ async function runBulk() {
   // 제외된 행이 있으면 어떤 행이 왜 빠졌는지 목록으로 안내
   let skipHtml = '';
   if (skippedRows.length) {
+    const multiFile = new Set(bulkData.map(r=>r._file)).size > 1;
     const rows = skippedRows.slice(0, 30).map(({item, reason}) =>
-      `<tr><td>${escapeHtml(item.productName||'-')}</td><td>${escapeHtml(item.companyName||'-')}</td><td style="color:var(--gray-500)">${escapeHtml(reason)}</td></tr>`).join('');
+      `<tr>${multiFile?`<td>${escapeHtml(String(item._file||'').replace(/\.[^.]+$/,''))}</td>`:''}<td>${escapeHtml(item.productName||'-')}</td><td>${escapeHtml(item.companyName||'-')}</td><td style="color:var(--gray-500)">${escapeHtml(reason)}</td></tr>`).join('');
     skipHtml = `
       <div style="margin-top:1rem;font-size:12px;font-weight:700;color:#854d0e">중복으로 제외된 ${skippedRows.length}건${skippedRows.length>30?' (30건 표시)':''}</div>
       <div style="max-height:200px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:6px;margin-top:6px">
-      <table class="summary-table"><thead><tr><th>품명</th><th>받는이</th><th>사유</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <table class="summary-table"><thead><tr>${multiFile?'<th>파일</th>':''}<th>품명</th><th>받는이</th><th>사유</th></tr></thead><tbody>${rows}</tbody></table></div>
       <div style="font-size:11px;color:var(--gray-400);margin-top:6px">같은 주문(주문일·은행명·지점명·품번·품명·보내는이·받는이가 모두 동일)이 이미 등록되어 있으면 제외됩니다. 실제로 별개 주문이라면 품번이나 비고를 다르게 해서 다시 업로드하세요.</div>`;
   }
   showChangeSummary(transitionCounts, '일괄 등록 결과', skipHtml);
