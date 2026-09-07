@@ -375,6 +375,31 @@ tr.bundle-inner td { border-bottom-style:dashed; }
 .tb-right { margin-left:auto; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
 .auto-chip { font-size:11px; color:var(--gray-500); border:1px solid var(--gray-200); border-radius:20px; padding:3px 10px; display:inline-flex; gap:7px; align-items:center; }
 
+/* ── 회신 메일 페이지 ── */
+.mail-wrap { display:grid; grid-template-columns:300px 1fr; flex:1; min-height:0; }
+.mail-sup-panel { border-right:1px solid var(--gray-100); overflow-y:auto; }
+.mail-panel-head { padding:12px 14px 8px; font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(--gray-400); display:flex; justify-content:space-between; align-items:center; }
+.mail-sup-item { padding:11px 14px; border-bottom:1px solid var(--gray-50); cursor:pointer; }
+.mail-sup-item:hover { background:var(--gray-50); }
+.mail-sup-item.active { background:var(--black); color:var(--white); }
+.mail-sup-item.active:hover { background:var(--black); }
+.mail-sup-name { font-weight:700; font-size:13.5px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.mail-sup-cnt { font-family:var(--mono); font-size:11px; background:#fee2e2; color:#b91c1c; border-radius:20px; padding:1px 8px; font-weight:500; white-space:nowrap; }
+.mail-sup-item.active .mail-sup-cnt { background:rgba(255,255,255,.2); color:#fecaca; }
+.mail-sup-sub { font-size:11px; color:var(--gray-400); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mail-sup-item.active .mail-sup-sub { color:rgba(255,255,255,.6); }
+.mail-tag-warn { color:#b45309; font-weight:500; }
+.mail-tag-sent { color:#15803d; font-weight:500; }
+.mail-sup-item.active .mail-tag-sent { color:#86efac; }
+.mail-sup-item.active .mail-tag-warn { color:#fcd34d; }
+.mail-right { overflow-y:auto; display:flex; flex-direction:column; min-height:0; padding:1rem 1.2rem; gap:1rem; }
+.mail-compose { border:1px solid var(--gray-100); border-radius:8px; padding:1rem 1.2rem; }
+.mail-c-title { font-size:14px; font-weight:700; margin-bottom:0.9rem; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+.mail-c-title .hist { font-size:11px; font-weight:400; color:var(--gray-400); }
+.mail-attach { font-size:12px; color:var(--gray-500); background:var(--gray-50); border:1px dashed var(--gray-200); border-radius:var(--radius); padding:8px 12px; margin:8px 0 12px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.mail-hist { border:1px solid var(--gray-100); border-radius:8px; padding:0.8rem 1.2rem; }
+.mail-hist-scroll { overflow:auto; max-height:200px; }
+
 /* ── 행 펼침 ── */
 .exp { width:26px; text-align:center; color:var(--gray-300); cursor:pointer; font-size:10px; user-select:none; }
 .exp:hover { color:var(--black); }
@@ -476,6 +501,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
   <span class="tb-label">보기</span>
   <button class="pill active" id="nav-view-dash" onclick="showView('dash')">대시보드</button>
   <button class="pill" id="nav-view-list" onclick="showView('list')">배송 목록</button>
+  <button class="pill" id="nav-view-mail" onclick="showView('mail')">회신 메일</button>
   <span class="tb-divider"></span>
   <span class="tb-label">필터</span>
   <button class="pill filter-item active" data-filter="all" onclick="setFilter('all',this)">전체 <span class="count" id="cnt-all">0</span></button>
@@ -508,7 +534,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
     <button class="btn btn-outline btn-sm" onclick="downloadTemplate()">↓ 템플릿 다운로드</button>
     <button class="btn btn-outline btn-sm" onclick="exportReport()">↓ 보고서 다운로드</button>
     <button class="btn btn-outline btn-sm" onclick="exportReplyRequest()" title="송장미등록 건을 매입처별 시트로 정리한 회신 요청 문서 생성">↓ 회신요청서</button>
-    <button class="btn btn-outline btn-sm" onclick="openMailModal()" title="송장미등록 건 회신요청서를 매입처에 메일로 발송">회신요청 메일</button>
+    <button class="btn btn-outline btn-sm" onclick="showView('mail')" title="송장미등록 건 회신요청서를 매입처에 메일로 발송">회신요청 메일</button>
   </div>
 </div>
 </div>
@@ -628,6 +654,70 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
     <!-- 대시보드 -->
     <div class="card dash-card" id="view-dash" style="display:none">
       <div id="dash-body"></div>
+    </div>
+
+    <!-- 회신 메일 페이지 -->
+    <div class="card table-card" id="view-mail" style="display:none">
+      <div class="card-header" style="justify-content:space-between">
+        <div style="font-size:13px;font-weight:700">회신요청 메일 <span id="mail-summary" style="font-weight:400;color:var(--gray-400);font-size:12px"></span></div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-outline btn-sm" onclick="openSupplierModal()">매입처 관리</button>
+          <button class="btn btn-outline btn-sm" onclick="exportReplyRequest()">↓ 회신요청서 전체 다운로드</button>
+        </div>
+      </div>
+      <div class="mail-wrap">
+        <div class="mail-sup-panel">
+          <div id="mail-sup-list"></div>
+        </div>
+        <div class="mail-right">
+          <div class="mail-compose" id="mail-compose">
+            <div class="mail-c-title"><span id="mail-c-name"></span><span class="hist" id="mail-history"></span></div>
+            <div class="form-grid" style="grid-template-columns:1fr 1fr">
+              <div class="form-field">
+                <label>받는 사람 (쉼표로 여러 명)</label>
+                <input type="text" id="mail-to" placeholder="vendor@example.com">
+              </div>
+              <div class="form-field">
+                <label>참조 (선택)</label>
+                <input type="text" id="mail-cc" placeholder="">
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:0.6rem">
+              <div class="form-field" style="flex:1;margin:0">
+                <label>문구 프리셋 — {매입처} {건수} {날짜} 는 발송 시 자동 치환</label>
+                <select id="mail-preset" onchange="applyPresetToCompose()"></select>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="saveMailPreset()" style="margin-bottom:2px" title="현재 제목·본문을 프리셋으로 저장">프리셋 저장</button>
+              <button class="btn btn-outline btn-sm" onclick="deleteMailPreset()" style="margin-bottom:2px">삭제</button>
+            </div>
+            <div class="form-field">
+              <label>제목</label>
+              <input type="text" id="mail-subject">
+            </div>
+            <div class="form-field">
+              <label>본문</label>
+              <textarea id="mail-body" rows="7" style="width:100%;resize:vertical;font:inherit;padding:8px;border:1px solid var(--gray-200);border-radius:var(--radius)"></textarea>
+            </div>
+            <div class="mail-attach">
+              <span id="mail-attach"></span>
+              <button class="btn btn-outline btn-sm" onclick="downloadCurrentReplyFile()">미리 내려받기</button>
+            </div>
+            <div style="display:flex;justify-content:flex-end">
+              <button class="btn btn-black" id="btn-mail-send" onclick="sendReplyMail()">발송</button>
+            </div>
+          </div>
+          <div id="mail-empty" style="display:none;padding:2rem;color:var(--gray-400);font-size:13px;text-align:center">송장 미회신 건이 없습니다. 모든 주문에 송장번호가 등록되어 있습니다.</div>
+          <div class="mail-hist">
+            <div class="mail-panel-head" style="padding:0 0 8px">발송 이력</div>
+            <div class="mail-hist-scroll">
+              <table class="summary-table">
+                <thead><tr><th style="width:120px">일시</th><th style="width:110px">매입처</th><th>받는 사람</th><th style="width:50px">건수</th><th>제목</th></tr></thead>
+                <tbody id="mail-log-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
   </main>
@@ -769,55 +859,6 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
         <button class="btn btn-outline" onclick="closeModal('modal-upload')">닫기</button>
         <button class="btn btn-black" id="btn-bulk" onclick="runBulkOrUpdate()">시작</button>
       </div>
-    </div>
-  </div>
-</div>
-
-<!-- ── 회신요청 메일 발송 모달 ── -->
-<div class="modal-bg" id="modal-mail">
-  <div class="modal" style="width:min(94vw,720px)">
-    <div class="modal-header">
-      <div class="modal-title">회신요청 메일 발송</div>
-      <button class="modal-close" onclick="closeModal('modal-mail')">✕</button>
-    </div>
-    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:0.6rem">
-      <div class="form-field" style="flex:1;margin:0">
-        <label>매입처 (송장 미회신 건)</label>
-        <select id="mail-supplier" onchange="onMailSupplierChange()"></select>
-      </div>
-      <button class="btn btn-outline btn-sm" onclick="openSupplierModal()" style="margin-bottom:2px">매입처 관리</button>
-    </div>
-    <div id="mail-history" style="font-size:11px;color:var(--gray-400);margin-bottom:0.6rem"></div>
-    <div class="form-grid" style="grid-template-columns:1fr 1fr">
-      <div class="form-field">
-        <label>받는 사람 (쉼표로 여러 명)</label>
-        <input type="text" id="mail-to" placeholder="vendor@example.com">
-      </div>
-      <div class="form-field">
-        <label>참조 (선택)</label>
-        <input type="text" id="mail-cc" placeholder="">
-      </div>
-    </div>
-    <div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:0.6rem">
-      <div class="form-field" style="flex:1;margin:0">
-        <label>문구 프리셋 — {매입처} {건수} {날짜} 는 발송 시 자동 치환</label>
-        <select id="mail-preset" onchange="applyPresetToCompose()"></select>
-      </div>
-      <button class="btn btn-outline btn-sm" onclick="saveMailPreset()" style="margin-bottom:2px" title="현재 제목·본문을 프리셋으로 저장">프리셋 저장</button>
-      <button class="btn btn-outline btn-sm" onclick="deleteMailPreset()" style="margin-bottom:2px">삭제</button>
-    </div>
-    <div class="form-field">
-      <label>제목</label>
-      <input type="text" id="mail-subject">
-    </div>
-    <div class="form-field">
-      <label>본문</label>
-      <textarea id="mail-body" rows="7" style="width:100%;resize:vertical;font:inherit;padding:8px;border:1px solid var(--gray-200);border-radius:var(--radius)"></textarea>
-    </div>
-    <div id="mail-attach" style="font-size:12px;color:var(--gray-500);margin:0.4rem 0 0.8rem"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn btn-outline" onclick="closeModal('modal-mail')">닫기</button>
-      <button class="btn btn-black" id="btn-mail-send" onclick="sendReplyMail()">발송</button>
     </div>
   </div>
 </div>
@@ -2031,9 +2072,12 @@ function showView(v) {
   currentView = v;
   document.getElementById('view-list').style.display = v==='list' ? 'flex' : 'none';
   document.getElementById('view-dash').style.display = v==='dash' ? 'flex' : 'none';
+  document.getElementById('view-mail').style.display = v==='mail' ? 'flex' : 'none';
   document.getElementById('nav-view-list').classList.toggle('active', v==='list');
   document.getElementById('nav-view-dash').classList.toggle('active', v==='dash');
+  document.getElementById('nav-view-mail').classList.toggle('active', v==='mail');
   if (v === 'dash') { syncFromDb(); renderDashboard(); }
+  if (v === 'mail') { openMailPage(); }
 }
 
 // 대시보드 타일/차트 클릭 → 해당 필터로 목록 이동
@@ -3076,34 +3120,77 @@ async function loadMailData() {
   mailLog = l.rows || [];
 }
 
-function openMailModal() {
+let mailSelected = null; // 좌측 패널에서 선택된 매입처
+
+function openMailPage() {
   if (typeof XLSX==='undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
   mailEntries = buildReplyRequestEntries();
-  if (!mailEntries.length) { toast('송장미등록(미회신) 건이 없습니다'); return; }
-  document.getElementById('modal-mail').classList.add('open');
-  renderMailModal();
-  loadMailData().then(renderMailModal).catch(()=>{});
+  if (!mailEntries.some(e => e.sup === mailSelected)) mailSelected = mailEntries[0]?.sup || null;
+  renderMailPage();
+  loadMailData().then(renderMailPage).catch(()=>{});
 }
 
-function renderMailModal() {
-  const sel = document.getElementById('mail-supplier');
-  const cur = sel.value;
-  sel.innerHTML = mailEntries.map(e => {
-    const info = supplierBook[e.sup];
-    const mark = (info && info.email) ? '' : ' · 이메일 미등록';
-    return `<option value="${escapeHtml(e.sup)}">${escapeHtml(e.sup)} — 미회신 ${e.count}건${mark}</option>`;
-  }).join('');
-  if (cur && mailEntries.some(e => e.sup === cur)) sel.value = cur;
+function selectMailSupplier(sup) {
+  mailSelected = sup;
+  renderMailPage();
+}
+
+function renderMailPage() {
+  const total = mailEntries.reduce((s,e)=>s+e.count,0);
+  document.getElementById('mail-summary').textContent = mailEntries.length
+    ? `— 송장 미회신 ${mailEntries.length}개 매입처 · 총 ${total}건`
+    : '— 송장 미회신 건 없음';
+
+  // 좌측: 미회신 매입처 목록
+  const today = new Date().toISOString().slice(0,10);
+  const lastLog = sup => mailLog.find(l => l.supplier === sup);
+  let html = '<div class="mail-panel-head">미회신 매입처</div>';
+  if (mailEntries.length) {
+    html += mailEntries.map(e => {
+      const info = supplierBook[e.sup] || {};
+      const lg = lastLog(e.sup);
+      const sub = [];
+      sub.push(info.email ? escapeHtml(info.email) : '<span class="mail-tag-warn">이메일 미등록</span>');
+      if (lg) {
+        const d = String(lg.sent_at||'').slice(0,10);
+        sub.push(d === today
+          ? `<span class="mail-tag-sent">오늘 ${String(lg.sent_at||'').slice(11,16)} 발송됨</span>`
+          : `최근 발송 ${d.slice(5)}`);
+      }
+      return `<div class="mail-sup-item${e.sup===mailSelected?' active':''}" data-sup="${escapeHtml(e.sup)}">
+        <div class="mail-sup-name"><span>${escapeHtml(e.sup)}</span> <span class="mail-sup-cnt">${e.count}건</span></div>
+        <div class="mail-sup-sub">${sub.join(' · ')}</div></div>`;
+    }).join('');
+  } else {
+    html += '<div style="padding:14px;font-size:12px;color:var(--gray-400)">송장 미회신 건이 없습니다</div>';
+  }
+  // 미회신 없는 매입처 (주소록 확인용)
+  const inTargets = new Set(mailEntries.map(e=>e.sup));
+  const others = Object.keys(supplierBook).filter(n => !inTargets.has(n)).sort((a,b)=>a.localeCompare(b,'ko'));
+  if (others.length) {
+    html += '<div class="mail-panel-head" style="margin-top:8px">미회신 없음</div>';
+    html += others.map(n => {
+      const info = supplierBook[n] || {};
+      return `<div class="mail-sup-item" style="opacity:.55;cursor:default">
+        <div class="mail-sup-name"><span>${escapeHtml(n)}</span></div>
+        <div class="mail-sup-sub">${escapeHtml(info.email || '이메일 미등록')}</div></div>`;
+    }).join('');
+  }
+  document.getElementById('mail-sup-list').innerHTML = html;
+
+  // 프리셋 셀렉트
   const pSel = document.getElementById('mail-preset');
   const pCur = pSel.value;
   const all = [DEFAULT_MAIL_PRESET, ...mailPresets];
   pSel.innerHTML = all.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name || '(이름 없음)')}</option>`).join('');
   if (pCur && all.some(p => p.id === pCur)) pSel.value = pCur;
-  onMailSupplierChange();
+
+  renderMailCompose();
+  renderMailLogTable();
 }
 
 function currentMailEntry() {
-  return mailEntries.find(e => e.sup === document.getElementById('mail-supplier').value) || mailEntries[0];
+  return mailEntries.find(e => e.sup === mailSelected);
 }
 function currentMailPreset() {
   const id = document.getElementById('mail-preset').value;
@@ -3114,18 +3201,42 @@ function fillMailTemplate(t, e) {
   return String(t || '').split('{매입처}').join(e.sup).split('{건수}').join(String(e.count)).split('{날짜}').join(today);
 }
 
-function onMailSupplierChange() {
+function renderMailCompose() {
   const e = currentMailEntry();
+  document.getElementById('mail-compose').style.display = e ? '' : 'none';
+  document.getElementById('mail-empty').style.display = e ? 'none' : '';
   if (!e) return;
   const info = supplierBook[e.sup] || {};
+  document.getElementById('mail-c-name').textContent = `${e.sup} — 회신요청 메일 작성`;
   document.getElementById('mail-to').value = info.email || '';
   document.getElementById('mail-cc').value = info.cc || '';
   applyPresetToCompose();
   document.getElementById('mail-attach').textContent = `첨부: ${e.filename} (미회신 ${e.count}건)`;
-  const logs = mailLog.filter(l => l.supplier === e.sup).slice(0, 3);
+  const logs = mailLog.filter(l => l.supplier === e.sup).slice(0, 2);
   document.getElementById('mail-history').textContent = logs.length
     ? '최근 발송: ' + logs.map(l => `${String(l.sent_at||'').slice(0,16).replace('T',' ')} → ${l.to_email} (${l.item_count}건)`).join(' · ')
     : '발송 이력 없음';
+}
+
+function renderMailLogTable() {
+  const tb = document.getElementById('mail-log-body');
+  if (!mailLog.length) {
+    tb.innerHTML = '<tr><td colspan="5" style="color:var(--gray-400)">발송 이력이 없습니다</td></tr>';
+    return;
+  }
+  tb.innerHTML = mailLog.slice(0, 100).map(l => `<tr>
+    <td style="font-family:var(--mono);font-size:11px">${escapeHtml(String(l.sent_at||'').slice(0,16).replace('T',' '))}</td>
+    <td>${escapeHtml(l.supplier || '-')}</td>
+    <td>${escapeHtml(l.to_email || '-')}</td>
+    <td style="font-family:var(--mono);font-size:11px">${escapeHtml(String(l.item_count ?? ''))}</td>
+    <td style="color:var(--gray-500)">${escapeHtml(l.subject || '')}</td>
+  </tr>`).join('');
+}
+
+function downloadCurrentReplyFile() {
+  const e = currentMailEntry();
+  if (!e) return;
+  XLSX.writeFile(e.wb, e.filename);
 }
 
 function applyPresetToCompose() {
@@ -3149,7 +3260,7 @@ async function saveMailPreset() {
   const res = await apiPost('/db/presets', [p]);
   if (!res.ok) { toast('프리셋 저장 실패: ' + (res.error || '')); return; }
   mailPresets.unshift(p);
-  renderMailModal();
+  renderMailPage();
   document.getElementById('mail-preset').value = p.id;
   toast('프리셋 저장 완료');
 }
@@ -3161,7 +3272,7 @@ async function deleteMailPreset() {
   const res = await apiPost('/db/presets-delete', { ids: [p.id] });
   if (!res.ok) { toast('삭제 실패: ' + (res.error || '')); return; }
   mailPresets = mailPresets.filter(x => x.id !== p.id);
-  renderMailModal();
+  renderMailPage();
   toast('프리셋 삭제 완료');
 }
 
@@ -3194,7 +3305,7 @@ async function sendReplyMail() {
       supplierBook[e.sup] = { ...info, name: e.sup, email: to, cc };
       apiPost('/db/suppliers', [{ name: e.sup, email: to, cc, manager: info.manager || '' }]).catch(()=>{});
     }
-    onMailSupplierChange();
+    renderMailPage();
   } finally {
     btn.disabled = false; btn.textContent = '발송';
   }
@@ -3230,7 +3341,7 @@ async function saveSuppliers() {
   rows.forEach(r => supplierBook[r.name] = r);
   toast(`매입처 ${rows.length}곳 저장 완료`);
   closeModal('modal-suppliers');
-  if (document.getElementById('modal-mail').classList.contains('open')) renderMailModal();
+  if (currentView === 'mail') renderMailPage();
 }
 
 // ── Supabase(Workers /db) + localStorage 연동 ──
@@ -3509,7 +3620,7 @@ function toast(msg){
 // ── 키보드 ──
 document.addEventListener('keydown', e=>{
   if (e.key==='Escape') {
-    ['modal-single','modal-upload','modal-grid','modal-summary','modal-mail','modal-suppliers'].forEach(closeModal);
+    ['modal-single','modal-upload','modal-grid','modal-summary','modal-suppliers'].forEach(closeModal);
   }
   if (e.key==='Enter' && document.getElementById('modal-single').classList.contains('open')) {
     submitSingle();
@@ -3523,6 +3634,11 @@ window.addEventListener('beforeunload', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+  // 회신 메일 페이지 좌측 매입처 패널 클릭
+  document.getElementById('mail-sup-list').addEventListener('click', ev => {
+    const it = ev.target.closest('[data-sup]');
+    if (it) selectMailSupplier(it.dataset.sup);
+  });
   initAutoIntervalUI();
   initSortUI();
   showView('dash'); // 실행 시 대시보드를 메인 화면으로
