@@ -1690,6 +1690,99 @@ function parsePurchaseOrder(wb) {
   }));
 }
 
+// ── 파일명에서 주문정보 해석 ──
+// 형식: (주문일_다올커머스_배송타입)매입처_주문처…담당자…보내는이…_다올직원(이름)
+// 예:  (2026_09_07_다올커머스 지점배송)웰크리_신한은행 합동금융센터_이춘임 팀장님_다올커머스_홍창의(단시연)
+// 작성자별 변형 대응: 구분자 _/공백 혼용 · 주문처+담당자가 한 토큰에 합쳐진 경우 ·
+// 지점명·보내는이 생략 가능 · 담당자는 '…님'으로 끝나는 토큰으로 식별
+function parseOrderInfoFromFilename(name) {
+  const base = String(name || '').replace(/\.[^.]+$/, '');
+  const m = base.match(/^\((\d{4})[._\-](\d{1,2})[._\-](\d{1,2})[._\s]+다올커머스[._\s]*([^)]*)\)(.*)$/);
+  if (!m) return null;
+  const orderDate = `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  const typeRaw = m[4] || '';
+  const shipType = typeRaw.includes('개별') ? '개별' : typeRaw.includes('지점') ? '지점' : typeRaw.includes('샘플') ? '샘플' : '';
+  const tokens = m[5].split('_').map(s => s.trim()).filter(Boolean);
+  const out = { orderDate, shipType, supplier:'', bankName:'', branchName:'', manager:'', shipper:'', staff:'' };
+  if (!tokens.length) return out;
+  out.supplier = tokens.shift();
+  if (tokens.length && /\([^)]*\)$/.test(tokens[tokens.length-1])) out.staff = tokens.pop();
+  // 남은 토큰: [주문처(+담당자)] [담당자] [보내는이] — 뒤에서부터 판별
+  if (tokens.length > 1 && !/님$/.test(tokens[tokens.length-1])) out.shipper = tokens.pop();
+  if (tokens.length > 1 && /님$/.test(tokens[tokens.length-1])) out.manager = tokens.pop();
+  let orderer = tokens.join(' ');
+  // 담당자가 주문처 토큰에 붙어 있는 경우: 끝의 '이름 직급님' 두 단어 분리
+  if (!out.manager && /님$/.test(orderer)) {
+    const words = orderer.split(/\s+/);
+    if (words.length >= 2) { out.manager = words.slice(-2).join(' '); orderer = words.slice(0, -2).join(' '); }
+  }
+  const sp = orderer.indexOf(' ');
+  out.bankName = sp > 0 ? orderer.slice(0, sp) : orderer;
+  out.branchName = sp > 0 ? orderer.slice(sp + 1).trim() : '';
+  return out;
+}
+
+// ── 매입처 지정 접수양식(명단형) 해석 — 헤더 행을 자동 탐색해 열 매칭 ──
+// 삼진어묵 접수양식(헤더 6행), 택배 접수양식(예시 행 포함) 등 매입처마다 다른 양식 대응.
+// 주문정보(주문일·은행명·매입처 등)는 파일명에서 가져온다.
+const VENDOR_COLS = {
+  companyName: ['받는분 성함','받으시는 분','받는사람','수령인','받는분'],
+  address:     ['받는분 주소','받는분총주소','받는분 총주소','수령인 주소'],
+  phone:       ['받는분 연락처(휴대폰)','받는분핸드폰','받으시는 분 전화','받는분 연락처','받는분 전화'],
+  productName: ['제품명','품목명','품명','상품명'],
+  qty:         ['수량'],
+  shipper:     ['보내는분 성함','보내시는 분','보내는분','발송인'],
+  memo:        ['배송메세지','배송메시지','배송메모'],
+  option:      ['옵션'],
+};
+// 별칭이 긴 것부터 대조 — '받는분 연락처'가 '받는분'(받는이)으로 오인되지 않도록
+const VENDOR_ALIASES = Object.entries(VENDOR_COLS)
+  .flatMap(([field, names]) => names.map(n => [n.replace(/\s/g, ''), field]))
+  .sort((a, b) => b[0].length - a[0].length);
+function matchVendorCol(header) {
+  const h = String(header || '').replace(/\s/g, '');
+  if (!h) return null;
+  for (const [alias, field] of VENDOR_ALIASES) {
+    if (h === alias || h.startsWith(alias)) return field;
+  }
+  return null;
+}
+
+function parseVendorListWb(wb, fileInfo) {
+  const clean = s => String(s == null ? '' : s).replace(/[‎‏‪-‮]/g, '').trim();
+  for (const sn of wb.SheetNames) {
+    const grid = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '' });
+    for (let hr = 0; hr < Math.min(grid.length, 15); hr++) {
+      const map = {};
+      (grid[hr] || []).forEach((h, c) => { const f = matchVendorCol(h); if (f && map[f] === undefined) map[f] = c; });
+      if (map.companyName === undefined || map.address === undefined ||
+          (map.productName === undefined && map.qty === undefined)) continue;
+      const fi = fileInfo || {};
+      const g = (row, f) => map[f] === undefined ? '' : clean(row[map[f]]);
+      const items = [];
+      for (let r = hr + 1; r < grid.length; r++) {
+        const row = grid[r] || [];
+        if (row.some(v => /ex\)|예시/.test(String(v)))) continue; // 양식의 예시 행 제외
+        const cn = g(row, 'companyName'), ad = g(row, 'address');
+        if (!cn && !ad) continue;
+        items.push({
+          carrier: '', num: '',
+          orderDate: fi.orderDate || '', bankName: fi.bankName || '', branchName: fi.branchName || '',
+          manager: fi.manager || '', productCode: '',
+          productName: g(row, 'productName'), shipType: fi.shipType || '', staff: fi.staff || '',
+          supplier: fi.supplier || '', qty: g(row, 'qty') || '1',
+          shipper: g(row, 'shipper') || fi.shipper || '',
+          companyName: cn, address: ad, phone: g(row, 'phone'),
+          memo: [g(row, 'memo'), g(row, 'option')].filter(Boolean).join(' '),
+          status: '대기중', steps: [], error: null, _po: true,
+        });
+      }
+      if (items.length) return items;
+    }
+  }
+  return null;
+}
+
 // 파일 1개 → 업로드 행 배열로 변환 (주문정보 이어받기는 같은 파일 안에서만 작동)
 function readFileRows(file, uploadMode) {
   return new Promise((resolve, reject) => {
@@ -1793,7 +1886,15 @@ function readFileRows(file, uploadMode) {
       // (FILTER 양식처럼 첫 시트가 표준 양식인 파일은 그쪽을 우선)
       if (!rows.length && isPurchaseOrderWb(wb)) {
         rows = parsePurchaseOrder(wb);
+        // 발주서 안에 없는 고객명(업체담당자)은 파일명에서 보충
+        const fi = parseOrderInfoFromFilename(file.name);
+        if (fi) rows.forEach(r => { if (!r.manager) r.manager = fi.manager; });
         if (uploadMode === 'update') rows = rows.filter(r => r.num);
+      }
+      // 매입처 지정 접수양식(명단형): 헤더 자동 탐색 + 파일명의 주문정보
+      if (!rows.length) {
+        const vRows = parseVendorListWb(wb, parseOrderInfoFromFilename(file.name));
+        if (vRows) rows = uploadMode === 'update' ? vRows.filter(r => r.num) : vRows;
       }
       rows.forEach(r => { r._file = file.name; });
       resolve(rows);
