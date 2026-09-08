@@ -844,7 +844,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
       ondrop="handleDrop(event)">
       <div class="dropzone-icon" style="font-size:1.5rem;color:var(--gray-400)">↑</div>
       <div class="dropzone-title">엑셀 파일을 드래그하거나 클릭하세요 (여러 파일 동시 가능)</div>
-      <div class="dropzone-sub">.xlsx · .xls · .xlsm · .csv 지원 — 주문일/은행명/지점명/고객명/품번/품명/배송타입/다올직원/매입처/수량/보내는이/받는이/고객주소/전화번호/택배사/운송장번호/비고<br>운송장번호 한 칸에 여러 개는 쉼표(,)로 구분 시 행 분리 · 구양식(주문처·담당자·채널·수하인/수취인 등)도 자동 인식됩니다<br><b>개별배송 명단</b>: 주문 정보는 첫 행에만 쓰고 아래 행은 비워두면 자동으로 이어받습니다 — 받는이·주소·전화번호·수량·송장번호·비고만 행마다 기재</div>
+      <div class="dropzone-sub">.xlsx · .xls · .xlsm · .csv 지원 — 주문일/은행명/지점명/고객명/품번/품명/배송타입/다올직원/매입처/수량/보내는이/받는이/고객주소/전화번호/택배사/운송장번호/비고<br>운송장번호 한 칸에 여러 개는 쉼표(,)로 구분 시 행 분리 · 구양식(주문처·담당자·채널·수하인/수취인 등)도 자동 인식됩니다<br><b>개별배송 명단</b>: 주문 정보는 첫 행에만 쓰고 아래 행은 비워두면 자동으로 이어받습니다 — 받는이·주소·전화번호·수량·송장번호·비고만 행마다 기재<br><b>발주서 파일</b>: 다올 표준 발주서(발주서+명단 시트)는 그대로 올리면 자동 인식되어 등록됩니다</div>
     </div>
     <input type="file" id="file-input" accept=".xlsx,.xls,.xlsm,.csv" multiple style="display:none" onchange="handleFiles(this.files); this.value=''">
 
@@ -1590,7 +1590,8 @@ function handleFiles(fileList) {
       ? `파일 ${okFiles.length}개 · 총 ${bulkData.length}건 인식됨`
       : `${bulkData.length}건 인식됨`;
     const parts = [];
-    if (okFiles.length > 1) parts.push(okFiles.map(f => `${f.name.replace(/\.[^.]+$/,'')} ${f.rows.length}건`).join(' · '));
+    if (okFiles.length > 1) parts.push(okFiles.map(f => `${f.name.replace(/\.[^.]+$/,'')} ${f.rows.length}건${f.rows[0]?._po ? '·발주서' : ''}`).join(' · '));
+    else if (bulkData.some(r => r._po)) parts.push('발주서 형식으로 인식');
     if (noNumCount > 0) parts.push(`송장번호 없음 ${noNumCount}건`);
     if (inhCount > 0) parts.push(`주문정보 이어받음 ${inhCount}건`);
     document.getElementById('upload-count').textContent = parts.length ? `${head} (${parts.join(' · ')})` : head;
@@ -1601,6 +1602,93 @@ function handleFiles(fileList) {
   });
 }
 function handleFile(file) { handleFiles(file ? [file] : []); } // 단일 파일 하위 호환
+
+// 엑셀 셀 값 → YYYY-MM-DD (시리얼 숫자·ISO 문자열·Date 모두 처리)
+function excelDateToYmd(v) {
+  if (v == null || v === '') return '';
+  if (v instanceof Date) {
+    return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+  }
+  if (typeof v === 'number' && v > 1000) {
+    const d = new Date((Math.floor(v) - 25569) * 86400 * 1000);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+  }
+  const s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.slice(0,10);
+  return s;
+}
+
+// ── 다올 표준 발주서 파일 해석 ──
+// 발주서 시트: 공급처(B2)=매입처 · 주문일(E2) · 주문처(B3)=은행명+지점명(공백 분리)
+//   · 담당자(E3)=다올직원 · 지점/개별(B4)=배송타입 · 발송인(B15)=보내는이 · 7행~ 품목 표
+// 명단 시트(이름 무관: 명단·고객명단 등 — 고객명·주소 헤더로 식별): 행별 배송정보
+// 명단이 없으면 배송지(B16) 셀의 "주소 ↵ 받는이 ↵ (전화)" 3줄을 해석해 품목 표 기준으로 등록
+function isPurchaseOrderWb(wb) {
+  const po = wb.Sheets['발주서'];
+  return !!(po && String(po['A2']?.v || '').trim() === '공급처');
+}
+
+function parsePurchaseOrder(wb) {
+  const po = wb.Sheets['발주서'];
+  const cv = addr => { const c = po[addr]; return (c == null || c.v == null) ? '' : String(c.v).trim(); };
+  const cleanText = s => String(s || '').replace(/[‎‏‪-‮]/g, '').trim(); // 보이지 않는 서식 문자 제거
+  const stripPhone = s => cleanText(s).replace(/\s*\(?0[\d\-\s]{8,}\)?\s*$/, '').trim();
+
+  const bankRaw = cv('B3');
+  const sp = bankRaw.indexOf(' ');
+  const typeRaw = cv('B4');
+  const common = {
+    carrier: '', num: '',
+    orderDate:   excelDateToYmd(po['E2'] ? po['E2'].v : ''),
+    bankName:    sp > 0 ? bankRaw.slice(0, sp) : bankRaw,
+    branchName:  sp > 0 ? bankRaw.slice(sp + 1).trim() : '',
+    manager: '', productCode: '',
+    shipType:    typeRaw.includes('지점') ? '지점' : typeRaw.includes('개별') ? '개별' : typeRaw.includes('샘플') ? '샘플' : typeRaw,
+    staff:       cv('E3'),
+    supplier:    cv('B2'),
+    shipper:     stripPhone(cv('B15')),
+    status: '대기중', steps: [], error: null, _po: true,
+  };
+
+  // 품목 표: 7행부터 '발송인' 행 전까지
+  const products = [];
+  for (let r = 7; r <= 40; r++) {
+    if (cv('A' + r) === '발송인') break;
+    const name = cv('B' + r);
+    if (name) products.push({ name, qty: cv('C' + r), memo: cv('G' + r) });
+  }
+
+  // 명단 시트 찾기: 다른 시트 중 헤더에 고객명·주소가 있는 첫 시트
+  for (const sn of wb.SheetNames) {
+    if (sn === '발주서') continue;
+    const json = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: '' });
+    if (!json.length || json[0]['고객명'] === undefined || json[0]['주소'] === undefined) continue;
+    return json
+      .filter(row => cleanText(row['고객명']) || cleanText(row['주소']))
+      .map(row => ({
+        ...common,
+        productName: cleanText(row['품명']) || products[0]?.name || '',
+        qty:         cleanText(row['수량']) || '1',
+        shipper:     stripPhone(row['보내는이']) || common.shipper,
+        companyName: cleanText(row['고객명']),
+        address:     cleanText(row['주소']),
+        phone:       cleanText(row['고객 연락처1'] || row['연락처'] || ''),
+        memo:        cleanText(row['비고']),
+      }));
+  }
+
+  // 명단 없음: 배송지(B16) 셀 3줄 해석
+  const dest = cv('B16').split(/\r?\n/).map(s => cleanText(s)).filter(Boolean);
+  const destAddr  = dest[0] && !dest[0].replace(/\s/g,'').includes('시트') ? dest[0] : '';
+  const destName  = dest[1] || '';
+  const destPhone = (dest[2] || '').replace(/[()]/g, '').trim();
+  return products.map(p => ({
+    ...common,
+    productName: p.name, qty: p.qty || '1',
+    companyName: destName, address: destAddr, phone: destPhone,
+    memo: p.memo || '',
+  }));
+}
 
 // 파일 1개 → 업로드 행 배열로 변환 (주문정보 이어받기는 같은 파일 안에서만 작동)
 function readFileRows(file, uploadMode) {
@@ -1700,6 +1788,12 @@ function readFileRows(file, uploadMode) {
         rows = rows.filter(r=>r.num);
       } else {
         rows = rows.filter(r=>r.orderDate||r.productName||r.num); // 완전히 빈 행 제외
+      }
+      // 표준 양식으로 인식된 행이 없고 발주서 형식이면 발주서 해석으로 전환
+      // (FILTER 양식처럼 첫 시트가 표준 양식인 파일은 그쪽을 우선)
+      if (!rows.length && isPurchaseOrderWb(wb)) {
+        rows = parsePurchaseOrder(wb);
+        if (uploadMode === 'update') rows = rows.filter(r => r.num);
       }
       rows.forEach(r => { r._file = file.name; });
       resolve(rows);
