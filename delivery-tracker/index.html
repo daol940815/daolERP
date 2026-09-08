@@ -1656,6 +1656,13 @@ function handleFiles(fileList) {
   });
 }
 
+// 중복 판정에 쓸 식별 정보(주문일·주문처·품번·품명·보내는이·받는이)가 2개 미만이면
+// 사실상 구분 불가능한 행이므로 중복으로 취급하지 않는다 (인식 실패가 중복으로 둔갑하는 것 방지)
+function dupCheckable(r) {
+  return [r.orderDate, r.bankName, r.branchName, r.productCode, r.productName, r.shipper, r.companyName]
+    .filter(v => String(v || '').trim()).length >= 2;
+}
+
 // ── 중복 사전 확인 (신규 등록 모드): 기존 등록 건·업로드 목록 내 중복을 미리 표시 ──
 // 실제 제외 판정은 등록 시(runBulk)의 검증이 기준이며, 여기서는 같은 규칙을 미리 보여준다
 function precheckDuplicates() {
@@ -1665,6 +1672,7 @@ function precheckDuplicates() {
   const seenKeys = new Set(), seenNums = new Set();
   bulkData.forEach(r => {
     if (!r.num) {
+      if (!dupCheckable(r)) return;
       const k = makeMatchKey(r);
       const ex = allItems.find(x => makeMatchKey(x) === k);
       if (ex) r._dup = ex.num ? `동일 주문이 이미 등록됨 (송장 ${ex.num})` : '동일 주문이 이미 등록됨 (송장미등록 상태)';
@@ -1842,11 +1850,11 @@ function parseOrderInfoFromFilename(name) {
 // 주문정보(주문일·은행명·매입처 등)는 파일명에서 가져온다.
 const VENDOR_COLS = {
   companyName: ['받는분 성함','받으시는 분','받는사람','수령인','받는분'],
-  address:     ['받는분 주소','받는분총주소','받는분 총주소','수령인 주소'],
+  address:     ['받는분 주소','받는분총주소','받는분 총주소','수령인 주소','주소'],
   phone:       ['받는분 연락처(휴대폰)','받는분핸드폰','받으시는 분 전화','받는분 연락처','받는분 전화'],
   productName: ['제품명','품목명','품명','상품명'],
   qty:         ['수량'],
-  shipper:     ['보내는분 성함','보내시는 분','보내는분','발송인'],
+  shipper:     ['보내는분 성함','보내시는 분','보내는사람','보내는 사람','보내는분','발송인'],
   memo:        ['배송메세지','배송메시지','배송메모'],
   option:      ['옵션'],
 };
@@ -1872,6 +1880,13 @@ function parseVendorListWb(wb, fileInfo) {
       (grid[hr] || []).forEach((h, c) => { const f = matchVendorCol(h); if (f && map[f] === undefined) map[f] = c; });
       if (map.companyName === undefined || map.address === undefined ||
           (map.productName === undefined && map.qty === undefined)) continue;
+      // 전화번호 열이 이름으로 안 잡히면: 받는이 열 뒤의 첫 연락처/전화 열 사용
+      // (같은 '연락처' 헤더가 보내는쪽·받는쪽에 중복될 때 받는쪽을 선택)
+      if (map.phone === undefined) {
+        for (let c = map.companyName + 1; c < (grid[hr] || []).length; c++) {
+          if (/연락처|전화|휴대폰|핸드폰/.test(String(grid[hr][c] || ''))) { map.phone = c; break; }
+        }
+      }
       const fi = fileInfo || {};
       const g = (row, f) => map[f] === undefined ? '' : clean(row[map[f]]);
       const items = [];
@@ -1997,6 +2012,15 @@ function readFileRows(file, uploadMode) {
       } else {
         rows = rows.filter(r=>r.orderDate||r.productName||r.num); // 완전히 빈 행 제외
       }
+      // 절반 인식 방지: 받는이가 전혀 인식되지 않았다면 접수양식(명단형) 해석을 시도해
+      // 받는이까지 읽히는 쪽을 채택 (송장등록 양식처럼 헤더 일부만 겹치는 파일 대응)
+      if (rows.length && rows.every(r => !r.companyName)) {
+        const vTry = parseVendorListWb(wb, parseOrderInfoFromFilename(file.name));
+        if (vTry && vTry.some(r => r.companyName)) {
+          rows = uploadMode === 'update' ? vTry.filter(r => r.num) : vTry;
+        }
+      }
+
       // 표준 양식으로 인식된 행이 없고 발주서 형식이면 발주서 해석으로 전환
       // (FILTER 양식처럼 첫 시트가 표준 양식인 파일은 그쪽을 우선)
       if (!rows.length && isPurchaseOrderWb(wb)) {
@@ -2080,7 +2104,7 @@ async function runBulk() {
       for (const item of bulkData) {
         if (!item.num) {
           // 같은 주문정보의 행이 이미 있으면 중복 등록 방지
-          const dup = allItems.find(x => makeMatchKey(x) === makeMatchKey(item));
+          const dup = dupCheckable(item) ? allItems.find(x => makeMatchKey(x) === makeMatchKey(item)) : null;
           if (dup) {
             duplicates++; done++;
             skippedRows.push({ item, reason: dup.num ? `동일 주문이 이미 등록됨 (송장 ${dup.num})` : '동일 주문이 이미 등록됨 (송장미등록 상태)' });
