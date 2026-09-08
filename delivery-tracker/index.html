@@ -375,6 +375,23 @@ tr.bundle-inner td { border-bottom-style:dashed; }
 .tb-right { margin-left:auto; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
 .auto-chip { font-size:11px; color:var(--gray-500); border:1px solid var(--gray-200); border-radius:20px; padding:3px 10px; display:inline-flex; gap:7px; align-items:center; }
 
+/* ── 등록 페이지 ── */
+.ucard { background:var(--white); border:1px solid var(--gray-100); border-radius:8px; padding:10px 14px; min-width:280px; flex:1; max-width:480px; }
+.ucard-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; gap:8px; }
+.ucard-name { font-size:12.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.utag { font-size:10px; font-weight:700; border-radius:10px; padding:2px 8px; white-space:nowrap; }
+.utag.po { background:#dbeafe; color:#1d4ed8; }
+.utag.vendor { background:#dcfce7; color:#15803d; }
+.utag.tmpl { background:var(--gray-100); color:var(--gray-500); }
+.ucard-meta { font-size:11.5px; color:var(--gray-500); line-height:1.7; }
+.ucard-meta b { color:var(--black); font-weight:600; }
+.ucard-warn { color:#b45309; font-weight:600; }
+.upv-table { border-collapse:collapse; font-size:12px; }
+.upv-table th { position:sticky; top:0; background:var(--gray-50); text-align:left; font-size:10.5px; color:var(--gray-400); font-weight:600; padding:7px 10px; border-bottom:1px solid var(--gray-100); white-space:nowrap; z-index:1; }
+.upv-table td { padding:6px 10px; border-bottom:1px solid var(--gray-50); white-space:nowrap; max-width:260px; overflow:hidden; text-overflow:ellipsis; }
+.upv-table tr.dup td { background:#fef9c3; }
+.upv-table td.inh { color:var(--gray-300); }
+
 /* ── 회신 메일 페이지 ── */
 .mail-wrap { display:grid; grid-template-columns:300px 1fr; flex:1; min-height:0; }
 .mail-sup-panel { border-right:1px solid var(--gray-100); overflow-y:auto; }
@@ -501,6 +518,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
   <span class="tb-label">보기</span>
   <button class="pill active" id="nav-view-dash" onclick="showView('dash')">대시보드</button>
   <button class="pill" id="nav-view-list" onclick="showView('list')">배송 목록</button>
+  <button class="pill" id="nav-view-upload" onclick="showView('upload')">등록</button>
   <button class="pill" id="nav-view-mail" onclick="showView('mail')">회신 메일</button>
   <span class="tb-divider"></span>
   <span class="tb-label">필터</span>
@@ -530,7 +548,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
   </span>
   <div class="tb-right">
     <button class="btn btn-outline btn-sm" onclick="openSingleModal()">+ 단건 등록</button>
-    <button class="btn btn-outline btn-sm" onclick="openUploadModal()">↑ 파일 업로드</button>
+    <button class="btn btn-outline btn-sm" onclick="showView('upload')">↑ 파일 등록</button>
     <button class="btn btn-outline btn-sm" onclick="downloadTemplate()">↓ 템플릿 다운로드</button>
     <button class="btn btn-outline btn-sm" onclick="exportReport()">↓ 보고서 다운로드</button>
     <button class="btn btn-outline btn-sm" onclick="exportReplyRequest()" title="송장미등록 건을 매입처별 시트로 정리한 회신 요청 문서 생성">↓ 회신요청서</button>
@@ -654,6 +672,60 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
     <!-- 대시보드 -->
     <div class="card dash-card" id="view-dash" style="display:none">
       <div id="dash-body"></div>
+    </div>
+
+    <!-- 등록 페이지 -->
+    <div class="card table-card" id="view-upload" style="display:none">
+      <div class="card-header" style="justify-content:space-between">
+        <div style="font-size:13px;font-weight:700">파일 등록 <span style="font-weight:400;color:var(--gray-400);font-size:12px">— 발주서 · 매입처 접수양식 · 업로드양식 자동 인식</span></div>
+        <button class="btn btn-outline btn-sm" onclick="downloadTemplate()">↓ 템플릿 다운로드</button>
+      </div>
+      <div style="overflow-y:auto;padding:1rem 1.2rem;display:flex;flex-direction:column;gap:1rem;flex:1;min-height:0">
+
+        <div style="display:flex;gap:12px;align-items:stretch;flex-wrap:wrap">
+          <div style="border:1px solid var(--gray-100);border-radius:8px;padding:12px 16px;width:250px;flex:none">
+            <label style="display:flex;gap:8px;align-items:center;font-size:13px;padding:5px 0;cursor:pointer">
+              <input type="radio" name="upload-mode" value="new" checked onchange="onUploadModeChange()"> 신규 등록
+            </label>
+            <label style="display:flex;gap:8px;align-items:center;font-size:13px;padding:5px 0;cursor:pointer">
+              <input type="radio" name="upload-mode" value="update" onchange="onUploadModeChange()"> 송장번호 업데이트
+            </label>
+            <div id="upload-mode-desc" style="font-size:11px;color:var(--gray-500);margin-top:6px">
+              송장번호 없이 등록된 항목도 포함해서 일괄 등록합니다.
+            </div>
+          </div>
+          <div class="dropzone" id="dropzone" style="flex:1;min-width:340px;margin:0;display:flex;flex-direction:column;justify-content:center"
+            onclick="document.getElementById('file-input').click()"
+            ondragover="event.preventDefault();this.classList.add('over')"
+            ondragleave="this.classList.remove('over')"
+            ondrop="handleDrop(event)">
+            <div class="dropzone-title">엑셀 파일을 드래그하거나 클릭하세요 (여러 개 동시 가능)</div>
+            <div class="dropzone-sub">표준 발주서(발주서+명단 시트) · 매입처 접수양식(파일명에서 주문정보 인식) · 업로드양식 — .xlsx .xls .xlsm .csv<br>양식의 주문 정보는 첫 행에만 쓰고 아래 행을 비우면 자동으로 이어받습니다 · 운송장번호 쉼표 구분 시 행 분리 · 구양식 자동 인식</div>
+          </div>
+          <input type="file" id="file-input" accept=".xlsx,.xls,.xlsm,.csv" multiple style="display:none" onchange="handleFiles(this.files); this.value=''">
+        </div>
+
+        <div id="upload-cards" style="display:none;gap:10px;flex-wrap:wrap"></div>
+
+        <div id="upload-preview" style="display:none;border:1px solid var(--gray-100);border-radius:8px;flex-direction:column;min-height:0">
+          <div style="padding:10px 14px;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <span style="font-size:13px;font-weight:700">미리보기</span>
+            <span id="upload-count" style="font-size:12px;color:var(--gray-500)"></span>
+            <span style="margin-left:auto;font-size:11px;color:var(--gray-400)">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#fef9c3;margin-right:4px;vertical-align:-1px"></span>이미 등록된 주문 (등록 시 제외)
+              &nbsp;&nbsp;<span style="color:var(--gray-300)">회색 글씨</span> = 이어받은 값
+            </span>
+          </div>
+          <div id="upload-preview-table" style="overflow:auto;max-height:46vh"></div>
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--gray-100)">
+            <button class="btn btn-outline" onclick="clearUpload()">비우기</button>
+            <div class="progress-wrap" style="flex:1"><div class="progress-bar" id="upload-progress"></div></div>
+            <span id="upload-text" style="font-size:12px;color:var(--gray-400);font-family:var(--mono)">0 / 0</span>
+            <button class="btn btn-black" id="btn-bulk" onclick="runBulkOrUpdate()">등록 시작</button>
+          </div>
+        </div>
+
+      </div>
     </div>
 
     <!-- 회신 메일 페이지 -->
@@ -818,51 +890,6 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
   </div>
 </div>
 
-<!-- ── 파일 업로드 모달 ── -->
-<div class="modal-bg" id="modal-upload">
-  <div class="modal" style="width:560px">
-    <div class="modal-header">
-      <div class="modal-title">파일 업로드</div>
-      <button class="modal-close" onclick="closeModal('modal-upload')">✕</button>
-    </div>
-    <!-- 업로드 모드 선택 -->
-    <div style="display:flex;gap:6px;margin-bottom:1rem">
-      <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius);cursor:pointer;font-size:12px" id="upload-mode-label-new">
-        <input type="radio" name="upload-mode" value="new" checked onchange="onUploadModeChange()"> 신규 등록
-      </label>
-      <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--radius);cursor:pointer;font-size:12px" id="upload-mode-label-update">
-        <input type="radio" name="upload-mode" value="update" onchange="onUploadModeChange()"> 송장번호 업데이트
-      </label>
-    </div>
-    <div id="upload-mode-desc" style="font-size:11px;color:var(--gray-500);margin-bottom:0.75rem;padding:8px 10px;background:var(--gray-50);border-radius:var(--radius)">
-      송장번호 없이 등록된 항목도 포함해서 일괄 등록합니다.
-    </div>
-    <div class="dropzone" id="dropzone"
-      onclick="document.getElementById('file-input').click()"
-      ondragover="event.preventDefault();this.classList.add('over')"
-      ondragleave="this.classList.remove('over')"
-      ondrop="handleDrop(event)">
-      <div class="dropzone-icon" style="font-size:1.5rem;color:var(--gray-400)">↑</div>
-      <div class="dropzone-title">엑셀 파일을 드래그하거나 클릭하세요 (여러 파일 동시 가능)</div>
-      <div class="dropzone-sub">.xlsx · .xls · .xlsm · .csv 지원 — 주문일/은행명/지점명/고객명/품번/품명/배송타입/다올직원/매입처/수량/보내는이/받는이/고객주소/전화번호/택배사/운송장번호/비고<br>운송장번호 한 칸에 여러 개는 쉼표(,)로 구분 시 행 분리 · 구양식(주문처·담당자·채널·수하인/수취인 등)도 자동 인식됩니다<br><b>개별배송 명단</b>: 주문 정보는 첫 행에만 쓰고 아래 행은 비워두면 자동으로 이어받습니다 — 받는이·주소·전화번호·수량·송장번호·비고만 행마다 기재<br><b>발주서 파일</b>: 다올 표준 발주서(발주서+명단 시트)는 그대로 올리면 자동 인식되어 등록됩니다</div>
-    </div>
-    <input type="file" id="file-input" accept=".xlsx,.xls,.xlsm,.csv" multiple style="display:none" onchange="handleFiles(this.files); this.value=''">
-
-    <div id="upload-preview" style="margin-top:1rem;display:none">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:0.75rem;flex-wrap:wrap">
-        <span id="upload-count" style="font-size:13px;font-weight:600"></span>
-        <div class="progress-wrap" style="flex:1"><div class="progress-bar" id="upload-progress"></div></div>
-        <span id="upload-text" style="font-size:12px;color:var(--gray-400);font-family:var(--mono)">0 / 0</span>
-      </div>
-      <div id="upload-preview-table" style="margin-bottom:0.75rem"></div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn btn-outline" onclick="closeModal('modal-upload')">닫기</button>
-        <button class="btn btn-black" id="btn-bulk" onclick="runBulkOrUpdate()">시작</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- ── 매입처 관리(주소록) 모달 ── -->
 <div class="modal-bg" id="modal-suppliers">
   <div class="modal" style="width:min(94vw,760px)">
@@ -931,6 +958,7 @@ const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // ── 상태 ──
 let allItems = []; // 전체 등록 데이터
 let bulkData = []; // 업로드 대기 데이터
+let uploadFiles = []; // 등록 페이지 파일별 요약 (name, rows)
 let currentFilter = 'all';
 let autoTimer = null;
 let autoCountdown = null;
@@ -1584,22 +1612,94 @@ function handleFiles(fileList) {
     bulkData.forEach((r, i) => r.id = i);
     if (failed.length) toast(`파일 읽기 실패: ${failed.join(', ')}`);
     if (!bulkData.length) { if (!failed.length) toast('처리할 행이 없습니다'); return; }
+    uploadFiles = okFiles;
+    precheckDuplicates();
+    renderUploadCards();
+    renderUploadPreview();
     const noNumCount = bulkData.filter(r=>!r.num).length;
     const inhCount = bulkData.filter(r=>r._inherited).length;
+    const dupCount = bulkData.filter(r=>r._dup).length;
     const head = okFiles.length > 1
-      ? `파일 ${okFiles.length}개 · 총 ${bulkData.length}건 인식됨`
-      : `${bulkData.length}건 인식됨`;
+      ? `파일 ${okFiles.length}개 · 총 ${bulkData.length}건 인식`
+      : `${bulkData.length}건 인식`;
     const parts = [];
-    if (okFiles.length > 1) parts.push(okFiles.map(f => `${f.name.replace(/\.[^.]+$/,'')} ${f.rows.length}건${f.rows[0]?._po ? '·발주서' : ''}`).join(' · '));
-    else if (bulkData.some(r => r._po)) parts.push('발주서 형식으로 인식');
     if (noNumCount > 0) parts.push(`송장번호 없음 ${noNumCount}건`);
-    if (inhCount > 0) parts.push(`주문정보 이어받음 ${inhCount}건`);
+    if (inhCount > 0) parts.push(`이어받음 ${inhCount}건`);
+    if (dupCount > 0) parts.push(`중복 예상 ${dupCount}건`);
     document.getElementById('upload-count').textContent = parts.length ? `${head} (${parts.join(' · ')})` : head;
-    renderUploadPreview();
     document.getElementById('upload-text').textContent = `0 / ${bulkData.length}`;
-    document.getElementById('upload-preview').style.display='block';
+    document.getElementById('upload-progress').style.width = '0%';
+    document.getElementById('upload-preview').style.display = 'flex';
+    // 등록 버튼에 실제 등록될 건수 표시
+    const mode = document.querySelector('input[name="upload-mode"]:checked')?.value || 'new';
+    const btn = document.getElementById('btn-bulk');
+    if (mode === 'update') btn.textContent = `업데이트 시작 (${bulkData.length}건)`;
+    else btn.textContent = dupCount > 0
+      ? `등록 시작 (중복 ${dupCount}건 제외, ${bulkData.length - dupCount}건)`
+      : `등록 시작 (${bulkData.length}건)`;
     toast(okFiles.length > 1 ? `파일 ${okFiles.length}개에서 ${bulkData.length}건 불러왔습니다` : `${bulkData.length}건 불러왔습니다`);
   });
+}
+
+// ── 중복 사전 확인 (신규 등록 모드): 기존 등록 건·업로드 목록 내 중복을 미리 표시 ──
+// 실제 제외 판정은 등록 시(runBulk)의 검증이 기준이며, 여기서는 같은 규칙을 미리 보여준다
+function precheckDuplicates() {
+  const mode = document.querySelector('input[name="upload-mode"]:checked')?.value || 'new';
+  bulkData.forEach(r => { r._dup = ''; });
+  if (mode !== 'new') return;
+  const seenKeys = new Set(), seenNums = new Set();
+  bulkData.forEach(r => {
+    if (!r.num) {
+      const k = makeMatchKey(r);
+      const ex = allItems.find(x => makeMatchKey(x) === k);
+      if (ex) r._dup = ex.num ? `동일 주문이 이미 등록됨 (송장 ${ex.num})` : '동일 주문이 이미 등록됨 (송장미등록 상태)';
+      else if (seenKeys.has(k)) r._dup = '업로드 목록 안에서 중복';
+      seenKeys.add(k);
+    } else {
+      const nk = r.carrier + '__' + r.num + '__' + (r.productName || '').trim();
+      if (isDuplicateNum(r.carrier, r.num, null, r.productName)) r._dup = `송장번호 ${r.num} 이미 등록됨`;
+      else if (seenNums.has(nk)) r._dup = '업로드 목록 안에서 중복';
+      seenNums.add(nk);
+    }
+  });
+}
+
+// ── 파일별 요약 카드 ──
+function renderUploadCards() {
+  const box = document.getElementById('upload-cards');
+  if (!uploadFiles.length) { box.style.display = 'none'; return; }
+  box.innerHTML = uploadFiles.map(f => {
+    const rows = f.rows;
+    const kind = rows[0]?._kind || 'tmpl';
+    const tag = kind === 'po' ? '<span class="utag po">발주서</span>'
+              : kind === 'vendor' ? '<span class="utag vendor">접수양식</span>'
+              : '<span class="utag tmpl">업로드양식</span>';
+    const r0 = rows[0] || {};
+    const dupN = rows.filter(r => r._dup).length;
+    const inhN = rows.filter(r => r._inherited).length;
+    let meta = '';
+    if (kind === 'po' || kind === 'vendor') {
+      const bits = [];
+      if (r0.orderDate) bits.push(`주문일 <b>${escapeHtml(r0.orderDate)}</b>`);
+      if (r0.supplier) bits.push(`매입처 <b>${escapeHtml(r0.supplier)}</b>`);
+      const bank = [r0.bankName, r0.branchName].filter(Boolean).join(' ');
+      if (bank) bits.push(`<b>${escapeHtml(bank)}</b>`);
+      const bits2 = [];
+      if (r0.manager) bits2.push(`담당 <b>${escapeHtml(r0.manager)}</b>`);
+      if (r0.shipper) bits2.push(`보내는이 <b>${escapeHtml(r0.shipper)}</b>`);
+      if (r0.shipType) bits2.push(`${escapeHtml(r0.shipType)}배송`);
+      meta = bits.join(' · ') + (bits2.length ? '<br>' + bits2.join(' · ') : '');
+      if (kind === 'vendor' && !r0.orderDate && !r0.supplier) meta = '<span class="ucard-warn">파일명에서 주문정보를 읽지 못했습니다 — 파일명 규칙 확인</span>';
+    } else {
+      meta = `행별 주문정보 기재${inhN ? ` · 이어받기 ${inhN}건` : ''}`;
+    }
+    const warn = dupN ? `<br><span class="ucard-warn">이미 등록된 주문과 겹침 ${dupN}건 — 표에서 노란색 행</span>` : '';
+    return `<div class="ucard">
+      <div class="ucard-head"><span class="ucard-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>${tag}</div>
+      <div class="ucard-meta">${meta} · <b>${rows.length}건</b>${warn}</div>
+    </div>`;
+  }).join('');
+  box.style.display = 'flex';
 }
 function handleFile(file) { handleFiles(file ? [file] : []); } // 단일 파일 하위 호환
 
@@ -1647,7 +1747,7 @@ function parsePurchaseOrder(wb) {
     staff:       cv('E3'),
     supplier:    cv('B2'),
     shipper:     stripPhone(cv('B15')),
-    status: '대기중', steps: [], error: null, _po: true,
+    status: '대기중', steps: [], error: null, _po: true, _kind: 'po',
   };
 
   // 품목 표: 7행부터 '발송인' 행 전까지
@@ -1774,7 +1874,7 @@ function parseVendorListWb(wb, fileInfo) {
           shipper: g(row, 'shipper') || fi.shipper || '',
           companyName: cn, address: ad, phone: g(row, 'phone'),
           memo: [g(row, 'memo'), g(row, 'option')].filter(Boolean).join(' '),
-          status: '대기중', steps: [], error: null, _po: true,
+          status: '대기중', steps: [], error: null, _po: true, _kind: 'vendor',
         });
       }
       if (items.length) return items;
@@ -1904,36 +2004,39 @@ function readFileRows(file, uploadMode) {
   });
 }
 
-// 업로드 미리보기 표 — 이어받은 주문정보는 회색으로 표시해 어느 주문에 붙었는지 확인 가능
+// 업로드 미리보기 표 — 전체 항목 표시, 이어받은 값은 회색, 중복 예상 행은 노란색
 function renderUploadPreview() {
   const box = document.getElementById('upload-preview-table');
   if (!box) return;
-  const MAX = 15;
+  const MAX = 300;
   const multiFile = new Set(bulkData.map(r=>r._file)).size > 1;
   const cols = [
     ...(multiFile ? [['_file','파일',false]] : []),
     ['orderDate','주문일',true], ['bankName','은행명',true], ['branchName','지점명',true],
-    ['productName','품명',true], ['qty','수량',false], ['companyName','받는이',false],
-    ['address','주소',false], ['num','송장번호',false],
+    ['manager','고객명',true], ['productCode','품번',true], ['productName','품명',true],
+    ['shipType','배송타입',true], ['staff','다올직원',true], ['supplier','매입처',true],
+    ['qty','수량',false], ['shipper','보내는이',true], ['companyName','받는이',false],
+    ['address','고객주소',false], ['phone','전화번호',false],
+    ['carrier','택배사',false], ['num','송장번호',false], ['memo','비고',false],
+    ['_dup','사유',false],
   ];
   const head = cols.map(c=>`<th>${c[1]}</th>`).join('');
   const body = bulkData.slice(0, MAX).map(r => {
     const tds = cols.map(([f,,isOrder]) => {
-      const raw = f === '_file' ? String(r._file||'').replace(/\.[^.]+$/,'') : String(r[f] ?? '');
+      let raw;
+      if (f === '_file') raw = String(r._file||'').replace(/\.[^.]+$/,'');
+      else if (f === 'carrier') raw = r.carrier ? (carriers[r.carrier]?.name || r.carrier) : '';
+      else if (f === '_dup') raw = r._dup || '';
+      else raw = String(r[f] ?? '');
       const v = escapeHtml(raw);
-      return (isOrder && r._inherited)
-        ? `<td style="color:var(--gray-400)">${v}</td>`
-        : `<td>${v}</td>`;
+      if (f === '_dup' && v) return `<td style="color:#854d0e">${v}</td>`;
+      return (isOrder && r._inherited) ? `<td class="inh">${v}</td>` : `<td>${v}</td>`;
     }).join('');
-    return `<tr>${tds}</tr>`;
+    return `<tr${r._dup ? ' class="dup"' : ''}>${tds}</tr>`;
   }).join('');
   const more = bulkData.length > MAX
-    ? `<div style="font-size:11px;color:var(--gray-400);margin-top:4px">외 ${bulkData.length - MAX}건 — 회색 글씨는 위 주문에서 이어받은 값입니다</div>`
-    : `<div style="font-size:11px;color:var(--gray-400);margin-top:4px">회색 글씨는 위 주문에서 이어받은 값입니다</div>`;
-  box.innerHTML = `
-    <div style="max-height:180px;overflow:auto;border:1px solid var(--gray-200);border-radius:6px">
-      <table class="summary-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
-    </div>${bulkData.some(r=>r._inherited) ? more : ''}`;
+    ? `<tr><td colspan="${cols.length}" style="color:var(--gray-400);font-size:11px">외 ${bulkData.length - MAX}건 — 표에는 ${MAX}건까지 표시됩니다</td></tr>` : '';
+  box.innerHTML = `<table class="upv-table"><thead><tr>${head}</tr></thead><tbody>${body}${more}</tbody></table>`;
 }
 
 async function runBulkOrUpdate() {
@@ -1994,11 +2097,10 @@ async function runBulk() {
     bulkRunning = false;
     btn.disabled=false; btn.innerHTML='시작';
   }
-  closeModal('modal-upload');
   // 제외된 행이 있으면 어떤 행이 왜 빠졌는지 목록으로 안내
   let skipHtml = '';
   if (skippedRows.length) {
-    const multiFile = new Set(bulkData.map(r=>r._file)).size > 1;
+    const multiFile = uploadFiles.length > 1;
     const rows = skippedRows.slice(0, 30).map(({item, reason}) =>
       `<tr>${multiFile?`<td>${escapeHtml(String(item._file||'').replace(/\.[^.]+$/,''))}</td>`:''}<td>${escapeHtml(item.productName||'-')}</td><td>${escapeHtml(item.companyName||'-')}</td><td style="color:var(--gray-500)">${escapeHtml(reason)}</td></tr>`).join('');
     skipHtml = `
@@ -2008,6 +2110,7 @@ async function runBulk() {
       <div style="font-size:11px;color:var(--gray-400);margin-top:6px">같은 주문(주문일·은행명·지점명·품번·품명·보내는이·받는이가 모두 동일)이 이미 등록되어 있으면 제외됩니다. 실제로 별개 주문이라면 품번이나 비고를 다르게 해서 다시 업로드하세요.</div>`;
   }
   showChangeSummary(transitionCounts, '일괄 등록 결과', skipHtml);
+  clearUpload();
   toast(duplicates > 0 ? `처리 완료 (중복 제외 ${duplicates}건)` : `${bulkData.length}건 처리 완료`);
 }
 
@@ -2076,7 +2179,7 @@ async function runBulkUpdate() {
   saveLocal(); updateStats(); renderTable();
   bulkRunning = false;
   btn.disabled=false; btn.innerHTML='시작';
-  closeModal('modal-upload');
+  clearUpload();
   const extras = [];
   if (extra) extras.push(`추가 송장 분리 등록 ${extra}건`);
   if (dup) extras.push(`중복 제외 ${dup}건`);
@@ -2276,9 +2379,11 @@ function showView(v) {
   document.getElementById('view-list').style.display = v==='list' ? 'flex' : 'none';
   document.getElementById('view-dash').style.display = v==='dash' ? 'flex' : 'none';
   document.getElementById('view-mail').style.display = v==='mail' ? 'flex' : 'none';
+  document.getElementById('view-upload').style.display = v==='upload' ? 'flex' : 'none';
   document.getElementById('nav-view-list').classList.toggle('active', v==='list');
   document.getElementById('nav-view-dash').classList.toggle('active', v==='dash');
   document.getElementById('nav-view-mail').classList.toggle('active', v==='mail');
+  document.getElementById('nav-view-upload').classList.toggle('active', v==='upload');
   if (v === 'dash') { syncFromDb(); renderDashboard(); }
   if (v === 'mail') { openMailPage(); }
 }
@@ -2944,25 +3049,28 @@ function onUploadModeChange() {
   const btnBulk = document.getElementById('btn-bulk');
   // 파일 선택 초기화
   document.getElementById('upload-preview').style.display='none';
+  document.getElementById('upload-cards').style.display='none';
   document.getElementById('file-input').value='';
-  bulkData=[];
+  bulkData=[]; uploadFiles=[];
   if (mode === 'update') {
     desc.textContent = '송장번호가 있는 행을 읽어, 주문일+주문처+상품명+수량+수하인+수취인으로 기존 항목을 찾아 송장번호를 업데이트합니다.';
     if (btnBulk) btnBulk.textContent = '업데이트 시작';
   } else {
     desc.textContent = '송장번호 없이 등록된 항목도 포함해서 일괄 등록합니다.';
-    if (btnBulk) btnBulk.textContent = '시작';
+    if (btnBulk) btnBulk.textContent = '등록 시작';
   }
 }
 
-function openUploadModal() {
-  document.getElementById('upload-preview').style.display='none';
-  document.getElementById('upload-progress').style.width='0%';
-  document.getElementById('upload-text').textContent='0 / 0';
-  // 모드 초기화
-  const radios = document.querySelectorAll('input[name="upload-mode"]');
-  if (radios.length) { radios[0].checked=true; onUploadModeChange(); }
-  document.getElementById('modal-upload').classList.add('open');
+// 등록 페이지 초기화(비우기) — 처리 중에는 무시
+function clearUpload() {
+  if (bulkRunning) { toast('처리 중에는 비울 수 없습니다'); return; }
+  bulkData = [];
+  uploadFiles = [];
+  document.getElementById('upload-cards').style.display = 'none';
+  document.getElementById('upload-preview').style.display = 'none';
+  document.getElementById('upload-progress').style.width = '0%';
+  document.getElementById('upload-text').textContent = '0 / 0';
+  document.getElementById('file-input').value = '';
 }
 
 // ── 정렬 ──
@@ -3810,8 +3918,6 @@ async function loadFromStorage() {
 // ── 유틸 ──
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 function closeModal(id){
-  // 업로드 처리 중에는 실수로 닫아 중단되는 사고 방지
-  if (id === 'modal-upload' && bulkRunning) { toast('업로드 처리 중에는 창을 닫을 수 없습니다'); return; }
   document.getElementById(id).classList.remove('open');
 }
 function toast(msg){
@@ -3824,7 +3930,7 @@ function toast(msg){
 // ── 키보드 ──
 document.addEventListener('keydown', e=>{
   if (e.key==='Escape') {
-    ['modal-single','modal-upload','modal-grid','modal-summary','modal-suppliers'].forEach(closeModal);
+    ['modal-single','modal-grid','modal-summary','modal-suppliers'].forEach(closeModal);
   }
   if (e.key==='Enter' && document.getElementById('modal-single').classList.contains('open')) {
     submitSingle();
