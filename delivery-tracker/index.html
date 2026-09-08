@@ -391,6 +391,16 @@ tr.bundle-inner td { border-bottom-style:dashed; }
 .upv-table td { padding:6px 10px; border-bottom:1px solid var(--gray-50); white-space:nowrap; max-width:260px; overflow:hidden; text-overflow:ellipsis; }
 .upv-table tr.dup td { background:#fef9c3; }
 .upv-table td.inh { color:var(--gray-300); }
+.utag.variant { background:#fef3c7; color:#b45309; }
+.ucard-variant { border-color:#fcd34d; box-shadow:0 0 0 1px #fcd34d inset; }
+.map-box { margin-top:8px; border-top:1px dashed var(--gray-100); padding-top:8px; font-size:11px; line-height:2; }
+.map-title { font-size:10px; font-weight:700; letter-spacing:1px; color:var(--gray-400); text-transform:uppercase; margin-bottom:3px; }
+.map-pair { display:inline-flex; align-items:center; gap:3px; background:var(--gray-50); border:1px solid var(--gray-100); border-radius:4px; padding:1px 7px; margin:1px 3px 1px 0; white-space:nowrap; }
+.map-pair .map-src { color:var(--gray-500); }
+.map-pair .map-arrow { color:var(--gray-300); }
+.map-pair.map-guess { background:#fef3c7; border-color:#fcd34d; }
+.map-miss { color:var(--gray-400); margin-top:2px; }
+.map-notice { font-size:11px; margin-top:6px; padding:7px 10px; border-radius:6px; background:#fffbeb; border:1px solid #fde68a; color:#854d0e; line-height:1.6; }
 
 /* ── 회신 메일 페이지 ── */
 .mail-wrap { display:grid; grid-template-columns:300px 1fr; flex:1; min-height:0; }
@@ -887,6 +897,29 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
     <div style="display:flex;gap:8px;margin-top:1.25rem;justify-content:flex-end">
       <button class="btn btn-outline" onclick="closeModal('modal-single')">취소</button>
       <button class="btn btn-black" id="btn-single-submit" onclick="submitSingle()">등록 및 조회</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 열 매핑 수정 모달 ── -->
+<div class="modal-bg" id="modal-colmap">
+  <div class="modal" style="width:min(94vw,680px)">
+    <div class="modal-header">
+      <div class="modal-title">열 매핑 수정 <span id="colmap-file" style="font-weight:400;color:var(--gray-400);font-size:12px"></span></div>
+      <button class="modal-close" onclick="closeModal('modal-colmap')">✕</button>
+    </div>
+    <div style="font-size:11.5px;color:var(--gray-500);margin-bottom:0.6rem">
+      각 원본 열을 프로그램의 어떤 항목으로 읽을지 지정하세요. 저장하면 같은 양식의 파일은 다음부터 자동 적용됩니다 (실무자 전원 공유).
+    </div>
+    <div style="max-height:52vh;overflow:auto;border:1px solid var(--gray-200);border-radius:6px">
+      <table class="summary-table">
+        <thead><tr><th style="width:36px">열</th><th>원본 헤더</th><th>첫 행 값</th><th style="width:150px">프로그램 항목</th></tr></thead>
+        <tbody id="colmap-tbody"></tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:0.8rem">
+      <button class="btn btn-outline" onclick="closeModal('modal-colmap')">취소</button>
+      <button class="btn btn-black" onclick="applyColmap()">적용 및 저장</button>
     </div>
   </div>
 </div>
@@ -1597,11 +1630,12 @@ function handleDrop(e) {
 }
 
 // 여러 파일 동시 업로드: 각 파일을 읽어 하나의 업로드 목록으로 합침
-function handleFiles(fileList) {
+async function handleFiles(fileList) {
   const files = Array.from(fileList || []).filter(Boolean);
   if (!files.length) return;
   if (typeof XLSX==='undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
   const uploadMode = document.querySelector('input[name="upload-mode"]:checked')?.value || 'new';
+  await ensureColMaps(); // 저장된 열 매핑을 먼저 불러와 같은 양식에 자동 적용
   Promise.all(files.map(f =>
     readFileRows(f, uploadMode)
       .then(rows => ({ name: f.name, rows }))
@@ -1628,32 +1662,36 @@ function handleFiles(fileList) {
     }
     document.getElementById('upload-empty').style.display = 'none';
     uploadFiles = okFiles;
-    precheckDuplicates();
-    renderUploadCards();
-    renderUploadPreview();
-    const noNumCount = bulkData.filter(r=>!r.num).length;
-    const inhCount = bulkData.filter(r=>r._inherited).length;
-    const dupCount = bulkData.filter(r=>r._dup).length;
-    const head = okFiles.length > 1
-      ? `파일 ${okFiles.length}개 · 총 ${bulkData.length}건 인식`
-      : `${bulkData.length}건 인식`;
-    const parts = [];
-    if (noNumCount > 0) parts.push(`송장번호 없음 ${noNumCount}건`);
-    if (inhCount > 0) parts.push(`이어받음 ${inhCount}건`);
-    if (dupCount > 0) parts.push(`중복 예상 ${dupCount}건`);
-    document.getElementById('upload-count').textContent = parts.length ? `${head} (${parts.join(' · ')})` : head;
-    document.getElementById('upload-text').textContent = `0 / ${bulkData.length}`;
-    document.getElementById('upload-progress').style.width = '0%';
-    document.getElementById('upload-preview').style.display = 'flex';
-    // 등록 버튼에 실제 등록될 건수 표시
-    const mode = document.querySelector('input[name="upload-mode"]:checked')?.value || 'new';
-    const btn = document.getElementById('btn-bulk');
-    if (mode === 'update') btn.textContent = `업데이트 시작 (${bulkData.length}건)`;
-    else btn.textContent = dupCount > 0
-      ? `등록 시작 (중복 ${dupCount}건 제외, ${bulkData.length - dupCount}건)`
-      : `등록 시작 (${bulkData.length}건)`;
+    refreshUploadViews();
     toast(okFiles.length > 1 ? `파일 ${okFiles.length}개에서 ${bulkData.length}건 불러왔습니다` : `${bulkData.length}건 불러왔습니다`);
   });
+}
+
+// 중복 사전확인·카드·미리보기·건수·버튼을 한 번에 갱신 (업로드·매핑 수정 공용)
+function refreshUploadViews() {
+  precheckDuplicates();
+  renderUploadCards();
+  renderUploadPreview();
+  const noNumCount = bulkData.filter(r=>!r.num).length;
+  const inhCount = bulkData.filter(r=>r._inherited).length;
+  const dupCount = bulkData.filter(r=>r._dup).length;
+  const head = uploadFiles.length > 1
+    ? `파일 ${uploadFiles.length}개 · 총 ${bulkData.length}건 인식`
+    : `${bulkData.length}건 인식`;
+  const parts = [];
+  if (noNumCount > 0) parts.push(`송장번호 없음 ${noNumCount}건`);
+  if (inhCount > 0) parts.push(`이어받음 ${inhCount}건`);
+  if (dupCount > 0) parts.push(`중복 예상 ${dupCount}건`);
+  document.getElementById('upload-count').textContent = parts.length ? `${head} (${parts.join(' · ')})` : head;
+  document.getElementById('upload-text').textContent = `0 / ${bulkData.length}`;
+  document.getElementById('upload-progress').style.width = '0%';
+  document.getElementById('upload-preview').style.display = 'flex';
+  const mode = document.querySelector('input[name="upload-mode"]:checked')?.value || 'new';
+  const btn = document.getElementById('btn-bulk');
+  if (mode === 'update') btn.textContent = `업데이트 시작 (${bulkData.length}건)`;
+  else btn.textContent = dupCount > 0
+    ? `등록 시작 (중복 ${dupCount}건 제외, ${bulkData.length - dupCount}건)`
+    : `등록 시작 (${bulkData.length}건)`;
 }
 
 // 중복 판정에 쓸 식별 정보(주문일·주문처·품번·품명·보내는이·받는이)가 2개 미만이면
@@ -1691,12 +1729,17 @@ function precheckDuplicates() {
 function renderUploadCards() {
   const box = document.getElementById('upload-cards');
   if (!uploadFiles.length) { box.style.display = 'none'; return; }
-  box.innerHTML = uploadFiles.map(f => {
+  box.innerHTML = uploadFiles.map((f, fi) => {
     const rows = f.rows;
     const kind = rows[0]?._kind || 'tmpl';
-    const tag = kind === 'po' ? '<span class="utag po">발주서</span>'
-              : kind === 'vendor' ? '<span class="utag vendor">접수양식</span>'
-              : '<span class="utag tmpl">업로드양식</span>';
+    const m = rows[0]?._vmeta;
+    const variant = !!(m && m.variant);
+    let tag;
+    if (kind === 'po') tag = '<span class="utag po">발주서</span>';
+    else if (kind === 'vendor') tag = variant
+      ? '<span class="utag variant">변형양식 — 확인 필요</span>'
+      : `<span class="utag vendor">접수양식${m && m.learned ? ' (저장된 매핑)' : ''}</span>`;
+    else tag = '<span class="utag tmpl">업로드양식</span>';
     const r0 = rows[0] || {};
     const dupN = rows.filter(r => r._dup).length;
     const inhN = rows.filter(r => r._inherited).length;
@@ -1717,13 +1760,112 @@ function renderUploadCards() {
       meta = `행별 주문정보 기재${inhN ? ` · 이어받기 ${inhN}건` : ''}`;
     }
     const warn = dupN ? `<br><span class="ucard-warn">이미 등록된 주문과 겹침 ${dupN}건 — 표에서 노란색 행</span>` : '';
-    return `<div class="ucard">
+
+    // 접수양식: 열 매핑 표시 + 확인 안내 + 매핑 수정
+    let mapHtml = '';
+    if (kind === 'vendor' && m) {
+      const chips = Object.entries(m.map)
+        .filter(([f2, c]) => c !== undefined && VENDOR_FIELD_LABELS[f2])
+        .sort((a, b) => a[1] - b[1])
+        .map(([f2, c]) => {
+          const srcName = m.headerRow[c] || (colLetter(c) + '열');
+          const guess = (f2 === 'phone' && m.positionalPhone) ? ' map-guess' : '';
+          return `<span class="map-pair${guess}"><span class="map-src">${escapeHtml(srcName)}</span><span class="map-arrow">→</span><b>${VENDOR_FIELD_LABELS[f2]}</b></span>`;
+        }).join('');
+      const missLine = m.unmatched.length
+        ? `<div class="map-miss">미인식 열(버려짐): ${m.unmatched.map(escapeHtml).join(' · ')}</div>` : '';
+      let notice = '';
+      if (variant) {
+        const why = [];
+        if (m.fallback) why.push('표준과 다른 양식이라 자동 추정으로 읽었습니다');
+        if (m.coreMissing.includes('qty')) why.push('<b>수량 열이 없어 전량 1로 등록</b>됩니다');
+        if (m.coreMissing.includes('phone') && m.map.phone === undefined) why.push('전화번호 열을 찾지 못했습니다');
+        if (m.positionalPhone) why.push('노란 표시(전화번호)는 위치로 추정한 매핑입니다');
+        notice = `<div class="map-notice">${why.join(' · ') || '표준과 다른 양식입니다'} — 미리보기에서 값 확인 후 등록하세요. 매핑이 틀렸다면 [매핑 수정]으로 바로잡을 수 있습니다 (저장되어 같은 양식에 자동 적용).</div>`;
+      }
+      mapHtml = `<div class="map-box">
+        <div class="map-title">열 매핑 — 원본 열 → 프로그램 항목
+          <button class="btn btn-outline btn-sm" style="float:right;padding:1px 8px;font-size:10.5px" onclick="openColmapModal(${fi})">매핑 수정</button></div>
+        ${chips}${missLine}${notice}</div>`;
+    }
+    return `<div class="ucard${variant ? ' ucard-variant' : ''}">
       <div class="ucard-head"><span class="ucard-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>${tag}</div>
       <div class="ucard-meta">${meta} · <b>${rows.length}건</b>${warn}</div>
+      ${mapHtml}
     </div>`;
   }).join('');
   box.style.display = 'flex';
 }
+
+// ── 열 매핑 수정 모달 ──
+const COLMAP_FIELD_OPTIONS = [
+  ['', '(무시)'], ['companyName','받는이'], ['address','고객주소'], ['phone','전화번호'],
+  ['productName','품명'], ['qty','수량'], ['shipper','보내는이'], ['memo','비고'],
+  ['num','송장번호'], ['carrier','택배사'],
+];
+let colmapTarget = -1;
+
+function openColmapModal(fi) {
+  const f = uploadFiles[fi];
+  const m = f?.rows[0]?._vmeta;
+  if (!m) { toast('매핑 정보를 찾을 수 없습니다'); return; }
+  colmapTarget = fi;
+  const colToField = {};
+  Object.entries(m.map).forEach(([f2, c]) => { if (colToField[c] === undefined) colToField[c] = f2; });
+  const sample = m.grid[m.hr + 1] || [];
+  document.getElementById('colmap-file').textContent = f.name;
+  document.getElementById('colmap-tbody').innerHTML = m.headerRow.map((h, c) => {
+    if (!h && sample[c] == null) return '';
+    const cur = colToField[c] || '';
+    const opts = COLMAP_FIELD_OPTIONS.map(([v, l]) =>
+      `<option value="${v}" ${v === cur ? 'selected' : ''}>${l}</option>`).join('');
+    const sv = String(sample[c] == null ? '' : sample[c]).slice(0, 22);
+    return `<tr>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--gray-400)">${colLetter(c)}</td>
+      <td>${escapeHtml(h || '(헤더 없음)')}</td>
+      <td style="color:var(--gray-400);font-size:11px">${escapeHtml(sv)}</td>
+      <td><select class="colmap-sel" data-col="${c}" style="padding:4px 8px">${opts}</select></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('modal-colmap').classList.add('open');
+}
+
+async function applyColmap() {
+  const f = uploadFiles[colmapTarget];
+  const m = f?.rows[0]?._vmeta;
+  if (!m) return;
+  const newMap = {};
+  let dupField = null;
+  document.querySelectorAll('.colmap-sel').forEach(sel => {
+    const field = sel.value;
+    if (!field) return;
+    if (newMap[field] !== undefined) dupField = field;
+    else newMap[field] = Number(sel.dataset.col);
+  });
+  if (dupField) { toast(`'${VENDOR_FIELD_LABELS[dupField]}' 항목이 두 열에 지정되었습니다 — 하나만 선택하세요`); return; }
+  if (newMap.companyName === undefined && newMap.address === undefined) { toast('받는이 또는 고객주소는 지정해야 합니다'); return; }
+  const items = buildVendorRows(m.grid, m.hr, newMap, parseOrderInfoFromFilename(f.name));
+  if (!items.length) { toast('이 매핑으로는 인식되는 행이 없습니다'); return; }
+  const mappedCols = new Set(Object.values(newMap));
+  items[0]._vmeta = {
+    ...m, map: newMap, positionalPhone: false, learned: true, fallback: false, variant: false,
+    unmatched: m.headerRow.filter((h, c) => h && !mappedCols.has(c)),
+    coreMissing: VENDOR_CORE_FIELDS.filter(f2 => newMap[f2] === undefined),
+  };
+  items.forEach(r => { r._file = f.name; });
+  f.rows = items;
+  bulkData = uploadFiles.flatMap(x => x.rows);
+  bulkData.forEach((r, i) => { r.id = i; });
+  refreshUploadViews();
+  closeModal('modal-colmap');
+  // 학습 저장: 같은 헤더 구성의 파일은 다음부터 자동 적용 (실무자 전원 공유)
+  colMapStore[m.sig] = newMap;
+  try {
+    const res = await apiPost('/db/colmaps', [{ id: m.sig, mapping: newMap, sample: m.headerRow.filter(Boolean).slice(0, 8).join(' | ') }]);
+    toast(res.ok ? '매핑 적용·저장 완료 — 같은 양식은 다음부터 자동 적용됩니다' : '매핑은 적용됐지만 저장 실패: ' + (res.error || ''));
+  } catch (e) { toast('매핑은 적용됐지만 저장에 실패했습니다'); }
+}
+
 function handleFile(file) { handleFiles(file ? [file] : []); } // 단일 파일 하위 호환
 
 // 엑셀 셀 값 → YYYY-MM-DD (시리얼 숫자·ISO 문자열·Date 모두 처리)
@@ -1857,6 +1999,8 @@ const VENDOR_COLS = {
   shipper:     ['보내는분 성함','보내시는 분','보내는사람','보내는 사람','보내는분','발송인'],
   memo:        ['배송메세지','배송메시지','배송메모'],
   option:      ['옵션'],
+  num:         ['송장번호','운송장번호','운송장 번호'],
+  carrier:     ['택배사','배송사'],
 };
 // 별칭이 긴 것부터 대조 — '받는분 연락처'가 '받는분'(받는이)으로 오인되지 않도록
 const VENDOR_ALIASES = Object.entries(VENDOR_COLS)
@@ -1871,43 +2015,106 @@ function matchVendorCol(header) {
   return null;
 }
 
-function parseVendorListWb(wb, fileInfo) {
+// 화면 표시용 항목 이름
+const VENDOR_FIELD_LABELS = {
+  companyName:'받는이', address:'고객주소', phone:'전화번호', productName:'품명',
+  qty:'수량', shipper:'보내는이', memo:'비고', option:'비고(옵션)', num:'송장번호', carrier:'택배사',
+};
+const VENDOR_CORE_FIELDS = ['companyName','address','productName','qty','phone'];
+
+function hash36js(str) {
+  let h1 = 5381, h2 = 52711;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    h1 = ((h1 * 33) ^ c) >>> 0; h2 = ((h2 * 31) ^ c) >>> 0;
+  }
+  return h1.toString(36) + h2.toString(36);
+}
+// 헤더 구성 시그니처 — 같은 양식(같은 헤더 배열)이면 같은 값
+function vendorSig(headerRow) {
+  return 'v' + hash36js(headerRow.map(h => String(h || '').replace(/\s/g, '')).join('|').replace(/\|+$/, ''));
+}
+function colLetter(c) {
+  let s = ''; c = Number(c);
+  do { s = String.fromCharCode(65 + (c % 26)) + s; c = Math.floor(c / 26) - 1; } while (c >= 0);
+  return s;
+}
+
+// 학습된 열 매핑 (Supabase 공유) — 매핑 수정으로 저장하면 같은 양식에 자동 적용
+let colMapStore = {};
+let _colMapsPromise = null;
+function ensureColMaps() {
+  if (!_colMapsPromise) {
+    _colMapsPromise = apiGet('/db/colmaps').then(r => {
+      (r.rows || []).forEach(row => { if (row.id && row.mapping) colMapStore[row.id] = row.mapping; });
+    }).catch(() => {});
+  }
+  return _colMapsPromise;
+}
+
+// 매핑(항목→열번호)으로 명단형 행들을 생성
+function buildVendorRows(grid, hr, map, fileInfo) {
   const clean = s => String(s == null ? '' : s).replace(/[‎‏‪-‮]/g, '').trim();
+  const fi = fileInfo || {};
+  const g = (row, f) => map[f] === undefined ? '' : clean(row[map[f]]);
+  const items = [];
+  for (let r = hr + 1; r < grid.length; r++) {
+    const row = grid[r] || [];
+    if (row.some(v => /ex\)|예시/.test(String(v)))) continue; // 양식의 예시 행 제외
+    const cn = g(row, 'companyName'), ad = g(row, 'address');
+    if (!cn && !ad) continue;
+    const carRaw = g(row, 'carrier');
+    items.push({
+      carrier: carRaw ? carrierFromStr(carRaw) : '',
+      num: g(row, 'num').replace(/[^0-9A-Za-z]/g, ''),
+      orderDate: fi.orderDate || '', bankName: fi.bankName || '', branchName: fi.branchName || '',
+      manager: fi.manager || '', productCode: '',
+      productName: g(row, 'productName'), shipType: fi.shipType || '', staff: fi.staff || '',
+      supplier: fi.supplier || '', qty: g(row, 'qty') || '1',
+      shipper: g(row, 'shipper') || fi.shipper || '',
+      companyName: cn, address: ad, phone: g(row, 'phone'),
+      memo: [g(row, 'memo'), g(row, 'option')].filter(Boolean).join(' '),
+      status: '대기중', steps: [], error: null, _po: true, _kind: 'vendor',
+    });
+  }
+  return items;
+}
+
+function parseVendorListWb(wb, fileInfo) {
   for (const sn of wb.SheetNames) {
     const grid = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '' });
     for (let hr = 0; hr < Math.min(grid.length, 15); hr++) {
-      const map = {};
-      (grid[hr] || []).forEach((h, c) => { const f = matchVendorCol(h); if (f && map[f] === undefined) map[f] = c; });
-      if (map.companyName === undefined || map.address === undefined ||
-          (map.productName === undefined && map.qty === undefined)) continue;
-      // 전화번호 열이 이름으로 안 잡히면: 받는이 열 뒤의 첫 연락처/전화 열 사용
-      // (같은 '연락처' 헤더가 보내는쪽·받는쪽에 중복될 때 받는쪽을 선택)
-      if (map.phone === undefined) {
-        for (let c = map.companyName + 1; c < (grid[hr] || []).length; c++) {
-          if (/연락처|전화|휴대폰|핸드폰/.test(String(grid[hr][c] || ''))) { map.phone = c; break; }
+      const headerRow = (grid[hr] || []).map(h => String(h || '').trim());
+      if (!headerRow.some(Boolean)) continue;
+      const sig = vendorSig(headerRow);
+      const learned = colMapStore[sig];
+      let map, positionalPhone = false;
+      if (learned) {
+        map = { ...learned };
+      } else {
+        map = {};
+        headerRow.forEach((h, c) => { const f = matchVendorCol(h); if (f && map[f] === undefined) map[f] = c; });
+        if (map.companyName === undefined || map.address === undefined ||
+            (map.productName === undefined && map.qty === undefined)) continue;
+        // 전화번호 열이 이름으로 안 잡히면: 받는이 열 뒤의 첫 연락처/전화 열 사용 (위치 추정)
+        if (map.phone === undefined) {
+          for (let c = map.companyName + 1; c < headerRow.length; c++) {
+            if (/연락처|전화|휴대폰|핸드폰/.test(headerRow[c])) { map.phone = c; positionalPhone = true; break; }
+          }
         }
       }
-      const fi = fileInfo || {};
-      const g = (row, f) => map[f] === undefined ? '' : clean(row[map[f]]);
-      const items = [];
-      for (let r = hr + 1; r < grid.length; r++) {
-        const row = grid[r] || [];
-        if (row.some(v => /ex\)|예시/.test(String(v)))) continue; // 양식의 예시 행 제외
-        const cn = g(row, 'companyName'), ad = g(row, 'address');
-        if (!cn && !ad) continue;
-        items.push({
-          carrier: '', num: '',
-          orderDate: fi.orderDate || '', bankName: fi.bankName || '', branchName: fi.branchName || '',
-          manager: fi.manager || '', productCode: '',
-          productName: g(row, 'productName'), shipType: fi.shipType || '', staff: fi.staff || '',
-          supplier: fi.supplier || '', qty: g(row, 'qty') || '1',
-          shipper: g(row, 'shipper') || fi.shipper || '',
-          companyName: cn, address: ad, phone: g(row, 'phone'),
-          memo: [g(row, 'memo'), g(row, 'option')].filter(Boolean).join(' '),
-          status: '대기중', steps: [], error: null, _po: true, _kind: 'vendor',
-        });
-      }
-      if (items.length) return items;
+      const items = buildVendorRows(grid, hr, map, fileInfo);
+      if (!items.length) continue;
+      const mappedCols = new Set(Object.values(map));
+      const meta = {
+        sig, sheet: sn, headerRow, map, grid, hr,
+        positionalPhone, learned: !!learned, fallback: false,
+        unmatched: headerRow.filter((h, c) => h && !mappedCols.has(c)),
+        coreMissing: VENDOR_CORE_FIELDS.filter(f => map[f] === undefined),
+      };
+      meta.variant = !learned && (positionalPhone || meta.coreMissing.length > 0);
+      items[0]._vmeta = meta;
+      return items;
     }
   }
   return null;
@@ -2017,6 +2224,8 @@ function readFileRows(file, uploadMode) {
       if (rows.length && rows.every(r => !r.companyName)) {
         const vTry = parseVendorListWb(wb, parseOrderInfoFromFilename(file.name));
         if (vTry && vTry.some(r => r.companyName)) {
+          const m0 = vTry[0]._vmeta;
+          if (m0 && !m0.learned) { m0.fallback = true; m0.variant = true; }
           rows = uploadMode === 'update' ? vTry.filter(r => r.num) : vTry;
         }
       }
@@ -3971,7 +4180,7 @@ function toast(msg){
 // ── 키보드 ──
 document.addEventListener('keydown', e=>{
   if (e.key==='Escape') {
-    ['modal-single','modal-grid','modal-summary','modal-suppliers'].forEach(closeModal);
+    ['modal-single','modal-grid','modal-summary','modal-suppliers','modal-colmap'].forEach(closeModal);
   }
   if (e.key==='Enter' && document.getElementById('modal-single').classList.contains('open')) {
     submitSingle();
@@ -3992,6 +4201,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   initAutoIntervalUI();
   initSortUI();
+  ensureColMaps(); // 변형양식 학습 매핑 미리 로드
   showView('dash'); // 실행 시 대시보드를 메인 화면으로
   populateCarrierSelects();
   // 택배사 목록을 먼저 불러와야 시트의 택배사명 → 코드 매칭이 정확함

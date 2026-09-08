@@ -448,6 +448,35 @@ async function handleDb(url, request, env) {
     }
   }
 
+  // ── 변형 접수양식 열 매핑 학습 (헤더 시그니처 기준 upsert) ──
+  if (url.pathname === '/db/colmaps') {
+    const base = sbBase(env);
+    if (request.method === 'GET') {
+      const res = await fetch(`${base}/rest/v1/delivery_col_maps?select=*&order=updated_at.desc`, { headers: sbHeaders(env) });
+      if (!res.ok) throw new Error(`매핑 조회 실패 (${res.status}): ${(await res.text()).slice(0, 200)}`);
+      return jsonRes({ ok: true, rows: await res.json() });
+    }
+    if (request.method === 'POST') {
+      const body = await request.json();
+      const rows = (Array.isArray(body) ? body : [body])
+        .map(r => ({
+          id: String(r.id || '').trim(),
+          mapping: (r.mapping && typeof r.mapping === 'object') ? r.mapping : {},
+          sample: String(r.sample || '').slice(0, 500),
+          updated_at: new Date().toISOString(),
+        }))
+        .filter(r => r.id);
+      if (!rows.length) return jsonRes({ ok: false, error: '저장할 매핑이 없습니다' }, 400);
+      const res = await fetch(`${base}/rest/v1/delivery_col_maps?on_conflict=id`, {
+        method: 'POST',
+        headers: sbHeaders(env, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
+        body: JSON.stringify(rows),
+      });
+      if (!res.ok) throw new Error(`매핑 저장 실패 (${res.status}): ${(await res.text()).slice(0, 200)}`);
+      return jsonRes({ ok: true, saved: rows.length });
+    }
+  }
+
   if (url.pathname === '/db/presets-delete' && request.method === 'POST') {
     const base = sbBase(env);
     const body = await request.json();
