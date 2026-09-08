@@ -705,6 +705,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
           <input type="file" id="file-input" accept=".xlsx,.xls,.xlsm,.csv" multiple style="display:none" onchange="handleFiles(this.files); this.value=''">
         </div>
 
+        <div id="upload-empty" style="display:none;border:1px solid #fde68a;background:#fffbeb;color:#854d0e;border-radius:8px;padding:12px 16px;font-size:12.5px;line-height:1.7"></div>
         <div id="upload-cards" style="display:none;gap:10px;flex-wrap:wrap"></div>
 
         <div id="upload-preview" style="display:none;border:1px solid var(--gray-100);border-radius:8px;flex-direction:column;min-height:0">
@@ -1611,7 +1612,21 @@ function handleFiles(fileList) {
     bulkData = okFiles.flatMap(r => r.rows);
     bulkData.forEach((r, i) => r.id = i);
     if (failed.length) toast(`파일 읽기 실패: ${failed.join(', ')}`);
-    if (!bulkData.length) { if (!failed.length) toast('처리할 행이 없습니다'); return; }
+    if (!bulkData.length) {
+      // 왜 0건인지 화면에 안내 (토스트만으로는 놓치기 쉬움)
+      const mode0 = document.querySelector('input[name="upload-mode"]:checked')?.value || 'new';
+      const em = document.getElementById('upload-empty');
+      const reasons = [];
+      if (failed.length) reasons.push(`읽기 실패한 파일: ${failed.map(escapeHtml).join(', ')}`);
+      if (mode0 === 'update') reasons.push('현재 <b>송장번호 업데이트</b> 모드입니다 — 송장번호가 있는 행만 읽으므로, 발주서·명단처럼 송장번호가 없는 파일은 인식되지 않습니다. 신규 등록이라면 위에서 <b>신규 등록</b> 모드를 선택한 뒤 다시 올려주세요.');
+      else reasons.push('파일에서 인식된 행이 없습니다 — 첫 시트의 헤더(주문일·품명·받는이 등)나 발주서 형식(발주서+명단 시트), 접수양식(받는분·주소 열)이 맞는지 확인해 주세요.');
+      em.innerHTML = `인식된 행이 0건입니다.<br>` + reasons.join('<br>');
+      em.style.display = 'block';
+      document.getElementById('upload-cards').style.display = 'none';
+      document.getElementById('upload-preview').style.display = 'none';
+      return;
+    }
+    document.getElementById('upload-empty').style.display = 'none';
     uploadFiles = okFiles;
     precheckDuplicates();
     renderUploadCards();
@@ -3050,6 +3065,7 @@ function onUploadModeChange() {
   // 파일 선택 초기화
   document.getElementById('upload-preview').style.display='none';
   document.getElementById('upload-cards').style.display='none';
+  document.getElementById('upload-empty').style.display='none';
   document.getElementById('file-input').value='';
   bulkData=[]; uploadFiles=[];
   if (mode === 'update') {
@@ -3068,6 +3084,7 @@ function clearUpload() {
   uploadFiles = [];
   document.getElementById('upload-cards').style.display = 'none';
   document.getElementById('upload-preview').style.display = 'none';
+  document.getElementById('upload-empty').style.display = 'none';
   document.getElementById('upload-progress').style.width = '0%';
   document.getElementById('upload-text').textContent = '0 / 0';
   document.getElementById('file-input').value = '';
