@@ -996,13 +996,13 @@ function populateCarrierSelects() {
   const s = document.getElementById('s-carrier');
   if (s) {
     const cur = s.value;
-    s.innerHTML = opts;
-    s.value = [...s.options].some(o => o.value === cur) ? cur : 'lotte';
+    s.innerHTML = `<option value="">미지정</option>` + opts;
+    s.value = [...s.options].some(o => o.value === cur) ? cur : '';
   }
 }
 
 function carrierFromStr(s) {
-  if (!s) return 'lotte';
+  if (!s) return ''; // 미입력 → 빈칸 유지 (기본 택배사를 강제하지 않음)
   const t = s.toLowerCase().replace(/\s/g,'');
   if (t.includes('백화점')||t.includes('lottedept')) return 'lottedept';
   if (t.includes('cj')||t.includes('대한통운')) return 'cj';
@@ -1016,7 +1016,7 @@ function carrierFromStr(s) {
     const n = String(v.name || '').toLowerCase().replace(/\s/g,'');
     if (n && (t.includes(n) || n.includes(t))) return k;
   }
-  return 'lotte';
+  return String(s).trim(); // 인식 불가 → 입력값 그대로 표시 (조회 시 사유 안내)
 }
 
 // 송장번호 문자열 → 배열 (쉼표/세미콜론/슬래시/줄바꿈으로 여러 개 구분 입력 지원)
@@ -1072,6 +1072,11 @@ function resolveTrackingError(e, base) {
   const m = typeof e === 'string' ? e : (e?.message || String(e));
   if (m === 'NOT_FOUND') {
     return { ...base, status: '출고전', steps: [], error: null };
+  }
+  if (m === 'NO_CARRIER') {
+    return { ...base, status: STATUS_LOOKUP_FAIL, steps: [], error: base.carrier
+      ? `인식할 수 없는 택배사: ${base.carrier}`
+      : '택배사 미지정 — 수정에서 택배사를 선택하세요' };
   }
   return { ...base, status: STATUS_LOOKUP_FAIL, steps: [], error: inferLookupFailReason(e) };
 }
@@ -1222,6 +1227,7 @@ async function fetchTracking(carrier, num) {
 }
 
 async function fetchWithRetry(carrier, num, retries=3) {
+  if (!carriers[carrier]) throw new Error('NO_CARRIER');
   for (let i=0; i<=retries; i++) {
     try { return await fetchTracking(carrier, num); }
     catch(e) {
@@ -1459,7 +1465,9 @@ function isDuplicateNum(carrier, num, excludeKey, productName) {
       const selfKey = r.localId ? r.localId : r.carrier+'__'+r.num;
       if (selfKey === excludeKey) return false;
     }
-    if (r.carrier !== carrier || r.num !== num) return false;
+    if (r.num !== num) return false;
+    // 택배사가 한쪽이라도 미지정이면 송장번호(+상품명)만으로 중복 판단
+    if (carrier && r.carrier && r.carrier !== carrier) return false;
     // 상품명이 둘 다 있고 다르면 합포장으로 간주 → 중복 아님
     if (productName && r.productName && productName.trim() !== r.productName.trim()) return false;
     return true;
@@ -2544,7 +2552,7 @@ function openEditGrid(keys) {
     const r = findByRowKey(k);
     return '<tr>' + GRID_FIELDS.map(f => {
       if (f.key === 'carrier') {
-        const opts = Object.entries(carriers).map(([ck,cv]) =>
+        const opts = `<option value="" ${!r.carrier?'selected':''}>미지정</option>` + Object.entries(carriers).map(([ck,cv]) =>
           `<option value="${ck}" ${r.carrier===ck?'selected':''}>${cv.name}</option>`).join('');
         return `<td><select id="eg-${i}-carrier">${opts}</select></td>`;
       }
@@ -3353,7 +3361,7 @@ function saveLocal() {
 function itemToDbRow(entry) {
   return {
     local_id:     entry.localId,
-    carrier:      entry.carrier || 'lotte',
+    carrier:      entry.carrier || '',
     num:          String(entry.num || ''),
     order_date:   entry.orderDate   || '',
     bank_name:    entry.bankName    || '',
@@ -3371,7 +3379,8 @@ function itemToDbRow(entry) {
     phone:        entry.phone       || '',
     memo:         entry.memo        || '',
     status:       entry.status      || '',
-    steps:        Array.isArray(entry.steps) ? entry.steps : [],
+    steps:        (Array.isArray(entry.steps) && entry.steps.length) ? entry.steps
+                    : (entry.error ? [{ text: String(entry.error), time: '', done: true, current: false }] : []),
     shipped_at:   entry.shippedAt   || '',
     added_at:     entry.addedAt     || '',
     updated_at:   entry.updatedAt   || '',
