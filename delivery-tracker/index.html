@@ -1936,6 +1936,9 @@ function parsePurchaseOrder(wb) {
   const bankRaw = cv('B3');
   const sp = bankRaw.indexOf(' ');
   const typeRaw = cv('B4');
+  // 발송인 라벨 행 탐색 — 품목이 늘어 아래로 밀려도 위치를 추적 (없으면 표준 15행)
+  let shipRow = 15;
+  for (let r = 7; r <= 60; r++) { if (cv('A' + r) === '발송인') { shipRow = r; break; } }
   const common = {
     carrier: '', num: '',
     orderDate:   excelDateToYmd(po['E2'] ? po['E2'].v : ''),
@@ -1945,16 +1948,21 @@ function parsePurchaseOrder(wb) {
     shipType:    typeRaw.includes('지점') ? '지점' : typeRaw.includes('개별') ? '개별' : typeRaw.includes('샘플') ? '샘플' : typeRaw,
     staff:       cv('E3'),
     supplier:    cv('B2'),
-    shipper:     stripPhone(cv('B15')),
+    shipper:     stripPhone(cv('B' + shipRow)),
     status: '대기중', steps: [], error: null, _po: true, _kind: 'po',
   };
 
-  // 품목 표: 7행부터 '발송인' 행 전까지
+  // 품목 표: 7행부터 발송인 라벨 행 전까지 — 수량(C) 또는 번호(A)가 있는 행만
+  // (품목표 아래 '★빠른 출고 요청…' 같은 메모 행은 수량·번호가 없어 제외됨)
   const products = [];
-  for (let r = 7; r <= 40; r++) {
-    if (cv('A' + r) === '발송인') break;
+  let excludedNonProduct = 0;
+  for (let r = 7; r < shipRow; r++) {
     const name = cv('B' + r);
-    if (name && !isNonProductName(name)) products.push({ name, qty: cv('C' + r), memo: cv('G' + r) });
+    if (!name) continue;
+    if (!cv('C' + r) && !/^\d+$/.test(cv('A' + r))) continue;
+    if (isNonProductName(name)) { excludedNonProduct++; continue; }
+    const gm = cv('G' + r);
+    products.push({ name, qty: cv('C' + r), memo: gm === '비고' ? '' : gm }); // 양식 기본값 '비고'는 무시
   }
 
   // 명단 시트 찾기: 다른 시트 중 헤더에 고객명·주소가 있는 첫 시트
@@ -1962,7 +1970,7 @@ function parsePurchaseOrder(wb) {
     if (sn === '발주서') continue;
     const json = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: '' });
     if (!json.length || json[0]['고객명'] === undefined || json[0]['주소'] === undefined) continue;
-    return json
+    const out = json
       .filter(row => cleanText(row['고객명']) || cleanText(row['주소']))
       .map(row => ({
         ...common,
@@ -1974,19 +1982,24 @@ function parsePurchaseOrder(wb) {
         phone:       cleanText(row['고객 연락처1'] || row['연락처'] || ''),
         memo:        cleanText(row['비고']),
       }));
+    out.excludedNonProduct = excludedNonProduct;
+    return out;
   }
 
-  // 명단 없음: 배송지(B16) 셀 3줄 해석
-  const dest = cv('B16').split(/\r?\n/).map(s => cleanText(s)).filter(Boolean);
+  // 명단 없음: 배송지 셀(발송인 다음 행) 3줄 해석
+  const destRow = cv('A' + (shipRow + 1)) === '배송지' ? shipRow + 1 : 16;
+  const dest = cv('B' + destRow).split(/\r?\n/).map(s => cleanText(s)).filter(Boolean);
   const destAddr  = dest[0] && !dest[0].replace(/\s/g,'').includes('시트') ? dest[0] : '';
   const destName  = dest[1] || '';
   const destPhone = (dest[2] || '').replace(/[()]/g, '').trim();
-  return products.map(p => ({
+  const out2 = products.map(p => ({
     ...common,
     productName: p.name, qty: p.qty || '1',
     companyName: destName, address: destAddr, phone: destPhone,
     memo: p.memo || '',
   }));
+  out2.excludedNonProduct = excludedNonProduct;
+  return out2;
 }
 
 // ── 파일명에서 주문정보 해석 ──
@@ -2077,8 +2090,8 @@ function matchVendorCol(header) {
 // 배송 조회 대상이 아닌 부자재·비용 품목(포장지·쇼핑백·택배비·퀵 등)은 등록에서 제외
 function isNonProductName(name) {
   const t = String(name || '').replace(/\s/g, '');
-  if (!t || t.length > 14) return false;
-  return /^(포장지|쇼핑백|종이쇼핑백|종이가방|부직포|택배비|택배요금|배송비|운송비|배달비|퀵비|퀵서비스|퀵)/.test(t);
+  if (!t || t.length > 14) return false; // 긴 이름은 실제 상품명일 가능성이 높아 제외하지 않음
+  return /(포장지|쇼핑백|종이가방|부직포|택배박스|아이스박스|보냉백|택배비|택배요금|배송비|운송비|배달비|퀵비|퀵서비스)/.test(t) || /^퀵/.test(t);
 }
 
 // 화면 표시용 항목 이름
@@ -2311,9 +2324,10 @@ function readFileRows(file, uploadMode) {
         if (vRows) rows = uploadMode === 'update' ? vRows.filter(r => r.num) : vRows;
       }
       // 부자재·비용 품목 제외 (포장지·쇼핑백·택배비·퀵 등)
+      const preExcluded = rows.excludedNonProduct || 0;
       const beforeExclude = rows.length;
       rows = rows.filter(r => !isNonProductName(r.productName));
-      rows.excludedNonProduct = beforeExclude - rows.length;
+      rows.excludedNonProduct = preExcluded + (beforeExclude - rows.length);
       rows.forEach(r => { r._file = file.name; });
       resolve(rows);
     } catch(err) { reject(err); }
