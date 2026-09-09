@@ -404,6 +404,7 @@ async function handleDb(url, request, env) {
           email: String(r.email || '').trim(),
           cc: String(r.cc || '').trim(),
           manager: String(r.manager || '').trim(),
+          phone: String(r.phone || '').trim(),
           updated_at: new Date().toISOString(),
         }))
         .filter(r => r.name);

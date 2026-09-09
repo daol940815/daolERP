@@ -937,9 +937,15 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
       <div class="modal-title">매입처 관리 <span style="font-weight:400;color:var(--gray-400);font-size:12px">— 데이터에 등록된 매입처가 자동으로 나열됩니다. 이메일만 채워 저장하세요</span></div>
       <button class="modal-close" onclick="closeModal('modal-suppliers')">✕</button>
     </div>
+    <div style="display:flex;gap:6px;margin-bottom:0.6rem">
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('sup-file-input').click()">↑ 엑셀 업로드</button>
+      <button class="btn btn-outline btn-sm" onclick="downloadSuppliers()">↓ 엑셀 다운로드</button>
+      <input type="file" id="sup-file-input" accept=".xlsx,.xls,.xlsm,.csv" style="display:none" onchange="uploadSuppliers(this.files[0]); this.value=''">
+      <span style="font-size:11px;color:var(--gray-400);align-self:center">열 이름: 매입처 · 이메일 · 참조 · 담당자 · 연락처 — 업로드 후 [저장]을 눌러야 반영됩니다</span>
+    </div>
     <div style="max-height:50vh;overflow:auto;border:1px solid var(--gray-200);border-radius:6px">
       <table class="summary-table" id="supplier-table">
-        <thead><tr><th style="width:22%">매입처</th><th>받는 사람 이메일</th><th>참조</th><th style="width:18%">담당자</th></tr></thead>
+        <thead><tr><th style="width:20%">매입처</th><th>받는 사람 이메일</th><th style="width:18%">참조</th><th style="width:13%">담당자</th><th style="width:15%">연락처</th></tr></thead>
         <tbody id="supplier-tbody"></tbody>
       </table>
     </div>
@@ -4050,7 +4056,7 @@ async function sendReplyMail() {
     const info = supplierBook[e.sup] || {};
     if (info.email !== to || (info.cc || '') !== cc) {
       supplierBook[e.sup] = { ...info, name: e.sup, email: to, cc };
-      apiPost('/db/suppliers', [{ name: e.sup, email: to, cc, manager: info.manager || '' }]).catch(()=>{});
+      apiPost('/db/suppliers', [{ name: e.sup, email: to, cc, manager: info.manager || '', phone: info.phone || '' }]).catch(()=>{});
     }
     renderMailPage();
   } finally {
@@ -4065,14 +4071,67 @@ function openSupplierModal() {
   const sorted = [...names].sort((a,b) => a.localeCompare(b, 'ko'));
   document.getElementById('supplier-tbody').innerHTML = sorted.map(n => {
     const info = supplierBook[n] || {};
+    const inp = (cls, val, ph) => `<td><input type="text" class="${cls}" value="${escapeHtml(val || '')}"${ph?` placeholder="${ph}"`:''} style="width:100%;border:1px solid var(--gray-200);border-radius:4px;padding:4px 6px;font:inherit"></td>`;
     return `<tr data-name="${escapeHtml(n)}">
       <td>${escapeHtml(n)}</td>
-      <td><input type="text" class="sup-email" value="${escapeHtml(info.email || '')}" placeholder="vendor@example.com" style="width:100%;border:1px solid var(--gray-200);border-radius:4px;padding:4px 6px;font:inherit"></td>
-      <td><input type="text" class="sup-cc" value="${escapeHtml(info.cc || '')}" style="width:100%;border:1px solid var(--gray-200);border-radius:4px;padding:4px 6px;font:inherit"></td>
-      <td><input type="text" class="sup-manager" value="${escapeHtml(info.manager || '')}" style="width:100%;border:1px solid var(--gray-200);border-radius:4px;padding:4px 6px;font:inherit"></td>
+      ${inp('sup-email', info.email, 'vendor@example.com')}
+      ${inp('sup-cc', info.cc)}
+      ${inp('sup-manager', info.manager)}
+      ${inp('sup-phone', info.phone)}
     </tr>`;
-  }).join('') || '<tr><td colspan="4" style="color:var(--gray-400)">등록된 매입처가 없습니다</td></tr>';
+  }).join('') || '<tr><td colspan="5" style="color:var(--gray-400)">등록된 매입처가 없습니다</td></tr>';
   document.getElementById('modal-suppliers').classList.add('open');
+}
+
+// 주소록 엑셀 다운로드 — 데이터의 매입처 + 저장된 주소록 합집합
+function downloadSuppliers() {
+  if (typeof XLSX==='undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
+  const names = new Set(Object.keys(supplierBook));
+  allItems.forEach(r => { const s = (r.supplier || '').trim(); if (s) names.add(s); });
+  const rows = [...names].sort((a,b) => a.localeCompare(b,'ko')).map(n => {
+    const i = supplierBook[n] || {};
+    return { '매입처': n, '이메일': i.email || '', '참조': i.cc || '', '담당자': i.manager || '', '연락처': i.phone || '' };
+  });
+  if (!rows.length) { toast('내보낼 매입처가 없습니다'); return; }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [18, 30, 26, 12, 16].map(w => ({ wch: w }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '매입처');
+  XLSX.writeFile(wb, `매입처주소록_${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast(`매입처 ${rows.length}곳 다운로드`);
+}
+
+// 주소록 엑셀 업로드 — 표를 채우기만 하고, [저장]을 눌러야 실제 반영 (검토 단계)
+function uploadSuppliers(file) {
+  if (!file) return;
+  if (typeof XLSX==='undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'binary' });
+      const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+      const get = (row, ...keys) => { for (const k of keys) { const v = row[k]; if (v !== undefined && v !== '' && v !== 0) return String(v).trim(); } return ''; };
+      let applied = 0;
+      json.forEach(row => {
+        const name = get(row, '매입처', '매입처명', '업체명', '공급처', 'name');
+        if (!name) return;
+        const cur = supplierBook[name] || { name };
+        // 파일에 값이 있는 항목만 덮어씀 (빈 칸은 기존 값 유지)
+        const email = get(row, '이메일', '메일', '이메일주소', '받는 사람 이메일', 'email');
+        const cc = get(row, '참조', 'cc', 'CC');
+        const manager = get(row, '담당자', '담당자명', 'manager');
+        const phone = get(row, '연락처', '전화번호', '휴대폰', 'phone');
+        supplierBook[name] = { ...cur, name,
+          email: email || cur.email || '', cc: cc || cur.cc || '',
+          manager: manager || cur.manager || '', phone: phone || cur.phone || '' };
+        applied++;
+      });
+      if (!applied) { toast('매입처 열을 찾지 못했습니다 — 열 이름(매입처·이메일 등)을 확인하세요'); return; }
+      openSupplierModal(); // 표 다시 그리기 (병합된 값 표시)
+      toast(`${applied}곳 불러왔습니다 — 내용 확인 후 [저장]을 누르면 반영됩니다`);
+    } catch (err) { toast('파일 읽기 실패'); console.error(err); }
+  };
+  reader.readAsBinaryString(file);
 }
 
 async function saveSuppliers() {
@@ -4081,6 +4140,7 @@ async function saveSuppliers() {
     email: tr.querySelector('.sup-email').value.trim(),
     cc: tr.querySelector('.sup-cc').value.trim(),
     manager: tr.querySelector('.sup-manager').value.trim(),
+    phone: tr.querySelector('.sup-phone').value.trim(),
   }));
   if (!rows.length) { closeModal('modal-suppliers'); return; }
   const res = await apiPost('/db/suppliers', rows);
