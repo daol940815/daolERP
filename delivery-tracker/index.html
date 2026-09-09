@@ -1232,6 +1232,14 @@ function showChangeSummary(transitions, title, extraHtml) {
   const elTitle = document.getElementById('summary-title');
   const body = document.getElementById('summary-body');
   if (elTitle) elTitle.textContent = title || '조회 결과 변동 집계';
+  // transitions가 null이면 변동 집계 없이 상세 내용만 표시
+  if (transitions === null) {
+    body.innerHTML = extraHtml || '';
+    const box0 = document.querySelector('#modal-summary .modal');
+    if (box0) box0.classList.toggle('modal-wide', !!extraHtml);
+    document.getElementById('modal-summary').classList.add('open');
+    return;
+  }
   const keys = Object.keys(transitions).filter(k => transitions[k] > 0);
   const totalChanged = keys.reduce((s, k) => s + transitions[k], 0);
   if (!keys.length) {
@@ -2426,12 +2434,47 @@ async function runBulk() {
 }
 
 // 송장번호 업데이트 (매칭: 주문일+주문처+상품명+수량+수하인+수취인)
+// 송장 업데이트 보조 매칭: 전체 매칭키가 어긋나도 주문일+품명(+받는이·지점명)으로
+// 송장 없는 행 중 '유일하게' 일치하는 후보가 있으면 매칭 (모호하면 미매칭 유지)
+function fallbackMatchIdx(item) {
+  const norm = v => String(v || '').trim().toLowerCase();
+  const tiers = [
+    r => norm(r.orderDate) === norm(item.orderDate) && norm(r.productName) === norm(item.productName)
+      && norm(r.companyName) === norm(item.companyName) && norm(r.branchName) === norm(item.branchName),
+    r => norm(r.orderDate) === norm(item.orderDate) && norm(r.productName) === norm(item.productName)
+      && norm(r.companyName) === norm(item.companyName),
+    r => norm(r.orderDate) === norm(item.orderDate) && norm(r.productName) === norm(item.productName),
+  ];
+  for (const t of tiers) {
+    const idxs = [];
+    allItems.forEach((r, i) => { if (!r.num && t(r)) idxs.push(i); });
+    if (idxs.length === 1) return idxs[0];
+    if (idxs.length > 1) return -1; // 같은 조건의 행이 여러 개 — 잘못 붙이지 않도록 미매칭 처리
+  }
+  return -1;
+}
+
+// 미매칭 사유 진단: 같은 품명의 등록 건과 어느 항목이 다른지 안내
+function diagnoseMismatch(item) {
+  const norm = v => String(v || '').trim().toLowerCase();
+  const cands = allItems.filter(r => norm(r.productName) === norm(item.productName));
+  if (!cands.length) return '같은 품명으로 등록된 건이 없음 (품명 확인)';
+  const noNum = cands.filter(r => !r.num);
+  if (!noNum.length) return '같은 품명의 등록 건이 모두 이미 송장 등록됨';
+  const c = noNum[0];
+  const fields = [['orderDate','주문일'],['bankName','은행명'],['branchName','지점명'],['productCode','품번'],['shipper','보내는이'],['companyName','받는이']];
+  const diffs = fields.filter(([f]) => norm(c[f]) !== norm(item[f]))
+    .map(([f, label]) => `${label}: 파일 '${item[f] || '(빈칸)'}' ≠ 등록 '${c[f] || '(빈칸)'}'`);
+  return diffs.length ? '가장 비슷한 등록 건과의 차이 — ' + diffs.join(' · ') : '같은 조건의 행이 여러 개(모호)';
+}
+
 async function runBulkUpdate() {
   if (!bulkData.length) return;
   const btn = document.getElementById('btn-bulk');
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 업데이트 중...';
   bulkRunning = true;
   let matched=0, notFound=0, done=0;
+  const notFoundRows = []; // 미매칭 행과 사유
   const updateProgress = () => {
     document.getElementById('upload-progress').style.width=Math.round(done/bulkData.length*100)+'%';
     document.getElementById('upload-text').textContent=`${done} / ${bulkData.length}`;
@@ -2446,8 +2489,9 @@ async function runBulkUpdate() {
     const key = makeMatchKey(item);
     let target;
     if (!seenKeys.has(key)) {
-      const idx = allItems.findIndex(r => makeMatchKey(r)===key);
-      if (idx < 0) { notFound++; done++; continue; }
+      let idx = allItems.findIndex(r => makeMatchKey(r)===key);
+      if (idx < 0) idx = fallbackMatchIdx(item); // 보조 매칭 (유일 후보일 때만)
+      if (idx < 0) { notFound++; notFoundRows.push({ item, reason: diagnoseMismatch(item) }); done++; continue; }
       const existing = allItems[idx];
       seenKeys.set(key, existing);
       target = {
@@ -2495,6 +2539,19 @@ async function runBulkUpdate() {
   if (extra) extras.push(`추가 송장 분리 등록 ${extra}건`);
   if (dup) extras.push(`중복 제외 ${dup}건`);
   toast(`업데이트 완료 — 매칭 ${matched}건${extras.length?' · '+extras.join(' · '):''} / 미매칭 ${notFound}건`);
+  // 미매칭이 있으면 어떤 행이 왜 안 붙었는지 목록으로 안내
+  if (notFoundRows.length) {
+    const cell = (v, style) => `<td${style?` style="${style}"`:''} title="${escapeHtml(v)}">${escapeHtml(v)}</td>`;
+    const rows = notFoundRows.slice(0, 30).map(({item, reason}) =>
+      `<tr>${cell(item.productName||'-')}${cell(item.num||'-')}${cell(reason,'color:var(--gray-500)')}</tr>`).join('');
+    const html = `
+      <div style="margin-top:1rem;font-size:12px;font-weight:700;color:#854d0e">미매칭 ${notFoundRows.length}건${notFoundRows.length>30?' (30건 표시)':''}</div>
+      <div style="max-height:260px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:6px;margin-top:6px">
+      <table class="summary-table skip-table"><thead><tr><th style="width:26%">품명</th><th style="width:16%">송장번호</th><th>사유</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div style="font-size:11px;color:var(--gray-400);margin-top:6px">매칭 기준: 주문일·은행명·지점명·품번·품명·보내는이·받는이 일치 → 안 되면 주문일+품명(+받는이·지점명)으로 유일 후보 탐색. 표의 차이 항목을 파일이나 등록 건에서 맞춰 다시 업로드하세요.</div>`;
+    showChangeSummary(null, '송장번호 업데이트 결과',
+      `<div class="summary-meta">매칭 <strong style="color:var(--black)">${matched}</strong>건 · 미매칭 <strong style="color:#b45309">${notFoundRows.length}</strong>건</div>` + html);
+  }
 }
 
 // ── 자동 조회 주기 (분) — localStorage `tracker_auto_interval_min` ──
