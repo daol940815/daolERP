@@ -14,19 +14,27 @@
 //   /db/delete  : 행 삭제 (POST, { local_ids: [...] })
 //   /db/migrate : Google Sheets → Supabase 데이터 이전 (GET, 재실행 안전)
 //
-// ★ 적용 방법
-//   1) 아래 PLACEHOLDER 4개를 기존 코드의 실제 값으로 교체
-//   2) Workers 대시보드 → Settings → Variables and Secrets 에
-//      SUPABASE_URL  = https://xxxx.supabase.co   (Type: Text)
-//      SUPABASE_KEY  = sb_secret_...              (Type: Secret ← 반드시 Secret)
-//      을 추가 (코드에 직접 쓰지 말 것)
-//   3) 저장 후 배포(Deploy)
+// ★ 적용 방법 — 키는 전부 Workers 대시보드 → Settings → Variables and Secrets 에 저장
+//   (코드에 직접 쓰지 않으므로, 이 파일을 통째로 붙여넣어 재배포해도 키가 지워지지 않음)
+//      SUPABASE_URL        = https://xxxx.supabase.co  (Type: Text)
+//      SUPABASE_KEY        = sb_secret_...             (Type: Secret)
+//      DELIVERYAPI_KEY     = pk_live_...               (Type: Secret)
+//      DELIVERYAPI_SECRET  = sk_client_...             (Type: Secret)
+//      WEBHOOK_SECRET      = whsec_...                 (Type: Secret, 선택)
+//      SHEETS_URL          = GAS 배포 URL               (Type: Text, 마이그레이션용 선택)
+//   추가 후 저장 → 배포(Deploy)
 // ═══════════════════════════════════════════════════════════════
 
-const API_KEY        = 'PLACEHOLDER_API_KEY';         // pk_live_... (기존 코드에서 복사)
-const SECRET_KEY     = 'PLACEHOLDER_SECRET_KEY';      // sk_client_... (기존 코드에서 복사)
-const SHEETS_URL     = 'PLACEHOLDER_SHEETS_URL';      // https://script.google.com/macros/s/.../exec
-const WEBHOOK_SECRET = 'PLACEHOLDER_WEBHOOK_SECRET';  // whsec_... (기존 코드에서 복사)
+// 아래 상수는 환경변수가 없을 때만 쓰이는 예비값 — 값을 직접 넣지 말 것
+const API_KEY        = 'PLACEHOLDER_API_KEY';
+const SECRET_KEY     = 'PLACEHOLDER_SECRET_KEY';
+const SHEETS_URL     = 'PLACEHOLDER_SHEETS_URL';
+const WEBHOOK_SECRET = 'PLACEHOLDER_WEBHOOK_SECRET';
+
+// 환경변수 우선 접근자
+const apiAuth   = env => `Bearer ${env.DELIVERYAPI_KEY || API_KEY}:${env.DELIVERYAPI_SECRET || SECRET_KEY}`;
+const sheetsUrl = env => env.SHEETS_URL || SHEETS_URL;
+const whSecret  = env => env.WEBHOOK_SECRET || WEBHOOK_SECRET;
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -75,7 +83,7 @@ export default {
         const res = await fetch('https://api.deliveryapi.co.kr/v1/tracking/trace', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${API_KEY}:${SECRET_KEY}`,
+            'Authorization': apiAuth(env),
             'Content-Type': 'application/json',
           },
           body: bodyText,
@@ -102,7 +110,7 @@ export default {
           const res = await fetch('https://api.deliveryapi.co.kr/v1/tracking/trace', {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${API_KEY}:${SECRET_KEY}`,
+              'Authorization': apiAuth(env),
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ items: otherItems }),
@@ -142,7 +150,7 @@ export default {
     // ── 지원 택배사 목록 프록시 ──
     if (url.pathname === '/couriers' && request.method === 'GET') {
       const res = await fetch('https://api.deliveryapi.co.kr/v1/tracking/couriers', {
-        headers: { 'Authorization': `Bearer ${API_KEY}:${SECRET_KEY}` },
+        headers: { 'Authorization': apiAuth(env) },
       });
       const data = await res.text();
       return new Response(data, {
@@ -157,14 +165,15 @@ export default {
       const signature = request.headers.get('x-webhook-signature');
 
       // 서명 검증 (webhookSecret 설정된 경우만)
-      if (WEBHOOK_SECRET) {
+      const webhookSecret = whSecret(env);
+      if (webhookSecret && webhookSecret !== 'PLACEHOLDER_WEBHOOK_SECRET') {
         const diff = Math.abs(Date.now() / 1000 - Number(timestamp));
         if (diff > 300) {
           return new Response('Timestamp expired', { status: 401 });
         }
         // HMAC-SHA256 검증
         const encoder = new TextEncoder();
-        const keyData = encoder.encode(WEBHOOK_SECRET);
+        const keyData = encoder.encode(webhookSecret);
         const msgData = encoder.encode(`${timestamp}.${rawBody}`);
         const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
         const signBuffer = await crypto.subtle.sign('HMAC', cryptoKey, msgData);
@@ -191,7 +200,7 @@ export default {
         const progresses = tracking?.progresses || [];
         const lastStep = progresses[0];
 
-        await fetch(SHEETS_URL, {
+        await fetch(sheetsUrl(env), {
           method: 'POST',
           body: JSON.stringify({
             action: 'save',
@@ -218,7 +227,7 @@ export default {
       const res = await fetch('https://api.deliveryapi.co.kr/v1/webhooks/endpoints', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${API_KEY}:${SECRET_KEY}`,
+          'Authorization': apiAuth(env),
           'Content-Type': 'application/json',
         },
         body,
@@ -235,7 +244,7 @@ export default {
       const res = await fetch('https://api.deliveryapi.co.kr/v1/webhooks/register', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${API_KEY}:${SECRET_KEY}`,
+          'Authorization': apiAuth(env),
           'Content-Type': 'application/json',
         },
         body,
@@ -493,7 +502,7 @@ async function handleDb(url, request, env) {
 
   // ── Google Sheets → Supabase 데이터 이전 (브라우저에서 GET으로 실행, 재실행 안전) ──
   if (url.pathname === '/db/migrate') {
-    const gasRes = await fetch(SHEETS_URL, {
+    const gasRes = await fetch(sheetsUrl(env), {
       method: 'POST',
       body: JSON.stringify({ action: 'load' }),
     });
