@@ -3390,6 +3390,18 @@ async function autoFillTimeline(key) {
   } catch(e) {
     const loading = document.getElementById('tl-loading');
     if (loading) loading.remove();
+    // 이미 조회실패인 건은 이번 실패의 구체적 사유로 갱신 (완료 건 등은 격하시키지 않음)
+    if (r.status === STATUS_LOOKUP_FAIL || r.status === '오류') {
+      r.error = String(e?.message || e) === 'NO_CARRIER'
+        ? (r.carrier ? `인식할 수 없는 택배사: ${r.carrier}` : '택배사 미지정 — 수정에서 택배사를 선택하세요')
+        : inferLookupFailReason(e);
+      r.updatedAt = new Date().toISOString();
+      saveLocal(); saveToStorage(r);
+      const tl0 = document.getElementById('grid-timeline');
+      if (tl0 && gridKeys.length === 1 && gridKeys[0] === key && document.getElementById('modal-grid').classList.contains('open')) {
+        tl0.innerHTML = renderTimelineHtml(r);
+      }
+    }
     return;
   }
   // 모달이 아직 이 건을 보고 있을 때만 타임라인 갱신
