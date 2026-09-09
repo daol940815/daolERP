@@ -401,6 +401,10 @@ tr.bundle-inner td { border-bottom-style:dashed; }
 .map-pair.map-guess { background:#fef3c7; border-color:#fcd34d; }
 .map-miss { color:var(--gray-400); margin-top:2px; }
 .map-notice { font-size:11px; margin-top:6px; padding:7px 10px; border-radius:6px; background:#fffbeb; border:1px solid #fde68a; color:#854d0e; line-height:1.6; }
+/* 결과 모달 적응형: 상세 목록 포함 시 가로 확장 */
+.modal.modal-wide { width:min(92vw, 900px) !important; } /* 인라인 기본 폭(440px)보다 우선 */
+.modal.modal-wide .skip-table { table-layout:fixed; }
+.modal.modal-wide .skip-table td { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
 /* ── 회신 메일 페이지 ── */
 .mail-wrap { display:grid; grid-template-columns:300px 1fr; flex:1; min-height:0; }
@@ -1243,6 +1247,9 @@ function showChangeSummary(transitions, title, extraHtml) {
       <table class="summary-table"><thead><tr><th>변동</th><th>건수</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
   if (extraHtml) body.innerHTML += extraHtml;
+  // 상세 목록이 포함된 결과는 가로로 넓게, 짧은 집계는 컴팩트하게 (A안 적응형)
+  const box = document.querySelector('#modal-summary .modal');
+  if (box) box.classList.toggle('modal-wide', !!extraHtml);
   document.getElementById('modal-summary').classList.add('open');
 }
 
@@ -2349,12 +2356,13 @@ async function runBulk() {
   let skipHtml = '';
   if (skippedRows.length) {
     const multiFile = uploadFiles.length > 1;
+    const cell = (v, style) => `<td${style?` style="${style}"`:''} title="${escapeHtml(v)}">${escapeHtml(v)}</td>`;
     const rows = skippedRows.slice(0, 30).map(({item, reason}) =>
-      `<tr>${multiFile?`<td>${escapeHtml(String(item._file||'').replace(/\.[^.]+$/,''))}</td>`:''}<td>${escapeHtml(item.productName||'-')}</td><td>${escapeHtml(item.companyName||'-')}</td><td style="color:var(--gray-500)">${escapeHtml(reason)}</td></tr>`).join('');
+      `<tr>${multiFile?cell(String(item._file||'').replace(/\.[^.]+$/,'')):''}${cell(item.productName||'-')}${cell(item.companyName||'-')}${cell(reason,'color:var(--gray-500)')}</tr>`).join('');
     skipHtml = `
       <div style="margin-top:1rem;font-size:12px;font-weight:700;color:#854d0e">중복으로 제외된 ${skippedRows.length}건${skippedRows.length>30?' (30건 표시)':''}</div>
-      <div style="max-height:200px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:6px;margin-top:6px">
-      <table class="summary-table"><thead><tr>${multiFile?'<th>파일</th>':''}<th>품명</th><th>받는이</th><th>사유</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div style="max-height:260px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:6px;margin-top:6px">
+      <table class="summary-table skip-table"><thead><tr>${multiFile?'<th style="width:20%">파일</th>':''}<th style="width:${multiFile?'26%':'34%'}">품명</th><th style="width:14%">받는이</th><th>사유</th></tr></thead><tbody>${rows}</tbody></table></div>
       <div style="font-size:11px;color:var(--gray-400);margin-top:6px">같은 주문(주문일·은행명·지점명·품번·품명·보내는이·받는이가 모두 동일)이 이미 등록되어 있으면 제외됩니다. 실제로 별개 주문이라면 품번이나 비고를 다르게 해서 다시 업로드하세요.</div>`;
   }
   showChangeSummary(transitionCounts, '일괄 등록 결과', skipHtml);
