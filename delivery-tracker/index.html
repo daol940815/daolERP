@@ -1353,8 +1353,13 @@ async function runTrackingQueries(targets, transitionCounts, onProgress) {
     const afterItem = allItems.find(x => x.localId ? x.localId===item.localId : (x.carrier===item.carrier && x.num===item.num));
     if (afterItem) recordTransition(transitionCounts, before, getFilterGroup(afterItem));
   };
-  const tick = () => {
+  let _lastTickAt = 0;
+  const tick = (force) => {
     if (onProgress) onProgress(processed, targets.length);
+    // 조회 진행 중 목록 전체 재렌더는 0.5초에 한 번만 (진행바는 매번 갱신)
+    const now = Date.now();
+    if (!force && now - _lastTickAt < 500) return;
+    _lastTickAt = now;
     updateStats(); renderTable();
   };
   try {
@@ -1401,6 +1406,7 @@ async function runTrackingQueries(targets, transitionCounts, onProgress) {
       tick();
       if (i+PARALLEL_CHUNK < retryQueue.length) await sleep(800);
     }
+    tick(true); // 마지막 상태 반영
   } finally {
     suppressRender = prevSuppress;
   }
@@ -2163,7 +2169,8 @@ function parseVendorListWb(wb, fileInfo) {
   for (const sn of wb.SheetNames) {
     const grid = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '' });
     for (let hr = 0; hr < Math.min(grid.length, 15); hr++) {
-      const headerRow = (grid[hr] || []).map(h => String(h || '').trim());
+      if (!Array.isArray(grid[hr])) continue;
+      const headerRow = grid[hr].map(h => String(h || '').trim());
       if (!headerRow.some(Boolean)) continue;
       const sig = vendorSig(headerRow);
       const learned = colMapStore[sig];
@@ -2258,7 +2265,7 @@ function readFileRows(file, uploadMode) {
                        : get(row,'수하인','발송인','보내는분','sender'),
         companyName: hasNewSender
                        ? get(row,'받는이','수하인','수취인','업체명','받는분','수신자','customer')
-                       : get(row,'수취인','업체명','받는분','수신자','이름','customer'),
+                       : get(row,'받는이','수취인','업체명','받는분','수신자','이름','customer'),
         address:     get(row,'고객주소','배송주소','주소','address'),
         phone:       fixPhone(get(row,'전화번호','연락처','받는이 연락처','휴대폰','phone')),
         carrier:     carrierFromStr(get(row,'택배사','배송사','carrier')),
@@ -2985,8 +2992,20 @@ function getFiltered() {
   });
 }
 
+// 증분 렌더링 상태
+const RENDER_CHUNK = 200;
+let _renderLimit = RENDER_CHUNK;
+let _lastViewKey = '';
+let _viewFlat = null;
+let _viewBundleInfo = null;
+
 function renderTable() {
   const sortKey = localStorage.getItem('tracker_sort') || 'addedAt';
+  // 필터·검색·정렬이 바뀌면 표시 한도를 처음(200행)으로 되돌림
+  const g = id => document.getElementById(id)?.value || '';
+  const viewKey = [currentFilter, sortKey, g('search-input'), g('search-field'), g('filter-carrier'),
+    g('filter-status'), g('filter-bank'), g('filter-staff'), g('filter-date-from'), g('filter-date-to')].join('|');
+  if (viewKey !== _lastViewKey) { _lastViewKey = viewKey; _renderLimit = RENDER_CHUNK; }
   allItems.sort((a,b)=>{
     if (sortKey === 'orderDate') {
       const da = a.orderDate || '';
@@ -3045,7 +3064,17 @@ function renderTable() {
   const flat = [];
   bundles.forEach(g => g.forEach((r, gi) => flat.push({ r, size: g.length, gi })));
 
-  tbody.innerHTML = flat.map(({ r, size, gi })=>{
+  // 증분 렌더링: 처음 RENDER_CHUNK행만 그리고 스크롤/더보기로 이어붙임 (대량 데이터 렉 방지)
+  _viewFlat = flat;
+  _viewBundleInfo = bundleInfo;
+  const visible = flat.slice(0, _renderLimit);
+  tbody.innerHTML = visible.map(x => buildRowHtml(x, bundleInfo)).join('') + renderLoaderRow(flat.length);
+  onRowChkChange();
+}
+
+// 목록 행 1개의 HTML (renderTable·renderMoreRows 공용)
+function buildRowHtml({ r, size, gi }, bundleInfo) {
+    const rowKeyOf = x => x.localId ? `lid__${x.localId}` : `${x.carrier}__${x.num}`;
     const delay = isDelay(r);
     const esc = s => escapeHtml(s);
     const memoVal = esc(r.memo||'');
@@ -3104,7 +3133,27 @@ function renderTable() {
         </div>
       </td>
     </tr>${expandStrip}`;
-  }).join('');
+  }
+
+function renderLoaderRow(total) {
+  if (total <= _renderLimit) return '';
+  return `<tr id="load-more-row"><td colspan="17" style="text-align:center;padding:10px;color:var(--gray-400);font-size:12px">
+    전체 ${total}건 중 ${_renderLimit}건 표시 — 아래로 스크롤하면 자동으로 더 불러옵니다
+    <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="renderMoreRows()">더 보기</button>
+    <span style="margin-left:8px">(전체 선택·삭제는 표시된 행 기준)</span></td></tr>`;
+}
+
+// 다음 묶음을 이어붙임 (전체 재렌더 없이)
+function renderMoreRows() {
+  if (!_viewFlat || _renderLimit >= _viewFlat.length) return;
+  const start = _renderLimit;
+  _renderLimit = Math.min(_renderLimit + RENDER_CHUNK, _viewFlat.length);
+  const html = _viewFlat.slice(start, _renderLimit).map(x => buildRowHtml(x, _viewBundleInfo)).join('');
+  const loader = document.getElementById('load-more-row');
+  if (!loader) return;
+  loader.insertAdjacentHTML('beforebegin', html);
+  if (_renderLimit >= _viewFlat.length) loader.remove();
+  else loader.outerHTML = renderLoaderRow(_viewFlat.length);
   onRowChkChange();
 }
 
@@ -4043,8 +4092,14 @@ async function saveSuppliers() {
 }
 
 // ── Supabase(Workers /db) + localStorage 연동 ──
+// 로컬 캐시 저장 디바운스 — 대량 갱신 중 매번 전체 직렬화하지 않도록 1.2초에 한 번만
+let _saveLocalTimer = null;
 function saveLocal() {
-  try { localStorage.setItem('tracker_items', JSON.stringify(allItems)); } catch(e){}
+  if (_saveLocalTimer) return;
+  _saveLocalTimer = setTimeout(() => {
+    _saveLocalTimer = null;
+    try { localStorage.setItem('tracker_items', JSON.stringify(allItems)); } catch(e){}
+  }, 1200);
 }
 
 // 프로그램 항목 → DB 행 (snake_case)
@@ -4149,6 +4204,11 @@ async function flushSaves() {
 
 // 창을 닫을 때 미전송 저장분을 beacon으로 마지막 전송 시도
 window.addEventListener('pagehide', () => {
+  // 로컬 캐시 미기록분 즉시 저장
+  if (_saveLocalTimer) {
+    clearTimeout(_saveLocalTimer); _saveLocalTimer = null;
+    try { localStorage.setItem('tracker_items', JSON.stringify(allItems)); } catch(e){}
+  }
   if (!_savePending.size) return;
   try {
     const batch = [..._savePending.values()].map(itemToDbRow);
@@ -4339,6 +4399,11 @@ document.addEventListener('DOMContentLoaded', () => {
   initAutoIntervalUI();
   initSortUI();
   ensureColMaps(); // 변형양식 학습 매핑 미리 로드
+  // 목록 스크롤이 바닥에 가까워지면 다음 묶음 자동 로드
+  const tw = document.querySelector('.table-wrap');
+  if (tw) tw.addEventListener('scroll', () => {
+    if (tw.scrollTop + tw.clientHeight >= tw.scrollHeight - 300) renderMoreRows();
+  });
   showView('dash'); // 실행 시 대시보드를 메인 화면으로
   populateCarrierSelects();
   // 택배사 목록을 먼저 불러와야 시트의 택배사명 → 코드 매칭이 정확함
