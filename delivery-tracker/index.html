@@ -2031,6 +2031,13 @@ function parseOrderInfoFromFilename(name) {
   if (!tokens.length) return out;
   out.supplier = tokens.shift();
   if (tokens.length && /\([^)]*\)$/.test(tokens[tokens.length-1])) out.staff = tokens.pop();
+  // 매입처와 주문처가 '_' 대신 '-'로 붙은 파일명 대응: '삼진어묵-965동기회' → 매입처 '삼진어묵' + 주문처 '965동기회'
+  const hy = out.supplier.indexOf('-');
+  if (hy > 0) {
+    const rest = out.supplier.slice(hy + 1).trim();
+    out.supplier = out.supplier.slice(0, hy).trim();
+    if (rest) tokens.unshift(rest);
+  }
   // 담당자('…님'으로 끝나는 첫 토큰)를 기준으로 앞=주문처, 뒤=보내는이
   // (보내는이에 _가 섞여 여러 토큰이 된 경우, 주문처+담당자가 한 토큰에 붙은 경우 모두 대응)
   let orderer = '';
