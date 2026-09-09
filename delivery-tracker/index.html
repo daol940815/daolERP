@@ -1301,12 +1301,22 @@ async function fetchTracking(carrier, num) {
     body: JSON.stringify({ items:[{ courierCode: carriers[carrier]?.courierCode || carrier, trackingNumber:num }] }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = await res.json();
+  let json;
+  try { json = await res.json(); }
+  catch (e) { throw new Error('API 응답 형식 오류(JSON 아님) — 조회 서비스 점검 중일 수 있음'); }
   const result = json.data?.results?.[0];
   if (!result?.success) {
     const code = result?.error?.code || '';
     if (code === 'NOT_FOUND') throw new Error('NOT_FOUND');
-    throw new Error(result?.error?.message || '조회 실패');
+    // 실패 사유를 최대한 구체적으로 남긴다 (메시지 → 코드 → 응답 원문 순)
+    const msg = result?.error?.message || '';
+    if (msg) throw new Error(code ? `[${code}] ${msg}` : msg);
+    if (code) throw new Error(`오류 코드 ${code}`);
+    if (!result) {
+      const raw = JSON.stringify(json.error ?? json.message ?? json);
+      throw new Error(`API 결과 없음 — 응답: ${raw.slice(0, 160)}`);
+    }
+    throw new Error('조회 실패(사유 미제공)');
   }
   return result.data;
 }
