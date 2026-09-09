@@ -386,6 +386,8 @@ tr.bundle-inner td { border-bottom-style:dashed; }
 .ucard-meta { font-size:11.5px; color:var(--gray-500); line-height:1.7; }
 .ucard-meta b { color:var(--black); font-weight:600; }
 .ucard-warn { color:#b45309; font-weight:600; }
+.ucard-x { border:none; background:transparent; color:var(--gray-300); cursor:pointer; font-size:13px; padding:0 2px; line-height:1; }
+.ucard-x:hover { color:#b91c1c; }
 .upv-table { border-collapse:collapse; font-size:12px; }
 .upv-table th { position:sticky; top:0; background:var(--gray-50); text-align:left; font-size:10.5px; color:var(--gray-400); font-weight:600; padding:7px 10px; border-bottom:1px solid var(--gray-100); white-space:nowrap; z-index:1; }
 .upv-table td { padding:6px 10px; border-bottom:1px solid var(--gray-50); white-space:nowrap; max-width:260px; overflow:hidden; text-overflow:ellipsis; }
@@ -1795,13 +1797,30 @@ function renderUploadCards() {
           <button class="btn btn-outline btn-sm" style="float:right;padding:1px 8px;font-size:10.5px" onclick="openColmapModal(${fi})">매핑 수정</button></div>
         ${chips}${missLine}${notice}</div>`;
     }
+    const excl = rows.excludedNonProduct
+      ? `<br><span style="color:var(--gray-400)">부자재·비용 품목 제외 ${rows.excludedNonProduct}건 (포장지·쇼핑백·택배비 등)</span>` : '';
     return `<div class="ucard${variant ? ' ucard-variant' : ''}">
-      <div class="ucard-head"><span class="ucard-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>${tag}</div>
-      <div class="ucard-meta">${meta} · <b>${rows.length}건</b>${warn}</div>
+      <div class="ucard-head"><span class="ucard-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
+        <span style="display:inline-flex;align-items:center;gap:6px">${tag}
+        <button class="ucard-x" onclick="removeUploadFile(${fi})" title="이 파일을 등록 대상에서 제외">✕</button></span></div>
+      <div class="ucard-meta">${meta} · <b>${rows.length}건</b>${excl}${warn}</div>
       ${mapHtml}
     </div>`;
   }).join('');
   box.style.display = 'flex';
+}
+
+// 파일 개별 제외 (일부 파일만 취소)
+function removeUploadFile(fi) {
+  if (bulkRunning) { toast('처리 중에는 제외할 수 없습니다'); return; }
+  const f = uploadFiles[fi];
+  if (!f) return;
+  uploadFiles.splice(fi, 1);
+  bulkData = uploadFiles.flatMap(x => x.rows);
+  bulkData.forEach((r, i) => { r.id = i; });
+  if (!uploadFiles.length) { clearUpload(); toast('모든 파일이 제외되었습니다'); return; }
+  refreshUploadViews();
+  toast(`파일 제외됨 — 남은 파일 ${uploadFiles.length}개 · ${bulkData.length}건`);
 }
 
 // ── 열 매핑 수정 모달 ──
@@ -1927,7 +1946,7 @@ function parsePurchaseOrder(wb) {
   for (let r = 7; r <= 40; r++) {
     if (cv('A' + r) === '발송인') break;
     const name = cv('B' + r);
-    if (name) products.push({ name, qty: cv('C' + r), memo: cv('G' + r) });
+    if (name && !isNonProductName(name)) products.push({ name, qty: cv('C' + r), memo: cv('G' + r) });
   }
 
   // 명단 시트 찾기: 다른 시트 중 헤더에 고객명·주소가 있는 첫 시트
@@ -1979,14 +1998,39 @@ function parseOrderInfoFromFilename(name) {
   if (!tokens.length) return out;
   out.supplier = tokens.shift();
   if (tokens.length && /\([^)]*\)$/.test(tokens[tokens.length-1])) out.staff = tokens.pop();
-  // 남은 토큰: [주문처(+담당자)] [담당자] [보내는이] — 뒤에서부터 판별
-  if (tokens.length > 1 && !/님$/.test(tokens[tokens.length-1])) out.shipper = tokens.pop();
-  if (tokens.length > 1 && /님$/.test(tokens[tokens.length-1])) out.manager = tokens.pop();
-  let orderer = tokens.join(' ');
-  // 담당자가 주문처 토큰에 붙어 있는 경우: 끝의 '이름 직급님' 두 단어 분리
-  if (!out.manager && /님$/.test(orderer)) {
-    const words = orderer.split(/\s+/);
-    if (words.length >= 2) { out.manager = words.slice(-2).join(' '); orderer = words.slice(0, -2).join(' '); }
+  // 담당자('…님'으로 끝나는 첫 토큰)를 기준으로 앞=주문처, 뒤=보내는이
+  // (보내는이에 _가 섞여 여러 토큰이 된 경우, 주문처+담당자가 한 토큰에 붙은 경우 모두 대응)
+  let orderer = '';
+  const ni = tokens.findIndex(t => /님$/.test(t));
+  if (ni >= 0) {
+    out.shipper = tokens.slice(ni + 1).join(' ');
+    const words = tokens[ni].split(/\s+/).filter(Boolean);
+    if (words.length >= 2) {
+      let mWords = words.slice(-2);
+      let oWords = words.slice(0, -2);
+      // 지점명과 이름이 붙은 경우 분리: '광화문BIZ프라임센터임보성 부지점장님' → 지점명 + '임보성 부지점장님'
+      const nameWord = mWords[0];
+      if (nameWord.length >= 6) {
+        const km = [...nameWord.matchAll(/(센터|지점|본부|부문|사업부|영업부|팀|과|실|점)/g)];
+        if (km.length) {
+          const last = km[km.length - 1];
+          const tail = nameWord.slice(last.index + last[0].length);
+          if (/^[가-힣]{2,4}$/.test(tail)) {
+            oWords = [...oWords, nameWord.slice(0, last.index + last[0].length)];
+            mWords = [tail, mWords[1]];
+          }
+        }
+      }
+      out.manager = mWords.join(' ');
+      orderer = [...tokens.slice(0, ni), ...oWords].join(' ');
+    } else {
+      out.manager = tokens[ni];
+      orderer = tokens.slice(0, ni).join(' ');
+    }
+  } else {
+    // 담당자 토큰 없음: 마지막 토큰은 보내는이, 나머지는 주문처
+    if (tokens.length > 1) out.shipper = tokens.pop();
+    orderer = tokens.join(' ');
   }
   const sp = orderer.indexOf(' ');
   out.bankName = sp > 0 ? orderer.slice(0, sp) : orderer;
@@ -1998,15 +2042,15 @@ function parseOrderInfoFromFilename(name) {
 // 삼진어묵 접수양식(헤더 6행), 택배 접수양식(예시 행 포함) 등 매입처마다 다른 양식 대응.
 // 주문정보(주문일·은행명·매입처 등)는 파일명에서 가져온다.
 const VENDOR_COLS = {
-  companyName: ['받는분 성함','받으시는 분','받는사람','수령인','받는분'],
-  address:     ['받는분 주소','받는분총주소','받는분 총주소','수령인 주소','주소'],
-  phone:       ['받는분 연락처(휴대폰)','받는분핸드폰','받으시는 분 전화','받는분 연락처','받는분 전화'],
+  companyName: ['받는분 성함','받으시는 분','받는사람','수취인 성명','수취인','수령인','받는분'],
+  address:     ['받는분 주소','받는분총주소','받는분 총주소','수취인 주소','수령인 주소','주소'],
+  phone:       ['받는분 연락처(휴대폰)','받는분핸드폰','받으시는 분 전화','받는분 연락처','받는분 전화','수취인 전화번호'],
   productName: ['제품명','품목명','품명','상품명'],
   qty:         ['수량'],
-  shipper:     ['보내는분 성함','보내시는 분','보내는사람','보내는 사람','보내는분','발송인'],
+  shipper:     ['보내는분 성함','보내시는 분','보내는사람','보내는 사람','구매자 성명','구매자','보내는분','발송인'],
   memo:        ['배송메세지','배송메시지','배송메모'],
-  option:      ['옵션'],
-  num:         ['송장번호','운송장번호','운송장 번호'],
+  option:      ['옵션','비고'],
+  num:         ['송장번호','운송장번호','운송장 번호','대한통운 송장번호'],
   carrier:     ['택배사','배송사'],
 };
 // 별칭이 긴 것부터 대조 — '받는분 연락처'가 '받는분'(받는이)으로 오인되지 않도록
@@ -2020,6 +2064,13 @@ function matchVendorCol(header) {
     if (h === alias || h.startsWith(alias)) return field;
   }
   return null;
+}
+
+// 배송 조회 대상이 아닌 부자재·비용 품목(포장지·쇼핑백·택배비·퀵 등)은 등록에서 제외
+function isNonProductName(name) {
+  const t = String(name || '').replace(/\s/g, '');
+  if (!t || t.length > 14) return false;
+  return /^(포장지|쇼핑백|종이쇼핑백|종이가방|부직포|택배비|택배요금|배송비|운송비|배달비|퀵비|퀵서비스|퀵)/.test(t);
 }
 
 // 화면 표시용 항목 이름
@@ -2251,6 +2302,10 @@ function readFileRows(file, uploadMode) {
         const vRows = parseVendorListWb(wb, parseOrderInfoFromFilename(file.name));
         if (vRows) rows = uploadMode === 'update' ? vRows.filter(r => r.num) : vRows;
       }
+      // 부자재·비용 품목 제외 (포장지·쇼핑백·택배비·퀵 등)
+      const beforeExclude = rows.length;
+      rows = rows.filter(r => !isNonProductName(r.productName));
+      rows.excludedNonProduct = beforeExclude - rows.length;
       rows.forEach(r => { r._file = file.name; });
       resolve(rows);
     } catch(err) { reject(err); }
