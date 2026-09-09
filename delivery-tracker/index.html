@@ -2553,19 +2553,22 @@ async function runBulkUpdate() {
   if (extra) extras.push(`추가 송장 분리 등록 ${extra}건`);
   if (dup) extras.push(`중복 제외 ${dup}건`);
   toast(`업데이트 완료 — 매칭 ${matched}건${extras.length?' · '+extras.join(' · '):''} / 미매칭 ${notFound}건`);
-  // 미매칭이 있으면 어떤 행이 왜 안 붙었는지 목록으로 안내
+  // 결과는 항상 중앙 팝업으로 확인 (미매칭이 있으면 사유 목록 포함)
+  let html = `<div class="summary-meta">매칭 <strong style="color:var(--black)">${matched}</strong>건`
+    + (extra ? ` · 추가 송장 분리 등록 <strong style="color:var(--black)">${extra}</strong>건` : '')
+    + (dup ? ` · 중복 제외 ${dup}건` : '')
+    + ` · 미매칭 <strong style="color:${notFound?'#b45309':'var(--black)'}">${notFound}</strong>건</div>`;
   if (notFoundRows.length) {
     const cell = (v, style) => `<td${style?` style="${style}"`:''} title="${escapeHtml(v)}">${escapeHtml(v)}</td>`;
     const rows = notFoundRows.slice(0, 30).map(({item, reason}) =>
       `<tr>${cell(item.productName||'-')}${cell(item.num||'-')}${cell(reason,'color:var(--gray-500)')}</tr>`).join('');
-    const html = `
+    html += `
       <div style="margin-top:1rem;font-size:12px;font-weight:700;color:#854d0e">미매칭 ${notFoundRows.length}건${notFoundRows.length>30?' (30건 표시)':''}</div>
       <div style="max-height:260px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:6px;margin-top:6px">
       <table class="summary-table skip-table"><thead><tr><th style="width:26%">품명</th><th style="width:16%">송장번호</th><th>사유</th></tr></thead><tbody>${rows}</tbody></table></div>
       <div style="font-size:11px;color:var(--gray-400);margin-top:6px">매칭 기준: 주문일·은행명·지점명·품번·품명·보내는이·받는이 일치 → 안 되면 주문일+품명(+받는이·지점명)으로 유일 후보 탐색. 표의 차이 항목을 파일이나 등록 건에서 맞춰 다시 업로드하세요.</div>`;
-    showChangeSummary(null, '송장번호 업데이트 결과',
-      `<div class="summary-meta">매칭 <strong style="color:var(--black)">${matched}</strong>건 · 미매칭 <strong style="color:#b45309">${notFoundRows.length}</strong>건</div>` + html);
   }
+  showChangeSummary(null, '송장번호 업데이트 결과', html);
 }
 
 // ── 자동 조회 주기 (분) — localStorage `tracker_auto_interval_min` ──
