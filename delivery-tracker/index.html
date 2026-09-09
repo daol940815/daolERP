@@ -1990,21 +1990,39 @@ function parsePurchaseOrder(wb) {
   }
 
   // 명단 시트 찾기: 다른 시트 중 헤더에 고객명·주소가 있는 첫 시트
+  // 헤더 이름은 공백 무시 대조 ('고객연락처1'과 '고객 연락처1'을 같은 열로 취급)
   for (const sn of wb.SheetNames) {
     if (sn === '발주서') continue;
     const json = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: '' });
-    if (!json.length || json[0]['고객명'] === undefined || json[0]['주소'] === undefined) continue;
+    if (!json.length) continue;
+    const keys = Object.keys(json[0]);
+    const findKey = (...names) => {
+      const wants = names.map(n => n.replace(/\s/g, ''));
+      return keys.find(k => wants.includes(String(k).replace(/\s/g, '')));
+    };
+    const K = {
+      name:    findKey('고객명', '받는이', '받는분', '수취인'),
+      addr:    findKey('주소', '고객주소'),
+      product: findKey('품명', '제품명', '상품명'),
+      qty:     findKey('수량'),
+      shipper: findKey('보내는이', '보내는분', '발송인'),
+      phone:   findKey('고객연락처1', '고객연락처', '연락처1', '연락처', '전화번호', '휴대폰'),
+      phone2:  findKey('고객연락처2', '연락처2'),
+      memo:    findKey('비고', '배송메세지', '배송메시지'),
+    };
+    if (!K.name || !K.addr) continue;
+    const g = (row, k) => k === undefined ? '' : cleanText(row[k]);
     const out = json
-      .filter(row => cleanText(row['고객명']) || cleanText(row['주소']))
+      .filter(row => g(row, K.name) || g(row, K.addr))
       .map(row => ({
         ...common,
-        productName: cleanText(row['품명']) || products[0]?.name || '',
-        qty:         cleanText(row['수량']) || '1',
-        shipper:     stripPhone(row['보내는이']) || common.shipper,
-        companyName: cleanText(row['고객명']),
-        address:     cleanText(row['주소']),
-        phone:       cleanText(row['고객 연락처1'] || row['연락처'] || ''),
-        memo:        cleanText(row['비고']),
+        productName: g(row, K.product) || products[0]?.name || '',
+        qty:         g(row, K.qty) || '1',
+        shipper:     stripPhone(K.shipper === undefined ? '' : row[K.shipper]) || common.shipper,
+        companyName: g(row, K.name),
+        address:     g(row, K.addr),
+        phone:       g(row, K.phone) || g(row, K.phone2),
+        memo:        g(row, K.memo),
       }));
     out.excludedNonProduct = excludedNonProduct;
     return out;
