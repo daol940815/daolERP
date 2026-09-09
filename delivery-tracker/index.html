@@ -1664,7 +1664,7 @@ async function handleFiles(fileList) {
   if (!files.length) return;
   if (typeof XLSX==='undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
   const uploadMode = document.querySelector('input[name="upload-mode"]:checked')?.value || 'new';
-  await ensureColMaps(); // 저장된 열 매핑을 먼저 불러와 같은 양식에 자동 적용
+  await Promise.all([ensureColMaps(), ensureSupplierBook()]); // 저장된 열 매핑·매입처 주소록을 먼저 불러옴 (매핑 자동 적용 + 미등록 매입처 검증)
   Promise.all(files.map(f =>
     readFileRows(f, uploadMode)
       .then(rows => ({ name: f.name, rows }))
@@ -1788,7 +1788,9 @@ function renderUploadCards() {
     } else {
       meta = `행별 주문정보 기재${inhN ? ` · 이어받기 ${inhN}건` : ''}`;
     }
-    const warn = dupN ? `<br><span class="ucard-warn">이미 등록된 주문과 겹침 ${dupN}건 — 표에서 노란색 행</span>` : '';
+    let warn = dupN ? `<br><span class="ucard-warn">이미 등록된 주문과 겹침 ${dupN}건 — 표에서 노란색 행</span>` : '';
+    const unkSups = unknownSuppliers(rows);
+    if (unkSups.length) warn += `<br><span class="ucard-warn">주소록에 없는 매입처 <b>${unkSups.map(escapeHtml).join(', ')}</b> — 파일명·매입처 표기를 확인하세요 (실제 신규 매입처면 그대로 등록해도 됩니다)</span>`;
 
     // 접수양식: 열 매핑 표시 + 확인 안내 + 매핑 수정
     let mapHtml = '';
@@ -2403,6 +2405,11 @@ async function runBulkOrUpdate() {
 // 신규 등록 (송장번호 없는 항목 포함) — 배치 조회
 async function runBulk() {
   if (!bulkData.length) return;
+  // 주소록에 없는 매입처가 섞여 있으면 등록 전에 한 번 확인 (파일명 오타·하이픈 실수 방지)
+  const unkSups = unknownSuppliers(bulkData);
+  if (unkSups.length && !confirm(
+    `주소록에 없는 매입처 ${unkSups.length}곳이 포함되어 있습니다:\n\n${unkSups.join('\n')}\n\n` +
+    `파일명이나 매입처 표기 오류일 수 있습니다. 실제 신규 매입처가 맞으면 [확인]을 눌러 등록하세요.`)) return;
   const btn = document.getElementById('btn-bulk');
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 조회 중...';
   bulkRunning = true;
@@ -3878,6 +3885,23 @@ async function loadMailData() {
   (s.rows || []).forEach(r => supplierBook[r.name] = r);
   mailPresets = p.rows || [];
   mailLog = l.rows || [];
+}
+
+// 업로드 검증용 주소록 로드 — 한 번만 불러와 캐시 (실패해도 업로드는 진행)
+let _supBookPromise = null;
+function ensureSupplierBook() {
+  if (!_supBookPromise) {
+    _supBookPromise = apiGet('/db/suppliers').then(r => {
+      (r.rows || []).forEach(x => { if (!supplierBook[x.name]) supplierBook[x.name] = x; });
+    }).catch(() => {});
+  }
+  return _supBookPromise;
+}
+
+// 주소록에 없는 매입처 추출 (주소록이 비어있으면 검증 불가로 빈 배열)
+function unknownSuppliers(rows) {
+  if (!Object.keys(supplierBook).length) return [];
+  return [...new Set(rows.map(r => (r.supplier || '').trim()).filter(s => s && !supplierBook[s]))];
 }
 
 let mailSelected = null; // 좌측 패널에서 선택된 매입처
