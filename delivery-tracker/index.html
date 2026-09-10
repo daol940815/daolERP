@@ -1884,6 +1884,7 @@ function renderUploadCards() {
       if (variant) {
         const why = [];
         if (m.fallback) why.push('표준과 다른 양식이라 자동 추정으로 읽었습니다');
+        if (m.coreMissing.includes('address')) why.push('<b>주소 열을 찾지 못했습니다</b> — [매핑 수정]에서 지정하세요');
         if (m.coreMissing.includes('qty')) why.push('<b>수량 열이 없어 전량 1로 등록</b>됩니다');
         if (m.coreMissing.includes('phone') && m.map.phone === undefined) why.push('전화번호 열을 찾지 못했습니다');
         if (m.positionalPhone) why.push('노란 표시(전화번호)는 위치로 추정한 매핑입니다');
@@ -2178,11 +2179,11 @@ function parseOrderInfoFromFilename(name) {
 // 주문정보(주문일·은행명·매입처 등)는 파일명에서 가져온다.
 const VENDOR_COLS = {
   companyName: ['받는분 성함','받으시는 분','받는사람','수취인 성명','수취인','수령인','받는분'],
-  address:     ['받는분 주소','받는분총주소','받는분 총주소','수취인 주소','수령인 주소','주소'],
-  phone:       ['받는분 연락처(휴대폰)','받는분핸드폰','받으시는 분 전화','받는분 연락처','받는분 전화','수취인 전화번호'],
+  address:     ['받는분 주소','받는분총주소','받는분 총주소','수취인 주소','수취인 배송지','수령인 주소','배송지 주소','배송지','주소'],
+  phone:       ['받는분 연락처(휴대폰)','받는분핸드폰','받으시는 분 전화','받는분 연락처','받는분 전화','수취인 전화번호','수취인 휴대폰','휴대폰번호','휴대전화'],
   productName: ['제품명','품목명','품명','상품명'],
-  qty:         ['수량'],
-  shipper:     ['보내는분 성함','보내시는 분','보내는사람','보내는 사람','구매자 성명','구매자','보내는분','발송인'],
+  qty:         ['내품수량','수량'],
+  shipper:     ['보내는분 성함','보내시는 분','보내는사람','보내는 사람','구매자 성명','구매자','보내는분','발송인','발신자'],
   memo:        ['배송메세지','배송메시지','배송메모'],
   option:      ['옵션','비고'],
   num:         ['송장번호','운송장번호','운송장 번호','대한통운 송장번호'],
@@ -2288,8 +2289,10 @@ function parseVendorListWb(wb, fileInfo) {
       } else {
         map = {};
         headerRow.forEach((h, c) => { const f = matchVendorCol(h); if (f && map[f] === undefined) map[f] = c; });
-        if (map.companyName === undefined || map.address === undefined ||
-            (map.productName === undefined && map.qty === undefined)) continue;
+        // 받는이 + (주소·품명·수량 중 하나)면 접수양식으로 인정 — 빠진 핵심 열은
+        // '변형양식 — 확인 필요'로 표시되고 [매핑 수정]으로 지정할 수 있음
+        if (map.companyName === undefined ||
+            (map.address === undefined && map.productName === undefined && map.qty === undefined)) continue;
         // 전화번호 열이 이름으로 안 잡히면: 받는이 열 뒤의 첫 연락처/전화 열 사용 (위치 추정)
         if (map.phone === undefined) {
           for (let c = map.companyName + 1; c < headerRow.length; c++) {
