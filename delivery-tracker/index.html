@@ -1560,13 +1560,30 @@ function syncSameNumItems(carrier, num, trackingResult) {
 }
 
 // ── 수정 화면에서 추가 입력된 송장번호들을 새 행으로 분리 등록 ──
+// 다중 송장 분리 시 수량 균등 분할 — 총수량이 유지되도록 나눔 (40 ÷ 송장 3개 → 14/13/13)
+// 수량이 양의 정수가 아니면(빈칸·문자 등) 나누지 않고 원래 값을 그대로 복사
+function splitQty(qty, n) {
+  const raw = qty == null ? '' : String(qty).trim();
+  const total = Number(raw);
+  if (!n || n < 1) return [];
+  if (n === 1 || !raw || !Number.isInteger(total) || total <= 0) return Array(n).fill(raw);
+  const base = Math.floor(total / n), rem = total % n;
+  return Array.from({ length: n }, (_, i) => String(base + (i < rem ? 1 : 0)));
+}
+
 async function registerExtraNums(baseItem, extraNums) {
   const fresh = extraNums.filter(n => !isDuplicateNum(baseItem.carrier, n, null, baseItem.productName));
   const dup = extraNums.length - fresh.length;
-  await Promise.all(fresh.map(async n => {
+  // 수량 균등 분할: 원본 행 + 분리 행들이 총수량을 나눠 가짐
+  const qparts = splitQty(baseItem.qty, fresh.length + 1);
+  if (fresh.length && String(baseItem.qty ?? '') !== qparts[0]) {
+    baseItem.qty = qparts[0];
+    saveToStorage(baseItem);
+  }
+  await Promise.all(fresh.map(async (n, fi) => {
     const item = {
       ...baseItem,
-      num: n, localId: makeLocalId(),
+      num: n, localId: makeLocalId(), qty: qparts[fi + 1],
       status: '대기중', steps: [], error: null, shippedAt: '',
       addedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1706,7 +1723,8 @@ async function submitSingle() {
   // 퀵·직접배송: 송장번호 유무와 관계없이 조회 없이 즉시 배송완료 등록
   if (isManualCarrier(carrier)) {
     const list = nums.length ? nums : [''];
-    list.forEach(n => upsertItem({ ...base, num:n, localId: makeLocalId(),
+    const qp = splitQty(base.qty, list.length);
+    list.forEach((n, i) => upsertItem({ ...base, num:n, qty: qp[i], localId: makeLocalId(),
       status:'배송완료', steps: manualSteps(carrier), error:null }));
     toast(`${carriers[carrier].name} ${list.length}건 — 배송완료로 등록됐습니다`);
     closeModal('modal-single');
@@ -1731,11 +1749,12 @@ async function submitSingle() {
 
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 조회 중...';
   let failCnt = 0;
+  const qparts = splitQty(base.qty, fresh.length); // 다중 송장이면 수량 균등 분할 (총수량 유지)
   for (let i=0; i<fresh.length; i+=PARALLEL_CHUNK) {
     const chunk = fresh.slice(i, i+PARALLEL_CHUNK);
-    await Promise.all(chunk.map(async n => {
+    await Promise.all(chunk.map(async (n, j) => {
       // 항상 localId 부여 → 같은 송장번호 합포장 건도 독립 항목으로 등록
-      const item = { ...base, num:n, localId: makeLocalId() };
+      const item = { ...base, num:n, qty: qparts[i+j], localId: makeLocalId() };
       try {
         const raw = await fetchWithRetry(carrier, n);
         const pr = parseTracking(raw, carrier, n);
@@ -2436,12 +2455,13 @@ function readFileRows(file, uploadMode) {
         if (!r.carrierRaw) { r.carrier = lastOrder.carrier; r.carrierRaw = lastOrder.carrierRaw; }
       });
 
-      // 한 행에 여러 송장번호(쉼표 등 구분)가 있으면 별도 행으로 분리
+      // 한 행에 여러 송장번호(쉼표 등 구분)가 있으면 별도 행으로 분리 — 수량은 균등 분할 (총수량 유지)
       rows = rows.flatMap(r => {
         const { numsRaw, ...rest } = r;
         const nums = splitTrackingNums(numsRaw);
         if (nums.length <= 1) return [{ ...rest, num: nums[0] || '' }];
-        return nums.map(n => ({ ...rest, num: n }));
+        const qparts = splitQty(rest.qty, nums.length);
+        return nums.map((n, i) => ({ ...rest, num: n, qty: qparts[i], _qtySplit: true }));
       });
 
       // 모드별 필터: 신규는 전체 허용, 업데이트는 송장번호 있는 행만
@@ -2680,7 +2700,7 @@ async function runBulkUpdate() {
         carrier: item.carrier || existing.carrier,
         num:     item.num,
         localId: existing.localId || makeLocalId(), // 영구 행 ID 유지
-
+        ...(item._qtySplit ? { qty: item.qty } : {}), // 한 셀 다중 송장 분할분이면 분할 수량 반영
         memo:    item.memo || existing.memo,
         supplier: item.supplier || existing.supplier || '',
         updatedAt: new Date().toISOString(),
@@ -2697,6 +2717,7 @@ async function runBulkUpdate() {
         num:     item.num,
         localId: makeLocalId(), // 분리 등록 행의 새 영구 ID
         status:  '대기중', steps: [], error: null,
+        ...(item._qtySplit ? { qty: item.qty } : {}), // 한 셀 다중 송장 분할분이면 분할 수량 반영
         memo:    item.memo || src.memo,
         supplier: item.supplier || src.supplier || '',
         addedAt:   new Date().toISOString(),
