@@ -1050,7 +1050,12 @@ const carriers = {
   epost: { name:'우체국택배', courierCode:'epost',  url: n=>`https://service.epost.go.kr/trace.RetrieveEmsRigiTraceList.comm?POST_CODE=${n}` },
   logen: { name:'로젠택배',   courierCode:'logen',  url: n=>`https://www.ilogen.com/web/personal/trace/${n}` },
   lottedept: { name:'롯데백화점', courierCode:'lottedept', url: n=>`https://bs.dpt.co.kr/shipping-form/search-delivery/` },
+  // 조회 대상이 아닌 수동 배송 수단 — 등록 즉시 배송완료 처리 (송장번호 불필요)
+  quick:  { name:'퀵배송',   manual:true },
+  direct: { name:'직접배송', manual:true },
 };
+const isManualCarrier = c => !!carriers[c]?.manual;
+const manualSteps = c => [{ text:`${carriers[c]?.name || c} — 송장 조회 없이 완료 처리`, time:'', done:true, current:true }];
 
 // 실행 시 API에서 지원 택배사 전체 목록을 불러와 선택지에 추가
 // (Workers에 GET /couriers 프록시가 있어야 동작 — 없으면 기본 5개 유지)
@@ -1100,6 +1105,8 @@ function carrierFromStr(s) {
   if (t.includes('hanjin')||t.includes('한진')) return 'hanjin';
   if (t.includes('epost')||t.includes('우체국')) return 'epost';
   if (t.includes('logen')||t.includes('로젠')) return 'logen';
+  if (t.includes('퀵')||t==='quick') return 'quick';
+  if (t.includes('직접')||t.includes('자체배송')||t==='direct') return 'direct';
   if (carriers[t]) return t; // 코드로 직접 기입한 경우
   // 동적으로 불러온 택배사 이름과 매칭
   for (const [k, v] of Object.entries(carriers)) {
@@ -1168,6 +1175,10 @@ function resolveTrackingError(e, base) {
       ? `인식할 수 없는 택배사: ${base.carrier}`
       : '택배사 미지정 — 수정에서 택배사를 선택하세요' };
   }
+  // 퀵·직접배송이 조회 경로에 들어오면 조회실패가 아니라 완료 처리
+  if (m === 'MANUAL_CARRIER') {
+    return { ...base, status: '배송완료', steps: manualSteps(base.carrier), error: null };
+  }
   return { ...base, status: STATUS_LOOKUP_FAIL, steps: [], error: inferLookupFailReason(e) };
 }
 
@@ -1229,8 +1240,8 @@ function getFilterGroup(item) {
       : 999;
     return hours < 12 ? '출고전' : '조회실패';
   }
+  if (!item.num) return '송장미등록'; // 송장번호 미회신 — 2일이 지나도 배송지연이 아니라 송장미등록으로 유지
   if (isDelay(item)) return '배송지연';
-  if (!item.num) return '송장미등록'; // 송장번호 미회신 (2일 경과 시 위의 배송지연으로 편입)
   if (ACCIDENT_STATUSES.includes(item.status)) return '사고';
   if (TRANSIT_STATUSES.includes(item.status)) return '배송중';
   return '출고전';
@@ -1303,8 +1314,8 @@ function statusBadge(item) {
       : '';
     return `<div><span class="badge ${cls}">${STATUS_LOOKUP_FAIL}</span>${sub}</div>`;
   }
-  // 송장번호가 없는 건은 어느 그룹에 있든 '송장미등록'으로 표기 (배송지연 편입 시에도 구분 유지)
-  const label = !item.num ? '송장미등록'
+  // 송장번호가 없는 건은 '송장미등록'으로 표기 (퀵·직접배송처럼 송장이 원래 없는 건은 제외)
+  const label = (!item.num && !isManualCarrier(item.carrier)) ? '송장미등록'
     : (group === '배송중' ? (item.status||'배송중') : (item.status||group));
   return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
 }
@@ -1339,6 +1350,7 @@ async function fetchTracking(carrier, num) {
 
 async function fetchWithRetry(carrier, num, retries=3) {
   if (!carriers[carrier]) throw new Error('NO_CARRIER');
+  if (carriers[carrier].manual) throw new Error('MANUAL_CARRIER'); // 퀵·직접배송은 조회 대상 아님
   for (let i=0; i<=retries; i++) {
     try { return await fetchTracking(carrier, num); }
     catch(e) {
@@ -1420,6 +1432,7 @@ function closeProgressModal() {
 async function runTrackingQueries(targets, transitionCounts, onProgress) {
   _queryAbort = false;
   let processed = 0;
+  const totalN = targets.length;
   const prevSuppress = suppressRender;
   suppressRender = true;
   const applyResult = (item, pr) => {
@@ -1434,7 +1447,7 @@ async function runTrackingQueries(targets, transitionCounts, onProgress) {
   };
   let _lastTickAt = 0;
   const tick = (force) => {
-    if (onProgress) onProgress(processed, targets.length);
+    if (onProgress) onProgress(processed, totalN);
     // 조회 진행 중 목록 전체 재렌더는 0.5초에 한 번만 (진행바는 매번 갱신)
     const now = Date.now();
     if (!force && now - _lastTickAt < 500) return;
@@ -1442,6 +1455,17 @@ async function runTrackingQueries(targets, transitionCounts, onProgress) {
     updateStats(); renderTable();
   };
   try {
+    // 퀵·직접배송은 API 조회 없이 즉시 완료 처리
+    const manualTargets = targets.filter(t => isManualCarrier(t.carrier));
+    if (manualTargets.length) {
+      manualTargets.forEach(item => {
+        const before = getFilterGroup(item);
+        applyError(item, new Error('MANUAL_CARRIER'));
+        recordAfter(item, before); processed++;
+      });
+      targets = targets.filter(t => !isManualCarrier(t.carrier));
+      tick();
+    }
     const retryQueue = [];
     // 1차: 배치 조회
     for (let i=0; i<targets.length; i+=QUERY_BATCH_SIZE) {
@@ -1678,6 +1702,16 @@ async function submitSingle() {
   };
 
   const btn = document.getElementById('btn-single-submit');
+
+  // 퀵·직접배송: 송장번호 유무와 관계없이 조회 없이 즉시 배송완료 등록
+  if (isManualCarrier(carrier)) {
+    const list = nums.length ? nums : [''];
+    list.forEach(n => upsertItem({ ...base, num:n, localId: makeLocalId(),
+      status:'배송완료', steps: manualSteps(carrier), error:null }));
+    toast(`${carriers[carrier].name} ${list.length}건 — 배송완료로 등록됐습니다`);
+    closeModal('modal-single');
+    return;
+  }
 
   // 송장번호 없이 등록
   if (!nums.length) {
@@ -2527,12 +2561,18 @@ async function runBulk() {
             continue;
           }
           item.localId = makeLocalId();
-          upsertItem({ ...item, status: '출고전', steps:[], error:null });
+          // 퀵·직접배송은 송장 없이도 즉시 배송완료 처리
+          if (isManualCarrier(item.carrier)) upsertItem({ ...item, status:'배송완료', steps: manualSteps(item.carrier), error:null });
+          else upsertItem({ ...item, status: '출고전', steps:[], error:null });
           done++;
         } else if (isDuplicateNum(item.carrier, item.num, null, item.productName)) {
           duplicates++;
           done++;
           skippedRows.push({ item, reason: `송장번호 ${item.num} 이미 등록됨` });
+        } else if (isManualCarrier(item.carrier)) {
+          if (!item.localId) item.localId = makeLocalId();
+          upsertItem({ ...item, status:'배송완료', steps: manualSteps(item.carrier), error:null });
+          done++;
         } else {
           if (!item.localId) item.localId = makeLocalId();
           toQuery.push(item);
@@ -2971,7 +3011,7 @@ function renderDashboard() {
     { label:'전체', val:total, f:'all', color:'var(--black)' },
     ...Object.keys(groups).map(g => ({
       label:g,
-      val: g === '송장미등록' ? allItems.filter(r => !r.num).length : groups[g],
+      val: groups[g],
       f:g, color:GROUP_COLORS[g],
     })),
     { label:'완료율', val:doneRate+'%', f:null, color:'var(--black)' },
@@ -3111,8 +3151,8 @@ function getFiltered() {
   const dateFrom  = document.getElementById('filter-date-from').value;
   const dateTo    = document.getElementById('filter-date-to').value;
 
-  // 송장미등록 필터는 지연 편입 여부와 무관하게 송장번호 없는 모든 건을 표시
-  const groupMatch = (r, want) => want === '송장미등록' ? !r.num : getFilterGroup(r) === want;
+  // 송장 없는 건은 그룹 판정에서 항상 송장미등록 (배송지연 편입 없음 · 퀵·직접배송 완료 건 제외)
+  const groupMatch = (r, want) => getFilterGroup(r) === want;
   return allItems.filter(r=>{
     if (currentFilter!=='all' && !groupMatch(r, currentFilter)) return false;
     if (carrier && r.carrier!==carrier) return false;
@@ -3929,7 +3969,8 @@ function exportReport() {
 
 // ── 회신요청서: 송장미등록 건을 매입처별 워크북으로 생성 (다운로드·메일 첨부 공용) ──
 function buildReplyRequestEntries() {
-  const targets = allItems.filter(r => !r.num);
+  // 퀵·직접배송은 송장번호가 원래 없으므로 회신 요청 대상에서 제외
+  const targets = allItems.filter(r => !r.num && !isManualCarrier(r.carrier));
   if (!targets.length) return [];
 
   // 같은 주문 묶음의 총수량·순번 계산
