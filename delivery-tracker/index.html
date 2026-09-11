@@ -1809,8 +1809,10 @@ async function handleFiles(fileList) {
       const em = document.getElementById('upload-empty');
       const reasons = [];
       if (failed.length) reasons.push(`읽기 실패한 파일: ${failed.map(escapeHtml).join(', ')}`);
+      const excludedTotal = okFiles.reduce((s, f) => s + (f.rows.excludedNonProduct || 0), 0);
+      if (excludedTotal) reasons.push(`<b>부자재·비용 품목 제외로 ${excludedTotal}건이 빠졌습니다</b> (포장지·쇼핑백·택배박스·택배비 등). 실제 상품인데 제외됐다면 품명을 알려주세요.`);
       if (mode0 === 'update') reasons.push('현재 <b>송장번호 업데이트</b> 모드입니다 — 송장번호가 있는 행만 읽으므로, 발주서·명단처럼 송장번호가 없는 파일은 인식되지 않습니다. 신규 등록이라면 위에서 <b>신규 등록</b> 모드를 선택한 뒤 다시 올려주세요.');
-      else reasons.push('파일에서 인식된 행이 없습니다 — 첫 시트의 헤더(주문일·품명·받는이 등)나 발주서 형식(발주서+명단 시트), 접수양식(받는분·주소 열)이 맞는지 확인해 주세요.');
+      else if (!excludedTotal) reasons.push('파일에서 인식된 행이 없습니다 — 첫 시트의 헤더(주문일·품명·받는이 등)나 발주서 형식(발주서+명단 시트), 접수양식(받는분·주소 열)이 맞는지 확인해 주세요.');
       em.innerHTML = `인식된 행이 0건입니다.<br>` + reasons.join('<br>');
       em.style.display = 'block';
       document.getElementById('upload-cards').style.display = 'none';
@@ -2256,10 +2258,18 @@ function matchVendorCol(header) {
 }
 
 // 배송 조회 대상이 아닌 부자재·비용 품목(포장지·쇼핑백·택배비·퀵 등)은 등록에서 제외
-function isNonProductName(name) {
-  const t = String(name || '').replace(/\s/g, '');
+// 단일 구성품이 부자재인지 판정
+function isNonProductSegment(t) {
   if (!t || t.length > 14) return false; // 긴 이름은 실제 상품명일 가능성이 높아 제외하지 않음
   return /(포장지|쇼핑백|종이가방|부직포|택배박스|아이스박스|보냉백|택배비|택배요금|배송비|운송비|배달비|퀵비|퀵서비스)/.test(t) || /^퀵/.test(t);
+}
+// '명인 스탠드 4종세트+택배박스'처럼 상품에 구성품이 붙은 표기는 실제 상품 —
+// +·&·,·/ 로 나눈 모든 구성품이 부자재일 때만 제외
+function isNonProductName(name) {
+  const t = String(name || '').replace(/\s/g, '');
+  if (!t) return false;
+  const segs = t.split(/[+&,/]/).filter(Boolean);
+  return segs.length > 0 && segs.every(isNonProductSegment);
 }
 
 // 화면 표시용 항목 이름
