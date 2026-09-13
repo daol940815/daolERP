@@ -2940,20 +2940,28 @@ async function syncFromDb() {
         const remT   = rem.updatedAt   ? new Date(rem.updatedAt).getTime()   : 0;
         const localT = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
         if (remT > localT) {
-          // 시트에 아직 없는 필드와 영구 행 ID는 로컬 값 보존
+          // 서버가 빈값인 필드(택배사 포함)와 영구 행 ID는 로컬 값 보존
           const keepF = { memo: local.memo || rem.memo, localId: rem.localId || local.localId || '' };
-          ['supplier','shippedAt','bankName','branchName','manager','productCode','shipType','staff','address','phone'].forEach(f => {
+          ['carrier','supplier','shippedAt','bankName','branchName','manager','productCode','shipType','staff','address','phone'].forEach(f => {
             keepF[f] = rem[f] || local[f] || '';
           });
           Object.assign(local, rem, keepF);
+          // 서버가 비어 로컬 값을 보존한 필드가 있으면 서버로 재저장 — 여러 PC가 있어도 입력값으로 수렴
+          const preserved = Object.keys(keepF).some(f => f !== 'localId' && String(keepF[f] || '') !== String(rem[f] || ''));
+          if (preserved) {
+            local.updatedAt = new Date().toISOString();
+            saveToStorage(local);
+          }
           changed = true;
         }
       }
     });
-    const remoteKeys = new Set(remote.map(r => r.num ? r.carrier+'__'+r.num : 'lid__'+(r.localId||'')));
+    // 행 대조는 영구 행 ID(localId) 우선 — 택배사·송장번호를 수정해도 같은 행으로 인식
+    const keyOf = r => r.localId ? 'lid__' + r.localId : r.carrier + '__' + r.num;
+    const remoteKeys = new Set(remote.map(keyOf));
     const before = allItems.length;
     allItems = allItems.filter(r => {
-      const k = r.num ? r.carrier+'__'+r.num : 'lid__'+(r.localId||'');
+      const k = keyOf(r);
       if (remoteKeys.has(k)) return true;
       // 동기화가 시작된 후 수정·추가된 행은 아직 시트에 반영 전일 수 있으므로 보존
       const t = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
