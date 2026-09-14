@@ -542,8 +542,8 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
   <button class="pill filter-item" data-filter="배송완료" onclick="setFilter('배송완료',this)">배송완료 <span class="count" id="cnt-done">0</span></button>
   <button class="pill filter-item" data-filter="배송중" onclick="setFilter('배송중',this)">배송중 <span class="count" id="cnt-transit">0</span></button>
   <button class="pill filter-item" data-filter="출고전" onclick="setFilter('출고전',this)">출고전 <span class="count" id="cnt-pending">0</span></button>
-  <button class="pill filter-item" data-filter="송장미등록" onclick="setFilter('송장미등록',this)">송장미등록 <span class="count" id="cnt-nonum">0</span></button>
   <button class="pill filter-item" data-filter="배송지연" onclick="setFilter('배송지연',this)">배송지연 <span class="count" id="cnt-delay">0</span></button>
+  <button class="pill filter-item" data-filter="송장미등록" onclick="setFilter('송장미등록',this)">송장미등록 <span class="count" id="cnt-nonum">0</span></button>
   <span id="delay-sub" style="display:none;gap:4px;align-items:center;padding-left:2px;border-left:1px solid var(--gray-200);margin-left:2px">
     <button class="pill delay-sub-item active" data-min="0" onclick="setDelayMin(0,this)" title="배송지연 전체">전체</button>
     <button class="pill delay-sub-item" data-min="3" onclick="setDelayMin(3,this)" title="3일 이상 지연">3일+ <span class="count" id="cnt-d3">0</span></button>
@@ -1247,23 +1247,22 @@ function getFilterGroup(item) {
     return hours < 12 ? '출고전' : '조회실패';
   }
   if (!item.num) return '송장미등록'; // 송장번호 미회신 — 2일이 지나도 배송지연이 아니라 송장미등록으로 유지
+  if (ACCIDENT_STATUSES.includes(item.status)) return '사고'; // 사고는 지연에 흡수되지 않고 사고 그룹 유지
   if (isDelay(item)) return '배송지연';
-  if (ACCIDENT_STATUSES.includes(item.status)) return '사고';
   if (TRANSIT_STATUSES.includes(item.status)) return '배송중';
   return '출고전';
 }
 
-function isDelay(item) {
-  if (item.status === '배송완료') return false;
-  if (!item.addedAt) return false;
-  const diff = (Date.now() - new Date(item.addedAt).getTime()) / (1000*60*60*24);
-  return diff >= 2;
+// 경과일 기준: ① 집화 시각(택배사 최초 수거) → ② 송장번호 입력일 → ③ 행 등록일
+function delayDays(r) {
+  const t = new Date(r.shippedAt || r.numAddedAt || r.addedAt || 0).getTime();
+  return !t || isNaN(t) ? 0 : Math.floor((Date.now() - t) / 86400000);
 }
 
-// 지연 경과일 — 출고일(택배사 최초 집화) 기준, 출고 이력이 없으면 등록일 기준
-function delayDays(r) {
-  const t = new Date(r.shippedAt || r.addedAt || 0).getTime();
-  return !t || isNaN(t) ? 0 : Math.floor((Date.now() - t) / 86400000);
+// 배송지연 진입: 위 기준으로 2일 이상 경과 + 미완료 (송장 유무·사고 여부는 그룹 판정에서 처리)
+function isDelay(item) {
+  if (item.status === '배송완료') return false;
+  return delayDays(item) >= 2;
 }
 
 // ── 배지 ──
@@ -1330,6 +1329,7 @@ function statusBadge(item) {
   let label = (!item.num && !isManualCarrier(item.carrier)) ? '송장미등록'
     : (group === '배송중' ? (item.status||'배송중') : (item.status||group));
   if (group === '배송지연') label += ` · D+${delayDays(item)}`; // 경과일 표시
+  if (group === '송장미등록' && delayDays(item) >= 2) label += ` · D+${delayDays(item)}`; // 장기 미회신 경과일 표시
   return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
 }
 
@@ -1604,6 +1604,7 @@ async function registerExtraNums(baseItem, extraNums) {
       ...baseItem,
       num: n, localId: makeLocalId(), qty: qparts[fi + 1],
       status: '대기중', steps: [], error: null, shippedAt: '',
+      numAddedAt: new Date().toISOString(),
       addedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -1670,6 +1671,7 @@ function upsertItem(data) {
   const entry = data.num
     ? allItems.find(r=>r.num===data.num && r.carrier===data.carrier)
     : allItems.find(r=>r.localId===data.localId);
+  if (entry && entry.num && !entry.numAddedAt) entry.numAddedAt = new Date().toISOString(); // 송장번호 최초 입력 시각
   if (entry) saveToStorage(entry);
   if (!suppressRender) { updateStats(); renderTable(); }
 }
@@ -2729,6 +2731,7 @@ async function runBulkUpdate() {
         carrier: item.carrier || existing.carrier,
         num:     item.num,
         localId: existing.localId || makeLocalId(), // 영구 행 ID 유지
+        ...(item.num && !existing.num ? { numAddedAt: new Date().toISOString() } : {}), // 송장 최초 입력 시각
         ...(item._qtySplit ? { qty: item.qty } : {}), // 한 셀 다중 송장 분할분이면 분할 수량 반영
         memo:    item.memo || existing.memo,
         supplier: item.supplier || existing.supplier || '',
@@ -2746,6 +2749,7 @@ async function runBulkUpdate() {
         num:     item.num,
         localId: makeLocalId(), // 분리 등록 행의 새 영구 ID
         status:  '대기중', steps: [], error: null,
+        numAddedAt: new Date().toISOString(),
         ...(item._qtySplit ? { qty: item.qty } : {}), // 한 셀 다중 송장 분할분이면 분할 수량 반영
         memo:    item.memo || src.memo,
         supplier: item.supplier || src.supplier || '',
@@ -3190,10 +3194,11 @@ function setDelayMin(min, el) {
 function updateDelaySub() {
   const box = document.getElementById('delay-sub');
   if (!box) return;
-  const show = currentFilter === '배송지연';
+  // 배송지연과 송장미등록(장기 미회신) 모두 경과일 구간 보기 지원
+  const show = currentFilter === '배송지연' || currentFilter === '송장미등록';
   box.style.display = show ? 'inline-flex' : 'none';
   if (!show) return;
-  const days = allItems.filter(r => getFilterGroup(r) === '배송지연').map(delayDays);
+  const days = allItems.filter(r => getFilterGroup(r) === currentFilter).map(delayDays);
   [['cnt-d3',3],['cnt-d5',5],['cnt-d7',7]].forEach(([id, min]) => {
     const e = document.getElementById(id);
     if (e) e.textContent = days.filter(d => d >= min).length;
@@ -3245,7 +3250,7 @@ function getFiltered() {
   const groupMatch = (r, want) => getFilterGroup(r) === want;
   return allItems.filter(r=>{
     if (currentFilter!=='all' && !groupMatch(r, currentFilter)) return false;
-    if (currentFilter==='배송지연' && delayMinDays && delayDays(r) < delayMinDays) return false;
+    if ((currentFilter==='배송지연' || currentFilter==='송장미등록') && delayMinDays && delayDays(r) < delayMinDays) return false;
     if (carrier && r.carrier!==carrier) return false;
     if (statusF && !groupMatch(r, statusF)) return false;
     if (bankF && (r.bankName||'') !== bankF) return false;
@@ -3477,7 +3482,7 @@ async function saveInlineNum(rowKey, inputEl) {
   inputEl.disabled = true;
 
   // 행 ID(localId)는 유지 — 시트의 같은 행이 제자리에서 갱신됨
-  const updated = { ...existing, num: firstNum, updatedAt: new Date().toISOString() };
+  const updated = { ...existing, num: firstNum, numAddedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
   allItems[idx] = updated;
   toast(`${firstNum} 조회 중…`);
   try {
@@ -3718,6 +3723,7 @@ async function saveEditGrid() {
     }
     updated.updatedAt = new Date().toISOString();
     const numChanged = existing.num && newNum && existing.num !== newNum;
+    if (newNum && (!existing.num || numChanged)) updated.numAddedAt = new Date().toISOString(); // 송장 최초 입력·교체 시각
     // 택배사를 바꾼 경우도 즉시 재조회 — 조회실패(택배사 미지정) 건이 수정 후 바로 상태 갱신되도록
     const carrierChanged = newNum && existing.carrier !== newCarrier;
     if (existing.num && !newNum) {
@@ -4475,6 +4481,7 @@ function itemToDbRow(entry) {
     address:      entry.address     || '',
     phone:        entry.phone       || '',
     memo:         entry.memo        || '',
+    num_added_at: entry.numAddedAt  || '',
     status:       entry.status      || '',
     steps:        (Array.isArray(entry.steps) && entry.steps.length) ? entry.steps
                     : (entry.error ? [{ text: String(entry.error), time: '', done: true, current: false }] : []),
@@ -4511,6 +4518,7 @@ function dbRowToItem(r) {
     error:       null,
     addedAt:     r.added_at    || '',
     updatedAt:   r.updated_at  || '',
+    numAddedAt:  r.num_added_at || '',
   };
 }
 
