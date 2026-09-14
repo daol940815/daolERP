@@ -1683,6 +1683,20 @@ function makeMatchKey(r) {
     .map(s=>String(s).trim().toLowerCase()).join('|');
 }
 
+// 동명이인 구분: 같은 매칭키라도 주소·전화가 서로 다르면 별개 배송으로 취급
+// (한쪽이 비어 있으면 비교 불가 → 같은 배송지로 간주해 기존 중복 판정 유지)
+function sameDest(a, b) {
+  const na = s => String(s || '').replace(/\s+/g, '').toLowerCase();
+  if (a.address && b.address && na(a.address) !== na(b.address)) return false;
+  const np = s => String(s || '').replace(/[^0-9]/g, '');
+  if (a.phone && b.phone && np(a.phone) !== np(b.phone)) return false;
+  return true;
+}
+// 매칭키 + 배송지(주소·전화)까지 포함한 키 — 업데이트 매칭에서 동명이인 행 구분용
+function destKey(r) {
+  return makeMatchKey(r) + '§' + String(r.address||'').replace(/\s+/g,'').toLowerCase() + '§' + String(r.phone||'').replace(/[^0-9]/g,'');
+}
+
 // ── 중복 송장번호 체크 ──
 // excludeKey: 수정 시 자기 자신은 중복에서 제외 (carrier__num 또는 localId)
 function isDuplicateNum(carrier, num, excludeKey, productName) {
@@ -1892,10 +1906,10 @@ function precheckDuplicates() {
     if (!r.num) {
       if (!dupCheckable(r)) return;
       const k = makeMatchKey(r);
-      const ex = allItems.find(x => makeMatchKey(x) === k);
+      const ex = allItems.find(x => makeMatchKey(x) === k && sameDest(x, r)); // 주소·전화 다르면 동명이인 — 별개 배송
       if (ex) r._dup = ex.num ? `동일 주문이 이미 등록됨 (송장 ${ex.num})` : '동일 주문이 이미 등록됨 (송장미등록 상태)';
-      else if (seenKeys.has(k)) r._dup = '업로드 목록 안에서 중복';
-      seenKeys.add(k);
+      else if (seenKeys.has(destKey(r))) r._dup = '업로드 목록 안에서 중복';
+      seenKeys.add(destKey(r));
     } else {
       const nk = r.carrier + '__' + r.num + '__' + (r.productName || '').trim();
       if (isDuplicateNum(r.carrier, r.num, null, r.productName)) r._dup = `송장번호 ${r.num} 이미 등록됨`;
@@ -2605,7 +2619,7 @@ async function runBulk() {
       for (const item of bulkData) {
         if (!item.num) {
           // 같은 주문정보의 행이 이미 있으면 중복 등록 방지
-          const dup = dupCheckable(item) ? allItems.find(x => makeMatchKey(x) === makeMatchKey(item)) : null;
+          const dup = dupCheckable(item) ? allItems.find(x => makeMatchKey(x) === makeMatchKey(item) && sameDest(x, item)) : null;
           if (dup) {
             duplicates++; done++;
             skippedRows.push({ item, reason: dup.num ? `동일 주문이 이미 등록됨 (송장 ${dup.num})` : '동일 주문이 이미 등록됨 (송장미등록 상태)' });
@@ -2715,14 +2729,20 @@ async function runBulkUpdate() {
   // 1단계: 매칭 (순차) — 같은 주문(매칭키)에 여러 송장번호면 첫 건은 기존 행 갱신, 이후는 새 행으로 분리
   let extra=0, dup=0;
   const toQuery = [];
-  const seenKeys = new Map(); // matchKey → 원본 항목 (분리 등록의 주문정보 출처)
+  const seenKeys = new Map(); // 배송지 포함 키 → 원본 항목 (분리 등록의 주문정보 출처, 동명이인 구분)
+  const matchedIdx = new Set(); // 이번 실행에서 이미 매칭된 행 — 두 파일 행이 같은 행을 잡지 않도록
   for (const item of bulkData) {
     if (!item.num) { done++; continue; }
-    const key = makeMatchKey(item);
+    const mk = makeMatchKey(item);
+    const key = destKey(item);
     let target;
     if (!seenKeys.has(key)) {
-      let idx = allItems.findIndex(r => makeMatchKey(r)===key);
+      // 1순위: 주소·전화까지 일치하는 행 (동명이인 정확 매칭, 송장 재교체 허용)
+      let idx = allItems.findIndex((r, i) => !matchedIdx.has(i) && makeMatchKey(r) === mk && sameDest(r, item));
+      // 2순위: 매칭키만 일치하는 송장 없는 행 (주소 표기가 달라진 경우 — 번호 있는 행은 덮지 않음)
+      if (idx < 0) idx = allItems.findIndex((r, i) => !matchedIdx.has(i) && !r.num && makeMatchKey(r) === mk);
       if (idx < 0) idx = fallbackMatchIdx(item); // 보조 매칭 (유일 후보일 때만)
+      if (idx >= 0) matchedIdx.add(idx);
       if (idx < 0) { notFound++; notFoundRows.push({ item, reason: diagnoseMismatch(item) }); done++; continue; }
       const existing = allItems[idx];
       seenKeys.set(key, existing);
@@ -2950,8 +2970,8 @@ async function syncFromDb() {
            || allItems.find(x => x.carrier===rem.carrier && x.num===rem.num)))
         || null;
       if (!local) {
-        // 유령 방지: 송장번호 없는 원격 행인데 같은 주문정보로 이미 번호가 부여된 행이 있으면 무시
-        if (!rem.num && allItems.some(x => x.num && makeMatchKey(x) === makeMatchKey(rem))) return;
+        // 유령 방지: 송장번호 없는 원격 행인데 같은 주문·같은 배송지로 이미 번호가 부여된 행이 있으면 무시
+        if (!rem.num && allItems.some(x => x.num && makeMatchKey(x) === makeMatchKey(rem) && sameDest(x, rem))) return;
         // 삭제 잔재 방지: 최근 삭제한 행이면 되살리지 않고 시트에서 재삭제
         if (tombs.length && matchesTombstone(rem, tombs)) {
           deleteFromDb(rem.carrier, rem.num, rem.localId, rem.productName);
