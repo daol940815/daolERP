@@ -1092,7 +1092,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0914-6';
+const APP_BUILD = 'v0914-7';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -1137,6 +1137,18 @@ const carriers = {
 };
 const isManualCarrier = c => !!carriers[c]?.manual;
 const manualSteps = c => [{ text:`${carriers[c]?.name || c} — 송장 조회 없이 완료 처리`, time:'', done:true, current:true }];
+// 퀵·직접배송인데 배송완료가 아닌 행을 배송완료로 정리 (기능 도입 전 등록분·다른 PC 수정분 보정) — 바뀐 행 수 반환
+function normalizeManualRows(items, save) {
+  let n = 0;
+  items.forEach(r => {
+    if (!isManualCarrier(r.carrier) || r.status === '배송완료') return;
+    r.status = '배송완료'; r.steps = manualSteps(r.carrier); r.error = null;
+    r.updatedAt = new Date().toISOString();
+    if (save) saveToStorage(r);
+    n++;
+  });
+  return n;
+}
 
 // 실행 시 API에서 지원 택배사 전체 목록을 불러와 선택지에 추가
 // (Workers에 GET /couriers 프록시가 있어야 동작 — 없으면 기본 5개 유지)
@@ -2822,9 +2834,11 @@ async function runBulkUpdate() {
   const seenKeys = new Map(); // 배송지 포함 키 → 원본 항목 (분리 등록의 주문정보 출처, 동명이인 구분)
   const matchedIdx = new Set(); // 이번 실행에서 이미 매칭된 행 — 두 파일 행이 같은 행을 잡지 않도록
   for (const item of bulkData) {
-    if (!item.num) { done++; continue; }
+    // 송장번호 없는 행은 건너뜀 — 단, 퀵·직접배송은 번호 없이도 매칭해 배송완료 처리
+    if (!item.num && !isManualCarrier(item.carrier)) { done++; continue; }
     const mk = makeMatchKey(item);
     const key = destKey(item);
+    if (!item.num && seenKeys.has(key)) { done++; continue; } // 번호 없는 같은 주문의 반복 행은 한 번만
     let target;
     if (!seenKeys.has(key)) {
       // 1순위: 주소·전화까지 일치하는 행 (동명이인 정확 매칭, 송장 재교체 허용)
@@ -2839,7 +2853,7 @@ async function runBulkUpdate() {
       target = {
         ...existing,
         carrier: item.carrier || existing.carrier,
-        num:     item.num,
+        num:     item.num || existing.num || '', // 퀵·직접배송(번호 없음)이면 기존 번호 유지
         localId: existing.localId || makeLocalId(), // 영구 행 ID 유지
         ...(item.num && !existing.num ? { numAddedAt: new Date().toISOString() } : {}), // 송장 최초 입력 시각
         ...(item._qtySplit ? { qty: item.qty } : {}), // 한 셀 다중 송장 분할분이면 분할 수량 반영
@@ -3103,6 +3117,8 @@ async function syncFromDb() {
       return t >= syncStart;
     });
     if (allItems.length !== before) changed = true;
+    // 퀵·직접배송 행은 항상 배송완료 — 다른 PC에서 옛 상태로 올라온 행 보정
+    if (normalizeManualRows(allItems, true)) changed = true;
 
     if (changed) {
       saveLocal();
@@ -4079,9 +4095,15 @@ async function saveEditGrid() {
       // 송장번호를 지운 경우: 상태 초기화 (행 ID 유지 → 시트 제자리 갱신)
       updated.status = '출고전'; updated.steps = []; updated.shippedAt = ''; updated.error = null;
     }
+    // 퀵·직접배송으로 바뀐 행은 송장번호 유무와 관계없이 즉시 배송완료 (조회 대상 아님)
+    if (isManualCarrier(newCarrier) && updated.status !== '배송완료') {
+      updated.status = '배송완료'; updated.steps = manualSteps(newCarrier); updated.error = null;
+    }
     const idx = allItems.indexOf(existing);
     allItems[idx] = updated;
-    if (newNum && (!existing.num || numChanged || carrierChanged)) {
+    if (isManualCarrier(newCarrier)) {
+      // 조회 없이 저장만
+    } else if (newNum && (!existing.num || numChanged || carrierChanged)) {
       try {
         const raw = await fetchWithRetry(newCarrier, newNum);
         const pr = parseTracking(raw, newCarrier, newNum);
@@ -5119,6 +5141,9 @@ function applyServerRows(rows) {
       resurrected.forEach(r => deleteFromDb(r.carrier, r.num, r.localId, r.productName));
     }
   }
+  // 퀵·직접배송 행은 항상 배송완료 — 기능 도입 전 등록분·수정 화면에서 바꾼 행을 한 번에 정리하고 서버에 저장
+  const fixedManual = normalizeManualRows(allItems, true);
+  if (fixedManual) console.info(`퀵·직접배송 ${fixedManual}건을 배송완료로 정리했습니다`);
   try { localStorage.setItem('tracker_items', JSON.stringify(allItems)); } catch(e) {}
 }
 
