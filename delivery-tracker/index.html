@@ -536,6 +536,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
   <button class="pill" id="nav-view-list" onclick="showView('list')">배송 목록</button>
   <button class="pill" id="nav-view-upload" onclick="showView('upload')">등록</button>
   <button class="pill" id="nav-view-mail" onclick="showView('mail')">회신 메일</button>
+  <button class="pill" id="nav-view-data" onclick="showView('data')">자료</button>
   <span class="tb-divider"></span>
   <span class="tb-label">필터</span>
   <button class="pill filter-item active" data-filter="all" onclick="setFilter('all',this)">전체 <span class="count" id="cnt-all">0</span></button>
@@ -571,9 +572,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
   <div class="tb-right">
     <button class="btn btn-outline btn-sm" onclick="openSingleModal()">+ 단건 등록</button>
     <button class="btn btn-outline btn-sm" onclick="showView('upload')">↑ 파일 등록</button>
-    <button class="btn btn-outline btn-sm" onclick="downloadTemplate()">↓ 템플릿 다운로드</button>
-    <button class="btn btn-outline btn-sm" onclick="exportReport()">↓ 보고서 다운로드</button>
-    <button class="btn btn-outline btn-sm" onclick="exportReplyRequest()" title="송장미등록 건을 매입처별 시트로 정리한 회신 요청 문서 생성">↓ 회신요청서</button>
+    <button class="btn btn-outline btn-sm" onclick="showView('data')" title="조건별 집계와 보고서·회신요청서·템플릿 등 내려받기">↓ 자료</button>
     <button class="btn btn-outline btn-sm" onclick="showView('mail')" title="송장미등록 건 회신요청서를 매입처에 메일로 발송">회신요청 메일</button>
   </div>
 </div>
@@ -811,6 +810,58 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
               </table>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 자료: 조건별 집계 + 내려받기 ── -->
+    <div class="card table-card" id="view-data" style="display:none">
+      <div style="padding:1rem 1.25rem;overflow-y:auto;flex:1">
+        <div class="dash-sec-title" style="margin-top:0">조건별 집계</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px">
+          <select id="agg-group" onchange="renderDataView()" style="width:160px">
+            <option value="day_added">일자별 (등록일)</option>
+            <option value="day_order">일자별 (주문일)</option>
+            <option value="month_added">월별 (등록일)</option>
+            <option value="month_order">월별 (주문일)</option>
+            <option value="bank">은행·지점별</option>
+            <option value="supplier">매입처별</option>
+            <option value="staff">다올직원별</option>
+            <option value="product">품명별</option>
+            <option value="shipType">배송타입별</option>
+          </select>
+          <span style="font-size:11px;color:var(--gray-400)">기간</span>
+          <select id="agg-datebasis" onchange="renderDataView()" style="width:110px">
+            <option value="added">등록일 기준</option>
+            <option value="order">주문일 기준</option>
+          </select>
+          <input type="date" id="agg-from" onchange="renderDataView()" style="width:135px">
+          <span style="color:var(--gray-300)">~</span>
+          <input type="date" id="agg-to" onchange="renderDataView()" style="width:135px">
+          <button class="btn btn-outline btn-sm" onclick="clearAggFilters()" style="padding:4px 10px;font-size:11px">조건 지우기</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">
+          <select id="agg-bank" onchange="renderDataView()" style="width:180px"></select>
+          <select id="agg-supplier" onchange="renderDataView()" style="width:150px"></select>
+          <select id="agg-staff" onchange="renderDataView()" style="width:130px"></select>
+          <select id="agg-shiptype" onchange="renderDataView()" style="width:120px"></select>
+          <span id="agg-summary" style="font-size:12px;color:var(--gray-500)"></span>
+          <span style="margin-left:auto;display:inline-flex;gap:6px">
+            <button class="btn btn-outline btn-sm" onclick="exportAggList()" title="현재 조건에 해당하는 송장 목록 전체를 엑셀로 저장">↓ 해당 목록</button>
+            <button class="btn btn-black btn-sm" onclick="exportAggExcel()" title="아래 집계표를 엑셀로 저장">↓ 집계표 다운로드</button>
+          </span>
+        </div>
+        <div id="agg-table" style="border:1px solid var(--gray-200);border-radius:8px;overflow:auto;max-height:56vh"></div>
+        <div class="dash-sec-title" style="margin-top:1.4rem">기타 자료</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button class="btn btn-outline btn-sm" onclick="exportReport()">↓ 배송 현황 보고서</button>
+          <button class="btn btn-outline btn-sm" onclick="exportReplyRequest()">↓ 송장 회신요청서</button>
+          <button class="btn btn-outline btn-sm" onclick="exportRateStats()">↓ 회신율 통계</button>
+          <button class="btn btn-outline btn-sm" onclick="downloadTemplate()">↓ 업로드 템플릿</button>
+          <button class="btn btn-outline btn-sm" onclick="dataDownloadSuppliers()">↓ 매입처 주소록</button>
+        </div>
+        <div style="font-size:11px;color:var(--gray-400);margin-top:8px">
+          회신율 = 송장기재 ÷ 주문 · 완료율 = 배송완료 ÷ 주문 · 현재 화면 필터 기준의 목록 다운로드는 배송 목록 화면 상단에 있습니다
         </div>
       </div>
     </div>
@@ -3028,12 +3079,15 @@ function showView(v) {
   document.getElementById('view-dash').style.display = v==='dash' ? 'flex' : 'none';
   document.getElementById('view-mail').style.display = v==='mail' ? 'flex' : 'none';
   document.getElementById('view-upload').style.display = v==='upload' ? 'flex' : 'none';
+  document.getElementById('view-data').style.display = v==='data' ? 'flex' : 'none';
   document.getElementById('nav-view-list').classList.toggle('active', v==='list');
   document.getElementById('nav-view-dash').classList.toggle('active', v==='dash');
   document.getElementById('nav-view-mail').classList.toggle('active', v==='mail');
   document.getElementById('nav-view-upload').classList.toggle('active', v==='upload');
+  document.getElementById('nav-view-data').classList.toggle('active', v==='data');
   if (v === 'dash') { syncFromDb(); renderDashboard(); }
   if (v === 'mail') { openMailPage(); }
+  if (v === 'data') { renderDataView(); }
 }
 
 // 대시보드 타일/차트 클릭 → 해당 필터로 목록 이동
@@ -3084,6 +3138,157 @@ function exportRateStats() {
   XLSX.utils.book_append_sheet(wb, sheetOf(bySupplier, '매입처'), '매입처별');
   XLSX.writeFile(wb, `회신율통계_${new Date().toISOString().slice(0,10)}.xlsx`);
   toast('통계 다운로드 완료');
+}
+
+// ══ 자료 탭: 조건별 집계 ══
+const AGG_GROUPS = {
+  day_added:   { label:'일자 (등록일)', key: r => (r.addedAt||'').slice(0,10) || '(날짜 없음)', byKey:true },
+  day_order:   { label:'일자 (주문일)', key: r => r.orderDate || '(날짜 없음)', byKey:true },
+  month_added: { label:'월 (등록일)',   key: r => (r.addedAt||'').slice(0,7) || '(날짜 없음)', byKey:true },
+  month_order: { label:'월 (주문일)',   key: r => (r.orderDate||'').slice(0,7) || '(날짜 없음)', byKey:true },
+  bank:     { label:'은행·지점', key: r => [r.bankName, r.branchName].filter(Boolean).join(' ') || '(미지정)' },
+  supplier: { label:'매입처',   key: r => r.supplier || '(미지정)' },
+  staff:    { label:'다올직원', key: r => r.staff || '(미지정)' },
+  product:  { label:'품명',     key: r => r.productName || '(미지정)' },
+  shipType: { label:'배송타입', key: r => r.shipType || '(미지정)' },
+};
+
+// 집계 필터 적용된 항목 목록
+function getAggFiltered() {
+  const basis = document.getElementById('agg-datebasis')?.value || 'added';
+  const from = document.getElementById('agg-from')?.value || '';
+  const to   = document.getElementById('agg-to')?.value || '';
+  const bank = document.getElementById('agg-bank')?.value || '';
+  const sup  = document.getElementById('agg-supplier')?.value || '';
+  const staff = document.getElementById('agg-staff')?.value || '';
+  const st   = document.getElementById('agg-shiptype')?.value || '';
+  return allItems.filter(r => {
+    const d = basis === 'order' ? (r.orderDate || '') : (r.addedAt || '').slice(0,10);
+    if (from && (!d || d < from)) return false;
+    if (to && (!d || d > to)) return false;
+    if (bank && ([r.bankName, r.branchName].filter(Boolean).join(' ') || '(미지정)') !== bank) return false;
+    if (sup && (r.supplier || '(미지정)') !== sup) return false;
+    if (staff && (r.staff || '(미지정)') !== staff) return false;
+    if (st && (r.shipType || '(미지정)') !== st) return false;
+    return true;
+  });
+}
+
+// 집계 계산: [{key, total, qty, withNum, done, delay, accident}]
+function computeAgg(items, groupId) {
+  const gdef = AGG_GROUPS[groupId] || AGG_GROUPS.day_added;
+  const map = {};
+  items.forEach(r => {
+    const k = gdef.key(r);
+    const o = map[k] || (map[k] = { key:k, total:0, qty:0, withNum:0, done:0, delay:0, accident:0 });
+    const g = getFilterGroup(r);
+    o.total++;
+    o.qty += parseFloat(r.qty) || 0;
+    if (r.num) o.withNum++;
+    if (g === '배송완료') o.done++;
+    if (g === '배송지연') o.delay++;
+    if (g === '사고') o.accident++;
+  });
+  const rows = Object.values(map);
+  rows.sort(gdef.byKey ? (a,b) => a.key.localeCompare(b.key) : (a,b) => b.total - a.total);
+  return rows;
+}
+
+// 필터 드롭다운 채우기 (선택값 유지)
+function fillAggSelect(id, values, allLabel) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const cur = el.value;
+  el.innerHTML = `<option value="">${allLabel}</option>` +
+    values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  if ([...el.options].some(o => o.value === cur)) el.value = cur;
+}
+
+function renderDataView() {
+  const box = document.getElementById('agg-table');
+  if (!box) return;
+  // 드롭다운 갱신
+  const uniq = f => [...new Set(allItems.map(f))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'ko'));
+  fillAggSelect('agg-bank', uniq(r => [r.bankName, r.branchName].filter(Boolean).join(' ') || '(미지정)'), '전체 은행·지점');
+  fillAggSelect('agg-supplier', uniq(r => r.supplier || '(미지정)'), '전체 매입처');
+  fillAggSelect('agg-staff', uniq(r => r.staff || '(미지정)'), '전체 직원');
+  fillAggSelect('agg-shiptype', uniq(r => r.shipType || '(미지정)'), '전체 배송타입');
+
+  const groupId = document.getElementById('agg-group').value;
+  const gdef = AGG_GROUPS[groupId];
+  const items = getAggFiltered();
+  const rows = computeAgg(items, groupId);
+  document.getElementById('agg-summary').textContent = items.length ? `${items.length}건 · ${rows.length}행` : '조건에 해당하는 건이 없습니다';
+
+  const pctBar = (n, d, color) => {
+    const p = d ? Math.round(n / d * 100) : 0;
+    return `<td style="min-width:130px"><div class="rate-cell"><div class="hbar-track"><div class="hbar-fill" style="width:${p}%;background:${color}"></div></div><span class="rate-val">${p}%</span></div></td>`;
+  };
+  const num = v => `<td class="mono" style="text-align:center">${v}</td>`;
+  const bodyRows = rows.map(o => `<tr>
+    <td class="strong" style="white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(o.key)}">${escapeHtml(o.key)}</td>
+    ${num(o.total)}${num(o.qty || 0)}${num(o.withNum)}${pctBar(o.withNum, o.total, '#0369a1')}
+    ${num(o.done)}${pctBar(o.done, o.total, '#15803d')}${num(o.delay)}${num(o.accident)}
+  </tr>`).join('');
+  const t = rows.reduce((s,o)=>({ total:s.total+o.total, qty:s.qty+o.qty, withNum:s.withNum+o.withNum, done:s.done+o.done, delay:s.delay+o.delay, accident:s.accident+o.accident }), {total:0,qty:0,withNum:0,done:0,delay:0,accident:0});
+  const totalRow = rows.length ? `<tr style="background:var(--gray-50);font-weight:700">
+    <td>합계</td>${num(t.total)}${num(t.qty)}${num(t.withNum)}${pctBar(t.withNum, t.total, '#0369a1')}
+    ${num(t.done)}${pctBar(t.done, t.total, '#15803d')}${num(t.delay)}${num(t.accident)}
+  </tr>` : '';
+  box.innerHTML = rows.length ? `
+    <table><thead><tr><th>${gdef.label}</th><th style="text-align:center">주문</th><th style="text-align:center">수량</th><th style="text-align:center">송장기재</th><th>송장회신율</th><th style="text-align:center">배송완료</th><th>배송완료율</th><th style="text-align:center">지연</th><th style="text-align:center">사고</th></tr></thead>
+    <tbody>${bodyRows}${totalRow}</tbody></table>`
+    : '<div style="padding:2rem;text-align:center;color:var(--gray-400);font-size:13px">조건에 해당하는 데이터가 없습니다</div>';
+}
+
+function clearAggFilters() {
+  ['agg-from','agg-to'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  ['agg-bank','agg-supplier','agg-staff','agg-shiptype'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  renderDataView();
+}
+
+// 집계표 엑셀 다운로드
+function exportAggExcel() {
+  if (typeof XLSX === 'undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
+  const groupId = document.getElementById('agg-group').value;
+  const gdef = AGG_GROUPS[groupId];
+  const rows = computeAgg(getAggFiltered(), groupId);
+  if (!rows.length) { toast('내보낼 데이터가 없습니다'); return; }
+  const data = rows.map(o => ({
+    [gdef.label]: o.key, '주문': o.total, '수량': o.qty, '송장기재': o.withNum,
+    '송장회신율(%)': o.total ? Math.round(o.withNum / o.total * 100) : 0,
+    '배송완료': o.done, '배송완료율(%)': o.total ? Math.round(o.done / o.total * 100) : 0,
+    '배송지연': o.delay, '사고': o.accident,
+  }));
+  const t = rows.reduce((s,o)=>({ total:s.total+o.total, qty:s.qty+o.qty, withNum:s.withNum+o.withNum, done:s.done+o.done, delay:s.delay+o.delay, accident:s.accident+o.accident }), {total:0,qty:0,withNum:0,done:0,delay:0,accident:0});
+  data.push({ [gdef.label]:'합계', '주문':t.total, '수량':t.qty, '송장기재':t.withNum,
+    '송장회신율(%)': t.total ? Math.round(t.withNum/t.total*100) : 0,
+    '배송완료':t.done, '배송완료율(%)': t.total ? Math.round(t.done/t.total*100) : 0,
+    '배송지연':t.delay, '사고':t.accident });
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [{wch:24},{wch:7},{wch:7},{wch:9},{wch:13},{wch:9},{wch:13},{wch:9},{wch:7}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '집계');
+  XLSX.writeFile(wb, `집계_${gdef.label.replace(/[\s()·]/g,'')}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast('집계표 다운로드 완료');
+}
+
+// 현재 집계 조건에 해당하는 송장 목록 다운로드
+function exportAggList() {
+  if (typeof XLSX === 'undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
+  const data = getAggFiltered();
+  if (!data.length) { toast('내보낼 데이터가 없습니다'); return; }
+  const ws = XLSX.utils.json_to_sheet(buildExportRows(data));
+  ws['!cols']=[11,11,13,11,10,26,8,7,10,6,7,13,13,26,13,10,16,10,8,24,9,16,40].map(w=>({wch:w}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '운송장조회');
+  XLSX.writeFile(wb, `조건별목록_${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast(`${data.length}건 다운로드 완료`);
+}
+
+// 매입처 주소록 다운로드 (주소록 미로드 상태 대비)
+function dataDownloadSuppliers() {
+  ensureSupplierBook().then(downloadSuppliers).catch(downloadSuppliers);
 }
 
 // ── 대시보드 렌더링 ──
@@ -4003,11 +4208,8 @@ function populateDynamicFilters() {
   fill('filter-staff', [...new Set(allItems.map(r => r.staff).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko')), '전체 다올직원');
 }
 
-// ── 엑셀 내보내기 (목록 다운로드) ──
-function exportExcel() {
-  if (typeof XLSX==='undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
-  const data = getFiltered();
-  if (!data.length) { toast('내보낼 데이터가 없습니다'); return; }
+// ── 엑셀 내보내기용 행 구성 (목록 다운로드·조건별 목록 공용) ──
+function buildExportRows(data) {
   // 총수량: 같은 주문 묶음의 송장별 수량 합
   const groups = {};
   allItems.forEach(r => { const k = makeMatchKey(r); (groups[k] = groups[k] || []).push(r); });
@@ -4015,7 +4217,7 @@ function exportExcel() {
     const g = groups[makeMatchKey(r)] || [];
     return g.length > 1 ? g.reduce((s,x) => s + (parseFloat(x.qty)||0), 0) : '';
   };
-  const rows = data.map(r=>({
+  return data.map(r=>({
     '주문일': r.orderDate||'-',
     '은행명': r.bankName||'-',
     '지점명': r.branchName||'',
@@ -4040,6 +4242,14 @@ function exportExcel() {
     '비고': r.memo||'',
     '조회URL': (r.num && carriers[r.carrier]?.url) ? carriers[r.carrier].url(r.num) : '',
   }));
+}
+
+// ── 엑셀 내보내기 (목록 다운로드) ──
+function exportExcel() {
+  if (typeof XLSX==='undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
+  const data = getFiltered();
+  if (!data.length) { toast('내보낼 데이터가 없습니다'); return; }
+  const rows = buildExportRows(data);
   const ws = XLSX.utils.json_to_sheet(rows);
   ws['!cols']=[11,11,13,11,10,26,8,7,10,6,7,13,13,26,13,10,16,10,8,24,9,16,40].map(w=>({wch:w}));
   const wb = XLSX.utils.book_new();
