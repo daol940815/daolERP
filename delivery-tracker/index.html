@@ -1088,7 +1088,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0914-4';
+const APP_BUILD = 'v0914-5';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -5075,10 +5075,17 @@ function applyServerRows(rows) {
   // 마이그레이션: 영구 행 ID(localId)가 없는 기존 항목에 부여
   allItems.forEach(r => { if (!r.localId) r.localId = makeLocalId(); });
   // 유령 방지: 같은 주문·같은 배송지로 송장번호가 부여된 행이 있으면 무번호 잔여 행은 제거 + 서버에서도 삭제
-  const numbered = allItems.filter(r => r.num);
-  const isGhost = r => !r.num && numbered.some(x => makeMatchKey(x) === makeMatchKey(r) && sameDest(x, r));
-  const ghosts = allItems.filter(isGhost);
-  allItems = allItems.filter(r => !isGhost(r));
+  // (주문 키로 먼저 묶고 같은 묶음 안에서만 주소·전화를 비교 — 전수 비교 시 수천 건에서 수 초가 걸려 그룹 방식으로 처리)
+  const numberedByKey = {};
+  allItems.forEach(r => { if (r.num) { const k = makeMatchKey(r); (numberedByKey[k] = numberedByKey[k] || []).push(r); } });
+  const ghostFlag = new Set();
+  allItems.forEach(r => {
+    if (r.num) return;
+    const group = numberedByKey[makeMatchKey(r)];
+    if (group && group.some(x => sameDest(x, r))) ghostFlag.add(r);
+  });
+  const ghosts = allItems.filter(r => ghostFlag.has(r));
+  allItems = allItems.filter(r => !ghostFlag.has(r));
   ghosts.forEach(r => { if (r.localId) deleteFromDb(r.carrier, '', r.localId, r.productName); });
   // 과거 버그로 생긴 중복 정리: 같은 송장번호+상품명은 최신 수정본만 유지, 버려진 행은 서버에서도 삭제
   const dedupKey = r => r.num ? r.carrier+'__'+r.num+'__'+(r.productName||'').trim() : 'lid__'+(r.localId||'');

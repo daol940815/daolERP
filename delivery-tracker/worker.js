@@ -320,23 +320,49 @@ async function sbUpsert(env, rows) {
   return saved;
 }
 
-// 전체 행 로드 (1000건씩 페이지 순회 — PostgREST 기본 응답 제한 대응)
+// 전체 행 로드 (1000건씩 페이지 — PostgREST 기본 응답 제한 대응)
+//  · 첫 페이지를 전체 건수(count=exact)와 함께 받고, 나머지 페이지는 동시에 요청해 순서대로 합침
+//  · 전체 건수를 알 수 없는 응답이면 예전처럼 순차 순회로 대체
+const LOAD_PAGE = 1000;
+async function sbLoadPage(env, offset, withCount) {
+  const extra = { 'Range-Unit': 'items', 'Range': `${offset}-${offset + LOAD_PAGE - 1}` };
+  if (withCount) extra['Prefer'] = 'count=exact';
+  const res = await fetch(
+    `${sbBase(env)}/rest/v1/${DB_TABLE}?select=*&order=created_at.asc,local_id.asc`,
+    { headers: sbHeaders(env, extra) }
+  );
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`Supabase 조회 실패 (${res.status}): ${t.slice(0, 300)}`);
+  }
+  // Content-Range: "0-999/5234" → 총 5234건 ("*/5234", "*" 등 형식도 방어)
+  const m = /\/(\d+)\s*$/.exec(res.headers.get('content-range') || '');
+  return { rows: await res.json(), total: m ? Number(m[1]) : null };
+}
 async function sbLoadAll(env) {
-  const base = sbBase(env);
-  const all = [];
-  const PAGE = 1000;
-  for (let offset = 0; ; offset += PAGE) {
-    const res = await fetch(
-      `${base}/rest/v1/${DB_TABLE}?select=*&order=created_at.asc,local_id.asc`,
-      { headers: sbHeaders(env, { 'Range-Unit': 'items', 'Range': `${offset}-${offset + PAGE - 1}` }) }
-    );
-    if (!res.ok) {
-      const t = await res.text();
-      throw new Error(`Supabase 조회 실패 (${res.status}): ${t.slice(0, 300)}`);
+  const first = await sbLoadPage(env, 0, true);
+  const all = first.rows.slice();
+  if (first.rows.length < LOAD_PAGE) return all;
+  if (first.total != null && first.total > LOAD_PAGE) {
+    const offsets = [];
+    for (let o = LOAD_PAGE; o < first.total; o += LOAD_PAGE) offsets.push(o);
+    const pages = await Promise.all(offsets.map(o => sbLoadPage(env, o, false)));
+    pages.forEach(p => all.push(...p.rows));
+    // 요청 사이에 행이 추가된 경우: 마지막 페이지가 가득 찼으면 남은 행이 있을 수 있어 이어서 순차 확인
+    let offset = offsets.length ? offsets[offsets.length - 1] + LOAD_PAGE : LOAD_PAGE;
+    if (pages.length && pages[pages.length - 1].rows.length < LOAD_PAGE) return all;
+    for (; ; offset += LOAD_PAGE) {
+      const p = await sbLoadPage(env, offset, false);
+      all.push(...p.rows);
+      if (p.rows.length < LOAD_PAGE) break;
     }
-    const rows = await res.json();
-    all.push(...rows);
-    if (rows.length < PAGE) break;
+    return all;
+  }
+  // 총 건수 미확인(또는 정확히 1페이지 초과 여부 불명) → 순차 순회
+  for (let offset = LOAD_PAGE; ; offset += LOAD_PAGE) {
+    const p = await sbLoadPage(env, offset, false);
+    all.push(...p.rows);
+    if (p.rows.length < LOAD_PAGE) break;
   }
   return all;
 }
