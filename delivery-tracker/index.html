@@ -1084,7 +1084,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0914-2 서식내장';
+const APP_BUILD = 'v0914-3 서식내장';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -4607,7 +4607,7 @@ function renderMailLogTable() {
 function downloadCurrentReplyFile() {
   const e = currentMailEntry();
   if (!e) return;
-  XLSX.writeFile(e.wb, e.filename);
+  (window.XLSX_STYLE || XLSX).writeFile(e.wb, e.filename); // 서식 보존 — 기본 라이브러리는 셀 색·테두리를 버림
 }
 
 function applyPresetToCompose() {
