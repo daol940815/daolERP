@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>운송장 조회</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- 스타일 지원 엑셀 라이브러리(회신요청서 서식용)를 먼저 로드해 별도 이름으로 보관 -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script>window.XLSX_STYLE = window.XLSX; window.XLSX = undefined;</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>if (!window.XLSX) window.XLSX = window.XLSX_STYLE; /* 기본 라이브러리 로드 실패 시 대체 */</script>
 <style>
 :root {
   --black: #0a0a0a;
@@ -2475,7 +2479,16 @@ function readFileRows(file, uploadMode) {
     try {
       const wb = XLSX.read(e.target.result, {type:'binary'});
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(ws, {defval:''});
+      // 제목·안내 행이 표 위에 있는 파일(회신요청서 등) 대응: 표준 헤더 행을 앞 6행에서 탐색
+      let hdrRow = 0;
+      {
+        const grid0 = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+        for (let i = 0; i < Math.min(grid0.length, 6); i++) {
+          const row = (grid0[i] || []).map(v => String(v).trim());
+          if (row.includes('주문일') && (row.includes('품명') || row.includes('상품명') || row.includes('받는이'))) { hdrRow = i; break; }
+        }
+      }
+      const json = XLSX.utils.sheet_to_json(ws, {defval:'', range: hdrRow});
       // 수식 오류값(#VALUE! 등)은 빈 칸으로 처리 — 수식형 양식에서 데이터 없는 행이 오류로 올라오는 것 방지
       const isErrVal = v => typeof v === 'string' && /^#(VALUE|CALC|N\/A|REF|NAME\?|DIV\/0|NULL|SPILL)!?/i.test(v.trim());
       // 숫자 0도 빈 칸 취급 — FILTER 등 수식이 빈 셀을 참조하면 0을 반환하는 엑셀 특성 방어
@@ -4339,33 +4352,68 @@ function buildReplyRequestEntries() {
   const bySup = {};
   targets.forEach(r => { const k = (r.supplier || '매입처미지정').trim() || '매입처미지정'; (bySup[k] = bySup[k] || []).push(r); });
 
-  const HD = ['주문일','은행명','지점명','고객명','품번','품명','배송타입','수량','다올직원','NO','보내는이(발송인)','받는이','고객주소','받는이 연락처','수량','택배사','송장번호','배송상태','비고(택배관련메모사항)'];
+  // 스타일 지원 라이브러리가 있으면 서식 적용, 없으면 기본 라이브러리로 생성 (내용 동일)
+  const XL = window.XLSX_STYLE || XLSX;
+  const HD = ['NO','주문일','은행명','지점명','품명','수량','보내는이','받는이','고객주소','받는이 연락처','비고','택배사','송장번호'];
+  const IN_COLS = [11, 12];      // 택배사·송장번호 = 매입처 기입란
+  const C_COLS = [0, 1, 5];      // 가운데 정렬
   const today = new Date().toISOString().slice(0,10);
+
+  // 서식 정의
+  const bd = { top:{style:'thin',color:{rgb:'D4D4D4'}}, bottom:{style:'thin',color:{rgb:'D4D4D4'}}, left:{style:'thin',color:{rgb:'D4D4D4'}}, right:{style:'thin',color:{rgb:'D4D4D4'}} };
+  const S_TITLE = { font:{ name:'맑은 고딕', sz:15, bold:true, color:{rgb:'FFFFFF'} }, fill:{ fgColor:{rgb:'0A0A0A'} }, alignment:{ vertical:'center', horizontal:'left', indent:1 } };
+  const S_GUIDE = { font:{ name:'맑은 고딕', sz:11, bold:true, color:{rgb:'854D0E'} }, fill:{ fgColor:{rgb:'FEF9C3'} }, alignment:{ vertical:'center', horizontal:'left', indent:1 } };
+  const S_NOTE  = { font:{ name:'맑은 고딕', sz:9, color:{rgb:'888888'} }, alignment:{ vertical:'center', horizontal:'left', indent:1 } };
+  const S_HEAD  = { font:{ name:'맑은 고딕', sz:10, bold:true, color:{rgb:'FFFFFF'} }, fill:{ fgColor:{rgb:'404040'} }, alignment:{ vertical:'center', horizontal:'center', wrapText:true }, border: bd };
+  const S_HEAD_IN = { ...S_HEAD, fill:{ fgColor:{rgb:'B45309'} } };
+  const mkCell = (alt, center, input) => ({
+    font:{ name:'맑은 고딕', sz:10 },
+    alignment:{ vertical:'center', horizontal: center ? 'center' : 'left' },
+    border: bd,
+    ...(input ? { fill:{ fgColor:{rgb:'FEF9C3'} } } : alt ? { fill:{ fgColor:{rgb:'F5F5F5'} } } : {}),
+  });
 
   return Object.entries(bySup).sort((a,b)=>b[1].length-a[1].length).map(([sup, list]) => {
     const aoa = [];
-    aoa.push([`${sup} — 송장번호 회신 요청 (${today}) · 택배사/송장번호 칸을 기입해 회신해 주세요`]);
+    aoa.push([`송장번호 회신 요청 — ${sup}`]);
+    aoa.push([`노란색 [택배사·송장번호] 칸을 기입하시어 이 파일 그대로 회신 부탁드립니다 · 여러 송장으로 나눠 발송 시 쉼표(,)로 구분 · 요청일 ${today}`]);
+    aoa.push(['다올커머스 드림 · 문의사항은 담당자에게 연락 부탁드립니다']);
     aoa.push(HD);
     list.forEach(r => {
       const g = groups[makeMatchKey(r)] || [r];
-      const totalQty = g.length > 1 ? g.reduce((s,x)=>s+(parseFloat(x.qty)||0),0) : (r.qty || '');
       const no = g.length > 1 ? (g.indexOf(r) + 1) : 1;
       aoa.push([
-        r.orderDate || '', r.bankName || '', r.branchName || '', r.manager || '',
-        r.productCode || '', r.productName || '', r.shipType || '', totalQty,
-        r.staff || '', no, r.shipper || '', r.companyName || '', r.address || '',
-        r.phone || '', r.qty || '',
-        '', '', '',            // 택배사 · 송장번호 · 배송상태 — 매입처 기입 칸
-        r.memo || '',
+        no, r.orderDate || '', r.bankName || '', r.branchName || '',
+        r.productName || '', r.qty || '', r.shipper || '', r.companyName || '',
+        r.address || '', r.phone || '', r.memo || '',
+        '', '',                // 택배사 · 송장번호 — 매입처 기입 칸
       ]);
     });
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:HD.length-1} }]; // 1행 제목 병합
-    ws['!cols'] = [11,10,10,11,9,22,8,7,8,4,14,11,24,13,7,10,16,9,22].map(w=>({wch:w}));
+    const ws = XL.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [5,11,12,15,24,6,20,12,34,14,12,11,18].map(w => ({ wch:w }));
+    ws['!rows'] = [{ hpt:30 }, { hpt:22 }, { hpt:15 }, { hpt:22 }, ...list.map(()=>({ hpt:19 }))];
+    ws['!merges'] = [
+      { s:{r:0,c:0}, e:{r:0,c:HD.length-1} },
+      { s:{r:1,c:0}, e:{r:1,c:HD.length-1} },
+      { s:{r:2,c:0}, e:{r:2,c:HD.length-1} },
+    ];
+    ws['!views'] = [{ state:'frozen', ySplit:4 }]; // 머리글 고정
+    // 셀 서식 적용
+    const setS = (r, c, st) => {
+      const addr = XL.utils.encode_cell({ r, c });
+      if (ws[addr]) ws[addr].s = st;
+      else ws[addr] = { t:'s', v:'', s:st };
+    };
+    setS(0, 0, S_TITLE); setS(1, 0, S_GUIDE); setS(2, 0, S_NOTE);
+    HD.forEach((h, c) => setS(3, c, IN_COLS.includes(c) ? S_HEAD_IN : S_HEAD));
+    list.forEach((r, i) => {
+      const alt = i % 2 === 1;
+      HD.forEach((h, c) => setS(4 + i, c, mkCell(alt, C_COLS.includes(c), IN_COLS.includes(c))));
+    });
     // 엑셀 시트명·파일명 제한 문자 제거
     const safeName = sup.replace(/[\[\]:*?\/\\]/g,'').slice(0,31) || '매입처';
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, safeName);
+    const wb = XL.utils.book_new();
+    XL.utils.book_append_sheet(wb, ws, safeName);
     return { sup, count: list.length, wb, filename: `송장회신요청_${safeName}_${today}.xlsx` };
   });
 }
@@ -4375,8 +4423,9 @@ async function exportReplyRequest() {
   const entries = buildReplyRequestEntries();
   if (!entries.length) { toast('송장미등록(미회신) 건이 없습니다'); return; }
   const total = entries.reduce((s,e)=>s+e.count,0);
+  const XL = window.XLSX_STYLE || XLSX; // 서식 보존을 위해 같은 라이브러리로 저장
   for (const e of entries) {
-    XLSX.writeFile(e.wb, e.filename);
+    XL.writeFile(e.wb, e.filename);
     // 브라우저가 연속 다운로드를 차단하지 않도록 간격을 둠
     if (entries.length > 1) await sleep(400);
   }
@@ -4600,7 +4649,7 @@ async function sendReplyMail() {
   const btn = document.getElementById('btn-mail-send');
   btn.disabled = true; btn.textContent = '발송 중...';
   try {
-    const b64 = XLSX.write(e.wb, { type: 'base64', bookType: 'xlsx' });
+    const b64 = (window.XLSX_STYLE || XLSX).write(e.wb, { type: 'base64', bookType: 'xlsx' });
     const res = await apiPost('/mail/send', {
       to, cc, subject, body,
       supplier: e.sup, itemCount: e.count,
