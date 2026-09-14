@@ -650,6 +650,10 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
               <option value="addedAt">등록순</option>
               <option value="orderDate">주문일순</option>
             </select>
+            <select id="sort-dir" onchange="onSortChange()" title="정렬 방향" style="width:96px;padding:5px 8px;font-size:12px">
+              <option value="desc">내림차순</option>
+              <option value="asc">오름차순</option>
+            </select>
             <span style="font-size:12px;color:var(--gray-500);white-space:nowrap;font-weight:600;margin-left:4px">주문일</span>
             <input type="date" id="filter-date-from" onchange="runSearch()"
               style="width:136px;padding:5px 8px;font-size:12px">
@@ -1088,7 +1092,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0914-5';
+const APP_BUILD = 'v0914-6';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -3612,21 +3616,25 @@ let _viewBundleInfo = null;
 
 function renderTable() {
   const sortKey = localStorage.getItem('tracker_sort') || 'addedAt';
+  const sortDir = localStorage.getItem('tracker_sort_dir') === 'asc' ? 1 : -1; // 기본 내림차순(최신 먼저)
   // 필터·검색·정렬이 바뀌면 표시 한도를 처음(200행)으로 되돌림
   const g = id => document.getElementById(id)?.value || '';
-  const viewKey = [currentFilter, sortKey, g('search-input'), g('search-field'), g('filter-carrier'),
+  const viewKey = [currentFilter, sortKey, sortDir, g('search-input'), g('search-field'), g('filter-carrier'),
     g('filter-status'), g('filter-bank'), g('filter-staff'), g('filter-date-from'), g('filter-date-to')].join('|');
   if (viewKey !== _lastViewKey) { _lastViewKey = viewKey; _renderLimit = RENDER_CHUNK; }
   allItems.sort((a,b)=>{
+    let cmp;
     if (sortKey === 'orderDate') {
       const da = a.orderDate || '';
       const db = b.orderDate || '';
-      return db < da ? -1 : db > da ? 1 : 0;
+      cmp = da < db ? -1 : da > db ? 1 : 0;
+    } else {
+      // 기본: 등록순 (addedAt)
+      const ta = a.addedAt ? new Date(a.addedAt).getTime() : 0;
+      const tb = b.addedAt ? new Date(b.addedAt).getTime() : 0;
+      cmp = ta - tb;
     }
-    // 기본: 등록순 (addedAt 내림차순)
-    const ta = a.addedAt ? new Date(a.addedAt).getTime() : 0;
-    const tb = b.addedAt ? new Date(b.addedAt).getTime() : 0;
-    return tb - ta;
+    return cmp * sortDir;
   });
   const data = getFiltered();
   const tbody = document.getElementById('table-body');
@@ -4139,6 +4147,8 @@ function clearUpload() {
 function onSortChange() {
   const val = document.getElementById('sort-order').value;
   localStorage.setItem('tracker_sort', val);
+  const dir = document.getElementById('sort-dir')?.value || 'desc';
+  localStorage.setItem('tracker_sort_dir', dir);
   renderTable();
 }
 
@@ -4146,6 +4156,8 @@ function initSortUI() {
   const saved = localStorage.getItem('tracker_sort') || 'addedAt';
   const el = document.getElementById('sort-order');
   if (el) el.value = saved;
+  const dirEl = document.getElementById('sort-dir');
+  if (dirEl) dirEl.value = localStorage.getItem('tracker_sort_dir') === 'asc' ? 'asc' : 'desc';
 }
 
 // ── 검색 실행 ──
