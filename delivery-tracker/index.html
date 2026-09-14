@@ -3049,6 +3049,43 @@ function dashGoDelay(min) {
   if (btn) setDelayMin(min, btn);
 }
 
+// 매입처별·은행지점별 회신율 집계 (대시보드 표 + 엑셀 다운로드 공용)
+function buildRateMaps() {
+  const bySupplier = {}, byBank = {};
+  allItems.forEach(r => {
+    const done = getFilterGroup(r) === '배송완료';
+    const sp = r.supplier || '(매입처 미지정)';
+    const o = bySupplier[sp] || (bySupplier[sp] = { total:0, withNum:0, done:0 });
+    o.total++; if (r.num) o.withNum++; if (done) o.done++;
+    const bk = [r.bankName, r.branchName].filter(Boolean).join(' ') || '(은행명 미지정)';
+    const ob = byBank[bk] || (byBank[bk] = { total:0, withNum:0, done:0 });
+    ob.total++; if (r.num) ob.withNum++; if (done) ob.done++;
+  });
+  return { bySupplier, byBank };
+}
+
+// 통계 표 엑셀 다운로드 — 은행·지점별 / 매입처별 시트 2장
+function exportRateStats() {
+  if (typeof XLSX === 'undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
+  if (!allItems.length) { toast('내보낼 데이터가 없습니다'); return; }
+  const { bySupplier, byBank } = buildRateMaps();
+  const sheetOf = (map, label) => {
+    const rows = Object.entries(map).sort((a, b) => b[1].total - a[1].total).map(([k, v]) => ({
+      [label]: k, '주문': v.total, '송장기재': v.withNum,
+      '송장회신율(%)': Math.round(v.withNum / v.total * 100),
+      '배송완료': v.done, '배송완료율(%)': Math.round(v.done / v.total * 100),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [{wch:28},{wch:8},{wch:9},{wch:13},{wch:9},{wch:13}];
+    return ws;
+  };
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, sheetOf(byBank, '은행 · 지점'), '은행지점별');
+  XLSX.utils.book_append_sheet(wb, sheetOf(bySupplier, '매입처'), '매입처별');
+  XLSX.writeFile(wb, `회신율통계_${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast('통계 다운로드 완료');
+}
+
 // ── 대시보드 렌더링 ──
 function renderDashboard() {
   const el = document.getElementById('dash-body');
@@ -3059,22 +3096,11 @@ function renderDashboard() {
     return;
   }
   const groups = { '배송완료':0,'배송중':0,'출고전':0,'송장미등록':0,'배송지연':0,'조회실패':0,'사고':0 };
-  const bySupplier = {};
-  const byBank = {};
   allItems.forEach(r => {
     const g = getFilterGroup(r);
     if (groups[g] !== undefined) groups[g]++;
-    const sp = r.supplier || '(매입처 미지정)';
-    const o = bySupplier[sp] || (bySupplier[sp] = { total:0, withNum:0, done:0 });
-    o.total++;
-    if (r.num) o.withNum++;
-    if (g === '배송완료') o.done++;
-    const bk = [r.bankName, r.branchName].filter(Boolean).join(' ') || '(은행명 미지정)';
-    const ob = byBank[bk] || (byBank[bk] = { total:0, withNum:0, done:0 });
-    ob.total++;
-    if (r.num) ob.withNum++;
-    if (g === '배송완료') ob.done++;
   });
+  const { bySupplier, byBank } = buildRateMaps();
 
   // 배송지연 위험도: 출고일(조회 이력 없으면 등록일) 기준 경과일 3·5·7일 구간
   const RISK = [
@@ -3141,7 +3167,10 @@ function renderDashboard() {
       <table><thead><tr><th>${label}</th><th style="text-align:center">주문</th><th style="text-align:center">송장기재</th><th>송장회신율</th><th style="text-align:center">배송완료</th><th>배송완료율</th></tr></thead>
       <tbody>${rateRowsOf(map)}</tbody></table>
     </div>`;
-  const bankSec = rateSec('은행·지점별 송장회신율 · 배송완료율', '은행 · 지점', byBank);
+  const bankSec = rateSec(
+    `은행·지점별 송장회신율 · 배송완료율
+     <button class="btn btn-outline btn-sm" style="float:right;padding:2px 10px;font-size:11px" onclick="exportRateStats()" title="은행·지점별/매입처별 통계를 엑셀로 저장">↓ 엑셀 다운로드</button>`,
+    '은행 · 지점', byBank);
   const supSec = rateSec('매입처별 송장회신율 · 배송완료율', '매입처', bySupplier)
     + `<div style="font-size:11px;color:var(--gray-400);margin-top:6px">송장회신율 = 송장번호 기재 건 ÷ 전체 주문건 · 배송완료율 = 배송완료 건 ÷ 전체 주문건</div>`;
 
