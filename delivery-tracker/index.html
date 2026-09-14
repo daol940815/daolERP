@@ -544,6 +544,12 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
   <button class="pill filter-item" data-filter="출고전" onclick="setFilter('출고전',this)">출고전 <span class="count" id="cnt-pending">0</span></button>
   <button class="pill filter-item" data-filter="송장미등록" onclick="setFilter('송장미등록',this)">송장미등록 <span class="count" id="cnt-nonum">0</span></button>
   <button class="pill filter-item" data-filter="배송지연" onclick="setFilter('배송지연',this)">배송지연 <span class="count" id="cnt-delay">0</span></button>
+  <span id="delay-sub" style="display:none;gap:4px;align-items:center;padding-left:2px;border-left:1px solid var(--gray-200);margin-left:2px">
+    <button class="pill delay-sub-item active" data-min="0" onclick="setDelayMin(0,this)" title="배송지연 전체">전체</button>
+    <button class="pill delay-sub-item" data-min="3" onclick="setDelayMin(3,this)" title="3일 이상 지연">3일+ <span class="count" id="cnt-d3">0</span></button>
+    <button class="pill delay-sub-item" data-min="5" onclick="setDelayMin(5,this)" title="5일 이상 지연">5일+ <span class="count" id="cnt-d5">0</span></button>
+    <button class="pill delay-sub-item" data-min="7" onclick="setDelayMin(7,this)" title="7일 이상 지연">7일+ <span class="count" id="cnt-d7">0</span></button>
+  </span>
   <button class="pill filter-item" data-filter="조회실패" onclick="setFilter('조회실패',this)">조회실패 <span class="count" id="cnt-fail">0</span></button>
   <button class="pill filter-item" data-filter="사고" onclick="setFilter('사고',this)">사고 <span class="count" id="cnt-error">0</span></button>
 </div>
@@ -1254,6 +1260,12 @@ function isDelay(item) {
   return diff >= 2;
 }
 
+// 지연 경과일 — 출고일(택배사 최초 집화) 기준, 출고 이력이 없으면 등록일 기준
+function delayDays(r) {
+  const t = new Date(r.shippedAt || r.addedAt || 0).getTime();
+  return !t || isNaN(t) ? 0 : Math.floor((Date.now() - t) / 86400000);
+}
+
 // ── 배지 ──
 function recordTransition(counts, beforeGroup, afterGroup) {
   if (beforeGroup === afterGroup) return;
@@ -1315,8 +1327,9 @@ function statusBadge(item) {
     return `<div><span class="badge ${cls}">${STATUS_LOOKUP_FAIL}</span>${sub}</div>`;
   }
   // 송장번호가 없는 건은 '송장미등록'으로 표기 (퀵·직접배송처럼 송장이 원래 없는 건은 제외)
-  const label = (!item.num && !isManualCarrier(item.carrier)) ? '송장미등록'
+  let label = (!item.num && !isManualCarrier(item.carrier)) ? '송장미등록'
     : (group === '배송중' ? (item.status||'배송중') : (item.status||group));
+  if (group === '배송지연') label += ` · D+${delayDays(item)}`; // 경과일 표시
   return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
 }
 
@@ -3005,6 +3018,13 @@ function dashGo(g) {
   setFilter(g, btn);
 }
 
+// 대시보드 위험도 배지 클릭 → 배송지연 목록의 해당 일수 구간으로 이동
+function dashGoDelay(min) {
+  dashGo('배송지연');
+  const btn = document.querySelector(`.delay-sub-item[data-min="${min}"]`);
+  if (btn) setDelayMin(min, btn);
+}
+
 // ── 대시보드 렌더링 ──
 function renderDashboard() {
   const el = document.getElementById('dash-body');
@@ -3136,7 +3156,7 @@ function renderDashboard() {
   const riskSec = `
     <div class="dash-sec-title">배송지연 위험도 (출고일 기준 3·5·7일)</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:0.6rem">
-      ${riskCounts.map(t => `<span class="badge" style="background:${t.bg};color:${t.fg}">${t.min}일 이상 ${t.label} ${t.n}건</span>`).join('')}
+      ${riskCounts.map(t => `<span class="badge" style="background:${t.bg};color:${t.fg};cursor:pointer" onclick="dashGoDelay(${t.min})" title="목록에서 배송지연 ${t.min}일 이상 구간 보기">${t.min}일 이상 ${t.label} ${t.n}건 ↗</span>`).join('')}
     </div>
     ${riskItems.length ? `
     <div style="border:1px solid var(--gray-200);border-radius:8px;overflow:auto">
@@ -3159,10 +3179,35 @@ function renderDashboard() {
 }
 
 // ── 필터 ──
+// 배송지연 세부 구간 (0=전체, 3·5·7=해당 일수 이상)
+let delayMinDays = 0;
+function setDelayMin(min, el) {
+  delayMinDays = min;
+  document.querySelectorAll('.delay-sub-item').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderTable();
+}
+function updateDelaySub() {
+  const box = document.getElementById('delay-sub');
+  if (!box) return;
+  const show = currentFilter === '배송지연';
+  box.style.display = show ? 'inline-flex' : 'none';
+  if (!show) return;
+  const days = allItems.filter(r => getFilterGroup(r) === '배송지연').map(delayDays);
+  [['cnt-d3',3],['cnt-d5',5],['cnt-d7',7]].forEach(([id, min]) => {
+    const e = document.getElementById(id);
+    if (e) e.textContent = days.filter(d => d >= min).length;
+  });
+}
+
 function setFilter(f, el) {
   currentFilter=f;
   document.querySelectorAll('.filter-item').forEach(b=>b.classList.remove('active'));
   if (el) el.classList.add('active');
+  // 배송지연 세부 구간 초기화
+  delayMinDays = 0;
+  document.querySelectorAll('.delay-sub-item').forEach(b => b.classList.toggle('active', b.dataset.min === '0'));
+  updateDelaySub();
   // 다른 목록으로 이동하면 검색 조건 초기화 (정렬 설정은 유지)
   document.getElementById('search-input').value = '';
   document.getElementById('filter-carrier').value = '';
@@ -3200,6 +3245,7 @@ function getFiltered() {
   const groupMatch = (r, want) => getFilterGroup(r) === want;
   return allItems.filter(r=>{
     if (currentFilter!=='all' && !groupMatch(r, currentFilter)) return false;
+    if (currentFilter==='배송지연' && delayMinDays && delayDays(r) < delayMinDays) return false;
     if (carrier && r.carrier!==carrier) return false;
     if (statusF && !groupMatch(r, statusF)) return false;
     if (bankF && (r.bankName||'') !== bankF) return false;
@@ -3866,7 +3912,7 @@ function updateStats() {
   document.getElementById('stat-transit').textContent = counts.transit;
   document.getElementById('stat-delay').textContent   = counts.delay;
   document.getElementById('stat-pending').textContent = counts.pending;
-  const nonumAll = allItems.filter(r => !r.num).length; // 지연 편입분 포함 (탭 표시와 일치)
+  const nonumAll = counts.nonum; // 그룹 판정 기준 (퀵·직접배송 완료 건 제외 — 탭 표시와 일치)
   const statNonum = document.getElementById('stat-nonum');
   if (statNonum) statNonum.textContent = nonumAll;
   const statFail = document.getElementById('stat-fail');
@@ -3882,6 +3928,7 @@ function updateStats() {
   const cntFail = document.getElementById('cnt-fail');
   if (cntFail) cntFail.textContent = counts.fail;
   document.getElementById('cnt-error').textContent   = counts.error;
+  updateDelaySub();
   populateDynamicFilters();
   // 대시보드 보기 중이면 함께 갱신
   if (currentView === 'dash') renderDashboard();
