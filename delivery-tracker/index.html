@@ -1439,7 +1439,13 @@ async function runTrackingQueries(targets, transitionCounts, onProgress) {
     upsertItem({ ...item, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: pr.error != null ? pr.error : null });
     syncSameNumItems(item.carrier, item.num, pr);
   };
-  const applyError = (item, e) => upsertItem(resolveTrackingError(e, item));
+  const applyError = (item, e) => {
+    const next = resolveTrackingError(e, item);
+    // 상태·사유가 그대로면 재저장하지 않음 — 옛 데이터를 가진 다른 PC가
+    // 같은 실패를 매번 '더 최신'으로 서버에 덮어써 수정값을 되돌리는 것 방지
+    if (item.status === next.status && String(item.error || '') === String(next.error || '')) return;
+    upsertItem(next);
+  };
   const recordAfter = (item, before) => {
     if (!transitionCounts) return;
     const afterItem = allItems.find(x => x.localId ? x.localId===item.localId : (x.carrier===item.carrier && x.num===item.num));
@@ -1455,15 +1461,15 @@ async function runTrackingQueries(targets, transitionCounts, onProgress) {
     updateStats(); renderTable();
   };
   try {
-    // 퀵·직접배송은 API 조회 없이 즉시 완료 처리
-    const manualTargets = targets.filter(t => isManualCarrier(t.carrier));
-    if (manualTargets.length) {
-      manualTargets.forEach(item => {
+    // 퀵·직접배송은 즉시 완료 처리, 택배사 미지정·미인식 건은 API로 보내지 않고 즉시 실패 처리
+    const preHandled = targets.filter(t => isManualCarrier(t.carrier) || !carriers[t.carrier]);
+    if (preHandled.length) {
+      preHandled.forEach(item => {
         const before = getFilterGroup(item);
-        applyError(item, new Error('MANUAL_CARRIER'));
+        applyError(item, new Error(isManualCarrier(item.carrier) ? 'MANUAL_CARRIER' : 'NO_CARRIER'));
         recordAfter(item, before); processed++;
       });
-      targets = targets.filter(t => !isManualCarrier(t.carrier));
+      targets = targets.filter(t => !isManualCarrier(t.carrier) && carriers[t.carrier]);
       tick();
     }
     const retryQueue = [];
@@ -3666,13 +3672,15 @@ async function saveEditGrid() {
     }
     updated.updatedAt = new Date().toISOString();
     const numChanged = existing.num && newNum && existing.num !== newNum;
+    // 택배사를 바꾼 경우도 즉시 재조회 — 조회실패(택배사 미지정) 건이 수정 후 바로 상태 갱신되도록
+    const carrierChanged = newNum && existing.carrier !== newCarrier;
     if (existing.num && !newNum) {
       // 송장번호를 지운 경우: 상태 초기화 (행 ID 유지 → 시트 제자리 갱신)
       updated.status = '출고전'; updated.steps = []; updated.shippedAt = ''; updated.error = null;
     }
     const idx = allItems.indexOf(existing);
     allItems[idx] = updated;
-    if (newNum && (!existing.num || numChanged)) {
+    if (newNum && (!existing.num || numChanged || carrierChanged)) {
       try {
         const raw = await fetchWithRetry(newCarrier, newNum);
         const pr = parseTracking(raw, newCarrier, newNum);
