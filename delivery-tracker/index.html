@@ -546,6 +546,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
   <button class="pill" id="nav-view-upload" onclick="showView('upload')">등록</button>
   <button class="pill" id="nav-view-mail" onclick="showView('mail')">회신 메일</button>
   <button class="pill" id="nav-view-data" onclick="showView('data')">자료</button>
+  <span id="app-build" title="프로그램 버전 — 파일 교체 여부 확인용" style="margin-left:8px;font-size:10px;color:var(--gray-300);align-self:center"></span>
   <span class="tb-divider"></span>
   <span class="tb-label">필터</span>
   <button class="pill filter-item active" data-filter="all" onclick="setFilter('all',this)">전체 <span class="count" id="cnt-all">0</span></button>
@@ -1082,6 +1083,12 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // ══ 환경 설정 — 배포 환경이 바뀌면 이 값만 수정하면 됨 ══
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
+// 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
+const APP_BUILD = 'v0914-2 서식내장';
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('app-build');
+  if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
+});
 
 // ── 상태 ──
 let allItems = []; // 전체 등록 데이터
