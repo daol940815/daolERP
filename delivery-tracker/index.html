@@ -651,11 +651,11 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
               <th>주문일</th>
               <th>은행명</th>
               <th>지점명</th>
+              <th>고객명</th>
               <th>매입처</th>
               <th>품명</th>
               <th style="text-align:center">묶음</th>
               <th style="text-align:center">수량</th>
-              <th style="text-align:center">총수량</th>
               <th>보내는이</th>
               <th>받는이</th>
               <th>다올직원</th>
@@ -1059,7 +1059,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0915-2';
+const APP_BUILD = 'v0915-3';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -3941,7 +3941,7 @@ function buildRowHtml({ r, size, gi }, bundleInfo) {
     ].filter(Boolean).join(' ');
     const b = bundleInfo[rowKey];
     const bundleCell = b
-      ? `<span class="badge bundle-badge${b.doneCnt===b.size?' bundle-all-done':''}" title="${esc('동일 주문 송장 '+b.size+'건\n'+b.tip)}">${b.idx}/${b.size}${b.doneCnt?` · 완료${b.doneCnt}`:''}</span>`
+      ? `<span class="badge bundle-badge${b.doneCnt===b.size?' bundle-all-done':''}" title="${esc('동일 주문 송장 '+b.size+'건 · 총수량 '+b.totalQty+'\n'+b.tip)}">${b.idx}/${b.size} · 총${b.totalQty}${b.doneCnt?` · 완료${b.doneCnt}`:''}</span>`
       : '';
     const expanded = expandedKeys.has(rowKey);
     const numCell = hl(r.num,'num') || `<input type="text" class="inline-num" placeholder="송장번호 입력 ⏎"
@@ -3955,21 +3955,20 @@ function buildRowHtml({ r, size, gi }, bundleInfo) {
     <tr class="expand-strip"><td colspan="17">
       <span class="es-item"><b>배송주소</b> ${hl(r.address,'address')||'-'}${r.address?` <button class="copy-btn" data-copy="${esc(r.address)}" onclick="copyText(this)">복사</button>`:''}</span>
       <span class="es-item"><b>연락처</b> ${esc(r.phone)||'-'}${r.phone?` <button class="copy-btn" data-copy="${esc(r.phone)}" onclick="copyText(this)">복사</button>`:''}</span>
-      <span class="es-item"><b>고객명</b> ${hl(r.manager,'manager')||'-'}</span>
       <span class="es-item"><b>품번</b> ${hl(r.productCode,'productCode')||'-'}</span>
       <span class="es-item"><b>배송타입</b> ${esc(r.shipType)||'-'}</span>
     </td></tr>` : '';
     return `<tr class="${rowCls}" ondblclick="openEditGrid(['${rowKey}'])" title="더블클릭: 상세/수정">
-      <td class="exp" onclick="toggleExpand('${rowKey}')" ondblclick="event.stopPropagation()" title="펼치기/접기 — 주소·고객명 등">${expanded?'▾':'▸'}</td>
+      <td class="exp" onclick="toggleExpand('${rowKey}')" ondblclick="event.stopPropagation()" title="펼치기/접기 — 주소·품번 등">${expanded?'▾':'▸'}</td>
       <td style="text-align:center"><input type="checkbox" class="row-chk" data-key="${rowKey}" ondblclick="event.stopPropagation()" onchange="onRowChkChange()"></td>
       <td style="font-size:11px;color:var(--gray-500);white-space:nowrap">${esc(r.orderDate)||'-'}</td>
       <td style="font-size:12px">${hl(r.bankName,'bankName')||'-'}</td>
       <td style="font-size:12px">${hl(r.branchName,'branchName')||'-'}</td>
+      <td style="font-size:12px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.manager)}">${hl(r.manager,'manager')||'-'}</td>
       <td style="font-size:12px">${hl(r.supplier,'supplier')||'-'}</td>
       <td class="strong" style="max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.productName)}">${hl(r.productName,'productName')||'-'}</td>
       <td style="text-align:center;white-space:nowrap">${bundleCell}</td>
       <td style="text-align:center;font-size:12px">${esc(String(r.qty||''))||'-'}</td>
-      <td style="text-align:center" class="auto-cell">${b ? b.totalQty : ''}</td>
       <td style="font-size:12px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.shipper)}">${hl(r.shipper,'shipper')||'-'}</td>
       <td style="font-size:12px;white-space:nowrap">${hl(r.companyName,'companyName')||'-'}${r.phone?`<div class="sub-phone">${hl(r.phone,'phone')}</div>`:''}</td>
       <td style="font-size:12px;white-space:nowrap">${hl(r.staff,'staff')||'-'}</td>
