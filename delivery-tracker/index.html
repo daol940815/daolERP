@@ -1092,7 +1092,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0914-7';
+const APP_BUILD = 'v0915-1';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -1792,8 +1792,10 @@ function destKey(r) {
 
 // ── 중복 송장번호 체크 ──
 // excludeKey: 수정 시 자기 자신은 중복에서 제외 (carrier__num 또는 localId)
-function isDuplicateNum(carrier, num, excludeKey, productName) {
+// cand: 판정 대상 행(선택) — 반복 등록 행(seq)끼리는 같은 송장번호를 허용 (박스 여러 개를 송장 하나로 보내는 경우)
+function isDuplicateNum(carrier, num, excludeKey, productName, cand) {
   if (!num) return false;
+  const candRep = cand && cand.seq ? destKey(cand) : null;
   return allItems.some(r => {
     if (!r.num) return false;
     if (excludeKey) {
@@ -1801,6 +1803,7 @@ function isDuplicateNum(carrier, num, excludeKey, productName) {
       if (selfKey === excludeKey) return false;
     }
     if (r.num !== num) return false;
+    if (candRep && r.seq && destKey(r) === candRep) return false; // 같은 반복 그룹의 형제 행
     // 택배사가 한쪽이라도 미지정이면 송장번호(+상품명)만으로 중복 판단
     if (carrier && r.carrier && r.carrier !== carrier) return false;
     // 상품명이 둘 다 있고 다르면 합포장으로 간주 → 중복 아님
@@ -1990,19 +1993,37 @@ function dupCheckable(r) {
 
 // ── 중복 사전 확인 (신규 등록 모드): 기존 등록 건·업로드 목록 내 중복을 미리 표시 ──
 // 실제 제외 판정은 등록 시(runBulk)의 검증이 기준이며, 여기서는 같은 규칙을 미리 보여준다
+// 반복 행 그룹: 파일 안에서 주문·배송지까지 같은 송장 없는 행들 (각각 다른 박스로 취급)
+// → destKey별 { rows, existing(기존 등록된 동일 행), seen(처리 카운터) } — 기존 등록분과는 건수로 대조
+function buildRepeatGroups(rows) {
+  const groups = new Map();
+  rows.forEach(r => {
+    if (r.num || !dupCheckable(r)) return;
+    const k = destKey(r);
+    if (!groups.has(k)) {
+      const mk = makeMatchKey(r);
+      groups.set(k, { rows: [], existing: allItems.filter(x => makeMatchKey(x) === mk && sameDest(x, r)), seen: 0 }); // 주소·전화 다르면 동명이인 — 별개 배송
+    }
+    groups.get(k).rows.push(r);
+  });
+  return groups;
+}
+const dupReasonOf = e => e.num ? `동일 주문이 이미 등록됨 (송장 ${e.num})` : '동일 주문이 이미 등록됨 (송장미등록 상태)';
+
 function precheckDuplicates() {
   const mode = document.querySelector('input[name="upload-mode"]:checked')?.value || 'new';
-  bulkData.forEach(r => { r._dup = ''; });
+  bulkData.forEach(r => { r._dup = ''; r._rep = ''; });
   if (mode !== 'new') return;
-  const seenKeys = new Set(), seenNums = new Set();
+  const seenNums = new Set();
+  buildRepeatGroups(bulkData).forEach(g => {
+    g.rows.forEach((r, i) => {
+      if (g.rows.length > 1) r._rep = `${i + 1}/${g.rows.length}`;
+      if (i < g.existing.length) r._dup = dupReasonOf(g.existing[i]); // 기존 등록 건수만큼만 중복 처리
+    });
+  });
   bulkData.forEach(r => {
     if (!r.num) {
-      if (!dupCheckable(r)) return;
-      const k = makeMatchKey(r);
-      const ex = allItems.find(x => makeMatchKey(x) === k && sameDest(x, r)); // 주소·전화 다르면 동명이인 — 별개 배송
-      if (ex) r._dup = ex.num ? `동일 주문이 이미 등록됨 (송장 ${ex.num})` : '동일 주문이 이미 등록됨 (송장미등록 상태)';
-      else if (seenKeys.has(destKey(r))) r._dup = '업로드 목록 안에서 중복';
-      seenKeys.add(destKey(r));
+      // 송장 없는 행은 위 반복 그룹 판정으로 처리됨
     } else {
       const nk = r.carrier + '__' + r.num + '__' + (r.productName || '').trim();
       if (isDuplicateNum(r.carrier, r.num, null, r.productName)) r._dup = `송장번호 ${r.num} 이미 등록됨`;
@@ -2047,6 +2068,8 @@ function renderUploadCards() {
       meta = `행별 주문정보 기재${inhN ? ` · 이어받기 ${inhN}건` : ''}`;
     }
     let warn = dupN ? `<br><span class="ucard-warn">이미 등록된 주문과 겹침 ${dupN}건 — 표에서 노란색 행</span>` : '';
+    const repN = rows.filter(r => r._rep && !r._dup).length;
+    if (repN) warn += `<br><span style="font-size:11px;color:var(--gray-500)">동일 내용 반복 행 ${repN}건 — 각각 다른 박스로 모두 등록됩니다 (표의 사유 열 참고)</span>`;
     const unkSups = unknownSuppliers(rows);
     if (unkSups.length) warn += `<br><span class="ucard-warn">주소록에 없는 매입처 <b>${unkSups.map(escapeHtml).join(', ')}</b> — 파일명·매입처 표기를 확인하세요 (실제 신규 매입처면 그대로 등록해도 됩니다)</span>`;
 
@@ -2681,6 +2704,7 @@ function renderUploadPreview() {
       else raw = String(r[f] ?? '');
       const v = escapeHtml(raw);
       if (f === '_dup' && v) return `<td style="color:#854d0e">${v}</td>`;
+      if (f === '_dup' && r._rep) return `<td style="color:var(--gray-500)">동일 내용 반복 ${escapeHtml(r._rep)} — 각각 등록</td>`;
       return (isOrder && r._inherited) ? `<td class="inh">${v}</td>` : `<td>${v}</td>`;
     }).join('');
     return `<tr${r._dup ? ' class="dup"' : ''}>${tds}</tr>`;
@@ -2717,15 +2741,27 @@ async function runBulk() {
     // 송장번호 없는 건 즉시 등록, 조회 대상만 추려서 배치 처리
     suppressRender = true;
     const toQuery = [];
+    // 반복 행 그룹은 등록 전 스냅샷으로 판정 — 파일 안의 동일 행은 각각 다른 박스로 모두 등록하되,
+    // 이미 등록된 동일 행 수만큼만 중복으로 제외 (같은 파일 재업로드 시 늘어나지 않음)
+    const repGroups = buildRepeatGroups(bulkData);
     try {
       for (const item of bulkData) {
         if (!item.num) {
-          // 같은 주문정보의 행이 이미 있으면 중복 등록 방지
-          const dup = dupCheckable(item) ? allItems.find(x => makeMatchKey(x) === makeMatchKey(item) && sameDest(x, item)) : null;
-          if (dup) {
-            duplicates++; done++;
-            skippedRows.push({ item, reason: dup.num ? `동일 주문이 이미 등록됨 (송장 ${dup.num})` : '동일 주문이 이미 등록됨 (송장미등록 상태)' });
-            continue;
+          const g = dupCheckable(item) ? repGroups.get(destKey(item)) : null;
+          if (g) {
+            const k = g.seen++;
+            if (k < g.existing.length) {
+              duplicates++; done++;
+              skippedRows.push({ item, reason: dupReasonOf(g.existing[k]) });
+              continue;
+            }
+            if (g.existing.length + g.rows.length > 1) {
+              // 반복 등록 순번 부여 — 기존 형제 행에도 순번을 채워 유령 정리·송장 중복 판정에서 함께 제외
+              item.seq = String(k + 1);
+              g.existing.forEach((e, i) => {
+                if (!e.seq) { e.seq = String(i + 1); e.updatedAt = new Date().toISOString(); saveToStorage(e); }
+              });
+            }
           }
           item.localId = makeLocalId();
           // 퀵·직접배송은 송장 없이도 즉시 배송완료 처리
@@ -2841,8 +2877,9 @@ async function runBulkUpdate() {
     if (!item.num && seenKeys.has(key)) { done++; continue; } // 번호 없는 같은 주문의 반복 행은 한 번만
     let target;
     if (!seenKeys.has(key)) {
-      // 1순위: 주소·전화까지 일치하는 행 (동명이인 정확 매칭, 송장 재교체 허용)
-      let idx = allItems.findIndex((r, i) => !matchedIdx.has(i) && makeMatchKey(r) === mk && sameDest(r, item));
+      // 1순위: 주소·전화까지 일치하는 행 (동명이인 정확 매칭, 송장 재교체 허용) — 반복 행이 여럿이면 송장 없는 행부터
+      let idx = allItems.findIndex((r, i) => !matchedIdx.has(i) && !r.num && makeMatchKey(r) === mk && sameDest(r, item));
+      if (idx < 0) idx = allItems.findIndex((r, i) => !matchedIdx.has(i) && makeMatchKey(r) === mk && sameDest(r, item));
       // 2순위: 매칭키만 일치하는 송장 없는 행 (주소 표기가 달라진 경우 — 번호 있는 행은 덮지 않음)
       if (idx < 0) idx = allItems.findIndex((r, i) => !matchedIdx.has(i) && !r.num && makeMatchKey(r) === mk);
       if (idx < 0) idx = fallbackMatchIdx(item); // 보조 매칭 (유일 후보일 때만)
@@ -2862,6 +2899,24 @@ async function runBulkUpdate() {
         updatedAt: new Date().toISOString(),
       };
       allItems[idx] = target;
+      matched++;
+    } else if (allItems.some((r, i) => !matchedIdx.has(i) && !r.num && r.seq && makeMatchKey(r) === mk && sameDest(r, item))) {
+      // 같은 주문의 2번째 이후 송장번호 — 반복 등록된 형제 행(송장 없음, 각각 다른 박스)이 있으면 그 행에 배정
+      const sib = allItems.findIndex((r, i) => !matchedIdx.has(i) && !r.num && r.seq && makeMatchKey(r) === mk && sameDest(r, item));
+      const existing = allItems[sib];
+      if (isDuplicateNum(item.carrier, item.num, null, item.productName, existing)) { dup++; done++; continue; }
+      matchedIdx.add(sib);
+      target = {
+        ...existing,
+        carrier: item.carrier || existing.carrier,
+        num:     item.num,
+        numAddedAt: new Date().toISOString(),
+        ...(item._qtySplit ? { qty: item.qty } : {}),
+        memo:    item.memo || existing.memo,
+        supplier: item.supplier || existing.supplier || '',
+        updatedAt: new Date().toISOString(),
+      };
+      allItems[sib] = target;
       matched++;
     } else {
       // 같은 주문의 2번째 이후 송장번호 → 주문정보를 복사해 새 행으로 등록
@@ -3077,7 +3132,7 @@ async function syncFromDb() {
         || null;
       if (!local) {
         // 유령 방지: 송장번호 없는 원격 행인데 같은 주문·같은 배송지로 이미 번호가 부여된 행이 있으면 무시
-        if (!rem.num && allItems.some(x => x.num && makeMatchKey(x) === makeMatchKey(rem) && sameDest(x, rem))) return;
+        if (!rem.num && !rem.seq && allItems.some(x => x.num && makeMatchKey(x) === makeMatchKey(rem) && sameDest(x, rem))) return;
         // 삭제 잔재 방지: 최근 삭제한 행이면 되살리지 않고 시트에서 재삭제
         if (tombs.length && matchesTombstone(rem, tombs)) {
           deleteFromDb(rem.carrier, rem.num, rem.localId, rem.productName);
@@ -3513,7 +3568,7 @@ function renderDashboard() {
       <td style="white-space:nowrap;font-size:11px;color:var(--gray-500)">${escapeHtml(r.orderDate)||'-'}</td>
       <td>${escapeHtml(r.supplier)||'-'}</td>
       <td class="strong" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.productName)}">${escapeHtml(r.productName)||'-'}</td>
-      <td>${escapeHtml(r.companyName)||'-'}</td>
+      <td>${escapeHtml(r.companyName)||'-'}${r.seq ? `<span title="동일 내용 반복 등록 행 (각각 다른 박스) — 순번 ${escapeHtml(r.seq)}" style="margin-left:4px;font-size:10px;color:var(--gray-400);border:1px solid var(--gray-200);border-radius:8px;padding:0 5px;vertical-align:middle">반복 ${escapeHtml(r.seq)}</span>` : ''}</td>
       <td style="white-space:nowrap">${carriers[r.carrier]?.name||escapeHtml(r.carrier)}</td>
       <td class="mono">${escapeHtml(r.num)||'<span style="color:var(--gray-400);font-size:11px">미등록</span>'}</td>
       <td>${statusBadge(r)}</td>
@@ -3840,7 +3895,7 @@ async function saveInlineNum(rowKey, inputEl) {
   const extraNums = nums.slice(1);
 
   const selfKey = existing.localId ? existing.localId : existing.carrier+'__'+existing.num;
-  if (isDuplicateNum(existing.carrier, firstNum, selfKey, existing.productName)) {
+  if (isDuplicateNum(existing.carrier, firstNum, selfKey, existing.productName, existing)) {
     toast(`이미 등록된 송장번호입니다 (${firstNum})`);
     return;
   }
@@ -4082,7 +4137,7 @@ async function saveEditGrid() {
 
     // 중복 송장 확인 (자기 자신 제외)
     const selfKey = existing.localId ? existing.localId : existing.carrier+'__'+existing.num;
-    if (newNum && isDuplicateNum(newCarrier, newNum, selfKey, updated.productName)) {
+    if (newNum && isDuplicateNum(newCarrier, newNum, selfKey, updated.productName, updated)) {
       dupSkip++;
       continue;
     }
@@ -4898,6 +4953,7 @@ function itemToDbRow(entry) {
     phone:        entry.phone       || '',
     memo:         entry.memo        || '',
     num_added_at: entry.numAddedAt  || '',
+    seq:          entry.seq         || '',
     status:       entry.status      || '',
     steps:        (Array.isArray(entry.steps) && entry.steps.length) ? entry.steps
                     : (entry.error ? [{ text: String(entry.error), time: '', done: true, current: false }] : []),
@@ -4935,6 +4991,7 @@ function dbRowToItem(r) {
     addedAt:     r.added_at    || '',
     updatedAt:   r.updated_at  || '',
     numAddedAt:  r.num_added_at || '',
+    seq:         r.seq         || '',
   };
 }
 
@@ -5114,7 +5171,7 @@ function applyServerRows(rows) {
   allItems.forEach(r => { if (r.num) { const k = makeMatchKey(r); (numberedByKey[k] = numberedByKey[k] || []).push(r); } });
   const ghostFlag = new Set();
   allItems.forEach(r => {
-    if (r.num) return;
+    if (r.num || r.seq) return; // 반복 등록 행(각각 다른 박스)은 형제 행에 송장이 붙어도 잔재가 아님
     const group = numberedByKey[makeMatchKey(r)];
     if (group && group.some(x => sameDest(x, r))) ghostFlag.add(r);
   });
@@ -5122,7 +5179,7 @@ function applyServerRows(rows) {
   allItems = allItems.filter(r => !ghostFlag.has(r));
   ghosts.forEach(r => { if (r.localId) deleteFromDb(r.carrier, '', r.localId, r.productName); });
   // 과거 버그로 생긴 중복 정리: 같은 송장번호+상품명은 최신 수정본만 유지, 버려진 행은 서버에서도 삭제
-  const dedupKey = r => r.num ? r.carrier+'__'+r.num+'__'+(r.productName||'').trim() : 'lid__'+(r.localId||'');
+  const dedupKey = r => (r.num && !r.seq) ? r.carrier+'__'+r.num+'__'+(r.productName||'').trim() : 'lid__'+(r.localId||''); // 반복 행은 같은 송장 허용
   const keepMap = {};
   allItems.forEach(r => {
     const k = dedupKey(r);
