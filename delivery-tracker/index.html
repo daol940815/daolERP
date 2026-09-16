@@ -269,6 +269,8 @@ mark.hl { background:#fff3bf; color:inherit; padding:0 1px; border-radius:2px; }
 .rc-bars i { display:block; height:100%; }
 .rc-cnts { display:flex; gap:10px; margin-top:6px; font-size:11px; }
 .rc-old { font-size:10.5px; color:var(--gray-400); margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dash-row { cursor:pointer; } .dash-row:hover td { background:#fffbe6; }
+.vbar-col.clickable { cursor:pointer; } .vbar-col.clickable:hover .vbar { filter:brightness(0.85); }
 @media (max-width:1100px) { .risk-cards { grid-template-columns:repeat(2,1fr); } }
 
 /* ── 배지 ── */
@@ -1124,7 +1126,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0916-4';
+const APP_BUILD = 'v0916-5';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -3251,12 +3253,13 @@ function buildRateMaps() {
   const bySupplier = {}, byBank = {};
   allItems.forEach(r => {
     const done = getFilterGroup(r) === '배송완료';
+    const un = getFilterGroup(r) === '송장미등록';
     const sp = r.supplier || '(매입처 미지정)';
-    const o = bySupplier[sp] || (bySupplier[sp] = { total:0, withNum:0, done:0 });
-    o.total++; if (r.num) o.withNum++; if (done) o.done++;
+    const o = bySupplier[sp] || (bySupplier[sp] = { total:0, withNum:0, done:0, un:0, sample:r });
+    o.total++; if (r.num) o.withNum++; if (done) o.done++; if (un) o.un++;
     const bk = [r.bankName, r.branchName].filter(Boolean).join(' ') || '(은행명 미지정)';
-    const ob = byBank[bk] || (byBank[bk] = { total:0, withNum:0, done:0 });
-    ob.total++; if (r.num) ob.withNum++; if (done) ob.done++;
+    const ob = byBank[bk] || (byBank[bk] = { total:0, withNum:0, done:0, un:0, sample:r });
+    ob.total++; if (r.num) ob.withNum++; if (done) ob.done++; if (un) ob.un++;
   });
   return { bySupplier, byBank };
 }
@@ -3268,7 +3271,7 @@ function exportRateStats() {
   const { bySupplier, byBank } = buildRateMaps();
   const sheetOf = (map, label) => {
     const rows = Object.entries(map).sort((a, b) => b[1].total - a[1].total).map(([k, v]) => ({
-      [label]: k, '주문': v.total, '송장기재': v.withNum,
+      [label]: k, '주문': v.total, '송장기재': v.withNum, '미회신': v.un || 0,
       '송장회신율(%)': Math.round(v.withNum / v.total * 100),
       '배송완료': v.done, '배송완료율(%)': Math.round(v.done / v.total * 100),
     }));
@@ -3376,8 +3379,8 @@ const staffState = {
 };
 // 묶음 기준 정의: 라벨 · 키 · 목록 이동 조건
 const STAFF_GROUPS = {
-  supplier: { label: '매입처별', head: '매입처', key: r => r.supplier || '(미지정)', conds: (k, r) => [{ field: 'supplier', mode: 'exact', value: r.supplier || '' }] },
-  branch:   { label: '지점별',   head: '은행 · 지점', key: r => [r.bankName, r.branchName].filter(Boolean).join(' ') || '(미지정)', conds: (k, r) => [{ field: 'bankName', mode: 'exact', value: r.bankName || '' }, { field: 'branchName', mode: 'exact', value: r.branchName || '' }] },
+  supplier: { label: '매입처별', head: '매입처', key: r => r.supplier || '(미지정)', conds: (k, r) => [eqCond('supplier', r.supplier)] },
+  branch:   { label: '지점별',   head: '은행 · 지점', key: r => [r.bankName, r.branchName].filter(Boolean).join(' ') || '(미지정)', conds: (k, r) => [eqCond('bankName', r.bankName), eqCond('branchName', r.branchName)] },
   day:      { label: '주문일별', head: '주문일', key: r => r.orderDate || '(날짜 없음)', conds: (k, r) => [{ field: 'orderDate', from: r.orderDate || '', to: r.orderDate || '' }], byKeyDesc: true },
 };
 const STAFF_TARGETS = { unreplied: { label: '미회신', group: '송장미등록' }, delay: { label: '배송지연', group: '배송지연' } };
@@ -3740,30 +3743,37 @@ function renderDashboard() {
       <div class="hbar-track"><div class="hbar-fill" style="width:${pct}%;background:${color}"></div></div>
       <span class="rate-val">${pct}%</span>
     </div>`;
-  const rateRowsOf = (map) => Object.entries(map).sort((a,b) => b[1].total - a[1].total).map(([k,v]) => {
+  // 드릴다운: 행 클릭 → 그 묶음 전체 목록, 미회신 숫자 → 미회신 건만 (직원 현황과 같은 규칙)
+  const condJs = conds => JSON.stringify(conds).replace(/"/g, '&quot;');
+  const rateRowsOf = (map, condsOf) => Object.entries(map).sort((a,b) => b[1].total - a[1].total).map(([k,v]) => {
     const replyRate = Math.round(v.withNum / v.total * 100);
     const doneRate2 = Math.round(v.done / v.total * 100);
-    return `<tr>
+    const rowConds = condsOf(v.sample);
+    const unLink = v.un ? `<span class="lnk" onclick="event.stopPropagation();gotoListWith(${condJs(rowConds.concat([{ field: 'status', mode: 'group', value: '송장미등록' }]))}, null, 'dash')" title="미회신 건만 보기">${v.un}</span>` : '0';
+    return `<tr class="dash-row" onclick="gotoListWith(${condJs(rowConds)}, null, 'dash')" title="배송 목록에서 전체 보기">
       <td class="strong" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(k)}">${escapeHtml(k)}</td>
       <td class="mono" style="text-align:center">${v.total}</td>
       <td class="mono" style="text-align:center">${v.withNum}</td>
       <td>${rateBar(replyRate, '#0369a1')}</td>
+      <td class="mono" style="text-align:center">${unLink}</td>
       <td class="mono" style="text-align:center">${v.done}</td>
       <td>${rateBar(doneRate2, '#15803d')}</td>
     </tr>`;
   }).join('');
-  const rateSec = (title, label, map) => `
+  const rateSec = (title, label, map, condsOf) => `
     <div class="dash-sec-title">${title}</div>
     <div style="border:1px solid var(--gray-200);border-radius:8px;overflow:auto">
-      <table><thead><tr><th>${label}</th><th style="text-align:center">주문</th><th style="text-align:center">송장기재</th><th>송장회신율</th><th style="text-align:center">배송완료</th><th>배송완료율</th></tr></thead>
-      <tbody>${rateRowsOf(map)}</tbody></table>
+      <table><thead><tr><th>${label}</th><th style="text-align:center">주문</th><th style="text-align:center">송장기재</th><th>송장회신율</th><th style="text-align:center">미회신</th><th style="text-align:center">배송완료</th><th>배송완료율</th></tr></thead>
+      <tbody>${rateRowsOf(map, condsOf)}</tbody></table>
     </div>`;
+  const bankConds = r => [eqCond('bankName', r.bankName), eqCond('branchName', r.branchName)];
+  const supConds = r => [eqCond('supplier', r.supplier)];
   const bankSec = rateSec(
     `은행·지점별 송장회신율 · 배송완료율
      <button class="btn btn-outline btn-sm" style="float:right;padding:2px 10px;font-size:11px" onclick="exportRateStats()" title="은행·지점별/매입처별 통계를 엑셀로 저장">↓ 엑셀 다운로드</button>`,
-    '은행 · 지점', byBank);
-  const supSec = rateSec('매입처별 송장회신율 · 배송완료율', '매입처', bySupplier)
-    + `<div style="font-size:11px;color:var(--gray-400);margin-top:6px">송장회신율 = 송장번호 기재 건 ÷ 전체 주문건 · 배송완료율 = 배송완료 건 ÷ 전체 주문건</div>`;
+    '은행 · 지점', byBank, bankConds);
+  const supSec = rateSec('매입처별 송장회신율 · 배송완료율', '매입처', bySupplier, supConds)
+    + `<div style="font-size:11px;color:var(--gray-400);margin-top:6px">송장회신율 = 송장번호 기재 건 ÷ 전체 주문건 · 배송완료율 = 배송완료 건 ÷ 전체 주문건 · 행을 누르면 배송 목록에서 전체, 미회신 숫자를 누르면 미회신 건만 표시</div>`;
 
   // 최근 14일 주문 추이 (주문일 기준)
   const days = [];
@@ -3777,7 +3787,7 @@ function renderDashboard() {
   allItems.forEach(r => { if (dayMap[r.orderDate]) dayMap[r.orderDate].count++; });
   const maxDay = Math.max(1, ...days.map(d => d.count));
   const vbars = days.map(d => `
-    <div class="vbar-col" title="${d.key} · ${d.count}건">
+    <div class="vbar-col${d.count ? ' clickable' : ''}" title="${d.key} · ${d.count}건${d.count ? ' — 누르면 목록에서 보기' : ''}"${d.count ? ` onclick="gotoListWith([{field:'orderDate',from:'${d.key}',to:'${d.key}'}], null, 'dash')"` : ''}>
       <div class="vbar-cnt">${d.count||''}</div>
       <div class="vbar" style="height:${Math.max(2, d.count/maxDay*70)}px;${d.count?'':'background:var(--gray-100)'}"></div>
       <div class="vbar-lb">${d.label}</div>
@@ -3935,6 +3945,7 @@ function condMatches(r, f, list) {
     if (c.mode === 'head') return normText(staffHead(raw)) === normText(c.value);
     if (c.mode === 'group') return getFilterGroup(r) === c.value;
     if (c.mode === 'notgroup') return getFilterGroup(r) !== c.value;
+    if (c.mode === 'empty') return hay === '';
     const q = fieldNorm(f, c.value);
     if (!q) return true;
     return c.mode === 'exact' ? hay === q : hay.includes(q);
@@ -3952,7 +3963,7 @@ function globalMatches(r, q) {
     return f.digits && qd.length >= 3 && normDigits(v).includes(qd);
   });
 }
-const condLive = c => { const f = SEARCH_FIELD_MAP[c.field]; if (!f) return false; if (c.mode === 'head' || c.mode === 'group' || c.mode === 'notgroup') return true; if (f.kind === 'period' || f.kind === 'range') return !!(String(c.from ?? '') !== '' || String(c.to ?? '') !== ''); return !!String(c.value || '').trim(); };
+const condLive = c => { const f = SEARCH_FIELD_MAP[c.field]; if (!f) return false; if (c.mode === 'head' || c.mode === 'group' || c.mode === 'notgroup' || c.mode === 'empty') return true; if (f.kind === 'period' || f.kind === 'range') return !!(String(c.from ?? '') !== '' || String(c.to ?? '') !== ''); return !!String(c.value || '').trim(); };
 function condLabel(c) {
   const f = SEARCH_FIELD_MAP[c.field];
   if (!f) return '';
@@ -3960,6 +3971,7 @@ function condLabel(c) {
   if (f.kind === 'range') { const a = String(c.from ?? ''), b = String(c.to ?? ''); return a && b ? (a === b ? `${a}일` : `${a}~${b}일`) : a ? `${a}일 이상` : `${b}일 이하`; }
   if (c.mode === 'head') return '담당 ' + (c.value || '(미지정)');
   if (c.mode === 'notgroup') return c.value + ' 제외';
+  if (c.mode === 'empty') return '(비어 있음)';
   return (c.mode === 'exact' ? '= ' : '') + c.value;
 }
 
@@ -4010,7 +4022,7 @@ function createCondSearch(cfg) {
   S.toggle = () => { S.open = !S.open; if (S.open && !S.conds.length) { S.add(); return; } S.render(true); };
   S.onField = (i, field) => {
     const c = S.conds[i]; if (!c) return;
-    c.field = field; c.value = ''; c.from = ''; c.to = ''; if (c.mode === 'head' || c.mode === 'group' || c.mode === 'notgroup') c.mode = 'contains';
+    c.field = field; c.value = ''; c.from = ''; c.to = ''; if (['head', 'group', 'notgroup', 'empty'].includes(c.mode)) c.mode = 'contains';
     S.render(true); S.changed();
     const row = document.querySelectorAll(`#${cfg.rowsId} .cond-row`)[i];
     const inp = row && row.querySelector('.cval, .cdate'); if (inp) inp.focus();
@@ -4113,6 +4125,9 @@ function createCondSearch(cfg) {
   return S;
 }
 
+// 값 일치 조건 (값이 비어 있으면 '값 없음' 조건) — 집계 묶음 → 목록 이동에 사용
+const eqCond = (field, v) => (String(v || '').trim() ? { field, mode: 'exact', value: v } : { field, mode: 'empty', value: '' });
+
 // ── 인스턴스: 목록(list) · 자료 탭 집계(data) ──
 let _listReturn = null; // 직원 현황에서 목록으로 이동한 경우 돌아가기 표시
 const CS = {};
@@ -4127,7 +4142,7 @@ CS.list = createCondSearch({
     });
   },
   onChange: () => renderTable(),
-  extraChips: () => _listReturn ? `<button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="returnFromList()">← ${_listReturn.view === 'dash' ? '대시보드' : '직원 현황'}으로 돌아가기</button>` : '',
+  extraChips: () => _listReturn ? `<button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="returnFromList()">← ${_listReturn.view === 'dash' ? '대시보드로' : '직원 현황으로'} 돌아가기</button>` : '',
 });
 CS.data = createCondSearch({
   key: 'data', inputId: 'agg-search', panelId: 'agg-cond-panel', rowsId: 'agg-cond-rows', chipsId: 'agg-cond-chips', summaryId: 'agg-search-summary', toggleId: 'agg-btn-cond-toggle',
