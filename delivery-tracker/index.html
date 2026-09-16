@@ -1120,7 +1120,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0916-2';
+const APP_BUILD = 'v0916-3';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -4138,7 +4138,9 @@ function gotoListWith(conds, pinIds, from) {
   _listReturn = from === 'dash' ? { view: 'dash' } : { view: 'data', sub: 'staff' };
   CS.list.render(true);
   renderTable();
-  const card = document.getElementById('view-list'); if (card) card.scrollIntoView({ block: 'start' });
+  // body 는 스크롤되지 않는 구조 — 목록 카드를 끌어올리면 상단 보기·필터 줄이 헤더 뒤로 숨으므로 항상 맨 위로
+  window.scrollTo(0, 0); document.documentElement.scrollTop = 0; document.body.scrollTop = 0;
+  const tbl = document.querySelector('#view-list .table-scroll, #table-body'); if (tbl && tbl.closest('[style*="overflow"]')) tbl.closest('[style*="overflow"]').scrollTop = 0;
 }
 
 // 강조 표시: 해당 항목에 걸린 포함 조건·통합 검색어와 일치하는 부분을 <mark>로 감쌈 (HTML 이스케이프 포함)
