@@ -234,6 +234,10 @@ mark.hl { background:#fff3bf; color:inherit; padding:0 1px; border-radius:2px; }
 .staff-sub { font-size:11px; padding:3px 10px; border-radius:12px; border:1px solid var(--gray-200); color:var(--gray-500); background:var(--white); cursor:pointer; font-family:var(--font); }
 .staff-sub small { color:var(--gray-300); margin-left:2px; }
 .staff-sub.on { background:var(--gray-700); color:var(--white); border-color:var(--gray-700); }
+.seg { display:inline-flex; border:1px solid var(--gray-200); border-radius:6px; overflow:hidden; }
+.seg button { padding:3px 10px; font-size:11px; color:var(--gray-500); background:var(--white); border:none; border-right:1px solid var(--gray-200); cursor:pointer; font-family:var(--font); }
+.seg button:last-child { border-right:none; }
+.seg button.on { background:var(--black); color:var(--white); }
 .kpis { display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-top:10px; }
 .kpi { background:var(--white); border:1px solid var(--gray-100); border-radius:10px; padding:12px 14px; }
 .kpi .t { font-size:11px; color:var(--gray-400); }
@@ -1120,7 +1124,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0916-3';
+const APP_BUILD = 'v0916-4';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -3365,8 +3369,24 @@ const staffState = {
   sel: localStorage.getItem('tracker_staff_sel') || 'all', // 담당자(괄호 앞) 또는 'all'
   sub: 'all',                                               // 보조담당(괄호 안) 또는 'all'
   from: '', to: '',                                         // 주문일 기간 (비우면 전체)
-  openSup: new Set(), dayMore: 0, brMore: 0,
+  openSup: new Set(), dayMore: 0, brMore: 0, rateMore: 0,
+  target: localStorage.getItem('tracker_staff_target') === 'delay' ? 'delay' : 'unreplied',   // 메인 목록 대상: 미회신 | 배송지연
+  groupBy: ['supplier', 'branch', 'day'].includes(localStorage.getItem('tracker_staff_group')) ? localStorage.getItem('tracker_staff_group') : 'supplier', // 묶음 기준
+  rateTab: ['branch', 'supplier', 'day'].includes(localStorage.getItem('tracker_staff_rate')) ? localStorage.getItem('tracker_staff_rate') : 'branch',      // 비율 표 탭
 };
+// 묶음 기준 정의: 라벨 · 키 · 목록 이동 조건
+const STAFF_GROUPS = {
+  supplier: { label: '매입처별', head: '매입처', key: r => r.supplier || '(미지정)', conds: (k, r) => [{ field: 'supplier', mode: 'exact', value: r.supplier || '' }] },
+  branch:   { label: '지점별',   head: '은행 · 지점', key: r => [r.bankName, r.branchName].filter(Boolean).join(' ') || '(미지정)', conds: (k, r) => [{ field: 'bankName', mode: 'exact', value: r.bankName || '' }, { field: 'branchName', mode: 'exact', value: r.branchName || '' }] },
+  day:      { label: '주문일별', head: '주문일', key: r => r.orderDate || '(날짜 없음)', conds: (k, r) => [{ field: 'orderDate', from: r.orderDate || '', to: r.orderDate || '' }], byKeyDesc: true },
+};
+const STAFF_TARGETS = { unreplied: { label: '미회신', group: '송장미등록' }, delay: { label: '배송지연', group: '배송지연' } };
+function setStaffMain(which, v) {
+  staffState[which] = v; staffState.openSup = new Set();
+  try { localStorage.setItem(which === 'target' ? 'tracker_staff_target' : 'tracker_staff_group', v); } catch(e) {}
+  renderStaffView();
+}
+function setStaffRateTab(v) { staffState.rateTab = v; staffState.rateMore = 0; try { localStorage.setItem('tracker_staff_rate', v); } catch(e) {} renderStaffView(); }
 const STAFF_NONE = '(미지정)';
 const staffHeadOf = r => staffHead(r.staff) || STAFF_NONE;
 const staffSubOf = r => staffSub(r.staff) || '없음';
@@ -3462,57 +3482,61 @@ function renderStaffView() {
   </div>
   <div style="font-size:11px;color:var(--gray-400);margin:6px 0 2px">회신율 = 송장번호 있는 건(퀵·직접배송 포함) ÷ 담당 건수 · 완료율 = 배송완료 ÷ 담당 건수 · 카드·표의 숫자와 목록 행을 누르면 배송 목록에서 바로 확인할 수 있습니다</div>`;
 
-  // 미회신 목록 — 매입처별
-  const bySup = {};
-  unreplied.forEach(r => { const k = r.supplier || '(미지정)'; (bySup[k] = bySup[k] || []).push(r); });
-  const supKeys = Object.keys(bySup).sort((a, b) => bySup[b].length - bySup[a].length);
+  // 메인 목록 — 대상(미회신 | 배송지연) × 묶음(매입처별 | 지점별 | 주문일별)
+  const tdef = STAFF_TARGETS[staffState.target], gdef = STAFF_GROUPS[staffState.groupBy];
+  const mainItems = D.filter(r => grp(r) === tdef.group);
+  const byKey = {};
+  mainItems.forEach(r => { const k = gdef.key(r); (byKey[k] = byKey[k] || []).push(r); });
+  const keys = Object.keys(byKey).sort(gdef.byKeyDesc ? (a, b) => b.localeCompare(a) : (a, b) => byKey[b].length - byKey[a].length || a.localeCompare(b, 'ko'));
   const dcls = d => d >= 7 ? 'd7' : d >= 5 ? 'd5' : d >= 3 ? 'd3' : '';
   const rowHtml = r => { const d = delayDays(r); return `<tr class="staff-row" onclick="staffGoRow('${escapeHtml(r.localId)}')" title="배송 목록에서 이 건 보기">
       <td style="white-space:nowrap">${escapeHtml(r.orderDate) || '-'}</td><td>${escapeHtml([r.bankName, r.branchName].filter(Boolean).join(' ')) || '-'}</td>
-      <td>${escapeHtml(r.manager) || '-'}</td><td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.productName)}">${escapeHtml(r.productName) || '-'}</td>
+      <td>${escapeHtml(r.manager) || '-'}</td><td>${escapeHtml(r.supplier) || '-'}</td><td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.productName)}">${escapeHtml(r.productName) || '-'}</td>
       <td>${escapeHtml(r.companyName) || '-'}${r.seq ? ` <span class="tag">반복 ${escapeHtml(r.seq)}</span>` : ''}</td><td class="mono" style="text-align:right">${escapeHtml(String(r.qty || '')) || '-'}</td>
+      <td style="white-space:nowrap">${escapeHtml(r.num) || '<span style="color:var(--gray-400)">미등록</span>'}</td>
       <td class="mono ${dcls(d)}" style="text-align:right">D+${d}</td></tr>`; };
-  const supEsc = s => escapeHtml(s).replace(/'/g, "\\'");
-  const unBody = supKeys.map(sup => {
-    const list = bySup[sup].slice().sort((a, b) => delayDays(b) - delayDays(a));
-    const open = staffState.openSup.has(sup);
+  const supEsc = x => escapeHtml(x).replace(/'/g, "\\'");
+  const condJs = conds => JSON.stringify(conds).replace(/"/g, '&quot;');
+  const mainBody = keys.map(k => {
+    const list = byKey[k].slice().sort((a, b) => delayDays(b) - delayDays(a));
+    const open = staffState.openSup.has(k);
     const shown = open ? list : list.slice(0, 5);
-    const more = list.length > shown.length ? `<tr><td colspan="7" style="font-size:11px;color:var(--gray-400);cursor:pointer" onclick="toggleStaffSup('${supEsc(sup)}')">… ${list.length - shown.length}건 더 (펼치기)</td></tr>`
-      : (open && list.length > 5 ? `<tr><td colspan="7" style="font-size:11px;color:var(--gray-400);cursor:pointer" onclick="toggleStaffSup('${supEsc(sup)}')">접기</td></tr>` : '');
-    const supCond = `staffGo([{field:'supplier',mode:'exact',value:'${supEsc(sup)}'},{field:'status',mode:'group',value:'송장미등록'}])`;
-    return `<tr class="grp"><td colspan="5">${escapeHtml(sup)} <span class="tag">${list.length}건</span></td>
-      <td colspan="2" style="text-align:right;white-space:nowrap"><span class="lnk" onclick="staffGoMail('${supEsc(sup)}')">회신요청 메일</span> · <span class="lnk" onclick="${supCond}">목록에서 보기</span></td></tr>` + shown.map(rowHtml).join('') + more;
+    const more = list.length > shown.length ? `<tr><td colspan="9" style="font-size:11px;color:var(--gray-400);cursor:pointer" onclick="toggleStaffSup('${supEsc(k)}')">… ${list.length - shown.length}건 더 (펼치기)</td></tr>`
+      : (open && list.length > 5 ? `<tr><td colspan="9" style="font-size:11px;color:var(--gray-400);cursor:pointer" onclick="toggleStaffSup('${supEsc(k)}')">접기</td></tr>` : '');
+    const goConds = gdef.conds(k, list[0]).concat([{ field: 'status', mode: 'group', value: tdef.group }]);
+    const mail = (staffState.target === 'unreplied' && staffState.groupBy === 'supplier') ? `<span class="lnk" onclick="staffGoMail('${supEsc(k)}')">회신요청 메일</span> · ` : '';
+    return `<tr class="grp"><td colspan="7">${escapeHtml(k)} <span class="tag">${list.length}건</span></td>
+      <td colspan="2" style="text-align:right;white-space:nowrap">${mail}<span class="lnk" onclick="staffGo(${condJs(goConds)})">목록에서 보기</span></td></tr>` + shown.map(rowHtml).join('') + more;
   }).join('');
-  const unHtml = `<div class="card" style="padding:.9rem 1.1rem">
-    <div class="sec-title">미회신 ${unreplied.length}건 — 매입처별 <span class="r">경과일은 등록일 기준 · <span class="d3">3일+</span> <span class="d5">5일+</span> <span class="d7">7일+</span> · 행을 누르면 목록에서 그 건만 표시</span></div>
-    ${unreplied.length ? `<div style="max-height:46vh;overflow:auto"><table class="staff-table"><thead><tr><th>주문일</th><th>은행 · 지점</th><th>고객명</th><th>품명</th><th>받는이</th><th style="text-align:right">수량</th><th style="text-align:right">경과</th></tr></thead><tbody>${unBody}</tbody></table></div>`
-      : '<div style="padding:1rem;text-align:center;color:var(--gray-400);font-size:12px">미회신 건이 없습니다</div>'}
+  const seg = (which, defs, cur, fn) => `<span class="seg">${Object.entries(defs).map(([k, d]) => `<button class="${k === cur ? 'on' : ''}" onclick="${fn}('${k}')">${d.label}</button>`).join('')}</span>`;
+  const mainHtml = `<div class="card" style="padding:.9rem 1.1rem">
+    <div class="sec-title">
+      <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${tdef.label} ${mainItems.length}건
+        <span style="font-size:11px;font-weight:400;color:var(--gray-400)">대상</span>${seg('target', STAFF_TARGETS, staffState.target, "setStaffMain.bind(null,'target')")}
+        <span style="font-size:11px;font-weight:400;color:var(--gray-400)">묶음</span>${seg('groupBy', STAFF_GROUPS, staffState.groupBy, "setStaffMain.bind(null,'groupBy')")}
+      </span>
+      <span class="r">경과일은 출고일 → 송장등록일 → 등록일 기준 · <span class="d3">3일+</span> <span class="d5">5일+</span> <span class="d7">7일+</span> · 행을 누르면 목록에서 그 건만 표시</span></div>
+    ${mainItems.length ? `<div style="max-height:46vh;overflow:auto"><table class="staff-table"><thead><tr><th>주문일</th><th>은행 · 지점</th><th>고객명</th><th>매입처</th><th>품명</th><th>받는이</th><th style="text-align:right">수량</th><th>송장번호</th><th style="text-align:right">경과</th></tr></thead><tbody>${mainBody}</tbody></table></div>`
+      : `<div style="padding:1rem;text-align:center;color:var(--gray-400);font-size:12px">${tdef.label} 건이 없습니다</div>`}
   </div>`;
 
-  // 일자별 (주문일, 최근 순)
-  const byDay = {};
-  D.forEach(r => { const k = r.orderDate || '(날짜 없음)'; const o = byDay[k] || (byDay[k] = { total: 0, rep: 0, done: 0, un: 0 }); o.total++; if (isReplied(r)) o.rep++; if (grp(r) === '배송완료') o.done++; if (grp(r) === '송장미등록') o.un++; });
-  const days = Object.keys(byDay).sort((a, b) => b.localeCompare(a));
-  const dayShown = days.slice(0, 30 + staffState.dayMore);
-  const dayRows = dayShown.map(k => { const o = byDay[k]; const link = o.un ? `<span class="lnk" onclick="staffGo([{field:'orderDate',from:'${k}',to:'${k}'},{field:'status',mode:'group',value:'송장미등록'}])">${o.un}</span>` : '0';
-    return `<tr><td style="white-space:nowrap">${escapeHtml(k)}</td><td class="mono" style="text-align:right">${o.total}</td>${rateCell(o.rep, o.total, '#0369a1')}${rateCell(o.done, o.total, '#15803d')}<td class="mono" style="text-align:right">${link}</td></tr>`; }).join('');
-  const dayMore = days.length > dayShown.length ? `<tr><td colspan="5" style="font-size:11px;color:var(--gray-400);cursor:pointer" onclick="staffMore('dayMore')">… ${days.length - dayShown.length}일 더 보기</td></tr>` : '';
-  // 지점별 (미회신 많은 순)
-  const byBr = {};
-  D.forEach(r => { const k = [r.bankName, r.branchName].filter(Boolean).join(' ') || '(미지정)'; const o = byBr[k] || (byBr[k] = { bank: r.bankName || '', br: r.branchName || '', total: 0, rep: 0, done: 0, un: 0 }); o.total++; if (isReplied(r)) o.rep++; if (grp(r) === '배송완료') o.done++; if (grp(r) === '송장미등록') o.un++; });
-  const brs = Object.keys(byBr).sort((a, b) => byBr[b].un - byBr[a].un || byBr[b].total - byBr[a].total);
-  const brShown = brs.slice(0, 30 + staffState.brMore);
-  const brRows = brShown.map(k => { const o = byBr[k];
-    const link = o.un ? `<span class="lnk" onclick="staffGo([{field:'bankName',mode:'exact',value:'${supEsc(o.bank)}'},{field:'branchName',mode:'exact',value:'${supEsc(o.br)}'},{field:'status',mode:'group',value:'송장미등록'}])">${o.un}</span>` : '0';
-    return `<tr><td>${escapeHtml(k)}</td><td class="mono" style="text-align:right">${o.total}</td>${rateCell(o.rep, o.total, '#0369a1')}${rateCell(o.done, o.total, '#15803d')}<td class="mono" style="text-align:right">${link}</td></tr>`; }).join('');
-  const brMore = brs.length > brShown.length ? `<tr><td colspan="5" style="font-size:11px;color:var(--gray-400);cursor:pointer" onclick="staffMore('brMore')">… ${brs.length - brShown.length}곳 더 보기</td></tr>` : '';
-  const tHead = (first) => `<thead><tr><th>${first}</th><th style="text-align:right">건수</th><th>회신율</th><th>완료율</th><th style="text-align:right">미회신</th></tr></thead>`;
-  const twoHtml = `<div class="two">
-    <div class="card" style="padding:.9rem 1.1rem"><div class="sec-title">주문일 기준 일자별 <span class="r">최근 순</span></div>
-      <div style="max-height:46vh;overflow:auto"><table class="staff-table">${tHead('주문일')}<tbody>${dayRows || '<tr><td colspan="5" style="color:var(--gray-400);font-size:12px">데이터 없음</td></tr>'}${dayMore}</tbody></table></div></div>
-    <div class="card" style="padding:.9rem 1.1rem"><div class="sec-title">지점별 <span class="r">미회신 많은 순 · <span class="lnk" onclick="exportStaffBranch()">엑셀로 내려받기</span></span></div>
-      <div style="max-height:46vh;overflow:auto"><table class="staff-table">${tHead('은행 · 지점')}<tbody>${brRows || '<tr><td colspan="5" style="color:var(--gray-400);font-size:12px">데이터 없음</td></tr>'}${brMore}</tbody></table></div></div>
-  </div>`;
+  // 비율 표 — 탭(지점별 | 매입처별 | 주문일별): 행 클릭 → 그 묶음 전체, 미회신 숫자 → 미회신 건
+  const rdef = STAFF_GROUPS[staffState.rateTab];
+  const byR = {};
+  D.forEach(r => { const k = rdef.key(r); const o = byR[k] || (byR[k] = { sample: r, total: 0, rep: 0, done: 0, un: 0, undone: 0 }); o.total++; if (isReplied(r)) o.rep++; const g = grp(r); if (g === '배송완료') o.done++; else o.undone++; if (g === '송장미등록') o.un++; });
+  const rkeys = Object.keys(byR).sort(rdef.byKeyDesc ? (a, b) => b.localeCompare(a) : (a, b) => byR[b].un - byR[a].un || byR[b].total - byR[a].total);
+  const rShown = rkeys.slice(0, 30 + staffState.rateMore);
+  const rateRows = rShown.map(k => { const o = byR[k];
+    const rowConds = rdef.conds(k, o.sample);
+    const unLink = o.un ? `<span class="lnk" onclick="event.stopPropagation();staffGo(${condJs(rowConds.concat([{ field: 'status', mode: 'group', value: '송장미등록' }]))})" title="미회신 건만 보기">${o.un}</span>` : '0';
+    return `<tr class="staff-row" onclick="staffGo(${condJs(rowConds)})" title="배송 목록에서 이 ${rdef.head} 전체 보기"><td>${escapeHtml(k)}</td><td class="mono" style="text-align:right">${o.total}</td>${rateCell(o.rep, o.total, '#0369a1')}${rateCell(o.done, o.total, '#15803d')}<td class="mono" style="text-align:right">${unLink}</td><td class="mono" style="text-align:right">${o.undone}</td></tr>`; }).join('');
+  const rateMore = rkeys.length > rShown.length ? `<tr><td colspan="6" style="font-size:11px;color:var(--gray-400);cursor:pointer" onclick="staffMore('rateMore')">… ${rkeys.length - rShown.length}개 더 보기</td></tr>` : '';
+  const rateTabs = `<span class="seg">${['branch', 'supplier', 'day'].map(k => `<button class="${k === staffState.rateTab ? 'on' : ''}" onclick="setStaffRateTab('${k}')">${STAFF_GROUPS[k].label}</button>`).join('')}</span>`;
+  const twoHtml = `<div class="card" style="padding:.9rem 1.1rem">
+    <div class="sec-title"><span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">회신율 · 완료율 ${rateTabs}</span>
+      <span class="r">${rdef.byKeyDesc ? '최근 순' : '미회신 많은 순'} · 행을 누르면 그 ${rdef.head} 목록, 미회신 숫자를 누르면 미회신 건만 · <span class="lnk" onclick="exportStaffRate()">엑셀로 내려받기</span></span></div>
+    <div style="max-height:46vh;overflow:auto"><table class="staff-table"><thead><tr><th>${rdef.head}</th><th style="text-align:right">건수</th><th>회신율</th><th>완료율</th><th style="text-align:right">미회신</th><th style="text-align:right">미완료</th></tr></thead>
+      <tbody>${rateRows || '<tr><td colspan="6" style="color:var(--gray-400);font-size:12px">데이터 없음</td></tr>'}${rateMore}</tbody></table></div></div>`;
 
   // 전체 선택 시 담당자 비교표
   let cmpHtml = '';
@@ -3540,26 +3564,27 @@ function renderStaffView() {
     </div>
     ${kpis}
     ${staffState.sel === 'all' ? cmpHtml : ''}
-    ${unHtml}
+    ${mainHtml}
     ${twoHtml}`;
 }
-// 지점별 표 엑셀
-function exportStaffBranch() {
+// 비율 표 엑셀 (현재 탭 기준)
+function exportStaffRate() {
   if (typeof XLSX === 'undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
+  const rdef = STAFF_GROUPS[staffState.rateTab];
   const D = staffSelectedItems(staffPeriodItems());
   const grp = r => getFilterGroup(r);
-  const byBr = {};
-  D.forEach(r => { const k = [r.bankName, r.branchName].filter(Boolean).join(' ') || '(미지정)'; const o = byBr[k] || (byBr[k] = { total: 0, rep: 0, done: 0, un: 0 }); o.total++; if (isReplied(r)) o.rep++; if (grp(r) === '배송완료') o.done++; if (grp(r) === '송장미등록') o.un++; });
-  const rows = Object.keys(byBr).sort((a, b) => byBr[b].un - byBr[a].un).map(k => ({ '은행·지점': k, '건수': byBr[k].total, '송장회신': byBr[k].rep, '회신율(%)': pct(byBr[k].rep, byBr[k].total), '배송완료': byBr[k].done, '완료율(%)': pct(byBr[k].done, byBr[k].total), '미회신': byBr[k].un }));
+  const byR = {};
+  D.forEach(r => { const k = rdef.key(r); const o = byR[k] || (byR[k] = { total: 0, rep: 0, done: 0, un: 0, undone: 0 }); o.total++; if (isReplied(r)) o.rep++; const g = grp(r); if (g === '배송완료') o.done++; else o.undone++; if (g === '송장미등록') o.un++; });
+  const keys = Object.keys(byR).sort(rdef.byKeyDesc ? (a, b) => b.localeCompare(a) : (a, b) => byR[b].un - byR[a].un || byR[b].total - byR[a].total);
+  const rows = keys.map(k => ({ [rdef.head]: k, '건수': byR[k].total, '송장회신': byR[k].rep, '회신율(%)': pct(byR[k].rep, byR[k].total), '배송완료': byR[k].done, '완료율(%)': pct(byR[k].done, byR[k].total), '미회신': byR[k].un, '미완료': byR[k].undone }));
   if (!rows.length) { toast('내보낼 데이터가 없습니다'); return; }
   const ws = XLSX.utils.json_to_sheet(rows);
-  ws['!cols'] = [28, 8, 9, 10, 9, 10, 8].map(w => ({ wch: w }));
+  ws['!cols'] = [28, 8, 9, 10, 9, 10, 8, 8].map(w => ({ wch: w }));
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, '지점별');
+  XLSX.utils.book_append_sheet(wb, ws, rdef.label);
   const who = staffState.sel === 'all' ? '전체' : staffState.sel;
-  XLSX.writeFile(wb, `직원현황_지점별_${who}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  XLSX.writeFile(wb, `직원현황_${rdef.label}_${who}_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
-
 // 집계표 엑셀 다운로드
 function exportAggExcel() {
   if (typeof XLSX === 'undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
