@@ -254,6 +254,18 @@ mark.hl { background:#fff3bf; color:inherit; padding:0 1px; border-radius:2px; }
 .d3 { color:#b45309; font-weight:600; } .d5 { color:#c2410c; font-weight:600; } .d7 { color:#b91c1c; font-weight:700; }
 .two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 @media (max-width:1100px) { .kpis { grid-template-columns:repeat(4,1fr); } .two { grid-template-columns:1fr; } }
+/* 대시보드 위험도 담당직원 카드 */
+.risk-cards { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+.risk-card { border:1px solid var(--gray-100); border-radius:10px; padding:10px 12px; background:var(--white); cursor:pointer; }
+.risk-card:hover { border-color:var(--gray-400); }
+.rc-name { font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center; }
+.rc-total { color:#b91c1c; font-family:var(--mono); font-size:15px; }
+.rc-sub { font-size:11px; color:var(--gray-400); min-height:15px; }
+.rc-bars { display:flex; gap:3px; margin-top:8px; height:8px; border-radius:4px; overflow:hidden; background:var(--gray-50); }
+.rc-bars i { display:block; height:100%; }
+.rc-cnts { display:flex; gap:10px; margin-top:6px; font-size:11px; }
+.rc-old { font-size:10.5px; color:var(--gray-400); margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+@media (max-width:1100px) { .risk-cards { grid-template-columns:repeat(2,1fr); } }
 
 /* ── 배지 ── */
 .badge {
@@ -1108,7 +1120,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0916-1';
+const APP_BUILD = 'v0916-2';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -3227,9 +3239,7 @@ function dashGo(g) {
 
 // 대시보드 위험도 배지 클릭 → 배송지연 목록의 해당 일수 구간으로 이동
 function dashGoDelay(min) {
-  dashGo('배송지연');
-  const btn = document.querySelector(`.delay-sub-item[data-min="${min}"]`);
-  if (btn) setDelayMin(min, btn);
+  gotoListWith([{ field: 'elapsed', from: min, to: '' }, { field: 'status', mode: 'notgroup', value: '배송완료' }], null, 'dash');
 }
 
 // 매입처별·은행지점별 회신율 집계 (대시보드 표 + 엑셀 다운로드 공용)
@@ -3666,15 +3676,13 @@ function renderDashboard() {
     { min:5, label:'경고', bg:'#ffedd5', fg:'#9a3412' },
     { min:3, label:'주의', bg:'#fef9c3', fg:'#854d0e' },
   ];
+  // 경과일은 목록·검색과 같은 delayDays(출고일 → 송장등록일 → 등록일) 기준 — 클릭 이동 시 건수가 정확히 일치
   const riskItems = [];
   allItems.forEach(r => {
     if (getFilterGroup(r) === '배송완료') return;
-    const basisIso = r.shippedAt || r.addedAt || '';
-    const t = basisIso ? new Date(basisIso).getTime() : NaN;
-    if (isNaN(t)) return;
-    const days = Math.floor((Date.now() - t) / 86400000);
+    const days = delayDays(r);
     const tier = RISK.find(x => days >= x.min);
-    if (tier) riskItems.push({ r, days, tier, basis: r.shippedAt ? '출고' : '등록' });
+    if (tier) riskItems.push({ r, days, tier });
   });
   riskItems.sort((a,b) => b.days - a.days);
   const doneRate = Math.round(groups['배송완료'] / total * 100);
@@ -3750,34 +3758,51 @@ function renderDashboard() {
       <div class="vbar-lb">${d.label}</div>
     </div>`).join('');
 
-  // 배송지연 위험도 섹션
+  // 배송지연 위험도 섹션 — 담당직원 카드 (괄호 앞 이름으로 합산)
+  //  · 구간: 심각 7일+ · 경고 5~6일 · 주의 3~4일 (배송완료 제외) · 숫자 클릭 → 목록(담당 + 경과일 범위 + 배송완료 제외) · 카드 클릭 → 직원 현황
+  const RANGE = { '심각': [7, ''], '경고': [5, 6], '주의': [3, 4], '전체': [3, ''] };
   const riskCounts = RISK.map(t => ({ ...t, n: riskItems.filter(x => x.tier.label === t.label).length }));
-  const riskRows = riskItems.slice(0, 15).map(({ r, days, tier, basis }) => `
-    <tr>
-      <td style="white-space:nowrap"><span class="badge" style="background:${tier.bg};color:${tier.fg}">${tier.label} D+${days}</span></td>
-      <td style="white-space:nowrap;font-size:11px">${escapeHtml(String((basis==='출고' ? r.shippedAt : r.addedAt) || '').slice(0,10))}<span style="color:var(--gray-400)"> (${basis})</span></td>
-      <td style="white-space:nowrap;font-size:11px;color:var(--gray-500)">${escapeHtml(r.orderDate)||'-'}</td>
-      <td style="font-size:12px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.manager)}">${escapeHtml(r.manager)||'-'}</td>
-      <td style="font-size:12px;white-space:nowrap">${escapeHtml(r.staff)||'-'}</td>
-      <td>${escapeHtml(r.supplier)||'-'}</td>
-      <td class="strong" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.productName)}">${escapeHtml(r.productName)||'-'}</td>
-      <td>${escapeHtml(r.companyName)||'-'}${r.seq ? `<span title="동일 내용 반복 등록 행 (각각 다른 박스) — 순번 ${escapeHtml(r.seq)}" style="margin-left:4px;font-size:10px;color:var(--gray-400);border:1px solid var(--gray-200);border-radius:8px;padding:0 5px;vertical-align:middle">반복 ${escapeHtml(r.seq)}</span>` : ''}</td>
-      <td style="white-space:nowrap">${carriers[r.carrier]?.name||escapeHtml(r.carrier)}</td>
-      <td class="mono">${escapeHtml(r.num)||'<span style="color:var(--gray-400);font-size:11px">미등록</span>'}</td>
-      <td>${statusBadge(r)}</td>
-    </tr>`).join('');
+  const riskCondJs = (label, headName) => {
+    const [lo, hi] = RANGE[label] || ['', ''];
+    const conds = [];
+    if (headName != null) conds.push({ field: 'staff', mode: 'head', value: headName });
+    conds.push({ field: 'elapsed', from: lo, to: hi }, { field: 'status', mode: 'notgroup', value: '배송완료' });
+    return `event.stopPropagation();gotoListWith(${JSON.stringify(conds).replace(/"/g, '&quot;')}, null, 'dash')`;
+  };
+  const byHead = {};
+  riskItems.forEach(x => {
+    const h = staffHead(x.r.staff) || '(미지정)';
+    const o = byHead[h] || (byHead[h] = { n: 0, subs: new Set(), '심각': 0, '경고': 0, '주의': 0, oldest: null });
+    o.n++; o[x.tier.label]++;
+    const sub = staffSub(x.r.staff); if (sub) o.subs.add(sub);
+    if (!o.oldest || x.days > o.oldest.days) o.oldest = x;
+  });
+  const heads = Object.keys(byHead).sort((a, b) => (a === '(미지정)') - (b === '(미지정)') || byHead[b]['심각'] - byHead[a]['심각'] || byHead[b].n - byHead[a].n);
+  const riskCards = heads.map(h => {
+    const o = byHead[h];
+    const w = k => Math.round(o[k] / o.n * 100);
+    const headArg = h === '(미지정)' ? '' : h;
+    const goStaff = `showView('data');setDataSub('staff');selectStaff(${JSON.stringify(h).replace(/"/g, '&quot;')})`;
+    return `<div class="risk-card" onclick="${goStaff}" title="자료 탭 · 직원 현황에서 ${escapeHtml(h)} 보기">
+      <div class="rc-name"><span>${escapeHtml(h)}</span><span class="rc-total lnk" onclick="${riskCondJs('전체', headArg)}" title="목록에서 3일 이상 전체 보기">${o.n}</span></div>
+      <div class="rc-sub">${o.subs.size ? escapeHtml([...o.subs].join(' · ')) : '&nbsp;'}</div>
+      <div class="rc-bars"><i style="width:${w('심각')}%;background:#dc2626"></i><i style="width:${w('경고')}%;background:#f97316"></i><i style="width:${w('주의')}%;background:#facc15"></i></div>
+      <div class="rc-cnts">
+        <span class="lnk c7" onclick="${riskCondJs('심각', headArg)}" title="목록에서 보기">심각 ${o['심각']}</span>
+        <span class="lnk c5" onclick="${riskCondJs('경고', headArg)}" title="목록에서 보기">경고 ${o['경고']}</span>
+        <span class="lnk c3" onclick="${riskCondJs('주의', headArg)}" title="목록에서 보기">주의 ${o['주의']}</span>
+      </div>
+      <div class="rc-old">${o.oldest ? `가장 오래된 건 D+${o.oldest.days} · ${escapeHtml(o.oldest.r.companyName || '-')} · ${escapeHtml(o.oldest.r.productName || '-')}` : ''}</div>
+    </div>`;
+  }).join('');
   const riskSec = `
-    <div class="dash-sec-title">배송지연 위험도 (출고일 기준 3·5·7일)</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:0.6rem">
-      ${riskCounts.map(t => `<span class="badge" style="background:${t.bg};color:${t.fg};cursor:pointer" onclick="dashGoDelay(${t.min})" title="목록에서 배송지연 ${t.min}일 이상 구간 보기">${t.min}일 이상 ${t.label} ${t.n}건 ↗</span>`).join('')}
+    <div class="dash-sec-title">배송지연 위험도 — 담당직원별 (경과 3·5·7일, 배송완료 제외)</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:0.6rem;align-items:center">
+      ${riskCounts.map(t => { const [lo, hi] = RANGE[t.label]; return `<span class="badge" style="background:${t.bg};color:${t.fg};cursor:pointer" onclick="${riskCondJs(t.label, null)}" title="목록에서 보기">${t.label} ${hi ? `${lo}~${hi}일` : `${lo}일 이상`} ${t.n}건 ↗</span>`; }).join('')}
+      <span style="font-size:11px;color:var(--gray-400);margin-left:4px">총 ${riskItems.length}건 · 카드를 누르면 직원 현황, 숫자를 누르면 배송 목록으로 이동합니다</span>
     </div>
-    ${riskItems.length ? `
-    <div style="border:1px solid var(--gray-200);border-radius:8px;overflow:auto">
-      <table><thead><tr><th>위험도</th><th>기준일</th><th>주문일</th><th>고객명</th><th>담당직원</th><th>매입처</th><th>상품명</th><th>받는이</th><th>택배사</th><th>운송장번호</th><th>상태</th></tr></thead>
-      <tbody>${riskRows}</tbody></table>
-      ${riskItems.length > 15 ? `<div style="padding:8px 12px;font-size:11px;color:var(--gray-400)">외 ${riskItems.length-15}건 — 목록에서 배송지연 필터로 확인하세요</div>` : ''}
-    </div>` : '<div style="font-size:12px;color:var(--gray-400);padding:4px 0">3일 이상 경과한 미배송 건이 없습니다 ✓</div>'}
-    <div style="font-size:11px;color:var(--gray-400);margin-top:6px">기준일: 택배사 최초 집화(출고) 시각 · 출고일을 알 수 없는 건(송장미등록 포함)은 (등록)일 기준</div>`;
+    ${riskItems.length ? `<div class="risk-cards">${riskCards}</div>` : '<div style="font-size:12px;color:var(--gray-400);padding:4px 0">3일 이상 경과한 미배송 건이 없습니다 ✓</div>'}
+    <div style="font-size:11px;color:var(--gray-400);margin-top:6px">경과일 기준: 택배사 최초 집화(출고) 시각 → 없으면 송장 등록일 → 없으면 행 등록일 · 담당직원은 괄호 앞 이름으로 합산 (괄호 안은 보조담당)</div>`;
 
   el.innerHTML = `
     <div class="dash-grid">${tiles}</div>
@@ -3852,6 +3877,7 @@ const SEARCH_FIELDS = [
   { key:'num',         label:'송장번호', kind:'text',   digits:true, get: r => r.num || '' },
   { key:'memo',        label:'비고',     kind:'text',   get: r => r.memo || '' },
   { key:'status',      label:'상태',     kind:'text',   get: r => getFilterGroup(r) },
+  { key:'elapsed',     label:'경과일',   kind:'range',  get: r => delayDays(r) },
 ];
 const SEARCH_FIELD_MAP = Object.fromEntries(SEARCH_FIELDS.map(f => [f.key, f]));
 
@@ -3874,11 +3900,16 @@ function condMatches(r, f, list) {
     const v = f.get(r);
     return list.some(c => (!c.from || (v && v >= c.from)) && (!c.to || (v && v <= c.to)));
   }
+  if (f.kind === 'range') { // 숫자 범위 (경과일 N일 ~ M일, 비우면 한쪽 무제한)
+    const v = Number(f.get(r));
+    return list.some(c => (c.from === '' || c.from == null || v >= Number(c.from)) && (c.to === '' || c.to == null || v <= Number(c.to)));
+  }
   const raw = f.get(r);
   const hay = fieldNorm(f, raw);
   return list.some(c => {
     if (c.mode === 'head') return normText(staffHead(raw)) === normText(c.value);
     if (c.mode === 'group') return getFilterGroup(r) === c.value;
+    if (c.mode === 'notgroup') return getFilterGroup(r) !== c.value;
     const q = fieldNorm(f, c.value);
     if (!q) return true;
     return c.mode === 'exact' ? hay === q : hay.includes(q);
@@ -3896,12 +3927,14 @@ function globalMatches(r, q) {
     return f.digits && qd.length >= 3 && normDigits(v).includes(qd);
   });
 }
-const condLive = c => { const f = SEARCH_FIELD_MAP[c.field]; if (!f) return false; if (c.mode === 'head' || c.mode === 'group') return true; return f.kind === 'period' ? !!(c.from || c.to) : !!String(c.value || '').trim(); };
+const condLive = c => { const f = SEARCH_FIELD_MAP[c.field]; if (!f) return false; if (c.mode === 'head' || c.mode === 'group' || c.mode === 'notgroup') return true; if (f.kind === 'period' || f.kind === 'range') return !!(String(c.from ?? '') !== '' || String(c.to ?? '') !== ''); return !!String(c.value || '').trim(); };
 function condLabel(c) {
   const f = SEARCH_FIELD_MAP[c.field];
   if (!f) return '';
   if (f.kind === 'period') return `${(c.from || '').slice(5) || '…'} ~ ${(c.to || '').slice(5) || '…'}`;
+  if (f.kind === 'range') { const a = String(c.from ?? ''), b = String(c.to ?? ''); return a && b ? (a === b ? `${a}일` : `${a}~${b}일`) : a ? `${a}일 이상` : `${b}일 이하`; }
   if (c.mode === 'head') return '담당 ' + (c.value || '(미지정)');
+  if (c.mode === 'notgroup') return c.value + ' 제외';
   return (c.mode === 'exact' ? '= ' : '') + c.value;
 }
 
@@ -3952,7 +3985,7 @@ function createCondSearch(cfg) {
   S.toggle = () => { S.open = !S.open; if (S.open && !S.conds.length) { S.add(); return; } S.render(true); };
   S.onField = (i, field) => {
     const c = S.conds[i]; if (!c) return;
-    c.field = field; c.value = ''; c.from = ''; c.to = ''; if (c.mode === 'head' || c.mode === 'group') c.mode = 'contains';
+    c.field = field; c.value = ''; c.from = ''; c.to = ''; if (c.mode === 'head' || c.mode === 'group' || c.mode === 'notgroup') c.mode = 'contains';
     S.render(true); S.changed();
     const row = document.querySelectorAll(`#${cfg.rowsId} .cond-row`)[i];
     const inp = row && row.querySelector('.cval, .cdate'); if (inp) inp.focus();
@@ -3985,10 +4018,12 @@ function createCondSearch(cfg) {
         let val;
         if (f.kind === 'period') {
           val = `<input type="date" class="cdate" value="${escapeHtml(c.from || '')}" onchange="${call}.onPeriod(${i},'from',this.value)"> <span style="color:var(--gray-400)">~</span> <input type="date" class="cdate" value="${escapeHtml(c.to || '')}" onchange="${call}.onPeriod(${i},'to',this.value)"> <span class="ccnt">기간</span>`;
+        } else if (f.kind === 'range') {
+          val = `<input type="number" min="0" class="cdate" style="width:80px" placeholder="최소" value="${escapeHtml(String(c.from ?? ''))}" oninput="${call}.onPeriod(${i},'from',this.value)"> <span style="color:var(--gray-400)">~</span> <input type="number" min="0" class="cdate" style="width:80px" placeholder="최대" value="${escapeHtml(String(c.to ?? ''))}" oninput="${call}.onPeriod(${i},'to',this.value)"> <span class="ccnt">일 (출고일 → 송장등록일 → 등록일 기준 경과)</span>`;
         } else {
           const modeOpts = [['contains', '포함'], ['exact', '일치']];
           if (c.field === 'staff') modeOpts.push(['head', '담당자']);
-          if (c.field === 'status') modeOpts.push(['group', '상태값']);
+          if (c.field === 'status') modeOpts.push(['group', '상태값'], ['notgroup', '제외']);
           val = `<input type="text" class="cval" list="${cfg.key}-dl-${i}" value="${escapeHtml(c.value || '')}" placeholder="${escapeHtml(f.label)} 입력 — 추천 목록에서 골라도 됨" oninput="${call}.onValue(${i},this.value)" autocomplete="off"><datalist id="${cfg.key}-dl-${i}"></datalist>
            <select class="cmode" onchange="${call}.onMode(${i},this.value)" title="포함: 일부만 같아도 검색 · 일치: 정확히 같은 값만">${modeOpts.map(([v, l]) => `<option value="${v}"${c.mode === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
         }
@@ -4067,7 +4102,7 @@ CS.list = createCondSearch({
     });
   },
   onChange: () => renderTable(),
-  extraChips: () => _listReturn ? `<button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="returnFromList()">← 직원 현황으로 돌아가기</button>` : '',
+  extraChips: () => _listReturn ? `<button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="returnFromList()">← ${_listReturn.view === 'dash' ? '대시보드' : '직원 현황'}으로 돌아가기</button>` : '',
 });
 CS.data = createCondSearch({
   key: 'data', inputId: 'agg-search', panelId: 'agg-cond-panel', rowsId: 'agg-cond-rows', chipsId: 'agg-cond-chips', summaryId: 'agg-search-summary', toggleId: 'agg-btn-cond-toggle',
@@ -4089,14 +4124,18 @@ function onSearchInput() { CS.list.onInput(); }
 function refreshCondSuggest(i) { CS.list.suggest(i); }
 function resetSearchAll() { CS.list.reset(); }
 function renderCondPanel(full) { CS.list.render(full); }
-function returnFromList() { _listReturn = null; showView('data'); setDataSub('staff'); }
+function returnFromList() {
+  const r = _listReturn; _listReturn = null;
+  if (r && r.view === 'dash') { showView('dash'); return; }
+  showView('data'); setDataSub('staff');
+}
 
 // 직원 현황 등에서 목록으로 이동: 상태 탭 전체 + 조건 적용 (pinIds 가 있으면 그 행만 표시)
-function gotoListWith(conds, pinIds) {
+function gotoListWith(conds, pinIds, from) {
   const btn = document.querySelector('.filter-item[data-filter="all"]');
   setFilter('all', btn);              // 검색 초기화 + 목록 화면 표시
   CS.list.apply(conds, pinIds);
-  _listReturn = { view: 'data', sub: 'staff' };
+  _listReturn = from === 'dash' ? { view: 'dash' } : { view: 'data', sub: 'staff' };
   CS.list.render(true);
   renderTable();
   const card = document.getElementById('view-list'); if (card) card.scrollIntoView({ block: 'start' });
