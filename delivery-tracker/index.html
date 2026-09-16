@@ -221,6 +221,40 @@ input::placeholder { color:var(--gray-300); }
 .carrow { color:var(--gray-300); font-size:12px; }
 mark.hl { background:#fff3bf; color:inherit; padding:0 1px; border-radius:2px; }
 
+/* ── 자료 탭 하위 탭 · 직원 현황 ── */
+.subtabs { display:flex; border-bottom:2px solid var(--gray-100); margin-bottom:12px; }
+.subtab { padding:8px 16px; font-size:13px; color:var(--gray-400); border:none; background:none; border-bottom:2px solid transparent; margin-bottom:-2px; cursor:pointer; font-family:var(--font); }
+.subtab.on { color:var(--black); font-weight:700; border-bottom-color:var(--black); }
+.staff-btns { display:flex; gap:6px; flex-wrap:wrap; }
+.staff-btn { font-size:12px; padding:5px 12px; border-radius:16px; border:1px solid var(--gray-200); color:var(--gray-500); background:var(--white); cursor:pointer; font-family:var(--font); }
+.staff-btn small { color:var(--gray-300); margin-left:3px; }
+.staff-btn.on { background:var(--black); color:var(--white); border-color:var(--black); }
+.staff-btn.on small { color:#bbb; }
+.staff-subs { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+.staff-sub { font-size:11px; padding:3px 10px; border-radius:12px; border:1px solid var(--gray-200); color:var(--gray-500); background:var(--white); cursor:pointer; font-family:var(--font); }
+.staff-sub small { color:var(--gray-300); margin-left:2px; }
+.staff-sub.on { background:var(--gray-700); color:var(--white); border-color:var(--gray-700); }
+.kpis { display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-top:10px; }
+.kpi { background:var(--white); border:1px solid var(--gray-100); border-radius:10px; padding:12px 14px; }
+.kpi .t { font-size:11px; color:var(--gray-400); }
+.kpi .v { font-size:22px; font-weight:700; margin-top:2px; }
+.kpi .s { font-size:11px; color:var(--gray-400); }
+.kpi.warn .v { color:#b45309; } .kpi.bad .v { color:#b91c1c; }
+.kpi.link { cursor:pointer; } .kpi.link:hover { border-color:var(--gray-400); }
+#data-sub-staff .card { margin-top:10px; }
+#data-sub-staff .sec-title { font-size:13px; font-weight:700; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:8px; flex-wrap:wrap; }
+#data-sub-staff .sec-title .r { font-size:11px; font-weight:400; color:var(--gray-400); }
+.staff-table { width:100%; border-collapse:collapse; font-size:12px; }
+.staff-table th { text-align:left; font-weight:600; color:var(--gray-500); border-bottom:1px solid var(--gray-100); padding:7px 6px; font-size:11px; position:sticky; top:0; background:var(--white); }
+.staff-table td { padding:7px 6px; border-bottom:1px solid var(--gray-50); }
+.staff-table tr.grp td { background:var(--gray-50); font-weight:600; }
+.staff-table tr.staff-row { cursor:pointer; } .staff-table tr.staff-row:hover td { background:#fffbe6; }
+.tag { font-size:10px; padding:1px 7px; border-radius:8px; background:var(--gray-100); color:var(--gray-500); }
+.lnk { color:var(--gray-700); text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
+.d3 { color:#b45309; font-weight:600; } .d5 { color:#c2410c; font-weight:600; } .d7 { color:#b91c1c; font-weight:700; }
+.two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+@media (max-width:1100px) { .kpis { grid-template-columns:repeat(4,1fr); } .two { grid-template-columns:1fr; } }
+
 /* ── 배지 ── */
 .badge {
   display:inline-flex;
@@ -799,8 +833,15 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
     <!-- ── 자료: 조건별 집계 + 내려받기 ── -->
     <div class="card table-card" id="view-data" style="display:none">
       <div style="padding:1rem 1.25rem;overflow-y:auto;flex:1">
+        <div class="subtabs">
+          <button class="subtab" data-sub="agg" onclick="setDataSub('agg')">집계 · 내려받기</button>
+          <button class="subtab" data-sub="staff" onclick="setDataSub('staff')">직원 현황</button>
+        </div>
+        <div id="data-sub-staff" style="display:none"></div>
+        <div id="data-sub-agg">
         <div class="dash-sec-title" style="margin-top:0">조건별 집계</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px">
+          <span style="font-size:12px;color:var(--gray-500);font-weight:600">집계 기준</span>
           <select id="agg-group" onchange="renderDataView()" style="width:160px">
             <option value="day_added">일자별 (등록일)</option>
             <option value="day_order">일자별 (주문일)</option>
@@ -808,30 +849,37 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
             <option value="month_order">월별 (주문일)</option>
             <option value="bank">은행·지점별</option>
             <option value="supplier">매입처별</option>
-            <option value="staff">다올직원별</option>
+            <option value="staff">담당자별 (괄호 앞 이름)</option>
+            <option value="staffRaw">다올직원별 (원본 표기)</option>
             <option value="product">품명별</option>
             <option value="shipType">배송타입별</option>
           </select>
-          <span style="font-size:11px;color:var(--gray-400)">기간</span>
-          <select id="agg-datebasis" onchange="renderDataView()" style="width:110px">
-            <option value="added">등록일 기준</option>
-            <option value="order">주문일 기준</option>
-          </select>
-          <input type="date" id="agg-from" onchange="renderDataView()" style="width:135px">
-          <span style="color:var(--gray-300)">~</span>
-          <input type="date" id="agg-to" onchange="renderDataView()" style="width:135px">
-          <button class="btn btn-outline btn-sm" onclick="clearAggFilters()" style="padding:4px 10px;font-size:11px">조건 지우기</button>
-        </div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">
-          <select id="agg-bank" onchange="renderDataView()" style="width:180px"></select>
-          <select id="agg-supplier" onchange="renderDataView()" style="width:150px"></select>
-          <select id="agg-staff" onchange="renderDataView()" style="width:130px"></select>
-          <select id="agg-shiptype" onchange="renderDataView()" style="width:120px"></select>
-          <span id="agg-summary" style="font-size:12px;color:var(--gray-500)"></span>
+          <input type="text" id="agg-search" placeholder="전체 항목 검색 — 입력 즉시 반영" style="width:300px;max-width:100%;padding:6px 10px;font-size:12.5px"
+            oninput="CS.data.onInput()" onkeydown="if(event.key==='Escape'){this.value='';CS.data.onInput()}">
+          <button class="btn btn-outline btn-sm" id="agg-btn-cond-toggle" onclick="CS.data.toggle()">조건 추가 +</button>
+          <span id="agg-search-summary" style="font-size:12px;color:var(--gray-500)"></span>
           <span style="margin-left:auto;display:inline-flex;gap:6px">
             <button class="btn btn-outline btn-sm" onclick="exportAggList()" title="현재 조건에 해당하는 송장 목록 전체를 엑셀로 저장">↓ 해당 목록</button>
             <button class="btn btn-black btn-sm" onclick="exportAggExcel()" title="아래 집계표를 엑셀로 저장">↓ 집계표 다운로드</button>
           </span>
+        </div>
+        <div id="agg-cond-panel" style="display:none;padding:10px 14px;background:var(--gray-50);border-radius:8px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;font-size:12px">
+            <span style="font-weight:700;color:var(--gray-700)">조건 — 위에서 아래로 차례로 좁혀집니다 (모든 조건 동시 만족)</span>
+            <span style="color:var(--gray-400)">
+              <a href="#" onclick="CS.data.clear();return false" style="color:inherit">모두 지우기</a> ·
+              <a href="#" onclick="CS.data.toggle();return false" style="color:inherit">닫기</a>
+            </span>
+          </div>
+          <div id="agg-cond-rows"></div>
+          <button class="btn btn-outline btn-sm" onclick="CS.data.add()" style="margin-top:6px;border-style:dashed">+ 조건 추가</button>
+          <div style="font-size:11px;color:var(--gray-400);margin-top:8px;line-height:1.6">
+            모든 항목은 텍스트 입력이며 기본은 <b>포함</b> 검색입니다. 정확히 같은 값만 보려면 <b>일치</b>로 바꾸세요. 주문일·등록일은 기간 입력, 같은 항목을 두 번 추가하면 "또는"으로 묶입니다.
+          </div>
+        </div>
+        <div id="agg-cond-chips" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"></div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">
+          <span id="agg-summary" style="font-size:12px;color:var(--gray-500)"></span>
         </div>
         <div id="agg-table" style="border:1px solid var(--gray-200);border-radius:8px;overflow:auto;max-height:56vh"></div>
         <div class="dash-sec-title" style="margin-top:1.4rem">기타 자료</div>
@@ -848,6 +896,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
         <div style="font-size:11px;color:var(--gray-400);margin-top:8px">
           회신율 = 송장기재 ÷ 주문 · 완료율 = 배송완료 ÷ 주문 · 현재 화면 필터 기준의 목록 다운로드는 배송 목록 화면 상단에 있습니다
         </div>
+        </div><!-- /data-sub-agg -->
       </div>
     </div>
 
@@ -1059,7 +1108,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0915-3';
+const APP_BUILD = 'v0916-1';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -3166,7 +3215,8 @@ function showView(v) {
   document.getElementById('nav-view-data').classList.toggle('active', v==='data');
   if (v === 'dash') { syncFromDb(); renderDashboard(); }
   if (v === 'mail') { openMailPage(); }
-  if (v === 'data') { renderDataView(); }
+  if (v === 'data') { setDataSub(dataSub); }
+  if (v !== 'list' && v !== 'data') _listReturn = null;
 }
 
 // 대시보드 타일/차트 클릭 → 해당 필터로 목록 이동
@@ -3227,31 +3277,14 @@ const AGG_GROUPS = {
   month_order: { label:'월 (주문일)',   key: r => (r.orderDate||'').slice(0,7) || '(날짜 없음)', byKey:true },
   bank:     { label:'은행·지점', key: r => [r.bankName, r.branchName].filter(Boolean).join(' ') || '(미지정)' },
   supplier: { label:'매입처',   key: r => r.supplier || '(미지정)' },
-  staff:    { label:'다올직원', key: r => r.staff || '(미지정)' },
+  staff:    { label:'담당자',   key: r => staffHead(r.staff) || '(미지정)' },
+  staffRaw: { label:'다올직원', key: r => r.staff || '(미지정)' },
   product:  { label:'품명',     key: r => r.productName || '(미지정)' },
   shipType: { label:'배송타입', key: r => r.shipType || '(미지정)' },
 };
 
 // 집계 필터 적용된 항목 목록
-function getAggFiltered() {
-  const basis = document.getElementById('agg-datebasis')?.value || 'added';
-  const from = document.getElementById('agg-from')?.value || '';
-  const to   = document.getElementById('agg-to')?.value || '';
-  const bank = document.getElementById('agg-bank')?.value || '';
-  const sup  = document.getElementById('agg-supplier')?.value || '';
-  const staff = document.getElementById('agg-staff')?.value || '';
-  const st   = document.getElementById('agg-shiptype')?.value || '';
-  return allItems.filter(r => {
-    const d = basis === 'order' ? (r.orderDate || '') : (r.addedAt || '').slice(0,10);
-    if (from && (!d || d < from)) return false;
-    if (to && (!d || d > to)) return false;
-    if (bank && ([r.bankName, r.branchName].filter(Boolean).join(' ') || '(미지정)') !== bank) return false;
-    if (sup && (r.supplier || '(미지정)') !== sup) return false;
-    if (staff && (r.staff || '(미지정)') !== staff) return false;
-    if (st && (r.shipType || '(미지정)') !== st) return false;
-    return true;
-  });
-}
+function getAggFiltered() { return CS.data.filtered(); }
 
 // 집계 계산: [{key, total, qty, withNum, done, delay, accident}]
 function computeAgg(items, groupId) {
@@ -3273,26 +3306,10 @@ function computeAgg(items, groupId) {
   return rows;
 }
 
-// 필터 드롭다운 채우기 (선택값 유지)
-function fillAggSelect(id, values, allLabel) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const cur = el.value;
-  el.innerHTML = `<option value="">${allLabel}</option>` +
-    values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-  if ([...el.options].some(o => o.value === cur)) el.value = cur;
-}
-
 function renderDataView() {
   const box = document.getElementById('agg-table');
   if (!box) return;
-  // 드롭다운 갱신
-  const uniq = f => [...new Set(allItems.map(f))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'ko'));
-  fillAggSelect('agg-bank', uniq(r => [r.bankName, r.branchName].filter(Boolean).join(' ') || '(미지정)'), '전체 은행·지점');
-  fillAggSelect('agg-supplier', uniq(r => r.supplier || '(미지정)'), '전체 매입처');
-  fillAggSelect('agg-staff', uniq(r => r.staff || '(미지정)'), '전체 직원');
-  fillAggSelect('agg-shiptype', uniq(r => r.shipType || '(미지정)'), '전체 배송타입');
-
+  CS.data.render(false);
   const groupId = document.getElementById('agg-group').value;
   const gdef = AGG_GROUPS[groupId];
   const items = getAggFiltered();
@@ -3320,10 +3337,217 @@ function renderDataView() {
     : '<div style="padding:2rem;text-align:center;color:var(--gray-400);font-size:13px">조건에 해당하는 데이터가 없습니다</div>';
 }
 
-function clearAggFilters() {
-  ['agg-from','agg-to'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
-  ['agg-bank','agg-supplier','agg-staff','agg-shiptype'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
-  renderDataView();
+function clearAggFilters() { CS.data.clear(); }
+
+// ── 자료 탭 하위 탭 (집계 · 내려받기 / 직원 현황) ──
+let dataSub = localStorage.getItem('tracker_data_sub') === 'staff' ? 'staff' : 'agg';
+function setDataSub(sub) {
+  dataSub = sub === 'staff' ? 'staff' : 'agg';
+  try { localStorage.setItem('tracker_data_sub', dataSub); } catch(e) {}
+  document.getElementById('data-sub-agg').style.display = dataSub === 'agg' ? '' : 'none';
+  document.getElementById('data-sub-staff').style.display = dataSub === 'staff' ? '' : 'none';
+  document.querySelectorAll('.subtab').forEach(b => b.classList.toggle('on', b.dataset.sub === dataSub));
+  if (dataSub === 'agg') renderDataView(); else renderStaffView();
+}
+
+// ── 직원 현황 ──
+const staffState = {
+  sel: localStorage.getItem('tracker_staff_sel') || 'all', // 담당자(괄호 앞) 또는 'all'
+  sub: 'all',                                               // 보조담당(괄호 안) 또는 'all'
+  from: '', to: '',                                         // 주문일 기간 (비우면 전체)
+  openSup: new Set(), dayMore: 0, brMore: 0,
+};
+const STAFF_NONE = '(미지정)';
+const staffHeadOf = r => staffHead(r.staff) || STAFF_NONE;
+const staffSubOf = r => staffSub(r.staff) || '없음';
+const isReplied = r => !!r.num || isManualCarrier(r.carrier);
+function staffPeriodItems() {
+  return allItems.filter(r => {
+    const d = r.orderDate || '';
+    if (staffState.from && (!d || d < staffState.from)) return false;
+    if (staffState.to && (!d || d > staffState.to)) return false;
+    return true;
+  });
+}
+function staffSelectedItems(base) {
+  return base.filter(r => (staffState.sel === 'all' || staffHeadOf(r) === staffState.sel)
+    && (staffState.sub === 'all' || staffState.sel === 'all' || staffSubOf(r) === staffState.sub));
+}
+function selectStaff(name) {
+  staffState.sel = name; staffState.sub = 'all'; staffState.openSup = new Set(); staffState.dayMore = 0; staffState.brMore = 0;
+  try { localStorage.setItem('tracker_staff_sel', name); } catch(e) {}
+  renderStaffView();
+}
+function selectStaffSub(sub) { staffState.sub = sub; staffState.openSup = new Set(); renderStaffView(); }
+function onStaffPeriod(which, v) { staffState[which] = v; renderStaffView(); }
+function toggleStaffSup(sup) { if (staffState.openSup.has(sup)) staffState.openSup.delete(sup); else staffState.openSup.add(sup); renderStaffView(); }
+function staffMore(which) { staffState[which] += 30; renderStaffView(); }
+
+// 현재 선택(담당자·보조담당·기간)을 목록 조건으로 변환
+function staffBaseConds() {
+  const conds = [];
+  if (staffState.sel !== 'all') {
+    if (staffState.sub !== 'all') {
+      // 보조담당까지 선택: 해당 원본 표기들을 일치 조건(OR)으로
+      const raws = [...new Set(staffPeriodItems().filter(r => staffHeadOf(r) === staffState.sel && staffSubOf(r) === staffState.sub).map(r => r.staff || ''))];
+      raws.forEach(v => conds.push({ field: 'staff', mode: 'exact', value: v }));
+    } else conds.push({ field: 'staff', mode: 'head', value: staffState.sel === STAFF_NONE ? '' : staffState.sel });
+  }
+  if (staffState.from || staffState.to) conds.push({ field: 'orderDate', from: staffState.from, to: staffState.to });
+  return conds;
+}
+function staffGo(extra) { gotoListWith(staffBaseConds().concat(extra || [])); }
+function staffGoRow(localId) { gotoListWith(staffBaseConds(), [localId]); }
+function staffGoMail(sup) { mailSelected = sup; showView('mail'); }
+
+function pct(n, d) { return d ? Math.round(n / d * 100) : 0; }
+function rateCell(n, d, color) {
+  const p = pct(n, d);
+  return `<td style="min-width:120px"><div class="rate-cell"><div class="hbar-track"><div class="hbar-fill" style="width:${p}%;background:${color}"></div></div><span class="rate-val">${p}%</span></div></td>`;
+}
+function renderStaffView() {
+  const box = document.getElementById('data-sub-staff');
+  if (!box || dataSub !== 'staff') return;
+  const period = staffPeriodItems();
+  // 담당자 버튼 (건수 많은 순, 미지정 마지막)
+  const headCnt = {};
+  period.forEach(r => { const h = staffHeadOf(r); headCnt[h] = (headCnt[h] || 0) + 1; });
+  const heads = Object.keys(headCnt).sort((a, b) => (a === STAFF_NONE) - (b === STAFF_NONE) || headCnt[b] - headCnt[a] || a.localeCompare(b, 'ko'));
+  if (staffState.sel !== 'all' && !headCnt[staffState.sel]) { /* 기간에 건이 없어도 선택은 유지 */ }
+  const staffBtns = [`<button class="staff-btn${staffState.sel === 'all' ? ' on' : ''}" onclick="selectStaff('all')">전체 <small>${period.length}</small></button>`]
+    .concat(heads.map(h => `<button class="staff-btn${staffState.sel === h ? ' on' : ''}" onclick="selectStaff('${escapeHtml(h).replace(/'/g, "\\'")}')">${escapeHtml(h)} <small>${headCnt[h]}</small></button>`)).join('');
+  // 보조담당 칩
+  let subHtml = '';
+  if (staffState.sel !== 'all') {
+    const mine = period.filter(r => staffHeadOf(r) === staffState.sel);
+    const subCnt = {};
+    mine.forEach(r => { const s = staffSubOf(r); subCnt[s] = (subCnt[s] || 0) + 1; });
+    const subs = Object.keys(subCnt).sort((a, b) => (a === '없음') - (b === '없음') || subCnt[b] - subCnt[a]);
+    if (subs.length > 1 || (subs.length === 1 && subs[0] !== '없음')) {
+      subHtml = `<div class="staff-subs"><span style="font-size:11px;color:var(--gray-500);font-weight:600">보조담당</span>
+        <button class="staff-sub${staffState.sub === 'all' ? ' on' : ''}" onclick="selectStaffSub('all')">전체</button>`
+        + subs.map(s => `<button class="staff-sub${staffState.sub === s ? ' on' : ''}" onclick="selectStaffSub('${escapeHtml(s).replace(/'/g, "\\'")}')">${escapeHtml(s)} <small>${subCnt[s]}</small></button>`).join('')
+        + `<span style="font-size:11px;color:var(--gray-400);margin-left:6px">"${escapeHtml(staffState.sel)}(이름)" 처럼 괄호 안 이름별로 나눠 봅니다</span></div>`;
+    }
+  }
+  const D = staffSelectedItems(period);
+  const grp = r => getFilterGroup(r);
+  const replied = D.filter(isReplied).length;
+  const unreplied = D.filter(r => grp(r) === '송장미등록');
+  const done = D.filter(r => grp(r) === '배송완료').length;
+  const delay = D.filter(r => grp(r) === '배송지연').length;
+  const fail = D.filter(r => grp(r) === '조회실패').length;
+  const acc = D.filter(r => grp(r) === '사고').length;
+  const un7 = unreplied.filter(r => delayDays(r) >= 7).length;
+  const kpi = (t, v, s, cls, onclick) => `<div class="kpi ${cls || ''}${onclick ? ' link' : ''}" ${onclick ? `onclick="${onclick}" title="목록에서 보기"` : ''}><div class="t">${t}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+  const G = g => `staffGo([{field:'status',mode:'group',value:'${g}'}])`;
+  const kpis = `<div class="kpis">
+    ${kpi('담당 건수', D.length, '주문 건 기준', '', 'staffGo()')}
+    ${kpi('송장 회신', replied, `회신율 ${pct(replied, D.length)}%`, '')}
+    ${kpi('미회신', unreplied.length, un7 ? `7일 이상 ${un7}건` : '아래 목록', unreplied.length ? 'warn' : '', G('송장미등록'))}
+    ${kpi('배송완료', done, `완료율 ${pct(done, D.length)}%`, '', G('배송완료'))}
+    ${kpi('배송지연', delay, '목록에서 보기', delay ? 'warn' : '', G('배송지연'))}
+    ${kpi('조회실패', fail, '목록에서 보기', fail ? 'bad' : '', G('조회실패'))}
+    ${kpi('사고', acc, '목록에서 보기', acc ? 'bad' : '', G('사고'))}
+  </div>
+  <div style="font-size:11px;color:var(--gray-400);margin:6px 0 2px">회신율 = 송장번호 있는 건(퀵·직접배송 포함) ÷ 담당 건수 · 완료율 = 배송완료 ÷ 담당 건수 · 카드·표의 숫자와 목록 행을 누르면 배송 목록에서 바로 확인할 수 있습니다</div>`;
+
+  // 미회신 목록 — 매입처별
+  const bySup = {};
+  unreplied.forEach(r => { const k = r.supplier || '(미지정)'; (bySup[k] = bySup[k] || []).push(r); });
+  const supKeys = Object.keys(bySup).sort((a, b) => bySup[b].length - bySup[a].length);
+  const dcls = d => d >= 7 ? 'd7' : d >= 5 ? 'd5' : d >= 3 ? 'd3' : '';
+  const rowHtml = r => { const d = delayDays(r); return `<tr class="staff-row" onclick="staffGoRow('${escapeHtml(r.localId)}')" title="배송 목록에서 이 건 보기">
+      <td style="white-space:nowrap">${escapeHtml(r.orderDate) || '-'}</td><td>${escapeHtml([r.bankName, r.branchName].filter(Boolean).join(' ')) || '-'}</td>
+      <td>${escapeHtml(r.manager) || '-'}</td><td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.productName)}">${escapeHtml(r.productName) || '-'}</td>
+      <td>${escapeHtml(r.companyName) || '-'}${r.seq ? ` <span class="tag">반복 ${escapeHtml(r.seq)}</span>` : ''}</td><td class="mono" style="text-align:right">${escapeHtml(String(r.qty || '')) || '-'}</td>
+      <td class="mono ${dcls(d)}" style="text-align:right">D+${d}</td></tr>`; };
+  const supEsc = s => escapeHtml(s).replace(/'/g, "\\'");
+  const unBody = supKeys.map(sup => {
+    const list = bySup[sup].slice().sort((a, b) => delayDays(b) - delayDays(a));
+    const open = staffState.openSup.has(sup);
+    const shown = open ? list : list.slice(0, 5);
+    const more = list.length > shown.length ? `<tr><td colspan="7" style="font-size:11px;color:var(--gray-400);cursor:pointer" onclick="toggleStaffSup('${supEsc(sup)}')">… ${list.length - shown.length}건 더 (펼치기)</td></tr>`
+      : (open && list.length > 5 ? `<tr><td colspan="7" style="font-size:11px;color:var(--gray-400);cursor:pointer" onclick="toggleStaffSup('${supEsc(sup)}')">접기</td></tr>` : '');
+    const supCond = `staffGo([{field:'supplier',mode:'exact',value:'${supEsc(sup)}'},{field:'status',mode:'group',value:'송장미등록'}])`;
+    return `<tr class="grp"><td colspan="5">${escapeHtml(sup)} <span class="tag">${list.length}건</span></td>
+      <td colspan="2" style="text-align:right;white-space:nowrap"><span class="lnk" onclick="staffGoMail('${supEsc(sup)}')">회신요청 메일</span> · <span class="lnk" onclick="${supCond}">목록에서 보기</span></td></tr>` + shown.map(rowHtml).join('') + more;
+  }).join('');
+  const unHtml = `<div class="card" style="padding:.9rem 1.1rem">
+    <div class="sec-title">미회신 ${unreplied.length}건 — 매입처별 <span class="r">경과일은 등록일 기준 · <span class="d3">3일+</span> <span class="d5">5일+</span> <span class="d7">7일+</span> · 행을 누르면 목록에서 그 건만 표시</span></div>
+    ${unreplied.length ? `<div style="max-height:46vh;overflow:auto"><table class="staff-table"><thead><tr><th>주문일</th><th>은행 · 지점</th><th>고객명</th><th>품명</th><th>받는이</th><th style="text-align:right">수량</th><th style="text-align:right">경과</th></tr></thead><tbody>${unBody}</tbody></table></div>`
+      : '<div style="padding:1rem;text-align:center;color:var(--gray-400);font-size:12px">미회신 건이 없습니다</div>'}
+  </div>`;
+
+  // 일자별 (주문일, 최근 순)
+  const byDay = {};
+  D.forEach(r => { const k = r.orderDate || '(날짜 없음)'; const o = byDay[k] || (byDay[k] = { total: 0, rep: 0, done: 0, un: 0 }); o.total++; if (isReplied(r)) o.rep++; if (grp(r) === '배송완료') o.done++; if (grp(r) === '송장미등록') o.un++; });
+  const days = Object.keys(byDay).sort((a, b) => b.localeCompare(a));
+  const dayShown = days.slice(0, 30 + staffState.dayMore);
+  const dayRows = dayShown.map(k => { const o = byDay[k]; const link = o.un ? `<span class="lnk" onclick="staffGo([{field:'orderDate',from:'${k}',to:'${k}'},{field:'status',mode:'group',value:'송장미등록'}])">${o.un}</span>` : '0';
+    return `<tr><td style="white-space:nowrap">${escapeHtml(k)}</td><td class="mono" style="text-align:right">${o.total}</td>${rateCell(o.rep, o.total, '#0369a1')}${rateCell(o.done, o.total, '#15803d')}<td class="mono" style="text-align:right">${link}</td></tr>`; }).join('');
+  const dayMore = days.length > dayShown.length ? `<tr><td colspan="5" style="font-size:11px;color:var(--gray-400);cursor:pointer" onclick="staffMore('dayMore')">… ${days.length - dayShown.length}일 더 보기</td></tr>` : '';
+  // 지점별 (미회신 많은 순)
+  const byBr = {};
+  D.forEach(r => { const k = [r.bankName, r.branchName].filter(Boolean).join(' ') || '(미지정)'; const o = byBr[k] || (byBr[k] = { bank: r.bankName || '', br: r.branchName || '', total: 0, rep: 0, done: 0, un: 0 }); o.total++; if (isReplied(r)) o.rep++; if (grp(r) === '배송완료') o.done++; if (grp(r) === '송장미등록') o.un++; });
+  const brs = Object.keys(byBr).sort((a, b) => byBr[b].un - byBr[a].un || byBr[b].total - byBr[a].total);
+  const brShown = brs.slice(0, 30 + staffState.brMore);
+  const brRows = brShown.map(k => { const o = byBr[k];
+    const link = o.un ? `<span class="lnk" onclick="staffGo([{field:'bankName',mode:'exact',value:'${supEsc(o.bank)}'},{field:'branchName',mode:'exact',value:'${supEsc(o.br)}'},{field:'status',mode:'group',value:'송장미등록'}])">${o.un}</span>` : '0';
+    return `<tr><td>${escapeHtml(k)}</td><td class="mono" style="text-align:right">${o.total}</td>${rateCell(o.rep, o.total, '#0369a1')}${rateCell(o.done, o.total, '#15803d')}<td class="mono" style="text-align:right">${link}</td></tr>`; }).join('');
+  const brMore = brs.length > brShown.length ? `<tr><td colspan="5" style="font-size:11px;color:var(--gray-400);cursor:pointer" onclick="staffMore('brMore')">… ${brs.length - brShown.length}곳 더 보기</td></tr>` : '';
+  const tHead = (first) => `<thead><tr><th>${first}</th><th style="text-align:right">건수</th><th>회신율</th><th>완료율</th><th style="text-align:right">미회신</th></tr></thead>`;
+  const twoHtml = `<div class="two">
+    <div class="card" style="padding:.9rem 1.1rem"><div class="sec-title">주문일 기준 일자별 <span class="r">최근 순</span></div>
+      <div style="max-height:46vh;overflow:auto"><table class="staff-table">${tHead('주문일')}<tbody>${dayRows || '<tr><td colspan="5" style="color:var(--gray-400);font-size:12px">데이터 없음</td></tr>'}${dayMore}</tbody></table></div></div>
+    <div class="card" style="padding:.9rem 1.1rem"><div class="sec-title">지점별 <span class="r">미회신 많은 순 · <span class="lnk" onclick="exportStaffBranch()">엑셀로 내려받기</span></span></div>
+      <div style="max-height:46vh;overflow:auto"><table class="staff-table">${tHead('은행 · 지점')}<tbody>${brRows || '<tr><td colspan="5" style="color:var(--gray-400);font-size:12px">데이터 없음</td></tr>'}${brMore}</tbody></table></div></div>
+  </div>`;
+
+  // 전체 선택 시 담당자 비교표
+  let cmpHtml = '';
+  if (staffState.sel === 'all') {
+    const byHead = {};
+    period.forEach(r => { const h = staffHeadOf(r); const o = byHead[h] || (byHead[h] = { subs: new Set(), total: 0, rep: 0, done: 0, un: 0, delay: 0, fail: 0 }); o.total++; const s = staffSub(r.staff); if (s) o.subs.add(s); if (isReplied(r)) o.rep++; const g = grp(r); if (g === '배송완료') o.done++; if (g === '송장미등록') o.un++; if (g === '배송지연') o.delay++; if (g === '조회실패') o.fail++; });
+    const rows = heads.map(h => { const o = byHead[h]; return `<tr><td><span class="lnk" style="font-weight:700" onclick="selectStaff('${supEsc(h)}')">${escapeHtml(h)}</span></td><td style="font-size:11px;color:var(--gray-400)">${escapeHtml([...o.subs].join(' · '))}</td>
+      <td class="mono" style="text-align:right">${o.total}</td>${rateCell(o.rep, o.total, '#0369a1')}${rateCell(o.done, o.total, '#15803d')}<td class="mono" style="text-align:right">${o.un}</td><td class="mono" style="text-align:right">${o.delay}</td><td class="mono" style="text-align:right">${o.fail}</td></tr>`; }).join('');
+    cmpHtml = `<div class="card" style="padding:.9rem 1.1rem"><div class="sec-title">담당자별 비교 <span class="r">이름을 누르면 그 담당자 현황으로</span></div>
+      <table class="staff-table"><thead><tr><th>담당자</th><th>보조담당</th><th style="text-align:right">건수</th><th>회신율</th><th>완료율</th><th style="text-align:right">미회신</th><th style="text-align:right">지연</th><th style="text-align:right">실패</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  box.innerHTML = `
+    <div class="card" style="padding:.9rem 1.1rem">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div class="staff-btns">${staffBtns}</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:12px;color:var(--gray-500);font-weight:600">주문일</span>
+          <input type="date" value="${escapeHtml(staffState.from)}" onchange="onStaffPeriod('from',this.value)" style="width:136px;padding:5px 8px;font-size:12px"> <span style="color:var(--gray-400)">~</span>
+          <input type="date" value="${escapeHtml(staffState.to)}" onchange="onStaffPeriod('to',this.value)" style="width:136px;padding:5px 8px;font-size:12px">
+          <span style="font-size:11px;color:var(--gray-400)">비우면 전체 기간</span>
+        </div>
+      </div>
+      ${subHtml}
+    </div>
+    ${kpis}
+    ${staffState.sel === 'all' ? cmpHtml : ''}
+    ${unHtml}
+    ${twoHtml}`;
+}
+// 지점별 표 엑셀
+function exportStaffBranch() {
+  if (typeof XLSX === 'undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
+  const D = staffSelectedItems(staffPeriodItems());
+  const grp = r => getFilterGroup(r);
+  const byBr = {};
+  D.forEach(r => { const k = [r.bankName, r.branchName].filter(Boolean).join(' ') || '(미지정)'; const o = byBr[k] || (byBr[k] = { total: 0, rep: 0, done: 0, un: 0 }); o.total++; if (isReplied(r)) o.rep++; if (grp(r) === '배송완료') o.done++; if (grp(r) === '송장미등록') o.un++; });
+  const rows = Object.keys(byBr).sort((a, b) => byBr[b].un - byBr[a].un).map(k => ({ '은행·지점': k, '건수': byBr[k].total, '송장회신': byBr[k].rep, '회신율(%)': pct(byBr[k].rep, byBr[k].total), '배송완료': byBr[k].done, '완료율(%)': pct(byBr[k].done, byBr[k].total), '미회신': byBr[k].un }));
+  if (!rows.length) { toast('내보낼 데이터가 없습니다'); return; }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [28, 8, 9, 10, 9, 10, 8].map(w => ({ wch: w }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '지점별');
+  const who = staffState.sel === 'all' ? '전체' : staffState.sel;
+  XLSX.writeFile(wb, `직원현황_지점별_${who}_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
 // 집계표 엑셀 다운로드
@@ -3533,6 +3757,8 @@ function renderDashboard() {
       <td style="white-space:nowrap"><span class="badge" style="background:${tier.bg};color:${tier.fg}">${tier.label} D+${days}</span></td>
       <td style="white-space:nowrap;font-size:11px">${escapeHtml(String((basis==='출고' ? r.shippedAt : r.addedAt) || '').slice(0,10))}<span style="color:var(--gray-400)"> (${basis})</span></td>
       <td style="white-space:nowrap;font-size:11px;color:var(--gray-500)">${escapeHtml(r.orderDate)||'-'}</td>
+      <td style="font-size:12px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.manager)}">${escapeHtml(r.manager)||'-'}</td>
+      <td style="font-size:12px;white-space:nowrap">${escapeHtml(r.staff)||'-'}</td>
       <td>${escapeHtml(r.supplier)||'-'}</td>
       <td class="strong" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.productName)}">${escapeHtml(r.productName)||'-'}</td>
       <td>${escapeHtml(r.companyName)||'-'}${r.seq ? `<span title="동일 내용 반복 등록 행 (각각 다른 박스) — 순번 ${escapeHtml(r.seq)}" style="margin-left:4px;font-size:10px;color:var(--gray-400);border:1px solid var(--gray-200);border-radius:8px;padding:0 5px;vertical-align:middle">반복 ${escapeHtml(r.seq)}</span>` : ''}</td>
@@ -3547,7 +3773,7 @@ function renderDashboard() {
     </div>
     ${riskItems.length ? `
     <div style="border:1px solid var(--gray-200);border-radius:8px;overflow:auto">
-      <table><thead><tr><th>위험도</th><th>기준일</th><th>주문일</th><th>매입처</th><th>상품명</th><th>받는이</th><th>택배사</th><th>운송장번호</th><th>상태</th></tr></thead>
+      <table><thead><tr><th>위험도</th><th>기준일</th><th>주문일</th><th>고객명</th><th>담당직원</th><th>매입처</th><th>상품명</th><th>받는이</th><th>택배사</th><th>운송장번호</th><th>상태</th></tr></thead>
       <tbody>${riskRows}</tbody></table>
       ${riskItems.length > 15 ? `<div style="padding:8px 12px;font-size:11px;color:var(--gray-400)">외 ${riskItems.length-15}건 — 목록에서 배송지연 필터로 확인하세요</div>` : ''}
     </div>` : '<div style="font-size:12px;color:var(--gray-400);padding:4px 0">3일 이상 경과한 미배송 건이 없습니다 ✓</div>'}
@@ -3603,8 +3829,10 @@ function setFilter(f, el) {
   renderTable();
 }
 
-// ── 다중 조건 검색 ──
-// 조건: { field, mode:'contains'|'exact', value, from, to } — 위에서 아래로 차례로 좁힘(AND), 같은 항목 반복은 OR
+// ── 다중 조건 검색 (목록·자료 탭 공용 엔진) ──
+// 조건: { field, mode:'contains'|'exact'|'head'|'group', value, from, to } — 위에서 아래로 차례로 좁힘(AND), 같은 항목 반복은 OR
+//  · head  : 다올직원의 담당자(괄호 앞 이름) 일치 — 직원 현황에서 목록으로 이동할 때 사용
+//  · group : 상태 그룹(배송완료·배송지연·송장미등록 …) 일치
 const SEARCH_FIELDS = [
   { key:'orderDate',   label:'주문일',   kind:'period', get: r => r.orderDate || '' },
   { key:'addedAt',     label:'등록일',   kind:'period', get: r => localDateStr(r.addedAt) },
@@ -3623,12 +3851,9 @@ const SEARCH_FIELDS = [
   { key:'carrier',     label:'택배사',   kind:'text',   get: r => carriers[r.carrier]?.name || r.carrier || '' },
   { key:'num',         label:'송장번호', kind:'text',   digits:true, get: r => r.num || '' },
   { key:'memo',        label:'비고',     kind:'text',   get: r => r.memo || '' },
-  { key:'status',      label:'상태',     kind:'text',   get: r => getFilterGroup(r) + ' ' + (r.status || '') },
+  { key:'status',      label:'상태',     kind:'text',   get: r => getFilterGroup(r) },
 ];
 const SEARCH_FIELD_MAP = Object.fromEntries(SEARCH_FIELDS.map(f => [f.key, f]));
-let searchConds = [];
-let _condPanelOpen = false;
-let _searchDebounce = null;
 
 function localDateStr(iso) {
   if (!iso) return '';
@@ -3639,15 +3864,21 @@ function localDateStr(iso) {
 const normText = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 const normDigits = s => String(s || '').replace(/[^0-9A-Za-z]/g, '').toLowerCase();
 function fieldNorm(f, v) { return f.digits ? normDigits(v) : normText(v); }
+// 다올직원 "김재형(단시연)" → 담당자 "김재형", 보조담당 "단시연" (괄호 없으면 보조담당 '')
+function staffHead(s) { return String(s || '').split(/[\(\[（]/)[0].trim(); }
+function staffSub(s) { const m = /[\(\[（]\s*([^\)\]）]*)/.exec(String(s || '')); return m ? m[1].trim() : ''; }
 
-// 한 조건(같은 항목 OR 묶음)의 판정
+// 한 조건 묶음(같은 항목 OR)의 판정
 function condMatches(r, f, list) {
   if (f.kind === 'period') {
     const v = f.get(r);
     return list.some(c => (!c.from || (v && v >= c.from)) && (!c.to || (v && v <= c.to)));
   }
-  const hay = fieldNorm(f, f.get(r));
+  const raw = f.get(r);
+  const hay = fieldNorm(f, raw);
   return list.some(c => {
+    if (c.mode === 'head') return normText(staffHead(raw)) === normText(c.value);
+    if (c.mode === 'group') return getFilterGroup(r) === c.value;
     const q = fieldNorm(f, c.value);
     if (!q) return true;
     return c.mode === 'exact' ? hay === q : hay.includes(q);
@@ -3665,163 +3896,219 @@ function globalMatches(r, q) {
     return f.digits && qd.length >= 3 && normDigits(v).includes(qd);
   });
 }
-// 유효한 조건만 항목별 순서대로 묶기 → [{ f, list, firstIdx }]
-function activeCondGroups() {
-  const groups = [];
-  const byKey = {};
-  searchConds.forEach((c, i) => {
-    const f = SEARCH_FIELD_MAP[c.field];
-    if (!f) return;
-    const live = f.kind === 'period' ? (c.from || c.to) : String(c.value || '').trim();
-    if (!live) return;
-    if (!byKey[c.field]) { byKey[c.field] = { f, list: [], firstIdx: i }; groups.push(byKey[c.field]); }
-    byKey[c.field].list.push(c);
-  });
-  return groups;
-}
-// 상태 탭·지연 구간·통합 검색어까지 적용한 기본 집합
-function baseFiltered() {
-  const query = (document.getElementById('search-input')?.value || '').trim();
-  const groupMatch = (r, want) => getFilterGroup(r) === want;
-  return allItems.filter(r => {
-    if (currentFilter !== 'all' && !groupMatch(r, currentFilter)) return false;
-    if ((currentFilter === '배송지연' || currentFilter === '송장미등록') && delayMinDays && delayDays(r) < delayMinDays) return false;
-    return globalMatches(r, query);
-  });
-}
-// 단계별 건수: 조건 i까지 적용했을 때의 건수 (패널 표시용)
-function filteredSteps() {
-  let data = baseFiltered();
-  const counts = {};
-  activeCondGroups().forEach(g => {
-    data = data.filter(r => condMatches(r, g.f, g.list));
-    g.list.forEach(c => { counts[searchConds.indexOf(c)] = data.length; });
-  });
-  return { data, counts };
-}
-function getFiltered() { return filteredSteps().data; }
-
-// 조건 조작
-function addSearchCond(field) {
-  searchConds.push({ field: field || 'branchName', mode: 'contains', value: '', from: '', to: '' });
-  _condPanelOpen = true;
-  renderCondPanel(true);
-  const last = document.querySelector(`#cond-rows .cond-row:last-child .cval, #cond-rows .cond-row:last-child .cdate`);
-  if (last) last.focus();
-}
-function removeSearchCond(i) { searchConds.splice(i, 1); renderCondPanel(true); renderTable(); }
-function clearSearchConds() { searchConds = []; renderCondPanel(true); renderTable(); }
-function toggleCondPanel() { _condPanelOpen = !_condPanelOpen; if (_condPanelOpen && !searchConds.length) { addSearchCond(); return; } renderCondPanel(true); }
-function onCondFieldChange(i, field) {
-  const c = searchConds[i]; if (!c) return;
-  c.field = field; c.value = ''; c.from = ''; c.to = '';
-  renderCondPanel(true); renderTable();
-  const row = document.querySelectorAll('#cond-rows .cond-row')[i];
-  const inp = row && row.querySelector('.cval, .cdate'); if (inp) inp.focus();
-}
-function onCondModeChange(i, mode) { const c = searchConds[i]; if (!c) return; c.mode = mode; renderTable(); }
-function onCondValueInput(i, v) {
-  const c = searchConds[i]; if (!c) return; c.value = v;
-  clearTimeout(_searchDebounce);
-  _searchDebounce = setTimeout(() => { renderTable(); refreshCondSuggest(i); }, 250);
-}
-function onCondPeriodInput(i, which, v) { const c = searchConds[i]; if (!c) return; c[which] = v; renderTable(); }
-function onSearchInput() {
-  clearTimeout(_searchDebounce);
-  _searchDebounce = setTimeout(() => renderTable(), 250);
-}
-function resetSearchAll() {
-  const inp = document.getElementById('search-input'); if (inp) inp.value = '';
-  searchConds = []; _condPanelOpen = false;
-  renderCondPanel(true);
+const condLive = c => { const f = SEARCH_FIELD_MAP[c.field]; if (!f) return false; if (c.mode === 'head' || c.mode === 'group') return true; return f.kind === 'period' ? !!(c.from || c.to) : !!String(c.value || '').trim(); };
+function condLabel(c) {
+  const f = SEARCH_FIELD_MAP[c.field];
+  if (!f) return '';
+  if (f.kind === 'period') return `${(c.from || '').slice(5) || '…'} ~ ${(c.to || '').slice(5) || '…'}`;
+  if (c.mode === 'head') return '담당 ' + (c.value || '(미지정)');
+  return (c.mode === 'exact' ? '= ' : '') + c.value;
 }
 
-// 조건 패널·칩·요약 렌더링 — full=true 면 입력 요소를 다시 그림 (구조 변경 시), false 면 건수·칩·추천만 갱신
-function renderCondPanel(full) {
-  const panel = document.getElementById('cond-panel'); if (!panel) return;
-  panel.style.display = _condPanelOpen ? '' : 'none';
-  const btn = document.getElementById('btn-cond-toggle');
-  const activeN = activeCondGroups().reduce((n, g) => n + g.list.length, 0);
-  if (btn) btn.textContent = activeN ? `조건 ${activeN} ${_condPanelOpen ? '▴' : '▾'}` : (_condPanelOpen ? '조건 닫기 ▴' : '조건 추가 +');
-  const rowsBox = document.getElementById('cond-rows');
-  if (full && rowsBox) {
-    const fieldOpts = sel => SEARCH_FIELDS.map(f => `<option value="${f.key}"${f.key === sel ? ' selected' : ''}>${f.label}</option>`).join('');
-    rowsBox.innerHTML = searchConds.map((c, i) => {
-      const f = SEARCH_FIELD_MAP[c.field] || SEARCH_FIELDS[0];
-      const val = f.kind === 'period'
-        ? `<input type="date" class="cdate" value="${escapeHtml(c.from || '')}" onchange="onCondPeriodInput(${i},'from',this.value)"> <span style="color:var(--gray-400)">~</span> <input type="date" class="cdate" value="${escapeHtml(c.to || '')}" onchange="onCondPeriodInput(${i},'to',this.value)"> <span class="ccnt">기간</span>`
-        : `<input type="text" class="cval" list="cond-dl-${i}" value="${escapeHtml(c.value || '')}" placeholder="${escapeHtml(f.label)} 입력 — 추천 목록에서 골라도 됨" oninput="onCondValueInput(${i},this.value)" autocomplete="off"><datalist id="cond-dl-${i}"></datalist>
-           <select class="cmode" onchange="onCondModeChange(${i},this.value)" title="포함: 일부만 같아도 검색 · 일치: 정확히 같은 값만"><option value="contains"${c.mode !== 'exact' ? ' selected' : ''}>포함</option><option value="exact"${c.mode === 'exact' ? ' selected' : ''}>일치</option></select>`;
-      return `<div class="cond-row">
-        <span class="cstep">${i + 1}</span>
-        <select class="cfield" onchange="onCondFieldChange(${i},this.value)">${fieldOpts(c.field)}</select>
-        ${val}
-        <span class="ccnt" id="cond-cnt-${i}"></span>
-        <button class="cx" onclick="removeSearchCond(${i})" title="이 조건 삭제">✕</button>
-      </div>`;
-    }).join('');
-    searchConds.forEach((c, i) => refreshCondSuggest(i));
-  }
-  // 단계별 건수
-  const { data, counts } = filteredSteps();
-  searchConds.forEach((c, i) => {
-    const el = document.getElementById(`cond-cnt-${i}`); if (!el) return;
-    el.innerHTML = counts[i] != null ? `→ <b>${counts[i]}</b>건` : '<span style="color:var(--gray-300)">값을 입력하세요</span>';
-  });
-  // 칩
-  const chips = document.getElementById('cond-chips');
-  if (chips) {
-    const groups = activeCondGroups();
-    const items = [];
-    groups.forEach(g => g.list.forEach(c => {
-      const i = searchConds.indexOf(c);
-      const txt = g.f.kind === 'period' ? `${(c.from || '').slice(5) || '…'} ~ ${(c.to || '').slice(5) || '…'}` : (c.mode === 'exact' ? '= ' : '') + c.value;
-      items.push(`<span class="cchip">${escapeHtml(g.f.label)} <b>${escapeHtml(txt)}</b><span class="cx" onclick="removeSearchCond(${i})" title="이 조건 삭제">✕</span></span>`);
-    }));
-    chips.style.display = items.length ? 'flex' : 'none';
-    chips.innerHTML = items.length
-      ? `<span style="font-size:12px;color:var(--gray-500);font-weight:600">적용 조건</span>` + items.join('<span class="carrow">▸</span>')
-        + `<span class="cchip" style="color:var(--gray-400);cursor:pointer" onclick="clearSearchConds()">모두 지우기</span>`
-      : '';
-  }
-  // 요약
-  const sum = document.getElementById('search-summary');
-  if (sum) sum.innerHTML = `결과 <b style="color:var(--black);font-size:13px">${data.length}</b>건 <span style="color:var(--gray-300)">/ ${allItems.length}건</span>`;
+// 검색 인스턴스 생성 — cfg: { key, inputId, panelId, rowsId, chipsId, summaryId, toggleId, base(), onChange(), extraChips() }
+function createCondSearch(cfg) {
+  const S = { key: cfg.key, conds: [], open: false, pinned: null, _deb: null };
+  const $ = id => document.getElementById(id);
+  const call = `CS.${cfg.key}`;
+  S.query = () => ($(cfg.inputId)?.value || '').trim();
+  S.groups = () => {
+    const groups = [], byKey = {};
+    S.conds.forEach((c, i) => {
+      if (!condLive(c)) return;
+      const f = SEARCH_FIELD_MAP[c.field];
+      if (!byKey[c.field]) { byKey[c.field] = { f, list: [], firstIdx: i }; groups.push(byKey[c.field]); }
+      byKey[c.field].list.push(c);
+    });
+    return groups;
+  };
+  S.activeCount = () => S.conds.filter(condLive).length;
+  // 기본 집합: 호출자 기본(상태 탭 등) + 고정 행 + 통합 검색어
+  S.baseFiltered = () => {
+    const q = S.query();
+    let items = cfg.base();
+    if (S.pinned) items = items.filter(r => S.pinned.has(r.localId));
+    return items.filter(r => globalMatches(r, q));
+  };
+  S.steps = () => {
+    let data = S.baseFiltered();
+    const counts = {};
+    S.groups().forEach(g => {
+      data = data.filter(r => condMatches(r, g.f, g.list));
+      g.list.forEach(c => { counts[S.conds.indexOf(c)] = data.length; });
+    });
+    return { data, counts };
+  };
+  S.filtered = () => S.steps().data;
+  S.changed = () => cfg.onChange();
+  // 조작
+  S.add = (field, focus = true) => {
+    S.conds.push({ field: field || 'branchName', mode: 'contains', value: '', from: '', to: '' });
+    S.open = true;
+    S.render(true);
+    if (focus) { const last = document.querySelector(`#${cfg.rowsId} .cond-row:last-child .cval, #${cfg.rowsId} .cond-row:last-child .cdate`); if (last) last.focus(); }
+  };
+  S.remove = i => { S.conds.splice(i, 1); S.render(true); S.changed(); };
+  S.clear = () => { S.conds.length = 0; S.pinned = null; S.render(true); S.changed(); };
+  S.toggle = () => { S.open = !S.open; if (S.open && !S.conds.length) { S.add(); return; } S.render(true); };
+  S.onField = (i, field) => {
+    const c = S.conds[i]; if (!c) return;
+    c.field = field; c.value = ''; c.from = ''; c.to = ''; if (c.mode === 'head' || c.mode === 'group') c.mode = 'contains';
+    S.render(true); S.changed();
+    const row = document.querySelectorAll(`#${cfg.rowsId} .cond-row`)[i];
+    const inp = row && row.querySelector('.cval, .cdate'); if (inp) inp.focus();
+  };
+  S.onMode = (i, mode) => { const c = S.conds[i]; if (!c) return; c.mode = mode; S.changed(); };
+  S.onValue = (i, v) => {
+    const c = S.conds[i]; if (!c) return; c.value = v;
+    clearTimeout(S._deb);
+    S._deb = setTimeout(() => { S.changed(); S.suggest(i); }, 250);
+  };
+  S.onPeriod = (i, which, v) => { const c = S.conds[i]; if (!c) return; c[which] = v; S.changed(); };
+  S.onInput = () => { clearTimeout(S._deb); S._deb = setTimeout(() => S.changed(), 250); };
+  S.unpin = () => { S.pinned = null; S.render(false); S.changed(); };
+  S.reset = () => { const inp = $(cfg.inputId); if (inp) inp.value = ''; S.conds.length = 0; S.pinned = null; S.open = false; S.render(true); };
+  // 외부에서 조건을 통째로 지정 (직원 현황 → 목록 이동)
+  S.apply = (conds, pinIds) => { S.conds.length = 0; conds.forEach(c => S.conds.push({ mode: 'contains', value: '', from: '', to: '', ...c })); S.pinned = pinIds ? new Set(pinIds) : null; S.open = false; S.render(true); };
+
+  // 패널·칩·요약 렌더링 — full=true 면 입력 요소를 다시 그림(구조 변경 시), false 면 건수·칩·요약만
+  S.render = full => {
+    const panel = $(cfg.panelId); if (!panel) return;
+    panel.style.display = S.open ? '' : 'none';
+    const btn = $(cfg.toggleId);
+    const activeN = S.activeCount();
+    if (btn) btn.textContent = activeN ? `조건 ${activeN} ${S.open ? '▴' : '▾'}` : (S.open ? '조건 닫기 ▴' : '조건 추가 +');
+    const rowsBox = $(cfg.rowsId);
+    if (full && rowsBox) {
+      const fieldOpts = sel => SEARCH_FIELDS.map(f => `<option value="${f.key}"${f.key === sel ? ' selected' : ''}>${f.label}</option>`).join('');
+      rowsBox.innerHTML = S.conds.map((c, i) => {
+        const f = SEARCH_FIELD_MAP[c.field] || SEARCH_FIELDS[0];
+        let val;
+        if (f.kind === 'period') {
+          val = `<input type="date" class="cdate" value="${escapeHtml(c.from || '')}" onchange="${call}.onPeriod(${i},'from',this.value)"> <span style="color:var(--gray-400)">~</span> <input type="date" class="cdate" value="${escapeHtml(c.to || '')}" onchange="${call}.onPeriod(${i},'to',this.value)"> <span class="ccnt">기간</span>`;
+        } else {
+          const modeOpts = [['contains', '포함'], ['exact', '일치']];
+          if (c.field === 'staff') modeOpts.push(['head', '담당자']);
+          if (c.field === 'status') modeOpts.push(['group', '상태값']);
+          val = `<input type="text" class="cval" list="${cfg.key}-dl-${i}" value="${escapeHtml(c.value || '')}" placeholder="${escapeHtml(f.label)} 입력 — 추천 목록에서 골라도 됨" oninput="${call}.onValue(${i},this.value)" autocomplete="off"><datalist id="${cfg.key}-dl-${i}"></datalist>
+           <select class="cmode" onchange="${call}.onMode(${i},this.value)" title="포함: 일부만 같아도 검색 · 일치: 정확히 같은 값만">${modeOpts.map(([v, l]) => `<option value="${v}"${c.mode === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
+        }
+        return `<div class="cond-row">
+          <span class="cstep">${i + 1}</span>
+          <select class="cfield" onchange="${call}.onField(${i},this.value)">${fieldOpts(c.field)}</select>
+          ${val}
+          <span class="ccnt" id="${cfg.key}-cnt-${i}"></span>
+          <button class="cx" onclick="${call}.remove(${i})" title="이 조건 삭제">✕</button>
+        </div>`;
+      }).join('');
+      S.conds.forEach((c, i) => S.suggest(i));
+    }
+    const { data, counts } = S.steps();
+    S.conds.forEach((c, i) => {
+      const el = $(`${cfg.key}-cnt-${i}`); if (!el) return;
+      el.innerHTML = counts[i] != null ? `→ <b>${counts[i]}</b>건` : '<span style="color:var(--gray-300)">값을 입력하세요</span>';
+    });
+    const chips = $(cfg.chipsId);
+    if (chips) {
+      const items = [];
+      if (S.pinned) items.push(`<span class="cchip" style="border-color:var(--gray-400)">직원 현황에서 이동한 <b>${S.pinned.size}</b>건<span class="cx" onclick="${call}.unpin()" title="전체 보기">✕</span></span>`);
+      S.groups().forEach(g => g.list.forEach(c => {
+        const i = S.conds.indexOf(c);
+        items.push(`<span class="cchip">${escapeHtml(g.f.label)} <b>${escapeHtml(condLabel(c))}</b><span class="cx" onclick="${call}.remove(${i})" title="이 조건 삭제">✕</span></span>`);
+      }));
+      const extra = cfg.extraChips ? cfg.extraChips() : '';
+      chips.style.display = (items.length || extra) ? 'flex' : 'none';
+      chips.innerHTML = (items.length
+        ? `<span style="font-size:12px;color:var(--gray-500);font-weight:600">적용 조건</span>` + items.join('<span class="carrow">▸</span>')
+          + `<span class="cchip" style="color:var(--gray-400);cursor:pointer" onclick="${call}.clear()">모두 지우기</span>`
+        : '') + extra;
+    }
+    const sum = $(cfg.summaryId);
+    if (sum) sum.innerHTML = `결과 <b style="color:var(--black);font-size:13px">${data.length}</b>건 <span style="color:var(--gray-300)">/ ${allItems.length}건</span>`;
+  };
+  // 추천 목록: 이 조건 앞 단계까지의 결과 안에 있는 값 중 입력과 맞는 것 (최대 40개)
+  S.suggest = i => {
+    const c = S.conds[i]; const f = c && SEARCH_FIELD_MAP[c.field];
+    const dl = $(`${cfg.key}-dl-${i}`);
+    if (!dl || !f || f.kind !== 'text') return;
+    let data = S.baseFiltered();
+    S.groups().forEach(g => { if (g.firstIdx < i && g.f.key !== f.key) data = data.filter(r => condMatches(r, g.f, g.list)); });
+    const q = fieldNorm(f, c.value);
+    const seen = new Set(); const out = [];
+    for (const r of data) {
+      const v = String(f.get(r) || '').trim();
+      if (!v || seen.has(v)) continue;
+      if (q && !fieldNorm(f, v).includes(q)) continue;
+      seen.add(v); out.push(v);
+      if (out.length >= 40) break;
+    }
+    dl.innerHTML = out.map(v => `<option value="${escapeHtml(v)}"></option>`).join('');
+  };
+  // 강조용 검색어 (포함 조건 + 통합 검색어)
+  S.terms = fieldKey => {
+    const terms = [];
+    const q = S.query(); if (q) terms.push(q);
+    S.conds.forEach(c => { if (c.field === fieldKey && c.mode === 'contains' && String(c.value || '').trim()) terms.push(c.value.trim()); });
+    return terms;
+  };
+  return S;
 }
-// 추천 목록: 이 조건 앞 단계까지의 결과 안에 있는 값 중 입력과 맞는 것 (최대 40개)
-function refreshCondSuggest(i) {
-  const c = searchConds[i]; const f = c && SEARCH_FIELD_MAP[c.field];
-  const dl = document.getElementById(`cond-dl-${i}`);
-  if (!dl || !f || f.kind !== 'text') return;
-  let data = baseFiltered();
-  activeCondGroups().forEach(g => { if (g.firstIdx < i && g.f.key !== f.key) data = data.filter(r => condMatches(r, g.f, g.list)); });
-  const q = fieldNorm(f, c.value);
-  const seen = new Set(); const out = [];
-  for (const r of data) {
-    const v = String(f.get(r) || '').trim();
-    if (!v || seen.has(v)) continue;
-    if (q && !fieldNorm(f, v).includes(q)) continue;
-    seen.add(v); out.push(v);
-    if (out.length >= 40) break;
-  }
-  dl.innerHTML = out.map(v => `<option value="${escapeHtml(v)}"></option>`).join('');
+
+// ── 인스턴스: 목록(list) · 자료 탭 집계(data) ──
+let _listReturn = null; // 직원 현황에서 목록으로 이동한 경우 돌아가기 표시
+const CS = {};
+CS.list = createCondSearch({
+  key: 'list', inputId: 'search-input', panelId: 'cond-panel', rowsId: 'cond-rows', chipsId: 'cond-chips', summaryId: 'search-summary', toggleId: 'btn-cond-toggle',
+  base: () => {
+    const groupMatch = (r, want) => getFilterGroup(r) === want;
+    return allItems.filter(r => {
+      if (currentFilter !== 'all' && !groupMatch(r, currentFilter)) return false;
+      if ((currentFilter === '배송지연' || currentFilter === '송장미등록') && delayMinDays && delayDays(r) < delayMinDays) return false;
+      return true;
+    });
+  },
+  onChange: () => renderTable(),
+  extraChips: () => _listReturn ? `<button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="returnFromList()">← 직원 현황으로 돌아가기</button>` : '',
+});
+CS.data = createCondSearch({
+  key: 'data', inputId: 'agg-search', panelId: 'agg-cond-panel', rowsId: 'agg-cond-rows', chipsId: 'agg-cond-chips', summaryId: 'agg-search-summary', toggleId: 'agg-btn-cond-toggle',
+  base: () => allItems,
+  onChange: () => renderDataView(),
+});
+// (구 이름 호환 — 목록 검색 바의 inline 핸들러·테스트에서 사용)
+const searchConds = CS.list.conds;
+function getFiltered() { return CS.list.filtered(); }
+function addSearchCond(field) { CS.list.add(field); }
+function removeSearchCond(i) { CS.list.remove(i); }
+function clearSearchConds() { CS.list.clear(); }
+function toggleCondPanel() { CS.list.toggle(); }
+function onCondFieldChange(i, v) { CS.list.onField(i, v); }
+function onCondModeChange(i, v) { CS.list.onMode(i, v); }
+function onCondValueInput(i, v) { CS.list.onValue(i, v); }
+function onCondPeriodInput(i, w, v) { CS.list.onPeriod(i, w, v); }
+function onSearchInput() { CS.list.onInput(); }
+function refreshCondSuggest(i) { CS.list.suggest(i); }
+function resetSearchAll() { CS.list.reset(); }
+function renderCondPanel(full) { CS.list.render(full); }
+function returnFromList() { _listReturn = null; showView('data'); setDataSub('staff'); }
+
+// 직원 현황 등에서 목록으로 이동: 상태 탭 전체 + 조건 적용 (pinIds 가 있으면 그 행만 표시)
+function gotoListWith(conds, pinIds) {
+  const btn = document.querySelector('.filter-item[data-filter="all"]');
+  setFilter('all', btn);              // 검색 초기화 + 목록 화면 표시
+  CS.list.apply(conds, pinIds);
+  _listReturn = { view: 'data', sub: 'staff' };
+  CS.list.render(true);
+  renderTable();
+  const card = document.getElementById('view-list'); if (card) card.scrollIntoView({ block: 'start' });
 }
 
 // 강조 표시: 해당 항목에 걸린 포함 조건·통합 검색어와 일치하는 부분을 <mark>로 감쌈 (HTML 이스케이프 포함)
-function hlTerms(fieldKey) {
-  const f = SEARCH_FIELD_MAP[fieldKey];
-  const terms = [];
-  const q = (document.getElementById('search-input')?.value || '').trim();
-  if (q) terms.push(q);
-  searchConds.forEach(c => { if (c.field === fieldKey && c.mode !== 'exact' && String(c.value || '').trim()) terms.push(c.value.trim()); });
-  return { f, terms };
-}
 function hl(text, fieldKey) {
   const raw = String(text || '');
   if (!raw) return '';
-  const { f, terms } = hlTerms(fieldKey);
+  const f = SEARCH_FIELD_MAP[fieldKey];
+  const terms = CS.list.terms(fieldKey);
   if (!f || !terms.length) return escapeHtml(raw);
-  // 각 문자 위치별 강조 여부
   const flags = new Array(raw.length).fill(false);
   const low = raw.toLowerCase();
   terms.forEach(t => {
@@ -3829,7 +4116,6 @@ function hl(text, fieldKey) {
     let p = low.indexOf(tl);
     while (tl && p >= 0) { for (let k = p; k < p + tl.length; k++) flags[k] = true; p = low.indexOf(tl, p + 1); }
     if (f.digits) {
-      // 숫자만 비교: 원문에서 영숫자 위치만 모아 대조 후 원래 위치로 되돌림
       const td = normDigits(t); if (td.length < 3) return;
       const pos = []; let ds = '';
       for (let k = 0; k < raw.length; k++) { if (/[0-9A-Za-z]/.test(raw[k])) { pos.push(k); ds += raw[k].toLowerCase(); } }
