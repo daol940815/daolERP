@@ -1126,7 +1126,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0916-5';
+const APP_BUILD = 'v0916-6';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -1165,6 +1165,7 @@ const carriers = {
   epost: { name:'우체국택배', courierCode:'epost',  url: n=>`https://service.epost.go.kr/trace.RetrieveEmsRigiTraceList.comm?POST_CODE=${n}` },
   logen: { name:'로젠택배',   courierCode:'logen',  url: n=>`https://www.ilogen.com/web/personal/trace/${n}` },
   lottedept: { name:'롯데백화점', courierCode:'lottedept', url: n=>`https://bs.dpt.co.kr/shipping-form/search-delivery/` },
+  ilyang: { name:'일양택배',   courierCode:'ilyang', url: n=>`https://www.ilyanglogis.com/functionality/tracking_result.asp?hawb_no=${n}` }, // 일양로지스 — API 목록에 다른 코드로 있으면 loadCarrierList 에서 코드를 맞춤
   // 조회 대상이 아닌 수동 배송 수단 — 등록 즉시 배송완료 처리 (송장번호 불필요)
   quick:  { name:'퀵배송',   manual:true },
   direct: { name:'직접배송', manual:true },
@@ -1194,10 +1195,14 @@ async function loadCarrierList() {
     const list = json.data?.couriers || json.couriers || json.data || [];
     if (!Array.isArray(list)) return;
     let added = 0;
+    // 일양택배: API 가 다른 코드(예: ilyanglogis)로 제공하면 정적 항목의 조회 코드를 그 값으로 맞추고 중복 항목은 만들지 않음
+    const il = list.find(c => /일양|ilyang/i.test(String(c.courierName || c.name || c.nameKo || '') + ' ' + String(c.courierCode || c.code || c.id || '')));
+    if (il) { const ilCode = String(il.courierCode || il.code || il.id); if (ilCode && carriers.ilyang) carriers.ilyang.courierCode = ilCode; }
     list.forEach(c => {
       const code = c.courierCode || c.code || c.id;
       const name = c.courierName || c.name || c.nameKo || code;
       if (!code || carriers[code]) return;
+      if (il && c === il) return;
       carriers[code] = { name: String(name), courierCode: String(code), url: null };
       added++;
     });
@@ -1238,6 +1243,7 @@ function carrierFromStr(s) {
   if (t.includes('hanjin')||t.includes('한진')) return 'hanjin';
   if (t.includes('epost')||t.includes('우체국')) return 'epost';
   if (t.includes('logen')||t.includes('로젠')) return 'logen';
+  if (t.includes('일양')||t.includes('ilyang')) return 'ilyang';
   if (t.includes('퀵')||t==='quick') return 'quick';
   if (t.includes('직접')||t.includes('자체배송')||t==='direct') return 'direct';
   if (carriers[t]) return t; // 코드로 직접 기입한 경우
