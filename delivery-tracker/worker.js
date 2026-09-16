@@ -10,6 +10,7 @@
 //
 // [신규 — Supabase DB 게이트웨이]
 //   /db/load    : 전체 행 불러오기 (GET)
+//   /db/changes : ?since=ISO 이후 갱신된 행만 (GET)
 //   /db/save    : 행 저장/갱신 — upsert (POST, 배열)
 //   /db/delete  : 행 삭제 (POST, { local_ids: [...] })
 //   /db/migrate : Google Sheets → Supabase 데이터 이전 (GET, 재실행 안전)
@@ -367,6 +368,25 @@ async function sbLoadAll(env) {
   return all;
 }
 
+// since 이후 갱신된 행 (updated_at > since) — 1000건씩 순차 페이지
+async function sbLoadSince(env, since) {
+  const all = [];
+  for (let offset = 0; ; offset += LOAD_PAGE) {
+    const res = await fetch(
+      `${sbBase(env)}/rest/v1/${DB_TABLE}?select=*&updated_at=gt.${encodeURIComponent(since)}&order=updated_at.asc,local_id.asc`,
+      { headers: sbHeaders(env, { 'Range-Unit': 'items', 'Range': `${offset}-${offset + LOAD_PAGE - 1}` }) }
+    );
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`Supabase 변경분 조회 실패 (${res.status}): ${t.slice(0, 300)}`);
+    }
+    const rows = await res.json();
+    all.push(...rows);
+    if (rows.length < LOAD_PAGE) break;
+  }
+  return all;
+}
+
 async function handleDb(url, request, env) {
   if (!env.SUPABASE_URL || !env.SUPABASE_KEY) {
     return jsonRes({
@@ -376,10 +396,21 @@ async function handleDb(url, request, env) {
     }, 500);
   }
 
-  // ── 전체 불러오기 ──
+  // ── 전체 불러오기 ── (server_time: 클라이언트가 다음 변경분 조회의 기준 시각으로 사용)
   if (url.pathname === '/db/load' && request.method === 'GET') {
+    const serverTime = new Date().toISOString();
     const rows = await sbLoadAll(env);
-    return jsonRes({ ok: true, count: rows.length, rows });
+    return jsonRes({ ok: true, count: rows.length, rows, server_time: serverTime });
+  }
+
+  // ── 변경분 불러오기: ?since=<ISO> 이후 갱신된 행만 (여러 PC 간 주기 동기화용 — 전체 로드 대비 전송량 최소화) ──
+  //   updated_at 은 ISO 문자열이라 문자열 비교로 정렬·필터 가능. 삭제는 감지하지 못하므로 클라이언트가 주기적으로 전체 로드로 보정.
+  if (url.pathname === '/db/changes' && request.method === 'GET') {
+    const since = String(url.searchParams.get('since') || '');
+    if (!/^\d{4}-\d{2}-\d{2}T/.test(since)) return jsonRes({ ok: false, error: 'since 파라미터(ISO 시각)가 필요합니다' }, 400);
+    const serverTime = new Date().toISOString();
+    const rows = await sbLoadSince(env, since);
+    return jsonRes({ ok: true, count: rows.length, rows, server_time: serverTime, since });
   }
 
   // ── 저장/갱신 (배열 upsert) ──

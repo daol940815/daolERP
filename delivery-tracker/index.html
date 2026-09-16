@@ -593,6 +593,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
   <button class="pill" id="nav-view-mail" onclick="showView('mail')">회신 메일</button>
   <button class="pill" id="nav-view-data" onclick="showView('data')">자료</button>
   <span id="sync-chip" style="margin-left:10px;font-size:11px;color:var(--gray-400);align-self:center;white-space:nowrap"></span>
+  <span id="save-chip" style="display:none;margin-left:8px;font-size:11px;color:var(--gray-500);align-self:center;white-space:nowrap"></span>
   <span id="app-build" title="프로그램 버전 — 파일 교체 여부 확인용" style="margin-left:8px;font-size:10px;color:var(--gray-300);align-self:center"></span>
   <span class="tb-divider"></span>
   <span class="tb-label">필터</span>
@@ -1126,7 +1127,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0916-7';
+const APP_BUILD = 'v0916-8';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -3138,85 +3139,119 @@ async function runManualFullRefresh() {
 }
 
 // ── 백그라운드 DB 동기화 (다른 기기에서 저장한 변경분 반영) ──
+//  · 30초마다 + 창이 다시 활성화될 때 + 저장 직후: 마지막 동기화 이후 바뀐 행만(/db/changes) 받아 병합
+//  · 10분마다 한 번은 전체(/db/load)를 받아 삭제된 행까지 맞춤 (변경분 경로가 없는 구버전 Workers 면 항상 전체)
 let _syncBusy = false;
-async function syncFromDb() {
-  if (_initialLoading) return; // 시작 로딩 중에는 중복 요청하지 않음
-  if (_syncBusy || manualFullRefreshRunning || autoRefreshRunning) return;
-  // 저장 큐에 미전송분이 있으면 이번 동기화는 건너뜀 (막 저장한 내용을 덮어쓰지 않도록)
-  if (_savePending.size || _deletePending.size) return;
+let _lastSyncAt = null;          // 서버 시각 기준 마지막 동기화 시점
+let _lastFullSyncAt = 0;         // 마지막 전체 동기화 (Date.now)
+let _changesUnsupported = false; // Workers 에 /db/changes 가 없으면 true → 전체 로드로 대체
+const SYNC_INTERVAL_MS = 30000, FULL_SYNC_EVERY_MS = 600000, SYNC_SINCE_MARGIN_MS = 120000;
+
+// 지금 동기화하면 작업을 방해하거나 저장 전 내용을 덮을 수 있는 상황
+function syncBlocked() {
+  if (_initialLoading || _syncBusy || manualFullRefreshRunning || autoRefreshRunning || bulkRunning) return true;
+  if (_savePending.size || _deletePending.size) return true;          // 미전송 저장분이 있으면 보류
+  if (document.querySelector('.modal-bg.open')) return true;           // 수정 모달 등 열려 있음
+  const ae = document.activeElement;
+  if (ae && ae.closest && ae.closest('#table-body') && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) return true; // 표 안에서 입력 중
+  return false;
+}
+
+async function syncFromDb(opts) {
+  opts = opts || {};
+  if (syncBlocked()) return;
   _syncBusy = true;
   const syncStart = Date.now(); // 동기화 중 수정된 행 보호 기준 시각
   try {
-    const res = await fetch(`${API_BASE}/db/load`);
-    const data = await res.json();
-    if (data.ok) setSyncChip('ok', `최신 ${(data.rows || []).length}건 · ${new Date().toTimeString().slice(0, 5)}`);
-    if (!data.ok || !data.rows?.length) return;
-    const remote = data.rows.map(dbRowToItem)
+    let full = !!opts.full || !_lastSyncAt || _changesUnsupported || (Date.now() - _lastFullSyncAt > FULL_SYNC_EVERY_MS);
+    let data = null;
+    if (!full) {
+      const since = new Date(new Date(_lastSyncAt).getTime() - SYNC_SINCE_MARGIN_MS).toISOString(); // PC 시계 차이 대비 여유
+      const res = await fetch(`${API_BASE}/db/changes?since=${encodeURIComponent(since)}`);
+      if (res.status === 404) { _changesUnsupported = true; full = true; }
+      else { data = await res.json(); if (!data.ok) full = true; }
+    }
+    if (full) {
+      const res = await fetch(`${API_BASE}/db/load`);
+      data = await res.json();
+    }
+    if (!data || !data.ok) return;
+    _lastSyncAt = data.server_time || new Date().toISOString();
+    if (full) _lastFullSyncAt = Date.now();
+    const rows = data.rows || [];
+    const hhmm = new Date().toTimeString().slice(0, 5);
+    if (full) setSyncChip('ok', `최신 ${rows.length}건 · ${hhmm}`);
+    else setSyncChip('ok', `최신 · ${hhmm}${rows.length ? ` (변경 ${rows.length}건 반영)` : ''}`);
+    if (!rows.length && !full) return;
+    const remote = rows.map(dbRowToItem)
       .filter(r => r.num || r.localId || r.productName).map(restoreFailReason);
+    const changed = mergeRemoteRows(remote, { full, syncStart });
+    if (changed) {
+      saveLocal();
+      updateStats();
+      renderTable();
+      if (currentView === 'dash') renderDashboard();
+      if (currentView === 'data') { if (dataSub === 'agg') renderDataView(); else renderStaffView(); }
+    }
+  } catch(e) {}
+  finally { _syncBusy = false; }
+}
 
-    let changed = false;
-    const tombs = loadTombstones();
-    remote.forEach(rem => {
-      // 매칭: 영구 행 ID(localId) 우선 → 송장번호+상품명(합포장 구분) → 송장번호
-      const local = (rem.localId && allItems.find(x => x.localId === rem.localId))
-        || (rem.num && (
-              allItems.find(x => x.carrier===rem.carrier && x.num===rem.num
-                && (x.productName||'').trim() === (rem.productName||'').trim())
-           || allItems.find(x => x.carrier===rem.carrier && x.num===rem.num)))
-        || null;
-      if (!local) {
-        // 유령 방지: 송장번호 없는 원격 행인데 같은 주문·같은 배송지로 이미 번호가 부여된 행이 있으면 무시
-        if (!rem.num && !rem.seq && allItems.some(x => x.num && makeMatchKey(x) === makeMatchKey(rem) && sameDest(x, rem))) return;
-        // 삭제 잔재 방지: 최근 삭제한 행이면 되살리지 않고 시트에서 재삭제
-        if (tombs.length && matchesTombstone(rem, tombs)) {
-          deleteFromDb(rem.carrier, rem.num, rem.localId, rem.productName);
-          return;
-        }
-        allItems.push(rem);
-        changed = true;
-      } else {
-        const remT   = rem.updatedAt   ? new Date(rem.updatedAt).getTime()   : 0;
-        const localT = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
-        if (remT > localT) {
-          // 서버가 빈값인 필드(택배사 포함)와 영구 행 ID는 로컬 값 보존
-          const keepF = { memo: local.memo || rem.memo, localId: rem.localId || local.localId || '' };
-          ['carrier','supplier','shippedAt','bankName','branchName','manager','productCode','shipType','staff','address','phone'].forEach(f => {
-            keepF[f] = rem[f] || local[f] || '';
-          });
-          Object.assign(local, rem, keepF);
-          // 서버가 비어 로컬 값을 보존한 필드가 있으면 서버로 재저장 — 여러 PC가 있어도 입력값으로 수렴
-          const preserved = Object.keys(keepF).some(f => f !== 'localId' && String(keepF[f] || '') !== String(rem[f] || ''));
-          if (preserved) {
-            local.updatedAt = new Date().toISOString();
-            saveToStorage(local);
-          }
-          changed = true;
-        }
+// 원격 행 병합 — full 이면 원격에 없는 행 제거까지 수행. 바뀐 것이 있으면 true
+//  · 같은 행은 갱신 시각이 더 최신인 쪽을 그대로 채택 (빈값도 정상 값 — 한쪽에서 지운 값을 다른 PC가 되살리지 않음)
+function mergeRemoteRows(remote, o) {
+  let changed = false;
+  const tombs = loadTombstones();
+  remote.forEach(rem => {
+    // 매칭: 영구 행 ID(localId) 우선 → 송장번호+상품명(합포장 구분) → 송장번호
+    const local = (rem.localId && allItems.find(x => x.localId === rem.localId))
+      || (rem.num && (
+            allItems.find(x => x.carrier===rem.carrier && x.num===rem.num
+              && (x.productName||'').trim() === (rem.productName||'').trim())
+         || allItems.find(x => x.carrier===rem.carrier && x.num===rem.num)))
+      || null;
+    if (!local) {
+      // 유령 방지: 송장번호 없는 원격 행인데 같은 주문·같은 배송지로 이미 번호가 부여된 행이 있으면 무시
+      if (!rem.num && !rem.seq && allItems.some(x => x.num && makeMatchKey(x) === makeMatchKey(rem) && sameDest(x, rem))) return;
+      // 삭제 잔재 방지: 최근 삭제한 행이면 되살리지 않고 서버에서 재삭제
+      if (tombs.length && matchesTombstone(rem, tombs)) {
+        deleteFromDb(rem.carrier, rem.num, rem.localId, rem.productName);
+        return;
       }
-    });
+      allItems.push(rem);
+      changed = true;
+    } else {
+      const remT   = rem.updatedAt   ? new Date(rem.updatedAt).getTime()   : 0;
+      const localT = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+      if (remT > localT) {
+        Object.assign(local, rem, { localId: rem.localId || local.localId || '' });
+        changed = true;
+      }
+    }
+  });
+  if (o.full) {
     // 행 대조는 영구 행 ID(localId) 우선 — 택배사·송장번호를 수정해도 같은 행으로 인식
     const keyOf = r => r.localId ? 'lid__' + r.localId : r.carrier + '__' + r.num;
     const remoteKeys = new Set(remote.map(keyOf));
     const before = allItems.length;
     allItems = allItems.filter(r => {
-      const k = keyOf(r);
-      if (remoteKeys.has(k)) return true;
-      // 동기화가 시작된 후 수정·추가된 행은 아직 시트에 반영 전일 수 있으므로 보존
+      if (remoteKeys.has(keyOf(r))) return true;
+      // 동기화가 시작된 후 수정·추가된 행은 아직 서버에 반영 전일 수 있으므로 보존
       const t = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
-      return t >= syncStart;
+      return t >= o.syncStart;
     });
     if (allItems.length !== before) changed = true;
-    // 퀵·직접배송 행은 항상 배송완료 — 다른 PC에서 옛 상태로 올라온 행 보정
-    if (normalizeManualRows(allItems, true)) changed = true;
-
-    if (changed) {
-      saveLocal();
-      updateStats();
-      renderTable();
-    }
-  } catch(e) {}
-  finally { _syncBusy = false; }
+  }
+  // 퀵·직접배송 행은 항상 배송완료 — 다른 PC에서 옛 상태로 올라온 행 보정
+  if (normalizeManualRows(allItems, true)) changed = true;
+  return changed;
 }
+
+// 주기 동기화 + 창 활성화 시 동기화
+setInterval(() => syncFromDb(), SYNC_INTERVAL_MS);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncFromDb(); });
+let _focusSyncTimer = null;
+window.addEventListener('focus', () => { clearTimeout(_focusSyncTimer); _focusSyncTimer = setTimeout(() => syncFromDb(), 800); });
 
 // ── 보기 전환 (목록 ↔ 대시보드) ──
 function showView(v) {
@@ -5510,12 +5545,25 @@ function dbRowToItem(r) {
 const _savePending = new Map(); // localId → 항목 참조
 let _saveTimer = null;
 let _saveRetryDelay = 0;
+let _saveInflight = 0;      // 전송 중인 행 수
+let _saveFailing = false;   // 마지막 전송 실패 여부 (성공하면 해제)
+function renderSaveChip() {
+  const el = document.getElementById('save-chip'); if (!el) return;
+  const n = _savePending.size + _saveInflight;
+  if (_saveFailing) {
+    el.innerHTML = `<span style="color:#b91c1c;font-weight:600">저장 실패 ${n}건</span> <button class="btn btn-outline btn-sm" style="padding:1px 8px;font-size:10px;margin-left:4px" onclick="retrySaves()">재시도</button>`;
+    el.style.display = '';
+  } else if (n) { el.textContent = `저장 중 ${n}건…`; el.style.display = ''; }
+  else { el.textContent = ''; el.style.display = 'none'; }
+}
+function retrySaves() { clearTimeout(_saveTimer); _saveTimer = null; _saveRetryDelay = 0; flushSaves(); }
 
 function saveToStorage(entry) {
   saveLocal();
   if (!entry || !entry.localId) return;
   _savePending.set(entry.localId, entry);
   if (!_saveTimer) _saveTimer = setTimeout(flushSaves, 400);
+  renderSaveChip();
 }
 
 async function flushSaves() {
@@ -5523,6 +5571,7 @@ async function flushSaves() {
   if (!_savePending.size) return;
   const batch = [..._savePending.values()].map(itemToDbRow);
   _savePending.clear();
+  _saveInflight = batch.length; renderSaveChip();
   try {
     const res = await fetch(`${API_BASE}/db/save`, {
       method: 'POST',
@@ -5531,8 +5580,11 @@ async function flushSaves() {
     });
     const j = await res.json();
     if (!j.ok) throw new Error(j.error || '저장 실패');
-    _saveRetryDelay = 0;
+    _saveRetryDelay = 0; _saveFailing = false; _saveInflight = 0; renderSaveChip();
+    // 저장이 서버에 반영된 직후 다른 PC 변경분도 받아옴
+    setTimeout(() => syncFromDb(), 1500);
   } catch(e) {
+    _saveFailing = true; _saveInflight = 0;
     console.warn('DB 저장 실패, 재시도 예약:', e);
     // 실패분 복원 (그 사이 더 최신 수정이 큐에 들어온 항목은 그대로 둠)
     batch.forEach(row => {
@@ -5543,6 +5595,7 @@ async function flushSaves() {
     });
     _saveRetryDelay = Math.min((_saveRetryDelay || 2000) * 2, 60000);
     if (!_saveTimer) _saveTimer = setTimeout(flushSaves, _saveRetryDelay);
+    renderSaveChip();
   }
 }
 
@@ -5663,9 +5716,7 @@ function applyServerRows(rows) {
     allItems.forEach(it => {
       const c = cacheMap[keyOf(it)];
       if (!c) return;
-      ['supplier','shippedAt','bankName','branchName','manager','productCode','shipType','staff','address','phone'].forEach(f => {
-        if (!it[f]) it[f] = c[f] || '';
-      });
+      // (빈 칸을 캐시 값으로 채우던 처리는 제거 — 다른 PC에서 지운 값이 되살아나는 원인)
       // 배송 진행 내역 보존: 다른 기기에서 더 최신으로 갱신된 경우가 아니라면 로컬 캐시의 전체 타임라인을 유지
       const cT = new Date(c.updatedAt || 0).getTime();
       const iT = new Date(it.updatedAt || 0).getTime();
@@ -5724,7 +5775,7 @@ async function fetchAllRowsOnce(timeoutMs) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || '서버 응답 오류');
-    return data.rows || [];
+    return data;
   } finally { clearTimeout(t); }
 }
 
@@ -5744,7 +5795,7 @@ async function initialLoad(manual) {
   let rows = null, lastErr = null;
   for (let i = 0; i < delays.length; i++) {
     if (delays[i]) { setSyncChip('syncing', `서버 동기화 재시도 ${i}/${delays.length - 1}…`); await sleep(delays[i]); }
-    try { rows = await fetchAllRowsOnce(60000); break; }
+    try { const d = await fetchAllRowsOnce(60000); rows = d.rows || []; _lastSyncAt = d.server_time || new Date().toISOString(); _lastFullSyncAt = Date.now(); break; }
     catch(e) { lastErr = e; console.warn('서버 불러오기 실패 (' + (i + 1) + '회):', e); }
   }
   _initialLoading = false;
