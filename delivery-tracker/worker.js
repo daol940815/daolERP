@@ -11,6 +11,7 @@
 // [신규 — Supabase DB 게이트웨이]
 //   /db/load    : 전체 행 불러오기 (GET)
 //   /db/changes : ?since=ISO 이후 갱신된 행만 (GET)
+//   /db/ids     : 행 ID 목록만 — 삭제 반영용 (GET)
 //   /db/save    : 행 저장/갱신 — upsert (POST, 배열)
 //   /db/delete  : 행 삭제 (POST, { local_ids: [...] })
 //   /db/migrate : Google Sheets → Supabase 데이터 이전 (GET, 재실행 안전)
@@ -401,6 +402,21 @@ async function handleDb(url, request, env) {
     const serverTime = new Date().toISOString();
     const rows = await sbLoadAll(env);
     return jsonRes({ ok: true, count: rows.length, rows, server_time: serverTime });
+  }
+
+  // ── 행 ID 목록만: 삭제 반영용 (전체 로드 대신 사용 — 전송량 약 1/20) ──
+  if (url.pathname === '/db/ids' && request.method === 'GET') {
+    const serverTime = new Date().toISOString();
+    const ids = [];
+    for (let offset = 0; ; offset += 5000) {
+      const res = await fetch(`${sbBase(env)}/rest/v1/${DB_TABLE}?select=local_id&order=local_id.asc`,
+        { headers: sbHeaders(env, { 'Range-Unit': 'items', 'Range': `${offset}-${offset + 4999}` }) });
+      if (!res.ok) throw new Error(`Supabase ID 조회 실패 (${res.status}): ${(await res.text()).slice(0, 300)}`);
+      const rows = await res.json();
+      rows.forEach(r => { if (r.local_id) ids.push(r.local_id); });
+      if (rows.length < 5000) break;
+    }
+    return jsonRes({ ok: true, count: ids.length, ids, server_time: serverTime });
   }
 
   // ── 변경분 불러오기: ?since=<ISO> 이후 갱신된 행만 (여러 PC 간 주기 동기화용 — 전체 로드 대비 전송량 최소화) ──

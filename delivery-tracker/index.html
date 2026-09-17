@@ -1127,7 +1127,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0916-8';
+const APP_BUILD = 'v0917-1';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -3140,12 +3140,13 @@ async function runManualFullRefresh() {
 
 // ── 백그라운드 DB 동기화 (다른 기기에서 저장한 변경분 반영) ──
 //  · 30초마다 + 창이 다시 활성화될 때 + 저장 직후: 마지막 동기화 이후 바뀐 행만(/db/changes) 받아 병합
-//  · 10분마다 한 번은 전체(/db/load)를 받아 삭제된 행까지 맞춤 (변경분 경로가 없는 구버전 Workers 면 항상 전체)
+//  · 10분마다 행 ID 목록(/db/ids, 약 250KB)만 받아 다른 PC에서 삭제된 행을 정리 — 전체 로드는 시작 때 한 번만
+//  · 변경분 경로가 없는 구버전 Workers 면 전체 로드(/db/load)로 대체하되 10분에 한 번만
 let _syncBusy = false;
 let _lastSyncAt = null;          // 서버 시각 기준 마지막 동기화 시점
-let _lastFullSyncAt = 0;         // 마지막 전체 동기화 (Date.now)
+let _lastFullSyncAt = 0;         // 마지막 전체 동기화 또는 ID 대조 (Date.now)
 let _changesUnsupported = false; // Workers 에 /db/changes 가 없으면 true → 전체 로드로 대체
-const SYNC_INTERVAL_MS = 30000, FULL_SYNC_EVERY_MS = 600000, SYNC_SINCE_MARGIN_MS = 120000;
+const SYNC_INTERVAL_MS = 30000, IDS_SYNC_EVERY_MS = 600000, SYNC_SINCE_MARGIN_MS = 120000;
 
 // 지금 동기화하면 작업을 방해하거나 저장 전 내용을 덮을 수 있는 상황
 function syncBlocked() {
@@ -3163,7 +3164,9 @@ async function syncFromDb(opts) {
   _syncBusy = true;
   const syncStart = Date.now(); // 동기화 중 수정된 행 보호 기준 시각
   try {
-    let full = !!opts.full || !_lastSyncAt || _changesUnsupported || (Date.now() - _lastFullSyncAt > FULL_SYNC_EVERY_MS);
+    // 구버전 Workers(변경분 경로 없음): 10분에 한 번만 전체 로드, 그 사이에는 아무것도 하지 않음
+    if (_changesUnsupported && !opts.full && Date.now() - _lastFullSyncAt < IDS_SYNC_EVERY_MS) return;
+    let full = !!opts.full || !_lastSyncAt || _changesUnsupported;
     let data = null;
     if (!full) {
       const since = new Date(new Date(_lastSyncAt).getTime() - SYNC_SINCE_MARGIN_MS).toISOString(); // PC 시계 차이 대비 여유
@@ -3182,10 +3185,28 @@ async function syncFromDb(opts) {
     const hhmm = new Date().toTimeString().slice(0, 5);
     if (full) setSyncChip('ok', `최신 ${rows.length}건 · ${hhmm}`);
     else setSyncChip('ok', `최신 · ${hhmm}${rows.length ? ` (변경 ${rows.length}건 반영)` : ''}`);
-    if (!rows.length && !full) return;
-    const remote = rows.map(dbRowToItem)
-      .filter(r => r.num || r.localId || r.productName).map(restoreFailReason);
-    const changed = mergeRemoteRows(remote, { full, syncStart });
+    let changed = false;
+    if (rows.length || full) {
+      const remote = rows.map(dbRowToItem)
+        .filter(r => r.num || r.localId || r.productName).map(restoreFailReason);
+      changed = mergeRemoteRows(remote, { full, syncStart });
+    }
+    // 10분마다 행 ID 목록으로 삭제 반영 (변경분 방식에서는 삭제를 알 수 없으므로)
+    if (!full && Date.now() - _lastFullSyncAt > IDS_SYNC_EVERY_MS) {
+      try {
+        const res = await fetch(`${API_BASE}/db/ids`);
+        if (res.ok) {
+          const j = await res.json();
+          if (j.ok && Array.isArray(j.ids) && j.ids.length) {
+            const keep = new Set(j.ids);
+            const before = allItems.length;
+            allItems = allItems.filter(r => !r.localId || keep.has(r.localId) || (r.updatedAt ? new Date(r.updatedAt).getTime() : 0) >= syncStart - 60000);
+            if (allItems.length !== before) changed = true;
+            _lastFullSyncAt = Date.now();
+          }
+        } else if (res.status === 404) _lastFullSyncAt = Date.now(); // 구버전 Workers — 다음 10분 뒤 재시도
+      } catch(e) {}
+    }
     if (changed) {
       saveLocal();
       updateStats();
