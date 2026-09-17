@@ -1128,7 +1128,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0917-4';
+const APP_BUILD = 'v0917-5';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -1593,8 +1593,12 @@ async function runTrackingQueries(targets, transitionCounts, onProgress) {
   const applyError = (item, e) => {
     const next = resolveTrackingError(e, item);
     // 상태·사유가 그대로면 재저장하지 않음 — 옛 데이터를 가진 다른 PC가
-    // 같은 실패를 매번 '더 최신'으로 서버에 덮어써 수정값을 되돌리는 것 방지
-    if (item.status === next.status && String(item.error || '') === String(next.error || '')) return;
+    // 같은 실패를 매번 '더 최신'으로 서버에 덮어써 수정값을 되돌리는 것 방지.
+    // 단, 비교는 서버 스냅샷 기준 — 송장 업데이트로 번호가 방금 들어간 행처럼
+    // 아직 서버에 없는 변경이 있으면 반드시 저장 (건너뛰면 새로고침 때 사라짐)
+    const snap = item.localId ? _srvSnap[String(item.localId)] : null;
+    const unsaved = !snap || String(snap.num || '') !== String(item.num || '') || carrierFromStr(snap.carrier || '') !== carrierFromStr(item.carrier || '');
+    if (!unsaved && item.status === next.status && String(item.error || '') === String(next.error || '')) return;
     upsertItem(next);
   };
   const recordAfter = (item, before) => {
@@ -2963,6 +2967,7 @@ async function runBulkUpdate() {
         updatedAt: new Date().toISOString(),
       };
       allItems[idx] = target;
+      saveToStorage(target); // 번호 배정은 조회 결과와 무관한 변경 — 즉시 저장 큐에 (미등록 번호도 서버에 남도록)
       matched++;
     } else if (allItems.some((r, i) => !matchedIdx.has(i) && !r.num && r.seq && makeMatchKey(r) === mk && sameDest(r, item))) {
       // 같은 주문의 2번째 이후 송장번호 — 반복 등록된 형제 행(송장 없음, 각각 다른 박스)이 있으면 그 행에 배정
@@ -2981,6 +2986,7 @@ async function runBulkUpdate() {
         updatedAt: new Date().toISOString(),
       };
       allItems[sib] = target;
+      saveToStorage(target);
       matched++;
     } else {
       // 같은 주문의 2번째 이후 송장번호 → 주문정보를 복사해 새 행으로 등록
@@ -3000,6 +3006,7 @@ async function runBulkUpdate() {
         updatedAt: new Date().toISOString(),
       };
       allItems.push(target);
+      saveToStorage(target);
       extra++;
     }
     toQuery.push(target);
