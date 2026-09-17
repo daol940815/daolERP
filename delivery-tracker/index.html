@@ -1128,7 +1128,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0917-3';
+const APP_BUILD = 'v0917-4';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -3238,7 +3238,17 @@ async function syncFromDb(opts) {
         const res = await fetch(`${API_BASE}/db/ids`);
         if (res.ok) {
           const j = await res.json();
-          if (j.ok && Array.isArray(j.ids) && j.ids.length) {
+          // 안전장치: 목록이 서버 전체 건수보다 적거나(누락), 1000 배수로 잘린 흔적이 있거나,
+          // 화면 건수의 절반 미만이면 잘못된 목록으로 보고 정리하지 않음 (잘린 목록으로 화면 행이 사라지는 사고 방지)
+          const localN = allItems.filter(r => r.localId).length;
+          const idsBad = !j.ok || !Array.isArray(j.ids) || !j.ids.length
+            || (j.total != null && j.ids.length < Number(j.total))
+            || (j.ids.length % 1000 === 0 && j.ids.length < localN)
+            || j.ids.length < localN * 0.5;
+          if (idsBad) {
+            _lastFullSyncAt = Date.now(); // 10분 뒤 재시도
+            if (j.ids && j.ids.length) console.warn('ID 목록 불일치로 삭제 반영 건너뜀', { ids: j.ids.length, total: j.total, local: localN });
+          } else {
             const keep = new Set(j.ids);
             const before = allItems.length;
             allItems = allItems.filter(r => !r.localId || keep.has(r.localId) || _editedIds.has(String(r.localId)) || (r.updatedAt ? new Date(r.updatedAt).getTime() : 0) >= syncStart - 60000);

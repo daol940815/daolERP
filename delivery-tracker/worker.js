@@ -424,14 +424,23 @@ async function handleDb(url, request, env) {
   // ── 행 ID 목록만: 삭제 반영용 (전체 로드 대신 사용 — 전송량 약 1/20) ──
   if (url.pathname === '/db/ids' && request.method === 'GET') {
     const serverTime = new Date().toISOString();
+    // Supabase(PostgREST)는 한 응답에 최대 1000건(Max rows 설정)만 돌려주므로 반드시 1000건씩 끝까지 순회
+    // 첫 페이지에서 전체 건수(count=exact)를 받아 응답에 함께 실어 클라이언트가 누락 여부를 검증할 수 있게 함
     const ids = [];
-    for (let offset = 0; ; offset += 5000) {
+    let total = null;
+    for (let offset = 0; ; offset += LOAD_PAGE) {
+      const extra = { 'Range-Unit': 'items', 'Range': `${offset}-${offset + LOAD_PAGE - 1}` };
+      if (offset === 0) extra['Prefer'] = 'count=exact';
       const res = await fetch(`${sbBase(env)}/rest/v1/${DB_TABLE}?select=local_id&deleted_at=eq.&order=local_id.asc`,
-        { headers: sbHeaders(env, { 'Range-Unit': 'items', 'Range': `${offset}-${offset + 4999}` }) });
+        { headers: sbHeaders(env, extra) });
       if (!res.ok) throw new Error(`Supabase ID 조회 실패 (${res.status}): ${(await res.text()).slice(0, 300)}`);
+      if (offset === 0) {
+        const m = /\/(\d+)\s*$/.exec(res.headers.get('content-range') || '');
+        total = m ? Number(m[1]) : null;
+      }
       const rows = await res.json();
       rows.forEach(r => { if (r.local_id) ids.push(r.local_id); });
-      if (rows.length < 5000) break;
+      if (rows.length < LOAD_PAGE) break;
     }
     // 삭제 표시 후 30일 지난 행 실제 삭제 (가벼운 정리 — 실패해도 무시)
     try {
@@ -439,7 +448,7 @@ async function handleDb(url, request, env) {
       await fetch(`${sbBase(env)}/rest/v1/${DB_TABLE}?deleted_at=neq.&deleted_at=lt.${encodeURIComponent(cutoff)}`,
         { method: 'DELETE', headers: sbHeaders(env, { 'Prefer': 'return=minimal' }) });
     } catch (e) {}
-    return jsonRes({ ok: true, count: ids.length, ids, server_time: serverTime, min_build: MIN_BUILD });
+    return jsonRes({ ok: true, count: ids.length, total, ids, server_time: serverTime, min_build: MIN_BUILD });
   }
 
   // ── 변경분 불러오기: ?since=<ISO> 이후 갱신된 행만 (여러 PC 간 주기 동기화용 — 전체 로드 대비 전송량 최소화) ──
