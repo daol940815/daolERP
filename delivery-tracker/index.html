@@ -584,6 +584,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 </header>
 
 <!-- 상단 바 1: 보기 + 필터 -->
+<div id="build-warn" style="display:none;position:fixed;top:56px;left:0;right:0;z-index:150;background:#fee2e2;color:#991b1b;font-size:12px;padding:6px 1.5rem;border-bottom:1px solid #fecaca"></div>
 <div id="topbars">
 <div class="topbar">
   <span class="tb-label">보기</span>
@@ -1127,11 +1128,20 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0917-1';
+const APP_BUILD = 'v0917-2';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
 });
+// 버전 비교: 'v0917-2' → 917*1000+2. 서버(Workers)가 알려주는 최소 버전보다 낮으면 상단에 경고 띠
+function buildNum(v) { const m = /v(\d{4})-(\d+)/.exec(String(v || '')); return m ? Number(m[1]) * 1000 + Number(m[2]) : 0; }
+function checkMinBuild(minBuild) {
+  const bar = document.getElementById('build-warn'); if (!bar) return;
+  if (minBuild && buildNum(APP_BUILD) < buildNum(minBuild)) {
+    bar.innerHTML = `프로그램 파일이 오래되었습니다 (현재 <b>${escapeHtml(APP_BUILD)}</b>, 필요 <b>${escapeHtml(minBuild)}</b>) — 옛 파일은 다른 PC 의 수정을 덮어쓸 수 있으니 최신 index.html 로 교체하세요`;
+    bar.style.display = '';
+  } else bar.style.display = 'none';
+}
 
 // ── 상태 ──
 let allItems = []; // 전체 등록 데이터
@@ -3163,6 +3173,7 @@ async function syncFromDb(opts) {
   if (syncBlocked()) return;
   _syncBusy = true;
   const syncStart = Date.now(); // 동기화 중 수정된 행 보호 기준 시각
+  _editedIds.clear();           // 이 시점까지의 수정은 모두 서버에 저장된 상태(미전송분 있으면 위에서 보류됨)
   try {
     // 구버전 Workers(변경분 경로 없음): 10분에 한 번만 전체 로드, 그 사이에는 아무것도 하지 않음
     if (_changesUnsupported && !opts.full && Date.now() - _lastFullSyncAt < IDS_SYNC_EVERY_MS) return;
@@ -3179,6 +3190,7 @@ async function syncFromDb(opts) {
       data = await res.json();
     }
     if (!data || !data.ok) return;
+    checkMinBuild(data.min_build);
     _lastSyncAt = data.server_time || new Date().toISOString();
     if (full) _lastFullSyncAt = Date.now();
     const rows = data.rows || [];
@@ -3186,10 +3198,20 @@ async function syncFromDb(opts) {
     if (full) setSyncChip('ok', `최신 ${rows.length}건 · ${hhmm}`);
     else setSyncChip('ok', `최신 · ${hhmm}${rows.length ? ` (변경 ${rows.length}건 반영)` : ''}`);
     let changed = false;
-    if (rows.length || full) {
-      const remote = rows.map(dbRowToItem)
+    // 다른 PC 에서 삭제 표시된 행 → 내 화면에서도 제거
+    const deletedIds = new Set(rows.filter(r => r.deleted_at).map(r => String(r.local_id)));
+    if (deletedIds.size) {
+      const before = allItems.length;
+      allItems = allItems.filter(r => !deletedIds.has(String(r.localId)));
+      deletedIds.forEach(id => delete _srvSnap[id]);
+      if (allItems.length !== before) changed = true;
+    }
+    const liveRows = rows.filter(r => !r.deleted_at);
+    liveRows.forEach(raw => { if (!_editedIds.has(String(raw.local_id))) snapFromServerRow(raw); });
+    if (liveRows.length || full) {
+      const remote = liveRows.map(dbRowToItem)
         .filter(r => r.num || r.localId || r.productName).map(restoreFailReason);
-      changed = mergeRemoteRows(remote, { full, syncStart });
+      changed = mergeRemoteRows(remote, { full, syncStart }) || changed;
     }
     // 10분마다 행 ID 목록으로 삭제 반영 (변경분 방식에서는 삭제를 알 수 없으므로)
     if (!full && Date.now() - _lastFullSyncAt > IDS_SYNC_EVERY_MS) {
@@ -3200,7 +3222,8 @@ async function syncFromDb(opts) {
           if (j.ok && Array.isArray(j.ids) && j.ids.length) {
             const keep = new Set(j.ids);
             const before = allItems.length;
-            allItems = allItems.filter(r => !r.localId || keep.has(r.localId) || (r.updatedAt ? new Date(r.updatedAt).getTime() : 0) >= syncStart - 60000);
+            allItems = allItems.filter(r => !r.localId || keep.has(r.localId) || _editedIds.has(String(r.localId)) || (r.updatedAt ? new Date(r.updatedAt).getTime() : 0) >= syncStart - 60000);
+            allItems.forEach(r => { if (r.localId && !keep.has(r.localId) && !_editedIds.has(String(r.localId))) delete _srvSnap[r.localId]; });
             if (allItems.length !== before) changed = true;
             _lastFullSyncAt = Date.now();
           }
@@ -3242,12 +3265,11 @@ function mergeRemoteRows(remote, o) {
       allItems.push(rem);
       changed = true;
     } else {
-      const remT   = rem.updatedAt   ? new Date(rem.updatedAt).getTime()   : 0;
-      const localT = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
-      if (remT > localT) {
-        Object.assign(local, rem, { localId: rem.localId || local.localId || '' });
-        changed = true;
-      }
+      // 서버가 보내온 행은 내가 마지막으로 본 것보다 새 것 — 동기화 요청 이후 이 PC 에서 고친 행만 제외하고 그대로 채택 (PC 시계와 무관)
+      if (_editedIds.has(String(local.localId || rem.localId))) return;
+      if (JSON.stringify(local) === JSON.stringify({ ...local, ...rem })) return; // 내용 동일
+      Object.assign(local, rem, { localId: rem.localId || local.localId || '' });
+      changed = true;
     }
   });
   if (o.full) {
@@ -3257,7 +3279,8 @@ function mergeRemoteRows(remote, o) {
     const before = allItems.length;
     allItems = allItems.filter(r => {
       if (remoteKeys.has(keyOf(r))) return true;
-      // 동기화가 시작된 후 수정·추가된 행은 아직 서버에 반영 전일 수 있으므로 보존
+      // 동기화 요청 이후 수정·추가된 행은 아직 서버에 반영 전일 수 있으므로 보존
+      if (_editedIds.has(String(r.localId))) return true;
       const t = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
       return t >= o.syncStart;
     });
@@ -5559,6 +5582,7 @@ function dbRowToItem(r) {
     updatedAt:   r.updated_at  || '',
     numAddedAt:  r.num_added_at || '',
     seq:         r.seq         || '',
+    deletedAt:   r.deleted_at  || '',
   };
 }
 
@@ -5567,6 +5591,23 @@ const _savePending = new Map(); // localId → 항목 참조
 let _saveTimer = null;
 let _saveRetryDelay = 0;
 let _saveInflight = 0;      // 전송 중인 행 수
+// 서버 스냅샷: 각 행에 대해 서버에 있다고 알고 있는 마지막 값 (local_id → DB 행). 저장 시 이 스냅샷과 다른 칸만 보냄
+//  → 다른 PC 가 고친 칸(택배사·송장번호·비고 등)을 내 저장이 덮어쓰지 않음. 스냅샷이 없는 행(새 행)은 전체 저장
+const _srvSnap = {};
+const _editedIds = new Set(); // 동기화 요청이 나간 뒤 이 PC에서 수정된 행 — 그 응답으로 덮어쓰지 않음
+function snapFromServerRow(raw) { if (raw && raw.local_id) _srvSnap[raw.local_id] = raw; }
+function diffRowForSave(entry) {
+  const full = itemToDbRow(entry);
+  const snap = _srvSnap[full.local_id];
+  if (!snap) return full;
+  const out = { local_id: full.local_id };
+  let n = 0;
+  Object.keys(full).forEach(k => {
+    if (k === 'local_id' || k === 'updated_at') return; // 갱신 시각은 서버가 찍음
+    if (JSON.stringify(full[k]) !== JSON.stringify(snap[k] === undefined ? (k === 'steps' ? [] : '') : snap[k])) { out[k] = full[k]; n++; }
+  });
+  return n ? out : null;
+}
 let _saveFailing = false;   // 마지막 전송 실패 여부 (성공하면 해제)
 function renderSaveChip() {
   const el = document.getElementById('save-chip'); if (!el) return;
@@ -5583,6 +5624,7 @@ function saveToStorage(entry) {
   saveLocal();
   if (!entry || !entry.localId) return;
   _savePending.set(entry.localId, entry);
+  _editedIds.add(String(entry.localId));
   if (!_saveTimer) _saveTimer = setTimeout(flushSaves, 400);
   renderSaveChip();
 }
@@ -5590,8 +5632,11 @@ function saveToStorage(entry) {
 async function flushSaves() {
   _saveTimer = null;
   if (!_savePending.size) return;
-  const batch = [..._savePending.values()].map(itemToDbRow);
+  const entries = [..._savePending.values()];
   _savePending.clear();
+  // 바뀐 칸만 (새 행은 전체) — 바뀐 것이 없는 행은 보내지 않음
+  const batch = entries.map(diffRowForSave).filter(Boolean);
+  if (!batch.length) { _saveFailing = false; _saveInflight = 0; renderSaveChip(); return; }
   _saveInflight = batch.length; renderSaveChip();
   try {
     const res = await fetch(`${API_BASE}/db/save`, {
@@ -5601,6 +5646,8 @@ async function flushSaves() {
     });
     const j = await res.json();
     if (!j.ok) throw new Error(j.error || '저장 실패');
+    // 서버에 반영된 값으로 스냅샷 갱신
+    batch.forEach(row => { _srvSnap[row.local_id] = { ...(_srvSnap[row.local_id] || {}), ...row, updated_at: j.server_time || new Date().toISOString() }; });
     _saveRetryDelay = 0; _saveFailing = false; _saveInflight = 0; renderSaveChip();
     // 저장이 서버에 반영된 직후 다른 PC 변경분도 받아옴
     setTimeout(() => syncFromDb(), 1500);
@@ -5629,8 +5676,8 @@ window.addEventListener('pagehide', () => {
   }
   if (!_savePending.size) return;
   try {
-    const batch = [..._savePending.values()].map(itemToDbRow);
-    navigator.sendBeacon(`${API_BASE}/db/save`, JSON.stringify(batch));
+    const batch = [..._savePending.values()].map(diffRowForSave).filter(Boolean);
+    if (batch.length) navigator.sendBeacon(`${API_BASE}/db/save`, JSON.stringify(batch));
     _savePending.clear();
   } catch(e) {}
 });
@@ -5670,6 +5717,7 @@ let _deleteTimer = null;
 
 function deleteFromDb(carrier, num, localId, productName) {
   if (!localId) return;
+  delete _srvSnap[String(localId)];
   _deletePending.add(String(localId));
   if (!_deleteTimer) _deleteTimer = setTimeout(flushDeletes, 400);
 }
@@ -5726,6 +5774,8 @@ function readLocalCache() {
 
 // 서버 행을 화면 데이터로 반영 (캐시 보충·유령/중복/삭제잔재 정리 포함)
 function applyServerRows(rows) {
+  rows = rows.filter(r => !r.deleted_at);
+  rows.forEach(snapFromServerRow);
   allItems = rows.map(dbRowToItem)
     .filter(r => r.num || r.localId || r.productName).map(restoreFailReason);
   // 시트에서 이전한 직후에는 DB에 최근 1건의 진행 내역만 있으므로 로컬 캐시에서 보충
@@ -5816,7 +5866,7 @@ async function initialLoad(manual) {
   let rows = null, lastErr = null;
   for (let i = 0; i < delays.length; i++) {
     if (delays[i]) { setSyncChip('syncing', `서버 동기화 재시도 ${i}/${delays.length - 1}…`); await sleep(delays[i]); }
-    try { const d = await fetchAllRowsOnce(60000); rows = d.rows || []; _lastSyncAt = d.server_time || new Date().toISOString(); _lastFullSyncAt = Date.now(); break; }
+    try { const d = await fetchAllRowsOnce(60000); rows = d.rows || []; _lastSyncAt = d.server_time || new Date().toISOString(); _lastFullSyncAt = Date.now(); checkMinBuild(d.min_build); break; }
     catch(e) { lastErr = e; console.warn('서버 불러오기 실패 (' + (i + 1) + '회):', e); }
   }
   _initialLoading = false;

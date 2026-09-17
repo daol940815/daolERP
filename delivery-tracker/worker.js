@@ -13,7 +13,7 @@
 //   /db/changes : ?since=ISO 이후 갱신된 행만 (GET)
 //   /db/ids     : 행 ID 목록만 — 삭제 반영용 (GET)
 //   /db/save    : 행 저장/갱신 — upsert (POST, 배열)
-//   /db/delete  : 행 삭제 (POST, { local_ids: [...] })
+//   /db/delete  : 행 삭제 표시 (POST, { local_ids: [...] }) — deleted_at 기록, 30일 뒤 실제 삭제
 //   /db/migrate : Google Sheets → Supabase 데이터 이전 (GET, 재실행 안전)
 //
 // ★ 적용 방법 — 키는 전부 Workers 대시보드 → Settings → Variables and Secrets 에 저장
@@ -268,8 +268,12 @@ const DB_COLUMNS = [
   'local_id','carrier','num','order_date','bank_name','branch_name','manager',
   'product_code','product_name','ship_type','staff','supplier','qty','shipper',
   'company_name','address','phone','memo','status','steps','shipped_at',
-  'added_at','updated_at',
+  'added_at','updated_at','num_added_at','seq',
 ];
+// 클라이언트 최소 버전 — 이보다 낮은 파일은 상단에 "업데이트 필요" 경고 (옛 파일이 행 전체를 옛 값으로 덮어쓰는 것을 막기 위한 안내)
+const MIN_BUILD = 'v0917-2';
+// 삭제 표시(deleted_at) 행은 30일 뒤 실제 삭제
+const PURGE_AFTER_MS = 30 * 86400000;
 
 function jsonRes(obj, status) {
   return new Response(JSON.stringify(obj), {
@@ -302,6 +306,19 @@ function pickColumns(row) {
   return out;
 }
 
+// 서버에 존재하는(삭제 표시 안 된) local_id 집합
+async function sbExistingIds(env, ids) {
+  const found = new Set();
+  for (let i = 0; i < ids.length; i += 100) {
+    const list = ids.slice(i, i + 100).map(id => `"${String(id).replace(/"/g, '')}"`).join(',');
+    const res = await fetch(`${sbBase(env)}/rest/v1/${DB_TABLE}?select=local_id&deleted_at=eq.&local_id=in.(${encodeURIComponent(list)})`,
+      { headers: sbHeaders(env) });
+    if (!res.ok) throw new Error(`Supabase 존재 확인 실패 (${res.status})`);
+    (await res.json()).forEach(r => found.add(r.local_id));
+  }
+  return found;
+}
+
 // upsert: local_id 충돌 시 갱신 (재실행·재저장 안전)
 async function sbUpsert(env, rows) {
   const base = sbBase(env);
@@ -330,7 +347,7 @@ async function sbLoadPage(env, offset, withCount) {
   const extra = { 'Range-Unit': 'items', 'Range': `${offset}-${offset + LOAD_PAGE - 1}` };
   if (withCount) extra['Prefer'] = 'count=exact';
   const res = await fetch(
-    `${sbBase(env)}/rest/v1/${DB_TABLE}?select=*&order=created_at.asc,local_id.asc`,
+    `${sbBase(env)}/rest/v1/${DB_TABLE}?select=*&deleted_at=eq.&order=created_at.asc,local_id.asc`,
     { headers: sbHeaders(env, extra) }
   );
   if (!res.ok) {
@@ -401,7 +418,7 @@ async function handleDb(url, request, env) {
   if (url.pathname === '/db/load' && request.method === 'GET') {
     const serverTime = new Date().toISOString();
     const rows = await sbLoadAll(env);
-    return jsonRes({ ok: true, count: rows.length, rows, server_time: serverTime });
+    return jsonRes({ ok: true, count: rows.length, rows, server_time: serverTime, min_build: MIN_BUILD });
   }
 
   // ── 행 ID 목록만: 삭제 반영용 (전체 로드 대신 사용 — 전송량 약 1/20) ──
@@ -409,14 +426,20 @@ async function handleDb(url, request, env) {
     const serverTime = new Date().toISOString();
     const ids = [];
     for (let offset = 0; ; offset += 5000) {
-      const res = await fetch(`${sbBase(env)}/rest/v1/${DB_TABLE}?select=local_id&order=local_id.asc`,
+      const res = await fetch(`${sbBase(env)}/rest/v1/${DB_TABLE}?select=local_id&deleted_at=eq.&order=local_id.asc`,
         { headers: sbHeaders(env, { 'Range-Unit': 'items', 'Range': `${offset}-${offset + 4999}` }) });
       if (!res.ok) throw new Error(`Supabase ID 조회 실패 (${res.status}): ${(await res.text()).slice(0, 300)}`);
       const rows = await res.json();
       rows.forEach(r => { if (r.local_id) ids.push(r.local_id); });
       if (rows.length < 5000) break;
     }
-    return jsonRes({ ok: true, count: ids.length, ids, server_time: serverTime });
+    // 삭제 표시 후 30일 지난 행 실제 삭제 (가벼운 정리 — 실패해도 무시)
+    try {
+      const cutoff = new Date(Date.now() - PURGE_AFTER_MS).toISOString();
+      await fetch(`${sbBase(env)}/rest/v1/${DB_TABLE}?deleted_at=neq.&deleted_at=lt.${encodeURIComponent(cutoff)}`,
+        { method: 'DELETE', headers: sbHeaders(env, { 'Prefer': 'return=minimal' }) });
+    } catch (e) {}
+    return jsonRes({ ok: true, count: ids.length, ids, server_time: serverTime, min_build: MIN_BUILD });
   }
 
   // ── 변경분 불러오기: ?since=<ISO> 이후 갱신된 행만 (여러 PC 간 주기 동기화용 — 전체 로드 대비 전송량 최소화) ──
@@ -426,7 +449,7 @@ async function handleDb(url, request, env) {
     if (!/^\d{4}-\d{2}-\d{2}T/.test(since)) return jsonRes({ ok: false, error: 'since 파라미터(ISO 시각)가 필요합니다' }, 400);
     const serverTime = new Date().toISOString();
     const rows = await sbLoadSince(env, since);
-    return jsonRes({ ok: true, count: rows.length, rows, server_time: serverTime, since });
+    return jsonRes({ ok: true, count: rows.length, rows, server_time: serverTime, since, min_build: MIN_BUILD });
   }
 
   // ── 저장/갱신 (배열 upsert) ──
@@ -435,12 +458,26 @@ async function handleDb(url, request, env) {
     try { body = await request.json(); } catch (e) {
       return jsonRes({ ok: false, error: 'JSON 파싱 실패' }, 400);
     }
+    const serverTime = new Date().toISOString();
     const rows = (Array.isArray(body) ? body : [body])
       .map(pickColumns)
-      .filter(r => r.local_id);
+      .filter(r => r.local_id)
+      .map(r => ({ ...r, updated_at: serverTime })); // 갱신 시각은 서버 시각으로 통일 (PC 시계 차이 무관)
     if (!rows.length) return jsonRes({ ok: false, error: 'local_id가 있는 행이 없습니다' }, 400);
-    const saved = await sbUpsert(env, rows);
-    return jsonRes({ ok: true, saved });
+    // 전체 행(added_at 포함)과 바뀐 칸만 담긴 부분 행을 나눔 — 한 요청의 행들은 같은 칸 구성이어야 하므로 칸 구성별로 따로 저장
+    const full = rows.filter(r => 'added_at' in r);
+    let partial = rows.filter(r => !('added_at' in r));
+    if (partial.length) {
+      // 부분 행은 서버에 존재하는 행만 갱신 (삭제·정리된 행을 껍데기로 되살리지 않도록)
+      const existing = await sbExistingIds(env, partial.map(r => r.local_id));
+      partial = partial.filter(r => existing.has(r.local_id));
+    }
+    let saved = 0;
+    if (full.length) saved += await sbUpsert(env, full);
+    const groups = {};
+    partial.forEach(r => { const k = Object.keys(r).sort().join(','); (groups[k] = groups[k] || []).push(r); });
+    for (const g of Object.values(groups)) saved += await sbUpsert(env, g);
+    return jsonRes({ ok: true, saved, server_time: serverTime });
   }
 
   // ── 삭제 ──
@@ -451,14 +488,16 @@ async function handleDb(url, request, env) {
     }
     const ids = (body.local_ids || []).map(String).filter(Boolean);
     if (!ids.length) return jsonRes({ ok: false, error: 'local_ids가 비어 있습니다' }, 400);
+    // 실제로 지우지 않고 삭제 표시(deleted_at) — 옛 데이터를 가진 PC가 저장해도 되살아나지 않음 (30일 뒤 /db/ids 에서 실제 삭제)
     const base = sbBase(env);
+    const now = new Date().toISOString();
     let removed = 0;
     for (let i = 0; i < ids.length; i += 100) {
       const chunk = ids.slice(i, i + 100);
       const list = chunk.map(id => `"${id.replace(/"/g, '')}"`).join(',');
       const res = await fetch(
         `${base}/rest/v1/${DB_TABLE}?local_id=in.(${encodeURIComponent(list)})`,
-        { method: 'DELETE', headers: sbHeaders(env, { 'Prefer': 'return=representation' }) }
+        { method: 'PATCH', headers: sbHeaders(env, { 'Prefer': 'return=representation' }), body: JSON.stringify({ deleted_at: now, updated_at: now }) }
       );
       if (!res.ok) {
         const t = await res.text();
