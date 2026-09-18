@@ -4,7 +4,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { KEEP_SIGNED_IN_COOKIE, sessionOnly } from '@/lib/auth-session-prefs'
+import { sessionOnly } from '@/lib/auth-session-prefs'
 
 export async function middleware(request: NextRequest) {
   // 환경변수 미설정 시 (개발 초기) 미들웨어 건너뜀
@@ -19,9 +19,6 @@ export async function middleware(request: NextRequest) {
       headers: request.headers,
     },
   })
-
-  // 로그인 유지 미선택이면 토큰 갱신 때 다시 쓰는 세션 쿠키도 수명 없는 브라우저 세션 쿠키로
-  const keepSignedIn = request.cookies.has(KEEP_SIGNED_IN_COOKIE)
 
   // Supabase 서버 클라이언트 생성 (미들웨어 전용)
   const supabase = createServerClient(
@@ -41,7 +38,8 @@ export async function middleware(request: NextRequest) {
             request,
           })
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, keepSignedIn ? options : sessionOnly(options))
+            // 토큰 갱신으로 다시 쓰는 세션 쿠키도 브라우저 세션 쿠키로 (자동로그인 없음)
+            response.cookies.set(name, value, sessionOnly(options))
           )
         },
       },
