@@ -51,6 +51,15 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
+  // 리다이렉트 응답에도 갱신된 세션 쿠키를 실어 보낸다. 만료된 토큰으로 접속하면
+  // getUser()가 토큰을 갱신해 response에 쿠키를 넣는데, 새 응답으로 리다이렉트하면
+  // 그 쿠키가 버려져 다음 요청·페이지 렌더가 같은 만료 토큰으로 갱신을 반복한다.
+  const redirectTo = (path: string) => {
+    const redirect = NextResponse.redirect(new URL(path, request.url))
+    response.cookies.getAll().forEach(cookie => redirect.cookies.set(cookie))
+    return redirect
+  }
+
   // API는 리다이렉트 대신 401 — 외부 공개 시 로그인 없이 API를 직접 호출하는 것을 차단
   // (페이지만 검사하면 API 주소를 아는 사람은 데이터에 접근할 수 있다)
   if (!user && pathname.startsWith('/api')) {
@@ -59,12 +68,12 @@ export async function middleware(request: NextRequest) {
 
   // 로그인하지 않은 사용자가 /login 이외의 페이지에 접근 시 → /login 으로 이동
   if (!user && pathname !== '/login') {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return redirectTo('/login')
   }
 
   // 이미 로그인된 사용자가 /login에 접근 시 → 모드 선택으로 이동
   if (user && pathname === '/login') {
-    return NextResponse.redirect(new URL('/portal', request.url))
+    return redirectTo('/portal')
   }
 
   return response
