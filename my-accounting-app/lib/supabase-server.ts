@@ -4,7 +4,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import { KEEP_SIGNED_IN_COOKIE, sessionOnly } from '@/lib/auth-session-prefs'
+import { sessionOnly } from '@/lib/auth-session-prefs'
 
 // 서버 컴포넌트 / Route Handler에서 호출
 // 쿠키 기반으로 현재 로그인된 사용자 세션을 자동으로 읽어옴
@@ -24,10 +24,9 @@ export async function createClient() {
         // 응답에 쿠키 값 설정 (Server Component에서는 동작 안 함 - Route Handler에서만 유효)
         setAll(cookiesToSet) {
           try {
-            // 로그인 유지 미선택이면 세션 쿠키 수명을 떼어낸다 (미들웨어와 동일 규칙)
-            const keep = cookieStore.has(KEEP_SIGNED_IN_COOKIE)
+            // 세션 쿠키는 브라우저 세션 쿠키로 (미들웨어와 동일 규칙)
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, keep ? options : sessionOnly(options))
+              cookieStore.set(name, value, sessionOnly(options))
             )
           } catch {
             // Server Component에서 setAll 호출 시 무시 (읽기 전용)
