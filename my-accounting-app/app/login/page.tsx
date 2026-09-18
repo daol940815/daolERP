@@ -3,23 +3,56 @@
 // 로그인 페이지는 인증 상태를 확인하므로 항상 동적으로 렌더링
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { parseCookieHeader, serializeCookieHeader } from '@supabase/ssr'
 import { createClient } from '@/lib/supabase'
+import {
+  KEEP_SIGNED_IN_COOKIE, KEEP_SIGNED_IN_MAX_AGE, LOGIN_ID_STORAGE_KEY,
+} from '@/lib/auth-session-prefs'
+
+// 로그인 유지 선택은 장기 쿠키 하나로 기억한다 — 세션 쿠키 수명 판정의 기준(미들웨어·클라이언트 공통)
+const writeKeepSignedInCookie = (on: boolean) => {
+  document.cookie = serializeCookieHeader(KEEP_SIGNED_IN_COOKIE, on ? '1' : '', {
+    path: '/', sameSite: 'lax', maxAge: on ? KEEP_SIGNED_IN_MAX_AGE : 0,
+  })
+}
 
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [rememberId, setRememberId] = useState(true)
+  const [keepSignedIn, setKeepSignedIn] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // 저장된 아이디·이전 선택 복원 (비밀번호는 저장하지 않는다 — 브라우저 저장 기능에 맡김)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LOGIN_ID_STORAGE_KEY)
+      if (saved) setEmail(saved)
+      setKeepSignedIn(parseCookieHeader(document.cookie).some(c => c.name === KEEP_SIGNED_IN_COOKIE))
+    } catch {
+      // 저장소 접근 불가(시크릿 모드 등)면 기본값 유지
+    }
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
-    const supabase = createClient()
+    try {
+      if (rememberId) localStorage.setItem(LOGIN_ID_STORAGE_KEY, email.trim())
+      else localStorage.removeItem(LOGIN_ID_STORAGE_KEY)
+    } catch {
+      // 저장 실패는 로그인에 영향 없음
+    }
+    writeKeepSignedInCookie(keepSignedIn)
+
+    // 이 로그인의 선택을 쿠키 수명에 바로 반영하도록 싱글턴을 쓰지 않는다
+    const supabase = createClient({ keepSignedIn, singleton: false })
 
     // ID 로그인 지원: @가 없으면 내부 도메인을 붙여 인증 (직원 계정은 ID 방식)
     const loginEmail = email.includes('@') ? email : `${email.trim().toLowerCase()}@daol.internal`
@@ -62,7 +95,7 @@ export default function LoginPage() {
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
           <h2 className="text-lg font-semibold text-slate-800 mb-6">로그인</h2>
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form onSubmit={handleLogin} className="space-y-5" autoComplete="on">
             {/* 이메일 입력 */}
             <div>
               <label
@@ -73,7 +106,9 @@ export default function LoginPage() {
               </label>
               <input
                 id="email"
+                name="username"
                 type="text"
+                autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="직원 ID 또는 이메일"
@@ -96,7 +131,9 @@ export default function LoginPage() {
               </label>
               <input
                 id="password"
+                name="password"
                 type="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="비밀번호를 입력하세요"
@@ -107,6 +144,31 @@ export default function LoginPage() {
                            disabled:bg-slate-50 disabled:text-slate-400
                            placeholder:text-slate-400"
               />
+            </div>
+
+            {/* 로그인 편의 옵션 — 아이디만 기억, 비밀번호는 브라우저 저장 기능이 담당 */}
+            <div className="flex items-center justify-between text-sm text-slate-600">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rememberId}
+                  onChange={e => setRememberId(e.target.checked)}
+                  disabled={loading}
+                  className="rounded border-slate-300"
+                />
+                아이디 저장
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer"
+                     title="체크하지 않으면 브라우저를 닫을 때 로그아웃되어 다음 접속에 로그인 화면이 뜹니다">
+                <input
+                  type="checkbox"
+                  checked={keepSignedIn}
+                  onChange={e => setKeepSignedIn(e.target.checked)}
+                  disabled={loading}
+                  className="rounded border-slate-300"
+                />
+                로그인 상태 유지
+              </label>
             </div>
 
             {/* 오류 메시지 */}
