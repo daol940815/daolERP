@@ -690,6 +690,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
             <button class="btn btn-outline btn-sm" id="btn-select-all" onclick="toggleSelectAll()">전체선택</button>
             <button class="btn btn-black btn-sm" id="btn-refresh-selected" onclick="refreshSelected()" style="display:none">선택 조회 (<span id="selected-refresh-count">0</span>)</button>
             <button class="btn btn-outline btn-sm" id="btn-edit-selected" onclick="openEditGridFromSelection()" disabled>상세/수정</button>
+            <button class="btn btn-outline btn-sm" id="btn-done-selected" onclick="markSelectedDone()" disabled title="조회 API가 없는 택배사(일양택배 등)나 조회가 계속 실패하는 건을 공식 사이트에서 확인한 뒤 직접 완료 처리">배송완료 처리</button>
             <button class="btn btn-outline btn-sm" id="btn-delete-selected" onclick="deleteSelected()" disabled style="color:#b91c1c;border-color:#fecaca">삭제 (<span id="selected-count">0</span>)</button>
           </div>
         </div>
@@ -1128,7 +1129,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0917-5';
+const APP_BUILD = 'v0921-1';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -1176,12 +1177,27 @@ const carriers = {
   epost: { name:'우체국택배', courierCode:'epost',  url: n=>`https://service.epost.go.kr/trace.RetrieveEmsRigiTraceList.comm?POST_CODE=${n}` },
   logen: { name:'로젠택배',   courierCode:'logen',  url: n=>`https://www.ilogen.com/web/personal/trace/${n}` },
   lottedept: { name:'롯데백화점', courierCode:'lottedept', url: n=>`https://bs.dpt.co.kr/shipping-form/search-delivery/` },
+  // 자동 조회가 안 되는 택배사(조회 API 미지원) — 송장은 등록하되 조회하지 않고 '배송중'으로 두며,
+  // 공식 사이트에서 확인한 뒤 목록에서 [배송완료 처리]로 마감
+  ilyang: { name:'일양택배', courierCode:'ilyang', noQuery:true, url: n=>`https://www.ilyanglogis.com/functionality/tracking_result.asp?hawb_no=${n}` },
   // 조회 대상이 아닌 수동 배송 수단 — 등록 즉시 배송완료 처리 (송장번호 불필요)
   quick:  { name:'퀵배송',   manual:true },
   direct: { name:'직접배송', manual:true },
 };
 const isManualCarrier = c => !!carriers[c]?.manual;
+const isNoQueryCarrier = c => !!carriers[c]?.noQuery;
 const manualSteps = c => [{ text:`${carriers[c]?.name || c} — 송장 조회 없이 완료 처리`, time:'', done:true, current:true }];
+const noQuerySteps = c => [{ text:`${carriers[c]?.name || c} — 자동 조회 미지원. 공식 사이트에서 확인 후 목록에서 [배송완료 처리]`, time:'', done:false, current:true }];
+// 수동 완료 처리된 행 (진행 내역 첫 줄의 표식으로 구분 — DB 열 추가 없이 다른 PC와 공유)
+const MANUAL_DONE_TAG = '수동 완료 처리';
+const isManualDone = r => r && r.status === '배송완료' && String(r.steps?.[0]?.text || '').startsWith(MANUAL_DONE_TAG);
+// 받는이 이름 비교용 정규화 — 공백·괄호·'님'·직함 제거 (롯데백화점 신청서번호의 받는이 대조)
+function normReceiverName(s) {
+  let t = String(s || '').replace(/\([^)]*\)/g, '').replace(/\s/g, '').toLowerCase();
+  for (let i = 0; i < 3; i++) t = t.replace(/(부지점장|지점장|센터장|본부장|부사장|부장|차장|과장|대리|주임|사원|팀장|실장|원장|이사|대표|사장|전무|상무|고문|위원|교수|박사|선생|귀하|님)$/, '');
+  return t;
+}
+const sameReceiver = (a, b) => { const x = normReceiverName(a), y = normReceiverName(b); return !!x && !!y && (x === y || (x.length >= 2 && y.length >= 2 && (x.startsWith(y) || y.startsWith(x)))); };
 // 퀵·직접배송인데 배송완료가 아닌 행을 배송완료로 정리 (기능 도입 전 등록분·다른 PC 수정분 보정) — 바뀐 행 수 반환
 function normalizeManualRows(items, save) {
   let n = 0;
@@ -1244,6 +1260,7 @@ function carrierFromStr(s) {
   if (!s) return ''; // 미입력 → 빈칸 유지 (기본 택배사를 강제하지 않음)
   const t = s.toLowerCase().replace(/\s/g,'');
   if (t.includes('백화점')||t.includes('lottedept')) return 'lottedept';
+  if (t.includes('일양')||t.includes('ilyang')) return 'ilyang';
   if (t.includes('cj')||t.includes('대한통운')) return 'cj';
   if (t.includes('lotte')||t.includes('롯데')) return 'lotte';
   if (t.includes('hanjin')||t.includes('한진')) return 'hanjin';
@@ -1322,6 +1339,11 @@ function resolveTrackingError(e, base) {
   // 퀵·직접배송이 조회 경로에 들어오면 조회실패가 아니라 완료 처리
   if (m === 'MANUAL_CARRIER') {
     return { ...base, status: '배송완료', steps: manualSteps(base.carrier), error: null };
+  }
+  // 조회 API 미지원 택배사(일양택배): 실패가 아니라 '배송중'으로 두고 수동 확인 안내 (수동 완료 처리된 행은 유지)
+  if (m === 'NO_QUERY') {
+    if (base.status === '배송완료') return { ...base, error: null };
+    return { ...base, status: base.num ? '배송중' : '출고전', steps: base.num ? noQuerySteps(base.carrier) : [], error: null };
   }
   return { ...base, status: STATUS_LOOKUP_FAIL, steps: [], error: inferLookupFailReason(e) };
 }
@@ -1472,11 +1494,17 @@ function statusBadge(item) {
 }
 
 // ── API 호출 ──
-async function fetchTracking(carrier, num) {
+// 조회 요청 항목 — 롯데백화점은 받는이 이름을 함께 보내 신청서번호(한 번호에 여러 받는이)에서 해당 건만 가려냄
+function trackingItem(carrier, num, receiver) {
+  const it = { courierCode: carriers[carrier]?.courierCode || carrier, trackingNumber: num };
+  if (carrier === 'lottedept' && receiver) it.receiverName = String(receiver);
+  return it;
+}
+async function fetchTracking(carrier, num, receiver) {
   const res = await fetch(`${API_BASE}/`, {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ items:[{ courierCode: carriers[carrier]?.courierCode || carrier, trackingNumber:num }] }),
+    body: JSON.stringify({ items:[trackingItem(carrier, num, receiver)] }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   let json;
@@ -1499,11 +1527,12 @@ async function fetchTracking(carrier, num) {
   return result.data;
 }
 
-async function fetchWithRetry(carrier, num, retries=3) {
+async function fetchWithRetry(carrier, num, retries=3, receiver='') {
   if (!carriers[carrier]) throw new Error('NO_CARRIER');
   if (carriers[carrier].manual) throw new Error('MANUAL_CARRIER'); // 퀵·직접배송은 조회 대상 아님
+  if (carriers[carrier].noQuery) throw new Error('NO_QUERY');      // 일양택배 등 조회 API 미지원
   for (let i=0; i<=retries; i++) {
-    try { return await fetchTracking(carrier, num); }
+    try { return await fetchTracking(carrier, num, receiver); }
     catch(e) {
       const m = String(e.message||'');
       if (i >= retries) throw e;
@@ -1523,7 +1552,7 @@ async function fetchTrackingBatch(list) {
   const res = await fetch(`${API_BASE}/`, {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ items: list.map(it => ({ courierCode: carriers[it.carrier]?.courierCode || it.carrier, trackingNumber: it.num })) }),
+    body: JSON.stringify({ items: list.map(it => trackingItem(it.carrier, it.num, it.companyName)) }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const json = await res.json();
@@ -1588,7 +1617,7 @@ async function runTrackingQueries(targets, transitionCounts, onProgress) {
   suppressRender = true;
   const applyResult = (item, pr) => {
     upsertItem({ ...item, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: pr.error != null ? pr.error : null });
-    syncSameNumItems(item.carrier, item.num, pr);
+    syncSameNumItems(item.carrier, item.num, pr, item.companyName);
   };
   const applyError = (item, e) => {
     const next = resolveTrackingError(e, item);
@@ -1617,14 +1646,14 @@ async function runTrackingQueries(targets, transitionCounts, onProgress) {
   };
   try {
     // 퀵·직접배송은 즉시 완료 처리, 택배사 미지정·미인식 건은 API로 보내지 않고 즉시 실패 처리
-    const preHandled = targets.filter(t => isManualCarrier(t.carrier) || !carriers[t.carrier]);
+    const preHandled = targets.filter(t => isManualCarrier(t.carrier) || isNoQueryCarrier(t.carrier) || !carriers[t.carrier]);
     if (preHandled.length) {
       preHandled.forEach(item => {
         const before = getFilterGroup(item);
-        applyError(item, new Error(isManualCarrier(item.carrier) ? 'MANUAL_CARRIER' : 'NO_CARRIER'));
+        applyError(item, new Error(isManualCarrier(item.carrier) ? 'MANUAL_CARRIER' : isNoQueryCarrier(item.carrier) ? 'NO_QUERY' : 'NO_CARRIER'));
         recordAfter(item, before); processed++;
       });
-      targets = targets.filter(t => !isManualCarrier(t.carrier) && carriers[t.carrier]);
+      targets = targets.filter(t => !isManualCarrier(t.carrier) && !isNoQueryCarrier(t.carrier) && carriers[t.carrier]);
       tick();
     }
     const retryQueue = [];
@@ -1661,7 +1690,7 @@ async function runTrackingQueries(targets, transitionCounts, onProgress) {
       await Promise.all(chunk.map(async item => {
         const before = getFilterGroup(item);
         try {
-          const raw = await fetchWithRetry(item.carrier, item.num);
+          const raw = await fetchWithRetry(item.carrier, item.num, 3, item.companyName);
           applyResult(item, parseTracking(raw, item.carrier, item.num));
         } catch(e) {
           applyError(item, e);
@@ -1704,10 +1733,13 @@ function parseTracking(raw, carrier, num) {
 }
 
 // ── 합포장: 같은 송장번호 모든 건에 조회 결과 동기화 ──
-function syncSameNumItems(carrier, num, trackingResult) {
+function syncSameNumItems(carrier, num, trackingResult, receiver) {
   if (!num) return;
   allItems.forEach((r, i) => {
     if (r.carrier === carrier && r.num === num) {
+      // 롯데백화점 신청서번호: 같은 번호라도 받는이가 다르면 다른 배송 — 결과를 복사하지 않음
+      if (carrier === 'lottedept' && receiver && r.companyName && !sameReceiver(r.companyName, receiver)) return;
+      if (isManualDone(r)) return; // 수동 완료 처리된 행은 유지
       allItems[i] = {
         ...r,
         status:    trackingResult.status,
@@ -1733,7 +1765,7 @@ function splitQty(qty, n) {
 }
 
 async function registerExtraNums(baseItem, extraNums) {
-  const fresh = extraNums.filter(n => !isDuplicateNum(baseItem.carrier, n, null, baseItem.productName));
+  const fresh = extraNums.filter(n => !isDuplicateNum(baseItem.carrier, n, null, baseItem.productName, baseItem));
   const dup = extraNums.length - fresh.length;
   // 수량 균등 분할: 원본 행 + 분리 행들이 총수량을 나눠 가짐
   const qparts = splitQty(baseItem.qty, fresh.length + 1);
@@ -1752,7 +1784,7 @@ async function registerExtraNums(baseItem, extraNums) {
     };
     allItems.push(item);
     try {
-      const raw = await fetchWithRetry(item.carrier, n);
+      const raw = await fetchWithRetry(item.carrier, n, 3, item.companyName);
       const pr = parseTracking(raw, item.carrier, n);
       Object.assign(item, { status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: null });
     } catch(e) {
@@ -1810,9 +1842,9 @@ function upsertItem(data) {
     };
     allItems.unshift(newItem);
   }
-  const entry = data.num
-    ? allItems.find(r=>r.num===data.num && r.carrier===data.carrier)
-    : allItems.find(r=>r.localId===data.localId);
+  // 저장 대상은 행 ID 우선 — 같은 송장번호가 여러 행(합포장·신청서번호)이면 번호로 찾을 때 엉뚱한 첫 행이 저장됨
+  let entry = data.localId ? allItems.find(r=>r.localId===data.localId) : null;
+  if (!entry && data.num) entry = allItems.find(r=>r.num===data.num && r.carrier===data.carrier);
   if (entry && entry.num && !entry.numAddedAt) entry.numAddedAt = new Date().toISOString(); // 송장번호 최초 입력 시각
   if (entry) saveToStorage(entry);
   if (!suppressRender) { updateStats(); renderTable(); }
@@ -1855,6 +1887,9 @@ function isDuplicateNum(carrier, num, excludeKey, productName, cand) {
     if (candRep && r.seq && destKey(r) === candRep) return false; // 같은 반복 그룹의 형제 행
     // 택배사가 한쪽이라도 미지정이면 송장번호(+상품명)만으로 중복 판단
     if (carrier && r.carrier && r.carrier !== carrier) return false;
+    // 롯데백화점 신청서번호: 한 번호로 여러 받는이에게 개별배송 — 받는이가 다르면 중복 아님
+    if ((carrier === 'lottedept' || r.carrier === 'lottedept') && cand && cand.companyName && r.companyName
+        && !sameReceiver(cand.companyName, r.companyName)) return false;
     // 상품명이 둘 다 있고 다르면 합포장으로 간주 → 중복 아님
     if (productName && r.productName && productName.trim() !== r.productName.trim()) return false;
     return true;
@@ -1920,7 +1955,7 @@ async function submitSingle() {
   }
 
   // 중복 제외
-  const fresh = nums.filter(n => !isDuplicateNum(carrier, n, null, base.productName));
+  const fresh = nums.filter(n => !isDuplicateNum(carrier, n, null, base.productName, base));
   const dupCnt = nums.length - fresh.length;
   if (!fresh.length) {
     toast(`이미 등록된 송장번호입니다 (${carriers[carrier]?.name||carrier})`);
@@ -1936,10 +1971,10 @@ async function submitSingle() {
       // 항상 localId 부여 → 같은 송장번호 합포장 건도 독립 항목으로 등록
       const item = { ...base, num:n, qty: qparts[i+j], localId: makeLocalId() };
       try {
-        const raw = await fetchWithRetry(carrier, n);
+        const raw = await fetchWithRetry(carrier, n, 3, base.companyName);
         const pr = parseTracking(raw, carrier, n);
         upsertItem({ ...item, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: pr.error != null ? pr.error : null });
-        syncSameNumItems(carrier, n, pr);
+        syncSameNumItems(carrier, n, pr, base.companyName);
       } catch(e) {
         upsertItem(resolveTrackingError(e, item));
         failCnt++;
@@ -2074,8 +2109,9 @@ function precheckDuplicates() {
     if (!r.num) {
       // 송장 없는 행은 위 반복 그룹 판정으로 처리됨
     } else {
-      const nk = r.carrier + '__' + r.num + '__' + (r.productName || '').trim();
-      if (isDuplicateNum(r.carrier, r.num, null, r.productName)) r._dup = `송장번호 ${r.num} 이미 등록됨`;
+      // 롯데백화점 신청서번호는 받는이까지 같아야 같은 건
+      const nk = r.carrier + '__' + r.num + '__' + (r.productName || '').trim() + (r.carrier === 'lottedept' ? '__' + normReceiverName(r.companyName) : '');
+      if (isDuplicateNum(r.carrier, r.num, null, r.productName, r)) r._dup = `송장번호 ${r.num} 이미 등록됨`;
       else if (seenNums.has(nk)) r._dup = '업로드 목록 안에서 중복';
       seenNums.add(nk);
     }
@@ -2836,7 +2872,7 @@ async function runBulk() {
           if (isManualCarrier(item.carrier)) upsertItem({ ...item, status:'배송완료', steps: manualSteps(item.carrier), error:null });
           else upsertItem({ ...item, status: '출고전', steps:[], error:null });
           done++;
-        } else if (isDuplicateNum(item.carrier, item.num, null, item.productName)) {
+        } else if (isDuplicateNum(item.carrier, item.num, null, item.productName, item)) {
           duplicates++;
           done++;
           skippedRows.push({ item, reason: `송장번호 ${item.num} 이미 등록됨` });
@@ -2990,7 +3026,7 @@ async function runBulkUpdate() {
       matched++;
     } else {
       // 같은 주문의 2번째 이후 송장번호 → 주문정보를 복사해 새 행으로 등록
-      if (isDuplicateNum(item.carrier, item.num, null, item.productName)) { dup++; done++; continue; }
+      if (isDuplicateNum(item.carrier, item.num, null, item.productName, item)) { dup++; done++; continue; }
       const src = seenKeys.get(key);
       target = {
         ...src,
@@ -3124,7 +3160,7 @@ async function runAutoRefresh() {
   if (autoRefreshRunning) return;
   autoRefreshRunning = true;
   try {
-    const targets = allItems.filter(r=>r.status!=='배송완료' && r.num);
+    const targets = allItems.filter(r=>r.status!=='배송완료' && r.num && !isNoQueryCarrier(r.carrier));
     if (!targets.length) { toast('재조회할 송장이 없습니다 ✓'); stopAuto(); return; }
     toast(`${targets.length}건 재조회 중…`);
     const transitionCounts = {};
@@ -3147,8 +3183,8 @@ async function runAutoRefresh() {
 async function runManualFullRefresh() {
   if (manualFullRefreshRunning) return;
   if (!allItems.length) { toast('먼저 운송장을 등록하세요'); return; }
-  const targets = allItems.filter(r => r.status !== '배송완료' && r.num);
-  if (!targets.length) { toast('재조회할 송장이 없습니다 (배송완료·송장 미등록 제외)'); return; }
+  const targets = allItems.filter(r => r.status !== '배송완료' && r.num && !isNoQueryCarrier(r.carrier));
+  if (!targets.length) { toast('재조회할 송장이 없습니다 (배송완료·송장 미등록·조회 미지원 택배사 제외)'); return; }
   const skipped = allItems.length - targets.length;
   const msg = skipped > 0
     ? `등록 ${allItems.length}건 중 배송완료·송장 미등록 ${skipped}건을 제외하고 ${targets.length}건을 다시 조회합니다. 계속할까요?`
@@ -3284,11 +3320,13 @@ function mergeRemoteRows(remote, o) {
   const tombs = loadTombstones();
   remote.forEach(rem => {
     // 매칭: 영구 행 ID(localId) 우선 → 송장번호+상품명(합포장 구분) → 송장번호
+    // (롯데백화점 신청서번호는 한 번호에 여러 받는이 — 번호로 맞출 때 받는이가 다른 행을 잡지 않도록)
+    const sameLd = x => x.carrier !== 'lottedept' || !x.companyName || !rem.companyName || sameReceiver(x.companyName, rem.companyName);
     const local = (rem.localId && allItems.find(x => x.localId === rem.localId))
       || (rem.num && (
             allItems.find(x => x.carrier===rem.carrier && x.num===rem.num
-              && (x.productName||'').trim() === (rem.productName||'').trim())
-         || allItems.find(x => x.carrier===rem.carrier && x.num===rem.num)))
+              && (x.productName||'').trim() === (rem.productName||'').trim() && sameLd(x))
+         || allItems.find(x => x.carrier===rem.carrier && x.num===rem.num && sameLd(x))))
       || null;
     if (!local) {
       // 유령 방지: 송장번호 없는 원격 행인데 같은 주문·같은 배송지로 이미 번호가 부여된 행이 있으면 무시
@@ -4553,7 +4591,7 @@ async function saveInlineNum(rowKey, inputEl) {
   allItems[idx] = updated;
   toast(`${firstNum} 조회 중…`);
   try {
-    const raw = await fetchWithRetry(updated.carrier, firstNum);
+    const raw = await fetchWithRetry(updated.carrier, firstNum, 3, updated.companyName);
     const pr = parseTracking(raw, updated.carrier, firstNum);
     allItems[idx] = { ...updated, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: null };
   } catch(e) {
@@ -4688,10 +4726,10 @@ async function autoFillTimeline(key) {
   const r = findByRowKey(key);
   if (!r || !r.num) return;
   try {
-    const raw = await fetchWithRetry(r.carrier, r.num);
+    const raw = await fetchWithRetry(r.carrier, r.num, 3, r.companyName);
     const pr = parseTracking(raw, r.carrier, r.num);
     Object.assign(r, { status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || r.shippedAt || '', error: null, updatedAt: new Date().toISOString() });
-    syncSameNumItems(r.carrier, r.num, pr);
+    syncSameNumItems(r.carrier, r.num, pr, r.companyName);
     saveLocal(); saveToStorage(r);
     updateStats(); renderTable();
   } catch(e) {
@@ -4727,10 +4765,10 @@ async function refreshGridRows() {
     const chunk = targets.slice(i, i+PARALLEL_CHUNK);
     await Promise.all(chunk.map(async r => {
       try {
-        const raw = await fetchWithRetry(r.carrier, r.num);
+        const raw = await fetchWithRetry(r.carrier, r.num, 3, r.companyName);
         const pr = parseTracking(raw, r.carrier, r.num);
         Object.assign(r, { status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || r.shippedAt || '', error: null, updatedAt: new Date().toISOString() });
-        syncSameNumItems(r.carrier, r.num, pr);
+        syncSameNumItems(r.carrier, r.num, pr, r.companyName);
       } catch(e) {
         Object.assign(r, resolveTrackingError(e, r), { updatedAt: new Date().toISOString() });
       }
@@ -4807,7 +4845,7 @@ async function saveEditGrid() {
       // 조회 없이 저장만
     } else if (newNum && (!existing.num || numChanged || carrierChanged)) {
       try {
-        const raw = await fetchWithRetry(newCarrier, newNum);
+        const raw = await fetchWithRetry(newCarrier, newNum, 3, updated.companyName);
         const pr = parseTracking(raw, newCarrier, newNum);
         allItems[idx] = { ...updated, status: pr.status, steps: pr.steps, shippedAt: pr.shippedAt || '', error: null };
       } catch(e) {
@@ -4884,6 +4922,47 @@ function initSortUI() {
   if (dirEl) dirEl.value = localStorage.getItem('tracker_sort_dir') === 'asc' ? 'asc' : 'desc';
 }
 
+// ── 선택 항목 수동 완료 처리 / 취소 ──
+// 조회 API가 없는 택배사(일양택배 등)나 조회가 계속 실패하는 건을 공식 사이트에서 확인한 뒤 직접 마감.
+// 진행 내역 첫 줄에 '수동 완료 처리' 표식을 남겨 다른 PC에서도 구분되고 자동 조회 대상에서 빠짐.
+function selectedRows() {
+  const keys = new Set([...document.querySelectorAll('.row-chk:checked')].map(c => c.dataset.key));
+  return allItems.filter(r => keys.has(r.localId ? 'lid__' + r.localId : r.carrier + '__' + r.num));
+}
+function fmtNowMinute() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function markSelectedDone() {
+  const rows = selectedRows();
+  if (!rows.length) { toast('선택된 항목이 없습니다'); return; }
+  if (rows.every(isManualDone)) {
+    if (!confirm(`수동 완료 처리한 ${rows.length}건을 취소하고 배송중으로 되돌릴까요?`)) return;
+    rows.forEach(r => {
+      r.status = r.num ? '배송중' : '출고전';
+      r.steps = (r.num && isNoQueryCarrier(r.carrier)) ? noQuerySteps(r.carrier) : [];
+      r.error = null; r.updatedAt = new Date().toISOString();
+      saveToStorage(r);
+    });
+    toast(`${rows.length}건 완료 취소`);
+  } else {
+    const todo = rows.filter(r => r.status !== '배송완료');
+    if (!todo.length) { toast('선택 항목이 이미 모두 배송완료입니다'); return; }
+    const skip = rows.length - todo.length;
+    if (!confirm(`${todo.length}건을 배송완료로 처리할까요?${skip ? ` (이미 완료 ${skip}건 제외)` : ''}\n\n` +
+      `공식 사이트 등에서 배송완료를 확인한 건만 처리하세요.\n진행 내역에 '수동 완료 처리'로 기록되고 자동 조회 대상에서 제외됩니다.\n잘못 처리했으면 같은 행을 선택해 [완료 취소]로 되돌릴 수 있습니다.`)) return;
+    const when = fmtNowMinute();
+    todo.forEach(r => {
+      r.status = '배송완료';
+      r.steps = [{ text: `${MANUAL_DONE_TAG} — ${carriers[r.carrier]?.name || r.carrier || '택배사 미지정'} · 공식 사이트 확인 후 직접 처리`, time: when, done: true, current: true }];
+      r.error = null; r.updatedAt = new Date().toISOString();
+      saveToStorage(r);
+    });
+    toast(`${todo.length}건 배송완료 처리`);
+  }
+  updateStats(); renderTable(); onRowChkChange();
+}
+
 // ── 검색 실행 ──
 function runSearch() { renderTable(); }
 
@@ -4903,6 +4982,13 @@ function onRowChkChange() {
   if (cntEl) cntEl.textContent = cnt;
   const btnEdit = document.getElementById('btn-edit-selected');
   if (btnEdit) btnEdit.disabled = cnt === 0;
+  const btnDone = document.getElementById('btn-done-selected');
+  if (btnDone) {
+    btnDone.disabled = cnt === 0;
+    const sel = cnt ? selectedRows() : [];
+    const undo = sel.length > 0 && sel.every(isManualDone);
+    btnDone.textContent = undo ? `완료 취소 (${sel.length})` : `배송완료 처리${cnt ? ` (${cnt})` : ''}`;
+  }
   const btnRef = document.getElementById('btn-refresh-selected');
   const refCnt = document.getElementById('selected-refresh-count');
   if (btnRef) btnRef.style.display = cnt > 0 ? '' : 'none';
@@ -5848,7 +5934,10 @@ function applyServerRows(rows) {
   allItems = allItems.filter(r => !ghostFlag.has(r));
   ghosts.forEach(r => { if (r.localId) deleteFromDb(r.carrier, '', r.localId, r.productName); });
   // 과거 버그로 생긴 중복 정리: 같은 송장번호+상품명은 최신 수정본만 유지, 버려진 행은 서버에서도 삭제
-  const dedupKey = r => (r.num && !r.seq) ? r.carrier+'__'+r.num+'__'+(r.productName||'').trim() : 'lid__'+(r.localId||''); // 반복 행은 같은 송장 허용
+  // 반복 행은 같은 송장 허용 · 롯데백화점 신청서번호는 받는이가 다르면 다른 배송이므로 받는이까지 키에 포함
+  const dedupKey = r => (r.num && !r.seq)
+    ? r.carrier+'__'+r.num+'__'+(r.productName||'').trim() + (r.carrier === 'lottedept' ? '__' + normReceiverName(r.companyName) : '')
+    : 'lid__'+(r.localId||'');
   const keepMap = {};
   allItems.forEach(r => {
     const k = dedupKey(r);

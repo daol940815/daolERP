@@ -103,7 +103,7 @@ export default {
       items.forEach((it, i) => {
         if (it.courierCode === 'lottedept') return;
         otherIdx.push(i);
-        otherItems.push(it);
+        otherItems.push({ courierCode: it.courierCode, trackingNumber: it.trackingNumber }); // deliveryapi 에는 표준 항목만 전달
       });
 
       // 일반 택배사 → deliveryapi 일괄 조회
@@ -138,7 +138,7 @@ export default {
             { headers: { 'Accept': 'application/json' } }
           );
           const j = await r.json();
-          results[i] = lottedeptToResult(j);
+          results[i] = lottedeptToResult(j, it.receiverName || '');
         } catch (e) {
           results[i] = { success: false, error: { message: '롯데백화점 조회 실패: ' + e.message } };
         }
@@ -872,11 +872,35 @@ async function sendSmtpMail(env, msg) {
   }
 }
 
+// 받는이 이름 비교용 정규화 — 공백·괄호·'님'·직함 제거 (index.html 의 normReceiverName 과 동일 규칙)
+function normReceiverName(s) {
+  let t = String(s || '').replace(/\([^)]*\)/g, '').replace(/\s/g, '').toLowerCase();
+  for (let i = 0; i < 3; i++) t = t.replace(/(부지점장|지점장|센터장|본부장|부사장|부장|차장|과장|대리|주임|사원|팀장|실장|원장|이사|대표|사장|전무|상무|고문|위원|교수|박사|선생|귀하|님)$/, '');
+  return t;
+}
+function sameReceiver(a, b) {
+  const x = normReceiverName(a), y = normReceiverName(b);
+  return !!x && !!y && (x === y || (x.length >= 2 && y.length >= 2 && (x.startsWith(y) || y.startsWith(x))));
+}
+
 // 롯데백화점(bs.dpt.co.kr) 응답을 프로그램이 쓰는 형식으로 변환
-function lottedeptToResult(json) {
-  const rows = (json && json.isSuccess && Array.isArray(json.resultList)) ? json.resultList : [];
+//  · 신청서번호는 한 번호에 여러 받는이의 배송이 함께 조회되므로, receiver(받는이)가 주어지면 그 사람의 건만 사용
+//  · 받는이가 여럿인데 일치하는 건이 없으면 실패(RECEIVER_MISMATCH)로 돌려 화면에서 확인하도록 함
+function lottedeptToResult(json, receiver) {
+  let rows = (json && json.isSuccess && Array.isArray(json.resultList)) ? json.resultList : [];
   if (!rows.length) {
     return { success: false, error: { code: 'NOT_FOUND', message: '배송 정보 없음' } };
+  }
+  if (receiver) {
+    const mine = rows.filter(r => sameReceiver(r.rcverNm, receiver));
+    if (mine.length) rows = mine;
+    else {
+      const names = [...new Set(rows.map(r => String(r.rcverNm || '').trim()).filter(Boolean))];
+      if (names.length > 1) {
+        return { success: false, error: { code: 'RECEIVER_MISMATCH',
+          message: `받는이 확인 필요 — 이 번호의 조회 결과 받는이 ${names.length}명(${names.slice(0, 5).join(', ')}${names.length > 5 ? ' …' : ''}) 중 '${receiver}'와 일치하는 건이 없음` } };
+      }
+    }
   }
   const sorted = [...rows].sort((a, b) => (a.seq || 0) - (b.seq || 0));
   const last = sorted[sorted.length - 1];
