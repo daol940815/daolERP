@@ -561,17 +561,67 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 .vbar { width:100%; max-width:28px; background:var(--gray-700); border-radius:3px 3px 0 0; }
 .vbar-lb { font-size:9px; color:var(--gray-400); font-family:var(--mono); white-space:nowrap; }
 
+/* ── 모바일 카드 목록 (768px 이하에서 표 대신 표시) ── */
+.mobile-list { display:none; }
+.mcard { display:flex; gap:10px; padding:10px 12px; border-bottom:1px solid var(--gray-100); background:var(--white); }
+.mcard.dup { background:#fffbeb; }
+.mcard-chk { display:flex; align-items:flex-start; padding-top:3px; }
+.mcard-chk input { width:18px; height:18px; }
+.mcard-main { flex:1; min-width:0; }
+.mcard-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.mcard-name { font-size:14px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mcard-sub { font-size:13px; color:var(--gray-700); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mcard-meta { font-size:11.5px; color:var(--gray-500); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mcard-num { font-family:var(--mono); font-size:12px; color:var(--gray-700); margin-top:3px; }
+.mcard-more { text-align:center; padding:14px; font-size:12px; color:var(--gray-400); }
+
 @media(max-width:768px) {
-  .layout { grid-template-columns:1fr; height:auto; overflow:visible; }
-  .dash-cols { grid-template-columns:1fr; }
-  .card.dash-card { flex:none; }
-  .sidebar { position:static; height:auto; border-right:none; border-bottom:1px solid var(--gray-100); padding:1rem 0; overflow:visible; }
-  .main { height:auto; overflow:visible; padding:1rem; }
-  .card.table-card { flex:none; }
-  .table-wrap { max-height:60vh; }
+  html { -webkit-text-size-adjust:100%; }
+  body { height:auto; overflow:auto; font-size:13px; }
+  header { padding:0 14px; }
+  .logo span { display:none; }
   .header-stats { display:none; }
+  /* 폭 고정: 표·그리드의 최소 폭이 화면을 넓히지 않도록 컨테이너를 화면 폭에 묶고, 넓은 표는 안에서 가로 스크롤 */
+  .layout { grid-template-columns:minmax(0,1fr); width:100vw; height:auto; overflow:hidden; }
+  .sidebar { position:static; height:auto; border-right:none; border-bottom:1px solid var(--gray-100); padding:1rem 0; overflow:visible; }
+  .main { min-width:0; max-width:100vw; height:auto; overflow:visible; padding:8px; }
+  .card { min-width:0; max-width:100%; }
+  .card.table-card, .card.dash-card { flex:none; }
+  .card.dash-card { padding:12px; overflow-x:hidden; }
+  #dash-body, #view-data, #view-list, #view-upload, #view-mail { min-width:0; max-width:100%; }
+  .dash-cols { grid-template-columns:minmax(0,1fr); }
+  .dash-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+  .dash-tile { padding:10px 8px; }
+  .dt-val { font-size:18px; }
+  .kpis { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+  .risk-cards { grid-template-columns:minmax(0,1fr); }
+  .dash-card table, #view-data table { display:block; overflow-x:auto; max-width:100%; -webkit-overflow-scrolling:touch; }
+  .dash-legend { gap:8px 12px; }
   .form-grid { grid-template-columns:1fr; }
-  body { height:auto; overflow:auto; }
+  /* 상단 바: 보기·필터만 (조회·액션 바는 PC 전용), 한 줄 가로 스크롤 */
+  .topbar { padding:6px 10px; gap:4px; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .topbar::-webkit-scrollbar { display:none; }
+  .topbar .pill { padding:5px 10px; font-size:12px; white-space:nowrap; flex-shrink:0; }
+  .tb-label, .tb-divider, #app-build, #topbars .topbar:nth-of-type(2), #nav-view-upload, #nav-view-mail { display:none !important; }
+  #sync-chip { flex-shrink:0; }
+  #delay-sub { flex-shrink:0; }
+  /* 목록: 표 대신 카드, 검색창만 크게, 정렬·PC 전용 버튼 숨김 */
+  .table-wrap { display:none; }
+  .mobile-list { display:block; }
+  #search-bar { padding:10px; }
+  #search-input { width:100% !important; font-size:15px !important; padding:9px 12px !important; }
+  #btn-cond-toggle { flex:none; }
+  .desk-only { display:none !important; }
+  #btn-edit-selected, #btn-done-selected { padding:8px 12px; font-size:13px; }
+  /* 상세/수정 창: 전체 화면 + 가로 스크롤 */
+  .modal-bg { align-items:flex-start; }
+  .modal { width:100vw !important; max-width:100vw !important; max-height:100dvh !important; min-height:100dvh; border-radius:0 !important; overflow:auto; }
+  #grid-scroll { max-height:none !important; }
+  #grid-table { display:block; overflow-x:auto; max-width:100%; }
+  #grid-timeline { max-height:none !important; }
+  #view-data, #view-upload, #view-mail { overflow-x:auto; }
+  #build-warn { top:56px; }
+  #login-bg .modal { min-height:auto; width:calc(100vw - 32px); margin:20vh auto 0; border-radius:12px; }
 }
 </style>
 </head>
@@ -691,7 +741,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
         <div id="cond-chips" style="display:none;gap:6px;flex-wrap:wrap;align-items:center"></div>
         <!-- 2행: 정렬 + 우측 버튼들 -->
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <div class="desk-only" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             <span style="font-size:12px;color:var(--gray-500);white-space:nowrap;font-weight:600">정렬</span>
             <select id="sort-order" onchange="onSortChange()" style="width:110px;padding:5px 8px;font-size:12px">
               <option value="addedAt">등록순</option>
@@ -703,13 +753,13 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
             </select>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn btn-black btn-sm refresh-ctl" onclick="runManualFullRefresh()" title="배송완료 제외 전체 재조회">전체 조회</button>
-            <button class="btn btn-outline btn-sm" onclick="exportExcel()" title="현재 필터·검색 결과를 엑셀로 저장">↓ 목록 다운로드</button>
-            <button class="btn btn-outline btn-sm" id="btn-select-all" onclick="toggleSelectAll()">전체선택</button>
+            <button class="btn btn-black btn-sm refresh-ctl desk-only" onclick="runManualFullRefresh()" title="배송완료 제외 전체 재조회">전체 조회</button>
+            <button class="btn btn-outline btn-sm desk-only" onclick="exportExcel()" title="현재 필터·검색 결과를 엑셀로 저장">↓ 목록 다운로드</button>
+            <button class="btn btn-outline btn-sm desk-only" id="btn-select-all" onclick="toggleSelectAll()">전체선택</button>
             <button class="btn btn-black btn-sm" id="btn-refresh-selected" onclick="refreshSelected()" style="display:none">선택 조회 (<span id="selected-refresh-count">0</span>)</button>
             <button class="btn btn-outline btn-sm" id="btn-edit-selected" onclick="openEditGridFromSelection()" disabled>상세/수정</button>
             <button class="btn btn-outline btn-sm" id="btn-done-selected" onclick="markSelectedDone()" disabled title="조회 API가 없는 택배사(일양택배 등)나 조회가 계속 실패하는 건을 공식 사이트에서 확인한 뒤 직접 완료 처리">배송완료 처리</button>
-            <button class="btn btn-outline btn-sm" id="btn-delete-selected" onclick="deleteSelected()" disabled style="color:#b91c1c;border-color:#fecaca">삭제 (<span id="selected-count">0</span>)</button>
+            <button class="btn btn-outline btn-sm desk-only" id="btn-delete-selected" onclick="deleteSelected()" disabled style="color:#b91c1c;border-color:#fecaca">삭제 (<span id="selected-count">0</span>)</button>
           </div>
         </div>
       </div>
@@ -743,6 +793,8 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
           </tbody>
         </table>
       </div>
+      <!-- 모바일(768px 이하) 카드 목록 — 같은 필터·검색·정렬 결과를 카드로 표시 -->
+      <div id="mobile-list" class="mobile-list"></div>
     </div>
 
     <!-- 대시보드 -->
@@ -1093,7 +1145,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
       <div class="modal-title" style="margin:0">상세 / 수정 <span id="grid-count" style="font-weight:400;color:var(--gray-400);font-size:12px"></span></div>
       <button class="modal-close" onclick="closeModal('modal-grid')">✕</button>
     </div>
-    <div style="overflow:auto;padding:6px 12px;max-height:44vh">
+    <div id="grid-scroll" style="overflow:auto;padding:6px 12px;max-height:44vh">
       <table class="edit-grid" id="grid-table"></table>
     </div>
     <div id="grid-timeline" style="padding:10px 18px;border-top:1px solid var(--gray-100);display:none;max-height:26vh;overflow-y:auto"></div>
@@ -1197,7 +1249,7 @@ function logoutApp() {
   location.reload();
 }
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0923-2';
+const APP_BUILD = 'v0923-3';
 // 홈 화면 설치 요건용 서비스 워커 — 워커의 /app/ 경로로 https 접속했을 때만 등록 (캐시 없음, 화면은 항상 최신)
 if ('serviceWorker' in navigator && location.protocol === 'https:' && /^\/app\//.test(location.pathname)) {
   navigator.serviceWorker.register('sw.js', { scope: '/app/' }).catch(() => {});
@@ -4471,10 +4523,12 @@ function renderTable() {
   });
   const data = getFiltered();
   const tbody = document.getElementById('table-body');
+  const mob = document.getElementById('mobile-list');
   renderCondPanel(false);
 
   if (!data.length) {
     tbody.innerHTML=`<tr><td colspan="17"><div class="empty"><div class="empty-text">조건에 맞는 결과가 없습니다</div></div></td></tr>`;
+    if (mob) mob.innerHTML = isMobile() ? `<div class="empty"><div class="empty-text">조건에 맞는 결과가 없습니다</div></div>` : '';
     onRowChkChange();
     return;
   }
@@ -4520,8 +4574,47 @@ function renderTable() {
   _viewFlat = flat;
   _viewBundleInfo = bundleInfo;
   const visible = flat.slice(0, _renderLimit);
-  tbody.innerHTML = visible.map(x => buildRowHtml(x, bundleInfo)).join('') + renderLoaderRow(flat.length);
+  if (isMobile() && mob) {
+    // 모바일: 표 대신 카드 (표의 체크박스와 이중 집계되지 않도록 표는 비움)
+    tbody.innerHTML = '';
+    mob.innerHTML = visible.map(x => buildCardHtml(x, bundleInfo)).join('') + renderMobileLoader(flat.length);
+  } else {
+    if (mob) mob.innerHTML = '';
+    tbody.innerHTML = visible.map(x => buildRowHtml(x, bundleInfo)).join('') + renderLoaderRow(flat.length);
+  }
   onRowChkChange();
+}
+
+// ── 모바일 카드 목록 ──
+const isMobile = () => !!(window.matchMedia && window.matchMedia('(max-width:768px)').matches);
+function buildCardHtml(x, bundleInfo) {
+  const r = x.r;
+  const rowKey = r.localId ? `lid__${r.localId}` : `${r.carrier}__${r.num}`;
+  const b = bundleInfo[rowKey];
+  const who = escapeHtml(r.companyName || '(받는이 없음)');
+  const prod = escapeHtml([r.productName, r.qty ? `${r.qty}개` : ''].filter(Boolean).join(' · '));
+  const meta = escapeHtml([r.orderDate, [r.bankName, r.branchName].filter(Boolean).join(' '), r.supplier].filter(Boolean).join(' · '));
+  const carrierName = r.carrier ? (carriers[r.carrier]?.name || r.carrier) : '';
+  const num = r.num ? `${escapeHtml(carrierName)} ${escapeHtml(r.num)}` : (isManualCarrier(r.carrier) ? escapeHtml(carrierName) : '<span style="color:#b45309">송장미등록</span>');
+  const bundle = b ? ` <span class="bundle-badge${b.doneCnt === b.size ? ' bundle-all-done' : ''}" title="${escapeHtml(b.tip)}">${b.idx}/${b.size}</span>` : '';
+  const memo = r.memo ? `<div class="mcard-meta">비고 ${escapeHtml(r.memo)}</div>` : '';
+  return `<div class="mcard${r._dup ? ' dup' : ''}" data-key="${rowKey}">
+    <label class="mcard-chk" onclick="event.stopPropagation()"><input type="checkbox" class="row-chk" data-key="${rowKey}" onchange="onRowChkChange()"></label>
+    <div class="mcard-main" onclick="openEditGrid(['${rowKey}'])">
+      <div class="mcard-top"><span class="mcard-name">${who}${bundle}</span>${statusBadge(r)}</div>
+      <div class="mcard-sub">${prod}</div>
+      <div class="mcard-meta">${meta}</div>
+      <div class="mcard-num">${num}</div>${memo}
+    </div>
+  </div>`;
+}
+function renderMobileLoader(total) {
+  if (total <= _renderLimit) return `<div class="mcard-more">전체 ${total}건</div>`;
+  return `<div class="mcard-more" id="load-more-card">전체 ${total}건 중 ${_renderLimit}건 표시 <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="renderMoreRows()">더 보기</button></div>`;
+}
+// 화면 폭이 바뀌어 표↔카드가 전환되면 다시 그림
+if (window.matchMedia) {
+  try { window.matchMedia('(max-width:768px)').addEventListener('change', () => { if (typeof renderTable === 'function' && allItems) renderTable(); }); } catch(e) {}
 }
 
 // 목록 행 1개의 HTML (renderTable·renderMoreRows 공용)
@@ -4599,6 +4692,14 @@ function renderMoreRows() {
   if (!_viewFlat || _renderLimit >= _viewFlat.length) return;
   const start = _renderLimit;
   _renderLimit = Math.min(_renderLimit + RENDER_CHUNK, _viewFlat.length);
+  const cardLoader = document.getElementById('load-more-card');
+  if (cardLoader) {
+    // 모바일 카드 목록
+    cardLoader.insertAdjacentHTML('beforebegin', _viewFlat.slice(start, _renderLimit).map(x => buildCardHtml(x, _viewBundleInfo)).join(''));
+    cardLoader.outerHTML = renderMobileLoader(_viewFlat.length);
+    onRowChkChange();
+    return;
+  }
   const html = _viewFlat.slice(start, _renderLimit).map(x => buildRowHtml(x, _viewBundleInfo)).join('');
   const loader = document.getElementById('load-more-row');
   if (!loader) return;
@@ -6245,7 +6346,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // (동적 택배사가 추가되면 loadCarrierList가 기존 행의 택배사 코드를 다시 맞춤)
   initialLoad(false);
   loadCarrierList();
-  showView('dash'); // 실행 시 대시보드를 메인 화면으로 (시작 로딩 중이라 중복 동기화는 건너뜀)
+  showView(isMobile() ? 'list' : 'dash'); // 실행 시 대시보드를 메인 화면으로 (휴대폰은 배송 목록) — 시작 로딩 중이라 중복 동기화는 건너뜀
 });
 </script>
 </body>
