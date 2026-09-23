@@ -554,7 +554,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 .hbar-fill { height:100%; border-radius:4px; background:var(--gray-700); }
 .hbar-val { font-family:var(--mono); font-size:11px; width:36px; text-align:right; color:var(--black); flex-shrink:0; }
 .rate-cell { display:flex; align-items:center; gap:8px; min-width:120px; }
-.rate-val { font-family:var(--mono); font-size:11px; width:38px; text-align:right; color:var(--black); flex-shrink:0; }
+.rate-val { font-family:var(--mono); font-size:11px; width:52px; text-align:right; color:var(--black); flex-shrink:0; }
 .vbars { display:flex; align-items:flex-end; gap:6px; }
 .vbar-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; min-width:0; }
 .vbar-cnt { font-size:9px; font-family:var(--mono); color:var(--gray-500); height:12px; }
@@ -1249,7 +1249,7 @@ function logoutApp() {
   location.reload();
 }
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0923-3';
+const APP_BUILD = 'v0923-4';
 // 홈 화면 설치 요건용 서비스 워커 — 워커의 /app/ 경로로 https 접속했을 때만 등록 (캐시 없음, 화면은 항상 최신)
 if ('serviceWorker' in navigator && location.protocol === 'https:' && /^\/app\//.test(location.pathname)) {
   navigator.serviceWorker.register('sw.js', { scope: '/app/' }).catch(() => {});
@@ -3553,8 +3553,8 @@ function exportRateStats() {
   const sheetOf = (map, label) => {
     const rows = Object.entries(map).sort((a, b) => b[1].total - a[1].total).map(([k, v]) => ({
       [label]: k, '주문': v.total, '송장기재': v.withNum, '미회신': v.un || 0,
-      '송장회신율(%)': Math.round(v.withNum / v.total * 100),
-      '배송완료': v.done, '배송완료율(%)': Math.round(v.done / v.total * 100),
+      '송장회신율(%)': pctNum(v.withNum, v.total),
+      '배송완료': v.done, '배송완료율(%)': pctNum(v.done, v.total),
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [{wch:28},{wch:8},{wch:9},{wch:13},{wch:9},{wch:13}];
@@ -3615,8 +3615,8 @@ function renderDataView() {
   document.getElementById('agg-summary').textContent = items.length ? `${items.length}건 · ${rows.length}행` : '조건에 해당하는 건이 없습니다';
 
   const pctBar = (n, d, color) => {
-    const p = d ? Math.round(n / d * 100) : 0;
-    return `<td style="min-width:130px"><div class="rate-cell"><div class="hbar-track"><div class="hbar-fill" style="width:${p}%;background:${color}"></div></div><span class="rate-val">${p}%</span></div></td>`;
+    const p = pctNum(n, d);
+    return `<td style="min-width:140px"><div class="rate-cell"><div class="hbar-track"><div class="hbar-fill" style="width:${p}%;background:${color}"></div></div><span class="rate-val">${pctText(n, d)}</span></div></td>`;
   };
   const num = v => `<td class="mono" style="text-align:center">${v}</td>`;
   const bodyRows = rows.map(o => `<tr>
@@ -3714,10 +3714,21 @@ function staffGo(extra) { gotoListWith(staffBaseConds().concat(extra || [])); }
 function staffGoRow(localId) { gotoListWith(staffBaseConds(), [localId]); }
 function staffGoMail(sup) { mailSelected = sup; showView('mail'); }
 
-function pct(n, d) { return d ? Math.round(n / d * 100) : 0; }
+// 비율 표시 공통 규칙: 소수 2자리 · 100%는 전부일 때만 · 0%는 한 건도 없을 때만 (그 사이는 99.99% / 0.01% 로 표시)
+function pctNum(n, d) {
+  if (!d) return 0;
+  if (n >= d) return 100;
+  if (n <= 0) return 0;
+  let v = Math.round(n / d * 10000) / 100;
+  if (v >= 100) v = 99.99;
+  if (v <= 0) v = 0.01;
+  return v;
+}
+function pctText(n, d) { return pctNum(n, d).toFixed(2) + '%'; }
+function pct(n, d) { return pctNum(n, d); }
 function rateCell(n, d, color) {
-  const p = pct(n, d);
-  return `<td style="min-width:120px"><div class="rate-cell"><div class="hbar-track"><div class="hbar-fill" style="width:${p}%;background:${color}"></div></div><span class="rate-val">${p}%</span></div></td>`;
+  const p = pctNum(n, d);
+  return `<td style="min-width:140px"><div class="rate-cell"><div class="hbar-track"><div class="hbar-fill" style="width:${p}%;background:${color}"></div></div><span class="rate-val">${pctText(n, d)}</span></div></td>`;
 }
 function renderStaffView() {
   const box = document.getElementById('data-sub-staff');
@@ -3757,9 +3768,9 @@ function renderStaffView() {
   const G = g => `staffGo([{field:'status',mode:'group',value:'${g}'}])`;
   const kpis = `<div class="kpis">
     ${kpi('담당 건수', D.length, '주문 건 기준', '', 'staffGo()')}
-    ${kpi('송장 회신', replied, `회신율 ${pct(replied, D.length)}%`, '')}
+    ${kpi('송장 회신', replied, `회신율 ${pctText(replied, D.length)}`, '')}
     ${kpi('미회신', unreplied.length, un7 ? `7일 이상 ${un7}건` : '아래 목록', unreplied.length ? 'warn' : '', G('송장미등록'))}
-    ${kpi('배송완료', done, `완료율 ${pct(done, D.length)}%`, '', G('배송완료'))}
+    ${kpi('배송완료', done, `완료율 ${pctText(done, D.length)}`, '', G('배송완료'))}
     ${kpi('배송지연', delay, '목록에서 보기', delay ? 'warn' : '', G('배송지연'))}
     ${kpi('조회실패', fail, '목록에서 보기', fail ? 'bad' : '', G('조회실패'))}
     ${kpi('사고', acc, '목록에서 보기', acc ? 'bad' : '', G('사고'))}
@@ -3878,14 +3889,14 @@ function exportAggExcel() {
   if (!rows.length) { toast('내보낼 데이터가 없습니다'); return; }
   const data = rows.map(o => ({
     [gdef.label]: o.key, '주문': o.total, '수량': o.qty, '송장기재': o.withNum,
-    '송장회신율(%)': o.total ? Math.round(o.withNum / o.total * 100) : 0,
-    '배송완료': o.done, '배송완료율(%)': o.total ? Math.round(o.done / o.total * 100) : 0,
+    '송장회신율(%)': pctNum(o.withNum, o.total),
+    '배송완료': o.done, '배송완료율(%)': pctNum(o.done, o.total),
     '배송지연': o.delay, '사고': o.accident,
   }));
   const t = rows.reduce((s,o)=>({ total:s.total+o.total, qty:s.qty+o.qty, withNum:s.withNum+o.withNum, done:s.done+o.done, delay:s.delay+o.delay, accident:s.accident+o.accident }), {total:0,qty:0,withNum:0,done:0,delay:0,accident:0});
   data.push({ [gdef.label]:'합계', '주문':t.total, '수량':t.qty, '송장기재':t.withNum,
-    '송장회신율(%)': t.total ? Math.round(t.withNum/t.total*100) : 0,
-    '배송완료':t.done, '배송완료율(%)': t.total ? Math.round(t.done/t.total*100) : 0,
+    '송장회신율(%)': pctNum(t.withNum, t.total),
+    '배송완료':t.done, '배송완료율(%)': pctNum(t.done, t.total),
     '배송지연':t.delay, '사고':t.accident });
   const ws = XLSX.utils.json_to_sheet(data);
   ws['!cols'] = [{wch:24},{wch:7},{wch:7},{wch:9},{wch:13},{wch:9},{wch:13},{wch:9},{wch:7}];
@@ -3994,7 +4005,7 @@ function renderDashboard() {
     if (tier) riskItems.push({ r, days, tier });
   });
   riskItems.sort((a,b) => b.days - a.days);
-  const doneRate = Math.round(groups['배송완료'] / total * 100);
+  const doneRate = pctText(groups['배송완료'], total);
 
   // 상단 요약 타일 (클릭 시 해당 필터의 목록으로 이동)
   const tiles = [
@@ -4004,7 +4015,7 @@ function renderDashboard() {
       val: groups[g],
       f:g, color:GROUP_COLORS[g],
     })),
-    { label:'완료율', val:doneRate+'%', f:null, color:'var(--black)' },
+    { label:'완료율', val:doneRate, f:null, color:'var(--black)' },
   ].map(t => `
     <div class="dash-tile${t.f?' clickable':''}" ${t.f?`onclick="dashGo('${t.f}')" title="${t.label} 목록 보기"`:''}>
       <div class="dt-val" style="color:${t.color}">${t.val}</div>
@@ -4016,29 +4027,27 @@ function renderDashboard() {
   const stack = order.map(g =>
     `<div style="width:${groups[g]/total*100}%;background:${GROUP_COLORS[g]};cursor:pointer" title="${g} ${groups[g]}건" onclick="dashGo('${g}')"></div>`).join('');
   const legend = Object.keys(groups).map(g =>
-    `<span><span class="lg-dot" style="background:${GROUP_COLORS[g]}"></span>${g} ${groups[g]}건 (${total?Math.round(groups[g]/total*100):0}%)</span>`).join('');
+    `<span><span class="lg-dot" style="background:${GROUP_COLORS[g]}"></span>${g} ${groups[g]}건 (${pctText(groups[g], total)})</span>`).join('');
 
   // 매입처별 송장회신율 / 배송완료율
-  const rateBar = (pct, color) => `
+  const rateBar = (n, d, color) => `
     <div class="rate-cell">
-      <div class="hbar-track"><div class="hbar-fill" style="width:${pct}%;background:${color}"></div></div>
-      <span class="rate-val">${pct}%</span>
+      <div class="hbar-track"><div class="hbar-fill" style="width:${pctNum(n, d)}%;background:${color}"></div></div>
+      <span class="rate-val">${pctText(n, d)}</span>
     </div>`;
   // 드릴다운: 행 클릭 → 그 묶음 전체 목록, 미회신 숫자 → 미회신 건만 (직원 현황과 같은 규칙)
   const condJs = conds => JSON.stringify(conds).replace(/"/g, '&quot;');
   const rateRowsOf = (map, condsOf) => Object.entries(map).sort((a,b) => b[1].total - a[1].total).map(([k,v]) => {
-    const replyRate = Math.round(v.withNum / v.total * 100);
-    const doneRate2 = Math.round(v.done / v.total * 100);
     const rowConds = condsOf(v.sample);
     const unLink = v.un ? `<span class="lnk" onclick="event.stopPropagation();gotoListWith(${condJs(rowConds.concat([{ field: 'status', mode: 'group', value: '송장미등록' }]))}, null, 'dash')" title="미회신 건만 보기">${v.un}</span>` : '0';
     return `<tr class="dash-row" onclick="gotoListWith(${condJs(rowConds)}, null, 'dash')" title="배송 목록에서 전체 보기">
       <td class="strong" style="white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(k)}">${escapeHtml(k)}</td>
       <td class="mono" style="text-align:center">${v.total}</td>
       <td class="mono" style="text-align:center">${v.withNum}</td>
-      <td>${rateBar(replyRate, '#0369a1')}</td>
+      <td>${rateBar(v.withNum, v.total, '#0369a1')}</td>
       <td class="mono" style="text-align:center">${unLink}</td>
       <td class="mono" style="text-align:center">${v.done}</td>
-      <td>${rateBar(doneRate2, '#15803d')}</td>
+      <td>${rateBar(v.done, v.total, '#15803d')}</td>
     </tr>`;
   }).join('');
   const rateSec = (title, label, map, condsOf) => `
@@ -5345,7 +5354,7 @@ function exportReport() {
   if (typeof XLSX==='undefined') { toast('XLSX 라이브러리 로드 실패'); return; }
   if (!allItems.length) { toast('데이터가 없습니다'); return; }
   const isDone = r => getFilterGroup(r) === '배송완료';
-  const pct = (a,b) => b ? (Math.round(a/b*1000)/10)+'%' : '-';
+  const pct = (a,b) => b ? pctText(a, b) : '-';
   const total = allItems.length;
   const withNum = allItems.filter(r=>r.num).length;
   const doneCnt = allItems.filter(isDone).length;
