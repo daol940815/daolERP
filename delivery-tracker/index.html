@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>운송장 조회</title>
+<!-- 홈 화면 설치(PWA) — 워커의 /app/ 경로로 접속했을 때만 유효, 로컬 파일로 열면 무시됨 -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#111111">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="배송조회">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <!-- 스타일 지원 엑셀 라이브러리(회신요청서 서식용) — CDN 의존 없이 파일에 내장해 어떤 PC에서든 서식 적용 -->
 <script>
@@ -584,6 +592,16 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 </header>
 
 <!-- 상단 바 1: 보기 + 필터 -->
+<!-- 접속 비밀번호 입력 (워커에 APP_PASSWORD 가 설정된 경우 401 응답 시 표시) -->
+<div id="login-bg" class="modal-bg" style="z-index:9999">
+  <div class="modal" style="max-width:360px">
+    <div style="font-size:15px;font-weight:800">접속 비밀번호</div>
+    <div style="font-size:12px;color:var(--gray-500);margin:6px 0 14px;line-height:1.5">직원용 프로그램입니다. 관리자에게 받은 접속 비밀번호를 입력하세요.<br>이 기기에 기억되어 다음부터는 묻지 않습니다.</div>
+    <input id="login-key" type="password" autocomplete="current-password" placeholder="비밀번호" style="width:100%;box-sizing:border-box;padding:10px 12px;font-size:14px;border:1px solid var(--gray-300);border-radius:8px" onkeydown="if(event.key==='Enter')submitLogin()">
+    <div id="login-err" style="color:#b91c1c;font-size:12px;min-height:16px;margin-top:6px"></div>
+    <button id="login-btn" class="btn btn-black" style="width:100%;margin-top:8px;padding:10px" onclick="submitLogin()">접속</button>
+  </div>
+</div>
 <div id="build-warn" style="display:none;position:fixed;top:56px;left:0;right:0;z-index:150;background:#fee2e2;color:#991b1b;font-size:12px;padding:6px 1.5rem;border-bottom:1px solid #fecaca"></div>
 <div id="topbars">
 <div class="topbar">
@@ -1127,12 +1145,69 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 <script>
 // ══ 환경 설정 — 배포 환경이 바뀌면 이 값만 수정하면 됨 ══
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
-const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
+// 워커가 내려주는 화면(/app/)으로 열었으면 같은 주소를 API 로 사용, 로컬 파일로 열었으면 고정 주소
+const API_BASE   = (location.protocol.startsWith('http') && /^\/app\/?/.test(location.pathname))
+  ? location.origin
+  : 'https://blue-wildflower-bda5.daol825.workers.dev';
+
+// ── 접속 비밀번호 (워커 APP_PASSWORD) — 이 기기에 기억, 401 이면 입력창 표시 ──
+const APP_KEY_LS = 'tracker_app_key';
+let _appKey = ''; try { _appKey = localStorage.getItem(APP_KEY_LS) || ''; } catch(e) {}
+(function() {
+  const orig = window.fetch.bind(window);
+  window.fetch = async function(input, init) {
+    const u = typeof input === 'string' ? input : (input && input.url) || '';
+    if (!u.startsWith(API_BASE)) return orig(input, init);
+    init = init || {};
+    const h = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
+    if (_appKey) h.set('X-App-Key', _appKey);
+    const res = await orig(input, { ...init, headers: h });
+    if (res.status === 401) { showLogin(_appKey ? '비밀번호가 맞지 않습니다. 다시 입력하세요.' : ''); throw new Error('AUTH_REQUIRED'); }
+    return res;
+  };
+  if (navigator.sendBeacon) {
+    const ob = navigator.sendBeacon.bind(navigator);
+    navigator.sendBeacon = (u, d) => ob((_appKey && String(u).startsWith(API_BASE)) ? u + (String(u).includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(_appKey) : u, d);
+  }
+})();
+function showLogin(msg) {
+  const bg = document.getElementById('login-bg'); if (!bg) return;
+  document.getElementById('login-err').textContent = msg || '';
+  if (!bg.classList.contains('open')) { bg.classList.add('open'); setTimeout(() => document.getElementById('login-key')?.focus(), 50); }
+}
+async function submitLogin() {
+  const inp = document.getElementById('login-key'); const key = (inp.value || '').trim();
+  if (!key) { document.getElementById('login-err').textContent = '비밀번호를 입력하세요'; return; }
+  const btn = document.getElementById('login-btn'); btn.disabled = true;
+  try {
+    _appKey = key; // 래퍼가 이 키를 헤더로 붙여 확인 (401 이면 래퍼가 AUTH_REQUIRED 를 던짐)
+    const res = await fetch(`${API_BASE}/couriers`);
+    if (res.status === 401) throw new Error('AUTH_REQUIRED');
+    try { localStorage.setItem(APP_KEY_LS, key); } catch(e) {}
+    location.reload();
+  } catch(e) {
+    _appKey = '';
+    document.getElementById('login-err').textContent = /AUTH_REQUIRED/.test(String(e && e.message)) ? '비밀번호가 맞지 않습니다' : '서버에 연결할 수 없습니다';
+    btn.disabled = false;
+  }
+}
+function logoutApp() {
+  if (!confirm('이 기기에 기억된 접속 비밀번호를 지울까요? 다시 열 때 비밀번호를 입력해야 합니다.')) return;
+  _appKey = ''; try { localStorage.removeItem(APP_KEY_LS); } catch(e) {}
+  location.reload();
+}
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0923-1';
+const APP_BUILD = 'v0923-2';
+// 홈 화면 설치 요건용 서비스 워커 — 워커의 /app/ 경로로 https 접속했을 때만 등록 (캐시 없음, 화면은 항상 최신)
+if ('serviceWorker' in navigator && location.protocol === 'https:' && /^\/app\//.test(location.pathname)) {
+  navigator.serviceWorker.register('sw.js', { scope: '/app/' }).catch(() => {});
+}
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
-  if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
+  if (el) {
+    el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
+    if (_appKey) { el.title = '클릭: 이 기기에 기억된 접속 비밀번호 지우기'; el.style.cursor = 'pointer'; el.onclick = logoutApp; }
+  }
 });
 // 버전 비교: 'v0917-2' → 917*1000+2. 서버(Workers)가 알려주는 최소 버전보다 낮으면 상단에 경고 띠
 function buildNum(v) { const m = /v(\d{4})-(\d+)/.exec(String(v || '')); return m ? Number(m[1]) * 1000 + Number(m[2]) : 0; }
@@ -6052,9 +6127,16 @@ async function initialLoad(manual) {
   for (let i = 0; i < delays.length; i++) {
     if (delays[i]) { setSyncChip('syncing', `서버 동기화 재시도 ${i}/${delays.length - 1}…`); await sleep(delays[i]); }
     try { const d = await fetchAllRowsOnce(60000); rows = d.rows || []; _lastSyncAt = d.server_time || new Date().toISOString(); _lastFullSyncAt = Date.now(); checkMinBuild(d.min_build); break; }
-    catch(e) { lastErr = e; console.warn('서버 불러오기 실패 (' + (i + 1) + '회):', e); }
+    catch(e) {
+      lastErr = e; console.warn('서버 불러오기 실패 (' + (i + 1) + '회):', e);
+      if (/AUTH_REQUIRED/.test(String(e && e.message))) break; // 비밀번호 입력창이 떠 있음 — 재시도 불필요
+    }
   }
   _initialLoading = false;
+  if (!rows && /AUTH_REQUIRED/.test(String(lastErr && lastErr.message))) {
+    setSyncChip('fail', '접속 비밀번호 필요');
+    return;
+  }
   if (rows) {
     if (rows.length) applyServerRows(rows);
     // 서버가 비어 있으면 캐시 유지

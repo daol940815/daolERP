@@ -24,7 +24,10 @@
 //      DELIVERYAPI_SECRET  = sk_client_...             (Type: Secret)
 //      WEBHOOK_SECRET      = whsec_...                 (Type: Secret, 선택)
 //      SHEETS_URL          = GAS 배포 URL               (Type: Text, 마이그레이션용 선택)
+//      APP_PASSWORD        = 직원 접속 비밀번호           (Type: Secret, 선택 — 설정하면 화면에서 입력해야 데이터 접근 가능)
 //   추가 후 저장 → 배포(Deploy)
+//   ※ 화면(index.html)까지 같이 제공하려면 `node delivery-tracker/build-worker.mjs` 로 만든 dist/worker.js 를 배포
+//      → https://<워커주소>/app/ 로 접속 (PC·휴대폰 공용, 홈 화면 설치 가능)
 // ═══════════════════════════════════════════════════════════════
 
 // 아래 상수는 환경변수가 없을 때만 쓰이는 예비값 — 값을 직접 넣지 말 것
@@ -41,8 +44,63 @@ const whSecret  = env => env.WEBHOOK_SECRET || WEBHOOK_SECRET;
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-App-Key',
 };
+
+// ── 화면(index.html)·PWA 정적 파일 — build-worker.mjs 가 dist/worker.js 를 만들 때 채워 넣음 ──
+//   GET /app/                     화면
+//   GET /app/manifest.webmanifest 홈 화면 설치 정보
+//   GET /app/sw.js                서비스 워커(설치 요건용, 캐시 없음)
+//   GET /app/icon-192.png|512     아이콘
+//   GET /app/version              { build }
+const APP_HTML = null; // BUILD
+const APP_ICON_192 = ''; // BUILD
+const APP_ICON_512 = ''; // BUILD
+const APP_MANIFEST = {
+  name: '다올 배송조회', short_name: '배송조회', start_url: '/app/', scope: '/app/', display: 'standalone',
+  background_color: '#ffffff', theme_color: '#111111', lang: 'ko',
+  icons: [
+    { src: '/app/icon-192.png', sizes: '192x192', type: 'image/png' },
+    { src: '/app/icon-512.png', sizes: '512x512', type: 'image/png' },
+    { src: '/app/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+  ],
+};
+const APP_SW = "self.addEventListener('install', () => self.skipWaiting());\nself.addEventListener('activate', e => e.waitUntil(self.clients.claim()));\nself.addEventListener('fetch', () => {}); // 네트워크 그대로 — 화면은 항상 서버 최신본\n";
+function b64ToBytes(b64) {
+  const bin = atob(b64); const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function handleApp(url) {
+  const p = url.pathname;
+  const noStore = { 'Cache-Control': 'no-cache' };
+  if (p === '/app/' || p === '/app/index.html') {
+    if (!APP_HTML) return new Response('화면 파일이 포함되지 않은 워커입니다. build-worker.mjs 로 만든 dist/worker.js 를 배포하세요.', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    return new Response(APP_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8', ...noStore } });
+  }
+  if (p === '/app/manifest.webmanifest') return new Response(JSON.stringify(APP_MANIFEST), { headers: { 'Content-Type': 'application/manifest+json; charset=utf-8', ...noStore } });
+  if (p === '/app/sw.js') return new Response(APP_SW, { headers: { 'Content-Type': 'application/javascript; charset=utf-8', 'Service-Worker-Allowed': '/app/', ...noStore } });
+  if (p === '/app/icon-192.png' && APP_ICON_192) return new Response(b64ToBytes(APP_ICON_192), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' } });
+  if (p === '/app/icon-512.png' && APP_ICON_512) return new Response(b64ToBytes(APP_ICON_512), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' } });
+  if (p === '/app/version') {
+    const m = APP_HTML ? APP_HTML.match(/const APP_BUILD = '([^']+)'/) : null;
+    return jsonRes({ ok: true, build: m ? m[1] : '', min_build: MIN_BUILD });
+  }
+  return new Response('Not found', { status: 404 });
+}
+
+// ── 접속 비밀번호 (Workers Variables → APP_PASSWORD, Secret) ──
+//   설정돼 있으면 화면 파일·웹훅을 뺀 모든 요청에 X-App-Key 헤더(또는 ?k= — beacon 용)가 일치해야 함.
+//   설정이 없으면 기존처럼 누구나 접근 가능 (설정 즉시 적용, 화면에서는 비밀번호 입력창이 뜸).
+function authOk(request, url, env) {
+  const pw = String(env.APP_PASSWORD || '');
+  if (!pw) return true;
+  const k = request.headers.get('X-App-Key') || url.searchParams.get('k') || '';
+  if (k.length !== pw.length) return false;
+  let diff = 0;
+  for (let i = 0; i < pw.length; i++) diff |= k.charCodeAt(i) ^ pw.charCodeAt(i);
+  return diff === 0;
+}
 
 export default {
   async fetch(request, env) {
@@ -53,6 +111,17 @@ export default {
     }
 
     const url = new URL(request.url);
+
+    // ── 화면·PWA 정적 파일 (비밀번호 없이 제공 — 데이터는 아래 API 에서 비밀번호로 보호) ──
+    if (request.method === 'GET' && (url.pathname === '/app' || url.pathname === '/' || url.pathname === '')) {
+      return Response.redirect(url.origin + '/app/', 302);
+    }
+    if (url.pathname.startsWith('/app/')) return handleApp(url);
+
+    // ── 접속 비밀번호 확인 (웹훅은 자체 서명으로 검증하므로 제외) ──
+    if (url.pathname !== '/webhook' && !authOk(request, url, env)) {
+      return jsonRes({ ok: false, error: 'AUTH_REQUIRED' }, 401);
+    }
 
     // ── Supabase DB 게이트웨이 ──
     if (url.pathname.startsWith('/db/')) {
