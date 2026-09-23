@@ -1129,7 +1129,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
 // 데이터 저장은 Workers를 통해 Supabase(delivery_items 테이블)에 저장됨 (/db/load·save·delete)
 const API_BASE   = 'https://blue-wildflower-bda5.daol825.workers.dev';
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0921-1';
+const APP_BUILD = 'v0923-1';
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('app-build');
   if (el) el.textContent = APP_BUILD + (window.XLSX_STYLE ? '' : ' (서식 라이브러리 없음)');
@@ -3254,6 +3254,7 @@ async function syncFromDb(opts) {
     if (!data || !data.ok) return;
     checkMinBuild(data.min_build);
     _lastSyncAt = data.server_time || new Date().toISOString();
+    saveMetaLocal(); // 다음 시작 때 이 시각 이후 변경분만 받도록 기록
     if (full) _lastFullSyncAt = Date.now();
     const rows = data.rows || [];
     const hhmm = new Date().toTimeString().slice(0, 5);
@@ -5635,12 +5636,54 @@ async function saveSuppliers() {
 // ── Supabase(Workers /db) + localStorage 연동 ──
 // 로컬 캐시 저장 디바운스 — 대량 갱신 중 매번 전체 직렬화하지 않도록 1.2초에 한 번만
 let _saveLocalTimer = null;
+// ── 로컬 캐시: IndexedDB (localStorage 는 약 5MB 한도라 수천 건부터 저장이 조용히 실패함) ──
+//  · items: 전체 행 + 마지막 동기화 시각 → 다음 시작 때 캐시를 먼저 띄우고 변경분만 받음 (전체 로드 생략)
+//  · meta:  마지막 동기화 시각만 (동기화마다 가볍게 갱신)
+const IDB_NAME = 'tracker_cache', IDB_STORE = 'kv';
+const CACHE_MAX_AGE_MS = 7 * 86400000; // 이보다 오래된 캐시는 전체 로드로 시작
+let _cacheRows = null;                  // 시작 때 읽은 캐시 행 (전체 로드 시 진행 내역 보충용)
+function idbOpen() {
+  return new Promise((res, rej) => {
+    try {
+      const r = indexedDB.open(IDB_NAME, 1);
+      r.onupgradeneeded = () => { r.result.createObjectStore(IDB_STORE); };
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+      r.onblocked = () => rej(new Error('blocked'));
+    } catch(e) { rej(e); }
+  });
+}
+async function idbGet(key) {
+  try {
+    const db = await idbOpen();
+    return await new Promise((res, rej) => {
+      const t = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(key);
+      t.onsuccess = () => res(t.result); t.onerror = () => rej(t.error);
+    });
+  } catch(e) { return undefined; }
+}
+async function idbSet(key, val) {
+  try {
+    const db = await idbOpen();
+    await new Promise((res, rej) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(val, key);
+      tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+    });
+    return true;
+  } catch(e) { return false; }
+}
+async function writeCacheNow() {
+  clearTimeout(_saveLocalTimer); _saveLocalTimer = null;
+  const rec = rows => ({ rows, lastSyncAt: _lastSyncAt || '', savedAt: Date.now(), build: APP_BUILD });
+  if (await idbSet('items', rec(allItems))) return true;
+  // 구조 복제가 안 되는 값이 섞인 경우: 순수 데이터로 정리해 재시도
+  try { return await idbSet('items', rec(JSON.parse(JSON.stringify(allItems)))); } catch(e) { return false; }
+}
+function saveMetaLocal() { idbSet('meta', { lastSyncAt: _lastSyncAt || '', savedAt: Date.now() }); }
 function saveLocal() {
   if (_saveLocalTimer) return;
-  _saveLocalTimer = setTimeout(() => {
-    _saveLocalTimer = null;
-    try { localStorage.setItem('tracker_items', JSON.stringify(allItems)); } catch(e){}
-  }, 1200);
+  _saveLocalTimer = setTimeout(() => { _saveLocalTimer = null; writeCacheNow(); }, 2000);
 }
 
 // 프로그램 항목 → DB 행 (snake_case)
@@ -5791,11 +5834,8 @@ async function flushSaves() {
 
 // 창을 닫을 때 미전송 저장분을 beacon으로 마지막 전송 시도
 window.addEventListener('pagehide', () => {
-  // 로컬 캐시 미기록분 즉시 저장
-  if (_saveLocalTimer) {
-    clearTimeout(_saveLocalTimer); _saveLocalTimer = null;
-    try { localStorage.setItem('tracker_items', JSON.stringify(allItems)); } catch(e){}
-  }
+  // 로컬 캐시 미기록분 즉시 저장 (창이 닫히는 중이라 완료가 보장되지는 않음 — 대부분은 2초 지연 저장으로 이미 기록됨)
+  if (_saveLocalTimer) writeCacheNow();
   if (!_savePending.size) return;
   try {
     const batch = [..._savePending.values()].map(diffRowForSave).filter(Boolean);
@@ -5881,17 +5921,21 @@ function setSyncChip(state, text) {
 }
 
 // 로컬 캐시 읽기 (구버전 필드 보정 포함)
-function readLocalCache() {
+async function readLocalCache() {
   try {
-    const saved = localStorage.getItem('tracker_items');
-    if (!saved) return [];
-    return JSON.parse(saved).map(r => {
+    const c = await idbGet('items');
+    if (!c || !Array.isArray(c.rows)) return null;
+    const meta = await idbGet('meta');
+    const rows = c.rows.map(r => {
       const o = {memo:'', supplier:'', shippedAt:'', bankName:'', branchName:'', manager:'', productCode:'', shipType:'', staff:'', address:'', phone:'', ...r, orderDate: normalizeDate(r.orderDate)};
       if (!o.bankName) o.bankName = o.orderSource || ''; // 구버전 주문처 → 은행명 이관
       if (!o.localId) o.localId = makeLocalId();          // 영구 행 ID 마이그레이션
       return o;
     });
-  } catch(e) { return []; }
+    // 동기화 시각은 meta(매 동기화 갱신)가 items(변경 시에만 갱신)보다 최신
+    const lastSyncAt = (meta && meta.lastSyncAt && meta.savedAt >= (c.savedAt || 0)) ? meta.lastSyncAt : (c.lastSyncAt || '');
+    return { rows, lastSyncAt, savedAt: c.savedAt || 0 };
+  } catch(e) { return null; }
 }
 
 // 서버 행을 화면 데이터로 반영 (캐시 보충·유령/중복/삭제잔재 정리 포함)
@@ -5902,7 +5946,7 @@ function applyServerRows(rows) {
     .filter(r => r.num || r.localId || r.productName).map(restoreFailReason);
   // 시트에서 이전한 직후에는 DB에 최근 1건의 진행 내역만 있으므로 로컬 캐시에서 보충
   try {
-    const cached = JSON.parse(localStorage.getItem('tracker_items') || '[]');
+    const cached = _cacheRows || [];
     const keyOf = r => r.num ? r.carrier+'__'+r.num : 'lid__'+(r.localId||'');
     const cacheMap = {};
     cached.forEach(c => { cacheMap[keyOf(c)] = c; });
@@ -5959,7 +6003,7 @@ function applyServerRows(rows) {
   // 퀵·직접배송 행은 항상 배송완료 — 기능 도입 전 등록분·수정 화면에서 바꾼 행을 한 번에 정리하고 서버에 저장
   const fixedManual = normalizeManualRows(allItems, true);
   if (fixedManual) console.info(`퀵·직접배송 ${fixedManual}건을 배송완료로 정리했습니다`);
-  try { localStorage.setItem('tracker_items', JSON.stringify(allItems)); } catch(e) {}
+  saveLocal(); // 화면 표시 후 캐시 기록 (수천 건 복제 비용을 시작 표시 뒤로)
 }
 
 // 시간 제한이 있는 서버 불러오기 (한 번의 시도)
@@ -5980,13 +6024,29 @@ async function initialLoad(manual) {
   if (_initialLoading) return;
   _initialLoading = true;
   clearTimeout(_syncRetryTimer); _syncRetryTimer = null;
+  try { localStorage.removeItem('tracker_items'); } catch(e) {} // 구버전 localStorage 캐시 정리 (IndexedDB 로 이전)
   // 1) 로컬 캐시를 먼저 띄워 화면이 비어 보이지 않게 (상태 칩으로 '캐시'임을 표시)
-  if (!manual && !allItems.length) {
-    const cached = readLocalCache();
-    if (cached.length) { allItems = cached; updateStats(); renderTable(); }
+  let cache = null;
+  if (!allItems.length) {
+    cache = await readLocalCache();
+    if (cache && cache.rows.length) { _cacheRows = cache.rows; allItems = cache.rows; updateStats(); renderTable(); }
   }
   setSyncChip('syncing', allItems.length ? `서버 동기화 중… (캐시 ${allItems.length}건 표시)` : '서버 동기화 중…');
-  // 2) 서버 불러오기 — 실패하면 간격을 두고 3회까지 재시도
+  // 2) 캐시가 최근 것이면 전체 로드 대신 마지막 동기화 이후 변경분만 받아 시작 (전송량·시간 대폭 절감)
+  //    [재시도] 버튼(manual)·캐시 없음·오래된 캐시·구버전 Workers 면 전체 로드
+  if (!manual && cache && cache.rows.length && cache.lastSyncAt
+      && Date.now() - new Date(cache.lastSyncAt).getTime() < CACHE_MAX_AGE_MS && !_changesUnsupported) {
+    const n = await incrementalStartup(cache);
+    if (n !== null) {
+      _initialLoading = false;
+      updateStats(); renderTable();
+      const hhmm = new Date().toTimeString().slice(0, 5);
+      setSyncChip('ok', `최신 ${allItems.length}건 · ${hhmm}${n ? ` (변경 ${n}건 반영)` : ''}`);
+      return;
+    }
+    setSyncChip('syncing', `서버 동기화 중… (캐시 ${allItems.length}건 표시)`);
+  }
+  // 3) 서버 전체 불러오기 — 실패하면 간격을 두고 3회까지 재시도
   const delays = [0, 2000, 6000];
   let rows = null, lastErr = null;
   for (let i = 0; i < delays.length; i++) {
@@ -5997,17 +6057,59 @@ async function initialLoad(manual) {
   _initialLoading = false;
   if (rows) {
     if (rows.length) applyServerRows(rows);
-    else if (!allItems.length) allItems = readLocalCache(); // 서버가 비어 있으면 캐시 유지
+    // 서버가 비어 있으면 캐시 유지
     updateStats(); renderTable();
     const hhmm = new Date().toTimeString().slice(0, 5);
     setSyncChip('ok', `최신 ${allItems.length}건 · ${hhmm}`);
     toast(`서버에서 ${rows.length}건 불러왔습니다`);
+    saveMetaLocal();
   } else {
-    // 3) 모두 실패: 캐시 유지 + 상태 표시 + 60초 후 자동 재시도
-    if (!allItems.length) { allItems = readLocalCache(); updateStats(); renderTable(); }
+    // 4) 모두 실패: 캐시 유지 + 상태 표시 + 60초 후 자동 재시도
     setSyncChip('fail', `동기화 실패 — 캐시 ${allItems.length}건 표시 중`);
     toast('서버 동기화에 실패했습니다 — 지금 보이는 목록은 이 PC의 캐시입니다. 60초 후 자동 재시도합니다.');
     _syncRetryTimer = setTimeout(() => initialLoad(true), 60000);
+  }
+}
+
+// 캐시 기반 증분 시작: 캐시 행을 서버 스냅샷으로 삼고, 마지막 동기화 이후 변경분(삭제 포함)만 받아 병합
+// 반환: 반영한 변경 건수, 실패(서버 오류·구버전 Workers·응답 이상)면 null → 호출측이 전체 로드로 대체
+async function incrementalStartup(cache) {
+  try {
+    Object.keys(_srvSnap).forEach(k => delete _srvSnap[k]);
+    allItems.forEach(r => { if (r.localId) _srvSnap[String(r.localId)] = itemToDbRow(r); });
+    const since = new Date(new Date(cache.lastSyncAt).getTime() - SYNC_SINCE_MARGIN_MS).toISOString();
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 30000);
+    let data;
+    try {
+      const res = await fetch(`${API_BASE}/db/changes?since=${encodeURIComponent(since)}`, { signal: ctrl.signal });
+      if (res.status === 404) { _changesUnsupported = true; return null; }
+      if (!res.ok) return null;
+      data = await res.json();
+    } finally { clearTimeout(t); }
+    if (!data || !data.ok || !Array.isArray(data.rows)) return null;
+    checkMinBuild(data.min_build);
+    const rows = data.rows;
+    const deletedIds = new Set(rows.filter(r => r.deleted_at).map(r => String(r.local_id)));
+    if (deletedIds.size) {
+      allItems = allItems.filter(r => !deletedIds.has(String(r.localId)));
+      deletedIds.forEach(id => delete _srvSnap[id]);
+    }
+    const liveRows = rows.filter(r => !r.deleted_at);
+    liveRows.forEach(snapFromServerRow);
+    if (liveRows.length) {
+      const remote = liveRows.map(dbRowToItem).filter(r => r.num || r.localId || r.productName).map(restoreFailReason);
+      mergeRemoteRows(remote, { full: false, syncStart: Date.now() });
+    }
+    allItems.forEach(r => { if (!r.localId) r.localId = makeLocalId(); });
+    _lastSyncAt = data.server_time || new Date().toISOString();
+    _lastFullSyncAt = 0; // 곧 이어지는 주기 동기화에서 ID 대조(삭제·누락 보정)를 바로 수행
+    saveMetaLocal();
+    if (rows.length) saveLocal();
+    return rows.length;
+  } catch(e) {
+    console.warn('증분 시작 실패 — 전체 로드로 대체:', e);
+    return null;
   }
 }
 
