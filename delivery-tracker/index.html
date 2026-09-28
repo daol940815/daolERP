@@ -753,7 +753,7 @@ tr.expand-strip td { background:var(--gray-50); padding:8px 12px 8px 36px; font-
             </select>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn btn-black btn-sm refresh-ctl desk-only" onclick="runManualFullRefresh()" title="배송완료 제외 전체 재조회">전체 조회</button>
+            <button class="btn btn-black btn-sm refresh-ctl" onclick="runManualFullRefresh()" title="배송완료 제외 전체 재조회">전체 조회</button>
             <button class="btn btn-outline btn-sm desk-only" onclick="exportExcel()" title="현재 필터·검색 결과를 엑셀로 저장">↓ 목록 다운로드</button>
             <button class="btn btn-outline btn-sm desk-only" id="btn-select-all" onclick="toggleSelectAll()">전체선택</button>
             <button class="btn btn-black btn-sm" id="btn-refresh-selected" onclick="refreshSelected()" style="display:none">선택 조회 (<span id="selected-refresh-count">0</span>)</button>
@@ -1249,7 +1249,7 @@ function logoutApp() {
   location.reload();
 }
 // 프로그램 버전 — 파일 교체 시마다 갱신됨 (화면 상단에 표시되어 어떤 파일을 쓰는지 즉시 확인)
-const APP_BUILD = 'v0923-4';
+const APP_BUILD = 'v0928-1';
 // 홈 화면 설치 요건용 서비스 워커 — 워커의 /app/ 경로로 https 접속했을 때만 등록 (캐시 없음, 화면은 항상 최신)
 if ('serviceWorker' in navigator && location.protocol === 'https:' && /^\/app\//.test(location.pathname)) {
   navigator.serviceWorker.register('sw.js', { scope: '/app/' }).catch(() => {});
@@ -3313,9 +3313,10 @@ async function runManualFullRefresh() {
   const targets = allItems.filter(r => r.status !== '배송완료' && r.num && !isNoQueryCarrier(r.carrier));
   if (!targets.length) { toast('재조회할 송장이 없습니다 (배송완료·송장 미등록·조회 미지원 택배사 제외)'); return; }
   const skipped = allItems.length - targets.length;
-  const msg = skipped > 0
+  let msg = skipped > 0
     ? `등록 ${allItems.length}건 중 배송완료·송장 미등록 ${skipped}건을 제외하고 ${targets.length}건을 다시 조회합니다. 계속할까요?`
     : `등록된 ${targets.length}건을 다시 조회합니다. 계속할까요?`;
+  if (isMobile()) msg += `\n\n휴대폰에서는 조회 중 화면이 꺼지거나 다른 앱으로 넘어가면 중간에 멈출 수 있습니다. 끝날 때까지 이 화면을 켜 두세요.`;
   if (!confirm(msg)) return;
 
   manualFullRefreshRunning = true;
