@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
+import { isManagerLike } from '@/lib/permissions'
 import { encryptPayment, encryptionReady } from '@/lib/payment-crypto'
 import { parseConsultBody, consultItemRows, insertConsultItems, compatConsultFields, CONSULT_MIGRATION_HINT, CONSULT_509_HINT } from '@/lib/consultations'
 import { recordWorkLog, consultContent } from '@/lib/work-log'
@@ -23,11 +24,11 @@ export async function GET(req: NextRequest) {
   const q = (sp.get('q') ?? '').trim().toLowerCase()
   const status = sp.get('status') ?? 'all'
   const type = sp.get('type') ?? 'all'
-  const all = sp.get('all') === '1' && me.role !== 'sales'
+  const all = sp.get('all') === '1' && isManagerLike(me)   // 전체 보기 = 관리자급 (role 직접 판정 금지, 109)
   const page = Math.max(1, parseInt(sp.get('page') ?? '1', 10) || 1)
 
   let query = admin.from('erp_consultations')
-    .select('id, consult_date, consult_type, bank_name, branch_name, manager_name, sender_name, status, employee_id, memo, created_at, employees(name)')
+    .select('id, consult_date, consult_type, bank_name, branch_name, manager_name, sender_name, vendor_id, contact_id, status, employee_id, memo, created_at, employees(name)')
     .order('consult_date', { ascending: false })
     .order('created_at', { ascending: false })
   if (!all) {
@@ -72,6 +73,8 @@ export async function GET(req: NextRequest) {
       ...r,
       writer: (r.employees as unknown as { name: string } | null)?.name ?? null,
       consult_total: totals.get(r.id) ?? 0,     // 상담 전체 합계 (전 품목·옵션·배송비 포함)
+      // (b) 정책: 지점·담당자가 모두 마스터에 연결된 상담만 주문 전환 가능
+      master_linked: !!r.vendor_id && !!r.contact_id,
     }
     const mains = (byConsult.get(r.id) ?? [])
       .filter(it => it.parent_line_no == null && it.is_shipping !== true)
@@ -104,6 +107,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     rows: rows.slice((page - 1) * PER_PAGE, page * PER_PAGE),
     page, total_pages: totalPages, total: rows.length, role: me.role,
+    manager: isManagerLike(me),
+    is_parttime: me.employmentType === 'parttime',
   })
 }
 

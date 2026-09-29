@@ -65,7 +65,11 @@ export async function GET(req: NextRequest) {
     vendors: vendorsResult.data,
     groups: groupsResult.error ? [] : (groupsResult.data ?? []),   // 505 미적용 시 빈 배열
     employees: employeesResult.data ?? [],
-    me: { employee_id: me.employeeId, name: me.employeeName, role: me.role },
+    me: {
+      employee_id: me.employeeId, name: me.employeeName, role: me.role,
+      // 아르바이트: 신규 거래처·담당자 인라인 등록 버튼 숨김용 ((b) 정책 — API는 미들웨어가 403)
+      is_parttime: me.employmentType === 'parttime',
+    },
   })
 }
 

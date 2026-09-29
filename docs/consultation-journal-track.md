@@ -219,6 +219,27 @@ contact_activities에 '상담' 활동을 자동 기재하도록 구현했다 —
 - 인물 마스터에는 이름만 저장 (직함은 contact_assignments.title, 존칭은 표시) —
   CLAUDE.md 존칭 규칙 준수.
 
+## UI 재조정 연동 — 상담일지 (b) 미연결 정책 구현 (2026-09-29, ui-reorg 요청문)
+
+docs/ui-reorg-track.md의 "(b) 상담일지 미연결 정책" 요청문(사용자 확정 2026-09-29)을
+이 트랙에서 구현. 마이그레이션 불필요 (109는 UI 트랙에서 적용 완료).
+
+- **미연결 판정**: `master_linked = vendor_id && contact_id` (주문 전환 필수 조건과 동일).
+- **목록**: 미연결 상담 줄에 "마스터 미연결" 배지(주황) + "주문서로 전환" 비활성
+  (회색, 안내 툴팁). 폼의 "저장 후 주문서로 전환"도 같은 기준으로 비활성.
+- **아르바이트(employment_type='parttime')**: 미연결 상담 상세 GET/PATCH/DELETE 403 +
+  목록 행 클릭 가드(안내). 인라인 등록 버튼 숨김 — 상담 폼 매출처 등록 패널,
+  주문 폼 신규 담당자 등록 (masters GET me.is_parttime로 판정, API는 미들웨어 403).
+- **결제정보 잠금**: 열람(마스킹 표시·reveal)은 본인 작성분 또는
+  can_view_payment_info 계정만. 그 외에는 payment_locked=true + "열람 권한 없음"
+  안내만, 새 값 입력(교체)은 유지.
+- **레거시 role 판정 제거 (109 규칙)**: 상담 목록 `all` 게이트·상세 canAccess를
+  `isManagerLike`로 교체 (승인권·마스터도 관리자급 — 강시현 부사장 등).
+  목록 응답에 manager/is_parttime 필드 추가, 화면은 role 대신 이 값 사용.
+- CLAUDE.md의 orders-sidebar 공유 파일 문구를 menu-registry 원천 규칙으로 교체
+  (ui-reorg 영향 점검 1번 지시). 업무일지·팀 업무 현황·상담일지 메뉴와
+  /api/me·/api/team·/api/orders-portal의 API_OWNERS 등록은 UI 트랙이 이미 처리 — 확인만.
+
 ## 남은 논의 항목
 
 - 상담일지·영업일지 자체의 개선 요구 수렴.

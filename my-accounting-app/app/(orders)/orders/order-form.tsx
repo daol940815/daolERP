@@ -30,6 +30,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [meName, setMeName] = useState('')
+  const [isParttime, setIsParttime] = useState(false)   // 아르바이트 — 신규 담당자 인라인 등록 숨김 ((b) 정책)
   const [contacts, setContacts] = useState<ContactOpt[]>([])
 
   // 폼 상태 (기존 컬럼 순서)
@@ -83,6 +84,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
         setGroups(m.groups ?? [])
         setEmployees(m.employees ?? [])
         setMeName(m.me?.name ?? '')
+        setIsParttime(m.me?.is_parttime === true)
         const p = await pRes.json()
         if (pRes.ok) setProducts((p.products ?? []).filter((x: Product) => x.is_active))
 
@@ -568,7 +570,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               onSelect={pickContact}
               placeholder={vendorId ? '담당자 선택' : '주문처를 먼저 선택'}
               required
-              footer={vendorId && (
+              footer={vendorId && !isParttime && (
                 <button type="button" onMouseDown={e => e.preventDefault()}
                   onClick={() => setAddingContact(true)}
                   className="w-full text-left px-3 py-1.5 text-blue-700 font-medium hover:bg-blue-50">
