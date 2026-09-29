@@ -76,7 +76,8 @@
 
 - 실행은 사용자가 Supabase SQL 편집기에서 직접 한다. 파일만 만들어 전달할 것.
 - 번호 대역: `06x~07x` CRM 트랙(별도 세션) / `100번대` 매출처 허브·담당자 관리(총괄 세션) /
-  `200번대` 인사·근태 트랙 / `300번대` 직원 개인화면(마이페이지) 트랙 /
+  `200번대` 인사·총무 트랙(인수인계: docs/hr-track.md, 근태 설계 docs/attendance-design.md) /
+  `300번대` 직원 개인화면(마이페이지) 트랙 /
   `400번대` 회계 트랙(인수인계: docs/accounting-track.md) /
   `500번대` 주문시스템 트랙(인수인계: docs/order-system-track.md) /
   **`600번대` 매입처 허브 트랙(인수인계: docs/purchase-hub-track.md)** /
@@ -90,7 +91,7 @@
 1. **결정 즉시 기록**: 사용자 결정·승인, 미결 항목, DB 변경·검증 결과가 나오면
    그 자리에서 해당 트랙 docs 문서에 기록하고 main에 반영한다. 대화는 기억 장소가
    아니다 — 저장소가 기억 장소다.
-   - 트랙 문서: 회계 `docs/accounting-track.md` / 근태 `docs/attendance-design.md` /
+   - 트랙 문서: 회계 `docs/accounting-track.md` / 인사·총무 `docs/hr-track.md` /
      새 트랙은 `docs/<트랙>-track.md` 생성. 전체 규칙 변경은 CLAUDE.md에.
 2. **압축 안전망**: `.claude/settings.json`의 PreCompact/PostCompact 훅이
    압축 시 보존 지침을 주입하고, 압축 직후 미기록 사항의 docs 저장을 안내한다.
