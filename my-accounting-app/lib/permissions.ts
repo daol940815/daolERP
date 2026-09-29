@@ -76,3 +76,9 @@ export const canApprove = (me: PermSubject) => !me.expired && (me.isMaster || me
 
 // 폼·API에서 쓰는 한 줄 판정 — 그룹 수정 권한 또는 승인권
 export const isEditor = (me: PermSubject, group: GroupKey) => can(me, group, 'edit')
+
+// ── 레거시 role 판정 호환 (1차 재조정) ─────────────────────────
+// 기존 코드의 `me.role === 'sales'`(일반 직원) / `me.role !== 'admin'`(관리자 전용) 판정을
+// 새 권한으로 흡수한다. 승인권·마스터가 있으면 관리자급으로 본다.
+export const isManagerLike = (me: PermSubject) => !me.expired && (me.isMaster || me.canApprove || me.role !== 'sales')
+export const isHrAdmin = (me: PermSubject) => !me.expired && (me.isMaster || can(me, 'hr', 'edit') || me.role === 'admin')

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
-import { getCurrentUser, loginIdToEmail } from '@/lib/user-role'
+import { getCurrentUser, loginIdToEmail, type CurrentUser } from '@/lib/user-role'
+import { can, GROUP_KEYS, type PermLevel, type Permissions } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
-// 직원·계정 관리 (전체 관리자 전용)
-// GET: 직원 목록
+// 직원·계정·권한 관리 (인사·총무 수정 권한. 권한 편집은 마스터만)
+// GET: 직원 목록 (+ 권한 필드, 호출자가 마스터인지)
 // POST body.action:
 //   create       { name, team?, position?, phone?, hire_date?, role, login_id?, password? }
 //                — login_id+password가 있으면 로그인 계정 발급 (ID 방식)
@@ -13,41 +14,121 @@ export const dynamic = 'force-dynamic'
 //   set_password { id, password }   — 관리자 비밀번호 재설정
 //   deactivate / reactivate { id }  — 재직 상태 + 로그인 차단/해제
 //   delete       { id }             — 직원·계정 완전 삭제 (배정 이력도 함께 삭제)
+//   set_permissions { id, team, employment_type, work_start, work_end, is_master, permissions,
+//                     can_approve, can_view_salary, can_view_payment_info, note }
+//                — 마스터만. 변경 전·후를 employee_permission_logs에 남긴다.
+//                  자기 자신의 마스터 해제 불가.
+//   permission_logs { id } — 해당 직원의 권한 변경 이력
 
 const ROLES = ['sales', 'manager', 'admin'] as const
 const LOGIN_ID_RE = /^[a-z0-9][a-z0-9._-]{2,29}$/  // 3~30자, 영문소문자·숫자·._-
+const PERM_FIELDS = 'team, employment_type, work_start, work_end, is_master, permissions, can_approve, can_view_salary, can_view_payment_info'
 
-const guard = async () => {
+const guard = async (level: PermLevel = 'edit'): Promise<{ error: string; status: number } | { me: CurrentUser }> => {
   const me = await getCurrentUser()
   if (!me) return { error: '로그인이 필요합니다.', status: 401 }
-  if (me.role !== 'admin') return { error: '전체 관리자만 접근할 수 있습니다.', status: 403 }
-  return null
+  if (!(me.isMaster || can(me, 'hr', level))) {
+    return { error: level === 'edit' ? '인사·총무 수정 권한이 필요합니다.' : '인사·총무 조회 권한이 필요합니다.', status: 403 }
+  }
+  return { me }
 }
 
 export async function GET() {
-  const g = await guard()
-  if (g) return NextResponse.json({ error: g.error }, { status: g.status })
+  const g = await guard('view')
+  if ('error' in g) return NextResponse.json({ error: g.error }, { status: g.status })
   const admin = createAdminClient()
-  const { data, error } = await admin
+  const first = await admin
     .from('employees')
-    .select('id, name, team, position, phone, email, hire_date, role, is_active, auth_user_id, login_id, created_at')
+    .select(`id, name, position, phone, email, hire_date, role, is_active, auth_user_id, login_id, created_at, ${PERM_FIELDS}`)
     .order('is_active', { ascending: false })
     .order('name')
+  let data: Record<string, unknown>[] | null = first.data as Record<string, unknown>[] | null
+  let error = first.error
+  let permissionsReady = true
+  if (error) {
+    // 109 미적용 — 레거시 컬럼으로 재조회
+    permissionsReady = false
+    const r = await admin
+      .from('employees')
+      .select('id, name, team, position, phone, email, hire_date, role, is_active, auth_user_id, login_id, created_at')
+      .order('is_active', { ascending: false })
+      .order('name')
+    data = r.data as Record<string, unknown>[] | null; error = r.error
+  }
   if (error) {
     const missing = /column|role|auth_user_id|login_id/i.test(error.message)
     return NextResponse.json({
       error: missing ? '103·104 마이그레이션(직원 확장)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.' : error.message,
     }, { status: 500 })
   }
-  return NextResponse.json({ employees: data ?? [] })
+  return NextResponse.json({
+    employees: data ?? [],
+    permissionsReady,
+    me: { employeeId: g.me.employeeId, isMaster: g.me.isMaster, canEdit: g.me.isMaster || can(g.me, 'hr', 'edit') },
+  })
 }
 
 export async function POST(req: NextRequest) {
-  const g = await guard()
-  if (g) return NextResponse.json({ error: g.error }, { status: g.status })
+  const g = await guard('edit')
+  if ('error' in g) return NextResponse.json({ error: g.error }, { status: g.status })
   const admin = createAdminClient()
-  const body = await req.json().catch(() => ({})) as Record<string, string | undefined>
+  const raw = await req.json().catch(() => ({})) as Record<string, unknown>
+  const body = raw as Record<string, string | undefined>   // 레거시 액션은 문자열 필드만 쓴다
   const action = body.action
+
+  // ── 권한 편집 (마스터만) ─────────────────────────────
+  if (action === 'set_permissions') {
+    if (!g.me.isMaster) return NextResponse.json({ error: '권한 편집은 마스터 계정만 할 수 있습니다.' }, { status: 403 })
+    const id = String(raw.id ?? '')
+    if (!id) return NextResponse.json({ error: 'id가 필요합니다.' }, { status: 400 })
+    const { data: before, error: bErr } = await admin.from('employees')
+      .select(`id, name, ${PERM_FIELDS}`).eq('id', id).maybeSingle()
+    if (bErr || !before) return NextResponse.json({ error: bErr?.message ?? '직원을 찾을 수 없습니다.' }, { status: 404 })
+
+    const levels: PermLevel[] = ['none', 'view', 'edit']
+    const rawPerm = (raw.permissions ?? {}) as Record<string, unknown>
+    const permissions: Permissions = {}
+    for (const k of GROUP_KEYS) {
+      const v = rawPerm[k]
+      permissions[k] = levels.includes(v as PermLevel) ? (v as PermLevel) : 'none'
+    }
+    if (permissions.mgmt === 'edit') permissions.mgmt = 'view'   // 경영 현황은 조회만
+    const team = typeof raw.team === 'string' && raw.team.trim() ? raw.team.trim() : null
+    const employment = raw.employment_type === 'parttime' ? 'parttime' : 'regular'
+    const dateOrNull = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null
+    const isMaster = raw.is_master === true
+    if (before.id === g.me.employeeId && before.is_master && !isMaster) {
+      return NextResponse.json({ error: '자기 자신의 마스터 권한은 해제할 수 없습니다.' }, { status: 400 })
+    }
+    const after = {
+      team, employment_type: employment,
+      work_start: dateOrNull(raw.work_start), work_end: dateOrNull(raw.work_end),
+      is_master: isMaster, permissions,
+      can_approve: raw.can_approve === true,
+      can_view_salary: raw.can_view_salary === true,
+      can_view_payment_info: raw.can_view_payment_info === true,
+    }
+    const { error: uErr } = await admin.from('employees').update(after).eq('id', id)
+    if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 })
+    const beforeState: Record<string, unknown> = { ...(before as Record<string, unknown>) }
+    delete beforeState.id
+    delete beforeState.name
+    await admin.from('employee_permission_logs').insert({
+      employee_id: id, changed_by: g.me.employeeId,
+      before_state: beforeState, after_state: after,
+      note: typeof raw.note === 'string' ? raw.note : null,
+    })
+    return NextResponse.json({ ok: true })
+  }
+
+  if (action === 'permission_logs') {
+    const id = String(body.id ?? '')
+    const { data, error } = await admin.from('employee_permission_logs')
+      .select('id, changed_at, before_state, after_state, note, changer:employees!employee_permission_logs_changed_by_fkey(name)')
+      .eq('employee_id', id).order('changed_at', { ascending: false }).limit(30)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ logs: data ?? [] })
+  }
 
   const normRole = (r: string | undefined) =>
     (ROLES as readonly string[]).includes(r ?? '') ? (r as string) : 'sales'

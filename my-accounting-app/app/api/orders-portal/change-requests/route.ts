@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isManagerLike } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: false })
     .limit(200)
   if (status !== 'all') query = query.eq('status', status)
-  if (me.role === 'sales') {
+  if (!isManagerLike(me)) {
     if (!me.employeeId) return NextResponse.json({ requests: [] })
     query = query.eq('requested_by', me.employeeId)
   }

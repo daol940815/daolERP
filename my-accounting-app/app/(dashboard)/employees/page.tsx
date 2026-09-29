@@ -1,27 +1,31 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { GROUP_KEYS, type Permissions } from '@/lib/permissions'
+import PermissionPanel, { type PermEmp } from './permission-panel'
 
-// 직원·계정 관리 (전체 관리자 전용)
-// 직원 등록 시 로그인 계정(ID 방식)을 함께 발급한다. 목록에서 수정·삭제·비번 재설정 가능.
+// 직원·계정·권한 관리 (인사·총무 수정 권한. 권한 편집은 마스터만)
+// 직원 등록 시 로그인 계정(ID 방식)을 함께 발급한다. 목록에서 수정·삭제·비번 재설정·권한 편집.
 
-interface Emp {
-  id: string
-  name: string
-  team: string | null
-  position: string | null
+interface Emp extends PermEmp {
   phone: string | null
   hire_date: string | null
   role: 'sales' | 'manager' | 'admin'
   is_active: boolean
   auth_user_id: string | null
-  login_id: string | null
 }
 
-const ROLE_LABEL: Record<string, string> = {
-  sales: '직원', manager: '중간 관리자', admin: '전체 관리자',
-}
+const TEAMS = ['영업팀', '영업지원팀', '경영지원팀']
 const EMPTY = { name: '', team: '', position: '', phone: '', hire_date: '', role: 'sales', login_id: '', password: '' }
+
+const permSummary = (e: Emp) => {
+  if (e.is_master) return '마스터 (전 영역)'
+  const p = (e.permissions ?? {}) as Permissions
+  const edit = GROUP_KEYS.filter(k => p[k] === 'edit').length
+  const view = GROUP_KEYS.filter(k => p[k] === 'view').length
+  if (!edit && !view) return '없음'
+  return `수정 ${edit} · 조회 ${view}`
+}
 
 export default function EmployeesPage() {
   const [rows, setRows] = useState<Emp[]>([])
@@ -34,6 +38,9 @@ export default function EmployeesPage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [edit, setEdit] = useState({ name: '', team: '', position: '', phone: '', hire_date: '', login_id: '' })
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [meInfo, setMeInfo] = useState<{ employeeId: string | null; isMaster: boolean; canEdit: boolean }>({ employeeId: null, isMaster: false, canEdit: false })
+  const [permReady, setPermReady] = useState(true)
+  const [permTarget, setPermTarget] = useState<Emp | null>(null)
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
 
@@ -42,7 +49,11 @@ export default function EmployeesPage() {
     const res = await fetch('/api/employees')
     const json = await res.json()
     if (!res.ok) setError(json.error ?? '조회 실패')
-    else setRows(json.employees)
+    else {
+      setRows(json.employees)
+      if (json.me) setMeInfo(json.me)
+      setPermReady(json.permissionsReady !== false)
+    }
     setSelected(new Set())
     setLoading(false)
   }, [])
@@ -127,11 +138,16 @@ export default function EmployeesPage() {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900">직원 · 계정 관리</h1>
+      <h1 className="text-2xl font-bold text-gray-900">직원 · 계정 · 권한</h1>
       <p className="text-sm mt-1 text-gray-500">
-        직원 등록 시 로그인 계정(ID 방식)이 함께 발급됩니다. 등급: 직원(주문 관리) ·
-        중간 관리자(주문 관리 + 수정·승인 권한, 회계 접근 불가) · 전체 관리자(전체 접근).
+        직원 등록 시 로그인 계정(ID 방식)이 함께 발급됩니다. 권한은 마스터 계정이 직원별로
+        영역(그룹)마다 없음 / 조회 / 수정을 지정합니다 — 권한 버튼.
       </p>
+      {!permReady && (
+        <div className="my-3 px-4 py-2.5 bg-amber-50 text-amber-800 text-sm rounded-lg">
+          109 마이그레이션(직원 권한)이 아직 적용되지 않았습니다. 적용 전에는 레거시 등급(직원/중간 관리자/전체 관리자)으로 동작합니다.
+        </div>
+      )}
 
       {msg && <div className="my-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
       {error && <div className="my-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
@@ -153,30 +169,23 @@ export default function EmployeesPage() {
         <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {([
-              ['name', '이름 *', 'text'], ['team', '부서/팀', 'text'], ['position', '직급', 'text'],
+              ['name', '이름 *', 'text'], ['team', '팀', 'text'], ['position', '직급', 'text'],
               ['phone', '연락처', 'text'], ['hire_date', '입사일', 'date'],
               ['login_id', '로그인 ID (영문·숫자)', 'text'], ['password', '초기 비밀번호', 'text'],
             ] as const).map(([k, label, type]) => (
               <div key={k}>
                 <label className="block text-[11px] text-gray-500 font-semibold mb-1">{label}</label>
-                <input type={type} value={form[k]} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))}
+                <input type={type} value={form[k]} list={k === 'team' ? 'team-list' : undefined}
+                  onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
               </div>
             ))}
-            <div>
-              <label className="block text-[11px] text-gray-500 font-semibold mb-1">등급</label>
-              <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-                <option value="sales">직원 (주문 관리)</option>
-                <option value="manager">중간 관리자 (주문 관리 + 승인)</option>
-                <option value="admin">전체 관리자</option>
-              </select>
-            </div>
+            <datalist id="team-list">{TEAMS.map(t => <option key={t} value={t} />)}</datalist>
           </div>
           <div className="flex justify-between items-center mt-3">
             <p className="text-[11px] text-gray-400">
               ID를 비우면 담당 배정용 직원으로만 등록됩니다(로그인 불가, 나중에 발급 가능).
-              비밀번호는 인증 서버 최소 기준(6자)만 넘으면 됩니다.
+              비밀번호는 인증 서버 최소 기준(6자)만 넘으면 됩니다. 권한은 등록 후 권한 버튼에서 지정합니다(기본 없음).
             </p>
             <button onClick={create} disabled={busy}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
@@ -195,10 +204,10 @@ export default function EmployeesPage() {
                   <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
                 </th>
                 <th className="py-2 px-3 text-left font-medium">이름</th>
-                <th className="py-2 px-3 text-left font-medium">부서/직급</th>
+                <th className="py-2 px-3 text-left font-medium">팀/직급</th>
                 <th className="py-2 px-3 text-left font-medium">연락처</th>
                 <th className="py-2 px-3 text-left font-medium">로그인 ID</th>
-                <th className="py-2 px-3 text-left font-medium">등급</th>
+                <th className="py-2 px-3 text-left font-medium">권한</th>
                 <th className="py-2 px-3 text-left font-medium">입사일</th>
                 <th className="py-2 px-3 text-left font-medium">상태</th>
                 <th className="py-2 px-3 text-right font-medium w-56"></th>
@@ -211,13 +220,13 @@ export default function EmployeesPage() {
                   <td className="py-2 px-3"><input value={edit.name} onChange={e => setEdit(s => ({ ...s, name: e.target.value }))} className={inp} /></td>
                   <td className="py-2 px-3">
                     <div className="flex gap-1">
-                      <input value={edit.team} onChange={e => setEdit(s => ({ ...s, team: e.target.value }))} placeholder="부서" className={inp} />
+                      <input value={edit.team} list="team-list" onChange={e => setEdit(s => ({ ...s, team: e.target.value }))} placeholder="팀" className={inp} />
                       <input value={edit.position} onChange={e => setEdit(s => ({ ...s, position: e.target.value }))} placeholder="직급" className={inp} />
                     </div>
                   </td>
                   <td className="py-2 px-3"><input value={edit.phone} onChange={e => setEdit(s => ({ ...s, phone: e.target.value }))} className={inp} /></td>
                   <td className="py-2 px-3"><input value={edit.login_id} onChange={e => setEdit(s => ({ ...s, login_id: e.target.value }))} className={inp} /></td>
-                  <td className="py-2 px-3 text-xs text-gray-400">{ROLE_LABEL[r.role]}</td>
+                  <td className="py-2 px-3 text-xs text-gray-400">{permSummary(r)}</td>
                   <td className="py-2 px-3"><input type="date" value={edit.hire_date} onChange={e => setEdit(s => ({ ...s, hire_date: e.target.value }))} className={inp} /></td>
                   <td className="py-2 px-3"></td>
                   <td className="py-2 px-3 text-right whitespace-nowrap">
@@ -243,14 +252,13 @@ export default function EmployeesPage() {
                         </>
                       : <span className="text-gray-300 text-xs">미발급</span>}
                   </td>
-                  <td className="py-2 px-3">
-                    <select value={r.role} disabled={busy}
-                      onChange={async e => { if (await post({ action: 'update', id: r.id, role: e.target.value })) { flash('등급 변경됨'); load() } }}
-                      className="border border-gray-200 rounded px-1.5 py-0.5 text-xs">
-                      <option value="sales">직원</option>
-                      <option value="manager">중간 관리자</option>
-                      <option value="admin">전체 관리자</option>
-                    </select>
+                  <td className="py-2 px-3 whitespace-nowrap">
+                    <button onClick={() => setPermTarget(r)} disabled={!permReady}
+                      className={`text-xs px-2 py-1 rounded border ${r.is_master ? 'border-slate-900 bg-slate-900 text-white' : 'border-gray-300 hover:bg-gray-50'}`}>
+                      {permSummary(r)}
+                    </button>
+                    {r.can_approve && !r.is_master && <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-blue-50 text-blue-700">승인</span>}
+                    {r.employment_type === 'parttime' && <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-50 text-amber-700">아르바이트{r.work_end ? ` ~${r.work_end}` : ''}</span>}
                   </td>
                   <td className="py-2 px-3 tabular-nums text-gray-500 text-xs">{r.hire_date ?? '-'}</td>
                   <td className="py-2 px-3">
@@ -287,6 +295,16 @@ export default function EmployeesPage() {
           </table>
         )}
       </div>
+
+      {permTarget && (
+        <PermissionPanel
+          emp={permTarget}
+          others={rows.filter(r => r.id !== permTarget.id)}
+          canEdit={meInfo.isMaster}
+          onClose={() => setPermTarget(null)}
+          onSaved={() => { setPermTarget(null); flash('권한이 저장되었습니다.'); load() }}
+        />
+      )}
     </div>
   )
 }

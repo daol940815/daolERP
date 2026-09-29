@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isManagerLike } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { kstToday, kstMonthNow } from '@/lib/attendance'
@@ -79,7 +80,7 @@ export async function GET() {
     (Array.isArray(v) ? v[0]?.name : v?.name) ?? null
 
   return NextResponse.json({
-    me: { name: me.employeeName, role: me.role, linked: !!me.employeeId },
+    me: { name: me.employeeName, role: isManagerLike(me) ? (me.role === 'sales' ? 'manager' : me.role) : 'sales', linked: !!me.employeeId },
     month,
     today,
     summary: summaryRes.error ? null : summaryRes.data,
