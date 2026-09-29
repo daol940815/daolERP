@@ -41,9 +41,8 @@ export const MENU: MenuGroup[] = [
     { label: '근태 · 휴가', href: '/hr/attendance' },
   ]},
   { key: 'customers', area: 'sales', label: '거래처 관리', items: [
-    // 고객 관리(거래처 담당자)는 매출처 관리 안의 [지점 기준|고객 기준] 토글로도 진입 가능(고객관리 트랙 단일화).
-    // 총괄 세션 사용자 요청(2026-09-29)으로 메뉴 항목도 유지 — 둘 중 하나로 정리할지 사용자 결정 대기.
-    { label: '고객 관리', href: '/sales-hub/contacts' },
+    // 고객 관리(거래처 담당자, /sales-hub/contacts)는 매출처 관리 안의 [지점 기준|고객 기준] 토글로 진입
+    // (2026-09-29 사용자 확정 (b) — 사이드바 항목 없음)
     { label: '매출처 관리', href: '/sales-hub' },
     { label: '매입처 관리', href: '/orders/purchase-hub' },
   ]},
