@@ -117,6 +117,39 @@ hr.admin·tools·payables.work (총괄부사장 +approve) / 대표 = mgmt.view·
 > 인라인 등록 버튼도 숨겨줘(API는 미들웨어가 이미 403). 결제정보 칸은 can_view_payment_info가
 > true인 계정 또는 본인 작성분만 열람되게 해줘(lib/user-role.ts getCurrentUser 필드 사용).
 
+## 보완 (2026-09-29 사용자 요청 12건 — main 48de8c6)
+
+완료(1·2·3·5·6·7·12): 대시보드 업무일지 기본(영업일지는 기록 있는 직원만) / 매출처 허브→매출처 관리·
+거래처 담당자→고객 관리 / 영업·주문의 매입처 관리 이름 복원(기능은 기존 매입처 허브 — 신설 없음) /
+영역 튕김 수정(사이드바가 현재 영역을 쿠키 동기화 + 공유 화면 상세 경로 양쪽 소속) /
+경영 현황에 매출처·고객·매입처 관리(조회) / 내 고객 = /sales-hub?mine=1(현재 담당 거래처) + 빈 상태.
+주문 트랙 이관(4): 발주서 화면 조건검색 두 줄 + 기간 버튼 — 아래 요청문.
+시안 후 진행(8·9·10·11): 인사·총무 확장 — docs/mockups/인사총무_확장_시안.html, 계획은
+docs/attendance-design.md "인사·총무 확장 계획". 급여는 기록부터(사용자 확정). 양식 파일은 시행 후 전달 예정.
+
+### 주문 트랙 요청문 (4번 — 발주서 화면)
+> /orders/purchase 발주서 목록의 조건검색을 두 줄로 바꿔줘. 1행: 기간 빠른 선택 버튼(당월 · 전월 ·
+> 1분기 · 2분기 · 상반기 · 당년 · 전체 기간 — 매출처 관리 화면의 applyPreset/lib/period-presets.ts
+> 재사용) + 날짜 from~to. 2행: 나머지 조건(매입처·발송 상태·주문번호 검색 등 현재 필터). 다른
+> 목록 화면(거래 내역·법인카드·ERP 주문내역·매출처 관리)과 같은 배치.
+
+### 오늘 변경이 다른 트랙에 미치는 영향 (2026-09-29 점검)
+1. **사이드바 3개 삭제** (`components/layout/Sidebar.tsx`, `app/(orders)/orders/orders-sidebar.tsx`,
+   `app/(hr)/hr/hr-sidebar.tsx`). 이 파일을 수정 중인 미병합 브랜치가 있으면 충돌 — 메뉴 항목은
+   `lib/menu-registry.ts`에 추가하는 것으로 옮길 것. CLAUDE.md의 "orders-sidebar.tsx 공유 파일" 문구는 폐기.
+2. **레거시 role 판정 9곳 교체**: 근태(records·leaves), 업무일지(me/worklog·team/worklog·me/summary),
+   주문(orders-portal route·change-requests 2), 팀 업무 현황 페이지 → `isManagerLike`/`isHrAdmin`.
+   동작: 승인권·마스터도 관리자급으로 인정(강시현 부사장 승인 가능). 그 트랙이 같은 파일을 고치면 rebase.
+3. **미들웨어 API 권한 검사**: `API_OWNERS`에 등록된 접두는 그룹 권한 검사(GET=조회, 그 외=수정).
+   새 API는 등록해야 검사가 붙고, 미등록은 로그인만으로 통과(안전하지만 보호 없음).
+   조회 권한자가 POST로 조회하는 API가 있으면 403 — 발견 시 API_OWNERS에서 그룹 조정 또는 GET으로.
+4. **`/api/employees` GET = 인사·총무 조회 권한** (이전 admin 전용). 직원 드롭다운을 이 API로
+   만들지 말 것(예: /api/erp-orders/options처럼 전용 옵션 API 사용).
+5. **getCurrentUser 반환 확장**(팀·고용형태·근무기간·마스터·권한·잠금) — 필드 추가만, 기존 사용처 호환.
+   `me.role`로 새 판정을 쓰지 말 것.
+6. **홍창의 role admin→manager**(109) — 회계 모드 접근 상실(의도), 영업·주문 승인은 can_approve.
+7. 상담일지 (b) 정책·결제정보 잠금·아르바이트 등록 버튼 숨김 → 주문 트랙 요청문(위 "1차 구현 완료" 절).
+
 ## 구현 순서 (재배치안 확정 후)
 
 1. 메뉴 목록 단일화: `lib/menu-registry.ts`(항목·경로·그룹·필요 권한) — 사이드바 3개가
