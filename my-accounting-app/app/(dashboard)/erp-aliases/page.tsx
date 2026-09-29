@@ -902,7 +902,7 @@ function ErpAliasesContent() {
                               className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-40"
                             >취소</button>
                             <Link
-                              href={`/vendors/${a.vendor_id}`}
+                              href={a.alias_type === 'purchase' ? `/purchase-hub/${a.vendor_id}` : `/sales-hub/${a.vendor_id}`}
                               className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-100"
                             >거래처 상세 →</Link>
                             <button
@@ -963,7 +963,7 @@ function ErpAliasesContent() {
                     {v.contact_phone && ` · ${v.contact_phone}`}
                   </p>
                 </div>
-                <Link href={`/vendors/${v.id}`} className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">상세</Link>
+                <Link href={isCustomer ? `/sales-hub/${v.id}` : `/purchase-hub/${v.id}`} className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">상세</Link>
                 <button
                   onClick={async () => {
                     setWorking(true)

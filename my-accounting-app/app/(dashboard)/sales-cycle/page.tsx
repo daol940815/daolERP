@@ -179,7 +179,7 @@ export default function SalesCyclePage() {
               {filtered.slice(0, 300).map(r => (
                 <tr key={r.vendor_id} className="hover:bg-gray-50">
                   <td className="px-3 py-2 font-medium text-gray-900">
-                    <Link href={`/vendors/${r.vendor_id}`} className="hover:underline">{r.vendor_name}</Link>
+                    <Link href={`/sales-hub/${r.vendor_id}`} className="hover:underline">{r.vendor_name}</Link>
                     {r.no_invoice && <span className="ml-1.5 px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[11px]">계산서 미발행</span>}
                   </td>
                   <td className="px-3 py-2 text-right">{r.order_count.toLocaleString()}</td>
