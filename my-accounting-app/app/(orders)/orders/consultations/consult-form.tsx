@@ -46,6 +46,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const [optionNote, setOptionNote] = useState('')
   const [payment, setPayment] = useState('')            // 새로 입력하는 결제정보 (평문)
   const [paymentMasked, setPaymentMasked] = useState<string | null>(null)
+  const [paymentLocked, setPaymentLocked] = useState(false)   // 저장돼 있으나 열람 권한 없음 ((b) 정책)
+  const [isParttime, setIsParttime] = useState(false)         // 아르바이트 — 인라인 등록 버튼 숨김
   const [paymentRevealed, setPaymentRevealed] = useState<string | null>(null)
   const [senderName, setSenderName] = useState('')
   const [deliveryRequest, setDeliveryRequest] = useState('')
@@ -91,6 +93,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         const m = await mRes.json()
         if (!mRes.ok) throw new Error(m.error ?? '마스터 조회 실패')
         setVendors(m.vendors ?? [])
+        setIsParttime(m.me?.is_parttime === true)
         setGroups(m.groups ?? [])
         const p = await pRes.json()
         if (pRes.ok) setProducts((p.products ?? []).filter((x: Product) => x.is_active))
@@ -113,6 +116,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           setProductStatus(v.product_status ?? '')
           setOptionNote(v.option_note ?? '')
           setPaymentMasked(c.payment_masked ?? null)
+          setPaymentLocked(c.payment_locked === true)
           setSenderName(v.sender_name ?? '')
           setDeliveryRequest(v.delivery_request ?? '')
           setGreetingCard(v.greeting_card ?? '')
@@ -621,7 +625,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
 
         {/* 신규 매출처 인라인 등록 (2026-08-26 사용자 확정) — 자유 입력분을 그 자리에서
             마스터에 올린다. 정규화 동일명이 있으면 새로 만들지 않고 연결 (중복 방지). */}
-        {!locked && needsRegister && !regOpen && (
+        {!locked && !isParttime && needsRegister && !regOpen && (
           <div className="mt-3 px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2 flex-wrap">
             <span>
               {!vendorId
@@ -634,7 +638,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             </button>
           </div>
         )}
-        {!locked && regOpen && (
+        {!locked && !isParttime && regOpen && (
           <div className="mt-3 p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
             <div className="text-xs font-bold text-gray-700 mb-2">
               신규 매출처 등록 <span className="font-normal text-gray-400 ml-1">이름이 같은 기존 지점·담당자가 있으면 새로 만들지 않고 연결됩니다</span>
@@ -965,6 +969,12 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         <div className="grid grid-cols-2 md:grid-cols-6 gap-x-3 gap-y-2.5">
           <div className="col-span-2">
             <label className={label}>결제정보 <span className="text-blue-600">(암호화 저장)</span></label>
+            {/* (b) 정책: 열람은 본인 작성분 또는 결제정보 열람 권한 계정만 */}
+            {paymentLocked && (
+              <div className="text-xs text-gray-400 mb-1">
+                저장됨 — 열람 권한이 없습니다 (본인 작성분 또는 결제정보 열람 권한 계정만)
+              </div>
+            )}
             {paymentMasked && !payment && (
               <div className="text-xs text-gray-500 mb-1 tabular-nums">
                 저장됨: {paymentRevealed ?? paymentMasked}
@@ -974,7 +984,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               </div>
             )}
             <input value={payment} disabled={locked} onChange={e => setPayment(e.target.value)}
-              placeholder={paymentMasked ? '새 값 입력 시 교체 (비우면 유지)' : '카드번호 등 — 평문 입력, 암호화 저장'}
+              placeholder={paymentMasked || paymentLocked ? '새 값 입력 시 교체 (비우면 유지)' : '카드번호 등 — 평문 입력, 암호화 저장'}
               className={free} />
           </div>
           {/* 계산서 발행용 정보 (509 — 실무자 요청) */}
@@ -1039,7 +1049,11 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             <span className="flex gap-2">
               <button disabled={saving} onClick={() => save(false)}
                 className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 disabled:opacity-50">저장</button>
-              <button disabled={saving} onClick={() => save(true)}
+              {/* (b) 정책: 지점·담당자 마스터 연결이 끝난 상담만 주문 전환 */}
+              <button disabled={saving || !vendorId || !contactId} onClick={() => save(true)}
+                title={!vendorId || !contactId
+                  ? '마스터 미연결 상담은 전환할 수 없습니다 — 위의 매출처 마스터 등록 또는 마스터 선택 후 전환해주세요'
+                  : undefined}
                 className="px-5 py-2 bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
                 {saving ? '저장 중...' : '저장 후 주문서로 전환'}
               </button>

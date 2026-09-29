@@ -69,8 +69,8 @@
 - "본인 관련 정보" 데이터 소스: 내 입력 주문 `erp_orders.staff_name`(이름 대조) ·
   내 상담 주문 `erp_order_items.channel` · 내 담당 거래처 `vendor_staff.employee_id` ·
   내 영업일지 `contact_activities.employee_id` · 근태(200번대 트랙에서 생성 예정).
-- 주문 포털 사이드바 `app/(orders)/orders/orders-sidebar.tsx`는 허브·주문 트랙도 수정하는
-  파일 — main 병합 전 rebase 필수.
+- 사이드바 파일은 삭제됨(2026-09-29 UI 재조정) — 메뉴 추가·이동은
+  `lib/menu-registry.ts` 단일 원천에 항목을 추가할 것. main 병합 전 rebase 필수는 동일.
 
 ## 마이그레이션 규칙 (번호 충돌 주의 — 병행 세션 있음)
 

@@ -28,6 +28,7 @@ interface Row {
   has_discount: boolean
   item_status: string | null
   line_count: number
+  master_linked: boolean
 }
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
@@ -49,7 +50,8 @@ const chip = (on: boolean) =>
 export default function ConsultationsPage() {
   const router = useRouter()
   const [rows, setRows] = useState<Row[]>([])
-  const [role, setRole] = useState('sales')
+  const [manager, setManager] = useState(false)      // 관리자급(isManagerLike) — 전체 보기 토글
+  const [isParttime, setIsParttime] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [qInput, setQInput] = useState('')
@@ -98,7 +100,7 @@ export default function ConsultationsPage() {
     const json = await res.json()
     if (!res.ok) setError(json.error ?? '조회 실패')
     else {
-      setRows(json.rows); setRole(json.role ?? 'sales')
+      setRows(json.rows); setManager(json.manager === true); setIsParttime(json.is_parttime === true)
       setTotalPages(json.total_pages ?? 1); setTotal(json.total ?? 0)
     }
     setLoading(false)
@@ -140,7 +142,7 @@ export default function ConsultationsPage() {
             <button key={t} onClick={() => setType(t)} className={chip(type === t)}>{t === 'all' ? '구분 전체' : t}</button>
           ))}
           <span className="flex-1" />
-          {role !== 'sales' && (
+          {manager && (
             <button onClick={() => setAll(v => !v)} className={chip(all)}>{all ? '전체 직원 보기 중' : '내 것만 보기 중'}</button>
           )}
         </div>
@@ -172,7 +174,15 @@ export default function ConsultationsPage() {
               {rows.map(r => {
                 const key = `${r.id}:${r.line_no ?? 0}`
                 return (
-                <tr key={key} onClick={() => router.push(`/orders/consultations/${r.id}`)}
+                <tr key={key}
+                  onClick={() => {
+                    // 아르바이트는 마스터 미연결 상담 접근 불가 ((b) 정책 — API도 403)
+                    if (isParttime && !r.master_linked) {
+                      alert('아르바이트 계정은 마스터 미연결 상담을 열 수 없습니다. 담당 직원에게 요청해주세요.')
+                      return
+                    }
+                    router.push(`/orders/consultations/${r.id}`)
+                  }}
                   className="border-b border-gray-50 cursor-pointer hover:bg-blue-50/40">
                   <td className="py-2 pl-3 pr-1" onClick={e => e.stopPropagation()}>
                     {r.line_no != null && (
@@ -209,12 +219,24 @@ export default function ConsultationsPage() {
                     <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${STATUS_BADGE[r.status] ?? 'bg-gray-100 text-gray-500'}`}>
                       {r.status}
                     </span>
+                    {/* (b) 정책: 지점·담당자 마스터 연결이 끝나야 주문 전환 가능 */}
+                    {!r.master_linked && (
+                      <span className="ml-1 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-50 text-orange-600 border border-orange-200"
+                        title="자유 입력된 업체·지점·담당자가 매출처 마스터에 연결되지 않았습니다 — 상담일지를 열어 마스터 등록/선택 후 전환할 수 있습니다">
+                        마스터 미연결
+                      </span>
+                    )}
                   </td>
                   <td className="py-2 px-3 whitespace-nowrap">
                     {r.status === '진행중' && (
-                      <button onClick={e => { e.stopPropagation(); router.push(`/orders/new?consult=${r.id}`) }}
-                        className="text-xs text-blue-700 hover:underline"
-                        title="상담 단위 전환 — 이 상담의 전체 품목이 주문서로 넘어갑니다">주문서로 전환</button>
+                      r.master_linked ? (
+                        <button onClick={e => { e.stopPropagation(); router.push(`/orders/new?consult=${r.id}`) }}
+                          className="text-xs text-blue-700 hover:underline"
+                          title="상담 단위 전환 — 이 상담의 전체 품목이 주문서로 넘어갑니다">주문서로 전환</button>
+                      ) : (
+                        <span className="text-xs text-gray-300 cursor-not-allowed"
+                          title="마스터 미연결 상담은 전환할 수 없습니다 — 상담일지에서 매출처 마스터 등록/선택 후 전환해주세요">주문서로 전환</span>
+                      )
                     )}
                   </td>
                 </tr>
