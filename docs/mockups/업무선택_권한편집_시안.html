@@ -137,6 +137,37 @@
       <div class="log"><b>변경 이력</b> &nbsp; 2026-09-29 daol825 — 결산·세무 자료: 없음 → 조회 &nbsp;|&nbsp; 2026-09-29 daol825 — 급여 정보 열람: 허용</div>
     </div>
   </div>
+
+  <h2>③ 사람별 권한 예시 (2026-09-29 확정 반영) — 초기값으로 넣을 내용</h2>
+  <div class="panel">
+    <table>
+      <thead>
+        <tr><th>권한 단위</th><th class="c">사장님<br><span class="area">마스터</span></th><th class="c">오철준<br><span class="area">마스터</span></th><th class="c">강시현<br><span class="area">총괄부사장</span></th><th class="c">영업팀 대표<br><span class="area">김재형·옥광일</span></th><th class="c">영업지원팀<br><span class="area">홍창의 외</span></th><th class="c">아르바이트<br><span class="area">명절 단기</span></th></tr>
+      </thead>
+      <tbody>
+        <tr><td>고객 · 영업</td><td class="c">수정</td><td class="c">수정</td><td class="c">수정</td><td class="c">수정</td><td class="c">수정</td><td class="c">없음</td></tr>
+        <tr><td>주문 · 발주</td><td class="c">수정</td><td class="c">수정</td><td class="c">수정</td><td class="c">수정</td><td class="c">수정</td><td class="c"><b>수정</b></td></tr>
+        <tr><td>수금 · 정산 작업</td><td class="c">수정</td><td class="c">수정</td><td class="c">수정</td><td class="c">없음</td><td class="c">수정</td><td class="c">없음</td></tr>
+        <tr><td>회계 · 재무 작업</td><td class="c">수정</td><td class="c">수정</td><td class="c">수정</td><td class="c">없음</td><td class="c">없음</td><td class="c">없음</td></tr>
+        <tr><td>결산 · 세무 자료</td><td class="c">수정</td><td class="c">수정</td><td class="c">조회</td><td class="c">없음</td><td class="c">없음</td><td class="c">없음</td></tr>
+        <tr><td>점검 · 정리 도구</td><td class="c">수정</td><td class="c">수정</td><td class="c">없음</td><td class="c">없음</td><td class="c">없음</td><td class="c">없음</td></tr>
+        <tr><td>인사 · 총무</td><td class="c">수정</td><td class="c">수정</td><td class="c">수정</td><td class="c"><b>조회</b></td><td class="c">없음</td><td class="c">없음</td></tr>
+        <tr><td>경영 현황</td><td class="c">조회</td><td class="c">조회</td><td class="c">조회</td><td class="c">없음</td><td class="c">없음</td><td class="c">없음</td></tr>
+        <tr class="sect"><td colspan="7">별도 잠금 · 승인</td></tr>
+        <tr><td>급여 정보 열람</td><td class="c">허용</td><td class="c">허용</td><td class="c">허용</td><td class="c">—</td><td class="c">—</td><td class="c">—</td></tr>
+        <tr><td>결제정보 열람</td><td class="c">허용</td><td class="c">허용</td><td class="c">허용</td><td class="c">—</td><td class="c">본인 작성분</td><td class="c">—</td></tr>
+        <tr><td>승인권</td><td class="c">O</td><td class="c">O</td><td class="c">O</td><td class="c">—</td><td class="c">팀장만</td><td class="c">—</td></tr>
+        <tr class="sect"><td colspan="7">계정 속성 (직원 마스터)</td></tr>
+        <tr><td>고용 형태 · 근무 기간</td><td class="c" colspan="5">정규 · 기간 없음</td><td class="c"><b>아르바이트 · 시작~종료일</b></td></tr>
+        <tr><td>업무 선택 화면</td><td class="c">4영역</td><td class="c">4영역</td><td class="c">4영역</td><td class="c">2영역</td><td class="c">건너뜀</td><td class="c">건너뜀</td></tr>
+      </tbody>
+    </table>
+    <div class="hint">
+      · 영업팀 대표는 영업·주문 수정 + 인사·총무 조회 — 근태 현황·직원 명단은 보이고, 급여 칸은 별도 잠금이라 가려진다.<br>
+      · 아르바이트: 영업·주문 영역의 주문·발주 그룹만. 근무 종료일이 지나면 로그인 자동 차단, 다음 명절 재고용 시 같은 계정을 기간만 갱신해 재활성(계정을 매번 새로 만들지 않음). 작성한 주문·발주는 업무일지에 자동 기록되어 감사 가능.<br>
+      · 이 표는 초기값일 뿐 — 이후 변경은 마스터가 패널에서 사람별로 조정.
+    </div>
+  </div>
 </div>
 </body>
 </html>
