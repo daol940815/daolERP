@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>daolERP 현재 UI 구조 (2026-09-29)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; }
+  .wrap { max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 700; }
+  .sub { font-size: 12.5px; color: #64748b; margin: 4px 0 18px; line-height: 1.6; }
+  .legend { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; font-size: 12px; align-items: center; }
+  .cols { display: grid; grid-template-columns: 1.5fr 1fr 0.7fr; gap: 16px; align-items: start; }
+  .mode { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+  .mode-head { background: #0f172a; color: #fff; padding: 12px 16px; }
+  .mode-head .t { font-size: 15px; font-weight: 700; }
+  .mode-head .d { font-size: 11.5px; color: #94a3b8; margin-top: 2px; }
+  .group { padding: 10px 16px 12px; border-top: 1px solid #f1f5f9; }
+  .group-title { font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .04em; display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .cnt { font-weight: 500; color: #94a3b8; }
+  ul { list-style: none; }
+  li { font-size: 13px; padding: 4px 0 4px 10px; border-left: 2px solid #e2e8f0; margin-left: 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  li.sub { margin-left: 22px; font-size: 12.5px; color: #475569; border-left-color: #f1f5f9; }
+  .path { font-size: 11px; color: #94a3b8; font-family: ui-monospace, monospace; }
+  .b { display: inline-block; font-size: 10.5px; border-radius: 999px; padding: 1px 7px; font-weight: 600; }
+  .b-old { background: #fee2e2; color: #b91c1c; }
+  .b-rep { background: #e0e7ff; color: #4338ca; }
+  .b-tool { background: #fef3c7; color: #b45309; }
+  .b-src { background: #dcfce7; color: #15803d; }
+  .b-role { background: #f1f5f9; color: #475569; }
+  .b-broken { background: #0f172a; color: #fff; }
+  .b-wip { background: #e2e8f0; color: #64748b; }
+  .b-dup { background: #fce7f3; color: #be185d; }
+  .foot { padding: 10px 16px; background: #f8fafc; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; }
+  .obs { margin-top: 20px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; }
+  .obs h2 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+  .obs ol { padding-left: 20px; font-size: 13.5px; line-height: 1.7; }
+  .obs li { display: list-item; border: 0; padding: 2px 0; margin: 0; }
+  table { border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
+  th, td { border: 1px solid #e2e8f0; padding: 5px 10px; text-align: left; }
+  th { background: #f8fafc; color: #475569; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>daolERP 현재 UI 구조 — 있는 그대로</h1>
+  <p class="sub">기준: main 2b69b51 (2026-09-29). 사이드바 코드(components/layout/Sidebar.tsx · orders-sidebar.tsx · hr-sidebar.tsx)에서 추출. 순서·이름은 화면 표기 그대로이며 재배치·개명은 하지 않았다.<br>
+  로그인 후 admin은 모드 선택(/portal)에서 세 모드 중 선택, 일반 직원·중간 관리자는 워크스페이스로 직행.</p>
+
+  <div class="legend">
+    <span class="b b-src">원본</span> 원본 데이터 조회·업로드
+    <span class="b b-tool">작업</span> 분류·매칭·연결 등 정리 작업
+    <span class="b b-rep">리포트</span> 집계·분석 조회
+    <span class="b b-old">구</span> 새 화면으로 대체된 옛 화면
+    <span class="b b-dup">중복 후보</span> 같은 대상을 다루는 화면이 여럿
+    <span class="b b-role">manager+</span> <span class="b b-role">admin</span> 역할 제한
+    <span class="b b-wip">준비 중</span> 비활성 메뉴
+    <span class="b b-broken">깨진 링크</span> 페이지 없음
+  </div>
+
+  <div class="cols">
+    <!-- 회계·경영 모드 -->
+    <div class="mode">
+      <div class="mode-head"><div class="t">회계 · 경영 모드</div><div class="d">admin 전용 · 사이드바 4그룹 접이식 + 설정 · 최상위 링크 41개 (+동적 하위)</div></div>
+
+      <div class="group">
+        <div class="group-title"><span>1. 경영관리</span><span class="cnt">6</span></div>
+        <ul>
+          <li>대시보드 <span class="path">/</span> <span class="b b-rep">리포트</span> <span class="path">탭 3: 경영 지표 · 자금·계좌 · 작업 현황</span></li>
+          <li>매출처 허브 <span class="path">/sales-hub</span> <span class="b b-rep">리포트</span></li>
+          <li>매입처 관리 <span class="path">/purchase-hub</span> <span class="b b-rep">리포트</span> <span class="b b-dup">중복 후보</span></li>
+          <li>대출 관리 <span class="path">/loans</span></li>
+          <li>거래처 담당자 <span class="path">/sales-hub/contacts</span> <span class="b b-rep">리포트</span></li>
+          <li>직원·계정 관리 <span class="path">/employees</span></li>
+        </ul>
+      </div>
+
+      <div class="group">
+        <div class="group-title"><span>2. 회계</span><span class="cnt">10</span></div>
+        <ul>
+          <li>월별 손익현황 <span class="path">/reports/monthly-pl</span> <span class="b b-rep">리포트</span></li>
+          <li>예상 부가세 <span class="path">/reports/vat-estimate</span> <span class="b b-rep">리포트</span></li>
+          <li>자금일보 <span class="path">/reports/daily-cash</span> <span class="b b-rep">리포트</span></li>
+          <li>계좌 통합현황 <span class="path">/reports/cash-position</span> <span class="b b-rep">리포트</span></li>
+          <li>분개 현황 <span class="path">/journal</span> <span class="b b-rep">리포트</span></li>
+          <li>계정별 원장 <span class="path">/ledger</span> <span class="b b-rep">리포트</span></li>
+          <li>거래처 원장 <span class="path">/vendor-ledger</span> <span class="b b-rep">리포트</span></li>
+          <li>기초잔액(계정) <span class="path">/opening-balances</span> <span class="b b-tool">작업</span></li>
+          <li>기초잔액(거래처) <span class="path">/vendor-opening-balances</span> <span class="b b-tool">작업</span></li>
+          <li>계정과목 <span class="path">/accounts</span> <span class="b b-tool">작업</span></li>
+        </ul>
+      </div>
+
+      <div class="group">
+        <div class="group-title"><span>3. 원본데이터</span><span class="cnt">7 + 하위</span></div>
+        <ul>
+          <li>ERP 주문내역 <span class="path">/erp-orders</span> <span class="b b-src">원본</span></li>
+          <li>거래 내역 <span class="path">/transactions</span> <span class="b b-src">원본</span></li>
+          <li>카드결제내역(매출) <span class="path">/card-sales</span> <span class="b b-src">원본</span></li>
+          <li>법인카드 사용내역 <span class="path">/card-expenses</span> <span class="b b-src">원본</span> <span class="path">▸ 카드별 바로가기 N개 (별칭 편집)</span></li>
+          <li>현금영수증 <span class="path">/cash-receipts</span> <span class="b b-src">원본</span></li>
+          <li>세금계산서 <span class="path">접이식</span> <span class="b b-src">원본</span></li>
+          <li class="sub">매입 일괄 분류 <span class="path">/tax-invoices/classify</span> <span class="b b-tool">작업</span></li>
+          <li class="sub">매출 세금계산서 › 전자세금계산서(과세) · 전자계산서(면세)</li>
+          <li class="sub">매입 세금계산서 › 전자세금계산서(과세) · 전자계산서(면세)</li>
+          <li>은행 계좌 <span class="path">접이식</span> <span class="path">▸ 계좌별 바로가기 N개 (계좌번호 편집·삭제·직접 등록)</span></li>
+          <li>파일 업로드 <span class="path">/upload</span> <span class="b b-src">원본</span></li>
+        </ul>
+      </div>
+
+      <div class="group">
+        <div class="group-title"><span>4. 정리 도구</span><span class="cnt">17</span></div>
+        <ul>
+          <li>통장 거래 분류 <span class="path">/bank-classify</span> <span class="b b-tool">작업</span></li>
+          <li>매출 사이클 (수금 관리) <span class="path">/sales-cycle</span> <span class="b b-tool">작업</span> <span class="b b-dup">중복 후보</span></li>
+          <li>매입 사이클 (예외 관리) <span class="path">/purchase-cycle</span> <span class="b b-tool">작업</span></li>
+          <li>수금 매칭 <span class="path">/erp-matching</span> <span class="b b-tool">작업</span> <span class="b b-dup">중복 후보</span></li>
+          <li>매출처 관리(구) <span class="path">/customers</span> <span class="b b-old">구</span></li>
+          <li>매출처 연결 키워드 <span class="path">/erp-aliases?type=customer</span> <span class="b b-tool">작업</span></li>
+          <li>매입처 관리(구) <span class="path">/vendors</span> <span class="b b-old">구</span> <span class="b b-dup">중복 후보</span></li>
+          <li>매입처 연결 키워드 <span class="path">/erp-aliases?type=purchase</span> <span class="b b-tool">작업</span></li>
+          <li>거래처 중복 정리 <span class="path">/vendor-dedup</span> <span class="b b-tool">작업</span></li>
+          <li>ERP 매출처 수금현황 <span class="path">/reports/erp-receivables</span> <span class="b b-rep">리포트</span> <span class="b b-dup">중복 후보</span></li>
+          <li>미수금 경과기간 분석 <span class="path">/reports/receivables-aging</span> <span class="b b-rep">리포트</span> <span class="b b-dup">중복 후보</span></li>
+          <li>미지급금 경과기간 분석 <span class="path">/reports/payables-aging</span> <span class="b b-rep">리포트</span></li>
+          <li>거래처별 매출 분석 <span class="path">/reports/vendor-sales</span> <span class="b b-rep">리포트</span></li>
+          <li>거래처별 수익성 분석 <span class="path">/reports/vendor-profitability</span> <span class="b b-rep">리포트</span></li>
+          <li>ERP VIP 선결제 <span class="path">/reports/erp-special</span> <span class="b b-rep">리포트</span></li>
+          <li>거래처 정산 대조 <span class="path">/reports/vendor-reconciliation</span> <span class="b b-rep">리포트</span></li>
+          <li>이중계상 검사 <span class="path">/reports/double-count</span> <span class="b b-rep">리포트</span></li>
+        </ul>
+      </div>
+
+      <div class="group">
+        <div class="group-title"><span>5. 설정</span><span class="cnt">1</span></div>
+        <ul>
+          <li>설정 <span class="path">/settings</span> <span class="b b-broken">깨진 링크</span> <span class="path">페이지 파일 없음</span></li>
+        </ul>
+      </div>
+
+      <div class="foot">하단 고정: 모드 전환(주문 관리 모드 · 직원 관리 모드 · 모드 선택) + 로그아웃<br>
+      사이드바에 <b>없는</b> 화면 6: /attendance · /reports/management-dashboard(대시보드에 통합된 뒤 잔존) · /reports/vendor-status/[방향] · /erp-aliases/pending · /card-sales/customer-links · /vendors/[id](구 상세). /source/[type]/[id]는 드릴다운 전용(정상).</div>
+    </div>
+
+    <!-- 워크스페이스 -->
+    <div class="mode">
+      <div class="mode-head"><div class="t">직원 워크스페이스</div><div class="d">전 직원 · 사이드바 3그룹 · 링크 14개</div></div>
+
+      <div class="group">
+        <div class="group-title"><span>내 업무</span><span class="cnt">4</span></div>
+        <ul>
+          <li>대시보드 <span class="path">/me</span></li>
+          <li>영업일지 <span class="path">/me/journal</span></li>
+          <li>업무일지 <span class="path">/me/worklog</span></li>
+          <li>팀 업무 현황 <span class="path">/me/team-worklog</span> <span class="b b-role">manager+</span></li>
+        </ul>
+      </div>
+
+      <div class="group">
+        <div class="group-title"><span>주문 관리</span><span class="cnt">9</span></div>
+        <ul>
+          <li>주문 현황 <span class="path">/orders</span></li>
+          <li>상담일지 <span class="path">/orders/consultations</span></li>
+          <li>신규 주문 <span class="path">/orders/new</span></li>
+          <li>품목 관리 <span class="path">/orders/products</span></li>
+          <li>발주서 <span class="path">/orders/purchase</span></li>
+          <li>매입처 관리 <span class="path">/orders/purchase-hub</span> <span class="b b-dup">중복 후보</span> <span class="path">회계 모드와 같은 화면</span></li>
+          <li>샘플 재고 <span class="path">/orders/sample-stock</span></li>
+          <li>배송 관리 <span class="path">/orders/delivery</span> <span class="b b-wip">준비 중</span></li>
+          <li>주문 수정 승인 <span class="path">/orders/approvals</span> <span class="b b-role">manager+</span></li>
+        </ul>
+      </div>
+
+      <div class="group">
+        <div class="group-title"><span>근태 · 휴가</span><span class="cnt">2 + 위젯</span></div>
+        <ul>
+          <li>출퇴근 체크 위젯 (사이드바 내장)</li>
+          <li>근태 · 휴가 <span class="path">/hr/attendance</span> <span class="path">직원 관리 모드 화면으로 이동</span></li>
+          <li>휴가 승인 <span class="path">/hr/approvals</span> <span class="b b-role">manager+</span></li>
+        </ul>
+      </div>
+
+      <div class="foot">하단 고정: 모드 전환(admin만: 회계·경영 모드 · 모드 선택) + 로그아웃</div>
+    </div>
+
+    <!-- 직원 관리 -->
+    <div class="mode">
+      <div class="mode-head"><div class="t">직원 관리 모드</div><div class="d">/hr · 링크 3개</div></div>
+      <div class="group">
+        <div class="group-title"><span>근태</span><span class="cnt">3</span></div>
+        <ul>
+          <li>내 근태 <span class="path">/hr/attendance</span></li>
+          <li>휴가 승인 <span class="path">/hr/approvals</span> <span class="b b-role">manager+</span></li>
+          <li>근태 현황 <span class="path">/hr/admin</span> <span class="b b-role">admin</span></li>
+        </ul>
+      </div>
+      <div class="foot">워크스페이스의 근태·휴가 그룹과 같은 화면을 가리킨다. 모드 선택 카드 "직원 관리"의 실체.</div>
+    </div>
+  </div>
+
+  <div class="obs">
+    <h2>구조에서 보이는 사실 (정리 방향 논의용 — 아직 제안 아님)</h2>
+    <ol>
+      <li><b>회계·경영 모드 41개 vs 워크스페이스 14개.</b> 어려움을 느끼신 곳이 회계·경영 모드인 이유가 숫자로 드러난다.</li>
+      <li><b>"정리 도구" 17개가 가장 큰 그룹인데 성격이 세 가지 섞여 있다</b>: 정리 작업 7(분류·매칭·연결·중복) + 리포트 8(수금현황·경과기간 2·매출 분석·수익성·VIP·정산 대조·이중계상) + 구 화면 2. 회계·재무 리포트가 "회계" 그룹(7개)과 "정리 도구"(8개)로 갈라져 있어 원하는 리포트를 어느 그룹에서 찾아야 할지 알 수 없다.</li>
+      <li><b>같은 대상을 다루는 화면이 여러 곳에 있다.</b>
+        <table>
+          <tr><th>대상</th><th>화면</th></tr>
+          <tr><td>미수금</td><td>매출처 허브 · ERP 매출처 수금현황 · 미수금 경과기간 분석 · 수금 매칭 · 매출 사이클(수금 관리) — 5곳</td></tr>
+          <tr><td>매입처</td><td>매입처 관리(경영관리) · 매입처 관리(구) · 매입처 연결 키워드 · 매입 사이클 · 워크스페이스 매입처 관리 — 5곳</td></tr>
+          <tr><td>매출처</td><td>매출처 허브 · 매출처 관리(구) · 매출처 연결 키워드 · 거래처 담당자 · 거래처 중복 정리 — 5곳</td></tr>
+          <tr><td>자금</td><td>대시보드(자금·계좌 탭) · 자금일보 · 계좌 통합현황 · 은행 계좌(계좌별) — 4곳</td></tr>
+        </table>
+      </li>
+      <li><b>이름 규칙이 섞여 있다</b>: 현황 / 분석 / 관리 / 사이클 / 매칭 / 허브 / 대조 / 검사. 같은 성격(리포트)인데 "현황"과 "분석"이 혼용되고, "관리"가 마스터 관리와 작업 화면 모두에 쓰인다.</li>
+      <li><b>구 화면 2개가 살아 있다</b>(매출처 관리(구)·매입처 관리(구)). 새 화면이 있으니 남길 이유가 있는지 확인 대상.</li>
+      <li><b>깨진 링크 1</b>(설정 — 페이지 없음), <b>사이드바에 없는 화면 6</b>(위 회계·경영 하단 참조). 통합 대시보드 이후 잔존한 옛 경영대시보드가 대표적.</li>
+      <li><b>모드 경계가 흐리다</b>: 매입처 관리·근태는 두 모드에 같은 화면이 있고, "직원 관리 모드"는 링크 3개짜리라 모드라기보다 워크스페이스의 한 그룹과 같다.</li>
+    </ol>
+  </div>
+</div>
+</body>
+</html>
