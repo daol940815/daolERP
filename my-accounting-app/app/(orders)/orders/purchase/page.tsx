@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import PoDetail from '../po-detail'
+import { getPeriodRange } from '@/lib/period-presets'
 
 // 발주서 이력 (3단계, 시안 v3) — manager/admin 전용.
 // 발주서 작성·발송은 주문 상세의 발주 섹션에서, 여기서는 전체 이력 조회·엑셀 재다운로드.
@@ -50,10 +51,19 @@ export default function PurchaseHistoryPage() {
 
   const [from, setFrom] = useState(daysAgo(30))
   const [to, setTo] = useState(kstToday())
+  const [preset, setPreset] = useState('')   // 기간 빠른 선택 (직접 날짜 수정 시 해제)
   const [status, setStatus] = useState('all')
   const [qInput, setQInput] = useState('')
   const [q, setQ] = useState('')
   const [openPo, setOpenPo] = useState<string | null>(null)   // 내용 펼친 발주서
+
+  // 기간 빠른 선택 — 매출처 관리·거래 내역과 동일 규칙 (lib/period-presets.ts 공용)
+  const applyPreset = (p: string) => {
+    setPreset(p)
+    if (p === '전체 기간') { setFrom('2024-01-01'); setTo(kstToday()); return }
+    const r = getPeriodRange(p)
+    setFrom(r.from); setTo(r.to)
+  }
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -116,16 +126,25 @@ export default function PurchaseHistoryPage() {
         </button>
       </div>
 
-      {/* 필터 */}
+      {/* 필터 — 두 줄 배치 (2026-09-29 사용자 요청, 다른 목록 화면과 동일):
+          1행 기간 빠른 선택 + 날짜, 2행 나머지 조건(상태·검색) */}
       <div className="bg-white border border-gray-200 rounded-xl p-3 mt-3">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {['당월', '전월', '1분기', '2분기', '상반기', '당년', '전체 기간'].map(p => (
+            <button key={p} onClick={() => applyPreset(p)}
+              className={`px-2.5 py-1 rounded-full text-xs border ${preset === p ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+              {p}
+            </button>
+          ))}
+          <span className="w-1.5" />
           <span className="text-[11px] text-gray-400">발주일</span>
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+          <input type="date" value={from} onChange={e => { setPreset(''); setFrom(e.target.value) }}
             className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm tabular-nums" />
           <span className="text-xs text-gray-400">~</span>
-          <input type="date" value={to} onChange={e => setTo(e.target.value)}
+          <input type="date" value={to} onChange={e => { setPreset(''); setTo(e.target.value) }}
             className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm tabular-nums" />
-          <span className="w-1.5" />
+        </div>
+        <div className="flex items-center gap-2 flex-wrap mt-2">
           {([['all', '전체'], ['unsent', '미발송'], ['sent', '발송완료'], ['canceled', '취소']] as const).map(([k, l]) => (
             <button key={k} onClick={() => setStatus(k)} className={chip(status === k)}>{l}</button>
           ))}
