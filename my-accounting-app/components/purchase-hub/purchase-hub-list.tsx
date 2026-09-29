@@ -4,12 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { getPeriodRange, DEFAULT_VIEW_FROM } from '@/lib/period-presets'
+import type { PurchaseHubPerms } from '@/components/purchase-hub/perms'
 
 // 매입처 관리 — 목록(A) 공용 컴포넌트
 // 회계·경영 모드(/purchase-hub)와 주문 관리 모드(/orders/purchase-hub) 양쪽에서 쓴다.
-//   basePath     상세 화면 링크의 기준 경로 (모드마다 다르다)
-//   canDrilldown 회계·경영 모드 화면(별칭 관리 등)으로 나가는 링크 노출 여부.
-//                admin이 아니면 그 화면들이 접근 불가라 링크를 감춘다.
+//   basePath  상세 화면 링크의 기준 경로 (영역마다 다르다)
+//   perms     다른 영역 화면으로 나가는 링크의 노출 여부. 권한 없는 화면으로 보내면
+//             AreaShell이 되돌려보내므로, 그룹 조회 권한이 있을 때만 링크를 건다.
+//             판정은 lib/permissions.ts can() — 레거시 role로 판정하지 않는다.
 
 interface Row {
   vendor_id: string
@@ -186,9 +188,9 @@ function NewVendorModal({ onClose, onCreated, showKind }: {
   )
 }
 
-export default function PurchaseHubList({ basePath, canDrilldown }: {
+export default function PurchaseHubList({ basePath, perms }: {
   basePath: string
-  canDrilldown: boolean
+  perms: PurchaseHubPerms
 }) {
   const router = useRouter()
   const [from, setFrom] = useState(DEFAULT_VIEW_FROM)
@@ -290,7 +292,7 @@ export default function PurchaseHubList({ basePath, canDrilldown }: {
       </div>
       {showNew && (
         <NewVendorModal
-          showKind={canDrilldown}
+          showKind={perms.accounting}
           onClose={() => setShowNew(false)}
           onCreated={id => { setShowNew(false); router.push(`${basePath}/${id}?from=${from}&to=${to}`) }}
         />
@@ -372,7 +374,7 @@ export default function PurchaseHubList({ basePath, canDrilldown }: {
           ERP 품목 중 매입처 표기만 있고 별칭 미연결 {summary.unlinked_items.toLocaleString()}건
           {summary.unlinked_aliases > 0 && <> · 거래처 미연결 매입 별칭 {summary.unlinked_aliases.toLocaleString()}개</>}
           {' — 이 분량은 매입처 집계에서 빠져 있습니다.'}
-          {canDrilldown && <> <Link href="/erp-aliases?type=purchase" className="underline font-semibold">매입처 연결 키워드에서 연결</Link></>}
+          {perms.tools && <> <Link href="/erp-aliases?type=purchase" className="underline font-semibold">매입처 연결 키워드에서 연결</Link></>}
         </div>
       )}
 

@@ -235,3 +235,31 @@
   - **비슷하기만 하면** 후보를 보여주고 확인받은 뒤에만 새로 만든다(롯데쇼핑 5분할 방지).
 - 지점명을 적으면 `vendor_groups`에 업체를 확보(없으면 생성)하고 그 아래 지점으로 붙인다
   — 매출처 등록과 동일 규칙. 505 미적용 환경에서는 그룹 없이 이름만으로 생성(폴백).
+
+## UI 재편(2026-09-29) 반영 — 권한 판정 교체
+
+UI 재편 트랙이 사이드바 3개를 없애고 `lib/menu-registry.ts` 단일 원천 + 권한(109)
+구조로 바꾼 데 맞춰 이 트랙을 정렬했다. docs/ui-reorg-track.md '오늘 변경이 다른 트랙에
+미치는 영향' 참조.
+
+- **메뉴**: 이미 재편 세션이 `menu-registry.ts`에 매입처 관리를 등록해 두었다 —
+  collections(영업·주문) → `/orders/purchase-hub`, accounting·mgmt → `/purchase-hub`.
+  지난 세션에 직접 고쳤던 사이드바 파일은 삭제됐고 그 변경은 레지스트리로 대체됐다.
+- **API 권한**: `API_OWNERS`에 `/api/purchase-hub` → `collections` 등록 완료(재편 세션).
+  GET=조회, POST/PATCH/DELETE=수정 권한으로 미들웨어가 검사한다.
+- **레거시 role 판정 제거(이번 작업)**: 두 영역의 래퍼 페이지가 `me.role === 'admin'`으로
+  드릴다운 노출을 정하고 있었다 — CLAUDE.md 금지 사항. `components/purchase-hub/perms.ts`를
+  두고 `can(me, 'accounting')`·`can(me, 'tools')`로 바꿨다.
+  - accounting 권한 → 계산서·통장·법인카드·ERP 주문내역 드릴다운, 등록 폼의 구분 선택
+  - tools 권한 → 매입처 연결 키워드(별칭) 링크
+  - 경로 소속이 아니라 **권한으로만** 판정하므로 두 영역의 래퍼가 동일해졌다.
+    회계 영역에서 하드코딩으로 열어두던 드릴다운도 권한 기준으로 바뀌어,
+    경영 현황 권한만 있는 사용자에게 못 여는 링크가 보이던 문제가 없어진다.
+
+### 알아둘 결합 (지금은 문제 없음)
+
+`/purchase-hub` 페이지는 accounting·mgmt 그룹 소속인데 그 화면이 쓰는 `/api/purchase-hub`는
+collections 그룹이다. 109 기본값에서는 accounting·mgmt 보유자(daol825·master·강시현·오철준)가
+모두 collections도 갖고 있어 문제가 없다. 다만 앞으로 **collections 없이 accounting만 주는
+권한 조합**을 만들면 화면은 열리는데 API가 403이 된다. 그때는 API_OWNERS 그룹을 바꾸기보다
+(영업지원팀이 collections로 이 API를 쓰므로) 권한 조합 쪽을 맞추는 게 맞다.
