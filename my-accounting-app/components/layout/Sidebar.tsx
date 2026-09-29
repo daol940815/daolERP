@@ -129,8 +129,8 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
     acct:   ['/reports/monthly-pl', '/reports/vat-estimate', '/reports/daily-cash', '/reports/cash-position',
              '/journal', '/ledger', '/vendor-ledger', '/opening-balances', '/vendor-opening-balances', '/accounts'],
     source: ['/erp-orders', '/transactions', '/card-sales', '/card-expenses', '/cash-receipts', '/tax-invoices', '/upload'],
-    tools:  ['/bank-classify', '/sales-cycle', '/purchase-cycle', '/erp-matching', '/customers', '/erp-aliases',
-             '/vendors', '/vendor-dedup', '/reports/erp-receivables', '/reports/receivables-aging',
+    tools:  ['/bank-classify', '/sales-cycle', '/purchase-cycle', '/erp-matching', '/erp-aliases',
+             '/vendor-dedup', '/reports/erp-receivables', '/reports/receivables-aging',
              '/reports/payables-aging', '/reports/vendor-sales', '/reports/vendor-profitability',
              '/reports/erp-special', '/reports/vendor-reconciliation', '/reports/double-count'],
   }
@@ -634,22 +634,10 @@ export default function Sidebar({ initialBanks = [] }: { initialBanks?: BankAcco
             <span>수금 매칭</span>
           </Link>
           <Link
-            href="/customers"
-            className={linkCls(pathname.startsWith('/customers'))}
-          >
-            <span>매출처 관리(구)</span>
-          </Link>
-          <Link
             href="/erp-aliases?type=customer"
             className={linkCls(pathname.startsWith('/erp-aliases') && searchParams.get('type') !== 'purchase')}
           >
             <span>매출처 연결 키워드</span>
-          </Link>
-          <Link
-            href="/vendors"
-            className={linkCls(pathname.startsWith('/vendors'))}
-          >
-            <span>매입처 관리(구)</span>
           </Link>
           <Link
             href="/erp-aliases?type=purchase"
