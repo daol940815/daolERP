@@ -29,9 +29,9 @@ const AREA_OF: Record<GroupKey, string> = {
   hr: '인사 · 총무', mgmt: '경영 현황',
 }
 const SCREENS: Record<GroupKey, string> = {
-  customers: '내 고객 · 거래처 담당자 · 매출처 허브',
+  customers: '내 고객 · 고객 관리 · 매출처 관리 · 매입처 관리',
   orders: '상담일지 · 주문 · 발주서 · 품목 · 샘플 재고',
-  collections: '수금 대상 · 입금 매칭 · 계산서 발행 대상 · 매입처 결제 확인',
+  collections: '수금 대상 · 입금 매칭 · 계산서 발행 대상 · 매입 결제 예외',
   accounting: '업로드 · 통장·카드·계산서 내역 · 현금영수증 · 미수금·미지급금 관리',
   closing: '월별 손익 · 부가세 · 분개 · 원장 · 기초잔액 · 계정과목',
   tools: '연결 키워드 · 중복 정리 · 정산 대조 · 이중계상 · VIP 선결제',

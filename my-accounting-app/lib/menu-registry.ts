@@ -19,6 +19,8 @@ export interface MenuItem {
   children?: { label: string; href: string; exact?: boolean }[]
   wip?: boolean           // 준비 중 (비활성)
   exact?: boolean         // 활성 판정을 정확 일치로
+  // 그룹과 다른 권한이 필요한 항목 (예: 내 업무 그룹의 '내 고객'은 고객 권한 필요)
+  requires?: GroupKey
 }
 
 export interface MenuGroup {
@@ -33,14 +35,15 @@ export const MENU: MenuGroup[] = [
   // ── 영업 · 주문 ─────────────────────────────────────
   { key: 'my', area: 'sales', label: '내 업무', items: [
     { label: '대시보드', href: '/me', exact: true },
+    { label: '내 고객', href: '/sales-hub?mine=1', prefix: '/sales-hub?mine', requires: 'customers' },
     { label: '영업일지', href: '/me/journal' },
     { label: '업무일지', href: '/me/worklog' },
     { label: '근태 · 휴가', href: '/hr/attendance' },
   ]},
-  { key: 'customers', area: 'sales', label: '고객 · 영업', items: [
-    { label: '내 고객', href: '/sales-hub?mine=1', prefix: '/sales-hub?mine' },
+  { key: 'customers', area: 'sales', label: '거래처 관리', items: [
     { label: '고객 관리', href: '/sales-hub/contacts' },
     { label: '매출처 관리', href: '/sales-hub' },
+    { label: '매입처 관리', href: '/orders/purchase-hub' },
   ]},
   { key: 'orders', area: 'sales', label: '주문 · 발주', items: [
     { label: '상담일지', href: '/orders/consultations' },
@@ -55,7 +58,6 @@ export const MENU: MenuGroup[] = [
     { label: '수금 대상', href: '/reports/erp-receivables' },
     { label: '입금 매칭', href: '/erp-matching' },
     { label: '계산서 발행 대상', href: '/sales-cycle' },
-    { label: '매입처 관리', href: '/orders/purchase-hub' },
     { label: '매입 결제 예외', href: '/purchase-cycle' },
   ]},
   { key: 'team', area: 'sales', label: '팀 관리', items: [
@@ -134,10 +136,11 @@ export function ownersOf(pathname: string): { area: AreaKey; group: MenuGroupKey
     for (const it of g.items) {
       const base = (it.prefix ?? it.href).split('?')[0]
       const match = it.exact ? path === base : (path === base || path.startsWith(base.endsWith('/') ? base : base + '/'))
-      if (match) hits.push({ area: g.area, group: g.key, len: base.length })
+      const group: MenuGroupKey = it.requires ?? g.key
+      if (match) hits.push({ area: g.area, group, len: base.length })
       for (const c of it.children ?? []) {
         const cb = c.href.split('?')[0]
-        if (path === cb) hits.push({ area: g.area, group: g.key, len: cb.length })
+        if (path === cb) hits.push({ area: g.area, group, len: cb.length })
       }
     }
   }
@@ -192,7 +195,7 @@ export const API_OWNERS: { prefix: string; group: MenuGroupKey }[] = [
   { prefix: '/api/erp-matching', group: 'collections' },
   { prefix: '/api/sales-cycle', group: 'collections' },
   { prefix: '/api/purchase-cycle', group: 'collections' },
-  { prefix: '/api/purchase-hub', group: 'collections' },
+  { prefix: '/api/purchase-hub', group: 'customers' },   // 매입처 관리가 거래처 관리 그룹으로 이동(2026-09-29)
   { prefix: '/api/erp-prepayments', group: 'collections' },
   { prefix: '/api/erp-settlements', group: 'collections' },
   { prefix: '/api/reports/erp-receivables', group: 'collections' },
