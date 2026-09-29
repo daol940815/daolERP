@@ -3,227 +3,210 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>daolERP UI 재배치안 (2026-09-29)</title>
+<title>daolERP UI 재배치안 v2 — 4영역 (2026-09-29)</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; }
-  .wrap { max-width: 1400px; margin: 0 auto; }
+  .wrap { max-width: 1480px; margin: 0 auto; }
   h1 { font-size: 20px; font-weight: 700; }
   .sub { font-size: 12.5px; color: #64748b; margin: 4px 0 16px; line-height: 1.6; }
   .legend { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; font-size: 12px; align-items: center; }
-  .cols { display: grid; grid-template-columns: 1fr 1.15fr; gap: 16px; align-items: start; }
+  .cols { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; align-items: start; }
   .mode { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
-  .mode-head { background: #0f172a; color: #fff; padding: 12px 16px; }
+  .mode-head { background: #0f172a; color: #fff; padding: 12px 14px; }
   .mode-head .t { font-size: 15px; font-weight: 700; }
-  .mode-head .d { font-size: 11.5px; color: #94a3b8; margin-top: 2px; }
-  .group { padding: 10px 16px 12px; border-top: 1px solid #f1f5f9; }
-  .group-title { font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .04em; display: flex; justify-content: space-between; margin-bottom: 6px; align-items: center; }
-  .perm { font-size: 10.5px; font-weight: 500; color: #0f766e; background: #f0fdfa; border-radius: 6px; padding: 1px 7px; font-family: ui-monospace, monospace; }
+  .mode-head .d { font-size: 11px; color: #94a3b8; margin-top: 2px; line-height: 1.5; }
+  .group { padding: 10px 14px 12px; border-top: 1px solid #f1f5f9; }
+  .group-title { font-size: 12px; font-weight: 700; color: #475569; display: flex; justify-content: space-between; margin-bottom: 6px; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .perm { font-size: 10.5px; font-weight: 500; color: #0f766e; background: #f0fdfa; border-radius: 6px; padding: 1px 7px; }
   ul { list-style: none; }
-  li { font-size: 13px; padding: 4px 0 4px 10px; border-left: 2px solid #e2e8f0; margin-left: 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-  .from { font-size: 11px; color: #94a3b8; }
-  .from b { color: #64748b; font-weight: 500; }
-  .b { display: inline-block; font-size: 10.5px; border-radius: 999px; padding: 1px 7px; font-weight: 600; }
+  li { font-size: 12.5px; padding: 3px 0 3px 8px; border-left: 2px solid #e2e8f0; margin-left: 2px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+  .from { font-size: 10.5px; color: #94a3b8; width: 100%; padding-left: 2px; }
+  .b { display: inline-block; font-size: 10px; border-radius: 999px; padding: 1px 6px; font-weight: 600; }
   .b-move { background: #e0e7ff; color: #4338ca; }
   .b-name { background: #fef3c7; color: #b45309; }
   .b-merge { background: #fce7f3; color: #be185d; }
   .b-new { background: #dcfce7; color: #15803d; }
   .b-later { background: #e2e8f0; color: #64748b; }
   .b-del { background: #fee2e2; color: #b91c1c; }
-  .b-keep { background: #f1f5f9; color: #64748b; }
+  .b-lock { background: #0f172a; color: #fff; }
   .b-fold { background: #f8fafc; color: #64748b; border: 1px dashed #cbd5e1; }
-  .foot { padding: 10px 16px; background: #f8fafc; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; line-height: 1.6; }
+  .foot { padding: 8px 14px; background: #f8fafc; font-size: 11.5px; color: #64748b; border-top: 1px solid #e2e8f0; line-height: 1.6; }
   .box { margin-top: 20px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; }
   .box h2 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
   table { border-collapse: collapse; font-size: 12.5px; width: 100%; }
   th, td { border: 1px solid #e2e8f0; padding: 5px 10px; text-align: left; vertical-align: top; }
   th { background: #f8fafc; color: #475569; white-space: nowrap; }
-  td.c { text-align: center; }
-  .q { font-size: 13.5px; line-height: 1.7; }
-  .q li { display: list-item; border: 0; margin: 0 0 0 18px; padding: 2px 0; }
+  .q { font-size: 13.5px; line-height: 1.7; padding-left: 18px; }
+  .q li { display: list-item; border: 0; margin: 0; padding: 2px 0; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>daolERP UI 재배치안 — 현재 → 제안</h1>
-  <p class="sub">원칙: 그룹은 <b>업무 영역</b> 기준(팀 이름 아님), 노출은 <b>직원별 권한</b>(그룹 옆 초록 키). 모드는 2개로(직원 관리 모드는 흡수). 화면 코드는 옮기지 않고 메뉴 위치·이름만 바꾸는 것이 1차, "통합 후보"는 각각 확인 후 별도 작업.<br>
-  기준: 현재 구조도(docs/mockups/ui-structure-current.html) · 구 화면 3개는 이미 폐기됨(2026-09-29).</p>
+  <h1>daolERP UI 재배치안 v2 — 영역 4개</h1>
+  <p class="sub">2026-09-29 확정 반영: 영역 4개(영업·주문 / 회계·재무 / 인사·총무 / 경영 현황), 선택 화면 "업무 선택"(제목만), 직원별 없음/조회/수정 권한, 급여·결제정보 별도 잠금, 마스터 3계정.
+  화면 코드는 옮기지 않고 메뉴 위치·이름만 바꾸는 것이 1차, "통합 후보"는 확인 후 2차. 그룹 옆 초록 글씨 = 권한 단위(그룹 단위로 없음/조회/수정).</p>
 
   <div class="legend">
-    <span class="b b-move">이동</span> 다른 그룹·모드에서 옮김
-    <span class="b b-name">개명</span> 이름 변경 (업무 용어)
-    <span class="b b-merge">통합 후보</span> 화면 2개를 1개로 (확인 후)
-    <span class="b b-new">신규</span> 새 화면 필요
+    <span class="b b-move">이동</span> 현재 다른 곳에서 옮김
+    <span class="b b-name">개명</span> 이름 변경
+    <span class="b b-merge">통합 후보</span> 화면 2개→1개 (2차)
+    <span class="b b-new">신규</span>
     <span class="b b-later">향후</span> 구조 선행 필요
-    <span class="b b-fold">기본 접힘</span> 자주 안 쓰는 그룹
-    <span class="b b-keep">유지</span> 그대로
+    <span class="b b-lock">별도 잠금</span> 영역 권한과 별개로 개별 허용
+    <span class="b b-fold">기본 접힘</span>
     <span class="b b-del">삭제</span>
   </div>
 
   <div class="cols">
-    <!-- 워크스페이스 -->
+    <!-- 영업·주문 -->
     <div class="mode">
-      <div class="mode-head"><div class="t">직원 워크스페이스</div><div class="d">전 직원 · 권한이 있는 그룹만 보임 · 영업팀은 3그룹, 영업지원팀은 5그룹</div></div>
-
+      <div class="mode-head"><div class="t">영업 · 주문</div><div class="d">전 직원 기본 화면. 권한이 있는 그룹만 보임 — 영업팀 3그룹, 영업지원팀 5그룹</div></div>
       <div class="group">
         <div class="group-title"><span>내 업무</span><span class="perm">전원</span></div>
         <ul>
-          <li>대시보드 <span class="b b-keep">유지</span></li>
-          <li>영업일지 <span class="b b-keep">유지</span></li>
-          <li>업무일지 <span class="b b-keep">유지</span></li>
-          <li>근태 · 휴가 <span class="b b-keep">유지</span> <span class="from">출퇴근 위젯 포함 · 직원 관리 모드의 "내 근태"를 여기로 흡수</span></li>
+          <li>대시보드</li>
+          <li>영업일지</li>
+          <li>업무일지</li>
+          <li>근태 · 휴가 <span class="from">출퇴근 위젯 포함</span></li>
         </ul>
       </div>
-
       <div class="group">
-        <div class="group-title"><span>고객 · 영업</span><span class="perm">customers.view</span></div>
+        <div class="group-title"><span>고객 · 영업</span><span class="perm">고객·영업</span></div>
         <ul>
-          <li>내 고객 <span class="b b-new">신규</span> <span class="from">매출처 허브의 영업자용 축소판 — 본인 담당 필터 기본, 상담·주문·미수·최근 연락 한 화면</span></li>
-          <li>거래처 담당자 <span class="b b-move">이동</span> <span class="from"><b>경영관리</b> → 워크스페이스 (담당 거래처 보유자 전원이 써야 함)</span></li>
-          <li>매출처 허브 <span class="b b-move">이동</span> <span class="from"><b>경영관리</b> → 조회용으로 노출 (경영지원에도 남음 — 두 얼굴)</span></li>
+          <li>내 고객 <span class="b b-new">신규</span> <span class="from">매출처 허브의 본인 담당 기본 필터 판 — 신규 화면 vs 허브 재사용은 결정 대기</span></li>
+          <li>거래처 담당자 <span class="b b-move">이동</span> <span class="from">회계·경영 › 경영관리 →</span></li>
+          <li>매출처 허브 <span class="b b-move">이동</span> <span class="from">조회용 노출 (회계·재무에도 남음)</span></li>
         </ul>
       </div>
-
       <div class="group">
-        <div class="group-title"><span>주문 · 발주</span><span class="perm">orders.write</span></div>
+        <div class="group-title"><span>주문 · 발주</span><span class="perm">주문·발주</span></div>
         <ul>
-          <li>상담일지 <span class="b b-keep">유지</span></li>
-          <li>주문 현황 <span class="b b-keep">유지</span></li>
-          <li>신규 주문 <span class="b b-keep">유지</span></li>
-          <li>발주서 <span class="b b-keep">유지</span></li>
-          <li>배송 관리 <span class="b b-later">향후</span> <span class="from">배송지·출고 구조 선행 (점검 보고서 이슈 3)</span></li>
-          <li>품목 관리 <span class="b b-keep">유지</span></li>
-          <li>샘플 재고 <span class="b b-keep">유지</span></li>
+          <li>상담일지 <span class="b b-lock">별도 잠금: 결제정보</span> <span class="from">고객 결제정보 칸은 "결제정보 열람" 허용자만 (현재는 본인 작성분만 열람)</span></li>
+          <li>주문 현황</li>
+          <li>신규 주문</li>
+          <li>발주서</li>
+          <li>배송 관리 <span class="b b-later">향후</span></li>
+          <li>품목 관리</li>
+          <li>샘플 재고</li>
         </ul>
       </div>
-
       <div class="group">
-        <div class="group-title"><span>수금 · 정산 작업</span><span class="perm">collections.work · invoices.issue · payables.work</span></div>
+        <div class="group-title"><span>수금 · 정산 작업</span><span class="perm">수금·정산</span></div>
         <ul>
-          <li>수금 독촉 대상 <span class="b b-move">이동</span> <span class="b b-name">개명</span> <span class="from"><b>정리 도구 › ERP 매출처 수금현황</b> → "오늘 독촉할 곳" 작업 목록으로</span></li>
-          <li>입금 매칭 <span class="b b-move">이동</span> <span class="b b-name">개명</span> <span class="from"><b>정리 도구 › 수금 매칭</b></span></li>
-          <li>계산서 발행 대상 <span class="b b-move">이동</span> <span class="b b-name">개명</span> <span class="from"><b>정리 도구 › 매출 사이클(수금 관리)</b> — 발행 대상·미발행 목록 얼굴로</span></li>
-          <li>매입처 결제 확인 <span class="b b-name">개명</span> <span class="b b-merge">통합 후보</span> <span class="from">현 <b>매입처 관리</b>(워크스페이스) + <b>정리 도구 › 매입 사이클(예외 관리)</b></span></li>
+          <li>수금 독촉 대상 <span class="b b-move">이동</span> <span class="b b-name">개명</span> <span class="from">정리 도구 › ERP 매출처 수금현황</span></li>
+          <li>입금 매칭 <span class="b b-move">이동</span> <span class="b b-name">개명</span> <span class="from">정리 도구 › 수금 매칭</span></li>
+          <li>계산서 발행 대상 <span class="b b-move">이동</span> <span class="b b-name">개명</span> <span class="from">정리 도구 › 매출 사이클(수금 관리)</span></li>
+          <li>매입처 결제 확인 <span class="b b-name">개명</span> <span class="b b-merge">통합 후보</span> <span class="from">매입처 관리 + 정리 도구 › 매입 사이클</span></li>
         </ul>
       </div>
-
       <div class="group">
-        <div class="group-title"><span>팀 관리</span><span class="perm">approve</span></div>
+        <div class="group-title"><span>팀 관리</span><span class="perm">승인권 (별도 체크)</span></div>
         <ul>
-          <li>주문 수정 승인 <span class="b b-keep">유지</span></li>
-          <li>휴가 승인 <span class="b b-keep">유지</span></li>
-          <li>팀 업무 현황 <span class="b b-keep">유지</span></li>
+          <li>주문 수정 승인</li>
+          <li>휴가 승인</li>
+          <li>팀 업무 현황</li>
         </ul>
       </div>
-      <div class="foot">하단 고정: 경영지원 모드(권한자만) · 로그아웃. 모드 선택 화면(/portal)은 폐지 후보 — 권한 있는 사람에게만 모드 전환 링크가 보이면 선택 화면이 필요 없다.</div>
+      <div class="foot">하단: 업무 선택(권한 영역이 2개 이상일 때만 표시) · 로그아웃</div>
     </div>
 
-    <!-- 경영지원 모드 -->
+    <!-- 회계·재무 -->
     <div class="mode">
-      <div class="mode-head"><div class="t">경영지원 모드</div><div class="d">경영지원팀 · 대표 · 총괄부사장 (현 회계·경영 모드 개편) · 41개 → 30개 + 기본 접힘 13개</div></div>
-
+      <div class="mode-head"><div class="t">회계 · 재무</div><div class="d">경영지원팀 회계 담당. 임의 열람·수정 차단 대상 영역 — URL 직접 접근·API 저장 모두 권한 검사</div></div>
       <div class="group">
-        <div class="group-title"><span>경영 현황 (대표 화면)</span><span class="perm">mgmt.view</span></div>
+        <div class="group-title"><span>회계 · 재무 작업</span><span class="perm">회계·재무 작업</span></div>
         <ul>
-          <li>대시보드 <span class="b b-keep">유지</span> <span class="from">경영 지표 · 자금·계좌 · 작업 현황 탭</span></li>
-          <li>자금 · 계좌 <span class="b b-merge">통합 후보</span> <span class="from"><b>회계 › 계좌 통합현황</b> + <b>자금일보</b> (둘 다 같은 원천, 기간만 다름)</span></li>
-          <li>대출 관리 <span class="b b-move">이동</span> <span class="from"><b>경영관리</b> → 재무 성격이라 여기</span></li>
-          <li>매출 현황 <span class="b b-move">이동</span> <span class="b b-name">개명</span> <span class="from"><b>정리 도구 › 거래처별 매출 분석</b> + <b>거래처별 수익성 분석</b> (탭으로)</span></li>
-          <li>입출금 예정 <span class="b b-later">향후</span> <span class="from">청구처·결제조건 구조 선행 (이슈 1)</span></li>
-          <li>전체 스케줄 <span class="b b-later">향후</span> <span class="from">휴가·업무 일정 캘린더 — 인사 트랙</span></li>
+          <li>파일 업로드 <span class="b b-move">이동</span></li>
+          <li>통장 내역 정리 <span class="b b-name">개명</span> <span class="b b-merge">통합 후보</span> <span class="from">거래 내역(계좌별 바로가기 유지) + 통장 거래 분류</span></li>
+          <li>카드 내역 정리 <span class="b b-name">개명</span> <span class="b b-merge">통합 후보</span> <span class="from">카드결제내역(매출) + 법인카드 사용내역(카드별 바로가기 유지)</span></li>
+          <li>계산서 정리 <span class="b b-name">개명</span> <span class="b b-merge">통합 후보</span> <span class="from">세금계산서 4종 + 매입 일괄 분류</span></li>
+          <li>현금영수증 <span class="b b-move">이동</span></li>
+          <li>ERP 주문내역 <span class="b b-move">이동</span> <span class="from">컷오버 후 "과거 주문(읽기 전용)"</span></li>
+          <li>미수금 확인 <span class="b b-name">개명</span> <span class="b b-merge">통합 후보</span> <span class="from">미수금 경과기간 분석 + 허브 미수 요약 — 회계용 "확인" 얼굴</span></li>
+          <li>미지급금 확인 <span class="b b-name">개명</span> <span class="b b-merge">통합 후보</span> <span class="from">미지급금 경과기간 분석 + 매입처 미지급 요약</span></li>
+          <li>매출처 허브 · 매입처 관리 <span class="from">드릴다운 목적지</span></li>
         </ul>
       </div>
-
       <div class="group">
-        <div class="group-title"><span>회계 · 재무 작업 (일상)</span><span class="perm">acct.work</span></div>
+        <div class="group-title"><span>결산 · 세무 자료</span><span class="perm">결산·세무</span> <span class="b b-fold">기본 접힘</span></div>
         <ul>
-          <li>파일 업로드 <span class="b b-move">이동</span> <span class="from"><b>원본데이터</b> 맨 아래 → 작업의 첫 단계라 맨 위</span></li>
-          <li>통장 내역 정리 <span class="b b-name">개명</span> <span class="b b-merge">통합 후보</span> <span class="from"><b>원본 › 거래 내역</b>(계좌별 바로가기 유지) + <b>정리 도구 › 통장 거래 분류</b></span></li>
-          <li>카드 내역 정리 <span class="b b-name">개명</span> <span class="b b-merge">통합 후보</span> <span class="from"><b>카드결제내역(매출)</b> + <b>법인카드 사용내역</b>(카드별 바로가기 유지) — 탭 2개</span></li>
-          <li>계산서 정리 <span class="b b-name">개명</span> <span class="b b-merge">통합 후보</span> <span class="from"><b>세금계산서</b>(매출·매입 × 과세·면세 4) + <b>매입 일괄 분류</b> — 칩 필터로</span></li>
-          <li>현금영수증 <span class="b b-move">이동</span> <span class="from"><b>원본데이터</b></span></li>
-          <li>ERP 주문내역 <span class="b b-move">이동</span> <span class="from"><b>원본데이터</b> — 컷오버 후엔 "과거 주문(읽기 전용)"</span></li>
-          <li>미수금 확인 <span class="b b-name">개명</span> <span class="b b-merge">통합 후보</span> <span class="from"><b>정리 도구 › 미수금 경과기간 분석</b> + 매출처 허브 미수 요약 — 회계용 "확인" 얼굴</span></li>
-          <li>미지급금 확인 <span class="b b-name">개명</span> <span class="b b-merge">통합 후보</span> <span class="from"><b>정리 도구 › 미지급금 경과기간 분석</b> + 매입처 관리 미지급 요약</span></li>
-          <li>매출처 허브 · 매입처 관리 <span class="b b-keep">유지</span> <span class="from">드릴다운 목적지로 남김 (경영관리 → 여기)</span></li>
+          <li>월별 손익현황</li>
+          <li>예상 부가세</li>
+          <li>분개 자료 <span class="b b-name">개명</span> <span class="from">분개 현황</span></li>
+          <li>계정별 원장</li>
+          <li>거래처 원장</li>
+          <li>기초잔액 <span class="b b-merge">통합 후보</span> <span class="from">계정 + 거래처 (탭)</span></li>
+          <li>계정과목</li>
         </ul>
       </div>
-
       <div class="group">
-        <div class="group-title"><span>결산 · 세무 자료 (세무사 대조)</span><span class="perm">acct.close</span> <span class="b b-fold">기본 접힘</span></div>
+        <div class="group-title"><span>점검 · 정리 도구</span><span class="perm">점검 도구</span> <span class="b b-fold">기본 접힘</span></div>
         <ul>
-          <li>월별 손익현황 <span class="b b-keep">유지</span></li>
-          <li>예상 부가세 <span class="b b-keep">유지</span></li>
-          <li>분개 자료 <span class="b b-name">개명</span> <span class="from"><b>분개 현황</b> — "세무사에게 넘기는/받은 것과 대조하는 자료"임을 이름에</span></li>
-          <li>계정별 원장 <span class="b b-keep">유지</span></li>
-          <li>거래처 원장 <span class="b b-keep">유지</span></li>
-          <li>기초잔액 <span class="b b-merge">통합 후보</span> <span class="from"><b>기초잔액(계정)</b> + <b>기초잔액(거래처)</b> — 탭 2개</span></li>
-          <li>계정과목 <span class="b b-keep">유지</span></li>
+          <li>매출처 연결 키워드</li>
+          <li>매입처 연결 키워드</li>
+          <li>거래처 중복 정리</li>
+          <li>거래처 정산 대조</li>
+          <li>이중계상 검사</li>
+          <li>ERP VIP 선결제</li>
         </ul>
       </div>
+      <div class="foot">하단: 업무 선택 · 로그아웃. 엑셀 다운로드는 조회 권한자도 허용(확정).</div>
+    </div>
 
+    <!-- 인사·총무 -->
+    <div class="mode">
+      <div class="mode-head"><div class="t">인사 · 총무</div><div class="d">경영지원팀 인사 담당. 근태·계정 외에는 처음부터 설계(인사 트랙 200번대)</div></div>
       <div class="group">
-        <div class="group-title"><span>인사 · 총무</span><span class="perm">hr.admin</span></div>
+        <div class="group-title"><span>인사 · 총무</span><span class="perm">인사·총무</span></div>
         <ul>
-          <li>직원 · 계정 관리 <span class="b b-move">이동</span> <span class="from"><b>경영관리</b> → 팀·권한 편집 추가 예정</span></li>
-          <li>근태 현황 <span class="b b-move">이동</span> <span class="from"><b>직원 관리 모드 › 근태 현황</b></span></li>
-          <li>휴가 승인 <span class="b b-move">이동</span> <span class="from"><b>직원 관리 모드</b> (워크스페이스 팀 관리에도 노출)</span></li>
-          <li>아르바이트 관리 <span class="b b-later">향후</span> <span class="from">근무일지·급여 계산·근로계약서·보안서약서 — 인사 트랙에서 처음부터 설계</span></li>
+          <li>직원 · 계정 · 권한 <span class="b b-move">이동</span> <span class="b b-name">개명</span> <span class="from">직원·계정 관리 → 팀·권한 편집 추가 (마스터만 권한 편집 가능)</span></li>
+          <li>근태 현황 <span class="b b-move">이동</span> <span class="from">직원 관리 모드 › 근태 현황</span></li>
+          <li>휴가 승인 <span class="b b-move">이동</span> <span class="from">영업·주문 팀 관리에도 노출</span></li>
+          <li>전체 스케줄 <span class="b b-later">향후</span> <span class="from">업무·휴가 캘린더 (경영 현황에도 노출)</span></li>
+          <li>아르바이트 관리 <span class="b b-later">향후</span> <span class="from">근무일지 · 근로계약서 · 보안서약서</span></li>
+          <li>급여 <span class="b b-later">향후</span> <span class="b b-lock">별도 잠금: 급여 정보</span> <span class="from">급여 계산·명세 — "급여 정보 열람" 허용자만</span></li>
         </ul>
       </div>
+      <div class="foot">하단: 업무 선택 · 로그아웃. 직원 관리 모드(/hr 사이드바)는 삭제 — 3개 링크 전부 흡수.</div>
+    </div>
 
+    <!-- 경영 현황 -->
+    <div class="mode">
+      <div class="mode-head"><div class="t">경영 현황</div><div class="d">사장님 · 총괄부사장. 조회 전용 — 수정 개념 없음. 숫자 클릭 시 원본 드릴다운은 조회 권한 범위 안에서</div></div>
       <div class="group">
-        <div class="group-title"><span>점검 · 정리 도구</span><span class="perm">tools</span> <span class="b b-fold">기본 접힘</span></div>
+        <div class="group-title"><span>경영 현황</span><span class="perm">경영 현황 (조회만)</span></div>
         <ul>
-          <li>매출처 연결 키워드 <span class="b b-keep">유지</span></li>
-          <li>매입처 연결 키워드 <span class="b b-keep">유지</span></li>
-          <li>거래처 중복 정리 <span class="b b-keep">유지</span></li>
-          <li>거래처 정산 대조 <span class="b b-keep">유지</span></li>
-          <li>이중계상 검사 <span class="b b-keep">유지</span></li>
-          <li>ERP VIP 선결제 <span class="b b-keep">유지</span></li>
+          <li>대시보드 <span class="from">경영 지표 · 자금·계좌 · 작업 현황 탭</span></li>
+          <li>자금 · 계좌 <span class="b b-merge">통합 후보</span> <span class="from">계좌 통합현황 + 자금일보</span></li>
+          <li>대출 관리 <span class="b b-move">이동</span> <span class="from">회계·경영 › 경영관리 →. 대출 등록·수정은 회계·재무 수정 권한자</span></li>
+          <li>매출 현황 <span class="b b-move">이동</span> <span class="b b-name">개명</span> <span class="from">거래처별 매출 분석 + 수익성 분석 (탭)</span></li>
+          <li>입출금 예정 <span class="b b-later">향후</span> <span class="from">청구처·결제조건 선행</span></li>
+          <li>전체 스케줄 <span class="b b-later">향후</span></li>
         </ul>
       </div>
-
-      <div class="group">
-        <div class="group-title"><span>정리 대상</span><span class="perm">—</span></div>
-        <ul>
-          <li>설정 <span class="b b-del">삭제</span> <span class="from">페이지 없음(깨진 링크)</span></li>
-          <li>옛 경영대시보드 /reports/management-dashboard <span class="b b-del">삭제</span> <span class="from">통합 대시보드에 흡수된 뒤 잔존</span></li>
-          <li>사이드바 미노출 화면 /attendance · /reports/vendor-status · /erp-aliases/pending · /card-sales/customer-links <span class="b b-keep">확인 후 결정</span> <span class="from">쓰는 곳이 있으면 해당 그룹에 연결, 없으면 삭제</span></li>
-          <li>직원 관리 모드(/hr 사이드바) <span class="b b-del">삭제</span> <span class="from">3개 링크 전부 흡수됨</span></li>
-        </ul>
-      </div>
-      <div class="foot">하단 고정: 워크스페이스로 · 로그아웃.</div>
+      <div class="foot">하단: 업무 선택 · 로그아웃</div>
     </div>
   </div>
 
   <div class="box">
-    <h2>권한 항목 초안 (11개) 과 팀 기본값 — 사람별로 더하고 뺄 수 있음</h2>
+    <h2>정리 대상</h2>
     <table>
-      <tr><th>권한 키</th><th>뜻</th><th>영업팀</th><th>영업지원팀</th><th>영업지원 팀장</th><th>경영지원팀</th><th>총괄부사장</th><th>대표</th></tr>
-      <tr><td>customers.view</td><td>고객·영업 그룹 (내 고객·담당자·허브 조회)</td><td class="c">O</td><td class="c">O</td><td class="c">O</td><td class="c">조회</td><td class="c">O</td><td class="c">O</td></tr>
-      <tr><td>orders.write</td><td>상담·주문·발주·품목·샘플</td><td class="c">O</td><td class="c">O</td><td class="c">O</td><td class="c">—</td><td class="c">조회</td><td class="c">조회</td></tr>
-      <tr><td>collections.work</td><td>수금 독촉 대상 · 입금 매칭</td><td class="c">—</td><td class="c">O</td><td class="c">O</td><td class="c">조회</td><td class="c">조회</td><td class="c">조회</td></tr>
-      <tr><td>invoices.issue</td><td>계산서 발행 대상</td><td class="c">—</td><td class="c">O</td><td class="c">O</td><td class="c">조회</td><td class="c">조회</td><td class="c">—</td></tr>
-      <tr><td>payables.work</td><td>매입처 결제 확인</td><td class="c">—</td><td class="c">O</td><td class="c">O</td><td class="c">O</td><td class="c">조회</td><td class="c">조회</td></tr>
-      <tr><td>approve</td><td>주문 수정·휴가 승인, 팀 업무 현황</td><td class="c">—</td><td class="c">—</td><td class="c">O</td><td class="c">—</td><td class="c">O</td><td class="c">O</td></tr>
-      <tr><td>mgmt.view</td><td>경영 현황 (대표 화면)</td><td class="c">—</td><td class="c">—</td><td class="c">—</td><td class="c">O</td><td class="c">O</td><td class="c">O</td></tr>
-      <tr><td>acct.work</td><td>회계·재무 일상 작업</td><td class="c">—</td><td class="c">—</td><td class="c">—</td><td class="c">O</td><td class="c">조회</td><td class="c">—</td></tr>
-      <tr><td>acct.close</td><td>결산·세무 자료</td><td class="c">—</td><td class="c">—</td><td class="c">—</td><td class="c">O</td><td class="c">조회</td><td class="c">—</td></tr>
-      <tr><td>hr.admin</td><td>직원·계정 · 근태 현황 · 아르바이트</td><td class="c">—</td><td class="c">—</td><td class="c">—</td><td class="c">O</td><td class="c">O</td><td class="c">조회</td></tr>
-      <tr><td>tools</td><td>점검·정리 도구</td><td class="c">—</td><td class="c">—</td><td class="c">—</td><td class="c">O</td><td class="c">—</td><td class="c">—</td></tr>
+      <tr><th>대상</th><th>처리</th><th>비고</th></tr>
+      <tr><td>설정 (/settings)</td><td><span class="b b-del">삭제</span></td><td>페이지 없음(깨진 링크)</td></tr>
+      <tr><td>옛 경영대시보드 (/reports/management-dashboard)</td><td><span class="b b-del">삭제</span></td><td>통합 대시보드에 흡수된 뒤 잔존</td></tr>
+      <tr><td>직원 관리 모드 사이드바 (/hr)</td><td><span class="b b-del">삭제</span></td><td>인사·총무 + 영업·주문으로 흡수</td></tr>
+      <tr><td>사이드바 미노출 4화면 (/attendance · /reports/vendor-status · /erp-aliases/pending · /card-sales/customer-links)</td><td>코드 참조 조사 후 결정</td><td>쓰는 곳 있으면 해당 그룹 연결, 없으면 삭제</td></tr>
+      <tr><td>매출처 관리(구) · 매입처 관리(구) · 거래처 상세(구)</td><td>폐기 완료 (2026-09-29)</td><td>옛 주소는 허브로 리다이렉트</td></tr>
     </table>
-    <p class="sub" style="margin-top:8px">"조회"는 화면은 보이되 입력·확정 버튼이 숨는 상태. 지금의 role 3단계(sales/manager/admin)는 이 표로 대체되며, admin은 "모든 권한 보유"로 남긴다(ERP 총괄 계정).</p>
   </div>
 
   <div class="box">
-    <h2>검토해 주실 것</h2>
+    <h2>남은 결정</h2>
     <ol class="q">
-      <li><b>그룹 이름</b> 5+5개가 실무 말과 맞는지 (예: "수금·정산 작업" vs "수금·계산서", "경영지원 모드" vs "관리 모드").</li>
-      <li><b>통합 후보 7건</b> — 각각 합칠지, 지금처럼 따로 둘지. 합치면 화면 작업이 생기므로 1차(메뉴 이동·개명만)와 2차(통합)로 나눌 수 있다.</li>
-      <li><b>"내 고객" 신규 화면</b> — 만들지, 매출처 허브를 그대로 워크스페이스에 노출하고 본인 담당 필터만 기본으로 켤지(후자가 빠름).</li>
-      <li><b>권한 표</b>의 O/조회/— 가 실제와 다른 칸. 특히 경영지원팀의 payables.work(매입처 결제 확인)와 대표의 approve.</li>
-      <li><b>모드 선택 화면(/portal) 폐지</b> — 권한자에게만 모드 전환 링크를 보여주면 선택 화면 없이 로그인 → 워크스페이스로 바로 갈 수 있다.</li>
+      <li>"내 고객" — 신규 화면 vs 매출처 허브 재사용(본인 담당 필터 기본).</li>
+      <li>통합 후보 7건 — 2차에서 하나씩 확인. 1차는 메뉴 이동·개명만.</li>
+      <li>그룹 이름 최종 확인: 고객·영업 / 주문·발주 / 수금·정산 작업 / 팀 관리 / 회계·재무 작업 / 결산·세무 자료 / 점검·정리 도구 / 인사·총무 / 경영 현황.</li>
     </ol>
   </div>
 </div>
