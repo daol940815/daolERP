@@ -1,0 +1,169 @@
+// 메뉴 목록 — 단일 원천 (docs/ui-reorg-track.md, 재배치안 v2)
+//
+// 사이드바 4영역·업무 선택 화면·페이지 접근 가드가 모두 이 목록을 읽는다. 항목을 옮기거나
+// 이름을 바꿀 때는 이 파일만 고친다. 화면 코드(경로)는 옮기지 않았다 — 메뉴 위치·이름만.
+// 노출 규칙: 그룹의 권한 키(GroupKey)에 조회 이상 / 'my'는 전원 / 'team'은 승인권.
+
+import type { AreaKey, GroupKey } from '@/lib/permissions'
+
+export type MenuGroupKey = GroupKey | 'my' | 'team'
+
+export interface MenuItem {
+  label: string
+  href: string
+  // 활성 판정용 접두(기본 href). 상세 경로(/orders/123 등)도 이 항목으로 잡힌다.
+  prefix?: string
+  // 사이드바 하위 동적 목록: 계좌별·카드별 바로가기
+  dynamic?: 'banks' | 'cards'
+  // 고정 하위 항목 (세금계산서 4종 등)
+  children?: { label: string; href: string; exact?: boolean }[]
+  wip?: boolean           // 준비 중 (비활성)
+  exact?: boolean         // 활성 판정을 정확 일치로
+}
+
+export interface MenuGroup {
+  key: MenuGroupKey
+  area: AreaKey
+  label: string
+  items: MenuItem[]
+  foldDefault?: boolean   // 기본 접힘
+}
+
+export const MENU: MenuGroup[] = [
+  // ── 영업 · 주문 ─────────────────────────────────────
+  { key: 'my', area: 'sales', label: '내 업무', items: [
+    { label: '대시보드', href: '/me', exact: true },
+    { label: '영업일지', href: '/me/journal' },
+    { label: '업무일지', href: '/me/worklog' },
+    { label: '근태 · 휴가', href: '/hr/attendance' },
+  ]},
+  { key: 'customers', area: 'sales', label: '고객 · 영업', items: [
+    { label: '내 고객', href: '/sales-hub?mine=1', prefix: '/sales-hub?mine' },
+    { label: '거래처 담당자', href: '/sales-hub/contacts' },
+    { label: '매출처 허브', href: '/sales-hub', exact: true },
+  ]},
+  { key: 'orders', area: 'sales', label: '주문 · 발주', items: [
+    { label: '상담일지', href: '/orders/consultations' },
+    { label: '주문 현황', href: '/orders', exact: true },
+    { label: '신규 주문', href: '/orders/new' },
+    { label: '발주서', href: '/orders/purchase' },
+    { label: '배송 관리', href: '/orders/delivery', wip: true },
+    { label: '품목 관리', href: '/orders/products' },
+    { label: '샘플 재고', href: '/orders/sample-stock' },
+  ]},
+  { key: 'collections', area: 'sales', label: '수금 · 정산 작업', items: [
+    { label: '수금 대상', href: '/reports/erp-receivables' },
+    { label: '입금 매칭', href: '/erp-matching' },
+    { label: '계산서 발행 대상', href: '/sales-cycle' },
+    { label: '매입처 결제 확인', href: '/orders/purchase-hub' },
+    { label: '매입 결제 예외', href: '/purchase-cycle' },
+  ]},
+  { key: 'team', area: 'sales', label: '팀 관리', items: [
+    { label: '주문 수정 승인', href: '/orders/approvals' },
+    { label: '휴가 승인', href: '/hr/approvals' },
+    { label: '팀 업무 현황', href: '/me/team-worklog' },
+  ]},
+
+  // ── 회계 · 재무 ─────────────────────────────────────
+  { key: 'accounting', area: 'finance', label: '회계 · 재무', items: [
+    { label: '파일 업로드', href: '/upload' },
+    { label: '통장 내역', href: '/transactions', dynamic: 'banks' },
+    { label: '통장 거래 분류', href: '/bank-classify' },
+    { label: '카드 내역(매출)', href: '/card-sales' },
+    { label: '카드 내역(법인카드)', href: '/card-expenses', dynamic: 'cards' },
+    { label: '계산서 내역', href: '/tax-invoices/sales/taxable', prefix: '/tax-invoices', children: [
+      { label: '매입 일괄 분류', href: '/tax-invoices/classify', exact: true },
+      { label: '매출 전자세금계산서(과세)', href: '/tax-invoices/sales/taxable', exact: true },
+      { label: '매출 전자계산서(면세)', href: '/tax-invoices/sales/exempt', exact: true },
+      { label: '매입 전자세금계산서(과세)', href: '/tax-invoices/purchase/taxable', exact: true },
+      { label: '매입 전자계산서(면세)', href: '/tax-invoices/purchase/exempt', exact: true },
+    ]},
+    { label: '현금영수증', href: '/cash-receipts' },
+    { label: 'ERP 주문내역', href: '/erp-orders' },
+    { label: '미수금 관리', href: '/reports/receivables-aging' },
+    { label: '미지급금 관리', href: '/reports/payables-aging' },
+    { label: '매출처 허브', href: '/sales-hub', exact: true },
+    { label: '매입처 관리', href: '/purchase-hub' },
+  ]},
+  { key: 'closing', area: 'finance', label: '결산 · 세무 자료', foldDefault: true, items: [
+    { label: '월별 손익현황', href: '/reports/monthly-pl' },
+    { label: '예상 부가세', href: '/reports/vat-estimate' },
+    { label: '분개 자료', href: '/journal' },
+    { label: '계정별 원장', href: '/ledger' },
+    { label: '거래처 원장', href: '/vendor-ledger' },
+    { label: '기초잔액(계정)', href: '/opening-balances' },
+    { label: '기초잔액(거래처)', href: '/vendor-opening-balances' },
+    { label: '계정과목', href: '/accounts' },
+  ]},
+  { key: 'tools', area: 'finance', label: '점검 · 정리 도구', foldDefault: true, items: [
+    { label: '매출처 연결 키워드', href: '/erp-aliases?type=customer', prefix: '/erp-aliases' },
+    { label: '매입처 연결 키워드', href: '/erp-aliases?type=purchase', prefix: '/erp-aliases?type=purchase' },
+    { label: '거래처 중복 정리', href: '/vendor-dedup' },
+    { label: '거래처 정산 대조', href: '/reports/vendor-reconciliation' },
+    { label: '이중계상 검사', href: '/reports/double-count' },
+    { label: 'ERP VIP 선결제', href: '/reports/erp-special' },
+  ]},
+
+  // ── 인사 · 총무 ─────────────────────────────────────
+  { key: 'hr', area: 'hr', label: '인사 · 총무', items: [
+    { label: '직원 · 계정 · 권한', href: '/employees' },
+    { label: '근태 현황', href: '/hr/admin' },
+    { label: '휴가 승인', href: '/hr/approvals' },
+  ]},
+
+  // ── 경영 현황 ───────────────────────────────────────
+  { key: 'mgmt', area: 'mgmt', label: '경영 현황', items: [
+    { label: '대시보드', href: '/', exact: true },
+    { label: '계좌 통합현황', href: '/reports/cash-position' },
+    { label: '자금일보', href: '/reports/daily-cash' },
+    { label: '대출 관리', href: '/loans' },
+    { label: '거래처별 매출 분석', href: '/reports/vendor-sales' },
+    { label: '거래처별 수익성 분석', href: '/reports/vendor-profitability' },
+  ]},
+]
+
+// 경로 → 이 경로를 담고 있는 (영역, 그룹) 목록. 상세 경로는 접두 일치로 잡는다.
+// 메뉴에 없는 경로(드릴다운 /source/…, 상세 /orders/[id] 등)는 접두가 가장 긴 항목을 따른다.
+export function ownersOf(pathname: string): { area: AreaKey; group: MenuGroupKey }[] {
+  const path = pathname.split('?')[0]
+  const hits: { area: AreaKey; group: MenuGroupKey; len: number }[] = []
+  for (const g of MENU) {
+    for (const it of g.items) {
+      const base = (it.prefix ?? it.href).split('?')[0]
+      const match = it.exact ? path === base : (path === base || path.startsWith(base.endsWith('/') ? base : base + '/'))
+      if (match) hits.push({ area: g.area, group: g.key, len: base.length })
+      for (const c of it.children ?? []) {
+        const cb = c.href.split('?')[0]
+        if (path === cb) hits.push({ area: g.area, group: g.key, len: cb.length })
+      }
+    }
+  }
+  if (hits.length === 0) return []
+  const max = Math.max(...hits.map(h => h.len))
+  return hits.filter(h => h.len === max).map(({ area, group }) => ({ area, group }))
+}
+
+// 메뉴에 없지만 존재하는 경로의 소속 (드릴다운·상세·API 없는 화면)
+export const EXTRA_PATH_OWNERS: { prefix: string; area: AreaKey; group: MenuGroupKey }[] = [
+  { prefix: '/source/', area: 'finance', group: 'accounting' },
+  { prefix: '/attendance', area: 'hr', group: 'hr' },
+  { prefix: '/reports/vendor-status', area: 'finance', group: 'accounting' },
+  { prefix: '/reports/management-dashboard', area: 'mgmt', group: 'mgmt' },
+  { prefix: '/erp-aliases/pending', area: 'finance', group: 'tools' },
+  { prefix: '/card-sales/customer-links', area: 'finance', group: 'accounting' },
+  { prefix: '/customers', area: 'finance', group: 'accounting' },
+  { prefix: '/vendors', area: 'finance', group: 'accounting' },
+  { prefix: '/hr', area: 'sales', group: 'my' },
+  { prefix: '/me', area: 'sales', group: 'my' },
+  { prefix: '/orders', area: 'sales', group: 'orders' },
+]
+
+export function ownersOfPath(pathname: string) {
+  const own = ownersOf(pathname)
+  if (own.length) return own
+  const path = pathname.split('?')[0]
+  const extra = EXTRA_PATH_OWNERS
+    .filter(e => path === e.prefix.replace(/\/$/, '') || path.startsWith(e.prefix))
+    .sort((a, b) => b.prefix.length - a.prefix.length)
+  return extra.length ? [{ area: extra[0].area, group: extra[0].group }] : []
+}
