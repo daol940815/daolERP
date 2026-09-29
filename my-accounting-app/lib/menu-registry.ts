@@ -39,7 +39,7 @@ export const MENU: MenuGroup[] = [
   ]},
   { key: 'customers', area: 'sales', label: '고객 · 영업', items: [
     { label: '내 고객', href: '/sales-hub?mine=1', prefix: '/sales-hub?mine' },
-    { label: '고객 관리', href: '/sales-hub/contacts' },
+    // 고객(거래처 담당자) 화면은 매출처 관리 안의 [지점 기준|고객 기준] 토글로 진입 (2026-09-29 단일화)
     { label: '매출처 관리', href: '/sales-hub' },
   ]},
   { key: 'orders', area: 'sales', label: '주문 · 발주', items: [
@@ -120,7 +120,6 @@ export const MENU: MenuGroup[] = [
     { label: '거래처별 매출 분석', href: '/reports/vendor-sales' },
     { label: '거래처별 수익성 분석', href: '/reports/vendor-profitability' },
     { label: '매출처 관리', href: '/sales-hub' },
-    { label: '고객 관리', href: '/sales-hub/contacts' },
     { label: '매입처 관리', href: '/purchase-hub' },
   ]},
 ]

@@ -92,7 +92,7 @@ export default function CustomerKpiTiles({ mode, flags, filter, onFilter }: {
           </Link>
           <Link href="/sales-hub/contacts"
             className={`px-3 py-1 text-xs ${mode === 'contact' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-            담당자 기준
+            고객 기준
           </Link>
         </span>
         <span className="text-[11px] text-gray-400">

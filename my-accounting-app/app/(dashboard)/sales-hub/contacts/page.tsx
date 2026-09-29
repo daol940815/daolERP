@@ -165,9 +165,9 @@ export default function ContactManagerPage() {
     <div className="max-w-7xl mx-auto">
       <div className="flex items-start justify-between mb-1 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">거래처 담당자 관리</h1>
+          <h1 className="text-2xl font-bold text-gray-900">매출처 관리 (고객)</h1>
           <p className="text-sm mt-1 text-gray-500">
-            거래처 담당자(고객사 인물) 중심 관리 — 커넥션·매출·상태는 주문에서 자동 집계
+            고객(거래처 담당자) 중심 관리 — 커넥션·매출·상태는 주문에서 자동 집계
           </p>
         </div>
         <button

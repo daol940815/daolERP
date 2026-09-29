@@ -83,13 +83,18 @@ export default function SalesHubPage() {
   // ?mine=1 = 내 고객 (로그인 직원이 현재 담당인 거래처만). 영업·주문 영역의 진입점.
   const mine = useSearchParams().get('mine') === '1'
 
+  // 신규 매출처 등록 (고객·영업 수정 권한자만 — 노출은 can_edit, 차단은 미들웨어)
+  const [canEdit, setCanEdit] = useState(false)
+  const [addForm, setAddForm] = useState<{ open: boolean; name: string; biz: string; note: string; busy: boolean; msg: string | null }>(
+    { open: false, name: '', biz: '', note: '', busy: false, msg: null })
+
   const load = useCallback(async (f: string, t: string) => {
     setLoading(true); setError(null)
     try {
       const res = await fetch(`/api/vendor-hub?from=${f}&to=${t}${mine ? '&mine=1' : ''}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? '조회 실패')
-      setRows(json.rows); setSummary(json.summary)
+      setRows(json.rows); setSummary(json.summary); setCanEdit(!!json.can_edit)
     } catch (e) {
       setError(e instanceof Error ? e.message : '조회 실패')
     } finally {
@@ -153,20 +158,78 @@ export default function SalesHubPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900">{mine ? '내 고객' : '매출처 관리'}</h1>
-      <p className="text-sm mt-1 text-gray-500">
-        {mine
-          ? '내가 현재 담당인 매출처만 봅니다. 행 클릭 시 거래처 360° 상세로 이동합니다.'
-          : 'ERP 주문 기준 매출·수금·미수와 담당을 매출처 단위로 봅니다. 행 클릭 시 거래처 360° 상세로 이동합니다.'}
-      </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{mine ? '내 고객' : '매출처 관리 (지점)'}</h1>
+          <p className="text-sm mt-1 text-gray-500">
+            {mine
+              ? '내가 현재 담당인 매출처만 봅니다. 행 클릭 시 거래처 360° 상세로 이동합니다.'
+              : 'ERP 주문 기준 매출·수금·미수와 담당을 매출처 단위로 봅니다. 행 클릭 시 거래처 360° 상세로 이동합니다.'}
+          </p>
+        </div>
+        {canEdit && !mine && (
+          <button onClick={() => setAddForm(f => ({ ...f, open: true, msg: null }))}
+            className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">
+            매출처 등록
+          </button>
+        )}
+      </div>
+
+      {addForm.open && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setAddForm(f => ({ ...f, open: false }))}>
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-96 mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900 mb-1">신규 매출처 등록</h3>
+            <p className="text-xs text-gray-400 mb-4">은행 지점은 &apos;은행명 지점명&apos; 형식으로 입력합니다 (예: 하나은행 계동지점).</p>
+            {addForm.msg && <p className="text-red-500 text-xs mb-3">{addForm.msg}</p>}
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">매출처명 <span className="text-red-500">*</span></label>
+                <input autoFocus value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="예: 하나은행 계동지점"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">사업자번호 <span className="text-gray-400">(선택)</span></label>
+                <input value={addForm.biz} onChange={e => setAddForm(f => ({ ...f, biz: e.target.value }))}
+                  placeholder="000-00-00000"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">메모 <span className="text-gray-400">(선택)</span></label>
+                <input value={addForm.note} onChange={e => setAddForm(f => ({ ...f, note: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => setAddForm(f => ({ ...f, open: false }))}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">취소</button>
+              <button disabled={addForm.busy} onClick={async () => {
+                if (!addForm.name.trim()) { setAddForm(f => ({ ...f, msg: '매출처명을 입력하세요.' })); return }
+                setAddForm(f => ({ ...f, busy: true, msg: null }))
+                const res = await fetch('/api/vendor-hub', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ name: addForm.name.trim(), biz_number: addForm.biz.trim() || undefined, note: addForm.note.trim() || undefined }),
+                })
+                const json = await res.json().catch(() => ({}))
+                if (!res.ok) { setAddForm(f => ({ ...f, busy: false, msg: json.error ?? '등록 실패' })); return }
+                setAddForm({ open: false, name: '', biz: '', note: '', busy: false, msg: null })
+                load(from, to)
+              }}
+                className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+                {addForm.busy ? '등록 중...' : '등록'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {mine && !loading && !error && rows.length === 0 && (
         <div className="mt-6 bg-white border border-gray-200 rounded-xl px-6 py-10 text-center">
           <p className="text-base font-semibold text-gray-800">담당 고객 없음</p>
           <p className="text-sm text-gray-500 mt-1">내 이름으로 지정된 담당 거래처가 없습니다. 담당 지정은 매출처 관리의 거래처 상세에서 합니다.</p>
           <div className="flex justify-center gap-2 mt-5">
-            <Link href="/sales-hub" className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">매출처 관리</Link>
-            <Link href="/sales-hub/contacts" className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50">고객 관리</Link>
+            <Link href="/sales-hub" className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">매출처 관리 (지점)</Link>
+            <Link href="/sales-hub/contacts" className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50">매출처 관리 (고객)</Link>
           </div>
         </div>
       )}
