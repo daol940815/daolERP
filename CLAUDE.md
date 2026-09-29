@@ -44,7 +44,12 @@
 ## 직원 마스터 (employees) — 인사·근태 기능은 반드시 이 테이블 참조
 
 - 100에서 생성, 103·104에서 확장: `position, phone, email, hire_date, role, auth_user_id, login_id`
-- role 3단계: `sales`(직원) / `manager`(중간 관리자: 주문+승인, 회계 접근 불가) / `admin`(전체 관리자)
+- **권한(2026-09-29, 109)**: `permissions` JSONB {그룹 8: none|view|edit} + `is_master` +
+  `can_approve`·`can_view_salary`·`can_view_payment_info` + `team`·`employment_type`(regular/parttime)·
+  `work_start`/`work_end`(아르바이트, 종료일 경과 시 로그인 차단). 판정은 `lib/permissions.ts`
+  (`can(me, group, level)`, `canApprove`, `isManagerLike`·`isHrAdmin` = 레거시 role 호환).
+  `role`(sales/manager/admin)은 109 미적용 폴백용으로만 남김 — **새 코드는 role로 판정하지 말 것.**
+  마스터 계정: daol825(ERP 총괄)·master(사장님). 권한 편집은 직원·계정·권한 화면(마스터만).
 - 로그인: login_id → `{login_id}@daol.internal` 내부 이메일로 Supabase Auth 인증 (`lib/user-role.ts`)
 - 주의: 거래처 관리 엑셀 적재로 로그인 계정 없는 직원(auth_user_id NULL, 상담자 21명)이 존재함.
   근태 대상 여부는 사용자에게 확인할 것.
@@ -78,7 +83,7 @@
   `700번대` 상담·영업·업무일지 트랙(인수인계: docs/consultation-journal-track.md) /
   **`800번대` 요아럽 샘플 재고 트랙(인수인계: docs/sample-stock-track.md)** /
   새 트랙은 다음 100번대를 사용.
-- 현재 적용 완료: 100~105.
+- 현재 적용 완료: 100~109 (109 = 직원 권한, 2026-09-29).
 
 ## 기본 루틴 (모든 트랙 공통)
 
@@ -111,8 +116,10 @@
   `lib/fetch-all-rows.ts`의 `fetchAllRows`(range 페이지네이션) 사용. 대량 집계는
   JSONB 단일 응답 RPC 패턴 참고(`102_hub_summary_json.sql`).
 - `.in()`에 수백 개 id를 넣으면 URL 초과로 400 — 100~200개 청크로 나눌 것.
-- 페이지 인증: `middleware.ts`가 전 경로 가드. (dashboard) 레이아웃은 admin 전용,
-  직원·중간관리자는 `/orders`(주문 포털)로 리다이렉트.
+- 페이지 인증: `middleware.ts`가 전 경로 가드(로그인) + `/api/*` 그룹 권한 검사
+  (GET=조회, 그 외=수정, 아르바이트 신규 거래처 등록 차단). 페이지 접근은 AreaShell이
+  경로 소속 그룹의 조회 권한으로 판정(없으면 첫 영역 홈으로). 미들웨어가 `x-pathname`
+  헤더로 현재 경로를 레이아웃에 전달한다.
 - API 대량 응답·순차 쿼리는 병렬화(Promise.all)·청크 처리 — 기존 lib 패턴 따를 것.
 - **로그인 유지 정책(2026-09-18 확정)**: 자동로그인 없음. 세션 쿠키는 항상 브라우저 세션
   쿠키(닫으면 로그아웃, 다음 접속에 로그인 화면). "로그인 상태 유지" 옵션은 두지 않는다
@@ -127,8 +134,12 @@
 ## UI 관례
 
 - 전부 한국어. Tailwind, 기존 페이지 스타일(둥근 카드, slate 팔레트, 얇은 표) 따름.
-- 사이드바: `components/layout/Sidebar.tsx` — 경영관리 / 회계 / 원본데이터 / 정리 도구
-  4그룹 접이식. 새 관리 화면은 대개 경영관리 그룹.
+- **화면 구조(2026-09-29 재조정)**: 영역 4개 — 영업·주문 / 회계·재무 / 인사·총무 / 경영 현황.
+  메뉴는 `lib/menu-registry.ts` **단일 원천**(그룹·항목·경로·필요 권한) — 새 화면은 여기에
+  항목을 추가하면 사이드바·업무 선택·접근 가드·API 검사에 모두 반영된다(사이드바 파일을
+  직접 고치지 말 것). API는 `API_OWNERS`에 경로 접두→그룹을 등록해야 미들웨어 권한 검사가
+  붙는다(미등록 API는 로그인만으로 허용). 셸: `components/layout/AreaShell.tsx`(서버 가드) +
+  `AreaSidebar.tsx`. 세 라우트 그룹 레이아웃은 모두 AreaShell. '모드'라는 말은 쓰지 않는다.
 - 목록 화면 패턴: KPI 카드(클릭=필터) + 통합 검색 + 칩 필터 + 표. 상태는 수동 입력이
   아니라 데이터에서 자동 판정.
 - **거래처 담당자 존칭(2026-08-14 확정)**: 고객사 인물은 화면·엑셀·저장 표기 모두
