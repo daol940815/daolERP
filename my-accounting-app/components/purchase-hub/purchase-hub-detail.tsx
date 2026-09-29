@@ -6,9 +6,10 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { getPeriodRange, DEFAULT_VIEW_FROM } from '@/lib/period-presets'
 import type { PurchaseHubDetail } from '@/lib/purchase-hub'
 import { contactLabel } from '@/lib/contact-label'
+import type { PurchaseHubPerms } from '@/components/purchase-hub/perms'
 
 // 매입처 관리 — 매입처 360° 상세(B) 공용 컴포넌트
-// 회계·경영 모드와 주문 관리 모드 양쪽에서 쓴다 (basePath·canDrilldown은 목록과 동일 의미).
+// 영업·주문 영역과 회계·재무 영역 양쪽에서 쓴다 (basePath·perms는 목록과 동일 의미).
 // 목록(A)의 기간이 URL로 넘어와 기본값이 되고, 여기서 바꿔도 목록에는 영향이 없다.
 // 담당직원·거래처 담당자 배정은 매출처 허브의 범용 API(/api/vendor-hub/staff·contacts)를 재사용한다.
 
@@ -32,9 +33,9 @@ const TABS = ['개요', '계산서', '지급 내역', 'ERP 발주', '활동 메�
 
 interface Candidate { id: string; name: string; phone: string | null; history?: { vendor_name: string; title: string | null; started_at: string | null; ended_at: string | null }[] }
 
-export default function PurchaseHubDetailView({ basePath, canDrilldown }: {
+export default function PurchaseHubDetailView({ basePath, perms }: {
   basePath: string
-  canDrilldown: boolean
+  perms: PurchaseHubPerms
 }) {
   const params = useParams<{ vendorId: string }>()
   const router = useRouter()
@@ -193,12 +194,12 @@ export default function PurchaseHubDetailView({ basePath, canDrilldown }: {
   // 타임라인 이벤트별 원본 화면 링크
   const invTaxType = useMemo(() => new Map((data?.invoices ?? []).map(i => [i.id, i.tax_type ?? 'taxable'])), [data])
   const tlHref = useCallback((e: { kind: string; ref_id: string | null }): string | null => {
-    if (!canDrilldown) return null   // 접근 불가 화면으로 보내지 않는다
+    if (!perms.accounting) return null   // 권한 없는 화면으로 보내지 않는다
     if (e.kind === 'invoice' && e.ref_id) return `/tax-invoices/purchase/${invTaxType.get(e.ref_id) ?? 'taxable'}?invoiceId=${e.ref_id}`
     if (e.kind === 'bank') return `/transactions?vendorId=${vendorId}`
     if (e.kind === 'card') return '/card-expenses'
     return null
-  }, [invTaxType, vendorId, canDrilldown])
+  }, [invTaxType, vendorId, perms.accounting])
 
   if (loading && !data) return <div className="text-center py-24 text-gray-400">매입처 데이터를 모으는 중...</div>
   if (error) return <div className="mt-8 px-4 py-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>
