@@ -11,7 +11,7 @@ export type AreaKey = 'sales' | 'finance' | 'hr' | 'mgmt'
 export type Permissions = Partial<Record<GroupKey, PermLevel>>
 
 export const GROUP_LABELS: Record<GroupKey, string> = {
-  customers: '고객 · 영업',
+  customers: '거래처 관리',
   orders: '주문 · 발주',
   collections: '수금 · 정산 작업',
   accounting: '회계 · 재무',

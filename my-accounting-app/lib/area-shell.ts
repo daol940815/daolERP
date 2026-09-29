@@ -37,9 +37,12 @@ export function pickArea(me: CurrentUser, pathname: string, cookieArea: string |
   return areasFor(me)[0]?.key ?? 'sales'
 }
 
-// 영역의 사이드바 그룹 (권한으로 거른 것)
+// 영역의 사이드바 그룹 (권한으로 거른 것). 항목 단위 권한(requires)이 있으면 그것도 거른다.
 export function groupsFor(me: CurrentUser, area: AreaKey): MenuGroup[] {
-  return MENU.filter(g => g.area === area && groupAccessible(me, g.key))
+  return MENU
+    .filter(g => g.area === area && groupAccessible(me, g.key))
+    .map(g => ({ ...g, items: g.items.filter(it => !it.requires || groupAccessible(me, it.requires)) }))
+    .filter(g => g.items.length > 0)
 }
 
 export const areaLabel = (area: AreaKey) => areaByKey(area).label

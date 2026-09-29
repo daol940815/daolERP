@@ -127,6 +127,12 @@ hr.admin·tools·payables.work (총괄부사장 +approve) / 대표 = mgmt.view·
 시안 후 진행(8·9·10·11): 인사·총무 확장 — docs/mockups/인사총무_확장_시안.html, 계획은
 docs/attendance-design.md "인사·총무 확장 계획". 급여는 기록부터(사용자 확정). 양식 파일은 시행 후 전달 예정.
 
+추가(2026-09-29 사용자): 영업·주문 사이드바에서 **내 고객을 내 업무 그룹으로**(항목 단위 권한
+`requires: customers` — 고객 권한 없는 직원에게는 숨김), **거래처 관리 그룹 = 고객 관리 → 매출처 관리 →
+매입처 관리** 순. 매입처 관리가 수금·정산에서 거래처 관리(customers 권한)로 옮겨져 `/api/purchase-hub`
+소속도 customers로 — 영업팀 대표(customers 수정)도 매입처 관리에 접근하게 됨(사용자 확인 필요).
+권한 패널의 그룹 이름 '고객 · 영업' → '거래처 관리'.
+
 ### 주문 트랙 요청문 (4번 — 발주서 화면)
 > /orders/purchase 발주서 목록의 조건검색을 두 줄로 바꿔줘. 1행: 기간 빠른 선택 버튼(당월 · 전월 ·
 > 1분기 · 2분기 · 상반기 · 당년 · 전체 기간 — 매출처 관리 화면의 applyPreset/lib/period-presets.ts
