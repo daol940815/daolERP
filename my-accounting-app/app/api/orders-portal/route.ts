@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isManagerLike } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { filterFromSearchParams, loadFilteredOrders } from '@/lib/orders-portal-list'
@@ -75,6 +76,6 @@ export async function GET(req: NextRequest) {
     page,
     per: PER_PAGE,
     total_pages: totalPages,
-    role: me.role,
+    role: isManagerLike(me) ? (me.role === 'sales' ? 'manager' : me.role) : 'sales',
   })
 }

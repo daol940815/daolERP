@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isManagerLike, isHrAdmin } from '@/lib/permissions'
 import { getAttendanceEmployee } from '@/lib/attendance-employee.server'
 import { HALF_DAY_TYPES, type LeaveType } from '@/lib/attendance'
 
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
 
   const scope = req.nextUrl.searchParams.get('scope') === 'all' ? 'all' : 'self'
   const status = req.nextUrl.searchParams.get('status')
-  if (scope === 'all' && me.role === 'sales') {
+  if (scope === 'all' && !isManagerLike(me)) {
     return NextResponse.json({ error: '전 직원 조회는 관리자만 가능합니다.' }, { status: 403 })
   }
 
@@ -106,7 +107,7 @@ export async function POST(req: NextRequest) {
     if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
     const mine = leave.employee_id === employeeId
     const canCancel = (mine && leave.status === 'requested') ||
-      (me.role === 'admin' && ['requested', 'approved'].includes(leave.status))
+      (isHrAdmin(me) && ['requested', 'approved'].includes(leave.status))
     if (!canCancel) {
       return NextResponse.json({ error: '취소할 수 없습니다. 본인의 승인 대기 건만 취소 가능하며, 승인된 건은 전체 관리자에게 요청하세요.' }, { status: 403 })
     }
@@ -117,7 +118,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === 'approve' || action === 'reject') {
-    if (me.role === 'sales') return NextResponse.json({ error: '승인 권한이 없습니다.' }, { status: 403 })
+    if (!isManagerLike(me)) return NextResponse.json({ error: '승인 권한이 없습니다.' }, { status: 403 })
     const id = body.id
     if (!id) return NextResponse.json({ error: 'id가 필요합니다.' }, { status: 400 })
     const { data: leave, error: e1 } = await admin.from('attendance_leaves')
@@ -126,7 +127,7 @@ export async function POST(req: NextRequest) {
     if (leave.status !== 'requested') {
       return NextResponse.json({ error: '승인 대기 상태가 아닙니다.' }, { status: 400 })
     }
-    if (me.role === 'manager' && leave.employee_id === employeeId) {
+    if (!isHrAdmin(me) && leave.employee_id === employeeId) {
       return NextResponse.json({ error: '본인 신청은 본인이 결재할 수 없습니다.' }, { status: 403 })
     }
     const { error } = await admin.from('attendance_leaves').update({

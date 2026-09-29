@@ -1,24 +1,9 @@
-import { redirect } from 'next/navigation'
-import { getCurrentUser } from '@/lib/user-role'
-import HrSidebar from './hr-sidebar'
+import AreaShell from '@/components/layout/AreaShell'
 
 export const dynamic = 'force-dynamic'
 
-// 직원 관리 모드 공통 레이아웃 — 전 직원 접근 가능, 다른 모드와 동일한 좌측 사이드바 구조
-export default async function HrLayout({ children }: { children: React.ReactNode }) {
-  const me = await getCurrentUser()
-  if (!me) redirect('/login')
-
-  const roleLabel = me.role === 'admin' ? '전체 관리자' : me.role === 'manager' ? '중간 관리자' : '직원'
-
-  return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
-      <HrSidebar
-        name={me.employeeName ?? me.email ?? '사용자'}
-        roleLabel={roleLabel}
-        role={me.role}
-      />
-      <main className="flex-1 overflow-y-auto p-6">{children}</main>
-    </div>
-  )
+// 근태·휴가 화면(/hr/*) — 내 근태는 영업·주문 영역, 근태 현황·휴가 승인은 인사·총무 영역.
+// 어느 영역 사이드바를 보일지는 AreaShell이 경로·권한·마지막 선택으로 판정한다.
+export default function HrLayout({ children }: { children: React.ReactNode }) {
+  return <AreaShell>{children}</AreaShell>
 }

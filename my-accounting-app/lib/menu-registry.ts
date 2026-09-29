@@ -167,3 +167,75 @@ export function ownersOfPath(pathname: string) {
     .sort((a, b) => b.prefix.length - a.prefix.length)
   return extra.length ? [{ area: extra[0].area, group: extra[0].group }] : []
 }
+
+// API 경로 → 권한 그룹 (미들웨어 검사용). 접두가 긴 것이 우선. 없는 경로는 로그인만으로 허용.
+// 수준은 미들웨어가 정한다: GET/HEAD = 조회, 그 외 = 수정.
+export const API_OWNERS: { prefix: string; group: MenuGroupKey }[] = [
+  // 전원
+  { prefix: '/api/me', group: 'my' },
+  { prefix: '/api/attendance', group: 'my' },
+  // 팀 관리
+  { prefix: '/api/team', group: 'team' },
+  // 고객 · 영업
+  { prefix: '/api/vendor-hub', group: 'customers' },
+  { prefix: '/api/contact-manager', group: 'customers' },
+  { prefix: '/api/vendor-master', group: 'customers' },
+  { prefix: '/api/vendor-links', group: 'customers' },
+  // 주문 · 발주
+  { prefix: '/api/orders-portal', group: 'orders' },
+  { prefix: '/api/sample-stock', group: 'orders' },
+  { prefix: '/api/erp-items', group: 'orders' },
+  // 수금 · 정산 작업
+  { prefix: '/api/erp-matching', group: 'collections' },
+  { prefix: '/api/sales-cycle', group: 'collections' },
+  { prefix: '/api/purchase-cycle', group: 'collections' },
+  { prefix: '/api/purchase-hub', group: 'collections' },
+  { prefix: '/api/erp-prepayments', group: 'collections' },
+  { prefix: '/api/erp-settlements', group: 'collections' },
+  { prefix: '/api/reports/erp-receivables', group: 'collections' },
+  { prefix: '/api/reports/erp-payables', group: 'collections' },
+  // 회계 · 재무
+  { prefix: '/api/bank-accounts', group: 'accounting' },
+  { prefix: '/api/card-accounts', group: 'accounting' },
+  { prefix: '/api/transactions', group: 'accounting' },
+  { prefix: '/api/upload', group: 'accounting' },
+  { prefix: '/api/card-sales', group: 'accounting' },
+  { prefix: '/api/card-expenses', group: 'accounting' },
+  { prefix: '/api/cash-receipts', group: 'accounting' },
+  { prefix: '/api/tax-invoices', group: 'accounting' },
+  { prefix: '/api/erp-orders', group: 'accounting' },
+  { prefix: '/api/source', group: 'accounting' },
+  { prefix: '/api/vendors', group: 'accounting' },
+  { prefix: '/api/loans', group: 'accounting' },
+  { prefix: '/api/reports/receivables-aging', group: 'accounting' },
+  { prefix: '/api/reports/payables-aging', group: 'accounting' },
+  { prefix: '/api/reports/vendor-status', group: 'accounting' },
+  // 결산 · 세무 자료
+  { prefix: '/api/journal', group: 'closing' },
+  { prefix: '/api/ledger', group: 'closing' },
+  { prefix: '/api/accounts', group: 'closing' },
+  { prefix: '/api/opening-balances', group: 'closing' },
+  { prefix: '/api/vendor-opening-balances', group: 'closing' },
+  { prefix: '/api/vendor-ledger-entries', group: 'closing' },
+  { prefix: '/api/reports/monthly-pl', group: 'closing' },
+  { prefix: '/api/reports/vat-estimate', group: 'closing' },
+  // 점검 · 정리 도구
+  { prefix: '/api/erp-aliases', group: 'tools' },
+  { prefix: '/api/reports/double-count', group: 'tools' },
+  { prefix: '/api/reports/vendor-reconciliation', group: 'tools' },
+  { prefix: '/api/reports/erp-special', group: 'tools' },
+  // 인사 · 총무
+  { prefix: '/api/employees', group: 'hr' },
+  // 경영 현황 (조회)
+  { prefix: '/api/reports/cash-position', group: 'mgmt' },
+  { prefix: '/api/reports/daily-cash', group: 'mgmt' },
+  { prefix: '/api/reports/vendor-sales', group: 'mgmt' },
+  { prefix: '/api/reports/vendor-profitability', group: 'mgmt' },
+]
+
+export function apiOwnerOf(pathname: string): MenuGroupKey | null {
+  const hit = API_OWNERS
+    .filter(o => pathname === o.prefix || pathname.startsWith(o.prefix + '/') || pathname.startsWith(o.prefix + '?'))
+    .sort((a, b) => b.prefix.length - a.prefix.length)[0]
+  return hit?.group ?? null
+}

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isManagerLike } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import {
@@ -41,7 +42,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.action !== 'approve' && body.action !== 'reject') {
     return NextResponse.json({ error: 'action은 approve/reject/withdraw 중 하나여야 합니다.' }, { status: 400 })
   }
-  if (me.role === 'sales') {
+  if (!isManagerLike(me)) {
     return NextResponse.json({ error: '승인·반려는 관리자 권한이 필요합니다.' }, { status: 403 })
   }
 

@@ -3,13 +3,29 @@
 // 로그인 페이지는 인증 상태를 확인하므로 항상 동적으로 렌더링
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { LOGIN_ID_STORAGE_KEY } from '@/lib/auth-session-prefs'
 
+// useSearchParams(안내 문구)는 Suspense 경계가 필요하다 — 정적 프리렌더 오류 방지
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  )
+}
+
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // 근무 기간 종료·권한 없음으로 되돌아온 경우의 안내 (AreaShell·업무 선택에서 보냄)
+  const reasonMsg = searchParams.get('reason') === 'expired'
+    ? '근무 기간이 종료된 계정입니다. 담당자에게 문의하세요.'
+    : searchParams.get('reason') === 'noaccess'
+      ? '접근 가능한 업무 영역이 없습니다. 관리자에게 권한을 요청하세요.'
+      : ''
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [rememberId, setRememberId] = useState(true)
@@ -144,9 +160,9 @@ export default function LoginPage() {
             </label>
 
             {/* 오류 메시지 */}
-            {error && (
+            {(error || reasonMsg) && (
               <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
-                <p className="text-sm text-red-600">{error}</p>
+                <p className="text-sm text-red-600">{error || reasonMsg}</p>
               </div>
             )}
 

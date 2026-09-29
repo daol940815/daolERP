@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isManagerLike, isHrAdmin } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { getAttendanceEmployee } from '@/lib/attendance-employee.server'
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
   const month = req.nextUrl.searchParams.get('month') ?? kstToday().slice(0, 7)
   if (!/^\d{4}-\d{2}$/.test(month)) return NextResponse.json({ error: 'month 형식은 YYYY-MM' }, { status: 400 })
   const scope = req.nextUrl.searchParams.get('scope') === 'all' ? 'all' : 'self'
-  if (scope === 'all' && me.role === 'sales') {
+  if (scope === 'all' && !isManagerLike(me)) {
     return NextResponse.json({ error: '전 직원 조회는 관리자만 가능합니다.' }, { status: 403 })
   }
 
@@ -86,7 +87,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
-  if (me.role !== 'admin') return NextResponse.json({ error: '전체 관리자만 가능합니다.' }, { status: 403 })
+  if (!isHrAdmin(me)) return NextResponse.json({ error: '인사·총무 수정 권한이 필요합니다.' }, { status: 403 })
 
   const admin = createAdminClient()
   const body = await req.json().catch(() => ({})) as Record<string, string | number | boolean | undefined>
