@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { getPeriodRange, DEFAULT_VIEW_FROM } from '@/lib/period-presets'
 import CustomerKpiTiles, { matchCategory, OTYPE_META } from './_components/CustomerKpiTiles'
 import type { KpiCategory, KpiFlags, VendorFlag } from './_components/CustomerKpiTiles'
@@ -79,10 +80,13 @@ export default function SalesHubPage() {
     return m
   }, [kpiFlags])
 
+  // ?mine=1 = 내 고객 (로그인 직원이 현재 담당인 거래처만). 영업·주문 영역의 진입점.
+  const mine = useSearchParams().get('mine') === '1'
+
   const load = useCallback(async (f: string, t: string) => {
     setLoading(true); setError(null)
     try {
-      const res = await fetch(`/api/vendor-hub?from=${f}&to=${t}`)
+      const res = await fetch(`/api/vendor-hub?from=${f}&to=${t}${mine ? '&mine=1' : ''}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? '조회 실패')
       setRows(json.rows); setSummary(json.summary)
@@ -91,7 +95,7 @@ export default function SalesHubPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [mine])
 
   useEffect(() => { load(from, to) }, [load, from, to])
 
@@ -149,10 +153,23 @@ export default function SalesHubPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900">매출처 관리</h1>
+      <h1 className="text-2xl font-bold text-gray-900">{mine ? '내 고객' : '매출처 관리'}</h1>
       <p className="text-sm mt-1 text-gray-500">
-        ERP 주문 기준 매출·수금·미수와 담당을 매출처 단위로 봅니다. 행 클릭 시 거래처 360° 상세로 이동합니다.
+        {mine
+          ? '내가 현재 담당인 매출처만 봅니다. 행 클릭 시 거래처 360° 상세로 이동합니다.'
+          : 'ERP 주문 기준 매출·수금·미수와 담당을 매출처 단위로 봅니다. 행 클릭 시 거래처 360° 상세로 이동합니다.'}
       </p>
+
+      {mine && !loading && !error && rows.length === 0 && (
+        <div className="mt-6 bg-white border border-gray-200 rounded-xl px-6 py-10 text-center">
+          <p className="text-base font-semibold text-gray-800">담당 고객 없음</p>
+          <p className="text-sm text-gray-500 mt-1">내 이름으로 지정된 담당 거래처가 없습니다. 담당 지정은 매출처 관리의 거래처 상세에서 합니다.</p>
+          <div className="flex justify-center gap-2 mt-5">
+            <Link href="/sales-hub" className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">매출처 관리</Link>
+            <Link href="/sales-hub/contacts" className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50">고객 관리</Link>
+          </div>
+        </div>
+      )}
 
       {/* 기간 빠른 선택 — 다른 목록 화면(거래내역·법인카드·ERP 주문내역)과 동일하게 필터 바 위 별도 행 */}
       <div className="flex items-center gap-1.5 flex-wrap mt-4 mb-2">

@@ -39,8 +39,8 @@ export const MENU: MenuGroup[] = [
   ]},
   { key: 'customers', area: 'sales', label: '고객 · 영업', items: [
     { label: '내 고객', href: '/sales-hub?mine=1', prefix: '/sales-hub?mine' },
-    { label: '거래처 담당자', href: '/sales-hub/contacts' },
-    { label: '매출처 허브', href: '/sales-hub', exact: true },
+    { label: '고객 관리', href: '/sales-hub/contacts' },
+    { label: '매출처 관리', href: '/sales-hub' },
   ]},
   { key: 'orders', area: 'sales', label: '주문 · 발주', items: [
     { label: '상담일지', href: '/orders/consultations' },
@@ -55,7 +55,7 @@ export const MENU: MenuGroup[] = [
     { label: '수금 대상', href: '/reports/erp-receivables' },
     { label: '입금 매칭', href: '/erp-matching' },
     { label: '계산서 발행 대상', href: '/sales-cycle' },
-    { label: '매입처 결제 확인', href: '/orders/purchase-hub' },
+    { label: '매입처 관리', href: '/orders/purchase-hub' },
     { label: '매입 결제 예외', href: '/purchase-cycle' },
   ]},
   { key: 'team', area: 'sales', label: '팀 관리', items: [
@@ -82,7 +82,7 @@ export const MENU: MenuGroup[] = [
     { label: 'ERP 주문내역', href: '/erp-orders' },
     { label: '미수금 관리', href: '/reports/receivables-aging' },
     { label: '미지급금 관리', href: '/reports/payables-aging' },
-    { label: '매출처 허브', href: '/sales-hub', exact: true },
+    { label: '매출처 관리', href: '/sales-hub' },
     { label: '매입처 관리', href: '/purchase-hub' },
   ]},
   { key: 'closing', area: 'finance', label: '결산 · 세무 자료', foldDefault: true, items: [
@@ -119,6 +119,9 @@ export const MENU: MenuGroup[] = [
     { label: '대출 관리', href: '/loans' },
     { label: '거래처별 매출 분석', href: '/reports/vendor-sales' },
     { label: '거래처별 수익성 분석', href: '/reports/vendor-profitability' },
+    { label: '매출처 관리', href: '/sales-hub' },
+    { label: '고객 관리', href: '/sales-hub/contacts' },
+    { label: '매입처 관리', href: '/purchase-hub' },
   ]},
 ]
 

@@ -31,6 +31,12 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
   const searchParams = useSearchParams()
   const router = useRouter()
 
+  // 사이드바가 그려질 때마다 현재 영역을 쿠키에 남긴다 — 두 영역이 공유하는 화면(매출처 관리·
+  // 휴가 승인 등)으로 이동해도 지금 보고 있던 영역에 머물게 하기 위해서다.
+  useEffect(() => {
+    try { document.cookie = `daol-area=${area}; path=/; max-age=31536000; samesite=lax` } catch { /* 무시 */ }
+  }, [area])
+
   // ── 그룹 접기 (localStorage 유지 + 현재 화면 그룹 자동 열기) ──
   const [open, setOpen] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(groups.map(g => [g.key, !g.foldDefault])))
