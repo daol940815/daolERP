@@ -90,6 +90,33 @@ payables.work / approve / mgmt.view / acct.work / acct.close / hr.admin / tools.
 invoices.issue·payables.work (팀장 +approve) / 경영지원팀 = mgmt.view·acct.work·acct.close·
 hr.admin·tools·payables.work (총괄부사장 +approve) / 대표 = mgmt.view·approve(+전체 조회).
 
+## 1차 구현 완료 (2026-09-29, main f69d54b)
+
+- 109 실행·검증 완료(직원별 팀·마스터·권한이 드라이런 표와 일치, 이력 0). 조현수 비활성 처리.
+- 구현: `lib/permissions.ts`(판정) · `lib/menu-registry.ts`(메뉴·API 소속 단일 원천) ·
+  `lib/area-shell.ts` · `components/layout/AreaShell.tsx`+`AreaSidebar.tsx`(공용 셸, 계좌·카드
+  바로가기 유지) · `/portal` 업무 선택(제목만, 1영역이면 건너뜀) · `/api/area/select`(선택 영역 쿠키) ·
+  미들웨어 API 권한 검사·아르바이트 차단·x-pathname · 직원·계정·권한 화면(권한 패널·이력) ·
+  레거시 role 판정 9곳 호환(`isManagerLike`/`isHrAdmin`). 구 사이드바 3개 삭제.
+- 메뉴 이동·개명은 재배치안 v2대로. 화면 코드는 옮기지 않음(경로 불변).
+- **1차 범위 밖(2차)**: 통합 후보 7건, 고아 화면 4개 정리, 옛 경영대시보드 삭제,
+  Header 제목 표(경로별) 갱신, 결제정보 잠금의 상담일지 반영(주문 트랙), (b) 미연결 배지·전환 제한(주문 트랙).
+
+### 검증 항목 (사용자 확인 대기)
+1. daol825 로그인 → 업무 선택 4카드 → 각 영역 사이드바 그룹이 재배치안과 같은지
+2. 홍창의(daol1102) 로그인 → 업무 선택 없이 영업·주문 진입, 그룹 5개(내 업무·고객·주문·수금·팀 관리)
+3. 회계·재무 영역: 통장 내역 계좌별 바로가기·카드별 바로가기·계산서 내역 하위 항목 동작
+4. 직원·계정·권한: 사장님 행 "계정 발급"(비밀번호 설정) → master 로그인 → 4카드
+5. 권한 패널 저장 → 변경 이력 표시. 비마스터 계정에서는 읽기 전용
+6. 권한 없는 주소 직접 입력 시(예: 홍창의로 /transactions) 영업·주문 홈으로 이동, API는 403
+
+### 주문 트랙 요청문 ((b) 상담일지 미연결 정책 — 사용자 확정 2026-09-29)
+> 상담일지에 자유 입력된 업체·지점·담당자가 마스터에 연결되지 않은 상담은 목록에 "마스터 미연결"
+> 배지를 달고, 연결이 끝난 상담만 "주문서로 전환" 버튼이 활성화되게 해줘. 아르바이트 계정
+> (employees.employment_type='parttime')은 미연결 상담을 열 수 없어야 하고, 신규 거래처·담당자
+> 인라인 등록 버튼도 숨겨줘(API는 미들웨어가 이미 403). 결제정보 칸은 can_view_payment_info가
+> true인 계정 또는 본인 작성분만 열람되게 해줘(lib/user-role.ts getCurrentUser 필드 사용).
+
 ## 구현 순서 (재배치안 확정 후)
 
 1. 메뉴 목록 단일화: `lib/menu-registry.ts`(항목·경로·그룹·필요 권한) — 사이드바 3개가
