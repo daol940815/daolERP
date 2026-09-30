@@ -1,5 +1,6 @@
 'use client'
 
+import PeriodPresets from '@/components/ui/PeriodPresets'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { AgGridReact } from 'ag-grid-react'
@@ -18,7 +19,6 @@ import 'ag-grid-community/styles/ag-theme-quartz.css'
 import type { Transaction, Account } from '@/types/transaction'
 import type { BankAccount } from '@/types/bank-account'
 import type { Vendor } from '@/types/tax-invoice'
-import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
 import SearchableCellEditor from '@/components/ui/SearchableCellEditor'
 
 ModuleRegistry.registerModules([AllCommunityModule])
@@ -905,26 +905,7 @@ function TransactionsContent() {
       <p className="text-gray-500 text-sm mb-4">계정과목 클릭으로 직접 분류하거나, 자동 분류를 사용하세요.</p>
 
       {/* 기간 빠른 선택 */}
-      <div className="flex flex-wrap items-center gap-1 mb-2">
-        {PERIOD_PRESETS.map(p => (
-          <button
-            key={p}
-            onClick={() => setFilters(f => ({ ...f, ...getPeriodRange(p) }))}
-            className="px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-slate-100 hover:border-slate-400 transition-colors"
-          >
-            {p}
-          </button>
-        ))}
-        <button
-          onClick={() => setFilters(f => ({ ...f, from: '', to: '' }))}
-          className="px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-slate-100 hover:border-slate-400 transition-colors"
-        >
-          전체
-        </button>
-        {(filters.from || filters.to) && (
-          <span className="text-xs text-gray-400 ml-1">· 기간: {filters.from || '처음'} ~ {filters.to || '현재'}</span>
-        )}
-      </div>
+      <PeriodPresets from={filters.from ?? ''} to={filters.to ?? ''} onChange={(from, to) => setFilters(f => ({ ...f, from, to }))} className="mb-2" />
 
       {/* 필터 바 */}
       <div className="flex flex-wrap items-center gap-2 mb-3">

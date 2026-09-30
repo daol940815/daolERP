@@ -1,8 +1,9 @@
 'use client'
 
+import PeriodPresets from '@/components/ui/PeriodPresets'
 import { useCallback, useEffect, useState } from 'react'
 import type { VendorAnalysisRow } from '@/types/erp'
-import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
+import { getPeriodRange } from '@/lib/period-presets'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 const pct = (n: number | null | undefined) => `${(n ?? 0).toFixed(1)}%`
@@ -10,8 +11,8 @@ const pct = (n: number | null | undefined) => `${(n ?? 0).toFixed(1)}%`
 export default function VendorProfitabilityPage() {
   const [rows, setRows]   = useState<VendorAnalysisRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [dateFrom, setDateFrom] = useState(() => getPeriodRange('당월').from)
-  const [dateTo, setDateTo]     = useState(() => getPeriodRange('당월').to)
+  const [dateFrom, setDateFrom] = useState(() => getPeriodRange('당년').from)
+  const [dateTo, setDateTo]     = useState(() => getPeriodRange('당년').to)
   const [search, setSearch] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
 
@@ -55,17 +56,7 @@ export default function VendorProfitabilityPage() {
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
 
       {/* 기간 빠른 선택 */}
-      <div className="flex flex-wrap items-center gap-1 mb-2 mt-3">
-        {PERIOD_PRESETS.map(p => (
-          <button
-            key={p}
-            onClick={() => { const r = getPeriodRange(p); setDateFrom(r.from); setDateTo(r.to) }}
-            className="px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-slate-100 hover:border-slate-400 transition-colors"
-          >
-            {p}
-          </button>
-        ))}
-      </div>
+      <PeriodPresets from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} className="mb-2" />
 
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">

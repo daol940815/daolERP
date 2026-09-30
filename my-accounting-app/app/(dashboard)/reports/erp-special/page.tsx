@@ -1,8 +1,9 @@
 'use client'
 
+import PeriodPresets from '@/components/ui/PeriodPresets'
 import { useCallback, useEffect, useState } from 'react'
 import type { ErpSpecialData } from '@/lib/erp-special'
-import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
+import { getPeriodRange } from '@/lib/period-presets'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
@@ -14,8 +15,8 @@ export default function ErpSpecialPage() {
   const [data, setData]         = useState<ErpSpecialData>(EMPTY)
   const [loading, setLoading]   = useState(true)
   const [tab, setTab]           = useState<Tab>('vip')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo]     = useState('')
+  const [dateFrom, setDateFrom] = useState(() => getPeriodRange('당년').from)
+  const [dateTo, setDateTo]     = useState(() => getPeriodRange('당년').to)
   const [msg, setMsg]           = useState<string | null>(null)
 
   const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
@@ -82,22 +83,7 @@ export default function ErpSpecialPage() {
       </div>
 
       {/* 기간 빠른 선택 */}
-      <div className="flex flex-wrap items-center gap-1 mb-2">
-        {PERIOD_PRESETS.map(p => (
-          <button
-            key={p}
-            onClick={() => { const r = getPeriodRange(p); setDateFrom(r.from); setDateTo(r.to) }}
-            className="px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-slate-100 hover:border-slate-400 transition-colors"
-          >
-            {p}
-          </button>
-        ))}
-        {(dateFrom || dateTo) && (
-          <button onClick={() => { setDateFrom(''); setDateTo('') }} className="px-2.5 py-1 text-xs text-gray-400 hover:text-gray-600">
-            ✕ 전체 기간
-          </button>
-        )}
-      </div>
+      <PeriodPresets from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} className="mb-2" />
 
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">

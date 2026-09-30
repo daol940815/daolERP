@@ -1,10 +1,11 @@
 'use client'
 
+import PeriodPresets from '@/components/ui/PeriodPresets'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import type { TaxInvoice } from '@/types/tax-invoice'
 import SearchableSelect from '@/components/ui/SearchableSelect'
-import { DEFAULT_VIEW_FROM, PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
+import { getPeriodRange } from '@/lib/period-presets'
 import { lagDays } from '@/lib/matching-rules'
 import CancelPairsModal from './cancel-pairs-modal'
 
@@ -583,8 +584,8 @@ function TaxInvoiceListContent() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'matched' | 'unmatched'>('all')
   // 기본 조회는 2026년부터 — 2025년은 시작일을 비우거나 넓혀서 조회.
   // 단, 특정 계산서 딥링크(?invoiceId=) 진입 시에는 기간을 비워 과거 계산서도 바로 보이게 한다.
-  const [dateFrom, setDateFrom]       = useState(() => searchParams.get('invoiceId') ? '' : DEFAULT_VIEW_FROM)
-  const [dateTo, setDateTo]           = useState('')
+  const [dateFrom, setDateFrom]       = useState(() => searchParams.get('invoiceId') ? '' : getPeriodRange('당월').from)
+  const [dateTo, setDateTo]           = useState(() => searchParams.get('invoiceId') ? '' : getPeriodRange('당월').to)
   const [search, setSearch]           = useState('')
   const [searchField, setSearchField] = useState<'all' | 'counterparty' | 'item' | 'note' | 'approval' | 'biz' | 'amount' | 'memo'>('all')
   // 원본 상세 등에서 특정 계산서로 바로 진입 (?invoiceId=) — 그 건만 표시
@@ -940,22 +941,7 @@ function TaxInvoiceListContent() {
       </div>
 
       {/* 기간 빠른 선택 */}
-      <div className="flex flex-wrap items-center gap-1 mb-2">
-        {PERIOD_PRESETS.map(p => (
-          <button
-            key={p}
-            onClick={() => { const r = getPeriodRange(p); setDateFrom(r.from); setDateTo(r.to) }}
-            className="px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-slate-100 hover:border-slate-400 transition-colors"
-          >
-            {p}
-          </button>
-        ))}
-        {(dateFrom || dateTo) && (
-          <button onClick={() => { setDateFrom(''); setDateTo('') }} className="px-2.5 py-1 text-xs text-gray-400 hover:text-gray-600">
-            ✕ 전체 기간
-          </button>
-        )}
-      </div>
+      <PeriodPresets from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} className="mb-2" />
 
       {/* 필터: 기간 · 검색 · 확인 상태 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
