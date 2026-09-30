@@ -60,7 +60,7 @@ export async function GET(
       { label: '상태', value: `${r.statement_status ?? '-'} / ${r.classify_status === 'confirmed' ? '확정' : '미확정'}` },
       ...(r.source_sheet ? [{ label: '원본 시트', value: String(r.source_sheet) }] : []),
     )
-    link = { href: '/card-expenses', label: '법인카드 사용내역 화면으로' }
+    link = { href: '/cards?tab=expenses', label: '법인카드 사용내역 화면으로' }
   } else if (type === 'card_sale') {
     const { data: r } = await admin
       .from('card_sales')
@@ -80,7 +80,7 @@ export async function GET(
     const vend = r.vendors as unknown as { name?: string } | { name?: string }[] | null
     const vendName = Array.isArray(vend) ? vend[0]?.name : vend?.name
     if (vendName) fields.push({ label: '매출처', value: vendName })
-    link = { href: '/card-sales', label: '카드매출 화면으로' }
+    link = { href: '/cards', label: '카드매출 화면으로' }
   } else if (type === 'tax_invoice') {
     const { data: r } = await admin
       .from('tax_invoices')

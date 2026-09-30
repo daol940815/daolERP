@@ -197,7 +197,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
     if (!perms.accounting) return null   // 권한 없는 화면으로 보내지 않는다
     if (e.kind === 'invoice' && e.ref_id) return `/tax-invoices/purchase/${invTaxType.get(e.ref_id) ?? 'taxable'}?invoiceId=${e.ref_id}`
     if (e.kind === 'bank') return `/transactions?vendorId=${vendorId}`
-    if (e.kind === 'card') return '/card-expenses'
+    if (e.kind === 'card') return '/cards?tab=expenses'
     return null
   }, [invTaxType, vendorId, perms.accounting])
 

@@ -209,7 +209,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
             </div>
           ) : (
             <div className="group relative">
-              <Link href={`/card-expenses?cardAccountId=${card.id}`} className={linkCls(pathname.startsWith('/card-expenses') && activeCardId === card.id)}>
+              <Link href={`/cards?tab=expenses&cardAccountId=${card.id}`} className={linkCls(pathname === '/cards' && searchParams.get('tab') === 'expenses' && activeCardId === card.id)}>
                 <span className={dotCls}>·</span>
                 <div className="flex flex-col min-w-0 flex-1 pr-5">
                   <span className="truncate">{card.alias?.trim() || card.card_company}</span>

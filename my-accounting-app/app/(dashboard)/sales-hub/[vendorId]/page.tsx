@@ -122,7 +122,7 @@ export default function SalesHubDetailPage() {
   const tlHref = useCallback((e: { kind: string; ref_id: string | null }): string | null => {
     if (e.kind === 'invoice' && e.ref_id) return `/tax-invoices/sales/${invTaxType.get(e.ref_id) ?? 'taxable'}?invoiceId=${e.ref_id}`
     if (e.kind === 'bank') return `/transactions?vendorId=${vendorId}`
-    if (e.kind === 'card') return e.ref_id ? `/card-sales?q=${encodeURIComponent(e.ref_id)}` : '/card-sales'
+    if (e.kind === 'card') return e.ref_id ? `/cards?q=${encodeURIComponent(e.ref_id)}` : '/cards'
     if (e.kind === 'alloc' && e.ref_id) return null
     return null
   }, [invTaxType, vendorId])
@@ -223,12 +223,12 @@ export default function SalesHubDetailPage() {
               className={`px-2 py-0.5 rounded-full text-[11px] border hover:underline ${data.links.alias_count ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               ERP 별칭 {data.links.alias_count || '미'}연동
             </Link>
-            <Link href={data.links.card_count ? `/card-sales?q=${encodeURIComponent(data.vendor.name)}` : '/card-sales/customer-links'}
+            <Link href={data.links.card_count ? `/cards?q=${encodeURIComponent(data.vendor.name)}` : '/card-sales/customer-links'}
               title={data.links.card_count ? '이 거래처의 카드매출 내역 보기' : '카드번호 연결 도구로 이동'}
               className={`px-2 py-0.5 rounded-full text-[11px] border hover:underline ${data.links.card_count ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               카드번호 {data.links.card_count ? `${data.links.card_count}건` : '미연동'}
             </Link>
-            <Link href={`/vendor-opening-balances?q=${encodeURIComponent(data.vendor.name)}`}
+            <Link href={`/opening-balances?tab=vendor&q=${encodeURIComponent(data.vendor.name)}`}
               title="기초잔액 입력 화면으로 이동"
               className={`px-2 py-0.5 rounded-full text-[11px] border hover:underline ${data.links.has_opening ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               기초잔액 {data.links.has_opening ? '입력됨' : '미입력'}

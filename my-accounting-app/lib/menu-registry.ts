@@ -72,8 +72,7 @@ export const MENU: MenuGroup[] = [
     { label: '파일 업로드', href: '/upload' },
     { label: '통장 내역', href: '/transactions', dynamic: 'banks' },
     { label: '통장 거래 분류', href: '/bank-classify' },
-    { label: '카드 내역(매출)', href: '/card-sales' },
-    { label: '카드 내역(법인카드)', href: '/card-expenses', dynamic: 'cards' },
+    { label: '카드 내역', href: '/cards', dynamic: 'cards' },   // 매출 / 법인카드 탭 (2026-09-30 통합)
     { label: '계산서 내역', href: '/tax-invoices/sales/taxable', prefix: '/tax-invoices', children: [
       { label: '매입 일괄 분류', href: '/tax-invoices/classify', exact: true },
       { label: '매출 전자세금계산서(과세)', href: '/tax-invoices/sales/taxable', exact: true },
@@ -94,8 +93,7 @@ export const MENU: MenuGroup[] = [
     { label: '분개 자료', href: '/journal' },
     { label: '계정별 원장', href: '/ledger' },
     { label: '거래처 원장', href: '/vendor-ledger' },
-    { label: '기초잔액(계정)', href: '/opening-balances' },
-    { label: '기초잔액(거래처)', href: '/vendor-opening-balances' },
+    { label: '기초잔액', href: '/opening-balances' },   // 계정과목 / 거래처 탭 (2026-09-30 통합)
     { label: '계정과목', href: '/accounts' },
   ]},
   { key: 'tools', area: 'finance', label: '점검 · 정리 도구', foldDefault: true, items: [
@@ -117,8 +115,7 @@ export const MENU: MenuGroup[] = [
   // ── 경영 현황 ───────────────────────────────────────
   { key: 'mgmt', area: 'mgmt', label: '경영 현황', items: [
     { label: '대시보드', href: '/', exact: true },
-    { label: '계좌 통합현황', href: '/reports/cash-position' },
-    { label: '자금일보', href: '/reports/daily-cash' },
+    { label: '자금 · 계좌', href: '/reports/cash' },   // 계좌 통합현황 / 자금일보 탭 (2026-09-30 통합)
     { label: '대출 관리', href: '/loans' },
     { label: '거래처별 매출 분석', href: '/reports/vendor-sales' },
     { label: '거래처별 수익성 분석', href: '/reports/vendor-profitability' },
@@ -154,6 +151,12 @@ export const EXTRA_PATH_OWNERS: { prefix: string; area: AreaKey; group: MenuGrou
   { prefix: '/source/', area: 'finance', group: 'accounting' },
   { prefix: '/erp-aliases/pending', area: 'finance', group: 'tools' },
   { prefix: '/card-sales/customer-links', area: 'finance', group: 'accounting' },
+  // 통합 전 옛 주소(리다이렉트 스텁) — 소속을 유지해 영역이 튀지 않게 한다
+  { prefix: '/card-sales', area: 'finance', group: 'accounting' },
+  { prefix: '/card-expenses', area: 'finance', group: 'accounting' },
+  { prefix: '/vendor-opening-balances', area: 'finance', group: 'closing' },
+  { prefix: '/reports/cash-position', area: 'mgmt', group: 'mgmt' },
+  { prefix: '/reports/daily-cash', area: 'mgmt', group: 'mgmt' },
   { prefix: '/customers', area: 'finance', group: 'accounting' },
   { prefix: '/vendors', area: 'finance', group: 'accounting' },
   { prefix: '/hr', area: 'sales', group: 'my' },
