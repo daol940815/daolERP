@@ -239,7 +239,32 @@ docs/attendance-design.md "인사·총무 확장 계획". 급여는 기록부터
   좁히면 묶음이 쪼개져 확정 횟수가 는다 (c) 이체쌍·카드 정산 매칭은 날짜가 기간 경계를 넘는다(정산은 며칠 뒤
   입금) (d) API에 기간 파라미터가 없고 계좌 필터는 select에 bank_account_id가 이미 있어 한 줄 추가. 대안으로
   묶음 표에 '거래일 범위(최초~최근)' 열을 넣어 오래된 잔여를 식별하는 방식을 제안.
-- 진행 승인 대기: 5 확인 후 6 → 5 → 7 → 4 순 구현.
+- **승인(2026-09-30 사용자)**: 5 근거 승인, 6·5·7·4 순 진행. 결제 예외 차액은 양수·음수 색 구분, 음수 앞 '-'.
+
+### 통합 4~7 구현 (2026-09-30 완료)
+
+| 통합 | 화면 | 탭 · 칩 | 옛 주소 → |
+|---|---|---|---|
+| 6 계산서 내역 | `/tax-invoices` (회계 · 재무, 항목 1개) | [계산서 목록 \| 매입 분류] + 칩 구분(매출·매입) × 종류(과세·면세) `?dir=&tax=` | `/tax-invoices/{dir}/{taxType}?invoiceId=` → 칩 상태(+invoiceId), `/tax-invoices/classify` → `?tab=classify` |
+| 5 통장 내역 | `/transactions` | [거래 내역 \| 분류 작업 (미분류 N)] — 계좌 필터 `?bankAccountId=` 공유, 분류 탭은 기간 없음 | `/bank-classify` → `?tab=classify` |
+| 7 매입처 관리 | `/purchase-hub`, `/orders/purchase-hub` (셸 공용) | [매입처 목록 \| 결제 예외] — 예외 탭은 collections 조회 권한자만, 목록 행에 '확인 N건' 배지 `?tab=exceptions&vendor=` | `/purchase-cycle` → `/orders/purchase-hub?tab=exceptions` (`/purchase-cycle/[vendorId]` 진행상태 상세는 유지) |
+| 4 미수금 · 미지급금 관리 | `/reports/receivables-aging`, `/reports/payables-aging` (경로 유지) | 공용 `components/reports/aging-manage.tsx` — 요약 카드 6(총계·구간 4·기초이월 잔여, 클릭=필터) + 거래처 기준 표(허브 열 + 경과 구간 열 + 상태 + 바로가기) | 없음 (화면 교체) |
+
+세부:
+- 6: 4종 화면은 원래 한 파일(`list-tab.tsx`, `useParams` → props)이라 칩만 붙임. `classify-tab.tsx`. 매출처·매입처 상세의
+  계산서 드릴다운, 경영 대시보드 작업 탭 링크 갱신. 사이드바 하위 5개 삭제(사용자 확정).
+- 5: `transactions/page.tsx`(서버)가 미분류 건수를 서비스 키로 head count(`transfer_pair_id is null and (status<>confirmed or
+  confirmed_account_id is null)` — 실측 5,938건, 분류 API 기준과 동일). 분류 API `classify-groups`에 `bankAccountId` 필터와
+  묶음별 `first_date`/`last_date`(거래일 범위 열) 추가. 사이드바 계좌 바로가기는 분류 탭에서 누르면 탭 유지(`bankHref`).
+- 7: `components/purchase-hub/purchase-hub-shell.tsx`(h1·탭) + `purchase-cycle/exceptions-tab.tsx`. `PurchaseHubPerms.collections`
+  추가. 예외 표 '내용' 열 → 발주(ERP) · 계산서(총액) · 지급 · 차액 · 경과·비고 열. 차액 부호: 양수 = 아직 발행·지급될 것이
+  남음(파랑), 음수 = 초과(빨강, '-' 표기) — 계산서 대기 = 미발행(+), 금액 차이 = 발주−계산서(±), 지급 대기 = 미지급(+),
+  과다 지급 = 초과 지급(−). 거래처 누계 행은 발주 열 '-'. 목록 배지는 `/api/purchase-cycle`(최근 12개월, 주의 이상) 집계.
+  수금·정산의 '매입 결제 예외' 항목 삭제, `/purchase-cycle` 소속은 EXTRA_PATH_OWNERS(sales/collections).
+- 4: 신규 API 없음 — 경과기간 분석 API + 허브 목록 API(당년 1/1~기준일)를 병렬 조회해 화면에서 vendor_id로 합침.
+  기초이월 행(`(기초이월)`)은 같은 거래처 행에 합치고 '기초이월 N 포함' 표기. 미연결 별칭은 '미연결' 행 + 별칭 연결 링크.
+  허브 API 권한이 없으면(customers 조회 없음) 허브 열만 비우고 안내. 미지급 쪽 바로가기 = 매입처 상세 · 결제 예외 탭.
+- 메뉴: 회계·재무 항목 12 → 9(통장 거래 분류·카드 내역 1개 삭제·계산서 하위 5개 삭제), 수금·정산 4 → 3.
 
 ## 구현 순서 (재배치안 확정 후)
 

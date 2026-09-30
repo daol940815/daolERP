@@ -69,7 +69,7 @@ export default async function WorkTab({
     issues.push({
       kind: '매입', tone: 'bg-amber-100 text-amber-800',
       text: '매입 세금계산서 미업로드로 과다지급(음수 잔액) 발생 — 계산서를 올리면 해소됩니다',
-      amount: won(Math.abs(payOverpaid)), href: '/tax-invoices/classify', label: '세금계산서',
+      amount: won(Math.abs(payOverpaid)), href: '/tax-invoices?tab=classify', label: '세금계산서',
     })
   }
   if (salesAliasUnlinked > 0) {
@@ -90,7 +90,7 @@ export default async function WorkTab({
     issues.push({
       kind: '통장', tone: 'bg-slate-100 text-gray-700',
       text: `검토됨 상태 ${reviewed.toLocaleString('ko-KR')}건이 확정 전이라 손익에 반영되지 않았습니다`,
-      amount: '-', href: '/bank-classify', label: '통장 분류',
+      amount: '-', href: '/transactions?tab=classify', label: '통장 분류',
     })
   }
 
@@ -99,9 +99,9 @@ export default async function WorkTab({
       <h2 className="text-sm font-semibold text-gray-700 mt-6 mb-3">처리해야 할 일</h2>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <CountCard label="미확정 거래 (검토됨)" value={`${reviewed.toLocaleString('ko-KR')}건`}
-          sub="확정하면 분개가 생성되어 손익에 반영됩니다" href="/bank-classify" alert={reviewed > 0} />
+          sub="확정하면 분개가 생성되어 손익에 반영됩니다" href="/transactions?tab=classify" alert={reviewed > 0} />
         <CountCard label="미분류 거래" value={`${pending.toLocaleString('ko-KR')}건`}
-          sub="계좌간 이체 제외" href="/bank-classify" />
+          sub="계좌간 이체 제외" href="/transactions?tab=classify" />
         <CountCard label="이번달 확정" value={`${confirmedThisMonth.toLocaleString('ko-KR')}건`}
           sub={`${monthFirst} 이후`} href="/transactions" />
         <CountCard label="매출처 별칭 미연결" value={`${salesAliasUnlinked.toLocaleString('ko-KR')}건`}

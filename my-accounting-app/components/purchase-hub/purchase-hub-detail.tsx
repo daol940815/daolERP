@@ -195,7 +195,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
   const invTaxType = useMemo(() => new Map((data?.invoices ?? []).map(i => [i.id, i.tax_type ?? 'taxable'])), [data])
   const tlHref = useCallback((e: { kind: string; ref_id: string | null }): string | null => {
     if (!perms.accounting) return null   // 권한 없는 화면으로 보내지 않는다
-    if (e.kind === 'invoice' && e.ref_id) return `/tax-invoices/purchase/${invTaxType.get(e.ref_id) ?? 'taxable'}?invoiceId=${e.ref_id}`
+    if (e.kind === 'invoice' && e.ref_id) return `/tax-invoices?dir=purchase&tax=${invTaxType.get(e.ref_id) ?? 'taxable'}&invoiceId=${e.ref_id}`
     if (e.kind === 'bank') return `/transactions?vendorId=${vendorId}`
     if (e.kind === 'card') return '/cards?tab=expenses'
     return null
@@ -555,7 +555,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                     return (
                       <tr key={inv.id} className="border-b border-gray-50">
                         <td className="py-1.5 px-3 tabular-nums">
-                          <Link href={`/tax-invoices/purchase/${inv.tax_type ?? 'taxable'}?invoiceId=${inv.id}`}
+                          <Link href={`/tax-invoices?dir=purchase&tax=${inv.tax_type ?? 'taxable'}&invoiceId=${inv.id}`}
                             className="text-blue-600 hover:underline" title="계산서 화면에서 열기">{inv.issue_date}</Link>
                         </td>
                         <td className="py-1.5 px-3 text-xs text-gray-500">{inv.tax_type === 'exempt' ? '면세' : '과세'}</td>

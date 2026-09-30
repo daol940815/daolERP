@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 
@@ -43,8 +43,10 @@ type Tx = {
   confirmed_account_id: string | null
 }
 
-export async function GET() {
+// GET /api/transactions/classify-groups?bankAccountId=  — 미분류 잔여 전체(기간 없음)를 묶는다. 계좌 필터만 선택.
+export async function GET(req: NextRequest) {
   const admin = createAdminClient()
+  const bankAccountId = new URL(req.url).searchParams.get('bankAccountId')
 
   const txResult = await fetchAllRows<Tx>((f, t) =>
     admin
@@ -53,7 +55,7 @@ export async function GET() {
       .range(f, t),
   )
   if ('error' in txResult) return NextResponse.json({ error: txResult.error }, { status: 500 })
-  const txs = txResult.data
+  const txs = bankAccountId ? txResult.data.filter(t => t.bank_account_id === bankAccountId) : txResult.data
 
   const [{ data: cardVendors }, { data: accounts }] = await Promise.all([
     admin.from('vendors').select('id, name').eq('is_card_company', true),
@@ -103,6 +105,8 @@ export async function GET() {
     count: number
     in_total: number
     out_total: number
+    first_date: string | null   // 묶음 안 최초·최근 거래일 — 오래된 잔여 식별용
+    last_date: string | null
     transaction_ids: string[]
     suggestion: Suggestion
     pairable?: number   // internal: 반대편 계좌에서 이체쌍 후보를 찾은 건수
@@ -111,13 +115,15 @@ export async function GET() {
   const add = (key: string, kind: Group['kind'], label: string, t: Tx, suggestion: Suggestion = null) => {
     let g = groups.get(key)
     if (!g) {
-      g = { key, kind, label, count: 0, in_total: 0, out_total: 0, transaction_ids: [], suggestion }
+      g = { key, kind, label, count: 0, in_total: 0, out_total: 0, first_date: null, last_date: null, transaction_ids: [], suggestion }
       groups.set(key, g)
     }
     g.count++
     g.in_total += t.amount_in ?? 0
     g.out_total += t.amount_out ?? 0
     g.transaction_ids.push(t.id)
+    if (t.tx_date && (!g.first_date || t.tx_date < g.first_date)) g.first_date = t.tx_date
+    if (t.tx_date && (!g.last_date || t.tx_date > g.last_date)) g.last_date = t.tx_date
   }
 
   const types = { transfer: 0, classified: 0, internal: 0, settlement: 0, card_payment: 0, invoice: 0, general: 0 }

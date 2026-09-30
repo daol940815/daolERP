@@ -120,7 +120,7 @@ export default function SalesHubDetailPage() {
   // 계산서 딥링크용 tax_type 맵 + 타임라인 이벤트별 원본 화면 링크
   const invTaxType = useMemo(() => new Map((data?.invoices ?? []).map(i => [i.id, i.tax_type ?? 'taxable'])), [data])
   const tlHref = useCallback((e: { kind: string; ref_id: string | null }): string | null => {
-    if (e.kind === 'invoice' && e.ref_id) return `/tax-invoices/sales/${invTaxType.get(e.ref_id) ?? 'taxable'}?invoiceId=${e.ref_id}`
+    if (e.kind === 'invoice' && e.ref_id) return `/tax-invoices?dir=sales&tax=${invTaxType.get(e.ref_id) ?? 'taxable'}&invoiceId=${e.ref_id}`
     if (e.kind === 'bank') return `/transactions?vendorId=${vendorId}`
     if (e.kind === 'card') return e.ref_id ? `/cards?q=${encodeURIComponent(e.ref_id)}` : '/cards'
     if (e.kind === 'alloc' && e.ref_id) return null
@@ -569,7 +569,7 @@ export default function SalesHubDetailPage() {
                 {data.invoices.map(inv => (
                   <tr key={inv.id} className="border-b border-gray-50">
                     <td className="py-1.5 px-3 tabular-nums">
-                      <Link href={`/tax-invoices/sales/${inv.tax_type ?? 'taxable'}?invoiceId=${inv.id}`}
+                      <Link href={`/tax-invoices?dir=sales&tax=${inv.tax_type ?? 'taxable'}&invoiceId=${inv.id}`}
                         className="text-blue-600 hover:underline" title="계산서 화면에서 열기">{inv.issue_date}</Link>
                     </td>
                     <td className="py-1.5 px-3 text-right tabular-nums">{won(inv.total_amount)}</td>
