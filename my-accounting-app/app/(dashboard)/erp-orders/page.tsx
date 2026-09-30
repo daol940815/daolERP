@@ -1,8 +1,9 @@
 'use client'
 
+import PeriodPresets from '@/components/ui/PeriodPresets'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ErpOrder, ErpOrderItem } from '@/types/erp'
-import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
+import { getPeriodRange } from '@/lib/period-presets'
 import { computeOrderDeliveryStatus, ITEM_DELIVERY_STATUS_LABEL, ORDER_DELIVERY_STATUS_LABEL } from '@/lib/erp-delivery-status'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
@@ -62,8 +63,8 @@ export default function ErpOrdersPage() {
   const [deleting, setDeleting] = useState(false)
   const [view, setView]         = useState<View>('all')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo]     = useState('')
+  const [dateFrom, setDateFrom] = useState(() => getPeriodRange('당월').from)
+  const [dateTo, setDateTo]     = useState(() => getPeriodRange('당월').to)
   const [search, setSearch]     = useState('')
   const [staffFilter, setStaffFilter]     = useState('all')   // 다올직원 (정확 일치)
   const [channelFilter, setChannelFilter] = useState('all')   // 상담자 (품목 channel)
@@ -296,22 +297,7 @@ export default function ErpOrdersPage() {
       </div>
 
       {/* 기간 빠른 선택 */}
-      <div className="flex flex-wrap items-center gap-1 mb-2">
-        {PERIOD_PRESETS.map(p => (
-          <button
-            key={p}
-            onClick={() => { const r = getPeriodRange(p); setDateFrom(r.from); setDateTo(r.to) }}
-            className="px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-slate-100 hover:border-slate-400 transition-colors"
-          >
-            {p}
-          </button>
-        ))}
-        {(dateFrom || dateTo) && (
-          <button onClick={() => { setDateFrom(''); setDateTo('') }} className="px-2.5 py-1 text-xs text-gray-400 hover:text-gray-600">
-            ✕ 전체 기간
-          </button>
-        )}
-      </div>
+      <PeriodPresets from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} className="mb-2" />
 
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">

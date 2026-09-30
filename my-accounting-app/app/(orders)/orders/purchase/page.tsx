@@ -1,5 +1,6 @@
 'use client'
 
+import PeriodPresets from '@/components/ui/PeriodPresets'
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import PoDetail from '../po-detail'
@@ -32,12 +33,6 @@ interface Row {
 interface Kpi { count: number; total: number; unsent_cnt: number; sent_cnt: number; canceled_cnt: number }
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
-const kstToday = () => new Date().toLocaleDateString('sv-SE')
-const daysAgo = (n: number) => {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  return d.toLocaleDateString('sv-SE')
-}
 const chip = (on: boolean) =>
   `px-3 py-1 rounded-full text-xs border whitespace-nowrap ${
     on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-gray-300 text-gray-500 hover:border-gray-400'
@@ -49,21 +44,14 @@ export default function PurchaseHistoryPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [from, setFrom] = useState(daysAgo(30))
-  const [to, setTo] = useState(kstToday())
-  const [preset, setPreset] = useState('')   // 기간 빠른 선택 (직접 날짜 수정 시 해제)
+  const [from, setFrom] = useState(() => getPeriodRange('당월').from)   // 원본·작업 목록 기본 = 당월
+  const [to, setTo] = useState(() => getPeriodRange('당월').to)
   const [status, setStatus] = useState('all')
   const [qInput, setQInput] = useState('')
   const [q, setQ] = useState('')
   const [openPo, setOpenPo] = useState<string | null>(null)   // 내용 펼친 발주서
 
   // 기간 빠른 선택 — 매출처 관리·거래 내역과 동일 규칙 (lib/period-presets.ts 공용)
-  const applyPreset = (p: string) => {
-    setPreset(p)
-    if (p === '전체 기간') { setFrom('2024-01-01'); setTo(kstToday()); return }
-    const r = getPeriodRange(p)
-    setFrom(r.from); setTo(r.to)
-  }
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -130,18 +118,13 @@ export default function PurchaseHistoryPage() {
           1행 기간 빠른 선택 + 날짜, 2행 나머지 조건(상태·검색) */}
       <div className="bg-white border border-gray-200 rounded-xl p-3 mt-3">
         <div className="flex items-center gap-1.5 flex-wrap">
-          {['당월', '전월', '1분기', '2분기', '상반기', '당년', '전체 기간'].map(p => (
-            <button key={p} onClick={() => applyPreset(p)}
-              className={`px-2.5 py-1 rounded-full text-xs border ${preset === p ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
-              {p}
-            </button>
-          ))}
+          <PeriodPresets from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
           <span className="w-1.5" />
           <span className="text-[11px] text-gray-400">발주일</span>
-          <input type="date" value={from} onChange={e => { setPreset(''); setFrom(e.target.value) }}
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)}
             className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm tabular-nums" />
           <span className="text-xs text-gray-400">~</span>
-          <input type="date" value={to} onChange={e => { setPreset(''); setTo(e.target.value) }}
+          <input type="date" value={to} onChange={e => setTo(e.target.value)}
             className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm tabular-nums" />
         </div>
         <div className="flex items-center gap-2 flex-wrap mt-2">

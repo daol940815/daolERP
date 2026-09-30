@@ -1,9 +1,10 @@
 'use client'
 
+import PeriodPresets from '@/components/ui/PeriodPresets'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { getPeriodRange, DEFAULT_VIEW_FROM } from '@/lib/period-presets'
+import { getPeriodRange } from '@/lib/period-presets'
 import CustomerKpiTiles, { matchCategory, OTYPE_META } from './_components/CustomerKpiTiles'
 import type { KpiCategory, KpiFlags, VendorFlag } from './_components/CustomerKpiTiles'
 
@@ -51,9 +52,8 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
 }
 
 export default function SalesHubPage() {
-  const [from, setFrom] = useState(DEFAULT_VIEW_FROM)
-  const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10))
-  const [preset, setPreset] = useState<string>('당년')
+  const [from, setFrom] = useState(() => getPeriodRange('당년').from)   // 관리·분석 화면 기본 = 당년
+  const [to, setTo] = useState(() => getPeriodRange('당년').to)
   const [rows, setRows] = useState<Row[]>([])
   const [summary, setSummary] = useState<Summary | null>(null)
   const [loading, setLoading] = useState(true)
@@ -104,12 +104,6 @@ export default function SalesHubPage() {
 
   useEffect(() => { load(from, to) }, [load, from, to])
 
-  const applyPreset = (p: string) => {
-    setPreset(p)
-    if (p === '전체 기간') { setFrom('2024-01-01'); setTo(new Date().toISOString().slice(0, 10)); return }
-    const r = getPeriodRange(p)
-    setFrom(r.from); setTo(r.to)
-  }
 
   const staffNames = useMemo(() => {
     const s = new Set<string>()
@@ -235,23 +229,16 @@ export default function SalesHubPage() {
       )}
 
       {/* 기간 빠른 선택 — 다른 목록 화면(거래내역·법인카드·ERP 주문내역)과 동일하게 필터 바 위 별도 행 */}
-      <div className="flex items-center gap-1.5 flex-wrap mt-4 mb-2">
-        {['당월', '1분기', '2분기', '상반기', '당년', '전체 기간'].map(p => (
-          <button key={p} onClick={() => applyPreset(p)}
-            className={`px-2.5 py-1 rounded-full text-xs border ${preset === p ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
-            {p}
-          </button>
-        ))}
-      </div>
+      <PeriodPresets from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} className="mt-4 mb-2" />
 
       {/* 필터 — 검색창이 맨 앞 */}
       <div className="flex items-center gap-1.5 flex-wrap">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="매출처명 · ERP 별칭 · 사업자번호 검색"
           className="border border-gray-300 rounded-lg px-3 py-1 text-xs w-72" />
-        <input type="date" value={from} onChange={e => { setPreset(''); setFrom(e.target.value) }}
+        <input type="date" value={from} onChange={e => setFrom(e.target.value)}
           className="border border-gray-300 rounded px-2 py-1 text-xs" />
         <span className="text-gray-400 text-xs">~</span>
-        <input type="date" value={to} onChange={e => { setPreset(''); setTo(e.target.value) }}
+        <input type="date" value={to} onChange={e => setTo(e.target.value)}
           className="border border-gray-300 rounded px-2 py-1 text-xs" />
         <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)}
           className="border border-gray-300 rounded px-2 py-1 text-xs">
