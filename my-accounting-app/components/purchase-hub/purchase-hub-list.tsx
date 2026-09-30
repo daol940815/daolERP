@@ -209,6 +209,20 @@ export default function PurchaseHubList({ basePath, perms }: {
   // 별도 구매처·경비성(602) — 발주·정산 관리 대상이 아니라 목록에서 걷어낼 수 있게 한다
   const [hideOnline, setHideOnline] = useState(false)
   const [showNew, setShowNew] = useState(false)
+  // 결제 예외 배지 (매입 사이클, 최근 12개월 · 주의 이상) — 수금·정산 조회 권한자만 조회 (2026-09-30 통합 7)
+  const [exceptionCount, setExceptionCount] = useState<Map<string, number>>(new Map())
+  useEffect(() => {
+    if (!perms.collections) return
+    fetch('/api/purchase-cycle', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => {
+      if (!j || !Array.isArray(j.exceptions)) return
+      const m = new Map<string, number>()
+      for (const e of j.exceptions as { vendor_id: string; severity: string }[]) {
+        if (e.severity === '정상 대기') continue
+        m.set(e.vendor_id, (m.get(e.vendor_id) ?? 0) + 1)
+      }
+      setExceptionCount(m)
+    }).catch(() => null)
+  }, [perms.collections])
 
   const load = useCallback(async (f: string, t: string) => {
     setLoading(true); setError(null)
@@ -280,8 +294,7 @@ export default function PurchaseHubList({ basePath, perms }: {
     <div>
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">매입처 관리</h1>
-          <p className="text-sm mt-1 text-gray-500">
+          <p className="text-sm text-gray-500">
             매입 계산서·지급·미지급 잔액과 담당을 매입처 단위로 봅니다. 행 클릭 시 매입처 360° 상세로 이동합니다.
           </p>
         </div>
@@ -399,6 +412,7 @@ export default function PurchaseHubList({ basePath, perms }: {
                 <th className="py-2 px-3 text-right font-medium">미지급 잔액</th>
                 <th className="py-2 px-3 text-left font-medium">최근 매입</th>
                 <th className="py-2 px-3 text-left font-medium">상태</th>
+                {perms.collections && <th className="py-2 px-3 text-left font-medium">결제 예외</th>}
               </tr>
             </thead>
             <tbody>
@@ -451,11 +465,21 @@ export default function PurchaseHubList({ basePath, perms }: {
                     <td className="py-2 px-3">
                       <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${meta.cls}`}>{meta.label}</span>
                     </td>
+                    {perms.collections && (
+                      <td className="py-2 px-3">
+                        {exceptionCount.get(r.vendor_id)
+                          ? <Link href={`${basePath}?tab=exceptions&vendor=${r.vendor_id}`} title="결제 예외 탭에서 이 매입처만 보기"
+                              className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-100 text-rose-700 hover:bg-rose-200">
+                              확인 {exceptionCount.get(r.vendor_id)}건
+                            </Link>
+                          : <span className="text-gray-300 text-xs">-</span>}
+                      </td>
+                    )}
                   </tr>
                 )
               })}
               {!visible.length && (
-                <tr><td colSpan={11} className="text-center py-14 text-gray-400 text-sm">조건에 맞는 매입처가 없습니다.</td></tr>
+                <tr><td colSpan={perms.collections ? 12 : 11} className="text-center py-14 text-gray-400 text-sm">조건에 맞는 매입처가 없습니다.</td></tr>
               )}
             </tbody>
           </table>

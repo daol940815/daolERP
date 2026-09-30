@@ -59,7 +59,7 @@ export const MENU: MenuGroup[] = [
     { label: '수금 대상', href: '/reports/erp-receivables' },
     { label: '입금 매칭', href: '/erp-matching' },
     { label: '계산서 발행 대상', href: '/sales-cycle' },
-    { label: '매입 결제 예외', href: '/purchase-cycle' },
+    // 매입 결제 예외(/purchase-cycle)는 매입처 관리의 '결제 예외' 탭으로 통합 (2026-09-30 통합 7)
   ]},
   { key: 'team', area: 'sales', label: '팀 관리', items: [
     { label: '주문 수정 승인', href: '/orders/approvals' },
@@ -70,16 +70,10 @@ export const MENU: MenuGroup[] = [
   // ── 회계 · 재무 ─────────────────────────────────────
   { key: 'accounting', area: 'finance', label: '회계 · 재무', items: [
     { label: '파일 업로드', href: '/upload' },
-    { label: '통장 내역', href: '/transactions', dynamic: 'banks' },
-    { label: '통장 거래 분류', href: '/bank-classify' },
+    { label: '통장 내역', href: '/transactions', dynamic: 'banks' },   // 거래 내역 / 분류 작업 탭 (2026-09-30 통합 5)
     { label: '카드 내역', href: '/cards', dynamic: 'cards' },   // 매출 / 법인카드 탭 (2026-09-30 통합)
-    { label: '계산서 내역', href: '/tax-invoices/sales/taxable', prefix: '/tax-invoices', children: [
-      { label: '매입 일괄 분류', href: '/tax-invoices/classify', exact: true },
-      { label: '매출 전자세금계산서(과세)', href: '/tax-invoices/sales/taxable', exact: true },
-      { label: '매출 전자계산서(면세)', href: '/tax-invoices/sales/exempt', exact: true },
-      { label: '매입 전자세금계산서(과세)', href: '/tax-invoices/purchase/taxable', exact: true },
-      { label: '매입 전자계산서(면세)', href: '/tax-invoices/purchase/exempt', exact: true },
-    ]},
+    // 계산서 목록(매출·매입 × 과세·면세 칩) / 매입 분류 탭 — 하위 5개 항목은 삭제 (2026-09-30 통합 6)
+    { label: '계산서 내역', href: '/tax-invoices' },
     { label: '현금영수증', href: '/cash-receipts' },
     { label: 'ERP 주문내역', href: '/erp-orders' },
     { label: '미수금 관리', href: '/reports/receivables-aging' },
@@ -155,6 +149,8 @@ export const EXTRA_PATH_OWNERS: { prefix: string; area: AreaKey; group: MenuGrou
   { prefix: '/card-sales', area: 'finance', group: 'accounting' },
   { prefix: '/card-expenses', area: 'finance', group: 'accounting' },
   { prefix: '/vendor-opening-balances', area: 'finance', group: 'closing' },
+  { prefix: '/bank-classify', area: 'finance', group: 'accounting' },
+  { prefix: '/purchase-cycle', area: 'sales', group: 'collections' },   // 옛 주소 스텁 + 거래처 진행상태 상세
   { prefix: '/reports/cash-position', area: 'mgmt', group: 'mgmt' },
   { prefix: '/reports/daily-cash', area: 'mgmt', group: 'mgmt' },
   { prefix: '/customers', area: 'finance', group: 'accounting' },

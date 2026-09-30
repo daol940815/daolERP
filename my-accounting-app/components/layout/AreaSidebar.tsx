@@ -67,6 +67,8 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
   const inputRef = useRef<HTMLInputElement>(null)
   const cardInputRef = useRef<HTMLInputElement>(null)
   const activeBankId = searchParams.get('bankAccountId')
+  // 통장 내역의 분류 작업 탭에서 계좌를 바꾸면 탭을 유지한 채 계좌만 바꾼다 (2026-09-30 통합 5)
+  const bankHref = (id: string) => `/transactions?${pathname === '/transactions' && searchParams.get('tab') === 'classify' ? 'tab=classify&' : ''}bankAccountId=${id}`
   const activeCardId = searchParams.get('cardAccountId')
   const hasDynamic = groups.some(g => g.items.some(it => it.dynamic))
 
@@ -163,7 +165,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
             </div>
           ) : (
             <div className="group relative">
-              <Link href={`/transactions?bankAccountId=${bank.id}`} className={linkCls(activeBankId === bank.id)}>
+              <Link href={bankHref(bank.id)} className={linkCls(activeBankId === bank.id)}>
                 <span className={dotCls}>·</span>
                 <div className="flex flex-col min-w-0 flex-1 pr-5">
                   <span className="truncate flex items-center gap-1.5">
