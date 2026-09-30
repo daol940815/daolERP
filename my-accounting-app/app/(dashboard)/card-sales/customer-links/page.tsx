@@ -84,7 +84,7 @@ export default function CardCustomerLinksPage() {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <Link href="/card-sales" className="text-sm text-gray-500 hover:text-gray-900">← 카드매출</Link>
+      <Link href="/cards" className="text-sm text-gray-500 hover:text-gray-900">← 카드 내역</Link>
       <h1 className="text-2xl font-bold text-gray-900 mt-2">카드번호 → 매출처 연결</h1>
       <p className="text-sm mt-1 text-gray-500 mb-4">
         카드로 결제한 매출처를 확인하기 위한 화면입니다. ERP 주문과 금액·일자가 대응하는 매출처를

@@ -143,6 +143,10 @@
   `AreaSidebar.tsx`. 세 라우트 그룹 레이아웃은 모두 AreaShell. '모드'라는 말은 쓰지 않는다.
 - 목록 화면 패턴: KPI 카드(클릭=필터) + 통합 검색 + 칩 필터 + 표. 상태는 수동 입력이
   아니라 데이터에서 자동 판정.
+- **한 화면 탭 통합(2026-09-30)**: 성격이 같은 두 화면은 하나의 경로에 `?tab=`으로 묶는다 —
+  서버 page.tsx가 searchParams.tab을 읽어 탭 컴포넌트를 고르고, 탭 줄은 `components/ui/PageTabs.tsx`.
+  옛 주소는 리다이렉트 스텁(쿼리 보존)으로 남기고 `EXTRA_PATH_OWNERS`에 소속을 유지한다.
+  적용: 기초잔액 `/opening-balances`, 자금 · 계좌 `/reports/cash`, 카드 내역 `/cards`.
 - **기간 필터 표준(2026-09-30 확정)**: 기간이 있는 목록·분석 화면은 `components/ui/PeriodPresets.tsx`
   한 줄(최근 7일·최근 30일·당월·전월·1~4분기·상반기·하반기·당년·전년·전체 기간)을 필터 바 위에
   두고 날짜 from~to는 필터 바에 둔다. "전체 기간"은 `DATA_START`(lib/period-presets.ts)부터 —
