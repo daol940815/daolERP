@@ -137,7 +137,7 @@ export default function EmployeesPage() {
   const inp = 'w-full border border-gray-300 rounded px-2 py-1 text-xs'
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="w-full">
       <h1 className="text-2xl font-bold text-gray-900">직원 · 계정 · 권한</h1>
       <p className="text-sm mt-1 text-gray-500">
         직원 등록 시 로그인 계정(ID 방식)이 함께 발급됩니다. 권한은 마스터 계정이 직원별로

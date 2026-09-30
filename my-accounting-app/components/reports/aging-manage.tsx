@@ -210,7 +210,7 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
   const cardCls = (on: boolean) => `text-left border rounded-lg px-4 py-3 flex-1 min-w-[140px] transition-colors ${on ? 'border-slate-900 ring-1 ring-slate-900' : 'border-gray-200 hover:bg-gray-50'}`
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="w-full">
       <div className="mb-1 flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{cfg.title}</h1>

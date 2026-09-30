@@ -162,7 +162,7 @@ export default function ContactManagerPage() {
   )
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="w-full">
       <div className="flex items-start justify-between mb-1 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">매출처 관리 (고객)</h1>

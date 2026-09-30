@@ -86,7 +86,7 @@ export default function SalesCyclePage() {
   }, [rows, filter, search])
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="w-full">
       <div className="mb-1">
         <h1 className="text-2xl font-bold text-gray-900">매출 사이클 (수금 관리)</h1>
         <p className="text-sm mt-1 text-gray-500">

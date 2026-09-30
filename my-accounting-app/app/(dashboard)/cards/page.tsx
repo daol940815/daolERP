@@ -8,7 +8,7 @@ import ExpensesTab from './expenses-tab'
 export default function CardsPage({ searchParams }: { searchParams: { tab?: string } }) {
   const tab = searchParams.tab === 'expenses' ? 'expenses' : 'sales'
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="w-full">
       <h1 className="text-2xl font-bold text-gray-900">카드 내역</h1>
       <PageTabs className="mt-3 mb-4" active={tab} tabs={[
         { key: 'sales', label: '매출 (카드결제)', href: '/cards' },

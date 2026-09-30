@@ -124,7 +124,7 @@ export default function CashReceiptsPage() {
   const deductibleTax = deductible.reduce((s, r) => s + (r.tax_amount || 0), 0)
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="w-full">
       {/* 헤더 */}
       <div className="flex items-start justify-between mb-1 flex-wrap gap-3">
         <div>
