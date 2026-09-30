@@ -232,7 +232,7 @@ export default function ErpOrdersPage() {
   const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1)
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="w-full">
       <div className="flex items-start justify-between mb-1 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">ERP 주문내역</h1>

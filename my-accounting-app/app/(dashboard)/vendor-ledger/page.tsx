@@ -84,7 +84,7 @@ export default function VendorLedgerPage() {
   ), [filtered])
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="w-full">
       <h1 className="text-2xl font-bold text-gray-900">거래처별 원장</h1>
       <p className="text-sm mt-1 text-gray-500">분개장을 원천으로 거래처별 채권·채무 잔액과 거래내역을 확인합니다. (양수=미수/채권, 음수=미지급/채무)</p>
 

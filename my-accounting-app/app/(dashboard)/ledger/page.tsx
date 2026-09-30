@@ -97,7 +97,7 @@ function AccountLedgerContent() {
   const multiMonth = ledger ? new Set(ledger.rows.map(r => r.entry_date.slice(0, 7))).size > 1 : false
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="w-full">
       <h1 className="text-2xl font-bold text-gray-900">계정별 원장</h1>
       <p className="text-sm mt-1 text-gray-500">분개장을 원천으로 계정별 거래내역과 잔액 누계를 확인합니다.</p>
 

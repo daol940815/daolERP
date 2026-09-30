@@ -146,7 +146,7 @@ export default function ErpMatchingPage() {
   const matchedTotal = filteredMatched.reduce((s, m) => s + m.amount, 0)
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="w-full">
       <div className="mb-1 flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">수금 매칭</h1>
