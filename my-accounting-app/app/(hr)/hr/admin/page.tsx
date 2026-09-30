@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   DAY_STATUS_LABEL, DOW_LABEL, LEAVE_TYPE_LABEL,
-  dayOfWeek, judgeDay, kstMonthNow, kstTime, monthDates, summarizeMonth,
+  dayOfWeek, isOffKind, judgeDay, kstMonthNow, kstTime, monthDates, summarizeMonth,
   type AttendanceLeave, type AttendancePolicy, type AttendanceRecord,
-  type DayStatusKind, type MonthSummary,
+  type DayStatusKind, type HolidayMap, type MonthSummary,
 } from '@/lib/attendance'
 
-// 근태 현황 (직원 관리 모드, 전체 관리자) — 월별 직원 요약 + 일별 드릴다운·보정 +
-// 휴가 승인 + 대상·정책 관리. 상태는 저장값이 아니라 정책·기록·승인 휴가에서 자동 판정
+// 근태 현황 (인사·총무) — 월별 직원 요약 + 일별 드릴다운·보정 + 휴가 승인 +
+// 대상·정책·공휴일 관리. 상태는 저장값이 아니라 정책·기록·승인 휴가·공휴일에서 자동 판정
 
 interface EmpRow {
   id: string
@@ -28,7 +28,10 @@ interface MonthRes {
   employees: EmpRow[]
   records: AttendanceRecord[]
   leaves: AttendanceLeave[]
+  holidays: HolidayMap
+  holidayYearCount: number
 }
+interface HolidayRow { holiday_date: string; name: string; source: 'public' | 'company' }
 type LeaveRow = AttendanceLeave & { employee?: { name: string; team: string | null } | null }
 type Filter = 'all' | 'late' | 'absent' | 'missing'
 
@@ -36,7 +39,7 @@ const STATUS_COLOR: Record<DayStatusKind, string> = {
   present: 'bg-green-100 text-green-700', late: 'bg-amber-100 text-amber-700',
   leave: 'bg-blue-100 text-blue-700', missing_out: 'bg-orange-100 text-orange-700',
   absent: 'bg-red-100 text-red-700', weekend: 'bg-gray-100 text-gray-400',
-  none: 'bg-gray-50 text-gray-300',
+  holiday: 'bg-rose-100 text-rose-600', none: 'bg-gray-50 text-gray-300',
 }
 
 export default function AttendanceAdminPage() {
@@ -52,6 +55,13 @@ export default function AttendanceAdminPage() {
   const [adjust, setAdjust] = useState<{ empId: string; date: string; in: string; out: string; note: string } | null>(null)
   const [showTargets, setShowTargets] = useState(false)
   const [policyEdit, setPolicyEdit] = useState<{ start: string; end: string; grace: string } | null>(null)
+  // 공휴일 관리 (연도별)
+  const [showHolidays, setShowHolidays] = useState(false)
+  const [holidayRows, setHolidayRows] = useState<HolidayRow[]>([])
+  const [holidayForm, setHolidayForm] = useState({ date: '', name: '' })
+  const [holidayYear, setHolidayYear] = useState(kstMonthNow().slice(0, 4))
+  const [canSync, setCanSync] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
 
@@ -91,7 +101,7 @@ export default function AttendanceAdminPage() {
       const leaves = data.leaves.filter(l => l.employee_id === emp.id)
       const sum = summarizeMonth({
         month: data.month, today: data.today, records, leaves,
-        policy: data.policy, hireDate: emp.hire_date,
+        policy: data.policy, hireDate: emp.hire_date, holidays: data.holidays,
       })
       return { emp, sum, records, leaves }
     })
@@ -115,6 +125,46 @@ export default function AttendanceAdminPage() {
       action: 'adjust', employee_id: adjust.empId, work_date: adjust.date,
       check_in: adjust.in, check_out: adjust.out, edit_note: adjust.note,
     })) { flash('보정 완료'); setAdjust(null); load() }
+  }
+
+  const loadHolidays = useCallback(async () => {
+    const res = await fetch(`/api/attendance/holidays?year=${holidayYear}`)
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) { flash(json.error ?? '공휴일 조회 실패'); return }
+    setHolidayRows(json.holidays); setCanSync(!!json.canSync)
+  }, [holidayYear])
+  useEffect(() => { if (showHolidays) loadHolidays() }, [showHolidays, loadHolidays])
+  // 공휴일 관리를 열면 보고 있는 달의 연도부터 보여준다
+  useEffect(() => { if (showHolidays) setHolidayYear(month.slice(0, 4)) }, [showHolidays, month])
+
+  const addHoliday = async () => {
+    if (!holidayForm.date || !holidayForm.name.trim()) { flash('날짜와 휴일명을 입력하세요.'); return }
+    if (await post('/api/attendance/holidays', {
+      action: 'add', date: holidayForm.date, name: holidayForm.name.trim(),
+    })) { flash('등록되었습니다.'); setHolidayForm({ date: '', name: '' }); loadHolidays(); load() }
+  }
+
+  const deleteHoliday = async (date: string, name: string) => {
+    if (!window.confirm(`${date} ${name}을(를) 휴일에서 제외할까요?\n해당 날짜가 근무일로 다시 판정됩니다.`)) return
+    if (await post('/api/attendance/holidays', { action: 'delete', date })) {
+      flash('삭제되었습니다.'); loadHolidays(); load()
+    }
+  }
+
+  // 공공데이터포털 특일정보에서 그 해 법정공휴일을 받아 교체 (회사 휴무는 보존)
+  const syncHolidays = async () => {
+    if (holidayRows.some(h => h.source === 'public') &&
+      !window.confirm(`${holidayYear}년 법정공휴일을 공식 데이터로 다시 불러옵니다.\n기존 법정공휴일은 교체되고, 직접 등록한 회사 휴무는 유지됩니다.`)) return
+    setSyncing(true)
+    const res = await fetch('/api/attendance/holidays', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'sync', year: holidayYear }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setSyncing(false)
+    if (!res.ok) { flash(json.error ?? '불러오기 실패'); return }
+    flash(`${holidayYear}년 공휴일 ${json.count}건을 불러왔습니다.`)
+    loadHolidays(); load()
   }
 
   const toggleTarget = async (e: EmpRow) => {
@@ -182,14 +232,96 @@ export default function AttendanceAdminPage() {
             className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">
             {showTargets ? '대상 관리 닫기' : '근태 대상 관리'}
           </button>
+          <button onClick={() => setShowHolidays(s => !s)}
+            className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">
+            {showHolidays ? '공휴일 관리 닫기' : '공휴일 관리'}
+          </button>
         </div>
       </div>
       <p className="text-sm mt-1 text-gray-500">
-        지각·미기록은 정책과 출퇴근 기록·승인 휴가로 자동 판정합니다. 카드를 누르면 해당 직원만 필터됩니다.
+        지각·미기록은 정책과 출퇴근 기록·승인 휴가로 자동 판정합니다. 주말과 공휴일은 근무일에서
+        제외됩니다. 카드를 누르면 해당 직원만 필터됩니다.
       </p>
 
       {msg && <div className="my-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
       {error && <div className="my-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
+
+      {/* 공휴일 미등록 경고 — 등록 전까지 공휴일이 결근으로 판정된다 */}
+      {data && data.holidayYearCount === 0 && (
+        <div className="my-3 px-4 py-3 bg-amber-50 border border-amber-300 text-amber-800 text-sm rounded-lg flex items-center gap-3 flex-wrap">
+          <span>
+            <b>{month.slice(0, 4)}년 공휴일이 등록되지 않았습니다.</b> 등록 전까지 이 해의 공휴일은
+            근무일로 계산되어 미기록(결근)으로 표시됩니다.
+          </span>
+          <button onClick={() => setShowHolidays(true)}
+            className="ml-auto px-3 py-1.5 bg-amber-700 text-white rounded-lg text-xs font-medium hover:bg-amber-800">
+            공휴일 등록하기
+          </button>
+        </div>
+      )}
+
+      {/* 공휴일 관리 */}
+      {showHolidays && (
+        <div className="bg-white border border-gray-200 rounded-xl p-4 my-4">
+          <div className="flex items-center gap-2 flex-wrap mb-2">
+            <select value={holidayYear} onChange={e => setHolidayYear(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2 py-1 text-sm">
+              {Array.from({ length: 5 }, (_, i) => String(Number(kstMonthNow().slice(0, 4)) - 1 + i)).map(y => (
+                <option key={y} value={y}>{y}년</option>
+              ))}
+            </select>
+            <span className="text-xs text-gray-400">{holidayRows.length}건 등록됨</span>
+            {canSync ? (
+              <button onClick={syncHolidays} disabled={syncing || busy}
+                className="ml-auto px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
+                {syncing ? '불러오는 중...' : `${holidayYear}년 공휴일 불러오기`}
+              </button>
+            ) : (
+              <span className="ml-auto text-[11px] text-gray-400">
+                공휴일 API 키 미설정 — 아래에서 직접 등록
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 mb-2">
+            여기 있는 날짜는 근무일에서 제외되어 결근·지각으로 판정되지 않습니다.
+            불러오기는 공공데이터포털(한국천문연구원) 공식 데이터로 법정공휴일을 교체하며,
+            직접 등록한 회사 휴무는 유지됩니다.
+          </p>
+          <div className="flex flex-wrap items-end gap-2 mb-3">
+            <input type="date" value={holidayForm.date}
+              onChange={e => setHolidayForm(f => ({ ...f, date: e.target.value }))}
+              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            <input value={holidayForm.name} placeholder="휴일명 (예: 창립기념일)"
+              onChange={e => setHolidayForm(f => ({ ...f, name: e.target.value }))}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-52" />
+            <button onClick={addHoliday} disabled={busy}
+              className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+              추가
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-1.5">
+            {holidayRows.map(h => (
+              <div key={h.holiday_date} className="flex items-center gap-2 text-sm border border-gray-100 rounded-lg px-2.5 py-1.5">
+                <span className="tabular-nums text-gray-500 text-xs">
+                  {h.holiday_date.slice(5)} ({DOW_LABEL[dayOfWeek(h.holiday_date)]})
+                </span>
+                <span className="font-medium">{h.name}</span>
+                {h.source === 'company' && (
+                  <span className="text-[10px] px-1 py-0.5 rounded bg-slate-100 text-slate-500">회사 휴무</span>
+                )}
+                <button onClick={() => deleteHoliday(h.holiday_date, h.name)} disabled={busy}
+                  className="ml-auto text-xs text-gray-400 hover:text-red-600">삭제</button>
+              </div>
+            ))}
+            {!holidayRows.length && (
+              <p className="text-sm text-gray-400 py-4">
+                {holidayYear}년에 등록된 휴일이 없습니다.
+                {canSync ? ' 위의 불러오기 버튼을 누르세요.' : ' 아래에서 직접 등록하세요.'}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 근태 대상 관리 */}
       {showTargets && data && (
@@ -324,15 +456,18 @@ function FragmentRow({ emp, sum, records, leaves, data, open, onToggle, adjust, 
               leaves.some(l => l.start_date <= d && d <= l.end_date)
             ).map(date => {
               const record = records.find(r => r.work_date === date) ?? null
-              const st = judgeDay({ date, today: data.today, record, leaves, policy: data.policy, hireDate: emp.hire_date })
-              if (st.kind === 'weekend' && !record) return null
+              const st = judgeDay({
+                date, today: data.today, record, leaves,
+                policy: data.policy, hireDate: emp.hire_date, holidays: data.holidays,
+              })
+              if (isOffKind(st.kind) && !record) return null
               const editing = adjust && adjust.empId === emp.id && adjust.date === date
               return (
                 <div key={date} className="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs">
                   <div className="flex items-center gap-1.5">
                     <span className="tabular-nums text-gray-500">{date.slice(5)} ({DOW_LABEL[dayOfWeek(date)]})</span>
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${STATUS_COLOR[st.kind]}`}>
-                      {st.leave ? LEAVE_TYPE_LABEL[st.leave.leave_type] : DAY_STATUS_LABEL[st.kind]}
+                      {st.holidayName ?? (st.leave ? LEAVE_TYPE_LABEL[st.leave.leave_type] : DAY_STATUS_LABEL[st.kind])}
                     </span>
                     <button onClick={() => setAdjust(editing ? null : {
                       empId: emp.id, date,

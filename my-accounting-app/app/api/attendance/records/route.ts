@@ -5,7 +5,7 @@ import { getCurrentUser } from '@/lib/user-role'
 import { getAttendanceEmployee } from '@/lib/attendance-employee.server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import {
-  kstToday, kstToUtcIso, monthRange,
+  addDays, kstToday, kstToUtcIso, monthRange,
   type AttendanceLeave, type AttendanceRecord,
 } from '@/lib/attendance'
 
@@ -62,22 +62,35 @@ export async function GET(req: NextRequest) {
     return q
   }
 
-  const [emps, recs, { data: leaves, error: e3 }, { data: policy, error: e4 }] = await Promise.all([
+  const year = month.slice(0, 4)
+  const [emps, recs, { data: leaves, error: e3 }, { data: policy, error: e4 },
+    { data: hols, error: e5 }, { count: holidayYearCount }] = await Promise.all([
     scope === 'all' ? empQuery : Promise.resolve({ data: null, error: null }),
     fetchAllRows<AttendanceRecord>((from, to) => recQuery(from, to)),
     leaveQuery(),
     admin.from('attendance_policy').select('work_start, work_end, late_grace_min').eq('id', 1).single(),
+    // 휴가 일수 계산이 월 경계를 넘을 수 있어 앞뒤 한 달을 함께 읽는다
+    admin.from('attendance_holidays').select('holiday_date, name')
+      .gte('holiday_date', addDays(mStart, -31)).lte('holiday_date', addDays(mEnd, 31)),
+    // 그 해 등록 건수 — 0이면 화면에서 '공휴일 미등록' 경고를 띄운다
+    // (등록하지 않으면 공휴일이 조용히 근무일로 판정되어 결근이 된다)
+    admin.from('attendance_holidays').select('holiday_date', { count: 'exact', head: true })
+      .gte('holiday_date', `${year}-01-01`).lte('holiday_date', `${year}-12-31`),
   ])
 
   const err = ('error' in recs ? { message: recs.error } : null)
-    ?? (emps && 'error' in emps && emps.error ? emps.error : null) ?? e3 ?? e4
+    ?? (emps && 'error' in emps && emps.error ? emps.error : null) ?? e3 ?? e4 ?? e5
   if (err) {
     const msg = typeof err === 'string' ? err : err.message
     return NextResponse.json({ error: missingTable(msg) ? MIGRATION_HINT : msg }, { status: 500 })
   }
 
+  const holidays: Record<string, string> = {}
+  for (const h of hols ?? []) holidays[h.holiday_date as string] = h.name as string
+
   return NextResponse.json({
-    month, today: kstToday(), policy,
+    month, today: kstToday(), policy, holidays,
+    holidayYearCount: holidayYearCount ?? 0,
     employees: emps && 'data' in emps ? emps.data : null,
     records: 'data' in recs ? recs.data : [],
     leaves: (leaves ?? []) as AttendanceLeave[],

@@ -176,6 +176,8 @@ export const API_OWNERS: { prefix: string; group: MenuGroupKey }[] = [
   // 전원
   { prefix: '/api/me', group: 'my' },
   { prefix: '/api/attendance', group: 'my' },
+  // 공휴일은 전사 설정 — 조회·편집 모두 인사·총무 권한 (더 긴 접두가 우선 적용됨)
+  { prefix: '/api/attendance/holidays', group: 'hr' },
   // 팀 관리
   { prefix: '/api/team', group: 'team' },
   // 고객 · 영업
