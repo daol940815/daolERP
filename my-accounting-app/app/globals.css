@@ -15,6 +15,10 @@
 }
 
 body {
+  /* 한글 단어가 '항 / 목'처럼 글자 중간에서 줄바꿈되지 않도록 — 공백에서만 줄바꿈하고,
+     한 단어가 칸보다 길 때만 예외로 끊는다 (2026-09-30 사용자 지적) */
+  word-break: keep-all;
+  overflow-wrap: break-word;
   color: var(--foreground);
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;

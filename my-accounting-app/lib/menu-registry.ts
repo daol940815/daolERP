@@ -152,9 +152,6 @@ export function ownersOf(pathname: string): { area: AreaKey; group: MenuGroupKey
 // 메뉴에 없지만 존재하는 경로의 소속 (드릴다운·상세·API 없는 화면)
 export const EXTRA_PATH_OWNERS: { prefix: string; area: AreaKey; group: MenuGroupKey }[] = [
   { prefix: '/source/', area: 'finance', group: 'accounting' },
-  { prefix: '/attendance', area: 'hr', group: 'hr' },
-  { prefix: '/reports/vendor-status', area: 'finance', group: 'accounting' },
-  { prefix: '/reports/management-dashboard', area: 'mgmt', group: 'mgmt' },
   { prefix: '/erp-aliases/pending', area: 'finance', group: 'tools' },
   { prefix: '/card-sales/customer-links', area: 'finance', group: 'accounting' },
   { prefix: '/customers', area: 'finance', group: 'accounting' },
@@ -215,7 +212,6 @@ export const API_OWNERS: { prefix: string; group: MenuGroupKey }[] = [
   { prefix: '/api/loans', group: 'accounting' },
   { prefix: '/api/reports/receivables-aging', group: 'accounting' },
   { prefix: '/api/reports/payables-aging', group: 'accounting' },
-  { prefix: '/api/reports/vendor-status', group: 'accounting' },
   // 결산 · 세무 자료
   { prefix: '/api/journal', group: 'closing' },
   { prefix: '/api/ledger', group: 'closing' },
