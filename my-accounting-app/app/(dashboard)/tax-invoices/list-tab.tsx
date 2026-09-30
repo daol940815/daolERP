@@ -2,7 +2,7 @@
 
 import PeriodPresets from '@/components/ui/PeriodPresets'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import type { TaxInvoice } from '@/types/tax-invoice'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import { getPeriodRange } from '@/lib/period-presets'
@@ -564,8 +564,13 @@ function SumMatchPickerModal({
 }
 
 // 계산서 내역 화면의 '계산서 목록' 탭 (옛 /tax-invoices/[direction]/[taxType] 화면 본문).
-// 구분(매출·매입)·종류(과세·면세)는 상위 서버 페이지가 ?dir=&tax= 칩으로 정해 props로 준다.
-export interface ListTabProps { direction: 'sales' | 'purchase'; taxType: 'taxable' | 'exempt' }
+// 구분(매출·매입)·종류(과세·면세) 칩은 이 컴포넌트 안의 상태로 전환한다 — 기간·검색·확인 상태 필터가
+// 칩을 바꿔도 유지되도록(2026-09-30 사용자 요청). 서버 페이지의 ?dir=&tax= 는 초기값이며, 전환 시 URL도 맞춘다.
+type Dir = 'sales' | 'purchase'
+type Tax = 'taxable' | 'exempt'
+export interface ListTabProps { direction: Dir; taxType: Tax }
+const DIR_CHIPS: { key: Dir; label: string }[] = [{ key: 'sales', label: '매출 (받을 돈)' }, { key: 'purchase', label: '매입 (줄 돈)' }]
+const TAX_CHIPS: { key: Tax; label: string }[] = [{ key: 'taxable', label: '과세 · 세금계산서' }, { key: 'exempt', label: '면세 · 계산서' }]
 
 export default function ListTab(props: ListTabProps) {
   return (
@@ -575,8 +580,11 @@ export default function ListTab(props: ListTabProps) {
   )
 }
 
-function TaxInvoiceListContent({ direction, taxType }: ListTabProps) {
+function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: ListTabProps) {
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const [direction, setDirection] = useState<Dir>(initialDir)
+  const [taxType, setTaxType]     = useState<Tax>(initialTax)
   const valid     = (direction === 'sales' || direction === 'purchase') && (taxType === 'taxable' || taxType === 'exempt')
 
   const [invoices, setInvoices]       = useState<TaxInvoice[]>([])
@@ -599,6 +607,16 @@ function TaxInvoiceListContent({ direction, taxType }: ListTabProps) {
   const [showCancelPairs, setShowCancelPairs] = useState(false)
   const [cancelPairIds, setCancelPairIds] = useState<Set<string>>(new Set())
   const [netting, setNetting] = useState(false)
+
+  // 칩 전환: 구분·종류만 바꾸고 나머지 필터(기간·검색·확인 상태)는 그대로. 특정 계산서 진입(focus)·선택은 해제.
+  const switchKind = (d: Dir, t: Tax) => {
+    if (d === direction && t === taxType) return
+    setDirection(d); setTaxType(t)
+    setFocusId(null); setSelected(new Set())
+    router.replace(`/tax-invoices?dir=${d}&tax=${t}`, { scroll: false })
+  }
+  const chipCls = (on: boolean) =>
+    `px-3 py-1 rounded-full text-sm border transition-colors ${on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`
   const [sumMatching, setSumMatching] = useState(false)
   const [bulkBusy, setBulkBusy]       = useState(false)
   const [deleting, setDeleting]       = useState(false)
@@ -855,6 +873,13 @@ function TaxInvoiceListContent({ direction, taxType }: ListTabProps) {
 
   return (
     <div>
+      <div className="flex items-center gap-2 flex-wrap mb-3">
+        <span className="text-xs text-gray-400">구분</span>
+        {DIR_CHIPS.map(d => <button key={d.key} onClick={() => switchKind(d.key, taxType)} className={chipCls(d.key === direction)}>{d.label}</button>)}
+        <span className="w-px h-5 bg-gray-200 mx-1" />
+        <span className="text-xs text-gray-400">종류</span>
+        {TAX_CHIPS.map(t => <button key={t.key} onClick={() => switchKind(direction, t.key)} className={chipCls(t.key === taxType)}>{t.label}</button>)}
+      </div>
       <div className="flex items-start justify-between mb-1 flex-wrap gap-3">
         <div>
           <p className={`text-sm ${meta.color} font-medium`}>{meta.label} · {taxLbl} — {meta.sub}</p>
