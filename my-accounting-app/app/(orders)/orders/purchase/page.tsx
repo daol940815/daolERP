@@ -51,8 +51,6 @@ export default function PurchaseHistoryPage() {
   const [q, setQ] = useState('')
   const [openPo, setOpenPo] = useState<string | null>(null)   // 내용 펼친 발주서
 
-  // 기간 빠른 선택 — 매출처 관리·거래 내역과 동일 규칙 (lib/period-presets.ts 공용)
-
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     const p = new URLSearchParams()
