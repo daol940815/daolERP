@@ -1114,10 +1114,10 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
                   </td>
                   <td className="py-2.5 px-3 whitespace-nowrap text-gray-600">{inv.issue_date}</td>
                   <td className="py-2.5 px-3 min-w-0">
-                    <p className="text-gray-900 truncate max-w-[180px]">{inv.counterparty_name ?? '-'}</p>
+                    <p className="text-gray-900 truncate max-w-[280px]">{inv.counterparty_name ?? '-'}</p>
                     <p className="text-xs text-gray-400">{inv.counterparty_biz_number ?? ''}</p>
                   </td>
-                  <td className="py-2.5 px-3 text-gray-500 max-w-[200px] truncate">{inv.item_name ?? '-'}</td>
+                  <td className="py-2.5 px-3 text-gray-500 max-w-[360px] truncate">{inv.item_name ?? '-'}</td>
                   <td className="py-2.5 px-3 text-right text-gray-600 whitespace-nowrap">{won(inv.supply_amount)}</td>
                   <td className="py-2.5 px-3 text-right text-gray-600 whitespace-nowrap">{won(inv.tax_amount)}</td>
                   <td className="py-2.5 px-3 text-right font-medium text-gray-900 whitespace-nowrap">{won(inv.total_amount)}</td>
