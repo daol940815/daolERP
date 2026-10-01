@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAttendanceEmployee } from '@/lib/attendance-employee.server'
-import { kstToday, type AttendancePolicy } from '@/lib/attendance'
+import { kstTime, kstToday, type AttendancePolicy } from '@/lib/attendance'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic'
 // POST body.action:
 //   check_in  — 오늘 첫 출근 체크 (이미 체크했으면 오류)
 //   check_out — 퇴근 체크 (재체크 시 마지막 시각으로 갱신)
+//   cancel_check_out — 본인 퇴근 취소 (당일만, edit_note에 흔적)
 
 const MIGRATION_HINT = '200 마이그레이션(근태)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
 const missingTable = (msg: string) => /attendance_|relation .* does not exist|attendance_target/i.test(msg)
@@ -89,6 +90,17 @@ export async function POST(req: NextRequest) {
       .update({ check_out_at: now, updated_at: now }).eq('id', cur.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true, at: now, replaced: !!cur.check_out_at })
+  }
+
+  // 본인 퇴근 취소 — 잘못 누른 경우 당일에 한해 되돌린다 (2026-10-01 사용자 요청). 흔적은 edited_by/edit_note에 남기고
+  // 출근 시각은 그대로. 지난 날짜·출근 취소는 관리자 보정(근태 현황 adjust)으로만.
+  if (body.action === 'cancel_check_out') {
+    if (!cur?.check_out_at) return NextResponse.json({ error: '오늘 퇴근 체크 기록이 없습니다.' }, { status: 400 })
+    const { error } = await admin.from('attendance_records')
+      .update({ check_out_at: null, edited_by: emp.id, edited_at: now, edit_note: `본인 퇴근 취소 (${kstTime(cur.check_out_at)} 기록 삭제)`, updated_at: now })
+      .eq('id', cur.id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
   }
 
   return NextResponse.json({ error: '알 수 없는 action' }, { status: 400 })
