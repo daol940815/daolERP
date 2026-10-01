@@ -1,7 +1,7 @@
 -- =====================================================
 -- receivable_unify_check.sql  (읽기 전용 — 데이터 변경 없음)
 -- 미수 계산 단일화 드라이런 (2026-10 회계 트랙)
--- 선행: 406_erp_order_receivable_view.sql 실행 (뷰만 생성 — 화면 영향 없음)
+-- 선행: 406 + 407(뷰 보정) 실행 (뷰만 만들고 고침 — 화면 영향 없음)
 --
 -- 목적 두 가지
 --   (A) 뷰가 기존 5가지 계산을 정확히 재현하는지 확인한다 (재현_대조 절).
@@ -16,8 +16,10 @@ WITH v AS (SELECT * FROM v_erp_order_receivable),
 d AS (
   SELECT
     *,
-    -- ① 허브/대시보드 (107): 컷오프 차감 + 순매출 상한, 수금완료 구분 없음
-    LEAST(GREATEST(0, raw_outstanding - matched_deducted), net_sales) AS d_hub,
+    -- ① 배포된 허브 (101): 매칭 차감 없음 + (총액-제외) 상한, 수금완료 구분 없음
+    LEAST(GREATEST(0, raw_outstanding), GREATEST(0, legacy_net))                   AS d_101,
+    -- ①b 허브 파일 107 규칙(미배포): 컷오프 차감 + (총액-제외) 상한
+    LEAST(GREATEST(0, raw_outstanding - matched_deducted), GREATEST(0, legacy_net)) AS d_hub,
     -- ② ERP 주문내역 표의 행 (page.tsx): 컷오프 차감, 상한 없음
     GREATEST(0, raw_outstanding - matched_deducted)                   AS d_row,
     -- ③ ERP 주문내역 KPI (022) · 수금 대상 (037) · 미수금 Aging: 전체 매칭 차감, 수금완료 제외
@@ -41,11 +43,11 @@ SELECT jsonb_pretty(jsonb_build_object(
 
   -- [1] (A) 재현 대조 — 실제 함수 호출값 vs 뷰 재현값. 차이가 0이어야 한다.
   '재현_대조', jsonb_build_object(
-    '허브_107', jsonb_build_object(
+    '허브_배포본101', jsonb_build_object(
       '함수', (SELECT COALESCE(SUM(outstanding), 0) FROM hub_vendor_summary(NULL, NULL)),
-      '뷰',   (SELECT COALESCE(SUM(d_hub), 0) FROM d WHERE vendor_id IS NOT NULL),
+      '뷰',   (SELECT COALESCE(SUM(d_101), 0) FROM d WHERE vendor_id IS NOT NULL),
       '차이', (SELECT COALESCE(SUM(outstanding), 0) FROM hub_vendor_summary(NULL, NULL))
-              - (SELECT COALESCE(SUM(d_hub), 0) FROM d WHERE vendor_id IS NOT NULL)
+              - (SELECT COALESCE(SUM(d_101), 0) FROM d WHERE vendor_id IS NOT NULL)
     ),
     '주문KPI_022', jsonb_build_object(
       '함수', (SELECT outstanding FROM erp_orders_summary(NULL, NULL, NULL, NULL, 'all')),
@@ -60,15 +62,19 @@ SELECT jsonb_pretty(jsonb_build_object(
               - (SELECT COALESCE(SUM(d_kpi), 0) FROM d)
     ),
     '순매출_022', jsonb_build_object(
-      '함수', (SELECT net_sales FROM erp_orders_summary(NULL, NULL, NULL, NULL, 'all')),
-      '뷰',   (SELECT COALESCE(SUM(net_sales), 0) FROM d)
+      '함수',      (SELECT net_sales FROM erp_orders_summary(NULL, NULL, NULL, NULL, 'all')),
+      '뷰_legacy', (SELECT COALESCE(SUM(legacy_net), 0) FROM d),
+      '차이',      (SELECT net_sales FROM erp_orders_summary(NULL, NULL, NULL, NULL, 'all'))
+                   - (SELECT COALESCE(SUM(legacy_net), 0) FROM d),
+      '뷰_표준',   (SELECT COALESCE(SUM(net_sales), 0) FROM d)
     )
   ),
 
   -- [2] (B) 정의별 미수 합계 — 통일하면 어느 숫자가 바뀌는지
   '정의별_합계', jsonb_build_object(
     '표준_신규',        (SELECT COALESCE(SUM(outstanding),  0) FROM d),
-    '①허브_107',        (SELECT COALESCE(SUM(d_hub),        0) FROM d),
+    '①허브_배포본101',  (SELECT COALESCE(SUM(d_101),        0) FROM d),
+    '①b_허브파일_107',  (SELECT COALESCE(SUM(d_hub),        0) FROM d),
     '②주문내역_표행',   (SELECT COALESCE(SUM(d_row),        0) FROM d),
     '③KPI022_수금037',  (SELECT COALESCE(SUM(d_kpi),        0) FROM d),
     '④API_JS폴백',      (SELECT COALESCE(SUM(d_fallback),   0) FROM d)
@@ -76,9 +82,10 @@ SELECT jsonb_pretty(jsonb_build_object(
 
   -- [2b] 대시보드·매출처 관리가 실제로 보는 값 (거래처 연결 주문만 = 허브 범위)
   '허브범위_전후', jsonb_build_object(
-    '현재_허브규칙', (SELECT COALESCE(SUM(d_hub),      0) FROM d WHERE vendor_id IS NOT NULL),
+    '현재_배포본101', (SELECT COALESCE(SUM(d_101),     0) FROM d WHERE vendor_id IS NOT NULL),
+    '파일107_규칙',  (SELECT COALESCE(SUM(d_hub),      0) FROM d WHERE vendor_id IS NOT NULL),
     '통일후_표준',   (SELECT COALESCE(SUM(outstanding),0) FROM d WHERE vendor_id IS NOT NULL),
-    '변동',          (SELECT COALESCE(SUM(outstanding),0) - COALESCE(SUM(d_hub), 0) FROM d WHERE vendor_id IS NOT NULL),
+    '변동_현재대비',  (SELECT COALESCE(SUM(outstanding),0) - COALESCE(SUM(d_101), 0) FROM d WHERE vendor_id IS NOT NULL),
     '별칭미연결_제외액', (SELECT COALESCE(SUM(outstanding), 0) FROM d WHERE vendor_id IS NULL)
   ),
 
@@ -88,17 +95,28 @@ SELECT jsonb_pretty(jsonb_build_object(
     '수금완료_잔액있음', (
       SELECT jsonb_build_object(
         '건수', COUNT(*),
-        '허브가_잡던금액', COALESCE(SUM(d_hub), 0)
-      ) FROM d WHERE collect_status = 'collected' AND d_hub > 0
+        '허브가_잡던금액', COALESCE(SUM(d_101), 0)
+      ) FROM d WHERE collect_status = 'collected' AND d_101 > 0
     ),
     -- 순매출 상한에 걸린 주문 → 상한 없는 표행/KPI와 허브의 차이
+    -- 품목 기반 순매출 상한에 걸려 깎이는 미수 (새 정의에서 커질 수 있는 지점)
     '순매출상한_적용', (
       SELECT jsonb_build_object(
         '건수', COUNT(*),
-        '깎인금액', COALESCE(SUM(GREATEST(0, raw_outstanding - matched_deducted) - net_sales), 0)
+        '깎인금액', COALESCE(SUM(GREATEST(0, raw_outstanding - matched_deducted)
+                                 - GREATEST(0, net_sales)), 0)
       ) FROM d
       WHERE collect_status <> 'collected'
-        AND GREATEST(0, raw_outstanding - matched_deducted) > net_sales
+        AND GREATEST(0, raw_outstanding - matched_deducted) > GREATEST(0, net_sales)
+    ),
+    -- 그 중 전액 VIP·선결제·취소라 순매출이 0인 주문 (미수가 통째로 0이 된다)
+    '순매출0_주문', (
+      SELECT jsonb_build_object(
+        '건수', COUNT(*),
+        '사라지는_미수', COALESCE(SUM(GREATEST(0, raw_outstanding - matched_deducted)), 0)
+      ) FROM d
+      WHERE collect_status <> 'collected' AND net_sales <= 0
+        AND GREATEST(0, raw_outstanding - matched_deducted) > 0
     ),
     -- 업로드 이전 입금(컷오프 제외분) → 전체매칭 차감(KPI/수금)과 컷오프 차감(허브/표행)의 차이
     '컷오프_제외매칭', (
@@ -120,16 +138,16 @@ SELECT jsonb_pretty(jsonb_build_object(
     FROM (
       SELECT jsonb_build_object(
         '거래처', ven.name,
-        '현재_허브', SUM(d.d_hub),
+        '현재_허브', SUM(d.d_101),
         '통일후',   SUM(d.outstanding),
-        '변동',     SUM(d.outstanding) - SUM(d.d_hub),
+        '변동',     SUM(d.outstanding) - SUM(d.d_101),
         '주문수',   COUNT(*)
       ) AS t
       FROM d JOIN vendors ven ON ven.id = d.vendor_id
       WHERE d.vendor_id IS NOT NULL
       GROUP BY ven.name
-      HAVING SUM(d.outstanding) <> SUM(d.d_hub)
-      ORDER BY abs(SUM(d.outstanding) - SUM(d.d_hub)) DESC
+      HAVING SUM(d.outstanding) <> SUM(d.d_101)
+      ORDER BY abs(SUM(d.outstanding) - SUM(d.d_101)) DESC
       LIMIT 15
     ) s
   ),
@@ -140,12 +158,13 @@ SELECT jsonb_pretty(jsonb_build_object(
     FROM (
       SELECT jsonb_build_object(
         '주문번호', order_no, '주문일', order_date, '구분', source, '수금상태', collect_status,
-        '총액', total_amount, '제외', excluded_amount, '순매출', net_sales,
+        '총액', total_amount, '제외', excluded_amount,
+        '순매출', net_sales, 'legacy순매출', legacy_net,
         '원본미수', raw_outstanding, '매칭전체', matched_all, '컷오프차감', matched_deducted,
-        '표준', outstanding, '허브', d_hub, '표행', d_row, 'KPI', d_kpi
+        '표준', outstanding, '허브101', d_101, '표행', d_row, 'KPI', d_kpi
       ) AS t
       FROM d
-      WHERE outstanding <> d_hub OR d_hub <> d_kpi
+      WHERE outstanding <> d_101 OR d_101 <> d_kpi
       ORDER BY raw_outstanding DESC
       LIMIT 20
     ) s

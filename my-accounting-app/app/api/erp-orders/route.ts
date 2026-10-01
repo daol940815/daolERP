@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
-import { cutoffAlloc, netSalesOf, outstandingOf } from '@/lib/receivable'
+import { cutoffAlloc, outstandingOf } from '@/lib/receivable'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,18 +89,17 @@ export async function GET(req: NextRequest) {
     total = allIds.length
 
     // 미수·순매출은 lib/receivable.ts 표준 규칙으로 계산한다 (RPC·허브와 같은 값).
-    // 주문별 제외금액(취소·VIP·선결제)과 매칭 입금을 모아야 하므로 청크로 나눠 조회.
-    const excludedByOrder = new Map<string, number>()
+    // 순매출은 비제외 품목 합이므로 품목 전체를 읽어야 한다 — 청크로 나눠 조회.
+    const netByOrder = new Map<string, number>()
     const matchesByOrder = new Map<string, { amount: number; paid_date: string | null }[]>()
     for (let i = 0; i < allIds.length; i += 300) {
       const chunkIds = allIds.slice(i, i + 300)
       const [flaggedResult, matchResult] = await Promise.all([
-        fetchAllRows<{ order_id: string; line_total: number | null }>((pFrom, pTo) =>
+        fetchAllRows<{ order_id: string; line_total: number | null; is_canceled: boolean | null; is_vip: boolean | null; is_prepayment: boolean | null }>((pFrom, pTo) =>
           admin
             .from('erp_order_items')
-            .select('order_id, line_total')
+            .select('order_id, line_total, is_canceled, is_vip, is_prepayment')
             .in('order_id', chunkIds)
-            .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
             .range(pFrom, pTo),
         ),
         fetchAllRows<{ order_id: string; amount: number; paid_date: string | null }>((pFrom, pTo) =>
@@ -114,7 +113,8 @@ export async function GET(req: NextRequest) {
       if ('error' in flaggedResult) return NextResponse.json({ error: flaggedResult.error }, { status: 500 })
       if ('error' in matchResult)  return NextResponse.json({ error: matchResult.error }, { status: 500 })
       for (const it of flaggedResult.data) {
-        excludedByOrder.set(it.order_id, (excludedByOrder.get(it.order_id) ?? 0) + (it.line_total || 0))
+        if (it.is_canceled || it.is_vip || it.is_prepayment) continue
+        netByOrder.set(it.order_id, (netByOrder.get(it.order_id) ?? 0) + (it.line_total || 0))
       }
       for (const m of matchResult.data) {
         const arr = matchesByOrder.get(m.order_id)
@@ -125,7 +125,7 @@ export async function GET(req: NextRequest) {
     netSales = 0
     outstanding = 0
     for (const o of allOrders) {
-      const net = netSalesOf(o, excludedByOrder.get(o.id) ?? 0)
+      const net = netByOrder.get(o.id) ?? 0
       netSales += net
       outstanding += outstandingOf(o, { net, alloc: cutoffAlloc(o, matchesByOrder.get(o.id)) })
     }

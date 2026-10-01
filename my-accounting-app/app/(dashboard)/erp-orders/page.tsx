@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ErpOrder, ErpOrderItem } from '@/types/erp'
 import { getPeriodRange } from '@/lib/period-presets'
 import { computeOrderDeliveryStatus, ITEM_DELIVERY_STATUS_LABEL, ORDER_DELIVERY_STATUS_LABEL } from '@/lib/erp-delivery-status'
-import { cutoffAlloc, excludedTotal, netSalesOf, outstandingOf } from '@/lib/receivable'
+import { cutoffAlloc, netSalesOf, outstandingOf } from '@/lib/receivable'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
@@ -404,10 +404,10 @@ export default function ErpOrdersPage() {
                 //  direct 주문은 전액 차감. 순매출 상한·수금완료=0도 함께 적용.
                 const allocated = cutoffAlloc(o, orderMatches)
                 const preUpload = orderMatches.reduce((s, m) => s + m.amount, 0) - allocated
-                const netSales = netSalesOf(o, excludedTotal(oItems))
+                const netSales = netSalesOf(oItems)
                 const remaining = outstandingOf(o, { net: netSales, alloc: allocated })
                 const cappedByNet = o.collect_status !== 'collected'
-                  && Math.max(o.outstanding_amount - allocated, 0) > netSales
+                  && Math.max(o.outstanding_amount - allocated, 0) > Math.max(netSales, 0)
                 const status = remaining <= 0
                   ? STATUS_LABEL.collected
                   : allocated > 0
@@ -454,7 +454,7 @@ export default function ErpOrdersPage() {
                       )}
                       {cappedByNet && (
                         <span className="block text-[11px] text-gray-400 font-normal"
-                          title="ERP 미수금이 순매출(취소·VIP·선결제 제외 후)보다 커서 순매출로 제한함">
+                          title="ERP 미수금이 순매출(비제외 품목 합)보다 커서 순매출로 제한함">
                           순매출 상한 적용
                         </span>
                       )}

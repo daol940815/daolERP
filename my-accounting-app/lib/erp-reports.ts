@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ErpReceivableRow, ErpPayableRow, ErpPaymentTerm, ErpAgingRow, AgingBuckets } from '@/types/erp'
 import { isMissingMatchTable } from '@/lib/erp-matching'
-import { cutoffAlloc, netSalesOf, outstandingOf, type ReceivableOrderLike } from '@/lib/receivable'
+import { cutoffAlloc, outstandingOf, type ReceivableOrderLike } from '@/lib/receivable'
 
 const PAGE_SIZE = 1000
 
@@ -172,7 +172,7 @@ async function buildReceivableFromOrders(
 
   const orderIds = orders.map(o => o.id as string)
 
-  // 주문별 제외 금액(취소/VIP/선결제 품목 합계)
+  // 주문별 제외 금액(취소/VIP/선결제 품목 합계) — 화면 표시용
   // RPC(POST body로 order_id 배열 전달)로 일괄 조회 — .in()으로 나눠 조회하면
   // 조회 기간이 길어져 주문 건수가 많을 때 URL이 비대해져 fetch가 실패할 수 있음
   const excludedByOrder = new Map<string, number>()
@@ -182,6 +182,24 @@ async function buildReceivableFromOrders(
     if (ie) return { error: ie.message }
     for (const row of exclusions ?? []) {
       excludedByOrder.set(row.order_id as string, (row.excluded_amount as number) || 0)
+    }
+  }
+
+  // 순매출은 비제외 품목 합(lib/receivable.ts 표준) — 품목 전체를 청크로 읽는다
+  const netByOrder = new Map<string, number>()
+  for (let i = 0; i < orderIds.length; i += 300) {
+    const chunk = orderIds.slice(i, i + 300)
+    const itRes = await fetchAllRows<{ order_id: string; line_total: number | null; is_canceled: boolean | null; is_vip: boolean | null; is_prepayment: boolean | null }>((rFrom, rTo) =>
+      admin
+        .from('erp_order_items')
+        .select('order_id, line_total, is_canceled, is_vip, is_prepayment')
+        .in('order_id', chunk)
+        .range(rFrom, rTo),
+    )
+    if ('error' in itRes) return { error: itRes.error }
+    for (const it of itRes.data) {
+      if (it.is_canceled || it.is_vip || it.is_prepayment) continue
+      netByOrder.set(it.order_id, (netByOrder.get(it.order_id) ?? 0) + (it.line_total || 0))
     }
   }
 
@@ -263,7 +281,7 @@ async function buildReceivableFromOrders(
     if (staffName) staffByGroup.get(key)!.add(staffName)
     const excluded = excludedByOrder.get(o.id as string) ?? 0
     const order = o as ReceivableOrderLike
-    const net = netSalesOf(order, excluded)
+    const net = netByOrder.get(o.id as string) ?? 0
     g.order_count += 1
     g.total_amount += net
     g.excluded_amount += excluded
@@ -476,17 +494,16 @@ export async function buildReceivableAgingRows(
 
   // 표준 미수(lib/receivable.ts)를 쓰려면 주문별 제외금액과 매칭 입금일이 필요하다.
   // 매칭 테이블이 아직 없는 환경도 있어 조회 실패는 매칭 없음으로 넘긴다.
-  const excludedByOrder = new Map<string, number>()
+  const netByOrder = new Map<string, number>()
   const matchesByOrder = new Map<string, { amount: number; paid_date: string | null }[]>()
   for (let i = 0; i < orderIds.length; i += 300) {
     const chunk = orderIds.slice(i, i + 300)
     const [exRes, mRes] = await Promise.all([
-      fetchAllRows<{ order_id: string; line_total: number | null }>((rFrom, rTo) =>
+      fetchAllRows<{ order_id: string; line_total: number | null; is_canceled: boolean | null; is_vip: boolean | null; is_prepayment: boolean | null }>((rFrom, rTo) =>
         admin
           .from('erp_order_items')
-          .select('order_id, line_total')
+          .select('order_id, line_total, is_canceled, is_vip, is_prepayment')
           .in('order_id', chunk)
-          .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
           .range(rFrom, rTo),
       ),
       fetchAllRows<{ order_id: string; amount: number; paid_date: string | null }>((rFrom, rTo) =>
@@ -499,7 +516,8 @@ export async function buildReceivableAgingRows(
     ])
     if ('error' in exRes) return { error: exRes.error }
     for (const it of exRes.data) {
-      excludedByOrder.set(it.order_id, (excludedByOrder.get(it.order_id) ?? 0) + (it.line_total || 0))
+      if (it.is_canceled || it.is_vip || it.is_prepayment) continue
+      netByOrder.set(it.order_id, (netByOrder.get(it.order_id) ?? 0) + (it.line_total || 0))
     }
     if (!('error' in mRes)) {
       for (const m of mRes.data) {
@@ -527,7 +545,7 @@ export async function buildReceivableAgingRows(
     const oid = o.id as string
     const order = o as ReceivableOrderLike
     const remaining = outstandingOf(order, {
-      net: netSalesOf(order, excludedByOrder.get(oid) ?? 0),
+      net: netByOrder.get(oid) ?? 0,
       alloc: cutoffAlloc(order, matchesByOrder.get(oid)),
     })
     if (remaining <= 0) continue

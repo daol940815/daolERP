@@ -9,7 +9,7 @@ import type { ErpOrderDeliveryStatus } from '@/types/erp'
 // 매출처 허브 집계
 //
 // 기준(원본데이터 우선):
-//  - 기간 매출  = ERP 순매출(주문 총액 - 취소/VIP/선결제 품목)
+//  - 기간 매출  = ERP 순매출(= 비제외 품목 line_total 합, 월별 손익 025와 동일)
 //  - 미수       = lib/receivable.ts의 표준 규칙(= DB 뷰 v_erp_order_receivable)
 //                 수금완료 주문은 0, 그 외 min(max(0, 원본미수 − 컷오프 통과 매칭), 순매출)
 //  - 수금       = 순매출 - 미수  (ERP 수금 상태 기준)
@@ -69,7 +69,8 @@ interface OrderLite {
   source?: string | null
 }
 
-interface FlagAgg { excluded: number; vip: number; vipCanceled: number }
+// net = 비제외 품목 합(표준 순매출) / excluded = 제외 품목 합(참고)
+interface FlagAgg { net: number; excluded: number; vip: number; vipCanceled: number }
 
 const today = () => new Date().toISOString().slice(0, 10)
 const addDays = (iso: string, days: number) => {
@@ -109,22 +110,24 @@ async function fetchAllParallel<T>(
   return { data: out.flat() }
 }
 
-// 취소/VIP/선결제 품목을 주문별로 집계 (순매출 차감 + VIP 누적 계산용)
+// 주문별 품목 집계 — 순매출(비제외 품목 합) + 제외금액 + VIP 누적
+// 순매출을 품목에서 직접 더하므로 제외 품목만 읽어서는 안 된다 (lib/receivable.ts 참조).
 async function loadFlaggedLines(admin: SupabaseClient) {
   const r = await fetchAllRows<{ order_id: string; line_total: number | null; is_canceled: boolean; is_vip: boolean; is_prepayment: boolean }>((f, t) =>
     admin.from('erp_order_items')
       .select('order_id, line_total, is_canceled, is_vip, is_prepayment')
-      .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
       .range(f, t))
   if ('error' in r) return r
   const byOrder = new Map<string, FlagAgg>()
   for (const it of r.data) {
     let a = byOrder.get(it.order_id)
-    if (!a) { a = { excluded: 0, vip: 0, vipCanceled: 0 }; byOrder.set(it.order_id, a) }
-    a.excluded += it.line_total ?? 0
+    if (!a) { a = { net: 0, excluded: 0, vip: 0, vipCanceled: 0 }; byOrder.set(it.order_id, a) }
+    const amt = it.line_total ?? 0
+    if (it.is_canceled || it.is_vip || it.is_prepayment) a.excluded += amt
+    else a.net += amt
     if (it.is_vip) {
-      if (it.is_canceled) a.vipCanceled += it.line_total ?? 0
-      else a.vip += it.line_total ?? 0
+      if (it.is_canceled) a.vipCanceled += amt
+      else a.vip += amt
     }
   }
   return { data: byOrder }
@@ -271,7 +274,7 @@ export async function buildHubList(
       a.vip_total += flags?.vip ?? 0
       const inPeriod = (!fromDate || o.order_date >= fromDate) && (!toDate || o.order_date <= toDate)
       if (!inPeriod) continue
-      const net = Math.max(0, (o.total_amount ?? 0) - (flags?.excluded ?? 0))
+      const net = flags?.net ?? 0
       const out = outstandingOf(o, { net, alloc: cutoffAlloc(o, fallback.payEvents.get(o.id)) })
       a.order_count++
       a.net += net
@@ -599,10 +602,12 @@ export async function buildHubDetail(
   // ── 집계 ──
   const flaggedLocal = new Map<string, FlagAgg>()
   for (const [oid, items] of Array.from(itemsByOrder.entries())) {
-    const a: FlagAgg = { excluded: 0, vip: 0, vipCanceled: 0 }
+    const a: FlagAgg = { net: 0, excluded: 0, vip: 0, vipCanceled: 0 }
     for (const it of items) {
-      if (it.is_canceled || it.is_vip || it.is_prepayment) a.excluded += it.line_total ?? 0
-      if (it.is_vip && !it.is_canceled) a.vip += it.line_total ?? 0
+      const amt = it.line_total ?? 0
+      if (it.is_canceled || it.is_vip || it.is_prepayment) a.excluded += amt
+      else a.net += amt
+      if (it.is_vip && !it.is_canceled) a.vip += amt
     }
     flaggedLocal.set(oid, a)
   }
@@ -619,8 +624,8 @@ export async function buildHubDetail(
     if (!lastOrder || o.order_date > lastOrder) lastOrder = o.order_date
     const flags = flaggedLocal.get(o.id)
     vipTotal += flags?.vip ?? 0
-    const oNet = Math.max(0, (o.total_amount ?? 0) - (flags?.excluded ?? 0))
-    // 표준 미수 (lib/receivable.ts = DB 뷰 406과 동일 규칙)
+    const oNet = flags?.net ?? 0
+    // 표준 미수 (lib/receivable.ts = DB 뷰 v_erp_order_receivable과 동일 규칙)
     const oOut = outstandingOf(o, { net: oNet, alloc: cutoffAlloc(o, payEventsByOrder.get(o.id)) })
     if (oOut > 0) {
       const age = Math.floor((new Date(t0).getTime() - new Date(o.order_date).getTime()) / 86400000)
