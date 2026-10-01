@@ -51,6 +51,8 @@
   `role`(sales/manager/admin)은 109 미적용 폴백용으로만 남김 — **새 코드는 role로 판정하지 말 것.**
   마스터 계정: daol825(ERP 총괄)·master(사장님). 권한 편집은 직원·계정·권한 화면(마스터만).
 - 로그인: login_id → `{login_id}@daol.internal` 내부 이메일로 Supabase Auth 인증 (`lib/user-role.ts`)
+- 비밀번호: 본인 변경은 `/me/password`(사이드바 하단, 전원, 재인증 후 `auth.updateUser`) / 관리자 재설정은
+  직원·계정·권한 화면(인사·총무 수정 권한). 비밀번호는 어디에도 저장하지 않는다.
 - 주의: 거래처 관리 엑셀 적재로 로그인 계정 없는 직원(auth_user_id NULL, 상담자 21명)이 존재함.
   근태 대상 여부는 사용자에게 확인할 것.
 - 새 직원 테이블을 만들지 말 것. 확장이 필요하면 employees에 컬럼 추가 또는 참조 테이블.

@@ -309,6 +309,10 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
             <span>업무 선택</span>
           </Link>
         )}
+        {/* 본인 비밀번호 변경 — 권한 불필요, 모든 영역에서 (2026-10-01) */}
+        <Link href="/me/password" className={linkCls(pathname === '/me/password')}>
+          <span>비밀번호 변경</span>
+        </Link>
         <button onClick={handleLogout}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
           <span>로그아웃</span>
