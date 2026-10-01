@@ -170,16 +170,29 @@ export default function ContactManagerPage() {
             고객(거래처 담당자) 중심 관리 — 커넥션·매출·상태는 주문에서 자동 집계
           </p>
         </div>
-        <button
-          onClick={async () => {
-            const name = window.prompt('등록할 담당자 이름 (예: 김수영)')
-            if (!name?.trim()) return
-            const okd = await post({ action: 'create_contact', name: name.trim() }, `${name.trim()} 등록됨 — 상세에서 소속을 지정하세요.`)
-            if (okd) setSearch(name.trim())
-          }}
-          className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700">
-          담당자 등록
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              const p = new URLSearchParams()
+              if (search.trim()) p.set('q', search.trim())
+              if (statusFilter !== 'all') p.set('status', statusFilter)
+              if (staffFilter !== 'all') p.set('staff', staffFilter)
+              const a = document.createElement('a'); a.href = `/api/contact-manager/export?${p}`; a.click()
+            }}
+            className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
+            ↓ 엑셀
+          </button>
+          <button
+            onClick={async () => {
+              const name = window.prompt('등록할 담당자 이름 (예: 김수영)')
+              if (!name?.trim()) return
+              const okd = await post({ action: 'create_contact', name: name.trim() }, `${name.trim()} 등록됨 — 상세에서 소속을 지정하세요.`)
+              if (okd) setSearch(name.trim())
+            }}
+            className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700 whitespace-nowrap">
+            담당자 등록
+          </button>
+        </div>
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
