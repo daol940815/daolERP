@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ErpOrder, ErpOrderItem } from '@/types/erp'
 import { getPeriodRange } from '@/lib/period-presets'
 import { computeOrderDeliveryStatus, ITEM_DELIVERY_STATUS_LABEL, ORDER_DELIVERY_STATUS_LABEL } from '@/lib/erp-delivery-status'
+import { cutoffAlloc, excludedTotal, netSalesOf, outstandingOf } from '@/lib/receivable'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
@@ -396,16 +397,17 @@ export default function ErpOrdersPage() {
                 const oItems = itemsByOrder.get(o.id) ?? []
                 const orderMatches = matches.filter(m => m.order_id === o.id)
                 const payDates = computePayDates(oItems, orderMatches)
-                // 업로드 컷오프: upload 주문은 마지막 업로드(updated_at) 이후 입금 매칭만 차감
-                // (이전 매칭은 ERP 미수금 값에 이미 반영된 것으로 간주 — 이중차감 방지)
-                // direct 주문(자체 입력)은 재업로드가 없으므로 전액 차감
-                const isDirect = (o.source ?? 'upload') === 'direct'
-                const uploadCut = (o.updated_at ?? '').slice(0, 10)
-                const allocated = orderMatches
-                  .filter(m => isDirect || (m.paid_date && m.paid_date > uploadCut))
-                  .reduce((s, m) => s + m.amount, 0)
+                // 미수는 lib/receivable.ts의 표준 규칙으로만 계산한다
+                // (DB 뷰 v_erp_order_receivable·허브·KPI와 같은 값).
+                //  업로드 컷오프: upload 주문은 마지막 업로드 이후 입금만 차감
+                //  (이전 매칭은 ERP 미수금 값에 이미 반영 — 이중차감 방지),
+                //  direct 주문은 전액 차감. 순매출 상한·수금완료=0도 함께 적용.
+                const allocated = cutoffAlloc(o, orderMatches)
                 const preUpload = orderMatches.reduce((s, m) => s + m.amount, 0) - allocated
-                const remaining = Math.max(o.outstanding_amount - allocated, 0)
+                const netSales = netSalesOf(o, excludedTotal(oItems))
+                const remaining = outstandingOf(o, { net: netSales, alloc: allocated })
+                const cappedByNet = o.collect_status !== 'collected'
+                  && Math.max(o.outstanding_amount - allocated, 0) > netSales
                 const status = remaining <= 0
                   ? STATUS_LABEL.collected
                   : allocated > 0
@@ -448,6 +450,12 @@ export default function ErpOrdersPage() {
                         <span className="block text-[11px] text-gray-400 font-normal"
                           title="업로드 이전 입금 매칭 — ERP 미수금 값에 이미 반영된 것으로 간주해 중복 차감하지 않음">
                           업로드 반영분 {won(preUpload)} 제외
+                        </span>
+                      )}
+                      {cappedByNet && (
+                        <span className="block text-[11px] text-gray-400 font-normal"
+                          title="ERP 미수금이 순매출(취소·VIP·선결제 제외 후)보다 커서 순매출로 제한함">
+                          순매출 상한 적용
                         </span>
                       )}
                     </td>

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ErpReceivableRow, ErpPayableRow, ErpPaymentTerm, ErpAgingRow, AgingBuckets } from '@/types/erp'
 import { isMissingMatchTable } from '@/lib/erp-matching'
+import { cutoffAlloc, netSalesOf, outstandingOf, type ReceivableOrderLike } from '@/lib/receivable'
 
 const PAGE_SIZE = 1000
 
@@ -148,7 +149,7 @@ async function buildReceivableFromOrders(
   const ordersResult = await fetchAllRows((rFrom, rTo) => {
     let oq = admin
       .from('erp_orders')
-      .select('id, customer_alias_id, bank_name, branch_name, total_amount, outstanding_amount, collect_status, staff_name')
+      .select('id, customer_alias_id, bank_name, branch_name, total_amount, outstanding_amount, collect_status, staff_name, source, updated_at')
       .range(rFrom, rTo)
     if (from) oq = oq.gte('order_date', from)
     if (to)   oq = oq.lte('order_date', to)
@@ -184,17 +185,26 @@ async function buildReceivableFromOrders(
     }
   }
 
-  // 주문별 매칭된 수금액 합계 (은행/카드 등 — 수금 매칭 결과를 미수금에서 차감)
-  const matchedByOrder = new Map<string, number>()
-  if (orderIds.length > 0) {
-    const { data: matches, error: me } = await admin
-      .rpc('erp_order_payment_matches', { p_order_ids: orderIds })
-    if (me) {
-      if (!isMissingMatchTable(me)) return { error: me.message }
-    } else {
-      for (const row of matches ?? []) {
-        matchedByOrder.set(row.order_id as string, (row.matched_amount as number) || 0)
-      }
+  // 주문별 매칭 입금 — 표준 미수(lib/receivable.ts)는 업로드 컷오프를 보려고
+  // 입금일(paid_date)이 필요하므로 집계 RPC 대신 원본을 청크로 읽는다.
+  const matchesByOrder = new Map<string, { amount: number; paid_date: string | null }[]>()
+  for (let i = 0; i < orderIds.length; i += 300) {
+    const chunk = orderIds.slice(i, i + 300)
+    const mRes = await fetchAllRows<{ order_id: string; amount: number; paid_date: string | null }>((rFrom, rTo) =>
+      admin
+        .from('erp_payment_matches')
+        .select('order_id, amount, paid_date')
+        .in('order_id', chunk)
+        .range(rFrom, rTo),
+    )
+    if ('error' in mRes) {
+      if (!isMissingMatchTable({ message: mRes.error })) return { error: mRes.error }
+      break
+    }
+    for (const m of mRes.data) {
+      const arr = matchesByOrder.get(m.order_id)
+      if (arr) arr.push(m)
+      else matchesByOrder.set(m.order_id, [m])
     }
   }
 
@@ -252,15 +262,17 @@ async function buildReceivableFromOrders(
     const staffName = (o.staff_name as string | null)?.trim()
     if (staffName) staffByGroup.get(key)!.add(staffName)
     const excluded = excludedByOrder.get(o.id as string) ?? 0
+    const order = o as ReceivableOrderLike
+    const net = netSalesOf(order, excluded)
     g.order_count += 1
-    g.total_amount += ((o.total_amount as number) || 0) - excluded
+    g.total_amount += net
     g.excluded_amount += excluded
-    if (o.collect_status !== 'collected') {
-      const matched = matchedByOrder.get(o.id as string) ?? 0
-      const remaining = Math.max(((o.outstanding_amount as number) || 0) - matched, 0)
-      g.outstanding_amount += remaining
-      if (remaining > 0) g.outstanding_count += 1
-    }
+    const remaining = outstandingOf(order, {
+      net,
+      alloc: cutoffAlloc(order, matchesByOrder.get(o.id as string)),
+    })
+    g.outstanding_amount += remaining
+    if (remaining > 0) g.outstanding_count += 1
   }
   for (const [key, g] of Array.from(groups.entries())) {
     g.staff_names = Array.from(staffByGroup.get(key) ?? []).sort((a, b) => a.localeCompare(b, 'ko'))
@@ -451,7 +463,7 @@ export async function buildReceivableAgingRows(
   const ordersResult = await fetchAllRows((rFrom, rTo) =>
     admin
       .from('erp_orders')
-      .select('id, customer_alias_id, bank_name, branch_name, order_date, outstanding_amount, collect_status')
+      .select('id, customer_alias_id, bank_name, branch_name, order_date, total_amount, outstanding_amount, collect_status, source, updated_at')
       .neq('collect_status', 'collected')
       .gt('outstanding_amount', 0)
       .lte('order_date', asOf)
@@ -462,17 +474,41 @@ export async function buildReceivableAgingRows(
 
   const orderIds = (orders ?? []).map(o => o.id as string)
 
-  // 주문별 매칭된 수금액 합계 (미수금에서 차감)
-  const matchedByOrder = new Map<string, number>()
-  if (orderIds.length > 0) {
-    const { data: matches, error: me } = await admin
-      .rpc('erp_order_payment_matches', { p_order_ids: orderIds })
-    if (me) {
-      if (!isMissingMatchTable(me)) return { error: me.message }
-    } else {
-      for (const row of matches ?? []) {
-        matchedByOrder.set(row.order_id as string, (row.matched_amount as number) || 0)
+  // 표준 미수(lib/receivable.ts)를 쓰려면 주문별 제외금액과 매칭 입금일이 필요하다.
+  // 매칭 테이블이 아직 없는 환경도 있어 조회 실패는 매칭 없음으로 넘긴다.
+  const excludedByOrder = new Map<string, number>()
+  const matchesByOrder = new Map<string, { amount: number; paid_date: string | null }[]>()
+  for (let i = 0; i < orderIds.length; i += 300) {
+    const chunk = orderIds.slice(i, i + 300)
+    const [exRes, mRes] = await Promise.all([
+      fetchAllRows<{ order_id: string; line_total: number | null }>((rFrom, rTo) =>
+        admin
+          .from('erp_order_items')
+          .select('order_id, line_total')
+          .in('order_id', chunk)
+          .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
+          .range(rFrom, rTo),
+      ),
+      fetchAllRows<{ order_id: string; amount: number; paid_date: string | null }>((rFrom, rTo) =>
+        admin
+          .from('erp_payment_matches')
+          .select('order_id, amount, paid_date')
+          .in('order_id', chunk)
+          .range(rFrom, rTo),
+      ),
+    ])
+    if ('error' in exRes) return { error: exRes.error }
+    for (const it of exRes.data) {
+      excludedByOrder.set(it.order_id, (excludedByOrder.get(it.order_id) ?? 0) + (it.line_total || 0))
+    }
+    if (!('error' in mRes)) {
+      for (const m of mRes.data) {
+        const arr = matchesByOrder.get(m.order_id)
+        if (arr) arr.push(m)
+        else matchesByOrder.set(m.order_id, [m])
       }
+    } else if (!isMissingMatchTable({ message: mRes.error })) {
+      return { error: mRes.error }
     }
   }
 
@@ -488,8 +524,12 @@ export async function buildReceivableAgingRows(
 
   const groups = new Map<string, ErpAgingRow>()
   for (const o of orders ?? []) {
-    const matched = matchedByOrder.get(o.id as string) ?? 0
-    const remaining = Math.max(((o.outstanding_amount as number) || 0) - matched, 0)
+    const oid = o.id as string
+    const order = o as ReceivableOrderLike
+    const remaining = outstandingOf(order, {
+      net: netSalesOf(order, excludedByOrder.get(oid) ?? 0),
+      alloc: cutoffAlloc(order, matchesByOrder.get(oid)),
+    })
     if (remaining <= 0) continue
 
     const key = (o.customer_alias_id as string | null) ?? '__none__'

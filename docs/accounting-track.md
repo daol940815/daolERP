@@ -465,6 +465,53 @@ A안(허브를 단일 진실로) 채택. `reports/management-dashboard/page.tsx`
 생기면 위 세 경로·필터에 모두 반영해야 또 어긋나지 않는다. 가능하면 세 경로를 없애고
 허브 규칙 하나로 모으는 방향(허브 단일 진실 원칙)으로 간다.
 
+### 미수 계산 단일화 (2026-10-01 — 406/407 전달, 코드 반영 완료)
+
+미수가 화면마다 다르게 계산되는 문제(위 절 + '허브 단일 진실 감사')를 정의 1개로 모았다.
+
+**표준 규칙** — 주문 1건 단위
+```
+수금완료(collect_status='collected')  → 0
+그 외 → min( max(0, 원본미수 − 컷오프 통과 매칭), 순매출 )
+  · 컷오프 통과 매칭: upload 주문은 updated_at(마지막 업로드) 이후 입금만,
+    direct 주문은 전액. 업로드 이전 입금은 ERP outstanding_amount에 이미 반영 — 이중차감 방지.
+  · 순매출 = max(0, 총액 − 취소·VIP·선결제 품목합)
+```
+
+**단일 출처 2곳 (규칙 변경 시 반드시 함께 수정)**
+- DB: `v_erp_order_receivable` 뷰 — `supabase/migrations/406_erp_order_receivable_view.sql`
+- JS: `lib/receivable.ts` — `cutoffAlloc` / `netSalesOf` / `outstandingOf` / `orderOutstanding`
+
+**마이그레이션 (사용자 실행 대기)**
+| 파일 | 내용 | 화면 영향 |
+|---|---|---|
+| `406_erp_order_receivable_view.sql` | 뷰 신설만 | **없음** (숫자 0원 변동) |
+| `407_receivable_unify_rpcs.sql` | `hub_vendor_summary`·`erp_orders_summary`·`erp_receivable_summary`를 뷰 위로 재작성 + `erp_order_receivable_by_ids` 추가 | 있음 — 아래 변동 지점 |
+
+실행 순서: **406 → `supabase/checks/receivable_unify_check.sql` 결과 확인·승인 → 407.**
+점검 SQL은 (A) 뷰가 기존 5가지 계산을 그대로 재현하는지(`재현_대조` 차이 전부 0),
+(B) 통일 시 어느 화면이 얼마나 바뀌는지(`허브범위_전후`, `차이_원인`, `상위_거래처`)를 함께 낸다.
+함수 이름·인자·반환 컬럼은 전부 그대로라 호출 코드 수정은 없다.
+
+**통일로 바뀌는 지점**
+- 허브(107): 수금완료 주문을 0으로 본다 — 기존에는 잔액이 남으면 미수로 잡았다 (대시보드 미수금이 줄어들 수 있음)
+- KPI(022)·수금대상(037): 업로드 이전 입금을 다시 빼지 않는다(이중차감 제거) + 순매출 상한 적용
+- 순매출도 주문 단위 0 하한 적용 (제외금액 > 총액인 주문)
+
+**코드 반영 완료 (빌드 통과, 406 없이도 동작 — 모두 JS 계산)**
+- `lib/receivable.ts` 신설
+- `lib/vendor-hub.ts` — 허브 목록 JS 폴백·거래처 상세 모두 표준 규칙 (`collect_status` 조회 추가)
+- `app/(dashboard)/erp-orders/page.tsx` — 표의 행 계산을 표준 규칙으로, '순매출 상한 적용' 표시 추가
+- `app/api/erp-orders/route.ts` — JS 폴백(추가 필터 시)이 원본 미수를 그대로 더하던 문제 해결
+- `lib/erp-reports.ts` — `buildReceivableRows`(수금대상 폴백)·`buildReceivableAgingRows`(미수금 Aging)
+- `lib/vendor-sales-detail.ts` — 매출처 상세 누적 미수
+
+**남은 불일치 (의도적으로 남김)**
+- ERP 주문내역의 **상태 드롭다운 필터**는 여전히 원본 `collect_status` 기준이라,
+  매칭으로 전액 수금된 주문은 배지가 '수금완료'여도 '미수금' 필터에 걸린다.
+  필터 의미를 바꾸면 RPC 인자까지 바뀌므로 기초원장 작업과 함께 다룬다.
+- 미수금 Aging의 기초이월(`vendor_opening_balances`)은 주문 단위 규칙 밖의 별도 가산이다.
+
 ## 자주 쓰는 코드 위치
 
 - 분류: `app/(dashboard)/bank-classify`, 확정 API `app/api/transactions/confirm`(청크)
