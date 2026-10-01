@@ -29,7 +29,9 @@ export function homeFor(me: CurrentUser): string {
 // 현재 경로가 속한 영역 고르기: 쿠키로 기억한 영역이 이 경로를 담고 있으면 그것, 아니면
 // 이 경로를 담은 첫 접근 가능 영역, 그것도 없으면 사용자의 첫 영역
 export function pickArea(me: CurrentUser, pathname: string, cookieArea: string | undefined): AreaKey {
-  const owners = ownersOfPath(pathname).filter(o => groupAccessible(me, o.group))
+  // 공통 그룹(내 업무) 경로는 네 영역 모두에 속하므로, 사용자가 실제로 가진 영역만 후보로 남긴다
+  const mine = new Set(areasFor(me).map(a => a.key))
+  const owners = ownersOfPath(pathname).filter(o => groupAccessible(me, o.group) && mine.has(o.area))
   const areaKeys = owners.map(o => o.area)
   if (cookieArea && areaKeys.includes(cookieArea as AreaKey)) return cookieArea as AreaKey
   if (areaKeys.length) return areaKeys[0]
@@ -40,7 +42,7 @@ export function pickArea(me: CurrentUser, pathname: string, cookieArea: string |
 // 영역의 사이드바 그룹 (권한으로 거른 것). 항목 단위 권한(requires)이 있으면 그것도 거른다.
 export function groupsFor(me: CurrentUser, area: AreaKey): MenuGroup[] {
   return MENU
-    .filter(g => g.area === area && groupAccessible(me, g.key))
+    .filter(g => (g.area === area || g.area === 'all') && groupAccessible(me, g.key))
     .map(g => ({ ...g, items: g.items.filter(it => !it.requires || groupAccessible(me, it.requires)) }))
     .filter(g => g.items.length > 0)
 }

@@ -283,6 +283,8 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
         <h1 className="text-white font-bold text-lg tracking-tight">{areaLabel}</h1>
         <p className="text-slate-400 text-xs mt-0.5">{userName}{userSub ? ` · ${userSub}` : ''}</p>
       </div>
+      {/* 출근·퇴근 체크 — 어느 영역에서든 같은 자리 (2026-10-01). 비대상 직원에게는 비표시 */}
+      <CheckWidget wrap="pt-3 border-b border-slate-800" />
 
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
         {groups.map(g => (
@@ -294,7 +296,6 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
             </button>
             {open[g.key] && (
               <>
-                {area === 'sales' && g.key === 'my' && <CheckWidget />}
                 {g.items.map(renderItem)}
               </>
             )}

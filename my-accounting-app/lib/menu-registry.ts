@@ -4,7 +4,7 @@
 // 이름을 바꿀 때는 이 파일만 고친다. 화면 코드(경로)는 옮기지 않았다 — 메뉴 위치·이름만.
 // 노출 규칙: 그룹의 권한 키(GroupKey)에 조회 이상 / 'my'는 전원 / 'team'은 승인권.
 
-import type { AreaKey, GroupKey } from '@/lib/permissions'
+import { AREAS, type AreaKey, type GroupKey } from '@/lib/permissions'
 
 export type MenuGroupKey = GroupKey | 'my' | 'team'
 
@@ -23,9 +23,13 @@ export interface MenuItem {
   requires?: GroupKey
 }
 
+// 그룹 소속 영역. 'all' = 모든 영역 사이드바에 나오는 공통 그룹(내 업무 — 2026-10-01: 회계·재무·인사·총무만 보는
+// 직원도 출근 체크·근태·휴가·업무일지를 써야 하므로 영업·주문에서 떼어 전 영역 공통으로)
+export type MenuArea = AreaKey | 'all'
+
 export interface MenuGroup {
   key: MenuGroupKey
-  area: AreaKey
+  area: MenuArea
   label: string
   items: MenuItem[]
   foldDefault?: boolean   // 기본 접힘
@@ -33,8 +37,8 @@ export interface MenuGroup {
 
 export const MENU: MenuGroup[] = [
   // ── 영업 · 주문 ─────────────────────────────────────
-  { key: 'my', area: 'sales', label: '내 업무', items: [
-    { label: '대시보드', href: '/me', exact: true },
+  { key: 'my', area: 'all', label: '내 업무', items: [
+    { label: '내 대시보드', href: '/me', exact: true },
     { label: '내 고객', href: '/sales-hub?mine=1', prefix: '/sales-hub?mine', requires: 'customers' },
     { label: '영업일지', href: '/me/journal' },
     { label: '업무일지', href: '/me/worklog' },
@@ -120,6 +124,9 @@ export const MENU: MenuGroup[] = [
 
 // 경로 → 이 경로를 담고 있는 (영역, 그룹) 목록. 상세 경로는 접두 일치로 잡는다.
 // 메뉴에 없는 경로(드릴다운 /source/…, 상세 /orders/[id] 등)는 접두가 가장 긴 항목을 따른다.
+// 'all' 그룹의 경로는 네 영역 모두에 속한다 — 어느 영역에서 들어가도 그 영역에 머문다.
+const expandArea = (area: MenuArea): AreaKey[] => area === 'all' ? AREAS.map(a => a.key) : [area]
+
 export function ownersOf(pathname: string): { area: AreaKey; group: MenuGroupKey }[] {
   const path = pathname.split('?')[0]
   const hits: { area: AreaKey; group: MenuGroupKey; len: number }[] = []
@@ -128,10 +135,10 @@ export function ownersOf(pathname: string): { area: AreaKey; group: MenuGroupKey
       const base = (it.prefix ?? it.href).split('?')[0]
       const match = it.exact ? path === base : (path === base || path.startsWith(base.endsWith('/') ? base : base + '/'))
       const group: MenuGroupKey = it.requires ?? g.key
-      if (match) hits.push({ area: g.area, group, len: base.length })
+      if (match) for (const area of expandArea(g.area)) hits.push({ area, group, len: base.length })
       for (const c of it.children ?? []) {
         const cb = c.href.split('?')[0]
-        if (path === cb) hits.push({ area: g.area, group, len: cb.length })
+        if (path === cb) for (const area of expandArea(g.area)) hits.push({ area, group, len: cb.length })
       }
     }
   }
@@ -141,7 +148,7 @@ export function ownersOf(pathname: string): { area: AreaKey; group: MenuGroupKey
 }
 
 // 메뉴에 없지만 존재하는 경로의 소속 (드릴다운·상세·API 없는 화면)
-export const EXTRA_PATH_OWNERS: { prefix: string; area: AreaKey; group: MenuGroupKey }[] = [
+export const EXTRA_PATH_OWNERS: { prefix: string; area: MenuArea; group: MenuGroupKey }[] = [
   { prefix: '/source/', area: 'finance', group: 'accounting' },
   { prefix: '/erp-aliases/pending', area: 'finance', group: 'tools' },
   { prefix: '/card-sales/customer-links', area: 'finance', group: 'accounting' },
@@ -155,8 +162,8 @@ export const EXTRA_PATH_OWNERS: { prefix: string; area: AreaKey; group: MenuGrou
   { prefix: '/reports/daily-cash', area: 'mgmt', group: 'mgmt' },
   { prefix: '/customers', area: 'finance', group: 'accounting' },
   { prefix: '/vendors', area: 'finance', group: 'accounting' },
-  { prefix: '/hr', area: 'sales', group: 'my' },
-  { prefix: '/me', area: 'sales', group: 'my' },
+  { prefix: '/hr', area: 'all', group: 'my' },
+  { prefix: '/me', area: 'all', group: 'my' },
   { prefix: '/orders', area: 'sales', group: 'orders' },
 ]
 
@@ -167,7 +174,7 @@ export function ownersOfPath(pathname: string) {
   const extra = EXTRA_PATH_OWNERS
     .filter(e => path === e.prefix.replace(/\/$/, '') || path.startsWith(e.prefix))
     .sort((a, b) => b.prefix.length - a.prefix.length)
-  return extra.length ? [{ area: extra[0].area, group: extra[0].group }] : []
+  return extra.length ? expandArea(extra[0].area).map(area => ({ area, group: extra[0].group })) : []
 }
 
 // API 경로 → 권한 그룹 (미들웨어 검사용). 접두가 긴 것이 우선. 없는 경로는 로그인만으로 허용.
