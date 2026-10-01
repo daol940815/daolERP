@@ -74,6 +74,13 @@ sales·manager·admin 모두 동일하게 출퇴근 체크·휴가 신청을 사
   `/api/attendance/leaves`(신청·승인). 월별 기록 조회는 `fetchAllRows`로
   PostgREST 1000행 제한 회피.
 
+## 퇴근 체크 확인 · 본인 취소 (2026-10-01 사용자 요청 — 퇴근 버튼 오클릭)
+
+- 퇴근 체크 전 확인창(window.confirm). 출근 체크는 확인 없음(매일 반복, 되돌릴 일 거의 없음).
+- 퇴근 체크 후 위젯의 '출근 HH:MM · 퇴근 HH:MM' 옆 **[취소]** — `POST /api/attendance/status { action: 'cancel_check_out' }`.
+  당일(work_date = 오늘)만, check_out_at을 비우고 `edited_by = 본인`, `edit_note = '본인 퇴근 취소 (HH:MM 기록 삭제)'`로
+  흔적을 남긴다. 출근 시각은 그대로, 다시 퇴근 체크 가능. 지난 날짜·출근 시각 정정은 관리자 보정(근태 현황 adjust)만.
+
 ## 후속 단계 후보
 
 - 공휴일 반영 (한국 공휴일 테이블 또는 수동 등록)

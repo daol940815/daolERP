@@ -24,7 +24,10 @@ export default function CheckWidget({ wrap }: { wrap?: string } = {}) {
   }, [])
   useEffect(() => { load() }, [load])
 
-  const check = async (action: 'check_in' | 'check_out') => {
+  // 퇴근은 잘못 누르기 쉬워 확인을 거치고, 눌렀어도 당일에는 본인이 취소할 수 있다 (2026-10-01 사용자 요청)
+  const check = async (action: 'check_in' | 'check_out' | 'cancel_check_out') => {
+    if (action === 'check_out' && !window.confirm('퇴근 체크를 하시겠습니까?\n잘못 눌렀다면 오늘 안에는 옆의 [취소]로 되돌릴 수 있습니다.')) return
+    if (action === 'cancel_check_out' && !window.confirm('오늘 퇴근 체크를 취소합니다. 출근 시각은 그대로 남고 다시 퇴근 체크를 할 수 있습니다.')) return
     setBusy(true)
     const res = await fetch('/api/attendance/status', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }),
@@ -54,7 +57,11 @@ export default function CheckWidget({ wrap }: { wrap?: string } = {}) {
           </button>
         </div>
       ) : (
-        <p className="text-xs text-slate-500 px-0.5">출근 {inTime} · 퇴근 {outTime}</p>
+        <p className="text-xs text-slate-500 px-0.5 flex items-center gap-1.5">
+          <span>출근 {inTime} · 퇴근 {outTime}</span>
+          <button onClick={() => check('cancel_check_out')} disabled={busy} title="퇴근을 잘못 눌렀을 때 — 오늘만 가능"
+            className="ml-auto text-[11px] text-slate-400 hover:text-white underline underline-offset-2 disabled:opacity-50">취소</button>
+        </p>
       )}
     </div>
   )
