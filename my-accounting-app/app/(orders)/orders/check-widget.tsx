@@ -3,16 +3,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { kstTime } from '@/lib/attendance'
 
-// 주문 모드 사이드바의 출퇴근 체크 위젯 — 매일 쓰는 체크만 원클릭으로,
-// 상세(월별 기록·휴가)는 직원 관리 모드(/hr/attendance)에서.
-// 조회 실패(미연결 계정)·비대상 직원에게는 아무것도 표시하지 않는다.
+// 출퇴근 체크 위젯 — 매일 쓰는 체크만 원클릭으로, 상세(월별 기록·휴가)는 근태 · 휴가(/hr/attendance)에서.
+// 모든 영역 사이드바 상단과 업무 선택 화면에 놓인다 (2026-10-01). 어두운 배경용 스타일.
+// 조회 실패(미연결 계정)·비대상 직원에게는 아무것도 표시하지 않는다 — wrap 틀도 함께 숨긴다.
 
 interface St {
   isTarget: boolean
   record: { check_in_at: string | null; check_out_at: string | null } | null
 }
 
-export default function CheckWidget() {
+export default function CheckWidget({ wrap }: { wrap?: string } = {}) {
   const [st, setSt] = useState<St | null>(null)
   const [busy, setBusy] = useState(false)
   const [hidden, setHidden] = useState(false)
@@ -38,7 +38,7 @@ export default function CheckWidget() {
 
   const inTime = kstTime(st.record?.check_in_at ?? null)
   const outTime = kstTime(st.record?.check_out_at ?? null)
-  return (
+  const body = (
     <div className="px-3 mb-1.5">
       {!inTime ? (
         <button onClick={() => check('check_in')} disabled={busy}
@@ -58,4 +58,5 @@ export default function CheckWidget() {
       )}
     </div>
   )
+  return wrap ? <div className={wrap}>{body}</div> : body
 }

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/user-role'
 import { areasFor } from '@/lib/permissions'
 import LogoutButton from './logout-button'
+import CheckWidget from '@/app/(orders)/orders/check-widget'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +24,9 @@ export default async function PortalPage() {
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-4">
       <h1 className="text-white text-2xl font-bold">업무 선택</h1>
       <p className="text-slate-400 text-sm mt-2">{name} 님</p>
+
+      {/* 출근·퇴근 체크 — 로그인 직후 영역에 들어가지 않고도 (2026-10-01 사용자 요청). 비대상 직원에게는 비표시 */}
+      <div className="mt-6 w-64"><CheckWidget /></div>
 
       <div className="flex gap-4 mt-8 flex-wrap justify-center">
         {areas.map(a => (
