@@ -50,6 +50,8 @@
   (`can(me, group, level)`, `canApprove`, `isManagerLike`·`isHrAdmin` = 레거시 role 호환).
   `role`(sales/manager/admin)은 109 미적용 폴백용으로만 남김 — **새 코드는 role로 판정하지 말 것.**
   마스터 계정: daol825(ERP 총괄)·master(사장님). 권한 편집은 직원·계정·권한 화면(마스터만).
+  화면의 등록·수정·삭제 조작은 그룹 **수정** 권한자에게만 노출한다(API가 내려주는 `can_edit` 또는 서버 perms) —
+  차단은 미들웨어(GET 외 = 수정)가 하므로 노출 제어는 UX용. 거래처 관리 5화면은 2026-10-01 적용.
 - 로그인: login_id → `{login_id}@daol.internal` 내부 이메일로 Supabase Auth 인증 (`lib/user-role.ts`)
 - **내 정보** `/me/profile`(내 업무, 전원): 기본 정보(연락처만 본인 수정) / 계정(비밀번호 변경 = 재인증 후
   `auth.updateUser`) / 내 업무 요약. **권한 정보는 노출하지 않는다**(2026-10-01 사용자 결정). 관리자 비밀번호 재설정은

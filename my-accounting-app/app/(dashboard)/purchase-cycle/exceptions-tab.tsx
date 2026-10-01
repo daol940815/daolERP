@@ -50,7 +50,7 @@ const noteOf = (r: ExceptionRow) => r.detail.split(' · ').filter(s => !/^(ERP|�
 // 매입 사이클 — 예외 관리 (설계 v3 §4: 정상보다 예외를 먼저)
 // 상태는 저장되지 않고 조회 시 계산된다. 이 화면이 매입 담당자의 To-Do 리스트.
 // 2026-09-30 통합 7: 매입처 관리 화면의 '결제 예외' 탭 본문 (옛 /purchase-cycle). vendorId가 오면 그 매입처만.
-export default function ExceptionsTab({ vendorId, basePath }: { vendorId?: string; basePath: string }) {
+export default function ExceptionsTab({ vendorId, basePath, canEdit = true }: { vendorId?: string; basePath: string; canEdit?: boolean }) {
   const now = new Date()
   const [monthFrom, setMonthFrom] = useState(() => monthStr(new Date(now.getFullYear() - 1, now.getMonth(), 1)))
   const [monthTo, setMonthTo] = useState(() => monthStr(now))
@@ -139,10 +139,10 @@ export default function ExceptionsTab({ vendorId, basePath }: { vendorId?: strin
             상태는 저장되지 않고 조회 시점에 계산됩니다 (거래처 × 월 단위). 거래처명을 누르면 진행상태 화면으로 이동합니다.
           </p>
         </div>
-        <button onClick={runAutoMatch} disabled={autoMatching}
+        {canEdit && <button onClick={runAutoMatch} disabled={autoMatching}
           className="px-3 py-1.5 border border-blue-400 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-50 disabled:opacity-50 whitespace-nowrap">
           {autoMatching ? '매칭 중...' : '1:1 정확 매칭 일괄 실행'}
-        </button>
+        </button>}
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
@@ -248,14 +248,14 @@ export default function ExceptionsTab({ vendorId, basePath }: { vendorId?: strin
                   <td className="px-3 py-2 text-right whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5">
                       <ReviewBadge review={r.review} />
-                      {reviewsAvailable && (!r.review || r.review.stale) && (
+                      {canEdit && reviewsAvailable && (!r.review || r.review.stale) && (
                         <button onClick={() => review(r)} disabled={reviewing === `${r.vendor_id}|${r.month}|${r.status}`}
                           className="px-2 py-1 border border-gray-300 text-gray-600 rounded text-xs hover:bg-gray-100 disabled:opacity-50"
                           title="현재 금액을 스냅샷으로 기록합니다. 이후 금액이 바뀌면 자동으로 재검토 필요로 표시됩니다.">
                           확인
                         </button>
                       )}
-                      {(r.status === '지급 대기' || r.status === '과다 지급') && (
+                      {canEdit && (r.status === '지급 대기' || r.status === '과다 지급') && (
                         <button onClick={() => setModal({ vendorId: r.vendor_id, vendorName: r.vendor_name })}
                           className="px-2 py-1 bg-slate-900 text-white rounded text-xs font-medium hover:bg-slate-700">
                           지급 후보

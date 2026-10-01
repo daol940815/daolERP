@@ -247,8 +247,8 @@ export default function SalesHubDetailPage() {
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <div className="flex items-center justify-between">
             <div className="text-sm font-bold text-gray-800">자사 담당직원 <span className="text-gray-400 font-normal">· {data.staff.length}명</span></div>
-            <button onClick={() => setStaffForm(f => ({ ...f, open: !f.open }))}
-              className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">담당 추가</button>
+            {canEdit && <button onClick={() => setStaffForm(f => ({ ...f, open: !f.open }))}
+              className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">담당 추가</button>}
           </div>
           {data.staff.map(s => (
             <div key={s.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
@@ -259,14 +259,14 @@ export default function SalesHubDetailPage() {
               </div>
               <div className="text-right text-[11px] text-gray-500">
                 담당처 {s.vendor_count}곳
-                <div className="mt-0.5 flex gap-1 justify-end">
+                {canEdit && <div className="mt-0.5 flex gap-1 justify-end">
                   {!s.is_primary && (
                     <button onClick={async () => { await post('/api/vendor-hub/staff', { action: 'set_primary', assignment_id: s.id }); load() }}
                       className="px-1.5 py-0.5 border border-gray-200 rounded text-[10px] hover:bg-gray-50">주담당으로</button>
                   )}
                   <button onClick={async () => { await post('/api/vendor-hub/staff', { action: 'unassign', assignment_id: s.id }); load() }}
                     className="px-1.5 py-0.5 border border-gray-200 rounded text-[10px] text-red-500 hover:bg-red-50">해제</button>
-                </div>
+                </div>}
               </div>
             </div>
           ))}
@@ -317,8 +317,8 @@ export default function SalesHubDetailPage() {
                 · 활성 {data.contacts.filter(c => !c.ended_at).length}명 · 이전 {data.contacts.filter(c => c.ended_at).length}명
               </span>
             </div>
-            <button onClick={() => setContactForm(f => ({ ...f, open: !f.open }))}
-              className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">담당자 추가</button>
+            {canEdit && <button onClick={() => setContactForm(f => ({ ...f, open: !f.open }))}
+              className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">담당자 추가</button>}
           </div>
           {data.contacts.map(c => (
             <div key={c.assignment_id} className={`flex items-start justify-between py-2 border-b border-gray-50 last:border-0 ${c.ended_at ? 'opacity-50' : ''}`}>
@@ -331,7 +331,7 @@ export default function SalesHubDetailPage() {
               </div>
               <div className="text-right text-[11px] text-gray-500 whitespace-nowrap">
                 {c.ended_at ? `종료 ${c.ended_at}` : `배정 ${c.started_at ?? '-'}`}
-                {!c.ended_at && (
+                {!c.ended_at && canEdit && (
                   <div className="mt-0.5 flex gap-1 justify-end">
                     {!c.is_representative && (
                       <button onClick={async () => { await post('/api/vendor-hub/contacts', { action: 'set_representative', assignment_id: c.assignment_id }); load() }}
@@ -641,11 +641,11 @@ export default function SalesHubDetailPage() {
           <div className="bg-white border border-gray-200 rounded-xl p-4 max-w-2xl">
             <div className="text-sm font-bold text-gray-800 mb-2">활동 메모</div>
             <textarea value={note} onChange={e => setNote(e.target.value)} rows={6}
-              placeholder="수금 협의, 방문 기록 등 이 거래처 관련 메모"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-            <div className="flex justify-end mt-2">
+              placeholder="수금 협의, 방문 기록 등 이 거래처 관련 메모" readOnly={!canEdit}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm read-only:bg-gray-50" />
+            {canEdit && <div className="flex justify-end mt-2">
               <button onClick={saveNote} className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">저장</button>
-            </div>
+            </div>}
           </div>
         )}
       </div>
