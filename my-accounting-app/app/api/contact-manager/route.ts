@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { buildContactManagerBundle } from '@/lib/contact-manager'
+import { getCurrentUser } from '@/lib/user-role'
+import { can } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +21,9 @@ export async function GET(req: NextRequest) {
   }
   const bundle = await buildContactManagerBundle(admin)
   if ('error' in bundle) return NextResponse.json({ error: bundle.error }, { status: 500 })
-  return NextResponse.json(bundle)
+  // can_edit = 거래처 관리 수정 권한 (등록·배정·연결 버튼 노출용 — 차단은 미들웨어)
+  const me = await getCurrentUser()
+  return NextResponse.json({ ...bundle, can_edit: !!me && can(me, 'customers', 'edit') })
 }
 
 // POST /api/contact-manager — 담당자 관리 액션 모음
