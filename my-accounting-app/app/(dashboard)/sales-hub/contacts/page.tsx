@@ -37,6 +37,7 @@ interface Bundle {
   kpi: { total: number; gap_vendors: number; unmatched: number; attention90: number; attention180: number; recent_moves: number }
   contacts: ContactRow[]; gaps: GapRow[]; unmatched: UnmatchedRow[]
   staff_options: string[]; migration105: boolean
+  can_edit?: boolean   // 거래처 관리 수정 권한 — 등록·배정·연결 버튼 노출 (2026-10-01)
 }
 
 const STATUS_META: Record<ContactStatus, { text: string; cls: string }> = {
@@ -69,6 +70,7 @@ export default function ContactManagerPage() {
   const [busy, setBusy] = useState(false)
 
   const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 6000) }
+  const canEdit = !!bundle?.can_edit
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -170,7 +172,7 @@ export default function ContactManagerPage() {
             고객(거래처 담당자) 중심 관리 — 커넥션·매출·상태는 주문에서 자동 집계
           </p>
         </div>
-        <button
+        {canEdit && <button
           onClick={async () => {
             const name = window.prompt('등록할 담당자 이름 (예: 김수영)')
             if (!name?.trim()) return
@@ -179,7 +181,7 @@ export default function ContactManagerPage() {
           }}
           className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700">
           담당자 등록
-        </button>
+        </button>}
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
@@ -410,10 +412,10 @@ export default function ContactManagerPage() {
                     </td>
                     <td className="py-2 px-3 whitespace-nowrap text-xs text-gray-600">{g.staff_names.slice(0, 2).join(' · ') || '-'}</td>
                     <td className="py-2 px-3 text-right whitespace-nowrap">
-                      <button onClick={() => setGapForm(gapForm?.vendor_id === g.vendor_id ? null : { vendor_id: g.vendor_id, q: '' })}
+                      {canEdit && <button onClick={() => setGapForm(gapForm?.vendor_id === g.vendor_id ? null : { vendor_id: g.vendor_id, q: '' })}
                         className="px-2 py-1 text-xs border border-slate-300 text-slate-700 rounded hover:bg-slate-50">
                         {g.never_assigned ? '담당자 등록' : '후임 지정'}
-                      </button>
+                      </button>}
                     </td>
                   </tr>,
                   gapForm?.vendor_id === g.vendor_id && (
@@ -484,7 +486,7 @@ export default function ContactManagerPage() {
                       {u.candidates.length ? (
                         <div className="flex flex-wrap gap-1">
                           {u.candidates.map(c => (
-                            <button key={c.contact_id} disabled={busy}
+                            <button key={c.contact_id} disabled={busy || !canEdit}
                               onClick={() => post({ action: 'link_name', vendor_id: u.vendor_id, raw_name: u.raw_name, contact_id: c.contact_id },
                                 `"${u.raw_name}" → ${c.name} 연결 완료`)}
                               className={`px-2 py-0.5 text-[11px] rounded-full border ${
@@ -499,7 +501,7 @@ export default function ContactManagerPage() {
                       ) : <span className="text-xs text-gray-400">후보 없음</span>}
                     </td>
                     <td className="py-2 px-3 text-right whitespace-nowrap">
-                      <button disabled={busy}
+                      {canEdit && <><button disabled={busy}
                         onClick={() => {
                           const name = window.prompt('신규 인물 이름 (직함 제외)', u.raw_name.replace(/님$/, '').split(/\s+/)[0])
                           if (!name?.trim()) return
@@ -516,7 +518,7 @@ export default function ContactManagerPage() {
                           `"${u.raw_name}" 무시 처리 (공란 취급)`)}
                         className="px-2 py-1 text-xs border border-gray-300 text-gray-500 rounded hover:bg-gray-50">
                         무시
-                      </button>
+                      </button></>}
                     </td>
                   </tr>
                 ))}
