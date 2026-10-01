@@ -39,6 +39,7 @@ export const MENU: MenuGroup[] = [
   // ── 영업 · 주문 ─────────────────────────────────────
   { key: 'my', area: 'all', label: '내 업무', items: [
     { label: '내 대시보드', href: '/me', exact: true },
+    { label: '내 정보', href: '/me/profile' },   // 기본 정보 / 계정(비밀번호) / 내 업무 요약 (2026-10-01)
     { label: '내 고객', href: '/sales-hub?mine=1', prefix: '/sales-hub?mine', requires: 'customers' },
     { label: '영업일지', href: '/me/journal' },
     { label: '업무일지', href: '/me/worklog' },
