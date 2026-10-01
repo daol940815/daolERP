@@ -164,12 +164,29 @@ export default function SalesHubPage() {
               : 'ERP 주문 기준 매출·수금·미수와 담당을 매출처 단위로 봅니다. 행 클릭 시 거래처 360° 상세로 이동합니다.'}
           </p>
         </div>
-        {canEdit && !mine && (
-          <button onClick={() => setAddForm(f => ({ ...f, open: true, msg: null }))}
-            className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">
-            매출처 등록
+        <div className="flex items-center gap-2">
+          <button onClick={() => {
+            const p = new URLSearchParams({ from, to })
+            if (mine) p.set('mine', '1')
+            if (search.trim()) p.set('q', search.trim())
+            if (staffFilter) p.set('staff', staffFilter)
+            if (statusFilter) p.set('status', statusFilter)
+            if (vipOnly) p.set('vip', '1')
+            if (outstandingOnly) p.set('outstanding', '1')
+            if (showInactive) p.set('inactive', '1')
+            if (catFilter) p.set('cat', catFilter)
+            const a = document.createElement('a'); a.href = `/api/vendor-hub/export?${p}`; a.click()
+          }}
+            className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
+            ↓ 엑셀
           </button>
-        )}
+          {canEdit && !mine && (
+            <button onClick={() => setAddForm(f => ({ ...f, open: true, msg: null }))}
+              className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 whitespace-nowrap">
+              매출처 등록
+            </button>
+          )}
+        </div>
       </div>
 
       {addForm.open && (
@@ -317,6 +334,7 @@ export default function SalesHubPage() {
                 <th className="py-2 px-3 text-right font-medium">미수잔액</th>
                 <th className="py-2 px-3 text-left font-medium">최근 주문</th>
                 <th className="py-2 px-3 text-left font-medium">상태</th>
+                {canEdit && <th className="py-2 px-3 text-left font-medium">관리</th>}
               </tr>
             </thead>
             <tbody>
@@ -373,11 +391,43 @@ export default function SalesHubPage() {
                     <td className="py-2 px-3">
                       <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${meta.cls}`}>{meta.label}</span>
                     </td>
+                    {canEdit && (
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        {r.is_active === false ? (
+                          <button onClick={async () => {
+                            const res = await fetch(`/api/vendor-hub/${r.vendor_id}`, {
+                              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ is_active: true }),
+                            })
+                            if (res.ok) load(from, to)
+                          }}
+                            className="px-2 py-0.5 border border-emerald-200 text-emerald-700 rounded text-[11px] hover:bg-emerald-50">재활성</button>
+                        ) : (
+                          <button onClick={async () => {
+                            if (!confirm(`'${r.vendor_name}' 매출처를 삭제할까요?\n연결된 데이터가 있으면 삭제 대신 비활성 처리를 안내합니다.`)) return
+                            const res = await fetch(`/api/vendor-hub/${r.vendor_id}`, { method: 'DELETE' })
+                            const json = await res.json().catch(() => ({}))
+                            if (res.ok) { load(from, to); return }
+                            if (res.status === 409) {
+                              const summary = Object.entries(json.linked ?? {}).map(([k, v]) => `${k} ${v}건`).join(' · ')
+                              if (confirm(`연결된 데이터가 있어 삭제할 수 없습니다 (${summary}).\n대신 비활성 처리할까요? 이력·회계 연결은 보존됩니다.`)) {
+                                const r2 = await fetch(`/api/vendor-hub/${r.vendor_id}`, {
+                                  method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ is_active: false }),
+                                })
+                                if (r2.ok) load(from, to)
+                              }
+                            } else alert(json.error ?? '삭제 실패')
+                          }}
+                            className="px-2 py-0.5 border border-red-200 text-red-600 rounded text-[11px] hover:bg-red-50">삭제</button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 )
               })}
               {!visible.length && (
-                <tr><td colSpan={kpiFlags ? 10 : 9} className="text-center py-14 text-gray-400 text-sm">조건에 맞는 매출처가 없습니다.</td></tr>
+                <tr><td colSpan={(kpiFlags ? 10 : 9) + (canEdit ? 1 : 0)} className="text-center py-14 text-gray-400 text-sm">조건에 맞는 매출처가 없습니다.</td></tr>
               )}
             </tbody>
           </table>
