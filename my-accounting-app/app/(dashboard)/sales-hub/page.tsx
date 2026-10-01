@@ -15,6 +15,7 @@ interface Row {
   vendor_id: string
   vendor_name: string
   biz_number: string | null
+  is_active: boolean
   alias_names: string[]
   alias_count: number
   card_count: number
@@ -64,6 +65,7 @@ export default function SalesHubPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [vipOnly, setVipOnly] = useState(false)
   const [outstandingOnly, setOutstandingOnly] = useState(false)
+  const [showInactive, setShowInactive] = useState(false)   // 비활성 거래처는 기본 숨김
 
   // 고객관리 집계 (108 RPC) — 기간 필터와 독립, 기준연도 자동
   const [kpiFlags, setKpiFlags] = useState<KpiFlags | null>(null)
@@ -126,12 +128,13 @@ export default function SalesHubPage() {
     if (statusFilter && r.status !== statusFilter) return false
     if (vipOnly && r.vip_total <= 0) return false
     if (outstandingOnly && r.outstanding <= 0) return false
+    if (!showInactive && r.is_active === false) return false
     if (catFilter) {
       const f = vendorFlagMap.get(r.vendor_id)
       if (!f || !matchCategory(f, catFilter)) return false
     }
     return true
-  }), [rows, search, staffFilter, statusFilter, vipOnly, outstandingOnly, catFilter, vendorFlagMap])
+  }), [rows, search, staffFilter, statusFilter, vipOnly, outstandingOnly, showInactive, catFilter, vendorFlagMap])
 
   const filterActive = !!(search || staffFilter || statusFilter || vipOnly || outstandingOnly || catFilter)
 
@@ -256,6 +259,9 @@ export default function SalesHubPage() {
         <label className="text-xs text-gray-600 flex items-center gap-1">
           <input type="checkbox" checked={outstandingOnly} onChange={e => setOutstandingOnly(e.target.checked)} /> 미수 있는 곳만
         </label>
+        <label className="text-xs text-gray-600 flex items-center gap-1">
+          <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} /> 비활성 포함
+        </label>
       </div>
 
       {/* KPI — 필터 적용된 목록 기준으로 집계 */}
@@ -321,7 +327,10 @@ export default function SalesHubPage() {
                   <tr key={r.vendor_id} className="border-b border-gray-50 hover:bg-blue-50/40">
                     <td className="py-2 px-3">
                       <Link href={`/sales-hub/${r.vendor_id}?from=${from}&to=${to}`} className="block">
-                        <div className="font-semibold text-gray-900">{r.vendor_name}</div>
+                        <div className="font-semibold text-gray-900">
+                          {r.vendor_name}
+                          {r.is_active === false && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-200 text-gray-600 align-middle">비활성</span>}
+                        </div>
                         <div className="text-[11px] text-gray-400">
                           별칭 {r.alias_count} · 카드 {r.card_count || '-'}{r.vip_total > 0 ? ` · VIP 누적 ${eok(r.vip_total)}` : ''}
                         </div>
