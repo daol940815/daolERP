@@ -15,6 +15,7 @@ export interface Product {
   sale_price: number; individual_sale_price: number; purchase_price: number
   carton_unit: number | null; carton_shipping_fee: number; loose_shipping_fee: number
   is_addon: boolean; is_active: boolean; is_soldout?: boolean; is_shipping?: boolean
+  status_note?: string | null   // 원가표 상태 메모 원문 (512)
 }
 
 export interface ItemDraft {
@@ -160,7 +161,8 @@ export function draftFromProduct(p: Product, base: ItemDraft): Partial<ItemDraft
     purchase_vendor_name: p.purchase_vendor_name ?? '',
     sale_price: p.sale_price,
     purchase_price: p.purchase_price,
-    status: p.is_soldout ? '품절' : '',   // 마스터 품절 자동표기 (수정 가능)
+    // 마스터 상태 자동표기 (수정 가능) — 원가표 메모 첫 줄 우선, 없으면 품절 플래그
+    status: (p.status_note ?? '').split('\n')[0].trim() || (p.is_soldout ? '품절' : ''),
     is_shipping: !!p.is_shipping,
     ...master,
     ...priceRule({ ...base, ...master }, base.quantity || 1),
@@ -174,7 +176,7 @@ export function draftFromProduct(p: Product, base: ItemDraft): Partial<ItemDraft
 export function Combo({ value, display, options, onSelect, placeholder, required, footer }: {
   value: string | null
   display: string
-  options: { id: string; label: string; sub?: string; soldout?: boolean }[]
+  options: { id: string; label: string; sub?: string; soldout?: boolean; note?: string }[]
   onSelect: (id: string | null) => void
   placeholder: string
   required?: boolean
@@ -224,6 +226,8 @@ export function Combo({ value, display, options, onSelect, placeholder, required
               {o.soldout && (
                 <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-600 align-middle">품절</span>
               )}
+              {/* 원가표 상태 메모 (512) — '블랙 품절'·'단가인상' 등 실무 참고 */}
+              {o.note && <span className="text-[10px] text-amber-600 ml-1.5">{o.note}</span>}
               {o.sub && <span className="text-xs text-gray-400 ml-1.5">{o.sub}</span>}
             </button>
           ))}

@@ -723,6 +723,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                           label: [p.item_code, p.item_name].filter(Boolean).join(' · '),
                           sub: [p.category, p.purchase_vendor_name].filter(Boolean).join(' · '),
                           soldout: !!p.is_soldout,
+                          note: p.status_note ?? undefined,
                         }))}
                         onSelect={id => pickProduct(i, id)}
                         placeholder="품번·품명 검색"

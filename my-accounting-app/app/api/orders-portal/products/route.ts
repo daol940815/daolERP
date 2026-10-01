@@ -26,8 +26,9 @@ export async function GET() {
       .select([BASE_COLS, ...extra].join(', '))
       .order('item_name').range(from, to) as unknown as PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>,
   )
-  // is_soldout(509)·is_shipping(703)은 미적용 환경이면 컬럼 없이 재조회 (조회는 계속 동작)
-  let result = await load(['is_soldout', 'is_shipping'])
+  // is_soldout(509)·is_shipping(703)·status_note(512)는 미적용 환경이면 컬럼 없이 재조회
+  let result = await load(['is_soldout', 'is_shipping', 'status_note'])
+  if ('error' in result && /status_note/i.test(result.error)) result = await load(['is_soldout', 'is_shipping'])
   if ('error' in result && /is_shipping/i.test(result.error)) result = await load(['is_soldout'])
   if ('error' in result && /is_soldout/i.test(result.error)) result = await load([])
   if ('error' in result) {

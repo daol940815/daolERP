@@ -12,6 +12,7 @@ interface Product {
   sale_price: number; individual_sale_price: number; purchase_price: number
   carton_unit: number | null; carton_shipping_fee: number; loose_shipping_fee: number
   is_addon: boolean; is_active: boolean; is_soldout?: boolean; is_shipping?: boolean
+  status_note?: string | null
   memo: string | null; updated_at: string
 }
 
@@ -112,8 +113,10 @@ export default function ProductsPage() {
     const json = await res.json()
     if (!res.ok) setError(json.error ?? '업로드 실패')
     else {
-      setNotice(`업로드 완료 — 신규 ${json.created}건 · 갱신 ${json.updated}건 · 건너뜀 ${json.skipped}건`
-        + (json.status_changed ? ` · 품절·상태 반영 ${json.status_changed}건` : ''))
+      setNotice(`업로드 완료 — 신규 ${json.created}건 · 갱신 ${json.updated}건 · 변경 없음 ${json.unchanged ?? 0}건 · 건너뜀 ${json.skipped}건`
+        + (json.status_marked ? ` · 상태 표기 ${json.status_marked}건` : '')
+        + (json.vendor_updated ? ` · 매입처 정보 갱신 ${json.vendor_updated}곳` : '')
+        + (json.vendor_unlinked ? ` · 매입처 미연결 ${json.vendor_unlinked}곳(정보 미반영)` : ''))
       await load()
     }
     setUploading(false)
@@ -291,6 +294,10 @@ export default function ProductsPage() {
                     )}
                     {p.is_soldout && (
                       <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-600">품절</span>
+                    )}
+                    {/* 원가표 상태 메모 (512) — 원문 그대로 표시 */}
+                    {p.status_note && (
+                      <span className="ml-1.5 text-[10px] text-amber-600 whitespace-pre-line align-middle">{p.status_note}</span>
                     )}
                   </td>
                   <td className="py-1.5 px-3 text-xs whitespace-nowrap">{p.category ?? '-'}</td>
