@@ -169,11 +169,10 @@ function AccountTab({ p }: { p: Profile }) {
     <div className="grid gap-4 lg:grid-cols-2">
       <Card title="로그인 계정">
         <dl>
-          <Row k="로그인 ID">{p.account.login_id ?? <span className="text-gray-400">{p.account.email ?? '-'}</span>}<span className="text-xs text-gray-400 ml-2">변경은 인사 · 총무</span></Row>
+          <Row k="로그인 ID">{p.account.login_id ?? <span className="text-gray-400">{p.account.email ?? '-'}</span>}</Row>
           <Row k="계정 상태"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${p.employee?.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{p.employee?.is_active ? '정상' : '비활성'}</span></Row>
           <Row k="마지막 로그인">{fmtDT(p.account.last_sign_in_at)}</Row>
         </dl>
-        <p className="text-xs text-gray-400 mt-4">로그인은 브라우저를 닫으면 풀립니다(회사 정책). 아이디만 기억하고 비밀번호는 저장하지 않습니다.</p>
       </Card>
       <Card title="비밀번호 변경"><PasswordForm /></Card>
     </div>
@@ -232,7 +231,6 @@ export function PasswordForm() {
       <label className="block"><span className="text-xs font-medium text-gray-600">새 비밀번호 확인</span>
         <input type="password" autoComplete="new-password" value={confirm} onChange={e => setConfirm(e.target.value)} required minLength={MIN_LEN} className={`${inputCls} mt-1`} /></label>
       <button type="submit" disabled={busy} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">{busy ? '변경 중...' : '비밀번호 변경'}</button>
-      <p className="text-xs text-gray-400">현재 비밀번호로 본인 확인 후 변경됩니다. 잊었으면 인사 · 총무 담당자(직원 · 계정 · 권한 화면)에게 재설정을 요청하세요.</p>
     </form>
   )
 }
