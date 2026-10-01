@@ -8,7 +8,6 @@ export default function MyProfilePage({ searchParams }: { searchParams: { tab?: 
   return (
     <div className="max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900">내 정보</h1>
-      <p className="text-sm mt-1 text-gray-500">본인 정보와 계정, 내 업무 현황을 한곳에서 봅니다. 연락처와 비밀번호만 직접 바꿀 수 있습니다.</p>
       <PageTabs className="mt-3 mb-4" active={tab} tabs={[
         { key: 'basic', label: '기본 정보', href: '/me/profile' },
         { key: 'account', label: '계정', href: '/me/profile?tab=account' },
