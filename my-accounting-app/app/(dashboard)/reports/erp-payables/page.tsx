@@ -204,7 +204,7 @@ export default function ErpPayablesPage() {
   const totalUnpaid   = filtered.filter(r => r.status === 'unpaid').reduce((s, r) => s + r.purchase_total, 0)
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="w-full">
       <div className="mb-1 flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">ERP 매입처별 결제현황</h1>

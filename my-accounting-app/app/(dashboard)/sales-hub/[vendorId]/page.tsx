@@ -1,9 +1,10 @@
 'use client'
 
+import PeriodPresets from '@/components/ui/PeriodPresets'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useParams, useSearchParams } from 'next/navigation'
-import { getPeriodRange, DEFAULT_VIEW_FROM } from '@/lib/period-presets'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { getPeriodRange } from '@/lib/period-presets'
 import { ORDER_DELIVERY_STATUS_LABEL } from '@/lib/erp-delivery-status'
 import type { HubDetail } from '@/lib/vendor-hub'
 import { contactLabel } from '@/lib/contact-label'
@@ -36,9 +37,8 @@ export default function SalesHubDetailPage() {
   const sp = useSearchParams()
   const vendorId = params.vendorId
 
-  const [from, setFrom] = useState(sp.get('from') ?? DEFAULT_VIEW_FROM)
-  const [to, setTo] = useState(sp.get('to') ?? new Date().toISOString().slice(0, 10))
-  const [preset, setPreset] = useState('')
+  const [from, setFrom] = useState(sp.get('from') ?? getPeriodRange('당년').from)   // 관리·분석 기본 = 당년
+  const [to, setTo] = useState(sp.get('to') ?? getPeriodRange('당년').to)
   const [data, setData] = useState<HubDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -53,13 +53,18 @@ export default function SalesHubDetailPage() {
   const [candidates, setCandidates] = useState<Candidate[] | null>(null)
   const [note, setNote] = useState('')
 
+  // 기본정보 편집 (고객·영업 수정 권한자만 — 노출은 can_edit, 차단은 미들웨어)
+  const router = useRouter()
+  const [canEdit, setCanEdit] = useState(false)
+  const [infoForm, setInfoForm] = useState<{ open: boolean; name: string; biz: string; busy: boolean }>({ open: false, name: '', biz: '', busy: false })
+
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
       const res = await fetch(`/api/vendor-hub/${vendorId}?from=${from}&to=${to}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? '조회 실패')
-      setData(json); setNote(json.vendor.note ?? '')
+      setData(json); setNote(json.vendor.note ?? ''); setCanEdit(!!json.can_edit)
     } catch (e) {
       setError(e instanceof Error ? e.message : '조회 실패')
     } finally { setLoading(false) }
@@ -70,12 +75,6 @@ export default function SalesHubDetailPage() {
     fetch('/api/vendor-hub/staff').then(r => r.json()).then(j => setEmployees(j.employees ?? [])).catch(() => {})
   }, [])
 
-  const applyPreset = (p: string) => {
-    setPreset(p)
-    if (p === '전체 기간') { setFrom('2024-01-01'); setTo(new Date().toISOString().slice(0, 10)); return }
-    const r = getPeriodRange(p)
-    setFrom(r.from); setTo(r.to)
-  }
 
   const post = async (url: string, body: Record<string, unknown>) => {
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -121,9 +120,9 @@ export default function SalesHubDetailPage() {
   // 계산서 딥링크용 tax_type 맵 + 타임라인 이벤트별 원본 화면 링크
   const invTaxType = useMemo(() => new Map((data?.invoices ?? []).map(i => [i.id, i.tax_type ?? 'taxable'])), [data])
   const tlHref = useCallback((e: { kind: string; ref_id: string | null }): string | null => {
-    if (e.kind === 'invoice' && e.ref_id) return `/tax-invoices/sales/${invTaxType.get(e.ref_id) ?? 'taxable'}?invoiceId=${e.ref_id}`
+    if (e.kind === 'invoice' && e.ref_id) return `/tax-invoices?dir=sales&tax=${invTaxType.get(e.ref_id) ?? 'taxable'}&invoiceId=${e.ref_id}`
     if (e.kind === 'bank') return `/transactions?vendorId=${vendorId}`
-    if (e.kind === 'card') return e.ref_id ? `/card-sales?q=${encodeURIComponent(e.ref_id)}` : '/card-sales'
+    if (e.kind === 'card') return e.ref_id ? `/cards?q=${encodeURIComponent(e.ref_id)}` : '/cards'
     if (e.kind === 'alloc' && e.ref_id) return null
     return null
   }, [invTaxType, vendorId])
@@ -143,16 +142,11 @@ export default function SalesHubDetailPage() {
       </div>
 
       {/* 상세 기간 (목록 기간이 기본값, 독립 변경) */}
-      <div className="flex items-center gap-1.5 flex-wrap mt-2">
-        {['당월', '1분기', '2분기', '상반기', '당년', '전체 기간'].map(p => (
-          <button key={p} onClick={() => applyPreset(p)}
-            className={`px-2.5 py-1 rounded-full text-xs border ${preset === p ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
-            {p}
-          </button>
-        ))}
-        <input type="date" value={from} onChange={e => { setPreset(''); setFrom(e.target.value) }} className="border border-gray-300 rounded px-2 py-1 text-xs" />
+      <PeriodPresets from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} className="mb-2" />
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-xs" />
         <span className="text-gray-400 text-xs">~</span>
-        <input type="date" value={to} onChange={e => { setPreset(''); setTo(e.target.value) }} className="border border-gray-300 rounded px-2 py-1 text-xs" />
+        <input type="date" value={to} onChange={e => setTo(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-xs" />
         <span className="text-[11px] text-gray-400 ml-2">여기서 바꿔도 목록의 기간은 유지됩니다</span>
       </div>
 
@@ -162,19 +156,79 @@ export default function SalesHubDetailPage() {
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-gray-900">{data.vendor.name}</h1>
             <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${meta.cls}`}>{meta.label}</span>
+            {!data.vendor.is_active && (
+              <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-gray-200 text-gray-600">비활성</span>
+            )}
+            {canEdit && (
+              <span className="flex items-center gap-1 ml-1">
+                <button onClick={() => setInfoForm({ open: !infoForm.open, name: data.vendor.name, biz: data.vendor.biz_number ?? '', busy: false })}
+                  className="px-2 py-0.5 border border-gray-300 rounded text-[11px] text-gray-600 hover:bg-gray-50">정보 수정</button>
+                {data.vendor.is_active ? (
+                  <button onClick={async () => {
+                    if (!confirm(`'${data.vendor.name}' 매출처를 삭제할까요?\n연결된 데이터가 있으면 삭제 대신 비활성 처리를 안내합니다.`)) return
+                    const res = await fetch(`/api/vendor-hub/${vendorId}`, { method: 'DELETE' })
+                    const json = await res.json()
+                    if (res.ok) { flash('삭제되었습니다.'); router.push('/sales-hub'); return }
+                    if (res.status === 409) {
+                      const summary = Object.entries(json.linked ?? {}).map(([k, v]) => `${k} ${v}건`).join(' · ')
+                      if (confirm(`연결된 데이터가 있어 삭제할 수 없습니다 (${summary}).\n대신 비활성 처리할까요? 이력·회계 연결은 보존됩니다.`)) {
+                        const r2 = await fetch(`/api/vendor-hub/${vendorId}`, {
+                          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ is_active: false }),
+                        })
+                        flash(r2.ok ? '비활성 처리되었습니다.' : '비활성 처리 실패'); if (r2.ok) load()
+                      }
+                    } else flash(json.error ?? '삭제 실패')
+                  }}
+                    className="px-2 py-0.5 border border-red-200 text-red-600 rounded text-[11px] hover:bg-red-50">삭제</button>
+                ) : (
+                  <button onClick={async () => {
+                    const r = await fetch(`/api/vendor-hub/${vendorId}`, {
+                      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ is_active: true }),
+                    })
+                    flash(r.ok ? '재활성되었습니다.' : '실패'); if (r.ok) load()
+                  }}
+                    className="px-2 py-0.5 border border-emerald-200 text-emerald-700 rounded text-[11px] hover:bg-emerald-50">재활성</button>
+                )}
+              </span>
+            )}
           </div>
+          {infoForm.open && (
+            <div className="mt-2 flex items-center gap-2 flex-wrap border border-blue-200 bg-blue-50/40 rounded-lg px-3 py-2">
+              <input value={infoForm.name} onChange={e => setInfoForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="매출처명" className="border border-gray-300 rounded px-2 py-1 text-sm w-64" />
+              <input value={infoForm.biz} onChange={e => setInfoForm(f => ({ ...f, biz: e.target.value }))}
+                placeholder="사업자번호 (선택)" className="border border-gray-300 rounded px-2 py-1 text-sm w-40" />
+              <button disabled={infoForm.busy} onClick={async () => {
+                if (!infoForm.name.trim()) { flash('매출처명을 입력하세요.'); return }
+                setInfoForm(f => ({ ...f, busy: true }))
+                const res = await fetch(`/api/vendor-hub/${vendorId}`, {
+                  method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ name: infoForm.name.trim(), biz_number: infoForm.biz.trim() || null }),
+                })
+                const json = await res.json().catch(() => ({}))
+                setInfoForm(f => ({ ...f, busy: false }))
+                if (res.ok) { setInfoForm(f => ({ ...f, open: false })); flash('저장되었습니다. 이름 변경 시 옛 이름은 별칭으로 보존됩니다.'); load() }
+                else flash(json.error ?? '저장 실패')
+              }}
+                className="px-3 py-1 bg-slate-900 text-white rounded text-xs font-medium disabled:opacity-50">저장</button>
+              <button onClick={() => setInfoForm(f => ({ ...f, open: false }))}
+                className="px-3 py-1 border border-gray-300 rounded text-xs text-gray-600">취소</button>
+            </div>
+          )}
           <div className="flex gap-1.5 flex-wrap mt-2">
             <Link href={`/erp-aliases?type=customer&q=${encodeURIComponent(data.vendor.name)}`}
               title="매출처 연결 키워드에서 별칭 관리"
               className={`px-2 py-0.5 rounded-full text-[11px] border hover:underline ${data.links.alias_count ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               ERP 별칭 {data.links.alias_count || '미'}연동
             </Link>
-            <Link href={data.links.card_count ? `/card-sales?q=${encodeURIComponent(data.vendor.name)}` : '/card-sales/customer-links'}
+            <Link href={data.links.card_count ? `/cards?q=${encodeURIComponent(data.vendor.name)}` : '/card-sales/customer-links'}
               title={data.links.card_count ? '이 거래처의 카드매출 내역 보기' : '카드번호 연결 도구로 이동'}
               className={`px-2 py-0.5 rounded-full text-[11px] border hover:underline ${data.links.card_count ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               카드번호 {data.links.card_count ? `${data.links.card_count}건` : '미연동'}
             </Link>
-            <Link href={`/vendor-opening-balances?q=${encodeURIComponent(data.vendor.name)}`}
+            <Link href={`/opening-balances?tab=vendor&q=${encodeURIComponent(data.vendor.name)}`}
               title="기초잔액 입력 화면으로 이동"
               className={`px-2 py-0.5 rounded-full text-[11px] border hover:underline ${data.links.has_opening ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               기초잔액 {data.links.has_opening ? '입력됨' : '미입력'}
@@ -515,7 +569,7 @@ export default function SalesHubDetailPage() {
                 {data.invoices.map(inv => (
                   <tr key={inv.id} className="border-b border-gray-50">
                     <td className="py-1.5 px-3 tabular-nums">
-                      <Link href={`/tax-invoices/sales/${inv.tax_type ?? 'taxable'}?invoiceId=${inv.id}`}
+                      <Link href={`/tax-invoices?dir=sales&tax=${inv.tax_type ?? 'taxable'}&invoiceId=${inv.id}`}
                         className="text-blue-600 hover:underline" title="계산서 화면에서 열기">{inv.issue_date}</Link>
                     </td>
                     <td className="py-1.5 px-3 text-right tabular-nums">{won(inv.total_amount)}</td>

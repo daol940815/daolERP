@@ -14,7 +14,7 @@ export interface Product {
   purchase_vendor_name: string | null; category: string | null
   sale_price: number; individual_sale_price: number; purchase_price: number
   carton_unit: number | null; carton_shipping_fee: number; loose_shipping_fee: number
-  is_addon: boolean; is_active: boolean; is_soldout?: boolean
+  is_addon: boolean; is_active: boolean; is_soldout?: boolean; is_shipping?: boolean
 }
 
 export interface ItemDraft {
@@ -153,7 +153,7 @@ export function draftFromProduct(p: Product, base: ItemDraft): Partial<ItemDraft
     carton_shipping_fee: p.carton_shipping_fee ?? 0,
     loose_shipping_fee: p.loose_shipping_fee ?? 0,
   }
-  return {
+  const draft: Partial<ItemDraft> = {
     product_id: p.id,
     item_code: p.item_code ?? '',
     item_name: p.item_name,
@@ -161,9 +161,13 @@ export function draftFromProduct(p: Product, base: ItemDraft): Partial<ItemDraft
     sale_price: p.sale_price,
     purchase_price: p.purchase_price,
     status: p.is_soldout ? '품절' : '',   // 마스터 품절 자동표기 (수정 가능)
+    is_shipping: !!p.is_shipping,
     ...master,
     ...priceRule({ ...base, ...master }, base.quantity || 1),
   }
+  // 배송비 품목(703): 판매가 0 기본 — 배송비는 판매가에 녹이는 경우가 대부분 (수정 가능)
+  if (p.is_shipping) draft.sale_price = 0
+  return draft
 }
 
 // ── 자동완성 콤보 (마스터 선택 전용 — 목록에 없는 값은 확정 불가) ──

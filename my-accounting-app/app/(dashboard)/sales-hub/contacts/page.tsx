@@ -7,6 +7,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { contactLabel } from '@/lib/contact-label'
+import CustomerKpiTiles, { matchCategory, OTYPE_META } from '../_components/CustomerKpiTiles'
+import type { ContactFlag, KpiCategory, KpiFlags } from '../_components/CustomerKpiTiles'
 
 const won = (n: number) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 const norm = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, '').toLowerCase()
@@ -91,21 +93,41 @@ export default function ContactManagerPage() {
     return true
   }
 
+  // 고객관리 집계 (108 RPC) — 타일 클릭 = 담당자 목록 필터
+  const [kpiFlags, setKpiFlags] = useState<KpiFlags | null>(null)
+  const [catFilter, setCatFilter] = useState<KpiCategory | null>(null)
+  useEffect(() => {
+    fetch('/api/vendor-hub/customer-kpi')
+      .then(r => r.json())
+      .then(j => { if (j.available) setKpiFlags(j) })
+      .catch(() => {})
+  }, [])
+  useEffect(() => { setPage(1) }, [catFilter])
+  const contactFlagMap = useMemo(() => {
+    const m = new Map<string, ContactFlag>()
+    kpiFlags?.contacts.forEach(f => m.set(`${f.contact_id}|${f.vendor_id}`, f))
+    return m
+  }, [kpiFlags])
+
   const filtered = useMemo(() => {
     if (!bundle) return []
     const nq = norm(search)
     return bundle.contacts.filter(c => {
       if (statusFilter !== 'all' && c.status !== statusFilter) return false
       if (staffFilter !== 'all' && !c.staff_names.includes(staffFilter)) return false
+      if (catFilter) {
+        const f = c.vendor_id ? contactFlagMap.get(`${c.contact_id}|${c.vendor_id}`) : null
+        if (!f || !matchCategory(f, catFilter)) return false
+      }
       if (nq) {
         const hay = norm(`${c.name}${c.vendor_name ?? ''}${c.title ?? ''}${c.phone ?? ''}${c.ended_note ?? ''}`)
         if (!hay.includes(nq)) return false
       }
       return true
     })
-  }, [bundle, search, statusFilter, staffFilter])
+  }, [bundle, search, statusFilter, staffFilter, catFilter, contactFlagMap])
 
-  const filterActive = statusFilter !== 'all' || staffFilter !== 'all' || !!search.trim()
+  const filterActive = statusFilter !== 'all' || staffFilter !== 'all' || !!search.trim() || !!catFilter
   const kpiOf = useMemo(() => {
     if (!bundle) return null
     if (!filterActive) return bundle.kpi
@@ -140,24 +162,37 @@ export default function ContactManagerPage() {
   )
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="w-full">
       <div className="flex items-start justify-between mb-1 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">거래처 담당자 관리</h1>
+          <h1 className="text-2xl font-bold text-gray-900">매출처 관리 (고객)</h1>
           <p className="text-sm mt-1 text-gray-500">
-            거래처 담당자(고객사 인물) 중심 관리 — 커넥션·매출·상태는 주문에서 자동 집계
+            고객(거래처 담당자) 중심 관리 — 커넥션·매출·상태는 주문에서 자동 집계
           </p>
         </div>
-        <button
-          onClick={async () => {
-            const name = window.prompt('등록할 담당자 이름 (예: 김수영)')
-            if (!name?.trim()) return
-            const okd = await post({ action: 'create_contact', name: name.trim() }, `${name.trim()} 등록됨 — 상세에서 소속을 지정하세요.`)
-            if (okd) setSearch(name.trim())
-          }}
-          className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700">
-          담당자 등록
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              const p = new URLSearchParams()
+              if (search.trim()) p.set('q', search.trim())
+              if (statusFilter !== 'all') p.set('status', statusFilter)
+              if (staffFilter !== 'all') p.set('staff', staffFilter)
+              const a = document.createElement('a'); a.href = `/api/contact-manager/export?${p}`; a.click()
+            }}
+            className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
+            ↓ 엑셀
+          </button>
+          <button
+            onClick={async () => {
+              const name = window.prompt('등록할 담당자 이름 (예: 김수영)')
+              if (!name?.trim()) return
+              const okd = await post({ action: 'create_contact', name: name.trim() }, `${name.trim()} 등록됨 — 상세에서 소속을 지정하세요.`)
+              if (okd) setSearch(name.trim())
+            }}
+            className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700 whitespace-nowrap">
+            담당자 등록
+          </button>
+        </div>
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
@@ -167,6 +202,10 @@ export default function ContactManagerPage() {
           SQL 편집기에서 105_contact_manager.sql을 실행해 주세요.
         </div>
       )}
+
+      {/* 고객관리 집계 — 투트랙 타일 (108 미적용 시 자동 숨김) */}
+      <CustomerKpiTiles mode="contact" flags={kpiFlags} filter={catFilter}
+        onFilter={c => { setCatFilter(c); if (c) setTab('list') }} />
 
       {/* KPI — 클릭 시 해당 필터/탭 */}
       {bundle && kpiOf && (
@@ -270,6 +309,7 @@ export default function ContactManagerPage() {
                   <th className="py-2.5 px-3 font-medium text-right">미수</th>
                   <th className="py-2.5 px-3 font-medium">최근 주문</th>
                   <th className="py-2.5 px-3 font-medium">상태</th>
+                  {kpiFlags && <th className="py-2.5 px-3 font-medium">고객관리</th>}
                 </tr>
               </thead>
               <tbody>
@@ -310,10 +350,22 @@ export default function ContactManagerPage() {
                           ? `미주문 ${c.no_order_days}일` : STATUS_META[c.status].text}
                       </span>
                     </td>
+                    {kpiFlags && (() => {
+                      const f = c.vendor_id ? contactFlagMap.get(`${c.contact_id}|${c.vendor_id}`) : null
+                      const ot = f ? OTYPE_META[f.otype] : null
+                      return (
+                        <td className="py-2 px-3 whitespace-nowrap">
+                          {ot && <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${ot.cls}`}>{ot.label}</span>}
+                          {f?.is_new && <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">신규</span>}
+                          {f?.is_churn && <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700">이탈</span>}
+                          {!f && <span className="text-gray-300">-</span>}
+                        </td>
+                      )
+                    })()}
                   </tr>
                 ))}
                 {!pageRows.length && (
-                  <tr><td colSpan={9} className="py-14 text-center text-gray-400 text-sm">조건에 맞는 담당자가 없습니다.</td></tr>
+                  <tr><td colSpan={kpiFlags ? 10 : 9} className="py-14 text-center text-gray-400 text-sm">조건에 맞는 담당자가 없습니다.</td></tr>
                 )}
               </tbody>
             </table>

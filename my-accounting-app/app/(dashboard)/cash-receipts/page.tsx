@@ -1,9 +1,10 @@
 'use client'
 
+import PeriodPresets from '@/components/ui/PeriodPresets'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CashReceipt, CashReceiptDirection, CashReceiptTransactionType } from '@/types/cash-receipt'
 import type { Vendor } from '@/types/tax-invoice'
-import { PERIOD_PRESETS, getPeriodRange } from '@/lib/period-presets'
+import { getPeriodRange } from '@/lib/period-presets'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
@@ -20,8 +21,8 @@ export default function CashReceiptsPage() {
   const [loading,  setLoading]    = useState(true)
 
   const [typeFilter, setTypeFilter] = useState<'all' | CashReceiptTransactionType>('all')
-  const [dateFrom,   setDateFrom]   = useState('')
-  const [dateTo,     setDateTo]     = useState('')
+  const [dateFrom,   setDateFrom]   = useState(() => getPeriodRange('당월').from)
+  const [dateTo,     setDateTo]     = useState(() => getPeriodRange('당월').to)
 
   const [selected,  setSelected]  = useState<Set<string>>(new Set())
   const [uploading, setUploading] = useState(false)
@@ -123,7 +124,7 @@ export default function CashReceiptsPage() {
   const deductibleTax = deductible.reduce((s, r) => s + (r.tax_amount || 0), 0)
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="w-full">
       {/* 헤더 */}
       <div className="flex items-start justify-between mb-1 flex-wrap gap-3">
         <div>
@@ -202,17 +203,7 @@ export default function CashReceiptsPage() {
       </div>
 
       {/* 기간 빠른 선택 */}
-      <div className="flex flex-wrap gap-1 mb-2">
-        {PERIOD_PRESETS.map(p => (
-          <button
-            key={p}
-            onClick={() => { const r = getPeriodRange(p); setDateFrom(r.from); setDateTo(r.to) }}
-            className="px-2.5 py-1 text-xs border border-gray-300 rounded-md text-gray-600 hover:bg-slate-100 hover:border-slate-400 transition-colors"
-          >
-            {p}
-          </button>
-        ))}
-      </div>
+      <PeriodPresets from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} className="mb-2" />
 
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">

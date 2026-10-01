@@ -23,6 +23,8 @@ export interface OrderListRow {
   source: string | null
   memo?: string | null
   created_at: string
+  canceled_at?: string | null      // 511 — 취소 주문 (집계 제외·배지)
+  last_edited_at?: string | null   // 511 — 당일 수정됨 표시
 }
 
 type SearchField =
@@ -153,14 +155,16 @@ export async function loadFilteredOrders(
   me: CurrentUser,
   f: OrderListFilter,
 ): Promise<{ filtered: OrderListRow[]; prepayIds: Set<string>; invoiceIds: Set<string>; poStatus: Map<string, PoStatus> } | { error: string }> {
-  // 1) 기간 필터로 주문 로드 (나머지 필터는 메모리)
-  const base = await fetchAllRows<OrderListRow>((pf, pt) => {
-    let query = admin.from('erp_orders')
-      .select('id, order_no, order_date, bank_name, branch_name, manager_name, staff_name, total_amount, outstanding_amount, collect_status, source, memo, created_at')
+  // 1) 기간 필터로 주문 로드 (나머지 필터는 메모리) — 511 미적용이면 기존 컬럼으로 폴백
+  const baseCols = 'id, order_no, order_date, bank_name, branch_name, manager_name, staff_name, total_amount, outstanding_amount, collect_status, source, memo, created_at'
+  const loadBase = (cols: string) => fetchAllRows<OrderListRow>((pf, pt) => {
+    let query = admin.from('erp_orders').select(cols)
     if (f.from) query = query.gte('order_date', f.from)
     if (f.to) query = query.lte('order_date', f.to)
-    return query.order('order_date', { ascending: false }).range(pf, pt)
+    return query.order('order_date', { ascending: false }).range(pf, pt) as unknown as PromiseLike<{ data: OrderListRow[] | null; error: { message: string } | null }>
   })
+  let base = await loadBase(`${baseCols}, canceled_at, last_edited_at`)
+  if ('error' in base) base = await loadBase(baseCols)
   if ('error' in base) return { error: base.error }
 
   // 2) 통합 검색 — 조건별 품목 매칭 주문 id 집합 (필드 지정 시 해당 컬럼만)

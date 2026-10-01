@@ -248,7 +248,7 @@ export default function LoansPage() {
   const creditLineForm = form.product_type === 'credit_line'
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="w-full">
       <div className="flex items-start justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">대출 관리</h1>

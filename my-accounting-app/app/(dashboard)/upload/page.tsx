@@ -13,8 +13,8 @@ type UploadSource = 'bank' | 'card_sales' | 'card_expenses'
 
 const SOURCE_META: Record<UploadSource, { label: string; hint: string; doneHref: string; doneLabel: string }> = {
   bank:          { label: '은행 명세서',        hint: '은행에서 내려받은 입출금 명세서 (CSV·XLSX·XLS)',            doneHref: '/transactions',  doneLabel: '거래 내역 보기 →' },
-  card_sales:    { label: '카드매출',           hint: '카드 매출 상세내역 — 단말기결제·수기결제(PG) 다운로드 파일', doneHref: '/card-sales',    doneLabel: '카드매출 보기 →' },
-  card_expenses: { label: '법인카드 사용내역',  hint: '카드사 이용내역 — 여러 카드사 시트 합본 지원',               doneHref: '/card-expenses', doneLabel: '법인카드 보기 →' },
+  card_sales:    { label: '카드매출',           hint: '카드 매출 상세내역 — 단말기결제·수기결제(PG) 다운로드 파일', doneHref: '/cards',    doneLabel: '카드매출 보기 →' },
+  card_expenses: { label: '법인카드 사용내역',  hint: '카드사 이용내역 — 여러 카드사 시트 합본 지원',               doneHref: '/cards?tab=expenses', doneLabel: '법인카드 보기 →' },
 }
 
 interface QueueItem {

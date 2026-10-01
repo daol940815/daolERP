@@ -6,7 +6,8 @@ import { kstTime, LEAVE_TYPE_LABEL, LEAVE_STATUS_LABEL, type LeaveType, type Lea
 
 // 내 대시보드 (직원 개인화면 홈)
 // 본인 관련 정보만 모아 보여준다 — 이번 달 내 주문 · 미수 · 담당 거래처 ·
-// 영업일지 · 오늘 근태. 숫자는 해당 화면으로 드릴다운(링크)한다.
+// 업무일지 · 오늘 근태. 숫자는 해당 화면으로 드릴다운(링크)한다.
+// 영업일지는 영업팀만 쓰므로 기록이 있는 직원에게만 보인다 (2026-09-29 사용자 결정).
 
 interface Summary {
   month: string
@@ -36,11 +37,21 @@ interface Data {
   leaves: { id: string; leave_type: LeaveType; start_date: string; end_date: string; status: LeaveStatus }[]
 }
 
+interface WorkRow { id: string; work_date: string; action: string; category: string | null; content: string | null }
+
 const won = (n: number) => Math.round(n).toLocaleString('ko-KR')
 
 export default function MyDashboardPage() {
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [work, setWork] = useState<{ rows: WorkRow[]; month: string } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/me/worklog')
+      .then(r => r.json())
+      .then(j => setWork({ rows: Array.isArray(j.rows) ? j.rows : [], month: j.month ?? '' }))
+      .catch(() => setWork({ rows: [], month: '' }))
+  }, [])
 
   useEffect(() => {
     fetch('/api/me/summary')
@@ -73,11 +84,17 @@ export default function MyDashboardPage() {
       sub: s && s.consult_month.order_cnt > 0 ? `이번 달 상담 주문 ${s.consult_month.order_cnt}건` : null,
     },
     {
-      label: '이번 달 영업일지', href: '/me/journal',
-      value: s ? `${s.journal.month_cnt}건` : '-',
-      sub: s ? `누적 ${s.journal.total_cnt}건` : null,
+      label: '이번 달 업무일지', href: '/me/worklog',
+      value: work ? `${work.rows.length}건` : '-',
+      sub: work && work.rows.length ? `최근 ${work.rows[0].work_date}` : null,
     },
+    ...(s && s.journal.total_cnt > 0 ? [{
+      label: '이번 달 영업일지', href: '/me/journal',
+      value: `${s.journal.month_cnt}건`,
+      sub: `누적 ${s.journal.total_cnt}건`,
+    }] : []),
   ]
+  const showJournal = (s?.journal.total_cnt ?? 0) > 0 || data.recentJournal.length > 0
 
   const inTime = kstTime(data.attendance?.check_in_at ?? null)
   const outTime = kstTime(data.attendance?.check_out_at ?? null)
@@ -192,7 +209,38 @@ export default function MyDashboardPage() {
         </div>
       </div>
 
-      {/* 최근 영업일지 */}
+      {/* 최근 업무일지 — ERP에서 한 일이 자동 기록된다 */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-gray-900">최근 업무일지</h2>
+          <Link href="/me/worklog" className="text-xs text-slate-500 hover:text-slate-900">전체 보기</Link>
+        </div>
+        {work && work.rows.length ? (
+          <table className="w-full text-sm mt-2">
+            <thead>
+              <tr className="text-gray-500 text-xs border-b border-gray-100">
+                <th className="py-1.5 pr-3 text-left font-medium">날짜</th>
+                <th className="py-1.5 pr-3 text-left font-medium">업무</th>
+                <th className="py-1.5 text-left font-medium">내용</th>
+              </tr>
+            </thead>
+            <tbody>
+              {work.rows.slice(0, 5).map(w => (
+                <tr key={w.id} className="border-b border-gray-50 align-top">
+                  <td className="py-1.5 pr-3 tabular-nums text-xs text-gray-500">{w.work_date}</td>
+                  <td className="py-1.5 pr-3 text-xs">{w.category ?? w.action}</td>
+                  <td className="py-1.5 text-gray-600">{w.content ?? '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="mt-3 text-sm text-gray-400">이번 달 업무일지 기록이 없습니다. 상담일지·주문·발주를 작성하면 자동으로 기록됩니다.</p>
+        )}
+      </div>
+
+      {/* 최근 영업일지 — 영업일지 기록이 있는 직원에게만 */}
+      {showJournal && (
       <div className="bg-white border border-gray-200 rounded-xl p-4 mt-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-900">최근 영업일지</h2>
@@ -228,6 +276,7 @@ export default function MyDashboardPage() {
           </p>
         )}
       </div>
+      )}
     </div>
   )
 }

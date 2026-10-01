@@ -4,6 +4,19 @@
 //   (예: 2026년 7월에 '4분기' 클릭 → 2025-10-01 ~ 12-31)
 export const PERIOD_PRESETS = ['당월', '전월', '1분기', '2분기', '3분기', '4분기', '상반기', '하반기', '당년', '전년'] as const
 
+// ── 표준 기간 필터 (2026-09-30 사용자 확정, docs/ui-reorg-track.md) ──
+// 모든 목록·분석 화면은 components/ui/PeriodPresets.tsx 로 같은 버튼 세트를 쓴다:
+//   최근 7일 · 최근 30일 · 당월 · 전월 · 1~4분기 · 상반기 · 하반기 · 당년 · 전년 · 전체 기간
+// "전체 기간" = 데이터가 있는 가장 이른 날짜(DATA_START)부터 오늘까지 — 화면마다 하드코딩하지 않는다.
+export const STANDARD_PRESETS = ['최근 7일', '최근 30일', ...PERIOD_PRESETS, '전체 기간'] as const
+export type StandardPreset = typeof STANDARD_PRESETS[number]
+// 실측(2026-09-30): ERP 주문 2025-01-01 · 통장 2025-01-07 · 세금계산서 2025-01-02 가 가장 이르다
+export const DATA_START = '2025-01-01'
+
+// 화면 성격별 기본 기간 (사용자 확정): 원본 목록·원장·자금·분개 = 당월 / 관리·분석 = 당년
+export type PeriodKind = 'source' | 'analysis'
+export const defaultRange = (kind: PeriodKind) => getPeriodRange(kind === 'analysis' ? '당년' : '당월')
+
 // 화면 기본 조회 시작일 — 2025년 데이터(전체의 61%)는 기본 조회·자동매칭에서 제외한다.
 // 삭제가 아니라 기본값이므로, 기간을 넓히면 언제든 과거를 조회·매칭할 수 있다.
 // 연도가 바뀌면 이 두 값만 갱신하면 된다.
@@ -20,6 +33,12 @@ export function getPeriodRange(period: string): { from: string; to: string } {
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
   switch (period) {
+    case '최근 7일':
+      return { from: fmt(new Date(y, m, now.getDate() - 6)), to: fmt(now) }
+    case '최근 30일':
+      return { from: fmt(new Date(y, m, now.getDate() - 29)), to: fmt(now) }
+    case '전체 기간':
+      return { from: DATA_START, to: fmt(now) }
     case '당월':
       return { from: fmt(new Date(y, m, 1)),     to: fmt(new Date(y, m + 1, 0)) }
     case '전월':

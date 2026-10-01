@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { isManagerLike } from '@/lib/permissions'
 import { getCurrentUser } from '@/lib/user-role'
 import TeamWorklogClient from './team-client'
 
@@ -8,6 +9,6 @@ export const dynamic = 'force-dynamic'
 export default async function TeamWorklogPage() {
   const me = await getCurrentUser()
   if (!me) redirect('/login')
-  if (me.role === 'sales') redirect('/me/worklog')
+  if (!isManagerLike(me)) redirect('/me/worklog')
   return <TeamWorklogClient />
 }

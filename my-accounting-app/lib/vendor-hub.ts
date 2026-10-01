@@ -27,6 +27,7 @@ export interface HubListRow {
   vendor_id: string
   vendor_name: string
   biz_number: string | null
+  is_active: boolean      // false = 비활성 처리된 거래처 (목록 기본 숨김, 이력 보존)
   alias_names: string[]   // ERP 표기 검색용
   alias_count: number
   card_count: number
@@ -154,8 +155,8 @@ export async function buildHubList(
     fetchAllRows<{ id: string; vendor_id: string; erp_name: string | null }>((f, t) =>
       admin.from('erp_vendor_aliases').select('id, vendor_id, erp_name')
         .eq('alias_type', 'customer').not('vendor_id', 'is', null).range(f, t)),
-    fetchAllRows<{ id: string; name: string; card_numbers: string[] | null; biz_number: string | null }>((f, t) =>
-      admin.from('vendors').select('id, name, card_numbers, biz_number').range(f, t)),
+    fetchAllRows<{ id: string; name: string; card_numbers: string[] | null; biz_number: string | null; is_active: boolean | null }>((f, t) =>
+      admin.from('vendors').select('id, name, card_numbers, biz_number, is_active').range(f, t)),
     fetchAllRows<{ vendor_id: string; is_primary: boolean; employees: unknown }>((f, t) =>
       admin.from('vendor_staff').select('vendor_id, is_primary, employees(name)')
         .is('ended_at', null).range(f, t)),
@@ -309,6 +310,7 @@ export async function buildHubList(
       vendor_id: vid,
       vendor_name: v?.name ?? '(삭제된 거래처)',
       biz_number: v?.biz_number ?? null,
+      is_active: v?.is_active !== false,
       alias_names: aliasNames.get(vid) ?? [],
       alias_count: aliasCount.get(vid) ?? 0,
       card_count: v?.card_numbers?.length ?? 0,
@@ -383,7 +385,7 @@ export interface HubPrepayEntry {
 }
 
 export interface HubDetail {
-  vendor: { id: string; name: string; biz_number: string | null; note: string | null }
+  vendor: { id: string; name: string; biz_number: string | null; note: string | null; is_active: boolean }
   links: { alias_count: number; card_count: number; has_opening: boolean }
   staff: {
     id: string; employee_id: string; name: string; team: string | null
@@ -442,7 +444,7 @@ export async function buildHubDetail(
   toDate: string | null,
 ): Promise<HubDetail | { error: string }> {
   const [vendorRes, aliasRes] = await Promise.all([
-    admin.from('vendors').select('id, name, biz_number, note, card_numbers').eq('id', vendorId).single(),
+    admin.from('vendors').select('id, name, biz_number, note, card_numbers, is_active').eq('id', vendorId).single(),
     admin.from('erp_vendor_aliases').select('id').eq('alias_type', 'customer').eq('vendor_id', vendorId),
   ])
   if (vendorRes.error) return { error: vendorRes.error.message }
@@ -725,7 +727,7 @@ export async function buildHubDetail(
   }
 
   return {
-    vendor: { id: vendor.id, name: vendor.name, biz_number: vendor.biz_number, note: vendor.note },
+    vendor: { id: vendor.id, name: vendor.name, biz_number: vendor.biz_number, note: vendor.note, is_active: vendor.is_active !== false },
     links: {
       alias_count: aliasIds.length,
       card_count: (vendor.card_numbers as string[] | null)?.length ?? 0,

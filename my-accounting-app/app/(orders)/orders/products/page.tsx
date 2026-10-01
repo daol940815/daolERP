@@ -11,7 +11,8 @@ interface Product {
   purchase_vendor_name: string | null; category: string | null
   sale_price: number; individual_sale_price: number; purchase_price: number
   carton_unit: number | null; carton_shipping_fee: number; loose_shipping_fee: number
-  is_addon: boolean; is_active: boolean; is_soldout?: boolean; memo: string | null; updated_at: string
+  is_addon: boolean; is_active: boolean; is_soldout?: boolean; is_shipping?: boolean
+  memo: string | null; updated_at: string
 }
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
@@ -24,7 +25,7 @@ const emptyDraft = {
   item_code: '', item_name: '', purchase_vendor_name: '', category: '',
   sale_price: 0, individual_sale_price: 0, purchase_price: 0,
   carton_unit: 0, carton_shipping_fee: 0, loose_shipping_fee: 0,
-  is_addon: false, memo: '',
+  is_addon: false, is_shipping: false, memo: '',
 }
 
 export default function ProductsPage() {
@@ -98,6 +99,7 @@ export default function ProductsPage() {
       carton_unit: p.carton_unit ?? 0, carton_shipping_fee: p.carton_shipping_fee ?? 0,
       loose_shipping_fee: p.loose_shipping_fee ?? 0,
       is_addon: p.is_addon ?? false,
+      is_shipping: p.is_shipping ?? false,
       memo: p.memo ?? '',
     })
   }
@@ -239,6 +241,12 @@ export default function ProductsPage() {
               onChange={e => setDraft(d => ({ ...d, is_addon: e.target.checked }))} />
             부가상품
           </label>
+          <label className="flex items-center gap-1.5 text-xs text-gray-600 pb-2 cursor-pointer"
+            title="배송비 품목 (703) — 옵션 칩으로 노출, 선택 시 판매가 0 기본 (배송비는 판매가에 녹임)">
+            <input type="checkbox" checked={draft.is_shipping}
+              onChange={e => setDraft(d => ({ ...d, is_shipping: e.target.checked }))} />
+            배송비
+          </label>
           <button onClick={save} className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm">
             {editingId === 'new' ? '등록' : '저장'}
           </button>
@@ -276,6 +284,9 @@ export default function ProductsPage() {
                     {p.item_name}
                     {p.is_addon && (
                       <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-600">옵션</span>
+                    )}
+                    {p.is_shipping && (
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700">배송비</span>
                     )}
                     {p.is_soldout && (
                       <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-600">품절</span>

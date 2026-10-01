@@ -74,9 +74,31 @@ sales·manager·admin 모두 동일하게 출퇴근 체크·휴가 신청을 사
   `/api/attendance/leaves`(신청·승인). 월별 기록 조회는 `fetchAllRows`로
   PostgREST 1000행 제한 회피.
 
+## 퇴근 체크 확인 · 본인 취소 (2026-10-01 사용자 요청 — 퇴근 버튼 오클릭)
+
+- 퇴근 체크 전 확인창(window.confirm). 출근 체크는 확인 없음(매일 반복, 되돌릴 일 거의 없음).
+- 퇴근 체크 후 위젯의 '출근 HH:MM · 퇴근 HH:MM' 옆 **[취소]** — `POST /api/attendance/status { action: 'cancel_check_out' }`.
+  당일(work_date = 오늘)만, check_out_at을 비우고 `edited_by = 본인`, `edit_note = '본인 퇴근 취소 (HH:MM 기록 삭제)'`로
+  흔적을 남긴다. 출근 시각은 그대로, 다시 퇴근 체크 가능. 지난 날짜·출근 시각 정정은 관리자 보정(근태 현황 adjust)만.
+
 ## 후속 단계 후보
 
 - 공휴일 반영 (한국 공휴일 테이블 또는 수동 등록)
 - 연차 잔여일수 관리 (연차 발생·차감 원장)
 - 월별 근태 마감(확정) 및 급여 연동
 - 지각·미기록 알림
+
+
+## 인사·총무 확장 계획 (2026-09-29, 총괄 세션 접수 — 시안 검토 대기)
+
+사용자 요청: 직원별 상세(급여·근태·휴가) · 급여/근태/휴가 탭 · 스케줄러(휴가·영업 일정) ·
+아르바이트 관리 탭. 시안 `docs/mockups/인사총무_확장_시안.html`. 확정 사항: **급여는 기록부터**
+(계산 없음), 근로계약서·보안서약서 양식은 시행 후 사용자 전달.
+
+- 급여 기록: 신규 `employee_salaries`(pay_month·gross_amount·paid_on·kind·memo·tx_id) —
+  열람은 employees.can_view_salary(109) + 인사·총무 권한.
+- 직원 상세 근태·휴가 탭: 기존 attendance 테이블 재사용(무변경).
+- 스케줄: 저장 없는 조회 캘린더(휴가 + 영업일지 예정일[추가 필요] + 업무일지 + 아르바이트 기간 + 공휴일).
+- 아르바이트: employees(parttime·work_start/end, 109) + 신규 `parttime_terms`(시즌·일당·담당·문서 상태)
+  + Storage(서명본). 재고용 = term 추가·계정 재활성.
+- 마이그레이션 번호: 201~ (이 트랙 대역). 메뉴는 `lib/menu-registry.ts` 인사·총무 그룹에 추가.

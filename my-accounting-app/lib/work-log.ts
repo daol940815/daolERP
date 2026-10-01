@@ -77,7 +77,7 @@ export const consultContent = (
 
 export const orderContent = (
   opts: { customer?: string | null; orderNo?: string | null; itemCount?: number; total?: number },
-  verb: '주문서 작성' | '주문서 수정' | '상담을 주문서로 전환',
+  verb: '주문서 작성' | '주문서 수정' | '상담을 주문서로 전환' | string,   // 취소·재등록(511) 등 자유 문구 허용
 ) => {
   const head = label(opts.customer) || '주문'
   const tail: string[] = []

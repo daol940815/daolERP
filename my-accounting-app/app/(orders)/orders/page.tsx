@@ -1,5 +1,7 @@
 'use client'
 
+import PeriodPresets from '@/components/ui/PeriodPresets'
+import { getPeriodRange } from '@/lib/period-presets'
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -25,6 +27,8 @@ interface Row {
   is_prepay: boolean
   has_invoice: boolean
   po_status: 'none' | 'partial' | 'full' | null
+  canceled_at?: string | null
+  last_edited_at?: string | null
 }
 interface Kpi {
   count: number; total: number; outstanding: number
@@ -40,21 +44,6 @@ interface Item {
 }
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
-const kstToday = () => new Date().toLocaleDateString('sv-SE')
-const daysAgo = (n: number) => {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  return d.toLocaleDateString('sv-SE')
-}
-// 기간 프리셋 — 클릭 시 좌측 날짜 칸에 채워진다 (날짜를 직접 고치면 프리셋 해제)
-const PERIODS = [
-  { key: 'today', label: '오늘', days: 0 },
-  { key: '7d', label: '7일', days: 7 },
-  { key: '1m', label: '1개월', days: 30 },
-  { key: '3m', label: '3개월', days: 91 },
-  { key: '6m', label: '6개월', days: 182 },
-] as const
-type PeriodKey = typeof PERIODS[number]['key']
 
 const COLLECT_BADGE: Record<string, { label: string; cls: string }> = {
   collected:   { label: '수금완료', cls: 'bg-emerald-100 text-emerald-700' },
@@ -97,9 +86,8 @@ export default function OrdersHomePage() {
   // 필터 — 기간은 날짜 칸(from/to)이 단일 기준, 프리셋 칩은 채우기 도우미
   const [qInput, setQInput] = useState('')
   const [q, setQ] = useState('')
-  const [preset, setPreset] = useState<PeriodKey | null>('1m')
-  const [from, setFrom] = useState(daysAgo(30))
-  const [to, setTo] = useState(kstToday())
+  const [from, setFrom] = useState(() => getPeriodRange('최근 30일').from)   // 작업 화면: 최근 30일
+  const [to, setTo] = useState(() => getPeriodRange('최근 30일').to)
   const [collect, setCollect] = useState('all')
   const [source, setSource] = useState('all')
   const [po, setPo] = useState('all')
@@ -113,13 +101,6 @@ export default function OrdersHomePage() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [itemsCache, setItemsCache] = useState<Record<string, Item[]>>({})
   const [exporting, setExporting] = useState(false)
-
-  const applyPreset = (key: PeriodKey) => {
-    const def = PERIODS.find(p => p.key === key)!
-    setPreset(key)
-    setFrom(daysAgo(def.days))
-    setTo(kstToday())
-  }
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -238,16 +219,14 @@ export default function OrdersHomePage() {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[11px] text-gray-400">주문일</span>
           <input type="date" value={from}
-            onChange={e => { setFrom(e.target.value); setPreset(null) }}
+            onChange={e => setFrom(e.target.value)}
             className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm tabular-nums" />
           <span className="text-xs text-gray-400">~</span>
           <input type="date" value={to}
-            onChange={e => { setTo(e.target.value); setPreset(null) }}
+            onChange={e => setTo(e.target.value)}
             className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm tabular-nums" />
           <span className="w-1.5" />
-          {PERIODS.map(p => (
-            <button key={p.key} onClick={() => applyPreset(p.key)} className={chip(preset === p.key)}>{p.label}</button>
-          ))}
+          <PeriodPresets from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
         </div>
         <div className="flex items-center gap-2 flex-wrap mt-2">
           <input value={qInput} onChange={e => setQInput(e.target.value)}
@@ -323,7 +302,7 @@ export default function OrdersHomePage() {
                 return (
                   <Fragment key={r.id}>
                     <tr onClick={() => router.push(`/orders/${r.id}`)}
-                      className="border-b border-gray-50 cursor-pointer hover:bg-blue-50/40">
+                      className={`border-b border-gray-50 cursor-pointer hover:bg-blue-50/40 ${r.canceled_at ? 'opacity-60' : ''}`}>
                       <td className="py-2 px-3">
                         <div className="tabular-nums text-xs font-semibold">{r.order_date}</div>
                         <div className="tabular-nums text-[11px] text-gray-400">{r.order_no ?? '-'}</div>
@@ -331,6 +310,13 @@ export default function OrdersHomePage() {
                       <td className="py-2 px-3 font-semibold">{r.bank_name ?? '(주문처 미상)'}</td>
                       <td className="py-2 px-3">
                         {r.branch_name ?? <span className="text-gray-300">-</span>}
+                        {/* 취소·재등록(511): 취소 주문은 집계 제외 상계, 당일 수정건은 '수정됨' 표시 */}
+                        {r.canceled_at && (
+                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-600">취소</span>
+                        )}
+                        {!r.canceled_at && r.last_edited_at && (
+                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-600">수정됨</span>
+                        )}
                         {r.is_prepay && (
                           <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-600">선결제</span>
                         )}

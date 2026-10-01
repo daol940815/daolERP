@@ -146,7 +146,7 @@ function VendorCycleInner() {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <Link href="/purchase-cycle" className="text-sm text-gray-500 hover:text-gray-900">← 매입 사이클 예외 관리</Link>
+      <Link href={`/orders/purchase-hub?tab=exceptions&vendor=${vendorId}`} className="text-sm text-gray-500 hover:text-gray-900">← 매입처 관리 · 결제 예외</Link>
 
       <div className="flex items-start justify-between mt-2 mb-1">
         <div className="flex items-center gap-3">
@@ -159,7 +159,7 @@ function VendorCycleInner() {
           )}
         </div>
         <div className="flex items-center gap-2 text-sm">
-          <Link href={`/vendors/${vendorId}`} className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">거래처 상세</Link>
+          <Link href={`/purchase-hub/${vendorId}`} className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">거래처 상세</Link>
           <Link href={`/transactions?vendorId=${vendorId}`} className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">통장 거래</Link>
           <button onClick={() => setShowModal(true)}
             className="px-2.5 py-1.5 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-700">지급 후보</button>

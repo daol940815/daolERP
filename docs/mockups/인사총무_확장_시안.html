@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 인사·총무 확장 (직원 상세·급여 기록·스케줄·아르바이트)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; }
+  .wrap { max-width: 1320px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 16px; line-height: 1.6; }
+  h2 { font-size: 15px; font-weight: 700; margin: 26px 0 10px; }
+  .shell { display: grid; grid-template-columns: 200px 1fr; gap: 0; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; background: #fff; }
+  .side { background: #0f172a; padding: 14px 10px; color: #94a3b8; font-size: 12.5px; }
+  .side .t { color: #fff; font-weight: 700; font-size: 14px; padding: 0 8px 12px; border-bottom: 1px solid #334155; margin-bottom: 10px; }
+  .side .g { padding: 4px 8px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; margin-top: 8px; }
+  .side a { display: block; padding: 6px 10px; border-radius: 6px; }
+  .side a.on { background: #334155; color: #fff; }
+  .side .new { font-size: 9.5px; background: #dcfce7; color: #15803d; border-radius: 999px; padding: 0 5px; margin-left: 4px; font-weight: 700; }
+  .main { padding: 16px 18px; }
+  h1 { font-size: 18px; font-weight: 700; }
+  .sub { font-size: 12px; color: #64748b; margin: 3px 0 12px; }
+  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 12px; }
+  .kpi { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; }
+  .kpi .k { font-size: 11px; color: #64748b; } .kpi .v { font-size: 18px; font-weight: 700; margin-top: 2px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .chip { border: 1px solid #cbd5e1; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; color: #475569; }
+  .chip.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font-size: 11px; color: #64748b; font-weight: 600; padding: 7px 9px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+  td { padding: 7px 9px; border-bottom: 1px solid #f1f5f9; white-space: nowrap; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .b { display: inline-block; font-size: 10px; border-radius: 999px; padding: 1px 7px; font-weight: 600; }
+  .b-ok { background: #dcfce7; color: #15803d; } .b-warn { background: #fef3c7; color: #b45309; } .b-off { background: #f1f5f9; color: #64748b; }
+  .b-pt { background: #ede9fe; color: #6d28d9; } .b-lock { background: #0f172a; color: #fff; } .b-blue { background: #dbeafe; color: #1d4ed8; }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid #e2e8f0; margin: 10px 0 12px; }
+  .tab { padding: 7px 14px; font-size: 12.5px; font-weight: 600; color: #64748b; border-bottom: 2px solid transparent; }
+  .tab.on { color: #0f172a; border-bottom-color: #0f172a; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; }
+  .card h3 { font-size: 12.5px; font-weight: 700; margin-bottom: 8px; }
+  .kv { display: grid; grid-template-columns: 90px 1fr; row-gap: 4px; font-size: 12px; }
+  .kv .k { color: #64748b; }
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .cal .h { font-size: 10.5px; color: #64748b; text-align: center; padding: 3px 0; }
+  .cal .d { min-height: 62px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 3px 4px; font-size: 10.5px; }
+  .cal .d .n { color: #94a3b8; }
+  .ev { display: block; border-radius: 4px; padding: 1px 4px; margin-top: 2px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ev.leave { background: #fee2e2; color: #b91c1c; } .ev.half { background: #fef3c7; color: #b45309; } .ev.sales { background: #dbeafe; color: #1d4ed8; } .ev.work { background: #dcfce7; color: #15803d; } .ev.pt { background: #ede9fe; color: #6d28d9; }
+  .btn { display: inline-block; border: 1px solid #cbd5e1; border-radius: 7px; padding: 5px 11px; font-size: 11.5px; font-weight: 600; background: #fff; }
+  .btn.p { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .foot { font-size: 11.5px; color: #64748b; margin-top: 10px; line-height: 1.6; }
+  .plan { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; margin-top: 20px; }
+  .plan h2 { margin-top: 0; }
+  .plan table td, .plan table th { white-space: normal; }
+  ol.q { padding-left: 20px; font-size: 13.5px; line-height: 1.7; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="note">인사·총무 확장 시안 (2026-09-29 요청 8·9·10·11). 화면 4개: ① 직원 목록·상세(탭: 기본·급여 기록·근태·휴가) ② 스케줄 ③ 아르바이트 관리. 근태·휴가는 근태 트랙 데이터를 그대로 쓰고, <b>급여는 "기록"부터</b>(총액·지급일·메모 — 계산은 나중). 스케줄은 입력 없이 휴가·영업일지·업무일지·아르바이트 근무 기간을 합쳐 보여주는 조회 전용 캘린더. 확정 후 마이그레이션(200번대) + 구현.</div>
+
+  <!-- ① 직원 목록 -->
+  <h2>① 인사·총무 › 직원 목록 (직원·계정·권한 화면을 이 목록으로 확장 — 행 클릭 = 상세)</h2>
+  <div class="shell">
+    <div class="side">
+      <div class="t">인사 · 총무</div>
+      <div class="g">인사 · 총무</div>
+      <a class="on">직원 목록 <span class="new">확장</span></a>
+      <a>근태 현황</a>
+      <a>휴가 승인</a>
+      <a>스케줄 <span class="new">신규</span></a>
+      <a>아르바이트 관리 <span class="new">신규</span></a>
+      <a>급여 기록 <span class="new">신규</span></a>
+      <div class="g" style="margin-top:18px">하단</div>
+      <a>업무 선택</a><a>로그아웃</a>
+    </div>
+    <div class="main">
+      <h1>직원 목록</h1>
+      <p class="sub">재직 · 계정 · 권한 · 이번 달 근태 · 잔여 휴가를 한 줄로. 급여는 "급여 정보 열람" 허용자에게만 열림.</p>
+      <div class="kpis">
+        <div class="kpi"><div class="k">재직</div><div class="v">11명</div></div>
+        <div class="kpi"><div class="k">아르바이트 (근무 중)</div><div class="v">2명</div></div>
+        <div class="kpi"><div class="k">오늘 휴가</div><div class="v">1명</div></div>
+        <div class="kpi"><div class="k">계정 미발급</div><div class="v">6명</div></div>
+        <div class="kpi"><div class="k">휴가 승인 대기</div><div class="v">2건</div></div>
+      </div>
+      <div class="chips"><span class="chip on">전체</span><span class="chip">영업팀</span><span class="chip">영업지원팀</span><span class="chip">경영지원팀</span><span class="chip">아르바이트</span><span class="chip">계정 미발급</span><span class="chip">퇴사·비활성</span></div>
+      <table>
+        <thead><tr><th>이름</th><th>팀 · 직급</th><th>고용</th><th>계정</th><th>권한</th><th>이번 달 근태</th><th>잔여 휴가</th><th>급여</th><th></th></tr></thead>
+        <tbody>
+          <tr><td><b>강시현</b></td><td>경영지원팀 · 총괄부사장</td><td>정규</td><td><span class="b b-warn">미발급</span></td><td>수정 6 · 조회 2 · 승인</td><td>-</td><td>12일</td><td><span class="b b-lock">잠금</span></td><td><span class="btn">상세</span></td></tr>
+          <tr><td><b>홍창의</b></td><td>영업지원팀 · 부장</td><td>정규</td><td><span class="b b-ok">daol1102</span></td><td>수정 3 · 승인</td><td>출근 18 · 지각 1</td><td>7일</td><td><span class="b b-lock">잠금</span></td><td><span class="btn">상세</span></td></tr>
+          <tr><td><b>김주연</b></td><td>영업지원팀 · 대리</td><td>정규</td><td><span class="b b-warn">미발급</span></td><td>수정 3</td><td>-</td><td>9일</td><td><span class="b b-lock">잠금</span></td><td><span class="btn">상세</span></td></tr>
+          <tr><td><b>박OO</b></td><td>영업지원팀 · 아르바이트</td><td><span class="b b-pt">아르바이트 ~2026-10-05</span></td><td><span class="b b-ok">pt-park</span></td><td>주문·발주 수정</td><td>출근 6</td><td>-</td><td><span class="b b-lock">잠금</span></td><td><span class="btn">상세</span></td></tr>
+          <tr style="opacity:.5"><td>조현수</td><td>-</td><td>정규</td><td>-</td><td>없음</td><td>-</td><td>-</td><td>-</td><td><span class="b b-off">비활성</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ② 직원 상세 -->
+  <h2>② 직원 상세 — 탭 4개 (기본 · 급여 기록 · 근태 · 휴가). 권한 편집 패널은 기본 탭의 버튼으로</h2>
+  <div class="shell">
+    <div class="side"><div class="t">인사 · 총무</div><div class="g">인사 · 총무</div><a class="on">직원 목록</a><a>근태 현황</a><a>휴가 승인</a><a>스케줄</a><a>아르바이트 관리</a><a>급여 기록</a></div>
+    <div class="main">
+      <h1>홍창의 <span class="b b-ok" style="vertical-align:middle">재직</span></h1>
+      <p class="sub">영업지원팀 · 부장 · 입사 2019-03-04 · ID daol1102 · 승인권</p>
+      <div class="tabs"><span class="tab">기본</span><span class="tab on">급여 기록 <span class="b b-lock" style="margin-left:4px">잠금</span></span><span class="tab">근태</span><span class="tab">휴가</span></div>
+      <div class="grid2">
+        <div class="card">
+          <h3>월별 급여 기록 (2026)</h3>
+          <table>
+            <thead><tr><th>귀속월</th><th class="num">지급 총액</th><th>지급일</th><th>구분</th><th>메모</th></tr></thead>
+            <tbody>
+              <tr><td>2026-09</td><td class="num">4,200,000</td><td>2026-09-25</td><td>월급</td><td>-</td></tr>
+              <tr><td>2026-08</td><td class="num">4,200,000</td><td>2026-08-25</td><td>월급</td><td>-</td></tr>
+              <tr><td>2026-07</td><td class="num">4,700,000</td><td>2026-07-25</td><td>월급 + 상여</td><td>하계 상여 500,000</td></tr>
+              <tr><td colspan="5" style="color:#94a3b8">… 이전 월</td></tr>
+            </tbody>
+          </table>
+          <div class="foot">1단계 = 기록만: 귀속월·총액·지급일·구분(월급/상여/일당)·메모. 계산(4대보험·세금·수당)은 2단계. 입력은 인사·총무 수정 + 급여 열람 허용자.</div>
+        </div>
+        <div class="card">
+          <h3>요약</h3>
+          <div class="kv">
+            <span class="k">올해 지급 합계</span><span>38,900,000원 (9회)</span>
+            <span class="k">최근 지급</span><span>2026-09-25 · 4,200,000원</span>
+            <span class="k">통장 대조</span><span><span class="b b-blue">연결 후보 9건</span> — 급여 계좌 이체 내역(회계·재무 통장 내역)과 금액·일자 일치 시 연결 제안</span>
+          </div>
+          <div style="margin-top:10px"><span class="btn p">급여 기록 추가</span> <span class="btn">엑셀 다운로드</span></div>
+          <div class="foot">통장 대조는 회계·재무의 급여 이체 분류(세무사 체크리스트 "급여통장 미등록" 항목)와 맞물리는 선택 기능 — 1단계에서는 표시만, 확정은 사람이.</div>
+        </div>
+      </div>
+      <div class="foot" style="margin-top:12px">근태 탭 = 월별 출퇴근 표(근태 현황 화면의 본인 필터 재사용) · 휴가 탭 = 신청·승인 이력 + 잔여(휴가 승인 화면 데이터 재사용) · 기본 탭 = 연락처·입사일·팀·고용형태·근무기간 + [권한 편집] 버튼(마스터).</div>
+    </div>
+  </div>
+
+  <!-- ③ 스케줄 -->
+  <h2>③ 스케줄 — 조회 전용 월 캘린더 (휴가 + 영업 일정 + 아르바이트 근무 기간). 경영 현황 "전체 스케줄"에도 같은 화면</h2>
+  <div class="shell">
+    <div class="side"><div class="t">인사 · 총무</div><div class="g">인사 · 총무</div><a>직원 목록</a><a>근태 현황</a><a>휴가 승인</a><a class="on">스케줄</a><a>아르바이트 관리</a><a>급여 기록</a></div>
+    <div class="main">
+      <h1>스케줄 <span style="font-size:13px;font-weight:500;color:#64748b">2026년 10월</span></h1>
+      <p class="sub">입력 화면이 따로 없다 — 휴가(근태), 영업 일정(영업일지 예정·업무일지), 아르바이트 근무 기간을 합쳐 보여준다. 클릭하면 원본 화면으로.</p>
+      <div class="chips"><span class="chip on">전체</span><span class="chip">영업팀</span><span class="chip">영업지원팀</span><span class="chip">경영지원팀</span><span class="chip" style="margin-left:10px">휴가</span><span class="chip">영업 일정</span><span class="chip">업무</span><span class="chip">아르바이트</span></div>
+      <div class="cal">
+        <div class="h">일</div><div class="h">월</div><div class="h">화</div><div class="h">수</div><div class="h">목</div><div class="h">금</div><div class="h">토</div>
+        <div class="d"><span class="n">28</span></div><div class="d"><span class="n">29</span><span class="ev sales">김재형 · 하나은행 방문</span></div><div class="d"><span class="n">30</span><span class="ev work">발주 12건</span></div>
+        <div class="d"><span class="n">1</span><span class="ev pt">아르바이트 2명 근무 시작</span></div><div class="d"><span class="n">2</span><span class="ev leave">김보현 연차</span></div><div class="d"><span class="n">3</span><span class="ev leave">개천절</span></div><div class="d"><span class="n">4</span></div>
+        <div class="d"><span class="n">5</span></div><div class="d"><span class="n">6</span><span class="ev half">홍창의 오후 반차</span><span class="ev sales">옥광일 · 우리은행 3곳</span></div><div class="d"><span class="n">7</span><span class="ev pt">아르바이트 근무 종료</span></div><div class="d"><span class="n">8</span><span class="ev leave">추석 연휴</span></div><div class="d"><span class="n">9</span><span class="ev leave">추석</span></div><div class="d"><span class="n">10</span><span class="ev leave">추석 연휴</span></div><div class="d"><span class="n">11</span></div>
+        <div class="d"><span class="n">12</span></div><div class="d"><span class="n">13</span><span class="ev sales">김재형 · 기업은행 미팅</span></div><div class="d"><span class="n">14</span></div><div class="d"><span class="n">15</span><span class="ev leave">강시현 연차 (승인 대기)</span></div><div class="d"><span class="n">16</span></div><div class="d"><span class="n">17</span><span class="ev work">계산서 발행 마감</span></div><div class="d"><span class="n">18</span></div>
+      </div>
+      <div class="foot">영업 일정 원천: 영업일지에 "예정일" 항목을 추가하면 계획이 캘린더에 뜬다(현재 영업일지는 실행 기록만). 공휴일은 고정표. 대표는 경영 현황에서 같은 캘린더를 조회.</div>
+    </div>
+  </div>
+
+  <!-- ④ 아르바이트 -->
+  <h2>④ 아르바이트 관리 — 명절 단기 인력의 등록·근무·문서·급여를 한 곳에</h2>
+  <div class="shell">
+    <div class="side"><div class="t">인사 · 총무</div><div class="g">인사 · 총무</div><a>직원 목록</a><a>근태 현황</a><a>휴가 승인</a><a>스케줄</a><a class="on">아르바이트 관리</a><a>급여 기록</a></div>
+    <div class="main">
+      <h1>아르바이트 관리</h1>
+      <p class="sub">직원 마스터(고용형태 아르바이트)를 기간·시즌으로 관리. 계정은 등록 시 자동 발급(주문·발주 권한), 종료일이 지나면 로그인 차단, 다음 시즌 "재고용"으로 같은 계정 재활성.</p>
+      <div class="kpis">
+        <div class="kpi"><div class="k">근무 중</div><div class="v">2명</div></div>
+        <div class="kpi"><div class="k">이번 시즌 (26 추석)</div><div class="v">4명</div></div>
+        <div class="kpi"><div class="k">문서 미비</div><div class="v">1명</div></div>
+        <div class="kpi"><div class="k">근무일수 합계</div><div class="v">23일</div></div>
+        <div class="kpi"><div class="k">급여 예정 합계</div><div class="v"><span class="b b-lock">잠금</span></div></div>
+      </div>
+      <div class="chips"><span class="chip on">26 추석</span><span class="chip">26 설</span><span class="chip">25 추석</span><span class="chip" style="margin-left:10px">근무 중</span><span class="chip">종료</span><span class="chip">문서 미비</span><span class="btn p" style="margin-left:auto">아르바이트 등록</span></div>
+      <table>
+        <thead><tr><th>이름</th><th>시즌</th><th>근무 기간</th><th>상태</th><th>계정</th><th>근무일수</th><th>일당 · 급여 예정</th><th>근로계약서</th><th>보안서약서</th><th></th></tr></thead>
+        <tbody>
+          <tr><td><b>박OO</b></td><td>26 추석</td><td>10-01 ~ 10-07</td><td><span class="b b-ok">근무 중</span></td><td>pt-park</td><td>6일</td><td class="num"><span class="b b-lock">잠금</span></td><td><span class="b b-ok">서명 완료</span></td><td><span class="b b-ok">서명 완료</span></td><td><span class="btn">상세</span></td></tr>
+          <tr><td><b>이OO</b></td><td>26 추석</td><td>10-01 ~ 10-07</td><td><span class="b b-ok">근무 중</span></td><td>pt-lee</td><td>5일</td><td class="num"><span class="b b-lock">잠금</span></td><td><span class="b b-warn">미작성</span></td><td><span class="b b-ok">서명 완료</span></td><td><span class="btn">상세</span></td></tr>
+          <tr style="opacity:.6"><td>최OO</td><td>26 설</td><td>01-20 ~ 01-28</td><td><span class="b b-off">종료</span></td><td>pt-choi (차단)</td><td>8일</td><td class="num"><span class="b b-lock">잠금</span></td><td><span class="b b-ok">보관</span></td><td><span class="b b-ok">보관</span></td><td><span class="btn">재고용</span></td></tr>
+        </tbody>
+      </table>
+      <div class="grid2" style="margin-top:12px">
+        <div class="card"><h3>등록 폼</h3><div class="kv"><span class="k">이름 · 연락처</span><span>필수</span><span class="k">시즌</span><span>26 추석 (선택)</span><span class="k">근무 기간</span><span>시작일 ~ 종료일 → employees.work_start/work_end</span><span class="k">일당 / 시급</span><span>급여 잠금 항목</span><span class="k">계정</span><span>ID 자동(pt-이름) · 초기 비밀번호 · 권한 = 주문·발주 수정</span><span class="k">담당 직원</span><span>영업지원팀 중 1명 (업무 지시·승인)</span></div></div>
+        <div class="card"><h3>문서 · 근무일지</h3><div class="kv"><span class="k">근로계약서</span><span>양식 + 등록 정보로 PDF 생성 → 서명본 업로드·보관</span><span class="k">보안서약서</span><span>동일 방식</span><span class="k">근무일지</span><span>출퇴근 체크(기존 근태) = 근무일수. 종료 시 일당 × 일수 = 급여 예정 → 급여 기록으로 넘김</span><span class="k">문서 미비</span><span>서명본 없는 사람은 목록에 경고 배지</span></div></div>
+      </div>
+      <div class="foot">양식(근로계약서·보안서약서)은 사용자 전달 예정. 문서 생성은 양식 수령 후 구현하고, 그 전에는 "서명본 업로드·보관"만 먼저 연다.</div>
+    </div>
+  </div>
+
+  <div class="plan">
+    <h2>데이터 · 구현 계획 (인사 트랙 200번대)</h2>
+    <table>
+      <tr><th style="width:170px">항목</th><th>저장 구조</th><th>비고</th></tr>
+      <tr><td>급여 기록</td><td>신규 `employee_salaries`(employee_id, pay_month, gross_amount, paid_on, kind[월급/상여/일당], memo, tx_id nullable=통장 이체 연결)</td><td>계산 없음. 열람·입력은 can_view_salary + 인사·총무 수정. 엑셀 다운로드 포함</td></tr>
+      <tr><td>직원 상세 근태·휴가</td><td>기존 attendance_* 그대로 — 화면만 직원 기준으로 묶음</td><td>근태 트랙 데이터 무변경</td></tr>
+      <tr><td>스케줄</td><td>저장 없음 — 휴가(attendance leaves) + 영업일지(예정일 컬럼 추가: contact_activities.planned_date) + 업무일지 요약 + 아르바이트 근무 기간 + 공휴일표</td><td>조회 전용. 경영 현황에 같은 화면 노출</td></tr>
+      <tr><td>아르바이트</td><td>employees(parttime·work_start/end) + 신규 `parttime_terms`(employee_id, season, daily_rate, supervisor_employee_id, contract_doc_url, nda_doc_url, status) + Storage 버킷(서명본)</td><td>재고용 = 새 term 행 + work_end 갱신·계정 재활성. 문서 생성은 양식 수령 후</td></tr>
+      <tr><td>메뉴·권한</td><td>인사·총무 그룹에 직원 목록(확장)·스케줄·아르바이트 관리·급여 기록 추가. 경영 현황에 스케줄 추가</td><td>menu-registry 항목 추가만</td></tr>
+    </table>
+    <h2 style="margin-top:16px">확인해 주실 것</h2>
+    <ol class="q">
+      <li>급여 기록 항목(귀속월·총액·지급일·구분·메모)으로 충분한지, 구분값(월급/상여/일당) 추가가 필요한지.</li>
+      <li>스케줄의 "영업 일정"을 위해 영업일지에 <b>예정일</b>을 추가해도 되는지(현재는 실행 기록만) — 영업팀이 계획을 적을 의향이 있는지가 관건.</li>
+      <li>아르바이트 등록 항목(시즌·일당·담당 직원)과 계정 ID 규칙(pt-이름), 급여 예정 = 일당 × 출근일수 산식.</li>
+      <li>직원 목록·상세를 인사·총무 첫 화면(직원 목록)으로 두고 권한 편집은 상세 안의 버튼으로 옮겨도 되는지(현재는 목록의 권한 버튼).</li>
+    </ol>
+  </div>
+</div>
+</body>
+</html>

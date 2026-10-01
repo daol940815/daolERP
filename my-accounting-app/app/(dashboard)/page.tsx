@@ -103,7 +103,7 @@ export default async function DashboardPage({
       <div className="mt-4 bg-white border border-gray-200 rounded-xl p-4">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Metric label="가용 자금" value={eok(fund?.available_funds ?? 0)}
-            sub="보유현금 + 미사용 한도" valueClass="text-blue-600" href="/reports/cash-position" />
+            sub="보유현금 + 미사용 한도" valueClass="text-blue-600" href="/reports/cash" />
           <Metric label="미수금" value={eok(recv?.outstanding_total ?? 0)}
             sub={recv ? `90일 초과 ${eok(recv.over90_total)}` : undefined}
             valueClass={(recv?.outstanding_total ?? 0) > 0 ? 'text-red-600' : 'text-gray-900'}

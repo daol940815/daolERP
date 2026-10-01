@@ -147,9 +147,11 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
   // 줄바꿈 미사용 기준 (사용자 확정 2026-08-25) — 대신 열 너비를 내용에 맞춰 확보
   const center = { horizontal: 'center' as const, vertical: 'middle' as const }
   // 날짜 칸은 원본과 동일하게 날짜 값 + mm-dd-yy 서식 (파싱 불가한 자유 표기는 문자열 유지)
+  // 엑셀 날짜 직렬값은 UTC 성분 기준 — KST 자정(+09:00)으로 만들면 표시가
+  // 하루 앞으로 어긋난다 (거래명세서 작업 중 발견한 버그 수정, Z 고정)
   const asDate = (s: string | null) => {
     if (!s) return ''
-    const d = new Date(`${s}T00:00:00+09:00`)
+    const d = new Date(`${s}T00:00:00Z`)
     return Number.isNaN(d.getTime()) ? s : d
   }
 

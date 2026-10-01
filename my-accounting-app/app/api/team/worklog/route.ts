@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isManagerLike } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
@@ -25,7 +26,7 @@ function periodRange(period: string): { from: string; to: string; label: string 
 export async function GET(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
-  if (me.role === 'sales') {
+  if (!isManagerLike(me)) {
     return NextResponse.json({ error: '팀 업무 현황은 관리자만 볼 수 있습니다.' }, { status: 403 })
   }
   const admin = createAdminClient()

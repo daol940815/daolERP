@@ -16,6 +16,19 @@
 - UI·문서·커밋에 이모지를 쓰지 않는다.
 - 사용자에게는 솔직하게 평가한다 — 맞으면 맞다, 아니면 아니라고.
 
+## 회사 조직 (2026-09-29 사용자 확인 — UI 그룹·권한 설계의 기준)
+
+- **영업팀**: 김재형 대표 · 옥광일 대표 — 담당 은행·업체·담당자 관리, 상담
+- **영업지원팀**: 홍창의 부장 · 김주연 대리 · 김보현 주임 · 김승현 사원 · 한정호 사원 —
+  상담일지·주문·발주·배송 확인, 고객관리 문서 정리, 샘플 재고 실사, **수금 독촉, 계산서 발행**
+- **경영지원팀**: 강시현 총괄부사장 · 오철준 대리 — 회계·재무(오철준, 회계 지식 거의 없음),
+  인사·총무(대부분 수기, 명절 아르바이트 근무일지·급여·근로계약서·보안서약서 필요)
+- **세무사(외부)**: 재무제표·분개·원장 등 회계 대부분 대행. 내부 화면은 "세무사 자료가 오기
+  전에 내부 확인용으로 뽑는" 목적.
+- **사장님**: 결과 데이터만 — 자금·대출·매출 현황, 이번 달 입금·지급 예정, 직원 업무·휴가 스케줄.
+- 수금·매입 결제 흐름: 현재 영업지원팀이 수행 → 향후 회계·재무가 확인하고 영업지원팀에
+  독촉을 요청하는 구조로 전환 예정. 즉 미수 화면은 회계용 "확인"과 영업지원용 "작업 목록" 두 얼굴.
+
 ## 모듈 구조 (계층)
 
 공통 마스터 → 원본데이터 → 연결 계층(별칭·매칭·분류) → 업무 모듈 → 경영 계층
@@ -31,8 +44,17 @@
 ## 직원 마스터 (employees) — 인사·근태 기능은 반드시 이 테이블 참조
 
 - 100에서 생성, 103·104에서 확장: `position, phone, email, hire_date, role, auth_user_id, login_id`
-- role 3단계: `sales`(직원) / `manager`(중간 관리자: 주문+승인, 회계 접근 불가) / `admin`(전체 관리자)
+- **권한(2026-09-29, 109)**: `permissions` JSONB {그룹 8: none|view|edit} + `is_master` +
+  `can_approve`·`can_view_salary`·`can_view_payment_info` + `team`·`employment_type`(regular/parttime)·
+  `work_start`/`work_end`(아르바이트, 종료일 경과 시 로그인 차단). 판정은 `lib/permissions.ts`
+  (`can(me, group, level)`, `canApprove`, `isManagerLike`·`isHrAdmin` = 레거시 role 호환).
+  `role`(sales/manager/admin)은 109 미적용 폴백용으로만 남김 — **새 코드는 role로 판정하지 말 것.**
+  마스터 계정: daol825(ERP 총괄)·master(사장님). 권한 편집은 직원·계정·권한 화면(마스터만).
 - 로그인: login_id → `{login_id}@daol.internal` 내부 이메일로 Supabase Auth 인증 (`lib/user-role.ts`)
+- **내 정보** `/me/profile`(내 업무, 전원): 기본 정보(연락처만 본인 수정) / 계정(비밀번호 변경 = 재인증 후
+  `auth.updateUser`) / 내 업무 요약. **권한 정보는 노출하지 않는다**(2026-10-01 사용자 결정). 관리자 비밀번호 재설정은
+  직원·계정·권한 화면(인사·총무 수정 권한). 비밀번호는 어디에도 저장하지 않는다. 인사 직원 상세는
+  `EmployeeBasicCard` 부품을 공유한다.
 - 주의: 거래처 관리 엑셀 적재로 로그인 계정 없는 직원(auth_user_id NULL, 상담자 21명)이 존재함.
   근태 대상 여부는 사용자에게 확인할 것.
 - 새 직원 테이블을 만들지 말 것. 확장이 필요하면 employees에 컬럼 추가 또는 참조 테이블.
@@ -51,28 +73,29 @@
 - "본인 관련 정보" 데이터 소스: 내 입력 주문 `erp_orders.staff_name`(이름 대조) ·
   내 상담 주문 `erp_order_items.channel` · 내 담당 거래처 `vendor_staff.employee_id` ·
   내 영업일지 `contact_activities.employee_id` · 근태(200번대 트랙에서 생성 예정).
-- 주문 포털 사이드바 `app/(orders)/orders/orders-sidebar.tsx`는 허브·주문 트랙도 수정하는
-  파일 — main 병합 전 rebase 필수.
+- 사이드바 파일은 삭제됨(2026-09-29 UI 재조정) — 메뉴 추가·이동은
+  `lib/menu-registry.ts` 단일 원천에 항목을 추가할 것. main 병합 전 rebase 필수는 동일.
 
 ## 마이그레이션 규칙 (번호 충돌 주의 — 병행 세션 있음)
 
 - 실행은 사용자가 Supabase SQL 편집기에서 직접 한다. 파일만 만들어 전달할 것.
 - 번호 대역: `06x~07x` CRM 트랙(별도 세션) / `100번대` 매출처 허브·담당자 관리(총괄 세션) /
-  `200번대` 인사·근태 트랙 / `300번대` 직원 개인화면(마이페이지) 트랙 /
+  `200번대` 인사·총무 트랙(인수인계: docs/hr-track.md, 근태 설계 docs/attendance-design.md) /
+  `300번대` 직원 개인화면(마이페이지) 트랙 /
   `400번대` 회계 트랙(인수인계: docs/accounting-track.md) /
   `500번대` 주문시스템 트랙(인수인계: docs/order-system-track.md) /
   **`600번대` 매입처 허브 트랙(인수인계: docs/purchase-hub-track.md)** /
   `700번대` 상담·영업·업무일지 트랙(인수인계: docs/consultation-journal-track.md) /
   **`800번대` 요아럽 샘플 재고 트랙(인수인계: docs/sample-stock-track.md)** /
   새 트랙은 다음 100번대를 사용.
-- 현재 적용 완료: 100~105.
+- 현재 적용 완료: 100~109 (109 = 직원 권한, 2026-09-29).
 
 ## 기본 루틴 (모든 트랙 공통)
 
 1. **결정 즉시 기록**: 사용자 결정·승인, 미결 항목, DB 변경·검증 결과가 나오면
    그 자리에서 해당 트랙 docs 문서에 기록하고 main에 반영한다. 대화는 기억 장소가
    아니다 — 저장소가 기억 장소다.
-   - 트랙 문서: 회계 `docs/accounting-track.md` / 근태 `docs/attendance-design.md` /
+   - 트랙 문서: 회계 `docs/accounting-track.md` / 인사·총무 `docs/hr-track.md` /
      새 트랙은 `docs/<트랙>-track.md` 생성. 전체 규칙 변경은 CLAUDE.md에.
 2. **압축 안전망**: `.claude/settings.json`의 PreCompact/PostCompact 훅이
    압축 시 보존 지침을 주입하고, 압축 직후 미기록 사항의 docs 저장을 안내한다.
@@ -98,17 +121,46 @@
   `lib/fetch-all-rows.ts`의 `fetchAllRows`(range 페이지네이션) 사용. 대량 집계는
   JSONB 단일 응답 RPC 패턴 참고(`102_hub_summary_json.sql`).
 - `.in()`에 수백 개 id를 넣으면 URL 초과로 400 — 100~200개 청크로 나눌 것.
-- 페이지 인증: `middleware.ts`가 전 경로 가드. (dashboard) 레이아웃은 admin 전용,
-  직원·중간관리자는 `/orders`(주문 포털)로 리다이렉트.
+- 페이지 인증: `middleware.ts`가 전 경로 가드(로그인) + `/api/*` 그룹 권한 검사
+  (GET=조회, 그 외=수정, 아르바이트 신규 거래처 등록 차단). 페이지 접근은 AreaShell이
+  경로 소속 그룹의 조회 권한으로 판정(없으면 첫 영역 홈으로). 미들웨어가 `x-pathname`
+  헤더로 현재 경로를 레이아웃에 전달한다.
 - API 대량 응답·순차 쿼리는 병렬화(Promise.all)·청크 처리 — 기존 lib 패턴 따를 것.
+- **로그인 유지 정책(2026-09-18 확정)**: 자동로그인 없음. 세션 쿠키는 항상 브라우저 세션
+  쿠키(닫으면 로그아웃, 다음 접속에 로그인 화면). "로그인 상태 유지" 옵션은 두지 않는다
+  (사용자 결정). 아이디만 localStorage에 기억하고 **비밀번호는 절대 저장하지 않는다**
+  (브라우저 저장 기능에 맡김). 규칙은 `lib/auth-session-prefs.ts` 한 곳 — 브라우저
+  클라이언트(`lib/supabase.ts`)·미들웨어·서버 클라이언트가 공유하므로 세션 쿠키를 쓰는
+  코드를 새로 만들면 반드시 `sessionOnly()`를 거칠 것.
+- 미들웨어에서 리다이렉트할 때는 `redirectTo()` 헬퍼를 쓸 것(2026-09-18 수정). 갱신된
+  세션 쿠키 없이 `NextResponse.redirect`를 새로 만들면 만료 토큰 접속 시 매 단계
+  토큰 갱신이 반복되어 자동로그인 접속이 수 초~10초 느려진다.
 
 ## UI 관례
 
 - 전부 한국어. Tailwind, 기존 페이지 스타일(둥근 카드, slate 팔레트, 얇은 표) 따름.
-- 사이드바: `components/layout/Sidebar.tsx` — 경영관리 / 회계 / 원본데이터 / 정리 도구
-  4그룹 접이식. 새 관리 화면은 대개 경영관리 그룹.
+- **화면 구조(2026-09-29 재조정)**: 영역 4개 — 영업·주문 / 회계·재무 / 인사·총무 / 경영 현황.
+  메뉴는 `lib/menu-registry.ts` **단일 원천**(그룹·항목·경로·필요 권한) — 새 화면은 여기에
+  항목을 추가하면 사이드바·업무 선택·접근 가드·API 검사에 모두 반영된다(사이드바 파일을
+  직접 고치지 말 것). API는 `API_OWNERS`에 경로 접두→그룹을 등록해야 미들웨어 권한 검사가
+  붙는다(미등록 API는 로그인만으로 허용). 셸: `components/layout/AreaShell.tsx`(서버 가드) +
+  `AreaSidebar.tsx`. 세 라우트 그룹 레이아웃은 모두 AreaShell. '모드'라는 말은 쓰지 않는다.
+  그룹 `area: 'all'`은 전 영역 공통(내 업무 — 출근 체크·근태·휴가·업무일지, 2026-10-01). 출근 체크 위젯은
+  모든 영역 사이드바 상단과 업무 선택 화면에 있다(`app/(orders)/orders/check-widget.tsx`).
 - 목록 화면 패턴: KPI 카드(클릭=필터) + 통합 검색 + 칩 필터 + 표. 상태는 수동 입력이
   아니라 데이터에서 자동 판정.
+- **한 화면 탭 통합(2026-09-30)**: 성격이 같은 두 화면은 하나의 경로에 `?tab=`으로 묶는다 —
+  서버 page.tsx가 searchParams.tab을 읽어 탭 컴포넌트를 고르고, 탭 줄은 `components/ui/PageTabs.tsx`.
+  옛 주소는 리다이렉트 스텁(쿼리 보존)으로 남기고 `EXTRA_PATH_OWNERS`에 소속을 유지한다.
+  적용: 기초잔액 `/opening-balances`, 자금 · 계좌 `/reports/cash`, 카드 내역 `/cards`, 계산서 내역 `/tax-invoices`
+  (칩 `?dir=&tax=` + 매입 분류 탭), 통장 내역 `/transactions`(분류 작업 탭, 기간 없음), 매입처 관리(결제 예외 탭,
+  collections 권한), 미수금·미지급금 관리(`components/reports/aging-manage.tsx`, 경과 구간 + 허브 요약 합침).
+- **기간 필터 표준(2026-09-30 확정)**: 기간이 있는 목록·분석 화면은 `components/ui/PeriodPresets.tsx`
+  한 줄(최근 7일·최근 30일·당월·전월·1~4분기·상반기·하반기·당년·전년·전체 기간)을 필터 바 위에
+  두고 날짜 from~to는 필터 바에 둔다. "전체 기간"은 `DATA_START`(lib/period-presets.ts)부터 —
+  화면에 날짜를 하드코딩하지 않는다. 기본 기간: 원본 목록·원장·자금·분개 = 당월,
+  관리·분석 = 당년(`defaultRange(kind)`), 주문 현황만 최근 30일. 월 단위(근태·업무일지·월별 손익)·
+  기준일(미수금·미지급금 관리)·신고기간(부가세) 화면은 예외.
 - **거래처 담당자 존칭(2026-08-14 확정)**: 고객사 인물은 화면·엑셀·저장 표기 모두
   '님'을 붙여 존대한다. 표기는 `lib/contact-label.ts`의 `contactLabel(name, title)` 사용 —
   직함 있으면 `권오병 부장님`, 없으면 `박제현 님` (기존 ERP 표기와 동일).

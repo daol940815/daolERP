@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isManagerLike } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import {
@@ -35,8 +36,8 @@ export async function GET(req: NextRequest) {
 
   // 열람 대상 — 직원(sales)은 본인만, manager/admin은 팀원 지정 가능
   const requested = sp.get('employee')
-  const targetId = requested && me.role !== 'sales' ? requested : me.employeeId
-  if (!targetId) return NextResponse.json({ rows: [], employees: [], hint: NOT_LINKED, month, role: me.role })
+  const targetId = requested && isManagerLike(me) ? requested : me.employeeId
+  if (!targetId) return NextResponse.json({ rows: [], employees: [], hint: NOT_LINKED, month, role: isManagerLike(me) ? 'manager' : 'sales' })
 
   const { from, before } = monthRange(month)
   let query = admin.from('erp_work_logs')
@@ -68,7 +69,7 @@ export async function GET(req: NextRequest) {
 
   // manager/admin 전환용 직원 목록
   let employees: { id: string; name: string }[] = []
-  if (me.role !== 'sales') {
+  if (isManagerLike(me)) {
     const { data: emps } = await admin.from('employees')
       .select('id, name').eq('is_active', true).order('name')
     employees = (emps ?? []) as { id: string; name: string }[]
@@ -76,7 +77,7 @@ export async function GET(req: NextRequest) {
 
   const target = employees.find(e => e.id === targetId)
   return NextResponse.json({
-    rows: data ?? [], counts, month, employees, role: me.role,
+    rows: data ?? [], counts, month, employees, role: isManagerLike(me) ? (me.role === 'sales' ? 'manager' : me.role) : 'sales',
     employee_id: targetId,
     employee_name: targetId === me.employeeId ? me.employeeName : (target?.name ?? null),
     is_self: targetId === me.employeeId,

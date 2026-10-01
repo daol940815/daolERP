@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 화면 통합 후보 4~7 (미수·미지급 관리 / 통장 내역+분류 / 계산서 내역 / 매입처 관리+예외)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; word-break: keep-all; }
+  .wrap { max-width: 1360px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 16px; line-height: 1.7; }
+  .note b { color: #422006; }
+  h2 { font-size: 16px; font-weight: 700; margin: 34px 0 6px; }
+  h2 .no { display: inline-block; background: #0f172a; color: #fff; font-size: 11px; border-radius: 6px; padding: 2px 7px; margin-right: 8px; vertical-align: 2px; }
+  .desc { font-size: 12.5px; color: #475569; margin-bottom: 12px; line-height: 1.7; }
+  .desc code { background: #e2e8f0; border-radius: 4px; padding: 0 5px; font-size: 11.5px; }
+  .shell { display: grid; grid-template-columns: 196px 1fr; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; background: #fff; }
+  .side { background: #0f172a; padding: 14px 10px; color: #94a3b8; font-size: 12.5px; }
+  .side .t { color: #fff; font-weight: 700; font-size: 14px; padding: 0 8px 12px; border-bottom: 1px solid #334155; margin-bottom: 10px; }
+  .side .g { padding: 4px 8px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; margin-top: 10px; }
+  .side a { display: block; padding: 6px 10px; border-radius: 6px; color: #94a3b8; text-decoration: none; }
+  .side a.on { background: #334155; color: #fff; }
+  .side a.sub { margin-left: 10px; padding-left: 12px; border-left: 1px solid #334155; border-radius: 0; font-size: 12px; }
+  .side a.del { text-decoration: line-through; color: #475569; }
+  .side .tag { font-size: 9.5px; border-radius: 999px; padding: 0 5px; margin-left: 5px; font-weight: 700; }
+  .side .tag.new { background: #dcfce7; color: #15803d; } .side .tag.gone { background: #fee2e2; color: #b91c1c; }
+  .main { padding: 16px 18px; min-width: 0; }
+  h1 { font-size: 18px; font-weight: 700; }
+  .sub { font-size: 12px; color: #64748b; margin: 3px 0 10px; }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid #e2e8f0; margin: 10px 0 12px; }
+  .tab { padding: 7px 14px; font-size: 12.5px; font-weight: 600; color: #64748b; border-bottom: 2px solid transparent; }
+  .tab.on { color: #0f172a; border-bottom-color: #0f172a; }
+  .tab .cnt { font-size: 10.5px; background: #fee2e2; color: #b91c1c; border-radius: 999px; padding: 0 6px; margin-left: 4px; }
+  .presets { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+  .preset { font-size: 11px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2px 8px; color: #475569; }
+  .preset.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .inp { border: 1px solid #cbd5e1; border-radius: 8px; padding: 5px 9px; font-size: 12px; color: #334155; background: #fff; }
+  .btn { border: 1px solid #cbd5e1; border-radius: 8px; padding: 5px 10px; font-size: 12px; color: #334155; background: #fff; }
+  .btn.dark { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .btn.amber { border-color: #fbbf24; color: #b45309; } .btn.blue { border-color: #60a5fa; color: #1d4ed8; } .btn.green { border-color: #6ee7b7; color: #047857; }
+  .spacer { flex: 1; }
+  .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 12px; }
+  .kpis.c5 { grid-template-columns: repeat(5, 1fr); } .kpis.c4 { grid-template-columns: repeat(4, 1fr); }
+  .kpi { border: 1px solid #e2e8f0; border-radius: 10px; padding: 9px 12px; background: #fff; }
+  .kpi.on { border-color: #0f172a; box-shadow: 0 0 0 1px #0f172a inset; }
+  .kpi .k { font-size: 11px; color: #64748b; } .kpi .v { font-size: 17px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .kpi .s { font-size: 10.5px; color: #94a3b8; margin-top: 1px; }
+  .red { color: #dc2626; } .amber { color: #d97706; } .orange { color: #ea580c; } .blue { color: #2563eb; } .green { color: #059669; } .violet { color: #7c3aed; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+  .chip { border: 1px solid #cbd5e1; border-radius: 999px; padding: 3px 11px; font-size: 11.5px; color: #475569; background: #fff; }
+  .chip.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .chip.sq { border-radius: 8px; }
+  .chip.a { background: #fffbeb; border-color: #fde68a; color: #92400e; } .chip.b { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+  .chip.p { background: #faf5ff; border-color: #e9d5ff; color: #6b21a8; } .chip.t { background: #f0fdfa; border-color: #99f6e4; color: #0f766e; }
+  .chip.g { background: #f0fdf4; border-color: #bbf7d0; color: #166534; } .chip.r { background: #fff1f2; border-color: #fecdd3; color: #9f1239; }
+  .chip.on.a, .chip.on.b, .chip.on.p, .chip.on.t, .chip.on.g, .chip.on.r { box-shadow: 0 0 0 2px #0f172a; }
+  .lbl { font-size: 11px; color: #94a3b8; margin-right: 2px; }
+  .sep { width: 1px; height: 18px; background: #e2e8f0; margin: 0 4px; }
+  .tblwrap { border: 1px solid #e2e8f0; border-radius: 10px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; font-size: 10.5px; color: #64748b; font-weight: 600; padding: 7px 9px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+  th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td { padding: 6px 9px; border-bottom: 1px solid #f1f5f9; white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  td.dim { color: #cbd5e1; }
+  .b { display: inline-block; font-size: 10px; border-radius: 999px; padding: 1px 7px; font-weight: 600; white-space: nowrap; }
+  .b-ok { background: #dcfce7; color: #15803d; } .b-warn { background: #fef3c7; color: #b45309; } .b-off { background: #f1f5f9; color: #64748b; }
+  .b-red { background: #fee2e2; color: #b91c1c; } .b-blue { background: #dbeafe; color: #1d4ed8; } .b-org { background: #ffedd5; color: #c2410c; }
+  .b-vio { background: #ede9fe; color: #6d28d9; } .b-teal { background: #ccfbf1; color: #0f766e; } .b-sky { background: #e0f2fe; color: #0369a1; }
+  .lnk { color: #2563eb; font-size: 11px; margin-right: 6px; }
+  .mini { font-size: 11px; color: #64748b; }
+  .bar { height: 6px; background: #e2e8f0; border-radius: 999px; width: 90px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+  .bar i { display: block; height: 100%; background: #0f172a; border-radius: 999px; }
+  .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; background: #fff; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; background: #f1f5f9; color: #334155; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 600; }
+  .pill .x { color: #94a3b8; }
+  .foot { font-size: 11px; color: #94a3b8; margin-top: 8px; line-height: 1.6; }
+  .ba { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 8px 0 14px; }
+  .ba .card h4 { font-size: 12px; font-weight: 700; margin-bottom: 6px; color: #334155; }
+  .ba ul { list-style: none; font-size: 12px; line-height: 1.8; color: #475569; }
+  .ba li.del { text-decoration: line-through; color: #94a3b8; }
+  .ba li.add { color: #15803d; font-weight: 600; }
+  .q { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #1e3a8a; margin-top: 10px; line-height: 1.7; }
+  .q b { color: #1e40af; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="note">
+  <b>화면 통합 후보 4~7 시안 (2026-09-30)</b> — 1~3(기초잔액 / 자금 · 계좌 / 카드 내역)은 탭 통합으로 구현·배포했습니다.
+  4~7은 작업 흐름이 바뀌므로 확정 전 시안입니다. 각 절의 왼쪽 사이드바는 <b>통합 후 메뉴</b>이며,
+  <span style="background:#fee2e2;color:#b91c1c;border-radius:999px;padding:0 5px;font-weight:700;font-size:10px">삭제</span> 표시는 사라지는 항목,
+  <span style="background:#dcfce7;color:#15803d;border-radius:999px;padding:0 5px;font-weight:700;font-size:10px">신규</span> 표시는 새 항목입니다.
+  숫자는 예시(가공)이며 실제 데이터가 아닙니다. 옛 주소는 모두 새 화면의 해당 탭으로 리다이렉트됩니다(1~3과 같은 방식).
+  파란 상자는 확정이 필요한 질문입니다.
+</div>
+
+<!-- ───────────────────────── 4. 미수금 관리 ───────────────────────── -->
+<h2><span class="no">4</span>미수금 관리 = 경과기간 분석 + 매출처별 미수 요약 (미지급금 관리도 같은 구조)</h2>
+<p class="desc">
+  지금은 <code>/reports/receivables-aging</code>(경과기간 구간별 표)와 매출처 관리의 미수 KPI·상태가 따로 있습니다.
+  통합안은 <b>한 화면에 요약 카드(클릭=필터) + 매출처별 한 줄 표(허브 요약 열 + 경과 구간 열)</b>입니다.
+  행은 <b>연결 거래처(vendor) 기준</b>으로 합치고, ERP 별칭이 거래처에 연결되지 않은 건은 "미연결" 행으로 따로 보입니다.
+  영업지원팀의 작업 목록(수금 대상 <code>/reports/erp-receivables</code>)은 그대로 두고, 이 화면은 회계·재무의 <b>확인용</b>입니다.
+</p>
+<div class="ba">
+  <div class="card"><h4>통합 전 (회계·재무 메뉴)</h4><ul>
+    <li>미수금 관리 → 미수금 경과기간 분석 (구간별 표만)</li>
+    <li>미지급금 관리 → 미지급금 경과기간 분석</li>
+    <li>매출처 관리 KPI (기간 매출 · 수금율 · 미수 잔액 · 상태)</li>
+  </ul></div>
+  <div class="card"><h4>통합 후</h4><ul>
+    <li class="add">미수금 관리 = 요약 카드 6개 + 매출처별 표 (허브 요약 열 + 경과 구간 열 + 상태 + 바로가기)</li>
+    <li class="add">미지급금 관리 = 같은 구조 (매입처 · 지급액 · 미지급 잔액)</li>
+    <li>매출처 관리 KPI는 그대로 (담당자 관리 화면이므로)</li>
+  </ul></div>
+</div>
+<div class="shell">
+  <div class="side">
+    <div class="t">회계 · 재무</div>
+    <div class="g">회계 · 재무</div>
+    <a>파일 업로드</a><a>통장 내역</a><a>카드 내역</a><a>계산서 내역</a><a>현금영수증</a><a>ERP 주문내역</a>
+    <a class="on">미수금 관리</a><a>미지급금 관리</a><a>매출처 관리</a><a>매입처 관리</a>
+  </div>
+  <div class="main">
+    <h1>미수금 관리</h1>
+    <p class="sub">매출처별 미수 잔액을 기준일 기준 경과기간으로 나눠 확인합니다. 원본은 ERP 주문 · 입금 매칭이며, 숫자를 누르면 해당 화면으로 이동합니다.</p>
+    <div class="filters">
+      <span class="lbl">기준일</span><span class="inp">2026-09-30</span>
+      <span class="sep"></span>
+      <span class="inp">담당직원: 전체 ▾</span>
+      <span class="inp">상태: 전체 ▾</span>
+      <span class="inp" style="min-width:200px;color:#94a3b8">매출처 · 연결 거래처 검색</span>
+      <label class="mini"><input type="checkbox" checked> 미수 있는 곳만</label>
+      <span class="spacer"></span>
+      <span class="btn">↓ 엑셀</span>
+    </div>
+    <div class="kpis">
+      <div class="kpi on"><div class="k">미수 총계</div><div class="v red">4.82억</div><div class="s">매출처 63곳</div></div>
+      <div class="kpi"><div class="k">30일 이내</div><div class="v">2.10억</div><div class="s">정상 회수 구간</div></div>
+      <div class="kpi"><div class="k">31~60일</div><div class="v amber">1.24억</div><div class="s">18곳</div></div>
+      <div class="kpi"><div class="k">61~90일</div><div class="v orange">0.68억</div><div class="s">9곳</div></div>
+      <div class="kpi"><div class="k">90일 초과</div><div class="v red">0.80억</div><div class="s">7곳 · 독촉 대상</div></div>
+      <div class="kpi"><div class="k">기초이월 잔여</div><div class="v">0.31억</div><div class="s">기초잔액(거래처) 미회수분</div></div>
+    </div>
+    <div class="tblwrap"><table>
+      <thead><tr>
+        <th>매출처 (연결 거래처)</th><th>담당직원</th><th class="num">당년 매출</th><th class="num">수금액</th><th>수금율</th>
+        <th class="num">미수 잔액</th><th class="num">30일 이내</th><th class="num">31~60일</th><th class="num">61~90일</th><th class="num">90일 초과</th>
+        <th>최근 입금</th><th>상태</th><th></th>
+      </tr></thead>
+      <tbody>
+        <tr><td><b>더샵 의정부 (더샵의정부점)</b></td><td>홍창의</td><td class="num">1.20억</td><td class="num">0.86억</td><td><span class="bar"><i style="width:72%"></i></span>72%</td>
+          <td class="num red"><b>3,400만</b></td><td class="num">1,200만</td><td class="num">1,000만</td><td class="num">400만</td><td class="num red">800만</td><td>09-12</td><td><span class="b b-red">미수 90일 초과</span></td>
+          <td><span class="lnk">매출처</span><span class="lnk">수금 대상</span></td></tr>
+        <tr><td><b>이편한 김포 (이편한김포점)</b></td><td>김주연</td><td class="num">0.74억</td><td class="num">0.60억</td><td><span class="bar"><i style="width:81%"></i></span>81%</td>
+          <td class="num red"><b>1,400만</b></td><td class="num">900만</td><td class="num">500만</td><td class="num dim">-</td><td class="num dim">-</td><td>09-25</td><td><span class="b b-warn">미수</span></td>
+          <td><span class="lnk">매출처</span><span class="lnk">수금 대상</span></td></tr>
+        <tr><td><b>자이 송도 (자이송도점)</b></td><td>김보현</td><td class="num">0.52억</td><td class="num">0.30억</td><td><span class="bar"><i style="width:58%"></i></span>58%</td>
+          <td class="num red"><b>2,200만</b></td><td class="num">400만</td><td class="num">600만</td><td class="num orange">1,200만</td><td class="num dim">-</td><td>08-30</td><td><span class="b b-org">수금지연</span></td>
+          <td><span class="lnk">매출처</span><span class="lnk">수금 대상</span></td></tr>
+        <tr><td>힐스테이트 동탄 <span class="b b-off">미연결</span></td><td class="dim">-</td><td class="num">0.18억</td><td class="num">0.10억</td><td><span class="bar"><i style="width:56%"></i></span>56%</td>
+          <td class="num red"><b>800만</b></td><td class="num">800만</td><td class="num dim">-</td><td class="num dim">-</td><td class="num dim">-</td><td>09-28</td><td><span class="b b-warn">미수</span></td>
+          <td><span class="lnk">별칭 연결</span></td></tr>
+        <tr><td><b>롯데캐슬 하남 (롯데캐슬하남점)</b></td><td>김승현</td><td class="num">0.36억</td><td class="num">0.36억</td><td><span class="bar"><i style="width:100%"></i></span>100%</td>
+          <td class="num">0</td><td class="num dim">-</td><td class="num dim">-</td><td class="num dim">-</td><td class="num dim">-</td><td>09-29</td><td><span class="b b-ok">정상</span></td>
+          <td><span class="lnk">매출처</span></td></tr>
+      </tbody>
+    </table></div>
+    <p class="foot">· 요약 카드를 누르면 그 구간에 잔액이 있는 매출처만 남습니다. · "기초이월 잔여"는 기초잔액(거래처) 탭의 잔여(기초잔액 - 회수 누계)입니다. · 미지급금 관리는 매입처 · 지급액 · 지급율 · 미지급 잔액 · 최근 지급 · 상태(미지급 / 90일 초과 / 과다지급)로 같은 구조입니다.</p>
+    <div class="q"><b>확인 1.</b> 행 기준을 연결 거래처로 합치면 경과 구간 계산은 ERP 주문일 기준 그대로이고, 표의 "당년 매출 · 수금액 · 수금율"만 매출처 관리와 같은 값을 씁니다. 이 방식이면 매출처 관리와 숫자가 일치합니다 — 동의하시나요?<br>
+    <b>확인 2.</b> 기존 "수금 대상"(영업지원 작업 목록)은 그대로 두고 이 화면에서 바로가기만 두는 안입니다. 하나로 합치자면 담당자별 독촉 메모 기능이 이 화면으로 와야 해서 범위가 커집니다.</div>
+  </div>
+</div>
+
+<!-- ───────────────────────── 5. 통장 내역 + 분류 ───────────────────────── -->
+<h2><span class="no">5</span>통장 내역 + 통장 거래 분류 → 통장 내역 화면 안의 '분류 작업' 탭</h2>
+<p class="desc">
+  통장 거래 분류(<code>/bank-classify</code>)는 통장 내역의 미분류 건을 묶어서 확정하는 작업 화면인데 메뉴가 떨어져 있어 왕복이 잦습니다.
+  통합안은 통장 내역에 <b>[거래 내역 | 분류 작업]</b> 탭을 두고, 사이드바의 계좌별 바로가기(계좌 선택)를 <b>두 탭이 공유</b>합니다.
+  분류 작업 탭에서 묶음을 확정하면 거래 내역 탭에 바로 반영되고, 탭 이름 옆에 미분류 건수가 붙습니다.
+</p>
+<div class="ba">
+  <div class="card"><h4>통합 전</h4><ul>
+    <li>통장 내역 (계좌별 바로가기 하위)</li>
+    <li>통장 거래 분류 (별도 항목, 계좌 필터 없음)</li>
+  </ul></div>
+  <div class="card"><h4>통합 후</h4><ul>
+    <li class="add">통장 내역 = [거래 내역] 탭 (현재 화면 그대로) + [분류 작업] 탭 (현재 분류 화면 + 계좌 필터)</li>
+    <li class="del">통장 거래 분류 항목 삭제 (옛 주소는 분류 작업 탭으로 이동)</li>
+    <li>계좌별 바로가기는 선택한 탭을 유지한 채 계좌만 바꿈</li>
+  </ul></div>
+</div>
+<div class="shell">
+  <div class="side">
+    <div class="t">회계 · 재무</div>
+    <div class="g">회계 · 재무</div>
+    <a>파일 업로드</a>
+    <a class="on">통장 내역</a>
+    <a class="sub on">기업은행 (주거래) <span style="font-size:10px;color:#cbd5e1">···0412</span></a>
+    <a class="sub">국민은행 <span style="font-size:10px;color:#cbd5e1">···7788</span></a>
+    <a class="sub">하나은행 <span class="tag" style="background:#fef3c7;color:#b45309">마이너스</span></a>
+    <a class="del">통장 거래 분류 <span class="tag gone">삭제</span></a>
+    <a>카드 내역</a><a>계산서 내역</a><a>현금영수증</a><a>ERP 주문내역</a>
+  </div>
+  <div class="main">
+    <div style="display:flex;align-items:center;gap:10px"><h1>통장 내역</h1><span class="pill">기업은행 (주거래) <span class="mini">잔액 <b>1억 2,340만</b></span> <span class="x">✕</span></span></div>
+    <p class="sub">거래 내역은 계좌별 원본 그대로, 분류 작업은 미분류 건을 유사 거래로 묶어 한 번에 확정합니다.</p>
+    <div class="tabs"><span class="tab">거래 내역</span><span class="tab on">분류 작업 <span class="cnt">미분류 142</span></span></div>
+    <div class="presets"><span class="preset">최근 7일</span><span class="preset">최근 30일</span><span class="preset on">당월</span><span class="preset">전월</span><span class="preset">1분기</span><span class="preset">2분기</span><span class="preset">3분기</span><span class="preset">4분기</span><span class="preset">상반기</span><span class="preset">하반기</span><span class="preset">당년</span><span class="preset">전년</span><span class="preset">전체 기간</span></div>
+    <div class="filters">
+      <span class="inp">2026-09-01</span><span class="lbl">~</span><span class="inp">2026-09-30</span>
+      <span class="inp" style="min-width:160px;color:#94a3b8">묶음 검색</span>
+      <span class="spacer"></span>
+      <span class="btn amber">⇄ 자사명 이체쌍 자동 연결</span>
+      <span class="btn">자동 분류</span>
+    </div>
+    <div class="chips">
+      <span class="chip sq">전체 <b>1,208</b></span>
+      <span class="chip sq g">분류완료 <b>1,066</b></span>
+      <span class="chip sq">이체 연결됨 <b>84</b></span>
+      <span class="chip sq a on">이체 후보 <b>12</b></span>
+      <span class="chip sq b">카드 정산 <b>31</b></span>
+      <span class="chip sq p">카드대금 <b>4</b></span>
+      <span class="chip sq t">세계 매칭 <b>27</b></span>
+      <span class="chip sq">일반 <b>68</b></span>
+    </div>
+    <div class="tblwrap"><table>
+      <thead><tr><th>유형</th><th>묶음</th><th class="num">건수</th><th class="num">입금 합계</th><th class="num">출금 합계</th><th>추천</th><th>계정과목</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><span class="b b-warn">이체 후보</span></td><td>(주)다올 → 하나은행 마이너스</td><td class="num">3</td><td class="num dim">-</td><td class="num">4,500만</td><td class="mini">자사명 이체 (상대 계좌 매칭 대기)</td><td><span class="inp">이체 (분개 제외) ▾</span></td><td><span class="btn dark">확정</span></td></tr>
+        <tr><td><span class="b b-blue">카드 정산</span></td><td>KB국민카드 정산입금</td><td class="num">9</td><td class="num">2,180만</td><td class="num dim">-</td><td class="mini">카드매출 정산 (카드 내역과 대조)</td><td><span class="inp">108 외상매출금 ▾</span></td><td><span class="btn dark">확정</span></td></tr>
+        <tr><td><span class="b b-teal">세계 매칭</span></td><td>요아럽 (매입 계산서 3건)</td><td class="num">3</td><td class="num dim">-</td><td class="num">1,870만</td><td class="mini">계산서 금액 일치 3/3</td><td><span class="inp">251 미지급금 ▾</span></td><td><span class="btn dark">확정</span></td></tr>
+        <tr><td><span class="b b-off">일반</span></td><td>한국전력공사</td><td class="num">2</td><td class="num dim">-</td><td class="num">184만</td><td class="mini">이전 확정 이력 (12건) → 전력비</td><td><span class="inp">815 수도광열비 ▾</span></td><td><span class="btn dark">확정</span></td></tr>
+        <tr><td><span class="b b-off">일반</span></td><td>네이버페이 정산</td><td class="num">6</td><td class="num">96만</td><td class="num dim">-</td><td class="mini">추천 없음</td><td><span class="inp" style="color:#94a3b8">선택...</span></td><td><span class="btn">건별 보기</span></td></tr>
+      </tbody>
+    </table></div>
+    <p class="foot">· [건별 보기]는 거래 내역 탭으로 이동해 그 묶음만 필터합니다. · 계좌 선택(왼쪽 바로가기)은 분류 작업에도 적용됩니다 — 지금 분류 화면에는 없는 필터입니다. · 미분류 건수는 기간과 무관하게 전체 기준입니다.</p>
+    <div class="q"><b>확인.</b> 분류 작업 탭의 기간 필터를 둘지 결정이 필요합니다. 지금 분류 화면은 기간 없이 미분류 전체를 묶습니다(권장: 기간 없이 유지, 계좌 필터만 추가).</div>
+  </div>
+</div>
+
+<!-- ───────────────────────── 6. 계산서 내역 ───────────────────────── -->
+<h2><span class="no">6</span>계산서 내역 4종 + 매입 일괄 분류 → 칩 필터(매출 · 매입 × 과세 · 면세) + '매입 분류' 탭</h2>
+<p class="desc">
+  지금은 매출/매입 × 과세/면세 4개 화면(<code>/tax-invoices/{direction}/{taxType}</code>)이 사이드바 하위 항목으로 있고,
+  매입 일괄 분류는 그 옆 다섯 번째 항목입니다. 통합안은 화면 하나에 <b>구분 칩(매출 | 매입) × 종류 칩(과세 | 면세)</b>로 4종을 전환하고,
+  <b>[계산서 목록 | 매입 분류]</b> 탭을 둡니다. 화면 코드는 4종이 이미 한 파일이므로 칩만 붙이면 됩니다.
+</p>
+<div class="ba">
+  <div class="card"><h4>통합 전</h4><ul>
+    <li>계산서 내역 ▾ 매입 일괄 분류 / 매출 전자세금계산서(과세) / 매출 전자계산서(면세) / 매입 전자세금계산서(과세) / 매입 전자계산서(면세)</li>
+  </ul></div>
+  <div class="card"><h4>통합 후</h4><ul>
+    <li class="add">계산서 내역 (항목 하나) = [계산서 목록] 탭 + 칩 2줄 (매출 | 매입 · 과세 | 면세) + [매입 분류] 탭</li>
+    <li class="del">사이드바 하위 5개 항목 삭제 (옛 주소 5개는 칩 상태 · 탭으로 리다이렉트)</li>
+    <li>KPI 3개(발행 합계 · 입금/출금 확인 · 미수/미지급 잔액)와 확인됨/미확인 칩은 그대로</li>
+  </ul></div>
+</div>
+<div class="shell">
+  <div class="side">
+    <div class="t">회계 · 재무</div>
+    <div class="g">회계 · 재무</div>
+    <a>파일 업로드</a><a>통장 내역</a><a>카드 내역</a>
+    <a class="on">계산서 내역</a>
+    <a class="sub del">매입 일괄 분류 <span class="tag gone">삭제</span></a>
+    <a class="sub del">매출 전자세금계산서(과세)</a>
+    <a class="sub del">매출 전자계산서(면세)</a>
+    <a class="sub del">매입 전자세금계산서(과세)</a>
+    <a class="sub del">매입 전자계산서(면세)</a>
+    <a>현금영수증</a><a>ERP 주문내역</a>
+  </div>
+  <div class="main">
+    <h1>계산서 내역</h1>
+    <p class="sub">홈택스 전자(세금)계산서 원본. 매출은 입금 확인, 매입은 출금 확인과 계정과목 확정이 작업입니다.</p>
+    <div class="tabs"><span class="tab on">계산서 목록</span><span class="tab">매입 분류 <span class="cnt">미분류 37</span></span></div>
+    <div class="chips">
+      <span class="lbl">구분</span><span class="chip">매출 (받을 돈)</span><span class="chip on">매입 (줄 돈)</span>
+      <span class="sep"></span>
+      <span class="lbl">종류</span><span class="chip on">과세 · 세금계산서</span><span class="chip">면세 · 계산서</span>
+      <span class="sep"></span>
+      <span class="lbl">확인</span><span class="chip on">전체</span><span class="chip">확인됨</span><span class="chip">미확인 <b>21</b></span>
+    </div>
+    <div class="presets"><span class="preset">최근 7일</span><span class="preset">최근 30일</span><span class="preset on">당월</span><span class="preset">전월</span><span class="preset">1분기</span><span class="preset">2분기</span><span class="preset">3분기</span><span class="preset">4분기</span><span class="preset">상반기</span><span class="preset">하반기</span><span class="preset">당년</span><span class="preset">전년</span><span class="preset">전체 기간</span></div>
+    <div class="filters">
+      <span class="inp">2026-09-01</span><span class="lbl">~</span><span class="inp">2026-09-30</span>
+      <span class="inp">전체 항목 ▾</span><span class="inp" style="min-width:180px;color:#94a3b8">검색어 입력</span>
+      <span class="spacer"></span>
+      <span class="btn">취소쌍 정리</span><span class="btn green">↓ 엑셀</span><span class="btn dark">+ 파일 업로드</span>
+    </div>
+    <div class="kpis c4">
+      <div class="kpi"><div class="k">발행 합계 (매입 · 과세 · 당월)</div><div class="v">2.84억</div><div class="s">128건</div></div>
+      <div class="kpi"><div class="k">출금 확인</div><div class="v green">2.12억</div><div class="s">통장 매칭 96건</div></div>
+      <div class="kpi"><div class="k">미지급 잔액</div><div class="v red">0.72억</div><div class="s">미확인 21건 + 부분 지급 11건</div></div>
+      <div class="kpi"><div class="k">계정과목 미분류</div><div class="v amber">37건</div><div class="s">매입 분류 탭에서 일괄 확정</div></div>
+    </div>
+    <div class="tblwrap"><table>
+      <thead><tr><th></th><th>작성일자</th><th>거래처</th><th>품목</th><th class="num">공급가액</th><th class="num">세액</th><th class="num">합계금액</th><th>계정과목</th><th>출금 확인</th><th>매칭된 거래</th></tr></thead>
+      <tbody>
+        <tr><td><input type="checkbox"></td><td>09-28</td><td>요아럽</td><td>여성 원피스 외 12</td><td class="num">1,700만</td><td class="num">170만</td><td class="num"><b>1,870만</b></td><td><span class="b b-blue">146 상품</span></td><td><span class="b b-ok">확인</span></td><td class="mini">기업은행 09-30 출금 1,870만</td></tr>
+        <tr><td><input type="checkbox"></td><td>09-26</td><td>(주)한성물류</td><td>9월 택배비</td><td class="num">312만</td><td class="num">31만</td><td class="num"><b>343만</b></td><td><span class="b b-off">미분류</span></td><td><span class="b b-warn">미확인</span></td><td class="mini">-</td></tr>
+        <tr><td><input type="checkbox"></td><td>09-20</td><td>대한통운</td><td>운송료</td><td class="num">96만</td><td class="num">9.6만</td><td class="num"><b>105.6만</b></td><td><span class="b b-blue">824 운반비</span></td><td><span class="b b-warn">부분 60만</span></td><td class="mini">국민은행 09-22 출금 60만</td></tr>
+        <tr><td><input type="checkbox"></td><td>09-15</td><td>오피스디포</td><td>A4 · 토너</td><td class="num">28만</td><td class="num">2.8만</td><td class="num"><b>30.8만</b></td><td><span class="b b-blue">830 소모품비</span></td><td><span class="b b-ok">확인</span></td><td class="mini">법인카드 09-15</td></tr>
+      </tbody>
+    </table></div>
+    <p class="foot">· "매입 분류" 탭은 지금의 매입 계산서 일괄 분류 화면 그대로(거래처 묶음 · 추천 · 기본계정 저장). 매출 칩 상태에서는 탭이 비활성(매출은 분류 대상 아님). · 옛 주소 <code>/tax-invoices/purchase/taxable</code>은 매입 · 과세 칩 상태로 열립니다.</p>
+    <div class="q"><b>확인.</b> 사이드바 하위 5개를 모두 없애는 안입니다. 실무자가 "매입 과세"로 바로 들어가는 습관이 있으면 하위 2개(매출 / 매입)만 남기고 종류 칩만 화면에 둘 수도 있습니다 — 어느 쪽이 편하신가요?</div>
+  </div>
+</div>
+
+<!-- ───────────────────────── 7. 매입처 관리 + 예외 ───────────────────────── -->
+<h2><span class="no">7</span>매입처 관리 + 매입 결제 예외(매입 사이클) → 매입처 관리 안 '결제 예외' 탭</h2>
+<p class="desc">
+  매입 사이클 예외(<code>/purchase-cycle</code>)는 "ERP 발주 → 계산서 → 지급" 흐름에서 거래처 × 월 단위로 확인이 필요한 건을 뽑는 화면이고,
+  거래처명을 누르면 매입처 관리 상세로 갑니다. 통합안은 매입처 관리에 <b>[매입처 목록 | 결제 예외]</b> 탭을 두고, 목록 탭의 각 매입처 행에
+  <b>예외 건수 배지</b>를 붙여 상세로 가지 않아도 문제를 보게 합니다. 매입처 관리는 영업·주문 / 회계·재무 / 경영 현황 세 영역에서 같은 화면을 쓰므로
+  세 곳 모두 탭이 보이되, <b>결제 예외 탭은 수금·정산 조회 권한</b>이 있어야 열립니다.
+</p>
+<div class="ba">
+  <div class="card"><h4>통합 전</h4><ul>
+    <li>영업·주문 › 거래처 관리 › 매입처 관리 / 수금·정산 작업 › 매입 결제 예외</li>
+    <li>회계·재무 › 매입처 관리 / 경영 현황 › 매입처 관리 (예외 화면은 영업·주문에만)</li>
+  </ul></div>
+  <div class="card"><h4>통합 후</h4><ul>
+    <li class="add">매입처 관리 = [매입처 목록] 탭 (행마다 예외 배지) + [결제 예외] 탭 (현재 예외 화면)</li>
+    <li class="del">수금·정산 작업 › 매입 결제 예외 항목 삭제 (옛 주소는 결제 예외 탭으로)</li>
+    <li>세 영역 모두 같은 탭 구조, 결제 예외 탭은 수금·정산 조회 권한자에게만</li>
+  </ul></div>
+</div>
+<div class="shell">
+  <div class="side">
+    <div class="t">영업 · 주문</div>
+    <div class="g">거래처 관리</div>
+    <a>매출처 관리</a>
+    <a class="on">매입처 관리</a>
+    <div class="g">주문 · 발주</div>
+    <a>상담일지</a><a>주문 현황</a><a>신규 주문</a><a>발주서</a>
+    <div class="g">수금 · 정산 작업</div>
+    <a>수금 대상</a><a>입금 매칭</a><a>계산서 발행 대상</a>
+    <a class="del">매입 결제 예외 <span class="tag gone">삭제</span></a>
+  </div>
+  <div class="main">
+    <h1>매입처 관리</h1>
+    <p class="sub">매입처별 발주 · 계산서 · 지급 현황. 결제 예외 탭은 ERP 발주 → 세금계산서 → 지급 흐름에서 확인이 필요한 건입니다.</p>
+    <div class="tabs"><span class="tab">매입처 목록</span><span class="tab on">결제 예외 <span class="cnt">확인 필요 9</span></span></div>
+    <div class="filters">
+      <span class="inp">2026-07</span><span class="lbl">~</span><span class="inp">2026-09</span>
+      <span class="inp">주의 이상 ▾</span>
+      <span class="inp" style="min-width:160px;color:#94a3b8">거래처 검색</span>
+      <span class="spacer"></span>
+      <span class="btn blue">1:1 정확 매칭 일괄 실행</span>
+    </div>
+    <div class="chips">
+      <span class="chip sq a">계산서 대기 <b>6</b></span>
+      <span class="chip sq b">지급 대기 <b>11</b></span>
+      <span class="chip sq r on">금액 차이 <b>4</b></span>
+      <span class="chip sq p">과다 지급 <b>1</b></span>
+      <span class="chip sq g">완료 <b>212</b></span>
+      <span class="chip sq g">경비성 <b>38</b></span>
+    </div>
+    <div class="tblwrap"><table>
+      <thead><tr><th>유형</th><th>심각도</th><th>거래처</th><th>월</th><th>내용 (무엇을 · 얼마나)</th><th>추정 원인</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><span class="b b-red">금액 차이</span></td><td><span class="b b-red">확인 필요</span></td><td><b>요아럽</b></td><td>2026-09</td><td>발주 1,940만 · 계산서 1,870만 · 차이 <b class="red">70만</b></td><td class="mini">반품 1건 미반영 추정</td><td><span class="btn">상세</span> <span class="btn">확인 기록</span></td></tr>
+        <tr><td><span class="b b-red">금액 차이</span></td><td><span class="b b-warn">주의</span></td><td><b>(주)한성물류</b></td><td>2026-08</td><td>계산서 343만 · 지급 300만 · 차이 <b class="red">43만</b></td><td class="mini">부분 지급 (잔액 이월)</td><td><span class="btn">상세</span> <span class="btn">확인 기록</span></td></tr>
+        <tr><td><span class="b b-vio">과다 지급</span></td><td><span class="b b-red">확인 필요</span></td><td><b>대한통운</b></td><td>2026-07</td><td>계산서 105만 · 지급 <b class="violet">165만</b></td><td class="mini">타 월 계산서 지급 합산 추정</td><td><span class="btn">상세</span> <span class="btn">확인 기록</span></td></tr>
+        <tr><td><span class="b b-warn">계산서 대기</span></td><td><span class="b b-warn">주의</span></td><td><b>더존섬유</b></td><td>2026-09</td><td>발주 480만 · 계산서 없음 (32일 경과)</td><td class="mini">월말 일괄 발행 업체</td><td><span class="btn">상세</span> <span class="btn">확인 기록</span></td></tr>
+      </tbody>
+    </table></div>
+    <div style="margin-top:14px" class="card">
+      <div class="mini" style="font-weight:700;color:#334155;margin-bottom:6px">[매입처 목록] 탭 — 행에 붙는 예외 배지 (예시)</div>
+      <div class="tblwrap"><table>
+        <thead><tr><th>매입처</th><th>담당직원</th><th class="num">당년 매입</th><th class="num">지급액</th><th>지급율</th><th class="num">미지급 잔액</th><th>최근 매입</th><th>상태</th><th>결제 예외</th></tr></thead>
+        <tbody>
+          <tr><td><b>요아럽</b></td><td>홍창의</td><td class="num">3.2억</td><td class="num">2.9억</td><td><span class="bar"><i style="width:90%"></i></span>90%</td><td class="num red">3,100만</td><td>09-28</td><td><span class="b b-warn">미지급</span></td><td><span class="b b-red">금액 차이 1</span> <span class="b b-warn">계산서 대기 1</span></td></tr>
+          <tr><td><b>(주)한성물류</b></td><td>김주연</td><td class="num">0.4억</td><td class="num">0.36억</td><td><span class="bar"><i style="width:88%"></i></span>88%</td><td class="num red">430만</td><td>09-26</td><td><span class="b b-warn">미지급</span></td><td><span class="b b-red">금액 차이 1</span></td></tr>
+          <tr><td><b>오피스디포</b></td><td class="dim">-</td><td class="num">0.03억</td><td class="num">0.03억</td><td><span class="bar"><i style="width:100%"></i></span>100%</td><td class="num">0</td><td>09-15</td><td><span class="b b-sky">별도 구매처</span></td><td class="dim">-</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <p class="foot">· 예외 배지를 누르면 결제 예외 탭이 그 거래처로 필터된 채 열립니다. · 결제 예외 탭 안의 [상세]는 매입처 상세(발주 · 계산서 · 지급 타임라인)로 이동합니다. · 확인 기록은 지금처럼 거래처 × 월 단위로 남습니다.</p>
+    <div class="q"><b>확인.</b> 매입 결제 예외 화면의 권한을 지금처럼 수금·정산(collections)으로 둘지, 매입처 관리와 같은 거래처 관리(customers)로 옮길지 정해야 합니다. 옮기면 영업팀 대표(거래처 관리 수정)도 예외 탭을 보게 됩니다 — 권장: 수금·정산 유지(영업지원팀 작업이므로).</div>
+  </div>
+</div>
+
+<div class="note" style="margin-top:30px">
+  <b>구현 순서 제안</b> — 6(계산서: 한 파일에 칩만 추가, 반나절) → 5(통장: 탭 + 계좌 필터 API 한 줄, 반나절) → 7(매입처: 탭 + 목록 배지용 예외 집계 API, 1일) → 4(미수·미지급: 행 기준 합치기 + 신규 집계 API 2개, 1~2일).
+  각 건은 확정 즉시 1~3과 같은 방식(탭 · 옛 주소 리다이렉트 · 메뉴 항목 정리)으로 진행합니다.
+</div>
+
+</div>
+</body>
+</html>

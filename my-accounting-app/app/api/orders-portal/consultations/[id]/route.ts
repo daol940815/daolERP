@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser, type CurrentUser } from '@/lib/user-role'
+import { isManagerLike } from '@/lib/permissions'
 import { decryptPayment, encryptPayment, encryptionReady, maskPayment } from '@/lib/payment-crypto'
 import { parseConsultBody, consultItemRows, insertConsultItems, compatConsultFields, CONSULT_509_HINT } from '@/lib/consultations'
 import { recordWorkLog, consultContent } from '@/lib/work-log'
@@ -14,8 +15,17 @@ export const dynamic = 'force-dynamic'
 
 type Row = Record<string, unknown>
 
+// 타인 상담 열람은 관리자급(isManagerLike — 승인권·마스터 포함, 109) 판정. role 직접 판정 금지.
 const canAccess = (c: Row, me: CurrentUser) =>
-  me.role !== 'sales' || (!!me.employeeId && c.employee_id === me.employeeId)
+  isManagerLike(me) || (!!me.employeeId && c.employee_id === me.employeeId)
+
+// 마스터 연결 완료 = 지점·담당자 모두 연결 (주문 전환 가능 조건과 동일)
+const masterLinked = (c: Row) => !!c.vendor_id && !!c.contact_id
+
+// 아르바이트는 마스터 미연결 상담 접근 불가 ((b) 정책, 2026-09-29 사용자 확정)
+const parttimeBlocked = (c: Row, me: CurrentUser) =>
+  me.employmentType === 'parttime' && !masterLinked(c)
+const PARTTIME_MSG = '아르바이트 계정은 마스터 미연결 상담을 열 수 없습니다. 담당 직원에게 요청해주세요.'
 
 async function loadConsult(id: string) {
   const admin = createAdminClient()
@@ -34,12 +44,18 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   if (!canAccess(snap.consult, me)) {
     return NextResponse.json({ error: '본인 작성 상담일지만 볼 수 있습니다.' }, { status: 403 })
   }
+  if (parttimeBlocked(snap.consult, me)) {
+    return NextResponse.json({ error: PARTTIME_MSG }, { status: 403 })
+  }
 
-  const reveal = new URL(req.url).searchParams.get('reveal') === '1'
+  // 결제정보 열람: 본인 작성분 또는 can_view_payment_info 계정만 ((b) 정책)
+  const isOwner = !!me.employeeId && snap.consult.employee_id === me.employeeId
+  const canPayment = isOwner || me.canViewPaymentInfo
+  const reveal = new URL(req.url).searchParams.get('reveal') === '1' && canPayment
   const { payment_info_enc, ...rest } = snap.consult as Row & { payment_info_enc: string | null }
   let payment: string | null = null
   let paymentMasked: string | null = null
-  if (payment_info_enc) {
+  if (payment_info_enc && canPayment) {
     const plain = decryptPayment(payment_info_enc)
     if (plain === null) paymentMasked = '(복호화 실패 — 암호화 키 확인 필요)'
     else {
@@ -58,9 +74,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     items: snap.items,
     payment_masked: paymentMasked,
     payment: reveal ? payment : undefined,
+    payment_locked: !!payment_info_enc && !canPayment,   // 저장돼 있으나 열람 권한 없음
     orders: orders ?? [],          // 이 상담에서 전환된 주문들
     role: me.role,
-    is_owner: !!me.employeeId && snap.consult.employee_id === me.employeeId,
+    is_parttime: me.employmentType === 'parttime',
+    is_owner: isOwner,
   })
 }
 
@@ -72,6 +90,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!snap) return NextResponse.json({ error: '상담일지를 찾을 수 없습니다.' }, { status: 404 })
   if (!canAccess(snap.consult, me)) {
     return NextResponse.json({ error: '본인 작성 상담일지만 수정할 수 있습니다.' }, { status: 403 })
+  }
+  if (parttimeBlocked(snap.consult, me)) {
+    return NextResponse.json({ error: PARTTIME_MSG }, { status: 403 })
   }
   const body = await req.json().catch(() => ({})) as Record<string, unknown>
 
@@ -136,6 +157,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   if (!snap) return NextResponse.json({ error: '상담일지를 찾을 수 없습니다.' }, { status: 404 })
   if (!canAccess(snap.consult, me)) {
     return NextResponse.json({ error: '본인 작성 상담일지만 삭제할 수 있습니다.' }, { status: 403 })
+  }
+  if (parttimeBlocked(snap.consult, me)) {
+    return NextResponse.json({ error: PARTTIME_MSG }, { status: 403 })
   }
   if (snap.consult.status !== '진행중') {
     return NextResponse.json({ error: '진행중 상태의 상담만 삭제할 수 있습니다.' }, { status: 409 })

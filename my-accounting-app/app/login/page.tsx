@@ -3,22 +3,56 @@
 // 로그인 페이지는 인증 상태를 확인하므로 항상 동적으로 렌더링
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { LOGIN_ID_STORAGE_KEY } from '@/lib/auth-session-prefs'
 
+// useSearchParams(안내 문구)는 Suspense 경계가 필요하다 — 정적 프리렌더 오류 방지
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  )
+}
+
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // 근무 기간 종료·권한 없음으로 되돌아온 경우의 안내 (AreaShell·업무 선택에서 보냄)
+  const reasonMsg = searchParams.get('reason') === 'expired'
+    ? '근무 기간이 종료된 계정입니다. 담당자에게 문의하세요.'
+    : searchParams.get('reason') === 'noaccess'
+      ? '접근 가능한 업무 영역이 없습니다. 관리자에게 권한을 요청하세요.'
+      : ''
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [rememberId, setRememberId] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // 저장된 아이디 복원 (비밀번호는 저장하지 않는다 — 브라우저 저장 기능에 맡김)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LOGIN_ID_STORAGE_KEY)
+      if (saved) setEmail(saved)
+    } catch {
+      // 저장소 접근 불가(시크릿 모드 등)면 기본값 유지
+    }
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
+    try {
+      if (rememberId) localStorage.setItem(LOGIN_ID_STORAGE_KEY, email.trim())
+      else localStorage.removeItem(LOGIN_ID_STORAGE_KEY)
+    } catch {
+      // 저장 실패는 로그인에 영향 없음
+    }
     const supabase = createClient()
 
     // ID 로그인 지원: @가 없으면 내부 도메인을 붙여 인증 (직원 계정은 ID 방식)
@@ -62,7 +96,7 @@ export default function LoginPage() {
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
           <h2 className="text-lg font-semibold text-slate-800 mb-6">로그인</h2>
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form onSubmit={handleLogin} className="space-y-5" autoComplete="on">
             {/* 이메일 입력 */}
             <div>
               <label
@@ -73,7 +107,9 @@ export default function LoginPage() {
               </label>
               <input
                 id="email"
+                name="username"
                 type="text"
+                autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="직원 ID 또는 이메일"
@@ -96,7 +132,9 @@ export default function LoginPage() {
               </label>
               <input
                 id="password"
+                name="password"
                 type="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="비밀번호를 입력하세요"
@@ -109,10 +147,22 @@ export default function LoginPage() {
               />
             </div>
 
+            {/* 아이디만 기억 — 비밀번호는 브라우저 저장 기능이 담당. 세션은 브라우저를 닫으면 끝난다 */}
+            <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-600">
+              <input
+                type="checkbox"
+                checked={rememberId}
+                onChange={e => setRememberId(e.target.checked)}
+                disabled={loading}
+                className="rounded border-slate-300"
+              />
+              아이디 저장
+            </label>
+
             {/* 오류 메시지 */}
-            {error && (
+            {(error || reasonMsg) && (
               <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
-                <p className="text-sm text-red-600">{error}</p>
+                <p className="text-sm text-red-600">{error || reasonMsg}</p>
               </div>
             )}
 
