@@ -142,8 +142,8 @@ function BasicTab({ p, onSaved }: { p: Profile; onSaved: () => void }) {
   const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <EmployeeBasicCard emp={emp} today={p.today} right="인사 · 총무에서 관리" />
-      <Card title="연락처" right="본인 수정 가능">
+      <EmployeeBasicCard emp={emp} today={p.today} />
+      <Card title="연락처">
         {msg && <div className={`mb-3 px-3 py-2 text-sm rounded-lg ${msg.includes('저장되었') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
         <label className="block mb-3">
           <span className="text-xs font-medium text-gray-600">휴대전화</span>
@@ -157,7 +157,6 @@ function BasicTab({ p, onSaved }: { p: Profile; onSaved: () => void }) {
           <button onClick={save} disabled={busy || !dirty} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-40">{busy ? '저장 중...' : '저장'}</button>
           <button onClick={() => { setPhone(emp.phone ?? ''); setEmail(emp.email ?? ''); setMsg(null) }} disabled={!dirty} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">취소</button>
         </div>
-        <p className="text-xs text-gray-400 mt-4">연락처는 직원 마스터 한 곳에 저장되어 직원 · 계정 · 권한 화면과 거래처 담당 표시에 같이 반영됩니다. 팀 · 직위 · 입사일 변경은 인사 · 총무 담당자에게 요청하세요.</p>
       </Card>
     </div>
   )
