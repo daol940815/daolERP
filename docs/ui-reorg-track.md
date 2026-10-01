@@ -331,3 +331,16 @@ docs/attendance-design.md "인사·총무 확장 계획". 급여는 기록부터
   읽기 전용 + 비밀번호 변경 폼 내장, /me/password 흡수) / 내 업무 요약(근태·휴가 · 담당 거래처 · 최근 업무일지 ·
   급여 자리(인사 트랙 급여 기록 후)). 사이드바 하단 '비밀번호 변경' 링크 삭제. 확인 질문 3개(연락처 본인 수정 허용 /
   인사 직원 상세와 부품 공유 + 인사 트랙 요청문 / 하단 링크 삭제).
+
+**사용자 결정(2026-10-01)**: 1 연락처 본인 수정 허용 / 2 인사 직원 상세와 부품 공유 동의 / 3 급여 탭 제외, **담당 고객 카드 추가**.
+
+### 내 정보 구현 (2026-10-01 완료)
+- `/me/profile?tab=basic|account|work` (내 업무 그룹 '내 정보', 전 영역 공통). 서버 page + `profile-client.tsx`.
+- API `/api/me/profile`: GET 본인 직원 행(이름·팀·직위·고용형태·입사일·근무기간·재직·연락처·로그인 ID) + 계정(마지막
+  로그인 = auth last_sign_in_at) + 요약(오늘 근태, 휴가 최근 5, 담당 거래처 vendor_staff, **담당 고객** = 내 담당 거래처의
+  현재 contact_assignments 인물(존칭 contactLabel), 이달 업무일지 건수·최근 5, 영업일지 최근 5). **권한 정보는 내려주지
+  않음.** PATCH { phone, email }만(형식 검증). 각 블록은 마이그레이션 미적용 환경 폴백.
+- 계정 탭에 비밀번호 변경 폼(`PasswordForm`) 내장. `/me/password` → `?tab=account` 리다이렉트, 사이드바 하단 링크 삭제
+  (하단 = 업무 선택 · 로그아웃).
+- 공유 부품: `EmployeeBasicCard`(읽기 전용 인사 정보 카드, `profile-client.tsx` export) — 인사·총무 직원 상세가 재사용.
+  요청문은 docs/hr-track.md.
