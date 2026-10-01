@@ -112,7 +112,8 @@ export default function ProductsPage() {
     const json = await res.json()
     if (!res.ok) setError(json.error ?? '업로드 실패')
     else {
-      setNotice(`업로드 완료 — 신규 ${json.created}건 · 갱신 ${json.updated}건 · 건너뜀 ${json.skipped}건`)
+      setNotice(`업로드 완료 — 신규 ${json.created}건 · 갱신 ${json.updated}건 · 건너뜀 ${json.skipped}건`
+        + (json.status_changed ? ` · 품절·상태 반영 ${json.status_changed}건` : ''))
       await load()
     }
     setUploading(false)
