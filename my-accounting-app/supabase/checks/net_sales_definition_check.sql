@@ -58,18 +58,23 @@ SELECT jsonb_pretty(jsonb_build_object(
     SELECT COALESCE(jsonb_agg(t ORDER BY t->>'월'), '[]'::jsonb)
     FROM (
       SELECT jsonb_build_object(
-        '월', to_char(d.order_date, 'YYYY-MM'),
-        '①총액-제외', SUM(d.total_amount - d.excluded_amount),
-        '②총액',      SUM(d.total_amount),
-        '③품목합',    SUM(d.item_net),
-        '025_매출',   (SELECT m.revenue FROM monthly_pl_order_summary(
-                          date_trunc('month', d.order_date)::date,
-                          (date_trunc('month', d.order_date) + INTERVAL '1 month - 1 day')::date) m
-                       LIMIT 1)
+        '월',          x.m,
+        '①총액-제외', x.a,
+        '②총액',      x.b,
+        '③품목합',    x.c,
+        '025_매출',   p.revenue
       ) AS t
-      FROM d
-      WHERE d.order_date >= DATE '2026-01-01' AND d.order_date < DATE '2026-10-01'
-      GROUP BY to_char(d.order_date, 'YYYY-MM'), date_trunc('month', d.order_date)
+      FROM (
+        SELECT to_char(order_date, 'YYYY-MM')          AS m,
+               SUM(total_amount - excluded_amount)     AS a,
+               SUM(total_amount)                       AS b,
+               SUM(item_net)                           AS c
+        FROM d
+        WHERE order_date >= DATE '2026-01-01' AND order_date < DATE '2026-10-01'
+        GROUP BY 1
+      ) x
+      LEFT JOIN monthly_pl_order_summary(DATE '2026-01-01', DATE '2026-09-30') p
+             ON p.month = x.m
     ) s
   ),
 
