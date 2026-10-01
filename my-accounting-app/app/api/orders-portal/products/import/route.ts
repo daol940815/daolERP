@@ -115,12 +115,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '상품명·매입처 컬럼을 찾지 못했습니다.' }, { status: 400 })
   }
 
+  // 품절·상태 컬럼 (2026-10-01 사용자 확정 — 엑셀 업로드로 상태 변경):
+  // 컬럼이 없으면(원가표 원본) 상태는 건드리지 않고, 있어도 빈 칸·모르는 표기는
+  // 그 행의 상태를 바꾸지 않는다 — 재업로드로 품절이 일괄 풀리는 사고 방지.
+  const soldoutCol = findCol(header, '품절')
+  const activeCol = findCol(header, '상태')
+  // 품절: Y·O·1·품절 → 품절 / X·N·0·해제 → 해제 (다운로드 양식은 Y/빈 칸)
+  const parseSoldout = (v: unknown): boolean | null => {
+    const s = norm(v).toLowerCase()
+    if (!s) return null
+    if (['y', 'o', '1', 'true', '품절'].includes(s)) return true
+    if (['x', 'n', '0', 'false', '해제', '정상'].includes(s)) return false
+    return null
+  }
+  // 상태: 사용·Y·1 → 사용 / 중지·사용중지·X·0 → 중지 (다운로드 양식은 사용/중지)
+  const parseActive = (v: unknown): boolean | null => {
+    const s = norm(v).toLowerCase()
+    if (!s) return null
+    if (['사용', '정상', 'active', 'y', 'o', '1', 'true'].includes(s)) return true
+    if (['중지', '사용중지', '비활성', 'inactive', 'x', 'n', '0', 'false'].includes(s)) return false
+    return null
+  }
+
   type Row = {
     item_code: string | null; item_name: string; option_name: string | null
     purchase_vendor_name: string | null; category: string | null
     sale_price: number; individual_sale_price: number; purchase_price: number
     carton_unit: number | null; carton_shipping_fee: number; loose_shipping_fee: number
     is_addon: boolean; memo: string | null
+    is_soldout: boolean | null; is_active: boolean | null   // null = 변경 안 함
   }
   const parsed: Row[] = []
   let skipped = 0
@@ -152,6 +175,8 @@ export async function POST(req: NextRequest) {
       loose_shipping_fee: looseFeeCol >= 0 ? toNumber(row[looseFeeCol]) : 0,
       is_addon: isAddon,
       memo: memoRaw && !/^[01]$/.test(memoRaw) ? memoRaw : null,
+      is_soldout: soldoutCol >= 0 ? parseSoldout(row[soldoutCol]) : null,
+      is_active: activeCol >= 0 ? parseActive(row[activeCol]) : null,
     })
   }
   if (!parsed.length) {
@@ -184,10 +209,15 @@ export async function POST(req: NextRequest) {
   const byCode = new Map(existing.data.filter(p => p.item_code).map(p => [p.item_code as string, p.id]))
   const byNameVendor = new Map(existing.data.map(p => [`${p.item_name}|${p.purchase_vendor_name ?? ''}`, p.id]))
 
-  let created = 0, updated = 0
+  let created = 0, updated = 0, statusChanged = 0
   const CHUNK = 200
   const inserts: Record<string, unknown>[] = []
   for (const r of parsed) {
+    // 품절·상태는 값이 있는 행만 반영 (null = 변경 안 함 — 기존 상태 보존)
+    const statusFields = {
+      ...(r.is_soldout != null ? { is_soldout: r.is_soldout } : {}),
+      ...(r.is_active != null ? { is_active: r.is_active } : {}),
+    }
     const fields = {
       item_code: r.item_code,
       item_name: r.item_name,
@@ -204,15 +234,28 @@ export async function POST(req: NextRequest) {
       is_addon: r.is_addon,
       memo: r.memo,
     }
+    if (Object.keys(statusFields).length) statusChanged++
     const existingId = r.item_code
       ? byCode.get(r.item_code)
       : byNameVendor.get(`${r.item_name}|${r.purchase_vendor_name ?? ''}`)
     if (existingId) {
-      const { error } = await admin.from('erp_products').update(fields).eq('id', existingId)
-      if (error) return NextResponse.json({ error: `품목 갱신 실패: ${error.message}` }, { status: 500 })
+      const { error } = await admin.from('erp_products').update({ ...fields, ...statusFields }).eq('id', existingId)
+      if (error) {
+        return NextResponse.json({
+          error: /is_soldout/i.test(error.message)
+            ? '509 마이그레이션(품절)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
+            : `품목 갱신 실패: ${error.message}`,
+        }, { status: 500 })
+      }
       updated++
     } else {
-      inserts.push(fields)
+      // 일괄 insert는 행마다 키가 같아야 한다 — 파일에 컬럼이 있을 때만 전 행 포함
+      // (신규 품목 기본값: 품절 아님·사용)
+      inserts.push({
+        ...fields,
+        ...(soldoutCol >= 0 ? { is_soldout: r.is_soldout ?? false } : {}),
+        ...(activeCol >= 0 ? { is_active: r.is_active ?? true } : {}),
+      })
     }
   }
   for (let i = 0; i < inserts.length; i += CHUNK) {
@@ -228,6 +271,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     total_rows: dataRows.length, parsed: parsed.length, created, updated, skipped,
+    status_changed: statusChanged,         // 품절·상태 값을 반영한 행 수 (컬럼 없으면 0)
     relation_mismatch: relationMismatch,   // 개별판매가 ≠ 지점판매가+카톤외택배비 행 수 (참고)
   })
 }
