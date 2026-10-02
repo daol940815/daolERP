@@ -243,10 +243,21 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 2) 별칭 확보 (매출처: 은행+지점 / 매입처: 매입처이름) ──
+  // 개인주문(은행명 '개인', 지점명 없음)은 고객명(담당자 칸)이 지점명 역할을 하므로
+  // '개인 {고객명}'으로 고객별 별칭을 만든다 (2026-10-02 확정 — 고객별 거래처 분리).
+  const customerAliasName = (g: { bank_name: string | null; branch_name: string | null; manager_name: string | null }) => {
+    const bank = (g.bank_name ?? '').trim()
+    const branch = (g.branch_name ?? '').trim()
+    if (bank === '개인' && !branch) {
+      const cust = (g.manager_name ?? '').trim()
+      if (cust) return `개인 ${cust}`
+    }
+    return [bank, branch].filter(Boolean).join(' ').trim()
+  }
   const customerNames = new Set<string>()
   const purchaseNames = new Set<string>()
   for (const g of Array.from(orders.values())) {
-    const cname = [g.bank_name, g.branch_name].filter(Boolean).join(' ').trim()
+    const cname = customerAliasName(g)
     if (cname) customerNames.add(cname)
     for (const it of g.items) {
       if (it.purchase_vendor_name) purchaseNames.add(it.purchase_vendor_name)
@@ -338,7 +349,7 @@ export async function POST(req: NextRequest) {
     order_date: g.order_date,
     bank_name: g.bank_name,
     branch_name: g.branch_name,
-    customer_alias_id: aliasMap.get(`customer|${[g.bank_name, g.branch_name].filter(Boolean).join(' ').trim()}`) ?? null,
+    customer_alias_id: aliasMap.get(`customer|${customerAliasName(g)}`) ?? null,
     manager_name: g.manager_name,
     staff_name: g.staff_name,
     contact: g.contact,
@@ -438,7 +449,7 @@ export async function POST(req: NextRequest) {
   const prepayRows: Record<string, unknown>[] = []
   for (const g of orderList) {
     const orderId = orderIdMap.get(g.order_no)
-    const aliasId = aliasMap.get(`customer|${[g.bank_name, g.branch_name].filter(Boolean).join(' ').trim()}`)
+    const aliasId = aliasMap.get(`customer|${customerAliasName(g)}`)
     if (!orderId || !aliasId) continue
     let occ = 0
     for (const it of g.items) {
