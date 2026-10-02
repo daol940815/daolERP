@@ -62,6 +62,7 @@ interface OrderLite {
   total_amount: number | null
   outstanding_amount: number | null
   staff_name: string | null
+  manager_name?: string | null
   updated_at?: string | null
   source?: string | null
 }
@@ -352,6 +353,7 @@ export interface HubOrderRow {
   id: string
   order_no: string | null
   order_date: string
+  manager_name: string | null   // 지점측 담당자 = 개인주문이면 고객명
   item_summary: string
   net: number
   delivery: ErpOrderDeliveryStatus | null
@@ -497,7 +499,7 @@ export async function buildHubDetail(
   if (aliasIds.length) {
     const r = await fetchAllRows<OrderLite>((f, t) =>
       admin.from('erp_orders')
-        .select('id, order_no, order_date, customer_alias_id, total_amount, outstanding_amount, staff_name, updated_at, source')
+        .select('id, order_no, order_date, customer_alias_id, total_amount, outstanding_amount, staff_name, manager_name, updated_at, source')
         .in('customer_alias_id', aliasIds)
         .order('order_date', { ascending: false })
         .range(f, t))
@@ -656,6 +658,7 @@ export async function buildHubDetail(
       id: o.id,
       order_no: o.order_no,
       order_date: o.order_date,
+      manager_name: o.manager_name ?? null,
       item_summary: extra > 0 ? `${first} 외 ${extra}` : first,
       net: oNet,
       delivery: computeOrderDeliveryStatus((itemsByOrder.get(o.id) ?? []) as never[]),
