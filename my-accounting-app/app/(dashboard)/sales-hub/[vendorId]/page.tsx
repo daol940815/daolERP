@@ -7,7 +7,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { getPeriodRange } from '@/lib/period-presets'
 import { ORDER_DELIVERY_STATUS_LABEL } from '@/lib/erp-delivery-status'
 import type { HubDetail } from '@/lib/vendor-hub'
-import { contactLabel } from '@/lib/contact-label'
+import { contactLabel, honorify } from '@/lib/contact-label'
 
 // 매출처 허브 — 거래처 360° 상세(B)
 // 목록(A)의 기간이 URL로 넘어와 기본값이 되고, 여기서 바꿔도 목록에는 영향이 없다.
@@ -116,6 +116,30 @@ export default function SalesHubDetailPage() {
   }
 
   const agingTotal = useMemo(() => data ? data.aging.b30 + data.aging.b60 + data.aging.b90 + data.aging.over90 : 0, [data])
+
+  // 개인주문 거래처('개인') — 고객명(담당자 칸)이 곧 지점명 역할이므로 고객별로 분해해 보여준다
+  const isPersonal = useMemo(() => (data?.vendor.name ?? '').replace(/\s+/g, '') === '개인', [data])
+  const [custFilter, setCustFilter] = useState<string | null>(null)
+  const custGroups = useMemo(() => {
+    if (!data || !isPersonal) return []
+    const m = new Map<string, { count: number; net: number; outstanding: number; last: string }>()
+    for (const o of data.orders) {
+      const key = (o.manager_name ?? '').trim()
+      let g = m.get(key)
+      if (!g) { g = { count: 0, net: 0, outstanding: 0, last: o.order_date }; m.set(key, g) }
+      g.count++; g.net += o.net; g.outstanding += o.outstanding
+      if (o.order_date > g.last) g.last = o.order_date
+    }
+    return Array.from(m.entries())
+      .map(([name, g]) => ({ name, ...g }))
+      .sort((a, b) => b.net - a.net || b.count - a.count)
+  }, [data, isPersonal])
+  const shownOrders = useMemo(() => {
+    if (!data) return []
+    if (custFilter == null) return data.orders
+    return data.orders.filter(o => (o.manager_name ?? '').trim() === custFilter)
+  }, [data, custFilter])
+  useEffect(() => { if (tab !== '주문 내역') setCustFilter(null) }, [tab])  // 필터는 주문 내역 탭에서만
 
   // 계산서 딥링크용 tax_type 맵 + 타임라인 이벤트별 원본 화면 링크
   const invTaxType = useMemo(() => new Map((data?.invoices ?? []).map(i => [i.id, i.tax_type ?? 'taxable'])), [data])
@@ -455,14 +479,54 @@ export default function SalesHubDetailPage() {
       <div className="mt-4">
         {(tab === '개요' || tab === '주문 내역') && (
           <div className={tab === '개요' ? 'grid xl:grid-cols-5 gap-3' : ''}>
+            {isPersonal && tab === '주문 내역' && (
+              <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto mb-3">
+                <div className="px-4 pt-3 text-sm font-bold text-gray-800">고객별 소계 {custGroups.length}명</div>
+                <div className="px-4 pb-1 text-[11px] text-gray-400">개인주문은 고객명이 지점명 역할 — 고객을 클릭하면 아래 주문 내역이 그 고객으로 필터됩니다</div>
+                <table className="w-full text-sm min-w-[560px]">
+                  <thead>
+                    <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+                      <th className="py-2 px-3 text-left font-medium">고객명</th>
+                      <th className="py-2 px-3 text-right font-medium">주문수</th>
+                      <th className="py-2 px-3 text-right font-medium">순매출</th>
+                      <th className="py-2 px-3 text-right font-medium">미수</th>
+                      <th className="py-2 px-3 text-left font-medium">최근 주문일</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {custGroups.map(g => (
+                      <tr key={g.name || '(없음)'}
+                        onClick={() => setCustFilter(custFilter === g.name ? null : g.name)}
+                        className={`border-b border-gray-50 cursor-pointer ${custFilter === g.name ? 'bg-slate-100' : 'hover:bg-gray-50'}`}>
+                        <td className="py-1.5 px-3 font-medium">{g.name ? honorify(g.name) : '(고객명 없음)'}</td>
+                        <td className="py-1.5 px-3 text-right tabular-nums">{g.count}</td>
+                        <td className="py-1.5 px-3 text-right tabular-nums">{won(g.net)}</td>
+                        <td className={`py-1.5 px-3 text-right tabular-nums ${g.outstanding > 0 ? 'text-red-600' : 'text-gray-400'}`}>{won(g.outstanding)}</td>
+                        <td className="py-1.5 px-3 tabular-nums text-xs">{g.last}</td>
+                      </tr>
+                    ))}
+                    {!custGroups.length && <tr><td colSpan={5} className="text-center py-8 text-gray-400 text-sm">기간 내 주문이 없습니다.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <div className={`bg-white border border-gray-200 rounded-xl overflow-x-auto ${tab === '개요' ? 'xl:col-span-3' : ''}`}>
-              <div className="px-4 pt-3 text-sm font-bold text-gray-800">ERP 주문 내역{tab === '개요' ? ' (최근)' : ''}</div>
+              <div className="px-4 pt-3 text-sm font-bold text-gray-800 flex items-center gap-2">
+                ERP 주문 내역{tab === '개요' ? ' (최근)' : ''}
+                {custFilter != null && tab === '주문 내역' && (
+                  <button onClick={() => setCustFilter(null)}
+                    className="px-2 py-0.5 rounded-full bg-slate-900 text-white text-[11px] font-medium hover:bg-slate-700">
+                    {custFilter ? honorify(custFilter) : '(고객명 없음)'} ×
+                  </button>
+                )}
+              </div>
               <div className="px-4 pb-1 text-[11px] text-gray-400">주문번호 → 배송 → 계산서 → 수금 → 미수까지 한 줄</div>
               <table className="w-full text-sm min-w-[760px]">
                 <thead>
                   <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
                     <th className="py-2 px-3 text-left font-medium">주문번호</th>
                     <th className="py-2 px-3 text-left font-medium">주문일</th>
+                    <th className="py-2 px-3 text-left font-medium">{isPersonal ? '고객명' : '담당자'}</th>
                     <th className="py-2 px-3 text-left font-medium">품목 요약</th>
                     <th className="py-2 px-3 text-right font-medium">순매출</th>
                     <th className="py-2 px-3 text-left font-medium">배송현황</th>
@@ -472,7 +536,7 @@ export default function SalesHubDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(tab === '개요' ? data.orders.slice(0, 8) : data.orders).map(o => {
+                  {(tab === '개요' ? shownOrders.slice(0, 8) : shownOrders).map(o => {
                     const dv = o.delivery ? ORDER_DELIVERY_STATUS_LABEL[o.delivery] : null
                     const invBadge = o.invoice_linked >= o.net && o.net > 0
                       ? { t: '연결', c: 'bg-green-100 text-green-700' }
@@ -490,6 +554,7 @@ export default function SalesHubDetailPage() {
                             : <span className="text-gray-500">-</span>}
                         </td>
                         <td className="py-1.5 px-3 tabular-nums text-xs">{o.order_date}</td>
+                        <td className="py-1.5 px-3 text-xs">{o.manager_name ? honorify(o.manager_name) : <span className="text-gray-300">-</span>}</td>
                         <td className="py-1.5 px-3">{o.item_summary}</td>
                         <td className="py-1.5 px-3 text-right tabular-nums">{won(o.net)}</td>
                         <td className="py-1.5 px-3">
@@ -501,7 +566,7 @@ export default function SalesHubDetailPage() {
                       </tr>
                     )
                   })}
-                  {!data.orders.length && <tr><td colSpan={8} className="text-center py-10 text-gray-400 text-sm">기간 내 주문이 없습니다.</td></tr>}
+                  {!shownOrders.length && <tr><td colSpan={9} className="text-center py-10 text-gray-400 text-sm">기간 내 주문이 없습니다.</td></tr>}
                 </tbody>
               </table>
             </div>
