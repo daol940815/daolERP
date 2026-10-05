@@ -19,7 +19,7 @@ interface Summary {
 }
 
 interface Data {
-  me: { name: string | null; role: string; linked: boolean }
+  me: { name: string | null; role: string; linked: boolean; canCustomers?: boolean }
   month: string
   today: string
   summary: Summary | null
@@ -79,7 +79,8 @@ export default function MyDashboardPage() {
       sub: s ? `미수 주문 ${s.outstanding_total.cnt}건` : null,
     },
     {
-      label: '담당 거래처', href: null,
+      // 거래처 관리 권한자는 내 고객 목록으로, 없으면 내 정보 › 내 업무 요약(담당 거래처 표)으로 (2026-10-05)
+      label: '담당 거래처', href: data.me.canCustomers ? '/sales-hub?mine=1' : '/me/profile?tab=work',
       value: s ? `${s.vendor_cnt}곳` : '-',
       sub: s && s.consult_month.order_cnt > 0 ? `이번 달 상담 주문 ${s.consult_month.order_cnt}건` : null,
     },
