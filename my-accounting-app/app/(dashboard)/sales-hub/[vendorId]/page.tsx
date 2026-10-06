@@ -347,7 +347,10 @@ export default function SalesHubDetailPage() {
           {data.contacts.map(c => (
             <div key={c.assignment_id} className={`flex items-start justify-between py-2 border-b border-gray-50 last:border-0 ${c.ended_at ? 'opacity-50' : ''}`}>
               <div>
-                <span className="font-semibold text-sm">{contactLabel(c.name, c.title)}</span>
+                <Link href={`/sales-hub/contacts/${c.contact_id}`}
+                  className="font-semibold text-sm text-blue-700 hover:underline" title="담당자 상세로 이동">
+                  {contactLabel(c.name, c.title)}
+                </Link>
                 {c.is_representative && <span className="ml-1.5 px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-full text-[10px] font-bold">대표</span>}
                 <div className="text-[11px] text-gray-400">
                   {[c.role_memo, c.phone, c.email].filter(Boolean).join(' · ') || '연락처 미입력'}
