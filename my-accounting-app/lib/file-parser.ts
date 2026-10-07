@@ -1,6 +1,6 @@
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
-import type { ParsedRow, ParseResult } from '@/types/upload'
+import type { ParsedRow, ParseResult, ParsedAccount } from '@/types/upload'
 
 // SHA-256 해시 계산 (Web Crypto API - 브라우저 + Node.js 모두 지원)
 export async function calculateHash(buffer: ArrayBuffer): Promise<string> {
@@ -124,9 +124,18 @@ const PATTERNS: Record<string, string[]> = {
   amount_out:  ['찾으신금액', '출금금액', '이용금액', '승인금액', '출금액', '출금(원)', '카드이용금액', '이용액', '카드승인금액', '지급금액', '지급(원)', '지급액', '출금'],
   amount:      ['거래금액', '거래액'],  // 부호로 입/출금 구분 (amount_in/out 없을 때만)
   balance:     ['잔액(원)', '현재잔액', '잔액', '잔고', 'balance'],
+  // 통합계좌(멀티뱅킹) 파일 — 행마다 계좌가 다른 경우에만 존재한다.
+  // '출금계좌메모' 같은 컬럼을 계좌번호로 오인하지 않도록 '계좌' 단독 패턴은 두지 않는다.
+  bank_name:      ['금융기관', '금융기관명', '은행명', '거래은행'],
+  account_number: ['계좌번호', '출금계좌번호', '입금계좌번호'],
 }
 
-interface ColMap { date?: number; time?: number; description?: number; counterparty_name?: number; amount_in?: number; amount_out?: number; amount?: number; balance?: number }
+interface ColMap { date?: number; time?: number; description?: number; counterparty_name?: number; amount_in?: number; amount_out?: number; amount?: number; balance?: number; bank_name?: number; account_number?: number }
+
+// 계좌번호 표기 차이(하이픈·공백)를 흡수한 매칭 키
+export function accountDigits(v: string | null | undefined): string {
+  return String(v ?? '').replace(/[^0-9]/g, '')
+}
 
 function detectColumns(headers: string[]): ColMap {
   const normalized = headers.map(norm)
@@ -154,6 +163,8 @@ function detectColumns(headers: string[]): ColMap {
 // 파일 형식에서 은행명 추론
 function detectFormat(headers: string[]): string {
   const h = headers.join(' ')
+  // 금융기관 + 계좌번호가 같이 있으면 여러 계좌가 섞인 통합계좌 파일
+  if ((h.includes('금융기관') || h.includes('은행명')) && h.includes('계좌번호')) return '통합계좌 거래내역'
   if (h.includes('맡기신') || h.includes('찾으신')) return '국민은행'
   if (h.includes('기재내용')) return '우리은행'
   if (h.includes('거래적요') && h.includes('잔액')) return '하나은행'
@@ -261,10 +272,50 @@ function mapRows(
 
     const balance = colMap.balance !== undefined ? parseBalance(row[colMap.balance]) : undefined
 
-    result.push({ tx_date, tx_time, description, counterparty_name, amount_in, amount_out, balance, source })
+    // 통합계좌 파일이면 행의 계좌를 그대로 싣는다 (업로드 시 계좌별로 나눠 넣는다)
+    const bank_name = colMap.bank_name !== undefined
+      ? String(row[colMap.bank_name] ?? '').trim() || null
+      : null
+    const account_number = colMap.account_number !== undefined
+      ? String(row[colMap.account_number] ?? '').trim() || null
+      : null
+
+    result.push({
+      tx_date, tx_time, description, counterparty_name,
+      amount_in, amount_out, balance, source,
+      ...(bank_name || account_number ? { bank_name, account_number } : {}),
+    })
   }
 
   return result
+}
+
+// 행에 실린 계좌를 묶어 계좌별 요약을 만든다 (업로드 전 확인 화면용)
+function summarizeAccounts(rows: ParsedRow[]): ParsedAccount[] {
+  const map = new Map<string, ParsedAccount>()
+  for (const r of rows) {
+    const digits = accountDigits(r.account_number)
+    if (!digits) continue
+    let a = map.get(digits)
+    if (!a) {
+      a = {
+        bank_name: r.bank_name ?? '',
+        account_number: r.account_number ?? '',
+        digits,
+        rows: 0, amount_in: 0, amount_out: 0,
+        first_date: r.tx_date, last_date: r.tx_date, last_balance: null,
+      }
+      map.set(digits, a)
+    }
+    a.rows++
+    a.amount_in  += r.amount_in
+    a.amount_out += r.amount_out
+    if (r.tx_date < a.first_date) a.first_date = r.tx_date
+    // 파일은 최신순이라 마지막 거래일의 잔액을 계좌 현재잔액으로 본다
+    if (r.tx_date > a.last_date) { a.last_date = r.tx_date; a.last_balance = r.balance ?? null }
+    else if (r.tx_date === a.last_date && a.last_balance === null) a.last_balance = r.balance ?? null
+  }
+  return Array.from(map.values()).sort((x, y) => y.rows - x.rows)
 }
 
 // CSV 파싱 (EUC-KR / UTF-8 자동 감지)
@@ -292,8 +343,10 @@ async function parseCSV(
   }
 
   const parsedRows = mapRows(rows, headerIdx, colMap, source, warnings)
+  const accounts = summarizeAccounts(parsedRows)
   const suggestedAccountNumber = detectAccountNumber(rows, headerIdx)
-  return { rows: parsedRows, detectedFormat, warnings, rawHeaders: headers, suggestedAccountNumber }
+    ?? (accounts.length === 1 ? accounts[0].account_number : null)
+  return { rows: parsedRows, detectedFormat, warnings, rawHeaders: headers, suggestedAccountNumber, accounts }
 }
 
 // Excel 파싱 (XLSX, XLS)
@@ -323,8 +376,10 @@ async function parseExcel(
   }
 
   const parsedRows = mapRows(rows, headerIdx, colMap, source, warnings)
+  const accounts = summarizeAccounts(parsedRows)
   const suggestedAccountNumber = detectAccountNumber(rows, headerIdx)
-  return { rows: parsedRows, detectedFormat, warnings, rawHeaders: headers, suggestedAccountNumber }
+    ?? (accounts.length === 1 ? accounts[0].account_number : null)
+  return { rows: parsedRows, detectedFormat, warnings, rawHeaders: headers, suggestedAccountNumber, accounts }
 }
 
 // 메인 파싱 함수 (확장자로 파서 분기)

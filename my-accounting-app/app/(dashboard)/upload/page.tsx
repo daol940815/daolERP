@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { parseFile } from '@/lib/file-parser'
-import type { ParseResult, UploadResult } from '@/types/upload'
+import type { AccountPreview, ParseResult, ParsedRow, UploadResult } from '@/types/upload'
 
 // ── 타입 ────────────────────────────────────────────────────
 type ItemStatus = 'parsing' | 'ready' | 'need_input' | 'uploading' | 'success' | 'duplicate' | 'error'
@@ -28,9 +28,47 @@ interface QueueItem {
   error: string | null
   uploadResult: UploadResult | null // 은행 결과
   resultText: string | null         // 카드 결과 요약
+  // ── 통합계좌(멀티뱅킹) 파일 전용 ──
+  previews: AccountPreview[] | null // 계좌별 DB 등록 여부·기존 마지막 거래일
+  skipExisting: boolean             // 기존 마지막 거래일 이후만 올리기 (기본 켬)
+  excluded: string[]                // 업로드에서 뺀 계좌 (digits)
 }
 
 function uid() { return Math.random().toString(36).slice(2, 10) }
+
+const digitsOf = (v: string | null | undefined) => String(v ?? '').replace(/[^0-9]/g, '')
+
+// 통합계좌 파일에서 실제로 올릴 행만 고른다.
+//  · 제외한 계좌는 빼고
+//  · '기존 마지막 거래일 이후만'이 켜져 있으면 그 날짜 이후 거래만
+// 단일 계좌 파일은 전체를 그대로 올린다.
+function selectedRows(item: QueueItem): ParsedRow[] {
+  const all = item.parseResult?.rows ?? []
+  if (!isMultiAccount(item)) return all
+  const lastByDigits = new Map<string, string | null>()
+  for (const p of item.previews ?? []) lastByDigits.set(p.digits, p.last_tx_date)
+  return all.filter(r => {
+    const d = digitsOf(r.account_number)
+    if (!d || item.excluded.includes(d)) return false
+    if (!item.skipExisting) return true
+    const last = lastByDigits.get(d)
+    return !last || r.tx_date > last
+  })
+}
+
+function isMultiAccount(item: QueueItem): boolean {
+  return (item.parseResult?.accounts.length ?? 0) > 1
+}
+
+// 계좌별로 올릴 건수 (화면 표에 쓴다)
+function accountRowCount(item: QueueItem, digits: string): number {
+  const last = (item.previews ?? []).find(p => p.digits === digits)?.last_tx_date ?? null
+  return (item.parseResult?.rows ?? []).filter(r =>
+    digitsOf(r.account_number) === digits && (!item.skipExisting || !last || r.tx_date > last),
+  ).length
+}
+
+const won = (n: number) => n.toLocaleString('ko-KR')
 
 // ── 상태 배지 ────────────────────────────────────────────────
 function StatusBadge({ item }: { item: QueueItem }) {
@@ -68,6 +106,20 @@ export default function UploadPage() {
     try {
       const result = await parseFile(file, 'bank')
       const fmt = result.detectedFormat ?? ''
+
+      // 통합계좌 파일: 계좌가 2개 이상이면 은행명 입력 대신 계좌 확인 표를 쓴다
+      if (result.accounts.length > 1) {
+        patchItem(id, { status: 'ready', parseResult: result, bankName: '', accountNumber: '' })
+        const res = await fetch('/api/upload/accounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ digits: result.accounts.map(a => a.digits) }),
+        })
+        const data = await res.json().catch(() => ({}))
+        patchItem(id, { previews: (data.accounts ?? []) as AccountPreview[] })
+        return
+      }
+
       const detectedBank = (!fmt.includes('일반') && !fmt.includes('카드') && !fmt.includes('명세서') && fmt.length > 0)
         ? fmt : ''
       patchItem(id, {
@@ -92,6 +144,7 @@ export default function UploadPage() {
       parseResult: null,
       bankName: '', accountNumber: '',
       error: null, uploadResult: null, resultText: null,
+      previews: null, skipExisting: true, excluded: [],
     }))
     setQueue(q => [...q, ...items])
     if (sourceType === 'bank') items.forEach(item => parseItem(item.id, item.file))
@@ -110,11 +163,16 @@ export default function UploadPage() {
   // ── 업로드 ─────────────────────────────────────────────────
   const uploadBank = async (item: QueueItem) => {
     if (!item.parseResult) return
+    const rows = selectedRows(item)
+    if (!rows.length) {
+      patchItem(item.id, { status: 'error', error: '올릴 거래가 없습니다 — 계좌 선택이나 기간 조건을 확인하세요.' })
+      return
+    }
     const res = await fetch('/api/upload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        rows:           item.parseResult.rows,
+        rows,
         fileHash:       item.parseResult.fileHash,
         fileName:       item.parseResult.fileName,
         fileSize:       item.parseResult.fileSize,
@@ -254,11 +312,12 @@ export default function UploadPage() {
 
           <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
             {queue.map(item => (
-              <div key={item.id} className={`px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 ${
+              <div key={item.id} className={`px-4 py-3 ${
                 item.status === 'error'     ? 'bg-red-50' :
                 item.status === 'success'   ? 'bg-green-50' :
                 item.status === 'duplicate' ? 'bg-amber-50' : 'bg-white'
               }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
 
                 {/* 파일명 + 건수 + 종류 */}
                 <div className="min-w-0 sm:w-56 shrink-0">
@@ -282,8 +341,8 @@ export default function UploadPage() {
                   )}
                 </div>
 
-                {/* 편집 필드 (은행 명세서만: 은행명/계좌번호) */}
-                {item.source === 'bank' && ['ready', 'need_input', 'uploading'].includes(item.status) && (
+                {/* 편집 필드 (단일 계좌 은행 명세서만: 은행명/계좌번호) */}
+                {item.source === 'bank' && !isMultiAccount(item) && ['ready', 'need_input', 'uploading'].includes(item.status) && (
                   <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
                     <input
                       type="text"
@@ -309,6 +368,18 @@ export default function UploadPage() {
                   </div>
                 )}
 
+                {/* 통합계좌 안내 (표는 아래 줄에) */}
+                {item.source === 'bank' && isMultiAccount(item) && (
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="px-2 py-0.5 text-xs bg-sky-50 text-sky-700 rounded-full whitespace-nowrap">
+                      통합계좌 {item.parseResult!.accounts.length}개
+                    </span>
+                    <span className="text-xs text-gray-400 truncate">
+                      계좌별로 나눠 올립니다 — 아래에서 확인
+                    </span>
+                  </div>
+                )}
+
                 {/* 상태 + 삭제 */}
                 <div className="flex items-center gap-2 sm:ml-auto shrink-0">
                   <StatusBadge item={item} />
@@ -322,6 +393,115 @@ export default function UploadPage() {
                     </button>
                   )}
                 </div>
+                </div>
+
+                {/* ── 통합계좌: 계좌별 업로드 확인 표 ── */}
+                {item.source === 'bank' && isMultiAccount(item) && item.status !== 'success' && (
+                  <div className="w-full mt-1 border-t border-gray-100 pt-3">
+                    {!item.previews ? (
+                      <p className="text-xs text-gray-400">계좌 확인 중…</p>
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap items-center gap-3 mb-2">
+                          <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                            <input
+                              type="checkbox"
+                              checked={item.skipExisting}
+                              disabled={isUploading || item.status === 'uploading'}
+                              onChange={e => patchItem(item.id, { skipExisting: e.target.checked })}
+                            />
+                            이미 올라온 마지막 거래일 이후만 올리기
+                          </label>
+                          <span className="text-xs text-gray-400">
+                            체크를 끄면 파일 전체를 올립니다 (중복 키가 같은 행은 자동으로 건너뜁니다)
+                          </span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead className="text-gray-400 border-b border-gray-200">
+                              <tr>
+                                <th className="py-1.5 px-2 text-left font-medium">올림</th>
+                                <th className="py-1.5 px-2 text-left font-medium">은행</th>
+                                <th className="py-1.5 px-2 text-left font-medium">계좌번호</th>
+                                <th className="py-1.5 px-2 text-right font-medium">파일</th>
+                                <th className="py-1.5 px-2 text-left font-medium">파일 기간</th>
+                                <th className="py-1.5 px-2 text-left font-medium">기존 마지막</th>
+                                <th className="py-1.5 px-2 text-right font-medium">올릴 건수</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {item.parseResult!.accounts.map(a => {
+                                const pv = item.previews!.find(p => p.digits === a.digits)
+                                const off = item.excluded.includes(a.digits)
+                                const cnt = off ? 0 : accountRowCount(item, a.digits)
+                                return (
+                                  <tr key={a.digits} className={`border-b border-gray-50 ${off ? 'opacity-40' : ''}`}>
+                                    <td className="py-1.5 px-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={!off}
+                                        disabled={isUploading || item.status === 'uploading'}
+                                        onChange={e => patchItem(item.id, {
+                                          excluded: e.target.checked
+                                            ? item.excluded.filter(d => d !== a.digits)
+                                            : [...item.excluded, a.digits],
+                                        })}
+                                      />
+                                    </td>
+                                    <td className="py-1.5 px-2 whitespace-nowrap">
+                                      {pv?.db_bank_name ?? a.bank_name}
+                                      {!pv?.bank_account_id && (
+                                        <span className="ml-1 px-1 py-0.5 bg-orange-100 text-orange-700 rounded">신규 계좌</span>
+                                      )}
+                                      {pv?.db_account_type === 'overdraft' && (
+                                        <span className="ml-1 px-1 py-0.5 bg-violet-50 text-violet-600 rounded">한도</span>
+                                      )}
+                                    </td>
+                                    <td className="py-1.5 px-2 font-mono whitespace-nowrap text-gray-500">{a.account_number}</td>
+                                    <td className="py-1.5 px-2 text-right text-gray-500">{won(a.rows)}</td>
+                                    <td className="py-1.5 px-2 whitespace-nowrap text-gray-400">{a.first_date} ~ {a.last_date}</td>
+                                    <td className="py-1.5 px-2 whitespace-nowrap text-gray-400">
+                                      {pv?.last_tx_date ?? '-'}
+                                      {pv?.tx_count ? <span className="ml-1 text-gray-300">({won(pv.tx_count)}건)</span> : null}
+                                    </td>
+                                    <td className={`py-1.5 px-2 text-right font-medium ${cnt > 0 ? 'text-slate-900' : 'text-gray-300'}`}>
+                                      {won(cnt)}
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                            <tfoot>
+                              <tr className="border-t border-gray-200">
+                                <td colSpan={6} className="py-1.5 px-2 text-right text-gray-500">올릴 거래 합계</td>
+                                <td className="py-1.5 px-2 text-right font-bold text-slate-900">
+                                  {won(selectedRows(item).length)}
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* 통합계좌 업로드 결과 — 계좌별 */}
+                {item.status === 'success' && item.uploadResult?.accountResults?.length ? (
+                  <div className="w-full mt-1 border-t border-gray-100 pt-2">
+                    <p className="text-xs text-gray-400 mb-1">계좌별 전송 건수</p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      {item.uploadResult.accountResults.map(r => (
+                        <span key={r.account_number} className="text-xs text-gray-600">
+                          {r.bank_name} <span className="font-mono text-gray-400">{r.account_number}</span>
+                          {' '}{won(r.inserted)}건
+                          {r.created && <span className="ml-1 text-orange-600">신규 계좌</span>}
+                          {r.skipped > 0 && <span className="ml-1 text-red-500">미매칭 {won(r.skipped)}건</span>}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>

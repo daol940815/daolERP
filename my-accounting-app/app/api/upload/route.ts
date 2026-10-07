@@ -53,12 +53,21 @@ export async function POST(req: NextRequest) {
   }
 
   // ── upload_logs 레코드 생성 (pending) ──────────────────────
-  // ── 은행 계좌 자동 생성 (은행 명세서인 경우) ──────────────────
+  // ── 통합계좌 파일 판정 ────────────────────────────────────
+  // 행에 bank_name/account_number가 실려 있으면 한 파일에 계좌가 여러 개인
+  // 통합계좌(멀티뱅킹) 파일이다. 이때는 화면에서 고른 계좌를 쓰지 않고
+  // 행의 계좌로 각각 보낸다. 계좌번호는 표기(하이픈) 차이가 있어 숫자만 비교한다.
+  const multiRows = body.rows.filter(r => r.account_number || r.bank_name)
+  const isMulti = body.source === 'bank' && multiRows.length > 0
+  const digitsOf = (v: string | null | undefined) => String(v ?? '').replace(/[^0-9]/g, '')
+  const acctByDigits = new Map<string, { id: string; bank_name: string; created: boolean }>()
+
+  // ── 은행 계좌 자동 생성 (단일 계좌 명세서인 경우) ──────────────
   let bankAccountId: string | null = null
   const bankNameTrimmed = body.bankName?.trim() || null
   const accountNumberTrimmed = body.accountNumber?.trim() || null
 
-  if (bankNameTrimmed && body.source === 'bank') {
+  if (bankNameTrimmed && body.source === 'bank' && !isMulti) {
     let existingBank: { id: string; account_number: string | null } | null = null
 
     if (accountNumberTrimmed) {
@@ -94,6 +103,41 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  if (isMulti) {
+    const { data: accts } = await admin
+      .from('bank_accounts')
+      .select('id, bank_name, account_number')
+    const existing = new Map<string, { id: string; bank_name: string }>()
+    for (const a of accts ?? []) {
+      const d = digitsOf(a.account_number as string | null)
+      if (d && !existing.has(d)) existing.set(d, { id: a.id as string, bank_name: a.bank_name as string })
+    }
+
+    // 파일에 등장하는 계좌 목록 (숫자 키 기준)
+    const fileAccts = new Map<string, { bank_name: string; account_number: string }>()
+    for (const r of multiRows) {
+      const d = digitsOf(r.account_number)
+      if (!d || fileAccts.has(d)) continue
+      fileAccts.set(d, { bank_name: (r.bank_name ?? '').trim(), account_number: (r.account_number ?? '').trim() })
+    }
+
+    for (const [d, f] of Array.from(fileAccts.entries())) {
+      const hit = existing.get(d)
+      if (hit) {
+        acctByDigits.set(d, { id: hit.id, bank_name: hit.bank_name, created: false })
+        continue
+      }
+      const { data: created } = await admin
+        .from('bank_accounts')
+        .insert({ bank_name: f.bank_name || '미지정', account_number: f.account_number || null })
+        .select('id, bank_name')
+        .single()
+      if (created) {
+        acctByDigits.set(d, { id: created.id as string, bank_name: created.bank_name as string, created: true })
+      }
+    }
+  }
+
   let uploadLogId: string
   if (reuseLogId) {
     uploadLogId = reuseLogId
@@ -124,28 +168,36 @@ export async function POST(req: NextRequest) {
   }
 
   // ── transactions 배치 삽입 (1000건씩 나눠서) ───────────────
-  const insertData = body.rows.map(row => ({
-    tx_date: row.tx_date,
-    tx_time: row.tx_time ?? null,
-    description: row.description,
-    counterparty_name: row.counterparty_name ?? null,
-    amount_in: row.amount_in,
-    amount_out: row.amount_out,
-    balance: row.balance ?? null,
-    source: row.source,
-    account_alias: bankNameTrimmed || null,
-    bank_account_id: bankAccountId,
-    upload_log_id: uploadLogId,
-    status: 'pending',
-  }))
+  const insertData = body.rows.map(row => {
+    // 통합계좌 파일이면 행의 계좌로, 아니면 화면에서 지정한 계좌로
+    const hit = isMulti ? acctByDigits.get(digitsOf(row.account_number)) : undefined
+    return {
+      tx_date: row.tx_date,
+      tx_time: row.tx_time ?? null,
+      description: row.description,
+      counterparty_name: row.counterparty_name ?? null,
+      amount_in: row.amount_in,
+      amount_out: row.amount_out,
+      balance: row.balance ?? null,
+      source: row.source,
+      account_alias: hit?.bank_name ?? bankNameTrimmed ?? null,
+      bank_account_id: hit?.id ?? bankAccountId,
+      upload_log_id: uploadLogId,
+      status: 'pending',
+    }
+  })
+
+  // 계좌를 못 찾은 행은 넣지 않는다 — 엉뚱한 계좌에 섞이는 것이 더 위험하다
+  const unmatchedRows = isMulti ? insertData.filter(r => !r.bank_account_id).length : 0
+  const sendData = isMulti ? insertData.filter(r => r.bank_account_id) : insertData
 
   const BATCH = 1000
   let insertedRows = 0
   let duplicateRows = 0
   let errorRows = 0
 
-  for (let i = 0; i < insertData.length; i += BATCH) {
-    const batch = insertData.slice(i, i + BATCH)
+  for (let i = 0; i < sendData.length; i += BATCH) {
+    const batch = sendData.slice(i, i + BATCH)
     // 행 단위 중복(dedup_key)은 건너뛰고 신규만 삽입 (멱등)
     const { data: ins, error: insertError } = await admin
       .from('transactions')
@@ -201,7 +253,31 @@ export async function POST(req: NextRequest) {
     totalRows: body.rows.length,
     insertedRows,
     skippedRows: duplicateRows,
-    errorRows,
+    errorRows: errorRows + unmatchedRows,
+  }
+
+  // 통합계좌 업로드: 계좌별로 몇 건을 보냈는지 돌려준다
+  // (중복 제외 건수는 배치 단위로만 알 수 있어 계좌별 inserted는 보낸 건수 기준)
+  if (isMulti) {
+    const perAcct = new Map<string, { bank_name: string; account_number: string; inserted: number; skipped: number; created: boolean }>()
+    for (const row of body.rows) {
+      const d = digitsOf(row.account_number)
+      const hit = acctByDigits.get(d)
+      const key = hit?.id ?? `미등록:${d}`
+      let a = perAcct.get(key)
+      if (!a) {
+        a = {
+          bank_name: hit?.bank_name ?? (row.bank_name ?? ''),
+          account_number: row.account_number ?? '',
+          inserted: 0, skipped: 0,
+          created: hit?.created ?? false,
+        }
+        perAcct.set(key, a)
+      }
+      if (hit) a.inserted++
+      else a.skipped++
+    }
+    result.accountResults = Array.from(perAcct.values()).sort((x, y) => y.inserted - x.inserted)
   }
 
   // 재검사였음을 화면에 알림 (기존 파일 — 신규 행만 추가됨)
