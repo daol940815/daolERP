@@ -44,6 +44,7 @@ interface Loan {
   status: 'active' | 'unused' | 'closed'
   product_type?: 'term' | 'credit_line'
   credit_limit?: number
+  loan_account_no?: string | null   // 통장 적요에 찍히는 대출번호 (409)
   memo: string | null
 }
 
@@ -73,13 +74,14 @@ type EditForm = {
   current_balance: string; balance_date: string; interest_rate: string
   monthly_principal: string; monthly_interest: string; payment_day: string
   start_date: string; maturity_date: string; term_type: string; status: string; memo: string
+  loan_account_no: string
 }
 
 const emptyForm: EditForm = {
   title: '', bank_name: '', bank_account_id: '', product_type: 'term', credit_limit: '0',
   current_balance: '', balance_date: today(), interest_rate: '', monthly_principal: '0',
   monthly_interest: '0', payment_day: '', start_date: '', maturity_date: '',
-  term_type: 'long', status: 'active', memo: '',
+  term_type: 'long', status: 'active', memo: '', loan_account_no: '',
 }
 
 export default function LoansPage() {
@@ -199,6 +201,7 @@ export default function LoansPage() {
       payment_day: l.payment_day != null ? String(l.payment_day) : '',
       start_date: l.start_date ?? '', maturity_date: l.maturity_date ?? '',
       term_type: l.term_type, status: l.status, memo: l.memo ?? '',
+      loan_account_no: l.loan_account_no ?? '',
     })
   }
 
@@ -221,6 +224,7 @@ export default function LoansPage() {
       payment_day: form.payment_day === '' ? null : Math.min(Math.max(parseInt(form.payment_day) || 1, 1), 31),
       start_date: form.start_date || null, maturity_date: form.maturity_date || null,
       term_type: form.term_type, status: form.status, memo: form.memo.trim() || null,
+      loan_account_no: form.loan_account_no.trim() || null,
     }
     const isNew = editing === 'new'
     const res = await fetch(isNew ? '/api/loans' : `/api/loans/${(editing as Loan).id}`, {
@@ -639,6 +643,9 @@ export default function LoansPage() {
                   <option value="unused">미사용</option>
                   <option value="closed">종결</option>
                 </select></label>
+              <label className="block col-span-2"><span className="text-xs text-gray-500">대출번호 <span className="text-gray-400">(통장 적요에 찍히는 번호 — 이자·원금 자동 연결 키)</span></span>
+                <input type="text" value={form.loan_account_no} placeholder="예: 47598009367842"
+                  onChange={e => setForm(f => ({ ...f, loan_account_no: e.target.value }))} className={input} /></label>
               <label className="block col-span-2"><span className="text-xs text-gray-500">메모</span>
                 <textarea rows={2} value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} className={input} /></label>
             </div>
