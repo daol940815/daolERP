@@ -489,7 +489,8 @@ A안(허브를 단일 진실로) 채택. `reports/management-dashboard/page.tsx`
 | `406_erp_order_receivable_view.sql` | 뷰 신설 | 없음 | **실행 완료** (2026-10-01) |
 | `407_receivable_view_net_sales_fix.sql` | 뷰 보정 — 순매출을 품목 합으로, 0 하한 제거 | 없음 | 실행 대기 |
 | `408_receivable_unify_rpcs.sql` | `hub_vendor_summary`·`erp_orders_summary`·`erp_receivable_summary`를 뷰 위로 재작성 + `erp_order_receivable_by_ids` 추가 | **있음** | 실행 대기 |
-| `409_tx_kind_and_loan_account_no.sql` | `transactions.tx_kind` + `loans.loan_account_no` 컬럼 | 없음 | 실행 대기 (미수 작업과 무관 — 먼저 실행해도 됨) |
+| `409_tx_kind_and_loan_account_no.sql` | `transactions.tx_kind` + `loans.loan_account_no` 컬럼 | 없음 | **실행 완료** (2026-10-07) |
+| `410_cleanup_misuploaded_bank_file.sql` | 구버전 업로더로 들어간 1,356건 삭제 | — | **실행 완료** (2026-10-07, 검증 일치) |
 
 실행 순서: **406(완료) → 407 → `supabase/checks/receivable_unify_check.sql` 확인·승인 → 408.**
 107 파일은 실행하지 말 것 — 408이 그 역할을 포함한다.
@@ -621,7 +622,9 @@ A안(허브를 단일 진실로) 채택. `reports/management-dashboard/page.tsx`
 않은 채 "업로드하면 표가 나온다"고 안내 → 사용자가 **구버전 업로더**로 올려 1,356건이
 계좌 없음(NULL)으로 들어감(upload_logs f74e7770…). 확정·분개 0, 가짜 계좌 0, 정상 계좌와
 중복 192건. 조치: 업로드·tx_kind 커밋만 cherry-pick해 main 병합(`6b23d3d`), 정리 SQL
-**410**(드라이런·가드·검증 포함) 전달. 교훈 — 601·107·이번까지 "파일 있음 ≠ 적용됨" 세 번째.
+**410** 실행 완료(2026-10-07) — 드라이런 1356/1356/0/0/0/0/0/1 일치, 삭제 후 검증
+`remaining_rows 0 · remaining_log 0 · no_account_total 0 · 기간내_정상거래 192` 기대값과 일치.
+409도 실행 완료(has_tx_kind 1 · has_loan_account_no 1). 교훈 — 601·107·이번까지 "파일 있음 ≠ 적용됨" 세 번째.
 **화면 사용을 안내하기 전에 main 병합 여부를 반드시 확인하고, 보고에는 '만들었다'와
 '적용됐다'를 구분해서 쓴다.**
 
