@@ -12,6 +12,8 @@ export interface ParsedRow {
   // 단일 계좌 파일에서는 undefined — 업로드 화면에서 지정한 계좌가 쓰인다.
   bank_name?: string | null
   account_number?: string | null
+  // 은행이 붙인 거래 구분 코드(대출이자·대출상환·예금이자·건강·전기 …). 자동분류 1차 단서.
+  tx_kind?: string | null
 }
 
 // 통합계좌 파일에 들어 있는 계좌 1개 요약 (업로드 전 확인용)

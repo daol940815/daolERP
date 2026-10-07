@@ -128,9 +128,12 @@ const PATTERNS: Record<string, string[]> = {
   // '출금계좌메모' 같은 컬럼을 계좌번호로 오인하지 않도록 '계좌' 단독 패턴은 두지 않는다.
   bank_name:      ['금융기관', '금융기관명', '은행명', '거래은행'],
   account_number: ['계좌번호', '출금계좌번호', '입금계좌번호'],
+  // 은행이 붙인 거래 구분 코드. '구분'은 일부 명세서에서 입금/출금 방향을 뜻하기도 하므로
+  // 값은 그대로 저장하고, 분류기가 방향 단어는 무시한다 (lib/classifier.server.ts).
+  tx_kind:        ['거래구분', '거래종류', '구분'],
 }
 
-interface ColMap { date?: number; time?: number; description?: number; counterparty_name?: number; amount_in?: number; amount_out?: number; amount?: number; balance?: number; bank_name?: number; account_number?: number }
+interface ColMap { date?: number; time?: number; description?: number; counterparty_name?: number; amount_in?: number; amount_out?: number; amount?: number; balance?: number; bank_name?: number; account_number?: number; tx_kind?: number }
 
 // 계좌번호 표기 차이(하이픈·공백)를 흡수한 매칭 키
 export function accountDigits(v: string | null | undefined): string {
@@ -280,10 +283,15 @@ function mapRows(
       ? String(row[colMap.account_number] ?? '').trim() || null
       : null
 
+    const tx_kind = colMap.tx_kind !== undefined
+      ? String(row[colMap.tx_kind] ?? '').trim() || null
+      : null
+
     result.push({
       tx_date, tx_time, description, counterparty_name,
       amount_in, amount_out, balance, source,
       ...(bank_name || account_number ? { bank_name, account_number } : {}),
+      ...(tx_kind ? { tx_kind } : {}),
     })
   }
 

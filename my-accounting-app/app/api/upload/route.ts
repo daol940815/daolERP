@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase-server'
 import { classifyByKeywords } from '@/lib/classifier.server'
+import { hasTxKindColumn } from '@/lib/tx-kind'
 import type { ParsedRow, UploadResult } from '@/types/upload'
 
 interface UploadBody {
@@ -168,6 +169,8 @@ export async function POST(req: NextRequest) {
   }
 
   // ── transactions 배치 삽입 (1000건씩 나눠서) ───────────────
+  // 은행 구분(tx_kind)은 409 컬럼이 있을 때만 싣는다 — 없으면 조용히 버린다
+  const keepKind = body.rows.some(r => r.tx_kind) && await hasTxKindColumn(admin)
   const insertData = body.rows.map(row => {
     // 통합계좌 파일이면 행의 계좌로, 아니면 화면에서 지정한 계좌로
     const hit = isMulti ? acctByDigits.get(digitsOf(row.account_number)) : undefined
@@ -184,6 +187,7 @@ export async function POST(req: NextRequest) {
       bank_account_id: hit?.id ?? bankAccountId,
       upload_log_id: uploadLogId,
       status: 'pending',
+      ...(keepKind ? { tx_kind: row.tx_kind ?? null } : {}),
     }
   })
 
