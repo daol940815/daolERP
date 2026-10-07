@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { hasTxKindColumn, isUsableTxKind } from '@/lib/tx-kind'
 
 // ── 카드정산 입금 추천 ────────────────────────────────────────
 // 카드사 정산 입금은 "카드사명+계좌/승인 코드 숫자" 형식의 전용 패턴으로만 판정한다.
@@ -113,8 +114,13 @@ function isTransfer(description: string): boolean {
   return TRANSFER_PATTERNS.some(p => d.includes(p))
 }
 
-// 업로드된 거래에 계정과목 keywords 기반 자동 분류 + 차변/대변 결정 (2단계)
-// Step 1: 키워드 매칭 → suggested_account_id
+// 업로드된 거래에 계정과목 keywords 기반 자동 분류 + 차변/대변 결정
+// Step 0: 은행 구분(tx_kind) 정확 일치 → suggested_account_id  (신뢰도 0.95)
+//         은행 시스템이 거래 종류에 붙인 코드라 적요(자유 문자열)보다 믿을 만하다.
+//         적요에 대출번호만 찍히는 대출이자·대출상환, 빈 적요의 예금이자가 이걸로 잡힌다.
+//         계정과목의 keywords에 구분 값("대출이자" 등)을 등록해 두면 된다 — 별도 매핑표 없음.
+//         정확 일치만 본다(부분 일치 X): '이자' 키워드가 '대출이자' 구분에 걸리면 안 된다.
+// Step 1: 적요 키워드 매칭 → suggested_account_id  (신뢰도 0.8)
 // Step 2: 계정별 방향 규칙(side_on_in / side_on_out) → suggested_side
 export async function classifyByKeywords(
   admin: SupabaseClient,
@@ -135,21 +141,37 @@ export async function classifyByKeywords(
   )
   if (!accountsWithKw.length) return { classified: 0, total: 0 }
 
-  // suggested_account_id가 없는 pending 거래 조회
-  const result = await fetchAllRows<{
+  // 구분 키워드 역색인: "대출이자" → 그 키워드를 가진 계정들 (소문자·공백 제거)
+  const kindIndex = new Map<string, typeof accountsWithKw>()
+  for (const account of accountsWithKw) {
+    for (const kw of account.keywords as string[]) {
+      const k = kw.trim().toLowerCase()
+      if (!k) continue
+      const arr = kindIndex.get(k)
+      if (arr) arr.push(account)
+      else kindIndex.set(k, [account])
+    }
+  }
+
+  // suggested_account_id가 없는 pending 거래 조회 (tx_kind는 409 컬럼이 있을 때만)
+  const withKind = await hasTxKindColumn(admin)
+  type TxRow = {
     id: string
     description: string
     amount_in: number | null
     amount_out: number | null
-  }>((from, to) => {
+    tx_kind?: string | null
+  }
+  // select 문자열이 동적이면 supabase 타입 파서가 컬럼을 못 읽으므로 결과 타입을 직접 지정한다
+  const result = await fetchAllRows<TxRow>((from, to) => {
     let query = admin
       .from('transactions')
-      .select('id, description, amount_in, amount_out')
+      .select(withKind ? 'id, description, amount_in, amount_out, tx_kind' : 'id, description, amount_in, amount_out')
       .is('suggested_account_id', null)
       .eq('status', 'pending')
     if (uploadLogId)   query = query.eq('upload_log_id', uploadLogId)
     if (bankAccountId) query = query.eq('bank_account_id', bankAccountId)
-    return query.range(from, to)
+    return query.range(from, to) as unknown as PromiseLike<{ data: TxRow[] | null; error: { message: string } | null }>
   })
   if ('error' in result) return { classified: 0, total: 0 }
   const transactions = result.data
@@ -158,14 +180,39 @@ export async function classifyByKeywords(
   let classified = 0
 
   for (const tx of transactions) {
+    // 거래 방향 — 방향 가드에 사용
+    const isInflow  = (tx.amount_in  ?? 0) > 0   // 입금
+    const isOutflow = (tx.amount_out ?? 0) > 0   // 출금
+
+    // Step 0: 은행 구분 정확 일치 (이체 판정보다 먼저 — 구분이 명시된 건 이체가 아니다)
+    if (isUsableTxKind(tx.tx_kind)) {
+      const kind = tx.tx_kind.trim()
+      const hits = (kindIndex.get(kind.toLowerCase()) ?? []).filter(a =>
+        !(isInflow && a.type === 'expense') && !(isOutflow && a.type === 'income'))
+      // 같은 구분을 계정 둘 이상이 가지면 모호 — 추천하지 않고 적요 단계로 넘긴다
+      if (hits.length === 1) {
+        const account = hits[0]
+        const side = isInflow
+          ? (account.side_on_in  ?? 'credit')
+          : (account.side_on_out ?? 'debit')
+        await admin
+          .from('transactions')
+          .update({
+            suggested_account_id: account.id,
+            suggested_side:       side,
+            ai_confidence:        0.95,
+            ai_reason:            `은행 구분: "${kind}"`,
+          })
+          .eq('id', tx.id)
+        classified++
+        continue
+      }
+    }
+
     // 이체 거래는 키워드 분류 제외 — 미분류 상태로 유지해 수동 처리
     if (isTransfer(tx.description as string)) continue
 
     const descLower = (tx.description as string).toLowerCase()
-
-    // 거래 방향 — 방향 가드에 사용
-    const isInflow  = (tx.amount_in  ?? 0) > 0   // 입금
-    const isOutflow = (tx.amount_out ?? 0) > 0   // 출금
 
     // 계정 등록 순서가 아니라, 매칭되는 키워드 중 가장 긴(구체적인) 것을 우선 채택
     // — 짧은 범용 키워드가 더 구체적인 키워드보다 먼저 등록돼 있어도 오분류되지 않도록 함

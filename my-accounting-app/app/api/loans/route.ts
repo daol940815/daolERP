@@ -99,7 +99,7 @@ const EDITABLE = [
   'title', 'bank_name', 'bank_account_id', 'original_amount', 'current_balance',
   'balance_date', 'interest_rate', 'rate_note', 'monthly_principal', 'monthly_interest',
   'payment_day', 'start_date', 'maturity_date', 'term_type', 'status', 'memo',
-  'product_type', 'credit_limit',
+  'product_type', 'credit_limit', 'loan_account_no',
 ] as const
 
 function pickEditable(body: Record<string, unknown>) {
