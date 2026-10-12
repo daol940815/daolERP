@@ -39,6 +39,47 @@ type ParsedRow = {
   note: string | null
 }
 
+// ── 파일 자체에서 매출/매입·과세/면세 판별 ──────────────────
+// 홈택스 목록조회 파일은 헤더 위에 두 줄의 단서를 갖는다.
+//   0행: "사업자 등록번호 | 701-88-00023 | 상호 | 주식회사 다올커머스"  ← 우리 회사
+//   4행: "매출 전자(수정) 세금계산서 목록조회" / "매입 전자(수정) 계산서 목록조회"  ← 제목
+// 방향은 제목의 매출/매입 + 우리 사업자번호가 공급자/공급받는자 어느 쪽에 있는지로
+// 이중 확인한다. 둘이 어긋나면 저장하지 않고 사용자에게 묻는다.
+// 과세/면세는 '세액' 컬럼 유무(양식)가 1차, 제목(세금계산서/계산서)은 교차 확인.
+type Detected = {
+  dirByTitle: 'sales' | 'purchase' | null
+  taxByTitle: 'taxable' | 'exempt' | null
+  title: string | null
+  selfBiz: string | null
+}
+
+const BIZ_RE = /^\d{3}-\d{2}-\d{5}$/
+
+function detectFromMeta(metaRows: unknown[][]): Detected {
+  let title: string | null = null
+  let selfBiz: string | null = null
+  for (const row of metaRows) {
+    const cells = row.map(c => String(c ?? '').trim())
+    for (let i = 0; i < cells.length; i++) {
+      const c = cells[i]
+      if (!title && /목록\s*조회/.test(c) && /(매출|매입)/.test(c)) title = c
+      if (!selfBiz && /^사업자\s*등록번호$/.test(c)) {
+        const next = cells.slice(i + 1).find(v => v.length > 0) ?? ''
+        if (BIZ_RE.test(next)) selfBiz = next
+      }
+    }
+  }
+  const dirByTitle = title ? (/매출/.test(title) ? 'sales' : /매입/.test(title) ? 'purchase' : null) : null
+  const taxByTitle = title ? (/세금\s*계산서/.test(title) ? 'taxable' : /계산서/.test(title) ? 'exempt' : null) : null
+  return { dirByTitle, taxByTitle, title, selfBiz }
+}
+
+function majority(values: string[]): string | null {
+  const counts = new Map<string, number>()
+  for (const v of values) if (v) counts.set(v, (counts.get(v) ?? 0) + 1)
+  return Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+}
+
 function matchAccount(
   text: string,
   accounts: { id: string; keywords: string[] }[],
@@ -52,23 +93,26 @@ function matchAccount(
 
 // POST /api/tax-invoices/import
 // multipart/form-data: file (홈택스 전자(세금)계산서 목록조회 XLS/XLSX 다운로드 파일)
-//                      direction = sales|purchase, taxType = taxable|exempt
+//                      direction = sales|purchase, taxType = taxable|exempt  — 둘 다 선택(힌트).
+// 매출/매입·과세/면세는 **파일에서 판별**한다(제목 행 + 우리 사업자번호 위치 + 세액 컬럼).
+// 화면에서 보낸 값과 다르면 파일 쪽을 믿고 directionCorrected/taxTypeCorrected로 알린다.
 // 사업자등록번호(우선) 또는 상호명으로 거래처를 자동 매칭/등록하고, 승인번호 기준으로 upsert 한다.
 export async function POST(req: NextRequest) {
   const admin = createAdminClient()
 
-  const formData  = await req.formData().catch(() => null)
-  const file      = formData?.get('file') as File | null
-  const direction = formData?.get('direction') as string | null
-  const taxType   = formData?.get('taxType') as string | null
+  const formData     = await req.formData().catch(() => null)
+  const file         = formData?.get('file') as File | null
+  const reqDirRaw    = formData?.get('direction') as string | null
+  const reqTaxRaw    = formData?.get('taxType') as string | null
+  const reqDirection = reqDirRaw === 'sales' || reqDirRaw === 'purchase' ? reqDirRaw : null
+  const reqTaxType   = reqTaxRaw === 'taxable' || reqTaxRaw === 'exempt' ? reqTaxRaw : null
 
-  if (!file)                                              return NextResponse.json({ error: '파일이 없습니다.' }, { status: 400 })
-  if (direction !== 'sales' && direction !== 'purchase')  return NextResponse.json({ error: 'direction 값이 올바르지 않습니다.' }, { status: 400 })
-  if (taxType !== 'taxable' && taxType !== 'exempt')      return NextResponse.json({ error: 'taxType 값이 올바르지 않습니다.' }, { status: 400 })
+  if (!file) return NextResponse.json({ error: '파일이 없습니다.' }, { status: 400 })
 
   // 파일 파싱은 손상·비정형 파일에서 예외를 던질 수 있다 — 크래시("Failed to fetch") 대신 메시지 반환
   let header: unknown[] | null = null
   let dataRows: unknown[][] = []
+  let metaRows: unknown[][] = []
   try {
     const buffer = Buffer.from(await file.arrayBuffer())
     const wb = XLSX.read(buffer, { type: 'buffer' })
@@ -82,6 +126,7 @@ export async function POST(req: NextRequest) {
       if (headerIdx >= 0) {
         header = rows[headerIdx]
         dataRows = rows.slice(headerIdx + 1)
+        metaRows = rows.slice(0, headerIdx)
         break
       }
     }
@@ -115,20 +160,41 @@ export async function POST(req: NextRequest) {
   const supplierNameIdx  = col.supplierBiz  + 2
   const recipientNameIdx = col.recipientBiz + 2
 
-  // 과세/면세는 탭 선택이 아니라 파일 양식으로 판별한다:
+  // ── 과세/면세: 파일 양식으로 판별 ──
   // 홈택스 전자세금계산서(과세) 파일에는 '세액' 컬럼이 있고, 전자계산서(면세)에는 없다.
-  // 면세 파일을 과세 탭에 올리는 실수(화환 계산서 등)를 여기서 바로잡는다.
+  const meta = detectFromMeta(metaRows)
   const detectedTaxType: 'taxable' | 'exempt' = col.tax >= 0 ? 'taxable' : 'exempt'
-  const taxTypeCorrected = detectedTaxType !== taxType
   const effectiveTaxType = detectedTaxType
+  const taxTypeCorrected = reqTaxType !== null && reqTaxType !== effectiveTaxType
 
-  // "우리 회사" 사업자번호 추정 — 선택한 방향 기준 자기 쪽 컬럼에서 가장 많이 등장하는 값
-  const selfBizCounts = new Map<string, number>()
-  for (const row of dataRows) {
-    const selfBiz = String(row[direction === 'sales' ? col.supplierBiz : col.recipientBiz] ?? '').trim()
-    if (selfBiz) selfBizCounts.set(selfBiz, (selfBizCounts.get(selfBiz) ?? 0) + 1)
+  // ── 매출/매입: 제목 행 + 우리 사업자번호 위치로 이중 판별 ──
+  const supplierMajority  = majority(dataRows.map(r => String(r[col.supplierBiz]  ?? '').trim()))
+  const recipientMajority = majority(dataRows.map(r => String(r[col.recipientBiz] ?? '').trim()))
+  // 우리 사업자번호: 0행에서 읽은 값 우선. 없으면 "한쪽 컬럼에 압도적으로 반복되는 번호"로 추정.
+  const selfBiz = meta.selfBiz
+    ?? (supplierMajority && dataRows.every(r => String(r[col.supplierBiz] ?? '').trim() === supplierMajority) ? supplierMajority
+      : recipientMajority && dataRows.every(r => String(r[col.recipientBiz] ?? '').trim() === recipientMajority) ? recipientMajority
+      : null)
+  const dirByBiz: 'sales' | 'purchase' | null =
+    selfBiz && supplierMajority === selfBiz && recipientMajority !== selfBiz ? 'sales'
+    : selfBiz && recipientMajority === selfBiz && supplierMajority !== selfBiz ? 'purchase'
+    : null
+
+  if (meta.dirByTitle && dirByBiz && meta.dirByTitle !== dirByBiz) {
+    return NextResponse.json(
+      { error: `파일 제목은 ${meta.dirByTitle === 'sales' ? '매출' : '매입'}인데 사업자번호 위치는 ${dirByBiz === 'sales' ? '매출' : '매입'}로 보입니다. 파일을 확인해주세요. (제목: ${meta.title})` },
+      { status: 400 },
+    )
   }
-  const selfBiz = Array.from(selfBizCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+  const detectedDirection = meta.dirByTitle ?? dirByBiz ?? reqDirection
+  if (!detectedDirection) {
+    return NextResponse.json(
+      { error: '매출/매입을 파일에서 판별하지 못했습니다. 매출 또는 매입 메뉴에서 업로드해주세요.' },
+      { status: 400 },
+    )
+  }
+  const direction: 'sales' | 'purchase' = detectedDirection
+  const directionCorrected = reqDirection !== null && reqDirection !== direction
 
   const parsed: ParsedRow[] = []
   let skipped = 0
@@ -318,7 +384,9 @@ export async function POST(req: NextRequest) {
     mismatched,
     vendorsCreated,
     total: dataRows.length,
-    // 파일 양식으로 과세/면세를 판별해 탭 선택과 달랐던 경우 (자동 보정됨)
+    // 파일에서 판별한 구분 — 화면 선택과 달랐으면 Corrected에 값이 들어간다 (파일 쪽으로 저장됨)
+    detected: { direction, taxType: effectiveTaxType, title: meta.title, selfBiz },
+    directionCorrected: directionCorrected ? direction : null,
     taxTypeCorrected: taxTypeCorrected ? effectiveTaxType : null,
   })
   } catch (e) {
