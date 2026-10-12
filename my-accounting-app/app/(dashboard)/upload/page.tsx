@@ -9,12 +9,13 @@ type ItemStatus = 'parsing' | 'ready' | 'need_input' | 'uploading' | 'success' |
 
 // 업로드 대상: 은행 명세서(클라이언트 파싱→/api/upload) /
 // 카드매출·법인카드 사용내역(파일 그대로 각 import API가 서버에서 파싱)
-type UploadSource = 'bank' | 'card_sales' | 'card_expenses'
+type UploadSource = 'bank' | 'card_sales' | 'card_expenses' | 'tax_invoices'
 
 const SOURCE_META: Record<UploadSource, { label: string; hint: string; doneHref: string; doneLabel: string }> = {
   bank:          { label: '은행 명세서',        hint: '은행에서 내려받은 입출금 명세서 (CSV·XLSX·XLS)',            doneHref: '/transactions',  doneLabel: '거래 내역 보기 →' },
   card_sales:    { label: '카드매출',           hint: '카드 매출 상세내역 — 단말기결제·수기결제(PG) 다운로드 파일', doneHref: '/cards',    doneLabel: '카드매출 보기 →' },
   card_expenses: { label: '법인카드 사용내역',  hint: '카드사 이용내역 — 여러 카드사 시트 합본 지원',               doneHref: '/cards?tab=expenses', doneLabel: '법인카드 보기 →' },
+  tax_invoices:  { label: '홈택스 계산서',      hint: '전자(세금)계산서 목록조회 파일 — 매출/매입·과세/면세는 파일에서 자동 판별', doneHref: '/tax-invoices', doneLabel: '계산서 내역 보기 →' },
 }
 
 interface QueueItem {
@@ -204,6 +205,26 @@ export default function UploadPage() {
     })
   }
 
+  // 홈택스 계산서 — 서버가 파일에서 매출/매입·과세/면세를 판별하므로 파일만 보낸다
+  const uploadTaxInvoice = async (item: QueueItem) => {
+    const fd = new FormData()
+    fd.append('file', item.file)
+    const res  = await fetch('/api/tax-invoices/import', { method: 'POST', body: fd })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      patchItem(item.id, { status: 'error', error: data.error ?? '업로드 오류' })
+      return
+    }
+    const d = data.detected as { direction: string; taxType: string } | undefined
+    const kind = d ? `${d.direction === 'sales' ? '매출' : '매입'} ${d.taxType === 'taxable' ? '세금계산서' : '계산서'}` : '계산서'
+    const parts = [`${kind} ${(data.imported ?? 0).toLocaleString()}건 — 신규 ${(data.created ?? 0).toLocaleString()}`]
+    if (data.updated)        parts.push(`갱신 ${data.updated.toLocaleString()}`)
+    if (data.vendorsCreated) parts.push(`신규 거래처 ${data.vendorsCreated}`)
+    if (data.skipped)        parts.push(`건너뜀 ${data.skipped}`)
+    if (data.mismatched)     parts.push(`사업자번호 위치 어긋남 ${data.mismatched}`)
+    patchItem(item.id, { status: 'success', resultText: parts.join(' · ') })
+  }
+
   const uploadCard = async (item: QueueItem) => {
     const endpoint = item.source === 'card_sales' ? '/api/card-sales/import' : '/api/card-expenses/import'
     const fd = new FormData()
@@ -230,6 +251,7 @@ export default function UploadPage() {
       patchItem(item.id, { status: 'uploading' })
       try {
         if (item.source === 'bank') await uploadBank(item)
+        else if (item.source === 'tax_invoices') await uploadTaxInvoice(item)
         else await uploadCard(item)
       } catch (e) {
         patchItem(item.id, { status: 'error', error: e instanceof Error ? e.message : '네트워크 오류' })
