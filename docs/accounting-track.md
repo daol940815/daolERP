@@ -487,7 +487,7 @@ A안(허브를 단일 진실로) 채택. `reports/management-dashboard/page.tsx`
 | 파일 | 내용 | 화면 영향 | 상태 |
 |---|---|---|---|
 | `406_erp_order_receivable_view.sql` | 뷰 신설 | 없음 | **실행 완료** (2026-10-01) |
-| `407_receivable_view_net_sales_fix.sql` | 뷰 보정 — 순매출을 품목 합으로, 0 하한 제거 | 없음 | 실행 대기 |
+| `407_receivable_view_net_sales_fix.sql` | 뷰 보정 — 순매출을 품목 합으로, 0 하한 제거 | 없음 | **실행 완료** (2026-10-12) — 검증 8,635/8,635 · 순매출 6,310,278,915(=025) · legacy 5,849,863,431(=022) · 표준 미수 255,579,538/279건 |
 | `408_receivable_unify_rpcs.sql` | `hub_vendor_summary`·`erp_orders_summary`·`erp_receivable_summary`를 뷰 위로 재작성 + `erp_order_receivable_by_ids` 추가 | **있음** | 실행 대기 |
 | `409_tx_kind_and_loan_account_no.sql` | `transactions.tx_kind` + `loans.loan_account_no` 컬럼 | 없음 | **실행 완료** (2026-10-07) |
 | `410_cleanup_misuploaded_bank_file.sql` | 구버전 업로더로 들어간 1,356건 삭제 | — | **실행 완료** (2026-10-07, 검증 일치) |
