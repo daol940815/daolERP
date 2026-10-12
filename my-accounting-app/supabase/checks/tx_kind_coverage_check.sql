@@ -3,11 +3,12 @@
 -- 은행 구분(tx_kind) → 계정 키워드 매핑 현황 (2026-10-07)
 -- 선행: 409 실행 + 통합계좌 파일 업로드
 --
--- 분류기(Step 0)는 accounts.keywords 중 tx_kind와 **정확히 같은** 키워드를 가진
--- 계정이 딱 하나일 때만 추천한다. 이 점검은
---   · 어떤 구분 값이 몇 건 있고
---   · 그 값을 키워드로 가진 계정이 0개(미등록)·1개(정상)·2개 이상(모호)인지
--- 보여준다. '미등록' 행의 구분 값을 해당 계정과목의 키워드에 등록하면 다음 분류부터 잡힌다.
+-- 분류기(Step 0)는 accounts.keywords 중 **'구분:<값>'** 형식(접두 필수, 대소문자 무시)으로
+-- 등록된 키워드를 가진 계정이 딱 하나일 때만 추천한다. 적요용 키워드와 이름공간을 분리한
+-- 이유는 2026-10-12 사고('인터넷' 채널 구분이 통신비 적요 키워드 '인터넷'에 걸림).
+-- 채널·방향 값(인터넷·모바일·타행송금·대체·입금·출금 …)은 등록해도 분류기가 무시한다.
+-- 이 점검은 구분 값마다 건수와 '미등록 / 정상 / 모호 / 채널(등록 대상 아님)' 상태를 보여준다.
+-- '미등록' 행은 해당 계정과목 키워드에 **'구분:대출이자'** 처럼 등록하면 다음 분류부터 잡힌다.
 -- =====================================================
 
 WITH kinds AS (
@@ -24,10 +25,17 @@ WITH kinds AS (
   GROUP BY tx_kind
 ),
 kw AS (
-  -- 계정 키워드를 (소문자·trim) 1행 1키워드로 펼친다
-  SELECT a.id, a.code, a.name, a.type, lower(btrim(k)) AS kw
+  -- 계정 키워드 중 '구분:' 접두가 붙은 것만, 접두를 떼고 (소문자·trim) 1행 1키워드로 펼친다
+  SELECT a.id, a.code, a.name, a.type,
+         lower(btrim(substring(k from 4))) AS kw
   FROM accounts a, unnest(COALESCE(a.keywords, '{}'::text[])) AS k
-  WHERE a.is_active
+  WHERE a.is_active AND lower(btrim(k)) LIKE '구분:%'
+),
+channel(v) AS (
+  VALUES ('인터넷'),('인터넷당행'),('모바일'),('폰뱅킹'),('텔레뱅킹'),('오픈뱅킹'),('펌뱅킹'),('bz뱅크'),('bz수수'),
+         ('대체'),('대체입금'),('대체출금'),('타행'),('타행송금'),('타행이체'),('타행대량'),('당행송금'),('당행이체'),
+         ('실시간이체'),('재정이체'),('자동이체'),('cms'),('i/b'),('f/b'),('f/b 출금'),('i-g'),('kft'),('fbc'),('fbs'),('gir'),
+         ('atm'),('cd'),('창구'),('무통장'),('입금'),('출금'),('지급')
 )
 
 SELECT jsonb_pretty(jsonb_build_object(
@@ -42,10 +50,13 @@ SELECT jsonb_pretty(jsonb_build_object(
         '기간', k.최초 || ' ~ ' || k.최종,
         '키워드_보유계정', (SELECT COALESCE(jsonb_agg(w.code || ' ' || w.name), '[]'::jsonb)
                            FROM kw w WHERE w.kw = lower(btrim(k.tx_kind))),
-        '상태', CASE (SELECT COUNT(*) FROM kw w WHERE w.kw = lower(btrim(k.tx_kind)))
-                  WHEN 0 THEN '미등록 — 키워드 등록 필요'
-                  WHEN 1 THEN '정상'
-                  ELSE '모호 — 계정 2개 이상이 같은 키워드' END
+        '상태', CASE
+                  WHEN lower(btrim(k.tx_kind)) IN (SELECT v FROM channel) OR lower(btrim(k.tx_kind)) LIKE 'g-%'
+                    THEN '채널 — 등록 대상 아님'
+                  ELSE CASE (SELECT COUNT(*) FROM kw w WHERE w.kw = lower(btrim(k.tx_kind)))
+                    WHEN 0 THEN '미등록 — 키워드 ''구분:' || k.tx_kind || ''' 등록 필요'
+                    WHEN 1 THEN '정상'
+                    ELSE '모호 — 계정 2개 이상이 같은 키워드' END END
       ) AS t
       FROM kinds k
     ) s
@@ -78,7 +89,9 @@ SELECT jsonb_pretty(jsonb_build_object(
     '구분으로_추천된_거래', (SELECT COUNT(*) FROM transactions WHERE ai_reason LIKE '은행 구분:%'),
     '구분값_종류', (SELECT COUNT(*) FROM kinds),
     '미등록_구분값', (SELECT COUNT(*) FROM kinds k
-                      WHERE NOT EXISTS (SELECT 1 FROM kw w WHERE w.kw = lower(btrim(k.tx_kind))))
+                      WHERE NOT EXISTS (SELECT 1 FROM kw w WHERE w.kw = lower(btrim(k.tx_kind)))
+                        AND lower(btrim(k.tx_kind)) NOT IN (SELECT v FROM channel)
+                        AND lower(btrim(k.tx_kind)) NOT LIKE 'g-%')
   )
 
 )) AS check_result;
