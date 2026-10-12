@@ -1,6 +1,7 @@
 'use client'
 
 import PeriodPresets from '@/components/ui/PeriodPresets'
+import Link from 'next/link'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getPeriodRange } from '@/lib/period-presets'
@@ -37,8 +38,6 @@ function CardExpensesContent() {
   const [rows, setRows] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState<string | null>(null)
-  const [uploading, setUploading] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
 
   const [cardAccountId, setCardAccountId] = useState(() => searchParams.get('cardAccountId') ?? '')
   const [dateFrom, setDateFrom] = useState(() => getPeriodRange('당월').from)
@@ -161,20 +160,6 @@ function CardExpensesContent() {
     })
   }
 
-  const handleUpload = async (file: File) => {
-    setUploading(true)
-    const fd = new FormData()
-    fd.append('file', file)
-    const res = await fetch('/api/card-expenses/import', { method: 'POST', body: fd })
-    const json = await res.json()
-    setUploading(false)
-    if (fileRef.current) fileRef.current.value = ''
-    if (!res.ok) { showMsg(`업로드 실패: ${json.error ?? '오류'}`); return }
-    showMsg(`가져오기 완료: ${json.imported}건 — 신규 ${json.created ?? 0} · 기존갱신(중복) ${json.updated ?? 0} (카드사 ${json.card_companies ?? 1}개 · 카드 ${json.card_accounts}개 · 확정 ${json.confirmed} · 제안 ${json.suggested} · 건너뜀 ${json.skipped})`)
-    fetch('/api/card-accounts').then(r => r.json()).then(j => setCardAccounts(j.data ?? []))
-    load()
-  }
-
   const patch = async (id: string, body: Record<string, unknown>) => {
     const res = await fetch(`/api/card-expenses/${id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -242,12 +227,10 @@ function CardExpensesContent() {
             className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
             ↓ 엑셀
           </button>
-          <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f) }} />
-          <button onClick={() => fileRef.current?.click()} disabled={uploading}
-            className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
-            {uploading ? '업로드 중...' : '+ 파일 업로드'}
-          </button>
+          {/* 원본 업로드는 파일 업로드 단일 창구에서 (2026-10-12) */}
+          <Link href="/upload?source=card_expenses" className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">
+            ↑ 파일 업로드 →
+          </Link>
         </div>
       </div>
 

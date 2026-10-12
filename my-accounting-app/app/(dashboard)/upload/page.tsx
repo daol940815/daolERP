@@ -1,27 +1,36 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { parseFile } from '@/lib/file-parser'
+import { detectUploadKind, UPLOAD_KIND_LABEL, type UploadKind } from '@/lib/upload-kind'
 import type { AccountPreview, ParseResult, ParsedRow, UploadResult } from '@/types/upload'
 
 // ── 타입 ────────────────────────────────────────────────────
 type ItemStatus = 'parsing' | 'ready' | 'need_input' | 'uploading' | 'success' | 'duplicate' | 'error'
 
-// 업로드 대상: 은행 명세서(클라이언트 파싱→/api/upload) /
-// 카드매출·법인카드 사용내역(파일 그대로 각 import API가 서버에서 파싱)
-type UploadSource = 'bank' | 'card_sales' | 'card_expenses' | 'tax_invoices'
+// 원본데이터 업로드 단일 창구 (2026-10-12 사용자 결정):
+//   통장·카드매출·법인카드·홈택스 계산서·현금영수증·ERP 주문은 모두 여기서만 올린다.
+//   각 화면의 업로드 버튼은 없애고 이 화면으로 링크한다.
+// 종류는 파일 헤더로 자동 판별(lib/upload-kind.ts). 탭은 판별이 안 되는 파일의 폴백.
+// 은행 명세서만 클라이언트 파싱(→/api/upload), 나머지는 파일 그대로 각 import API로.
+type UploadSource = UploadKind
+type TabKey = 'auto' | UploadSource
 
 const SOURCE_META: Record<UploadSource, { label: string; hint: string; doneHref: string; doneLabel: string }> = {
   bank:          { label: '은행 명세서',        hint: '은행에서 내려받은 입출금 명세서 (CSV·XLSX·XLS)',            doneHref: '/transactions',  doneLabel: '거래 내역 보기 →' },
   card_sales:    { label: '카드매출',           hint: '카드 매출 상세내역 — 단말기결제·수기결제(PG) 다운로드 파일', doneHref: '/cards',    doneLabel: '카드매출 보기 →' },
   card_expenses: { label: '법인카드 사용내역',  hint: '카드사 이용내역 — 여러 카드사 시트 합본 지원',               doneHref: '/cards?tab=expenses', doneLabel: '법인카드 보기 →' },
   tax_invoices:  { label: '홈택스 계산서',      hint: '전자(세금)계산서 목록조회 파일 — 매출/매입·과세/면세는 파일에서 자동 판별', doneHref: '/tax-invoices', doneLabel: '계산서 내역 보기 →' },
+  cash_receipts: { label: '현금영수증',         hint: '홈택스 현금영수증 사용내역(소비자)/매출내역(사업자) 파일 — 발행/수취는 파일에서 자동 판별', doneHref: '/cash-receipts', doneLabel: '현금영수증 보기 →' },
+  erp_orders:    { label: 'ERP 주문',           hint: 'ERP 주문 다운로드 파일(.xls) — 같은 주문번호는 갱신. 재업로드 시 미수 컷오프 기준선(마지막 업로드일)이 이동합니다', doneHref: '/erp-orders', doneLabel: 'ERP 주문내역 보기 →' },
 }
+const AUTO_HINT = '파일을 올리면 헤더로 종류를 자동 판별합니다. 통장·카드매출·법인카드·홈택스 계산서·현금영수증·ERP 주문을 한 번에 섞어 올려도 됩니다.'
 
 interface QueueItem {
   id: string
   file: File
-  source: UploadSource
+  source: UploadSource | null       // null = 판별 실패, 사용자가 골라야 함
+  detected: UploadSource | null     // 파일 헤더로 판별된 종류
   status: ItemStatus
   parseResult: ParseResult | null   // 은행만 사용 (클라이언트 파싱)
   bankName: string                  // 은행만 사용
@@ -76,7 +85,7 @@ function StatusBadge({ item }: { item: QueueItem }) {
   switch (item.status) {
     case 'parsing':    return <span className="text-xs text-slate-400 whitespace-nowrap">분석 중…</span>
     case 'uploading':  return <span className="text-xs text-blue-500 whitespace-nowrap">업로드 중…</span>
-    case 'need_input': return <span className="px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded-full whitespace-nowrap">은행명 필요</span>
+    case 'need_input': return <span className="px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded-full whitespace-nowrap">{item.source ? '은행명 필요' : '종류 선택 필요'}</span>
     case 'duplicate':  return <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded-full whitespace-nowrap">중복 파일</span>
     case 'error':      return <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded-full whitespace-nowrap">오류</span>
     case 'success':    return (
@@ -96,8 +105,14 @@ export default function UploadPage() {
   const [queue, setQueue]             = useState<QueueItem[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const [isDragging, setIsDragging]   = useState(false)
-  const [sourceType, setSourceType]   = useState<UploadSource>('bank')
+  const [tab, setTab]                 = useState<TabKey>('auto')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // 각 화면의 "파일 업로드 →" 링크가 ?source= 로 종류를 미리 고른다
+  // (useSearchParams는 빌드 시 Suspense 경계를 요구하므로 마운트 후 주소에서 직접 읽는다)
+  useEffect(() => {
+    const s = new URLSearchParams(window.location.search).get('source')
+    if (s && s in SOURCE_META) setTab(s as UploadSource)
+  }, [])
 
   const patchItem = useCallback((id: string, patch: Partial<QueueItem>) =>
     setQueue(q => q.map(item => item.id === id ? { ...item, ...patch } : item)), [])
@@ -135,21 +150,34 @@ export default function UploadPage() {
   }, [patchItem])
 
   // ── 파일 추가 (현재 선택된 출처 탭 기준) ────────────────────
+  // 종류가 정해진 뒤의 준비 단계 — 은행은 클라이언트 파싱, 나머지는 바로 대기
+  const prepareItem = useCallback((id: string, file: File, source: UploadSource) => {
+    if (source === 'bank') { patchItem(id, { source, status: 'parsing' }); parseItem(id, file) }
+    else patchItem(id, { source, status: 'ready' })
+  }, [parseItem, patchItem])
+
   const addFiles = useCallback((files: FileList | File[]) => {
     const arr = Array.from(files).filter(f => /\.(csv|xlsx|xls)$/i.test(f.name))
     if (!arr.length) return
     const items: QueueItem[] = arr.map(file => ({
       id: uid(), file,
-      source: sourceType,
-      status: (sourceType === 'bank' ? 'parsing' : 'ready') as ItemStatus,
+      source: null, detected: null,
+      status: 'parsing' as ItemStatus,
       parseResult: null,
       bankName: '', accountNumber: '',
       error: null, uploadResult: null, resultText: null,
       previews: null, skipExisting: true, excluded: [],
     }))
     setQueue(q => [...q, ...items])
-    if (sourceType === 'bank') items.forEach(item => parseItem(item.id, item.file))
-  }, [parseItem, sourceType])
+    // 파일 내용이 우선, 탭은 판별 실패 시 폴백. 둘 다 없으면 사용자가 고른다.
+    items.forEach(async item => {
+      const detected = await detectUploadKind(item.file)
+      patchItem(item.id, { detected })
+      const source = detected ?? (tab === 'auto' ? null : tab)
+      if (source) prepareItem(item.id, item.file, source)
+      else patchItem(item.id, { status: 'need_input' })
+    })
+  }, [prepareItem, patchItem, tab])
 
   // ── 드래그 앤 드롭 ──────────────────────────────────────────
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -225,6 +253,30 @@ export default function UploadPage() {
     patchItem(item.id, { status: 'success', resultText: parts.join(' · ') })
   }
 
+  const uploadCashReceipts = async (item: QueueItem) => {
+    const fd = new FormData()
+    fd.append('file', item.file)
+    const res  = await fetch('/api/cash-receipts/import', { method: 'POST', body: fd })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { patchItem(item.id, { status: 'error', error: data.error ?? '업로드 오류' }); return }
+    const dir = data.format === 'purchase' ? '수취(매입)' : '발행(매출)'
+    const parts = [`${dir} ${(data.imported ?? 0).toLocaleString()}건 — 신규 ${(data.created ?? 0).toLocaleString()}`]
+    if (data.updated) parts.push(`갱신 ${data.updated.toLocaleString()}`)
+    if (data.skipped) parts.push(`건너뜀 ${data.skipped}`)
+    patchItem(item.id, { status: 'success', resultText: parts.join(' · ') })
+  }
+
+  const uploadErpOrders = async (item: QueueItem) => {
+    const fd = new FormData()
+    fd.append('file', item.file)
+    const res  = await fetch('/api/erp-orders/import', { method: 'POST', body: fd })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { patchItem(item.id, { status: 'error', error: data.error ?? '업로드 오류' }); return }
+    const parts = [`주문 ${(data.imported_orders ?? 0).toLocaleString()}건 — 신규 ${(data.created ?? 0).toLocaleString()} · 갱신 ${(data.updated ?? 0).toLocaleString()}`]
+    parts.push(`품목 ${(data.imported_items ?? 0).toLocaleString()}건`)
+    patchItem(item.id, { status: 'success', resultText: parts.join(' · ') })
+  }
+
   const uploadCard = async (item: QueueItem) => {
     const endpoint = item.source === 'card_sales' ? '/api/card-sales/import' : '/api/card-expenses/import'
     const fd = new FormData()
@@ -243,7 +295,7 @@ export default function UploadPage() {
   }
 
   const handleUploadAll = async () => {
-    const targets = queue.filter(i => i.status === 'ready' || i.status === 'need_input')
+    const targets = queue.filter(i => i.source && (i.status === 'ready' || i.status === 'need_input'))
     if (!targets.length) return
     setIsUploading(true)
 
@@ -251,7 +303,9 @@ export default function UploadPage() {
       patchItem(item.id, { status: 'uploading' })
       try {
         if (item.source === 'bank') await uploadBank(item)
-        else if (item.source === 'tax_invoices') await uploadTaxInvoice(item)
+        else if (item.source === 'tax_invoices')  await uploadTaxInvoice(item)
+        else if (item.source === 'cash_receipts') await uploadCashReceipts(item)
+        else if (item.source === 'erp_orders')    await uploadErpOrders(item)
         else await uploadCard(item)
       } catch (e) {
         patchItem(item.id, { status: 'error', error: e instanceof Error ? e.message : '네트워크 오류' })
@@ -263,7 +317,7 @@ export default function UploadPage() {
 
   // ── 파생 값 ────────────────────────────────────────────────
   const parsingCount    = queue.filter(i => i.status === 'parsing').length
-  const uploadableCount = queue.filter(i => i.status === 'ready' || i.status === 'need_input').length
+  const uploadableCount = queue.filter(i => i.source && (i.status === 'ready' || i.status === 'need_input')).length
   const needInputCount  = queue.filter(i => i.status === 'need_input').length
   const doneCount       = queue.filter(i => ['success', 'duplicate', 'error'].includes(i.status)).length
   const allDone         = queue.length > 0 && queue.every(i => ['success', 'duplicate', 'error'].includes(i.status))
@@ -271,6 +325,7 @@ export default function UploadPage() {
   // 완료 후 이동 버튼: 큐의 첫 성공 항목 기준
   const firstSuccess    = queue.find(i => i.status === 'success')
   const doneMeta        = SOURCE_META[firstSuccess?.source ?? 'bank']
+  const tabHint         = tab === 'auto' ? AUTO_HINT : SOURCE_META[tab].hint
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -281,19 +336,19 @@ export default function UploadPage() {
 
       {/* 출처 선택 */}
       <div className="flex flex-wrap items-center gap-2 mb-2">
-        {(Object.keys(SOURCE_META) as UploadSource[]).map(t => (
-          <button key={t} onClick={() => setSourceType(t)} disabled={isUploading}
+        {(['auto', ...Object.keys(SOURCE_META)] as TabKey[]).map(t => (
+          <button key={t} onClick={() => setTab(t)} disabled={isUploading}
             className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-              sourceType === t
+              tab === t
                 ? 'bg-slate-900 text-white border-slate-900'
                 : 'bg-white text-gray-600 border-gray-300 hover:border-slate-500'
             }`}
           >
-            {SOURCE_META[t].label}
+            {t === 'auto' ? '자동 판별' : SOURCE_META[t].label}
           </button>
         ))}
       </div>
-      <p className="text-xs text-gray-400 mb-4">{SOURCE_META[sourceType].hint}</p>
+      <p className="text-xs text-gray-400 mb-4">{tabHint}</p>
 
       {/* 드롭존 */}
       <div
@@ -312,7 +367,7 @@ export default function UploadPage() {
           {queue.length === 0 ? '파일을 드래그하거나 클릭해서 선택하세요' : '파일 추가 (드래그 또는 클릭)'}
         </p>
         <p className="text-gray-400 text-xs mt-0.5">
-          {SOURCE_META[sourceType].label.replace(/^..\s/, '')} · CSV · XLSX · XLS · 다중 선택 가능
+          {tab === 'auto' ? '원본데이터 파일' : SOURCE_META[tab].label} · CSV · XLSX · XLS · 다중 선택 가능
         </p>
       </div>
       <input ref={fileInputRef} type="file" multiple accept=".csv,.xlsx,.xls" onChange={onFileChange} className="hidden" />
@@ -347,7 +402,12 @@ export default function UploadPage() {
                     {item.file.name}
                   </p>
                   <p className="text-xs text-gray-400">
-                    <span className="text-slate-500">{SOURCE_META[item.source].label.replace(/^..\s/, '')}</span>
+                    {item.source
+                      ? <span className="text-slate-500">
+                          {SOURCE_META[item.source].label}
+                          {item.detected && <span className="ml-1 text-emerald-600" title="파일 헤더로 판별">자동</span>}
+                        </span>
+                      : <span className="text-orange-600">{item.status === 'parsing' ? '판별 중…' : '종류를 고르세요'}</span>}
                     {' · '}
                     {item.parseResult
                       ? `${item.parseResult.rows.length.toLocaleString()}건`
@@ -362,6 +422,24 @@ export default function UploadPage() {
                     <p className="text-xs text-red-500 mt-0.5 line-clamp-2">{item.error}</p>
                   )}
                 </div>
+
+                {/* 판별 실패 — 종류를 직접 고른다 */}
+                {!item.source && item.status === 'need_input' && (
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <select
+                      defaultValue=""
+                      disabled={isUploading}
+                      onChange={e => { const v = e.target.value as UploadSource; if (v) prepareItem(item.id, item.file, v) }}
+                      className="text-sm border border-orange-300 bg-orange-50 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-slate-500"
+                    >
+                      <option value="" disabled>파일 종류 선택</option>
+                      {(Object.keys(SOURCE_META) as UploadSource[]).map(k => (
+                        <option key={k} value={k}>{UPLOAD_KIND_LABEL[k]}</option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-gray-400">헤더로 종류를 판별하지 못했습니다</span>
+                  </div>
+                )}
 
                 {/* 편집 필드 (단일 계좌 은행 명세서만: 은행명/계좌번호) */}
                 {item.source === 'bank' && !isMultiAccount(item) && ['ready', 'need_input', 'uploading'].includes(item.status) && (

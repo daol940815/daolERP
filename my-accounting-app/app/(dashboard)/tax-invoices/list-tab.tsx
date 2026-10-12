@@ -1,7 +1,8 @@
 'use client'
 
 import PeriodPresets from '@/components/ui/PeriodPresets'
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { TaxInvoice } from '@/types/tax-invoice'
 import SearchableSelect from '@/components/ui/SearchableSelect'
@@ -599,7 +600,6 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
   const [searchField, setSearchField] = useState<'all' | 'counterparty' | 'item' | 'note' | 'approval' | 'biz' | 'amount' | 'memo'>('all')
   // 원본 상세 등에서 특정 계산서로 바로 진입 (?invoiceId=) — 그 건만 표시
   const [focusId, setFocusId]         = useState<string | null>(() => searchParams.get('invoiceId'))
-  const [uploading, setUploading]     = useState(false)
   const [exporting, setExporting]     = useState(false)
   const [matching, setMatching]       = useState(false)
   const [matchingInvoice, setMatchingInvoice] = useState<TaxInvoice | null>(null)
@@ -621,7 +621,6 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
   const [bulkBusy, setBulkBusy]       = useState(false)
   const [deleting, setDeleting]       = useState(false)
   const [toast, setToast]             = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const showMsg = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 4000) }
 
@@ -692,34 +691,6 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
 
   const meta    = DIRECTION_META[direction]
   const taxLbl  = TAX_TYPE_META[taxType]
-
-  // 매출/매입·과세/면세는 서버가 파일에서 판별한다 — 현재 탭은 힌트로만 보낸다.
-  // 여러 파일을 한 번에 올릴 수 있고, 파일마다 판별된 구분과 결과를 줄로 보여준다.
-  const handleUpload = async (files: File[]) => {
-    setUploading(true)
-    const lines: string[] = []
-    for (const file of files) {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('direction', direction)
-      fd.append('taxType', taxType)
-      const res  = await fetch('/api/tax-invoices/import', { method: 'POST', body: fd })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) { lines.push(`${file.name}: 실패 — ${json.error ?? '알 수 없는 오류'}`); continue }
-
-      const d = json.detected as { direction: string; taxType: string } | undefined
-      const kind = d ? `${d.direction === 'sales' ? '매출' : '매입'} ${d.taxType === 'taxable' ? '세금계산서' : '계산서'}` : ''
-      let msg = `${kind} ${json.imported}건 — 신규 ${json.created ?? 0} · 갱신 ${json.updated ?? 0} · 신규 거래처 ${json.vendorsCreated}`
-      if (json.skipped)    msg += ` · 건너뜀 ${json.skipped}`
-      if (json.mismatched) msg += ` · 사업자번호 위치가 어긋난 행 ${json.mismatched}`
-      if (json.directionCorrected || json.taxTypeCorrected) msg += ' (파일 구분대로 저장 — 현재 탭과 다름)'
-      lines.push(files.length > 1 ? `${file.name}: ${msg}` : msg)
-    }
-    setUploading(false)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-    showMsg(lines.join('\n'))
-    load()
-  }
 
   // ids를 주면 그 선택 건들만 자동매칭, 없으면 현재 조회 기간의 미확인 건 대상
   // (실행 범위 = 화면의 기간 필터 — 2025년을 매칭하려면 기간을 넓히고 실행)
@@ -916,28 +887,19 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
               취소쌍 상계 ({cancelPairIds.size / 2})
             </button>
           )}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 flex items-center gap-1.5"
+          {/* 원본 업로드는 파일 업로드 단일 창구에서 (2026-10-12) */}
+          <Link
+            href="/upload?source=tax_invoices"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1.5"
           >
-            ↑ {uploading ? '업로드 중...' : '홈택스 파일 업로드'}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            multiple
-            className="hidden"
-            onChange={e => { const fs = Array.from(e.target.files ?? []); if (fs.length) handleUpload(fs) }}
-          />
+            ↑ 파일 업로드 →
+          </Link>
         </div>
       </div>
 
       <div className="mt-3 mb-5 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500">
-        홈택스 &gt; 조회/발급 &gt; 목록조회에서 다운로드한 파일을 그대로 업로드하세요. 매출/매입·과세/면세는
-        파일에서 자동 판별되므로 네 종류를 한 번에 올려도 됩니다(여러 파일 선택 가능).
-        승인번호 기준으로 중복 없이 저장되며, 사업자번호·상호로 거래처가 자동 등록/매칭됩니다.
+        홈택스 &gt; 조회/발급 &gt; 목록조회 파일은 파일 업로드 화면에서 올립니다. 매출/매입·과세/면세는
+        파일에서 자동 판별되고, 승인번호 기준으로 중복 없이 저장되며 사업자번호·상호로 거래처가 자동 등록/매칭됩니다.
       </div>
 
       {/* 특정 계산서 진입 배지 (원본 상세 → 세금계산서 화면으로) */}
