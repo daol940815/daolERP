@@ -1,7 +1,8 @@
 'use client'
 
 import PeriodPresets from '@/components/ui/PeriodPresets'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { useCallback, useEffect, useState } from 'react'
 import type { CashReceipt, CashReceiptDirection, CashReceiptTransactionType } from '@/types/cash-receipt'
 import type { Vendor } from '@/types/tax-invoice'
 import { getPeriodRange } from '@/lib/period-presets'
@@ -25,11 +26,9 @@ export default function CashReceiptsPage() {
   const [dateTo,     setDateTo]     = useState(() => getPeriodRange('당월').to)
 
   const [selected,  setSelected]  = useState<Set<string>>(new Set())
-  const [uploading, setUploading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [deleting,  setDeleting]  = useState(false)
   const [toast,     setToast]     = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const showMsg = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 4000) }
 
@@ -55,24 +54,6 @@ export default function CashReceiptsPage() {
       .then(d => { if (Array.isArray(d.data)) setVendors(d.data) })
       .catch(() => null)
   }, [])
-
-  const handleUpload = async (file: File) => {
-    setUploading(true)
-    const fd = new FormData()
-    fd.append('file', file)
-    const res  = await fetch('/api/cash-receipts/import', { method: 'POST', body: fd })
-    const json = await res.json()
-    setUploading(false)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-    if (!res.ok) { showMsg(`업로드 실패: ${json.error ?? '알 수 없는 오류'}`); return }
-
-    const dirLabel = json.format === 'purchase' ? '수취(매입)' : '발행(매출)'
-    let msg = `${dirLabel} ${json.imported}건 처리 — 신규 ${json.created ?? 0}건 · 기존갱신(중복) ${json.updated ?? 0}건`
-    if (json.skipped) msg += ` · 건너뜀 ${json.skipped}건`
-    showMsg(msg)
-    if (json.format) setDirection(json.format)
-    load()
-  }
 
   const handleAssignVendor = async (row: CashReceipt, vendorId: string) => {
     const res  = await fetch(`/api/cash-receipts/${row.id}`, {
@@ -139,25 +120,15 @@ export default function CashReceiptsPage() {
           >
             ↓ {exporting ? '다운로드 중...' : '엑셀 다운로드'}
           </button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 flex items-center gap-1.5"
-          >
-            ↑ {uploading ? '업로드 중...' : '홈택스 파일 업로드'}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f) }}
-          />
+          {/* 원본 업로드는 파일 업로드 단일 창구에서 (2026-10-12) */}
+          <Link href="/upload?source=cash_receipts" className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1.5">
+            ↑ 파일 업로드 →
+          </Link>
         </div>
       </div>
 
       <div className="mt-3 mb-5 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500">
-        홈택스 &gt; 조회/발급 &gt; 현금영수증 &gt; 사용내역(소비자)/매출내역(사업자) 조회에서 다운로드한 파일을 그대로 업로드하세요.
+        홈택스 &gt; 조회/발급 &gt; 현금영수증 &gt; 사용내역(소비자)/매출내역(사업자) 조회 파일은 파일 업로드 화면에서 올립니다.
         파일 형식에 따라 발행(매출) / 수취(매입)가 자동으로 구분됩니다.
       </div>
 
