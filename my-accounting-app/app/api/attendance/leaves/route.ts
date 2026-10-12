@@ -10,7 +10,9 @@ export const dynamic = 'force-dynamic'
 //   self: 내 신청 이력 / all: 전 직원 (중간 관리자·전체 관리자 — 승인 화면용)
 // POST body.action:
 //   request { leave_type, start_date, end_date, reason? } — 본인 신청. 반차는 하루짜리만
-//   cancel  { id } — 본인의 승인 대기 건 취소. 승인된 건은 전체 관리자만 취소 가능
+//   cancel  { id, note? } — 본인의 승인 대기 건 취소.
+//     승인된 건은 인사·총무 수정 권한자만 취소 가능하고 사유(note)가 필수다
+//     (2026-10-12 사용자 결정: 승인권자가 아니라 인사·총무에서 통제. 지난 날짜도 취소 허용)
 //   approve / reject { id, note? } — 중간 관리자·전체 관리자.
 //     중간 관리자는 본인 신청을 스스로 승인·반려할 수 없다
 
@@ -54,7 +56,8 @@ export async function GET(req: NextRequest) {
     const byId = new Map((emps ?? []).map(e => [e.id as string, e]))
     leaves = leaves.map(l => ({ ...l, employee: byId.get(l.employee_id as string) ?? null }))
   }
-  return NextResponse.json({ leaves, myEmployeeId: employeeId })
+  // can_edit = 승인된 휴가 취소 권한 (취소 버튼 노출용 — 실제 차단은 POST에서)
+  return NextResponse.json({ leaves, myEmployeeId: employeeId, can_edit: isHrAdmin(me) })
 }
 
 export async function POST(req: NextRequest) {
@@ -106,13 +109,21 @@ export async function POST(req: NextRequest) {
       .select('employee_id, status').eq('id', id).single()
     if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
     const mine = leave.employee_id === employeeId
+    const hrAdmin = isHrAdmin(me)
     const canCancel = (mine && leave.status === 'requested') ||
-      (isHrAdmin(me) && ['requested', 'approved'].includes(leave.status))
+      (hrAdmin && ['requested', 'approved'].includes(leave.status))
     if (!canCancel) {
-      return NextResponse.json({ error: '취소할 수 없습니다. 본인의 승인 대기 건만 취소 가능하며, 승인된 건은 전체 관리자에게 요청하세요.' }, { status: 403 })
+      return NextResponse.json({ error: '취소할 수 없습니다. 본인의 승인 대기 건만 취소 가능하며, 승인된 건은 인사·총무에 요청하세요.' }, { status: 403 })
     }
-    const { error } = await admin.from('attendance_leaves')
-      .update({ status: 'canceled', decided_by: employeeId, decided_at: now }).eq('id', id)
+    // 승인된 건을 되돌리는 것은 나중에 근거를 찾게 되므로 사유를 남긴다
+    const note = (body.note ?? '').trim()
+    if (leave.status === 'approved' && !note) {
+      return NextResponse.json({ error: '승인된 휴가를 취소하려면 사유를 입력하세요.' }, { status: 400 })
+    }
+    const { error } = await admin.from('attendance_leaves').update({
+      status: 'canceled', decided_by: employeeId, decided_at: now,
+      ...(note ? { decide_note: note } : {}),
+    }).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true })
   }

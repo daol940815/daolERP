@@ -6,8 +6,9 @@ import {
   type AttendanceLeave,
 } from '@/lib/attendance'
 
-// 휴가 승인 (중간 관리자·전체 관리자) — 대기 건 결재 + 최근 처리 내역
-// 중간 관리자는 본인 신청을 스스로 결재할 수 없다 (서버에서도 차단)
+// 휴가 승인 — 대기 건 결재(승인권자) + 최근 처리 내역.
+// 본인 신청은 스스로 결재할 수 없다(서버에서도 차단).
+// 승인된 휴가 취소는 인사·총무 수정 권한자만(2026-10-12 결정) — 사유 필수, 지난 날짜도 허용.
 
 type LeaveRow = AttendanceLeave & { employee?: { name: string; team: string | null } | null }
 
@@ -15,6 +16,7 @@ export default function LeaveApprovalsPage() {
   const [pending, setPending] = useState<LeaveRow[]>([])
   const [recent, setRecent] = useState<LeaveRow[]>([])
   const [myEmployeeId, setMyEmployeeId] = useState<string | null>(null)
+  const [canEdit, setCanEdit] = useState(false)   // 승인 건 취소 권한 (인사·총무 수정)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -32,7 +34,7 @@ export default function LeaveApprovalsPage() {
     const rows = json.leaves as LeaveRow[]
     setPending(rows.filter(l => l.status === 'requested'))
     setRecent(rows.filter(l => l.status !== 'requested').slice(0, 50))
-    setMyEmployeeId(json.myEmployeeId)
+    setMyEmployeeId(json.myEmployeeId); setCanEdit(!!json.can_edit)
   }, [])
   useEffect(() => { load() }, [load])
 
@@ -47,6 +49,25 @@ export default function LeaveApprovalsPage() {
     setBusy(false)
     if (!res.ok) { flash(json.error ?? '실패'); return }
     flash(action === 'approve' ? '승인했습니다.' : '반려했습니다.')
+    load()
+  }
+
+  // 승인된 휴가 취소 — 인사·총무 수정 권한자만. 지난 날짜도 취소할 수 있고 사유를 남긴다
+  const cancelApproved = async (l: LeaveRow) => {
+    const note = window.prompt(
+      `${l.employee?.name ?? ''} ${LEAVE_TYPE_LABEL[l.leave_type]} (${period(l)}) 승인을 취소합니다.\n` +
+      '취소 사유를 입력하세요 (필수):')
+    if (note === null) return
+    if (!note.trim()) { flash('취소 사유를 입력해야 합니다.'); return }
+    setBusy(true)
+    const res = await fetch('/api/attendance/leaves', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'cancel', id: l.id, note: note.trim() }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setBusy(false)
+    if (!res.ok) { flash(json.error ?? '실패'); return }
+    flash('승인을 취소했습니다. 해당 날짜는 다시 근무일로 계산됩니다.')
     load()
   }
 
@@ -93,6 +114,12 @@ export default function LeaveApprovalsPage() {
 
       <div className="bg-white border border-gray-200 rounded-xl mt-4 p-4">
         <h2 className="font-bold text-gray-900">최근 처리 내역</h2>
+        {canEdit && (
+          <p className="text-xs text-gray-500 mt-1">
+            승인된 휴가는 사유를 남기고 취소할 수 있습니다(지난 날짜 포함). 취소하면 그날은 다시
+            근무일로 계산되어 기록이 없으면 미기록으로 표시됩니다.
+          </p>
+        )}
         <table className="w-full text-sm mt-2">
           <tbody>
             {recent.map(l => (
@@ -109,10 +136,18 @@ export default function LeaveApprovalsPage() {
                   </span>
                 </td>
                 <td className="py-1.5 px-3 text-xs text-gray-400">{l.decide_note ?? ''}</td>
+                <td className="py-1.5 pl-3 text-right whitespace-nowrap">
+                  {canEdit && l.status === 'approved' && (
+                    <button onClick={() => cancelApproved(l)} disabled={busy}
+                      className="text-xs px-2.5 py-1 border border-gray-300 rounded hover:bg-gray-50">
+                      승인 취소
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
             {!recent.length && (
-              <tr><td className="py-8 text-center text-gray-400 text-sm">처리 내역이 없습니다.</td></tr>
+              <tr><td colSpan={6} className="py-8 text-center text-gray-400 text-sm">처리 내역이 없습니다.</td></tr>
             )}
           </tbody>
         </table>
