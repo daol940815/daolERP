@@ -693,23 +693,31 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
   const meta    = DIRECTION_META[direction]
   const taxLbl  = TAX_TYPE_META[taxType]
 
-  const handleUpload = async (file: File) => {
+  // 매출/매입·과세/면세는 서버가 파일에서 판별한다 — 현재 탭은 힌트로만 보낸다.
+  // 여러 파일을 한 번에 올릴 수 있고, 파일마다 판별된 구분과 결과를 줄로 보여준다.
+  const handleUpload = async (files: File[]) => {
     setUploading(true)
-    const fd = new FormData()
-    fd.append('file', file)
-    fd.append('direction', direction)
-    fd.append('taxType', taxType)
-    const res  = await fetch('/api/tax-invoices/import', { method: 'POST', body: fd })
-    const json = await res.json()
+    const lines: string[] = []
+    for (const file of files) {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('direction', direction)
+      fd.append('taxType', taxType)
+      const res  = await fetch('/api/tax-invoices/import', { method: 'POST', body: fd })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) { lines.push(`${file.name}: 실패 — ${json.error ?? '알 수 없는 오류'}`); continue }
+
+      const d = json.detected as { direction: string; taxType: string } | undefined
+      const kind = d ? `${d.direction === 'sales' ? '매출' : '매입'} ${d.taxType === 'taxable' ? '세금계산서' : '계산서'}` : ''
+      let msg = `${kind} ${json.imported}건 — 신규 ${json.created ?? 0} · 갱신 ${json.updated ?? 0} · 신규 거래처 ${json.vendorsCreated}`
+      if (json.skipped)    msg += ` · 건너뜀 ${json.skipped}`
+      if (json.mismatched) msg += ` · 사업자번호 위치가 어긋난 행 ${json.mismatched}`
+      if (json.directionCorrected || json.taxTypeCorrected) msg += ' (파일 구분대로 저장 — 현재 탭과 다름)'
+      lines.push(files.length > 1 ? `${file.name}: ${msg}` : msg)
+    }
     setUploading(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
-    if (!res.ok) { showMsg(`업로드 실패: ${json.error ?? '알 수 없는 오류'}`); return }
-
-    let msg = `${json.imported}건 처리 — 신규 ${json.created ?? 0}건 · 기존갱신(중복) ${json.updated ?? 0}건 (신규 거래처 ${json.vendorsCreated}곳)`
-    if (json.skipped)    msg += ` · 건너뜀 ${json.skipped}건`
-    if (json.mismatched) msg += ` · 방향이 다른 것으로 보이는 건 ${json.mismatched}개 (메뉴를 다시 확인해주세요)`
-    if (json.taxTypeCorrected) msg += ` · 파일이 ${json.taxTypeCorrected === 'exempt' ? '전자계산서(면세)' : '전자세금계산서(과세)'} 양식이라 해당 유형으로 저장했습니다 (해당 탭에서 확인)`
-    showMsg(msg)
+    showMsg(lines.join('\n'))
     load()
   }
 
@@ -919,14 +927,16 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
             ref={fileInputRef}
             type="file"
             accept=".xlsx,.xls"
+            multiple
             className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f) }}
+            onChange={e => { const fs = Array.from(e.target.files ?? []); if (fs.length) handleUpload(fs) }}
           />
         </div>
       </div>
 
       <div className="mt-3 mb-5 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500">
-        홈택스 &gt; 조회/발급 &gt; {taxLbl.includes('과세') ? '전자세금계산서' : '전자계산서'} &gt; 목록조회에서 다운로드한 파일을 그대로 업로드하세요.
+        홈택스 &gt; 조회/발급 &gt; 목록조회에서 다운로드한 파일을 그대로 업로드하세요. 매출/매입·과세/면세는
+        파일에서 자동 판별되므로 네 종류를 한 번에 올려도 됩니다(여러 파일 선택 가능).
         승인번호 기준으로 중복 없이 저장되며, 사업자번호·상호로 거래처가 자동 등록/매칭됩니다.
       </div>
 
