@@ -14,12 +14,35 @@ export async function hasTxKindColumn(admin: SupabaseClient): Promise<boolean> {
   return cached.value
 }
 
-// 일부 명세서의 '구분'은 거래 종류가 아니라 입금/출금 방향이다 — 분류 단서로 쓰지 않는다
+// 분류 단서로 쓰면 안 되는 구분 값
+//  · 방향: 일부 명세서의 '구분'은 거래 종류가 아니라 입금/출금 방향이다
+//  · 채널: '인터넷'·'모바일'·'타행송금'·'대체' 같은 값은 거래 "경로"지 "용도"가 아니다.
+//    2026-10-12 사고 — '인터넷'(인터넷뱅킹 이체)이 통신비 적요 키워드 '인터넷'과 정확 일치해
+//    우리 마이너스통장의 자사 계좌 간 이체가 통신비로 추천됐다.
 const DIRECTION_WORDS = new Set(['입금', '출금', '입', '출', '지급', '수입', '지출', '차변', '대변'])
+const CHANNEL_WORDS = new Set([
+  '인터넷', '인터넷당행', '모바일', '폰뱅킹', '텔레뱅킹', '오픈뱅킹', '펌뱅킹', 'bz뱅크', 'bz수수',
+  '대체', '대체입금', '대체출금', '타행', '타행송금', '타행이체', '타행대량', '당행송금', '당행이체',
+  '실시간이체', '재정이체', '자동이체', 'cms', 'i/b', 'f/b', 'f/b 출금', 'i-g', 'kft', 'fbc', 'fbs', 'gir',
+  'g-하나은행', 'g-우리은행', 'atm', 'cd', '창구', '무통장',
+])
+
+export function isChannelTxKind(kind: string | null | undefined): boolean {
+  const k = (kind ?? '').trim().toLowerCase()
+  return CHANNEL_WORDS.has(k) || /^g-/.test(k)
+}
 
 export function isUsableTxKind(kind: string | null | undefined): kind is string {
   const k = (kind ?? '').trim()
-  return k.length > 0 && !DIRECTION_WORDS.has(k)
+  return k.length > 0 && !DIRECTION_WORDS.has(k) && !isChannelTxKind(k)
+}
+
+// 구분 키워드는 적요 키워드와 **다른 이름공간**을 쓴다 — 계정 키워드에 '구분:대출이자'처럼 등록.
+// 적요용 키워드('인터넷', '이자' …)가 구분 값에 걸리는 일을 원천 차단한다.
+export const TX_KIND_KEYWORD_PREFIX = '구분:'
+
+export function txKindKeyword(kind: string): string {
+  return TX_KIND_KEYWORD_PREFIX + kind.trim().toLowerCase()
 }
 
 // 통장 적요에서 대출번호를 뽑는다 — "47598009367842-00001" → "47598009367842"

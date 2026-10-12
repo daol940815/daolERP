@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
-import { hasTxKindColumn, isUsableTxKind } from '@/lib/tx-kind'
+import { hasTxKindColumn, isUsableTxKind, txKindKeyword, TX_KIND_KEYWORD_PREFIX } from '@/lib/tx-kind'
 
 // ── 카드정산 입금 추천 ────────────────────────────────────────
 // 카드사 정산 입금은 "카드사명+계좌/승인 코드 숫자" 형식의 전용 패턴으로만 판정한다.
@@ -118,8 +118,9 @@ function isTransfer(description: string): boolean {
 // Step 0: 은행 구분(tx_kind) 정확 일치 → suggested_account_id  (신뢰도 0.95)
 //         은행 시스템이 거래 종류에 붙인 코드라 적요(자유 문자열)보다 믿을 만하다.
 //         적요에 대출번호만 찍히는 대출이자·대출상환, 빈 적요의 예금이자가 이걸로 잡힌다.
-//         계정과목의 keywords에 구분 값("대출이자" 등)을 등록해 두면 된다 — 별도 매핑표 없음.
-//         정확 일치만 본다(부분 일치 X): '이자' 키워드가 '대출이자' 구분에 걸리면 안 된다.
+//         계정과목의 keywords에 **'구분:대출이자'** 형식으로 등록한다 — 적요 키워드와 이름공간을
+//         분리해 '인터넷'(통신비 적요 키워드)이 '인터넷'(인터넷뱅킹 채널 구분)에 걸리는 사고를 막는다.
+//         채널·방향 값(인터넷·모바일·타행송금·대체·입금·출금 …)은 lib/tx-kind.ts가 걸러낸다.
 // Step 1: 적요 키워드 매칭 → suggested_account_id  (신뢰도 0.8)
 // Step 2: 계정별 방향 규칙(side_on_in / side_on_out) → suggested_side
 export async function classifyByKeywords(
@@ -141,12 +142,12 @@ export async function classifyByKeywords(
   )
   if (!accountsWithKw.length) return { classified: 0, total: 0 }
 
-  // 구분 키워드 역색인: "대출이자" → 그 키워드를 가진 계정들 (소문자·공백 제거)
+  // 구분 키워드 역색인: '구분:대출이자' → 그 키워드를 가진 계정들. 접두 없는 키워드는 적요 전용.
   const kindIndex = new Map<string, typeof accountsWithKw>()
   for (const account of accountsWithKw) {
     for (const kw of account.keywords as string[]) {
       const k = kw.trim().toLowerCase()
-      if (!k) continue
+      if (!k.startsWith(TX_KIND_KEYWORD_PREFIX)) continue
       const arr = kindIndex.get(k)
       if (arr) arr.push(account)
       else kindIndex.set(k, [account])
@@ -187,7 +188,7 @@ export async function classifyByKeywords(
     // Step 0: 은행 구분 정확 일치 (이체 판정보다 먼저 — 구분이 명시된 건 이체가 아니다)
     if (isUsableTxKind(tx.tx_kind)) {
       const kind = tx.tx_kind.trim()
-      const hits = (kindIndex.get(kind.toLowerCase()) ?? []).filter(a =>
+      const hits = (kindIndex.get(txKindKeyword(kind)) ?? []).filter(a =>
         !(isInflow && a.type === 'expense') && !(isOutflow && a.type === 'income'))
       // 같은 구분을 계정 둘 이상이 가지면 모호 — 추천하지 않고 적요 단계로 넘긴다
       if (hits.length === 1) {
@@ -224,6 +225,7 @@ export async function classifyByKeywords(
       if (isInflow  && account.type === 'expense') continue
       if (isOutflow && account.type === 'income')  continue
       for (const kw of account.keywords as string[]) {
+        if (kw.trim().toLowerCase().startsWith(TX_KIND_KEYWORD_PREFIX)) continue   // 구분 전용 키워드
         if (descLower.includes(kw.toLowerCase()) && (!best || kw.length > best.keyword.length)) {
           best = { account, keyword: kw }
         }
