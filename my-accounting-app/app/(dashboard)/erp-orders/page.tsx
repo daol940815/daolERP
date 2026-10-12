@@ -1,7 +1,8 @@
 'use client'
 
 import PeriodPresets from '@/components/ui/PeriodPresets'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { useCallback, useEffect, useState } from 'react'
 import type { ErpOrder, ErpOrderItem } from '@/types/erp'
 import { getPeriodRange } from '@/lib/period-presets'
 import { computeOrderDeliveryStatus, ITEM_DELIVERY_STATUS_LABEL, ORDER_DELIVERY_STATUS_LABEL } from '@/lib/erp-delivery-status'
@@ -53,13 +54,11 @@ function computePayDates(its: ErpOrderItem[], ms: OrderMatch[]): (string | null)
 }
 
 export default function ErpOrdersPage() {
-  const uploadRef = useRef<HTMLInputElement>(null)
 
   const [orders, setOrders]     = useState<ErpOrder[]>([])
   const [items, setItems]       = useState<ErpOrderItem[]>([])
   const [matches, setMatches]   = useState<OrderMatch[]>([])
   const [loading, setLoading]   = useState(true)
-  const [uploading, setUploading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [view, setView]         = useState<View>('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -125,24 +124,6 @@ export default function ErpOrdersPage() {
 
   // 필터 변경 시 1페이지로
   useEffect(() => { setPage(1) }, [view, statusFilter, dateFrom, dateTo, search, staffFilter, channelFilter, managerFilter, itemFilter])
-
-  const handleUpload = async (files: FileList | null) => {
-    if (!files?.length) return
-    setUploading(true)
-    let okOrders = 0, okItems = 0, okNew = 0, okUpd = 0, failed = 0
-    for (const file of Array.from(files)) {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res  = await fetch('/api/erp-orders/import', { method: 'POST', body: fd })
-      const json = await res.json()
-      if (res.ok) { okOrders += json.imported_orders ?? 0; okItems += json.imported_items ?? 0; okNew += json.created ?? 0; okUpd += json.updated ?? 0 }
-      else { failed += 1; showMsg(`업로드 실패 (${file.name}): ${json.error ?? '알 수 없는 오류'}`) }
-    }
-    setUploading(false)
-    if (uploadRef.current) uploadRef.current.value = ''
-    if (okOrders) showMsg(`주문 ${okOrders}건 (신규 ${okNew} · 기존갱신(중복) ${okUpd}) / 품목 ${okItems}건 업로드 완료${failed ? ` (실패 ${failed}파일)` : ''}`)
-    load()
-  }
 
   const handleDeduct = async (order: ErpOrder) => {
     if (!order.customer_alias_id) { showMsg('매출처 정보가 없는 주문입니다.'); return }
@@ -255,21 +236,13 @@ export default function ErpOrdersPage() {
           >
             ↓ 엑셀 다운로드
           </button>
-          <input
-            ref={uploadRef}
-            type="file"
-            accept=".xls,.xlsx"
-            multiple
-            className="hidden"
-            onChange={e => handleUpload(e.target.files)}
-          />
-          <button
-            onClick={() => uploadRef.current?.click()}
-            disabled={uploading}
-            className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700 disabled:opacity-40"
+          {/* 원본 업로드는 파일 업로드 단일 창구에서 (2026-10-12) */}
+          <Link
+            href="/upload?source=erp_orders"
+            className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700"
           >
-            {uploading ? '업로드 중...' : '↑ ERP 파일 업로드'}
-          </button>
+            ↑ 파일 업로드 →
+          </Link>
         </div>
       </div>
 
@@ -278,7 +251,7 @@ export default function ErpOrdersPage() {
       )}
 
       <p className="text-xs text-gray-400 mb-3 mt-1">
-        ERP 주문 다운로드 파일(.xls)을 그대로 업로드하세요. 여러 파일 동시 선택 가능하며, 같은 주문번호는 자동으로 갱신됩니다.
+        ERP 주문 다운로드 파일(.xls)은 파일 업로드 화면에서 올립니다. 같은 주문번호는 자동으로 갱신됩니다.
       </p>
 
       {/* 보기 탭 */}

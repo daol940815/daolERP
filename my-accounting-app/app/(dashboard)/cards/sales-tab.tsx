@@ -1,7 +1,8 @@
 'use client'
 
 import PeriodPresets from '@/components/ui/PeriodPresets'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CardSale, CardSaleTransactionType } from '@/types/card-sale'
 import type { Vendor } from '@/types/tax-invoice'
 import type { ErpVendorAlias } from '@/types/erp'
@@ -33,11 +34,9 @@ export default function SalesTab() {
   const [search, setSearch]     = useState('')
 
   const [selected, setSelected]   = useState<Set<string>>(new Set())
-  const [uploading, setUploading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [deleting, setDeleting]   = useState(false)
   const [toast, setToast]         = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const showMsg = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 4000) }
 
@@ -85,22 +84,6 @@ export default function SalesTab() {
     ...vendors.map(v => ({ id: v.id, label: v.name })),
     ...unmatchedAliases.map(a => ({ id: `${ALIAS_OPTION_PREFIX}${a.id}`, label: `${a.erp_name} (ERP 미연결)` })),
   ], [vendors, unmatchedAliases])
-
-  const handleUpload = async (file: File) => {
-    setUploading(true)
-    const fd = new FormData()
-    fd.append('file', file)
-    const res  = await fetch('/api/card-sales/import', { method: 'POST', body: fd })
-    const json = await res.json()
-    setUploading(false)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-    if (!res.ok) { showMsg(`업로드 실패: ${json.error ?? '알 수 없는 오류'}`); return }
-
-    let msg = `${json.imported}건 처리 — 신규 ${json.created ?? 0}건 · 기존갱신(중복) ${json.updated ?? 0}건`
-    if (json.skipped) msg += ` · 건너뜀 ${json.skipped}건`
-    showMsg(msg)
-    load()
-  }
 
   const handleExport = useCallback(async () => {
     setExporting(true)
@@ -252,25 +235,15 @@ export default function SalesTab() {
           >
             ↓ {exporting ? '다운로드 중...' : '엑셀 다운로드'}
           </button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 flex items-center gap-1.5"
-          >
-            ↑ {uploading ? '업로드 중...' : '매출 상세내역 업로드'}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f) }}
-          />
+          {/* 원본 업로드는 파일 업로드 단일 창구에서 (2026-10-12) */}
+          <Link href="/upload?source=card_sales" className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1.5">
+            ↑ 파일 업로드 →
+          </Link>
         </div>
       </div>
 
       <div className="mt-3 mb-5 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500">
-        PG/카드사에서 다운로드한 카드 매출 상세내역 파일을 그대로 업로드하세요.
+        PG/카드사에서 다운로드한 카드 매출 상세내역 파일은 파일 업로드 화면에서 올립니다.
         승인번호·거래유형 기준으로 중복 없이 저장되며, 거래처에 등록된 카드번호로 자동 매칭됩니다.
       </div>
 
