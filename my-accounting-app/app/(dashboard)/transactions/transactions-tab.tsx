@@ -258,11 +258,30 @@ function TransactionsContent() {
     [accounts],
   )
 
-  // 거래처 맵 (id → name)
+  // 거래처 맵 (id → name) — 이미 지정된 거래처 이름을 보여주는 용도라 비활성도 포함
   const vendorMap = useMemo(
     () => Object.fromEntries(vendors.map(v => [v.id, v])),
     [vendors],
   )
+
+  // 거래처 드롭다운 보기용 라벨 (2026-10-14)
+  //  · 비활성(중복 정리로 병합된) 거래처는 목록에서 뺀다 — 같은 이름이 여러 번 보이던 원인
+  //  · 활성인데도 이름이 같은 거래처가 남아 있으면 사업자번호 뒤 4자리를 붙여 구분한다
+  //    (이름으로 매핑하면 첫 건만 선택돼 나머지는 고를 수 없었다)
+  //  · 라벨 → id 로 매핑한다
+  const vendorChoices = useMemo(() => {
+    const active = vendors.filter(v => v.is_active !== false)
+    const nameCount = new Map<string, number>()
+    for (const v of active) nameCount.set(v.name, (nameCount.get(v.name) ?? 0) + 1)
+    const labelOf = (v: Vendor) => {
+      if ((nameCount.get(v.name) ?? 0) <= 1) return v.name
+      const tail = v.biz_number ? `사업자 …${v.biz_number.replace(/[^0-9]/g, '').slice(-4)}` : `등록 ${v.created_at.slice(0, 10)}`
+      return `${v.name} (${tail})`
+    }
+    const byLabel = new Map<string, Vendor>()
+    for (const v of active) byLabel.set(labelOf(v), v)
+    return { labels: Array.from(byLabel.keys()), byLabel, labelOf }
+  }, [vendors])
 
   // URL param(bankAccountId/vendorId) 변경 시 필터 동기화 + 자동 조회
   useEffect(() => {
@@ -756,12 +775,13 @@ function TransactionsContent() {
       cellEditor: SearchableCellEditor,
       cellEditorPopup: true,
       cellEditorParams: () => ({
-        values: ['(미지정)', NEW_VENDOR_OPTION, ...vendors.map(v => v.name)],
+        values: ['(미지정)', NEW_VENDOR_OPTION, ...vendorChoices.labels],
       }),
       valueGetter: (p: ValueGetterParams<Transaction>) => {
         const id = p.data?.vendor_id
         if (!id) return '(미지정)'
-        return vendorMap[id]?.name ?? '(미지정)'
+        const v = vendorMap[id]
+        return v ? vendorChoices.labelOf(v) : '(미지정)'
       },
       valueSetter: (p: ValueSetterParams<Transaction>) => {
         if (!p.data) return false
@@ -770,7 +790,7 @@ function TransactionsContent() {
           setNewVendorFor({ ...p.data })
           return false
         }
-        const vendor = vendors.find(v => v.name === p.newValue)
+        const vendor = vendorChoices.byLabel.get(String(p.newValue))
         p.data.vendor_id = vendor?.id ?? null
         return true
       },
