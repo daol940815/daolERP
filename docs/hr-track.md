@@ -69,12 +69,69 @@
 단계 제안: 1단계(휴가·아르바이트·공휴일·생일) → 2단계(영업일정·업무일정, 타 트랙 입력 화면 동반).
 확정 대기: 업무일정 예정/기록 여부, 생일 노출 범위, 휴가 사유 표시, 조회 권한 범위, 담당 세션.
 
+### 스케줄 1단계 — 구현 완료 (2026-10-14)
+
+화면 `/hr/schedule` (인사·총무 그룹), API `GET /api/schedule?month=YYYY-MM`, 공용 로직 `lib/schedule.ts`.
+**마이그레이션 없음** — 기존 데이터만 읽는다. 월 캘린더 + 기간 타임라인 두 보기, 항목 칩 필터,
+날짜 클릭 상세, 다가오는 일정(2주).
+
+표시 항목과 원천:
+
+| 항목 | 원천 | 비고 |
+|---|---|---|
+| 휴가(승인) | `attendance_leaves` status=approved | 종류만 표시, **사유는 싣지 않는다**(병가·경조사 보호) |
+| 휴가(대기) | 같은 테이블 status=requested | 점선·흐리게 — 겹침 확인용 |
+| 아르바이트 근무기간 | `employees.work_start/work_end` + employment_type=parttime | 기간 막대 |
+| 공휴일 | `attendance_holidays`(201) | 배경 + 목록 |
+| 대출 원리금 상환일 | `loans.payment_day`(402) + 월 원금·이자 | **금액 포함** |
+| 세무 반복 마감 | 코드 상수(`lib/schedule.ts`) | 원천세·4대보험 매월 10일, 부가세 1·4·7·10월 25일, 법인세 3/31·중간예납 8/31 |
+
+- **휴일 순연**: 세무 마감·대출 상환일이 주말·공휴일이면 다음 영업일로 옮겨 표시하고
+  원래 기한을 함께 적는다(`nextBusinessDay`). 공휴일표가 있으므로 정확히 계산된다.
+- **권한**: 화면·API는 `hr` 그룹 조회(`API_OWNERS`에 `/api/schedule` 등록).
+  금액이 붙는 자금 항목(대출·세무)은 라우트에서 `can(me,'accounting','view')`로 한 번 더 걸러
+  **권한 없으면 응답에 담지 않는다**(화면에서 숨기는 것이 아니라 서버에서 제외).
+- 미포함(2단계로): 생일, 수금·지급 예정, 카드 출금일, 급여일, 영업 예정일, 납품·출고·배송 예정일,
+  외근·회의(유일한 수동 입력 항목), 경영 현황 영역 노출.
+
+### 스케줄 2단계 설계 — 거래처 결제 조건 (매입·매출 공통, 2026-10-14 확정 · 미구현)
+
+사용자 방향: **스케줄러에 직접 입력하지 않고 ERP 마스터에 조건을 두고 파생시킨다.**
+`vendors`는 매출처·매입처 공용 마스터이므로 **두 벌(수금·지급)을 한 번에** 설계한다.
+
+```sql
+-- 202_vendor_payment_terms.sql (안 — 아직 작성·실행하지 않음)
+ALTER TABLE vendors
+  ADD COLUMN IF NOT EXISTS ar_term_kind  TEXT,       -- 수금(매출) 조건 종류
+  ADD COLUMN IF NOT EXISTS ar_term_value SMALLINT,   -- 종류에 따른 숫자
+  ADD COLUMN IF NOT EXISTS ar_term_memo  TEXT,
+  ADD COLUMN IF NOT EXISTS ap_term_kind  TEXT,       -- 지급(매입) 조건 종류
+  ADD COLUMN IF NOT EXISTS ap_term_value SMALLINT,
+  ADD COLUMN IF NOT EXISTS ap_term_memo  TEXT;
+-- kind CHECK: monthly | next_month | after_issue | advance | per_case  (NULL=미설정)
+```
+
+- `value` 의미: `monthly` 매월 N일(**31=말일**, `loans.payment_day`와 같은 규칙) /
+  `next_month` 익월 N일 / `after_issue` 계산서 발행 후 N일 / `advance`·`per_case`는 값 없음(일정 생성 안 함)
+- **날짜가 아니라 조건을 저장한다** — 날짜 하나를 저장하면 이번 달만 맞는다.
+- **금액은 새로 계산하지 않는다** — 매입처 허브(600)의 미지급 잔액, 매출처 허브의 미수 잔액을
+  그대로 가져와 "10일 · OO상사 · 3,200,000원 예정"으로 보여준다.
+- 입력 화면: 매입처 관리(`/purchase-hub`)·매출처 허브(`/sales-hub`) 상세. **600 트랙·총괄 세션과 조율 필요**
+  (vendors는 공용 마스터).
+- 주의: `erp_orders.payment_term`('advance'/'monthly')이 이미 있다 — 주문 단위 조건.
+  **거래처 조건을 기본값으로, 주문에서 덮어쓰는 관계**로 명시해야 충돌하지 않는다.
+- 함께 필요한 것: `card_accounts.payment_day`(카드별 결제일), 급여일·회사 설정값
+  (단일 행 설정 테이블 신설 또는 기존 설정 재사용). **급여일·카드 출금일 실제 날짜는 사용자 확인 필요.**
+
 ## 미결
 
 - [ ] 급여 구분값 목록 확정
 - [ ] 4대보험·주휴수당 요율·적용 조건(단기 아르바이트 가입 요건) — 세무사·노무사 확인
 - [ ] 영업일지 예정일 입력 칸 — 개인화면 트랙(300) 조율
 - [ ] 근로계약서·보안서약서 양식 수령
+- [ ] **급여일·법인카드 출금일 실제 날짜** (스케줄 2단계 입력값)
+- [ ] 스케줄 2단계: vendors 결제 조건 컬럼 — 600 트랙·총괄 세션과 조율 후 진행
+- [ ] 스케줄 경영 현황(mgmt) 영역 노출 — 사장님용. 1단계는 인사·총무에만 노출
 - [ ] 한정호 사원 등록·권한(김주연 복사) — 사용자 수동
 
 ## 총괄 트랙 요청문 — 직원 상세와 내 정보 부품 공유 (2026-10-01 사용자 동의)
