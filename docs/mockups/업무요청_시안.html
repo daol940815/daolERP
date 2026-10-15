@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 업무 요청 (내 업무 › 업무 요청 / 새 요청 / 상세 / 경영 현황)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; word-break: keep-all; }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 16px; line-height: 1.7; }
+  .note b { color: #422006; }
+  h2 { font-size: 16px; font-weight: 700; margin: 30px 0 6px; }
+  h2 .no { display: inline-block; background: #0f172a; color: #fff; font-size: 11px; border-radius: 6px; padding: 2px 7px; margin-right: 8px; vertical-align: 2px; }
+  .desc { font-size: 12.5px; color: #475569; margin-bottom: 12px; line-height: 1.7; }
+  .shell { display: grid; grid-template-columns: 196px 1fr; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; background: #fff; }
+  .side { background: #0f172a; padding: 14px 10px; color: #94a3b8; font-size: 12.5px; }
+  .side .t { color: #fff; font-weight: 700; font-size: 14px; padding: 0 8px 2px; }
+  .side .u { color: #64748b; font-size: 11px; padding: 0 8px 12px; border-bottom: 1px solid #334155; margin-bottom: 8px; }
+  .side .chk { margin: 0 2px 8px; padding: 7px 10px; background: rgba(255,255,255,.1); color: #fff; border-radius: 8px; text-align: center; font-size: 12px; font-weight: 600; }
+  .side .g { padding: 4px 8px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; margin-top: 10px; }
+  .side a { display: flex; align-items: center; padding: 6px 10px; border-radius: 6px; color: #94a3b8; text-decoration: none; }
+  .side a.on { background: #334155; color: #fff; }
+  .side .badge { margin-left: auto; font-size: 10px; font-weight: 700; border-radius: 999px; padding: 1px 6px; background: #ef4444; color: #fff; }
+  .side .badge.amber { background: #f59e0b; color: #1c1917; }
+  .side .tag { font-size: 9.5px; border-radius: 999px; padding: 0 5px; margin-left: 5px; font-weight: 700; background: #dcfce7; color: #15803d; }
+  .main { padding: 16px 18px; min-width: 0; }
+  h1 { font-size: 18px; font-weight: 700; }
+  .sub { font-size: 12px; color: #64748b; margin: 3px 0 10px; }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid #e2e8f0; margin: 10px 0 12px; }
+  .tab { padding: 7px 14px; font-size: 12.5px; font-weight: 600; color: #64748b; border-bottom: 2px solid transparent; }
+  .tab.on { color: #0f172a; border-bottom-color: #0f172a; }
+  .tab .cnt { font-size: 10.5px; background: #fee2e2; color: #b91c1c; border-radius: 999px; padding: 0 6px; margin-left: 4px; }
+  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 12px; }
+  .kpi { border: 1px solid #e2e8f0; border-radius: 10px; padding: 9px 12px; background: #fff; }
+  .kpi.on { border-color: #0f172a; box-shadow: 0 0 0 1px #0f172a inset; }
+  .kpi .k { font-size: 11px; color: #64748b; } .kpi .v { font-size: 17px; font-weight: 700; margin-top: 2px; } .kpi .s { font-size: 10.5px; color: #94a3b8; }
+  .red { color: #dc2626; } .amber { color: #d97706; } .blue { color: #2563eb; } .green { color: #059669; } .gray { color: #94a3b8; }
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .inp { border: 1px solid #cbd5e1; border-radius: 8px; padding: 5px 9px; font-size: 12px; color: #334155; background: #fff; display: inline-block; }
+  .inp.ph { color: #94a3b8; }
+  .btn { border: 1px solid #cbd5e1; border-radius: 8px; padding: 5px 11px; font-size: 12px; color: #334155; background: #fff; display: inline-block; white-space: nowrap; }
+  .btn.dark { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .btn.red { border-color: #fca5a5; color: #b91c1c; } .btn.green { border-color: #6ee7b7; color: #047857; } .btn.amber { border-color: #fcd34d; color: #b45309; }
+  .spacer { flex: 1; }
+  .tblwrap { border: 1px solid #e2e8f0; border-radius: 10px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; font-size: 10.5px; color: #64748b; font-weight: 600; padding: 7px 9px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+  td { padding: 7px 9px; border-bottom: 1px solid #f1f5f9; white-space: nowrap; vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td.wrap2 { white-space: normal; max-width: 320px; }
+  .b { display: inline-block; font-size: 10px; border-radius: 999px; padding: 1px 7px; font-weight: 600; white-space: nowrap; }
+  .b-req { background: #f1f5f9; color: #475569; } .b-acc { background: #dbeafe; color: #1d4ed8; } .b-prog { background: #e0e7ff; color: #4338ca; }
+  .b-rep { background: #fef3c7; color: #b45309; } .b-done { background: #dcfce7; color: #15803d; } .b-can { background: #f1f5f9; color: #94a3b8; text-decoration: line-through; }
+  .b-rej { background: #fee2e2; color: #b91c1c; } .b-urg { background: #ef4444; color: #fff; } .b-late { background: #fee2e2; color: #b91c1c; }
+  .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; background: #fff; }
+  .card h3 { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .card h3 .r { margin-left: auto; font-size: 11px; font-weight: 500; color: #64748b; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid32 { display: grid; grid-template-columns: 3fr 2fr; gap: 12px; }
+  .field { margin-bottom: 10px; } .field label { display: block; font-size: 11px; color: #64748b; margin-bottom: 3px; }
+  .field .inp { width: 100%; } .field textarea.inp { min-height: 90px; }
+  .mini { font-size: 11px; color: #64748b; }
+  .foot { font-size: 11px; color: #94a3b8; margin-top: 10px; line-height: 1.6; }
+  .q { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #1e3a8a; margin-top: 10px; line-height: 1.7; }
+  .q b { color: #1e40af; }
+  .flow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11.5px; margin: 6px 0 12px; }
+  .flow .st { border: 1px solid #cbd5e1; border-radius: 999px; padding: 3px 10px; background: #fff; color: #475569; }
+  .flow .st.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .flow .st.past { background: #e2e8f0; color: #475569; }
+  .flow .ar { color: #94a3b8; }
+  .tl { list-style: none; font-size: 12px; }
+  .tl li { display: grid; grid-template-columns: 110px 1fr; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
+  .tl li:last-child { border-bottom: 0; }
+  .tl .when { color: #94a3b8; font-variant-numeric: tabular-nums; font-size: 11px; }
+  .tl .who { font-weight: 600; }
+  .sched { border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px 12px; font-size: 12px; background: #f8fafc; }
+  .sched b { font-size: 12.5px; }
+  .dash { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="note">
+  <b>업무 요청 시안 (2026-10-15)</b> — 사용자 결정 반영: 개인 대상 · 마감 일시 필수(기본 당일 18:00) · 긴급 체크 ·
+  담당자 수락/반려(사유 필수) · 요청자 취소·완료 · 수락·완료 시 업무일지 자동 기재 · 사장님용 전 직원 현황 · 아르바이트 포함 전원 ·
+  알림은 앱 내 배지만(알림톡 보류). 화면 4개: <b>1 업무 요청(내 업무)</b> · <b>2 새 요청</b> · <b>3 요청 상세</b> · <b>4 업무 요청 현황(경영 현황)</b>
+  + 사이드바 배지·내 대시보드 카드. 숫자·이름은 예시입니다. 파란 상자는 확정 질문입니다.
+</div>
+
+<!-- 1 -->
+<h2><span class="no">1</span>업무 요청 — 내 업무 그룹 (전 영역 공통)</h2>
+<p class="desc">탭 [받은 요청 | 보낸 요청]. 요약 카드 클릭 = 필터. 기본 정렬은 긴급 → 마감 임박 → 최신. 완료·취소는 기본 숨김(칩으로 켬).</p>
+<div class="shell">
+  <div class="side">
+    <div class="t">영업 · 주문</div><div class="u">김주연 · 영업지원팀</div>
+    <div class="chk">출근 08:55 · 퇴근 체크</div>
+    <div class="g">내 업무</div>
+    <a>내 대시보드</a>
+    <a class="on">업무 요청 <span class="tag">신규</span><span class="badge">3</span></a>
+    <a>내 정보</a><a>영업일지</a><a>업무일지</a><a>근태 · 휴가</a>
+    <div class="g">거래처 관리</div><a>매출처 관리</a><a>매입처 관리</a>
+    <div class="g">주문 · 발주</div><a>상담일지</a><a>주문 현황</a><a>…</a>
+  </div>
+  <div class="main">
+    <div style="display:flex;align-items:center;gap:10px"><h1>업무 요청</h1><span class="spacer"></span><span class="btn dark">+ 새 요청</span></div>
+    <div class="tabs"><span class="tab on">받은 요청 <span class="cnt">미확인 3</span></span><span class="tab">보낸 요청</span></div>
+    <div class="kpis">
+      <div class="kpi on"><div class="k">미확인</div><div class="v red">3</div><div class="s">수락·반려 대기</div></div>
+      <div class="kpi"><div class="k">진행 중</div><div class="v blue">5</div><div class="s">수락 포함</div></div>
+      <div class="kpi"><div class="k">오늘 마감</div><div class="v amber">2</div><div class="s">18:00 이전</div></div>
+      <div class="kpi"><div class="k">마감 지남</div><div class="v red">1</div><div class="s">처리 보고 전</div></div>
+      <div class="kpi"><div class="k">완료 대기</div><div class="v">1</div><div class="s">요청자 확정 전</div></div>
+    </div>
+    <div class="filters">
+      <span class="inp ph" style="min-width:220px">제목 · 내용 · 요청자 검색</span>
+      <span class="inp">요청자: 전체 ▾</span>
+      <span class="inp">상태: 전체 ▾</span>
+      <label class="mini"><input type="checkbox"> 완료·취소 포함</label>
+      <span class="spacer"></span><span class="btn">↓ 엑셀</span>
+    </div>
+    <div class="tblwrap"><table>
+      <thead><tr><th></th><th>요청</th><th>요청자</th><th>요청일</th><th>마감</th><th>상태</th><th>최근 메모</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><span class="b b-urg">긴급</span></td><td class="wrap2"><b>이편한 김포 수금 독촉 통화</b><div class="mini">9월분 미수 1,400만 — 지점장님께 입금 일정 확인</div></td><td>홍창의</td><td>10-15 09:12</td><td class="red">10-15 12:00</td><td><span class="b b-req">미확인</span></td><td class="mini">-</td><td><span class="btn green">수락</span> <span class="btn red">반려</span></td></tr>
+        <tr><td></td><td class="wrap2"><b>요아럽 10월 발주서 발송</b><div class="mini">원피스 12종, 어제 상담분 반영</div></td><td>김재형</td><td>10-15 08:40</td><td class="amber">10-15 18:00</td><td><span class="b b-req">미확인</span></td><td class="mini">-</td><td><span class="btn green">수락</span> <span class="btn red">반려</span></td></tr>
+        <tr><td></td><td class="wrap2"><b>샘플 재고 실사 (3층 창고)</b></td><td>강시현</td><td>10-14 17:30</td><td>10-17 18:00</td><td><span class="b b-req">미확인</span></td><td class="mini">-</td><td><span class="btn green">수락</span> <span class="btn red">반려</span></td></tr>
+        <tr><td></td><td class="wrap2"><b>자이 송도 계산서 발행</b><div class="mini">9월 주문 3건</div></td><td>홍창의</td><td>10-13 10:05</td><td class="red">10-14 18:00 <span class="b b-late">지남</span></td><td><span class="b b-prog">진행 중</span></td><td class="mini">10-14 홈택스 발행 1건 완료, 2건 금액 확인 중</td><td><span class="btn">메모</span> <span class="btn dark">처리 완료</span></td></tr>
+        <tr><td></td><td class="wrap2"><b>고객 관리 문서 정리 (9월분)</b></td><td>홍창의</td><td>10-10 14:00</td><td>10-16 18:00</td><td><span class="b b-acc">수락</span></td><td class="mini">-</td><td><span class="btn">메모</span> <span class="btn dark">처리 완료</span></td></tr>
+        <tr><td></td><td class="wrap2"><b>더샵 의정부 배송 확인</b></td><td>김보현</td><td>10-12 11:20</td><td>10-13 18:00</td><td><span class="b b-rep">처리 보고</span></td><td class="mini">10-13 택배 도착 확인, 지점 수령 사진 전달</td><td class="mini">요청자 확정 대기</td></tr>
+      </tbody>
+    </table></div>
+    <p class="foot">· 행 클릭 = 상세(3). 표의 버튼은 담당자 입장(받은 요청)의 조작이고, 보낸 요청 탭에서는 [취소] [완료]가 보입니다. · 마감 색: 오늘 = 주황, 지남 = 빨강 배지. · 사이드바 배지 숫자 = 미확인 + 마감 지남(받은 요청).</p>
+  </div>
+</div>
+
+<!-- 2 -->
+<h2><span class="no">2</span>새 요청 — 담당자를 고르면 그 직원의 오늘 상황을 옆에 보여준다 (문제 1)</h2>
+<p class="desc">여유 시간을 계산해 주지 않습니다. 근태·휴가·진행 중 요청 건수·오늘 마감 건수를 보여 주고 판단은 요청자가 합니다. 마감 기본값은 당일 18:00.</p>
+<div class="shell">
+  <div class="side">
+    <div class="t">경영 현황</div><div class="u">사장님 · 마스터</div>
+    <div class="chk">출근 체크</div>
+    <div class="g">내 업무</div><a>내 대시보드</a><a class="on">업무 요청</a><a>내 정보</a><a>업무일지</a><a>근태 · 휴가</a>
+    <div class="g">경영 현황</div><a>대시보드</a><a>자금 · 계좌</a><a>대출 관리</a><a>업무 요청 현황 <span class="tag">신규</span></a><a>…</a>
+  </div>
+  <div class="main">
+    <h1>새 요청</h1>
+    <div class="grid32" style="margin-top:12px">
+      <div class="card">
+        <div class="field"><label>담당자 <span class="red">*</span></label><span class="inp">김주연 (영업지원팀 · 대리) ▾</span></div>
+        <div class="field"><label>제목 <span class="red">*</span></label><span class="inp">이편한 김포 수금 독촉 통화</span></div>
+        <div class="field"><label>내용</label><textarea class="inp">9월분 미수 1,400만 원. 지점장님께 입금 예정일 확인하고 결과를 메모로 남겨 주세요.</textarea></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <div class="field" style="flex:1"><label>마감 <span class="red">*</span></label><span class="inp">2026-10-15</span> <span class="inp">12:00</span> <span class="mini">기본 당일 18:00</span></div>
+          <div class="field"><label>&nbsp;</label><label class="mini" style="display:inline"><input type="checkbox" checked> 긴급</label></div>
+        </div>
+        <div class="field"><label>관련 링크 (선택)</label><span class="inp ph">예: 매출처 상세 · 주문 번호 · 문서 주소</span></div>
+        <div style="display:flex;gap:8px;margin-top:4px"><span class="btn dark">요청 보내기</span><span class="btn">취소</span></div>
+      </div>
+      <div class="sched">
+        <b>김주연 — 오늘 상황</b>
+        <div style="margin-top:8px;line-height:1.9">
+          <div>근태: <span class="green">출근 08:55</span> · 휴가 없음</div>
+          <div>이번 주 휴가: 10-17(금) 연차</div>
+          <div>진행 중 요청: <b>5건</b> (오늘 마감 2건, 지남 1건)</div>
+          <div>최근 업무일지: 10-14 발주서 3건 발송 · 재고 실사</div>
+        </div>
+        <p class="mini" style="margin-top:8px">여유 판단은 요청자가 합니다. 숫자는 근태·휴가·요청 원본에서 그대로 가져옵니다.</p>
+      </div>
+    </div>
+    <div class="q"><b>확인 1.</b> 요청자가 본인에게 요청(메모용)하는 것도 허용할지. 권장: 허용(개인 할 일로 쓰임).<br>
+    <b>확인 2.</b> 관련 링크 칸을 둘지(파일 첨부 대신). 권장: 1개 텍스트 칸.</div>
+  </div>
+</div>
+
+<!-- 3 -->
+<h2><span class="no">3</span>요청 상세 — 상태 흐름 · 역할별 버튼 · 이력</h2>
+<p class="desc">위쪽은 상태 흐름, 아래는 이력(누가·언제·무엇을·메모). 버튼은 내 역할(담당자/요청자)과 현재 상태에 맞는 것만 보입니다.</p>
+<div class="shell">
+  <div class="side">
+    <div class="t">영업 · 주문</div><div class="u">김주연 · 영업지원팀</div>
+    <div class="chk">출근 08:55 · 퇴근 체크</div>
+    <div class="g">내 업무</div><a>내 대시보드</a><a class="on">업무 요청 <span class="badge">3</span></a><a>내 정보</a><a>업무일지</a><a>근태 · 휴가</a>
+  </div>
+  <div class="main">
+    <div class="mini">← 업무 요청</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:4px"><span class="b b-urg">긴급</span><h1>자이 송도 계산서 발행</h1><span class="spacer"></span><span class="b b-prog">진행 중</span></div>
+    <p class="sub">홍창의 → 김주연 · 요청 10-13 10:05 · 마감 <span class="red">10-14 18:00 (지남)</span></p>
+    <div class="flow">
+      <span class="st past">요청</span><span class="ar">→</span><span class="st past">수락</span><span class="ar">→</span><span class="st on">진행 중</span><span class="ar">→</span><span class="st">처리 보고</span><span class="ar">→</span><span class="st">완료</span>
+      <span class="mini" style="margin-left:10px">반려 · 취소는 옆길</span>
+    </div>
+    <div class="grid32">
+      <div>
+        <div class="card">
+          <h3>내용</h3>
+          <p style="font-size:13px;line-height:1.7">9월 주문 3건(10-02, 10-09, 10-11) 계산서 발행. 금액은 주문 현황 기준으로 확인 후 홈택스 발행.</p>
+          <p class="mini" style="margin-top:6px">관련: <span class="blue">매출처 관리 · 자이 송도</span></p>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <h3>진행 메모 · 이력</h3>
+          <ul class="tl">
+            <li><span class="when">10-13 10:05</span><span><span class="who">홍창의</span> 요청 생성 (긴급, 마감 10-14 18:00)</span></li>
+            <li><span class="when">10-13 10:40</span><span><span class="who">김주연</span> 수락 <span class="mini">→ 업무일지 자동 기재</span></span></li>
+            <li><span class="when">10-14 09:20</span><span><span class="who">김주연</span> 메모: 홈택스 발행 1건 완료, 2건 금액 확인 중</span></li>
+            <li><span class="when">10-14 18:00</span><span><span class="gray">마감 경과</span></span></li>
+          </ul>
+          <div style="display:flex;gap:6px;margin-top:10px"><span class="inp ph" style="flex:1">진행 메모 입력</span><span class="btn">메모 추가</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <h3>담당자 조작 <span class="r">김주연</span></h3>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <span class="btn dark">처리 완료 보고</span>
+            <span class="mini">보고하면 요청자(홍창의)가 확인 후 완료 확정합니다.</span>
+          </div>
+        </div>
+        <div class="card" style="margin-top:12px;opacity:.75">
+          <h3>요청자 조작 <span class="r">홍창의에게만 보임</span></h3>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <span class="btn green">완료 확정</span>
+            <span class="btn red">요청 취소</span>
+            <span class="mini">마감·긴급·내용은 요청자가 수정 가능(수정 이력 남음).</span>
+          </div>
+        </div>
+        <div class="card" style="margin-top:12px;opacity:.75">
+          <h3>미확인 상태일 때 <span class="r">담당자</span></h3>
+          <div style="display:flex;gap:6px"><span class="btn green">수락</span><span class="btn red">반려 (사유 필수)</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="foot">· 수락과 완료 확정 시 담당자 업무일지에 "업무요청수락 / 업무요청완료 — 제목" 한 줄이 자동으로 남고, 그 줄을 누르면 이 화면으로 옵니다. · 반려되면 상태 '반려'로 요청자에게 돌아가고, 요청자는 수정 후 재요청(새 건) 또는 취소합니다.</p>
+    <div class="q"><b>확인 3.</b> 처리 보고 후 요청자가 며칠 안에 확정하지 않으면 자동 완료할지. 권장: 자동 완료 없음(요청자가 확정, 대신 '완료 대기' 카드에 계속 보임).</div>
+  </div>
+</div>
+
+<!-- 4 -->
+<h2><span class="no">4</span>업무 요청 현황 — 경영 현황 (사장님 · 조회 전용)</h2>
+<p class="desc">직원별 현재 상태와 전체 목록. 직원을 누르면 그 직원의 요청만 필터. 기간은 월 단위(기본 당월, 완료·취소 포함 집계).</p>
+<div class="shell">
+  <div class="side">
+    <div class="t">경영 현황</div><div class="u">사장님 · 마스터</div>
+    <div class="chk">출근 체크</div>
+    <div class="g">내 업무</div><a>내 대시보드</a><a>업무 요청</a><a>내 정보</a>
+    <div class="g">경영 현황</div><a>대시보드</a><a>자금 · 계좌</a><a>대출 관리</a><a>거래처별 매출 분석</a><a class="on">업무 요청 현황 <span class="tag">신규</span></a>
+  </div>
+  <div class="main">
+    <h1>업무 요청 현황</h1>
+    <div class="filters" style="margin-top:8px"><span class="inp">2026-10 ▾</span><span class="inp">팀: 전체 ▾</span><span class="spacer"></span><span class="btn">↓ 엑셀</span></div>
+    <div class="kpis">
+      <div class="kpi"><div class="k">이달 요청</div><div class="v">42</div><div class="s">완료 29 · 취소 3</div></div>
+      <div class="kpi"><div class="k">진행 중</div><div class="v blue">10</div></div>
+      <div class="kpi"><div class="k">마감 지남</div><div class="v red">2</div><div class="s">처리 보고 전</div></div>
+      <div class="kpi"><div class="k">미확인 24시간 초과</div><div class="v amber">1</div></div>
+      <div class="kpi"><div class="k">평균 처리</div><div class="v">1.6일</div><div class="s">요청 → 처리 보고</div></div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h3>직원별</h3>
+        <table>
+          <thead><tr><th>직원</th><th>팀</th><th>받은</th><th>진행 중</th><th>지남</th><th>완료</th><th>보낸</th></tr></thead>
+          <tbody>
+            <tr><td><b>김주연</b></td><td>영업지원</td><td>12</td><td class="blue">5</td><td class="red">1</td><td>6</td><td>2</td></tr>
+            <tr><td><b>김보현</b></td><td>영업지원</td><td>9</td><td class="blue">2</td><td class="gray">-</td><td>7</td><td>3</td></tr>
+            <tr><td><b>김승현</b></td><td>영업지원</td><td>7</td><td class="blue">2</td><td class="red">1</td><td>4</td><td>1</td></tr>
+            <tr><td><b>오철준</b></td><td>경영지원</td><td>6</td><td class="blue">1</td><td class="gray">-</td><td>5</td><td>4</td></tr>
+            <tr><td><b>홍창의</b></td><td>영업지원</td><td>3</td><td class="gray">-</td><td class="gray">-</td><td>3</td><td>18</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3>지금 신경 쓸 것</h3>
+        <table>
+          <thead><tr><th>요청</th><th>담당</th><th>마감</th><th>상태</th></tr></thead>
+          <tbody>
+            <tr><td>자이 송도 계산서 발행</td><td>김주연</td><td class="red">10-14 18:00</td><td><span class="b b-late">지남</span></td></tr>
+            <tr><td>힐스테이트 동탄 샘플 회수</td><td>김승현</td><td class="red">10-14 15:00</td><td><span class="b b-late">지남</span></td></tr>
+            <tr><td>10월 급여 자료 정리</td><td>오철준</td><td>10-20 18:00</td><td><span class="b b-req">미확인 26h</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <p class="foot">· 조회 전용, 사장님 화면에서는 조작 버튼 없음. 요청 내용·메모는 상세에서 열람 가능. · 평균 처리 시간은 참고 숫자이고 평가 지표로 쓰지 않습니다(1차 범위에서 평가·점수는 제외).</p>
+  </div>
+</div>
+
+<!-- 배지·대시보드 -->
+<h2><span class="no">+</span>알림 대체 — 사이드바 배지 · 내 대시보드 카드</h2>
+<p class="desc">알림톡 보류에 따라 1차 알림은 앱 안에서만. 출근 체크로 하루 한 번은 ERP를 열므로 최소 1회는 보게 됩니다.</p>
+<div class="card">
+  <div class="dash">
+    <div class="kpi"><div class="k">받은 요청</div><div class="v red">미확인 3</div><div class="s">진행 중 5 · 지남 1</div></div>
+    <div class="kpi"><div class="k">보낸 요청</div><div class="v">완료 대기 1</div><div class="s">진행 중 2</div></div>
+    <div class="kpi" style="opacity:.5"><div class="k">이번 달 내 주문</div><div class="v">38건</div></div>
+    <div class="kpi" style="opacity:.5"><div class="k">담당 거래처</div><div class="v">23곳</div></div>
+  </div>
+  <p class="foot">내 대시보드 상단에 '받은 요청'·'보낸 요청' 카드 2개 추가(클릭 = 업무 요청 탭). 사이드바 '업무 요청' 옆 빨간 배지 = 미확인 + 마감 지남(받은 요청 기준). 요청자 쪽은 '완료 대기'가 있을 때 노란 배지.</p>
+</div>
+
+<div class="note" style="margin-top:24px">
+  <b>데이터 (900 마이그레이션 예정)</b> — work_requests(id, requester_id, assignee_id, title, content, link, due_at, is_urgent, status, accepted_at, reported_at, completed_at, canceled_at, reject_reason, created_at, updated_at) +
+  work_request_events(request_id, actor_id, event: created·accepted·rejected·memo·reported·completed·canceled·edited, memo, snapshot, created_at). erp_work_logs의 action에 '업무요청수락'·'업무요청완료', ref_type에 'work_request' 추가(700 트랙 알림).
+  권한: 전원(내 업무 그룹, 아르바이트 포함). 조작은 본인이 요청자·담당자인 건만(API에서 검증). 경영 현황 화면은 mgmt 조회 권한.
+</div>
+
+</div>
+</body>
+</html>
