@@ -14,15 +14,18 @@ export type ScheduleKind =
   | 'leave_pending'  // 승인 대기 휴가 (흐리게 — 겹침 확인용)
   | 'parttime'       // 아르바이트 근무기간
   | 'loan'           // 대출 원리금 상환일
-  | 'tax'            // 세무 반복 마감
+  // 아래 5개는 관리 규칙(schedule_rules)의 category 를 그대로 쓴다
+  | 'payroll' | 'tax' | 'company' | 'meeting' | 'other'
 
 export const KIND_LABEL: Record<ScheduleKind, string> = {
   holiday: '공휴일', leave: '휴가', leave_pending: '휴가(대기)',
-  parttime: '아르바이트', loan: '대출 상환', tax: '세무 마감',
+  parttime: '아르바이트', loan: '대출 상환',
+  payroll: '급여·지급', tax: '세무 마감', company: '회사 행사', meeting: '외근·회의', other: '기타',
 }
 
-/** 자금 항목 — 금액이 붙고 회계 권한자에게만 보인다 */
-export const MONEY_KINDS: ScheduleKind[] = ['loan', 'tax']
+/** 관리 탭에서 등록·수정하는 종류 (schedule_rules.category) */
+export type RuleCategory = 'payroll' | 'tax' | 'company' | 'meeting' | 'other'
+export const RULE_CATEGORIES: RuleCategory[] = ['payroll', 'tax', 'company', 'meeting', 'other']
 
 export interface ScheduleEvent {
   kind: ScheduleKind
@@ -42,6 +45,21 @@ export function nextBusinessDay(date: string, holidays: HolidayMap): string {
   return d
 }
 
+/** 주말·공휴일이면 직전 영업일로. 급여처럼 "늦어지면 안 되는" 일정에 쓴다. */
+export function prevBusinessDay(date: string, holidays: HolidayMap): string {
+  let d = date
+  for (let i = 0; i < 30 && isOffDate(d, holidays); i++) d = addDays(d, -1)
+  return d
+}
+
+export type HolidayShift = 'prev' | 'next' | 'none'
+/** 휴일 처리 방향을 적용한다. 항목마다 방향이 다르다(세무=순연, 급여=앞당김). */
+export function applyShift(date: string, shift: HolidayShift, holidays: HolidayMap): string {
+  if (shift === 'prev') return prevBusinessDay(date, holidays)
+  if (shift === 'next') return nextBusinessDay(date, holidays)
+  return date
+}
+
 /** 'YYYY-MM' + 일자 → 그 달의 날짜. 말일을 넘기면 말일로 맞춘다(31 = 말일 규칙). */
 export function dayInMonth(month: string, day: number): string {
   const [, mEnd] = monthRange(month)
@@ -50,34 +68,62 @@ export function dayInMonth(month: string, day: number): string {
   return `${month}-${String(d).padStart(2, '0')}`
 }
 
-// ── 세무 반복 마감 (법정 기한 — 회사별로 다르지 않아 상수로 둔다) ──
-const TAX_MONTHLY: { day: number; title: string }[] = [
-  { day: 10, title: '원천세 신고·납부' },
-  { day: 10, title: '4대보험 납부' },
-]
-const TAX_YEARLY: { month: number; day: number; title: string }[] = [
-  { month: 1,  day: 25, title: '부가세 확정신고 (2기)' },
-  { month: 4,  day: 25, title: '부가세 예정신고 (1기)' },
-  { month: 7,  day: 25, title: '부가세 확정신고 (1기)' },
-  { month: 10, day: 25, title: '부가세 예정신고 (2기)' },
-  { month: 3,  day: 31, title: '법인세 신고·납부' },
-  { month: 8,  day: 31, title: '법인세 중간예납' },
-]
+// ── 관리 규칙 (schedule_rules, 202) ────────────────────
+// 급여일·법인카드 출금일·세무 마감·회사 행사·외근 등 ERP 원본에 자리가 없는 일정.
+// 반복은 날짜를 저장하지 않고 여기서 그 달의 날짜를 계산한다.
 
-/** 해당 월의 세무 마감. 기한이 휴일이면 다음 영업일에 표시하고 원래 기한을 note에 남긴다. */
-export function taxDeadlines(month: string, holidays: HolidayMap): ScheduleEvent[] {
+export interface RuleRow {
+  id: string
+  title: string
+  category: RuleCategory
+  repeat_kind: 'monthly' | 'yearly' | 'once'
+  repeat_day: number | null
+  repeat_month: number | null
+  on_date: string | null
+  end_date: string | null
+  holiday_shift: HolidayShift
+  amount: number | null
+  employee_id: string | null
+  finance_only: boolean
+  active: boolean
+  memo: string | null
+}
+
+/** 규칙을 해당 월의 일정으로 펼친다. 휴일로 날짜가 옮겨지면 원래 날짜를 note에 남긴다. */
+export function expandRules(
+  rules: RuleRow[], month: string, holidays: HolidayMap,
+  nameById?: Map<string, string>,
+): ScheduleEvent[] {
+  const [mStart, mEnd] = monthRange(month)
   const m = Number(month.slice(5, 7))
   const out: ScheduleEvent[] = []
-  const push = (day: number, title: string) => {
-    const due = dayInMonth(month, day)
-    const shown = nextBusinessDay(due, holidays)
+
+  for (const r of rules) {
+    if (!r.active) continue
+    const who = r.employee_id ? (nameById?.get(r.employee_id) ?? null) : null
+    const base = { kind: r.category, title: r.title, amount: r.amount, who }
+
+    if (r.repeat_kind === 'once') {
+      if (!r.on_date) continue
+      const end = r.end_date ?? r.on_date
+      if (end < mStart || r.on_date > mEnd) continue
+      // 사람이 날짜를 정한 1회성 일정은 휴일이어도 옮기지 않는다
+      out.push({ ...base, date: r.on_date, endDate: end, note: r.memo })
+      continue
+    }
+    if (r.repeat_kind === 'yearly' && r.repeat_month !== m) continue
+    if (!r.repeat_day) continue
+
+    const due = dayInMonth(month, r.repeat_day)
+    const shown = applyShift(due, r.holiday_shift, holidays)
+    const moved = shown !== due
     out.push({
-      kind: 'tax', date: shown, title,
-      note: shown !== due ? `원래 기한 ${due.slice(5)} (휴일로 순연)` : null,
+      ...base, date: shown,
+      note: moved
+        ? `원래 ${due.slice(5)} (휴일로 ${r.holiday_shift === 'prev' ? '앞당김' : '순연'})`
+        : r.memo,
     })
   }
-  for (const t of TAX_MONTHLY) push(t.day, t.title)
-  for (const t of TAX_YEARLY) if (t.month === m) push(t.day, t.title)
   return out
 }
 
@@ -151,6 +197,8 @@ export function spreadByDate(events: ScheduleEvent[], month: string): Record<str
 }
 
 /** 표시 우선순위 — 칸이 좁을 때 앞에 오는 순서 */
-const ORDER: ScheduleKind[] = ['leave', 'leave_pending', 'parttime', 'loan', 'tax', 'holiday']
+const ORDER: ScheduleKind[] = [
+  'leave', 'leave_pending', 'meeting', 'parttime', 'payroll', 'loan', 'tax', 'company', 'other', 'holiday',
+]
 export const sortEvents = (a: ScheduleEvent, b: ScheduleEvent) =>
   ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind)
