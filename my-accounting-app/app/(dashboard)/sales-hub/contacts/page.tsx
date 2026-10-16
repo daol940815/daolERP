@@ -16,7 +16,7 @@ const norm = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, '').toL
 type ContactStatus = 'normal' | 'recent_move' | 'no_order_90' | 'no_order_180' | 'unassigned' | 'no_history'
 
 interface ContactRow {
-  contact_id: string; name: string; phone: string | null
+  contact_id: string; name: string; code: string | null; phone: string | null
   vendor_id: string | null; vendor_name: string | null; title: string | null
   is_representative: boolean; vendor_count: number; ended_note: string | null
   staff_names: string[]; total_sales: number; outstanding: number
@@ -33,11 +33,34 @@ interface UnmatchedRow {
   order_count: number; last_order_date: string
   candidates: { contact_id: string; name: string; vendor_name: string | null; same_vendor: boolean }[]
 }
+// 자동 판별 확인 대기 (110) — 상담일지·주문 저장이 만든 자동 생성/이동/동명충돌
+interface ReviewRow {
+  id: string; contact_id: string; vendor_id: string | null
+  event_type: 'auto_created' | 'moved' | 'name_conflict'
+  source: string; created_at: string
+  detail: {
+    raw_name?: string; name?: string; title?: string | null; phone?: string | null
+    candidates?: { contact_id: string; name: string; code: string | null; vendors: string[] }[]
+    prev_assignments?: { assignment_id: string; vendor_id: string; vendor_name: string | null }[]
+  }
+  contacts?: { name?: string; code?: string | null; phone?: string | null } | null
+  vendors?: { name?: string } | null
+}
 interface Bundle {
   kpi: { total: number; gap_vendors: number; unmatched: number; attention90: number; attention180: number; recent_moves: number }
   contacts: ContactRow[]; gaps: GapRow[]; unmatched: UnmatchedRow[]
+  reviews?: ReviewRow[]
   staff_options: string[]; migration105: boolean
   can_edit?: boolean   // 거래처 관리 수정 권한 — 등록·배정·연결 버튼 노출 (2026-10-01)
+}
+
+const REVIEW_META: Record<ReviewRow['event_type'], { label: string; cls: string; desc: string }> = {
+  auto_created:  { label: '자동 생성', cls: 'bg-emerald-50 text-emerald-700', desc: '어디에도 없는 이름이라 새 인물로 등록했습니다' },
+  moved:         { label: '이동 감지', cls: 'bg-amber-50 text-amber-700',   desc: '핸드폰 일치 인물이 다른 소속에서 나타나 새 배정을 추가했습니다' },
+  name_conflict: { label: '동명 충돌', cls: 'bg-red-50 text-red-600',       desc: '같은 이름이 다른 거래처에 있어 별개 인물로 생성했습니다 (동일인이면 병합)' },
+}
+const SOURCE_LABEL: Record<string, string> = {
+  consultation: '상담일지', order_upload: '주문 업로드', order_form: '주문 입력',
 }
 
 const STATUS_META: Record<ContactStatus, { text: string; cls: string }> = {
@@ -50,7 +73,7 @@ const STATUS_META: Record<ContactStatus, { text: string; cls: string }> = {
 }
 
 type StatusFilter = 'all' | 'normal' | 'recent_move' | 'no_order_90' | 'no_order_180' | 'unassigned' | 'no_history'
-type Tab = 'list' | 'gaps' | 'queue'
+type Tab = 'list' | 'gaps' | 'queue' | 'review'
 
 export default function ContactManagerPage() {
   const router = useRouter()
@@ -122,7 +145,7 @@ export default function ContactManagerPage() {
         if (!f || !matchCategory(f, catFilter)) return false
       }
       if (nq) {
-        const hay = norm(`${c.name}${c.vendor_name ?? ''}${c.title ?? ''}${c.phone ?? ''}${c.ended_note ?? ''}`)
+        const hay = norm(`${c.name}${c.code ?? ''}${c.vendor_name ?? ''}${c.title ?? ''}${c.phone ?? ''}${c.ended_note ?? ''}`)
         if (!hay.includes(nq)) return false
       }
       return true
@@ -244,7 +267,7 @@ export default function ContactManagerPage() {
 
       {/* 탭 */}
       <div className="flex items-center gap-1 mb-3 border-b border-gray-200">
-        {([['list', '담당자 목록'], ['gaps', `담당 공백 거래처 ${bundle?.kpi.gap_vendors ?? ''}`], ['queue', `미확인 담당자명 정리 ${bundle?.kpi.unmatched ?? ''}`]] as [Tab, string][]).map(([v, label]) => (
+        {([['list', '담당자 목록'], ['gaps', `담당 공백 거래처 ${bundle?.kpi.gap_vendors ?? ''}`], ['queue', `미확인 담당자명 정리 ${bundle?.kpi.unmatched ?? ''}`], ['review', `자동 처리 확인 ${bundle?.reviews?.length ?? ''}`]] as [Tab, string][]).map(([v, label]) => (
           <button key={v} onClick={() => setTab(v)}
             className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors ${
               tab === v ? 'border-slate-900 text-slate-900 font-medium' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
@@ -262,7 +285,7 @@ export default function ContactManagerPage() {
           {/* 검색 + 칩 필터 */}
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="이름 · 소속 거래처 · 직함 · 연락처 검색"
+              placeholder="이름 · 고객코드 · 소속 거래처 · 직함 · 연락처 검색"
               className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-slate-900" />
             {filterActive && (
               <button onClick={() => { setSearch(''); setStatusFilter('all'); setStaffFilter('all') }}
@@ -303,6 +326,7 @@ export default function ContactManagerPage() {
               <thead>
                 <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
                   <th className="py-2.5 px-3 font-medium">담당자</th>
+                  <th className="py-2.5 px-3 font-medium">고객코드</th>
                   <th className="py-2.5 px-3 font-medium">현재 소속 (거래처 · 직함)</th>
                   <th className="py-2.5 px-3 font-medium">연락처</th>
                   <th className="py-2.5 px-3 font-medium text-right">담당 거래처</th>
@@ -320,6 +344,7 @@ export default function ContactManagerPage() {
                     onClick={() => router.push(`/sales-hub/contacts/${c.contact_id}`)}
                     className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer">
                     <td className="py-2 px-3 whitespace-nowrap font-medium text-gray-900">{contactLabel(c.name)}</td>
+                    <td className="py-2 px-3 whitespace-nowrap text-xs text-gray-500 tabular-nums">{c.code ?? '-'}</td>
                     <td className="py-2 px-3 min-w-0 max-w-[280px]">
                       {c.vendor_name ? (
                         <span className="text-gray-800">
@@ -367,7 +392,7 @@ export default function ContactManagerPage() {
                   </tr>
                 ))}
                 {!pageRows.length && (
-                  <tr><td colSpan={kpiFlags ? 10 : 9} className="py-14 text-center text-gray-400 text-sm">조건에 맞는 담당자가 없습니다.</td></tr>
+                  <tr><td colSpan={kpiFlags ? 11 : 10} className="py-14 text-center text-gray-400 text-sm">조건에 맞는 담당자가 없습니다.</td></tr>
                 )}
               </tbody>
             </table>
@@ -469,6 +494,98 @@ export default function ContactManagerPage() {
             </table>
           </div>
           {bundle.gaps.length > 200 && <p className="text-xs text-gray-400 mt-2">상위 200곳만 표시 (매출순)</p>}
+        </>
+      ) : tab === 'review' ? (
+        <>
+          <p className="text-xs text-gray-400 mb-3">
+            상담일지·주문 저장이 자동으로 처리한 인물 등록·이동·동명 충돌입니다. 자동 처리는 이미 반영돼 있고,
+            여기서는 결과가 맞는지 확인만 하면 됩니다 (동일인이면 병합, 이동이면 이전 소속 종료).
+          </p>
+          <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                  <th className="py-2.5 px-3 font-medium">일시</th>
+                  <th className="py-2.5 px-3 font-medium">유형</th>
+                  <th className="py-2.5 px-3 font-medium">담당자</th>
+                  <th className="py-2.5 px-3 font-medium">거래처</th>
+                  <th className="py-2.5 px-3 font-medium">근거 (표기 · 전화)</th>
+                  <th className="py-2.5 px-3 font-medium">경로</th>
+                  <th className="py-2.5 px-3 font-medium text-right">처리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(bundle.reviews ?? []).map(ev => {
+                  const meta = REVIEW_META[ev.event_type]
+                  return (
+                    <tr key={ev.id} className="border-b border-gray-100 hover:bg-gray-50 align-top">
+                      <td className="py-2 px-3 whitespace-nowrap text-xs text-gray-500">{ev.created_at.slice(0, 10)}</td>
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${meta.cls}`} title={meta.desc}>{meta.label}</span>
+                      </td>
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        <button onClick={() => router.push(`/sales-hub/contacts/${ev.contact_id}`)}
+                          className="font-medium text-blue-700 hover:underline">
+                          {contactLabel(ev.contacts?.name ?? ev.detail.name ?? '')}
+                        </button>
+                        {ev.contacts?.code && <span className="ml-1.5 text-[11px] text-gray-400 tabular-nums">{ev.contacts.code}</span>}
+                      </td>
+                      <td className="py-2 px-3 text-xs text-gray-600 max-w-[200px] truncate">{ev.vendors?.name ?? '-'}</td>
+                      <td className="py-2 px-3 text-xs text-gray-500 max-w-[240px]">
+                        <span className="truncate">{ev.detail.raw_name ?? '-'}</span>
+                        {ev.detail.phone && <span className="ml-1 text-gray-400">· {ev.detail.phone}</span>}
+                        {ev.event_type === 'moved' && !!ev.detail.prev_assignments?.length && (
+                          <div className="text-[11px] text-amber-700 mt-0.5">
+                            기존 소속: {ev.detail.prev_assignments.map(p => p.vendor_name ?? '?').join(', ')}
+                          </div>
+                        )}
+                        {ev.event_type === 'name_conflict' && !!ev.detail.candidates?.length && (
+                          <div className="text-[11px] text-red-500 mt-0.5">
+                            동명: {ev.detail.candidates.map(c => `${c.name}${c.code ? ` ${c.code}` : ''} (${c.vendors.join('·') || '소속 없음'})`).join(' / ')}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2 px-3 whitespace-nowrap text-xs text-gray-500">{SOURCE_LABEL[ev.source] ?? ev.source}</td>
+                      <td className="py-2 px-3 text-right whitespace-nowrap">
+                        {canEdit && (
+                          <div className="flex flex-wrap gap-1 justify-end">
+                            {ev.event_type === 'moved' && (ev.detail.prev_assignments ?? []).map(p => (
+                              <button key={p.assignment_id} disabled={busy}
+                                onClick={() => post({ action: 'end_assignment', assignment_id: p.assignment_id },
+                                  `${p.vendor_name ?? '이전 소속'} 배정 종료`)}
+                                className="px-2 py-1 text-xs border border-amber-300 text-amber-700 rounded hover:bg-amber-50">
+                                {p.vendor_name ?? '이전 소속'} 종료
+                              </button>
+                            ))}
+                            {ev.event_type === 'name_conflict' && (ev.detail.candidates ?? []).map(c => (
+                              <button key={c.contact_id} disabled={busy}
+                                onClick={() => {
+                                  if (!window.confirm(`${ev.contacts?.name ?? ''}을(를) ${c.name}${c.code ? ` (${c.code})` : ''}와 동일인으로 병합할까요?`)) return
+                                  post({ action: 'merge_review', event_id: ev.id, source_id: ev.contact_id, target_id: c.contact_id },
+                                    `${c.name}와 병합 완료`)
+                                }}
+                                className="px-2 py-1 text-xs border border-red-300 text-red-600 rounded hover:bg-red-50">
+                                {c.name}{c.code ? ` ${c.code}` : ''}와 병합
+                              </button>
+                            ))}
+                            <button disabled={busy}
+                              onClick={() => post({ action: 'resolve_review', event_id: ev.id },
+                                ev.event_type === 'name_conflict' ? '별개 인물로 확인 완료' : '확인 완료')}
+                              className="px-2 py-1 text-xs border border-gray-300 text-gray-600 rounded hover:bg-gray-50">
+                              {ev.event_type === 'name_conflict' ? '별개 인물 확인' : '확인'}
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+                {!(bundle.reviews ?? []).length && (
+                  <tr><td colSpan={7} className="py-14 text-center text-gray-400 text-sm">확인할 자동 처리 내역이 없습니다.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </>
       ) : (
         <>

@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
 
   const out = rows.map(c => ({
     '담당자': contactLabel(c.name, c.title),
+    '고객코드': c.code ?? '',
     '소속 거래처': c.vendor_name ?? (c.ended_note ? `배정 종료 ${c.ended_note}` : '소속 미지정'),
     '직함': c.title ?? '',
     '대표담당자': c.is_representative ? 'Y' : '',
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.json_to_sheet(out)
   ws['!cols'] = [
-    { wch: 16 }, { wch: 28 }, { wch: 10 }, { wch: 9 }, { wch: 15 },
+    { wch: 16 }, { wch: 10 }, { wch: 28 }, { wch: 10 }, { wch: 9 }, { wch: 15 },
     { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 14 },
   ]
   XLSX.utils.book_append_sheet(wb, ws, '매출처 관리(고객)')

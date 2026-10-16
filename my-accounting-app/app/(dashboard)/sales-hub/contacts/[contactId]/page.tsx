@@ -10,7 +10,7 @@ import { useParams, useRouter } from 'next/navigation'
 const won = (n: number) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
 interface Detail {
-  contact: { id: string; name: string; phone: string | null; email: string | null; note: string | null }
+  contact: { id: string; name: string; code?: string | null; phone: string | null; email: string | null; note: string | null }
   assignments: {
     id: string; vendor_id: string; vendor_name: string; title: string | null
     is_representative: boolean; started_at: string | null; ended_at: string | null; vendor_gap: boolean
@@ -96,6 +96,11 @@ export default function ContactDetailPage() {
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <Link href="/sales-hub/contacts" className="text-sm text-gray-400 hover:text-gray-600">← 담당자 목록</Link>
         <h1 className="text-2xl font-bold text-gray-900">{d.contact.name}</h1>
+        {d.contact.code && (
+          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold tabular-nums" title="고객코드 (자동 부여)">
+            {d.contact.code}
+          </span>
+        )}
         {active[0] && (
           <span className="text-sm text-gray-500">
             {active[0].vendor_name}{active[0].title ? ` · ${active[0].title}` : ''}
