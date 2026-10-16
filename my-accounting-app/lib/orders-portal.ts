@@ -23,6 +23,8 @@ export interface OrderItemInput {
   quantity: number
   shipping_fee?: number
   discount_amount?: number
+  discount_mode?: '정액' | '단가'     // 할인 종류 (704) — discount_amount는 항상 최종 할인액
+  discount_unit?: number              // 단가 할인의 개당 할인액(원)
   purchase_price?: number
   purchase_shipping?: number
   memo?: string | null
@@ -73,7 +75,9 @@ export function validateOrderInput(raw: unknown): { input: OrderInput } | { erro
       sale_price: toInt(r.sale_price),
       quantity: qty,
       shipping_fee: toInt(r.shipping_fee),
-      discount_amount: toInt(r.discount_amount),
+      discount_amount: r.discount_mode === '단가' ? toInt(r.discount_unit) * qty : toInt(r.discount_amount),
+      discount_mode: (r.discount_mode === '단가' ? '단가' : '정액') as '정액' | '단가',
+      discount_unit: r.discount_mode === '단가' ? toInt(r.discount_unit) : 0,
       purchase_price: toInt(r.purchase_price),
       purchase_shipping: toInt(r.purchase_shipping),
       memo: String(r.memo ?? '').trim() || null,
@@ -245,6 +249,8 @@ export function buildOrderRows(input: OrderInput, ctx: ApplyContext) {
     quantity: it.quantity,
     shipping_fee: it.shipping_fee ?? 0,
     discount_amount: it.discount_amount ?? 0,
+    discount_mode: it.discount_mode ?? '정액',
+    discount_unit: it.discount_unit ?? 0,
     line_total: lineTotal(it),
     line_outstanding: lineTotal(it),
     purchase_price: it.purchase_price ?? 0,
@@ -265,14 +271,18 @@ export async function insertOrderItems(
 ): Promise<string | null> {
   // 504 미적용 환경 호환: 옵션 연결이 전혀 없으면 parent_line_no 컬럼을 아예 보내지 않는다
   const hasParent = itemRows.some(it => it.parent_line_no != null)
+  // 704 미적용 환경 호환: 단가 할인을 쓴 저장에만 할인 종류 컬럼을 보낸다
+  const hasDiscountMode = itemRows.some(it => it.discount_mode === '단가' || (it.discount_unit ?? 0) > 0)
   const rows = []
   for (const it of itemRows) {
     const aliasId = it.purchase_vendor_name
       ? await ensureAlias(admin, 'purchase', it.purchase_vendor_name)
       : null
-    const { parent_line_no, ...rest } = it
+    const { parent_line_no, discount_mode, discount_unit, ...rest } = it
     rows.push({
-      ...(hasParent ? { ...rest, parent_line_no } : rest),
+      ...rest,
+      ...(hasParent ? { parent_line_no } : {}),
+      ...(hasDiscountMode ? { discount_mode, discount_unit } : {}),
       order_id: orderId,
       purchase_alias_id: aliasId,
     })
@@ -280,6 +290,9 @@ export async function insertOrderItems(
   const { error } = await admin.from('erp_order_items').insert(rows)
   if (error && /parent_line_no/i.test(error.message)) {
     return '504 마이그레이션(부가상품 옵션)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
+  }
+  if (error && /discount_mode|discount_unit/i.test(error.message)) {
+    return '704 마이그레이션(할인 종류)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
   }
   return error ? error.message : null
 }

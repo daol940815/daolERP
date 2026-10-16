@@ -14,7 +14,7 @@ interface Item {
   parent_line_no: number | null
   item_code: string | null; item_name: string | null; order_kind: string | null
   purchase_vendor_name: string | null; sale_price: number; quantity: number
-  shipping_fee: number; discount_amount: number; line_total: number
+  shipping_fee: number; discount_amount: number; discount_mode?: string | null; discount_unit?: number | null; line_total: number
   purchase_price: number; purchase_shipping: number; purchase_total: number
   channel: string | null; memo: string | null
 }
@@ -227,7 +227,13 @@ export default function OrderDetailPage() {
                 <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.sale_price)}</td>
                 <td className="py-1.5 px-2.5 text-right tabular-nums">{it.quantity}</td>
                 <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.shipping_fee)}</td>
-                <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.discount_amount)}</td>
+                <td className="py-1.5 px-2.5 text-right tabular-nums">
+                  {won(it.discount_amount)}
+                  {/* 할인 종류 구분 표기 (704) — 단가 할인은 개당 금액 병기 */}
+                  {it.discount_mode === '단가' && (it.discount_unit ?? 0) > 0 && (
+                    <div className="text-[10px] text-gray-400">{won(it.discount_unit!)} /개</div>
+                  )}
+                </td>
                 <td className="py-1.5 px-2.5 text-right tabular-nums font-semibold">{won(it.line_total)}</td>
                 {showCost && <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_price)}</td>}
                 {showCost && <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_total)}</td>}
