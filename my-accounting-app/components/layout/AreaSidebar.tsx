@@ -13,6 +13,8 @@ import type { AreaKey } from '@/lib/permissions'
 import type { MenuGroup, MenuItem } from '@/lib/menu-registry'
 import AddBankModal from './AddBankModal'
 import CheckWidget from '@/app/(orders)/orders/check-widget'
+import { useNotifications } from '@/lib/use-notifications'
+import { NotificationBell, NotificationToasts } from './NotificationCenter'
 
 interface CardAccountItem { id: string; card_company: string; card_number: string; alias: string | null }
 
@@ -82,17 +84,11 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
   }
   useEffect(() => { if (hasDynamic) { fetchBanks(); fetchCards() } }, [pathname, hasDynamic])
 
-  // 업무 요청 배지 — 받은 요청의 미확인 + 마감 지남(빨강), 없으면 보낸 요청의 완료 대기·반려(노랑). 화면 이동마다 갱신.
-  const [wrBadge, setWrBadge] = useState<{ n: number; tone: 'red' | 'amber' } | null>(null)
-  useEffect(() => {
-    fetch('/api/work-requests?summary=1', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => {
-      const s = j?.summary
-      if (!s) { setWrBadge(null); return }
-      const red = (s.inbox_unread ?? 0) + (s.inbox_overdue ?? 0)
-      const amber = (s.outbox_awaiting ?? 0) + (s.outbox_rejected ?? 0)
-      setWrBadge(red ? { n: red, tone: 'red' } : amber ? { n: amber, tone: 'amber' } : null)
-    }).catch(() => setWrBadge(null))
+  // 알림 센터 — 60초 폴링(업무 요청·휴가 승인·주문 수정 승인). 메뉴 배지(업무 요청·휴가 승인·주문 수정 승인)도 이 데이터로.
+  const notif = useNotifications(true)
+  useEffect(() => { notif.refresh() /* 화면 이동 시 즉시 갱신 */ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
+  const badgeOf = (href: string) => notif.data?.badges?.[href] ?? null
 
   const startEdit = (bankId: string, cur: string | null) => {
     setEditingBankId(bankId); setEditingValue(cur ?? ''); setTimeout(() => inputRef.current?.focus(), 50)
@@ -284,9 +280,9 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
     return (
       <Link key={it.href} href={it.href} className={linkCls(isActive(it))}>
         <span>{it.label}</span>
-        {it.href === '/me/requests' && wrBadge && (
-          <span className={`ml-auto text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none ${wrBadge.tone === 'red' ? 'bg-red-500 text-white' : 'bg-amber-400 text-slate-900'}`}>{wrBadge.n}</span>
-        )}
+        {(() => { const b = badgeOf(it.href); return b ? (
+          <span className={`ml-auto text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none ${b.tone === 'red' ? 'bg-red-500 text-white' : 'bg-amber-400 text-slate-900'}`}>{b.n}</span>
+        ) : null })()}
       </Link>
     )
   }
@@ -300,6 +296,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
       </div>
       {/* 출근·퇴근 체크 — 어느 영역에서든 같은 자리 (2026-10-01). 비대상 직원에게는 비표시 */}
       <CheckWidget wrap="pt-3 border-b border-slate-800" />
+      <div className="pt-2 border-b border-slate-800"><NotificationBell data={notif.data} seenAt={notif.seenAt} onSeen={notif.markAllSeen} /></div>
 
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
         {groups.map(g => (
@@ -332,6 +329,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
       </div>
     </aside>
     {showAddModal && <AddBankModal onClose={() => setShowAddModal(false)} onSaved={fetchBanks} />}
+    <NotificationToasts toasts={notif.toasts} onDismiss={notif.dismiss} />
     </>
   )
 }

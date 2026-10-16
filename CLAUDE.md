@@ -156,6 +156,8 @@
   서버 page.tsx가 searchParams.tab을 읽어 탭 컴포넌트를 고르고, 탭 줄은 `components/ui/PageTabs.tsx`.
   옛 주소는 리다이렉트 스텁(쿼리 보존)으로 남기고 `EXTRA_PATH_OWNERS`에 소속을 유지한다.
   업무 요청 `/me/requests`(받은|보낸)은 내 업무 그룹 전원, 경영 현황 `/reports/work-requests`는 조회 전용.
+  알림 센터(2026-10-16): `/api/notifications`가 원본 상태에서 '확인할 것'을 계산(저장 없음), 사이드바 종·패널·토스트는
+  `components/layout/NotificationCenter.tsx`, 폴링은 AreaSidebar의 `useNotifications` 1곳. 새 알림 원천은 API에 블록 추가.
   적용: 기초잔액 `/opening-balances`, 자금 · 계좌 `/reports/cash`, 카드 내역 `/cards`, 계산서 내역 `/tax-invoices`
   (칩 `?dir=&tax=` + 매입 분류 탭), 통장 내역 `/transactions`(분류 작업 탭, 기간 없음), 매입처 관리(결제 예외 탭,
   collections 권한), 미수금·미지급금 관리(`components/reports/aging-manage.tsx`, 경과 구간 + 허브 요약 합침).
