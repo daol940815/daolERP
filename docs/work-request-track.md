@@ -58,10 +58,38 @@
   요금제에 포함(Free 1GB / Pro 100GB 포함, 초과 GB당 약 $0.021) — 월 수십 건 × 수 MB면 연 1GB 안.
   보존: 삭제 없이 보관, 1년 뒤 점검.
 
-## 미결 (사용자 확인 필요)
+## 사용자 결정 4차 (2026-10-16)
 
-- [ ] 첨부 포함 여부와 제한(파일당 10MB · 5개) 확정
+- **첨부 없음**. 회사 네트워크 서버가 있어 '관련 링크 · 서버 경로' 텍스트 칸 1개 + 복사 버튼으로 대체. 사진 첨부가 필요해지면 2차.
+
+## 1차 구현 (2026-10-16, 배포 — 900 실행 대기)
+
+- 마이그레이션 `supabase/migrations/900_work_requests.sql`: work_requests · work_request_events(RLS, 서비스 키 경유) +
+  erp_work_logs action CHECK에 '업무요청수락'·'업무요청완료', ref_type에 'work_request' 추가(700 트랙 테이블 — 알림 아래) +
+  updated_at 트리거 + 검증 SELECT. **사용자 실행 필요** — 실행 전에는 화면이 안내 문구를 띄우고 배지·카드는 숨겨진다.
+- lib: `lib/work-requests.ts`(상태·라벨·마감 판정·KST 변환·allowedActions) / `lib/work-requests-server.ts`(select·정규화) /
+  `lib/work-log.ts` 액션 2개·refType 추가(700 트랙 파일, 추가만).
+- API (`API_OWNERS`: `/api/work-requests` → my, `/api/work-requests/overview` → mgmt):
+  `GET/POST /api/work-requests`(받은/보낸 목록·요약·생성), `GET/POST /api/work-requests/[id]`(상세·이력 / accept·reject·memo·
+  report·complete·cancel·edit — 당사자 판정은 API 안, 경영 조회자는 읽기만), `/employees`(담당자 선택: 계정 있는 재직자),
+  `/staff-status`(담당자 오늘 상황), `/overview`(월별 전 직원 현황).
+- 화면: `/me/requests`(받은|보낸 탭, 요약 카드 클릭=필터, 행 버튼: 수락·반려·처리 완료 / 완료·취소·다시 요청),
+  `/me/requests/new`(담당자 오늘 상황 패널, 마감 기본 당일 18:00, `?from=`으로 반려 건 재요청),
+  `/me/requests/[id]`(상태 흐름·내용 수정·이력·메모·역할별 버튼·링크 복사), `/reports/work-requests`(경영 현황).
+- 배지·카드: 사이드바 '업무 요청' 옆 빨강(받은 미확인+지남) 또는 노랑(보낸 완료 대기+반려), 내 대시보드 받은/보낸 카드 2개.
+  업무일지의 '업무요청…' 줄은 '업무 요청 보기'로 상세 드릴다운.
+- 담당자의 첫 메모가 '수락' → '진행 중'으로 올린다. 처리 보고 시 결과 메모(선택). 수정은 요청자, 처리 보고 전까지(수정 전 값 snapshot).
+
+### 상담·영업·업무일지 트랙 알림문
+> 총괄이 `erp_work_logs`의 action CHECK에 '업무요청수락'·'업무요청완료', ref_type CHECK에 'work_request'를 추가했습니다
+> (900_work_requests.sql, lib/work-log.ts WORK_LOG_ACTIONS·refType 확장, me/worklog 드릴다운 링크 1줄). 업무일지 화면의
+> 행위 필터·라벨에 두 액션이 표시되는지만 확인해 주세요. 별도 작업 없음.
+
+## 미결
+
+- [ ] 900 실행 → 검증 SELECT 결과(테이블 2 · 제약 확장 1 · 1) 확인 → 실제 요청 1건으로 수락·메모·보고·완료 흐름 점검
+- [ ] 사용해 보고 조정: 목록 기본 정렬, 완료 대기 노출 방식, 알림 2차(알림톡) 필요성
 
 ## 다음 단계
 
-사용자 답 → 시안(HTML) → 확인 → 900 마이그레이션(work_requests + work_request_events) → 구현.
+900 실행 확인 → 운영 투입 → 1~2주 사용 후 보완.
