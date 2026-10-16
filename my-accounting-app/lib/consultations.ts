@@ -20,6 +20,8 @@ export interface ConsultItemInput {
   quantity: number
   shipping_fee: number
   discount_amount: number
+  discount_mode: '정액' | '단가'      // 할인 종류 (704) — discount_amount는 항상 최종 할인액
+  discount_unit: number               // 단가 할인의 개당 할인액(원)
   purchase_price: number
   purchase_shipping: number
   memo: string | null
@@ -48,7 +50,11 @@ export function parseConsultBody(body: Record<string, unknown>) {
       sale_price: toInt(r.sale_price),
       quantity: toInt(r.quantity),
       shipping_fee: toInt(r.shipping_fee),
-      discount_amount: toInt(r.discount_amount),
+      discount_amount: r.discount_mode === '단가'
+        ? toInt(r.discount_unit) * toInt(r.quantity)
+        : toInt(r.discount_amount),
+      discount_mode: r.discount_mode === '단가' ? '단가' as const : '정액' as const,
+      discount_unit: r.discount_mode === '단가' ? toInt(r.discount_unit) : 0,
       purchase_price: toInt(r.purchase_price),
       purchase_shipping: toInt(r.purchase_shipping),
       memo: toStr(r.memo),
@@ -122,19 +128,24 @@ export async function insertConsultItems(
   const hasParent = rows.some(it => it.parent_line_no != null)
   const hasItemMeta = rows.some(it => it.status != null || it.option_note != null)
   const hasShipping = rows.some(it => it.is_shipping)
+  const hasDiscountMode = rows.some(it => it.discount_mode === '단가' || it.discount_unit > 0)
   const payload = rows.map(it => {
-    const { parent_line_no, status, option_note, is_shipping, ...rest } = it
+    const { parent_line_no, status, option_note, is_shipping, discount_mode, discount_unit, ...rest } = it
     return {
       ...rest,
       ...(hasParent ? { parent_line_no } : {}),
       ...(hasItemMeta ? { status, option_note } : {}),
       ...(hasShipping ? { is_shipping } : {}),
+      ...(hasDiscountMode ? { discount_mode, discount_unit } : {}),
       consultation_id: consultationId,
     }
   })
   const { error } = await admin.from('erp_consultation_items').insert(payload)
   if (error && /parent_line_no/i.test(error.message)) {
     return '701 마이그레이션(상담 품목 옵션)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
+  }
+  if (error && /discount_mode|discount_unit/i.test(error.message)) {
+    return '704 마이그레이션(할인 종류)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
   }
   if (error && /is_shipping/i.test(error.message)) {
     return '702 마이그레이션(배송비 행·지점명 보정)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
