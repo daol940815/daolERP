@@ -39,6 +39,7 @@ export const MENU: MenuGroup[] = [
   // ── 영업 · 주문 ─────────────────────────────────────
   { key: 'my', area: 'all', label: '내 업무', items: [
     { label: '내 대시보드', href: '/me', exact: true },
+    { label: '업무 요청', href: '/me/requests' },   // 받은/보낸 요청 (900, 2026-10-16) — 사이드바 배지는 AreaSidebar
     { label: '내 정보', href: '/me/profile' },   // 기본 정보 / 계정(비밀번호) / 내 업무 요약 (2026-10-01)
     { label: '내 고객', href: '/sales-hub?mine=1', prefix: '/sales-hub?mine', requires: 'customers' },
     { label: '영업일지', href: '/me/journal' },
@@ -118,6 +119,7 @@ export const MENU: MenuGroup[] = [
     { label: '대출 관리', href: '/loans' },
     { label: '거래처별 매출 분석', href: '/reports/vendor-sales' },
     { label: '거래처별 수익성 분석', href: '/reports/vendor-profitability' },
+    { label: '업무 요청 현황', href: '/reports/work-requests' },   // 전 직원 요청 현황 (900, 조회 전용)
     { label: '매출처 관리', href: '/sales-hub' },
     { label: '매입처 관리', href: '/purchase-hub' },
   ]},
@@ -183,6 +185,8 @@ export function ownersOfPath(pathname: string) {
 export const API_OWNERS: { prefix: string; group: MenuGroupKey }[] = [
   // 전원
   { prefix: '/api/me', group: 'my' },
+  { prefix: '/api/work-requests', group: 'my' },            // 업무 요청 (당사자 판정은 API 안에서)
+  { prefix: '/api/work-requests/overview', group: 'mgmt' }, // 전 직원 현황은 경영 현황 조회 권한
   { prefix: '/api/attendance', group: 'my' },
   // 팀 관리
   { prefix: '/api/team', group: 'team' },

@@ -89,7 +89,7 @@
   **`600번대` 매입처 허브 트랙(인수인계: docs/purchase-hub-track.md)** /
   `700번대` 상담·영업·업무일지 트랙(인수인계: docs/consultation-journal-track.md) /
   **`800번대` 요아럽 샘플 재고 트랙(인수인계: docs/sample-stock-track.md)** /
-  `900번대` 업무요청 트랙(인수인계: docs/work-request-track.md, 2026-10-15 피드백 단계) /
+  `900번대` 업무요청 트랙(인수인계: docs/work-request-track.md — 900 파일 전달 2026-10-16, 실행 대기) /
   새 트랙은 다음 100번대를 사용.
 - 현재 적용 완료: 100~109 (109 = 직원 권한, 2026-09-29).
 
@@ -155,6 +155,7 @@
 - **한 화면 탭 통합(2026-09-30)**: 성격이 같은 두 화면은 하나의 경로에 `?tab=`으로 묶는다 —
   서버 page.tsx가 searchParams.tab을 읽어 탭 컴포넌트를 고르고, 탭 줄은 `components/ui/PageTabs.tsx`.
   옛 주소는 리다이렉트 스텁(쿼리 보존)으로 남기고 `EXTRA_PATH_OWNERS`에 소속을 유지한다.
+  업무 요청 `/me/requests`(받은|보낸)은 내 업무 그룹 전원, 경영 현황 `/reports/work-requests`는 조회 전용.
   적용: 기초잔액 `/opening-balances`, 자금 · 계좌 `/reports/cash`, 카드 내역 `/cards`, 계산서 내역 `/tax-invoices`
   (칩 `?dir=&tax=` + 매입 분류 탭), 통장 내역 `/transactions`(분류 작업 탭, 기간 없음), 매입처 관리(결제 예외 탭,
   collections 권한), 미수금·미지급금 관리(`components/reports/aging-manage.tsx`, 경과 구간 + 허브 요약 합침).

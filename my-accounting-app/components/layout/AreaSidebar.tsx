@@ -82,6 +82,18 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
   }
   useEffect(() => { if (hasDynamic) { fetchBanks(); fetchCards() } }, [pathname, hasDynamic])
 
+  // 업무 요청 배지 — 받은 요청의 미확인 + 마감 지남(빨강), 없으면 보낸 요청의 완료 대기·반려(노랑). 화면 이동마다 갱신.
+  const [wrBadge, setWrBadge] = useState<{ n: number; tone: 'red' | 'amber' } | null>(null)
+  useEffect(() => {
+    fetch('/api/work-requests?summary=1', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => {
+      const s = j?.summary
+      if (!s) { setWrBadge(null); return }
+      const red = (s.inbox_unread ?? 0) + (s.inbox_overdue ?? 0)
+      const amber = (s.outbox_awaiting ?? 0) + (s.outbox_rejected ?? 0)
+      setWrBadge(red ? { n: red, tone: 'red' } : amber ? { n: amber, tone: 'amber' } : null)
+    }).catch(() => setWrBadge(null))
+  }, [pathname])
+
   const startEdit = (bankId: string, cur: string | null) => {
     setEditingBankId(bankId); setEditingValue(cur ?? ''); setTimeout(() => inputRef.current?.focus(), 50)
   }
@@ -272,6 +284,9 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
     return (
       <Link key={it.href} href={it.href} className={linkCls(isActive(it))}>
         <span>{it.label}</span>
+        {it.href === '/me/requests' && wrBadge && (
+          <span className={`ml-auto text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none ${wrBadge.tone === 'red' ? 'bg-red-500 text-white' : 'bg-amber-400 text-slate-900'}`}>{wrBadge.n}</span>
+        )}
       </Link>
     )
   }

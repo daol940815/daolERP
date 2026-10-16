@@ -15,7 +15,7 @@ interface Row {
   action: string
   category: string | null
   content: string
-  ref_type: 'consultation' | 'order' | 'activity' | null
+  ref_type: 'consultation' | 'order' | 'activity' | 'work_request' | null
   ref_id: string | null
 }
 
@@ -57,6 +57,7 @@ const drilldown = (r: Row) => {
   if (r.ref_type === 'consultation' && r.ref_id) return { href: `/orders/consultations/${r.ref_id}`, label: '상담일지 보기' }
   if (r.ref_type === 'order' && r.ref_id) return { href: `/orders/${r.ref_id}`, label: '주문서 보기' }
   if (r.ref_type === 'activity') return { href: '/me/journal', label: '영업일지 보기' }
+  if (r.ref_type === 'work_request' && r.ref_id) return { href: `/me/requests/${r.ref_id}`, label: '업무 요청 보기' }
   return null
 }
 

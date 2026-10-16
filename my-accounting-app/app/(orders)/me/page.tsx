@@ -45,6 +45,11 @@ export default function MyDashboardPage() {
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [work, setWork] = useState<{ rows: WorkRow[]; month: string } | null>(null)
+  // 업무 요청 요약 (900) — 받은/보낸 카드
+  const [wr, setWr] = useState<Record<string, number> | null>(null)
+  useEffect(() => {
+    fetch('/api/work-requests?summary=1').then(r => r.ok ? r.json() : null).then(j => setWr(j?.summary ?? null)).catch(() => setWr(null))
+  }, [])
 
   useEffect(() => {
     fetch('/api/me/worklog')
@@ -68,6 +73,18 @@ export default function MyDashboardPage() {
 
   const s = data.summary
   const kpis = [
+    ...(wr ? [
+      {
+        label: '받은 요청', href: '/me/requests',
+        value: `미확인 ${wr.inbox_unread ?? 0}`,
+        sub: `진행 중 ${wr.inbox_active ?? 0} · 지남 ${wr.inbox_overdue ?? 0}${wr.inbox_reported ? ` · 완료 대기 ${wr.inbox_reported}` : ''}`,
+      },
+      {
+        label: '보낸 요청', href: '/me/requests?tab=outbox',
+        value: `진행 중 ${wr.outbox_open ?? 0}`,
+        sub: `${wr.outbox_awaiting ? `완료 대기 ${wr.outbox_awaiting}` : ''}${wr.outbox_awaiting && wr.outbox_rejected ? ' · ' : ''}${wr.outbox_rejected ? `반려 ${wr.outbox_rejected}` : ''}` || null,
+      },
+    ] : []),
     {
       label: '이번 달 내 주문', href: '/orders',
       value: s ? `${s.orders_month.cnt}건` : '-',
