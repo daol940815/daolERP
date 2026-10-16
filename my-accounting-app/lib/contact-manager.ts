@@ -18,6 +18,7 @@ export type ContactStatus = 'normal' | 'recent_move' | 'no_order_90' | 'no_order
 export interface ContactListRow {
   contact_id: string
   name: string
+  code: string | null                // 고객코드 (110) — 미적용 환경 null
   phone: string | null
   // 현재 소속 (활성 배정 기준 — 여러 곳이면 첫 배정 + 개수)
   vendor_id: string | null
@@ -114,7 +115,7 @@ interface AsgnRow {
 }
 
 export async function buildContactManagerBundle(admin: SupabaseClient): Promise<ContactManagerBundle | { error: string }> {
-  const [contactsR, asgnR, vendorsR, aliasR, staffR, empR, ordersR] = await Promise.all([
+  const [contactsR, asgnR, vendorsR, aliasR, staffR, empR, ordersR, codesR] = await Promise.all([
     fetchAllRows<{ id: string; name: string; phone: string | null; merged_into_id: string | null }>(
       (f, t) => admin.from('contacts').select('id, name, phone, merged_into_id').range(f, t)),
     fetchAllRows<AsgnRow>(
@@ -133,10 +134,15 @@ export async function buildContactManagerBundle(admin: SupabaseClient): Promise<
       (f, t) => admin.from('erp_orders')
         .select('id, order_no, order_date, customer_alias_id, manager_name, total_amount, outstanding_amount, collect_status')
         .range(f, t)),
+    // 고객코드 (110) — 미적용 환경이면 실패해도 번들은 유지 (code null)
+    fetchAllRows<{ id: string; code: string | null }>(
+      (f, t) => admin.from('contacts').select('id, code').range(f, t)),
   ])
   for (const r of [contactsR, asgnR, vendorsR, aliasR, staffR, empR, ordersR]) {
     if ('error' in r) return { error: r.error }
   }
+  const codeMap = new Map<string, string | null>(
+    'error' in codesR ? [] : codesR.data.map(c => [c.id, c.code]))
   const contacts = (contactsR as { data: { id: string; name: string; phone: string | null; merged_into_id: string | null }[] }).data
     .filter(c => !c.merged_into_id)
   const asgns = (asgnR as { data: AsgnRow[] }).data
@@ -271,6 +277,7 @@ export async function buildContactManagerBundle(admin: SupabaseClient): Promise<
     rows.push({
       contact_id: c.id,
       name: c.name,
+      code: codeMap.get(c.id) ?? null,
       phone: c.phone,
       vendor_id: first?.vendor_id ?? null,
       vendor_name: first ? (vendorName.get(first.vendor_id) ?? null) : null,
@@ -387,7 +394,7 @@ export async function buildContactManagerBundle(admin: SupabaseClient): Promise<
 
 // ── 상세 ─────────────────────────────────────────────
 export interface ContactDetail {
-  contact: { id: string; name: string; phone: string | null; email: string | null; note: string | null }
+  contact: { id: string; name: string; code?: string | null; phone: string | null; email: string | null; note: string | null }
   assignments: {
     id: string; vendor_id: string; vendor_name: string; title: string | null
     is_representative: boolean; started_at: string | null; ended_at: string | null
@@ -412,6 +419,11 @@ export async function buildContactDetail(admin: SupabaseClient, contactId: strin
   const { data: contact, error: ce } = await admin
     .from('contacts').select('id, name, phone, email, note').eq('id', contactId).single()
   if (ce || !contact) return { error: ce?.message ?? '인물을 찾을 수 없습니다.' }
+  // 고객코드 (110) — 미적용 환경이면 null
+  {
+    const { data: codeRow } = await admin.from('contacts').select('code').eq('id', contactId).maybeSingle()
+    ;(contact as { code?: string | null }).code = (codeRow as { code?: string | null } | null)?.code ?? null
+  }
 
   const [asgnR, empR] = await Promise.all([
     fetchAllRows<AsgnRow>((f, t) => admin.from('contact_assignments')

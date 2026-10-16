@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { normalizeName } from '@/lib/name-similarity'
+import { autoLinkOrderManagers, type AutoLinkStats, type ManagerCombo } from '@/lib/contact-resolve'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -474,6 +475,35 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: `선결제 등록 실패: ${error.message}` }, { status: 500 })
   }
 
+  // ── 6) 담당자 표기 자동 판별 (2026-10-16) — 쓰기만 하면 고객 관리가 되도록
+  // 거래처가 연결된 주문의 담당자 표기를 (거래처, 표기) 조합 단위로 인물에 자동
+  // 연결한다. 신규·이동·동명 충돌은 확인 대기 큐(contact_review_events)에 쌓인다.
+  let contactStats: AutoLinkStats = { linked_existing: 0, created: 0, moved: 0, conflicts: 0, skipped: 0 }
+  {
+    const usedAliasIds = Array.from(new Set(
+      orderList.map(g => aliasMap.get(`customer|${customerAliasName(g)}`)).filter(Boolean) as string[]))
+    const aliasVendor = new Map<string, string>()
+    for (let i = 0; i < usedAliasIds.length; i += 100) {
+      const { data } = await admin.from('erp_vendor_aliases')
+        .select('id, vendor_id').in('id', usedAliasIds.slice(i, i + 100)).not('vendor_id', 'is', null)
+      for (const a of (data ?? [])) aliasVendor.set(a.id as string, a.vendor_id as string)
+    }
+    const comboMap = new Map<string, ManagerCombo>()
+    for (const g of orderList) {
+      const raw = (g.manager_name ?? '').trim()
+      if (!raw) continue
+      const aliasId = aliasMap.get(`customer|${customerAliasName(g)}`)
+      const vid = aliasId ? aliasVendor.get(aliasId) : null
+      if (!vid) continue
+      const key = `${vid}|${raw}`
+      const prev = comboMap.get(key)
+      if (!prev || g.order_date > (prev.eventDate ?? '')) {
+        comboMap.set(key, { vendorId: vid, rawName: raw, phone: g.phone, tel: g.contact, eventDate: g.order_date })
+      }
+    }
+    contactStats = await autoLinkOrderManagers(admin, Array.from(comboMap.values()))
+  }
+
   const updated = existingOrderNos.size
   const created = orderList.length - updated
 
@@ -488,5 +518,7 @@ export async function POST(req: NextRequest) {
     // 거래처 연동: 이름 일치로 자동 연결된 별칭 / 등록 대기로 남은 별칭
     alias_auto_linked: aliasAutoLinked,
     alias_pending: aliasPending,
+    // 담당자 자동 판별: 기존 연결 / 신규 생성 / 이동 감지 / 동명 충돌 / 판별 불가
+    contact_auto: contactStats,
   })
 }
