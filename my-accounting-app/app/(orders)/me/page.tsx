@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { kstTime, LEAVE_TYPE_LABEL, LEAVE_STATUS_LABEL, type LeaveType, type LeaveStatus } from '@/lib/attendance'
+import { TodoPanel } from '@/components/layout/NotificationCenter'
+import type { NotifData } from '@/lib/notifications'
 
 // 내 대시보드 (직원 개인화면 홈)
 // 본인 관련 정보만 모아 보여준다 — 이번 달 내 주문 · 미수 · 담당 거래처 ·
@@ -49,6 +51,11 @@ export default function MyDashboardPage() {
   const [wr, setWr] = useState<Record<string, number> | null>(null)
   useEffect(() => {
     fetch('/api/work-requests?summary=1').then(r => r.ok ? r.json() : null).then(j => setWr(j?.summary ?? null)).catch(() => setWr(null))
+  }, [])
+  // 확인할 것 패널 (알림 센터와 같은 데이터) — 영역 1개 직원은 업무 선택 화면을 보지 않으므로 홈에서
+  const [notif, setNotif] = useState<NotifData | null>(null)
+  useEffect(() => {
+    fetch('/api/notifications', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => setNotif(j ?? null)).catch(() => setNotif(null))
   }, [])
 
   useEffect(() => {
@@ -132,6 +139,8 @@ export default function MyDashboardPage() {
       {data.summaryError && (
         <div className="mt-4 px-4 py-2.5 bg-amber-50 text-amber-800 text-sm rounded-lg">{data.summaryError}</div>
       )}
+
+      {notif && notif.items.length > 0 && <div className="mt-4"><TodoPanel variant="light" data={notif} /></div>}
 
       {/* KPI 카드 — 클릭 시 해당 화면으로 드릴다운 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
