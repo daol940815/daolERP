@@ -506,6 +506,23 @@ sheet('7_문서없는거래처', ['거래처명(정정 후)', '행수', '금액(
 
 out = OUT + f'ERP_검수보조_v2_{today}.xlsx'
 wb.save(out)
+
+# ═══ 단순판: 1~3번 시트만, 열 축소 (SIMPLE=1 환경변수 또는 항상 함께 생성) ═══
+wb_full = wb
+wb = openpyxl.Workbook(); wb.remove(wb.active)
+guide = '판정 읽는 법: "문서와 같음" → 넘어감 / "…와 비슷함", "…만 다름" → 추천이 맞는지만 확인 / "사람 판정", "못 찾음", "문서에 없는 …" → 노란 기입 열에 바른 표기를 직접 적음. 비워 두면 추천(추천이 없으면 원 표기)으로 처리.'
+sheet('1_은행명', ['ERP 은행명', '행수', '판정', '추천 은행명', '근거', '기입 은행명'],
+      [[r[0], r[1], r[3], r[4], r[5], ''] for r in bank_tbl], [28, 8, 30, 28, 60, 28], note=guide, input_cols=('기입 은행명',))
+sheet('2_지점명', ['은행명', 'ERP 지점명', '행수', '판정', '추천 지점명', '근거', '기입 지점명'],
+      [[r[0], r[1], r[2], r[5], r[6], r[7], ''] for r in branch_tbl], [20, 26, 8, 34, 26, 70, 26],
+      note=guide + ' 은행명은 1번 시트 추천을 적용한 표기.', input_cols=('기입 지점명',))
+sheet('3_담당자명', ['은행명', '지점명', 'ERP 담당자', '행수', '판정', '추천 담당자', '근거', '기입 담당자'],
+      [[r[0], r[1], r[2], r[3], r[6], r[7], r[8], ''] for r in mgr_tbl], [20, 24, 20, 8, 34, 20, 70, 20],
+      note=guide + ' 은행명·지점명은 1·2번 시트 추천을 적용한 표기.', input_cols=('기입 담당자',))
+out_simple = OUT + f'ERP_검수_단순판_{today}.xlsx'
+wb.save(out_simple)
+print('saved', out_simple)
+wb = wb_full
 json.dump({'bank_fix': {k: v for k, v in bank_fix.items() if k != v}, 'branch_fix': {f'{k[0]}|{k[1]}': v for k, v in branch_fix.items() if k[1] != v},
            'mgr_fix': {f'{k[0]}|{k[1]}|{k[2]}': v for k, v in mgr_fix.items() if k[2] != v}}, open(OUT + 'recommendations.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
 print('saved', out)
