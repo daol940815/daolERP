@@ -522,6 +522,43 @@ sheet('3_담당자명', ['은행명', '지점명', 'ERP 담당자', '행수', '�
 out_simple = OUT + f'ERP_검수_단순판_{today}.xlsx'
 wb.save(out_simple)
 print('saved', out_simple)
+
+# ═══ 한 장 대조표: 조합(은행|지점|담당자|채널) 단위, 문서와 완전히 같은 조합 제외 ═══
+why_bank = {r[0]: (r[3], r[5]) for r in bank_tbl}
+why_branch = {(r[0], r[1]): (r[5], r[7]) for r in branch_tbl}
+why_mgr = {(r[0], r[1], r[2]): (r[6], r[8]) for r in mgr_tbl}
+one = []
+for (b0, br0, m0), c in sorted(orig_combo.items(), key=lambda x: (bank_fix[x[0][0]], branch_fix[(bank_fix[x[0][0]], x[0][1])], -x[1]['n'])):
+    b = bank_fix[b0]; br = branch_fix[(b, br0)]; m = mgr_fix[(b, br, m0)]
+    d = doc_keys.get((b, br, m))
+    if d and b == b0 and br == br0 and m == m0: continue          # 문서와 완전히 같음 → 제외
+    if d: grade = '추천대로 고치면 문서와 같아짐'
+    elif b in doc_banks and m in doc_mgrs_by_bank.get(b, set()) and br in mgr_hist_branches(b, m): grade = '이 고객의 옛 지점 기록(이동 전) — 정상'
+    elif b not in doc_banks: grade = '고객관리문서에 없는 거래처'
+    elif not m: grade = '담당자 빈 값'
+    else: grade = '문서와 맞지 않음 — 사람 판정'
+    gb, wb_ = why_bank[b0]; gbr, wbr = why_branch[(b, br0)]; gm, wm = why_mgr[(b, br, m0)]
+    ch_txt = ', '.join(f'{k or "(빈)"} {n}' for k, n in c['ch'].most_common())
+    ch_ok = '' if not d else ('같음' if set(c['ch']) == {d['daol']} else '다름')
+    one.append([b0, br0, m0, ch_txt, c['n'], c['first'], c['last'], grade,
+                b if b != b0 else '', br if br != br0 else '', m if m != m0 else '',
+                d['daol'] if d else '', ch_ok, d['move'] if d else '',
+                f'[{gb}] {wb_}' if b != b0 or gb != '문서와 같음' else '',
+                f'[{gbr}] {wbr}' if br != br0 or gbr != '문서와 같음' else '',
+                f'[{gm}] {wm}' if m != m0 or gm != '문서와 같음' else '',
+                '', '', '', ''])
+wb = openpyxl.Workbook(); wb.remove(wb.active)
+sheet('대조표', ['ERP 은행명', 'ERP 지점명', 'ERP 담당자(고객)', 'ERP 채널(다올직원) 행수', '행수', '첫 주문', '마지막 주문', '판정',
+               '추천 은행명', '추천 지점명', '추천 담당자', '문서 다올 담당', '채널=다올 담당?', '문서 부서 이동',
+               '근거(은행명)', '근거(지점명)', '근거(담당자)', '기입 은행명', '기입 지점명', '기입 담당자', '기입 다올 담당'],
+      one, [18, 24, 20, 26, 7, 11, 11, 32, 18, 24, 20, 11, 10, 44, 50, 60, 60, 18, 24, 20, 12],
+      note=f'ERP 조합(은행|지점|담당자) {len(orig_combo):,}건 중 고객관리문서와 완전히 같은 {len(orig_combo) - len(one):,}건 제외, {len(one):,}건. '
+           '판정 읽는 법: "추천대로 고치면 …" → 추천 확인 / "옛 지점 기록" → 그대로 둠 / "문서에 없는 거래처", "맞지 않음" → 기입. '
+           '추천 열이 비어 있으면 원 표기 유지. 채널은 응대자(주문 받은 직원)이므로 고치지 않고, 담당 영업은 "기입 다올 담당"에.',
+      input_cols=('기입 은행명', '기입 지점명', '기입 담당자', '기입 다올 담당'))
+out_one = OUT + f'ERP_검수_대조표_{today}.xlsx'
+wb.save(out_one)
+print('saved', out_one, len(one), C(r[7] for r in one))
 wb = wb_full
 json.dump({'bank_fix': {k: v for k, v in bank_fix.items() if k != v}, 'branch_fix': {f'{k[0]}|{k[1]}': v for k, v in branch_fix.items() if k[1] != v},
            'mgr_fix': {f'{k[0]}|{k[1]}|{k[2]}': v for k, v in mgr_fix.items() if k[2] != v}}, open(OUT + 'recommendations.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
