@@ -23,17 +23,23 @@ const DIRECTION_WORDS = new Set(['입금', '출금', '입', '출', '지급', '�
 const CHANNEL_WORDS = new Set([
   '인터넷', '인터넷당행', '모바일', '폰뱅킹', '텔레뱅킹', '오픈뱅킹', '펌뱅킹', 'bz뱅크', 'bz수수',
   '대체', '대체입금', '대체출금', '타행', '타행송금', '타행이체', '타행대량', '당행송금', '당행이체',
-  '실시간이체', '재정이체', '자동이체', 'cms', 'i/b', 'f/b', 'f/b 출금', 'i-g', 'kft', 'fbc', 'fbs', 'gir',
-  'g-하나은행', 'g-우리은행', 'atm', 'cd', '창구', '무통장',
+  '실시간이체', '재정이체', '자동이체', 'cms', 'i/b', 'f/b', 'f/b 출금', 'fb이체', '연입금',
+  'i-g', 'kft', 'fbc', 'fbs', 'gir', 'g-하나은행', 'g-우리은행', 'atm', 'cd', '창구', '무통장',
+  // 결제수단 — 용도가 아니라 수단이므로 계정 하나로 못 간다 (적요=가맹점명으로 분류)
+  '체크카드', '체크우리',
 ])
 
+// 은행 파일은 전각(Ｆ／Ｂ)으로 오기도 한다 — NFKC로 반각화해서 비교
+const normKind = (kind: string | null | undefined) =>
+  (kind ?? '').normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase()
+
 export function isChannelTxKind(kind: string | null | undefined): boolean {
-  const k = (kind ?? '').trim().toLowerCase()
+  const k = normKind(kind)
   return CHANNEL_WORDS.has(k) || /^g-/.test(k)
 }
 
 export function isUsableTxKind(kind: string | null | undefined): kind is string {
-  const k = (kind ?? '').trim()
+  const k = normKind(kind)
   return k.length > 0 && !DIRECTION_WORDS.has(k) && !isChannelTxKind(k)
 }
 
@@ -42,7 +48,7 @@ export function isUsableTxKind(kind: string | null | undefined): kind is string 
 export const TX_KIND_KEYWORD_PREFIX = '구분:'
 
 export function txKindKeyword(kind: string): string {
-  return TX_KIND_KEYWORD_PREFIX + kind.trim().toLowerCase()
+  return TX_KIND_KEYWORD_PREFIX + normKind(kind)
 }
 
 // 통장 적요에서 대출번호를 뽑는다 — "47598009367842-00001" → "47598009367842"

@@ -146,7 +146,7 @@ export async function classifyByKeywords(
   const kindIndex = new Map<string, typeof accountsWithKw>()
   for (const account of accountsWithKw) {
     for (const kw of account.keywords as string[]) {
-      const k = kw.trim().toLowerCase()
+      const k = kw.normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase()
       if (!k.startsWith(TX_KIND_KEYWORD_PREFIX)) continue
       const arr = kindIndex.get(k)
       if (arr) arr.push(account)
