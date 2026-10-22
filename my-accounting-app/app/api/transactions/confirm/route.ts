@@ -41,9 +41,18 @@ export async function POST(req: NextRequest) {
   const errors: { id: string; error: string }[] = []
 
   for (const tx of txs ?? []) {
+    // 계좌 간 이체쌍: 분개 없이 상태만 오르내린다 — 미검토에 영원히 남지 않게 (2026-10-22)
+    if (tx.transfer_pair_id) {
+      const update: Record<string, unknown> = confirm
+        ? { status: 'confirmed', ...(tx.status !== 'confirmed' ? { confirmed_at: new Date().toISOString(), confirmed_by: userId } : {}) }
+        : { status: 'reviewed' }
+      const { error: ue } = await admin.from('transactions').update(update).eq('id', tx.id)
+      if (ue) { errors.push({ id: tx.id, error: ue.message }); continue }
+      done++
+      continue
+    }
     if (confirm) {
       if (!tx.confirmed_account_id) { skipped.push({ id: tx.id, reason: '계정과목 미지정' }); continue }
-      if (tx.transfer_pair_id)      { skipped.push({ id: tx.id, reason: '계좌간 이체(전기 대상 아님)' }); continue }
       const update: Record<string, unknown> = { status: 'confirmed' }
       if (tx.status !== 'confirmed') { update.confirmed_at = new Date().toISOString(); update.confirmed_by = userId }
       const { error: ue } = await admin.from('transactions').update(update).eq('id', tx.id)
