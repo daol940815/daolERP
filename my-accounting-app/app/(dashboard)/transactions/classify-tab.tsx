@@ -180,7 +180,7 @@ export default function ClassifyTab({ bankAccountId }: { bankAccountId?: string 
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-xs">
               <tr>
-                <th className="px-3 py-2 text-left">유형</th>
+                <th className="px-3 py-2 text-left whitespace-nowrap">유형</th>
                 <th className="px-3 py-2 text-left">묶음</th>
                 <th className="px-3 py-2 text-left">거래일 범위</th>
                 <th className="px-3 py-2 text-right">건수</th>
@@ -194,8 +194,8 @@ export default function ClassifyTab({ bankAccountId }: { bankAccountId?: string 
             <tbody className="divide-y divide-gray-100">
               {filtered.map(g => (
                 <tr key={g.key} className="hover:bg-gray-50">
-                  <td className="px-3 py-2">
-                    <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${KIND_BADGE[g.kind].cls}`}>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${KIND_BADGE[g.kind].cls}`}>
                       {KIND_BADGE[g.kind].label}
                     </span>
                   </td>
@@ -239,9 +239,9 @@ export default function ClassifyTab({ bankAccountId }: { bankAccountId?: string 
                       <button
                         onClick={() => confirmGroup(g)}
                         disabled={busyKey === g.key || !pick[g.key]}
-                        className="px-3 py-1 bg-slate-900 text-white rounded text-xs font-medium hover:bg-slate-700 disabled:opacity-40"
+                        className="px-3 py-1 bg-slate-900 text-white rounded text-xs font-medium hover:bg-slate-700 disabled:opacity-40 whitespace-nowrap"
                       >
-                        {busyKey === g.key ? '처리 중...' : `${g.count}건 확정`}
+                        {busyKey === g.key ? '처리 중...' : '확정'}
                       </button>
                     )}
                   </td>
