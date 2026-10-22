@@ -16,11 +16,12 @@ export const maxDuration = 300
 export async function POST() {
   const admin = createAdminClient()
 
-  const { data: vendors, error: vErr } = await admin
-    .from('vendors')
-    .select('id, name, biz_number, match_aliases')
-    .eq('is_active', true)
-  if (vErr) return NextResponse.json({ error: vErr.message }, { status: 500 })
+  // 전량 페이지 조회 — 단일 조회는 1000행에서 잘려 뒤쪽 거래처가 후보에서 빠진다 (2026-10-22)
+  const vendorsResult = await fetchAllRows<{ id: string; name: string; biz_number: string | null; match_aliases: string[] | null }>((f, t) =>
+    admin.from('vendors').select('id, name, biz_number, match_aliases')
+      .eq('is_active', true).eq('status', 'active').range(f, t))
+  if ('error' in vendorsResult) return NextResponse.json({ error: vendorsResult.error }, { status: 500 })
+  const vendors = vendorsResult.data
 
   const candidates = (vendors ?? []).map(v => ({
     id:          v.id as string,

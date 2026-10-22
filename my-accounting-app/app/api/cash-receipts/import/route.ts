@@ -188,6 +188,7 @@ export async function POST(req: NextRequest) {
     const { data: vendors } = await admin
       .from('vendors')
       .select('id, biz_number')
+      .eq('status', 'active')          // 병합·비활성 거래처에 붙지 않게 (2026-10-22)
       .in('biz_number', bizNumbers)
     for (const v of vendors ?? []) {
       if (v.biz_number) vendorByBiz.set(v.biz_number as string, v.id as string)

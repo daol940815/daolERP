@@ -250,8 +250,11 @@ export async function POST(req: NextRequest) {
   // ── 거래처 자동 매칭/등록 (사업자번호 우선, 없으면 상호명) ──────────
   // 전량을 페이지로 읽는다 — 단일 조회는 PostgREST max-rows(1000)에서 잘려, 1000번째 이후
   // 거래처를 못 보고 같은 사업자번호로 새 거래처를 만들었다 (2026-10-22 확인: 동명 100그룹 216행).
+  // 활성 거래처만 — 병합된(merged)·비활성 행까지 읽으면 같은 사업자번호가 병합 행에 매칭돼
+  // 새 계산서가 죽은 거래처에 붙는다 (2026-10-22 413 검증에서 발견, 414로 정리).
   const vendorsResult = await fetchAllRows<{ id: string; name: string; biz_number: string | null; type: string; default_account_id: string | null }>((f, t) =>
-    admin.from('vendors').select('id, name, biz_number, type, default_account_id').range(f, t))
+    admin.from('vendors').select('id, name, biz_number, type, default_account_id')
+      .eq('status', 'active').range(f, t))
   if ('error' in vendorsResult) return NextResponse.json({ error: vendorsResult.error }, { status: 500 })
   const vendors = vendorsResult.data
   const vendorByBiz  = new Map<string, { id: string; type: string }>()
