@@ -227,6 +227,7 @@ function TransactionsContent() {
   const [unlinking,       setUnlinking]       = useState<string | null>(null)
   const [importing,    setImporting]    = useState(false)
   const [selectedCount, setSelectedCount] = useState(0)
+  const [acceptableCount, setAcceptableCount] = useState(0)   // 선택 중 추천만 있는 미검토 행
   const [confirmProgress, setConfirmProgress] = useState<string | null>(null)
   const [autoFetchFlag, setAutoFetchFlag] = useState(0)
   const [filters, setFilters]     = useState<Filters>({
@@ -427,6 +428,38 @@ function TransactionsContent() {
       }
       const parts = [`${done}건 ${confirm ? '확정·전기' : '확정 해제'}`]
       if (skipped) parts.push(`${skipped}건 건너뜀(계정/이체)`)
+      if (errors)  parts.push(`${errors}건 오류`)
+      showToast(parts.join(' · '), errors ? 'err' : 'ok')
+    } finally {
+      setConfirmProgress(null)
+      fetchTransactions()
+    }
+  }, [confirmProgress, fetchTransactions, showToast])
+
+  // 선택된 행의 시스템 추천을 받아들여 '검토완료'로 (분개 없음 — 전기는 선택 확정이 한다)
+  // 시스템이 맞게 추천한 건을 행마다 셀을 열어 같은 계정을 다시 고르던 수고를 없앤다 (2026-10-22).
+  const handleAcceptSuggestions = useCallback(async () => {
+    const selected = (gridRef.current?.api.getSelectedRows() ?? []) as Transaction[]
+    const ids = selected
+      .filter(r => r.suggested_account_id && !r.confirmed_account_id && r.status === 'pending')
+      .map(r => r.id)
+    if (!ids.length || confirmProgress) { if (!ids.length) showToast('선택한 행에 받아들일 추천이 없습니다'); return }
+    let accepted = 0, skipped = 0, errors = 0
+    try {
+      for (let i = 0; i < ids.length; i += CONFIRM_CHUNK) {
+        setConfirmProgress(`추천 수락 ${Math.min(i + CONFIRM_CHUNK, ids.length)}/${ids.length}건 처리 중...`)
+        const res = await fetch('/api/transactions/accept-suggestions', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: ids.slice(i, i + CONFIRM_CHUNK) }),
+        })
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) { showToast(json.error ?? `추천 수락 실패 (${accepted}건 처리 후 중단)`, 'err'); return }
+        accepted += json.accepted ?? 0
+        skipped  += (json.skipped?.no_suggestion ?? 0) + (json.skipped?.already_set ?? 0) + (json.skipped?.transfer ?? 0)
+        errors   += json.errors?.length ?? 0
+      }
+      const parts = [`${accepted}건 검토완료`]
+      if (skipped) parts.push(`${skipped}건 건너뜀`)
       if (errors)  parts.push(`${errors}건 오류`)
       showToast(parts.join(' · '), errors ? 'err' : 'ok')
     } finally {
@@ -1056,6 +1089,16 @@ function TransactionsContent() {
           )}
           {selectedCount > 0 && (
             <>
+              {acceptableCount > 0 && (
+                <button
+                  onClick={handleAcceptSuggestions}
+                  disabled={!!confirmProgress}
+                  title="선택한 행의 시스템 추천 계정을 그대로 받아들여 검토완료로 바꿉니다 (분개는 선택 확정에서)"
+                  className="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-60"
+                >
+                  추천 수락 {acceptableCount}건
+                </button>
+              )}
               <button
                 onClick={handleBulkConfirm}
                 disabled={!!confirmProgress}
@@ -1090,7 +1133,11 @@ function TransactionsContent() {
           defaultColDef={DEFAULT_COL_DEF}
           rowSelection="multiple"
           suppressRowClickSelection
-          onSelectionChanged={(e) => setSelectedCount(e.api.getSelectedRows().length)}
+          onSelectionChanged={(e) => {
+            const rows = e.api.getSelectedRows() as Transaction[]
+            setSelectedCount(rows.length)
+            setAcceptableCount(rows.filter(r => r.suggested_account_id && !r.confirmed_account_id && r.status === 'pending').length)
+          }}
           onCellValueChanged={onCellValueChanged}
           onFilterChanged={recomputeVisible}
           onModelUpdated={recomputeVisible}
@@ -1112,7 +1159,7 @@ function TransactionsContent() {
 
       {/* 안내 문구 */}
       <p className="text-xs text-gray-400 mt-2">
-        계정과목 셀 클릭 → 드롭다운으로 분류 &nbsp;·&nbsp; 메모 셀 클릭 → 직접 입력 &nbsp;·&nbsp; 행 체크 후 선택 확정으로 일괄 확정(분개 자동 생성)
+        계정과목 셀 클릭 → 드롭다운으로 분류 &nbsp;·&nbsp; 메모 셀 클릭 → 직접 입력 &nbsp;·&nbsp; 행 체크 후 추천 수락(검토완료) → 선택 확정(분개 자동 생성)
       </p>
 
       {/* 분개 미리보기 모달 */}
