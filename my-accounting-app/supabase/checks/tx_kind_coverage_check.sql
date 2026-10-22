@@ -67,20 +67,31 @@ SELECT jsonb_pretty(jsonb_build_object(
     SELECT COALESCE(jsonb_agg(t ORDER BY (t->>'건수')::int DESC), '[]'::jsonb)
     FROM (
       SELECT jsonb_build_object(
-        '대출번호', substring(btrim(description) from '^(\d{10,})'),
-        '구분들', jsonb_agg(DISTINCT tx_kind),
-        '건수', COUNT(*),
-        '출금합', COALESCE(SUM(amount_out), 0),
-        '은행', (SELECT ba.bank_name FROM bank_accounts ba WHERE ba.id = MIN(t.bank_account_id::text)::uuid),
+        '대출번호', g.loan_no,
+        '구분들', g.kinds,
+        '건수', g.n,
+        '출금합', g.out_sum,
+        '은행', (SELECT ba.bank_name FROM bank_accounts ba WHERE ba.id = g.first_account),
         '연결된_대출', (SELECT l.title FROM loans l
-                        WHERE regexp_replace(COALESCE(l.loan_account_no, ''), '[^0-9]', '', 'g')
-                              = substring(btrim(t.description) from '^(\d{10,})')
+                        WHERE regexp_replace(COALESCE(l.loan_account_no, ''), '[^0-9]', '', 'g') = g.loan_no
                         LIMIT 1)
       ) AS t
-      FROM transactions t
-      WHERE btrim(description) ~ '^\d{10,}(-\d+)?$'
-        AND tx_kind IS NOT NULL
-      GROUP BY substring(btrim(description) from '^(\d{10,})')
+      FROM (
+        -- 대출번호를 먼저 뽑아 묶는다 (묶이지 않은 컬럼을 상관 서브쿼리에 쓰면 42803)
+        SELECT x.loan_no,
+               jsonb_agg(DISTINCT x.tx_kind)         AS kinds,
+               COUNT(*)                              AS n,
+               COALESCE(SUM(x.amount_out), 0)        AS out_sum,
+               MIN(x.bank_account_id::text)::uuid    AS first_account
+        FROM (
+          SELECT substring(btrim(description) from '^(\d{10,})') AS loan_no,
+                 tx_kind, amount_out, bank_account_id
+          FROM transactions
+          WHERE btrim(description) ~ '^\d{10,}(-\d+)?$'
+            AND tx_kind IS NOT NULL
+        ) x
+        GROUP BY x.loan_no
+      ) g
     ) s
   ),
 
