@@ -248,7 +248,12 @@ export async function POST(req: NextRequest) {
   }))
 
   // ── 거래처 자동 매칭/등록 (사업자번호 우선, 없으면 상호명) ──────────
-  const { data: vendors } = await admin.from('vendors').select('id, name, biz_number, type, default_account_id')
+  // 전량을 페이지로 읽는다 — 단일 조회는 PostgREST max-rows(1000)에서 잘려, 1000번째 이후
+  // 거래처를 못 보고 같은 사업자번호로 새 거래처를 만들었다 (2026-10-22 확인: 동명 100그룹 216행).
+  const vendorsResult = await fetchAllRows<{ id: string; name: string; biz_number: string | null; type: string; default_account_id: string | null }>((f, t) =>
+    admin.from('vendors').select('id, name, biz_number, type, default_account_id').range(f, t))
+  if ('error' in vendorsResult) return NextResponse.json({ error: vendorsResult.error }, { status: 500 })
+  const vendors = vendorsResult.data
   const vendorByBiz  = new Map<string, { id: string; type: string }>()
   const vendorByName = new Map<string, { id: string; type: string }>()
   const vendorDefaultAcc = new Map<string, string>()   // vendor_id → default_account_id
