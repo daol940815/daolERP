@@ -524,9 +524,21 @@ wb.save(out_simple)
 print('saved', out_simple)
 
 # ═══ 한 장 대조표: 조합(은행|지점|담당자|채널) 단위, 문서와 완전히 같은 조합 제외 ═══
+# 채널 = 다올 담당 항목(2026-10-22 사용자 확인). 문서의 다올 담당이 현재 기준, ERP 채널이 다르면 정정 대상.
 why_bank = {r[0]: (r[3], r[5]) for r in bank_tbl}
 why_branch = {(r[0], r[1]): (r[5], r[7]) for r in branch_tbl}
 why_mgr = {(r[0], r[1], r[2]): (r[6], r[8]) for r in mgr_tbl}
+def doc_daol_for(b, br, m):
+    """고객의 문서 다올 담당: 조합 일치 → 그 행 / 은행+담당자 일치(지점 무관) → 그 행(들) / 없음 → None"""
+    d = doc_keys.get((b, br, m))
+    if d: return d, '문서 조합 일치'
+    rows_ = doc_mgr_rows.get((b, m), [])
+    if len(rows_) == 1: return rows_[0], f'문서 같은 은행 담당자(지점 {rows_[0]["branch"] or "(빈)"})'
+    if len(rows_) > 1:
+        daols = set(r_['daol'] for r_ in rows_)
+        if len(daols) == 1: return rows_[0], f'문서 같은 은행 담당자 {len(rows_)}행, 다올 담당 동일'
+        return None, '문서 같은 은행 담당자 여러 행, 다올 담당 상이: ' + ', '.join(f'{r_["branch"] or "(빈)"} {r_["daol"]}' for r_ in rows_)
+    return None, ''
 one = []
 for (b0, br0, m0), c in sorted(orig_combo.items(), key=lambda x: (bank_fix[x[0][0]], branch_fix[(bank_fix[x[0][0]], x[0][1])], -x[1]['n'])):
     b = bank_fix[b0]; br = branch_fix[(b, br0)]; m = mgr_fix[(b, br, m0)]
@@ -539,22 +551,35 @@ for (b0, br0, m0), c in sorted(orig_combo.items(), key=lambda x: (bank_fix[x[0][
     else: grade = '문서와 맞지 않음 — 사람 판정'
     gb, wb_ = why_bank[b0]; gbr, wbr = why_branch[(b, br0)]; gm, wm = why_mgr[(b, br, m0)]
     ch_txt = ', '.join(f'{k or "(빈)"} {n}' for k, n in c['ch'].most_common())
-    ch_ok = '' if not d else ('같음' if set(c['ch']) == {d['daol']} else '다름')
+    ch_top = c['ch'].most_common(1)[0][0] if c['ch'] else ''
+    dd, dsrc = doc_daol_for(b, br, m)
+    # 추천 다올 담당: 문서 값 우선, 없으면 ERP 채널 최다값(직원명일 때)
+    if dd:
+        rec_daol = dd['daol']
+        if set(c['ch']) == {rec_daol}: daol_why = f'ERP 채널과 같음 ({dsrc})'
+        else:
+            daol_why = f'ERP 채널 {ch_txt} → 문서 {rec_daol} ({dsrc})'
+            if dd['prev']: daol_why += f', 문서 예전 담당 {dd["prev"]}'
+    elif ch_top in staff:
+        rec_daol = ch_top; daol_why = 'ERP 채널 최다값(문서에 없는 고객 — 확인 필요)' + (f', 다른 채널 값 {len(c["ch"]) - 1}종' if len(c['ch']) > 1 else '')
+    else:
+        rec_daol = ''; daol_why = ('ERP 채널이 직원명이 아님: ' + ch_txt) if ch_top else 'ERP 채널 빈 값'
+        if dsrc: daol_why += ' / ' + dsrc
     one.append([b0, br0, m0, ch_txt, c['n'], c['first'], c['last'], grade,
                 b if b != b0 else '', br if br != br0 else '', m if m != m0 else '',
-                d['daol'] if d else '', ch_ok, d['move'] if d else '',
+                rec_daol if (rec_daol and set(c['ch']) != {rec_daol}) else '', daol_why, dd['move'] if dd else '',
                 f'[{gb}] {wb_}' if b != b0 or gb != '문서와 같음' else '',
                 f'[{gbr}] {wbr}' if br != br0 or gbr != '문서와 같음' else '',
                 f'[{gm}] {wm}' if m != m0 or gm != '문서와 같음' else '',
                 '', '', '', ''])
 wb = openpyxl.Workbook(); wb.remove(wb.active)
-sheet('대조표', ['ERP 은행명', 'ERP 지점명', 'ERP 담당자(고객)', 'ERP 채널(다올직원) 행수', '행수', '첫 주문', '마지막 주문', '판정',
-               '추천 은행명', '추천 지점명', '추천 담당자', '문서 다올 담당', '채널=다올 담당?', '문서 부서 이동',
+sheet('대조표', ['ERP 은행명', 'ERP 지점명', 'ERP 담당자(고객)', 'ERP 채널(=다올 담당) 행수', '행수', '첫 주문', '마지막 주문', '판정',
+               '추천 은행명', '추천 지점명', '추천 담당자', '추천 다올 담당', '근거(다올 담당)', '문서 부서 이동',
                '근거(은행명)', '근거(지점명)', '근거(담당자)', '기입 은행명', '기입 지점명', '기입 담당자', '기입 다올 담당'],
-      one, [18, 24, 20, 26, 7, 11, 11, 32, 18, 24, 20, 11, 10, 44, 50, 60, 60, 18, 24, 20, 12],
+      one, [18, 24, 20, 26, 7, 11, 11, 32, 18, 24, 20, 12, 50, 44, 50, 60, 60, 18, 24, 20, 12],
       note=f'ERP 조합(은행|지점|담당자) {len(orig_combo):,}건 중 고객관리문서와 완전히 같은 {len(orig_combo) - len(one):,}건 제외, {len(one):,}건. '
-           '판정 읽는 법: "추천대로 고치면 …" → 추천 확인 / "옛 지점 기록" → 그대로 둠 / "문서에 없는 거래처", "맞지 않음" → 기입. '
-           '추천 열이 비어 있으면 원 표기 유지. 채널은 응대자(주문 받은 직원)이므로 고치지 않고, 담당 영업은 "기입 다올 담당"에.',
+           '판정 읽는 법: "추천대로 고치면 …" → 추천 확인 / "옛 지점 기록" → 지점명은 그대로 둠 / "문서에 없는 거래처", "맞지 않음" → 기입. '
+           '추천 열이 비어 있으면 원 표기(채널은 ERP 값) 유지. 채널 = 다올 담당 항목: 문서의 다올 담당과 다르면 추천 다올 담당에 문서 값을 적음.',
       input_cols=('기입 은행명', '기입 지점명', '기입 담당자', '기입 다올 담당'))
 out_one = OUT + f'ERP_검수_대조표_{today}.xlsx'
 wb.save(out_one)
