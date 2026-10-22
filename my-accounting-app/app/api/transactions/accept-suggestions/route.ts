@@ -9,7 +9,8 @@ export const maxDuration = 60
 // 선택한 통장 거래의 **시스템 추천 계정(suggested_account_id)을 그대로 받아들여**
 // 확정 계정(confirmed_account_id)으로 복사하고 상태를 '검토완료(reviewed)'로 바꾼다.
 //  - 분개는 만들지 않는다 — 전기는 기존 '선택 확정'(/api/transactions/confirm)이 한다.
-//  - 이미 계정이 정해진 행(검토완료·확정), 추천이 없는 행, 계좌간 이체 행은 건너뛴다.
+//  - 이미 계정이 정해진 행(검토완료·확정), 추천이 없는 행은 건너뛴다.
+//  - 계좌간 이체쌍 행은 계정 없이 검토완료로 올린다 (분개 대상이 아니라 종착 상태가 필요).
 //  - 사용자가 행을 골라 누르는 동작이므로 "시스템은 추천, 확정은 사용자" 원칙은 유지된다.
 export async function POST(req: NextRequest) {
   const admin = createAdminClient()
@@ -32,13 +33,29 @@ export async function POST(req: NextRequest) {
 
     // 추천 계정이 같은 행끼리 묶어 UPDATE 횟수를 줄인다
     const byAccount = new Map<string, string[]>()
+    const transferIds: string[] = []
     for (const r of rows ?? []) {
-      if (r.transfer_pair_id)                                   { skipped.transfer++; continue }
+      // 계좌 간 이체쌍: 계정과목·분개가 없으므로 "받아들임" = 검토완료 표시 (2026-10-22)
+      if (r.transfer_pair_id) {
+        if (r.status === 'pending') transferIds.push(r.id as string)
+        else skipped.already_set++
+        continue
+      }
       if (r.confirmed_account_id || r.status !== 'pending')     { skipped.already_set++; continue }
       if (!r.suggested_account_id)                              { skipped.no_suggestion++; continue }
       const arr = byAccount.get(r.suggested_account_id as string) ?? []
       arr.push(r.id as string)
       byAccount.set(r.suggested_account_id as string, arr)
+    }
+
+    if (transferIds.length) {
+      const { error } = await admin
+        .from('transactions')
+        .update({ status: 'reviewed', suggested_account_id: null, suggested_side: null,
+                  ai_confidence: null, ai_reason: '계좌 간 이체쌍 — 분개 대상 아님' })
+        .in('id', transferIds)
+      if (error) { for (const id of transferIds) errors.push({ id, error: error.message }) }
+      else accepted += transferIds.length
     }
 
     for (const [accountId, txIds] of Array.from(byAccount.entries())) {
