@@ -210,6 +210,7 @@ export async function POST(req: NextRequest) {
   const { data: vendors } = await admin
     .from('vendors')
     .select('id, card_numbers')
+    .eq('status', 'active')            // 병합·비활성 거래처에 붙지 않게 (2026-10-22)
     .not('card_numbers', 'eq', '{}')
 
   // 학습된 카드번호(전체 번호)와 명세서의 마스킹 번호를 매칭할 수 있게
