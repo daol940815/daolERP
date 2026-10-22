@@ -190,12 +190,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ matched: 0, total: outgoing.length })
   }
 
+  // 이체쌍으로 묶이면 그 자체가 "검토 끝"이다 — 계좌 간 이동이라 계정과목·분개가 없다.
+  // 상태를 검토완료로 올리고, 키워드가 붙여둔 추천(보통예금 등)은 치운다 (2026-10-22).
+  const paired = {
+    status: 'reviewed',
+    suggested_account_id: null, suggested_side: null, ai_confidence: null,
+    ai_reason: '계좌 간 이체쌍 — 분개 대상 아님',
+  }
   await Promise.all(
     pairs.flatMap(([outId, inId]) => {
       const pairId = randomUUID()
       return [
-        admin.from('transactions').update({ transfer_pair_id: pairId }).eq('id', outId),
-        admin.from('transactions').update({ transfer_pair_id: pairId }).eq('id', inId),
+        admin.from('transactions').update({ transfer_pair_id: pairId, ...paired }).eq('id', outId).neq('status', 'confirmed'),
+        admin.from('transactions').update({ transfer_pair_id: pairId, ...paired }).eq('id', inId).neq('status', 'confirmed'),
+        admin.from('transactions').update({ transfer_pair_id: pairId }).eq('id', outId).eq('status', 'confirmed'),
+        admin.from('transactions').update({ transfer_pair_id: pairId }).eq('id', inId).eq('status', 'confirmed'),
       ]
     }),
   )
@@ -212,14 +221,23 @@ export async function DELETE(req: NextRequest) {
   const admin = createAdminClient()
   const body  = await req.json().catch(() => ({})) as { bank_account_id?: string; pair_id?: string }
 
-  const base = admin.from('transactions').update({ transfer_pair_id: null })
-
-  const { error } = body.pair_id
-    ? await base.eq('transfer_pair_id', body.pair_id)
+  // 해제하면 다시 분류 대상 — 계정이 없는 행은 미검토로 되돌린 뒤(먼저), 쌍 id를 지운다(나중)
+  // (쌍 id를 먼저 지우면 같은 조건으로 두 번째 갱신을 못 찾는다)
+  const revert = admin.from('transactions').update({ status: 'pending', ai_reason: null })
+    .is('confirmed_account_id', null).neq('status', 'confirmed')
+  const { error: e1 } = body.pair_id
+    ? await revert.eq('transfer_pair_id', body.pair_id)
     : body.bank_account_id
-      ? await base.eq('bank_account_id', body.bank_account_id).not('transfer_pair_id', 'is', null)
-      : await base.not('transfer_pair_id', 'is', null)
+      ? await revert.eq('bank_account_id', body.bank_account_id).not('transfer_pair_id', 'is', null)
+      : await revert.not('transfer_pair_id', 'is', null)
+  if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
 
+  const unpair = admin.from('transactions').update({ transfer_pair_id: null })
+  const { error } = body.pair_id
+    ? await unpair.eq('transfer_pair_id', body.pair_id)
+    : body.bank_account_id
+      ? await unpair.eq('bank_account_id', body.bank_account_id).not('transfer_pair_id', 'is', null)
+      : await unpair.not('transfer_pair_id', 'is', null)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

@@ -441,7 +441,7 @@ function TransactionsContent() {
   const handleAcceptSuggestions = useCallback(async () => {
     const selected = (gridRef.current?.api.getSelectedRows() ?? []) as Transaction[]
     const ids = selected
-      .filter(r => r.suggested_account_id && !r.confirmed_account_id && r.status === 'pending')
+      .filter(r => r.status === 'pending' && !r.confirmed_account_id && (r.suggested_account_id || r.transfer_pair_id))
       .map(r => r.id)
     if (!ids.length || confirmProgress) { if (!ids.length) showToast('선택한 행에 받아들일 추천이 없습니다'); return }
     let accepted = 0, skipped = 0, errors = 0
@@ -790,6 +790,7 @@ function TransactionsContent() {
       cellRenderer: (p: { data?: Transaction; value?: string }) => {
         if (!p.data) return ''
         if (p.data.confirmed_account_id) return p.value ?? '(미분류)'
+        if (p.data.transfer_pair_id) return '계좌 간 이체'
         if (p.data.suggested_account_id) return accountMap[p.data.suggested_account_id]?.name ?? '(미분류)'
         return '(미분류)'
       },
@@ -1145,7 +1146,7 @@ function TransactionsContent() {
           onSelectionChanged={(e) => {
             const rows = e.api.getSelectedRows() as Transaction[]
             setSelectedCount(rows.length)
-            setAcceptableCount(rows.filter(r => r.suggested_account_id && !r.confirmed_account_id && r.status === 'pending').length)
+            setAcceptableCount(rows.filter(r => r.status === 'pending' && !r.confirmed_account_id && (r.suggested_account_id || r.transfer_pair_id)).length)
           }}
           onCellValueChanged={onCellValueChanged}
           onFilterChanged={recomputeVisible}
