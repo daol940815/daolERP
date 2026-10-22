@@ -779,11 +779,19 @@ function TransactionsContent() {
       cellEditorParams: () => ({
         values: ['(미분류)', ...accounts.map(a => a.name)],
       }),
-      // 표시: confirmed → 볼드, suggested → 이탤릭 회색, 없음 → 연회색
+      // 값은 **확정 계정만** 본다. 추천 계정을 값으로 돌려주면 사용자가 같은 계정을 골랐을 때
+      // 그리드가 "변경 없음"으로 보고 저장 이벤트를 띄우지 않아 미검토에 머문다 (2026-10-22 수정).
       valueGetter: (p: ValueGetterParams<Transaction>) => {
-        const id = p.data?.confirmed_account_id ?? p.data?.suggested_account_id
+        const id = p.data?.confirmed_account_id
         if (!id) return '(미분류)'
         return accountMap[id]?.name ?? '(미분류)'
+      },
+      // 표시: confirmed → 볼드, suggested → 이탤릭 회색(추천), 없음 → 연회색
+      cellRenderer: (p: { data?: Transaction; value?: string }) => {
+        if (!p.data) return ''
+        if (p.data.confirmed_account_id) return p.value ?? '(미분류)'
+        if (p.data.suggested_account_id) return accountMap[p.data.suggested_account_id]?.name ?? '(미분류)'
+        return '(미분류)'
       },
       // 편집 완료 시 이름 → ID 역변환하여 confirmed_account_id에 저장
       valueSetter: (p: ValueSetterParams<Transaction>) => {
