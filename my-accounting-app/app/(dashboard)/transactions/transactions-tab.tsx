@@ -1097,16 +1097,17 @@ function TransactionsContent() {
           )}
           {selectedCount > 0 && (
             <>
-              {acceptableCount > 0 && (
-                <button
-                  onClick={handleAcceptSuggestions}
-                  disabled={!!confirmProgress}
-                  title="선택한 행의 시스템 추천 계정을 그대로 받아들여 검토완료로 바꿉니다 (분개는 선택 확정에서)"
-                  className="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-60"
-                >
-                  추천 수락 {acceptableCount}건
-                </button>
-              )}
+              {/* 행을 체크하면 항상 보인다 — 받아들일 추천이 없으면 비활성 (2026-10-22: 안 보여서 못 찾던 문제) */}
+              <button
+                onClick={handleAcceptSuggestions}
+                disabled={!!confirmProgress || acceptableCount === 0}
+                title={acceptableCount > 0
+                  ? '선택한 행의 시스템 추천 계정(기울임 회색)을 그대로 받아들여 검토완료로 바꿉니다 (분개는 선택 확정에서)'
+                  : '선택한 행 중 추천만 있는 미검토 행이 없습니다'}
+                className="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-40"
+              >
+                추천 수락 {acceptableCount}건
+              </button>
               <button
                 onClick={handleBulkConfirm}
                 disabled={!!confirmProgress}
