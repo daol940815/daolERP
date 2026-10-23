@@ -19,6 +19,9 @@
 //     이후 입금만 차감한다. 업로드 이전 입금은 ERP가 들고 온 outstanding_amount에
 //     이미 반영돼 있어 다시 빼면 이중차감이다. direct 주문(자체 주문시스템)은
 //     재업로드가 없으므로 전액 차감.
+//     예외(2026-10-23, 416): ERP가 수금을 하나도 반영하지 않은 주문(원본미수 ≥ 총액)은
+//     업로드 이전 입금도 차감한다 — ERP가 뺀 게 없으니 이중차감이 될 수 없고, 실제로
+//     전액 입금 매칭된 13건이 ERP 수금 미입력 탓에 미수 623만으로 남아 있었다.
 //   · 미수 상한: 매출이 없는 주문(전액 VIP·선결제)에는 미수도 없다. 상한에는
 //     0 하한을 걸어 순매출이 음수여도 미수가 음수가 되지 않게 한다.
 //   · 수금완료=0: ERP에서 수금완료로 표시한 주문은 잔액이 남아 있어도 받을 돈이 아니다.
@@ -67,10 +70,12 @@ export function netSalesOf(items: ReceivableItemLike[] | undefined): number {
 export function cutoffAlloc(o: ReceivableOrderLike, events: PayEvent[] | undefined): number {
   if (!events?.length) return 0
   const isDirect = (o.source ?? 'upload') === 'direct'
+  // ERP에 수금이 전혀 반영되지 않은 주문(원본미수 ≥ 총액)은 컷오프와 무관하게 전액 차감 (416)
+  const erpUncollected = (o.outstanding_amount ?? 0) >= (o.total_amount ?? 0)
   const cut = (o.updated_at ?? '').slice(0, 10)
   let sum = 0
   for (const e of events) {
-    if (isDirect || (e.paid_date && cut && e.paid_date > cut)) sum += e.amount
+    if (isDirect || erpUncollected || (e.paid_date && cut && e.paid_date > cut)) sum += e.amount
   }
   return sum
 }
