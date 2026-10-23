@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { VendorOrderRow, VendorPreferredItemRow, VendorSalesDetail } from '@/types/vendor-sales'
 import type { ErpCollectStatus } from '@/types/erp'
 import { isMissingMatchTable } from '@/lib/erp-matching'
+import { cutoffAlloc, outstandingOf } from '@/lib/receivable'
 
 const PAGE_SIZE = 1000
 
@@ -31,11 +32,13 @@ type OrderRecord = {
   total_amount: number
   outstanding_amount: number
   collect_status: ErpCollectStatus
+  source: string | null
+  updated_at: string | null
 }
 
 // 매출처(거래처) 상세 페이지 — 연결된 ERP 매출 별칭들의 주문/품목을 모아
 // 주문내역, 선호 품목(수량 상위), 순매출/순미수금(취소·VIP·선결제 제외 + 매칭 수금 차감)을 계산한다.
-// lib/erp-reports.ts의 buildReceivableRows와 동일한 제외/매칭 규칙을 거래처 단위로 재적용한다.
+// 미수는 lib/receivable.ts 표준 규칙(= DB 뷰 v_erp_order_receivable)을 그대로 쓴다.
 export async function buildVendorSalesDetail(
   admin: SupabaseClient,
   vendorId: string,
@@ -58,7 +61,7 @@ export async function buildVendorSalesDetail(
   const ordersResult = await fetchAllRows<OrderRecord>((rFrom, rTo) =>
     admin
       .from('erp_orders')
-      .select('id, order_no, order_date, staff_name, manager_name, total_amount, outstanding_amount, collect_status')
+      .select('id, order_no, order_date, staff_name, manager_name, total_amount, outstanding_amount, collect_status, source, updated_at')
       .in('customer_alias_id', aliasIds)
       .order('order_date', { ascending: false })
       .range(rFrom, rTo),
@@ -69,27 +72,31 @@ export async function buildVendorSalesDetail(
 
   const orderIds = orders.map(o => o.id)
 
-  const excludedByOrder = new Map<string, number>()
-  const { data: exclusions, error: ie } = await admin
-    .rpc('erp_order_item_exclusions', { p_order_ids: orderIds })
-  if (ie) return { error: ie.message }
-  for (const row of exclusions ?? []) {
-    excludedByOrder.set(row.order_id as string, (row.excluded_amount as number) || 0)
-  }
-
-  const matchedByOrder = new Map<string, number>()
-  const { data: matches, error: me } = await admin
-    .rpc('erp_order_payment_matches', { p_order_ids: orderIds })
-  if (me) {
-    if (!isMissingMatchTable(me)) return { error: me.message }
-  } else {
-    for (const row of matches ?? []) {
-      matchedByOrder.set(row.order_id as string, (row.matched_amount as number) || 0)
+  // 표준 미수(lib/receivable.ts)는 업로드 컷오프 판정에 입금일이 필요하다
+  const matchesByOrder = new Map<string, { amount: number; paid_date: string | null }[]>()
+  for (let i = 0; i < orderIds.length; i += 300) {
+    const chunk = orderIds.slice(i, i + 300)
+    const mRes = await fetchAllRows<{ order_id: string; amount: number; paid_date: string | null }>((rFrom, rTo) =>
+      admin
+        .from('erp_payment_matches')
+        .select('order_id, amount, paid_date')
+        .in('order_id', chunk)
+        .range(rFrom, rTo),
+    )
+    if ('error' in mRes) {
+      if (!isMissingMatchTable({ message: mRes.error })) return { error: mRes.error }
+      break
+    }
+    for (const m of mRes.data) {
+      const arr = matchesByOrder.get(m.order_id)
+      if (arr) arr.push(m)
+      else matchesByOrder.set(m.order_id, [m])
     }
   }
 
-  // 품목 — 주문별 건수 + 선호 품목(품목명 그룹핑, 취소/VIP/선결제 제외) 집계
+  // 품목 — 주문별 건수 + 순매출(비제외 합) + 선호 품목(품목명 그룹핑, 취소/VIP/선결제 제외) 집계
   const itemCountByOrder = new Map<string, number>()
+  const netByOrder = new Map<string, number>()
   const itemGroups = new Map<string, { item_name: string; quantity: number; line_total: number; orderIds: Set<string> }>()
 
   for (let i = 0; i < orderIds.length; i += 500) {
@@ -106,6 +113,8 @@ export async function buildVendorSalesDetail(
       const orderId = it.order_id as string
       itemCountByOrder.set(orderId, (itemCountByOrder.get(orderId) ?? 0) + 1)
       if (it.is_canceled || it.is_vip || it.is_prepayment) continue
+      // 순매출 = 비제외 품목 합 (lib/receivable.ts 표준)
+      netByOrder.set(orderId, (netByOrder.get(orderId) ?? 0) + ((it.line_total as number) || 0))
       const name = (it.item_name as string | null)?.trim() || '품목 미지정'
       let g = itemGroups.get(name)
       if (!g) {
@@ -129,10 +138,8 @@ export async function buildVendorSalesDetail(
   let monthSales = 0
 
   const orderRows: VendorOrderRow[] = orders.map(o => {
-    const excluded = excludedByOrder.get(o.id) ?? 0
-    const netAmount = (o.total_amount || 0) - excluded
-    const matched = matchedByOrder.get(o.id) ?? 0
-    const remaining = o.collect_status === 'collected' ? 0 : Math.max((o.outstanding_amount || 0) - matched, 0)
+    const netAmount = netByOrder.get(o.id) ?? 0
+    const remaining = outstandingOf(o, { net: netAmount, alloc: cutoffAlloc(o, matchesByOrder.get(o.id)) })
 
     const staffName = o.staff_name?.trim()
     if (staffName) staffSet.add(staffName)

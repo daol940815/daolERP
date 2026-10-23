@@ -2,14 +2,16 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { computeOrderDeliveryStatus } from '@/lib/erp-delivery-status'
 import { contactLabel } from '@/lib/contact-label'
+import { cutoffAlloc, outstandingOf } from '@/lib/receivable'
 import type { ErpOrderDeliveryStatus } from '@/types/erp'
 
 // ─────────────────────────────────────────────────────────
 // 매출처 허브 집계
 //
 // 기준(원본데이터 우선):
-//  - 기간 매출  = ERP 순매출(주문 총액 - 취소/VIP/선결제 품목)
-//  - 미수       = ERP 주문의 outstanding_amount 합(순매출 상한)
+//  - 기간 매출  = ERP 순매출(= 비제외 품목 line_total 합, 월별 손익 025와 동일)
+//  - 미수       = lib/receivable.ts의 표준 규칙(= DB 뷰 v_erp_order_receivable)
+//                 수금완료 주문은 0, 그 외 min(max(0, 원본미수 − 컷오프 통과 매칭), 순매출)
 //  - 수금       = 순매출 - 미수  (ERP 수금 상태 기준)
 //  - 수금 분해(보조)·타임라인은 회계 데이터(계산서 매칭·통장·카드)로 표시
 //  - 누적 KPI: VIP 매출 = is_vip 품목 누적(취소 제외),
@@ -61,30 +63,15 @@ interface OrderLite {
   customer_alias_id: string | null
   total_amount: number | null
   outstanding_amount: number | null
+  collect_status?: string | null
   staff_name: string | null
   manager_name?: string | null
   updated_at?: string | null
   source?: string | null
 }
 
-interface FlagAgg { excluded: number; vip: number; vipCanceled: number }
-
-// 업로드 컷오프 규칙 (107과 동일해야 한다):
-// upload 주문은 마지막 업로드(updated_at) 이후 입금 매칭만 차감,
-// direct 주문(자체 주문시스템)은 재업로드가 없으므로 전액 차감.
-function cutoffAlloc(
-  o: { updated_at?: string | null; source?: string | null },
-  events: { amount: number; paid_date: string | null }[] | undefined,
-): number {
-  if (!events?.length) return 0
-  const isDirect = (o.source ?? 'upload') === 'direct'
-  const cut = (o.updated_at ?? '').slice(0, 10)
-  let sum = 0
-  for (const e of events) {
-    if (isDirect || (e.paid_date && cut && e.paid_date > cut)) sum += e.amount
-  }
-  return sum
-}
+// net = 비제외 품목 합(표준 순매출) / excluded = 제외 품목 합(참고)
+interface FlagAgg { net: number; excluded: number; vip: number; vipCanceled: number }
 
 const today = () => new Date().toISOString().slice(0, 10)
 const addDays = (iso: string, days: number) => {
@@ -124,22 +111,24 @@ async function fetchAllParallel<T>(
   return { data: out.flat() }
 }
 
-// 취소/VIP/선결제 품목을 주문별로 집계 (순매출 차감 + VIP 누적 계산용)
+// 주문별 품목 집계 — 순매출(비제외 품목 합) + 제외금액 + VIP 누적
+// 순매출을 품목에서 직접 더하므로 제외 품목만 읽어서는 안 된다 (lib/receivable.ts 참조).
 async function loadFlaggedLines(admin: SupabaseClient) {
   const r = await fetchAllRows<{ order_id: string; line_total: number | null; is_canceled: boolean; is_vip: boolean; is_prepayment: boolean }>((f, t) =>
     admin.from('erp_order_items')
       .select('order_id, line_total, is_canceled, is_vip, is_prepayment')
-      .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
       .range(f, t))
   if ('error' in r) return r
   const byOrder = new Map<string, FlagAgg>()
   for (const it of r.data) {
     let a = byOrder.get(it.order_id)
-    if (!a) { a = { excluded: 0, vip: 0, vipCanceled: 0 }; byOrder.set(it.order_id, a) }
-    a.excluded += it.line_total ?? 0
+    if (!a) { a = { net: 0, excluded: 0, vip: 0, vipCanceled: 0 }; byOrder.set(it.order_id, a) }
+    const amt = it.line_total ?? 0
+    if (it.is_canceled || it.is_vip || it.is_prepayment) a.excluded += amt
+    else a.net += amt
     if (it.is_vip) {
-      if (it.is_canceled) a.vipCanceled += it.line_total ?? 0
-      else a.vip += it.line_total ?? 0
+      if (it.is_canceled) a.vipCanceled += amt
+      else a.vip += amt
     }
   }
   return { data: byOrder }
@@ -192,7 +181,7 @@ export async function buildHubList(
       fetchAllParallel<OrderLite>(
         () => admin.from('erp_orders').select('id', { count: 'exact', head: true }).not('customer_alias_id', 'is', null),
         (f, t) => admin.from('erp_orders')
-          .select('id, order_no, order_date, customer_alias_id, total_amount, outstanding_amount, staff_name, updated_at, source')
+          .select('id, order_no, order_date, customer_alias_id, total_amount, outstanding_amount, collect_status, staff_name, updated_at, source')
           .not('customer_alias_id', 'is', null)
           .range(f, t)),
       loadFlaggedLines(admin),
@@ -286,8 +275,8 @@ export async function buildHubList(
       a.vip_total += flags?.vip ?? 0
       const inPeriod = (!fromDate || o.order_date >= fromDate) && (!toDate || o.order_date <= toDate)
       if (!inPeriod) continue
-      const net = Math.max(0, (o.total_amount ?? 0) - (flags?.excluded ?? 0))
-      const out = Math.min(Math.max(0, (o.outstanding_amount ?? 0) - cutoffAlloc(o, fallback.payEvents.get(o.id))), net)
+      const net = flags?.net ?? 0
+      const out = outstandingOf(o, { net, alloc: cutoffAlloc(o, fallback.payEvents.get(o.id)) })
       a.order_count++
       a.net += net
       a.outstanding += out
@@ -499,7 +488,7 @@ export async function buildHubDetail(
   if (aliasIds.length) {
     const r = await fetchAllRows<OrderLite>((f, t) =>
       admin.from('erp_orders')
-        .select('id, order_no, order_date, customer_alias_id, total_amount, outstanding_amount, staff_name, manager_name, updated_at, source')
+        .select('id, order_no, order_date, customer_alias_id, total_amount, outstanding_amount, collect_status, staff_name, manager_name, updated_at, source')
         .in('customer_alias_id', aliasIds)
         .order('order_date', { ascending: false })
         .range(f, t))
@@ -615,10 +604,12 @@ export async function buildHubDetail(
   // ── 집계 ──
   const flaggedLocal = new Map<string, FlagAgg>()
   for (const [oid, items] of Array.from(itemsByOrder.entries())) {
-    const a: FlagAgg = { excluded: 0, vip: 0, vipCanceled: 0 }
+    const a: FlagAgg = { net: 0, excluded: 0, vip: 0, vipCanceled: 0 }
     for (const it of items) {
-      if (it.is_canceled || it.is_vip || it.is_prepayment) a.excluded += it.line_total ?? 0
-      if (it.is_vip && !it.is_canceled) a.vip += it.line_total ?? 0
+      const amt = it.line_total ?? 0
+      if (it.is_canceled || it.is_vip || it.is_prepayment) a.excluded += amt
+      else a.net += amt
+      if (it.is_vip && !it.is_canceled) a.vip += amt
     }
     flaggedLocal.set(oid, a)
   }
@@ -635,9 +626,9 @@ export async function buildHubDetail(
     if (!lastOrder || o.order_date > lastOrder) lastOrder = o.order_date
     const flags = flaggedLocal.get(o.id)
     vipTotal += flags?.vip ?? 0
-    const oNet = Math.max(0, (o.total_amount ?? 0) - (flags?.excluded ?? 0))
-    // 업로드 컷오프 반영 잔여 미수 (upload=업로드 이후 매칭만 차감 / direct=전액 차감)
-    const oOut = Math.min(Math.max(0, (o.outstanding_amount ?? 0) - cutoffAlloc(o, payEventsByOrder.get(o.id))), oNet)
+    const oNet = flags?.net ?? 0
+    // 표준 미수 (lib/receivable.ts = DB 뷰 v_erp_order_receivable과 동일 규칙)
+    const oOut = outstandingOf(o, { net: oNet, alloc: cutoffAlloc(o, payEventsByOrder.get(o.id)) })
     if (oOut > 0) {
       const age = Math.floor((new Date(t0).getTime() - new Date(o.order_date).getTime()) / 86400000)
       if (age <= 30) aging.b30 += oOut

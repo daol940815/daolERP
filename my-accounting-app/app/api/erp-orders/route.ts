@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { cutoffAlloc, outstandingOf } from '@/lib/receivable'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,13 +62,15 @@ export async function GET(req: NextRequest) {
     outstanding = Number(s?.outstanding ?? 0)
   } else if (se.code === 'EXTRA_FILTER' || se.code === 'PGRST202' || /erp_orders_summary/i.test(se.message)) {
     // 함수 미적용(020 미실행) 또는 추가 필터 사용 시 JS 집계 폴백
-    type OrderSumRow = { id: string; total_amount: number | null; outstanding_amount: number | null; collect_status: string }
+    type OrderSumRow = {
+      id: string; total_amount: number | null; outstanding_amount: number | null
+      collect_status: string; source: string | null; updated_at: string | null
+    }
+    const sumCols = 'id, total_amount, outstanding_amount, collect_status, source, updated_at'
     const allOrdersResult = await fetchAllRows<OrderSumRow>((pFrom, pTo) => {
       let sq = admin
         .from('erp_orders')
-        .select(needItemJoin
-          ? 'id, total_amount, outstanding_amount, collect_status, erp_order_items!inner(order_id)'
-          : 'id, total_amount, outstanding_amount, collect_status')
+        .select(needItemJoin ? `${sumCols}, erp_order_items!inner(order_id)` : sumCols)
       if (from)                       sq = sq.gte('order_date', from)
       if (to)                         sq = sq.lte('order_date', to)
       if (status && status !== 'all') sq = sq.eq('collect_status', status)
@@ -85,24 +88,47 @@ export async function GET(req: NextRequest) {
     const allIds = allOrders.map(o => o.id)
     total = allIds.length
 
-    let excludedSum = 0
-    for (let i = 0; i < allIds.length; i += 500) {
-      const chunkIds = allIds.slice(i, i + 500)
-      const flaggedResult = await fetchAllRows<{ line_total: number | null }>((pFrom, pTo) =>
-        admin
-          .from('erp_order_items')
-          .select('line_total')
-          .in('order_id', chunkIds)
-          .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
-          .range(pFrom, pTo),
-      )
+    // 미수·순매출은 lib/receivable.ts 표준 규칙으로 계산한다 (RPC·허브와 같은 값).
+    // 순매출은 비제외 품목 합이므로 품목 전체를 읽어야 한다 — 청크로 나눠 조회.
+    const netByOrder = new Map<string, number>()
+    const matchesByOrder = new Map<string, { amount: number; paid_date: string | null }[]>()
+    for (let i = 0; i < allIds.length; i += 300) {
+      const chunkIds = allIds.slice(i, i + 300)
+      const [flaggedResult, matchResult] = await Promise.all([
+        fetchAllRows<{ order_id: string; line_total: number | null; is_canceled: boolean | null; is_vip: boolean | null; is_prepayment: boolean | null }>((pFrom, pTo) =>
+          admin
+            .from('erp_order_items')
+            .select('order_id, line_total, is_canceled, is_vip, is_prepayment')
+            .in('order_id', chunkIds)
+            .range(pFrom, pTo),
+        ),
+        fetchAllRows<{ order_id: string; amount: number; paid_date: string | null }>((pFrom, pTo) =>
+          admin
+            .from('erp_payment_matches')
+            .select('order_id, amount, paid_date')
+            .in('order_id', chunkIds)
+            .range(pFrom, pTo),
+        ),
+      ])
       if ('error' in flaggedResult) return NextResponse.json({ error: flaggedResult.error }, { status: 500 })
-      for (const it of flaggedResult.data) excludedSum += it.line_total || 0
+      if ('error' in matchResult)  return NextResponse.json({ error: matchResult.error }, { status: 500 })
+      for (const it of flaggedResult.data) {
+        if (it.is_canceled || it.is_vip || it.is_prepayment) continue
+        netByOrder.set(it.order_id, (netByOrder.get(it.order_id) ?? 0) + (it.line_total || 0))
+      }
+      for (const m of matchResult.data) {
+        const arr = matchesByOrder.get(m.order_id)
+        if (arr) arr.push(m)
+        else matchesByOrder.set(m.order_id, [m])
+      }
     }
-    netSales = allOrders.reduce((s, o) => s + (o.total_amount || 0), 0) - excludedSum
-    outstanding = allOrders
-      .filter(o => o.collect_status !== 'collected')
-      .reduce((s, o) => s + (o.outstanding_amount || 0), 0)
+    netSales = 0
+    outstanding = 0
+    for (const o of allOrders) {
+      const net = netByOrder.get(o.id) ?? 0
+      netSales += net
+      outstanding += outstandingOf(o, { net, alloc: cutoffAlloc(o, matchesByOrder.get(o.id)) })
+    }
   } else {
     return NextResponse.json({ error: se.message }, { status: 500 })
   }
