@@ -25,11 +25,11 @@ const KIND_BADGE: Record<Group['kind'], { label: string; cls: string }> = {
   internal:     { label: '이체 후보', cls: 'bg-amber-100 text-amber-700' },
   settlement:   { label: '카드 정산', cls: 'bg-blue-100 text-blue-700' },
   card_payment: { label: '카드대금', cls: 'bg-purple-100 text-purple-700' },
-  invoice:      { label: '세계 매칭', cls: 'bg-teal-100 text-teal-700' },
+  invoice:      { label: '계산서 매칭', cls: 'bg-teal-100 text-teal-700' },   // 계산서(세금계산서·계산서)와 이미 연결된 입금·출금
   general:      { label: '일반', cls: 'bg-gray-100 text-gray-600' },
 }
 
-// 통장 거래 분류 — 유형(이체·정산·카드대금·세계매칭)을 갈라낸 뒤 나머지를 유사거래
+// 통장 거래 분류 — 유형(이체·정산·카드대금·계산서매칭)을 갈라낸 뒤 나머지를 유사거래
 // 묶음으로 일괄 확정한다. 확정 즉시 은행 분개 생성(멱등). 추천은 추천일 뿐, 확정은 사용자.
 // 통장 내역 화면의 '분류 작업' 탭 (옛 /bank-classify 화면 본문) — 기간 없이 미분류 잔여 전체를 묶는다
 // (2026-09-30 사용자 승인). 계좌 필터(사이드바 계좌별 바로가기)만 공유한다.
@@ -128,7 +128,7 @@ export default function ClassifyTab({ bankAccountId }: { bankAccountId?: string 
       <div className="flex items-start justify-between mb-1">
         <div>
           <p className="text-sm text-gray-500">
-            이체·정산·카드대금·세계매칭을 갈라낸 뒤, 나머지를 유사거래 묶음으로 일괄 확정합니다. 기간과 무관하게 미분류 전체가 대상입니다.
+            이체·정산·카드대금·계산서매칭을 갈라낸 뒤, 나머지를 유사거래 묶음으로 일괄 확정합니다. 기간과 무관하게 미분류 전체가 대상입니다.
           </p>
         </div>
         <button
@@ -157,7 +157,7 @@ export default function ClassifyTab({ bankAccountId }: { bankAccountId?: string 
           <span className="px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-700">이체 후보 {types.internal.toLocaleString()}</span>
           <span className="px-2.5 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-blue-700">카드 정산 {types.settlement.toLocaleString()}</span>
           <span className="px-2.5 py-1.5 bg-purple-50 border border-purple-200 rounded-lg text-purple-700">카드대금 {types.card_payment.toLocaleString()}</span>
-          <span className="px-2.5 py-1.5 bg-teal-50 border border-teal-200 rounded-lg text-teal-700">세계 매칭 {types.invoice.toLocaleString()}</span>
+          <span className="px-2.5 py-1.5 bg-teal-50 border border-teal-200 rounded-lg text-teal-700" title="계산서와 이미 연결된 입금·출금 — 매출채권·미지급금 상계">계산서 매칭 {types.invoice.toLocaleString()}</span>
           <span className="px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">일반 {types.general.toLocaleString()}</span>
         </div>
       )}
