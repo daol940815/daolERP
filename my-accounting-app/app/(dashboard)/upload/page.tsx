@@ -250,6 +250,7 @@ export default function UploadPage() {
     if (data.vendorsCreated) parts.push(`신규 거래처 ${data.vendorsCreated}`)
     if (data.skipped)        parts.push(`건너뜀 ${data.skipped}`)
     if (data.mismatched)     parts.push(`사업자번호 위치 어긋남 ${data.mismatched}`)
+    if (data.self_rows)      parts.push(`상대방이 우리 회사인 행 제외 ${data.self_rows}`)
     patchItem(item.id, { status: 'success', resultText: parts.join(' · ') })
   }
 
