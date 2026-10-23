@@ -1,7 +1,7 @@
 -- =====================================================
 -- card_integrated_upload_outcome_check.sql
 -- (2026-10-23 수정: 시트명 조건 제거 — 기존 내역이 06-29까지라 기간만으로 통합양식 행을 가른다.
---  첫 실행(업로드 전)은 전부 0이 정상.)  (읽기 전용 — 데이터 변경 없음)
+--  첫 실행(업로드 전)은 전부 0이 정상. 실제 올린 파일은 승인내역상세조회_20261023 — 기간 상한을 오늘로.)  (읽기 전용 — 데이터 변경 없음)
 -- 법인카드 통합양식 업로드 후 검증 (2026-10-23)
 --
 -- 파일 기대값(드라이런): 387행 전부 신규(컷오프 0) — 정상 343 · 가승인 취소 16(금액 0) · 환불 취소 28
@@ -35,7 +35,7 @@ SELECT jsonb_pretty(jsonb_build_object(
         '확정', COUNT(*) FILTER (WHERE e.classify_status = 'confirmed')
       ) AS t
       FROM card_expenses e JOIN card_accounts ca ON ca.id = e.card_account_id
-      WHERE e.tx_date BETWEEN DATE '2026-06-30' AND DATE '2026-09-30'
+      WHERE e.tx_date BETWEEN DATE '2026-06-30' AND CURRENT_DATE
       GROUP BY ca.card_company
     ) s
   ),
@@ -44,7 +44,7 @@ SELECT jsonb_pretty(jsonb_build_object(
                               '취소합', COALESCE(SUM(cancel_amount), 0),
                               '순액', COALESCE(SUM(approved_amount - cancel_amount), 0))
     FROM card_expenses
-    WHERE tx_date BETWEEN DATE '2026-06-30' AND DATE '2026-09-30'
+    WHERE tx_date BETWEEN DATE '2026-06-30' AND CURRENT_DATE
   ),
 
   -- [2] 카드계좌 — 기대 11장 그대로, 새 행 0
@@ -70,19 +70,19 @@ SELECT jsonb_pretty(jsonb_build_object(
                           AND o.cancel_amount > 0
                           AND o.tx_date <= c.tx_date AND o.id <> c.id
       WHERE c.statement_status = '취소'
-        AND c.tx_date BETWEEN DATE '2026-06-30' AND DATE '2026-09-30'
+        AND c.tx_date BETWEEN DATE '2026-06-30' AND CURRENT_DATE
     ) s
   ),
   -- 짝 없는 환불(원거래가 6/30 이전 또는 다른 금액) — 참고용 건수
   '짝없는_환불', (
     SELECT COUNT(*) FROM card_expenses c
     WHERE c.statement_status = '취소'
-      AND c.tx_date BETWEEN DATE '2026-06-30' AND DATE '2026-09-30'
+      AND c.tx_date BETWEEN DATE '2026-06-30' AND CURRENT_DATE
       AND NOT EXISTS (
         SELECT 1 FROM card_expenses o
         WHERE o.card_account_id = c.card_account_id AND o.merchant_name = c.merchant_name
           AND o.approved_amount = c.cancel_amount AND o.id <> c.id
-          AND o.tx_date BETWEEN DATE '2026-06-30' AND DATE '2026-09-30')
+          AND o.tx_date BETWEEN DATE '2026-06-30' AND CURRENT_DATE)
   ),
 
   -- [4] 분개 — 확정 건만
@@ -90,11 +90,11 @@ SELECT jsonb_pretty(jsonb_build_object(
     SELECT jsonb_build_object(
       '전기건수', COUNT(*),
       '확정건수', (SELECT COUNT(*) FROM card_expenses WHERE classify_status = 'confirmed'
-                    AND tx_date BETWEEN DATE '2026-06-30' AND DATE '2026-09-30'))
+                    AND tx_date BETWEEN DATE '2026-06-30' AND CURRENT_DATE))
     FROM journal_entries je
     WHERE je.source_type = 'card'
       AND je.source_id IN (SELECT id FROM card_expenses
-                           WHERE tx_date BETWEEN DATE '2026-06-30' AND DATE '2026-09-30')
+                           WHERE tx_date BETWEEN DATE '2026-06-30' AND CURRENT_DATE)
   )
 
 )) AS check_result;
