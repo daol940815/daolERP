@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx'
 //   현금영수증     app/api/cash-receipts/import   SALES/PURCHASE_REQUIRED_COLS
 //   ERP 주문       app/api/erp-orders/import      REQUIRED_COLS (공백 제거 비교)
 //   카드매출       app/api/card-sales/import      TERMINAL/MANUAL_REQUIRED_COLS
-//   법인카드       app/api/card-expenses/import   STD/LOTTE/WOORI_COLS
+//   법인카드       app/api/card-expenses/import   STD/LOTTE/WOORI/INTEG_COLS
 //   통장           lib/file-parser.ts             날짜 + 금액 컬럼 (가장 느슨 — 반드시 마지막)
 // 서버 쪽 서명을 바꾸면 여기도 같이 바꿀 것.
 
@@ -18,7 +18,7 @@ const SIGNATURES: { kind: UploadKind; anyOf: string[][]; normalize?: boolean }[]
   { kind: 'cash_receipts', anyOf: [['매출일시', '승인번호', '총금액', '거래구분'], ['매입일시', '승인번호', '매입금액', '거래구분']] },
   { kind: 'erp_orders',    anyOf: [['주문번호', '주문일', '품명', '매입처이름', '합계금액', '총금액']], normalize: true },
   { kind: 'card_sales',    anyOf: [['거래일자', '거래유형', '카드번호', '승인번호', '금액'], ['결제일', '승인번호', '카드번호', '결제금액', '결제상태']] },
-  { kind: 'card_expenses', anyOf: [['카드번호', '이용일', '승인금액', '가맹점명'], ['카드번호', '승인일자', '승인금액(원화)', '가맹점명'], ['이용일자', '승인번호', '이용카드', '이용가맹점명']] },
+  { kind: 'card_expenses', anyOf: [['카드번호', '이용일', '승인금액', '가맹점명'], ['카드번호', '승인일자', '승인금액(원화)', '가맹점명'], ['이용일자', '승인번호', '이용카드', '이용가맹점명'], ['승인일시', '카드사', '카드번호', '가맹점', '승인금액', '상태']] },
 ]
 
 // 통장 명세서 — lib/file-parser.ts findHeaderRow와 같은 기준
