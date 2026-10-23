@@ -488,7 +488,7 @@ A안(허브를 단일 진실로) 채택. `reports/management-dashboard/page.tsx`
 |---|---|---|---|
 | `406_erp_order_receivable_view.sql` | 뷰 신설 | 없음 | **실행 완료** (2026-10-01) |
 | `407_receivable_view_net_sales_fix.sql` | 뷰 보정 — 순매출을 품목 합으로, 0 하한 제거 | 없음 | **실행 완료** (2026-10-12) — 검증 8,635/8,635 · 순매출 6,310,278,915(=025) · legacy 5,849,863,431(=022) · 표준 미수 255,579,538/279건 |
-| `408_receivable_unify_rpcs.sql` | `hub_vendor_summary`·`erp_orders_summary`·`erp_receivable_summary`를 뷰 위로 재작성 + `erp_order_receivable_by_ids` 추가 | **있음** | 실행 대기 |
+| `408_receivable_unify_rpcs.sql` | `hub_vendor_summary`·`erp_orders_summary`·`erp_receivable_summary`를 뷰 위로 재작성 + `erp_order_receivable_by_ids` 추가 | **있음** | **적용 확인** (2026-10-23) — 점검 SQL에서 세 함수 호출값이 모두 255,587,938 = 뷰 표준 합계. 사용자 실행 보고는 없었으나 옛 공식(101: 250,750,538 / 022·037: 265,360,338)으로는 나올 수 없는 값이라 적용된 것으로 본다. JS 쪽(`lib/receivable.ts` 호출부)은 같은 날 main 병합·배포 |
 | `409_tx_kind_and_loan_account_no.sql` | `transactions.tx_kind` + `loans.loan_account_no` 컬럼 | 없음 | **실행 완료** (2026-10-07) |
 | `410_cleanup_misuploaded_bank_file.sql` | 구버전 업로더로 들어간 1,356건 삭제 | — | **실행 완료** (2026-10-07, 검증 일치) |
 
@@ -510,6 +510,21 @@ A안(허브를 단일 진실로) 채택. `reports/management-dashboard/page.tsx`
 - `app/api/erp-orders/route.ts` — JS 폴백(추가 필터 시)이 원본 미수를 그대로 더하던 문제 해결
 - `lib/erp-reports.ts` — `buildReceivableRows`(수금대상 폴백)·`buildReceivableAgingRows`(미수금 Aging)
 - `lib/vendor-sales-detail.ts` — 매출처 상세 누적 미수
+
+**점검 결과 (2026-10-23, `checks/receivable_unify_check.sql` — 408 적용 상태에서 실행됨)**
+- 뷰 8,636행 = 주문 8,636건, 거래처 미연결 0. 순매출 함수 6,310,287,315 = 뷰 표준(=025 정의).
+- 통일 후 미수 **255,587,938 / 280건** (2026-07-01 이전 208건 182,702,388 · 이후 72건 72,885,550).
+  화면 변동: 매출처 허브·대시보드 250,750,538 → 255,587,938 (+4,837,400) / ERP 주문 KPI·수금 대상
+  265,360,338 → 255,587,938 (−9,772,400) / 주문내역 표행 합 271,982,238 → 동일 값.
+- 차이 원인: 컷오프 이전 매칭(427주문 290,198,760)은 차감 안 함(설계) · 순매출 상한 17건 16,006,300 깎임
+  (그중 전부 제외 품목이라 순매출 0인 주문 7건 14,270,000) · 수금완료인데 잔액 1건 85,000 → 0.
+  legacy(총액−제외)가 음수·0이던 주문(8o29LDe 1,008,000·QnMKKZB 885,000·xItldTQ 등)은 품목 기준으로 미수 복원.
+- **후속 판단 필요 2건** → `checks/receivable_unify_followup_check.sql`
+  (A) 컷오프 전제가 깨지는 주문: 전액 매칭됐는데 ERP 원본미수가 총액 그대로(qucuhUn 1,500,000·3twVZPy 1,350,000).
+      컷오프 규칙상 차감하지 않아 표준 미수에 남는다 — ERP에 수금 입력이 안 된 주문(영업지원팀 작업 목록)이거나
+      매칭 오류. 규모 약 620만(= KPI 차이 −9,772,400 + 상한 16,006,300).
+  (B) 순매출 0 주문 7건 14,270,000: 품목이 전부 취소·VIP·선결제라 미수가 0으로 사라진다. 실제 미입금 선결제라면
+      어디에도 안 보인다 — 품목 구성 보고 사람이 판단.
 
 **드라이런에서 드러난 것 (2026-10-01, 406 실행 후)**
 
