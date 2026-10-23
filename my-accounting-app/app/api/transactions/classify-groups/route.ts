@@ -69,10 +69,23 @@ export async function GET(req: NextRequest) {
     .filter(a => Array.isArray(a.keywords) && (a.keywords as string[]).length)
     .map(a => ({ id: a.id as string, keywords: a.keywords as string[] }))
 
-  const paidResult = await fetchAllRows<{ transaction_id: string }>((f, t) =>
-    admin.from('tax_invoice_payments').select('transaction_id').range(f, t),
+  // 계산서 연결 지급 — 계산서의 **방향**과 **분류 여부**까지 본다 (2026-10-23).
+  //  · 통장 쪽 분개는 채권·채무 상계라 성격은 계산서에 있다. 그래서 묶음은 계산서 방향 × 현금 방향.
+  //  · 연결된 계산서가 미분류면 통장만 상계해도 짝이 없어 채무가 음수로 남는다 → 추천 없이 따로 보인다.
+  type PaidLink = { transaction_id: string; tax_invoices: { direction: string; confirmed_account_id: string | null } | null }
+  const paidResult = await fetchAllRows<PaidLink>((f, t) =>
+    admin.from('tax_invoice_payments')
+      .select('transaction_id, tax_invoices(direction, confirmed_account_id)')
+      .range(f, t) as unknown as PromiseLike<{ data: PaidLink[] | null; error: { message: string } | null }>,
   )
-  const paidTx = new Set('error' in paidResult ? [] : paidResult.data.map(p => p.transaction_id))
+  // 거래 → { 계산서 방향 집합, 미분류 계산서 포함 여부 }
+  const paidTx = new Map<string, { dirs: Set<string>; unclassified: boolean }>()
+  for (const p of 'error' in paidResult ? [] : paidResult.data) {
+    const cur = paidTx.get(p.transaction_id) ?? { dirs: new Set<string>(), unclassified: false }
+    if (p.tax_invoices?.direction) cur.dirs.add(p.tax_invoices.direction)
+    if (p.tax_invoices && !p.tax_invoices.confirmed_account_id) cur.unclassified = true
+    paidTx.set(p.transaction_id, cur)
+  }
 
   // 거래처 기본계정 (⑤ 추천용)
   const { data: vendorDefaults } = await admin
@@ -153,12 +166,34 @@ export async function GET(req: NextRequest) {
         payable ? { account_id: payable.id, code: '2001', name: payable.name, reason: '미지급금 상계 (카드대금)', vendor_id: cardVendorByName.get(cardCo) ?? null } : null)
       continue
     }
-    if (paidTx.has(t.id)) {
+    const link = paidTx.get(t.id)
+    if (link) {
       types.invoice++
       const inflow = (t.amount_in ?? 0) > 0
-      const acc = inflow ? receivable : payable
-      add(`invoice:${inflow ? 'in' : 'out'}`, 'invoice', inflow ? '계산서 매칭 입금 (수금)' : '계산서 매칭 출금 (지급)', t,
-        acc ? { account_id: acc.id, code: inflow ? '1101' : '2001', name: acc.name, reason: inflow ? '매출채권 상계' : '미지급금 상계', vendor_id: t.vendor_id } : null)
+      const invDir = link.dirs.size === 1 ? Array.from(link.dirs)[0] : 'mixed'
+      if (link.unclassified) {
+        // 계산서 쪽 성격이 아직 없다 — 여기서 상계부터 치면 짝 없는 채권·채무가 남는다
+        add(`invoice:unclassified:${inflow ? 'in' : 'out'}`, 'invoice',
+          `계산서 매칭 ${inflow ? '입금' : '출금'} — 연결 계산서 미분류 (계산서 내역에서 계정 먼저)`, t, null)
+        continue
+      }
+      if (invDir === 'mixed') {
+        add(`invoice:mixed:${inflow ? 'in' : 'out'}`, 'invoice',
+          `계산서 매칭 ${inflow ? '입금' : '출금'} — 매출·매입 계산서가 섞임 (개별 확인)`, t, null)
+        continue
+      }
+      // 계정은 **계산서 방향**이 정한다. 현금 방향은 그 채권·채무를 지우는지(정상) 되살리는지(환불·환입)만 가른다.
+      const isSales = invDir === 'sales'
+      const acc = isSales ? receivable : payable
+      const code = isSales ? '1101' : '2001'
+      const label = isSales
+        ? (inflow ? '매출 계산서 수금 (입금)' : '매출 계산서 환불 (출금)')
+        : (inflow ? '매입 계산서 환입 (입금)' : '매입 계산서 지급 (출금)')
+      const reason = isSales
+        ? (inflow ? '매출채권 상계' : '매출채권 되살림 — 고객 환불')
+        : (inflow ? '미지급금 되살림 — 공급처 환입' : '미지급금 상계')
+      add(`invoice:${invDir}:${inflow ? 'in' : 'out'}`, 'invoice', label, t,
+        acc ? { account_id: acc.id, code, name: acc.name, reason, vendor_id: t.vendor_id } : null)
       continue
     }
     // ⑤ 일반 — 유사거래 묶음 (상대명/적요에서 숫자 제거 후 앞 14자)
