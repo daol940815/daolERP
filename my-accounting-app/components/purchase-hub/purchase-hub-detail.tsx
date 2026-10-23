@@ -189,6 +189,10 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
     if (ok) { setOpeningForm(f => ({ ...f, open: false })); load() }
   }
 
+  // 지급 내역 = 실제 출금(통장·카드)만. 계산서 발행 기록은 계산서 탭이 담당한다.
+  // 탭 건수와 목록이 같은 배열을 보도록 한 곳에서 만든다 (2026-10-23 사용자 지적).
+  const paymentRows = useMemo(() => (data?.timeline ?? []).filter(e => e.kind !== 'invoice'), [data])
+
   const agingTotal = useMemo(() => data ? data.aging.b30 + data.aging.b60 + data.aging.b90 + data.aging.over90 : 0, [data])
 
   // 타임라인 이벤트별 원본 화면 링크
@@ -513,7 +517,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
       <div className="flex gap-0.5 border-b border-gray-200 mt-5">
         {TABS.map(t => {
           const count = t === '계산서' ? data.invoices.length
-            : t === '지급 내역' ? data.timeline.filter(e => e.kind !== 'invoice').length
+            : t === '지급 내역' ? paymentRows.length
             : t === 'ERP 발주' ? data.erp_items.length
             : null
           return (
@@ -577,8 +581,8 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
             </div>
             {tab === '개요' && (
               <div className="bg-white border border-gray-200 rounded-xl xl:col-span-2">
-                <div className="px-4 pt-3 text-sm font-bold text-gray-800">지급 타임라인</div>
-                <div className="px-4 pb-1 text-[11px] text-gray-400">계산서·통장·카드 통합 (최근)</div>
+                <div className="px-4 pt-3 text-sm font-bold text-gray-800">매입·지급 타임라인</div>
+                <div className="px-4 pb-1 text-[11px] text-gray-400">계산서 수취와 출금을 시간순으로 함께 봅니다 (최근)</div>
                 <ul className="px-4 pb-3">
                   {data.timeline.slice(0, 12).map((e, i) => {
                     const href = tlHref(e)
@@ -603,11 +607,13 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
         {tab === '지급 내역' && (
           <div className="bg-white border border-gray-200 rounded-xl">
             <div className="px-4 pt-3 text-[11px] text-gray-400">
-              [통장]은 계산서에 연결된 출금과 미지급금(2001) 상계로 확정된 출금입니다.
-              [카드]는 가맹점 사업자번호가 이 매입처와 일치하는 법인카드 사용분으로, 카드 대금은 카드사에 지급되므로 미지급 잔액 계산에는 넣지 않습니다.
+              실제로 돈이 나간 기록만 봅니다 — 계산서 발행 기록은 계산서 탭에 있습니다.
+              [통장]은 계산서에 연결된 출금과 미지급금(2001) 상계로 확정된 출금,
+              [카드]는 가맹점 사업자번호가 이 매입처와 일치하는 법인카드 결제분입니다.
+              카드 대금은 카드사에 지급되므로 미지급 잔액 계산에는 넣지 않습니다.
             </div>
             <ul className="px-4 py-2">
-              {data.timeline.map((e, i) => {
+              {paymentRows.map((e, i) => {
                 const href = tlHref(e)
                 return (
                   <li key={i} className="flex items-baseline gap-2 py-1.5 border-b border-gray-50 last:border-0 text-sm">
@@ -620,7 +626,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                   </li>
                 )
               })}
-              {!data.timeline.length && <li className="text-xs text-gray-400 py-6">이력이 없습니다.</li>}
+              {!paymentRows.length && <li className="text-xs text-gray-400 py-6">지급 이력이 없습니다.</li>}
             </ul>
           </div>
         )}
