@@ -7,6 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const WORK_LOG_ACTIONS = [
   '상담작성', '상담수정', '주문전환', '주문작성', '주문수정', '영업일지', '직접기재',
+  '업무요청수락', '업무요청완료',   // 업무 요청 (900, 총괄 트랙) — 수락·완료 확정 시 담당자 일지에 자동 기재
 ] as const
 export type WorkLogAction = (typeof WORK_LOG_ACTIONS)[number]
 
@@ -28,7 +29,7 @@ export interface WorkLogInput {
   action: WorkLogAction
   content: string
   workDate?: string | null                       // 미지정 시 KST 오늘
-  refType?: 'consultation' | 'order' | 'activity' | null
+  refType?: 'consultation' | 'order' | 'activity' | 'work_request' | null
   refId?: string | null
   category?: string | null
 }

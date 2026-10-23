@@ -15,6 +15,7 @@ export interface Product {
   sale_price: number; individual_sale_price: number; purchase_price: number
   carton_unit: number | null; carton_shipping_fee: number; loose_shipping_fee: number
   is_addon: boolean; is_active: boolean; is_soldout?: boolean; is_shipping?: boolean
+  status_note?: string | null   // 원가표 상태 메모 원문 (512)
 }
 
 export interface ItemDraft {
@@ -29,6 +30,8 @@ export interface ItemDraft {
   quantity: number
   shipping_fee: number
   discount_amount: number
+  discount_mode: '정액' | '단가'  // 할인 종류 (704) — discount_amount는 항상 최종 할인액
+  discount_unit: number           // 단가 할인의 개당 할인액(원)
   purchase_price: number
   purchase_shipping: number
   memo: string
@@ -48,7 +51,8 @@ export const emptyItem = (uid: number): ItemDraft => ({
   uid, parent_uid: null,
   product_id: null, item_code: '', item_name: '', order_kind: '지점',
   purchase_vendor_name: '', sale_price: 0, quantity: 1, shipping_fee: 0,
-  discount_amount: 0, purchase_price: 0, purchase_shipping: 0, memo: '',
+  discount_amount: 0, discount_mode: '정액', discount_unit: 0,
+  purchase_price: 0, purchase_shipping: 0, memo: '',
   status: '', option_note: '', is_shipping: false,
   branch_sale_price: 0, individual_sale_price: 0, branch_purchase_price: 0,
   carton_unit: 0, carton_shipping_fee: 0, loose_shipping_fee: 0,
@@ -56,6 +60,31 @@ export const emptyItem = (uid: number): ItemDraft => ({
 
 // 배송비 행 이름 (상담 품목 — 702)
 export const SHIPPING_ROW_NAMES = ['배송비(카톤단위)', '배송비(카톤외)'] as const
+
+// 수량 변경 시 함께 재계산할 값 (704·사용자 확정 2026-10-16):
+//  - 단가 할인: 개당 할인액 × 수량 = 최종 할인액
+//  - 매입배송비: 원가표 카톤 정보가 있으면 카톤단위/카톤외 자동 구분 (cartonShipping 공식,
+//    수동 수정 가능 — 다음 수량 변경 시 다시 자동값으로)
+export function quantityPatch(it: ItemDraft, qty: number): Partial<ItemDraft> {
+  return {
+    quantity: qty,
+    ...(it.discount_mode === '단가' ? { discount_amount: (it.discount_unit || 0) * qty } : {}),
+    ...(it.carton_unit > 0
+      ? { purchase_shipping: cartonShipping(it.carton_unit, it.carton_shipping_fee, it.loose_shipping_fee, qty) }
+      : {}),
+  }
+}
+
+// 매입배송비 자동 계산 내역 설명 (툴팁용)
+export function purchaseShippingHint(it: ItemDraft): string | null {
+  if (it.carton_unit <= 0 || it.quantity <= 0) return null
+  const cartons = Math.floor(it.quantity / it.carton_unit)
+  const loose = it.quantity % it.carton_unit > 0
+  const parts: string[] = []
+  if (cartons > 0) parts.push(`${cartons}카톤 × ${it.carton_shipping_fee.toLocaleString('ko-KR')}`)
+  if (loose) parts.push(`낱개 ${it.loose_shipping_fee.toLocaleString('ko-KR')}`)
+  return parts.length ? `자동 계산: ${parts.join(' + ')} (수정 가능)` : null
+}
 
 // 품명 칸 자동 높이 — 내용 길이에 맞춰 줄바꿈되어 항상 전체가 보인다
 export const autoGrow = (el: HTMLTextAreaElement | null) => {
@@ -160,10 +189,15 @@ export function draftFromProduct(p: Product, base: ItemDraft): Partial<ItemDraft
     purchase_vendor_name: p.purchase_vendor_name ?? '',
     sale_price: p.sale_price,
     purchase_price: p.purchase_price,
-    status: p.is_soldout ? '품절' : '',   // 마스터 품절 자동표기 (수정 가능)
+    // 마스터 상태 자동표기 (수정 가능) — 원가표 메모 첫 줄 우선, 없으면 품절 플래그
+    status: (p.status_note ?? '').split('\n')[0].trim() || (p.is_soldout ? '품절' : ''),
     is_shipping: !!p.is_shipping,
     ...master,
     ...priceRule({ ...base, ...master }, base.quantity || 1),
+    // 매입배송비 자동 (704 확정): 카톤 정보가 있으면 수량 기준 카톤단위/카톤외 자동 구분
+    ...(master.carton_unit > 0
+      ? { purchase_shipping: cartonShipping(master.carton_unit, master.carton_shipping_fee, master.loose_shipping_fee, base.quantity || 1) }
+      : {}),
   }
   // 배송비 품목(703): 판매가 0 기본 — 배송비는 판매가에 녹이는 경우가 대부분 (수정 가능)
   if (p.is_shipping) draft.sale_price = 0
@@ -174,7 +208,7 @@ export function draftFromProduct(p: Product, base: ItemDraft): Partial<ItemDraft
 export function Combo({ value, display, options, onSelect, placeholder, required, footer }: {
   value: string | null
   display: string
-  options: { id: string; label: string; sub?: string; soldout?: boolean }[]
+  options: { id: string; label: string; sub?: string; soldout?: boolean; note?: string }[]
   onSelect: (id: string | null) => void
   placeholder: string
   required?: boolean
@@ -224,6 +258,8 @@ export function Combo({ value, display, options, onSelect, placeholder, required
               {o.soldout && (
                 <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-600 align-middle">품절</span>
               )}
+              {/* 원가표 상태 메모 (512) — '블랙 품절'·'단가인상' 등 실무 참고 */}
+              {o.note && <span className="text-[10px] text-amber-600 ml-1.5">{o.note}</span>}
               {o.sub && <span className="text-xs text-gray-400 ml-1.5">{o.sub}</span>}
             </button>
           ))}

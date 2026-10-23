@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 직원 스케줄 (휴가·영업·업무·아르바이트·생일)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; }
+  .wrap { max-width: 1320px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 16px; line-height: 1.6; }
+  h2 { font-size: 15px; font-weight: 700; margin: 26px 0 10px; }
+  .shell { display: grid; grid-template-columns: 200px 1fr; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; background: #fff; }
+  .side { background: #0f172a; padding: 14px 10px; color: #94a3b8; font-size: 12.5px; }
+  .side .t { color: #fff; font-weight: 700; font-size: 14px; padding: 0 8px 12px; border-bottom: 1px solid #334155; margin-bottom: 10px; }
+  .side .g { padding: 4px 8px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; margin-top: 8px; }
+  .side a { display: block; padding: 6px 10px; border-radius: 6px; }
+  .side a.on { background: #334155; color: #fff; }
+  .side .new { font-size: 9.5px; background: #dcfce7; color: #15803d; border-radius: 999px; padding: 0 5px; margin-left: 4px; font-weight: 700; }
+  .main { padding: 16px 18px; }
+  h1 { font-size: 18px; font-weight: 700; }
+  .sub { font-size: 12px; color: #64748b; margin: 3px 0 12px; }
+  .bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { border: 1px solid #cbd5e1; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; color: #475569; display: inline-flex; align-items: center; gap: 5px; }
+  .chip.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+  .btn { display: inline-block; border: 1px solid #cbd5e1; border-radius: 7px; padding: 5px 11px; font-size: 11.5px; font-weight: 600; background: #fff; }
+  .btn.p { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .seg { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 7px; overflow: hidden; }
+  .seg span { padding: 5px 11px; font-size: 11.5px; font-weight: 600; }
+  .seg span.on { background: #0f172a; color: #fff; }
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .cal .h { font-size: 10.5px; color: #64748b; text-align: center; padding: 4px 0; font-weight: 600; }
+  .cal .h.sun, .cal .d.sun .n { color: #dc2626; }
+  .cal .h.sat, .cal .d.sat .n { color: #2563eb; }
+  .cal .d { min-height: 92px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 3px 4px; font-size: 10.5px; background: #fff; }
+  .cal .d.out { background: #f8fafc; }
+  .cal .d.out .n { color: #cbd5e1; }
+  .cal .d.hol { background: #fff1f2; border-color: #fecdd3; }
+  .cal .d.today { border-color: #0f172a; border-width: 2px; }
+  .cal .d .n { color: #475569; font-weight: 600; }
+  .cal .d .holname { color: #e11d48; font-size: 9.5px; font-weight: 600; }
+  .ev { display: block; border-radius: 4px; padding: 1px 4px; margin-top: 2px; font-size: 9.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ev.leave { background: #fee2e2; color: #b91c1c; }
+  .ev.half  { background: #fef3c7; color: #b45309; }
+  .ev.sales { background: #dbeafe; color: #1d4ed8; }
+  .ev.work  { background: #dcfce7; color: #15803d; }
+  .ev.pt    { background: #ede9fe; color: #6d28d9; }
+  .ev.bday  { background: #fce7f3; color: #be185d; }
+  .ev.more  { color: #94a3b8; }
+  .tl { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
+  .tl .row { display: grid; grid-template-columns: 120px 1fr; border-bottom: 1px solid #f1f5f9; align-items: center; }
+  .tl .row:last-child { border-bottom: 0; }
+  .tl .who { font-size: 11.5px; padding: 6px 9px; color: #334155; font-weight: 600; border-right: 1px solid #f1f5f9; }
+  .tl .track { position: relative; height: 30px; }
+  .tl .grid { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(31, 1fr); }
+  .tl .grid i { border-right: 1px solid #f8fafc; }
+  .tl .grid i.we { background: #f8fafc; }
+  .tl .grid i.hol { background: #fff1f2; }
+  .tl .bar2 { position: absolute; top: 6px; height: 18px; border-radius: 4px; font-size: 9.5px; line-height: 18px; padding: 0 6px; white-space: nowrap; overflow: hidden; }
+  .tl .scale { display: grid; grid-template-columns: repeat(31, 1fr); font-size: 9px; color: #94a3b8; text-align: center; padding-top: 2px; }
+  .legend { font-size: 11px; color: #64748b; margin-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font-size: 11px; color: #64748b; font-weight: 600; padding: 7px 9px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+  td { padding: 7px 9px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  .b { display: inline-block; font-size: 10px; border-radius: 999px; padding: 1px 7px; font-weight: 600; }
+  .b-ok { background: #dcfce7; color: #15803d; } .b-warn { background: #fef3c7; color: #b45309; } .b-no { background: #fee2e2; color: #b91c1c; }
+  .plan { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; margin-top: 20px; }
+  .plan h2 { margin-top: 0; }
+  .foot { font-size: 11.5px; color: #64748b; margin-top: 10px; line-height: 1.6; }
+  ol.q { padding-left: 20px; font-size: 13px; line-height: 1.8; }
+  ol.q b { color: #0f172a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="note">
+  <b>직원 스케줄 시안</b> (2026-10-14 요청). 확인 항목 5개: ① 직원 휴가 ② 영업자 영업일정
+  ③ 직원 업무일정 ④ 아르바이트 근무기간 ⑤ 직원 생일. 공휴일은 배경으로 함께 깔린다.
+  <b>입력 화면이 아니라 조회 전용</b> — 각 항목은 원래 쓰던 화면에서 입력하고 여기서는 모아 보기만 한다.
+  보기는 <b>월 캘린더</b>와 <b>기간 타임라인</b> 두 가지. 아래 "데이터 원천"에 지금 되는 것과
+  추가가 필요한 것을 표시했다. 확정 후 마이그레이션(200번대) + 구현.
+</div>
+
+<!-- ① 월 캘린더 -->
+<h2>① 스케줄 — 월 캘린더 (기본 보기)</h2>
+<div class="shell">
+  <div class="side">
+    <div class="t">인사 · 총무</div>
+    <div class="g">인사 · 총무</div>
+    <a>직원 목록</a><a>근태 현황</a><a>휴가 승인</a>
+    <a class="on">스케줄 <span class="new">신규</span></a>
+    <a>아르바이트 관리</a><a>급여 기록</a>
+  </div>
+  <div class="main">
+    <h1>스케줄</h1>
+    <div class="sub">휴가 · 영업일정 · 업무일정 · 아르바이트 근무 · 생일을 한 달력에서 본다. 입력은 각 화면에서.</div>
+
+    <div class="bar">
+      <span class="btn">◀</span>
+      <b style="font-size:14px">2026년 10월</b>
+      <span class="btn">▶</span>
+      <span class="btn">오늘</span>
+      <span class="seg"><span class="on">월 캘린더</span><span>기간 타임라인</span></span>
+      <span style="margin-left:auto" class="btn">엑셀 받기</span>
+    </div>
+
+    <div class="bar">
+      <div class="chips">
+        <span class="chip on"><i class="dot" style="background:#b91c1c"></i>휴가 4</span>
+        <span class="chip on"><i class="dot" style="background:#1d4ed8"></i>영업일정 5</span>
+        <span class="chip on"><i class="dot" style="background:#15803d"></i>업무일정 3</span>
+        <span class="chip on"><i class="dot" style="background:#6d28d9"></i>아르바이트 2</span>
+        <span class="chip on"><i class="dot" style="background:#be185d"></i>생일 2</span>
+        <span class="chip on"><i class="dot" style="background:#fecdd3"></i>공휴일</span>
+      </div>
+      <span style="margin-left:auto"></span>
+      <span class="chip on">전체 팀</span>
+      <span class="chip">영업팀</span>
+      <span class="chip">영업지원팀</span>
+      <span class="chip">경영지원팀</span>
+    </div>
+
+    <div class="cal">
+      <div class="h sun">일</div><div class="h">월</div><div class="h">화</div><div class="h">수</div><div class="h">목</div><div class="h">금</div><div class="h sat">토</div>
+
+      <!-- 9/27 ~ 10/3 -->
+      <div class="d out sun"><span class="n">27</span></div>
+      <div class="d out"><span class="n">28</span></div>
+      <div class="d out"><span class="n">29</span></div>
+      <div class="d out"><span class="n">30</span></div>
+      <div class="d"><span class="n">1</span>
+        <span class="ev sales">김재형 · 다올상사 방문</span>
+      </div>
+      <div class="d"><span class="n">2</span>
+        <span class="ev work">김승현 · 샘플 재고 실사</span>
+      </div>
+      <div class="d sat hol"><span class="n">3</span><div class="holname">개천절</div></div>
+
+      <!-- 10/4 ~ 10/10 -->
+      <div class="d sun hol"><span class="n">4</span></div>
+      <div class="d hol"><span class="n">5</span><div class="holname">대체공휴일</div></div>
+      <div class="d"><span class="n">6</span>
+        <span class="ev sales">옥광일 · 신규 거래처 미팅</span>
+      </div>
+      <div class="d"><span class="n">7</span>
+        <span class="ev leave">김주연 · 연차</span>
+      </div>
+      <div class="d"><span class="n">8</span>
+        <span class="ev bday">오철준 생일</span>
+        <span class="ev sales">김재형 · 하나유통 상담</span>
+      </div>
+      <div class="d hol"><span class="n">9</span><div class="holname">한글날</div></div>
+      <div class="d sat"><span class="n">10</span></div>
+
+      <!-- 10/11 ~ 10/17 -->
+      <div class="d sun"><span class="n">11</span></div>
+      <div class="d"><span class="n">12</span>
+        <span class="ev work">홍창의 · 거래처 정산 대조</span>
+      </div>
+      <div class="d"><span class="n">13</span>
+        <span class="ev sales">옥광일 · 성수지점 방문</span>
+      </div>
+      <div class="d today"><span class="n">14</span>
+        <span class="ev half">김보현 · 오후 반차</span>
+        <span class="ev sales">김재형 · 요아럽 미팅</span>
+      </div>
+      <div class="d"><span class="n">15</span></div>
+      <div class="d"><span class="n">16</span>
+        <span class="ev work">김승현 · 월중 재고 실사</span>
+      </div>
+      <div class="d sat"><span class="n">17</span></div>
+
+      <!-- 10/18 ~ 10/24 -->
+      <div class="d sun"><span class="n">18</span></div>
+      <div class="d"><span class="n">19</span>
+        <span class="ev pt">박세진 · 아르바이트 (19~30)</span>
+      </div>
+      <div class="d"><span class="n">20</span>
+        <span class="ev pt">박세진 · 아르바이트</span>
+        <span class="ev sales">옥광일 · 광명지점 상담</span>
+      </div>
+      <div class="d"><span class="n">21</span>
+        <span class="ev bday">김보현 생일</span>
+        <span class="ev pt">박세진 · 아르바이트</span>
+      </div>
+      <div class="d"><span class="n">22</span>
+        <span class="ev leave">한정호 · 연차 (22~23)</span>
+        <span class="ev pt">박세진 · 아르바이트</span>
+      </div>
+      <div class="d"><span class="n">23</span>
+        <span class="ev leave">한정호 · 연차</span>
+        <span class="ev pt">박세진 · 아르바이트</span>
+        <span class="ev more">+1건</span>
+      </div>
+      <div class="d sat"><span class="n">24</span></div>
+
+      <!-- 10/25 ~ 10/31 -->
+      <div class="d sun"><span class="n">25</span></div>
+      <div class="d"><span class="n">26</span>
+        <span class="ev pt">박세진 · 아르바이트</span>
+      </div>
+      <div class="d"><span class="n">27</span>
+        <span class="ev pt">박세진 · 아르바이트</span>
+      </div>
+      <div class="d"><span class="n">28</span>
+        <span class="ev leave">김주연 · 연차 (28~29)</span>
+        <span class="ev pt">박세진 · 아르바이트</span>
+      </div>
+      <div class="d"><span class="n">29</span>
+        <span class="ev leave">김주연 · 연차</span>
+        <span class="ev pt">박세진 · 아르바이트</span>
+      </div>
+      <div class="d"><span class="n">30</span>
+        <span class="ev work">홍창의 · 월말 마감 정리</span>
+        <span class="ev pt">박세진 · 아르바이트</span>
+      </div>
+      <div class="d sat"><span class="n">31</span></div>
+    </div>
+
+    <div class="legend">
+      <span><i class="dot" style="background:#b91c1c"></i> 휴가(연차·병가)</span>
+      <span><i class="dot" style="background:#b45309"></i> 반차</span>
+      <span><i class="dot" style="background:#1d4ed8"></i> 영업일정</span>
+      <span><i class="dot" style="background:#15803d"></i> 업무일정</span>
+      <span><i class="dot" style="background:#6d28d9"></i> 아르바이트 근무</span>
+      <span><i class="dot" style="background:#be185d"></i> 생일</span>
+      <span><i class="dot" style="background:#fecdd3"></i> 공휴일(배경)</span>
+    </div>
+    <div class="foot">
+      날짜 칸이 넘치면 "+N건"으로 접고 칸을 누르면 그날 상세가 오른쪽에 열린다.
+      상단 칩을 눌러 항목을 끄고 켠다(예: 휴가만 보기). 팀 칩으로 대상 직원을 좁힌다.
+      각 항목을 누르면 원본 화면(휴가 승인·영업일지·업무일지·아르바이트 관리)으로 이동한다.
+    </div>
+  </div>
+</div>
+
+<!-- ② 기간 타임라인 -->
+<h2>② 스케줄 — 기간 타임라인 (연속 일정이 많을 때)</h2>
+<div class="shell">
+  <div class="side">
+    <div class="t">인사 · 총무</div>
+    <div class="g">인사 · 총무</div>
+    <a>직원 목록</a><a>근태 현황</a><a>휴가 승인</a>
+    <a class="on">스케줄</a>
+    <a>아르바이트 관리</a><a>급여 기록</a>
+  </div>
+  <div class="main">
+    <h1>스케줄 <span style="font-size:13px;font-weight:500;color:#64748b">2026년 10월 · 기간 보기</span></h1>
+    <div class="sub">직원을 행으로 놓고 기간을 막대로 본다. 연차 연달아 있는 주, 아르바이트 근무기간을 한눈에 본다.</div>
+
+    <div class="bar">
+      <span class="seg"><span>월 캘린더</span><span class="on">기간 타임라인</span></span>
+      <span class="chip on">전체 팀</span><span class="chip">영업팀</span><span class="chip">영업지원팀</span><span class="chip">경영지원팀</span>
+    </div>
+
+    <div class="tl">
+      <div class="row">
+        <div class="who">김재형 대표</div>
+        <div class="track">
+          <div class="grid">
+            <i></i><i></i><i class="hol"></i><i class="we hol"></i><i class="hol"></i><i></i><i></i><i class="hol"></i><i class="we"></i><i class="we"></i>
+            <i></i><i></i><i></i><i></i><i></i><i class="we"></i><i class="we"></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i class="we"></i><i class="we"></i><i></i><i></i><i></i><i></i><i></i><i class="we"></i>
+          </div>
+          <div class="bar2 ev sales" style="left:0%;width:3.2%">영업</div>
+          <div class="bar2 ev sales" style="left:22.6%;width:3.2%">영업</div>
+          <div class="bar2 ev sales" style="left:41.9%;width:3.2%">영업</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="who">옥광일 대표</div>
+        <div class="track">
+          <div class="grid">
+            <i></i><i></i><i class="hol"></i><i class="we hol"></i><i class="hol"></i><i></i><i></i><i class="hol"></i><i class="we"></i><i class="we"></i>
+            <i></i><i></i><i></i><i></i><i></i><i class="we"></i><i class="we"></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i class="we"></i><i class="we"></i><i></i><i></i><i></i><i></i><i></i><i class="we"></i>
+          </div>
+          <div class="bar2 ev sales" style="left:16.1%;width:3.2%">영업</div>
+          <div class="bar2 ev sales" style="left:38.7%;width:3.2%">영업</div>
+          <div class="bar2 ev sales" style="left:61.3%;width:3.2%">영업</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="who">홍창의 부장</div>
+        <div class="track">
+          <div class="grid">
+            <i></i><i></i><i class="hol"></i><i class="we hol"></i><i class="hol"></i><i></i><i></i><i class="hol"></i><i class="we"></i><i class="we"></i>
+            <i></i><i></i><i></i><i></i><i></i><i class="we"></i><i class="we"></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i class="we"></i><i class="we"></i><i></i><i></i><i></i><i></i><i></i><i class="we"></i>
+          </div>
+          <div class="bar2 ev work" style="left:35.5%;width:3.2%">업무</div>
+          <div class="bar2 ev work" style="left:93.5%;width:3.2%">업무</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="who">김주연 대리</div>
+        <div class="track">
+          <div class="grid">
+            <i></i><i></i><i class="hol"></i><i class="we hol"></i><i class="hol"></i><i></i><i></i><i class="hol"></i><i class="we"></i><i class="we"></i>
+            <i></i><i></i><i></i><i></i><i></i><i class="we"></i><i class="we"></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i class="we"></i><i class="we"></i><i></i><i></i><i></i><i></i><i></i><i class="we"></i>
+          </div>
+          <div class="bar2 ev leave" style="left:19.4%;width:3.2%">연차</div>
+          <div class="bar2 ev leave" style="left:87.1%;width:6.5%">연차 2일</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="who">김보현 주임</div>
+        <div class="track">
+          <div class="grid">
+            <i></i><i></i><i class="hol"></i><i class="we hol"></i><i class="hol"></i><i></i><i></i><i class="hol"></i><i class="we"></i><i class="we"></i>
+            <i></i><i></i><i></i><i></i><i></i><i class="we"></i><i class="we"></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i class="we"></i><i class="we"></i><i></i><i></i><i></i><i></i><i></i><i class="we"></i>
+          </div>
+          <div class="bar2 ev half" style="left:41.9%;width:3.2%">반차</div>
+          <div class="bar2 ev bday" style="left:64.5%;width:3.2%">생일</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="who">한정호 사원</div>
+        <div class="track">
+          <div class="grid">
+            <i></i><i></i><i class="hol"></i><i class="we hol"></i><i class="hol"></i><i></i><i></i><i class="hol"></i><i class="we"></i><i class="we"></i>
+            <i></i><i></i><i></i><i></i><i></i><i class="we"></i><i class="we"></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i class="we"></i><i class="we"></i><i></i><i></i><i></i><i></i><i></i><i class="we"></i>
+          </div>
+          <div class="bar2 ev leave" style="left:67.7%;width:6.5%">연차 2일</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="who">박세진 (알바)</div>
+        <div class="track">
+          <div class="grid">
+            <i></i><i></i><i class="hol"></i><i class="we hol"></i><i class="hol"></i><i></i><i></i><i class="hol"></i><i class="we"></i><i class="we"></i>
+            <i></i><i></i><i></i><i></i><i></i><i class="we"></i><i class="we"></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i class="we"></i><i class="we"></i><i></i><i></i><i></i><i></i><i></i><i class="we"></i>
+          </div>
+          <div class="bar2 ev pt" style="left:58.1%;width:38.7%">아르바이트 근무기간 10/19 ~ 10/30</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="who" style="color:#94a3b8">오철준 대리</div>
+        <div class="track">
+          <div class="grid">
+            <i></i><i></i><i class="hol"></i><i class="we hol"></i><i class="hol"></i><i></i><i></i><i class="hol"></i><i class="we"></i><i class="we"></i>
+            <i></i><i></i><i></i><i></i><i></i><i class="we"></i><i class="we"></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i class="we"></i><i class="we"></i><i></i><i></i><i></i><i></i><i></i><i class="we"></i>
+          </div>
+          <div class="bar2 ev bday" style="left:22.6%;width:3.2%">생일</div>
+        </div>
+      </div>
+    </div>
+    <div class="scale tl" style="border:0">
+      <div class="scale" style="display:grid;grid-template-columns:120px 1fr">
+        <span></span>
+        <span style="display:grid;grid-template-columns:repeat(31,1fr);font-size:9px;color:#94a3b8;text-align:center">
+          <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
+          <span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span><span>19</span><span>20</span>
+          <span>21</span><span>22</span><span>23</span><span>24</span><span>25</span><span>26</span><span>27</span><span>28</span><span>29</span><span>30</span><span>31</span>
+        </span>
+      </div>
+    </div>
+    <div class="foot">
+      회색 칸은 주말, 분홍 칸은 공휴일. 아르바이트는 근무기간이 길어 막대가 맞고, 연차도 이틀 이상이면 막대로 보인다.
+      같은 화면을 <b>경영 현황</b>(사장님)에도 "전체 스케줄"로 올린다.
+    </div>
+  </div>
+</div>
+
+<!-- 데이터 원천 -->
+<div class="plan">
+  <h2>데이터 원천 — 지금 되는 것과 추가가 필요한 것</h2>
+  <table>
+    <tr><th style="width:130px">항목</th><th style="width:300px">원천</th><th style="width:90px">현재</th><th>필요한 작업</th></tr>
+    <tr>
+      <td><b>① 직원 휴가</b></td>
+      <td><code>attendance_leaves</code> (200) — 승인 건</td>
+      <td><span class="b b-ok">있음</span></td>
+      <td>없음. 바로 쓸 수 있다. 승인 대기 건을 흐리게 함께 보일지만 결정.</td>
+    </tr>
+    <tr>
+      <td><b>② 영업일정</b></td>
+      <td><code>contact_activities</code> (105) — 지금은 <code>activity_date</code>(실행한 날)와
+          <code>next_action</code>(다음 할 일, <b>텍스트</b>)뿐</td>
+      <td><span class="b b-no">예정일 없음</span></td>
+      <td><code>planned_date</code> 컬럼 추가 + 영업일지 화면에 "예정일" 입력칸.
+          <b>영업일지 트랙(700)·개인화면 트랙(300)과 조율 필요.</b></td>
+    </tr>
+    <tr>
+      <td><b>③ 업무일정</b></td>
+      <td><code>erp_work_logs</code> (700) — <b>지나간 업무 기록</b>(work_date·action·content).
+          예정 개념이 없다</td>
+      <td><span class="b b-warn">기록만</span></td>
+      <td>아래 <b>결정 1</b> 참고 — 지난 기록을 보여줄지, 예정 입력을 새로 만들지.</td>
+    </tr>
+    <tr>
+      <td><b>④ 아르바이트 근무기간</b></td>
+      <td><code>employees.work_start</code> / <code>work_end</code> (109) +
+          <code>employment_type='parttime'</code></td>
+      <td><span class="b b-ok">있음</span></td>
+      <td>없음. 인사 트랙의 <code>parttime_terms</code>가 생기면 시즌별로 더 정확해진다.</td>
+    </tr>
+    <tr>
+      <td><b>⑤ 직원 생일</b></td>
+      <td><code>employees</code> — 생일 컬럼 없음(<code>hire_date</code>만 있음)</td>
+      <td><span class="b b-no">컬럼 없음</span></td>
+      <td><code>birth_date</code> 추가(200번대 마이그레이션) + 직원 상세에 입력칸.
+          <b>결정 2</b>(노출 범위) 필요.</td>
+    </tr>
+    <tr>
+      <td>공휴일(배경)</td>
+      <td><code>attendance_holidays</code> (201)</td>
+      <td><span class="b b-ok">있음</span></td>
+      <td>없음.</td>
+    </tr>
+  </table>
+  <div class="foot">
+    <b>저장은 늘리지 않는다</b> — 스케줄 화면 전용 테이블은 만들지 않고, 각 원천을 월 단위로 읽어 합쳐서 보여준다.
+    새로 저장하는 것은 생일(직원 마스터 컬럼)과 영업 예정일(영업일지 컬럼)뿐이고, 둘 다 원래 그 데이터가 있어야 할 자리다.
+  </div>
+</div>
+
+<!-- 결정 필요 -->
+<div class="plan">
+  <h2>확정해주실 것</h2>
+  <ol class="q">
+    <li><b>업무일정을 "예정"으로 만들까요, "기록"으로 볼까요?</b><br>
+      현재 업무일지(<code>erp_work_logs</code>)는 상담·주문 등에서 자동으로 쌓이는 <b>지나간 기록</b>입니다.
+      (a) <b>기록 보기</b> — 입력 부담 0, 대신 "다음 주에 누가 뭐 하는지"는 안 보입니다.
+      (b) <b>예정 입력 신설</b> — 미래 일정이 보이지만 매번 직접 입력해야 하고, 아무도 안 쓰면 빈 칸이 됩니다.
+      (c) <b>섞기</b> — 지난 날짜는 기록, 앞으로는 예정 입력(권장).
+    </li>
+    <li><b>생일을 누구까지 보나요?</b><br>
+      (a) 인사·총무와 사장님만 (b) 전 직원 공개 (c) 월·일만 공개하고 연도는 인사만.
+      생일은 개인정보라 수집 동의가 필요할 수 있고, 입력을 선택으로 둘지도 정해야 합니다.
+    </li>
+    <li><b>휴가 사유를 캘린더에 보일까요?</b><br>
+      병가·경조사는 민감합니다. 기본은 "휴가"로만 표시하고 사유는 숨기는 쪽을 권합니다.
+      승인 대기 건을 흐리게 함께 보일지도 함께 정해주세요(겹치기 확인에 유용).
+    </li>
+    <li><b>일반 직원도 이 화면을 보나요?</b><br>
+      (a) 인사·총무 + 사장님만 (b) 전 직원이 팀 일정을 조회 (c) 전 직원이 보되 본인 외에는
+      이름·휴가 여부만. 현재 메뉴 권한 구조상 <code>hr</code> 그룹에 넣으면 (a)가 됩니다.
+    </li>
+    <li><b>어느 세션에서 만들까요?</b><br>
+      스케줄은 인사·총무 트랙(<code>docs/hr-track.md</code>) 진행 순서 4번이고 담당은 별도 세션입니다.
+      이 세션(근태)에서 먼저 만들면 트랙 문서에 기록해 충돌을 막겠습니다.
+    </li>
+  </ol>
+  <div class="foot">
+    <b>단계를 나눌 수 있습니다.</b> ①휴가 · ④아르바이트 · 공휴일은 지금 데이터만으로 바로 됩니다(1단계).
+    ⑤생일은 컬럼 하나 추가면 되니 같이 넣을 수 있습니다. ②영업일정과 ③업무일정은 다른 트랙의
+    입력 화면이 함께 바뀌어야 해서 2단계로 두는 편이 안전합니다.
+  </div>
+</div>
+
+</div>
+</body>
+</html>

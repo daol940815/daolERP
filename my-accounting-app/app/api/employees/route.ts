@@ -22,6 +22,7 @@ export const dynamic = 'force-dynamic'
 
 const ROLES = ['sales', 'manager', 'admin'] as const
 const LOGIN_ID_RE = /^[a-z0-9][a-z0-9._-]{2,29}$/  // 3~30자, 영문소문자·숫자·._-
+const dateOrNull = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null
 const PERM_FIELDS = 'team, employment_type, work_start, work_end, is_master, permissions, can_approve, can_view_salary, can_view_payment_info'
 
 const guard = async (level: PermLevel = 'edit'): Promise<{ error: string; status: number } | { me: CurrentUser }> => {
@@ -37,11 +38,20 @@ export async function GET() {
   const g = await guard('view')
   if ('error' in g) return NextResponse.json({ error: g.error }, { status: g.status })
   const admin = createAdminClient()
-  const first = await admin
+  const baseCols = `id, name, position, phone, email, hire_date, role, is_active, auth_user_id, login_id, created_at, ${PERM_FIELDS}`
+  type Res = { data: Record<string, unknown>[] | null; error: { message: string } | null }
+  let first: Res = await admin
     .from('employees')
-    .select(`id, name, position, phone, email, hire_date, role, is_active, auth_user_id, login_id, created_at, ${PERM_FIELDS}`)
+    .select(`${baseCols}, birth_date`)
     .order('is_active', { ascending: false })
-    .order('name')
+    .order('name') as unknown as Res
+  // 203(생일) 미적용 — 생일만 빼고 재조회해 권한 기능은 그대로 살린다
+  let birthdayReady = true
+  if (first.error && /birth_date/i.test(first.error.message)) {
+    birthdayReady = false
+    first = await admin.from('employees').select(baseCols)
+      .order('is_active', { ascending: false }).order('name') as unknown as Res
+  }
   let data: Record<string, unknown>[] | null = first.data as Record<string, unknown>[] | null
   let error = first.error
   let permissionsReady = true
@@ -63,7 +73,7 @@ export async function GET() {
   }
   return NextResponse.json({
     employees: data ?? [],
-    permissionsReady,
+    permissionsReady, birthdayReady,
     me: { employeeId: g.me.employeeId, isMaster: g.me.isMaster, canEdit: g.me.isMaster || can(g.me, 'hr', 'edit') },
   })
 }
@@ -95,7 +105,6 @@ export async function POST(req: NextRequest) {
     if (permissions.mgmt === 'edit') permissions.mgmt = 'view'   // 경영 현황은 조회만
     const team = typeof raw.team === 'string' && raw.team.trim() ? raw.team.trim() : null
     const employment = raw.employment_type === 'parttime' ? 'parttime' : 'regular'
-    const dateOrNull = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null
     const isMaster = raw.is_master === true
     if (before.id === g.me.employeeId && before.is_master && !isMaster) {
       return NextResponse.json({ error: '자기 자신의 마스터 권한은 해제할 수 없습니다.' }, { status: 400 })
@@ -164,6 +173,8 @@ export async function POST(req: NextRequest) {
       hire_date: (body.hire_date ?? '').trim() || null,
       role: normRole(body.role), login_id: loginId || null,
       auth_user_id: authUserId, is_active: true,
+      // 생일(203)은 값이 있을 때만 — 203 미적용 환경에서 등록 자체가 막히지 않도록
+      ...(body.birth_date ? { birth_date: dateOrNull(body.birth_date) } : {}),
     }
 
     // 같은 이름의 계정 없는 기존 직원(담당 배정용으로만 등록)이 있으면 그 행을 확장
@@ -191,6 +202,8 @@ export async function POST(req: NextRequest) {
       if (k in body) patch[k] = (body[k] ?? '').trim() || null
     }
     if ('role' in body) patch.role = normRole(body.role)
+    // 생일(203): 값이 있을 때만 갱신. 비우기는 지원하지 않는다(203 미적용 환경 보호)
+    if (body.birth_date) patch.birth_date = dateOrNull(body.birth_date)
     if ('login_id' in body) {
       const newId = (body.login_id ?? '').trim().toLowerCase()
       if (newId && !LOGIN_ID_RE.test(newId)) {

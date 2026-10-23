@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Combo, ComboFree, autoGrow, branchLabel, draftFromProduct, emptyItem,
-  lineTotal, priceRule, splitByGroupPrefix, toInt, won,
+  lineTotal, priceRule, purchaseShippingHint, quantityPatch, splitByGroupPrefix, toInt, won,
 } from '../form-shared'
 import type { ContactOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
 import { contactLabel } from '@/lib/contact-label'
@@ -148,6 +148,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 quantity: (it.quantity as number) ?? 1,
                 shipping_fee: (it.shipping_fee as number) ?? 0,
                 discount_amount: (it.discount_amount as number) ?? 0,
+                discount_mode: (it.discount_mode as '정액' | '단가') ?? '정액',
+                discount_unit: (it.discount_unit as number) ?? 0,
                 purchase_price: (it.purchase_price as number) ?? 0,
                 purchase_shipping: (it.purchase_shipping as number) ?? 0,
                 memo: (it.memo as string) ?? '',
@@ -228,6 +230,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 quantity: (it.quantity as number) ?? 1,
                 shipping_fee: 0,
                 discount_amount: (it.discount_amount as number) ?? 0,
+                discount_mode: (it.discount_mode as '정액' | '단가') ?? '정액',
+                discount_unit: (it.discount_unit as number) ?? 0,
                 purchase_price: (it.purchase_price as number) ?? 0,
                 purchase_shipping: (it.purchase_shipping as number) ?? 0,
                 memo: (it.memo as string) ?? '',
@@ -301,7 +305,11 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
       shipping_fee: 0,
     })
   }
-  const setQuantity = (i: number, qty: number) => setItem(i, { quantity: qty })
+  // 수량 변경 → 단가 할인·매입배송비(카톤단위/카톤외 자동 구분) 재계산 (704)
+  const setQuantity = (i: number, qty: number) => {
+    const it = items[i]
+    setItem(i, it ? quantityPatch(it, qty) : { quantity: qty })
+  }
 
   // 배송비는 703부터 품목 마스터의 배송비 품목(is_shipping)을 옵션 칩으로 추가한다 —
   // 702의 이름 고정 의사 행은 과거 저장분 표시용으로만 남는다.
@@ -311,7 +319,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     const total = filled.reduce((s, it) => s + lineTotal(it), 0)
     const cost = filled.reduce((s, it) => s + it.purchase_price * it.quantity + it.purchase_shipping, 0)
     const discount = filled.reduce((s, it) => s + (it.discount_amount || 0), 0)
-    return { total, margin: total - cost, discount }
+    return { total, cost, margin: total - cost, discount }
   }, [items])
 
   // 단가변경 자동 판정 — 입력 판매가가 원가표(구분별 규칙) 자동가와 다르면 표기 (실무자 요청)
@@ -319,13 +327,6 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     if (!it.product_id) return false
     const auto = priceRule(it, it.quantity || 1)
     return auto.sale_price !== undefined && it.sale_price !== auto.sale_price
-  }
-  // 매입배송비 선택 상태 (값에서 역산 — 별도 상태 불필요)
-  const shipMode = (it: ItemDraft): 'none' | 'carton' | 'loose' | 'custom' => {
-    if (!it.purchase_shipping) return 'none'
-    if (it.carton_shipping_fee > 0 && it.purchase_shipping === it.carton_shipping_fee) return 'carton'
-    if (it.loose_shipping_fee > 0 && it.purchase_shipping === it.loose_shipping_fee) return 'loose'
-    return 'custom'
   }
 
   // 인라인 등록 대상: 지점 미연결 자유 입력, 또는 지점은 연결됐는데 담당자만 자유 입력
@@ -717,7 +718,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               <th className="py-1.5 px-1.5 text-right font-medium">판매합계</th>
               <th className="py-1.5 px-1.5 text-left font-medium">매입처</th>
               <th className="py-1.5 px-1.5 text-right font-medium">매입가</th>
-              <th className="py-1.5 px-1.5 text-left font-medium" title="카톤단위/카톤외 택배비 중 선택">매입배송비</th>
+              <th className="py-1.5 px-1.5 text-left font-medium" title="수량 기준 카톤단위/카톤외 자동 구분 — 수정 가능">매입배송비</th>
               <th className="py-1.5 px-1.5 text-right font-medium">마진</th>
               <th />
             </tr>
@@ -789,6 +790,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                           label: [p.item_code, p.item_name].filter(Boolean).join(' · '),
                           sub: [p.category, p.purchase_vendor_name].filter(Boolean).join(' · '),
                           soldout: !!p.is_soldout,
+                          note: p.status_note ?? undefined,
                         }))}
                         onSelect={id => pickProduct(i, id)}
                         placeholder="품번·품명 검색" />
@@ -824,9 +826,30 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     onChange={e => setItem(i, { sale_price: toInt(e.target.value) })} className={numCell} placeholder="0" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  {/* 할인 별도 표기란 — 적용 시 붉은 강조 */}
-                  <input value={it.discount_amount ? won(it.discount_amount) : ''} disabled={locked}
-                    onChange={e => setItem(i, { discount_amount: toInt(e.target.value) })}
+                  {/* 할인 — 정액(행당 금액) / 단가(개당 원 × 수량 자동) 구분 (704) */}
+                  <select value={it.discount_mode} disabled={locked}
+                    onChange={e => {
+                      const mode = e.target.value as '정액' | '단가'
+                      setItem(i, mode === '단가'
+                        ? { discount_mode: mode, discount_amount: (it.discount_unit || 0) * it.quantity }
+                        : { discount_mode: mode, discount_unit: 0 })
+                    }}
+                    className="w-full border border-blue-200 bg-blue-50/40 rounded px-1 py-0.5 text-[10px] mb-0.5 disabled:opacity-60">
+                    <option value="정액">정액</option>
+                    <option value="단가">개당</option>
+                  </select>
+                  <input
+                    value={it.discount_mode === '단가'
+                      ? (it.discount_unit ? won(it.discount_unit) : '')
+                      : (it.discount_amount ? won(it.discount_amount) : '')}
+                    disabled={locked}
+                    onChange={e => {
+                      const v = toInt(e.target.value)
+                      setItem(i, it.discount_mode === '단가'
+                        ? { discount_unit: v, discount_amount: v * it.quantity }
+                        : { discount_amount: v })
+                    }}
+                    title={it.discount_mode === '단가' ? `개당 할인 — 할인액 ${won(it.discount_amount)}원 자동 계산` : '행당 할인 금액'}
                     className={`${numCell} ${it.discount_amount > 0 ? 'text-red-600 font-semibold border-red-200 bg-red-50/40' : ''}`}
                     placeholder="0" />
                 </td>
@@ -834,7 +857,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   <div className={autoCell + ' font-semibold text-gray-700'}>
                     {won(lineTotal(it))}
                     {it.discount_amount > 0 && (
-                      <div className="text-[10px] text-red-500 font-normal">할인 -{won(it.discount_amount)}</div>
+                      <div className="text-[10px] text-red-500 font-normal">
+                        할인 -{won(it.discount_amount)}{it.discount_mode === '단가' ? ` (${won(it.discount_unit)}/개)` : ''}
+                      </div>
                     )}
                   </div>
                 </td>
@@ -847,27 +872,20 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 <td className="py-1 px-1.5 text-right">
                   <input value={it.purchase_price ? won(it.purchase_price) : ''} disabled={locked}
                     onChange={e => setItem(i, { purchase_price: toInt(e.target.value) })} className={numCell} placeholder="0" />
+                  {/* 품목별 매입가 합계 = 매입가 × 수량 (사용자 확정 2026-10-16) */}
+                  {it.purchase_price > 0 && it.quantity > 0 && (
+                    <div className="text-[10px] text-gray-400 mt-0.5 tabular-nums">합계 {won(it.purchase_price * it.quantity)}</div>
+                  )}
                 </td>
                 <td className="py-1 px-1.5">
-                  {/* 매입배송비 — 카톤단위/카톤외 택배비 중 선택 (실무자 요청) */}
-                  <select value={shipMode(it)} disabled={locked}
-                    onChange={e => {
-                      const m = e.target.value
-                      setItem(i, {
-                        purchase_shipping: m === 'carton' ? it.carton_shipping_fee
-                          : m === 'loose' ? it.loose_shipping_fee : 0,
-                      })
-                    }}
-                    className="w-full border border-blue-200 bg-blue-50/40 rounded px-1 py-1 text-xs disabled:opacity-60">
-                    <option value="none">없음</option>
-                    <option value="carton" disabled={it.carton_shipping_fee <= 0}>
-                      카톤단위{it.carton_shipping_fee > 0 ? ` ${won(it.carton_shipping_fee)}` : ''}
-                    </option>
-                    <option value="loose" disabled={it.loose_shipping_fee <= 0}>
-                      카톤외{it.loose_shipping_fee > 0 ? ` ${won(it.loose_shipping_fee)}` : ''}
-                    </option>
-                    {shipMode(it) === 'custom' && <option value="custom">직접 {won(it.purchase_shipping)}</option>}
-                  </select>
+                  {/* 매입배송비 — 수량 기준 카톤단위/카톤외 자동 구분 (수정 가능, 704 확정) */}
+                  <input value={it.purchase_shipping ? won(it.purchase_shipping) : ''} disabled={locked}
+                    onChange={e => setItem(i, { purchase_shipping: toInt(e.target.value) })}
+                    title={purchaseShippingHint(it) ?? '카톤 정보가 없는 품목 — 직접 입력'}
+                    className={numCell} placeholder="0" />
+                  {purchaseShippingHint(it) && (
+                    <div className="text-[10px] text-gray-400 mt-0.5">{purchaseShippingHint(it)!.replace('자동 계산: ', '').replace(' (수정 가능)', '')}</div>
+                  )}
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   {(() => {
@@ -953,6 +971,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           {totals.discount > 0 && (
             <span className="text-red-600">할인 합계 <b className="tabular-nums">-{won(totals.discount)}원</b></span>
           )}
+          {/* 매입 합계 = 매입가×수량 + 매입배송비 (마진 공식과 동일 기준 — 합계 − 매입 = 마진) */}
+          <span className="text-gray-600">매입 합계 <b className="tabular-nums">{won(totals.cost)}원</b>
+            <span className="text-[11px] text-gray-400 ml-1">배송비 포함</span>
+          </span>
           <span>예상 마진 <b className="tabular-nums text-emerald-700">{won(totals.margin)}원</b>
             {totals.total > 0 && (
               <span className="text-xs text-emerald-700 ml-1">({Math.round((totals.margin / totals.total) * 1000) / 10}%)</span>

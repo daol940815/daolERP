@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { isManagerLike } from '@/lib/permissions'
+import { can, isManagerLike } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { kstToday, kstMonthNow } from '@/lib/attendance'
@@ -80,7 +80,8 @@ export async function GET() {
     (Array.isArray(v) ? v[0]?.name : v?.name) ?? null
 
   return NextResponse.json({
-    me: { name: me.employeeName, role: isManagerLike(me) ? (me.role === 'sales' ? 'manager' : me.role) : 'sales', linked: !!me.employeeId },
+    // canCustomers: 담당 거래처 카드의 드릴다운 목적지 결정용 (내 고객 목록 vs 내 정보 요약)
+    me: { name: me.employeeName, role: isManagerLike(me) ? (me.role === 'sales' ? 'manager' : me.role) : 'sales', linked: !!me.employeeId, canCustomers: can(me, 'customers') },
     month,
     today,
     summary: summaryRes.error ? null : summaryRes.data,

@@ -238,7 +238,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
               <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-gray-200 text-gray-600">비활성</span>
             )}
             <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${meta.cls}`}>{meta.label}</span>
-            <select value={data.vendor.purchase_kind} onChange={e => changeKind(e.target.value)}
+            <select value={data.vendor.purchase_kind} onChange={e => changeKind(e.target.value)} disabled={!perms.edit}
               title="거래 매입처=발주·미지급 관리 대상 / 별도 구매처=온·오프라인에서 사 온 곳(즉시 결제) / 경비성=택배·전기·리스 등"
               className="border border-gray-300 rounded px-1.5 py-0.5 text-[11px] text-gray-600">
               <option value="partner">거래 매입처</option>
@@ -261,8 +261,8 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
           ) : (
             <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5">
               <span>사업자번호 {data.vendor.biz_number ?? '미입력'}</span>
-              <button onClick={() => setInfoForm({ open: true, name: data.vendor.name, biz: data.vendor.biz_number ?? '' })}
-                className="text-[11px] text-gray-400 hover:text-gray-600 underline">정보 수정</button>
+              {perms.edit && <button onClick={() => setInfoForm({ open: true, name: data.vendor.name, biz: data.vendor.biz_number ?? '' })}
+                className="text-[11px] text-gray-400 hover:text-gray-600 underline">정보 수정</button>}
             </div>
           )}
           {/* 발주 이메일 — 발주서 발송에 쓰는 주소 (원가표 적재분, 누락 시 여기서 보완) */}
@@ -285,8 +285,8 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                   : data.vendor.purchase_kind !== 'partner'
                     ? <span className="text-gray-400">관리 대상 아님</span>
                     : <span className="text-orange-600">미입력</span>}
-                <button onClick={() => setEmailForm({ open: true, value: data.vendor.email ?? '' })}
-                  className="text-[11px] text-gray-400 hover:text-gray-600 underline">수정</button>
+                {perms.edit && <button onClick={() => setEmailForm({ open: true, value: data.vendor.email ?? '' })}
+                  className="text-[11px] text-gray-400 hover:text-gray-600 underline">수정</button>}
               </>
             )}
           </div>
@@ -296,8 +296,8 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
               className={`px-2 py-0.5 rounded-full text-[11px] border hover:underline ${data.links.alias_count ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               ERP 별칭 {data.links.alias_count || '미'}연동
             </Link>
-            <button onClick={() => setOpeningForm(f => ({ ...f, open: !f.open }))}
-              title="미결제금 기초원장 (기준일 + 기초잔액) 입력"
+            <button onClick={() => perms.edit && setOpeningForm(f => ({ ...f, open: !f.open }))} disabled={!perms.edit}
+              title={perms.edit ? '미결제금 기초원장 (기준일 + 기초잔액) 입력' : '기초원장 (수정 권한 필요)'}
               className={`px-2 py-0.5 rounded-full text-[11px] border hover:underline ${data.links.opening ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               기초원장 {data.links.opening ? `${data.links.opening.as_of_date} 기준 ${eok(data.links.opening.amount)}` : '미입력'}
             </button>
@@ -319,7 +319,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
         </div>
         <div className="text-right text-xs text-gray-500">
           {data.vendor.note && <div>최근 메모: &quot;{data.vendor.note.slice(0, 40)}{data.vendor.note.length > 40 ? '…' : ''}&quot;</div>}
-          <div className="mt-1.5 flex gap-1.5 justify-end">
+          {perms.edit && <div className="mt-1.5 flex gap-1.5 justify-end">
             <button onClick={toggleActive}
               title="기록은 남기고 신규 선택 목록에서만 제외합니다"
               className="px-2 py-1 border border-gray-300 rounded text-[11px] text-gray-600 hover:bg-gray-50">
@@ -330,7 +330,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
               className="px-2 py-1 border border-gray-200 rounded text-[11px] text-red-500 hover:bg-red-50">
               삭제
             </button>
-          </div>
+          </div>}
         </div>
       </div>
 
@@ -340,8 +340,8 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <div className="flex items-center justify-between">
             <div className="text-sm font-bold text-gray-800">자사 담당직원 <span className="text-gray-400 font-normal">· {data.staff.length}명</span></div>
-            <button onClick={() => setStaffForm(f => ({ ...f, open: !f.open }))}
-              className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">담당 추가</button>
+            {perms.edit && <button onClick={() => setStaffForm(f => ({ ...f, open: !f.open }))}
+              className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">담당 추가</button>}
           </div>
           {data.staff.map(s => (
             <div key={s.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
@@ -352,14 +352,14 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
               </div>
               <div className="text-right text-[11px] text-gray-500">
                 담당처 {s.vendor_count}곳
-                <div className="mt-0.5 flex gap-1 justify-end">
+                {perms.edit && <div className="mt-0.5 flex gap-1 justify-end">
                   {!s.is_primary && (
                     <button onClick={async () => { await post('/api/vendor-hub/staff', { action: 'set_primary', assignment_id: s.id }); load() }}
                       className="px-1.5 py-0.5 border border-gray-200 rounded text-[10px] hover:bg-gray-50">주담당으로</button>
                   )}
                   <button onClick={async () => { await post('/api/vendor-hub/staff', { action: 'unassign', assignment_id: s.id }); load() }}
                     className="px-1.5 py-0.5 border border-gray-200 rounded text-[10px] text-red-500 hover:bg-red-50">해제</button>
-                </div>
+                </div>}
               </div>
             </div>
           ))}
@@ -395,8 +395,8 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                 · 활성 {data.contacts.filter(c => !c.ended_at).length}명 · 이전 {data.contacts.filter(c => c.ended_at).length}명
               </span>
             </div>
-            <button onClick={() => setContactForm(f => ({ ...f, open: !f.open }))}
-              className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">담당자 추가</button>
+            {perms.edit && <button onClick={() => setContactForm(f => ({ ...f, open: !f.open }))}
+              className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">담당자 추가</button>}
           </div>
           {data.contacts.map(c => (
             <div key={c.assignment_id} className={`flex items-start justify-between py-2 border-b border-gray-50 last:border-0 ${c.ended_at ? 'opacity-50' : ''}`}>
@@ -409,7 +409,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
               </div>
               <div className="text-right text-[11px] text-gray-500 whitespace-nowrap">
                 {c.ended_at ? `종료 ${c.ended_at}` : `배정 ${c.started_at ?? '-'}`}
-                {!c.ended_at && (
+                {!c.ended_at && perms.edit && (
                   <div className="mt-0.5 flex gap-1 justify-end">
                     {!c.is_representative && (
                       <button onClick={async () => { await post('/api/vendor-hub/contacts', { action: 'set_representative', assignment_id: c.assignment_id }); load() }}
@@ -684,11 +684,11 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
           <div className="bg-white border border-gray-200 rounded-xl p-4 max-w-2xl">
             <div className="text-sm font-bold text-gray-800 mb-2">활동 메모</div>
             <textarea value={note} onChange={e => setNote(e.target.value)} rows={6}
-              placeholder="지급 협의, 정산 이슈 등 이 매입처 관련 메모"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-            <div className="flex justify-end mt-2">
+              placeholder="지급 협의, 정산 이슈 등 이 매입처 관련 메모" readOnly={!perms.edit}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm read-only:bg-gray-50" />
+            {perms.edit && <div className="flex justify-end mt-2">
               <button onClick={saveNote} className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">저장</button>
-            </div>
+            </div>}
           </div>
         )}
       </div>

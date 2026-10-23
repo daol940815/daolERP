@@ -50,6 +50,8 @@
   (`can(me, group, level)`, `canApprove`, `isManagerLike`·`isHrAdmin` = 레거시 role 호환).
   `role`(sales/manager/admin)은 109 미적용 폴백용으로만 남김 — **새 코드는 role로 판정하지 말 것.**
   마스터 계정: daol825(ERP 총괄)·master(사장님). 권한 편집은 직원·계정·권한 화면(마스터만).
+  화면의 등록·수정·삭제 조작은 그룹 **수정** 권한자에게만 노출한다(API가 내려주는 `can_edit` 또는 서버 perms) —
+  차단은 미들웨어(GET 외 = 수정)가 하므로 노출 제어는 UX용. 거래처 관리 5화면은 2026-10-01 적용.
 - 로그인: login_id → `{login_id}@daol.internal` 내부 이메일로 Supabase Auth 인증 (`lib/user-role.ts`)
 - **내 정보** `/me/profile`(내 업무, 전원): 기본 정보(연락처만 본인 수정) / 계정(비밀번호 변경 = 재인증 후
   `auth.updateUser`) / 내 업무 요약. **권한 정보는 노출하지 않는다**(2026-10-01 사용자 결정). 관리자 비밀번호 재설정은
@@ -87,8 +89,12 @@
   **`600번대` 매입처 허브 트랙(인수인계: docs/purchase-hub-track.md)** /
   `700번대` 상담·영업·업무일지 트랙(인수인계: docs/consultation-journal-track.md) /
   **`800번대` 요아럽 샘플 재고 트랙(인수인계: docs/sample-stock-track.md)** /
+  `900번대` 업무요청 트랙(인수인계: docs/work-request-track.md — 900 적용 2026-10-16) /
   새 트랙은 다음 100번대를 사용.
-- 현재 적용 완료: 100~109 (109 = 직원 권한, 2026-09-29).
+- 원본 데이터 재적재(ERP 주문 정리본 교체, 2026-10-21 결정 — 마이그레이션 없음, 데이터 작업만):
+  docs/erp-reload-track.md. **별도 세션에서 진행**(인수인계 섹션 참고). 순서: 엑셀 검수 완료 → 사용자 승인 → 업로드 주문 삭제 →
+  재업로드. 통장·계산서·카드는 리셋하지 않는다(확정). 매출처·매입처 엑셀 업로드(수정·추가 전용)도 같은 트랙.
+- 현재 적용 완료: 100~109 (109 = 직원 권한, 2026-09-29), 900 (업무 요청, 2026-10-16).
 
 ## 기본 루틴 (모든 트랙 공통)
 
@@ -152,6 +158,9 @@
 - **한 화면 탭 통합(2026-09-30)**: 성격이 같은 두 화면은 하나의 경로에 `?tab=`으로 묶는다 —
   서버 page.tsx가 searchParams.tab을 읽어 탭 컴포넌트를 고르고, 탭 줄은 `components/ui/PageTabs.tsx`.
   옛 주소는 리다이렉트 스텁(쿼리 보존)으로 남기고 `EXTRA_PATH_OWNERS`에 소속을 유지한다.
+  업무 요청 `/me/requests`(받은|보낸)은 내 업무 그룹 전원, 경영 현황 `/reports/work-requests`는 조회 전용.
+  알림 센터(2026-10-16): `/api/notifications`가 원본 상태에서 '확인할 것'을 계산(저장 없음), 사이드바 종·패널·토스트는
+  `components/layout/NotificationCenter.tsx`, 폴링은 AreaSidebar의 `useNotifications` 1곳. 새 알림 원천은 API에 블록 추가.
   적용: 기초잔액 `/opening-balances`, 자금 · 계좌 `/reports/cash`, 카드 내역 `/cards`, 계산서 내역 `/tax-invoices`
   (칩 `?dir=&tax=` + 매입 분류 탭), 통장 내역 `/transactions`(분류 작업 탭, 기간 없음), 매입처 관리(결제 예외 탭,
   collections 권한), 미수금·미지급금 관리(`components/reports/aging-manage.tsx`, 경과 구간 + 허브 요약 합침).

@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { sessionOnly } from '@/lib/auth-session-prefs'
 import { can, type PermSubject, type Permissions } from '@/lib/permissions'
-import { apiOwnerOf } from '@/lib/menu-registry'
+import { apiOwnersOf } from '@/lib/menu-registry'
 
 // API 호출자의 권한을 서비스 키로 1회 조회 (직원 미연결 계정은 레거시 admin으로 간주)
 async function loadSubject(userId: string): Promise<(PermSubject & { employmentType: 'regular' | 'parttime' }) | null> {
@@ -117,7 +117,7 @@ export async function middleware(request: NextRequest) {
   // 경로 → 그룹은 메뉴 목록(apiOwnerOf)에서, 수준은 GET/HEAD=조회 · 그 외=수정.
   // 매핑 없는 API는 로그인만으로 허용. 아르바이트는 신규 거래처(마스터) 등록 차단.
   if (user && pathname.startsWith('/api') && pathname !== '/api/area/select') {
-    const owner = apiOwnerOf(pathname)
+    const owners = apiOwnersOf(pathname)   // 여러 그룹이면 하나라도 통과하면 허용
     const method = request.method.toUpperCase()
     const subject = await loadSubject(user.id)
     if (subject) {
@@ -125,10 +125,10 @@ export async function middleware(request: NextRequest) {
         return NextResponse.json({ error: '근무 기간이 종료된 계정입니다.' }, { status: 403 })
       }
       const isWrite = !(method === 'GET' || method === 'HEAD')
-      if (owner && owner !== 'my') {
-        const ok = owner === 'team'
+      if (owners.length && !owners.includes('my')) {
+        const ok = owners.some(o => o === 'my' ? true : o === 'team'
           ? (subject.isMaster || subject.canApprove)
-          : can(subject, owner, isWrite ? 'edit' : 'view')
+          : can(subject, o, isWrite ? 'edit' : 'view'))
         if (!ok) {
           return NextResponse.json({ error: isWrite ? '수정 권한이 없습니다.' : '조회 권한이 없습니다.' }, { status: 403 })
         }

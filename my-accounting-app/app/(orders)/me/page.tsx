@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { kstTime, LEAVE_TYPE_LABEL, LEAVE_STATUS_LABEL, type LeaveType, type LeaveStatus } from '@/lib/attendance'
+import { TodoPanel } from '@/components/layout/NotificationCenter'
+import type { NotifData } from '@/lib/notifications'
 
 // 내 대시보드 (직원 개인화면 홈)
 // 본인 관련 정보만 모아 보여준다 — 이번 달 내 주문 · 미수 · 담당 거래처 ·
@@ -19,7 +21,7 @@ interface Summary {
 }
 
 interface Data {
-  me: { name: string | null; role: string; linked: boolean }
+  me: { name: string | null; role: string; linked: boolean; canCustomers?: boolean }
   month: string
   today: string
   summary: Summary | null
@@ -45,6 +47,16 @@ export default function MyDashboardPage() {
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [work, setWork] = useState<{ rows: WorkRow[]; month: string } | null>(null)
+  // 업무 요청 요약 (900) — 받은/보낸 카드
+  const [wr, setWr] = useState<Record<string, number> | null>(null)
+  useEffect(() => {
+    fetch('/api/work-requests?summary=1').then(r => r.ok ? r.json() : null).then(j => setWr(j?.summary ?? null)).catch(() => setWr(null))
+  }, [])
+  // 확인할 것 패널 (알림 센터와 같은 데이터) — 영역 1개 직원은 업무 선택 화면을 보지 않으므로 홈에서
+  const [notif, setNotif] = useState<NotifData | null>(null)
+  useEffect(() => {
+    fetch('/api/notifications', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => setNotif(j ?? null)).catch(() => setNotif(null))
+  }, [])
 
   useEffect(() => {
     fetch('/api/me/worklog')
@@ -68,6 +80,18 @@ export default function MyDashboardPage() {
 
   const s = data.summary
   const kpis = [
+    ...(wr ? [
+      {
+        label: '받은 요청', href: '/me/requests',
+        value: `미확인 ${wr.inbox_unread ?? 0}`,
+        sub: `진행 중 ${wr.inbox_active ?? 0} · 지남 ${wr.inbox_overdue ?? 0}${wr.inbox_reported ? ` · 완료 대기 ${wr.inbox_reported}` : ''}`,
+      },
+      {
+        label: '보낸 요청', href: '/me/requests?tab=outbox',
+        value: `진행 중 ${wr.outbox_open ?? 0}`,
+        sub: `${wr.outbox_awaiting ? `완료 대기 ${wr.outbox_awaiting}` : ''}${wr.outbox_awaiting && wr.outbox_rejected ? ' · ' : ''}${wr.outbox_rejected ? `반려 ${wr.outbox_rejected}` : ''}` || null,
+      },
+    ] : []),
     {
       label: '이번 달 내 주문', href: '/orders',
       value: s ? `${s.orders_month.cnt}건` : '-',
@@ -79,7 +103,8 @@ export default function MyDashboardPage() {
       sub: s ? `미수 주문 ${s.outstanding_total.cnt}건` : null,
     },
     {
-      label: '담당 거래처', href: null,
+      // 거래처 관리 권한자는 내 고객 목록으로, 없으면 내 정보 › 내 업무 요약(담당 거래처 표)으로 (2026-10-05)
+      label: '담당 거래처', href: data.me.canCustomers ? '/sales-hub?mine=1' : '/me/profile?tab=work',
       value: s ? `${s.vendor_cnt}곳` : '-',
       sub: s && s.consult_month.order_cnt > 0 ? `이번 달 상담 주문 ${s.consult_month.order_cnt}건` : null,
     },
@@ -114,6 +139,8 @@ export default function MyDashboardPage() {
       {data.summaryError && (
         <div className="mt-4 px-4 py-2.5 bg-amber-50 text-amber-800 text-sm rounded-lg">{data.summaryError}</div>
       )}
+
+      {notif && notif.items.length > 0 && <div className="mt-4"><TodoPanel variant="light" data={notif} /></div>}
 
       {/* KPI 카드 — 클릭 시 해당 화면으로 드릴다운 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">

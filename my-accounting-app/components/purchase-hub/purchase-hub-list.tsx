@@ -298,10 +298,12 @@ export default function PurchaseHubList({ basePath, perms }: {
             매입 계산서·지급·미지급 잔액과 담당을 매입처 단위로 봅니다. 행 클릭 시 매입처 360° 상세로 이동합니다.
           </p>
         </div>
-        <button onClick={() => setShowNew(true)}
-          className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700 shrink-0">
-          매입처 등록
-        </button>
+        {perms.edit && (
+          <button onClick={() => setShowNew(true)}
+            className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700 shrink-0">
+            매입처 등록
+          </button>
+        )}
       </div>
       {showNew && (
         <NewVendorModal

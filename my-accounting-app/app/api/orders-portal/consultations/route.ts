@@ -5,6 +5,7 @@ import { isManagerLike } from '@/lib/permissions'
 import { encryptPayment, encryptionReady } from '@/lib/payment-crypto'
 import { parseConsultBody, consultItemRows, insertConsultItems, compatConsultFields, CONSULT_MIGRATION_HINT, CONSULT_509_HINT } from '@/lib/consultations'
 import { recordWorkLog, consultContent } from '@/lib/work-log'
+import { resolveContact } from '@/lib/contact-resolve'
 
 export const dynamic = 'force-dynamic'
 
@@ -120,6 +121,20 @@ export async function POST(req: NextRequest) {
 
   const parsed = parseConsultBody(body)
   if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
+
+  // 인물 자동 판별 (2026-10-16): 담당자를 마스터에서 고르지 않고 이름만 적어도
+  // 거래처가 특정되면 자동으로 인물을 찾거나 만들어 연결한다. 실패해도 저장은 계속.
+  if (!parsed.fields.contact_id && parsed.fields.vendor_id && parsed.fields.manager_name) {
+    const r = await resolveContact(admin, {
+      vendorId: parsed.fields.vendor_id,
+      rawName: parsed.fields.manager_name,
+      phone: parsed.fields.phone,
+      tel: parsed.fields.tel,
+      source: 'consultation',
+      eventDate: parsed.fields.consult_date,
+    })
+    if (r) parsed.fields.contact_id = r.contactId
+  }
 
   let paymentEnc: string | null = null
   if (parsed.paymentPlain) {

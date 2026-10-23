@@ -10,7 +10,7 @@ import { useParams, useRouter } from 'next/navigation'
 const won = (n: number) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
 interface Detail {
-  contact: { id: string; name: string; phone: string | null; email: string | null; note: string | null }
+  contact: { id: string; name: string; code?: string | null; phone: string | null; email: string | null; note: string | null }
   assignments: {
     id: string; vendor_id: string; vendor_name: string; title: string | null
     is_representative: boolean; started_at: string | null; ended_at: string | null; vendor_gap: boolean
@@ -33,6 +33,7 @@ export default function ContactDetailPage() {
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const canEdit = !!(d as (Detail & { can_edit?: boolean }) | null)?.can_edit   // 거래처 관리 수정 권한 (2026-10-01)
 
   // 정보 수정 폼
   const [editing, setEditing] = useState(false)
@@ -95,6 +96,11 @@ export default function ContactDetailPage() {
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <Link href="/sales-hub/contacts" className="text-sm text-gray-400 hover:text-gray-600">← 담당자 목록</Link>
         <h1 className="text-2xl font-bold text-gray-900">{d.contact.name}</h1>
+        {d.contact.code && (
+          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold tabular-nums" title="고객코드 (자동 부여)">
+            {d.contact.code}
+          </span>
+        )}
         {active[0] && (
           <span className="text-sm text-gray-500">
             {active[0].vendor_name}{active[0].title ? ` · ${active[0].title}` : ''}
@@ -112,9 +118,9 @@ export default function ContactDetailPage() {
           <div className="bg-white border border-gray-200 rounded-xl p-4">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-sm font-bold text-gray-900">담당자 정보</h2>
-              <button onClick={() => setEditing(e => !e)} className="text-xs text-slate-600 hover:underline">
+              {canEdit && <button onClick={() => setEditing(e => !e)} className="text-xs text-slate-600 hover:underline">
                 {editing ? '닫기' : '정보 수정'}
-              </button>
+              </button>}
             </div>
             {editing ? (
               <div className="space-y-2">
@@ -141,7 +147,7 @@ export default function ContactDetailPage() {
                   <span>{d.stats.last_order_date ?? '주문 이력 없음'}</span></div>
               </div>
             )}
-            <div className="flex gap-1.5 mt-3 flex-wrap">
+            {canEdit && <div className="flex gap-1.5 mt-3 flex-wrap">
               <button onClick={() => { setMoving(m => !m); setMoveQ(''); setMoveTitle('') }}
                 className="px-2.5 py-1 text-xs border border-slate-300 text-slate-700 rounded hover:bg-slate-50">이동 처리</button>
               {d.same_name.length > 0 && (
@@ -158,7 +164,7 @@ export default function ContactDetailPage() {
                   동명이인 병합 ({d.same_name.length})
                 </button>
               )}
-            </div>
+            </div>}
             {moving && (
               <div className="mt-3 border-t border-gray-100 pt-3 space-y-2">
                 <p className="text-xs text-gray-500">현재 배정을 모두 종료하고 새 거래처로 이동합니다. 이전 거래처는 담당 공백으로 표시됩니다.</p>
@@ -195,7 +201,7 @@ export default function ContactDetailPage() {
                   {a.ended_at && a.vendor_gap && (
                     <p className="text-[11px] text-red-500">→ 이 거래처는 담당 공백 (후임 미지정)</p>
                   )}
-                  {!a.ended_at && (
+                  {!a.ended_at && canEdit && (
                     <div className="flex gap-1.5 mt-1">
                       {!a.is_representative && (
                         <button disabled={busy}
@@ -266,7 +272,7 @@ export default function ContactDetailPage() {
               </p>
             ) : (
               <>
-                <div className="flex gap-1.5 mt-2 mb-3 flex-wrap items-center">
+                {canEdit && <div className="flex gap-1.5 mt-2 mb-3 flex-wrap items-center">
                   <input value={act.content} onChange={e => setAct(a => ({ ...a, content: e.target.value }))}
                     onKeyDown={e => { if (e.key === 'Enter' && act.content.trim()) {
                       post({ action: 'add_activity', contact_id: d.contact.id, vendor_id: active[0]?.vendor_id,
@@ -296,7 +302,7 @@ export default function ContactDetailPage() {
                     className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700 disabled:opacity-40">
                     기록
                   </button>
-                </div>
+                </div>}
                 {d.activities.length ? (
                   <table className="w-full text-sm">
                     <thead>

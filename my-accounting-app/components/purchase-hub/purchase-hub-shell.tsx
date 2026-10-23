@@ -23,7 +23,7 @@ export default function PurchaseHubShell({ basePath, perms, tab, vendorId }: {
         ]} />
       )}
       {active === 'exceptions'
-        ? <ExceptionsTab basePath={basePath} vendorId={vendorId} />
+        ? <ExceptionsTab basePath={basePath} vendorId={vendorId} canEdit={perms.collectionsEdit} />
         : <PurchaseHubList basePath={basePath} perms={perms} />}
     </div>
   )

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { normalizeName } from '@/lib/name-similarity'
+import { autoLinkOrderManagers, type AutoLinkStats, type ManagerCombo } from '@/lib/contact-resolve'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -243,10 +244,21 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 2) 별칭 확보 (매출처: 은행+지점 / 매입처: 매입처이름) ──
+  // 개인주문(은행명 '개인', 지점명 없음)은 고객명(담당자 칸)이 지점명 역할을 하므로
+  // '개인 {고객명}'으로 고객별 별칭을 만든다 (2026-10-02 확정 — 고객별 거래처 분리).
+  const customerAliasName = (g: { bank_name: string | null; branch_name: string | null; manager_name: string | null }) => {
+    const bank = (g.bank_name ?? '').trim()
+    const branch = (g.branch_name ?? '').trim()
+    if (bank === '개인' && !branch) {
+      const cust = (g.manager_name ?? '').trim()
+      if (cust) return `개인 ${cust}`
+    }
+    return [bank, branch].filter(Boolean).join(' ').trim()
+  }
   const customerNames = new Set<string>()
   const purchaseNames = new Set<string>()
   for (const g of Array.from(orders.values())) {
-    const cname = [g.bank_name, g.branch_name].filter(Boolean).join(' ').trim()
+    const cname = customerAliasName(g)
     if (cname) customerNames.add(cname)
     for (const it of g.items) {
       if (it.purchase_vendor_name) purchaseNames.add(it.purchase_vendor_name)
@@ -338,7 +350,7 @@ export async function POST(req: NextRequest) {
     order_date: g.order_date,
     bank_name: g.bank_name,
     branch_name: g.branch_name,
-    customer_alias_id: aliasMap.get(`customer|${[g.bank_name, g.branch_name].filter(Boolean).join(' ').trim()}`) ?? null,
+    customer_alias_id: aliasMap.get(`customer|${customerAliasName(g)}`) ?? null,
     manager_name: g.manager_name,
     staff_name: g.staff_name,
     contact: g.contact,
@@ -438,7 +450,7 @@ export async function POST(req: NextRequest) {
   const prepayRows: Record<string, unknown>[] = []
   for (const g of orderList) {
     const orderId = orderIdMap.get(g.order_no)
-    const aliasId = aliasMap.get(`customer|${[g.bank_name, g.branch_name].filter(Boolean).join(' ').trim()}`)
+    const aliasId = aliasMap.get(`customer|${customerAliasName(g)}`)
     if (!orderId || !aliasId) continue
     let occ = 0
     for (const it of g.items) {
@@ -463,6 +475,35 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: `선결제 등록 실패: ${error.message}` }, { status: 500 })
   }
 
+  // ── 6) 담당자 표기 자동 판별 (2026-10-16) — 쓰기만 하면 고객 관리가 되도록
+  // 거래처가 연결된 주문의 담당자 표기를 (거래처, 표기) 조합 단위로 인물에 자동
+  // 연결한다. 신규·이동·동명 충돌은 확인 대기 큐(contact_review_events)에 쌓인다.
+  let contactStats: AutoLinkStats = { linked_existing: 0, created: 0, moved: 0, conflicts: 0, skipped: 0 }
+  {
+    const usedAliasIds = Array.from(new Set(
+      orderList.map(g => aliasMap.get(`customer|${customerAliasName(g)}`)).filter(Boolean) as string[]))
+    const aliasVendor = new Map<string, string>()
+    for (let i = 0; i < usedAliasIds.length; i += 100) {
+      const { data } = await admin.from('erp_vendor_aliases')
+        .select('id, vendor_id').in('id', usedAliasIds.slice(i, i + 100)).not('vendor_id', 'is', null)
+      for (const a of (data ?? [])) aliasVendor.set(a.id as string, a.vendor_id as string)
+    }
+    const comboMap = new Map<string, ManagerCombo>()
+    for (const g of orderList) {
+      const raw = (g.manager_name ?? '').trim()
+      if (!raw) continue
+      const aliasId = aliasMap.get(`customer|${customerAliasName(g)}`)
+      const vid = aliasId ? aliasVendor.get(aliasId) : null
+      if (!vid) continue
+      const key = `${vid}|${raw}`
+      const prev = comboMap.get(key)
+      if (!prev || g.order_date > (prev.eventDate ?? '')) {
+        comboMap.set(key, { vendorId: vid, rawName: raw, phone: g.phone, tel: g.contact, eventDate: g.order_date })
+      }
+    }
+    contactStats = await autoLinkOrderManagers(admin, Array.from(comboMap.values()))
+  }
+
   const updated = existingOrderNos.size
   const created = orderList.length - updated
 
@@ -477,5 +518,7 @@ export async function POST(req: NextRequest) {
     // 거래처 연동: 이름 일치로 자동 연결된 별칭 / 등록 대기로 남은 별칭
     alias_auto_linked: aliasAutoLinked,
     alias_pending: aliasPending,
+    // 담당자 자동 판별: 기존 연결 / 신규 생성 / 이동 감지 / 동명 충돌 / 판별 불가
+    contact_auto: contactStats,
   })
 }

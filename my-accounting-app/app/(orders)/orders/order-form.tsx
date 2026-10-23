@@ -5,7 +5,7 @@ import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Combo, autoGrow, branchLabel, cartonShipping, draftFromProduct, emptyItem, lineTotal,
-  priceRule, toInt, won,
+  priceRule, purchaseShippingHint, quantityPatch, toInt, won,
 } from './form-shared'
 import type { ContactOpt, Employee, ItemDraft, Product, Vendor, VendorGroup } from './form-shared'
 import { contactLabel } from '@/lib/contact-label'
@@ -134,6 +134,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               quantity: (it.quantity as number) ?? 1,
               shipping_fee: (it.shipping_fee as number) ?? 0,
               discount_amount: (it.discount_amount as number) ?? 0,
+              discount_mode: ((it.discount_mode as string) === '단가' ? '단가' : '정액') as '정액' | '단가',
+              discount_unit: (it.discount_unit as number) ?? 0,
               purchase_price: (it.purchase_price as number) ?? 0,
               purchase_shipping: (it.purchase_shipping as number) ?? 0,
               memo: (it.memo as string) ?? '',
@@ -221,6 +223,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                   + (shipByParent.get(it.line_no as number) ?? 0)
                   + (idx === 0 ? (shipByParent.get(-1) ?? 0) : 0),
                 discount_amount: (it.discount_amount as number) ?? 0,
+                discount_mode: ((it.discount_mode as string) === '단가' ? '단가' : '정액') as '정액' | '단가',
+                discount_unit: (it.discount_unit as number) ?? 0,
                 purchase_price: (it.purchase_price as number) ?? 0,
                 purchase_shipping: (it.purchase_shipping as number) ?? 0,
                 // 상담 품목의 상태·기타사항은 주문 품목 메모로 병합 (전환 시 유실 방지)
@@ -365,6 +369,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
     const it = items[i]
     setItem(i, {
       quantity: qty,
+      ...(it ? quantityPatch(it, qty) : {}),   // 단가 할인·매입배송비 자동 재계산 (704)
       ...(it && it.order_kind === '지점' && it.carton_unit > 0
         ? { shipping_fee: cartonShipping(it.carton_unit, it.carton_shipping_fee, it.loose_shipping_fee, qty) }
         : {}),
@@ -723,6 +728,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                           label: [p.item_code, p.item_name].filter(Boolean).join(' · '),
                           sub: [p.category, p.purchase_vendor_name].filter(Boolean).join(' · '),
                           soldout: !!p.is_soldout,
+                          note: p.status_note ?? undefined,
                         }))}
                         onSelect={id => pickProduct(i, id)}
                         placeholder="품번·품명 검색"
@@ -766,18 +772,53 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                       : undefined} />
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  <input value={it.discount_amount ? won(it.discount_amount) : ''} onChange={e => setItem(i, { discount_amount: toInt(e.target.value) })}
-                    className={numCell} placeholder="0" />
+                  {/* 할인 — 정액 / 개당(× 수량 자동) 구분 (704, 상담일지와 동일) */}
+                  <select value={it.discount_mode}
+                    onChange={e => {
+                      const mode = e.target.value as '정액' | '단가'
+                      setItem(i, mode === '단가'
+                        ? { discount_mode: mode, discount_amount: (it.discount_unit || 0) * it.quantity }
+                        : { discount_mode: mode, discount_unit: 0 })
+                    }}
+                    className="w-full border border-blue-200 bg-blue-50/40 rounded px-1 py-0.5 text-[10px] mb-0.5">
+                    <option value="정액">정액</option>
+                    <option value="단가">개당</option>
+                  </select>
+                  <input
+                    value={it.discount_mode === '단가'
+                      ? (it.discount_unit ? won(it.discount_unit) : '')
+                      : (it.discount_amount ? won(it.discount_amount) : '')}
+                    onChange={e => {
+                      const v = toInt(e.target.value)
+                      setItem(i, it.discount_mode === '단가'
+                        ? { discount_unit: v, discount_amount: v * it.quantity }
+                        : { discount_amount: v })
+                    }}
+                    title={it.discount_mode === '단가' ? `개당 할인 — 할인액 ${won(it.discount_amount)}원 자동 계산` : '행당 할인 금액'}
+                    className={`${numCell} ${it.discount_amount > 0 ? 'text-red-600 font-semibold border-red-200 bg-red-50/40' : ''}`}
+                    placeholder="0" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  <div className={autoCell + ' font-semibold text-gray-700'}>{won(lineTotal(it))}</div>
+                  <div className={autoCell + ' font-semibold text-gray-700'}>
+                    {won(lineTotal(it))}
+                    {it.discount_amount > 0 && (
+                      <div className="text-[10px] text-red-500 font-normal">
+                        할인 -{won(it.discount_amount)}{it.discount_mode === '단가' ? ` (${won(it.discount_unit)}/개)` : ''}
+                      </div>
+                    )}
+                  </div>
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   <input value={it.purchase_price ? won(it.purchase_price) : ''} onChange={e => setItem(i, { purchase_price: toInt(e.target.value) })}
                     className={numCell} placeholder="0" />
+                  {/* 품목별 매입가 합계 = 매입가 × 수량 (704 확정) */}
+                  {it.purchase_price > 0 && it.quantity > 0 && (
+                    <div className="text-[10px] text-gray-400 mt-0.5 tabular-nums">합계 {won(it.purchase_price * it.quantity)}</div>
+                  )}
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   <input value={it.purchase_shipping ? won(it.purchase_shipping) : ''} onChange={e => setItem(i, { purchase_shipping: toInt(e.target.value) })}
+                    title={purchaseShippingHint(it) ?? '카톤 정보가 없는 품목 — 직접 입력'}
                     className={numCell} placeholder="0" />
                 </td>
                 <td className="py-1 px-1.5">

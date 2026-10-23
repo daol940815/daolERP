@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { buildContactManagerBundle } from '@/lib/contact-manager'
+import { getCurrentUser } from '@/lib/user-role'
+import { can } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +21,17 @@ export async function GET(req: NextRequest) {
   }
   const bundle = await buildContactManagerBundle(admin)
   if ('error' in bundle) return NextResponse.json({ error: bundle.error }, { status: 500 })
-  return NextResponse.json(bundle)
+  // 자동 판별 확인 대기 (110) — 미적용 환경이면 빈 배열
+  let reviews: unknown[] = []
+  {
+    const { data } = await admin.from('contact_review_events')
+      .select('id, contact_id, vendor_id, event_type, source, detail, created_at, contacts(name, code, phone), vendors(name)')
+      .eq('status', 'pending').order('created_at', { ascending: false }).limit(300)
+    reviews = data ?? []
+  }
+  // can_edit = 거래처 관리 수정 권한 (등록·배정·연결 버튼 노출용 — 차단은 미들웨어)
+  const me = await getCurrentUser()
+  return NextResponse.json({ ...bundle, reviews, can_edit: !!me && can(me, 'customers', 'edit') })
 }
 
 // POST /api/contact-manager — 담당자 관리 액션 모음
@@ -129,18 +141,37 @@ export async function POST(req: NextRequest) {
         return ok()
       }
 
-      // 동명이인 병합: source의 배정·일지·연결을 target으로 이전
+      // 동명이인 병합: source의 배정·일지·연결·주문·상담 참조를 target으로 이전
       case 'merge': {
         const { source_id, target_id } = body as { source_id: string; target_id: string }
         if (!source_id || !target_id || source_id === target_id) return bad('병합 대상이 올바르지 않습니다.')
-        for (const t of ['contact_assignments', 'contact_activities', 'contact_name_links'] as const) {
-          const { error } = await admin.from(t).update({ contact_id: target_id }).eq('contact_id', source_id)
-          // 105 미적용 테이블은 건너뜀
-          if (error && !/contact_activities|contact_name_links/.test(error.message)) throw error
-        }
-        const { error } = await admin.from('contacts')
-          .update({ merged_into_id: target_id }).eq('id', source_id)
+        const err = await mergeContactInto(admin, source_id, target_id)
+        if (err) throw new Error(err)
+        return ok()
+      }
+
+      // 확인 대기: 확인 처리 (자동 판별 결과 승인)
+      case 'resolve_review': {
+        const { event_id } = body as { event_id: string }
+        if (!event_id) return bad('event_id가 필요합니다.')
+        const me = await getCurrentUser()
+        const { error } = await admin.from('contact_review_events')
+          .update({ status: 'resolved', resolved_at: new Date().toISOString(), resolved_by: me?.employeeName ?? null })
+          .eq('id', event_id)
         if (error) throw error
+        return ok()
+      }
+
+      // 확인 대기: 동명 충돌 → 기존 후보와 동일인으로 병합 + 확인 처리
+      case 'merge_review': {
+        const { event_id, source_id, target_id } = body as { event_id: string; source_id: string; target_id: string }
+        if (!event_id || !source_id || !target_id || source_id === target_id) return bad('병합 대상이 올바르지 않습니다.')
+        const err = await mergeContactInto(admin, source_id, target_id)
+        if (err) throw new Error(err)
+        const me = await getCurrentUser()
+        await admin.from('contact_review_events')
+          .update({ status: 'resolved', resolved_at: new Date().toISOString(), resolved_by: me?.employeeName ?? null })
+          .eq('id', event_id)
         return ok()
       }
 
@@ -206,3 +237,41 @@ export async function POST(req: NextRequest) {
 
 const ok = () => NextResponse.json({ ok: true })
 const bad = (m: string) => NextResponse.json({ error: m }, { status: 400 })
+
+// 인물 병합 — source의 모든 참조를 target으로 이전하고 merged_into_id를 남긴다.
+// contact_name_links는 (vendor_id, raw_name) 유니크라 target에 같은 표기가 있으면
+// source 쪽 행을 제거한다. 105·500 미적용 테이블은 건너뛴다.
+async function mergeContactInto(
+  admin: ReturnType<typeof createAdminClient>,
+  sourceId: string,
+  targetId: string,
+): Promise<string | null> {
+  {
+    const { error } = await admin.from('contact_assignments')
+      .update({ contact_id: targetId }).eq('contact_id', sourceId)
+    if (error) return error.message
+  }
+  for (const t of ['contact_activities', 'erp_consultations', 'erp_orders'] as const) {
+    const { error } = await admin.from(t).update({ contact_id: targetId }).eq('contact_id', sourceId)
+    if (error && !/does not exist|contact_id/.test(error.message)) return error.message
+  }
+  {
+    // 유니크 충돌 안전 이전: target에 같은 (vendor_id, raw_name)이 없을 때만 이전, 잔여 삭제
+    const { data: links } = await admin.from('contact_name_links')
+      .select('id, vendor_id, raw_name').eq('contact_id', sourceId)
+    for (const l of (links ?? [])) {
+      const { data: dup } = await admin.from('contact_name_links')
+        .select('id').eq('vendor_id', l.vendor_id).eq('raw_name', l.raw_name).neq('contact_id', sourceId).limit(1)
+      if (dup?.length) await admin.from('contact_name_links').delete().eq('id', l.id)
+      else await admin.from('contact_name_links').update({ contact_id: targetId }).eq('id', l.id)
+    }
+  }
+  // 전화번호 보강: target이 비어 있으면 source 번호 승계
+  const [{ data: src }, { data: tgt }] = await Promise.all([
+    admin.from('contacts').select('phone').eq('id', sourceId).maybeSingle(),
+    admin.from('contacts').select('phone').eq('id', targetId).maybeSingle(),
+  ])
+  if (src?.phone && !tgt?.phone) await admin.from('contacts').update({ phone: src.phone }).eq('id', targetId)
+  const { error } = await admin.from('contacts').update({ merged_into_id: targetId }).eq('id', sourceId)
+  return error ? error.message : null
+}

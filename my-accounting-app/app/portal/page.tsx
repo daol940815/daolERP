@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/user-role'
 import { areasFor } from '@/lib/permissions'
 import LogoutButton from './logout-button'
 import CheckWidget from '@/app/(orders)/orders/check-widget'
+import PortalTodo from './portal-todo'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,8 @@ export default async function PortalPage() {
 
       {/* 출근·퇴근 체크 — 로그인 직후 영역에 들어가지 않고도 (2026-10-01 사용자 요청). 비대상 직원에게는 비표시 */}
       <div className="mt-6 w-64"><CheckWidget /></div>
+      {/* 로그인 직후 확인할 것 — 알림 센터와 같은 데이터 (0건이면 비표시) */}
+      <div className="mt-5 w-[560px] max-w-full"><PortalTodo /></div>
 
       <div className="flex gap-4 mt-8 flex-wrap justify-center">
         {areas.map(a => (
