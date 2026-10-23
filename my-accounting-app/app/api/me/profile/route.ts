@@ -10,7 +10,8 @@ export const dynamic = 'force-dynamic'
 //  PATCH { phone?, email? } — 본인이 고칠 수 있는 것은 연락처만 (사용자 확정). 팀·직위·입사일·로그인 ID는 인사·총무.
 // 각 요약 블록은 200/300/700 마이그레이션 미적용 환경에서도 죽지 않도록 개별 폴백한다.
 
-const EMP_COLS = 'id, name, team, position, employment_type, hire_date, work_start, work_end, is_active, phone, email, login_id'
+const EMP_COLS_BASE = 'id, name, team, position, employment_type, hire_date, work_start, work_end, is_active, phone, email, login_id'
+const EMP_COLS = `${EMP_COLS_BASE}, birth_date`   // 생일(203) — 미적용이면 아래에서 BASE로 재조회
 
 export async function GET() {
   const me = await getCurrentUser()
@@ -38,6 +39,13 @@ export async function GET() {
     empId ? admin.from('contact_activities').select('id, activity_date, activity_type, content, contacts(name), vendors(name)')
       .eq('employee_id', empId).order('activity_date', { ascending: false }).order('created_at', { ascending: false }).limit(5) : empty,
   ])
+
+  // 203(생일) 미적용 환경 — 생일만 빼고 한 번 더 읽는다
+  let empData = empRes.data as Record<string, unknown> | null
+  if (empId && empRes.error && /birth_date/i.test(empRes.error.message)) {
+    const r = await admin.from('employees').select(EMP_COLS_BASE).eq('id', empId).maybeSingle()
+    empData = r.data as Record<string, unknown> | null
+  }
 
   type Named = { name?: string | null; status?: string | null } | { name?: string | null; status?: string | null }[] | null
   const one = (v: Named) => (Array.isArray(v) ? v[0] : v) ?? null
@@ -70,8 +78,8 @@ export async function GET() {
 
   return NextResponse.json({
     linked: !!empId,
-    employee: empRes.data ?? null,
-    account: { login_id: (empRes.data as { login_id?: string | null } | null)?.login_id ?? null, email: me.email, last_sign_in_at: authUser?.last_sign_in_at ?? null },
+    employee: empData ?? null,
+    account: { login_id: (empData as { login_id?: string | null } | null)?.login_id ?? null, email: me.email, last_sign_in_at: authUser?.last_sign_in_at ?? null },
     today,
     month,
     attendance: attRes.error ? null : attRes.data ?? null,

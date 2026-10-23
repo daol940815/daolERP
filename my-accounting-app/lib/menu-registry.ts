@@ -118,6 +118,7 @@ export const MENU: MenuGroup[] = [
     { label: '대시보드', href: '/', exact: true },
     { label: '자금 · 계좌', href: '/reports/cash' },   // 계좌 통합현황 / 자금일보 탭 (2026-09-30 통합)
     { label: '대출 관리', href: '/loans' },
+    { label: '스케줄', href: '/hr/schedule' },   // 인사·총무와 공유 — 사장님용 인원·일정 현황 (2026-10-23)
     { label: '거래처별 매출 분석', href: '/reports/vendor-sales' },
     { label: '거래처별 수익성 분석', href: '/reports/vendor-profitability' },
     { label: '업무 요청 현황', href: '/reports/work-requests' },   // 전 직원 요청 현황 (900, 조회 전용)
@@ -183,7 +184,8 @@ export function ownersOfPath(pathname: string) {
 
 // API 경로 → 권한 그룹 (미들웨어 검사용). 접두가 긴 것이 우선. 없는 경로는 로그인만으로 허용.
 // 수준은 미들웨어가 정한다: GET/HEAD = 조회, 그 외 = 수정.
-export const API_OWNERS: { prefix: string; group: MenuGroupKey }[] = [
+// group 을 배열로 주면 그중 하나라도 권한이 있으면 통과(any-of) — 메뉴가 두 영역에 있는 화면용.
+export const API_OWNERS: { prefix: string; group: MenuGroupKey | MenuGroupKey[] }[] = [
   // 전원
   { prefix: '/api/me', group: 'my' },
   { prefix: '/api/work-requests', group: 'my' },            // 업무 요청 (당사자 판정은 API 안에서)
@@ -192,8 +194,9 @@ export const API_OWNERS: { prefix: string; group: MenuGroupKey }[] = [
   { prefix: '/api/attendance', group: 'my' },
   // 공휴일은 전사 설정 — 조회·편집 모두 인사·총무 권한 (더 긴 접두가 우선 적용됨)
   { prefix: '/api/attendance/holidays', group: 'hr' },
-  // 스케줄 — 조회 전용. 자금 항목(대출·세무)은 라우트에서 회계 조회 권한으로 한 번 더 거른다
-  { prefix: '/api/schedule', group: 'hr' },
+  // 스케줄 — 인사·총무 + 경영 현황(any-of). mgmt는 viewOnly라 GET만 통과하고 관리 탭 POST는 hr 수정 권한 필요.
+  // 자금 항목(대출·세무)은 라우트에서 회계 조회 권한으로 한 번 더 거른다
+  { prefix: '/api/schedule', group: ['hr', 'mgmt'] },
   // 팀 관리
   { prefix: '/api/team', group: 'team' },
   // 고객 · 영업
@@ -252,9 +255,14 @@ export const API_OWNERS: { prefix: string; group: MenuGroupKey }[] = [
   { prefix: '/api/reports/vendor-profitability', group: 'mgmt' },
 ]
 
-export function apiOwnerOf(pathname: string): MenuGroupKey | null {
+/** 경로를 소유한 그룹 목록(any-of). 비어 있으면 미등록 — 로그인만으로 허용. */
+export function apiOwnersOf(pathname: string): MenuGroupKey[] {
   const hit = API_OWNERS
     .filter(o => pathname === o.prefix || pathname.startsWith(o.prefix + '/') || pathname.startsWith(o.prefix + '?'))
     .sort((a, b) => b.prefix.length - a.prefix.length)[0]
-  return hit?.group ?? null
+  return hit ? ([] as MenuGroupKey[]).concat(hit.group) : []
+}
+/** 호환용 — 첫 그룹만. 새 코드는 apiOwnersOf 를 쓸 것. */
+export function apiOwnerOf(pathname: string): MenuGroupKey | null {
+  return apiOwnersOf(pathname)[0] ?? null
 }

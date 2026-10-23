@@ -14,12 +14,13 @@ export type ScheduleKind =
   | 'leave_pending'  // 승인 대기 휴가 (흐리게 — 겹침 확인용)
   | 'parttime'       // 아르바이트 근무기간
   | 'loan'           // 대출 원리금 상환일
+  | 'birthday'       // 직원 생일 (employees.birth_date, 203) — 월·일만, 연도 비노출
   // 아래 5개는 관리 규칙(schedule_rules)의 category 를 그대로 쓴다
   | 'payroll' | 'tax' | 'company' | 'meeting' | 'other'
 
 export const KIND_LABEL: Record<ScheduleKind, string> = {
   holiday: '공휴일', leave: '휴가', leave_pending: '휴가(대기)',
-  parttime: '아르바이트', loan: '대출 상환',
+  parttime: '아르바이트', loan: '대출 상환', birthday: '생일',
   payroll: '급여·지급', tax: '세무 마감', company: '회사 행사', meeting: '외근·회의', other: '기타',
 }
 
@@ -182,6 +183,23 @@ export function partTimePeriods(rows: PartTimeRow[], month: string): ScheduleEve
     }))
 }
 
+// ── 직원 생일 (employees.birth_date, 203) ──────────────────
+export interface BirthdayRow { id: string; name: string; birth_date: string | null }
+
+/** 그 달에 생일인 직원. 월·일만 비교하고 연도는 내지 않는다. 2/29는 평년에 2/28로 맞춘다. */
+export function birthdays(rows: BirthdayRow[], month: string): ScheduleEvent[] {
+  const [, mEnd] = monthRange(month)
+  const last = Number(mEnd.slice(8, 10))
+  const m = month.slice(5, 7)
+  const out: ScheduleEvent[] = []
+  for (const r of rows) {
+    if (!r.birth_date || r.birth_date.slice(5, 7) !== m) continue
+    const day = Math.min(Number(r.birth_date.slice(8, 10)), last)
+    out.push({ kind: 'birthday', date: `${month}-${String(day).padStart(2, '0')}`, title: '생일', who: r.name })
+  }
+  return out
+}
+
 // ── 날짜별로 펼치기 (월 캘린더 칸 채우기) ──────────────────
 /** 기간형 일정을 날짜별로 나눠 담는다. 'YYYY-MM-DD' → 그날의 일정 목록 */
 export function spreadByDate(events: ScheduleEvent[], month: string): Record<string, ScheduleEvent[]> {
@@ -198,7 +216,7 @@ export function spreadByDate(events: ScheduleEvent[], month: string): Record<str
 
 /** 표시 우선순위 — 칸이 좁을 때 앞에 오는 순서 */
 const ORDER: ScheduleKind[] = [
-  'leave', 'leave_pending', 'meeting', 'parttime', 'payroll', 'loan', 'tax', 'company', 'other', 'holiday',
+  'leave', 'leave_pending', 'birthday', 'meeting', 'parttime', 'payroll', 'loan', 'tax', 'company', 'other', 'holiday',
 ]
 export const sortEvents = (a: ScheduleEvent, b: ScheduleEvent) =>
   ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind)
