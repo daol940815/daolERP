@@ -281,6 +281,8 @@ export default function UploadPage() {
     const endpoint = item.source === 'card_sales' ? '/api/card-sales/import' : '/api/card-expenses/import'
     const fd = new FormData()
     fd.append('file', item.file)
+    // 법인카드 통합양식: 카드사별 기존 마지막 이용일 이후만 올리기(서버 컷오프)
+    if (item.source === 'card_expenses') fd.append('skipExisting', item.skipExisting ? '1' : '0')
     const res  = await fetch(endpoint, { method: 'POST', body: fd })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
@@ -291,6 +293,12 @@ export default function UploadPage() {
     if (data.updated) parts.push(`갱신 ${data.updated.toLocaleString()}건`)
     if (data.posted)  parts.push(`분개 ${data.posted.toLocaleString()}건`)
     if (data.skipped) parts.push(`제외 ${data.skipped.toLocaleString()}건`)
+    if (data.skipped_existing) parts.push(`기존 기간 제외 ${data.skipped_existing.toLocaleString()}건`)
+    if (data.holds)   parts.push(`가승인 취소 ${data.holds.toLocaleString()}건(금액 0)`)
+    if (data.refunds) parts.push(`환불 취소 ${data.refunds.toLocaleString()}건`)
+    const newCards = (data.card_map as { card_company: string; file_no: string; how: string }[] | undefined)
+      ?.filter(c => c.how === 'new' || c.how === 'ambiguous') ?? []
+    if (newCards.length) parts.push(`새 카드 ${newCards.map(c => `${c.card_company} ${c.file_no}`).join(', ')}`)
     patchItem(item.id, { status: 'success', resultText: parts.join(' · ') })
   }
 
@@ -494,6 +502,24 @@ export default function UploadPage() {
                   )}
                 </div>
                 </div>
+
+                {/* ── 법인카드: 통합양식 컷오프 옵션 ── */}
+                {item.source === 'card_expenses' && item.status !== 'success' && (
+                  <div className="w-full mt-1 border-t border-gray-100 pt-2 flex flex-wrap items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={item.skipExisting}
+                        disabled={isUploading || item.status === 'uploading'}
+                        onChange={e => patchItem(item.id, { skipExisting: e.target.checked })}
+                      />
+                      카드사별 이미 올라온 마지막 이용일 이후만 올리기
+                    </label>
+                    <span className="text-xs text-gray-400">
+                      통합양식(전 카드사 한 파일)에만 적용 — 카드사별 파일은 같은 행을 자동으로 건너뜁니다
+                    </span>
+                  </div>
+                )}
 
                 {/* ── 통합계좌: 계좌별 업로드 확인 표 ── */}
                 {item.source === 'bank' && isMultiAccount(item) && item.status !== 'success' && (
