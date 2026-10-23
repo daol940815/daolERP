@@ -11,16 +11,24 @@ export const maxDuration = 120
 // 법인카드 사용내역 업로드 (멀티 카드사·멀티 시트·멀티 양식 지원).
 // - 양식 프로파일: ① 표준(하나 등: 이용일·승인금액) ② 롯데(승인일자·승인금액(원화)·취소여부)
 //   ③ 우리·BC(이용일자 MM.DD·접수/취소 — 연도는 상단 기간행, BC 표기는 우리카드로 통일)
-// - 카드사 판정: 프로파일 고정(롯데/우리) → '카드구분' 컬럼 → 시트명 →
+//   ④ 통합양식(모든 카드사 한 파일: 승인일시·카드사·카드번호·가맹점·승인금액·상태)
+// - 카드사 판정: 프로파일 고정(롯데/우리) → '카드사'/'카드구분' 컬럼 → 시트명 →
 //   기존 card_accounts 번호 앞자리(BIN) 추론 → 실패 시 '기타카드'(검토)
-// - 부가세 컬럼(하나·롯데)이 있으면 tax_amount로 저장 → 분개에서 부가세대급금 분리
+// - 부가세 컬럼(하나·롯데·통합)이 있으면 tax_amount로 저장 → 분개에서 부가세대급금 분리
 // - source_key(카드사|카드번호|이용일|이용시간|승인금액|가맹점명 + 동일키 순번)로 멱등 upsert.
 //   재업로드 시 사용자가 보정한 계정과목/분류는 보존한다.
+// - 통합양식(④)은 카드번호 마스킹이 카드사별 파일과 달라(롯데 앞4+뒤3, 우리 앞4+뒤4 vs 등록은
+//   롯데 16자리·우리 뒤4) 같은 카드가 두 번 생기지 않도록 기존 카드계좌 번호에 맞춰 붙인다
+//   (resolveCardNo). 또 키 모양이 카드사별 파일과 달라 upsert 멱등이 안 통하므로
+//   '카드사별 기존 마지막 이용일 이후만'(skipExisting, 기본 켬) 컷오프로 중복을 막는다.
+//   취소 행: 가맹점명에 '가승인/선승인'이 있으면 결제 보류 해제(승인·취소 모두 0 — 기록만, 분개 없음),
+//   그 외 취소는 환불(취소금액, 역분개).
 
 // 양식 프로파일 식별용 컬럼 (norm() 후 비교)
 const STD_COLS   = ['카드번호', '이용일', '승인금액', '가맹점명']            // 표준(하나 등)
 const LOTTE_COLS = ['카드번호', '승인일자', '승인금액(원화)', '가맹점명']     // 롯데 카드승인내역(그룹별)
 const WOORI_COLS = ['이용일자', '승인번호', '이용카드', '이용가맹점명']       // 우리 승인상세내역
+const INTEG_COLS = ['승인일시', '카드사', '카드번호', '가맹점', '승인금액', '상태']  // 통합양식(전 카드사)
 const CHUNK = 500
 const KNOWN_COMPANIES = ['하나카드', '롯데카드', '신한카드', '삼성카드', '현대카드', '국민카드', '농협카드', '우리카드']
 
@@ -112,6 +120,8 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData().catch(() => null)
   const file = formData?.get('file') as File | null
   if (!file) return NextResponse.json({ error: '파일이 없습니다.' }, { status: 400 })
+  // 통합양식 전용: 카드사별 기존 마지막 이용일 이후 행만 올린다 (기본 켬, '0'이면 전체)
+  const skipExisting = String(formData?.get('skipExisting') ?? '1') !== '0'
 
   const buffer = Buffer.from(await file.arrayBuffer())
   const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true })
@@ -138,28 +148,60 @@ export async function POST(req: NextRequest) {
     classification: string | null
     tax_amount: number
     source_key: string
+    integrated?: boolean   // 통합양식(④) 행 — 카드사별 컷오프 대상
   }
 
-  const parsed: ParsedRow[] = []
+  let parsed: ParsedRow[] = []
   const seen = new Map<string, number>()
   let skipped = 0
-  const cardKeys = new Set<string>()   // `${card_company}|${card_number}`
+  let cardKeys = new Set<string>()   // `${card_company}|${card_number}`
   let matchedAnySheet = false
+  let holdCount = 0     // 통합양식 가승인·선승인 취소(결제 보류 해제) 건수
+  let refundCount = 0   // 통합양식 환불 취소 건수
 
   // 카드사 판정 폴백용: 기존 카드계좌의 번호 앞자리(BIN) → 카드사
   const { data: knownCards } = await admin
     .from('card_accounts').select('card_company, card_number')
   const binOf = (no: string) => normCardNo(no).slice(0, 4)
   const companyByBin = new Map<string, string>()
+  const numbersByCompany = new Map<string, string[]>()   // 카드사 → 등록 카드번호(숫자만)
   for (const c of knownCards ?? []) {
     const bin = binOf(c.card_number as string)
     if (bin.length === 4) companyByBin.set(bin, c.card_company as string)
+    const d = normCardNo(c.card_number)
+    if (d) numbersByCompany.set(c.card_company as string, [...(numbersByCompany.get(c.card_company as string) ?? []), d])
   }
   const inferCompany = (cardType: string | null, sheetName: string, cardNo: string): string => {
     const byName = canonicalCardCompany(cardType, sheetName)
     // canonicalCardCompany는 미인식 시 시트명을 그대로 반환 → 표준 카드사명이 아니면 BIN 추론
     if (KNOWN_COMPANIES.includes(byName)) return byName
     return companyByBin.get(binOf(cardNo)) ?? '기타카드'
+  }
+
+  // 통합양식 카드번호 → 등록된 카드계좌 번호로 치환.
+  //   파일 표기는 앞 4자리 + 뒤 3~4자리(5105-****-****-*373 → 5105373). 등록 번호가
+  //   정확히 같으면 그대로, 아니면 같은 카드사 안에서 "뒤자리가 같고(앞 4자리가 비교 가능하면
+  //   그것도 같은)" 번호가 딱 하나일 때만 그 번호를 쓴다. 0개·2개 이상이면 파일 표기로 새 카드.
+  type CardMap = { card_company: string; file_no: string; stored_no: string; how: 'exact' | 'matched' | 'new' | 'ambiguous' }
+  const cardMap = new Map<string, CardMap>()
+  const resolveCardNo = (company: string, fileNo: string): string => {
+    const k = `${company}|${fileNo}`
+    const hit = cardMap.get(k)
+    if (hit) return hit.stored_no
+    const known = numbersByCompany.get(company) ?? []
+    let entry: CardMap
+    if (known.includes(fileNo)) {
+      entry = { card_company: company, file_no: fileNo, stored_no: fileNo, how: 'exact' }
+    } else {
+      const head = fileNo.length >= 7 ? fileNo.slice(0, 4) : ''
+      const tail = fileNo.length >= 7 ? fileNo.slice(4) : fileNo
+      const cands = known.filter(ed => ed.endsWith(tail) && (!head || ed.length < 8 || ed.startsWith(head)))
+      entry = cands.length === 1
+        ? { card_company: company, file_no: fileNo, stored_no: cands[0], how: 'matched' }
+        : { card_company: company, file_no: fileNo, stored_no: fileNo, how: cands.length ? 'ambiguous' : 'new' }
+    }
+    cardMap.set(k, entry)
+    return entry.stored_no
   }
 
   const push = (p: Omit<ParsedRow, 'source_key'>) => {
@@ -174,11 +216,67 @@ export async function POST(req: NextRequest) {
 
   for (const wsName of wb.SheetNames) {
     const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wsName], { header: 1, raw: true, defval: '' })
-    const hi = rows.findIndex(row => has(row, STD_COLS) || has(row, LOTTE_COLS) || has(row, WOORI_COLS))
+    const hi = rows.findIndex(row => has(row, STD_COLS) || has(row, LOTTE_COLS) || has(row, WOORI_COLS) || has(row, INTEG_COLS))
     if (hi < 0) continue   // 인식 가능한 헤더 없는 시트(안내/요약 등)는 건너뜀
     matchedAnySheet = true
     const header = rows[hi]
     const dataRows = rows.slice(hi + 1)
+
+    // ── 프로파일 ④: 통합양식 (전 카드사 한 파일 — 승인일시·카드사·카드번호·가맹점·승인금액·상태) ──
+    if (has(header, INTEG_COLS)) {
+      const col = {
+        date:     findCol(header, '승인일시'),
+        company:  findCol(header, '카드사'),
+        cardType: findCol(header, '카드구분'),
+        cardNo:   findCol(header, '카드번호'),
+        merchant: findCol(header, '가맹점'),
+        region:   findCol(header, '국내/외 구분', '국내/외구분'),
+        amount:   findCol(header, '승인금액'),
+        vat:      findCol(header, '부가세'),
+        bizNo:    findCol(header, '가맹점사업자번호'),
+        category: findCol(header, '가맹점업종'),
+        status:   findCol(header, '상태'),
+        dept:     findCol(header, '부서'),
+        account:  findCol(header, '계정과목'),   // 사용자 추가 컬럼 지원
+      }
+      for (const row of dataRows) {
+        const fileNo = normCardNo(row[col.cardNo])
+        const date = toDateStr(row[col.date])
+        if (!fileNo || !date) { if (row.some(c => String(c ?? '').trim())) skipped++; continue }
+        const company = inferCompany(toStr(row[col.company]), wsName, fileNo)
+        const cardNo = resolveCardNo(company, fileNo)
+        const amount = Math.abs(toNumber(row[col.amount]))
+        const merchant = toStr(row[col.merchant])
+        const isCanceled = (toStr(row[col.status]) ?? '').includes('취소')
+        // 가승인·선승인(택시 등 결제 보류)의 취소는 청구도 환불도 아니다 — 금액 0으로 기록만
+        const isHold = isCanceled && /가승인|선승인/.test(merchant ?? '')
+        if (isHold) holdCount++
+        else if (isCanceled) refundCount++
+        const region = col.region >= 0 ? toStr(row[col.region]) : null
+        const dept = col.dept >= 0 ? toStr(row[col.dept]) : null
+        push({
+          card_company: company, card_number: cardNo,
+          tx_date: date, tx_time: toTimeStr(row[col.date]),
+          card_type: col.cardType >= 0 ? toStr(row[col.cardType]) : null,
+          merchant_name: merchant,
+          merchant_category: col.category >= 0 ? toStr(row[col.category]) : null,
+          merchant_biz_number: col.bizNo >= 0 ? toStr(row[col.bizNo]) : null,
+          approved_amount: isCanceled ? 0 : amount,
+          cancel_amount: isCanceled && !isHold ? amount : 0,
+          settled_amount: 0,
+          statement_status: isHold ? '가승인 취소' : (isCanceled ? '취소' : null),
+          usage_type: region && region !== '국내' ? region : null,
+          submall: null, source_sheet: wsName,
+          user_name: dept && dept !== '미지정' ? dept : null,
+          account_text: col.account >= 0 ? toStr(row[col.account]) : null,
+          classification: null,
+          // 부가세 '-'는 toNumber가 0으로 만든다
+          tax_amount: isCanceled ? 0 : (col.vat >= 0 ? toNumber(row[col.vat]) : 0),
+          integrated: true,
+        })
+      }
+      continue
+    }
 
     // ── 프로파일 ②: 롯데 (승인일자·승인금액(원화)·취소여부, 부가세 포함) ──
     if (!has(header, STD_COLS) && has(header, LOTTE_COLS)) {
@@ -344,12 +442,48 @@ export async function POST(req: NextRequest) {
 
   if (!matchedAnySheet) {
     return NextResponse.json(
-      { error: '인식할 수 없는 파일 형식입니다. (필수 컬럼: 카드번호·이용일·승인금액·가맹점명)' },
+      { error: '인식할 수 없는 파일 형식입니다. (필수 컬럼: 카드번호·이용일·승인금액·가맹점명 또는 통합양식 승인일시·카드사·카드번호·가맹점·승인금액·상태)' },
       { status: 400 },
     )
   }
   if (!parsed.length) {
     return NextResponse.json({ error: '가져올 수 있는 데이터가 없습니다.', skipped }, { status: 400 })
+  }
+
+  // ── 1-1) 통합양식 컷오프: 카드사별 기존 마지막 이용일 이후 행만 ──
+  // 통합양식은 source_key 모양(시각·가맹점명 표기)이 카드사별 파일과 달라 upsert로 중복을 못 거른다.
+  // 카드사 단위로 "이미 올라온 마지막 이용일"을 구해 그 날짜 이후 행만 남긴다(은행 통합계좌와 같은 규칙).
+  const lastByCompany: Record<string, string> = {}
+  let skippedExisting = 0
+  const integratedCompanies = Array.from(new Set(parsed.filter(p => p.integrated).map(p => p.card_company)))
+  if (integratedCompanies.length) {
+    for (const company of integratedCompanies) {
+      const { data: accs } = await admin.from('card_accounts').select('id').eq('card_company', company)
+      const ids = (accs ?? []).map(a => a.id as string)
+      if (!ids.length) continue
+      const { data: last } = await admin
+        .from('card_expenses').select('tx_date')
+        .in('card_account_id', ids)
+        .order('tx_date', { ascending: false })
+        .limit(1).maybeSingle()
+      if (last?.tx_date) lastByCompany[company] = String(last.tx_date).slice(0, 10)
+    }
+    if (skipExisting) {
+      const before = parsed.length
+      parsed = parsed.filter(p => {
+        if (!p.integrated) return true
+        const last = lastByCompany[p.card_company]
+        return !last || p.tx_date > last
+      })
+      skippedExisting = before - parsed.length
+      cardKeys = new Set(parsed.map(p => `${p.card_company}|${p.card_number}`))
+      if (!parsed.length) {
+        return NextResponse.json({
+          error: '카드사별 기존 마지막 이용일 이후의 행이 없습니다. 전체를 올리려면 "기존 마지막 이용일 이후만"을 끄세요.',
+          skipped_existing: skippedExisting, last_by_company: lastByCompany,
+        }, { status: 400 })
+      }
+    }
   }
 
   // ── 2) 카드계좌 확보 (카드사·카드번호별 자동 생성) ─────────
@@ -583,6 +717,12 @@ export async function POST(req: NextRequest) {
     suggested: suggestedCount,
     posted,
     skipped,
-    total_rows: parsed.length + skipped,
+    total_rows: parsed.length + skipped + skippedExisting,
+    // 통합양식(④) 전용 정보 — 화면 안내용
+    skipped_existing: skippedExisting,
+    last_by_company: lastByCompany,
+    holds: holdCount,
+    refunds: refundCount,
+    card_map: Array.from(cardMap.values()),
   })
 }
