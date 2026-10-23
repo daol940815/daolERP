@@ -157,7 +157,7 @@ export async function GET(req: NextRequest) {
       types.invoice++
       const inflow = (t.amount_in ?? 0) > 0
       const acc = inflow ? receivable : payable
-      add(`invoice:${inflow ? 'in' : 'out'}`, 'invoice', inflow ? '세계 매칭 입금 (수금)' : '세계 매칭 출금 (지급)', t,
+      add(`invoice:${inflow ? 'in' : 'out'}`, 'invoice', inflow ? '계산서 매칭 입금 (수금)' : '계산서 매칭 출금 (지급)', t,
         acc ? { account_id: acc.id, code: inflow ? '1101' : '2001', name: acc.name, reason: inflow ? '매출채권 상계' : '미지급금 상계', vendor_id: t.vendor_id } : null)
       continue
     }
