@@ -10,13 +10,14 @@ import PermissionPanel, { type PermEmp } from './permission-panel'
 interface Emp extends PermEmp {
   phone: string | null
   hire_date: string | null
+  birth_date: string | null
   role: 'sales' | 'manager' | 'admin'
   is_active: boolean
   auth_user_id: string | null
 }
 
 const TEAMS = ['영업팀', '영업지원팀', '경영지원팀']
-const EMPTY = { name: '', team: '', position: '', phone: '', hire_date: '', role: 'sales', login_id: '', password: '' }
+const EMPTY = { name: '', team: '', position: '', phone: '', hire_date: '', birth_date: '', role: 'sales', login_id: '', password: '' }
 
 const permSummary = (e: Emp) => {
   if (e.is_master) return '마스터 (전 영역)'
@@ -36,7 +37,8 @@ export default function EmployeesPage() {
   const [showForm, setShowForm] = useState(false)
   const [busy, setBusy] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
-  const [edit, setEdit] = useState({ name: '', team: '', position: '', phone: '', hire_date: '', login_id: '' })
+  const [edit, setEdit] = useState({ name: '', team: '', position: '', phone: '', hire_date: '', birth_date: '', login_id: '' })
+  const [birthdayReady, setBirthdayReady] = useState(true)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [meInfo, setMeInfo] = useState<{ employeeId: string | null; isMaster: boolean; canEdit: boolean }>({ employeeId: null, isMaster: false, canEdit: false })
   const [permReady, setPermReady] = useState(true)
@@ -52,7 +54,7 @@ export default function EmployeesPage() {
     else {
       setRows(json.employees)
       if (json.me) setMeInfo(json.me)
-      setPermReady(json.permissionsReady !== false)
+      setPermReady(json.permissionsReady !== false); setBirthdayReady(json.birthdayReady !== false)
     }
     setSelected(new Set())
     setLoading(false)
@@ -83,7 +85,7 @@ export default function EmployeesPage() {
     setEditId(r.id)
     setEdit({
       name: r.name, team: r.team ?? '', position: r.position ?? '',
-      phone: r.phone ?? '', hire_date: r.hire_date ?? '', login_id: r.login_id ?? '',
+      phone: r.phone ?? '', hire_date: r.hire_date ?? '', birth_date: r.birth_date ?? '', login_id: r.login_id ?? '',
     })
   }
   const saveEdit = async () => {
@@ -170,7 +172,7 @@ export default function EmployeesPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {([
               ['name', '이름 *', 'text'], ['team', '팀', 'text'], ['position', '직급', 'text'],
-              ['phone', '연락처', 'text'], ['hire_date', '입사일', 'date'],
+              ['phone', '연락처', 'text'], ['hire_date', '입사일', 'date'], ['birth_date', '생일', 'date'],
               ['login_id', '로그인 ID (영문·숫자)', 'text'], ['password', '초기 비밀번호', 'text'],
             ] as const).map(([k, label, type]) => (
               <div key={k}>
@@ -197,7 +199,7 @@ export default function EmployeesPage() {
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
         {loading ? <div className="text-center py-16 text-gray-400">로딩 중...</div> : (
-          <table className="w-full text-sm min-w-[880px]">
+          <table className="w-full text-sm min-w-[960px]">
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
                 <th className="py-2 px-3 w-8">
@@ -209,6 +211,7 @@ export default function EmployeesPage() {
                 <th className="py-2 px-3 text-left font-medium">로그인 ID</th>
                 <th className="py-2 px-3 text-left font-medium">권한</th>
                 <th className="py-2 px-3 text-left font-medium">입사일</th>
+                <th className="py-2 px-3 text-left font-medium">생일</th>
                 <th className="py-2 px-3 text-left font-medium">상태</th>
                 <th className="py-2 px-3 text-right font-medium w-56"></th>
               </tr>
@@ -228,6 +231,7 @@ export default function EmployeesPage() {
                   <td className="py-2 px-3"><input value={edit.login_id} onChange={e => setEdit(s => ({ ...s, login_id: e.target.value }))} className={inp} /></td>
                   <td className="py-2 px-3 text-xs text-gray-400">{permSummary(r)}</td>
                   <td className="py-2 px-3"><input type="date" value={edit.hire_date} onChange={e => setEdit(s => ({ ...s, hire_date: e.target.value }))} className={inp} /></td>
+                  <td className="py-2 px-3"><input type="date" value={edit.birth_date} disabled={!birthdayReady} title={birthdayReady ? '' : '203 마이그레이션 실행 후 입력 가능'} onChange={e => setEdit(s => ({ ...s, birth_date: e.target.value }))} className={inp} /></td>
                   <td className="py-2 px-3"></td>
                   <td className="py-2 px-3 text-right whitespace-nowrap">
                     <button onClick={saveEdit} disabled={busy} className="text-xs px-2 py-1 bg-slate-900 text-white rounded mr-1">저장</button>
@@ -261,6 +265,7 @@ export default function EmployeesPage() {
                     {r.employment_type === 'parttime' && <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-50 text-amber-700">아르바이트{r.work_end ? ` ~${r.work_end}` : ''}</span>}
                   </td>
                   <td className="py-2 px-3 tabular-nums text-gray-500 text-xs">{r.hire_date ?? '-'}</td>
+                  <td className="py-2 px-3 tabular-nums text-gray-500 text-xs">{r.birth_date ?? '-'}</td>
                   <td className="py-2 px-3">
                     <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${r.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {r.is_active ? '재직' : '비활성'}
@@ -290,7 +295,7 @@ export default function EmployeesPage() {
                   </td>
                 </tr>
               ))}
-              {!rows.length && <tr><td colSpan={9} className="text-center py-12 text-gray-400 text-sm">등록된 직원이 없습니다.</td></tr>}
+              {!rows.length && <tr><td colSpan={10} className="text-center py-12 text-gray-400 text-sm">등록된 직원이 없습니다.</td></tr>}
             </tbody>
           </table>
         )}

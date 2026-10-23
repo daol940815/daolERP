@@ -32,18 +32,19 @@ const COLOR: Record<ScheduleKind, string> = {
   company: 'bg-emerald-100 text-emerald-700',
   meeting: 'bg-orange-100 text-orange-700',
   other: 'bg-gray-100 text-gray-600',
+  birthday: 'bg-fuchsia-100 text-fuchsia-700',
   holiday: 'bg-rose-100 text-rose-600',
 }
 const DOT: Record<ScheduleKind, string> = {
   leave: 'bg-red-500', leave_pending: 'bg-red-200', parttime: 'bg-violet-500',
   loan: 'bg-amber-500', payroll: 'bg-yellow-500', tax: 'bg-sky-500',
   company: 'bg-emerald-500', meeting: 'bg-orange-500', other: 'bg-gray-400',
-  holiday: 'bg-rose-300',
+  birthday: 'bg-fuchsia-500', holiday: 'bg-rose-300',
 }
 // 자금 항목 — 회계 권한이 없으면 서버가 아예 안 보내므로 칩도 숨긴다
 const MONEY_KINDS: ScheduleKind[] = ['loan', 'tax']
 const ALL_KINDS: ScheduleKind[] = [
-  'leave', 'leave_pending', 'meeting', 'parttime', 'payroll', 'loan', 'tax', 'company', 'other', 'holiday',
+  'leave', 'leave_pending', 'birthday', 'meeting', 'parttime', 'payroll', 'loan', 'tax', 'company', 'other', 'holiday',
 ]
 const won = (n: number) => n.toLocaleString('ko-KR')
 

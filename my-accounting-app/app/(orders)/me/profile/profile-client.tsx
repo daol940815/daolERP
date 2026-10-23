@@ -19,6 +19,7 @@ export interface EmployeeRow {
   position: string | null
   employment_type: 'regular' | 'parttime' | 'contract' | string
   hire_date: string | null
+  birth_date?: string | null
   work_start: string | null
   work_end: string | null
   is_active: boolean
@@ -88,6 +89,7 @@ export function EmployeeBasicCard({ emp, today, right }: { emp: EmployeeRow; tod
         <Row k="직위">{emp.position ?? <span className="text-gray-300">-</span>}</Row>
         <Row k="고용 형태"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${et.cls}`}>{et.label}</span></Row>
         <Row k="입사일">{emp.hire_date ?? <span className="text-gray-300">-</span>}{emp.hire_date && tenure(emp.hire_date, today) && <span className="text-xs text-gray-400 ml-2">({tenure(emp.hire_date, today)})</span>}</Row>
+        <Row k="생일">{emp.birth_date ?? <span className="text-gray-300">-</span>}</Row>
         {showTerm && <Row k="근무 기간">{emp.work_start ?? '?'} ~ {emp.work_end ?? '진행 중'}</Row>}
         <Row k="상태"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${emp.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{emp.is_active ? '재직' : '비활성'}</span></Row>
       </dl>
