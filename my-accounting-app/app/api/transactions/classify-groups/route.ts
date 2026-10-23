@@ -59,12 +59,20 @@ export async function GET(req: NextRequest) {
 
   const [{ data: cardVendors }, { data: accounts }] = await Promise.all([
     admin.from('vendors').select('id, name').eq('is_card_company', true),
-    admin.from('accounts').select('id, code, name, keywords').eq('is_active', true),
+    admin.from('accounts').select('id, code, name, type, keywords').eq('is_active', true),
   ])
   const cardVendorById = new Map((cardVendors ?? []).map(v => [v.id as string, v.name as string]))
   const cardVendorByName = new Map((cardVendors ?? []).map(v => [v.name as string, v.id as string]))
   const accByCode = new Map((accounts ?? []).map(a => [a.code as string, { id: a.id as string, name: a.name as string }]))
   const accName = new Map((accounts ?? []).map(a => [a.id as string, { code: a.code as string, name: a.name as string }]))
+  const accType = new Map((accounts ?? []).map(a => [a.id as string, a.type as string]))
+  // 방향 가드 — 입금에 비용계정, 출금에 수익계정은 추천하지 않는다 (키워드 분류기와 같은 규칙)
+  const fitsDirection = (accountId: string, inflow: boolean) => {
+    const ty = accType.get(accountId)
+    if (inflow && ty === 'expense') return false
+    if (!inflow && ty === 'income') return false
+    return true
+  }
   const kwAccounts = (accounts ?? [])
     .filter(a => Array.isArray(a.keywords) && (a.keywords as string[]).length)
     .map(a => ({ id: a.id as string, keywords: a.keywords as string[] }))
@@ -196,23 +204,26 @@ export async function GET(req: NextRequest) {
         acc ? { account_id: acc.id, code, name: acc.name, reason, vendor_id: t.vendor_id } : null)
       continue
     }
-    // ⑤ 일반 — 유사거래 묶음 (상대명/적요에서 숫자 제거 후 앞 14자)
+    // ⑤ 일반 — 유사거래 묶음 (상대명/적요에서 숫자 제거 후 앞 14자) × **입금/출금**
+    //   같은 거래처라도 입금(임대료수익)과 출금(상품매입)은 계정이 다르다 — 방향을 섞어 묶으면
+    //   계정 하나로 확정할 수 없다 (2026-10-23, 요아럽 사례).
     types.general++
     const label = (t.counterparty_name || t.description || '(적요 없음)').trim()
     const norm = label.replace(/\d+/g, '').trim().slice(0, 14) || '(적요 없음)'
+    const inflow = (t.amount_in ?? 0) > 0
     let suggestion: Suggestion = null
-    if (t.vendor_id && defaultAcc.has(t.vendor_id)) {
+    if (t.vendor_id && defaultAcc.has(t.vendor_id) && fitsDirection(defaultAcc.get(t.vendor_id)!, inflow)) {
       const a = accName.get(defaultAcc.get(t.vendor_id)!)
       if (a) suggestion = { account_id: defaultAcc.get(t.vendor_id)!, ...a, reason: '거래처 기본계정', vendor_id: t.vendor_id }
     }
     if (!suggestion) {
       const k = keywordHit(hay)
-      if (k) {
+      if (k && fitsDirection(k.id, inflow)) {
         const a = accName.get(k.id)
         if (a) suggestion = { account_id: k.id, ...a, reason: `키워드 "${k.keyword}"` }
       }
     }
-    add(`gen:${norm}`, 'general', norm, t, suggestion)
+    add(`gen:${inflow ? 'in' : 'out'}:${norm}`, 'general', `${norm} · ${inflow ? '입금' : '출금'}`, t, suggestion)
   }
 
   // internal 그룹의 이체쌍 후보 계산 — 같은 금액·반대 방향·±1일·다른 계좌
