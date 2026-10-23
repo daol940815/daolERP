@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { STMT_BIZ_NO } from '@/lib/trade-statement'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -199,6 +200,7 @@ export async function POST(req: NextRequest) {
   const parsed: ParsedRow[] = []
   let skipped = 0
   let mismatched = 0   // 선택한 매출/매입 방향과 사업자번호 위치가 어긋나는 행 (잘못된 메뉴에 업로드했을 가능성)
+  let selfRows = 0     // 상대방이 우리 회사인 행 (저장 안 함)
 
   for (const row of dataRows) {
     const approvalNumber = String(row[col.approval] ?? '').trim()
@@ -212,6 +214,10 @@ export async function POST(req: NextRequest) {
 
     const counterpartyBiz  = direction === 'sales' ? recipientBiz : supplierBiz
     const counterpartyName = String(row[direction === 'sales' ? recipientNameIdx : supplierNameIdx] ?? '').trim() || null
+    // 상대방이 우리 회사인 행은 저장하지 않는다 — 방향이 뒤집힌 행이거나 자사 간 발행.
+    // 이런 행이 들어오면 우리 회사가 거래처로 생성되어 매입처 목록·미지급 집계에 섞인다
+    // (2026-06-29·07-20 사고, 411·417로 정리). 건수만 세어 결과에 알린다.
+    if (counterpartyBiz && (counterpartyBiz === selfBiz || counterpartyBiz === STMT_BIZ_NO)) { selfRows++; continue }
 
     parsed.push({
       approval_number: approvalNumber,
@@ -230,7 +236,12 @@ export async function POST(req: NextRequest) {
   }
 
   if (!parsed.length) {
-    return NextResponse.json({ error: '가져올 수 있는 데이터가 없습니다.', skipped }, { status: 400 })
+    return NextResponse.json({
+      error: selfRows
+        ? `상대방이 우리 회사(${selfBiz ?? STMT_BIZ_NO})인 행 ${selfRows}건뿐이라 저장하지 않았습니다. 파일의 매출/매입 방향을 확인하세요.`
+        : '가져올 수 있는 데이터가 없습니다.',
+      skipped, self_rows: selfRows,
+    }, { status: 400 })
   }
 
   try {
@@ -390,6 +401,7 @@ export async function POST(req: NextRequest) {
     updated,
     skipped,
     mismatched,
+    self_rows: selfRows,
     vendorsCreated,
     total: dataRows.length,
     // 파일에서 판별한 구분 — 화면 선택과 달랐으면 Corrected에 값이 들어간다 (파일 쪽으로 저장됨)
