@@ -5,3 +5,7 @@
 !.claude/compact-followup.md
 .claude/settings.local.json
 .next/
+
+# python
+__pycache__/
+*.pyc
