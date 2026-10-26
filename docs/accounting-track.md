@@ -490,7 +490,8 @@ A안(허브를 단일 진실로) 채택. `reports/management-dashboard/page.tsx`
 | `407_receivable_view_net_sales_fix.sql` | 뷰 보정 — 순매출을 품목 합으로, 0 하한 제거 | 없음 | **실행 완료** (2026-10-12) — 검증 8,635/8,635 · 순매출 6,310,278,915(=025) · legacy 5,849,863,431(=022) · 표준 미수 255,579,538/279건 |
 | `408_receivable_unify_rpcs.sql` | `hub_vendor_summary`·`erp_orders_summary`·`erp_receivable_summary`를 뷰 위로 재작성 + `erp_order_receivable_by_ids` 추가 | **있음** | **적용 확인** (2026-10-23) — 점검 SQL에서 세 함수 호출값이 모두 255,587,938 = 뷰 표준 합계. 사용자 실행 보고는 없었으나 옛 공식(101: 250,750,538 / 022·037: 265,360,338)으로는 나올 수 없는 값이라 적용된 것으로 본다. JS 쪽(`lib/receivable.ts` 호출부)은 같은 날 main 병합·배포 |
 | `409_tx_kind_and_loan_account_no.sql` | `transactions.tx_kind` + `loans.loan_account_no` 컬럼 | 없음 | **실행 완료** (2026-10-07) |
-| `417_delete_self_vendor.sql` | 자사 거래처('주식회사 다올커머스'·'다올커머스') 삭제 — 참조는 연결만 해제(vendor_id NULL), 사람이 만든 기록(원장·검토·담당)이 붙어 있으면 중단 | 매입처 목록·미지급 | 실행 대기 (2026-10-23 사용자 지시) |
+| `418_relink_unlinked_tax_invoices.sql` | 417로 풀린 계산서를 업로더 규칙(활성 거래처 사업자번호 → 상호, 유일 일치만)으로 재연결. 거래처 신규 생성 없음 | 매입처 미지급 | 실행 대기 |
+| `417_delete_self_vendor.sql` | 자사 거래처('주식회사 다올커머스'·'다올커머스') 삭제 — 참조는 연결만 해제(vendor_id NULL), 사람이 만든 기록(원장·검토·담당)이 붙어 있으면 중단 | 매입처 목록·미지급 | **실행 완료** (2026-10-26) — 검증 자사거래처 0 · 허브 자사행 0 · 미연결 매입 계산서 159 · 매출 1 · 허브 미지급 합계 82,606,860. NOTICE(삭제 전 허브 값) 미수령 |
 | `416_receivable_view_uncollected_deduct.sql` | 뷰 보정 — ERP 수금 미반영 주문(원본미수 ≥ 총액)은 컷오프 이전 입금도 차감 | **있음** | **실행 완료** (2026-10-23) — 미수 255,587,938 → 249,810,038 |
 | `410_cleanup_misuploaded_bank_file.sql` | 구버전 업로더로 들어간 1,356건 삭제 | — | **실행 완료** (2026-10-07, 검증 일치) |
 
