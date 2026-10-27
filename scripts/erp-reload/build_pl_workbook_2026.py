@@ -67,6 +67,29 @@ inv_names = fetch_all('tax_invoices?select=direction,counterparty_name&issue_dat
 PUR_NAMES = set(_norm(t['counterparty_name']) for t in inv_names if t['direction'] != 'sales') - {''}
 SALE_NAMES = set(_norm(t['counterparty_name']) for t in inv_names if t['direction'] == 'sales') - {''}
 acc_by_code = {a['code']: f"{a['code']} {a['name']}" for a in accounts}
+# 세무사 2025 거래처별 잔액 현황(ledger.json, 선택 인자) → 거래처→계정 규칙 (scripts/erp-reload/ledger_vendor_balance_2025.py 산출)
+LEDGER_MAP = {'상품': '5002', '지급임차료': '5109', '전력비': '5203', '세금과공과금': '5111', '접대비(기업업무추진비)': '5107', '렌트료': '5114', '이자비용': '5301', '잡손실': '5303'}
+ledger_rule = {}
+if len(sys.argv) > 2 and os.path.exists(sys.argv[2]):
+    _rows = json.load(open(sys.argv[2]))['rows']
+    _tmp = {}
+    for x in _rows:
+        c = int(x['acode'])
+        if c == 14600 or 80000 <= c < 90000 or c in (93100, 95000, 96000):
+            _tmp.setdefault(_norm(x['vendor']), []).append((x['aname'], x['debit']))
+    for k, v in _tmp.items():
+        v.sort(key=lambda t: -t[1]); name = v[0][0]
+        code = LEDGER_MAP.get(name) or next((a['code'] for a in accounts if a['name'] == name), None)
+        if code and k: ledger_rule[k] = (acc_by_code[code], name)
+def ledger_hint(name):
+    n = _norm(name)
+    if not n or not ledger_rule: return None
+    if n in ledger_rule: return ledger_rule[n]
+    if len(n) >= 3:
+        for k, v in ledger_rule.items():
+            if len(k) >= 3 and (n in k or k in n): return v
+    return None
+print('세무사 규칙 거래처', len(ledger_rule))
 def _name_hit(n, names): return bool(n) and len(n) >= 3 and any(n == q or n in q or q in n for q in names)
 def hint_for(t):
     """미확정 통장 거래의 추정 계정(선택값)과 근거. 확정 건은 빈칸. 시스템은 추천만, 확정은 사용자."""
@@ -87,6 +110,8 @@ def hint_for(t):
     if re.search(r'세금|지방세|국세|공과|자동차세|재산세|등록면허', text) and not is_in: return acc_by_code['5111'], '세금과공과 추정'
     if not is_in and _name_hit(n, PUR_NAMES): return acc_by_code['2001'], '매입 계산서 거래처 대금 추정 — 손익 제외(계산서가 비용 담당)'
     if is_in and _name_hit(n, SALE_NAMES): return acc_by_code['1101'], '매출 계산서 거래처 입금 추정 — 손익 제외(매출은 홈택스)'
+    lh = ledger_hint(t['counterparty_name']) if not is_in else None
+    if lh: return lh[0], f'세무사 2025 규칙(거래처 주계정 {lh[1]}) — 계산서 거래처면 2001'
     if t['suggested_account_id'] and t['suggested_account_id'] in acc_by_id: return acc_label(t['suggested_account_id']), '시스템 키워드 추천'
     if is_in: return '', '힌트 없음 — 매출 입금이면 1101 외상매출금(손익 제외)'
     return '', '힌트 없음 — 증빙 없는 지출이면 비용 계정, 거래처 대금이면 2001'
@@ -176,14 +201,15 @@ ws_cd.add_data_validation(dv_cd); dv_cd.add(f'O3:O{CD_LAST}')
 ws_cd.freeze_panes = 'E3'; ws_cd.auto_filter.ref = f'A2:Q{CD_LAST}'
 
 # ── 매입계산서 분류 ──
-PI_H = ['월', '발행일', '거래처', '사업자번호', '품목', '과세/면세', '공급가액', '세액', '합계', '결제 매칭', '기존 확정 계정', '계정과목(입력)', '손익 구분(자동)']
-ws_pi.cell(1, 1, '매입 세금계산서 전 건 (발행일 2026-01-01 ~ 09-30). L열에 계정과목을 채운다 — 상품 매입은 5002 상품매입(매출원가), 임차료·용역 등은 해당 비용 계정. 노란 칸 = 미분류. 계산서 대금을 통장에서 지급한 출금은 통장 시트에서 2001 미지급금(손익 제외)으로 처리한다.').font = NOTE
-hdr(ws_pi, 2, PI_H, [9, 11, 24, 14, 24, 9, 14, 12, 14, 10, 20, 26, 18])
+PI_H = ['월', '발행일', '거래처', '사업자번호', '품목', '과세/면세', '공급가액', '세액', '합계', '결제 매칭', '기존 확정 계정', '계정과목(입력)', '손익 구분(자동)', '추정 계정(힌트)', '추정 근거']
+ws_pi.cell(1, 1, '매입 세금계산서 전 건 (발행일 2026-01-01 ~ 09-30). L열에 계정과목을 채운다(N·O열 세무사 2025 규칙 힌트 참고) — 상품 매입은 5002 상품매입(매출원가), 임차료·용역 등은 해당 비용 계정. 노란 칸 = 미분류. 계산서 대금을 통장에서 지급한 출금은 통장 시트에서 2001 미지급금(손익 제외)으로 처리한다.').font = NOTE
+hdr(ws_pi, 2, PI_H, [9, 11, 24, 14, 24, 9, 14, 12, 14, 10, 20, 26, 18, 26, 40])
 r = 3
 for t in purchases:
     conf = acc_label(t['confirmed_account_id'])
     ws_pi.append([M(t['issue_date']), t['issue_date'], t['counterparty_name'], t['counterparty_biz_number'], t['item_name'], '과세' if t['tax_type'] == 'taxable' else '면세',
-                  num(t['supply_amount']), num(t['tax_amount']), num(t['total_amount']), '매칭' if t['payment_status'] == 'matched' else '미매칭', conf, conf, group_formula(f'L{r}')])
+                  num(t['supply_amount']), num(t['tax_amount']), num(t['total_amount']), '매칭' if t['payment_status'] == 'matched' else '미매칭', conf, conf, group_formula(f'L{r}'),
+                  *(('', '') if conf else ((lambda lh: (lh[0], f'세무사 2025 규칙(거래처 주계정 {lh[1]})') if lh else ('', '규칙 없음 — 품목으로 판단(상품이면 5002)'))(ledger_hint(t['counterparty_name']))))])
     if not conf: ws_pi.cell(r, 12).fill = YELLOW
     r += 1
 PI_LAST = r - 1
@@ -192,7 +218,7 @@ for row in ws_pi.iter_rows(min_row=3, max_row=PI_LAST):
     for j in (6, 7, 8): row[j].number_format = NUM
 dv_pi = DataValidation(type='list', formula1=dv_formula, allow_blank=True, showErrorMessage=True, errorTitle='계정과목', error='계정과목 시트의 선택값 중에서 고르세요.')
 ws_pi.add_data_validation(dv_pi); dv_pi.add(f'L3:L{PI_LAST}')
-ws_pi.freeze_panes = 'C3'; ws_pi.auto_filter.ref = f'A2:M{PI_LAST}'
+ws_pi.freeze_panes = 'C3'; ws_pi.auto_filter.ref = f'A2:O{PI_LAST}'
 
 # 범위 문자열
 TXm = f"'통장 분개입력'!$A$3:$A${TX_LAST}"; TXin = f"'통장 분개입력'!$G$3:$G${TX_LAST}"; TXout = f"'통장 분개입력'!$H$3:$H${TX_LAST}"; TXacc = f"'통장 분개입력'!$N$3:$N${TX_LAST}"; TXgrp = f"'통장 분개입력'!$O$3:$O${TX_LAST}"; TXpair = f"'통장 분개입력'!$J$3:$J${TX_LAST}"; TXmatch = f"'통장 분개입력'!$Q$3:$Q${TX_LAST}"
@@ -400,7 +426,8 @@ lines = [
     ('월별손익현황: 결과. 모든 숫자가 수식 — 입력 시트를 채우면 자동 갱신. 아래쪽 "미확정 현황"이 전부 0이 되어야 완성.', None),
     ('홈택스 매출매입: 매출(세금계산서+카드+현금영수증)은 시스템 원본 집계값, 매입은 입력 시트에서 수식 집계. ERP 매출·원가는 참고 행.', None),
     ('통장 분개입력 / 카드 분개입력 / 매입계산서 분류: 전 건 목록. "계정과목(입력)" 열만 채운다(드롭다운, 계정과목 시트의 선택값). 노란 칸 = 미확정.', None),
-    ('통장 시트 R·S열 "추정 계정(힌트)·추정 근거": 미확정 건에 규칙으로 붙인 추정(자사 이체·카드대금·대출·급여·세금·보험·계산서 거래처·시스템 추천). 맞으면 N열에 복사, 아니면 고친다. 추정은 확정이 아니며 손익에는 N열 값만 쓰인다.', None),
+    ('통장 시트 R·S열 "추정 계정(힌트)·추정 근거": 미확정 건에 규칙으로 붙인 추정(자사 이체·카드대금·대출·급여·세금·보험·계산서 거래처·세무사 2025 거래처 규칙·시스템 추천). 맞으면 N열에 복사, 아니면 고친다. 추정은 확정이 아니며 손익에는 N열 값만 쓰인다.', None),
+    ('매입계산서 분류 시트 N·O열: 세무사 2025 거래처별 잔액 현황에서 뽑은 "그 거래처는 이 계정" 규칙(세무사 상품 → 5002 상품매입, 지급임차료 → 5109 등). 2025년에 거래가 없던 거래처는 규칙 없음.', None),
     ('대출관리현황: 대출 마스터(8월 갱신) + 월별 이자 계획·월말 잔액(노란 칸 갱신).', None),
     ('계정과목: 선택값 목록과 손익 구분 규칙. 계정을 추가하려면 이 시트에 행을 넣고 드롭다운 범위를 늘린다.', None),
     ('', None),
