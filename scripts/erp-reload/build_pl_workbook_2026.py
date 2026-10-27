@@ -90,6 +90,8 @@ def ledger_hint(name):
             if len(k) >= 3 and (n in k or k in n): return v
     return None
 print('세무사 규칙 거래처', len(ledger_rule))
+FS = json.load(open(sys.argv[3])) if len(sys.argv) > 3 and os.path.exists(sys.argv[3]) else None
+FS_ROW = {}
 def _name_hit(n, names): return bool(n) and len(n) >= 3 and any(n == q or n in q or q in n for q in names)
 def hint_for(t):
     """미확정 통장 거래의 추정 계정(선택값)과 근거. 확정 건은 빈칸. 시스템은 추천만, 확정은 사용자."""
@@ -142,6 +144,7 @@ ws_tx = wb.create_sheet('통장 분개입력')
 ws_cd = wb.create_sheet('카드 분개입력')
 ws_pi = wb.create_sheet('매입계산서 분류')
 ws_ln = wb.create_sheet('대출관리현황')
+ws_fs = wb.create_sheet('2025 재무제표(세무사)') if FS else None
 ws_ac = wb.create_sheet('계정과목')
 
 # ── 계정과목 ──
@@ -338,9 +341,36 @@ for j in range(2, 11):
 ws_ln.freeze_panes = 'A4'
 
 # ── 월별손익현황 ──
+if FS:
+    ws_fs.cell(1, 1, f"2025년 재무제표 (세무사 작성, 제11기) — 출처: {FS['source']}. 단위 원. 월별손익현황 L열의 비교 기준.").font = NOTE
+    hdr(ws_fs, 3, ['손익계산서 과목', '제11기 (2025)', '제10기 (2024)', '증감'], [44, 18, 18, 16])
+    rr = 4
+    for name, cur, prev, kind in FS['income_statement']:
+        ws_fs.cell(rr, 1, name).font = f(bold=kind == 'subtotal')
+        c = ws_fs.cell(rr, 2, cur); c.number_format = NUM; c.font = f(bold=kind == 'subtotal')
+        c = ws_fs.cell(rr, 3, prev); c.number_format = NUM; c.font = f(bold=kind == 'subtotal')
+        c = ws_fs.cell(rr, 4, f'=B{rr}-C{rr}'); c.number_format = NUM; c.font = f()
+        if kind == 'subtotal':
+            for j in range(1, 5): ws_fs.cell(rr, j).fill = SUBFILL
+        FS_ROW[name] = rr; rr += 1
+    rr += 1; ws_fs.cell(rr, 1, FS['unmapped_note']).font = NOTE; rr += 2
+    hdr(ws_fs, rr, ['재무상태표 과목', '제11기 (2025-12-31)', '제10기 (2024-12-31)', '증감']); rr += 1
+    for name, cur, prev, kind in FS['balance_sheet']:
+        ws_fs.cell(rr, 1, name).font = f(bold=kind in ('subtotal', 'total', 'header'))
+        if cur is not None:
+            c = ws_fs.cell(rr, 2, cur); c.number_format = NUM; c.font = f(bold=kind in ('subtotal', 'total'))
+            c = ws_fs.cell(rr, 3, prev); c.number_format = NUM; c.font = f(bold=kind in ('subtotal', 'total'))
+            c = ws_fs.cell(rr, 4, f'=B{rr}-C{rr}'); c.number_format = NUM; c.font = f()
+        if kind in ('subtotal', 'total', 'header'):
+            for j in range(1, 5): ws_fs.cell(rr, j).fill = SUBFILL
+        rr += 1
+    ws_fs.freeze_panes = 'A4'
 ws_pl.cell(1, 1, '2026년 월별손익현황 (1~9월) — 홈택스 기준 매출·매입 + 통장·법인카드·매입계산서 분개 입력 시트에서 수식으로 취합. 금액 단위: 원, 공급가액(세액 제외) 기준.').font = TITLE
 ws_pl.cell(2, 1, '입력 시트의 계정과목이 채워지는 대로 자동 갱신된다. 아래 "미확정 현황"이 0이 되어야 완성. 통장 입금 중 매출 입금(4001)은 홈택스 매출로 대체하므로 손익에 넣지 않는다.').font = NOTE
 month_hdr(ws_pl, 4); ws_pl.column_dimensions['A'].width = 48
+if FS:
+    for j, h in enumerate(['2025 연간(세무사 재무제표)', '2025 월평균(÷12)', '2026 1~9월 월평균(÷9)'], 12):
+        c = ws_pl.cell(4, j, h); c.font = B; c.fill = HFILL; c.alignment = Alignment(horizontal='center', wrap_text=True); ws_pl.column_dimensions[L(j)].width = 16
 r = 5; PL = {}
 def pl_row(label, formula, bold=False, fill=None, fmt=NUM, total=True, link=False):
     global r
@@ -353,6 +383,12 @@ def pl_row(label, formula, bold=False, fill=None, fmt=NUM, total=True, link=Fals
     if total:
         c = ws_pl.cell(r, 11, f'=SUM(B{r}:J{r})'); c.number_format = fmt; c.font = f(bold=True)
         if fill: c.fill = fill
+        if FS and label in FS['map_to_ours']:
+            refs = [f"'2025 재무제표(세무사)'!$B${FS_ROW[n]}" for n in FS['map_to_ours'][label] if n in FS_ROW]
+            if refs:
+                c = ws_pl.cell(r, 12, '=' + '+'.join(refs)); c.number_format = fmt; c.font = GREEN
+                c = ws_pl.cell(r, 13, f'=L{r}/12'); c.number_format = fmt; c.font = f(bold=bold)
+                c = ws_pl.cell(r, 14, f'=K{r}/9'); c.number_format = fmt; c.font = f(bold=bold)
     PL[label] = r; r += 1
 def pl_section(title):
     global r
@@ -429,6 +465,7 @@ lines = [
     ('통장 시트 R·S열 "추정 계정(힌트)·추정 근거": 미확정 건에 규칙으로 붙인 추정(자사 이체·카드대금·대출·급여·세금·보험·계산서 거래처·세무사 2025 거래처 규칙·시스템 추천). 맞으면 N열에 복사, 아니면 고친다. 추정은 확정이 아니며 손익에는 N열 값만 쓰인다.', None),
     ('매입계산서 분류 시트 N·O열: 세무사 2025 거래처별 잔액 현황에서 뽑은 "그 거래처는 이 계정" 규칙(세무사 상품 → 5002 상품매입, 지급임차료 → 5109 등). 2025년에 거래가 없던 거래처는 규칙 없음.', None),
     ('대출관리현황: 대출 마스터(8월 갱신) + 월별 이자 계획·월말 잔액(노란 칸 갱신).', None),
+    ('2025 재무제표(세무사): 손익계산서·재무상태표 전사본. 월별손익현황 L·M열(2025 연간·월평균)이 여기를 참조해 2026 월평균(N열)과 비교된다. 급여는 임원+직원+잡급, 차량유지비는 렌트료 포함, 잡손실은 처분손실·외환차손 포함으로 묶어 비교. 퇴직급여·도서인쇄비·내일채움공제는 우리 계정이 없어 비교 행 없음.', None),
     ('계정과목: 선택값 목록과 손익 구분 규칙. 계정을 추가하려면 이 시트에 행을 넣고 드롭다운 범위를 늘린다.', None),
     ('', None),
     ('[입력 규칙]', B),
