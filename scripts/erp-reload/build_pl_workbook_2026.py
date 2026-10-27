@@ -57,6 +57,9 @@ sales_inv = [t for t in tis if t['direction'] == 'sales']
 css = fetch_all(f'card_sales?select=tx_date,amount,supply_amount,tax_amount,transaction_type,cancelled_at&tx_date=gte.{FROM}&tx_date=lte.{TO}')
 crs = fetch_all(f'cash_receipts?select=tx_date,direction,amount,supply_amount,tax_amount&tx_date=gte.{FROM}&tx_date=lte.{TO}')
 loans = sorted(fetch_all('loans?select=*'), key=lambda l: l['seq'] or 0)
+# 계산서 대금으로 매칭된 통장 거래 (tax_invoice_payments + tax_invoices.matched_transaction_id) — 손익에서 제외(계산서가 비용·원가를 담당)
+matched_tx = set(p['transaction_id'] for p in fetch_all('tax_invoice_payments?select=transaction_id') if p['transaction_id'])
+matched_tx |= set(t['matched_transaction_id'] for t in fetch_all('tax_invoices?select=matched_transaction_id&matched_transaction_id=not.is.null') if t['matched_transaction_id'])
 print('tx', len(txs), 'card', len(ces), 'purchase inv', len(purchases), 'sales inv', len(sales_inv), 'card sales', len(css), 'cash', len(crs), 'loans', len(loans))
 
 # ── 스타일 ──
@@ -102,16 +105,16 @@ dv_formula = f"={AC_RANGE}"
 def group_formula(cell): return f'=IF({cell}="","미분류",IFERROR(INDEX({AC_GROUP},MATCH({cell},{AC_RANGE},0)),"목록에 없음"))'
 
 # ── 통장 분개입력 ──
-TX_H = ['월', '거래일', '시간', '계좌', '적요', '거래처', '입금', '출금', '거래구분', '이체쌍', '현재 상태', '기존 확정 계정', '시스템 추천 계정', '계정과목(입력)', '손익 구분(자동)', '메모']
-ws_tx.cell(1, 1, '통장 입출금 전 건 (2026-01-01 ~ 09-30). N열 "계정과목(입력)"을 계정과목 시트의 선택값으로 채운다. 노란 칸 = 미확정(입력 필요). 기존 확정값은 미리 채워져 있고 수정 가능. 이체쌍은 내부이체로 미리 채움.').font = NOTE
-hdr(ws_tx, 2, TX_H, [9, 11, 9, 20, 28, 18, 14, 14, 10, 7, 9, 20, 20, 26, 18, 20])
+TX_H = ['월', '거래일', '시간', '계좌', '적요', '거래처', '입금', '출금', '거래구분', '이체쌍', '현재 상태', '기존 확정 계정', '시스템 추천 계정', '계정과목(입력)', '손익 구분(자동)', '메모', '계산서 매칭']
+ws_tx.cell(1, 1, '통장 입출금 전 건 (2026-01-01 ~ 09-30). N열 "계정과목(입력)"을 계정과목 시트의 선택값으로 채운다. 노란 칸 = 미확정(입력 필요). 기존 확정값은 미리 채워져 있고 수정 가능. 이체쌍은 내부이체로 미리 채움. Q열 "계산서 매칭"=Y인 건은 계산서 대금 입출금이라 계정과 무관하게 손익에서 제외된다(계산서 분류가 비용·원가를 담당 — 이중 반영 방지).').font = NOTE
+hdr(ws_tx, 2, TX_H, [9, 11, 9, 20, 28, 18, 14, 14, 10, 7, 9, 20, 20, 26, 20, 20, 9])
 r = 3
 for t in txs:
     conf = acc_label(t['confirmed_account_id']); sug = acc_label(t['suggested_account_id'])
     pre = conf or (TRANSFER if t['transfer_pair_id'] else '')
     ws_tx.append([M(t['tx_date']), t['tx_date'], (t['tx_time'] or '')[:8], bank_label(t['bank_account_id']), t['description'], t['counterparty_name'],
                   num(t['amount_in']) or None, num(t['amount_out']) or None, t['tx_kind'], 'Y' if t['transfer_pair_id'] else '', STATUS.get(t['status'], t['status']),
-                  conf, sug, pre, group_formula(f'N{r}'), t['memo']])
+                  conf, sug, pre, f'=IF(Q{r}="Y","손익 제외(계산서 매칭)",{group_formula(f"N{r}")[1:]})', t['memo'], 'Y' if t['id'] in matched_tx else ''])
     if not pre: ws_tx.cell(r, 14).fill = YELLOW
     r += 1
 TX_LAST = r - 1
@@ -120,7 +123,7 @@ for row in ws_tx.iter_rows(min_row=3, max_row=TX_LAST):
     row[6].number_format = NUM; row[7].number_format = NUM
 dv_tx = DataValidation(type='list', formula1=dv_formula, allow_blank=True, showErrorMessage=True, errorTitle='계정과목', error='계정과목 시트의 선택값 중에서 고르세요.')
 ws_tx.add_data_validation(dv_tx); dv_tx.add(f'N3:N{TX_LAST}')
-ws_tx.freeze_panes = 'E3'; ws_tx.auto_filter.ref = f'A2:P{TX_LAST}'
+ws_tx.freeze_panes = 'E3'; ws_tx.auto_filter.ref = f'A2:Q{TX_LAST}'
 
 # ── 카드 분개입력 ──
 CD_H = ['월', '거래일', '시간', '카드', '가맹점', '업종', '사용자', '승인금액', '취소금액', '순액(자동)', '세액', '현재 상태', '기존 확정 계정', '시스템 추천 계정', '계정과목(입력)', '손익 구분(자동)', '메모']
@@ -162,7 +165,7 @@ ws_pi.add_data_validation(dv_pi); dv_pi.add(f'L3:L{PI_LAST}')
 ws_pi.freeze_panes = 'C3'; ws_pi.auto_filter.ref = f'A2:M{PI_LAST}'
 
 # 범위 문자열
-TXm = f"'통장 분개입력'!$A$3:$A${TX_LAST}"; TXin = f"'통장 분개입력'!$G$3:$G${TX_LAST}"; TXout = f"'통장 분개입력'!$H$3:$H${TX_LAST}"; TXacc = f"'통장 분개입력'!$N$3:$N${TX_LAST}"; TXgrp = f"'통장 분개입력'!$O$3:$O${TX_LAST}"; TXpair = f"'통장 분개입력'!$J$3:$J${TX_LAST}"
+TXm = f"'통장 분개입력'!$A$3:$A${TX_LAST}"; TXin = f"'통장 분개입력'!$G$3:$G${TX_LAST}"; TXout = f"'통장 분개입력'!$H$3:$H${TX_LAST}"; TXacc = f"'통장 분개입력'!$N$3:$N${TX_LAST}"; TXgrp = f"'통장 분개입력'!$O$3:$O${TX_LAST}"; TXpair = f"'통장 분개입력'!$J$3:$J${TX_LAST}"; TXmatch = f"'통장 분개입력'!$Q$3:$Q${TX_LAST}"
 CDm = f"'카드 분개입력'!$A$3:$A${CD_LAST}"; CDnet = f"'카드 분개입력'!$J$3:$J${CD_LAST}"; CDacc = f"'카드 분개입력'!$O$3:$O${CD_LAST}"; CDgrp = f"'카드 분개입력'!$P$3:$P${CD_LAST}"; CDtax = f"'카드 분개입력'!$K$3:$K${CD_LAST}"
 PIm = f"'매입계산서 분류'!$A$3:$A${PI_LAST}"; PIsup = f"'매입계산서 분류'!$G$3:$G${PI_LAST}"; PItax = f"'매입계산서 분류'!$H$3:$H${PI_LAST}"; PIacc = f"'매입계산서 분류'!$L$3:$L${PI_LAST}"; PIgrp = f"'매입계산서 분류'!$M$3:$M${PI_LAST}"; PIkind = f"'매입계산서 분류'!$F$3:$F${PI_LAST}"
 
@@ -306,14 +309,14 @@ pl_section('매출원가')
 pl_row('매입 계산서 — 상품매입·매출원가 계정 분류분', lambda col, m: f'=SUMIFS({PIsup},{PIm},"{m}",{PIgrp},"매출원가")')
 pl_row('매입 계산서 — 미분류분 (원가로 가정, 분류하면 자동 이동)', lambda col, m: f'=SUMIFS({PIsup},{PIm},"{m}",{PIgrp},"미분류")')
 pl_row('법인카드 — 상품매입·매출원가 계정 분류분', lambda col, m: f'=SUMIFS({CDnet},{CDm},"{m}",{CDgrp},"매출원가")')
-pl_row('통장 — 상품매입 계정 분류분 (계산서 없는 매입만 해당, 확인 필요)', lambda col, m: f'=SUMIFS({TXout},{TXm},"{m}",{TXgrp},"매출원가")-SUMIFS({TXin},{TXm},"{m}",{TXgrp},"매출원가")')
+pl_row('통장 — 상품매입 계정 분류분 (계산서 미매칭 건만, 확인 필요)', lambda col, m: f'=SUMIFS({TXout},{TXm},"{m}",{TXgrp},"매출원가")-SUMIFS({TXin},{TXm},"{m}",{TXgrp},"매출원가")')
 pl_row('현금영수증 매입 (공급가액)', ht('현금영수증 매입 공급가액'), link=True)
-pl_row('매출원가 합계', lambda col, m: f"={col}{PL['매입 계산서 — 상품매입·매출원가 계정 분류분']}+{col}{PL['매입 계산서 — 미분류분 (원가로 가정, 분류하면 자동 이동)']}+{col}{PL['법인카드 — 상품매입·매출원가 계정 분류분']}+{col}{PL['통장 — 상품매입 계정 분류분 (계산서 없는 매입만 해당, 확인 필요)']}+{col}{PL['현금영수증 매입 (공급가액)']}", bold=True)
+pl_row('매출원가 합계', lambda col, m: f"={col}{PL['매입 계산서 — 상품매입·매출원가 계정 분류분']}+{col}{PL['매입 계산서 — 미분류분 (원가로 가정, 분류하면 자동 이동)']}+{col}{PL['법인카드 — 상품매입·매출원가 계정 분류분']}+{col}{PL['통장 — 상품매입 계정 분류분 (계산서 미매칭 건만, 확인 필요)']}+{col}{PL['현금영수증 매입 (공급가액)']}", bold=True)
 pl_row('매출총이익', lambda col, m: f"={col}{PL['매출 (홈택스 기준 공급가액)']}-{col}{PL['매출원가 합계']}", bold=True, fill=SUBFILL)
 def acc_expr(label, col, m, sign_bank='out'):
     # 통장: 출금-입금(비용) 또는 입금-출금(수익) / 카드 순액 / 매입계산서 공급가액
-    bank = f'SUMIFS({TXout},{TXm},"{m}",{TXacc},"{label}")-SUMIFS({TXin},{TXm},"{m}",{TXacc},"{label}")'
-    if sign_bank == 'in': bank = f'SUMIFS({TXin},{TXm},"{m}",{TXacc},"{label}")-SUMIFS({TXout},{TXm},"{m}",{TXacc},"{label}")'
+    bank = f'SUMIFS({TXout},{TXm},"{m}",{TXacc},"{label}",{TXmatch},"<>Y")-SUMIFS({TXin},{TXm},"{m}",{TXacc},"{label}",{TXmatch},"<>Y")'
+    if sign_bank == 'in': bank = f'SUMIFS({TXin},{TXm},"{m}",{TXacc},"{label}",{TXmatch},"<>Y")-SUMIFS({TXout},{TXm},"{m}",{TXacc},"{label}",{TXmatch},"<>Y")'
     return f'={bank}+SUMIFS({CDnet},{CDm},"{m}",{CDacc},"{label}")+SUMIFS({PIsup},{PIm},"{m}",{PIacc},"{label}")'
 pl_section('판매관리비 (통장·카드·매입계산서 분개 — 계정과목별)')
 sga = [a for a in accounts if pl_group(a) == '판매관리비']
@@ -353,6 +356,9 @@ pl_row('ERP 매입원가 (판매내역 파일, 참고)', ht('참고: ERP 매입�
 pl_row('홈택스 매출(부가세 포함) / ERP 매출', ht('참고: 홈택스 매출 / ERP 매출'), fmt=PCT, total=False, link=True)
 pl_row('손익 제외로 분류된 통장 출금 (이체·미지급금·차입금 상환 등)', lambda col, m: f'=SUMIFS({TXout},{TXm},"{m}",{TXgrp},"손익 제외(이체)")+SUMIFS({TXout},{TXm},"{m}",{TXgrp},"손익 제외(재무상태)")')
 pl_row('매출 입금으로 분류된 통장 입금 (4001·4004, 홈택스로 대체)', lambda col, m: f'=SUMIFS({TXin},{TXm},"{m}",{TXgrp},"매출(홈택스 대체·제외)")')
+pl_row('계산서 매칭 통장 출금 (손익 제외 — 계산서 분류가 담당)', lambda col, m: f'=SUMIFS({TXout},{TXm},"{m}",{TXmatch},"Y")')
+pl_row('  그중 비용 계정으로 확정돼 있던 금액 (이중 반영 방지로 제외됨)', lambda col, m: f'=SUMIFS({TXout},{TXm},"{m}",{TXmatch},"Y",{TXacc},"5*")')
+pl_row('매입 계산서 미매칭 공급가액 (대금 출금을 2001로 분류했는지 확인)', lambda col, m: f'=SUMIFS({PIsup},{PIm},"{m}",\'매입계산서 분류\'!$J$3:$J${PI_LAST},"미매칭")')
 ws_pl.freeze_panes = 'B5'
 
 # ── 안내 ──
@@ -373,6 +379,7 @@ lines = [
     ('통장 입금 중 매출 입금 = 4001 상품매출 (손익에는 넣지 않음 — 매출은 홈택스 기준으로 대체). 대출 실행 입금 = 차입금 계정. 이자 수입 = 4002.', None),
     ('매입 계산서: 상품 매입 = 5002 상품매입(매출원가). 임차료·용역·비품 등은 해당 비용 계정 → 판매관리비로 간다. 미분류분은 손익현황에서 임시로 원가에 넣고 표시한다.', None),
     ('법인카드: 사용 건마다 비용 계정. 카드 결제대금이 통장에서 빠지는 출금은 2001 미지급금으로 처리해 이중 반영을 막는다.', None),
+    ('이중 반영 방지: 계산서 대금으로 매칭된 통장 입출금(통장 시트 Q열 "계산서 매칭"=Y, 2026년 1,485건)은 계정과 무관하게 손익에서 자동 제외된다 — 비용·원가는 매입계산서 분류 시트가 담당. 매칭되지 않은 계산서 대금 출금은 사용자가 2001 미지급금으로 분류해야 중복이 없다(손익현황 참고 블록의 "매입 계산서 미매칭 공급가액"으로 확인).', None),
     ('통장 출금을 5002 상품매입으로 분류하면 매출원가에 들어간다 — 세금계산서를 받은 매입의 대금은 5002가 아니라 2001 미지급금이어야 한다(계산서가 이미 원가에 있어 이중 반영). 기존 확정값 97건이 5002로 되어 있으니 계산서 유무를 확인해 정리한다.', None),
     ('', None),
     ('[기준·가정]', B),
