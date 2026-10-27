@@ -60,6 +60,36 @@ loans = sorted(fetch_all('loans?select=*'), key=lambda l: l['seq'] or 0)
 # 계산서 대금으로 매칭된 통장 거래 (tax_invoice_payments + tax_invoices.matched_transaction_id) — 손익에서 제외(계산서가 비용·원가를 담당)
 matched_tx = set(p['transaction_id'] for p in fetch_all('tax_invoice_payments?select=transaction_id') if p['transaction_id'])
 matched_tx |= set(t['matched_transaction_id'] for t in fetch_all('tax_invoices?select=matched_transaction_id&matched_transaction_id=not.is.null') if t['matched_transaction_id'])
+# 추정 분류 힌트용 거래처명 (계산서 2025-10 이후)
+import re
+_norm = lambda x: re.sub(r'\s|\(주\)|주식회사|㈜|\(유\)', '', x or '')
+inv_names = fetch_all('tax_invoices?select=direction,counterparty_name&issue_date=gte.2025-10-01')
+PUR_NAMES = set(_norm(t['counterparty_name']) for t in inv_names if t['direction'] != 'sales') - {''}
+SALE_NAMES = set(_norm(t['counterparty_name']) for t in inv_names if t['direction'] == 'sales') - {''}
+acc_by_code = {a['code']: f"{a['code']} {a['name']}" for a in accounts}
+def _name_hit(n, names): return bool(n) and len(n) >= 3 and any(n == q or n in q or q in n for q in names)
+def hint_for(t):
+    """미확정 통장 거래의 추정 계정(선택값)과 근거. 확정 건은 빈칸. 시스템은 추천만, 확정은 사용자."""
+    if t['confirmed_account_id']: return '', ''
+    is_in = num(t['amount_in']) > 0
+    if t['transfer_pair_id']: return TRANSFER, '이체쌍(시스템 판정)'
+    if t['id'] in matched_tx: return (acc_by_code['1101'] if is_in else acc_by_code['2001']), '계산서 매칭 건 — 손익 제외(계정은 참고)'
+    text = f"{t['counterparty_name'] or ''} {t['description'] or ''} {t['tx_kind'] or ''}"
+    n = _norm(t['counterparty_name'])
+    if '다올' in text: return TRANSFER, '자사 계좌 간 이체 추정(이체쌍 미감지) — 상대 계좌 확인'
+    if re.search(r'카드', text) and not is_in: return acc_by_code['2001'], '카드대금 결제 추정(카드 시트에서 비용 반영) — 손익 제외'
+    if re.search(r'대출이자|이자', text) and not is_in: return acc_by_code['5301'], '대출 이자 추정'
+    if re.search(r'대출|원리금|중진공|보증|상환', text) and not is_in: return acc_by_code['2004'], '대출 원리금 상환 추정 — 이자 포함이면 5301 분리'
+    if re.search(r'부가세|부가가치세', text): return acc_by_code['2003'], '부가세 납부 추정 — 손익 제외'
+    if re.search(r'원천|소득세|지방소득세|주민세', text): return acc_by_code['2001'], '원천세 납부 추정(예수금 성격) — 손익 제외'
+    if re.search(r'급여|월급|상여|퇴직', text) and not is_in: return acc_by_code['5101'], '급여 추정'
+    if re.search(r'건강보험|국민연금|고용보험|산재|4대|근로복지', text) and not is_in: return acc_by_code['5102'], '4대보험 추정 — 직원 부담분은 예수금(손익 제외)로 분리 필요'
+    if re.search(r'세금|지방세|국세|공과|자동차세|재산세|등록면허', text) and not is_in: return acc_by_code['5111'], '세금과공과 추정'
+    if not is_in and _name_hit(n, PUR_NAMES): return acc_by_code['2001'], '매입 계산서 거래처 대금 추정 — 손익 제외(계산서가 비용 담당)'
+    if is_in and _name_hit(n, SALE_NAMES): return acc_by_code['1101'], '매출 계산서 거래처 입금 추정 — 손익 제외(매출은 홈택스)'
+    if t['suggested_account_id'] and t['suggested_account_id'] in acc_by_id: return acc_label(t['suggested_account_id']), '시스템 키워드 추천'
+    if is_in: return '', '힌트 없음 — 매출 입금이면 1101 외상매출금(손익 제외)'
+    return '', '힌트 없음 — 증빙 없는 지출이면 비용 계정, 거래처 대금이면 2001'
 print('tx', len(txs), 'card', len(ces), 'purchase inv', len(purchases), 'sales inv', len(sales_inv), 'card sales', len(css), 'cash', len(crs), 'loans', len(loans))
 
 # ── 스타일 ──
@@ -105,16 +135,16 @@ dv_formula = f"={AC_RANGE}"
 def group_formula(cell): return f'=IF({cell}="","미분류",IFERROR(INDEX({AC_GROUP},MATCH({cell},{AC_RANGE},0)),"목록에 없음"))'
 
 # ── 통장 분개입력 ──
-TX_H = ['월', '거래일', '시간', '계좌', '적요', '거래처', '입금', '출금', '거래구분', '이체쌍', '현재 상태', '기존 확정 계정', '시스템 추천 계정', '계정과목(입력)', '손익 구분(자동)', '메모', '계산서 매칭']
-ws_tx.cell(1, 1, '통장 입출금 전 건 (2026-01-01 ~ 09-30). N열 "계정과목(입력)"을 계정과목 시트의 선택값으로 채운다. 노란 칸 = 미확정(입력 필요). 기존 확정값은 미리 채워져 있고 수정 가능. 이체쌍은 내부이체로 미리 채움. Q열 "계산서 매칭"=Y인 건은 계산서 대금 입출금이라 계정과 무관하게 손익에서 제외된다(계산서 분류가 비용·원가를 담당 — 이중 반영 방지).').font = NOTE
-hdr(ws_tx, 2, TX_H, [9, 11, 9, 20, 28, 18, 14, 14, 10, 7, 9, 20, 20, 26, 20, 20, 9])
+TX_H = ['월', '거래일', '시간', '계좌', '적요', '거래처', '입금', '출금', '거래구분', '이체쌍', '현재 상태', '기존 확정 계정', '시스템 추천 계정', '계정과목(입력)', '손익 구분(자동)', '메모', '계산서 매칭', '추정 계정(힌트)', '추정 근거']
+ws_tx.cell(1, 1, '통장 입출금 전 건 (2026-01-01 ~ 09-30). N열 "계정과목(입력)"을 계정과목 시트의 선택값으로 채운다. 노란 칸 = 미확정(입력 필요). 기존 확정값은 미리 채워져 있고 수정 가능. 이체쌍은 내부이체로 미리 채움. Q열 "계산서 매칭"=Y인 건은 계산서 대금 입출금이라 계정과 무관하게 손익에서 제외된다(계산서 분류가 비용·원가를 담당 — 이중 반영 방지). R·S열 "추정 계정(힌트)·근거"는 규칙 기반 추정이다 — 맞으면 N열에 옮기고 아니면 고친다(추정은 확정이 아님).').font = NOTE
+hdr(ws_tx, 2, TX_H, [9, 11, 9, 20, 28, 18, 14, 14, 10, 7, 9, 20, 20, 26, 20, 20, 9, 26, 44])
 r = 3
 for t in txs:
     conf = acc_label(t['confirmed_account_id']); sug = acc_label(t['suggested_account_id'])
     pre = conf or (TRANSFER if t['transfer_pair_id'] else '')
     ws_tx.append([M(t['tx_date']), t['tx_date'], (t['tx_time'] or '')[:8], bank_label(t['bank_account_id']), t['description'], t['counterparty_name'],
                   num(t['amount_in']) or None, num(t['amount_out']) or None, t['tx_kind'], 'Y' if t['transfer_pair_id'] else '', STATUS.get(t['status'], t['status']),
-                  conf, sug, pre, f'=IF(Q{r}="Y","손익 제외(계산서 매칭)",{group_formula(f"N{r}")[1:]})', t['memo'], 'Y' if t['id'] in matched_tx else ''])
+                  conf, sug, pre, f'=IF(Q{r}="Y","손익 제외(계산서 매칭)",{group_formula(f"N{r}")[1:]})', t['memo'], 'Y' if t['id'] in matched_tx else '', *hint_for(t)])
     if not pre: ws_tx.cell(r, 14).fill = YELLOW
     r += 1
 TX_LAST = r - 1
@@ -123,7 +153,7 @@ for row in ws_tx.iter_rows(min_row=3, max_row=TX_LAST):
     row[6].number_format = NUM; row[7].number_format = NUM
 dv_tx = DataValidation(type='list', formula1=dv_formula, allow_blank=True, showErrorMessage=True, errorTitle='계정과목', error='계정과목 시트의 선택값 중에서 고르세요.')
 ws_tx.add_data_validation(dv_tx); dv_tx.add(f'N3:N{TX_LAST}')
-ws_tx.freeze_panes = 'E3'; ws_tx.auto_filter.ref = f'A2:Q{TX_LAST}'
+ws_tx.freeze_panes = 'E3'; ws_tx.auto_filter.ref = f'A2:S{TX_LAST}'
 
 # ── 카드 분개입력 ──
 CD_H = ['월', '거래일', '시간', '카드', '가맹점', '업종', '사용자', '승인금액', '취소금액', '순액(자동)', '세액', '현재 상태', '기존 확정 계정', '시스템 추천 계정', '계정과목(입력)', '손익 구분(자동)', '메모']
@@ -370,6 +400,7 @@ lines = [
     ('월별손익현황: 결과. 모든 숫자가 수식 — 입력 시트를 채우면 자동 갱신. 아래쪽 "미확정 현황"이 전부 0이 되어야 완성.', None),
     ('홈택스 매출매입: 매출(세금계산서+카드+현금영수증)은 시스템 원본 집계값, 매입은 입력 시트에서 수식 집계. ERP 매출·원가는 참고 행.', None),
     ('통장 분개입력 / 카드 분개입력 / 매입계산서 분류: 전 건 목록. "계정과목(입력)" 열만 채운다(드롭다운, 계정과목 시트의 선택값). 노란 칸 = 미확정.', None),
+    ('통장 시트 R·S열 "추정 계정(힌트)·추정 근거": 미확정 건에 규칙으로 붙인 추정(자사 이체·카드대금·대출·급여·세금·보험·계산서 거래처·시스템 추천). 맞으면 N열에 복사, 아니면 고친다. 추정은 확정이 아니며 손익에는 N열 값만 쓰인다.', None),
     ('대출관리현황: 대출 마스터(8월 갱신) + 월별 이자 계획·월말 잔액(노란 칸 갱신).', None),
     ('계정과목: 선택값 목록과 손익 구분 규칙. 계정을 추가하려면 이 시트에 행을 넣고 드롭다운 범위를 늘린다.', None),
     ('', None),
