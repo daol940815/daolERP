@@ -571,6 +571,20 @@ export async function POST(req: NextRequest) {
         const nm = (h.merchant_name ?? '').trim()
         if (nm.length >= 2) bump(learnedByName, nm, h.confirmed_account_id)
       }
+      // 삭제된 확정 내역의 학습 보관(420 card_expense_learn_archive) — 기간을 비우고 다시 올려도 추천이 살아 있게.
+      // 표가 없으면(420 미실행) 조용히 건너뛴다.
+      const arch = await fetchAllRows<{ merchant_biz_number: string | null; merchant_name: string | null; confirmed_account_id: string }>((f, t) =>
+        admin.from('card_expense_learn_archive')
+          .select('merchant_biz_number, merchant_name, confirmed_account_id')
+          .range(f, t))
+      if (!('error' in arch)) {
+        for (const h of arch.data) {
+          const biz = (h.merchant_biz_number ?? '').replace(/\D/g, '')
+          if (biz.length >= 10) bump(learnedByBiz, biz, h.confirmed_account_id)
+          const nm = (h.merchant_name ?? '').trim()
+          if (nm.length >= 2) bump(learnedByName, nm, h.confirmed_account_id)
+        }
+      }
     }
   }
   // 과반(50% 초과) 계정만 학습 추천으로 인정 — 확정 이력이 갈리는 가맹점은 추천하지 않음
