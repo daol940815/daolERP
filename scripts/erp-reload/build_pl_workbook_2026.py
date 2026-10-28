@@ -6,14 +6,22 @@ import os, sys, urllib.request, urllib.parse, json, collections
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter as L
+from openpyxl import load_workbook
 from openpyxl.worksheet.datavalidation import DataValidation
 
 U = os.environ['SB_URL']; K = os.environ['SB_KEY']
-OUT = sys.argv[1].rstrip('/') + '/'
-FROM, TO = '2026-01-01', '2026-09-30'
-MONTHS = [f'2026-{m:02d}' for m in range(1, 10)]
-ERP_FILE_SALES = [377912660, 686604750, 237037200, 199354220, 203727910, 219279420, 189521600, 191740000, 945819300]  # 사용자 2026 ERP 파일(부가세 포함)
-ERP_FILE_COGS = [305111041, 549841718, 198957523, 166550663, 172596581, 185525370, 155755396, 161082287, 766477159]
+import argparse, calendar
+ap = argparse.ArgumentParser(description='2026 월별손익현황 작성용 워크북 생성')
+ap.add_argument('out'); ap.add_argument('--ledger', help='세무사 거래처별 잔액 현황 ledger.json'); ap.add_argument('--fs', help='fs_2025.json')
+ap.add_argument('--prev', help='이전에 전달한 워크북(사용자 입력값을 이어받음)'); ap.add_argument('--to', default='2026-09', help='마지막 월 YYYY-MM')
+args = ap.parse_args()
+OUT = args.out.rstrip('/') + '/'
+TO_M = int(args.to[5:7]); FROM = '2026-01-01'; TO = f'2026-{TO_M:02d}-{calendar.monthrange(2026, TO_M)[1]:02d}'
+MONTHS = [f'2026-{m:02d}' for m in range(1, TO_M + 1)]
+NM = len(MONTHS); TOT = 2 + NM; LASTM = L(1 + NM)   # 합계 열 번호, 마지막 월 열 글자
+_ERP_S = [377912660, 686604750, 237037200, 199354220, 203727910, 219279420, 189521600, 191740000, 945819300]  # 사용자 2026 ERP 파일(부가세 포함, 1~9월)
+_ERP_C = [305111041, 549841718, 198957523, 166550663, 172596581, 185525370, 155755396, 161082287, 766477159]
+ERP_FILE_SALES = (_ERP_S + [0] * 12)[:NM]; ERP_FILE_COGS = (_ERP_C + [0] * 12)[:NM]   # 10월 이후는 파일 없음 → 0
 TRANSFER = '0000 내부이체(손익 제외)'
 
 def fetch_all(path):
@@ -70,8 +78,8 @@ acc_by_code = {a['code']: f"{a['code']} {a['name']}" for a in accounts}
 # 세무사 2025 거래처별 잔액 현황(ledger.json, 선택 인자) → 거래처→계정 규칙 (scripts/erp-reload/ledger_vendor_balance_2025.py 산출)
 LEDGER_MAP = {'상품': '5002', '지급임차료': '5109', '전력비': '5203', '세금과공과금': '5111', '접대비(기업업무추진비)': '5107', '렌트료': '5114', '이자비용': '5301', '잡손실': '5303'}
 ledger_rule = {}
-if len(sys.argv) > 2 and os.path.exists(sys.argv[2]):
-    _rows = json.load(open(sys.argv[2]))['rows']
+if args.ledger and os.path.exists(args.ledger):
+    _rows = json.load(open(args.ledger))['rows']
     _tmp = {}
     for x in _rows:
         c = int(x['acode'])
@@ -90,7 +98,7 @@ def ledger_hint(name):
             if len(k) >= 3 and (n in k or k in n): return v
     return None
 print('세무사 규칙 거래처', len(ledger_rule))
-FS = json.load(open(sys.argv[3])) if len(sys.argv) > 3 and os.path.exists(sys.argv[3]) else None
+FS = json.load(open(args.fs)) if args.fs and os.path.exists(args.fs) else None
 FS_ROW = {}
 def _name_hit(n, names): return bool(n) and len(n) >= 3 and any(n == q or n in q or q in n for q in names)
 def hint_for(t):
@@ -119,6 +127,47 @@ def hint_for(t):
     return '', '힌트 없음 — 증빙 없는 지출이면 비용 계정, 거래처 대금이면 2001'
 print('tx', len(txs), 'card', len(ces), 'purchase inv', len(purchases), 'sales inv', len(sales_inv), 'card sales', len(css), 'cash', len(crs), 'loans', len(loans))
 
+# ── 이전 워크북의 사용자 입력 이어받기 (ID 열이 있으면 ID로, 없으면 복합 키로) ──
+PREV = {'tx': {}, 'cd': {}, 'pi': {}, 'loan_master': {}, 'loan_grid': {}}
+def _k(*xs):
+    out = []
+    for x in xs:
+        if isinstance(x, float) and x.is_integer(): x = int(x)
+        out.append('' if x is None else str(x).strip())
+    return tuple(out)
+def _amt(v): return int(v) if isinstance(v, (int, float)) and float(v).is_integer() else (round(float(v), 2) if isinstance(v, (int, float)) else '')
+if args.prev and os.path.exists(args.prev):
+    pw = load_workbook(args.prev, data_only=False)
+    def grab(sheet, hdr_row, key_cols, val_col, id_col_name='ID'):
+        ws = pw[sheet]; hdrs = [c.value for c in ws[hdr_row]]
+        idc = hdrs.index(id_col_name) if id_col_name in hdrs else None
+        by_id, by_key = {}, collections.defaultdict(list)
+        for row in ws.iter_rows(min_row=hdr_row + 1, values_only=True):
+            v = row[val_col]
+            if v in (None, ''): continue
+            if idc is not None and row[idc]: by_id[str(row[idc])] = str(v).strip()
+            else: by_key[_k(*[row[c] for c in key_cols])].append(str(v).strip())
+        return by_id, by_key
+    PREV['tx'] = grab('통장 분개입력', 2, [1, 2, 3, 4, 5, 6, 7], 13)
+    PREV['cd'] = grab('카드 분개입력', 2, [1, 2, 3, 4, 7, 8], 14)
+    PREV['pi'] = grab('매입계산서 분류', 2, [1, 2, 3, 4, 6, 8], 11)
+    wl = pw['대출관리현황']
+    for row in wl.iter_rows(min_row=4, values_only=True):
+        if row[1] and isinstance(row[0], (int, float)):
+            PREV['loan_master'][str(row[1]).strip()] = {j: row[j - 1] for j in (8, 10, 11, 12) if row[j - 1] not in (None, '') and not str(row[j - 1]).startswith('=')}
+        if row[0] and isinstance(row[0], str) and re.match(r'^\d+\. ', row[0]):
+            vals = {}
+            for j in range(2, 2 + 12):
+                v = row[j - 1] if j - 1 < len(row) else None
+                if isinstance(v, (int, float)): vals[j] = v
+            if vals: PREV['loan_grid'].setdefault(row[0].strip(), []).append(vals)
+    print('이전 워크북 입력값:', {k: (len(v[0]) + sum(len(x) for x in v[1].values())) if isinstance(v, tuple) else len(v) for k, v in PREV.items()})
+def prev_val(kind, rid, key):
+    by_id, by_key = PREV[kind] if PREV[kind] else ({}, {})
+    if rid in by_id: return by_id[rid]
+    lst = by_key.get(key)
+    return lst.pop(0) if lst else ''
+
 # ── 스타일 ──
 FONT = '맑은 고딕'
 f = lambda **kw: Font(name=FONT, **{'size': 10, **kw})
@@ -134,7 +183,7 @@ def hdr(ws, r, labels, widths=None):
 def month_hdr(ws, r, first='항목'):
     hdr(ws, r, [first] + [f'{int(m[5:])}월' for m in MONTHS] + ['합계'])
     ws.column_dimensions['A'].width = 46
-    for j in range(2, 12): ws.column_dimensions[L(j)].width = 14
+    for j in range(2, TOT + 1): ws.column_dimensions[L(j)].width = 14
 
 wb = Workbook()
 ws_guide = wb.active; ws_guide.title = '안내'
@@ -163,16 +212,19 @@ dv_formula = f"={AC_RANGE}"
 def group_formula(cell): return f'=IF({cell}="","미분류",IFERROR(INDEX({AC_GROUP},MATCH({cell},{AC_RANGE},0)),"목록에 없음"))'
 
 # ── 통장 분개입력 ──
-TX_H = ['월', '거래일', '시간', '계좌', '적요', '거래처', '입금', '출금', '거래구분', '이체쌍', '현재 상태', '기존 확정 계정', '시스템 추천 계정', '계정과목(입력)', '손익 구분(자동)', '메모', '계산서 매칭', '추정 계정(힌트)', '추정 근거']
-ws_tx.cell(1, 1, '통장 입출금 전 건 (2026-01-01 ~ 09-30). N열 "계정과목(입력)"을 계정과목 시트의 선택값으로 채운다. 노란 칸 = 미확정(입력 필요). 기존 확정값은 미리 채워져 있고 수정 가능. 이체쌍은 내부이체로 미리 채움. Q열 "계산서 매칭"=Y인 건은 계산서 대금 입출금이라 계정과 무관하게 손익에서 제외된다(계산서 분류가 비용·원가를 담당 — 이중 반영 방지). R·S열 "추정 계정(힌트)·근거"는 규칙 기반 추정이다 — 맞으면 N열에 옮기고 아니면 고친다(추정은 확정이 아님).').font = NOTE
-hdr(ws_tx, 2, TX_H, [9, 11, 9, 20, 28, 18, 14, 14, 10, 7, 9, 20, 20, 26, 20, 20, 9, 26, 44])
+TX_H = ['월', '거래일', '시간', '계좌', '적요', '거래처', '입금', '출금', '거래구분', '이체쌍', '현재 상태', '기존 확정 계정', '시스템 추천 계정', '계정과목(입력)', '손익 구분(자동)', '메모', '계산서 매칭', '추정 계정(힌트)', '추정 근거', 'ID']
+ws_tx.cell(1, 1, f'통장 입출금 전 건 ({FROM} ~ {TO}). N열 "계정과목(입력)"을 계정과목 시트의 선택값으로 채운다. 노란 칸 = 미확정(입력 필요). 기존 확정값은 미리 채워져 있고 수정 가능. 이체쌍은 내부이체로 미리 채움. Q열 "계산서 매칭"=Y인 건은 계산서 대금 입출금이라 계정과 무관하게 손익에서 제외된다(계산서 분류가 비용·원가를 담당 — 이중 반영 방지). R·S열 "추정 계정(힌트)·근거"는 규칙 기반 추정이다 — 맞으면 N열에 옮기고 아니면 고친다(추정은 확정이 아님).').font = NOTE
+hdr(ws_tx, 2, TX_H, [9, 11, 9, 20, 28, 18, 14, 14, 10, 7, 9, 20, 20, 26, 20, 20, 9, 26, 44, 10])
 r = 3
 for t in txs:
     conf = acc_label(t['confirmed_account_id']); sug = acc_label(t['suggested_account_id'])
     pre = conf or (TRANSFER if t['transfer_pair_id'] else '')
-    ws_tx.append([M(t['tx_date']), t['tx_date'], (t['tx_time'] or '')[:8], bank_label(t['bank_account_id']), t['description'], t['counterparty_name'],
-                  num(t['amount_in']) or None, num(t['amount_out']) or None, t['tx_kind'], 'Y' if t['transfer_pair_id'] else '', STATUS.get(t['status'], t['status']),
-                  conf, sug, pre, f'=IF(Q{r}="Y","손익 제외(계산서 매칭)",{group_formula(f"N{r}")[1:]})', t['memo'], 'Y' if t['id'] in matched_tx else '', *hint_for(t)])
+    cells = [M(t['tx_date']), t['tx_date'], (t['tx_time'] or '')[:8], bank_label(t['bank_account_id']), t['description'], t['counterparty_name'],
+             num(t['amount_in']) or None, num(t['amount_out']) or None]
+    pv = prev_val('tx', t['id'], _k(*cells[1:6], _amt(cells[6]) if cells[6] else '', _amt(cells[7]) if cells[7] else ''))
+    if pv: pre = pv
+    ws_tx.append(cells + [t['tx_kind'], 'Y' if t['transfer_pair_id'] else '', STATUS.get(t['status'], t['status']),
+                  conf, sug, pre, f'=IF(Q{r}="Y","손익 제외(계산서 매칭)",{group_formula(f"N{r}")[1:]})', t['memo'], 'Y' if t['id'] in matched_tx else '', *hint_for(t), t['id']])
     if not pre: ws_tx.cell(r, 14).fill = YELLOW
     r += 1
 TX_LAST = r - 1
@@ -181,19 +233,20 @@ for row in ws_tx.iter_rows(min_row=3, max_row=TX_LAST):
     row[6].number_format = NUM; row[7].number_format = NUM
 dv_tx = DataValidation(type='list', formula1=dv_formula, allow_blank=True, showErrorMessage=True, errorTitle='계정과목', error='계정과목 시트의 선택값 중에서 고르세요.')
 ws_tx.add_data_validation(dv_tx); dv_tx.add(f'N3:N{TX_LAST}')
-ws_tx.freeze_panes = 'E3'; ws_tx.auto_filter.ref = f'A2:S{TX_LAST}'
+ws_tx.freeze_panes = 'E3'; ws_tx.auto_filter.ref = f'A2:S{TX_LAST}'; ws_tx.column_dimensions['T'].hidden = True
 
 # ── 카드 분개입력 ──
-CD_H = ['월', '거래일', '시간', '카드', '가맹점', '업종', '사용자', '승인금액', '취소금액', '순액(자동)', '세액', '현재 상태', '기존 확정 계정', '시스템 추천 계정', '계정과목(입력)', '손익 구분(자동)', '메모']
-ws_cd.cell(1, 1, '법인카드 사용내역 전 건 (2026-01-01 ~ 09-30). O열 "계정과목(입력)"을 채운다. 노란 칸 = 미확정. 순액 = 승인금액 - 취소금액(수식). 카드대금 결제 출금은 통장 시트에서 2001 미지급금 등 손익 제외 계정으로 처리해 이중 반영을 막는다.').font = NOTE
-hdr(ws_cd, 2, CD_H, [9, 11, 9, 16, 24, 14, 10, 13, 12, 13, 11, 9, 20, 20, 26, 18, 18])
+CD_H = ['월', '거래일', '시간', '카드', '가맹점', '업종', '사용자', '승인금액', '취소금액', '순액(자동)', '세액', '현재 상태', '기존 확정 계정', '시스템 추천 계정', '계정과목(입력)', '손익 구분(자동)', '메모', 'ID']
+ws_cd.cell(1, 1, f'법인카드 사용내역 전 건 ({FROM} ~ {TO}). O열 "계정과목(입력)"을 채운다. 노란 칸 = 미확정. 순액 = 승인금액 - 취소금액(수식). 카드대금 결제 출금은 통장 시트에서 2001 미지급금 등 손익 제외 계정으로 처리해 이중 반영을 막는다.').font = NOTE
+hdr(ws_cd, 2, CD_H, [9, 11, 9, 16, 24, 14, 10, 13, 12, 13, 11, 9, 20, 20, 26, 18, 18, 10])
 r = 3
 for c in ces:
     conf = acc_label(c['confirmed_account_id']); sug = acc_label(c['suggested_account_id'])
-    ws_cd.append([M(c['tx_date']), c['tx_date'], (c['tx_time'] or '')[:8], card_label(c['card_account_id']), c['merchant_name'], c['merchant_category'], c['user_name'],
-                  num(c['approved_amount']), num(c['cancel_amount']), f'=H{r}-I{r}', num(c['tax_amount']), STATUS.get(c['classify_status'], c['classify_status']),
-                  conf, sug, conf, group_formula(f'O{r}'), c['memo']])
-    if not conf: ws_cd.cell(r, 15).fill = YELLOW
+    head = [M(c['tx_date']), c['tx_date'], (c['tx_time'] or '')[:8], card_label(c['card_account_id']), c['merchant_name'], c['merchant_category'], c['user_name'], num(c['approved_amount']), num(c['cancel_amount'])]
+    pv = prev_val('cd', c['id'], _k(head[1], head[2], head[3], head[4], _amt(head[7]), _amt(head[8])))
+    val = pv or conf
+    ws_cd.append(head + [f'=H{r}-I{r}', num(c['tax_amount']), STATUS.get(c['classify_status'], c['classify_status']), conf, sug, val, group_formula(f'O{r}'), c['memo'], c['id']])
+    if not val: ws_cd.cell(r, 15).fill = YELLOW
     r += 1
 CD_LAST = r - 1
 for row in ws_cd.iter_rows(min_row=3, max_row=CD_LAST):
@@ -201,19 +254,21 @@ for row in ws_cd.iter_rows(min_row=3, max_row=CD_LAST):
     for j in (7, 8, 9, 10): row[j].number_format = NUM
 dv_cd = DataValidation(type='list', formula1=dv_formula, allow_blank=True, showErrorMessage=True, errorTitle='계정과목', error='계정과목 시트의 선택값 중에서 고르세요.')
 ws_cd.add_data_validation(dv_cd); dv_cd.add(f'O3:O{CD_LAST}')
-ws_cd.freeze_panes = 'E3'; ws_cd.auto_filter.ref = f'A2:Q{CD_LAST}'
+ws_cd.freeze_panes = 'E3'; ws_cd.auto_filter.ref = f'A2:Q{CD_LAST}'; ws_cd.column_dimensions['R'].hidden = True
 
 # ── 매입계산서 분류 ──
-PI_H = ['월', '발행일', '거래처', '사업자번호', '품목', '과세/면세', '공급가액', '세액', '합계', '결제 매칭', '기존 확정 계정', '계정과목(입력)', '손익 구분(자동)', '추정 계정(힌트)', '추정 근거']
-ws_pi.cell(1, 1, '매입 세금계산서 전 건 (발행일 2026-01-01 ~ 09-30). L열에 계정과목을 채운다(N·O열 세무사 2025 규칙 힌트 참고) — 상품 매입은 5002 상품매입(매출원가), 임차료·용역 등은 해당 비용 계정. 노란 칸 = 미분류. 계산서 대금을 통장에서 지급한 출금은 통장 시트에서 2001 미지급금(손익 제외)으로 처리한다.').font = NOTE
-hdr(ws_pi, 2, PI_H, [9, 11, 24, 14, 24, 9, 14, 12, 14, 10, 20, 26, 18, 26, 40])
+PI_H = ['월', '발행일', '거래처', '사업자번호', '품목', '과세/면세', '공급가액', '세액', '합계', '결제 매칭', '기존 확정 계정', '계정과목(입력)', '손익 구분(자동)', '추정 계정(힌트)', '추정 근거', 'ID']
+ws_pi.cell(1, 1, f'매입 세금계산서 전 건 (발행일 {FROM} ~ {TO}). L열에 계정과목을 채운다(N·O열 세무사 2025 규칙 힌트 참고) — 상품 매입은 5002 상품매입(매출원가), 임차료·용역 등은 해당 비용 계정. 노란 칸 = 미분류. 계산서 대금을 통장에서 지급한 출금은 통장 시트에서 2001 미지급금(손익 제외)으로 처리한다.').font = NOTE
+hdr(ws_pi, 2, PI_H, [9, 11, 24, 14, 24, 9, 14, 12, 14, 10, 20, 26, 18, 26, 40, 10])
 r = 3
 for t in purchases:
     conf = acc_label(t['confirmed_account_id'])
+    pv = prev_val('pi', t['id'], _k(t['issue_date'], t['counterparty_name'], t['counterparty_biz_number'], t['item_name'], _amt(num(t['supply_amount'])), _amt(num(t['total_amount']))))
+    val = pv or conf
     ws_pi.append([M(t['issue_date']), t['issue_date'], t['counterparty_name'], t['counterparty_biz_number'], t['item_name'], '과세' if t['tax_type'] == 'taxable' else '면세',
-                  num(t['supply_amount']), num(t['tax_amount']), num(t['total_amount']), '매칭' if t['payment_status'] == 'matched' else '미매칭', conf, conf, group_formula(f'L{r}'),
-                  *(('', '') if conf else ((lambda lh: (lh[0], f'세무사 2025 규칙(거래처 주계정 {lh[1]})') if lh else ('', '규칙 없음 — 품목으로 판단(상품이면 5002)'))(ledger_hint(t['counterparty_name']))))])
-    if not conf: ws_pi.cell(r, 12).fill = YELLOW
+                  num(t['supply_amount']), num(t['tax_amount']), num(t['total_amount']), '매칭' if t['payment_status'] == 'matched' else '미매칭', conf, val, group_formula(f'L{r}'),
+                  *(('', '') if val else ((lambda lh: (lh[0], f'세무사 2025 규칙(거래처 주계정 {lh[1]})') if lh else ('', '규칙 없음 — 품목으로 판단(상품이면 5002)'))(ledger_hint(t['counterparty_name'])))), t['id']])
+    if not val: ws_pi.cell(r, 12).fill = YELLOW
     r += 1
 PI_LAST = r - 1
 for row in ws_pi.iter_rows(min_row=3, max_row=PI_LAST):
@@ -221,7 +276,7 @@ for row in ws_pi.iter_rows(min_row=3, max_row=PI_LAST):
     for j in (6, 7, 8): row[j].number_format = NUM
 dv_pi = DataValidation(type='list', formula1=dv_formula, allow_blank=True, showErrorMessage=True, errorTitle='계정과목', error='계정과목 시트의 선택값 중에서 고르세요.')
 ws_pi.add_data_validation(dv_pi); dv_pi.add(f'L3:L{PI_LAST}')
-ws_pi.freeze_panes = 'C3'; ws_pi.auto_filter.ref = f'A2:O{PI_LAST}'
+ws_pi.freeze_panes = 'C3'; ws_pi.auto_filter.ref = f'A2:O{PI_LAST}'; ws_pi.column_dimensions['P'].hidden = True
 
 # 범위 문자열
 TXm = f"'통장 분개입력'!$A$3:$A${TX_LAST}"; TXin = f"'통장 분개입력'!$G$3:$G${TX_LAST}"; TXout = f"'통장 분개입력'!$H$3:$H${TX_LAST}"; TXacc = f"'통장 분개입력'!$N$3:$N${TX_LAST}"; TXgrp = f"'통장 분개입력'!$O$3:$O${TX_LAST}"; TXpair = f"'통장 분개입력'!$J$3:$J${TX_LAST}"; TXmatch = f"'통장 분개입력'!$Q$3:$Q${TX_LAST}"
@@ -256,12 +311,12 @@ def ht_row(label, values=None, formula=None, bold=False, fmt=NUM, total=True):
         c.number_format = fmt; c.font = f(bold=bold) if not (formula and "'" in formula(col, m)) else GREEN
         if bold: c.font = f(bold=True)
     if total:
-        c = ws_ht.cell(r, 11, f'=SUM(B{r}:J{r})'); c.number_format = fmt; c.font = f(bold=True)
+        c = ws_ht.cell(r, TOT, f'=SUM(B{r}:{LASTM}{r})'); c.number_format = fmt; c.font = f(bold=True)
     HT[label] = r; r += 1
 def section(title):
     global r
     c = ws_ht.cell(r, 1, title); c.font = B; c.fill = SUBFILL
-    for j in range(2, 12): ws_ht.cell(r, j).fill = SUBFILL
+    for j in range(2, TOT + 1): ws_ht.cell(r, j).fill = SUBFILL
     r += 1
 section('매출 (홈택스 기준)')
 ht_row('계산서 과세 공급가액', S['계산서 과세 공급가액']); ht_row('계산서 과세 세액', S['계산서 과세 세액']); ht_row('계산서 과세 건수', S['계산서 과세 건수'], fmt='#,##0')
@@ -271,9 +326,9 @@ ht_row('현금영수증 매출 공급가액', S['현금영수증 매출 공급�
 ht_row('매출 공급가액 합계(세액 제외)', formula=lambda col, m: f"={col}{HT['계산서 과세 공급가액']}+{col}{HT['계산서 면세 공급가액']}+{col}{HT['카드 매출 과세 공급가액']}+{col}{HT['카드 매출 세액 0 금액(면세 또는 미분리)']}+{col}{HT['현금영수증 매출 공급가액']}", bold=True)
 ht_row('매출 세액 합계', formula=lambda col, m: f"={col}{HT['계산서 과세 세액']}+{col}{HT['카드 매출 세액']}+{col}{HT['현금영수증 매출 세액']}")
 ht_row('매출 합계(부가세 포함)', formula=lambda col, m: f"={col}{HT['매출 공급가액 합계(세액 제외)']}+{col}{HT['매출 세액 합계']}", bold=True)
-ht_row('참고: ERP 매출(판매내역 파일, 부가세 포함)', {m: ERP_FILE_SALES[i] for i, m in enumerate(MONTHS)})
-ht_row('참고: 홈택스 매출 / ERP 매출', formula=lambda col, m: f"=IF({col}{HT['참고: ERP 매출(판매내역 파일, 부가세 포함)']}=0,0,{col}{HT['매출 합계(부가세 포함)']}/{col}{HT['참고: ERP 매출(판매내역 파일, 부가세 포함)']})", fmt=PCT, total=False)
-ws_ht.cell(HT['참고: 홈택스 매출 / ERP 매출'], 11, f"=IF(K{HT['참고: ERP 매출(판매내역 파일, 부가세 포함)']}=0,0,K{HT['매출 합계(부가세 포함)']}/K{HT['참고: ERP 매출(판매내역 파일, 부가세 포함)']})").number_format = PCT
+ht_row('참고: ERP 매출(판매내역 파일, 부가세 포함; 10월 이후 파일 없음=0)', {m: ERP_FILE_SALES[i] for i, m in enumerate(MONTHS)})
+ht_row('참고: 홈택스 매출 / ERP 매출', formula=lambda col, m: f"=IF({col}{HT['참고: ERP 매출(판매내역 파일, 부가세 포함; 10월 이후 파일 없음=0)']}=0,0,{col}{HT['매출 합계(부가세 포함)']}/{col}{HT['참고: ERP 매출(판매내역 파일, 부가세 포함; 10월 이후 파일 없음=0)']})", fmt=PCT, total=False)
+ws_ht.cell(HT['참고: 홈택스 매출 / ERP 매출'], TOT, f"=IF({L(TOT)}{HT['참고: ERP 매출(판매내역 파일, 부가세 포함; 10월 이후 파일 없음=0)']}=0,0,{L(TOT)}{HT['매출 합계(부가세 포함)']}/{L(TOT)}{HT['참고: ERP 매출(판매내역 파일, 부가세 포함; 10월 이후 파일 없음=0)']})").number_format = PCT
 r += 1
 section('매입 (홈택스 기준) — 입력 시트에서 집계')
 ht_row('매입 계산서 과세 공급가액', formula=lambda col, m: f'=SUMIFS({PIsup},{PIm},"{m}",{PIkind},"과세")')
@@ -305,6 +360,7 @@ for l in loans:
                   l['start_date'], l['maturity_date'], l['payment_day'], (l['updated_at'] or '')[:10], l['memo']])
     for j in (6, 7, 8, 11, 12): ws_ln.cell(r, j).number_format = NUM
     for j in (8, 10, 11, 12): ws_ln.cell(r, j).fill = YELLOW
+    for j, v in PREV['loan_master'].get(l['title'], {}).items(): ws_ln.cell(r, j, v)   # 사용자 갱신값 이어받기
     r += 1
 LN_LAST = r - 1
 ws_ln.cell(r, 2, '합계').font = B
@@ -314,29 +370,33 @@ for row in ws_ln.iter_rows(min_row=4, max_row=r):
     for c in row:
         if c.font.name != FONT: c.font = f(bold=c.font.bold)
 r += 2
-ws_ln.cell(r, 1, '월별 이자 (계약 기준 계획, 원). 각 대출의 "월 이자(계약 기준)"를 1~9월에 같은 값으로 채워 두었다 — 실제 납부액으로 고쳐 쓴다(노란 칸). 합계 행이 손익현황의 참고 행으로 간다.').font = NOTE; r += 1
+ws_ln.cell(r, 1, '월별 이자 (계약 기준 계획, 원). 각 대출의 "월 이자(계약 기준)"를 각 월에 같은 값으로 채워 두었다 — 실제 납부액으로 고쳐 쓴다(노란 칸). 합계 행이 손익현황의 참고 행으로 간다.').font = NOTE; r += 1
 month_hdr(ws_ln, r, '대출명'); ws_ln.column_dimensions['A'].width = 6; ws_ln.column_dimensions['B'].width = 30
 # 월별 표는 B열에 대출명이 아니라 A열 라벨을 쓰는 month_hdr와 맞추기 위해 A열에 대출명
 r += 1; LNI_FIRST = r
 for i, l in enumerate(loans):
     ws_ln.cell(r, 1, f"{l['seq']}. {l['title']}").font = f()
-    for j in range(2, 11):
-        c = ws_ln.cell(r, j, f'=$L${LN_FIRST + i}'); c.number_format = NUM; c.fill = YELLOW; c.font = f()
-    c = ws_ln.cell(r, 11, f'=SUM(B{r}:J{r})'); c.number_format = NUM; c.font = B
+    grid = PREV['loan_grid'].get(f"{l['seq']}. {l['title']}", [{}])
+    for j in range(2, 2 + NM):
+        c = ws_ln.cell(r, j, grid[0].get(j, f'=$L${LN_FIRST + i}')); c.number_format = NUM; c.fill = YELLOW; c.font = f()
+    c = ws_ln.cell(r, TOT, f'=SUM(B{r}:{LASTM}{r})'); c.number_format = NUM; c.font = B
     r += 1
 LNI_LAST = r - 1; LNI_TOTAL = r
 ws_ln.cell(r, 1, '월 이자 계획 합계').font = B
-for j in range(2, 12):
+for j in range(2, TOT + 1):
     c = ws_ln.cell(r, j, f'=SUM({L(j)}{LNI_FIRST}:{L(j)}{LNI_LAST})'); c.number_format = NUM; c.font = B
 r += 2
 ws_ln.cell(r, 1, '월말 잔액 (원) — 비어 있음. 은행 조회 후 입력(노란 칸). 마스터 "현재 잔액"은 2026-08 기준이라 월별로 그대로 쓰지 않는다.').font = NOTE; r += 1
 month_hdr(ws_ln, r, '대출명'); ws_ln.column_dimensions['A'].width = 34; r += 1; LNB_FIRST = r
 for l in loans:
     ws_ln.cell(r, 1, f"{l['seq']}. {l['title']}").font = f()
-    for j in range(2, 11): ws_ln.cell(r, j).fill = YELLOW; ws_ln.cell(r, j).number_format = NUM
+    grid = PREV['loan_grid'].get(f"{l['seq']}. {l['title']}", [{}, {}])
+    bal = grid[1] if len(grid) > 1 else {}
+    for j in range(2, 2 + NM):
+        ws_ln.cell(r, j, bal.get(j)); ws_ln.cell(r, j).fill = YELLOW; ws_ln.cell(r, j).number_format = NUM
     r += 1
 ws_ln.cell(r, 1, '월말 잔액 합계').font = B
-for j in range(2, 11):
+for j in range(2, 2 + NM):
     c = ws_ln.cell(r, j, f'=SUM({L(j)}{LNB_FIRST}:{L(j)}{r - 1})'); c.number_format = NUM; c.font = B
 ws_ln.freeze_panes = 'A4'
 
@@ -365,11 +425,11 @@ if FS:
             for j in range(1, 5): ws_fs.cell(rr, j).fill = SUBFILL
         rr += 1
     ws_fs.freeze_panes = 'A4'
-ws_pl.cell(1, 1, '2026년 월별손익현황 (1~9월) — 홈택스 기준 매출·매입 + 통장·법인카드·매입계산서 분개 입력 시트에서 수식으로 취합. 금액 단위: 원, 공급가액(세액 제외) 기준.').font = TITLE
+ws_pl.cell(1, 1, f'2026년 월별손익현황 (1~{NM}월) — 홈택스 기준 매출·매입 + 통장·법인카드·매입계산서 분개 입력 시트에서 수식으로 취합. 금액 단위: 원, 공급가액(세액 제외) 기준.').font = TITLE
 ws_pl.cell(2, 1, '입력 시트의 계정과목이 채워지는 대로 자동 갱신된다. 아래 "미확정 현황"이 0이 되어야 완성. 통장 입금 중 매출 입금(4001)은 홈택스 매출로 대체하므로 손익에 넣지 않는다.').font = NOTE
 month_hdr(ws_pl, 4); ws_pl.column_dimensions['A'].width = 48
 if FS:
-    for j, h in enumerate(['2025 연간(세무사 재무제표)', '2025 월평균(÷12)', '2026 1~9월 월평균(÷9)'], 12):
+    for j, h in enumerate(['2025 연간(세무사 재무제표)', '2025 월평균(÷12)', f'2026 1~{NM}월 월평균(÷{NM})'], TOT + 1):
         c = ws_pl.cell(4, j, h); c.font = B; c.fill = HFILL; c.alignment = Alignment(horizontal='center', wrap_text=True); ws_pl.column_dimensions[L(j)].width = 16
 r = 5; PL = {}
 def pl_row(label, formula, bold=False, fill=None, fmt=NUM, total=True, link=False):
@@ -381,19 +441,19 @@ def pl_row(label, formula, bold=False, fill=None, fmt=NUM, total=True, link=Fals
         c = ws_pl.cell(r, j, formula(col, m)); c.number_format = fmt; c.font = GREEN if link else f(bold=bold)
         if fill: c.fill = fill
     if total:
-        c = ws_pl.cell(r, 11, f'=SUM(B{r}:J{r})'); c.number_format = fmt; c.font = f(bold=True)
+        c = ws_pl.cell(r, TOT, f'=SUM(B{r}:{LASTM}{r})'); c.number_format = fmt; c.font = f(bold=True)
         if fill: c.fill = fill
         if FS and label in FS['map_to_ours']:
             refs = [f"'2025 재무제표(세무사)'!$B${FS_ROW[n]}" for n in FS['map_to_ours'][label] if n in FS_ROW]
             if refs:
-                c = ws_pl.cell(r, 12, '=' + '+'.join(refs)); c.number_format = fmt; c.font = GREEN
-                c = ws_pl.cell(r, 13, f'=L{r}/12'); c.number_format = fmt; c.font = f(bold=bold)
-                c = ws_pl.cell(r, 14, f'=K{r}/9'); c.number_format = fmt; c.font = f(bold=bold)
+                c = ws_pl.cell(r, TOT + 1, '=' + '+'.join(refs)); c.number_format = fmt; c.font = GREEN
+                c = ws_pl.cell(r, TOT + 2, f'={L(TOT + 1)}{r}/12'); c.number_format = fmt; c.font = f(bold=bold)
+                c = ws_pl.cell(r, TOT + 3, f'={L(TOT)}{r}/{NM}'); c.number_format = fmt; c.font = f(bold=bold)
     PL[label] = r; r += 1
 def pl_section(title):
     global r
     c = ws_pl.cell(r, 1, title); c.font = B; c.fill = SUBFILL
-    for j in range(2, 12): ws_pl.cell(r, j).fill = SUBFILL
+    for j in range(2, TOT + 1): ws_pl.cell(r, j).fill = SUBFILL
     r += 1
 ht = lambda label: lambda col, m: f"='홈택스 매출매입'!{col}{HT[label]}"
 pl_row('매출 (홈택스 기준 공급가액)', ht('매출 공급가액 합계(세액 제외)'), bold=True, link=True)
@@ -443,7 +503,7 @@ r += 1
 pl_section('참고')
 pl_row('대출 이자 계획 합계 (대출관리현황, 계약 기준)', lambda col, m: f"='대출관리현황'!{col}{LNI_TOTAL}", link=True)
 pl_row('5301 이자비용 실적 (분개, 위 영업외비용과 동일)', lambda col, m: f"={col}{PL['5301 이자비용']}")
-pl_row('ERP 매출 (판매내역 파일, 부가세 포함, 참고)', ht('참고: ERP 매출(판매내역 파일, 부가세 포함)'), link=True)
+pl_row('ERP 매출 (판매내역 파일, 부가세 포함, 참고)', ht('참고: ERP 매출(판매내역 파일, 부가세 포함; 10월 이후 파일 없음=0)'), link=True)
 pl_row('ERP 매입원가 (판매내역 파일, 참고)', ht('참고: ERP 매입원가(판매내역 파일)'), link=True)
 pl_row('홈택스 매출(부가세 포함) / ERP 매출', ht('참고: 홈택스 매출 / ERP 매출'), fmt=PCT, total=False, link=True)
 pl_row('손익 제외로 분류된 통장 출금 (이체·미지급금·차입금 상환 등)', lambda col, m: f'=SUMIFS({TXout},{TXm},"{m}",{TXgrp},"손익 제외(이체)")+SUMIFS({TXout},{TXm},"{m}",{TXgrp},"손익 제외(재무상태)")')
@@ -470,6 +530,8 @@ lines = [
     ('', None),
     ('[입력 규칙]', B),
     ('노란색 칸만 입력한다. 흰색 칸의 기존 확정 계정은 시스템에서 사용자가 확정한 값이며 필요하면 수정 가능. 수식 칸(검정·녹색 글자)은 건드리지 않는다.', None),
+    ('필터·정렬은 자유롭게 써도 된다 — 수식(SUMIFS·COUNTIFS)은 숨겨진 행도 모두 집계한다. 단 필터가 걸린 상태에서 여러 행을 한 번에 붙여넣으면 숨겨진 행에 값이 들어갈 수 있으니, 붙여넣기 전에는 필터를 해제한다.', None),
+    ('재출력(새 데이터 추가 후 다시 생성)해도 입력값은 유지된다 — 각 입력 시트 맨 오른쪽 숨김 열 "ID"(시스템 거래 ID)로 이전 파일의 입력을 자동으로 이어받는다. 열을 삭제하거나 행을 지우지 말 것. 파일은 그대로 다시 올리면 된다.', None),
     ('통장 출금 중 손익이 아닌 것: 계산서 대금 지급 = 2001 미지급금 / 카드대금 결제 = 2001 미지급금 / 대출 원금 상환 = 2002 단기차입금 또는 2004 장기차입금 / 내부 이체 = 0000 내부이체. 이자 납부만 5301 이자비용.', None),
     ('통장 입금 중 매출 입금 = 4001 상품매출 (손익에는 넣지 않음 — 매출은 홈택스 기준으로 대체). 대출 실행 입금 = 차입금 계정. 이자 수입 = 4002.', None),
     ('매입 계산서: 상품 매입 = 5002 상품매입(매출원가). 임차료·용역·비품 등은 해당 비용 계정 → 판매관리비로 간다. 미분류분은 손익현황에서 임시로 원가에 넣고 표시한다.', None),
@@ -499,7 +561,8 @@ for ws in wb.worksheets:
         for c in row:
             if c.value is not None and c.font.name != FONT:
                 c.font = Font(name=FONT, size=c.font.size or 10, bold=c.font.bold, italic=c.font.italic, color=c.font.color)
-path = OUT + '2026_월별손익현황_작성용_2026-10-27.xlsx'
+import datetime
+path = OUT + f'2026_월별손익현황_작성용_{datetime.date.today().isoformat()}.xlsx'
 wb.save(path)
 print('saved', path, 'tx rows', TX_LAST - 2, 'card rows', CD_LAST - 2, 'purchase rows', PI_LAST - 2)
 print('HT rows', {k: v for k, v in HT.items() if '합계' in k}, 'PL rows', {k: v for k, v in PL.items() if '합계' in k or '이익' in k})
