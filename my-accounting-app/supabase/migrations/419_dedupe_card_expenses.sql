@@ -1,77 +1,68 @@
 -- =====================================================
--- 419_dedupe_card_expenses.sql  (회계 트랙 — 1회성 데이터 정리, 재실행 가능)
--- 법인카드 사용내역 — 통합양식과 카드사별 파일로 두 번 들어간 같은 거래 정리 (2026-10-28)
+-- 419_dedupe_card_expenses.sql  (회계 트랙 — 1회성 데이터 정리)
+-- 법인카드 10-28 업로드 되돌리기 — 카드계좌 갈림으로 같은 거래가 두 번 들어간 것 (2026-10-28)
 --
--- 같은 거래 판정(엄격): 카드계좌 · 이용일 · 승인금액 · 취소금액이 같고 시트(양식)가 다른 행.
--- 남길 행 우선순위: ① 확정 + 분개 있음 ② 확정 ③ 먼저 올라온 행(created_at). 나머지를 지운다.
--- 안전장치: 지울 행에 확정 상태나 분개가 있으면 그 묶음은 건드리지 않고 보고한다(사람 판단).
---   묶음에 같은 시트 행이 2개 이상(같은 날 같은 금액 두 번 긁음 + 다른 양식 1개 등)이면 역시 건너뛴다.
--- 1차 점검(2026-10-28): 8묶음 16행 378,799 — 전부 통합양식(10-23) 행이 확정+분개, 카드사별(10-28) 행이 추천만.
--- 느슨한 중복(취소 표기 차이 등)은 checks/card_duplicate_check2.sql 결과를 보고 따로 정한다.
+-- 2차 점검(checks/card_duplicate_check2.sql) 결과
+--   · 10-28에 올린 파일은 카드번호 표기가 등록 카드와 달랐다(하나·우리 16자리 전체, 롯데 앞4+뒤3).
+--     카드번호 치환(resolveCardNo)이 통합양식 프로파일에만 있어 카드사별 프로파일은 **새 카드계좌 9장**을 만들었고,
+--     같은 거래가 다른 카드계좌 밑에 들어가 1차 "엄격 중복" 점검(카드계좌 일치)에 안 잡혔다.
+--     (10-28 생성 카드계좌: 롯데 5105373·5105473 / 우리 9500610002300566·5532240012487219·6438 /
+--      하나 5376140002062841·5376140002842242·5376140003991535·5531844009883826·9440819002032078·9440819003238781)
+--   · 취소 표기도 양식마다 달라(승인 음수 vs 승인 0/취소 양수) 순액 기준으로만 같은 거래다(느슨한 중복 19묶음).
+--   · 10-28 행은 표본에서 전부 추천만(pending) — 사람 작업 없음(STEP 1에서 확인).
+-- 처리: 10-28에 들어온 행을 전부 지우고, 그날 생긴 카드계좌 중 내역이 남지 않은 것을 지운다.
+--   그다음 고친 업로더(치환 전 프로파일 적용 + 취소 표기 통일 + 양식 간 중복 가드)로 같은 파일을
+--   다시 올리면 기존에 없는 거래만 들어온다.
+-- 가드: 10-28 행에 확정이나 분개가 하나라도 있으면 중단.
+-- 1차 점검의 엄격 중복 8묶음(10-23 통합 ↔ 10-28)도 이 삭제로 함께 해소된다.
 -- =====================================================
 
 -- ── STEP 1. 드라이런 ──────────────────────────────────
-WITH g AS (
-  SELECT card_account_id, tx_date, approved_amount, cancel_amount
-  FROM card_expenses
-  GROUP BY card_account_id, tx_date, approved_amount, cancel_amount
-  HAVING COUNT(*) > 1 AND COUNT(DISTINCT source_sheet) > 1 AND COUNT(*) = COUNT(DISTINCT source_sheet)
-),
-r AS (
-  SELECT e.id, e.card_account_id, e.tx_date, e.approved_amount, e.cancel_amount, e.source_sheet, e.classify_status, e.created_at,
-         EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_type = 'card' AND je.source_id = e.id) AS has_journal,
-         ROW_NUMBER() OVER (PARTITION BY e.card_account_id, e.tx_date, e.approved_amount, e.cancel_amount
-                            ORDER BY (e.classify_status = 'confirmed' AND EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_type = 'card' AND je.source_id = e.id)) DESC,
-                                     (e.classify_status = 'confirmed') DESC, e.created_at, e.id) AS rk
-  FROM card_expenses e JOIN g USING (card_account_id, tx_date, approved_amount, cancel_amount)
-)
 SELECT
-  (SELECT COUNT(*) FROM g)                                                         AS 묶음수,
-  (SELECT COUNT(*) FROM r WHERE rk > 1)                                            AS 지울행,
-  (SELECT COALESCE(SUM(approved_amount - cancel_amount), 0) FROM r WHERE rk > 1)   AS 지울행_순액,
-  (SELECT COUNT(*) FROM r WHERE rk > 1 AND (classify_status = 'confirmed' OR has_journal)) AS 지울행중_확정또는분개_있음_건너뜀,
-  (SELECT string_agg(DISTINCT source_sheet, ', ') FROM r WHERE rk > 1)             AS 지울행_시트;
+  (SELECT COUNT(*) FROM card_expenses WHERE created_at::date = DATE '2026-10-28')                                  AS 지울행,
+  (SELECT COALESCE(SUM(approved_amount - cancel_amount), 0) FROM card_expenses WHERE created_at::date = DATE '2026-10-28') AS 지울행_순액,
+  (SELECT COUNT(*) FROM card_expenses WHERE created_at::date = DATE '2026-10-28' AND classify_status = 'confirmed')   AS 확정_있음_0이어야,
+  (SELECT COUNT(*) FROM journal_entries je WHERE je.source_type = 'card'
+     AND je.source_id IN (SELECT id FROM card_expenses WHERE created_at::date = DATE '2026-10-28'))                 AS 분개_있음_0이어야,
+  (SELECT string_agg(source_sheet || ' ' || n, ' / ') FROM (
+     SELECT source_sheet, COUNT(*) n FROM card_expenses WHERE created_at::date = DATE '2026-10-28' GROUP BY 1) x)  AS 시트별,
+  (SELECT COUNT(*) FROM card_accounts WHERE created_at::date = DATE '2026-10-28')                                   AS 지울_카드계좌,
+  (SELECT COUNT(*) FROM card_expenses e JOIN card_accounts ca ON ca.id = e.card_account_id
+     WHERE ca.created_at::date = DATE '2026-10-28' AND e.created_at::date <> DATE '2026-10-28')                      AS 새계좌에_다른날_행_0이어야;
 
 -- ── STEP 2. 삭제 ───────────────────────────────────────
 DO $$
-DECLARE v_del int; v_skip int;
+DECLARE v_rows int; v_bad int; v_acc int;
 BEGIN
-  WITH g AS (
-    SELECT card_account_id, tx_date, approved_amount, cancel_amount
-    FROM card_expenses
-    GROUP BY card_account_id, tx_date, approved_amount, cancel_amount
-    HAVING COUNT(*) > 1 AND COUNT(DISTINCT source_sheet) > 1 AND COUNT(*) = COUNT(DISTINCT source_sheet)
-  ),
-  r AS (
-    SELECT e.id, e.card_account_id, e.tx_date, e.approved_amount, e.cancel_amount, e.classify_status,
-           EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_type = 'card' AND je.source_id = e.id) AS has_journal,
-           ROW_NUMBER() OVER (PARTITION BY e.card_account_id, e.tx_date, e.approved_amount, e.cancel_amount
-                              ORDER BY (e.classify_status = 'confirmed' AND EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_type = 'card' AND je.source_id = e.id)) DESC,
-                                       (e.classify_status = 'confirmed') DESC, e.created_at, e.id) AS rk
-    FROM card_expenses e JOIN g USING (card_account_id, tx_date, approved_amount, cancel_amount)
-  ),
-  bad AS (   -- 지울 쪽에 확정/분개가 있는 묶음은 통째로 제외
-    SELECT DISTINCT card_account_id, tx_date, approved_amount, cancel_amount FROM r
-    WHERE rk > 1 AND (classify_status = 'confirmed' OR has_journal)
-  ),
-  del AS (
-    DELETE FROM card_expenses e
-    USING r
-    WHERE e.id = r.id AND r.rk > 1
-      AND NOT EXISTS (SELECT 1 FROM bad b WHERE b.card_account_id = r.card_account_id AND b.tx_date = r.tx_date
-                        AND b.approved_amount = r.approved_amount AND b.cancel_amount = r.cancel_amount)
-    RETURNING e.id
-  )
-  SELECT (SELECT COUNT(*) FROM del), (SELECT COUNT(*) FROM bad) INTO v_del, v_skip;
-  RAISE NOTICE '법인카드 중복 정리 — 삭제 % 행, 사람 판단으로 남긴 묶음 %', v_del, v_skip;
+  SELECT COUNT(*) INTO v_bad FROM card_expenses
+   WHERE created_at::date = DATE '2026-10-28'
+     AND (classify_status = 'confirmed'
+          OR EXISTS (SELECT 1 FROM journal_entries je WHERE je.source_type = 'card' AND je.source_id = card_expenses.id));
+  IF v_bad > 0 THEN RAISE EXCEPTION '10-28 행 중 확정/분개 % 건 — 중단', v_bad; END IF;
+
+  SELECT COUNT(*) INTO v_bad FROM card_expenses e JOIN card_accounts ca ON ca.id = e.card_account_id
+   WHERE ca.created_at::date = DATE '2026-10-28' AND e.created_at::date <> DATE '2026-10-28';
+  IF v_bad > 0 THEN RAISE EXCEPTION '10-28 생성 카드계좌에 다른 날 행 % 건 — 중단', v_bad; END IF;
+
+  WITH del AS (DELETE FROM card_expenses WHERE created_at::date = DATE '2026-10-28' RETURNING id)
+  SELECT COUNT(*) INTO v_rows FROM del;
+
+  WITH del AS (
+    DELETE FROM card_accounts ca WHERE ca.created_at::date = DATE '2026-10-28'
+      AND NOT EXISTS (SELECT 1 FROM card_expenses e WHERE e.card_account_id = ca.id)
+    RETURNING id)
+  SELECT COUNT(*) INTO v_acc FROM del;
+
+  RAISE NOTICE '10-28 업로드 되돌림 — 행 % 삭제, 카드계좌 % 삭제', v_rows, v_acc;
 END $$;
 
 -- ── STEP 3. 검증 ──────────────────────────────────────
--- 기대: 남은_엄격중복 0 (건너뛴 묶음이 있으면 그 수만큼)
+-- 기대: 남은_1028행 0 · 카드계좌 11장(롯데 3·우리 2·하나 6) · 엄격중복 0
 SELECT
+  (SELECT COUNT(*) FROM card_expenses WHERE created_at::date = DATE '2026-10-28')  AS 남은_1028행,
+  (SELECT COUNT(*) FROM card_accounts)                                              AS 카드계좌수,
   (SELECT COUNT(*) FROM (
      SELECT 1 FROM card_expenses
      GROUP BY card_account_id, tx_date, approved_amount, cancel_amount
      HAVING COUNT(*) > 1 AND COUNT(DISTINCT source_sheet) > 1) x)                    AS 남은_엄격중복,
-  (SELECT COUNT(*) FROM card_expenses WHERE tx_date >= DATE '2026-06-30')            AS 행수_0630이후,
-  (SELECT COALESCE(SUM(approved_amount - cancel_amount), 0) FROM card_expenses WHERE tx_date >= DATE '2026-06-30') AS 순액_0630이후;
+  (SELECT COUNT(*) FROM card_expenses WHERE tx_date >= DATE '2026-06-30')            AS 행수_0630이후;
