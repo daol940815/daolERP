@@ -193,9 +193,19 @@ export async function POST(req: NextRequest) {
     if (known.includes(fileNo)) {
       entry = { card_company: company, file_no: fileNo, stored_no: fileNo, how: 'exact' }
     } else {
-      const head = fileNo.length >= 7 ? fileNo.slice(0, 4) : ''
-      const tail = fileNo.length >= 7 ? fileNo.slice(4) : fileNo
-      const cands = known.filter(ed => ed.endsWith(tail) && (!head || ed.length < 8 || ed.startsWith(head)))
+      // 양쪽 모두 마스킹 정도가 다를 수 있다(16자리 전체 / 앞4+뒤4 / 앞4+뒤3 / 뒤4만).
+      // 앞 4자리(둘 다 있을 때)와 뒤자리(짧은 쪽 기준)가 맞는 등록 번호가 하나뿐일 때만 그 번호로.
+      const shape = (s: string) => ({
+        head: s.length >= 7 ? s.slice(0, 4) : '',
+        tail: s.length >= 8 ? s.slice(-4) : s.length === 7 ? s.slice(-3) : s,
+      })
+      const f = shape(fileNo)
+      const cands = known.filter(ed => {
+        const e = shape(ed)
+        const tailOk = f.tail.length <= e.tail.length ? e.tail.endsWith(f.tail) : f.tail.endsWith(e.tail)
+        const headOk = !f.head || !e.head || f.head === e.head
+        return tailOk && headOk
+      })
       entry = cands.length === 1
         ? { card_company: company, file_no: fileNo, stored_no: cands[0], how: 'matched' }
         : { card_company: company, file_no: fileNo, stored_no: fileNo, how: cands.length ? 'ambiguous' : 'new' }
@@ -301,7 +311,7 @@ export async function POST(req: NextRequest) {
         const amount = toNumber(row[col.amount])
         const isCanceled = String(row[col.canceled] ?? '').trim().toUpperCase() === 'Y'
         push({
-          card_company: '롯데카드', card_number: cardNo,
+          card_company: '롯데카드', card_number: resolveCardNo('롯데카드', cardNo),
           tx_date: date, tx_time: col.time >= 0 ? toTimeStr(row[col.time]) : null,
           card_type: null,
           merchant_name: toStr(row[col.merchant]),
@@ -360,7 +370,7 @@ export async function POST(req: NextRequest) {
         const canceledPart = combo ? toNumber(combo[2]) : 0
         const isCanceled = String(row[col.status] ?? '').includes('취소')
         push({
-          card_company: '우리카드', card_number: cardNo,
+          card_company: '우리카드', card_number: resolveCardNo('우리카드', cardNo),
           tx_date: date, tx_time: m[3] ? m[3].padStart(5, '0') : null,
           card_type: null,
           merchant_name: toStr(row[col.merchant]),
@@ -415,20 +425,26 @@ export async function POST(req: NextRequest) {
       if (!cardNo || !date) { skipped++; continue }
 
       const company = inferCompany(col.cardType >= 0 ? toStr(row[col.cardType]) : null, wsName, cardNo)
+      // 취소 표기 통일: 승인금액이 음수로 오는 양식(승인 -332,100)은 승인 0 / 취소 332,100으로 저장한다.
+      // 순액(승인−취소)은 같아 분개는 동일하고, 통합양식(승인 0/취소 금액)과 같은 거래로 맞춰진다.
+      const approvedRaw = toNumber(row[col.approved])
+      const cancelRaw = col.cancel >= 0 ? Math.abs(toNumber(row[col.cancel])) : 0
+      const negApproved = approvedRaw < 0 && cancelRaw === 0
+      const statusRaw = col.status >= 0 ? toStr(row[col.status]) : null
       push({
         card_company: company,
-        card_number: cardNo,
+        card_number: resolveCardNo(company, cardNo),
         tx_date: date,
         tx_time: col.time >= 0 ? toTimeStr(row[col.time]) : null,
         card_type: col.cardType >= 0 ? toStr(row[col.cardType]) : null,
         merchant_name: col.merchant >= 0 ? toStr(row[col.merchant]) : null,
         merchant_category: col.category >= 0 ? toStr(row[col.category]) : null,
         merchant_biz_number: col.bizNo >= 0 ? toStr(row[col.bizNo]) : null,
-        approved_amount: toNumber(row[col.approved]),
+        approved_amount: negApproved ? 0 : approvedRaw,
         // 취소금액 부호 통일(양수) — 하나 등은 승인취소금액을 음수로 내려준다
-        cancel_amount: col.cancel >= 0 ? Math.abs(toNumber(row[col.cancel])) : 0,
+        cancel_amount: negApproved ? Math.abs(approvedRaw) : cancelRaw,
         settled_amount: col.settled >= 0 ? toNumber(row[col.settled]) : 0,
-        statement_status: col.status >= 0 ? toStr(row[col.status]) : null,
+        statement_status: statusRaw ?? (negApproved ? '취소' : null),
         usage_type: col.usageType >= 0 ? toStr(row[col.usageType]) : null,
         submall: col.submall >= 0 ? toStr(row[col.submall]) : null,
         source_sheet: col.sourceSheet >= 0 ? toStr(row[col.sourceSheet]) : wsName,
