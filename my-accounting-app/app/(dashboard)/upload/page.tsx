@@ -295,6 +295,7 @@ export default function UploadPage() {
     if (data.posted)  parts.push(`분개 ${data.posted.toLocaleString()}건`)
     if (data.skipped) parts.push(`제외 ${data.skipped.toLocaleString()}건`)
     if (data.skipped_existing) parts.push(`기존 기간 제외 ${data.skipped_existing.toLocaleString()}건`)
+    if (data.duplicates_other_format) parts.push(`다른 양식과 중복 제외 ${data.duplicates_other_format.toLocaleString()}건`)
     if (data.holds)   parts.push(`가승인 취소 ${data.holds.toLocaleString()}건(금액 0)`)
     if (data.refunds) parts.push(`환불 취소 ${data.refunds.toLocaleString()}건`)
     const newCards = (data.card_map as { card_company: string; file_no: string; how: string }[] | undefined)
