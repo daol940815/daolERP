@@ -579,16 +579,21 @@ export async function POST(req: NextRequest) {
   // ── 4) 기존 분류값 보존 (재업로드 시 사용자 보정 유지) ──
   // source_key는 한글 가맹점명이 들어가 길다 — .in()으로 수백 개를 넘기면 요청 URL이
   // 한도를 초과해 조회가 실패하므로, 업로드 파일의 날짜 범위로 조회해 메모리에서 매칭한다.
-  const keys = parsed.map(p => p.source_key)
-  const keySet = new Set(keys)
+  let keys = parsed.map(p => p.source_key)
+  let keySet = new Set(keys)
   const txDates = parsed.map(p => p.tx_date).sort()
   const minDate = txDates[0]
   const maxDate = txDates[txDates.length - 1]
   const preserved = new Map<string, { confirmed_account_id: string | null; classify_status: string; classification: string | null }>()
-  const existingResult = await fetchAllRows<{ source_key: string; confirmed_account_id: string | null; classify_status: string; classification: string | null }>((rFrom, rTo) =>
+  type ExistingRow = {
+    source_key: string; confirmed_account_id: string | null; classify_status: string; classification: string | null
+    card_account_id: string | null; tx_date: string; tx_time: string | null
+    approved_amount: number | null; cancel_amount: number | null; merchant_name: string | null
+  }
+  const existingResult = await fetchAllRows<ExistingRow>((rFrom, rTo) =>
     admin
       .from('card_expenses')
-      .select('source_key, confirmed_account_id, classify_status, classification')
+      .select('source_key, confirmed_account_id, classify_status, classification, card_account_id, tx_date, tx_time, approved_amount, cancel_amount, merchant_name')
       .gte('tx_date', minDate)
       .lte('tx_date', maxDate)
       .range(rFrom, rTo),
@@ -596,13 +601,66 @@ export async function POST(req: NextRequest) {
   if ('error' in existingResult) {
     return NextResponse.json({ error: `기존 내역 조회 실패: ${existingResult.error}` }, { status: 500 })
   }
+
+  // ── 4-1) 다른 양식으로 이미 올라온 같은 거래 걸러내기 ──
+  // source_key는 양식마다 모양이 달라(통합양식 vs 카드사별 파일: 시각·가맹점명 표기) 같은 거래가
+  // 두 번 들어간다(2026-10-28 사용자 확인). 키가 다른 기존 행과 "카드·이용일·시각·승인·취소"가 같으면
+  // 같은 거래로 보고 저장하지 않는다. 시각이 없는 쪽은 가맹점명 앞 4자(정규화)로 대신 맞춘다.
+  // 기존 행 하나는 파일 행 하나만 상쇄한다(같은 분에 같은 금액이 두 번 긁힌 정상 거래 보호).
+  const merchant4 = (s: string | null) =>
+    (s ?? '').normalize('NFKC').toLowerCase().replace(/[^가-힣a-z0-9]/g, '').slice(0, 4)
+  const fpTime = (acct: string, date: string, time: string | null, approved: number, cancel: number) =>
+    time ? `${acct}|${date}|${time.slice(0, 5)}|${approved}|${cancel}` : null
+  const fpName = (acct: string, date: string, approved: number, cancel: number, merchant: string | null) => {
+    const m = merchant4(merchant)
+    return m.length >= 2 ? `${acct}|${date}|${approved}|${cancel}|${m}` : null
+  }
+  const otherFormat = new Map<string, number>()   // 지문 → 아직 상쇄되지 않은 기존 행 수
+  const bumpFp = (k: string | null) => { if (k) otherFormat.set(k, (otherFormat.get(k) ?? 0) + 1) }
   for (const r of existingResult.data) {
-    if (!keySet.has(r.source_key)) continue
-    preserved.set(r.source_key, {
-      confirmed_account_id: r.confirmed_account_id,
-      classify_status: r.classify_status,
-      classification: r.classification,
+    if (keySet.has(r.source_key)) {
+      preserved.set(r.source_key, {
+        confirmed_account_id: r.confirmed_account_id,
+        classify_status: r.classify_status,
+        classification: r.classification,
+      })
+      continue
+    }
+    if (!r.card_account_id) continue
+    bumpFp(fpTime(r.card_account_id, r.tx_date, r.tx_time, r.approved_amount ?? 0, r.cancel_amount ?? 0))
+    bumpFp(fpName(r.card_account_id, r.tx_date, r.approved_amount ?? 0, r.cancel_amount ?? 0, r.merchant_name))
+  }
+  const takeFp = (k: string | null): boolean => {
+    if (!k) return false
+    const n = otherFormat.get(k) ?? 0
+    if (n <= 0) return false
+    otherFormat.set(k, n - 1)
+    return true
+  }
+  let crossDup = 0
+  const crossDupSamples: { tx_date: string; merchant: string | null; amount: number }[] = []
+  if (otherFormat.size) {
+    parsed = parsed.filter(p => {
+      if (preserved.has(p.source_key)) return true   // 같은 양식 재업로드 — upsert가 처리
+      const acct = cardAccountId.get(`${p.card_company}|${p.card_number}`)
+      if (!acct) return true
+      const hit = takeFp(fpTime(acct, p.tx_date, p.tx_time, p.approved_amount, p.cancel_amount))
+        || takeFp(fpName(acct, p.tx_date, p.approved_amount, p.cancel_amount, p.merchant_name))
+      if (hit) {
+        crossDup++
+        if (crossDupSamples.length < 5) crossDupSamples.push({ tx_date: p.tx_date, merchant: p.merchant_name, amount: p.approved_amount || -p.cancel_amount })
+        return false
+      }
+      return true
     })
+    keys = parsed.map(p => p.source_key)
+    keySet = new Set(keys)
+    if (!parsed.length) {
+      return NextResponse.json({
+        error: `파일의 ${crossDup}건이 모두 다른 양식으로 이미 올라온 거래입니다. 저장한 행이 없습니다.`,
+        duplicates_other_format: crossDup,
+      }, { status: 400 })
+    }
   }
 
   // ── 5) upsert 행 구성 ───────────────────────────────
@@ -717,7 +775,10 @@ export async function POST(req: NextRequest) {
     suggested: suggestedCount,
     posted,
     skipped,
-    total_rows: parsed.length + skipped + skippedExisting,
+    total_rows: parsed.length + skipped + skippedExisting + crossDup,
+    // 다른 양식(통합 ↔ 카드사별)으로 이미 올라온 같은 거래 — 저장하지 않음
+    duplicates_other_format: crossDup,
+    duplicate_samples: crossDupSamples,
     // 통합양식(④) 전용 정보 — 화면 안내용
     skipped_existing: skippedExisting,
     last_by_company: lastByCompany,
