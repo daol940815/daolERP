@@ -1,6 +1,7 @@
 'use client'
 
 import PeriodPresets from '@/components/ui/PeriodPresets'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 import Link from 'next/link'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -54,6 +55,12 @@ function CardExpensesContent() {
   const headerCheckRef = useRef<HTMLInputElement>(null)
 
   const showMsg = (m: string, ms = 5000) => { setMsg(m); setTimeout(() => setMsg(null), ms) }
+
+  // 계정과목 검색형 드롭다운 옵션 — 코드와 이름을 함께 두어 "811"처럼 코드로도, "복리"처럼 이름으로도 찾는다
+  const accountSelectOptions = useMemo(
+    () => accounts.map(a => ({ id: a.id, label: `${a.code} ${a.name}` })),
+    [accounts],
+  )
 
   const saveClassification = async (id: string, value: string) => {
     setEditClass(null)
@@ -296,11 +303,13 @@ function CardExpensesContent() {
                 선택 승인 (추천 계정으로 확정)
               </button>
               <span className="inline-flex items-center gap-1.5">
-                <select value={bulkAccountId} onChange={e => setBulkAccountId(e.target.value)}
-                  className="border border-indigo-300 rounded-lg px-2 py-1.5 text-xs bg-white">
-                  <option value="">계정 직접 지정...</option>
-                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
+                <SearchableSelect
+                  value={bulkAccountId}
+                  onChange={setBulkAccountId}
+                  options={accountSelectOptions}
+                  emptyLabel="계정 직접 지정..."
+                  className="border border-indigo-300 rounded-lg px-2 py-1.5 text-xs bg-white min-w-[160px]"
+                />
                 <button onClick={() => runBulk('assign')}
                   className="px-2.5 py-1.5 border border-indigo-300 bg-white text-indigo-800 rounded-lg text-xs font-semibold hover:bg-indigo-100">
                   선택에 적용
@@ -360,14 +369,14 @@ function CardExpensesContent() {
                   </td>
                   <td className="py-2 px-3 text-right whitespace-nowrap font-medium">{won(r.approved_amount)}</td>
                   <td className="py-2 px-3 whitespace-nowrap">
-                    <select
+                    <SearchableSelect
                       value={r.confirmed?.code ? accounts.find(a => a.code === r.confirmed!.code)?.id ?? '' : ''}
-                      onChange={e => patch(r.id, { confirmed_account_id: e.target.value || null })}
-                      className={`border rounded px-2 py-1 text-xs ${r.classify_status === 'confirmed' ? 'border-gray-300 text-gray-900' : 'border-amber-300 bg-amber-50 text-amber-700'}`}
-                    >
-                      <option value="">{r.suggested ? `(제안) ${r.suggested.name}` : '미지정'}</option>
-                      {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                    </select>
+                      onChange={v => patch(r.id, { confirmed_account_id: v || null })}
+                      options={accountSelectOptions}
+                      emptyLabel={r.suggested ? `(제안) ${r.suggested.name}` : '미지정'}
+                      disabled={!!bulkProgress}
+                      className={`border rounded px-2 py-1 text-xs min-w-[150px] max-w-[220px] ${r.classify_status === 'confirmed' ? 'border-gray-300 text-gray-900' : 'border-amber-300 bg-amber-50 text-amber-700'}`}
+                    />
                     {r.classify_status === 'pending' && r.suggested && (
                       <button onClick={() => patch(r.id, { approve: true })}
                         className="ml-1 text-xs px-1.5 py-1 bg-amber-500 text-white rounded hover:bg-amber-600">승인</button>
