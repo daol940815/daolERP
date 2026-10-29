@@ -13,6 +13,7 @@ import {
   type ValueGetterParams,
   type ValueSetterParams,
   type ValueFormatterParams,
+  type RowStyle,
 } from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-quartz.css'
@@ -206,6 +207,8 @@ function TransactionsContent() {
   const searchParams = useSearchParams()
   const bankAccountIdParam = searchParams.get('bankAccountId') ?? ''
   const vendorIdParam      = searchParams.get('vendorId') ?? ''
+  // 드릴다운 진입(이중계상 검사·원본 레코드 화면): 이 거래의 날짜·계좌로 필터를 맞추고 행을 강조
+  const focusTxId          = searchParams.get('txId') ?? ''
 
   const gridRef    = useRef<AgGridReact<Transaction>>(null)
   const uploadRef  = useRef<HTMLInputElement>(null)
@@ -338,6 +341,32 @@ function TransactionsContent() {
 
   // 초기 로드 + bankAccountId 변경 시 자동 재조회
   useEffect(() => { fetchTransactions() }, [autoFetchFlag]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ?txId= 드릴다운: 거래의 날짜·계좌로 필터를 바꾼 뒤 재조회 → 조회 결과가 오면 그 행으로 이동
+  useEffect(() => {
+    if (!focusTxId) return
+    let cancelled = false
+    fetch(`/api/transactions/${focusTxId}`, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(j => {
+        if (cancelled || !j.data) return
+        const d = String(j.data.tx_date).slice(0, 10)
+        setFilters(f => ({ ...f, from: d, to: d, status: 'all', source: 'all', bankAccountId: j.data.bank_account_id ?? '', vendorId: '' }))
+        setAutoFetchFlag(n => n + 1)
+      })
+      .catch(() => null)
+    return () => { cancelled = true }
+  }, [focusTxId])
+  useEffect(() => {
+    if (!focusTxId || !rowData.length) return
+    const api = gridRef.current?.api
+    if (!api) return
+    api.forEachNode(node => {
+      if (node.data?.id !== focusTxId || node.rowIndex == null) return
+      api.paginationGoToPage(Math.floor(node.rowIndex / 50))
+      api.ensureIndexVisible(node.rowIndex, 'middle')
+    })
+  }, [focusTxId, rowData])
 
   // 셀 편집 저장 (계정과목 / 메모)
   const onCellValueChanged = useCallback(async (event: CellValueChangedEvent<Transaction>) => {
@@ -1151,7 +1180,8 @@ function TransactionsContent() {
           onCellValueChanged={onCellValueChanged}
           onFilterChanged={recomputeVisible}
           onModelUpdated={recomputeVisible}
-          getRowStyle={(p) => {
+          getRowStyle={(p): RowStyle | undefined => {
+            if (focusTxId && p.data?.id === focusTxId) return { background: '#e0f2fe', boxShadow: 'inset 3px 0 0 #0284c7' }
             if (p.data?.status === 'confirmed') return { background: '#f0fdf4' }
             if (p.data?.status === 'reviewed')  return { background: '#fefce8' }
             return undefined
