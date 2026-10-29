@@ -28,6 +28,7 @@ export interface DoubleCountFinding {
   source_id: string
   description: string | null        // 통장 적요 / 가맹점명
   account_name: string | null       // 이 건이 확정된 비용 계정
+  invoice_id: string | null         // 상대 매입 세계 (B·C) — /source/tax_invoice/{id} 드릴다운
   invoice_date: string | null       // 상대 매입 세계 작성일 (B·C)
   invoice_amount: number | null
   invoice_account: string | null    // 상대 세계가 분류된 계정
@@ -83,7 +84,7 @@ export async function buildDoubleCount(admin: SupabaseClient): Promise<{ result:
       detail: `세계 매칭 거래가 [${accName(t.confirmed_account_id)}] 비용으로도 확정됨 — 상계(2001)로 변경 필요`,
       source: '통장', source_id: t.id, description: t.description,
       account_name: accName(t.confirmed_account_id),
-      invoice_date: null, invoice_amount: null, invoice_account: null, invoice_counterparty: null,
+      invoice_id: null, invoice_date: null, invoice_amount: null, invoice_account: null, invoice_counterparty: null,
       action: '통장 내역에서 이 출금의 계정을 미지급금(2001)으로 변경',
     })
   }
@@ -110,7 +111,7 @@ export async function buildDoubleCount(admin: SupabaseClient): Promise<{ result:
         detail: `동일 거래처·금액 매입 세계(${cand.issue_date.slice(0, 10)})가 이미 비용 분류됨 — 출금은 미지급금 상계 권장`,
         source: '통장', source_id: t.id, description: t.description,
         account_name: accName(t.confirmed_account_id),
-        invoice_date: cand.issue_date.slice(0, 10), invoice_amount: cand.total_amount,
+        invoice_id: cand.id, invoice_date: cand.issue_date.slice(0, 10), invoice_amount: cand.total_amount,
         invoice_account: accName(cand.confirmed_account_id), invoice_counterparty: cand.counterparty_name,
         action: '계산서 내역에서 이 출금을 계산서에 결제 매칭한 뒤, 출금 계정을 미지급금(2001)으로 변경',
       })
@@ -147,7 +148,7 @@ export async function buildDoubleCount(admin: SupabaseClient): Promise<{ result:
         detail: `카드 비용과 매입 세계(${cand.issue_date.slice(0, 10)})가 병행 발행으로 둘 다 분류됨 — 한쪽 확정 해제 필요`,
         source: '법인카드', source_id: r.id, description: r.merchant_name,
         account_name: accName(r.confirmed_account_id),
-        invoice_date: cand.issue_date.slice(0, 10), invoice_amount: cand.total_amount,
+        invoice_id: cand.id, invoice_date: cand.issue_date.slice(0, 10), invoice_amount: cand.total_amount,
         invoice_account: accName(cand.confirmed_account_id), invoice_counterparty: cand.counterparty_name,
         action: '카드 건과 계산서 중 한쪽의 확정을 해제 (보통 계산서를 비용으로 두고 카드 건은 미지급금 처리)',
       })

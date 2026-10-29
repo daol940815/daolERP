@@ -41,8 +41,10 @@ function CardExpensesContent() {
   const [msg, setMsg] = useState<string | null>(null)
 
   const [cardAccountId, setCardAccountId] = useState(() => searchParams.get('cardAccountId') ?? '')
-  const [dateFrom, setDateFrom] = useState(() => getPeriodRange('당월').from)
-  const [dateTo, setDateTo] = useState(() => getPeriodRange('당월').to)
+  // 드릴다운 진입(?from=&to=&focus=): 그 날짜로 기간을 맞추고 해당 행을 강조·스크롤 (2026-10-29)
+  const focusId = searchParams.get('focus') ?? ''
+  const [dateFrom, setDateFrom] = useState(() => searchParams.get('from') || getPeriodRange('당월').from)
+  const [dateTo, setDateTo] = useState(() => searchParams.get('to') || getPeriodRange('당월').to)
   const [status, setStatus] = useState('')
   const [search, setSearch] = useState('')
   const [accountFilter, setAccountFilter] = useState('') // '' 전체 | 'none' 미추천 | 계정 code
@@ -100,6 +102,12 @@ function CardExpensesContent() {
   }, [cardAccountId, dateFrom, dateTo, status, search])
 
   useEffect(() => { load() }, [load])
+
+  // 드릴다운 행으로 스크롤 (조회가 끝난 뒤 한 번)
+  useEffect(() => {
+    if (!focusId || loading) return
+    document.getElementById(`card-expense-${focusId}`)?.scrollIntoView({ block: 'center' })
+  }, [focusId, loading])
 
   // 계정과목 필터: 확정 계정이 있으면 확정, 없으면 추천 계정 기준
   const effectiveAccount = (r: Expense) => r.confirmed ?? r.suggested
@@ -374,7 +382,8 @@ function CardExpensesContent() {
             </thead>
             <tbody>
               {filteredRows.map(r => (
-                <tr key={r.id} className={`border-b border-gray-100 ${checked.has(r.id) ? 'bg-indigo-50/60' : 'hover:bg-gray-50'}`}>
+                <tr key={r.id} id={`card-expense-${r.id}`}
+                  className={`border-b border-gray-100 ${focusId === r.id ? 'bg-sky-50 shadow-[inset_3px_0_0_#0284c7]' : checked.has(r.id) ? 'bg-indigo-50/60' : 'hover:bg-gray-50'}`}>
                   <td className="py-2 px-3">
                     <input type="checkbox"
                       checked={checked.has(r.id)}

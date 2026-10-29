@@ -41,11 +41,11 @@ export async function GET(
         .from('upload_logs').select('file_name, created_at').eq('id', t.upload_log_id).maybeSingle()
       if (ul) fields.push({ label: '업로드 파일', value: `${ul.file_name} (${String(ul.created_at).slice(0, 16).replace('T', ' ')})` })
     }
-    link = { href: '/transactions', label: '거래 내역 화면으로' }
+    link = { href: `/transactions?txId=${id}`, label: '거래 내역 화면에서 이 거래 보기' }
   } else if (type === 'card') {
     const { data: r } = await admin
       .from('card_expenses')
-      .select('tx_date, tx_time, merchant_name, merchant_category, merchant_biz_number, approved_amount, cancel_amount, tax_amount, statement_status, classify_status, source_sheet, card_accounts(card_company, card_number, alias)')
+      .select('tx_date, tx_time, card_account_id, merchant_name, merchant_category, merchant_biz_number, approved_amount, cancel_amount, tax_amount, statement_status, classify_status, source_sheet, card_accounts(card_company, card_number, alias)')
       .eq('id', id).maybeSingle()
     if (!r) return NextResponse.json({ error: '카드 사용내역을 찾을 수 없습니다.' }, { status: 404 })
     const ca = r.card_accounts as { card_company?: string; card_number?: string; alias?: string } | null
@@ -60,7 +60,12 @@ export async function GET(
       { label: '상태', value: `${r.statement_status ?? '-'} / ${r.classify_status === 'confirmed' ? '확정' : '미확정'}` },
       ...(r.source_sheet ? [{ label: '원본 시트', value: String(r.source_sheet) }] : []),
     )
-    link = { href: '/cards?tab=expenses', label: '법인카드 사용내역 화면으로' }
+    {
+      const d = String(r.tx_date).slice(0, 10)
+      const q = new URLSearchParams({ tab: 'expenses', from: d, to: d, focus: id })
+      if (r.card_account_id) q.set('cardAccountId', String(r.card_account_id))
+      link = { href: `/cards?${q}`, label: '법인카드 사용내역 화면에서 이 건 보기' }
+    }
   } else if (type === 'card_sale') {
     const { data: r } = await admin
       .from('card_sales')
