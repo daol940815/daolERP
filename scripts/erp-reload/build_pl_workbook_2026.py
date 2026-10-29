@@ -162,11 +162,23 @@ if args.prev and os.path.exists(args.prev):
                 if isinstance(v, (int, float)): vals[j] = v
             if vals: PREV['loan_grid'].setdefault(row[0].strip(), []).append(vals)
     print('이전 워크북 입력값:', {k: (len(v[0]) + sum(len(x) for x in v[1].values())) if isinstance(v, tuple) else len(v) for k, v in PREV.items()})
-def prev_val(kind, rid, key):
+def prev_val(kind, rid, key, relaxed=None):
+    """이전 입력값: ID → 복합 키 → (선택) 완화 키(시간·카드 제외) 순으로 찾는다."""
     by_id, by_key = PREV[kind] if PREV[kind] else ({}, {})
     if rid in by_id: return by_id[rid]
     lst = by_key.get(key)
-    return lst.pop(0) if lst else ''
+    if lst: return lst.pop(0)
+    if relaxed:
+        if not hasattr(prev_val, '_relax'): prev_val._relax = {}
+        rk = prev_val._relax.get(kind)
+        if rk is None:
+            rk = collections.defaultdict(list)
+            for k2, vals in by_key.items():
+                for v in vals: rk[relaxed[1](k2)].append(v)
+            prev_val._relax[kind] = rk
+        lst = rk.get(relaxed[0])
+        if lst: return lst.pop(0)
+    return ''
 
 # ── 스타일 ──
 FONT = '맑은 고딕'
@@ -243,7 +255,8 @@ r = 3
 for c in ces:
     conf = acc_label(c['confirmed_account_id']); sug = acc_label(c['suggested_account_id'])
     head = [M(c['tx_date']), c['tx_date'], (c['tx_time'] or '')[:8], card_label(c['card_account_id']), c['merchant_name'], c['merchant_category'], c['user_name'], num(c['approved_amount']), num(c['cancel_amount'])]
-    pv = prev_val('cd', c['id'], _k(head[1], head[2], head[3], head[4], _amt(head[7]), _amt(head[8])))
+    pv = prev_val('cd', c['id'], _k(head[1], head[2], head[3], head[4], _amt(head[7]), _amt(head[8])),
+                  relaxed=(_k(head[1], head[4], _amt(head[7]), _amt(head[8])), lambda k2: (k2[0], k2[3], k2[4], k2[5])))   # 거래일·가맹점·승인·취소 (시간·카드 무시)
     val = pv or conf
     ws_cd.append(head + [f'=H{r}-I{r}', num(c['tax_amount']), STATUS.get(c['classify_status'], c['classify_status']), conf, sug, val, group_formula(f'O{r}'), c['memo'], c['id']])
     if not val: ws_cd.cell(r, 15).fill = YELLOW
