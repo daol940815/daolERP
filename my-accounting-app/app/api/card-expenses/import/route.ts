@@ -156,8 +156,8 @@ export async function POST(req: NextRequest) {
   let skipped = 0
   let cardKeys = new Set<string>()   // `${card_company}|${card_number}`
   let matchedAnySheet = false
-  let holdCount = 0     // 통합양식 가승인·선승인 취소(결제 보류 해제) 건수
-  let refundCount = 0   // 통합양식 환불 취소 건수
+  let holdCount = 0     // 가승인·선승인 취소(결제 보류 해제) 건수 — 모든 양식
+  let refundCount = 0   // 환불 취소(별도 행) 건수 — 모든 양식
 
   // 카드사 판정 폴백용: 기존 카드계좌의 번호 앞자리(BIN) → 카드사
   const { data: knownCards } = await admin
@@ -258,10 +258,7 @@ export async function POST(req: NextRequest) {
         const amount = Math.abs(toNumber(row[col.amount]))
         const merchant = toStr(row[col.merchant])
         const isCanceled = (toStr(row[col.status]) ?? '').includes('취소')
-        // 가승인·선승인(택시 등 결제 보류)의 취소는 청구도 환불도 아니다 — 금액 0으로 기록만
-        const isHold = isCanceled && /가승인|선승인/.test(merchant ?? '')
-        if (isHold) holdCount++
-        else if (isCanceled) refundCount++
+        // 가승인·선승인 보류 해제는 시트 순회 뒤 normalizeHolds()가 모든 양식 공통으로 처리한다
         const region = col.region >= 0 ? toStr(row[col.region]) : null
         const dept = col.dept >= 0 ? toStr(row[col.dept]) : null
         push({
@@ -272,9 +269,9 @@ export async function POST(req: NextRequest) {
           merchant_category: col.category >= 0 ? toStr(row[col.category]) : null,
           merchant_biz_number: col.bizNo >= 0 ? toStr(row[col.bizNo]) : null,
           approved_amount: isCanceled ? 0 : amount,
-          cancel_amount: isCanceled && !isHold ? amount : 0,
+          cancel_amount: isCanceled ? amount : 0,
           settled_amount: 0,
-          statement_status: isHold ? '가승인 취소' : (isCanceled ? '취소' : null),
+          statement_status: isCanceled ? '취소' : null,
           usage_type: region && region !== '국내' ? region : null,
           submall: null, source_sheet: wsName,
           user_name: dept && dept !== '미지정' ? dept : null,
@@ -461,6 +458,35 @@ export async function POST(req: NextRequest) {
       { error: '인식할 수 없는 파일 형식입니다. (필수 컬럼: 카드번호·이용일·승인금액·가맹점명 또는 통합양식 승인일시·카드사·카드번호·가맹점·승인금액·상태)' },
       { status: 400 },
     )
+  }
+
+  // ── 1-0) 가승인·선승인 보류 해제 정규화 — 모든 양식 공통 (2026-10-29) ──
+  // 카카오T 택시 등은 탑승 시 예상 요금을 '가승인'(결제 보류)하고 하차 시 보류를 풀면서 실제 요금을 따로 승인한다.
+  // 카드사 파일에는 보류 해제가 '취소' 행으로만 오고(보류 승인 자체는 청구가 아니라 목록에 없음) 금액은 예상 요금이라
+  // 실제 요금보다 조금 크다. 이것을 환불(취소금액)로 저장하면 역분개가 생겨 비용이 그만큼 줄어든다(롯데 4473 카드에서 발견).
+  // 규칙: 가맹점명에 가승인/선승인이 있는 취소 행은, 같은 파일에 짝이 되는 보류 승인 행(같은 카드·가맹점·금액)이 없으면
+  //       승인 0 / 취소 0 / '가승인 취소'로 기록만 한다(분개 없음). 짝이 있으면 둘 다 그대로 둔다(순액 0).
+  {
+    const HOLD_RE = /가승인|선승인/
+    const holdKey = (p: ParsedRow, amount: number) => `${p.card_company}|${p.card_number}|${(p.merchant_name ?? '').trim()}|${amount}`
+    const holdApprovals = new Map<string, number>()
+    for (const p of parsed) {
+      if (p.approved_amount > 0 && HOLD_RE.test(p.merchant_name ?? '')) {
+        const k = holdKey(p, p.approved_amount)
+        holdApprovals.set(k, (holdApprovals.get(k) ?? 0) + 1)
+      }
+    }
+    for (const p of parsed) {
+      if (!(p.cancel_amount > 0 && p.approved_amount === 0 && HOLD_RE.test(p.merchant_name ?? ''))) continue
+      const k = holdKey(p, p.cancel_amount)
+      const n = holdApprovals.get(k) ?? 0
+      if (n > 0) { holdApprovals.set(k, n - 1); continue }
+      p.cancel_amount = 0
+      p.tax_amount = 0
+      p.statement_status = '가승인 취소'
+      holdCount++
+    }
+    refundCount = parsed.filter(p => p.cancel_amount > 0 && p.approved_amount === 0).length
   }
   if (!parsed.length) {
     return NextResponse.json({ error: '가져올 수 있는 데이터가 없습니다.', skipped }, { status: 400 })
