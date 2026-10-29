@@ -42,10 +42,18 @@ export default function DoubleCountPage() {
             같은 지출이 세금계산서·통장·법인카드 중 두 경로로 비용에 잡힌 건을 교차 검사합니다. 0건 유지가 목표입니다.
           </p>
         </div>
-        <button onClick={load} disabled={loading}
-          className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50">
-          {loading ? '검사 중...' : '↻ 다시 검사'}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => { const a = document.createElement('a'); a.href = '/api/reports/double-count/export'; a.click() }}
+            disabled={loading}
+            className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+            title="요약·상세 두 시트. 상세에는 확정 계정, 상대 계산서, 권장 조치가 들어갑니다">
+            ↓ 엑셀
+          </button>
+          <button onClick={load} disabled={loading}
+            className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50">
+            {loading ? '검사 중...' : '↻ 다시 검사'}
+          </button>
+        </div>
       </div>
 
       {error && <div className="mb-3 mt-2 px-4 py-2.5 bg-red-600 text-white text-sm rounded-lg">{error}</div>}
