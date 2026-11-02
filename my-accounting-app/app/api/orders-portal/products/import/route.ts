@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
+import { can } from '@/lib/permissions'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { ensureAlias } from '@/lib/orders-portal'
 import * as XLSX from 'xlsx'
@@ -53,8 +54,9 @@ const cleanStr = (v: unknown): string | null => {
 export async function POST(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
-  if (me.role === 'sales') {
-    return NextResponse.json({ error: '품목 업로드는 관리자 권한이 필요합니다.' }, { status: 403 })
+  // 109 권한: 영업·주문 그룹 '수정'이면 품목(원가표) 업로드 가능 (옛 role 판정 제거, 2026-11-02)
+  if (!can(me, 'orders', 'edit')) {
+    return NextResponse.json({ error: '품목 업로드는 영업·주문 수정 권한이 필요합니다.' }, { status: 403 })
   }
   const admin = createAdminClient()
 
