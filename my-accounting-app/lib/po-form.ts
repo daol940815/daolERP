@@ -32,6 +32,8 @@ export interface PoExcelData {
   ship_request: string | null      // 출고요청일 (상담일지 배송요청일)
   vendor_name: string              // 공급처(매입처)
   customer: string                 // 주문처(거래처)
+  customer_bank: string | null     // 은행(업체)명 — 메일 치환 변수용 (2026-11-02)
+  customer_branch: string | null   // 지점(부서)명 — 메일 치환 변수용
   customer_manager: string | null  // 배송명단 수령인 프리필
   customer_phone: string | null    // 배송명단 연락처 프리필
   staff_name: string | null        // 발주담당자 — 발송 시점 로그인 직원
@@ -114,11 +116,18 @@ export function fillMailTemplate(tpl: string, vars: Record<string, string>): str
 }
 
 export function poMailVars(form: PoExcelData, orderNo?: string | null): Record<string, string> {
+  const items = form.items ?? []
+  const first = items[0]?.item_name ?? ''
   return {
     '발주번호': form.po_no,
     '매입처명': form.vendor_name,
     '주문번호': orderNo ?? '',
     '주문처': form.customer,
+    '은행명': form.customer_bank ?? form.customer,        // 업체(은행)명 — 미상이면 주문처 전체
+    '지점명': form.customer_branch ?? '',                 // 지점(부서)명
+    '상품명': items.length > 1 ? `${first} 외 ${items.length - 1}건` : first,
+    '품목목록': items.map(it => `- ${it.item_name ?? ''} ${it.quantity ?? 0}개`).join('\n'),
+    '품목수': String(items.length),
     '합계금액': (form.total_amount ?? 0).toLocaleString('ko-KR'),
     '출고요청일': form.ship_request ?? '',
     '발주담당자': form.staff_name ?? '',
