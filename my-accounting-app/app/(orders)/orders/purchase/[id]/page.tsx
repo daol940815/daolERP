@@ -33,7 +33,8 @@ interface SendLog {
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
 const kb = (n: number) => n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`
-const VARS = ['{발주번호}', '{매입처명}', '{주문번호}', '{주문처}', '{합계금액}', '{출고요청일}', '{발주담당자}']
+const VARS = ['{발주번호}', '{매입처명}', '{주문번호}', '{주문처}', '{은행명}', '{지점명}',
+  '{상품명}', '{품목목록}', '{품목수}', '{합계금액}', '{출고요청일}', '{발주담당자}']
 
 export default function PoSendPage() {
   const { id } = useParams<{ id: string }>()

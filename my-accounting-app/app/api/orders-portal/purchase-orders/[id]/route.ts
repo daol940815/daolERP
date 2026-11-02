@@ -93,6 +93,8 @@ async function assembleForm(
     ship_request: shipRequest,
     vendor_name: po.vendor_name,
     customer: [order?.bank_name, order?.branch_name].filter(Boolean).join(' ') || '-',
+    customer_bank: (order?.bank_name as string | null) ?? null,
+    customer_branch: (order?.branch_name as string | null) ?? null,
     customer_manager: order?.manager_name ?? null,
     customer_phone: (order?.phone as string) || (order?.contact as string) || null,
     staff_name: staff.name,
