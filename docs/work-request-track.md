@@ -193,8 +193,12 @@
   20초 폴링은 안전망으로 유지. 알림 패널 하단에 "즉시 갱신 연결됨" 표시(`live`). 연결 실패 시 조용히 폴링만.
   확인 필요: Supabase 프로젝트가 공개(anon) Broadcast 채널 참여를 허용해야 함 — 패널에 "즉시 갱신 연결됨"이 안 보이면 Realtime 설정 점검.
 
+### 902 적용 (2026-11-02 사용자 실행 — 검증 완료)
+- 검증 SELECT: assign_mode 열 1 · assignee_id NULL 허용 YES · 요청 5 = 담당자 행 5 · 담당자 없는 요청 0 · 이력 확장 1.
+- REST 대조(총괄): 5건 모두 single, 담당자 오철준, 담당자 상태 역산 일치(done_reported→done_reported, completed→done_reported,
+  in_progress, accepted×2). API가 쓰는 임베드 3종(요청→담당자 행, 담당자 행→요청 inner, staff-status 중첩 역참조) PostgREST 200.
+
 ## 다음 단계
 
-1. **사용자: 902 실행**(SQL 편집기, 검증 SELECT 결과 공유 — 담당자행_건수 = 요청_건수, 담당자없는요청 0).
-2. 배포 확인: 새 요청 다수 담당자·팀 버튼, 선착 수락 → 나머지 해제, 공동 전원 보고 → 처리 보고, 알림 패널 "즉시 갱신 연결됨".
-3. ⑦ Web Push(903 push_subscriptions, VAPID 환경변수, 서비스 워커, 아침 09:00 오늘 마감 알림 크론) — 다음 묶음.
+1. 배포 확인(사용자): 새 요청 다수 담당자·팀 버튼, 선착 수락 → 나머지 해제, 공동 전원 보고 → 처리 보고, 알림 패널 "즉시 갱신 연결됨".
+2. ⑦ Web Push(903 push_subscriptions, VAPID 환경변수, 서비스 워커, 아침 09:00 오늘 마감 알림 크론) — 다음 묶음.
