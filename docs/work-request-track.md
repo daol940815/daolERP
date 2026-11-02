@@ -161,6 +161,40 @@
   공용 목록 담당자 필터. 비공개 요청은 `canSeePrivate` 아니면 제목 감추고 "비공개 n건"으로만 센다. 근태·휴가·최근 업무일지는
   패널에서 제거(API 조회도 제거). 시안 1번 패널 수정 완료. 3·4 구현에 포함.
 
+### 사용자 결정 5차 (2026-11-02 "좋아 진행해줘" — 시안 결정 6건 전부 권고대로)
+① 팀 버튼: 팀별(재직·로그인 직원) + 아르바이트 + **전 직원** 버튼 둠 ② 공동 방식 요청자 **조기 완료 확정 허용**(미보고자에게는 "요청자가 완료 처리"로 닫힘)
+③ 선착 방식 **담당자 추가 불가**(단일·공동만 추가 가능, 단일에 추가하면 공동으로 전환) ④ PC 알림 기본값: 허용 안내 1회, 주문 수정 승인만 기본 끔
+⑤ 오늘 마감 아침 알림 09:00 ⑥ 순서: 3·4(다수 담당자) + ⑥ 2단계 먼저 → ⑦ Web Push 다음 묶음.
+
+### 3·4 + ⑥ 2단계 구현 (2026-11-02 배포 — **902 실행 대기**)
+- **902** `supabase/migrations/902_work_request_assignees.sql`: `work_requests.assign_mode`(single|first|all, 기본 single) · `assignee_id` NULL 허용 ·
+  **`work_request_assignees`**(request_id · employee_id · status invited|accepted|in_progress|done_reported|rejected|released · 수락/보고/반려 시각 · 사유 · 메모) ·
+  기존 요청을 single 방식 담당자 행으로 이행(요청 상태 → 담당자 상태 역산) · 이력 종류에 `assignee_added` 추가. push_subscriptions 는 ⑦에서 903으로.
+  **902 적용 전에는 업무 요청 화면·API가 "902 마이그레이션을 실행해주세요" 안내를 낸다**(폴백 없음 — 데이터 구조 변경이라 두 경로 유지하지 않음, 알림 API는 조용히 건너뜀).
+- 규칙(`lib/work-requests.ts`): 요청 상태 = 담당자 상태 **집계**(`aggregateStatus`) — 살아 있는 담당자 없음 → 반려 / 전원 보고 → 처리 보고 /
+  1명이라도 진행·보고 → 진행 중 / 1명이라도 수락 → 수락 / 그 외 미확인. 선착은 수락 시 나머지가 released 라 수락자 1명 상태가 그대로 요청 상태.
+  `allowedActions(row, meId)` 내 몫(담당자 행) 기준 — 선착 수락은 요청이 requested 일 때만, `addAssignee` 는 요청자·열린 건·선착 제외.
+  `assigneeSummary` 목록 담당자 열 요약(선착 "수락자 (외 N 해제 · M 반려)" / "미정 (N명 중 수락 대기)", 공동 "팀명 N명 · 보고 k/N").
+  `myDueState` 내 몫 기준 마감(공동에서 내가 보고했으면 배지 없음).
+- 서버(`lib/work-requests-server.ts`): `ROW_SELECT` 에 담당자 행 임베드, `applyAggregate(admin, row, now)` 담당자 변경 뒤 요청 상태·시각 재기록
+  (reject_reason 은 다수면 "이름: 사유" 결합). `canSeePrivate` 는 해제·반려된 담당자도 당사자로 봄. 901 폴백(`selectWithPrivacy`) 제거.
+- API: POST 생성 `assignee_ids[]` + `assign_mode`(2명 이상 필수), 담당자 행 insert 실패 시 요청 롤백. `[id]` 조작 — 선착 수락은
+  `update … eq(status,'requested')` 원자 갱신(늦은 쪽 409 "이미 다른 사람이 수락했습니다"), 나머지 invited → released, 이력 "나머지 N명 자동 해제";
+  `add_assignee`(employee_ids, 반려·해제자는 재초대). 업무일지: 수락 = 수락한 사람, 완료 확정 = 수락했던 담당자 전원 각자.
+  GET 목록: 최근 90일+열린 건 1회 조회 후 내 몫 기준으로 받은/보낸을 가름(선착 해제 건은 받은 목록·배지·알림에서 제외). `staff-status` 는
+  `employee_ids` 다수 → 담당자별 열린 요청 목록(비공개는 당사자·승인권자 외 제목 가림). 알림 API 받은 요청 = 내 몫(invited·accepted·in_progress) 행 기준.
+  경영 현황 직원별 집계 = 담당자 행 기준(공동 1건 = 담당자 N명 각 1건, 해제자 제외), 요약 KPI 는 요청 건 기준.
+- 화면: 새 요청(검색+칩, 팀 버튼, 진행 방식 라디오, 오른쪽 "선택한 담당자가 맡고 있는 업무" 사람당 3건 + 나머지 건수, 이름 → 공용 목록 담당자 필터) ·
+  목록(선착/공동 배지, 담당자 요약, **내 몫** 열, 조작 버튼 = allowedActions) · 상세(담당자별 진행 표, 담당자 추가 패널, 선착 "먼저 수락하면 내가 담당",
+  공동 조기 확정 경고 문구, 미보고자 "요청자가 완료 처리") · 경영 현황 담당 열 요약.
+- **⑥ 2단계 즉시 갱신**: `lib/realtime-broadcast.ts` — 업무 요청 API가 처리 직후 Supabase Realtime **HTTP Broadcast**(`/realtime/v1/api/broadcast`, 서비스 키)로
+  채널 `wr` 이벤트 `changed`(request_id · employee_ids만, 데이터 없음) 발신. `lib/use-notifications.ts` 가 브라우저 anon 클라이언트로 채널 구독 →
+  신호 400ms 디바운스 후 `poll(force)` = 알림 재조회 + `daol:notif-changed` 무조건 발신(메모처럼 건수가 안 바뀌는 변경도 열린 화면 갱신).
+  20초 폴링은 안전망으로 유지. 알림 패널 하단에 "즉시 갱신 연결됨" 표시(`live`). 연결 실패 시 조용히 폴링만.
+  확인 필요: Supabase 프로젝트가 공개(anon) Broadcast 채널 참여를 허용해야 함 — 패널에 "즉시 갱신 연결됨"이 안 보이면 Realtime 설정 점검.
+
 ## 다음 단계
 
-1. ~~사용자: 901 실행~~ (완료). 2. ~~⑥ 1단계~~ (완료). 3. ~~3·4 + ⑥ 2단계 + ⑦ 시안~~ (전달) → **결정 6건 답 대기** → 구현(902, 담당자 업무 패널 포함).
+1. **사용자: 902 실행**(SQL 편집기, 검증 SELECT 결과 공유 — 담당자행_건수 = 요청_건수, 담당자없는요청 0).
+2. 배포 확인: 새 요청 다수 담당자·팀 버튼, 선착 수락 → 나머지 해제, 공동 전원 보고 → 처리 보고, 알림 패널 "즉시 갱신 연결됨".
+3. ⑦ Web Push(903 push_subscriptions, VAPID 환경변수, 서비스 워커, 아침 09:00 오늘 마감 알림 크론) — 다음 묶음.

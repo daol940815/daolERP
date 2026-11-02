@@ -296,7 +296,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
       </div>
       {/* 출근·퇴근 체크 — 어느 영역에서든 같은 자리 (2026-10-01). 비대상 직원에게는 비표시 */}
       <CheckWidget wrap="pt-3 border-b border-slate-800" />
-      <div className="pt-2 border-b border-slate-800"><NotificationBell data={notif.data} seenAt={notif.seenAt} onSeen={notif.markAllSeen} /></div>
+      <div className="pt-2 border-b border-slate-800"><NotificationBell data={notif.data} seenAt={notif.seenAt} onSeen={notif.markAllSeen} live={notif.live} /></div>
 
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
         {groups.map(g => (

@@ -20,7 +20,7 @@ const timeLabel = (iso: string | null) => {
   return day === today ? `${p.hour}:${p.minute}` : `${p.month}-${p.day}`
 }
 
-export function NotificationBell({ data, seenAt, onSeen }: { data: NotifData | null; seenAt: string | null; onSeen: () => void }) {
+export function NotificationBell({ data, seenAt, onSeen, live }: { data: NotifData | null; seenAt: string | null; onSeen: () => void; live?: boolean }) {
   const [open, setOpen] = useState(false)
   const count = data?.count ?? 0
   const items = data?.items ?? []
@@ -67,7 +67,7 @@ export function NotificationBell({ data, seenAt, onSeen }: { data: NotifData | n
             })}
             <div className="flex items-center px-4 py-2 bg-gray-50 text-[11px] text-gray-500">
               <button onClick={() => { onSeen(); setOpen(false) }} className="hover:text-gray-800 underline">모두 확인함으로 표시</button>
-              <span className="ml-auto">{Math.round(NOTIF_POLL_MS / 1000)}초마다 갱신</span>
+              <span className="ml-auto" title={live ? '업무 요청 변경은 즉시 반영됩니다. 폴링은 안전망.' : '실시간 신호 연결 전 — 폴링으로 갱신'}>{live ? '즉시 갱신 연결됨 · ' : ''}{Math.round(NOTIF_POLL_MS / 1000)}초마다 갱신</span>
             </div>
           </div>
         </>
