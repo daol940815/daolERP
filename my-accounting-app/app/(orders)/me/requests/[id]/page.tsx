@@ -63,6 +63,7 @@ export default function WorkRequestDetailPage() {
       {msg && <div className="mt-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
       <div className="flex items-center gap-2 mt-1 flex-wrap">
         {r.is_urgent && <span className="text-[11px] px-2 py-0.5 rounded bg-red-600 text-white font-semibold">긴급</span>}
+        {r.is_private && <span className="text-[11px] px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold" title="요청자 · 담당자 · 승인권자만 볼 수 있음">비공개</span>}
         <h1 className="text-2xl font-bold text-gray-900">{r.title}</h1>
         <span className={`ml-auto inline-block px-2.5 py-1 rounded text-xs font-semibold ${WR_STATUS_CLS[r.status]}`}>{WR_STATUS_LABEL[r.status]}</span>
       </div>

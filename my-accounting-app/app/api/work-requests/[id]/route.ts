@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
-import { can } from '@/lib/permissions'
+import { isManagerLike } from '@/lib/permissions'
 import { recordWorkLog } from '@/lib/work-log'
 import { allowedActions, type WrRow, type WrEventRow } from '@/lib/work-requests'
-import { ROW_SELECT, normalize, isMissing, MIGRATION_HINT, type RawRow } from '@/lib/work-requests-server'
+import { selectWithPrivacy, canSeePrivate, normalize, isMissing, MIGRATION_HINT, type RawRow } from '@/lib/work-requests-server'
 
 export const dynamic = 'force-dynamic'
 
-// GET  /api/work-requests/[id]            — 상세 + 이력 (당사자, 또는 경영 현황 조회 권한자는 읽기만)
+// GET  /api/work-requests/[id]            — 상세 + 이력. 공개 요청은 전원 조회(2026-11-02 공용 전환), 비공개는 당사자·승인권자만.
 // POST /api/work-requests/[id] { action, memo?, title?, content?, link?, due_at?, is_urgent? }
 //   accept · reject(memo=사유 필수) · memo · report  — 담당자
 //   complete · cancel · edit                        — 요청자
@@ -17,9 +17,9 @@ export const dynamic = 'force-dynamic'
 type RawEvent = Omit<WrEventRow, 'actor'> & { actor: WrEventRow['actor'] | WrEventRow['actor'][] }
 
 async function loadRow(admin: ReturnType<typeof createAdminClient>, id: string): Promise<WrRow | null> {
-  const { data, error } = await admin.from('work_requests').select(ROW_SELECT).eq('id', id).maybeSingle()
+  const { data, error } = await selectWithPrivacy<RawRow>(sel => admin.from('work_requests').select(sel).eq('id', id).maybeSingle())
   if (error) throw new Error(isMissing(error.message) ? MIGRATION_HINT : error.message)
-  return data ? normalize(data as unknown as RawRow) : null
+  return data ? normalize(data) : null
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -30,8 +30,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   try { row = await loadRow(admin, params.id) } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 500 }) }
   if (!row) return NextResponse.json({ error: '요청을 찾을 수 없습니다.' }, { status: 404 })
   const meId = me.employeeId
-  const party = !!meId && (row.requester?.id === meId || row.assignee?.id === meId)
-  if (!party && !can(me, 'mgmt')) return NextResponse.json({ error: '이 요청의 당사자가 아닙니다.' }, { status: 403 })
+  if (!canSeePrivate(row, meId, isManagerLike(me))) return NextResponse.json({ error: '비공개 요청입니다. 요청자 · 담당자 · 승인권자만 볼 수 있습니다.' }, { status: 403 })
 
   const { data: ev } = await admin.from('work_request_events')
     .select('id, event, memo, snapshot, created_at, actor:employees!work_request_events_actor_id_fkey(id, name, team)')

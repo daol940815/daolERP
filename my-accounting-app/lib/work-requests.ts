@@ -41,9 +41,14 @@ export interface WrRow {
   reject_reason: string | null
   last_memo: string | null
   last_memo_at: string | null
+  is_private: boolean          // 901 — 요청자·담당자·승인권자만 조회 (미적용 환경은 false)
   requester: WrPerson | null
   assignee: WrPerson | null
 }
+
+// 목록 범위 — 전체(공용) / 내가 받은 / 내가 보낸 (2026-11-02 사용자 결정: 목록 공용 전환 + 내 업무 버튼)
+export type WrScope = 'all' | 'inbox' | 'outbox'
+export const WR_SCOPE_LABEL: Record<WrScope, string> = { all: '전체', inbox: '내가 받은', outbox: '내가 보낸' }
 export interface WrEventRow {
   id: string
   event: WrEvent

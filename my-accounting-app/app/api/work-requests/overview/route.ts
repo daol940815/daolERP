@@ -3,17 +3,20 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { monthRange } from '@/lib/attendance'
+import { isManagerLike } from '@/lib/permissions'
 import { OPEN_STATUSES, DUE_TRACKED, hoursBetween, type WrRow } from '@/lib/work-requests'
-import { ROW_SELECT, normalize, isMissing, MIGRATION_HINT, type RawRow } from '@/lib/work-requests-server'
+import { ROW_SELECT, ROW_SELECT_LEGACY, isPrivateColMissing, canSeePrivate, maskRow, normalize, isMissing, MIGRATION_HINT, type RawRow } from '@/lib/work-requests-server'
 
 export const dynamic = 'force-dynamic'
 
 // 업무 요청 현황 (경영 현황, 조회 전용) — API_OWNERS: /api/work-requests/overview → mgmt
 // GET ?month=YYYY-MM → 이달 생성분 + 지금 열린 건 전체. 직원별 집계 · 주의 목록 · 요약.
+// 통계 중심(2026-11-02): 목록은 내 업무 › 업무 요청(공용)으로 드릴다운. 비공개 건은 집계에는 포함하되 제목은 승인권자 외에게 가린다.
 export async function GET(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   const admin = createAdminClient()
+  const approver = isManagerLike(me)
   const sp = req.nextUrl.searchParams
   const month = /^\d{4}-\d{2}$/.test(sp.get('month') ?? '') ? sp.get('month')! : new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date()).slice(0, 7)
   const [from, to] = monthRange(month)
@@ -21,13 +24,16 @@ export async function GET(req: NextRequest) {
   const fromIso = new Date(`${from}T00:00:00+09:00`).toISOString(), toIso = new Date(`${to}T23:59:59+09:00`).toISOString()
   const fromT = new Date(fromIso).getTime(), toT = new Date(toIso).getTime()
 
-  const result = await fetchAllRows<RawRow>((f, t) =>
-    admin.from('work_requests').select(ROW_SELECT)
+  type Page = PromiseLike<{ data: RawRow[] | null; error: { message: string } | null }>
+  const fetchWith = (select: string) => fetchAllRows<RawRow>((f, t) =>
+    admin.from('work_requests').select(select)
       .or(`status.in.(${OPEN_STATUSES.join(',')}),and(created_at.gte.${fromIso},created_at.lte.${toIso})`)
-      .order('created_at', { ascending: false }).range(f, t),
+      .order('created_at', { ascending: false }).range(f, t) as unknown as Page,   // 동적 select 라 행 타입 단언
   )
+  let result = await fetchWith(ROW_SELECT)
+  if ('error' in result && isPrivateColMissing(result.error)) result = await fetchWith(ROW_SELECT_LEGACY)   // 901 미적용 폴백
   if ('error' in result) return NextResponse.json({ error: isMissing(result.error) ? MIGRATION_HINT : result.error }, { status: 500 })
-  const rows: WrRow[] = result.data.map(normalize)
+  const rows: WrRow[] = result.data.map(normalize).map(r => canSeePrivate(r, me.employeeId, approver) ? r : maskRow(r))
   const now = new Date()
   const inMonth = (iso: string | null) => { if (!iso) return false; const t = new Date(iso).getTime(); return t >= fromT && t <= toT }
   const open = (r: WrRow) => OPEN_STATUSES.includes(r.status)
