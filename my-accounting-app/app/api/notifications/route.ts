@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { isManagerLike } from '@/lib/permissions'
-import { OPEN_STATUSES, DUE_TRACKED, fmtDue, type WrStatus } from '@/lib/work-requests'
+import { OPEN_STATUSES, ASG_TRACKED, fmtDue, type WrStatus, type WrAsgStatus } from '@/lib/work-requests'
 import type { NotifData, NotifItem } from '@/lib/notifications'
 
 export const dynamic = 'force-dynamic'
@@ -34,12 +34,14 @@ export async function GET() {
   const approver = isManagerLike(me)
 
   type WR = { id: string; title: string; status: WrStatus; due_at: string; created_at: string; reported_at: string | null; rejected_at: string | null; reject_reason: string | null; is_urgent: boolean; requester: { name: string } | { name: string }[] | null; assignee: { name: string } | { name: string }[] | null }
+  // 902: 받은 요청은 내 몫(담당자 행) 기준 — 선착에서 해제된 건·공동에서 내가 이미 보고한 건은 세지 않는다
+  type MyShare = { status: WrAsgStatus; request: WR | WR[] | null }
   type Leave = { id: string; employee_id: string; leave_type: string; start_date: string; end_date: string; status: string; created_at: string; decided_at: string | null; employees: { name: string } | { name: string }[] | null }
   type OCR = { id: string; request_type: string; status: string; created_at: string; decided_at: string | null; requested_by: string | null; employees: { name: string } | { name: string }[] | null }
 
   const wrSel = 'id, title, status, due_at, created_at, reported_at, rejected_at, reject_reason, is_urgent, requester:employees!work_requests_requester_id_fkey(name), assignee:employees!work_requests_assignee_id_fkey(name)'
   const [inRes, outRes, leavePendRes, leaveMineRes, ocrPendRes, ocrMineRes] = await Promise.all([
-    admin.from('work_requests').select(wrSel).eq('assignee_id', empId).in('status', OPEN_STATUSES).order('due_at'),
+    admin.from('work_request_assignees').select(`status, request:work_requests!inner(${wrSel})`).eq('employee_id', empId).in('status', ASG_TRACKED),
     admin.from('work_requests').select(wrSel).eq('requester_id', empId).or(`status.eq.done_reported,and(status.eq.rejected,rejected_at.gte.${sevenDaysAgo})`).order('created_at', { ascending: false }),
     approver
       ? admin.from('attendance_leaves').select('id, employee_id, leave_type, start_date, end_date, status, created_at, decided_at, employees!attendance_leaves_employee_id_fkey(name)').eq('status', 'requested').neq('employee_id', empId).order('created_at')
@@ -53,9 +55,9 @@ export async function GET() {
 
   // ── 업무 요청 ──
   if (!inRes.error) {
-    const inbox = (inRes.data ?? []) as unknown as WR[]
-    const tracked = inbox.filter(r => DUE_TRACKED.includes(r.status))
-    const unread = inbox.filter(r => r.status === 'requested')
+    const shares = ((inRes.data ?? []) as unknown as MyShare[]).map(s => ({ status: s.status, r: one(s.request) })).filter((s): s is { status: WrAsgStatus; r: WR } => !!s.r && OPEN_STATUSES.includes(s.r.status))
+    const tracked = shares.map(s => s.r).sort((a, b) => a.due_at.localeCompare(b.due_at))   // 내 몫이 미확인·수락·진행 중인 것만 (조회 조건)
+    const unread = shares.filter(s => s.status === 'invited').map(s => s.r)
     const overdue = tracked.filter(r => new Date(r.due_at) < now)
     const dueToday = tracked.filter(r => kstDay(r.due_at) === today && new Date(r.due_at) >= now)
     const desc = (r: WR) => `${one(r.requester)?.name ?? ''}: ${r.title} (마감 ${fmtDue(r.due_at)})`
@@ -69,7 +71,7 @@ export async function GET() {
     const outbox = (outRes.data ?? []) as unknown as WR[]
     const awaiting = outbox.filter(r => r.status === 'done_reported')
     const rejected = outbox.filter(r => r.status === 'rejected')
-    if (awaiting.length) items.push({ key: 'wr:awaiting', group: 'waiting', tone: 'amber', title: `완료 확정 대기 ${awaiting.length}건`, detail: `${one(awaiting[0].assignee)?.name ?? ''}이(가) 처리 보고: ${awaiting[0].title}`, href: '/me/requests?tab=outbox', count: awaiting.length, at: latest(awaiting.map(r => r.reported_at)) })
+    if (awaiting.length) items.push({ key: 'wr:awaiting', group: 'waiting', tone: 'amber', title: `완료 확정 대기 ${awaiting.length}건`, detail: `${one(awaiting[0].assignee)?.name ?? '담당자 전원'}이(가) 처리 보고: ${awaiting[0].title}`, href: '/me/requests?tab=outbox', count: awaiting.length, at: latest(awaiting.map(r => r.reported_at)) })
     if (rejected.length) items.push({ key: 'wr:rejected', group: 'info', tone: 'gray', title: `요청 반려됨 ${rejected.length}건`, detail: `${rejected[0].title}${rejected[0].reject_reason ? ` — 사유: ${rejected[0].reject_reason}` : ''}`, href: '/me/requests?tab=outbox', count: rejected.length, at: latest(rejected.map(r => r.rejected_at)) })
     if (!badges['/me/requests'] && awaiting.length + rejected.length) badges['/me/requests'] = { n: awaiting.length + rejected.length, tone: 'amber' }
   }

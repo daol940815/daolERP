@@ -26,3 +26,6 @@ export interface NotifData {
 export const NOTIF_GROUP_LABEL: Record<NotifGroup, string> = { todo: '지금 해야 할 것', waiting: '기다리는 것', info: '결과 통지' }
 export const NOTIF_POLL_MS = 20_000   // 2026-11-02: 60초 → 20초 (⑥ 1단계). 탭 복귀·화면 조작 시에는 즉시 조회.
 export const NOTIF_SEEN_KEY = 'notif-seen-at'
+// 즉시 갱신 신호(⑥ 2단계, 2026-11-02) — 서버가 Realtime Broadcast 로 보내는 채널·이벤트 이름. 신호에는 데이터가 없다(id만).
+export const WR_CHANNEL = 'wr'
+export const WR_EVENT = 'changed'

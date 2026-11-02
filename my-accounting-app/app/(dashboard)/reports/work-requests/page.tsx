@@ -6,7 +6,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { kstParts, fmtDue, type WrRow } from '@/lib/work-requests'
+import { kstParts, fmtDue, assigneeSummary, type WrRow } from '@/lib/work-requests'
 
 interface Overview {
   summary: { month: string; created: number; completed: number; canceled: number; rejected: number; open: number; overdue: number; unread_24h: number; avg_hours_to_report: number | null }
@@ -70,7 +70,7 @@ export default function WorkRequestsOverviewPage() {
           <h2 className="text-sm font-bold text-gray-900 mb-2">직원별 <span className="text-xs text-gray-400 font-normal">행을 누르면 그 직원 관련 목록</span></h2>
           {employees.length === 0 ? <p className="text-xs text-gray-400 py-4">요청이 없습니다.</p> : (
             <table className="w-full text-sm">
-              <thead><tr className="text-left text-xs text-gray-400 border-b border-gray-100"><th className="py-1.5 font-medium">직원</th><th className="py-1.5 font-medium">팀</th><th className="py-1.5 font-medium text-right">받은</th><th className="py-1.5 font-medium text-right">진행 중</th><th className="py-1.5 font-medium text-right">지남</th><th className="py-1.5 font-medium text-right">완료</th><th className="py-1.5 font-medium text-right">보낸</th></tr></thead>
+              <thead><tr className="text-left text-xs text-gray-400 border-b border-gray-100"><th className="py-1.5 font-medium">직원</th><th className="py-1.5 font-medium">팀</th><th className="py-1.5 font-medium text-right" title="담당자 행 기준 — 공동 요청 1건은 담당자마다 1건, 선착에서 해제된 사람은 제외">받은</th><th className="py-1.5 font-medium text-right">진행 중</th><th className="py-1.5 font-medium text-right">지남</th><th className="py-1.5 font-medium text-right">완료</th><th className="py-1.5 font-medium text-right">보낸</th></tr></thead>
               <tbody>{employees.map(e => (
                 <tr key={e.id} onClick={() => router.push(listHref({ employee: e.id }))} className="border-b border-gray-50 cursor-pointer hover:bg-gray-50">
                   <td className="py-1.5 font-semibold text-gray-900">{e.name}</td><td className="py-1.5 text-xs text-gray-500">{e.team ?? '-'}</td>
@@ -89,7 +89,7 @@ export default function WorkRequestsOverviewPage() {
               <tbody>{data.attention.slice(0, 15).map(r => (
                 <tr key={r.id} className="border-b border-gray-50">
                   <td className="py-1.5 max-w-[260px] truncate"><Link href={`/me/requests/${r.id}`} className="hover:underline">{r.is_urgent && <span className="text-[10px] px-1 rounded bg-red-600 text-white mr-1">긴급</span>}{r.title}</Link></td>
-                  <td className="py-1.5 text-gray-700 whitespace-nowrap">{r.assignee?.name}</td>
+                  <td className="py-1.5 text-gray-700 whitespace-nowrap">{assigneeSummary(r).main}{assigneeSummary(r).sub && r.assignees.length > 1 && <span className="text-xs text-gray-400 ml-1">{assigneeSummary(r).sub}</span>}</td>
                   <td className="py-1.5 text-xs tabular-nums whitespace-nowrap text-red-600">{fmtDue(r.due_at)}</td>
                   <td className="py-1.5"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${r.reason === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{r.reason === 'overdue' ? '지남' : '미확인 24h+'}</span></td>
                 </tr>
