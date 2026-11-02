@@ -40,6 +40,14 @@ export default function SalesHubDetailPage() {
   const [from, setFrom] = useState(sp.get('from') ?? getPeriodRange('당년').from)   // 관리·분석 기본 = 당년
   const [to, setTo] = useState(sp.get('to') ?? getPeriodRange('당년').to)
   const [data, setData] = useState<HubDetail | null>(null)
+  // 과거 매출 스냅샷 (고객관리문서 기준, 111) — ERP 주문 삭제 전 매출의 참고 지표 (드릴다운 불가)
+  interface DocSalesRow {
+    manager_name: string | null; daol_staff: string | null; total_sales: number
+    season: Record<string, number>; monthly: Record<string, number>
+    first_order_date: string | null; last_order_date: string | null
+    order_type: string | null; source: string
+  }
+  const [docSales, setDocSales] = useState<DocSalesRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<(typeof TABS)[number]>('개요')
@@ -65,6 +73,7 @@ export default function SalesHubDetailPage() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? '조회 실패')
       setData(json); setNote(json.vendor.note ?? ''); setCanEdit(!!json.can_edit)
+      setDocSales(Array.isArray(json.doc_sales) ? json.doc_sales : [])
     } catch (e) {
       setError(e instanceof Error ? e.message : '조회 실패')
     } finally { setLoading(false) }
@@ -597,6 +606,60 @@ export default function SalesHubDetailPage() {
             )}
           </div>
         )}
+
+        {tab === '개요' && docSales.length > 0 && (() => {
+          const ysum = (m: Record<string, number>, y: string) =>
+            Object.entries(m).reduce((s, [k, v]) => s + (k.startsWith(y) ? v : 0), 0)
+          const ssum = (s: Record<string, number>) => Object.values(s).reduce((a, b) => a + b, 0)
+          const tot = docSales.reduce((s, r) => s + r.total_sales, 0)
+          const t25 = docSales.reduce((s, r) => s + ysum(r.monthly, '2025'), 0)
+          const t26 = docSales.reduce((s, r) => s + ysum(r.monthly, '2026'), 0)
+          const tSeason = docSales.reduce((s, r) => s + ssum(r.season), 0)
+          return (
+            <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto mt-3">
+              <div className="px-4 pt-3 text-sm font-bold text-gray-800 flex items-baseline gap-2 flex-wrap">
+                과거 매출 <span className="text-[11px] font-normal text-gray-400">{docSales[0].source} 기준 스냅샷 — 참고 지표 (주문 원본 삭제로 드릴다운 불가)</span>
+              </div>
+              <div className="px-4 py-1.5 flex gap-4 text-xs text-gray-600 flex-wrap">
+                <span>합계 <b className="tabular-nums">{won(tot)}</b></span>
+                <span>2025년 <b className="tabular-nums">{won(t25)}</b></span>
+                <span>2026년 <b className="tabular-nums">{won(t26)}</b></span>
+                <span>명절 <b className="tabular-nums">{won(tSeason)}</b></span>
+              </div>
+              <table className="w-full text-sm min-w-[720px]">
+                <thead>
+                  <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+                    <th className="py-2 px-3 text-left font-medium">담당자 (문서 표기)</th>
+                    <th className="py-2 px-3 text-left font-medium">다올 담당</th>
+                    <th className="py-2 px-3 text-right font-medium">2025</th>
+                    <th className="py-2 px-3 text-right font-medium">2026</th>
+                    <th className="py-2 px-3 text-right font-medium">명절</th>
+                    <th className="py-2 px-3 text-right font-medium">합계</th>
+                    <th className="py-2 px-3 text-left font-medium">거래 기간</th>
+                    <th className="py-2 px-3 text-left font-medium">유형</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {docSales.slice(0, 30).map((r, i) => (
+                    <tr key={i} className="border-b border-gray-50">
+                      <td className="py-1.5 px-3">{r.manager_name ?? '-'}</td>
+                      <td className="py-1.5 px-3 text-xs text-gray-500">{r.daol_staff ?? '-'}</td>
+                      <td className="py-1.5 px-3 text-right tabular-nums">{won(ysum(r.monthly, '2025'))}</td>
+                      <td className="py-1.5 px-3 text-right tabular-nums">{won(ysum(r.monthly, '2026'))}</td>
+                      <td className="py-1.5 px-3 text-right tabular-nums">{won(ssum(r.season))}</td>
+                      <td className="py-1.5 px-3 text-right tabular-nums font-semibold">{won(r.total_sales)}</td>
+                      <td className="py-1.5 px-3 text-xs text-gray-500 tabular-nums whitespace-nowrap">
+                        {(r.first_order_date ?? '?')} ~ {(r.last_order_date ?? '?')}
+                      </td>
+                      <td className="py-1.5 px-3 text-xs text-gray-500">{r.order_type ?? '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {docSales.length > 30 && <div className="px-4 py-2 text-xs text-gray-400">상위 30명 표시 (전체 {docSales.length}명)</div>}
+            </div>
+          )
+        })()}
 
         {tab === '수금 내역' && (
           <div className="bg-white border border-gray-200 rounded-xl">

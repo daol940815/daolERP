@@ -30,6 +30,14 @@ export default function ContactDetailPage() {
   const { contactId } = useParams<{ contactId: string }>()
   const router = useRouter()
   const [d, setD] = useState<Detail | null>(null)
+  // 과거 매출 스냅샷 (고객관리문서 기준, 111) — 참고 지표 (주문 원본 삭제로 드릴다운 불가)
+  interface DocSalesRow {
+    bank_name: string | null; branch_name: string | null; total_sales: number
+    season: Record<string, number>; monthly: Record<string, number>
+    first_order_date: string | null; last_order_date: string | null
+    order_type: string | null; source: string
+  }
+  const [docSales, setDocSales] = useState<DocSalesRow[]>([])
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -56,6 +64,7 @@ export default function ContactDetailPage() {
     const json = await res.json()
     if (res.ok) {
       setD(json)
+      setDocSales(Array.isArray(json.doc_sales) ? json.doc_sales : [])
       setForm({ name: json.contact.name ?? '', phone: json.contact.phone ?? '', email: json.contact.email ?? '', note: json.contact.note ?? '' })
     } else showMsg(`조회 실패: ${json.error ?? '알 수 없는 오류'}`)
     setLoading(false)
@@ -242,6 +251,43 @@ export default function ContactDetailPage() {
               <p className="text-base font-bold text-gray-900">{d.stats.last_order_date ?? '-'}</p>
             </div>
           </div>
+
+          {docSales.length > 0 && (() => {
+            const ysum = (m: Record<string, number>, y: string) =>
+              Object.entries(m).reduce((s, [k, v]) => s + (k.startsWith(y) ? v : 0), 0)
+            const ssum = (s: Record<string, number>) => Object.values(s).reduce((a, b) => a + b, 0)
+            return (
+              <div className="bg-white border border-gray-200 rounded-xl p-4 overflow-x-auto">
+                <h2 className="text-sm font-bold text-gray-900">과거 매출
+                  <span className="ml-2 text-[11px] font-normal text-gray-400">{docSales[0].source} 기준 스냅샷 — 참고 지표 (주문 원본 삭제로 드릴다운 불가)</span>
+                </h2>
+                <table className="w-full text-sm mt-2 min-w-[560px]">
+                  <thead>
+                    <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                      <th className="py-1.5 pr-3 font-medium">소속 (문서 표기)</th>
+                      <th className="py-1.5 px-3 font-medium text-right">2025</th>
+                      <th className="py-1.5 px-3 font-medium text-right">2026</th>
+                      <th className="py-1.5 px-3 font-medium text-right">명절</th>
+                      <th className="py-1.5 px-3 font-medium text-right">합계</th>
+                      <th className="py-1.5 px-3 font-medium">거래 기간</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {docSales.map((r, i) => (
+                      <tr key={i} className="border-b border-gray-50 last:border-0">
+                        <td className="py-1.5 pr-3">{[r.bank_name, r.branch_name].filter(Boolean).join(' ') || '-'}</td>
+                        <td className="py-1.5 px-3 text-right tabular-nums">{won(ysum(r.monthly, '2025'))}</td>
+                        <td className="py-1.5 px-3 text-right tabular-nums">{won(ysum(r.monthly, '2026'))}</td>
+                        <td className="py-1.5 px-3 text-right tabular-nums">{won(ssum(r.season))}</td>
+                        <td className="py-1.5 px-3 text-right tabular-nums font-semibold">{won(r.total_sales)}</td>
+                        <td className="py-1.5 px-3 text-xs text-gray-500 tabular-nums whitespace-nowrap">{(r.first_order_date ?? '?')} ~ {(r.last_order_date ?? '?')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          })()}
 
           <div className="bg-white border border-gray-200 rounded-xl p-4">
             <h2 className="text-sm font-bold text-gray-900 mb-1">상담 직원 커넥션</h2>

@@ -16,8 +16,18 @@ export async function GET(
   const sp = new URL(req.url).searchParams
   const result = await buildHubDetail(admin, params.vendorId, sp.get('from'), sp.get('to'))
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
+  // 과거 매출 스냅샷 (고객관리문서 기준, 111) — 미적용 환경이면 빈 배열
+  let docSales: unknown[] = []
+  {
+    const { data } = await admin.from('doc_sales_snapshot')
+      .select('manager_name, daol_staff, total_sales, season, monthly, first_order_date, last_order_date, order_type, source')
+      .eq('vendor_id', params.vendorId)
+      .order('total_sales', { ascending: false })
+      .limit(500)
+    docSales = data ?? []
+  }
   const me = await getCurrentUser()
-  return NextResponse.json({ ...result, can_edit: !!me && can(me, 'customers', 'edit') })
+  return NextResponse.json({ ...result, doc_sales: docSales, can_edit: !!me && can(me, 'customers', 'edit') })
 }
 
 // PATCH — 활동 메모(note) 저장 + 기본정보(name·biz_number·is_active) 수정
