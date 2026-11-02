@@ -542,3 +542,11 @@
 - 상담자(channel)는 품목 단위 실데이터 99.9% 기재, 주문 단위로 사실상 동일(0.5%만 라인별 상이).
 - 담당자(manager_name) 98% 기재 — 자유 텍스트, contacts 매칭은 담당자 관리 화면의
   미확인 큐로 정리.
+
+## 총괄 알림문 (2026-11-02) — 품목(원가표) 권한 판정 수정
+- 증상: 김주연 대리(109 권한 orders=edit, 옛 role=sales)가 품목 관리에서 원가표 업로드·수정 불가(403).
+- 원인: `app/api/orders-portal/products/route.ts` POST · `products/import/route.ts` POST가 `me.role === 'sales'`로 차단 — CLAUDE.md 규칙
+  "새 코드는 role로 판정하지 말 것" 위반. 홍창의 부장(role=manager)만 가능했던 이유.
+- 조치(총괄, 배포 완료): 두 곳을 `can(me, 'orders', 'edit')`(lib/permissions)로 교체. 권한 설정 변경 없음.
+- 남은 legacy role 판정(이 트랙에서 정리 필요): `orders/route.ts:60`(sales는 본인 상담만 주문 전환), `orders/[id]/route.ts:20`(manager·admin만
+  직접 수정, 그 외는 수정 승인 요청). 의도된 흐름이면 `isManagerLike`·`canApprove`로 바꾸고, 아니면 109 그룹 권한으로.
