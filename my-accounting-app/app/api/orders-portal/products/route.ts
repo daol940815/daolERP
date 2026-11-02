@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
+import { can } from '@/lib/permissions'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { ensureAlias } from '@/lib/orders-portal'
 
@@ -41,8 +42,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
-  if (me.role === 'sales') {
-    return NextResponse.json({ error: '품목 등록·수정은 관리자 권한이 필요합니다.' }, { status: 403 })
+  // 109 권한: 영업·주문 그룹 '수정'이면 품목 등록·수정 가능 (옛 role 판정 제거, 2026-11-02 — 김주연 대리 차단 원인)
+  if (!can(me, 'orders', 'edit')) {
+    return NextResponse.json({ error: '품목 등록·수정은 영업·주문 수정 권한이 필요합니다.' }, { status: 403 })
   }
   const admin = createAdminClient()
   const body = await req.json().catch(() => ({})) as Record<string, unknown>
