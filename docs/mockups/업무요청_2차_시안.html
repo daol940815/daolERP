@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 업무 요청 2차 (다수 담당자 · 선착/공동 · 팀 선택 · 즉시 갱신 · PC 알림)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; word-break: keep-all; }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 16px; line-height: 1.7; }
+  .note b { color: #422006; }
+  h1 { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+  h2 { font-size: 16px; font-weight: 700; margin: 34px 0 6px; }
+  h2 .no { display: inline-block; background: #0f172a; color: #fff; font-size: 11px; border-radius: 6px; padding: 2px 7px; margin-right: 8px; vertical-align: 2px; }
+  .desc { font-size: 12.5px; color: #475569; margin-bottom: 12px; line-height: 1.7; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 18px; }
+  .grid2 { display: grid; grid-template-columns: 3fr 2fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  label.f { display: block; font-size: 11.5px; font-weight: 600; color: #475569; margin-bottom: 4px; }
+  .inp { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 10px; font-size: 13px; background: #fff; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; background: #0f172a; color: #fff; border-radius: 999px; padding: 4px 10px; font-size: 12px; }
+  .chip .x { color: #94a3b8; cursor: pointer; }
+  .chip.team { background: #e2e8f0; color: #0f172a; border: 1px dashed #94a3b8; }
+  .quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .quick button { border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 8px; padding: 4px 10px; font-size: 12px; color: #334155; cursor: pointer; }
+  .radio { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
+  .radio .opt { border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; font-size: 12.5px; cursor: pointer; }
+  .radio .opt.sel { border-color: #0f172a; box-shadow: 0 0 0 1px #0f172a; background: #f8fafc; }
+  .radio .opt b { display: block; font-size: 13px; margin-bottom: 3px; }
+  .radio .opt span { color: #64748b; font-size: 11.5px; line-height: 1.5; display: block; }
+  .btn { display: inline-block; background: #0f172a; color: #fff; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; }
+  .btn.ghost { background: #fff; color: #334155; border: 1px solid #cbd5e1; font-weight: 500; }
+  .btn.green { background: #059669; }
+  .btn.sm { padding: 4px 9px; font-size: 11.5px; border-radius: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font-size: 11px; color: #94a3b8; font-weight: 500; padding: 7px 10px; border-bottom: 1px solid #e2e8f0; }
+  td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  .tag { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+  .t-req { background: #f1f5f9; color: #475569; } .t-acc { background: #dbeafe; color: #1d4ed8; } .t-prog { background: #e0e7ff; color: #4338ca; }
+  .t-rep { background: #fef3c7; color: #b45309; } .t-done { background: #dcfce7; color: #15803d; } .t-rej { background: #fee2e2; color: #b91c1c; }
+  .t-rel { background: #f1f5f9; color: #94a3b8; text-decoration: line-through; } .t-urg { background: #dc2626; color: #fff; } .t-priv { background: #e2e8f0; color: #334155; }
+  .t-mode { background: #0f172a; color: #fff; } .t-mode.co { background: #7c3aed; }
+  .side-l { font-size: 12px; color: #64748b; }
+  .flow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 11.5px; margin: 10px 0; }
+  .flow .st { border: 1px solid #e2e8f0; border-radius: 999px; padding: 3px 10px; color: #94a3b8; background: #fff; }
+  .flow .st.on { background: #0f172a; color: #fff; border-color: #0f172a; } .flow .st.past { background: #e2e8f0; color: #475569; }
+  .flow .ar { color: #cbd5e1; }
+  .ev { font-size: 12.5px; }
+  .ev li { list-style: none; display: grid; grid-template-columns: 96px 1fr; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f8fafc; }
+  .ev .tm { color: #94a3b8; font-size: 11px; font-variant-numeric: tabular-nums; padding-top: 2px; }
+  .person-row { display: grid; grid-template-columns: 110px 1fr 90px 1fr; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 12.5px; }
+  .person-row .nm { font-weight: 600; }
+  .os { background: #202124; color: #e8eaed; border-radius: 10px; padding: 12px 14px; width: 360px; font-size: 12.5px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  .os .app { font-size: 11px; color: #9aa0a6; display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .os .ico { width: 14px; height: 14px; border-radius: 3px; background: #0f172a; display: inline-block; }
+  .os b { display: block; font-size: 13px; margin-bottom: 2px; }
+  .os .act { margin-top: 8px; display: flex; gap: 8px; } .os .act span { background: #3c4043; border-radius: 6px; padding: 4px 10px; font-size: 11.5px; }
+  .banner { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 10px 14px; font-size: 12.5px; color: #1e3a8a; display: flex; align-items: center; gap: 12px; }
+  .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; }
+  .toggle .sw { width: 34px; height: 18px; border-radius: 999px; background: #0f172a; position: relative; display: inline-block; }
+  .toggle .sw::after { content: ''; position: absolute; right: 2px; top: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+  .toggle .sw.off { background: #cbd5e1; } .toggle .sw.off::after { right: auto; left: 2px; }
+  .dec { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 16px; font-size: 12.5px; line-height: 1.8; }
+  .dec li { margin-left: 18px; }
+  code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 11.5px; }
+  .muted { color: #94a3b8; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>시안 — 업무 요청 2차</h1>
+  <p class="desc">2026-11-02 사용자 결정 반영: 담당자 다수 지정 · 진행 방식(선착/공동) 구분 · 팀 단위 빠른 선택 · 선착 해제자는 할 일에서 제거 + 참고 표시 · 즉시 갱신(Realtime 신호) · 웹을 닫아도 오는 PC 알림(Web Push).
+  이미 배포된 것(공용 목록 · 비공개 · 경영 현황 드릴다운 · 20초 폴링)은 그대로 둔다.</p>
+  <div class="note"><b>읽는 법</b> 회색 글 상자는 설계 설명, 흰 카드는 화면. 번호 순서대로 보고, 마지막 "결정해 주실 것"에 답해 주시면 구현에 들어간다.</div>
+
+  <h2><span class="no">1</span>새 요청 — 담당자 다수 지정 · 팀 빠른 선택 · 진행 방식</h2>
+  <p class="desc">담당자 칸이 드롭다운 1개에서 <b>검색 입력 + 선택 칩</b>으로 바뀐다. 팀 버튼을 누르면 그 팀 재직자가 전부 칩으로 들어오고 개별 ✕로 빼면 된다. 담당자가 2명 이상이면 <b>진행 방식</b> 선택이 나타난다(1명이면 숨김).</p>
+  <div class="grid2">
+    <div class="card">
+      <label class="f">담당자 <span style="color:#dc2626">*</span> <span class="muted" style="font-weight:400">이름을 입력해 추가하거나 팀 버튼으로 한 번에</span></label>
+      <input class="inp" placeholder="이름 검색… (예: 김주)">
+      <div class="quick">
+        <button>+ 영업지원팀 (5)</button><button>+ 영업팀 (2)</button><button>+ 경영지원팀 (2)</button><button>+ 아르바이트 (3)</button><button>+ 전 직원</button>
+      </div>
+      <div class="chips">
+        <span class="chip">홍창의 · 영업지원팀 <span class="x">✕</span></span>
+        <span class="chip">김주연 · 영업지원팀 <span class="x">✕</span></span>
+        <span class="chip">김보현 · 영업지원팀 <span class="x">✕</span></span>
+        <span class="chip">김승현 · 영업지원팀 <span class="x">✕</span></span>
+        <span class="chip">한정호 · 영업지원팀 <span class="x">✕</span></span>
+        <span class="chip team">영업지원팀 전원 (5명) — 팀 버튼으로 추가됨</span>
+      </div>
+      <label class="f" style="margin-top:14px">진행 방식 <span style="color:#dc2626">*</span> <span class="muted" style="font-weight:400">담당자 2명 이상일 때</span></label>
+      <div class="radio">
+        <div class="opt sel"><b>선착 — 한 명이 수락하면 그 사람이 진행</b><span>먼저 수락한 1명이 담당자가 되고, 나머지는 자동 해제됩니다(할 일에서 사라지고 "다른 사람이 수락"으로 참고 표시). 예: "이 전화 누가 좀 해줘".</span></div>
+        <div class="opt"><b>공동 — 전원이 각자 진행</b><span>지정된 모두가 각자 수락·진행·처리 보고합니다. 전원이 보고하면 요청이 "처리 보고" 상태가 되고 요청자가 1회 완료 확정. 예: "각자 담당 거래처 수금 확인".</span></div>
+      </div>
+      <div style="margin-top:14px"><label class="f">제목 *</label><input class="inp" value="11월 명절 샘플 재고 실사"></div>
+      <div style="margin-top:10px"><label class="f">내용</label><textarea class="inp" rows="3">창고 A~C열 샘플 수량 확인 후 재고표에 기입. 결과는 샘플 재고 화면에 반영.</textarea></div>
+      <div style="display:flex; gap:16px; align-items:flex-end; margin-top:10px; flex-wrap:wrap">
+        <div><label class="f">마감 일시 *</label><input class="inp" style="width:200px" value="2026-11-05 18:00"></div>
+        <label class="toggle" style="padding-bottom:8px"><input type="checkbox"> 긴급</label>
+        <label class="toggle" style="padding-bottom:8px"><input type="checkbox"> 비공개</label>
+      </div>
+      <div style="margin-top:14px; display:flex; gap:8px"><span class="btn">요청 보내기 (5명)</span><span class="btn ghost">취소</span></div>
+    </div>
+    <div class="card side-l">
+      <p style="font-weight:700; color:#0f172a; margin-bottom:8px">선택한 담당자 오늘 상황 (5명)</p>
+      <table>
+        <tr><th>이름</th><th>근태</th><th>휴가</th><th>진행 중</th><th>지남</th></tr>
+        <tr><td>홍창의</td><td>출근 08:52</td><td>-</td><td>3</td><td style="color:#dc2626">1</td></tr>
+        <tr><td>김주연</td><td>출근 08:58</td><td>-</td><td>5</td><td>0</td></tr>
+        <tr><td>김보현</td><td>출근 09:01</td><td>-</td><td>2</td><td>0</td></tr>
+        <tr><td>김승현</td><td style="color:#94a3b8">체크 없음</td><td>11-04 연차(대기)</td><td>1</td><td>0</td></tr>
+        <tr><td>한정호</td><td>출근 08:49</td><td>-</td><td>0</td><td>0</td></tr>
+      </table>
+      <p class="muted" style="margin-top:10px; line-height:1.6">담당자가 여러 명이면 한 명씩 보여주던 패널이 표로 바뀐다. 여유 판단은 요청자가 한다(기존 원칙).</p>
+    </div>
+  </div>
+
+  <h2><span class="no">2</span>상세 — 선착 방식 (한 명이 수락한 뒤)</h2>
+  <p class="desc">수락한 1명만 담당자로 남고, 나머지는 "다른 사람이 수락"으로 참고만 남는다. 해제된 사람의 받은 요청 목록·배지·알림에서는 사라진다(사용자 결정 ③). 수락 전 상태에서는 모두에게 "미확인"으로 보인다.</p>
+  <div class="card">
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap"><span class="tag t-urg">긴급</span><span class="tag t-mode">선착</span><b style="font-size:16px">신한은행 서소문 수금 독촉 전화</b><span class="tag t-prog" style="margin-left:auto">진행 중</span></div>
+    <p class="side-l" style="margin-top:4px">강시현 → 영업지원팀 5명 중 <b>김보현 수락</b> · 요청 11-02 09:10 · 마감 11-02 18:00</p>
+    <div class="flow"><span class="st past">요청</span><span class="ar">→</span><span class="st past">수락</span><span class="ar">→</span><span class="st on">진행 중</span><span class="ar">→</span><span class="st">처리 보고</span><span class="ar">→</span><span class="st">완료</span></div>
+    <div class="grid2">
+      <div>
+        <p style="font-weight:700; font-size:13px; margin:8px 0 6px">담당자</p>
+        <div class="person-row"><span class="nm">김보현</span><span class="tag t-prog">진행 중</span><span class="muted">수락 09:14</span><span class="side-l">전화 완료, 11-05 입금 약속 받음</span></div>
+        <div class="person-row" style="color:#94a3b8"><span class="nm">홍창의</span><span class="tag t-rel">다른 사람이 수락</span><span></span><span class="side-l">참고 표시만, 할 일 아님</span></div>
+        <div class="person-row" style="color:#94a3b8"><span class="nm">김주연</span><span class="tag t-rel">다른 사람이 수락</span><span></span><span></span></div>
+        <div class="person-row" style="color:#94a3b8"><span class="nm">김승현</span><span class="tag t-rel">다른 사람이 수락</span><span></span><span></span></div>
+        <div class="person-row" style="color:#94a3b8"><span class="nm">한정호</span><span class="tag t-rej">반려</span><span class="muted">09:12</span><span class="side-l">사유: 외근 중</span></div>
+        <p style="font-weight:700; font-size:13px; margin:14px 0 6px">진행 메모 · 이력</p>
+        <ul class="ev">
+          <li><span class="tm">11-02 09:10</span><span><b>강시현</b> <span class="muted">요청 생성</span> — 담당자 5명, 선착 방식</span></li>
+          <li><span class="tm">11-02 09:12</span><span><b>한정호</b> <span class="muted">반려</span> — 외근 중</span></li>
+          <li><span class="tm">11-02 09:14</span><span><b>김보현</b> <span class="muted">수락</span> — 나머지 3명 자동 해제</span></li>
+          <li><span class="tm">11-02 10:40</span><span><b>김보현</b> <span class="muted">진행 메모</span><br>전화 완료, 11-05 입금 약속 받음</span></li>
+        </ul>
+      </div>
+      <div>
+        <div class="card" style="background:#f8fafc"><p style="font-weight:700; font-size:13px; margin-bottom:8px">담당자 조작 (김보현에게만)</p><span class="btn">처리 완료 보고</span> <span class="btn ghost">반려 (사유 필수)</span></div>
+        <div class="card" style="background:#f8fafc; margin-top:10px"><p style="font-weight:700; font-size:13px; margin-bottom:8px">요청자 조작 (강시현)</p><span class="btn green">완료 확정</span> <span class="btn ghost">요청 취소</span> <span class="btn ghost">담당자 추가</span></div>
+        <div class="dec" style="margin-top:10px"><b>선착 규칙</b><br>· 먼저 수락한 1명이 담당자. 동시 클릭은 서버가 먼저 처리한 쪽만 인정, 늦은 쪽에는 "이미 다른 사람이 수락했습니다".<br>· 수락 전 반려는 개인별. 전원이 반려하면 요청 전체가 반려(요청자에게 알림).<br>· 해제된 사람은 배지·알림·할 일에서 빠지고 상세에 참고 표시만.<br>· 업무일지는 수락한 1명에게만 기재.</div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="no">3</span>상세 — 공동 방식 (전원이 각자 진행)</h2>
+  <p class="desc">담당자마다 상태가 따로 있고, 요청 전체 상태는 담당자 상태의 집계다. 전원이 처리 보고하면 "처리 보고"가 되고 요청자가 1회 완료 확정한다. 일부가 반려하면 요청자가 "담당자 추가"로 대체할 수 있다.</p>
+  <div class="card">
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap"><span class="tag t-mode co">공동</span><b style="font-size:16px">11월 명절 샘플 재고 실사</b><span class="tag t-prog" style="margin-left:auto">진행 중 (3/5 보고)</span></div>
+    <p class="side-l" style="margin-top:4px">홍창의 → 영업지원팀 5명 · 요청 11-02 09:30 · 마감 11-05 18:00</p>
+    <div class="flow"><span class="st past">요청</span><span class="ar">→</span><span class="st past">수락 5/5</span><span class="ar">→</span><span class="st on">진행 중 · 보고 3/5</span><span class="ar">→</span><span class="st">처리 보고 (전원)</span><span class="ar">→</span><span class="st">완료</span></div>
+    <div class="grid2">
+      <div>
+        <p style="font-weight:700; font-size:13px; margin:8px 0 6px">담당자별 진행</p>
+        <table>
+          <tr><th>이름</th><th>상태</th><th>수락</th><th>보고</th><th>최근 메모</th></tr>
+          <tr><td><b>홍창의</b> <span class="muted">(요청자 겸)</span></td><td><span class="tag t-rep">처리 보고</span></td><td>09:31</td><td>11-03 17:20</td><td>A열 완료, 결품 2종</td></tr>
+          <tr><td><b>김주연</b></td><td><span class="tag t-rep">처리 보고</span></td><td>09:40</td><td>11-03 16:05</td><td>B열 완료</td></tr>
+          <tr><td><b>김보현</b></td><td><span class="tag t-rep">처리 보고</span></td><td>09:35</td><td>11-04 10:12</td><td>C열 완료, 재고표 반영</td></tr>
+          <tr><td><b>김승현</b></td><td><span class="tag t-prog">진행 중</span></td><td>11-03 09:02</td><td>-</td><td>연차 후 11-05 진행 예정</td></tr>
+          <tr><td><b>한정호</b></td><td><span class="tag t-acc">수락</span></td><td>09:33</td><td>-</td><td class="muted">메모 없음</td></tr>
+        </table>
+        <p style="font-weight:700; font-size:13px; margin:14px 0 6px">진행 메모 · 이력 <span class="muted" style="font-weight:400">(담당자별 메모가 한 줄로 쌓임)</span></p>
+        <ul class="ev">
+          <li><span class="tm">11-03 16:05</span><span><b>김주연</b> <span class="muted">처리 완료 보고</span><br>B열 완료</span></li>
+          <li><span class="tm">11-03 17:20</span><span><b>홍창의</b> <span class="muted">처리 완료 보고</span><br>A열 완료, 결품 2종 — 샘플 재고 화면 반영</span></li>
+          <li><span class="tm">11-04 10:12</span><span><b>김보현</b> <span class="muted">처리 완료 보고</span><br>C열 완료, 재고표 반영</span></li>
+        </ul>
+      </div>
+      <div>
+        <div class="card" style="background:#f8fafc"><p style="font-weight:700; font-size:13px; margin-bottom:8px">내 조작 (한정호로 보는 화면)</p><span class="btn">처리 완료 보고</span> <span class="btn ghost">반려 (사유 필수)</span><p class="muted" style="margin-top:8px">내 몫만 보고합니다. 다른 사람 진행은 표에서 확인.</p></div>
+        <div class="card" style="background:#f8fafc; margin-top:10px"><p style="font-weight:700; font-size:13px; margin-bottom:8px">요청자 조작 (홍창의)</p><span class="btn green">완료 확정</span> <span class="btn ghost">담당자 추가</span> <span class="btn ghost">요청 취소</span><p class="muted" style="margin-top:8px">전원 보고 전에도 완료 확정은 가능(요청자 판단). 미보고자에게는 "요청자가 완료 처리함"으로 닫힘.</p></div>
+        <div class="dec" style="margin-top:10px"><b>공동 규칙</b><br>· 요청 상태 = 담당자 상태 집계: 1명이라도 수락하면 "수락", 1명이라도 메모·진행이면 "진행 중", <b>전원</b> 보고 시 "처리 보고".<br>· 반려한 사람은 집계에서 빠진다(예: 5명 중 1명 반려 → 4명 전원 보고 시 처리 보고). 전원 반려 시 요청 반려.<br>· 마감 지남·오늘 마감 배지는 <b>아직 보고하지 않은 담당자에게만</b>.<br>· 업무일지는 수락한 전원에게 각자 기재(수락 · 완료).</div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="no">4</span>목록에서의 표현 (전체 · 내가 받은 · 내가 보낸)</h2>
+  <p class="desc">담당자 열이 다수를 요약 표기한다. 선착은 "수락자 (외 N 해제)", 공동은 "N명 · 보고 k/N". 내가 받은 탭에는 <b>내 몫 상태</b>가 따로 보인다.</p>
+  <div class="card" style="padding:0; overflow:hidden">
+    <table>
+      <tr><th></th><th>요청</th><th>요청자</th><th>담당자</th><th>내 몫</th><th>마감</th><th>상태</th><th></th></tr>
+      <tr><td><span class="tag t-urg">긴급</span> <span class="tag t-mode">선착</span></td><td><b>신한은행 서소문 수금 독촉 전화</b></td><td>강시현</td><td>김보현 <span class="muted">(외 3 해제 · 1 반려)</span></td><td><span class="tag t-rel">다른 사람이 수락</span></td><td>11-02 18:00</td><td><span class="tag t-prog">진행 중</span></td><td class="muted">조작 없음</td></tr>
+      <tr><td><span class="tag t-mode co">공동</span></td><td><b>11월 명절 샘플 재고 실사</b></td><td>홍창의</td><td>영업지원팀 5명 <span class="muted">· 보고 3/5</span></td><td><span class="tag t-acc">수락</span></td><td>11-05 18:00</td><td><span class="tag t-prog">진행 중</span></td><td><span class="btn sm">처리 완료</span></td></tr>
+      <tr><td><span class="tag t-mode">선착</span></td><td><b>택배 반품 접수 처리</b></td><td>김주연</td><td>미정 <span class="muted">(3명 중 수락 대기)</span></td><td><span class="tag t-req">미확인</span></td><td style="color:#b45309">11-02 15:00 (오늘)</td><td><span class="tag t-req">미확인</span></td><td><span class="btn sm green">수락</span> <span class="btn sm ghost">반려</span></td></tr>
+      <tr><td><span class="tag t-priv">비공개</span></td><td><b>11월 급여 명세 확인</b></td><td>강시현</td><td>오철준</td><td class="muted">-</td><td>11-07 18:00</td><td><span class="tag t-acc">수락</span></td><td class="muted"></td></tr>
+    </table>
+  </div>
+  <p class="desc" style="margin-top:8px">사이드바 배지·알림 종 숫자는 "내 몫" 기준으로만 센다 — 선착에서 해제된 건, 공동에서 내가 이미 보고한 건은 세지 않는다.</p>
+
+  <h2><span class="no">5</span>즉시 갱신 (⑥ 2단계) — Realtime 신호</h2>
+  <div class="grid3">
+    <div class="card"><p style="font-weight:700; font-size:13px">지금 (1단계, 배포됨)</p><p class="side-l" style="margin-top:6px; line-height:1.7">20초마다 알림 API 조회 → 바뀌었으면 열린 화면 재조회. 최대 20초 지연.</p></div>
+    <div class="card" style="border-color:#0f172a"><p style="font-weight:700; font-size:13px">2단계 (제안)</p><p class="side-l" style="margin-top:6px; line-height:1.7">요청 생성·수락·보고 등 API가 처리 직후 Supabase Realtime 채널에 <code>wr:changed</code> 신호(요청 id · 관련 직원 id들)를 보냄 → 해당 직원 브라우저가 1~2초 안에 알림·목록 재조회. 20초 폴링은 안전망으로 유지.</p></div>
+    <div class="card"><p style="font-weight:700; font-size:13px">지키는 것</p><p class="side-l" style="margin-top:6px; line-height:1.7">신호에는 데이터가 없다(id만). 실제 데이터는 기존 API·권한 검사로만 받는다. 테이블 RLS를 브라우저에 열지 않음. 무료 플랜 한도(동시 200연결·월 200만 메시지) 안 — 직원 14명 × 탭 2~3개.</p></div>
+  </div>
+
+  <h2><span class="no">6</span>PC 알림 (⑦) — 웹을 닫아도 오는 Web Push</h2>
+  <p class="desc">직원이 PC·브라우저마다 한 번 "허용"하면, 그 뒤로는 ERP 탭이 닫혀 있어도 Windows 알림으로 뜬다(브라우저가 백그라운드에서 실행 중일 때). 알림을 누르면 해당 요청 상세가 열린다.</p>
+  <div class="grid2">
+    <div>
+      <div class="banner">
+        <span>업무 요청·휴가 승인 알림을 이 PC에서 바로 받으시겠습니까? 웹페이지를 닫아도 알림이 뜹니다.</span>
+        <span class="btn" style="margin-left:auto; white-space:nowrap">알림 허용</span><span class="btn ghost" style="white-space:nowrap">나중에</span>
+      </div>
+      <p class="muted" style="margin:6px 0 14px">로그인 후 사이드바 알림 패널 위에 한 번 뜨는 안내. "나중에"는 7일 뒤 다시.</p>
+      <div class="card"><p style="font-weight:700; font-size:13px; margin-bottom:10px">내 정보 › 알림 설정 (새 탭)</p>
+        <div class="toggle" style="margin-bottom:8px"><span class="sw"></span> 이 PC에서 알림 받기 <span class="muted">— Chrome · Windows PC-홍창의</span></div>
+        <div class="toggle" style="margin-bottom:8px"><span class="sw off"></span> 집 노트북 <span class="muted">— 2026-10-28 허용, 끔</span></div>
+        <p style="font-size:12px; font-weight:600; margin:12px 0 6px">받을 알림</p>
+        <div class="toggle" style="margin-bottom:6px"><span class="sw"></span> 새 업무 요청을 받았을 때</div>
+        <div class="toggle" style="margin-bottom:6px"><span class="sw"></span> 내 요청이 반려·처리 보고됐을 때</div>
+        <div class="toggle" style="margin-bottom:6px"><span class="sw"></span> 오늘 마감 요청 (아침 09:00 1회)</div>
+        <div class="toggle" style="margin-bottom:6px"><span class="sw"></span> 휴가 승인 요청 (승인권자)</div>
+        <div class="toggle"><span class="sw off"></span> 주문 수정 승인 요청 (승인권자)</div>
+      </div>
+    </div>
+    <div>
+      <p style="font-weight:700; font-size:13px; margin-bottom:8px">Windows 알림 미리보기</p>
+      <div class="os"><div class="app"><span class="ico"></span> daolERP · Chrome · 지금</div><b>새 업무 요청 — 강시현</b>신한은행 서소문 수금 독촉 전화 · 마감 오늘 18:00 · 긴급<div class="act"><span>열기</span><span>닫기</span></div></div>
+      <div class="os" style="margin-top:10px"><div class="app"><span class="ico"></span> daolERP · Chrome · 2분 전</div><b>처리 보고 — 김보현</b>신한은행 서소문 수금 독촉 전화 · 완료 확정을 기다립니다<div class="act"><span>열기</span><span>닫기</span></div></div>
+      <div class="dec" style="margin-top:12px"><b>조건·한계 (솔직하게)</b><br>· Windows 크롬·엣지: 창을 닫아도 백그라운드 실행이 기본이라 알림이 뜬다. 브라우저를 완전히 종료했으면 다음 실행 때 도착.<br>· Mac Safari: 홈 화면/독에 "앱으로 설치"한 뒤에만 가능.<br>· PC·브라우저마다 허용이 따로 필요(회사 PC + 집 노트북 = 2회).<br>· 알림 내용은 제목·요청자·마감만. 비공개 요청은 "비공개 업무 요청 1건"으로만 표시.<br>· 비용 0(브라우저 표준 기능). 카카오 알림톡과 달리 건당 과금 없음.</div>
+    </div>
+  </div>
+
+  <h2><span class="no">7</span>데이터 구조 (902 마이그레이션)</h2>
+  <div class="dec">
+    <b>work_requests</b>에 추가: <code>assign_mode</code> ('single' | 'first' | 'all', 기본 single) · <code>assignee_id</code>는 선착 수락자/단일 담당자용으로 유지(공동은 null).<br>
+    <b>work_request_assignees</b>(신설): request_id · employee_id · status ('invited' | 'accepted' | 'in_progress' | 'done_reported' | 'rejected' | 'released') · accepted_at · reported_at · rejected_at · reject_reason · last_memo. 기존 요청은 담당자 1명을 single 모드로 이행(3건).<br>
+    <b>push_subscriptions</b>(신설): employee_id · endpoint · keys(p256dh, auth) · device_label · enabled · prefs(JSONB: 받을 알림 종류) · created_at · last_used_at. VAPID 키는 Vercel 환경변수.<br>
+    <b>알림 API</b>: 내 몫 기준으로 계산(assignees 행). 선착 해제·공동 보고 완료는 제외. <b>업무일지</b>: 수락·완료 시 담당자별 1줄.<br>
+    <b>경영 현황</b>: 직원별 집계가 담당자 행 기준으로 바뀜(공동 요청 1건 = 담당자 5명 각 1건). 요약 KPI는 요청 건 기준 유지.
+  </div>
+
+  <h2><span class="no">8</span>결정해 주실 것</h2>
+  <div class="dec">
+    <ol>
+      <li><b>팀 빠른 선택 범위</b>: 팀 4개(영업·영업지원·경영지원·아르바이트) + "전 직원" 버튼 — 전 직원 버튼도 둘지?</li>
+      <li><b>공동 방식에서 요청자의 조기 완료 확정</b>: 전원 보고 전에도 요청자가 완료 확정 가능(시안 3) — 허용할지, 전원 보고 후에만 허용할지.</li>
+      <li><b>선착 방식에서 담당자 추가</b>: 수락자가 나온 뒤에도 요청자가 담당자를 추가할 수 있게 둘지(추가하면 공동처럼 2명이 됨) — 단순하게 "선착은 추가 불가"로 둘 것을 권고.</li>
+      <li><b>PC 알림 기본값</b>: 허용 안내를 로그인 직후 1회 띄우고 종류 5개 중 "주문 수정 승인"만 기본 끔(시안 6) — 동의?</li>
+      <li><b>오늘 마감 아침 알림 시각</b>: 09:00 1회 — 다른 시각이면 지정.</li>
+      <li><b>순서</b>: 3·4(다수 담당자)와 ⑥ 2단계를 먼저 배포하고 ⑦ Web Push를 다음 묶음으로 — 동의? (한 번에 하면 1주, 나누면 3·4+⑥ 3일 → ⑦ 2일)</li>
+    </ol>
+  </div>
+</div>
+</body>
+</html>
