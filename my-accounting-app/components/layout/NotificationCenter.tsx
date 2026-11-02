@@ -6,7 +6,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { NOTIF_GROUP_LABEL, type NotifData, type NotifGroup, type NotifItem } from '@/lib/notifications'
+import { NOTIF_GROUP_LABEL, NOTIF_POLL_MS, type NotifData, type NotifGroup, type NotifItem } from '@/lib/notifications'
 import type { Toast } from '@/lib/use-notifications'
 
 const DOT: Record<string, string> = { red: 'bg-red-500', amber: 'bg-amber-400', blue: 'bg-blue-500', gray: 'bg-slate-300' }
@@ -67,7 +67,7 @@ export function NotificationBell({ data, seenAt, onSeen }: { data: NotifData | n
             })}
             <div className="flex items-center px-4 py-2 bg-gray-50 text-[11px] text-gray-500">
               <button onClick={() => { onSeen(); setOpen(false) }} className="hover:text-gray-800 underline">모두 확인함으로 표시</button>
-              <span className="ml-auto">60초마다 갱신</span>
+              <span className="ml-auto">{Math.round(NOTIF_POLL_MS / 1000)}초마다 갱신</span>
             </div>
           </div>
         </>

@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { WR_STATUS_LABEL, WR_STATUS_CLS, OPEN_STATUSES, dueState, fmtDue, fmtDT, kstParts, type WrRow, type WrStatus, type WrScope } from '@/lib/work-requests'
+import { useNotifRefresh, requestNotifRefresh } from '@/lib/use-notif-refresh'
 
 type Filter = 'all' | 'unread' | 'active' | 'due_today' | 'overdue' | 'reported' | 'rejected' | 'open'
 
@@ -49,6 +50,7 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
   }, [scope, closed, month, employee])
   useEffect(() => { load() }, [load])
   useEffect(() => { setStatusF('') }, [scope])
+  useNotifRefresh(load)   // 알림 폴링 결과가 바뀌면(다른 사람의 요청·수락·보고) 목록도 자동 갱신
 
   const act = async (id: string, action: string, memo?: string) => {
     setBusy(id)
@@ -56,7 +58,7 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
     const json = await res.json().catch(() => ({}))
     setBusy(null)
     if (!res.ok) { flash(json.error ?? '처리 실패'); return }
-    load()
+    load(); requestNotifRefresh()
   }
   const reject = (r: WrRow) => { const reason = window.prompt(`'${r.title}' 요청을 반려합니다. 사유를 입력하세요 (필수).`); if (reason?.trim()) act(r.id, 'reject', reason.trim()) }
   const cancel = (r: WrRow) => { if (window.confirm(`'${r.title}' 요청을 취소할까요?`)) act(r.id, 'cancel') }

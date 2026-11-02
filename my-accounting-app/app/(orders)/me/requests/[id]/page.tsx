@@ -9,6 +9,7 @@ import {
   WR_STATUS_LABEL, WR_STATUS_CLS, WR_EVENT_LABEL, dueState, fmtDTFull, fmtDT, isoToLocal, localToIso,
   type WrRow, type WrEventRow, type WrStatus,
 } from '@/lib/work-requests'
+import { useNotifRefresh, requestNotifRefresh } from '@/lib/use-notif-refresh'
 
 interface Detail {
   row: WrRow
@@ -39,6 +40,7 @@ export default function WorkRequestDetailPage() {
     setForm({ title: json.row.title, content: json.row.content ?? '', link: json.row.link ?? '', due: isoToLocal(json.row.due_at), urgent: json.row.is_urgent })
   }, [id])
   useEffect(() => { load() }, [load])
+  useNotifRefresh(() => { if (!editing) load() })   // 상대가 수락·메모·보고하면 자동 갱신 (수정 중에는 입력을 보호)
 
   const act = async (action: string, extra: Record<string, unknown> = {}) => {
     setBusy(true)
@@ -46,7 +48,7 @@ export default function WorkRequestDetailPage() {
     const json = await res.json().catch(() => ({}))
     setBusy(false)
     if (!res.ok) { flash(json.error ?? '처리 실패'); return false }
-    await load()
+    await load(); requestNotifRefresh()
     return true
   }
 
