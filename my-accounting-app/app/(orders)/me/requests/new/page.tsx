@@ -37,6 +37,7 @@ function NewRequestForm() {
   const [link, setLink] = useState('')
   const [due, setDue] = useState(() => defaultDueLocal())
   const [urgent, setUrgent] = useState(false)
+  const [isPrivate, setIsPrivate] = useState(false)
   const [status, setStatus] = useState<StaffStatus | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -48,7 +49,7 @@ function NewRequestForm() {
       fetch(`/api/work-requests/${from}`).then(r => r.json()).then(j => {
         const r: WrRow | undefined = j.row
         if (!r) return
-        setAssignee(r.assignee?.id ?? ''); setTitle(r.title); setContent(r.content ?? ''); setLink(r.link ?? ''); setUrgent(r.is_urgent)
+        setAssignee(r.assignee?.id ?? ''); setTitle(r.title); setContent(r.content ?? ''); setLink(r.link ?? ''); setUrgent(r.is_urgent); setIsPrivate(!!r.is_private)
         if (new Date(r.due_at) > new Date()) setDue(isoToLocal(r.due_at))
       }).catch(() => null)
     }
@@ -66,10 +67,11 @@ function NewRequestForm() {
     if (!due) { setError('마감 일시를 입력하세요.'); return }
     setBusy(true)
     const res = await fetch('/api/work-requests', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ assignee_id: assignee, title: title.trim(), content, link, due_at: localToIso(due), is_urgent: urgent }) })
+      body: JSON.stringify({ assignee_id: assignee, title: title.trim(), content, link, due_at: localToIso(due), is_urgent: urgent, is_private: isPrivate }) })
     const json = await res.json().catch(() => ({}))
     setBusy(false)
     if (!res.ok) { setError(json.error ?? '요청 실패'); return }
+    if (json.warning) window.alert(json.warning)
     router.push(`/me/requests/${json.id}`)
   }
 
@@ -111,7 +113,11 @@ function NewRequestForm() {
               <input type="checkbox" checked={urgent} onChange={e => setUrgent(e.target.checked)} />
               <span className={urgent ? 'text-red-600 font-semibold' : 'text-gray-700'}>긴급</span>
             </label>
-            <span className="text-xs text-gray-400 pb-2">기본값 당일 18:00</span>
+            <label className="flex items-center gap-2 text-sm pb-2" title="요청자 · 담당자 · 승인권자만 볼 수 있습니다. 전체(공용) 목록에 나오지 않습니다.">
+              <input type="checkbox" checked={isPrivate} onChange={e => setIsPrivate(e.target.checked)} />
+              <span className={isPrivate ? 'text-slate-900 font-semibold' : 'text-gray-700'}>비공개</span>
+            </label>
+            <span className="text-xs text-gray-400 pb-2">기본값 당일 18:00 · 비공개는 당사자와 승인권자만 조회</span>
           </div>
           <label className="block">
             <span className="text-xs font-medium text-gray-600">관련 링크 · 서버 경로 (선택)</span>
