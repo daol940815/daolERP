@@ -29,12 +29,32 @@ const emptyDraft = {
   is_addon: false, is_shipping: false, memo: '',
 }
 
+// 검색 구분 (기존 ERP 방식 — 2026-11-03 실무자 요청)
+type CondField = 'all' | 'code' | 'name' | 'vendor' | 'category'
+const COND_LABEL: Record<CondField, string> = {
+  all: '전체', code: '품번', name: '품명', vendor: '매입처', category: '목차',
+}
+const condMatch = (p: Product, field: CondField, q: string) => {
+  const has = (v?: string | null) => (v ?? '').toLowerCase().includes(q)
+  switch (field) {
+    case 'code': return has(p.item_code)
+    case 'name': return has(p.item_name)
+    case 'vendor': return has(p.purchase_vendor_name)
+    case 'category': return has(p.category)
+    default: return [p.item_code, p.item_name, p.purchase_vendor_name, p.category].some(has)
+  }
+}
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  // 구분 검색 + 결과 내 재검색 (2026-11-03 실무자 요청·사용자 승인):
+  // 구분·검색어 입력은 즉시 필터, Enter로 조건 칩에 쌓여 전부 만족(AND)한 품목만 표시
   const [search, setSearch] = useState('')
+  const [condField, setCondField] = useState<CondField>('all')
+  const [conds, setConds] = useState<{ field: CondField; value: string }[]>([])
   const [filter, setFilter] = useState<'active' | 'inactive' | 'addon' | 'all'>('active')
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [draft, setDraft] = useState(emptyDraft)
@@ -57,10 +77,19 @@ export default function ProductsPage() {
       if (filter === 'active' && !p.is_active) return false
       if (filter === 'inactive' && p.is_active) return false
       if (filter === 'addon' && !p.is_addon) return false   // 부가상품(옵션)만 — 중지 포함
+      // 고정된 조건 전부 만족(AND) = 검색 결과 내 재검색
+      if (!conds.every(c => condMatch(p, c.field, c.value.toLowerCase()))) return false
       if (!q) return true
-      return [p.item_code, p.item_name, p.purchase_vendor_name, p.category].some(v => (v ?? '').toLowerCase().includes(q))
+      return condMatch(p, condField, q)   // 입력 중인 검색어는 즉시 필터
     })
-  }, [products, search, filter])
+  }, [products, search, condField, conds, filter])
+
+  // 조건 칩 추가 (Enter·매입처 클릭) — 같은 조건 중복 방지
+  const addCond = (field: CondField, value: string) => {
+    const v = value.trim()
+    if (!v) return
+    setConds(prev => prev.some(c => c.field === field && c.value === v) ? prev : [...prev, { field, value: v }])
+  }
 
   const kpi = useMemo(() => ({
     active: products.filter(p => p.is_active).length,
@@ -136,7 +165,9 @@ export default function ProductsPage() {
           <button onClick={() => {
               const p = new URLSearchParams()
               if (filter !== 'active') p.set('filter', filter)
-              if (search.trim()) p.set('q', search.trim())
+              // 조건 칩 + 입력 중 검색어 그대로 — 다운로드도 화면과 같은 결과
+              conds.forEach(c => p.append('cond', `${c.field}:${c.value}`))
+              if (search.trim()) p.append('cond', `${condField}:${search.trim()}`)
               window.location.href = `/api/orders-portal/products/export?${p}`
             }}
             title="현재 필터·검색 조건 그대로 원가표 양식으로 다운로드 — 수정 후 그대로 재업로드 가능"
@@ -173,10 +204,33 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mt-3">
+      {/* 구분 검색 + 결과 내 재검색: Enter로 조건이 쌓이고 전부 만족한 품목만 표시 */}
+      <div className="flex items-center gap-2 mt-3 flex-wrap">
+        <select value={condField} onChange={e => setCondField(e.target.value as CondField)}
+          className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+          {(Object.keys(COND_LABEL) as CondField[]).map(f => (
+            <option key={f} value={f}>{COND_LABEL[f]}</option>
+          ))}
+        </select>
         <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="품번 · 품명 · 매입처 검색"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-72" />
+          onKeyDown={e => {
+            if (e.key === 'Enter' && search.trim()) { addCond(condField, search); setSearch('') }
+          }}
+          placeholder={`${COND_LABEL[condField]} 검색 — Enter로 조건 고정(결과 내 재검색)`}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-80" />
+        {conds.map((c, i) => (
+          <span key={`${c.field}:${c.value}`}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200">
+            {COND_LABEL[c.field]}: {c.value}
+            <button onClick={() => setConds(prev => prev.filter((_, j) => j !== i))}
+              className="text-blue-400 hover:text-blue-700" title="조건 제거">×</button>
+          </span>
+        ))}
+        {conds.length > 0 && (
+          <button onClick={() => setConds([])} className="text-xs text-gray-400 hover:text-gray-600">
+            조건 모두 지우기
+          </button>
+        )}
         <span className="text-xs text-gray-400">{filtered.length}건</span>
       </div>
 
@@ -306,7 +360,15 @@ export default function ProductsPage() {
                     )}
                   </td>
                   <td className="py-1.5 px-3 text-xs whitespace-nowrap">{p.category ?? '-'}</td>
-                  <td className="py-1.5 px-3 whitespace-nowrap">{p.purchase_vendor_name ?? '-'}</td>
+                  <td className="py-1.5 px-3 whitespace-nowrap">
+                    {p.purchase_vendor_name ? (
+                      <button onClick={() => addCond('vendor', p.purchase_vendor_name!)}
+                        title="클릭하면 이 매입처 조건으로 필터"
+                        className="hover:underline hover:text-blue-700">
+                        {p.purchase_vendor_name}
+                      </button>
+                    ) : '-'}
+                  </td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{won(p.sale_price)}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{p.individual_sale_price ? won(p.individual_sale_price) : '-'}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{won(p.purchase_price)}</td>
