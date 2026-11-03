@@ -67,10 +67,13 @@ export async function POST(req: NextRequest) {
 
   const CHUNK = 200
   for (let i = 0; i < ids.length; i += CHUNK) {
-    const { error } = await admin
+    let { error } = await admin
       .from('tax_invoices')
-      .update({ confirmed_account_id: body.accountId })
+      .update({ confirmed_account_id: body.accountId, classified_by: 'bulk' })
       .in('id', ids.slice(i, i + CHUNK))
+    if (error && /classified_by/.test(error.message)) {   // 422 미적용 — 출처 기록 없이
+      ;({ error } = await admin.from('tax_invoices').update({ confirmed_account_id: body.accountId }).in('id', ids.slice(i, i + CHUNK)))
+    }
     if (error) return NextResponse.json({ error: `계정 지정 실패: ${error.message}` }, { status: 500 })
   }
 

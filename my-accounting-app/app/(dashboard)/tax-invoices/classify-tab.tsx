@@ -29,6 +29,24 @@ export default function ClassifyTab() {
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  // 계정은 있는데 분개가 없는 건(업로드 자동 분류의 흔적, 422 이전) — 동기화 버튼
+  const [missing, setMissing] = useState<{ missing: number; total: number } | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const loadMissing = useCallback(() => {
+    fetch('/api/tax-invoices/sync-journals?direction=purchase', { cache: 'no-store' })
+      .then(r => r.json()).then(j => setMissing(j.missing !== undefined ? j : null)).catch(() => null)
+  }, [])
+  const syncMissing = async () => {
+    if (!missing?.missing || syncing) return
+    if (!window.confirm(`계정은 지정됐지만 분개가 없는 매입 계산서 ${missing.missing}건(${won(missing.total)})을 지정된 계정으로 전기합니다.`)) return
+    setSyncing(true)
+    const res = await fetch('/api/tax-invoices/sync-journals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ direction: 'purchase' }) })
+    const json = await res.json()
+    setSyncing(false)
+    if (!res.ok) { showMsg(`동기화 실패: ${json.error ?? '오류'}`); return }
+    showMsg(`분개 동기화: 대상 ${json.targets}건 · 전기 ${json.posted}건${json.failed ? ` · 실패 ${json.failed}건` : ''}`)
+    loadMissing(); load()
+  }
   // 그룹별 선택 계정(추천으로 초기화) / 기본계정 저장 체크
   const [pick, setPick] = useState<Record<string, string>>({})
   const [saveDefault, setSaveDefault] = useState<Record<string, boolean>>({})
@@ -58,8 +76,9 @@ export default function ClassifyTab() {
 
   useEffect(() => {
     load()
+    loadMissing()
     fetch('/api/accounts').then(r => r.json()).then(j => setAccounts(j.data ?? []))
-  }, [load])
+  }, [load, loadMissing])
 
   const expenseFirst = useMemo(() => {
     const order = (t: string) => (t === 'expense' ? 0 : t === 'asset' ? 1 : 2)
@@ -113,6 +132,13 @@ export default function ClassifyTab() {
           <div className="px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
             거래처 그룹 <b>{summary.groups.toLocaleString()}</b>개 (추천 있음 {summary.suggested_groups.toLocaleString()}개)
           </div>
+          {missing && missing.missing > 0 && (
+            <button onClick={syncMissing} disabled={syncing}
+              className="px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+              title="업로드 때 자동으로 계정이 채워졌지만 분개가 생기지 않은 건 — 지정된 계정 그대로 전기합니다">
+              {syncing ? '전기 중...' : `분개 누락 ${missing.missing.toLocaleString()}건 동기화 (${won(missing.total)})`}
+            </button>
+          )}
         </div>
       )}
 
