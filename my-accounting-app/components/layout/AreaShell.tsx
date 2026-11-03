@@ -2,10 +2,12 @@ import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/user-role'
 import { createAdminClient } from '@/lib/supabase-server'
-import { areasFor } from '@/lib/permissions'
+import { Suspense } from 'react'
+import { areasFor, levelOf, GROUP_KEYS, type GroupKey, type PermLevel } from '@/lib/permissions'
 import { AREA_COOKIE, areaLabel, groupsFor, homeFor, pathAccessible, pickArea } from '@/lib/area-shell'
 import AreaSidebar from './AreaSidebar'
 import Header from './Header'
+import HelpLauncher from '@/components/help/HelpLauncher'
 import type { BankAccount } from '@/types/bank-account'
 
 // 4영역 공용 셸 — 세 라우트 그룹((dashboard)·(orders)·(hr))의 레이아웃이 모두 이것을 쓴다.
@@ -36,6 +38,7 @@ export default async function AreaShell({ children }: { children: React.ReactNod
   }
 
   const userSub = [me.team, me.isMaster ? '마스터' : null].filter(Boolean).join(' · ')
+  const levels = Object.fromEntries(GROUP_KEYS.map(g => [g, levelOf(me, g)])) as Partial<Record<GroupKey, PermLevel>>
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
@@ -48,8 +51,10 @@ export default async function AreaShell({ children }: { children: React.ReactNod
         showAreaSelect={areasFor(me).length >= 2}
         initialBanks={initialBanks}
       />
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex flex-col flex-1 overflow-hidden relative">
         {(area === 'finance' || area === 'mgmt') && <Header />}
+        {/* 화면별 도움말 버튼·패널 — 모든 화면 공통 (도움말 트랙 1차, 2026-11-03). 권한 안내용으로 그룹별 내 수준을 넘긴다 */}
+        <Suspense fallback={null}><HelpLauncher levels={levels} withHeader={area === 'finance' || area === 'mgmt'} /></Suspense>
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>

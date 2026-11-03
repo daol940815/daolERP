@@ -89,6 +89,8 @@
   **`600번대` 매입처 허브 트랙(인수인계: docs/purchase-hub-track.md)** /
   `700번대` 상담·영업·업무일지 트랙(인수인계: docs/consultation-journal-track.md) /
   **`800번대` 요아럽 샘플 재고 트랙(인수인계: docs/sample-stock-track.md)** /
+  **도움말 트랙(마이그레이션 없음, 인수인계: docs/help-track.md — 화면별 도움말 `lib/help-registry.ts` 단일 원천, 질문하기 = 업무 요청,
+  2026-11-03 1차 배포)** /
   `900번대` 업무요청 트랙(인수인계: docs/work-request-track.md — 900 적용 2026-10-16, 901 비공개 열 적용 2026-11-02,
   902 담당자 다수·선착/공동 적용 2026-11-02, 903 PC 알림(Web Push) 적용 2026-11-03 — Vercel 환경변수 VAPID 3개·CRON_SECRET,
   아침 09:00 크론 `/api/push/cron`) /
@@ -113,13 +115,15 @@
    압축 시 보존 지침을 주입하고, 압축 직후 미기록 사항의 docs 저장을 안내한다.
    지침 문구는 `.claude/compact-preserve.md` / `.claude/compact-followup.md`에서 수정.
 3. **DB 변경 루틴**: 승인 → 드라이런(대조 통계) → 실행 → 검증 보고(건수 대사·표본 대조).
-4. **배포 루틴**: 빌드 통과 → 브랜치 커밋·push → 원격 main pull → `--no-ff` 병합 → push.
+4. **배포 루틴**: **도움말 갱신**(화면을 고쳤으면 `lib/help-registry.ts`의 그 화면 항목 — `updated` 날짜 + `changes`에 한 줄, 새 화면은
+   항목 신설 또는 `HELP_PENDING`에 추가) → 빌드 통과(`npm run build` — 앞단 `check-help`가 도움말 누락을 실패로, 화면보다 오래된
+   도움말을 경고로 낸다) → 브랜치 커밋·push → 원격 main pull → `--no-ff` 병합 → push.
 5. **화면 신설 루틴**: 시안(HTML) → 사용자 확인 → 구현. 목록 화면은 UI 관례의
    KPI+칩 필터 패턴을 따른다.
 
 ## 개발·배포 규칙
 
-- 빌드 검증: `cd my-accounting-app && npx next build` (통과 후에만 커밋)
+- 빌드 검증: `cd my-accounting-app && npm run build` (통과 후에만 커밋. `npx next build`는 도움말 검사를 건너뛰므로 쓰지 말 것)
 - 브랜치에서 작업 → main에 `--no-ff` 병합 → push → Vercel 자동배포.
   병행 세션이 있으므로 main 병합 전 원격 main을 먼저 pull/rebase 할 것.
 - Vercel 함수 리전은 서울(icn1) 고정 (`my-accounting-app/vercel.json`) — Supabase가
@@ -169,6 +173,10 @@
   `components/layout/NotificationCenter.tsx`, 폴링은 AreaSidebar의 `useNotifications` 1곳(20초, 2026-11-02). 새 알림 원천은 API에 블록 추가.
   화면 자동 갱신: 알림 결과가 바뀌면 `daol:notif-changed` 이벤트 → `useNotifRefresh(load)`(lib/use-notif-refresh.ts)로 구독한 화면이 재조회,
   조작 뒤 `requestNotifRefresh()`로 즉시 폴링. 자동 갱신이 필요한 새 화면은 이 훅을 쓸 것(자체 폴링 금지).
+  **도움말(2026-11-03)**: 모든 화면 오른쪽 위 "도움말" 버튼은 `components/help/HelpLauncher.tsx`가 AreaShell에서 자동 삽입 — 화면마다
+  손대지 않는다. 내용은 `lib/help-registry.ts` 한 곳(이 화면은 / 누가·언제 / 순서 / 자주 막히는 것 + keywords·changes). 질문하기 ·
+  권한 요청하기는 `/me/requests/new?question=<경로>&screen=<화면명>[&perm=<그룹>]`으로 업무 요청(담당 `HELP_QUESTION_RECIPIENT_LOGIN`).
+  403 문구를 새로 쓸 때는 "무슨 권한 · 누구에게"까지 적을 것(`PERMISSION_CONTACT`).
   적용: 기초잔액 `/opening-balances`, 자금 · 계좌 `/reports/cash`, 카드 내역 `/cards`, 계산서 내역 `/tax-invoices`
   (칩 `?dir=&tax=` + 매입 분류 탭), 통장 내역 `/transactions`(분류 작업 탭, 기간 없음), 매입처 관리(결제 예외 탭,
   collections 권한), 미수금·미지급금 관리(`components/reports/aging-manage.tsx`, 경과 구간 + 허브 요약 합침).

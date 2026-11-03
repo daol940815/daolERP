@@ -40,7 +40,8 @@ export const MENU: MenuGroup[] = [
   { key: 'my', area: 'all', label: '내 업무', items: [
     { label: '내 대시보드', href: '/me', exact: true },
     { label: '업무 요청', href: '/me/requests' },   // 받은/보낸 요청 (900, 2026-10-16) — 사이드바 배지는 AreaSidebar
-    { label: '내 정보', href: '/me/profile' },   // 기본 정보 / 계정(비밀번호) / 내 업무 요약 (2026-10-01)
+    { label: '내 정보', href: '/me/profile' },   // 기본 정보 / 계정(비밀번호) / 내 업무 요약 / 알림 설정 (2026-10-01 · 2026-11-03)
+    { label: '도움말', href: '/me/help' },   // 전체 도움말 목록 + 질문하기 (도움말 트랙, 2026-11-03). 화면별 패널은 AreaShell 의 HelpLauncher
     { label: '내 고객', href: '/sales-hub?mine=1', prefix: '/sales-hub?mine', requires: 'customers' },
     { label: '영업일지', href: '/me/journal' },
     { label: '업무일지', href: '/me/worklog' },
@@ -190,7 +191,8 @@ export const API_OWNERS: { prefix: string; group: MenuGroupKey | MenuGroupKey[] 
   { prefix: '/api/me', group: 'my' },
   { prefix: '/api/work-requests', group: 'my' },            // 업무 요청 (당사자 판정은 API 안에서)
   { prefix: '/api/notifications', group: 'my' },            // 알림 센터 (본인 기준 확인할 것)
-  { prefix: '/api/push', group: 'my' },                     // PC 알림(Web Push) 구독 (본인 기기만, /api/push/cron 은 미들웨어가 통과시키고 비밀로 검사)
+  { prefix: '/api/push', group: 'my' },
+  { prefix: '/api/help', group: 'my' },                     // 도움말 점검(마스터 판정은 라우트 안에서)                     // PC 알림(Web Push) 구독 (본인 기기만, /api/push/cron 은 미들웨어가 통과시키고 비밀로 검사)
   { prefix: '/api/work-requests/overview', group: 'mgmt' }, // 전 직원 현황은 경영 현황 조회 권한
   { prefix: '/api/attendance', group: 'my' },
   // 공휴일은 전사 설정 — 조회·편집 모두 인사·총무 권한 (더 긴 접두가 우선 적용됨)
