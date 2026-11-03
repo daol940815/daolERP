@@ -220,6 +220,33 @@ export interface HelpEntry {
   권한 안내는 공용 <code>DeniedNotice</code>(기존 403 문구를 받는 자리에 끼움). 질문하기 = <code>/me/requests/new?question=/orders/products</code> 로 이동해 미리 채움.<br>
   <b>마이그레이션 없음.</b> 도움말 내용 수정 = 코드 수정 = 배포. 직원이 직접 편집하는 위키는 두지 않는다(틀린 내용이 쌓임 — 질문 → 총괄 반영 경로로 통일).</div>
 
+  <h2><span class="no">9</span>유지 대책 — 기능이 계속 추가 · 변경될 때 (2026-11-03 사용자 질문)</h2>
+  <p class="desc">"세션이 같이 고친다"는 약속만으로는 유지되지 않는다. <b>빌드가 막고, 직원에게 바뀐 것을 보여주고, 질문으로 감지</b>하는 네 겹.</p>
+  <div class="grid2b">
+    <div class="card"><p style="font-weight:700; font-size:13px">1. 빌드 검사 (강제) — <code>scripts/check-help.mjs</code>, <code>next build</code> 앞에 실행</p>
+      <ul class="side-l" style="margin:6px 0 0 16px; line-height:1.8">
+        <li>메뉴(<code>menu-registry</code>)에 있는 화면인데 도움말 항목이 없음 → <b>빌드 실패</b>(목록 출력). 새 화면은 도움말 없이는 배포 불가.</li>
+        <li>화면 파일의 마지막 git 커밋일 &gt; 도움말 <code>updated</code> → <b>경고 목록</b>("품목 관리 도움말이 화면보다 12일 오래됨"). 실패는 아님 — 사소한 수정까지 막으면 날짜만 갱신하는 요식이 된다.</li>
+        <li>검사는 존재 · 신선도만 본다. <b>내용이 맞는지는 사람만 안다</b> → 2 · 4 가 받친다.</li>
+      </ul></div>
+    <div class="card"><p style="font-weight:700; font-size:13px">2. 직원에게 "바뀐 것" 보여주기</p>
+      <ul class="side-l" style="margin:6px 0 0 16px; line-height:1.8">
+        <li>항목에 <code>changes: [{ date, text }]</code>. 패널 맨 위 "최근 바뀐 것" 3줄 — 예: <span class="tag t-green">11-03</span> 담당자를 여러 명 지정하고 선착 · 공동을 고를 수 있습니다.</li>
+        <li>사이드바 메뉴에 14일 이내 변경이 있고 아직 안 본 화면은 작은 점(본 적 여부 localStorage).</li>
+        <li>세션 비용 = 한 줄. 직원의 가장 큰 불안("어제랑 다른데 뭐가 바뀐 거지")에 대한 답.</li>
+      </ul></div>
+    <div class="card"><p style="font-weight:700; font-size:13px">3. 세션 규칙</p>
+      <ul class="side-l" style="margin:6px 0 0 16px; line-height:1.8">
+        <li>CLAUDE.md 배포 루틴: "도움말 항목 · 변경 이력 갱신 → 빌드 → 커밋". 압축 안전망(compact-preserve) 문구에도 추가.</li>
+        <li>모든 세션이 CLAUDE.md 를 읽으므로 규칙은 전달되고, 어겨도 1 이 잡는다.</li>
+      </ul></div>
+    <div class="card"><p style="font-weight:700; font-size:13px">4. 질문으로 감지 + 월 1회 점검</p>
+      <ul class="side-l" style="margin:6px 0 0 16px; line-height:1.8">
+        <li>같은 화면에 [질문] 반복 = 그 도움말이 낡았거나 부족하다는 신호.</li>
+        <li>마스터 계정용 <b>도움말 점검</b> 화면: 항목별 updated · 화면 최종 수정 · 최근 30일 질문 건수 한 표. 총괄 세션이 월 1회 훑어 반영.</li>
+      </ul></div>
+  </div>
+
   <h2><span class="no">8</span>결정해 주실 것</h2>
   <div class="dec">
     <ol>
