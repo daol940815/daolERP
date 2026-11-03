@@ -28,6 +28,11 @@ export interface MonthlyPLResult {
 const EXCLUDED_CODES = new Set(['4001', '4004', '5001', '5002'])
 // 영업외비용 코드 구간 (53xx) — 그 외 비용은 판매관리비
 const isNonOpExpense = (code: string) => code.startsWith('53')
+// 영업수익(매출)으로 보는 수익 계정 — 다올커머스는 임대사업자라 임대료수익은 영업외수익이 아니라 매출이다
+// (2026-11-03 사용자 결정). 코드가 재배정된 이력(4004↔4005)이 있어 이름으로도 판정한다.
+const OPERATING_INCOME_CODES = new Set(['4005'])
+const isOperatingIncome = (code: string, name: string) =>
+  OPERATING_INCOME_CODES.has(code) || name.replace(/\s/g, '').includes('임대료수익')
 
 function monthRange(from: string, to: string): string[] {
   const result: string[] = []
@@ -99,16 +104,17 @@ export async function buildMonthlyPL(
   const sga: Row[] = []
   const nonOpExp: Row[] = []
   const nonOpInc: Row[] = []
+  const opInc: Row[] = []   // 영업수익(임대료수익 등) — 매출 구간에 ERP 매출과 나란히
   for (const [accId, values] of Array.from(netByAcc.entries())) {
     const acc = accounts.get(accId)!
     if (values.every(v => v === 0)) continue
     const row = { code: acc.code, name: acc.name, values, accountId: accId }
-    if (acc.type === 'income') nonOpInc.push(row)
+    if (acc.type === 'income') (isOperatingIncome(acc.code, acc.name) ? opInc : nonOpInc).push(row)
     else if (isNonOpExpense(acc.code)) nonOpExp.push(row)
     else sga.push(row)
   }
   const byCode = (a: Row, b: Row) => a.code.localeCompare(b.code)
-  sga.sort(byCode); nonOpExp.sort(byCode); nonOpInc.sort(byCode)
+  sga.sort(byCode); nonOpExp.sort(byCode); nonOpInc.sort(byCode); opInc.sort(byCode)
 
   // 6. ERP 매출·원가
   const revenueByMonth = new Map<string, number>()
@@ -119,9 +125,12 @@ export async function buildMonthlyPL(
   }
   const revenue = months.map(m => revenueByMonth.get(m) ?? 0)
   const cogs = months.map(m => cogsByMonth.get(m) ?? 0)
-  const grossProfit = months.map((_, i) => revenue[i] - cogs[i])
 
   const sum = (rows: Row[]) => months.map((_, i) => rows.reduce((s, r) => s + r.values[i], 0))
+  const opIncTotal = sum(opInc)
+  // 매출 합계 = ERP 매출 + 영업수익(임대료수익 등). 매출이익도 이 합계에서 원가를 뺀다.
+  const revenueTotal = months.map((_, i) => revenue[i] + opIncTotal[i])
+  const grossProfit = months.map((_, i) => revenueTotal[i] - cogs[i])
   const sgaTotal = sum(sga)
   const nonOpIncome = sum(nonOpInc)
   const nonOpExpense = sum(nonOpExp)
@@ -139,6 +148,9 @@ export async function buildMonthlyPL(
 
   const items: PLLineItem[] = [
     line('revenue', '매출 (ERP)', revenue),
+    // 임대료수익 등 영업수익 — 임대사업자이므로 매출 구간 (영업외수익 아님)
+    ...opInc.map(r => line(`rev_${r.code}`, `${r.name} (계산서)`, r.values, { account_id: r.accountId })),
+    ...(opInc.length ? [line('revenue_total', '매출 합계', revenueTotal, { is_subtotal: true })] : []),
     line('cogs', '매출원가 (ERP)', cogs),
     line('gross_profit', '매출이익', grossProfit, { is_subtotal: true }),
     line('sga_header', '판매관리비', zero, { is_section_header: true }),
