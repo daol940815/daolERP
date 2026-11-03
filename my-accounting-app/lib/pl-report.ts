@@ -189,6 +189,11 @@ export async function buildMonthlyPL(
       line('cogs_card', '상품매입 — 법인카드 (5002)', e.cogsCard, { account_id: cogsAcc5002 }),
       ...(e.cogsOther.some(v => v !== 0) ? [line('cogs_other', '상품매입 — 통장·수동 분개', e.cogsOther, { account_id: cogsAcc5002 })] : []),
       line('cogs_total', '매출원가 합계', cogsTotal, { is_subtotal: true, note: '재고 실사가 없어 당월 매입을 당월 원가로 봅니다' }),
+      // 분류 전이라 원가·비용 어디에도 안 잡힌 원본 — 0원이 "없음"이 아니라 "분류 전"일 수 있음을 드러낸다
+      ...(e.unclassifiedPurchaseCount > 0 ? [line('unclassified_purchase', `미분류 매입 계산서 ${e.unclassifiedPurchaseCount}건 (원가·비용 미반영)`, e.unclassifiedPurchase,
+        { href: '/tax-invoices?tab=classify', note: '분류하면 상품매입·비용에 들어갑니다' })] : []),
+      ...(e.unclassifiedCardCount > 0 ? [line('unclassified_card', `미확정 법인카드 ${e.unclassifiedCardCount}건 (비용 미반영)`, e.unclassifiedCard,
+        { href: '/cards?tab=expenses&status=pending', note: '확정하면 비용에 들어갑니다' })] : []),
     ]
     const vend = await buildRevenueReconcileByVendor(admin, dateFrom, dateTo, accounts)
     if ('error' in vend) return { error: vend.error }

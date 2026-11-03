@@ -20,6 +20,10 @@ export interface EvidenceRevenue {
   cogsInvoice: number[]  // 상품매입 — 세금계산서 분개
   cogsCard: number[]     // 상품매입 — 법인카드 분개
   cogsOther: number[]    // 상품매입 — 그 밖(통장·수동)
+  unclassifiedPurchase: number[]   // 미분류 매입 계산서 합계(분개 없음 → 원가·비용 어디에도 안 잡힘) — 0이 아니면 분류 작업 필요
+  unclassifiedPurchaseCount: number
+  unclassifiedCard: number[]       // 미확정 법인카드 승인−취소 합계
+  unclassifiedCardCount: number
 }
 
 const digits = (v: string | null | undefined) => (v ?? '').replace(/\D/g, '')
@@ -43,8 +47,25 @@ export async function buildEvidenceRevenue(
   const out: EvidenceRevenue = {
     invTaxable: zero(), invExempt: zero(), cardSales: zero(), cashReceipts: zero(), dedupe: zero(), dedupeCount: 0,
     cogsInvoice: zero(), cogsCard: zero(), cogsOther: zero(),
+    unclassifiedPurchase: zero(), unclassifiedPurchaseCount: 0, unclassifiedCard: zero(), unclassifiedCardCount: 0,
   }
   const monthOf = (d: string) => idx.get(d.slice(0, 7))
+
+  // 0) 미분류 원본 — 분개가 없어 손익 어디에도 안 잡히는 금액을 따로 보여준다 (0원이 "없다"가 아니라 "아직 분류 전"일 수 있다)
+  {
+    const up = await fetchAllRows<{ issue_date: string; total_amount: number | null }>((f, t) =>
+      admin.from('tax_invoices').select('issue_date, total_amount')
+        .eq('direction', 'purchase').is('confirmed_account_id', null)
+        .gte('issue_date', dateFrom).lte('issue_date', dateTo).range(f, t))
+    if ('error' in up) return { error: up.error }
+    for (const r of up.data) { const i = monthOf(r.issue_date); if (i !== undefined) { out.unclassifiedPurchase[i] += r.total_amount ?? 0; out.unclassifiedPurchaseCount++ } }
+    const uc = await fetchAllRows<{ tx_date: string; approved_amount: number | null; cancel_amount: number | null }>((f, t) =>
+      admin.from('card_expenses').select('tx_date, approved_amount, cancel_amount')
+        .neq('classify_status', 'confirmed')
+        .gte('tx_date', dateFrom).lte('tx_date', dateTo).range(f, t))
+    if ('error' in uc) return { error: uc.error }
+    for (const r of uc.data) { const i = monthOf(r.tx_date); if (i !== undefined) { out.unclassifiedCard[i] += (r.approved_amount ?? 0) - (r.cancel_amount ?? 0); out.unclassifiedCardCount++ } }
+  }
 
   // 1) 매출 계산서 — 매출(4001)·미분류만 매출 행에, 다른 수익 계정으로 확정된 것은 분개 쪽으로
   type Inv = { issue_date: string; tax_type: string; supply_amount: number | null; total_amount: number | null; tax_amount: number | null; confirmed_account_id: string | null; counterparty_biz_number: string | null }
