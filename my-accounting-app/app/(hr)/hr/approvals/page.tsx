@@ -10,7 +10,13 @@ import {
 // 본인 신청은 스스로 결재할 수 없다(서버에서도 차단).
 // 승인된 휴가 취소는 인사·총무 수정 권한자만(2026-10-12 결정) — 사유 필수, 지난 날짜도 허용.
 
-type LeaveRow = AttendanceLeave & { employee?: { name: string; team: string | null } | null }
+type LeaveRow = AttendanceLeave & {
+  employee?: { name: string; team: string | null } | null
+  decided_by_name?: string | null      // 승인 · 반려 · 취소한 사람
+  decided_at?: string | null
+}
+const fmtDay = (iso: string | null | undefined) =>
+  iso ? new Date(new Date(iso).getTime() + 9 * 3600 * 1000).toISOString().slice(5, 10).replace('-', '/') : ''
 
 export default function LeaveApprovalsPage() {
   const [pending, setPending] = useState<LeaveRow[]>([])
@@ -135,6 +141,9 @@ export default function LeaveApprovalsPage() {
                     {LEAVE_STATUS_LABEL[l.status]}
                   </span>
                 </td>
+                <td className="py-1.5 px-3 text-xs text-gray-500 whitespace-nowrap">
+                  {l.decided_by_name ? `${l.decided_by_name} · ${fmtDay(l.decided_at)}` : <span className="text-gray-300">-</span>}
+                </td>
                 <td className="py-1.5 px-3 text-xs text-gray-400">{l.decide_note ?? ''}</td>
                 <td className="py-1.5 pl-3 text-right whitespace-nowrap">
                   {canEdit && l.status === 'approved' && (
@@ -147,7 +156,7 @@ export default function LeaveApprovalsPage() {
               </tr>
             ))}
             {!recent.length && (
-              <tr><td colSpan={6} className="py-8 text-center text-gray-400 text-sm">처리 내역이 없습니다.</td></tr>
+              <tr><td colSpan={7} className="py-8 text-center text-gray-400 text-sm">처리 내역이 없습니다.</td></tr>
             )}
           </tbody>
         </table>

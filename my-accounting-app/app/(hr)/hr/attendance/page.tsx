@@ -35,12 +35,15 @@ const STATUS_COLOR: Record<DayStatusKind, string> = {
   holiday: 'bg-rose-100 text-rose-600', none: 'bg-gray-50 text-gray-300',
 }
 const EMPTY_FORM = { leave_type: 'annual' as LeaveType, start_date: '', end_date: '', reason: '' }
+type MyLeave = AttendanceLeave & { decided_by_name?: string | null; decided_at?: string | null }
+const fmtDay = (iso: string | null | undefined) =>
+  iso ? new Date(new Date(iso).getTime() + 9 * 3600 * 1000).toISOString().slice(5, 10).replace('-', '/') : ''
 
 export default function MyAttendancePage() {
   const [status, setStatus] = useState<StatusRes | null>(null)
   const [monthData, setMonthData] = useState<MonthRes | null>(null)
   const [month, setMonth] = useState(kstMonthNow())
-  const [myLeaves, setMyLeaves] = useState<AttendanceLeave[]>([])
+  const [myLeaves, setMyLeaves] = useState<MyLeave[]>([])
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -278,6 +281,9 @@ export default function MyAttendancePage() {
                     : 'bg-gray-100 text-gray-500'}`}>
                     {LEAVE_STATUS_LABEL[l.status]}
                   </span>
+                  {l.status !== 'requested' && l.decided_by_name && (
+                    <span className="ml-2 text-[11px] text-gray-500">{l.decided_by_name} · {fmtDay(l.decided_at)}</span>
+                  )}
                   {l.decide_note && <span className="ml-2 text-[11px] text-gray-400">{l.decide_note}</span>}
                 </td>
                 <td className="py-1.5 pl-3 text-right">
