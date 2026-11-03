@@ -182,7 +182,10 @@ ALTER TABLE vendors
 - [x] **203 마이그레이션 실행** — 2026-11-03 완료. 이로써 인사·총무 트랙 200~203 전부 적용.
   확인 항목(사용자): 직원·계정·권한 화면에서 생일 입력 → 내 정보 카드 표시 → 해당 월 캘린더 "이름 생일"(연도 없음).
 - [x] 도움말: 스케줄 캘린더(`/hr/schedule`)·관리 탭(`/hr/schedule?tab=rules`) 2항목 작성, HELP_PENDING에서 제거 (2026-11-03, main 99412ed).
-- [ ] 도움말: `/employees`·`/hr/admin`은 아직 `HELP_PENDING` — 인사 트랙에서 작성 예정(근태 현황은 공휴일 관리·보정·대상 지정까지 포함).
+- [x] 도움말: 근태 현황(`/hr/admin`) 작성, HELP_PENDING에서 제거 (2026-11-03).
+- [x] **휴가 승인 · 반려 · 취소 처리자 표시** (2026-11-03 사용자 요청): `GET /api/attendance/leaves`가 `decided_by_name`을 붙여
+  휴가 승인 화면 최근 처리 내역(처리자 · 처리일 열)과 내 근태 휴가 목록(상태 옆)에 표시. 데이터는 기존 `decided_by`·`decided_at`.
+- [ ] 도움말: `/employees`(직원·계정·권한)·`/hr/approvals`(휴가 승인)는 아직 `HELP_PENDING`.
 - [ ] 잠복 버그 4건(위 "생일 + 경영 현황 노출" 절) — mgmt 전용 사용자의 /loans·/sales-hub·/purchase-hub·자금일보 API 403.
   `API_OWNERS` 배열 그룹으로 수정 가능, 각 트랙과 조율
 - [ ] 한정호 사원 등록·권한(김주연 복사) — 사용자 수동
