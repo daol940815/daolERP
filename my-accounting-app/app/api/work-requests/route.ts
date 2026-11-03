@@ -3,9 +3,10 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { isManagerLike } from '@/lib/permissions'
 import { monthRange } from '@/lib/attendance'
-import { OPEN_STATUSES, DUE_TRACKED, ASG_ACTIVE, ASG_TRACKED, myShare, isAssigneeOf, type WrRow, type WrScope, type WrMode } from '@/lib/work-requests'
+import { OPEN_STATUSES, DUE_TRACKED, ASG_ACTIVE, ASG_TRACKED, myShare, isAssigneeOf, fmtDue, type WrRow, type WrScope, type WrMode } from '@/lib/work-requests'
 import { selectRows, canSeePrivate, normalize, hintFor, type RawRow } from '@/lib/work-requests-server'
 import { broadcastWrChanged } from '@/lib/realtime-broadcast'
+import { sendPush } from '@/lib/push-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -134,5 +135,9 @@ export async function POST(req: NextRequest) {
     memo: ids.length > 1 ? `담당자 ${ids.length}명 · ${mode === 'first' ? '선착' : '공동'} 방식` : null,
   })
   await broadcastWrChanged(r.data.id, [me.employeeId, ...ids])
+  // PC 알림(⑦) — 담당자(본인 제외)에게 "새 업무 요청". 비공개는 제목 없이.
+  await sendPush(admin, ids.filter(id => id !== me.employeeId), body.is_private
+    ? { kind: 'wr_new', title: '비공개 업무 요청 1건', body: `마감 ${fmtDue(due.toISOString())} · 상세는 ERP에서 확인`, url: `/me/requests/${r.data.id}`, tag: `wr:${r.data.id}` }
+    : { kind: 'wr_new', title: `새 업무 요청 — ${me.employeeName ?? '요청자'}`, body: `${title} · 마감 ${fmtDue(due.toISOString())}${body.is_urgent ? ' · 긴급' : ''}${mode === 'first' ? ' · 선착' : mode === 'all' ? ' · 공동' : ''}`, url: `/me/requests/${r.data.id}`, tag: `wr:${r.data.id}` })
   return NextResponse.json({ ok: true, id: r.data.id })
 }
