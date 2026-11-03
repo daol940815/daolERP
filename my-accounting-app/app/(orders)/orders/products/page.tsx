@@ -152,13 +152,13 @@ export default function ProductsPage() {
         </span>
       </div>
 
-      {/* KPI 카드 (클릭=필터) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 max-w-3xl">
+      {/* KPI 카드 (클릭=필터) — 전체 품목 카드가 전체 조회 (2026-11-03 사용자 요청) */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 mt-4 max-w-4xl">
         {([
+          ['all', '전체 품목', products.length, 'text-blue-700'],
           ['active', '사용 중 품목', kpi.active, ''],
           ['inactive', '중지 품목', kpi.inactive, 'text-gray-400'],
           ['addon', '부가상품(옵션)', kpi.addon, 'text-violet-600'],
-          ['all', '매입처 수', kpi.vendors, 'text-blue-700'],
         ] as const).map(([key, title, val, cls]) => (
           <button key={key} onClick={() => setFilter(key)}
             className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === key ? 'border-slate-800' : 'border-gray-200'}`}>
@@ -166,6 +166,11 @@ export default function ProductsPage() {
             <div className={`text-lg font-bold tabular-nums ${cls}`}>{val}</div>
           </button>
         ))}
+        {/* 매입처 수 — 정보 표시용 (필터 아님) */}
+        <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-left">
+          <div className="text-[11px] text-gray-400">매입처 수</div>
+          <div className="text-lg font-bold tabular-nums text-gray-500">{kpi.vendors}</div>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 mt-3">
