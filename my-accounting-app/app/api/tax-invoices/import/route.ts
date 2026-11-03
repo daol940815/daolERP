@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { STMT_BIZ_NO } from '@/lib/trade-statement'
+import { syncTaxInvoiceJournal } from '@/lib/journal/tax-invoice-posting'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -245,6 +246,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+  // classified_by 컬럼(422) 유무 — 미적용이면 출처 기록만 생략하고 나머지는 그대로 동작
+  const hasClassifiedBy = await (async () => {
+    const { error: probe } = await admin.from('tax_invoices').select('classified_by').limit(1)
+    return !probe
+  })()
+
   // ── 계정과목 자동분류용 계정 로드 (매입 → expense, 매출 → income) ──────
   const classifyType = direction === 'purchase' ? 'expense' : 'income'
   const { data: classifyAccs } = await admin
@@ -371,25 +378,53 @@ export async function POST(req: NextRequest) {
 
     // 자동분류 우선순위 (매입 일괄 분류 화면과 동일):
     //   ① 기존 확정값 유지 → ② 거래처 확정 이력 과반 → ③ 거래처 기본계정 → ④ 품목 키워드
-    //   (자동은 채움까지만 — 최종 확정은 사용자. confirmed_account_id는 추천 채움값)
+    // 2026-11-03: 자동으로 채운 건도 **즉시 분개한다**(업로드 = 분류 = 회계 생성). 전에는 채우기만 하고 전기하지 않아
+    //   "계정은 있는데 분개가 없는" 계산서가 생겼고 월별 손익(증빙 기준)에서 상품매입이 0원으로 보였다.
+    //   출처는 classified_by에 남겨 화면에서 '자동' 표시 — 사람이 검토·수정하면 분개도 따라 바뀐다(멱등).
     let confirmedAccountId: string | null = existing?.confirmed_account_id ?? null
+    let classifiedBy: string | null = null
     if (confirmedAccountId == null && vendorId) {
-      confirmedAccountId = vendorHistory.get(vendorId) ?? vendorDefaultAcc.get(vendorId) ?? null
+      const h = vendorHistory.get(vendorId)
+      if (h) { confirmedAccountId = h; classifiedBy = 'auto:history' }
+      else {
+        const d = vendorDefaultAcc.get(vendorId)
+        if (d) { confirmedAccountId = d; classifiedBy = 'auto:default' }
+      }
     }
     if (confirmedAccountId == null && classifyAccounts.length > 0) {
       const searchText = [row.item_name, row.counterparty_name, row.note].filter(Boolean).join(' ')
       confirmedAccountId = matchAccount(searchText, classifyAccounts)
+      if (confirmedAccountId) classifiedBy = 'auto:keyword'
     }
 
-    return { ...row, vendor_id: vendorId, confirmed_account_id: confirmedAccountId }
+    return { ...row, vendor_id: vendorId, confirmed_account_id: confirmedAccountId, _classified_by: classifiedBy, _is_new: !existing }
   })
 
+  const autoClassified = rowsToUpsert.filter(r => r._classified_by).length
+  // 내부 표시 필드(_classified_by·_is_new)는 떼고, 422가 적용돼 있으면 출처 컬럼만 덧붙인다
+  const stripped = rowsToUpsert.map(row => {
+    const { _classified_by, ...rest } = row
+    const r = { ...rest } as Record<string, unknown>
+    delete r._is_new
+    return hasClassifiedBy && _classified_by ? { ...r, classified_by: _classified_by } : r
+  })
   const { data: upserted, error } = await admin
     .from('tax_invoices')
-    .upsert(rowsToUpsert, { onConflict: 'approval_number', ignoreDuplicates: false })
-    .select('id')
+    .upsert(stripped, { onConflict: 'approval_number', ignoreDuplicates: false })
+    .select('id, approval_number, confirmed_account_id')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // 신규로 계정이 채워진 건은 바로 전기 — 기존 건은 사용자 저장·일괄 분류가 이미 전기했으므로 건드리지 않는다
+  const newWithAccount = new Set(rowsToUpsert.filter(r => r._is_new && r.confirmed_account_id).map(r => r.approval_number))
+  let posted = 0
+  let postFailed = 0
+  for (const u of upserted ?? []) {
+    if (!newWithAccount.has(u.approval_number as string) || !u.confirmed_account_id) continue
+    const jr = await syncTaxInvoiceJournal(admin, u.id as string)
+    if ('error' in jr) postFailed++
+    else posted++
+  }
 
   // 신규 vs 기존갱신(중복) — 승인번호 기준
   const updated = approvalNumbers.filter(a => existingMap.has(a)).length
@@ -402,6 +437,9 @@ export async function POST(req: NextRequest) {
     skipped,
     mismatched,
     self_rows: selfRows,
+    auto_classified: autoClassified,
+    posted,
+    post_failed: postFailed,
     vendorsCreated,
     total: dataRows.length,
     // 파일에서 판별한 구분 — 화면 선택과 달랐으면 Corrected에 값이 들어간다 (파일 쪽으로 저장됨)

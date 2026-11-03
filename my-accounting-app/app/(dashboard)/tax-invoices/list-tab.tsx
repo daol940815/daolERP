@@ -1105,6 +1105,10 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
                           : 'border-dashed border-gray-300 bg-gray-50 text-gray-400'
                       }`}
                     />
+                    {inv.confirmed_account_id && typeof inv.classified_by === 'string' && inv.classified_by.startsWith('auto:') && (
+                      <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 align-middle"
+                        title={`업로드 때 자동 분류 (${inv.classified_by === 'auto:history' ? '거래처 확정 이력' : inv.classified_by === 'auto:default' ? '거래처 기본계정' : '품목 키워드'}) — 검토 후 틀리면 바꾸세요`}>자동</span>
+                    )}
                   </td>
                   <td className="py-2.5 px-3">
                     <button

@@ -7,7 +7,7 @@ export const TAX_INVOICE_SELECT = `
   vendor_id, counterparty_name, counterparty_biz_number,
   supply_amount, tax_amount, total_amount, item_name, note,
   matched_transaction_id, payment_status, payment_memo,
-  confirmed_account_id,
+  confirmed_account_id, classified_by,
   created_at, updated_at,
   matched_transaction:transactions!matched_transaction_id (
     tx_date, tx_time, amount_in, amount_out, account_alias,

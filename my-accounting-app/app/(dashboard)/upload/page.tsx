@@ -251,6 +251,9 @@ export default function UploadPage() {
     if (data.skipped)        parts.push(`건너뜀 ${data.skipped}`)
     if (data.mismatched)     parts.push(`사업자번호 위치 어긋남 ${data.mismatched}`)
     if (data.self_rows)      parts.push(`상대방이 우리 회사인 행 제외 ${data.self_rows}`)
+    if (data.auto_classified) parts.push(`자동 분류 ${data.auto_classified}건`)
+    if (data.posted)          parts.push(`분개 ${data.posted}건`)
+    if (data.post_failed)     parts.push(`분개 실패 ${data.post_failed}건`)
     patchItem(item.id, { status: 'success', resultText: parts.join(' · ') })
   }
 

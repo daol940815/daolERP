@@ -21,6 +21,7 @@ export type TaxInvoiceTaxType   = 'taxable' | 'exempt'
 export type TaxInvoicePaymentStatus = 'matched' | 'unmatched'
 
 export interface TaxInvoice {
+  classified_by?: string | null   // 분류 출처 (422): auto:history|auto:default|auto:keyword|manual|bulk
   id: string
   approval_number: string
   issue_date: string
