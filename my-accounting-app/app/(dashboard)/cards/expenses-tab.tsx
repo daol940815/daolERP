@@ -45,7 +45,7 @@ function CardExpensesContent() {
   const focusId = searchParams.get('focus') ?? ''
   const [dateFrom, setDateFrom] = useState(() => searchParams.get('from') || getPeriodRange('당월').from)
   const [dateTo, setDateTo] = useState(() => searchParams.get('to') || getPeriodRange('당월').to)
-  const [status, setStatus] = useState('')
+  const [status, setStatus] = useState(() => searchParams.get('status') ?? '')   // ?status=pending 드릴다운
   const [search, setSearch] = useState('')
   const [accountFilter, setAccountFilter] = useState('') // '' 전체 | 'none' 미추천 | 계정 code
   const [editClass, setEditClass] = useState<{ id: string; value: string } | null>(null)
