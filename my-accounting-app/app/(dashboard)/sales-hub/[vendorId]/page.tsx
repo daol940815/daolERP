@@ -618,21 +618,21 @@ export default function SalesHubDetailPage() {
           return (
             <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto mt-3">
               <div className="px-4 pt-3 text-sm font-bold text-gray-800 flex items-baseline gap-2 flex-wrap">
-                과거 매출 <span className="text-[11px] font-normal text-gray-400">{docSales[0].source} 기준 스냅샷 — 참고 지표 (주문 원본 삭제로 드릴다운 불가)</span>
+                과거 매출 <span className="text-[11px] font-normal text-gray-400">{docSales[0].source} 기준 스냅샷 — 참고 지표 (주문 원본 삭제로 드릴다운 불가) · 합계 = 상시 + 명절(25설·25추석·26설·26추석)</span>
               </div>
               <div className="px-4 py-1.5 flex gap-4 text-xs text-gray-600 flex-wrap">
                 <span>합계 <b className="tabular-nums">{won(tot)}</b></span>
-                <span>2025년 <b className="tabular-nums">{won(t25)}</b></span>
-                <span>2026년 <b className="tabular-nums">{won(t26)}</b></span>
-                <span>명절 <b className="tabular-nums">{won(tSeason)}</b></span>
+                <span>상시 2025 <b className="tabular-nums">{won(t25)}</b></span>
+                <span>상시 2026 <b className="tabular-nums">{won(t26)}</b></span>
+                <span>명절 4회 <b className="tabular-nums">{won(tSeason)}</b></span>
               </div>
               <table className="w-full text-sm min-w-[720px]">
                 <thead>
                   <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
                     <th className="py-2 px-3 text-left font-medium">담당자 (문서 표기)</th>
                     <th className="py-2 px-3 text-left font-medium">다올 담당</th>
-                    <th className="py-2 px-3 text-right font-medium">2025</th>
-                    <th className="py-2 px-3 text-right font-medium">2026</th>
+                    <th className="py-2 px-3 text-right font-medium">상시 2025</th>
+                    <th className="py-2 px-3 text-right font-medium">상시 2026</th>
                     <th className="py-2 px-3 text-right font-medium">명절</th>
                     <th className="py-2 px-3 text-right font-medium">합계</th>
                     <th className="py-2 px-3 text-left font-medium">거래 기간</th>
