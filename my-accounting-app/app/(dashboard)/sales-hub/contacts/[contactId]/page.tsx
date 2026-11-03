@@ -259,14 +259,14 @@ export default function ContactDetailPage() {
             return (
               <div className="bg-white border border-gray-200 rounded-xl p-4 overflow-x-auto">
                 <h2 className="text-sm font-bold text-gray-900">과거 매출
-                  <span className="ml-2 text-[11px] font-normal text-gray-400">{docSales[0].source} 기준 스냅샷 — 참고 지표 (주문 원본 삭제로 드릴다운 불가)</span>
+                  <span className="ml-2 text-[11px] font-normal text-gray-400">{docSales[0].source} 기준 스냅샷 — 참고 지표 (주문 원본 삭제로 드릴다운 불가) · 합계 = 상시 + 명절</span>
                 </h2>
                 <table className="w-full text-sm mt-2 min-w-[560px]">
                   <thead>
                     <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
                       <th className="py-1.5 pr-3 font-medium">소속 (문서 표기)</th>
-                      <th className="py-1.5 px-3 font-medium text-right">2025</th>
-                      <th className="py-1.5 px-3 font-medium text-right">2026</th>
+                      <th className="py-1.5 px-3 font-medium text-right">상시 2025</th>
+                      <th className="py-1.5 px-3 font-medium text-right">상시 2026</th>
                       <th className="py-1.5 px-3 font-medium text-right">명절</th>
                       <th className="py-1.5 px-3 font-medium text-right">합계</th>
                       <th className="py-1.5 px-3 font-medium">거래 기간</th>
