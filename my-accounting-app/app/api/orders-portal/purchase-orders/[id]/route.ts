@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/user-role'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildPoExcel, sendPoMail, smtpReady } from '@/lib/purchase-orders'
 import { fillMailTemplate, poMailVars } from '@/lib/po-form'
+import { findCustomPoForm } from '@/lib/custom-po'
 
 export const dynamic = 'force-dynamic'
 
@@ -110,12 +111,22 @@ async function assembleForm(
   }
 }
 
+// 자체 양식 매입처(lib/custom-po.ts 레지스트리)는 그 매입처 양식으로 생성 —
+// 다운로드·메일 자동 첨부 공용. 그 외 매입처는 자사 발주서 양식.
 async function excelOf(
   admin: SupabaseClient,
   data: NonNullable<Awaited<ReturnType<typeof loadPo>>>,
   staff: { name: string | null; phone: string | null },
 ) {
-  return buildPoExcel(await assembleForm(admin, data, staff))
+  const form = await assembleForm(admin, data, staff)
+  const custom = findCustomPoForm(data.po.vendor_name)
+  return custom ? custom.build(form) : buildPoExcel(form)
+}
+
+// 자동 생성 첨부 파일명 — 자체 양식은 그 양식 이름(송장등록 등)으로
+function autoFileName(po: { po_no: string; vendor_name: string }) {
+  const custom = findCustomPoForm(po.vendor_name)
+  return `${custom?.filePrefix ?? '발주서'}_${po.po_no}_${po.vendor_name}.xlsx`
 }
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -129,7 +140,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const staff = await currentStaff(admin, me.employeeId, data.po)
   if (new URL(req.url).searchParams.get('excel') === '1') {
     const buf = await excelOf(admin, data, staff)
-    const filename = encodeURIComponent(`발주서_${data.po.po_no}_${data.po.vendor_name}.xlsx`)
+    const filename = encodeURIComponent(autoFileName(data.po))
     return new NextResponse(new Uint8Array(buf), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -169,7 +180,7 @@ async function buildAttachments(
   staff: { name: string | null; phone: string | null },
 ) {
   const { po } = data
-  const autoName = `발주서_${po.po_no}_${po.vendor_name}.xlsx`
+  const autoName = autoFileName(po)
   const { data: rows, error } = await admin.from('erp_po_attachments')
     .select('kind, file_name, storage_path').eq('po_id', po.id).order('created_at')
   const uploads = error ? [] : (rows ?? [])   // 510 미적용 — 자동 생성본만 첨부
