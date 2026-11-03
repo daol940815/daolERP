@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { buildEvidenceRevenue, buildRevenueReconcileByVendor } from './pl-evidence'
 
 // ── 월별 손익현황 (경영관리용) — 분개 기반 ───────────────────────
+// 기준 두 가지 (2026-11-03 사용자 결정 — 기본은 증빙 기준):
+//   evidence 증빙 기준: 매출 = 홈택스 자료(매출 계산서·카드매출·현금영수증), 매출원가 = 상품매입(5002) 분개. 부가세 신고와 같은 숫자.
+//   erp      ERP 기준 : 아래 2026-07 원칙 그대로. 영업 분석용. 두 기준의 매출 차이는 reconcile로 대사.
 // 원칙 (2026-07 사장님 결정):
 //   1. 매출·매출원가는 ERP 주문 기준 (취소·VIP·선결제 제외)
 //   2. 매입성 계정(매출원가 5001·상품매입 5002)과 매출 세계 분개(4001)는
@@ -17,11 +21,24 @@ export interface PLLineItem {
   is_section_header: boolean // true: 섹션 구분 헤더 행
   values: number[]           // months와 동일한 길이
   account_id?: string        // 분개 기반 동적 행 — 계정별 원장 드릴다운용
+  href?: string              // 원본 화면 드릴다운 (증빙 기준 매출·원가 행)
+  note?: string              // 행 설명(한계 등)
+}
+
+export type PLBasis = 'evidence' | 'erp'
+
+export interface RevenueReconcile {
+  erp: number[]        // ERP 매출(주문일)
+  evidence: number[]   // 증빙 매출 합계
+  diff: number[]       // ERP − 증빙
+  vendors: import('./pl-evidence').RevenueReconcileVendor[]
 }
 
 export interface MonthlyPLResult {
   months: string[]   // 'YYYY-MM'
+  basis: PLBasis
   items: PLLineItem[]
+  reconcile?: RevenueReconcile   // 증빙 기준일 때 — ERP와의 매출 대사
 }
 
 // 손익에서 제외하는 역할분리 계정 (분개는 존재하되 ERP 수치가 대신함)
@@ -56,6 +73,7 @@ export async function buildMonthlyPL(
   admin: SupabaseClient,
   from: string,
   to: string,
+  basis: PLBasis = 'evidence',
 ): Promise<{ result: MonthlyPLResult } | { error: string }> {
   const months = monthRange(from, to)
   const dateFrom = `${from}-01`
@@ -123,14 +141,75 @@ export async function buildMonthlyPL(
     revenueByMonth.set(row.month as string, (row.revenue as number) || 0)
     cogsByMonth.set(row.month as string, (row.cogs as number) || 0)
   }
-  const revenue = months.map(m => revenueByMonth.get(m) ?? 0)
-  const cogs = months.map(m => cogsByMonth.get(m) ?? 0)
+  const erpRevenue = months.map(m => revenueByMonth.get(m) ?? 0)
+  const erpCogs = months.map(m => cogsByMonth.get(m) ?? 0)
 
   const sum = (rows: Row[]) => months.map((_, i) => rows.reduce((s, r) => s + r.values[i], 0))
   const opIncTotal = sum(opInc)
-  // 매출 합계 = ERP 매출 + 영업수익(임대료수익 등). 매출이익도 이 합계에서 원가를 뺀다.
-  const revenueTotal = months.map((_, i) => revenue[i] + opIncTotal[i])
-  const grossProfit = months.map((_, i) => revenueTotal[i] - cogs[i])
+  const zero = months.map(() => 0)
+  const line = (key: string, label: string, values: number[], opt: Partial<PLLineItem> = {}): PLLineItem => ({
+    key, label, values,
+    is_placeholder: false, is_subtotal: false, is_section_header: false,
+    ...opt,
+  })
+
+  // 7. 매출·매출원가 — 기준별
+  //   evidence: 홈택스 자료(계산서·카드매출·현금영수증) + 상품매입 분개 (기본, 2026-11-03)
+  //   erp     : ERP 주문 매출·원가 (영업 분석용)
+  let revenueTotal: number[]
+  let cogsTotal: number[]
+  let revenueLines: PLLineItem[]
+  let cogsLines: PLLineItem[]
+  let reconcile: RevenueReconcile | undefined
+  const rentLines = opInc.map(r => line(`rev_${r.code}`, `${r.name} (계정)`, r.values, { account_id: r.accountId }))
+
+  if (basis === 'evidence') {
+    const cogsIds = Array.from(accounts.entries()).filter(([, a]) => a.code === '5001' || a.code === '5002').map(([id]) => id)
+    const ev = await buildEvidenceRevenue(admin, months, dateFrom, dateTo, accounts, cogsIds)
+    if ('error' in ev) return { error: ev.error }
+    const e = ev.data
+    const evRevenue = months.map((_, i) => e.invTaxable[i] + e.invExempt[i] + e.cardSales[i] + e.cashReceipts[i] + e.dedupe[i])
+    revenueTotal = months.map((_, i) => evRevenue[i] + opIncTotal[i])
+    cogsTotal = months.map((_, i) => e.cogsInvoice[i] + e.cogsCard[i] + e.cogsOther[i])
+    const invHref = (tax: 'taxable' | 'exempt') => `/tax-invoices?dir=sales&tax=${tax}`
+    revenueLines = [
+      line('rev_inv_taxable', '매출 세금계산서 (과세, 공급가액)', e.invTaxable, { href: invHref('taxable') }),
+      line('rev_inv_exempt', '매출 계산서 (면세)', e.invExempt, { href: invHref('exempt') }),
+      ...rentLines,
+      line('rev_card', '카드매출 (승인 − 취소, 공급가액)', e.cardSales, { href: '/cards' }),
+      line('rev_cash', '현금영수증 매출 (승인 − 취소, 공급가액)', e.cashReceipts, { href: '/cash-receipts' }),
+      ...(e.dedupeCount > 0 || e.dedupe.some(v => v !== 0)
+        ? [line('rev_dedupe', `(−) 중복 제거 — 계산서와 함께 발행된 현금영수증 ${e.dedupeCount}건`, e.dedupe)]
+        : []),
+      line('revenue_total', '매출 합계', revenueTotal, { is_subtotal: true }),
+    ]
+    const cogsAcc5002 = Array.from(accounts.entries()).find(([, a]) => a.code === '5002')?.[0]
+    cogsLines = [
+      line('cogs_inv', '상품매입 — 세금계산서 (5002)', e.cogsInvoice, { account_id: cogsAcc5002 }),
+      line('cogs_card', '상품매입 — 법인카드 (5002)', e.cogsCard, { account_id: cogsAcc5002 }),
+      ...(e.cogsOther.some(v => v !== 0) ? [line('cogs_other', '상품매입 — 통장·수동 분개', e.cogsOther, { account_id: cogsAcc5002 })] : []),
+      line('cogs_total', '매출원가 합계', cogsTotal, { is_subtotal: true, note: '재고 실사가 없어 당월 매입을 당월 원가로 봅니다' }),
+    ]
+    const vend = await buildRevenueReconcileByVendor(admin, dateFrom, dateTo, accounts)
+    if ('error' in vend) return { error: vend.error }
+    reconcile = {
+      erp: erpRevenue,
+      evidence: evRevenue,
+      diff: months.map((_, i) => erpRevenue[i] - evRevenue[i]),
+      vendors: vend.data,
+    }
+  } else {
+    // 매출 합계 = ERP 매출 + 영업수익(임대료수익 등). 매출이익도 이 합계에서 원가를 뺀다.
+    revenueTotal = months.map((_, i) => erpRevenue[i] + opIncTotal[i])
+    cogsTotal = erpCogs
+    revenueLines = [
+      line('revenue', '매출 (ERP, 주문일)', erpRevenue),
+      ...rentLines,
+      ...(opInc.length ? [line('revenue_total', '매출 합계', revenueTotal, { is_subtotal: true })] : []),
+    ]
+    cogsLines = [line('cogs', '매출원가 (ERP)', erpCogs)]
+  }
+  const grossProfit = months.map((_, i) => revenueTotal[i] - cogsTotal[i])
   const sgaTotal = sum(sga)
   const nonOpIncome = sum(nonOpInc)
   const nonOpExpense = sum(nonOpExp)
@@ -139,19 +218,12 @@ export async function buildMonthlyPL(
   const tax = months.map(() => 0)
   const netProfit = months.map((_, i) => pretaxProfit[i] - tax[i])
 
-  const zero = months.map(() => 0)
-  const line = (key: string, label: string, values: number[], opt: Partial<PLLineItem> = {}): PLLineItem => ({
-    key, label, values,
-    is_placeholder: false, is_subtotal: false, is_section_header: false,
-    ...opt,
-  })
-
   const items: PLLineItem[] = [
-    line('revenue', '매출 (ERP)', revenue),
-    // 임대료수익 등 영업수익 — 임대사업자이므로 매출 구간 (영업외수익 아님)
-    ...opInc.map(r => line(`rev_${r.code}`, `${r.name} (계산서)`, r.values, { account_id: r.accountId })),
-    ...(opInc.length ? [line('revenue_total', '매출 합계', revenueTotal, { is_subtotal: true })] : []),
-    line('cogs', '매출원가 (ERP)', cogs),
+    line('rev_header', basis === 'evidence' ? '매출 (증빙 기준 — 홈택스 자료)' : '매출 (ERP 기준)', zero, { is_section_header: true }),
+    // 임대료수익 등 영업수익은 임대사업자이므로 매출 구간 (영업외수익 아님) — rentLines
+    ...revenueLines,
+    line('cogs_header', basis === 'evidence' ? '매출원가 (증빙 기준 — 상품매입 분개)' : '매출원가 (ERP 기준)', zero, { is_section_header: true }),
+    ...cogsLines,
     line('gross_profit', '매출이익', grossProfit, { is_subtotal: true }),
     line('sga_header', '판매관리비', zero, { is_section_header: true }),
     ...sga.map(r => line(`sga_${r.code}`, r.name, r.values, { account_id: r.accountId })),
@@ -169,5 +241,5 @@ export async function buildMonthlyPL(
     line('net_profit', '당기순이익', netProfit, { is_subtotal: true }),
   ]
 
-  return { result: { months, items } }
+  return { result: { months, basis, items, reconcile } }
 }
