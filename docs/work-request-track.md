@@ -198,7 +198,34 @@
 - REST 대조(총괄): 5건 모두 single, 담당자 오철준, 담당자 상태 역산 일치(done_reported→done_reported, completed→done_reported,
   in_progress, accepted×2). API가 쓰는 임베드 3종(요청→담당자 행, 담당자 행→요청 inner, staff-status 중첩 역참조) PostgREST 200.
 
+- 2026-11-03 사용자 확인: 알림 패널 "즉시 갱신 연결됨 · 20초마다 갱신" 표시 — ⑥ 2단계 정상.
+
+### ⑦ PC 알림(Web Push) 구현 (2026-11-03 배포 — **903 실행 + Vercel 환경변수 4개 대기**)
+- **903** `supabase/migrations/903_push_subscriptions.sql`: `push_subscriptions`(employee_id · endpoint UNIQUE · p256dh · auth · device_label ·
+  user_agent · enabled · prefs JSONB · last_used_at · last_error). RLS, 서비스 키 경유만.
+- **환경변수(Vercel, 저장소에 넣지 않음)**: `VAPID_PUBLIC_KEY` · `VAPID_PRIVATE_KEY` · `VAPID_SUBJECT`(mailto:) · `CRON_SECRET`. 키 쌍은 총괄 세션이
+  `web-push generateVAPIDKeys` 로 생성해 채팅으로 전달(2026-11-03). NEXT_PUBLIC 빌드 변수에 묶지 않고 공개키를 GET API 가 내려주므로
+  환경변수만 넣고 재배포하면 동작. 키를 바꾸면 모든 구독이 무효 — 직원들이 다시 허용해야 한다.
+- 받을 알림 종류(`lib/push.ts` PushKind): `wr_new`(새 업무 요청 — 담당자, 본인 제외) · `wr_result`(내 요청 반려·처리 보고 — 요청자) ·
+  `wr_due_today`(오늘 마감, 아침 09:00 1회) · `leave_approve`(휴가 승인 요청 — 승인권자). 기기(구독)마다 prefs, 키 없으면 켬.
+  **주문 수정 승인은 제외** — 수정요청 제도가 2026-08-25 폐지되어 새 요청이 생기지 않는다(시안 6의 다섯 번째 항목 삭제).
+- 발송(`lib/push-server.ts`): `sendPush(admin, employeeIds, payload)` → 켜진 구독 중 kind 를 받기로 한 기기에 web-push. 404·410 은 행 삭제,
+  그 외 실패는 last_error. 호출한 본 작업에는 영향 없음. `approverIds()` = 알림 API 의 isManagerLike 와 같은 기준(마스터·승인권·sales 외 role).
+  호출 지점: 업무 요청 생성(담당자) · 반려/처리 보고(요청자; 공동은 "k/N 보고") · 담당자 추가(추가된 사람) · 휴가 신청(승인권자).
+  내용은 제목·요청자·마감만. **비공개 요청은 "비공개 업무 요청 1건"** 으로만.
+- 브라우저(`lib/push-client.ts`, `public/sw.js`): 서비스 워커는 푸시 표시 + 클릭 시 해당 화면 열기만(캐시 없음). 허용 → 구독 → `POST /api/push/subscriptions`
+  (같은 endpoint 는 갱신, 다른 직원이 같은 PC에서 허용하면 그 직원 것으로 이전). 해제 = 서버 행 삭제 + 브라우저 구독 취소.
+- 화면: 사이드바 종 위 **허용 안내 배너**(`components/layout/PushBanner.tsx` — 지원·미차단·미구독·서버 키 있음일 때, "나중에" 7일 localStorage) ·
+  **내 정보 › 알림 설정**(`/me/profile?tab=notify`, `notify-tab.tsx`): 이 PC 상태·허용·끄기·**테스트 알림**, 내 기기 목록(켬/끔·테스트·삭제), 기기별 받을 알림.
+- **아침 09:00 오늘 마감**: `vercel.json` crons `0 0 * * *`(UTC = 09:00 KST) → `GET /api/push/cron`(Authorization: Bearer CRON_SECRET, 미들웨어 통과 경로).
+  wr_due_today 를 켠 직원 중 내 몫(미확인·수락·진행 중)이 오늘 마감인 사람에게 "오늘 마감 업무 요청 N건 — 첫 건 (HH:MM까지) 외 n · 마감 지난 m건".
+  Vercel Hobby 요금제는 하루 1회 크론만 허용되고 실행 시각이 수십 분 늦을 수 있다.
+- API_OWNERS `/api/push` → my. 패키지 `web-push@3.6.7` + `@types/web-push` 추가.
+- 한계(시안 6 그대로): Windows 크롬·엣지는 창을 닫아도 백그라운드 실행이라 도착, 브라우저 완전 종료 시 다음 실행 때 도착. Mac Safari 는 "앱으로 설치" 후만.
+  PC·브라우저마다 허용 따로.
+
 ## 다음 단계
 
-1. 배포 확인(사용자): 새 요청 다수 담당자·팀 버튼, 선착 수락 → 나머지 해제, 공동 전원 보고 → 처리 보고, 알림 패널 "즉시 갱신 연결됨".
-2. ⑦ Web Push(903 push_subscriptions, VAPID 환경변수, 서비스 워커, 아침 09:00 오늘 마감 알림 크론) — 다음 묶음.
+1. **사용자: 903 실행** + **Vercel 환경변수 4개 등록 후 재배포**(Redeploy) → 내 정보 › 알림 설정에서 "이 PC에서 알림 받기" → 테스트 알림 확인.
+2. 다음 날 09:00 전후 오늘 마감 알림 도착 확인(Vercel › Cron Jobs 로그에서 `/api/push/cron` 응답 `sent` 건수).
+3. 배포 확인(사용자, 3·4): 새 요청 다수 담당자·팀 버튼, 선착 수락 → 나머지 해제, 공동 전원 보고 → 처리 보고.

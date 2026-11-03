@@ -9,8 +9,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { contactLabel } from '@/lib/contact-label'
 import { kstTime, LEAVE_TYPE_LABEL, LEAVE_STATUS_LABEL, type LeaveType, type LeaveStatus } from '@/lib/attendance'
+import NotifyTab from './notify-tab'
 
-export type ProfileTab = 'basic' | 'account' | 'work'
+export type ProfileTab = 'basic' | 'account' | 'work' | 'notify'
 
 export interface EmployeeRow {
   id: string
@@ -121,6 +122,7 @@ export default function ProfileClient({ tab }: { tab: ProfileTab }) {
 
   if (tab === 'account') return <AccountTab p={p} />
   if (tab === 'work') return <WorkTab p={p} />
+  if (tab === 'notify') return <NotifyTab />   // PC 알림(Web Push) 설정 (⑦, 2026-11-03)
   return <BasicTab p={p} onSaved={load} />
 }
 
