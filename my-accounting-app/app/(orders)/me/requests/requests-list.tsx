@@ -1,7 +1,7 @@
 'use client'
 
 // 업무 요청 목록 — 전체(공용) / 내가 받은(담당자 입장) / 내가 보낸(요청자 입장). 요약 카드 클릭 = 필터.
-// 내가 받은·보낸: 기본은 열린 건만, '완료·취소 포함'을 켜면 최근 90일 닫힌 건도. 정렬: 긴급 → 마감 임박.
+// 내가 받은·보낸: 기본은 열린 건만, '완료·취소 포함'을 켜면 최근 90일 닫힌 건도. 정렬: 생성일시 내림차순(최근 요청이 위).
 // 전체(2026-11-02 공용 전환): 지금 열린 건 전부 + 선택한 달(기본 이달)에 생성된 건. 비공개는 당사자·승인권자만 보인다.
 // ?employee= 로 들어오면(경영 현황 드릴다운) 그 직원이 요청자·담당자인 건만.
 // 902: 담당자 열은 다수를 요약(선착 "수락자 (외 N 해제)", 공동 "N명 · 보고 k/N"), 내가 담당자인 건은 '내 몫' 상태가 따로 보인다.
@@ -15,6 +15,7 @@ import {
   allowedActions, assigneeSummary, myShare, isAssigneeOf, type WrRow, type WrStatus, type WrScope,
 } from '@/lib/work-requests'
 import { useNotifRefresh, requestNotifRefresh } from '@/lib/use-notif-refresh'
+import { HELP_QUESTION_PREFIX, HELP_PERMISSION_PREFIX } from '@/lib/help-registry'
 
 type Filter = 'all' | 'unread' | 'active' | 'due_today' | 'overdue' | 'reported' | 'rejected' | 'open'
 
@@ -38,6 +39,7 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
   const [filter, setFilter] = useState<Filter>(() => (FILTERS as string[]).includes(initialFilter ?? '') ? initialFilter as Filter : 'all')
   const [search, setSearch] = useState('')
   const [statusF, setStatusF] = useState<'' | WrStatus>('')
+  const [onlyQ, setOnlyQ] = useState(false)   // 도움말 질문 · 권한 요청만 ([질문] · [권한] 접두, 2026-11-03)
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
@@ -89,6 +91,7 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
     if (filter === 'rejected' && r.status !== 'rejected') return false
     if (filter === 'open' && !OPEN_STATUSES.includes(r.status)) return false
     if (statusF && r.status !== statusF) return false
+    if (onlyQ && !(r.title.startsWith(HELP_QUESTION_PREFIX) || r.title.startsWith(HELP_PERMISSION_PREFIX))) return false
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       const hay = [r.title, r.content, r.requester?.name, r.assignee?.name, ...r.assignees.map(a => a.employee?.name), r.last_memo].filter(Boolean).join(' ').toLowerCase()
@@ -96,7 +99,7 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
     }
     return true
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [rows, filter, statusF, search, scope, meId])
+  }), [rows, filter, statusF, search, scope, meId, onlyQ])
 
   if (err) return <div className="px-4 py-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg">{err}</div>
   if (!data) return <div className="text-center py-20 text-gray-400">로딩 중...</div>
@@ -164,8 +167,11 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
         ) : (
           <label className="text-xs text-gray-600 flex items-center gap-1"><input type="checkbox" checked={closed} onChange={e => setClosed(e.target.checked)} /> 완료 · 취소 포함 (최근 90일)</label>
         )}
+        {rows.some(r => r.title.startsWith(HELP_QUESTION_PREFIX) || r.title.startsWith(HELP_PERMISSION_PREFIX)) && (
+          <button onClick={() => setOnlyQ(v => !v)} className={`text-xs px-2.5 py-1 rounded-full border ${onlyQ ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>질문 · 권한 요청만</button>
+        )}
         {employee && <button onClick={clearEmployee} className="text-xs px-2.5 py-1 bg-slate-100 rounded-full text-slate-700">{empName} 관련만 보는 중 ✕</button>}
-        {(filter !== 'all' || statusF || search) && <button onClick={() => { setFilter('all'); setStatusF(''); setSearch('') }} className="text-xs text-gray-500 underline">필터 해제</button>}
+        {(filter !== 'all' || statusF || search || onlyQ) && <button onClick={() => { setFilter('all'); setStatusF(''); setSearch(''); setOnlyQ(false) }} className="text-xs text-gray-500 underline">필터 해제</button>}
         <span className="ml-auto text-xs text-gray-400">{visible.length.toLocaleString()}건{scope === 'all' && data.hiddenPrivate ? ` · 비공개 ${data.hiddenPrivate}건 제외` : ''}</span>
       </div>
 

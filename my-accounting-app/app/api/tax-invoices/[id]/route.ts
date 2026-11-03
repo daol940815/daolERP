@@ -24,7 +24,7 @@ export async function PATCH(
   if ('vendor_id' in body)               updates.vendor_id              = body.vendor_id
   if ('payment_status' in body)          updates.payment_status         = body.payment_status
   if ('payment_memo' in body)            updates.payment_memo           = body.payment_memo?.trim() || null
-  if ('confirmed_account_id' in body)    updates.confirmed_account_id   = body.confirmed_account_id
+  if ('confirmed_account_id' in body)  { updates.confirmed_account_id   = body.confirmed_account_id; updates.classified_by = body.confirmed_account_id ? 'manual' : null }
 
   if (!Object.keys(updates).length) {
     return NextResponse.json({ error: '업데이트할 항목이 없습니다.' }, { status: 400 })

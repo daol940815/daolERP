@@ -9,6 +9,15 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { defaultDueLocal, localToIso, isoToLocal, fmtDue, kstParts, WR_MODE_DESC, WR_ASG_LABEL, WR_ASG_CLS, type WrRow, type WrMode, type WrStatus, type WrAsgStatus } from '@/lib/work-requests'
+import { HELP_QUESTION_PREFIX, HELP_PERMISSION_PREFIX } from '@/lib/help-registry'
+import { GROUP_LABELS, type GroupKey } from '@/lib/permissions'
+import { deviceLabelFrom } from '@/lib/push'
+
+// 질문 · 권한 요청의 기본 마감: 익일 18:00 (KST) — 2026-11-03 결정 ⑤
+function questionDueLocal(now = new Date()): string {
+  const k = kstParts(new Date(now.getTime() + 86400_000))
+  return `${k.date}T18:00`
+}
 
 interface Emp { id: string; name: string; team: string | null; position: string | null; employment_type: string }
 interface LoadItem { id: string; title: string; due_at: string; status: WrStatus; my_status: WrAsgStatus; is_urgent: boolean; is_private: boolean; hidden: boolean; requester: string | null }
@@ -40,7 +49,23 @@ function NewRequestForm() {
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    fetch('/api/work-requests/employees').then(r => r.json()).then(j => { setEmps(j.data ?? []); setMeId(j.me ?? null) }).catch(() => null)
+    fetch('/api/work-requests/employees').then(r => r.json()).then(j => {
+      setEmps(j.data ?? []); setMeId(j.me ?? null)
+      // 도움말 "질문하기" · "권한 요청하기" (도움말 트랙, 2026-11-03): 담당자 = 질문 수신자, 제목 접두 · 내용 틀 · 마감 익일 18:00 미리 채움. 공개(기본).
+      const q = sp.get('question')
+      if (q) {
+        const screen = sp.get('screen') ?? q
+        const perm = sp.get('perm')
+        const meEmp = (j.data as Emp[] | undefined)?.find(e => e.id === j.me)
+        if (j.question_recipient) setAssignees([j.question_recipient])
+        setTitle(perm ? `${HELP_PERMISSION_PREFIX} ${screen} — ${GROUP_LABELS[perm as GroupKey] ?? perm} 수정 권한 요청` : `${HELP_QUESTION_PREFIX} ${screen} — `)
+        setContent([
+          perm ? '어떤 작업을 하려는지 적어주세요 (예: 원가표 업로드).' : '무엇을 하려다 어디서 막혔는지 적어주세요.', '', '',
+          '---- 자동 첨부 ----', `화면: ${q}`, `계정: ${meEmp?.name ?? ''}${meEmp?.team ? ` (${meEmp.team})` : ''}`, `브라우저: ${deviceLabelFrom(navigator.userAgent)}`,
+        ].join('\n'))
+        setDue(questionDueLocal())
+      }
+    }).catch(() => null)
     const from = sp.get('from')
     if (from) {
       fetch(`/api/work-requests/${from}`).then(r => r.json()).then(j => {
@@ -106,7 +131,8 @@ function NewRequestForm() {
   return (
     <div className="max-w-6xl mx-auto">
       <Link href="/me/requests" className="text-sm text-gray-500 hover:text-gray-900">← 업무 요청</Link>
-      <h1 className="text-2xl font-bold text-gray-900 mt-1">새 요청</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mt-1">{sp.get('question') ? (sp.get('perm') ? '권한 요청' : '질문하기') : '새 요청'}</h1>
+      {sp.get('question') && <p className="text-sm text-gray-500 mt-1">업무 요청으로 보내집니다. 담당자가 진행 메모로 답하고 처리 보고하면 완료 확정해 주세요. 같은 질문이 반복되면 도움말에 반영됩니다.</p>}
       <div className="grid gap-4 lg:grid-cols-[3fr_2fr] mt-4">
         <form onSubmit={submit} className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
           {error && <div className="px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}

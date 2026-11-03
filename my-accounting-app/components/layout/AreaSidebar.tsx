@@ -16,6 +16,8 @@ import CheckWidget from '@/app/(orders)/orders/check-widget'
 import { useNotifications } from '@/lib/use-notifications'
 import { NotificationBell, NotificationToasts } from './NotificationCenter'
 import PushBanner from './PushBanner'
+import { recentChangeMap } from '@/lib/help-registry'
+import { readSeen, HELP_SEEN_EVENT } from '@/components/help/HelpLauncher'
 
 interface CardAccountItem { id: string; card_company: string; card_number: string; alias: string | null }
 
@@ -90,6 +92,14 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
   useEffect(() => { notif.refresh() /* 화면 이동 시 즉시 갱신 */ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
   const badgeOf = (href: string) => notif.data?.badges?.[href] ?? null
+  // 도움말 "최근 바뀐 것" 점 — 14일 이내 변경이 있고 아직 그 화면을 방문하지 않은 메뉴 (도움말 트랙, 2026-11-03)
+  const [helpNew, setHelpNew] = useState<Record<string, string>>({})
+  useEffect(() => {
+    const calc = () => { const recent = recentChangeMap(); const seen = readSeen(); setHelpNew(Object.fromEntries(Object.entries(recent).filter(([k, d]) => (seen[k] ?? '') < d))) }
+    calc()
+    window.addEventListener(HELP_SEEN_EVENT, calc)
+    return () => window.removeEventListener(HELP_SEEN_EVENT, calc)
+  }, [])
 
   const startEdit = (bankId: string, cur: string | null) => {
     setEditingBankId(bankId); setEditingValue(cur ?? ''); setTimeout(() => inputRef.current?.focus(), 50)
@@ -278,9 +288,10 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
         </div>
       )
     }
+    const changed = helpNew[it.href.split('?')[0]]
     return (
       <Link key={it.href} href={it.href} className={linkCls(isActive(it))}>
-        <span>{it.label}</span>
+        <span className="flex items-center gap-1.5">{it.label}{changed && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" title={`${changed} 이후 바뀐 것이 있습니다 — 화면 도움말에서 확인`} />}</span>
         {(() => { const b = badgeOf(it.href); return b ? (
           <span className={`ml-auto text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none ${b.tone === 'red' ? 'bg-red-500 text-white' : 'bg-amber-400 text-slate-900'}`}>{b.n}</span>
         ) : null })()}

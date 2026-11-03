@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
 
   const closedWanted = sp.get('closed') === '1'
   const since = new Date(Date.now() - 90 * 86400_000).toISOString()
-  const base = (select: string) => admin.from('work_requests').select(select).order('is_urgent', { ascending: false }).order('due_at', { ascending: true }).limit(1000)
+  const base = (select: string) => admin.from('work_requests').select(select).order('created_at', { ascending: false }).limit(1000)  // 생성일시 내림차순(최근 요청이 위) — 2026-11-03 사용자 결정
   // 최근 90일 생성분 + 지금 열린 건 전부(회사 전체) — 여기서 내가 받은/보낸 것을 가른다 (담당자 행이 요청에 묻어오므로 1회 조회)
   const recent = await selectRows<RawRow[]>(sel => base(sel).or(`status.in.(${OPEN_STATUSES.join(',')}),created_at.gte.${since}`))
   if (recent.error) return NextResponse.json({ error: hintFor(recent.error.message) }, { status: 500 })
