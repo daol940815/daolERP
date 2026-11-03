@@ -190,6 +190,7 @@ export const API_OWNERS: { prefix: string; group: MenuGroupKey | MenuGroupKey[] 
   { prefix: '/api/me', group: 'my' },
   { prefix: '/api/work-requests', group: 'my' },            // 업무 요청 (당사자 판정은 API 안에서)
   { prefix: '/api/notifications', group: 'my' },            // 알림 센터 (본인 기준 확인할 것)
+  { prefix: '/api/push', group: 'my' },                     // PC 알림(Web Push) 구독 (본인 기기만, /api/push/cron 은 미들웨어가 통과시키고 비밀로 검사)
   { prefix: '/api/work-requests/overview', group: 'mgmt' }, // 전 직원 현황은 경영 현황 조회 권한
   { prefix: '/api/attendance', group: 'my' },
   // 공휴일은 전사 설정 — 조회·편집 모두 인사·총무 권한 (더 긴 접두가 우선 적용됨)

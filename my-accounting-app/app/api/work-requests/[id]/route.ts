@@ -3,9 +3,10 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { isManagerLike } from '@/lib/permissions'
 import { recordWorkLog } from '@/lib/work-log'
-import { allowedActions, myShare, type WrRow, type WrEventRow } from '@/lib/work-requests'
+import { allowedActions, myShare, fmtDue, type WrRow, type WrEventRow } from '@/lib/work-requests'
 import { selectRows, canSeePrivate, normalize, hintFor, applyAggregate, type RawRow } from '@/lib/work-requests-server'
 import { broadcastWrChanged } from '@/lib/realtime-broadcast'
+import { sendPush } from '@/lib/push-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -200,5 +201,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
   }
   await broadcastWrChanged(row.id, Array.from(notify))
+
+  // PC 알림(⑦) — 반려·처리 보고는 요청자에게, 담당자 추가는 추가된 사람에게. 본인에게는 보내지 않는다. 비공개는 제목 없이.
+  const safeTitle = row.is_private ? '비공개 업무 요청' : title
+  const url = `/me/requests/${row.id}`, tag = `wr:${row.id}`
+  const reqId = row.requester?.id && row.requester.id !== meId ? row.requester.id : null
+  if (body.action === 'reject' && reqId) {
+    await sendPush(admin, [reqId], { kind: 'wr_result', title: `반려 — ${myName}`, body: `${safeTitle} · 사유: ${memo}`, url, tag })
+  } else if (body.action === 'report' && reqId) {
+    const active = row.assignees.filter(a => a.status !== 'rejected' && a.status !== 'released')
+    const reported = active.filter(a => a.status === 'done_reported').length + 1
+    const partial = row.assign_mode === 'all' && reported < active.length
+    await sendPush(admin, [reqId], { kind: 'wr_result', title: `처리 보고 — ${myName}`, body: `${safeTitle} · ${partial ? `${reported}/${active.length} 보고` : '완료 확정을 기다립니다'}`, url, tag })
+  } else if (body.action === 'add_assignee') {
+    const added = Array.from(notify).filter(id => id !== meId && !row.assignees.some(a => a.employee?.id === id && a.status !== 'rejected' && a.status !== 'released'))
+    await sendPush(admin, added, row.is_private
+      ? { kind: 'wr_new', title: '비공개 업무 요청 1건', body: `마감 ${fmtDue(row.due_at)} · 상세는 ERP에서 확인`, url, tag }
+      : { kind: 'wr_new', title: `새 업무 요청 — ${reqName}`, body: `${title} · 마감 ${fmtDue(row.due_at)}${row.is_urgent ? ' · 긴급' : ''} · 공동`, url, tag })
+  }
   return NextResponse.json({ ok: true })
 }

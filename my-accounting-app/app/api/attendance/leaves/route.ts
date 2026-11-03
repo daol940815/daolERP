@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isManagerLike, isHrAdmin } from '@/lib/permissions'
 import { getAttendanceEmployee } from '@/lib/attendance-employee.server'
-import { HALF_DAY_TYPES, type LeaveType } from '@/lib/attendance'
+import { HALF_DAY_TYPES, LEAVE_TYPE_LABEL, type LeaveType } from '@/lib/attendance'
+import { sendPush, approverIds } from '@/lib/push-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -99,6 +100,12 @@ export async function POST(req: NextRequest) {
       reason: (body.reason ?? '').trim() || null,
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    // PC 알림(업무요청 트랙 ⑦) — 승인권자에게 "휴가 승인 요청". 실패해도 신청은 유지.
+    await sendPush(admin, await approverIds(admin, employeeId), {
+      kind: 'leave_approve', title: `휴가 승인 요청 — ${me.employeeName ?? '직원'}`,
+      body: `${LEAVE_TYPE_LABEL[leaveType] ?? leaveType} ${start}${end !== start ? ` ~ ${end}` : ''}`,
+      url: '/hr/approvals', tag: `leave:${employeeId}:${start}`,
+    })
     return NextResponse.json({ ok: true })
   }
 
