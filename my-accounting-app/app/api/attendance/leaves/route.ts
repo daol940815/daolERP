@@ -48,14 +48,22 @@ export async function GET(req: NextRequest) {
   }
 
   // 직원명은 별도 조회 후 합침 (FK 임베드 대신 — 관계명 의존 없이 동작)
+  // 신청자(employee)와 승인·반려·취소한 사람(decided_by_name)을 함께 붙인다 — 누가 조치했는지 표시용 (2026-11-03)
   let leaves: Record<string, unknown>[] = data ?? []
-  if (scope === 'all' && leaves.length) {
-    const ids = Array.from(new Set(leaves.map(l => l.employee_id as string)))
+  if (leaves.length) {
+    const ids = Array.from(new Set([
+      ...leaves.map(l => l.employee_id as string),
+      ...leaves.map(l => l.decided_by as string | null).filter((v): v is string => !!v),
+    ]))
     const { data: emps, error: eErr } = await admin.from('employees')
       .select('id, name, team').in('id', ids)
     if (eErr) return NextResponse.json({ error: eErr.message }, { status: 500 })
     const byId = new Map((emps ?? []).map(e => [e.id as string, e]))
-    leaves = leaves.map(l => ({ ...l, employee: byId.get(l.employee_id as string) ?? null }))
+    leaves = leaves.map(l => ({
+      ...l,
+      employee: byId.get(l.employee_id as string) ?? null,
+      decided_by_name: l.decided_by ? (byId.get(l.decided_by as string)?.name ?? null) : null,
+    }))
   }
   // can_edit = 승인된 휴가 취소 권한 (취소 버튼 노출용 — 실제 차단은 POST에서)
   return NextResponse.json({ leaves, myEmployeeId: employeeId, can_edit: isHrAdmin(me) })
