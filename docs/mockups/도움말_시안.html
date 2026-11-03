@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 도움말 (화면별 안내 · 기능 검색 · 질문하기 · 첫 안내)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; word-break: keep-all; }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 16px; line-height: 1.7; }
+  .note b { color: #422006; }
+  h1 { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+  h2 { font-size: 16px; font-weight: 700; margin: 34px 0 6px; }
+  h2 .no { display: inline-block; background: #0f172a; color: #fff; font-size: 11px; border-radius: 6px; padding: 2px 7px; margin-right: 8px; vertical-align: 2px; }
+  .desc { font-size: 12.5px; color: #475569; margin-bottom: 12px; line-height: 1.7; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 18px; }
+  .grid2 { display: grid; grid-template-columns: 3fr 2fr; gap: 14px; }
+  .grid2b { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .inp { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 10px; font-size: 13px; background: #fff; }
+  .btn { display: inline-block; background: #0f172a; color: #fff; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; }
+  .btn.ghost { background: #fff; color: #334155; border: 1px solid #cbd5e1; font-weight: 500; }
+  .btn.sm { padding: 4px 9px; font-size: 11.5px; border-radius: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font-size: 11px; color: #94a3b8; font-weight: 500; padding: 7px 10px; border-bottom: 1px solid #e2e8f0; }
+  td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  .tag { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+  .t-gray { background: #f1f5f9; color: #475569; } .t-blue { background: #dbeafe; color: #1d4ed8; } .t-amber { background: #fef3c7; color: #b45309; }
+  .t-red { background: #fee2e2; color: #b91c1c; } .t-dark { background: #0f172a; color: #fff; } .t-green { background: #dcfce7; color: #15803d; }
+  .side-l { font-size: 12px; color: #64748b; }
+  .dec { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 16px; font-size: 12.5px; line-height: 1.8; }
+  .dec li { margin-left: 18px; }
+  code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 11.5px; }
+  .muted { color: #94a3b8; }
+  /* 화면 모형 */
+  .screen { border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; background: #f8fafc; display: grid; grid-template-columns: 180px 1fr; min-height: 420px; }
+  .sb { background: #0f172a; color: #cbd5e1; padding: 12px; font-size: 11.5px; }
+  .sb .t { color: #fff; font-weight: 700; font-size: 13px; margin-bottom: 10px; }
+  .sb .g { color: #64748b; font-size: 10px; letter-spacing: .06em; margin: 10px 0 4px; text-transform: uppercase; }
+  .sb .i { padding: 4px 8px; border-radius: 6px; } .sb .i.on { background: #1e293b; color: #fff; }
+  .sb .search { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 6px 8px; color: #94a3b8; margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .sb .search kbd { background: #334155; border-radius: 4px; padding: 0 5px; font-size: 10px; color: #cbd5e1; }
+  .main { padding: 16px; position: relative; }
+  .main h3 { font-size: 16px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
+  .help-btn { margin-left: auto; border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; padding: 4px 10px; font-size: 12px; color: #334155; display: inline-flex; gap: 6px; align-items: center; }
+  .help-btn .q { width: 16px; height: 16px; border-radius: 50%; background: #0f172a; color: #fff; font-size: 10px; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; }
+  .kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
+  .kpi div { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px; font-size: 11px; color: #64748b; }
+  .kpi b { display: block; font-size: 15px; color: #0f172a; }
+  .panel { position: absolute; right: 0; top: 0; bottom: 0; width: 340px; background: #fff; border-left: 1px solid #e2e8f0; box-shadow: -12px 0 30px rgba(15,23,42,.08); padding: 16px; font-size: 12.5px; overflow: auto; }
+  .panel h4 { font-size: 14px; font-weight: 800; display: flex; align-items: center; }
+  .panel h4 .x { margin-left: auto; color: #94a3b8; font-weight: 400; }
+  .panel h5 { font-size: 11px; color: #94a3b8; letter-spacing: .05em; margin: 14px 0 5px; text-transform: uppercase; }
+  .panel ol, .panel ul { margin-left: 18px; line-height: 1.75; }
+  .panel .faq { border-top: 1px dashed #e2e8f0; padding: 7px 0; }
+  .panel .faq b { display: block; font-size: 12.5px; } .panel .faq span { color: #475569; }
+  .panel .foot { margin-top: 14px; border-top: 1px solid #e2e8f0; padding-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .deny { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 12px 14px; font-size: 12.5px; color: #7c2d12; }
+  .deny b { display: block; color: #9a3412; margin-bottom: 4px; }
+  /* 검색 팔레트 */
+  .palette { max-width: 620px; margin: 0 auto; background: #fff; border: 1px solid #cbd5e1; border-radius: 14px; box-shadow: 0 25px 60px rgba(15,23,42,.25); overflow: hidden; }
+  .palette .in { padding: 12px 14px; border-bottom: 1px solid #e2e8f0; font-size: 15px; display: flex; gap: 10px; align-items: center; }
+  .palette .in span.c { color: #0f172a; border-right: 2px solid #0f172a; }
+  .palette .sec { padding: 6px 14px 2px; font-size: 10.5px; color: #94a3b8; letter-spacing: .05em; }
+  .palette .row { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 8px 14px; align-items: center; font-size: 13px; }
+  .palette .row.on { background: #f1f5f9; }
+  .palette .row small { display: block; color: #64748b; font-size: 11.5px; margin-top: 1px; }
+  .palette .row .path { color: #94a3b8; font-size: 11px; }
+  .palette .ft { padding: 8px 14px; background: #f8fafc; font-size: 11px; color: #94a3b8; display: flex; gap: 14px; }
+  .palette kbd { background: #e2e8f0; border-radius: 4px; padding: 0 5px; font-size: 10px; color: #334155; }
+  /* 첫 안내 */
+  .steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 10px; }
+  .steps div { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; font-size: 12px; }
+  .steps b { display: block; font-size: 12.5px; margin-bottom: 3px; } .steps .n { display: inline-block; width: 18px; height: 18px; border-radius: 50%; background: #0f172a; color: #fff; font-size: 10px; text-align: center; line-height: 18px; margin-right: 5px; }
+  pre { background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 12px 14px; font-size: 11.5px; line-height: 1.6; overflow: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>시안 — 도움말 (신규 ERP 적응 지원)</h1>
+  <p class="desc">2026-11-03 사용자 요청: 직원들이 신규 ERP 를 어려워함 → 도움 기능. 총괄 제안 채택 방향: 별도 사용서 대신 <b>화면 옆에 사는 도움말</b> 한 묶음 —
+  ① 화면별 도움말 패널 ② 기능 검색(업무 말로) ③ 이 화면에 대해 질문하기(업무 요청으로 <b>오철준 대리</b>에게) ④ 첫 로그인 안내. 마이그레이션 없음(질문은 기존 업무 요청 재사용).</p>
+  <div class="note"><b>읽는 법</b> 회색 글 상자는 설계 설명, 흰 카드·검은 사이드바는 화면. 번호 순서대로 보고 마지막 "결정해 주실 것"에 답해 주시면 구현에 들어간다.
+  도움말 <b>내용</b>은 코드·트랙 문서에서 총괄이 초안을 쓰고 실제 쓰는 직원 1명이 검수하는 방식(결정 ①).</div>
+
+  <h2><span class="no">1</span>화면별 도움말 패널 — 모든 화면 오른쪽 위 "도움말" 버튼</h2>
+  <p class="desc">누르면 오른쪽에서 패널이 열린다(화면은 그대로 보이고 조작도 가능). 내용은 네 칸으로 고정: <b>이 화면은</b> / <b>누가 · 언제</b> / <b>순서</b> / <b>자주 막히는 것</b>. 맨 아래에 관련 화면 링크와 "질문하기". 예시는 품목 관리 화면.</p>
+  <div class="screen">
+    <div class="sb">
+      <div class="t">영업 · 주문</div>
+      <div class="search"><span>무엇을 하시겠어요?</span><kbd>Ctrl K</kbd></div>
+      <div class="g">내 업무</div><div class="i">내 대시보드</div><div class="i">업무 요청</div><div class="i">내 정보</div>
+      <div class="g">주문 · 발주</div><div class="i">상담일지</div><div class="i">주문 현황</div><div class="i">신규 주문</div><div class="i">발주서</div><div class="i on">품목 관리</div><div class="i">샘플 재고</div>
+    </div>
+    <div class="main">
+      <h3>품목 관리 <span class="help-btn"><span class="q">?</span> 도움말</span></h3>
+      <div class="kpi"><div>전체 품목<b>312</b></div><div>판매 중<b>287</b></div><div>품절<b>6</b></div><div>중지<b>19</b></div></div>
+      <div class="card" style="font-size:12px; color:#94a3b8; height:220px">(품목 표 — 기존 화면 그대로)</div>
+      <div class="panel">
+        <h4>품목 관리 <span class="x">닫기 ✕</span></h4>
+        <h5>이 화면은</h5>
+        <p>주문 입력 · 상담일지 · 발주서가 쓰는 <b>품목 마스터</b>입니다. 판매가 · 매입가 · 카톤 단위 · 배송비 · 품절이 여기서 정해지고, 다른 화면은 이 값을 참조만 합니다.</p>
+        <h5>누가 · 언제</h5>
+        <p>영업지원팀 — 매입처 원가표가 바뀔 때(보통 월초), 신규 품목이 생길 때, 품절 · 재입고 때.</p>
+        <h5>순서</h5>
+        <ol>
+          <li><b>원가표 업로드</b> 버튼 → 매입처 엑셀 그대로 올리기 (양식 변환 불필요)</li>
+          <li>미리보기에서 <span class="tag t-blue">신규</span> <span class="tag t-amber">변경</span> 건수 확인 → 반영</li>
+          <li>개별 수정은 행 클릭 → 저장. 품절은 행의 <b>품절</b> 버튼(상담 · 주문 입력에 바로 표시)</li>
+        </ol>
+        <h5>자주 막히는 것</h5>
+        <div class="faq"><b>업로드 버튼이 안 보여요</b><span>영업 · 주문 그룹 <b>수정</b> 권한이 필요합니다. 강시현 부사장 또는 ERP 담당(오철준 대리)에게 요청하세요.</span></div>
+        <div class="faq"><b>품번이 겹친다고 나와요</b><span>같은 품번이 이미 있습니다. 옵션(1P/2P)은 품번을 따로 두고, 같은 품목이면 기존 행을 수정하세요.</span></div>
+        <div class="faq"><b>가격을 바꿨는데 기존 주문 금액이 안 바뀌어요</b><span>정상입니다. 주문은 입력 당시 가격을 보존합니다(원본 보존 원칙).</span></div>
+        <h5>관련 화면</h5>
+        <p>신규 주문 · 발주서 · 샘플 재고 · 매입처 관리</p>
+        <div class="foot"><span class="btn sm">이 화면에 대해 질문하기</span><span class="btn sm ghost">전체 도움말 목록</span><span class="muted" style="font-size:11px; align-self:center">최근 수정 2026-11-03</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="dec" style="margin-top:12px"><b>규칙</b><br>· 도움말은 <code>lib/help-registry.ts</code> 한 파일(경로 → 항목)에 둔다. 메뉴 단일 원천(<code>menu-registry</code>)과 같은 방식 — <b>화면을 고치는 세션이 그 항목도 같이 고친다</b>(CLAUDE.md 규칙으로 추가).<br>
+  · 탭이 있는 화면(<code>?tab=</code>)은 탭마다 항목을 둘 수 있다. 항목이 없는 화면은 버튼 대신 "도움말 준비 중 · 질문하기"만 보인다.<br>
+  · 패널은 모바일 폭에서는 전체 화면 시트로 열린다. 열림 상태는 화면 이동 시 닫힌다.</div>
+
+  <h2><span class="no">2</span>막혔을 때 — 권한 · 빈 화면 · 오류 안내가 "다음 행동"을 말해준다</h2>
+  <p class="desc">지금은 "수정 권한이 없습니다"에서 끝난다. 같은 자리에서 <b>무슨 권한이 필요하고 누구에게 어떻게 요청하는지</b>까지 말한다(어제 김주연 대리 원가표 건). 메시지는 API 응답을 바꾸지 않고 화면에서 권한 그룹 이름과 담당자를 붙인다.</p>
+  <div class="grid3">
+    <div class="deny"><b>지금</b>수정 권한이 없습니다.</div>
+    <div class="deny" style="background:#f0fdf4; border-color:#bbf7d0; color:#14532d"><b style="color:#166534">바꾼 뒤</b>품목 등록 · 수정은 <b>영업 · 주문 그룹 수정 권한</b>이 필요합니다. 지금 계정은 조회만 가능합니다.<br><span class="btn sm" style="margin-top:8px">권한 요청하기</span> <span class="muted" style="font-size:11px">→ 업무 요청 "[권한] 영업 · 주문 수정 — 김주연"이 오철준 대리에게 생성</span></div>
+    <div class="deny" style="background:#f8fafc; border-color:#e2e8f0; color:#334155"><b style="color:#0f172a">빈 화면도 같은 식</b>"받은 요청이 없습니다" 대신 "아직 받은 업무 요청이 없습니다. 누군가 나를 담당자로 지정하면 여기와 알림 종에 뜹니다. <u>업무 요청이 뭔가요?</u>"</div>
+  </div>
+
+  <h2><span class="no">3</span>기능 검색 — 사이드바 검색창 또는 Ctrl K</h2>
+  <p class="desc">메뉴 이름이 아니라 <b>업무 말</b>로 찾는다. 항목마다 동의어 · 업무 동사를 붙여 둔다("원가표", "단가표", "가격 올리기" → 품목 관리). 결과는 화면 · 도움말 FAQ · 최근 간 화면 세 묶음. 권한 없는 화면은 표시만 하고 "권한 필요"를 붙인다. Enter 로 이동, 이동 후 도움말 패널이 자동으로 열리는 옵션(FAQ 로 들어온 경우).</p>
+  <div class="palette">
+    <div class="in"><span style="color:#94a3b8">⌕</span><span>원가표 올리<span class="c"></span></span></div>
+    <div class="sec">화면</div>
+    <div class="row on"><div>품목 관리<small>원가표 업로드 · 판매가 · 매입가 · 품절 — 영업 · 주문</small></div><span class="path">/orders/products</span></div>
+    <div class="row"><div>발주서<small>매입처별 발주 · 원가 확인</small></div><span class="path">/orders/purchase</span></div>
+    <div class="sec">도움말에서</div>
+    <div class="row"><div>원가표 업로드 버튼이 안 보여요<small>품목 관리 › 자주 막히는 것 — 영업 · 주문 수정 권한 필요</small></div><span class="tag t-gray">FAQ</span></div>
+    <div class="row"><div>원가표 양식을 바꿔야 하나요?<small>품목 관리 › 순서 1 — 매입처 엑셀 그대로</small></div><span class="tag t-gray">FAQ</span></div>
+    <div class="sec">권한 없음</div>
+    <div class="row" style="color:#94a3b8"><div>매입처 관리<small>매입처 원가 이력 — 거래처 관리 권한 필요</small></div><span class="tag t-amber">권한 필요</span></div>
+    <div class="ft"><span><kbd>↑</kbd><kbd>↓</kbd> 이동</span><span><kbd>Enter</kbd> 열기</span><span><kbd>Esc</kbd> 닫기</span><span style="margin-left:auto">결과가 없으면 "질문하기"로 이어짐</span></div>
+  </div>
+  <div class="dec" style="margin-top:12px"><b>검색 대상</b> 메뉴 라벨 + 도움말 항목의 <code>keywords</code>(동의어 · 업무 동사) + FAQ 질문 문장. 초성 검색(ㅍㅁ → 품목) 포함. 서버 호출 없음 — 메뉴 · 도움말 레지스트리가 번들에 들어 있어 즉시 뜬다. 권한 판정은 사이드바가 이미 쓰는 것과 동일.</div>
+
+  <h2><span class="no">4</span>이 화면에 대해 질문하기 — 업무 요청으로 오철준 대리에게</h2>
+  <p class="desc">도움말 패널 · 검색 결과 없음 · 권한 안내에서 모두 같은 버튼. 누르면 새 요청 화면이 <b>미리 채워진 채</b> 열린다(새 화면 아님). 사용자 결정(2026-11-03): 수신자 <b>오철준 대리(daol231219)</b>.</p>
+  <div class="grid2">
+    <div class="card">
+      <p style="font-weight:700; margin-bottom:8px">새 요청 <span class="muted" style="font-weight:400; font-size:12px">— 질문 모드로 열림</span></p>
+      <table>
+        <tr><td style="width:90px; color:#64748b">담당자</td><td><span class="tag t-dark">오철준 · 경영지원팀</span> <span class="muted">(고정 — 바꿀 수 있음)</span></td></tr>
+        <tr><td style="color:#64748b">제목</td><td>[질문] 품목 관리 — <span class="muted">여기에 한 줄 요약</span></td></tr>
+        <tr><td style="color:#64748b">내용</td><td><div class="inp" style="min-height:70px; color:#94a3b8">무엇을 하려다 어디서 막혔는지 적어주세요.</div><p class="muted" style="font-size:11px; margin-top:4px">자동 첨부: 화면 /orders/products?tab=import · 계정 김주연(영업지원팀) · 권한 영업 · 주문 조회 · 브라우저 Chrome</p></td></tr>
+        <tr><td style="color:#64748b">마감</td><td>익일 18:00 <span class="muted">(질문 기본값)</span> · 긴급 아님 · <b>공개</b> <span class="muted">(결정 ④ — 공개면 같은 질문을 남이 보고 해결)</span></td></tr>
+      </table>
+      <div style="margin-top:10px"><span class="btn">질문 보내기</span> <span class="btn ghost">취소</span></div>
+    </div>
+    <div>
+      <div class="card"><p style="font-weight:700; font-size:13px; margin-bottom:6px">오철준 대리 쪽</p>
+        <p class="side-l" style="line-height:1.7">평소 업무 요청과 똑같이 받은 목록 · 알림 종 · PC 알림(어제 켠 것)으로 온다. 답은 요청의 <b>진행 메모</b>로 달고 처리 보고 → 질문자가 완료 확정. 제목 앞 <span class="tag t-gray">[질문]</span> 로 구분되고, 받은 목록에 "질문만" 칩이 생긴다.</p></div>
+      <div class="card" style="margin-top:10px"><p style="font-weight:700; font-size:13px; margin-bottom:6px">도움말로 환류</p>
+        <p class="side-l" style="line-height:1.7">같은 화면 질문이 2번 이상 오면 그 답을 도움말 "자주 막히는 것"에 옮긴다(총괄 세션이 월 1회 [질문] 요청을 훑어 반영). 질문 → 답 → 도움말 → 질문 감소가 목표.</p></div>
+      <div class="dec" style="margin-top:10px"><b>비용</b> 테이블 · 마이그레이션 없음. 업무 요청 생성 API 에 <code>kind: 'question'</code> 표시만 추가(제목 접두로도 충분하면 그것도 생략). 수신자 고정값은 <code>help-registry</code> 상수(로그인 id) — 담당이 바뀌면 한 줄 수정.</div>
+    </div>
+  </div>
+
+  <h2><span class="no">5</span>첫 로그인 안내 — "이 ERP 에서 내가 하는 일" (권한 맞춤, 1회)</h2>
+  <p class="desc">로그인 후 처음 보는 화면(내 대시보드) 위에 한 번 뜬다. 권한 그룹에 따라 3~5단계만. "다시 보지 않기"는 브라우저 저장, "도움말 목록"에서 언제든 다시 볼 수 있다. 신규 입사 · 아르바이트에게 특히 유용.</p>
+  <div class="card">
+    <p style="font-weight:700">김주연 님, 신규 ERP 에서 하시는 일은 이 다섯 가지입니다 <span class="muted" style="font-weight:400; font-size:12px">(영업지원팀 · 영업 · 주문 수정 권한 기준)</span></p>
+    <div class="steps">
+      <div><b><span class="n">1</span>출근 체크</b>사이드바 맨 위. 퇴근도 같은 자리.</div>
+      <div><b><span class="n">2</span>상담일지 → 주문</b>전화 상담은 상담일지에, 확정되면 그 자리에서 주문 전환.</div>
+      <div><b><span class="n">3</span>발주 · 배송 확인</b>주문이 모이면 발주서, 배송은 주문 현황에서.</div>
+      <div><b><span class="n">4</span>업무 요청</b>받은 요청은 알림 종 · PC 알림. 수락 → 처리 보고.</div>
+      <div><b><span class="n">5</span>막히면 질문</b>화면 오른쪽 위 도움말 → 질문하기. 오철준 대리가 답합니다.</div>
+    </div>
+    <div style="margin-top:10px; display:flex; gap:8px; align-items:center"><span class="btn sm">시작하기</span><span class="btn sm ghost">다시 보지 않기</span><span class="muted" style="font-size:11px">회계 · 재무 권한자는 "파일 업로드 → 통장 분류 → 계산서 매칭 → 월별 손익" 순서로 다른 다섯 가지</span></div>
+  </div>
+
+  <h2><span class="no">6</span>우선 작성할 도움말 10개 (영업지원팀이 매일 쓰는 화면부터)</h2>
+  <table class="card" style="padding:0">
+    <tr><th>#</th><th>화면</th><th>핵심 "자주 막히는 것" 후보 (코드 · 트랙 문서에서 뽑음)</th><th>검색 키워드 예</th></tr>
+    <tr><td>1</td><td>신규 주문 · 주문 현황</td><td>익일 이후 수정은 취소 · 재등록 / 선결제 · VIP 품목 / 담당자 vs 상담자 / 엑셀 다운로드 형식</td><td>주문 넣기, 주문 고치기, 취소, 재등록</td></tr>
+    <tr><td>2</td><td>품목 관리</td><td>원가표 업로드 권한 / 품번 중복 / 품절 표시 / 가격 변경이 기존 주문에 미치는 영향</td><td>원가표, 단가표, 품절, 가격</td></tr>
+    <tr><td>3</td><td>상담일지</td><td>주문 전환 / 거래처 담당자 "님" 표기 / 내 상담만 보기</td><td>상담, 전화, 견적</td></tr>
+    <tr><td>4</td><td>발주서</td><td>매입처별 묶음 / 발송 메일 / 수정 요청 흐름</td><td>발주, 매입처 주문, 메일</td></tr>
+    <tr><td>5</td><td>업무 요청</td><td>선착 · 공동 차이 / 비공개 / 해제됐다는 뜻 / PC 알림 켜기</td><td>요청, 지시, 부탁, 선착, 공동</td></tr>
+    <tr><td>6</td><td>출근 체크 · 근태 · 휴가</td><td>체크 안 했을 때 / 반차 / 휴가 승인 누가 / 아르바이트 근무 기간</td><td>출근, 퇴근, 연차, 반차, 휴가 신청</td></tr>
+    <tr><td>7</td><td>샘플 재고</td><td>실사 입력 순서 / 품목 연결</td><td>샘플, 재고, 실사</td></tr>
+    <tr><td>8</td><td>매출처 관리(허브) · 내 고객</td><td>별칭 연결 / 거래처 담당자 등록 / 중복 거래처</td><td>거래처, 은행, 지점, 담당자</td></tr>
+    <tr><td>9</td><td>내 정보 · 알림 설정</td><td>비밀번호 변경 / PC 알림 허용 · 테스트 / 연락처</td><td>비밀번호, 알림, 내 정보</td></tr>
+    <tr><td>10</td><td>수금 대상 · 입금 매칭 · 계산서 발행 대상</td><td>독촉 목록 보는 법 / 입금 매칭 확정 / 계산서 발행 기준</td><td>수금, 미수, 독촉, 입금, 계산서</td></tr>
+  </table>
+  <p class="desc" style="margin-top:8px">회계 · 재무 화면(통장 분류 · 계산서 매칭 · 월별 손익)은 2차 — 오철준 대리 본인이 질문 수신자이면서 사용자라, 1차 10개를 쓰며 나온 질문으로 보강한다.</p>
+
+  <h2><span class="no">7</span>구조</h2>
+  <pre>// lib/help-registry.ts — 경로(또는 경로?tab=) → 도움말. 메뉴 레지스트리와 같은 "단일 원천".
+export const HELP_QUESTION_RECIPIENT_LOGIN = 'daol231219'   // 오철준 대리 (2026-11-03 사용자 결정)
+export interface HelpEntry {
+  href: string                 // '/orders/products' 또는 '/me/requests?tab=inbox'
+  title: string                // 화면 이름
+  what: string                 // 이 화면은
+  who: string                  // 누가 · 언제
+  steps: string[]              // 순서
+  faq: { q: string; a: string }[]
+  related?: string[]           // 관련 화면 href
+  keywords: string[]           // 검색 동의어 · 업무 동사
+  updated: string              // 최근 수정일 (패널 하단 표시)
+}
+// 권한 안내: 그룹 키 → "무슨 권한 · 누구에게" 문구 (GROUP_LABELS 재사용 + 담당자 이름)
+// 첫 로그인 안내: 권한 묶음별 5단계 (영업지원 · 회계재무 · 인사총무 · 아르바이트), 본 적 여부는 localStorage</pre>
+  <div class="dec"><b>화면 조각</b> <code>components/help/HelpButton.tsx</code>(각 화면 제목 옆 — AreaShell 이 경로로 자동 삽입하므로 화면마다 손대지 않음) ·
+  <code>HelpPanel.tsx</code> · <code>CommandPalette.tsx</code>(사이드바 검색창 + Ctrl K) · <code>FirstRunGuide.tsx</code>(내 대시보드) ·
+  권한 안내는 공용 <code>DeniedNotice</code>(기존 403 문구를 받는 자리에 끼움). 질문하기 = <code>/me/requests/new?question=/orders/products</code> 로 이동해 미리 채움.<br>
+  <b>마이그레이션 없음.</b> 도움말 내용 수정 = 코드 수정 = 배포. 직원이 직접 편집하는 위키는 두지 않는다(틀린 내용이 쌓임 — 질문 → 총괄 반영 경로로 통일).</div>
+
+  <h2><span class="no">8</span>결정해 주실 것</h2>
+  <div class="dec">
+    <ol>
+      <li><b>도움말 검수자</b>: 총괄이 초안 → 김주연 대리 검수(영업지원 화면 10개) → 오철준 대리 검수(회계 화면, 2차). 동의?</li>
+      <li><b>검색 진입점</b>: 사이드바 맨 위 검색창 + Ctrl K 둘 다(권고) / Ctrl K 만.</li>
+      <li><b>첫 로그인 안내</b>: 켤지(권고: 켬, 전 직원 1회 + 신규 계정 자동).</li>
+      <li><b>질문 공개 여부</b>: 기본 <b>공개</b>(공용 목록에 보여 같은 질문 감소, 권고) / 기본 비공개(체크로 변경 가능은 양쪽 모두).</li>
+      <li><b>질문 기본 마감</b>: 익일 18:00(권고) / 당일 18:00.</li>
+      <li><b>순서</b>: 1차 = 도움말 패널 + 질문하기 + 권한 안내 + 10개 내용(2~3일) → 2차 = 검색 + 첫 로그인 안내(1~2일). 동의?</li>
+    </ol>
+  </div>
+</div>
+</body>
+</html>
