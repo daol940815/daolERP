@@ -33,14 +33,14 @@ export default function ClassifyTab() {
   const [missing, setMissing] = useState<{ missing: number; total: number } | null>(null)
   const [syncing, setSyncing] = useState(false)
   const loadMissing = useCallback(() => {
-    fetch('/api/tax-invoices/sync-journals?direction=purchase', { cache: 'no-store' })
+    fetch('/api/tax-invoices/sync-journals', { cache: 'no-store' })
       .then(r => r.json()).then(j => setMissing(j.missing !== undefined ? j : null)).catch(() => null)
   }, [])
   const syncMissing = async () => {
     if (!missing?.missing || syncing) return
-    if (!window.confirm(`계정은 지정됐지만 분개가 없는 매입 계산서 ${missing.missing}건(${won(missing.total)})을 지정된 계정으로 전기합니다.`)) return
+    if (!window.confirm(`계정은 지정됐지만 분개가 없는 계산서(매입·매출) ${missing.missing}건(${won(missing.total)})을 지정된 계정으로 전기합니다.`)) return
     setSyncing(true)
-    const res = await fetch('/api/tax-invoices/sync-journals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ direction: 'purchase' }) })
+    const res = await fetch('/api/tax-invoices/sync-journals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
     const json = await res.json()
     setSyncing(false)
     if (!res.ok) { showMsg(`동기화 실패: ${json.error ?? '오류'}`); return }
@@ -136,7 +136,7 @@ export default function ClassifyTab() {
             <button onClick={syncMissing} disabled={syncing}
               className="px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-50"
               title="업로드 때 자동으로 계정이 채워졌지만 분개가 생기지 않은 건 — 지정된 계정 그대로 전기합니다">
-              {syncing ? '전기 중...' : `분개 누락 ${missing.missing.toLocaleString()}건 동기화 (${won(missing.total)})`}
+              {syncing ? '전기 중...' : `분개 누락 ${missing.missing.toLocaleString()}건 동기화 — 매입·매출 (${won(missing.total)})`}
             </button>
           )}
         </div>
