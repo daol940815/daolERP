@@ -119,8 +119,9 @@ export const HELP: HelpEntry[] = [
       { q: '취소 · 재등록 버튼이 안 보여요', a: '입력한 본인과 관리자만 할 수 있습니다. 입력자 기록이 없는 옛 주문은 관리자만.' },
       { q: '주문이 검색이 안 돼요', a: '기본 기간이 최근 30일입니다. 기간 버튼에서 당년이나 전체 기간으로 넓히세요.' },
     ],
-    related: ['/orders/new', '/orders/consultations', '/orders/purchase'], keywords: ['주문', '주문 목록', '주문 내역', '주문 고치기', '주문 취소', '재등록', '엑셀 다운로드', '미수', '수금완료'],
-    updated: '2026-11-03',
+    related: ['/orders/new', '/orders/consultations', '/orders/purchase'], keywords: ['주문', '주문 목록', '주문 내역', '주문 고치기', '주문 취소', '재등록', '엑셀 다운로드', '미수', '수금완료', '결제 내역', '카드', '계산서', '입금'],
+    updated: '2026-11-04',
+    changes: [{ date: '2026-11-04', text: '주문 상세에 결제 내역 섹션이 생겼습니다 — 통장 · 카드 · 현금 수금과 계산서 발행 · 입금 상태가 자동 표시됩니다(연결 작업은 회계 담당).' }],
   },
   {
     href: '/orders/new', title: '신규 주문', group: 'orders',

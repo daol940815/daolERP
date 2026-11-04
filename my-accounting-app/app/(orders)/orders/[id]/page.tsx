@@ -26,6 +26,17 @@ interface EditLog {
   id: string; employee_name: string | null; field_label: string
   before_text: string | null; after_text: string | null; created_at: string
 }
+// 결제 내역 (2026-11-04 — 표기 전용, 회계 화면 링크 없음)
+interface PaymentMatch {
+  id: string; source_type: 'bank' | 'card' | 'cash'; amount: number; paid_date: string
+  matched_by: string; memo: string | null
+  source: { label: string; total: number } | null
+}
+interface PaymentInvoice {
+  id: string; amount: number; issue_date: string
+  invoice_total: number | null; paid_sum: number; paid_last_date: string | null
+}
+interface Payments { matches: PaymentMatch[]; invoices: PaymentInvoice[] }
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
 const STATUS_KO: Record<string, string> = {
@@ -44,6 +55,7 @@ export default function OrderDetailPage() {
   const [items, setItems] = useState<Item[]>([])
   const [requests, setRequests] = useState<ChangeRequest[]>([])
   const [editLogs, setEditLogs] = useState<EditLog[]>([])
+  const [payments, setPayments] = useState<Payments>({ matches: [], invoices: [] })
   const [showLogs, setShowLogs] = useState(false)
   const [canEdit, setCanEdit] = useState(false)
   const [canReissue, setCanReissue] = useState(false)
@@ -62,6 +74,7 @@ export default function OrderDetailPage() {
     if (!res.ok) setError(json.error ?? '조회 실패')
     else {
       setOrder(json.order); setItems(json.items)
+      setPayments(json.payments ?? { matches: [], invoices: [] })
       setRequests(json.change_requests ?? [])
       setEditLogs(json.edit_logs ?? [])
       setCanEdit(json.can_edit)
@@ -250,6 +263,67 @@ export default function OrderDetailPage() {
           {showCost && <span className="text-gray-500">매입 합계 <span className="tabular-nums">{won(cost)}원</span></span>}
           {showCost && <span className="text-emerald-700">예상 마진 <b className="tabular-nums">{won(total - cost)}원</b></span>}
         </div>
+      </div>
+
+      {/* 결제 내역 (2026-11-04 사용자 확정 — 1단계): 수금 매칭·계산서 연결 표기 전용.
+          회계 화면으로의 링크·조작은 두지 않는다 (주문 화면에서 회계 영역 이동 불가 결정) */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
+        <div className="flex items-center gap-3 flex-wrap mb-2">
+          <div className="text-sm font-bold text-gray-900">결제 내역</div>
+          <span className="text-[11px] text-gray-400">수금 · 계산서 연결(회계 담당 처리)이 자동으로 표시됩니다</span>
+          <span className="ml-auto text-sm text-gray-700">
+            총금액 <b className="tabular-nums">{won(total)}원</b>
+            <span className="mx-1 text-gray-300">·</span>
+            수금 <b className="tabular-nums text-emerald-700">{won(total - (order.outstanding_amount as number ?? 0))}원</b>
+            <span className="mx-1 text-gray-300">·</span>
+            미수 <b className={`tabular-nums ${(order.outstanding_amount as number) > 0 ? 'text-red-600' : 'text-gray-400'}`}>
+              {won(order.outstanding_amount as number)}원</b>
+          </span>
+        </div>
+        {payments.matches.length === 0 && payments.invoices.length === 0 ? (
+          <div className="text-xs text-gray-400 py-1.5">연결된 결제 내역이 아직 없습니다.</div>
+        ) : (
+          <div className="space-y-1.5 text-sm">
+            {payments.matches.map(m => (
+              <div key={m.id} className="flex items-center gap-2.5 flex-wrap">
+                <span className="text-[11px] text-gray-400 tabular-nums w-20">{m.paid_date}</span>
+                <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${
+                  m.source_type === 'bank' ? 'bg-blue-50 text-blue-700'
+                    : m.source_type === 'card' ? 'bg-violet-50 text-violet-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                  {m.source_type === 'bank' ? '통장' : m.source_type === 'card' ? '카드' : '현금'}
+                </span>
+                <b className="tabular-nums">{won(m.amount)}원</b>
+                {m.source && (
+                  <span className="text-xs text-gray-500">
+                    {m.source.label}
+                    {m.source.total > 0 && m.source.total !== m.amount && (
+                      <span className="text-gray-400"> — 원거래 {won(m.source.total)}원 중 이 주문 분배분</span>
+                    )}
+                  </span>
+                )}
+                {m.matched_by === 'auto' && <span className="text-[10px] text-gray-400">자동 매칭</span>}
+                {m.memo && <span className="text-xs text-gray-400">{m.memo}</span>}
+              </div>
+            ))}
+            {payments.invoices.map(v => (
+              <div key={v.id} className="flex items-center gap-2.5 flex-wrap">
+                <span className="text-[11px] text-gray-400 tabular-nums w-20">{v.issue_date}</span>
+                <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-700">계산서</span>
+                <b className="tabular-nums">{won(v.amount)}원</b>
+                {v.invoice_total != null && v.invoice_total !== v.amount && (
+                  <span className="text-xs text-gray-400">발행 {won(v.invoice_total)}원 중 이 주문 분배분</span>
+                )}
+                <span className={`text-xs ${
+                  v.invoice_total != null && v.paid_sum >= v.invoice_total ? 'text-emerald-700'
+                    : v.paid_sum > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                  {v.invoice_total != null && v.paid_sum >= v.invoice_total
+                    ? `입금 완료${v.paid_last_date ? ` (${v.paid_last_date})` : ''}`
+                    : v.paid_sum > 0 ? `부분 입금 ${won(v.paid_sum)}원` : '입금 대기'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 발주 (3단계) — direct 주문만. 업로드 주문은 기존 ERP에서 발주 완료된 건.

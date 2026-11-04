@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCurrentUser, type CurrentUser } from '@/lib/user-role'
 import {
   validateOrderInput, applyOrderEdit, resolveDisplayNames, loadOrderSnapshot,
@@ -21,6 +22,80 @@ function editability(order: OrderRow, me: CurrentUser) {
   const isOwner = !!me.employeeId && order.created_by_employee_id === me.employeeId
   const isToday = kstDateOf(String(order.created_at)) === kstToday()
   return { canEdit: isOwner && isToday }
+}
+
+// 결제 내역 (2026-11-04 사용자 확정 — 1단계 표기만): 수금 매칭·계산서 연결을
+// 읽기 전용으로 모아 내려준다. 주문 상세는 표기만 하고 회계 화면 링크·조작은 없다.
+// 연결 자체는 회계·수금 쪽(erp_payment_matches·erp_order_invoices·tax_invoice_payments)이 원천.
+async function loadPayments(admin: SupabaseClient, orderId: string) {
+  const empty = { matches: [] as unknown[], invoices: [] as unknown[] }
+  const { data: matchRows, error: mErr } = await admin.from('erp_payment_matches')
+    .select('id, source_type, source_id, amount, paid_date, matched_by, memo')
+    .eq('order_id', orderId).order('paid_date')
+  if (mErr) return empty   // 미적용·권한 등 — 섹션만 비워 보낸다
+  const matches = matchRows ?? []
+
+  // 출처 요약 — "카드매출 1,000,000원 중 300,000원 분배" 표시용
+  const ids = (t: string) => matches.filter(m => m.source_type === t).map(m => m.source_id as string)
+  const srcInfo = new Map<string, { label: string; total: number }>()
+  const bankIds = ids('bank'), cardIds = ids('card'), cashIds = ids('cash')
+  if (bankIds.length) {
+    const { data } = await admin.from('transactions')
+      .select('id, description, amount_in').in('id', bankIds)
+    for (const t of data ?? []) {
+      srcInfo.set(t.id as string, { label: `통장 입금 (${String(t.description ?? '').slice(0, 20)})`, total: Number(t.amount_in ?? 0) })
+    }
+  }
+  if (cardIds.length) {
+    const { data } = await admin.from('card_sales')
+      .select('id, acquirer, amount').in('id', cardIds)
+    for (const c of data ?? []) {
+      srcInfo.set(c.id as string, { label: `카드 결제${c.acquirer ? ` (${c.acquirer})` : ''}`, total: Number(c.amount ?? 0) })
+    }
+  }
+  if (cashIds.length) {
+    const { data } = await admin.from('cash_receipts').select('id, amount').in('id', cashIds)
+    for (const c of data ?? []) srcInfo.set(c.id as string, { label: '현금영수증', total: Number(c.amount ?? 0) })
+  }
+
+  // 계산서 연결 + 그 계산서의 통장 입금 상태 (tax_invoice_payments)
+  const { data: invLinks } = await admin.from('erp_order_invoices')
+    .select('id, tax_invoice_id, amount, issue_date')
+    .eq('order_id', orderId).order('issue_date')
+  const links = invLinks ?? []
+  const invIds = Array.from(new Set(links.map(l => l.tax_invoice_id as string)))
+  const invTotal = new Map<string, number>()
+  const invPaid = new Map<string, { sum: number; last: string | null }>()
+  if (invIds.length) {
+    const [invRes, payRes] = await Promise.all([
+      admin.from('tax_invoices').select('id, total_amount').in('id', invIds),
+      admin.from('tax_invoice_payments')
+        .select('tax_invoice_id, amount, transaction:transactions(tx_date)').in('tax_invoice_id', invIds),
+    ])
+    for (const v of invRes.data ?? []) invTotal.set(v.id as string, Number(v.total_amount ?? 0))
+    for (const p of payRes.data ?? []) {
+      const key = p.tax_invoice_id as string
+      const cur = invPaid.get(key) ?? { sum: 0, last: null }
+      cur.sum += Number(p.amount ?? 0)
+      const d = (p.transaction as unknown as { tx_date: string } | null)?.tx_date ?? null
+      if (d && (!cur.last || d > cur.last)) cur.last = d
+      invPaid.set(key, cur)
+    }
+  }
+
+  return {
+    matches: matches.map(m => ({
+      id: m.id, source_type: m.source_type, amount: m.amount, paid_date: m.paid_date,
+      matched_by: m.matched_by, memo: m.memo,
+      source: srcInfo.get(m.source_id as string) ?? null,
+    })),
+    invoices: links.map(l => ({
+      id: l.id, amount: l.amount, issue_date: l.issue_date,
+      invoice_total: invTotal.get(l.tax_invoice_id as string) ?? null,
+      paid_sum: invPaid.get(l.tax_invoice_id as string)?.sum ?? 0,
+      paid_last_date: invPaid.get(l.tax_invoice_id as string)?.last ?? null,
+    })),
+  }
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -51,9 +126,11 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     .order('created_at', { ascending: false })
 
   const edit = editability(snap.order, me)
+  const payments = await loadPayments(admin, params.id)
   return NextResponse.json({
     order: snap.order,
     items: snap.items,
+    payments,
     change_requests: requests ?? [],
     edit_logs: logs ?? [],
     can_edit: edit.canEdit,
