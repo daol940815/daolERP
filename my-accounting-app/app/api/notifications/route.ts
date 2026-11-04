@@ -4,11 +4,13 @@ import { getCurrentUser } from '@/lib/user-role'
 import { isManagerLike } from '@/lib/permissions'
 import { OPEN_STATUSES, ASG_TRACKED, fmtDue, type WrStatus, type WrAsgStatus } from '@/lib/work-requests'
 import type { NotifData, NotifItem } from '@/lib/notifications'
+import { leaveActions, type LeaveStep } from '@/lib/leave-approval'
+import { loadApprovalCtx, loadSteps } from '@/lib/leave-approval.server'
 
 export const dynamic = 'force-dynamic'
 
 // GET /api/notifications — 로그인 직원의 "확인할 것" (저장 없음, 원본 상태에서 계산). API_OWNERS: my(전원).
-//  원천: 업무 요청(받은 미확인·오늘 마감·지남 / 보낸 완료 대기·반려) · 휴가 승인 요청(승인권자) · 주문 수정 승인 요청(승인권자)
+//  원천: 업무 요청(받은 미확인·오늘 마감·지남 / 보낸 완료 대기·반려) · 휴가 결재 내 차례(3단계 결재, 204 미적용 시 승인권자) · 주문 수정 승인 요청(승인권자)
 //        · 내 휴가 신청 결과 · 내 주문 수정 요청 결과 (최근 7일). 각 블록은 마이그레이션 미적용 시 조용히 건너뛴다.
 
 const DAY = 86400_000
@@ -40,17 +42,17 @@ export async function GET() {
   type OCR = { id: string; request_type: string; status: string; created_at: string; decided_at: string | null; requested_by: string | null; employees: { name: string } | { name: string }[] | null }
 
   const wrSel = 'id, title, status, due_at, created_at, reported_at, rejected_at, reject_reason, is_urgent, requester:employees!work_requests_requester_id_fkey(name), assignee:employees!work_requests_assignee_id_fkey(name)'
-  const [inRes, outRes, leavePendRes, leaveMineRes, ocrPendRes, ocrMineRes] = await Promise.all([
+  const [inRes, outRes, leavePendRes, leaveMineRes, ocrPendRes, ocrMineRes, appr] = await Promise.all([
     admin.from('work_request_assignees').select(`status, request:work_requests!inner(${wrSel})`).eq('employee_id', empId).in('status', ASG_TRACKED),
     admin.from('work_requests').select(wrSel).eq('requester_id', empId).or(`status.eq.done_reported,and(status.eq.rejected,rejected_at.gte.${sevenDaysAgo})`).order('created_at', { ascending: false }),
-    approver
-      ? admin.from('attendance_leaves').select('id, employee_id, leave_type, start_date, end_date, status, created_at, decided_at, employees!attendance_leaves_employee_id_fkey(name)').eq('status', 'requested').neq('employee_id', empId).order('created_at')
-      : Promise.resolve({ data: [], error: null }),
+    // 진행 중 휴가 — 3단계 결재(204)면 결재 단계가 있는 사람, 아니면 기존 승인권자만 실제로 쓴다
+    admin.from('attendance_leaves').select('id, employee_id, leave_type, start_date, end_date, status, created_at, decided_at, employees!attendance_leaves_employee_id_fkey(name)').eq('status', 'requested').neq('employee_id', empId).order('created_at'),
     admin.from('attendance_leaves').select('id, employee_id, leave_type, start_date, end_date, status, created_at, decided_at, employees!attendance_leaves_employee_id_fkey(name)').eq('employee_id', empId).in('status', ['approved', 'rejected']).gte('decided_at', sevenDaysAgo).order('decided_at', { ascending: false }),
     approver
       ? admin.from('erp_order_change_requests').select('id, request_type, status, created_at, decided_at, requested_by, employees!erp_order_change_requests_requested_by_fkey(name)').eq('status', 'pending').order('created_at')
       : Promise.resolve({ data: [], error: null }),
     admin.from('erp_order_change_requests').select('id, request_type, status, created_at, decided_at, requested_by, employees!erp_order_change_requests_requested_by_fkey(name)').eq('requested_by', empId).in('status', ['approved', 'rejected']).gte('decided_at', sevenDaysAgo).order('decided_at', { ascending: false }),
+    loadApprovalCtx(admin),
   ])
 
   // ── 업무 요청 ──
@@ -76,13 +78,27 @@ export async function GET() {
     if (!badges['/me/requests'] && awaiting.length + rejected.length) badges['/me/requests'] = { n: awaiting.length + rejected.length, tone: 'amber' }
   }
 
-  // ── 휴가 ──
-  if (approver && !leavePendRes.error) {
-    const rows = (leavePendRes.data ?? []) as unknown as Leave[]
+  // ── 휴가 ── 3단계 결재(204): 현재 단계의 차례가 내 결재 단계인 건만 "내 차례"로 센다
+  let leaveTurn: Leave[] = []
+  if (!leavePendRes.error) {
+    const pend = (leavePendRes.data ?? []) as unknown as Leave[]
+    const myLevel = appr.levelOf(empId)
+    if (appr.ready) {
+      if (myLevel && pend.length) {
+        const steps = await loadSteps(admin, pend.map(l => l.id)).catch(() => new Map<string, LeaveStep[]>())
+        leaveTurn = pend.filter(l => leaveActions({
+          applicantId: l.employee_id, status: l.status, steps: steps.get(l.id) ?? [],
+          myId: empId, myLevel, roster: appr.roster,
+        }).myTurn)
+      }
+    } else if (approver) leaveTurn = pend
+  }
+  {
+    const rows = leaveTurn
     if (rows.length) {
       const d = (l: Leave) => `${one(l.employees)?.name ?? ''} ${LEAVE_LABEL[l.leave_type] ?? l.leave_type} ${l.start_date.slice(5)}${l.end_date !== l.start_date ? `~${l.end_date.slice(5)}` : ''}`
-      items.push({ key: 'leave:approve', group: 'todo', tone: 'red', title: `휴가 승인 요청 ${rows.length}건`, detail: rows.slice(0, 2).map(d).join(' · ') + (rows.length > 2 ? ` 외 ${rows.length - 2}` : ''), href: '/hr/approvals', count: rows.length, at: latest(rows.map(l => l.created_at)) })
-      badges['/hr/approvals'] = { n: rows.length, tone: 'amber' }
+      items.push({ key: 'leave:approve', group: 'todo', tone: 'red', title: `휴가 결재 내 차례 ${rows.length}건`, detail: rows.slice(0, 2).map(d).join(' · ') + (rows.length > 2 ? ` 외 ${rows.length - 2}` : ''), href: '/hr/leaves', count: rows.length, at: latest(rows.map(l => l.created_at)) })
+      badges['/hr/leaves'] = { n: rows.length, tone: 'amber' }
     }
   }
   if (!leaveMineRes.error) {

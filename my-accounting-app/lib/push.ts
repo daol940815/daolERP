@@ -7,7 +7,7 @@ export const PUSH_KIND_LABEL: Record<PushKind, string> = {
   wr_new: '새 업무 요청을 받았을 때',
   wr_result: '내 요청이 반려 · 처리 보고됐을 때',
   wr_due_today: '오늘 마감 요청 (아침 09:00 1회)',
-  leave_approve: '휴가 승인 요청 (승인권자)',
+  leave_approve: '휴가 결재 요청 (결재 권한자)',
 }
 export type PushPrefs = Partial<Record<PushKind, boolean>>
 export const prefOn = (prefs: PushPrefs | null | undefined, kind: PushKind) => prefs?.[kind] !== false

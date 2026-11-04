@@ -16,6 +16,7 @@ export const dynamic = 'force-dynamic'
 //   delete       { id }             — 직원·계정 완전 삭제 (배정 이력도 함께 삭제)
 //   set_permissions { id, team, employment_type, work_start, work_end, is_master, permissions,
 //                     can_approve, can_view_salary, can_view_payment_info, note }
+//                     leave_approve_level? (1|2|3|null — 휴가 결재 단계, 204)
 //                — 마스터만. 변경 전·후를 employee_permission_logs에 남긴다.
 //                  자기 자신의 마스터 해제 불가.
 //   permission_logs { id } — 해당 직원의 권한 변경 이력
@@ -71,9 +72,19 @@ export async function GET() {
       error: missing ? '103·104 마이그레이션(직원 확장)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.' : error.message,
     }, { status: 500 })
   }
+  // 휴가 결재 단계(204) — 별도 조회해 합친다. 미적용이면 leaveLevelReady=false 로 화면이 칸을 끈다
+  let leaveLevelReady = true
+  if (data?.length) {
+    const { data: lv, error: lvErr } = await admin.from('employees').select('id, leave_approve_level')
+    if (lvErr) leaveLevelReady = false
+    else {
+      const m = new Map((lv ?? []).map(r => [r.id as string, r.leave_approve_level as number | null]))
+      data = data.map(e => ({ ...e, leave_approve_level: m.get(e.id as string) ?? null }))
+    }
+  }
   return NextResponse.json({
     employees: data ?? [],
-    permissionsReady, birthdayReady,
+    permissionsReady, birthdayReady, leaveLevelReady,
     me: { employeeId: g.me.employeeId, isMaster: g.me.isMaster, canEdit: g.me.isMaster || can(g.me, 'hr', 'edit') },
   })
 }
@@ -119,12 +130,29 @@ export async function POST(req: NextRequest) {
     }
     const { error: uErr } = await admin.from('employees').update(after).eq('id', id)
     if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 })
+    // 휴가 결재 단계(204) — 따로 저장해 204 미적용이어도 나머지 권한 저장은 된다
+    let leaveLevelChange: { before: number | null; after: number | null } | null = null
+    if ('leave_approve_level' in raw) {
+      const v = raw.leave_approve_level
+      const lvAfter = v === 1 || v === 2 || v === 3 ? v : null
+      const { data: cur, error: cErr } = await admin.from('employees').select('leave_approve_level').eq('id', id).maybeSingle()
+      if (cErr) {
+        return NextResponse.json({ error: '권한은 저장했지만 휴가 결재 단계는 저장하지 못했습니다 — 204 마이그레이션을 먼저 실행해주세요.' }, { status: 500 })
+      }
+      const lvBefore = (cur?.leave_approve_level as number | null) ?? null
+      if (lvBefore !== lvAfter) {
+        const { error: lErr } = await admin.from('employees').update({ leave_approve_level: lvAfter }).eq('id', id)
+        if (lErr) return NextResponse.json({ error: lErr.message }, { status: 500 })
+        leaveLevelChange = { before: lvBefore, after: lvAfter }
+      }
+    }
     const beforeState: Record<string, unknown> = { ...(before as Record<string, unknown>) }
     delete beforeState.id
     delete beforeState.name
     await admin.from('employee_permission_logs').insert({
       employee_id: id, changed_by: g.me.employeeId,
-      before_state: beforeState, after_state: after,
+      before_state: leaveLevelChange ? { ...beforeState, leave_approve_level: leaveLevelChange.before } : beforeState,
+      after_state: leaveLevelChange ? { ...after, leave_approve_level: leaveLevelChange.after } : after,
       note: typeof raw.note === 'string' ? raw.note : null,
     })
     return NextResponse.json({ ok: true })

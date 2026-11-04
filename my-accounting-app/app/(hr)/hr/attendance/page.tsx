@@ -7,6 +7,8 @@ import {
   type AttendanceLeave, type AttendancePolicy, type AttendanceRecord,
   type DayStatusKind, type HolidayMap, type LeaveType,
 } from '@/lib/attendance'
+import { emptyRoster, type ApproveLevel, type ApproverRoster, type LeaveStep } from '@/lib/leave-approval'
+import LeaveSteps from '@/components/hr/LeaveSteps'
 
 // 내 근태 (직원 관리 모드) — 출퇴근 체크 + 월별 내 기록 + 휴가 신청
 // 휴가 승인은 상단 "휴가 승인" 메뉴 (중간 관리자·전체 관리자)
@@ -35,9 +37,11 @@ const STATUS_COLOR: Record<DayStatusKind, string> = {
   holiday: 'bg-rose-100 text-rose-600', none: 'bg-gray-50 text-gray-300',
 }
 const EMPTY_FORM = { leave_type: 'annual' as LeaveType, start_date: '', end_date: '', reason: '' }
+const EMPTY_SKIP = { s1: false, s2: false, note: '' }   // 신청자 전결 (1 · 2차, 2026-11-04)
 type MyLeave = AttendanceLeave & {
   decided_by_name?: string | null; decided_at?: string | null
   days?: number                    // 근무일 기준 일수 (주말·공휴일 제외, 반차 0.5) — 서버 계산
+  steps?: LeaveStep[]              // 3단계 결재 이력 (204)
 }
 const fmtDay = (iso: string | null | undefined) =>
   iso ? new Date(new Date(iso).getTime() + 9 * 3600 * 1000).toISOString().slice(5, 10).replace('-', '/') : ''
@@ -48,6 +52,9 @@ export default function MyAttendancePage() {
   const [month, setMonth] = useState(kstMonthNow())
   const [myLeaves, setMyLeaves] = useState<MyLeave[]>([])
   const [leaveHolidays, setLeaveHolidays] = useState<HolidayMap>({})   // 신청 양식 일수 미리보기용
+  const [approval, setApproval] = useState<{ ready: boolean; myLevel: ApproveLevel | null; roster: ApproverRoster }>(
+    { ready: false, myLevel: null, roster: emptyRoster() })
+  const [skip, setSkip] = useState({ ...EMPTY_SKIP })
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -75,12 +82,13 @@ export default function MyAttendancePage() {
     const json = await res.json()
     if (!res.ok) { setError(json.error ?? '휴가 조회 실패'); return }
     setMyLeaves(json.leaves); setLeaveHolidays(json.holidays ?? {})
+    setApproval({ ready: !!json.stepsReady, myLevel: json.myLevel ?? null, roster: json.roster ?? emptyRoster() })
   }, [])
 
   useEffect(() => { loadStatus(); loadLeaves() }, [loadStatus, loadLeaves])
   useEffect(() => { loadMonth() }, [loadMonth])
 
-  const post = async (url: string, body: Record<string, string>) => {
+  const post = async (url: string, body: Record<string, unknown>) => {
     setBusy(true)
     const res = await fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -103,9 +111,14 @@ export default function MyAttendancePage() {
   const requestLeave = async () => {
     if (!form.start_date) { flash('시작일을 입력하세요.'); return }
     const end = form.end_date || form.start_date
-    if (await post('/api/attendance/leaves', { action: 'request', ...form, end_date: end })) {
-      flash('휴가 신청 완료 (승인 대기)')
-      setForm({ ...EMPTY_FORM }); setShowLeaveForm(false); loadLeaves()
+    const skipSteps = [skip.s1 && 1, skip.s2 && 2].filter((n): n is number => !!n)
+      .filter(n => n > (approval.myLevel ?? 0))
+    if (skipSteps.length && !skip.note.trim()) { flash('전결할 때는 전결 사유를 입력하세요.'); return }
+    if (await post('/api/attendance/leaves', {
+      action: 'request', ...form, end_date: end, skip_steps: skipSteps, skip_note: skip.note.trim(),
+    })) {
+      flash(approval.myLevel === 3 ? '휴가 신청 완료 (3차 결재 권한자 — 자동 승인)' : '휴가 신청 완료 (결재 진행 중)')
+      setForm({ ...EMPTY_FORM }); setSkip({ ...EMPTY_SKIP }); setShowLeaveForm(false); loadLeaves()
     }
   }
 
@@ -288,6 +301,7 @@ export default function MyAttendancePage() {
                       <span className="text-gray-400"> (달력 {formSpan}일 중 주말 · 공휴일 제외)</span>}</>}
               </p>
             )}
+            {approval.ready && <ApprovalLine approval={approval} skip={skip} setSkip={setSkip} />}
           </div>
         )}
         <table className="w-full text-sm mt-3">
@@ -297,6 +311,10 @@ export default function MyAttendancePage() {
                 <td className="py-1.5 pr-3 font-medium">{LEAVE_TYPE_LABEL[l.leave_type]}</td>
                 <td className="py-1.5 px-3 tabular-nums text-xs whitespace-nowrap">{leavePeriodText(l, l.days)}</td>
                 <td className="py-1.5 px-3 text-xs text-gray-500">{l.reason ?? ''}</td>
+                <td className="py-1.5 px-3">
+                  <LeaveSteps steps={l.steps ?? []} status={l.status} roster={approval.roster}
+                    applicantId={l.employee_id} decidedByName={l.decided_by_name} stepsReady={approval.ready} />
+                </td>
                 <td className="py-1.5 px-3">
                   <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
                     l.status === 'approved' ? 'bg-green-100 text-green-700'
@@ -312,7 +330,7 @@ export default function MyAttendancePage() {
                 <td className="py-1.5 pl-3 text-right">
                   {l.status === 'requested' && (
                     <button onClick={() => cancelLeave(l.id)} disabled={busy}
-                      className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">취소</button>
+                      className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">신청 취소</button>
                   )}
                 </td>
               </tr>
@@ -323,6 +341,48 @@ export default function MyAttendancePage() {
           </tbody>
         </table>
       </div>
+    </div>
+  )
+}
+
+// 신청 양식의 결재선 — 단계별 권한자 · 본인 단계 자동 통과 · 1 · 2차 전결 선택 (2026-11-04 결정)
+function ApprovalLine({ approval, skip, setSkip }: {
+  approval: { myLevel: ApproveLevel | null; roster: ApproverRoster }
+  skip: { s1: boolean; s2: boolean; note: string }
+  setSkip: (f: (s: { s1: boolean; s2: boolean; note: string }) => { s1: boolean; s2: boolean; note: string }) => void
+}) {
+  const lv = approval.myLevel ?? 0
+  const names = (l: ApproveLevel) => approval.roster[l].map(p => `${p.name}${p.position ? ` ${p.position}` : ''}`).join(' · ') || '지정된 권한자 없음'
+  const anySkip = (skip.s1 && lv < 1) || (skip.s2 && lv < 2)
+  const Row = ({ l }: { l: ApproveLevel }) => (
+    <div className="flex items-center gap-3 py-1">
+      <span className="w-8 text-xs font-bold text-gray-500">{l}차</span>
+      <span className="w-48 text-xs text-gray-700 truncate">{l <= lv ? '본인' : names(l)}</span>
+      {l <= lv ? <span className="text-xs text-gray-400">자동 통과</span>
+        : l === 3 ? <span className="text-xs text-gray-400">신청자 전결 불가 — 부재 시 2차 권한자가 전결</span>
+        : (
+          <label className="text-xs text-gray-700 flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" checked={l === 1 ? skip.s1 : skip.s2}
+              onChange={e => setSkip(s => (l === 1 ? { ...s, s1: e.target.checked } : { ...s, s2: e.target.checked }))} />
+            전결 (승인권자 부재)
+          </label>
+        )}
+    </div>
+  )
+  return (
+    <div className="col-span-full border border-gray-200 rounded-lg px-3 py-2">
+      <div className="text-[11px] font-bold text-gray-500 mb-0.5">결재선</div>
+      <Row l={1} /><Row l={2} /><Row l={3} />
+      {lv === 3 && <p className="text-xs text-gray-500 mt-1">3차 결재 권한자 본인 신청은 신청 즉시 승인되고 마스터 계정에 알림이 갑니다.</p>}
+      {anySkip && (
+        <div className="mt-1.5">
+          <label className="block text-[11px] text-gray-500 font-semibold mb-1">전결 사유 (필수)</label>
+          <input value={skip.note} onChange={e => { const v = e.target.value; setSkip(s => ({ ...s, note: v })) }}
+            placeholder="예: 팀장 출장"
+            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+          <p className="text-[11px] text-amber-700 mt-1">전결한 단계의 승인권자에게는 나중에 알림이 가고, 휴가 목록에 &ldquo;신청자 전결&rdquo;과 사유가 남습니다.</p>
+        </div>
+      )}
     </div>
   )
 }

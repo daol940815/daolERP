@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import {
   DAY_STATUS_LABEL, DOW_LABEL, LEAVE_TYPE_LABEL,
   dayOfWeek, isOffKind, judgeDay, kstMonthNow, kstTime, monthDates, summarizeMonth,
@@ -33,7 +34,10 @@ interface MonthRes {
   holidayYearCount: number
 }
 interface HolidayRow { holiday_date: string; name: string; source: 'public' | 'company' }
-type LeaveRow = AttendanceLeave & { employee?: { name: string; team: string | null } | null; days?: number }
+type LeaveRow = AttendanceLeave & {
+  employee?: { name: string; team: string | null } | null; days?: number
+  actions?: { myTurn: boolean }
+}
 type Filter = 'all' | 'late' | 'absent' | 'missing'
 
 const STATUS_COLOR: Record<DayStatusKind, string> = {
@@ -76,7 +80,7 @@ export default function AttendanceAdminPage() {
     if (!res.ok) { setError(json.error ?? '조회 실패'); setLoading(false); return }
     setError(null); setData(json)
     const json2 = await res2.json().catch(() => ({}))
-    if (res2.ok) setPending(json2.leaves)
+    if (res2.ok) setPending(json2.leaves as LeaveRow[])
     else setError(json2.error ?? '휴가 승인 대기 조회 실패')
     setLoading(false)
   }, [month])
@@ -182,10 +186,8 @@ export default function AttendanceAdminPage() {
     })) { flash('정책 저장 완료'); setPolicyEdit(null); load() }
   }
 
-  const decide = async (id: string, action: 'approve' | 'reject') => {
-    const note = action === 'reject' ? (window.prompt('반려 사유를 입력하세요 (선택):') ?? '') : ''
-    if (await post('/api/attendance/leaves', { action, id, note })) { flash('처리했습니다.'); load() }
-  }
+  // 휴가 결재는 휴가 목록에서 한다 (2026-11-04 3단계 결재) — 여기서는 진행 중 · 내 차례 건수만
+  const myTurn = pending.filter(l => l.actions?.myTurn)
 
   const kpiCard = (label: string, value: string | number, f: Filter, tone = 'text-gray-900') => (
     <button onClick={() => setFilter(filter === f ? 'all' : f)}
@@ -355,28 +357,15 @@ export default function AttendanceAdminPage() {
         {kpiCard('퇴근 미기록 발생 (인원)', totals.missing, 'missing', 'text-orange-600')}
       </div>
 
-      {/* 휴가 승인 대기 */}
+      {/* 휴가 결재 — 처리는 휴가 목록에서 */}
       {pending.length > 0 && (
-        <div className="bg-white border border-amber-200 rounded-xl p-4 mb-4">
-          <h2 className="font-bold text-gray-900">휴가 승인 대기 <span className="text-sm text-amber-600">{pending.length}건</span></h2>
-          <table className="w-full text-sm mt-2">
-            <tbody>
-              {pending.map(l => (
-                <tr key={l.id} className="border-b border-gray-50">
-                  <td className="py-1.5 pr-3 font-semibold">{l.employee?.name ?? '-'}</td>
-                  <td className="py-1.5 px-3 font-medium">{LEAVE_TYPE_LABEL[l.leave_type]}</td>
-                  <td className="py-1.5 px-3 tabular-nums text-xs whitespace-nowrap">{leavePeriodText(l, l.days)}</td>
-                  <td className="py-1.5 px-3 text-xs text-gray-500">{l.reason ?? ''}</td>
-                  <td className="py-1.5 pl-3 text-right whitespace-nowrap">
-                    <button onClick={() => decide(l.id, 'approve')} disabled={busy}
-                      className="text-xs px-2.5 py-1 bg-slate-900 text-white rounded mr-1 hover:bg-slate-700">승인</button>
-                    <button onClick={() => decide(l.id, 'reject')} disabled={busy}
-                      className="text-xs px-2.5 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50">반려</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="bg-white border border-amber-200 rounded-xl px-4 py-3 mb-4 flex items-center gap-3 flex-wrap text-sm">
+          <span className="font-bold text-gray-900">휴가 결재</span>
+          {myTurn.length > 0 && <span className="text-amber-700 font-semibold">내 차례 {myTurn.length}건</span>}
+          <span className="text-gray-500">진행 중 {pending.length}건
+            {myTurn[0] && ` · ${myTurn[0].employee?.name ?? ''} ${LEAVE_TYPE_LABEL[myTurn[0].leave_type]} ${leavePeriodText(myTurn[0], myTurn[0].days)}${myTurn.length > 1 ? ` 외 ${myTurn.length - 1}` : ''}`}
+          </span>
+          <Link href="/hr/leaves" className="ml-auto text-xs px-3 py-1.5 bg-slate-900 text-white rounded-lg hover:bg-slate-700">휴가 목록에서 처리</Link>
         </div>
       )}
 

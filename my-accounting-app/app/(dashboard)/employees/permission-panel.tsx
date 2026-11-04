@@ -18,6 +18,7 @@ export interface PermEmp {
   can_approve: boolean | null
   can_view_salary: boolean | null
   can_view_payment_info: boolean | null
+  leave_approve_level?: number | null      // 휴가 결재 단계 1·2·3 (204)
   login_id: string | null
   position: string | null
 }
@@ -35,7 +36,7 @@ const SCREENS: Record<GroupKey, string> = {
   accounting: '업로드 · 통장·카드·계산서 내역 · 현금영수증 · 미수금·미지급금 관리',
   closing: '월별 손익 · 부가세 · 분개 · 원장 · 기초잔액 · 계정과목',
   tools: '연결 키워드 · 중복 정리 · 정산 대조 · 이중계상 · VIP 선결제',
-  hr: '직원·계정·권한 · 근태 현황 · 휴가 승인',
+  hr: '직원·계정·권한 · 근태 현황 · 휴가 목록 · 스케줄',
   mgmt: '대시보드 · 자금·계좌 · 대출 · 매출 현황 (조회 전용)',
 }
 
@@ -45,10 +46,11 @@ interface LogRow {
   changer: { name: string } | { name: string }[] | null
 }
 
-export default function PermissionPanel({ emp, others, canEdit, onClose, onSaved }: {
+export default function PermissionPanel({ emp, others, canEdit, leaveLevelReady = false, onClose, onSaved }: {
   emp: PermEmp
   others: PermEmp[]
   canEdit: boolean
+  leaveLevelReady?: boolean
   onClose: () => void
   onSaved: () => void
 }) {
@@ -62,6 +64,7 @@ export default function PermissionPanel({ emp, others, canEdit, onClose, onSaved
   const [approve, setApprove] = useState(emp.can_approve === true)
   const [salary, setSalary] = useState(emp.can_view_salary === true)
   const [payment, setPayment] = useState(emp.can_view_payment_info === true)
+  const [leaveLevel, setLeaveLevel] = useState<number | null>(emp.leave_approve_level ?? null)
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
@@ -88,6 +91,7 @@ export default function PermissionPanel({ emp, others, canEdit, onClose, onSaved
         action: 'set_permissions', id: emp.id, team: team || null, employment_type: employment,
         work_start: workStart || null, work_end: workEnd || null, is_master: isMaster, permissions: perm,
         can_approve: approve, can_view_salary: salary, can_view_payment_info: payment, note: note || null,
+        ...(leaveLevelReady ? { leave_approve_level: leaveLevel } : {}),
       }) })
     const json = await res.json().catch(() => ({}))
     setBusy(false)
@@ -202,7 +206,23 @@ export default function PermissionPanel({ emp, others, canEdit, onClose, onSaved
             <tr className="bg-gray-50/70"><td colSpan={5} className="py-1.5 px-3 text-[11px] font-bold text-gray-500">별도 잠금 · 승인 · 마스터</td></tr>
             <Toggle v={salary} set={setSalary} label="급여 정보 열람" hint="인사·총무 권한과 별개. 없으면 급여 칸이 가려짐" />
             <Toggle v={payment} set={setPayment} label="결제정보 열람" hint="상담일지 고객 결제정보. 없으면 본인 작성분만" />
-            <Toggle v={approve} set={setApprove} label="승인권" hint="주문 수정 승인 · 휴가 승인 · 팀 업무 현황" />
+            <Toggle v={approve} set={setApprove} label="승인권" hint="주문 수정 승인 · 팀 업무 현황 (휴가는 아래 휴가 결재 단계)" />
+            <tr className="border-b border-gray-50">
+              <td className="py-2 px-3 font-medium">휴가 결재 단계</td>
+              <td colSpan={3} className="text-center py-2">
+                {leaveLevelReady ? (
+                  <div className="inline-flex border border-gray-300 rounded overflow-hidden text-xs">
+                    {([null, 1, 2, 3] as (number | null)[]).map(v => (
+                      <button key={String(v)} type="button" disabled={!canEdit} onClick={() => setLeaveLevel(v)}
+                        className={`px-2 py-0.5 ${leaveLevel === v ? 'bg-slate-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'} disabled:cursor-default`}>
+                        {v ? `${v}차` : '없음'}
+                      </button>
+                    ))}
+                  </div>
+                ) : <span className="text-[11px] text-gray-400">204 마이그레이션 후 설정</span>}
+              </td>
+              <td className="py-2 px-3 text-[11px] text-gray-400">숫자가 높을수록 상위. 2차는 3차 전결 가능. 본인 휴가는 자기 단계 이하 자동 통과</td>
+            </tr>
             <Toggle v={isMaster} set={setIsMaster} label="마스터 계정" hint="전 영역 수정 + 권한 편집. 자기 자신은 해제 불가" />
           </tbody>
         </table>
