@@ -46,6 +46,7 @@ export const MENU: MenuGroup[] = [
     { label: '영업일지', href: '/me/journal' },
     { label: '업무일지', href: '/me/worklog' },
     { label: '근태 · 휴가', href: '/hr/attendance' },
+    { label: '휴가 목록', href: '/hr/leaves' },   // 전 직원 휴가 + 3단계 결재 (2026-11-04, 옛 /hr/approvals 통합)
   ]},
   { key: 'customers', area: 'sales', label: '거래처 관리', items: [
     // 고객 관리(거래처 담당자, /sales-hub/contacts)는 매출처 관리 안의 [지점 기준|고객 기준] 토글로 진입
@@ -70,7 +71,7 @@ export const MENU: MenuGroup[] = [
   ]},
   { key: 'team', area: 'sales', label: '팀 관리', items: [
     { label: '주문 수정 승인', href: '/orders/approvals' },
-    { label: '휴가 승인', href: '/hr/approvals' },
+    // 휴가 승인은 내 업무 › 휴가 목록으로 통합 (2026-11-04)
     { label: '팀 업무 현황', href: '/me/team-worklog' },
   ]},
 
@@ -110,7 +111,7 @@ export const MENU: MenuGroup[] = [
   { key: 'hr', area: 'hr', label: '인사 · 총무', items: [
     { label: '직원 · 계정 · 권한', href: '/employees' },
     { label: '근태 현황', href: '/hr/admin' },
-    { label: '휴가 승인', href: '/hr/approvals' },
+    { label: '휴가 목록', href: '/hr/leaves' },
     { label: '스케줄', href: '/hr/schedule' },
   ]},
 

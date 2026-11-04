@@ -5,20 +5,32 @@ import {
   HALF_DAY_TYPES, LEAVE_TYPE_LABEL, kstToday, leaveDays,
   type AttendanceLeave, type HolidayMap, type LeaveType,
 } from '@/lib/attendance'
+import {
+  NO_ACTIONS, currentStep, isComplete, leaveActions, requestSteps, stepsToApprove,
+  type LeaveActions, type LeaveStep,
+} from '@/lib/leave-approval'
+import { levelPeople, loadApprovalCtx, loadSteps, turnPeople } from '@/lib/leave-approval.server'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { sendPush, approverIds } from '@/lib/push-server'
 
 export const dynamic = 'force-dynamic'
 
-// 휴가 신청·승인
-// GET ?scope=self|all[&status=requested]
-//   self: 내 신청 이력 / all: 전 직원 (중간 관리자·전체 관리자 — 승인 화면용)
+// 휴가 신청 · 3단계 결재 (200 · 204)
+// GET ?scope=self|all[&status=][&from=&to=]
+//   self: 내 신청 이력 / all: 전 직원 휴가 목록 — 전 직원이 본다(2026-11-04 결정).
+//   신청 사유 · 결재 사유는 본인 · 결재 권한자 · 인사·총무 수정 권한자에게만 내려준다(나머지는 null).
+//   행마다 결재 이력(steps) · 현재 단계 · 내가 할 수 있는 행동(actions)을 붙인다.
 // POST body.action:
-//   request { leave_type, start_date, end_date, reason? } — 본인 신청. 반차는 하루짜리만
-//   cancel  { id, note? } — 본인의 승인 대기 건 취소.
-//     승인된 건은 인사·총무 수정 권한자만 취소 가능하고 사유(note)가 필수다
-//     (2026-10-12 사용자 결정: 승인권자가 아니라 인사·총무에서 통제. 지난 날짜도 취소 허용)
-//   approve / reject { id, note? } — 중간 관리자·전체 관리자.
-//     중간 관리자는 본인 신청을 스스로 승인·반려할 수 없다
+//   request { leave_type, start_date, end_date, reason?, skip_steps?: [1,2], skip_note? }
+//     본인 신청. 본인 결재 단계 이하는 자동 통과, 고른 1·2차는 신청자 전결(사유 필수).
+//     3차 권한자 본인 신청은 1~3차 모두 자동 통과 → 즉시 승인(마스터 계정에 알림).
+//   approve { id } — 현재 단계 이상 권한자. 처리자 단계까지 한 번에 통과(하위 칸은 '상위 결재').
+//   proxy   { id, note } — 3차 전결. 2차 권한자만, 사유 필수.
+//   reject  { id, note? } — 현재 단계를 처리할 수 있는 사람(3차 단계는 2차 권한자 포함).
+//   cancel  { id, note? } — 본인의 진행 중 건 취소. 승인된 건은 인사·총무 수정 권한자만, 사유 필수
+//     (2026-10-12 결정, 지난 날짜도 허용).
+//   본인 건은 누구도 본인이 결재하지 못한다.
+// 204 미적용이면 기존 1단계 승인(중간 관리자 · 승인권자)으로 동작한다.
 
 const MIGRATION_HINT = '200 마이그레이션(근태)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
 const missingTable = (msg: string) => /attendance_|relation .* does not exist/i.test(msg)
@@ -28,6 +40,8 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const LEAVE_COLS = 'id, employee_id, leave_type, start_date, end_date, reason, status, decided_by, decided_at, decide_note, created_at'
 
 type Admin = Extract<Awaited<ReturnType<typeof getAttendanceEmployee>>, { admin: unknown }>['admin']
+type Row = Record<string, unknown>
+type PgRes = { data: Row[] | null; error: { message: string } | null }
 
 // 공휴일 맵 — 휴가 일수(주말·공휴일 제외)를 세기 위해. 201 미적용이면 빈 맵(주말만 제외)으로 동작
 async function loadHolidays(admin: Admin, from: string, to: string): Promise<HolidayMap> {
@@ -39,59 +53,101 @@ async function loadHolidays(admin: Admin, from: string, to: string): Promise<Hol
   return map
 }
 
+const periodText = (start: string, end: string) => `${start}${end !== start ? ` ~ ${end}` : ''}`
+
 export async function GET(req: NextRequest) {
   // 직원 정보가 없는 계정도 자동 연결되므로 등급 구분 없이 본인 휴가를 볼 수 있다
   const ctx = await getAttendanceEmployee()
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
   const { me, employeeId, admin } = ctx
 
-  const scope = req.nextUrl.searchParams.get('scope') === 'all' ? 'all' : 'self'
-  const status = req.nextUrl.searchParams.get('status')
-  if (scope === 'all' && !isManagerLike(me)) {
-    return NextResponse.json({ error: '전 직원 조회는 관리자만 가능합니다.' }, { status: 403 })
+  const sp = req.nextUrl.searchParams
+  const scope = sp.get('scope') === 'all' ? 'all' : 'self'
+  const status = sp.get('status')
+  const from = DATE_RE.test(sp.get('from') ?? '') ? sp.get('from') : null
+  const to = DATE_RE.test(sp.get('to') ?? '') ? sp.get('to') : null
+
+  const fetched = await fetchAllRows<Row>((a, b) => {
+    let q = admin.from('attendance_leaves').select(LEAVE_COLS)
+      .order('created_at', { ascending: false }).range(a, b)
+    if (scope === 'self') q = q.eq('employee_id', employeeId)
+    if (status) q = q.eq('status', status)
+    if (from) q = q.gte('end_date', from)      // 기간과 겹치는 휴가
+    if (to) q = q.lte('start_date', to)
+    return q as unknown as PromiseLike<PgRes>
+  })
+  if ('error' in fetched) {
+    return NextResponse.json({ error: missingTable(fetched.error) ? MIGRATION_HINT : fetched.error }, { status: 500 })
   }
+  const base = fetched.data
+  const appr = await loadApprovalCtx(admin)
+  const myLevel = appr.levelOf(employeeId)
+  const hrAdmin = isHrAdmin(me)
+  const legacyApprover = isManagerLike(me)
 
-  let q = admin.from('attendance_leaves')
-    .select(LEAVE_COLS)
-    .order('created_at', { ascending: false }).limit(200)
-  if (scope === 'self') q = q.eq('employee_id', employeeId)
-  if (status) q = q.eq('status', status)
-
-  const { data, error } = await q
-  if (error) {
-    return NextResponse.json({ error: missingTable(error.message) ? MIGRATION_HINT : error.message }, { status: 500 })
-  }
-
-  // 직원명은 별도 조회 후 합침 (FK 임베드 대신 — 관계명 의존 없이 동작)
-  // 신청자(employee)와 승인·반려·취소한 사람(decided_by_name)을 함께 붙인다 — 누가 조치했는지 표시용 (2026-11-03)
-  let leaves: Record<string, unknown>[] = data ?? []
-  if (leaves.length) {
-    const ids = Array.from(new Set([
-      ...leaves.map(l => l.employee_id as string),
-      ...leaves.map(l => l.decided_by as string | null).filter((v): v is string => !!v),
-    ]))
-    const { data: emps, error: eErr } = await admin.from('employees')
-      .select('id, name, team').in('id', ids)
+  // 신청자 · 최종 처리자 이름 (FK 임베드 대신 별도 조회 — 관계명 의존 없이)
+  const ids = Array.from(new Set([
+    ...base.map(l => l.employee_id as string),
+    ...base.map(l => l.decided_by as string | null).filter((v): v is string => !!v),
+  ]))
+  const byId = new Map<string, { name: string; team: string | null }>()
+  for (let i = 0; i < ids.length; i += 150) {
+    const { data: emps, error: eErr } = await admin.from('employees').select('id, name, team').in('id', ids.slice(i, i + 150))
     if (eErr) return NextResponse.json({ error: eErr.message }, { status: 500 })
-    const byId = new Map((emps ?? []).map(e => [e.id as string, e]))
-    leaves = leaves.map(l => ({
-      ...l,
-      employee: byId.get(l.employee_id as string) ?? null,
-      decided_by_name: l.decided_by ? (byId.get(l.decided_by as string)?.name ?? null) : null,
-    }))
+    for (const e of emps ?? []) byId.set(e.id as string, { name: e.name as string, team: e.team as string | null })
   }
-  // 근무일 기준 일수 — 주말·공휴일 제외, 반차 0.5 (2026-11-04: 주말이 포함된 것처럼 보이던 표시 수정)
+
+  let stepMap = new Map<string, LeaveStep[]>()
+  if (appr.ready && base.length) {
+    try { stepMap = await loadSteps(admin, base.map(l => l.id as string)) }
+    catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 500 }) }
+  }
+
+  // 근무일 기준 일수 — 주말·공휴일 제외, 반차 0.5 (2026-11-04)
   // holidays 는 신청 양식의 일수 미리보기용으로 함께 내려준다 (작년 1월 ~ 내년 12월 + 조회된 휴가 기간)
   const year = Number(kstToday().slice(0, 4))
-  let from = `${year - 1}-01-01`, to = `${year + 1}-12-31`
-  for (const l of leaves) {
-    if ((l.start_date as string) < from) from = l.start_date as string
-    if ((l.end_date as string) > to) to = l.end_date as string
+  let hFrom = `${year - 1}-01-01`, hTo = `${year + 1}-12-31`
+  for (const l of base) {
+    if ((l.start_date as string) < hFrom) hFrom = l.start_date as string
+    if ((l.end_date as string) > hTo) hTo = l.end_date as string
   }
-  const holidays = await loadHolidays(admin, from, to)
-  leaves = leaves.map(l => ({ ...l, days: leaveDays(l as unknown as AttendanceLeave, undefined, undefined, holidays) }))
-  // can_edit = 승인된 휴가 취소 권한 (취소 버튼 노출용 — 실제 차단은 POST에서)
-  return NextResponse.json({ leaves, holidays, myEmployeeId: employeeId, can_edit: isHrAdmin(me) })
+  const holidays = await loadHolidays(admin, hFrom, hTo)
+
+  const leaves = base.map(l => {
+    const id = l.id as string
+    const mine = l.employee_id === employeeId
+    const st = l.status as string
+    const steps = stepMap.get(id) ?? []
+    const acts: LeaveActions = appr.ready
+      ? leaveActions({ applicantId: l.employee_id as string, status: st, steps, myId: employeeId, myLevel, roster: appr.roster })
+      : (st === 'requested' && legacyApprover && (hrAdmin || !mine))
+        ? { approve: true, proxy: false, reject: true, myTurn: true }
+        : NO_ACTIONS
+    // 사유(병가 · 경조사 내용)는 본인 · 결재 권한자 · 인사·총무 수정 권한자만 (2026-11-04 시안 기준 B)
+    const canSee = mine || hrAdmin || (appr.ready ? !!myLevel : legacyApprover)
+    return {
+      ...l,
+      reason: canSee ? l.reason : null,
+      reason_hidden: !canSee && !!l.reason,
+      decide_note: canSee ? l.decide_note : null,
+      employee: byId.get(l.employee_id as string) ?? null,
+      decided_by_name: l.decided_by ? (byId.get(l.decided_by as string)?.name ?? null) : null,
+      days: leaveDays(l as unknown as AttendanceLeave, undefined, undefined, holidays),
+      steps: canSee ? steps : steps.map(s => ({ ...s, note: null })),
+      current_step: appr.ready && st === 'requested' ? currentStep(steps) : null,
+      actions: {
+        ...acts,
+        cancel: mine && st === 'requested',
+        cancel_approved: hrAdmin && st === 'approved',
+      },
+    }
+  })
+
+  return NextResponse.json({
+    leaves, holidays, myEmployeeId: employeeId, myLevel,
+    stepsReady: appr.ready, roster: appr.roster,
+    can_edit: hrAdmin,   // 승인된 휴가 취소 권한 (버튼 노출용 — 실제 차단은 POST에서)
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -99,14 +155,16 @@ export async function POST(req: NextRequest) {
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
   const { me, employeeId, admin } = ctx
 
-  const body = await req.json().catch(() => ({})) as Record<string, string | undefined>
-  const action = body.action
+  const raw = await req.json().catch(() => ({})) as Record<string, unknown>
+  const str = (k: string) => (typeof raw[k] === 'string' ? (raw[k] as string) : '')
+  const action = str('action')
   const now = new Date().toISOString()
+  const myName = me.employeeName ?? '직원'
 
   if (action === 'request') {
-    const leaveType = body.leave_type as LeaveType
-    const start = body.start_date ?? ''
-    const end = body.end_date ?? ''
+    const leaveType = str('leave_type') as LeaveType
+    const start = str('start_date')
+    const end = str('end_date')
     if (!LEAVE_TYPES.includes(leaveType)) return NextResponse.json({ error: '휴가 종류가 올바르지 않습니다.' }, { status: 400 })
     if (!DATE_RE.test(start) || !DATE_RE.test(end)) return NextResponse.json({ error: '날짜 형식은 YYYY-MM-DD' }, { status: 400 })
     if (end < start) return NextResponse.json({ error: '종료일이 시작일보다 빠릅니다.' }, { status: 400 })
@@ -121,7 +179,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '선택한 기간에 근무일이 없습니다. 주말과 공휴일은 휴가 일수에서 제외됩니다.' }, { status: 400 })
     }
 
-    // 기간이 겹치는 기존 신청(대기·승인)이 있으면 중복 신청 차단
+    const appr = await loadApprovalCtx(admin)
+    const myLevel = appr.levelOf(employeeId)
+    const skipRaw = Array.isArray(raw.skip_steps) ? raw.skip_steps : []
+    const pre = appr.ready ? requestSteps(myLevel, skipRaw.filter((n): n is number => n === 1 || n === 2)) : []
+    const skipNote = str('skip_note').trim()
+    if (pre.some(p => p.action === 'skip') && !skipNote) {
+      return NextResponse.json({ error: '전결할 때는 전결 사유를 입력하세요 (예: 팀장 출장).' }, { status: 400 })
+    }
+
+    // 기간이 겹치는 기존 신청(진행 중·승인)이 있으면 중복 신청 차단
     const { data: overlap, error: oErr } = await admin.from('attendance_leaves')
       .select('id, start_date, end_date, status')
       .eq('employee_id', employeeId)
@@ -134,23 +201,67 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `해당 기간에 이미 신청·승인된 휴가가 있습니다 (${overlap[0].start_date}~${overlap[0].end_date}).` }, { status: 400 })
     }
 
-    const { error } = await admin.from('attendance_leaves').insert({
+    const { data: ins, error } = await admin.from('attendance_leaves').insert({
       employee_id: employeeId, leave_type: leaveType,
       start_date: start, end_date: end,
-      reason: (body.reason ?? '').trim() || null,
-    })
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    // PC 알림(업무요청 트랙 ⑦) — 승인권자에게 "휴가 승인 요청". 실패해도 신청은 유지.
-    await sendPush(admin, await approverIds(admin, employeeId), {
-      kind: 'leave_approve', title: `휴가 승인 요청 — ${me.employeeName ?? '직원'}`,
-      body: `${LEAVE_TYPE_LABEL[leaveType] ?? leaveType} ${start}${end !== start ? ` ~ ${end}` : ''} · ${days}일`,
-      url: '/hr/approvals', tag: `leave:${employeeId}:${start}`,
-    })
+      reason: str('reason').trim() || null,
+    }).select('id').single()
+    if (error || !ins) return NextResponse.json({ error: error?.message ?? '신청 실패' }, { status: 500 })
+    const leaveId = ins.id as string
+    const what = `${LEAVE_TYPE_LABEL[leaveType] ?? leaveType} ${periodText(start, end)} · ${days}일`
+
+    if (!appr.ready) {
+      // 204 미적용 — 기존 1단계 승인. 승인권자에게 "휴가 승인 요청"
+      await sendPush(admin, await approverIds(admin, employeeId), {
+        kind: 'leave_approve', title: `휴가 승인 요청 — ${myName}`, body: what,
+        url: '/hr/leaves', tag: `leave:${leaveId}`,
+      })
+      return NextResponse.json({ ok: true })
+    }
+
+    if (pre.length) {
+      const { error: sErr } = await admin.from('attendance_leave_steps').insert(pre.map(p => ({
+        leave_id: leaveId, step: p.step, action: p.action, actor_id: employeeId,
+        actor_level: myLevel, note: p.action === 'skip' ? skipNote : null,
+      })))
+      if (sErr) {
+        await admin.from('attendance_leaves').delete().eq('id', leaveId)   // 결재선이 안 만들어진 신청은 남기지 않는다
+        return NextResponse.json({ error: sErr.message }, { status: 500 })
+      }
+    }
+    const steps: LeaveStep[] = pre.map(p => ({ step: p.step, action: p.action, actor_id: employeeId, actor_level: myLevel, note: null, created_at: now }))
+
+    if (isComplete(steps)) {
+      // 3차 권한자 본인 — 1~3차 자동 통과로 즉시 승인 (시안 기준 C). 마스터 계정에 알림만 보낸다
+      await admin.from('attendance_leaves').update({ status: 'approved', decided_by: employeeId, decided_at: now }).eq('id', leaveId)
+      const { data: masters } = await admin.from('employees').select('id').eq('is_master', true).eq('is_active', true)
+      await sendPush(admin, (masters ?? []).map(m => m.id as string).filter(id => id !== employeeId), {
+        kind: 'leave_approve', title: `휴가 자동 승인 — ${myName} (3차 결재 권한자)`, body: what,
+        url: '/hr/leaves', tag: `leave:${leaveId}`,
+      })
+      return NextResponse.json({ ok: true, approved: true })
+    }
+
+    const next = currentStep(steps)
+    if (next) {
+      await sendPush(admin, turnPeople(next, appr.roster, employeeId), {
+        kind: 'leave_approve', title: `휴가 결재 요청 (${next}차) — ${myName}`, body: what,
+        url: '/hr/leaves', tag: `leave:${leaveId}`,
+      })
+    }
+    // 신청자 전결로 넘어간 단계의 권한자에게 사후 알림
+    const skipped = pre.filter(p => p.action === 'skip').map(p => p.step)
+    if (skipped.length) {
+      await sendPush(admin, skipped.flatMap(s => levelPeople(s, appr.roster, employeeId)), {
+        kind: 'leave_approve', title: `전결로 넘어간 휴가 — ${myName} (${skipped.join(' · ')}차)`,
+        body: `${what} · 전결 사유: ${skipNote}`, url: '/hr/leaves', tag: `leave-skip:${leaveId}`,
+      })
+    }
     return NextResponse.json({ ok: true })
   }
 
   if (action === 'cancel') {
-    const id = body.id
+    const id = str('id')
     if (!id) return NextResponse.json({ error: 'id가 필요합니다.' }, { status: 400 })
     const { data: leave, error: e1 } = await admin.from('attendance_leaves')
       .select('employee_id, status').eq('id', id).single()
@@ -160,10 +271,10 @@ export async function POST(req: NextRequest) {
     const canCancel = (mine && leave.status === 'requested') ||
       (hrAdmin && ['requested', 'approved'].includes(leave.status))
     if (!canCancel) {
-      return NextResponse.json({ error: '취소할 수 없습니다. 본인의 승인 대기 건만 취소 가능하며, 승인된 건은 인사·총무에 요청하세요.' }, { status: 403 })
+      return NextResponse.json({ error: '취소할 수 없습니다. 본인의 진행 중인 신청만 취소 가능하며, 승인된 건은 인사·총무에 요청하세요.' }, { status: 403 })
     }
     // 승인된 건을 되돌리는 것은 나중에 근거를 찾게 되므로 사유를 남긴다
-    const note = (body.note ?? '').trim()
+    const note = str('note').trim()
     if (leave.status === 'approved' && !note) {
       return NextResponse.json({ error: '승인된 휴가를 취소하려면 사유를 입력하세요.' }, { status: 400 })
     }
@@ -175,26 +286,100 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  if (action === 'approve' || action === 'reject') {
-    if (!isManagerLike(me)) return NextResponse.json({ error: '승인 권한이 없습니다.' }, { status: 403 })
-    const id = body.id
+  if (action === 'approve' || action === 'reject' || action === 'proxy') {
+    const id = str('id')
     if (!id) return NextResponse.json({ error: 'id가 필요합니다.' }, { status: 400 })
+    const note = str('note').trim()
     const { data: leave, error: e1 } = await admin.from('attendance_leaves')
-      .select('employee_id, status').eq('id', id).single()
+      .select('employee_id, status, leave_type, start_date, end_date').eq('id', id).single()
     if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
     if (leave.status !== 'requested') {
-      return NextResponse.json({ error: '승인 대기 상태가 아닙니다.' }, { status: 400 })
+      return NextResponse.json({ error: '진행 중인 신청이 아닙니다. 화면을 새로고침하세요.' }, { status: 400 })
     }
-    if (!isHrAdmin(me) && leave.employee_id === employeeId) {
+    const applicantId = leave.employee_id as string
+    if (applicantId === employeeId) {
       return NextResponse.json({ error: '본인 신청은 본인이 결재할 수 없습니다.' }, { status: 403 })
     }
-    const { error } = await admin.from('attendance_leaves').update({
-      status: action === 'approve' ? 'approved' : 'rejected',
-      decided_by: employeeId, decided_at: now,
-      decide_note: (body.note ?? '').trim() || null,
-    }).eq('id', id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ ok: true })
+
+    const appr = await loadApprovalCtx(admin)
+    if (!appr.ready) {
+      // 204 미적용 — 기존 1단계 승인
+      if (action === 'proxy') return NextResponse.json({ error: '전결은 204 마이그레이션 적용 후 사용할 수 있습니다.' }, { status: 400 })
+      if (!isManagerLike(me)) return NextResponse.json({ error: '승인 권한이 없습니다.' }, { status: 403 })
+      const { error } = await admin.from('attendance_leaves').update({
+        status: action === 'approve' ? 'approved' : 'rejected',
+        decided_by: employeeId, decided_at: now, decide_note: note || null,
+      }).eq('id', id).eq('status', 'requested')
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ ok: true })
+    }
+
+    const myLevel = appr.levelOf(employeeId)
+    let steps: LeaveStep[]
+    try { steps = (await loadSteps(admin, [id])).get(id) ?? [] }
+    catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 500 }) }
+    const acts = leaveActions({ applicantId, status: leave.status, steps, myId: employeeId, myLevel, roster: appr.roster })
+    const s = currentStep(steps)
+    if (!myLevel || !s) {
+      return NextResponse.json({ error: '휴가 결재 권한이 없습니다. 결재 단계는 직원 · 계정 · 권한 화면에서 마스터 계정이 지정합니다.' }, { status: 403 })
+    }
+    if (action === 'approve' && !acts.approve) {
+      return NextResponse.json({ error: `지금은 ${s}차 단계입니다. ${s}차 이상 결재 권한자만 승인할 수 있습니다${s === 3 && myLevel === 2 ? ' — 3차 권한자가 부재 중이면 "3차 전결"을 쓰세요' : ''}.` }, { status: 403 })
+    }
+    if (action === 'proxy') {
+      if (!acts.proxy) return NextResponse.json({ error: '3차 전결은 3차 단계에서 2차 결재 권한자만 할 수 있습니다.' }, { status: 403 })
+      if (!note) return NextResponse.json({ error: '전결 사유를 입력하세요 (예: 부사장님 출장).' }, { status: 400 })
+    }
+    if (action === 'reject' && !acts.reject) {
+      return NextResponse.json({ error: `지금은 ${s}차 단계입니다. 이 단계를 처리할 권한이 없습니다.` }, { status: 403 })
+    }
+
+    const add: { step: number; action: string; note: string | null }[] =
+      action === 'approve' ? stepsToApprove(steps, myLevel).map(st => ({ step: st, action: 'approve', note: null }))
+      : action === 'proxy' ? [{ step: 3, action: 'proxy', note }]
+      : [{ step: s, action: 'reject', note: note || null }]
+    const { error: sErr } = await admin.from('attendance_leave_steps').insert(add.map(a => ({
+      leave_id: id, step: a.step, action: a.action, actor_id: employeeId, actor_level: myLevel, note: a.note,
+    })))
+    if (sErr) {
+      const dup = /duplicate|unique/i.test(sErr.message)
+      return NextResponse.json({ error: dup ? '다른 결재자가 먼저 처리했습니다. 화면을 새로고침하세요.' : sErr.message }, { status: dup ? 409 : 500 })
+    }
+    const after: LeaveStep[] = [...steps, ...add.map(a => ({
+      step: a.step as 1 | 2 | 3, action: a.action as LeaveStep['action'], actor_id: employeeId,
+      actor_level: myLevel, note: a.note, created_at: now,
+    }))]
+
+    const { data: who } = await admin.from('employees').select('name').eq('id', applicantId).maybeSingle()
+    const what = `${who?.name ?? ''} ${LEAVE_TYPE_LABEL[leave.leave_type as LeaveType] ?? '휴가'} ${periodText(leave.start_date, leave.end_date)}`
+
+    if (action === 'reject') {
+      await admin.from('attendance_leaves').update({
+        status: 'rejected', decided_by: employeeId, decided_at: now, decide_note: note || null,
+      }).eq('id', id).eq('status', 'requested')
+      return NextResponse.json({ ok: true })
+    }
+    if (isComplete(after)) {
+      await admin.from('attendance_leaves').update({
+        status: 'approved', decided_by: employeeId, decided_at: now,
+      }).eq('id', id).eq('status', 'requested')
+      if (action === 'proxy') {
+        // 3차 전결 — 3차 권한자에게 사후 알림
+        await sendPush(admin, levelPeople(3, appr.roster, applicantId).filter(p => p !== employeeId), {
+          kind: 'leave_approve', title: `3차 전결 처리됨 — ${myName}`, body: `${what} · 전결 사유: ${note}`,
+          url: '/hr/leaves', tag: `leave-proxy:${id}`,
+        })
+      }
+      return NextResponse.json({ ok: true, approved: true })
+    }
+    const next = currentStep(after)
+    if (next) {
+      await sendPush(admin, turnPeople(next, appr.roster, applicantId), {
+        kind: 'leave_approve', title: `휴가 결재 요청 (${next}차) — ${who?.name ?? ''}`, body: what,
+        url: '/hr/leaves', tag: `leave:${id}`,
+      })
+    }
+    return NextResponse.json({ ok: true, next_step: next })
   }
 
   return NextResponse.json({ error: '알 수 없는 action' }, { status: 400 })

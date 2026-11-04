@@ -39,6 +39,7 @@ export default function EmployeesPage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [edit, setEdit] = useState({ name: '', team: '', position: '', phone: '', hire_date: '', birth_date: '', login_id: '' })
   const [birthdayReady, setBirthdayReady] = useState(true)
+  const [leaveLevelReady, setLeaveLevelReady] = useState(false)   // 휴가 결재 단계(204)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [meInfo, setMeInfo] = useState<{ employeeId: string | null; isMaster: boolean; canEdit: boolean }>({ employeeId: null, isMaster: false, canEdit: false })
   const [permReady, setPermReady] = useState(true)
@@ -55,6 +56,7 @@ export default function EmployeesPage() {
       setRows(json.employees)
       if (json.me) setMeInfo(json.me)
       setPermReady(json.permissionsReady !== false); setBirthdayReady(json.birthdayReady !== false)
+      setLeaveLevelReady(json.leaveLevelReady === true)
     }
     setSelected(new Set())
     setLoading(false)
@@ -153,6 +155,8 @@ export default function EmployeesPage() {
 
       {msg && <div className="my-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
       {error && <div className="my-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
+
+      {leaveLevelReady && !loading && <LeaveApprovalLine rows={rows} />}
 
       <div className="flex justify-end items-center gap-2 my-4">
         {selected.size > 0 && (
@@ -262,6 +266,7 @@ export default function EmployeesPage() {
                       {permSummary(r)}
                     </button>
                     {r.can_approve && !r.is_master && <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-blue-50 text-blue-700">승인</span>}
+                    {r.leave_approve_level && <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-violet-50 text-violet-700">휴가 {r.leave_approve_level}차</span>}
                     {r.employment_type === 'parttime' && <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-50 text-amber-700">아르바이트{r.work_end ? ` ~${r.work_end}` : ''}</span>}
                   </td>
                   <td className="py-2 px-3 tabular-nums text-gray-500 text-xs">{r.hire_date ?? '-'}</td>
@@ -306,9 +311,40 @@ export default function EmployeesPage() {
           emp={permTarget}
           others={rows.filter(r => r.id !== permTarget.id)}
           canEdit={meInfo.isMaster}
+          leaveLevelReady={leaveLevelReady}
           onClose={() => setPermTarget(null)}
           onSaved={() => { setPermTarget(null); flash('권한이 저장되었습니다.'); load() }}
         />
+      )}
+    </div>
+  )
+}
+
+// 현재 휴가 결재선 요약 (204, 2026-11-04) — 단계별 지정자 + 비어 있는 단계 경고. 지정은 권한 버튼(마스터)
+function LeaveApprovalLine({ rows }: { rows: Emp[] }) {
+  const active = rows.filter(r => r.is_active !== false)
+  const at = (l: number) => active.filter(r => r.leave_approve_level === l)
+  const missing = [1, 2, 3].filter(l => !at(l).length)
+  const tone: Record<number, string> = { 1: 'bg-sky-50 text-sky-800', 2: 'bg-violet-50 text-violet-800', 3: 'bg-pink-50 text-pink-800' }
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 mt-4">
+      <div className="flex items-center gap-x-5 gap-y-1.5 flex-wrap text-sm">
+        <span className="font-bold text-gray-900">휴가 결재선</span>
+        {[3, 2, 1].map(l => (
+          <span key={l} className="flex items-center gap-1.5">
+            <b className="text-xs text-gray-500">{l}차</b>
+            {at(l).length
+              ? at(l).map(r => <span key={r.id} className={`px-2 py-0.5 rounded-full text-xs ${tone[l]}`}>{r.name}{r.position ? ` ${r.position}` : ''}</span>)
+              : <span className="text-xs text-gray-300">없음</span>}
+          </span>
+        ))}
+      </div>
+      {missing.length > 0 && (
+        <p className="text-xs text-amber-700 mt-1.5">
+          {missing.join(' · ')}차 권한자가 없습니다.
+          {missing.includes(3) ? ' 3차가 없으면 모든 휴가가 2차 전결로만 끝납니다.' : ' 그 단계는 다음 상위 단계 권한자 차례로 넘어갑니다.'}
+          {' '}권한 버튼에서 휴가 결재 단계를 지정하세요(마스터 계정).
+        </p>
       )}
     </div>
   )
