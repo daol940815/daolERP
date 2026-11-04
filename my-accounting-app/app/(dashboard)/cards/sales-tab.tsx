@@ -396,6 +396,12 @@ export default function SalesTab() {
                     <td className="py-2.5 px-3 text-right whitespace-nowrap">
                       <p className={`font-medium ${row.amount < 0 ? 'text-red-600' : 'text-gray-900'}`}>{won(row.amount)}</p>
                       <p className="text-xs text-gray-400">공급 {won(row.supply_amount)} · 세액 {won(row.tax_amount)}</p>
+                      {row.transaction_type === 'approval' && (
+                        <Link href={`/erp-matching?depositId=card:${row.id}`} className="text-[11px] text-sky-700 hover:underline"
+                          title="입금 매칭 화면에서 이 결제건을 주문에 배분">
+                          {row.order_match_count ? `주문 매칭 ${row.order_match_count}건 (${won(row.order_match_amount ?? 0)})` : '주문 매칭 →'}
+                        </Link>
+                      )}
                     </td>
                     <td className="py-2.5 px-3 text-xs text-gray-500 whitespace-nowrap">
                       <p>{row.processing_status ?? '-'} {row.settlement_status ? `· ${row.settlement_status}` : ''}</p>

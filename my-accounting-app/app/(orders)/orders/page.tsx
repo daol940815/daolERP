@@ -5,6 +5,7 @@ import { getPeriodRange } from '@/lib/period-presets'
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import CollectMatchModal from '@/components/erp/CollectMatchModal'
 
 // 주문 현황 (시안 v2) — KPI(클릭=필터) + 통합 검색 + 칩 필터 + 행내 상품 펼치기.
 // 검사 상태(정의 미확정)·배송 컬럼(3단계)은 제외 상태 — 트랙 문서 참고.
@@ -79,6 +80,7 @@ const parseTokens = (q: string) =>
 export default function OrdersHomePage() {
   const router = useRouter()
   const [rows, setRows] = useState<Row[]>([])
+  const [collectFor, setCollectFor] = useState<string | null>(null)   // 수금 매칭 모달 대상 주문 (2026-11-04)
   const [kpi, setKpi] = useState<Kpi | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -351,6 +353,13 @@ export default function OrdersHomePage() {
                         </span>
                       </td>
                       <td className="py-2 px-3 whitespace-nowrap">
+                        {!r.canceled_at && (
+                          <button onClick={e => { e.stopPropagation(); setCollectFor(r.id) }}
+                            className={`mr-1 px-2 py-0.5 text-[11px] rounded ${r.outstanding_amount > 0 ? 'bg-slate-900 text-white hover:bg-slate-700' : 'border border-gray-300 text-gray-500 hover:bg-gray-50'}`}
+                            title="이 주문에 입금·카드결제를 매칭">
+                            수금 매칭
+                          </button>
+                        )}
                         {r.item_count > 0 && (
                           <button onClick={e => { e.stopPropagation(); toggleExpand(r.id) }}
                             className="text-xs text-blue-700 hover:underline">
@@ -413,6 +422,9 @@ export default function OrdersHomePage() {
       <p className="text-xs text-gray-400 mt-2">
         행 클릭 = 상세 · 상품 N = 행에서 펼치기 · 기존 ERP 업로드분과 직접 입력분이 함께 보입니다
       </p>
+      {collectFor && (
+        <CollectMatchModal orderId={collectFor} onClose={() => setCollectFor(null)} onSaved={() => load()} />
+      )}
     </div>
   )
 }
