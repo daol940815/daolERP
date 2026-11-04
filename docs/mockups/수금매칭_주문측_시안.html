@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>주문 쪽 수금 매칭 - 시안</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>.num{font-variant-numeric:tabular-nums}</style>
+</head>
+<body class="bg-slate-50 text-gray-900" style="font-family: Pretendard, -apple-system, 'Malgun Gothic', sans-serif;">
+<div class="max-w-6xl mx-auto p-6">
+
+  <h1 class="text-2xl font-bold">주문 쪽 수금 매칭 — 시안</h1>
+  <p class="text-sm text-gray-500 mt-1">
+    ERP 주문내역·주문 현황의 각 주문 행에 <b>수금 매칭</b> 버튼을 두고, 그 주문의 거래처로 들어온 미배분 결제(은행·카드)를 골라 금액을 붙입니다.
+    한 결제를 여러 주문에 나누는 작업은 입금 매칭 화면으로 이어집니다. 숫자는 예시입니다.
+  </p>
+
+  <!-- 1. 주문 목록 (버튼 위치) -->
+  <h2 class="text-base font-bold mt-6">1. 주문 목록 — 버튼 위치</h2>
+  <div class="bg-white border border-gray-200 rounded-xl overflow-x-auto mt-2">
+    <table class="w-full text-sm num">
+      <thead>
+        <tr class="text-left text-xs text-gray-400 border-b border-gray-200">
+          <th class="py-2.5 px-3 font-medium">주문일</th><th class="py-2.5 px-3 font-medium">주문번호</th><th class="py-2.5 px-3 font-medium">거래처</th>
+          <th class="py-2.5 px-3 font-medium text-right">순매출</th><th class="py-2.5 px-3 font-medium text-right">수금(매칭)</th><th class="py-2.5 px-3 font-medium text-right">미수</th>
+          <th class="py-2.5 px-3 font-medium">상태</th><th class="py-2.5 px-3 font-medium">수금</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        <tr><td class="px-3 py-2">2026-10-21</td><td class="px-3 py-2 text-sky-700">m44hEpA</td><td class="px-3 py-2">하나은행 계동지점</td><td class="px-3 py-2 text-right">2,171,000</td><td class="px-3 py-2 text-right">0</td><td class="px-3 py-2 text-right text-red-600">2,171,000</td><td class="px-3 py-2"><span class="px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-600">미수금</span></td><td class="px-3 py-2"><button class="px-2.5 py-1 border border-slate-900 bg-slate-900 text-white rounded text-xs font-medium">수금 매칭</button></td></tr>
+        <tr class="bg-sky-50"><td class="px-3 py-2">2026-10-22</td><td class="px-3 py-2 text-sky-700">Lp3pxTv</td><td class="px-3 py-2">우리은행 판교역프리미엄금융센터</td><td class="px-3 py-2 text-right">400,000</td><td class="px-3 py-2 text-right">0</td><td class="px-3 py-2 text-right text-red-600">400,000</td><td class="px-3 py-2"><span class="px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-600">미수금</span></td><td class="px-3 py-2"><button class="px-2.5 py-1 border border-slate-900 bg-slate-900 text-white rounded text-xs font-medium ring-2 ring-sky-300">수금 매칭</button> <span class="text-[11px] text-sky-700">← 클릭</span></td></tr>
+        <tr><td class="px-3 py-2">2026-10-22</td><td class="px-3 py-2 text-sky-700">EefRXW6</td><td class="px-3 py-2">(주)하나은행 수서역지점</td><td class="px-3 py-2 text-right">1,114,000</td><td class="px-3 py-2 text-right">1,114,000</td><td class="px-3 py-2 text-right">0</td><td class="px-3 py-2"><span class="px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700">수금완료</span></td><td class="px-3 py-2"><button class="px-2.5 py-1 border border-gray-300 text-gray-500 rounded text-xs">매칭 2건 보기</button></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 2. 모달 -->
+  <h2 class="text-base font-bold mt-8">2. 수금 매칭 모달 (주문 Lp3pxTv)</h2>
+  <div class="mt-2 bg-white border-2 border-gray-300 rounded-2xl shadow-xl max-w-3xl p-5">
+    <div class="flex items-start justify-between">
+      <div>
+        <div class="text-base font-bold">수금 매칭 — 주문 Lp3pxTv</div>
+        <div class="text-xs text-gray-500 mt-0.5">우리은행 판교역프리미엄금융센터 · 2026-10-22 · 순매출 <b>400,000</b> · 기배분 0 · <span class="text-red-600 font-medium">미수 400,000</span></div>
+      </div>
+      <button class="text-gray-400 text-sm">✕</button>
+    </div>
+
+    <!-- 후보 범위 -->
+    <div class="flex flex-wrap items-center gap-3 mt-4 text-xs">
+      <span class="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+        <button class="px-2.5 py-1.5 bg-slate-900 text-white font-medium">이 거래처 결제</button>
+        <button class="px-2.5 py-1.5 bg-white text-gray-600">전체에서 찾기</button>
+      </span>
+      <span class="text-gray-400">전체에서 찾기: 거래처 없는 카드결제·다른 거래처로 연결된 입금까지 — 날짜·금액·카드 끝4자리·입금자로 검색</span>
+    </div>
+    <div class="flex flex-wrap items-center gap-2 mt-2 text-xs">
+      <input class="border border-gray-300 rounded px-2 py-1 w-28" value="2026-10-01" type="date"><span class="text-gray-400">~</span><input class="border border-gray-300 rounded px-2 py-1 w-28" value="2026-11-04" type="date">
+      <input class="border border-gray-300 rounded px-2 py-1 w-24" placeholder="금액">
+      <input class="border border-gray-300 rounded px-2 py-1 w-24" placeholder="카드 끝4자리">
+      <input class="border border-gray-300 rounded px-2 py-1 w-32" placeholder="입금자·적요">
+      <label class="ml-auto inline-flex items-center gap-1 text-gray-600"><input type="checkbox" checked> 미배분 잔액 있는 것만</label>
+    </div>
+
+    <!-- 후보 결제 목록 -->
+    <div class="mt-3 border border-gray-200 rounded-lg overflow-hidden">
+      <table class="w-full text-xs num">
+        <thead class="bg-gray-50 text-gray-400">
+          <tr><th class="py-1.5 px-2 text-left">원천</th><th class="py-1.5 px-2 text-left">일자</th><th class="py-1.5 px-2 text-left">입금자 / 카드번호 · 매입사</th><th class="py-1.5 px-2 text-right">결제액</th><th class="py-1.5 px-2 text-right">미배분</th><th class="py-1.5 px-2 text-right w-32">이 주문에 배분</th></tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          <tr class="bg-sky-50"><td class="px-2 py-1.5"><span class="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700">카드</span></td><td class="px-2 py-1.5">2026-10-23 14:02</td><td class="px-2 py-1.5">5531-****-****-3826 · 비씨카드 <span class="text-amber-600">(거래처 없음)</span></td><td class="px-2 py-1.5 text-right">1,000,000</td><td class="px-2 py-1.5 text-right">1,000,000</td><td class="px-2 py-1.5 text-right"><input class="border border-sky-400 rounded px-2 py-1 w-28 text-right" value="400,000"></td></tr>
+          <tr><td class="px-2 py-1.5"><span class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">계좌</span></td><td class="px-2 py-1.5">2026-10-24</td><td class="px-2 py-1.5">우리은행판교역프리 · 하나 ****57804</td><td class="px-2 py-1.5 text-right">1,281,000</td><td class="px-2 py-1.5 text-right">167,000</td><td class="px-2 py-1.5 text-right"><input class="border border-gray-300 rounded px-2 py-1 w-28 text-right" placeholder="0"></td></tr>
+          <tr><td class="px-2 py-1.5"><span class="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700">카드</span></td><td class="px-2 py-1.5">2026-10-20 11:40</td><td class="px-2 py-1.5">9440-****-****-2078 · 하나카드</td><td class="px-2 py-1.5 text-right">400,000</td><td class="px-2 py-1.5 text-right">400,000</td><td class="px-2 py-1.5 text-right"><input class="border border-gray-300 rounded px-2 py-1 w-28 text-right" placeholder="0"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 선택한 카드결제에 대한 옵션 -->
+    <div class="mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+      선택한 카드결제(5531-****-3826, 1,000,000)에 거래처가 없습니다. 저장하면 이 주문의 거래처(우리은행 판교역프리미엄금융센터)로 연결합니다.
+      <label class="inline-flex items-center gap-1 ml-2"><input type="checkbox" checked> 카드번호를 이 거래처에 등록 (다음부터 자동 연결)</label>
+    </div>
+
+    <!-- 하단 -->
+    <div class="flex items-center justify-between mt-4">
+      <div class="text-xs text-gray-500">
+        배분 합계 <b class="text-gray-900">400,000</b> / 미수 400,000 → 저장 후 미수 <b class="text-emerald-700">0</b>
+        <span class="text-gray-400 ml-2">결제 미배분 잔액은 600,000 남습니다</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <a class="text-xs text-sky-700 hover:underline">이 결제건을 다른 주문에도 배분 → 입금 매칭에서 펼쳐 보기</a>
+        <button class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">취소</button>
+        <button class="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium">저장 (400,000)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 분할 배분 (기존 입금 매칭 화면, 딥링크로 열림) -->
+  <h2 class="text-base font-bold mt-8">3. 한 결제를 여러 주문에 나누기 — 입금 매칭 화면 (기존, 결제건이 펼쳐진 채 열림)</h2>
+  <div class="bg-white border border-gray-200 rounded-xl overflow-x-auto mt-2">
+    <table class="w-full text-sm num">
+      <thead><tr class="text-left text-xs text-gray-400 border-b border-gray-200"><th class="py-2.5 px-3 font-medium">원천</th><th class="py-2.5 px-3 font-medium">일자</th><th class="py-2.5 px-3 font-medium">카드번호 · 매입사</th><th class="py-2.5 px-3 font-medium">거래처</th><th class="py-2.5 px-3 font-medium text-right">결제액</th><th class="py-2.5 px-3 font-medium text-right">미배분</th><th class="py-2.5 px-3"></th></tr></thead>
+      <tbody>
+        <tr class="bg-sky-50 border-b border-gray-100"><td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 text-xs">카드</span></td><td class="px-3 py-2">2026-10-23 14:02</td><td class="px-3 py-2">5531-****-****-3826 · 비씨카드</td><td class="px-3 py-2">우리은행 판교역프리미엄금융센터</td><td class="px-3 py-2 text-right">1,000,000</td><td class="px-3 py-2 text-right">600,000</td><td class="px-3 py-2"><button class="text-xs text-sky-700">▲ 닫기</button></td></tr>
+        <tr><td colspan="7" class="px-6 py-3 bg-white">
+          <table class="w-full text-xs num">
+            <thead class="text-gray-400"><tr><th class="py-1 text-left">주문</th><th class="py-1 text-left">주문일</th><th class="py-1 text-right">순매출</th><th class="py-1 text-right">기배분</th><th class="py-1 text-right">잔액</th><th class="py-1 text-right w-32">배분 금액</th></tr></thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr><td class="py-1">Lp3pxTv</td><td class="py-1">10-22</td><td class="py-1 text-right">400,000</td><td class="py-1 text-right">400,000</td><td class="py-1 text-right">0</td><td class="py-1 text-right text-gray-400">배분됨</td></tr>
+              <tr><td class="py-1">K2mQ9xd</td><td class="py-1">10-22</td><td class="py-1 text-right">200,000</td><td class="py-1 text-right">0</td><td class="py-1 text-right">200,000</td><td class="py-1 text-right"><input class="border border-gray-300 rounded px-2 py-0.5 w-24 text-right" value="200,000"></td></tr>
+              <tr><td class="py-1">Rt7Lp2c</td><td class="py-1">10-23</td><td class="py-1 text-right">100,000</td><td class="py-1 text-right">0</td><td class="py-1 text-right">100,000</td><td class="py-1 text-right"><input class="border border-gray-300 rounded px-2 py-0.5 w-24 text-right" value="100,000"></td></tr>
+              <tr><td class="py-1">Zq1Nv8e</td><td class="py-1">10-23</td><td class="py-1 text-right">300,000</td><td class="py-1 text-right">0</td><td class="py-1 text-right">300,000</td><td class="py-1 text-right"><input class="border border-gray-300 rounded px-2 py-0.5 w-24 text-right" value="300,000"></td></tr>
+              <tr><td class="py-1 text-gray-400" colspan="6"><input class="border border-gray-300 rounded px-2 py-0.5 w-40" placeholder="주문번호로 찾기 (기간 밖 주문도)"></td></tr>
+            </tbody>
+          </table>
+          <div class="flex items-center justify-between mt-2">
+            <span class="text-xs text-gray-500">결제 잔액 600,000 중 <b>600,000</b> 배분 → 남는 잔액 0</span>
+            <button class="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-medium">배분 저장 (600,000)</button>
+          </div>
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-3 mt-6 text-xs">
+    <div class="bg-white border border-gray-200 rounded-xl p-4">
+      <div class="font-semibold text-gray-700 mb-2">규칙</div>
+      <ul class="space-y-1 text-gray-600">
+        <li>· 배분 금액은 주문 미수와 결제 미배분 잔액을 넘을 수 없다 (둘 중 작은 값까지)</li>
+        <li>· 카드결제는 승인 − 취소 순액이 결제액. 전액 취소된 건은 후보에 안 나온다</li>
+        <li>· 거래처 없는 카드결제를 붙이면 주문의 거래처로 연결. 카드번호 등록은 선택</li>
+        <li>· 매칭 즉시 미수(표준 규칙)에 반영 — 카드 승인일이 입금일로 들어간다</li>
+        <li>· 매칭 해제는 주문의 "매칭 N건 보기"와 입금 매칭 화면 양쪽에서 가능</li>
+      </ul>
+    </div>
+    <div class="bg-white border border-gray-200 rounded-xl p-4">
+      <div class="font-semibold text-gray-700 mb-2">들어가는 곳</div>
+      <ul class="space-y-1 text-gray-600">
+        <li>· ERP 주문내역(회계·재무) 표의 수금 열, 주문 현황(영업·주문)의 주문 행·상세</li>
+        <li>· 입금 매칭 화면: 주문번호 검색 추가, <code>?depositId=</code>로 특정 결제건 펼친 채 열기</li>
+        <li>· 카드 내역(매출) 화면: 행에 "주문 매칭 N건" 표시와 입금 매칭 링크</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
