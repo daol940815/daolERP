@@ -37,6 +37,8 @@ interface PaymentInvoice {
   invoice_total: number | null; paid_sum: number; paid_last_date: string | null
 }
 interface Payments { matches: PaymentMatch[]; invoices: PaymentInvoice[] }
+// 표준 미수(회계 트랙 v_erp_order_receivable — 수금 매칭 반영). 뷰 미적용이면 null → 원본값 폴백
+interface Receivable { net_sales: number; collected: number; outstanding: number; collect_status: string }
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
 const STATUS_KO: Record<string, string> = {
@@ -56,6 +58,7 @@ export default function OrderDetailPage() {
   const [requests, setRequests] = useState<ChangeRequest[]>([])
   const [editLogs, setEditLogs] = useState<EditLog[]>([])
   const [payments, setPayments] = useState<Payments>({ matches: [], invoices: [] })
+  const [receivable, setReceivable] = useState<Receivable | null>(null)
   const [showLogs, setShowLogs] = useState(false)
   const [canEdit, setCanEdit] = useState(false)
   const [canReissue, setCanReissue] = useState(false)
@@ -75,6 +78,7 @@ export default function OrderDetailPage() {
     else {
       setOrder(json.order); setItems(json.items)
       setPayments(json.payments ?? { matches: [], invoices: [] })
+      setReceivable(json.receivable ?? null)
       setRequests(json.change_requests ?? [])
       setEditLogs(json.edit_logs ?? [])
       setCanEdit(json.can_edit)
@@ -108,6 +112,10 @@ export default function OrderDetailPage() {
   const activeItems = items.filter(it => !it.is_canceled)
   const cost = activeItems.reduce((s, it) => s + (it.purchase_total ?? 0), 0)
   const total = order.total_amount as number
+  const outstanding = receivable ? receivable.outstanding : Number(order.outstanding_amount ?? 0)
+  const collectStatus = receivable ? receivable.collect_status : String(order.collect_status ?? '')
+  const salesBase = receivable ? receivable.net_sales : total
+  const collectedAmt = receivable ? receivable.collected : Math.max(0, total - outstanding)
 
   return (
     <div>
@@ -187,9 +195,9 @@ export default function OrderDetailPage() {
             ...(order.introducer ? [['소개자', String(order.introducer)]] : []),
             ...(order.supervisor || order.supervisor_contact
               ? [['책임자', [order.supervisor, order.supervisor_contact].filter(Boolean).join(' / ')]] : []),
-            ['수금 상태', STATUS_KO[String(order.collect_status)] ?? String(order.collect_status ?? '-')],
+            ['수금 상태', STATUS_KO[collectStatus] ?? (collectStatus || '-')],
             ['총금액', `${won(total)}원`],
-            ['미수금', `${won(order.outstanding_amount as number)}원`],
+            ['미수금', `${won(outstanding)}원`],
             ['메모', String(order.memo ?? '-')],
           ].map(([k, v]) => (
             <div key={k}>
@@ -272,12 +280,13 @@ export default function OrderDetailPage() {
           <div className="text-sm font-bold text-gray-900">결제 내역</div>
           <span className="text-[11px] text-gray-400">수금 · 계산서 연결(회계 담당 처리)이 자동으로 표시됩니다</span>
           <span className="ml-auto text-sm text-gray-700">
-            총금액 <b className="tabular-nums">{won(total)}원</b>
+            <span title="취소·VIP·선결제 품목을 뺀 금액 (미수 계산 기준)">{receivable ? '순매출' : '총금액'}</span>{' '}
+            <b className="tabular-nums">{won(salesBase)}원</b>
             <span className="mx-1 text-gray-300">·</span>
-            수금 <b className="tabular-nums text-emerald-700">{won(total - (order.outstanding_amount as number ?? 0))}원</b>
+            수금 <b className="tabular-nums text-emerald-700">{won(collectedAmt)}원</b>
             <span className="mx-1 text-gray-300">·</span>
-            미수 <b className={`tabular-nums ${(order.outstanding_amount as number) > 0 ? 'text-red-600' : 'text-gray-400'}`}>
-              {won(order.outstanding_amount as number)}원</b>
+            미수 <b className={`tabular-nums ${outstanding > 0 ? 'text-red-600' : 'text-gray-400'}`}>
+              {won(outstanding)}원</b>
           </span>
         </div>
         {payments.matches.length === 0 && payments.invoices.length === 0 ? (

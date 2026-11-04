@@ -512,6 +512,12 @@ export async function inheritToReissued(
     reissued_from_order_id: origOrder.id,
   }).eq('id', newOrderId)
 
+  // 수금 매칭·계산서 연결 이관 — 남겨두면 결제가 취소 주문에 묶여 새 주문이 미수로 남는다
+  await Promise.all([
+    admin.from('erp_payment_matches').update({ order_id: newOrderId }).eq('order_id', origOrder.id as string),
+    admin.from('erp_order_invoices').update({ order_id: newOrderId }).eq('order_id', origOrder.id as string),
+  ])
+
   // 발주서 이관
   const { data: pos } = await admin.from('erp_purchase_orders')
     .select('id').eq('order_id', origOrder.id as string)

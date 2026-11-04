@@ -7,6 +7,7 @@ import {
   cancelOrder, canCancelReissue, kstToday, kstDateOf,
 } from '@/lib/orders-portal'
 import { recordWorkLog, orderContent } from '@/lib/work-log'
+import { loadReceivableMap, collectStatusFrom } from '@/lib/orders-portal-list'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,16 +42,32 @@ async function loadPayments(admin: SupabaseClient, orderId: string) {
   const bankIds = ids('bank'), cardIds = ids('card'), cashIds = ids('cash')
   if (bankIds.length) {
     const { data } = await admin.from('transactions')
-      .select('id, description, amount_in').in('id', bankIds)
+      .select('id, counterparty_name, description, amount_in').in('id', bankIds)
     for (const t of data ?? []) {
-      srcInfo.set(t.id as string, { label: `통장 입금 (${String(t.description ?? '').slice(0, 20)})`, total: Number(t.amount_in ?? 0) })
+      const who = String(t.counterparty_name || t.description || '').slice(0, 20)
+      srcInfo.set(t.id as string, { label: who ? `통장 입금 (${who})` : '통장 입금', total: Number(t.amount_in ?? 0) })
     }
   }
   if (cardIds.length) {
+    // 원거래 금액은 회계 쪽 매칭(lib/erp-order-collect.ts)과 같은 순액 = 승인 − 같은 승인번호의 취소
     const { data } = await admin.from('card_sales')
-      .select('id, acquirer, amount').in('id', cardIds)
+      .select('id, acquirer, card_number, amount, approval_number').in('id', cardIds)
+    const nos = (data ?? []).map(c => c.approval_number as string).filter(Boolean)
+    const cancel = new Map<string, number>()
+    if (nos.length) {
+      const { data: cs } = await admin.from('card_sales').select('approval_number, amount')
+        .eq('transaction_type', 'cancel').in('approval_number', nos)
+      for (const x of cs ?? []) {
+        cancel.set(x.approval_number as string, (cancel.get(x.approval_number as string) ?? 0) + Math.abs(Number(x.amount ?? 0)))
+      }
+    }
     for (const c of data ?? []) {
-      srcInfo.set(c.id as string, { label: `카드 결제${c.acquirer ? ` (${c.acquirer})` : ''}`, total: Number(c.amount ?? 0) })
+      const tail = c.card_number ? String(c.card_number).replace(/\D/g, '').slice(-4) : ''
+      const desc = [c.acquirer, tail && `끝 ${tail}`].filter(Boolean).join(' · ')
+      srcInfo.set(c.id as string, {
+        label: `카드 결제${desc ? ` (${desc})` : ''}`,
+        total: Math.abs(Number(c.amount ?? 0)) - (cancel.get(c.approval_number as string) ?? 0),
+      })
     }
   }
   if (cashIds.length) {
@@ -126,11 +143,27 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     .order('created_at', { ascending: false })
 
   const edit = editability(snap.order, me)
-  const payments = await loadPayments(admin, params.id)
+  const [payments, recvMap] = await Promise.all([
+    loadPayments(admin, params.id),
+    loadReceivableMap(admin, [params.id]),
+  ])
+  // 표준 미수(매칭 반영) — erp_orders.outstanding_amount는 매칭 전 원본값이라 표시에 쓰지 않는다
+  const recv = recvMap?.get(params.id)
+  const receivable = snap.order.canceled_at
+    ? { net_sales: 0, collected: 0, outstanding: 0, collect_status: String(snap.order.collect_status ?? '') }
+    : recv
+      ? {
+          net_sales: recv.net_sales,
+          collected: Math.max(0, recv.net_sales - recv.outstanding),
+          outstanding: recv.outstanding,
+          collect_status: collectStatusFrom(snap.order.collect_status as string | null, recv),
+        }
+      : null
   return NextResponse.json({
     order: snap.order,
     items: snap.items,
     payments,
+    receivable,
     change_requests: requests ?? [],
     edit_logs: logs ?? [],
     can_edit: edit.canEdit,
@@ -207,6 +240,18 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   }
   if (!canCancelReissue(snap.order, me)) {
     return NextResponse.json({ error: '본인이 입력한 주문만 취소할 수 있습니다. (관리자 제외)' }, { status: 403 })
+  }
+
+  // 수금 매칭·계산서 연결이 있으면 결제가 취소 주문에 묶인다 — 취소·재등록(연결 승계)으로 안내
+  const [{ count: matchCnt }, { count: invCnt }] = await Promise.all([
+    admin.from('erp_payment_matches').select('id', { count: 'exact', head: true }).eq('order_id', params.id),
+    admin.from('erp_order_invoices').select('id', { count: 'exact', head: true }).eq('order_id', params.id),
+  ])
+  if ((matchCnt ?? 0) > 0 || (invCnt ?? 0) > 0) {
+    return NextResponse.json({
+      error: '수금 매칭 또는 계산서가 연결된 주문은 단순 취소할 수 없습니다. '
+        + '내용을 바꾸려면 취소·재등록(연결이 새 주문으로 넘어감)을, 주문 자체를 없애려면 회계·재무 담당자에게 매칭·계산서 연결 해제를 먼저 요청해주세요.',
+    }, { status: 409 })
   }
 
   const reason = new URL(req.url).searchParams.get('reason')
