@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 휴가 목록 · 3단계 결재 · 전결</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; }
+  .wrap { max-width: 1320px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 16px; line-height: 1.7; }
+  .note b { color: #422006; }
+  .ask { background: #eff6ff; border: 1px solid #93c5fd; color: #1e3a8a; }
+  .ask b { color: #172554; }
+  h2 { font-size: 15px; font-weight: 700; margin: 28px 0 10px; }
+  h2 small { font-size: 12px; font-weight: 500; color: #64748b; margin-left: 6px; }
+  .shell { display: grid; grid-template-columns: 200px 1fr; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; background: #fff; }
+  .side { background: #0f172a; padding: 14px 10px; color: #94a3b8; font-size: 12.5px; }
+  .side .t { color: #fff; font-weight: 700; font-size: 14px; padding: 0 8px 12px; border-bottom: 1px solid #334155; margin-bottom: 10px; }
+  .side .g { padding: 4px 8px; font-size: 10.5px; letter-spacing: .05em; color: #64748b; margin-top: 8px; }
+  .side a { display: block; padding: 6px 10px; border-radius: 6px; }
+  .side a.on { background: #334155; color: #fff; }
+  .side .cnt { float: right; font-size: 10px; background: #f59e0b; color: #fff; border-radius: 999px; padding: 0 6px; font-weight: 700; }
+  .main { padding: 16px 18px; }
+  h1 { font-size: 18px; font-weight: 700; }
+  .sub { font-size: 12px; color: #64748b; margin: 3px 0 12px; }
+  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 10px; }
+  .kpi { border: 1px solid #e2e8f0; border-radius: 10px; padding: 9px 12px; }
+  .kpi .l { font-size: 11px; color: #64748b; font-weight: 600; }
+  .kpi .v { font-size: 20px; font-weight: 800; margin-top: 2px; }
+  .kpi.on { border-color: #0f172a; box-shadow: 0 0 0 1px #0f172a; }
+  .kpi.amber .v { color: #d97706; } .kpi.green .v { color: #15803d; } .kpi.red .v { color: #dc2626; } .kpi.gray .v { color: #64748b; }
+  .bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { border: 1px solid #cbd5e1; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; color: #475569; }
+  .chip.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .inp { border: 1px solid #cbd5e1; border-radius: 7px; padding: 5px 9px; font-size: 12px; color: #64748b; background: #fff; }
+  .btn { display: inline-block; border: 1px solid #cbd5e1; border-radius: 6px; padding: 3px 9px; font-size: 11px; font-weight: 600; background: #fff; white-space: nowrap; }
+  .btn.p { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .btn.r { color: #dc2626; border-color: #fecaca; }
+  .btn.d { color: #7c3aed; border-color: #c4b5fd; background: #f5f3ff; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font-size: 11px; color: #64748b; font-weight: 600; padding: 7px 8px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+  td { padding: 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  tr.mine td { background: #fffbeb; }
+  .num { font-variant-numeric: tabular-nums; font-size: 11.5px; white-space: nowrap; }
+  .muted { color: #94a3b8; font-size: 11px; }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+  .b-prog { background: #fef3c7; color: #b45309; } .b-ok { background: #dcfce7; color: #15803d; }
+  .b-rej { background: #fee2e2; color: #dc2626; } .b-can { background: #f1f5f9; color: #64748b; }
+  .steps { display: flex; gap: 3px; }
+  .st { border-radius: 5px; padding: 2px 6px; font-size: 10.5px; line-height: 1.35; min-width: 74px; border: 1px solid transparent; }
+  .st b { display: block; font-size: 9.5px; font-weight: 700; opacity: .75; }
+  .s-ok { background: #dcfce7; color: #166534; }
+  .s-up { background: #d1fae5; color: #065f46; }
+  .s-auto { background: #f1f5f9; color: #475569; }
+  .s-skip { background: #ede9fe; color: #5b21b6; }
+  .s-proxy { background: #ede9fe; color: #5b21b6; border-color: #a78bfa; }
+  .s-now { background: #fff; color: #b45309; border: 1px dashed #f59e0b; font-weight: 700; }
+  .s-wait { background: #fff; color: #cbd5e1; border: 1px dashed #e2e8f0; }
+  .s-rej { background: #fee2e2; color: #991b1b; }
+  .s-old { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; min-width: 230px; }
+  .detail td { background: #f8fafc; padding: 10px 14px 12px 40px; }
+  .hist { font-size: 11.5px; line-height: 1.9; }
+  .hist span.k { display: inline-block; width: 44px; font-weight: 700; color: #475569; }
+  .tag { font-size: 10px; background: #fef3c7; color: #92400e; border-radius: 999px; padding: 0 6px; font-weight: 700; margin-left: 4px; }
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: #475569; margin-top: 10px; }
+  .legend .st { min-width: 0; display: inline-block; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card { background: #fff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 14px 16px; }
+  .card h3 { font-size: 13.5px; font-weight: 700; margin-bottom: 8px; }
+  .card h3 small { font-weight: 500; color: #64748b; font-size: 11.5px; margin-left: 4px; }
+  .form { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; align-items: end; }
+  .form label { display: block; font-size: 10.5px; color: #64748b; font-weight: 700; margin-bottom: 3px; }
+  .form .inp { width: 100%; display: block; color: #0f172a; }
+  .line { border: 1px solid #e2e8f0; border-radius: 9px; padding: 9px 11px; margin-top: 10px; font-size: 12px; }
+  .line .row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .line .row .who { width: 42px; font-weight: 700; color: #475569; font-size: 11.5px; }
+  .line .row .nm { width: 130px; color: #334155; }
+  .cb { width: 13px; height: 13px; border: 1.5px solid #94a3b8; border-radius: 3px; display: inline-block; vertical-align: -2px; margin-right: 4px; }
+  .cb.on { background: #7c3aed; border-color: #7c3aed; }
+  .cb.dis { background: #e2e8f0; border-color: #cbd5e1; }
+  .warn { font-size: 11px; color: #b45309; margin-top: 6px; }
+  .rules th, .rules td { font-size: 12px; }
+  .rules td:first-child { font-weight: 700; white-space: nowrap; }
+  ul.ul { margin: 4px 0 0 18px; font-size: 12px; line-height: 1.8; color: #334155; }
+  .sel { border: 1px solid #cbd5e1; border-radius: 6px; padding: 3px 8px; font-size: 12px; background: #fff; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; background: #f1f5f9; color: #334155; margin: 2px 3px 2px 0; }
+  .pill.l1 { background: #e0f2fe; color: #075985; } .pill.l2 { background: #ede9fe; color: #5b21b6; } .pill.l3 { background: #fce7f3; color: #9d174d; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="note">
+  <b>시안 — 휴가 목록 통합 · 3단계 결재 · 전결 (2026-11-04)</b><br>
+  사용자 결정: ① 결재 1차 · 2차 · 3차, 숫자가 높을수록 상위 ② 전결 = 승인권자 부재 시 다른 사람이 처리, 부재 판정 없이 자유 선택
+  ③ 신청자는 신청할 때 1차 · 2차 전결 가능 ④ 3차 전결은 2차 권한자만, 그 건의 2차를 승인한 사람도 가능
+  ⑤ 신청자 본인 단계 이하는 자동 통과 ⑥ 모든 휴가는 3단계 ⑦ 휴가 목록은 전 직원이 본다.<br>
+  현재 결재선 예정: 1차 홍창의 부장 / 2차 옥광일 대표 · 김재형 대표 / 3차 강시현 부사장 — 설정은 사용자가 직원 · 계정 · 권한 화면에서 직접.<br>
+  아래 화면의 이름 · 날짜는 예시입니다.
+</div>
+
+<div class="note ask">
+  <b>시안과 함께 확인 부탁드리는 것 3가지</b> — 답이 없으면 아래 시안대로(각 항목의 "시안 기준") 구현합니다.<br>
+  <b>A. 상위자가 하위 단계를 처리할 수 있나?</b> 예: 1차 홍창의 부장이 없을 때 2차 옥광일 대표가 1차 차례인 건을 바로 승인.
+  시안 기준: <b>가능</b>. 이때 1차 · 2차가 한 번에 통과되고 1차 칸에 "상위 결재"로 남습니다. 3차 강시현 부사장이 승인하면 남은 단계가 모두 끝납니다.<br>
+  <b>B. 신청 사유를 누가 보나?</b> 목록은 전 직원이 보지만 사유에는 병가 · 경조사 내용이 들어갑니다.
+  시안 기준: <b>본인 · 결재 권한자(1~3차) · 인사 · 총무 수정 권한자</b>만 사유를 보고, 다른 직원에게는 "-"로 보입니다.<br>
+  <b>C. 3차 권한자 본인의 휴가.</b> ⑤번 규칙을 그대로 적용하면 강시현 부사장의 휴가는 1~3차 모두 자동 통과되어 신청 즉시 승인됩니다.
+  시안 기준: <b>그대로 즉시 승인</b>하고, 마스터 계정(사장님 · ERP 총괄)에게 알림만 보냅니다.
+</div>
+
+<!-- ============================================ -->
+<h2>① 휴가 목록 <small>보는 사람: 옥광일 대표 (휴가 결재 2차) — 결재 권한자 시점</small></h2>
+<div class="shell">
+  <div class="side">
+    <div class="t">daolERP</div>
+    <div class="g">내 업무</div>
+    <a>내 대시보드</a>
+    <a>근태 · 휴가</a>
+    <a class="on">휴가 목록 <span class="cnt">2</span></a>
+    <a>업무 요청</a>
+    <div class="g">인사 · 총무</div>
+    <a>직원 · 계정 · 권한</a>
+    <a>근태 현황</a>
+    <a>스케줄</a>
+  </div>
+  <div class="main">
+    <h1>휴가 목록</h1>
+    <p class="sub">전 직원의 휴가 신청과 결재 진행을 한 목록에서 봅니다. 내 차례인 건은 노란 줄로 표시되고, 그 줄에서 바로 처리합니다. (옛 "휴가 승인" 주소는 이 화면으로 이어집니다)</p>
+
+    <div class="kpis">
+      <div class="kpi amber on"><div class="l">내 차례</div><div class="v">2</div></div>
+      <div class="kpi"><div class="l">진행 중</div><div class="v">4</div></div>
+      <div class="kpi green"><div class="l">승인</div><div class="v">23</div></div>
+      <div class="kpi red"><div class="l">반려</div><div class="v">1</div></div>
+      <div class="kpi gray"><div class="l">취소</div><div class="v">2</div></div>
+    </div>
+
+    <div class="bar">
+      <div class="chips">
+        <span class="chip">최근 30일</span><span class="chip">당월</span><span class="chip">전월</span>
+        <span class="chip on">당년</span><span class="chip">전년</span><span class="chip">전체 기간</span>
+      </div>
+    </div>
+    <div class="bar">
+      <span class="inp">2026-01-01 ~ 2026-12-31</span>
+      <span class="inp" style="width:200px">이름 · 사유 검색</span>
+      <div class="chips">
+        <span class="chip on">전체 종류</span><span class="chip">연차</span><span class="chip">반차</span><span class="chip">병가</span><span class="chip">공가</span><span class="chip">기타</span>
+      </div>
+      <div class="chips">
+        <span class="chip on">전체 팀</span><span class="chip">영업팀</span><span class="chip">영업지원팀</span><span class="chip">경영지원팀</span>
+      </div>
+    </div>
+
+    <table>
+      <thead><tr>
+        <th>신청자</th><th>종류</th><th>기간 · 일수</th><th>결재 진행</th><th>상태</th><th>사유</th><th>신청일</th><th style="text-align:right">처리</th>
+      </tr></thead>
+      <tbody>
+        <tr class="mine">
+          <td><b>김주연</b> <span class="muted">영업지원팀</span></td>
+          <td>연차</td>
+          <td class="num">2026-11-06 ~ 2026-11-09 · 2일</td>
+          <td><div class="steps">
+            <span class="st s-ok"><b>1차</b>홍창의 · 11/04</span>
+            <span class="st s-now"><b>2차</b>내 차례</span>
+            <span class="st s-wait"><b>3차</b>-</span>
+          </div></td>
+          <td><span class="badge b-prog">2차 진행</span></td>
+          <td class="muted" style="color:#475569">가족 행사</td>
+          <td class="num muted">11/03</td>
+          <td style="text-align:right"><span class="btn p">승인</span> <span class="btn r">반려</span></td>
+        </tr>
+        <tr class="detail"><td colspan="8">
+          <div class="hist">
+            <span class="k">신청</span>김주연 대리 · 2026-11-03 14:20 · 사유 "가족 행사"<br>
+            <span class="k">1차</span>홍창의 부장 승인 · 11/04 09:12<br>
+            <span class="k">2차</span><span style="color:#b45309;font-weight:700">대기</span> — 2차 권한자: 옥광일 대표 · 김재형 대표 (둘 중 한 명)<br>
+            <span class="k">3차</span>대기 — 3차 권한자: 강시현 부사장 · 부재 시 2차 권한자가 전결
+          </div>
+          <p class="muted" style="margin-top:4px">행을 누르면 이렇게 단계별 이력이 펼쳐집니다.</p>
+        </td></tr>
+
+        <tr class="mine">
+          <td><b>홍창의</b> <span class="muted">영업지원팀</span></td>
+          <td>연차</td>
+          <td class="num">2026-11-20 ~ 2026-11-21 · 1일</td>
+          <td><div class="steps">
+            <span class="st s-auto"><b>1차</b>자동 통과</span>
+            <span class="st s-now"><b>2차</b>내 차례</span>
+            <span class="st s-wait"><b>3차</b>-</span>
+          </div></td>
+          <td><span class="badge b-prog">2차 진행</span></td>
+          <td style="color:#475569">개인 용무</td>
+          <td class="num muted">11/04</td>
+          <td style="text-align:right"><span class="btn p">승인</span> <span class="btn r">반려</span></td>
+        </tr>
+
+        <tr>
+          <td><b>김승현</b> <span class="muted">영업지원팀</span></td>
+          <td>오전 반차</td>
+          <td class="num">2026-11-12 · 0.5일</td>
+          <td><div class="steps">
+            <span class="st s-skip"><b>1차</b>신청자 전결</span>
+            <span class="st s-skip"><b>2차</b>신청자 전결</span>
+            <span class="st s-now" style="color:#b45309"><b>3차</b>강시현 대기</span>
+          </div></td>
+          <td><span class="badge b-prog">3차 진행</span></td>
+          <td style="color:#475569">병원 <span class="muted">· 전결 사유: 팀장 출장</span></td>
+          <td class="num muted">11/04</td>
+          <td style="text-align:right"><span class="btn d">3차 전결</span> <span class="btn r">반려</span></td>
+        </tr>
+
+        <tr>
+          <td><b>옥광일</b> <span class="muted">영업팀</span> <span class="tag">본인</span></td>
+          <td>연차</td>
+          <td class="num">2026-11-27 · 1일</td>
+          <td><div class="steps">
+            <span class="st s-auto"><b>1차</b>자동 통과</span>
+            <span class="st s-auto"><b>2차</b>자동 통과</span>
+            <span class="st s-now" style="color:#b45309"><b>3차</b>강시현 대기</span>
+          </div></td>
+          <td><span class="badge b-prog">3차 진행</span></td>
+          <td style="color:#475569">-</td>
+          <td class="num muted">11/04</td>
+          <td style="text-align:right"><span class="muted">본인 건 결재 불가</span> <span class="btn">신청 취소</span></td>
+        </tr>
+
+        <tr>
+          <td><b>한정호</b> <span class="muted">영업지원팀</span></td>
+          <td>병가</td>
+          <td class="num">2026-10-28 ~ 2026-10-29 · 2일</td>
+          <td><div class="steps">
+            <span class="st s-ok"><b>1차</b>홍창의 · 10/27</span>
+            <span class="st s-ok"><b>2차</b>김재형 · 10/27</span>
+            <span class="st s-proxy"><b>3차</b>김재형 전결</span>
+          </div></td>
+          <td><span class="badge b-ok">승인</span> <span class="muted">10/27</span></td>
+          <td style="color:#475569">감기</td>
+          <td class="num muted">10/27</td>
+          <td style="text-align:right"></td>
+        </tr>
+
+        <tr>
+          <td><b>김보현</b> <span class="muted">영업지원팀</span></td>
+          <td>연차</td>
+          <td class="num">2026-10-30 · 1일</td>
+          <td><div class="steps">
+            <span class="st s-up"><b>1차</b>옥광일 상위 결재</span>
+            <span class="st s-rej"><b>2차</b>옥광일 반려</span>
+            <span class="st s-wait"><b>3차</b>-</span>
+          </div></td>
+          <td><span class="badge b-rej">반려</span> <span class="muted">10/22</span></td>
+          <td style="color:#475569">개인 용무 <span class="muted">· 반려: 월말 마감일</span></td>
+          <td class="num muted">10/21</td>
+          <td style="text-align:right"></td>
+        </tr>
+
+        <tr>
+          <td><b>강시현</b> <span class="muted">경영지원팀</span></td>
+          <td>연차</td>
+          <td class="num">2026-10-16 · 1일</td>
+          <td><div class="steps">
+            <span class="st s-auto"><b>1차</b>자동 통과</span>
+            <span class="st s-auto"><b>2차</b>자동 통과</span>
+            <span class="st s-auto"><b>3차</b>자동 통과</span>
+          </div></td>
+          <td><span class="badge b-ok">승인</span> <span class="muted">10/15</span></td>
+          <td style="color:#475569">-</td>
+          <td class="num muted">10/15</td>
+          <td style="text-align:right"></td>
+        </tr>
+
+        <tr>
+          <td><b>오철준</b> <span class="muted">경영지원팀</span></td>
+          <td>연차</td>
+          <td class="num">2026-10-02 · 1일</td>
+          <td><div class="steps"><span class="st s-old">기존 방식 승인 (3단계 결재 도입 전) · 강시현 · 09/30</span></div></td>
+          <td><span class="badge b-ok">승인</span> <span class="muted">09/30</span></td>
+          <td style="color:#475569">-</td>
+          <td class="num muted">09/29</td>
+          <td style="text-align:right"></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="legend">
+      <span><span class="st s-ok">승인</span> 그 단계 권한자가 승인</span>
+      <span><span class="st s-up">상위 결재</span> 상위 단계 권한자가 대신 처리</span>
+      <span><span class="st s-auto">자동 통과</span> 신청자 본인 단계 이하</span>
+      <span><span class="st s-skip">신청자 전결</span> 신청할 때 넘긴 단계</span>
+      <span><span class="st s-proxy">전결</span> 2차 권한자의 3차 전결</span>
+      <span><span class="st s-now">대기</span> 현재 단계</span>
+    </div>
+    <p class="muted" style="margin-top:8px">
+      승인 취소(승인된 휴가 되돌리기)는 지금처럼 인사 · 총무 수정 권한자에게만, 승인된 줄의 처리 칸에 "승인 취소" 버튼이 보입니다. 사유 필수, 지난 날짜도 가능.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2>② 같은 목록, 일반 직원 시점 <small>보는 사람: 김승현 사원 (결재 권한 없음)</small></h2>
+<div class="card">
+  <p class="sub" style="margin-top:0">KPI의 "내 차례" 자리에 "내 신청"이 옵니다. 처리 버튼은 본인 진행 중 건의 "신청 취소"만 있고, 남의 사유는 "-"로 보입니다(확인 B).</p>
+  <table>
+    <thead><tr><th>신청자</th><th>종류</th><th>기간 · 일수</th><th>결재 진행</th><th>상태</th><th>사유</th><th style="text-align:right">처리</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>김승현</b> <span class="tag">본인</span></td><td>오전 반차</td><td class="num">2026-11-12 · 0.5일</td>
+        <td><div class="steps"><span class="st s-skip"><b>1차</b>신청자 전결</span><span class="st s-skip"><b>2차</b>신청자 전결</span><span class="st s-now" style="color:#b45309"><b>3차</b>강시현 대기</span></div></td>
+        <td><span class="badge b-prog">3차 진행</span></td><td style="color:#475569">병원</td>
+        <td style="text-align:right"><span class="btn">신청 취소</span></td>
+      </tr>
+      <tr>
+        <td><b>김주연</b></td><td>연차</td><td class="num">2026-11-06 ~ 2026-11-09 · 2일</td>
+        <td><div class="steps"><span class="st s-ok"><b>1차</b>홍창의 · 11/04</span><span class="st s-now" style="color:#b45309"><b>2차</b>대기</span><span class="st s-wait"><b>3차</b>-</span></div></td>
+        <td><span class="badge b-prog">2차 진행</span></td><td class="muted">-</td><td></td>
+      </tr>
+      <tr>
+        <td><b>한정호</b></td><td>병가</td><td class="num">2026-10-28 ~ 2026-10-29 · 2일</td>
+        <td><div class="steps"><span class="st s-ok"><b>1차</b>홍창의</span><span class="st s-ok"><b>2차</b>김재형</span><span class="st s-proxy"><b>3차</b>김재형 전결</span></div></td>
+        <td><span class="badge b-ok">승인</span></td><td class="muted">-</td><td></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ============================================ -->
+<h2>③ 휴가 신청 양식 <small>근태 · 휴가 화면 — 결재선과 전결 선택이 추가됩니다</small></h2>
+<div class="grid2">
+  <div class="card">
+    <h3>김주연 대리 <small>결재 권한 없음 — 1차부터 3차까지</small></h3>
+    <div class="form">
+      <div><label>종류</label><span class="inp">연차</span></div>
+      <div><label>시작일</label><span class="inp">2026-11-06</span></div>
+      <div><label>종료일 (비우면 하루)</label><span class="inp">2026-11-09</span></div>
+      <div><label>사유 (선택)</label><span class="inp">가족 행사</span></div>
+    </div>
+    <p style="font-size:12px;margin-top:8px">근무일 <b>2일</b> <span class="muted">(달력 4일 중 주말 · 공휴일 제외)</span></p>
+    <div class="line">
+      <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:2px">결재선</div>
+      <div class="row"><span class="who">1차</span><span class="nm">홍창의 부장</span><span><span class="cb"></span>전결 (승인권자 부재)</span></div>
+      <div class="row"><span class="who">2차</span><span class="nm">옥광일 · 김재형 대표</span><span><span class="cb"></span>전결 (승인권자 부재)</span></div>
+      <div class="row"><span class="who">3차</span><span class="nm">강시현 부사장</span><span class="muted">신청자 전결 불가 — 부재 시 2차 권한자가 전결</span></div>
+    </div>
+    <div style="margin-top:10px;text-align:right"><span class="btn p" style="padding:6px 16px;font-size:12px;background:#2563eb;border-color:#2563eb">신청</span></div>
+  </div>
+
+  <div class="card">
+    <h3>같은 양식, 전결을 고른 경우 <small>김승현 사원 — 1차 · 2차 전결</small></h3>
+    <div class="line" style="margin-top:0">
+      <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:2px">결재선</div>
+      <div class="row"><span class="who">1차</span><span class="nm">홍창의 부장</span><span><span class="cb on"></span><b style="color:#5b21b6">전결</b></span></div>
+      <div class="row"><span class="who">2차</span><span class="nm">옥광일 · 김재형 대표</span><span><span class="cb on"></span><b style="color:#5b21b6">전결</b></span></div>
+      <div class="row"><span class="who">3차</span><span class="nm">강시현 부사장</span><span class="muted">여기서 결재</span></div>
+      <div style="margin-top:6px">
+        <label style="font-size:10.5px;color:#64748b;font-weight:700">전결 사유 (필수)</label>
+        <span class="inp" style="display:block;color:#0f172a">팀장 출장 · 대표님 외근</span>
+      </div>
+    </div>
+    <p class="warn">전결한 단계의 승인권자에게는 "전결로 넘어간 휴가가 있습니다" 알림이 사후에 갑니다. 목록에도 "신청자 전결"과 사유가 남습니다.</p>
+
+    <h3 style="margin-top:16px">홍창의 부장 <small>본인이 1차 권한자</small></h3>
+    <div class="line" style="margin-top:0">
+      <div class="row"><span class="who">1차</span><span class="nm">본인</span><span class="muted"><span class="cb dis"></span>자동 통과</span></div>
+      <div class="row"><span class="who">2차</span><span class="nm">옥광일 · 김재형 대표</span><span><span class="cb"></span>전결 (승인권자 부재)</span></div>
+      <div class="row"><span class="who">3차</span><span class="nm">강시현 부사장</span><span class="muted">신청자 전결 불가</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2>④ 휴가 결재 단계 설정 <small>직원 · 계정 · 권한 화면의 권한 편집 (마스터 계정만)</small></h2>
+<div class="grid2">
+  <div class="card">
+    <h3>권한 편집 — 홍창의 부장</h3>
+    <table style="font-size:12px">
+      <tr><td style="width:140px;color:#64748b">승인 권한</td><td><span class="cb on"></span>주문 수정 · 업무 요청 승인 <span class="muted">(기존 — 휴가와 별개)</span></td></tr>
+      <tr><td style="color:#64748b"><b style="color:#0f172a">휴가 결재 단계</b></td><td>
+        <span class="sel">없음</span> <span class="sel" style="background:#0f172a;color:#fff;border-color:#0f172a">1차</span> <span class="sel">2차</span> <span class="sel">3차</span>
+      </td></tr>
+      <tr><td></td><td class="muted">숫자가 높을수록 상위입니다. 2차는 3차 전결도 할 수 있습니다. 본인 휴가는 자기 단계 이하가 자동 통과됩니다.</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h3>현재 휴가 결재선 <small>직원 목록 위에 요약으로 표시</small></h3>
+    <div style="font-size:12px;line-height:2">
+      <div><b style="display:inline-block;width:40px">3차</b><span class="pill l3">강시현 부사장</span></div>
+      <div><b style="display:inline-block;width:40px">2차</b><span class="pill l2">옥광일 대표</span><span class="pill l2">김재형 대표</span> <span class="muted">· 3차 전결 가능</span></div>
+      <div><b style="display:inline-block;width:40px">1차</b><span class="pill l1">홍창의 부장</span></div>
+    </div>
+    <p class="warn">어느 단계에 아무도 없으면 여기에 경고가 뜹니다. 예: "3차 권한자가 없습니다 — 모든 휴가가 2차 전결로만 끝납니다."</p>
+    <p class="muted" style="margin-top:4px">3단계 결재 배포 직후에는 아무도 단계가 없으므로, 배포 전에 이 화면에서 4명을 먼저 지정해 주셔야 합니다.</p>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2>⑤ 누가 무엇을 할 수 있나 <small>서버에서 같은 규칙으로 막습니다</small></h2>
+<div class="card">
+  <table class="rules">
+    <thead><tr><th>행동</th><th>할 수 있는 사람</th><th>결과</th></tr></thead>
+    <tbody>
+      <tr><td>휴가 신청</td><td>전 직원</td><td>본인 단계 이하 자동 통과 → 다음 단계 대기. 3차 권한자 본인은 즉시 승인(확인 C)</td></tr>
+      <tr><td>신청자 전결</td><td>신청자, 신청할 때만. 1차 · 2차만</td><td>고른 단계가 "신청자 전결"로 통과. 사유 필수, 해당 승인권자에게 사후 알림</td></tr>
+      <tr><td>단계 승인</td><td>그 단계 이상 권한자(확인 A). 같은 단계 여러 명이면 아무나 1명</td><td>처리자 단계까지 한 번에 통과. 3차까지 끝나면 최종 승인 → 근태에 휴가로 반영</td></tr>
+      <tr><td>3차 전결</td><td>2차 권한자. 그 건의 2차를 승인한 사람도 가능</td><td>3차가 "전결"로 통과 → 최종 승인. 사유 필수</td></tr>
+      <tr><td>반려</td><td>현재 단계를 처리할 수 있는 사람(3차 단계는 2차 권한자 포함)</td><td>그 자리에서 종료. 사유 입력</td></tr>
+      <tr><td>신청 취소</td><td>신청자 본인, 최종 승인 전까지</td><td>취소</td></tr>
+      <tr><td>승인 취소</td><td>인사 · 총무 수정 권한자(지금과 같음)</td><td>사유 필수, 지난 날짜 가능</td></tr>
+      <tr><td>본인 건 처리</td><td>누구도 불가</td><td>본인 신청은 승인 · 반려 · 전결 버튼이 나오지 않습니다</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ============================================ -->
+<h2>⑥ 알림과 다른 화면</h2>
+<div class="card">
+  <ul class="ul">
+    <li><b>PC 알림 · 알림 센터:</b> 단계가 넘어갈 때마다 다음 단계 권한자에게 "휴가 결재 요청 (2차)". 3차 단계에서는 3차 권한자에게만 보내고, 2차 권한자에게는 보내지 않습니다(전결은 부재 시에만 쓰므로 매번 알리면 소음).</li>
+    <li><b>사후 알림:</b> 신청자 전결로 넘어간 단계의 권한자, 3차 전결 시 3차 권한자에게 "전결 처리됨".</li>
+    <li><b>최종 결과:</b> 최종 승인 · 반려 시 신청자에게 알림(지금과 같음).</li>
+    <li><b>근태 현황 화면:</b> 지금 있는 "휴가 승인 대기" 블록은 "내 차례 N건 · 휴가 목록으로" 바로가기 한 줄로 줄입니다.</li>
+    <li><b>근태 · 휴가 화면:</b> 내 휴가 목록에 결재 진행 칸이 추가됩니다.</li>
+    <li><b>스케줄:</b> 최종 승인 전 건은 지금처럼 "휴가(대기)" 점선으로 보입니다.</li>
+    <li><b>메뉴:</b> "휴가 승인"을 "휴가 목록"으로 바꾸고 내 업무 그룹으로 옮겨 전원에게 보입니다. 인사 · 총무 메뉴에도 그대로 둡니다. 옛 주소는 새 화면으로 이어집니다.</li>
+  </ul>
+</div>
+
+</div>
+</body>
+</html>
