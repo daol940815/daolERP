@@ -134,7 +134,24 @@ export default function ProductsPage() {
     })
   }
 
+  // 업로드 확인 팝업 (2026-11-04 실무자 요청·B안): 파일 선택 → 서버 검사(반영 없음)
+  // → 건수 확인 팝업 → 확인 시 실제 업로드. 잘못된 파일은 숫자로 바로 드러난다.
+  const [pending, setPending] = useState<{ file: File; stats: Record<string, number> } | null>(null)
+
+  const checkFile = async (file: File) => {
+    setUploading(true); setError(null); setNotice(null)
+    const fd = new FormData()
+    fd.append('file', file); fd.append('dry_run', '1')
+    const res = await fetch('/api/orders-portal/products/import', { method: 'POST', body: fd })
+    const json = await res.json()
+    setUploading(false)
+    if (fileRef.current) fileRef.current.value = ''
+    if (!res.ok) { setError(json.error ?? '파일 검사 실패'); return }
+    setPending({ file, stats: json })
+  }
+
   const upload = async (file: File) => {
+    setPending(null)
     setUploading(true); setError(null); setNotice(null)
     const fd = new FormData()
     fd.append('file', file)
@@ -161,7 +178,7 @@ export default function ProductsPage() {
         <span className="text-xs text-gray-400">주문 입력의 품번 검색 원천 — 품번 선택 시 품명·매입처·가격 자동</span>
         <span className="ml-auto flex gap-2">
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) upload(f) }} />
+            onChange={e => { const f = e.target.files?.[0]; if (f) checkFile(f) }} />
           <button onClick={() => {
               const p = new URLSearchParams()
               if (filter !== 'active') p.set('filter', filter)
@@ -176,7 +193,7 @@ export default function ProductsPage() {
           </button>
           <button onClick={() => fileRef.current?.click()} disabled={uploading}
             className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 disabled:opacity-50">
-            {uploading ? '업로드 중...' : '상품 엑셀 업로드'}
+            {uploading ? '처리 중...' : '상품 엑셀 업로드'}
           </button>
           <button onClick={() => { setEditingId('new'); setDraft(emptyDraft) }}
             className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">+ 품목 등록</button>
@@ -410,6 +427,41 @@ export default function ProductsPage() {
         지점배송매입가 · 지점/개별배송판매가 · 목차 · 카톤단위 · 택배비(카톤단위/카톤외)를 인식, 카탈로그 제작용 컬럼은 무시).
         품번 기준으로 갱신되며, 주문 입력에서 지점=지점판매가+카톤 공식 배송비 / 개별=개별판매가(배송비 포함)가 자동 적용됩니다.
       </p>
+
+      {/* 업로드 확인 팝업 — 검사 결과(반영 없음)를 보여주고 확인 후 실제 업로드 */}
+      {pending && (
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4"
+          onClick={() => setPending(null)}>
+          <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-5 w-full max-w-md"
+            onClick={e => e.stopPropagation()}>
+            <div className="text-sm font-bold text-gray-900">업로드 하시겠습니까?</div>
+            <div className="mt-2 text-sm text-gray-700 break-all">{pending.file.name}</div>
+            <div className="mt-3 p-3 bg-gray-50 rounded-lg text-sm text-gray-700 space-y-1">
+              <div>인식 <b className="tabular-nums">{pending.stats.parsed ?? 0}</b>건
+                {pending.stats.skipped ? <span className="text-gray-400"> (건너뜀 {pending.stats.skipped}건)</span> : null}
+              </div>
+              <div>
+                신규 <b className="tabular-nums">{pending.stats.created ?? 0}</b>건 ·
+                갱신 <b className="tabular-nums">{pending.stats.updated ?? 0}</b>건 ·
+                변경 없음 <b className="tabular-nums">{pending.stats.unchanged ?? 0}</b>건
+              </div>
+              {(pending.stats.status_marked ?? 0) > 0 && <div>상태 표기(품절·단종 등) {pending.stats.status_marked}건</div>}
+              {(pending.stats.vendor_updated ?? 0) > 0 && <div>매입처 연락 정보 갱신 예정 {pending.stats.vendor_updated}곳</div>}
+            </div>
+            {(pending.stats.created ?? 0) > (pending.stats.updated ?? 0) + (pending.stats.unchanged ?? 0) && (
+              <div className="mt-2 text-xs text-amber-600">
+                신규가 기존 갱신보다 많습니다 — 다른 양식이나 옛 파일일 수 있으니 파일을 한 번 더 확인하세요.
+              </div>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setPending(null)}
+                className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">취소</button>
+              <button onClick={() => upload(pending.file)}
+                className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">업로드</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -63,6 +63,9 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData().catch(() => null)
   const file = formData?.get('file') as File | null
   if (!file) return NextResponse.json({ error: '파일이 없습니다.' }, { status: 400 })
+  // 검사 모드 (2026-11-04 실무자 요청·사용자 승인 B안): 반영 없이 파싱·대조 통계만 반환.
+  // 화면이 이 결과를 확인 팝업으로 보여주고, 확인 후 같은 파일로 실제 업로드를 보낸다.
+  const dryRun = String(formData?.get('dry_run') ?? '') === '1'
 
   const buffer = Buffer.from(await file.arrayBuffer())
   const wb = XLSX.read(buffer, { type: 'buffer' })
@@ -245,10 +248,17 @@ export async function POST(req: NextRequest) {
     r.individual_sale_price !== r.sale_price + r.loose_shipping_fee,
   ).length
 
-  // 매입처 별칭 일괄 확보
+  // 매입처 별칭 일괄 확보 — 검사 모드는 생성 없이 조회만 (쓰기 금지)
   const aliasByName = new Map<string, string | null>()
-  for (const name of Array.from(new Set(parsed.map(r => r.purchase_vendor_name).filter(Boolean))) as string[]) {
-    aliasByName.set(name, await ensureAlias(admin, 'purchase', name))
+  const vendorNames = Array.from(new Set(parsed.map(r => r.purchase_vendor_name).filter(Boolean))) as string[]
+  if (dryRun) {
+    for (let i = 0; i < vendorNames.length; i += 150) {
+      const { data } = await admin.from('erp_vendor_aliases')
+        .select('id, erp_name').eq('alias_type', 'purchase').in('erp_name', vendorNames.slice(i, i + 150))
+      for (const a of data ?? []) aliasByName.set(a.erp_name as string, a.id as string)
+    }
+  } else {
+    for (const name of vendorNames) aliasByName.set(name, await ensureAlias(admin, 'purchase', name))
   }
 
   // 기존 품목 로드 — 전 컬럼 비교로 "바뀐 행만" 갱신 (원가표 전체 재업로드가 일상이 되므로)
@@ -330,6 +340,8 @@ export async function POST(req: NextRequest) {
       const prev = byId.get(existingId)
       const compare = { ...fields }
       if (soldoutCol >= 0 && activeCol < 0 && r.is_soldout == null) delete compare.is_soldout
+      // 검사 모드: 별칭 id 차이는 변경으로 치지 않는다 (병합 별칭 추적은 실제 업로드에서만)
+      if (dryRun) delete compare.purchase_alias_id
       const changed = Object.entries(compare).some(([k, v]) => {
         const old = prev?.[k]
         return (old ?? null) !== (v ?? null)
@@ -341,8 +353,9 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 갱신 — 20개 병렬 청크 (2천여 행 전체 재업로드 대비)
-  for (let i = 0; i < updates.length; i += 20) {
+  // 갱신 — 20개 병렬 청크 (2천여 행 전체 재업로드 대비). 검사 모드는 건수만 센다.
+  if (dryRun) { updated = updates.length; created = inserts.length }
+  for (let i = 0; dryRun ? false : i < updates.length; i += 20) {
     const results = await Promise.all(updates.slice(i, i + 20).map(u =>
       admin.from('erp_products').update(u.fields).eq('id', u.id),
     ))
@@ -358,7 +371,7 @@ export async function POST(req: NextRequest) {
     }
     updated += Math.min(20, updates.length - i)
   }
-  for (let i = 0; i < inserts.length; i += CHUNK) {
+  for (let i = 0; dryRun ? false : i < inserts.length; i += CHUNK) {
     const { error } = await admin.from('erp_products').insert(inserts.slice(i, i + CHUNK))
     if (error) {
       const missing = /column|loose_shipping_fee|category|option_name/i.test(error.message)
@@ -407,6 +420,7 @@ export async function POST(req: NextRequest) {
       if (info.tel && info.tel !== cur?.contact_phone) patch.contact_phone = info.tel
       if (info.email && info.email !== cur?.email) patch.email = info.email
       if (Object.keys(patch).length) {
+        if (dryRun) { vendorUpdated++; continue }   // 검사 모드 — 갱신 예정 수만
         const { error } = await admin.from('vendors').update(patch).eq('id', vendorId)
         if (!error) vendorUpdated++
       }
@@ -414,6 +428,7 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({
+    dry_run: dryRun,
     total_rows: dataRows.length, parsed: parsed.length, created, updated, unchanged, skipped,
     status_marked: statusMarked,           // 상태·품절 표기가 있는 행 수 (원문 메모 포함)
     vendor_updated: vendorUpdated,         // 매입처 마스터(담당자·연락처·이메일) 갱신 수
