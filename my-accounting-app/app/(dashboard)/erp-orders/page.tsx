@@ -7,6 +7,7 @@ import type { ErpOrder, ErpOrderItem } from '@/types/erp'
 import { getPeriodRange } from '@/lib/period-presets'
 import { computeOrderDeliveryStatus, ITEM_DELIVERY_STATUS_LABEL, ORDER_DELIVERY_STATUS_LABEL } from '@/lib/erp-delivery-status'
 import { cutoffAlloc, netSalesOf, outstandingOf } from '@/lib/receivable'
+import CollectMatchModal from '@/components/erp/CollectMatchModal'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
@@ -59,6 +60,7 @@ export default function ErpOrdersPage() {
   const [orders, setOrders]     = useState<ErpOrder[]>([])
   const [items, setItems]       = useState<ErpOrderItem[]>([])
   const [matches, setMatches]   = useState<OrderMatch[]>([])
+  const [collectFor, setCollectFor] = useState<string | null>(null)   // 수금 매칭 모달 대상 주문
   const [loading, setLoading]   = useState(true)
   const [deleting, setDeleting] = useState(false)
   const [view, setView]         = useState<View>('all')
@@ -447,6 +449,13 @@ export default function ErpOrdersPage() {
                     </td>
                     <td className="py-2 px-3 text-right whitespace-nowrap">
                       <button
+                        onClick={() => setCollectFor(o.id)}
+                        className={`px-2 py-1 text-xs rounded mr-1 ${remaining > 0 ? 'bg-slate-900 text-white hover:bg-slate-700' : 'border border-gray-300 text-gray-500 hover:bg-gray-50'}`}
+                        title="이 주문에 입금·카드결제를 매칭 (주문 쪽 수금 매칭)"
+                      >
+                        {orderMatches.length > 0 ? `매칭 ${orderMatches.length}건` : '수금 매칭'}
+                      </button>
+                      <button
                         onClick={() => handleDeduct(o)}
                         className="px-2 py-1 text-xs border border-sky-300 text-sky-700 rounded hover:bg-sky-50"
                         title="이 주문 금액을 매출처 선결제 잔액에서 차감 처리"
@@ -554,6 +563,9 @@ export default function ErpOrdersPage() {
             </button>
           </div>
         </div>
+      )}
+      {collectFor && (
+        <CollectMatchModal orderId={collectFor} onClose={() => setCollectFor(null)} onSaved={() => load()} />
       )}
     </div>
   )

@@ -2,6 +2,8 @@ export type CardSaleTransactionType = 'approval' | 'cancel'
 
 export interface CardSale {
   id: string
+  order_match_count?: number    // 주문 매칭 건수 (승인 행, 2026-11-04)
+  order_match_amount?: number
   tx_date: string
   tx_time?: string | null
   transaction_type: CardSaleTransactionType
