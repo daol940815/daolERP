@@ -213,6 +213,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const reported = active.filter(a => a.status === 'done_reported').length + 1
     const partial = row.assign_mode === 'all' && reported < active.length
     await sendPush(admin, [reqId], { kind: 'wr_result', title: `처리 보고 — ${myName}`, body: `${safeTitle} · ${partial ? `${reported}/${active.length} 보고` : '완료 확정을 기다립니다'}`, url, tag })
+  } else if (body.action === 'memo') {
+    // 진행 메모(2026-11-04): 담당자가 쓰면 요청자에게, 요청자가 쓰면 살아 있는 담당자 전원에게 (본인 제외)
+    const targets = ok.isAsg ? [reqId] : row.assignees.filter(a => a.status !== 'rejected' && a.status !== 'released').map(a => a.employee?.id).filter(id => id !== meId)
+    await sendPush(admin, targets, { kind: 'wr_memo', title: `진행 메모 — ${myName}`, body: `${safeTitle}: ${memo.slice(0, 80)}`, url, tag })
   } else if (body.action === 'add_assignee') {
     const added = Array.from(notify).filter(id => id !== meId && !row.assignees.some(a => a.employee?.id === id && a.status !== 'rejected' && a.status !== 'released'))
     await sendPush(admin, added, row.is_private

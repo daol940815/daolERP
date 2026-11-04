@@ -17,7 +17,7 @@ import {
 import { useNotifRefresh, requestNotifRefresh } from '@/lib/use-notif-refresh'
 import { HELP_QUESTION_PREFIX, HELP_PERMISSION_PREFIX } from '@/lib/help-registry'
 
-type Filter = 'all' | 'unread' | 'active' | 'due_today' | 'overdue' | 'reported' | 'rejected' | 'open'
+type Filter = 'all' | 'unread' | 'active' | 'due_today' | 'overdue' | 'reported' | 'rejected' | 'open' | 'personal' | 'shared'
 
 interface Resp {
   linked: boolean
@@ -28,7 +28,7 @@ interface Resp {
   hiddenPrivate?: number
   error?: string
 }
-const FILTERS: Filter[] = ['all', 'unread', 'active', 'due_today', 'overdue', 'reported', 'rejected', 'open']
+const FILTERS: Filter[] = ['all', 'unread', 'active', 'due_today', 'overdue', 'reported', 'rejected', 'open', 'personal', 'shared']
 
 export default function RequestsList({ scope, month: monthProp, employee, initialFilter }: { scope: WrScope; month?: string; employee?: string; initialFilter?: string }) {
   const router = useRouter()
@@ -90,6 +90,8 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
     if (filter === 'reported' && !(scope === 'inbox' && my ? my.status === 'done_reported' && OPEN_STATUSES.includes(r.status) : r.status === 'done_reported')) return false
     if (filter === 'rejected' && r.status !== 'rejected') return false
     if (filter === 'open' && !OPEN_STATUSES.includes(r.status)) return false
+    if (filter === 'personal' && r.assignees.length > 1) return false   // 개인 요청 = 담당자 1명 (알림 종류 분리, 2026-11-04)
+    if (filter === 'shared' && r.assignees.length <= 1) return false     // 공용 요청 = 다수 담당(선착 · 공동)
     if (statusF && r.status !== statusF) return false
     if (onlyQ && !(r.title.startsWith(HELP_QUESTION_PREFIX) || r.title.startsWith(HELP_PERMISSION_PREFIX))) return false
     if (search.trim()) {
@@ -166,6 +168,12 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
           <label className="text-xs text-gray-600 flex items-center gap-1.5">생성 월 <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1 text-sm" /><span className="text-gray-400">열린 건은 달과 무관하게 전부</span></label>
         ) : (
           <label className="text-xs text-gray-600 flex items-center gap-1"><input type="checkbox" checked={closed} onChange={e => setClosed(e.target.checked)} /> 완료 · 취소 포함 (최근 90일)</label>
+        )}
+        {scope !== 'outbox' && rows.some(r => r.assignees.length > 1) && (
+          <>
+            <button onClick={() => setFilter(f => f === 'personal' ? 'all' : 'personal')} className={`text-xs px-2.5 py-1 rounded-full border ${filter === 'personal' ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`} title="담당자가 나 혼자인 요청">개인 요청만</button>
+            <button onClick={() => setFilter(f => f === 'shared' ? 'all' : 'shared')} className={`text-xs px-2.5 py-1 rounded-full border ${filter === 'shared' ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`} title="여러 명이 담당인 요청(선착 · 공동)">공용 요청만</button>
+          </>
         )}
         {rows.some(r => r.title.startsWith(HELP_QUESTION_PREFIX) || r.title.startsWith(HELP_PERMISSION_PREFIX)) && (
           <button onClick={() => setOnlyQ(v => !v)} className={`text-xs px-2.5 py-1 rounded-full border ${onlyQ ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>질문 · 권한 요청만</button>

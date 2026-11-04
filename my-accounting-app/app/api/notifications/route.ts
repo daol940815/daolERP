@@ -33,16 +33,17 @@ export async function GET() {
   const today = kstDay(nowIso)
   const approver = isManagerLike(me)
 
-  type WR = { id: string; title: string; status: WrStatus; due_at: string; created_at: string; reported_at: string | null; rejected_at: string | null; reject_reason: string | null; is_urgent: boolean; requester: { name: string } | { name: string }[] | null; assignee: { name: string } | { name: string }[] | null }
+  type WR = { id: string; title: string; status: WrStatus; assign_mode: 'single' | 'first' | 'all' | null; due_at: string; created_at: string; reported_at: string | null; rejected_at: string | null; reject_reason: string | null; is_urgent: boolean; requester: { name: string } | { name: string }[] | null; assignee: { name: string } | { name: string }[] | null }
   // 902: 받은 요청은 내 몫(담당자 행) 기준 — 선착에서 해제된 건·공동에서 내가 이미 보고한 건은 세지 않는다
   type MyShare = { status: WrAsgStatus; request: WR | WR[] | null }
   type Leave = { id: string; employee_id: string; leave_type: string; start_date: string; end_date: string; status: string; created_at: string; decided_at: string | null; employees: { name: string } | { name: string }[] | null }
   type OCR = { id: string; request_type: string; status: string; created_at: string; decided_at: string | null; requested_by: string | null; employees: { name: string } | { name: string }[] | null }
 
-  const wrSel = 'id, title, status, due_at, created_at, reported_at, rejected_at, reject_reason, is_urgent, requester:employees!work_requests_requester_id_fkey(name), assignee:employees!work_requests_assignee_id_fkey(name)'
+  const wrSel = 'id, title, status, assign_mode, due_at, created_at, reported_at, rejected_at, reject_reason, is_urgent, requester:employees!work_requests_requester_id_fkey(name), assignee:employees!work_requests_assignee_id_fkey(name)'
   const [inRes, outRes, leavePendRes, leaveMineRes, ocrPendRes, ocrMineRes] = await Promise.all([
     admin.from('work_request_assignees').select(`status, request:work_requests!inner(${wrSel})`).eq('employee_id', empId).in('status', ASG_TRACKED),
-    admin.from('work_requests').select(wrSel).eq('requester_id', empId).or(`status.eq.done_reported,and(status.eq.rejected,rejected_at.gte.${sevenDaysAgo})`).order('created_at', { ascending: false }),
+    // 내가 요청한 것: 열린 건 전부(진행 메모 알림용) + 최근 7일 반려
+    admin.from('work_requests').select(wrSel).eq('requester_id', empId).or(`status.in.(${OPEN_STATUSES.join(',')}),and(status.eq.rejected,rejected_at.gte.${sevenDaysAgo})`).order('created_at', { ascending: false }),
     approver
       ? admin.from('attendance_leaves').select('id, employee_id, leave_type, start_date, end_date, status, created_at, decided_at, employees!attendance_leaves_employee_id_fkey(name)').eq('status', 'requested').neq('employee_id', empId).order('created_at')
       : Promise.resolve({ data: [], error: null }),
@@ -53,27 +54,56 @@ export async function GET() {
     admin.from('erp_order_change_requests').select('id, request_type, status, created_at, decided_at, requested_by, employees!erp_order_change_requests_requested_by_fkey(name)').eq('requested_by', empId).in('status', ['approved', 'rejected']).gte('decided_at', sevenDaysAgo).order('decided_at', { ascending: false }),
   ])
 
-  // ── 업무 요청 ──
+  // ── 업무 요청 (2026-11-04 사용자 결정: 종류를 셋으로 나눔 — 개인 요청 · 공용 요청 · 내 요청) ──
+  //  개인 요청 = 나 혼자 담당(single) / 공용 요청 = 내가 포함된 다수 담당(선착·공동) / 내 요청 = 내가 요청자
+  const relatedIds = new Set<string>()
   if (!inRes.error) {
     const shares = ((inRes.data ?? []) as unknown as MyShare[]).map(s => ({ status: s.status, r: one(s.request) })).filter((s): s is { status: WrAsgStatus; r: WR } => !!s.r && OPEN_STATUSES.includes(s.r.status))
-    const tracked = shares.map(s => s.r).sort((a, b) => a.due_at.localeCompare(b.due_at))   // 내 몫이 미확인·수락·진행 중인 것만 (조회 조건)
-    const unread = shares.filter(s => s.status === 'invited').map(s => s.r)
-    const overdue = tracked.filter(r => new Date(r.due_at) < now)
-    const dueToday = tracked.filter(r => kstDay(r.due_at) === today && new Date(r.due_at) >= now)
+    shares.forEach(s => relatedIds.add(s.r.id))
     const desc = (r: WR) => `${one(r.requester)?.name ?? ''}: ${r.title} (마감 ${fmtDue(r.due_at)})`
-    if (unread.length) items.push({ key: 'wr:unread', group: 'todo', tone: 'red', title: `업무 요청 미확인 ${unread.length}건`, detail: desc(unread[0]) + (unread.length > 1 ? ` 외 ${unread.length - 1}` : ''), href: '/me/requests', count: unread.length, at: latest(unread.map(r => r.created_at)) })
-    if (overdue.length) items.push({ key: 'wr:overdue', group: 'todo', tone: 'red', title: `업무 요청 마감 지남 ${overdue.length}건`, detail: desc(overdue[0]), href: '/me/requests', count: overdue.length, at: latest(overdue.map(r => r.due_at)) })
-    if (dueToday.length) items.push({ key: 'wr:due_today', group: 'todo', tone: 'red', title: `업무 요청 오늘 마감 ${dueToday.length}건`, detail: desc(dueToday[0]), href: '/me/requests', count: dueToday.length, at: latest(dueToday.map(r => r.created_at)) })
-    const red = unread.length + overdue.length
+    let red = 0
+    for (const kind of ['personal', 'shared'] as const) {
+      const mine = shares.filter(s => (s.r.assign_mode === 'single' || !s.r.assign_mode) === (kind === 'personal'))
+      const label = kind === 'personal' ? '개인 요청' : '공용 요청'
+      const href = kind === 'personal' ? '/me/requests' : '/me/requests?filter=shared'
+      const tracked = mine.map(s => s.r).sort((a, b) => a.due_at.localeCompare(b.due_at))   // 내 몫이 미확인·수락·진행 중인 것만 (조회 조건)
+      const unread = mine.filter(s => s.status === 'invited').map(s => s.r)
+      const overdue = tracked.filter(r => new Date(r.due_at) < now)
+      const dueToday = tracked.filter(r => kstDay(r.due_at) === today && new Date(r.due_at) >= now)
+      const k = kind === 'personal' ? 'p' : 's'
+      if (unread.length) items.push({ key: `wr:unread:${k}`, group: 'todo', tone: 'red', title: `${label} 미확인 ${unread.length}건`, detail: desc(unread[0]) + (unread.length > 1 ? ` 외 ${unread.length - 1}` : ''), href, count: unread.length, at: latest(unread.map(r => r.created_at)) })
+      if (overdue.length) items.push({ key: `wr:overdue:${k}`, group: 'todo', tone: 'red', title: `${label} 마감 지남 ${overdue.length}건`, detail: desc(overdue[0]), href, count: overdue.length, at: latest(overdue.map(r => r.due_at)) })
+      if (dueToday.length) items.push({ key: `wr:due_today:${k}`, group: 'todo', tone: 'red', title: `${label} 오늘 마감 ${dueToday.length}건`, detail: desc(dueToday[0]), href, count: dueToday.length, at: latest(dueToday.map(r => r.created_at)) })
+      red += unread.length + overdue.length
+    }
     if (red) badges['/me/requests'] = { n: red, tone: 'red' }
   }
   if (!outRes.error) {
     const outbox = (outRes.data ?? []) as unknown as WR[]
+    outbox.filter(r => OPEN_STATUSES.includes(r.status)).forEach(r => relatedIds.add(r.id))
     const awaiting = outbox.filter(r => r.status === 'done_reported')
     const rejected = outbox.filter(r => r.status === 'rejected')
-    if (awaiting.length) items.push({ key: 'wr:awaiting', group: 'waiting', tone: 'amber', title: `완료 확정 대기 ${awaiting.length}건`, detail: `${one(awaiting[0].assignee)?.name ?? '담당자 전원'}이(가) 처리 보고: ${awaiting[0].title}`, href: '/me/requests?tab=outbox', count: awaiting.length, at: latest(awaiting.map(r => r.reported_at)) })
-    if (rejected.length) items.push({ key: 'wr:rejected', group: 'info', tone: 'gray', title: `요청 반려됨 ${rejected.length}건`, detail: `${rejected[0].title}${rejected[0].reject_reason ? ` — 사유: ${rejected[0].reject_reason}` : ''}`, href: '/me/requests?tab=outbox', count: rejected.length, at: latest(rejected.map(r => r.rejected_at)) })
+    if (awaiting.length) items.push({ key: 'wr:awaiting', group: 'waiting', tone: 'amber', title: `내 요청 완료 확정 대기 ${awaiting.length}건`, detail: `${one(awaiting[0].assignee)?.name ?? '담당자 전원'}이(가) 처리 보고: ${awaiting[0].title}`, href: '/me/requests?tab=outbox', count: awaiting.length, at: latest(awaiting.map(r => r.reported_at)) })
+    if (rejected.length) items.push({ key: 'wr:rejected', group: 'info', tone: 'gray', title: `내 요청 반려됨 ${rejected.length}건`, detail: `${rejected[0].title}${rejected[0].reject_reason ? ` — 사유: ${rejected[0].reject_reason}` : ''}`, href: '/me/requests?tab=outbox', count: rejected.length, at: latest(rejected.map(r => r.rejected_at)) })
     if (!badges['/me/requests'] && awaiting.length + rejected.length) badges['/me/requests'] = { n: awaiting.length + rejected.length, tone: 'amber' }
+  }
+  // 진행 메모 · 이력 (2026-11-04): 내가 관련된 열린 요청에서 다른 사람이 남긴 메모 · 수락 · 수정 · 담당자 추가 — 최근 7일, 최신 10건, 결과 통지로.
+  if (relatedIds.size) {
+    type Ev = { id: string; request_id: string; event: string; memo: string | null; created_at: string; actor: { name: string } | { name: string }[] | null; request: { title: string; is_private: boolean | null } | { title: string; is_private: boolean | null }[] | null }
+    const ids = Array.from(relatedIds)
+    const chunks: string[][] = []
+    for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100))
+    const evs = (await Promise.all(chunks.map(c => admin.from('work_request_events')
+      .select('id, request_id, event, memo, created_at, actor:employees!work_request_events_actor_id_fkey(name), request:work_requests!inner(title, is_private)')
+      .in('request_id', c).neq('actor_id', empId).in('event', ['memo', 'accepted', 'edited', 'assignee_added']).gte('created_at', sevenDaysAgo)
+      .order('created_at', { ascending: false }).limit(10))))
+      .flatMap(r => (r.error ? [] : (r.data ?? [])) as unknown as Ev[])
+      .sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 10)
+    const EV_LABEL: Record<string, string> = { memo: '진행 메모', accepted: '수락', edited: '요청 수정', assignee_added: '담당자 추가' }
+    for (const e of evs) {
+      const req = one(e.request)
+      items.push({ key: `wr:ev:${e.id}`, group: 'info', tone: 'blue', title: `${EV_LABEL[e.event] ?? e.event} — ${one(e.actor)?.name ?? ''}`, detail: `${req?.title ?? ''}${e.event === 'memo' && e.memo ? `: ${e.memo}` : ''}`, href: `/me/requests/${e.request_id}`, count: 1, at: e.created_at })
+    }
   }
 
   // ── 휴가 ──
