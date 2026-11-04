@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isManagerLike, isHrAdmin } from '@/lib/permissions'
 import { getAttendanceEmployee } from '@/lib/attendance-employee.server'
-import { HALF_DAY_TYPES, LEAVE_TYPE_LABEL, type LeaveType } from '@/lib/attendance'
+import {
+  HALF_DAY_TYPES, LEAVE_TYPE_LABEL, kstToday, leaveDays,
+  type AttendanceLeave, type HolidayMap, type LeaveType,
+} from '@/lib/attendance'
 import { sendPush, approverIds } from '@/lib/push-server'
 
 export const dynamic = 'force-dynamic'
@@ -23,6 +26,18 @@ const LEAVE_TYPES: LeaveType[] = ['annual', 'half_am', 'half_pm', 'sick', 'offic
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 const LEAVE_COLS = 'id, employee_id, leave_type, start_date, end_date, reason, status, decided_by, decided_at, decide_note, created_at'
+
+type Admin = Extract<Awaited<ReturnType<typeof getAttendanceEmployee>>, { admin: unknown }>['admin']
+
+// 공휴일 맵 — 휴가 일수(주말·공휴일 제외)를 세기 위해. 201 미적용이면 빈 맵(주말만 제외)으로 동작
+async function loadHolidays(admin: Admin, from: string, to: string): Promise<HolidayMap> {
+  const { data, error } = await admin.from('attendance_holidays')
+    .select('holiday_date, name').gte('holiday_date', from).lte('holiday_date', to)
+  const map: HolidayMap = {}
+  if (error) return map
+  for (const h of data ?? []) map[h.holiday_date as string] = h.name as string
+  return map
+}
 
 export async function GET(req: NextRequest) {
   // 직원 정보가 없는 계정도 자동 연결되므로 등급 구분 없이 본인 휴가를 볼 수 있다
@@ -65,8 +80,18 @@ export async function GET(req: NextRequest) {
       decided_by_name: l.decided_by ? (byId.get(l.decided_by as string)?.name ?? null) : null,
     }))
   }
+  // 근무일 기준 일수 — 주말·공휴일 제외, 반차 0.5 (2026-11-04: 주말이 포함된 것처럼 보이던 표시 수정)
+  // holidays 는 신청 양식의 일수 미리보기용으로 함께 내려준다 (작년 1월 ~ 내년 12월 + 조회된 휴가 기간)
+  const year = Number(kstToday().slice(0, 4))
+  let from = `${year - 1}-01-01`, to = `${year + 1}-12-31`
+  for (const l of leaves) {
+    if ((l.start_date as string) < from) from = l.start_date as string
+    if ((l.end_date as string) > to) to = l.end_date as string
+  }
+  const holidays = await loadHolidays(admin, from, to)
+  leaves = leaves.map(l => ({ ...l, days: leaveDays(l as unknown as AttendanceLeave, undefined, undefined, holidays) }))
   // can_edit = 승인된 휴가 취소 권한 (취소 버튼 노출용 — 실제 차단은 POST에서)
-  return NextResponse.json({ leaves, myEmployeeId: employeeId, can_edit: isHrAdmin(me) })
+  return NextResponse.json({ leaves, holidays, myEmployeeId: employeeId, can_edit: isHrAdmin(me) })
 }
 
 export async function POST(req: NextRequest) {
@@ -87,6 +112,13 @@ export async function POST(req: NextRequest) {
     if (end < start) return NextResponse.json({ error: '종료일이 시작일보다 빠릅니다.' }, { status: 400 })
     if (HALF_DAY_TYPES.includes(leaveType) && start !== end) {
       return NextResponse.json({ error: '반차는 하루만 선택할 수 있습니다.' }, { status: 400 })
+    }
+
+    // 근무일이 하나도 없는 기간(주말·공휴일만)은 차감할 날이 없으므로 신청을 막는다
+    const days = leaveDays({ start_date: start, end_date: end, leave_type: leaveType } as AttendanceLeave,
+      undefined, undefined, await loadHolidays(admin, start, end))
+    if (days === 0) {
+      return NextResponse.json({ error: '선택한 기간에 근무일이 없습니다. 주말과 공휴일은 휴가 일수에서 제외됩니다.' }, { status: 400 })
     }
 
     // 기간이 겹치는 기존 신청(대기·승인)이 있으면 중복 신청 차단
@@ -111,7 +143,7 @@ export async function POST(req: NextRequest) {
     // PC 알림(업무요청 트랙 ⑦) — 승인권자에게 "휴가 승인 요청". 실패해도 신청은 유지.
     await sendPush(admin, await approverIds(admin, employeeId), {
       kind: 'leave_approve', title: `휴가 승인 요청 — ${me.employeeName ?? '직원'}`,
-      body: `${LEAVE_TYPE_LABEL[leaveType] ?? leaveType} ${start}${end !== start ? ` ~ ${end}` : ''}`,
+      body: `${LEAVE_TYPE_LABEL[leaveType] ?? leaveType} ${start}${end !== start ? ` ~ ${end}` : ''} · ${days}일`,
       url: '/hr/approvals', tag: `leave:${employeeId}:${start}`,
     })
     return NextResponse.json({ ok: true })
