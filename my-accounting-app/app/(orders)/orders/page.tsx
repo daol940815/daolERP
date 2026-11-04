@@ -423,7 +423,7 @@ export default function OrdersHomePage() {
         행 클릭 = 상세 · 상품 N = 행에서 펼치기 · 기존 ERP 업로드분과 직접 입력분이 함께 보입니다
       </p>
       {collectFor && (
-        <CollectMatchModal orderId={collectFor} onClose={() => setCollectFor(null)} onSaved={() => load()} />
+        <CollectMatchModal orderId={collectFor} onClose={() => setCollectFor(null)} onSaved={() => load()} hideAccountingLinks />
       )}
     </div>
   )

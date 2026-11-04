@@ -22,7 +22,10 @@ interface Candidate {
   amount: number; allocated: number; remaining: number
 }
 
-export default function CollectMatchModal({ orderId, onClose, onSaved }: { orderId: string; onClose: () => void; onSaved?: () => void }) {
+// hideAccountingLinks: 주문 화면(영업·주문)에서 열 때 회계 화면 링크를 숨긴다 — 주문 쪽 → 회계 이동 불가 원칙 (2026-11-04 사용자 결정)
+export default function CollectMatchModal({ orderId, onClose, onSaved, hideAccountingLinks = false }: {
+  orderId: string; onClose: () => void; onSaved?: () => void; hideAccountingLinks?: boolean
+}) {
   const [order, setOrder] = useState<OrderSummary | null>(null)
   const [cands, setCands] = useState<Candidate[]>([])
   const [loading, setLoading] = useState(true)
@@ -209,7 +212,7 @@ export default function CollectMatchModal({ orderId, onClose, onSaved }: { order
             )}
           </div>
           <div className="flex items-center gap-2">
-            {firstSelected && (
+            {firstSelected && !hideAccountingLinks && (
               <Link href={`/erp-matching?depositId=${firstSelected.source_type}:${firstSelected.id}`} className="text-xs text-sky-700 hover:underline"
                 title="저장 후 이 결제의 남은 잔액을 다른 주문에 나눕니다">
                 이 결제건을 다른 주문에도 배분 →
