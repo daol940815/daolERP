@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { contactLabel } from '@/lib/contact-label'
+import { hasShip, shipText, type ShipInput } from './ship-address'
 
 // 주문 포털 공용 로직 (2단계 — 직접 입력 주문)
 //  - 입력 payload 검증·금액 계산은 서버에서 다시 한다 (클라이언트 계산값 불신)
@@ -42,8 +43,12 @@ export interface OrderInput {
   supervisor?: string | null
   supervisor_contact?: string | null
   memo?: string | null
+  ship?: ShipInput                    // 배송지 (513 — 지점·샘플 배송용, 선택 항목)
   items: OrderItemInput[]
 }
+
+// 배송지 타입·표시 함수는 화면과 공용 — lib/ship-address.ts
+export { SHIP_KEYS, SHIP_KINDS, hasShip, shipText, type ShipInput } from './ship-address'
 
 const toInt = (v: unknown): number => {
   const n = Number(v)
@@ -98,6 +103,14 @@ export function validateOrderInput(raw: unknown): { input: OrderInput } | { erro
       supervisor: String(b.supervisor ?? '').trim() || null,
       supervisor_contact: String(b.supervisor_contact ?? '').trim() || null,
       memo: String(b.memo ?? '').trim() || null,
+      ship: (() => {
+        const sh = (b.ship ?? {}) as Record<string, unknown>
+        const t = (v: unknown) => String(v ?? '').trim() || null
+        return {
+          ship_name: t(sh.ship_name), ship_phone: t(sh.ship_phone), ship_zip: t(sh.ship_zip),
+          ship_addr1: t(sh.ship_addr1), ship_addr2: t(sh.ship_addr2),
+        }
+      })(),
       items,
     },
   }
@@ -232,6 +245,10 @@ export function buildOrderRows(input: OrderInput, ctx: ApplyContext) {
     memo: input.memo,
     total_amount: total,
   }
+  // 배송지는 별도로 돌려준다 — 513 미적용 DB에서도 배송지 없이 저장되도록 호출 측이 조건부로 펼친다
+  const shipFields: ShipInput = input.ship ?? {
+    ship_name: null, ship_phone: null, ship_zip: null, ship_addr1: null, ship_addr2: null,
+  }
   const itemRows = input.items.map((it, i) => ({
     line_no: i + 1,
     // 본 상품 행 번호 — 자기 자신·범위 밖 참조는 무시
@@ -260,7 +277,7 @@ export function buildOrderRows(input: OrderInput, ctx: ApplyContext) {
     channel: ctx.counselorName,
     memo: it.memo ?? null,
   }))
-  return { orderFields, itemRows, total }
+  return { orderFields, shipFields, itemRows, total }
 }
 
 // 품목의 매입처 별칭 연결 후 품목 행 삽입
@@ -354,7 +371,7 @@ const itemBrief = (r: AnyRow) =>
 // 헤더 필드 변경 로그 계산
 function headerDiffs(
   before: AnyRow,
-  after: { orderFields: AnyRow; bankName: string; branchName: string | null },
+  after: { orderFields: AnyRow; bankName: string; branchName: string | null; ship?: ShipInput | null },
 ): { field: string; before?: string | null; after?: string | null }[] {
   const customerOf = (b: unknown, br: unknown) => [b, br].filter(Boolean).join(' ')
   const pairs: [string, unknown, unknown][] = [
@@ -364,6 +381,7 @@ function headerDiffs(
     ['연락처', before.contact, after.orderFields.contact],
     ['핸드폰', before.phone, after.orderFields.phone],
     ['메모', before.memo, after.orderFields.memo],
+    ...(after.ship ? [['배송지', shipText(before), shipText(after.ship)] as [string, unknown, unknown]] : []),
   ]
   return pairs
     .filter(([, b, a]) => String(b ?? '') !== String(a ?? ''))
@@ -382,7 +400,10 @@ export async function applyOrderEdit(
 ): Promise<{ error: string } | { warning: string | null }> {
   const snap = await loadOrderSnapshot(admin, orderId)
   if (!snap) return { error: '주문을 찾을 수 없습니다.' }
-  const { orderFields, itemRows, total } = buildOrderRows(input, ctx)
+  const { orderFields, shipFields, itemRows, total } = buildOrderRows(input, ctx)
+  // 513 적용 DB(컬럼 존재)면 항상 반영(비우기 포함), 미적용이면 값이 있을 때만 시도 → 오류 안내
+  const shipColumns = 'ship_addr1' in (snap.order as AnyRow)
+  const writeShip = shipColumns || hasShip(shipFields)
 
   const collected = Math.max(0, (snap.order.total_amount ?? 0) - (snap.order.outstanding_amount ?? 0))
   const outstanding = Math.max(0, total - collected)
@@ -397,13 +418,18 @@ export async function applyOrderEdit(
 
   const { error: upErr } = await admin.from('erp_orders').update({
     ...orderFields,
+    ...(writeShip ? shipFields : {}),
     bank_name: names.bankName,
     branch_name: names.branchName,
     customer_alias_id: aliasId,
     outstanding_amount: outstanding,
     collect_status: collectStatus,
   }).eq('id', orderId)
-  if (upErr) return { error: `주문 저장 실패: ${upErr.message}` }
+  if (upErr) {
+    return { error: /ship_/.test(upErr.message)
+      ? '513 마이그레이션(배송지)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
+      : `주문 저장 실패: ${upErr.message}` }
+  }
 
   // ── 품목 대사: 내용 키가 같은 행 보존, 나머지 취소+등록 ──
   const existing = (snap.items as AnyRow[]).filter(it => !it.is_canceled)
@@ -452,7 +478,9 @@ export async function applyOrderEdit(
   // ── 변경 로그 + '수정됨' 표시 ──
   let warning: string | null = null
   if (editor) {
-    const logs = headerDiffs(snap.order as AnyRow, { orderFields, bankName: names.bankName, branchName: names.branchName })
+    const logs = headerDiffs(snap.order as AnyRow, {
+      orderFields, bankName: names.bankName, branchName: names.branchName, ship: writeShip ? shipFields : null,
+    })
     for (const d of dropped) logs.push({ field: '품목 취소', before: itemBrief(d), after: null })
     for (const a of added) logs.push({ field: '품목 추가', before: null, after: itemBrief(a as unknown as AnyRow) })
     warning = await writeEditLogs(admin, orderId, editor, logs)

@@ -49,9 +49,19 @@ async function loadPo(admin: SupabaseClient, id: string) {
   const { data: items } = await admin.from('erp_purchase_order_items')
     .select('line_no, order_item_id, item_code, item_name, order_kind, quantity, purchase_price, purchase_shipping, purchase_total, memo')
     .eq('po_id', id).order('line_no')
-  const { data: order } = await admin.from('erp_orders')
-    .select('order_no, order_date, bank_name, branch_name, manager_name, contact, phone, consultation_id')
+  const baseCols = 'order_no, order_date, bank_name, branch_name, manager_name, contact, phone, consultation_id'
+  // 배송지(513) 포함 조회 — 미적용 DB면 배송지 없이 재조회
+  const withShip = await admin.from('erp_orders')
+    .select(`${baseCols}, ship_name, ship_phone, ship_zip, ship_addr1, ship_addr2`)
     .eq('id', poRec.order_id).maybeSingle()
+  type OrderRow = {
+    order_no: string | null; order_date: string | null; bank_name: string | null; branch_name: string | null
+    manager_name: string | null; contact: string | null; phone: string | null; consultation_id: string | null
+    ship_name?: string | null; ship_phone?: string | null; ship_zip?: string | null; ship_addr1?: string | null; ship_addr2?: string | null
+  }
+  const order = (withShip.error
+    ? (await admin.from('erp_orders').select(baseCols).eq('id', poRec.order_id).maybeSingle()).data
+    : withShip.data) as OrderRow | null
   return { po: poRec, items: items ?? [], order }
 }
 
@@ -102,6 +112,11 @@ async function assembleForm(
     staff_phone: staff.phone,
     total_amount: po.total_amount ?? 0,
     delivery_note: po.delivery_note,
+    ship: order && 'ship_addr1' in order ? {
+      ship_name: (order.ship_name as string | null) ?? null, ship_phone: (order.ship_phone as string | null) ?? null,
+      ship_zip: (order.ship_zip as string | null) ?? null, ship_addr1: (order.ship_addr1 as string | null) ?? null,
+      ship_addr2: (order.ship_addr2 as string | null) ?? null,
+    } : null,
     items: items.map(it => ({
       item_code: it.item_code, item_name: it.item_name, order_kind: it.order_kind,
       quantity: it.quantity ?? 0, purchase_price: it.purchase_price ?? 0,

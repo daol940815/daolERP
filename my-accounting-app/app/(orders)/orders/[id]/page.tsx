@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import PurchaseSection from './purchase-section'
+import { hasShip, needsShip, shipText } from '@/lib/ship-address'
 
 // 주문 상세 (2단계) — 업로드·직접입력 공통 조회.
 // direct 주문 (2026-08-25 취소·재등록 확정): 당일(본인)·관리자는 직접 수정(변경 로그),
@@ -206,6 +207,20 @@ export default function OrderDetailPage() {
             </div>
           ))}
         </div>
+        {/* 배송지 (513) — 지점·샘플 품목용. 컬럼이 있는(513 적용) DB에서만 표시 */}
+        {'ship_addr1' in order && (() => {
+          const filled = hasShip(order as Record<string, unknown>)
+          const missing = !filled && isDirect && !canceled && needsShip(activeItems.map(it => it.order_kind))
+          if (!filled && !missing) return null
+          return (
+            <div className={`mt-3 rounded-lg px-3 py-2 text-sm ${missing ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50'}`}>
+              <div className="text-[11px] text-gray-400">배송지 (지점 · 샘플 배송)</div>
+              {missing
+                ? <div className="text-amber-800 text-xs mt-0.5">배송지 미입력 — 발주서 배송명단에 주소가 비어서 나갑니다. 당일은 수정, 익일 이후는 취소 · 재등록으로 입력하세요.</div>
+                : <div className="text-gray-800">{shipText(order as Record<string, unknown>)}</div>}
+            </div>
+          )
+        })()}
         {typeof order.etc === 'string' && order.etc && (
           <div className="mt-2 text-xs text-red-600">{order.etc}</div>
         )}

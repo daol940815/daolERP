@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useState } from 'react'
+import { SHIP_KINDS, hasShip } from '@/lib/ship-address'
 import {
   COMPANY_NAME, PO_COLORS, PO_HEADERS, PO_NUM_COLS, ROSTER_HEADERS,
   poFormInfo, poFormItemRows, poRosterRows, type PoExcelData,
@@ -161,9 +162,14 @@ export default function PoDetail({ poId }: { poId: string }) {
 
       <div className="mt-1.5 space-y-0.5 text-[11px] text-gray-400">
         <div>
-          엑셀 다운로드·메일 첨부와 동일한 내용입니다. 배송명단의 주소 등 빈 칸은
-          다운로드 후 수기로 보완합니다 (개별배송 명단 관리 기능은 4페이즈 예정).
+          엑셀 다운로드·메일 첨부와 동일한 내용입니다. 지점·샘플 품목은 주문 배송지가 자동으로 들어가고,
+          개별 배송 품목의 수령인·주소는 다운로드 후 수기로 보완합니다 (개별배송 명단 관리 기능은 4페이즈 예정).
         </div>
+        {form.ship && !hasShip(form.ship) && form.items.some(it => SHIP_KINDS.has(it.order_kind ?? '지점')) && (
+          <div className="text-amber-700">
+            배송지 미입력 — 주문서에 배송지가 없어 배송명단 주소가 비어서 나갑니다. 주문 상세에서 입력(당일 수정 · 익일 취소 · 재등록)하거나 다운로드 후 수기로 채우세요.
+          </div>
+        )}
         {data.po?.email_to && <div>받는 이메일: <span className="text-gray-600">{data.po.email_to}</span></div>}
         {broken > 0 && (
           <div className="text-red-500">

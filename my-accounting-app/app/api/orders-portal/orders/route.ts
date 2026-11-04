@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/user-role'
 import {
   validateOrderInput, buildOrderRows, insertOrderItems, ensureAlias, nextOrderNo,
   resolveDisplayNames, resolveVendorNames, loadOrderSnapshot, cancelOrder,
-  canCancelReissue, inheritToReissued, writeEditLogs,
+  canCancelReissue, inheritToReissued, writeEditLogs, hasShip,
 } from '@/lib/orders-portal'
 import { recordWorkLog, orderContent } from '@/lib/work-log'
 
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
 
   const aliasName = [vendorNames.bankName, vendorNames.branchName].filter(Boolean).join(' ')
   const aliasId = await ensureAlias(admin, 'customer', aliasName, input.vendor_id)
-  const { orderFields, itemRows, total } = buildOrderRows(input, {
+  const { orderFields, shipFields, itemRows, total } = buildOrderRows(input, {
     managerName: names.managerName,
     counselorName: names.counselorName,
   })
@@ -82,6 +82,7 @@ export async function POST(req: NextRequest) {
     orderNo = await nextOrderNo(admin, input.order_date)
     const { data, error } = await admin.from('erp_orders').insert({
       ...orderFields,
+      ...(hasShip(shipFields) ? shipFields : {}),   // 513 미적용 DB에서도 배송지 없이 저장되도록
       order_no: orderNo,
       source: 'direct',
       bank_name: vendorNames.bankName,
@@ -94,6 +95,9 @@ export async function POST(req: NextRequest) {
       ...(consultationId ? { consultation_id: consultationId } : {}),
     }).select('id').single()
     if (!error) { orderId = data.id as string; break }
+    if (/ship_/.test(error.message)) {
+      return NextResponse.json({ error: '513 마이그레이션(배송지)이 아직 적용되지 않았습니다. SQL 편집기에서 실행하거나, 배송지를 비우고 저장해주세요.' }, { status: 500 })
+    }
     if (!/duplicate|unique/i.test(error.message)) {
       const missing = /column|vendor_id|contact_id|counselor|created_by/i.test(error.message)
       return NextResponse.json({

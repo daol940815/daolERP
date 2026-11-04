@@ -1,6 +1,8 @@
 'use client'
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import ShipCard, { EMPTY_SHIP } from './ship-card'
+import { needsShip, type ShipInput } from '@/lib/ship-address'
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -43,6 +45,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
   const [contactTel, setContactTel] = useState('')
   const [phone, setPhone] = useState('')
   const [memo, setMemo] = useState('')
+  const [ship, setShip] = useState<ShipInput>(EMPTY_SHIP)   // 배송지 (513)
   const uidRef = useRef(2)
   const nextUid = () => uidRef.current++
   const [items, setItems] = useState<ItemDraft[]>(() => [emptyItem(1)])
@@ -112,6 +115,10 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           setContactTel(ord.contact ?? '')
           setPhone(ord.phone ?? '')
           setMemo(ord.memo ?? '')
+          setShip({
+            ship_name: ord.ship_name ?? null, ship_phone: ord.ship_phone ?? null, ship_zip: ord.ship_zip ?? null,
+            ship_addr1: ord.ship_addr1 ?? null, ship_addr2: ord.ship_addr2 ?? null,
+          })
           const prodList: Product[] = pRes.ok ? (p.products ?? []) : []
           // 취소 처리된 품목 행(511)은 폼에 올리지 않는다 — 다시 살아나는 것을 방지
           const activeItems = (o.items as Record<string, unknown>[]).filter(it => !it.is_canceled)
@@ -393,6 +400,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
       contact: contactTel || null,
       phone: phone || null,
       memo: memo || null,
+      ship,
       items: (() => {
         const filled = items.filter(it => it.item_name.trim())
         const posByUid = new Map(filled.map((it, idx) => [it.uid, idx + 1]))
@@ -667,6 +675,21 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           </div>
         )}
       </div>
+
+      {/* 배송지 (513, 2026-11-04) — 지점·샘플 품목용. 신규·상담 전환만 자동 채움, 수정·재등록은 원본 값 */}
+      {(() => {
+        const c = contacts.find(x => x.contact_id === contactId)
+        return (
+          <ShipCard
+            value={ship} onChange={setShip} vendorId={vendorId}
+            contactName={c ? contactLabel(c.name, c.title) : null}
+            contactPhone={c?.phone ?? (phone || null)}
+            autoFill={!orderId && !reissueId}
+            applies={needsShip(items.filter(it => it.item_name.trim()).map(it => it.order_kind))}
+            disabled={isEdit && !canEdit}
+          />
+        )
+      })()}
 
       {/* 주문 상품 — 기존 컬럼 순서 그대로 */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3 overflow-x-auto">

@@ -4,12 +4,12 @@
 // 매칭은 발주서 스냅샷의 매입처 표기(vendor_name) 기준 — 매입처 표기를 바꾸면
 // 연결이 끊기므로 개명 시 이 목록도 함께 갱신할 것.
 import type { PoExcelData } from './po-form'
-import { COMPANY_TEL } from './po-form'
+import { COMPANY_TEL, shipForItem } from './po-form'
 
 // ── 대경사과원예농협: '송장등록' 리스트 (위탁 직배송 접수 양식) ──
 // 실발송 예시(2026-09-17) 기준 매핑:
 //  보내는사람 = 주문처 + 담당자(존칭 '님' 제거 관례), 연락처1 = 다올 TEL
-//  받는사람·연락처·우편번호·주소 = 수령인별 수기 기입 (다운로드 후 행을 늘려 작성)
+//  받는사람·연락처·우편번호·주소 = 주문 배송지(513, 지점·샘플 품목) 자동 / 개별 배송·미입력은 수기 (행을 늘려 작성)
 //  상품명·수량 = 품목별 1행, 공급가 = 매입 단가, 판매가·등록명·쇼핑몰·산지 = 공란
 //  주문번호1 = 발주번호(회신 대조용), 배송메세지 = 발주 배송 참고 프리필
 async function buildDaekyungInvoice(po: PoExcelData): Promise<Buffer> {
@@ -31,11 +31,13 @@ async function buildDaekyungInvoice(po: PoExcelData): Promise<Buffer> {
     .filter(Boolean).join(' ')
   po.items.forEach((it, i) => {
     const r = i + 2
+    const sh = shipForItem(po, it.order_kind)
     const values: (string | number)[] = [
       '',                       // 송장번호 — 매입처 기입
       po.po_no,                 // 주문번호1 = 발주번호
       sender, COMPANY_TEL, '',
-      '', '', '', '', '',       // 받는사람·연락처·우편번호·주소 — 수령인별 수기
+      sh?.name ?? '', sh?.phone ?? '', '',   // 받는사람·연락처1·연락처2
+      sh?.zip ?? '', sh?.addr ?? '',          // 우편번호·주소 (배송지 없으면 수기)
       it.item_name ?? '',
       '',                       // 등록명 (공란 — 사용자 확정)
       it.quantity ?? 0,
