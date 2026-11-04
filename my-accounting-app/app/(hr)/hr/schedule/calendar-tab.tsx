@@ -6,7 +6,7 @@ import {
   type HolidayMap,
 } from '@/lib/attendance'
 import {
-  KIND_LABEL, sortEvents, spreadByDate,
+  KIND_LABEL, eventSegments, sortEvents, spreadByDate,
   type ScheduleEvent, type ScheduleKind,
 } from '@/lib/schedule'
 
@@ -74,7 +74,7 @@ export default function CalendarTab() {
     () => (data?.events ?? []).filter(e => !off.includes(e.kind)),
     [data, off])
   const byDate = useMemo(
-    () => data ? spreadByDate(shown, data.month) : {},
+    () => data ? spreadByDate(shown, data.month, data.holidays) : {},
     [shown, data])
   const counts = useMemo(() => {
     const c: Partial<Record<ScheduleKind, number>> = {}
@@ -302,24 +302,27 @@ function Timeline({ data, events }: { data: Res; events: ScheduleEvent[] }) {
                     data.holidays[d] ? 'bg-rose-50' : [0, 6].includes(dayOfWeek(d)) ? 'bg-gray-50' : ''}`} />
                 ))}
               </div>
-              {evs.map((e, i) => {
-                const s = col(e.date)
-                const en = col(e.endDate && e.endDate > e.date ? e.endDate : e.date)
-                return (
-                  <div key={i}
-                    className={`absolute top-1 h-5 rounded text-[10px] leading-5 px-1.5 truncate ${COLOR[e.kind]}`}
-                    style={{ left: `${((s - 1) / last) * 100}%`, width: `${((en - s + 1) / last) * 100}%` }}
-                    title={`${e.title}${e.note ? ` — ${e.note}` : ''}`}>
-                    {e.title}
-                  </div>
-                )
-              })}
+              {/* 휴가는 주말·공휴일에서 막대를 끊는다 (그날은 휴가가 아니라 쉬는 날) */}
+              {evs.flatMap((e, i) => eventSegments(e, data.holidays)
+                .filter(([a, b]) => b >= dates[0] && a <= dates[last - 1])
+                .map(([a, b], j) => {
+                  const s = col(a < dates[0] ? dates[0] : a)
+                  const en = col(b > dates[last - 1] ? dates[last - 1] : b)
+                  return (
+                    <div key={`${i}-${j}`}
+                      className={`absolute top-1 h-5 rounded text-[10px] leading-5 px-1.5 truncate ${COLOR[e.kind]}`}
+                      style={{ left: `${((s - 1) / last) * 100}%`, width: `${((en - s + 1) / last) * 100}%` }}
+                      title={`${e.title}${e.note ? ` — ${e.note}` : ''}`}>
+                      {e.title}
+                    </div>
+                  )
+                }))}
             </div>
           </div>
         ))}
       </div>
       <p className="text-[11px] text-gray-400 mt-2">
-        회색은 주말, 분홍은 공휴일. 사람이 있는 일정은 직원별 행으로, 세무·대출은 항목 행으로 묶습니다.
+        회색은 주말, 분홍은 공휴일. 휴가 막대는 주말 · 공휴일에서 끊어 그립니다. 사람이 있는 일정은 직원별 행으로, 세무·대출은 항목 행으로 묶습니다.
       </p>
     </div>
   )

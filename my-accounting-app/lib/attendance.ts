@@ -171,6 +171,33 @@ export function leaveDays(
   return HALF_DAY_TYPES.includes(l.leave_type) ? days * 0.5 : days
 }
 
+/**
+ * 기간을 근무일이 이어지는 구간들로 나눈다 — 주말·공휴일에서 끊는다.
+ * 예: 11/06(금)~11/09(월) → [[11/06,11/06],[11/09,11/09]]. 근무일이 없으면 [].
+ * 캘린더에서 휴가를 근무일 칸에만 그릴 때 사용 (2026-11-04 사용자 결정: 주말은 휴가 일수·표시 모두 제외)
+ */
+export function workDaySegments(start: string, end: string, holidays?: HolidayMap): [string, string][] {
+  const out: [string, string][] = []
+  let segStart: string | null = null
+  let prev = start
+  for (let d = start; d <= end; d = addDays(d, 1)) {
+    if (isOffDate(d, holidays)) {
+      if (segStart) { out.push([segStart, prev]); segStart = null }
+    } else {
+      if (!segStart) segStart = d
+      prev = d
+    }
+  }
+  if (segStart) out.push([segStart, prev])
+  return out
+}
+
+/** 휴가 기간 + 근무일 일수 표기 — '2026-11-06 ~ 2026-11-09 · 2일' (반차는 0.5일) */
+export function leavePeriodText(l: Pick<AttendanceLeave, 'start_date' | 'end_date' | 'leave_type'>, days?: number | null) {
+  const period = `${l.start_date}${l.end_date !== l.start_date ? ` ~ ${l.end_date}` : ''}`
+  return days == null ? period : `${period} · ${days}일`
+}
+
 // ── 월별 직원 집계 (관리자 화면·본인 화면 공용) ──────────────
 export interface MonthSummary {
   workDays: number       // 판정 대상 근무일 수 (지난 근무일 기준)

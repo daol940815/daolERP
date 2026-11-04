@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
-  LEAVE_STATUS_LABEL, LEAVE_TYPE_LABEL,
+  LEAVE_STATUS_LABEL, LEAVE_TYPE_LABEL, leavePeriodText,
   type AttendanceLeave,
 } from '@/lib/attendance'
 
@@ -14,6 +14,7 @@ type LeaveRow = AttendanceLeave & {
   employee?: { name: string; team: string | null } | null
   decided_by_name?: string | null      // 승인 · 반려 · 취소한 사람
   decided_at?: string | null
+  days?: number                        // 근무일 기준 일수 (주말·공휴일 제외, 반차 0.5) — 서버 계산
 }
 const fmtDay = (iso: string | null | undefined) =>
   iso ? new Date(new Date(iso).getTime() + 9 * 3600 * 1000).toISOString().slice(5, 10).replace('-', '/') : ''
@@ -77,8 +78,8 @@ export default function LeaveApprovalsPage() {
     load()
   }
 
-  const period = (l: LeaveRow) =>
-    `${l.start_date}${l.end_date !== l.start_date ? ` ~ ${l.end_date}` : ''}`
+  // 기간 + 근무일 일수 — 결재자가 며칠짜리인지 직접 세지 않도록 (주말·공휴일 제외)
+  const period = (l: LeaveRow) => leavePeriodText(l, l.days)
 
   return (
     <div>
@@ -96,7 +97,7 @@ export default function LeaveApprovalsPage() {
                   <td className="py-1.5 pr-3 font-semibold">{l.employee?.name ?? '-'}</td>
                   <td className="py-1.5 px-3 text-xs text-gray-500">{l.employee?.team ?? ''}</td>
                   <td className="py-1.5 px-3 font-medium">{LEAVE_TYPE_LABEL[l.leave_type]}</td>
-                  <td className="py-1.5 px-3 tabular-nums text-xs">{period(l)}</td>
+                  <td className="py-1.5 px-3 tabular-nums text-xs whitespace-nowrap">{period(l)}</td>
                   <td className="py-1.5 px-3 text-xs text-gray-500">{l.reason ?? ''}</td>
                   <td className="py-1.5 pl-3 text-right whitespace-nowrap">
                     {l.employee_id === myEmployeeId ? (
@@ -132,7 +133,7 @@ export default function LeaveApprovalsPage() {
               <tr key={l.id} className="border-b border-gray-50">
                 <td className="py-1.5 pr-3 font-semibold">{l.employee?.name ?? '-'}</td>
                 <td className="py-1.5 px-3 font-medium">{LEAVE_TYPE_LABEL[l.leave_type]}</td>
-                <td className="py-1.5 px-3 tabular-nums text-xs">{period(l)}</td>
+                <td className="py-1.5 px-3 tabular-nums text-xs whitespace-nowrap">{period(l)}</td>
                 <td className="py-1.5 px-3">
                   <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
                     l.status === 'approved' ? 'bg-green-100 text-green-700'

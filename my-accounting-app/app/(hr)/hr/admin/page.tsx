@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   DAY_STATUS_LABEL, DOW_LABEL, LEAVE_TYPE_LABEL,
   dayOfWeek, isOffKind, judgeDay, kstMonthNow, kstTime, monthDates, summarizeMonth,
+  leavePeriodText,
   type AttendanceLeave, type AttendancePolicy, type AttendanceRecord,
   type DayStatusKind, type HolidayMap, type MonthSummary,
 } from '@/lib/attendance'
@@ -32,7 +33,7 @@ interface MonthRes {
   holidayYearCount: number
 }
 interface HolidayRow { holiday_date: string; name: string; source: 'public' | 'company' }
-type LeaveRow = AttendanceLeave & { employee?: { name: string; team: string | null } | null }
+type LeaveRow = AttendanceLeave & { employee?: { name: string; team: string | null } | null; days?: number }
 type Filter = 'all' | 'late' | 'absent' | 'missing'
 
 const STATUS_COLOR: Record<DayStatusKind, string> = {
@@ -364,9 +365,7 @@ export default function AttendanceAdminPage() {
                 <tr key={l.id} className="border-b border-gray-50">
                   <td className="py-1.5 pr-3 font-semibold">{l.employee?.name ?? '-'}</td>
                   <td className="py-1.5 px-3 font-medium">{LEAVE_TYPE_LABEL[l.leave_type]}</td>
-                  <td className="py-1.5 px-3 tabular-nums text-xs">
-                    {l.start_date}{l.end_date !== l.start_date ? ` ~ ${l.end_date}` : ''}
-                  </td>
+                  <td className="py-1.5 px-3 tabular-nums text-xs whitespace-nowrap">{leavePeriodText(l, l.days)}</td>
                   <td className="py-1.5 px-3 text-xs text-gray-500">{l.reason ?? ''}</td>
                   <td className="py-1.5 pl-3 text-right whitespace-nowrap">
                     <button onClick={() => decide(l.id, 'approve')} disabled={busy}
