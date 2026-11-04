@@ -42,6 +42,7 @@ interface Item {
   item_name: string | null; order_kind: string | null
   purchase_vendor_name: string | null; quantity: number
   shipping_fee: number; line_total: number; purchase_total: number
+  purchase_shipping: number | null
 }
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
@@ -375,7 +376,7 @@ export default function OrdersHomePage() {
                             <div className="space-y-0.5">
                               {items.map(it => (
                                 <div key={it.id}
-                                  className={`grid grid-cols-[1fr_auto_auto_auto] gap-x-6 text-xs items-center ${it.is_canceled ? 'text-gray-300 line-through' : ''}`}>
+                                  className={`grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-6 text-xs items-center ${it.is_canceled ? 'text-gray-300 line-through' : ''}`}>
                                   <span className={it.parent_line_no ? 'pl-5 text-gray-500' : ''}>
                                     {it.parent_line_no && <span className="text-gray-400 mr-1 no-underline">└</span>}
                                     {it.item_name} × {it.quantity}
@@ -386,6 +387,12 @@ export default function OrdersHomePage() {
                                   </span>
                                   <span className="tabular-nums">판매 {won(it.line_total)}</span>
                                   <span className="tabular-nums text-gray-400">배송비 {won(it.shipping_fee)}</span>
+                                  {showCost ? (
+                                    <span className="tabular-nums text-gray-500">
+                                      매입 {won(it.purchase_total)}
+                                      <span className="text-gray-400"> (배송비 {won(it.purchase_shipping ?? 0)})</span>
+                                    </span>
+                                  ) : <span />}
                                   {showCost ? (
                                     <span className={`tabular-nums ${it.line_total - it.purchase_total >= 0 ? 'text-emerald-700' : 'text-red-500'}`}>
                                       마진 {won(it.line_total - it.purchase_total)}

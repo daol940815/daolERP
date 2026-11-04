@@ -112,6 +112,7 @@ export default function OrderDetailPage() {
   const showCost = true   // 매입가·마진 전 직원 공개 (2026-08-13 사용자 결정)
   const activeItems = items.filter(it => !it.is_canceled)
   const cost = activeItems.reduce((s, it) => s + (it.purchase_total ?? 0), 0)
+  const costShipping = activeItems.reduce((s, it) => s + (it.purchase_shipping ?? 0), 0)   // 매입합계에 포함된 매입배송비
   const total = order.total_amount as number
   const outstanding = receivable ? receivable.outstanding : Number(order.outstanding_amount ?? 0)
   const collectStatus = receivable ? receivable.collect_status : String(order.collect_status ?? '')
@@ -242,6 +243,7 @@ export default function OrderDetailPage() {
               <th className="py-2 px-2.5 text-right font-medium">할인</th>
               <th className="py-2 px-2.5 text-right font-medium">합계</th>
               {showCost && <th className="py-2 px-2.5 text-right font-medium">매입가</th>}
+              {showCost && <th className="py-2 px-2.5 text-right font-medium">매입배송비</th>}
               {showCost && <th className="py-2 px-2.5 text-right font-medium">매입합계</th>}
               <th className="py-2 px-2.5 text-left font-medium">상담자</th>
               <th className="py-2 px-2.5 text-left font-medium">메모</th>
@@ -272,6 +274,7 @@ export default function OrderDetailPage() {
                 </td>
                 <td className="py-1.5 px-2.5 text-right tabular-nums font-semibold">{won(it.line_total)}</td>
                 {showCost && <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_price)}</td>}
+                {showCost && <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_shipping ?? 0)}</td>}
                 {showCost && <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_total)}</td>}
                 <td className="py-1.5 px-2.5 whitespace-nowrap">{it.channel ?? '-'}</td>
                 <td className="py-1.5 px-2.5">
@@ -283,7 +286,12 @@ export default function OrderDetailPage() {
         </table>
         <div className="flex gap-6 px-4 py-2.5 text-sm border-t border-gray-100">
           <span>총금액 <b className="tabular-nums">{won(total)}원</b></span>
-          {showCost && <span className="text-gray-500">매입 합계 <span className="tabular-nums">{won(cost)}원</span></span>}
+          {showCost && (
+            <span className="text-gray-500">
+              매입 합계 <span className="tabular-nums">{won(cost)}원</span>
+              {costShipping > 0 && <span className="text-gray-400"> (매입배송비 <span className="tabular-nums">{won(costShipping)}원</span> 포함)</span>}
+            </span>
+          )}
           {showCost && <span className="text-emerald-700">예상 마진 <b className="tabular-nums">{won(total - cost)}원</b></span>}
         </div>
       </div>
