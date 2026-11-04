@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { can } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
-import { kstToday, monthRange, type HolidayMap } from '@/lib/attendance'
+import {
+  kstToday, leaveDays, leavePeriodText, monthRange,
+  type AttendanceLeave, type HolidayMap, type LeaveType,
+} from '@/lib/attendance'
 import {
   birthdays, expandRules, loanPayments, partTimePeriods,
   type BirthdayRow, type LoanRow, type PartTimeRow, type RuleRow, type ScheduleEvent,
@@ -93,6 +96,16 @@ export async function GET(req: NextRequest) {
   }
 
   if (leaveRows.length) {
+    // 휴가 일수는 휴가 전체 기간으로 센다 — 달을 넘는 휴가면 그 바깥 공휴일도 읽는다
+    // (이번 달 공휴일 목록·holidayYearCount 는 건드리지 않도록 별도 맵)
+    const lvFrom = leaveRows.reduce((m, l) => (l.start_date as string) < m ? l.start_date as string : m, mStart)
+    const lvTo = leaveRows.reduce((m, l) => (l.end_date as string) > m ? l.end_date as string : m, mEnd)
+    const leaveHolidays: HolidayMap = { ...holidays }
+    if (lvFrom < mStart || lvTo > mEnd) {
+      const { data: extra } = await admin.from('attendance_holidays').select('holiday_date, name')
+        .gte('holiday_date', lvFrom).lte('holiday_date', lvTo)
+      for (const h of extra ?? []) leaveHolidays[h.holiday_date as string] = h.name as string
+    }
     const LABEL: Record<string, string> = {
       annual: '연차', half_am: '오전 반차', half_pm: '오후 반차',
       sick: '병가', official: '공가', other: '휴가',
@@ -105,6 +118,12 @@ export async function GET(req: NextRequest) {
         // 사유는 싣지 않는다 — 병가·경조사가 캘린더에 드러나지 않도록 종류만 표시
         title: LABEL[l.leave_type as string] ?? '휴가',
         who: nameById.get(l.employee_id as string) ?? null,
+        // 주말·공휴일 칸에는 그리지 않고, 상세에 근무일 기준 일수를 적는다
+        workDaysOnly: true,
+        note: leavePeriodText(
+          { start_date: l.start_date as string, end_date: l.end_date as string, leave_type: l.leave_type as LeaveType },
+          leaveDays({ start_date: l.start_date, end_date: l.end_date, leave_type: l.leave_type } as AttendanceLeave,
+            undefined, undefined, leaveHolidays)),
       })
     }
   }

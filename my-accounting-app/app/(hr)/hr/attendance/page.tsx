@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   DAY_STATUS_LABEL, DOW_LABEL, LEAVE_STATUS_LABEL, LEAVE_TYPE_LABEL,
-  dayOfWeek, isOffKind, judgeDay, kstMonthNow, kstTime, monthDates, summarizeMonth,
+  dayOfWeek, isOffKind, judgeDay, kstMonthNow, kstTime, leaveDays, leavePeriodText, monthDates, summarizeMonth,
   type AttendanceLeave, type AttendancePolicy, type AttendanceRecord,
   type DayStatusKind, type HolidayMap, type LeaveType,
 } from '@/lib/attendance'
@@ -35,7 +35,10 @@ const STATUS_COLOR: Record<DayStatusKind, string> = {
   holiday: 'bg-rose-100 text-rose-600', none: 'bg-gray-50 text-gray-300',
 }
 const EMPTY_FORM = { leave_type: 'annual' as LeaveType, start_date: '', end_date: '', reason: '' }
-type MyLeave = AttendanceLeave & { decided_by_name?: string | null; decided_at?: string | null }
+type MyLeave = AttendanceLeave & {
+  decided_by_name?: string | null; decided_at?: string | null
+  days?: number                    // 근무일 기준 일수 (주말·공휴일 제외, 반차 0.5) — 서버 계산
+}
 const fmtDay = (iso: string | null | undefined) =>
   iso ? new Date(new Date(iso).getTime() + 9 * 3600 * 1000).toISOString().slice(5, 10).replace('-', '/') : ''
 
@@ -44,6 +47,7 @@ export default function MyAttendancePage() {
   const [monthData, setMonthData] = useState<MonthRes | null>(null)
   const [month, setMonth] = useState(kstMonthNow())
   const [myLeaves, setMyLeaves] = useState<MyLeave[]>([])
+  const [leaveHolidays, setLeaveHolidays] = useState<HolidayMap>({})   // 신청 양식 일수 미리보기용
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -70,7 +74,7 @@ export default function MyAttendancePage() {
     const res = await fetch('/api/attendance/leaves?scope=self')
     const json = await res.json()
     if (!res.ok) { setError(json.error ?? '휴가 조회 실패'); return }
-    setMyLeaves(json.leaves)
+    setMyLeaves(json.leaves); setLeaveHolidays(json.holidays ?? {})
   }, [])
 
   useEffect(() => { loadStatus(); loadLeaves() }, [loadStatus, loadLeaves])
@@ -104,6 +108,18 @@ export default function MyAttendancePage() {
       setForm({ ...EMPTY_FORM }); setShowLeaveForm(false); loadLeaves()
     }
   }
+
+  // 신청 전 미리보기 — 주말·공휴일을 뺀 근무일 일수 (서버도 같은 계산으로 0일 신청을 막는다)
+  const formEnd = form.end_date || form.start_date
+  const formDays = form.start_date && formEnd >= form.start_date
+    ? leaveDays({ ...form, end_date: formEnd } as AttendanceLeave, undefined, undefined, leaveHolidays)
+    : null
+  const formSpan = form.start_date && formEnd >= form.start_date
+    ? Math.round((Date.parse(formEnd) - Date.parse(form.start_date)) / 86400_000) + 1 : 0
+  const formWorkDates = formDays != null    // 반차 배율 없이 센 근무일 수 — 빠진 날이 있는지 안내용
+    ? leaveDays({ start_date: form.start_date, end_date: formEnd, leave_type: 'annual' } as AttendanceLeave,
+      undefined, undefined, leaveHolidays)
+    : 0
 
   const cancelLeave = async (id: string) => {
     if (!window.confirm('이 휴가 신청을 취소할까요?')) return
@@ -259,10 +275,19 @@ export default function MyAttendancePage() {
               <input value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
             </div>
-            <button onClick={requestLeave} disabled={busy}
+            <button onClick={requestLeave} disabled={busy || formDays === 0}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
               신청
             </button>
+            {formDays != null && (
+              <p className={`col-span-full text-xs ${formDays === 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                {formDays === 0
+                  ? '선택한 기간에 근무일이 없습니다. 주말과 공휴일은 휴가 일수에서 제외됩니다.'
+                  : <>근무일 <b className="tabular-nums">{formDays}일</b>
+                    {formSpan > formWorkDates &&
+                      <span className="text-gray-400"> (달력 {formSpan}일 중 주말 · 공휴일 제외)</span>}</>}
+              </p>
+            )}
           </div>
         )}
         <table className="w-full text-sm mt-3">
@@ -270,9 +295,7 @@ export default function MyAttendancePage() {
             {myLeaves.map(l => (
               <tr key={l.id} className="border-b border-gray-50">
                 <td className="py-1.5 pr-3 font-medium">{LEAVE_TYPE_LABEL[l.leave_type]}</td>
-                <td className="py-1.5 px-3 tabular-nums text-xs">
-                  {l.start_date}{l.end_date !== l.start_date ? ` ~ ${l.end_date}` : ''}
-                </td>
+                <td className="py-1.5 px-3 tabular-nums text-xs whitespace-nowrap">{leavePeriodText(l, l.days)}</td>
                 <td className="py-1.5 px-3 text-xs text-gray-500">{l.reason ?? ''}</td>
                 <td className="py-1.5 px-3">
                   <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
