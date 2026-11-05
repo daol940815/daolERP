@@ -140,8 +140,8 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
     if (ok) load()
   }
 
-  // 매입처 구분 변경 (602) — 거래 매입처 / 별도 구매처 / 경비성
-  const KIND_LABEL: Record<string, string> = { partner: '거래 매입처', retail: '별도 구매처', expense: '경비성' }
+  // 매입처 구분 변경 (602) — 상품 매입처 / 별도 구매처 / 경비성
+  const KIND_LABEL: Record<string, string> = { partner: '상품 매입처', retail: '별도 구매처', expense: '경비성' }
   const changeKind = async (next: string) => {
     if (next === data?.vendor.purchase_kind) return
     const { ok, json } = await patch({ purchase_kind: next })
@@ -243,9 +243,9 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
             )}
             <span className={`px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${meta.cls}`}>{meta.label}</span>
             <select value={data.vendor.purchase_kind} onChange={e => changeKind(e.target.value)} disabled={!perms.edit}
-              title="거래 매입처=발주·미지급 관리 대상 / 별도 구매처=온·오프라인에서 사 온 곳(즉시 결제) / 경비성=택배·전기·리스 등"
+              title="상품 매입처=발주·미지급 관리 대상 / 별도 구매처=온·오프라인에서 사 온 곳(즉시 결제) / 경비성=택배·전기·리스 등"
               className="border border-gray-300 rounded px-1.5 py-0.5 text-[0.6875rem] text-gray-600">
-              <option value="partner">거래 매입처</option>
+              <option value="partner">상품 매입처</option>
               <option value="retail">별도 구매처</option>
               <option value="expense">경비성</option>
             </select>
