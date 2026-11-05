@@ -292,7 +292,7 @@ docs/ui-reorg-track.md의 "(b) 상담일지 미연결 정책" 요청문(사용�
 ### 주문 진행 요청 (2026-11-05 — 주문 트랙 세션에서 설계, 시안 단계)
 
 - 상담만 하고 주문 입력은 다른 직원에게 맡기는 기능. 사용자 확정: 담당자 전 직원 · 한 상담 한 명 · PC 알림 · 다올직원 = 입력자 / 상담자 = 요청자.
-- **705 선점 · 작성 완료 (2026-11-05, 실행 대기)** — `705_consultation_order_request.sql`: erp_consultations에 order_assignee_id · order_requested_by ·
+- **705 운영 적용 (2026-11-05, 검증 요청컬럼_기대5 = 5 · 인덱스_기대1 = 1)** — `705_consultation_order_request.sql`: erp_consultations에 order_assignee_id · order_requested_by ·
   order_requested_at · order_request_memo · order_reminded_at. **이 트랙의 다음 번호는 706부터.** 상담 API(목록 scope · 상세 열람 · PATCH 'request') ·
   상담 폼 · 목록 화면을 주문 트랙 세션이 수정함(상세는 order-system-track.md). 705 후 erp_consultations → employees 연결이 3개라 조인은 FK 이름을 명시할 것
   (`employees!erp_consultations_employee_id_fkey`).

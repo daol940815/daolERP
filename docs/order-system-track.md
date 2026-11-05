@@ -476,7 +476,7 @@
 - 2단계(주문 쪽에서 직접 연결)는 수금 흐름 전환(영업지원 수행 → 회계 확인) 설계와
   함께 재논의.
 
-### 상담일지 주문 진행 요청 (2026-11-05 사용자 확정 · 구현 — 705 실행 대기, 상담 · 업무일지 트랙과 공동)
+### 상담일지 주문 진행 요청 (2026-11-05 사용자 확정 · 구현 — 705 운영 적용 2026-11-05 검증 5/1, 상담 · 업무일지 트랙과 공동)
 
 - 요구: 상담만 하고 주문 입력은 다른 직원에게 맡김(영업자 → 영업지원, 직원 → 아르바이트). 현재 막힘: 목록은 본인 작성분만,
   일반 직원은 본인 상담만 전환(orders route 403), 아르바이트는 신규 거래처 · 담당자 등록 차단.
@@ -488,7 +488,7 @@
   구현 시 마이그레이션은 700번대(상담 · 업무일지 트랙 규칙).
 - **2026-11-05 사용자 확정(시안 F)**: ① 가안(작성 화면 칸 + 목록 행 버튼) ② **요청받은 직원은 진행(전환)만, 상담 수정 불가** ③ 가안(아르바이트 +
   마스터 미연결 → 요청 저장 차단) ④ 가안(다음 날 아침 09:00 PC 재알림 1회).
-- **구현 (2026-11-05, 705 실행 대기)**: 705 = erp_consultations에 order_assignee_id · order_requested_by · order_requested_at · order_request_memo ·
+- **구현 (2026-11-05, 705 운영 적용 2026-11-05 — 요청컬럼_기대5 = 5 · 인덱스_기대1 = 1)**: 705 = erp_consultations에 order_assignee_id · order_requested_by · order_requested_at · order_request_memo ·
   order_reminded_at + 인덱스(검증 요청컬럼_기대5 · 인덱스_기대1). `lib/order-request.ts` saveOrderRequest(변경 없으면 무동작, 담당자 바뀌면 요청 시각 ·
   요청자 · 재알림 초기화 + PC 알림 order_req, 아르바이트 + 마스터 미연결 차단, 전환된 상담 변경 불가) · notifyOrderRequestDone(요청자 ≠ 전환자일 때 order_done).
   PushKind에 order_req · order_done 추가(알림 설정 화면 자동 노출). 상담 API: 목록 scope(mine = 작성 + 요청받음 / assigned / requested / done) + request_kpi,
