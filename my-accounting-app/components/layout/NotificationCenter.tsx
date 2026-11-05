@@ -2,11 +2,12 @@
 
 // 알림 센터 — 사이드바 종(건수) + 패널, 우하단 토스트. 데이터·폴링은 useNotifications(AreaSidebar가 소유).
 // 종 숫자 = 해야 할 것 + 기다리는 것(결과 통지 제외, 2026-10-16 권장안 확정). 소리 없음.
+// 2026-11-05: 종 숫자를 개인 · 공용 · 내 요청(· 기타)으로 나눠 보여준다 (BucketPills).
 
 import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { NOTIF_GROUP_LABEL, NOTIF_POLL_MS, type NotifData, type NotifGroup, type NotifItem } from '@/lib/notifications'
+import { NOTIF_BUCKETS, NOTIF_BUCKET_LABEL, NOTIF_GROUP_LABEL, NOTIF_POLL_MS, type NotifData, type NotifGroup, type NotifItem } from '@/lib/notifications'
 import type { Toast } from '@/lib/use-notifications'
 
 const DOT: Record<string, string> = { red: 'bg-red-500', amber: 'bg-amber-400', blue: 'bg-blue-500', gray: 'bg-slate-300' }
@@ -20,6 +21,21 @@ const timeLabel = (iso: string | null) => {
   return day === today ? `${p.hour}:${p.minute}` : `${p.month}-${p.day}`
 }
 
+// 종 숫자 나눔 — 0인 종류는 숨김. 구버전 응답(breakdown 없음)이면 합계 하나만.
+function BucketPills({ data, tone }: { data: NotifData; tone: 'dark' | 'light' }) {
+  const pill = tone === 'dark' ? 'bg-red-500 text-white' : 'bg-red-50 text-red-700 border border-red-200'
+  if (!data.breakdown) return <span className={`text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none ${pill}`}>{data.count}</span>
+  return (
+    <span className="flex items-center gap-1 flex-wrap justify-end">
+      {NOTIF_BUCKETS.filter(b => data.breakdown[b] > 0).map(b => (
+        <span key={b} title={`${NOTIF_BUCKET_LABEL[b]} ${data.breakdown[b]}건`} className={`text-[10px] font-semibold rounded-full px-1.5 py-0.5 leading-none whitespace-nowrap ${pill}`}>
+          {NOTIF_BUCKET_LABEL[b]} {data.breakdown[b]}
+        </span>
+      ))}
+    </span>
+  )
+}
+
 export function NotificationBell({ data, seenAt, onSeen, live }: { data: NotifData | null; seenAt: string | null; onSeen: () => void; live?: boolean }) {
   const [open, setOpen] = useState(false)
   const count = data?.count ?? 0
@@ -30,7 +46,7 @@ export function NotificationBell({ data, seenAt, onSeen, live }: { data: NotifDa
       <button onClick={() => setOpen(o => !o)}
         className={`mx-3 mb-2 flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-colors ${open ? 'bg-slate-800 border-slate-600 text-white' : 'border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
         <span>알림</span>
-        {count > 0 ? <span className="ml-auto text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none bg-red-500 text-white">{count}</span>
+        {count > 0 && data ? <span className="ml-auto"><BucketPills data={data} tone="dark" /></span>
           : <span className="ml-auto text-[10px] text-slate-500">없음</span>}
       </button>
       {open && (
@@ -109,7 +125,10 @@ export function TodoPanel({ variant, data }: { variant: 'dark' | 'light'; data: 
   return (
     <div className={`${dark ? 'bg-white/5 border border-slate-700 text-slate-100' : 'bg-white border border-gray-200 text-gray-900'} rounded-xl px-4 py-3 text-left`}>
       <div className="flex items-center text-sm font-bold">
-        확인할 것 <span className={`ml-auto text-[11px] font-normal ${dark ? 'text-slate-400' : 'text-gray-500'}`}>{data.count}건 · {timeLabel(data.at)} 기준</span>
+        확인할 것
+        <span className={`ml-auto flex items-center gap-2 text-[11px] font-normal ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+          {data.count > 0 && <BucketPills data={data} tone={dark ? 'dark' : 'light'} />}{timeLabel(data.at)} 기준
+        </span>
       </div>
       <ul className="mt-2">
         {data.items.map(i => (

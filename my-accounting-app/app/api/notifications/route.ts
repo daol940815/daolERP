@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { isManagerLike } from '@/lib/permissions'
 import { OPEN_STATUSES, ASG_TRACKED, fmtDue, type WrStatus, type WrAsgStatus } from '@/lib/work-requests'
-import type { NotifData, NotifItem } from '@/lib/notifications'
+import type { NotifData, NotifItem, NotifBucket } from '@/lib/notifications'
 import { leaveActions, type LeaveStep } from '@/lib/leave-approval'
 import { loadApprovalCtx, loadSteps } from '@/lib/leave-approval.server'
 
@@ -24,13 +24,14 @@ export async function GET() {
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   const now = new Date()
   const nowIso = now.toISOString()
-  const empty: NotifData = { at: nowIso, count: 0, items: [], badges: {} }
+  const empty: NotifData = { at: nowIso, count: 0, breakdown: { personal: 0, shared: 0, mine: 0, other: 0 }, items: [], badges: {} }
   const empId = me.employeeId
   if (!empId) return NextResponse.json(empty)
 
   const admin = createAdminClient()
   const items: NotifItem[] = []
   const badges: NotifData['badges'] = {}
+  const breakdown: Record<NotifBucket, number> = { personal: 0, shared: 0, mine: 0, other: 0 }
   const sevenDaysAgo = new Date(now.getTime() - 7 * DAY).toISOString()
   const today = kstDay(nowIso)
   const approver = isManagerLike(me)
@@ -76,7 +77,8 @@ export async function GET() {
       if (unread.length) items.push({ key: `wr:unread:${k}`, group: 'todo', tone: 'red', title: `${label} 미확인 ${unread.length}건`, detail: desc(unread[0]) + (unread.length > 1 ? ` 외 ${unread.length - 1}` : ''), href, count: unread.length, at: latest(unread.map(r => r.created_at)) })
       if (overdue.length) items.push({ key: `wr:overdue:${k}`, group: 'todo', tone: 'red', title: `${label} 마감 지남 ${overdue.length}건`, detail: desc(overdue[0]), href, count: overdue.length, at: latest(overdue.map(r => r.due_at)) })
       if (dueToday.length) items.push({ key: `wr:due_today:${k}`, group: 'todo', tone: 'red', title: `${label} 오늘 마감 ${dueToday.length}건`, detail: desc(dueToday[0]), href, count: dueToday.length, at: latest(dueToday.map(r => r.created_at)) })
-      red += unread.length + overdue.length
+      red += new Set([...unread, ...overdue].map(r => r.id)).size
+      breakdown[kind] = new Set([...unread, ...overdue, ...dueToday].map(r => r.id)).size   // 요청 건수 (중복 없음)
     }
     if (red) badges['/me/requests'] = { n: red, tone: 'red' }
   }
@@ -85,6 +87,7 @@ export async function GET() {
     outbox.filter(r => OPEN_STATUSES.includes(r.status)).forEach(r => relatedIds.add(r.id))
     const awaiting = outbox.filter(r => r.status === 'done_reported')
     const rejected = outbox.filter(r => r.status === 'rejected')
+    breakdown.mine = awaiting.length
     if (awaiting.length) items.push({ key: 'wr:awaiting', group: 'waiting', tone: 'amber', title: `내 요청 완료 확정 대기 ${awaiting.length}건`, detail: `${one(awaiting[0].assignee)?.name ?? '담당자 전원'}이(가) 처리 보고: ${awaiting[0].title}`, href: '/me/requests?tab=outbox', count: awaiting.length, at: latest(awaiting.map(r => r.reported_at)) })
     if (rejected.length) items.push({ key: 'wr:rejected', group: 'info', tone: 'gray', title: `내 요청 반려됨 ${rejected.length}건`, detail: `${rejected[0].title}${rejected[0].reject_reason ? ` — 사유: ${rejected[0].reject_reason}` : ''}`, href: '/me/requests?tab=outbox', count: rejected.length, at: latest(rejected.map(r => r.rejected_at)) })
     if (!badges['/me/requests'] && awaiting.length + rejected.length) badges['/me/requests'] = { n: awaiting.length + rejected.length, tone: 'amber' }
@@ -129,6 +132,7 @@ export async function GET() {
       const d = (l: Leave) => `${one(l.employees)?.name ?? ''} ${LEAVE_LABEL[l.leave_type] ?? l.leave_type} ${l.start_date.slice(5)}${l.end_date !== l.start_date ? `~${l.end_date.slice(5)}` : ''}`
       items.push({ key: 'leave:approve', group: 'todo', tone: 'red', title: `휴가 결재 내 차례 ${rows.length}건`, detail: rows.slice(0, 2).map(d).join(' · ') + (rows.length > 2 ? ` 외 ${rows.length - 2}` : ''), href: '/hr/leaves', count: rows.length, at: latest(rows.map(l => l.created_at)) })
       badges['/hr/leaves'] = { n: rows.length, tone: 'amber' }
+      breakdown.other += rows.length
     }
   }
   if (!leaveMineRes.error) {
@@ -144,6 +148,7 @@ export async function GET() {
     if (rows.length) {
       items.push({ key: 'ocr:approve', group: 'todo', tone: 'red', title: `주문 수정 승인 요청 ${rows.length}건`, detail: rows.slice(0, 2).map(r => `${one(r.employees)?.name ?? ''} · ${r.request_type === 'cancel' ? '취소' : '수정'}`).join(' · ') + (rows.length > 2 ? ` 외 ${rows.length - 2}` : ''), href: '/orders/approvals', count: rows.length, at: latest(rows.map(r => r.created_at)) })
       badges['/orders/approvals'] = { n: rows.length, tone: 'amber' }
+      breakdown.other += rows.length
     }
   }
   if (!ocrMineRes.error) {
@@ -155,6 +160,6 @@ export async function GET() {
 
   const order: Record<string, number> = { todo: 0, waiting: 1, info: 2 }
   items.sort((a, b) => order[a.group] - order[b.group] || (b.at ?? '').localeCompare(a.at ?? ''))
-  const count = items.filter(i => i.group !== 'info').reduce((s, i) => s + i.count, 0)
-  return NextResponse.json({ at: nowIso, count, items, badges } satisfies NotifData)
+  const count = breakdown.personal + breakdown.shared + breakdown.mine + breakdown.other
+  return NextResponse.json({ at: nowIso, count, breakdown, items, badges } satisfies NotifData)
 }
