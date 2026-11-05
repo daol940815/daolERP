@@ -29,13 +29,33 @@ const emptyDraft = {
   is_addon: false, is_shipping: false, memo: '',
 }
 
+// 검색 구분 (기존 ERP 방식 — 2026-11-03 실무자 요청)
+type CondField = 'all' | 'code' | 'name' | 'vendor' | 'category'
+const COND_LABEL: Record<CondField, string> = {
+  all: '전체', code: '품번', name: '품명', vendor: '매입처', category: '목차',
+}
+const condMatch = (p: Product, field: CondField, q: string) => {
+  const has = (v?: string | null) => (v ?? '').toLowerCase().includes(q)
+  switch (field) {
+    case 'code': return has(p.item_code)
+    case 'name': return has(p.item_name)
+    case 'vendor': return has(p.purchase_vendor_name)
+    case 'category': return has(p.category)
+    default: return [p.item_code, p.item_name, p.purchase_vendor_name, p.category].some(has)
+  }
+}
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  // 구분 검색 + 결과 내 재검색 (2026-11-03 실무자 요청·사용자 승인):
+  // 구분·검색어 입력은 즉시 필터, Enter로 조건 칩에 쌓여 전부 만족(AND)한 품목만 표시
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<'active' | 'inactive' | 'addon' | 'all'>('active')
+  const [condField, setCondField] = useState<CondField>('all')
+  const [conds, setConds] = useState<{ field: CondField; value: string }[]>([])
+  const [filter, setFilter] = useState<'active' | 'inactive' | 'addon' | 'cost' | 'all'>('active')
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [draft, setDraft] = useState(emptyDraft)
   const [uploading, setUploading] = useState(false)
@@ -57,15 +77,26 @@ export default function ProductsPage() {
       if (filter === 'active' && !p.is_active) return false
       if (filter === 'inactive' && p.is_active) return false
       if (filter === 'addon' && !p.is_addon) return false   // 부가상품(옵션)만 — 중지 포함
+      if (filter === 'cost' && !p.is_shipping) return false   // 비용 품목만
+      // 고정된 조건 전부 만족(AND) = 검색 결과 내 재검색
+      if (!conds.every(c => condMatch(p, c.field, c.value.toLowerCase()))) return false
       if (!q) return true
-      return [p.item_code, p.item_name, p.purchase_vendor_name, p.category].some(v => (v ?? '').toLowerCase().includes(q))
+      return condMatch(p, condField, q)   // 입력 중인 검색어는 즉시 필터
     })
-  }, [products, search, filter])
+  }, [products, search, condField, conds, filter])
+
+  // 조건 칩 추가 (Enter·매입처 클릭) — 같은 조건 중복 방지
+  const addCond = (field: CondField, value: string) => {
+    const v = value.trim()
+    if (!v) return
+    setConds(prev => prev.some(c => c.field === field && c.value === v) ? prev : [...prev, { field, value: v }])
+  }
 
   const kpi = useMemo(() => ({
     active: products.filter(p => p.is_active).length,
     inactive: products.filter(p => !p.is_active).length,
     addon: products.filter(p => p.is_addon).length,
+    cost: products.filter(p => p.is_shipping).length,
     vendors: new Set(products.filter(p => p.is_active && p.purchase_vendor_name).map(p => p.purchase_vendor_name)).size,
   }), [products])
 
@@ -105,7 +136,24 @@ export default function ProductsPage() {
     })
   }
 
+  // 업로드 확인 팝업 (2026-11-04 실무자 요청·B안): 파일 선택 → 서버 검사(반영 없음)
+  // → 건수 확인 팝업 → 확인 시 실제 업로드. 잘못된 파일은 숫자로 바로 드러난다.
+  const [pending, setPending] = useState<{ file: File; stats: Record<string, number> } | null>(null)
+
+  const checkFile = async (file: File) => {
+    setUploading(true); setError(null); setNotice(null)
+    const fd = new FormData()
+    fd.append('file', file); fd.append('dry_run', '1')
+    const res = await fetch('/api/orders-portal/products/import', { method: 'POST', body: fd })
+    const json = await res.json()
+    setUploading(false)
+    if (fileRef.current) fileRef.current.value = ''
+    if (!res.ok) { setError(json.error ?? '파일 검사 실패'); return }
+    setPending({ file, stats: json })
+  }
+
   const upload = async (file: File) => {
+    setPending(null)
     setUploading(true); setError(null); setNotice(null)
     const fd = new FormData()
     fd.append('file', file)
@@ -132,11 +180,13 @@ export default function ProductsPage() {
         <span className="text-xs text-gray-400">주문 입력의 품번 검색 원천 — 품번 선택 시 품명·매입처·가격 자동</span>
         <span className="ml-auto flex gap-2">
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) upload(f) }} />
+            onChange={e => { const f = e.target.files?.[0]; if (f) checkFile(f) }} />
           <button onClick={() => {
               const p = new URLSearchParams()
               if (filter !== 'active') p.set('filter', filter)
-              if (search.trim()) p.set('q', search.trim())
+              // 조건 칩 + 입력 중 검색어 그대로 — 다운로드도 화면과 같은 결과
+              conds.forEach(c => p.append('cond', `${c.field}:${c.value}`))
+              if (search.trim()) p.append('cond', `${condField}:${search.trim()}`)
               window.location.href = `/api/orders-portal/products/export?${p}`
             }}
             title="현재 필터·검색 조건 그대로 원가표 양식으로 다운로드 — 수정 후 그대로 재업로드 가능"
@@ -145,33 +195,67 @@ export default function ProductsPage() {
           </button>
           <button onClick={() => fileRef.current?.click()} disabled={uploading}
             className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 disabled:opacity-50">
-            {uploading ? '업로드 중...' : '상품 엑셀 업로드'}
+            {uploading ? '처리 중...' : '상품 엑셀 업로드'}
           </button>
           <button onClick={() => { setEditingId('new'); setDraft(emptyDraft) }}
             className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">+ 품목 등록</button>
         </span>
       </div>
 
-      {/* KPI 카드 (클릭=필터) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 max-w-3xl">
+      {/* KPI 카드 (클릭=필터) — 전체 품목 카드가 전체 조회 (2026-11-03 사용자 요청) */}
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 mt-4 max-w-5xl">
         {([
+          ['all', '전체 품목', products.length, 'text-blue-700'],
           ['active', '사용 중 품목', kpi.active, ''],
           ['inactive', '중지 품목', kpi.inactive, 'text-gray-400'],
           ['addon', '부가상품(옵션)', kpi.addon, 'text-violet-600'],
-          ['all', '매입처 수', kpi.vendors, 'text-blue-700'],
         ] as const).map(([key, title, val, cls]) => (
           <button key={key} onClick={() => setFilter(key)}
             className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === key ? 'border-slate-800' : 'border-gray-200'}`}>
-            <div className="text-[11px] text-gray-400">{title}</div>
+            <div className="text-[0.6875rem] text-gray-400">{title}</div>
             <div className={`text-lg font-bold tabular-nums ${cls}`}>{val}</div>
           </button>
         ))}
+        {/* 비용 품목 (배송비 · 퀵비 · 설치비 등) — 발주서 배송명단 제외 대상 (이름 키워드 후보 추천은 오판만 나와 폐지, 2026-11-05) */}
+        <button onClick={() => setFilter('cost')}
+          className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === 'cost' ? 'border-slate-800' : 'border-gray-200'}`}>
+          <div className="text-[0.6875rem] text-gray-400">비용 품목</div>
+          <div className="text-lg font-bold tabular-nums text-amber-700">{kpi.cost}</div>
+        </button>
+        {/* 매입처 수 — 정보 표시용 (필터 아님) */}
+        <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-left">
+          <div className="text-[0.6875rem] text-gray-400">매입처 수</div>
+          <div className="text-lg font-bold tabular-nums text-gray-500">{kpi.vendors}</div>
+        </div>
       </div>
 
-      <div className="flex items-center gap-2 mt-3">
+      {/* 구분 검색 + 결과 내 재검색: Enter로 조건이 쌓이고 전부 만족한 품목만 표시 */}
+      <div className="flex items-center gap-2 mt-3 flex-wrap">
+        <select value={condField} onChange={e => setCondField(e.target.value as CondField)}
+          className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+          {(Object.keys(COND_LABEL) as CondField[]).map(f => (
+            <option key={f} value={f}>{COND_LABEL[f]}</option>
+          ))}
+        </select>
         <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="품번 · 품명 · 매입처 검색"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-72" />
+          onKeyDown={e => {
+            if (e.key === 'Enter' && search.trim()) { addCond(condField, search); setSearch('') }
+          }}
+          placeholder={`${COND_LABEL[condField]} 검색 — Enter로 조건 고정(결과 내 재검색)`}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-80" />
+        {conds.map((c, i) => (
+          <span key={`${c.field}:${c.value}`}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200">
+            {COND_LABEL[c.field]}: {c.value}
+            <button onClick={() => setConds(prev => prev.filter((_, j) => j !== i))}
+              className="text-blue-400 hover:text-blue-700" title="조건 제거">×</button>
+          </span>
+        ))}
+        {conds.length > 0 && (
+          <button onClick={() => setConds([])} className="text-xs text-gray-400 hover:text-gray-600">
+            조건 모두 지우기
+          </button>
+        )}
         <span className="text-xs text-gray-400">{filtered.length}건</span>
       </div>
 
@@ -182,60 +266,60 @@ export default function ProductsPage() {
       {editingId && (
         <div className="mt-3 p-3.5 bg-white border border-slate-300 rounded-xl flex items-end gap-2.5 flex-wrap">
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">품번</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">품번</label>
             <input value={draft.item_code} onChange={e => setDraft(d => ({ ...d, item_code: e.target.value }))}
               className={`${inputCls} w-28`} placeholder="선택" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">품명 *</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">품명 *</label>
             <input value={draft.item_name} onChange={e => setDraft(d => ({ ...d, item_name: e.target.value }))}
               className={`${inputCls} w-64`} />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">매입처</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">매입처</label>
             <input value={draft.purchase_vendor_name} onChange={e => setDraft(d => ({ ...d, purchase_vendor_name: e.target.value }))}
               className={`${inputCls} w-40`} placeholder="발주서 분리 기준" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">지점판매가</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">지점판매가</label>
             <input value={draft.sale_price ? won(draft.sale_price) : ''} onChange={e => setDraft(d => ({ ...d, sale_price: toInt(e.target.value) }))}
               className={`${inputCls} w-28 text-right tabular-nums`} placeholder="0"
               title="한 곳 묶음 배송 — 배송비는 카톤 기준 별도" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">개별판매가</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">개별판매가</label>
             <input value={draft.individual_sale_price ? won(draft.individual_sale_price) : ''} onChange={e => setDraft(d => ({ ...d, individual_sale_price: toInt(e.target.value) }))}
               className={`${inputCls} w-28 text-right tabular-nums`} placeholder="미지정"
               title="여러 곳 개별 배송 — 배송비 포함가. 비우면 지점판매가 사용" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">매입가</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">매입가</label>
             <input value={draft.purchase_price ? won(draft.purchase_price) : ''} onChange={e => setDraft(d => ({ ...d, purchase_price: toInt(e.target.value) }))}
               className={`${inputCls} w-28 text-right tabular-nums`} placeholder="0" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">카톤단위</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">카톤단위</label>
             <input value={draft.carton_unit || ''} onChange={e => setDraft(d => ({ ...d, carton_unit: toInt(e.target.value) }))}
               className={`${inputCls} w-20 text-right tabular-nums`} placeholder="개/카톤" title="1카톤에 들어가는 수량 — 비우면 배송비 자동 계산 안 함" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">카톤택배비</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">카톤택배비</label>
             <input value={draft.carton_shipping_fee ? won(draft.carton_shipping_fee) : ''} onChange={e => setDraft(d => ({ ...d, carton_shipping_fee: toInt(e.target.value) }))}
               className={`${inputCls} w-24 text-right tabular-nums`} placeholder="0" title="카톤당 택배비" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">카톤외택배비</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">카톤외택배비</label>
             <input value={draft.loose_shipping_fee ? won(draft.loose_shipping_fee) : ''} onChange={e => setDraft(d => ({ ...d, loose_shipping_fee: toInt(e.target.value) }))}
               className={`${inputCls} w-24 text-right tabular-nums`} placeholder="0"
               title="낱개 1건 택배비 — 지점 배송 나머지 낱개분·개별 배송 파생가 계산에 사용" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">분류</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">분류</label>
             <input value={draft.category} onChange={e => setDraft(d => ({ ...d, category: e.target.value }))}
               className={`${inputCls} w-24`} placeholder="타올 등" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">메모</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">메모</label>
             <input value={draft.memo} onChange={e => setDraft(d => ({ ...d, memo: e.target.value }))}
               className={`${inputCls} w-40`} />
           </div>
@@ -246,10 +330,10 @@ export default function ProductsPage() {
             부가상품
           </label>
           <label className="flex items-center gap-1.5 text-xs text-gray-600 pb-2 cursor-pointer"
-            title="배송비 품목 (703) — 옵션 칩으로 노출, 선택 시 판매가 0 기본 (배송비는 판매가에 녹임)">
+            title="비용 품목 (배송비 · 퀵비 · 설치비 등, 703) — 옵션 칩으로 노출, 선택 시 판매가 0 기본. 발주서 품목 표에는 나오고 배송명단에서는 빠집니다">
             <input type="checkbox" checked={draft.is_shipping}
               onChange={e => setDraft(d => ({ ...d, is_shipping: e.target.checked }))} />
-            배송비
+            비용 품목
           </label>
           <button onClick={save} className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm">
             {editingId === 'new' ? '등록' : '저장'}
@@ -287,21 +371,29 @@ export default function ProductsPage() {
                   <td className="py-1.5 px-3 font-medium">
                     {p.item_name}
                     {p.is_addon && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-600">옵션</span>
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-violet-50 text-violet-600">옵션</span>
                     )}
                     {p.is_shipping && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700">배송비</span>
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-amber-50 text-amber-700">비용</span>
                     )}
                     {p.is_soldout && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-600">품절</span>
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-red-50 text-red-600">품절</span>
                     )}
                     {/* 원가표 상태 메모 (512) — 원문 그대로 표시 */}
                     {p.status_note && (
-                      <span className="ml-1.5 text-[10px] text-amber-600 whitespace-pre-line align-middle">{p.status_note}</span>
+                      <span className="ml-1.5 text-[0.625rem] text-amber-600 whitespace-pre-line align-middle">{p.status_note}</span>
                     )}
                   </td>
                   <td className="py-1.5 px-3 text-xs whitespace-nowrap">{p.category ?? '-'}</td>
-                  <td className="py-1.5 px-3 whitespace-nowrap">{p.purchase_vendor_name ?? '-'}</td>
+                  <td className="py-1.5 px-3 whitespace-nowrap">
+                    {p.purchase_vendor_name ? (
+                      <button onClick={() => addCond('vendor', p.purchase_vendor_name!)}
+                        title="클릭하면 이 매입처 조건으로 필터"
+                        className="hover:underline hover:text-blue-700">
+                        {p.purchase_vendor_name}
+                      </button>
+                    ) : '-'}
+                  </td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{won(p.sale_price)}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{p.individual_sale_price ? won(p.individual_sale_price) : '-'}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{won(p.purchase_price)}</td>
@@ -311,7 +403,7 @@ export default function ProductsPage() {
                   <td className="py-1.5 px-3 text-right tabular-nums">{p.loose_shipping_fee ? won(p.loose_shipping_fee) : '-'}</td>
                   <td className="py-1.5 px-3 text-xs">{p.memo ?? '-'}</td>
                   <td className="py-1.5 px-3">
-                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${p.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${p.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
                       {p.is_active ? '사용' : '중지'}
                     </span>
                   </td>
@@ -343,6 +435,41 @@ export default function ProductsPage() {
         지점배송매입가 · 지점/개별배송판매가 · 목차 · 카톤단위 · 택배비(카톤단위/카톤외)를 인식, 카탈로그 제작용 컬럼은 무시).
         품번 기준으로 갱신되며, 주문 입력에서 지점=지점판매가+카톤 공식 배송비 / 개별=개별판매가(배송비 포함)가 자동 적용됩니다.
       </p>
+
+      {/* 업로드 확인 팝업 — 검사 결과(반영 없음)를 보여주고 확인 후 실제 업로드 */}
+      {pending && (
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4"
+          onClick={() => setPending(null)}>
+          <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-5 w-full max-w-md"
+            onClick={e => e.stopPropagation()}>
+            <div className="text-sm font-bold text-gray-900">업로드 하시겠습니까?</div>
+            <div className="mt-2 text-sm text-gray-700 break-all">{pending.file.name}</div>
+            <div className="mt-3 p-3 bg-gray-50 rounded-lg text-sm text-gray-700 space-y-1">
+              <div>인식 <b className="tabular-nums">{pending.stats.parsed ?? 0}</b>건
+                {pending.stats.skipped ? <span className="text-gray-400"> (건너뜀 {pending.stats.skipped}건)</span> : null}
+              </div>
+              <div>
+                신규 <b className="tabular-nums">{pending.stats.created ?? 0}</b>건 ·
+                갱신 <b className="tabular-nums">{pending.stats.updated ?? 0}</b>건 ·
+                변경 없음 <b className="tabular-nums">{pending.stats.unchanged ?? 0}</b>건
+              </div>
+              {(pending.stats.status_marked ?? 0) > 0 && <div>상태 표기(품절·단종 등) {pending.stats.status_marked}건</div>}
+              {(pending.stats.vendor_updated ?? 0) > 0 && <div>매입처 연락 정보 갱신 예정 {pending.stats.vendor_updated}곳</div>}
+            </div>
+            {(pending.stats.created ?? 0) > (pending.stats.updated ?? 0) + (pending.stats.unchanged ?? 0) && (
+              <div className="mt-2 text-xs text-amber-600">
+                신규가 기존 갱신보다 많습니다 — 다른 양식이나 옛 파일일 수 있으니 파일을 한 번 더 확인하세요.
+              </div>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setPending(null)}
+                className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">취소</button>
+              <button onClick={() => upload(pending.file)}
+                className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">업로드</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

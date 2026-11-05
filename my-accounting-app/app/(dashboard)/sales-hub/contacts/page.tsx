@@ -20,6 +20,7 @@ interface ContactRow {
   vendor_id: string | null; vendor_name: string | null; title: string | null
   is_representative: boolean; vendor_count: number; ended_note: string | null
   staff_names: string[]; total_sales: number; outstanding: number
+  daol_staff?: string | null; staff_missing?: boolean
   last_order_date: string | null; no_order_days: number | null; status: ContactStatus
 }
 interface GapRow {
@@ -84,6 +85,13 @@ export default function ContactManagerPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [staffFilter, setStaffFilter] = useState<string>('all')
+  // 다올 담당 선택용 직원 목록 (112 — 매출처 고객 등록 · 배정 시 필수)
+  const [emps, setEmps] = useState<{ id: string; name: string }[]>([])
+  const [gapStaff, setGapStaff] = useState('')
+  const [missingOnly, setMissingOnly] = useState(false)   // 다올 담당 미기입만 (112)
+  useEffect(() => {
+    fetch('/api/vendor-hub/staff').then(r => r.json()).then(j => setEmps(j.employees ?? [])).catch(() => {})
+  }, [])
   const [staffMore, setStaffMore] = useState(false)
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 50
@@ -140,6 +148,7 @@ export default function ContactManagerPage() {
     return bundle.contacts.filter(c => {
       if (statusFilter !== 'all' && c.status !== statusFilter) return false
       if (staffFilter !== 'all' && !c.staff_names.includes(staffFilter)) return false
+      if (missingOnly && !c.staff_missing) return false
       if (catFilter) {
         const f = c.vendor_id ? contactFlagMap.get(`${c.contact_id}|${c.vendor_id}`) : null
         if (!f || !matchCategory(f, catFilter)) return false
@@ -150,7 +159,7 @@ export default function ContactManagerPage() {
       }
       return true
     })
-  }, [bundle, search, statusFilter, staffFilter, catFilter, contactFlagMap])
+  }, [bundle, search, statusFilter, staffFilter, catFilter, contactFlagMap, missingOnly])
 
   const filterActive = statusFilter !== 'all' || staffFilter !== 'all' || !!search.trim() || !!catFilter
   const kpiOf = useMemo(() => {
@@ -234,12 +243,12 @@ export default function ContactManagerPage() {
 
       {/* KPI — 클릭 시 해당 필터/탭 */}
       {bundle && kpiOf && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 my-4">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 my-4">
           <button onClick={() => { setTab('list'); setStatusFilter('all') }}
             className="border border-gray-200 rounded-lg px-4 py-3 text-left bg-white hover:border-slate-400">
             <p className="text-xs text-gray-400 mb-1">등록 담당자{filterActive && tab === 'list' ? ' (필터)' : ''}</p>
             <p className="text-lg font-bold text-gray-900">{kpiOf.total.toLocaleString()}명</p>
-            {filterActive && <p className="text-[11px] text-gray-400">전체 {bundle.kpi.total.toLocaleString()}명</p>}
+            {filterActive && <p className="text-[0.6875rem] text-gray-400">전체 {bundle.kpi.total.toLocaleString()}명</p>}
           </button>
           <button onClick={() => setTab('gaps')}
             className="border border-gray-200 rounded-lg px-4 py-3 text-left bg-white hover:border-slate-400">
@@ -255,7 +264,14 @@ export default function ContactManagerPage() {
             className="border border-gray-200 rounded-lg px-4 py-3 text-left bg-white hover:border-slate-400">
             <p className="text-xs text-gray-400 mb-1">미주문 주의</p>
             <p className={`text-lg font-bold ${kpiOf.attention90 ? 'text-orange-600' : 'text-gray-900'}`}>{kpiOf.attention90.toLocaleString()}명</p>
-            <p className="text-[11px] text-gray-400">90일 초과 (180일 초과 {kpiOf.attention180}명 포함)</p>
+            <p className="text-[0.6875rem] text-gray-400">90일 초과 (180일 초과 {kpiOf.attention180}명 포함)</p>
+          </button>
+          {/* 다올 담당 미기입 (112) — 은행 · 지점 · 고객마다 담당이 기입되어야 함. 클릭 = 미기입만 */}
+          <button onClick={() => { setTab('list'); setStatusFilter('all'); setMissingOnly(v => !v) }}
+            className={`border rounded-lg px-4 py-3 text-left bg-white hover:border-slate-400 ${missingOnly ? 'border-slate-800' : 'border-gray-200'}`}>
+            <p className="text-xs text-gray-400 mb-1">다올 담당 미기입{missingOnly ? ' (보는 중)' : ''}</p>
+            <p className={`text-lg font-bold ${(bundle.kpi as { staff_missing?: number }).staff_missing ? 'text-amber-700' : 'text-gray-900'}`}>{((bundle.kpi as { staff_missing?: number }).staff_missing ?? 0).toLocaleString()}명</p>
+            <p className="text-[0.6875rem] text-gray-400">허브 상세에서 고객별로 지정</p>
           </button>
           <button onClick={() => { setTab('list'); setStatusFilter('recent_move') }}
             className="border border-gray-200 rounded-lg px-4 py-3 text-left bg-white hover:border-slate-400">
@@ -351,7 +367,7 @@ export default function ContactManagerPage() {
                           <span className="truncate">{c.vendor_name}</span>
                           {c.title && <span className="text-gray-500"> · {c.title}</span>}
                           {c.is_representative && (
-                            <span className="ml-1 px-1.5 py-0.5 rounded text-[11px] bg-blue-50 text-blue-700">대표</span>
+                            <span className="ml-1 px-1.5 py-0.5 rounded text-[0.6875rem] bg-blue-50 text-blue-700">대표</span>
                           )}
                         </span>
                       ) : (
@@ -361,10 +377,11 @@ export default function ContactManagerPage() {
                     <td className="py-2 px-3 whitespace-nowrap text-xs text-gray-500">{c.phone ?? '-'}</td>
                     <td className="py-2 px-3 text-right whitespace-nowrap">
                       {c.vendor_count}곳
-                      {c.vendor_count > 1 && <span className="ml-1 px-1.5 py-0.5 rounded text-[11px] bg-violet-50 text-violet-600">복수</span>}
+                      {c.vendor_count > 1 && <span className="ml-1 px-1.5 py-0.5 rounded text-[0.6875rem] bg-violet-50 text-violet-600">복수</span>}
                     </td>
                     <td className="py-2 px-3 whitespace-nowrap text-xs text-gray-600">
-                      {c.staff_names.length ? c.staff_names.slice(0, 2).join(' · ') : '-'}
+                      {c.daol_staff ?? (c.staff_names.length ? c.staff_names.slice(0, 2).join(' · ') : '-')}
+                      {c.staff_missing && <span className="ml-1 px-1 py-0.5 rounded text-[0.625rem] bg-amber-50 text-amber-700 border border-amber-200">다올 담당 미기입</span>}
                     </td>
                     <td className="py-2 px-3 text-right whitespace-nowrap">{won(c.total_sales)}</td>
                     <td className={`py-2 px-3 text-right whitespace-nowrap ${c.outstanding > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
@@ -382,9 +399,9 @@ export default function ContactManagerPage() {
                       const ot = f ? OTYPE_META[f.otype] : null
                       return (
                         <td className="py-2 px-3 whitespace-nowrap">
-                          {ot && <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${ot.cls}`}>{ot.label}</span>}
-                          {f?.is_new && <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">신규</span>}
-                          {f?.is_churn && <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700">이탈</span>}
+                          {ot && <span className={`inline-block px-1.5 py-0.5 rounded text-[0.625rem] font-semibold ${ot.cls}`}>{ot.label}</span>}
+                          {f?.is_new && <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-emerald-100 text-emerald-700">신규</span>}
+                          {f?.is_churn && <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-red-100 text-red-700">이탈</span>}
                           {!f && <span className="text-gray-300">-</span>}
                         </td>
                       )
@@ -464,9 +481,14 @@ export default function ContactManagerPage() {
                             onChange={e => setGapForm({ ...gapForm, q: e.target.value })}
                             placeholder="담당자 이름 검색 또는 신규 이름 입력"
                             className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                          <select value={gapStaff} onChange={e => setGapStaff(e.target.value)}
+                            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white" title="이 고객의 다올 담당 — 필수">
+                            <option value="">다올 담당 선택 *</option>
+                            {emps.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                          </select>
                           {gapCandidates.map(c => (
                             <button key={c.contact_id} disabled={busy}
-                              onClick={() => post({ action: 'assign', contact_id: c.contact_id, vendor_id: g.vendor_id },
+                              onClick={() => post({ action: 'assign', contact_id: c.contact_id, vendor_id: g.vendor_id, staff_employee_id: gapStaff || undefined },
                                 `${c.name} → ${g.vendor_name} 배정 완료`).then(okd => okd && setGapForm(null))}
                               className="px-2.5 py-1 text-xs rounded-full border border-green-300 bg-green-50 text-green-700 hover:bg-green-100">
                               {c.name}{c.vendor_name ? ` (현 ${c.vendor_name})` : ' (소속 없음)'} 배정
@@ -474,7 +496,7 @@ export default function ContactManagerPage() {
                           ))}
                           {gapForm.q.trim() && (
                             <button disabled={busy}
-                              onClick={() => post({ action: 'create_contact', name: gapForm.q.trim(), vendor_id: g.vendor_id },
+                              onClick={() => post({ action: 'create_contact', name: gapForm.q.trim(), vendor_id: g.vendor_id, staff_employee_id: gapStaff || undefined },
                                 `${gapForm.q.trim()} 신규 등록 + ${g.vendor_name} 배정 완료`).then(okd => okd && setGapForm(null))}
                               className="px-2.5 py-1 text-xs rounded-full border border-slate-400 bg-white text-slate-700 hover:bg-slate-100">
                               &ldquo;{gapForm.q.trim()}&rdquo; 신규 인물로 등록
@@ -482,7 +504,7 @@ export default function ContactManagerPage() {
                           )}
                           <button onClick={() => setGapForm(null)} className="text-xs text-gray-400 hover:text-gray-600 ml-auto">닫기</button>
                         </div>
-                        <p className="text-[11px] text-gray-400 mt-2">기존 인물을 선택하면 그 인물의 이력에 이 거래처 배정이 추가됩니다 (이동이면 상세에서 이동 처리 사용).</p>
+                        <p className="text-[0.6875rem] text-gray-400 mt-2">기존 인물을 선택하면 그 인물의 이력에 이 거래처 배정이 추가됩니다 (이동이면 상세에서 이동 처리 사용).</p>
                       </td>
                     </tr>
                   ),
@@ -521,26 +543,26 @@ export default function ContactManagerPage() {
                     <tr key={ev.id} className="border-b border-gray-100 hover:bg-gray-50 align-top">
                       <td className="py-2 px-3 whitespace-nowrap text-xs text-gray-500">{ev.created_at.slice(0, 10)}</td>
                       <td className="py-2 px-3 whitespace-nowrap">
-                        <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${meta.cls}`} title={meta.desc}>{meta.label}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold ${meta.cls}`} title={meta.desc}>{meta.label}</span>
                       </td>
                       <td className="py-2 px-3 whitespace-nowrap">
                         <button onClick={() => router.push(`/sales-hub/contacts/${ev.contact_id}`)}
                           className="font-medium text-blue-700 hover:underline">
                           {contactLabel(ev.contacts?.name ?? ev.detail.name ?? '')}
                         </button>
-                        {ev.contacts?.code && <span className="ml-1.5 text-[11px] text-gray-400 tabular-nums">{ev.contacts.code}</span>}
+                        {ev.contacts?.code && <span className="ml-1.5 text-[0.6875rem] text-gray-400 tabular-nums">{ev.contacts.code}</span>}
                       </td>
                       <td className="py-2 px-3 text-xs text-gray-600 max-w-[200px] truncate">{ev.vendors?.name ?? '-'}</td>
                       <td className="py-2 px-3 text-xs text-gray-500 max-w-[240px]">
                         <span className="truncate">{ev.detail.raw_name ?? '-'}</span>
                         {ev.detail.phone && <span className="ml-1 text-gray-400">· {ev.detail.phone}</span>}
                         {ev.event_type === 'moved' && !!ev.detail.prev_assignments?.length && (
-                          <div className="text-[11px] text-amber-700 mt-0.5">
+                          <div className="text-[0.6875rem] text-amber-700 mt-0.5">
                             기존 소속: {ev.detail.prev_assignments.map(p => p.vendor_name ?? '?').join(', ')}
                           </div>
                         )}
                         {ev.event_type === 'name_conflict' && !!ev.detail.candidates?.length && (
-                          <div className="text-[11px] text-red-500 mt-0.5">
+                          <div className="text-[0.6875rem] text-red-500 mt-0.5">
                             동명: {ev.detail.candidates.map(c => `${c.name}${c.code ? ` ${c.code}` : ''} (${c.vendors.join('·') || '소속 없음'})`).join(' / ')}
                           </div>
                         )}
@@ -619,7 +641,7 @@ export default function ContactManagerPage() {
                             <button key={c.contact_id} disabled={busy || !canEdit}
                               onClick={() => post({ action: 'link_name', vendor_id: u.vendor_id, raw_name: u.raw_name, contact_id: c.contact_id },
                                 `"${u.raw_name}" → ${c.name} 연결 완료`)}
-                              className={`px-2 py-0.5 text-[11px] rounded-full border ${
+                              className={`px-2 py-0.5 text-[0.6875rem] rounded-full border ${
                                 c.same_vendor
                                   ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100'
                                   : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'}`}
@@ -636,8 +658,12 @@ export default function ContactManagerPage() {
                           const name = window.prompt('신규 인물 이름 (직함 제외)', u.raw_name.replace(/님$/, '').split(/\s+/)[0])
                           if (!name?.trim()) return
                           const title = window.prompt('직함 (선택)', u.raw_name.replace(/님$/, '').split(/\s+/).slice(1).join(' ') || '') ?? ''
+                          // 다올 담당 (112 — 필수): 직원 이름으로 입력
+                          const staffName = window.prompt(`이 고객의 다올 담당 직원 이름 (필수)\n${emps.map(e => e.name).join(', ')}`, '') ?? ''
+                          const staff = emps.find(e => e.name === staffName.trim())
+                          if (!staff) { alert('직원 목록에 있는 이름을 정확히 입력해주세요. 은행 · 지점 · 고객마다 다올 담당이 기입되어야 합니다.'); return }
                           post({ action: 'create_contact', name: name.trim(), title: title.trim() || undefined,
-                            vendor_id: u.vendor_id, raw_name: u.raw_name },
+                            vendor_id: u.vendor_id, raw_name: u.raw_name, staff_employee_id: staff.id },
                             `${name.trim()} 신규 등록 + 연결 완료`)
                         }}
                         className="px-2 py-1 text-xs border border-slate-300 text-slate-700 rounded hover:bg-slate-50 mr-1">

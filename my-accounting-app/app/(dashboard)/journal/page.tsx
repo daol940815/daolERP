@@ -201,7 +201,7 @@ function TAccount({ lines }: { lines: Line[] }) {
   return (
     <table className="w-full text-sm table-fixed">
       <thead>
-        <tr className="text-[11px] text-gray-400 border-b border-gray-100">
+        <tr className="text-[0.6875rem] text-gray-400 border-b border-gray-100">
           <th className="py-1 px-3 text-left font-medium w-1/2">차변</th>
           <th className="py-1 px-3 text-left font-medium w-1/2 border-l border-gray-100">대변</th>
         </tr>

@@ -282,3 +282,19 @@ docs/ui-reorg-track.md의 "(b) 상담일지 미연결 정책" 요청문(사용�
 - `app/(orders)/` 영역은 주문시스템·개인화면 트랙과 공유 — main 병합 전
   원격 main pull/rebase 필수.
 - 기본 루틴(결정 즉시 기록·압축 안전망·DB 변경 루틴·배포 루틴)은 CLAUDE.md 참조.
+
+### 주문 트랙 공유 (2026-11-05): 703 배송비 품목 체크 → "비용 품목"으로 의미 확장
+
+- 사용자 확정: 배송비 외 퀵비 · 설치비 등 비용 품목도 같은 체크(erp_products.is_shipping)를 쓴다. 컬럼은 그대로, 품목 관리 라벨만
+  "비용 품목"으로 변경. 상담 · 주문 입력의 옵션 칩 동작(판매가 0 기본)은 그대로 — 고객에게 받는 비용(설치비 등)은 입력 시 판매가를 고친다.
+- 발주서는 이 체크로 배송명단에서 제외한다(주문 트랙 docs/order-system-track.md "발주서 예외 품목").
+
+### 주문 진행 요청 (2026-11-05 — 주문 트랙 세션에서 설계, 시안 단계)
+
+- 상담만 하고 주문 입력은 다른 직원에게 맡기는 기능. 사용자 확정: 담당자 전 직원 · 한 상담 한 명 · PC 알림 · 다올직원 = 입력자 / 상담자 = 요청자.
+- **705 운영 적용 (2026-11-05, 검증 요청컬럼_기대5 = 5 · 인덱스_기대1 = 1)** — `705_consultation_order_request.sql`: erp_consultations에 order_assignee_id · order_requested_by ·
+  order_requested_at · order_request_memo · order_reminded_at. **이 트랙의 다음 번호는 706부터.** 상담 API(목록 scope · 상세 열람 · PATCH 'request') ·
+  상담 폼 · 목록 화면을 주문 트랙 세션이 수정함(상세는 order-system-track.md). 705 후 erp_consultations → employees 연결이 3개라 조인은 FK 이름을 명시할 것
+  (`employees!erp_consultations_employee_id_fkey`).
+- 상세 · 결정 대기 항목: docs/order-system-track.md "상담일지 주문 진행 요청", 시안 docs/mockups/주문진행요청_시안.html.
+

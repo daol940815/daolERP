@@ -2,10 +2,12 @@ import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/user-role'
 import { createAdminClient } from '@/lib/supabase-server'
-import { areasFor } from '@/lib/permissions'
+import { areasFor, levelOf, GROUP_KEYS, type GroupKey, type PermLevel } from '@/lib/permissions'
 import { AREA_COOKIE, areaLabel, groupsFor, homeFor, pathAccessible, pickArea } from '@/lib/area-shell'
 import AreaSidebar from './AreaSidebar'
 import Header from './Header'
+import UiPrefsSync from './UiPrefsSync'
+import { normalizeUiPrefs, type UiPrefs } from '@/lib/ui-prefs'
 import type { BankAccount } from '@/types/bank-account'
 
 // 4영역 공용 셸 — 세 라우트 그룹((dashboard)·(orders)·(hr))의 레이아웃이 모두 이것을 쓴다.
@@ -35,10 +37,19 @@ export default async function AreaShell({ children }: { children: React.ReactNod
     }))
   }
 
+  // 화면 설정(113) — 권한 조회와 분리해 읽는다(열이 없으면 조용히 기본값, 권한 판정에 영향 없음)
+  let uiPrefs: UiPrefs | null = null
+  if (me.employeeId) {
+    const { data, error } = await createAdminClient().from('employees').select('ui_prefs').eq('id', me.employeeId).maybeSingle()
+    if (!error && data) uiPrefs = normalizeUiPrefs((data as { ui_prefs: unknown }).ui_prefs)
+  }
+
   const userSub = [me.team, me.isMaster ? '마스터' : null].filter(Boolean).join(' · ')
+  const levels = Object.fromEntries(GROUP_KEYS.map(g => [g, levelOf(me, g)])) as Partial<Record<GroupKey, PermLevel>>
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
+      <UiPrefsSync prefs={uiPrefs} />
       <AreaSidebar
         area={area}
         areaLabel={areaLabel(area)}
@@ -47,6 +58,7 @@ export default async function AreaShell({ children }: { children: React.ReactNod
         userSub={userSub}
         showAreaSelect={areasFor(me).length >= 2}
         initialBanks={initialBanks}
+        helpLevels={levels}
       />
       <div className="flex flex-col flex-1 overflow-hidden">
         {(area === 'finance' || area === 'mgmt') && <Header />}

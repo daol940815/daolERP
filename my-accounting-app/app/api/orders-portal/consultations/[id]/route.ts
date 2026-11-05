@@ -5,6 +5,7 @@ import { isManagerLike } from '@/lib/permissions'
 import { decryptPayment, encryptPayment, encryptionReady, maskPayment } from '@/lib/payment-crypto'
 import { parseConsultBody, consultItemRows, insertConsultItems, compatConsultFields, CONSULT_509_HINT } from '@/lib/consultations'
 import { recordWorkLog, consultContent } from '@/lib/work-log'
+import { isOrderAssignee, parseOrderRequest, saveOrderRequest } from '@/lib/order-request'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +19,8 @@ type Row = Record<string, unknown>
 // 타인 상담 열람은 관리자급(isManagerLike — 승인권·마스터 포함, 109) 판정. role 직접 판정 금지.
 const canAccess = (c: Row, me: CurrentUser) =>
   isManagerLike(me) || (!!me.employeeId && c.employee_id === me.employeeId)
+// 열람 = 위 + 주문 진행 요청을 받은 직원 (705, 2026-11-05 — 요청받은 직원은 열람 · 전환만, 수정 불가)
+const canView = (c: Row, me: CurrentUser) => canAccess(c, me) || isOrderAssignee(c, me.employeeId)
 
 // 마스터 연결 완료 = 지점·담당자 모두 연결 (주문 전환 가능 조건과 동일)
 const masterLinked = (c: Row) => !!c.vendor_id && !!c.contact_id
@@ -41,8 +44,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   const snap = await loadConsult(params.id)
   if (!snap) return NextResponse.json({ error: '상담일지를 찾을 수 없습니다.' }, { status: 404 })
-  if (!canAccess(snap.consult, me)) {
-    return NextResponse.json({ error: '본인 작성 상담일지만 볼 수 있습니다.' }, { status: 403 })
+  if (!canView(snap.consult, me)) {
+    return NextResponse.json({ error: '본인 작성 상담일지(또는 나에게 주문 진행이 요청된 상담)만 볼 수 있습니다.' }, { status: 403 })
   }
   if (parttimeBlocked(snap.consult, me)) {
     return NextResponse.json({ error: PARTTIME_MSG }, { status: 403 })
@@ -69,9 +72,28 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     .select('id, order_no, order_date, total_amount')
     .eq('consultation_id', params.id).order('order_date', { ascending: false })
 
+  // 주문 진행 요청 표시용 이름 (705)
+  const c = snap.consult as Row
+  const nameIds = [c.order_assignee_id, c.order_requested_by].filter(Boolean) as string[]
+  const names = new Map<string, string>()
+  if (nameIds.length) {
+    const { data: emps } = await admin.from('employees').select('id, name').in('id', nameIds)
+    for (const e of emps ?? []) names.set(e.id as string, e.name as string)
+  }
+  const orderRequest = c.order_assignee_id ? {
+    assignee_id: c.order_assignee_id as string,
+    assignee_name: names.get(c.order_assignee_id as string) ?? null,
+    requested_by_name: c.order_requested_by ? names.get(c.order_requested_by as string) ?? null : null,
+    requested_at: (c.order_requested_at as string | null) ?? null,
+    memo: (c.order_request_memo as string | null) ?? null,
+  } : null
+
   return NextResponse.json({
     consult: rest,
     items: snap.items,
+    order_request: orderRequest,
+    can_edit: canAccess(snap.consult, me),                 // 작성자 · 관리자급 — 요청받은 직원은 false
+    is_assignee: isOrderAssignee(snap.consult, me.employeeId),
     payment_masked: paymentMasked,
     payment: reveal ? payment : undefined,
     payment_locked: !!payment_info_enc && !canPayment,   // 저장돼 있으나 열람 권한 없음
@@ -95,6 +117,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: PARTTIME_MSG }, { status: 403 })
   }
   const body = await req.json().catch(() => ({})) as Record<string, unknown>
+  const editor = { employeeId: me.employeeId, employeeName: me.employeeName }
+
+  // 주문 진행 요청만 변경 (목록 행 "요청" 버튼) — 작성자 · 관리자급
+  if (body.action === 'request') {
+    const input = parseOrderRequest(body.order_request) ?? { assignee_id: null, memo: null }
+    const err = await saveOrderRequest(admin, params.id, input, editor)
+    if (err) return NextResponse.json({ error: err }, { status: 400 })
+    return NextResponse.json({ ok: true })
+  }
 
   // 상태 변경 (종결/재개)
   if (body.action === 'close' || body.action === 'reopen') {
@@ -146,7 +177,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     refType: 'consultation',
     refId: params.id,
   })
-  return NextResponse.json({ ok: true })
+  // 주문 진행 요청 (705) — 본문은 저장된 상태로 두고 요청 실패만 따로 알려준다
+  const orderReq = parseOrderRequest(body.order_request)
+  const requestError = orderReq ? await saveOrderRequest(admin, params.id, orderReq, editor) : null
+  return NextResponse.json({ ok: true, request_error: requestError })
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {

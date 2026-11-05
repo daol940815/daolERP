@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>주문 진행 요청 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1180px; margin:0 auto; padding:24px 20px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:26px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.65; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.dim { opacity:.55; }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .sec { font-size:13px; font-weight:bold; color:#0f172a; margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .sec small { font-weight:normal; color:#94a3b8; font-size:11px; }
+  .sp { flex:1; }
+  .tag-new { font-size:10.5px; font-weight:bold; color:#fff; background:#3b82f6; border-radius:4px; padding:1px 6px; }
+  .grid { display:grid; grid-template-columns:repeat(6, 1fr); gap:10px 12px; }
+  .s2 { grid-column:span 2; } .s3 { grid-column:span 3; } .s4 { grid-column:span 4; }
+  .f label { display:block; font-size:11px; color:#64748b; margin-bottom:3px; }
+  .box { border:1.5px solid #cbd5e1; border-radius:8px; padding:7px 10px; background:#fff; font-size:12.5px; min-height:33px; }
+  .box.sel { border-color:#93b8e8; background:#f5f9ff; }
+  .box.ph { color:#94a3b8; }
+  .btn { display:inline-block; border-radius:7px; padding:6px 12px; font-size:12px; border:1px solid #cbd5e1; background:#fff; color:#334155; white-space:nowrap; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .btn.blue { color:#1d4ed8; border-color:#bfdbfe; background:#eff6ff; }
+  .btn.sm { padding:2px 8px; font-size:11px; }
+  .badge { display:inline-block; font-size:10.5px; font-weight:bold; padding:1px 7px; border-radius:4px; white-space:nowrap; }
+  .b-req { background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; }
+  .b-done { background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; }
+  .b-me { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
+  .info { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; border-radius:8px; padding:7px 10px; font-size:12px; line-height:1.6; }
+  .warn { background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:8px; padding:7px 10px; font-size:12px; line-height:1.6; }
+  .ok { background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; border-radius:8px; padding:7px 10px; font-size:12px; line-height:1.6; }
+  .hint { font-size:11px; color:#94a3b8; margin-top:6px; line-height:1.6; }
+  .note { background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:8px 10px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.7; }
+  .num { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:#eab308; color:#fff; font-size:10.5px; font-weight:bold; margin-right:4px; }
+  .dd { border:1px solid #cbd5e1; border-radius:8px; background:#fff; box-shadow:0 8px 24px rgba(15,23,42,.12); margin-top:4px; font-size:12px; overflow:hidden; }
+  .dd .it { padding:7px 11px; border-bottom:1px solid #f1f5f9; display:flex; gap:8px; }
+  .dd .it .m { color:#94a3b8; font-size:11px; }
+  .dd .it.on { background:#eff6ff; }
+  .kpis { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:10px; }
+  .kpi { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:10px 14px; }
+  .kpi.on { border-color:#0f172a; }
+  .kpi .k { font-size:11px; color:#94a3b8; } .kpi .v { font-size:18px; font-weight:bold; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+  .chip { font-size:11.5px; padding:4px 10px; border-radius:999px; border:1px solid #cbd5e1; background:#fff; color:#475569; }
+  .chip.on { background:#0f172a; color:#fff; border-color:#0f172a; }
+  table { border-collapse:collapse; width:100%; font-size:12px; }
+  th { background:#f8fafc; color:#64748b; font-weight:normal; padding:7px 8px; text-align:left; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+  td { padding:7px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
+  tr.hl td { background:#f5f9ff; }
+  .tw { overflow-x:auto; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .notif { background:#0f172a; color:#e2e8f0; border-radius:12px; padding:12px 14px; font-size:12px; line-height:1.6; max-width:420px; box-shadow:0 10px 30px rgba(15,23,42,.3); }
+  .notif b { color:#fff; }
+  .notif .t { font-size:11px; color:#94a3b8; margin-bottom:2px; }
+  .np { background:#fff; border:1px solid #e2e8f0; border-radius:10px; font-size:12px; overflow:hidden; }
+  .np .h { padding:8px 12px; font-weight:bold; border-bottom:1px solid #e2e8f0; }
+  .np .r { padding:8px 12px; border-bottom:1px solid #f1f5f9; display:flex; gap:8px; align-items:center; }
+  .np .r .c { margin-left:auto; font-weight:bold; color:#c2410c; }
+  .decide { background:#fff; border:2px solid #f59e0b; border-radius:12px; padding:16px 18px; }
+  .decide h3 { font-size:14px; color:#92400e; margin-bottom:8px; }
+  .decide li { margin:7px 0 7px 18px; line-height:1.65; font-size:12.5px; }
+  .decide .opt { color:#64748b; font-size:11.5px; }
+  .flow { display:flex; gap:8px; align-items:stretch; flex-wrap:wrap; }
+  .flow .st { flex:1; min-width:170px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; font-size:12px; line-height:1.6; }
+  .flow .st .t { display:block; font-weight:bold; color:#0f172a; margin-bottom:2px; }
+  .flow .ar { align-self:center; color:#94a3b8; font-size:16px; }
+  @media (max-width: 760px) { .grid { grid-template-columns:repeat(2,1fr); } .s3,.s4 { grid-column:span 2; } .two { grid-template-columns:1fr; } .kpis { grid-template-columns:repeat(2,1fr); } }
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>주문 진행 요청 시안 — 상담은 내가, 주문은 다른 직원이</h1>
+  <div class="desc">
+    사용자 확정(2026-11-05): 담당자는 <b>전 직원</b> 중에서 · 한 상담에 <b>한 명</b> · <b>PC 알림</b>까지 · 주문의
+    <b>다올직원 = 실제로 입력한 사람, 상담자 = 요청한 사람(상담 작성자)</b>.<br>
+    상담일지에 "주문 진행 담당"을 지정하면 그 직원에게 알림이 가고, 그 직원이 상담을 주문으로 전환하면 요청은 자동으로 완료됩니다.
+  </div>
+
+  <h2>전체 흐름</h2>
+  <div class="flow">
+    <div class="st"><span class="t">1. 요청</span>영업자가 상담일지 작성 → "주문 진행 담당"에 김승현(아르바이트) 지정 → 저장</div>
+    <div class="ar">→</div>
+    <div class="st"><span class="t">2. 알림</span>김승현에게 사이드바 알림 + PC 알림 "주문 진행 요청 — 하나은행 일산지점 (옥광일)"</div>
+    <div class="ar">→</div>
+    <div class="st"><span class="t">3. 전환</span>김승현이 상담일지 "나에게 요청됨"에서 열고 "주문서로 전환" → 저장</div>
+    <div class="ar">→</div>
+    <div class="st"><span class="t">4. 완료</span>요청 자동 완료 → 옥광일에게 "주문 완료 D261105-012" 알림. 주문의 다올직원 김승현 · 상담자 옥광일</div>
+  </div>
+
+  <!-- A -->
+  <h2>A. 상담일지 작성 — "주문 진행 요청" 칸 (발송 정보 아래, 저장 버튼 위)</h2>
+  <div class="panel dim"><div class="sec">상담 정보 · 품목 · 결제 정보 · 발송 정보 <small>기존 그대로</small></div></div>
+  <div class="panel new">
+    <div class="sec">주문 진행 요청 <span class="tag-new">신규</span> <small>상담만 하고 주문 입력은 다른 직원에게 맡길 때 · 비워두면 내가 직접 진행</small></div>
+    <div class="grid">
+      <div class="f s2"><label>주문 진행 담당</label><div class="box sel">김승현 (영업지원팀 · 아르바이트)</div>
+        <div class="dd">
+          <div class="it"><span>홍창의</span><span class="m">영업지원팀 · 부장</span></div>
+          <div class="it"><span>김주연</span><span class="m">영업지원팀 · 대리</span></div>
+          <div class="it on"><span>김승현</span><span class="m">영업지원팀 · 아르바이트</span></div>
+          <div class="it"><span>한정호</span><span class="m">영업지원팀 · 사원</span></div>
+          <div class="it"><span class="m">… 전 직원 (로그인 계정이 있는 재직자)</span></div>
+        </div>
+      </div>
+      <div class="f s4"><label>요청 메모 (선택)</label><div class="box">11/10 출고 맞춰서 발주까지 부탁해요. 인사장 동봉.</div>
+        <div class="hint">요청 메모는 알림과 상담일지 상단에 그대로 보입니다.</div>
+      </div>
+    </div>
+    <div class="note"><span class="num">1</span>저장하는 순간 담당자에게 알림이 갑니다. 담당자를 바꾸면 새 담당자에게 다시 알림, 비우면 요청 취소.<br>
+      <span class="num">2</span>주문으로 전환된 상담은 지금처럼 잠기므로 담당자도 바꿀 수 없습니다(요청 완료).</div>
+  </div>
+
+  <div class="two">
+    <div class="panel">
+      <div class="sec">아르바이트에게 요청 — 마스터 미연결 상담</div>
+      <div class="warn">이 상담은 주문처 · 담당자가 마스터에 연결되지 않았습니다. <b>아르바이트는 신규 거래처 · 담당자 등록이 막혀 있어 전환할 수 없습니다</b> — 먼저 연결하거나 다른 직원에게 요청하세요.</div>
+      <div class="hint">아르바이트에게만 막고, 정규 직원에게는 "전환 전에 마스터 연결이 필요합니다" 안내만 표시.</div>
+    </div>
+    <div class="panel">
+      <div class="sec">요청받은 직원이 연 상담일지 (상단 띠)</div>
+      <div class="info"><b>옥광일</b>님이 주문 진행을 요청했습니다 · 11/5 14:20<br>"11/10 출고 맞춰서 발주까지 부탁해요. 인사장 동봉."</div>
+      <div style="margin-top:10px; display:flex; gap:6px; justify-content:flex-end"><span class="btn">저장</span><span class="btn pri">저장 후 주문서로 전환</span></div>
+      <div class="hint">요청받은 직원은 상담 내용을 고치고 전환할 수 있습니다(작성자 · 요청받은 직원 · 관리자).</div>
+    </div>
+  </div>
+
+  <!-- B -->
+  <h2>B. 상담일지 목록 — "나에게 요청됨" / "내가 요청함"</h2>
+  <div class="desc">지금은 본인이 쓴 상담만 보입니다. 요청받은 상담도 보이도록 카드 2개와 담당 열을 추가합니다.</div>
+  <div class="panel new tw">
+    <div class="kpis">
+      <div class="kpi"><div class="k">내 상담</div><div class="v">12</div></div>
+      <div class="kpi on"><div class="k">나에게 요청됨 (진행 대기)</div><div class="v" style="color:#c2410c">3</div></div>
+      <div class="kpi"><div class="k">내가 요청함 (진행 대기)</div><div class="v">2</div></div>
+      <div class="kpi"><div class="k">요청 완료 (이번 달)</div><div class="v" style="color:#047857">7</div></div>
+    </div>
+    <table>
+      <tr><th>상담일</th><th>주문처</th><th>작성자</th><th>주문 진행</th><th>상태</th><th></th></tr>
+      <tr class="hl"><td>11/05</td><td>하나은행 일산지점</td><td>옥광일</td><td><span class="badge b-me">나에게 요청</span> 11/5 14:20</td><td><span class="badge b-req">요청됨</span></td><td><span class="btn sm blue">주문 전환</span></td></tr>
+      <tr class="hl"><td>11/04</td><td>NH농협손해보험 강북GA</td><td>김재형</td><td><span class="badge b-me">나에게 요청</span> 11/4 10:05</td><td><span class="badge b-req">요청됨</span></td><td><span class="btn sm blue">주문 전환</span></td></tr>
+      <tr><td>11/03</td><td>국방통합데이터센터</td><td>김승현(나)</td><td>홍창의에게 요청</td><td><span class="badge b-done">주문 완료</span> D261103-007</td><td></td></tr>
+      <tr><td>11/02</td><td>하나은행 서린지점</td><td>김승현(나)</td><td>—</td><td>진행중</td><td></td></tr>
+    </table>
+    <div class="hint">"나에게 요청됨" 카드를 누르면 요청받고 아직 전환 안 된 상담만. 요청자에게는 "홍창의에게 요청 · 요청됨 / 주문 완료(주문번호)"로 보입니다.</div>
+  </div>
+
+  <!-- C -->
+  <h2>C. 알림 — 사이드바 종 + PC 알림</h2>
+  <div class="two">
+    <div class="panel">
+      <div class="sec">PC 알림 (화면을 안 보고 있어도)</div>
+      <div class="notif"><div class="t">다올 ERP · 주문 진행 요청</div><b>옥광일</b>님이 주문 진행을 요청했습니다<br>하나은행 일산지점 · 품목 2개 — "11/10 출고 맞춰서…"</div>
+      <div style="height:10px"></div>
+      <div class="notif"><div class="t">다올 ERP · 주문 완료</div><b>김승현</b>님이 요청하신 주문을 입력했습니다<br>하나은행 일산지점 · D261105-012</div>
+      <div class="hint">누르면 해당 상담일지(요청) / 주문 상세(완료)로 이동. PC 알림을 켠 직원에게만 갑니다(내 정보 › 알림 설정에서 종류별로 끌 수 있음).</div>
+    </div>
+    <div class="panel">
+      <div class="sec">사이드바 알림 센터</div>
+      <div class="np">
+        <div class="h">확인할 것</div>
+        <div class="r">주문 진행 요청 <span class="c">3</span></div>
+        <div class="r">받은 업무 요청 <span class="c" style="color:#334155">1</span></div>
+        <div class="r">결재 대기 <span class="c" style="color:#334155">0</span></div>
+      </div>
+      <div class="hint">"주문 진행 요청" = 나에게 요청됐고 아직 전환 안 된 상담 수. 전환하면 자동으로 줄어듭니다(따로 완료 처리 없음).</div>
+    </div>
+  </div>
+
+  <!-- D -->
+  <h2>D. 전환된 주문</h2>
+  <div class="panel">
+    <table>
+      <tr><th>항목</th><th>값</th><th>설명</th></tr>
+      <tr><td>다올직원</td><td>김승현</td><td>실제로 주문을 입력한 사람 (로그인 직원 자동)</td></tr>
+      <tr><td>상담자</td><td>옥광일</td><td>요청한 사람 = 상담 작성자 (지금도 전환 시 상담 작성자로 채워짐)</td></tr>
+      <tr><td>주문 상세 표시</td><td colspan="2"><span class="ok" style="display:inline-block">상담일지에서 전환 · 옥광일 요청 → 김승현 입력</span> (작은 안내 한 줄)</td></tr>
+    </table>
+  </div>
+
+  <!-- F -->
+  <h2>F. 확인 부탁드릴 것</h2>
+  <div class="decide">
+    <h3>시안 확정 전에 정해주세요</h3>
+    <ol>
+      <li><b>요청 위치</b> — 가안: 상담일지 작성 · 수정 화면 아래 "주문 진행 요청" 칸 + 목록 행에서도 "요청" 버튼(작성자만).</li>
+      <li><b>요청받은 직원의 수정 권한</b> — 가안: 상담 내용 수정 · 전환 모두 가능 (작성자와 같은 권한).</li>
+      <li><b>아르바이트 + 마스터 미연결 상담</b> — 가안: 요청 저장은 막고 "먼저 연결" 안내. (정규 직원에게는 안내만)</li>
+      <li><b>요청 후 오래 처리 안 된 건</b> — 가안: 요청 다음 날 아침 9시 PC 알림으로 한 번 더 알림(업무 요청 아침 알림과 같은 시간). 필요 없으면 뺌.</li>
+    </ol>
+  </div>
+  <div class="desc" style="margin-top:10px">구현 범위(확정 시): 상담 · 업무일지 트랙 마이그레이션 1개(상담일지에 담당 직원 · 요청 시각 · 요청 메모 · 요청자 — 번호는 700번대 규칙) /
+    상담 저장 · 목록 · 전환 권한 / 알림 센터 블록 · PC 알림 2종(요청 · 완료) / 주문 상세 안내 / 도움말 · 두 트랙 문서.</div>
+</div>
+</body>
+</html>

@@ -129,12 +129,12 @@ export async function loadPoStatusMap(
   // 주문별 유효 품목 수 대비 발주된 품목 수
   const counts = new Map<string, { total: number; done: number }>()
   await Promise.all(chunks.map(async ch => {
-    const r = await fetchAllRows<{ id: string; order_id: string; is_canceled: boolean }>((pf, pt) =>
-      admin.from('erp_order_items').select('id, order_id, is_canceled').in('order_id', ch).range(pf, pt),
+    const r = await fetchAllRows<{ id: string; order_id: string; is_canceled: boolean; is_prepayment: boolean }>((pf, pt) =>
+      admin.from('erp_order_items').select('id, order_id, is_canceled, is_prepayment').in('order_id', ch).range(pf, pt),
     )
     if ('error' in r) return
     for (const it of r.data) {
-      if (it.is_canceled) continue
+      if (it.is_canceled || it.is_prepayment) continue   // 선결제는 발주 대상 아님
       let c = counts.get(it.order_id)
       if (!c) { c = { total: 0, done: 0 }; counts.set(it.order_id, c) }
       c.total += 1
@@ -147,6 +147,37 @@ export async function loadPoStatusMap(
     map.set(id, !c || c.done === 0 ? 'none' : c.done >= c.total ? 'full' : 'partial')
   }
   return map
+}
+
+// ── 표준 미수 (회계 트랙 단일 정의) ──────────────────────
+// erp_orders.outstanding_amount는 원본값이라 수금 매칭(erp_payment_matches)을 반영하지 않는다.
+// 매칭 차감은 DB 뷰 v_erp_order_receivable(406·416, = lib/receivable.ts)에서만 이뤄지므로
+// 주문 화면의 미수·수금 상태는 반드시 이 뷰 값으로 표시한다. (2026-11-04)
+export interface ReceivableInfo { outstanding: number; net_sales: number }
+
+export async function loadReceivableMap(
+  admin: SupabaseClient,
+  orderIds: string[],
+): Promise<Map<string, ReceivableInfo> | null> {
+  const map = new Map<string, ReceivableInfo>()
+  if (!orderIds.length) return map
+  const results = await Promise.all(chunk(orderIds, 150).map(ch =>
+    admin.from('v_erp_order_receivable').select('order_id, outstanding, net_sales').in('order_id', ch),
+  ))
+  for (const r of results) {
+    if (r.error) return null   // 뷰 미적용 등 — 호출 측이 원본값으로 폴백
+    for (const v of r.data ?? []) {
+      map.set(v.order_id as string, { outstanding: Number(v.outstanding ?? 0), net_sales: Number(v.net_sales ?? 0) })
+    }
+  }
+  return map
+}
+
+// 수금 상태도 데이터에서 판정: 미수 0 = 수금완료 / 일부 수금 = 수금진행중 / 그 외 미수금
+export function collectStatusFrom(rawStatus: string | null, r: ReceivableInfo): string {
+  if (rawStatus === 'collected' || r.outstanding <= 0) return 'collected'
+  if (r.outstanding < r.net_sales) return 'in_progress'
+  return 'outstanding'
 }
 
 // 필터를 적용한 주문 집합 (정렬: 주문일·입력시각 내림차순)
@@ -218,13 +249,25 @@ export async function loadFilteredOrders(
 
   let filtered = base.data.filter(o => {
     if (tokens.length && !tokens.every((tk, i) => tokenMatches(o, tk, tokenItemIds[i]))) return false
-    if (f.collect && f.collect !== 'all' && o.collect_status !== f.collect) return false
     if (f.source && f.source !== 'all' && (o.source ?? 'upload') !== f.source) return false
     if (f.prepayOnly && !prepayIds.has(o.id)) return false
     if (f.invoiceOnly && !invoiceIds.has(o.id)) return false
     if (f.mine && me.employeeName && o.staff_name !== me.employeeName) return false
     return true
   })
+
+  // 3-1) 미수·수금 상태를 표준 미수(매칭 반영)로 교체한 뒤 수금 필터 적용. 취소 주문은 미수 0·상태 유지
+  const recv = await loadReceivableMap(admin, filtered.filter(o => !o.canceled_at).map(o => o.id))
+  if (recv) {
+    for (const o of filtered) {
+      if (o.canceled_at) { o.outstanding_amount = 0; continue }
+      const r = recv.get(o.id)
+      if (!r) continue
+      o.outstanding_amount = r.outstanding
+      o.collect_status = collectStatusFrom(o.collect_status, r)
+    }
+  }
+  if (f.collect && f.collect !== 'all') filtered = filtered.filter(o => o.collect_status === f.collect)
 
   // 4) 발주 상태 (direct 주문 전용 배지·필터)
   const directIds = filtered.filter(o => (o.source ?? 'upload') === 'direct').map(o => o.id)

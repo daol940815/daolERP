@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 export interface Vendor { id: string; name: string; type: string | null; group_id?: string | null }
 export interface VendorGroup { id: string; name: string }
 export interface Employee { id: string; name: string; position: string | null; team: string | null }
-export interface ContactOpt { contact_id: string; name: string; phone: string | null; title: string | null; is_representative: boolean }
+export interface ContactOpt { contact_id: string; name: string; phone: string | null; title: string | null; is_representative: boolean; staff_employee_id?: string | null }
 export interface Product {
   id: string; item_code: string | null; item_name: string; option_name: string | null
   purchase_vendor_name: string | null; category: string | null
@@ -256,10 +256,10 @@ export function Combo({ value, display, options, onSelect, placeholder, required
               className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-gray-50 whitespace-normal leading-snug">
               {o.label}
               {o.soldout && (
-                <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-600 align-middle">품절</span>
+                <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-[0.625rem] font-medium bg-red-50 text-red-600 align-middle">품절</span>
               )}
               {/* 원가표 상태 메모 (512) — '블랙 품절'·'단가인상' 등 실무 참고 */}
-              {o.note && <span className="text-[10px] text-amber-600 ml-1.5">{o.note}</span>}
+              {o.note && <span className="text-[0.625rem] text-amber-600 ml-1.5">{o.note}</span>}
               {o.sub && <span className="text-xs text-gray-400 ml-1.5">{o.sub}</span>}
             </button>
           ))}

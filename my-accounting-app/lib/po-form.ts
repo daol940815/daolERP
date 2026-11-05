@@ -9,6 +9,8 @@
 //  - 택배비는 품목 행으로 풀어서 기재 (상품 행 금액에서 배송비 분리, 총합계 불변)
 //  - TEL·FAX 고정, 발주담당자·연락처는 발송 시점 로그인 직원 기준
 
+import { SHIP_KINDS, hasShip, shipAddrLine, type ShipInput } from './ship-address'
+
 export const COMPANY_NAME = '다올커머스'
 export const COMPANY_PHONE = '070-7007-4582'   // 직원 연락처 미등록 시 대체
 export const COMPANY_TEL = '031-922-4582'      // 양식 고정값 (사용자 확정)
@@ -32,16 +34,22 @@ export interface PoExcelData {
   ship_request: string | null      // 출고요청일 (상담일지 배송요청일)
   vendor_name: string              // 공급처(매입처)
   customer: string                 // 주문처(거래처)
+  customer_bank: string | null     // 은행(업체)명 — 메일 치환 변수용 (2026-11-02)
+  customer_branch: string | null   // 지점(부서)명 — 메일 치환 변수용
   customer_manager: string | null  // 배송명단 수령인 프리필
   customer_phone: string | null    // 배송명단 연락처 프리필
   staff_name: string | null        // 발주담당자 — 발송 시점 로그인 직원
-  staff_phone: string | null       // 발주자 연락처 (미등록 시 회사 번호)
+  staff_phone: string | null       // 발주자 연락처 = 업무용 핸드폰(205) → 직원 핸드폰 → 회사 번호
   total_amount: number
   delivery_note: string | null     // 배송명단 배송메모 프리필
+  ship?: ShipInput | null          // 주문 배송지 (513) — 지점·샘플 품목 행에 자동 채움
   items: {
     item_code: string | null; item_name: string | null; order_kind: string | null
     quantity: number; purchase_price: number; purchase_shipping: number
     purchase_total: number; memo: string | null
+    // 품목 구분 (2026-11-05): fee = 비용 품목(품목 마스터 '비용 품목' 체크 — 배송비 · 퀵비 · 설치비 등),
+    // addon = 부가상품(쇼핑백 · 포장지 — 본 상품과 함께 감). 둘 다 자사 양식 배송명단에서 제외
+    role?: 'fee' | 'addon' | null
   }[]
 }
 
@@ -90,20 +98,39 @@ export function poFormItemRows(po: PoExcelData): (string | number)[][] {
 
 export const ROSTER_HEADERS = ['NO.', '발송인', '발송인 연락처', '수령인', '주소', '연락처', '제품명', '수량', '배송메모'] as const
 
-// 아는 값만 프리필 — 수령인별 주소·연락처는 다운로드 후 수기 보완 (1차 확정).
-// 상품 행별 1행 (택배비 행 제외), 수령인은 주문처 담당자 프리필.
+// 상품 행별 1행 (택배비 행 제외).
+// 배송지(513)가 있는 주문: 지점·샘플 품목 행 = 주문 배송지, 개별 품목 행 = 비움(수령인별 수기).
+// 배송지가 없는 주문(513 이전·미입력): 기존대로 수령인·연락처만 주문처 담당자 프리필, 주소 수기.
+export function shipForItem(po: PoExcelData, orderKind: string | null | undefined):
+  { name: string; phone: string; zip: string; addr: string; addrLine: string } | null {
+  if (!hasShip(po.ship)) return null
+  if (!SHIP_KINDS.has(orderKind ?? '지점')) return { name: '', phone: '', zip: '', addr: '', addrLine: '' }
+  const s = po.ship!
+  return {
+    name: s.ship_name ?? '', phone: s.ship_phone ?? '', zip: s.ship_zip ?? '',
+    addr: [s.ship_addr1, s.ship_addr2].filter(Boolean).join(' '), addrLine: shipAddrLine(s),
+  }
+}
+
+// 배송명단 대상 = 실제로 보내는 상품만 — 비용 품목 · 부가상품 제외 (2026-11-05 사용자 확정).
+// 품목 표(시트1)에는 그대로 남아 금액 · 수량은 빠지지 않는다.
+export const rosterItems = (po: PoExcelData) => po.items.filter(it => it.role !== 'fee' && it.role !== 'addon')
+
 export function poRosterRows(po: PoExcelData): (string | number)[][] {
-  return po.items.map((it, i) => [
-    i + 1,
-    COMPANY_NAME,
-    COMPANY_TEL,
-    po.customer_manager ?? '',
-    '',                                   // 주소 — 수기 기입
-    po.customer_phone ?? '',
-    it.item_name ?? '',
-    it.quantity ?? 0,
-    i === 0 ? po.delivery_note ?? '' : '',
-  ])
+  return rosterItems(po).map((it, i) => {
+    const sh = shipForItem(po, it.order_kind)
+    return [
+      i + 1,
+      COMPANY_NAME,
+      COMPANY_TEL,
+      sh ? sh.name : po.customer_manager ?? '',
+      sh ? sh.addrLine : '',                // 배송지 없으면 주소 수기
+      sh ? sh.phone : po.customer_phone ?? '',
+      it.item_name ?? '',
+      it.quantity ?? 0,
+      i === 0 ? po.delivery_note ?? '' : '',
+    ]
+  })
 }
 
 // ── 메일 프리셋 치환 (발송 페이지·서버 발송 공용) ──────────────────
@@ -114,11 +141,18 @@ export function fillMailTemplate(tpl: string, vars: Record<string, string>): str
 }
 
 export function poMailVars(form: PoExcelData, orderNo?: string | null): Record<string, string> {
+  const items = form.items ?? []
+  const first = items[0]?.item_name ?? ''
   return {
     '발주번호': form.po_no,
     '매입처명': form.vendor_name,
     '주문번호': orderNo ?? '',
     '주문처': form.customer,
+    '은행명': form.customer_bank ?? form.customer,        // 업체(은행)명 — 미상이면 주문처 전체
+    '지점명': form.customer_branch ?? '',                 // 지점(부서)명
+    '상품명': items.length > 1 ? `${first} 외 ${items.length - 1}건` : first,
+    '품목목록': items.map(it => `- ${it.item_name ?? ''} ${it.quantity ?? 0}개`).join('\n'),
+    '품목수': String(items.length),
     '합계금액': (form.total_amount ?? 0).toLocaleString('ko-KR'),
     '출고요청일': form.ship_request ?? '',
     '발주담당자': form.staff_name ?? '',

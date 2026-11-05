@@ -6,7 +6,7 @@ import {
   type HolidayMap,
 } from '@/lib/attendance'
 import {
-  KIND_LABEL, sortEvents, spreadByDate,
+  KIND_LABEL, eventSegments, sortEvents, spreadByDate,
   type ScheduleEvent, type ScheduleKind,
 } from '@/lib/schedule'
 
@@ -74,7 +74,7 @@ export default function CalendarTab() {
     () => (data?.events ?? []).filter(e => !off.includes(e.kind)),
     [data, off])
   const byDate = useMemo(
-    () => data ? spreadByDate(shown, data.month) : {},
+    () => data ? spreadByDate(shown, data.month, data.holidays) : {},
     [shown, data])
   const counts = useMemo(() => {
     const c: Partial<Record<ScheduleKind, number>> = {}
@@ -160,7 +160,7 @@ export default function CalendarTab() {
               <>
                 <div className="grid grid-cols-7 gap-1">
                   {DOW_LABEL.map((d, i) => (
-                    <div key={d} className={`text-[11px] font-semibold text-center py-1 ${
+                    <div key={d} className={`text-[0.6875rem] font-semibold text-center py-1 ${
                       i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-500'}`}>{d}</div>
                   ))}
                   {cells.map((date, i) => {
@@ -179,15 +179,15 @@ export default function CalendarTab() {
                             hol || dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : 'text-gray-600'}`}>
                             {Number(date.slice(8, 10))}
                           </span>
-                          {hol && <span className="text-[10px] text-rose-600 font-medium truncate">{hol}</span>}
+                          {hol && <span className="text-[0.625rem] text-rose-600 font-medium truncate">{hol}</span>}
                         </div>
                         {evs.filter(e => e.kind !== 'holiday').slice(0, 3).map((e, j) => (
-                          <span key={j} className={`block rounded px-1 py-0.5 mt-0.5 text-[10px] truncate ${COLOR[e.kind]}`}>
+                          <span key={j} className={`block rounded px-1 py-0.5 mt-0.5 text-[0.625rem] truncate ${COLOR[e.kind]}`}>
                             {label(e)}
                           </span>
                         ))}
                         {evs.filter(e => e.kind !== 'holiday').length > 3 && (
-                          <span className="block text-[10px] text-gray-400 mt-0.5">
+                          <span className="block text-[0.625rem] text-gray-400 mt-0.5">
                             +{evs.filter(e => e.kind !== 'holiday').length - 3}건
                           </span>
                         )}
@@ -195,7 +195,7 @@ export default function CalendarTab() {
                     )
                   })}
                 </div>
-                <p className="text-[11px] text-gray-400 mt-2">
+                <p className="text-[0.6875rem] text-gray-400 mt-2">
                   날짜를 누르면 오른쪽에 그날 상세가 열립니다. 세무 마감과 대출 상환일이 주말·공휴일이면
                   다음 영업일로 옮겨 표시하고 원래 기한을 함께 적습니다.
                 </p>
@@ -227,7 +227,7 @@ export default function CalendarTab() {
                         <span className="ml-auto text-xs tabular-nums font-semibold">{won(e.amount)}</span>
                       )}
                     </div>
-                    {e.note && <p className="text-[11px] text-gray-400 mt-0.5">{e.note}</p>}
+                    {e.note && <p className="text-[0.6875rem] text-gray-400 mt-0.5">{e.note}</p>}
                   </div>
                 ))}
                 {!pickEvents.filter(e => e.kind !== 'holiday').length && (
@@ -284,7 +284,7 @@ function Timeline({ data, events }: { data: Res; events: ScheduleEvent[] }) {
         <div className="grid" style={{ gridTemplateColumns: `110px repeat(${last}, 1fr)` }}>
           <span />
           {dates.map(d => (
-            <span key={d} className={`text-[9px] text-center ${
+            <span key={d} className={`text-[0.5625rem] text-center ${
               data.holidays[d] || dayOfWeek(d) === 0 ? 'text-red-400'
               : dayOfWeek(d) === 6 ? 'text-blue-400' : 'text-gray-400'}`}>
               {col(d)}
@@ -302,24 +302,27 @@ function Timeline({ data, events }: { data: Res; events: ScheduleEvent[] }) {
                     data.holidays[d] ? 'bg-rose-50' : [0, 6].includes(dayOfWeek(d)) ? 'bg-gray-50' : ''}`} />
                 ))}
               </div>
-              {evs.map((e, i) => {
-                const s = col(e.date)
-                const en = col(e.endDate && e.endDate > e.date ? e.endDate : e.date)
-                return (
-                  <div key={i}
-                    className={`absolute top-1 h-5 rounded text-[10px] leading-5 px-1.5 truncate ${COLOR[e.kind]}`}
-                    style={{ left: `${((s - 1) / last) * 100}%`, width: `${((en - s + 1) / last) * 100}%` }}
-                    title={`${e.title}${e.note ? ` — ${e.note}` : ''}`}>
-                    {e.title}
-                  </div>
-                )
-              })}
+              {/* 휴가는 주말·공휴일에서 막대를 끊는다 (그날은 휴가가 아니라 쉬는 날) */}
+              {evs.flatMap((e, i) => eventSegments(e, data.holidays)
+                .filter(([a, b]) => b >= dates[0] && a <= dates[last - 1])
+                .map(([a, b], j) => {
+                  const s = col(a < dates[0] ? dates[0] : a)
+                  const en = col(b > dates[last - 1] ? dates[last - 1] : b)
+                  return (
+                    <div key={`${i}-${j}`}
+                      className={`absolute top-1 h-5 rounded text-[0.625rem] leading-5 px-1.5 truncate ${COLOR[e.kind]}`}
+                      style={{ left: `${((s - 1) / last) * 100}%`, width: `${((en - s + 1) / last) * 100}%` }}
+                      title={`${e.title}${e.note ? ` — ${e.note}` : ''}`}>
+                      {e.title}
+                    </div>
+                  )
+                }))}
             </div>
           </div>
         ))}
       </div>
-      <p className="text-[11px] text-gray-400 mt-2">
-        회색은 주말, 분홍은 공휴일. 사람이 있는 일정은 직원별 행으로, 세무·대출은 항목 행으로 묶습니다.
+      <p className="text-[0.6875rem] text-gray-400 mt-2">
+        회색은 주말, 분홍은 공휴일. 휴가 막대는 주말 · 공휴일에서 끊어 그립니다. 사람이 있는 일정은 직원별 행으로, 세무·대출은 항목 행으로 묶습니다.
       </p>
     </div>
   )

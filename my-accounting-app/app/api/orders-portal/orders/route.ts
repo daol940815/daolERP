@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { prepayReductionBlock } from '@/lib/prepay'
+import { notifyOrderRequestDone } from '@/lib/order-request'
+import { isManagerLike } from '@/lib/permissions'
+import { fillCustomerStaffIfEmpty } from '@/lib/customer-staff'
 import { getCurrentUser } from '@/lib/user-role'
 import {
   validateOrderInput, buildOrderRows, insertOrderItems, ensureAlias, nextOrderNo,
   resolveDisplayNames, resolveVendorNames, loadOrderSnapshot, cancelOrder,
-  canCancelReissue, inheritToReissued, writeEditLogs,
+  canCancelReissue, inheritToReissued, writeEditLogs, hasShip, syncPrepayDeposits, lineTotal,
 } from '@/lib/orders-portal'
 import { recordWorkLog, orderContent } from '@/lib/work-log'
 
@@ -42,6 +46,10 @@ export async function POST(req: NextRequest) {
     if (!canCancelReissue(reissueSnap.order, me)) {
       return NextResponse.json({ error: '본인이 입력한 주문만 취소·재등록할 수 있습니다. (관리자 제외)' }, { status: 403 })
     }
+    // 재등록으로 선결제 금액이 줄거나 주문처가 바뀌어 원래 거래처 잔액이 마이너스가 되면 차단
+    const newPrepay = input.items.filter(it => it.item_name === '선결제').reduce((s, it) => s + lineTotal(it), 0)
+    const prepayBlock = await prepayReductionBlock(admin, reissueOf, newPrepay, input.vendor_id)
+    if (prepayBlock) return NextResponse.json({ error: prepayBlock }, { status: 409 })
     const probe = await admin.from('erp_orders').select('canceled_at').limit(1)
     if (probe.error) {
       return NextResponse.json({
@@ -54,11 +62,17 @@ export async function POST(req: NextRequest) {
   const consultationId = (((rawBody ?? {}) as Record<string, unknown>).consultation_id as string | undefined)
     ?? (reissueSnap?.order.consultation_id as string | undefined)   // 재등록 시 상담 연결 승계
   if (consultationId && !reissueOf) {
-    const { data: consult } = await admin.from('erp_consultations')
-      .select('id, employee_id').eq('id', consultationId).maybeSingle()
+    // 전환 권한: 작성자 · 주문 진행 요청을 받은 직원(705) · 관리자급 (role 판정 금지 — 109)
+    const withReq = await admin.from('erp_consultations')
+      .select('id, employee_id, order_assignee_id').eq('id', consultationId).maybeSingle()
+    const consult = (withReq.error
+      ? (await admin.from('erp_consultations').select('id, employee_id').eq('id', consultationId).maybeSingle()).data
+      : withReq.data) as { id: string; employee_id: string | null; order_assignee_id?: string | null } | null
     if (!consult) return NextResponse.json({ error: '연결할 상담일지를 찾을 수 없습니다.' }, { status: 400 })
-    if (me.role === 'sales' && consult.employee_id !== me.employeeId) {
-      return NextResponse.json({ error: '본인 상담일지만 주문으로 전환할 수 있습니다.' }, { status: 403 })
+    const mine = !!me.employeeId && consult.employee_id === me.employeeId
+    const assigned = !!me.employeeId && consult.order_assignee_id === me.employeeId
+    if (!mine && !assigned && !isManagerLike(me)) {
+      return NextResponse.json({ error: '본인 상담일지 또는 나에게 주문 진행이 요청된 상담만 주문으로 전환할 수 있습니다.' }, { status: 403 })
     }
   }
 
@@ -70,7 +84,7 @@ export async function POST(req: NextRequest) {
 
   const aliasName = [vendorNames.bankName, vendorNames.branchName].filter(Boolean).join(' ')
   const aliasId = await ensureAlias(admin, 'customer', aliasName, input.vendor_id)
-  const { orderFields, itemRows, total } = buildOrderRows(input, {
+  const { orderFields, shipFields, itemRows, total } = buildOrderRows(input, {
     managerName: names.managerName,
     counselorName: names.counselorName,
   })
@@ -82,6 +96,7 @@ export async function POST(req: NextRequest) {
     orderNo = await nextOrderNo(admin, input.order_date)
     const { data, error } = await admin.from('erp_orders').insert({
       ...orderFields,
+      ...(hasShip(shipFields) ? shipFields : {}),   // 513 미적용 DB에서도 배송지 없이 저장되도록
       order_no: orderNo,
       source: 'direct',
       bank_name: vendorNames.bankName,
@@ -94,6 +109,9 @@ export async function POST(req: NextRequest) {
       ...(consultationId ? { consultation_id: consultationId } : {}),
     }).select('id').single()
     if (!error) { orderId = data.id as string; break }
+    if (/ship_/.test(error.message)) {
+      return NextResponse.json({ error: '513 마이그레이션(배송지)이 아직 적용되지 않았습니다. SQL 편집기에서 실행하거나, 배송지를 비우고 저장해주세요.' }, { status: 500 })
+    }
     if (!/duplicate|unique/i.test(error.message)) {
       const missing = /column|vendor_id|contact_id|counselor|created_by/i.test(error.message)
       return NextResponse.json({
@@ -130,9 +148,17 @@ export async function POST(req: NextRequest) {
     }])
   }
 
+  // 고객 다올 담당이 비어 있으면 이 주문의 상담자로 자동 저장 (112, 2026-11-05 — 빈 경우만)
+  await fillCustomerStaffIfEmpty(admin, input.vendor_id, input.contact_id, input.counselor_employee_id)
+
+  // 선결제 품목 → 선결제 원장 입금 자동 등록 (업로드와 같은 규칙, 2026-11-05)
+  const prepayWarn = await syncPrepayDeposits(admin, orderId)
+
   // 상담일지 상태 갱신 — 주문 전환 완료 (재등록은 이미 전환 상태)
   if (consultationId && !reissueOf) {
     await admin.from('erp_consultations').update({ status: '주문전환' }).eq('id', consultationId)
+    // 주문 진행 요청이 있던 상담이면 요청자에게 완료 PC 알림 (요청 자체는 '주문전환'으로 자동 완료)
+    await notifyOrderRequestDone(admin, consultationId, orderId, orderNo, { employeeId: me.employeeId, employeeName: me.employeeName })
   }
 
   // 업무일지 자동 기재 — 상담에서 전환된 주문은 '주문전환'으로 구분
@@ -151,5 +177,5 @@ export async function POST(req: NextRequest) {
     refId: orderId,
   })
 
-  return NextResponse.json({ id: orderId, order_no: orderNo, total_amount: total })
+  return NextResponse.json({ id: orderId, order_no: orderNo, total_amount: total, warning: prepayWarn })
 }

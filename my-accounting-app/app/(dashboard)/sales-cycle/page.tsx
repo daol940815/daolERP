@@ -180,13 +180,13 @@ export default function SalesCyclePage() {
                 <tr key={r.vendor_id} className="hover:bg-gray-50">
                   <td className="px-3 py-2 font-medium text-gray-900">
                     <Link href={`/sales-hub/${r.vendor_id}`} className="hover:underline">{r.vendor_name}</Link>
-                    {r.no_invoice && <span className="ml-1.5 px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[11px]">계산서 미발행</span>}
+                    {r.no_invoice && <span className="ml-1.5 px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[0.6875rem]">계산서 미발행</span>}
                   </td>
                   <td className="px-3 py-2 text-right">{r.order_count.toLocaleString()}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{won(r.order_net)}</td>
                   <td className="px-3 py-2 text-right">
                     <p className={`tabular-nums ${r.invoice_linked > 0 ? 'text-gray-900' : 'text-gray-400'}`}>{won(r.invoice_linked)}</p>
-                    <p className="text-[11px] text-gray-400">
+                    <p className="text-[0.6875rem] text-gray-400">
                       발행 {r.invoice_count ? `${r.invoice_count}건` : '-'}
                       {r.order_net > 0 && ` · ${Math.round(r.invoice_linked / r.order_net * 100)}%`}
                     </p>

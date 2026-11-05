@@ -5,7 +5,7 @@
 // 회계·재무 영역의 통장 내역·카드 내역은 계좌별·카드별 바로가기(편집 포함)를 하위에 둔다.
 
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import type { BankAccount } from '@/types/bank-account'
@@ -15,6 +15,10 @@ import AddBankModal from './AddBankModal'
 import CheckWidget from '@/app/(orders)/orders/check-widget'
 import { useNotifications } from '@/lib/use-notifications'
 import { NotificationBell, NotificationToasts } from './NotificationCenter'
+import PushBanner from './PushBanner'
+import { recentChangeMap } from '@/lib/help-registry'
+import HelpLauncher, { readSeen, HELP_SEEN_EVENT } from '@/components/help/HelpLauncher'
+import type { GroupKey, PermLevel } from '@/lib/permissions'
 
 interface CardAccountItem { id: string; card_company: string; card_number: string; alias: string | null }
 
@@ -26,9 +30,10 @@ export interface AreaSidebarProps {
   userSub: string
   showAreaSelect: boolean
   initialBanks?: BankAccount[]
+  helpLevels?: Partial<Record<GroupKey, PermLevel>>
 }
 
-export default function AreaSidebar({ area, areaLabel, groups, userName, userSub, showAreaSelect, initialBanks = [] }: AreaSidebarProps) {
+export default function AreaSidebar({ area, areaLabel, groups, userName, userSub, showAreaSelect, initialBanks = [], helpLevels = {} }: AreaSidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -89,6 +94,14 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
   useEffect(() => { notif.refresh() /* 화면 이동 시 즉시 갱신 */ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
   const badgeOf = (href: string) => notif.data?.badges?.[href] ?? null
+  // 도움말 "최근 바뀐 것" 점 — 14일 이내 변경이 있고 아직 그 화면을 방문하지 않은 메뉴 (도움말 트랙, 2026-11-03)
+  const [helpNew, setHelpNew] = useState<Record<string, string>>({})
+  useEffect(() => {
+    const calc = () => { const recent = recentChangeMap(); const seen = readSeen(); setHelpNew(Object.fromEntries(Object.entries(recent).filter(([k, d]) => (seen[k] ?? '') < d))) }
+    calc()
+    window.addEventListener(HELP_SEEN_EVENT, calc)
+    return () => window.removeEventListener(HELP_SEEN_EVENT, calc)
+  }, [])
 
   const startEdit = (bankId: string, cur: string | null) => {
     setEditingBankId(bankId); setEditingValue(cur ?? ''); setTimeout(() => inputRef.current?.focus(), 50)
@@ -179,7 +192,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
                   <span className="truncate flex items-center gap-1.5">
                     {bank.bank_name}
                     {bank.account_type === 'overdraft' && (
-                      <span className="shrink-0 px-1 py-0.5 text-[10px] leading-none rounded bg-amber-500/20 text-amber-400">마이너스</span>
+                      <span className="shrink-0 px-1 py-0.5 text-[0.625rem] leading-none rounded bg-amber-500/20 text-amber-400">마이너스</span>
                     )}
                   </span>
                   {bank.account_number && <span className="text-xs text-slate-500 font-normal truncate">{bank.account_number}</span>}
@@ -245,7 +258,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
         <span key={it.href} title="다음 단계에서 열립니다"
           className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-600 cursor-not-allowed mb-0.5">
           <span>{it.label}</span>
-          <span className="ml-auto text-[10px] text-slate-600 border border-slate-700 rounded px-1">준비 중</span>
+          <span className="ml-auto text-[0.625rem] text-slate-600 border border-slate-700 rounded px-1">준비 중</span>
         </span>
       )
     }
@@ -277,11 +290,12 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
         </div>
       )
     }
+    const changed = helpNew[it.href.split('?')[0]]
     return (
       <Link key={it.href} href={it.href} className={linkCls(isActive(it))}>
-        <span>{it.label}</span>
+        <span className="flex items-center gap-1.5">{it.label}{changed && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" title={`${changed} 이후 바뀐 것이 있습니다 — 화면 도움말에서 확인`} />}</span>
         {(() => { const b = badgeOf(it.href); return b ? (
-          <span className={`ml-auto text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none ${b.tone === 'red' ? 'bg-red-500 text-white' : 'bg-amber-400 text-slate-900'}`}>{b.n}</span>
+          <span className={`ml-auto text-[0.625rem] font-bold rounded-full px-1.5 py-0.5 leading-none ${b.tone === 'red' ? 'bg-red-500 text-white' : 'bg-amber-400 text-slate-900'}`}>{b.n}</span>
         ) : null })()}
       </Link>
     )
@@ -296,7 +310,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
       </div>
       {/* 출근·퇴근 체크 — 어느 영역에서든 같은 자리 (2026-10-01). 비대상 직원에게는 비표시 */}
       <CheckWidget wrap="pt-3 border-b border-slate-800" />
-      <div className="pt-2 border-b border-slate-800"><NotificationBell data={notif.data} seenAt={notif.seenAt} onSeen={notif.markAllSeen} /></div>
+      <div className="pt-2 border-b border-slate-800"><PushBanner /><NotificationBell data={notif.data} seenAt={notif.seenAt} onSeen={notif.markAllSeen} live={notif.live} /></div>
 
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
         {groups.map(g => (
@@ -317,6 +331,8 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
 
       {/* 하단 고정 — 업무 선택(영역 2개 이상)·로그아웃은 메뉴가 길어도 항상 보이도록 */}
       <div className="px-3 py-3 border-t border-slate-700">
+        {/* 이 화면 도움말 — 본문 버튼을 가리지 않도록 사이드바 하단에 (2026-11-05) */}
+        <Suspense fallback={null}><HelpLauncher levels={helpLevels} /></Suspense>
         {showAreaSelect && (
           <Link href="/portal" className={linkCls(false)}>
             <span>업무 선택</span>

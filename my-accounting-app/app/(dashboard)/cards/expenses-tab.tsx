@@ -1,6 +1,7 @@
 'use client'
 
 import PeriodPresets from '@/components/ui/PeriodPresets'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 import Link from 'next/link'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -40,9 +41,11 @@ function CardExpensesContent() {
   const [msg, setMsg] = useState<string | null>(null)
 
   const [cardAccountId, setCardAccountId] = useState(() => searchParams.get('cardAccountId') ?? '')
-  const [dateFrom, setDateFrom] = useState(() => getPeriodRange('당월').from)
-  const [dateTo, setDateTo] = useState(() => getPeriodRange('당월').to)
-  const [status, setStatus] = useState('')
+  // 드릴다운 진입(?from=&to=&focus=): 그 날짜로 기간을 맞추고 해당 행을 강조·스크롤 (2026-10-29)
+  const focusId = searchParams.get('focus') ?? ''
+  const [dateFrom, setDateFrom] = useState(() => searchParams.get('from') || getPeriodRange('당월').from)
+  const [dateTo, setDateTo] = useState(() => searchParams.get('to') || getPeriodRange('당월').to)
+  const [status, setStatus] = useState(() => searchParams.get('status') ?? '')   // ?status=pending 드릴다운
   const [search, setSearch] = useState('')
   const [accountFilter, setAccountFilter] = useState('') // '' 전체 | 'none' 미추천 | 계정 code
   const [editClass, setEditClass] = useState<{ id: string; value: string } | null>(null)
@@ -50,10 +53,18 @@ function CardExpensesContent() {
   // 체크박스 일괄 승인
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [bulkAccountId, setBulkAccountId] = useState('')
+  // 행별 계정 지정(아직 확정 아님) — 여러 행에 계정을 적어 두고 체크한 뒤 "선택 확정"으로 한 번에 보낸다 (2026-10-29)
+  const [draft, setDraft] = useState<Map<string, string>>(new Map())
   const [bulkProgress, setBulkProgress] = useState<string | null>(null)
   const headerCheckRef = useRef<HTMLInputElement>(null)
 
   const showMsg = (m: string, ms = 5000) => { setMsg(m); setTimeout(() => setMsg(null), ms) }
+
+  // 계정과목 검색형 드롭다운 옵션 — 코드와 이름을 함께 두어 "811"처럼 코드로도, "복리"처럼 이름으로도 찾는다
+  const accountSelectOptions = useMemo(
+    () => accounts.map(a => ({ id: a.id, label: `${a.code} ${a.name}` })),
+    [accounts],
+  )
 
   const saveClassification = async (id: string, value: string) => {
     setEditClass(null)
@@ -91,6 +102,12 @@ function CardExpensesContent() {
   }, [cardAccountId, dateFrom, dateTo, status, search])
 
   useEffect(() => { load() }, [load])
+
+  // 드릴다운 행으로 스크롤 (조회가 끝난 뒤 한 번)
+  useEffect(() => {
+    if (!focusId || loading) return
+    document.getElementById(`card-expense-${focusId}`)?.scrollIntoView({ block: 'center' })
+  }, [focusId, loading])
 
   // 계정과목 필터: 확정 계정이 있으면 확정, 없으면 추천 계정 기준
   const effectiveAccount = (r: Expense) => r.confirmed ?? r.suggested
@@ -169,30 +186,51 @@ function CardExpensesContent() {
     load()
   }
 
-  // 일괄 확정 — approve: 추천 계정이 있는 건만 / assign: 선택 전부를 지정 계정으로
-  const runBulk = async (kind: 'approve' | 'assign') => {
+  // 미확정 행의 계정 선택 = 지정만(저장 안 함) + 자동 체크. 확정 행은 바로 저장(기존 동작).
+  const chooseAccount = (r: Expense, accountId: string) => {
+    if (r.classify_status === 'confirmed') { patch(r.id, { confirmed_account_id: accountId || null }); return }
+    setDraft(prev => {
+      const next = new Map(prev)
+      if (accountId) next.set(r.id, accountId)
+      else next.delete(r.id)
+      return next
+    })
+    setChecked(prev => {
+      const next = new Set(prev)
+      if (accountId) next.add(r.id)
+      else next.delete(r.id)
+      return next
+    })
+  }
+  const draftCount = useMemo(() => selectedRows.filter(r => draft.has(r.id)).length, [selectedRows, draft])
+
+  // 일괄 확정
+  //   confirm: 선택 행마다 — 지정한 계정이 있으면 그 계정으로, 없으면 추천 계정으로, 둘 다 없으면 건너뜀
+  //   assign : 선택 전부를 상단에서 고른 한 계정으로
+  const runBulk = async (kind: 'confirm' | 'assign') => {
     if (bulkProgress) return
-    const targets = kind === 'approve' ? selectedRows.filter(r => r.suggested) : selectedRows
+    const targets = kind === 'confirm' ? selectedRows.filter(r => draft.has(r.id) || r.suggested) : selectedRows
     const skipped = selectedRows.length - targets.length
     if (kind === 'assign' && !bulkAccountId) { showMsg('확정할 계정과목을 먼저 선택하세요.'); return }
     if (targets.length === 0) {
-      showMsg(kind === 'approve' ? '선택한 건에 추천 계정이 없습니다. 계정 직접 지정을 사용하세요.' : '처리할 대상이 없습니다.')
+      showMsg(kind === 'confirm' ? '선택한 건에 지정한 계정도 추천 계정도 없습니다. 행에서 계정을 고르거나 계정 직접 지정을 사용하세요.' : '처리할 대상이 없습니다.')
       return
     }
 
-    let done = 0, fail = 0
+    let done = 0, fail = 0, byDraft = 0, bySuggest = 0
+    const doneIds: string[] = []
     setBulkProgress(`0 / ${targets.length}`)
-    const body = kind === 'approve'
-      ? JSON.stringify({ approve: true })
-      : JSON.stringify({ confirmed_account_id: bulkAccountId })
     for (let i = 0; i < targets.length; i += BULK_CONCURRENCY) {
       const chunk = targets.slice(i, i + BULK_CONCURRENCY)
       await Promise.all(chunk.map(async r => {
+        const d = draft.get(r.id)
+        const body = kind === 'assign' ? { confirmed_account_id: bulkAccountId }
+          : d ? { confirmed_account_id: d } : { approve: true }
         try {
           const res = await fetch(`/api/card-expenses/${r.id}`, {
-            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body,
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
           })
-          if (res.ok) done++
+          if (res.ok) { done++; doneIds.push(r.id); if (kind === 'confirm') { if (d) byDraft++; else bySuggest++ } }
           else fail++
         } catch { fail++ }
       }))
@@ -201,9 +239,11 @@ function CardExpensesContent() {
     setBulkProgress(null)
     setChecked(new Set())
     setBulkAccountId('')
+    setDraft(prev => { const next = new Map(prev); for (const id of doneIds) next.delete(id); return next })
     showMsg(
       `일괄 확정 완료: ${done}건`
-      + (skipped > 0 ? ` · 추천 없음 제외 ${skipped}건` : '')
+      + (kind === 'confirm' && done > 0 ? ` (지정 ${byDraft} · 추천 ${bySuggest})` : '')
+      + (skipped > 0 ? ` · 지정·추천 없음 제외 ${skipped}건` : '')
       + (fail > 0 ? ` · 실패 ${fail}건` : ''),
       8000
     )
@@ -291,16 +331,19 @@ function CardExpensesContent() {
             <span className="ml-2 font-medium">처리 중 {bulkProgress} — 창을 닫지 마세요</span>
           ) : (
             <>
-              <button onClick={() => runBulk('approve')}
-                className="ml-2 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-700">
-                선택 승인 (추천 계정으로 확정)
+              <button onClick={() => runBulk('confirm')}
+                className="ml-2 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-700"
+                title="지정한 계정이 있으면 그 계정으로, 없으면 추천 계정으로 확정">
+                선택 확정{draftCount > 0 ? ` (지정 ${draftCount})` : ''}
               </button>
               <span className="inline-flex items-center gap-1.5">
-                <select value={bulkAccountId} onChange={e => setBulkAccountId(e.target.value)}
-                  className="border border-indigo-300 rounded-lg px-2 py-1.5 text-xs bg-white">
-                  <option value="">계정 직접 지정...</option>
-                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
+                <SearchableSelect
+                  value={bulkAccountId}
+                  onChange={setBulkAccountId}
+                  options={accountSelectOptions}
+                  emptyLabel="계정 직접 지정..."
+                  className="border border-indigo-300 rounded-lg px-2 py-1.5 text-xs bg-white min-w-[160px]"
+                />
                 <button onClick={() => runBulk('assign')}
                   className="px-2.5 py-1.5 border border-indigo-300 bg-white text-indigo-800 rounded-lg text-xs font-semibold hover:bg-indigo-100">
                   선택에 적용
@@ -339,7 +382,8 @@ function CardExpensesContent() {
             </thead>
             <tbody>
               {filteredRows.map(r => (
-                <tr key={r.id} className={`border-b border-gray-100 ${checked.has(r.id) ? 'bg-indigo-50/60' : 'hover:bg-gray-50'}`}>
+                <tr key={r.id} id={`card-expense-${r.id}`}
+                  className={`border-b border-gray-100 ${focusId === r.id ? 'bg-sky-50 shadow-[inset_3px_0_0_#0284c7]' : checked.has(r.id) ? 'bg-indigo-50/60' : 'hover:bg-gray-50'}`}>
                   <td className="py-2 px-3">
                     <input type="checkbox"
                       checked={checked.has(r.id)}
@@ -360,15 +404,21 @@ function CardExpensesContent() {
                   </td>
                   <td className="py-2 px-3 text-right whitespace-nowrap font-medium">{won(r.approved_amount)}</td>
                   <td className="py-2 px-3 whitespace-nowrap">
-                    <select
-                      value={r.confirmed?.code ? accounts.find(a => a.code === r.confirmed!.code)?.id ?? '' : ''}
-                      onChange={e => patch(r.id, { confirmed_account_id: e.target.value || null })}
-                      className={`border rounded px-2 py-1 text-xs ${r.classify_status === 'confirmed' ? 'border-gray-300 text-gray-900' : 'border-amber-300 bg-amber-50 text-amber-700'}`}
-                    >
-                      <option value="">{r.suggested ? `(제안) ${r.suggested.name}` : '미지정'}</option>
-                      {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                    </select>
-                    {r.classify_status === 'pending' && r.suggested && (
+                    <SearchableSelect
+                      value={draft.get(r.id) ?? (r.confirmed?.code ? accounts.find(a => a.code === r.confirmed!.code)?.id ?? '' : '')}
+                      onChange={v => chooseAccount(r, v)}
+                      options={accountSelectOptions}
+                      emptyLabel={r.suggested ? `(제안) ${r.suggested.name}` : '미지정'}
+                      disabled={!!bulkProgress}
+                      className={`border rounded px-2 py-1 text-xs min-w-[150px] max-w-[220px] ${
+                        r.classify_status === 'confirmed' ? 'border-gray-300 text-gray-900'
+                        : draft.has(r.id) ? 'border-sky-400 bg-sky-50 text-sky-800'
+                        : 'border-amber-300 bg-amber-50 text-amber-700'}`}
+                    />
+                    {r.classify_status === 'pending' && draft.has(r.id) && (
+                      <span className="ml-1 text-[0.6875rem] text-sky-700">지정됨 · 선택 확정으로 저장</span>
+                    )}
+                    {r.classify_status === 'pending' && !draft.has(r.id) && r.suggested && (
                       <button onClick={() => patch(r.id, { approve: true })}
                         className="ml-1 text-xs px-1.5 py-1 bg-amber-500 text-white rounded hover:bg-amber-600">승인</button>
                     )}

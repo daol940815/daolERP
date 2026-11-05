@@ -33,7 +33,8 @@ interface SendLog {
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
 const kb = (n: number) => n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`
-const VARS = ['{발주번호}', '{매입처명}', '{주문번호}', '{주문처}', '{합계금액}', '{출고요청일}', '{발주담당자}']
+const VARS = ['{발주번호}', '{매입처명}', '{주문번호}', '{주문처}', '{은행명}', '{지점명}',
+  '{상품명}', '{품목목록}', '{품목수}', '{합계금액}', '{출고요청일}', '{발주담당자}']
 
 export default function PoSendPage() {
   const { id } = useParams<{ id: string }>()
@@ -205,11 +206,11 @@ export default function PoSendPage() {
 
   const active = po.status === 'active'
   const badge = (cls: string, label: string, title?: string) => (
-    <span title={title} className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${cls}`}>{label}</span>
+    <span title={title} className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${cls}`}>{label}</span>
   )
   const secTitle = 'text-sm font-bold text-gray-900 flex items-center gap-2 flex-wrap'
-  const stepNo = 'inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-900 text-white text-[11px] shrink-0'
-  const sub = 'text-[11px] font-normal text-gray-400'
+  const stepNo = 'inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-900 text-white text-[0.6875rem] shrink-0'
+  const sub = 'text-[0.6875rem] font-normal text-gray-400'
   const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm disabled:opacity-60'
 
   return (
@@ -275,7 +276,7 @@ export default function PoSendPage() {
               attachments.some(a => a.kind === 'replace') ? 'border-gray-100 bg-gray-50 text-gray-400' : 'border-gray-200 bg-gray-50/60'}`}>
               {badge('bg-gray-200/70 text-gray-600', '자동')}
               <span className="font-medium">발주서_{po.po_no}_{po.vendor_name}.xlsx</span>
-              <span className="text-[11px] text-gray-400">
+              <span className="text-[0.6875rem] text-gray-400">
                 {attachments.some(a => a.kind === 'replace')
                   ? '수정본이 있어 발송에서 제외됩니다'
                   : '발송 시점의 발주 데이터로 자동 생성'}
@@ -287,7 +288,7 @@ export default function PoSendPage() {
                 {badge(a.kind === 'replace' ? 'bg-blue-100 text-blue-700' : 'bg-gray-200/70 text-gray-600',
                   a.kind === 'replace' ? '수정본' : '추가')}
                 <span className="font-medium">{a.file_name}</span>
-                <span className="text-[11px] text-gray-400">
+                <span className="text-[0.6875rem] text-gray-400">
                   {kb(a.size_bytes)}{a.uploader_name ? ` · ${a.uploader_name}` : ''} · {a.created_at.slice(5, 16).replace('T', ' ')}
                 </span>
                 <span className="ml-auto flex gap-1.5">
@@ -312,7 +313,7 @@ export default function PoSendPage() {
                   <input type="file" className="hidden" disabled={busy}
                     onChange={e => { const f = e.target.files?.[0]; if (f) upload(f, 'extra'); e.target.value = '' }} />
                 </label>
-                <span className="text-[11px] text-gray-400">파일당 10MB 이하 · 엑셀·PDF·이미지 등</span>
+                <span className="text-[0.6875rem] text-gray-400">파일당 10MB 이하 · 엑셀·PDF·이미지 등</span>
               </div>
             )}
           </div>
@@ -327,12 +328,12 @@ export default function PoSendPage() {
         </div>
         <div className="grid md:grid-cols-2 gap-3 mt-3">
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">받는 이메일</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">받는 이메일</label>
             <input value={to} onChange={e => setTo(e.target.value)} disabled={!active} type="email"
               placeholder="매입처 발주 이메일" className={inputCls} />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">프리셋</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">프리셋</label>
             <div className="flex items-center gap-1.5">
               <select value={presetId ?? ''} disabled={!active}
                 onChange={e => { const p = presets.find(x => x.id === e.target.value); if (p) applyPreset(p) }}
@@ -353,17 +354,17 @@ export default function PoSendPage() {
           </div>
         </div>
         <div className="mt-3">
-          <label className="block text-[11px] text-gray-500 mb-0.5">제목</label>
+          <label className="block text-[0.6875rem] text-gray-500 mb-0.5">제목</label>
           <input value={subject} disabled={!active}
             onChange={e => { setSubject(e.target.value); setMailTouched(true) }} className={inputCls} />
         </div>
         <div className="mt-3">
-          <label className="block text-[11px] text-gray-500 mb-0.5">본문</label>
+          <label className="block text-[0.6875rem] text-gray-500 mb-0.5">본문</label>
           <textarea value={mailBody} rows={7} disabled={!active}
             onChange={e => { setMailBody(e.target.value); setMailTouched(true) }}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-y disabled:opacity-60" />
         </div>
-        <div className="mt-2 text-[11px] text-gray-400">
+        <div className="mt-2 text-[0.6875rem] text-gray-400">
           치환 변수 {VARS.map(v => (
             <code key={v} className="mx-0.5 px-1 py-0.5 bg-blue-50 text-blue-700 rounded">{v}</code>
           ))} — 발송 시 실제 값으로 바뀝니다. 프리셋은 전 직원 공용.
@@ -382,7 +383,7 @@ export default function PoSendPage() {
             </button>
             <button onClick={manualSent} disabled={busy}
               className="px-3.5 py-2 border border-gray-300 rounded-lg text-sm text-gray-600">수동 발송 기록</button>
-            <span className="text-[11px] text-gray-400">발송하면 실제 발송된 제목·본문·첨부 파일명이 이력으로 남습니다</span>
+            <span className="text-[0.6875rem] text-gray-400">발송하면 실제 발송된 제목·본문·첨부 파일명이 이력으로 남습니다</span>
           </div>
         )}
         <div className="mt-3 divide-y divide-gray-100">
@@ -414,7 +415,7 @@ export default function PoSendPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mt-10 p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-2">
               <div className="text-sm font-bold text-gray-900">프리셋 관리</div>
-              <span className="text-[11px] text-gray-400">전 직원 공용 · 기본 프리셋이 발송 화면에 자동 적용</span>
+              <span className="text-[0.6875rem] text-gray-400">전 직원 공용 · 기본 프리셋이 발송 화면에 자동 적용</span>
               <button onClick={() => { setManaging(false); setEditing(null) }}
                 className="ml-auto text-gray-400 hover:text-gray-600 text-sm">닫기 ✕</button>
             </div>
@@ -425,16 +426,16 @@ export default function PoSendPage() {
                   {p.is_default
                     ? badge('bg-blue-100 text-blue-700', '기본')
                     : <button onClick={() => presetAct('set_default', p)} disabled={busy}
-                        className="px-2 py-0.5 border border-gray-300 rounded text-[11px] text-gray-500">기본 지정</button>}
-                  <span className="text-[11px] text-gray-400 truncate max-w-[16rem]" title={p.subject}>{p.subject}</span>
+                        className="px-2 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-500">기본 지정</button>}
+                  <span className="text-[0.6875rem] text-gray-400 truncate max-w-[16rem]" title={p.subject}>{p.subject}</span>
                   <span className="ml-auto flex gap-1.5 items-center">
-                    {p.editor_name && <span className="text-[10px] text-gray-300">{p.editor_name} · {p.updated_at.slice(5, 10)}</span>}
+                    {p.editor_name && <span className="text-[0.625rem] text-gray-300">{p.editor_name} · {p.updated_at.slice(5, 10)}</span>}
                     <button onClick={() => setEditing({ id: p.id, name: p.name, subject: p.subject, body: p.body })}
-                      className="px-2 py-0.5 border border-gray-300 rounded text-[11px] text-gray-600">수정</button>
+                      className="px-2 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-600">수정</button>
                     <button onClick={() => setEditing({ id: null, name: `${p.name} (복제)`, subject: p.subject, body: p.body })}
-                      className="px-2 py-0.5 border border-gray-300 rounded text-[11px] text-gray-600">복제</button>
+                      className="px-2 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-600">복제</button>
                     <button onClick={() => presetAct('delete', p)} disabled={busy}
-                      className="px-2 py-0.5 border border-red-200 rounded text-[11px] text-red-600">삭제</button>
+                      className="px-2 py-0.5 border border-red-200 rounded text-[0.6875rem] text-red-600">삭제</button>
                   </span>
                 </div>
               ))}
@@ -448,22 +449,22 @@ export default function PoSendPage() {
               <div className="mt-3 border-t border-gray-200 pt-3 space-y-2.5">
                 <div className="text-xs font-semibold text-gray-700">{editing.id ? '프리셋 수정' : '새 프리셋'}</div>
                 <div>
-                  <label className="block text-[11px] text-gray-500 mb-0.5">이름</label>
+                  <label className="block text-[0.6875rem] text-gray-500 mb-0.5">이름</label>
                   <input value={editing.name} onChange={e => setEditing(v => v ? { ...v, name: e.target.value } : v)}
                     placeholder="예: 명절 발주 (납기 강조)" className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-gray-500 mb-0.5">제목</label>
+                  <label className="block text-[0.6875rem] text-gray-500 mb-0.5">제목</label>
                   <input value={editing.subject} onChange={e => setEditing(v => v ? { ...v, subject: e.target.value } : v)}
                     className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-gray-500 mb-0.5">본문</label>
+                  <label className="block text-[0.6875rem] text-gray-500 mb-0.5">본문</label>
                   <textarea value={editing.body} rows={6}
                     onChange={e => setEditing(v => v ? { ...v, body: e.target.value } : v)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-y" />
                 </div>
-                <div className="text-[11px] text-gray-400">
+                <div className="text-[0.6875rem] text-gray-400">
                   치환 변수 사용 가능: {VARS.join(' ')}
                 </div>
                 <div className="flex gap-2">

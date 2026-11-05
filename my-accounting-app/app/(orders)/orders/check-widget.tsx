@@ -60,7 +60,7 @@ export default function CheckWidget({ wrap }: { wrap?: string } = {}) {
         <p className="text-xs text-slate-500 px-0.5 flex items-center gap-1.5">
           <span>출근 {inTime} · 퇴근 {outTime}</span>
           <button onClick={() => check('cancel_check_out')} disabled={busy} title="퇴근을 잘못 눌렀을 때 — 오늘만 가능"
-            className="ml-auto text-[11px] text-slate-400 hover:text-white underline underline-offset-2 disabled:opacity-50">취소</button>
+            className="ml-auto text-[0.6875rem] text-slate-400 hover:text-white underline underline-offset-2 disabled:opacity-50">취소</button>
         </p>
       )}
     </div>

@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { kstTime, LEAVE_TYPE_LABEL, LEAVE_STATUS_LABEL, type LeaveType, type LeaveStatus } from '@/lib/attendance'
 import { TodoPanel } from '@/components/layout/NotificationCenter'
 import type { NotifData } from '@/lib/notifications'
+import { useNotifRefresh } from '@/lib/use-notif-refresh'
 
 // 내 대시보드 (직원 개인화면 홈)
 // 본인 관련 정보만 모아 보여준다 — 이번 달 내 주문 · 미수 · 담당 거래처 ·
@@ -49,14 +50,14 @@ export default function MyDashboardPage() {
   const [work, setWork] = useState<{ rows: WorkRow[]; month: string } | null>(null)
   // 업무 요청 요약 (900) — 받은/보낸 카드
   const [wr, setWr] = useState<Record<string, number> | null>(null)
-  useEffect(() => {
-    fetch('/api/work-requests?summary=1').then(r => r.ok ? r.json() : null).then(j => setWr(j?.summary ?? null)).catch(() => setWr(null))
-  }, [])
   // 확인할 것 패널 (알림 센터와 같은 데이터) — 영역 1개 직원은 업무 선택 화면을 보지 않으므로 홈에서
   const [notif, setNotif] = useState<NotifData | null>(null)
-  useEffect(() => {
+  const loadLive = useCallback(() => {
+    fetch('/api/work-requests?summary=1').then(r => r.ok ? r.json() : null).then(j => setWr(j?.summary ?? null)).catch(() => setWr(null))
     fetch('/api/notifications', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => setNotif(j ?? null)).catch(() => setNotif(null))
   }, [])
+  useEffect(() => { loadLive() }, [loadLive])
+  useNotifRefresh(loadLive)   // 알림이 바뀌면 요청 카드·확인할 것 패널 자동 갱신 (⑥ 1단계)
 
   useEffect(() => {
     fetch('/api/me/worklog')
@@ -189,7 +190,7 @@ export default function MyDashboardPage() {
               {data.leaves.map(l => (
                 <p key={l.id} className="text-xs text-gray-600 mb-1 tabular-nums">
                   {l.start_date}{l.end_date !== l.start_date ? ` ~ ${l.end_date}` : ''} · {LEAVE_TYPE_LABEL[l.leave_type] ?? l.leave_type}
-                  <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[11px] font-medium ${
+                  <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${
                     l.status === 'approved' ? 'bg-emerald-100 text-emerald-700'
                     : l.status === 'requested' ? 'bg-amber-100 text-amber-700'
                     : 'bg-gray-100 text-gray-500'}`}>

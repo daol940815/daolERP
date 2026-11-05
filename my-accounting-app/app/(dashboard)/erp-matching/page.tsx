@@ -1,8 +1,9 @@
 'use client'
 
 import PeriodPresets from '@/components/ui/PeriodPresets'
-import { Fragment, useCallback, useEffect, useState } from 'react'
-import { getPeriodRange } from '@/lib/period-presets'
+import { Fragment, Suspense, useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { DATA_START, getPeriodRange } from '@/lib/period-presets'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
@@ -45,19 +46,40 @@ interface MatchedRow {
 
 type Tab = 'pending' | 'matched'
 
-export default function ErpMatchingPage() {
+function ErpMatchingContent() {
+  // ?depositId=bank:<id>|card:<id> — 주문 쪽 수금 매칭 모달의 "이 결제건을 다른 주문에도 배분"에서 진입 (2026-11-04)
+  const searchParams = useSearchParams()
+  const focusDeposit = searchParams.get('depositId') ?? ''
   const [tab, setTab]           = useState<Tab>('pending')
   const [pending, setPending]   = useState<PendingDeposit[]>([])
   const [matched, setMatched]   = useState<MatchedRow[]>([])
   const [loading, setLoading]   = useState(true)
   const [working, setWorking]   = useState(false)
-  const [dateFrom, setDateFrom] = useState(() => getPeriodRange('당월').from)
+  const [dateFrom, setDateFrom] = useState(() => (focusDeposit ? DATA_START : getPeriodRange('당월').from))
   const [dateTo, setDateTo]     = useState(() => getPeriodRange('당월').to)
   const [days, setDays]         = useState(7)
   const [search, setSearch]     = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   // 펼친 입금의 주문별 배분 입력값
   const [alloc, setAlloc]       = useState<Record<string, string>>({})
+  // 기간 밖 주문을 주문번호로 찾아 후보에 추가 (입금별)
+  const [extraCands, setExtraCands] = useState<Record<string, Candidate[]>>({})
+  const [orderQ, setOrderQ] = useState('')
+  const searchOrder = async (depositId: string) => {
+    const q = orderQ.trim()
+    if (q.length < 3) { showMsg('주문번호를 3자 이상 입력하세요.'); return }
+    const res = await fetch(`/api/erp-matching/order-search?q=${encodeURIComponent(q)}`)
+    const json = await res.json()
+    if (!res.ok) { showMsg(json.error ?? '검색 실패'); return }
+    const found: Candidate[] = (json.data ?? []).filter((c: Candidate) => c.remaining > 0)
+    if (!found.length) { showMsg('잔액이 있는 주문을 찾지 못했습니다.'); return }
+    setExtraCands(prev => {
+      const cur = prev[depositId] ?? []
+      const ids = new Set(cur.map(c => c.id))
+      return { ...prev, [depositId]: [...cur, ...found.filter(c => !ids.has(c.id))] }
+    })
+    setOrderQ('')
+  }
   const [msg, setMsg]           = useState<string | null>(null)
 
   const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 5000) }
@@ -80,6 +102,12 @@ export default function ErpMatchingPage() {
     setAlloc({})
     setLoading(false)
   }, [dateFrom, dateTo])
+  useEffect(() => {
+    if (!focusDeposit || loading) return
+    const [, id] = focusDeposit.split(':')
+    const d = pending.find(p => p.id === id)
+    if (d) { setExpandedId(d.id); setTab('pending') }
+  }, [focusDeposit, loading, pending])
 
   useEffect(() => { load() }, [load])
 
@@ -247,7 +275,7 @@ export default function ErpMatchingPage() {
                     <Fragment key={d.id}>
                       <tr className={`border-b border-gray-100 ${expanded ? 'bg-slate-50' : 'hover:bg-gray-50'}`}>
                         <td className="py-2 px-3">
-                          <span className={`px-1.5 py-0.5 text-[11px] rounded ${
+                          <span className={`px-1.5 py-0.5 text-[0.6875rem] rounded ${
                             d.source_type === 'card' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'
                           }`}>
                             {d.source_type === 'card' ? '카드' : '계좌'}
@@ -264,12 +292,12 @@ export default function ErpMatchingPage() {
                         <td className="py-2 px-3 text-right whitespace-nowrap">
                           <button
                             onClick={() => toggleExpand(d)}
-                            disabled={working || d.candidates.length === 0}
+                            disabled={working}
                             className={`px-2 py-1 text-xs border rounded disabled:opacity-40 ${
                               expanded ? 'border-slate-400 bg-slate-100 text-slate-700' : 'border-blue-300 text-blue-700 hover:bg-blue-50'
                             }`}
                           >
-                            {d.candidates.length === 0 ? '후보 없음' : expanded ? '▲ 닫기' : '배분하기'}
+                            {expanded ? '▲ 닫기' : d.candidates.length === 0 ? '주문 찾기' : '배분하기'}
                           </button>
                         </td>
                       </tr>
@@ -289,7 +317,7 @@ export default function ErpMatchingPage() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {d.candidates.map(c => (
+                                {[...d.candidates, ...(extraCands[d.id] ?? []).filter(x => !d.candidates.some(c => c.id === x.id))].map(c => (
                                   <tr key={c.id} className="border-t border-gray-200 text-gray-700">
                                     <td className="py-1.5 pr-3 whitespace-nowrap">{c.order_no}</td>
                                     <td className="py-1.5 pr-3 whitespace-nowrap">{c.order_date}</td>
@@ -306,7 +334,7 @@ export default function ErpMatchingPage() {
                                       />
                                       <button
                                         onClick={() => setAlloc(prev => ({ ...prev, [c.id]: String(Math.min(c.remaining, d.remaining)) }))}
-                                        className="ml-1 px-1.5 py-1 text-[11px] border border-gray-300 rounded text-gray-500 hover:bg-gray-100"
+                                        className="ml-1 px-1.5 py-1 text-[0.6875rem] border border-gray-300 rounded text-gray-500 hover:bg-gray-100"
                                         title="주문 잔액(또는 입금 잔액)만큼 채우기"
                                       >채움</button>
                                     </td>
@@ -314,6 +342,13 @@ export default function ErpMatchingPage() {
                                 ))}
                               </tbody>
                             </table>
+                            <div className="flex items-center gap-2 mb-3 text-xs">
+                              <input value={orderQ} onChange={e => setOrderQ(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') searchOrder(d.id) }}
+                                placeholder="주문번호로 찾기 (기간 밖·다른 거래처 주문도)"
+                                className="border border-gray-300 rounded px-2 py-1 w-64 bg-white" />
+                              <button onClick={() => searchOrder(d.id)} className="px-2 py-1 border border-gray-300 rounded text-gray-600 hover:bg-gray-100">추가</button>
+                            </div>
                             <div className="flex items-center gap-3">
                               <button
                                 onClick={() => handleAllocate(d)}
@@ -363,12 +398,12 @@ export default function ErpMatchingPage() {
                     <td className="py-2 px-3"><p className="truncate max-w-[140px] text-gray-600">{m.counterparty_name ?? '-'}</p></td>
                     <td className="py-2 px-3 text-right whitespace-nowrap font-medium">{won(m.amount)}</td>
                     <td className="py-2 px-3">
-                      <span className={`mr-1 px-1.5 py-0.5 text-[11px] rounded ${
+                      <span className={`mr-1 px-1.5 py-0.5 text-[0.6875rem] rounded ${
                         m.source_type === 'card' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'
                       }`}>
                         {m.source_type === 'card' ? '카드' : '계좌'}
                       </span>
-                      <span className={`px-1.5 py-0.5 text-[11px] rounded ${
+                      <span className={`px-1.5 py-0.5 text-[0.6875rem] rounded ${
                         m.matched_by === 'auto' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'
                       }`}>
                         {m.matched_by === 'auto' ? '자동' : '수동'}
@@ -391,5 +426,13 @@ export default function ErpMatchingPage() {
         )
       )}
     </div>
+  )
+}
+
+export default function ErpMatchingPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-20 text-gray-400">로딩 중...</div>}>
+      <ErpMatchingContent />
+    </Suspense>
   )
 }

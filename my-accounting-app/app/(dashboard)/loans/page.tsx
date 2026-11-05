@@ -302,22 +302,22 @@ export default function LoansPage() {
         <button onClick={() => setFilter('all')} className="bg-white border border-gray-200 rounded-xl p-4 text-left hover:border-slate-400">
           <div className="text-xs text-gray-400">대출 잔액 (일반)</div>
           <div className="text-xl font-bold mt-1">{eok(kpi.balance)}</div>
-          <div className="text-[11px] text-gray-400 mt-0.5">원 대출 {eok(kpi.original)}</div>
+          <div className="text-[0.6875rem] text-gray-400 mt-0.5">원 대출 {eok(kpi.original)}</div>
         </button>
         {/* 원금·이자를 같은 크기로 나란히 — 이자도 중요 지표로 본다(한도대출 예상 이자 포함) */}
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <div className="text-xs text-gray-400">월 원리금 (참고)</div>
           <div className="flex items-start gap-4 mt-1">
             <div>
-              <div className="text-[11px] text-gray-400">원금</div>
+              <div className="text-[0.6875rem] text-gray-400">원금</div>
               <div className="text-xl font-bold leading-tight">{manwon(kpi.principal)}</div>
             </div>
             <div>
-              <div className="text-[11px] text-gray-400">이자</div>
+              <div className="text-[0.6875rem] text-gray-400">이자</div>
               <div className="text-xl font-bold leading-tight">{manwon(kpi.interest + kpi.lineInterest)}</div>
             </div>
           </div>
-          <div className="text-[11px] text-gray-400 mt-0.5">
+          <div className="text-[0.6875rem] text-gray-400 mt-0.5">
             합계 {manwon(kpi.principal + kpi.interest + kpi.lineInterest)}
             {kpi.lineInterest > 0 && ` · 이자에 한도대출 ${manwon(kpi.lineInterest)} 포함`}
           </div>
@@ -325,7 +325,7 @@ export default function LoansPage() {
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <div className="text-xs text-gray-400">한도 사용액</div>
           <div className={`text-xl font-bold mt-1 ${kpi.used > 0 ? 'text-rose-600' : ''}`}>{eok(kpi.used)}</div>
-          <div className="text-[11px] text-gray-400 mt-0.5">
+          <div className="text-[0.6875rem] text-gray-400 mt-0.5">
             한도 {eok(kpi.limit)} · 미사용 {eok(Math.max(kpi.limit - kpi.used, 0))}
           </div>
         </div>
@@ -334,7 +334,7 @@ export default function LoansPage() {
             ? 'bg-amber-50 border-amber-300 hover:border-amber-400' : 'bg-white border-gray-200'}`}>
           <div className={`text-xs ${kpi.check > 0 ? 'text-amber-700' : 'text-gray-400'}`}>확인 필요</div>
           <div className={`text-xl font-bold mt-1 ${kpi.check > 0 ? 'text-amber-800' : ''}`}>{kpi.check}건</div>
-          <div className={`text-[11px] mt-0.5 ${kpi.check > 0 ? 'text-amber-700' : 'text-gray-400'}`}>만기 경과·메모 확인</div>
+          <div className={`text-[0.6875rem] mt-0.5 ${kpi.check > 0 ? 'text-amber-700' : 'text-gray-400'}`}>만기 경과·메모 확인</div>
         </button>
       </div>
 
@@ -385,9 +385,9 @@ export default function LoansPage() {
                     <td className="py-2 px-3">
                       {l.title}
                       {(needsCheck(l) || isOverdue(l)) && (
-                        <span className="ml-1 inline-block whitespace-nowrap text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">확인 필요</span>
+                        <span className="ml-1 inline-block whitespace-nowrap text-[0.625rem] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">확인 필요</span>
                       )}
-                      {l.memo && <div className="text-[11px] text-amber-700 mt-0.5">{l.memo}</div>}
+                      {l.memo && <div className="text-[0.6875rem] text-amber-700 mt-0.5">{l.memo}</div>}
                     </td>
                     <td className="py-2 px-3 whitespace-nowrap">{l.bank_name}</td>
                     <td className="py-2 px-3 text-gray-500 whitespace-nowrap">{acctLabel(l.bank_accounts)}</td>
@@ -402,10 +402,10 @@ export default function LoansPage() {
                     <td className="py-2 px-3 text-center whitespace-nowrap">{l.payment_day ? `${l.payment_day}일` : '-'}</td>
                     <td className={`py-2 px-3 whitespace-nowrap ${isOverdue(l) ? 'text-red-600' : ''}`}>{l.maturity_date ?? '-'}</td>
                     <td className="py-2 px-3 text-center whitespace-nowrap">
-                      <span className="inline-block whitespace-nowrap text-[11px] px-1.5 py-0.5 rounded bg-slate-100">{TERM_LABEL[l.term_type]}</span>
+                      <span className="inline-block whitespace-nowrap text-[0.6875rem] px-1.5 py-0.5 rounded bg-slate-100">{TERM_LABEL[l.term_type]}</span>
                     </td>
                     <td className="py-2 px-3 text-center whitespace-nowrap">
-                      <span className={`inline-block whitespace-nowrap text-[11px] px-1.5 py-0.5 rounded ${l.status === 'active'
+                      <span className={`inline-block whitespace-nowrap text-[0.6875rem] px-1.5 py-0.5 rounded ${l.status === 'active'
                         ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100'}`}>{STATUS_LABEL[l.status]}</span>
                     </td>
                     <td className="py-2 px-3">
@@ -468,12 +468,12 @@ export default function LoansPage() {
                       <td className="py-2 px-3">
                         {l.title}
                         {(needsCheck(l) || isOverdue(l)) && (
-                          <span className="ml-1 inline-block whitespace-nowrap text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">확인 필요</span>
+                          <span className="ml-1 inline-block whitespace-nowrap text-[0.625rem] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">확인 필요</span>
                         )}
                         {!u.linked && (
-                          <span className="ml-1 inline-block whitespace-nowrap text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-300">계좌 미연결</span>
+                          <span className="ml-1 inline-block whitespace-nowrap text-[0.625rem] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-300">계좌 미연결</span>
                         )}
-                        {l.memo && <div className="text-[11px] text-amber-700 mt-0.5">{l.memo}</div>}
+                        {l.memo && <div className="text-[0.6875rem] text-amber-700 mt-0.5">{l.memo}</div>}
                       </td>
                       <td className="py-2 px-3 whitespace-nowrap">{l.bank_name}</td>
                       <td className="py-2 px-3 text-gray-500 whitespace-nowrap">{acctLabel(l.bank_accounts)}</td>
@@ -487,7 +487,7 @@ export default function LoansPage() {
                             <div className={`h-full ${rate >= 80 ? 'bg-rose-500' : rate > 0 ? 'bg-slate-700' : ''}`}
                               style={{ width: `${rate}%` }} />
                           </div>
-                          <span className="text-[11px] text-gray-500 whitespace-nowrap">{rate.toFixed(0)}%</span>
+                          <span className="text-[0.6875rem] text-gray-500 whitespace-nowrap">{rate.toFixed(0)}%</span>
                         </div>
                       </td>
                       <td className="py-2 px-3 text-right whitespace-nowrap">{won(u.available)}</td>
@@ -506,7 +506,7 @@ export default function LoansPage() {
                           <td className={`py-2 px-3 text-right whitespace-nowrap ${amount ? '' : 'text-gray-400'}`} title={tip}>
                             {amount ? won(amount) : '-'}
                             {ci && amount > 0 && (
-                              <div className="text-[10px] text-gray-400 font-normal">
+                              <div className="text-[0.625rem] text-gray-400 font-normal">
                                 1~{ci.days_elapsed}일 실적 {won(ci.mtd_interest)}
                               </div>
                             )}
@@ -515,7 +515,7 @@ export default function LoansPage() {
                       })()}
                       <td className="py-2 px-3 text-center whitespace-nowrap">{l.payment_day ? `${l.payment_day}일` : '-'}</td>
                       <td className="py-2 px-3 text-center whitespace-nowrap">
-                        <span className={`inline-block whitespace-nowrap text-[11px] px-1.5 py-0.5 rounded ${
+                        <span className={`inline-block whitespace-nowrap text-[0.6875rem] px-1.5 py-0.5 rounded ${
                           u.used > 0 ? 'bg-rose-50 text-rose-700' : 'bg-gray-100'}`}>
                           {u.used > 0 ? '사용 중' : '미사용'}
                         </span>
@@ -599,7 +599,7 @@ export default function LoansPage() {
                   <label className="block"><span className="text-xs text-gray-500">이자 납부일 (1~31, 말일=31)</span>
                     <input value={form.payment_day} onChange={e => setForm(f => ({ ...f, payment_day: e.target.value }))}
                       className={`${input} text-right`} inputMode="numeric" /></label>
-                  <p className="col-span-2 text-[11px] text-gray-500 bg-slate-50 border border-gray-200 rounded-lg px-2.5 py-2">
+                  <p className="col-span-2 text-[0.6875rem] text-gray-500 bg-slate-50 border border-gray-200 rounded-lg px-2.5 py-2">
                     한도대출은 잔액·월 원금·월 이자를 입력하지 않습니다. 사용액과 미사용 한도는 연결 계좌의 통장 잔액에서
                     자동 산출되고, 월 이자는 사용액 × 연이율 ÷ 365 × 당월 일수로 계산해 표시합니다(일할 후취).
                   </p>

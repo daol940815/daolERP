@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/user-role'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildPoExcel, sendPoMail, smtpReady } from '@/lib/purchase-orders'
 import { fillMailTemplate, poMailVars } from '@/lib/po-form'
+import { findCustomPoForm } from '@/lib/custom-po'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,7 @@ interface PoRecord {
   sent_at: string | null
   status: string
   created_at: string
+  created_by?: string | null
   creator: { name: string; phone: string | null } | { name: string; phone: string | null }[] | null
   vendor?: { uses_custom_po: boolean; po_use_sale_price?: boolean } | { uses_custom_po: boolean; po_use_sale_price?: boolean }[] | null
 }
@@ -37,8 +39,8 @@ const one = <T,>(v: T | T[] | null | undefined): T | null =>
 async function loadPo(admin: SupabaseClient, id: string) {
   const sel = (withFlags: boolean) => admin.from('erp_purchase_orders')
     .select((withFlags
-      ? 'id, po_no, order_id, vendor_id, vendor_name, total_amount, delivery_note, email_to, send_method, sent_at, status, created_at, creator:employees!erp_purchase_orders_created_by_fkey(name, phone), vendor:vendors(uses_custom_po, po_use_sale_price)'
-      : 'id, po_no, order_id, vendor_id, vendor_name, total_amount, delivery_note, email_to, send_method, sent_at, status, created_at, creator:employees!erp_purchase_orders_created_by_fkey(name, phone)') as string)
+      ? 'id, po_no, order_id, vendor_id, vendor_name, total_amount, delivery_note, email_to, send_method, sent_at, status, created_at, created_by, creator:employees!erp_purchase_orders_created_by_fkey(name, phone), vendor:vendors(uses_custom_po, po_use_sale_price)'
+      : 'id, po_no, order_id, vendor_id, vendor_name, total_amount, delivery_note, email_to, send_method, sent_at, status, created_at, created_by, creator:employees!erp_purchase_orders_created_by_fkey(name, phone)') as string)
     .eq('id', id).maybeSingle()
   // po_use_sale_price는 509 — 미적용 환경이면 플래그 없이 재조회
   let { data: po, error } = await sel(true)
@@ -48,23 +50,50 @@ async function loadPo(admin: SupabaseClient, id: string) {
   const { data: items } = await admin.from('erp_purchase_order_items')
     .select('line_no, order_item_id, item_code, item_name, order_kind, quantity, purchase_price, purchase_shipping, purchase_total, memo')
     .eq('po_id', id).order('line_no')
-  const { data: order } = await admin.from('erp_orders')
-    .select('order_no, order_date, bank_name, branch_name, manager_name, contact, phone, consultation_id')
+  const baseCols = 'order_no, order_date, bank_name, branch_name, manager_name, contact, phone, consultation_id'
+  // 배송지(513) 포함 조회 — 미적용 DB면 배송지 없이 재조회
+  const withShip = await admin.from('erp_orders')
+    .select(`${baseCols}, ship_name, ship_phone, ship_zip, ship_addr1, ship_addr2`)
     .eq('id', poRec.order_id).maybeSingle()
+  type OrderRow = {
+    order_no: string | null; order_date: string | null; bank_name: string | null; branch_name: string | null
+    manager_name: string | null; contact: string | null; phone: string | null; consultation_id: string | null
+    ship_name?: string | null; ship_phone?: string | null; ship_zip?: string | null; ship_addr1?: string | null; ship_addr2?: string | null
+  }
+  const order = (withShip.error
+    ? (await admin.from('erp_orders').select(baseCols).eq('id', poRec.order_id).maybeSingle()).data
+    : withShip.data) as OrderRow | null
   return { po: poRec, items: items ?? [], order }
 }
 
 // 발주담당자·연락처: 발주 진행(다운로드·발송) 시점의 로그인 직원 기준 (사용자 확정
 // 2026-08-24). 직원 정보가 없으면 발주서 작성자로 대체.
+// 연락처는 업무용 핸드폰(employees.work_phone, 205) → 비어 있으면 직원 핸드폰(phone)
+// → 둘 다 없으면 비워 두어 양식이 회사 대표번호를 쓴다 (2026-11-05 사용자 결정).
+// 205 미적용 DB에서는 직원 핸드폰만 본다.
 async function currentStaff(
   admin: SupabaseClient,
   employeeId: string | null | undefined,
   po: PoRecord,
 ): Promise<{ name: string | null; phone: string | null }> {
+  const lookup = async (id: string) => {
+    const r = await admin.from('employees').select('name, work_phone, phone').eq('id', id).maybeSingle()
+    if (!r.error) {
+      return r.data ? {
+        name: (r.data.name as string) ?? null,
+        phone: ((r.data.work_phone as string) || (r.data.phone as string)) ?? null,
+      } : null
+    }
+    const old = await admin.from('employees').select('name, phone').eq('id', id).maybeSingle()   // 205 미적용
+    return old.data ? { name: (old.data.name as string) ?? null, phone: (old.data.phone as string) ?? null } : null
+  }
   if (employeeId) {
-    const { data } = await admin.from('employees')
-      .select('name, phone').eq('id', employeeId).maybeSingle()
-    if (data) return { name: (data.name as string) ?? null, phone: (data.phone as string) ?? null }
+    const s = await lookup(employeeId)
+    if (s) return s
+  }
+  if (po.created_by) {
+    const s = await lookup(po.created_by)
+    if (s) return s
   }
   const c = one(po.creator)
   return { name: c?.name ?? null, phone: c?.phone ?? null }
@@ -87,33 +116,75 @@ async function assembleForm(
     shipRequest = (c?.delivery_request as string) ?? null
   }
 
+  // 품목 구분 (2026-11-05): 원 주문 품목 → 품목 마스터의 '비용 품목'(is_shipping) · 부가상품(is_addon 또는 옵션 행)
+  const roleByOrderItem = new Map<string, 'fee' | 'addon'>()
+  const orderItemIds = items.map(it => it.order_item_id).filter(Boolean) as string[]
+  if (orderItemIds.length) {
+    const { data: ois } = await admin.from('erp_order_items')
+      .select('id, product_id, parent_line_no').in('id', orderItemIds)
+    const pids = Array.from(new Set((ois ?? []).map(o => o.product_id).filter(Boolean))) as string[]
+    const prodFlags = new Map<string, { fee: boolean; addon: boolean }>()
+    if (pids.length) {
+      const withShip = await admin.from('erp_products').select('id, is_addon, is_shipping').in('id', pids)
+      const rows = withShip.error
+        ? (await admin.from('erp_products').select('id, is_addon').in('id', pids)).data   // 703 미적용 폴백
+        : withShip.data
+      for (const p of (rows ?? []) as { id: string; is_addon?: boolean; is_shipping?: boolean }[]) {
+        prodFlags.set(p.id, { fee: !!p.is_shipping, addon: !!p.is_addon })
+      }
+    }
+    for (const o of ois ?? []) {
+      const f = o.product_id ? prodFlags.get(o.product_id as string) : undefined
+      if (f?.fee) roleByOrderItem.set(o.id as string, 'fee')
+      else if (f?.addon || o.parent_line_no) roleByOrderItem.set(o.id as string, 'addon')
+    }
+  }
+
   return {
     po_no: po.po_no,
     order_date: order?.order_date ?? null,
     ship_request: shipRequest,
     vendor_name: po.vendor_name,
     customer: [order?.bank_name, order?.branch_name].filter(Boolean).join(' ') || '-',
+    customer_bank: (order?.bank_name as string | null) ?? null,
+    customer_branch: (order?.branch_name as string | null) ?? null,
     customer_manager: order?.manager_name ?? null,
     customer_phone: (order?.phone as string) || (order?.contact as string) || null,
     staff_name: staff.name,
     staff_phone: staff.phone,
     total_amount: po.total_amount ?? 0,
     delivery_note: po.delivery_note,
+    ship: order && 'ship_addr1' in order ? {
+      ship_name: (order.ship_name as string | null) ?? null, ship_phone: (order.ship_phone as string | null) ?? null,
+      ship_zip: (order.ship_zip as string | null) ?? null, ship_addr1: (order.ship_addr1 as string | null) ?? null,
+      ship_addr2: (order.ship_addr2 as string | null) ?? null,
+    } : null,
     items: items.map(it => ({
       item_code: it.item_code, item_name: it.item_name, order_kind: it.order_kind,
       quantity: it.quantity ?? 0, purchase_price: it.purchase_price ?? 0,
       purchase_shipping: it.purchase_shipping ?? 0, purchase_total: it.purchase_total ?? 0,
       memo: it.memo,
+      role: it.order_item_id ? roleByOrderItem.get(it.order_item_id as string) ?? null : null,
     })),
   }
 }
 
+// 자체 양식 매입처(lib/custom-po.ts 레지스트리)는 그 매입처 양식으로 생성 —
+// 다운로드·메일 자동 첨부 공용. 그 외 매입처는 자사 발주서 양식.
 async function excelOf(
   admin: SupabaseClient,
   data: NonNullable<Awaited<ReturnType<typeof loadPo>>>,
   staff: { name: string | null; phone: string | null },
 ) {
-  return buildPoExcel(await assembleForm(admin, data, staff))
+  const form = await assembleForm(admin, data, staff)
+  const custom = findCustomPoForm(data.po.vendor_name)
+  return custom ? custom.build(form) : buildPoExcel(form)
+}
+
+// 자동 생성 첨부 파일명 — 자체 양식은 그 양식 이름(송장등록 등)으로
+function autoFileName(po: { po_no: string; vendor_name: string }) {
+  const custom = findCustomPoForm(po.vendor_name)
+  return `${custom?.filePrefix ?? '발주서'}_${po.po_no}_${po.vendor_name}.xlsx`
 }
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -127,7 +198,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const staff = await currentStaff(admin, me.employeeId, data.po)
   if (new URL(req.url).searchParams.get('excel') === '1') {
     const buf = await excelOf(admin, data, staff)
-    const filename = encodeURIComponent(`발주서_${data.po.po_no}_${data.po.vendor_name}.xlsx`)
+    const filename = encodeURIComponent(autoFileName(data.po))
     return new NextResponse(new Uint8Array(buf), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -167,7 +238,7 @@ async function buildAttachments(
   staff: { name: string | null; phone: string | null },
 ) {
   const { po } = data
-  const autoName = `발주서_${po.po_no}_${po.vendor_name}.xlsx`
+  const autoName = autoFileName(po)
   const { data: rows, error } = await admin.from('erp_po_attachments')
     .select('kind, file_name, storage_path').eq('po_id', po.id).order('created_at')
   const uploads = error ? [] : (rows ?? [])   // 510 미적용 — 자동 생성본만 첨부

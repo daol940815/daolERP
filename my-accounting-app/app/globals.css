@@ -7,11 +7,62 @@
   --foreground: #171717;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* OS 다크 모드 자동 전환 제거 (2026-11-05) — 화면 색이 흰 바탕 기준으로 고정되어 있어, Windows 다크 모드 PC에서
+   색을 따로 지정하지 않은 글자가 흰 바탕 위에 연회색으로 흐리게 보이던 문제. 다크 모드를 하려면 전 화면 대응이 먼저다. */
+
+/* 색 테마 (직원별 화면 설정, 2026-11-05) — Tailwind slate 팔레트의 실제 값. <html data-theme> 로 바뀐다.
+   값은 "R G B" (Tailwind 의 투명도 표기 bg-slate-900/50 이 동작하도록). lib/ui-prefs.ts 의 UI_THEME_SWATCH 와 맞출 것. */
+:root, [data-theme="default"] {
+  --slate-50: 248 250 252;
+  --slate-100: 241 245 249;
+  --slate-200: 226 232 240;
+  --slate-300: 203 213 225;
+  --slate-400: 148 163 184;
+  --slate-500: 100 116 139;
+  --slate-600: 71 85 105;
+  --slate-700: 51 65 85;
+  --slate-800: 30 41 59;
+  --slate-900: 15 23 42;
+  --slate-950: 2 6 23;
+}
+[data-theme="navy"] {
+  --slate-50: 245 247 251;
+  --slate-100: 232 237 246;
+  --slate-200: 207 216 234;
+  --slate-300: 169 184 214;
+  --slate-400: 123 144 187;
+  --slate-500: 88 111 159;
+  --slate-600: 68 88 132;
+  --slate-700: 54 70 107;
+  --slate-800: 38 51 82;
+  --slate-900: 26 36 64;
+  --slate-950: 15 22 41;
+}
+[data-theme="green"] {
+  --slate-50: 243 248 246;
+  --slate-100: 225 239 233;
+  --slate-200: 195 222 211;
+  --slate-300: 151 196 179;
+  --slate-400: 100 162 140;
+  --slate-500: 68 131 109;
+  --slate-600: 52 105 87;
+  --slate-700: 43 85 71;
+  --slate-800: 33 66 58;
+  --slate-900: 24 50 41;
+  --slate-950: 13 30 24;
+}
+[data-theme="warm"] {
+  --slate-50: 250 250 249;
+  --slate-100: 245 245 244;
+  --slate-200: 231 229 228;
+  --slate-300: 214 211 209;
+  --slate-400: 168 162 158;
+  --slate-500: 120 113 108;
+  --slate-600: 87 83 78;
+  --slate-700: 68 64 60;
+  --slate-800: 41 37 36;
+  --slate-900: 28 25 23;
+  --slate-950: 12 10 9;
 }
 
 body {

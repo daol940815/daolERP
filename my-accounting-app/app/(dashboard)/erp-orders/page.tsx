@@ -7,6 +7,7 @@ import type { ErpOrder, ErpOrderItem } from '@/types/erp'
 import { getPeriodRange } from '@/lib/period-presets'
 import { computeOrderDeliveryStatus, ITEM_DELIVERY_STATUS_LABEL, ORDER_DELIVERY_STATUS_LABEL } from '@/lib/erp-delivery-status'
 import { cutoffAlloc, netSalesOf, outstandingOf } from '@/lib/receivable'
+import CollectMatchModal from '@/components/erp/CollectMatchModal'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
@@ -59,6 +60,7 @@ export default function ErpOrdersPage() {
   const [orders, setOrders]     = useState<ErpOrder[]>([])
   const [items, setItems]       = useState<ErpOrderItem[]>([])
   const [matches, setMatches]   = useState<OrderMatch[]>([])
+  const [collectFor, setCollectFor] = useState<string | null>(null)   // 수금 매칭 모달 대상 주문
   const [loading, setLoading]   = useState(true)
   const [deleting, setDeleting] = useState(false)
   const [view, setView]         = useState<View>('all')
@@ -417,16 +419,16 @@ export default function ErpOrdersPage() {
                     <td className={`py-2 px-3 text-right whitespace-nowrap ${remaining > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
                       {won(remaining)}
                       {allocated > 0 && remaining !== o.outstanding_amount && (
-                        <span className="block text-[11px] text-emerald-600 font-normal">매칭 {won(allocated)} 차감</span>
+                        <span className="block text-[0.6875rem] text-emerald-600 font-normal">매칭 {won(allocated)} 차감</span>
                       )}
                       {preUpload > 0 && (
-                        <span className="block text-[11px] text-gray-400 font-normal"
+                        <span className="block text-[0.6875rem] text-gray-400 font-normal"
                           title="업로드 이전 입금 매칭 — ERP 미수금 값에 이미 반영된 것으로 간주해 중복 차감하지 않음">
                           업로드 반영분 {won(preUpload)} 제외
                         </span>
                       )}
                       {cappedByNet && (
-                        <span className="block text-[11px] text-gray-400 font-normal"
+                        <span className="block text-[0.6875rem] text-gray-400 font-normal"
                           title="ERP 미수금이 순매출(비제외 품목 합)보다 커서 순매출로 제한함">
                           순매출 상한 적용
                         </span>
@@ -446,6 +448,13 @@ export default function ErpOrdersPage() {
                         : <span className="text-gray-300">-</span>}
                     </td>
                     <td className="py-2 px-3 text-right whitespace-nowrap">
+                      <button
+                        onClick={() => setCollectFor(o.id)}
+                        className={`px-2 py-1 text-xs rounded mr-1 ${remaining > 0 ? 'bg-slate-900 text-white hover:bg-slate-700' : 'border border-gray-300 text-gray-500 hover:bg-gray-50'}`}
+                        title="이 주문에 입금·카드결제를 매칭 (주문 쪽 수금 매칭)"
+                      >
+                        {orderMatches.length > 0 ? `매칭 ${orderMatches.length}건` : '수금 매칭'}
+                      </button>
                       <button
                         onClick={() => handleDeduct(o)}
                         className="px-2 py-1 text-xs border border-sky-300 text-sky-700 rounded hover:bg-sky-50"
@@ -500,7 +509,7 @@ export default function ErpOrdersPage() {
                                     ? <span className={payDate.endsWith('부분') ? 'text-amber-600' : 'text-emerald-700'}>{payDate}</span>
                                     : <span className="text-gray-300">-</span>}
                                 </td>
-                                <td className="py-1 pr-3 whitespace-nowrap font-mono text-[11px]">
+                                <td className="py-1 pr-3 whitespace-nowrap font-mono text-[0.6875rem]">
                                   {it.tracking_number ?? <span className="text-gray-300">-</span>}
                                 </td>
                                 <td className="py-1 pr-3 whitespace-nowrap">
@@ -554,6 +563,9 @@ export default function ErpOrdersPage() {
             </button>
           </div>
         </div>
+      )}
+      {collectFor && (
+        <CollectMatchModal orderId={collectFor} onClose={() => setCollectFor(null)} onSaved={() => load()} />
       )}
     </div>
   )

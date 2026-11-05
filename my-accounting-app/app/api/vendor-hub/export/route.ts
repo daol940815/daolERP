@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 const STATUS_LABEL: Record<string, string> = {
-  normal: '정상', outstanding: '미수', late: '수금지연', over90: '미수 90일 초과', dormant: '휴면 전환',
+  normal: '정상', outstanding: '미수', late: '수금지연', over90: '미수 90일 초과', dormant: '휴면 전환', no_orders: '주문 없음',
 }
 const OTYPE_LABEL: Record<string, string> = {
   both: '명절+상시', regular_only: '상시만', season_only: '명절만', none: '주문없음',

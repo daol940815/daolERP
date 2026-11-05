@@ -195,7 +195,7 @@ export default function VendorReconciliationPage() {
                         {r.kind === 'subtotal' ? `${r.erp_name} 합계` : r.erp_name}
                       </p>
                       {r.kind === 'single' && r.vendor_id === null && (
-                        <span className="px-1.5 py-0.5 text-[10px] bg-amber-50 text-amber-700 border border-amber-200 rounded shrink-0">미연결</span>
+                        <span className="px-1.5 py-0.5 text-[0.625rem] bg-amber-50 text-amber-700 border border-amber-200 rounded shrink-0">미연결</span>
                       )}
                     </div>
                     {r.kind === 'single' && r.vendor_name && r.vendor_name !== r.erp_name && (

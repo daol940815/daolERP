@@ -35,7 +35,7 @@ function Metric({
     <>
       <div className="text-xs text-gray-400">{label}</div>
       <div className={`text-lg font-bold mt-0.5 ${valueClass}`}>{value}</div>
-      {sub && <div className="text-[11px] text-gray-400 mt-0.5">{sub}</div>}
+      {sub && <div className="text-[0.6875rem] text-gray-400 mt-0.5">{sub}</div>}
     </>
   )
   return href

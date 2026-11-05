@@ -50,6 +50,7 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
   late:        { label: '수금지연', cls: 'bg-orange-100 text-orange-700' },
   over90:      { label: '미수 90일 초과', cls: 'bg-red-100 text-red-700' },
   dormant:     { label: '휴면 전환', cls: 'bg-gray-100 text-gray-500' },
+  no_orders:   { label: '주문 없음', cls: 'bg-slate-100 text-slate-500' },
 }
 
 export default function SalesHubPage() {
@@ -287,26 +288,26 @@ export default function SalesHubPage() {
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
             <div className="text-xs text-gray-500">활성 매출처{filterActive && <span className="ml-1 text-blue-600 font-semibold">(필터 적용)</span>}</div>
             <div className="text-xl font-bold mt-0.5">{kpi.active_vendors.toLocaleString()}곳</div>
-            <div className="text-[11px] text-gray-400 mt-0.5">
+            <div className="text-[0.6875rem] text-gray-400 mt-0.5">
               {filterActive ? `전체 ${summary.active_vendors.toLocaleString()}곳 중` : '기간 내 주문 발생 기준'}
             </div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
             <div className="text-xs text-gray-500">기간 매출 (ERP 순매출)</div>
             <div className="text-xl font-bold mt-0.5 tabular-nums">{eok(kpi.net_total)}</div>
-            <div className="text-[11px] text-gray-400 mt-0.5">
+            <div className="text-[0.6875rem] text-gray-400 mt-0.5">
               {filterActive ? `전체 ${eok(summary.net_total)} 중` : '취소·VIP·선결제 품목 제외'}
             </div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
             <div className="text-xs text-gray-500">수금율 (ERP 기준)</div>
             <div className="text-xl font-bold mt-0.5 tabular-nums">{(kpi.collect_ratio * 100).toFixed(1)}%</div>
-            <div className="text-[11px] text-gray-400 mt-0.5">수금 {eok(kpi.collected_total)}</div>
+            <div className="text-[0.6875rem] text-gray-400 mt-0.5">수금 {eok(kpi.collected_total)}</div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
             <div className="text-xs text-gray-500">미수 잔액</div>
             <div className="text-xl font-bold mt-0.5 tabular-nums text-red-600">{eok(kpi.outstanding_total)}</div>
-            <div className="text-[11px] text-gray-400 mt-0.5">90일 초과 {eok(kpi.over90_total)} 포함</div>
+            <div className="text-[0.6875rem] text-gray-400 mt-0.5">90일 초과 {eok(kpi.over90_total)} 포함</div>
           </div>
         </div>
       )}
@@ -347,29 +348,29 @@ export default function SalesHubPage() {
                       <Link href={`/sales-hub/${r.vendor_id}?from=${from}&to=${to}`} className="block">
                         <div className="font-semibold text-gray-900">
                           {r.vendor_name}
-                          {r.is_active === false && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-200 text-gray-600 align-middle">비활성</span>}
+                          {r.is_active === false && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-gray-200 text-gray-600 align-middle">비활성</span>}
                         </div>
-                        <div className="text-[11px] text-gray-400">
+                        <div className="text-[0.6875rem] text-gray-400">
                           별칭 {r.alias_count} · 카드 {r.card_count || '-'}{r.vip_total > 0 ? ` · VIP 누적 ${eok(r.vip_total)}` : ''}
                         </div>
                       </Link>
                     </td>
                     <td className="py-2 px-3 whitespace-nowrap">
                       {r.staff_primary ?? <span className="text-gray-300">-</span>}
-                      {r.staff_extra > 0 && <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[10px] font-bold">+{r.staff_extra}</span>}
+                      {r.staff_extra > 0 && <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[0.625rem] font-bold">+{r.staff_extra}</span>}
                     </td>
                     <td className="py-2 px-3 whitespace-nowrap">
                       {r.contact_rep ?? <span className="text-gray-300">-</span>}
-                      {r.contact_extra > 0 && <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[10px] font-bold">+{r.contact_extra}</span>}
+                      {r.contact_extra > 0 && <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[0.625rem] font-bold">+{r.contact_extra}</span>}
                     </td>
                     {kpiFlags && (() => {
                       const f = vendorFlagMap.get(r.vendor_id)
                       const ot = f ? OTYPE_META[f.otype] : null
                       return (
                         <td className="py-2 px-3 whitespace-nowrap">
-                          {ot && <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${ot.cls}`}>{ot.label}</span>}
-                          {f?.is_new && <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">신규</span>}
-                          {f?.is_churn && <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700">이탈</span>}
+                          {ot && <span className={`inline-block px-1.5 py-0.5 rounded text-[0.625rem] font-semibold ${ot.cls}`}>{ot.label}</span>}
+                          {f?.is_new && <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-emerald-100 text-emerald-700">신규</span>}
+                          {f?.is_churn && <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-red-100 text-red-700">이탈</span>}
                           {!f && <span className="text-gray-300">-</span>}
                         </td>
                       )
@@ -389,7 +390,7 @@ export default function SalesHubPage() {
                     </td>
                     <td className="py-2 px-3 tabular-nums text-gray-500 text-xs">{r.last_order_date ?? '-'}</td>
                     <td className="py-2 px-3">
-                      <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${meta.cls}`}>{meta.label}</span>
+                      <span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${meta.cls}`}>{meta.label}</span>
                     </td>
                     {canEdit && (
                       <td className="py-2 px-3 whitespace-nowrap">
@@ -401,7 +402,7 @@ export default function SalesHubPage() {
                             })
                             if (res.ok) load(from, to)
                           }}
-                            className="px-2 py-0.5 border border-emerald-200 text-emerald-700 rounded text-[11px] hover:bg-emerald-50">재활성</button>
+                            className="px-2 py-0.5 border border-emerald-200 text-emerald-700 rounded text-[0.6875rem] hover:bg-emerald-50">재활성</button>
                         ) : (
                           <button onClick={async () => {
                             if (!confirm(`'${r.vendor_name}' 매출처를 삭제할까요?\n연결된 데이터가 있으면 삭제 대신 비활성 처리를 안내합니다.`)) return
@@ -419,7 +420,7 @@ export default function SalesHubPage() {
                               }
                             } else alert(json.error ?? '삭제 실패')
                           }}
-                            className="px-2 py-0.5 border border-red-200 text-red-600 rounded text-[11px] hover:bg-red-50">삭제</button>
+                            className="px-2 py-0.5 border border-red-200 text-red-600 rounded text-[0.6875rem] hover:bg-red-50">삭제</button>
                         )}
                       </td>
                     )}

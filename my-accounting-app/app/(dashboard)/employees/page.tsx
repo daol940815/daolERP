@@ -9,6 +9,7 @@ import PermissionPanel, { type PermEmp } from './permission-panel'
 
 interface Emp extends PermEmp {
   phone: string | null
+  work_phone?: string | null     // 업무용 핸드폰 (205) — 발주서 발주자 연락처
   hire_date: string | null
   birth_date: string | null
   role: 'sales' | 'manager' | 'admin'
@@ -17,7 +18,7 @@ interface Emp extends PermEmp {
 }
 
 const TEAMS = ['영업팀', '영업지원팀', '경영지원팀']
-const EMPTY = { name: '', team: '', position: '', phone: '', hire_date: '', birth_date: '', role: 'sales', login_id: '', password: '' }
+const EMPTY = { name: '', team: '', position: '', phone: '', work_phone: '', hire_date: '', birth_date: '', role: 'sales', login_id: '', password: '' }
 
 const permSummary = (e: Emp) => {
   if (e.is_master) return '마스터 (전 영역)'
@@ -37,8 +38,10 @@ export default function EmployeesPage() {
   const [showForm, setShowForm] = useState(false)
   const [busy, setBusy] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
-  const [edit, setEdit] = useState({ name: '', team: '', position: '', phone: '', hire_date: '', birth_date: '', login_id: '' })
+  const [edit, setEdit] = useState({ name: '', team: '', position: '', phone: '', work_phone: '', hire_date: '', birth_date: '', login_id: '' })
   const [birthdayReady, setBirthdayReady] = useState(true)
+  const [leaveLevelReady, setLeaveLevelReady] = useState(false)   // 휴가 결재 단계(204)
+  const [workPhoneReady, setWorkPhoneReady] = useState(false)     // 업무용 핸드폰(205)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [meInfo, setMeInfo] = useState<{ employeeId: string | null; isMaster: boolean; canEdit: boolean }>({ employeeId: null, isMaster: false, canEdit: false })
   const [permReady, setPermReady] = useState(true)
@@ -55,6 +58,7 @@ export default function EmployeesPage() {
       setRows(json.employees)
       if (json.me) setMeInfo(json.me)
       setPermReady(json.permissionsReady !== false); setBirthdayReady(json.birthdayReady !== false)
+      setLeaveLevelReady(json.leaveLevelReady === true); setWorkPhoneReady(json.workPhoneReady === true)
     }
     setSelected(new Set())
     setLoading(false)
@@ -75,7 +79,8 @@ export default function EmployeesPage() {
   const create = async () => {
     if (!form.name.trim()) { flash('이름을 입력하세요.'); return }
     if (form.login_id && !form.password) { flash('계정을 발급하려면 비밀번호도 입력하세요.'); return }
-    if (await post({ action: 'create', ...form })) {
+    const { work_phone, ...rest } = form
+    if (await post({ action: 'create', ...rest, ...(workPhoneReady ? { work_phone } : {}) })) {
       flash('직원 등록 완료' + (form.login_id ? ' (로그인 계정 발급됨)' : ''))
       setForm({ ...EMPTY }); setShowForm(false); load()
     }
@@ -85,12 +90,13 @@ export default function EmployeesPage() {
     setEditId(r.id)
     setEdit({
       name: r.name, team: r.team ?? '', position: r.position ?? '',
-      phone: r.phone ?? '', hire_date: r.hire_date ?? '', birth_date: r.birth_date ?? '', login_id: r.login_id ?? '',
+      phone: r.phone ?? '', work_phone: r.work_phone ?? '', hire_date: r.hire_date ?? '', birth_date: r.birth_date ?? '', login_id: r.login_id ?? '',
     })
   }
   const saveEdit = async () => {
     if (!editId) return
-    if (await post({ action: 'update', id: editId, ...edit })) {
+    const { work_phone, ...rest } = edit
+    if (await post({ action: 'update', id: editId, ...rest, ...(workPhoneReady ? { work_phone } : {}) })) {
       flash('수정 완료'); setEditId(null); load()
     }
   }
@@ -154,6 +160,8 @@ export default function EmployeesPage() {
       {msg && <div className="my-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
       {error && <div className="my-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
 
+      {leaveLevelReady && !loading && <LeaveApprovalLine rows={rows} />}
+
       <div className="flex justify-end items-center gap-2 my-4">
         {selected.size > 0 && (
           <button onClick={bulkRemove} disabled={busy}
@@ -172,11 +180,12 @@ export default function EmployeesPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {([
               ['name', '이름 *', 'text'], ['team', '팀', 'text'], ['position', '직급', 'text'],
-              ['phone', '연락처', 'text'], ['hire_date', '입사일', 'date'], ['birth_date', '생일', 'date'],
+              ['work_phone', '업무용 핸드폰 (발주서에 기재)', 'text'], ['phone', '개인 연락처', 'text'],
+              ['hire_date', '입사일', 'date'], ['birth_date', '생일', 'date'],
               ['login_id', '로그인 ID (영문·숫자)', 'text'], ['password', '초기 비밀번호', 'text'],
             ] as const).map(([k, label, type]) => (
               <div key={k}>
-                <label className="block text-[11px] text-gray-500 font-semibold mb-1">{label}</label>
+                <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">{label}</label>
                 <input type={type} value={form[k]} list={k === 'team' ? 'team-list' : undefined}
                   onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
@@ -185,7 +194,7 @@ export default function EmployeesPage() {
             <datalist id="team-list">{TEAMS.map(t => <option key={t} value={t} />)}</datalist>
           </div>
           <div className="flex justify-between items-center mt-3">
-            <p className="text-[11px] text-gray-400">
+            <p className="text-[0.6875rem] text-gray-400">
               ID를 비우면 담당 배정용 직원으로만 등록됩니다(로그인 불가, 나중에 발급 가능).
               비밀번호는 인증 서버 최소 기준(6자)만 넘으면 됩니다. 권한은 등록 후 권한 버튼에서 지정합니다(기본 없음).
             </p>
@@ -207,7 +216,7 @@ export default function EmployeesPage() {
                 </th>
                 <th className="py-2 px-3 text-left font-medium">이름</th>
                 <th className="py-2 px-3 text-left font-medium">팀/직급</th>
-                <th className="py-2 px-3 text-left font-medium">연락처</th>
+                <th className="py-2 px-3 text-left font-medium">연락처 <span className="font-normal text-gray-400">업무 · 개인</span></th>
                 <th className="py-2 px-3 text-left font-medium">로그인 ID</th>
                 <th className="py-2 px-3 text-left font-medium">권한</th>
                 <th className="py-2 px-3 text-left font-medium">입사일</th>
@@ -227,7 +236,13 @@ export default function EmployeesPage() {
                       <input value={edit.position} onChange={e => setEdit(s => ({ ...s, position: e.target.value }))} placeholder="직급" className={inp} />
                     </div>
                   </td>
-                  <td className="py-2 px-3"><input value={edit.phone} onChange={e => setEdit(s => ({ ...s, phone: e.target.value }))} className={inp} /></td>
+                  <td className="py-2 px-3">
+                    <div className="flex flex-col gap-1">
+                      <input value={edit.work_phone} disabled={!workPhoneReady} title={workPhoneReady ? '업무용 핸드폰 — 발주서 발주자 연락처' : '205 마이그레이션 실행 후 입력 가능'}
+                        onChange={e => setEdit(s => ({ ...s, work_phone: e.target.value }))} placeholder="업무용" className={inp} />
+                      <input value={edit.phone} onChange={e => setEdit(s => ({ ...s, phone: e.target.value }))} placeholder="개인" className={inp} />
+                    </div>
+                  </td>
                   <td className="py-2 px-3"><input value={edit.login_id} onChange={e => setEdit(s => ({ ...s, login_id: e.target.value }))} className={inp} /></td>
                   <td className="py-2 px-3 text-xs text-gray-400">{permSummary(r)}</td>
                   <td className="py-2 px-3"><input type="date" value={edit.hire_date} onChange={e => setEdit(s => ({ ...s, hire_date: e.target.value }))} className={inp} /></td>
@@ -245,13 +260,16 @@ export default function EmployeesPage() {
                   </td>
                   <td className="py-2 px-3 font-semibold">{r.name}</td>
                   <td className="py-2 px-3 text-gray-600">{[r.team, r.position].filter(Boolean).join(' · ') || '-'}</td>
-                  <td className="py-2 px-3 text-gray-600">{r.phone ?? '-'}</td>
+                  <td className="py-2 px-3 text-gray-600 text-xs leading-5 whitespace-nowrap">
+                    <div><span className="text-[0.625rem] text-violet-600 font-semibold mr-1">업무</span>{r.work_phone ?? <span className="text-gray-300">-</span>}</div>
+                    <div><span className="text-[0.625rem] text-gray-400 font-semibold mr-1">개인</span>{r.phone ?? <span className="text-gray-300">-</span>}</div>
+                  </td>
                   <td className="py-2 px-3">
                     {r.login_id
                       ? <>
                           <span className="text-gray-800 font-mono text-xs">{r.login_id}</span>
                           {!r.auth_user_id && (
-                            <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-50 text-amber-700">계정 미발급</span>
+                            <span className="ml-1 px-1.5 py-0.5 rounded text-[0.625rem] bg-amber-50 text-amber-700">계정 미발급</span>
                           )}
                         </>
                       : <span className="text-gray-300 text-xs">미발급</span>}
@@ -261,13 +279,14 @@ export default function EmployeesPage() {
                       className={`text-xs px-2 py-1 rounded border ${r.is_master ? 'border-slate-900 bg-slate-900 text-white' : 'border-gray-300 hover:bg-gray-50'}`}>
                       {permSummary(r)}
                     </button>
-                    {r.can_approve && !r.is_master && <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-blue-50 text-blue-700">승인</span>}
-                    {r.employment_type === 'parttime' && <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-50 text-amber-700">아르바이트{r.work_end ? ` ~${r.work_end}` : ''}</span>}
+                    {r.can_approve && !r.is_master && <span className="ml-1 px-1.5 py-0.5 rounded text-[0.625rem] bg-blue-50 text-blue-700">승인</span>}
+                    {r.leave_approve_level && <span className="ml-1 px-1.5 py-0.5 rounded text-[0.625rem] bg-violet-50 text-violet-700">휴가 {r.leave_approve_level}차</span>}
+                    {r.employment_type === 'parttime' && <span className="ml-1 px-1.5 py-0.5 rounded text-[0.625rem] bg-amber-50 text-amber-700">아르바이트{r.work_end ? ` ~${r.work_end}` : ''}</span>}
                   </td>
                   <td className="py-2 px-3 tabular-nums text-gray-500 text-xs">{r.hire_date ?? '-'}</td>
                   <td className="py-2 px-3 tabular-nums text-gray-500 text-xs">{r.birth_date ?? '-'}</td>
                   <td className="py-2 px-3">
-                    <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${r.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${r.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {r.is_active ? '재직' : '비활성'}
                     </span>
                   </td>
@@ -306,9 +325,40 @@ export default function EmployeesPage() {
           emp={permTarget}
           others={rows.filter(r => r.id !== permTarget.id)}
           canEdit={meInfo.isMaster}
+          leaveLevelReady={leaveLevelReady}
           onClose={() => setPermTarget(null)}
           onSaved={() => { setPermTarget(null); flash('권한이 저장되었습니다.'); load() }}
         />
+      )}
+    </div>
+  )
+}
+
+// 현재 휴가 결재선 요약 (204, 2026-11-04) — 단계별 지정자 + 비어 있는 단계 경고. 지정은 권한 버튼(마스터)
+function LeaveApprovalLine({ rows }: { rows: Emp[] }) {
+  const active = rows.filter(r => r.is_active !== false)
+  const at = (l: number) => active.filter(r => r.leave_approve_level === l)
+  const missing = [1, 2, 3].filter(l => !at(l).length)
+  const tone: Record<number, string> = { 1: 'bg-sky-50 text-sky-800', 2: 'bg-violet-50 text-violet-800', 3: 'bg-pink-50 text-pink-800' }
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 mt-4">
+      <div className="flex items-center gap-x-5 gap-y-1.5 flex-wrap text-sm">
+        <span className="font-bold text-gray-900">휴가 결재선</span>
+        {[3, 2, 1].map(l => (
+          <span key={l} className="flex items-center gap-1.5">
+            <b className="text-xs text-gray-500">{l}차</b>
+            {at(l).length
+              ? at(l).map(r => <span key={r.id} className={`px-2 py-0.5 rounded-full text-xs ${tone[l]}`}>{r.name}{r.position ? ` ${r.position}` : ''}</span>)
+              : <span className="text-xs text-gray-300">없음</span>}
+          </span>
+        ))}
+      </div>
+      {missing.length > 0 && (
+        <p className="text-xs text-amber-700 mt-1.5">
+          {missing.join(' · ')}차 권한자가 없습니다.
+          {missing.includes(3) ? ' 3차가 없으면 모든 휴가가 2차 전결로만 끝납니다.' : ' 그 단계는 다음 상위 단계 권한자 차례로 넘어갑니다.'}
+          {' '}권한 버튼에서 휴가 결재 단계를 지정하세요(마스터 계정).
+        </p>
       )}
     </div>
   )

@@ -1,9 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import {
   DAY_STATUS_LABEL, DOW_LABEL, LEAVE_TYPE_LABEL,
   dayOfWeek, isOffKind, judgeDay, kstMonthNow, kstTime, monthDates, summarizeMonth,
+  leavePeriodText,
   type AttendanceLeave, type AttendancePolicy, type AttendanceRecord,
   type DayStatusKind, type HolidayMap, type MonthSummary,
 } from '@/lib/attendance'
@@ -32,7 +34,10 @@ interface MonthRes {
   holidayYearCount: number
 }
 interface HolidayRow { holiday_date: string; name: string; source: 'public' | 'company' }
-type LeaveRow = AttendanceLeave & { employee?: { name: string; team: string | null } | null }
+type LeaveRow = AttendanceLeave & {
+  employee?: { name: string; team: string | null } | null; days?: number
+  actions?: { myTurn: boolean }
+}
 type Filter = 'all' | 'late' | 'absent' | 'missing'
 
 const STATUS_COLOR: Record<DayStatusKind, string> = {
@@ -75,7 +80,7 @@ export default function AttendanceAdminPage() {
     if (!res.ok) { setError(json.error ?? '조회 실패'); setLoading(false); return }
     setError(null); setData(json)
     const json2 = await res2.json().catch(() => ({}))
-    if (res2.ok) setPending(json2.leaves)
+    if (res2.ok) setPending(json2.leaves as LeaveRow[])
     else setError(json2.error ?? '휴가 승인 대기 조회 실패')
     setLoading(false)
   }, [month])
@@ -181,10 +186,8 @@ export default function AttendanceAdminPage() {
     })) { flash('정책 저장 완료'); setPolicyEdit(null); load() }
   }
 
-  const decide = async (id: string, action: 'approve' | 'reject') => {
-    const note = action === 'reject' ? (window.prompt('반려 사유를 입력하세요 (선택):') ?? '') : ''
-    if (await post('/api/attendance/leaves', { action, id, note })) { flash('처리했습니다.'); load() }
-  }
+  // 휴가 결재는 휴가 목록에서 한다 (2026-11-04 3단계 결재) — 여기서는 진행 중 · 내 차례 건수만
+  const myTurn = pending.filter(l => l.actions?.myTurn)
 
   const kpiCard = (label: string, value: string | number, f: Filter, tone = 'text-gray-900') => (
     <button onClick={() => setFilter(filter === f ? 'all' : f)}
@@ -277,7 +280,7 @@ export default function AttendanceAdminPage() {
                 {syncing ? '불러오는 중...' : `${holidayYear}년 공휴일 불러오기`}
               </button>
             ) : (
-              <span className="ml-auto text-[11px] text-gray-400">
+              <span className="ml-auto text-[0.6875rem] text-gray-400">
                 공휴일 API 키 미설정 — 아래에서 직접 등록
               </span>
             )}
@@ -307,7 +310,7 @@ export default function AttendanceAdminPage() {
                 </span>
                 <span className="font-medium">{h.name}</span>
                 {h.source === 'company' && (
-                  <span className="text-[10px] px-1 py-0.5 rounded bg-slate-100 text-slate-500">회사 휴무</span>
+                  <span className="text-[0.625rem] px-1 py-0.5 rounded bg-slate-100 text-slate-500">회사 휴무</span>
                 )}
                 <button onClick={() => deleteHoliday(h.holiday_date, h.name)} disabled={busy}
                   className="ml-auto text-xs text-gray-400 hover:text-red-600">삭제</button>
@@ -336,7 +339,7 @@ export default function AttendanceAdminPage() {
                 <input type="checkbox" checked={e.attendance_target} disabled={busy} onChange={() => toggleTarget(e)} />
                 <span className={e.attendance_target ? '' : 'text-gray-400'}>
                   {e.name}
-                  <span className="text-[11px] text-gray-400 ml-1">
+                  <span className="text-[0.6875rem] text-gray-400 ml-1">
                     {e.team ?? ''}{!e.auth_user_id ? ' · 계정없음' : ''}
                   </span>
                 </span>
@@ -354,30 +357,15 @@ export default function AttendanceAdminPage() {
         {kpiCard('퇴근 미기록 발생 (인원)', totals.missing, 'missing', 'text-orange-600')}
       </div>
 
-      {/* 휴가 승인 대기 */}
+      {/* 휴가 결재 — 처리는 휴가 목록에서 */}
       {pending.length > 0 && (
-        <div className="bg-white border border-amber-200 rounded-xl p-4 mb-4">
-          <h2 className="font-bold text-gray-900">휴가 승인 대기 <span className="text-sm text-amber-600">{pending.length}건</span></h2>
-          <table className="w-full text-sm mt-2">
-            <tbody>
-              {pending.map(l => (
-                <tr key={l.id} className="border-b border-gray-50">
-                  <td className="py-1.5 pr-3 font-semibold">{l.employee?.name ?? '-'}</td>
-                  <td className="py-1.5 px-3 font-medium">{LEAVE_TYPE_LABEL[l.leave_type]}</td>
-                  <td className="py-1.5 px-3 tabular-nums text-xs">
-                    {l.start_date}{l.end_date !== l.start_date ? ` ~ ${l.end_date}` : ''}
-                  </td>
-                  <td className="py-1.5 px-3 text-xs text-gray-500">{l.reason ?? ''}</td>
-                  <td className="py-1.5 pl-3 text-right whitespace-nowrap">
-                    <button onClick={() => decide(l.id, 'approve')} disabled={busy}
-                      className="text-xs px-2.5 py-1 bg-slate-900 text-white rounded mr-1 hover:bg-slate-700">승인</button>
-                    <button onClick={() => decide(l.id, 'reject')} disabled={busy}
-                      className="text-xs px-2.5 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50">반려</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="bg-white border border-amber-200 rounded-xl px-4 py-3 mb-4 flex items-center gap-3 flex-wrap text-sm">
+          <span className="font-bold text-gray-900">휴가 결재</span>
+          {myTurn.length > 0 && <span className="text-amber-700 font-semibold">내 차례 {myTurn.length}건</span>}
+          <span className="text-gray-500">진행 중 {pending.length}건
+            {myTurn[0] && ` · ${myTurn[0].employee?.name ?? ''} ${LEAVE_TYPE_LABEL[myTurn[0].leave_type]} ${leavePeriodText(myTurn[0], myTurn[0].days)}${myTurn.length > 1 ? ` 외 ${myTurn.length - 1}` : ''}`}
+          </span>
+          <Link href="/hr/leaves" className="ml-auto text-xs px-3 py-1.5 bg-slate-900 text-white rounded-lg hover:bg-slate-700">휴가 목록에서 처리</Link>
         </div>
       )}
 
@@ -466,14 +454,14 @@ function FragmentRow({ emp, sum, records, leaves, data, open, onToggle, adjust, 
                 <div key={date} className="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs">
                   <div className="flex items-center gap-1.5">
                     <span className="tabular-nums text-gray-500">{date.slice(5)} ({DOW_LABEL[dayOfWeek(date)]})</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${STATUS_COLOR[st.kind]}`}>
+                    <span className={`px-1.5 py-0.5 rounded text-[0.625rem] font-semibold ${STATUS_COLOR[st.kind]}`}>
                       {st.holidayName ?? (st.leave ? LEAVE_TYPE_LABEL[st.leave.leave_type] : DAY_STATUS_LABEL[st.kind])}
                     </span>
                     <button onClick={() => setAdjust(editing ? null : {
                       empId: emp.id, date,
                       in: kstTime(record?.check_in_at ?? null) ?? '',
                       out: kstTime(record?.check_out_at ?? null) ?? '', note: '',
-                    })} className="ml-auto text-[10px] text-gray-400 hover:text-gray-700">보정</button>
+                    })} className="ml-auto text-[0.625rem] text-gray-400 hover:text-gray-700">보정</button>
                   </div>
                   {editing ? (
                     <div className="flex items-center gap-1 mt-1.5 flex-wrap">
@@ -485,7 +473,7 @@ function FragmentRow({ emp, sum, records, leaves, data, open, onToggle, adjust, 
                       <input value={adjust.note} placeholder="사유 (필수)" className={`${inp} flex-1 min-w-[90px]`}
                         onChange={e => setAdjust({ ...adjust, note: e.target.value })} />
                       <button onClick={saveAdjust} disabled={busy}
-                        className="px-2 py-1 bg-slate-900 text-white rounded text-[10px]">저장</button>
+                        className="px-2 py-1 bg-slate-900 text-white rounded text-[0.625rem]">저장</button>
                     </div>
                   ) : (
                     <p className="mt-1 tabular-nums text-gray-700">

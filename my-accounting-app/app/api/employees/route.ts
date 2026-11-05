@@ -8,7 +8,8 @@ export const dynamic = 'force-dynamic'
 // 직원·계정·권한 관리 (인사·총무 수정 권한. 권한 편집은 마스터만)
 // GET: 직원 목록 (+ 권한 필드, 호출자가 마스터인지)
 // POST body.action:
-//   create       { name, team?, position?, phone?, hire_date?, role, login_id?, password? }
+//   create       { name, team?, position?, phone?, work_phone?, hire_date?, role, login_id?, password? }
+//                — work_phone = 업무용 핸드폰(205). 발주서 발주자 연락처에 쓰인다
 //                — login_id+password가 있으면 로그인 계정 발급 (ID 방식)
 //   update       { id, ...fields }  — login_id 변경 시 인증 계정도 함께 갱신
 //   set_password { id, password }   — 관리자 비밀번호 재설정
@@ -16,6 +17,7 @@ export const dynamic = 'force-dynamic'
 //   delete       { id }             — 직원·계정 완전 삭제 (배정 이력도 함께 삭제)
 //   set_permissions { id, team, employment_type, work_start, work_end, is_master, permissions,
 //                     can_approve, can_view_salary, can_view_payment_info, note }
+//                     leave_approve_level? (1|2|3|null — 휴가 결재 단계, 204)
 //                — 마스터만. 변경 전·후를 employee_permission_logs에 남긴다.
 //                  자기 자신의 마스터 해제 불가.
 //   permission_logs { id } — 해당 직원의 권한 변경 이력
@@ -71,9 +73,28 @@ export async function GET() {
       error: missing ? '103·104 마이그레이션(직원 확장)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.' : error.message,
     }, { status: 500 })
   }
+  // 휴가 결재 단계(204) · 업무용 핸드폰(205) — 별도 조회해 합친다. 미적용이면 *Ready=false 로 화면이 칸을 끈다
+  let leaveLevelReady = true
+  let workPhoneReady = true
+  if (data?.length) {
+    const [{ data: lv, error: lvErr }, { data: wp, error: wpErr }] = await Promise.all([
+      admin.from('employees').select('id, leave_approve_level'),
+      admin.from('employees').select('id, work_phone'),
+    ])
+    if (lvErr) leaveLevelReady = false
+    else {
+      const m = new Map((lv ?? []).map(r => [r.id as string, r.leave_approve_level as number | null]))
+      data = data.map(e => ({ ...e, leave_approve_level: m.get(e.id as string) ?? null }))
+    }
+    if (wpErr) workPhoneReady = false
+    else {
+      const m = new Map((wp ?? []).map(r => [r.id as string, r.work_phone as string | null]))
+      data = data.map(e => ({ ...e, work_phone: m.get(e.id as string) ?? null }))
+    }
+  }
   return NextResponse.json({
     employees: data ?? [],
-    permissionsReady, birthdayReady,
+    permissionsReady, birthdayReady, leaveLevelReady, workPhoneReady,
     me: { employeeId: g.me.employeeId, isMaster: g.me.isMaster, canEdit: g.me.isMaster || can(g.me, 'hr', 'edit') },
   })
 }
@@ -119,12 +140,29 @@ export async function POST(req: NextRequest) {
     }
     const { error: uErr } = await admin.from('employees').update(after).eq('id', id)
     if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 })
+    // 휴가 결재 단계(204) — 따로 저장해 204 미적용이어도 나머지 권한 저장은 된다
+    let leaveLevelChange: { before: number | null; after: number | null } | null = null
+    if ('leave_approve_level' in raw) {
+      const v = raw.leave_approve_level
+      const lvAfter = v === 1 || v === 2 || v === 3 ? v : null
+      const { data: cur, error: cErr } = await admin.from('employees').select('leave_approve_level').eq('id', id).maybeSingle()
+      if (cErr) {
+        return NextResponse.json({ error: '권한은 저장했지만 휴가 결재 단계는 저장하지 못했습니다 — 204 마이그레이션을 먼저 실행해주세요.' }, { status: 500 })
+      }
+      const lvBefore = (cur?.leave_approve_level as number | null) ?? null
+      if (lvBefore !== lvAfter) {
+        const { error: lErr } = await admin.from('employees').update({ leave_approve_level: lvAfter }).eq('id', id)
+        if (lErr) return NextResponse.json({ error: lErr.message }, { status: 500 })
+        leaveLevelChange = { before: lvBefore, after: lvAfter }
+      }
+    }
     const beforeState: Record<string, unknown> = { ...(before as Record<string, unknown>) }
     delete beforeState.id
     delete beforeState.name
     await admin.from('employee_permission_logs').insert({
       employee_id: id, changed_by: g.me.employeeId,
-      before_state: beforeState, after_state: after,
+      before_state: leaveLevelChange ? { ...beforeState, leave_approve_level: leaveLevelChange.before } : beforeState,
+      after_state: leaveLevelChange ? { ...after, leave_approve_level: leaveLevelChange.after } : after,
       note: typeof raw.note === 'string' ? raw.note : null,
     })
     return NextResponse.json({ ok: true })
@@ -175,6 +213,8 @@ export async function POST(req: NextRequest) {
       auth_user_id: authUserId, is_active: true,
       // 생일(203)은 값이 있을 때만 — 203 미적용 환경에서 등록 자체가 막히지 않도록
       ...(body.birth_date ? { birth_date: dateOrNull(body.birth_date) } : {}),
+      // 업무용 핸드폰(205)도 값이 있을 때만 — 205 미적용 환경 보호
+      ...((body.work_phone ?? '').trim() ? { work_phone: (body.work_phone ?? '').trim() } : {}),
     }
 
     // 같은 이름의 계정 없는 기존 직원(담당 배정용으로만 등록)이 있으면 그 행을 확장
@@ -220,6 +260,17 @@ export async function POST(req: NextRequest) {
     }
     const { error } = await admin.from('employees').update(patch).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    // 업무용 핸드폰(205) — 따로 저장. 비우기도 지원하고, 205 미적용이면 값을 넣었을 때만 안내한다
+    if ('work_phone' in body) {
+      const v = (body.work_phone ?? '').trim() || null
+      const { data: wp, error: wErr } = await admin.from('employees').select('work_phone').eq('id', id).maybeSingle()
+      if (wErr) {
+        if (v) return NextResponse.json({ error: '다른 항목은 저장했지만 업무용 핸드폰은 저장하지 못했습니다 — 205 마이그레이션을 먼저 실행해주세요.' }, { status: 500 })
+      } else if ((wp?.work_phone ?? null) !== v) {
+        const { error: uErr } = await admin.from('employees').update({ work_phone: v }).eq('id', id)
+        if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 })
+      }
+    }
     return NextResponse.json({ ok: true })
   }
 

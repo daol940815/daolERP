@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>배송지 입력 시안 (1단계)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1240px; margin:0 auto; padding:24px 20px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:26px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.6; }
+
+  .legend { display:flex; gap:12px; margin-bottom:14px; flex-wrap:wrap; font-size:11.5px; }
+  .lg { display:flex; align-items:center; gap:5px; color:#475569; }
+  .dot { width:12px; height:12px; border-radius:3px; display:inline-block; border:1.5px solid; }
+
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.dim { opacity:.55; }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .sec { font-size:13px; font-weight:bold; color:#0f172a; margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .sec small { font-weight:normal; color:#94a3b8; font-size:11px; }
+  .tag-new { font-size:10.5px; font-weight:bold; color:#fff; background:#3b82f6; border-radius:4px; padding:1px 6px; }
+
+  .grid { display:grid; grid-template-columns:repeat(6, 1fr); gap:10px 12px; }
+  .f label { display:block; font-size:11px; color:#64748b; margin-bottom:3px; }
+  .f label em { font-style:normal; color:#c22525; }
+  .box { border:1.5px solid #cbd5e1; border-radius:8px; padding:7px 10px; background:#fff; font-size:12.5px; color:#0f172a; min-height:33px; }
+  .box.sel { border-color:#93b8e8; background:#f5f9ff; }
+  .box.auto { border-color:#e2e8f0; background:#f8fafc; color:#64748b; }
+  .box.fill { border-color:#86c5a4; background:#f3fbf6; }
+  .box.ph { color:#94a3b8; }
+  .row { display:flex; gap:6px; align-items:center; }
+  .row .box { flex:1; }
+  .s2 { grid-column:span 2; } .s3 { grid-column:span 3; } .s4 { grid-column:span 4; } .s6 { grid-column:span 6; }
+
+  .btn { display:inline-block; border-radius:7px; padding:6px 11px; font-size:12px; border:1px solid #cbd5e1; background:#fff; color:#334155; white-space:nowrap; cursor:default; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .btn.blue { color:#1d4ed8; border-color:#bfdbfe; background:#eff6ff; }
+  .btn.sm { padding:3px 8px; font-size:11px; }
+
+  .src { display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; border-radius:8px; padding:7px 10px; font-size:12px; margin-bottom:10px; }
+  .src b { color:#14532d; }
+  .src .sp { flex:1; }
+  .hint { font-size:11px; color:#94a3b8; margin-top:6px; line-height:1.6; }
+  .warn { background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:8px; padding:7px 10px; font-size:12px; }
+
+  .note { position:relative; background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:8px 10px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.65; }
+  .note b { color:#422006; }
+  .num { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:#eab308; color:#fff; font-size:10.5px; font-weight:bold; margin-right:4px; }
+
+  /* 드롭다운 */
+  .dd { border:1px solid #cbd5e1; border-radius:8px; background:#fff; box-shadow:0 8px 24px rgba(15,23,42,.12); margin-top:4px; overflow:hidden; font-size:12px; }
+  .dd .it { padding:8px 11px; border-bottom:1px solid #f1f5f9; }
+  .dd .it:last-child { border-bottom:0; }
+  .dd .it.on { background:#eff6ff; }
+  .dd .it .m { color:#64748b; font-size:11px; margin-top:2px; }
+  .dd .head { padding:6px 11px; font-size:10.5px; color:#94a3b8; background:#f8fafc; }
+
+  /* 우편번호 팝업 */
+  .modal { border:1px solid #cbd5e1; border-radius:10px; background:#fff; box-shadow:0 12px 32px rgba(15,23,42,.18); width:420px; max-width:100%; overflow:hidden; }
+  .modal .mh { background:#ffe812; padding:8px 12px; font-weight:bold; font-size:12.5px; color:#3c1e1e; display:flex; justify-content:space-between; }
+  .modal .mb { padding:10px 12px; }
+  .modal .res { border-top:1px solid #f1f5f9; padding:8px 0; font-size:12px; }
+  .modal .res .z { color:#ea580c; font-weight:bold; margin-right:6px; }
+  .modal .res .j { color:#64748b; font-size:11px; margin-top:2px; }
+
+  /* 표 */
+  table { border-collapse:collapse; width:100%; font-size:12px; }
+  th { background:#f1f5f9; color:#475569; font-weight:normal; padding:6px 8px; text-align:left; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+  td { padding:6px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
+  td.g { background:#f3fbf6; color:#14532d; }
+  td.e { background:#fafafa; color:#cbd5e1; }
+  .kind { display:inline-block; font-size:10.5px; padding:1px 6px; border-radius:4px; }
+  .k-j { background:#dbeafe; color:#1d4ed8; } .k-g { background:#fce7f3; color:#be185d; } .k-s { background:#f3e8ff; color:#7e22ce; }
+  .xl th { background:#44546a; color:#fff; text-align:center; }
+  .xl td { border:1px solid #e2e8f0; }
+
+  .tw { overflow-x:auto; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .decide { background:#fff; border:2px solid #f59e0b; border-radius:12px; padding:16px 18px; }
+  .decide h3 { font-size:14px; color:#92400e; margin-bottom:8px; }
+  .decide li { margin:6px 0 6px 18px; line-height:1.65; font-size:12.5px; }
+  .decide .opt { color:#64748b; font-size:11.5px; }
+  .kv { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px 14px; font-size:12.5px; }
+  .kv .k { font-size:11px; color:#94a3b8; }
+
+  @media (max-width: 760px) {
+    .grid { grid-template-columns:repeat(2, 1fr); }
+    .s3, .s4, .s6 { grid-column:span 2; }
+    .two { grid-template-columns:1fr; }
+    .kv { grid-template-columns:repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>배송지 입력 시안 — 1단계 (지점 · 샘플 배송)</h1>
+  <div class="desc">
+    주문서에 <b>배송지</b> 칸을 추가하고, 발주서 배송명단 · 매입처 자체 양식에 자동으로 채웁니다.
+    개별 배송(수령인 다수)은 지금처럼 발주서에서 수기 보완 — 2단계(4페이즈 배송현황)에서 명단 업로드로 처리합니다.
+  </div>
+  <div class="legend">
+    <span class="lg"><span class="dot" style="border-color:#3b82f6;background:#eff6ff"></span>새로 추가되는 부분</span>
+    <span class="lg"><span class="dot" style="border-color:#86c5a4;background:#f3fbf6"></span>자동으로 채워진 값 (수정 가능)</span>
+    <span class="lg"><span class="dot" style="border-color:#cbd5e1;background:#fff"></span>직접 입력</span>
+    <span class="lg"><span class="dot" style="border-color:#e2e8f0;background:#f8fafc"></span>자동 (수정 불가)</span>
+    <span class="lg"><span class="dot" style="border-color:#eab308;background:#fefce8"></span>설명 메모 (실제 화면에는 없음)</span>
+  </div>
+
+  <!-- ─────────────── A. 주문서 입력 ─────────────── -->
+  <h2>A. 신규 주문 — 배송지 카드 (주문 정보와 주문 상품 사이)</h2>
+  <div class="desc">주문처를 고르면 그 주문처로 보냈던 <b>가장 최근 배송지</b>가 자동으로 채워집니다. 두 번째 주문부터는 확인만 하면 됩니다.</div>
+
+  <div class="panel dim">
+    <div class="sec">주문 정보 <small>기존 그대로</small></div>
+    <div class="grid">
+      <div class="f"><label>주문일 *</label><div class="box">2026-11-05</div></div>
+      <div class="f s2"><label>업체 (은행·그룹)</label><div class="box sel">하나은행</div></div>
+      <div class="f s3"><label>지점(부서) — 주문처 *</label><div class="box sel">하나은행 일산지점</div></div>
+      <div class="f s2"><label>담당자(거래처) *</label><div class="box sel">권오병 부장님</div></div>
+      <div class="f"><label>다올직원</label><div class="box auto">김주연</div></div>
+      <div class="f"><label>상담자 *</label><div class="box sel">김주연</div></div>
+      <div class="f"><label>핸드폰</label><div class="box auto">010-2345-6789</div></div>
+    </div>
+  </div>
+
+  <div class="panel new">
+    <div class="sec">배송지 <span class="tag-new">신규</span> <small>지점 · 샘플 배송 품목에 적용 · 개별 배송은 발주서 배송명단에서 수령인별로</small></div>
+
+    <div class="src">
+      <span>지난 주문 <b>25-10-0123</b> (2026-10-21) 배송지를 불러왔습니다</span>
+      <span class="sp"></span>
+      <span class="btn sm">최근 배송지 ▾</span>
+      <span class="btn sm">담당자 정보로 채우기</span>
+      <span class="btn sm">비우기</span>
+    </div>
+
+    <div class="grid">
+      <div class="f s2"><label>수령인</label><div class="box fill">권오병 부장님</div></div>
+      <div class="f s2"><label>수령인 연락처</label><div class="box fill">010-2345-6789</div></div>
+      <div class="f s2"><label>우편번호</label>
+        <div class="row"><div class="box fill">10381</div><span class="btn blue">주소 검색</span></div>
+      </div>
+      <div class="f s4"><label>주소 <span style="color:#94a3b8">(주소 검색으로 입력 — 직접 타이핑 불가)</span></label><div class="box fill">경기 고양시 일산서구 중앙로 1436 (주엽동)</div></div>
+      <div class="f s2"><label>상세주소</label><div class="box fill">하나은행 일산지점 2층 업무팀</div></div>
+    </div>
+    <div class="hint">이 주문만 다른 곳으로 보낼 때는 그대로 고치면 됩니다. 고친 값은 이 주문에만 저장되고, 다음 주문에서는 "최근 배송지"에 함께 뜹니다.</div>
+
+    <div class="note">
+      <span class="num">1</span><b>자동 채움 순서</b>: ① 같은 주문처의 가장 최근 주문 배송지 → ② 없으면 수령인 · 연락처만 거래처 담당자로 채우고 주소는 비움(처음 한 번 검색).
+      주소는 <b>주문에 저장</b>합니다 — 매출처 마스터(총괄 세션 소관)는 건드리지 않습니다.<br>
+      <span class="num">2</span><b>주소 검색</b>: 카카오(다음) 우편번호 서비스 — 무료 · 키 불필요. 도로명주소와 우편번호가 함께 들어가 오타가 없습니다.
+      상세주소(층 · 부서)만 직접 입력.
+    </div>
+  </div>
+
+  <div class="panel dim">
+    <div class="sec">주문 상품 <small>기존 그대로 — 품목 구분(지점 · 개별 · 샘플)에 따라 배송지 적용 여부 결정</small></div>
+  </div>
+
+  <!-- ─────────────── B. 상태별 ─────────────── -->
+  <h2>B. 조작 화면</h2>
+  <div class="two">
+    <div class="panel">
+      <div class="sec">최근 배송지 ▾ 를 눌렀을 때</div>
+      <div class="box sel" style="margin-bottom:0">최근 배송지 — 하나은행 일산지점</div>
+      <div class="dd">
+        <div class="head">이 주문처로 보낸 배송지 (최근순 · 같은 주소는 1번만)</div>
+        <div class="it on">권오병 부장님 · 010-2345-6789
+          <div class="m">경기 고양시 일산서구 중앙로 1436 · 하나은행 일산지점 2층 업무팀 — 10/21 외 3회</div></div>
+        <div class="it">박제현 님 · 010-8765-4321
+          <div class="m">경기 고양시 일산동구 정발산로 24 · 웨스턴돔 3층 행사장 — 9/02</div></div>
+        <div class="it">권오병 부장님 · 010-2345-6789
+          <div class="m">경기 파주시 문산읍 ... (자택) — 8/14</div></div>
+      </div>
+      <div class="hint">고르면 수령인 · 연락처 · 주소가 한꺼번에 바뀝니다.</div>
+    </div>
+
+    <div class="panel">
+      <div class="sec">주소 검색을 눌렀을 때 (카카오 우편번호 창)</div>
+      <div class="modal">
+        <div class="mh"><span>우편번호 검색</span><span>×</span></div>
+        <div class="mb">
+          <div class="box" style="margin-bottom:8px">일산 중앙로 1436</div>
+          <div class="res"><span class="z">10381</span>경기 고양시 일산서구 중앙로 1436
+            <div class="j">지번 경기 고양시 일산서구 주엽동 18-1</div></div>
+          <div class="res"><span class="z">10380</span>경기 고양시 일산서구 중앙로 1430
+            <div class="j">지번 경기 고양시 일산서구 주엽동 17</div></div>
+        </div>
+      </div>
+      <div class="hint">고르면 창이 닫히고 우편번호 · 주소가 채워진 뒤 커서가 상세주소로 이동합니다.</div>
+    </div>
+  </div>
+
+  <div class="two">
+    <div class="panel">
+      <div class="sec">처음 주문하는 주문처 (지난 배송지 없음)</div>
+      <div class="warn" style="margin-bottom:10px">이 주문처로 보낸 기록이 없습니다 — 수령인은 담당자로 채웠습니다. 주소를 검색해주세요.</div>
+      <div class="grid" style="grid-template-columns:repeat(2,1fr)">
+        <div class="f"><label>수령인</label><div class="box fill">권오병 부장님</div></div>
+        <div class="f"><label>수령인 연락처</label><div class="box fill">010-2345-6789</div></div>
+        <div class="f s2"><label>주소</label><div class="row"><div class="box ph">주소 검색을 눌러 입력</div><span class="btn blue">주소 검색</span></div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="sec">개별 배송 품목만 있는 주문</div>
+      <div class="box auto" style="line-height:1.6">
+        이 주문은 <b>개별 배송</b> 품목만 있어 배송지를 받지 않습니다.<br>
+        수령인별 주소는 발주서의 배송명단에 적어주세요. (명단 업로드는 2단계)
+      </div>
+      <div class="hint">지점 · 샘플 품목을 추가하면 배송지 칸이 다시 열립니다. 지점과 개별이 섞인 주문은 배송지를 지점 · 샘플 품목에만 씁니다.</div>
+    </div>
+  </div>
+
+  <!-- ─────────────── C. 주문 상세 ─────────────── -->
+  <h2>C. 주문 상세 — 주문 정보에 배송지 한 줄</h2>
+  <div class="panel">
+    <div class="kv">
+      <div><div class="k">주문처</div>하나은행 일산지점</div>
+      <div><div class="k">담당자(거래처)</div>권오병 부장님</div>
+      <div><div class="k">다올직원</div>김주연</div>
+      <div><div class="k">수금 상태</div>미수금</div>
+      <div style="grid-column:span 4; background:#eff6ff; border-radius:8px; padding:6px 8px">
+        <div class="k">배송지 <span class="tag-new">신규</span></div>
+        권오병 부장님 · 010-2345-6789 · (10381) 경기 고양시 일산서구 중앙로 1436 하나은행 일산지점 2층 업무팀
+      </div>
+    </div>
+    <div class="hint">당일 직접 수정 / 익일 취소 · 재등록 규칙은 그대로 — 배송지를 고치면 변경 이력에 "배송지" 항목으로 남습니다. 재등록 시 배송지도 프리필.</div>
+  </div>
+
+  <!-- ─────────────── D. 발주서 ─────────────── -->
+  <h2>D. 발주서 반영 — 배송명단 시트 (양식은 v3 그대로, 값만 채움)</h2>
+  <div class="desc">지점 · 샘플 품목 행에는 배송지가 자동으로 들어가고, 개별 품목 행은 지금처럼 비워 둡니다(수기). 시트1 '발주서'는 변경 없음.</div>
+  <div class="panel tw">
+    <table class="xl">
+      <tr><th>NO.</th><th>발송인</th><th>발송인 연락처</th><th>수령인</th><th>주소</th><th>연락처</th><th>제품명</th><th>수량</th><th>배송메모</th><th style="background:#64748b">구분(참고)</th></tr>
+      <tr><td>1</td><td>다올커머스</td><td>031-922-4582</td><td class="g">권오병 부장님</td><td class="g" style="text-align:left">(10381) 경기 고양시 일산서구 중앙로 1436 하나은행 일산지점 2층 업무팀</td><td class="g">010-2345-6789</td><td>요아럽 핸드타올 3P</td><td>120</td><td>11/10 오전 도착</td><td><span class="kind k-j">지점</span></td></tr>
+      <tr><td>2</td><td>다올커머스</td><td>031-922-4582</td><td class="g">권오병 부장님</td><td class="g" style="text-align:left">(10381) 경기 고양시 일산서구 중앙로 1436 하나은행 일산지점 2층 업무팀</td><td class="g">010-2345-6789</td><td>골프공 6구 세트</td><td>2</td><td></td><td><span class="kind k-s">샘플</span></td></tr>
+      <tr><td>3</td><td>다올커머스</td><td>031-922-4582</td><td class="e">수기</td><td class="e" style="text-align:left">수령인별 수기</td><td class="e">수기</td><td>명절 선물세트 A</td><td>35</td><td></td><td><span class="kind k-g">개별</span></td></tr>
+    </table>
+    <div class="note"><span class="num">3</span>"구분(참고)" 열은 시안 설명용입니다 — 실제 엑셀에는 넣지 않습니다(v3 양식 유지).</div>
+  </div>
+
+  <h2>E. 매입처 자체 양식 — 대경사과원예농협 송장등록</h2>
+  <div class="panel tw">
+    <table class="xl">
+      <tr><th>보내는사람</th><th>연락처</th><th>받는사람</th><th>연락처</th><th>우편번호</th><th>주소</th><th>상품명</th><th>수량</th><th>주문번호1</th><th>공급가</th><th>배송메세지</th></tr>
+      <tr><td>하나은행 일산지점 권오병 부장</td><td>031-922-4582</td><td class="g">권오병 부장님</td><td class="g">010-2345-6789</td><td class="g">10381</td><td class="g" style="text-align:left">경기 고양시 일산서구 중앙로 1436 하나은행 일산지점 2층 업무팀</td><td>사과 5kg 선물세트</td><td>10</td><td>PO261105-01</td><td>36,000</td><td>11/10 오전 도착</td></tr>
+    </table>
+    <div class="hint">이 양식은 우편번호와 주소가 따로 칸이라 나눠서 채웁니다. 개별 배송이면 지금처럼 비워 두고 수기로 행을 늘립니다.</div>
+  </div>
+
+  <!-- ─────────────── F. 결정 ─────────────── -->
+  <h2>F. 확인 부탁드릴 것</h2>
+  <div class="decide">
+    <h3>시안 확정 전에 정해주세요</h3>
+    <ol>
+      <li><b>배송지 필수 여부</b> — 지점 · 샘플 품목이 있는데 주소가 비어 있으면?
+        <div class="opt">가안: 저장은 허용하고 주문 상세 · 발주서 작성 화면에 "배송지 미입력" 경고만 표시 (주문은 전화로 먼저 받고 주소는 나중에 받는 경우 고려). 필수로 막는 쪽도 가능.</div></li>
+      <li><b>자동 채움 기준</b> — "같은 주문처의 최근 배송지" (가안) vs "같은 담당자의 최근 배송지"
+        <div class="opt">한 지점에 담당자가 여럿이고 각자 다른 곳으로 받는다면 담당자 기준이 맞습니다.</div></li>
+      <li><b>지점 · 개별 혼재 주문</b> — 배송지를 지점 · 샘플 품목에만 쓰는 처리(가안)로 괜찮은지.</li>
+      <li><b>상담일지</b>에도 같은 배송지 칸을 넣어 주문 전환 시 넘어오게 할지 (가안: 1단계는 주문서만, 상담일지는 다음에).</li>
+    </ol>
+  </div>
+  <div class="desc" style="margin-top:10px">구현 범위(확정 시): 마이그레이션 513 (erp_orders에 수령인 · 연락처 · 우편번호 · 주소 · 상세주소 5칸) / 주문서 배송지 카드 · 최근 배송지 API / 주문 상세 표시 · 변경 이력 / 발주서 배송명단 · 자체 양식 자동 채움 / 도움말.</div>
+</div>
+</body>
+</html>

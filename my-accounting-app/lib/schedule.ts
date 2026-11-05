@@ -6,7 +6,7 @@
 //
 // 서버 라우트와 화면이 함께 쓰는 순수 함수만 둔다 (lib/attendance.ts의 날짜 유틸 재사용).
 
-import { addDays, isOffDate, monthRange, type HolidayMap } from '@/lib/attendance'
+import { addDays, isOffDate, monthRange, workDaySegments, type HolidayMap } from '@/lib/attendance'
 
 export type ScheduleKind =
   | 'holiday'        // 공휴일·회사 휴무 (배경)
@@ -36,6 +36,13 @@ export interface ScheduleEvent {
   who?: string | null        // 대상 직원
   amount?: number | null     // 자금 항목 금액
   note?: string | null       // 원래 기한 등 보조 설명
+  workDaysOnly?: boolean     // 기간 중 근무일 칸에만 표시 (휴가 — 주말·공휴일은 휴가가 아니다, 2026-11-04)
+}
+
+/** 기간형 일정을 실제로 그릴 구간들 — workDaysOnly 면 주말·공휴일에서 끊는다 */
+export function eventSegments(ev: ScheduleEvent, holidays?: HolidayMap): [string, string][] {
+  const end = ev.endDate && ev.endDate > ev.date ? ev.endDate : ev.date
+  return ev.workDaysOnly ? workDaySegments(ev.date, end, holidays) : [[ev.date, end]]
 }
 
 // ── 영업일 계산 ────────────────────────────────────────────
@@ -202,13 +209,16 @@ export function birthdays(rows: BirthdayRow[], month: string): ScheduleEvent[] {
 
 // ── 날짜별로 펼치기 (월 캘린더 칸 채우기) ──────────────────
 /** 기간형 일정을 날짜별로 나눠 담는다. 'YYYY-MM-DD' → 그날의 일정 목록 */
-export function spreadByDate(events: ScheduleEvent[], month: string): Record<string, ScheduleEvent[]> {
+export function spreadByDate(
+  events: ScheduleEvent[], month: string, holidays?: HolidayMap,
+): Record<string, ScheduleEvent[]> {
   const [mStart, mEnd] = monthRange(month)
   const map: Record<string, ScheduleEvent[]> = {}
   for (const ev of events) {
-    const end = ev.endDate && ev.endDate > ev.date ? ev.endDate : ev.date
-    for (let d = ev.date < mStart ? mStart : ev.date; d <= end && d <= mEnd; d = addDays(d, 1)) {
-      ;(map[d] ??= []).push(ev)
+    for (const [s, end] of eventSegments(ev, holidays)) {
+      for (let d = s < mStart ? mStart : s; d <= end && d <= mEnd; d = addDays(d, 1)) {
+        ;(map[d] ??= []).push(ev)
+      }
     }
   }
   return map

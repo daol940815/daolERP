@@ -77,6 +77,30 @@ export async function GET(req: NextRequest) {
   }
 
   const showCost = true   // 매입가·마진 전 직원 공개 (2026-08-13 사용자 결정)
+  // 품목 열 (품목 없는 주문은 전부 빈 칸) — 모든 행이 같은 키 순서를 갖게 해 열이 어긋나지 않게 한다.
+  // 주문메모는 항상 마지막 열 (2026-11-05: 품목 없는 주문이 첫 행이면 주문메모가 품번 앞에 오던 문제 수정)
+  const itemColsOf = (it: ItemRow | null): Record<string, unknown> => ({
+    '품번': it?.item_code ?? '',
+    '품명': it?.item_name ?? '',
+    '옵션': it?.parent_line_no ? `${it.parent_line_no}번 행 옵션` : '',
+    '구분': it?.order_kind ?? '',
+    '매입처': it?.purchase_vendor_name ?? '',
+    '판매가': it ? it.sale_price ?? 0 : '',
+    '갯수': it ? it.quantity ?? 0 : '',
+    '배송비': it ? it.shipping_fee ?? 0 : '',
+    '할인금액': it ? it.discount_amount ?? 0 : '',
+    '합계금액': it ? it.line_total ?? 0 : '',
+    ...(showCost ? {
+      '매입가': it ? it.purchase_price ?? 0 : '',
+      '매입배송비': it ? it.purchase_shipping ?? 0 : '',
+      '매입합계': it ? it.purchase_total ?? 0 : '',
+      '마진': it ? (it.line_total ?? 0) - (it.purchase_total ?? 0) : '',
+    } : {}),
+    '취소여부': it?.is_canceled ? '취소' : '',
+    '선결제': it?.is_prepayment ? '선결제' : '',
+    '품목메모': it?.memo ?? '',
+  })
+
   const rows: Record<string, unknown>[] = []
   for (const o of filtered) {
     const items = itemsByOrder.get(o.id) ?? []
@@ -87,47 +111,26 @@ export async function GET(req: NextRequest) {
       '부서(지점)': o.branch_name ?? '',
       '담당자': honorify(o.manager_name as string | null),
       '다올직원': o.staff_name ?? '',
+      // 상담자는 다올직원 바로 옆 — 같은 사람이어도 둘 다 표기 (2026-11-05 사용자 요청, 목록과 동일). 값은 품목 행마다 채움
+      '상담자': '',
       '수금상태': STATUS_LABEL[o.collect_status ?? ''] ?? (o.collect_status ?? ''),
       '출처': (o.source ?? 'upload') === 'direct' ? '직접입력' : '업로드',
       '총금액(주문)': o.total_amount ?? 0,
       '미수금(주문)': o.outstanding_amount ?? 0,
     }
     if (!items.length) {
-      rows.push({ ...orderCols, '주문메모': o.memo ?? '' })
+      rows.push({ ...orderCols, ...itemColsOf(null), '주문메모': o.memo ?? '' })
       continue
     }
     for (const it of items) {
-      rows.push({
-        ...orderCols,
-        '상담자': it.channel ?? '',
-        '품번': it.item_code ?? '',
-        '품명': it.item_name ?? '',
-        '옵션': it.parent_line_no ? `${it.parent_line_no}번 행 옵션` : '',
-        '구분': it.order_kind ?? '',
-        '매입처': it.purchase_vendor_name ?? '',
-        '판매가': it.sale_price ?? 0,
-        '갯수': it.quantity ?? 0,
-        '배송비': it.shipping_fee ?? 0,
-        '할인금액': it.discount_amount ?? 0,
-        '합계금액': it.line_total ?? 0,
-        ...(showCost ? {
-          '매입가': it.purchase_price ?? 0,
-          '매입배송비': it.purchase_shipping ?? 0,
-          '매입합계': it.purchase_total ?? 0,
-          '마진': (it.line_total ?? 0) - (it.purchase_total ?? 0),
-        } : {}),
-        '취소여부': it.is_canceled ? '취소' : '',
-        '선결제': it.is_prepayment ? '선결제' : '',
-        '품목메모': it.memo ?? '',
-        '주문메모': o.memo ?? '',
-      })
+      rows.push({ ...orderCols, '상담자': it.channel ?? '', ...itemColsOf(it), '주문메모': o.memo ?? '' })
     }
   }
 
   const period = [sp.get('from'), sp.get('to')].filter(Boolean).join('~')
   return xlsxResponse(rows, period ? `주문내역_${period}` : '주문내역', [
-    11, 13, 14, 14, 12, 9, 9, 8, 11, 11,       // 주문 공통
-    9, 12, 34, 12, 6, 14, 9, 6, 9, 9, 10,      // 품목
+    11, 13, 14, 14, 12, 9, 9, 9, 8, 11, 11,    // 주문 공통 (다올직원 · 상담자 나란히)
+    12, 34, 12, 6, 14, 9, 6, 9, 9, 10,         // 품목
     ...(showCost ? [9, 9, 10, 10] : []),
     7, 7, 14, 14,
   ])

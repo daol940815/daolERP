@@ -48,6 +48,9 @@ export async function middleware(request: NextRequest) {
   // 레이아웃(AreaShell)이 현재 경로를 알 수 있도록 요청 헤더에 실어 보낸다
   const pathname = request.nextUrl.pathname
   const search = request.nextUrl.search
+
+  // Vercel Cron 호출(아침 09:00 PC 알림) — 로그인 세션이 없다. 라우트가 CRON_SECRET 으로 직접 검사한다. (업무요청 트랙 ⑦)
+  if (pathname === '/api/push/cron') return NextResponse.next()
   request.headers.set('x-pathname', pathname + search)
 
   // 응답 객체를 먼저 생성 (쿠키 설정을 위해 필요)

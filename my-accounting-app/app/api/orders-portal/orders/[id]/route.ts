@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCurrentUser, type CurrentUser } from '@/lib/user-role'
 import {
   validateOrderInput, applyOrderEdit, resolveDisplayNames, loadOrderSnapshot,
-  cancelOrder, canCancelReissue, kstToday, kstDateOf,
+  cancelOrder, canCancelReissue, kstToday, kstDateOf, lineTotal,
 } from '@/lib/orders-portal'
 import { recordWorkLog, orderContent } from '@/lib/work-log'
+import { loadReceivableMap, collectStatusFrom } from '@/lib/orders-portal-list'
+import { can } from '@/lib/permissions'
+import { prepayBalanceOf, prepayUsedOf, vendorOfOrder, prepayReductionBlock } from '@/lib/prepay'
+import { fillCustomerStaffIfEmpty } from '@/lib/customer-staff'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +26,99 @@ function editability(order: OrderRow, me: CurrentUser) {
   const isOwner = !!me.employeeId && order.created_by_employee_id === me.employeeId
   const isToday = kstDateOf(String(order.created_at)) === kstToday()
   return { canEdit: isOwner && isToday }
+}
+
+// 결제 내역 (2026-11-04 사용자 확정 — 1단계 표기만): 수금 매칭·계산서 연결을
+// 읽기 전용으로 모아 내려준다. 주문 상세는 표기만 하고 회계 화면 링크·조작은 없다.
+// 연결 자체는 회계·수금 쪽(erp_payment_matches·erp_order_invoices·tax_invoice_payments)이 원천.
+async function loadPayments(admin: SupabaseClient, orderId: string) {
+  const empty = { matches: [] as unknown[], invoices: [] as unknown[] }
+  const { data: matchRows, error: mErr } = await admin.from('erp_payment_matches')
+    .select('id, source_type, source_id, amount, paid_date, matched_by, memo')
+    .eq('order_id', orderId).order('paid_date')
+  if (mErr) return empty   // 미적용·권한 등 — 섹션만 비워 보낸다
+  const matches = matchRows ?? []
+
+  // 출처 요약 — "카드매출 1,000,000원 중 300,000원 분배" 표시용
+  const ids = (t: string) => matches.filter(m => m.source_type === t).map(m => m.source_id as string)
+  const srcInfo = new Map<string, { label: string; total: number }>()
+  const bankIds = ids('bank'), cardIds = ids('card'), cashIds = ids('cash')
+  for (const m of matches.filter(x => x.source_type === 'prepay')) {
+    srcInfo.set(m.source_id as string, { label: '선결제 잔액에서 사용', total: Number(m.amount ?? 0) })
+  }
+  if (bankIds.length) {
+    const { data } = await admin.from('transactions')
+      .select('id, counterparty_name, description, amount_in').in('id', bankIds)
+    for (const t of data ?? []) {
+      const who = String(t.counterparty_name || t.description || '').slice(0, 20)
+      srcInfo.set(t.id as string, { label: who ? `통장 입금 (${who})` : '통장 입금', total: Number(t.amount_in ?? 0) })
+    }
+  }
+  if (cardIds.length) {
+    // 원거래 금액은 회계 쪽 매칭(lib/erp-order-collect.ts)과 같은 순액 = 승인 − 같은 승인번호의 취소
+    const { data } = await admin.from('card_sales')
+      .select('id, acquirer, card_number, amount, approval_number').in('id', cardIds)
+    const nos = (data ?? []).map(c => c.approval_number as string).filter(Boolean)
+    const cancel = new Map<string, number>()
+    if (nos.length) {
+      const { data: cs } = await admin.from('card_sales').select('approval_number, amount')
+        .eq('transaction_type', 'cancel').in('approval_number', nos)
+      for (const x of cs ?? []) {
+        cancel.set(x.approval_number as string, (cancel.get(x.approval_number as string) ?? 0) + Math.abs(Number(x.amount ?? 0)))
+      }
+    }
+    for (const c of data ?? []) {
+      const tail = c.card_number ? String(c.card_number).replace(/\D/g, '').slice(-4) : ''
+      const desc = [c.acquirer, tail && `끝 ${tail}`].filter(Boolean).join(' · ')
+      srcInfo.set(c.id as string, {
+        label: `카드 결제${desc ? ` (${desc})` : ''}`,
+        total: Math.abs(Number(c.amount ?? 0)) - (cancel.get(c.approval_number as string) ?? 0),
+      })
+    }
+  }
+  if (cashIds.length) {
+    const { data } = await admin.from('cash_receipts').select('id, amount').in('id', cashIds)
+    for (const c of data ?? []) srcInfo.set(c.id as string, { label: '현금영수증', total: Number(c.amount ?? 0) })
+  }
+
+  // 계산서 연결 + 그 계산서의 통장 입금 상태 (tax_invoice_payments)
+  const { data: invLinks } = await admin.from('erp_order_invoices')
+    .select('id, tax_invoice_id, amount, issue_date')
+    .eq('order_id', orderId).order('issue_date')
+  const links = invLinks ?? []
+  const invIds = Array.from(new Set(links.map(l => l.tax_invoice_id as string)))
+  const invTotal = new Map<string, number>()
+  const invPaid = new Map<string, { sum: number; last: string | null }>()
+  if (invIds.length) {
+    const [invRes, payRes] = await Promise.all([
+      admin.from('tax_invoices').select('id, total_amount').in('id', invIds),
+      admin.from('tax_invoice_payments')
+        .select('tax_invoice_id, amount, transaction:transactions(tx_date)').in('tax_invoice_id', invIds),
+    ])
+    for (const v of invRes.data ?? []) invTotal.set(v.id as string, Number(v.total_amount ?? 0))
+    for (const p of payRes.data ?? []) {
+      const key = p.tax_invoice_id as string
+      const cur = invPaid.get(key) ?? { sum: 0, last: null }
+      cur.sum += Number(p.amount ?? 0)
+      const d = (p.transaction as unknown as { tx_date: string } | null)?.tx_date ?? null
+      if (d && (!cur.last || d > cur.last)) cur.last = d
+      invPaid.set(key, cur)
+    }
+  }
+
+  return {
+    matches: matches.map(m => ({
+      id: m.id, source_type: m.source_type, amount: m.amount, paid_date: m.paid_date,
+      matched_by: m.matched_by, memo: m.memo,
+      source: srcInfo.get(m.source_id as string) ?? null,
+    })),
+    invoices: links.map(l => ({
+      id: l.id, amount: l.amount, issue_date: l.issue_date,
+      invoice_total: invTotal.get(l.tax_invoice_id as string) ?? null,
+      paid_sum: invPaid.get(l.tax_invoice_id as string)?.sum ?? 0,
+      paid_last_date: invPaid.get(l.tax_invoice_id as string)?.last ?? null,
+    })),
+  }
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -50,10 +148,61 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     .eq('order_id', params.id)
     .order('created_at', { ascending: false })
 
+  // 비용 품목(품목 마스터 '비용 품목' 체크) 표시 — 배송지 판정에서 제외 (2026-11-05)
+  const pids = Array.from(new Set((snap.items as Record<string, unknown>[]).map(it => it.product_id).filter(Boolean))) as string[]
+  const costIds = new Set<string>()
+  if (pids.length) {
+    const { data, error } = await admin.from('erp_products').select('id, is_shipping').in('id', pids)
+    if (!error) for (const p of data ?? []) if (p.is_shipping) costIds.add(p.id as string)
+  }
+  const items = (snap.items as Record<string, unknown>[]).map(it => ({ ...it, is_cost: costIds.has(it.product_id as string) }))
+
+  // 상담일지 주문 진행 요청으로 전환된 주문이면 "요청자 → 입력자" 안내 (705)
+  let consultRequest: { requested_by_name: string | null; assignee_name: string | null } | null = null
+  if (snap.order.consultation_id) {
+    const { data: cr, error: crErr } = await admin.from('erp_consultations')
+      .select('order_assignee_id, order_requested_by').eq('id', snap.order.consultation_id as string).maybeSingle()
+    if (!crErr && cr?.order_assignee_id) {
+      const ids = [cr.order_assignee_id, cr.order_requested_by].filter(Boolean) as string[]
+      const { data: emps } = await admin.from('employees').select('id, name').in('id', ids)
+      const nm = new Map((emps ?? []).map(e => [e.id as string, e.name as string]))
+      consultRequest = {
+        requested_by_name: cr.order_requested_by ? nm.get(cr.order_requested_by as string) ?? null : null,
+        assignee_name: nm.get(cr.order_assignee_id as string) ?? null,
+      }
+    }
+  }
+
   const edit = editability(snap.order, me)
+  const prepayVendor = await vendorOfOrder(admin, snap.order)
+  const [payments, recvMap, prepayBal] = await Promise.all([
+    loadPayments(admin, params.id),
+    loadReceivableMap(admin, [params.id]),
+    prepayBalanceOf(admin, prepayVendor, (snap.order.customer_alias_id as string | null) ?? null),
+  ])
+  // 표준 미수(매칭 반영) — erp_orders.outstanding_amount는 매칭 전 원본값이라 표시에 쓰지 않는다
+  const recv = recvMap?.get(params.id)
+  const receivable = snap.order.canceled_at
+    ? { net_sales: 0, collected: 0, outstanding: 0, collect_status: String(snap.order.collect_status ?? '') }
+    : recv
+      ? {
+          net_sales: recv.net_sales,
+          collected: Math.max(0, recv.net_sales - recv.outstanding),
+          outstanding: recv.outstanding,
+          collect_status: collectStatusFrom(snap.order.collect_status as string | null, recv),
+        }
+      : null
   return NextResponse.json({
     order: snap.order,
-    items: snap.items,
+    items,
+    payments,
+    receivable,
+    consult_request: consultRequest,
+    // 선결제 사용 (514): 잔액 · 사용 가능 여부 (주문 수정 권한 + direct + 미취소)
+    prepay: {
+      balance: prepayBal.balance, deposit: prepayBal.deposit, deduction: prepayBal.deduction,
+      can_use: can(me, 'orders', 'edit') && snap.order.source === 'direct' && !snap.order.canceled_at,
+    },
     change_requests: requests ?? [],
     edit_logs: logs ?? [],
     can_edit: edit.canEdit,
@@ -94,11 +243,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const names = await resolveDisplayNames(admin, parsed.input)
   if (names.error) return NextResponse.json({ error: names.error }, { status: 400 })
 
+  // 선결제 품목 금액을 줄이거나 빼서 잔액이 마이너스가 되면 차단 (주문처를 바꾸면 원래 거래처 기준)
+  const newPrepay = parsed.input.items.filter(it => it.item_name === '선결제').reduce((s, it) => s + lineTotal(it), 0)
+  const prepayBlock = await prepayReductionBlock(admin, params.id, newPrepay, parsed.input.vendor_id)
+  if (prepayBlock) return NextResponse.json({ error: prepayBlock }, { status: 409 })
+
   const result = await applyOrderEdit(admin, params.id, parsed.input, {
     managerName: names.managerName,
     counselorName: names.counselorName,
   }, { employeeId: me.employeeId, employeeName: me.employeeName })
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
+  // 고객 다올 담당이 비어 있으면 상담자로 자동 저장 (112 — 빈 경우만)
+  await fillCustomerStaffIfEmpty(admin, parsed.input.vendor_id, parsed.input.contact_id, parsed.input.counselor_employee_id)
 
   await recordWorkLog(admin, {
     employeeId: me.employeeId,
@@ -111,7 +267,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     refType: 'order',
     refId: params.id,
   })
-  return NextResponse.json({ ok: true, warning: result.warning })
+  // 선결제 사용분이 수정 후 주문 금액(순매출)보다 크면 경고 — 사용분은 그대로 유지
+  let warning = result.warning
+  const used = await prepayUsedOf(admin, params.id)
+  if (used > 0) {
+    const net = (await loadReceivableMap(admin, [params.id]))?.get(params.id)?.net_sales ?? 0
+    if (used > net) {
+      warning = [warning, `선결제 사용(${used.toLocaleString('ko-KR')}원)이 주문 금액(${net.toLocaleString('ko-KR')}원)보다 큽니다 — 결제 내역에서 해제 후 다시 사용하세요.`]
+        .filter(Boolean).join(' / ')
+    }
+  }
+  return NextResponse.json({ ok: true, warning })
 }
 
 // 주문 취소 (삭제 대체) — 물리 삭제 없이 취소 처리, 원본·이력 보존
@@ -131,6 +297,23 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   if (!canCancelReissue(snap.order, me)) {
     return NextResponse.json({ error: '본인이 입력한 주문만 취소할 수 있습니다. (관리자 제외)' }, { status: 403 })
   }
+
+  // 수금 매칭·계산서 연결이 있으면 결제가 취소 주문에 묶인다 — 취소·재등록(연결 승계)으로 안내
+  const [{ count: matchCnt }, { count: invCnt }] = await Promise.all([
+    admin.from('erp_payment_matches').select('id', { count: 'exact', head: true }).eq('order_id', params.id),
+    admin.from('erp_order_invoices').select('id', { count: 'exact', head: true }).eq('order_id', params.id),
+  ])
+  if ((matchCnt ?? 0) > 0 || (invCnt ?? 0) > 0) {
+    return NextResponse.json({
+      error: '수금 매칭(선결제 사용 포함) 또는 계산서가 연결된 주문은 단순 취소할 수 없습니다. '
+        + '내용을 바꾸려면 취소·재등록(연결이 새 주문으로 넘어감)을, 주문 자체를 없애려면 선결제 사용은 결제 내역에서 해제하고 '
+        + '통장·카드 매칭·계산서 연결은 회계·재무 담당자에게 해제를 먼저 요청해주세요.',
+    }, { status: 409 })
+  }
+
+  // 받은 선결제가 이미 다른 주문에서 쓰였으면 취소 차단 (잔액 마이너스 방지)
+  const prepayBlock = await prepayReductionBlock(admin, params.id, 0)
+  if (prepayBlock) return NextResponse.json({ error: prepayBlock }, { status: 409 })
 
   const reason = new URL(req.url).searchParams.get('reason')
   const err = await cancelOrder(admin, params.id, {

@@ -93,6 +93,11 @@ export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams
   const filter = sp.get('filter') ?? 'active'
   const q = (sp.get('q') ?? '').trim().toLowerCase()
+  // 구분 검색 조건 (2026-11-03): cond=vendor:요아럽 형식 반복 — 화면 조건 칩과 동일 AND
+  const conds = sp.getAll('cond').map(raw => {
+    const i = raw.indexOf(':')
+    return i > 0 ? { field: raw.slice(0, i), value: raw.slice(i + 1).trim().toLowerCase() } : null
+  }).filter((c): c is { field: string; value: string } => !!c && !!c.value)
 
   const BASE = 'item_code, item_name, option_name, purchase_vendor_name, purchase_alias_id, category, sale_price, individual_sale_price, purchase_price, carton_unit, carton_shipping_fee, loose_shipping_fee, is_addon, is_active, memo'
   const V509 = `${BASE}, is_soldout`
@@ -108,14 +113,24 @@ export async function GET(req: NextRequest) {
   if ('error' in result) result = await load(BASE)
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
 
-  // 화면과 동일한 필터 (page.tsx의 filtered 로직과 맞출 것)
+  // 화면과 동일한 필터 (page.tsx의 filtered·condMatch 로직과 맞출 것)
+  const condMatch = (p: P, field: string, v: string) => {
+    const has = (x?: string | null) => (x ?? '').toLowerCase().includes(v)
+    switch (field) {
+      case 'code': return has(p.item_code)
+      case 'name': return has(p.item_name)
+      case 'vendor': return has(p.purchase_vendor_name)
+      case 'category': return has(p.category)
+      default: return [p.item_code, p.item_name, p.purchase_vendor_name, p.category].some(has)
+    }
+  }
   const rows = result.data.filter(p => {
     if (filter === 'active' && !p.is_active) return false
     if (filter === 'inactive' && p.is_active) return false
     if (filter === 'addon' && !p.is_addon) return false
+    if (!conds.every(c => condMatch(p, c.field, c.value))) return false
     if (!q) return true
-    return [p.item_code, p.item_name, p.purchase_vendor_name, p.category]
-      .some(v => (v ?? '').toLowerCase().includes(q))
+    return condMatch(p, 'all', q)   // 구형 q 파라미터 호환 (통합 검색)
   })
   if (!rows.length) return NextResponse.json({ error: '조건에 맞는 품목이 없습니다.' }, { status: 404 })
 

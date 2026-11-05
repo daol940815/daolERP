@@ -40,7 +40,24 @@ export async function GET(req: NextRequest) {
 
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
 
-  return NextResponse.json({ data: result.data })
+  // 주문 매칭(erp_payment_matches, source_type card) 건수·금액 첨부 — 승인 행 기준 (2026-11-04)
+  const rows = result.data
+  const ids = rows.filter(r => r.transaction_type === 'approval').map(r => r.id as string)
+  const matchCount = new Map<string, number>()
+  const matchAmount = new Map<string, number>()
+  for (let i = 0; i < ids.length; i += 150) {
+    const { data } = await admin.from('erp_payment_matches').select('source_id, amount').eq('source_type', 'card').in('source_id', ids.slice(i, i + 150))
+    for (const m of data ?? []) {
+      matchCount.set(m.source_id as string, (matchCount.get(m.source_id as string) ?? 0) + 1)
+      matchAmount.set(m.source_id as string, (matchAmount.get(m.source_id as string) ?? 0) + (m.amount as number))
+    }
+  }
+  for (const r of rows) {
+    r.order_match_count = matchCount.get(r.id as string) ?? 0
+    r.order_match_amount = matchAmount.get(r.id as string) ?? 0
+  }
+
+  return NextResponse.json({ data: rows })
 }
 
 // DELETE /api/card-sales — body: { ids: string[] }

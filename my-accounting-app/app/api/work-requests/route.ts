@@ -1,32 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
-import { OPEN_STATUSES, DUE_TRACKED, type WrRow } from '@/lib/work-requests'
-import { ROW_SELECT, normalize, isMissing, MIGRATION_HINT, type RawRow } from '@/lib/work-requests-server'
+import { isManagerLike } from '@/lib/permissions'
+import { monthRange } from '@/lib/attendance'
+import { OPEN_STATUSES, DUE_TRACKED, ASG_ACTIVE, ASG_TRACKED, myShare, isAssigneeOf, fmtDue, type WrRow, type WrScope, type WrMode } from '@/lib/work-requests'
+import { selectRows, canSeePrivate, normalize, hintFor, type RawRow } from '@/lib/work-requests-server'
+import { broadcastWrChanged } from '@/lib/realtime-broadcast'
+import { sendPush } from '@/lib/push-server'
 
 export const dynamic = 'force-dynamic'
 
-// 업무 요청 (900) — 내 업무 그룹(전원). 본인이 요청자 또는 담당자인 건만 다룬다.
-//  GET  ?box=inbox|outbox[&closed=1]  — 받은/보낸 요청 목록 (+요약 건수)
-//  GET  ?summary=1                     — 사이드바 배지·대시보드 카드용 건수만
-//  POST { assignee_id, title, content?, link?, due_at, is_urgent? } — 새 요청 (요청자 = 나)
+// 업무 요청 (900·901·902) — 내 업무 그룹(전원).
+//  GET  ?scope=all|inbox|outbox[&closed=1][&month=YYYY-MM][&employee=<id>]  — 목록 (+내 요약 건수)
+//       all   : 공용 목록(2026-11-02) — 지금 열린 건 전부 + 선택한 달(기본 이달)에 생성된 닫힌 건. 비공개는 당사자·승인권자만.
+//       inbox : 내 몫(담당자 행)이 있는 건 — 선착에서 해제된 건은 제외 / outbox : 내가 요청자 (closed=1 이면 최근 90일 닫힌 건 포함)
+//       employee=<id> : 그 직원이 요청자 또는 담당자인 건만 (경영 현황 드릴다운)
+//       box=  (옛 파라미터) 도 scope 로 받는다.
+//  GET  ?summary=1                     — 사이드바 배지·대시보드 카드용 건수만 (내 몫 기준)
+//  POST { assignee_ids[], assign_mode?: first|all, title, content?, link?, due_at, is_urgent?, is_private? } — 새 요청 (요청자 = 나)
+//       assignee_id(단수) 도 받는다. 담당자 2명 이상이면 assign_mode 필수.
 
-function summarize(inbox: WrRow[], outbox: WrRow[], now = new Date()) {
+function summarize(inbox: WrRow[], outbox: WrRow[], meId: string, now = new Date()) {
   const todayKst = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(now)
   const dayOf = (iso: string) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date(iso))
-  const tracked = inbox.filter(r => DUE_TRACKED.includes(r.status))
+  const open = inbox.filter(r => OPEN_STATUSES.includes(r.status))
+  const mine = (r: WrRow) => myShare(r, meId)!
+  const tracked = open.filter(r => ASG_TRACKED.includes(mine(r).status))
   return {
-    inbox_unread: inbox.filter(r => r.status === 'requested').length,
-    inbox_active: inbox.filter(r => r.status === 'accepted' || r.status === 'in_progress').length,
+    inbox_unread: open.filter(r => mine(r).status === 'invited').length,
+    inbox_active: open.filter(r => mine(r).status === 'accepted' || mine(r).status === 'in_progress').length,
     inbox_due_today: tracked.filter(r => dayOf(r.due_at) === todayKst && new Date(r.due_at) >= now).length,
     inbox_overdue: tracked.filter(r => new Date(r.due_at) < now).length,
-    inbox_reported: inbox.filter(r => r.status === 'done_reported').length,
+    inbox_reported: open.filter(r => mine(r).status === 'done_reported').length,
     outbox_open: outbox.filter(r => OPEN_STATUSES.includes(r.status)).length,
     outbox_awaiting: outbox.filter(r => r.status === 'done_reported').length,
     outbox_rejected: outbox.filter(r => r.status === 'rejected').length,
     outbox_overdue: outbox.filter(r => DUE_TRACKED.includes(r.status) && new Date(r.due_at) < now).length,
   }
 }
+
+const kstMonth = (d = new Date()) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(d).slice(0, 7)
 
 export async function GET(req: NextRequest) {
   const me = await getCurrentUser()
@@ -35,52 +48,96 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams
   const empId = me.employeeId
   if (!empId) return NextResponse.json({ linked: false, rows: [], summary: null, me: null })
+  const approver = isManagerLike(me)
 
-  // 요약(배지)·목록 모두 열린 건은 전부, 닫힌 건은 요청 시에만 (최근 90일)
   const closedWanted = sp.get('closed') === '1'
   const since = new Date(Date.now() - 90 * 86400_000).toISOString()
-  const base = () => admin.from('work_requests').select(ROW_SELECT).order('is_urgent', { ascending: false }).order('due_at', { ascending: true }).limit(1000)
-  const [inRes, outRes] = await Promise.all([
-    closedWanted
-      ? base().eq('assignee_id', empId).or(`status.in.(${OPEN_STATUSES.join(',')}),created_at.gte.${since}`)
-      : base().eq('assignee_id', empId).in('status', OPEN_STATUSES),
-    closedWanted
-      ? base().eq('requester_id', empId).or(`status.in.(${OPEN_STATUSES.join(',')}),created_at.gte.${since}`)
-      : base().eq('requester_id', empId).in('status', [...OPEN_STATUSES, 'rejected']),
-  ])
-  const err = inRes.error ?? outRes.error
-  if (err) return NextResponse.json({ error: isMissing(err.message) ? MIGRATION_HINT : err.message }, { status: 500 })
-  const inbox = ((inRes.data ?? []) as unknown as RawRow[]).map(normalize)
-  const outbox = ((outRes.data ?? []) as unknown as RawRow[]).map(normalize)
-  const summary = summarize(inbox.filter(r => OPEN_STATUSES.includes(r.status)), outbox.filter(r => OPEN_STATUSES.includes(r.status) || r.status === 'rejected'))
-
+  const base = (select: string) => admin.from('work_requests').select(select).order('created_at', { ascending: false }).limit(1000)  // 생성일시 내림차순(최근 요청이 위) — 2026-11-03 사용자 결정
+  // 최근 90일 생성분 + 지금 열린 건 전부(회사 전체) — 여기서 내가 받은/보낸 것을 가른다 (담당자 행이 요청에 묻어오므로 1회 조회)
+  const recent = await selectRows<RawRow[]>(sel => base(sel).or(`status.in.(${OPEN_STATUSES.join(',')}),created_at.gte.${since}`))
+  if (recent.error) return NextResponse.json({ error: hintFor(recent.error.message) }, { status: 500 })
+  const all90 = (recent.data ?? []).map(normalize)
+  // 내가 받은: 내 담당자 행이 있고 해제되지 않은 건. 기본은 내 몫이 살아 있는 것만, closed=1 이면 반려·완료된 것도.
+  const inboxAll = all90.filter(r => { const m = myShare(r, empId); return !!m && m.status !== 'released' })
+  const inbox = inboxAll.filter(r => closedWanted ? true : (OPEN_STATUSES.includes(r.status) && ASG_ACTIVE.includes(myShare(r, empId)!.status)))
+  const outboxAll = all90.filter(r => r.requester?.id === empId)
+  const outbox = outboxAll.filter(r => closedWanted ? true : (OPEN_STATUSES.includes(r.status) || r.status === 'rejected'))
+  const summary = summarize(inboxAll, outboxAll.filter(r => OPEN_STATUSES.includes(r.status) || r.status === 'rejected'), empId)
   if (sp.get('summary') === '1') return NextResponse.json({ linked: true, summary })
-  const box = sp.get('box') === 'outbox' ? 'outbox' : 'inbox'
-  return NextResponse.json({ linked: true, me: { id: empId, name: me.employeeName }, box, rows: box === 'inbox' ? inbox : outbox, summary })
+
+  const scopeRaw = sp.get('scope') ?? sp.get('box') ?? 'inbox'
+  const scope: WrScope = scopeRaw === 'all' || scopeRaw === 'outbox' ? scopeRaw : 'inbox'
+  const month = /^\d{4}-\d{2}$/.test(sp.get('month') ?? '') ? sp.get('month')! : kstMonth()
+  const employee = sp.get('employee') || null
+  const meInfo = { id: empId, name: me.employeeName, approver }
+  const related = (r: WrRow, id: string) => r.requester?.id === id || isAssigneeOf(r, id)
+
+  if (scope !== 'all') {
+    let rows = scope === 'inbox' ? inbox : outbox
+    if (employee) rows = rows.filter(r => related(r, employee))
+    return NextResponse.json({ linked: true, me: meInfo, scope, box: scope, month, rows, summary })
+  }
+
+  // 공용 목록: 열린 건 전부 + 선택한 달에 생성된 건(닫힌 건 포함). 비공개는 볼 수 있는 사람에게만.
+  const [from, to] = monthRange(month)
+  const fromIso = new Date(`${from}T00:00:00+09:00`).toISOString(), toIso = new Date(`${to}T23:59:59+09:00`).toISOString()
+  const allRes = await selectRows<RawRow[]>(sel =>
+    base(sel).or(`status.in.(${OPEN_STATUSES.join(',')}),and(created_at.gte.${fromIso},created_at.lte.${toIso})`))
+  if (allRes.error) return NextResponse.json({ error: hintFor(allRes.error.message) }, { status: 500 })
+  const everything = (allRes.data ?? []).map(normalize)
+  let rows = everything.filter(r => canSeePrivate(r, empId, approver))
+  const hiddenPrivate = everything.length - rows.length
+  if (employee) rows = rows.filter(r => related(r, employee))
+  return NextResponse.json({ linked: true, me: meInfo, scope, box: scope, month, rows, summary, hiddenPrivate })
 }
 
 export async function POST(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   if (!me.employeeId) return NextResponse.json({ error: '직원 정보와 연결되지 않은 계정은 요청할 수 없습니다.' }, { status: 400 })
-  const body = await req.json().catch(() => ({})) as { assignee_id?: string; title?: string; content?: string; link?: string; due_at?: string; is_urgent?: boolean }
+  const body = await req.json().catch(() => ({})) as {
+    assignee_id?: string; assignee_ids?: string[]; assign_mode?: string
+    title?: string; content?: string; link?: string; due_at?: string; is_urgent?: boolean; is_private?: boolean
+  }
   const title = (body.title ?? '').trim()
-  if (!body.assignee_id) return NextResponse.json({ error: '담당자를 선택하세요.' }, { status: 400 })
+  const ids = Array.from(new Set([...(Array.isArray(body.assignee_ids) ? body.assignee_ids : []), ...(body.assignee_id ? [body.assignee_id] : [])].filter(x => typeof x === 'string' && x)))
+  if (!ids.length) return NextResponse.json({ error: '담당자를 선택하세요.' }, { status: 400 })
+  if (ids.length > 50) return NextResponse.json({ error: '담당자는 50명까지 지정할 수 있습니다.' }, { status: 400 })
+  let mode: WrMode = 'single'
+  if (ids.length > 1) {
+    if (body.assign_mode !== 'first' && body.assign_mode !== 'all') return NextResponse.json({ error: '담당자가 2명 이상이면 진행 방식(선착 · 공동)을 선택하세요.' }, { status: 400 })
+    mode = body.assign_mode
+  }
   if (!title) return NextResponse.json({ error: '제목을 입력하세요.' }, { status: 400 })
   const due = body.due_at ? new Date(body.due_at) : null
   if (!due || Number.isNaN(due.getTime())) return NextResponse.json({ error: '마감 일시를 입력하세요.' }, { status: 400 })
 
   const admin = createAdminClient()
-  const { data: asg, error: aErr } = await admin.from('employees').select('id, name, is_active').eq('id', body.assignee_id).maybeSingle()
+  const { data: emps, error: aErr } = await admin.from('employees').select('id, name, is_active').in('id', ids)
   if (aErr) return NextResponse.json({ error: aErr.message }, { status: 500 })
-  if (!asg || !asg.is_active) return NextResponse.json({ error: '담당자를 찾을 수 없거나 비활성 직원입니다.' }, { status: 400 })
+  const active = (emps ?? []).filter(e => e.is_active)
+  if (active.length !== ids.length) return NextResponse.json({ error: '담당자 중 찾을 수 없거나 비활성인 직원이 있습니다.' }, { status: 400 })
 
-  const { data: created, error } = await admin.from('work_requests').insert({
-    requester_id: me.employeeId, assignee_id: body.assignee_id, title,
+  const row: Record<string, unknown> = {
+    requester_id: me.employeeId, assignee_id: ids.length === 1 ? ids[0] : null, assign_mode: mode, title,
     content: (body.content ?? '').trim() || null, link: (body.link ?? '').trim() || null,
-    due_at: due.toISOString(), is_urgent: !!body.is_urgent,
-  }).select('id').single()
-  if (error) return NextResponse.json({ error: isMissing(error.message) ? MIGRATION_HINT : error.message }, { status: 500 })
-  await admin.from('work_request_events').insert({ request_id: created.id, actor_id: me.employeeId, event: 'created', memo: null })
-  return NextResponse.json({ ok: true, id: created.id })
+    due_at: due.toISOString(), is_urgent: !!body.is_urgent, is_private: !!body.is_private,
+  }
+  const r = await admin.from('work_requests').insert(row).select('id').single()
+  if (r.error) return NextResponse.json({ error: hintFor(r.error.message) }, { status: 500 })
+  const { error: asgErr } = await admin.from('work_request_assignees').insert(ids.map(id => ({ request_id: r.data.id, employee_id: id, status: 'invited' })))
+  if (asgErr) {
+    await admin.from('work_requests').delete().eq('id', r.data.id)   // 담당자 행이 없으면 요청도 남기지 않는다
+    return NextResponse.json({ error: hintFor(asgErr.message) }, { status: 500 })
+  }
+  await admin.from('work_request_events').insert({
+    request_id: r.data.id, actor_id: me.employeeId, event: 'created',
+    memo: ids.length > 1 ? `담당자 ${ids.length}명 · ${mode === 'first' ? '선착' : '공동'} 방식` : null,
+  })
+  await broadcastWrChanged(r.data.id, [me.employeeId, ...ids])
+  // PC 알림(⑦) — 담당자(본인 제외)에게 "새 업무 요청". 비공개는 제목 없이.
+  await sendPush(admin, ids.filter(id => id !== me.employeeId), body.is_private
+    ? { kind: 'wr_new', title: '비공개 업무 요청 1건', body: `마감 ${fmtDue(due.toISOString())} · 상세는 ERP에서 확인`, url: `/me/requests/${r.data.id}`, tag: `wr:${r.data.id}` }
+    : { kind: 'wr_new', title: `새 업무 요청 — ${me.employeeName ?? '요청자'}`, body: `${title} · 마감 ${fmtDue(due.toISOString())}${body.is_urgent ? ' · 긴급' : ''}${mode === 'first' ? ' · 선착' : mode === 'all' ? ' · 공동' : ''}`, url: `/me/requests/${r.data.id}`, tag: `wr:${r.data.id}` })
+  return NextResponse.json({ ok: true, id: r.data.id })
 }

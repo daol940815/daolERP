@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { contactLabel } from '@/lib/contact-label'
+import { hasShip, shipText, type ShipInput } from './ship-address'
 
 // 주문 포털 공용 로직 (2단계 — 직접 입력 주문)
 //  - 입력 payload 검증·금액 계산은 서버에서 다시 한다 (클라이언트 계산값 불신)
@@ -42,8 +43,12 @@ export interface OrderInput {
   supervisor?: string | null
   supervisor_contact?: string | null
   memo?: string | null
+  ship?: ShipInput                    // 배송지 (513 — 지점·샘플 배송용, 선택 항목)
   items: OrderItemInput[]
 }
+
+// 배송지 타입·표시 함수는 화면과 공용 — lib/ship-address.ts
+export { SHIP_KEYS, SHIP_KINDS, hasShip, shipText, type ShipInput } from './ship-address'
 
 const toInt = (v: unknown): number => {
   const n = Number(v)
@@ -98,6 +103,14 @@ export function validateOrderInput(raw: unknown): { input: OrderInput } | { erro
       supervisor: String(b.supervisor ?? '').trim() || null,
       supervisor_contact: String(b.supervisor_contact ?? '').trim() || null,
       memo: String(b.memo ?? '').trim() || null,
+      ship: (() => {
+        const sh = (b.ship ?? {}) as Record<string, unknown>
+        const t = (v: unknown) => String(v ?? '').trim() || null
+        return {
+          ship_name: t(sh.ship_name), ship_phone: t(sh.ship_phone), ship_zip: t(sh.ship_zip),
+          ship_addr1: t(sh.ship_addr1), ship_addr2: t(sh.ship_addr2),
+        }
+      })(),
       items,
     },
   }
@@ -232,6 +245,10 @@ export function buildOrderRows(input: OrderInput, ctx: ApplyContext) {
     memo: input.memo,
     total_amount: total,
   }
+  // 배송지는 별도로 돌려준다 — 513 미적용 DB에서도 배송지 없이 저장되도록 호출 측이 조건부로 펼친다
+  const shipFields: ShipInput = input.ship ?? {
+    ship_name: null, ship_phone: null, ship_zip: null, ship_addr1: null, ship_addr2: null,
+  }
   const itemRows = input.items.map((it, i) => ({
     line_no: i + 1,
     // 본 상품 행 번호 — 자기 자신·범위 밖 참조는 무시
@@ -260,7 +277,7 @@ export function buildOrderRows(input: OrderInput, ctx: ApplyContext) {
     channel: ctx.counselorName,
     memo: it.memo ?? null,
   }))
-  return { orderFields, itemRows, total }
+  return { orderFields, shipFields, itemRows, total }
 }
 
 // 품목의 매입처 별칭 연결 후 품목 행 삽입
@@ -354,7 +371,7 @@ const itemBrief = (r: AnyRow) =>
 // 헤더 필드 변경 로그 계산
 function headerDiffs(
   before: AnyRow,
-  after: { orderFields: AnyRow; bankName: string; branchName: string | null },
+  after: { orderFields: AnyRow; bankName: string; branchName: string | null; ship?: ShipInput | null },
 ): { field: string; before?: string | null; after?: string | null }[] {
   const customerOf = (b: unknown, br: unknown) => [b, br].filter(Boolean).join(' ')
   const pairs: [string, unknown, unknown][] = [
@@ -364,6 +381,7 @@ function headerDiffs(
     ['연락처', before.contact, after.orderFields.contact],
     ['핸드폰', before.phone, after.orderFields.phone],
     ['메모', before.memo, after.orderFields.memo],
+    ...(after.ship ? [['배송지', shipText(before), shipText(after.ship)] as [string, unknown, unknown]] : []),
   ]
   return pairs
     .filter(([, b, a]) => String(b ?? '') !== String(a ?? ''))
@@ -382,7 +400,10 @@ export async function applyOrderEdit(
 ): Promise<{ error: string } | { warning: string | null }> {
   const snap = await loadOrderSnapshot(admin, orderId)
   if (!snap) return { error: '주문을 찾을 수 없습니다.' }
-  const { orderFields, itemRows, total } = buildOrderRows(input, ctx)
+  const { orderFields, shipFields, itemRows, total } = buildOrderRows(input, ctx)
+  // 513 적용 DB(컬럼 존재)면 항상 반영(비우기 포함), 미적용이면 값이 있을 때만 시도 → 오류 안내
+  const shipColumns = 'ship_addr1' in (snap.order as AnyRow)
+  const writeShip = shipColumns || hasShip(shipFields)
 
   const collected = Math.max(0, (snap.order.total_amount ?? 0) - (snap.order.outstanding_amount ?? 0))
   const outstanding = Math.max(0, total - collected)
@@ -397,13 +418,18 @@ export async function applyOrderEdit(
 
   const { error: upErr } = await admin.from('erp_orders').update({
     ...orderFields,
+    ...(writeShip ? shipFields : {}),
     bank_name: names.bankName,
     branch_name: names.branchName,
     customer_alias_id: aliasId,
     outstanding_amount: outstanding,
     collect_status: collectStatus,
   }).eq('id', orderId)
-  if (upErr) return { error: `주문 저장 실패: ${upErr.message}` }
+  if (upErr) {
+    return { error: /ship_/.test(upErr.message)
+      ? '513 마이그레이션(배송지)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
+      : `주문 저장 실패: ${upErr.message}` }
+  }
 
   // ── 품목 대사: 내용 키가 같은 행 보존, 나머지 취소+등록 ──
   const existing = (snap.items as AnyRow[]).filter(it => !it.is_canceled)
@@ -452,14 +478,63 @@ export async function applyOrderEdit(
   // ── 변경 로그 + '수정됨' 표시 ──
   let warning: string | null = null
   if (editor) {
-    const logs = headerDiffs(snap.order as AnyRow, { orderFields, bankName: names.bankName, branchName: names.branchName })
+    const logs = headerDiffs(snap.order as AnyRow, {
+      orderFields, bankName: names.bankName, branchName: names.branchName, ship: writeShip ? shipFields : null,
+    })
     for (const d of dropped) logs.push({ field: '품목 취소', before: itemBrief(d), after: null })
     for (const a of added) logs.push({ field: '품목 추가', before: null, after: itemBrief(a as unknown as AnyRow) })
     warning = await writeEditLogs(admin, orderId, editor, logs)
     if (logs.length) await touchLastEdited(admin, orderId)
   }
+  // 선결제 품목 금액·삭제를 원장 자동 입금에 반영
+  const prepayErr = await syncPrepayDeposits(admin, orderId)
+  if (prepayErr) warning = [warning, prepayErr].filter(Boolean).join(' / ')
   return { warning }
 }
+
+// ── 선결제 원장 입금 자동 등록 (2026-11-05 사용자 승인) ──────────────────
+// 품명 '선결제' 품목 = 매출처가 먼저 낸 돈 → 선결제 원장(erp_prepayments)에 '입금'.
+// 기존 ERP 업로드(api/erp-orders/import)와 같은 규칙을 자체 주문에도 적용한다.
+//  - 멱등키 source_key = pre:direct:<주문id>:<n> (n = 선결제 품목 순번) — 저장을 반복해도 중복 없음
+//  - 주문 저장·당일 수정·취소 때마다 호출: 원하는 상태(유효 선결제 품목)와 자동 등록분을 맞춘다
+//  - 취소 주문은 자동 등록분 삭제(주문은 취소 기록으로 남음 — 사용으로 상계하면 잔액 KPI의 사용액이 부풀어 삭제로 처리)
+//  - 수동 입력분(차감 등, source_key 없음 또는 다른 접두)은 건드리지 않는다
+export async function syncPrepayDeposits(admin: SupabaseClient, orderId: string): Promise<string | null> {
+  const prefix = `pre:direct:${orderId}:`
+  const { data: order } = await admin.from('erp_orders')
+    .select('id, order_no, order_date, customer_alias_id, canceled_at').eq('id', orderId).maybeSingle()
+  if (!order) return null
+  const { data: items } = await admin.from('erp_order_items')
+    .select('line_no, line_total, is_canceled, is_prepayment').eq('order_id', orderId).order('line_no')
+  const wanted = order.canceled_at ? [] : (items ?? [])
+    .filter(it => it.is_prepayment && !it.is_canceled && Number(it.line_total ?? 0) > 0)
+    .map((it, i) => ({
+      direction: 'customer', entry_type: 'deposit',
+      alias_id: order.customer_alias_id as string,
+      entry_date: order.order_date as string,
+      amount: Number(it.line_total),
+      order_id: orderId,
+      source_key: `${prefix}${i + 1}`,
+      memo: `주문 ${order.order_no ?? ''} 자동 등록 (품명: 선결제)`,
+    }))
+  if (wanted.length && !order.customer_alias_id) return '매출처 별칭이 없어 선결제 원장에 등록하지 못했습니다.'
+
+  const { data: existing, error: exErr } = await admin.from('erp_prepayments')
+    .select('id, source_key').like('source_key', `${prefix}%`)
+  if (exErr) return `선결제 원장 조회 실패: ${exErr.message}`
+  const keep = new Set(wanted.map(w => w.source_key))
+  const stale = (existing ?? []).filter(e => !keep.has(e.source_key as string)).map(e => e.id as string)
+  if (stale.length) {
+    const { error } = await admin.from('erp_prepayments').delete().in('id', stale)
+    if (error) return `선결제 원장 정리 실패: ${error.message}`
+  }
+  if (wanted.length) {
+    const { error } = await admin.from('erp_prepayments').upsert(wanted, { onConflict: 'source_key' })
+    if (error) return `선결제 원장 등록 실패: ${error.message}`
+  }
+  return null
+}
+
 
 // 주문 취소 (삭제 대체·재등록 공용) — 품목 전체 취소 + 주문 취소 표시, 미수 0
 export async function cancelOrder(
@@ -491,6 +566,7 @@ export async function cancelOrder(
     before: null,
     after: reason,
   }])
+  await syncPrepayDeposits(admin, orderId)   // 취소 주문의 선결제 자동 입금 삭제
   return null
 }
 
@@ -511,6 +587,15 @@ export async function inheritToReissued(
     collect_status: outstanding === 0 ? 'collected' : collected > 0 ? 'in_progress' : 'outstanding',
     reissued_from_order_id: origOrder.id,
   }).eq('id', newOrderId)
+
+  // 수금 매칭·계산서 연결 이관 — 남겨두면 결제가 취소 주문에 묶여 새 주문이 미수로 남는다
+  await Promise.all([
+    admin.from('erp_payment_matches').update({ order_id: newOrderId }).eq('order_id', origOrder.id as string),
+    admin.from('erp_order_invoices').update({ order_id: newOrderId }).eq('order_id', origOrder.id as string),
+    // 선결제 사용(514)의 원장 차감 행도 새 주문으로 — 자동 입금(source_key pre:direct:)은 syncPrepayDeposits가 별도 관리
+    admin.from('erp_prepayments').update({ order_id: newOrderId })
+      .eq('order_id', origOrder.id as string).eq('entry_type', 'deduction'),
+  ])
 
   // 발주서 이관
   const { data: pos } = await admin.from('erp_purchase_orders')

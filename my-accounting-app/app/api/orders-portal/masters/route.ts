@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { STAFF_REQUIRED_MSG } from '@/lib/customer-staff'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,11 +23,15 @@ export async function GET(req: NextRequest) {
   const vendorId = new URL(req.url).searchParams.get('vendor_id')
 
   if (vendorId) {
-    const { data, error } = await admin
+    // 고객별 다올 담당(112) 포함 — 미적용이면 없이 재조회
+    const sel = (withStaff: boolean) => admin
       .from('contact_assignments')
-      .select('contact_id, title, is_representative, contacts(id, name, phone)')
+      .select(`contact_id, title, is_representative${withStaff ? ', staff_employee_id' : ''}, contacts(id, name, phone)`)
       .eq('vendor_id', vendorId)
       .is('ended_at', null)
+    let res = await sel(true)
+    if (res.error && /staff_employee_id/.test(res.error.message)) res = await sel(false)
+    const { data, error } = res as unknown as { data: Record<string, unknown>[] | null; error: { message: string } | null }
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const contacts = (data ?? [])
       .map(a => {
@@ -35,6 +40,7 @@ export async function GET(req: NextRequest) {
           contact_id: c.id, name: c.name, phone: c.phone,
           title: a.title as string | null,
           is_representative: !!a.is_representative,
+          staff_employee_id: (a.staff_employee_id as string | null | undefined) ?? null,   // 다올 담당 = 상담자 (112)
         }
       })
       .filter(Boolean)
@@ -55,7 +61,7 @@ export async function GET(req: NextRequest) {
   }
   const [groupsResult, employeesResult] = await Promise.all([
     admin.from('vendor_groups').select('id, name').eq('is_active', true).order('name'),
-    admin.from('employees').select('id, name, position, team')
+    admin.from('employees').select('id, name, position, team, employment_type')
       .eq('is_active', true).order('name'),
   ])
   if ('error' in vendorsResult) return NextResponse.json({ error: vendorsResult.error }, { status: 500 })
@@ -71,6 +77,22 @@ export async function GET(req: NextRequest) {
       is_parttime: me.employmentType === 'parttime',
     },
   })
+}
+
+// 같은 매출처가 이미 있는지 — 업체 그룹과 무관하게 활성 매출처 전체의 이름·별칭을
+// 법인 접두·공백 무시로 비교한다. 그룹 안에서만 찾으면 그룹 미지정 거래처(정비·과거 등록분)를
+// 못 찾아 같은 지점이 중복 생성된다(2026-11-03~04 실제 발생 6쌍).
+const normVendor = (s: string) =>
+  s.replace(/^\s*(\(주\)|㈜|주식회사)\s*/, '').replace(/\s+/g, '').toLowerCase()
+async function findSalesVendor(admin: ReturnType<typeof createAdminClient>, fullName: string) {
+  const key = normVendor(fullName)
+  const r = await fetchAllRows<{ id: string; name: string; group_id: string | null; match_aliases: string[] | null }>((f, t) =>
+    admin.from('vendors').select('id, name, group_id, match_aliases')
+      .in('type', ['customer', 'both']).eq('is_active', true).neq('status', 'merged').range(f, t))
+  if ('error' in r) return null
+  return r.data.find(v => normVendor(v.name) === key)
+    ?? r.data.find(v => (v.match_aliases ?? []).some(a => normVendor(a) === key))
+    ?? null
 }
 
 export async function POST(req: NextRequest) {
@@ -112,12 +134,13 @@ export async function POST(req: NextRequest) {
 
     // 2) 지점(vendors) — 정규화 동일명이 있으면 재사용 (매출처 목록 오염 방지)
     const vendorName = branchName ? `${groupLabel} ${branchName}` : groupLabel
-    const { data: sameGroup } = groupId
-      ? await admin.from('vendors').select('id, name').eq('group_id', groupId).eq('is_active', true)
-      : await admin.from('vendors').select('id, name').is('group_id', null).eq('is_active', true)
-    const existing = (sameGroup ?? []).find(v => norm(v.name as string) === norm(vendorName))
+    const existing = await findSalesVendor(admin, vendorName)
     let vendorId = existing?.id as string | undefined
     const vendorReused = !!existing
+    // 그룹 미지정 거래처를 재사용하면 이번에 고른 업체 그룹에 연결해 둔다 (업체별 통계 · 2단 선택에 나오도록)
+    if (existing && !existing.group_id && groupId) {
+      await admin.from('vendors').update({ group_id: groupId }).eq('id', existing.id)
+    }
     if (!vendorId) {
       const { data: created, error } = await admin.from('vendors')
         .insert({ name: vendorName, type: 'customer', group_id: groupId }).select('id').single()
@@ -141,11 +164,14 @@ export async function POST(req: NextRequest) {
       else {
         const phone = (body.contact_phone ?? '').trim() || null
         const title = (body.contact_title ?? '').trim() || null
+        // 매출처 고객 신규 배정 — 다올 담당 필수 (112, 2026-11-05)
+        const staffId = (body.staff_employee_id ?? '').trim() || null
+        if (!staffId) return NextResponse.json({ error: STAFF_REQUIRED_MSG }, { status: 400 })
         const { data: contact, error: cErr } = await admin
           .from('contacts').insert({ name: contactName, phone }).select('id').single()
         if (cErr) return NextResponse.json({ error: `담당자 등록 실패: ${cErr.message}` }, { status: 500 })
         const { error: aErr } = await admin.from('contact_assignments').insert({
-          contact_id: contact.id, vendor_id: vendorId, title,
+          contact_id: contact.id, vendor_id: vendorId, title, staff_employee_id: staffId,
           started_at: new Date().toISOString().slice(0, 10),
         })
         if (aErr) return NextResponse.json({ error: `담당자 배정 실패: ${aErr.message}` }, { status: 500 })
@@ -167,13 +193,16 @@ export async function POST(req: NextRequest) {
     if (!vendorId || !name) return NextResponse.json({ error: '거래처와 이름이 필요합니다.' }, { status: 400 })
     const phone = (body.phone ?? '').trim() || null
     const title = (body.title ?? '').trim() || null
+    // 다올 담당 필수 (112, 2026-11-05 — 은행 · 지점 · 고객마다 담당 기입)
+    const staffId = (body.staff_employee_id ?? '').trim() || null
+    if (!staffId) return NextResponse.json({ error: STAFF_REQUIRED_MSG }, { status: 400 })
 
     const { data: contact, error: cErr } = await admin
       .from('contacts').insert({ name, phone }).select('id').single()
     if (cErr) return NextResponse.json({ error: `담당자 등록 실패: ${cErr.message}` }, { status: 500 })
 
     const { error: aErr } = await admin.from('contact_assignments').insert({
-      contact_id: contact.id, vendor_id: vendorId, title, started_at: new Date().toISOString().slice(0, 10),
+      contact_id: contact.id, vendor_id: vendorId, title, staff_employee_id: staffId, started_at: new Date().toISOString().slice(0, 10),
     })
     if (aErr) return NextResponse.json({ error: `담당자 배정 실패: ${aErr.message}` }, { status: 500 })
     return NextResponse.json({ contact_id: contact.id })
@@ -187,9 +216,7 @@ export async function POST(req: NextRequest) {
     if (!groupName) return NextResponse.json({ error: '업체명을 입력해주세요.' }, { status: 400 })
     const fullName = [groupName, branchName].filter(Boolean).join(' ')
 
-    const { data: existing } = await admin.from('vendors')
-      .select('id, group_id').eq('name', fullName).eq('is_active', true)
-      .limit(1).maybeSingle()
+    const existing = await findSalesVendor(admin, fullName)
     if (existing) {
       return NextResponse.json({ vendor_id: existing.id, group_id: existing.group_id ?? null, existed: true })
     }

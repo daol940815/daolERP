@@ -221,10 +221,10 @@ export default function ExceptionsTab({ vendorId, basePath, canEdit = true }: { 
               {filtered.map((r, i) => (
                 <tr key={i} className="hover:bg-gray-50">
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${STATUS_BADGE[r.status] ?? 'bg-gray-100'}`}>{r.status}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${STATUS_BADGE[r.status] ?? 'bg-gray-100'}`}>{r.status}</span>
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${SEV_BADGE[r.severity]}`}>{r.severity}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${SEV_BADGE[r.severity]}`}>{r.severity}</span>
                   </td>
                   <td className="px-3 py-2 font-medium">
                     <Link href={`/purchase-cycle/${r.vendor_id}?from=${monthFrom}&to=${monthTo}`}
@@ -239,7 +239,7 @@ export default function ExceptionsTab({ vendorId, basePath, canEdit = true }: { 
                     {(() => { const g = signedGap(r); return (
                       <span className="inline-flex items-center gap-1.5 justify-end">
                         <span className={`tabular-nums font-medium ${g < 0 ? 'text-red-600' : g > 0 ? 'text-blue-700' : 'text-gray-400'}`}>{wonSigned(g)}</span>
-                        {GAP_LABEL[r.status] && <span className="text-[10px] px-1 py-0.5 rounded bg-gray-100 text-gray-500">{GAP_LABEL[r.status]}</span>}
+                        {GAP_LABEL[r.status] && <span className="text-[0.625rem] px-1 py-0.5 rounded bg-gray-100 text-gray-500">{GAP_LABEL[r.status]}</span>}
                       </span>
                     ) })()}
                   </td>

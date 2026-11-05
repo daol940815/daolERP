@@ -1,8 +1,12 @@
-// 업무 요청 — 공용 타입·라벨·판정 (docs/work-request-track.md, 900)
-// 상태: requested → accepted → in_progress → done_reported → completed / canceled / rejected
+// 업무 요청 — 공용 타입·라벨·판정 (docs/work-request-track.md, 900·901·902)
+// 요청 상태: requested → accepted → in_progress → done_reported → completed / canceled / rejected
+// 902(2026-11-02): 담당자 다수 지정. 담당자별 상태(work_request_assignees)가 원본이고 요청 상태는 그 집계다.
+//   진행 방식 assign_mode — single(1명) / first(선착: 먼저 수락한 1명, 나머지 released) / all(공동: 전원 각자, 전원 보고 시 처리 보고)
 
 export type WrStatus = 'requested' | 'accepted' | 'in_progress' | 'done_reported' | 'completed' | 'canceled' | 'rejected'
-export type WrEvent = 'created' | 'accepted' | 'rejected' | 'memo' | 'reported' | 'completed' | 'canceled' | 'edited'
+export type WrEvent = 'created' | 'accepted' | 'rejected' | 'memo' | 'reported' | 'completed' | 'canceled' | 'edited' | 'assignee_added'
+export type WrMode = 'single' | 'first' | 'all'
+export type WrAsgStatus = 'invited' | 'accepted' | 'in_progress' | 'done_reported' | 'rejected' | 'released'
 
 export const WR_STATUS_LABEL: Record<WrStatus, string> = {
   requested: '미확인', accepted: '수락', in_progress: '진행 중', done_reported: '처리 보고',
@@ -15,15 +19,43 @@ export const WR_STATUS_CLS: Record<WrStatus, string> = {
 }
 export const WR_EVENT_LABEL: Record<WrEvent, string> = {
   created: '요청 생성', accepted: '수락', rejected: '반려', memo: '진행 메모', reported: '처리 완료 보고',
-  completed: '완료 확정', canceled: '요청 취소', edited: '요청 수정',
+  completed: '완료 확정', canceled: '요청 취소', edited: '요청 수정', assignee_added: '담당자 추가',
+}
+export const WR_MODE_LABEL: Record<WrMode, string> = { single: '단일', first: '선착', all: '공동' }
+export const WR_MODE_DESC: Record<WrMode, string> = {
+  single: '담당자 1명',
+  first: '먼저 수락한 1명이 진행합니다. 나머지는 자동 해제되어 할 일에서 사라지고 "다른 사람이 수락"으로 참고 표시만 남습니다.',
+  all: '지정된 모두가 각자 수락 · 진행 · 처리 보고합니다. 전원이 보고하면 요청이 "처리 보고"가 되고 요청자가 1회 완료 확정합니다.',
+}
+// 담당자별 상태 라벨 — released 는 선착에서 다른 사람이 수락한 경우
+export const WR_ASG_LABEL: Record<WrAsgStatus, string> = {
+  invited: '미확인', accepted: '수락', in_progress: '진행 중', done_reported: '처리 보고', rejected: '반려', released: '다른 사람이 수락',
+}
+export const WR_ASG_CLS: Record<WrAsgStatus, string> = {
+  invited: 'bg-gray-100 text-gray-600', accepted: 'bg-blue-100 text-blue-700', in_progress: 'bg-indigo-100 text-indigo-700',
+  done_reported: 'bg-amber-100 text-amber-700', rejected: 'bg-red-100 text-red-700', released: 'bg-gray-100 text-gray-400',
 }
 
 // 아직 끝나지 않은 상태 (담당자가 손에 들고 있는 것 + 요청자 확정 대기)
 export const OPEN_STATUSES: WrStatus[] = ['requested', 'accepted', 'in_progress', 'done_reported']
 // 마감 판정 대상 — 처리 보고 전까지만 "지남"으로 본다
 export const DUE_TRACKED: WrStatus[] = ['requested', 'accepted', 'in_progress']
+// 담당자 행 기준: 아직 손에 들고 있는 상태(할 일) / 마감 판정 대상
+export const ASG_ACTIVE: WrAsgStatus[] = ['invited', 'accepted', 'in_progress', 'done_reported']
+export const ASG_TRACKED: WrAsgStatus[] = ['invited', 'accepted', 'in_progress']
 
 export interface WrPerson { id: string; name: string; team: string | null }
+export interface WrAssignee {
+  id: string
+  employee: WrPerson | null
+  status: WrAsgStatus
+  accepted_at: string | null
+  reported_at: string | null
+  rejected_at: string | null
+  reject_reason: string | null
+  last_memo: string | null
+  last_memo_at: string | null
+}
 export interface WrRow {
   id: string
   title: string
@@ -41,9 +73,16 @@ export interface WrRow {
   reject_reason: string | null
   last_memo: string | null
   last_memo_at: string | null
+  is_private: boolean          // 901 — 요청자·담당자·승인권자만 조회
+  assign_mode: WrMode          // 902
   requester: WrPerson | null
-  assignee: WrPerson | null
+  assignee: WrPerson | null    // 단일·선착 수락자 (공동은 null)
+  assignees: WrAssignee[]      // 902 — 담당자 전원(해제·반려 포함)
 }
+
+// 목록 범위 — 전체(공용) / 내가 받은 / 내가 보낸 (2026-11-02 사용자 결정: 목록 공용 전환 + 내 업무 버튼)
+export type WrScope = 'all' | 'inbox' | 'outbox'
+export const WR_SCOPE_LABEL: Record<WrScope, string> = { all: '전체', inbox: '내가 받은', outbox: '내가 보낸' }
 export interface WrEventRow {
   id: string
   event: WrEvent
@@ -74,6 +113,15 @@ export function dueState(row: { due_at: string; status: WrStatus }, now = new Da
   if (due.getTime() < now.getTime()) return 'overdue'
   return kstParts(due).date === kstParts(now).date ? 'today' : 'later'
 }
+// 내 몫 기준 마감 상태 — 공동 요청에서 내가 이미 보고했으면 null (마감 배지는 아직 보고하지 않은 담당자에게만)
+export function myDueState(row: WrRow, meId: string | null, now = new Date()): 'overdue' | 'today' | 'later' | null {
+  if (!OPEN_STATUSES.includes(row.status)) return null
+  const my = myShare(row, meId)
+  if (my ? !ASG_TRACKED.includes(my.status) : !DUE_TRACKED.includes(row.status)) return null
+  const due = new Date(row.due_at)
+  if (due.getTime() < now.getTime()) return 'overdue'
+  return kstParts(due).date === kstParts(now).date ? 'today' : 'later'
+}
 
 // 오늘 18:00(KST)의 datetime-local 입력값 — 마감 기본값
 export function defaultDueLocal(now = new Date()): string {
@@ -85,22 +133,74 @@ export const localToIso = (v: string) => new Date(v).toISOString()
 // ISO → datetime-local 값 (KST 기준)
 export const isoToLocal = (iso: string) => { const k = kstParts(iso); return `${k.date}T${k.time}` }
 
+// ── 담당자 다수 (902) ──
+// 내 담당자 행
+export const myShare = (row: Pick<WrRow, 'assignees'>, meId: string | null): WrAssignee | null =>
+  meId ? row.assignees.find(a => a.employee?.id === meId) ?? null : null
+// 아직 살아 있는 담당자 행 (반려·해제 제외)
+export const activeAssignees = (row: Pick<WrRow, 'assignees'>) => row.assignees.filter(a => ASG_ACTIVE.includes(a.status))
+// 그 사람이 이 요청의 담당자인가 (해제·반려된 사람도 '관련자'로 본다 — 비공개 조회·참고 표시)
+export const isAssigneeOf = (row: Pick<WrRow, 'assignees'>, empId: string | null) => !!empId && row.assignees.some(a => a.employee?.id === empId)
+
+// 담당자별 상태 → 요청 전체 상태 (서버 집계 규칙과 화면 설명이 같아야 하므로 여기에 둔다)
+//  · 살아 있는 담당자가 없으면 반려  · 전원 보고 → 처리 보고  · 1명이라도 진행·보고 → 진행 중  · 1명이라도 수락 → 수락  · 그 외 미확인
+//  선착은 수락 시 나머지가 released 되므로 수락자 1명의 상태가 그대로 요청 상태가 된다. 단일도 같은 규칙.
+export function aggregateStatus(assignees: Pick<WrAssignee, 'status'>[]): Extract<WrStatus, 'requested' | 'accepted' | 'in_progress' | 'done_reported' | 'rejected'> {
+  const active = assignees.filter(a => ASG_ACTIVE.includes(a.status))
+  if (!active.length) return 'rejected'
+  if (active.every(a => a.status === 'done_reported')) return 'done_reported'
+  if (active.some(a => a.status === 'in_progress' || a.status === 'done_reported')) return 'in_progress'
+  if (active.some(a => a.status === 'accepted')) return 'accepted'
+  return 'requested'
+}
+
+// 목록 '담당자' 열 요약 — 단일: 이름 / 선착: "수락자 (외 N 해제 · M 반려)" 또는 "미정 (N명 중 수락 대기)" / 공동: "팀명 N명 · 보고 k/N"
+export function assigneeSummary(row: WrRow): { main: string; sub: string | null } {
+  const all = row.assignees
+  if (all.length <= 1) {
+    const a = all[0]
+    return { main: a?.employee?.name ?? row.assignee?.name ?? '-', sub: a?.employee?.team ?? null }
+  }
+  const active = activeAssignees(row)
+  const rejected = all.filter(a => a.status === 'rejected').length
+  if (row.assign_mode === 'first') {
+    const acceptor = all.find(a => a.status !== 'invited' && a.status !== 'rejected' && a.status !== 'released')
+    if (acceptor) {
+      const released = all.filter(a => a.status === 'released').length
+      const parts = [released ? `외 ${released} 해제` : null, rejected ? `${rejected} 반려` : null].filter(Boolean)
+      return { main: acceptor.employee?.name ?? '-', sub: parts.length ? `(${parts.join(' · ')})` : null }
+    }
+    return { main: '미정', sub: `(${active.length}명 중 수락 대기${rejected ? ` · ${rejected} 반려` : ''})` }
+  }
+  const teams = Array.from(new Set(all.map(a => a.employee?.team ?? '')))
+  const names = all.map(a => a.employee?.name ?? '').filter(Boolean)
+  const main = teams.length === 1 && all.length >= 3 && teams[0] ? `${teams[0]} ${all.length}명` : all.length > 3 ? `${names.slice(0, 2).join(' · ')} 외 ${all.length - 2}` : names.join(' · ')
+  const reported = active.filter(a => a.status === 'done_reported').length
+  return { main, sub: OPEN_STATUSES.includes(row.status) ? `· 보고 ${reported}/${active.length}${rejected ? ` · ${rejected} 반려` : ''}` : null }
+}
+
 // 역할별 가능 조작 (서버 판정과 동일 규칙 — 화면은 노출용, 차단은 API)
-export function allowedActions(row: { status: WrStatus; requester: WrPerson | null; assignee: WrPerson | null }, meId: string | null) {
+//  내 몫(담당자 행)이 있고 반려·해제되지 않았으면 담당자. 선착은 수락 전(요청 requested)에만 수락 가능.
+//  공동의 완료 확정은 전원 보고 전에도 요청자가 할 수 있다(2026-11-02 결정 ②). 담당자 추가는 선착 불가(결정 ③).
+export function allowedActions(row: WrRow, meId: string | null) {
   const isReq = !!meId && row.requester?.id === meId
-  const isAsg = !!meId && row.assignee?.id === meId
+  const my = myShare(row, meId)
+  const isAsg = !!my && ASG_ACTIVE.includes(my.status)
   const s = row.status
   const open = OPEN_STATUSES.includes(s)
+  const mine = my?.status ?? null
   return {
-    accept: isAsg && s === 'requested',
-    reject: isAsg && (s === 'requested' || s === 'accepted' || s === 'in_progress'),
+    accept: isAsg && mine === 'invited' && open && (row.assign_mode !== 'first' || s === 'requested'),
+    reject: isAsg && (mine === 'invited' || mine === 'accepted' || mine === 'in_progress') && open,
     memo: (isAsg || isReq) && open,
-    report: isAsg && (s === 'accepted' || s === 'in_progress'),
+    report: isAsg && (mine === 'accepted' || mine === 'in_progress') && open,
     complete: isReq && open,
     cancel: isReq && open,
     edit: isReq && (s === 'requested' || s === 'accepted' || s === 'in_progress'),
-    isReq, isAsg,
+    addAssignee: isReq && open && row.assign_mode !== 'first',
+    isReq, isAsg, mine,
   }
 }
+export type WrActions = ReturnType<typeof allowedActions>
 
 export const hoursBetween = (a: string, b: string) => (new Date(b).getTime() - new Date(a).getTime()) / 36e5

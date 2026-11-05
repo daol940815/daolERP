@@ -5,7 +5,7 @@ import { buildMonthlyPL } from '@/lib/pl-report'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-// GET /api/reports/monthly-pl?from=YYYY-MM&to=YYYY-MM
+// GET /api/reports/monthly-pl?from=YYYY-MM&to=YYYY-MM&basis=evidence|erp
 // 월별 손익현황(경영관리용): ERP 매출/매출원가 + 은행거래 비용분류 기준 운영비를 월별로 집계
 // (법인카드 매입/급여/감가상각비는 데이터 미보유로 "미반영" 항목으로 표시)
 export async function GET(req: NextRequest) {
@@ -23,7 +23,9 @@ export async function GET(req: NextRequest) {
     + (Number(to.slice(5, 7)) - Number(from.slice(5, 7))) + 1
   if (months < 1 || months > 36) return NextResponse.json({ error: '조회 기간은 최대 36개월입니다.' }, { status: 400 })
 
-  const result = await buildMonthlyPL(admin, from, to)
+  // basis: evidence(증빙 기준, 기본) | erp
+  const basis = searchParams.get('basis') === 'erp' ? 'erp' : 'evidence'
+  const result = await buildMonthlyPL(admin, from, to, basis)
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
 
   return NextResponse.json(result.result)

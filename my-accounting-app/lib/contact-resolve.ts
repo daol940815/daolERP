@@ -16,38 +16,42 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // contact_review_events에 남아 매출처 관리 (고객) 확인 대기 탭에서 정리한다.
 // ─────────────────────────────────────────────────────────
 
-// 직함 사전 — 표기 마지막 토큰이 여기 있으면 직함으로 분리 (contacts.name은 순수 이름만)
-const TITLES = new Set([
-  '부장', '차장', '과장', '대리', '주임', '사원', '계장', '팀장', '실장', '국장',
-  '지점장', '부지점장', '센터장', '지부장', '본부장', '사무장', '소장', '원장',
-  '책임', '선임', '수석', '매니저', '총무', '간사', '회장', '부회장', '사무국장',
-  '이사', '상무', '전무', '대표', '부부장', '지사장', '단장', '교수', '행원',
-])
+// 붙여 쓴 직함('권오병부장') 분리용 사전. 띄어 쓴 표기는 사전과 무관하게 첫 토큰을 이름으로 본다 —
+// 직함은 종류가 끝이 없어(주무관·복지사·대령·프로·부센터장…) 사전 방식은 이름에 직함이 붙어
+// 저장되는 사고를 낸다(2026-11-02 매출처 정비에서 132명 발생·복구).
+const GLUED_TITLES = [
+  '부지점장', '부센터장', '지점장', '센터장', '지부장', '본부장', '사무장', '사무국장', '지사장',
+  '부부장', '부장', '차장', '과장', '대리', '주임', '사원', '계장', '팀장', '실장', '국장',
+  '소장', '원장', '단장', '매니저', '주무관', '복지사', '이사', '상무', '전무', '대표',
+]
+
+// 한글 2~4자지만 사람 이름이 아닌 표기 — 이름 자리에 오면 인명으로 보지 않는다
+const NON_PERSON = new Set(['지점', '본점', '담당', '담당자', '고객', '개인', '미정', '없음', '직원', '회원', '총무', '본사', '부서'])
 
 export interface ParsedName { name: string; title: string | null }
 
 // 담당자 표기 → 순수 이름 + 직함. 사람 이름으로 보기 어려우면 null (수동 정리 큐 잔류).
+//   '송은서 주무관님' → 송은서 / 주무관   ·  '김소정 PB팀장님' → 김소정 / PB팀장
+//   '이현준지점장님' → 이현준 / 지점장    ·  '박제현 님' → 박제현 / null
 export function parseManagerName(raw: string | null | undefined): ParsedName | null {
   const s = (raw ?? '').trim().replace(/님$/, '').trim()
   if (!s) return null
   const tokens = s.split(/\s+/)
-  let title: string | null = null
-  if (tokens.length >= 2 && TITLES.has(tokens[tokens.length - 1])) {
-    title = tokens.pop() as string
+  if (NON_PERSON.has(tokens[0])) return null
+  if (tokens.length >= 2 && /^[가-힣]{2,4}$/.test(tokens[0])) {
+    const title = tokens.slice(1).join(' ').replace(/님$/, '').trim()
+    return { name: tokens[0], title: title || null }
   }
-  const name = tokens.join('')
-  // 붙여 쓴 직함 처리: '권오병부장' → 이름 뒤 직함 분리
-  if (!title) {
-    for (const t of Array.from(TITLES)) {
-      if (name.length > t.length + 1 && name.endsWith(t)) {
-        const head = name.slice(0, -t.length)
-        if (/^[가-힣]{2,4}$/.test(head)) return { name: head, title: t }
-      }
+  if (tokens.length === 1) {
+    const w = tokens[0]
+    if (/^[가-힣]{2,4}$/.test(w)) return { name: w, title: null }
+    for (const t of GLUED_TITLES) {
+      const head = w.slice(0, -t.length)
+      if (w.endsWith(t) && /^[가-힣]{2,4}$/.test(head)) return { name: head, title: t }
     }
   }
-  // 한글 2~4자만 사람 이름으로 인정 — '지점', '담당자없음', 숫자 등은 제외
-  if (!/^[가-힣]{2,4}$/.test(name)) return null
-  return { name, title }
+  // 한글 2~4자 이름을 찾지 못하면 인명으로 보지 않는다 — '지점', '담당자없음', 숫자 등
+  return null
 }
 
 // 전화번호 정규화 — 숫자만. 핸드폰(01x)만 동일인 판별의 강한 키로 쓴다

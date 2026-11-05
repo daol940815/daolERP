@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>월별 손익현황 - 증빙 기준 시안</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .num { font-variant-numeric: tabular-nums; }
+  .sub td { font-weight: 600; background: #f8fafc; }
+  .hdr td { font-size: 11px; color: #94a3b8; padding-top: 10px; }
+  .neg { color: #dc2626; }
+  .pos { color: #059669; }
+</style>
+</head>
+<body class="bg-slate-50 text-gray-900" style="font-family: Pretendard, -apple-system, 'Malgun Gothic', sans-serif;">
+<div class="max-w-6xl mx-auto p-6">
+
+  <!-- 제목 + 기준 선택 -->
+  <div class="flex items-start justify-between flex-wrap gap-3">
+    <div>
+      <h1 class="text-2xl font-bold">월별 손익현황</h1>
+      <p class="text-sm mt-1 text-gray-500">
+        매출·매출원가의 기준을 고릅니다. <b>증빙 기준</b>은 홈택스 자료(세금계산서·계산서·카드매출·현금영수증·법인카드)로 부가세 신고와 같은 숫자,
+        <b>ERP 기준</b>은 주문 데이터로 영업 분석용입니다. 판매관리비 이하는 두 기준이 같습니다(분개 집계).
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm">
+        <button class="px-3 py-1.5 bg-slate-900 text-white font-medium">증빙 기준</button>
+        <button class="px-3 py-1.5 bg-white text-gray-600 hover:bg-gray-50">ERP 기준</button>
+      </div>
+      <select class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm"><option>2026-07</option></select>
+      <span class="text-gray-400 text-sm">~</span>
+      <select class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm"><option>2026-10</option></select>
+      <button class="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">↓ 엑셀</button>
+    </div>
+  </div>
+
+  <!-- 기간 프리셋 (표준 한 줄) -->
+  <div class="flex flex-wrap gap-1 mt-3 text-xs">
+    <span class="px-2 py-1 rounded-full border border-gray-200 bg-white text-gray-500">당월</span>
+    <span class="px-2 py-1 rounded-full border border-gray-200 bg-white text-gray-500">전월</span>
+    <span class="px-2 py-1 rounded-full border border-slate-900 bg-slate-900 text-white">3분기</span>
+    <span class="px-2 py-1 rounded-full border border-gray-200 bg-white text-gray-500">4분기</span>
+    <span class="px-2 py-1 rounded-full border border-gray-200 bg-white text-gray-500">하반기</span>
+    <span class="px-2 py-1 rounded-full border border-gray-200 bg-white text-gray-500">당년</span>
+    <span class="px-2 py-1 rounded-full border border-gray-200 bg-white text-gray-500">전년</span>
+  </div>
+
+  <!-- KPI (기간 합계) -->
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
+    <div class="bg-white border border-gray-200 rounded-xl p-4">
+      <div class="text-xs text-gray-400">매출 (증빙)</div>
+      <div class="text-xl font-bold mt-1 num">23.41억</div>
+      <div class="text-[11px] text-gray-400 mt-0.5">계산서 21.9 · 임대료 2.2 · 카드 0.9 · 현금영수증 0.6</div>
+    </div>
+    <div class="bg-white border border-gray-200 rounded-xl p-4">
+      <div class="text-xs text-gray-400">매출원가 (증빙)</div>
+      <div class="text-xl font-bold mt-1 num">15.02억</div>
+      <div class="text-[11px] text-gray-400 mt-0.5">상품매입 계산서 14.6 · 카드 0.4</div>
+    </div>
+    <div class="bg-white border border-gray-200 rounded-xl p-4">
+      <div class="text-xs text-gray-400">매출이익률</div>
+      <div class="text-xl font-bold mt-1 num">35.8%</div>
+      <div class="text-[11px] text-gray-400 mt-0.5">ERP 기준 37.1%</div>
+    </div>
+    <div class="bg-white border border-gray-200 rounded-xl p-4">
+      <div class="text-xs text-gray-400">영업이익</div>
+      <div class="text-xl font-bold mt-1 num">2.87억</div>
+      <div class="text-[11px] text-gray-400 mt-0.5">판관비 5.52억</div>
+    </div>
+    <div class="bg-white border border-amber-300 bg-amber-50 rounded-xl p-4">
+      <div class="text-xs text-amber-700">ERP와 매출 차이</div>
+      <div class="text-xl font-bold mt-1 num text-amber-800">+0.63억</div>
+      <div class="text-[11px] text-amber-700 mt-0.5">ERP에만 있는 매출 (증빙 없음) 41건 · 아래 대사 참조</div>
+    </div>
+  </div>
+
+  <!-- 손익 표 -->
+  <div class="bg-white border border-gray-200 rounded-xl overflow-x-auto mt-4">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs text-gray-400 border-b border-gray-200">
+          <th class="py-2.5 px-3 font-medium w-64">항목</th>
+          <th class="py-2.5 px-3 font-medium text-right">2026-07</th>
+          <th class="py-2.5 px-3 font-medium text-right">2026-08</th>
+          <th class="py-2.5 px-3 font-medium text-right">2026-09</th>
+          <th class="py-2.5 px-3 font-medium text-right">2026-10</th>
+          <th class="py-2.5 px-3 font-medium text-right">합계</th>
+          <th class="py-2.5 px-3 font-medium w-24">원본</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100 num">
+        <tr class="hdr"><td class="px-3" colspan="7">매출 (증빙 기준 — 홈택스 자료)</td></tr>
+        <tr><td class="px-3 py-1.5 pl-6">매출 세금계산서 (과세)</td><td class="px-3 text-right">5.21억</td><td class="px-3 text-right">4.88억</td><td class="px-3 text-right">5.63억</td><td class="px-3 text-right">4.92억</td><td class="px-3 text-right">20.64억</td><td class="px-3"><a class="text-sky-700 text-xs hover:underline">계산서 내역 →</a></td></tr>
+        <tr><td class="px-3 py-1.5 pl-6">매출 계산서 (면세)</td><td class="px-3 text-right">0.31억</td><td class="px-3 text-right">0.29억</td><td class="px-3 text-right">0.34억</td><td class="px-3 text-right">0.32억</td><td class="px-3 text-right">1.26억</td><td class="px-3"><a class="text-sky-700 text-xs hover:underline">계산서 내역 →</a></td></tr>
+        <tr><td class="px-3 py-1.5 pl-6">임대료수익 (계산서) <span class="text-[11px] text-gray-400">임대사업자 — 영업수익</span></td><td class="px-3 text-right">0.55억</td><td class="px-3 text-right">0.55억</td><td class="px-3 text-right">0.55억</td><td class="px-3 text-right">0.55억</td><td class="px-3 text-right">2.18억</td><td class="px-3"><a class="text-sky-700 text-xs hover:underline">계정 원장 →</a></td></tr>
+        <tr><td class="px-3 py-1.5 pl-6">카드매출 (승인 − 취소)</td><td class="px-3 text-right">0.24억</td><td class="px-3 text-right">0.21억</td><td class="px-3 text-right">0.26억</td><td class="px-3 text-right">0.19억</td><td class="px-3 text-right">0.90억</td><td class="px-3"><a class="text-sky-700 text-xs hover:underline">카드매출 →</a></td></tr>
+        <tr><td class="px-3 py-1.5 pl-6">현금영수증 매출</td><td class="px-3 text-right">0.17억</td><td class="px-3 text-right">0.14억</td><td class="px-3 text-right">0.18억</td><td class="px-3 text-right">0.12억</td><td class="px-3 text-right">0.61억</td><td class="px-3"><a class="text-sky-700 text-xs hover:underline">현금영수증 →</a></td></tr>
+        <tr class="text-gray-500"><td class="px-3 py-1.5 pl-6">(−) 중복 제거 <span class="text-[11px] text-gray-400">계산서와 카드·현금영수증이 같이 발행된 건</span></td><td class="px-3 text-right">−0.00억</td><td class="px-3 text-right">−0.00억</td><td class="px-3 text-right">−0.00억</td><td class="px-3 text-right">−0.00억</td><td class="px-3 text-right">−0.00억</td><td class="px-3"><a class="text-sky-700 text-xs hover:underline">중복 목록 →</a></td></tr>
+        <tr class="sub"><td class="px-3 py-2">매출 합계</td><td class="px-3 text-right">5.93억</td><td class="px-3 text-right">5.52억</td><td class="px-3 text-right">6.41억</td><td class="px-3 text-right">5.55억</td><td class="px-3 text-right">23.41억</td><td class="px-3"></td></tr>
+
+        <tr class="hdr"><td class="px-3" colspan="7">매출원가 (증빙 기준) <span class="text-amber-600">— 재고 실사가 없어 "당월 매입 = 당월 원가"로 봅니다</span></td></tr>
+        <tr><td class="px-3 py-1.5 pl-6">상품매입 세금계산서 (5002)</td><td class="px-3 text-right">3.72억</td><td class="px-3 text-right">3.41억</td><td class="px-3 text-right">3.98억</td><td class="px-3 text-right">3.49억</td><td class="px-3 text-right">14.60억</td><td class="px-3"><a class="text-sky-700 text-xs hover:underline">계정 원장 →</a></td></tr>
+        <tr><td class="px-3 py-1.5 pl-6">법인카드 상품매입</td><td class="px-3 text-right">0.11억</td><td class="px-3 text-right">0.09억</td><td class="px-3 text-right">0.12억</td><td class="px-3 text-right">0.10억</td><td class="px-3 text-right">0.42억</td><td class="px-3"><a class="text-sky-700 text-xs hover:underline">계정 원장 →</a></td></tr>
+        <tr class="sub"><td class="px-3 py-2">매출원가 합계</td><td class="px-3 text-right">3.83억</td><td class="px-3 text-right">3.50억</td><td class="px-3 text-right">4.10억</td><td class="px-3 text-right">3.59억</td><td class="px-3 text-right">15.02억</td><td class="px-3"></td></tr>
+        <tr class="sub"><td class="px-3 py-2">매출이익</td><td class="px-3 text-right">2.10억</td><td class="px-3 text-right">2.02억</td><td class="px-3 text-right">2.31억</td><td class="px-3 text-right">1.96억</td><td class="px-3 text-right">8.39억</td><td class="px-3"></td></tr>
+
+        <tr class="hdr"><td class="px-3" colspan="7">판매관리비 (분개 집계 — 두 기준 공통)</td></tr>
+        <tr><td class="px-3 py-1.5 pl-6">급여 <span class="text-[11px] text-gray-400">(급여 분개 전까지 미반영)</span></td><td class="px-3 text-right text-gray-300">—</td><td class="px-3 text-right text-gray-300">—</td><td class="px-3 text-right text-gray-300">—</td><td class="px-3 text-right text-gray-300">—</td><td class="px-3 text-right text-gray-300">—</td><td class="px-3"></td></tr>
+        <tr><td class="px-3 py-1.5 pl-6">복리후생비</td><td class="px-3 text-right">0.18억</td><td class="px-3 text-right">0.16억</td><td class="px-3 text-right">0.19억</td><td class="px-3 text-right">0.15억</td><td class="px-3 text-right">0.68억</td><td class="px-3"><a class="text-sky-700 text-xs hover:underline">계정 원장 →</a></td></tr>
+        <tr><td class="px-3 py-1.5 pl-6">운반비</td><td class="px-3 text-right">0.42억</td><td class="px-3 text-right">0.39억</td><td class="px-3 text-right">0.45억</td><td class="px-3 text-right">0.40억</td><td class="px-3 text-right">1.66억</td><td class="px-3"><a class="text-sky-700 text-xs hover:underline">계정 원장 →</a></td></tr>
+        <tr><td class="px-3 py-1.5 pl-6">지급수수료</td><td class="px-3 text-right">0.21억</td><td class="px-3 text-right">0.20억</td><td class="px-3 text-right">0.23억</td><td class="px-3 text-right">0.19억</td><td class="px-3 text-right">0.83억</td><td class="px-3"><a class="text-sky-700 text-xs hover:underline">계정 원장 →</a></td></tr>
+        <tr><td class="px-3 py-1.5 pl-6">임차료</td><td class="px-3 text-right">0.12억</td><td class="px-3 text-right">0.12억</td><td class="px-3 text-right">0.12억</td><td class="px-3 text-right">0.12억</td><td class="px-3 text-right">0.48억</td><td class="px-3"><a class="text-sky-700 text-xs hover:underline">계정 원장 →</a></td></tr>
+        <tr><td class="px-3 py-1.5 pl-6">… (분개가 있는 계정은 자동 표시)</td><td class="px-3 text-right">0.47억</td><td class="px-3 text-right">0.44억</td><td class="px-3 text-right">0.51억</td><td class="px-3 text-right">0.45억</td><td class="px-3 text-right">1.87억</td><td class="px-3"></td></tr>
+        <tr class="sub"><td class="px-3 py-2">판매관리비 합계</td><td class="px-3 text-right">1.40억</td><td class="px-3 text-right">1.31억</td><td class="px-3 text-right">1.50억</td><td class="px-3 text-right">1.31억</td><td class="px-3 text-right">5.52억</td><td class="px-3"></td></tr>
+        <tr class="sub"><td class="px-3 py-2">영업이익</td><td class="px-3 text-right">0.70억</td><td class="px-3 text-right">0.71억</td><td class="px-3 text-right">0.81억</td><td class="px-3 text-right">0.65억</td><td class="px-3 text-right">2.87억</td><td class="px-3"></td></tr>
+
+        <tr class="hdr"><td class="px-3" colspan="7">영업외수익 / 영업외비용</td></tr>
+        <tr><td class="px-3 py-1.5 pl-6">이자수익 · 잡이익</td><td class="px-3 text-right">0.02억</td><td class="px-3 text-right">0.02억</td><td class="px-3 text-right">0.02억</td><td class="px-3 text-right">0.02억</td><td class="px-3 text-right">0.08억</td><td class="px-3"><a class="text-sky-700 text-xs hover:underline">계정 원장 →</a></td></tr>
+        <tr><td class="px-3 py-1.5 pl-6">이자비용</td><td class="px-3 text-right">0.11억</td><td class="px-3 text-right">0.11억</td><td class="px-3 text-right">0.11억</td><td class="px-3 text-right">0.10억</td><td class="px-3 text-right">0.43억</td><td class="px-3"><a class="text-sky-700 text-xs hover:underline">계정 원장 →</a></td></tr>
+        <tr class="sub"><td class="px-3 py-2">법인세차감전순이익</td><td class="px-3 text-right">0.61억</td><td class="px-3 text-right">0.62억</td><td class="px-3 text-right">0.72억</td><td class="px-3 text-right">0.57억</td><td class="px-3 text-right">2.52억</td><td class="px-3"></td></tr>
+        <tr><td class="px-3 py-1.5 pl-6 text-gray-400">법인세 (미반영)</td><td class="px-3 text-right text-gray-300">—</td><td class="px-3 text-right text-gray-300">—</td><td class="px-3 text-right text-gray-300">—</td><td class="px-3 text-right text-gray-300">—</td><td class="px-3 text-right text-gray-300">—</td><td class="px-3"></td></tr>
+        <tr class="sub"><td class="px-3 py-2 font-bold">당기순이익</td><td class="px-3 text-right font-bold">0.61억</td><td class="px-3 text-right font-bold">0.62억</td><td class="px-3 text-right font-bold">0.72억</td><td class="px-3 text-right font-bold">0.57억</td><td class="px-3 text-right font-bold">2.52억</td><td class="px-3"></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 대사: 증빙 vs ERP -->
+  <h2 class="text-base font-bold mt-8">매출 대사 — 증빙 기준 vs ERP 기준</h2>
+  <p class="text-xs text-gray-500 mt-1">두 기준의 차이가 곧 "증빙이 없는 매출"과 "ERP에 없는 매출" 목록입니다. 숫자를 클릭하면 해당 주문·증빙 목록으로 갑니다.</p>
+  <div class="bg-white border border-gray-200 rounded-xl overflow-x-auto mt-2">
+    <table class="w-full text-sm num">
+      <thead>
+        <tr class="text-left text-xs text-gray-400 border-b border-gray-200">
+          <th class="py-2.5 px-3 font-medium w-64">항목</th>
+          <th class="py-2.5 px-3 font-medium text-right">2026-07</th>
+          <th class="py-2.5 px-3 font-medium text-right">2026-08</th>
+          <th class="py-2.5 px-3 font-medium text-right">2026-09</th>
+          <th class="py-2.5 px-3 font-medium text-right">2026-10</th>
+          <th class="py-2.5 px-3 font-medium text-right">합계</th>
+          <th class="py-2.5 px-3 font-medium w-24"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        <tr><td class="px-3 py-1.5">매출 (증빙 기준)</td><td class="px-3 text-right">5.93억</td><td class="px-3 text-right">5.52억</td><td class="px-3 text-right">6.41억</td><td class="px-3 text-right">5.55억</td><td class="px-3 text-right">23.41억</td><td></td></tr>
+        <tr><td class="px-3 py-1.5">매출 (ERP 기준, 주문일)</td><td class="px-3 text-right">6.12억</td><td class="px-3 text-right">5.61억</td><td class="px-3 text-right">6.58억</td><td class="px-3 text-right">5.73억</td><td class="px-3 text-right">24.04억</td><td></td></tr>
+        <tr class="sub"><td class="px-3 py-2">차이 (ERP − 증빙)</td><td class="px-3 text-right text-amber-700">+0.19억</td><td class="px-3 text-right text-amber-700">+0.09억</td><td class="px-3 text-right text-amber-700">+0.17억</td><td class="px-3 text-right text-amber-700">+0.18억</td><td class="px-3 text-right text-amber-700">+0.63억</td><td></td></tr>
+        <tr><td class="px-3 py-1.5 pl-6 text-gray-600">ERP에만 있는 주문 (증빙 없음)</td><td class="px-3 text-right"><a class="text-sky-700 hover:underline">12건 0.21억</a></td><td class="px-3 text-right"><a class="text-sky-700 hover:underline">7건 0.11억</a></td><td class="px-3 text-right"><a class="text-sky-700 hover:underline">10건 0.19억</a></td><td class="px-3 text-right"><a class="text-sky-700 hover:underline">12건 0.20억</a></td><td class="px-3 text-right">41건 0.71억</td><td class="px-3 text-[11px] text-gray-400">계산서 미발행 후보</td></tr>
+        <tr><td class="px-3 py-1.5 pl-6 text-gray-600">증빙에만 있는 매출 (ERP 주문 없음)</td><td class="px-3 text-right"><a class="text-sky-700 hover:underline">2건 0.02억</a></td><td class="px-3 text-right"><a class="text-sky-700 hover:underline">1건 0.02억</a></td><td class="px-3 text-right"><a class="text-sky-700 hover:underline">1건 0.02억</a></td><td class="px-3 text-right"><a class="text-sky-700 hover:underline">1건 0.02억</a></td><td class="px-3 text-right">5건 0.08억</td><td class="px-3 text-[11px] text-gray-400">ERP 미입력 후보</td></tr>
+        <tr><td class="px-3 py-1.5 pl-6 text-gray-600">시점 차이 (주문월 ≠ 발행월)</td><td class="px-3 text-right text-gray-500">±</td><td class="px-3 text-right text-gray-500">±</td><td class="px-3 text-right text-gray-500">±</td><td class="px-3 text-right text-gray-500">±</td><td class="px-3 text-right text-gray-500">0</td><td class="px-3 text-[11px] text-gray-400">기간 합계에서는 상쇄</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 기준 설명 -->
+  <div class="grid md:grid-cols-2 gap-3 mt-6 text-xs">
+    <div class="bg-white border border-gray-200 rounded-xl p-4">
+      <div class="font-semibold text-gray-700 mb-2">증빙 기준 — 인식 시점과 원천</div>
+      <ul class="space-y-1 text-gray-600">
+        <li>· 매출 세금계산서·계산서: <b>작성일</b> (홈택스 매출 목록, 4001 및 매출성 계정)</li>
+        <li>· <b>임대료수익은 매출</b>(영업수익) — 다올커머스는 임대사업자. 이자수익·잡이익·자산처분이익만 영업외수익</li>
+        <li>· 카드매출: <b>승인일</b>, 승인 − 취소 (카드매출 화면)</li>
+        <li>· 현금영수증 매출: <b>거래일</b>, 승인 − 취소 (현금영수증 화면)</li>
+        <li>· 상품매입: 매입 세금계산서 중 5002 상품매입 확정 건 <b>작성일</b> + 법인카드 중 상품매입 확정 건 <b>이용일</b></li>
+        <li>· 중복 제거: 같은 거래처·금액·7일 안에 계산서와 카드매출(또는 현금영수증)이 함께 있으면 계산서만 인정</li>
+        <li>· 부가세 신고 합계표와 같은 숫자가 나와야 정상 — 다르면 업로드 누락</li>
+      </ul>
+    </div>
+    <div class="bg-white border border-gray-200 rounded-xl p-4">
+      <div class="font-semibold text-gray-700 mb-2">ERP 기준과의 역할 분담 · 한계</div>
+      <ul class="space-y-1 text-gray-600">
+        <li>· 사장님 보고·세무사 대사 = <b>증빙 기준</b> / 거래처·담당·품목 분석 = <b>ERP 기준</b></li>
+        <li>· ERP를 10월부터 새로 시작해도 1~9월 손익은 증빙 기준으로 남는다</li>
+        <li>· 매출원가는 재고 실사가 없어 당월 매입으로 본다 (재고가 늘어난 달은 원가가 커 보임)</li>
+        <li>· 증빙 없는 매출(계좌이체만 받고 미발행)은 빠진다 — 대사 표의 "ERP에만 있는 주문"으로 관리</li>
+        <li>· 급여·감가상각·법인세는 분개가 생기기 전까지 두 기준 모두 미반영</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

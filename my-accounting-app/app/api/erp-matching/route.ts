@@ -120,8 +120,13 @@ export async function DELETE(req: NextRequest) {
   const id = new URL(req.url).searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id가 필요합니다.' }, { status: 400 })
 
+  // 선결제 사용 매칭(514)은 원장 차감 행과 한 쌍 — 함께 지워야 선결제 잔액이 복원된다 (주문 트랙 2026-11-05)
+  const { data: m } = await admin.from('erp_payment_matches').select('source_type, source_id').eq('id', id).maybeSingle()
   const { error } = await admin.from('erp_payment_matches').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (m?.source_type === 'prepay') {
+    await admin.from('erp_prepayments').delete().eq('id', m.source_id as string).eq('entry_type', 'deduction')
+  }
 
   return NextResponse.json({ ok: true })
 }

@@ -3,6 +3,23 @@ import { createAdminClient, createClient } from '@/lib/supabase-server'
 import { syncTransactionPaymentEntry } from '@/lib/vendor-ledger'
 import { syncTransactionJournal } from '@/lib/journal/bank-posting'
 
+// GET /api/transactions/[id] — 드릴다운용 최소 정보 (거래일·계좌). 통장 내역 화면이 ?txId= 로 받아
+// 그 날짜·계좌로 필터를 맞추고 행을 강조한다 (2026-10-29, 이중계상 검사 → 원본 이동).
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: { id: string } },
+) {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('transactions')
+    .select('id, tx_date, bank_account_id, vendor_id, status')
+    .eq('id', params.id)
+    .maybeSingle()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data) return NextResponse.json({ error: '거래를 찾을 수 없습니다.' }, { status: 404 })
+  return NextResponse.json({ data })
+}
+
 // PATCH /api/transactions/[id]
 // 허용 필드: confirmed_account_id, memo, status, vendor_id, suggested_side
 // 확정(status=confirmed) 시 분개 자동 전기, 해제 시 전기 취소(분개 동기화).

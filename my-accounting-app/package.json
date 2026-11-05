@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "prebuild": "node scripts/check-help.mjs && node scripts/check-ui.mjs",
+    "check-help": "node scripts/check-help.mjs",
+    "check-ui": "node scripts/check-ui.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
@@ -20,6 +23,7 @@
     "papaparse": "^5.5.3",
     "react": "^18",
     "react-dom": "^18",
+    "web-push": "^3.6.7",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -27,6 +31,7 @@
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/web-push": "^3.6.4",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
     "postcss": "^8",

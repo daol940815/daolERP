@@ -156,8 +156,8 @@ export async function POST(req: NextRequest) {
   let skipped = 0
   let cardKeys = new Set<string>()   // `${card_company}|${card_number}`
   let matchedAnySheet = false
-  let holdCount = 0     // 통합양식 가승인·선승인 취소(결제 보류 해제) 건수
-  let refundCount = 0   // 통합양식 환불 취소 건수
+  let holdCount = 0     // 가승인·선승인 취소(결제 보류 해제) 건수 — 모든 양식
+  let refundCount = 0   // 환불 취소(별도 행) 건수 — 모든 양식
 
   // 카드사 판정 폴백용: 기존 카드계좌의 번호 앞자리(BIN) → 카드사
   const { data: knownCards } = await admin
@@ -193,9 +193,19 @@ export async function POST(req: NextRequest) {
     if (known.includes(fileNo)) {
       entry = { card_company: company, file_no: fileNo, stored_no: fileNo, how: 'exact' }
     } else {
-      const head = fileNo.length >= 7 ? fileNo.slice(0, 4) : ''
-      const tail = fileNo.length >= 7 ? fileNo.slice(4) : fileNo
-      const cands = known.filter(ed => ed.endsWith(tail) && (!head || ed.length < 8 || ed.startsWith(head)))
+      // 양쪽 모두 마스킹 정도가 다를 수 있다(16자리 전체 / 앞4+뒤4 / 앞4+뒤3 / 뒤4만).
+      // 앞 4자리(둘 다 있을 때)와 뒤자리(짧은 쪽 기준)가 맞는 등록 번호가 하나뿐일 때만 그 번호로.
+      const shape = (s: string) => ({
+        head: s.length >= 7 ? s.slice(0, 4) : '',
+        tail: s.length >= 8 ? s.slice(-4) : s.length === 7 ? s.slice(-3) : s,
+      })
+      const f = shape(fileNo)
+      const cands = known.filter(ed => {
+        const e = shape(ed)
+        const tailOk = f.tail.length <= e.tail.length ? e.tail.endsWith(f.tail) : f.tail.endsWith(e.tail)
+        const headOk = !f.head || !e.head || f.head === e.head
+        return tailOk && headOk
+      })
       entry = cands.length === 1
         ? { card_company: company, file_no: fileNo, stored_no: cands[0], how: 'matched' }
         : { card_company: company, file_no: fileNo, stored_no: fileNo, how: cands.length ? 'ambiguous' : 'new' }
@@ -248,10 +258,7 @@ export async function POST(req: NextRequest) {
         const amount = Math.abs(toNumber(row[col.amount]))
         const merchant = toStr(row[col.merchant])
         const isCanceled = (toStr(row[col.status]) ?? '').includes('취소')
-        // 가승인·선승인(택시 등 결제 보류)의 취소는 청구도 환불도 아니다 — 금액 0으로 기록만
-        const isHold = isCanceled && /가승인|선승인/.test(merchant ?? '')
-        if (isHold) holdCount++
-        else if (isCanceled) refundCount++
+        // 가승인·선승인 보류 해제는 시트 순회 뒤 normalizeHolds()가 모든 양식 공통으로 처리한다
         const region = col.region >= 0 ? toStr(row[col.region]) : null
         const dept = col.dept >= 0 ? toStr(row[col.dept]) : null
         push({
@@ -262,9 +269,9 @@ export async function POST(req: NextRequest) {
           merchant_category: col.category >= 0 ? toStr(row[col.category]) : null,
           merchant_biz_number: col.bizNo >= 0 ? toStr(row[col.bizNo]) : null,
           approved_amount: isCanceled ? 0 : amount,
-          cancel_amount: isCanceled && !isHold ? amount : 0,
+          cancel_amount: isCanceled ? amount : 0,
           settled_amount: 0,
-          statement_status: isHold ? '가승인 취소' : (isCanceled ? '취소' : null),
+          statement_status: isCanceled ? '취소' : null,
           usage_type: region && region !== '국내' ? region : null,
           submall: null, source_sheet: wsName,
           user_name: dept && dept !== '미지정' ? dept : null,
@@ -301,7 +308,7 @@ export async function POST(req: NextRequest) {
         const amount = toNumber(row[col.amount])
         const isCanceled = String(row[col.canceled] ?? '').trim().toUpperCase() === 'Y'
         push({
-          card_company: '롯데카드', card_number: cardNo,
+          card_company: '롯데카드', card_number: resolveCardNo('롯데카드', cardNo),
           tx_date: date, tx_time: col.time >= 0 ? toTimeStr(row[col.time]) : null,
           card_type: null,
           merchant_name: toStr(row[col.merchant]),
@@ -360,7 +367,7 @@ export async function POST(req: NextRequest) {
         const canceledPart = combo ? toNumber(combo[2]) : 0
         const isCanceled = String(row[col.status] ?? '').includes('취소')
         push({
-          card_company: '우리카드', card_number: cardNo,
+          card_company: '우리카드', card_number: resolveCardNo('우리카드', cardNo),
           tx_date: date, tx_time: m[3] ? m[3].padStart(5, '0') : null,
           card_type: null,
           merchant_name: toStr(row[col.merchant]),
@@ -415,20 +422,26 @@ export async function POST(req: NextRequest) {
       if (!cardNo || !date) { skipped++; continue }
 
       const company = inferCompany(col.cardType >= 0 ? toStr(row[col.cardType]) : null, wsName, cardNo)
+      // 취소 표기 통일: 승인금액이 음수로 오는 양식(승인 -332,100)은 승인 0 / 취소 332,100으로 저장한다.
+      // 순액(승인−취소)은 같아 분개는 동일하고, 통합양식(승인 0/취소 금액)과 같은 거래로 맞춰진다.
+      const approvedRaw = toNumber(row[col.approved])
+      const cancelRaw = col.cancel >= 0 ? Math.abs(toNumber(row[col.cancel])) : 0
+      const negApproved = approvedRaw < 0 && cancelRaw === 0
+      const statusRaw = col.status >= 0 ? toStr(row[col.status]) : null
       push({
         card_company: company,
-        card_number: cardNo,
+        card_number: resolveCardNo(company, cardNo),
         tx_date: date,
         tx_time: col.time >= 0 ? toTimeStr(row[col.time]) : null,
         card_type: col.cardType >= 0 ? toStr(row[col.cardType]) : null,
         merchant_name: col.merchant >= 0 ? toStr(row[col.merchant]) : null,
         merchant_category: col.category >= 0 ? toStr(row[col.category]) : null,
         merchant_biz_number: col.bizNo >= 0 ? toStr(row[col.bizNo]) : null,
-        approved_amount: toNumber(row[col.approved]),
+        approved_amount: negApproved ? 0 : approvedRaw,
         // 취소금액 부호 통일(양수) — 하나 등은 승인취소금액을 음수로 내려준다
-        cancel_amount: col.cancel >= 0 ? Math.abs(toNumber(row[col.cancel])) : 0,
+        cancel_amount: negApproved ? Math.abs(approvedRaw) : cancelRaw,
         settled_amount: col.settled >= 0 ? toNumber(row[col.settled]) : 0,
-        statement_status: col.status >= 0 ? toStr(row[col.status]) : null,
+        statement_status: statusRaw ?? (negApproved ? '취소' : null),
         usage_type: col.usageType >= 0 ? toStr(row[col.usageType]) : null,
         submall: col.submall >= 0 ? toStr(row[col.submall]) : null,
         source_sheet: col.sourceSheet >= 0 ? toStr(row[col.sourceSheet]) : wsName,
@@ -445,6 +458,35 @@ export async function POST(req: NextRequest) {
       { error: '인식할 수 없는 파일 형식입니다. (필수 컬럼: 카드번호·이용일·승인금액·가맹점명 또는 통합양식 승인일시·카드사·카드번호·가맹점·승인금액·상태)' },
       { status: 400 },
     )
+  }
+
+  // ── 1-0) 가승인·선승인 보류 해제 정규화 — 모든 양식 공통 (2026-10-29) ──
+  // 카카오T 택시 등은 탑승 시 예상 요금을 '가승인'(결제 보류)하고 하차 시 보류를 풀면서 실제 요금을 따로 승인한다.
+  // 카드사 파일에는 보류 해제가 '취소' 행으로만 오고(보류 승인 자체는 청구가 아니라 목록에 없음) 금액은 예상 요금이라
+  // 실제 요금보다 조금 크다. 이것을 환불(취소금액)로 저장하면 역분개가 생겨 비용이 그만큼 줄어든다(롯데 4473 카드에서 발견).
+  // 규칙: 가맹점명에 가승인/선승인이 있는 취소 행은, 같은 파일에 짝이 되는 보류 승인 행(같은 카드·가맹점·금액)이 없으면
+  //       승인 0 / 취소 0 / '가승인 취소'로 기록만 한다(분개 없음). 짝이 있으면 둘 다 그대로 둔다(순액 0).
+  {
+    const HOLD_RE = /가승인|선승인/
+    const holdKey = (p: ParsedRow, amount: number) => `${p.card_company}|${p.card_number}|${(p.merchant_name ?? '').trim()}|${amount}`
+    const holdApprovals = new Map<string, number>()
+    for (const p of parsed) {
+      if (p.approved_amount > 0 && HOLD_RE.test(p.merchant_name ?? '')) {
+        const k = holdKey(p, p.approved_amount)
+        holdApprovals.set(k, (holdApprovals.get(k) ?? 0) + 1)
+      }
+    }
+    for (const p of parsed) {
+      if (!(p.cancel_amount > 0 && p.approved_amount === 0 && HOLD_RE.test(p.merchant_name ?? ''))) continue
+      const k = holdKey(p, p.cancel_amount)
+      const n = holdApprovals.get(k) ?? 0
+      if (n > 0) { holdApprovals.set(k, n - 1); continue }
+      p.cancel_amount = 0
+      p.tax_amount = 0
+      p.statement_status = '가승인 취소'
+      holdCount++
+    }
+    refundCount = parsed.filter(p => p.cancel_amount > 0 && p.approved_amount === 0).length
   }
   if (!parsed.length) {
     return NextResponse.json({ error: '가져올 수 있는 데이터가 없습니다.', skipped }, { status: 400 })
@@ -555,6 +597,20 @@ export async function POST(req: NextRequest) {
         const nm = (h.merchant_name ?? '').trim()
         if (nm.length >= 2) bump(learnedByName, nm, h.confirmed_account_id)
       }
+      // 삭제된 확정 내역의 학습 보관(420 card_expense_learn_archive) — 기간을 비우고 다시 올려도 추천이 살아 있게.
+      // 표가 없으면(420 미실행) 조용히 건너뛴다.
+      const arch = await fetchAllRows<{ merchant_biz_number: string | null; merchant_name: string | null; confirmed_account_id: string }>((f, t) =>
+        admin.from('card_expense_learn_archive')
+          .select('merchant_biz_number, merchant_name, confirmed_account_id')
+          .range(f, t))
+      if (!('error' in arch)) {
+        for (const h of arch.data) {
+          const biz = (h.merchant_biz_number ?? '').replace(/\D/g, '')
+          if (biz.length >= 10) bump(learnedByBiz, biz, h.confirmed_account_id)
+          const nm = (h.merchant_name ?? '').trim()
+          if (nm.length >= 2) bump(learnedByName, nm, h.confirmed_account_id)
+        }
+      }
     }
   }
   // 과반(50% 초과) 계정만 학습 추천으로 인정 — 확정 이력이 갈리는 가맹점은 추천하지 않음
@@ -579,16 +635,21 @@ export async function POST(req: NextRequest) {
   // ── 4) 기존 분류값 보존 (재업로드 시 사용자 보정 유지) ──
   // source_key는 한글 가맹점명이 들어가 길다 — .in()으로 수백 개를 넘기면 요청 URL이
   // 한도를 초과해 조회가 실패하므로, 업로드 파일의 날짜 범위로 조회해 메모리에서 매칭한다.
-  const keys = parsed.map(p => p.source_key)
-  const keySet = new Set(keys)
+  let keys = parsed.map(p => p.source_key)
+  let keySet = new Set(keys)
   const txDates = parsed.map(p => p.tx_date).sort()
   const minDate = txDates[0]
   const maxDate = txDates[txDates.length - 1]
   const preserved = new Map<string, { confirmed_account_id: string | null; classify_status: string; classification: string | null }>()
-  const existingResult = await fetchAllRows<{ source_key: string; confirmed_account_id: string | null; classify_status: string; classification: string | null }>((rFrom, rTo) =>
+  type ExistingRow = {
+    source_key: string; confirmed_account_id: string | null; classify_status: string; classification: string | null
+    card_account_id: string | null; tx_date: string; tx_time: string | null
+    approved_amount: number | null; cancel_amount: number | null; merchant_name: string | null
+  }
+  const existingResult = await fetchAllRows<ExistingRow>((rFrom, rTo) =>
     admin
       .from('card_expenses')
-      .select('source_key, confirmed_account_id, classify_status, classification')
+      .select('source_key, confirmed_account_id, classify_status, classification, card_account_id, tx_date, tx_time, approved_amount, cancel_amount, merchant_name')
       .gte('tx_date', minDate)
       .lte('tx_date', maxDate)
       .range(rFrom, rTo),
@@ -596,13 +657,66 @@ export async function POST(req: NextRequest) {
   if ('error' in existingResult) {
     return NextResponse.json({ error: `기존 내역 조회 실패: ${existingResult.error}` }, { status: 500 })
   }
+
+  // ── 4-1) 다른 양식으로 이미 올라온 같은 거래 걸러내기 ──
+  // source_key는 양식마다 모양이 달라(통합양식 vs 카드사별 파일: 시각·가맹점명 표기) 같은 거래가
+  // 두 번 들어간다(2026-10-28 사용자 확인). 키가 다른 기존 행과 "카드·이용일·시각·승인·취소"가 같으면
+  // 같은 거래로 보고 저장하지 않는다. 시각이 없는 쪽은 가맹점명 앞 4자(정규화)로 대신 맞춘다.
+  // 기존 행 하나는 파일 행 하나만 상쇄한다(같은 분에 같은 금액이 두 번 긁힌 정상 거래 보호).
+  const merchant4 = (s: string | null) =>
+    (s ?? '').normalize('NFKC').toLowerCase().replace(/[^가-힣a-z0-9]/g, '').slice(0, 4)
+  const fpTime = (acct: string, date: string, time: string | null, approved: number, cancel: number) =>
+    time ? `${acct}|${date}|${time.slice(0, 5)}|${approved}|${cancel}` : null
+  const fpName = (acct: string, date: string, approved: number, cancel: number, merchant: string | null) => {
+    const m = merchant4(merchant)
+    return m.length >= 2 ? `${acct}|${date}|${approved}|${cancel}|${m}` : null
+  }
+  const otherFormat = new Map<string, number>()   // 지문 → 아직 상쇄되지 않은 기존 행 수
+  const bumpFp = (k: string | null) => { if (k) otherFormat.set(k, (otherFormat.get(k) ?? 0) + 1) }
   for (const r of existingResult.data) {
-    if (!keySet.has(r.source_key)) continue
-    preserved.set(r.source_key, {
-      confirmed_account_id: r.confirmed_account_id,
-      classify_status: r.classify_status,
-      classification: r.classification,
+    if (keySet.has(r.source_key)) {
+      preserved.set(r.source_key, {
+        confirmed_account_id: r.confirmed_account_id,
+        classify_status: r.classify_status,
+        classification: r.classification,
+      })
+      continue
+    }
+    if (!r.card_account_id) continue
+    bumpFp(fpTime(r.card_account_id, r.tx_date, r.tx_time, r.approved_amount ?? 0, r.cancel_amount ?? 0))
+    bumpFp(fpName(r.card_account_id, r.tx_date, r.approved_amount ?? 0, r.cancel_amount ?? 0, r.merchant_name))
+  }
+  const takeFp = (k: string | null): boolean => {
+    if (!k) return false
+    const n = otherFormat.get(k) ?? 0
+    if (n <= 0) return false
+    otherFormat.set(k, n - 1)
+    return true
+  }
+  let crossDup = 0
+  const crossDupSamples: { tx_date: string; merchant: string | null; amount: number }[] = []
+  if (otherFormat.size) {
+    parsed = parsed.filter(p => {
+      if (preserved.has(p.source_key)) return true   // 같은 양식 재업로드 — upsert가 처리
+      const acct = cardAccountId.get(`${p.card_company}|${p.card_number}`)
+      if (!acct) return true
+      const hit = takeFp(fpTime(acct, p.tx_date, p.tx_time, p.approved_amount, p.cancel_amount))
+        || takeFp(fpName(acct, p.tx_date, p.approved_amount, p.cancel_amount, p.merchant_name))
+      if (hit) {
+        crossDup++
+        if (crossDupSamples.length < 5) crossDupSamples.push({ tx_date: p.tx_date, merchant: p.merchant_name, amount: p.approved_amount || -p.cancel_amount })
+        return false
+      }
+      return true
     })
+    keys = parsed.map(p => p.source_key)
+    keySet = new Set(keys)
+    if (!parsed.length) {
+      return NextResponse.json({
+        error: `파일의 ${crossDup}건이 모두 다른 양식으로 이미 올라온 거래입니다. 저장한 행이 없습니다.`,
+        duplicates_other_format: crossDup,
+      }, { status: 400 })
+    }
   }
 
   // ── 5) upsert 행 구성 ───────────────────────────────
@@ -717,7 +831,10 @@ export async function POST(req: NextRequest) {
     suggested: suggestedCount,
     posted,
     skipped,
-    total_rows: parsed.length + skipped + skippedExisting,
+    total_rows: parsed.length + skipped + skippedExisting + crossDup,
+    // 다른 양식(통합 ↔ 카드사별)으로 이미 올라온 같은 거래 — 저장하지 않음
+    duplicates_other_format: crossDup,
+    duplicate_samples: crossDupSamples,
     // 통합양식(④) 전용 정보 — 화면 안내용
     skipped_existing: skippedExisting,
     last_by_company: lastByCompany,

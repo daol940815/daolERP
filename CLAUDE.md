@@ -44,6 +44,7 @@
 ## 직원 마스터 (employees) — 인사·근태 기능은 반드시 이 테이블 참조
 
 - 100에서 생성, 103·104에서 확장: `position, phone, email, hire_date, role, auth_user_id, login_id`
+  (+ 203 `birth_date` · 204 `leave_approve_level` · 205 `work_phone` 업무용 핸드폰 — 발주서 발주자 연락처 = `work_phone` → 비면 `phone` → 회사 대표번호, 2026-11-05)
 - **권한(2026-09-29, 109)**: `permissions` JSONB {그룹 8: none|view|edit} + `is_master` +
   `can_approve`·`can_view_salary`·`can_view_payment_info` + `team`·`employment_type`(regular/parttime)·
   `work_start`/`work_end`(아르바이트, 종료일 경과 시 로그인 차단). 판정은 `lib/permissions.ts`
@@ -89,12 +90,20 @@
   **`600번대` 매입처 허브 트랙(인수인계: docs/purchase-hub-track.md)** /
   `700번대` 상담·영업·업무일지 트랙(인수인계: docs/consultation-journal-track.md) /
   **`800번대` 요아럽 샘플 재고 트랙(인수인계: docs/sample-stock-track.md)** /
-  `900번대` 업무요청 트랙(인수인계: docs/work-request-track.md — 900 적용 2026-10-16) /
+  **도움말 트랙(마이그레이션 없음, 인수인계: docs/help-track.md — 화면별 도움말 `lib/help-registry.ts` 단일 원천, 질문하기 = 업무 요청,
+  2026-11-03 1차 배포)** /
+  `900번대` 업무요청 트랙(인수인계: docs/work-request-track.md — 900 적용 2026-10-16, 901 비공개 열 적용 2026-11-02,
+  902 담당자 다수·선착/공동 적용 2026-11-02, 903 PC 알림(Web Push) 적용 2026-11-03 — Vercel 환경변수 VAPID 3개·CRON_SECRET,
+  아침 09:00 크론 `/api/push/cron`) /
   새 트랙은 다음 100번대를 사용.
 - 원본 데이터 재적재(ERP 주문 정리본 교체, 2026-10-21 결정 — 마이그레이션 없음, 데이터 작업만):
-  docs/erp-reload-track.md. **별도 세션에서 진행**(인수인계 섹션 참고). 순서: 엑셀 검수 완료 → 사용자 승인 → 업로드 주문 삭제 →
-  재업로드. 통장·계산서·카드는 리셋하지 않는다(확정). 매출처·매입처 엑셀 업로드(수정·추가 전용)도 같은 트랙.
-- 현재 적용 완료: 100~109 (109 = 직원 권한, 2026-09-29), 900 (업무 요청, 2026-10-16).
+  docs/erp-reload-track.md. **별도 세션에서 진행**(인수인계 섹션 참고). 2026-10-26 결정: 과거 내역은 재입력하지 않고 **전부 삭제 후
+  기준일부터 새로 시작**(기준일 2026-10-01 권고), 거래처는 고객관리문서로 매출처만 정비, 계정과목 키워드·마스터는 유지.
+  **2026-10-30 ERP 주문 전량 삭제 완료**(업로드 8,630 + 직접 입력 6, 선결제 460, 발주서 5 연쇄 — erp_orders 0건; 별칭·담당자 연결·거래처 유지,
+  백업 JSON은 사용자 PC). 상담일지 9·업무일지 17도 삭제(10-30·11-02).
+  **2026-11-02 결정: 통장·계산서·카드·분개·매칭 과거분은 삭제하지 않는다(유지).** 기초잔액 절단 없음. 삭제 작업은 이것으로 종결.
+- 현재 적용 완료(113 화면 설정은 2026-11-05 배포 — 실행 대기): 100~111 (109 = 직원 권한, 2026-09-29 · 110 = 고객코드·자동 판별 확인 큐 · 111 = 고객관리문서 매출이력 스냅샷, 2026-11-03), **200~205 (인사·총무: 근태 200 · 공휴일 201 · 스케줄 규칙 202 · 생일 203 · 휴가 3단계 결재 204 · 업무용 핸드폰 205, 203은 2026-11-03 · 204·205는 2026-11-05)**, 900 (업무 요청, 2026-10-16), 901 (업무 요청 비공개, 2026-11-02),
+  902 (업무 요청 담당자 다수·선착/공동, 2026-11-02), 903 (PC 알림 구독, 2026-11-03).
 
 ## 기본 루틴 (모든 트랙 공통)
 
@@ -107,13 +116,15 @@
    압축 시 보존 지침을 주입하고, 압축 직후 미기록 사항의 docs 저장을 안내한다.
    지침 문구는 `.claude/compact-preserve.md` / `.claude/compact-followup.md`에서 수정.
 3. **DB 변경 루틴**: 승인 → 드라이런(대조 통계) → 실행 → 검증 보고(건수 대사·표본 대조).
-4. **배포 루틴**: 빌드 통과 → 브랜치 커밋·push → 원격 main pull → `--no-ff` 병합 → push.
+4. **배포 루틴**: **도움말 갱신**(화면을 고쳤으면 `lib/help-registry.ts`의 그 화면 항목 — `updated` 날짜 + `changes`에 한 줄, 새 화면은
+   항목 신설 또는 `HELP_PENDING`에 추가) → 빌드 통과(`npm run build` — 앞단 `check-help`가 도움말 누락을 실패로, 화면보다 오래된
+   도움말을 경고로 낸다. `check-ui`가 고정 px 글자 · 직접 색 코드를 실패로 낸다) → 브랜치 커밋·push → 원격 main pull → `--no-ff` 병합 → push.
 5. **화면 신설 루틴**: 시안(HTML) → 사용자 확인 → 구현. 목록 화면은 UI 관례의
    KPI+칩 필터 패턴을 따른다.
 
 ## 개발·배포 규칙
 
-- 빌드 검증: `cd my-accounting-app && npx next build` (통과 후에만 커밋)
+- 빌드 검증: `cd my-accounting-app && npm run build` (통과 후에만 커밋. `npx next build`는 도움말 검사를 건너뛰므로 쓰지 말 것)
 - 브랜치에서 작업 → main에 `--no-ff` 병합 → push → Vercel 자동배포.
   병행 세션이 있으므로 main 병합 전 원격 main을 먼저 pull/rebase 할 것.
 - Vercel 함수 리전은 서울(icn1) 고정 (`my-accounting-app/vercel.json`) — Supabase가
@@ -160,10 +171,21 @@
   옛 주소는 리다이렉트 스텁(쿼리 보존)으로 남기고 `EXTRA_PATH_OWNERS`에 소속을 유지한다.
   업무 요청 `/me/requests`(받은|보낸)은 내 업무 그룹 전원, 경영 현황 `/reports/work-requests`는 조회 전용.
   알림 센터(2026-10-16): `/api/notifications`가 원본 상태에서 '확인할 것'을 계산(저장 없음), 사이드바 종·패널·토스트는
-  `components/layout/NotificationCenter.tsx`, 폴링은 AreaSidebar의 `useNotifications` 1곳. 새 알림 원천은 API에 블록 추가.
+  `components/layout/NotificationCenter.tsx`, 폴링은 AreaSidebar의 `useNotifications` 1곳(20초, 2026-11-02). 새 알림 원천은 API에 블록 추가.
+  화면 자동 갱신: 알림 결과가 바뀌면 `daol:notif-changed` 이벤트 → `useNotifRefresh(load)`(lib/use-notif-refresh.ts)로 구독한 화면이 재조회,
+  조작 뒤 `requestNotifRefresh()`로 즉시 폴링. 자동 갱신이 필요한 새 화면은 이 훅을 쓸 것(자체 폴링 금지).
+  **도움말(2026-11-03)**: 사이드바 하단 고정 영역의 "이 화면 도움말"(F1) 버튼은 `components/help/HelpLauncher.tsx`를 AreaSidebar가 렌더 — 화면마다
+  손대지 않는다(2026-11-05 본문 오른쪽 위에서 이동: 화면 주요 버튼을 가렸음 — 본문 위에 떠 있는 공용 버튼을 새로 두지 말 것). 내용은 `lib/help-registry.ts` 한 곳(이 화면은 / 누가·언제 / 순서 / 자주 막히는 것 + keywords·changes). 질문하기 ·
+  권한 요청하기는 `/me/requests/new?question=<경로>&screen=<화면명>[&perm=<그룹>]`으로 업무 요청(담당 `HELP_QUESTION_RECIPIENT_LOGIN`).
+  403 문구를 새로 쓸 때는 "무슨 권한 · 누구에게"까지 적을 것(`PERMISSION_CONTACT`).
   적용: 기초잔액 `/opening-balances`, 자금 · 계좌 `/reports/cash`, 카드 내역 `/cards`, 계산서 내역 `/tax-invoices`
   (칩 `?dir=&tax=` + 매입 분류 탭), 통장 내역 `/transactions`(분류 작업 탭, 기간 없음), 매입처 관리(결제 예외 탭,
   collections 권한), 미수금·미지급금 관리(`components/reports/aging-manage.tsx`, 경과 구간 + 허브 요약 합침).
+- **직원별 화면 설정(2026-11-05, 113)**: 글자 크기 3단계 · 색 테마 4종만(사용자 결정 — 그 외 개인 UI 설정은 두지 않는다). `<html>` font-size ·
+  `data-theme`(루트 레이아웃이 쿠키 사본 `daol-ui`로 그림, 원본 `employees.ui_prefs`, 설정 화면 내 정보 › 화면 설정, `lib/ui-prefs.ts`).
+  Tailwind `slate`는 테마 변수(`tailwind.config.ts` · `app/globals.css`). **새 코드 규칙**: 글자 크기는 rem/Tailwind 크기만(`text-[11px]` 금지 →
+  `text-[0.6875rem]`), 기본 회색은 slate · gray만, 클래스에 색 코드(`bg-[#…]`) 금지, 의미 색(red · amber · green …)은 테마 대상 아님.
+  `npm run build` 앞단 `check-ui`가 어기면 실패시킨다. 새 표는 "크게"에서 한 번 확인(고정 폭 칸 줄바꿈). OS 다크 모드 자동 전환은 제거됨(흐린 글자 원인).
 - **기간 필터 표준(2026-09-30 확정)**: 기간이 있는 목록·분석 화면은 `components/ui/PeriodPresets.tsx`
   한 줄(최근 7일·최근 30일·당월·전월·1~4분기·상반기·하반기·당년·전년·전체 기간)을 필터 바 위에
   두고 날짜 from~to는 필터 바에 둔다. "전체 기간"은 `DATA_START`(lib/period-presets.ts)부터 —

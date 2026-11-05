@@ -30,6 +30,14 @@ export default function ContactDetailPage() {
   const { contactId } = useParams<{ contactId: string }>()
   const router = useRouter()
   const [d, setD] = useState<Detail | null>(null)
+  // 과거 매출 스냅샷 (고객관리문서 기준, 111) — 참고 지표 (주문 원본 삭제로 드릴다운 불가)
+  interface DocSalesRow {
+    bank_name: string | null; branch_name: string | null; total_sales: number
+    season: Record<string, number>; monthly: Record<string, number>
+    first_order_date: string | null; last_order_date: string | null
+    order_type: string | null; source: string
+  }
+  const [docSales, setDocSales] = useState<DocSalesRow[]>([])
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -43,6 +51,7 @@ export default function ContactDetailPage() {
   const [moving, setMoving] = useState(false)
   const [moveQ, setMoveQ] = useState('')
   const [moveTitle, setMoveTitle] = useState('')
+  const [moveStaff, setMoveStaff] = useState('')   // 새 지점의 다올 담당 (112 — 매출처 필수)
   const [moveOptions, setMoveOptions] = useState<{ id: string; name: string }[]>([])
 
   // 영업일지 폼
@@ -56,6 +65,7 @@ export default function ContactDetailPage() {
     const json = await res.json()
     if (res.ok) {
       setD(json)
+      setDocSales(Array.isArray(json.doc_sales) ? json.doc_sales : [])
       setForm({ name: json.contact.name ?? '', phone: json.contact.phone ?? '', email: json.contact.email ?? '', note: json.contact.note ?? '' })
     } else showMsg(`조회 실패: ${json.error ?? '알 수 없는 오류'}`)
     setLoading(false)
@@ -172,9 +182,14 @@ export default function ContactDetailPage() {
                   className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
                 <input value={moveTitle} onChange={e => setMoveTitle(e.target.value)} placeholder="새 직함 (예: 지점장 — 선택)"
                   className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                <select value={moveStaff} onChange={e => setMoveStaff(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm bg-white">
+                  <option value="">새 지점의 다올 담당 (매출처는 필수)</option>
+                  {d.employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                </select>
                 {moveOptions.map(v => (
                   <button key={v.id} disabled={busy}
-                    onClick={() => post({ action: 'move', contact_id: d.contact.id, to_vendor_id: v.id, title: moveTitle || undefined },
+                    onClick={() => post({ action: 'move', contact_id: d.contact.id, to_vendor_id: v.id, title: moveTitle || undefined, staff_employee_id: moveStaff || undefined },
                       `${v.name}(으)로 이동 처리 완료`).then(okd => okd && setMoving(false))}
                     className="block w-full text-left px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-slate-50">
                     → {v.name}
@@ -192,27 +207,27 @@ export default function ContactDetailPage() {
                   <p className="text-sm font-medium text-gray-900">
                     {a.vendor_name}{a.title ? ` · ${a.title}` : ''}
                     {a.is_representative && !a.ended_at && (
-                      <span className="ml-1 px-1.5 py-0.5 rounded text-[11px] bg-blue-50 text-blue-700">대표</span>
+                      <span className="ml-1 px-1.5 py-0.5 rounded text-[0.6875rem] bg-blue-50 text-blue-700">대표</span>
                     )}
                   </p>
                   <p className="text-xs text-gray-400">
                     {a.started_at ?? '기존'} ~ {a.ended_at ?? '현재'}
                   </p>
                   {a.ended_at && a.vendor_gap && (
-                    <p className="text-[11px] text-red-500">→ 이 거래처는 담당 공백 (후임 미지정)</p>
+                    <p className="text-[0.6875rem] text-red-500">→ 이 거래처는 담당 공백 (후임 미지정)</p>
                   )}
                   {!a.ended_at && canEdit && (
                     <div className="flex gap-1.5 mt-1">
                       {!a.is_representative && (
                         <button disabled={busy}
                           onClick={() => post({ action: 'set_representative', assignment_id: a.id, vendor_id: a.vendor_id }, '대표 담당자로 지정했습니다.')}
-                          className="text-[11px] text-blue-600 hover:underline">대표 지정</button>
+                          className="text-[0.6875rem] text-blue-600 hover:underline">대표 지정</button>
                       )}
                       <button disabled={busy}
                         onClick={() => window.confirm(`${a.vendor_name} 배정을 종료할까요? (퇴직·담당 해제)`) &&
                           post({ action: 'end_assignment', assignment_id: a.id }, '배정을 종료했습니다.')}
-                        className="text-[11px] text-gray-400 hover:text-red-500">배정 종료</button>
-                      <Link href={`/sales-hub/${a.vendor_id}`} className="text-[11px] text-slate-500 hover:underline ml-auto">허브 상세 →</Link>
+                        className="text-[0.6875rem] text-gray-400 hover:text-red-500">배정 종료</button>
+                      <Link href={`/sales-hub/${a.vendor_id}`} className="text-[0.6875rem] text-slate-500 hover:underline ml-auto">허브 상세 →</Link>
                     </div>
                   )}
                 </div>
@@ -243,9 +258,46 @@ export default function ContactDetailPage() {
             </div>
           </div>
 
+          {docSales.length > 0 && (() => {
+            const ysum = (m: Record<string, number>, y: string) =>
+              Object.entries(m).reduce((s, [k, v]) => s + (k.startsWith(y) ? v : 0), 0)
+            const ssum = (s: Record<string, number>) => Object.values(s).reduce((a, b) => a + b, 0)
+            return (
+              <div className="bg-white border border-gray-200 rounded-xl p-4 overflow-x-auto">
+                <h2 className="text-sm font-bold text-gray-900">과거 매출
+                  <span className="ml-2 text-[0.6875rem] font-normal text-gray-400">{docSales[0].source} 기준 스냅샷 — 참고 지표 (주문 원본 삭제로 드릴다운 불가) · 합계 = 상시 + 명절</span>
+                </h2>
+                <table className="w-full text-sm mt-2 min-w-[560px]">
+                  <thead>
+                    <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                      <th className="py-1.5 pr-3 font-medium">소속 (문서 표기)</th>
+                      <th className="py-1.5 px-3 font-medium text-right">상시 2025</th>
+                      <th className="py-1.5 px-3 font-medium text-right">상시 2026</th>
+                      <th className="py-1.5 px-3 font-medium text-right">명절</th>
+                      <th className="py-1.5 px-3 font-medium text-right">합계</th>
+                      <th className="py-1.5 px-3 font-medium">거래 기간</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {docSales.map((r, i) => (
+                      <tr key={i} className="border-b border-gray-50 last:border-0">
+                        <td className="py-1.5 pr-3">{[r.bank_name, r.branch_name].filter(Boolean).join(' ') || '-'}</td>
+                        <td className="py-1.5 px-3 text-right tabular-nums">{won(ysum(r.monthly, '2025'))}</td>
+                        <td className="py-1.5 px-3 text-right tabular-nums">{won(ysum(r.monthly, '2026'))}</td>
+                        <td className="py-1.5 px-3 text-right tabular-nums">{won(ssum(r.season))}</td>
+                        <td className="py-1.5 px-3 text-right tabular-nums font-semibold">{won(r.total_sales)}</td>
+                        <td className="py-1.5 px-3 text-xs text-gray-500 tabular-nums whitespace-nowrap">{(r.first_order_date ?? '?')} ~ {(r.last_order_date ?? '?')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          })()}
+
           <div className="bg-white border border-gray-200 rounded-xl p-4">
             <h2 className="text-sm font-bold text-gray-900 mb-1">상담 직원 커넥션</h2>
-            <p className="text-[11px] text-gray-400 mb-3">이 담당자에게 귀속된 주문의 상담자(채널) 자동 집계 — 수동 입력 없음</p>
+            <p className="text-[0.6875rem] text-gray-400 mb-3">이 담당자에게 귀속된 주문의 상담자(채널) 자동 집계 — 수동 입력 없음</p>
             {d.connections.length ? (
               <div className="space-y-1.5">
                 {d.connections.map(c => (
@@ -320,7 +372,7 @@ export default function ContactDetailPage() {
                           <td className="py-1.5 pr-3 whitespace-nowrap text-xs text-gray-500">{a.activity_date}</td>
                           <td className="py-1.5 pr-3 whitespace-nowrap text-xs">{a.employee_name ?? '-'}</td>
                           <td className="py-1.5 pr-3 whitespace-nowrap">
-                            <span className="px-1.5 py-0.5 rounded text-[11px] bg-slate-100 text-slate-600">{a.activity_type}</span>
+                            <span className="px-1.5 py-0.5 rounded text-[0.6875rem] bg-slate-100 text-slate-600">{a.activity_type}</span>
                           </td>
                           <td className="py-1.5 pr-3 text-gray-700">{a.content}</td>
                           <td className="py-1.5 text-xs text-gray-500">{a.next_action ?? '-'}</td>
