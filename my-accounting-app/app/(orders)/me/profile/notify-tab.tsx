@@ -111,8 +111,8 @@ export default function NotifyTab() {
               <tr key={s.id} className={`border-b border-gray-50 ${sel === s.id ? 'bg-slate-50' : ''}`}>
                 <td className="py-2">
                   <button onClick={() => setSel(s.id)} className="text-left">
-                    <span className="font-semibold text-gray-900">{s.device_label ?? '기기'}</span>{s.endpoint === endpoint && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-white">이 PC</span>}
-                    {s.last_error && <span className="block text-[11px] text-red-600">최근 실패: {s.last_error}</span>}
+                    <span className="font-semibold text-gray-900">{s.device_label ?? '기기'}</span>{s.endpoint === endpoint && <span className="ml-1.5 text-[0.625rem] px-1.5 py-0.5 rounded bg-slate-900 text-white">이 PC</span>}
+                    {s.last_error && <span className="block text-[0.6875rem] text-red-600">최근 실패: {s.last_error}</span>}
                   </button>
                 </td>
                 <td className="py-2 text-xs text-gray-500 tabular-nums whitespace-nowrap">{fmtDT(s.created_at)}</td>

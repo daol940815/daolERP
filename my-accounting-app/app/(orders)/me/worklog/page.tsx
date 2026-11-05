@@ -201,7 +201,7 @@ export default function MyWorklogPage() {
                 on ? 'border-slate-900 ring-1 ring-slate-900' : 'border-gray-200 hover:border-gray-300'}`}>
               <div className="text-xs text-gray-500">{k.label}</div>
               <div className="text-xl font-bold text-gray-900 mt-0.5 tabular-nums">{k.value}</div>
-              <div className="text-[10.5px] text-gray-400 mt-0.5">{k.sub}</div>
+              <div className="text-[0.65625rem] text-gray-400 mt-0.5">{k.sub}</div>
             </button>
           )
         })}
@@ -258,8 +258,8 @@ export default function MyWorklogPage() {
               const link = drilldown(r)
               return (
                 <div key={r.id} className="flex items-center gap-3 px-3.5 py-2.5 border-b border-gray-50 last:border-b-0 hover:bg-slate-50">
-                  <span className="text-[11px] text-gray-400 w-10 shrink-0 tabular-nums">{timeLabel(r.logged_at)}</span>
-                  <span className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-full w-16 text-center shrink-0 ${ACTION_STYLE[r.action] ?? 'bg-gray-100 text-gray-600'}`}>
+                  <span className="text-[0.6875rem] text-gray-400 w-10 shrink-0 tabular-nums">{timeLabel(r.logged_at)}</span>
+                  <span className={`text-[0.65625rem] font-semibold px-2 py-0.5 rounded-full w-16 text-center shrink-0 ${ACTION_STYLE[r.action] ?? 'bg-gray-100 text-gray-600'}`}>
                     {r.action}
                   </span>
                   {editing === r.id ? (
@@ -272,17 +272,17 @@ export default function MyWorklogPage() {
                     </>
                   ) : (
                     <>
-                      <span className="flex-1 text-[12.5px] text-gray-800">
+                      <span className="flex-1 text-[0.78125rem] text-gray-800">
                         {r.category && <span className="text-gray-400">[{r.category}] </span>}
                         {r.content}
                       </span>
-                      {link && <Link href={link.href} className="text-[11px] text-blue-600 hover:underline whitespace-nowrap">{link.label}</Link>}
+                      {link && <Link href={link.href} className="text-[0.6875rem] text-blue-600 hover:underline whitespace-nowrap">{link.label}</Link>}
                       {r.source === 'manual' && !readOnly && (
                         <>
                           <button onClick={() => { setEditing(r.id); setEditContent(r.content); setEditCategory(r.category) }}
-                            className="text-[11px] text-gray-400 hover:text-gray-600">수정</button>
+                            className="text-[0.6875rem] text-gray-400 hover:text-gray-600">수정</button>
                           <button onClick={() => remove(r.id)}
-                            className="text-[11px] text-gray-400 hover:text-red-600">삭제</button>
+                            className="text-[0.6875rem] text-gray-400 hover:text-red-600">삭제</button>
                         </>
                       )}
                     </>

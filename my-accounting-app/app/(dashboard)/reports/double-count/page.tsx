@@ -113,7 +113,7 @@ export default function DoubleCountPage() {
                       className="text-sky-700 hover:underline" title={`${f.source} 원본 레코드 보기`}>
                       {f.label || '(적요 없음)'}
                     </Link>
-                    <span className="ml-1 text-[11px] text-gray-400">{f.source}</span>
+                    <span className="ml-1 text-[0.6875rem] text-gray-400">{f.source}</span>
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{won(f.amount)}</td>
                   <td className="px-3 py-2 text-xs text-gray-700 whitespace-nowrap">{f.account_name ?? '-'}</td>

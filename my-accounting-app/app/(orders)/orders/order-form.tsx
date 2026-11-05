@@ -488,7 +488,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
     )
   }
 
-  const label = 'block text-[11px] text-gray-500 mb-0.5'
+  const label = 'block text-[0.6875rem] text-gray-500 mb-0.5'
   const free = 'w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2.5 py-1.5 text-sm'
   const auto = 'w-full border border-gray-200 bg-gray-50 rounded-lg px-2.5 py-1.5 text-sm text-gray-500'
   // 금액 칸은 colgroup으로 전부 동일 폭 — 칸 안 요소는 폭을 채운다
@@ -502,7 +502,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           {isEdit ? '주문 수정' : reissueFromNo ? '주문 취소·재등록' : '신규 주문'}
         </h1>
         {isEdit && orderNo && <span className="text-sm text-gray-400 tabular-nums">{orderNo}</span>}
-        <span className="text-[11px] text-gray-400 ml-auto">
+        <span className="text-[0.6875rem] text-gray-400 ml-auto">
           <span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-50 border border-blue-200 align-middle mr-1" />마스터 선택
           <span className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-50 border border-gray-200 align-middle ml-3 mr-1" />자동
           <span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-50 border border-amber-200 align-middle ml-3 mr-1" />자유 입력
@@ -537,7 +537,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
       {/* 주문 정보 — 기존 입력 순서 그대로 */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 mt-4">
         <div className="text-sm font-bold text-gray-900 mb-3">
-          주문 정보 <span className="text-[11px] font-normal text-gray-400 ml-1">기존 입력 순서 그대로</span>
+          주문 정보 <span className="text-[0.6875rem] font-normal text-gray-400 ml-1">기존 입력 순서 그대로</span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-6 gap-x-3 gap-y-2.5">
           <div>
@@ -560,7 +560,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               }}
               placeholder="업체 검색 (지점에서 바로 검색도 가능)"
             />
-            <div className="text-[10px] text-gray-400 mt-0.5">업체별 통계의 기준 — 단일 업체는 비워두고 지점만 선택</div>
+            <div className="text-[0.625rem] text-gray-400 mt-0.5">업체별 통계의 기준 — 단일 업체는 비워두고 지점만 선택</div>
           </div>
           <div className="col-span-2 md:col-span-3">
             <label className={label}>지점(부서) — 주문처 <em className="not-italic text-red-500">*</em></label>
@@ -643,9 +643,9 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               const c = contacts.find(x => x.contact_id === contactId)
               if (!c) return null
               const staff = c.staff_employee_id ? employees.find(e => e.id === c.staff_employee_id)?.name ?? '등록됨' : null
-              if (!staff) return <div className="text-[10px] text-amber-700 mt-0.5">이 고객의 다올 담당 미기입 — 고른 상담자가 다올 담당으로 저장됩니다</div>
-              if (counselorId && counselorId !== c.staff_employee_id) return <div className="text-[10px] text-amber-700 mt-0.5">고객 다올 담당은 {staff} — 이번 주문만 다르게 기록</div>
-              return <div className="text-[10px] text-gray-400 mt-0.5">고객 다올 담당</div>
+              if (!staff) return <div className="text-[0.625rem] text-amber-700 mt-0.5">이 고객의 다올 담당 미기입 — 고른 상담자가 다올 담당으로 저장됩니다</div>
+              if (counselorId && counselorId !== c.staff_employee_id) return <div className="text-[0.625rem] text-amber-700 mt-0.5">고객 다올 담당은 {staff} — 이번 주문만 다르게 기록</div>
+              return <div className="text-[0.625rem] text-gray-400 mt-0.5">고객 다올 담당</div>
             })()}
           </div>
           <div>
@@ -688,7 +688,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm">등록</button>
             <button type="button" onClick={() => setAddingVendor(false)}
               className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">취소</button>
-            <span className="text-[11px] text-gray-400">
+            <span className="text-[0.6875rem] text-gray-400">
               거래처 마스터에 즉시 등록됩니다 (매출처 허브에도 보임) — 같은 이름이 있으면 새로 만들지 않고 선택합니다
             </span>
           </div>
@@ -723,7 +723,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">등록</button>
             <button type="button" onClick={() => setAddingContact(false)}
               className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">취소</button>
-            <span className="text-[11px] text-gray-400">거래처 담당자 마스터에 즉시 등록됩니다</span>
+            <span className="text-[0.6875rem] text-gray-400">거래처 담당자 마스터에 즉시 등록됩니다</span>
           </div>
         )}
       </div>
@@ -746,7 +746,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
       {/* 주문 상품 — 기존 컬럼 순서 그대로 */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3 overflow-x-auto">
         <div className="text-sm font-bold text-gray-900 mb-3">
-          주문 상품 <span className="text-[11px] font-normal text-gray-400 ml-1">품번·품명 검색 시 매입처·가격 자동</span>
+          주문 상품 <span className="text-[0.6875rem] font-normal text-gray-400 ml-1">품번·품명 검색 시 매입처·가격 자동</span>
         </div>
         <table className="w-full text-xs min-w-[1240px] table-fixed">
           {/* 그룹별 동일 폭: 금액 칸 6개는 같은 폭으로 세로 정렬을 맞춘다. 품명이 남는 폭 전부 차지 */}
@@ -855,7 +855,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                         ? { discount_mode: mode, discount_amount: (it.discount_unit || 0) * it.quantity }
                         : { discount_mode: mode, discount_unit: 0 })
                     }}
-                    className="w-full border border-blue-200 bg-blue-50/40 rounded px-1 py-0.5 text-[10px] mb-0.5">
+                    className="w-full border border-blue-200 bg-blue-50/40 rounded px-1 py-0.5 text-[0.625rem] mb-0.5">
                     <option value="정액">정액</option>
                     <option value="단가">개당</option>
                   </select>
@@ -877,7 +877,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                   <div className={autoCell + ' font-semibold text-gray-700'}>
                     {won(lineTotal(it))}
                     {it.discount_amount > 0 && (
-                      <div className="text-[10px] text-red-500 font-normal">
+                      <div className="text-[0.625rem] text-red-500 font-normal">
                         할인 -{won(it.discount_amount)}{it.discount_mode === '단가' ? ` (${won(it.discount_unit)}/개)` : ''}
                       </div>
                     )}
@@ -888,7 +888,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                     className={numCell} placeholder="0" />
                   {/* 품목별 매입가 합계 = 매입가 × 수량 (704 확정) */}
                   {it.purchase_price > 0 && it.quantity > 0 && (
-                    <div className="text-[10px] text-gray-400 mt-0.5 tabular-nums">합계 {won(it.purchase_price * it.quantity)}</div>
+                    <div className="text-[0.625rem] text-gray-400 mt-0.5 tabular-nums">합계 {won(it.purchase_price * it.quantity)}</div>
                   )}
                 </td>
                 <td className="py-1 px-1.5 text-right">
@@ -912,10 +912,10 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                 <tr className="border-b border-gray-50">
                   <td colSpan={13} className="pb-1.5 pt-0 px-1.5">
                     <div className="flex items-center gap-1.5 flex-wrap pl-4">
-                      <span className="text-[10px] text-gray-400">옵션 추가 ({it.purchase_vendor_name})</span>
+                      <span className="text-[0.625rem] text-gray-400">옵션 추가 ({it.purchase_vendor_name})</span>
                       {addonCands.map(p => (
                         <button key={p.id} type="button" onClick={() => addAddon(i, p)}
-                          className="px-2 py-0.5 border border-violet-200 bg-violet-50/60 text-violet-700 rounded-full text-[11px] hover:bg-violet-100">
+                          className="px-2 py-0.5 border border-violet-200 bg-violet-50/60 text-violet-700 rounded-full text-[0.6875rem] hover:bg-violet-100">
                           + {p.item_name}{p.sale_price > 0 ? ` (${won(p.sale_price)})` : ''}
                         </button>
                       ))}
@@ -936,7 +936,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
         <div className="flex items-center justify-between mt-4 flex-wrap gap-3">
           <div className="flex gap-5 text-sm">
             <span>총금액 <b className="tabular-nums">{won(totals.total)}원</b>
-              <span className="text-[11px] text-gray-400 ml-1">자동 합산</span></span>
+              <span className="text-[0.6875rem] text-gray-400 ml-1">자동 합산</span></span>
             <span>예상 마진 <b className="tabular-nums text-emerald-700">{won(totals.margin)}원</b></span>
           </div>
           <div className="flex gap-2">

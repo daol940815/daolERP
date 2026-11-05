@@ -185,7 +185,7 @@ export default function ConsultationsPage() {
           ] as const).map(([key, title, val, cls]) => (
             <button key={key} onClick={() => setScope(key)}
               className={`bg-white border rounded-xl px-4 py-3 text-left ${scope === key ? 'border-slate-800' : 'border-gray-200'}`}>
-              <div className="text-[11px] text-gray-400">{title}</div>
+              <div className="text-[0.6875rem] text-gray-400">{title}</div>
               <div className={`text-lg font-bold tabular-nums ${cls}`}>{val}</div>
             </button>
           ))}
@@ -259,7 +259,7 @@ export default function ConsultationsPage() {
                   </td>
                   <td className="py-2 px-3 tabular-nums text-xs font-semibold">{r.consult_date}</td>
                   <td className="py-2 px-3">
-                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${TYPE_BADGE[r.consult_type] ?? 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${TYPE_BADGE[r.consult_type] ?? 'bg-gray-100 text-gray-500'}`}>
                       {r.consult_type}
                     </span>
                   </td>
@@ -271,10 +271,10 @@ export default function ConsultationsPage() {
                     {r.item_name ?? <span className="text-gray-300">품목 없음</span>}
                     {/* 할인·단가변경은 품목 줄에서 바로 보이게 (실무자 피드백 2) */}
                     {r.has_discount && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-600">할인</span>
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-red-50 text-red-600">할인</span>
                     )}
                     {r.item_status && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800">{r.item_status}</span>
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-amber-100 text-amber-800">{r.item_status}</span>
                     )}
                   </td>
                   <td className="py-2 px-3 text-right tabular-nums text-xs">{r.quantity || <span className="text-gray-300">-</span>}</td>
@@ -285,19 +285,19 @@ export default function ConsultationsPage() {
                   <td className="py-2 px-3 text-xs">{r.sender_name ?? <span className="text-gray-300">-</span>}</td>
                   <td className="py-2 px-3 text-xs whitespace-nowrap" title={r.order_request_memo ?? undefined}>
                     {r.assigned_to_me ? (
-                      <><span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">나에게 요청</span>
+                      <><span className="inline-block px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-blue-50 text-blue-700 border border-blue-200">나에게 요청</span>
                         <span className="text-gray-500 ml-1">{r.requester_name ?? ''}</span></>
                     ) : r.assignee_name ? (
                       <span className="text-gray-600">{r.assignee_name}에게 요청</span>
                     ) : <span className="text-gray-300">-</span>}
                   </td>
                   <td className="py-2 px-3">
-                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${STATUS_BADGE[r.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${STATUS_BADGE[r.status] ?? 'bg-gray-100 text-gray-500'}`}>
                       {r.status}
                     </span>
                     {/* (b) 정책: 지점·담당자 마스터 연결이 끝나야 주문 전환 가능 */}
                     {!r.master_linked && (
-                      <span className="ml-1 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-50 text-orange-600 border border-orange-200"
+                      <span className="ml-1 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-orange-50 text-orange-600 border border-orange-200"
                         title="자유 입력된 업체·지점·담당자가 매출처 마스터에 연결되지 않았습니다 — 상담일지를 열어 마스터 등록/선택 후 전환할 수 있습니다">
                         마스터 미연결
                       </span>
@@ -349,8 +349,8 @@ export default function ConsultationsPage() {
         <div className="fixed inset-0 z-40 bg-black/30 flex items-center justify-center p-4" onClick={() => setReqFor(null)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-4" onClick={e => e.stopPropagation()}>
             <div className="text-sm font-bold text-gray-900">주문 진행 요청 — {[reqFor.bank_name, reqFor.branch_name].filter(Boolean).join(' ') || '상담일지'}</div>
-            <div className="text-[11px] text-gray-500 mt-0.5">요청받은 직원은 이 상담을 열람 · 주문 전환만 할 수 있습니다. 비우면 요청 취소.</div>
-            <label className="block text-[11px] text-gray-500 mt-3 mb-0.5">주문 진행 담당</label>
+            <div className="text-[0.6875rem] text-gray-500 mt-0.5">요청받은 직원은 이 상담을 열람 · 주문 전환만 할 수 있습니다. 비우면 요청 취소.</div>
+            <label className="block text-[0.6875rem] text-gray-500 mt-3 mb-0.5">주문 진행 담당</label>
             <select value={reqAssignee} onChange={e => setReqAssignee(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm bg-white">
               <option value="">요청 안 함 (내가 진행)</option>
@@ -358,7 +358,7 @@ export default function ConsultationsPage() {
                 <option key={e.id} value={e.id}>{e.name}{e.team || e.position ? ` (${[e.team, e.employment_type === 'parttime' ? '아르바이트' : e.position].filter(Boolean).join(' · ')})` : ''}</option>
               ))}
             </select>
-            <label className="block text-[11px] text-gray-500 mt-2 mb-0.5">요청 메모 (선택)</label>
+            <label className="block text-[0.6875rem] text-gray-500 mt-2 mb-0.5">요청 메모 (선택)</label>
             <input value={reqMemo} onChange={e => setReqMemo(e.target.value)} disabled={!reqAssignee}
               placeholder="예: 11/10 출고 맞춰서 발주까지 부탁해요"
               className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm disabled:bg-gray-50" />

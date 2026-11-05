@@ -190,7 +190,7 @@ export default function MyDashboardPage() {
               {data.leaves.map(l => (
                 <p key={l.id} className="text-xs text-gray-600 mb-1 tabular-nums">
                   {l.start_date}{l.end_date !== l.start_date ? ` ~ ${l.end_date}` : ''} · {LEAVE_TYPE_LABEL[l.leave_type] ?? l.leave_type}
-                  <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[11px] font-medium ${
+                  <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${
                     l.status === 'approved' ? 'bg-emerald-100 text-emerald-700'
                     : l.status === 'requested' ? 'bg-amber-100 text-amber-700'
                     : 'bg-gray-100 text-gray-500'}`}>

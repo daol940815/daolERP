@@ -48,16 +48,16 @@ const MANUAL_META: Record<string, { label: string; fields: ('supply' | 'tax')[] 
 function Cell({ c }: { c: CellV }) {
   return (
     <td className="py-1.5 px-2 text-right whitespace-nowrap">
-      <span className="block text-[12px] text-slate-900 font-medium">{fmt(c.tax)}</span>
-      <span className="block text-[10px] text-slate-400">{fmt(c.supply)}</span>
+      <span className="block text-[0.75rem] text-slate-900 font-medium">{fmt(c.tax)}</span>
+      <span className="block text-[0.625rem] text-slate-400">{fmt(c.supply)}</span>
     </td>
   )
 }
 function TotCell({ c }: { c: CellV }) {
   return (
     <td className="py-1.5 px-2 text-right whitespace-nowrap bg-blue-50/60 border-l-2 border-blue-200">
-      <span className="block text-[12px] font-semibold text-slate-900">{fmt(c.tax)}</span>
-      <span className="block text-[10px] text-slate-400">{fmt(c.supply)}</span>
+      <span className="block text-[0.75rem] font-semibold text-slate-900">{fmt(c.tax)}</span>
+      <span className="block text-[0.625rem] text-slate-400">{fmt(c.supply)}</span>
     </td>
   )
 }
@@ -140,16 +140,16 @@ export default function VatEstimatePage() {
     return (
       <td className="py-1.5 px-2 text-right whitespace-nowrap bg-blue-50/60 border-l-2 border-blue-200 cursor-pointer hover:bg-blue-100/60"
         onClick={() => editManual(k)} title="클릭하여 입력">
-        <span className="block text-[12px] font-semibold text-slate-900">
+        <span className="block text-[0.75rem] font-semibold text-slate-900">
           {has
             ? fmt0(c.tax)
-            : <span className="text-[10px] font-normal text-blue-500 border border-blue-300 rounded px-1">입력</span>}
+            : <span className="text-[0.625rem] font-normal text-blue-500 border border-blue-300 rounded px-1">입력</span>}
         </span>
-        {!opt?.taxOnly && has && <span className="block text-[10px] text-slate-400">{fmt(c.supply)}</span>}
+        {!opt?.taxOnly && has && <span className="block text-[0.625rem] text-slate-400">{fmt(c.supply)}</span>}
       </td>
     )
   }
-  const th = 'py-2 px-2 text-[11.5px] font-medium whitespace-nowrap'
+  const th = 'py-2 px-2 text-[0.71875rem] font-medium whitespace-nowrap'
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -198,22 +198,22 @@ export default function VatEstimatePage() {
             <div className="border border-gray-200 rounded-lg px-4 py-3 bg-white">
               <p className="text-xs text-gray-400 mb-1">차가감 납부할 세액</p>
               <p className={`text-lg font-bold ${finalTax >= 0 ? 'text-red-600' : 'text-blue-600'}`}>{fmt0(finalTax)}원</p>
-              <p className="text-[11px] text-gray-400">{finalTax >= 0 ? '납부 예상' : '환급 예상'} · 정산 항목 반영</p>
+              <p className="text-[0.6875rem] text-gray-400">{finalTax >= 0 ? '납부 예상' : '환급 예상'} · 정산 항목 반영</p>
             </div>
             <div className="border border-gray-200 rounded-lg px-4 py-3 bg-white">
               <p className="text-xs text-gray-400 mb-1">{v.months[n - 1]}월 발생 부가세</p>
               <p className="text-lg font-bold text-gray-900">{fmt0(payMonthly(n - 1))}원</p>
-              <p className="text-[11px] text-gray-400">해당 월 매출세액 - 매입세액</p>
+              <p className="text-[0.6875rem] text-gray-400">해당 월 매출세액 - 매입세액</p>
             </div>
             <div className="border border-gray-200 rounded-lg px-4 py-3 bg-white">
               <p className="text-xs text-gray-400 mb-1">매출세액 계</p>
               <p className="text-lg font-bold text-gray-900">{fmt0(salesTotal.tax)}원</p>
-              <p className="text-[11px] text-gray-400">공급가액 {fmt0(salesTotal.supply)}원</p>
+              <p className="text-[0.6875rem] text-gray-400">공급가액 {fmt0(salesTotal.supply)}원</p>
             </div>
             <div className="border border-gray-200 rounded-lg px-4 py-3 bg-white">
               <p className="text-xs text-gray-400 mb-1">매입세액 차감계</p>
               <p className="text-lg font-bold text-gray-900">{fmt0(buyCell(n).tax)}원</p>
-              <p className="text-[11px] text-gray-400">공급가액 {fmt0(buyCell(n).supply)}원</p>
+              <p className="text-[0.6875rem] text-gray-400">공급가액 {fmt0(buyCell(n).supply)}원</p>
             </div>
           </div>
 
@@ -246,23 +246,23 @@ export default function VatEstimatePage() {
                   <TotCell c={at(v.auto.sales_card_cash, n)} />
                 </tr>
                 <tr>
-                  <td className="py-1.5 px-2 text-slate-600">현금 <span className="text-[10px] text-blue-500">수동</span></td>
+                  <td className="py-1.5 px-2 text-slate-600">현금 <span className="text-[0.625rem] text-blue-500">수동</span></td>
                   {naCells()}
                   {manualTot('cash_sales')}
                 </tr>
                 <tr>
                   <td rowSpan={2} className="py-1.5 px-2 text-center text-xs text-slate-500 bg-slate-50">영세</td>
-                  <td className="py-1.5 px-2 text-slate-600">세금계산서 <span className="text-[10px] text-blue-500">수동</span></td>
+                  <td className="py-1.5 px-2 text-slate-600">세금계산서 <span className="text-[0.625rem] text-blue-500">수동</span></td>
                   {naCells()}
                   {manualTot('zero_invoice')}
                 </tr>
                 <tr>
-                  <td className="py-1.5 px-2 text-slate-600">기타 <span className="text-[10px] text-blue-500">수동</span></td>
+                  <td className="py-1.5 px-2 text-slate-600">기타 <span className="text-[0.625rem] text-blue-500">수동</span></td>
                   {naCells()}
                   {manualTot('zero_other')}
                 </tr>
                 <tr className="text-slate-500">
-                  <td colSpan={2} className="py-1.5 px-2">대손세액 가감 <span className="text-[10px] text-blue-500">수동</span></td>
+                  <td colSpan={2} className="py-1.5 px-2">대손세액 가감 <span className="text-[0.625rem] text-blue-500">수동</span></td>
                   {naCells()}
                   {manualTot('bad_debt', { taxOnly: true })}
                 </tr>
@@ -295,7 +295,7 @@ export default function VatEstimatePage() {
                 </tr>
 
                 <tr className="bg-amber-50 border-y-2 border-amber-200 font-semibold">
-                  <td colSpan={3} className="py-1.5 px-2 text-amber-900">납부세액 <span className="text-[10px] font-normal text-amber-700">월별 = 발생분 · 계 = 수동 항목 반영</span></td>
+                  <td colSpan={3} className="py-1.5 px-2 text-amber-900">납부세액 <span className="text-[0.625rem] font-normal text-amber-700">월별 = 발생분 · 계 = 수동 항목 반영</span></td>
                   {v.months.map((m, i) => (
                     <td key={m} className="py-1.5 px-2 text-right text-amber-800 font-semibold whitespace-nowrap">{fmt0(payMonthly(i))}</td>
                   ))}
@@ -304,12 +304,12 @@ export default function VatEstimatePage() {
 
                 <tr className="text-slate-500">
                   <td rowSpan={3} className="py-1.5 px-2 font-bold text-slate-700 bg-slate-50">경감<br />공제<br />세액</td>
-                  <td colSpan={2} className="py-1.5 px-2">그밖의 경감·공제세액 <span className="text-[10px] text-blue-500">수동</span></td>
+                  <td colSpan={2} className="py-1.5 px-2">그밖의 경감·공제세액 <span className="text-[0.625rem] text-blue-500">수동</span></td>
                   {naCells()}
                   {manualTot('reduce_other', { taxOnly: true })}
                 </tr>
                 <tr className="text-slate-500">
-                  <td colSpan={2} className="py-1.5 px-2">신용카드발행공제 <span className="text-[10px] text-blue-500">수동</span></td>
+                  <td colSpan={2} className="py-1.5 px-2">신용카드발행공제 <span className="text-[0.625rem] text-blue-500">수동</span></td>
                   {naCells()}
                   {manualTot('card_issue', { taxOnly: true })}
                 </tr>
@@ -319,30 +319,30 @@ export default function VatEstimatePage() {
                   <td className="py-1.5 px-2 text-right bg-blue-50/60 border-l-2 border-blue-200 font-semibold whitespace-nowrap">{fmt(reduceTotal)}</td>
                 </tr>
                 <tr className="text-slate-500">
-                  <td colSpan={3} className="py-1.5 px-2">예정신고미환급세액 <span className="text-[10px] text-blue-500">수동</span></td>
+                  <td colSpan={3} className="py-1.5 px-2">예정신고미환급세액 <span className="text-[0.625rem] text-blue-500">수동</span></td>
                   {naCells()}
                   {manualTot('prepaid_refund', { taxOnly: true })}
                 </tr>
                 <tr className="text-slate-500">
-                  <td colSpan={3} className="py-1.5 px-2">예정고지세액 <span className="text-[10px] text-blue-500">수동</span></td>
+                  <td colSpan={3} className="py-1.5 px-2">예정고지세액 <span className="text-[0.625rem] text-blue-500">수동</span></td>
                   {naCells()}
                   {manualTot('prepaid_notice', { taxOnly: true })}
                 </tr>
                 <tr className="text-slate-500">
-                  <td colSpan={3} className="py-1.5 px-2">가산세액계 <span className="text-[10px] text-blue-500">수동</span></td>
+                  <td colSpan={3} className="py-1.5 px-2">가산세액계 <span className="text-[0.625rem] text-blue-500">수동</span></td>
                   {naCells()}
                   {manualTot('penalty', { taxOnly: true })}
                 </tr>
                 <tr className="bg-slate-900 text-white">
                   <td colSpan={3} className="py-2 px-2 font-bold">차가감 납부할 세액</td>
                   {v.months.map(m => <td key={m} className="py-2 px-2 text-center text-slate-600">—</td>)}
-                  <td className="py-2 px-2 text-right bg-slate-800 border-l-2 border-slate-700 font-bold text-amber-300 text-[14px] whitespace-nowrap">{fmt0(finalTax)}</td>
+                  <td className="py-2 px-2 text-right bg-slate-800 border-l-2 border-slate-700 font-bold text-amber-300 text-[0.875rem] whitespace-nowrap">{fmt0(finalTax)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">
+          <p className="text-[0.6875rem] text-gray-400 mt-3 leading-relaxed">
             각 칸의 윗줄은 세액, 아랫줄 회색은 공급가액입니다. 파란 배경의 수동 항목은 클릭해 입력합니다(신고기간 단위 저장).
             현금 매출은 데이터 원천이 생기면 자동 집계로 전환할 수 있습니다. 실제 신고액과는 가산·공제 세부 항목에서 차이가 있을 수 있습니다.
           </p>

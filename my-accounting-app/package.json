@@ -7,8 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "prebuild": "node scripts/check-help.mjs",
-    "check-help": "node scripts/check-help.mjs"
+    "prebuild": "node scripts/check-help.mjs && node scripts/check-ui.mjs",
+    "check-help": "node scripts/check-help.mjs",
+    "check-ui": "node scripts/check-ui.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

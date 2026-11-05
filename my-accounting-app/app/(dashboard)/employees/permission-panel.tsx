@@ -114,7 +114,7 @@ export default function PermissionPanel({ emp, others, canEdit, leaveLevelReady 
     <tr className="border-b border-gray-50">
       <td className="py-2 px-3 font-medium">{label}</td>
       <td colSpan={3} className="text-center"><input type="checkbox" checked={v} disabled={!canEdit} onChange={e => set(e.target.checked)} /></td>
-      <td className="py-2 px-3 text-[11px] text-gray-400">{hint}</td>
+      <td className="py-2 px-3 text-[0.6875rem] text-gray-400">{hint}</td>
     </tr>
   )
   const inp = 'border border-gray-300 rounded px-2 py-1 text-xs'
@@ -128,7 +128,7 @@ export default function PermissionPanel({ emp, others, canEdit, leaveLevelReady 
           <div>
             <div className="text-base font-bold">
               {emp.name}
-              {emp.is_master && <span className="ml-2 px-2 py-0.5 rounded-full bg-slate-900 text-white text-[10px] font-semibold">마스터</span>}
+              {emp.is_master && <span className="ml-2 px-2 py-0.5 rounded-full bg-slate-900 text-white text-[0.625rem] font-semibold">마스터</span>}
             </div>
             <div className="text-xs text-gray-500 mt-0.5">
               {[emp.team, emp.position].filter(Boolean).join(' · ') || '팀 미지정'}{emp.login_id ? ` · ID ${emp.login_id}` : ' · 계정 없음'}
@@ -155,23 +155,23 @@ export default function PermissionPanel({ emp, others, canEdit, leaveLevelReady 
 
         <div className="px-5 py-4 grid grid-cols-2 lg:grid-cols-4 gap-3 border-b border-gray-100">
           <div>
-            <label className="block text-[11px] text-gray-500 font-semibold mb-1">팀</label>
+            <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">팀</label>
             <input list="team-options" value={team} disabled={!canEdit} onChange={e => setTeam(e.target.value)} className={`${inp} w-full`} />
             <datalist id="team-options">{TEAMS.map(t => <option key={t} value={t} />)}</datalist>
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 font-semibold mb-1">고용 형태</label>
+            <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">고용 형태</label>
             <select value={employment} disabled={!canEdit} onChange={e => setEmployment(e.target.value as 'regular' | 'parttime')} className={`${inp} w-full`}>
               <option value="regular">정규</option>
               <option value="parttime">아르바이트</option>
             </select>
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 font-semibold mb-1">근무 시작</label>
+            <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">근무 시작</label>
             <input type="date" value={workStart} disabled={!canEdit} onChange={e => setWorkStart(e.target.value)} className={`${inp} w-full`} />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 font-semibold mb-1">근무 종료 <span className="font-normal text-gray-400">(경과 시 로그인 차단)</span></label>
+            <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">근무 종료 <span className="font-normal text-gray-400">(경과 시 로그인 차단)</span></label>
             <input type="date" value={workEnd} disabled={!canEdit} onChange={e => setWorkEnd(e.target.value)} className={`${inp} w-full`} />
           </div>
         </div>
@@ -193,17 +193,17 @@ export default function PermissionPanel({ emp, others, canEdit, leaveLevelReady 
               return (
                 <>
                   {areaRow && (
-                    <tr key={`a-${g}`} className="bg-gray-50/70"><td colSpan={5} className="py-1.5 px-3 text-[11px] font-bold text-gray-500">{AREA_OF[g]}</td></tr>
+                    <tr key={`a-${g}`} className="bg-gray-50/70"><td colSpan={5} className="py-1.5 px-3 text-[0.6875rem] font-bold text-gray-500">{AREA_OF[g]}</td></tr>
                   )}
                   <tr key={g} className="border-b border-gray-50">
                     <td className="py-2 px-3 font-medium">{GROUP_LABELS[g]}</td>
                     <Radio g={g} lv="none" /><Radio g={g} lv="view" /><Radio g={g} lv="edit" />
-                    <td className="py-2 px-3 text-[11px] text-gray-400">{SCREENS[g]}</td>
+                    <td className="py-2 px-3 text-[0.6875rem] text-gray-400">{SCREENS[g]}</td>
                   </tr>
                 </>
               )
             })}
-            <tr className="bg-gray-50/70"><td colSpan={5} className="py-1.5 px-3 text-[11px] font-bold text-gray-500">별도 잠금 · 승인 · 마스터</td></tr>
+            <tr className="bg-gray-50/70"><td colSpan={5} className="py-1.5 px-3 text-[0.6875rem] font-bold text-gray-500">별도 잠금 · 승인 · 마스터</td></tr>
             <Toggle v={salary} set={setSalary} label="급여 정보 열람" hint="인사·총무 권한과 별개. 없으면 급여 칸이 가려짐" />
             <Toggle v={payment} set={setPayment} label="결제정보 열람" hint="상담일지 고객 결제정보. 없으면 본인 작성분만" />
             <Toggle v={approve} set={setApprove} label="승인권" hint="주문 수정 승인 · 팀 업무 현황 (휴가는 아래 휴가 결재 단계)" />
@@ -219,9 +219,9 @@ export default function PermissionPanel({ emp, others, canEdit, leaveLevelReady 
                       </button>
                     ))}
                   </div>
-                ) : <span className="text-[11px] text-gray-400">204 마이그레이션 후 설정</span>}
+                ) : <span className="text-[0.6875rem] text-gray-400">204 마이그레이션 후 설정</span>}
               </td>
-              <td className="py-2 px-3 text-[11px] text-gray-400">숫자가 높을수록 상위. 2차는 3차 전결 가능. 본인 휴가는 자기 단계 이하 자동 통과</td>
+              <td className="py-2 px-3 text-[0.6875rem] text-gray-400">숫자가 높을수록 상위. 2차는 3차 전결 가능. 본인 휴가는 자기 단계 이하 자동 통과</td>
             </tr>
             <Toggle v={isMaster} set={setIsMaster} label="마스터 계정" hint="전 영역 수정 + 권한 편집. 자기 자신은 해제 불가" />
           </tbody>
@@ -243,7 +243,7 @@ export default function PermissionPanel({ emp, others, canEdit, leaveLevelReady 
           {logs.length === 0 ? <p className="text-xs text-gray-400">기록 없음 (초기값은 이력에 남지 않음)</p> : (
             <ul className="space-y-1">
               {logs.map(l => (
-                <li key={l.id} className="text-[11px] text-gray-500">
+                <li key={l.id} className="text-[0.6875rem] text-gray-500">
                   {new Date(l.changed_at).toLocaleString('ko-KR')} · {changerName(l) ?? '?'}
                   {l.note ? ` — ${l.note}` : ''}
                   <span className="text-gray-300"> · </span>

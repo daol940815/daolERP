@@ -21,6 +21,7 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
   late:        { label: '수금지연',  cls: 'bg-orange-100 text-orange-700' },
   over90:      { label: '미수 90일 초과', cls: 'bg-red-100 text-red-700' },
   dormant:     { label: '휴면 전환', cls: 'bg-gray-100 text-gray-500' },
+  no_orders:   { label: '주문 없음', cls: 'bg-slate-100 text-slate-500' },
 }
 const TL_META: Record<string, { label: string; cls: string }> = {
   invoice: { label: '계산서', cls: 'bg-blue-100 text-blue-700' },
@@ -180,7 +181,7 @@ export default function SalesHubDetailPage() {
         <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-xs" />
         <span className="text-gray-400 text-xs">~</span>
         <input type="date" value={to} onChange={e => setTo(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-xs" />
-        <span className="text-[11px] text-gray-400 ml-2">여기서 바꿔도 목록의 기간은 유지됩니다</span>
+        <span className="text-[0.6875rem] text-gray-400 ml-2">여기서 바꿔도 목록의 기간은 유지됩니다</span>
       </div>
 
       {/* 헤더 */}
@@ -188,14 +189,14 @@ export default function SalesHubDetailPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-gray-900">{data.vendor.name}</h1>
-            <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${meta.cls}`}>{meta.label}</span>
+            <span className={`px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${meta.cls}`}>{meta.label}</span>
             {!data.vendor.is_active && (
-              <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-gray-200 text-gray-600">비활성</span>
+              <span className="px-2 py-0.5 rounded text-[0.6875rem] font-semibold bg-gray-200 text-gray-600">비활성</span>
             )}
             {canEdit && (
               <span className="flex items-center gap-1 ml-1">
                 <button onClick={() => setInfoForm({ open: !infoForm.open, name: data.vendor.name, biz: data.vendor.biz_number ?? '', busy: false })}
-                  className="px-2 py-0.5 border border-gray-300 rounded text-[11px] text-gray-600 hover:bg-gray-50">정보 수정</button>
+                  className="px-2 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-600 hover:bg-gray-50">정보 수정</button>
                 {data.vendor.is_active ? (
                   <button onClick={async () => {
                     if (!confirm(`'${data.vendor.name}' 매출처를 삭제할까요?\n연결된 데이터가 있으면 삭제 대신 비활성 처리를 안내합니다.`)) return
@@ -213,7 +214,7 @@ export default function SalesHubDetailPage() {
                       }
                     } else flash(json.error ?? '삭제 실패')
                   }}
-                    className="px-2 py-0.5 border border-red-200 text-red-600 rounded text-[11px] hover:bg-red-50">삭제</button>
+                    className="px-2 py-0.5 border border-red-200 text-red-600 rounded text-[0.6875rem] hover:bg-red-50">삭제</button>
                 ) : (
                   <button onClick={async () => {
                     const r = await fetch(`/api/vendor-hub/${vendorId}`, {
@@ -222,7 +223,7 @@ export default function SalesHubDetailPage() {
                     })
                     flash(r.ok ? '재활성되었습니다.' : '실패'); if (r.ok) load()
                   }}
-                    className="px-2 py-0.5 border border-emerald-200 text-emerald-700 rounded text-[11px] hover:bg-emerald-50">재활성</button>
+                    className="px-2 py-0.5 border border-emerald-200 text-emerald-700 rounded text-[0.6875rem] hover:bg-emerald-50">재활성</button>
                 )}
               </span>
             )}
@@ -253,17 +254,17 @@ export default function SalesHubDetailPage() {
           <div className="flex gap-1.5 flex-wrap mt-2">
             <Link href={`/erp-aliases?type=customer&q=${encodeURIComponent(data.vendor.name)}`}
               title="매출처 연결 키워드에서 별칭 관리"
-              className={`px-2 py-0.5 rounded-full text-[11px] border hover:underline ${data.links.alias_count ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
+              className={`px-2 py-0.5 rounded-full text-[0.6875rem] border hover:underline ${data.links.alias_count ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               ERP 별칭 {data.links.alias_count || '미'}연동
             </Link>
             <Link href={data.links.card_count ? `/cards?q=${encodeURIComponent(data.vendor.name)}` : '/card-sales/customer-links'}
               title={data.links.card_count ? '이 거래처의 카드매출 내역 보기' : '카드번호 연결 도구로 이동'}
-              className={`px-2 py-0.5 rounded-full text-[11px] border hover:underline ${data.links.card_count ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
+              className={`px-2 py-0.5 rounded-full text-[0.6875rem] border hover:underline ${data.links.card_count ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               카드번호 {data.links.card_count ? `${data.links.card_count}건` : '미연동'}
             </Link>
             <Link href={`/opening-balances?tab=vendor&q=${encodeURIComponent(data.vendor.name)}`}
               title="기초잔액 입력 화면으로 이동"
-              className={`px-2 py-0.5 rounded-full text-[11px] border hover:underline ${data.links.has_opening ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
+              className={`px-2 py-0.5 rounded-full text-[0.6875rem] border hover:underline ${data.links.has_opening ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               기초잔액 {data.links.has_opening ? '입력됨' : '미입력'}
             </Link>
           </div>
@@ -287,25 +288,25 @@ export default function SalesHubDetailPage() {
             <div key={s.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
               <div>
                 <span className="font-semibold text-sm">{s.name}</span>
-                {s.is_primary && <span className="ml-1.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[10px] font-bold">주담당</span>}
-                <div className="text-[11px] text-gray-400">{s.team ?? '팀 미지정'} · 배정 {s.started_at ?? '-'}</div>
+                {s.is_primary && <span className="ml-1.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[0.625rem] font-bold">주담당</span>}
+                <div className="text-[0.6875rem] text-gray-400">{s.team ?? '팀 미지정'} · 배정 {s.started_at ?? '-'}</div>
               </div>
-              <div className="text-right text-[11px] text-gray-500">
+              <div className="text-right text-[0.6875rem] text-gray-500">
                 담당처 {s.vendor_count}곳
                 {canEdit && <div className="mt-0.5 flex gap-1 justify-end">
                   {!s.is_primary && (
                     <button onClick={async () => { await post('/api/vendor-hub/staff', { action: 'set_primary', assignment_id: s.id }); load() }}
-                      className="px-1.5 py-0.5 border border-gray-200 rounded text-[10px] hover:bg-gray-50">주담당으로</button>
+                      className="px-1.5 py-0.5 border border-gray-200 rounded text-[0.625rem] hover:bg-gray-50">주담당으로</button>
                   )}
                   <button onClick={async () => { await post('/api/vendor-hub/staff', { action: 'unassign', assignment_id: s.id }); load() }}
-                    className="px-1.5 py-0.5 border border-gray-200 rounded text-[10px] text-red-500 hover:bg-red-50">해제</button>
+                    className="px-1.5 py-0.5 border border-gray-200 rounded text-[0.625rem] text-red-500 hover:bg-red-50">해제</button>
                 </div>}
               </div>
             </div>
           ))}
           {!data.staff.length && <div className="text-xs text-gray-400 py-3">배정된 담당직원이 없습니다.</div>}
           {data.staff_suggest.length > 0 && (
-            <div className="mt-2 px-3 py-2 bg-amber-50 rounded-lg text-[11px] text-amber-800">
+            <div className="mt-2 px-3 py-2 bg-amber-50 rounded-lg text-[0.6875rem] text-amber-800">
               ERP 주문 담당 추천: {data.staff_suggest.map(s => (
                 <button key={s.name}
                   onClick={async () => {
@@ -360,13 +361,13 @@ export default function SalesHubDetailPage() {
                   className="font-semibold text-sm text-blue-700 hover:underline" title="담당자 상세로 이동">
                   {contactLabel(c.name, c.title)}
                 </Link>
-                {c.is_representative && <span className="ml-1.5 px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-full text-[10px] font-bold">대표</span>}
-                <div className="text-[11px] text-gray-400">
+                {c.is_representative && <span className="ml-1.5 px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-full text-[0.625rem] font-bold">대표</span>}
+                <div className="text-[0.6875rem] text-gray-400">
                   {[c.role_memo, c.phone, c.email].filter(Boolean).join(' · ') || '연락처 미입력'}
                 </div>
                 {/* 다올 담당 (112) — 은행 · 지점 · 고객 단위, 주문 상담자의 원천 */}
                 {!c.ended_at && (
-                  <div className="text-[11px] mt-0.5 flex items-center gap-1">
+                  <div className="text-[0.6875rem] mt-0.5 flex items-center gap-1">
                     <span className="text-gray-400">다올 담당</span>
                     {canEdit ? (
                       <select value={c.staff_employee_id ?? ''}
@@ -375,7 +376,7 @@ export default function SalesHubDetailPage() {
                           const { ok, json } = await post('/api/vendor-hub/contacts', { action: 'set_staff', assignment_id: c.assignment_id, staff_employee_id: e.target.value })
                           if (!ok) flash(json.error ?? '변경 실패'); else load()
                         }}
-                        className={`border rounded px-1 py-0.5 text-[11px] ${c.staff_employee_id ? 'border-gray-200' : 'border-amber-300 bg-amber-50 text-amber-800'}`}>
+                        className={`border rounded px-1 py-0.5 text-[0.6875rem] ${c.staff_employee_id ? 'border-gray-200' : 'border-amber-300 bg-amber-50 text-amber-800'}`}>
                         <option value="">미기입 — 선택</option>
                         {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                       </select>
@@ -387,16 +388,16 @@ export default function SalesHubDetailPage() {
                   </div>
                 )}
               </div>
-              <div className="text-right text-[11px] text-gray-500 whitespace-nowrap">
+              <div className="text-right text-[0.6875rem] text-gray-500 whitespace-nowrap">
                 {c.ended_at ? `종료 ${c.ended_at}` : `배정 ${c.started_at ?? '-'}`}
                 {!c.ended_at && canEdit && (
                   <div className="mt-0.5 flex gap-1 justify-end">
                     {!c.is_representative && (
                       <button onClick={async () => { await post('/api/vendor-hub/contacts', { action: 'set_representative', assignment_id: c.assignment_id }); load() }}
-                        className="px-1.5 py-0.5 border border-gray-200 rounded text-[10px] hover:bg-gray-50">대표로</button>
+                        className="px-1.5 py-0.5 border border-gray-200 rounded text-[0.625rem] hover:bg-gray-50">대표로</button>
                     )}
                     <button onClick={async () => { await post('/api/vendor-hub/contacts', { action: 'end_assignment', assignment_id: c.assignment_id }); load() }}
-                      className="px-1.5 py-0.5 border border-gray-200 rounded text-[10px] text-red-500 hover:bg-red-50">종료</button>
+                      className="px-1.5 py-0.5 border border-gray-200 rounded text-[0.625rem] text-red-500 hover:bg-red-50">종료</button>
                   </div>
                 )}
               </div>
@@ -435,14 +436,14 @@ export default function SalesHubDetailPage() {
                       </span>
                       <span className="flex gap-1">
                         <button onClick={() => submitContact(false, c.id, true)}
-                          className="px-1.5 py-0.5 border rounded text-[10px] hover:bg-gray-50">같은 인물 (이동 처리)</button>
+                          className="px-1.5 py-0.5 border rounded text-[0.625rem] hover:bg-gray-50">같은 인물 (이동 처리)</button>
                         <button onClick={() => submitContact(false, c.id, false)}
-                          className="px-1.5 py-0.5 border rounded text-[10px] hover:bg-gray-50">같은 인물 (겸직)</button>
+                          className="px-1.5 py-0.5 border rounded text-[0.625rem] hover:bg-gray-50">같은 인물 (겸직)</button>
                       </span>
                     </div>
                   ))}
                   <button onClick={() => submitContact(true)}
-                    className="mt-1.5 px-2 py-0.5 border rounded text-[10px] hover:bg-gray-50">아니요, 새 인물로 등록</button>
+                    className="mt-1.5 px-2 py-0.5 border rounded text-[0.625rem] hover:bg-gray-50">아니요, 새 인물로 등록</button>
                 </div>
               )}
             </div>
@@ -461,12 +462,12 @@ export default function SalesHubDetailPage() {
           { tag: '누적', label: '선결제 잔액', value: eok(data.kpi.prepay_balance), sub: `입금 ${eok(data.kpi.prepay_deposit)} · 사용 ${eok(data.kpi.prepay_deduction)}`, cls: '' },
         ].map((k, i) => (
           <div key={i} className="bg-white border border-gray-200 rounded-xl px-3.5 py-3">
-            <div className="text-[11px] text-gray-500">
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold mr-1 ${k.tag === '기간' ? 'bg-blue-100 text-blue-700' : 'bg-violet-100 text-violet-700'}`}>{k.tag}</span>
+            <div className="text-[0.6875rem] text-gray-500">
+              <span className={`px-1.5 py-0.5 rounded-full text-[0.625rem] font-bold mr-1 ${k.tag === '기간' ? 'bg-blue-100 text-blue-700' : 'bg-violet-100 text-violet-700'}`}>{k.tag}</span>
               {k.label}
             </div>
             <div className={`text-lg font-bold mt-0.5 tabular-nums ${k.cls}`}>{k.value}</div>
-            <div className="text-[10px] text-gray-400 mt-0.5">{k.sub}</div>
+            <div className="text-[0.625rem] text-gray-400 mt-0.5">{k.sub}</div>
           </div>
         ))}
       </div>
@@ -475,7 +476,7 @@ export default function SalesHubDetailPage() {
       <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
         <div className="flex items-center justify-between">
           <div className="text-sm font-bold text-gray-800">미수 경과기간별 현황 <span className="font-normal text-gray-400 text-xs">(전체 기간, 주문일 기준)</span></div>
-          {data.aging.opening > 0 && <div className="text-[11px] text-gray-500">기초이월 잔여 {eok(data.aging.opening)} 별도</div>}
+          {data.aging.opening > 0 && <div className="text-[0.6875rem] text-gray-500">기초이월 잔여 {eok(data.aging.opening)} 별도</div>}
         </div>
         {agingTotal > 0 ? (
           <>
@@ -487,7 +488,7 @@ export default function SalesHubDetailPage() {
                 { v: data.aging.over90, c: '#104281', t: '#fff' },
               ].map((b, i) => b.v > 0 && (
                 <div key={i} style={{ flex: b.v, background: b.c, color: b.t }}
-                  className="flex items-center justify-center text-[10px] font-semibold border-r-2 border-white last:border-0">
+                  className="flex items-center justify-center text-[0.625rem] font-semibold border-r-2 border-white last:border-0">
                   {['~30일', '31~60일', '61~90일', '90일+'][i]} {eok(b.v)}
                 </div>
               ))}
@@ -521,7 +522,7 @@ export default function SalesHubDetailPage() {
             {isPersonal && tab === '주문 내역' && (
               <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto mb-3">
                 <div className="px-4 pt-3 text-sm font-bold text-gray-800">고객별 소계 {custGroups.length}명</div>
-                <div className="px-4 pb-1 text-[11px] text-gray-400">개인주문은 고객명이 지점명 역할 — 고객을 클릭하면 아래 주문 내역이 그 고객으로 필터됩니다</div>
+                <div className="px-4 pb-1 text-[0.6875rem] text-gray-400">개인주문은 고객명이 지점명 역할 — 고객을 클릭하면 아래 주문 내역이 그 고객으로 필터됩니다</div>
                 <table className="w-full text-sm min-w-[560px]">
                   <thead>
                     <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
@@ -554,12 +555,12 @@ export default function SalesHubDetailPage() {
                 ERP 주문 내역{tab === '개요' ? ' (최근)' : ''}
                 {custFilter != null && tab === '주문 내역' && (
                   <button onClick={() => setCustFilter(null)}
-                    className="px-2 py-0.5 rounded-full bg-slate-900 text-white text-[11px] font-medium hover:bg-slate-700">
+                    className="px-2 py-0.5 rounded-full bg-slate-900 text-white text-[0.6875rem] font-medium hover:bg-slate-700">
                     {custFilter ? honorify(custFilter) : '(고객명 없음)'} ×
                   </button>
                 )}
               </div>
-              <div className="px-4 pb-1 text-[11px] text-gray-400">주문번호 → 배송 → 계산서 → 수금 → 미수까지 한 줄</div>
+              <div className="px-4 pb-1 text-[0.6875rem] text-gray-400">주문번호 → 배송 → 계산서 → 수금 → 미수까지 한 줄</div>
               <table className="w-full text-sm min-w-[760px]">
                 <thead>
                   <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
@@ -597,10 +598,10 @@ export default function SalesHubDetailPage() {
                         <td className="py-1.5 px-3">{o.item_summary}</td>
                         <td className="py-1.5 px-3 text-right tabular-nums">{won(o.net)}</td>
                         <td className="py-1.5 px-3">
-                          {dv ? <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${dv.cls}`}>{dv.text}</span> : <span className="text-gray-300 text-xs">-</span>}
+                          {dv ? <span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${dv.cls}`}>{dv.text}</span> : <span className="text-gray-300 text-xs">-</span>}
                         </td>
-                        <td className="py-1.5 px-3"><span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${invBadge.c}`}>{invBadge.t}</span></td>
-                        <td className="py-1.5 px-3"><span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${payBadge.c}`}>{payBadge.t}</span></td>
+                        <td className="py-1.5 px-3"><span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${invBadge.c}`}>{invBadge.t}</span></td>
+                        <td className="py-1.5 px-3"><span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${payBadge.c}`}>{payBadge.t}</span></td>
                         <td className={`py-1.5 px-3 text-right tabular-nums ${o.outstanding > 0 ? 'text-red-600' : 'text-gray-400'}`}>{won(o.outstanding)}</td>
                       </tr>
                     )
@@ -612,13 +613,13 @@ export default function SalesHubDetailPage() {
             {tab === '개요' && (
               <div className="bg-white border border-gray-200 rounded-xl xl:col-span-2">
                 <div className="px-4 pt-3 text-sm font-bold text-gray-800">수금 타임라인</div>
-                <div className="px-4 pb-1 text-[11px] text-gray-400">계산서·통장·카드 통합 (최근)</div>
+                <div className="px-4 pb-1 text-[0.6875rem] text-gray-400">계산서·통장·카드 통합 (최근)</div>
                 <ul className="px-4 pb-3">
                   {data.timeline.slice(0, 12).map((e, i) => {
                     const href = tlHref(e)
                     return (
                       <li key={i} className={`flex items-baseline gap-2 py-1.5 border-b border-gray-50 last:border-0 text-sm ${e.kind === 'alloc' ? 'opacity-60' : ''}`}>
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold w-12 text-center ${TL_META[e.kind].cls}`}>{TL_META[e.kind].label}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[0.625rem] font-bold w-12 text-center ${TL_META[e.kind].cls}`}>{TL_META[e.kind].label}</span>
                         <span className="text-xs text-gray-400 tabular-nums w-20">{e.date}</span>
                         {href
                           ? <Link href={href} className="flex-1 truncate text-blue-700 hover:underline" title="원본 화면에서 열기">{e.label}</Link>
@@ -645,7 +646,7 @@ export default function SalesHubDetailPage() {
           return (
             <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto mt-3">
               <div className="px-4 pt-3 text-sm font-bold text-gray-800 flex items-baseline gap-2 flex-wrap">
-                과거 매출 <span className="text-[11px] font-normal text-gray-400">{docSales[0].source} 기준 스냅샷 — 참고 지표 (주문 원본 삭제로 드릴다운 불가) · 합계 = 상시 + 명절(25설·25추석·26설·26추석)</span>
+                과거 매출 <span className="text-[0.6875rem] font-normal text-gray-400">{docSales[0].source} 기준 스냅샷 — 참고 지표 (주문 원본 삭제로 드릴다운 불가) · 합계 = 상시 + 명절(25설·25추석·26설·26추석)</span>
               </div>
               <div className="px-4 py-1.5 flex gap-4 text-xs text-gray-600 flex-wrap">
                 <span>합계 <b className="tabular-nums">{won(tot)}</b></span>
@@ -690,7 +691,7 @@ export default function SalesHubDetailPage() {
 
         {tab === '수금 내역' && (
           <div className="bg-white border border-gray-200 rounded-xl">
-            <div className="px-4 pt-3 text-[11px] text-gray-400">
+            <div className="px-4 pt-3 text-[0.6875rem] text-gray-400">
               [배분]은 통장·카드로 들어온 돈을 어느 주문의 수금으로 연결했는지 기록한 항목입니다 —
               같은 돈이 [통장]/[카드] 줄에 이미 표시되므로 금액을 이중으로 세지 않습니다. 괄호 안은 매칭 방식 메모입니다.
             </div>
@@ -699,7 +700,7 @@ export default function SalesHubDetailPage() {
                 const href = tlHref(e)
                 return (
                   <li key={i} className="flex items-baseline gap-2 py-1.5 border-b border-gray-50 last:border-0 text-sm">
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold w-12 text-center ${TL_META[e.kind].cls}`}>{TL_META[e.kind].label}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[0.625rem] font-bold w-12 text-center ${TL_META[e.kind].cls}`}>{TL_META[e.kind].label}</span>
                     <span className="text-xs text-gray-400 tabular-nums w-20">{e.date}</span>
                     {href
                       ? <Link href={href} className="flex-1 truncate text-blue-700 hover:underline" title="원본 화면에서 열기">{e.label}</Link>
@@ -732,7 +733,7 @@ export default function SalesHubDetailPage() {
                     </td>
                     <td className="py-1.5 px-3 text-right tabular-nums">{won(inv.total_amount)}</td>
                     <td className="py-1.5 px-3">
-                      <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${inv.payment_status === 'matched' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                      <span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${inv.payment_status === 'matched' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                         {inv.payment_status === 'matched' ? '수금 매칭됨' : '미매칭'}
                       </span>
                     </td>
@@ -752,7 +753,7 @@ export default function SalesHubDetailPage() {
                 <ul>
                   {data.prepay_ledger.map((e, i) => (
                     <li key={i} className="flex items-baseline gap-2 py-1 border-b border-gray-50 last:border-0 text-sm">
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${e.entry_type === 'deposit' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                      <span className={`px-1.5 py-0.5 rounded text-[0.625rem] font-bold ${e.entry_type === 'deposit' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                         {e.entry_type === 'deposit' ? '입금' : '사용'}
                       </span>
                       <span className="text-xs text-gray-400 tabular-nums w-20">{e.entry_date}</span>

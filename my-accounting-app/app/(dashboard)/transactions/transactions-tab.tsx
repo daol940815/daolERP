@@ -1395,7 +1395,7 @@ function TransactionsContent() {
                         <td className="py-2 pr-3 text-slate-400 text-center">{i + 1}</td>
                         <td className="py-2 pr-3 text-slate-700 font-medium">
                           {pair.out.account_alias ?? '—'}
-                          {isMinus && <span className="ml-1 text-orange-500 text-[10px]">마이너스</span>}
+                          {isMinus && <span className="ml-1 text-orange-500 text-[0.625rem]">마이너스</span>}
                         </td>
                         <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{dateTimeStr(pair.out)}</td>
                         <td className="py-2 pr-3 text-slate-600 max-w-[160px] truncate" title={pair.out.description ?? ''}>{pair.out.description ?? '—'}</td>

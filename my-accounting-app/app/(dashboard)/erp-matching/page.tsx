@@ -275,7 +275,7 @@ function ErpMatchingContent() {
                     <Fragment key={d.id}>
                       <tr className={`border-b border-gray-100 ${expanded ? 'bg-slate-50' : 'hover:bg-gray-50'}`}>
                         <td className="py-2 px-3">
-                          <span className={`px-1.5 py-0.5 text-[11px] rounded ${
+                          <span className={`px-1.5 py-0.5 text-[0.6875rem] rounded ${
                             d.source_type === 'card' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'
                           }`}>
                             {d.source_type === 'card' ? '카드' : '계좌'}
@@ -334,7 +334,7 @@ function ErpMatchingContent() {
                                       />
                                       <button
                                         onClick={() => setAlloc(prev => ({ ...prev, [c.id]: String(Math.min(c.remaining, d.remaining)) }))}
-                                        className="ml-1 px-1.5 py-1 text-[11px] border border-gray-300 rounded text-gray-500 hover:bg-gray-100"
+                                        className="ml-1 px-1.5 py-1 text-[0.6875rem] border border-gray-300 rounded text-gray-500 hover:bg-gray-100"
                                         title="주문 잔액(또는 입금 잔액)만큼 채우기"
                                       >채움</button>
                                     </td>
@@ -398,12 +398,12 @@ function ErpMatchingContent() {
                     <td className="py-2 px-3"><p className="truncate max-w-[140px] text-gray-600">{m.counterparty_name ?? '-'}</p></td>
                     <td className="py-2 px-3 text-right whitespace-nowrap font-medium">{won(m.amount)}</td>
                     <td className="py-2 px-3">
-                      <span className={`mr-1 px-1.5 py-0.5 text-[11px] rounded ${
+                      <span className={`mr-1 px-1.5 py-0.5 text-[0.6875rem] rounded ${
                         m.source_type === 'card' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'
                       }`}>
                         {m.source_type === 'card' ? '카드' : '계좌'}
                       </span>
-                      <span className={`px-1.5 py-0.5 text-[11px] rounded ${
+                      <span className={`px-1.5 py-0.5 text-[0.6875rem] rounded ${
                         m.matched_by === 'auto' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'
                       }`}>
                         {m.matched_by === 'auto' ? '자동' : '수동'}

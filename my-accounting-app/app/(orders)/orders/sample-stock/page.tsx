@@ -69,7 +69,7 @@ const chipCls = (on: boolean, tone?: 'warn' | 'danger') =>
   }`
 
 const badge = (cls: string, label: string) => (
-  <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>{label}</span>
+  <span className={`inline-block rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold ${cls}`}>{label}</span>
 )
 
 export default function SampleStockPage() {
@@ -227,7 +227,7 @@ export default function SampleStockPage() {
   }
 
   const tabCls = (on: boolean) =>
-    `rounded-t-lg px-4 py-2 text-[13.5px] font-semibold cursor-pointer ${on ? 'bg-white text-slate-900 border border-b-0 border-slate-200' : 'bg-slate-200 text-slate-500'}`
+    `rounded-t-lg px-4 py-2 text-[0.84375rem] font-semibold cursor-pointer ${on ? 'bg-white text-slate-900 border border-b-0 border-slate-200' : 'bg-slate-200 text-slate-500'}`
 
   return (
     <div className="mx-auto max-w-[1280px]">
@@ -235,47 +235,47 @@ export default function SampleStockPage() {
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900">
-            샘플 재고 관리 <span className="text-[13px] font-medium text-slate-500">요아럽 · 사무실 재고</span>
+            샘플 재고 관리 <span className="text-[0.8125rem] font-medium text-slate-500">요아럽 · 사무실 재고</span>
           </h1>
-          <p className="mt-1 text-[12.5px] text-slate-500">
+          <p className="mt-1 text-[0.78125rem] text-slate-500">
             사무실 입출고 원장 기준 전산재고와 창고·사무실 통합 소진 비용. 재고는 입고 누계 − 출고 누계로 자동 계산됩니다.
           </p>
         </div>
         <div className="flex gap-1.5">
-          <button onClick={() => setModal('take')} className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-[13px] font-semibold text-slate-700 hover:bg-slate-50">실사 입력</button>
-          <button onClick={() => setModal('in')} className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-[13px] font-semibold text-slate-700 hover:bg-slate-50">입고 입력</button>
-          <button onClick={() => setModal('out')} className="rounded-lg bg-slate-900 px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-slate-800">출고 입력</button>
+          <button onClick={() => setModal('take')} className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-[0.8125rem] font-semibold text-slate-700 hover:bg-slate-50">실사 입력</button>
+          <button onClick={() => setModal('in')} className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-[0.8125rem] font-semibold text-slate-700 hover:bg-slate-50">입고 입력</button>
+          <button onClick={() => setModal('out')} className="rounded-lg bg-slate-900 px-3.5 py-2 text-[0.8125rem] font-semibold text-white hover:bg-slate-800">출고 입력</button>
         </div>
       </div>
 
-      {msg && <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12.5px] text-emerald-800">{msg}</div>}
+      {msg && <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[0.78125rem] text-emerald-800">{msg}</div>}
 
       {/* KPI */}
       <div className="mb-4 grid grid-cols-2 gap-2.5 md:grid-cols-5">
         <button onClick={() => { setTab('stock'); setStockChip('all') }} className="rounded-xl border border-slate-200 bg-white p-3.5 text-left hover:border-slate-400">
           <div className="text-xs text-slate-500">재고 품목</div>
-          <div className="mt-1 text-xl font-bold text-slate-900">{kpi.items}<span className="text-[13px] font-medium">종</span></div>
-          <div className="mt-0.5 text-[11.5px] text-slate-400">재고 관리 대상 품목</div>
+          <div className="mt-1 text-xl font-bold text-slate-900">{kpi.items}<span className="text-[0.8125rem] font-medium">종</span></div>
+          <div className="mt-0.5 text-[0.71875rem] text-slate-400">재고 관리 대상 품목</div>
         </button>
         <button onClick={() => setTab('stock')} className="rounded-xl border border-slate-200 bg-white p-3.5 text-left hover:border-slate-400">
           <div className="text-xs text-slate-500">전산재고 수량</div>
-          <div className="mt-1 text-xl font-bold text-slate-900">{won(kpi.totalQty)}<span className="text-[13px] font-medium">개</span></div>
-          <div className="mt-0.5 text-[11.5px] text-slate-400">입고 {won(kpi.totalIn)} − 출고 {won(kpi.totalOut)}</div>
+          <div className="mt-1 text-xl font-bold text-slate-900">{won(kpi.totalQty)}<span className="text-[0.8125rem] font-medium">개</span></div>
+          <div className="mt-0.5 text-[0.71875rem] text-slate-400">입고 {won(kpi.totalIn)} − 출고 {won(kpi.totalOut)}</div>
         </button>
         <button onClick={() => setTab('stock')} className="rounded-xl border border-slate-200 bg-white p-3.5 text-left hover:border-slate-400">
           <div className="text-xs text-slate-500">재고 금액 (매입가)</div>
-          <div className="mt-1 text-xl font-bold text-slate-900">{won(kpi.totalValue)}<span className="text-[13px] font-medium">원</span></div>
-          <div className="mt-0.5 text-[11.5px] text-slate-400">전산재고 × 매입가</div>
+          <div className="mt-1 text-xl font-bold text-slate-900">{won(kpi.totalValue)}<span className="text-[0.8125rem] font-medium">원</span></div>
+          <div className="mt-0.5 text-[0.71875rem] text-slate-400">전산재고 × 매입가</div>
         </button>
         <button onClick={() => setTab('cost')} className="rounded-xl border border-slate-200 bg-white p-3.5 text-left hover:border-slate-400">
           <div className="text-xs text-slate-500">당월 소진 비용 (통합)</div>
-          <div className="mt-1 text-xl font-bold text-slate-900">{won(kpi.monthOffice + kpi.monthWh)}<span className="text-[13px] font-medium">원</span></div>
-          <div className="mt-0.5 text-[11.5px] text-slate-400">사무실 {won(kpi.monthOffice)} + 창고 {won(kpi.monthWh)}</div>
+          <div className="mt-1 text-xl font-bold text-slate-900">{won(kpi.monthOffice + kpi.monthWh)}<span className="text-[0.8125rem] font-medium">원</span></div>
+          <div className="mt-0.5 text-[0.71875rem] text-slate-400">사무실 {won(kpi.monthOffice)} + 창고 {won(kpi.monthWh)}</div>
         </button>
         <button onClick={() => { setTab('stock'); setStockChip('diff') }} className="rounded-xl border border-slate-200 bg-white p-3.5 text-left hover:border-slate-400">
           <div className="text-xs text-slate-500">실사 오차</div>
-          <div className={`mt-1 text-xl font-bold ${kpi.diffItems ? 'text-amber-700' : 'text-slate-900'}`}>{kpi.diffItems}<span className="text-[13px] font-medium">품목</span></div>
-          <div className="mt-0.5 text-[11.5px] text-slate-400">{kpi.lastTake ? `최근 실사 ${kpi.lastTake}` : '실사 기록 없음'}</div>
+          <div className={`mt-1 text-xl font-bold ${kpi.diffItems ? 'text-amber-700' : 'text-slate-900'}`}>{kpi.diffItems}<span className="text-[0.8125rem] font-medium">품목</span></div>
+          <div className="mt-0.5 text-[0.71875rem] text-slate-400">{kpi.lastTake ? `최근 실사 ${kpi.lastTake}` : '실사 기록 없음'}</div>
         </button>
       </div>
 
@@ -295,7 +295,7 @@ export default function SampleStockPage() {
                 value={stockSearch}
                 onChange={(e) => setStockSearch(e.target.value)}
                 placeholder="품명 검색..."
-                className="w-64 rounded-lg border border-slate-300 px-3 py-1.5 text-[13px] outline-none focus:border-slate-500"
+                className="w-64 rounded-lg border border-slate-300 px-3 py-1.5 text-[0.8125rem] outline-none focus:border-slate-500"
               />
               {['all', '세트', '핸드크림', '디퓨저', '부자재', '기타'].map((c) => (
                 <button key={c} className={chipCls(stockChip === c)} onClick={() => setStockChip(c)}>
@@ -306,7 +306,7 @@ export default function SampleStockPage() {
               <button className={chipCls(stockChip === 'negative', 'danger')} onClick={() => setStockChip('negative')}>재고 음수</button>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-[13px]">
+              <table className="w-full border-collapse text-[0.8125rem]">
                 <thead>
                   <tr className="bg-slate-50 text-xs text-slate-500">
                     <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold whitespace-nowrap">품명</th>
@@ -391,7 +391,7 @@ export default function SampleStockPage() {
             </div>
             <p className="mb-2.5 text-sm font-bold text-slate-800">담당자별 월별 소진 비용 (매입가 기준, {costYear}년)</p>
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-[13px]">
+              <table className="w-full border-collapse text-[0.8125rem]">
                 <thead>
                   <tr className="bg-slate-50 text-xs text-slate-500">
                     <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold">담당자</th>
@@ -449,7 +449,7 @@ export default function SampleStockPage() {
                 value={ledgerSearch}
                 onChange={(e) => { setLedgerSearch(e.target.value); setLedgerPage(1) }}
                 placeholder="품명 · 출고처 · 담당자 검색..."
-                className="w-72 rounded-lg border border-slate-300 px-3 py-1.5 text-[13px] outline-none focus:border-slate-500"
+                className="w-72 rounded-lg border border-slate-300 px-3 py-1.5 text-[0.8125rem] outline-none focus:border-slate-500"
               />
               {[['all', '전체'], ['in', '입고'], ['out', '출고'], ['adjust', '실사 조정'], ['gift', '선물증정만'], ['unlinked', '직원 미연결'], ['manual', '직접 입력분']].map(([k, label]) => (
                 <button key={k} className={chipCls(ledgerChip === k)} onClick={() => { setLedgerChip(k); setLedgerPage(1) }}>{label}</button>
@@ -461,7 +461,7 @@ export default function SampleStockPage() {
               )}
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-[13px]">
+              <table className="w-full border-collapse text-[0.8125rem]">
                 <thead>
                   <tr className="bg-slate-50 text-xs text-slate-500">
                     <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold">날짜</th>
@@ -521,7 +521,7 @@ export default function SampleStockPage() {
                 </tbody>
               </table>
             </div>
-            <div className="mt-3 flex items-center justify-between text-[12.5px] text-slate-500">
+            <div className="mt-3 flex items-center justify-between text-[0.78125rem] text-slate-500">
               <span>총 {won(ledgerFiltered.length)}행 · 이관분은 원본 표기 그대로 보존 (source=excel)</span>
               <span className="flex items-center gap-2">
                 <button disabled={ledgerPage <= 1} onClick={() => setLedgerPage((p) => p - 1)} className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40">이전</button>
@@ -607,7 +607,7 @@ function MoveModal({ initialType, stock, employees, onClose, onSaved }: {
   }
 
   const label = 'block text-xs font-semibold text-slate-500 mb-1'
-  const input = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] outline-none focus:border-slate-500'
+  const input = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-[0.8125rem] outline-none focus:border-slate-500'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
@@ -625,7 +625,7 @@ function MoveModal({ initialType, stock, employees, onClose, onSaved }: {
               ))}
             </div>
             {moveType === 'adjust' && (
-              <p className="mt-1 text-[11.5px] text-slate-400">조정은 실사 오차 해소용 — 수량에 부호를 포함해 입력 (+ 재고 증가 / − 재고 감소)</p>
+              <p className="mt-1 text-[0.71875rem] text-slate-400">조정은 실사 오차 해소용 — 수량에 부호를 포함해 입력 (+ 재고 증가 / − 재고 감소)</p>
             )}
           </div>
           <div>
@@ -690,10 +690,10 @@ function MoveModal({ initialType, stock, employees, onClose, onSaved }: {
             <span className={label}>비고</span>
             <input className={input} value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
-          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12.5px] text-red-700">{err}</div>}
+          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[0.78125rem] text-red-700">{err}</div>}
           <div className="flex justify-end gap-2 pt-1">
-            <button onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-[13px] text-slate-600">취소</button>
-            <button onClick={save} disabled={saving} className="rounded-lg bg-slate-900 px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50">
+            <button onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-[0.8125rem] text-slate-600">취소</button>
+            <button onClick={save} disabled={saving} className="rounded-lg bg-slate-900 px-4 py-2 text-[0.8125rem] font-semibold text-white disabled:opacity-50">
               {saving ? '저장 중...' : '원장에 기록'}
             </button>
           </div>
@@ -738,7 +738,7 @@ function StocktakeModal({ stock, employees, onClose, onSaved }: {
     onSaved(`실사 ${json.saved}품목 기록 완료${diffCount ? ` — 오차 ${diffCount}품목 (조정 행으로 해소하세요)` : ' — 오차 없음'}`)
   }
 
-  const input = 'rounded-lg border border-slate-300 px-3 py-2 text-[13px] outline-none focus:border-slate-500'
+  const input = 'rounded-lg border border-slate-300 px-3 py-2 text-[0.8125rem] outline-none focus:border-slate-500'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
@@ -764,11 +764,11 @@ function StocktakeModal({ stock, employees, onClose, onSaved }: {
             <input className={input} value={staffName} onChange={(e) => setStaffName(e.target.value)} placeholder="비우면 선택 직원 이름" />
           </div>
         </div>
-        <p className="mb-2 text-[11.5px] text-slate-400">
+        <p className="mb-2 text-[0.71875rem] text-slate-400">
           실재고를 입력한 품목만 저장됩니다. 전산재고는 저장 시점 원장 기준으로 스냅샷됩니다. 미연결 품목은 마스터 등록 후 실사 가능합니다.
         </p>
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-[13px]">
+          <table className="w-full border-collapse text-[0.8125rem]">
             <thead>
               <tr className="bg-slate-50 text-xs text-slate-500">
                 <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold">품명</th>
@@ -785,7 +785,7 @@ function StocktakeModal({ stock, employees, onClose, onSaved }: {
                     <input
                       type="number"
                       min={0}
-                      className="w-24 rounded border border-slate-300 px-2 py-1 text-right text-[13px] outline-none focus:border-slate-500"
+                      className="w-24 rounded border border-slate-300 px-2 py-1 text-right text-[0.8125rem] outline-none focus:border-slate-500"
                       value={counts[s.productId!] ?? ''}
                       onChange={(e) => setCounts((c) => ({ ...c, [s.productId!]: e.target.value }))}
                     />
@@ -795,10 +795,10 @@ function StocktakeModal({ stock, employees, onClose, onSaved }: {
             </tbody>
           </table>
         </div>
-        {err && <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12.5px] text-red-700">{err}</div>}
+        {err && <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[0.78125rem] text-red-700">{err}</div>}
         <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-[13px] text-slate-600">취소</button>
-          <button onClick={save} disabled={saving} className="rounded-lg bg-slate-900 px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50">
+          <button onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-[0.8125rem] text-slate-600">취소</button>
+          <button onClick={save} disabled={saving} className="rounded-lg bg-slate-900 px-4 py-2 text-[0.8125rem] font-semibold text-white disabled:opacity-50">
             {saving ? '저장 중...' : '실사 기록'}
           </button>
         </div>

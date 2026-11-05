@@ -544,9 +544,9 @@ function ErpAliasesContent() {
     return (
       <div className="flex flex-wrap gap-1 max-w-[200px]">
         {list.slice(0, 3).map(s => (
-          <span key={s} className="px-1.5 py-0.5 text-[11px] bg-gray-100 text-gray-600 rounded truncate max-w-[90px]">{s}</span>
+          <span key={s} className="px-1.5 py-0.5 text-[0.6875rem] bg-gray-100 text-gray-600 rounded truncate max-w-[90px]">{s}</span>
         ))}
-        {list.length > 3 && <span className="text-[11px] text-gray-400">+{list.length - 3}</span>}
+        {list.length > 3 && <span className="text-[0.6875rem] text-gray-400">+{list.length - 3}</span>}
       </div>
     )
   }
@@ -676,12 +676,12 @@ function ErpAliasesContent() {
                         <div className="flex items-center gap-1.5">
                           <p className="truncate max-w-[200px] text-gray-900">{a.erp_name}</p>
                           {sharedCount > 1 && (
-                            <span className="px-1.5 py-0.5 text-[10px] bg-indigo-50 text-indigo-600 border border-indigo-200 rounded shrink-0" title="여러 ERP명이 같은 거래처에 연결됨">
+                            <span className="px-1.5 py-0.5 text-[0.625rem] bg-indigo-50 text-indigo-600 border border-indigo-200 rounded shrink-0" title="여러 ERP명이 같은 거래처에 연결됨">
                               공유 {sharedCount}
                             </span>
                           )}
                           {a.vendors && !a.vendors.is_active && (
-                            <span className="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-500 rounded shrink-0">비활성</span>
+                            <span className="px-1.5 py-0.5 text-[0.625rem] bg-gray-100 text-gray-500 rounded shrink-0">비활성</span>
                           )}
                         </div>
                       </td>
@@ -695,7 +695,7 @@ function ErpAliasesContent() {
                           className={`border rounded px-2 py-1 text-xs w-44 ${a.vendor_id ? 'border-green-200 text-green-700 bg-green-50' : 'border-gray-200 text-gray-500'}`}
                         />
                         {!a.vendor_id && sug && (
-                          <p className="text-[11px] mt-0.5 text-blue-700 truncate max-w-[180px]">
+                          <p className="text-[0.6875rem] mt-0.5 text-blue-700 truncate max-w-[180px]">
                             추천: {sug.name}{' '}
                             <span className={sug.score >= 0.9 ? 'text-green-600' : sug.score >= 0.7 ? 'text-amber-600' : 'text-gray-400'}>
                               ({pct(sug.score)})

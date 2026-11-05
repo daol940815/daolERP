@@ -195,14 +195,14 @@ export default function ClassifyTab({ bankAccountId }: { bankAccountId?: string 
               {filtered.map(g => (
                 <tr key={g.key} className="hover:bg-gray-50">
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${KIND_BADGE[g.kind].cls}`}>
+                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${KIND_BADGE[g.kind].cls}`}>
                       {KIND_BADGE[g.kind].label}
                     </span>
                   </td>
                   <td className="px-3 py-2 font-medium text-gray-900">
                     {g.label}
                     {g.kind === 'internal' && (
-                      <span className="block text-[11px] font-normal text-amber-600">
+                      <span className="block text-[0.6875rem] font-normal text-amber-600">
                         이체쌍 후보 {g.pairable ?? 0}건 — 위의 &lsquo;이체쌍 자동 연결&rsquo;로 처리, 나머지는 상대계좌 미업로드분(급여통장 등)
                       </span>
                     )}

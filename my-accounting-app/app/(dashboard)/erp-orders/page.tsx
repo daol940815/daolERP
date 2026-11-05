@@ -419,16 +419,16 @@ export default function ErpOrdersPage() {
                     <td className={`py-2 px-3 text-right whitespace-nowrap ${remaining > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
                       {won(remaining)}
                       {allocated > 0 && remaining !== o.outstanding_amount && (
-                        <span className="block text-[11px] text-emerald-600 font-normal">매칭 {won(allocated)} 차감</span>
+                        <span className="block text-[0.6875rem] text-emerald-600 font-normal">매칭 {won(allocated)} 차감</span>
                       )}
                       {preUpload > 0 && (
-                        <span className="block text-[11px] text-gray-400 font-normal"
+                        <span className="block text-[0.6875rem] text-gray-400 font-normal"
                           title="업로드 이전 입금 매칭 — ERP 미수금 값에 이미 반영된 것으로 간주해 중복 차감하지 않음">
                           업로드 반영분 {won(preUpload)} 제외
                         </span>
                       )}
                       {cappedByNet && (
-                        <span className="block text-[11px] text-gray-400 font-normal"
+                        <span className="block text-[0.6875rem] text-gray-400 font-normal"
                           title="ERP 미수금이 순매출(비제외 품목 합)보다 커서 순매출로 제한함">
                           순매출 상한 적용
                         </span>
@@ -509,7 +509,7 @@ export default function ErpOrdersPage() {
                                     ? <span className={payDate.endsWith('부분') ? 'text-amber-600' : 'text-emerald-700'}>{payDate}</span>
                                     : <span className="text-gray-300">-</span>}
                                 </td>
-                                <td className="py-1 pr-3 whitespace-nowrap font-mono text-[11px]">
+                                <td className="py-1 pr-3 whitespace-nowrap font-mono text-[0.6875rem]">
                                   {it.tracking_number ?? <span className="text-gray-300">-</span>}
                                 </td>
                                 <td className="py-1 pr-3 whitespace-nowrap">

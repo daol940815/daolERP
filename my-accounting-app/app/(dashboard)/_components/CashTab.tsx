@@ -63,7 +63,7 @@ function OverdraftAccountCard({
         <div className="min-w-0">
           <p className="font-semibold text-slate-800 text-sm truncate flex items-center gap-1.5">
             {displayName}
-            <span className="shrink-0 px-1.5 py-0.5 text-[10px] leading-none rounded bg-amber-100 text-amber-700">마이너스통장</span>
+            <span className="shrink-0 px-1.5 py-0.5 text-[0.625rem] leading-none rounded bg-amber-100 text-amber-700">마이너스통장</span>
           </p>
           {accountNumber && (
             <p className="text-xs text-slate-400 mt-0.5 truncate">{accountNumber}</p>
