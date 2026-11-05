@@ -67,6 +67,7 @@ const RECEIVABLE_STATUS = {
   late:        { label: '수금지연',       cls: 'bg-orange-100 text-orange-700' },
   over90:      { label: '미수 90일 초과', cls: 'bg-red-100 text-red-700' },
   dormant:     { label: '휴면 전환',      cls: 'bg-gray-100 text-gray-500' },
+  no_orders:   { label: '주문 없음',      cls: 'bg-slate-100 text-slate-500' },
 }
 const PAYABLE_STATUS = {
   normal:   { label: '정상',             cls: 'bg-green-100 text-green-700' },

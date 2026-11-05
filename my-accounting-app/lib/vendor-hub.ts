@@ -18,12 +18,14 @@ import type { ErpOrderDeliveryStatus } from '@/types/erp'
 //              선결제 잔액 = erp_prepayments 입금-차감 누적,
 //              평균 수금일 = 계산서 발행일→매칭 입금일 (금액 가중)
 //  - 휴면: 최근 주문이 DORMANT_MONTHS 이전이면 '휴면 전환'
+//  - 주문 없음: 주문이 한 건도 없는 매출처 (2026-10-30 주문 전량 삭제 후 대부분 — 휴면과 구분)
+//  - 목록 행은 주문 집계가 아니라 매출처 마스터 전체에서 만든다 — 주문이 없는 지점도 검색·관리돼야 한다
 // ─────────────────────────────────────────────────────────
 
 export const DORMANT_MONTHS = 6
 
 // VIP는 상태가 아니라 별도 지표(VIP 누적 매출)로만 표시한다.
-export type HubStatus = 'normal' | 'outstanding' | 'late' | 'over90' | 'dormant'
+export type HubStatus = 'normal' | 'outstanding' | 'late' | 'over90' | 'dormant' | 'no_orders'
 
 export interface HubListRow {
   vendor_id: string
@@ -145,8 +147,8 @@ export async function buildHubList(
     fetchAllRows<{ id: string; vendor_id: string; erp_name: string | null }>((f, t) =>
       admin.from('erp_vendor_aliases').select('id, vendor_id, erp_name')
         .eq('alias_type', 'customer').not('vendor_id', 'is', null).range(f, t)),
-    fetchAllRows<{ id: string; name: string; card_numbers: string[] | null; biz_number: string | null; is_active: boolean | null }>((f, t) =>
-      admin.from('vendors').select('id, name, card_numbers, biz_number, is_active').range(f, t)),
+    fetchAllRows<{ id: string; name: string; card_numbers: string[] | null; biz_number: string | null; is_active: boolean | null; type: string | null; status: string | null }>((f, t) =>
+      admin.from('vendors').select('id, name, card_numbers, biz_number, is_active, type, status').range(f, t)),
     fetchAllRows<{ vendor_id: string; is_primary: boolean; employees: unknown }>((f, t) =>
       admin.from('vendor_staff').select('vendor_id, is_primary, employees(name)')
         .is('ended_at', null).range(f, t)),
@@ -284,6 +286,11 @@ export async function buildHubList(
     }
   }
 
+  // 주문이 없는 매출처도 행으로 (병합된 거래처 제외, 비활성은 화면에서 '비활성 포함'으로 토글)
+  for (const v of vendorsResult.data) {
+    if ((v.type === 'customer' || v.type === 'both') && v.status !== 'merged') get(v.id)
+  }
+
   const rows: HubListRow[] = []
   for (const [vid, a] of Array.from(acc.entries())) {
     const v = vInfo.get(vid)
@@ -291,7 +298,8 @@ export async function buildHubList(
     const ct = contactByVendor.get(vid)
     const collected = a.net - a.outstanding
     let status: HubStatus
-    if (!a.last || a.last < dormantBefore) status = 'dormant'
+    if (!a.last) status = 'no_orders'
+    else if (a.last < dormantBefore) status = 'dormant'
     else if (a.over90 > 0) status = 'over90'
     else if (a.outstanding > 0 && a.net > 0 && collected / a.net < 0.5) status = 'late'
     else if (a.outstanding > 0) status = 'outstanding'
@@ -318,7 +326,7 @@ export async function buildHubList(
       status,
     })
   }
-  rows.sort((x, y) => y.net - x.net || y.outstanding - x.outstanding)
+  rows.sort((x, y) => y.net - x.net || y.outstanding - x.outstanding || x.vendor_name.localeCompare(y.vendor_name, 'ko'))
 
   const active = rows.filter(r => r.order_count > 0)
   const netTotal = active.reduce((s, r) => s + r.net, 0)
@@ -704,7 +712,8 @@ export async function buildHubDetail(
   const dormantBefore = addDays(t0, -DORMANT_MONTHS * 30)
   let status: HubStatus
   const collected = net - outstanding
-  if (!lastOrder || lastOrder < dormantBefore) status = 'dormant'
+  if (!lastOrder) status = 'no_orders'
+  else if (lastOrder < dormantBefore) status = 'dormant'
   else if (over90 > 0) status = 'over90'
   else if (outstanding > 0 && net > 0 && collected / net < 0.5) status = 'late'
   else if (outstanding > 0) status = 'outstanding'
