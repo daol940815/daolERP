@@ -68,17 +68,22 @@ async function loadPo(admin: SupabaseClient, id: string) {
 
 // 발주담당자·연락처: 발주 진행(다운로드·발송) 시점의 로그인 직원 기준 (사용자 확정
 // 2026-08-24). 직원 정보가 없으면 발주서 작성자로 대체.
-// 연락처는 업무용 핸드폰(employees.work_phone, 205) — 없으면 비워 두어 양식이 회사 대표번호를 쓴다.
-// 개인 번호(phone)는 외부로 나가는 문서에 쓰지 않는다 (2026-11-05 사용자 요청).
-// 205 미적용 DB에서는 기존처럼 개인 번호를 쓴다(배포 · 실행 순서 보호).
+// 연락처는 업무용 핸드폰(employees.work_phone, 205) → 비어 있으면 직원 핸드폰(phone)
+// → 둘 다 없으면 비워 두어 양식이 회사 대표번호를 쓴다 (2026-11-05 사용자 결정).
+// 205 미적용 DB에서는 직원 핸드폰만 본다.
 async function currentStaff(
   admin: SupabaseClient,
   employeeId: string | null | undefined,
   po: PoRecord,
 ): Promise<{ name: string | null; phone: string | null }> {
   const lookup = async (id: string) => {
-    const r = await admin.from('employees').select('name, work_phone').eq('id', id).maybeSingle()
-    if (!r.error) return r.data ? { name: (r.data.name as string) ?? null, phone: (r.data.work_phone as string) ?? null } : null
+    const r = await admin.from('employees').select('name, work_phone, phone').eq('id', id).maybeSingle()
+    if (!r.error) {
+      return r.data ? {
+        name: (r.data.name as string) ?? null,
+        phone: ((r.data.work_phone as string) || (r.data.phone as string)) ?? null,
+      } : null
+    }
     const old = await admin.from('employees').select('name, phone').eq('id', id).maybeSingle()   // 205 미적용
     return old.data ? { name: (old.data.name as string) ?? null, phone: (old.data.phone as string) ?? null } : null
   }
@@ -91,7 +96,7 @@ async function currentStaff(
     if (s) return s
   }
   const c = one(po.creator)
-  return { name: c?.name ?? null, phone: null }
+  return { name: c?.name ?? null, phone: c?.phone ?? null }
 }
 
 // 개정 양식 데이터 조립 — 양식이 요구하는 항목 중 ERP가 아는 값을 채운다.
