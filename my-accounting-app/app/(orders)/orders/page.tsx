@@ -329,10 +329,9 @@ export default function OrdersHomePage() {
                       </td>
                       <td className="py-2 px-3">{r.manager_name ?? '-'}</td>
                       <td className="py-2 px-3">
+                        {/* 직원 = 상담자여도 둘 다 표기 (2026-11-05 사용자 요청 — 예: 김승현 / 김승현) */}
                         {r.staff_name ?? '-'}
-                        {r.channel && r.channel !== r.staff_name && (
-                          <span className="text-gray-400"> / {r.channel}</span>
-                        )}
+                        <span className="text-gray-400"> / {r.channel ?? '-'}</span>
                       </td>
                       <td className="py-2 px-3 text-right tabular-nums">{won(r.total_amount)}</td>
                       <td className={`py-2 px-3 text-right tabular-nums ${r.outstanding_amount > 0 ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
