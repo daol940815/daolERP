@@ -7,7 +7,8 @@ export const dynamic = 'force-dynamic'
 
 // 내 정보 (내 업무 › 내 정보) — 본인 직원 행 + 계정 + 내 업무 요약을 1회 호출로.
 //  GET   본인만. 권한 정보는 내려주지 않는다 (2026-10-01 사용자 결정: 직원이 자기 권한 범위를 볼 이유 없음).
-//  PATCH { phone?, email? } — 본인이 고칠 수 있는 것은 연락처만 (사용자 확정). 팀·직위·입사일·로그인 ID는 인사·총무.
+//  PATCH { phone?, work_phone?, email? } — 본인이 고칠 수 있는 것은 연락처만 (사용자 확정). 팀·직위·입사일·로그인 ID는 인사·총무.
+//    업무용 핸드폰(205)도 연락처라 본인이 입력한다 (2026-11-05 사용자 요청 — 발주서 발주자 연락처에 쓰임).
 // 각 요약 블록은 200/300/700 마이그레이션 미적용 환경에서도 죽지 않도록 개별 폴백한다.
 
 const EMP_COLS_BASE = 'id, name, team, position, employment_type, hire_date, work_start, work_end, is_active, phone, email, login_id'
@@ -104,12 +105,15 @@ export async function PATCH(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   if (!me.employeeId) return NextResponse.json({ error: '직원 정보와 연결되지 않은 계정입니다.' }, { status: 400 })
-  const body = await req.json().catch(() => ({})) as { phone?: string | null; email?: string | null }
-  const patch: { phone?: string | null; email?: string | null } = {}
-  if ('phone' in body) {
-    const v = (body.phone ?? '').trim()
-    if (v && !/^[\d\-+() ]{7,20}$/.test(v)) return NextResponse.json({ error: '전화번호 형식이 올바르지 않습니다.' }, { status: 400 })
-    patch.phone = v || null
+  const body = await req.json().catch(() => ({})) as { phone?: string | null; work_phone?: string | null; email?: string | null }
+  const patch: { phone?: string | null; work_phone?: string | null; email?: string | null } = {}
+  for (const k of ['phone', 'work_phone'] as const) {
+    if (!(k in body)) continue
+    const v = (body[k] ?? '').trim()
+    if (v && !/^[\d\-+() ]{7,20}$/.test(v)) {
+      return NextResponse.json({ error: `${k === 'work_phone' ? '업무용 핸드폰' : '휴대전화'} 번호 형식이 올바르지 않습니다.` }, { status: 400 })
+    }
+    patch[k] = v || null
   }
   if ('email' in body) {
     const v = (body.email ?? '').trim()
@@ -119,6 +123,9 @@ export async function PATCH(req: NextRequest) {
   if (!Object.keys(patch).length) return NextResponse.json({ error: '변경할 항목이 없습니다. (연락처만 본인 수정 가능)' }, { status: 400 })
   const admin = createAdminClient()
   const { data, error } = await admin.from('employees').update(patch).eq('id', me.employeeId).select(EMP_COLS).single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    const msg = /work_phone/i.test(error.message) ? '업무용 핸드폰 칸이 아직 준비되지 않았습니다(205 마이그레이션 필요). 인사 · 총무에 알려주세요.' : error.message
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
   return NextResponse.json({ ok: true, employee: data })
 }

@@ -25,7 +25,7 @@ export interface EmployeeRow {
   work_end: string | null
   is_active: boolean
   phone: string | null
-  work_phone?: string | null      // 업무용 핸드폰 (205) — 인사·총무 입력, 발주서 발주자 연락처
+  work_phone?: string | null      // 업무용 핸드폰 (205) — 본인 · 인사·총무 입력, 발주서 발주자 연락처
   email: string | null
   login_id: string | null
 }
@@ -92,7 +92,6 @@ export function EmployeeBasicCard({ emp, today, right }: { emp: EmployeeRow; tod
         <Row k="고용 형태"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${et.cls}`}>{et.label}</span></Row>
         <Row k="입사일">{emp.hire_date ?? <span className="text-gray-300">-</span>}{emp.hire_date && tenure(emp.hire_date, today) && <span className="text-xs text-gray-400 ml-2">({tenure(emp.hire_date, today)})</span>}</Row>
         <Row k="생일">{emp.birth_date ?? <span className="text-gray-300">-</span>}</Row>
-        {'work_phone' in emp && <Row k="업무용 핸드폰">{emp.work_phone ?? <span className="text-gray-300">-</span>}<span className="text-xs text-gray-400 ml-2">발주서에 기재 · 변경은 인사 · 총무</span></Row>}
         {showTerm && <Row k="근무 기간">{emp.work_start ?? '?'} ~ {emp.work_end ?? '진행 중'}</Row>}
         <Row k="상태"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${emp.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{emp.is_active ? '재직' : '비활성'}</span></Row>
       </dl>
@@ -132,14 +131,16 @@ export default function ProfileClient({ tab }: { tab: ProfileTab }) {
 function BasicTab({ p, onSaved }: { p: Profile; onSaved: () => void }) {
   const emp = p.employee!
   const [phone, setPhone] = useState(emp.phone ?? '')
+  const [workPhone, setWorkPhone] = useState(emp.work_phone ?? '')
   const [email, setEmail] = useState(emp.email ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
-  const dirty = phone !== (emp.phone ?? '') || email !== (emp.email ?? '')
+  const workReady = 'work_phone' in emp      // 205 적용 여부 (API가 칸을 내려줄 때만 입력란 노출)
+  const dirty = phone !== (emp.phone ?? '') || email !== (emp.email ?? '') || (workReady && workPhone !== (emp.work_phone ?? ''))
 
   const save = async () => {
     setBusy(true); setMsg(null)
-    const res = await fetch('/api/me/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, email }) })
+    const res = await fetch('/api/me/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, email, ...(workReady ? { work_phone: workPhone } : {}) }) })
     const json = await res.json()
     setBusy(false)
     if (!res.ok) { setMsg(json.error ?? '저장 실패'); return }
@@ -151,6 +152,13 @@ function BasicTab({ p, onSaved }: { p: Profile; onSaved: () => void }) {
       <EmployeeBasicCard emp={emp} today={p.today} />
       <Card title="연락처">
         {msg && <div className={`mb-3 px-3 py-2 text-sm rounded-lg ${msg.includes('저장되었') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
+        {workReady && (
+          <label className="block mb-3">
+            <span className="text-xs font-medium text-gray-600">업무용 핸드폰</span>
+            <input value={workPhone} onChange={e => setWorkPhone(e.target.value)} placeholder="010-0000-0000" className={`${inputCls} mt-1`} />
+            <span className="block text-[11px] text-gray-400 mt-1">발주서의 발주자 연락처에 들어갑니다. 비워 두면 아래 개인 휴대전화가 들어갑니다.</span>
+          </label>
+        )}
         <label className="block mb-3">
           <span className="text-xs font-medium text-gray-600">휴대전화 (개인)</span>
           <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="010-0000-0000" className={`${inputCls} mt-1`} />
@@ -161,7 +169,7 @@ function BasicTab({ p, onSaved }: { p: Profile; onSaved: () => void }) {
         </label>
         <div className="flex gap-2">
           <button onClick={save} disabled={busy || !dirty} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-40">{busy ? '저장 중...' : '저장'}</button>
-          <button onClick={() => { setPhone(emp.phone ?? ''); setEmail(emp.email ?? ''); setMsg(null) }} disabled={!dirty} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">취소</button>
+          <button onClick={() => { setPhone(emp.phone ?? ''); setWorkPhone(emp.work_phone ?? ''); setEmail(emp.email ?? ''); setMsg(null) }} disabled={!dirty} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">취소</button>
         </div>
       </Card>
     </div>
