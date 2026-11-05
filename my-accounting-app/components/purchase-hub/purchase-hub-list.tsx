@@ -58,6 +58,15 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
   retail:   { label: '별도 구매처',      cls: 'bg-sky-100 text-sky-700' },
 }
 
+// 매입처 구분 (602) — 목록을 구분별로 나눠 본다. 기본은 상품 매입처 (2026-11-05 사용자 지시:
+// "실제 상품을 매입하는 업체랑 경비성 업체는 아예 구분해야 한다"). 성격이 섞이면 미지급·발주 지표를 못 믿는다.
+const KIND_TABS: { key: '' | 'partner' | 'expense' | 'retail'; label: string; desc: string }[] = [
+  { key: 'partner', label: '상품 매입처', desc: '상품을 매입하는 거래처 — 발주·미지급 관리 대상' },
+  { key: 'expense', label: '경비성',      desc: '택배·전기·리스·수수료 등 경비로 나가는 곳 — 발주 대상이 아니고 지급 의무는 있다' },
+  { key: 'retail',  label: '별도 구매처',  desc: '온·오프라인에서 사 온 곳 — 즉시 결제라 미지급 관리 대상이 아니다' },
+  { key: '',        label: '전체',        desc: '구분 상관없이 전부' },
+]
+
 // ── 신규 매입처 등록 모달 ───────────────────────────────────────
 // 매출처 등록과 같은 모양: 업체명(필수) + 지점명 + 담당자 정보. 나머지는 접어둔다.
 // 이름이 완전히 같으면 서버가 조용히 기존 거래처를 재사용하고,
@@ -152,7 +161,7 @@ function NewVendorModal({ onClose, onCreated, showKind }: {
                 <div>
                   <label className={label}>구분</label>
                   <select value={form.purchase_kind} onChange={set('purchase_kind')} className={`${field} bg-white`}>
-                    <option value="partner">거래 매입처 (발주·미지급 관리)</option>
+                    <option value="partner">상품 매입처 (발주·미지급 관리)</option>
                     <option value="retail">별도 구매처 (사 온 곳, 즉시 결제)</option>
                     <option value="expense">경비성 (택배·전기·리스 등)</option>
                   </select>
@@ -206,8 +215,8 @@ export default function PurchaseHubList({ basePath, perms }: {
   const [statusFilter, setStatusFilter] = useState('')
   const [erpOnly, setErpOnly] = useState(false)
   const [outstandingOnly, setOutstandingOnly] = useState(false)
-  // 별도 구매처·경비성(602) — 발주·정산 관리 대상이 아니라 목록에서 걷어낼 수 있게 한다
-  const [hideOnline, setHideOnline] = useState(false)
+  // 매입처 구분 분리(602) — 기본은 상품 매입처만. 경비성·별도 구매처는 성격이 달라 같은 표에 섞지 않는다.
+  const [kindFilter, setKindFilter] = useState<'' | 'partner' | 'expense' | 'retail'>('partner')
   const [showNew, setShowNew] = useState(false)
   // 결제 예외 배지 (매입 사이클, 최근 12개월 · 주의 이상) — 수금·정산 조회 권한자만 조회 (2026-09-30 통합 7)
   const [exceptionCount, setExceptionCount] = useState<Map<string, number>>(new Map())
@@ -268,11 +277,18 @@ export default function PurchaseHubList({ basePath, perms }: {
     if (statusFilter && r.status !== statusFilter) return false
     if (erpOnly && r.erp_amount <= 0) return false
     if (outstandingOnly && r.outstanding <= 0) return false
-    if (hideOnline && r.purchase_kind !== 'partner') return false
+    if (kindFilter && r.purchase_kind !== kindFilter) return false
     return true
-  }), [rows, search, staffFilter, statusFilter, erpOnly, outstandingOnly, hideOnline])
+  }), [rows, search, staffFilter, statusFilter, erpOnly, outstandingOnly, kindFilter])
 
-  const filterActive = !!(search || staffFilter || statusFilter || erpOnly || outstandingOnly || hideOnline)
+  // 구분 선택은 '필터'가 아니라 화면의 기본 범위다 — KPI의 (필터 적용) 표시는 그 외 조건에만 붙인다
+  const filterActive = !!(search || staffFilter || statusFilter || erpOnly || outstandingOnly)
+
+  const kindCount = useMemo(() => {
+    const c = { '': rows.length, partner: 0, expense: 0, retail: 0 } as Record<string, number>
+    for (const r of rows) c[r.purchase_kind] = (c[r.purchase_kind] ?? 0) + 1
+    return c
+  }, [rows])
 
   // KPI는 화면에 보이는(필터 적용된) 매입처 기준으로 집계
   const kpi = useMemo(() => {
@@ -313,6 +329,20 @@ export default function PurchaseHubList({ basePath, perms }: {
         />
       )}
 
+      {/* 구분 — 상품 매입처 / 경비성 / 별도 구매처를 나눠 본다 (기본: 상품 매입처). KPI도 선택한 구분 기준으로 집계된다. */}
+      <div className="flex items-center gap-1 flex-wrap mt-4 border-b border-gray-200">
+        {KIND_TABS.map(t => (
+          <button key={t.key} onClick={() => setKindFilter(t.key)} title={t.desc}
+            className={`px-3 py-2 text-sm border-b-2 -mb-px ${kindFilter === t.key
+              ? 'border-slate-900 text-slate-900 font-semibold'
+              : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            {t.label}
+            <span className="ml-1 text-xs text-gray-400">{(kindCount[t.key] ?? 0).toLocaleString()}</span>
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-gray-500 mt-2">{KIND_TABS.find(t => t.key === kindFilter)?.desc}</p>
+
       {/* 기간 빠른 선택 — 다른 목록 화면(거래내역·법인카드·ERP 주문내역)과 동일하게 필터 바 위 별도 행 */}
       <div className="flex items-center gap-1.5 flex-wrap mt-4 mb-2">
         {['당월', '1분기', '2분기', '상반기', '당년', '전체 기간'].map(p => (
@@ -347,9 +377,6 @@ export default function PurchaseHubList({ basePath, perms }: {
         </label>
         <label className="text-xs text-gray-600 flex items-center gap-1">
           <input type="checkbox" checked={outstandingOnly} onChange={e => setOutstandingOnly(e.target.checked)} /> 미지급 있는 곳만
-        </label>
-        <label className="text-xs text-gray-600 flex items-center gap-1" title="별도 구매처(사 온 곳)·경비성(택배·전기·리스 등) — 발주 관리 대상이 아닙니다">
-          <input type="checkbox" checked={hideOnline} onChange={e => setHideOnline(e.target.checked)} /> 거래 매입처만
         </label>
       </div>
 
