@@ -5,7 +5,7 @@
 // 회계·재무 영역의 통장 내역·카드 내역은 계좌별·카드별 바로가기(편집 포함)를 하위에 둔다.
 
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import type { BankAccount } from '@/types/bank-account'
@@ -17,7 +17,8 @@ import { useNotifications } from '@/lib/use-notifications'
 import { NotificationBell, NotificationToasts } from './NotificationCenter'
 import PushBanner from './PushBanner'
 import { recentChangeMap } from '@/lib/help-registry'
-import { readSeen, HELP_SEEN_EVENT } from '@/components/help/HelpLauncher'
+import HelpLauncher, { readSeen, HELP_SEEN_EVENT } from '@/components/help/HelpLauncher'
+import type { GroupKey, PermLevel } from '@/lib/permissions'
 
 interface CardAccountItem { id: string; card_company: string; card_number: string; alias: string | null }
 
@@ -29,9 +30,10 @@ export interface AreaSidebarProps {
   userSub: string
   showAreaSelect: boolean
   initialBanks?: BankAccount[]
+  helpLevels?: Partial<Record<GroupKey, PermLevel>>
 }
 
-export default function AreaSidebar({ area, areaLabel, groups, userName, userSub, showAreaSelect, initialBanks = [] }: AreaSidebarProps) {
+export default function AreaSidebar({ area, areaLabel, groups, userName, userSub, showAreaSelect, initialBanks = [], helpLevels = {} }: AreaSidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -329,6 +331,8 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
 
       {/* 하단 고정 — 업무 선택(영역 2개 이상)·로그아웃은 메뉴가 길어도 항상 보이도록 */}
       <div className="px-3 py-3 border-t border-slate-700">
+        {/* 이 화면 도움말 — 본문 버튼을 가리지 않도록 사이드바 하단에 (2026-11-05) */}
+        <Suspense fallback={null}><HelpLauncher levels={helpLevels} /></Suspense>
         {showAreaSelect && (
           <Link href="/portal" className={linkCls(false)}>
             <span>업무 선택</span>
