@@ -60,9 +60,10 @@ export async function GET() {
   // ── 업무 요청 (2026-11-04 사용자 결정: 종류를 셋으로 나눔 — 개인 요청 · 공용 요청 · 내 요청) ──
   //  개인 요청 = 나 혼자 담당(single) / 공용 요청 = 내가 포함된 다수 담당(선착·공동) / 내 요청 = 내가 요청자
   const relatedIds = new Set<string>()
+  const bucketOf = new Map<string, NotifBucket>()   // 요청 id → 알림 칸 (진행 메모 · 이력 알림을 같은 칸에 넣기 위해)
   if (!inRes.error) {
     const shares = ((inRes.data ?? []) as unknown as MyShare[]).map(s => ({ status: s.status, r: one(s.request) })).filter((s): s is { status: WrAsgStatus; r: WR } => !!s.r && OPEN_STATUSES.includes(s.r.status))
-    shares.forEach(s => relatedIds.add(s.r.id))
+    shares.forEach(s => { relatedIds.add(s.r.id); bucketOf.set(s.r.id, s.r.assign_mode === 'single' || !s.r.assign_mode ? 'personal' : 'shared') })
     const desc = (r: WR) => `${one(r.requester)?.name ?? ''}: ${r.title} (마감 ${fmtDue(r.due_at)})`
     let red = 0
     for (const kind of ['personal', 'shared'] as const) {
@@ -74,9 +75,9 @@ export async function GET() {
       const overdue = tracked.filter(r => new Date(r.due_at) < now)
       const dueToday = tracked.filter(r => kstDay(r.due_at) === today && new Date(r.due_at) >= now)
       const k = kind === 'personal' ? 'p' : 's'
-      if (unread.length) items.push({ key: `wr:unread:${k}`, group: 'todo', tone: 'red', title: `${label} 미확인 ${unread.length}건`, detail: desc(unread[0]) + (unread.length > 1 ? ` 외 ${unread.length - 1}` : ''), href, count: unread.length, at: latest(unread.map(r => r.created_at)) })
-      if (overdue.length) items.push({ key: `wr:overdue:${k}`, group: 'todo', tone: 'red', title: `${label} 마감 지남 ${overdue.length}건`, detail: desc(overdue[0]), href, count: overdue.length, at: latest(overdue.map(r => r.due_at)) })
-      if (dueToday.length) items.push({ key: `wr:due_today:${k}`, group: 'todo', tone: 'red', title: `${label} 오늘 마감 ${dueToday.length}건`, detail: desc(dueToday[0]), href, count: dueToday.length, at: latest(dueToday.map(r => r.created_at)) })
+      if (unread.length) items.push({ key: `wr:unread:${k}`, bucket: kind, group: 'todo', tone: 'red', title: `${label} 미확인 ${unread.length}건`, detail: desc(unread[0]) + (unread.length > 1 ? ` 외 ${unread.length - 1}` : ''), href, count: unread.length, at: latest(unread.map(r => r.created_at)) })
+      if (overdue.length) items.push({ key: `wr:overdue:${k}`, bucket: kind, group: 'todo', tone: 'red', title: `${label} 마감 지남 ${overdue.length}건`, detail: desc(overdue[0]), href, count: overdue.length, at: latest(overdue.map(r => r.due_at)) })
+      if (dueToday.length) items.push({ key: `wr:due_today:${k}`, bucket: kind, group: 'todo', tone: 'red', title: `${label} 오늘 마감 ${dueToday.length}건`, detail: desc(dueToday[0]), href, count: dueToday.length, at: latest(dueToday.map(r => r.created_at)) })
       red += new Set([...unread, ...overdue].map(r => r.id)).size
       breakdown[kind] = new Set([...unread, ...overdue, ...dueToday].map(r => r.id)).size   // 요청 건수 (중복 없음)
     }
@@ -84,12 +85,12 @@ export async function GET() {
   }
   if (!outRes.error) {
     const outbox = (outRes.data ?? []) as unknown as WR[]
-    outbox.filter(r => OPEN_STATUSES.includes(r.status)).forEach(r => relatedIds.add(r.id))
+    outbox.filter(r => OPEN_STATUSES.includes(r.status)).forEach(r => { relatedIds.add(r.id); if (!bucketOf.has(r.id)) bucketOf.set(r.id, 'mine') })
     const awaiting = outbox.filter(r => r.status === 'done_reported')
     const rejected = outbox.filter(r => r.status === 'rejected')
     breakdown.mine = awaiting.length
-    if (awaiting.length) items.push({ key: 'wr:awaiting', group: 'waiting', tone: 'amber', title: `내 요청 완료 확정 대기 ${awaiting.length}건`, detail: `${one(awaiting[0].assignee)?.name ?? '담당자 전원'}이(가) 처리 보고: ${awaiting[0].title}`, href: '/me/requests?tab=outbox', count: awaiting.length, at: latest(awaiting.map(r => r.reported_at)) })
-    if (rejected.length) items.push({ key: 'wr:rejected', group: 'info', tone: 'gray', title: `내 요청 반려됨 ${rejected.length}건`, detail: `${rejected[0].title}${rejected[0].reject_reason ? ` — 사유: ${rejected[0].reject_reason}` : ''}`, href: '/me/requests?tab=outbox', count: rejected.length, at: latest(rejected.map(r => r.rejected_at)) })
+    if (awaiting.length) items.push({ key: 'wr:awaiting', bucket: 'mine', group: 'waiting', tone: 'amber', title: `내 요청 완료 확정 대기 ${awaiting.length}건`, detail: `${one(awaiting[0].assignee)?.name ?? '담당자 전원'}이(가) 처리 보고: ${awaiting[0].title}`, href: '/me/requests?tab=outbox', count: awaiting.length, at: latest(awaiting.map(r => r.reported_at)) })
+    if (rejected.length) items.push({ key: 'wr:rejected', bucket: 'mine', group: 'info', tone: 'gray', title: `내 요청 반려됨 ${rejected.length}건`, detail: `${rejected[0].title}${rejected[0].reject_reason ? ` — 사유: ${rejected[0].reject_reason}` : ''}`, href: '/me/requests?tab=outbox', count: rejected.length, at: latest(rejected.map(r => r.rejected_at)) })
     if (!badges['/me/requests'] && awaiting.length + rejected.length) badges['/me/requests'] = { n: awaiting.length + rejected.length, tone: 'amber' }
   }
   // 진행 메모 · 이력 (2026-11-04): 내가 관련된 열린 요청에서 다른 사람이 남긴 메모 · 수락 · 수정 · 담당자 추가 — 최근 7일, 최신 10건, 결과 통지로.
@@ -107,7 +108,7 @@ export async function GET() {
     const EV_LABEL: Record<string, string> = { memo: '진행 메모', accepted: '수락', edited: '요청 수정', assignee_added: '담당자 추가' }
     for (const e of evs) {
       const req = one(e.request)
-      items.push({ key: `wr:ev:${e.id}`, group: 'info', tone: 'blue', title: `${EV_LABEL[e.event] ?? e.event} — ${one(e.actor)?.name ?? ''}`, detail: `${req?.title ?? ''}${e.event === 'memo' && e.memo ? `: ${e.memo}` : ''}`, href: `/me/requests/${e.request_id}`, count: 1, at: e.created_at })
+      items.push({ key: `wr:ev:${e.id}`, bucket: bucketOf.get(e.request_id) ?? 'mine', group: 'info', tone: 'blue', title: `${EV_LABEL[e.event] ?? e.event} — ${one(e.actor)?.name ?? ''}`, detail: `${req?.title ?? ''}${e.event === 'memo' && e.memo ? `: ${e.memo}` : ''}`, href: `/me/requests/${e.request_id}`, count: 1, at: e.created_at })
     }
   }
 
@@ -160,6 +161,7 @@ export async function GET() {
 
   const order: Record<string, number> = { todo: 0, waiting: 1, info: 2 }
   items.sort((a, b) => order[a.group] - order[b.group] || (b.at ?? '').localeCompare(a.at ?? ''))
+  for (const i of items) if (!i.bucket) i.bucket = 'other'   // 휴가 결재 · 주문 승인 · 내 휴가 결과 등
   const count = breakdown.personal + breakdown.shared + breakdown.mine + breakdown.other
   return NextResponse.json({ at: nowIso, count, breakdown, items, badges } satisfies NotifData)
 }
