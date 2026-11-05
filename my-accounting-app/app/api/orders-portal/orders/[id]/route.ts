@@ -8,6 +8,8 @@ import {
 } from '@/lib/orders-portal'
 import { recordWorkLog, orderContent } from '@/lib/work-log'
 import { loadReceivableMap, collectStatusFrom } from '@/lib/orders-portal-list'
+import { can } from '@/lib/permissions'
+import { prepayBalanceOf, prepayUsedOf, vendorOfOrder } from '@/lib/prepay'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,6 +42,9 @@ async function loadPayments(admin: SupabaseClient, orderId: string) {
   const ids = (t: string) => matches.filter(m => m.source_type === t).map(m => m.source_id as string)
   const srcInfo = new Map<string, { label: string; total: number }>()
   const bankIds = ids('bank'), cardIds = ids('card'), cashIds = ids('cash')
+  for (const m of matches.filter(x => x.source_type === 'prepay')) {
+    srcInfo.set(m.source_id as string, { label: '선결제 잔액에서 사용', total: Number(m.amount ?? 0) })
+  }
   if (bankIds.length) {
     const { data } = await admin.from('transactions')
       .select('id, counterparty_name, description, amount_in').in('id', bankIds)
@@ -143,9 +148,11 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     .order('created_at', { ascending: false })
 
   const edit = editability(snap.order, me)
-  const [payments, recvMap] = await Promise.all([
+  const prepayVendor = await vendorOfOrder(admin, snap.order)
+  const [payments, recvMap, prepayBal] = await Promise.all([
     loadPayments(admin, params.id),
     loadReceivableMap(admin, [params.id]),
+    prepayBalanceOf(admin, prepayVendor, (snap.order.customer_alias_id as string | null) ?? null),
   ])
   // 표준 미수(매칭 반영) — erp_orders.outstanding_amount는 매칭 전 원본값이라 표시에 쓰지 않는다
   const recv = recvMap?.get(params.id)
@@ -164,6 +171,11 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     items: snap.items,
     payments,
     receivable,
+    // 선결제 사용 (514): 잔액 · 사용 가능 여부 (주문 수정 권한 + direct + 미취소)
+    prepay: {
+      balance: prepayBal.balance, deposit: prepayBal.deposit, deduction: prepayBal.deduction,
+      can_use: can(me, 'orders', 'edit') && snap.order.source === 'direct' && !snap.order.canceled_at,
+    },
     change_requests: requests ?? [],
     edit_logs: logs ?? [],
     can_edit: edit.canEdit,
@@ -221,7 +233,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     refType: 'order',
     refId: params.id,
   })
-  return NextResponse.json({ ok: true, warning: result.warning })
+  // 선결제 사용분이 수정 후 주문 금액(순매출)보다 크면 경고 — 사용분은 그대로 유지
+  let warning = result.warning
+  const used = await prepayUsedOf(admin, params.id)
+  if (used > 0) {
+    const net = (await loadReceivableMap(admin, [params.id]))?.get(params.id)?.net_sales ?? 0
+    if (used > net) {
+      warning = [warning, `선결제 사용(${used.toLocaleString('ko-KR')}원)이 주문 금액(${net.toLocaleString('ko-KR')}원)보다 큽니다 — 결제 내역에서 해제 후 다시 사용하세요.`]
+        .filter(Boolean).join(' / ')
+    }
+  }
+  return NextResponse.json({ ok: true, warning })
 }
 
 // 주문 취소 (삭제 대체) — 물리 삭제 없이 취소 처리, 원본·이력 보존
@@ -249,8 +271,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   ])
   if ((matchCnt ?? 0) > 0 || (invCnt ?? 0) > 0) {
     return NextResponse.json({
-      error: '수금 매칭 또는 계산서가 연결된 주문은 단순 취소할 수 없습니다. '
-        + '내용을 바꾸려면 취소·재등록(연결이 새 주문으로 넘어감)을, 주문 자체를 없애려면 회계·재무 담당자에게 매칭·계산서 연결 해제를 먼저 요청해주세요.',
+      error: '수금 매칭(선결제 사용 포함) 또는 계산서가 연결된 주문은 단순 취소할 수 없습니다. '
+        + '내용을 바꾸려면 취소·재등록(연결이 새 주문으로 넘어감)을, 주문 자체를 없애려면 선결제 사용은 결제 내역에서 해제하고 '
+        + '통장·카드 매칭·계산서 연결은 회계·재무 담당자에게 해제를 먼저 요청해주세요.',
     }, { status: 409 })
   }
 

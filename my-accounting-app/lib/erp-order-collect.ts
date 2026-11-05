@@ -114,7 +114,7 @@ export async function loadOrderCollectSummary(admin: SupabaseClient, orderId: st
     customer_name: [o.bank_name, o.branch_name].filter(Boolean).join(' '),
     vendor_id: vendorId, vendor_name: vendorName, collect_status: o.collect_status as string | null,
     net_amount: net, allocated, remaining: Math.max(0, net - allocated),
-    matches: matches.map(m => ({ ...m, label: label.get(`${m.source_type}:${m.source_id}`) ?? m.source_type })),
+    matches: matches.map(m => ({ ...m, label: label.get(`${m.source_type}:${m.source_id}`) ?? (m.source_type === 'prepay' ? '선결제 사용' : m.source_type) })),
   }
 }
 

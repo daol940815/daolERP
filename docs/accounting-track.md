@@ -922,6 +922,17 @@ ERP 주문은 계획대로 교체(erp-reload-track). 결정 대기.
 (주문 쪽 → 회계 이동 불가 원칙). 모달에 회계 화면 링크를 추가할 때는 이 prop 조건 안에 넣을 것. 또 주문 화면의 미수·수금 상태는
 `v_erp_order_receivable`(매칭 반영)로 표시하고, 취소·재등록 시 매칭·계산서 연결을 새 주문으로 이관, 연결 있는 주문의 단순 취소는 차단(order-system-track.md).
 
+### 선결제 사용 = 수금 매칭 'prepay' (2026-11-05 주문 트랙, 사용자 확정 — 회계 세션 공유 사항)
+
+- 주문 상세 결제 내역의 "선결제 사용"(영업지원팀) = erp_prepayments 차감 1행 + erp_payment_matches 1행(source_type **'prepay'**,
+  source_id = 원장 차감 행 id). 514에서 source_type CHECK에 'prepay' 추가. 표준 미수 뷰(406 · 416)는 매칭 금액을 종류 무관하게
+  차감하므로 규칙 변경 없이 미수가 줄어든다. 분개는 매칭을 읽지 않아 영향 없음.
+- 회계 코드 보강: `DELETE /api/erp-matching`은 prepay 매칭이면 원장 차감 행도 함께 삭제. `lib/erp-order-collect.ts` 라벨 '선결제 사용'.
+  `lib/erp-matching.ts` allocBySource는 bank|card만 키로 써서 prepay는 결제 잔액 계산에 끼지 않음(정상).
+- **회계 세션 요청(사용자 가안 ⑤)**: ERP 주문내역(/erp-orders)의 '선결제차감' 버튼은 원장 차감만 하고 미수를 줄이지 않는다 —
+  `lib/prepay.ts` applyPrepayUse(원장 + 매칭 한 쌍)로 통일 권고. 선결제 주문의 실제 입금 확인(선결제 주문 순매출 0 → 미수 0이라 통장 매칭 불가)은
+  미수 정의 문제라 회계 트랙 결정 대기.
+
 ## 자주 쓰는 코드 위치
 
 - 분류: `app/(dashboard)/bank-classify`, 확정 API `app/api/transactions/confirm`(청크)

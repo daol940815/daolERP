@@ -592,6 +592,9 @@ export async function inheritToReissued(
   await Promise.all([
     admin.from('erp_payment_matches').update({ order_id: newOrderId }).eq('order_id', origOrder.id as string),
     admin.from('erp_order_invoices').update({ order_id: newOrderId }).eq('order_id', origOrder.id as string),
+    // 선결제 사용(514)의 원장 차감 행도 새 주문으로 — 자동 입금(source_key pre:direct:)은 syncPrepayDeposits가 별도 관리
+    admin.from('erp_prepayments').update({ order_id: newOrderId })
+      .eq('order_id', origOrder.id as string).eq('entry_type', 'deduction'),
   ])
 
   // 발주서 이관

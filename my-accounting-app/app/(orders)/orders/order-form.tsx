@@ -46,6 +46,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
   const [phone, setPhone] = useState('')
   const [memo, setMemo] = useState('')
   const [ship, setShip] = useState<ShipInput>(EMPTY_SHIP)   // 배송지 (513)
+  const [prepayBalance, setPrepayBalance] = useState(0)      // 주문처 선결제 잔액 안내 (514)
   const uidRef = useRef(2)
   const nextUid = () => uidRef.current++
   const [items, setItems] = useState<ItemDraft[]>(() => [emptyItem(1)])
@@ -270,6 +271,18 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
     else { setContacts([]); setContactsLoadedFor(null) }
   }, [vendorId, loadContacts])
 
+  // 주문처 선결제 잔액 — 안내만. 사용은 저장 후 주문 상세 › 결제 내역에서 (2026-11-05 확정)
+  useEffect(() => {
+    setPrepayBalance(0)
+    if (!vendorId) return
+    let alive = true
+    fetch(`/api/orders-portal/prepay-balance?vendor_id=${vendorId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (alive && j) setPrepayBalance(Number(j.balance ?? 0)) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [vendorId])
+
   // 상담 전환의 자유 입력 담당자명 처리 — 목록 로드가 끝난 뒤에만 판정한다.
   // "권오병 부장님" → 이름 권오병·직함 부장 (인물 마스터는 순수 이름만 저장)
   useEffect(() => {
@@ -442,6 +455,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
         })
         const json = await res.json()
         if (!res.ok) throw new Error(json.error ?? '수정 실패')
+        if (json.warning) window.alert(json.warning)
         router.push(`/orders/${orderId}`)
       }
     } catch (e) {
@@ -624,6 +638,13 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
             <input value={memo} onChange={e => setMemo(e.target.value)} className={free} />
           </div>
         </div>
+
+        {prepayBalance > 0 && (
+          <div className="mt-3 text-xs px-3 py-2 rounded-lg bg-fuchsia-50 border border-fuchsia-200 text-fuchsia-800">
+            이 주문처의 선결제 잔액 <b className="tabular-nums">{prepayBalance.toLocaleString('ko-KR')}원</b> — 저장 후 주문 상세 › 결제 내역에서
+            &lsquo;선결제 사용&rsquo;으로 결제에 쓸 수 있습니다.
+          </div>
+        )}
 
         {addingVendor && (
           <div className="mt-3 p-3 bg-blue-50/50 border border-blue-200 rounded-lg flex items-end gap-2 flex-wrap">
