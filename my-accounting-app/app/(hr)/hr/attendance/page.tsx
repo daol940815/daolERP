@@ -234,11 +234,11 @@ export default function MyAttendancePage() {
                     <td className="py-1.5 px-3 tabular-nums">{kstTime(record?.check_in_at ?? null) ?? '-'}</td>
                     <td className="py-1.5 px-3 tabular-nums">{kstTime(record?.check_out_at ?? null) ?? '-'}</td>
                     <td className="py-1.5 px-3">
-                      <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS_COLOR[st.kind]}`}>
+                      <span className={`px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${STATUS_COLOR[st.kind]}`}>
                         {st.holidayName ?? (st.leave ? LEAVE_TYPE_LABEL[st.leave.leave_type] : DAY_STATUS_LABEL[st.kind])}
                       </span>
                       {st.halfLeave && st.kind !== 'none' && st.record && (
-                        <span className="ml-1 text-[11px] text-gray-400">{DAY_STATUS_LABEL[st.kind]}</span>
+                        <span className="ml-1 text-[0.6875rem] text-gray-400">{DAY_STATUS_LABEL[st.kind]}</span>
                       )}
                     </td>
                     <td className="py-1.5 px-3 text-xs text-gray-400">
@@ -264,7 +264,7 @@ export default function MyAttendancePage() {
         {showLeaveForm && (
           <div className="mt-3 grid grid-cols-2 lg:grid-cols-5 gap-3 items-end">
             <div>
-              <label className="block text-[11px] text-gray-500 font-semibold mb-1">종류</label>
+              <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">종류</label>
               <select value={form.leave_type}
                 onChange={e => setForm(f => ({ ...f, leave_type: e.target.value as LeaveType }))}
                 className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
@@ -272,19 +272,19 @@ export default function MyAttendancePage() {
               </select>
             </div>
             <div>
-              <label className="block text-[11px] text-gray-500 font-semibold mb-1">시작일</label>
+              <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">시작일</label>
               <input type="date" value={form.start_date}
                 onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
             </div>
             <div>
-              <label className="block text-[11px] text-gray-500 font-semibold mb-1">종료일 (비우면 하루)</label>
+              <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">종료일 (비우면 하루)</label>
               <input type="date" value={form.end_date}
                 onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
             </div>
             <div>
-              <label className="block text-[11px] text-gray-500 font-semibold mb-1">사유 (선택)</label>
+              <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">사유 (선택)</label>
               <input value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
             </div>
@@ -316,16 +316,16 @@ export default function MyAttendancePage() {
                     applicantId={l.employee_id} decidedByName={l.decided_by_name} stepsReady={approval.ready} />
                 </td>
                 <td className="py-1.5 px-3">
-                  <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
+                  <span className={`px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${
                     l.status === 'approved' ? 'bg-green-100 text-green-700'
                     : l.status === 'requested' ? 'bg-amber-100 text-amber-700'
                     : 'bg-gray-100 text-gray-500'}`}>
                     {LEAVE_STATUS_LABEL[l.status]}
                   </span>
                   {l.status !== 'requested' && l.decided_by_name && (
-                    <span className="ml-2 text-[11px] text-gray-500">{l.decided_by_name} · {fmtDay(l.decided_at)}</span>
+                    <span className="ml-2 text-[0.6875rem] text-gray-500">{l.decided_by_name} · {fmtDay(l.decided_at)}</span>
                   )}
-                  {l.decide_note && <span className="ml-2 text-[11px] text-gray-400">{l.decide_note}</span>}
+                  {l.decide_note && <span className="ml-2 text-[0.6875rem] text-gray-400">{l.decide_note}</span>}
                 </td>
                 <td className="py-1.5 pl-3 text-right">
                   {l.status === 'requested' && (
@@ -371,16 +371,16 @@ function ApprovalLine({ approval, skip, setSkip }: {
   )
   return (
     <div className="col-span-full border border-gray-200 rounded-lg px-3 py-2">
-      <div className="text-[11px] font-bold text-gray-500 mb-0.5">결재선</div>
+      <div className="text-[0.6875rem] font-bold text-gray-500 mb-0.5">결재선</div>
       <Row l={1} /><Row l={2} /><Row l={3} />
       {lv === 3 && <p className="text-xs text-gray-500 mt-1">3차 결재 권한자 본인 신청은 신청 즉시 승인되고 마스터 계정에 알림이 갑니다.</p>}
       {anySkip && (
         <div className="mt-1.5">
-          <label className="block text-[11px] text-gray-500 font-semibold mb-1">전결 사유 (필수)</label>
+          <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">전결 사유 (필수)</label>
           <input value={skip.note} onChange={e => { const v = e.target.value; setSkip(s => ({ ...s, note: v })) }}
             placeholder="예: 팀장 출장"
             className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-          <p className="text-[11px] text-amber-700 mt-1">전결한 단계의 승인권자에게는 나중에 알림이 가고, 휴가 목록에 &ldquo;신청자 전결&rdquo;과 사유가 남습니다.</p>
+          <p className="text-[0.6875rem] text-amber-700 mt-1">전결한 단계의 승인권자에게는 나중에 알림이 가고, 휴가 목록에 &ldquo;신청자 전결&rdquo;과 사유가 남습니다.</p>
         </div>
       )}
     </div>

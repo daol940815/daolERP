@@ -197,8 +197,8 @@ function VendorCycleInner() {
           {/* 거래처 단위 예외 (지급 대기 · 과다 지급) */}
           {vendorLevel.map((v, i) => (
             <div key={i} className="flex items-center gap-2 border border-gray-200 rounded-lg px-4 py-2.5 mb-2 bg-white text-sm">
-              <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${STATUS_BADGE[v.status] ?? 'bg-gray-100'}`}>{v.status}</span>
-              <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${SEV_BADGE[v.severity]}`}>{v.severity}</span>
+              <span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${STATUS_BADGE[v.status] ?? 'bg-gray-100'}`}>{v.status}</span>
+              <span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${SEV_BADGE[v.severity]}`}>{v.severity}</span>
               <span className="text-gray-700 text-xs">{v.detail}</span>
               {v.cause && <span className="text-gray-400 text-xs">· {v.cause}</span>}
               <span className="ml-auto inline-flex items-center gap-1.5">
@@ -242,13 +242,13 @@ function VendorCycleInner() {
                       <td className="px-3 py-2 whitespace-nowrap">
                         {j ? (
                           <span className="inline-flex items-center gap-1">
-                            <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${STATUS_BADGE[j.status] ?? 'bg-gray-100'}`}>{j.status}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${STATUS_BADGE[j.status] ?? 'bg-gray-100'}`}>{j.status}</span>
                             {j.status !== '완료' && j.status !== '경비성' && (
-                              <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${SEV_BADGE[j.severity]}`}>{j.severity}</span>
+                              <span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${SEV_BADGE[j.severity]}`}>{j.severity}</span>
                             )}
                           </span>
                         ) : (
-                          <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-500">지급만</span>
+                          <span className="px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-gray-100 text-gray-500">지급만</span>
                         )}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">{mrow.erp_amount ? won(mrow.erp_amount) : <span className="text-gray-300">-</span>}</td>

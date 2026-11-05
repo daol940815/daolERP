@@ -94,7 +94,7 @@ export default function VendorDedupPage() {
                           <span className={sel === m.id ? 'font-semibold text-slate-900' : 'text-gray-700'}>
                             {m.name}
                           </span>
-                          {sel === m.id && <span className="px-1.5 py-0.5 text-[10px] bg-slate-900 text-white rounded">대표</span>}
+                          {sel === m.id && <span className="px-1.5 py-0.5 text-[0.625rem] bg-slate-900 text-white rounded">대표</span>}
                           <span className="text-xs text-gray-400 ml-auto">
                             {m.count !== undefined && `${sec.statLabel} ${m.count}건`}
                             {m.amount !== undefined && m.amount > 0 && ` · ${m.amount.toLocaleString()}원`}

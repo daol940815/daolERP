@@ -64,18 +64,18 @@ export default function HelpLauncher({ levels }: { levels: Partial<Record<GroupK
     <>
       <button onClick={() => setOpen(o => !o)} title="이 화면 도움말 (F1)"
         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors ${open ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-        <span className={`w-4 h-4 rounded-full text-[10px] font-extrabold inline-flex items-center justify-center shrink-0 ${open ? 'bg-white text-slate-900' : 'bg-slate-600 text-white'}`}>?</span>
+        <span className={`w-4 h-4 rounded-full text-[0.625rem] font-extrabold inline-flex items-center justify-center shrink-0 ${open ? 'bg-white text-slate-900' : 'bg-slate-600 text-white'}`}>?</span>
         <span>이 화면 도움말</span>
         {fresh && !open
-          ? <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-600 text-white leading-none" title="이 화면에 최근 바뀐 것이 있습니다">새로 바뀜 {freshCount}</span>
-          : <span className="ml-auto text-[10px] text-slate-500">F1</span>}
+          ? <span className="ml-auto text-[0.625rem] px-1.5 py-0.5 rounded-full bg-emerald-600 text-white leading-none" title="이 화면에 최근 바뀐 것이 있습니다">새로 바뀜 {freshCount}</span>
+          : <span className="ml-auto text-[0.625rem] text-slate-500">F1</span>}
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-[60] bg-slate-900/10" onClick={() => setOpen(false)} />
           <aside className="fixed top-0 right-0 bottom-0 w-full sm:w-[380px] bg-white border-l border-gray-200 shadow-2xl z-[61] overflow-y-auto text-sm text-left">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-5 py-3 flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-slate-900 text-white text-[11px] font-extrabold inline-flex items-center justify-center">?</span>
+              <span className="w-5 h-5 rounded-full bg-slate-900 text-white text-[0.6875rem] font-extrabold inline-flex items-center justify-center">?</span>
               <h2 className="font-bold text-gray-900 text-base truncate">{entry?.title ?? '이 화면'}</h2>
               <button onClick={() => setOpen(false)} className="ml-auto text-xs text-gray-400 hover:text-gray-700">닫기 ✕</button>
             </div>
@@ -90,7 +90,7 @@ export default function HelpLauncher({ levels }: { levels: Partial<Record<GroupK
                 <>
                   {entry.changes && entry.changes.length > 0 && (
                     <section className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">
-                      <h3 className="text-[11px] font-bold text-emerald-800 uppercase tracking-wide mb-1">최근 바뀐 것</h3>
+                      <h3 className="text-[0.6875rem] font-bold text-emerald-800 uppercase tracking-wide mb-1">최근 바뀐 것</h3>
                       <ul className="space-y-1">
                         {entry.changes.slice(0, 3).map((c, i) => <li key={i} className="text-xs text-emerald-900 leading-relaxed"><span className="tabular-nums text-emerald-700 mr-1.5">{c.date.slice(5)}</span>{c.text}</li>)}
                       </ul>
@@ -119,7 +119,7 @@ export default function HelpLauncher({ levels }: { levels: Partial<Record<GroupK
                   <div className="border-t border-gray-200 pt-3 flex items-center gap-2 flex-wrap">
                     <Link href={questionHref(entry, pathname)} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-700">이 화면에 대해 질문하기</Link>
                     <Link href="/me/help" className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-gray-50">전체 도움말 목록</Link>
-                    <span className="ml-auto text-[11px] text-gray-400">최근 확인 {entry.updated}</span>
+                    <span className="ml-auto text-[0.6875rem] text-gray-400">최근 확인 {entry.updated}</span>
                   </div>
                 </>
               )}
@@ -132,5 +132,5 @@ export default function HelpLauncher({ levels }: { levels: Partial<Record<GroupK
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section><h3 className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{title}</h3>{children}</section>
+  return <section><h3 className="text-[0.6875rem] font-bold text-gray-400 uppercase tracking-wide mb-1.5">{title}</h3>{children}</section>
 }

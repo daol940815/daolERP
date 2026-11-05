@@ -197,22 +197,22 @@ export default function OrdersHomePage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mt-4">
         <button onClick={() => { setCollect('all'); setSource('all') }}
           className={`${kpiCard} ${collect === 'all' && source === 'all' ? 'border-slate-800' : 'border-gray-200'}`}>
-          <div className="text-[11px] text-gray-400">기간 주문</div>
+          <div className="text-[0.6875rem] text-gray-400">기간 주문</div>
           <div className="text-lg font-extrabold tabular-nums">{kpi ? `${won(kpi.count)}건` : '-'}</div>
         </button>
         <div className={`${kpiCard} border-gray-200`}>
-          <div className="text-[11px] text-gray-400">총 금액</div>
+          <div className="text-[0.6875rem] text-gray-400">총 금액</div>
           <div className="text-lg font-extrabold tabular-nums">{kpi ? `${won(kpi.total)}원` : '-'}</div>
         </div>
         <button onClick={() => setCollect(collect === 'outstanding' ? 'all' : 'outstanding')}
           className={`${kpiCard} ${collect === 'outstanding' ? 'border-slate-800' : 'border-gray-200'}`}>
-          <div className="text-[11px] text-gray-400">미수금 (클릭=미수만)</div>
+          <div className="text-[0.6875rem] text-gray-400">미수금 (클릭=미수만)</div>
           <div className="text-lg font-extrabold tabular-nums text-red-600">{kpi ? `${won(kpi.outstanding)}원` : '-'}</div>
-          {kpi && <div className="text-[10px] text-gray-400">{kpi.outstanding_cnt}건 미수 · {kpi.in_progress_cnt}건 진행중</div>}
+          {kpi && <div className="text-[0.625rem] text-gray-400">{kpi.outstanding_cnt}건 미수 · {kpi.in_progress_cnt}건 진행중</div>}
         </button>
         <button onClick={() => setSource(source === 'direct' ? 'all' : 'direct')}
           className={`${kpiCard} ${source === 'direct' ? 'border-slate-800' : 'border-gray-200'}`}>
-          <div className="text-[11px] text-gray-400">직접입력 (클릭=직접만)</div>
+          <div className="text-[0.6875rem] text-gray-400">직접입력 (클릭=직접만)</div>
           <div className="text-lg font-extrabold tabular-nums text-blue-700">{kpi ? `${won(kpi.direct_cnt)}건` : '-'}</div>
         </button>
       </div>
@@ -220,7 +220,7 @@ export default function OrdersHomePage() {
       {/* 필터 바 — 1줄: 기간(날짜 직접설정 좌측 + 프리셋) / 2줄: 통합 검색 / 3줄: 상태 칩 */}
       <div className="bg-white border border-gray-200 rounded-xl p-3 mt-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[11px] text-gray-400">주문일</span>
+          <span className="text-[0.6875rem] text-gray-400">주문일</span>
           <input type="date" value={from}
             onChange={e => setFrom(e.target.value)}
             className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm tabular-nums" />
@@ -242,7 +242,7 @@ export default function OrdersHomePage() {
           )}
         </div>
         {q && (
-          <div className="flex items-center gap-1.5 flex-wrap mt-2 text-[11px] text-gray-400">
+          <div className="flex items-center gap-1.5 flex-wrap mt-2 text-[0.6875rem] text-gray-400">
             <span>적용 조건 (모두 만족):</span>
             {parseTokens(q).map((tk, i) => (
               <span key={i} className="inline-block px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
@@ -253,17 +253,17 @@ export default function OrdersHomePage() {
           </div>
         )}
         <div className="flex items-center gap-1.5 flex-wrap mt-2">
-          <span className="text-[11px] text-gray-400 mr-0.5">수금</span>
+          <span className="text-[0.6875rem] text-gray-400 mr-0.5">수금</span>
           {([['all', '전체'], ['collected', '수금완료'], ['in_progress', '진행중'], ['outstanding', '미수금']] as const).map(([k, l]) => (
             <button key={k} onClick={() => setCollect(k)} className={chip(collect === k)}>{l}</button>
           ))}
           <span className="w-2" />
-          <span className="text-[11px] text-gray-400 mr-0.5">출처</span>
+          <span className="text-[0.6875rem] text-gray-400 mr-0.5">출처</span>
           {([['all', '전체'], ['direct', '직접입력'], ['upload', '업로드']] as const).map(([k, l]) => (
             <button key={k} onClick={() => setSource(k)} className={chip(source === k)}>{l}</button>
           ))}
           <span className="w-2" />
-          <span className="text-[11px] text-gray-400 mr-0.5">발주</span>
+          <span className="text-[0.6875rem] text-gray-400 mr-0.5">발주</span>
           {([['all', '전체'], ['none', '미발주'], ['partial', '부분발주'], ['full', '발주완료']] as const).map(([k, l]) => (
             <button key={k} onClick={() => setPo(k)} className={chip(po === k)}>
               {l}{k !== 'all' && kpi ? ` ${kpi[`po_${k}_cnt` as keyof Kpi] ?? 0}` : ''}
@@ -308,23 +308,23 @@ export default function OrdersHomePage() {
                       className={`border-b border-gray-50 cursor-pointer hover:bg-blue-50/40 ${r.canceled_at ? 'opacity-60' : ''}`}>
                       <td className="py-2 px-3">
                         <div className="tabular-nums text-xs font-semibold">{r.order_date}</div>
-                        <div className="tabular-nums text-[11px] text-gray-400">{r.order_no ?? '-'}</div>
+                        <div className="tabular-nums text-[0.6875rem] text-gray-400">{r.order_no ?? '-'}</div>
                       </td>
                       <td className="py-2 px-3 font-semibold">{r.bank_name ?? '(주문처 미상)'}</td>
                       <td className="py-2 px-3">
                         {r.branch_name ?? <span className="text-gray-300">-</span>}
                         {/* 취소·재등록(511): 취소 주문은 집계 제외 상계, 당일 수정건은 '수정됨' 표시 */}
                         {r.canceled_at && (
-                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-600">취소</span>
+                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-red-50 text-red-600">취소</span>
                         )}
                         {!r.canceled_at && r.last_edited_at && (
-                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-600">수정됨</span>
+                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-amber-50 text-amber-600">수정됨</span>
                         )}
                         {r.is_prepay && (
-                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-600">선결제</span>
+                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-violet-50 text-violet-600">선결제</span>
                         )}
                         {r.has_invoice && (
-                          <span className="ml-1 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-600">계산서</span>
+                          <span className="ml-1 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-blue-50 text-blue-600">계산서</span>
                         )}
                       </td>
                       <td className="py-2 px-3">{r.manager_name ?? '-'}</td>
@@ -338,24 +338,24 @@ export default function OrdersHomePage() {
                         {won(r.outstanding_amount)}
                       </td>
                       <td className="py-2 px-3">
-                        <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${badge.cls}`}>{badge.label}</span>
+                        <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${badge.cls}`}>{badge.label}</span>
                       </td>
                       <td className="py-2 px-3">
                         {r.po_status && PO_BADGE[r.po_status] ? (
-                          <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${PO_BADGE[r.po_status].cls}`}>
+                          <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${PO_BADGE[r.po_status].cls}`}>
                             {PO_BADGE[r.po_status].label}
                           </span>
                         ) : <span className="text-gray-300 text-xs">-</span>}
                       </td>
                       <td className="py-2 px-3">
-                        <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${r.source === 'direct' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                        <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${r.source === 'direct' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                           {r.source === 'direct' ? '직접입력' : '업로드'}
                         </span>
                       </td>
                       <td className="py-2 px-3 whitespace-nowrap">
                         {!r.canceled_at && (
                           <button onClick={e => { e.stopPropagation(); setCollectFor(r.id) }}
-                            className={`mr-1 px-2 py-0.5 text-[11px] rounded ${r.outstanding_amount > 0 ? 'bg-slate-900 text-white hover:bg-slate-700' : 'border border-gray-300 text-gray-500 hover:bg-gray-50'}`}
+                            className={`mr-1 px-2 py-0.5 text-[0.6875rem] rounded ${r.outstanding_amount > 0 ? 'bg-slate-900 text-white hover:bg-slate-700' : 'border border-gray-300 text-gray-500 hover:bg-gray-50'}`}
                             title="이 주문에 입금·카드결제를 매칭">
                             수금 매칭
                           </button>
@@ -380,9 +380,9 @@ export default function OrdersHomePage() {
                                     {it.parent_line_no && <span className="text-gray-400 mr-1 no-underline">└</span>}
                                     {it.item_name} × {it.quantity}
                                     {it.order_kind && (
-                                      <span className="ml-1.5 no-underline inline-block px-1 py-0 rounded text-[10px] bg-gray-100 text-gray-500">{it.order_kind}</span>
+                                      <span className="ml-1.5 no-underline inline-block px-1 py-0 rounded text-[0.625rem] bg-gray-100 text-gray-500">{it.order_kind}</span>
                                     )}
-                                    {it.is_canceled && <span className="ml-1 text-[10px] text-red-400 no-underline">취소</span>}
+                                    {it.is_canceled && <span className="ml-1 text-[0.625rem] text-red-400 no-underline">취소</span>}
                                   </span>
                                   <span className="tabular-nums">판매 {won(it.line_total)}</span>
                                   <span className="tabular-nums text-gray-400">배송비 {won(it.shipping_fee)}</span>

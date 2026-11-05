@@ -185,7 +185,7 @@ export default function EmployeesPage() {
               ['login_id', '로그인 ID (영문·숫자)', 'text'], ['password', '초기 비밀번호', 'text'],
             ] as const).map(([k, label, type]) => (
               <div key={k}>
-                <label className="block text-[11px] text-gray-500 font-semibold mb-1">{label}</label>
+                <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">{label}</label>
                 <input type={type} value={form[k]} list={k === 'team' ? 'team-list' : undefined}
                   onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
@@ -194,7 +194,7 @@ export default function EmployeesPage() {
             <datalist id="team-list">{TEAMS.map(t => <option key={t} value={t} />)}</datalist>
           </div>
           <div className="flex justify-between items-center mt-3">
-            <p className="text-[11px] text-gray-400">
+            <p className="text-[0.6875rem] text-gray-400">
               ID를 비우면 담당 배정용 직원으로만 등록됩니다(로그인 불가, 나중에 발급 가능).
               비밀번호는 인증 서버 최소 기준(6자)만 넘으면 됩니다. 권한은 등록 후 권한 버튼에서 지정합니다(기본 없음).
             </p>
@@ -261,15 +261,15 @@ export default function EmployeesPage() {
                   <td className="py-2 px-3 font-semibold">{r.name}</td>
                   <td className="py-2 px-3 text-gray-600">{[r.team, r.position].filter(Boolean).join(' · ') || '-'}</td>
                   <td className="py-2 px-3 text-gray-600 text-xs leading-5 whitespace-nowrap">
-                    <div><span className="text-[10px] text-violet-600 font-semibold mr-1">업무</span>{r.work_phone ?? <span className="text-gray-300">-</span>}</div>
-                    <div><span className="text-[10px] text-gray-400 font-semibold mr-1">개인</span>{r.phone ?? <span className="text-gray-300">-</span>}</div>
+                    <div><span className="text-[0.625rem] text-violet-600 font-semibold mr-1">업무</span>{r.work_phone ?? <span className="text-gray-300">-</span>}</div>
+                    <div><span className="text-[0.625rem] text-gray-400 font-semibold mr-1">개인</span>{r.phone ?? <span className="text-gray-300">-</span>}</div>
                   </td>
                   <td className="py-2 px-3">
                     {r.login_id
                       ? <>
                           <span className="text-gray-800 font-mono text-xs">{r.login_id}</span>
                           {!r.auth_user_id && (
-                            <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-50 text-amber-700">계정 미발급</span>
+                            <span className="ml-1 px-1.5 py-0.5 rounded text-[0.625rem] bg-amber-50 text-amber-700">계정 미발급</span>
                           )}
                         </>
                       : <span className="text-gray-300 text-xs">미발급</span>}
@@ -279,14 +279,14 @@ export default function EmployeesPage() {
                       className={`text-xs px-2 py-1 rounded border ${r.is_master ? 'border-slate-900 bg-slate-900 text-white' : 'border-gray-300 hover:bg-gray-50'}`}>
                       {permSummary(r)}
                     </button>
-                    {r.can_approve && !r.is_master && <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-blue-50 text-blue-700">승인</span>}
-                    {r.leave_approve_level && <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-violet-50 text-violet-700">휴가 {r.leave_approve_level}차</span>}
-                    {r.employment_type === 'parttime' && <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-50 text-amber-700">아르바이트{r.work_end ? ` ~${r.work_end}` : ''}</span>}
+                    {r.can_approve && !r.is_master && <span className="ml-1 px-1.5 py-0.5 rounded text-[0.625rem] bg-blue-50 text-blue-700">승인</span>}
+                    {r.leave_approve_level && <span className="ml-1 px-1.5 py-0.5 rounded text-[0.625rem] bg-violet-50 text-violet-700">휴가 {r.leave_approve_level}차</span>}
+                    {r.employment_type === 'parttime' && <span className="ml-1 px-1.5 py-0.5 rounded text-[0.625rem] bg-amber-50 text-amber-700">아르바이트{r.work_end ? ` ~${r.work_end}` : ''}</span>}
                   </td>
                   <td className="py-2 px-3 tabular-nums text-gray-500 text-xs">{r.hire_date ?? '-'}</td>
                   <td className="py-2 px-3 tabular-nums text-gray-500 text-xs">{r.birth_date ?? '-'}</td>
                   <td className="py-2 px-3">
-                    <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${r.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${r.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {r.is_active ? '재직' : '비활성'}
                     </span>
                   </td>

@@ -207,27 +207,27 @@ export default function ContactDetailPage() {
                   <p className="text-sm font-medium text-gray-900">
                     {a.vendor_name}{a.title ? ` · ${a.title}` : ''}
                     {a.is_representative && !a.ended_at && (
-                      <span className="ml-1 px-1.5 py-0.5 rounded text-[11px] bg-blue-50 text-blue-700">대표</span>
+                      <span className="ml-1 px-1.5 py-0.5 rounded text-[0.6875rem] bg-blue-50 text-blue-700">대표</span>
                     )}
                   </p>
                   <p className="text-xs text-gray-400">
                     {a.started_at ?? '기존'} ~ {a.ended_at ?? '현재'}
                   </p>
                   {a.ended_at && a.vendor_gap && (
-                    <p className="text-[11px] text-red-500">→ 이 거래처는 담당 공백 (후임 미지정)</p>
+                    <p className="text-[0.6875rem] text-red-500">→ 이 거래처는 담당 공백 (후임 미지정)</p>
                   )}
                   {!a.ended_at && canEdit && (
                     <div className="flex gap-1.5 mt-1">
                       {!a.is_representative && (
                         <button disabled={busy}
                           onClick={() => post({ action: 'set_representative', assignment_id: a.id, vendor_id: a.vendor_id }, '대표 담당자로 지정했습니다.')}
-                          className="text-[11px] text-blue-600 hover:underline">대표 지정</button>
+                          className="text-[0.6875rem] text-blue-600 hover:underline">대표 지정</button>
                       )}
                       <button disabled={busy}
                         onClick={() => window.confirm(`${a.vendor_name} 배정을 종료할까요? (퇴직·담당 해제)`) &&
                           post({ action: 'end_assignment', assignment_id: a.id }, '배정을 종료했습니다.')}
-                        className="text-[11px] text-gray-400 hover:text-red-500">배정 종료</button>
-                      <Link href={`/sales-hub/${a.vendor_id}`} className="text-[11px] text-slate-500 hover:underline ml-auto">허브 상세 →</Link>
+                        className="text-[0.6875rem] text-gray-400 hover:text-red-500">배정 종료</button>
+                      <Link href={`/sales-hub/${a.vendor_id}`} className="text-[0.6875rem] text-slate-500 hover:underline ml-auto">허브 상세 →</Link>
                     </div>
                   )}
                 </div>
@@ -265,7 +265,7 @@ export default function ContactDetailPage() {
             return (
               <div className="bg-white border border-gray-200 rounded-xl p-4 overflow-x-auto">
                 <h2 className="text-sm font-bold text-gray-900">과거 매출
-                  <span className="ml-2 text-[11px] font-normal text-gray-400">{docSales[0].source} 기준 스냅샷 — 참고 지표 (주문 원본 삭제로 드릴다운 불가) · 합계 = 상시 + 명절</span>
+                  <span className="ml-2 text-[0.6875rem] font-normal text-gray-400">{docSales[0].source} 기준 스냅샷 — 참고 지표 (주문 원본 삭제로 드릴다운 불가) · 합계 = 상시 + 명절</span>
                 </h2>
                 <table className="w-full text-sm mt-2 min-w-[560px]">
                   <thead>
@@ -297,7 +297,7 @@ export default function ContactDetailPage() {
 
           <div className="bg-white border border-gray-200 rounded-xl p-4">
             <h2 className="text-sm font-bold text-gray-900 mb-1">상담 직원 커넥션</h2>
-            <p className="text-[11px] text-gray-400 mb-3">이 담당자에게 귀속된 주문의 상담자(채널) 자동 집계 — 수동 입력 없음</p>
+            <p className="text-[0.6875rem] text-gray-400 mb-3">이 담당자에게 귀속된 주문의 상담자(채널) 자동 집계 — 수동 입력 없음</p>
             {d.connections.length ? (
               <div className="space-y-1.5">
                 {d.connections.map(c => (
@@ -372,7 +372,7 @@ export default function ContactDetailPage() {
                           <td className="py-1.5 pr-3 whitespace-nowrap text-xs text-gray-500">{a.activity_date}</td>
                           <td className="py-1.5 pr-3 whitespace-nowrap text-xs">{a.employee_name ?? '-'}</td>
                           <td className="py-1.5 pr-3 whitespace-nowrap">
-                            <span className="px-1.5 py-0.5 rounded text-[11px] bg-slate-100 text-slate-600">{a.activity_type}</span>
+                            <span className="px-1.5 py-0.5 rounded text-[0.6875rem] bg-slate-100 text-slate-600">{a.activity_type}</span>
                           </td>
                           <td className="py-1.5 pr-3 text-gray-700">{a.content}</td>
                           <td className="py-1.5 text-xs text-gray-500">{a.next_action ?? '-'}</td>

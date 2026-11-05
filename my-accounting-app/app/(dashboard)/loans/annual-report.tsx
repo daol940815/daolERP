@@ -145,24 +145,24 @@ export default function AnnualReport({ loans }: { loans: ReportLoan[] }) {
         <div className={card}>
           <div className="text-xs text-gray-400">총 차입 익스포저</div>
           <div className="text-xl font-bold mt-1">{eok(totalDebt)}</div>
-          <div className="text-[11px] text-gray-400 mt-0.5">일반 {eok(termBalance)} · 한도 사용 {eok(creditUsed)}</div>
+          <div className="text-[0.6875rem] text-gray-400 mt-0.5">일반 {eok(termBalance)} · 한도 사용 {eok(creditUsed)}</div>
         </div>
         <div className={card}>
           <div className="text-xs text-gray-400">연간 이자비용</div>
           <div className="text-xl font-bold mt-1">{eok(actualYear > 0 ? actualYear : planYear)}</div>
-          <div className="text-[11px] text-gray-400 mt-0.5">
+          <div className="text-[0.6875rem] text-gray-400 mt-0.5">
             {actualYear > 0 ? `실적 기준 · 계획 ${eok(planYear)}` : `계획 기준 · 실적 집계 대기`}
           </div>
         </div>
         <div className={card}>
           <div className="text-xs text-gray-400">가중평균 조달금리</div>
           <div className="text-xl font-bold mt-1">{weightedRate.toFixed(2)}%</div>
-          <div className="text-[11px] text-gray-400 mt-0.5">익스포저 가중 · {rated.length}건</div>
+          <div className="text-[0.6875rem] text-gray-400 mt-0.5">익스포저 가중 · {rated.length}건</div>
         </div>
         <div className={`${card} ${buckets.overdue.amount + buckets.y1.amount > 0 ? 'bg-amber-50 border-amber-300' : ''}`}>
           <div className="text-xs text-amber-700">1년 이내 만기</div>
           <div className="text-xl font-bold mt-1 text-amber-800">{eok(buckets.overdue.amount + buckets.y1.amount)}</div>
-          <div className="text-[11px] text-amber-700 mt-0.5">
+          <div className="text-[0.6875rem] text-amber-700 mt-0.5">
             {buckets.overdue.count + buckets.y1.count}건
             {buckets.overdue.count > 0 && ` · 만기 경과 ${buckets.overdue.count}건`}
           </div>
@@ -182,7 +182,7 @@ export default function AnnualReport({ loans }: { loans: ReportLoan[] }) {
           <div key={k} className={`bg-white border border-gray-200 rounded-xl p-4 ${buckets[k].count > 0 ? cls : ''}`}>
             <div className="text-xs text-gray-500">{label}</div>
             <div className={`text-lg font-bold mt-1 ${buckets[k].count > 0 ? txt : 'text-gray-300'}`}>{eok(buckets[k].amount)}</div>
-            <div className="text-[11px] text-gray-400 mt-0.5">{buckets[k].count}건</div>
+            <div className="text-[0.6875rem] text-gray-400 mt-0.5">{buckets[k].count}건</div>
           </div>
         ))}
       </div>
@@ -211,7 +211,7 @@ export default function AnnualReport({ loans }: { loans: ReportLoan[] }) {
                 <tr key={l.id} className={`border-b border-gray-100 ${overdue ? 'bg-red-50/50' : ''}`}>
                   <td className={`py-2 px-3 whitespace-nowrap ${overdue ? 'text-red-600 font-medium' : ''}`}>{l.maturity_date}</td>
                   <td className="py-2 px-3 whitespace-nowrap">
-                    <span className={`inline-block whitespace-nowrap text-[11px] px-1.5 py-0.5 rounded ${
+                    <span className={`inline-block whitespace-nowrap text-[0.6875rem] px-1.5 py-0.5 rounded ${
                       overdue ? 'bg-red-100 text-red-700' : soon ? 'bg-amber-100 text-amber-800' : 'text-gray-400'}`}>
                       {overdue ? '경과' : `D-${d}`}
                     </span>
@@ -221,7 +221,7 @@ export default function AnnualReport({ loans }: { loans: ReportLoan[] }) {
                   <td className="py-2 px-3 text-right font-medium whitespace-nowrap">{won(exposure(l))}</td>
                   <td className="py-2 px-3 text-right whitespace-nowrap">{l.interest_rate != null ? `${l.interest_rate}%` : '-'}</td>
                   <td className="py-2 px-3 text-center whitespace-nowrap">
-                    <span className="inline-block whitespace-nowrap text-[11px] px-1.5 py-0.5 rounded bg-slate-100">
+                    <span className="inline-block whitespace-nowrap text-[0.6875rem] px-1.5 py-0.5 rounded bg-slate-100">
                       {l.product_type === 'credit_line' ? '한도' : '일반'}
                     </span>
                   </td>
@@ -341,14 +341,14 @@ export default function AnnualReport({ loans }: { loans: ReportLoan[] }) {
             <div className={card}>
               <div className="text-xs text-gray-400">사용액</div>
               <div className={`text-lg font-bold mt-1 ${creditUsed > 0 ? 'text-rose-600' : ''}`}>{eok(creditUsed)}</div>
-              <div className="text-[11px] text-gray-400 mt-0.5">
+              <div className="text-[0.6875rem] text-gray-400 mt-0.5">
                 사용률 {creditLimit > 0 ? ((creditUsed / creditLimit) * 100).toFixed(1) : '0.0'}%
               </div>
             </div>
             <div className={card}>
               <div className="text-xs text-gray-400">미사용 한도 (여신 여력)</div>
               <div className="text-lg font-bold mt-1 text-blue-600">{eok(Math.max(creditLimit - creditUsed, 0))}</div>
-              <div className="text-[11px] text-gray-400 mt-0.5">
+              <div className="text-[0.6875rem] text-gray-400 mt-0.5">
                 {actual?.credit_ok ? '연간 이자' : '예상 월이자'} {won(actual?.credit_ok ? planLineYear : fallbackLine)}원
               </div>
             </div>

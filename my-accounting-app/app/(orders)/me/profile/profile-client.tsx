@@ -10,8 +10,9 @@ import { createClient } from '@/lib/supabase'
 import { contactLabel } from '@/lib/contact-label'
 import { kstTime, LEAVE_TYPE_LABEL, LEAVE_STATUS_LABEL, type LeaveType, type LeaveStatus } from '@/lib/attendance'
 import NotifyTab from './notify-tab'
+import DisplayTab from './display-tab'
 
-export type ProfileTab = 'basic' | 'account' | 'work' | 'notify'
+export type ProfileTab = 'basic' | 'account' | 'work' | 'notify' | 'display'
 
 export interface EmployeeRow {
   id: string
@@ -89,11 +90,11 @@ export function EmployeeBasicCard({ emp, today, right }: { emp: EmployeeRow; tod
         <Row k="이름">{emp.name}</Row>
         <Row k="팀">{emp.team ?? <span className="text-gray-300">-</span>}</Row>
         <Row k="직위">{emp.position ?? <span className="text-gray-300">-</span>}</Row>
-        <Row k="고용 형태"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${et.cls}`}>{et.label}</span></Row>
+        <Row k="고용 형태"><span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${et.cls}`}>{et.label}</span></Row>
         <Row k="입사일">{emp.hire_date ?? <span className="text-gray-300">-</span>}{emp.hire_date && tenure(emp.hire_date, today) && <span className="text-xs text-gray-400 ml-2">({tenure(emp.hire_date, today)})</span>}</Row>
         <Row k="생일">{emp.birth_date ?? <span className="text-gray-300">-</span>}</Row>
         {showTerm && <Row k="근무 기간">{emp.work_start ?? '?'} ~ {emp.work_end ?? '진행 중'}</Row>}
-        <Row k="상태"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${emp.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{emp.is_active ? '재직' : '비활성'}</span></Row>
+        <Row k="상태"><span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${emp.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{emp.is_active ? '재직' : '비활성'}</span></Row>
       </dl>
     </Card>
   )
@@ -123,6 +124,7 @@ export default function ProfileClient({ tab }: { tab: ProfileTab }) {
 
   if (tab === 'account') return <AccountTab p={p} />
   if (tab === 'work') return <WorkTab p={p} />
+  if (tab === 'display') return <DisplayTab />   // 글자 크기 · 색 테마 (113, 2026-11-05)
   if (tab === 'notify') return <NotifyTab />   // PC 알림(Web Push) 설정 (⑦, 2026-11-03)
   return <BasicTab p={p} onSaved={load} />
 }
@@ -156,7 +158,7 @@ function BasicTab({ p, onSaved }: { p: Profile; onSaved: () => void }) {
           <label className="block mb-3">
             <span className="text-xs font-medium text-gray-600">업무용 핸드폰</span>
             <input value={workPhone} onChange={e => setWorkPhone(e.target.value)} placeholder="010-0000-0000" className={`${inputCls} mt-1`} />
-            <span className="block text-[11px] text-gray-400 mt-1">발주서의 발주자 연락처에 들어갑니다. 비워 두면 아래 개인 휴대전화가 들어갑니다.</span>
+            <span className="block text-[0.6875rem] text-gray-400 mt-1">발주서의 발주자 연락처에 들어갑니다. 비워 두면 아래 개인 휴대전화가 들어갑니다.</span>
           </label>
         )}
         <label className="block mb-3">
@@ -183,7 +185,7 @@ function AccountTab({ p }: { p: Profile }) {
       <Card title="로그인 계정">
         <dl>
           <Row k="로그인 ID">{p.account.login_id ?? <span className="text-gray-400">{p.account.email ?? '-'}</span>}</Row>
-          <Row k="계정 상태"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${p.employee?.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{p.employee?.is_active ? '정상' : '비활성'}</span></Row>
+          <Row k="계정 상태"><span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${p.employee?.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{p.employee?.is_active ? '정상' : '비활성'}</span></Row>
           <Row k="마지막 로그인">{fmtDT(p.account.last_sign_in_at)}</Row>
         </dl>
       </Card>
@@ -254,7 +256,7 @@ function WorkTab({ p }: { p: Profile }) {
   const outT = kstTime(p.attendance?.check_out_at ?? null)
   const pending = p.leaves.filter(l => l.status === 'requested').length
   const kpi = (k: string, v: React.ReactNode, s?: string) => (
-    <div className="bg-white border border-gray-200 rounded-xl px-4 py-3"><p className="text-xs text-gray-500">{k}</p><p className="text-lg font-bold mt-0.5">{v}</p>{s && <p className="text-[11px] text-gray-400 mt-0.5">{s}</p>}</div>
+    <div className="bg-white border border-gray-200 rounded-xl px-4 py-3"><p className="text-xs text-gray-500">{k}</p><p className="text-lg font-bold mt-0.5">{v}</p>{s && <p className="text-[0.6875rem] text-gray-400 mt-0.5">{s}</p>}</div>
   )
   const Empty = ({ t }: { t: string }) => <p className="text-xs text-gray-400 py-3">{t}</p>
   return (
@@ -272,7 +274,7 @@ function WorkTab({ p }: { p: Profile }) {
               <tbody>{p.leaves.map(l => (
                 <tr key={l.id} className="border-b border-gray-50 last:border-0"><td className="py-1.5">{LEAVE_TYPE_LABEL[l.leave_type] ?? l.leave_type}</td>
                   <td className="py-1.5 text-gray-600 tabular-nums">{l.start_date}{l.end_date !== l.start_date ? ` ~ ${l.end_date}` : ''}</td>
-                  <td className="py-1.5"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${LEAVE_STATUS_CLS[l.status] ?? 'bg-gray-100 text-gray-600'}`}>{LEAVE_STATUS_LABEL[l.status] ?? l.status}</span></td></tr>
+                  <td className="py-1.5"><span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${LEAVE_STATUS_CLS[l.status] ?? 'bg-gray-100 text-gray-600'}`}>{LEAVE_STATUS_LABEL[l.status] ?? l.status}</span></td></tr>
               ))}</tbody></table>
           )}
         </Card>
@@ -282,7 +284,7 @@ function WorkTab({ p }: { p: Profile }) {
               {p.vendors.slice(0, 8).map(v => (
                 <li key={v.vendor_id} className="py-1.5 flex items-center gap-2">
                   <Link href={`/sales-hub/${v.vendor_id}`} className="text-gray-900 hover:underline truncate">{v.name}</Link>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${v.is_primary ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-500'}`}>{v.is_primary ? '주담당' : '부담당'}</span>
+                  <span className={`text-[0.625rem] px-1.5 py-0.5 rounded ${v.is_primary ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-500'}`}>{v.is_primary ? '주담당' : '부담당'}</span>
                 </li>
               ))}
               {p.vendors.length > 8 && <li className="py-1.5 text-xs text-gray-400">외 {p.vendors.length - 8}곳</li>}
@@ -296,7 +298,7 @@ function WorkTab({ p }: { p: Profile }) {
                 <li key={`${c.contact_id}-${c.vendor_id}`} className="py-1.5 flex items-center gap-2">
                   <Link href={`/sales-hub/contacts/${c.contact_id}`} className="text-gray-900 hover:underline">{contactLabel(c.name, c.title)}</Link>
                   <span className="text-xs text-gray-400 truncate">{c.vendor_name}</span>
-                  {c.is_representative && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">대표</span>}
+                  {c.is_representative && <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">대표</span>}
                 </li>
               ))}
               {p.contacts.length > 8 && <li className="py-1.5 text-xs text-gray-400">외 {p.contacts.length - 8}명</li>}

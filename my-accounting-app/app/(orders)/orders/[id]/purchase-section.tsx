@@ -97,12 +97,12 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
 
   const sendBadge = (p: Po) => {
     if (p.status === 'canceled')
-      return <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-400">취소됨</span>
+      return <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-gray-100 text-gray-400">취소됨</span>
     if (p.sent_at && p.send_method === 'email')
-      return <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-100 text-emerald-700">메일 발송됨</span>
+      return <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-emerald-100 text-emerald-700">메일 발송됨</span>
     if (p.sent_at)
-      return <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-100 text-emerald-700">수동 발송됨</span>
-    return <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-100 text-amber-800">미발송</span>
+      return <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-emerald-100 text-emerald-700">수동 발송됨</span>
+    return <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-amber-100 text-amber-800">미발송</span>
   }
 
   const pendingGroups = groups
@@ -122,9 +122,9 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
     <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
       <div className="flex items-center gap-2.5 flex-wrap">
         <div className="text-sm font-bold text-gray-900">발주</div>
-        <span className="text-[11px] text-gray-400">발주서 1장 = 이 주문 × 매입처 1곳 · 발송 후 대금결제는 매입처 정산에서</span>
+        <span className="text-[0.6875rem] text-gray-400">발주서 1장 = 이 주문 × 매입처 1곳 · 발송 후 대금결제는 매입처 정산에서</span>
         {!smtpReady && (
-          <span className="ml-auto text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+          <span className="ml-auto text-[0.6875rem] text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
             메일 발송 미설정 — 엑셀 다운로드 후 수동 발송 기록으로 처리
           </span>
         )}
@@ -149,21 +149,21 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
                 </button>
                 <span className="text-xs text-gray-400">품목 {p.item_count}건 · {won(p.total_amount)}원</span>
                 {p.uses_custom_po && (
-                  <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-violet-50 text-violet-600"
+                  <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-violet-50 text-violet-600"
                     title="자체 발주서 양식을 쓰는 매입처 — 자사 양식은 참고용, 수동 발송 기록 권장">자체 양식</span>
                 )}
                 {p.po_use_sale_price && (
-                  <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-600"
+                  <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-blue-50 text-blue-600"
                     title="발주서 금액이 매입가 대신 판매가로 기재되는 매입처 (요아럽)">판매가 발주</span>
                 )}
                 {sendBadge(p)}
                 {p.sent_at && (
-                  <span className="text-[11px] text-gray-400 tabular-nums">
+                  <span className="text-[0.6875rem] text-gray-400 tabular-nums">
                     {p.sent_at.slice(0, 16).replace('T', ' ')}{p.sender_name ? ` · ${p.sender_name}` : ''}
                   </span>
                 )}
                 {p.status === 'active' && p.broken_count > 0 && (
-                  <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-red-50 text-red-600">
+                  <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-red-50 text-red-600">
                     주문 수정됨 — 품목 {p.broken_count}건 연결 끊김, 재발주 검토
                   </span>
                 )}
@@ -182,7 +182,7 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
                 </span>
               </div>
               {p.send_error && p.status === 'active' && (
-                <div className="mt-1.5 text-[11px] text-red-600">최근 발송 실패: {p.send_error} — 발송 페이지에서 재시도하세요</div>
+                <div className="mt-1.5 text-[0.6875rem] text-red-600">최근 발송 실패: {p.send_error} — 발송 페이지에서 재시도하세요</div>
               )}
               {openPo === p.id && <div className="mt-2.5"><PoDetail poId={p.id} /></div>}
             </div>
@@ -195,7 +195,7 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
         <div className="mt-3">
           <div className="text-xs text-gray-500 mb-1.5">미발주 품목 — 매입처별로 선택해 발주서를 만드세요</div>
           <div className="mb-2">
-            <label className="block text-[11px] text-gray-400 mb-1">배송 참고 (발주서에 함께 인쇄 — 주문 메모·상담일지에서 자동 취합, 수정 가능)</label>
+            <label className="block text-[0.6875rem] text-gray-400 mb-1">배송 참고 (발주서에 함께 인쇄 — 주문 메모·상담일지에서 자동 취합, 수정 가능)</label>
             <textarea value={deliveryNote} onChange={e => setDeliveryNote(e.target.value)} rows={2}
               className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
           </div>
@@ -210,17 +210,17 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
                 <div key={g.key} className="border border-gray-200 rounded-lg overflow-hidden">
                   <div className="flex items-center gap-2 px-3.5 py-2 bg-gray-50 border-b border-gray-100 flex-wrap">
                     <span className="text-sm font-semibold">{g.vendor_name}</span>
-                    {g.payment_term && <span className="text-[11px] text-gray-400">{g.payment_term}</span>}
+                    {g.payment_term && <span className="text-[0.6875rem] text-gray-400">{g.payment_term}</span>}
                     {g.uses_custom_po && (
-                      <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-violet-50 text-violet-600"
+                      <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-violet-50 text-violet-600"
                         title="자체 발주서 양식을 쓰는 매입처 — 자사 양식은 참고용, 발송 후 수동 발송 기록 권장">자체 양식</span>
                     )}
                     {g.po_use_sale_price && (
-                      <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-600"
+                      <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-blue-50 text-blue-600"
                         title="발주서 금액이 매입가 대신 판매가로 기재됩니다 (요아럽 — 사용자 확정)">판매가 발주</span>
                     )}
                     {!g.alias_id && (
-                      <span className="text-[11px] text-red-500">매입처 미연결 — 발주서에 매입처 정보가 비어 나갑니다</span>
+                      <span className="text-[0.6875rem] text-red-500">매입처 미연결 — 발주서에 매입처 정보가 비어 나갑니다</span>
                     )}
                     <input value={emails[g.key] ?? ''} onChange={e => setEmails(prev => ({ ...prev, [g.key]: e.target.value }))}
                       placeholder="발주 이메일 (매입처 마스터에서 프리필)" type="email"

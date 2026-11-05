@@ -141,7 +141,7 @@ function NewRequestForm() {
           <div>
             <div className="flex items-baseline gap-2">
               <span className="text-xs font-medium text-gray-600">담당자 <span className="text-red-500">*</span></span>
-              <span className="text-[11px] text-gray-400">이름을 입력해 추가하거나 팀 버튼으로 한 번에</span>
+              <span className="text-[0.6875rem] text-gray-400">이름을 입력해 추가하거나 팀 버튼으로 한 번에</span>
             </div>
             <div className="relative mt-1">
               <input ref={searchRef} value={query} onChange={e => setQuery(e.target.value)} placeholder="이름 · 팀 검색 (예: 김주, 영업지원)"
@@ -180,7 +180,7 @@ function NewRequestForm() {
           {/* 진행 방식 — 2명 이상일 때만 */}
           {assignees.length > 1 && (
             <div>
-              <span className="text-xs font-medium text-gray-600">진행 방식 <span className="text-red-500">*</span> <span className="text-[11px] text-gray-400 font-normal">담당자 2명 이상</span></span>
+              <span className="text-xs font-medium text-gray-600">진행 방식 <span className="text-red-500">*</span> <span className="text-[0.6875rem] text-gray-400 font-normal">담당자 2명 이상</span></span>
               <div className="grid sm:grid-cols-2 gap-2 mt-1">
                 {(['first', 'all'] as WrMode[]).map(m => (
                   <label key={m} className={`border rounded-lg px-3 py-2.5 cursor-pointer ${mode === m ? 'border-slate-900 ring-1 ring-slate-900 bg-slate-50' : 'border-gray-200 hover:bg-gray-50'}`}>
@@ -188,7 +188,7 @@ function NewRequestForm() {
                       <input type="radio" name="mode" checked={mode === m} onChange={() => setMode(m)} />
                       <span className="text-sm font-semibold text-gray-900">{m === 'first' ? '선착 — 한 명이 수락하면 그 사람이 진행' : '공동 — 전원이 각자 진행'}</span>
                     </div>
-                    <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">{WR_MODE_DESC[m]} {m === 'first' ? '예: "이 전화 누가 좀 해줘".' : '예: "각자 담당 거래처 수금 확인".'}</p>
+                    <p className="text-[0.6875rem] text-gray-500 mt-1 leading-relaxed">{WR_MODE_DESC[m]} {m === 'first' ? '예: "이 전화 누가 좀 해줘".' : '예: "각자 담당 거래처 수금 확인".'}</p>
                   </label>
                 ))}
               </div>
@@ -255,12 +255,12 @@ function NewRequestForm() {
                             return (
                               <li key={it.id} className="grid grid-cols-[1fr_auto_auto] gap-2 items-center text-xs">
                                 <span className={`truncate ${it.hidden ? 'text-gray-400' : 'text-gray-800'}`}>
-                                  {it.is_urgent && <span className="text-[10px] px-1 rounded bg-red-600 text-white mr-1">긴급</span>}
+                                  {it.is_urgent && <span className="text-[0.625rem] px-1 rounded bg-red-600 text-white mr-1">긴급</span>}
                                   {it.hidden ? it.title : <Link href={`/me/requests/${it.id}`} className="hover:underline">{it.title}</Link>}
                                   {it.requester && <span className="text-gray-400"> · {it.requester}</span>}
                                 </span>
                                 <span className={`tabular-nums whitespace-nowrap ${over ? 'text-red-600 font-medium' : today ? 'text-amber-600 font-medium' : 'text-gray-500'}`}>{fmtDue(it.due_at)}{over ? ' 지남' : today ? ' 오늘' : ''}</span>
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap ${WR_ASG_CLS[it.my_status]}`}>{WR_ASG_LABEL[it.my_status]}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-[0.625rem] font-semibold whitespace-nowrap ${WR_ASG_CLS[it.my_status]}`}>{WR_ASG_LABEL[it.my_status]}</span>
                               </li>
                             )
                           })}

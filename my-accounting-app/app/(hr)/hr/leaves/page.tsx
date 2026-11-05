@@ -242,8 +242,8 @@ export default function LeaveListPage() {
                       className={`border-b border-gray-50 cursor-pointer ${a.myTurn ? 'bg-amber-50/70' : 'hover:bg-gray-50/60'}`}>
                       <td className="py-2 px-3 whitespace-nowrap">
                         <span className="font-semibold">{r.employee?.name ?? '-'}</span>
-                        {r.employee?.team && <span className="ml-1.5 text-[11px] text-gray-400">{r.employee.team}</span>}
-                        {mine && <span className="ml-1.5 text-[10px] px-1.5 rounded-full bg-amber-100 text-amber-800 font-bold">본인</span>}
+                        {r.employee?.team && <span className="ml-1.5 text-[0.6875rem] text-gray-400">{r.employee.team}</span>}
+                        {mine && <span className="ml-1.5 text-[0.625rem] px-1.5 rounded-full bg-amber-100 text-amber-800 font-bold">본인</span>}
                       </td>
                       <td className="py-2 px-3 whitespace-nowrap">{LEAVE_TYPE_LABEL[r.leave_type]}</td>
                       <td className="py-2 px-3 tabular-nums text-xs whitespace-nowrap">{leavePeriodText(r, r.days)}</td>
@@ -252,10 +252,10 @@ export default function LeaveListPage() {
                           applicantId={r.employee_id} decidedByName={r.decided_by_name} stepsReady={!!data?.stepsReady} />
                       </td>
                       <td className="py-2 px-3 whitespace-nowrap">
-                        <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS_BADGE[r.status]}`}>
+                        <span className={`px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${STATUS_BADGE[r.status]}`}>
                           {progressLabel(r.status, r.steps, !!data?.stepsReady)}
                         </span>
-                        {r.status !== 'requested' && r.decided_at && <span className="ml-1.5 text-[11px] text-gray-400">{kst(r.decided_at)}</span>}
+                        {r.status !== 'requested' && r.decided_at && <span className="ml-1.5 text-[0.6875rem] text-gray-400">{kst(r.decided_at)}</span>}
                       </td>
                       <td className="py-2 px-3 text-xs text-gray-600 max-w-[220px]">
                         {r.reason_hidden ? <span className="text-gray-300">-</span> : (r.reason ?? <span className="text-gray-300">-</span>)}
@@ -269,7 +269,7 @@ export default function LeaveListPage() {
                           className="text-xs px-2.5 py-1 border border-violet-300 bg-violet-50 text-violet-700 rounded mr-1 hover:bg-violet-100 disabled:opacity-50">3차 전결</button>}
                         {a.reject && <button onClick={() => reject(r)} disabled={busy}
                           className="text-xs px-2.5 py-1 border border-red-200 text-red-600 rounded mr-1 hover:bg-red-50 disabled:opacity-50">반려</button>}
-                        {mine && r.status === 'requested' && <span className="text-[11px] text-gray-400 mr-1.5">본인 건 결재 불가</span>}
+                        {mine && r.status === 'requested' && <span className="text-[0.6875rem] text-gray-400 mr-1.5">본인 건 결재 불가</span>}
                         {a.cancel && <button onClick={() => cancel(r)} disabled={busy}
                           className="text-xs px-2.5 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50">신청 취소</button>}
                         {a.cancel_approved && <button onClick={() => cancelApproved(r)} disabled={busy}
@@ -293,7 +293,7 @@ export default function LeaveListPage() {
           </table>
         )}
       </div>
-      <p className="text-[11px] text-gray-400 mt-2">
+      <p className="text-[0.6875rem] text-gray-400 mt-2">
         행을 누르면 단계별 결재 이력이 펼쳐집니다. 상위 결재 = 상위 단계 권한자가 하위 단계를 함께 처리 · 자동 통과 = 신청자 본인 단계 이하 ·
         신청자 전결 = 신청할 때 넘긴 단계 · 전결 = 3차 권한자 부재 시 2차 권한자가 처리.
       </p>

@@ -212,19 +212,19 @@ export default function ProductsPage() {
         ] as const).map(([key, title, val, cls]) => (
           <button key={key} onClick={() => setFilter(key)}
             className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === key ? 'border-slate-800' : 'border-gray-200'}`}>
-            <div className="text-[11px] text-gray-400">{title}</div>
+            <div className="text-[0.6875rem] text-gray-400">{title}</div>
             <div className={`text-lg font-bold tabular-nums ${cls}`}>{val}</div>
           </button>
         ))}
         {/* 비용 품목 (배송비 · 퀵비 · 설치비 등) — 발주서 배송명단 제외 대상 (이름 키워드 후보 추천은 오판만 나와 폐지, 2026-11-05) */}
         <button onClick={() => setFilter('cost')}
           className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === 'cost' ? 'border-slate-800' : 'border-gray-200'}`}>
-          <div className="text-[11px] text-gray-400">비용 품목</div>
+          <div className="text-[0.6875rem] text-gray-400">비용 품목</div>
           <div className="text-lg font-bold tabular-nums text-amber-700">{kpi.cost}</div>
         </button>
         {/* 매입처 수 — 정보 표시용 (필터 아님) */}
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-left">
-          <div className="text-[11px] text-gray-400">매입처 수</div>
+          <div className="text-[0.6875rem] text-gray-400">매입처 수</div>
           <div className="text-lg font-bold tabular-nums text-gray-500">{kpi.vendors}</div>
         </div>
       </div>
@@ -266,60 +266,60 @@ export default function ProductsPage() {
       {editingId && (
         <div className="mt-3 p-3.5 bg-white border border-slate-300 rounded-xl flex items-end gap-2.5 flex-wrap">
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">품번</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">품번</label>
             <input value={draft.item_code} onChange={e => setDraft(d => ({ ...d, item_code: e.target.value }))}
               className={`${inputCls} w-28`} placeholder="선택" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">품명 *</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">품명 *</label>
             <input value={draft.item_name} onChange={e => setDraft(d => ({ ...d, item_name: e.target.value }))}
               className={`${inputCls} w-64`} />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">매입처</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">매입처</label>
             <input value={draft.purchase_vendor_name} onChange={e => setDraft(d => ({ ...d, purchase_vendor_name: e.target.value }))}
               className={`${inputCls} w-40`} placeholder="발주서 분리 기준" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">지점판매가</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">지점판매가</label>
             <input value={draft.sale_price ? won(draft.sale_price) : ''} onChange={e => setDraft(d => ({ ...d, sale_price: toInt(e.target.value) }))}
               className={`${inputCls} w-28 text-right tabular-nums`} placeholder="0"
               title="한 곳 묶음 배송 — 배송비는 카톤 기준 별도" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">개별판매가</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">개별판매가</label>
             <input value={draft.individual_sale_price ? won(draft.individual_sale_price) : ''} onChange={e => setDraft(d => ({ ...d, individual_sale_price: toInt(e.target.value) }))}
               className={`${inputCls} w-28 text-right tabular-nums`} placeholder="미지정"
               title="여러 곳 개별 배송 — 배송비 포함가. 비우면 지점판매가 사용" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">매입가</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">매입가</label>
             <input value={draft.purchase_price ? won(draft.purchase_price) : ''} onChange={e => setDraft(d => ({ ...d, purchase_price: toInt(e.target.value) }))}
               className={`${inputCls} w-28 text-right tabular-nums`} placeholder="0" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">카톤단위</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">카톤단위</label>
             <input value={draft.carton_unit || ''} onChange={e => setDraft(d => ({ ...d, carton_unit: toInt(e.target.value) }))}
               className={`${inputCls} w-20 text-right tabular-nums`} placeholder="개/카톤" title="1카톤에 들어가는 수량 — 비우면 배송비 자동 계산 안 함" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">카톤택배비</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">카톤택배비</label>
             <input value={draft.carton_shipping_fee ? won(draft.carton_shipping_fee) : ''} onChange={e => setDraft(d => ({ ...d, carton_shipping_fee: toInt(e.target.value) }))}
               className={`${inputCls} w-24 text-right tabular-nums`} placeholder="0" title="카톤당 택배비" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">카톤외택배비</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">카톤외택배비</label>
             <input value={draft.loose_shipping_fee ? won(draft.loose_shipping_fee) : ''} onChange={e => setDraft(d => ({ ...d, loose_shipping_fee: toInt(e.target.value) }))}
               className={`${inputCls} w-24 text-right tabular-nums`} placeholder="0"
               title="낱개 1건 택배비 — 지점 배송 나머지 낱개분·개별 배송 파생가 계산에 사용" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">분류</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">분류</label>
             <input value={draft.category} onChange={e => setDraft(d => ({ ...d, category: e.target.value }))}
               className={`${inputCls} w-24`} placeholder="타올 등" />
           </div>
           <div>
-            <label className="block text-[11px] text-gray-500 mb-0.5">메모</label>
+            <label className="block text-[0.6875rem] text-gray-500 mb-0.5">메모</label>
             <input value={draft.memo} onChange={e => setDraft(d => ({ ...d, memo: e.target.value }))}
               className={`${inputCls} w-40`} />
           </div>
@@ -371,17 +371,17 @@ export default function ProductsPage() {
                   <td className="py-1.5 px-3 font-medium">
                     {p.item_name}
                     {p.is_addon && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-600">옵션</span>
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-violet-50 text-violet-600">옵션</span>
                     )}
                     {p.is_shipping && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700">비용</span>
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-amber-50 text-amber-700">비용</span>
                     )}
                     {p.is_soldout && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-600">품절</span>
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-red-50 text-red-600">품절</span>
                     )}
                     {/* 원가표 상태 메모 (512) — 원문 그대로 표시 */}
                     {p.status_note && (
-                      <span className="ml-1.5 text-[10px] text-amber-600 whitespace-pre-line align-middle">{p.status_note}</span>
+                      <span className="ml-1.5 text-[0.625rem] text-amber-600 whitespace-pre-line align-middle">{p.status_note}</span>
                     )}
                   </td>
                   <td className="py-1.5 px-3 text-xs whitespace-nowrap">{p.category ?? '-'}</td>
@@ -403,7 +403,7 @@ export default function ProductsPage() {
                   <td className="py-1.5 px-3 text-right tabular-nums">{p.loose_shipping_fee ? won(p.loose_shipping_fee) : '-'}</td>
                   <td className="py-1.5 px-3 text-xs">{p.memo ?? '-'}</td>
                   <td className="py-1.5 px-3">
-                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${p.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${p.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
                       {p.is_active ? '사용' : '중지'}
                     </span>
                   </td>

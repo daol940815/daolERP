@@ -4,7 +4,9 @@
 import type { Metadata } from 'next'
 import localFont from 'next/font/local'
 import './globals.css'
+import { cookies } from 'next/headers'
 import TopLoader from '@/components/layout/TopLoader'
+import { decodeUiPrefs, htmlAttrs, UI_PREFS_COOKIE } from '@/lib/ui-prefs'
 
 const geistSans = localFont({
   src: './fonts/GeistVF.woff',
@@ -27,8 +29,10 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // 직원별 화면 설정(글자 크기 · 색 테마) — 계정 값의 쿠키 사본을 읽어 첫 화면부터 적용 (깜빡임 없음). 원본은 employees.ui_prefs.
+  const ui = htmlAttrs(decodeUiPrefs(cookies().get(UI_PREFS_COOKIE)?.value))
   return (
-    <html lang="ko">
+    <html lang="ko" {...ui}>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <TopLoader />
         {children}
