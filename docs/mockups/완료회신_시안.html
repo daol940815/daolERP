@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>완료 회신 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1180px; margin:0 auto; padding:24px 20px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:26px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.65; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.dim { opacity:.55; }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .sec { font-size:13px; font-weight:bold; color:#0f172a; margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .sec small { font-weight:normal; color:#94a3b8; font-size:11px; }
+  .sp { flex:1; }
+  .tag-new { font-size:10.5px; font-weight:bold; color:#fff; background:#3b82f6; border-radius:4px; padding:1px 6px; }
+  .grid { display:grid; grid-template-columns:repeat(6, 1fr); gap:10px 12px; }
+  .s2 { grid-column:span 2; } .s3 { grid-column:span 3; } .s4 { grid-column:span 4; }
+  .f label { display:block; font-size:11px; color:#64748b; margin-bottom:3px; }
+  .box { border:1.5px solid #cbd5e1; border-radius:8px; padding:7px 10px; background:#fff; font-size:12.5px; min-height:33px; }
+  .box.sel { border-color:#93b8e8; background:#f5f9ff; }
+  .box.ph { color:#94a3b8; }
+  .btn { display:inline-block; border-radius:7px; padding:6px 12px; font-size:12px; border:1px solid #cbd5e1; background:#fff; color:#334155; white-space:nowrap; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .btn.blue { color:#1d4ed8; border-color:#bfdbfe; background:#eff6ff; }
+  .btn.sm { padding:2px 8px; font-size:11px; }
+  .badge { display:inline-block; font-size:10.5px; font-weight:bold; padding:1px 7px; border-radius:4px; white-space:nowrap; }
+  .b-req { background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; }
+  .b-done { background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; }
+  .b-me { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
+  .info { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; border-radius:8px; padding:7px 10px; font-size:12px; line-height:1.6; }
+  .warn { background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:8px; padding:7px 10px; font-size:12px; line-height:1.6; }
+  .ok { background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; border-radius:8px; padding:7px 10px; font-size:12px; line-height:1.6; }
+  .hint { font-size:11px; color:#94a3b8; margin-top:6px; line-height:1.6; }
+  .note { background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:8px 10px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.7; }
+  .num { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:#eab308; color:#fff; font-size:10.5px; font-weight:bold; margin-right:4px; }
+  .dd { border:1px solid #cbd5e1; border-radius:8px; background:#fff; box-shadow:0 8px 24px rgba(15,23,42,.12); margin-top:4px; font-size:12px; overflow:hidden; }
+  .dd .it { padding:7px 11px; border-bottom:1px solid #f1f5f9; display:flex; gap:8px; }
+  .dd .it .m { color:#94a3b8; font-size:11px; }
+  .dd .it.on { background:#eff6ff; }
+  .kpis { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:10px; }
+  .kpi { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:10px 14px; }
+  .kpi.on { border-color:#0f172a; }
+  .kpi .k { font-size:11px; color:#94a3b8; } .kpi .v { font-size:18px; font-weight:bold; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+  .chip { font-size:11.5px; padding:4px 10px; border-radius:999px; border:1px solid #cbd5e1; background:#fff; color:#475569; }
+  .chip.on { background:#0f172a; color:#fff; border-color:#0f172a; }
+  table { border-collapse:collapse; width:100%; font-size:12px; }
+  th { background:#f8fafc; color:#64748b; font-weight:normal; padding:7px 8px; text-align:left; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+  td { padding:7px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
+  tr.hl td { background:#f5f9ff; }
+  .tw { overflow-x:auto; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .notif { background:#0f172a; color:#e2e8f0; border-radius:12px; padding:12px 14px; font-size:12px; line-height:1.6; max-width:420px; box-shadow:0 10px 30px rgba(15,23,42,.3); }
+  .notif b { color:#fff; }
+  .notif .t { font-size:11px; color:#94a3b8; margin-bottom:2px; }
+  .np { background:#fff; border:1px solid #e2e8f0; border-radius:10px; font-size:12px; overflow:hidden; }
+  .np .h { padding:8px 12px; font-weight:bold; border-bottom:1px solid #e2e8f0; }
+  .np .r { padding:8px 12px; border-bottom:1px solid #f1f5f9; display:flex; gap:8px; align-items:center; }
+  .np .r .c { margin-left:auto; font-weight:bold; color:#c2410c; }
+  .decide { background:#fff; border:2px solid #f59e0b; border-radius:12px; padding:16px 18px; }
+  .decide h3 { font-size:14px; color:#92400e; margin-bottom:8px; }
+  .decide li { margin:7px 0 7px 18px; line-height:1.65; font-size:12.5px; }
+  .decide .opt { color:#64748b; font-size:11.5px; }
+  .flow { display:flex; gap:8px; align-items:stretch; flex-wrap:wrap; }
+  .flow .st { flex:1; min-width:170px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; font-size:12px; line-height:1.6; }
+  .flow .st .t { display:block; font-weight:bold; color:#0f172a; margin-bottom:2px; }
+  .flow .ar { align-self:center; color:#94a3b8; font-size:16px; }
+  .b-wait { background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; }
+  .b-chg { background:#fefce8; color:#a16207; border:1px solid #fde68a; }
+  .b-no { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
+  .b-gray { background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; }
+  .radio { display:inline-flex; align-items:center; gap:5px; border:1.5px solid #cbd5e1; border-radius:8px; padding:6px 11px; font-size:12px; margin-right:6px; background:#fff; }
+  .radio.on { border-color:#0f172a; background:#f8fafc; font-weight:bold; }
+  .radio i { width:12px; height:12px; border-radius:50%; border:1.5px solid #94a3b8; display:inline-block; }
+  .radio.on i { border:4px solid #0f172a; }
+  .area { border:1.5px solid #cbd5e1; border-radius:8px; padding:8px 10px; min-height:58px; font-size:12.5px; background:#fff; line-height:1.6; }
+  .sum { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:9px 12px; font-size:12px; line-height:1.75; }
+  .sum b { color:#0f172a; }
+  .tl { border-left:2px solid #e2e8f0; margin-left:6px; padding-left:14px; }
+  .tl .e { position:relative; padding:4px 0 10px; font-size:12px; line-height:1.6; }
+  .tl .e:before { content:''; position:absolute; left:-20px; top:9px; width:10px; height:10px; border-radius:50%; background:#cbd5e1; }
+  .tl .e.done:before { background:#10b981; } .tl .e.chg:before { background:#eab308; } .tl .e.no:before { background:#ef4444; }
+  .tl .e .w { color:#94a3b8; font-size:11px; }
+  @media (max-width: 760px) { .grid { grid-template-columns:repeat(2,1fr); } .s3,.s4 { grid-column:span 2; } .two { grid-template-columns:1fr; } .kpis { grid-template-columns:repeat(2,1fr); } }
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>완료 회신 시안 — 처리한 사람이 요청한 사람에게 결과를 알린다</h1>
+  <div class="desc">
+    사용자 결정(2026-11-05): <b>회신해야 완료</b> · 회신 대상 = <b>주문 진행 요청 건 + 요청 없이도 상담자와 입력자가 다른 주문</b> ·
+    1차는 <b>담당 → 요청자 한 방향</b> · <b>처리 불가 회신이면 요청은 요청자에게 되돌아감</b>.<br>
+    회신은 주문 상세(전환 전 처리 불가는 상담 상세)에서 남기고, 받는 사람에게 사이드바 알림 + PC 알림이 갑니다.
+  </div>
+
+  <h2>전체 흐름 — 두 가지 경우</h2>
+  <div class="panel">
+    <div class="sec">가. 주문 진행 요청 건 <small>상담일지에서 요청 → 다른 직원이 처리</small></div>
+    <div class="flow">
+      <div class="st"><span class="t">1. 요청</span>옥광일이 상담일지 작성 → 주문 진행 담당 김승현</div>
+      <div class="ar">→</div>
+      <div class="st"><span class="t">2. 주문 입력됨</span>김승현이 주문으로 전환 → 요청 상태 <span class="badge b-wait">회신 대기</span> (완료 아님)</div>
+      <div class="ar">→</div>
+      <div class="st"><span class="t">3. 발주 · 확인</span>김승현이 발주서 발송 · 배송일 확인</div>
+      <div class="ar">→</div>
+      <div class="st"><span class="t">4. 완료 회신</span>주문 상세에서 "완료 회신" → 옥광일에게 알림 → <span class="badge b-done">완료</span></div>
+    </div>
+    <div class="hint">전환 전에 처리할 수 없으면 상담 상세에서 <b>처리 불가 회신</b>(사유 필수) → 요청이 옥광일에게 되돌아가고, 다른 직원에게 다시 요청하거나 직접 진행합니다.</div>
+  </div>
+  <div class="panel">
+    <div class="sec">나. 요청 없이 상담자 ≠ 입력자인 주문 <small>예: 김재형 대표 담당 고객의 전화를 영업지원팀이 받아 바로 입력</small></div>
+    <div class="flow">
+      <div class="st"><span class="t">1. 주문 입력</span>김주연이 주문 입력 · 상담자 = 고객 다올 담당 김재형 (자동)</div>
+      <div class="ar">→</div>
+      <div class="st"><span class="t">2. 회신 대기</span>상담자 ≠ 입력자 → 자동으로 <span class="badge b-wait">회신 대기</span></div>
+      <div class="ar">→</div>
+      <div class="st"><span class="t">3. 완료 회신</span>김주연이 처리 후 회신 → 김재형에게 알림 → <span class="badge b-done">완료</span></div>
+    </div>
+  </div>
+
+  <h2>누가 회신하고 누가 받나</h2>
+  <div class="panel tw">
+    <table>
+      <tr><th>경우</th><th>회신하는 사람</th><th>받는 사람</th><th>설명</th></tr>
+      <tr><td>가. 요청 건</td><td>입력자(요청받은 직원)</td><td>요청자 + 상담자</td><td>요청자와 상담자가 같으면 한 명. 예: 김주연 요청 → 김승현 입력, 고객 담당 김재형이면 김주연 · 김재형 둘 다</td></tr>
+      <tr><td>나. 요청 없음</td><td>입력자(다올직원)</td><td>상담자</td><td>상담자 = 입력자이면 회신 대상 아님</td></tr>
+      <tr><td colspan="4" style="color:#64748b">관리자급은 입력자 대신 회신할 수 있습니다(휴가 · 퇴근 대비). 받는 사람에서 입력자 본인은 늘 빠집니다.</td></tr>
+    </table>
+  </div>
+
+  <!-- A -->
+  <h2>A. 주문 상세 — "완료 회신" 카드 (결제 내역 아래)</h2>
+  <div class="two">
+    <div class="panel new">
+      <div class="sec"><span class="tag-new">신규</span> 완료 회신 <span class="badge b-wait">회신 대기</span><span class="sp"></span><small>받는 사람: 옥광일 · 김재형</small></div>
+      <div class="sum">
+        <b>처리 결과 (자동)</b> — 화면을 열 때 주문 · 발주서에서 계산<br>
+        주문 D261105-012 · 하나은행 일산지점 · 권오병 부장님 · <b>1,245,000원</b><br>
+        발주: 대경사과원예농협 <span class="badge b-done">발송 11/05 15:20</span> · (주)한결상사 <span class="badge b-wait">미발송</span><br>
+        배송지: 지점 — 경기 고양시 일산동구 중앙로 1234
+      </div>
+      <div style="margin-top:10px">
+        <div class="f"><label>결과</label></div>
+        <span class="radio on"><i></i>완료</span><span class="radio"><i></i>완료(변경 있음)</span><span class="radio"><i></i>처리 불가</span>
+      </div>
+      <div class="f" style="margin-top:10px"><label>회신 메모 <span style="color:#94a3b8">(완료는 선택 · 변경 있음 · 처리 불가는 필수)</span></label>
+        <div class="area">발주 완료했습니다. 사과 11/7 도착 예정, 배는 한결상사 오늘 오후 발송 예정입니다.</div></div>
+      <div style="margin-top:10px; text-align:right"><span class="btn pri">회신 보내기</span></div>
+      <div class="note"><span class="num">!</span>미발송 발주처가 있으면 "아직 발송 안 된 발주서가 있습니다. 그래도 회신할까요?" 확인창 — 막지는 않음(전화 발주 등).</div>
+    </div>
+    <div class="panel">
+      <div class="sec">회신 이력 <small>지우거나 덮어쓰지 않음 · 최신 회신이 상태</small></div>
+      <div class="tl">
+        <div class="e done"><b>완료</b> · 김승현 <span class="w">11/06 10:12</span><br>배송 출발 확인했습니다. 송장 대한통운 6123-4567-8901</div>
+        <div class="e chg"><b>완료(변경 있음)</b> · 김승현 <span class="w">11/05 16:40</span><br>사과 5kg 품절이라 10kg 반박스로 대체, 금액 동일. 고객 확인 완료</div>
+      </div>
+      <div class="hint">회신 후에도 추가 회신 가능(배송 출발 등). 요청자 · 상담자 화면에는 같은 카드가 읽기 전용으로 보입니다 — 회신 폼 없음.</div>
+      <div class="warn" style="margin-top:10px"><b>처리 불가</b> 회신은 주문을 자동으로 취소하지 않습니다. 카드에 "주문 취소가 필요하면 주문 취소 버튼으로 따로 처리하세요" 안내만 표시.</div>
+    </div>
+  </div>
+
+  <!-- B -->
+  <h2>B. 상담 상세 — 전환 전 "처리 불가 회신" · 요청자 화면 상태</h2>
+  <div class="two">
+    <div class="panel new">
+      <div class="sec"><span class="tag-new">신규</span> 요청받은 직원 화면 (읽기 전용 상담)</div>
+      <div class="info"><b>옥광일</b>님이 주문 진행을 요청했습니다 — "내일까지 발주 부탁"</div>
+      <div style="margin-top:10px; display:flex; gap:6px; justify-content:flex-end">
+        <span class="btn">처리 불가 회신</span><span class="btn pri">주문서로 전환</span>
+      </div>
+      <div class="f" style="margin-top:10px"><label>처리 불가 사유 (필수)</label><div class="area">요청 품목 전부 품절 — 대체 상품 고객 확인 필요합니다.</div></div>
+      <div class="hint">보내면 요청이 옥광일에게 되돌아가고, 김승현의 "나에게 요청됨"에서 빠집니다.</div>
+    </div>
+    <div class="panel">
+      <div class="sec">요청자 화면 — 상태 안내 한 줄</div>
+      <div class="info" style="margin-bottom:6px"><span class="badge b-req">요청됨</span> 김승현에게 주문 진행을 요청했습니다.</div>
+      <div class="info" style="margin-bottom:6px"><span class="badge b-wait">회신 대기</span> 김승현이 주문 D261105-012 입력 — 완료 회신을 기다리는 중</div>
+      <div class="ok" style="margin-bottom:6px"><span class="badge b-done">완료</span> 김승현 회신: "발주 완료했습니다. 사과 11/7 도착 예정…" <a href="#">주문 보기</a></div>
+      <div class="warn"><span class="badge b-no">처리 불가</span> 김승현 회신: "요청 품목 전부 품절…" — <b>다른 직원에게 다시 요청</b>하거나 직접 전환하세요.</div>
+      <div class="hint">상담 1건에서 주문이 여러 건 나오면, 취소 안 된 주문이 모두 회신돼야 요청이 "완료"입니다.</div>
+    </div>
+  </div>
+
+  <!-- C -->
+  <h2>C. 주문 현황 목록 — "회신" 칸 + KPI</h2>
+  <div class="kpis">
+    <div class="kpi on"><div class="k">내가 회신할 것</div><div class="v" style="color:#c2410c">4</div></div>
+    <div class="kpi"><div class="k">나에게 온 회신 (7일)</div><div class="v">6</div></div>
+    <div class="kpi"><div class="k">처리 불가 회신</div><div class="v" style="color:#b91c1c">1</div></div>
+    <div class="kpi"><div class="k">기존 KPI</div><div class="v" style="color:#94a3b8">…</div></div>
+  </div>
+  <div class="panel new tw">
+    <table>
+      <tr><th>주문번호</th><th>주문처</th><th>직원 / 상담자</th><th>금액</th><th>발주</th><th>회신 <span class="tag-new">신규</span></th></tr>
+      <tr class="hl"><td>D261105-012</td><td>하나은행 일산지점</td><td>김승현 / 김재형</td><td>1,245,000</td><td>1/2</td><td><span class="badge b-wait">회신 대기</span></td></tr>
+      <tr><td>D261105-009</td><td>국민은행 여의도지점</td><td>김주연 / 옥광일</td><td>380,000</td><td>완료</td><td><span class="badge b-chg">변경 있음</span></td></tr>
+      <tr><td>D261105-004</td><td>신한은행 강남지점</td><td>홍창의 / 김재형</td><td>920,000</td><td>완료</td><td><span class="badge b-done">완료</span></td></tr>
+      <tr><td>D261104-021</td><td>우리은행 종로지점</td><td>김보현 / 김보현</td><td>150,000</td><td>완료</td><td style="color:#cbd5e1">-</td></tr>
+    </table>
+    <div class="hint">"-" = 회신 대상 아님(상담자 = 입력자, 요청 없음) 또는 취소된 주문. KPI 클릭 = 그 목록으로 필터. 엑셀에도 "회신" 열 추가.</div>
+  </div>
+
+  <!-- D -->
+  <h2>D. 알림 — 사이드바 종 + PC 알림 + 아침 9시</h2>
+  <div class="two">
+    <div class="panel">
+      <div class="sec">입력자(회신할 사람)</div>
+      <div class="np">
+        <div class="h">확인할 것</div>
+        <div class="r">주문 진행 요청 <span class="c">1</span></div>
+        <div class="r">완료 회신 대기 <span class="c">4</span></div>
+      </div>
+      <div class="hint">"주문 진행 요청"은 전환하면 줄고, 그 주문이 "완료 회신 대기"로 넘어옵니다. 회신하면 사라집니다.<br>
+        아침 9시: 입력 다음 날까지 회신 안 한 주문이 있으면 PC 알림 1회 "회신 안 한 주문 4건".</div>
+    </div>
+    <div class="panel">
+      <div class="sec">요청자 · 상담자(받는 사람)</div>
+      <div class="notif"><div class="t">PC 알림</div><b>완료 회신 — 김승현</b><br>하나은행 일산지점 · D261105-012 · 완료(변경 있음)<br>사과 5kg 품절이라 10kg 반박스로 대체…</div>
+      <div class="hint">사이드바 알림 "소식"에 7일간 표시(종을 열면 읽음 처리 — 기존 방식). 처리 불가 회신은 빨간 "확인할 것"으로, 다시 요청하거나 전환할 때까지 남습니다.</div>
+    </div>
+  </div>
+
+  <!-- E -->
+  <h2>E. 상담일지 목록 — "주문 진행" 칸 상태</h2>
+  <div class="panel tw">
+    <table>
+      <tr><th>상담일</th><th>주문처</th><th>작성</th><th>주문 진행</th></tr>
+      <tr><td>11/05</td><td>하나은행 일산지점</td><td>옥광일</td><td><span class="badge b-req">요청됨</span> 김승현</td></tr>
+      <tr><td>11/05</td><td>국민은행 여의도지점</td><td>옥광일</td><td><span class="badge b-wait">회신 대기</span> 김승현</td></tr>
+      <tr><td>11/04</td><td>신한은행 강남지점</td><td>김재형</td><td><span class="badge b-done">완료</span> 김주연</td></tr>
+      <tr><td>11/04</td><td>우리은행 종로지점</td><td>김재형</td><td><span class="badge b-no">처리 불가</span> 김승현 — 재요청 필요</td></tr>
+    </table>
+  </div>
+
+  <!-- F -->
+  <h2>F. 확인 부탁드릴 것</h2>
+  <div class="decide">
+    <h3>시안 확정 전에 정해주세요</h3>
+    <ol>
+      <li><b>적용 시작일</b> — 가안: <b>배포일 이후 입력된 주문부터</b>. 지난 주문은 회신 대상 아님.
+        <div class="opt">이유: 상담자 = 고객 다올 담당으로 바뀐 뒤(112) 영업지원팀이 입력한 주문은 대부분 상담자 ≠ 입력자라서, 10월 이후 주문이 한꺼번에 "회신 대기"로 쌓입니다.</div></li>
+      <li><b>회신 건수가 많아지는 점</b> — 나. 경우가 들어가면 영업지원팀이 입력하는 주문 대부분이 회신 대상이 됩니다(하루 입력 건수만큼). 가안: 그대로 진행.
+        <div class="opt">부담이 크면 대안: 나. 경우는 회신 없이 "주문 입력됨" 자동 알림만 보내고 완료로 봄.</div></li>
+      <li><b>로그인 계정이 없는 상담자</b> — 엑셀 적재로 생긴 계정 없는 직원이 상담자면 알림을 받을 수 없음. 가안: 받는 사람이 계정 없는 직원뿐이면 회신 대상에서 제외.</li>
+      <li><b>회신할 수 있는 사람</b> — 가안: 입력자 + 관리자급(대신 회신). 아르바이트가 입력한 주문은 아르바이트가 회신.</li>
+      <li><b>처리 불가 회신과 주문 취소</b> — 가안: 회신은 주문을 자동 취소하지 않음(원본 보존 · 확정은 사용자). 취소는 기존 주문 취소로 따로.</li>
+      <li><b>취소 · 재발행</b> — 가안: 취소된 주문은 회신 대상에서 빠짐. 재발행 시 회신 이력은 새 주문으로 옮김(결제 연결과 같은 방식).</li>
+    </ol>
+  </div>
+  <div class="desc" style="margin-top:10px">구현 범위(확정 시): 주문 트랙 마이그레이션 515(회신 이력 표 — 주문 · 상담 연결, 결과 · 메모 · 작성자 · 시각. 기존 데이터 변경 없음) /
+    주문 상세 회신 카드 · 상담 상세 처리 불가 회신 / 주문 현황 회신 칸 · KPI · 엑셀 / 상담일지 목록 상태 / 알림 센터 블록 · PC 알림 · 아침 9시 /
+    재발행 이력 이관 / 도움말 · 주문 · 상담 트랙 문서.</div>
+</div>
+</body>
+</html>
