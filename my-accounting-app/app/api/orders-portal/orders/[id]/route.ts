@@ -10,6 +10,7 @@ import { recordWorkLog, orderContent } from '@/lib/work-log'
 import { loadReceivableMap, collectStatusFrom } from '@/lib/orders-portal-list'
 import { can } from '@/lib/permissions'
 import { prepayBalanceOf, prepayUsedOf, vendorOfOrder, prepayReductionBlock } from '@/lib/prepay'
+import { fillCustomerStaffIfEmpty } from '@/lib/customer-staff'
 
 export const dynamic = 'force-dynamic'
 
@@ -252,6 +253,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     counselorName: names.counselorName,
   }, { employeeId: me.employeeId, employeeName: me.employeeName })
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
+  // 고객 다올 담당이 비어 있으면 상담자로 자동 저장 (112 — 빈 경우만)
+  await fillCustomerStaffIfEmpty(admin, parsed.input.vendor_id, parsed.input.contact_id, parsed.input.counselor_employee_id)
 
   await recordWorkLog(admin, {
     employeeId: me.employeeId,

@@ -51,6 +51,7 @@ export default function ContactDetailPage() {
   const [moving, setMoving] = useState(false)
   const [moveQ, setMoveQ] = useState('')
   const [moveTitle, setMoveTitle] = useState('')
+  const [moveStaff, setMoveStaff] = useState('')   // 새 지점의 다올 담당 (112 — 매출처 필수)
   const [moveOptions, setMoveOptions] = useState<{ id: string; name: string }[]>([])
 
   // 영업일지 폼
@@ -181,9 +182,14 @@ export default function ContactDetailPage() {
                   className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
                 <input value={moveTitle} onChange={e => setMoveTitle(e.target.value)} placeholder="새 직함 (예: 지점장 — 선택)"
                   className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                <select value={moveStaff} onChange={e => setMoveStaff(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm bg-white">
+                  <option value="">새 지점의 다올 담당 (매출처는 필수)</option>
+                  {d.employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                </select>
                 {moveOptions.map(v => (
                   <button key={v.id} disabled={busy}
-                    onClick={() => post({ action: 'move', contact_id: d.contact.id, to_vendor_id: v.id, title: moveTitle || undefined },
+                    onClick={() => post({ action: 'move', contact_id: d.contact.id, to_vendor_id: v.id, title: moveTitle || undefined, staff_employee_id: moveStaff || undefined },
                       `${v.name}(으)로 이동 처리 완료`).then(okd => okd && setMoving(false))}
                     className="block w-full text-left px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-slate-50">
                     → {v.name}

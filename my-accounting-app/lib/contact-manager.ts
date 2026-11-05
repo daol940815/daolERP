@@ -28,6 +28,8 @@ export interface ContactListRow {
   vendor_count: number
   ended_note: string | null          // 소속 없음일 때 마지막 소속 표기
   staff_names: string[]              // 주 상담 직원 (vendor_staff 기준, 주담당 우선)
+  daol_staff: string | null          // 고객별 다올 담당 (112 — 첫 활성 배정 기준)
+  staff_missing: boolean             // 매출처 활성 배정 중 다올 담당이 빈 곳이 있음 (112 적용 시)
   total_sales: number
   outstanding: number
   last_order_date: string | null
@@ -65,6 +67,7 @@ export interface ContactManagerBundle {
     attention90: number
     attention180: number
     recent_moves: number
+    staff_missing: number            // 다올 담당 미기입 고객 수 (112 미적용이면 0)
   }
   contacts: ContactListRow[]
   gaps: GapVendorRow[]
@@ -112,15 +115,21 @@ interface OrderRow {
 interface AsgnRow {
   id: string; contact_id: string; vendor_id: string; title: string | null
   is_representative: boolean; started_at: string | null; ended_at: string | null; created_at: string
+  staff_employee_id?: string | null   // 다올 담당 (112)
 }
 
 export async function buildContactManagerBundle(admin: SupabaseClient): Promise<ContactManagerBundle | { error: string }> {
   const [contactsR, asgnR, vendorsR, aliasR, staffR, empR, ordersR, codesR] = await Promise.all([
     fetchAllRows<{ id: string; name: string; phone: string | null; merged_into_id: string | null }>(
       (f, t) => admin.from('contacts').select('id, name, phone, merged_into_id').range(f, t)),
+    // 다올 담당(112) 포함 — 미적용이면 없이 재조회
     fetchAllRows<AsgnRow>(
       (f, t) => admin.from('contact_assignments')
-        .select('id, contact_id, vendor_id, title, is_representative, started_at, ended_at, created_at').range(f, t)),
+        .select('id, contact_id, vendor_id, title, is_representative, started_at, ended_at, created_at, staff_employee_id').range(f, t))
+      .then(r => ('error' in r && /staff_employee_id/.test(r.error)
+        ? fetchAllRows<AsgnRow>((f, t) => admin.from('contact_assignments')
+            .select('id, contact_id, vendor_id, title, is_representative, started_at, ended_at, created_at').range(f, t))
+        : r)),
     fetchAllRows<{ id: string; name: string; type: string; status: string | null }>(
       (f, t) => admin.from('vendors').select('id, name, type, status').in('type', ['customer', 'both']).range(f, t)),
     fetchAllRows<{ id: string; vendor_id: string | null }>(
@@ -146,6 +155,7 @@ export async function buildContactManagerBundle(admin: SupabaseClient): Promise<
   const contacts = (contactsR as { data: { id: string; name: string; phone: string | null; merged_into_id: string | null }[] }).data
     .filter(c => !c.merged_into_id)
   const asgns = (asgnR as { data: AsgnRow[] }).data
+  const has112 = asgns.some(a => 'staff_employee_id' in a)   // 112 적용 여부 (열이 오면 적용)
   const vendors = (vendorsR as { data: { id: string; name: string; type: string; status: string | null }[] }).data
     .filter(v => v.status !== 'merged')
   const aliases = (aliasR as { data: { id: string; vendor_id: string | null }[] }).data
@@ -287,6 +297,8 @@ export async function buildContactManagerBundle(admin: SupabaseClient): Promise<
       ended_note: !active.length && lastEnded
         ? `${vendorName.get(lastEnded.vendor_id) ?? ''} (~${lastEnded.ended_at})` : null,
       staff_names: first ? (vendorStaff.get(first.vendor_id) ?? []) : [],
+      daol_staff: first?.staff_employee_id ? empName.get(first.staff_employee_id) ?? null : null,
+      staff_missing: has112 && active.some(a => vendorName.has(a.vendor_id) && !a.staff_employee_id),
       total_sales: stat?.sales ?? 0,
       outstanding: stat?.outstanding ?? 0,
       last_order_date: stat?.last ?? null,
@@ -383,6 +395,7 @@ export async function buildContactManagerBundle(admin: SupabaseClient): Promise<
       attention90,
       attention180,
       recent_moves: recentMoves,
+      staff_missing: rows.filter(r => r.staff_missing).length,
     },
     contacts: rows,
     gaps,

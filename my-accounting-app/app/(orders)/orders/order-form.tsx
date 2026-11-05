@@ -63,7 +63,10 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
 
   // 신규 담당자 인라인 등록
   const [addingContact, setAddingContact] = useState(false)
-  const [newContact, setNewContact] = useState({ name: '', title: '', phone: '' })
+  const [newContact, setNewContact] = useState({ name: '', title: '', phone: '', staff_employee_id: '' })
+  // 상담자 = 고객(지점 × 담당자)의 다올 담당 (112, 2026-11-05). 신규 · 상담 전환은 고객이 정해지면 자동,
+  // 직원이 상담자를 직접 고르면 그 뒤로는 덮어쓰지 않는다
+  const autoCounselor = useRef(!orderId && !reissueId)
 
   // 신규 매출처 인라인 등록 (2026-08-25 확정) — vendors 마스터 단일 원천에 등록
   const [addingVendor, setAddingVendor] = useState(false)
@@ -187,7 +190,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           if (!consult.contact_id && consult.manager_name) {
             setPendingManager(String(consult.manager_name))
           }
-          setCounselorId(consult.employee_id)   // 상담자 = 상담 작성자
+          // 상담자 = 고객의 다올 담당 — 담당자 목록이 로드되면 아래 effect가 채운다 (상담 작성자 아님, 2026-11-05 사용자 확정)
           setPhone(consult.phone ?? '')
           setContactTel(consult.tel ?? '')
           setMemo(consult.memo ?? '')
@@ -296,16 +299,26 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
       setContactId(found.contact_id)
       if (found.phone) setPhone(found.phone)
     } else {
-      setNewContact({ name, title, phone: '' })
+      setNewContact({ name, title, phone: '', staff_employee_id: '' })
       setAddingContact(true)
     }
     setPendingManager(null)
   }, [pendingManager, vendorId, contactsLoadedFor, contacts])
 
+  // 고객이 정해지면 그 고객의 다올 담당을 상담자로 (자동 모드일 때만 — 비어 있으면 상담자도 비움)
+  useEffect(() => {
+    if (!autoCounselor.current || !contactId || contactsLoadedFor !== vendorId) return
+    const c = contacts.find(x => x.contact_id === contactId)
+    if (c) setCounselorId(c.staff_employee_id ?? null)
+  }, [contactId, contacts, contactsLoadedFor, vendorId])
+
   const pickContact = (cid: string | null) => {
     setContactId(cid)
     const c = contacts.find(x => x.contact_id === cid)
     if (c?.phone) setPhone(c.phone)
+    // 직원이 고객을 다시 고르면 그 고객의 다올 담당으로 상담자를 맞춘다 (수정 · 재등록 포함)
+    autoCounselor.current = true
+    setCounselorId(c?.staff_employee_id ?? null)
   }
 
   const createContact = async () => {
@@ -319,8 +332,9 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
     await loadContacts(vendorId)
     setContactId(json.contact_id)
     if (newContact.phone) setPhone(newContact.phone)
+    setCounselorId(newContact.staff_employee_id || null)   // 새 고객의 다올 담당 = 상담자
     setAddingContact(false)
-    setNewContact({ name: '', title: '', phone: '' })
+    setNewContact({ name: '', title: '', phone: '', staff_employee_id: '' })
   }
 
   // 신규 매출처 등록 — 같은 이름이 이미 있으면 만들지 않고 그걸 선택 (서버 판정)
@@ -620,10 +634,19 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                 id: e.id, label: e.name,
                 sub: [e.team, e.position].filter(Boolean).join(' · '),
               }))}
-              onSelect={setCounselorId}
+              onSelect={id => { autoCounselor.current = false; setCounselorId(id) }}
               placeholder="직원 마스터 검색"
               required
             />
+            {(() => {
+              // 고객 다올 담당 안내 (112): 비어 있으면 고른 상담자가 이 고객의 다올 담당으로 자동 저장
+              const c = contacts.find(x => x.contact_id === contactId)
+              if (!c) return null
+              const staff = c.staff_employee_id ? employees.find(e => e.id === c.staff_employee_id)?.name ?? '등록됨' : null
+              if (!staff) return <div className="text-[10px] text-amber-700 mt-0.5">이 고객의 다올 담당 미기입 — 고른 상담자가 다올 담당으로 저장됩니다</div>
+              if (counselorId && counselorId !== c.staff_employee_id) return <div className="text-[10px] text-amber-700 mt-0.5">고객 다올 담당은 {staff} — 이번 주문만 다르게 기록</div>
+              return <div className="text-[10px] text-gray-400 mt-0.5">고객 다올 담당</div>
+            })()}
           </div>
           <div>
             <label className={label}>연락처</label>
@@ -688,8 +711,16 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               <input value={newContact.phone} onChange={e => setNewContact(p => ({ ...p, phone: e.target.value }))}
                 placeholder="010-" className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm w-36" />
             </div>
-            <button type="button" onClick={createContact}
-              className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm">등록</button>
+            <div>
+              <label className={label}>다올 담당 *</label>
+              <select value={newContact.staff_employee_id} onChange={e => setNewContact(p => ({ ...p, staff_employee_id: e.target.value }))}
+                className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm w-36 bg-white">
+                <option value="">선택</option>
+                {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
+            </div>
+            <button type="button" onClick={createContact} disabled={!newContact.name.trim() || !newContact.staff_employee_id}
+              className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">등록</button>
             <button type="button" onClick={() => setAddingContact(false)}
               className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">취소</button>
             <span className="text-[11px] text-gray-400">거래처 담당자 마스터에 즉시 등록됩니다</span>

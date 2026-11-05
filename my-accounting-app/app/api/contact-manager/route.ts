@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { requireStaff } from '@/lib/customer-staff'
 import { buildContactManagerBundle } from '@/lib/contact-manager'
 import { getCurrentUser } from '@/lib/user-role'
 import { can } from '@/lib/permissions'
@@ -64,15 +65,22 @@ export async function POST(req: NextRequest) {
 
       // 신규 인물 (+선택 배정) — 미확인 큐 '신규 인물'과 공백 거래처 '담당자 등록' 겸용
       case 'create_contact': {
-        const { name, phone, title, vendor_id, raw_name } = body as {
-          name: string; phone?: string; title?: string; vendor_id?: string; raw_name?: string }
+        const { name, phone, title, vendor_id, raw_name, staff_employee_id } = body as {
+          name: string; phone?: string; title?: string; vendor_id?: string; raw_name?: string; staff_employee_id?: string }
         if (!name?.trim()) return bad('이름이 필요합니다.')
+        // 매출처 배정이면 다올 담당 필수 (112, 2026-11-05)
+        let staff: string | null = null
+        if (vendor_id) {
+          const st = await requireStaff(admin, vendor_id, staff_employee_id)
+          if ('error' in st) return bad(st.error)
+          staff = st.staff
+        }
         const { data: c, error } = await admin.from('contacts')
           .insert({ name: name.trim(), phone: phone?.trim() || null }).select('id').single()
         if (error || !c) throw error ?? new Error('생성 실패')
         if (vendor_id) {
           const { error: ae } = await admin.from('contact_assignments')
-            .insert({ contact_id: c.id, vendor_id, title: title?.trim() || null, started_at: today })
+            .insert({ contact_id: c.id, vendor_id, title: title?.trim() || null, started_at: today, ...(staff ? { staff_employee_id: staff } : {}) })
           if (ae) throw ae
           // 주문 표기와 함께 온 경우 명시 연결도 기록 (오타 등 포함 관계가 아니어도 귀속되도록)
           if (raw_name?.trim()) {
@@ -86,9 +94,11 @@ export async function POST(req: NextRequest) {
 
       // 기존 인물을 거래처에 배정 (공백 거래처 후임 지정)
       case 'assign': {
-        const { contact_id, vendor_id, title, is_representative } = body as {
-          contact_id: string; vendor_id: string; title?: string; is_representative?: boolean }
+        const { contact_id, vendor_id, title, is_representative, staff_employee_id } = body as {
+          contact_id: string; vendor_id: string; title?: string; is_representative?: boolean; staff_employee_id?: string }
         if (!contact_id || !vendor_id) return bad('contact_id, vendor_id가 필요합니다.')
+        const st = await requireStaff(admin, vendor_id, staff_employee_id)
+        if ('error' in st) return bad(st.error)
         if (is_representative) {
           const { error: ue } = await admin.from('contact_assignments')
             .update({ is_representative: false })
@@ -97,22 +107,24 @@ export async function POST(req: NextRequest) {
         }
         const { error } = await admin.from('contact_assignments').insert({
           contact_id, vendor_id, title: title?.trim() || null,
-          is_representative: !!is_representative, started_at: today })
+          is_representative: !!is_representative, started_at: today, ...(st.staff ? { staff_employee_id: st.staff } : {}) })
         if (error) throw error
         return ok()
       }
 
       // 이동 처리: 현재 배정 전부 종료 + 새 거래처 배정
       case 'move': {
-        const { contact_id, to_vendor_id, title } = body as {
-          contact_id: string; to_vendor_id: string; title?: string }
+        const { contact_id, to_vendor_id, title, staff_employee_id } = body as {
+          contact_id: string; to_vendor_id: string; title?: string; staff_employee_id?: string }
         if (!contact_id || !to_vendor_id) return bad('contact_id, to_vendor_id가 필요합니다.')
+        const st = await requireStaff(admin, to_vendor_id, staff_employee_id)   // 새 지점의 다올 담당 (112)
+        if ('error' in st) return bad(st.error)
         const { error: ee } = await admin.from('contact_assignments')
           .update({ ended_at: today, is_representative: false })
           .eq('contact_id', contact_id).is('ended_at', null)
         if (ee) throw ee
         const { error } = await admin.from('contact_assignments')
-          .insert({ contact_id, vendor_id: to_vendor_id, title: title?.trim() || null, started_at: today })
+          .insert({ contact_id, vendor_id: to_vendor_id, title: title?.trim() || null, started_at: today, ...(st.staff ? { staff_employee_id: st.staff } : {}) })
         if (error) throw error
         return ok()
       }

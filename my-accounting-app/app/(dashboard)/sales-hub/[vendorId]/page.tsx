@@ -57,7 +57,7 @@ export default function SalesHubDetailPage() {
   // 담당 입력 상태
   const [staffForm, setStaffForm] = useState<{ open: boolean; name: string; team: string; primary: boolean }>({ open: false, name: '', team: '', primary: false })
   const [employees, setEmployees] = useState<{ id: string; name: string; team: string | null; vendor_count: number }[]>([])
-  const [contactForm, setContactForm] = useState<{ open: boolean; name: string; title: string; phone: string; role: string; rep: boolean }>({ open: false, name: '', title: '', phone: '', role: '', rep: false })
+  const [contactForm, setContactForm] = useState<{ open: boolean; name: string; title: string; phone: string; role: string; rep: boolean; staff: string }>({ open: false, name: '', title: '', phone: '', role: '', rep: false, staff: '' })
   const [candidates, setCandidates] = useState<Candidate[] | null>(null)
   const [note, setNote] = useState('')
 
@@ -104,13 +104,13 @@ export default function SalesHubDetailPage() {
 
   const submitContact = async (force = false, existingId?: string, endPrevious = false) => {
     const body = existingId
-      ? { action: 'assign', vendor_id: vendorId, contact_id: existingId, title: contactForm.title, role_memo: contactForm.role, is_representative: contactForm.rep, end_previous: endPrevious }
-      : { action: 'assign_new', vendor_id: vendorId, name: contactForm.name, phone: contactForm.phone, title: contactForm.title, role_memo: contactForm.role, is_representative: contactForm.rep, force }
+      ? { action: 'assign', vendor_id: vendorId, contact_id: existingId, title: contactForm.title, role_memo: contactForm.role, is_representative: contactForm.rep, end_previous: endPrevious, staff_employee_id: contactForm.staff || undefined }
+      : { action: 'assign_new', vendor_id: vendorId, name: contactForm.name, phone: contactForm.phone, title: contactForm.title, role_memo: contactForm.role, is_representative: contactForm.rep, force, staff_employee_id: contactForm.staff || undefined }
     const { ok, json } = await post('/api/vendor-hub/contacts', body)
     if (!ok) { flash(json.error ?? '등록 실패'); return }
     if (json.needs_confirm) { setCandidates(json.candidates); return }
     flash('거래처 담당자 등록 완료')
-    setContactForm({ open: false, name: '', title: '', phone: '', role: '', rep: false })
+    setContactForm({ open: false, name: '', title: '', phone: '', role: '', rep: false, staff: '' })
     setCandidates(null)
     load()
   }
@@ -364,6 +364,28 @@ export default function SalesHubDetailPage() {
                 <div className="text-[11px] text-gray-400">
                   {[c.role_memo, c.phone, c.email].filter(Boolean).join(' · ') || '연락처 미입력'}
                 </div>
+                {/* 다올 담당 (112) — 은행 · 지점 · 고객 단위, 주문 상담자의 원천 */}
+                {!c.ended_at && (
+                  <div className="text-[11px] mt-0.5 flex items-center gap-1">
+                    <span className="text-gray-400">다올 담당</span>
+                    {canEdit ? (
+                      <select value={c.staff_employee_id ?? ''}
+                        onChange={async e => {
+                          if (!e.target.value) return
+                          const { ok, json } = await post('/api/vendor-hub/contacts', { action: 'set_staff', assignment_id: c.assignment_id, staff_employee_id: e.target.value })
+                          if (!ok) flash(json.error ?? '변경 실패'); else load()
+                        }}
+                        className={`border rounded px-1 py-0.5 text-[11px] ${c.staff_employee_id ? 'border-gray-200' : 'border-amber-300 bg-amber-50 text-amber-800'}`}>
+                        <option value="">미기입 — 선택</option>
+                        {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                      </select>
+                    ) : (
+                      <span className={c.staff_employee_id ? 'text-gray-700' : 'text-amber-700'}>
+                        {c.staff_employee_id ? employees.find(e => e.id === c.staff_employee_id)?.name ?? '등록됨' : '미기입'}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="text-right text-[11px] text-gray-500 whitespace-nowrap">
                 {c.ended_at ? `종료 ${c.ended_at}` : `배정 ${c.started_at ?? '-'}`}
@@ -395,6 +417,11 @@ export default function SalesHubDetailPage() {
                 <label className="text-xs flex items-center gap-1">
                   <input type="checkbox" checked={contactForm.rep} onChange={e => setContactForm(f => ({ ...f, rep: e.target.checked }))} /> 대표
                 </label>
+                <select value={contactForm.staff} onChange={e => setContactForm(f => ({ ...f, staff: e.target.value }))}
+                  className="border border-gray-300 rounded px-2 py-1 text-xs bg-white" title="다올 담당(자사 영업) — 필수">
+                  <option value="">다올 담당 *</option>
+                  {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                </select>
                 <button onClick={() => contactForm.name.trim() && submitContact()}
                   className="px-2.5 py-1 bg-slate-900 text-white rounded text-xs">등록·배정</button>
               </div>

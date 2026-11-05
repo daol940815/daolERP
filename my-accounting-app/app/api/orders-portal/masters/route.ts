@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { STAFF_REQUIRED_MSG } from '@/lib/customer-staff'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,11 +23,15 @@ export async function GET(req: NextRequest) {
   const vendorId = new URL(req.url).searchParams.get('vendor_id')
 
   if (vendorId) {
-    const { data, error } = await admin
+    // 고객별 다올 담당(112) 포함 — 미적용이면 없이 재조회
+    const sel = (withStaff: boolean) => admin
       .from('contact_assignments')
-      .select('contact_id, title, is_representative, contacts(id, name, phone)')
+      .select(`contact_id, title, is_representative${withStaff ? ', staff_employee_id' : ''}, contacts(id, name, phone)`)
       .eq('vendor_id', vendorId)
       .is('ended_at', null)
+    let res = await sel(true)
+    if (res.error && /staff_employee_id/.test(res.error.message)) res = await sel(false)
+    const { data, error } = res as unknown as { data: Record<string, unknown>[] | null; error: { message: string } | null }
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const contacts = (data ?? [])
       .map(a => {
@@ -35,6 +40,7 @@ export async function GET(req: NextRequest) {
           contact_id: c.id, name: c.name, phone: c.phone,
           title: a.title as string | null,
           is_representative: !!a.is_representative,
+          staff_employee_id: (a.staff_employee_id as string | null | undefined) ?? null,   // 다올 담당 = 상담자 (112)
         }
       })
       .filter(Boolean)
@@ -141,11 +147,14 @@ export async function POST(req: NextRequest) {
       else {
         const phone = (body.contact_phone ?? '').trim() || null
         const title = (body.contact_title ?? '').trim() || null
+        // 매출처 고객 신규 배정 — 다올 담당 필수 (112, 2026-11-05)
+        const staffId = (body.staff_employee_id ?? '').trim() || null
+        if (!staffId) return NextResponse.json({ error: STAFF_REQUIRED_MSG }, { status: 400 })
         const { data: contact, error: cErr } = await admin
           .from('contacts').insert({ name: contactName, phone }).select('id').single()
         if (cErr) return NextResponse.json({ error: `담당자 등록 실패: ${cErr.message}` }, { status: 500 })
         const { error: aErr } = await admin.from('contact_assignments').insert({
-          contact_id: contact.id, vendor_id: vendorId, title,
+          contact_id: contact.id, vendor_id: vendorId, title, staff_employee_id: staffId,
           started_at: new Date().toISOString().slice(0, 10),
         })
         if (aErr) return NextResponse.json({ error: `담당자 배정 실패: ${aErr.message}` }, { status: 500 })
@@ -167,13 +176,16 @@ export async function POST(req: NextRequest) {
     if (!vendorId || !name) return NextResponse.json({ error: '거래처와 이름이 필요합니다.' }, { status: 400 })
     const phone = (body.phone ?? '').trim() || null
     const title = (body.title ?? '').trim() || null
+    // 다올 담당 필수 (112, 2026-11-05 — 은행 · 지점 · 고객마다 담당 기입)
+    const staffId = (body.staff_employee_id ?? '').trim() || null
+    if (!staffId) return NextResponse.json({ error: STAFF_REQUIRED_MSG }, { status: 400 })
 
     const { data: contact, error: cErr } = await admin
       .from('contacts').insert({ name, phone }).select('id').single()
     if (cErr) return NextResponse.json({ error: `담당자 등록 실패: ${cErr.message}` }, { status: 500 })
 
     const { error: aErr } = await admin.from('contact_assignments').insert({
-      contact_id: contact.id, vendor_id: vendorId, title, started_at: new Date().toISOString().slice(0, 10),
+      contact_id: contact.id, vendor_id: vendorId, title, staff_employee_id: staffId, started_at: new Date().toISOString().slice(0, 10),
     })
     if (aErr) return NextResponse.json({ error: `담당자 배정 실패: ${aErr.message}` }, { status: 500 })
     return NextResponse.json({ contact_id: contact.id })

@@ -387,6 +387,7 @@ export interface HubDetail {
     assignment_id: string; contact_id: string; name: string; phone: string | null; email: string | null
     title: string | null; role_memo: string | null; is_representative: boolean
     started_at: string | null; ended_at: string | null
+    staff_employee_id: string | null   // 다올 담당 (112)
   }[]
   kpi: {
     net: number; collected: number; outstanding: number
@@ -471,12 +472,16 @@ export async function buildHubDetail(
     .from('vendor_staff')
     .select('id, employee_id, is_primary, started_at, employees(name, team)')
     .eq('vendor_id', vendorId).is('ended_at', null)
-  const caP = admin
+  // 고객별 다올 담당(112) 포함 — 미적용이면 없이 재조회
+  type CaRow = { id: string; contact_id: string; title: string | null; role_memo: string | null; is_representative: boolean; started_at: string | null; ended_at: string | null; staff_employee_id?: string | null; contacts: unknown }
+  const caSel = (withStaff: boolean) => admin
     .from('contact_assignments')
-    .select('id, contact_id, title, role_memo, is_representative, started_at, ended_at, contacts(name, phone, email)')
+    .select((`id, contact_id, title, role_memo, is_representative, started_at, ended_at${withStaff ? ', staff_employee_id' : ''}, contacts(name, phone, email)`) as string)
     .eq('vendor_id', vendorId)
     .order('ended_at', { ascending: true, nullsFirst: true })
     .order('is_representative', { ascending: false })
+    .returns<CaRow[]>()
+  const caP = caSel(true).then(r => (r.error && /staff_employee_id/.test(r.error.message) ? caSel(false) : r))
 
   const { data: opening } = await openingP
   const openingRemain = opening && (opening.amount as number) > 0
@@ -748,6 +753,7 @@ export async function buildHubDetail(
       is_representative: c.is_representative as boolean,
       started_at: c.started_at as string | null,
       ended_at: c.ended_at as string | null,
+      staff_employee_id: ((c as Record<string, unknown>).staff_employee_id as string | null | undefined) ?? null,
     })),
     kpi: {
       net, collected, outstanding,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { requireStaff } from '@/lib/customer-staff'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +12,9 @@ export const dynamic = 'force-dynamic'
 //               (force=true면 무조건 신규 인물로 진행)
 //   assign      { vendor_id, contact_id, title?, role_memo?, is_representative? }
 //               기존 인물 배정 (이동 처리: end_previous=true면 그 인물의 다른 활성 배정 종료)
+//   set_staff          { assignment_id, staff_employee_id } — 고객별 다올 담당 변경 (112, 매출처는 비울 수 없음)
 //   set_representative { assignment_id }
+//   assign_new · assign 은 매출처(customer · both)면 staff_employee_id(다올 담당) 필수 (112, 2026-11-05)
 //   end_assignment     { assignment_id }
 export async function GET(req: NextRequest) {
   const admin = createAdminClient()
@@ -51,13 +54,14 @@ export async function POST(req: NextRequest) {
       .eq('vendor_id', vendorId).is('ended_at', null).eq('is_representative', true)
   }
 
-  const doAssign = async (vendorId: string, contactId: string) => {
+  const doAssign = async (vendorId: string, contactId: string, staffId: string | null) => {
     const { data: dup } = await admin.from('contact_assignments').select('id')
       .eq('vendor_id', vendorId).eq('contact_id', contactId).is('ended_at', null).maybeSingle()
     if (dup) return { error: '이미 배정된 담당자입니다.' }
     if (body.is_representative === true) await clearRep(vendorId)
     const { error } = await admin.from('contact_assignments').insert({
       vendor_id: vendorId, contact_id: contactId,
+      ...(staffId ? { staff_employee_id: staffId } : {}),
       title: String(body.title ?? '').trim() || null,
       role_memo: String(body.role_memo ?? '').trim() || null,
       is_representative: body.is_representative === true,
@@ -71,6 +75,8 @@ export async function POST(req: NextRequest) {
     const name = String(body.name ?? '').trim()
     if (!vendorId || !name) return NextResponse.json({ error: '거래처와 이름이 필요합니다.' }, { status: 400 })
     const phone = String(body.phone ?? '').trim() || null
+    const st = await requireStaff(admin, vendorId, body.staff_employee_id)
+    if ('error' in st) return NextResponse.json({ error: st.error }, { status: 400 })
 
     // 동일 인물 후보: 같은 번호(강한 근거) 또는 같은 이름 — 자동 병합하지 않고 사용자에게 확인
     if (body.force !== true) {
@@ -88,7 +94,7 @@ export async function POST(req: NextRequest) {
     const { data: person, error: pErr } = await admin.from('contacts')
       .insert({ name, phone, email: String(body.email ?? '').trim() || null }).select('id').single()
     if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 })
-    const r = await doAssign(vendorId, person.id)
+    const r = await doAssign(vendorId, person.id, st.staff)
     if ('error' in r) return NextResponse.json({ error: r.error }, { status: 400 })
     return NextResponse.json({ ok: true, contact_id: person.id })
   }
@@ -97,14 +103,27 @@ export async function POST(req: NextRequest) {
     const vendorId = String(body.vendor_id ?? '')
     const contactId = String(body.contact_id ?? '')
     if (!vendorId || !contactId) return NextResponse.json({ error: '거래처와 인물이 필요합니다.' }, { status: 400 })
+    const st = await requireStaff(admin, vendorId, body.staff_employee_id)
+    if ('error' in st) return NextResponse.json({ error: st.error }, { status: 400 })
     if (body.end_previous === true) {
       // 이동 처리 — 이 인물의 다른 활성 배정을 종료
       await admin.from('contact_assignments')
         .update({ ended_at: todayStr, is_representative: false })
         .eq('contact_id', contactId).is('ended_at', null).neq('vendor_id', vendorId)
     }
-    const r = await doAssign(vendorId, contactId)
+    const r = await doAssign(vendorId, contactId, st.staff)
     if ('error' in r) return NextResponse.json({ error: r.error }, { status: 400 })
+    return NextResponse.json({ ok: true })
+  }
+
+  if (action === 'set_staff') {
+    const id = String(body.assignment_id ?? '')
+    const { data: row, error: e1 } = await admin.from('contact_assignments').select('vendor_id').eq('id', id).single()
+    if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
+    const st = await requireStaff(admin, row.vendor_id as string, body.staff_employee_id)
+    if ('error' in st) return NextResponse.json({ error: st.error }, { status: 400 })
+    const { error } = await admin.from('contact_assignments').update({ staff_employee_id: st.staff }).eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true })
   }
 

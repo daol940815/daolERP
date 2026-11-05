@@ -80,6 +80,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const [regContactName, setRegContactName] = useState('')
   const [regContactTitle, setRegContactTitle] = useState('')
   const [regContactPhone, setRegContactPhone] = useState('')
+  const [regStaff, setRegStaff] = useState('')   // 새 고객의 다올 담당 (112 — 필수)
 
   // 주문 진행 요청 (705, 2026-11-05): 요청받은 직원은 열람 · 전환만 — canEdit=false면 읽기 전용
   const [canEdit, setCanEdit] = useState(true)
@@ -360,6 +361,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
 
   const registerVendor = async () => {
     if (!vendorId && !regGroupName.trim()) { alert('업체명을 입력해주세요.'); return }
+    if (regContactName.trim() && !regStaff) { alert('다올 담당(자사 영업 직원)을 선택해주세요. 은행 · 지점 · 고객마다 담당이 기입되어야 합니다.'); return }
     setRegBusy(true)
     try {
       const res = await fetch('/api/orders-portal/masters', {
@@ -373,6 +375,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           contact_name: regContactName || undefined,
           contact_title: regContactTitle || undefined,
           contact_phone: regContactPhone || undefined,
+          staff_employee_id: regStaff || undefined,
         }),
       })
       const json = await res.json()
@@ -640,6 +643,15 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 }}
                 placeholder={vendorId ? '담당자 선택 · 자유 입력' : '자유 입력 (지점 선택 시 마스터 검색)'} />
             )}
+            {/* 고객별 다올 담당 (112) — 주문 전환 시 상담자가 됨 (상담일지 작성자 아님) */}
+            {contactId && (() => {
+              const c = contacts.find(x => x.contact_id === contactId)
+              if (!c) return null
+              const staff = c.staff_employee_id ? employees.find(e => e.id === c.staff_employee_id)?.name ?? '등록됨' : null
+              return staff
+                ? <div className="text-[10px] text-gray-500 mt-0.5">이 고객의 다올 담당: <b>{staff}</b> (주문 시 상담자)</div>
+                : <div className="text-[10px] text-amber-700 mt-0.5">이 고객의 다올 담당 미기입 — 주문 입력 때 고른 상담자가 다올 담당으로 저장됩니다</div>
+            })()}
           </div>
           <div>
             <label className={label}>핸드폰</label>
@@ -708,6 +720,14 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 <input value={regContactPhone} disabled={regBusy}
                   onChange={e => setRegContactPhone(e.target.value)}
                   className={free} placeholder="010-" />
+              </div>
+              <div>
+                <label className={label}>다올 담당 {regContactName.trim() && <em className="not-italic text-red-500">*</em>}</label>
+                <select value={regStaff} disabled={regBusy} onChange={e => setRegStaff(e.target.value)}
+                  className="w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2.5 py-1.5 text-sm">
+                  <option value="">선택</option>
+                  {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                </select>
               </div>
             </div>
             <div className="flex items-center gap-2 mt-2.5">
