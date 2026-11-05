@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>선결제 사용 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1180px; margin:0 auto; padding:24px 20px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:26px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.65; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .sec { font-size:13px; font-weight:bold; color:#0f172a; margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .sec small { font-weight:normal; color:#94a3b8; font-size:11px; }
+  .sp { flex:1; }
+  .tag-new { font-size:10.5px; font-weight:bold; color:#fff; background:#3b82f6; border-radius:4px; padding:1px 6px; }
+  .btn { display:inline-block; border-radius:7px; padding:5px 11px; font-size:12px; border:1px solid #cbd5e1; background:#fff; color:#334155; white-space:nowrap; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .btn.vio { background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; font-weight:bold; }
+  .btn.sm { padding:2px 8px; font-size:11px; }
+  .badge { display:inline-block; font-size:10.5px; font-weight:bold; padding:1px 6px; border-radius:4px; white-space:nowrap; }
+  .b-bank { background:#eff6ff; color:#1d4ed8; } .b-card { background:#f5f3ff; color:#6d28d9; } .b-pre { background:#fdf4ff; color:#a21caf; border:1px solid #f5d0fe; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:5px 0; font-size:12.5px; }
+  .row .d { color:#94a3b8; width:76px; font-size:11px; }
+  .row .a { font-weight:bold; min-width:84px; text-align:right; }
+  .row .m { color:#64748b; font-size:11.5px; }
+  .sum { font-size:12.5px; color:#334155; }
+  .sum b { font-variant-numeric:tabular-nums; }
+  .g { color:#047857; } .r { color:#dc2626; }
+  .note { background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:8px 10px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.7; }
+  .note b { color:#422006; }
+  .num { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:#eab308; color:#fff; font-size:10.5px; font-weight:bold; margin-right:4px; }
+  .modal { border:1px solid #cbd5e1; border-radius:12px; background:#fff; box-shadow:0 12px 32px rgba(15,23,42,.18); max-width:460px; overflow:hidden; }
+  .modal .mh { padding:12px 16px; font-weight:bold; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; }
+  .modal .mb { padding:14px 16px; }
+  .kv { display:grid; grid-template-columns:1fr auto; gap:6px 14px; font-size:12.5px; margin-bottom:12px; }
+  .kv .k { color:#64748b; }
+  .kv .v { text-align:right; font-variant-numeric:tabular-nums; font-weight:bold; }
+  .f label { display:block; font-size:11px; color:#64748b; margin-bottom:3px; }
+  .box { border:1.5px solid #cbd5e1; border-radius:8px; padding:7px 10px; font-size:13px; min-height:34px; background:#fff; }
+  .box.in { border-color:#fcd34d; background:#fffbeb; font-weight:bold; text-align:right; }
+  .hint { font-size:11px; color:#94a3b8; margin-top:5px; line-height:1.6; }
+  .warn { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:8px; padding:6px 10px; font-size:11.5px; margin-top:8px; }
+  .info { background:#fdf4ff; border:1px solid #f5d0fe; color:#86198f; border-radius:8px; padding:7px 10px; font-size:12px; }
+  table { border-collapse:collapse; width:100%; font-size:12px; }
+  th { background:#f1f5f9; color:#475569; font-weight:normal; padding:6px 8px; text-align:left; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+  td { padding:6px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
+  td.n { text-align:right; font-variant-numeric:tabular-nums; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .decide { background:#fff; border:2px solid #f59e0b; border-radius:12px; padding:16px 18px; }
+  .decide h3 { font-size:14px; color:#92400e; margin-bottom:8px; }
+  .decide li { margin:7px 0 7px 18px; line-height:1.65; font-size:12.5px; }
+  .decide .opt { color:#64748b; font-size:11.5px; }
+  .tw { overflow-x:auto; }
+  .flow { display:flex; gap:8px; align-items:stretch; flex-wrap:wrap; }
+  .flow .st { flex:1; min-width:180px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; font-size:12px; line-height:1.6; }
+  .flow .st .t { display:block; font-weight:bold; color:#0f172a; margin-bottom:2px; }
+  .flow .ar { align-self:center; color:#94a3b8; font-size:16px; }
+  @media (max-width: 760px) { .two { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>선결제 사용 시안 — 주문 결제에 선결제 잔액 일부를 쓰기</h1>
+  <div class="desc">
+    사용자 확인(2026-11-05): 선결제는 <b>여러 주문에 나눠 쓰고</b>, 품목을 선결제 처리하기보다 <b>결제 금액 중 일부를 선결제에서 차감</b>하는 경우가 많으며
+    (예: 20만 원 + 25만 원 주문 중 30만 원을 선결제에서), <b>영업지원팀</b>이 처리합니다.<br>
+    그래서 선결제 사용을 통장 · 카드처럼 <b>결제 수단 하나</b>로 다룹니다 — 주문 상세 결제 내역에서 "선결제 사용"으로 금액을 붙이면
+    그만큼 미수가 줄고, 매출처 선결제 잔액이 줄어듭니다.
+  </div>
+
+  <h2>전체 흐름</h2>
+  <div class="flow">
+    <div class="st"><span class="t">1. 선결제 받기</span>주문서에 '선결제' 품목으로 저장 → 매출처 선결제 원장에 <b>입금</b> 자동 기록 (어제 반영)</div>
+    <div class="ar">→</div>
+    <div class="st"><span class="t">2. 주문</span>평소대로 주문 입력 (품목 20만 + 25만 = 45만). 주문처를 고르면 "선결제 잔액 N원" 안내</div>
+    <div class="ar">→</div>
+    <div class="st"><span class="t">3. 선결제 사용</span>주문 상세 › 결제 내역 › <b>선결제 사용</b> 30만 → 원장 <b>사용</b> 기록 + 이 주문 수금 30만</div>
+    <div class="ar">→</div>
+    <div class="st"><span class="t">4. 나머지</span>남은 미수 15만은 통장 · 카드 수금 매칭으로 (기존 그대로)</div>
+  </div>
+
+  <!-- A -->
+  <h2>A. 주문 상세 — 결제 내역 카드에 "선결제 사용" 버튼</h2>
+  <div class="desc">이 주문처에 선결제 잔액이 있을 때만 버튼과 잔액이 보입니다.</div>
+  <div class="panel new">
+    <div class="sec">결제 내역 <small>수금 · 계산서 연결이 자동으로 표시됩니다</small>
+      <span class="sp"></span>
+      <span class="info">선결제 잔액 <b>1,000,000원</b></span>
+      <span class="btn vio">선결제 사용</span>
+    </div>
+    <div class="sum" style="margin-bottom:6px">순매출 <b>450,000원</b> · 수금 <b class="g">0원</b> · 미수 <b class="r">450,000원</b></div>
+    <div class="hint">연결된 결제 내역이 아직 없습니다.</div>
+  </div>
+
+  <div class="two">
+    <div class="panel">
+      <div class="sec">"선결제 사용"을 눌렀을 때</div>
+      <div class="modal">
+        <div class="mh"><span>선결제 사용 — 하나은행 여의도금융센터</span><span>×</span></div>
+        <div class="mb">
+          <div class="kv">
+            <span class="k">선결제 잔액</span><span class="v">1,000,000원</span>
+            <span class="k" style="font-size:11px">(입금 1,000,000 · 사용 0)</span><span></span>
+            <span class="k">이 주문 미수</span><span class="v r">450,000원</span>
+          </div>
+          <div class="f"><label>사용 금액</label><div class="box in">300,000</div></div>
+          <div class="hint">최대 450,000원 (잔액과 미수 중 작은 값) · [전액] 버튼으로 최대값 입력</div>
+          <div class="f" style="margin-top:10px"><label>메모 (선택)</label><div class="box" style="color:#94a3b8">예: 11/1 선결제분에서 차감</div></div>
+          <div style="display:flex; gap:6px; justify-content:flex-end; margin-top:14px">
+            <span class="btn">취소</span><span class="btn pri">사용 (300,000원)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="sec">저장 후 결제 내역</div>
+      <div class="sum" style="margin-bottom:8px">순매출 <b>450,000원</b> · 수금 <b class="g">300,000원</b> · 미수 <b class="r">150,000원</b></div>
+      <div class="row"><span class="d">2026-11-05</span><span class="badge b-pre">선결제</span><span class="a">300,000원</span>
+        <span class="m">선결제 잔액에서 사용 · 김주연 · 11/1 선결제분에서 차감</span><span class="sp"></span><span class="btn sm">해제</span></div>
+      <div class="row"><span class="d">2026-11-07</span><span class="badge b-bank">통장</span><span class="a">150,000원</span>
+        <span class="m">통장 입금 (하나은행여의도) — 회계 수금 매칭</span></div>
+      <div class="hint">선결제 사용분은 통장 · 카드와 같은 수금으로 계산됩니다 → 미수 0이 되면 수금완료.<br>
+        "해제"는 선결제 사용 행에만 있습니다(잔액이 되돌아감). 통장 · 카드 행은 지금처럼 표기만.</div>
+    </div>
+  </div>
+
+  <div class="two">
+    <div class="panel">
+      <div class="sec">막는 경우</div>
+      <div class="warn">사용 금액(500,000원)이 이 주문 미수(450,000원)보다 큽니다.</div>
+      <div class="warn">사용 금액(1,200,000원)이 선결제 잔액(1,000,000원)보다 큽니다.</div>
+      <div class="hint">취소된 주문 · 미수 0인 주문 · 업로드 주문은 버튼이 보이지 않습니다.</div>
+    </div>
+    <div class="panel">
+      <div class="sec">주문 수정 · 취소와의 관계</div>
+      <div style="font-size:12px; line-height:1.75">
+        · <b>당일 수정</b>: 사용분은 그대로 유지. 주문 금액이 사용분보다 작아지면 "선결제 사용이 주문 금액보다 큽니다 — 해제 후 다시 사용하세요" 경고.<br>
+        · <b>취소 · 재등록</b>: 선결제 사용분이 새 주문으로 넘어감 (통장 · 카드 매칭과 같은 규칙).<br>
+        · <b>단순 취소</b>: 선결제 사용이 있으면 막고 "해제 후 취소" 안내 (어제 넣은 매칭 연결 차단 규칙과 동일).
+      </div>
+    </div>
+  </div>
+
+  <!-- B -->
+  <h2>B. 주문서 — 잔액 안내만 (사용 처리는 저장 후 상세에서)</h2>
+  <div class="panel new">
+    <div class="sec">주문 정보 <small>주문처를 고른 직후</small></div>
+    <div class="info">이 주문처의 선결제 잔액 <b>1,000,000원</b> — 저장 후 주문 상세 › 결제 내역에서 "선결제 사용"으로 결제에 쓸 수 있습니다.</div>
+    <div class="note"><span class="num">1</span>주문서에서 바로 사용 금액을 넣는 방식도 가능합니다(아래 F-1). 가안은 <b>저장 후 상세에서</b> — 주문 금액이 확정된 다음에 쓰는 게 실수가 적고, 해제 · 재사용도 한 곳에서 됩니다.</div>
+  </div>
+
+  <!-- C -->
+  <h2>C. 매출처 관리 › 선결제 내역 — 여러 주문에 나눠 쓴 모습</h2>
+  <div class="panel tw">
+    <div class="sec">선결제 원장 <small>입금 1,000,000 · 사용 750,000 · 잔액 250,000</small></div>
+    <table>
+      <tr><th>일자</th><th>구분</th><th style="text-align:right">금액</th><th>내용</th><th style="text-align:right">잔액</th></tr>
+      <tr><td>2026-11-01</td><td><span class="badge b-bank">입금</span></td><td class="n">1,000,000</td><td>주문 26-11-0003 자동 등록 (품명: 선결제)</td><td class="n">1,000,000</td></tr>
+      <tr><td>2026-11-05</td><td><span class="badge b-pre">사용</span></td><td class="n">-300,000</td><td>주문 26-11-0021 결제 · 김주연</td><td class="n">700,000</td></tr>
+      <tr><td>2026-11-12</td><td><span class="badge b-pre">사용</span></td><td class="n">-450,000</td><td>주문 26-11-0040 결제 · 김보현</td><td class="n">250,000</td></tr>
+    </table>
+    <div class="hint">매출처 관리 화면은 기존 원장 표시 그대로 — 새 기록이 자동으로 쌓입니다.</div>
+  </div>
+
+  <!-- D -->
+  <h2>D. 어떻게 저장되나 (참고)</h2>
+  <div class="panel" style="font-size:12px; line-height:1.8">
+    선결제 사용 1건 = ① 선결제 원장에 <b>사용(차감)</b> 1행 (주문 연결) + ② 수금 매칭에 <b>"선결제" 종류</b> 1행 (같은 금액, 위 원장 행을 가리킴).<br>
+    ②가 있어 미수 계산(회계 표준 규칙)이 통장 · 카드와 똑같이 차감합니다 — 미수 규칙 자체는 고치지 않습니다. 해제하면 ① ②를 함께 지웁니다.<br>
+    필요한 DB 변경: 마이그레이션 514 — 수금 매칭 종류에 '선결제' 추가 (지금은 통장 · 카드 · 현금만 허용). 회계 분개는 매칭 기록을 쓰지 않아 영향 없음.
+  </div>
+
+  <!-- F -->
+  <h2>F. 확인 부탁드릴 것</h2>
+  <div class="decide">
+    <h3>시안 확정 전에 정해주세요</h3>
+    <ol>
+      <li><b>사용 입력 위치</b> — 가안: 주문 상세 결제 내역에서만 (주문서는 잔액 안내). 주문서 저장 때 바로 넣는 칸도 원하시면 추가.</li>
+      <li><b>잔액 초과 사용</b> — 가안: 막음. (예전 회계 화면 차감 버튼은 경고만 하고 허용했음)</li>
+      <li><b>해제 권한</b> — 가안: 주문 수정 권한이 있는 영업지원팀 누구나 (본인 · 관리자 제한 없음). 해제 기록은 변경 이력에 남김.</li>
+      <li><b>선결제를 받은 주문의 입금 확인</b>(선결제 주문인데 통장 입금이 들어왔는지) — 가안: 이번 범위 밖. 미수 정의를 바꾸는 일이라 회계 트랙과 따로 정함.</li>
+      <li><b>회계 화면의 기존 '선결제차감' 버튼</b>(차감만 하고 미수는 안 줄임) — 가안: 회계 세션에 새 방식으로 통일하자고 공유.</li>
+    </ol>
+  </div>
+  <div class="desc" style="margin-top:10px">구현 범위(확정 시): 514 마이그레이션 / 선결제 잔액 · 사용 · 해제 API / 주문 상세 결제 내역 버튼 · 모달 · 행 / 주문서 잔액 안내 /
+    취소 · 재등록 승계 · 단순 취소 차단 / 도움말 · 트랙 문서 · 회계 트랙 공유.</div>
+</div>
+</body>
+</html>
