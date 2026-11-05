@@ -47,6 +47,12 @@ export async function GET() {
     empData = r.data as Record<string, unknown> | null
   }
 
+  // 업무용 핸드폰(205) — 따로 읽어 합친다(미적용이면 칸 없이). 입력은 인사·총무, 본인은 보기만
+  if (empId && empData) {
+    const { data: wp, error: wpErr } = await admin.from('employees').select('work_phone').eq('id', empId).maybeSingle()
+    if (!wpErr) empData = { ...empData, work_phone: (wp?.work_phone as string | null) ?? null }
+  }
+
   type Named = { name?: string | null; status?: string | null } | { name?: string | null; status?: string | null }[] | null
   const one = (v: Named) => (Array.isArray(v) ? v[0] : v) ?? null
 

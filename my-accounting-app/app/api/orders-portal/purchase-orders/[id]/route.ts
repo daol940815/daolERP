@@ -29,6 +29,7 @@ interface PoRecord {
   sent_at: string | null
   status: string
   created_at: string
+  created_by?: string | null
   creator: { name: string; phone: string | null } | { name: string; phone: string | null }[] | null
   vendor?: { uses_custom_po: boolean; po_use_sale_price?: boolean } | { uses_custom_po: boolean; po_use_sale_price?: boolean }[] | null
 }
@@ -38,8 +39,8 @@ const one = <T,>(v: T | T[] | null | undefined): T | null =>
 async function loadPo(admin: SupabaseClient, id: string) {
   const sel = (withFlags: boolean) => admin.from('erp_purchase_orders')
     .select((withFlags
-      ? 'id, po_no, order_id, vendor_id, vendor_name, total_amount, delivery_note, email_to, send_method, sent_at, status, created_at, creator:employees!erp_purchase_orders_created_by_fkey(name, phone), vendor:vendors(uses_custom_po, po_use_sale_price)'
-      : 'id, po_no, order_id, vendor_id, vendor_name, total_amount, delivery_note, email_to, send_method, sent_at, status, created_at, creator:employees!erp_purchase_orders_created_by_fkey(name, phone)') as string)
+      ? 'id, po_no, order_id, vendor_id, vendor_name, total_amount, delivery_note, email_to, send_method, sent_at, status, created_at, created_by, creator:employees!erp_purchase_orders_created_by_fkey(name, phone), vendor:vendors(uses_custom_po, po_use_sale_price)'
+      : 'id, po_no, order_id, vendor_id, vendor_name, total_amount, delivery_note, email_to, send_method, sent_at, status, created_at, created_by, creator:employees!erp_purchase_orders_created_by_fkey(name, phone)') as string)
     .eq('id', id).maybeSingle()
   // po_use_sale_price는 509 — 미적용 환경이면 플래그 없이 재조회
   let { data: po, error } = await sel(true)
@@ -67,18 +68,30 @@ async function loadPo(admin: SupabaseClient, id: string) {
 
 // 발주담당자·연락처: 발주 진행(다운로드·발송) 시점의 로그인 직원 기준 (사용자 확정
 // 2026-08-24). 직원 정보가 없으면 발주서 작성자로 대체.
+// 연락처는 업무용 핸드폰(employees.work_phone, 205) — 없으면 비워 두어 양식이 회사 대표번호를 쓴다.
+// 개인 번호(phone)는 외부로 나가는 문서에 쓰지 않는다 (2026-11-05 사용자 요청).
+// 205 미적용 DB에서는 기존처럼 개인 번호를 쓴다(배포 · 실행 순서 보호).
 async function currentStaff(
   admin: SupabaseClient,
   employeeId: string | null | undefined,
   po: PoRecord,
 ): Promise<{ name: string | null; phone: string | null }> {
+  const lookup = async (id: string) => {
+    const r = await admin.from('employees').select('name, work_phone').eq('id', id).maybeSingle()
+    if (!r.error) return r.data ? { name: (r.data.name as string) ?? null, phone: (r.data.work_phone as string) ?? null } : null
+    const old = await admin.from('employees').select('name, phone').eq('id', id).maybeSingle()   // 205 미적용
+    return old.data ? { name: (old.data.name as string) ?? null, phone: (old.data.phone as string) ?? null } : null
+  }
   if (employeeId) {
-    const { data } = await admin.from('employees')
-      .select('name, phone').eq('id', employeeId).maybeSingle()
-    if (data) return { name: (data.name as string) ?? null, phone: (data.phone as string) ?? null }
+    const s = await lookup(employeeId)
+    if (s) return s
+  }
+  if (po.created_by) {
+    const s = await lookup(po.created_by)
+    if (s) return s
   }
   const c = one(po.creator)
-  return { name: c?.name ?? null, phone: c?.phone ?? null }
+  return { name: c?.name ?? null, phone: null }
 }
 
 // 개정 양식 데이터 조립 — 양식이 요구하는 항목 중 ERP가 아는 값을 채운다.

@@ -9,6 +9,7 @@ import PermissionPanel, { type PermEmp } from './permission-panel'
 
 interface Emp extends PermEmp {
   phone: string | null
+  work_phone?: string | null     // 업무용 핸드폰 (205) — 발주서 발주자 연락처
   hire_date: string | null
   birth_date: string | null
   role: 'sales' | 'manager' | 'admin'
@@ -17,7 +18,7 @@ interface Emp extends PermEmp {
 }
 
 const TEAMS = ['영업팀', '영업지원팀', '경영지원팀']
-const EMPTY = { name: '', team: '', position: '', phone: '', hire_date: '', birth_date: '', role: 'sales', login_id: '', password: '' }
+const EMPTY = { name: '', team: '', position: '', phone: '', work_phone: '', hire_date: '', birth_date: '', role: 'sales', login_id: '', password: '' }
 
 const permSummary = (e: Emp) => {
   if (e.is_master) return '마스터 (전 영역)'
@@ -37,9 +38,10 @@ export default function EmployeesPage() {
   const [showForm, setShowForm] = useState(false)
   const [busy, setBusy] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
-  const [edit, setEdit] = useState({ name: '', team: '', position: '', phone: '', hire_date: '', birth_date: '', login_id: '' })
+  const [edit, setEdit] = useState({ name: '', team: '', position: '', phone: '', work_phone: '', hire_date: '', birth_date: '', login_id: '' })
   const [birthdayReady, setBirthdayReady] = useState(true)
   const [leaveLevelReady, setLeaveLevelReady] = useState(false)   // 휴가 결재 단계(204)
+  const [workPhoneReady, setWorkPhoneReady] = useState(false)     // 업무용 핸드폰(205)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [meInfo, setMeInfo] = useState<{ employeeId: string | null; isMaster: boolean; canEdit: boolean }>({ employeeId: null, isMaster: false, canEdit: false })
   const [permReady, setPermReady] = useState(true)
@@ -56,7 +58,7 @@ export default function EmployeesPage() {
       setRows(json.employees)
       if (json.me) setMeInfo(json.me)
       setPermReady(json.permissionsReady !== false); setBirthdayReady(json.birthdayReady !== false)
-      setLeaveLevelReady(json.leaveLevelReady === true)
+      setLeaveLevelReady(json.leaveLevelReady === true); setWorkPhoneReady(json.workPhoneReady === true)
     }
     setSelected(new Set())
     setLoading(false)
@@ -77,7 +79,8 @@ export default function EmployeesPage() {
   const create = async () => {
     if (!form.name.trim()) { flash('이름을 입력하세요.'); return }
     if (form.login_id && !form.password) { flash('계정을 발급하려면 비밀번호도 입력하세요.'); return }
-    if (await post({ action: 'create', ...form })) {
+    const { work_phone, ...rest } = form
+    if (await post({ action: 'create', ...rest, ...(workPhoneReady ? { work_phone } : {}) })) {
       flash('직원 등록 완료' + (form.login_id ? ' (로그인 계정 발급됨)' : ''))
       setForm({ ...EMPTY }); setShowForm(false); load()
     }
@@ -87,12 +90,13 @@ export default function EmployeesPage() {
     setEditId(r.id)
     setEdit({
       name: r.name, team: r.team ?? '', position: r.position ?? '',
-      phone: r.phone ?? '', hire_date: r.hire_date ?? '', birth_date: r.birth_date ?? '', login_id: r.login_id ?? '',
+      phone: r.phone ?? '', work_phone: r.work_phone ?? '', hire_date: r.hire_date ?? '', birth_date: r.birth_date ?? '', login_id: r.login_id ?? '',
     })
   }
   const saveEdit = async () => {
     if (!editId) return
-    if (await post({ action: 'update', id: editId, ...edit })) {
+    const { work_phone, ...rest } = edit
+    if (await post({ action: 'update', id: editId, ...rest, ...(workPhoneReady ? { work_phone } : {}) })) {
       flash('수정 완료'); setEditId(null); load()
     }
   }
@@ -176,7 +180,8 @@ export default function EmployeesPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {([
               ['name', '이름 *', 'text'], ['team', '팀', 'text'], ['position', '직급', 'text'],
-              ['phone', '연락처', 'text'], ['hire_date', '입사일', 'date'], ['birth_date', '생일', 'date'],
+              ['work_phone', '업무용 핸드폰 (발주서에 기재)', 'text'], ['phone', '개인 연락처', 'text'],
+              ['hire_date', '입사일', 'date'], ['birth_date', '생일', 'date'],
               ['login_id', '로그인 ID (영문·숫자)', 'text'], ['password', '초기 비밀번호', 'text'],
             ] as const).map(([k, label, type]) => (
               <div key={k}>
@@ -211,7 +216,7 @@ export default function EmployeesPage() {
                 </th>
                 <th className="py-2 px-3 text-left font-medium">이름</th>
                 <th className="py-2 px-3 text-left font-medium">팀/직급</th>
-                <th className="py-2 px-3 text-left font-medium">연락처</th>
+                <th className="py-2 px-3 text-left font-medium">연락처 <span className="font-normal text-gray-400">업무 · 개인</span></th>
                 <th className="py-2 px-3 text-left font-medium">로그인 ID</th>
                 <th className="py-2 px-3 text-left font-medium">권한</th>
                 <th className="py-2 px-3 text-left font-medium">입사일</th>
@@ -231,7 +236,13 @@ export default function EmployeesPage() {
                       <input value={edit.position} onChange={e => setEdit(s => ({ ...s, position: e.target.value }))} placeholder="직급" className={inp} />
                     </div>
                   </td>
-                  <td className="py-2 px-3"><input value={edit.phone} onChange={e => setEdit(s => ({ ...s, phone: e.target.value }))} className={inp} /></td>
+                  <td className="py-2 px-3">
+                    <div className="flex flex-col gap-1">
+                      <input value={edit.work_phone} disabled={!workPhoneReady} title={workPhoneReady ? '업무용 핸드폰 — 발주서 발주자 연락처' : '205 마이그레이션 실행 후 입력 가능'}
+                        onChange={e => setEdit(s => ({ ...s, work_phone: e.target.value }))} placeholder="업무용" className={inp} />
+                      <input value={edit.phone} onChange={e => setEdit(s => ({ ...s, phone: e.target.value }))} placeholder="개인" className={inp} />
+                    </div>
+                  </td>
                   <td className="py-2 px-3"><input value={edit.login_id} onChange={e => setEdit(s => ({ ...s, login_id: e.target.value }))} className={inp} /></td>
                   <td className="py-2 px-3 text-xs text-gray-400">{permSummary(r)}</td>
                   <td className="py-2 px-3"><input type="date" value={edit.hire_date} onChange={e => setEdit(s => ({ ...s, hire_date: e.target.value }))} className={inp} /></td>
@@ -249,7 +260,10 @@ export default function EmployeesPage() {
                   </td>
                   <td className="py-2 px-3 font-semibold">{r.name}</td>
                   <td className="py-2 px-3 text-gray-600">{[r.team, r.position].filter(Boolean).join(' · ') || '-'}</td>
-                  <td className="py-2 px-3 text-gray-600">{r.phone ?? '-'}</td>
+                  <td className="py-2 px-3 text-gray-600 text-xs leading-5 whitespace-nowrap">
+                    <div><span className="text-[10px] text-violet-600 font-semibold mr-1">업무</span>{r.work_phone ?? <span className="text-gray-300">-</span>}</div>
+                    <div><span className="text-[10px] text-gray-400 font-semibold mr-1">개인</span>{r.phone ?? <span className="text-gray-300">-</span>}</div>
+                  </td>
                   <td className="py-2 px-3">
                     {r.login_id
                       ? <>
