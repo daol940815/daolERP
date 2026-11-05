@@ -79,6 +79,22 @@ export async function GET(req: NextRequest) {
   })
 }
 
+// 같은 매출처가 이미 있는지 — 업체 그룹과 무관하게 활성 매출처 전체의 이름·별칭을
+// 법인 접두·공백 무시로 비교한다. 그룹 안에서만 찾으면 그룹 미지정 거래처(정비·과거 등록분)를
+// 못 찾아 같은 지점이 중복 생성된다(2026-11-03~04 실제 발생 6쌍).
+const normVendor = (s: string) =>
+  s.replace(/^\s*(\(주\)|㈜|주식회사)\s*/, '').replace(/\s+/g, '').toLowerCase()
+async function findSalesVendor(admin: ReturnType<typeof createAdminClient>, fullName: string) {
+  const key = normVendor(fullName)
+  const r = await fetchAllRows<{ id: string; name: string; group_id: string | null; match_aliases: string[] | null }>((f, t) =>
+    admin.from('vendors').select('id, name, group_id, match_aliases')
+      .in('type', ['customer', 'both']).eq('is_active', true).neq('status', 'merged').range(f, t))
+  if ('error' in r) return null
+  return r.data.find(v => normVendor(v.name) === key)
+    ?? r.data.find(v => (v.match_aliases ?? []).some(a => normVendor(a) === key))
+    ?? null
+}
+
 export async function POST(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
@@ -118,12 +134,13 @@ export async function POST(req: NextRequest) {
 
     // 2) 지점(vendors) — 정규화 동일명이 있으면 재사용 (매출처 목록 오염 방지)
     const vendorName = branchName ? `${groupLabel} ${branchName}` : groupLabel
-    const { data: sameGroup } = groupId
-      ? await admin.from('vendors').select('id, name').eq('group_id', groupId).eq('is_active', true)
-      : await admin.from('vendors').select('id, name').is('group_id', null).eq('is_active', true)
-    const existing = (sameGroup ?? []).find(v => norm(v.name as string) === norm(vendorName))
+    const existing = await findSalesVendor(admin, vendorName)
     let vendorId = existing?.id as string | undefined
     const vendorReused = !!existing
+    // 그룹 미지정 거래처를 재사용하면 이번에 고른 업체 그룹에 연결해 둔다 (업체별 통계 · 2단 선택에 나오도록)
+    if (existing && !existing.group_id && groupId) {
+      await admin.from('vendors').update({ group_id: groupId }).eq('id', existing.id)
+    }
     if (!vendorId) {
       const { data: created, error } = await admin.from('vendors')
         .insert({ name: vendorName, type: 'customer', group_id: groupId }).select('id').single()
@@ -199,9 +216,7 @@ export async function POST(req: NextRequest) {
     if (!groupName) return NextResponse.json({ error: '업체명을 입력해주세요.' }, { status: 400 })
     const fullName = [groupName, branchName].filter(Boolean).join(' ')
 
-    const { data: existing } = await admin.from('vendors')
-      .select('id, group_id').eq('name', fullName).eq('is_active', true)
-      .limit(1).maybeSingle()
+    const existing = await findSalesVendor(admin, fullName)
     if (existing) {
       return NextResponse.json({ vendor_id: existing.id, group_id: existing.group_id ?? null, existed: true })
     }
