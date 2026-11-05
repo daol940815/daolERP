@@ -173,8 +173,8 @@
   `components/layout/NotificationCenter.tsx`, 폴링은 AreaSidebar의 `useNotifications` 1곳(20초, 2026-11-02). 새 알림 원천은 API에 블록 추가.
   화면 자동 갱신: 알림 결과가 바뀌면 `daol:notif-changed` 이벤트 → `useNotifRefresh(load)`(lib/use-notif-refresh.ts)로 구독한 화면이 재조회,
   조작 뒤 `requestNotifRefresh()`로 즉시 폴링. 자동 갱신이 필요한 새 화면은 이 훅을 쓸 것(자체 폴링 금지).
-  **도움말(2026-11-03)**: 모든 화면 오른쪽 위 "도움말" 버튼은 `components/help/HelpLauncher.tsx`가 AreaShell에서 자동 삽입 — 화면마다
-  손대지 않는다. 내용은 `lib/help-registry.ts` 한 곳(이 화면은 / 누가·언제 / 순서 / 자주 막히는 것 + keywords·changes). 질문하기 ·
+  **도움말(2026-11-03)**: 사이드바 하단 고정 영역의 "이 화면 도움말"(F1) 버튼은 `components/help/HelpLauncher.tsx`를 AreaSidebar가 렌더 — 화면마다
+  손대지 않는다(2026-11-05 본문 오른쪽 위에서 이동: 화면 주요 버튼을 가렸음 — 본문 위에 떠 있는 공용 버튼을 새로 두지 말 것). 내용은 `lib/help-registry.ts` 한 곳(이 화면은 / 누가·언제 / 순서 / 자주 막히는 것 + keywords·changes). 질문하기 ·
   권한 요청하기는 `/me/requests/new?question=<경로>&screen=<화면명>[&perm=<그룹>]`으로 업무 요청(담당 `HELP_QUESTION_RECIPIENT_LOGIN`).
   403 문구를 새로 쓸 때는 "무슨 권한 · 누구에게"까지 적을 것(`PERMISSION_CONTACT`).
   적용: 기초잔액 `/opening-balances`, 자금 · 계좌 `/reports/cash`, 카드 내역 `/cards`, 계산서 내역 `/tax-invoices`
