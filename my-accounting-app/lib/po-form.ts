@@ -47,6 +47,9 @@ export interface PoExcelData {
     item_code: string | null; item_name: string | null; order_kind: string | null
     quantity: number; purchase_price: number; purchase_shipping: number
     purchase_total: number; memo: string | null
+    // 품목 구분 (2026-11-05): fee = 비용 품목(품목 마스터 '비용 품목' 체크 — 배송비 · 퀵비 · 설치비 등),
+    // addon = 부가상품(쇼핑백 · 포장지 — 본 상품과 함께 감). 둘 다 자사 양식 배송명단에서 제외
+    role?: 'fee' | 'addon' | null
   }[]
 }
 
@@ -109,8 +112,12 @@ export function shipForItem(po: PoExcelData, orderKind: string | null | undefine
   }
 }
 
+// 배송명단 대상 = 실제로 보내는 상품만 — 비용 품목 · 부가상품 제외 (2026-11-05 사용자 확정).
+// 품목 표(시트1)에는 그대로 남아 금액 · 수량은 빠지지 않는다.
+export const rosterItems = (po: PoExcelData) => po.items.filter(it => it.role !== 'fee' && it.role !== 'addon')
+
 export function poRosterRows(po: PoExcelData): (string | number)[][] {
-  return po.items.map((it, i) => {
+  return rosterItems(po).map((it, i) => {
     const sh = shipForItem(po, it.order_kind)
     return [
       i + 1,

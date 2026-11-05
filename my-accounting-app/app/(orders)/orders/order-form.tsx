@@ -706,7 +706,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
             contactName={c ? contactLabel(c.name, c.title) : null}
             contactPhone={c?.phone ?? (phone || null)}
             autoFill={!orderId && !reissueId}
-            applies={needsShip(items.filter(it => it.item_name.trim()).map(it => it.order_kind))}
+            applies={needsShip(items.filter(it => it.item_name.trim() && !it.is_shipping && !it.parent_uid).map(it => it.order_kind))}
             disabled={isEdit && !canEdit}
           />
         )

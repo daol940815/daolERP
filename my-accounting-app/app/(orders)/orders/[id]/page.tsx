@@ -18,6 +18,7 @@ interface Item {
   shipping_fee: number; discount_amount: number; discount_mode?: string | null; discount_unit?: number | null; line_total: number
   purchase_price: number; purchase_shipping: number; purchase_total: number
   channel: string | null; memo: string | null
+  is_cost?: boolean   // 비용 품목 (품목 마스터 체크) — 배송지 판정 제외
 }
 interface ChangeRequest {
   id: string; request_type: string; reason: string; status: string
@@ -241,7 +242,8 @@ export default function OrderDetailPage() {
         {/* 배송지 (513) — 지점·샘플 품목용. 컬럼이 있는(513 적용) DB에서만 표시 */}
         {'ship_addr1' in order && (() => {
           const filled = hasShip(order as Record<string, unknown>)
-          const missing = !filled && isDirect && !canceled && needsShip(activeItems.map(it => it.order_kind))
+          const shipItems = activeItems.filter(it => !it.is_cost && !it.parent_line_no && !it.is_prepayment)
+          const missing = !filled && isDirect && !canceled && shipItems.length > 0 && needsShip(shipItems.map(it => it.order_kind))
           if (!filled && !missing) return null
           return (
             <div className={`mt-3 rounded-lg px-3 py-2 text-sm ${missing ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50'}`}>

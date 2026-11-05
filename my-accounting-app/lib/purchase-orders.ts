@@ -69,10 +69,12 @@ export async function loadPurchaseSection(admin: SupabaseClient, orderId: string
     .eq('id', orderId).maybeSingle()
   if (oErr || !order) return { error: '주문을 찾을 수 없습니다.' }
 
-  const { data: items, error: iErr } = await admin.from('erp_order_items')
-    .select('id, line_no, parent_line_no, is_canceled, item_code, item_name, order_kind, purchase_vendor_name, purchase_alias_id, quantity, purchase_price, purchase_shipping, purchase_total, sale_price, shipping_fee, line_total, memo')
+  const { data: rawItems, error: iErr } = await admin.from('erp_order_items')
+    .select('id, line_no, parent_line_no, is_canceled, is_prepayment, item_code, item_name, order_kind, purchase_vendor_name, purchase_alias_id, quantity, purchase_price, purchase_shipping, purchase_total, sale_price, shipping_fee, line_total, memo')
     .eq('order_id', orderId).order('line_no')
   if (iErr) return { error: iErr.message }
+  // 선결제 품목은 매입이 없는 정산 항목 — 발주 대상이 아니다 (2026-11-05 사용자 확정)
+  const items = (rawItems ?? []).filter(it => !it.is_prepayment)
 
   // 유효 발주서 + 품목 연결
   const { data: pos, error: pErr } = await admin.from('erp_purchase_orders')

@@ -29,7 +29,8 @@ async function buildDaekyungInvoice(po: PoExcelData): Promise<Buffer> {
   })
   const sender = [po.customer, (po.customer_manager ?? '').replace(/님$/, '').trim()]
     .filter(Boolean).join(' ')
-  po.items.forEach((it, i) => {
+  // 송장등록 = 배송 건 목록 → 비용 품목은 제외. 부가상품은 이 양식이 유일한 발주 문서라 남긴다(빠지면 매입처가 모름)
+  po.items.filter(it => it.role !== 'fee').forEach((it, i) => {
     const r = i + 2
     const sh = shipForItem(po, it.order_kind)
     const values: (string | number)[] = [

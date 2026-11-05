@@ -147,6 +147,15 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     .eq('order_id', params.id)
     .order('created_at', { ascending: false })
 
+  // 비용 품목(품목 마스터 '비용 품목' 체크) 표시 — 배송지 판정에서 제외 (2026-11-05)
+  const pids = Array.from(new Set((snap.items as Record<string, unknown>[]).map(it => it.product_id).filter(Boolean))) as string[]
+  const costIds = new Set<string>()
+  if (pids.length) {
+    const { data, error } = await admin.from('erp_products').select('id, is_shipping').in('id', pids)
+    if (!error) for (const p of data ?? []) if (p.is_shipping) costIds.add(p.id as string)
+  }
+  const items = (snap.items as Record<string, unknown>[]).map(it => ({ ...it, is_cost: costIds.has(it.product_id as string) }))
+
   const edit = editability(snap.order, me)
   const prepayVendor = await vendorOfOrder(admin, snap.order)
   const [payments, recvMap, prepayBal] = await Promise.all([
@@ -168,7 +177,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       : null
   return NextResponse.json({
     order: snap.order,
-    items: snap.items,
+    items,
     payments,
     receivable,
     // 선결제 사용 (514): 잔액 · 사용 가능 여부 (주문 수정 권한 + direct + 미취소)

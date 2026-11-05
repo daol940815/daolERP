@@ -98,6 +98,30 @@ async function assembleForm(
     shipRequest = (c?.delivery_request as string) ?? null
   }
 
+  // 품목 구분 (2026-11-05): 원 주문 품목 → 품목 마스터의 '비용 품목'(is_shipping) · 부가상품(is_addon 또는 옵션 행)
+  const roleByOrderItem = new Map<string, 'fee' | 'addon'>()
+  const orderItemIds = items.map(it => it.order_item_id).filter(Boolean) as string[]
+  if (orderItemIds.length) {
+    const { data: ois } = await admin.from('erp_order_items')
+      .select('id, product_id, parent_line_no').in('id', orderItemIds)
+    const pids = Array.from(new Set((ois ?? []).map(o => o.product_id).filter(Boolean))) as string[]
+    const prodFlags = new Map<string, { fee: boolean; addon: boolean }>()
+    if (pids.length) {
+      const withShip = await admin.from('erp_products').select('id, is_addon, is_shipping').in('id', pids)
+      const rows = withShip.error
+        ? (await admin.from('erp_products').select('id, is_addon').in('id', pids)).data   // 703 미적용 폴백
+        : withShip.data
+      for (const p of (rows ?? []) as { id: string; is_addon?: boolean; is_shipping?: boolean }[]) {
+        prodFlags.set(p.id, { fee: !!p.is_shipping, addon: !!p.is_addon })
+      }
+    }
+    for (const o of ois ?? []) {
+      const f = o.product_id ? prodFlags.get(o.product_id as string) : undefined
+      if (f?.fee) roleByOrderItem.set(o.id as string, 'fee')
+      else if (f?.addon || o.parent_line_no) roleByOrderItem.set(o.id as string, 'addon')
+    }
+  }
+
   return {
     po_no: po.po_no,
     order_date: order?.order_date ?? null,
@@ -122,6 +146,7 @@ async function assembleForm(
       quantity: it.quantity ?? 0, purchase_price: it.purchase_price ?? 0,
       purchase_shipping: it.purchase_shipping ?? 0, purchase_total: it.purchase_total ?? 0,
       memo: it.memo,
+      role: it.order_item_id ? roleByOrderItem.get(it.order_item_id as string) ?? null : null,
     })),
   }
 }

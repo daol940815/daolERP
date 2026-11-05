@@ -129,12 +129,12 @@ export async function loadPoStatusMap(
   // 주문별 유효 품목 수 대비 발주된 품목 수
   const counts = new Map<string, { total: number; done: number }>()
   await Promise.all(chunks.map(async ch => {
-    const r = await fetchAllRows<{ id: string; order_id: string; is_canceled: boolean }>((pf, pt) =>
-      admin.from('erp_order_items').select('id, order_id, is_canceled').in('order_id', ch).range(pf, pt),
+    const r = await fetchAllRows<{ id: string; order_id: string; is_canceled: boolean; is_prepayment: boolean }>((pf, pt) =>
+      admin.from('erp_order_items').select('id, order_id, is_canceled, is_prepayment').in('order_id', ch).range(pf, pt),
     )
     if ('error' in r) return
     for (const it of r.data) {
-      if (it.is_canceled) continue
+      if (it.is_canceled || it.is_prepayment) continue   // 선결제는 발주 대상 아님
       let c = counts.get(it.order_id)
       if (!c) { c = { total: 0, done: 0 }; counts.set(it.order_id, c) }
       c.total += 1
