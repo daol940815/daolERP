@@ -44,6 +44,7 @@
 ## 직원 마스터 (employees) — 인사·근태 기능은 반드시 이 테이블 참조
 
 - 100에서 생성, 103·104에서 확장: `position, phone, email, hire_date, role, auth_user_id, login_id`
+  (+ 203 `birth_date` · 204 `leave_approve_level` · 205 `work_phone` 업무용 핸드폰 — 발주서 발주자 연락처. `phone`은 개인 번호로 외부 문서에 쓰지 않음)
 - **권한(2026-09-29, 109)**: `permissions` JSONB {그룹 8: none|view|edit} + `is_master` +
   `can_approve`·`can_view_salary`·`can_view_payment_info` + `team`·`employment_type`(regular/parttime)·
   `work_start`/`work_end`(아르바이트, 종료일 경과 시 로그인 차단). 판정은 `lib/permissions.ts`

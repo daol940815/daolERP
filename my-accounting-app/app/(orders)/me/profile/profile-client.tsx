@@ -25,6 +25,7 @@ export interface EmployeeRow {
   work_end: string | null
   is_active: boolean
   phone: string | null
+  work_phone?: string | null      // 업무용 핸드폰 (205) — 인사·총무 입력, 발주서 발주자 연락처
   email: string | null
   login_id: string | null
 }
@@ -91,6 +92,7 @@ export function EmployeeBasicCard({ emp, today, right }: { emp: EmployeeRow; tod
         <Row k="고용 형태"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${et.cls}`}>{et.label}</span></Row>
         <Row k="입사일">{emp.hire_date ?? <span className="text-gray-300">-</span>}{emp.hire_date && tenure(emp.hire_date, today) && <span className="text-xs text-gray-400 ml-2">({tenure(emp.hire_date, today)})</span>}</Row>
         <Row k="생일">{emp.birth_date ?? <span className="text-gray-300">-</span>}</Row>
+        {'work_phone' in emp && <Row k="업무용 핸드폰">{emp.work_phone ?? <span className="text-gray-300">-</span>}<span className="text-xs text-gray-400 ml-2">발주서에 기재 · 변경은 인사 · 총무</span></Row>}
         {showTerm && <Row k="근무 기간">{emp.work_start ?? '?'} ~ {emp.work_end ?? '진행 중'}</Row>}
         <Row k="상태"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${emp.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{emp.is_active ? '재직' : '비활성'}</span></Row>
       </dl>
@@ -150,7 +152,7 @@ function BasicTab({ p, onSaved }: { p: Profile; onSaved: () => void }) {
       <Card title="연락처">
         {msg && <div className={`mb-3 px-3 py-2 text-sm rounded-lg ${msg.includes('저장되었') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
         <label className="block mb-3">
-          <span className="text-xs font-medium text-gray-600">휴대전화</span>
+          <span className="text-xs font-medium text-gray-600">휴대전화 (개인)</span>
           <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="010-0000-0000" className={`${inputCls} mt-1`} />
         </label>
         <label className="block mb-4">

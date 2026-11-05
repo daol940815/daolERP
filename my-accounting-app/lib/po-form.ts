@@ -39,7 +39,7 @@ export interface PoExcelData {
   customer_manager: string | null  // 배송명단 수령인 프리필
   customer_phone: string | null    // 배송명단 연락처 프리필
   staff_name: string | null        // 발주담당자 — 발송 시점 로그인 직원
-  staff_phone: string | null       // 발주자 연락처 (미등록 시 회사 번호)
+  staff_phone: string | null       // 발주자 연락처 = 업무용 핸드폰(205, 미등록 시 회사 번호)
   total_amount: number
   delivery_note: string | null     // 배송명단 배송메모 프리필
   ship?: ShipInput | null          // 주문 배송지 (513) — 지점·샘플 품목 행에 자동 채움
