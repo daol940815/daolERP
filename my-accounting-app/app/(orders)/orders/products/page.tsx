@@ -45,9 +45,6 @@ const condMatch = (p: Product, field: CondField, q: string) => {
   }
 }
 
-
-// 비용 품목 후보 판정용 이름 키워드 (추천 전용 — 판정은 품목 마스터 체크)
-const COST_NAME_RE = /배송비|택배|퀵|화물|설치|운임|착불/
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -74,22 +71,18 @@ export default function ProductsPage() {
   }, [])
   useEffect(() => { load() }, [load])
 
-  // 비용 품목 후보 (2026-11-05): 이름이 비용 같은데 '비용 품목' 체크가 없는 품목 — 추천만, 체크는 사용자가
-  const isCostCandidate = (p: Product) => !p.is_shipping && !p.is_addon && COST_NAME_RE.test(p.item_name ?? '')
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return products.filter(p => {
       if (filter === 'active' && !p.is_active) return false
       if (filter === 'inactive' && p.is_active) return false
       if (filter === 'addon' && !p.is_addon) return false   // 부가상품(옵션)만 — 중지 포함
-      if (filter === 'cost' && !p.is_shipping && !isCostCandidate(p)) return false   // 비용 품목 + 후보
+      if (filter === 'cost' && !p.is_shipping) return false   // 비용 품목만
       // 고정된 조건 전부 만족(AND) = 검색 결과 내 재검색
       if (!conds.every(c => condMatch(p, c.field, c.value.toLowerCase()))) return false
       if (!q) return true
       return condMatch(p, condField, q)   // 입력 중인 검색어는 즉시 필터
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products, search, condField, conds, filter])
 
   // 조건 칩 추가 (Enter·매입처 클릭) — 같은 조건 중복 방지
@@ -104,9 +97,7 @@ export default function ProductsPage() {
     inactive: products.filter(p => !p.is_active).length,
     addon: products.filter(p => p.is_addon).length,
     cost: products.filter(p => p.is_shipping).length,
-    costCand: products.filter(p => isCostCandidate(p)).length,
     vendors: new Set(products.filter(p => p.is_active && p.purchase_vendor_name).map(p => p.purchase_vendor_name)).size,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [products])
 
   const act = async (body: Record<string, unknown>, doneMsg?: string) => {
@@ -225,13 +216,11 @@ export default function ProductsPage() {
             <div className={`text-lg font-bold tabular-nums ${cls}`}>{val}</div>
           </button>
         ))}
-        {/* 비용 품목 (배송비 · 퀵비 · 설치비 등) — 발주서 배송명단 제외 대상. 후보는 체크 확인 필요 */}
+        {/* 비용 품목 (배송비 · 퀵비 · 설치비 등) — 발주서 배송명단 제외 대상 (이름 키워드 후보 추천은 오판만 나와 폐지, 2026-11-05) */}
         <button onClick={() => setFilter('cost')}
           className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === 'cost' ? 'border-slate-800' : 'border-gray-200'}`}>
           <div className="text-[11px] text-gray-400">비용 품목</div>
-          <div className="text-lg font-bold tabular-nums text-amber-700">{kpi.cost}
-            {kpi.costCand > 0 && <span className="ml-1.5 text-[11px] font-medium text-orange-600">후보 {kpi.costCand}</span>}
-          </div>
+          <div className="text-lg font-bold tabular-nums text-amber-700">{kpi.cost}</div>
         </button>
         {/* 매입처 수 — 정보 표시용 (필터 아님) */}
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-left">
@@ -386,10 +375,6 @@ export default function ProductsPage() {
                     )}
                     {p.is_shipping && (
                       <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700">비용</span>
-                    )}
-                    {isCostCandidate(p) && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium border border-dashed border-orange-300 text-orange-600"
-                        title="이름이 비용 품목 같습니다 — 맞으면 수정에서 '비용 품목'을 체크하세요">비용 후보</span>
                     )}
                     {p.is_soldout && (
                       <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-600">품절</span>
