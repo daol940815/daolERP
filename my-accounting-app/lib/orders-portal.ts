@@ -486,8 +486,55 @@ export async function applyOrderEdit(
     warning = await writeEditLogs(admin, orderId, editor, logs)
     if (logs.length) await touchLastEdited(admin, orderId)
   }
+  // 선결제 품목 금액·삭제를 원장 자동 입금에 반영
+  const prepayErr = await syncPrepayDeposits(admin, orderId)
+  if (prepayErr) warning = [warning, prepayErr].filter(Boolean).join(' / ')
   return { warning }
 }
+
+// ── 선결제 원장 입금 자동 등록 (2026-11-05 사용자 승인) ──────────────────
+// 품명 '선결제' 품목 = 매출처가 먼저 낸 돈 → 선결제 원장(erp_prepayments)에 '입금'.
+// 기존 ERP 업로드(api/erp-orders/import)와 같은 규칙을 자체 주문에도 적용한다.
+//  - 멱등키 source_key = pre:direct:<주문id>:<n> (n = 선결제 품목 순번) — 저장을 반복해도 중복 없음
+//  - 주문 저장·당일 수정·취소 때마다 호출: 원하는 상태(유효 선결제 품목)와 자동 등록분을 맞춘다
+//  - 취소 주문은 자동 등록분 삭제(주문은 취소 기록으로 남음 — 사용으로 상계하면 잔액 KPI의 사용액이 부풀어 삭제로 처리)
+//  - 수동 입력분(차감 등, source_key 없음 또는 다른 접두)은 건드리지 않는다
+export async function syncPrepayDeposits(admin: SupabaseClient, orderId: string): Promise<string | null> {
+  const prefix = `pre:direct:${orderId}:`
+  const { data: order } = await admin.from('erp_orders')
+    .select('id, order_no, order_date, customer_alias_id, canceled_at').eq('id', orderId).maybeSingle()
+  if (!order) return null
+  const { data: items } = await admin.from('erp_order_items')
+    .select('line_no, line_total, is_canceled, is_prepayment').eq('order_id', orderId).order('line_no')
+  const wanted = order.canceled_at ? [] : (items ?? [])
+    .filter(it => it.is_prepayment && !it.is_canceled && Number(it.line_total ?? 0) > 0)
+    .map((it, i) => ({
+      direction: 'customer', entry_type: 'deposit',
+      alias_id: order.customer_alias_id as string,
+      entry_date: order.order_date as string,
+      amount: Number(it.line_total),
+      order_id: orderId,
+      source_key: `${prefix}${i + 1}`,
+      memo: `주문 ${order.order_no ?? ''} 자동 등록 (품명: 선결제)`,
+    }))
+  if (wanted.length && !order.customer_alias_id) return '매출처 별칭이 없어 선결제 원장에 등록하지 못했습니다.'
+
+  const { data: existing, error: exErr } = await admin.from('erp_prepayments')
+    .select('id, source_key').like('source_key', `${prefix}%`)
+  if (exErr) return `선결제 원장 조회 실패: ${exErr.message}`
+  const keep = new Set(wanted.map(w => w.source_key))
+  const stale = (existing ?? []).filter(e => !keep.has(e.source_key as string)).map(e => e.id as string)
+  if (stale.length) {
+    const { error } = await admin.from('erp_prepayments').delete().in('id', stale)
+    if (error) return `선결제 원장 정리 실패: ${error.message}`
+  }
+  if (wanted.length) {
+    const { error } = await admin.from('erp_prepayments').upsert(wanted, { onConflict: 'source_key' })
+    if (error) return `선결제 원장 등록 실패: ${error.message}`
+  }
+  return null
+}
+
 
 // 주문 취소 (삭제 대체·재등록 공용) — 품목 전체 취소 + 주문 취소 표시, 미수 0
 export async function cancelOrder(
@@ -519,6 +566,7 @@ export async function cancelOrder(
     before: null,
     after: reason,
   }])
+  await syncPrepayDeposits(admin, orderId)   // 취소 주문의 선결제 자동 입금 삭제
   return null
 }
 

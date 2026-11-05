@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/user-role'
 import {
   validateOrderInput, buildOrderRows, insertOrderItems, ensureAlias, nextOrderNo,
   resolveDisplayNames, resolveVendorNames, loadOrderSnapshot, cancelOrder,
-  canCancelReissue, inheritToReissued, writeEditLogs, hasShip,
+  canCancelReissue, inheritToReissued, writeEditLogs, hasShip, syncPrepayDeposits,
 } from '@/lib/orders-portal'
 import { recordWorkLog, orderContent } from '@/lib/work-log'
 
@@ -134,6 +134,9 @@ export async function POST(req: NextRequest) {
     }])
   }
 
+  // 선결제 품목 → 선결제 원장 입금 자동 등록 (업로드와 같은 규칙, 2026-11-05)
+  const prepayWarn = await syncPrepayDeposits(admin, orderId)
+
   // 상담일지 상태 갱신 — 주문 전환 완료 (재등록은 이미 전환 상태)
   if (consultationId && !reissueOf) {
     await admin.from('erp_consultations').update({ status: '주문전환' }).eq('id', consultationId)
@@ -155,5 +158,5 @@ export async function POST(req: NextRequest) {
     refId: orderId,
   })
 
-  return NextResponse.json({ id: orderId, order_no: orderNo, total_amount: total })
+  return NextResponse.json({ id: orderId, order_no: orderNo, total_amount: total, warning: prepayWarn })
 }
