@@ -87,6 +87,8 @@ export async function GET(req: NextRequest) {
       '부서(지점)': o.branch_name ?? '',
       '담당자': honorify(o.manager_name as string | null),
       '다올직원': o.staff_name ?? '',
+      // 상담자는 다올직원 바로 옆 — 같은 사람이어도 둘 다 표기 (2026-11-05 사용자 요청, 목록과 동일). 값은 품목 행마다 채움
+      '상담자': '',
       '수금상태': STATUS_LABEL[o.collect_status ?? ''] ?? (o.collect_status ?? ''),
       '출처': (o.source ?? 'upload') === 'direct' ? '직접입력' : '업로드',
       '총금액(주문)': o.total_amount ?? 0,
@@ -126,8 +128,8 @@ export async function GET(req: NextRequest) {
 
   const period = [sp.get('from'), sp.get('to')].filter(Boolean).join('~')
   return xlsxResponse(rows, period ? `주문내역_${period}` : '주문내역', [
-    11, 13, 14, 14, 12, 9, 9, 8, 11, 11,       // 주문 공통
-    9, 12, 34, 12, 6, 14, 9, 6, 9, 9, 10,      // 품목
+    11, 13, 14, 14, 12, 9, 9, 9, 8, 11, 11,    // 주문 공통 (다올직원 · 상담자 나란히)
+    12, 34, 12, 6, 14, 9, 6, 9, 9, 10,         // 품목
     ...(showCost ? [9, 9, 10, 10] : []),
     7, 7, 14, 14,
   ])
