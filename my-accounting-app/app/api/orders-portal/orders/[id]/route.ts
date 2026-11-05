@@ -156,6 +156,22 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   }
   const items = (snap.items as Record<string, unknown>[]).map(it => ({ ...it, is_cost: costIds.has(it.product_id as string) }))
 
+  // 상담일지 주문 진행 요청으로 전환된 주문이면 "요청자 → 입력자" 안내 (705)
+  let consultRequest: { requested_by_name: string | null; assignee_name: string | null } | null = null
+  if (snap.order.consultation_id) {
+    const { data: cr, error: crErr } = await admin.from('erp_consultations')
+      .select('order_assignee_id, order_requested_by').eq('id', snap.order.consultation_id as string).maybeSingle()
+    if (!crErr && cr?.order_assignee_id) {
+      const ids = [cr.order_assignee_id, cr.order_requested_by].filter(Boolean) as string[]
+      const { data: emps } = await admin.from('employees').select('id, name').in('id', ids)
+      const nm = new Map((emps ?? []).map(e => [e.id as string, e.name as string]))
+      consultRequest = {
+        requested_by_name: cr.order_requested_by ? nm.get(cr.order_requested_by as string) ?? null : null,
+        assignee_name: nm.get(cr.order_assignee_id as string) ?? null,
+      }
+    }
+  }
+
   const edit = editability(snap.order, me)
   const prepayVendor = await vendorOfOrder(admin, snap.order)
   const [payments, recvMap, prepayBal] = await Promise.all([
@@ -180,6 +196,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     items,
     payments,
     receivable,
+    consult_request: consultRequest,
     // 선결제 사용 (514): 잔액 · 사용 가능 여부 (주문 수정 권한 + direct + 미취소)
     prepay: {
       balance: prepayBal.balance, deposit: prepayBal.deposit, deduction: prepayBal.deduction,

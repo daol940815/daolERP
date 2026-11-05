@@ -6,6 +6,7 @@ import { encryptPayment, encryptionReady } from '@/lib/payment-crypto'
 import { parseConsultBody, consultItemRows, insertConsultItems, compatConsultFields, CONSULT_MIGRATION_HINT, CONSULT_509_HINT } from '@/lib/consultations'
 import { recordWorkLog, consultContent } from '@/lib/work-log'
 import { resolveContact } from '@/lib/contact-resolve'
+import { parseOrderRequest, saveOrderRequest } from '@/lib/order-request'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,18 +29,57 @@ export async function GET(req: NextRequest) {
   const all = sp.get('all') === '1' && isManagerLike(me)   // 전체 보기 = 관리자급 (role 직접 판정 금지, 109)
   const page = Math.max(1, parseInt(sp.get('page') ?? '1', 10) || 1)
 
-  let query = admin.from('erp_consultations')
-    .select('id, consult_date, consult_type, bank_name, branch_name, manager_name, sender_name, vendor_id, contact_id, status, employee_id, memo, created_at, employees(name)')
-    .order('consult_date', { ascending: false })
-    .order('created_at', { ascending: false })
-  if (!all) {
-    if (!me.employeeId) return NextResponse.json({ rows: [], page: 1, total_pages: 1, total: 0 })
-    query = query.eq('employee_id', me.employeeId)
+  // 주문 진행 요청 (705, 2026-11-05): scope = mine(내가 쓴 것 + 나에게 요청된 것) | assigned(나에게 요청 · 진행 대기)
+  //   | requested(내가 요청 · 진행 대기) | done(요청 완료 · 이번 달 요청분). 705 미적용이면 요청 열 없이 기존 동작.
+  const scope = sp.get('scope') ?? 'mine'
+  const me705 = me.employeeId
+  const monthStart = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date()).slice(0, 8) + '01'
+  // 705 적용 후에는 상담일지 → 직원 연결이 여럿이라 작성자 연결을 이름으로 지정, 미적용이면 예전처럼(연결 1개)
+  const baseCols = (with705: boolean) => 'id, consult_date, consult_type, bank_name, branch_name, manager_name, sender_name, vendor_id, contact_id, status, employee_id, memo, created_at, '
+    + (with705 ? 'writer:employees!erp_consultations_employee_id_fkey(name)' : 'writer:employees(name)')
+  const reqCols = ', order_assignee_id, order_requested_by, order_requested_at, order_request_memo, assignee:employees!erp_consultations_order_assignee_id_fkey(name), requester:employees!erp_consultations_order_requested_by_fkey(name)'
+  const build = (with705: boolean) => {
+    let query = admin.from('erp_consultations')
+      .select(baseCols(with705) + (with705 ? reqCols : ''))
+      .order('consult_date', { ascending: false })
+      .order('created_at', { ascending: false })
+    if (!all || scope !== 'mine') {
+      if (!with705 || scope === 'mine') {
+        query = with705
+          ? query.or(`employee_id.eq.${me705},order_assignee_id.eq.${me705}`)
+          : query.eq('employee_id', me705!)
+      } else if (scope === 'assigned') {
+        query = query.eq('order_assignee_id', me705!).eq('status', '진행중')
+      } else if (scope === 'requested') {
+        query = query.eq('order_requested_by', me705!).not('order_assignee_id', 'is', null).eq('status', '진행중')
+      } else if (scope === 'done') {
+        query = query.or(`order_requested_by.eq.${me705},order_assignee_id.eq.${me705}`)
+          .not('order_assignee_id', 'is', null).eq('status', '주문전환').gte('order_requested_at', monthStart)
+      }
+    }
+    if (status !== 'all') query = query.eq('status', status)
+    if (type !== 'all') query = query.eq('consult_type', type)
+    return query.limit(2000)
   }
-  if (status !== 'all') query = query.eq('status', status)
-  if (type !== 'all') query = query.eq('consult_type', type)
+  if (!all && !me.employeeId) return NextResponse.json({ rows: [], page: 1, total_pages: 1, total: 0 })
+  let res = await build(true)
+  const has705 = !res.error
+  if (res.error && /order_|relationship|assignee|requester/i.test(res.error.message)) res = await build(false)
+  const { data, error } = res as unknown as { data: Record<string, unknown>[] | null; error: { message: string } | null }
 
-  const { data, error } = await query.limit(2000)
+  // 요청 카드 숫자 (705 적용 시)
+  let requestKpi: { mine: number; assigned: number; requested: number; done: number } | null = null
+  if (has705 && me705) {
+    const cnt = (q: PromiseLike<{ count: number | null }>) => q.then(r => r.count ?? 0)
+    const head = () => admin.from('erp_consultations').select('id', { count: 'exact', head: true })
+    const [mine, assigned, requested, done] = await Promise.all([
+      cnt(head().or(`employee_id.eq.${me705},order_assignee_id.eq.${me705}`)),
+      cnt(head().eq('order_assignee_id', me705).eq('status', '진행중')),
+      cnt(head().eq('order_requested_by', me705).not('order_assignee_id', 'is', null).eq('status', '진행중')),
+      cnt(head().or(`order_requested_by.eq.${me705},order_assignee_id.eq.${me705}`).not('order_assignee_id', 'is', null).eq('status', '주문전환').gte('order_requested_at', monthStart)),
+    ])
+    requestKpi = { mine, assigned, requested, done }
+  }
   if (error) {
     const missing = /relation|erp_consultations|does not exist/i.test(error.message)
     return NextResponse.json({ error: missing ? MIGRATION_HINT : error.message }, { status: 500 })
@@ -47,7 +87,7 @@ export async function GET(req: NextRequest) {
 
   // 품목 로드 — 목록은 품목 행 단위 (실무자 피드백 7, 2안: 상품 1개 = 1줄,
   // 부자재(옵션 행)·배송비 행은 줄로 만들지 않고 본 상품 줄만)
-  const ids = (data ?? []).map(r => r.id)
+  const ids = (data ?? []).map(r => r.id as string)
   type ItemRow = {
     consultation_id: string; line_no: number; parent_line_no: number | null
     item_name: string | null; quantity: number; line_total: number
@@ -70,14 +110,19 @@ export async function GET(req: NextRequest) {
 
   // 상담 × 본 상품 → 행 전개. 품목 없는 상담도 1줄은 남긴다.
   let rows = (data ?? []).flatMap(r => {
+    const nm = (v: unknown) => (Array.isArray(v) ? v[0]?.name : (v as { name?: string } | null)?.name) ?? null
     const base = {
       ...r,
-      writer: (r.employees as unknown as { name: string } | null)?.name ?? null,
-      consult_total: totals.get(r.id) ?? 0,     // 상담 전체 합계 (전 품목·옵션·배송비 포함)
+      writer: nm(r.writer),
+      assignee_name: nm(r.assignee),          // 주문 진행 담당 (705)
+      requester_name: nm(r.requester),
+      assigned_to_me: !!me.employeeId && r.order_assignee_id === me.employeeId,
+      is_owner: !!me.employeeId && r.employee_id === me.employeeId,
+      consult_total: totals.get(r.id as string) ?? 0,     // 상담 전체 합계 (전 품목·옵션·배송비 포함)
       // (b) 정책: 지점·담당자가 모두 마스터에 연결된 상담만 주문 전환 가능
       master_linked: !!r.vendor_id && !!r.contact_id,
     }
-    const mains = (byConsult.get(r.id) ?? [])
+    const mains = (byConsult.get(r.id as string) ?? [])
       .filter(it => it.parent_line_no == null && it.is_shipping !== true)
     if (!mains.length) {
       return [{
@@ -100,8 +145,8 @@ export async function GET(req: NextRequest) {
   if (q) {
     const terms = q.split(/[\s,]+/).filter(Boolean)
     rows = rows.filter(r => terms.every(t =>
-      [r.bank_name, r.branch_name, r.manager_name, r.sender_name, r.item_name, r.memo]
-        .some(v => (v ?? '').toLowerCase().includes(t))))
+      (['bank_name', 'branch_name', 'manager_name', 'sender_name', 'item_name', 'memo'] as const)
+        .some(k => String((r as Record<string, unknown>)[k] ?? '').toLowerCase().includes(t))))
   }
 
   const totalPages = Math.max(1, Math.ceil(rows.length / PER_PAGE))
@@ -110,6 +155,7 @@ export async function GET(req: NextRequest) {
     page, total_pages: totalPages, total: rows.length, role: me.role,
     manager: isManagerLike(me),
     is_parttime: me.employmentType === 'parttime',
+    request_kpi: requestKpi,
   })
 }
 
@@ -176,5 +222,11 @@ export async function POST(req: NextRequest) {
     refId: created.id as string,
   })
 
-  return NextResponse.json({ id: created.id, work_logged: workLogged })
+  // 주문 진행 요청 (705) — 상담은 저장된 상태로 두고, 요청 실패는 따로 알려준다
+  const orderReq = parseOrderRequest(body.order_request)
+  const requestError = orderReq?.assignee_id
+    ? await saveOrderRequest(admin, created.id as string, orderReq, { employeeId: me.employeeId, employeeName: me.employeeName })
+    : null
+
+  return NextResponse.json({ id: created.id, work_logged: workLogged, request_error: requestError })
 }

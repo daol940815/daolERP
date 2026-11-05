@@ -64,6 +64,7 @@ export default function OrderDetailPage() {
   const [payments, setPayments] = useState<Payments>({ matches: [], invoices: [] })
   const [receivable, setReceivable] = useState<Receivable | null>(null)
   const [prepay, setPrepay] = useState<PrepayInfo | null>(null)
+  const [consultRequest, setConsultRequest] = useState<{ requested_by_name: string | null; assignee_name: string | null } | null>(null)
   const [prepayOpen, setPrepayOpen] = useState(false)
   const [prepayAmt, setPrepayAmt] = useState('')
   const [prepayMemo, setPrepayMemo] = useState('')
@@ -90,6 +91,7 @@ export default function OrderDetailPage() {
       setPayments(json.payments ?? { matches: [], invoices: [] })
       setReceivable(json.receivable ?? null)
       setPrepay(json.prepay ?? null)
+      setConsultRequest(json.consult_request ?? null)
       setRequests(json.change_requests ?? [])
       setEditLogs(json.edit_logs ?? [])
       setCanEdit(json.can_edit)
@@ -254,6 +256,12 @@ export default function OrderDetailPage() {
             </div>
           )
         })()}
+        {/* 상담일지 주문 진행 요청으로 입력된 주문 (705) */}
+        {consultRequest && (
+          <div className="mt-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 inline-block">
+            상담일지에서 전환 · {consultRequest.requested_by_name ?? '-'} 요청 → {consultRequest.assignee_name ?? '-'} 진행
+          </div>
+        )}
         {typeof order.etc === 'string' && order.etc && (
           <div className="mt-2 text-xs text-red-600">{order.etc}</div>
         )}

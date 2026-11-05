@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { prepayReductionBlock } from '@/lib/prepay'
+import { notifyOrderRequestDone } from '@/lib/order-request'
+import { isManagerLike } from '@/lib/permissions'
 import { getCurrentUser } from '@/lib/user-role'
 import {
   validateOrderInput, buildOrderRows, insertOrderItems, ensureAlias, nextOrderNo,
@@ -59,11 +61,17 @@ export async function POST(req: NextRequest) {
   const consultationId = (((rawBody ?? {}) as Record<string, unknown>).consultation_id as string | undefined)
     ?? (reissueSnap?.order.consultation_id as string | undefined)   // 재등록 시 상담 연결 승계
   if (consultationId && !reissueOf) {
-    const { data: consult } = await admin.from('erp_consultations')
-      .select('id, employee_id').eq('id', consultationId).maybeSingle()
+    // 전환 권한: 작성자 · 주문 진행 요청을 받은 직원(705) · 관리자급 (role 판정 금지 — 109)
+    const withReq = await admin.from('erp_consultations')
+      .select('id, employee_id, order_assignee_id').eq('id', consultationId).maybeSingle()
+    const consult = (withReq.error
+      ? (await admin.from('erp_consultations').select('id, employee_id').eq('id', consultationId).maybeSingle()).data
+      : withReq.data) as { id: string; employee_id: string | null; order_assignee_id?: string | null } | null
     if (!consult) return NextResponse.json({ error: '연결할 상담일지를 찾을 수 없습니다.' }, { status: 400 })
-    if (me.role === 'sales' && consult.employee_id !== me.employeeId) {
-      return NextResponse.json({ error: '본인 상담일지만 주문으로 전환할 수 있습니다.' }, { status: 403 })
+    const mine = !!me.employeeId && consult.employee_id === me.employeeId
+    const assigned = !!me.employeeId && consult.order_assignee_id === me.employeeId
+    if (!mine && !assigned && !isManagerLike(me)) {
+      return NextResponse.json({ error: '본인 상담일지 또는 나에게 주문 진행이 요청된 상담만 주문으로 전환할 수 있습니다.' }, { status: 403 })
     }
   }
 
@@ -145,6 +153,8 @@ export async function POST(req: NextRequest) {
   // 상담일지 상태 갱신 — 주문 전환 완료 (재등록은 이미 전환 상태)
   if (consultationId && !reissueOf) {
     await admin.from('erp_consultations').update({ status: '주문전환' }).eq('id', consultationId)
+    // 주문 진행 요청이 있던 상담이면 요청자에게 완료 PC 알림 (요청 자체는 '주문전환'으로 자동 완료)
+    await notifyOrderRequestDone(admin, consultationId, orderId, orderNo, { employeeId: me.employeeId, employeeName: me.employeeName })
   }
 
   // 업무일지 자동 기재 — 상담에서 전환된 주문은 '주문전환'으로 구분

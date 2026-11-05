@@ -29,7 +29,17 @@ interface Row {
   item_status: string | null
   line_count: number
   master_linked: boolean
+  // 주문 진행 요청 (705)
+  order_assignee_id?: string | null
+  order_requested_at?: string | null
+  order_request_memo?: string | null
+  assignee_name?: string | null
+  requester_name?: string | null
+  assigned_to_me?: boolean
+  is_owner?: boolean
 }
+type Scope = 'mine' | 'assigned' | 'requested' | 'done'
+interface Emp { id: string; name: string; team: string | null; position: string | null; employment_type?: string | null }
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
 const TYPE_BADGE: Record<string, string> = {
@@ -62,6 +72,43 @@ export default function ConsultationsPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
+  // 주문 진행 요청 (705, 2026-11-05) — 카드 = 범위
+  const [scope, setScope] = useState<Scope>('mine')
+  const [reqKpi, setReqKpi] = useState<{ mine: number; assigned: number; requested: number; done: number } | null>(null)
+  const [reqFor, setReqFor] = useState<Row | null>(null)      // 행 "요청" 버튼 대상
+  const [emps, setEmps] = useState<Emp[]>([])
+  const [reqAssignee, setReqAssignee] = useState('')
+  const [reqMemo, setReqMemo] = useState('')
+  const [reqBusy, setReqBusy] = useState(false)
+  const [reqErr, setReqErr] = useState<string | null>(null)
+  useEffect(() => {   // 알림에서 ?scope=assigned 로 들어오는 경우
+    try {
+      const sc = new URLSearchParams(window.location.search).get('scope')
+      if (sc === 'assigned' || sc === 'requested' || sc === 'done') setScope(sc)
+    } catch { /* noop */ }
+  }, [])
+  const openRequest = async (r: Row) => {
+    setReqFor(r); setReqErr(null)
+    setReqAssignee(r.order_assignee_id ?? ''); setReqMemo(r.order_request_memo ?? '')
+    if (!emps.length) {
+      const res = await fetch('/api/orders-portal/masters')
+      const j = await res.json().catch(() => ({}))
+      if (res.ok) setEmps(j.employees ?? [])
+    }
+  }
+  const submitRequest = async () => {
+    if (!reqFor) return
+    setReqBusy(true); setReqErr(null)
+    const res = await fetch(`/api/orders-portal/consultations/${reqFor.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'request', order_request: { assignee_id: reqAssignee || null, memo: reqMemo.trim() || null } }),
+    })
+    const j = await res.json().catch(() => ({}))
+    setReqBusy(false)
+    if (!res.ok) { setReqErr(j.error ?? '요청 실패'); return }
+    setReqFor(null)
+    load()
+  }
 
   // 선택 복사 — 키는 "상담id:line_no" (같은 상담의 줄만 함께 복제 가능)
   const [checked, setChecked] = useState<Set<string>>(new Set())
@@ -95,6 +142,7 @@ export default function ConsultationsPage() {
     if (status !== 'all') p.set('status', status)
     if (type !== 'all') p.set('type', type)
     if (all) p.set('all', '1')
+    if (scope !== 'mine') p.set('scope', scope)
     p.set('page', String(page))
     const res = await fetch(`/api/orders-portal/consultations?${p}`)
     const json = await res.json()
@@ -102,11 +150,12 @@ export default function ConsultationsPage() {
     else {
       setRows(json.rows); setManager(json.manager === true); setIsParttime(json.is_parttime === true)
       setTotalPages(json.total_pages ?? 1); setTotal(json.total ?? 0)
+      setReqKpi(json.request_kpi ?? null)
     }
     setLoading(false)
-  }, [q, status, type, all, page])
+  }, [q, status, type, all, page, scope])
   useEffect(() => { load() }, [load])
-  useEffect(() => { setPage(1) }, [q, status, type, all])
+  useEffect(() => { setPage(1) }, [q, status, type, all, scope])
 
   return (
     <div>
@@ -124,6 +173,24 @@ export default function ConsultationsPage() {
             className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">+ 상담 기록</Link>
         </span>
       </div>
+
+      {/* 주문 진행 요청 카드 (705) — 클릭 = 범위 전환 */}
+      {reqKpi && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 max-w-4xl">
+          {([
+            ['mine', '내 상담 (요청받은 것 포함)', reqKpi.mine, 'text-gray-900'],
+            ['assigned', '나에게 요청됨 (진행 대기)', reqKpi.assigned, reqKpi.assigned ? 'text-orange-700' : 'text-gray-400'],
+            ['requested', '내가 요청함 (진행 대기)', reqKpi.requested, 'text-gray-900'],
+            ['done', '요청 완료 (이번 달 요청)', reqKpi.done, 'text-emerald-700'],
+          ] as const).map(([key, title, val, cls]) => (
+            <button key={key} onClick={() => setScope(key)}
+              className={`bg-white border rounded-xl px-4 py-3 text-left ${scope === key ? 'border-slate-800' : 'border-gray-200'}`}>
+              <div className="text-[11px] text-gray-400">{title}</div>
+              <div className={`text-lg font-bold tabular-nums ${cls}`}>{val}</div>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="bg-white border border-gray-200 rounded-xl p-3 mt-4">
         <div className="flex items-center gap-2 flex-wrap">
@@ -166,6 +233,7 @@ export default function ConsultationsPage() {
                 <th className="py-2 px-3 text-right font-medium">수량</th>
                 <th className="py-2 px-3 text-right font-medium" title="이 품목의 판매합계 — 상담 전체 합계는 마우스 오버">판매합계</th>
                 <th className="py-2 px-3 text-left font-medium">보내는분</th>
+                <th className="py-2 px-3 text-left font-medium">주문 진행</th>
                 <th className="py-2 px-3 text-left font-medium">상태</th>
                 <th className="py-2 px-3" />
               </tr>
@@ -215,6 +283,14 @@ export default function ConsultationsPage() {
                     {r.line_total ? won(r.line_total) : <span className="text-gray-300">-</span>}
                   </td>
                   <td className="py-2 px-3 text-xs">{r.sender_name ?? <span className="text-gray-300">-</span>}</td>
+                  <td className="py-2 px-3 text-xs whitespace-nowrap" title={r.order_request_memo ?? undefined}>
+                    {r.assigned_to_me ? (
+                      <><span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">나에게 요청</span>
+                        <span className="text-gray-500 ml-1">{r.requester_name ?? ''}</span></>
+                    ) : r.assignee_name ? (
+                      <span className="text-gray-600">{r.assignee_name}에게 요청</span>
+                    ) : <span className="text-gray-300">-</span>}
+                  </td>
                   <td className="py-2 px-3">
                     <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${STATUS_BADGE[r.status] ?? 'bg-gray-100 text-gray-500'}`}>
                       {r.status}
@@ -228,6 +304,13 @@ export default function ConsultationsPage() {
                     )}
                   </td>
                   <td className="py-2 px-3 whitespace-nowrap">
+                    {/* 행 "요청" — 작성자 · 관리자급 (요청받은 직원에게는 안 보임) */}
+                    {r.status === '진행중' && (r.is_owner || manager) && !r.assigned_to_me && (
+                      <button onClick={e => { e.stopPropagation(); openRequest(r) }}
+                        className="text-xs text-gray-600 hover:underline mr-2" title="다른 직원에게 주문 진행을 요청">
+                        {r.assignee_name ? '요청 변경' : '요청'}
+                      </button>
+                    )}
                     {r.status === '진행중' && (
                       r.master_linked ? (
                         <button onClick={e => { e.stopPropagation(); router.push(`/orders/new?consult=${r.id}`) }}
@@ -243,7 +326,7 @@ export default function ConsultationsPage() {
                 )
               })}
               {!rows.length && (
-                <tr><td colSpan={all ? 13 : 12} className="text-center py-12 text-gray-400 text-sm">
+                <tr><td colSpan={all ? 14 : 13} className="text-center py-12 text-gray-400 text-sm">
                   상담 기록이 없습니다. 상단의 상담 기록 버튼으로 시작하세요.
                 </td></tr>
               )}
@@ -261,6 +344,41 @@ export default function ConsultationsPage() {
           </span>
         </div>
       </div>
+      {/* 행 "요청" 창 (705) */}
+      {reqFor && (
+        <div className="fixed inset-0 z-40 bg-black/30 flex items-center justify-center p-4" onClick={() => setReqFor(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-4" onClick={e => e.stopPropagation()}>
+            <div className="text-sm font-bold text-gray-900">주문 진행 요청 — {[reqFor.bank_name, reqFor.branch_name].filter(Boolean).join(' ') || '상담일지'}</div>
+            <div className="text-[11px] text-gray-500 mt-0.5">요청받은 직원은 이 상담을 열람 · 주문 전환만 할 수 있습니다. 비우면 요청 취소.</div>
+            <label className="block text-[11px] text-gray-500 mt-3 mb-0.5">주문 진행 담당</label>
+            <select value={reqAssignee} onChange={e => setReqAssignee(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm bg-white">
+              <option value="">요청 안 함 (내가 진행)</option>
+              {emps.map(e => (
+                <option key={e.id} value={e.id}>{e.name}{e.team || e.position ? ` (${[e.team, e.employment_type === 'parttime' ? '아르바이트' : e.position].filter(Boolean).join(' · ')})` : ''}</option>
+              ))}
+            </select>
+            <label className="block text-[11px] text-gray-500 mt-2 mb-0.5">요청 메모 (선택)</label>
+            <input value={reqMemo} onChange={e => setReqMemo(e.target.value)} disabled={!reqAssignee}
+              placeholder="예: 11/10 출고 맞춰서 발주까지 부탁해요"
+              className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm disabled:bg-gray-50" />
+            {emps.find(e => e.id === reqAssignee)?.employment_type === 'parttime' && !reqFor.master_linked && (
+              <div className="mt-2 text-xs px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
+                마스터 미연결 상담은 아르바이트에게 요청할 수 없습니다 — 상담일지에서 먼저 연결하세요.
+              </div>
+            )}
+            {reqErr && <div className="mt-2 text-xs text-red-600">{reqErr}</div>}
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setReqFor(null)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">닫기</button>
+              <button onClick={submitRequest} disabled={reqBusy}
+                className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">
+                {reqBusy ? '저장 중...' : reqAssignee ? '요청 보내기' : '요청 취소'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <p className="text-xs text-gray-400 mt-2">
         저장 시 업무일지에 자동 기재됩니다 · 주문 전환된 상담은 수정 잠금(이력 보존) ·
         체크박스로 품목을 선택해 이전 상담을 복사할 수 있습니다 (같은 상담의 품목만 함께)

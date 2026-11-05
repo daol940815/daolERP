@@ -81,7 +81,16 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const [regContactTitle, setRegContactTitle] = useState('')
   const [regContactPhone, setRegContactPhone] = useState('')
 
-  const locked = status === '주문전환'   // 전환 후 수정 잠금 (이력 보존)
+  // 주문 진행 요청 (705, 2026-11-05): 요청받은 직원은 열람 · 전환만 — canEdit=false면 읽기 전용
+  const [canEdit, setCanEdit] = useState(true)
+  const [isAssignee, setIsAssignee] = useState(false)
+  const [orderRequest, setOrderRequest] = useState<{ assignee_id: string; assignee_name: string | null; requested_by_name: string | null; requested_at: string | null; memo: string | null } | null>(null)
+  const [employees, setEmployees] = useState<{ id: string; name: string; team: string | null; position: string | null; employment_type?: string | null }[]>([])
+  const [reqAssignee, setReqAssignee] = useState('')
+  const [reqMemo, setReqMemo] = useState('')
+
+  const converted = status === '주문전환'
+  const locked = converted || (isEdit && !canEdit)   // 전환 후 수정 잠금(이력 보존) · 요청받은 직원 읽기 전용
 
   useEffect(() => {
     (async () => {
@@ -93,6 +102,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         const m = await mRes.json()
         if (!mRes.ok) throw new Error(m.error ?? '마스터 조회 실패')
         setVendors(m.vendors ?? [])
+        setEmployees(m.employees ?? [])
         setIsParttime(m.me?.is_parttime === true)
         setGroups(m.groups ?? [])
         const p = await pRes.json()
@@ -129,6 +139,11 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           setCeoName(v.ceo_name ?? '')
           setStatus(v.status)
           setOrders(c.orders ?? [])
+          setCanEdit(c.can_edit !== false)
+          setIsAssignee(c.is_assignee === true)
+          setOrderRequest(c.order_request ?? null)
+          setReqAssignee(c.order_request?.assignee_id ?? '')
+          setReqMemo(c.order_request?.memo ?? '')
           const prodList: Product[] = pRes.ok ? (p.products ?? []) : []
           const cItems = (c.items ?? []) as Record<string, unknown>[]
           if (cItems.length) {
@@ -412,6 +427,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     fax: fax || null,
     biz_number: bizNumber || null,
     ceo_name: ceoName || null,
+    // 주문 진행 요청 (705) — 비우면 요청 취소
+    order_request: { assignee_id: reqAssignee || null, memo: reqMemo.trim() || null },
     items: (() => {
       // 옵션 연결(parent_uid)을 저장용 행 번호(parent_line_no)로 직렬화 — 주문 입력과 동일
       const filled = items.filter(it => it.item_name.trim())
@@ -441,6 +458,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? '저장 실패')
       const id = isEdit ? consultId : json.id
+      // 상담은 저장됐지만 주문 진행 요청이 막힌 경우 (아르바이트 · 마스터 미연결 등)
+      if (json.request_error) window.alert(`상담은 저장됐지만 주문 진행 요청은 하지 못했습니다.\n${json.request_error}`)
       if (convertAfter) {
         router.push(`/orders/new?consult=${id}`)
         return
@@ -495,15 +514,30 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               <button onClick={() => act('delete')} className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm">삭제</button>
             </>
           )}
-          {isEdit && status === '종결' && (
+          {isEdit && canEdit && status === '종결' && (
             <button onClick={() => act('reopen')} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">재개</button>
           )}
         </span>
       </div>
 
-      {locked && (
+      {converted && (
         <div className="mt-3 px-4 py-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-lg">
           주문으로 전환된 상담입니다 — 이력 보존을 위해 수정할 수 없습니다.
+          {orderRequest && <span className="text-emerald-700"> · {orderRequest.requested_by_name ?? ''} 요청 → {orderRequest.assignee_name ?? ''} 진행</span>}
+        </div>
+      )}
+      {/* 주문 진행 요청 (705) — 요청받은 직원에게는 요청 내용, 작성자에게는 진행 상태 */}
+      {!converted && orderRequest && isAssignee && (
+        <div className="mt-3 px-4 py-2.5 bg-blue-50 border border-blue-200 text-blue-900 text-sm rounded-lg">
+          <b>{orderRequest.requested_by_name ?? ''}</b>님이 주문 진행을 요청했습니다
+          {orderRequest.requested_at && <span className="text-blue-700"> · {new Date(orderRequest.requested_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
+          {orderRequest.memo && <div className="mt-0.5 text-blue-800">&ldquo;{orderRequest.memo}&rdquo;</div>}
+          {!canEdit && <div className="mt-1 text-[11px] text-blue-700">상담 내용은 수정할 수 없고, 아래 &lsquo;주문서로 전환&rsquo;으로 주문을 입력합니다. 고칠 부분은 주문서에서 바꾸세요.</div>}
+        </div>
+      )}
+      {!converted && orderRequest && !isAssignee && (
+        <div className="mt-3 px-4 py-2 bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-lg">
+          <b>{orderRequest.assignee_name ?? ''}</b>에게 주문 진행을 요청했습니다 — 주문으로 전환되면 알림이 옵니다.
         </div>
       )}
       {error && <div className="mt-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
@@ -1063,6 +1097,47 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           </div>
         </div>
 
+        {/* 주문 진행 요청 (705, 2026-11-05) — 상담만 하고 주문 입력은 다른 직원에게. 비우면 내가 직접 진행 */}
+        {!locked && (() => {
+          const picked = employees.find(e => e.id === reqAssignee)
+          const ptBlock = picked?.employment_type === 'parttime' && (!vendorId || !contactId)
+          return (
+            <div className="mt-4 p-3 rounded-lg border border-blue-200 bg-blue-50/40">
+              <div className="text-sm font-bold text-gray-900 mb-2">
+                주문 진행 요청 <span className="text-[11px] font-normal text-gray-500 ml-1">상담만 하고 주문 입력은 다른 직원에게 맡길 때 · 비워두면 내가 직접 진행</span>
+              </div>
+              <div className="flex gap-3 flex-wrap items-start">
+                <div className="w-64">
+                  <label className={label}>주문 진행 담당</label>
+                  <select value={reqAssignee} onChange={e => setReqAssignee(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm bg-white">
+                    <option value="">요청 안 함 (내가 진행)</option>
+                    {employees.map(e => (
+                      <option key={e.id} value={e.id}>
+                        {e.name}{[e.team, e.employment_type === 'parttime' ? '아르바이트' : e.position].filter(Boolean).length ? ` (${[e.team, e.employment_type === 'parttime' ? '아르바이트' : e.position].filter(Boolean).join(' · ')})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1 min-w-[16rem]">
+                  <label className={label}>요청 메모 (선택)</label>
+                  <input value={reqMemo} onChange={e => setReqMemo(e.target.value)} disabled={!reqAssignee}
+                    placeholder="예: 11/10 출고 맞춰서 발주까지 부탁해요"
+                    className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm bg-white disabled:bg-gray-50" />
+                </div>
+              </div>
+              {ptBlock && (
+                <div className="mt-2 text-xs px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
+                  이 상담은 주문처 · 담당자가 마스터에 연결되지 않았습니다. 아르바이트는 신규 거래처 · 담당자 등록이 막혀 있어 전환할 수 없습니다 — 먼저 연결하거나 다른 직원에게 요청하세요.
+                </div>
+              )}
+              {reqAssignee && !ptBlock && (
+                <div className="mt-1.5 text-[11px] text-gray-500">저장하면 {picked?.name ?? ''}님에게 알림(PC 알림 포함)이 갑니다. 그 직원은 이 상담을 열람 · 주문 전환만 할 수 있습니다.</div>
+              )}
+            </div>
+          )
+        })()}
+
         <div className="flex items-center justify-between mt-4 flex-wrap gap-3">
           <span className="text-[11px] text-gray-400">
             저장 시 업무일지에 자동 기재됩니다
@@ -1081,7 +1156,17 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               </button>
             </span>
           )}
-          {locked && (
+          {/* 요청받은 직원 (읽기 전용) — 저장 없이 바로 전환 */}
+          {locked && !converted && (
+            <span className="flex gap-2">
+              <button disabled={!vendorId || !contactId || status !== '진행중'} onClick={() => router.push(`/orders/new?consult=${consultId}`)}
+                title={!vendorId || !contactId ? '마스터 미연결 상담은 전환할 수 없습니다 — 요청한 직원에게 연결을 부탁하세요' : undefined}
+                className="px-5 py-2 bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">주문서로 전환</button>
+              <button onClick={() => router.push('/orders/consultations')}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600">목록으로</button>
+            </span>
+          )}
+          {converted && (
             <span className="flex gap-2">
               <button onClick={() => router.push(`/orders/new?consult=${consultId}`)}
                 className="px-4 py-2 border border-blue-200 text-blue-700 rounded-lg text-sm">주문서로 추가 전환 (분할 주문)</button>

@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
   }
   const [groupsResult, employeesResult] = await Promise.all([
     admin.from('vendor_groups').select('id, name').eq('is_active', true).order('name'),
-    admin.from('employees').select('id, name, position, team')
+    admin.from('employees').select('id, name, position, team, employment_type')
       .eq('is_active', true).order('name'),
   ])
   if ('error' in vendorsResult) return NextResponse.json({ error: vendorsResult.error }, { status: 500 })

@@ -159,6 +159,33 @@ export async function GET() {
     }
   }
 
+  // ── 상담일지 주문 진행 요청 (705, 주문 트랙 2026-11-05) ── 705 미적용이면 조용히 건너뜀
+  //  나에게 요청됐고 아직 전환 안 된 상담 = 할 일 / 내가 요청한 상담이 최근 7일 안에 주문으로 전환됨 = 결과 통지
+  {
+    const [assigned, done] = await Promise.all([
+      admin.from('erp_consultations').select('id, bank_name, branch_name, order_requested_at, requester:employees!erp_consultations_order_requested_by_fkey(name)')
+        .eq('order_assignee_id', empId).eq('status', '진행중').order('order_requested_at', { ascending: false }),
+      admin.from('erp_consultations').select('id, bank_name, branch_name, assignee:employees!erp_consultations_order_assignee_id_fkey(name)')
+        .eq('order_requested_by', empId).neq('order_assignee_id', empId).not('order_assignee_id', 'is', null).eq('status', '주문전환')
+        .gte('updated_at', sevenDaysAgo).order('updated_at', { ascending: false }).limit(5),
+    ])
+    type CR = { id: string; bank_name: string | null; branch_name: string | null; order_requested_at?: string | null; requester?: { name: string } | { name: string }[] | null; assignee?: { name: string } | { name: string }[] | null }
+    if (!assigned.error) {
+      const rows = (assigned.data ?? []) as unknown as CR[]
+      if (rows.length) {
+        const where = (r: CR) => [r.bank_name, r.branch_name].filter(Boolean).join(' ') || '상담일지'
+        items.push({ key: 'oreq:assigned', bucket: 'personal', group: 'todo', tone: 'red', title: `주문 진행 요청 ${rows.length}건`, detail: `${one(rows[0].requester)?.name ?? ''}: ${where(rows[0])}` + (rows.length > 1 ? ` 외 ${rows.length - 1}` : ''), href: '/orders/consultations?scope=assigned', count: rows.length, at: latest(rows.map(r => r.order_requested_at)) })
+        badges['/orders/consultations'] = { n: rows.length, tone: 'red' }
+        breakdown.personal += rows.length
+      }
+    }
+    if (!done.error) {
+      for (const r of (done.data ?? []) as unknown as CR[]) {
+        items.push({ key: `oreq:done:${r.id}`, bucket: 'mine', group: 'info', tone: 'blue', title: `요청한 주문 입력됨 — ${one(r.assignee)?.name ?? ''}`, detail: [r.bank_name, r.branch_name].filter(Boolean).join(' ') || null, href: `/orders/consultations/${r.id}`, count: 1, at: null })
+      }
+    }
+  }
+
   const order: Record<string, number> = { todo: 0, waiting: 1, info: 2 }
   items.sort((a, b) => order[a.group] - order[b.group] || (b.at ?? '').localeCompare(a.at ?? ''))
   for (const i of items) if (!i.bucket) i.bucket = 'other'   // 휴가 결재 · 주문 승인 · 내 휴가 결과 등
