@@ -1,6 +1,8 @@
 'use client'
 
-// 화면별 도움말 버튼 + 패널 (도움말 트랙 1차, 2026-11-03). AreaShell 이 모든 화면에 자동으로 넣는다 — 화면마다 손대지 않는다.
+// 화면별 도움말 버튼 + 패널 (도움말 트랙 1차, 2026-11-03). 사이드바 하단 고정 영역에 있다 — 화면마다 손대지 않는다.
+// 2026-11-05: 본문 오른쪽 위에 떠 있던 버튼이 '+ 상담 기록' · '+ 주문 추가' 같은 화면 주요 버튼을 가린다는 의견 → 사이드바 하단으로 이동,
+//  패널은 화면 오른쪽 고정 서랍, 키보드 F1 로도 열고 닫는다.
 // 현재 경로(+탭)에 맞는 항목을 help-registry 에서 찾아 네 칸(이 화면은 · 누가 언제 · 순서 · 자주 막히는 것)으로 보여준다.
 // 권한 안내: 이 화면 조작에 필요한 그룹의 내 수준이 '수정' 미만이면 "권한 요청하기" (→ 업무 요청 [권한]).
 // 질문하기: → /me/requests/new?question=<경로>&screen=<화면명> (담당자 오철준 대리 · 제목 [질문] 자동).
@@ -26,7 +28,7 @@ export function questionHref(entry: HelpEntry | null, pathname: string, kind: 'q
   return `/me/requests/new?${p}`
 }
 
-export default function HelpLauncher({ levels, withHeader }: { levels: Partial<Record<GroupKey, PermLevel>>; withHeader: boolean }) {
+export default function HelpLauncher({ levels }: { levels: Partial<Record<GroupKey, PermLevel>> }) {
   const pathname = usePathname()
   const sp = useSearchParams()
   const [open, setOpen] = useState(false)
@@ -43,26 +45,35 @@ export default function HelpLauncher({ levels, withHeader }: { levels: Partial<R
     else setFresh(null)
   }, [entry, pathname])
 
-  if (pathname.startsWith('/me/requests/new')) return null   // 새 요청 화면은 질문 작성 중일 수 있어 겹치지 않게
+  // F1 = 이 화면 도움말 열기/닫기, Esc = 닫기 (브라우저 기본 F1 도움말은 막는다)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'F1') { e.preventDefault(); setOpen(o => !o) }
+      else if (e.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   const group = entry?.group
   const level: PermLevel | null = group && group !== 'my' && group !== 'team' ? (levels[group] ?? 'none') : null
   const needsEdit = level !== null && level !== 'edit'
-  const top = withHeader ? 'top-[4.25rem]' : 'top-3'
+  const freshCount = fresh ? (entry?.changes?.filter(c => c.date >= (new Date(Date.now() - HELP_RECENT_DAYS * 86400_000).toISOString().slice(0, 10))).length ?? 0) : 0
 
   return (
     <>
-      <div className={`absolute ${top} right-6 z-30 flex items-center gap-2`}>
-        {fresh && !open && <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-600 text-white shadow">새로 바뀐 것 {entry?.changes?.filter(c => c.date >= (new Date(Date.now() - HELP_RECENT_DAYS * 86400_000).toISOString().slice(0, 10))).length}건</span>}
-        <button onClick={() => setOpen(o => !o)} title="이 화면 도움말"
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs shadow-sm transition-colors ${open ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}>
-          <span className={`w-4 h-4 rounded-full text-[10px] font-extrabold inline-flex items-center justify-center ${open ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}`}>?</span>
-          도움말
-        </button>
-      </div>
+      <button onClick={() => setOpen(o => !o)} title="이 화면 도움말 (F1)"
+        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors ${open ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+        <span className={`w-4 h-4 rounded-full text-[10px] font-extrabold inline-flex items-center justify-center shrink-0 ${open ? 'bg-white text-slate-900' : 'bg-slate-600 text-white'}`}>?</span>
+        <span>이 화면 도움말</span>
+        {fresh && !open
+          ? <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-600 text-white leading-none" title="이 화면에 최근 바뀐 것이 있습니다">새로 바뀜 {freshCount}</span>
+          : <span className="ml-auto text-[10px] text-slate-500">F1</span>}
+      </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <aside className="absolute top-0 right-0 bottom-0 w-full sm:w-[380px] bg-white border-l border-gray-200 shadow-2xl z-40 overflow-y-auto text-sm">
+          <div className="fixed inset-0 z-[60] bg-slate-900/10" onClick={() => setOpen(false)} />
+          <aside className="fixed top-0 right-0 bottom-0 w-full sm:w-[380px] bg-white border-l border-gray-200 shadow-2xl z-[61] overflow-y-auto text-sm text-left">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-5 py-3 flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-slate-900 text-white text-[11px] font-extrabold inline-flex items-center justify-center">?</span>
               <h2 className="font-bold text-gray-900 text-base truncate">{entry?.title ?? '이 화면'}</h2>
