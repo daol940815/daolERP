@@ -36,12 +36,25 @@ interface Row {
   assignee_name?: string | null
   requester_name?: string | null
   assigned_to_me?: boolean
+  // 완료 회신 (515) — requested 요청됨 / returned 처리 불가 / waiting 회신 대기 / converted 주문 입력됨 / done · changed · unable
+  req_state?: string | null
+  req_label?: string | null
+  req_reply_by?: string | null
   is_owner?: boolean
 }
 type Scope = 'mine' | 'assigned' | 'requested' | 'done'
 interface Emp { id: string; name: string; team: string | null; position: string | null; employment_type?: string | null }
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
+const REQ_BADGE: Record<string, string> = {
+  requested: 'bg-blue-50 text-blue-700 border border-blue-200',
+  waiting: 'bg-orange-50 text-orange-700 border border-orange-200',
+  converted: 'bg-gray-100 text-gray-600 border border-gray-200',
+  done: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  changed: 'bg-amber-50 text-amber-700 border border-amber-200',
+  unable: 'bg-red-50 text-red-700 border border-red-200',
+  returned: 'bg-red-50 text-red-700 border border-red-200',
+}
 const TYPE_BADGE: Record<string, string> = {
   '주문': 'bg-blue-100 text-blue-700', '문의': 'bg-gray-100 text-gray-600',
   '요청': 'bg-amber-100 text-amber-800', '결제': 'bg-violet-100 text-violet-700',
@@ -180,8 +193,8 @@ export default function ConsultationsPage() {
           {([
             ['mine', '내 상담 (요청받은 것 포함)', reqKpi.mine, 'text-gray-900'],
             ['assigned', '나에게 요청됨 (진행 대기)', reqKpi.assigned, reqKpi.assigned ? 'text-orange-700' : 'text-gray-400'],
-            ['requested', '내가 요청함 (진행 대기)', reqKpi.requested, 'text-gray-900'],
-            ['done', '요청 완료 (이번 달 요청)', reqKpi.done, 'text-emerald-700'],
+            ['requested', '내가 요청함 (진행 대기 · 처리 불가)', reqKpi.requested, 'text-gray-900'],
+            ['done', '주문 입력됨 (이번 달 요청 · 회신 포함)', reqKpi.done, 'text-emerald-700'],
           ] as const).map(([key, title, val, cls]) => (
             <button key={key} onClick={() => setScope(key)}
               className={`bg-white border rounded-xl px-4 py-3 text-left ${scope === key ? 'border-slate-800' : 'border-gray-200'}`}>
@@ -284,12 +297,19 @@ export default function ConsultationsPage() {
                   </td>
                   <td className="py-2 px-3 text-xs">{r.sender_name ?? <span className="text-gray-300">-</span>}</td>
                   <td className="py-2 px-3 text-xs whitespace-nowrap" title={r.order_request_memo ?? undefined}>
+                    {/* 상태 배지 (515 완료 회신) + 담당 · 요청자 */}
+                    {r.req_state && r.req_label && (
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-[0.625rem] font-semibold mr-1 ${REQ_BADGE[r.req_state] ?? REQ_BADGE.converted}`}>
+                        {r.assigned_to_me && r.req_state === 'requested' ? '나에게 요청' : r.req_label}
+                      </span>
+                    )}
                     {r.assigned_to_me ? (
-                      <><span className="inline-block px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-blue-50 text-blue-700 border border-blue-200">나에게 요청</span>
-                        <span className="text-gray-500 ml-1">{r.requester_name ?? ''}</span></>
+                      <span className="text-gray-500">{r.requester_name ?? ''} 요청</span>
                     ) : r.assignee_name ? (
-                      <span className="text-gray-600">{r.assignee_name}에게 요청</span>
-                    ) : <span className="text-gray-300">-</span>}
+                      <span className="text-gray-600">{r.assignee_name}</span>
+                    ) : r.req_state === 'returned' ? (
+                      <span className="text-red-600">{r.req_reply_by ?? ''} — 재요청 필요</span>
+                    ) : !r.req_state ? <span className="text-gray-300">-</span> : null}
                   </td>
                   <td className="py-2 px-3">
                     <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${STATUS_BADGE[r.status] ?? 'bg-gray-100 text-gray-500'}`}>

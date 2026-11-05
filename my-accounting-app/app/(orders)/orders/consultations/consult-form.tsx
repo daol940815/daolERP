@@ -89,6 +89,27 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const [employees, setEmployees] = useState<{ id: string; name: string; team: string | null; position: string | null; employment_type?: string | null }[]>([])
   const [reqAssignee, setReqAssignee] = useState('')
   const [reqMemo, setReqMemo] = useState('')
+  // 완료 회신 (515): 요청 진행 상태 · 전환 전 처리 불가 회신
+  const [requestStatus, setRequestStatus] = useState<{ state: string; label: string; memo: string | null; by: string | null; at: string | null; requested_by_name: string | null } | null>(null)
+  const [canUnable, setCanUnable] = useState(false)
+  const [unableOpen, setUnableOpen] = useState(false)
+  const [unableMemo, setUnableMemo] = useState('')
+  const [unableBusy, setUnableBusy] = useState(false)
+
+  // 처리 불가 회신 (515) — 요청이 요청자에게 되돌아가고, 요청받은 직원은 이 상담을 더 열 수 없다
+  const submitUnable = async () => {
+    if (!unableMemo.trim()) { setError('처리 불가 사유를 적어주세요.'); return }
+    setUnableBusy(true); setError(null)
+    const res = await fetch(`/api/orders-portal/consultations/${consultId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'unable', memo: unableMemo.trim() }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setUnableBusy(false)
+    if (!res.ok) { setError(json.error ?? '처리 불가 회신 실패'); return }
+    window.alert('처리 불가 회신을 보냈습니다. 요청이 요청자에게 되돌아갔습니다.')
+    router.push('/orders/consultations?scope=assigned')
+  }
 
   const converted = status === '주문전환'
   const locked = converted || (isEdit && !canEdit)   // 전환 후 수정 잠금(이력 보존) · 요청받은 직원 읽기 전용
@@ -143,6 +164,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           setCanEdit(c.can_edit !== false)
           setIsAssignee(c.is_assignee === true)
           setOrderRequest(c.order_request ?? null)
+          setRequestStatus(c.request_status ?? null)
+          setCanUnable(c.can_unable === true)
           setReqAssignee(c.order_request?.assignee_id ?? '')
           setReqMemo(c.order_request?.memo ?? '')
           const prodList: Product[] = pRes.ok ? (p.products ?? []) : []
@@ -527,6 +550,27 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         <div className="mt-3 px-4 py-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-lg">
           주문으로 전환된 상담입니다 — 이력 보존을 위해 수정할 수 없습니다.
           {orderRequest && <span className="text-emerald-700"> · {orderRequest.requested_by_name ?? ''} 요청 → {orderRequest.assignee_name ?? ''} 진행</span>}
+          {/* 완료 회신 상태 (515) — 회신 대기 / 완료 / 변경 있음 / 처리 불가 */}
+          {requestStatus && requestStatus.state !== 'converted' && (
+            <div className="mt-1 text-[0.8125rem]">
+              <span className={`inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-medium mr-1.5 ${
+                requestStatus.state === 'waiting' ? 'bg-orange-100 text-orange-700'
+                  : requestStatus.state === 'unable' ? 'bg-red-100 text-red-700'
+                  : requestStatus.state === 'changed' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-700'}`}>{requestStatus.label}</span>
+              {requestStatus.state === 'waiting'
+                ? <span className="text-gray-600">주문 입력됨 — 완료 회신을 기다리는 중</span>
+                : <span className="text-gray-700">{requestStatus.by ?? ''} 회신{requestStatus.memo ? `: “${requestStatus.memo}”` : ''}</span>}
+              {orders[0] && <a href={`/orders/${orders[0].id}`} className="ml-1.5 text-blue-700 hover:underline">주문 보기</a>}
+            </div>
+          )}
+        </div>
+      )}
+      {/* 처리 불가로 되돌아온 요청 (515) — 요청자 화면 */}
+      {!converted && !orderRequest && requestStatus?.state === 'returned' && (
+        <div className="mt-3 px-4 py-2.5 bg-red-50 border border-red-200 text-red-900 text-sm rounded-lg">
+          <span className="inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-medium mr-1.5 bg-red-100 text-red-700">처리 불가</span>
+          <b>{requestStatus.by ?? ''}</b> 회신{requestStatus.memo ? `: “${requestStatus.memo}”` : ''}
+          <div className="mt-1 text-[0.75rem] text-red-700">아래 &lsquo;주문 진행 요청&rsquo; 칸에서 다른 직원에게 다시 요청하거나 직접 주문서로 전환하세요.</div>
         </div>
       )}
       {/* 주문 진행 요청 (705) — 요청받은 직원에게는 요청 내용, 작성자에게는 진행 상태 */}
@@ -535,12 +579,31 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           <b>{orderRequest.requested_by_name ?? ''}</b>님이 주문 진행을 요청했습니다
           {orderRequest.requested_at && <span className="text-blue-700"> · {new Date(orderRequest.requested_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
           {orderRequest.memo && <div className="mt-0.5 text-blue-800">&ldquo;{orderRequest.memo}&rdquo;</div>}
-          {!canEdit && <div className="mt-1 text-[0.6875rem] text-blue-700">상담 내용은 수정할 수 없고, 아래 &lsquo;주문서로 전환&rsquo;으로 주문을 입력합니다. 고칠 부분은 주문서에서 바꾸세요.</div>}
+          {!canEdit && <div className="mt-1 text-[0.6875rem] text-blue-700">상담 내용은 수정할 수 없고, 아래 &lsquo;주문서로 전환&rsquo;으로 주문을 입력합니다. 고칠 부분은 주문서에서 바꾸세요. 주문 입력 후 주문 상세에서 &lsquo;완료 회신&rsquo;을 보내야 요청이 완료됩니다.</div>}
+          {canUnable && (unableOpen ? (
+            <div className="mt-2">
+              <textarea value={unableMemo} onChange={e => setUnableMemo(e.target.value)} rows={2}
+                placeholder="처리 불가 사유 (필수) — 예: 요청 품목 전부 품절, 대체 상품 고객 확인 필요"
+                className="w-full border border-red-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900" />
+              <div className="mt-1 flex items-center gap-2">
+                <span className="text-[0.6875rem] text-blue-700">보내면 요청이 {orderRequest.requested_by_name ?? '요청자'}에게 되돌아가고, 내 목록에서 빠집니다.</span>
+                <span className="flex-1" />
+                <button type="button" onClick={() => setUnableOpen(false)} className="px-2.5 py-1 text-xs text-gray-500">취소</button>
+                <button type="button" onClick={submitUnable} disabled={unableBusy}
+                  className="px-3 py-1 text-xs rounded-lg bg-red-600 text-white disabled:opacity-50">{unableBusy ? '보내는 중...' : '처리 불가 회신 보내기'}</button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2 text-right">
+              <button type="button" onClick={() => setUnableOpen(true)}
+                className="px-3 py-1 text-xs rounded-lg border border-red-300 text-red-700 bg-white hover:bg-red-50">처리 불가 회신</button>
+            </div>
+          ))}
         </div>
       )}
       {!converted && orderRequest && !isAssignee && (
         <div className="mt-3 px-4 py-2 bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-lg">
-          <b>{orderRequest.assignee_name ?? ''}</b>에게 주문 진행을 요청했습니다 — 주문으로 전환되면 알림이 옵니다.
+          <b>{orderRequest.assignee_name ?? ''}</b>에게 주문 진행을 요청했습니다 — 주문 입력 · 완료 회신이 오면 알림이 옵니다.
         </div>
       )}
       {error && <div className="mt-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}

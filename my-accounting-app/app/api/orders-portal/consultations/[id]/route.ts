@@ -6,6 +6,7 @@ import { decryptPayment, encryptPayment, encryptionReady, maskPayment } from '@/
 import { parseConsultBody, consultItemRows, insertConsultItems, compatConsultFields, CONSULT_509_HINT } from '@/lib/consultations'
 import { recordWorkLog, consultContent } from '@/lib/work-log'
 import { isOrderAssignee, parseOrderRequest, saveOrderRequest } from '@/lib/order-request'
+import { loadConsultReqMap, saveConsultUnable, CONSULT_REQ_LABEL } from '@/lib/order-reply'
 
 export const dynamic = 'force-dynamic'
 
@@ -88,10 +89,23 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     memo: (c.order_request_memo as string | null) ?? null,
   } : null
 
+  // 요청 진행 상태 (515 완료 회신): 요청됨 / 처리 불가(되돌아옴) / 회신 대기 / 완료 · 변경 · 처리 불가 회신
+  const reqInfo = (await loadConsultReqMap(admin, [c as unknown as Parameters<typeof loadConsultReqMap>[1][number]])).get(params.id) ?? null
+  const requestStatus = reqInfo ? {
+    state: reqInfo.state, label: CONSULT_REQ_LABEL[reqInfo.state],
+    memo: reqInfo.last_memo, by: reqInfo.last_by, at: reqInfo.last_at,
+    requested_by_name: c.order_requested_by ? names.get(c.order_requested_by as string) ?? null : null,
+  } : null
+  // 전환 전 처리 불가 회신: 요청받은 직원 또는 관리자급(요청자 본인 제외)
+  const canUnable = c.status === '진행중' && !!c.order_assignee_id
+    && (isOrderAssignee(c, me.employeeId) || (isManagerLike(me) && c.order_requested_by !== me.employeeId))
+
   return NextResponse.json({
     consult: rest,
     items: snap.items,
     order_request: orderRequest,
+    request_status: requestStatus,
+    can_unable: canUnable,
     can_edit: canAccess(snap.consult, me),                 // 작성자 · 관리자급 — 요청받은 직원은 false
     is_assignee: isOrderAssignee(snap.consult, me.employeeId),
     payment_masked: paymentMasked,
@@ -110,14 +124,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const admin = createAdminClient()
   const snap = await loadConsult(params.id)
   if (!snap) return NextResponse.json({ error: '상담일지를 찾을 수 없습니다.' }, { status: 404 })
+  const body = await req.json().catch(() => ({})) as Record<string, unknown>
+  const editor = { employeeId: me.employeeId, employeeName: me.employeeName }
+
+  // 처리 불가 회신 (515) — 요청받은 직원(수정 권한 없음)도 가능. 요청은 요청자에게 되돌아간다
+  if (body.action === 'unable') {
+    const c = snap.consult as Row
+    const allowed = isOrderAssignee(c, me.employeeId) || (isManagerLike(me) && c.order_requested_by !== me.employeeId)
+    if (!allowed) return NextResponse.json({ error: '나에게 주문 진행이 요청된 상담만 처리 불가 회신을 보낼 수 있습니다.' }, { status: 403 })
+    const err = await saveConsultUnable(admin, params.id, String(body.memo ?? '').trim() || null, editor)
+    if (err) return NextResponse.json({ error: err }, { status: 400 })
+    return NextResponse.json({ ok: true })
+  }
+
   if (!canAccess(snap.consult, me)) {
     return NextResponse.json({ error: '본인 작성 상담일지만 수정할 수 있습니다.' }, { status: 403 })
   }
   if (parttimeBlocked(snap.consult, me)) {
     return NextResponse.json({ error: PARTTIME_MSG }, { status: 403 })
   }
-  const body = await req.json().catch(() => ({})) as Record<string, unknown>
-  const editor = { employeeId: me.employeeId, employeeName: me.employeeName }
 
   // 주문 진행 요청만 변경 (목록 행 "요청" 버튼) — 작성자 · 관리자급
   if (body.action === 'request') {

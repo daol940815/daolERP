@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CurrentUser } from './user-role'
 import { fetchAllRows } from './fetch-all-rows'
+import { loadReplyMap, REPLY_START, type ReplyInfo } from './order-reply'
 
 // 주문 현황 목록·엑셀 내보내기 공용 필터 로직.
 // 목록 API와 엑셀이 반드시 같은 결과 집합을 보도록 한 곳에 둔다.
@@ -71,6 +72,7 @@ export interface OrderListFilter {
   prepayOnly?: boolean
   invoiceOnly?: boolean
   mine?: boolean
+  reply?: string | null      // all|wait|my_wait|to_me|unable — 완료 회신 (515)
 }
 
 export function filterFromSearchParams(sp: URLSearchParams): OrderListFilter {
@@ -84,6 +86,7 @@ export function filterFromSearchParams(sp: URLSearchParams): OrderListFilter {
     prepayOnly: sp.get('prepay') === '1',
     invoiceOnly: sp.get('invoice') === '1',
     mine: sp.get('mine') === '1',
+    reply: sp.get('reply') ?? 'all',
   }
 }
 
@@ -185,7 +188,7 @@ export async function loadFilteredOrders(
   admin: SupabaseClient,
   me: CurrentUser,
   f: OrderListFilter,
-): Promise<{ filtered: OrderListRow[]; prepayIds: Set<string>; invoiceIds: Set<string>; poStatus: Map<string, PoStatus> } | { error: string }> {
+): Promise<{ filtered: OrderListRow[]; prepayIds: Set<string>; invoiceIds: Set<string>; poStatus: Map<string, PoStatus>; replyMap: Map<string, ReplyInfo>; replyCounts: ReplyCounts } | { error: string }> {
   // 1) 기간 필터로 주문 로드 (나머지 필터는 메모리) — 511 미적용이면 기존 컬럼으로 폴백
   const baseCols = 'id, order_no, order_date, bank_name, branch_name, manager_name, staff_name, total_amount, outstanding_amount, collect_status, source, memo, created_at'
   const loadBase = (cols: string) => fetchAllRows<OrderListRow>((pf, pt) => {
@@ -276,10 +279,32 @@ export async function loadFilteredOrders(
     filtered = filtered.filter(o => poStatus.get(o.id) === f.po)
   }
 
+  const REPLY_START_MS = Date.parse(REPLY_START)
+  // 5) 완료 회신 (515) — 대상 주문만 맵에 있음. 숫자는 회신 필터 적용 전 기준
+  const replyIds = filtered.filter(o => (o.source ?? 'upload') === 'direct' && !o.canceled_at && Date.parse(o.created_at) >= REPLY_START_MS).map(o => o.id)
+  const replyMap = await loadReplyMap(admin, replyIds)
+  const isMe = (id: string | null) => !!me.employeeId && id === me.employeeId
+  const replyTest: Record<string, (r: ReplyInfo) => boolean> = {
+    wait: r => r.state === 'waiting',
+    my_wait: r => r.state === 'waiting' && isMe(r.entrant),
+    to_me: r => r.state !== 'waiting' && r.recipients.some(isMe),
+    unable: r => r.state === 'unable',
+  }
+  const replyCounts: ReplyCounts = { wait: 0, my_wait: 0, to_me: 0, unable: 0 }
+  for (const r of Array.from(replyMap.values())) {
+    for (const k of Object.keys(replyCounts) as (keyof ReplyCounts)[]) if (replyTest[k](r)) replyCounts[k] += 1
+  }
+  if (f.reply && f.reply !== 'all' && replyTest[f.reply]) {
+    const test = replyTest[f.reply]
+    filtered = filtered.filter(o => { const r = replyMap.get(o.id); return !!r && test(r) })
+  }
+
   filtered.sort((a, b) =>
     a.order_date !== b.order_date
       ? (a.order_date < b.order_date ? 1 : -1)
       : (a.created_at < b.created_at ? 1 : -1))
 
-  return { filtered, prepayIds, invoiceIds, poStatus }
+  return { filtered, prepayIds, invoiceIds, poStatus, replyMap, replyCounts }
 }
+
+export interface ReplyCounts { wait: number; my_wait: number; to_me: number; unable: number }

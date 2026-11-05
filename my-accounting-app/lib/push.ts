@@ -1,8 +1,8 @@
 // PC 알림(Web Push) — 공용 타입·라벨 (업무요청 트랙 ⑦, 2026-11-03). 서버·브라우저 공용(환경변수 접근 없음).
 // 받을 알림 종류는 구독(기기)마다 prefs 에 두며, 키가 없으면 켠 것으로 본다. 주문 수정 승인은 제도 폐지(2026-08-25)로 제외.
 
-export type PushKind = 'wr_new' | 'wr_result' | 'wr_memo' | 'wr_due_today' | 'leave_approve' | 'order_req' | 'order_done'
-export const PUSH_KINDS: PushKind[] = ['wr_new', 'wr_result', 'wr_memo', 'wr_due_today', 'leave_approve', 'order_req', 'order_done']
+export type PushKind = 'wr_new' | 'wr_result' | 'wr_memo' | 'wr_due_today' | 'leave_approve' | 'order_req' | 'order_done' | 'order_reply' | 'order_reply_wait'
+export const PUSH_KINDS: PushKind[] = ['wr_new', 'wr_result', 'wr_memo', 'wr_due_today', 'leave_approve', 'order_req', 'order_done', 'order_reply', 'order_reply_wait']
 export const PUSH_KIND_LABEL: Record<PushKind, string> = {
   wr_new: '새 업무 요청을 받았을 때',
   wr_result: '내 요청이 반려 · 처리 보고됐을 때',
@@ -11,6 +11,8 @@ export const PUSH_KIND_LABEL: Record<PushKind, string> = {
   leave_approve: '휴가 결재 요청 (결재 권한자)',
   order_req: '상담일지 주문 진행 요청을 받았을 때 (미처리 시 다음 날 아침 09:00 1회 더)',
   order_done: '내가 요청한 주문이 입력됐을 때',
+  order_reply: '내가 요청 · 상담한 주문에 완료 회신 · 처리 불가 회신이 왔을 때',
+  order_reply_wait: '회신 안 한 주문 (입력 다음 날 아침 09:00 1회)',
 }
 export type PushPrefs = Partial<Record<PushKind, boolean>>
 export const prefOn = (prefs: PushPrefs | null | undefined, kind: PushKind) => prefs?.[kind] !== false

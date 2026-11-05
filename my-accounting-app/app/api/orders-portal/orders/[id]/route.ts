@@ -11,6 +11,7 @@ import { loadReceivableMap, collectStatusFrom } from '@/lib/orders-portal-list'
 import { can } from '@/lib/permissions'
 import { prepayBalanceOf, prepayUsedOf, vendorOfOrder, prepayReductionBlock } from '@/lib/prepay'
 import { fillCustomerStaffIfEmpty } from '@/lib/customer-staff'
+import { loadOrderReplyDetail } from '@/lib/order-reply'
 
 export const dynamic = 'force-dynamic'
 
@@ -175,10 +176,11 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const edit = editability(snap.order, me)
   const prepayVendor = await vendorOfOrder(admin, snap.order)
-  const [payments, recvMap, prepayBal] = await Promise.all([
+  const [payments, recvMap, prepayBal, reply] = await Promise.all([
     loadPayments(admin, params.id),
     loadReceivableMap(admin, [params.id]),
     prepayBalanceOf(admin, prepayVendor, (snap.order.customer_alias_id as string | null) ?? null),
+    loadOrderReplyDetail(admin, params.id),
   ])
   // 표준 미수(매칭 반영) — erp_orders.outstanding_amount는 매칭 전 원본값이라 표시에 쓰지 않는다
   const recv = recvMap?.get(params.id)
@@ -198,6 +200,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     payments,
     receivable,
     consult_request: consultRequest,
+    // 완료 회신 (515): 대상 · 상태 · 받는 사람 · 이력 · 발주 요약. 회신은 주문 수정 권한자 누구나 (사용자 결정)
+    reply: { ...reply, can_reply: reply.target && can(me, 'orders', 'edit') },
     // 선결제 사용 (514): 잔액 · 사용 가능 여부 (주문 수정 권한 + direct + 미취소)
     prepay: {
       balance: prepayBal.balance, deposit: prepayBal.deposit, deduction: prepayBal.deduction,

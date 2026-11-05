@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import PurchaseSection from './purchase-section'
 import { hasShip, needsShip, shipText } from '@/lib/ship-address'
+import ReplyCard, { type ReplyData } from './reply-card'
 
 // 주문 상세 (2단계) — 업로드·직접입력 공통 조회.
 // direct 주문 (2026-08-25 취소·재등록 확정): 당일(본인)·관리자는 직접 수정(변경 로그),
@@ -65,6 +66,7 @@ export default function OrderDetailPage() {
   const [receivable, setReceivable] = useState<Receivable | null>(null)
   const [prepay, setPrepay] = useState<PrepayInfo | null>(null)
   const [consultRequest, setConsultRequest] = useState<{ requested_by_name: string | null; assignee_name: string | null } | null>(null)
+  const [reply, setReply] = useState<ReplyData | null>(null)   // 완료 회신 (515)
   const [prepayOpen, setPrepayOpen] = useState(false)
   const [prepayAmt, setPrepayAmt] = useState('')
   const [prepayMemo, setPrepayMemo] = useState('')
@@ -92,6 +94,7 @@ export default function OrderDetailPage() {
       setReceivable(json.receivable ?? null)
       setPrepay(json.prepay ?? null)
       setConsultRequest(json.consult_request ?? null)
+      setReply(json.reply ?? null)
       setRequests(json.change_requests ?? [])
       setEditLogs(json.edit_logs ?? [])
       setCanEdit(json.can_edit)
@@ -456,6 +459,17 @@ export default function OrderDetailPage() {
       {/* 발주 (3단계) — direct 주문만. 업로드 주문은 기존 ERP에서 발주 완료된 건.
           취소 주문은 새 발주를 막기 위해 숨긴다 (기존 발주서는 발주서 이력에서 확인) */}
       {isDirect && showCost && !canceled && <PurchaseSection orderId={String(id)} />}
+
+      {/* 완료 회신 (515) — 요청 건 · 상담자 ≠ 입력자 주문. 처리한 직원이 요청자 · 상담자에게 결과 회신 */}
+      {reply?.target && !canceled && (
+        <ReplyCard orderId={String(id)} reply={reply} onSaved={load} summary={{
+          orderNo: String(order.order_no ?? ''),
+          where: [order.bank_name, order.branch_name].filter(Boolean).join(' '),
+          customer: String(order.manager_name ?? ''),
+          total,
+          ship: hasShip(order as Record<string, unknown>) ? shipText(order as Record<string, unknown>) : '',
+        }} />
+      )}
 
       {/* 변경 이력 (511) — 접이식: 누가·언제·무엇을 어떻게 바꿨는지 */}
       {editLogs.length > 0 && (

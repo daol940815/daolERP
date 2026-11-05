@@ -7,6 +7,7 @@ import { parseConsultBody, consultItemRows, insertConsultItems, compatConsultFie
 import { recordWorkLog, consultContent } from '@/lib/work-log'
 import { resolveContact } from '@/lib/contact-resolve'
 import { parseOrderRequest, saveOrderRequest } from '@/lib/order-request'
+import { loadConsultReqMap, CONSULT_REQ_LABEL, type ConsultReqRow } from '@/lib/order-reply'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
       } else if (scope === 'assigned') {
         query = query.eq('order_assignee_id', me705!).eq('status', '진행중')
       } else if (scope === 'requested') {
-        query = query.eq('order_requested_by', me705!).not('order_assignee_id', 'is', null).eq('status', '진행중')
+        query = query.eq('order_requested_by', me705!).eq('status', '진행중')
       } else if (scope === 'done') {
         query = query.or(`order_requested_by.eq.${me705},order_assignee_id.eq.${me705}`)
           .not('order_assignee_id', 'is', null).eq('status', '주문전환').gte('order_requested_at', monthStart)
@@ -75,7 +76,7 @@ export async function GET(req: NextRequest) {
     const [mine, assigned, requested, done] = await Promise.all([
       cnt(head().or(`employee_id.eq.${me705},order_assignee_id.eq.${me705}`)),
       cnt(head().eq('order_assignee_id', me705).eq('status', '진행중')),
-      cnt(head().eq('order_requested_by', me705).not('order_assignee_id', 'is', null).eq('status', '진행중')),
+      cnt(head().eq('order_requested_by', me705).eq('status', '진행중')),
       cnt(head().or(`order_requested_by.eq.${me705},order_assignee_id.eq.${me705}`).not('order_assignee_id', 'is', null).eq('status', '주문전환').gte('order_requested_at', monthStart)),
     ])
     requestKpi = { mine, assigned, requested, done }
@@ -108,6 +109,9 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // 요청 진행 상태 (515 완료 회신) — 요청됨 / 처리 불가 / 회신 대기 / 완료 …
+  const reqMap = has705 ? await loadConsultReqMap(admin, (data ?? []) as unknown as ConsultReqRow[]) : new Map()
+
   // 상담 × 본 상품 → 행 전개. 품목 없는 상담도 1줄은 남긴다.
   let rows = (data ?? []).flatMap(r => {
     const nm = (v: unknown) => (Array.isArray(v) ? v[0]?.name : (v as { name?: string } | null)?.name) ?? null
@@ -116,6 +120,9 @@ export async function GET(req: NextRequest) {
       writer: nm(r.writer),
       assignee_name: nm(r.assignee),          // 주문 진행 담당 (705)
       requester_name: nm(r.requester),
+      req_state: reqMap.get(r.id as string)?.state ?? null,
+      req_label: reqMap.has(r.id as string) ? CONSULT_REQ_LABEL[reqMap.get(r.id as string)!.state as keyof typeof CONSULT_REQ_LABEL] : null,
+      req_reply_by: reqMap.get(r.id as string)?.last_by ?? null,
       assigned_to_me: !!me.employeeId && r.order_assignee_id === me.employeeId,
       is_owner: !!me.employeeId && r.employee_id === me.employeeId,
       consult_total: totals.get(r.id as string) ?? 0,     // 상담 전체 합계 (전 품목·옵션·배송비 포함)

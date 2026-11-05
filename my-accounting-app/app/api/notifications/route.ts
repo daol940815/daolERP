@@ -6,6 +6,7 @@ import { OPEN_STATUSES, ASG_TRACKED, fmtDue, type WrStatus, type WrAsgStatus } f
 import type { NotifData, NotifItem, NotifBucket } from '@/lib/notifications'
 import { leaveActions, type LeaveStep } from '@/lib/leave-approval'
 import { loadApprovalCtx, loadSteps } from '@/lib/leave-approval.server'
+import { loadReplyMap, loadConsultReqMap, REPLY_START, REPLY_LABEL_LONG, type ReplyResult, type ConsultReqRow } from '@/lib/order-reply'
 
 export const dynamic = 'force-dynamic'
 
@@ -182,6 +183,58 @@ export async function GET() {
     if (!done.error) {
       for (const r of (done.data ?? []) as unknown as CR[]) {
         items.push({ key: `oreq:done:${r.id}`, bucket: 'mine', group: 'info', tone: 'blue', title: `요청한 주문 입력됨 — ${one(r.assignee)?.name ?? ''}`, detail: [r.bank_name, r.branch_name].filter(Boolean).join(' ') || null, href: `/orders/consultations/${r.id}`, count: 1, at: null })
+      }
+    }
+  }
+
+  // ── 완료 회신 (515, 주문 트랙 2026-11-05) ── 515 미적용이면 조용히 건너뜀
+  //  내가 입력한 회신 대기 주문 = 할 일(개인) / 처리 불가로 되돌아온 내 요청 = 할 일(내 요청) / 나에게 온 회신 최근 7일 = 결과 통지
+  {
+    const [myOrders, recent, returned] = await Promise.all([
+      admin.from('erp_orders').select('id, order_no, bank_name, branch_name, created_at')
+        .eq('created_by_employee_id', empId).eq('source', 'direct').is('canceled_at', null)
+        .gte('created_at', REPLY_START).order('created_at', { ascending: false }).limit(500),
+      admin.from('erp_order_replies').select('order_id, result, memo, employee_id, employee_name, created_at')
+        .not('order_id', 'is', null).gte('created_at', sevenDaysAgo).order('created_at', { ascending: false }).limit(300),
+      admin.from('erp_consultations').select('id, status, bank_name, branch_name, order_assignee_id, order_requested_by, order_requested_at')
+        .eq('order_requested_by', empId).is('order_assignee_id', null).eq('status', '진행중'),
+    ])
+    if (!recent.error) {
+      const where = (r: { bank_name?: unknown; branch_name?: unknown }) => [r.bank_name, r.branch_name].filter(Boolean).join(' ') || '주문'
+      // 1) 회신 대기 (내가 입력)
+      const mine = (myOrders.data ?? []) as { id: string; order_no: string | null; bank_name: string | null; branch_name: string | null; created_at: string }[]
+      const rmMine = await loadReplyMap(admin, mine.map(o => o.id))
+      const waiting = mine.filter(o => rmMine.get(o.id)?.state === 'waiting')
+      if (waiting.length) {
+        items.push({ key: 'orep:wait', bucket: 'personal', group: 'todo', tone: 'red', title: `완료 회신 대기 ${waiting.length}건`, detail: `${where(waiting[0])} · ${waiting[0].order_no ?? ''}` + (waiting.length > 1 ? ` 외 ${waiting.length - 1}` : ''), href: '/orders?reply=my_wait', count: waiting.length, at: latest(waiting.map(o => o.created_at)) })
+        if (!badges['/orders']) badges['/orders'] = { n: waiting.length, tone: 'red' }
+        breakdown.personal += waiting.length
+      }
+      // 2) 처리 불가로 되돌아온 내 요청 (전환 전)
+      if (!returned.error && returned.data?.length) {
+        const rq = await loadConsultReqMap(admin, returned.data as unknown as ConsultReqRow[])
+        const rows = (returned.data as { id: string; bank_name: string | null; branch_name: string | null }[]).filter(c => rq.get(c.id)?.state === 'returned')
+        if (rows.length) {
+          const first = rq.get(rows[0].id)
+          items.push({ key: 'oreq:returned', bucket: 'mine', group: 'todo', tone: 'red', title: `처리 불가 회신 ${rows.length}건 — 다시 요청 필요`, detail: `${first?.last_by ?? ''}: ${where(rows[0])}${first?.last_memo ? ` — ${first.last_memo.slice(0, 30)}` : ''}` + (rows.length > 1 ? ` 외 ${rows.length - 1}` : ''), href: rows.length === 1 ? `/orders/consultations/${rows[0].id}` : '/orders/consultations?scope=requested', count: rows.length, at: latest(rows.map(c => rq.get(c.id)?.last_at)) })
+          breakdown.mine += rows.length
+        }
+      }
+      // 3) 나에게 온 회신 (요청자 · 상담자) — 주문별 최신 1건, 최근 7일
+      const seen = new Set<string>()
+      const reps = ((recent.data ?? []) as { order_id: string; result: ReplyResult; memo: string | null; employee_id: string | null; employee_name: string | null; created_at: string }[])
+        .filter(r => r.employee_id !== empId && !seen.has(r.order_id) && (seen.add(r.order_id), true))
+      if (reps.length) {
+        const rm = await loadReplyMap(admin, reps.map(r => r.order_id))
+        const toMe = reps.filter(r => rm.get(r.order_id)?.recipients.includes(empId)).slice(0, 5)
+        if (toMe.length) {
+          const { data: os } = await admin.from('erp_orders').select('id, order_no, bank_name, branch_name').in('id', toMe.map(r => r.order_id))
+          const om = new Map((os ?? []).map(o => [o.id as string, o]))
+          for (const r of toMe) {
+            const o = om.get(r.order_id)
+            items.push({ key: `orep:in:${r.order_id}:${r.created_at}`, bucket: 'mine', group: 'info', tone: r.result === 'unable' ? 'red' : 'blue', title: `${r.result === 'unable' ? '처리 불가 회신' : '완료 회신'} — ${r.employee_name ?? ''}`, detail: `${o ? where(o) : ''} · ${REPLY_LABEL_LONG[r.result]}${r.memo ? ` — ${r.memo.slice(0, 30)}` : ''}`, href: `/orders/${r.order_id}`, count: 1, at: r.created_at })
+          }
+        }
       }
     }
   }
