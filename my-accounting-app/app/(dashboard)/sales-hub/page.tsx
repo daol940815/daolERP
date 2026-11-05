@@ -88,8 +88,15 @@ export default function SalesHubPage() {
 
   // 신규 매출처 등록 (고객·영업 수정 권한자만 — 노출은 can_edit, 차단은 미들웨어)
   const [canEdit, setCanEdit] = useState(false)
-  const [addForm, setAddForm] = useState<{ open: boolean; name: string; biz: string; note: string; busy: boolean; msg: string | null }>(
-    { open: false, name: '', biz: '', note: '', busy: false, msg: null })
+  // 업체명 = 업체(은행·그룹), 지점명 = 지점 — 고객관리문서 은행명/지점명 칸과 같은 규칙 (2026-11-05)
+  const [addForm, setAddForm] = useState<{ open: boolean; group: string; branch: string; biz: string; note: string; busy: boolean; msg: string | null }>(
+    { open: false, group: '', branch: '', biz: '', note: '', busy: false, msg: null })
+  const [groupNames, setGroupNames] = useState<string[]>([])
+  useEffect(() => {
+    if (!addForm.open || groupNames.length) return
+    fetch('/api/vendor-hub?groups=1').then(r => r.json())
+      .then(j => setGroupNames(((j.groups ?? []) as { name: string }[]).map(g => g.name))).catch(() => {})
+  }, [addForm.open, groupNames.length])
 
   const load = useCallback(async (f: string, t: string) => {
     setLoading(true); setError(null)
@@ -194,15 +201,34 @@ export default function SalesHubPage() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setAddForm(f => ({ ...f, open: false }))}>
           <div className="bg-white rounded-xl shadow-2xl p-6 w-96 mx-4" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-bold text-gray-900 mb-1">신규 매출처 등록</h3>
-            <p className="text-xs text-gray-400 mb-4">은행 지점은 &apos;은행명 지점명&apos; 형식으로 입력합니다 (예: 하나은행 계동지점).</p>
+            <p className="text-xs text-gray-400 mb-4">업체명은 은행·회사·기관 이름, 지점명은 그 아래 지점·부서입니다. 지점이 없는 단독 업체는 지점명을 비웁니다.</p>
             {addForm.msg && <p className="text-red-500 text-xs mb-3">{addForm.msg}</p>}
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">매출처명 <span className="text-red-500">*</span></label>
-                <input autoFocus value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="예: 하나은행 계동지점"
+                <label className="block text-xs font-medium text-gray-700 mb-1">업체명 <span className="text-red-500">*</span></label>
+                <input autoFocus list="vendor-group-names" value={addForm.group} onChange={e => setAddForm(f => ({ ...f, group: e.target.value }))}
+                  placeholder="예: 하나은행 · 서울대학교 · 육군본부"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                <datalist id="vendor-group-names">
+                  {groupNames.map(n => <option key={n} value={n} />)}
+                </datalist>
+                <p className="text-[0.6875rem] text-gray-400 mt-1">
+                  {!addForm.group.trim() ? '목록에 있는 업체를 고르면 그 업체에 연결됩니다.'
+                    : groupNames.some(n => n.replace(/\s+/g, '') === addForm.group.trim().replace(/\s+/g, ''))
+                      ? '기존 업체에 연결됩니다.' : '새 업체로 등록됩니다 — 오타가 아닌지 확인하세요.'}
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">지점명 <span className="text-gray-400">(선택 — 단독 업체는 비움)</span></label>
+                <input value={addForm.branch} onChange={e => setAddForm(f => ({ ...f, branch: e.target.value }))}
+                  placeholder="예: 계동지점 · 에너지자원공학과 동창회"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
               </div>
+              {addForm.group.trim() && (
+                <div className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+                  등록될 매출처: <b className="text-gray-900">{[addForm.group.trim(), addForm.branch.trim()].filter(Boolean).join(' ')}</b>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">사업자번호 <span className="text-gray-400">(선택)</span></label>
                 <input value={addForm.biz} onChange={e => setAddForm(f => ({ ...f, biz: e.target.value }))}
@@ -219,15 +245,19 @@ export default function SalesHubPage() {
               <button onClick={() => setAddForm(f => ({ ...f, open: false }))}
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">취소</button>
               <button disabled={addForm.busy} onClick={async () => {
-                if (!addForm.name.trim()) { setAddForm(f => ({ ...f, msg: '매출처명을 입력하세요.' })); return }
+                if (!addForm.group.trim()) { setAddForm(f => ({ ...f, msg: '업체명을 입력하세요.' })); return }
                 setAddForm(f => ({ ...f, busy: true, msg: null }))
                 const res = await fetch('/api/vendor-hub', {
                   method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ name: addForm.name.trim(), biz_number: addForm.biz.trim() || undefined, note: addForm.note.trim() || undefined }),
+                  body: JSON.stringify({
+                    group_name: addForm.group.trim(), branch_name: addForm.branch.trim() || undefined,
+                    biz_number: addForm.biz.trim() || undefined, note: addForm.note.trim() || undefined,
+                  }),
                 })
                 const json = await res.json().catch(() => ({}))
                 if (!res.ok) { setAddForm(f => ({ ...f, busy: false, msg: json.error ?? '등록 실패' })); return }
-                setAddForm({ open: false, name: '', biz: '', note: '', busy: false, msg: null })
+                setAddForm({ open: false, group: '', branch: '', biz: '', note: '', busy: false, msg: null })
+                setGroupNames([])
                 load(from, to)
               }}
                 className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
