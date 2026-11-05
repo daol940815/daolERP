@@ -502,7 +502,7 @@
 - **2026-11-05 사용자 확정 "5가지 모두 가안"** — ① 주문 상세에서만 사용(주문서는 잔액 안내) ② 잔액 초과 · 미수 초과 차단
   ③ 해제 = 주문 수정 권한자 누구나, 변경 이력 기록 ④ 선결제 주문 입금 확인은 범위 밖(회계 트랙과 별도) ⑤ 회계 '선결제차감' 버튼 통일은 회계 세션 공유.
 - 소급 보정 실행 · 검증 완료(2026-11-05, 사용자 회신 "기대값 그대로": 7건 11,112,300원).
-- **구현 (2026-11-05, 514 실행 대기)**: 514 = erp_payment_matches.source_type CHECK에 'prepay' 추가(검증 선결제허용_기대1).
+- **구현 (2026-11-05)**: 514 = erp_payment_matches.source_type CHECK에 'prepay' 추가 — **운영 적용 2026-11-05, 검증 선결제허용_기대1 = 1 · 기존매칭_건수 0**(10-30 주문 삭제 이후 매칭 없음).
   `lib/prepay.ts` — prepayBalanceOf(거래처의 모든 매출처 별칭 원장 합 = 허브와 같은 기준) · applyPrepayUse(원장 차감 → 매칭 insert,
   매칭 실패 시 원장 행 롤백 · 514 미적용 안내) · releasePrepay(둘 다 삭제) · prepayUsedOf. API `POST/DELETE /api/orders-portal/orders/[id]/prepay`
   (orders 수정 권한), `GET /api/orders-portal/prepay-balance?vendor_id=`. 주문 상세 GET에 prepay{balance, can_use}, 결제 내역에 선결제 배지 ·
