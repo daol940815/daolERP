@@ -751,6 +751,6 @@
 ## 다른 트랙 변경 알림 — 발주자 연락처 = 업무용 핸드폰 (2026-11-05, 인사 · 총무 트랙 205)
 
 - `app/api/orders-portal/purchase-orders/[id]/route.ts`의 `currentStaff`: 발주자 연락처를 `employees.work_phone`(업무용)에서 읽는다.
-  순서: 발송 시점 로그인 직원 → 발주서 작성자(`created_by`) → 둘 다 없으면 빈 값(양식이 `COMPANY_PHONE` 대체).
-  개인 번호(`phone`)는 쓰지 않는다. 205 미적용이면 기존처럼 `phone`.
+  순서: 발송 시점 로그인 직원 → 발주서 작성자(`created_by`), 각 직원은 `work_phone` → 비면 `phone`
+  (2026-11-05 사용자 결정) → 모두 없으면 빈 값(양식이 `COMPANY_PHONE` 대체). 205 적용 완료(2026-11-05).
 - 발주서 select 에 `created_by` 추가. 양식(`lib/po-form.ts`) 동작은 그대로.
