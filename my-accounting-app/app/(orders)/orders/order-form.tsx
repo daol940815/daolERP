@@ -560,7 +560,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               }}
               placeholder="업체 검색 (지점에서 바로 검색도 가능)"
             />
-            <div className="text-[0.625rem] text-gray-400 mt-0.5">업체별 통계의 기준 — 단일 업체는 비워두고 지점만 선택</div>
+            <div className="text-[0.625rem] text-gray-400 mt-0.5">업체별 통계의 기준 — 단독 업체도 업체로 고르면 지점이 자동 선택됩니다</div>
           </div>
           <div className="col-span-2 md:col-span-3">
             <label className={label}>지점(부서) — 주문처 <em className="not-italic text-red-500">*</em></label>

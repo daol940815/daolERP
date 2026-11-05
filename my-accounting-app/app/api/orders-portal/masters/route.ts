@@ -112,14 +112,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '업체명을 입력해주세요.' }, { status: 400 })
     }
 
-    // 1) 업체(그룹) — 지점명이 있을 때만 그룹을 쓴다. 없으면 단일 업체(vendors 단독).
+    // 1) 업체(그룹) — 업체명 = 업체(2026-11-05 사용자 확정: 고객관리문서 은행명 칸 = 업체, 지점명 칸 = 지점).
+    //    지점명이 없는 단독 업체도 같은 이름의 업체에 연결한다 (업체별 통계에서 빠지지 않도록).
     let groupId = groupIdIn
     let groupLabel = groupName
     if (groupIdIn) {
       const { data: g } = await admin.from('vendor_groups').select('id, name').eq('id', groupIdIn).maybeSingle()
       if (!g) return NextResponse.json({ error: '선택한 업체를 찾을 수 없습니다.' }, { status: 400 })
       groupLabel = g.name as string
-    } else if (branchName) {
+    } else {
       const { data: groups } = await admin.from('vendor_groups')
         .select('id, name').eq('is_active', true)
       const hit = (groups ?? []).find(g => norm(g.name as string) === norm(groupName))
@@ -221,9 +222,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ vendor_id: existing.id, group_id: existing.group_id ?? null, existed: true })
     }
 
-    // 지점이 있으면 업체 그룹 연결 (없으면 생성). 505 미적용 환경은 그룹 없이 등록.
+    // 업체 그룹 연결 (없으면 생성) — 지점명이 없는 단독 업체도 같은 이름의 업체에 연결(2026-11-05 규칙).
+    // 505 미적용 환경은 그룹 없이 등록.
     let groupId: string | null = null
-    if (branchName) {
+    {
       const g = await admin.from('vendor_groups').select('id').eq('name', groupName).maybeSingle()
       if (g.data) groupId = g.data.id as string
       else if (!g.error) {
