@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { prepayReductionBlock } from '@/lib/prepay'
 import { getCurrentUser } from '@/lib/user-role'
 import {
   validateOrderInput, buildOrderRows, insertOrderItems, ensureAlias, nextOrderNo,
   resolveDisplayNames, resolveVendorNames, loadOrderSnapshot, cancelOrder,
-  canCancelReissue, inheritToReissued, writeEditLogs, hasShip, syncPrepayDeposits,
+  canCancelReissue, inheritToReissued, writeEditLogs, hasShip, syncPrepayDeposits, lineTotal,
 } from '@/lib/orders-portal'
 import { recordWorkLog, orderContent } from '@/lib/work-log'
 
@@ -42,6 +43,10 @@ export async function POST(req: NextRequest) {
     if (!canCancelReissue(reissueSnap.order, me)) {
       return NextResponse.json({ error: '본인이 입력한 주문만 취소·재등록할 수 있습니다. (관리자 제외)' }, { status: 403 })
     }
+    // 재등록으로 선결제 금액이 줄거나 주문처가 바뀌어 원래 거래처 잔액이 마이너스가 되면 차단
+    const newPrepay = input.items.filter(it => it.item_name === '선결제').reduce((s, it) => s + lineTotal(it), 0)
+    const prepayBlock = await prepayReductionBlock(admin, reissueOf, newPrepay, input.vendor_id)
+    if (prepayBlock) return NextResponse.json({ error: prepayBlock }, { status: 409 })
     const probe = await admin.from('erp_orders').select('canceled_at').limit(1)
     if (probe.error) {
       return NextResponse.json({

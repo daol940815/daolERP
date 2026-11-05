@@ -118,3 +118,45 @@ export async function releasePrepay(
   await writeEditLogs(admin, orderId, editor, [{ field: '선결제 사용 해제', before: `${won(Number(m.amount ?? 0))}원`, after: null }])
   return { ok: true }
 }
+
+// ── 선결제 주문 취소 · 감액 차단 (2026-11-05 사용자 요청) ──────────────────
+// 선결제를 받은 주문(자동 입금 source_key pre:direct:<주문id>:n)을 취소하거나 선결제 금액을 줄이면
+// 그 입금 기록이 지워지거나 줄어든다. 그 사이 다른 주문에서 이미 쓴 금액이 있으면 매출처 잔액이 마이너스가 되므로 막는다.
+//   잔액(변경 후) = 현재 잔액 − 이 주문 자동 입금 합 + 변경 후 이 주문 선결제 합(같은 거래처일 때만)
+// newVendorId: 재등록으로 주문처가 바뀌면 새 입금은 다른 거래처 잔액으로 가므로 원래 거래처 계산에서 뺀다.
+export async function prepayReductionBlock(
+  admin: SupabaseClient, orderId: string, newDepositTotal: number, newVendorId?: string | null,
+): Promise<string | null> {
+  const { data: auto } = await admin.from('erp_prepayments')
+    .select('amount').like('source_key', `pre:direct:${orderId}:%`)
+  const oldTotal = (auto ?? []).reduce((s, e) => s + Number(e.amount ?? 0), 0)
+  if (oldTotal <= 0) return null
+  const order = await loadOrder(admin, orderId)
+  if (!order) return null
+  const vendorId = await vendorOfOrder(admin, order)
+  const sameVendor = newVendorId === undefined || newVendorId === vendorId
+  const add = sameVendor ? Math.max(0, newDepositTotal) : 0
+  if (add >= oldTotal) return null   // 늘리거나 그대로면 문제없음
+  const bal = await prepayBalanceOf(admin, vendorId, order.customer_alias_id)
+  const after = bal.balance - oldTotal + add
+  if (after >= 0) return null
+
+  // 이 거래처에서 선결제를 쓴 주문 (최근 3건) — 어디서 해제하면 되는지 안내
+  const aliasIds = vendorId ? await aliasIdsOfVendor(admin, vendorId) : []
+  if (order.customer_alias_id && !aliasIds.includes(order.customer_alias_id)) aliasIds.push(order.customer_alias_id)
+  let usedIn = ''
+  if (aliasIds.length) {
+    const { data: ded } = await admin.from('erp_prepayments')
+      .select('order_id, amount, entry_date').eq('direction', 'customer').eq('entry_type', 'deduction')
+      .in('alias_id', aliasIds).not('order_id', 'is', null)
+      .order('entry_date', { ascending: false }).limit(3)
+    const ids = Array.from(new Set((ded ?? []).map(d => d.order_id as string)))
+    if (ids.length) {
+      const { data: os } = await admin.from('erp_orders').select('id, order_no').in('id', ids)
+      const no = new Map((os ?? []).map(o => [o.id as string, (o.order_no as string) ?? '']))
+      usedIn = ` (사용한 주문: ${ids.map(id => no.get(id)).filter(Boolean).join(', ')})`
+    }
+  }
+  return `이 주문으로 받은 선결제 중 ${won(-after)}원이 이미 다른 주문에서 사용됐습니다${usedIn}. `
+    + `그 주문의 결제 내역에서 선결제 사용을 해제한 뒤 다시 시도하세요.`
+}

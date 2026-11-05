@@ -4,12 +4,12 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCurrentUser, type CurrentUser } from '@/lib/user-role'
 import {
   validateOrderInput, applyOrderEdit, resolveDisplayNames, loadOrderSnapshot,
-  cancelOrder, canCancelReissue, kstToday, kstDateOf,
+  cancelOrder, canCancelReissue, kstToday, kstDateOf, lineTotal,
 } from '@/lib/orders-portal'
 import { recordWorkLog, orderContent } from '@/lib/work-log'
 import { loadReceivableMap, collectStatusFrom } from '@/lib/orders-portal-list'
 import { can } from '@/lib/permissions'
-import { prepayBalanceOf, prepayUsedOf, vendorOfOrder } from '@/lib/prepay'
+import { prepayBalanceOf, prepayUsedOf, vendorOfOrder, prepayReductionBlock } from '@/lib/prepay'
 
 export const dynamic = 'force-dynamic'
 
@@ -225,6 +225,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const names = await resolveDisplayNames(admin, parsed.input)
   if (names.error) return NextResponse.json({ error: names.error }, { status: 400 })
 
+  // 선결제 품목 금액을 줄이거나 빼서 잔액이 마이너스가 되면 차단 (주문처를 바꾸면 원래 거래처 기준)
+  const newPrepay = parsed.input.items.filter(it => it.item_name === '선결제').reduce((s, it) => s + lineTotal(it), 0)
+  const prepayBlock = await prepayReductionBlock(admin, params.id, newPrepay, parsed.input.vendor_id)
+  if (prepayBlock) return NextResponse.json({ error: prepayBlock }, { status: 409 })
+
   const result = await applyOrderEdit(admin, params.id, parsed.input, {
     managerName: names.managerName,
     counselorName: names.counselorName,
@@ -285,6 +290,10 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
         + '통장·카드 매칭·계산서 연결은 회계·재무 담당자에게 해제를 먼저 요청해주세요.',
     }, { status: 409 })
   }
+
+  // 받은 선결제가 이미 다른 주문에서 쓰였으면 취소 차단 (잔액 마이너스 방지)
+  const prepayBlock = await prepayReductionBlock(admin, params.id, 0)
+  if (prepayBlock) return NextResponse.json({ error: prepayBlock }, { status: 409 })
 
   const reason = new URL(req.url).searchParams.get('reason')
   const err = await cancelOrder(admin, params.id, {
