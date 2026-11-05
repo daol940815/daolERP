@@ -158,11 +158,11 @@ export default function OrderDetailPage() {
         <Link href="/orders" className="text-sm text-gray-400 hover:text-gray-600">← 주문 현황</Link>
         <h1 className="text-xl font-bold text-gray-900">주문 상세</h1>
         <span className="text-sm text-gray-400 tabular-nums">{String(order.order_no ?? '')}</span>
-        <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${isDirect ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+        <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${isDirect ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
           {isDirect ? '직접입력' : '업로드'}
         </span>
         {canceled && (
-          <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-red-100 text-red-700">취소됨</span>
+          <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-red-100 text-red-700">취소됨</span>
         )}
         <span className="ml-auto flex gap-2">
           {/* 거래명세서 — 판매가(할인 반영) 기준, 실무자 양식 그대로 출력 */}
@@ -210,7 +210,7 @@ export default function OrderDetailPage() {
             placeholder="취소 사유 (선택)"
             className="flex-1 min-w-64 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
           <button onClick={cancelOrder} className="px-3.5 py-1.5 bg-red-600 text-white rounded-lg text-sm">주문 취소 확정</button>
-          <span className="text-[11px] text-gray-500">
+          <span className="text-[0.6875rem] text-gray-500">
             삭제 대신 취소로 처리됩니다 — 원본은 보존되고 집계에서만 빠집니다 (되돌리려면 재등록)
           </span>
         </div>
@@ -236,7 +236,7 @@ export default function OrderDetailPage() {
             ['메모', String(order.memo ?? '-')],
           ].map(([k, v]) => (
             <div key={k}>
-              <div className="text-[11px] text-gray-400">{k}</div>
+              <div className="text-[0.6875rem] text-gray-400">{k}</div>
               <div className="text-gray-800">{v}</div>
             </div>
           ))}
@@ -249,7 +249,7 @@ export default function OrderDetailPage() {
           if (!filled && !missing) return null
           return (
             <div className={`mt-3 rounded-lg px-3 py-2 text-sm ${missing ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50'}`}>
-              <div className="text-[11px] text-gray-400">배송지 (지점 · 샘플 배송)</div>
+              <div className="text-[0.6875rem] text-gray-400">배송지 (지점 · 샘플 배송)</div>
               {missing
                 ? <div className="text-amber-800 text-xs mt-0.5">배송지 미입력 — 발주서 배송명단에 주소가 비어서 나갑니다. 당일은 수정, 익일 이후는 취소 · 재등록으로 입력하세요.</div>
                 : <div className="text-gray-800">{shipText(order as Record<string, unknown>)}</div>}
@@ -297,8 +297,8 @@ export default function OrderDetailPage() {
                 <td className={`py-1.5 px-2.5 font-medium ${it.parent_line_no ? 'pl-6' : ''}`}>
                   {it.parent_line_no && <span className="text-gray-400 mr-1 font-normal" title={`${it.parent_line_no}번 행의 옵션`}>└</span>}
                   {it.item_name}
-                  {it.is_canceled && <span className="ml-1.5 no-underline text-[10px] text-red-400">취소</span>}
-                  {it.is_prepayment && <span className="ml-1.5 text-[10px] text-violet-500">선결제</span>}
+                  {it.is_canceled && <span className="ml-1.5 no-underline text-[0.625rem] text-red-400">취소</span>}
+                  {it.is_prepayment && <span className="ml-1.5 text-[0.625rem] text-violet-500">선결제</span>}
                 </td>
                 <td className="py-1.5 px-2.5">{it.order_kind ?? '-'}</td>
                 <td className="py-1.5 px-2.5">{it.purchase_vendor_name ?? '-'}</td>
@@ -309,7 +309,7 @@ export default function OrderDetailPage() {
                   {won(it.discount_amount)}
                   {/* 할인 종류 구분 표기 (704) — 단가 할인은 개당 금액 병기 */}
                   {it.discount_mode === '단가' && (it.discount_unit ?? 0) > 0 && (
-                    <div className="text-[10px] text-gray-400">{won(it.discount_unit!)} /개</div>
+                    <div className="text-[0.625rem] text-gray-400">{won(it.discount_unit!)} /개</div>
                   )}
                 </td>
                 <td className="py-1.5 px-2.5 text-right tabular-nums font-semibold">{won(it.line_total)}</td>
@@ -341,7 +341,7 @@ export default function OrderDetailPage() {
       <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
         <div className="flex items-center gap-3 flex-wrap mb-2">
           <div className="text-sm font-bold text-gray-900">결제 내역</div>
-          <span className="text-[11px] text-gray-400">수금 · 계산서 연결이 자동으로 표시됩니다 · 선결제 사용은 여기서 처리</span>
+          <span className="text-[0.6875rem] text-gray-400">수금 · 계산서 연결이 자동으로 표시됩니다 · 선결제 사용은 여기서 처리</span>
           <span className="ml-auto text-sm text-gray-700">
             <span title="취소·VIP·선결제 품목을 뺀 금액 (미수 계산 기준)">{receivable ? '순매출' : '총금액'}</span>{' '}
             <b className="tabular-nums">{won(salesBase)}원</b>
@@ -378,7 +378,7 @@ export default function OrderDetailPage() {
             </div>
             <div className="flex items-end gap-2 flex-wrap">
               <div>
-                <label className="block text-[11px] text-gray-500 mb-0.5">사용 금액</label>
+                <label className="block text-[0.6875rem] text-gray-500 mb-0.5">사용 금액</label>
                 <div className="flex gap-1">
                   <input value={prepayAmt} onChange={e => setPrepayAmt(e.target.value.replace(/[^\d,]/g, ''))}
                     className="w-36 border border-amber-300 bg-amber-50 rounded-lg px-2.5 py-1.5 text-sm text-right font-semibold tabular-nums" />
@@ -387,7 +387,7 @@ export default function OrderDetailPage() {
                 </div>
               </div>
               <div className="flex-1 min-w-[12rem]">
-                <label className="block text-[11px] text-gray-500 mb-0.5">메모 (선택)</label>
+                <label className="block text-[0.6875rem] text-gray-500 mb-0.5">메모 (선택)</label>
                 <input value={prepayMemo} onChange={e => setPrepayMemo(e.target.value)} placeholder="예: 11/1 선결제분에서 차감"
                   className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm bg-white" />
               </div>
@@ -397,7 +397,7 @@ export default function OrderDetailPage() {
                 {prepayBusy ? '처리 중...' : `사용 (${won(Number(prepayAmt.replace(/,/g, '')) || 0)}원)`}
               </button>
             </div>
-            <div className="mt-1.5 text-[11px] text-gray-400">최대 {won(Math.min(prepay.balance, outstanding))}원 (잔액과 미수 중 작은 값). 사용분은 수금으로 계산되고 매출처 선결제 원장에 &lsquo;사용&rsquo;으로 남습니다.</div>
+            <div className="mt-1.5 text-[0.6875rem] text-gray-400">최대 {won(Math.min(prepay.balance, outstanding))}원 (잔액과 미수 중 작은 값). 사용분은 수금으로 계산되고 매출처 선결제 원장에 &lsquo;사용&rsquo;으로 남습니다.</div>
             {prepayErr && <div className="mt-1.5 text-xs text-red-600">{prepayErr}</div>}
           </div>
         )}
@@ -407,8 +407,8 @@ export default function OrderDetailPage() {
           <div className="space-y-1.5 text-sm">
             {payments.matches.map(m => (
               <div key={m.id} className="flex items-center gap-2.5 flex-wrap">
-                <span className="text-[11px] text-gray-400 tabular-nums w-20">{m.paid_date}</span>
-                <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${
+                <span className="text-[0.6875rem] text-gray-400 tabular-nums w-20">{m.paid_date}</span>
+                <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${
                   m.source_type === 'bank' ? 'bg-blue-50 text-blue-700'
                     : m.source_type === 'card' ? 'bg-violet-50 text-violet-700'
                       : m.source_type === 'prepay' ? 'bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200'
@@ -424,18 +424,18 @@ export default function OrderDetailPage() {
                     )}
                   </span>
                 )}
-                {m.matched_by === 'auto' && <span className="text-[10px] text-gray-400">자동 매칭</span>}
+                {m.matched_by === 'auto' && <span className="text-[0.625rem] text-gray-400">자동 매칭</span>}
                 {m.memo && <span className="text-xs text-gray-400">{m.memo}</span>}
                 {m.source_type === 'prepay' && prepay?.can_use && (
                   <button onClick={() => releasePrepay(m.id, m.amount)}
-                    className="ml-auto text-[11px] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">해제</button>
+                    className="ml-auto text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">해제</button>
                 )}
               </div>
             ))}
             {payments.invoices.map(v => (
               <div key={v.id} className="flex items-center gap-2.5 flex-wrap">
-                <span className="text-[11px] text-gray-400 tabular-nums w-20">{v.issue_date}</span>
-                <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-700">계산서</span>
+                <span className="text-[0.6875rem] text-gray-400 tabular-nums w-20">{v.issue_date}</span>
+                <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-amber-50 text-amber-700">계산서</span>
                 <b className="tabular-nums">{won(v.amount)}원</b>
                 {v.invoice_total != null && v.invoice_total !== v.amount && (
                   <span className="text-xs text-gray-400">발행 {won(v.invoice_total)}원 중 이 주문 분배분</span>
@@ -462,7 +462,7 @@ export default function OrderDetailPage() {
         <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
           <button onClick={() => setShowLogs(v => !v)}
             className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
-            변경 이력 <span className="text-[11px] font-normal text-gray-400">{editLogs.length}건</span>
+            변경 이력 <span className="text-[0.6875rem] font-normal text-gray-400">{editLogs.length}건</span>
             <span className="text-gray-400 text-xs">{showLogs ? '▾' : '▸'}</span>
           </button>
           {showLogs && (
@@ -500,18 +500,18 @@ export default function OrderDetailPage() {
       {requests.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
           <div className="text-sm font-bold text-gray-900 mb-2">
-            수정·취소 요청 이력 <span className="text-[11px] font-normal text-gray-400">과거 승인 제도 기록 — 현재는 취소·재등록 방식</span>
+            수정·취소 요청 이력 <span className="text-[0.6875rem] font-normal text-gray-400">과거 승인 제도 기록 — 현재는 취소·재등록 방식</span>
           </div>
           <div className="space-y-1.5">
             {requests.map(r => {
               const s = REQ_STATUS[r.status] ?? { label: r.status, cls: 'bg-gray-100 text-gray-500' }
               return (
                 <div key={r.id} className="flex items-center gap-2.5 text-sm flex-wrap">
-                  <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${s.cls}`}>{s.label}</span>
-                  <span className="text-[11px] text-gray-400">{r.request_type === 'cancel' ? '취소' : '수정'}</span>
+                  <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${s.cls}`}>{s.label}</span>
+                  <span className="text-[0.6875rem] text-gray-400">{r.request_type === 'cancel' ? '취소' : '수정'}</span>
                   <span className="text-gray-700">{r.reason}</span>
                   {r.decision_memo && <span className="text-xs text-gray-400">→ {r.decision_memo}</span>}
-                  <span className="text-[11px] text-gray-300 tabular-nums ml-auto">{r.created_at.slice(0, 10)}</span>
+                  <span className="text-[0.6875rem] text-gray-300 tabular-nums ml-auto">{r.created_at.slice(0, 10)}</span>
                 </div>
               )
             })}

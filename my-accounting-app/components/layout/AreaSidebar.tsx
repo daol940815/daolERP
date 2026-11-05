@@ -192,7 +192,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
                   <span className="truncate flex items-center gap-1.5">
                     {bank.bank_name}
                     {bank.account_type === 'overdraft' && (
-                      <span className="shrink-0 px-1 py-0.5 text-[10px] leading-none rounded bg-amber-500/20 text-amber-400">마이너스</span>
+                      <span className="shrink-0 px-1 py-0.5 text-[0.625rem] leading-none rounded bg-amber-500/20 text-amber-400">마이너스</span>
                     )}
                   </span>
                   {bank.account_number && <span className="text-xs text-slate-500 font-normal truncate">{bank.account_number}</span>}
@@ -258,7 +258,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
         <span key={it.href} title="다음 단계에서 열립니다"
           className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-600 cursor-not-allowed mb-0.5">
           <span>{it.label}</span>
-          <span className="ml-auto text-[10px] text-slate-600 border border-slate-700 rounded px-1">준비 중</span>
+          <span className="ml-auto text-[0.625rem] text-slate-600 border border-slate-700 rounded px-1">준비 중</span>
         </span>
       )
     }
@@ -295,7 +295,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
       <Link key={it.href} href={it.href} className={linkCls(isActive(it))}>
         <span className="flex items-center gap-1.5">{it.label}{changed && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" title={`${changed} 이후 바뀐 것이 있습니다 — 화면 도움말에서 확인`} />}</span>
         {(() => { const b = badgeOf(it.href); return b ? (
-          <span className={`ml-auto text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none ${b.tone === 'red' ? 'bg-red-500 text-white' : 'bg-amber-400 text-slate-900'}`}>{b.n}</span>
+          <span className={`ml-auto text-[0.625rem] font-bold rounded-full px-1.5 py-0.5 leading-none ${b.tone === 'red' ? 'bg-red-500 text-white' : 'bg-amber-400 text-slate-900'}`}>{b.n}</span>
         ) : null })()}
       </Link>
     )

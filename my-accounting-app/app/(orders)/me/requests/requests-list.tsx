@@ -134,7 +134,7 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
     const ds = dsOf(r)
     return (
       <span className={`tabular-nums whitespace-nowrap ${ds === 'overdue' ? 'text-red-600 font-medium' : ds === 'today' ? 'text-amber-600 font-medium' : 'text-gray-700'}`}>
-        {fmtDue(r.due_at)}{ds === 'overdue' && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700">지남</span>}
+        {fmtDue(r.due_at)}{ds === 'overdue' && <span className="ml-1.5 text-[0.625rem] px-1.5 py-0.5 rounded bg-red-100 text-red-700">지남</span>}
       </span>
     )
   }
@@ -153,7 +153,7 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
             className={`text-left bg-white border rounded-xl px-4 py-3 transition-colors ${filter === c.key ? 'border-slate-900 ring-1 ring-slate-900' : 'border-gray-200 hover:bg-gray-50'}`}>
             <p className="text-xs text-gray-500">{c.label}</p>
             <p className={`text-lg font-bold mt-0.5 tabular-nums ${c.cls}`}>{c.value}</p>
-            {c.sub && <p className="text-[11px] text-gray-400 mt-0.5">{c.sub}</p>}
+            {c.sub && <p className="text-[0.6875rem] text-gray-400 mt-0.5">{c.sub}</p>}
           </button>
         ))}
       </div>
@@ -211,13 +211,13 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
                 const my = myShare(r, meId)
                 const sum = assigneeSummary(r)
                 const multi = r.assignees.length > 1
-                const person = (p: WrRow['requester'], mine: boolean) => <span className="whitespace-nowrap text-gray-700">{p?.name ?? '-'}{mine && <span className="text-[10px] text-slate-500 ml-1">(나)</span>}{p?.team && <span className="text-xs text-gray-400 ml-1">{p.team}</span>}</span>
+                const person = (p: WrRow['requester'], mine: boolean) => <span className="whitespace-nowrap text-gray-700">{p?.name ?? '-'}{mine && <span className="text-[0.625rem] text-slate-500 ml-1">(나)</span>}{p?.team && <span className="text-xs text-gray-400 ml-1">{p.team}</span>}</span>
                 return (
                   <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/me/requests/${r.id}`)}>
                     <td className="py-2 px-3 whitespace-nowrap">
-                      {r.is_urgent && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-600 text-white font-semibold">긴급</span>}
-                      {multi && <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ml-1 ${r.assign_mode === 'first' ? 'bg-sky-100 text-sky-700' : 'bg-violet-100 text-violet-700'}`} title={r.assign_mode === 'first' ? '선착 — 먼저 수락한 1명이 진행' : '공동 — 전원이 각자 진행'}>{WR_MODE_LABEL[r.assign_mode]}</span>}
-                      {r.is_private && <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold ml-1" title="요청자 · 담당자 · 승인권자만 볼 수 있음">비공개</span>}
+                      {r.is_urgent && <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-red-600 text-white font-semibold">긴급</span>}
+                      {multi && <span className={`text-[0.625rem] px-1.5 py-0.5 rounded font-semibold ml-1 ${r.assign_mode === 'first' ? 'bg-sky-100 text-sky-700' : 'bg-violet-100 text-violet-700'}`} title={r.assign_mode === 'first' ? '선착 — 먼저 수락한 1명이 진행' : '공동 — 전원이 각자 진행'}>{WR_MODE_LABEL[r.assign_mode]}</span>}
+                      {r.is_private && <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold ml-1" title="요청자 · 담당자 · 승인권자만 볼 수 있음">비공개</span>}
                     </td>
                     <td className="py-2 px-3 min-w-[220px] max-w-[420px]">
                       <p className="font-semibold text-gray-900 truncate">{r.title}</p>
@@ -226,18 +226,18 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
                     {scope !== 'outbox' && <td className="py-2 px-3">{person(r.requester, a.isReq)}</td>}
                     {scope !== 'inbox' && (
                       <td className="py-2 px-3 whitespace-nowrap text-gray-700">
-                        {sum.main}{!multi && my && <span className="text-[10px] text-slate-500 ml-1">(나)</span>}
+                        {sum.main}{!multi && my && <span className="text-[0.625rem] text-slate-500 ml-1">(나)</span>}
                         {sum.sub && <span className="text-xs text-gray-400 ml-1">{sum.sub}</span>}
                       </td>
                     )}
                     {showMine && (
                       <td className="py-2 px-3 whitespace-nowrap">
-                        {my ? <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${WR_ASG_CLS[my.status]}`}>{r.status === 'completed' && my.status !== 'done_reported' && my.status !== 'rejected' && my.status !== 'released' ? '요청자가 완료 처리' : WR_ASG_LABEL[my.status]}</span> : <span className="text-gray-300">-</span>}
+                        {my ? <span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${WR_ASG_CLS[my.status]}`}>{r.status === 'completed' && my.status !== 'done_reported' && my.status !== 'rejected' && my.status !== 'released' ? '요청자가 완료 처리' : WR_ASG_LABEL[my.status]}</span> : <span className="text-gray-300">-</span>}
                       </td>
                     )}
                     <td className="py-2 px-3 whitespace-nowrap text-gray-500 text-xs tabular-nums">{fmtDT(r.created_at)}</td>
                     <td className="py-2 px-3">{dueCell(r)}</td>
-                    <td className="py-2 px-3"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap ${WR_STATUS_CLS[r.status]}`}>{WR_STATUS_LABEL[r.status]}</span></td>
+                    <td className="py-2 px-3"><span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold whitespace-nowrap ${WR_STATUS_CLS[r.status]}`}>{WR_STATUS_LABEL[r.status]}</span></td>
                     <td className="py-2 px-3 text-xs text-gray-500 max-w-[260px] truncate">{r.status === 'rejected' && r.reject_reason ? `반려: ${r.reject_reason}` : r.last_memo ?? '-'}</td>
                     <td className="py-2 px-3 text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
                       {a.accept && <button disabled={b} onClick={() => act(r.id, 'accept')} className="px-2 py-1 text-xs border border-emerald-300 text-emerald-700 rounded hover:bg-emerald-50 disabled:opacity-50 mr-1">수락</button>}

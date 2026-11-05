@@ -51,7 +51,7 @@ function ListTab({ initialQuery }: { initialQuery: string }) {
                   <div key={h.href}>
                     <button onClick={() => setOpenHref(open ? null : h.href)} className="w-full text-left px-5 py-3 flex items-center gap-3 hover:bg-gray-50">
                       <span className="font-semibold text-gray-900">{h.title}</span>
-                      {h.changes?.[0] && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">바뀜 {h.changes[0].date.slice(5)}</span>}
+                      {h.changes?.[0] && <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">바뀜 {h.changes[0].date.slice(5)}</span>}
                       <span className="text-xs text-gray-500 truncate flex-1">{h.what}</span>
                       <span className="text-xs text-gray-400">{open ? '접기' : '펼치기'}</span>
                     </button>
@@ -65,7 +65,7 @@ function ListTab({ initialQuery }: { initialQuery: string }) {
                         <div className="flex items-center gap-2 pt-1">
                           <Link href={h.href} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-700">화면 열기</Link>
                           <Link href={questionHref(h, h.href)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-gray-50">이 화면에 대해 질문하기</Link>
-                          <span className="ml-auto text-[11px] text-gray-400">최근 확인 {h.updated}</span>
+                          <span className="ml-auto text-[0.6875rem] text-gray-400">최근 확인 {h.updated}</span>
                         </div>
                       </div>
                     )}

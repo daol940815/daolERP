@@ -42,13 +42,13 @@ export default function PushBanner() {
   const later = () => { setLater(); setShow(false) }
 
   return (
-    <div className="mx-3 mb-2 px-3 py-2.5 rounded-lg bg-blue-950/60 border border-blue-800 text-[12px] leading-relaxed text-blue-100">
+    <div className="mx-3 mb-2 px-3 py-2.5 rounded-lg bg-blue-950/60 border border-blue-800 text-[0.75rem] leading-relaxed text-blue-100">
       <p>업무 요청 · 휴가 승인 알림을 <b>이 PC에서 바로</b> 받으시겠습니까? 웹페이지를 닫아도 알림이 뜹니다.</p>
       {msg && <p className={`mt-1.5 ${msg.startsWith('허용됐') ? 'text-emerald-300' : 'text-amber-300'}`}>{msg}</p>}
       <div className="flex items-center gap-2 mt-2">
-        <button onClick={allow} disabled={busy} className="px-2.5 py-1 rounded bg-white text-slate-900 font-semibold text-[11px] hover:bg-blue-50 disabled:opacity-50">{busy ? '허용 중...' : '알림 허용'}</button>
-        <button onClick={later} className="px-2.5 py-1 rounded border border-blue-700 text-blue-200 text-[11px] hover:bg-blue-900">나중에</button>
-        <Link href="/me/profile?tab=notify" className="ml-auto text-[11px] text-blue-300 underline">설정</Link>
+        <button onClick={allow} disabled={busy} className="px-2.5 py-1 rounded bg-white text-slate-900 font-semibold text-[0.6875rem] hover:bg-blue-50 disabled:opacity-50">{busy ? '허용 중...' : '알림 허용'}</button>
+        <button onClick={later} className="px-2.5 py-1 rounded border border-blue-700 text-blue-200 text-[0.6875rem] hover:bg-blue-900">나중에</button>
+        <Link href="/me/profile?tab=notify" className="ml-auto text-[0.6875rem] text-blue-300 underline">설정</Link>
       </div>
     </div>
   )

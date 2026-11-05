@@ -98,7 +98,7 @@ export default function TeamWorklogClient() {
             <div key={k.label} className="bg-white border border-gray-200 rounded-xl px-3.5 py-3">
               <div className="text-xs text-gray-500">{k.label}</div>
               <div className="text-xl font-bold text-gray-900 mt-0.5 tabular-nums">{k.value}</div>
-              {k.sub && <div className="text-[10.5px] text-gray-400 mt-0.5">{k.sub}</div>}
+              {k.sub && <div className="text-[0.65625rem] text-gray-400 mt-0.5">{k.sub}</div>}
             </div>
           ))}
         </div>

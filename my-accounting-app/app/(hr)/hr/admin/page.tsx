@@ -280,7 +280,7 @@ export default function AttendanceAdminPage() {
                 {syncing ? '불러오는 중...' : `${holidayYear}년 공휴일 불러오기`}
               </button>
             ) : (
-              <span className="ml-auto text-[11px] text-gray-400">
+              <span className="ml-auto text-[0.6875rem] text-gray-400">
                 공휴일 API 키 미설정 — 아래에서 직접 등록
               </span>
             )}
@@ -310,7 +310,7 @@ export default function AttendanceAdminPage() {
                 </span>
                 <span className="font-medium">{h.name}</span>
                 {h.source === 'company' && (
-                  <span className="text-[10px] px-1 py-0.5 rounded bg-slate-100 text-slate-500">회사 휴무</span>
+                  <span className="text-[0.625rem] px-1 py-0.5 rounded bg-slate-100 text-slate-500">회사 휴무</span>
                 )}
                 <button onClick={() => deleteHoliday(h.holiday_date, h.name)} disabled={busy}
                   className="ml-auto text-xs text-gray-400 hover:text-red-600">삭제</button>
@@ -339,7 +339,7 @@ export default function AttendanceAdminPage() {
                 <input type="checkbox" checked={e.attendance_target} disabled={busy} onChange={() => toggleTarget(e)} />
                 <span className={e.attendance_target ? '' : 'text-gray-400'}>
                   {e.name}
-                  <span className="text-[11px] text-gray-400 ml-1">
+                  <span className="text-[0.6875rem] text-gray-400 ml-1">
                     {e.team ?? ''}{!e.auth_user_id ? ' · 계정없음' : ''}
                   </span>
                 </span>
@@ -454,14 +454,14 @@ function FragmentRow({ emp, sum, records, leaves, data, open, onToggle, adjust, 
                 <div key={date} className="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs">
                   <div className="flex items-center gap-1.5">
                     <span className="tabular-nums text-gray-500">{date.slice(5)} ({DOW_LABEL[dayOfWeek(date)]})</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${STATUS_COLOR[st.kind]}`}>
+                    <span className={`px-1.5 py-0.5 rounded text-[0.625rem] font-semibold ${STATUS_COLOR[st.kind]}`}>
                       {st.holidayName ?? (st.leave ? LEAVE_TYPE_LABEL[st.leave.leave_type] : DAY_STATUS_LABEL[st.kind])}
                     </span>
                     <button onClick={() => setAdjust(editing ? null : {
                       empId: emp.id, date,
                       in: kstTime(record?.check_in_at ?? null) ?? '',
                       out: kstTime(record?.check_out_at ?? null) ?? '', note: '',
-                    })} className="ml-auto text-[10px] text-gray-400 hover:text-gray-700">보정</button>
+                    })} className="ml-auto text-[0.625rem] text-gray-400 hover:text-gray-700">보정</button>
                   </div>
                   {editing ? (
                     <div className="flex items-center gap-1 mt-1.5 flex-wrap">
@@ -473,7 +473,7 @@ function FragmentRow({ emp, sum, records, leaves, data, open, onToggle, adjust, 
                       <input value={adjust.note} placeholder="사유 (필수)" className={`${inp} flex-1 min-w-[90px]`}
                         onChange={e => setAdjust({ ...adjust, note: e.target.value })} />
                       <button onClick={saveAdjust} disabled={busy}
-                        className="px-2 py-1 bg-slate-900 text-white rounded text-[10px]">저장</button>
+                        className="px-2 py-1 bg-slate-900 text-white rounded text-[0.625rem]">저장</button>
                     </div>
                   ) : (
                     <p className="mt-1 tabular-nums text-gray-700">

@@ -135,24 +135,24 @@ export default function MonthlyPLPage() {
           <div className="bg-white border border-gray-200 rounded-xl p-4">
             <div className="text-xs text-gray-400">매출이익률</div>
             <div className="text-xl font-bold mt-1">{kpi.margin.toFixed(1)}%</div>
-            <div className="text-[11px] text-gray-400 mt-0.5">매출이익 {eok(kpi.gross)}</div>
+            <div className="text-[0.6875rem] text-gray-400 mt-0.5">매출이익 {eok(kpi.gross)}</div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl p-4">
             <div className="text-xs text-gray-400">영업이익</div>
             <div className={`text-xl font-bold mt-1 ${kpi.op < 0 ? 'text-red-600' : ''}`}>{eok(kpi.op)}</div>
-            <div className="text-[11px] text-gray-400 mt-0.5">판관비 {eok(kpi.sga)}</div>
+            <div className="text-[0.6875rem] text-gray-400 mt-0.5">판관비 {eok(kpi.sga)}</div>
           </div>
           {kpi.diff !== null ? (
             <div className={`border rounded-xl p-4 ${kpi.diff === 0 ? 'bg-white border-gray-200' : 'bg-amber-50 border-amber-300'}`}>
               <div className={`text-xs ${kpi.diff === 0 ? 'text-gray-400' : 'text-amber-700'}`}>ERP와 매출 차이 (ERP − 증빙)</div>
               <div className={`text-xl font-bold mt-1 ${kpi.diff === 0 ? '' : 'text-amber-800'}`}>{kpi.diff > 0 ? '+' : ''}{eok(kpi.diff)}</div>
-              <div className={`text-[11px] mt-0.5 ${kpi.diff === 0 ? 'text-gray-400' : 'text-amber-700'}`}>아래 매출 대사 참조</div>
+              <div className={`text-[0.6875rem] mt-0.5 ${kpi.diff === 0 ? 'text-gray-400' : 'text-amber-700'}`}>아래 매출 대사 참조</div>
             </div>
           ) : (
             <div className="bg-white border border-gray-200 rounded-xl p-4">
               <div className="text-xs text-gray-400">기준</div>
               <div className="text-sm font-medium mt-1 text-gray-700">ERP 주문일 기준</div>
-              <div className="text-[11px] text-gray-400 mt-0.5">증빙 기준으로 바꾸면 대사가 보입니다</div>
+              <div className="text-[0.6875rem] text-gray-400 mt-0.5">증빙 기준으로 바꾸면 대사가 보입니다</div>
             </div>
           )}
         </div>
@@ -201,7 +201,7 @@ export default function MonthlyPLPage() {
                         {item.label}
                       </Link>
                     ) : item.label}
-                    {item.note && <span className="ml-2 text-[11px] font-normal text-amber-600">{item.note}</span>}
+                    {item.note && <span className="ml-2 text-[0.6875rem] font-normal text-amber-600">{item.note}</span>}
                   </td>
                   {item.values.map((v, i) => (
                     <td

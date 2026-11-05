@@ -100,8 +100,8 @@ export default function ApprovalsPage() {
           return (
             <div key={r.id} className="bg-white border border-gray-200 rounded-xl p-4">
               <div className="flex items-center gap-2.5 flex-wrap text-sm">
-                <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${badge.cls}`}>{badge.label}</span>
-                <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium ${r.request_type === 'cancel' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-700'}`}>
+                <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${badge.cls}`}>{badge.label}</span>
+                <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${r.request_type === 'cancel' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-700'}`}>
                   {r.request_type === 'cancel' ? '취소 요청' : '수정 요청'}
                 </span>
                 <Link href={`/orders/${r.order_id}`} className="font-semibold hover:underline">
@@ -122,7 +122,7 @@ export default function ApprovalsPage() {
               {r.request_type === 'edit' && (
                 <div className="mt-2.5 grid md:grid-cols-2 gap-2.5 text-xs">
                   <div className="bg-gray-50 rounded-lg p-2.5">
-                    <div className="text-[11px] text-gray-400 mb-1">현재 (변경 전) — 총 {won(beforeTotal)}원</div>
+                    <div className="text-[0.6875rem] text-gray-400 mb-1">현재 (변경 전) — 총 {won(beforeTotal)}원</div>
                     {beforeItems.map((it, i) => (
                       <div key={i} className="flex justify-between py-0.5">
                         <span>{it.item_name} × {it.quantity}</span>
@@ -131,7 +131,7 @@ export default function ApprovalsPage() {
                     ))}
                   </div>
                   <div className="bg-blue-50/50 rounded-lg p-2.5 border border-blue-100">
-                    <div className="text-[11px] text-blue-600 mb-1">
+                    <div className="text-[0.6875rem] text-blue-600 mb-1">
                       제안 (변경 후) — 총 {won(afterTotal)}원
                       {afterTotal !== beforeTotal && (
                         <span className={`ml-1.5 font-semibold ${afterTotal > beforeTotal ? 'text-emerald-600' : 'text-red-500'}`}>
@@ -146,7 +146,7 @@ export default function ApprovalsPage() {
                       </div>
                     ))}
                     {r.payload?.order_date && r.payload.order_date !== r.order?.order_date && (
-                      <div className="mt-1 text-[11px] text-blue-700">주문일 변경: {r.order?.order_date} → {r.payload.order_date}</div>
+                      <div className="mt-1 text-[0.6875rem] text-blue-700">주문일 변경: {r.order?.order_date} → {r.payload.order_date}</div>
                     )}
                   </div>
                 </div>

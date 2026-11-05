@@ -128,7 +128,7 @@ export default async function WorkTab({
               {issues.map((it, i) => (
                 <tr key={i} className="border-b border-gray-100 last:border-0">
                   <td className="py-2 px-3 whitespace-nowrap">
-                    <span className={`inline-block whitespace-nowrap text-[11px] px-1.5 py-0.5 rounded ${it.tone}`}>{it.kind}</span>
+                    <span className={`inline-block whitespace-nowrap text-[0.6875rem] px-1.5 py-0.5 rounded ${it.tone}`}>{it.kind}</span>
                   </td>
                   <td className="py-2 px-3">{it.text}</td>
                   <td className={`py-2 px-3 text-right whitespace-nowrap ${it.amount === '-' ? 'text-gray-400' : 'font-medium'}`}>{it.amount}</td>

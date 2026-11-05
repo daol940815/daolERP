@@ -115,7 +115,7 @@ function NewVendorModal({ onClose, onCreated, showKind }: {
             <input value={form.branch_name} onChange={set('branch_name')}
               placeholder="예: 인천점 — 지점이 없으면 비워두세요" className={field} />
             {form.group_name.trim() && form.branch_name.trim() && (
-              <p className="text-[11px] text-gray-400 mt-1">
+              <p className="text-[0.6875rem] text-gray-400 mt-1">
                 거래처명: {form.group_name.trim()} {form.branch_name.trim()}
               </p>
             )}
@@ -359,26 +359,26 @@ export default function PurchaseHubList({ basePath, perms }: {
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
             <div className="text-xs text-gray-500">활성 매입처{filterActive && <span className="ml-1 text-blue-600 font-semibold">(필터 적용)</span>}</div>
             <div className="text-xl font-bold mt-0.5">{kpi.active_vendors.toLocaleString()}곳</div>
-            <div className="text-[11px] text-gray-400 mt-0.5">
+            <div className="text-[0.6875rem] text-gray-400 mt-0.5">
               {filterActive ? `전체 ${summary.active_vendors.toLocaleString()}곳 중` : '기간 내 계산서·ERP 발주 발생 기준'}
             </div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
             <div className="text-xs text-gray-500">기간 매입 (계산서 총액)</div>
             <div className="text-xl font-bold mt-0.5 tabular-nums">{eok(kpi.invoice_total)}</div>
-            <div className="text-[11px] text-gray-400 mt-0.5">
+            <div className="text-[0.6875rem] text-gray-400 mt-0.5">
               {filterActive ? `전체 ${eok(summary.invoice_total)} 중` : '부가세 포함, 발행일 기준'}
             </div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
             <div className="text-xs text-gray-500">지급율 (기간)</div>
             <div className="text-xl font-bold mt-0.5 tabular-nums">{(kpi.pay_ratio * 100).toFixed(1)}%</div>
-            <div className="text-[11px] text-gray-400 mt-0.5">지급 {eok(kpi.paid_total)}</div>
+            <div className="text-[0.6875rem] text-gray-400 mt-0.5">지급 {eok(kpi.paid_total)}</div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
             <div className="text-xs text-gray-500">미지급 잔액 (누적)</div>
             <div className="text-xl font-bold mt-0.5 tabular-nums text-red-600">{eok(kpi.outstanding_total)}</div>
-            <div className="text-[11px] text-gray-400 mt-0.5">90일 초과 {eok(kpi.over90_total)} 포함</div>
+            <div className="text-[0.6875rem] text-gray-400 mt-0.5">90일 초과 {eok(kpi.over90_total)} 포함</div>
           </div>
         </div>
       )}
@@ -426,7 +426,7 @@ export default function PurchaseHubList({ basePath, perms }: {
                     <td className="py-2 px-3">
                       <Link href={`${basePath}/${r.vendor_id}?from=${from}&to=${to}`} className="block">
                         <div className="font-semibold text-gray-900">{r.vendor_name}</div>
-                        <div className="text-[11px] text-gray-400">
+                        <div className="text-[0.6875rem] text-gray-400">
                           {r.purchase_kind === 'expense' && <span className="text-amber-700 font-medium">경비성 · </span>}
                           별칭 {r.alias_count || '-'}{r.opening_remain > 0 ? ` · 기초이월 ${eok(r.opening_remain)}` : ''}
                         </div>
@@ -437,16 +437,16 @@ export default function PurchaseHubList({ basePath, perms }: {
                         ? <a href={`mailto:${r.email}`} title={r.email}
                             className="text-blue-600 hover:underline text-xs block max-w-[180px] truncate">{r.email}</a>
                         : r.purchase_kind !== 'partner'
-                          ? <span className="text-gray-300 text-[11px]" title="발주 대상이 아닙니다">-</span>
-                          : <span className="text-orange-600 text-[11px]">미입력</span>}
+                          ? <span className="text-gray-300 text-[0.6875rem]" title="발주 대상이 아닙니다">-</span>
+                          : <span className="text-orange-600 text-[0.6875rem]">미입력</span>}
                     </td>
                     <td className="py-2 px-3 whitespace-nowrap">
                       {r.staff_primary ?? <span className="text-gray-300">-</span>}
-                      {r.staff_extra > 0 && <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[10px] font-bold">+{r.staff_extra}</span>}
+                      {r.staff_extra > 0 && <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[0.625rem] font-bold">+{r.staff_extra}</span>}
                     </td>
                     <td className="py-2 px-3 whitespace-nowrap">
                       {r.contact_rep ?? <span className="text-gray-300">-</span>}
-                      {r.contact_extra > 0 && <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[10px] font-bold">+{r.contact_extra}</span>}
+                      {r.contact_extra > 0 && <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[0.625rem] font-bold">+{r.contact_extra}</span>}
                     </td>
                     <td className="py-2 px-3 text-right tabular-nums">{won(r.invoice_total)}</td>
                     <td className="py-2 px-3 text-right tabular-nums">{won(r.paid_amount)}</td>
@@ -465,13 +465,13 @@ export default function PurchaseHubList({ basePath, perms }: {
                     </td>
                     <td className="py-2 px-3 tabular-nums text-gray-500 text-xs">{r.last_purchase_date ?? '-'}</td>
                     <td className="py-2 px-3">
-                      <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${meta.cls}`}>{meta.label}</span>
+                      <span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${meta.cls}`}>{meta.label}</span>
                     </td>
                     {perms.collections && (
                       <td className="py-2 px-3">
                         {exceptionCount.get(r.vendor_id)
                           ? <Link href={`${basePath}?tab=exceptions&vendor=${r.vendor_id}`} title="결제 예외 탭에서 이 매입처만 보기"
-                              className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-100 text-rose-700 hover:bg-rose-200">
+                              className="inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold bg-rose-100 text-rose-700 hover:bg-rose-200">
                               확인 {exceptionCount.get(r.vendor_id)}건
                             </Link>
                           : <span className="text-gray-300 text-xs">-</span>}

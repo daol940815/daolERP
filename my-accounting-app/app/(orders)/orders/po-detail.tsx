@@ -59,7 +59,7 @@ export default function PoDetail({ poId }: { poId: string }) {
           </div>
 
           {/* 헤더 정보 3행 — 발주번호 맨 위, 출고요청일 라벨 강조 */}
-          <table className="w-full border-collapse text-[11px]">
+          <table className="w-full border-collapse text-[0.6875rem]">
             <tbody>
               {infoRows.map((cells, ri) => (
                 <tr key={ri}>
@@ -86,7 +86,7 @@ export default function PoDetail({ poId }: { poId: string }) {
           </table>
 
           {/* 품목 표 6열 (배송구분 열 없음 — 비고 통일), 택배비는 별도 행 */}
-          <table className="w-full border-collapse text-[11px] mt-1.5">
+          <table className="w-full border-collapse text-[0.6875rem] mt-1.5">
             <thead>
               <tr>
                 {PO_HEADERS.map(label => (
@@ -132,7 +132,7 @@ export default function PoDetail({ poId }: { poId: string }) {
       <div className="overflow-x-auto mt-2">
         <div className="min-w-[860px] bg-white border border-gray-300 rounded-lg p-3 shadow-sm">
           <div className="text-xs font-bold text-gray-700 mb-1.5">배송명단 (시트 2)</div>
-          <table className="w-full border-collapse text-[11px]">
+          <table className="w-full border-collapse text-[0.6875rem]">
             <thead>
               <tr>
                 {ROSTER_HEADERS.map(label => (
@@ -160,7 +160,7 @@ export default function PoDetail({ poId }: { poId: string }) {
         </div>
       </div>
 
-      <div className="mt-1.5 space-y-0.5 text-[11px] text-gray-400">
+      <div className="mt-1.5 space-y-0.5 text-[0.6875rem] text-gray-400">
         <div>
           엑셀 다운로드·메일 첨부와 동일한 내용입니다. 지점·샘플 품목은 주문 배송지가 자동으로 들어가고,
           개별 배송 품목의 수령인·주소는 다운로드 후 수기로 보완합니다 (개별배송 명단 관리 기능은 4페이즈 예정).

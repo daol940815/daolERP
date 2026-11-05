@@ -39,7 +39,7 @@ export default function WorkRequestsOverviewPage() {
   const s = data.summary
   const kpi = (k: string, v: React.ReactNode, href: string, sub?: string) => (
     <Link href={href} className="bg-white border border-gray-200 rounded-xl px-4 py-3 hover:bg-gray-50 hover:border-slate-400 transition-colors">
-      <p className="text-xs text-gray-500">{k}</p><p className="text-lg font-bold mt-0.5 tabular-nums">{v}</p>{sub && <p className="text-[11px] text-gray-400 mt-0.5">{sub}</p>}
+      <p className="text-xs text-gray-500">{k}</p><p className="text-lg font-bold mt-0.5 tabular-nums">{v}</p>{sub && <p className="text-[0.6875rem] text-gray-400 mt-0.5">{sub}</p>}
     </Link>
   )
 
@@ -88,10 +88,10 @@ export default function WorkRequestsOverviewPage() {
               <thead><tr className="text-left text-xs text-gray-400 border-b border-gray-100"><th className="py-1.5 font-medium">요청</th><th className="py-1.5 font-medium">담당</th><th className="py-1.5 font-medium">마감</th><th className="py-1.5 font-medium">상태</th></tr></thead>
               <tbody>{data.attention.slice(0, 15).map(r => (
                 <tr key={r.id} className="border-b border-gray-50">
-                  <td className="py-1.5 max-w-[260px] truncate"><Link href={`/me/requests/${r.id}`} className="hover:underline">{r.is_urgent && <span className="text-[10px] px-1 rounded bg-red-600 text-white mr-1">긴급</span>}{r.title}</Link></td>
+                  <td className="py-1.5 max-w-[260px] truncate"><Link href={`/me/requests/${r.id}`} className="hover:underline">{r.is_urgent && <span className="text-[0.625rem] px-1 rounded bg-red-600 text-white mr-1">긴급</span>}{r.title}</Link></td>
                   <td className="py-1.5 text-gray-700 whitespace-nowrap">{assigneeSummary(r).main}{assigneeSummary(r).sub && r.assignees.length > 1 && <span className="text-xs text-gray-400 ml-1">{assigneeSummary(r).sub}</span>}</td>
                   <td className="py-1.5 text-xs tabular-nums whitespace-nowrap text-red-600">{fmtDue(r.due_at)}</td>
-                  <td className="py-1.5"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${r.reason === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{r.reason === 'overdue' ? '지남' : '미확인 24h+'}</span></td>
+                  <td className="py-1.5"><span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${r.reason === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{r.reason === 'overdue' ? '지남' : '미확인 24h+'}</span></td>
                 </tr>
               ))}</tbody>
             </table>

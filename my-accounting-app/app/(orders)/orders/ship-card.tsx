@@ -113,14 +113,14 @@ export default function ShipCard({ value, onChange, vendorId, contactName, conta
     setOpenList(false)
   }
 
-  const label = 'block text-[11px] text-gray-500 mb-0.5'
+  const label = 'block text-[0.6875rem] text-gray-500 mb-0.5'
   const free = 'w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-60'
-  const btn = 'px-2 py-1 text-[11px] border border-gray-300 rounded-md text-gray-600 hover:bg-gray-50 disabled:opacity-50'
+  const btn = 'px-2 py-1 text-[0.6875rem] border border-gray-300 rounded-md text-gray-600 hover:bg-gray-50 disabled:opacity-50'
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
       <div className="text-sm font-bold text-gray-900 mb-2">
-        배송지 <span className="text-[11px] font-normal text-gray-400 ml-1">지점 · 샘플 배송 품목에 적용 · 개별 배송은 발주서 배송명단에서 수령인별로</span>
+        배송지 <span className="text-[0.6875rem] font-normal text-gray-400 ml-1">지점 · 샘플 배송 품목에 적용 · 개별 배송은 발주서 배송명단에서 수령인별로</span>
       </div>
 
       {!applies ? (
@@ -158,7 +158,7 @@ export default function ShipCard({ value, onChange, vendorId, contactName, conta
             </div>
             {openList && (
               <div className="absolute right-0 z-20 mt-1 w-full md:w-[34rem] bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden text-xs">
-                <div className="px-3 py-1.5 text-[10.5px] text-gray-400 bg-gray-50">이 주문처로 보낸 배송지 (최근순 · 같은 배송지는 1번만)</div>
+                <div className="px-3 py-1.5 text-[0.65625rem] text-gray-400 bg-gray-50">이 주문처로 보낸 배송지 (최근순 · 같은 배송지는 1번만)</div>
                 {recent.map((r, i) => (
                   <button key={i} type="button" onClick={() => pick(r)}
                     className="block w-full text-left px-3 py-2 border-t border-gray-100 hover:bg-blue-50">
@@ -206,8 +206,8 @@ export default function ShipCard({ value, onChange, vendorId, contactName, conta
                 onChange={e => set({ ship_addr2: e.target.value || null })} className={free} placeholder="층 · 부서 등" />
             </div>
           </div>
-          {pcError && <div className="mt-1.5 text-[11px] text-red-600">{pcError}</div>}
-          <div className="mt-1.5 text-[11px] text-gray-400">
+          {pcError && <div className="mt-1.5 text-[0.6875rem] text-red-600">{pcError}</div>}
+          <div className="mt-1.5 text-[0.6875rem] text-gray-400">
             이 주문만 다른 곳으로 보낼 때는 그대로 고치면 됩니다 — 고친 값은 이 주문에만 저장되고 다음 주문에서는 &lsquo;최근 배송지&rsquo;에 함께 뜹니다. 비워둬도 저장됩니다.
           </div>
         </>

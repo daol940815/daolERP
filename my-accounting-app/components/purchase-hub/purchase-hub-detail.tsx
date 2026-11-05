@@ -230,7 +230,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
         <input type="date" value={from} onChange={e => { setPreset(''); setFrom(e.target.value) }} className="border border-gray-300 rounded px-2 py-1 text-xs" />
         <span className="text-gray-400 text-xs">~</span>
         <input type="date" value={to} onChange={e => { setPreset(''); setTo(e.target.value) }} className="border border-gray-300 rounded px-2 py-1 text-xs" />
-        <span className="text-[11px] text-gray-400 ml-2">여기서 바꿔도 목록의 기간은 유지됩니다</span>
+        <span className="text-[0.6875rem] text-gray-400 ml-2">여기서 바꿔도 목록의 기간은 유지됩니다</span>
       </div>
 
       {/* 헤더 */}
@@ -239,12 +239,12 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-gray-900">{data.vendor.name}</h1>
             {!data.vendor.is_active && (
-              <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-gray-200 text-gray-600">비활성</span>
+              <span className="px-2 py-0.5 rounded text-[0.6875rem] font-semibold bg-gray-200 text-gray-600">비활성</span>
             )}
-            <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${meta.cls}`}>{meta.label}</span>
+            <span className={`px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${meta.cls}`}>{meta.label}</span>
             <select value={data.vendor.purchase_kind} onChange={e => changeKind(e.target.value)} disabled={!perms.edit}
               title="거래 매입처=발주·미지급 관리 대상 / 별도 구매처=온·오프라인에서 사 온 곳(즉시 결제) / 경비성=택배·전기·리스 등"
-              className="border border-gray-300 rounded px-1.5 py-0.5 text-[11px] text-gray-600">
+              className="border border-gray-300 rounded px-1.5 py-0.5 text-[0.6875rem] text-gray-600">
               <option value="partner">거래 매입처</option>
               <option value="retail">별도 구매처</option>
               <option value="expense">경비성</option>
@@ -260,13 +260,13 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                 placeholder="숫자 10자리" className="border border-gray-300 rounded px-2 py-1 w-36" />
               <button onClick={saveInfo} className="px-2.5 py-1 bg-slate-900 text-white rounded">저장</button>
               <button onClick={() => setInfoForm({ open: false, name: '', biz: '' })}
-                className="text-[11px] text-gray-400 hover:text-gray-600">취소</button>
+                className="text-[0.6875rem] text-gray-400 hover:text-gray-600">취소</button>
             </div>
           ) : (
             <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5">
               <span>사업자번호 {data.vendor.biz_number ?? '미입력'}</span>
               {perms.edit && <button onClick={() => setInfoForm({ open: true, name: data.vendor.name, biz: data.vendor.biz_number ?? '' })}
-                className="text-[11px] text-gray-400 hover:text-gray-600 underline">정보 수정</button>}
+                className="text-[0.6875rem] text-gray-400 hover:text-gray-600 underline">정보 수정</button>}
             </div>
           )}
           {/* 발주 이메일 — 발주서 발송에 쓰는 주소 (원가표 적재분, 누락 시 여기서 보완) */}
@@ -278,9 +278,9 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                   placeholder="example@company.com" autoFocus
                   onKeyDown={e => { if (e.key === 'Enter') saveEmail() }}
                   className="border border-gray-300 rounded px-2 py-0.5 text-xs w-56" />
-                <button onClick={saveEmail} className="px-2 py-0.5 bg-slate-900 text-white rounded text-[11px]">저장</button>
+                <button onClick={saveEmail} className="px-2 py-0.5 bg-slate-900 text-white rounded text-[0.6875rem]">저장</button>
                 <button onClick={() => setEmailForm({ open: false, value: '' })}
-                  className="text-[11px] text-gray-400 hover:text-gray-600">취소</button>
+                  className="text-[0.6875rem] text-gray-400 hover:text-gray-600">취소</button>
               </>
             ) : (
               <>
@@ -290,19 +290,19 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                     ? <span className="text-gray-400">관리 대상 아님</span>
                     : <span className="text-orange-600">미입력</span>}
                 {perms.edit && <button onClick={() => setEmailForm({ open: true, value: data.vendor.email ?? '' })}
-                  className="text-[11px] text-gray-400 hover:text-gray-600 underline">수정</button>}
+                  className="text-[0.6875rem] text-gray-400 hover:text-gray-600 underline">수정</button>}
               </>
             )}
           </div>
           <div className="flex gap-1.5 flex-wrap mt-2">
             <Link href={`/erp-aliases?type=purchase&q=${encodeURIComponent(data.vendor.name)}`}
               title="매입처 연결 키워드에서 별칭 관리"
-              className={`px-2 py-0.5 rounded-full text-[11px] border hover:underline ${data.links.alias_count ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
+              className={`px-2 py-0.5 rounded-full text-[0.6875rem] border hover:underline ${data.links.alias_count ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               ERP 별칭 {data.links.alias_count || '미'}연동
             </Link>
             <button onClick={() => perms.edit && setOpeningForm(f => ({ ...f, open: !f.open }))} disabled={!perms.edit}
               title={perms.edit ? '미결제금 기초원장 (기준일 + 기초잔액) 입력' : '기초원장 (수정 권한 필요)'}
-              className={`px-2 py-0.5 rounded-full text-[11px] border hover:underline ${data.links.opening ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
+              className={`px-2 py-0.5 rounded-full text-[0.6875rem] border hover:underline ${data.links.opening ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               기초원장 {data.links.opening ? `${data.links.opening.as_of_date} 기준 ${eok(data.links.opening.amount)}` : '미입력'}
             </button>
           </div>
@@ -317,7 +317,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
               <input value={openingForm.note} onChange={e => setOpeningForm(f => ({ ...f, note: e.target.value }))}
                 placeholder="메모 (선택)" className="border border-gray-300 rounded px-2 py-1 w-40" />
               <button onClick={saveOpening} className="px-2.5 py-1 bg-slate-900 text-white rounded">저장</button>
-              <span className="text-[11px] text-gray-400">기준일 이후 계산서(+)·지급(-)만 잔액에 반영됩니다</span>
+              <span className="text-[0.6875rem] text-gray-400">기준일 이후 계산서(+)·지급(-)만 잔액에 반영됩니다</span>
             </div>
           )}
         </div>
@@ -326,12 +326,12 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
           {perms.edit && <div className="mt-1.5 flex gap-1.5 justify-end">
             <button onClick={toggleActive}
               title="기록은 남기고 신규 선택 목록에서만 제외합니다"
-              className="px-2 py-1 border border-gray-300 rounded text-[11px] text-gray-600 hover:bg-gray-50">
+              className="px-2 py-1 border border-gray-300 rounded text-[0.6875rem] text-gray-600 hover:bg-gray-50">
               {data.vendor.is_active ? '비활성화' : '활성화'}
             </button>
             <button onClick={removeVendor}
               title="실적이 없는 거래처만 삭제됩니다"
-              className="px-2 py-1 border border-gray-200 rounded text-[11px] text-red-500 hover:bg-red-50">
+              className="px-2 py-1 border border-gray-200 rounded text-[0.6875rem] text-red-500 hover:bg-red-50">
               삭제
             </button>
           </div>}
@@ -351,18 +351,18 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
             <div key={s.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
               <div>
                 <span className="font-semibold text-sm">{s.name}</span>
-                {s.is_primary && <span className="ml-1.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[10px] font-bold">주담당</span>}
-                <div className="text-[11px] text-gray-400">{s.team ?? '팀 미지정'} · 배정 {s.started_at ?? '-'}</div>
+                {s.is_primary && <span className="ml-1.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[0.625rem] font-bold">주담당</span>}
+                <div className="text-[0.6875rem] text-gray-400">{s.team ?? '팀 미지정'} · 배정 {s.started_at ?? '-'}</div>
               </div>
-              <div className="text-right text-[11px] text-gray-500">
+              <div className="text-right text-[0.6875rem] text-gray-500">
                 담당처 {s.vendor_count}곳
                 {perms.edit && <div className="mt-0.5 flex gap-1 justify-end">
                   {!s.is_primary && (
                     <button onClick={async () => { await post('/api/vendor-hub/staff', { action: 'set_primary', assignment_id: s.id }); load() }}
-                      className="px-1.5 py-0.5 border border-gray-200 rounded text-[10px] hover:bg-gray-50">주담당으로</button>
+                      className="px-1.5 py-0.5 border border-gray-200 rounded text-[0.625rem] hover:bg-gray-50">주담당으로</button>
                   )}
                   <button onClick={async () => { await post('/api/vendor-hub/staff', { action: 'unassign', assignment_id: s.id }); load() }}
-                    className="px-1.5 py-0.5 border border-gray-200 rounded text-[10px] text-red-500 hover:bg-red-50">해제</button>
+                    className="px-1.5 py-0.5 border border-gray-200 rounded text-[0.625rem] text-red-500 hover:bg-red-50">해제</button>
                 </div>}
               </div>
             </div>
@@ -406,21 +406,21 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
             <div key={c.assignment_id} className={`flex items-start justify-between py-2 border-b border-gray-50 last:border-0 ${c.ended_at ? 'opacity-50' : ''}`}>
               <div>
                 <span className="font-semibold text-sm">{contactLabel(c.name, c.title)}</span>
-                {c.is_representative && <span className="ml-1.5 px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-full text-[10px] font-bold">대표</span>}
-                <div className="text-[11px] text-gray-400">
+                {c.is_representative && <span className="ml-1.5 px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-full text-[0.625rem] font-bold">대표</span>}
+                <div className="text-[0.6875rem] text-gray-400">
                   {[c.role_memo, c.phone, c.email].filter(Boolean).join(' · ') || '연락처 미입력'}
                 </div>
               </div>
-              <div className="text-right text-[11px] text-gray-500 whitespace-nowrap">
+              <div className="text-right text-[0.6875rem] text-gray-500 whitespace-nowrap">
                 {c.ended_at ? `종료 ${c.ended_at}` : `배정 ${c.started_at ?? '-'}`}
                 {!c.ended_at && perms.edit && (
                   <div className="mt-0.5 flex gap-1 justify-end">
                     {!c.is_representative && (
                       <button onClick={async () => { await post('/api/vendor-hub/contacts', { action: 'set_representative', assignment_id: c.assignment_id }); load() }}
-                        className="px-1.5 py-0.5 border border-gray-200 rounded text-[10px] hover:bg-gray-50">대표로</button>
+                        className="px-1.5 py-0.5 border border-gray-200 rounded text-[0.625rem] hover:bg-gray-50">대표로</button>
                     )}
                     <button onClick={async () => { await post('/api/vendor-hub/contacts', { action: 'end_assignment', assignment_id: c.assignment_id }); load() }}
-                      className="px-1.5 py-0.5 border border-gray-200 rounded text-[10px] text-red-500 hover:bg-red-50">종료</button>
+                      className="px-1.5 py-0.5 border border-gray-200 rounded text-[0.625rem] text-red-500 hover:bg-red-50">종료</button>
                   </div>
                 )}
               </div>
@@ -454,14 +454,14 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                       </span>
                       <span className="flex gap-1">
                         <button onClick={() => submitContact(false, c.id, true)}
-                          className="px-1.5 py-0.5 border rounded text-[10px] hover:bg-gray-50">같은 인물 (이동 처리)</button>
+                          className="px-1.5 py-0.5 border rounded text-[0.625rem] hover:bg-gray-50">같은 인물 (이동 처리)</button>
                         <button onClick={() => submitContact(false, c.id, false)}
-                          className="px-1.5 py-0.5 border rounded text-[10px] hover:bg-gray-50">같은 인물 (겸직)</button>
+                          className="px-1.5 py-0.5 border rounded text-[0.625rem] hover:bg-gray-50">같은 인물 (겸직)</button>
                       </span>
                     </div>
                   ))}
                   <button onClick={() => submitContact(true)}
-                    className="mt-1.5 px-2 py-0.5 border rounded text-[10px] hover:bg-gray-50">아니요, 새 인물로 등록</button>
+                    className="mt-1.5 px-2 py-0.5 border rounded text-[0.625rem] hover:bg-gray-50">아니요, 새 인물로 등록</button>
                 </div>
               )}
             </div>
@@ -480,12 +480,12 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
           { tag: '누적', label: '평균 지급일', value: data.kpi.avg_pay_days != null ? `${data.kpi.avg_pay_days}일` : '-', sub: '계산서 발행→출금 (금액 가중)', cls: '' },
         ].map((k, i) => (
           <div key={i} className="bg-white border border-gray-200 rounded-xl px-3.5 py-3">
-            <div className="text-[11px] text-gray-500">
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold mr-1 ${k.tag === '기간' ? 'bg-blue-100 text-blue-700' : 'bg-violet-100 text-violet-700'}`}>{k.tag}</span>
+            <div className="text-[0.6875rem] text-gray-500">
+              <span className={`px-1.5 py-0.5 rounded-full text-[0.625rem] font-bold mr-1 ${k.tag === '기간' ? 'bg-blue-100 text-blue-700' : 'bg-violet-100 text-violet-700'}`}>{k.tag}</span>
               {k.label}
             </div>
             <div className={`text-lg font-bold mt-0.5 tabular-nums ${k.cls}`}>{k.value}</div>
-            <div className="text-[10px] text-gray-400 mt-0.5">{k.sub}</div>
+            <div className="text-[0.625rem] text-gray-400 mt-0.5">{k.sub}</div>
           </div>
         ))}
       </div>
@@ -494,7 +494,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
       <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
         <div className="flex items-center justify-between">
           <div className="text-sm font-bold text-gray-800">미지급 경과기간별 현황 <span className="font-normal text-gray-400 text-xs">(전체 기간 · 지급 누계가 오래된 계산서부터 갚은 것으로 보고 계산)</span></div>
-          {data.aging.opening > 0 && <div className="text-[11px] text-gray-500">기초이월 잔여 {eok(data.aging.opening)} 별도</div>}
+          {data.aging.opening > 0 && <div className="text-[0.6875rem] text-gray-500">기초이월 잔여 {eok(data.aging.opening)} 별도</div>}
         </div>
         {agingTotal > 0 ? (
           <div className="flex h-6 rounded-md overflow-hidden mt-2">
@@ -505,7 +505,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
               { v: data.aging.over90, c: '#104281', t: '#fff' },
             ].map((b, i) => b.v > 0 && (
               <div key={i} style={{ flex: b.v, background: b.c, color: b.t }}
-                className="flex items-center justify-center text-[10px] font-semibold border-r-2 border-white last:border-0">
+                className="flex items-center justify-center text-[0.625rem] font-semibold border-r-2 border-white last:border-0">
                 {['~30일', '31~60일', '61~90일', '90일+'][i]} {eok(b.v)}
               </div>
             ))}
@@ -535,7 +535,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
           <div className={tab === '개요' ? 'grid xl:grid-cols-5 gap-3' : ''}>
             <div className={`bg-white border border-gray-200 rounded-xl overflow-x-auto ${tab === '개요' ? 'xl:col-span-3' : ''}`}>
               <div className="px-4 pt-3 text-sm font-bold text-gray-800">매입 세금계산서{tab === '개요' ? ' (최근)' : ''}</div>
-              <div className="px-4 pb-1 text-[11px] text-gray-400">
+              <div className="px-4 pb-1 text-[0.6875rem] text-gray-400">
                 지급·잔여는 이 계산서에 실제로 연결된 출금 기준입니다. 매입처 전체 잔액·경과기간 막대는 오래된 계산서부터 지급된 것으로 보는 총액 방식이라 건별 합계와 다를 수 있습니다.
               </div>
               <table className="w-full text-sm min-w-[640px]">
@@ -564,7 +564,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                         </td>
                         <td className="py-1.5 px-3 text-xs text-gray-500">{inv.tax_type === 'exempt' ? '면세' : '과세'}</td>
                         <td className="py-1.5 px-3 text-right tabular-nums">{won(inv.total_amount)}</td>
-                        <td className="py-1.5 px-3"><span className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${payBadge.c}`}>{payBadge.t}</span></td>
+                        <td className="py-1.5 px-3"><span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${payBadge.c}`}>{payBadge.t}</span></td>
                         <td className={`py-1.5 px-3 text-right tabular-nums ${linkUnpaid > 0 ? 'text-red-600' : 'text-gray-400'}`}>{won(linkUnpaid)}</td>
                       </tr>
                     )
@@ -574,7 +574,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
               </table>
               {tab === '개요' && data.invoices.length > 12 && (
                 <button onClick={() => setTab('계산서')}
-                  className="w-full px-4 py-2 text-left text-[11px] text-blue-600 hover:bg-blue-50/40 border-t border-gray-100">
+                  className="w-full px-4 py-2 text-left text-[0.6875rem] text-blue-600 hover:bg-blue-50/40 border-t border-gray-100">
                   최근 12건만 표시 중 — 외 {data.invoices.length - 12}건은 계산서 탭에서 확인
                 </button>
               )}
@@ -582,13 +582,13 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
             {tab === '개요' && (
               <div className="bg-white border border-gray-200 rounded-xl xl:col-span-2">
                 <div className="px-4 pt-3 text-sm font-bold text-gray-800">매입·지급 타임라인</div>
-                <div className="px-4 pb-1 text-[11px] text-gray-400">계산서 수취와 출금을 시간순으로 함께 봅니다 (최근)</div>
+                <div className="px-4 pb-1 text-[0.6875rem] text-gray-400">계산서 수취와 출금을 시간순으로 함께 봅니다 (최근)</div>
                 <ul className="px-4 pb-3">
                   {data.timeline.slice(0, 12).map((e, i) => {
                     const href = tlHref(e)
                     return (
                       <li key={i} className="flex items-baseline gap-2 py-1.5 border-b border-gray-50 last:border-0 text-sm">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold w-12 text-center ${TL_META[e.kind].cls}`}>{TL_META[e.kind].label}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[0.625rem] font-bold w-12 text-center ${TL_META[e.kind].cls}`}>{TL_META[e.kind].label}</span>
                         <span className="text-xs text-gray-400 tabular-nums w-20">{e.date}</span>
                         {href
                           ? <Link href={href} className="flex-1 truncate text-blue-700 hover:underline" title="원본 화면에서 열기">{e.label}</Link>
@@ -606,7 +606,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
 
         {tab === '지급 내역' && (
           <div className="bg-white border border-gray-200 rounded-xl">
-            <div className="px-4 pt-3 text-[11px] text-gray-400">
+            <div className="px-4 pt-3 text-[0.6875rem] text-gray-400">
               실제로 돈이 나간 기록만 봅니다 — 계산서 발행 기록은 계산서 탭에 있습니다.
               [통장]은 계산서에 연결된 출금과 미지급금(2001) 상계로 확정된 출금,
               [카드]는 가맹점 사업자번호가 이 매입처와 일치하는 법인카드 결제분입니다.
@@ -617,7 +617,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                 const href = tlHref(e)
                 return (
                   <li key={i} className="flex items-baseline gap-2 py-1.5 border-b border-gray-50 last:border-0 text-sm">
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold w-12 text-center ${TL_META[e.kind].cls}`}>{TL_META[e.kind].label}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[0.625rem] font-bold w-12 text-center ${TL_META[e.kind].cls}`}>{TL_META[e.kind].label}</span>
                     <span className="text-xs text-gray-400 tabular-nums w-20">{e.date}</span>
                     {href
                       ? <Link href={href} className="flex-1 truncate text-blue-700 hover:underline" title="원본 화면에서 열기">{e.label}</Link>
@@ -680,7 +680,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                 </tbody>
               </table>
               {data.erp_items.length >= 500 && (
-                <div className="px-4 py-2 text-[11px] text-gray-400">최근 500건만 표시 중 — 전체는 ERP 주문내역 화면에서 확인하세요.</div>
+                <div className="px-4 py-2 text-[0.6875rem] text-gray-400">최근 500건만 표시 중 — 전체는 ERP 주문내역 화면에서 확인하세요.</div>
               )}
             </div>
           </div>

@@ -91,9 +91,9 @@ export default function WorkRequestDetailPage() {
       <Link href="/me/requests" className="text-sm text-gray-500 hover:text-gray-900">← 업무 요청</Link>
       {msg && <div className="mt-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
       <div className="flex items-center gap-2 mt-1 flex-wrap">
-        {r.is_urgent && <span className="text-[11px] px-2 py-0.5 rounded bg-red-600 text-white font-semibold">긴급</span>}
-        {multi && <span className={`text-[11px] px-2 py-0.5 rounded font-semibold ${r.assign_mode === 'first' ? 'bg-sky-100 text-sky-700' : 'bg-violet-100 text-violet-700'}`} title={WR_MODE_DESC[r.assign_mode]}>{WR_MODE_LABEL[r.assign_mode]}</span>}
-        {r.is_private && <span className="text-[11px] px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold" title="요청자 · 담당자 · 승인권자만 볼 수 있음">비공개</span>}
+        {r.is_urgent && <span className="text-[0.6875rem] px-2 py-0.5 rounded bg-red-600 text-white font-semibold">긴급</span>}
+        {multi && <span className={`text-[0.6875rem] px-2 py-0.5 rounded font-semibold ${r.assign_mode === 'first' ? 'bg-sky-100 text-sky-700' : 'bg-violet-100 text-violet-700'}`} title={WR_MODE_DESC[r.assign_mode]}>{WR_MODE_LABEL[r.assign_mode]}</span>}
+        {r.is_private && <span className="text-[0.6875rem] px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold" title="요청자 · 담당자 · 승인권자만 볼 수 있음">비공개</span>}
         <h1 className="text-2xl font-bold text-gray-900">{r.title}</h1>
         <span className={`ml-auto inline-block px-2.5 py-1 rounded text-xs font-semibold ${WR_STATUS_CLS[r.status]}`}>{WR_STATUS_LABEL[r.status]}{multi && r.assign_mode === 'all' && r.status === 'in_progress' ? ` (${reported}/${active.length} 보고)` : ''}</span>
       </div>
@@ -141,7 +141,7 @@ export default function WorkRequestDetailPage() {
                   <p className="text-xs mt-3 flex items-center gap-2">
                     <span className="text-gray-400">관련:</span>
                     {/^https?:\/\//.test(r.link) ? <a href={r.link} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline break-all">{r.link}</a> : <span className="text-gray-700 break-all">{r.link}</span>}
-                    <button onClick={() => navigator.clipboard?.writeText(r.link!).then(() => flash('복사했습니다.'))} className="px-1.5 py-0.5 border border-gray-300 rounded text-[11px] text-gray-600 hover:bg-gray-50">복사</button>
+                    <button onClick={() => navigator.clipboard?.writeText(r.link!).then(() => flash('복사했습니다.'))} className="px-1.5 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-600 hover:bg-gray-50">복사</button>
                   </p>
                 )}
               </>
@@ -162,8 +162,8 @@ export default function WorkRequestDetailPage() {
                   const dim = x.status === 'released' || x.status === 'rejected'
                   return (
                     <tr key={x.id} className={`border-b border-gray-50 ${dim ? 'text-gray-400' : ''}`}>
-                      <td className="py-1.5 whitespace-nowrap"><b className={dim ? '' : 'text-gray-900'}>{x.employee?.name ?? '-'}</b>{x.employee?.id === d.me.id && <span className="text-[10px] text-slate-500 ml-1">(나)</span>}{x.employee?.id === r.requester?.id && <span className="text-[10px] text-gray-400 ml-1">(요청자 겸)</span>}{x.employee?.team && <span className="text-xs text-gray-400 ml-1">{x.employee.team}</span>}</td>
-                      <td className="py-1.5"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap ${WR_ASG_CLS[x.status]}`}>{asgLabel(x)}</span></td>
+                      <td className="py-1.5 whitespace-nowrap"><b className={dim ? '' : 'text-gray-900'}>{x.employee?.name ?? '-'}</b>{x.employee?.id === d.me.id && <span className="text-[0.625rem] text-slate-500 ml-1">(나)</span>}{x.employee?.id === r.requester?.id && <span className="text-[0.625rem] text-gray-400 ml-1">(요청자 겸)</span>}{x.employee?.team && <span className="text-xs text-gray-400 ml-1">{x.employee.team}</span>}</td>
+                      <td className="py-1.5"><span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold whitespace-nowrap ${WR_ASG_CLS[x.status]}`}>{asgLabel(x)}</span></td>
                       <td className="py-1.5 text-xs tabular-nums whitespace-nowrap">{x.accepted_at ? fmtDT(x.accepted_at) : '-'}</td>
                       <td className="py-1.5 text-xs tabular-nums whitespace-nowrap">{x.reported_at ? fmtDT(x.reported_at) : '-'}</td>
                       <td className="py-1.5 text-xs max-w-[260px] truncate">{x.status === 'rejected' && x.reject_reason ? `사유: ${x.reject_reason}` : x.status === 'released' ? '참고 표시만, 할 일 아님' : x.last_memo ?? <span className="text-gray-300">-</span>}</td>

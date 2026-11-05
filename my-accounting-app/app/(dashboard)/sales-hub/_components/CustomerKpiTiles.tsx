@@ -95,7 +95,7 @@ export default function CustomerKpiTiles({ mode, flags, filter, onFilter }: {
             고객 기준
           </Link>
         </span>
-        <span className="text-[11px] text-gray-400">
+        <span className="text-[0.6875rem] text-gray-400">
           기준연도 {flags.y0} 자동 · 타일 클릭 = 목록 필터 · 매출은 최근 2개년 순매출
         </span>
       </div>
@@ -106,18 +106,18 @@ export default function CustomerKpiTiles({ mode, flags, filter, onFilter }: {
           <p className="text-xs text-gray-500">신규 · 이탈</p>
           <div className="grid grid-cols-2 gap-2 mt-2">
             <button onClick={() => click('new')} className={cellCls('new')}>
-              <span className="text-[11px] text-gray-500 flex items-center gap-1.5">
+              <span className="text-[0.6875rem] text-gray-500 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />신규
               </span>
               <span className="block text-lg font-bold tabular-nums">{c.m['new'].toLocaleString()}{unit}</span>
-              <span className="text-[10px] text-gray-400">{c.s['new'].toLocaleString()}{subUnit} · 최초 주문이 올해</span>
+              <span className="text-[0.625rem] text-gray-400">{c.s['new'].toLocaleString()}{subUnit} · 최초 주문이 올해</span>
             </button>
             <button onClick={() => click('churn')} className={cellCls('churn')}>
-              <span className="text-[11px] text-gray-500 flex items-center gap-1.5">
+              <span className="text-[0.6875rem] text-gray-500 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500" />이탈
               </span>
               <span className="block text-lg font-bold tabular-nums">{c.m['churn'].toLocaleString()}{unit}</span>
-              <span className="text-[10px] text-gray-400">{c.s['churn'].toLocaleString()}{subUnit} · 올해 주문 없음</span>
+              <span className="text-[0.625rem] text-gray-400">{c.s['churn'].toLocaleString()}{subUnit} · 올해 주문 없음</span>
             </button>
           </div>
         </div>
@@ -133,12 +133,12 @@ export default function CustomerKpiTiles({ mode, flags, filter, onFilter }: {
           <div className="grid grid-cols-2 gap-1.5 mt-2">
             {TIERS.map(t => (
               <button key={t.key} onClick={() => click(t.key)}
-                className={`flex items-center gap-1.5 text-[11px] text-gray-600 ${cellCls(t.key)} py-1.5`}>
+                className={`flex items-center gap-1.5 text-[0.6875rem] text-gray-600 ${cellCls(t.key)} py-1.5`}>
                 <span className={`w-2 h-2 rounded-full shrink-0 ${t.bar}`} />
                 <span className="truncate">{t.label}</span>
                 <span className="ml-auto font-bold text-gray-900 tabular-nums">
                   {c.m[t.key].toLocaleString()}
-                  <span className="font-normal text-gray-400 text-[10px]"> /{c.s[t.key].toLocaleString()}{subUnit}</span>
+                  <span className="font-normal text-gray-400 text-[0.625rem]"> /{c.s[t.key].toLocaleString()}{subUnit}</span>
                 </span>
               </button>
             ))}
@@ -151,11 +151,11 @@ export default function CustomerKpiTiles({ mode, flags, filter, onFilter }: {
           <div className="grid grid-cols-2 gap-1.5 mt-2">
             {(['both', 'regular_only', 'season_only', 'none'] as KpiCategory[]).map(k => (
               <button key={k} onClick={() => click(k)} className={cellCls(k)}>
-                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${OTYPE_META[k].cls}`}>
+                <span className={`inline-block px-1.5 py-0.5 rounded text-[0.625rem] font-semibold ${OTYPE_META[k].cls}`}>
                   {OTYPE_META[k].label}
                 </span>
                 <span className="block text-base font-bold tabular-nums mt-0.5">{c.m[k].toLocaleString()}{unit}</span>
-                <span className="text-[10px] text-gray-400">{c.s[k].toLocaleString()}{subUnit} · {OTYPE_META[k].hint}</span>
+                <span className="text-[0.625rem] text-gray-400">{c.s[k].toLocaleString()}{subUnit} · {OTYPE_META[k].hint}</span>
               </button>
             ))}
           </div>

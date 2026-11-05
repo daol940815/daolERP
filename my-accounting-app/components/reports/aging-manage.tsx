@@ -303,12 +303,12 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
                         {r.vendor_id
                           ? <Link href={`${cfg.hubDetailBase}/${r.vendor_id}`} className="font-semibold text-gray-900 hover:underline truncate max-w-[240px]">{r.name}</Link>
                           : <span className="font-semibold text-gray-900 truncate max-w-[240px]">{r.name}</span>}
-                        {!r.vendor_id && <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">미연결</span>}
+                        {!r.vendor_id && <span className="shrink-0 text-[0.625rem] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">미연결</span>}
                       </div>
                       {r.erp_names.length > 0 && r.erp_names.join(', ') !== r.name && (
-                        <p className="text-[11px] text-gray-400 truncate max-w-[260px]" title={r.erp_names.join(', ')}>{r.erp_names.join(', ')}</p>
+                        <p className="text-[0.6875rem] text-gray-400 truncate max-w-[260px]" title={r.erp_names.join(', ')}>{r.erp_names.join(', ')}</p>
                       )}
-                      {r.opening > 0 && <p className="text-[11px] text-gray-400">기초이월 {eok(r.opening)} 포함</p>}
+                      {r.opening > 0 && <p className="text-[0.6875rem] text-gray-400">기초이월 {eok(r.opening)} 포함</p>}
                     </td>
                     <td className="py-2 px-3 text-gray-600 whitespace-nowrap">{h?.staff ?? <span className="text-gray-300">-</span>}</td>
                     <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap">{h ? won(h.period_amount) : <span className="text-gray-300">-</span>}</td>
@@ -326,7 +326,7 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
                       <td key={b.key} className={`py-2 px-3 text-right tabular-nums whitespace-nowrap ${r[b.key] > 0 ? b.cls : 'text-gray-300'}`}>{r[b.key] > 0 ? won(r[b.key]) : '-'}</td>
                     ))}
                     <td className="py-2 px-3 text-xs text-gray-500 tabular-nums whitespace-nowrap">{h?.last_date ?? '-'}</td>
-                    <td className="py-2 px-3"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap ${meta.cls}`}>{meta.label}</span></td>
+                    <td className="py-2 px-3"><span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold whitespace-nowrap ${meta.cls}`}>{meta.label}</span></td>
                     <td className="py-2 px-3 whitespace-nowrap text-xs">
                       {r.vendor_id ? (
                         <>

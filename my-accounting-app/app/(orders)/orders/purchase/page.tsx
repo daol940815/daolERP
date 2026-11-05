@@ -68,14 +68,14 @@ export default function PurchaseHistoryPage() {
 
   const sendBadge = (r: Row) => {
     if (r.status === 'canceled')
-      return <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-400">취소됨</span>
+      return <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-gray-100 text-gray-400">취소됨</span>
     if (r.sent_at)
       return (
-        <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-100 text-emerald-700">
+        <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-emerald-100 text-emerald-700">
           {r.send_method === 'email' ? '메일 발송' : '수동 발송'}
         </span>
       )
-    return <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-100 text-amber-800">미발송</span>
+    return <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-amber-100 text-amber-800">미발송</span>
   }
 
   const kpiCard = 'text-left bg-white border rounded-xl px-4 py-3 transition-colors'
@@ -91,23 +91,23 @@ export default function PurchaseHistoryPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mt-4">
         <button onClick={() => setStatus('all')}
           className={`${kpiCard} ${status === 'all' ? 'border-slate-800' : 'border-gray-200'}`}>
-          <div className="text-[11px] text-gray-400">기간 발주</div>
+          <div className="text-[0.6875rem] text-gray-400">기간 발주</div>
           <div className="text-lg font-extrabold tabular-nums">{kpi ? `${won(kpi.count)}건` : '-'}</div>
-          {kpi && <div className="text-[10px] text-gray-400">유효 발주 합계 {won(kpi.total)}원</div>}
+          {kpi && <div className="text-[0.625rem] text-gray-400">유효 발주 합계 {won(kpi.total)}원</div>}
         </button>
         <button onClick={() => setStatus(status === 'unsent' ? 'all' : 'unsent')}
           className={`${kpiCard} ${status === 'unsent' ? 'border-slate-800' : 'border-gray-200'}`}>
-          <div className="text-[11px] text-gray-400">미발송 (클릭=필터)</div>
+          <div className="text-[0.6875rem] text-gray-400">미발송 (클릭=필터)</div>
           <div className="text-lg font-extrabold tabular-nums text-amber-600">{kpi ? `${won(kpi.unsent_cnt)}건` : '-'}</div>
         </button>
         <button onClick={() => setStatus(status === 'sent' ? 'all' : 'sent')}
           className={`${kpiCard} ${status === 'sent' ? 'border-slate-800' : 'border-gray-200'}`}>
-          <div className="text-[11px] text-gray-400">발송 완료</div>
+          <div className="text-[0.6875rem] text-gray-400">발송 완료</div>
           <div className="text-lg font-extrabold tabular-nums text-emerald-700">{kpi ? `${won(kpi.sent_cnt)}건` : '-'}</div>
         </button>
         <button onClick={() => setStatus(status === 'canceled' ? 'all' : 'canceled')}
           className={`${kpiCard} ${status === 'canceled' ? 'border-slate-800' : 'border-gray-200'}`}>
-          <div className="text-[11px] text-gray-400">취소</div>
+          <div className="text-[0.6875rem] text-gray-400">취소</div>
           <div className="text-lg font-extrabold tabular-nums text-gray-500">{kpi ? `${won(kpi.canceled_cnt)}건` : '-'}</div>
         </button>
       </div>
@@ -118,7 +118,7 @@ export default function PurchaseHistoryPage() {
         <div className="flex items-center gap-1.5 flex-wrap">
           <PeriodPresets from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
           <span className="w-1.5" />
-          <span className="text-[11px] text-gray-400">발주일</span>
+          <span className="text-[0.6875rem] text-gray-400">발주일</span>
           <input type="date" value={from} onChange={e => setFrom(e.target.value)}
             className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm tabular-nums" />
           <span className="text-xs text-gray-400">~</span>
@@ -167,17 +167,17 @@ export default function PurchaseHistoryPage() {
                     <Link href={`/orders/purchase/${r.id}`} className="block hover:opacity-70"
                       title="발송 페이지로 이동">
                       <div className="tabular-nums text-xs font-semibold text-blue-700">{r.po_date}</div>
-                      <div className="tabular-nums text-[11px] text-gray-400">{r.po_no}</div>
+                      <div className="tabular-nums text-[0.6875rem] text-gray-400">{r.po_no}</div>
                     </Link>
                   </td>
                   <td className="py-2 px-3 font-medium">
                     {r.vendor_name}
                     {r.uses_custom_po && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-600"
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-[0.625rem] font-medium bg-violet-50 text-violet-600"
                         title="자체 발주서 양식을 쓰는 매입처">자체 양식</span>
                     )}
                     {r.po_use_sale_price && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-600"
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-[0.625rem] font-medium bg-blue-50 text-blue-600"
                         title="발주서 금액이 판매가로 기재되는 매입처">판매가</span>
                     )}
                   </td>
@@ -185,18 +185,18 @@ export default function PurchaseHistoryPage() {
                     <Link href={`/orders/${r.order_id}`} className="text-blue-700 hover:underline tabular-nums text-xs">
                       {r.order_no ?? '(주문으로 이동)'}
                     </Link>
-                    <div className="text-[11px] text-gray-400">{r.customer ?? '-'}{r.staff_name ? ` · ${r.staff_name}` : ''}</div>
+                    <div className="text-[0.6875rem] text-gray-400">{r.customer ?? '-'}{r.staff_name ? ` · ${r.staff_name}` : ''}</div>
                   </td>
                   <td className="py-2 px-3 text-right tabular-nums">{won(r.total_amount)}</td>
                   <td className="py-2 px-3">
                     {sendBadge(r)}
                     {r.sent_at && (
-                      <div className="text-[10px] text-gray-400 tabular-nums mt-0.5">
+                      <div className="text-[0.625rem] text-gray-400 tabular-nums mt-0.5">
                         {r.sent_at.slice(0, 16).replace('T', ' ')}{r.sender_name ? ` · ${r.sender_name}` : ''}
                       </div>
                     )}
                     {r.status === 'active' && !r.sent_at && r.send_error && (
-                      <div className="text-[10px] text-red-500 mt-0.5">실패: {r.send_error}</div>
+                      <div className="text-[0.625rem] text-red-500 mt-0.5">실패: {r.send_error}</div>
                     )}
                   </td>
                   <td className="py-2 px-3 text-xs text-gray-500">{r.email_to ?? '-'}</td>

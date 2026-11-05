@@ -416,7 +416,7 @@ function CardExpensesContent() {
                         : 'border-amber-300 bg-amber-50 text-amber-700'}`}
                     />
                     {r.classify_status === 'pending' && draft.has(r.id) && (
-                      <span className="ml-1 text-[11px] text-sky-700">지정됨 · 선택 확정으로 저장</span>
+                      <span className="ml-1 text-[0.6875rem] text-sky-700">지정됨 · 선택 확정으로 저장</span>
                     )}
                     {r.classify_status === 'pending' && !draft.has(r.id) && r.suggested && (
                       <button onClick={() => patch(r.id, { approve: true })}
