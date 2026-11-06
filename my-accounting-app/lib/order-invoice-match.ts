@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { MATCH_RULES } from '@/lib/matching-rules'
+import { loadBillingFamily } from '@/lib/billing'
 
 // ── 주문 ↔ 매출 계산서 연결 후보 (매출 사이클 3단 대사의 가운데 변) ──────────
 // 한 매출처의 "계산서 미연결 주문"과 "미배분 매출 계산서"를 놓고 조합을 찾는다.
@@ -10,6 +11,9 @@ import { MATCH_RULES } from '@/lib/matching-rules'
 // 원칙: 후보만 만든다 — 연결 확정은 사용자가 한다.
 // 날짜: 주문 후 발행이 원칙 — 발행일이 주문일 -7일(유예) ~ +120일 창 (30일 우선).
 // 취소쌍(원+취소 합계 0, 90일 이내) 계산서는 발행 자체가 무효라 후보에서 제외한다.
+// 청구처(114): 본점 법인으로 계산서가 나가는 부서는 '청구처 가족' 범위에서 찾는다 —
+//   부서에서 열면 주문 = 그 부서, 계산서 = 자기 것 + 청구처 법인 것
+//   청구처 법인에서 열면 주문 = 법인 + 소속 부서 전부, 계산서 = 법인 것
 
 export interface LinkOrder {
   id: string
@@ -17,6 +21,7 @@ export interface LinkOrder {
   order_date: string
   net_amount: number
   remaining: number   // 순매출 - 기연결 계산서 금액
+  vendor_name?: string // 청구처 가족 범위일 때 주문처(부서) 이름
 }
 export interface LinkInvoice {
   id: string
@@ -24,6 +29,7 @@ export interface LinkInvoice {
   total_amount: number
   item_name: string | null
   remaining: number   // 합계 - 기배분 금액
+  vendor_name?: string // 청구처 법인 계산서일 때 발행 법인 이름
 }
 export interface LinkGroup {
   type: 'exact' | 'combined_orders' | 'split_invoices'
@@ -89,17 +95,36 @@ export async function buildInvoiceLinkCandidates(
   fromDate?: string | null,  // 주문일 하한 — 화면의 조회 기간과 연동 (과거는 기간을 넓혀 실행)
 ): Promise<{ orders: LinkOrder[]; invoices: LinkInvoice[]; groups: LinkGroup[] } | { error: string; missingTable?: boolean }> {
 
-  // 이 매출처의 ERP 별칭 → 주문
-  const aliasResult = await fetchAllRows<{ id: string }>((f, t) =>
-    admin.from('erp_vendor_aliases').select('id').eq('alias_type', 'customer').eq('vendor_id', vendorId).range(f, t))
-  if ('error' in aliasResult) return { error: aliasResult.error }
-  const aliasIds = aliasResult.data.map(a => a.id)
+  // 청구처 가족 범위 — 114 미적용이거나 지정이 없으면 이 매출처 하나
+  const fam = await loadBillingFamily(admin, vendorId)
+  const isRoot = fam.root === vendorId && fam.members.length > 1
+  const orderVendorIds = isRoot ? fam.members : [vendorId]
+  const invoiceVendorIds = fam.root !== vendorId ? [vendorId, fam.root] : [vendorId]
+  const nameOf = new Map<string, string>()
+  if (orderVendorIds.length > 1 || invoiceVendorIds.length > 1) {
+    const ids = Array.from(new Set([...orderVendorIds, ...invoiceVendorIds]))
+    for (let i = 0; i < ids.length; i += 150) {
+      const { data } = await admin.from('vendors').select('id, name').in('id', ids.slice(i, i + 150))
+      for (const v of data ?? []) nameOf.set(v.id as string, v.name as string)
+    }
+  }
 
-  const orderRows: { id: string; order_no: string; order_date: string; total_amount: number | null }[] = []
+  // 대상 매출처의 ERP 별칭 → 주문
+  const aliasVendor = new Map<string, string>()
+  for (let i = 0; i < orderVendorIds.length; i += 150) {
+    const r = await fetchAllRows<{ id: string; vendor_id: string }>((f, t) =>
+      admin.from('erp_vendor_aliases').select('id, vendor_id').eq('alias_type', 'customer')
+        .in('vendor_id', orderVendorIds.slice(i, i + 150)).range(f, t))
+    if ('error' in r) return { error: r.error }
+    for (const a of r.data) aliasVendor.set(a.id, a.vendor_id)
+  }
+  const aliasIds = Array.from(aliasVendor.keys())
+
+  const orderRows: { id: string; order_no: string; order_date: string; total_amount: number | null; customer_alias_id: string | null }[] = []
   for (let i = 0; i < aliasIds.length; i += 50) {
     const r = await fetchAllRows<typeof orderRows[number]>((f, t) => {
       let q = admin.from('erp_orders')
-        .select('id, order_no, order_date, total_amount')
+        .select('id, order_no, order_date, total_amount, customer_alias_id')
         .in('customer_alias_id', aliasIds.slice(i, i + 50))
       if (fromDate) q = q.gte('order_date', fromDate)
       return q.range(f, t)
@@ -122,15 +147,17 @@ export async function buildInvoiceLinkCandidates(
     for (const it of r.data) excluded.set(it.order_id, (excluded.get(it.order_id) ?? 0) + (it.line_total ?? 0))
   }
 
-  // 이 매출처의 매출 계산서 (양수, 취소쌍 제외)
-  const invResult = await fetchAllRows<{ id: string; issue_date: string; total_amount: number; item_name: string | null }>((f, t) =>
+  // 매출 계산서 (양수, 취소쌍 제외) — 부서면 자기 것 + 청구처 법인 것
+  const invResult = await fetchAllRows<{ id: string; issue_date: string; total_amount: number; item_name: string | null; vendor_id: string }>((f, t) =>
     admin.from('tax_invoices')
-      .select('id, issue_date, total_amount, item_name')
+      .select('id, issue_date, total_amount, item_name, vendor_id')
       .eq('direction', 'sales')
-      .eq('vendor_id', vendorId)
+      .in('vendor_id', invoiceVendorIds)
       .range(f, t))
   if ('error' in invResult) return { error: invResult.error }
-  const invoiceRows = excludeCancelPairs(invResult.data.map(r => ({ ...r, total_amount: r.total_amount ?? 0 })))
+  // 취소쌍은 발행 법인 안에서만 짝짓는다
+  const invoiceRows = invoiceVendorIds.flatMap(vid =>
+    excludeCancelPairs(invResult.data.filter(r => r.vendor_id === vid).map(r => ({ ...r, total_amount: r.total_amount ?? 0 }))))
 
   // 기존 연결(배분) — 주문·계산서 양쪽 잔액 계산
   const allocByOrder = new Map<string, number>()
@@ -160,13 +187,21 @@ export async function buildInvoiceLinkCandidates(
   const orders: LinkOrder[] = orderRows
     .map(o => {
       const net = (o.total_amount ?? 0) - (excluded.get(o.id) ?? 0)
-      return { id: o.id, order_no: o.order_no, order_date: o.order_date, net_amount: net, remaining: net - (allocByOrder.get(o.id) ?? 0) }
+      const ov = o.customer_alias_id ? aliasVendor.get(o.customer_alias_id) : undefined
+      return {
+        id: o.id, order_no: o.order_no, order_date: o.order_date, net_amount: net, remaining: net - (allocByOrder.get(o.id) ?? 0),
+        ...(isRoot && ov ? { vendor_name: nameOf.get(ov) } : {}),
+      }
     })
     .filter(o => o.remaining > 0)
     .sort((a, b) => a.order_date.localeCompare(b.order_date))
 
   const invoices: LinkInvoice[] = invoiceRows
-    .map(r => ({ id: r.id, issue_date: r.issue_date, total_amount: r.total_amount, item_name: r.item_name, remaining: r.total_amount - (allocByInvoice.get(r.id) ?? 0) }))
+    .map(r => ({
+      id: r.id, issue_date: r.issue_date, total_amount: r.total_amount, item_name: r.item_name,
+      remaining: r.total_amount - (allocByInvoice.get(r.id) ?? 0),
+      ...(r.vendor_id !== vendorId ? { vendor_name: nameOf.get(r.vendor_id) } : {}),
+    }))
     .filter(r => r.remaining > 0)
     .sort((a, b) => a.issue_date.localeCompare(b.issue_date))
 

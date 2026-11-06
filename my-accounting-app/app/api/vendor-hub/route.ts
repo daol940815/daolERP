@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient()
   const body = await req.json().catch(() => ({})) as {
     group_name?: string; branch_name?: string; name?: string; biz_number?: string; note?: string
+    billing_vendor_id?: string   // 계산서 발행처(청구처, 114) — 비우면 자기 자신
   }
   const groupName = (body.group_name ?? body.name ?? '').trim()
   const branchName = (body.branch_name ?? '').trim()
@@ -83,5 +84,15 @@ export async function POST(req: NextRequest) {
     .select('id, name')
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data })
+  // 청구처는 별도 갱신 — 114 미적용 환경에서도 등록 자체는 성공하도록
+  let billingWarning: string | null = null
+  if (body.billing_vendor_id) {
+    const { data: t } = await admin.from('vendors').select('billing_vendor_id').eq('id', body.billing_vendor_id).maybeSingle()
+    if (t?.billing_vendor_id) billingWarning = '선택한 청구처가 다른 청구처를 가리키고 있어 지정하지 않았습니다.'
+    else {
+      const { error: be } = await admin.from('vendors').update({ billing_vendor_id: body.billing_vendor_id }).eq('id', data.id)
+      if (be) billingWarning = '청구처 지정은 마이그레이션 114 실행 후 가능합니다 — 매출처는 등록됐습니다.'
+    }
+  }
+  return NextResponse.json({ data, billing_warning: billingWarning })
 }

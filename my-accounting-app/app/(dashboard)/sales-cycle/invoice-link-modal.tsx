@@ -14,13 +14,13 @@ const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
 interface Group {
   type: 'exact' | 'combined_orders' | 'split_invoices'
   label: string
-  orders: { id: string; order_no: string; order_date: string; remaining: number }[]
-  invoices: { id: string; issue_date: string; item_name: string | null; remaining: number }[]
+  orders: { id: string; order_no: string; order_date: string; remaining: number; vendor_name?: string }[]
+  invoices: { id: string; issue_date: string; item_name: string | null; remaining: number; vendor_name?: string }[]
   amount: number
   links: { orderId: string; taxInvoiceId: string; amount: number; issueDate: string }[]
 }
-interface OpenOrder { id: string; order_no: string; order_date: string; net_amount: number; remaining: number }
-interface OpenInvoice { id: string; issue_date: string; total_amount: number; item_name: string | null; remaining: number }
+interface OpenOrder { id: string; order_no: string; order_date: string; net_amount: number; remaining: number; vendor_name?: string }
+interface OpenInvoice { id: string; issue_date: string; total_amount: number; item_name: string | null; remaining: number; vendor_name?: string }
 
 export default function InvoiceLinkModal({ vendorId, vendorName, from, onClose, onApplied }: {
   vendorId: string
@@ -203,7 +203,7 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, onClose, 
                     </div>
                     <div className="pl-6 text-xs text-gray-600 space-y-0.5">
                       {g.orders.map(o => (
-                        <p key={o.id}>주문 {o.order_date.slice(0, 10)} · {o.order_no} · {won(o.remaining)}</p>
+                        <p key={o.id}>주문 {o.order_date.slice(0, 10)} · {o.vendor_name ? `${o.vendor_name} · ` : ''}{o.order_no} · {won(o.remaining)}</p>
                       ))}
                       {g.invoices.map(v => (
                         <p key={v.id} className="text-indigo-800">
@@ -237,7 +237,7 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, onClose, 
                     <label key={o.id} className={`flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer ${selOrders.has(o.id) ? 'bg-slate-50' : 'hover:bg-gray-50'}`}>
                       <input type="checkbox" checked={selOrders.has(o.id)} onChange={() => toggleId(selOrders, setSelOrders, o.id)} />
                       <span className="text-gray-500 whitespace-nowrap">{o.order_date.slice(0, 10)}</span>
-                      <span className="text-gray-900 truncate">{o.order_no}</span>
+                      <span className="text-gray-900 truncate">{o.vendor_name ? <span className="text-blue-700">{o.vendor_name} · </span> : null}{o.order_no}</span>
                       <span className="ml-auto tabular-nums font-medium whitespace-nowrap">{won(o.remaining)}</span>
                     </label>
                   ))}
@@ -255,7 +255,7 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, onClose, 
                     <label key={v.id} className={`flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer ${selInvoices.has(v.id) ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}>
                       <input type="checkbox" checked={selInvoices.has(v.id)} onChange={() => toggleId(selInvoices, setSelInvoices, v.id)} />
                       <span className="text-gray-500 whitespace-nowrap">{v.issue_date.slice(0, 10)}</span>
-                      <span className="text-gray-900 truncate">{v.item_name ?? '(품목 미상)'}</span>
+                      <span className="text-gray-900 truncate">{v.vendor_name ? <span className="text-blue-700">{v.vendor_name} · </span> : null}{v.item_name ?? '(품목 미상)'}</span>
                       <span className="ml-auto tabular-nums font-medium whitespace-nowrap">{won(v.remaining)}</span>
                     </label>
                   ))}

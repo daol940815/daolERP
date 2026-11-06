@@ -8,6 +8,8 @@ import { getPeriodRange } from '@/lib/period-presets'
 import { ORDER_DELIVERY_STATUS_LABEL } from '@/lib/erp-delivery-status'
 import type { HubDetail } from '@/lib/vendor-hub'
 import { contactLabel, honorify } from '@/lib/contact-label'
+import type { BillingDetail, BillingRef } from '@/lib/billing'
+import InvoiceLinkModal from '../../sales-cycle/invoice-link-modal'
 
 // 매출처 허브 — 거래처 360° 상세(B)
 // 목록(A)의 기간이 URL로 넘어와 기본값이 되고, 여기서 바꿔도 목록에는 영향이 없다.
@@ -29,7 +31,7 @@ const TL_META: Record<string, { label: string; cls: string }> = {
   card:    { label: '카드',   cls: 'bg-orange-100 text-orange-700' },
   alloc:   { label: '배분',   cls: 'bg-slate-200 text-slate-600' },
 }
-const TABS = ['개요', '주문 내역', '수금 내역', '계산서', 'VIP 내역', '선결제 내역', '활동 메모'] as const
+const TABS = ['개요', '주문 내역', '수금 내역', '계산서', '소속 부서', 'VIP 내역', '선결제 내역', '활동 메모'] as const
 
 interface Candidate { id: string; name: string; phone: string | null; history?: { vendor_name: string; title: string | null; started_at: string | null; ended_at: string | null }[] }
 
@@ -49,6 +51,10 @@ export default function SalesHubDetailPage() {
     order_type: string | null; source: string
   }
   const [docSales, setDocSales] = useState<DocSalesRow[]>([])
+  // 청구처(계산서 발행처, 114) — 부서면 가리키는 법인, 법인이면 소속 부서 · 계산서별 연결 부서
+  const [billing, setBilling] = useState<BillingDetail | null>(null)
+  const [linkOpen, setLinkOpen] = useState(false)
+  const [billingForm, setBillingForm] = useState<{ open: boolean; q: string; options: BillingRef[]; busy: boolean }>({ open: false, q: '', options: [], busy: false })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<(typeof TABS)[number]>('개요')
@@ -75,6 +81,7 @@ export default function SalesHubDetailPage() {
       if (!res.ok) throw new Error(json.error ?? '조회 실패')
       setData(json); setNote(json.vendor.note ?? ''); setCanEdit(!!json.can_edit)
       setDocSales(Array.isArray(json.doc_sales) ? json.doc_sales : [])
+      setBilling(json.billing_detail ?? null)
     } catch (e) {
       setError(e instanceof Error ? e.message : '조회 실패')
     } finally { setLoading(false) }
@@ -228,6 +235,71 @@ export default function SalesHubDetailPage() {
               </span>
             )}
           </div>
+          {billing?.available && billing.billing && (
+            <div className="mt-2 inline-flex items-center gap-2 flex-wrap bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
+              <span className="text-[0.6875rem] font-bold text-blue-700">청구처</span>
+              <Link href={`/sales-hub/${billing.billing.id}`} className="text-sm font-bold text-gray-900 hover:underline">{billing.billing.name}</Link>
+              <span className="text-[0.6875rem] text-gray-500">{billing.billing.biz_number ?? ''} · 이 매출처 주문의 계산서는 청구처 법인으로 발행됩니다</span>
+              {canEdit && <button onClick={() => setBillingForm(f => ({ ...f, open: !f.open }))}
+                className="px-2 py-0.5 border border-gray-300 bg-white rounded text-[0.6875rem] text-gray-600 hover:bg-gray-50">변경</button>}
+            </div>
+          )}
+          {billing?.available && !billing.billing && billing.children.length > 0 && (
+            <div className="mt-2 inline-flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
+              <span className="text-[0.6875rem] font-bold text-blue-700">청구처 · 소속 {billing.children.length}곳</span>
+              <span className="text-[0.6875rem] text-gray-500">주문은 소속 부서가 하고, 계산서 · 입금은 여기로 들어옵니다</span>
+              <button onClick={() => setTab('소속 부서')} className="text-[0.6875rem] text-blue-700 underline">소속 부서 보기</button>
+            </div>
+          )}
+          {billing?.available && !billing.billing && !billing.children.length && canEdit && !billingForm.open && (
+            <button onClick={() => setBillingForm(f => ({ ...f, open: true }))}
+              className="mt-1 text-[0.6875rem] text-gray-400 hover:text-gray-600 underline">계산서가 다른 법인(본점 등)으로 발행되나요? 청구처 지정</button>
+          )}
+          {billingForm.open && (
+            <div className="mt-2 border border-blue-200 bg-blue-50/40 rounded-lg px-3 py-2 max-w-xl">
+              <div className="flex items-center gap-2">
+                <input autoFocus value={billingForm.q} placeholder="청구처 법인 검색 (예: 주식회사 하나은행)"
+                  onChange={async e => {
+                    const q = e.target.value
+                    setBillingForm(f => ({ ...f, q }))
+                    if (q.trim().length < 2) { setBillingForm(f => ({ ...f, options: [] })); return }
+                    const r = await fetch(`/api/vendor-hub/billing?entities=1&q=${encodeURIComponent(q.trim())}`).then(x => x.json()).catch(() => null)
+                    setBillingForm(f => (f.q === q ? { ...f, options: ((r?.entities ?? []) as BillingRef[]).filter(o => o.id !== vendorId) } : f))
+                  }}
+                  className="border border-gray-300 rounded px-2 py-1 text-sm flex-1" />
+                {billing?.billing && (
+                  <button disabled={billingForm.busy} onClick={async () => {
+                    setBillingForm(f => ({ ...f, busy: true }))
+                    const res = await fetch('/api/vendor-hub/billing', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ action: 'clear', vendor_ids: [vendorId] }) })
+                    const j = await res.json().catch(() => ({}))
+                    setBillingForm({ open: false, q: '', options: [], busy: false })
+                    flash(res.ok ? '청구처를 해제했습니다 — 이 매출처가 직접 계산서를 받습니다.' : (j.error ?? '해제 실패')); if (res.ok) load()
+                  }} className="px-2 py-1 border border-gray-300 bg-white rounded text-xs text-gray-600">해제(자체 발행)</button>
+                )}
+                <button onClick={() => setBillingForm({ open: false, q: '', options: [], busy: false })} className="text-xs text-gray-500">닫기</button>
+              </div>
+              {billingForm.options.length > 0 && (
+                <ul className="mt-1.5 bg-white border border-gray-200 rounded max-h-48 overflow-y-auto">
+                  {billingForm.options.map(o => (
+                    <li key={o.id}>
+                      <button disabled={billingForm.busy} onClick={async () => {
+                        setBillingForm(f => ({ ...f, busy: true }))
+                        const res = await fetch('/api/vendor-hub/billing', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ action: 'set', vendor_ids: [vendorId], billing_vendor_id: o.id }) })
+                        const j = await res.json().catch(() => ({}))
+                        setBillingForm({ open: false, q: '', options: [], busy: false })
+                        flash(res.ok ? `청구처를 ${o.name}(으)로 지정했습니다.` : (j.error ?? '지정 실패')); if (res.ok) load()
+                      }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50">
+                        {o.name} <span className="text-[0.6875rem] text-gray-400">{o.biz_number ?? ''}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="text-[0.6875rem] text-gray-400 mt-1">사업자번호가 있는 거래처만 청구처가 될 수 있습니다. 부서는 매출처로 그대로 남고, 계산서 연결 · 미수금 대사만 청구처 기준으로 묶입니다.</p>
+            </div>
+          )}
           {infoForm.open && (
             <div className="mt-2 flex items-center gap-2 flex-wrap border border-blue-200 bg-blue-50/40 rounded-lg px-3 py-2">
               <input value={infoForm.name} onChange={e => setInfoForm(f => ({ ...f, name: e.target.value }))}
@@ -499,8 +571,9 @@ export default function SalesHubDetailPage() {
 
       {/* 탭 */}
       <div className="flex gap-0.5 border-b border-gray-200 mt-5">
-        {TABS.map(t => {
+        {TABS.filter(t => t !== '소속 부서' || (billing?.children.length ?? 0) > 0).map(t => {
           const count = t === '주문 내역' ? data.orders.length
+            : t === '소속 부서' ? (billing?.children.length ?? 0)
             : t === '수금 내역' ? data.timeline.filter(e => e.kind !== 'invoice').length
             : t === '계산서' ? data.invoices.length
             : t === 'VIP 내역' ? data.vip_items.length
@@ -559,6 +632,11 @@ export default function SalesHubDetailPage() {
                     {custFilter ? honorify(custFilter) : '(고객명 없음)'} ×
                   </button>
                 )}
+                {(billing?.billing || (billing?.children.length ?? 0) > 0) && (
+                  <button onClick={() => setLinkOpen(true)}
+                    className="ml-auto px-2 py-0.5 border border-blue-200 text-blue-700 bg-blue-50 rounded text-[0.6875rem] font-medium hover:bg-blue-100"
+                    title="청구처 법인 계산서와 이 매출처(또는 소속 부서) 주문을 연결합니다">계산서 ↔ 주문 연결</button>
+                )}
               </div>
               <div className="px-4 pb-1 text-[0.6875rem] text-gray-400">주문번호 → 배송 → 계산서 → 수금 → 미수까지 한 줄</div>
               <table className="w-full text-sm min-w-[760px]">
@@ -578,8 +656,9 @@ export default function SalesHubDetailPage() {
                 <tbody>
                   {(tab === '개요' ? shownOrders.slice(0, 8) : shownOrders).map(o => {
                     const dv = o.delivery ? ORDER_DELIVERY_STATUS_LABEL[o.delivery] : null
+                    const viaBilling = !!billing?.via_order_ids.includes(o.id)
                     const invBadge = o.invoice_linked >= o.net && o.net > 0
-                      ? { t: '연결', c: 'bg-green-100 text-green-700' }
+                      ? (viaBilling ? { t: '청구처 발행', c: 'bg-blue-100 text-blue-700' } : { t: '연결', c: 'bg-green-100 text-green-700' })
                       : o.invoice_linked > 0 ? { t: '일부', c: 'bg-amber-100 text-amber-700' }
                       : { t: '미발행', c: 'bg-orange-100 text-orange-700' }
                     const payBadge = o.outstanding === 0
@@ -714,32 +793,127 @@ export default function SalesHubDetailPage() {
           </div>
         )}
 
-        {tab === '계산서' && (
+        {tab === '계산서' && (() => {
+          const isRoot = (billing?.children.length ?? 0) > 0
+          const links = billing?.invoice_links ?? {}
+          const unlinked = isRoot ? data.invoices.filter(inv => !links[inv.id]?.length).length : 0
+          return (
+          <div className="space-y-3">
+          {billing?.billing && (
+            <div className="bg-white border border-blue-200 rounded-xl overflow-x-auto">
+              <div className="px-4 pt-3 text-sm font-bold text-gray-800">청구처 발행 계산서 <span className="font-normal text-xs text-gray-400">{billing.billing.name}로 발행되어 이 매출처 주문에 연결된 것</span></div>
+              <table className="w-full text-sm mt-1">
+                <thead>
+                  <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+                    <th className="py-2 px-3 text-left font-medium">발행일</th>
+                    <th className="py-2 px-3 text-left font-medium">품목</th>
+                    <th className="py-2 px-3 text-right font-medium">합계</th>
+                    <th className="py-2 px-3 text-left font-medium">연결 주문</th>
+                    <th className="py-2 px-3 text-right font-medium">연결 금액</th>
+                    <th className="py-2 px-3 text-left font-medium">수금 상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {billing.via_invoices.map((v, i) => (
+                    <tr key={`${v.id}-${i}`} className="border-b border-gray-50">
+                      <td className="py-1.5 px-3 tabular-nums">{v.issue_date}</td>
+                      <td className="py-1.5 px-3">{v.item_name ?? '-'}</td>
+                      <td className="py-1.5 px-3 text-right tabular-nums">{won(v.total_amount)}</td>
+                      <td className="py-1.5 px-3 text-xs tabular-nums">{v.order_no ?? '-'}</td>
+                      <td className="py-1.5 px-3 text-right tabular-nums">{won(v.amount)}</td>
+                      <td className="py-1.5 px-3">
+                        <span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${v.payment_status === 'matched' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {v.payment_status === 'matched' ? '수금 매칭됨' : '미매칭'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {!billing.via_invoices.length && <tr><td colSpan={6} className="text-center py-6 text-gray-400 text-sm">아직 연결된 청구처 계산서가 없습니다 — 주문 내역의 &apos;계산서 ↔ 주문 연결&apos;에서 찾으세요.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          )}
           <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+            {isRoot && (
+              <div className="px-4 pt-3 flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-bold text-gray-800">발행 계산서 — 어느 부서 건인가</span>
+                {unlinked > 0 && <span className="px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-amber-100 text-amber-700">연결 안 됨 {unlinked}</span>}
+                <button onClick={() => setLinkOpen(true)} className="ml-auto px-2 py-0.5 border border-blue-200 text-blue-700 bg-blue-50 rounded text-[0.6875rem] font-medium hover:bg-blue-100">주문 찾기</button>
+              </div>
+            )}
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
                   <th className="py-2 px-3 text-left font-medium">발행일</th>
+                  <th className="py-2 px-3 text-left font-medium">품목</th>
                   <th className="py-2 px-3 text-right font-medium">공급대가</th>
+                  {isRoot && <th className="py-2 px-3 text-left font-medium">연결 부서 · 주문</th>}
                   <th className="py-2 px-3 text-left font-medium">수금 상태</th>
                 </tr>
               </thead>
               <tbody>
-                {data.invoices.map(inv => (
-                  <tr key={inv.id} className="border-b border-gray-50">
+                {data.invoices.map(inv => {
+                  const ls = links[inv.id] ?? []
+                  return (
+                  <tr key={inv.id} className={`border-b border-gray-50 ${isRoot && !ls.length ? 'bg-amber-50/50' : ''}`}>
                     <td className="py-1.5 px-3 tabular-nums">
                       <Link href={`/tax-invoices?dir=sales&tax=${inv.tax_type ?? 'taxable'}&invoiceId=${inv.id}`}
                         className="text-blue-600 hover:underline" title="계산서 화면에서 열기">{inv.issue_date}</Link>
                     </td>
+                    <td className="py-1.5 px-3 text-gray-700">{inv.item_name ?? '-'}</td>
                     <td className="py-1.5 px-3 text-right tabular-nums">{won(inv.total_amount)}</td>
+                    {isRoot && (
+                      <td className="py-1.5 px-3 text-xs">
+                        {ls.length ? ls.map((l, i) => (
+                          <div key={i}>
+                            <Link href={`/sales-hub/${l.vendor_id}`} className="text-blue-700 hover:underline">{l.vendor_name}</Link>
+                            <span className="text-gray-400"> · {l.order_no ?? '-'}{ls.length > 1 ? ` · ${won(l.amount)}` : ''}</span>
+                          </div>
+                        )) : <span className="px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-amber-100 text-amber-700">연결 안 됨</span>}
+                      </td>
+                    )}
                     <td className="py-1.5 px-3">
                       <span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${inv.payment_status === 'matched' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                         {inv.payment_status === 'matched' ? '수금 매칭됨' : '미매칭'}
                       </span>
                     </td>
                   </tr>
+                  )
+                })}
+                {!data.invoices.length && <tr><td colSpan={isRoot ? 5 : 4} className="text-center py-10 text-gray-400 text-sm">{billing?.billing ? '이 매출처 이름으로 직접 발행된 계산서는 없습니다(청구처 발행분은 위 표).' : '발행된 매출 계산서가 없습니다.'}</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          </div>
+          )
+        })()}
+
+        {tab === '소속 부서' && billing && (
+          <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+            <div className="px-4 pt-3 text-sm font-bold text-gray-800">소속 부서 {billing.children.length}곳</div>
+            <div className="px-4 pb-1 text-[0.6875rem] text-gray-400">이 법인을 청구처로 지정한 매출처 — 기간 기준 주문 · 계산서 연결 · 미발행 · 미수. 부서를 누르면 그 부서 상세로.</div>
+            <table className="w-full text-sm min-w-[720px]">
+              <thead>
+                <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+                  <th className="py-2 px-3 text-left font-medium">부서</th>
+                  <th className="py-2 px-3 text-left font-medium">다올 담당</th>
+                  <th className="py-2 px-3 text-right font-medium">주문(순매출)</th>
+                  <th className="py-2 px-3 text-right font-medium">계산서 연결</th>
+                  <th className="py-2 px-3 text-right font-medium">미발행</th>
+                  <th className="py-2 px-3 text-right font-medium">미수</th>
+                </tr>
+              </thead>
+              <tbody>
+                {billing.children.map(c => (
+                  <tr key={c.vendor_id} className="border-b border-gray-50">
+                    <td className="py-1.5 px-3"><Link href={`/sales-hub/${c.vendor_id}?from=${from}&to=${to}`} className="text-blue-700 hover:underline">{c.vendor_name}</Link></td>
+                    <td className="py-1.5 px-3 text-xs text-gray-600">{c.staff ?? '-'}</td>
+                    <td className="py-1.5 px-3 text-right tabular-nums">{won(c.net)}</td>
+                    <td className="py-1.5 px-3 text-right tabular-nums">{won(c.linked)}</td>
+                    <td className={`py-1.5 px-3 text-right tabular-nums ${c.unissued > 0 ? 'text-orange-600' : 'text-gray-400'}`}>{won(c.unissued)}</td>
+                    <td className={`py-1.5 px-3 text-right tabular-nums ${c.outstanding > 0 ? 'text-red-600' : 'text-gray-400'}`}>{won(c.outstanding)}</td>
+                  </tr>
                 ))}
-                {!data.invoices.length && <tr><td colSpan={3} className="text-center py-10 text-gray-400 text-sm">발행된 매출 계산서가 없습니다.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -808,6 +982,11 @@ export default function SalesHubDetailPage() {
           </div>
         )}
       </div>
+      {linkOpen && (
+        <InvoiceLinkModal vendorId={vendorId} vendorName={data.vendor.name} from={from}
+          onClose={() => setLinkOpen(false)}
+          onApplied={() => { setLinkOpen(false); flash('계산서 ↔ 주문 연결을 저장했습니다.'); load() }} />
+      )}
     </div>
   )
 }

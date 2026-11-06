@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { STAFF_REQUIRED_MSG } from '@/lib/customer-staff'
+import { loadBillingFamily } from '@/lib/billing'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,7 +46,9 @@ export async function GET(req: NextRequest) {
       })
       .filter(Boolean)
       .sort((a, b) => Number(b!.is_representative) - Number(a!.is_representative))
-    return NextResponse.json({ contacts })
+    // 계산서 발행처(청구처, 114) — 주문처 아래 안내용. 미적용·미지정이면 null
+    const fam = await loadBillingFamily(admin, vendorId)
+    return NextResponse.json({ contacts, billing: fam.billing })
   }
 
   // 505 미적용 폴백: group_id 없이 재시도

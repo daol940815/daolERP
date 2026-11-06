@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { computeOrderDeliveryStatus } from '@/lib/erp-delivery-status'
 import { contactLabel } from '@/lib/contact-label'
+import { loadBillingMap } from '@/lib/billing'
 import { cutoffAlloc, outstandingOf } from '@/lib/receivable'
 import type { ErpOrderDeliveryStatus } from '@/types/erp'
 
@@ -32,6 +33,8 @@ export interface HubListRow {
   vendor_name: string
   biz_number: string | null
   is_active: boolean      // false = 비활성 처리된 거래처 (목록 기본 숨김, 이력 보존)
+  billing_vendor_id: string | null    // 청구처(114) — 미수금 관리 '청구처 기준' 묶음
+  billing_vendor_name: string | null
   alias_names: string[]   // ERP 표기 검색용
   alias_count: number
   card_count: number
@@ -291,6 +294,7 @@ export async function buildHubList(
     if ((v.type === 'customer' || v.type === 'both') && v.status !== 'merged') get(v.id)
   }
 
+  const billingMap = await loadBillingMap(admin)
   const rows: HubListRow[] = []
   for (const [vid, a] of Array.from(acc.entries())) {
     const v = vInfo.get(vid)
@@ -309,6 +313,8 @@ export async function buildHubList(
       vendor_name: v?.name ?? '(삭제된 거래처)',
       biz_number: v?.biz_number ?? null,
       is_active: v?.is_active !== false,
+      billing_vendor_id: billingMap.get(vid)?.id ?? null,
+      billing_vendor_name: billingMap.get(vid)?.name ?? null,
       alias_names: aliasNames.get(vid) ?? [],
       alias_count: aliasCount.get(vid) ?? 0,
       card_count: v?.card_numbers?.length ?? 0,
@@ -407,7 +413,7 @@ export interface HubDetail {
   aging: { b30: number; b60: number; b90: number; over90: number; opening: number }
   orders: HubOrderRow[]
   timeline: HubTimelineEvent[]
-  invoices: { id: string; issue_date: string; total_amount: number; payment_status: string; tax_type: string | null }[]
+  invoices: { id: string; issue_date: string; total_amount: number; payment_status: string; tax_type: string | null; item_name: string | null }[]
   vip_items: HubSpecialItem[]
   prepay_items: HubSpecialItem[]
   prepay_ledger: HubPrepayEntry[]
@@ -455,9 +461,9 @@ export async function buildHubDetail(
   // 주문에 의존하지 않는 조회는 먼저 출발시켜 병렬로 진행
   const openingP = admin
     .from('vendor_opening_balances').select('amount, collected_amount').eq('vendor_id', vendorId).maybeSingle()
-  const invP = fetchAllRows<{ id: string; issue_date: string; total_amount: number | null; payment_status: string; tax_type: string | null }>((f, t) =>
+  const invP = fetchAllRows<{ id: string; issue_date: string; total_amount: number | null; payment_status: string; tax_type: string | null; item_name: string | null }>((f, t) =>
     admin.from('tax_invoices')
-      .select('id, issue_date, total_amount, payment_status, tax_type')
+      .select('id, issue_date, total_amount, payment_status, tax_type, item_name')
       .eq('direction', 'sales').eq('vendor_id', vendorId)
       .order('issue_date', { ascending: false })
       .range(f, t))
@@ -775,7 +781,7 @@ export async function buildHubDetail(
     aging,
     orders: orderRows,
     timeline: timeline.slice(0, 200),
-    invoices: invR.data.map(i => ({ id: i.id, issue_date: i.issue_date, total_amount: i.total_amount ?? 0, payment_status: i.payment_status, tax_type: i.tax_type })),
+    invoices: invR.data.map(i => ({ id: i.id, issue_date: i.issue_date, total_amount: i.total_amount ?? 0, payment_status: i.payment_status, tax_type: i.tax_type, item_name: i.item_name })),
     vip_items: pick('is_vip'),
     prepay_items: pick('is_prepayment'),
     prepay_ledger: prepayLedger,
