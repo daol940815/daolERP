@@ -10,6 +10,8 @@ import type { ContactOpt, IndividualCustomerOpt, ItemDraft, Product, Vendor, Ven
 import { isMoimVendor } from '../form-shared'
 import IndividualRegister from '../individual-register'
 import { contactLabel } from '@/lib/contact-label'
+import ShipCard, { EMPTY_SHIP } from '../ship-card'
+import { needsShip, type ShipInput } from '@/lib/ship-address'
 
 // 상담일지 폼 (신규·수정 공용) — 실물 '주문상담' 시트 컬럼 구성.
 // 필수는 상담일·구분뿐. 업체·지점·담당자는 마스터 검색 + 자유 입력 겸용
@@ -52,6 +54,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const [isParttime, setIsParttime] = useState(false)         // 아르바이트 — 인라인 등록 버튼 숨김
   const [paymentRevealed, setPaymentRevealed] = useState<string | null>(null)
   const [senderName, setSenderName] = useState('')
+  const [ship, setShip] = useState<ShipInput>(EMPTY_SHIP)   // 배송지 (706) — 주문서와 같은 구조
   const [deliveryRequest, setDeliveryRequest] = useState('')
   const [greetingCard, setGreetingCard] = useState('')
   const [addressChecked, setAddressChecked] = useState('')
@@ -161,6 +164,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           setFax(v.fax ?? '')
           setBizNumber(v.biz_number ?? '')
           setCeoName(v.ceo_name ?? '')
+          setShip({
+            ship_name: v.ship_name ?? null, ship_phone: v.ship_phone ?? null, ship_zip: v.ship_zip ?? null,
+            ship_addr1: v.ship_addr1 ?? null, ship_addr2: v.ship_addr2 ?? null,
+          })
           setStatus(v.status)
           setOrders(c.orders ?? [])
           setCanEdit(c.can_edit !== false)
@@ -245,6 +252,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           setFax(v.fax ?? '')
           setBizNumber(v.biz_number ?? '')
           setCeoName(v.ceo_name ?? '')
+          setShip({
+            ship_name: v.ship_name ?? null, ship_phone: v.ship_phone ?? null, ship_zip: v.ship_zip ?? null,
+            ship_addr1: v.ship_addr1 ?? null, ship_addr2: v.ship_addr2 ?? null,
+          })
           const prodList: Product[] = pRes.ok ? (p.products ?? []) : []
           const src = (c.items ?? []) as Record<string, unknown>[]
           const wantAll = !copyLines?.length
@@ -481,6 +492,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     fax: fax || null,
     biz_number: bizNumber || null,
     ceo_name: ceoName || null,
+    ship,   // 배송지 (706) — 서버가 ship_* 컬럼으로 저장
     // 주문 진행 요청 (705) — 비우면 요청 취소
     order_request: { assignee_id: reqAssignee || null, memo: reqMemo.trim() || null },
     items: (() => {
@@ -1244,8 +1256,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             <input value={greetingCard} disabled={locked} onChange={e => setGreetingCard(e.target.value)} className={free} />
           </div>
           <div>
-            <label className={label}>주소확인여부</label>
-            <input value={addressChecked} disabled={locked} onChange={e => setAddressChecked(e.target.value)} className={free} />
+            <label className={label} title="명단 주소의 수령인에게 확인 전화를 했는지 — 배송지 기재란이 아님 (개별 주문용)">주소확인여부</label>
+            <input value={addressChecked} disabled={locked} onChange={e => setAddressChecked(e.target.value)} className={free}
+              placeholder="확인 전화 여부 (개별 주문)" />
           </div>
           <div>
             <label className={label}>고객명단수단</label>
@@ -1257,6 +1270,24 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               className="w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2.5 py-1.5 text-sm resize-y disabled:opacity-60" />
           </div>
         </div>
+
+        {/* 배송지 (706, 2026-11-06) — 주문서 ShipCard 그대로. 신규만 자동 채움, 수정·복사는 저장값.
+            주문 전환 시 여기 값이 주문처 최근 배송지보다 우선 (사용자 확정) */}
+        {(() => {
+          const c = contacts.find(x => x.contact_id === contactId)
+          return (
+            <div className="mt-3">
+              <ShipCard
+                value={ship} onChange={setShip} vendorId={vendorId}
+                contactName={c ? contactLabel(c.name, c.title) : (managerText.trim() || null)}
+                contactPhone={c?.phone ?? (phone || null)}
+                autoFill={!isEdit && !copyId}
+                applies={needsShip(items.filter(it => it.item_name.trim() && !it.is_shipping && !it.parent_uid).map(it => it.order_kind))}
+                disabled={locked}
+              />
+            </div>
+          )
+        })()}
 
         {/* 주문 진행 요청 (705, 2026-11-05) — 상담만 하고 주문 입력은 다른 직원에게. 비우면 내가 직접 진행 */}
         {!locked && (() => {

@@ -1,4 +1,5 @@
 // 상담일지 공용 로직 (생성·수정 라우트 공용)
+import { SHIP_KEYS } from './ship-address'
 
 export const CONSULT_TYPES = ['주문', '문의', '요청', '결제', '기타'] as const
 export const CONSULT_MIGRATION_HINT =
@@ -89,6 +90,14 @@ export function parseConsultBody(body: Record<string, unknown>) {
     fax: toStr(body.fax),
     biz_number: toStr(body.biz_number),
     ceo_name: toStr(body.ceo_name),
+    // 배송지 (706) — 주문서와 같은 5컬럼. body.ship 객체로 받는다 (ShipCard 공용)
+    ...((): Record<(typeof SHIP_KEYS)[number], string | null> => {
+      const sh = (body.ship ?? {}) as Record<string, unknown>
+      return {
+        ship_name: toStr(sh.ship_name), ship_phone: toStr(sh.ship_phone), ship_zip: toStr(sh.ship_zip),
+        ship_addr1: toStr(sh.ship_addr1), ship_addr2: toStr(sh.ship_addr2),
+      }
+    })(),
   }
   return { fields, items, paymentPlain: String(body.payment_info ?? '').trim() }
 }
@@ -110,10 +119,13 @@ export function consultItemRows(items: ConsultItemInput[]) {
 export const CONSULT_509_HINT =
   '509 마이그레이션(실무자 보완)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
 const NEW_CONSULT_KEYS = ['invoice_email', 'fax', 'biz_number', 'ceo_name'] as const
+export const CONSULT_706_HINT =
+  '706 마이그레이션(상담일지 배송지)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
 export function compatConsultFields<T extends Record<string, unknown>>(fields: T): Record<string, unknown> {
-  if (NEW_CONSULT_KEYS.some(k => fields[k] != null)) return fields
   const out: Record<string, unknown> = { ...fields }
-  for (const k of NEW_CONSULT_KEYS) delete out[k]
+  if (!NEW_CONSULT_KEYS.some(k => fields[k] != null)) for (const k of NEW_CONSULT_KEYS) delete out[k]
+  // 706 미적용 호환 — 배송지를 입력하지 않은 저장이면 ship_* 컬럼을 보내지 않는다
+  if (!SHIP_KEYS.some(k => fields[k] != null)) for (const k of SHIP_KEYS) delete out[k]
   return out
 }
 

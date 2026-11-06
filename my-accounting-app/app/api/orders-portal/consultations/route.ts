@@ -4,7 +4,7 @@ import { applyIndividualToConsultFields } from '@/lib/individual-customer'
 import { getCurrentUser } from '@/lib/user-role'
 import { isManagerLike } from '@/lib/permissions'
 import { encryptPayment, encryptionReady } from '@/lib/payment-crypto'
-import { parseConsultBody, consultItemRows, insertConsultItems, compatConsultFields, CONSULT_MIGRATION_HINT, CONSULT_509_HINT } from '@/lib/consultations'
+import { parseConsultBody, consultItemRows, insertConsultItems, compatConsultFields, CONSULT_MIGRATION_HINT, CONSULT_509_HINT, CONSULT_706_HINT } from '@/lib/consultations'
 import { recordWorkLog, consultContent } from '@/lib/work-log'
 import { resolveContact } from '@/lib/contact-resolve'
 import { parseOrderRequest, saveOrderRequest } from '@/lib/order-request'
@@ -209,6 +209,9 @@ export async function POST(req: NextRequest) {
     employee_id: me.employeeId,
   }).select('id').single()
   if (error) {
+    if (/ship_name|ship_phone|ship_zip|ship_addr/i.test(error.message)) {
+      return NextResponse.json({ error: CONSULT_706_HINT }, { status: 500 })
+    }
     if (/invoice_email|biz_number|ceo_name|fax/i.test(error.message)) {
       return NextResponse.json({ error: CONSULT_509_HINT }, { status: 500 })
     }
