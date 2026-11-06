@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import ShipCard, { EMPTY_SHIP } from './ship-card'
-import { needsShip, type ShipInput } from '@/lib/ship-address'
+import { hasShip, needsShip, type ShipInput } from '@/lib/ship-address'
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -48,6 +48,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
   const [phone, setPhone] = useState('')
   const [memo, setMemo] = useState('')
   const [ship, setShip] = useState<ShipInput>(EMPTY_SHIP)   // 배송지 (513)
+  const [shipFromConsult, setShipFromConsult] = useState(false)   // 상담 배송지 승계 시 자동 채움 끔 (706)
   const [prepayBalance, setPrepayBalance] = useState(0)      // 주문처 선결제 잔액 안내 (514)
   const uidRef = useRef(2)
   const nextUid = () => uidRef.current++
@@ -200,6 +201,14 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           setPhone(consult.phone ?? '')
           setContactTel(consult.tel ?? '')
           setMemo(consult.memo ?? '')
+          // 배송지 (706): 상담에 입력한 배송지가 주문처 최근 배송지보다 우선 (사용자 확정 2026-11-06)
+          if (hasShip(consult)) {
+            setShip({
+              ship_name: consult.ship_name ?? null, ship_phone: consult.ship_phone ?? null, ship_zip: consult.ship_zip ?? null,
+              ship_addr1: consult.ship_addr1 ?? null, ship_addr2: consult.ship_addr2 ?? null,
+            })
+            setShipFromConsult(true)
+          }
           const label = [consult.bank_name, consult.branch_name, consult.manager_name].filter(Boolean).join(' ')
           setConsultInfo({
             label: `${consult.consult_date} 상담 (${consult.consult_type})${label ? ` — ${label}` : ''}`,
@@ -828,7 +837,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
             value={ship} onChange={setShip} vendorId={vendorId}
             contactName={c ? contactLabel(c.name, c.title) : null}
             contactPhone={c?.phone ?? (phone || null)}
-            autoFill={!orderId && !reissueId}
+            autoFill={!orderId && !reissueId && !shipFromConsult}
             applies={needsShip(items.filter(it => it.item_name.trim() && !it.is_shipping && !it.parent_uid).map(it => it.order_kind))}
             disabled={isEdit && !canEdit}
           />

@@ -4,7 +4,7 @@ import { applyIndividualToConsultFields } from '@/lib/individual-customer'
 import { getCurrentUser, type CurrentUser } from '@/lib/user-role'
 import { isManagerLike } from '@/lib/permissions'
 import { decryptPayment, encryptPayment, encryptionReady, maskPayment } from '@/lib/payment-crypto'
-import { parseConsultBody, consultItemRows, insertConsultItems, compatConsultFields, CONSULT_509_HINT } from '@/lib/consultations'
+import { parseConsultBody, consultItemRows, insertConsultItems, compatConsultFields, CONSULT_509_HINT, CONSULT_706_HINT } from '@/lib/consultations'
 import { recordWorkLog, consultContent } from '@/lib/work-log'
 import { isOrderAssignee, parseOrderRequest, saveOrderRequest } from '@/lib/order-request'
 import { loadConsultReqMap, saveConsultUnable, CONSULT_REQ_LABEL } from '@/lib/order-reply'
@@ -186,6 +186,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { error } = await admin.from('erp_consultations')
     .update({ ...compatConsultFields(parsed.fields), payment_info_enc: paymentEnc }).eq('id', params.id)
   if (error) {
+    if (/ship_name|ship_phone|ship_zip|ship_addr/i.test(error.message)) {
+      return NextResponse.json({ error: CONSULT_706_HINT }, { status: 500 })
+    }
     if (/invoice_email|biz_number|ceo_name|fax/i.test(error.message)) {
       return NextResponse.json({ error: CONSULT_509_HINT }, { status: 500 })
     }
