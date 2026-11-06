@@ -483,7 +483,7 @@
   활성 매출처 전체 이름·별칭, 법인 접두·공백 무시로 확대(findSalesVendor). 업체 그룹 안에서만 찾아 그룹 미지정 거래처를 못 찾고 같은 지점을
   중복 생성하던 문제(11-02~04 6쌍). 그룹 미지정 거래처 재사용 시 고른 업체 그룹에 연결. 상세 docs/customer-management-track.md 2026-11-05.
 
-### 완료 회신 (2026-11-05 사용자 확정 · 구현 — 515 실행 대기, 시안 docs/mockups/완료회신_시안.html)
+### 완료 회신 (2026-11-05 사용자 확정 · 구현 — 515 운영 적용 2026-11-06 검증 2/0/104, 시안 docs/mockups/완료회신_시안.html)
 주문 · 발주 처리 담당이 요청자에게 처리 완료 내용과 결과를 회신한다.
 - 사용자 결정 (2026-11-05):
   1. **회신해야 완료** — 상담 → 주문 전환은 "주문 입력됨(회신 대기)", 담당이 회신해야 완료
@@ -501,6 +501,7 @@
 - **구현 (2026-11-05)**:
   - 515 `erp_order_replies`(order_id / consultation_id, result done · changed · unable, memo, employee_id · name, created_at — 수정 · 삭제 없음) +
     `erp_order_reply_reminders`(주문당 아침 알림 1회). 기존 데이터 변경 없음. 검증: 표_기대2 = 2 / 회신_건수_기대0 = 0 / 주문_건수 동일.
+  - **515 운영 적용 (2026-11-06, 사용자 실행)**: 표_기대2 = 2 · 회신_건수_기대0 = 0 · 주문_건수 = 104 — 기대값 일치. 회신 기능 활성(11-06 입력분부터 대상).
   - `lib/order-reply.ts`: REPLY_START(2026-11-06 00:00 KST) · loadReplyMap(대상 · 상태 · 받는 사람 = {상담 order_requested_by, counselor} − created_by,
     auth_user_id 있고 재직) · saveOrderReply(PC 알림 order_reply) · saveConsultUnable(상담 회신 + order_assignee_id 비움, 요청자 유지) ·
     loadConsultReqMap(requested / returned / waiting / converted / done · changed · unable) · loadOrderReplyDetail.

@@ -298,6 +298,6 @@ docs/ui-reorg-track.md의 "(b) 상담일지 미연결 정책" 요청문(사용�
   (`employees!erp_consultations_employee_id_fkey`).
 - 상세 · 결정 대기 항목: docs/order-system-track.md "상담일지 주문 진행 요청", 시안 docs/mockups/주문진행요청_시안.html.
 
-- **완료 회신 (2026-11-05, 주문 트랙 515 — 실행 대기)**: 주문 진행 요청은 전환이 아니라 담당의 완료 회신으로 완료된다. 전환 전 처리 불가 회신
+- **완료 회신 (2026-11-05, 주문 트랙 515 — 운영 적용 2026-11-06)**: 주문 진행 요청은 전환이 아니라 담당의 완료 회신으로 완료된다. 전환 전 처리 불가 회신
   (상담 PATCH `action: 'unable'`)은 `erp_order_replies`(order_id NULL)에 남고 `order_assignee_id`만 비워 요청자에게 되돌린다(요청자 · 요청 시각 유지).
   상담 목록 scope `requested` = 요청자 기준 진행중(처리 불가로 되돌아온 것 포함), 행 `req_state`. 상세 docs/order-system-track.md "완료 회신".
