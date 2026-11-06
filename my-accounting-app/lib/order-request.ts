@@ -5,7 +5,7 @@ import { sendPush } from './push-server'
 // 상담만 하고 주문 입력은 다른 직원에게 맡긴다.
 //  - 담당자 = 전 직원 중 1명 (재직 · 로그인 계정 무관) · 요청 = 상담 작성자 또는 관리자급
 //  - 요청받은 직원은 그 상담을 열람 · 주문 전환만 할 수 있다 (상담 수정 · 삭제 · 종결 불가)
-//  - 상담이 주문으로 전환되면(status '주문전환') 요청은 자동 완료 — 요청자에게 완료 PC 알림
+//  - 상담이 주문으로 전환되면(status '주문전환') "주문 입력됨" 알림 — 완료는 담당의 완료 회신(515, lib/order-reply.ts)으로
 //  - 아르바이트에게는 마스터(주문처 · 담당자) 연결된 상담만 요청 가능 — 신규 등록이 막혀 전환을 끝낼 수 없음
 //  - 알림: 요청 시 담당자에게 PC 알림(order_req), 미처리면 다음 날 아침 09:00 크론이 1회 더(order_reminded_at)
 
@@ -77,7 +77,7 @@ export async function saveOrderRequest(
   return null
 }
 
-// 주문 전환 완료 → 요청자에게 알림 (요청자가 직접 전환했으면 생략)
+// 주문 전환 → 요청자에게 "주문 입력됨" 알림 (요청자가 직접 전환했으면 생략). 완료는 완료 회신(515)
 export async function notifyOrderRequestDone(
   admin: SupabaseClient, consultId: string, orderId: string, orderNo: string,
   me: { employeeId: string | null; employeeName: string | null },
@@ -88,8 +88,8 @@ export async function notifyOrderRequestDone(
   const where = [c.bank_name, c.branch_name].filter(Boolean).join(' ')
   await sendPush(admin, [c.order_requested_by as string], {
     kind: 'order_done',
-    title: `주문 완료 — ${me.employeeName ?? ''}`,
-    body: `${where} · ${orderNo}`,
+    title: `주문 입력됨 — ${me.employeeName ?? ''}`,
+    body: `${where} · ${orderNo} · 완료 회신 대기`,
     url: `/orders/${orderId}`,
     tag: `order_done:${orderId}`,
   }).catch(() => null)

@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { buildHubList } from '@/lib/vendor-hub'
 import { getCurrentUser } from '@/lib/user-role'
 import { can } from '@/lib/permissions'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -14,6 +15,13 @@ export const maxDuration = 300
 export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   const sp = new URL(req.url).searchParams
+  // ?groups=1 — 등록 창의 업체명 고르기용 업체 목록
+  if (sp.get('groups') === '1') {
+    const r = await fetchAllRows<{ id: string; name: string }>((f, t) =>
+      admin.from('vendor_groups').select('id, name').eq('is_active', true).order('name').range(f, t))
+    if ('error' in r) return NextResponse.json({ error: r.error }, { status: 500 })
+    return NextResponse.json({ groups: r.data })
+  }
   const result = await buildHubList(admin, sp.get('from'), sp.get('to'))
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
   const me = await getCurrentUser()
@@ -29,28 +37,45 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/vendor-hub — 신규 매출처 등록 (미들웨어: customers 수정 권한 + 아르바이트 등록 차단)
+// POST — 매출처 등록. 업체명 = 업체(vendor_groups), 지점명 = 지점 (2026-11-05 사용자 확정:
+// 고객관리문서 은행명 칸 = 업체, 지점명 칸 = 지점). 지점명이 없는 단독 업체도 같은 이름의 업체에 연결한다.
+// 매출처 이름 = '업체명 지점명' (지점명 없으면 업체명).
 export async function POST(req: NextRequest) {
   const admin = createAdminClient()
-  const body = await req.json().catch(() => ({})) as { name?: string; biz_number?: string; note?: string }
-  const name = body.name?.trim()
-  if (!name) return NextResponse.json({ error: '매출처명을 입력하세요.' }, { status: 400 })
+  const body = await req.json().catch(() => ({})) as {
+    group_name?: string; branch_name?: string; name?: string; biz_number?: string; note?: string
+  }
+  const groupName = (body.group_name ?? body.name ?? '').trim()
+  const branchName = (body.branch_name ?? '').trim()
+  if (!groupName) return NextResponse.json({ error: '업체명을 입력하세요.' }, { status: 400 })
+  const name = branchName ? `${groupName} ${branchName}` : groupName
 
-  // 중복 검사: 활성 거래처의 이름·별칭과 대조 (공백 무시)
-  const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase()
-  const { data: dups, error: de } = await admin.from('vendors')
-    .select('id, name, match_aliases, status')
-    .neq('status', 'merged')
-  if (de) return NextResponse.json({ error: de.message }, { status: 500 })
-  const hit = (dups ?? []).find(v =>
-    norm(v.name as string) === norm(name)
-    || ((v.match_aliases as string[] | null) ?? []).some(a => norm(a) === norm(name)))
+  // 중복 검사: 병합되지 않은 거래처 전체의 이름·별칭 (법인 접두·공백 무시, 1,000행 제한 회피)
+  const norm = (s: string) => s.replace(/^\s*(\(주\)|㈜|주식회사)\s*/, '').replace(/\s+/g, '').toLowerCase()
+  const all = await fetchAllRows<{ id: string; name: string; match_aliases: string[] | null; is_active: boolean | null }>((f, t) =>
+    admin.from('vendors').select('id, name, match_aliases, is_active').neq('status', 'merged').range(f, t))
+  if ('error' in all) return NextResponse.json({ error: all.error }, { status: 500 })
+  const hit = all.data.find(v => norm(v.name) === norm(name) || (v.match_aliases ?? []).some(a => norm(a) === norm(name)))
   if (hit) {
-    return NextResponse.json({ error: `같은 이름의 거래처가 이미 있습니다: ${hit.name}`, vendor_id: hit.id }, { status: 409 })
+    const why = hit.is_active === false ? ' (비활성 상태 — 목록에서 "비활성 포함"을 켜고 재활성하세요)' : ''
+    return NextResponse.json({ error: `같은 이름의 거래처가 이미 있습니다: ${hit.name}${why}`, vendor_id: hit.id }, { status: 409 })
+  }
+
+  // 업체 — 같은 이름(공백·법인 접두 무시)이 있으면 연결, 없으면 생성
+  const groups = await fetchAllRows<{ id: string; name: string }>((f, t) =>
+    admin.from('vendor_groups').select('id, name').range(f, t))
+  if ('error' in groups) return NextResponse.json({ error: groups.error }, { status: 500 })
+  let groupId = groups.data.find(g => norm(g.name) === norm(groupName))?.id ?? null
+  if (!groupId) {
+    const { data: g, error: ge } = await admin.from('vendor_groups').insert({ name: groupName }).select('id').single()
+    if (ge) return NextResponse.json({ error: `업체 등록 실패: ${ge.message}` }, { status: 500 })
+    groupId = g.id as string
   }
 
   const { data, error } = await admin.from('vendors')
     .insert({
       name,
+      group_id: groupId,
       biz_number: body.biz_number?.trim() || null,
       note: body.note?.trim() || null,
       type: 'customer',

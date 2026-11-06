@@ -28,6 +28,7 @@ interface Row {
   is_prepay: boolean
   has_invoice: boolean
   po_status: 'none' | 'partial' | 'full' | null
+  reply_state: 'waiting' | 'done' | 'changed' | 'unable' | null   // 완료 회신 (515) — 대상 아니면 null
   canceled_at?: string | null
   last_edited_at?: string | null
 }
@@ -35,6 +36,7 @@ interface Kpi {
   count: number; total: number; outstanding: number
   outstanding_cnt: number; in_progress_cnt: number; direct_cnt: number
   po_none_cnt: number; po_partial_cnt: number; po_full_cnt: number
+  reply?: { wait: number; my_wait: number; to_me: number; unable: number }
 }
 interface Item {
   id: string; line_no: number; parent_line_no: number | null
@@ -58,6 +60,14 @@ const PO_BADGE: Record<string, { label: string; cls: string }> = {
   partial: { label: '부분발주', cls: 'bg-amber-100 text-amber-800' },
   full:    { label: '발주완료', cls: 'bg-emerald-100 text-emerald-700' },
 }
+// 완료 회신 (515) — 요청 건 · 상담자 ≠ 입력자 주문만
+const REPLY_BADGE: Record<string, { label: string; cls: string }> = {
+  waiting: { label: '회신 대기', cls: 'bg-orange-100 text-orange-700' },
+  done:    { label: '완료',     cls: 'bg-emerald-100 text-emerald-700' },
+  changed: { label: '변경 있음', cls: 'bg-amber-100 text-amber-800' },
+  unable:  { label: '처리 불가', cls: 'bg-red-100 text-red-700' },
+}
+const REPLY_FILTERS = ['my_wait', 'wait', 'to_me', 'unable'] as const
 
 const chip = (on: boolean) =>
   `px-3 py-1 rounded-full text-xs border whitespace-nowrap ${
@@ -97,6 +107,7 @@ export default function OrdersHomePage() {
   const [prepay, setPrepay] = useState(false)
   const [invoice, setInvoice] = useState(false)
   const [mine, setMine] = useState(false)
+  const [reply, setReply] = useState('all')   // 완료 회신 필터 (515): all|my_wait|wait|to_me|unable
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
 
@@ -104,6 +115,12 @@ export default function OrdersHomePage() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [itemsCache, setItemsCache] = useState<Record<string, Item[]>>({})
   const [exporting, setExporting] = useState(false)
+
+  // 알림 센터에서 /orders?reply=my_wait 등으로 들어오면 그 필터로 시작
+  useEffect(() => {
+    const r = new URLSearchParams(window.location.search).get('reply')
+    if (r && (REPLY_FILTERS as readonly string[]).includes(r)) setReply(r)
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -117,6 +134,7 @@ export default function OrdersHomePage() {
     if (prepay) p.set('prepay', '1')
     if (invoice) p.set('invoice', '1')
     if (mine) p.set('mine', '1')
+    if (reply !== 'all') p.set('reply', reply)
     p.set('page', String(page))
     const res = await fetch(`/api/orders-portal?${p}`)
     const json = await res.json()
@@ -127,11 +145,11 @@ export default function OrdersHomePage() {
       setExpanded(null)
     }
     setLoading(false)
-  }, [q, from, to, collect, source, po, prepay, invoice, mine, page])
+  }, [q, from, to, collect, source, po, prepay, invoice, mine, reply, page])
   useEffect(() => { load() }, [load])
 
   // 필터 변경 시 1페이지로
-  useEffect(() => { setPage(1) }, [q, from, to, collect, source, po, prepay, invoice, mine])
+  useEffect(() => { setPage(1) }, [q, from, to, collect, source, po, prepay, invoice, mine, reply])
 
   // 현재 필터 그대로 품목 행 단위 엑셀 다운로드
   const exportExcel = async () => {
@@ -146,6 +164,7 @@ export default function OrdersHomePage() {
     if (prepay) p.set('prepay', '1')
     if (invoice) p.set('invoice', '1')
     if (mine) p.set('mine', '1')
+    if (reply !== 'all') p.set('reply', reply)
     try {
       const res = await fetch(`/api/orders-portal/export?${p}`)
       if (!res.ok) {
@@ -194,7 +213,7 @@ export default function OrdersHomePage() {
       </div>
 
       {/* KPI — 클릭=필터 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mt-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 mt-4">
         <button onClick={() => { setCollect('all'); setSource('all') }}
           className={`${kpiCard} ${collect === 'all' && source === 'all' ? 'border-slate-800' : 'border-gray-200'}`}>
           <div className="text-[0.6875rem] text-gray-400">기간 주문</div>
@@ -214,6 +233,13 @@ export default function OrdersHomePage() {
           className={`${kpiCard} ${source === 'direct' ? 'border-slate-800' : 'border-gray-200'}`}>
           <div className="text-[0.6875rem] text-gray-400">직접입력 (클릭=직접만)</div>
           <div className="text-lg font-extrabold tabular-nums text-blue-700">{kpi ? `${won(kpi.direct_cnt)}건` : '-'}</div>
+        </button>
+        {/* 완료 회신 (515) — 내가 입력했고 아직 회신 안 한 주문 */}
+        <button onClick={() => setReply(reply === 'my_wait' ? 'all' : 'my_wait')}
+          className={`${kpiCard} ${reply === 'my_wait' ? 'border-slate-800' : 'border-gray-200'}`}>
+          <div className="text-[0.6875rem] text-gray-400">내가 회신할 것 (클릭=필터)</div>
+          <div className={`text-lg font-extrabold tabular-nums ${kpi?.reply?.my_wait ? 'text-orange-600' : 'text-gray-400'}`}>{kpi?.reply ? `${won(kpi.reply.my_wait)}건` : '-'}</div>
+          {kpi?.reply && <div className="text-[0.625rem] text-gray-400">나에게 온 회신 {kpi.reply.to_me}건 · 처리 불가 {kpi.reply.unable}건</div>}
         </button>
       </div>
 
@@ -270,6 +296,13 @@ export default function OrdersHomePage() {
             </button>
           ))}
           <span className="w-2" />
+          <span className="text-[0.6875rem] text-gray-400 mr-0.5">회신</span>
+          {([['all', '전체'], ['my_wait', '내가 회신할 것'], ['wait', '회신 대기'], ['to_me', '나에게 온 회신'], ['unable', '처리 불가']] as const).map(([k, l]) => (
+            <button key={k} onClick={() => setReply(k)} className={chip(reply === k)}>
+              {l}{k !== 'all' && kpi?.reply ? ` ${kpi.reply[k]}` : ''}
+            </button>
+          ))}
+          <span className="w-2" />
           <button onClick={() => setPrepay(v => !v)} className={chip(prepay)}>선결제만</button>
           <button onClick={() => setInvoice(v => !v)} className={chip(invoice)}>계산서 발행건만</button>
           <span className="flex-1" />
@@ -294,6 +327,7 @@ export default function OrdersHomePage() {
                 <th className="py-2 px-3 text-right font-medium">미수금</th>
                 <th className="py-2 px-3 text-left font-medium">수금</th>
                 <th className="py-2 px-3 text-left font-medium">발주</th>
+                <th className="py-2 px-3 text-left font-medium">회신</th>
                 <th className="py-2 px-3 text-left font-medium">출처</th>
                 <th className="py-2 px-3" />
               </tr>
@@ -348,6 +382,13 @@ export default function OrdersHomePage() {
                         ) : <span className="text-gray-300 text-xs">-</span>}
                       </td>
                       <td className="py-2 px-3">
+                        {r.reply_state && REPLY_BADGE[r.reply_state] ? (
+                          <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${REPLY_BADGE[r.reply_state].cls}`}>
+                            {REPLY_BADGE[r.reply_state].label}
+                          </span>
+                        ) : <span className="text-gray-300 text-xs">-</span>}
+                      </td>
+                      <td className="py-2 px-3">
                         <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${r.source === 'direct' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                           {r.source === 'direct' ? '직접입력' : '업로드'}
                         </span>
@@ -370,7 +411,7 @@ export default function OrdersHomePage() {
                     </tr>
                     {expanded === r.id && (
                       <tr className="border-b border-gray-100">
-                        <td colSpan={11} className="bg-blue-50/30 px-6 py-2.5">
+                        <td colSpan={12} className="bg-blue-50/30 px-6 py-2.5">
                           {!items ? <div className="text-xs text-gray-400 py-1">불러오는 중...</div> : (
                             <div className="space-y-0.5">
                               {items.map(it => (
@@ -409,7 +450,7 @@ export default function OrdersHomePage() {
                 )
               })}
               {!rows.length && (
-                <tr><td colSpan={11} className="text-center py-12 text-gray-400 text-sm">조건에 맞는 주문이 없습니다.</td></tr>
+                <tr><td colSpan={12} className="text-center py-12 text-gray-400 text-sm">조건에 맞는 주문이 없습니다.</td></tr>
               )}
             </tbody>
           </table>

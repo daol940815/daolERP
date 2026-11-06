@@ -483,7 +483,7 @@
   활성 매출처 전체 이름·별칭, 법인 접두·공백 무시로 확대(findSalesVendor). 업체 그룹 안에서만 찾아 그룹 미지정 거래처를 못 찾고 같은 지점을
   중복 생성하던 문제(11-02~04 6쌍). 그룹 미지정 거래처 재사용 시 고른 업체 그룹에 연결. 상세 docs/customer-management-track.md 2026-11-05.
 
-### 완료 회신 (2026-11-05 사용자 결정 — 시안 docs/mockups/완료회신_시안.html 확인 대기)
+### 완료 회신 (2026-11-05 사용자 확정 · 구현 — 515 운영 적용 2026-11-06 검증 2/0/104, 시안 docs/mockups/완료회신_시안.html)
 주문 · 발주 처리 담당이 요청자에게 처리 완료 내용과 결과를 회신한다.
 - 사용자 결정 (2026-11-05):
   1. **회신해야 완료** — 상담 → 주문 전환은 "주문 입력됨(회신 대기)", 담당이 회신해야 완료
@@ -495,6 +495,23 @@
   - 처리 결과 요약은 연결 주문(주문번호 · 금액 · 발주처별 발송 여부 · 배송지 · 취소 여부)에서 화면 표시 시 계산 — 저장 안 함
   - 받는 사람 = {요청자(상담 order_requested_by), 상담자(counselor_employee_id)} − 입력자. 한 번 회신하면 둘 다 알림
   - 업무 요청(900)에 합치지 않고 주문 · 상담 쪽에 붙임 (상담 화면과 업무 요청 화면에 같은 일이 나뉘는 것 방지)
+- 시안 확인 사항 사용자 결정 (2026-11-05): ① 적용 시작 = 2026-11-06 입력분부터(가안) ② 요청 없는 주문도 회신 대상 그대로(가안)
+  ③ 받는 사람이 로그인 계정 없는 직원뿐이면 대상 제외(가안) ④ **회신은 모두 가능하게** — 주문 수정 권한자 누구나(할 일 · 아침 알림 책임은 입력자)
+  ⑤ 처리 불가 회신은 주문 자동 취소 없음(가안) ⑥ 취소 주문 제외 · 재발행 시 회신 이력 이관(가안)
+- **구현 (2026-11-05)**:
+  - 515 `erp_order_replies`(order_id / consultation_id, result done · changed · unable, memo, employee_id · name, created_at — 수정 · 삭제 없음) +
+    `erp_order_reply_reminders`(주문당 아침 알림 1회). 기존 데이터 변경 없음. 검증: 표_기대2 = 2 / 회신_건수_기대0 = 0 / 주문_건수 동일.
+  - **515 운영 적용 (2026-11-06, 사용자 실행)**: 표_기대2 = 2 · 회신_건수_기대0 = 0 · 주문_건수 = 104 — 기대값 일치. 회신 기능 활성(11-06 입력분부터 대상).
+  - `lib/order-reply.ts`: REPLY_START(2026-11-06 00:00 KST) · loadReplyMap(대상 · 상태 · 받는 사람 = {상담 order_requested_by, counselor} − created_by,
+    auth_user_id 있고 재직) · saveOrderReply(PC 알림 order_reply) · saveConsultUnable(상담 회신 + order_assignee_id 비움, 요청자 유지) ·
+    loadConsultReqMap(requested / returned / waiting / converted / done · changed · unable) · loadOrderReplyDetail.
+  - API: `POST /api/orders-portal/orders/[id]/reply`(orders 수정 권한) · 주문 상세 GET `reply` · 상담 상세 PATCH `action: 'unable'`(요청받은 직원 ·
+    관리자급, 요청자 제외) + GET `request_status` · `can_unable` · 상담 목록 `req_state`(scope requested = 요청자 기준 진행중 — 처리 불가 포함) ·
+    주문 목록 `reply` 필터(my_wait · wait · to_me · unable) · `kpi.reply` · 행 `reply_state` · 엑셀 '회신' 열(수금상태 뒤) · inheritToReissued 이관.
+  - 화면: 주문 상세 완료 회신 카드(`app/(orders)/orders/[id]/reply-card.tsx` — 자동 요약 · 결과 3종 · 메모 · 미발송 발주서 확인창 · 이력) /
+    주문 현황 '내가 회신할 것' KPI · 회신 칩 · 회신 칸(`?reply=` 진입) / 상담 상세 처리 불가 회신 · 상태 배너 / 상담 목록 '주문 진행' 상태 배지.
+  - 알림: 'orep:wait'(개인 할 일 · /orders 배지) · 'oreq:returned'(내 요청 할 일) · 'orep:in'(결과 통지 7일). PC 알림 종류 order_reply ·
+    order_reply_wait 추가. 아침 09:00 크론 remindReplyWaiting(어제 이전 입력 · 회신 대기 → 입력자 1회). 전환 알림 문구 "주문 입력됨 — 완료 회신 대기".
 
 ### 상담자 = 은행 · 지점 · 고객의 다올 담당 (2026-11-05 사용자 확정 · 112 적용 · 고객 담당 채우기 완료 — 주문 트랙 종결, 잔여는 고객관리 섹션)
 

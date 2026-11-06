@@ -595,6 +595,9 @@ export async function inheritToReissued(
     // 선결제 사용(514)의 원장 차감 행도 새 주문으로 — 자동 입금(source_key pre:direct:)은 syncPrepayDeposits가 별도 관리
     admin.from('erp_prepayments').update({ order_id: newOrderId })
       .eq('order_id', origOrder.id as string).eq('entry_type', 'deduction'),
+    // 완료 회신 이력(515)도 새 주문으로 — 재발행해도 회신 상태가 이어진다 (515 미적용이면 오류만 나고 무시)
+    admin.from('erp_order_replies').update({ order_id: newOrderId }).eq('order_id', origOrder.id as string),
+    admin.from('erp_order_reply_reminders').update({ order_id: newOrderId }).eq('order_id', origOrder.id as string),
   ])
 
   // 발주서 이관

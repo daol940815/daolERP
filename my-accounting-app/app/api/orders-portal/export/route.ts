@@ -5,6 +5,7 @@ import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { filterFromSearchParams, loadFilteredOrders } from '@/lib/orders-portal-list'
 import { xlsxResponse } from '@/lib/xlsx-export'
 import { honorify } from '@/lib/contact-label'
+import { REPLY_LABEL } from '@/lib/order-reply'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
 
   const result = await loadFilteredOrders(admin, me, filterFromSearchParams(sp))
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
-  const { filtered } = result
+  const { filtered, replyMap } = result
   if (!filtered.length) {
     return NextResponse.json({ error: '조건에 맞는 주문이 없습니다.' }, { status: 404 })
   }
@@ -114,6 +115,8 @@ export async function GET(req: NextRequest) {
       // 상담자는 다올직원 바로 옆 — 같은 사람이어도 둘 다 표기 (2026-11-05 사용자 요청, 목록과 동일). 값은 품목 행마다 채움
       '상담자': '',
       '수금상태': STATUS_LABEL[o.collect_status ?? ''] ?? (o.collect_status ?? ''),
+      // 완료 회신 (515) — 회신 대상 아니면 빈 칸
+      '회신': replyMap.get(o.id) ? REPLY_LABEL[replyMap.get(o.id)!.state] : '',
       '출처': (o.source ?? 'upload') === 'direct' ? '직접입력' : '업로드',
       '총금액(주문)': o.total_amount ?? 0,
       '미수금(주문)': o.outstanding_amount ?? 0,
@@ -129,7 +132,7 @@ export async function GET(req: NextRequest) {
 
   const period = [sp.get('from'), sp.get('to')].filter(Boolean).join('~')
   return xlsxResponse(rows, period ? `주문내역_${period}` : '주문내역', [
-    11, 13, 14, 14, 12, 9, 9, 9, 8, 11, 11,    // 주문 공통 (다올직원 · 상담자 나란히)
+    11, 13, 14, 14, 12, 9, 9, 9, 9, 8, 11, 11,    // 주문 공통 (다올직원 · 상담자 나란히 · 회신)
     12, 34, 12, 6, 14, 9, 6, 9, 9, 10,         // 품목
     ...(showCost ? [9, 9, 10, 10] : []),
     7, 7, 14, 14,

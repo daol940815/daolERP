@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
   // 상담일지 상태 갱신 — 주문 전환 완료 (재등록은 이미 전환 상태)
   if (consultationId && !reissueOf) {
     await admin.from('erp_consultations').update({ status: '주문전환' }).eq('id', consultationId)
-    // 주문 진행 요청이 있던 상담이면 요청자에게 완료 PC 알림 (요청 자체는 '주문전환'으로 자동 완료)
+    // 주문 진행 요청이 있던 상담이면 요청자에게 "주문 입력됨" PC 알림 — 완료는 완료 회신(515)
     await notifyOrderRequestDone(admin, consultationId, orderId, orderNo, { employeeId: me.employeeId, employeeName: me.employeeName })
   }
 
