@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { applyIndividualToConsultFields } from '@/lib/individual-customer'
 import { getCurrentUser } from '@/lib/user-role'
 import { isManagerLike } from '@/lib/permissions'
 import { encryptPayment, encryptionReady } from '@/lib/payment-crypto'
@@ -174,6 +175,9 @@ export async function POST(req: NextRequest) {
 
   const parsed = parseConsultBody(body)
   if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
+
+  // 개인 고객(115): 업체 '개인'이면 고객 전용 매출처로 (지점 공란) — 일반 판별보다 먼저
+  await applyIndividualToConsultFields(admin, parsed.fields)
 
   // 인물 자동 판별 (2026-10-16): 담당자를 마스터에서 고르지 않고 이름만 적어도
   // 거래처가 특정되면 자동으로 인물을 찾거나 만들어 연결한다. 실패해도 저장은 계속.

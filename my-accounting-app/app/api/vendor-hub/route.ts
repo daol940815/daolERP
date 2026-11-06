@@ -51,6 +51,18 @@ export async function POST(req: NextRequest) {
   if (!groupName) return NextResponse.json({ error: '업체명을 입력하세요.' }, { status: 400 })
   const name = branchName ? `${groupName} ${branchName}` : groupName
 
+  // 개인 고객 업체(115): 고객은 주문 · 상담 입력의 '신규 개인 고객 등록'으로 만든다(고객 전용 매출처 자동 생성).
+  // 여기서는 모임처럼 지점명이 있는 것만 등록한다.
+  if (!branchName) {
+    const { data: ig } = await admin.from('vendor_groups').select('id, name').eq('is_individual', true)
+    const normG = (s: string) => s.replace(/\s+/g, '').toLowerCase()
+    if ((ig ?? []).some(g => normG(g.name as string) === normG(groupName))) {
+      return NextResponse.json({
+        error: `'${groupName}' 고객은 주문 · 상담 입력에서 "신규 개인 고객 등록"으로 등록합니다 — 고객 전용 매출처가 자동으로 생깁니다. 모임은 지점명에 모임 이름을 넣어 등록하세요.`,
+      }, { status: 400 })
+    }
+  }
+
   // 중복 검사: 병합되지 않은 거래처 전체의 이름·별칭 (법인 접두·공백 무시, 1,000행 제한 회피)
   const norm = (s: string) => s.replace(/^\s*(\(주\)|㈜|주식회사)\s*/, '').replace(/\s+/g, '').toLowerCase()
   const all = await fetchAllRows<{ id: string; name: string; match_aliases: string[] | null; is_active: boolean | null }>((f, t) =>

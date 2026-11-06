@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { applyIndividualToConsultFields } from '@/lib/individual-customer'
 import { getCurrentUser, type CurrentUser } from '@/lib/user-role'
 import { isManagerLike } from '@/lib/permissions'
 import { decryptPayment, encryptPayment, encryptionReady, maskPayment } from '@/lib/payment-crypto'
@@ -169,6 +170,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
   const parsed = parseConsultBody(body)
   if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
+  // 개인 고객(115): 업체 '개인'이면 고객 전용 매출처로 (지점 공란)
+  await applyIndividualToConsultFields(admin, parsed.fields)
 
   // 결제정보: 빈 값이면 기존 유지, '__clear__'면 삭제, 새 값이면 재암호화
   let paymentEnc = (snap.consult as Row).payment_info_enc as string | null

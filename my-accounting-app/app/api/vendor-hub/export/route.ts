@@ -71,6 +71,8 @@ export async function GET(req: NextRequest) {
     if (sp.get('outstanding') === '1' && r.outstanding <= 0) return false
     if (sp.get('inactive') !== '1' && r.is_active === false) return false
     if (cat && !matchCat(flagMap.get(r.vendor_id))) return false
+    if (sp.get('individual') === 'only' && !r.individual) return false
+    if (sp.get('individual') === 'exclude' && r.individual) return false
     return true
   })
 

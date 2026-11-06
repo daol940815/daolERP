@@ -842,3 +842,16 @@
 - `app/(orders)/orders/order-form.tsx`: 주문처 아래에 "계산서 발행처: X (사업자번호)"를 표시한다(청구처가 지정된 매출처만, 읽기 전용).
 - 주문 데이터는 바꾸지 않는다. 주문처는 계속 부서(매출처)이고, 계산서가 법인으로 나가는 것은 매출처의 속성이다.
   상세: docs/customer-management-track.md '청구처'.
+
+## 다른 트랙 변경 알림 — 개인 고객 자동 분리 115 (2026-11-06, 고객관리 트랙)
+
+- 업체 '개인'(vendor_groups.is_individual)의 주문 · 상담은 지점 없이 고객(인물)을 고른다.
+- 저장하면 고객 전용 매출처("개인 {이름}", vendors.individual_contact_id)로 연결된다. 사용자 결정, 시안 `docs/mockups/개인고객_분리_시안.html`.
+- 이 트랙 파일 변경:
+  - `app/(orders)/orders/order-form.tsx` · `consultations/consult-form.tsx` — 개인 모드(지점 칸 = 모임만, 고객 콤보, 신규 개인 고객 등록).
+  - `app/(orders)/orders/individual-register.tsx` 신설.
+  - `form-shared.tsx`: Vendor.individual_contact_id · VendorGroup.is_individual · `isMoimVendor`.
+  - `api/orders-portal/orders` · `orders/[id]` · `consultations` · `consultations/[id]`: 저장 전 `resolveIndividualVendorForSave` / `applyIndividualToConsultFields`.
+  - `api/orders-portal/masters`: `?individual_group=` 고객 목록, `create_individual` 등록.
+  - `lib/orders-portal.ts` `resolveVendorNames`가 `aliasName`을 돌려준다(개인 고객 = 매출처 이름, 지점 NULL). 별칭명은 이 값을 쓸 것.
+- 115 미적용이면 기존 동작 그대로다. `change-requests` 승인 경로(잔여 처리용)에는 가드를 넣지 않았다.

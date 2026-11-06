@@ -3,6 +3,7 @@ import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { computeOrderDeliveryStatus } from '@/lib/erp-delivery-status'
 import { contactLabel } from '@/lib/contact-label'
 import { loadBillingMap } from '@/lib/billing'
+import { loadIndividualVendorIds } from '@/lib/individual-customer'
 import { cutoffAlloc, outstandingOf } from '@/lib/receivable'
 import type { ErpOrderDeliveryStatus } from '@/types/erp'
 
@@ -35,6 +36,7 @@ export interface HubListRow {
   is_active: boolean      // false = 비활성 처리된 거래처 (목록 기본 숨김, 이력 보존)
   billing_vendor_id: string | null    // 청구처(114) — 미수금 관리 '청구처 기준' 묶음
   billing_vendor_name: string | null
+  individual: boolean     // 개인 고객 전용 매출처(115) — 목록 배지 · 칩
   alias_names: string[]   // ERP 표기 검색용
   alias_count: number
   card_count: number
@@ -294,7 +296,7 @@ export async function buildHubList(
     if ((v.type === 'customer' || v.type === 'both') && v.status !== 'merged') get(v.id)
   }
 
-  const billingMap = await loadBillingMap(admin)
+  const [billingMap, individualIds] = await Promise.all([loadBillingMap(admin), loadIndividualVendorIds(admin)])
   const rows: HubListRow[] = []
   for (const [vid, a] of Array.from(acc.entries())) {
     const v = vInfo.get(vid)
@@ -315,6 +317,7 @@ export async function buildHubList(
       is_active: v?.is_active !== false,
       billing_vendor_id: billingMap.get(vid)?.id ?? null,
       billing_vendor_name: billingMap.get(vid)?.name ?? null,
+      individual: individualIds.has(vid),
       alias_names: aliasNames.get(vid) ?? [],
       alias_count: aliasCount.get(vid) ?? 0,
       card_count: v?.card_numbers?.length ?? 0,

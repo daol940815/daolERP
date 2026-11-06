@@ -147,18 +147,26 @@ export async function resolveDisplayNames(
 // 주문처 업체/지점 이름 해석 (505 — vendor_groups)
 //  bank_name=업체명, branch_name=지점명(거래처명에서 업체명 접두 제거).
 //  그룹 없으면 업체=거래처명, 지점=NULL (단일 업체). 505 미적용 환경도 동일 동작.
+//  개인 고객 매출처(115 individual_contact_id): 업체=업체명, 지점=NULL(공란), 별칭=매출처 이름("개인 홍길동").
+//  aliasName = 주문의 ERP 별칭 표기(업체 + 지점, 개인 고객은 매출처 이름).
 export async function resolveVendorNames(
   admin: SupabaseClient,
   vendorId: string,
-): Promise<{ vendorName: string; bankName: string; branchName: string | null } | { error: string }> {
+): Promise<{ vendorName: string; bankName: string; branchName: string | null; aliasName: string } | { error: string }> {
   let name: string | null = null
   let groupName: string | null = null
-  const withGroup = await admin.from('vendors')
-    .select('id, name, group_id, vendor_groups(name)').eq('id', vendorId).maybeSingle()
+  let individual = false
+  let withGroup = await admin.from('vendors')
+    .select('id, name, group_id, individual_contact_id, vendor_groups(name)').eq('id', vendorId).maybeSingle()
+  if (withGroup.error && /individual_contact_id/.test(withGroup.error.message)) {
+    withGroup = await admin.from('vendors')
+      .select('id, name, group_id, vendor_groups(name)').eq('id', vendorId).maybeSingle() as typeof withGroup
+  }
   if (!withGroup.error && withGroup.data) {
     name = withGroup.data.name as string
     const g = withGroup.data.vendor_groups as unknown as { name: string } | null
     groupName = g?.name ?? null
+    individual = !!(withGroup.data as { individual_contact_id?: string | null }).individual_contact_id
   } else {
     const plain = await admin.from('vendors').select('id, name').eq('id', vendorId).maybeSingle()
     if (!plain.data) return { error: '주문처 거래처를 찾을 수 없습니다.' }
@@ -166,10 +174,11 @@ export async function resolveVendorNames(
   }
   if (!name) return { error: '주문처 거래처를 찾을 수 없습니다.' }
 
-  if (!groupName) return { vendorName: name, bankName: name, branchName: null }
+  if (!groupName) return { vendorName: name, bankName: name, branchName: null, aliasName: name }
+  if (individual) return { vendorName: name, bankName: groupName, branchName: null, aliasName: name }
   let branch = name
   if (name.startsWith(groupName)) branch = name.slice(groupName.length).trim()
-  return { vendorName: name, bankName: groupName, branchName: branch || null }
+  return { vendorName: name, bankName: groupName, branchName: branch || null, aliasName: [groupName, branch].filter(Boolean).join(' ') }
 }
 
 // 별칭 확보: alias_type+erp_name 으로 upsert 후 id 조회. vendor_id 미연결이면 연결.
@@ -413,8 +422,7 @@ export async function applyOrderEdit(
   // 주문처 변경 시 업체/지점 이름·별칭도 갱신
   const names = await resolveVendorNames(admin, input.vendor_id)
   if ('error' in names) return { error: names.error }
-  const aliasName = [names.bankName, names.branchName].filter(Boolean).join(' ')
-  const aliasId = await ensureAlias(admin, 'customer', aliasName, input.vendor_id)
+  const aliasId = await ensureAlias(admin, 'customer', names.aliasName, input.vendor_id)
 
   const { error: upErr } = await admin.from('erp_orders').update({
     ...orderFields,
