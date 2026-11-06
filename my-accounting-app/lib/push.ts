@@ -10,7 +10,7 @@ export const PUSH_KIND_LABEL: Record<PushKind, string> = {
   wr_due_today: '오늘 마감 요청 (아침 09:00 1회)',
   leave_approve: '휴가 결재 요청 (결재 권한자)',
   order_req: '상담일지 주문 진행 요청을 받았을 때 (미처리 시 다음 날 아침 09:00 1회 더)',
-  order_done: '내가 요청한 주문이 입력됐을 때',
+  order_done: '내가 요청 · 상담한 주문이 입력됐을 때',
   order_reply: '내가 요청 · 상담한 주문에 완료 회신 · 처리 불가 회신이 왔을 때',
   order_reply_wait: '회신 안 한 주문 (입력 다음 날 아침 09:00 1회)',
 }
