@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 개인 고객 자동 분리</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; font-size: 13px; }
+  .wrap { max-width: 1240px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 14px; line-height: 1.7; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tabs button { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; color: #334155; }
+  .tabs button.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .screen { display: none; }
+  .screen.on { display: block; }
+  h1 { font-size: 20px; font-weight: 700; }
+  h2 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .sub { font-size: 12px; color: #64748b; margin-top: 3px; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+  .kpi { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; }
+  .kpi .k { font-size: 11.5px; color: #64748b; }
+  .kpi .v { font-size: 18px; font-weight: 700; margin-top: 3px; }
+  .kpi .d { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11.5px; color: #64748b; font-weight: 500; padding: 7px 8px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+  td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+  .b { display: inline-block; border-radius: 6px; padding: 2px 7px; font-size: 11px; font-weight: 600; }
+  .b-green { background: #dcfce7; color: #15803d; }
+  .b-amber { background: #fef3c7; color: #b45309; }
+  .b-orange { background: #ffedd5; color: #c2410c; }
+  .b-red { background: #fee2e2; color: #b91c1c; }
+  .b-blue { background: #dbeafe; color: #1d4ed8; }
+  .b-violet { background: #ede9fe; color: #6d28d9; }
+  .b-slate { background: #f1f5f9; color: #475569; }
+  .btn { border: 0; border-radius: 8px; padding: 7px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .btn-dark { background: #0f172a; color: #fff; }
+  .btn-line { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
+  .btn-sm { padding: 3px 9px; font-size: 11.5px; }
+  .billto { display: inline-flex; align-items: center; gap: 8px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 8px 12px; margin-top: 8px; }
+  .billto .t { font-size: 11px; color: #1d4ed8; font-weight: 700; }
+  .billto .n { font-weight: 700; }
+  .billto .s { font-size: 11px; color: #64748b; }
+  .new { outline: 2px dashed #2563eb; outline-offset: 3px; border-radius: 10px; }
+  .newtag { font-size: 10.5px; font-weight: 700; color: #2563eb; margin-left: 6px; }
+  .muted { color: #94a3b8; }
+  .link { color: #1d4ed8; text-decoration: underline; cursor: pointer; }
+  .chips { display: flex; gap: 6px; margin: 8px 0 10px; flex-wrap: wrap; }
+  .chip { border: 1px solid #cbd5e1; border-radius: 999px; padding: 4px 11px; font-size: 12px; background: #fff; color: #475569; }
+  .chip.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .modal { background: #fff; border-radius: 14px; box-shadow: 0 20px 50px rgba(15,23,42,.25); max-width: 860px; margin: 0 auto; padding: 20px 22px; border: 1px solid #e2e8f0; }
+  .inv { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; margin: 10px 0 14px; display: grid; grid-template-columns: repeat(4, auto); gap: 4px 24px; font-size: 12.5px; }
+  .inv .k { font-size: 11px; color: #64748b; }
+  .score { font-size: 11px; color: #64748b; }
+  .bar { display: inline-block; height: 6px; border-radius: 3px; background: #22c55e; vertical-align: middle; margin-right: 6px; }
+  .form label { display: block; font-size: 11.5px; color: #334155; font-weight: 600; margin: 10px 0 4px; }
+  .form input, .form select { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; font-size: 13px; background: #fff; }
+  .radio { display: flex; gap: 14px; font-size: 12.5px; margin-top: 4px; }
+  .seg { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
+  .seg span { padding: 6px 12px; font-size: 12px; background: #fff; color: #475569; }
+  .seg span.on { background: #0f172a; color: #fff; }
+  .flow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; }
+  .flow .box { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; min-width: 180px; }
+  .flow .arrow { color: #94a3b8; font-size: 18px; }
+</style>
+<style>
+  .field { display:flex; flex-direction:column; gap:4px; }
+  .field label { font-size:11.5px; color:#475569; font-weight:600; }
+  .inp { border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; font-size:13px; background:#fff; min-height:34px; display:flex; align-items:center; }
+  .inp.dis { background:#f1f5f9; color:#94a3b8; }
+  .row { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; }
+  .drop { position:absolute; top:100%; left:0; z-index:5; border:1px solid #cbd5e1; border-radius:8px; background:#fff; box-shadow:0 8px 20px rgba(15,23,42,.12); margin-top:4px; width:420px; }
+  .drop div.o { padding:7px 10px; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; gap:10px; }
+  .drop div.o:hover { background:#f8fafc; }
+  .hint { font-size:11px; color:#64748b; }
+  .warn { background:#fff7ed; border:1px solid #fdba74; color:#9a3412; border-radius:8px; padding:8px 10px; font-size:12px; }
+  .ok { background:#f0fdf4; border:1px solid #86efac; color:#166534; border-radius:8px; padding:8px 10px; font-size:12px; }
+  .mono { font-family: ui-monospace, Menlo, monospace; font-size:12px; }
+  ol.steps { padding-left:18px; line-height:1.9; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>시안 — 개인 고객 자동 분리 (A안)</h1>
+      <p class="sub">업체가 '개인'이면 지점명 없이 고객(인물)마다 매출처를 시스템이 자동으로 나눈다. 직원 입력은 업체 = 개인, 지점 = 공란, 담당자 = 주문자 그대로.</p>
+    </div>
+  </div>
+  <div class="note">
+    파란 점선 = 이번에 바뀌는 부분. 고객명은 예시가 아니라 현재 '개인'에 묶여 있는 실제 고객 10명이다(고객관리문서 2026-11-05판).
+    모임(심통회 · 서신회 · 한록회30기 · 풀향기)은 지금처럼 '개인' 아래 지점으로 둔다(사용자 결정) — 자동 분리 대상이 아니다.
+  </div>
+
+  <div class="tabs">
+    <button class="on" data-s="s1">1. 주문 입력</button>
+    <button data-s="s2">2. 신규 개인 고객 등록</button>
+    <button data-s="s3">3. 저장되는 값</button>
+    <button data-s="s4">4. 매출처 관리 목록</button>
+    <button data-s="s5">5. 개인 고객 상세</button>
+    <button data-s="s6">6. 기존 데이터 정리 (드라이런)</button>
+  </div>
+
+  <!-- 1 -->
+  <div class="screen on" id="s1">
+    <div class="card">
+      <h2>신규 주문 — 주문처</h2>
+      <p class="sub">업체에서 '개인'을 고르면 지점 칸이 닫히고, 바로 고객을 고른다. 상담일지 입력도 같은 방식.</p>
+      <div class="row" style="margin-top:12px">
+        <div class="field" style="width:220px"><label>업체 *</label><div class="inp">개인</div></div>
+        <div class="field new" style="width:260px"><label>지점(부서) <span class="newtag">변경</span></label>
+          <div class="inp dis">개인 고객은 지점 없음 — 고객별로 자동 분리</div></div>
+        <div class="field new" style="width:440px; position:relative"><label>고객(주문자) * <span class="newtag">변경</span></label>
+          <div class="inp">김<span class="muted">&nbsp;| 이름 · 전화번호로 검색</span></div>
+          <div class="drop">
+            <div class="o"><span><b>김옥순 님</b> <span class="muted">· 다올 홍창의</span></span><span class="muted">최근 2026-10-12</span></div><div class="o"><span><b>김종원 님</b> <span class="muted">· 다올 김보현</span></span><span class="muted">최근 2026-09-03</span></div><div class="o"><span><b>홍형기 님</b> <span class="muted">· 다올 김재형</span></span><span class="muted">최근 2025-10-21</span></div><div class="o"><span><b>이영상 박사님</b> <span class="muted">· 다올 홍창의</span></span><span class="muted">최근 2026-09-10</span></div><div class="o"><span><b>강희정 대표님</b> <span class="muted">· 다올 옥광일</span></span><span class="muted">최근 2026-10-01</span></div>
+            <div class="o"><span class="link">+ 신규 개인 고객 등록</span><span class="muted">개인 고객 11명 중 5명 표시</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="hint" style="margin-top:240px">
+        · 목록 = 업체 '개인'의 모든 개인 고객(지금은 '개인' 한 곳에 묶인 10명 + 김득진 중령님). 지점을 먼저 고를 필요가 없다.<br>
+        · 고객을 고르면 상담자(다올 담당)가 지금처럼 자동으로 채워진다.<br>
+        · 모임(심통회 등)은 지점 칸이 아니라 고객 목록 아래 "모임" 묶음으로 보여 준다 — 모임을 고르면 그 아래 담당자를 고르는 기존 방식.
+      </p>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="screen" id="s2">
+    <div class="modal">
+      <h2>신규 개인 고객 등록</h2>
+      <p class="sub">이름 · 직함 · 다올 담당은 지금과 같다. 전화번호는 같은 이름의 개인 고객이 이미 있을 때만 필수.</p>
+      <div class="row" style="margin-top:12px">
+        <div class="field" style="width:150px"><label>이름 *</label><div class="inp">홍형기</div></div>
+        <div class="field" style="width:120px"><label>직함</label><div class="inp muted">(선택)</div></div>
+        <div class="field new" style="width:170px"><label>전화번호 <span class="newtag">조건부 필수</span></label><div class="inp">010-____-____</div></div>
+        <div class="field" style="width:150px"><label>다올 담당 *</label><div class="inp">김재형</div></div>
+      </div>
+      <div class="warn new" style="margin-top:12px">
+        같은 이름의 개인 고객이 이미 있습니다: <b>홍형기 님</b> (다올 김재형 · 최근 2025-10-21 · 고객코드 C-280166).<br>
+        같은 분이면 <span class="link">이 고객으로 선택</span>하세요. 다른 분이면 전화번호를 넣어야 등록됩니다(동명이인 구분).
+      </div>
+      <div class="ok" style="margin-top:8px">
+        등록하면 매출처 <b>개인 홍형기</b>가 자동으로 생깁니다. 동명이인이면 <b>개인 홍형기(5678)</b>처럼 전화번호 뒷자리를 붙입니다.
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px">
+        <button class="btn btn-line">취소</button><button class="btn btn-dark">등록</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="screen" id="s3">
+    <div class="grid2">
+      <div class="card">
+        <h2>직원이 보는 주문 (그대로)</h2>
+        <table style="margin-top:8px">
+          <tr><th>칸</th><th>값</th></tr>
+          <tr><td>업체명</td><td>개인</td></tr>
+          <tr><td>지점명</td><td class="muted">(공란)</td></tr>
+          <tr><td>담당자(고객)</td><td>김득진 중령님</td></tr>
+          <tr><td>상담자</td><td>옥광일 (다올 담당 자동)</td></tr>
+        </table>
+        <p class="hint" style="margin-top:8px">주문 목록 · 주문 상세 · 엑셀의 주문처 표기도 "개인 · 김득진 중령님".</p>
+      </div>
+      <div class="card new">
+        <h2>시스템이 연결하는 값 <span class="newtag">자동</span></h2>
+        <table style="margin-top:8px">
+          <tr><th>연결</th><th>값</th></tr>
+          <tr><td>매출처</td><td><b>개인 김득진</b> (이 고객 전용, 없으면 저장할 때 생성)</td></tr>
+          <tr><td>매출처 ↔ 고객</td><td>인물 C-939602 (김득진) — 이름이 아니라 인물로 묶음</td></tr>
+          <tr><td>ERP 별칭</td><td>개인 김득진</td></tr>
+          <tr><td>지점 담당</td><td>옥광일 (고객의 다올 담당과 같게)</td></tr>
+        </table>
+        <p class="hint" style="margin-top:8px">그래서 미수금 · 수금 대상 · 계산서 연결 · 선결제 원장 · 엑셀이 고객별로 나뉜다. 업체 '개인' 합계는 업체별 통계에 남는다.</p>
+      </div>
+    </div>
+    <div class="card">
+      <h2>규칙</h2>
+      <ol class="steps">
+        <li>업체에 "개인 고객 업체" 표시를 둔다(이름 '개인'에 하드코딩하지 않음) — 지금은 '개인' 한 곳.</li>
+        <li>그 업체의 주문 · 상담은 지점명과 상관없이 고객(인물)으로 매출처를 정한다. 같은 인물 = 같은 매출처, 다른 인물 = 다른 매출처.</li>
+        <li>매출처 이름은 "개인 {이름}" — 직함 · 존칭은 넣지 않는다(화면이 붙임). 동명이인만 전화번호 뒷 4자리.</li>
+        <li>이름을 고치거나 사람을 합치면 매출처 이름도 따라간다(옛 이름은 별칭으로 보존).</li>
+        <li>같은 사람이 회사 고객이기도 하면(예: 김득진 = 5군단 인사처 중령(진)) 인물은 하나, 매출처는 둘 — 개인 주문과 부대 주문이 섞이지 않는다.</li>
+        <li>매출처 등록 창에서 업체 '개인'을 고르면 지점명 대신 고객을 고르게 한다(손으로 "개인 홍길동"을 만들지 않게).</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="screen" id="s4">
+    <div class="head"><div><h1>매출처 관리 (지점)</h1><p class="sub">개인 고객은 한 줄씩. 칩으로 숨기거나 개인 고객만 볼 수 있다.</p></div></div>
+    <div class="chips new">
+      <span class="chip on">전체</span><span class="chip">개인 고객 11</span><span class="chip">개인 고객 제외</span>
+    </div>
+    <div class="card" style="padding:0">
+      <table>
+        <tr><th>매출처</th><th>지점</th><th>고객</th><th>다올 담당</th><th class="r">과거 매출(문서)</th><th>최근 주문(문서)</th><th>상태</th></tr>
+        <tr><td><b>개인 김득진</b> <span class="b b-violet">개인 고객</span></td><td class="muted">-</td><td>김득진 중령님</td><td>옥광일</td><td class="r muted">-</td><td>2026-11-03</td><td><span class="b b-amber">미수</span></td></tr>
+        <tr><td><b>개인 김옥순</b> <span class="b b-violet">개인 고객</span></td><td class="muted">-</td><td>김옥순 님</td><td>홍창의</td><td class="r">3,904,000</td><td>2026-10-12</td><td><span class="b b-slate">주문 없음</span></td></tr><tr><td><b>개인 김종원</b> <span class="b b-violet">개인 고객</span></td><td class="muted">-</td><td>김종원 님</td><td>김보현</td><td class="r">1,805,000</td><td>2026-09-03</td><td><span class="b b-slate">주문 없음</span></td></tr><tr><td><b>개인 홍형기</b> <span class="b b-violet">개인 고객</span></td><td class="muted">-</td><td>홍형기 님</td><td>김재형</td><td class="r">1,320,100</td><td>2025-10-21</td><td><span class="b b-slate">주문 없음</span></td></tr><tr><td><b>개인 이영상</b> <span class="b b-violet">개인 고객</span></td><td class="muted">-</td><td>이영상 박사님</td><td>홍창의</td><td class="r">1,105,000</td><td>2026-09-10</td><td><span class="b b-slate">주문 없음</span></td></tr>
+        <tr><td><b>개인 심통회</b></td><td>심통회</td><td class="muted">-</td><td class="muted">-</td><td class="r muted">-</td><td class="muted">-</td><td><span class="b b-slate">주문 없음</span></td></tr>
+      </table>
+    </div>
+    <p class="hint">모임(심통회 등)은 개인 고객 표시 없이 지금처럼 지점으로 남는다.</p>
+  </div>
+
+  <!-- 5 -->
+  <div class="screen" id="s5">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap">
+        <div>
+          <h1>개인 김득진 <span class="b b-violet">개인 고객</span></h1>
+          <p class="sub">업체 개인 · 고객 김득진 중령님 · 고객코드 C-939602 · 다올 담당 옥광일</p>
+          <div class="billto new" style="background:#f5f3ff; border-color:#ddd6fe">
+            <span class="t" style="color:#6d28d9">같은 고객의 다른 거래</span>
+            <span class="n">5군단 인사처</span><span class="s">중령(진) · 부대 주문은 그쪽 매출처에 집계</span>
+            <span class="link">이동</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="grid4">
+      <div class="kpi"><div class="k">기간 매출</div><div class="v">-</div><div class="d">주문 1건 (2026-11-03)</div></div>
+      <div class="kpi"><div class="k">수금</div><div class="v">-</div></div>
+      <div class="kpi"><div class="k">미수</div><div class="v" style="color:#b91c1c">-</div></div>
+      <div class="kpi"><div class="k">상담</div><div class="v">1건</div><div class="d">2026-11-03</div></div>
+    </div>
+    <p class="hint">상세 화면 구성은 지점 상세와 같다. 거래처 담당자 칸은 고객 본인 한 명이라 "고객 정보" 카드로 바꿔 보여 준다(직함 · 전화 · 다올 담당 수정).</p>
+  </div>
+
+  <!-- 6 -->
+  <div class="screen" id="s6">
+    <div class="card">
+      <h2>기존 데이터 정리 — 드라이런 (115 실행 뒤 실행, 승인 필요)</h2>
+      <p class="sub">현재 매출처 '개인'(2026-08-24 생성)에 묶인 고객 10명을 고객별 매출처로 나눈다. 과거 매출 스냅샷 10건도 고객별로 옮긴다. 주문은 10-01 이후 0건이라 옮길 주문은 없다.</p>
+      <table style="margin-top:10px">
+        <tr><th>고객</th><th>고객코드</th><th>새 매출처</th><th>다올 담당</th><th class="r">과거 매출(문서)</th><th>최근 주문(문서)</th><th>처리</th></tr>
+        <tr><td>김옥순 님</td><td class="mono">C-547695</td><td><b>개인 김옥순</b></td><td>홍창의</td><td class="r">3,904,000</td><td>2026-10-12</td><td><span class="b b-green">새로 생성</span></td></tr><tr><td>김종원 님</td><td class="mono">C-279683</td><td><b>개인 김종원</b></td><td>김보현</td><td class="r">1,805,000</td><td>2026-09-03</td><td><span class="b b-green">새로 생성</span></td></tr><tr><td>홍형기 님</td><td class="mono">C-280166</td><td><b>개인 홍형기</b></td><td>김재형</td><td class="r">1,320,100</td><td>2025-10-21</td><td><span class="b b-green">새로 생성</span></td></tr><tr><td>이영상 박사님</td><td class="mono">C-740639</td><td><b>개인 이영상</b></td><td>홍창의</td><td class="r">1,105,000</td><td>2026-09-10</td><td><span class="b b-green">새로 생성</span></td></tr><tr><td>강희정 대표님</td><td class="mono">C-587393</td><td><b>개인 강희정</b></td><td>옥광일</td><td class="r">700,000</td><td>2026-10-01</td><td><span class="b b-green">새로 생성</span></td></tr><tr><td>박종헌 님</td><td class="mono">C-462797</td><td><b>개인 박종헌</b></td><td>옥광일</td><td class="r">480,000</td><td>2026-09-30</td><td><span class="b b-green">새로 생성</span></td></tr><tr><td>이소연 님</td><td class="mono">C-801353</td><td><b>개인 이소연</b></td><td>옥광일</td><td class="r">250,000</td><td>2026-07-29</td><td><span class="b b-green">새로 생성</span></td></tr><tr><td>박현숙 님</td><td class="mono">C-339247</td><td><b>개인 박현숙</b></td><td>옥광일</td><td class="r">240,200</td><td>2026-09-03</td><td><span class="b b-green">새로 생성</span></td></tr><tr><td>임영노 님</td><td class="mono">C-995194</td><td><b>개인 임영노</b></td><td>김재형</td><td class="r">150,000</td><td>2025-01-20</td><td><span class="b b-green">새로 생성</span></td></tr><tr><td>김주성 님</td><td class="mono">C-529700</td><td><b>개인 김주성</b></td><td>홍창의</td><td class="r">106,000</td><td>2026-09-15</td><td><span class="b b-green">새로 생성</span></td></tr>
+        <tr><td>김득진 중령님</td><td class="mono">C-939602</td><td><b>개인 김득진</b></td><td>옥광일</td><td class="r muted">-</td><td>2026-11-03</td><td><span class="b b-blue">기존 전환 (오늘 정리 완료)</span></td></tr>
+      </table>
+      <p class="hint" style="margin-top:10px">
+        · 분리 후 매출처 '개인'은 입력 창구로만 남는다(고객 0명). 비활성 처리하지 않는다 — 업체 '개인'을 고르는 입구라서.<br>
+        · 홍형기 · 임영노는 같은 매출처에 배정이 두 줄씩 있다(10-02 종료분 + 현재분). 현재분만 옮기고 종료분은 이력으로 함께 옮긴다.<br>
+        · 동명 인물: 홍형기 4명 · 임영노 2명이 다른 회사 고객으로 있다 — 개인 고객끼리의 동명이인은 없어 전화번호 뒷자리를 붙이지 않는다.
+      </p>
+    </div>
+    <div class="card">
+      <h2>오늘(11-06) 이미 정리한 것</h2>
+      <ol class="steps">
+        <li>김득진 인물 3건 → 1건(C-939602)으로 병합 — 사용자 확인 "모두 동일인". 주문 1 · 상담 1 · 배정이 따라옴.</li>
+        <li>11-03에 따로 생긴 매출처 '개인'(상담 1건 · 김득진 종료 배정)을 김득진 고객 매출처로 병합.</li>
+        <li>매출처 "개인 김득진 중령님" → "개인 김득진"(옛 이름은 별칭), 주문 D261103-010의 지점명 '김득진 중령님' → 공란.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+<script>
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b))
+    document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === b.dataset.s))
+  }))
+</script>
+</body>
+</html>
