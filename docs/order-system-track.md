@@ -508,6 +508,8 @@
   7일(회신 대기 동안, 회신이 오면 'orep:in'으로 바뀜, 같은 상담의 'oreq:done'은 하나로 합침). 취소 · 재등록 · 당일 수정은 보내지 않음(가안 1 · 2).
   구현: `lib/order-reply.ts` notifyOrderEntered — 주문 POST(신규만)에서 호출, 회신 대상이 아니면 예전대로 상담 요청자에게만(notifyOrderRequestDone).
   주의: 상담일지 없는 주문에서 시스템이 아는 요청자는 상담자 칸뿐 — 상담자는 고객 다올 담당으로 자동 채워지므로 출력물을 준 사람이 다르면 입력자가 직접 바꿔야 함.
+- **내 상담 회신 대기 칩 B안 (2026-11-06 사용자 "B안도 진행")**: 주문 현황 회신 칩 `?reply=my_req_wait` — 내가 받는 사람(요청자 · 상담자)인 주문 중
+  회신 대기. 기존 '회신 대기'(wait)는 전 직원 주문, '내가 회신할 것'(my_wait)은 내가 입력한 주문. `kpi.reply.my_req_wait`, '내가 회신할 것' 카드 보조 줄에 숫자 표시.
   - `lib/order-reply.ts`: REPLY_START(2026-11-06 00:00 KST) · loadReplyMap(대상 · 상태 · 받는 사람 = {상담 order_requested_by, counselor} − created_by,
     auth_user_id 있고 재직) · saveOrderReply(PC 알림 order_reply) · saveConsultUnable(상담 회신 + order_assignee_id 비움, 요청자 유지) ·
     loadConsultReqMap(requested / returned / waiting / converted / done · changed · unable) · loadOrderReplyDetail.
