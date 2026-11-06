@@ -262,16 +262,18 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
     })()
   }, [orderId, consultId, reissueId])
 
-  // 주문처 선택 → 담당자 목록
+  // 주문처 선택 → 담당자 목록 + 계산서 발행처(청구처, 114)
+  const [billingTo, setBillingTo] = useState<{ name: string; biz_number: string | null } | null>(null)
   const loadContacts = useCallback(async (vid: string) => {
     const res = await fetch(`/api/orders-portal/masters?vendor_id=${vid}`)
     const json = await res.json()
     setContacts(res.ok ? (json.contacts ?? []) : [])
+    setBillingTo(res.ok ? (json.billing ?? null) : null)
     setContactsLoadedFor(vid)
   }, [])
   useEffect(() => {
     if (vendorId) loadContacts(vendorId)
-    else { setContacts([]); setContactsLoadedFor(null) }
+    else { setContacts([]); setContactsLoadedFor(null); setBillingTo(null) }
   }, [vendorId, loadContacts])
 
   // 주문처 선결제 잔액 — 안내만. 사용은 저장 후 주문 상세 › 결제 내역에서 (2026-11-05 확정)
@@ -594,6 +596,11 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                 </button>
               }
             />
+            {billingTo && (
+              <div className="text-[0.6875rem] text-blue-700 mt-0.5">
+                계산서 발행처: <b>{billingTo.name}</b>{billingTo.biz_number ? ` (${billingTo.biz_number})` : ''}
+              </div>
+            )}
           </div>
           <div className="col-span-2">
             <label className={label}>담당자(거래처) <em className="not-italic text-red-500">*</em></label>

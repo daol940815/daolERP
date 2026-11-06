@@ -835,3 +835,10 @@
   순서: 발송 시점 로그인 직원 → 발주서 작성자(`created_by`), 각 직원은 `work_phone` → 비면 `phone`
   (2026-11-05 사용자 결정) → 모두 없으면 빈 값(양식이 `COMPANY_PHONE` 대체). 205 적용 완료(2026-11-05).
 - 발주서 select 에 `created_by` 추가. 양식(`lib/po-form.ts`) 동작은 그대로.
+
+## 다른 트랙 변경 알림 — 청구처(계산서 발행처) 114 (2026-11-06, 고객관리 트랙)
+
+- `app/api/orders-portal/masters/route.ts`: `?vendor_id=` 응답에 `billing`(청구처 법인 {id, name, biz_number} 또는 null)을 추가했다.
+- `app/(orders)/orders/order-form.tsx`: 주문처 아래에 "계산서 발행처: X (사업자번호)"를 표시한다(청구처가 지정된 매출처만, 읽기 전용).
+- 주문 데이터는 바꾸지 않는다. 주문처는 계속 부서(매출처)이고, 계산서가 법인으로 나가는 것은 매출처의 속성이다.
+  상세: docs/customer-management-track.md '청구처'.
