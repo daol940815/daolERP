@@ -220,6 +220,23 @@ export async function GET() {
           breakdown.mine += rows.length
         }
       }
+      // 2-1) 주문 입력됨 (2026-11-06 A안) — 내가 요청자 · 상담자인 회신 대기 주문, 최근 7일 입력분. 회신이 오면 3)으로 바뀜
+      {
+        const since = Date.parse(sevenDaysAgo) > Date.parse(REPLY_START) ? sevenDaysAgo : REPLY_START
+        const { data: recentOrders } = await admin.from('erp_orders')
+          .select('id, order_no, bank_name, branch_name, consultation_id, created_at, staff_name')
+          .eq('source', 'direct').is('canceled_at', null).neq('created_by_employee_id', empId)
+          .gte('created_at', since).order('created_at', { ascending: false }).limit(500)
+        const ro = (recentOrders ?? []) as { id: string; order_no: string | null; bank_name: string | null; branch_name: string | null; consultation_id: string | null; created_at: string; staff_name: string | null }[]
+        const rmIn = await loadReplyMap(admin, ro.map(o => o.id))
+        const entered = ro.filter(o => { const r = rmIn.get(o.id); return !!r && r.state === 'waiting' && r.recipients.includes(empId) })
+        // 상담 요청 블록(oreq:done)과 겹치는 상담은 이쪽 하나만
+        const covered = new Set(entered.map(o => o.consultation_id).filter(Boolean).map(id => `oreq:done:${id}`))
+        for (let i = items.length - 1; i >= 0; i--) if (covered.has(items[i].key)) items.splice(i, 1)
+        for (const o of entered.slice(0, 5)) {
+          items.push({ key: `orep:entered:${o.id}`, bucket: 'mine', group: 'info', tone: 'blue', title: `주문 입력됨 — ${o.staff_name ?? ''}`, detail: `${where(o)} · ${o.order_no ?? ''} · 완료 회신 대기`, href: `/orders/${o.id}`, count: 1, at: o.created_at })
+        }
+      }
       // 3) 나에게 온 회신 (요청자 · 상담자) — 주문별 최신 1건, 최근 7일
       const seen = new Set<string>()
       const reps = ((recent.data ?? []) as { order_id: string; result: ReplyResult; memo: string | null; employee_id: string | null; employee_name: string | null; created_at: string }[])

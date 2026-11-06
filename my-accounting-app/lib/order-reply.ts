@@ -128,6 +128,29 @@ export async function loadReplyMap(admin: SupabaseClient, orderIds: string[]): P
   return map
 }
 
+// 주문 입력 알림 (2026-11-06 사용자 확정 — A안): 회신 받는 사람과 같은 기준(요청자 + 상담자 − 입력자)에게 "주문 입력됨".
+//  - 상담일지 요청 건 · 바로 입력한 건(출력물 전달 등) 모두. 요청자 = 상담자면 1번
+//  - 신규 저장 때만 — 취소 · 재등록 · 당일 수정은 보내지 않음. 대상이 아니면(받는 사람 없음 등) false
+export async function notifyOrderEntered(
+  admin: SupabaseClient, orderId: string, orderNo: string,
+  me: { employeeId: string | null; employeeName: string | null },
+): Promise<boolean> {
+  const info = (await loadReplyMap(admin, [orderId])).get(orderId)
+  if (!info) return false
+  const to = info.recipients.filter(id => id !== me.employeeId)
+  if (!to.length) return true
+  const { data: o } = await admin.from('erp_orders').select('bank_name, branch_name').eq('id', orderId).maybeSingle()
+  const where = [o?.bank_name, o?.branch_name].filter(Boolean).join(' ')
+  await sendPush(admin, to, {
+    kind: 'order_done',
+    title: `주문 입력됨 — ${me.employeeName ?? ''}`,
+    body: `${where} · ${orderNo} · 완료 회신 대기`,
+    url: `/orders/${orderId}`,
+    tag: `order_entered:${orderId}`,
+  }).catch(() => null)
+  return true
+}
+
 // 메모 필수 검사
 export function replyInputError(result: unknown, memo: string | null): string | null {
   if (typeof result !== 'string' || !REPLY_RESULTS.includes(result as ReplyResult)) return '회신 결과를 골라주세요.'
