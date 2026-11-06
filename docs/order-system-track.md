@@ -502,6 +502,14 @@
   - 515 `erp_order_replies`(order_id / consultation_id, result done · changed · unable, memo, employee_id · name, created_at — 수정 · 삭제 없음) +
     `erp_order_reply_reminders`(주문당 아침 알림 1회). 기존 데이터 변경 없음. 검증: 표_기대2 = 2 / 회신_건수_기대0 = 0 / 주문_건수 동일.
   - **515 운영 적용 (2026-11-06, 사용자 실행)**: 표_기대2 = 2 · 회신_건수_기대0 = 0 · 주문_건수 = 104 — 기대값 일치. 회신 기능 활성(11-06 입력분부터 대상).
+- **주문 입력 알림 A안 (2026-11-06 사용자 확정 "가안으로 진행")**: 상담일지 없이 출력물 등으로 맡긴 주문(예: 다올직원 한정호 / 상담자 홍창의)은
+  회신 전까지 상담자가 입력 사실을 몰랐고, 상담일지 요청 건도 상담자(고객 다올 담당)는 "주문 입력됨"을 받지 못했음 → 두 경우 모두
+  **회신 받는 사람과 같은 기준(요청자 + 상담자 − 입력자)에게 "주문 입력됨" PC 알림**(order_done, 요청자 = 상담자면 1번) + 알림 센터 소식 'orep:entered'
+  7일(회신 대기 동안, 회신이 오면 'orep:in'으로 바뀜, 같은 상담의 'oreq:done'은 하나로 합침). 취소 · 재등록 · 당일 수정은 보내지 않음(가안 1 · 2).
+  구현: `lib/order-reply.ts` notifyOrderEntered — 주문 POST(신규만)에서 호출, 회신 대상이 아니면 예전대로 상담 요청자에게만(notifyOrderRequestDone).
+  주의: 상담일지 없는 주문에서 시스템이 아는 요청자는 상담자 칸뿐 — 상담자는 고객 다올 담당으로 자동 채워지므로 출력물을 준 사람이 다르면 입력자가 직접 바꿔야 함.
+- **내 상담 회신 대기 칩 B안 (2026-11-06 사용자 "B안도 진행")**: 주문 현황 회신 칩 `?reply=my_req_wait` — 내가 받는 사람(요청자 · 상담자)인 주문 중
+  회신 대기. 기존 '회신 대기'(wait)는 전 직원 주문, '내가 회신할 것'(my_wait)은 내가 입력한 주문. `kpi.reply.my_req_wait`, '내가 회신할 것' 카드 보조 줄에 숫자 표시.
   - `lib/order-reply.ts`: REPLY_START(2026-11-06 00:00 KST) · loadReplyMap(대상 · 상태 · 받는 사람 = {상담 order_requested_by, counselor} − created_by,
     auth_user_id 있고 재직) · saveOrderReply(PC 알림 order_reply) · saveConsultUnable(상담 회신 + order_assignee_id 비움, 요청자 유지) ·
     loadConsultReqMap(requested / returned / waiting / converted / done · changed · unable) · loadOrderReplyDetail.
@@ -829,3 +837,23 @@
   순서: 발송 시점 로그인 직원 → 발주서 작성자(`created_by`), 각 직원은 `work_phone` → 비면 `phone`
   (2026-11-05 사용자 결정) → 모두 없으면 빈 값(양식이 `COMPANY_PHONE` 대체). 205 적용 완료(2026-11-05).
 - 발주서 select 에 `created_by` 추가. 양식(`lib/po-form.ts`) 동작은 그대로.
+
+## 다른 트랙 변경 알림 — 청구처(계산서 발행처) 114 (2026-11-06, 고객관리 트랙)
+
+- `app/api/orders-portal/masters/route.ts`: `?vendor_id=` 응답에 `billing`(청구처 법인 {id, name, biz_number} 또는 null)을 추가했다.
+- `app/(orders)/orders/order-form.tsx`: 주문처 아래에 "계산서 발행처: X (사업자번호)"를 표시한다(청구처가 지정된 매출처만, 읽기 전용).
+- 주문 데이터는 바꾸지 않는다. 주문처는 계속 부서(매출처)이고, 계산서가 법인으로 나가는 것은 매출처의 속성이다.
+  상세: docs/customer-management-track.md '청구처'.
+
+## 다른 트랙 변경 알림 — 개인 고객 자동 분리 115 (2026-11-06, 고객관리 트랙)
+
+- 업체 '개인'(vendor_groups.is_individual)의 주문 · 상담은 지점 없이 고객(인물)을 고른다.
+- 저장하면 고객 전용 매출처("개인 {이름}", vendors.individual_contact_id)로 연결된다. 사용자 결정, 시안 `docs/mockups/개인고객_분리_시안.html`.
+- 이 트랙 파일 변경:
+  - `app/(orders)/orders/order-form.tsx` · `consultations/consult-form.tsx` — 개인 모드(지점 칸 = 모임만, 고객 콤보, 신규 개인 고객 등록).
+  - `app/(orders)/orders/individual-register.tsx` 신설.
+  - `form-shared.tsx`: Vendor.individual_contact_id · VendorGroup.is_individual · `isMoimVendor`.
+  - `api/orders-portal/orders` · `orders/[id]` · `consultations` · `consultations/[id]`: 저장 전 `resolveIndividualVendorForSave` / `applyIndividualToConsultFields`.
+  - `api/orders-portal/masters`: `?individual_group=` 고객 목록, `create_individual` 등록.
+  - `lib/orders-portal.ts` `resolveVendorNames`가 `aliasName`을 돌려준다(개인 고객 = 매출처 이름, 지점 NULL). 별칭명은 이 값을 쓸 것.
+- 115 미적용이면 기존 동작 그대로다. `change-requests` 승인 경로(잔여 처리용)에는 가드를 넣지 않았다.

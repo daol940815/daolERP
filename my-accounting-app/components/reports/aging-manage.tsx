@@ -30,6 +30,8 @@ interface HubInfo {
   last_date: string | null
   status: string
   href: string
+  billing_id?: string | null     // 청구처(114) — 계산서를 받는 법인. 없으면 자기 자신
+  billing_name?: string | null
 }
 
 interface MergedRow extends AgingBuckets {
@@ -39,6 +41,7 @@ interface MergedRow extends AgingBuckets {
   erp_names: string[]     // 합쳐진 ERP 별칭 표기
   opening: number         // 기초이월 잔여 (경과 구간에 포함됨)
   hub: HubInfo | null
+  members?: string[]      // 청구처 기준 보기: 합쳐진 소속 매출처(부서) 이름
 }
 
 export interface AgingManageConfig {
@@ -98,6 +101,8 @@ export const RECEIVABLE_CONFIG: AgingManageConfig = {
     period_amount: (r.net as number) ?? 0, settled: (r.collected as number) ?? 0,
     last_date: (r.last_order_date as string | null) ?? null, status: (r.status as string) ?? 'normal',
     href: `/sales-hub/${r.vendor_id}`,
+    billing_id: (r.billing_vendor_id as string | null) ?? null,
+    billing_name: (r.billing_vendor_name as string | null) ?? null,
   }),
   unlinkedHref: '/erp-aliases?type=customer',
   workLink: { label: '수금 대상', href: '/reports/erp-receivables' },
@@ -152,6 +157,8 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
   const [staffFilter, setStaffFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
+  // 미수금: 부서(매출처) 기준 / 청구처(계산서 받는 법인) 기준 — 114 청구처가 지정된 경우에만 토글 노출
+  const [groupBy, setGroupBy] = useState<'vendor' | 'billing'>('vendor')
 
   const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
   const periodFrom = useMemo(() => getPeriodRange('당년').from, [])
@@ -175,7 +182,7 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
   useEffect(() => { load() }, [load])
 
   // 경과기간 행(ERP 별칭·기초이월)을 연결 거래처 기준으로 합친다. 미연결 별칭은 별칭 단위 행.
-  const rows = useMemo<MergedRow[]>(() => {
+  const baseRows = useMemo<MergedRow[]>(() => {
     const m = new Map<string, MergedRow>()
     for (const r of aging) {
       const isOpening = r.alias_id === null && r.erp_name.endsWith('(기초이월)')
@@ -193,6 +200,46 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
     return Array.from(m.values()).sort((a, b) => b.total - a.total)
   }, [aging, hub])
 
+  const hasBilling = useMemo(() => cfg.side === 'receivable' && Array.from(hub.values()).some(h => h.billing_id), [cfg.side, hub])
+
+  // 청구처 기준: 청구처를 가리키는 부서 행을 청구처 법인 행 하나로 합친다(법인 자신의 행 포함).
+  // 기간 매출·수금은 가족 전체(잔액 없는 부서 포함)의 허브 값 합계, 상태는 합친 경과 구간으로 판정.
+  const rows = useMemo<MergedRow[]>(() => {
+    if (groupBy !== 'billing' || !hasBilling) return baseRows
+    const fam = new Map<string, HubInfo[]>()   // 청구처 id → 소속 부서 허브 정보
+    hub.forEach(h => { if (h.billing_id) { const a = fam.get(h.billing_id) ?? []; a.push(h); fam.set(h.billing_id, a) } })
+    const out = new Map<string, MergedRow>()
+    for (const r of baseRows) {
+      const target = r.hub?.billing_id ?? r.vendor_id
+      if (!target || !fam.has(target)) { out.set(r.key, r); continue }
+      const key = `b:${target}`
+      let g = out.get(key)
+      if (!g) {
+        const root = hub.get(target) ?? null
+        const kids = fam.get(target) ?? []
+        const name = root?.vendor_name ?? kids[0]?.billing_name ?? r.name
+        const all = [...(root ? [root] : []), ...kids]
+        const combined: HubInfo | null = all.length ? {
+          vendor_id: target, vendor_name: name, staff: root?.staff ?? null,
+          period_amount: all.reduce((s, h) => s + h.period_amount, 0),
+          settled: all.reduce((s, h) => s + h.settled, 0),
+          last_date: all.map(h => h.last_date).filter((d): d is string => !!d).sort().pop() ?? null,
+          status: 'normal', href: `/sales-hub/${target}`, billing_id: null, billing_name: null,
+        } : null
+        g = { key, vendor_id: target, name, erp_names: [], opening: 0, hub: combined, members: [], ...emptyTotal }
+        out.set(key, g)
+      }
+      if (r.vendor_id !== target) g.members!.push(r.name)
+      g.opening += r.opening
+      for (const n of r.erp_names) if (!g.erp_names.includes(n)) g.erp_names.push(n)
+      for (const b of BUCKETS) g[b.key] += r[b.key]
+      g.total += r.total
+    }
+    const list = Array.from(out.values())
+    for (const g of list) if (g.members && g.hub) g.hub = { ...g.hub, status: statusFromBuckets(g, cfg.side) }
+    return list.sort((a, b) => b.total - a.total)
+  }, [groupBy, hasBilling, baseRows, hub, cfg.side])
+
   const openingTotal = useMemo(() => rows.reduce((s, r) => s + r.opening, 0), [rows])
   const staffNames = useMemo(() => Array.from(new Set(rows.map(r => r.hub?.staff).filter((s): s is string => !!s))).sort((a, b) => a.localeCompare(b, 'ko')), [rows])
   const statusOf = (r: MergedRow) => r.hub?.status ?? statusFromBuckets(r, cfg.side)
@@ -202,7 +249,10 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
     if (bucketFilter === 'opening' ? r.opening <= 0 : bucketFilter ? r[bucketFilter] <= 0 : false) return false
     if (staffFilter && r.hub?.staff !== staffFilter) return false
     if (statusFilter && statusOf(r) !== statusFilter) return false
-    if (search) { const q = norm(search); if (!norm(r.name).includes(q) && !r.erp_names.some(n => norm(n).includes(q))) return false }
+    if (search) {
+      const q = norm(search)
+      if (!norm(r.name).includes(q) && !r.erp_names.some(n => norm(n).includes(q)) && !(r.members ?? []).some(n => norm(n).includes(q))) return false
+    }
     return true
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [rows, bucketFilter, staffFilter, statusFilter, search])
@@ -234,6 +284,17 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
         <input type="date" value={asOf} onChange={e => setAsOf(e.target.value)}
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
         <span className="w-px h-5 bg-gray-200 mx-1" />
+        {hasBilling && (
+          <>
+            <div className="inline-flex border border-gray-300 rounded-lg overflow-hidden text-sm">
+              {([['vendor', '부서 기준'], ['billing', '청구처 기준']] as const).map(([k, l]) => (
+                <button key={k} onClick={() => setGroupBy(k)}
+                  className={`px-3 py-1.5 ${groupBy === k ? 'bg-slate-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>{l}</button>
+              ))}
+            </div>
+            <span className="w-px h-5 bg-gray-200 mx-1" />
+          </>
+        )}
         <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white">
           <option value="">담당직원: 전체</option>
           {staffNames.map(s => <option key={s} value={s}>{s}</option>)}
@@ -305,7 +366,14 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
                           ? <Link href={`${cfg.hubDetailBase}/${r.vendor_id}`} className="font-semibold text-gray-900 hover:underline truncate max-w-[240px]">{r.name}</Link>
                           : <span className="font-semibold text-gray-900 truncate max-w-[240px]">{r.name}</span>}
                         {!r.vendor_id && <span className="shrink-0 text-[0.625rem] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">미연결</span>}
+                        {r.members && <span className="shrink-0 text-[0.625rem] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">청구처 · 부서 {r.members.length}곳</span>}
+                        {!r.members && groupBy === 'vendor' && r.hub?.billing_name && (
+                          <span className="shrink-0 text-[0.625rem] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700" title="계산서 발행처">→ {r.hub.billing_name}</span>
+                        )}
                       </div>
+                      {r.members && r.members.length > 0 && (
+                        <p className="text-[0.6875rem] text-blue-700/80 truncate max-w-[260px]" title={r.members.join(', ')}>{r.members.join(', ')}</p>
+                      )}
                       {r.erp_names.length > 0 && r.erp_names.join(', ') !== r.name && (
                         <p className="text-[0.6875rem] text-gray-400 truncate max-w-[260px]" title={r.erp_names.join(', ')}>{r.erp_names.join(', ')}</p>
                       )}
@@ -359,6 +427,7 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
         {cfg.amountLabel}·{cfg.settledLabel}·{cfg.ratioLabel}·상태는 {cfg.hubLabel}(당년 1월 1일 ~ 기준일)과 같은 값입니다.
         · 기초이월 잔여는 기초잔액(거래처) 탭의 잔여(기초잔액 - 회수 누계)로, 경과 구간에도 들어 있습니다.
         · 미연결 행은 ERP 표기가 거래처에 연결되지 않은 건 — 별칭 연결 후 거래처 행으로 합쳐집니다.
+        {hasBilling && ' · 청구처 기준은 계산서를 받는 법인(예: 주식회사 하나은행) 아래 부서 잔액을 한 행으로 합칩니다. 행을 누르면 법인 상세의 소속 부서 탭에서 부서별로 다시 볼 수 있습니다.'}
       </p>
     </div>
   )

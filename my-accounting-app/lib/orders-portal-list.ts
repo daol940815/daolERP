@@ -72,7 +72,7 @@ export interface OrderListFilter {
   prepayOnly?: boolean
   invoiceOnly?: boolean
   mine?: boolean
-  reply?: string | null      // all|wait|my_wait|to_me|unable — 완료 회신 (515)
+  reply?: string | null      // all|wait|my_wait|my_req_wait|to_me|unable — 완료 회신 (515)
 }
 
 export function filterFromSearchParams(sp: URLSearchParams): OrderListFilter {
@@ -287,10 +287,12 @@ export async function loadFilteredOrders(
   const replyTest: Record<string, (r: ReplyInfo) => boolean> = {
     wait: r => r.state === 'waiting',
     my_wait: r => r.state === 'waiting' && isMe(r.entrant),
+    // 내 상담 회신 대기 (2026-11-06 B안): 내가 요청자 · 상담자인 주문 중 아직 회신 안 온 것
+    my_req_wait: r => r.state === 'waiting' && r.recipients.some(isMe),
     to_me: r => r.state !== 'waiting' && r.recipients.some(isMe),
     unable: r => r.state === 'unable',
   }
-  const replyCounts: ReplyCounts = { wait: 0, my_wait: 0, to_me: 0, unable: 0 }
+  const replyCounts: ReplyCounts = { wait: 0, my_wait: 0, my_req_wait: 0, to_me: 0, unable: 0 }
   for (const r of Array.from(replyMap.values())) {
     for (const k of Object.keys(replyCounts) as (keyof ReplyCounts)[]) if (replyTest[k](r)) replyCounts[k] += 1
   }
@@ -307,4 +309,4 @@ export async function loadFilteredOrders(
   return { filtered, prepayIds, invoiceIds, poStatus, replyMap, replyCounts }
 }
 
-export interface ReplyCounts { wait: number; my_wait: number; to_me: number; unable: number }
+export interface ReplyCounts { wait: number; my_wait: number; my_req_wait: number; to_me: number; unable: number }

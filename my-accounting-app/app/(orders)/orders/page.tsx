@@ -36,7 +36,7 @@ interface Kpi {
   count: number; total: number; outstanding: number
   outstanding_cnt: number; in_progress_cnt: number; direct_cnt: number
   po_none_cnt: number; po_partial_cnt: number; po_full_cnt: number
-  reply?: { wait: number; my_wait: number; to_me: number; unable: number }
+  reply?: { wait: number; my_wait: number; my_req_wait: number; to_me: number; unable: number }
 }
 interface Item {
   id: string; line_no: number; parent_line_no: number | null
@@ -67,7 +67,7 @@ const REPLY_BADGE: Record<string, { label: string; cls: string }> = {
   changed: { label: '변경 있음', cls: 'bg-amber-100 text-amber-800' },
   unable:  { label: '처리 불가', cls: 'bg-red-100 text-red-700' },
 }
-const REPLY_FILTERS = ['my_wait', 'wait', 'to_me', 'unable'] as const
+const REPLY_FILTERS = ['my_wait', 'my_req_wait', 'wait', 'to_me', 'unable'] as const
 
 const chip = (on: boolean) =>
   `px-3 py-1 rounded-full text-xs border whitespace-nowrap ${
@@ -107,7 +107,7 @@ export default function OrdersHomePage() {
   const [prepay, setPrepay] = useState(false)
   const [invoice, setInvoice] = useState(false)
   const [mine, setMine] = useState(false)
-  const [reply, setReply] = useState('all')   // 완료 회신 필터 (515): all|my_wait|wait|to_me|unable
+  const [reply, setReply] = useState('all')   // 완료 회신 필터 (515): all|my_wait|my_req_wait|wait|to_me|unable
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
 
@@ -239,7 +239,7 @@ export default function OrdersHomePage() {
           className={`${kpiCard} ${reply === 'my_wait' ? 'border-slate-800' : 'border-gray-200'}`}>
           <div className="text-[0.6875rem] text-gray-400">내가 회신할 것 (클릭=필터)</div>
           <div className={`text-lg font-extrabold tabular-nums ${kpi?.reply?.my_wait ? 'text-orange-600' : 'text-gray-400'}`}>{kpi?.reply ? `${won(kpi.reply.my_wait)}건` : '-'}</div>
-          {kpi?.reply && <div className="text-[0.625rem] text-gray-400">나에게 온 회신 {kpi.reply.to_me}건 · 처리 불가 {kpi.reply.unable}건</div>}
+          {kpi?.reply && <div className="text-[0.625rem] text-gray-400">내 상담 회신 대기 {kpi.reply.my_req_wait}건 · 나에게 온 회신 {kpi.reply.to_me}건</div>}
         </button>
       </div>
 
@@ -297,7 +297,7 @@ export default function OrdersHomePage() {
           ))}
           <span className="w-2" />
           <span className="text-[0.6875rem] text-gray-400 mr-0.5">회신</span>
-          {([['all', '전체'], ['my_wait', '내가 회신할 것'], ['wait', '회신 대기'], ['to_me', '나에게 온 회신'], ['unable', '처리 불가']] as const).map(([k, l]) => (
+          {([['all', '전체'], ['my_wait', '내가 회신할 것'], ['my_req_wait', '내 상담 회신 대기'], ['wait', '회신 대기'], ['to_me', '나에게 온 회신'], ['unable', '처리 불가']] as const).map(([k, l]) => (
             <button key={k} onClick={() => setReply(k)} className={chip(reply === k)}>
               {l}{k !== 'all' && kpi?.reply ? ` ${kpi.reply[k]}` : ''}
             </button>

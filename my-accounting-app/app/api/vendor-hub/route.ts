@@ -44,11 +44,24 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient()
   const body = await req.json().catch(() => ({})) as {
     group_name?: string; branch_name?: string; name?: string; biz_number?: string; note?: string
+    billing_vendor_id?: string   // 계산서 발행처(청구처, 114) — 비우면 자기 자신
   }
   const groupName = (body.group_name ?? body.name ?? '').trim()
   const branchName = (body.branch_name ?? '').trim()
   if (!groupName) return NextResponse.json({ error: '업체명을 입력하세요.' }, { status: 400 })
   const name = branchName ? `${groupName} ${branchName}` : groupName
+
+  // 개인 고객 업체(115): 고객은 주문 · 상담 입력의 '신규 개인 고객 등록'으로 만든다(고객 전용 매출처 자동 생성).
+  // 여기서는 모임처럼 지점명이 있는 것만 등록한다.
+  if (!branchName) {
+    const { data: ig } = await admin.from('vendor_groups').select('id, name').eq('is_individual', true)
+    const normG = (s: string) => s.replace(/\s+/g, '').toLowerCase()
+    if ((ig ?? []).some(g => normG(g.name as string) === normG(groupName))) {
+      return NextResponse.json({
+        error: `'${groupName}' 고객은 주문 · 상담 입력에서 "신규 개인 고객 등록"으로 등록합니다 — 고객 전용 매출처가 자동으로 생깁니다. 모임은 지점명에 모임 이름을 넣어 등록하세요.`,
+      }, { status: 400 })
+    }
+  }
 
   // 중복 검사: 병합되지 않은 거래처 전체의 이름·별칭 (법인 접두·공백 무시, 1,000행 제한 회피)
   const norm = (s: string) => s.replace(/^\s*(\(주\)|㈜|주식회사)\s*/, '').replace(/\s+/g, '').toLowerCase()
@@ -83,5 +96,15 @@ export async function POST(req: NextRequest) {
     .select('id, name')
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data })
+  // 청구처는 별도 갱신 — 114 미적용 환경에서도 등록 자체는 성공하도록
+  let billingWarning: string | null = null
+  if (body.billing_vendor_id) {
+    const { data: t } = await admin.from('vendors').select('billing_vendor_id').eq('id', body.billing_vendor_id).maybeSingle()
+    if (t?.billing_vendor_id) billingWarning = '선택한 청구처가 다른 청구처를 가리키고 있어 지정하지 않았습니다.'
+    else {
+      const { error: be } = await admin.from('vendors').update({ billing_vendor_id: body.billing_vendor_id }).eq('id', data.id)
+      if (be) billingWarning = '청구처 지정은 마이그레이션 114 실행 후 가능합니다 — 매출처는 등록됐습니다.'
+    }
+  }
+  return NextResponse.json({ data, billing_warning: billingWarning })
 }

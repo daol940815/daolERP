@@ -16,6 +16,7 @@ interface Row {
   vendor_name: string
   biz_number: string | null
   is_active: boolean
+  individual?: boolean    // 개인 고객 전용 매출처 (115)
   alias_names: string[]
   alias_count: number
   card_count: number
@@ -67,6 +68,7 @@ export default function SalesHubPage() {
   const [vipOnly, setVipOnly] = useState(false)
   const [outstandingOnly, setOutstandingOnly] = useState(false)
   const [showInactive, setShowInactive] = useState(false)   // 비활성 거래처는 기본 숨김
+  const [indFilter, setIndFilter] = useState<'' | 'only' | 'exclude'>('')   // 개인 고객 (115)
 
   // 고객관리 집계 (108 RPC) — 기간 필터와 독립, 기준연도 자동
   const [kpiFlags, setKpiFlags] = useState<KpiFlags | null>(null)
@@ -89,8 +91,19 @@ export default function SalesHubPage() {
   // 신규 매출처 등록 (고객·영업 수정 권한자만 — 노출은 can_edit, 차단은 미들웨어)
   const [canEdit, setCanEdit] = useState(false)
   // 업체명 = 업체(은행·그룹), 지점명 = 지점 — 고객관리문서 은행명/지점명 칸과 같은 규칙 (2026-11-05)
-  const [addForm, setAddForm] = useState<{ open: boolean; group: string; branch: string; biz: string; note: string; busy: boolean; msg: string | null }>(
-    { open: false, group: '', branch: '', biz: '', note: '', busy: false, msg: null })
+  // 계산서 발행처(청구처, 114): self = 이 매출처로 발행 / other = 다른 법인(예: 주식회사 하나은행)으로 발행
+  const ADD_EMPTY = { open: false, group: '', branch: '', biz: '', note: '', busy: false, msg: null as string | null,
+    billMode: 'self' as 'self' | 'other', billQ: '', billId: '', billName: '' }
+  const [addForm, setAddForm] = useState(ADD_EMPTY)
+  const [billOpts, setBillOpts] = useState<{ id: string; name: string; biz_number: string | null }[]>([])
+  useEffect(() => {
+    if (!addForm.open || addForm.billMode !== 'other') return
+    const t = setTimeout(() => {
+      fetch(`/api/vendor-hub/billing?entities=1&q=${encodeURIComponent(addForm.billQ.trim())}`).then(r => r.json())
+        .then(j => setBillOpts(j.entities ?? [])).catch(() => setBillOpts([]))
+    }, 250)
+    return () => clearTimeout(t)
+  }, [addForm.open, addForm.billMode, addForm.billQ])
   const [groupNames, setGroupNames] = useState<string[]>([])
   useEffect(() => {
     if (!addForm.open || groupNames.length) return
@@ -137,14 +150,17 @@ export default function SalesHubPage() {
     if (vipOnly && r.vip_total <= 0) return false
     if (outstandingOnly && r.outstanding <= 0) return false
     if (!showInactive && r.is_active === false) return false
+    if (indFilter === 'only' && !r.individual) return false
+    if (indFilter === 'exclude' && r.individual) return false
     if (catFilter) {
       const f = vendorFlagMap.get(r.vendor_id)
       if (!f || !matchCategory(f, catFilter)) return false
     }
     return true
-  }), [rows, search, staffFilter, statusFilter, vipOnly, outstandingOnly, showInactive, catFilter, vendorFlagMap])
+  }), [rows, search, staffFilter, statusFilter, vipOnly, outstandingOnly, showInactive, catFilter, vendorFlagMap, indFilter])
 
-  const filterActive = !!(search || staffFilter || statusFilter || vipOnly || outstandingOnly || catFilter)
+  const filterActive = !!(search || staffFilter || statusFilter || vipOnly || outstandingOnly || catFilter || indFilter)
+  const individualCount = useMemo(() => rows.filter(r => r.individual && (showInactive || r.is_active !== false)).length, [rows, showInactive])
 
   // KPI는 화면에 보이는(필터 적용된) 매출처 기준으로 집계
   const kpi = useMemo(() => {
@@ -182,12 +198,19 @@ export default function SalesHubPage() {
             if (vipOnly) p.set('vip', '1')
             if (outstandingOnly) p.set('outstanding', '1')
             if (showInactive) p.set('inactive', '1')
+            if (indFilter) p.set('individual', indFilter)
             if (catFilter) p.set('cat', catFilter)
             const a = document.createElement('a'); a.href = `/api/vendor-hub/export?${p}`; a.click()
           }}
             className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
             ↓ 엑셀
           </button>
+          {canEdit && !mine && (
+            <Link href="/sales-hub/billing"
+              className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
+              청구처 지정
+            </Link>
+          )}
           {canEdit && !mine && (
             <button onClick={() => setAddForm(f => ({ ...f, open: true, msg: null }))}
               className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 whitespace-nowrap">
@@ -236,6 +259,46 @@ export default function SalesHubPage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
               </div>
               <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">계산서 발행처</label>
+                <div className="flex gap-3 text-sm text-gray-700">
+                  <label className="flex items-center gap-1.5">
+                    <input type="radio" checked={addForm.billMode === 'self'} onChange={() => setAddForm(f => ({ ...f, billMode: 'self' }))} />
+                    이 매출처
+                  </label>
+                  <label className="flex items-center gap-1.5">
+                    <input type="radio" checked={addForm.billMode === 'other'} onChange={() => setAddForm(f => ({ ...f, billMode: 'other' }))} />
+                    다른 법인 (본점 등)
+                  </label>
+                </div>
+                {addForm.billMode === 'other' && (
+                  <div className="mt-2">
+                    {addForm.billId ? (
+                      <div className="flex items-center justify-between text-xs bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                        <span className="text-blue-800 font-medium">{addForm.billName}</span>
+                        <button onClick={() => setAddForm(f => ({ ...f, billId: '', billName: '' }))} className="text-blue-600 hover:underline">변경</button>
+                      </div>
+                    ) : (
+                      <>
+                        <input value={addForm.billQ} onChange={e => setAddForm(f => ({ ...f, billQ: e.target.value }))}
+                          placeholder="법인명 검색 (사업자번호 있는 거래처)"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                        <div className="max-h-36 overflow-y-auto mt-1 border border-gray-100 rounded-lg">
+                          {billOpts.length === 0 && <p className="text-xs text-gray-400 px-3 py-2">검색 결과 없음</p>}
+                          {billOpts.map(o => (
+                            <button key={o.id} onClick={() => setAddForm(f => ({ ...f, billId: o.id, billName: o.name }))}
+                              className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex justify-between gap-2">
+                              <span className="text-gray-800">{o.name}</span>
+                              <span className="text-gray-400 tabular-nums">{o.biz_number}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                    <p className="text-[0.6875rem] text-gray-400 mt-1">계산서가 본점 법인 이름으로 발행되는 부서라면 그 법인을 고릅니다. 사업자번호는 비워 둡니다.</p>
+                  </div>
+                )}
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">메모 <span className="text-gray-400">(선택)</span></label>
                 <input value={addForm.note} onChange={e => setAddForm(f => ({ ...f, note: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
@@ -246,17 +309,20 @@ export default function SalesHubPage() {
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">취소</button>
               <button disabled={addForm.busy} onClick={async () => {
                 if (!addForm.group.trim()) { setAddForm(f => ({ ...f, msg: '업체명을 입력하세요.' })); return }
+                if (addForm.billMode === 'other' && !addForm.billId) { setAddForm(f => ({ ...f, msg: '계산서 발행 법인을 고르세요.' })); return }
                 setAddForm(f => ({ ...f, busy: true, msg: null }))
                 const res = await fetch('/api/vendor-hub', {
                   method: 'POST', headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     group_name: addForm.group.trim(), branch_name: addForm.branch.trim() || undefined,
                     biz_number: addForm.biz.trim() || undefined, note: addForm.note.trim() || undefined,
+                    billing_vendor_id: addForm.billMode === 'other' ? addForm.billId : undefined,
                   }),
                 })
                 const json = await res.json().catch(() => ({}))
                 if (!res.ok) { setAddForm(f => ({ ...f, busy: false, msg: json.error ?? '등록 실패' })); return }
-                setAddForm({ open: false, group: '', branch: '', biz: '', note: '', busy: false, msg: null })
+                if (json.billing_warning) alert(`매출처는 등록되었습니다. 다만 청구처 지정은 실패했습니다: ${json.billing_warning}`)
+                setAddForm(ADD_EMPTY)
                 setGroupNames([])
                 load(from, to)
               }}
@@ -310,6 +376,14 @@ export default function SalesHubPage() {
         <label className="text-xs text-gray-600 flex items-center gap-1">
           <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} /> 비활성 포함
         </label>
+        {individualCount > 0 && (
+          <select value={indFilter} onChange={e => setIndFilter(e.target.value as '' | 'only' | 'exclude')}
+            className="border border-gray-300 rounded px-2 py-1 text-xs">
+            <option value="">개인 고객: 포함</option>
+            <option value="only">개인 고객만 ({individualCount})</option>
+            <option value="exclude">개인 고객 제외</option>
+          </select>
+        )}
       </div>
 
       {/* KPI — 필터 적용된 목록 기준으로 집계 */}
@@ -378,6 +452,7 @@ export default function SalesHubPage() {
                       <Link href={`/sales-hub/${r.vendor_id}?from=${from}&to=${to}`} className="block">
                         <div className="font-semibold text-gray-900">
                           {r.vendor_name}
+                          {r.individual && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-violet-100 text-violet-700 align-middle">개인 고객</span>}
                           {r.is_active === false && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-gray-200 text-gray-600 align-middle">비활성</span>}
                         </div>
                         <div className="text-[0.6875rem] text-gray-400">

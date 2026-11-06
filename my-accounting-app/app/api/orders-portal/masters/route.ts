@@ -3,12 +3,17 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { STAFF_REQUIRED_MSG } from '@/lib/customer-staff'
+import { loadBillingFamily } from '@/lib/billing'
+import { listIndividualCustomers, createIndividualCustomer } from '@/lib/individual-customer'
 
 export const dynamic = 'force-dynamic'
 
 // 주문 입력용 마스터 조회
 // GET                     → { vendors, employees }  (폼 최초 로드)
 // GET ?vendor_id=<id>     → { contacts }            (주문처 선택 시 담당자 목록)
+// GET ?individual_group=<id> → { customers }        (개인 고객 업체의 고객 목록, 115)
+// POST { action: 'create_individual', group_id, name, title?, phone?, staff_employee_id, force_new? }
+//   → 개인 고객 등록(인물 + 고객 전용 매출처). 같은 이름이 있으면 409 { duplicates, need_phone }
 // POST { action: 'create_contact', vendor_id, name, phone?, title? }
 //   → 담당자 마스터에 없는 인물을 그 자리에서 등록 (contacts + 현재 배정)
 // POST { action: 'create_sales_vendor', group_id?, group_name?, branch_name?,
@@ -21,6 +26,10 @@ export async function GET(req: NextRequest) {
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   const admin = createAdminClient()
   const vendorId = new URL(req.url).searchParams.get('vendor_id')
+  const individualGroup = new URL(req.url).searchParams.get('individual_group')
+  if (individualGroup) {
+    return NextResponse.json({ customers: await listIndividualCustomers(admin, individualGroup) })
+  }
 
   if (vendorId) {
     // 고객별 다올 담당(112) 포함 — 미적용이면 없이 재조회
@@ -45,22 +54,35 @@ export async function GET(req: NextRequest) {
       })
       .filter(Boolean)
       .sort((a, b) => Number(b!.is_representative) - Number(a!.is_representative))
-    return NextResponse.json({ contacts })
+    // 계산서 발행처(청구처, 114) — 주문처 아래 안내용. 미적용·미지정이면 null
+    const fam = await loadBillingFamily(admin, vendorId)
+    return NextResponse.json({ contacts, billing: fam.billing })
   }
 
   // 505 미적용 폴백: group_id 없이 재시도
-  let vendorsResult = await fetchAllRows<{ id: string; name: string; type: string | null; group_id?: string | null }>(
-    (from, to) => admin.from('vendors').select('id, name, type, group_id')
+  // 115: 개인 고객 전용 매출처 표시(individual_contact_id) — 미적용이면 없이 재조회
+  let vendorsResult = await fetchAllRows<{ id: string; name: string; type: string | null; group_id?: string | null; individual_contact_id?: string | null }>(
+    (from, to) => admin.from('vendors').select('id, name, type, group_id, individual_contact_id')
       .eq('is_active', true).order('name').range(from, to),
   )
+  if ('error' in vendorsResult) {
+    vendorsResult = await fetchAllRows<{ id: string; name: string; type: string | null; group_id?: string | null }>(
+      (from, to) => admin.from('vendors').select('id, name, type, group_id')
+        .eq('is_active', true).order('name').range(from, to),
+    )
+  }
   if ('error' in vendorsResult) {
     vendorsResult = await fetchAllRows<{ id: string; name: string; type: string | null }>(
       (from, to) => admin.from('vendors').select('id, name, type')
         .eq('is_active', true).order('name').range(from, to),
     )
   }
+  const groupSel = async () => {
+    const r = await admin.from('vendor_groups').select('id, name, is_individual').eq('is_active', true).order('name')
+    return r.error ? admin.from('vendor_groups').select('id, name').eq('is_active', true).order('name') : r
+  }
   const [groupsResult, employeesResult] = await Promise.all([
-    admin.from('vendor_groups').select('id, name').eq('is_active', true).order('name'),
+    groupSel(),
     admin.from('employees').select('id, name, position, team, employment_type')
       .eq('is_active', true).order('name'),
   ])
@@ -100,6 +122,26 @@ export async function POST(req: NextRequest) {
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   const admin = createAdminClient()
   const body = await req.json().catch(() => ({})) as Record<string, string | undefined>
+
+  // 개인 고객 등록 (115) — 인물 + 고객 전용 매출처. 같은 이름이 있으면 고르거나 전화번호로 구분.
+  if (body.action === 'create_individual') {
+    const groupId = (body.group_id ?? '').trim()
+    const staffId = (body.staff_employee_id ?? '').trim()
+    if (!groupId || !(body.name ?? '').trim()) return NextResponse.json({ error: '업체와 고객 이름이 필요합니다.' }, { status: 400 })
+    if (!staffId) return NextResponse.json({ error: STAFF_REQUIRED_MSG }, { status: 400 })
+    const r = await createIndividualCustomer(admin, {
+      groupId, name: body.name!, title: body.title ?? null, phone: body.phone ?? null,
+      staffEmployeeId: staffId, forceNew: String(body.force_new) === 'true',
+    })
+    if ('error' in r) return NextResponse.json({ error: r.error }, { status: 400 })
+    if ('duplicates' in r) {
+      return NextResponse.json({
+        error: r.needPhone ? '같은 이름의 개인 고객이 있습니다 — 같은 분이면 그 고객을 선택하고, 다른 분이면 전화번호를 넣어 주세요.' : '같은 이름의 개인 고객이 있습니다.',
+        duplicates: r.duplicates, need_phone: r.needPhone,
+      }, { status: 409 })
+    }
+    return NextResponse.json({ vendor_id: r.vendorId, vendor_name: r.vendorName, contact_id: r.contactId })
+  }
 
   if (body.action === 'create_sales_vendor') {
     // 정규화: 법인 접두·공백 제거 후 비교 (branchLabel·702 보정과 동일 규칙)

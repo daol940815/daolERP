@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { resolveIndividualVendorForSave } from '@/lib/individual-customer'
 import { prepayReductionBlock } from '@/lib/prepay'
 import { notifyOrderRequestDone } from '@/lib/order-request'
+import { notifyOrderEntered } from '@/lib/order-reply'
 import { isManagerLike } from '@/lib/permissions'
 import { fillCustomerStaffIfEmpty } from '@/lib/customer-staff'
 import { getCurrentUser } from '@/lib/user-role'
@@ -76,14 +78,17 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // 개인 고객(115): 업체 '개인'의 입력 창구로 들어오면 고객(인물)의 전용 매출처로 바꾼다
+  const ind = await resolveIndividualVendorForSave(admin, { vendorId: input.vendor_id, contactId: input.contact_id, eventDate: input.order_date })
+  if (ind) { input.vendor_id = ind.vendorId; input.contact_id = ind.contactId }
+
   const vendorNames = await resolveVendorNames(admin, input.vendor_id)
   if ('error' in vendorNames) return NextResponse.json({ error: vendorNames.error }, { status: 400 })
 
   const names = await resolveDisplayNames(admin, input)
   if (names.error) return NextResponse.json({ error: names.error }, { status: 400 })
 
-  const aliasName = [vendorNames.bankName, vendorNames.branchName].filter(Boolean).join(' ')
-  const aliasId = await ensureAlias(admin, 'customer', aliasName, input.vendor_id)
+  const aliasId = await ensureAlias(admin, 'customer', vendorNames.aliasName, input.vendor_id)
   const { orderFields, shipFields, itemRows, total } = buildOrderRows(input, {
     managerName: names.managerName,
     counselorName: names.counselorName,
@@ -157,8 +162,13 @@ export async function POST(req: NextRequest) {
   // 상담일지 상태 갱신 — 주문 전환 완료 (재등록은 이미 전환 상태)
   if (consultationId && !reissueOf) {
     await admin.from('erp_consultations').update({ status: '주문전환' }).eq('id', consultationId)
-    // 주문 진행 요청이 있던 상담이면 요청자에게 "주문 입력됨" PC 알림 — 완료는 완료 회신(515)
-    await notifyOrderRequestDone(admin, consultationId, orderId, orderNo, { employeeId: me.employeeId, employeeName: me.employeeName })
+  }
+  // "주문 입력됨" PC 알림 (2026-11-06 A안): 요청자 + 상담자 − 입력자 — 회신 받는 사람과 같은 기준. 신규 저장만(재등록 제외).
+  // 회신 대상이 아닌 주문(받는 사람 계정 없음 등)이면 예전처럼 상담 요청자에게만
+  if (!reissueOf) {
+    const who = { employeeId: me.employeeId, employeeName: me.employeeName }
+    const sent = await notifyOrderEntered(admin, orderId, orderNo, who)
+    if (!sent && consultationId) await notifyOrderRequestDone(admin, consultationId, orderId, orderNo, who)
   }
 
   // 업무일지 자동 기재 — 상담에서 전환된 주문은 '주문전환'으로 구분

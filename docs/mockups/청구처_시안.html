@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 청구처 (본점 발행 부서)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; font-size: 13px; }
+  .wrap { max-width: 1240px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 14px; line-height: 1.7; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tabs button { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; color: #334155; }
+  .tabs button.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .screen { display: none; }
+  .screen.on { display: block; }
+  h1 { font-size: 20px; font-weight: 700; }
+  h2 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .sub { font-size: 12px; color: #64748b; margin-top: 3px; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+  .kpi { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; }
+  .kpi .k { font-size: 11.5px; color: #64748b; }
+  .kpi .v { font-size: 18px; font-weight: 700; margin-top: 3px; }
+  .kpi .d { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11.5px; color: #64748b; font-weight: 500; padding: 7px 8px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+  td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+  .b { display: inline-block; border-radius: 6px; padding: 2px 7px; font-size: 11px; font-weight: 600; }
+  .b-green { background: #dcfce7; color: #15803d; }
+  .b-amber { background: #fef3c7; color: #b45309; }
+  .b-orange { background: #ffedd5; color: #c2410c; }
+  .b-red { background: #fee2e2; color: #b91c1c; }
+  .b-blue { background: #dbeafe; color: #1d4ed8; }
+  .b-violet { background: #ede9fe; color: #6d28d9; }
+  .b-slate { background: #f1f5f9; color: #475569; }
+  .btn { border: 0; border-radius: 8px; padding: 7px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .btn-dark { background: #0f172a; color: #fff; }
+  .btn-line { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
+  .btn-sm { padding: 3px 9px; font-size: 11.5px; }
+  .billto { display: inline-flex; align-items: center; gap: 8px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 8px 12px; margin-top: 8px; }
+  .billto .t { font-size: 11px; color: #1d4ed8; font-weight: 700; }
+  .billto .n { font-weight: 700; }
+  .billto .s { font-size: 11px; color: #64748b; }
+  .new { outline: 2px dashed #2563eb; outline-offset: 3px; border-radius: 10px; }
+  .newtag { font-size: 10.5px; font-weight: 700; color: #2563eb; margin-left: 6px; }
+  .muted { color: #94a3b8; }
+  .link { color: #1d4ed8; text-decoration: underline; cursor: pointer; }
+  .chips { display: flex; gap: 6px; margin: 8px 0 10px; flex-wrap: wrap; }
+  .chip { border: 1px solid #cbd5e1; border-radius: 999px; padding: 4px 11px; font-size: 12px; background: #fff; color: #475569; }
+  .chip.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .modal { background: #fff; border-radius: 14px; box-shadow: 0 20px 50px rgba(15,23,42,.25); max-width: 860px; margin: 0 auto; padding: 20px 22px; border: 1px solid #e2e8f0; }
+  .inv { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; margin: 10px 0 14px; display: grid; grid-template-columns: repeat(4, auto); gap: 4px 24px; font-size: 12.5px; }
+  .inv .k { font-size: 11px; color: #64748b; }
+  .score { font-size: 11px; color: #64748b; }
+  .bar { display: inline-block; height: 6px; border-radius: 3px; background: #22c55e; vertical-align: middle; margin-right: 6px; }
+  .form label { display: block; font-size: 11.5px; color: #334155; font-weight: 600; margin: 10px 0 4px; }
+  .form input, .form select { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; font-size: 13px; background: #fff; }
+  .radio { display: flex; gap: 14px; font-size: 12.5px; margin-top: 4px; }
+  .seg { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
+  .seg span { padding: 6px 12px; font-size: 12px; background: #fff; color: #475569; }
+  .seg span.on { background: #0f172a; color: #fff; }
+  .flow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; }
+  .flow .box { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; min-width: 180px; }
+  .flow .arrow { color: #94a3b8; font-size: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="note">
+  <b>시안 — 청구처(계산서 발행처) 연결</b> · 2026-11-06 · 파란 점선 = 새로 생기는 부분.<br>
+  원칙: <b>부서(지점)는 매출처(고객)로 그대로</b> 두고, 계산서를 받는 법인을 <b>청구처</b>로 연결한다. 주문·고객·다올 담당은 부서에, 계산서·입금 대사는 청구처에.
+  계산서에 부서 정보가 없으므로 <b>주문 ↔ 계산서 연결</b>이 부서를 찾는 유일한 단서다(추천은 시스템, 확정은 사용자).<br>
+  계산서는 실제 데이터(주식회사 하나은행 2026-10 발행분), 주문 금액·부서 배분은 설명용 예시.
+</div>
+
+<div class="tabs">
+  <button class="on" data-s="s0">0. 개념</button>
+  <button data-s="s1">1. 부서 상세 (영업지원그룹)</button>
+  <button data-s="s2">2. 본점 상세 (주식회사 하나은행)</button>
+  <button data-s="s3">3. 계산서 → 주문 연결 추천</button>
+  <button data-s="s4">4. 청구처 지정 (추천 확인)</button>
+  <button data-s="s5">5. 등록 창 · 미수금 관리</button>
+</div>
+
+<!-- 0. 개념 -->
+<div class="screen on" id="s0">
+  <div class="card">
+    <h2>지금 — 주문과 계산서가 서로 다른 거래처에 떨어진다</h2>
+    <div class="sub" style="margin-bottom:12px">주문 ↔ 계산서 연결 추천이 같은 거래처 안에서만 후보를 찾기 때문에 서로를 못 찾는다.</div>
+    <div class="flow">
+      <div class="box"><b>하나은행 영업지원그룹</b><div class="sub">주문 3건 · 계산서 0건 → 전부 '미발행'</div></div>
+      <span class="arrow">≠</span>
+      <div class="box"><b>주식회사 하나은행</b><div class="sub">계산서 8건 · 주문 0건 → 연결할 주문 없음</div></div>
+    </div>
+  </div>
+  <div class="card new">
+    <h2>바뀌면 — 부서가 청구처를 가리킨다 <span class="newtag">새로 생김</span></h2>
+    <div class="sub" style="margin-bottom:12px">업체(하나은행)와는 별개의 연결이다. 업체 아래 지점 108곳은 자기 사업자번호로 따로 발행하므로 업체 = 청구처가 아니다.</div>
+    <div class="flow">
+      <div class="box"><b>하나은행 영업지원그룹</b><div class="sub">매출처(고객) · 주문 · 다올 담당</div></div>
+      <span class="arrow">→ 청구처 →</span>
+      <div class="box" style="border-color:#bfdbfe;background:#eff6ff"><b>주식회사 하나은행</b><div class="sub">202-81-14695 · 계산서 · 입금 대사</div></div>
+      <span class="arrow">←</span>
+      <div class="box"><b>하나은행 신탁부 · 홍보부 · 중앙영업본부 …</b><div class="sub">본점 부서 추정 57곳</div></div>
+    </div>
+  </div>
+  <div class="grid3">
+    <div class="card"><h2>청구처를 지정하지 않은 매출처</h2><div class="sub">지금과 똑같다(청구처 = 자기 자신). 지점 108곳처럼 자체 발행하는 곳은 손댈 것 없음.</div></div>
+    <div class="card"><h2>병합하지 않는 이유</h2><div class="sub">부서를 본점에 합치면 부서별 고객 · 다올 담당 · 매출이 사라진다(투트랙 · 8/24 본사 분리 유지 결정).</div></div>
+    <div class="card"><h2>하나은행 전용이 아님</h2><div class="sub">보험사 본사 부서 · 군 본부 부서 등 본사 법인으로 계산서가 나가는 모든 고객에 같은 방식.</div></div>
+  </div>
+</div>
+
+<!-- 1. 부서 상세 -->
+<div class="screen" id="s1">
+  <div class="head">
+    <div>
+      <div class="sub">매출처 관리 (지점) › 360° 상세</div>
+      <h1>하나은행 영업지원그룹 <span class="b b-slate" style="vertical-align:middle">업체 · 하나은행</span></h1>
+      <div class="billto new">
+        <span class="t">청구처</span>
+        <span class="n">주식회사 하나은행</span>
+        <span class="s">202-81-14695 · 이 부서 주문의 계산서는 본점 법인으로 발행됩니다</span>
+        <button class="btn btn-line btn-sm">변경</button>
+      </div>
+    </div>
+    <div><button class="btn btn-line">정보 수정</button></div>
+  </div>
+  <div class="grid4">
+    <div class="kpi"><div class="k">기간 매출</div><div class="v">14,060,100</div><div class="d">주문 3건</div></div>
+    <div class="kpi new"><div class="k">계산서 연결 (청구처 발행)</div><div class="v">12,190,100</div><div class="d">본점 계산서 2건에 연결됨</div></div>
+    <div class="kpi"><div class="k">미발행</div><div class="v" style="color:#c2410c">1,870,000</div><div class="d">주문 1건</div></div>
+    <div class="kpi"><div class="k">미수</div><div class="v" style="color:#b91c1c">9,890,100</div><div class="d">수금 독촉 대상</div></div>
+  </div>
+  <div class="card">
+    <h2>ERP 주문 내역</h2>
+    <div class="sub" style="margin-bottom:8px">계산서 칸: 본점(청구처)으로 발행된 계산서가 이 주문에 연결되면 '본점 발행'으로 표시</div>
+    <table>
+      <tr><th>주문번호</th><th>주문일</th><th>고객명</th><th>품목 요약</th><th class="r">순매출</th><th>계산서</th><th>수금</th><th class="r">미수</th></tr>
+      <tr><td class="link">D261001-014</td><td>2026-10-01</td><td>김아람 대리님</td><td>1Q 3분기 사은품 외 2</td><td class="r">9,890,100</td>
+          <td class="new"><span class="b b-blue">본점 발행</span> <span class="muted" style="font-size:11px">10-02 · 9,890,100</span></td><td><span class="b b-red">미수</span></td><td class="r" style="color:#b91c1c">9,890,100</td></tr>
+      <tr><td class="link">D261005-007</td><td>2026-10-05</td><td>김아람 대리님</td><td>건어물 세트</td><td class="r">2,300,000</td>
+          <td class="new"><span class="b b-blue">본점 발행</span> <span class="muted" style="font-size:11px">10-06 · 2,300,000</span></td><td><span class="b b-green">완료</span></td><td class="r muted">0</td></tr>
+      <tr><td class="link">D261020-003</td><td>2026-10-20</td><td>손경희 과장님</td><td>천일염 세트</td><td class="r">1,870,000</td>
+          <td><span class="b b-orange">미발행</span></td><td><span class="b b-green">완료</span></td><td class="r muted">0</td></tr>
+    </table>
+  </div>
+  <div class="card new">
+    <h2>계산서 탭 <span class="newtag">청구처 발행분 표시</span></h2>
+    <table>
+      <tr><th>발행일</th><th>발행 법인</th><th>품목</th><th class="r">합계</th><th>연결 주문</th><th>입금</th></tr>
+      <tr><td>2026-10-02</td><td>주식회사 하나은행 <span class="b b-blue">청구처</span></td><td>1Q 3분기 사은품</td><td class="r">9,890,100</td><td class="link">D261001-014</td><td><span class="b b-amber">미입금</span></td></tr>
+      <tr><td>2026-10-06</td><td>주식회사 하나은행 <span class="b b-blue">청구처</span></td><td>건어물 세트</td><td class="r">2,300,000</td><td class="link">D261005-007</td><td><span class="b b-green">입금 10-21</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 2. 본점 상세 -->
+<div class="screen" id="s2">
+  <div class="head">
+    <div>
+      <div class="sub">매출처 관리 (지점) › 360° 상세</div>
+      <h1>주식회사 하나은행 <span class="b b-blue" style="vertical-align:middle">청구처 · 소속 부서 57</span></h1>
+      <div class="sub">202-81-14695 · 본점 법인. 주문은 소속 부서가 하고, 계산서 · 입금은 여기로 들어옵니다.</div>
+    </div>
+  </div>
+  <div class="grid4 new">
+    <div class="kpi"><div class="k">발행 계산서 (당월)</div><div class="v">24,193,100</div><div class="d">8건</div></div>
+    <div class="kpi"><div class="k">부서 주문에 연결됨</div><div class="v">22,038,100</div><div class="d">6건</div></div>
+    <div class="kpi"><div class="k">연결 안 된 계산서</div><div class="v" style="color:#b45309">2,155,000</div><div class="d">2건 — 어느 부서 건인지 확인</div></div>
+    <div class="kpi"><div class="k">소속 부서 미발행 주문</div><div class="v" style="color:#c2410c">5,620,000</div><div class="d">부서 3곳</div></div>
+  </div>
+  <div class="card new">
+    <h2>발행 계산서 — 어느 부서 건인가 <span class="newtag">새 탭</span></h2>
+    <div class="chips"><span class="chip on">전체 8</span><span class="chip">연결 안 됨 2</span><span class="chip">연결됨 6</span></div>
+    <table>
+      <tr><th>발행일</th><th>품목</th><th class="r">합계</th><th>연결 부서 · 주문</th><th>입금</th><th class="r">처리</th></tr>
+      <tr><td>2026-10-16</td><td>기장사람들 정성3호</td><td class="r">4,800,000</td><td>하나은행 신탁부 · <span class="link">D261014-002</span></td><td><span class="b b-amber">미입금</span></td><td class="r"></td></tr>
+      <tr style="background:#fffbeb"><td>2026-10-12</td><td>제로마크 올리비아 스텐컵 450ml</td><td class="r">380,000</td><td><span class="b b-amber">연결 안 됨</span> <span class="muted" style="font-size:11px">후보 1</span></td><td><span class="b b-amber">미입금</span></td><td class="r"><button class="btn btn-dark btn-sm">주문 찾기</button></td></tr>
+      <tr><td>2026-10-12</td><td>천일염 세트</td><td class="r">1,073,000</td><td>하나은행 홍보부 · <span class="link">D261010-005</span></td><td><span class="b b-green">입금 10-28</span></td><td class="r"></td></tr>
+      <tr><td>2026-10-08</td><td>버섯 세트</td><td class="r">2,200,000</td><td>하나은행 중앙영업본부 · <span class="link">D261007-011</span></td><td><span class="b b-green">입금 10-28</span></td><td class="r"></td></tr>
+      <tr><td>2026-10-06</td><td>건어물 세트</td><td class="r">2,300,000</td><td>하나은행 영업지원그룹 · <span class="link">D261005-007</span></td><td><span class="b b-green">입금 10-21</span></td><td class="r"></td></tr>
+      <tr><td>2026-10-06</td><td>베데힐 마스크팩 듀오세트</td><td class="r">1,775,000</td><td>하나은행 디지털전략사업부 · <span class="link">D261002-019</span></td><td><span class="b b-green">입금 10-21</span></td><td class="r"></td></tr>
+      <tr style="background:#fffbeb"><td>2026-10-06</td><td>베데힐 마스크팩 듀오세트</td><td class="r">1,775,000</td><td><span class="b b-amber">연결 안 됨</span> <span class="muted" style="font-size:11px">후보 2</span></td><td><span class="b b-green">입금 10-21</span></td><td class="r"><button class="btn btn-dark btn-sm">주문 찾기</button></td></tr>
+      <tr><td>2026-10-02</td><td>1Q 3분기 사은품</td><td class="r">9,890,100</td><td>하나은행 영업지원그룹 · <span class="link">D261001-014</span></td><td><span class="b b-amber">미입금</span></td><td class="r"></td></tr>
+    </table>
+  </div>
+  <div class="card new">
+    <h2>소속 부서 <span class="newtag">새 탭</span></h2>
+    <div class="sub" style="margin-bottom:8px">이 법인을 청구처로 지정한 매출처. 부서를 누르면 그 부서 상세로.</div>
+    <table>
+      <tr><th>부서</th><th>다올 담당</th><th class="r">주문</th><th class="r">계산서 연결</th><th class="r">미발행</th><th class="r">미수</th></tr>
+      <tr><td class="link">하나은행 영업지원그룹</td><td>홍창의</td><td class="r">14,060,100</td><td class="r">12,190,100</td><td class="r" style="color:#c2410c">1,870,000</td><td class="r" style="color:#b91c1c">9,890,100</td></tr>
+      <tr><td class="link">하나은행 신탁부</td><td>김재형</td><td class="r">6,350,000</td><td class="r">4,800,000</td><td class="r" style="color:#c2410c">1,550,000</td><td class="r" style="color:#b91c1c">4,800,000</td></tr>
+      <tr><td class="link">하나은행 중앙영업본부</td><td>김재형</td><td class="r">4,400,000</td><td class="r">2,200,000</td><td class="r" style="color:#c2410c">2,200,000</td><td class="r muted">0</td></tr>
+      <tr><td class="link">하나은행 홍보부</td><td>옥광일</td><td class="r">1,073,000</td><td class="r">1,073,000</td><td class="r muted">0</td><td class="r muted">0</td></tr>
+      <tr><td class="link">하나은행 디지털전략사업부</td><td>홍창의</td><td class="r">1,775,000</td><td class="r">1,775,000</td><td class="r muted">0</td><td class="r muted">0</td></tr>
+      <tr><td colspan="6" class="muted" style="font-size:11.5px">… 외 52곳 (기간 내 주문 없음)</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 3. 연결 추천 -->
+<div class="screen" id="s3">
+  <div class="modal new">
+    <div class="head" style="margin-bottom:4px">
+      <div><h1 style="font-size:17px">계산서 → 주문 연결</h1><div class="sub">청구처가 '주식회사 하나은행'인 부서 57곳의 미발행 주문에서 찾습니다. 추천만 — 연결은 직접 고릅니다.</div></div>
+      <button class="btn btn-line btn-sm">닫기</button>
+    </div>
+    <div class="inv">
+      <div><div class="k">발행일</div><b>2026-10-06</b></div>
+      <div><div class="k">발행 법인</div><b>주식회사 하나은행</b></div>
+      <div><div class="k">품목</div><b>베데힐 마스크팩 듀오세트</b></div>
+      <div><div class="k">합계</div><b>1,775,000</b></div>
+    </div>
+    <table>
+      <tr><th></th><th>부서</th><th>주문번호</th><th>주문일</th><th>품목 요약</th><th class="r">미발행 금액</th><th>맞는 정도</th></tr>
+      <tr style="background:#f0fdf4"><td><input type="radio" name="c" checked></td><td>하나은행 PB사업부</td><td class="link">D261003-008</td><td>2026-10-03</td><td>베데힐 마스크팩 듀오세트</td><td class="r">1,775,000</td>
+          <td><span class="bar" style="width:60px"></span><span class="score">금액 일치 · 품목 일치 · 3일 전</span></td></tr>
+      <tr><td><input type="radio" name="c"></td><td>하나은행 신탁부</td><td class="link">D261009-004</td><td>2026-10-09</td><td>마스크팩 세트 외 1</td><td class="r">1,550,000</td>
+          <td><span class="bar" style="width:22px;background:#f59e0b"></span><span class="score">품목 유사 · 금액 차이 225,000 · 발행 3일 후</span></td></tr>
+      <tr><td><input type="radio" name="c"></td><td colspan="6" class="muted">여러 주문 합산 · 금액 직접 나누기 (기존 연결 기능과 동일)</td></tr>
+    </table>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px">
+      <div class="sub">연결하면 이 계산서는 'PB사업부' 주문의 계산서가 되고, 계산서에 이미 매칭된 입금은 그 주문의 수금으로 옮겨집니다.</div>
+      <button class="btn btn-dark">연결</button>
+    </div>
+  </div>
+  <div class="card" style="max-width:860px;margin:14px auto 0">
+    <h2>같은 기능 — 부서 쪽에서 시작</h2>
+    <div class="sub">부서 상세의 '미발행' 주문에서 '계산서 찾기'를 누르면, 자기 계산서 + 청구처(본점) 계산서 중 연결 안 된 것을 후보로 보여줍니다.</div>
+  </div>
+</div>
+
+<!-- 4. 청구처 지정 -->
+<div class="screen" id="s4">
+  <div class="head">
+    <div>
+      <div class="sub">매출처 관리 (지점) › 청구처 지정</div>
+      <h1>청구처 지정 — 추천 확인</h1>
+      <div class="sub">시스템이 '본점 법인으로 발행될 것 같은 부서'를 추천합니다. 맞는 것만 체크해 확정 — 확정 전에는 아무것도 바뀌지 않습니다.</div>
+    </div>
+    <div><button class="btn btn-dark">선택 12곳 확정</button></div>
+  </div>
+  <div class="grid4">
+    <div class="kpi"><div class="k">추천 대기</div><div class="v">57</div><div class="d">하나은행 외 업체 포함 시 늘어남</div></div>
+    <div class="kpi"><div class="k">확정</div><div class="v">0</div></div>
+    <div class="kpi"><div class="k">아니다(자체 발행)</div><div class="v">0</div><div class="d">다시 추천하지 않음</div></div>
+    <div class="kpi"><div class="k">청구처 법인</div><div class="v">1</div><div class="d">주식회사 하나은행</div></div>
+  </div>
+  <div class="card new">
+    <div class="chips"><span class="chip on">하나은행 57</span><span class="chip">교보생명 —</span><span class="chip">육군본부 —</span><span class="chip">전체</span></div>
+    <table>
+      <tr><th><input type="checkbox"></th><th>부서(매출처)</th><th>추천 청구처</th><th>추천 근거</th><th>다올 담당</th><th class="r">처리</th></tr>
+      <tr><td><input type="checkbox" checked></td><td>하나은행 영업지원그룹</td><td>주식회사 하나은행</td><td><span class="b b-slate">자체 계산서 없음</span> <span class="b b-slate">사업자번호 없음</span> <span class="b b-violet">부서형 이름</span></td><td>홍창의</td><td class="r"><button class="btn btn-line btn-sm">아니다</button></td></tr>
+      <tr><td><input type="checkbox" checked></td><td>하나은행 신탁부</td><td>주식회사 하나은행</td><td><span class="b b-slate">자체 계산서 없음</span> <span class="b b-slate">사업자번호 없음</span> <span class="b b-violet">부서형 이름</span></td><td>김재형</td><td class="r"><button class="btn btn-line btn-sm">아니다</button></td></tr>
+      <tr><td><input type="checkbox" checked></td><td>하나은행 홍보부</td><td>주식회사 하나은행</td><td><span class="b b-slate">자체 계산서 없음</span> <span class="b b-slate">사업자번호 없음</span> <span class="b b-violet">부서형 이름</span></td><td>옥광일</td><td class="r"><button class="btn btn-line btn-sm">아니다</button></td></tr>
+      <tr><td><input type="checkbox"></td><td>하나은행 여의도PB센터</td><td>주식회사 하나은행</td><td><span class="b b-slate">자체 계산서 없음</span> <span class="b b-amber">센터 — 자체 발행일 수 있음</span></td><td>김재형</td><td class="r"><button class="btn btn-line btn-sm">아니다</button></td></tr>
+      <tr><td><input type="checkbox"></td><td>하나은행 대구기업센터</td><td>주식회사 하나은행</td><td><span class="b b-slate">자체 계산서 없음</span> <span class="b b-amber">센터 — 자체 발행일 수 있음</span></td><td>홍창의</td><td class="r"><button class="btn btn-line btn-sm">아니다</button></td></tr>
+      <tr><td colspan="6" class="muted" style="font-size:11.5px">… 외 52곳</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 5. 등록 창 · 미수금 관리 -->
+<div class="screen" id="s5">
+  <div class="grid2">
+    <div class="card form">
+      <h2>매출처 등록 창</h2>
+      <label>업체명 *</label><input value="하나은행">
+      <label>지점명</label><input value="자산관리지원부">
+      <div class="new" style="padding:4px 2px">
+        <label>계산서 발행처 <span class="newtag">새 칸</span></label>
+        <div class="radio"><label style="font-weight:400;margin:0"><input type="radio" name="b"> 이 매출처로 발행</label>
+          <label style="font-weight:400;margin:0"><input type="radio" name="b" checked> 다른 법인으로 발행 (본점 등)</label></div>
+        <select style="margin-top:6px"><option>주식회사 하나은행 (202-81-14695)</option></select>
+        <div class="sub" style="margin-top:4px">'하나은행' 업체에 청구처로 쓰이는 법인이 있으면 자동으로 제안합니다.</div>
+      </div>
+      <label>사업자번호 (선택)</label><input placeholder="본점 발행이면 비움">
+    </div>
+    <div class="card">
+      <h2>주문서 — 주문처 아래 안내</h2>
+      <div class="sub" style="margin:6px 0 10px">주문처를 고르면 계산서 발행처를 같이 보여줘 발행 담당이 헷갈리지 않게.</div>
+      <div style="border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px">
+        <div style="font-size:11.5px;color:#64748b">지점(부서) — 주문처</div>
+        <div style="font-weight:700;margin-top:2px">하나은행 영업지원그룹</div>
+        <div class="new" style="margin-top:8px;font-size:12px;padding:4px 6px">계산서 발행처: <b>주식회사 하나은행</b> (202-81-14695)</div>
+      </div>
+    </div>
+  </div>
+  <div class="card new">
+    <h2>미수금 관리 — 보기 기준 <span class="newtag">토글 추가</span></h2>
+    <div style="margin:8px 0 10px"><span class="seg"><span class="on">부서 기준 (독촉)</span><span>청구처 기준 (회계 대사)</span></span></div>
+    <div class="grid2">
+      <div>
+        <div class="sub" style="margin-bottom:6px">부서 기준 — 영업지원팀 독촉 목록</div>
+        <table>
+          <tr><th>매출처</th><th class="r">미수</th></tr>
+          <tr><td>하나은행 영업지원그룹</td><td class="r">9,890,100</td></tr>
+          <tr><td>하나은행 신탁부</td><td class="r">4,800,000</td></tr>
+        </table>
+      </div>
+      <div>
+        <div class="sub" style="margin-bottom:6px">청구처 기준 — 세무사 · 회계 대사</div>
+        <table>
+          <tr><th>청구처</th><th class="r">미수</th></tr>
+          <tr><td>주식회사 하나은행 <span class="muted" style="font-size:11px">부서 2곳</span></td><td class="r">14,690,100</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+<script>
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b))
+    document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === b.dataset.s))
+  }))
+</script>
+</body>
+</html>

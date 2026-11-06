@@ -9,7 +9,9 @@ import {
   Combo, autoGrow, branchLabel, cartonShipping, draftFromProduct, emptyItem, lineTotal,
   priceRule, purchaseShippingHint, quantityPatch, toInt, won,
 } from './form-shared'
-import type { ContactOpt, Employee, ItemDraft, Product, Vendor, VendorGroup } from './form-shared'
+import type { ContactOpt, Employee, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from './form-shared'
+import { isMoimVendor } from './form-shared'
+import IndividualRegister from './individual-register'
 import { contactLabel } from '@/lib/contact-label'
 
 // 주문 입력 폼 (신규·수정·재등록 공용) — 시안 "입력은 기존을 닮게" 기준
@@ -74,6 +76,10 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
   // 상담 전환: 자유 입력 담당자명 — 담당자 목록 로드 후 자동 매칭/프리필
   const [pendingManager, setPendingManager] = useState<string | null>(null)
   const [contactsLoadedFor, setContactsLoadedFor] = useState<string | null>(null)
+
+  // 개인 고객(115): 업체가 '개인'이면 지점 없이 고객을 고른다 — 고객마다 전용 매출처
+  const [indCustomers, setIndCustomers] = useState<IndividualCustomerOpt[]>([])
+  const [addingIndividual, setAddingIndividual] = useState<{ name?: string; title?: string } | null>(null)
 
   // 상담일지 전환 모드 정보
   const [consultInfo, setConsultInfo] = useState<{ label: string; needMaster: boolean } | null>(null)
@@ -262,16 +268,42 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
     })()
   }, [orderId, consultId, reissueId])
 
-  // 주문처 선택 → 담당자 목록
+  // 개인 고객 모드 판정 — 모임(심통회 등)을 고르면 일반 지점과 같다
+  const selGroup = groups.find(g => g.id === groupId)
+  const indMode = !!selGroup?.is_individual
+  const selVendor = vendors.find(v => v.id === vendorId)
+  const moimSelected = indMode && !!selVendor && isMoimVendor(selVendor, selGroup?.name)
+  const indPick = indMode && !moimSelected
+  const loadIndCustomers = useCallback(async (gid: string) => {
+    const res = await fetch(`/api/orders-portal/masters?individual_group=${gid}`)
+    const json = await res.json().catch(() => ({}))
+    setIndCustomers(res.ok ? (json.customers ?? []) : [])
+  }, [])
+  useEffect(() => {
+    if (indMode && groupId) loadIndCustomers(groupId)
+    else setIndCustomers([])
+  }, [indMode, groupId, loadIndCustomers])
+  const pickIndividual = (c: IndividualCustomerOpt) => {
+    setVendorId(c.vendor_id)
+    setContactId(c.contact_id)
+    if (c.phone) setPhone(c.phone)
+    autoCounselor.current = true
+    setCounselorId(c.staff_employee_id ?? null)
+    setAddingIndividual(null)
+  }
+
+  // 주문처 선택 → 담당자 목록 + 계산서 발행처(청구처, 114)
+  const [billingTo, setBillingTo] = useState<{ name: string; biz_number: string | null } | null>(null)
   const loadContacts = useCallback(async (vid: string) => {
     const res = await fetch(`/api/orders-portal/masters?vendor_id=${vid}`)
     const json = await res.json()
     setContacts(res.ok ? (json.contacts ?? []) : [])
+    setBillingTo(res.ok ? (json.billing ?? null) : null)
     setContactsLoadedFor(vid)
   }, [])
   useEffect(() => {
     if (vendorId) loadContacts(vendorId)
-    else { setContacts([]); setContactsLoadedFor(null) }
+    else { setContacts([]); setContactsLoadedFor(null); setBillingTo(null) }
   }, [vendorId, loadContacts])
 
   // 주문처 선결제 잔액 — 안내만. 사용은 저장 후 주문 상세 › 결제 내역에서 (2026-11-05 확정)
@@ -289,11 +321,20 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
   // 상담 전환의 자유 입력 담당자명 처리 — 목록 로드가 끝난 뒤에만 판정한다.
   // "권오병 부장님" → 이름 권오병·직함 부장 (인물 마스터는 순수 이름만 저장)
   useEffect(() => {
-    if (!pendingManager || !vendorId || contactsLoadedFor !== vendorId) return
+    if (!pendingManager) return
     const stripped = pendingManager.trim().replace(/님$/, '').trim()
     const parts = stripped.split(/\s+/)
     const name = parts.length >= 2 ? parts.slice(0, -1).join(' ') : stripped
     const title = parts.length >= 2 ? parts[parts.length - 1] : ''
+    // 개인 고객: 같은 이름의 개인 고객이 하나면 선택, 아니면 신규 개인 고객 등록 프리필
+    if (indPick && groupId) {
+      const same = indCustomers.filter(c => c.name === name)
+      if (same.length === 1) pickIndividual(same[0])
+      else setAddingIndividual({ name, title })
+      setPendingManager(null)
+      return
+    }
+    if (!vendorId || contactsLoadedFor !== vendorId) return
     const found = contacts.find(c => c.name === name)
     if (found) {
       setContactId(found.contact_id)
@@ -303,7 +344,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
       setAddingContact(true)
     }
     setPendingManager(null)
-  }, [pendingManager, vendorId, contactsLoadedFor, contacts])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingManager, vendorId, contactsLoadedFor, contacts, indPick, indCustomers])
 
   // 고객이 정해지면 그 고객의 다올 담당을 상담자로 (자동 모드일 때만 — 비어 있으면 상담자도 비움)
   useEffect(() => {
@@ -554,36 +596,40 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               onSelect={id => {
                 setGroupId(id)
                 const branches = vendors.filter(v => v.group_id === id)
-                // 소속 지점이 1곳이면 자동 선택, 여러 곳이면 지점 칸에서 선택
-                setVendorId(branches.length === 1 ? branches[0].id : null)
+                // 소속 지점이 1곳이면 자동 선택, 여러 곳이면 지점 칸에서 선택. 개인 고객 업체는 고객을 고른다.
+                const individual = !!groups.find(g => g.id === id)?.is_individual
+                setVendorId(!individual && branches.length === 1 ? branches[0].id : null)
                 setContactId(null)
+                setAddingIndividual(null)
               }}
               placeholder="업체 검색 (지점에서 바로 검색도 가능)"
             />
             <div className="text-[0.625rem] text-gray-400 mt-0.5">업체별 통계의 기준 — 단독 업체도 업체로 고르면 지점이 자동 선택됩니다</div>
           </div>
           <div className="col-span-2 md:col-span-3">
-            <label className={label}>지점(부서) — 주문처 <em className="not-italic text-red-500">*</em></label>
+            <label className={label}>지점(부서) — 주문처 {!indMode && <em className="not-italic text-red-500">*</em>}</label>
             <Combo
-              value={vendorId}
+              value={indPick ? null : vendorId}
               display={(() => {
                 const v = vendors.find(x => x.id === vendorId)
-                if (!v) return ''
+                if (!v || indPick) return ''
                 return branchLabel(v.name, groups.find(g => g.id === v.group_id)?.name)
               })()}
               options={(groupId ? vendors.filter(v => v.group_id === groupId) : vendors)
+                .filter(v => !indMode || isMoimVendor(v, selGroup?.name))
+                .filter(v => !v.individual_contact_id)
                 .map(v => {
                   const gName = groups.find(g => g.id === v.group_id)?.name
                   return { id: v.id, label: branchLabel(v.name, gName), sub: gName ?? '' }
                 })}
               onSelect={id => {
                 setVendorId(id)
-                setGroupId(vendors.find(v => v.id === id)?.group_id ?? null)
+                setGroupId(vendors.find(v => v.id === id)?.group_id ?? groupId)
                 setContactId(null)
               }}
-              placeholder={groupId ? '소속 지점 선택' : '거래처 마스터 검색 — 자유 입력 불가'}
-              required
-              footer={
+              placeholder={indMode ? '개인 고객은 지점 없음 — 모임 주문만 선택' : groupId ? '소속 지점 선택' : '거래처 마스터 검색 — 자유 입력 불가'}
+              required={!indMode}
+              footer={!indMode &&
                 <button type="button" onMouseDown={e => e.preventDefault()}
                   onClick={() => {
                     setNewVendor(p => ({ ...p, group_name: groups.find(g => g.id === groupId)?.name ?? p.group_name }))
@@ -594,24 +640,47 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                 </button>
               }
             />
+            {billingTo && (
+              <div className="text-[0.6875rem] text-blue-700 mt-0.5">
+                계산서 발행처: <b>{billingTo.name}</b>{billingTo.biz_number ? ` (${billingTo.biz_number})` : ''}
+              </div>
+            )}
           </div>
           <div className="col-span-2">
-            <label className={label}>담당자(거래처) <em className="not-italic text-red-500">*</em></label>
+            <label className={label}>{indPick ? '고객(주문자)' : '담당자(거래처)'} <em className="not-italic text-red-500">*</em></label>
             <Combo
               value={contactId}
               display={(() => {
                 const c = contacts.find(x => x.contact_id === contactId)
+                  ?? (indPick ? indCustomers.find(x => x.contact_id === contactId) : undefined)
                 return c ? contactLabel(c.name, c.title) : ''
               })()}
-              options={contacts.map(c => ({
-                id: c.contact_id,
-                label: contactLabel(c.name, c.title),
-                sub: [c.is_representative ? '대표' : '', c.phone ?? ''].filter(Boolean).join(' · '),
-              }))}
-              onSelect={pickContact}
-              placeholder={vendorId ? '담당자 선택' : '주문처를 먼저 선택'}
+              options={indPick
+                ? indCustomers.map(c => ({
+                    id: c.contact_id,
+                    label: contactLabel(c.name, c.title),
+                    sub: [employees.find(e => e.id === c.staff_employee_id)?.name ? `다올 ${employees.find(e => e.id === c.staff_employee_id)?.name}` : '', c.phone ?? ''].filter(Boolean).join(' · '),
+                  }))
+                : contacts.map(c => ({
+                    id: c.contact_id,
+                    label: contactLabel(c.name, c.title),
+                    sub: [c.is_representative ? '대표' : '', c.phone ?? ''].filter(Boolean).join(' · '),
+                  }))}
+              onSelect={id => {
+                if (!indPick) { pickContact(id); return }
+                const c = indCustomers.find(x => x.contact_id === id)
+                if (c) pickIndividual(c)
+                else { setContactId(null) }
+              }}
+              placeholder={indPick ? '개인 고객 검색 (이름 · 전화번호)' : vendorId ? '담당자 선택' : '주문처를 먼저 선택'}
               required
-              footer={vendorId && !isParttime && (
+              footer={indPick ? (!isParttime && (
+                <button type="button" onMouseDown={e => e.preventDefault()}
+                  onClick={() => setAddingIndividual({})}
+                  className="w-full text-left px-3 py-1.5 text-blue-700 font-medium hover:bg-blue-50">
+                  + 신규 개인 고객 등록
+                </button>
+              )) : vendorId && !isParttime && (
                 <button type="button" onMouseDown={e => e.preventDefault()}
                   onClick={() => setAddingContact(true)}
                   className="w-full text-left px-3 py-1.5 text-blue-700 font-medium hover:bg-blue-50">
@@ -692,6 +761,29 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               거래처 마스터에 즉시 등록됩니다 (매출처 허브에도 보임) — 같은 이름이 있으면 새로 만들지 않고 선택합니다
             </span>
           </div>
+        )}
+
+        {addingIndividual && indPick && groupId && (
+          <IndividualRegister
+            groupId={groupId}
+            employees={employees}
+            initial={addingIndividual}
+            onCancel={() => setAddingIndividual(null)}
+            onPick={pickIndividual}
+            onDone={async r => {
+              const mRes = await fetch('/api/orders-portal/masters')
+              const m = await mRes.json().catch(() => ({}))
+              if (mRes.ok) setVendors(m.vendors ?? [])
+              await loadIndCustomers(groupId)
+              setVendorId(r.vendor_id)
+              setContactId(r.contact_id)
+              if (r.phone) setPhone(r.phone)
+              autoCounselor.current = true
+              setCounselorId(r.staff_employee_id)
+              setAddingIndividual(null)
+              setNotice('개인 고객을 등록했습니다 — 고객 전용 매출처가 함께 만들어졌습니다.')
+            }}
+          />
         )}
 
         {addingContact && (
