@@ -53,6 +53,11 @@ export default function SalesHubDetailPage() {
   const [docSales, setDocSales] = useState<DocSalesRow[]>([])
   // 청구처(계산서 발행처, 114) — 부서면 가리키는 법인, 법인이면 소속 부서 · 계산서별 연결 부서
   const [billing, setBilling] = useState<BillingDetail | null>(null)
+  // 개인 고객 전용 매출처(115) — 고객 정보 + 같은 인물의 다른 거래처
+  const [individual, setIndividual] = useState<{
+    contact_id: string; name: string; code: string | null; phone: string | null
+    others: { vendor_id: string; vendor_name: string; title: string | null }[]
+  } | null>(null)
   const [linkOpen, setLinkOpen] = useState(false)
   const [billingForm, setBillingForm] = useState<{ open: boolean; q: string; options: BillingRef[]; busy: boolean }>({ open: false, q: '', options: [], busy: false })
   const [loading, setLoading] = useState(true)
@@ -82,6 +87,7 @@ export default function SalesHubDetailPage() {
       setData(json); setNote(json.vendor.note ?? ''); setCanEdit(!!json.can_edit)
       setDocSales(Array.isArray(json.doc_sales) ? json.doc_sales : [])
       setBilling(json.billing_detail ?? null)
+      setIndividual(json.individual ?? null)
     } catch (e) {
       setError(e instanceof Error ? e.message : '조회 실패')
     } finally { setLoading(false) }
@@ -196,6 +202,7 @@ export default function SalesHubDetailPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-gray-900">{data.vendor.name}</h1>
+            {individual && <span className="px-2 py-0.5 rounded text-[0.6875rem] font-semibold bg-violet-100 text-violet-700">개인 고객</span>}
             <span className={`px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${meta.cls}`}>{meta.label}</span>
             {!data.vendor.is_active && (
               <span className="px-2 py-0.5 rounded text-[0.6875rem] font-semibold bg-gray-200 text-gray-600">비활성</span>
@@ -235,6 +242,25 @@ export default function SalesHubDetailPage() {
               </span>
             )}
           </div>
+          {individual && (
+            <div className="mt-1 text-xs text-gray-500">
+              고객 <Link href={`/sales-hub/contacts/${individual.contact_id}`} className="font-semibold text-gray-800 hover:underline">{individual.name}</Link>
+              {individual.code && <span className="ml-1 font-mono text-[0.6875rem] text-gray-400">{individual.code}</span>}
+              {individual.phone && <span className="ml-2">{individual.phone}</span>}
+              <span className="ml-2 text-gray-400">· 업체 &lsquo;개인&rsquo; 주문이 고객별로 자동으로 모이는 매출처입니다(지점 없음)</span>
+            </div>
+          )}
+          {individual && individual.others.length > 0 && (
+            <div className="mt-2 inline-flex items-center gap-2 flex-wrap bg-violet-50 border border-violet-200 rounded-lg px-3 py-1.5">
+              <span className="text-[0.6875rem] font-bold text-violet-700">같은 고객의 다른 거래</span>
+              {individual.others.map(o => (
+                <Link key={o.vendor_id} href={`/sales-hub/${o.vendor_id}`} className="text-sm font-semibold text-gray-900 hover:underline">
+                  {o.vendor_name}{o.title && <span className="ml-1 text-[0.6875rem] font-normal text-gray-500">{o.title}</span>}
+                </Link>
+              ))}
+              <span className="text-[0.6875rem] text-gray-500">그쪽 주문은 그 매출처에 집계됩니다</span>
+            </div>
+          )}
           {billing?.available && billing.billing && (
             <div className="mt-2 inline-flex items-center gap-2 flex-wrap bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
               <span className="text-[0.6875rem] font-bold text-blue-700">청구처</span>

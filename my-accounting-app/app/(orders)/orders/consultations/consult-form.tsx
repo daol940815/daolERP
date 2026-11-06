@@ -1,12 +1,14 @@
 'use client'
 
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Combo, ComboFree, autoGrow, branchLabel, draftFromProduct, emptyItem,
   lineTotal, priceRule, purchaseShippingHint, quantityPatch, splitByGroupPrefix, toInt, won,
 } from '../form-shared'
-import type { ContactOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
+import type { ContactOpt, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
+import { isMoimVendor } from '../form-shared'
+import IndividualRegister from '../individual-register'
 import { contactLabel } from '@/lib/contact-label'
 
 // 상담일지 폼 (신규·수정 공용) — 실물 '주문상담' 시트 컬럼 구성.
@@ -297,6 +299,31 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [consultId, copyId])
 
+  // 개인 고객(115): 업체가 '개인'이면 지점 없이 고객을 고른다(모임 선택 시는 일반 지점과 같다)
+  const [indCustomers, setIndCustomers] = useState<IndividualCustomerOpt[]>([])
+  const [addingIndividual, setAddingIndividual] = useState(false)
+  const selGroup = groups.find(g => g.id === groupId)
+  const indMode = !!selGroup?.is_individual
+  const selVendor = vendors.find(v => v.id === vendorId)
+  const indPick = indMode && !(selVendor && isMoimVendor(selVendor, selGroup?.name))
+  const loadIndCustomers = useCallback(async (gid: string) => {
+    const res = await fetch(`/api/orders-portal/masters?individual_group=${gid}`)
+    const json = await res.json().catch(() => ({}))
+    setIndCustomers(res.ok ? (json.customers ?? []) : [])
+  }, [])
+  useEffect(() => {
+    if (indMode && groupId) loadIndCustomers(groupId)
+    else setIndCustomers([])
+  }, [indMode, groupId, loadIndCustomers])
+  const pickIndividual = (c: IndividualCustomerOpt) => {
+    setVendorId(c.vendor_id)
+    setBranchText('')
+    setContactId(c.contact_id)
+    setManagerText(contactLabel(c.name, c.title))
+    if (c.phone) setPhone(c.phone)
+    setAddingIndividual(false)
+  }
+
   // 지점(vendors) 선택 시 담당자 목록
   useEffect(() => {
     if (!vendorId) { setContacts([]); return }
@@ -369,9 +396,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   }
 
   // 인라인 등록 대상: 지점 미연결 자유 입력, 또는 지점은 연결됐는데 담당자만 자유 입력
-  const needsRegister =
-    (!vendorId && !!(bankText.trim() || branchText.trim())) ||
-    (!!vendorId && !contactId && !!managerText.trim())
+  const needsRegister = indPick
+    ? (!contactId && !!managerText.trim())
+    : (!vendorId && !!(bankText.trim() || branchText.trim())) ||
+      (!!vendorId && !contactId && !!managerText.trim())
 
   const openRegister = () => {
     setRegGroupName(bankText.trim())
@@ -636,7 +664,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   setGroupId(id); setBankText(text)
                   if (id) {
                     const branches = vendors.filter(v => v.group_id === id)
-                    if (branches.length === 1) { setVendorId(branches[0].id); setBranchText('') }
+                    const individual = !!groups.find(g => g.id === id)?.is_individual
+                    if (individual) { setVendorId(null); setBranchText(''); setContactId(null) }
+                    else if (branches.length === 1) { setVendorId(branches[0].id); setBranchText('') }
                   }
                 }}
                 placeholder="마스터 검색 · 신규명 자유 입력" />
@@ -646,8 +676,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             <label className={label}>부서(지점)</label>
             {locked ? <div className={free}>{branchText || '-'}</div> : (
               <ComboFree text={branchText}
-                selectedId={vendorId}
+                selectedId={indPick ? null : vendorId}
                 options={(groupId ? vendors.filter(v => v.group_id === groupId) : vendors)
+                  .filter(v => !v.individual_contact_id && (!indMode || isMoimVendor(v, selGroup?.name)))
                   .map(v => {
                     const gName = groups.find(g => g.id === v.group_id)?.name
                     // 그룹 미연결이어도 업체명 접두가 있으면 지점명만 표시 (은행명 잔존 보정)
@@ -684,13 +715,28 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   }
                   setContactId(null)
                 }}
-                placeholder="지점 검색 · 자유 입력" />
+                placeholder={indMode ? '개인 고객은 지점 없음 — 모임만 선택' : '지점 검색 · 자유 입력'} />
             )}
           </div>
 
           <div className="col-span-2">
-            <label className={label}>담당자</label>
-            {locked ? <div className={free}>{managerText || '-'}</div> : (
+            <label className={label}>{indPick ? '고객(주문자)' : '담당자'}</label>
+            {locked ? <div className={free}>{managerText || '-'}</div> : indPick ? (
+              <ComboFree text={managerText} selectedId={contactId}
+                options={indCustomers.map(c => ({
+                  id: c.contact_id,
+                  label: contactLabel(c.name, c.title),
+                  sub: [employees.find(e => e.id === c.staff_employee_id)?.name ? `다올 ${employees.find(e => e.id === c.staff_employee_id)?.name}` : '', c.phone ?? ''].filter(Boolean).join(' · '),
+                }))}
+                onChange={({ id, text }) => {
+                  const c = id ? indCustomers.find(x => x.contact_id === id) : undefined
+                  if (c) { pickIndividual(c); return }
+                  // 자유 입력: 저장 때 같은 이름의 개인 고객이 하나면 연결, 없으면 새 고객으로 등록된다
+                  setContactId(null); setManagerText(text)
+                  if (selVendor?.individual_contact_id) setVendorId(null)
+                }}
+                placeholder="개인 고객 검색 · 자유 입력" />
+            ) : (
               <ComboFree text={managerText} selectedId={contactId}
                 options={contacts.map(c => ({
                   id: c.contact_id,
@@ -709,6 +755,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             {/* 고객별 다올 담당 (112) — 주문 전환 시 상담자가 됨 (상담일지 작성자 아님) */}
             {contactId && (() => {
               const c = contacts.find(x => x.contact_id === contactId)
+                ?? (indPick ? indCustomers.find(x => x.contact_id === contactId) : undefined)
               if (!c) return null
               const staff = c.staff_employee_id ? employees.find(e => e.id === c.staff_employee_id)?.name ?? '등록됨' : null
               return staff
@@ -735,7 +782,38 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
 
         {/* 신규 매출처 인라인 등록 (2026-08-26 사용자 확정) — 자유 입력분을 그 자리에서
             마스터에 올린다. 정규화 동일명이 있으면 새로 만들지 않고 연결 (중복 방지). */}
-        {!locked && !isParttime && needsRegister && !regOpen && (
+        {!locked && !isParttime && indPick && needsRegister && !addingIndividual && (
+          <div className="mt-3 px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2 flex-wrap">
+            <span>자유 입력한 고객이 개인 고객 목록에 없습니다 — 저장하면 같은 이름의 개인 고객이 하나일 때 그 고객으로, 없으면 새 고객으로 등록됩니다. 직함 · 전화 · 다올 담당까지 지금 넣으려면 등록하세요.</span>
+            <button type="button" onClick={() => setAddingIndividual(true)}
+              className="ml-auto px-3 py-1 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700">
+              + 개인 고객 등록
+            </button>
+          </div>
+        )}
+        {!locked && !isParttime && indPick && addingIndividual && groupId && (
+          <IndividualRegister
+            groupId={groupId}
+            employees={employees}
+            initial={(() => {
+              const t = managerText.trim().replace(/님$/, '').trim().split(/\s+/)
+              return { name: t[0] ?? '', title: t.slice(1).join(' '), phone: phone.trim() }
+            })()}
+            onCancel={() => setAddingIndividual(false)}
+            onPick={pickIndividual}
+            onDone={async r => {
+              const mRes = await fetch('/api/orders-portal/masters')
+              const m = await mRes.json().catch(() => ({}))
+              if (mRes.ok) setVendors(m.vendors ?? [])
+              await loadIndCustomers(groupId)
+              setVendorId(r.vendor_id); setBranchText(''); setContactId(r.contact_id)
+              if (r.phone) setPhone(r.phone)
+              setAddingIndividual(false)
+              setNotice('개인 고객을 등록했습니다 — 고객 전용 매출처가 함께 만들어졌습니다.')
+            }}
+          />
+        )}
+        {!locked && !isParttime && !indPick && needsRegister && !regOpen && (
           <div className="mt-3 px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2 flex-wrap">
             <span>
               {!vendorId

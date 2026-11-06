@@ -5,8 +5,16 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 // 주문 입력·상담일지 폼 공용 부품 — 마스터 타입, 품목 행 모델, 가격 규칙, 자동완성 콤보.
 // 가격 규칙(구분별 자동)은 두 화면이 반드시 같아야 하므로 여기 한 곳에만 둔다.
 
-export interface Vendor { id: string; name: string; type: string | null; group_id?: string | null }
-export interface VendorGroup { id: string; name: string }
+export interface Vendor { id: string; name: string; type: string | null; group_id?: string | null; individual_contact_id?: string | null }
+export interface VendorGroup { id: string; name: string; is_individual?: boolean }
+// 개인 고객 업체(115)의 고객 — 고객마다 전용 매출처(vendor_id)
+export interface IndividualCustomerOpt {
+  vendor_id: string; vendor_name: string; contact_id: string; name: string
+  title: string | null; phone: string | null; code: string | null; staff_employee_id: string | null
+}
+// 개인 고객 업체의 지점 중 '모임'(심통회 등) — 고객 전용 매출처도, 입력 창구(업체명과 같은 이름)도 아닌 지점
+export const isMoimVendor = (v: Vendor, groupName: string | undefined) =>
+  !v.individual_contact_id && !!groupName && v.name.replace(/\s+/g, '') !== groupName.replace(/\s+/g, '')
 export interface Employee { id: string; name: string; position: string | null; team: string | null }
 export interface ContactOpt { contact_id: string; name: string; phone: string | null; title: string | null; is_representative: boolean; staff_employee_id?: string | null }
 export interface Product {

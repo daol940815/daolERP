@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { followContactMerge, syncIndividualVendorName } from '@/lib/individual-customer'
 import { requireStaff } from '@/lib/customer-staff'
 import { buildContactManagerBundle } from '@/lib/contact-manager'
 import { getCurrentUser } from '@/lib/user-role'
@@ -60,6 +61,8 @@ export async function POST(req: NextRequest) {
         if (note !== undefined) patch.note = note.trim() || null
         const { error } = await admin.from('contacts').update(patch).eq('id', contact_id)
         if (error) throw error
+        // 개인 고객(115): 이름이 바뀌면 고객 전용 매출처 이름도 따라간다(옛 이름은 별칭)
+        if (patch.name) await syncIndividualVendorName(admin, contact_id)
         return ok()
       }
 
@@ -285,5 +288,8 @@ async function mergeContactInto(
   ])
   if (src?.phone && !tgt?.phone) await admin.from('contacts').update({ phone: src.phone }).eq('id', targetId)
   const { error } = await admin.from('contacts').update({ merged_into_id: targetId }).eq('id', sourceId)
-  return error ? error.message : null
+  if (error) return error.message
+  // 개인 고객(115): 흡수된 인물의 고객 전용 매출처를 남는 인물 쪽으로 정리
+  await followContactMerge(admin, sourceId, targetId)
+  return null
 }

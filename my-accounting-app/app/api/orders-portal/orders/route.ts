@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { resolveIndividualVendorForSave } from '@/lib/individual-customer'
 import { prepayReductionBlock } from '@/lib/prepay'
 import { notifyOrderRequestDone } from '@/lib/order-request'
 import { notifyOrderEntered } from '@/lib/order-reply'
@@ -77,14 +78,17 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // 개인 고객(115): 업체 '개인'의 입력 창구로 들어오면 고객(인물)의 전용 매출처로 바꾼다
+  const ind = await resolveIndividualVendorForSave(admin, { vendorId: input.vendor_id, contactId: input.contact_id, eventDate: input.order_date })
+  if (ind) { input.vendor_id = ind.vendorId; input.contact_id = ind.contactId }
+
   const vendorNames = await resolveVendorNames(admin, input.vendor_id)
   if ('error' in vendorNames) return NextResponse.json({ error: vendorNames.error }, { status: 400 })
 
   const names = await resolveDisplayNames(admin, input)
   if (names.error) return NextResponse.json({ error: names.error }, { status: 400 })
 
-  const aliasName = [vendorNames.bankName, vendorNames.branchName].filter(Boolean).join(' ')
-  const aliasId = await ensureAlias(admin, 'customer', aliasName, input.vendor_id)
+  const aliasId = await ensureAlias(admin, 'customer', vendorNames.aliasName, input.vendor_id)
   const { orderFields, shipFields, itemRows, total } = buildOrderRows(input, {
     managerName: names.managerName,
     counselorName: names.counselorName,

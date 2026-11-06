@@ -16,6 +16,7 @@ interface Row {
   vendor_name: string
   biz_number: string | null
   is_active: boolean
+  individual?: boolean    // 개인 고객 전용 매출처 (115)
   alias_names: string[]
   alias_count: number
   card_count: number
@@ -67,6 +68,7 @@ export default function SalesHubPage() {
   const [vipOnly, setVipOnly] = useState(false)
   const [outstandingOnly, setOutstandingOnly] = useState(false)
   const [showInactive, setShowInactive] = useState(false)   // 비활성 거래처는 기본 숨김
+  const [indFilter, setIndFilter] = useState<'' | 'only' | 'exclude'>('')   // 개인 고객 (115)
 
   // 고객관리 집계 (108 RPC) — 기간 필터와 독립, 기준연도 자동
   const [kpiFlags, setKpiFlags] = useState<KpiFlags | null>(null)
@@ -148,14 +150,17 @@ export default function SalesHubPage() {
     if (vipOnly && r.vip_total <= 0) return false
     if (outstandingOnly && r.outstanding <= 0) return false
     if (!showInactive && r.is_active === false) return false
+    if (indFilter === 'only' && !r.individual) return false
+    if (indFilter === 'exclude' && r.individual) return false
     if (catFilter) {
       const f = vendorFlagMap.get(r.vendor_id)
       if (!f || !matchCategory(f, catFilter)) return false
     }
     return true
-  }), [rows, search, staffFilter, statusFilter, vipOnly, outstandingOnly, showInactive, catFilter, vendorFlagMap])
+  }), [rows, search, staffFilter, statusFilter, vipOnly, outstandingOnly, showInactive, catFilter, vendorFlagMap, indFilter])
 
-  const filterActive = !!(search || staffFilter || statusFilter || vipOnly || outstandingOnly || catFilter)
+  const filterActive = !!(search || staffFilter || statusFilter || vipOnly || outstandingOnly || catFilter || indFilter)
+  const individualCount = useMemo(() => rows.filter(r => r.individual && (showInactive || r.is_active !== false)).length, [rows, showInactive])
 
   // KPI는 화면에 보이는(필터 적용된) 매출처 기준으로 집계
   const kpi = useMemo(() => {
@@ -193,6 +198,7 @@ export default function SalesHubPage() {
             if (vipOnly) p.set('vip', '1')
             if (outstandingOnly) p.set('outstanding', '1')
             if (showInactive) p.set('inactive', '1')
+            if (indFilter) p.set('individual', indFilter)
             if (catFilter) p.set('cat', catFilter)
             const a = document.createElement('a'); a.href = `/api/vendor-hub/export?${p}`; a.click()
           }}
@@ -370,6 +376,14 @@ export default function SalesHubPage() {
         <label className="text-xs text-gray-600 flex items-center gap-1">
           <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} /> 비활성 포함
         </label>
+        {individualCount > 0 && (
+          <select value={indFilter} onChange={e => setIndFilter(e.target.value as '' | 'only' | 'exclude')}
+            className="border border-gray-300 rounded px-2 py-1 text-xs">
+            <option value="">개인 고객: 포함</option>
+            <option value="only">개인 고객만 ({individualCount})</option>
+            <option value="exclude">개인 고객 제외</option>
+          </select>
+        )}
       </div>
 
       {/* KPI — 필터 적용된 목록 기준으로 집계 */}
@@ -438,6 +452,7 @@ export default function SalesHubPage() {
                       <Link href={`/sales-hub/${r.vendor_id}?from=${from}&to=${to}`} className="block">
                         <div className="font-semibold text-gray-900">
                           {r.vendor_name}
+                          {r.individual && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-violet-100 text-violet-700 align-middle">개인 고객</span>}
                           {r.is_active === false && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-gray-200 text-gray-600 align-middle">비활성</span>}
                         </div>
                         <div className="text-[0.6875rem] text-gray-400">

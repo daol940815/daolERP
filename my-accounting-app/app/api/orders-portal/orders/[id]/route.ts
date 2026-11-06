@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { resolveIndividualVendorForSave } from '@/lib/individual-customer'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCurrentUser, type CurrentUser } from '@/lib/user-role'
 import {
@@ -243,6 +244,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const parsed = validateOrderInput(await req.json().catch(() => null))
   if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
+
+  // 개인 고객(115): 업체 '개인' 입력 창구 → 고객 전용 매출처
+  const ind = await resolveIndividualVendorForSave(admin, { vendorId: parsed.input.vendor_id, contactId: parsed.input.contact_id, eventDate: parsed.input.order_date })
+  if (ind) { parsed.input.vendor_id = ind.vendorId; parsed.input.contact_id = ind.contactId }
 
   const names = await resolveDisplayNames(admin, parsed.input)
   if (names.error) return NextResponse.json({ error: names.error }, { status: 400 })
