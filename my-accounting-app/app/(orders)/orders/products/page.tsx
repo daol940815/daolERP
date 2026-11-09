@@ -45,6 +45,38 @@ const condMatch = (p: Product, field: CondField, q: string) => {
   }
 }
 
+// 표 머리글 클릭 정렬 (2026-11-09 사용자 요청): 오름차순 → 내림차순 → 해제(기본 = 품명순).
+// 빈 값('-')은 방향과 관계없이 항상 맨 아래. 문자는 한글 순 + 숫자 자연 정렬(품번 A-2 < A-10).
+type SortKey = 'code' | 'name' | 'category' | 'vendor' | 'sale' | 'individual' | 'purchase'
+  | 'margin' | 'carton' | 'carton_fee' | 'loose_fee' | 'memo' | 'status'
+const sortValue = (p: Product, key: SortKey): string | number | null => {
+  const txt = (v?: string | null) => (v ?? '').trim() || null
+  const num = (v?: number | null) => (v ? v : null)   // 0·빈 값은 화면에서 '-' — 빈 값 취급
+  switch (key) {
+    case 'code': return txt(p.item_code)
+    case 'name': return txt(p.item_name)
+    case 'category': return txt(p.category)
+    case 'vendor': return txt(p.purchase_vendor_name)
+    case 'sale': return p.sale_price ?? 0
+    case 'individual': return num(p.individual_sale_price)
+    case 'purchase': return p.purchase_price ?? 0
+    case 'margin': return (p.sale_price ?? 0) - (p.purchase_price ?? 0)
+    case 'carton': return num(p.carton_unit)
+    case 'carton_fee': return p.carton_unit ? (p.carton_shipping_fee ?? 0) : null
+    case 'loose_fee': return num(p.loose_shipping_fee)
+    case 'memo': return txt(p.memo)
+    case 'status': return p.is_active ? 0 : 1   // 사용 → 중지
+  }
+}
+const compareBy = (key: SortKey, dir: 'asc' | 'desc') => (a: Product, b: Product) => {
+  const va = sortValue(a, key), vb = sortValue(b, key)
+  if (va === null || vb === null) return va === vb ? 0 : va === null ? 1 : -1
+  const c = typeof va === 'number' && typeof vb === 'number'
+    ? va - vb
+    : String(va).localeCompare(String(vb), 'ko', { numeric: true })
+  return dir === 'asc' ? c : -c
+}
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -56,6 +88,9 @@ export default function ProductsPage() {
   const [condField, setCondField] = useState<CondField>('all')
   const [conds, setConds] = useState<{ field: CondField; value: string }[]>([])
   const [filter, setFilter] = useState<'active' | 'inactive' | 'addon' | 'cost' | 'all'>('active')
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null)
+  const toggleSort = (key: SortKey) => setSort(prev =>
+    prev?.key !== key ? { key, dir: 'asc' } : prev.dir === 'asc' ? { key, dir: 'desc' } : null)
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [draft, setDraft] = useState(emptyDraft)
   const [uploading, setUploading] = useState(false)
@@ -84,6 +119,12 @@ export default function ProductsPage() {
       return condMatch(p, condField, q)   // 입력 중인 검색어는 즉시 필터
     })
   }, [products, search, condField, conds, filter])
+
+  // 정렬은 필터 결과에만 적용 (원본 순서 = API 품명순 유지, 같은 값끼리는 원래 순서)
+  const sorted = useMemo(
+    () => (sort ? [...filtered].sort(compareBy(sort.key, sort.dir)) : filtered),
+    [filtered, sort],
+  )
 
   // 조건 칩 추가 (Enter·매입처 클릭) — 같은 조건 중복 방지
   const addCond = (field: CondField, value: string) => {
@@ -257,6 +298,12 @@ export default function ProductsPage() {
           </button>
         )}
         <span className="text-xs text-gray-400">{filtered.length}건</span>
+        {sort && (
+          <button onClick={() => setSort(null)} className="text-xs text-gray-400 hover:text-gray-600"
+            title="기본 순서(품명순)로 되돌리기">
+            정렬 해제
+          </button>
+        )}
       </div>
 
       {error && <div className="mt-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg whitespace-pre-line">{error}</div>}
@@ -348,24 +395,31 @@ export default function ProductsPage() {
           <table className="w-full text-sm min-w-[760px]">
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
-                <th className="py-2 px-3 text-left font-medium">품번</th>
-                <th className="py-2 px-3 text-left font-medium">품명</th>
-                <th className="py-2 px-3 text-left font-medium">분류</th>
-                <th className="py-2 px-3 text-left font-medium">매입처</th>
-                <th className="py-2 px-3 text-right font-medium">지점판매가</th>
-                <th className="py-2 px-3 text-right font-medium">개별판매가</th>
-                <th className="py-2 px-3 text-right font-medium">매입가</th>
-                <th className="py-2 px-3 text-right font-medium">마진(지점)</th>
-                <th className="py-2 px-3 text-right font-medium">카톤단위</th>
-                <th className="py-2 px-3 text-right font-medium">카톤택배비</th>
-                <th className="py-2 px-3 text-right font-medium">카톤외택배비</th>
-                <th className="py-2 px-3 text-left font-medium">메모</th>
-                <th className="py-2 px-3 text-left font-medium">상태</th>
+                {([
+                  ['code', '품번', 'left'], ['name', '품명', 'left'], ['category', '분류', 'left'],
+                  ['vendor', '매입처', 'left'], ['sale', '지점판매가', 'right'], ['individual', '개별판매가', 'right'],
+                  ['purchase', '매입가', 'right'], ['margin', '마진(지점)', 'right'], ['carton', '카톤단위', 'right'],
+                  ['carton_fee', '카톤택배비', 'right'], ['loose_fee', '카톤외택배비', 'right'],
+                  ['memo', '메모', 'left'], ['status', '상태', 'left'],
+                ] as const).map(([key, label, align]) => {
+                  const on = sort?.key === key
+                  return (
+                    <th key={key} className={`py-2 px-3 font-medium ${align === 'right' ? 'text-right' : 'text-left'}`}
+                      aria-sort={on ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                      <button onClick={() => toggleSort(key)}
+                        title="클릭: 오름차순 → 내림차순 → 정렬 해제"
+                        className={`inline-flex items-center gap-0.5 whitespace-nowrap hover:text-gray-800 ${on ? 'text-gray-900' : ''}`}>
+                        {label}
+                        <span className={on ? '' : 'text-gray-300'}>{on ? (sort.dir === 'asc' ? '▲' : '▼') : '⇅'}</span>
+                      </button>
+                    </th>
+                  )
+                })}
                 <th className="py-2 px-3" />
               </tr>
             </thead>
             <tbody>
-              {filtered.map(p => (
+              {sorted.map(p => (
                 <tr key={p.id} className={`border-b border-gray-50 ${p.is_active ? '' : 'text-gray-400'}`}>
                   <td className="py-1.5 px-3 text-xs tabular-nums whitespace-nowrap">{p.item_code ?? '-'}</td>
                   <td className="py-1.5 px-3 font-medium">
