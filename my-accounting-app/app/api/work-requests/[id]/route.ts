@@ -202,7 +202,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
   await broadcastWrChanged(row.id, Array.from(notify))
 
-  // PC 알림(⑦) — 반려·처리 보고는 요청자에게, 담당자 추가는 추가된 사람에게. 본인에게는 보내지 않는다. 비공개는 제목 없이.
+  // PC 알림(⑦) — 반려·처리 보고는 요청자에게, 담당자 추가는 추가된 사람에게, 완료 확정·취소는 담당자에게. 본인에게는 보내지 않는다. 비공개는 제목 없이.
   const safeTitle = row.is_private ? '비공개 업무 요청' : title
   const url = `/me/requests/${row.id}`, tag = `wr:${row.id}`
   const reqId = row.requester?.id && row.requester.id !== meId ? row.requester.id : null
@@ -217,6 +217,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // 진행 메모(2026-11-04): 담당자가 쓰면 요청자에게, 요청자가 쓰면 살아 있는 담당자 전원에게 (본인 제외)
     const targets = ok.isAsg ? [reqId] : row.assignees.filter(a => a.status !== 'rejected' && a.status !== 'released').map(a => a.employee?.id).filter(id => id !== meId)
     await sendPush(admin, targets, { kind: 'wr_memo', title: `진행 메모 — ${myName}`, body: `${safeTitle}: ${memo.slice(0, 80)}`, url, tag })
+  } else if (body.action === 'complete' || body.action === 'cancel') {
+    // 완료 확정 · 취소(2026-11-09): 내 몫이 살아 있던 담당자 전원에게 (반려 · 해제된 사람, 본인 제외)
+    const targets = row.assignees.filter(a => a.status !== 'rejected' && a.status !== 'released').map(a => a.employee?.id).filter((id): id is string => !!id && id !== meId)
+    const label = body.action === 'complete' ? '완료 확정' : '요청 취소'
+    await sendPush(admin, targets, { kind: 'wr_closed', title: `${label} — ${myName}`, body: `${safeTitle}${memo && !row.is_private ? `: ${memo.slice(0, 80)}` : ''}`, url, tag })
   } else if (body.action === 'add_assignee') {
     const added = Array.from(notify).filter(id => id !== meId && !row.assignees.some(a => a.employee?.id === id && a.status !== 'rejected' && a.status !== 'released'))
     await sendPush(admin, added, row.is_private

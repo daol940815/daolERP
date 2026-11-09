@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { isManagerLike } from '@/lib/permissions'
-import { OPEN_STATUSES, ASG_TRACKED, fmtDue, type WrStatus, type WrAsgStatus } from '@/lib/work-requests'
+import { OPEN_STATUSES, ASG_TRACKED, ASG_ACTIVE, fmtDue, type WrStatus, type WrAsgStatus } from '@/lib/work-requests'
 import type { NotifData, NotifItem, NotifBucket } from '@/lib/notifications'
 import { leaveActions, type LeaveStep } from '@/lib/leave-approval'
 import { loadApprovalCtx, loadSteps } from '@/lib/leave-approval.server'
@@ -11,7 +11,7 @@ import { loadReplyMap, loadConsultReqMap, REPLY_START, REPLY_LABEL_LONG, type Re
 export const dynamic = 'force-dynamic'
 
 // GET /api/notifications — 로그인 직원의 "확인할 것" (저장 없음, 원본 상태에서 계산). API_OWNERS: my(전원).
-//  원천: 업무 요청(받은 미확인·오늘 마감·지남 / 보낸 완료 대기·반려) · 휴가 결재 내 차례(3단계 결재, 204 미적용 시 승인권자) · 주문 수정 승인 요청(승인권자)
+//  원천: 업무 요청(받은 미확인·오늘 마감·지남 / 보낸 완료 대기·반려 / 진행 메모·이력·완료 확정·취소 결과 통지) · 휴가 결재 내 차례(3단계 결재, 204 미적용 시 승인권자) · 주문 수정 승인 요청(승인권자)
 //        · 내 휴가 신청 결과 · 내 주문 수정 요청 결과 (최근 7일). 각 블록은 마이그레이션 미적용 시 조용히 건너뛴다.
 
 const DAY = 86400_000
@@ -44,8 +44,12 @@ export async function GET() {
   type OCR = { id: string; request_type: string; status: string; created_at: string; decided_at: string | null; requested_by: string | null; employees: { name: string } | { name: string }[] | null }
 
   const wrSel = 'id, title, status, assign_mode, due_at, created_at, reported_at, rejected_at, reject_reason, is_urgent, requester:employees!work_requests_requester_id_fkey(name), assignee:employees!work_requests_assignee_id_fkey(name)'
-  const [inRes, outRes, leavePendRes, leaveMineRes, ocrPendRes, ocrMineRes, appr] = await Promise.all([
+  const [inRes, relRes, outRes, leavePendRes, leaveMineRes, ocrPendRes, ocrMineRes, appr] = await Promise.all([
     admin.from('work_request_assignees').select(`status, request:work_requests!inner(${wrSel})`).eq('employee_id', empId).in('status', ASG_TRACKED),
+    // 진행 메모 · 이력 알림 대상 넓힘(2026-11-09): 열린 요청 전부 + 최근 7일 완료 확정 · 취소된 요청 (회사 전체, 담당자 행만) — 여기서 내 몫을 가른다.
+    //  ① 내가 이미 처리 보고한 열린 요청(요청자 후속 메모) ② 내가 담당이던 요청의 완료 확정 · 취소
+    admin.from('work_requests').select('id, status, assign_mode, assignees:work_request_assignees(employee_id, status)')
+      .or(`status.in.(${OPEN_STATUSES.join(',')}),and(status.eq.completed,completed_at.gte.${sevenDaysAgo}),and(status.eq.canceled,canceled_at.gte.${sevenDaysAgo})`).limit(1000),
     // 내가 요청한 것: 열린 건 전부(진행 메모 알림용) + 최근 7일 반려
     admin.from('work_requests').select(wrSel).eq('requester_id', empId).or(`status.in.(${OPEN_STATUSES.join(',')}),and(status.eq.rejected,rejected_at.gte.${sevenDaysAgo})`).order('created_at', { ascending: false }),
     // 진행 중 휴가 — 3단계 결재(204)면 결재 단계가 있는 사람, 아니면 기존 승인권자만 실제로 쓴다
@@ -94,6 +98,19 @@ export async function GET() {
     if (rejected.length) items.push({ key: 'wr:rejected', bucket: 'mine', group: 'info', tone: 'gray', title: `내 요청 반려됨 ${rejected.length}건`, detail: `${rejected[0].title}${rejected[0].reject_reason ? ` — 사유: ${rejected[0].reject_reason}` : ''}`, href: '/me/requests?tab=outbox', count: rejected.length, at: latest(rejected.map(r => r.rejected_at)) })
     if (!badges['/me/requests'] && awaiting.length + rejected.length) badges['/me/requests'] = { n: awaiting.length + rejected.length, tone: 'amber' }
   }
+  // 관련 범위 넓힘(2026-11-09): 처리 보고 후에도 열린 요청의 메모는 받고, 내 담당이던 요청이 완료 확정 · 취소되면 알린다.
+  //  반려 · 해제된 담당자는 대상 아님(내 몫이 끝남). 숫자(breakdown)에는 영향 없음 — 결과 통지로만.
+  if (!relRes.error) {
+    type Rel = { id: string; status: WrStatus; assign_mode: 'single' | 'first' | 'all' | null; assignees: { employee_id: string; status: WrAsgStatus }[] | null }
+    for (const r of (relRes.data ?? []) as unknown as Rel[]) {
+      const my = (r.assignees ?? []).find(a => a.employee_id === empId)
+      if (!my || !ASG_ACTIVE.includes(my.status)) continue
+      const closed = r.status === 'completed' || r.status === 'canceled'
+      if (!closed && my.status !== 'done_reported') continue   // 보고 전 열린 요청은 위(받은 요청)에서 이미 담았다
+      relatedIds.add(r.id)
+      if (!bucketOf.has(r.id)) bucketOf.set(r.id, r.assign_mode === 'single' || !r.assign_mode ? 'personal' : 'shared')
+    }
+  }
   // 진행 메모 · 이력 (2026-11-04): 내가 관련된 열린 요청에서 다른 사람이 남긴 메모 · 수락 · 수정 · 담당자 추가 — 최근 7일, 최신 10건, 결과 통지로.
   if (relatedIds.size) {
     type Ev = { id: string; request_id: string; event: string; memo: string | null; created_at: string; actor: { name: string } | { name: string }[] | null; request: { title: string; is_private: boolean | null } | { title: string; is_private: boolean | null }[] | null }
@@ -102,14 +119,14 @@ export async function GET() {
     for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100))
     const evs = (await Promise.all(chunks.map(c => admin.from('work_request_events')
       .select('id, request_id, event, memo, created_at, actor:employees!work_request_events_actor_id_fkey(name), request:work_requests!inner(title, is_private)')
-      .in('request_id', c).neq('actor_id', empId).in('event', ['memo', 'accepted', 'edited', 'assignee_added']).gte('created_at', sevenDaysAgo)
+      .in('request_id', c).neq('actor_id', empId).in('event', ['memo', 'accepted', 'edited', 'assignee_added', 'completed', 'canceled']).gte('created_at', sevenDaysAgo)
       .order('created_at', { ascending: false }).limit(10))))
       .flatMap(r => (r.error ? [] : (r.data ?? [])) as unknown as Ev[])
       .sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 10)
-    const EV_LABEL: Record<string, string> = { memo: '진행 메모', accepted: '수락', edited: '요청 수정', assignee_added: '담당자 추가' }
+    const EV_LABEL: Record<string, string> = { memo: '진행 메모', accepted: '수락', edited: '요청 수정', assignee_added: '담당자 추가', completed: '완료 확정', canceled: '요청 취소' }
     for (const e of evs) {
       const req = one(e.request)
-      items.push({ key: `wr:ev:${e.id}`, bucket: bucketOf.get(e.request_id) ?? 'mine', group: 'info', tone: 'blue', title: `${EV_LABEL[e.event] ?? e.event} — ${one(e.actor)?.name ?? ''}`, detail: `${req?.title ?? ''}${e.event === 'memo' && e.memo ? `: ${e.memo}` : ''}`, href: `/me/requests/${e.request_id}`, count: 1, at: e.created_at })
+      items.push({ key: `wr:ev:${e.id}`, bucket: bucketOf.get(e.request_id) ?? 'mine', group: 'info', tone: e.event === 'canceled' ? 'gray' : 'blue', title: `${EV_LABEL[e.event] ?? e.event} — ${one(e.actor)?.name ?? ''}`, detail: `${req?.title ?? ''}${(e.event === 'memo' || e.event === 'completed' || e.event === 'canceled') && e.memo ? `: ${e.memo}` : ''}`, href: `/me/requests/${e.request_id}`, count: 1, at: e.created_at })
     }
   }
 
