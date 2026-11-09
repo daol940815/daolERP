@@ -8,9 +8,10 @@ import { normTel } from '@/lib/contact-phone-sync'
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Combo, autoGrow, branchLabel, cartonShipping, draftFromProduct, emptyItem, lineTotal,
-  priceRule, purchaseShippingHint, quantityPatch, toInt, won,
+  Combo, DiscountInput, SeasonDatalist, SeasonInput, autoGrow, branchLabel, cartonShipping, draftExtrasFromRow, draftFromProduct,
+  emptyItem, lineCost, lineTotal, priceRule, purchaseShippingHint, quantityPatch, toInt, won,
 } from './form-shared'
+import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
 import type { ContactOpt, Employee, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from './form-shared'
 import { isMoimVendor } from './form-shared'
 import IndividualRegister from './individual-register'
@@ -86,6 +87,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
 
   // 상담일지 전환 모드 정보
   const [consultInfo, setConsultInfo] = useState<{ label: string; needMaster: boolean } | null>(null)
+  const [usedSeasons, setUsedSeasons] = useState<string[]>([])   // 주문시기(708) 드롭다운 — 이미 쓴 값
 
   useEffect(() => {
     (async () => {
@@ -97,6 +99,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
         const m = await mRes.json()
         if (!mRes.ok) throw new Error(m.error ?? '마스터 조회 실패')
         setVendors(m.vendors ?? [])
+        setUsedSeasons(m.seasons ?? [])
         setGroups(m.groups ?? [])
         setEmployees(m.employees ?? [])
         setMeName(m.me?.name ?? '')
@@ -158,6 +161,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               discount_unit: (it.discount_unit as number) ?? 0,
               purchase_price: (it.purchase_price as number) ?? 0,
               purchase_shipping: (it.purchase_shipping as number) ?? 0,
+              ...draftExtrasFromRow(it),   // 매입할인 · 주문시기 (708)
               memo: (it.memo as string) ?? '',
               status: '', option_note: '',   // 상담일지 전용 필드 — 주문 폼에서는 미사용
               branch_sale_price: prod?.sale_price ?? 0,
@@ -255,6 +259,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                 discount_unit: (it.discount_unit as number) ?? 0,
                 purchase_price: (it.purchase_price as number) ?? 0,
                 purchase_shipping: (it.purchase_shipping as number) ?? 0,
+                ...draftExtrasFromRow(it),   // 매입할인 · 주문시기 — 상담 값 그대로 (708)
                 // 상담 품목의 상태·기타사항은 주문 품목 메모로 병합 (전환 시 유실 방지)
                 memo: [
                   (it.memo as string) ?? '',
@@ -423,8 +428,11 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
     if (!p) return
     const cur = items[i]
     if (!cur) return
-    setItem(i, draftFromProduct(p, cur))
+    setItem(i, { ...draftFromProduct(p, cur), order_season: seasonFor(i) })
   }
+  // 주문시기 기본값 (708): 이미 적혀 있으면 유지 → 윗 행 값 → 주문일 기준 제안 (확정은 입력자)
+  const seasonFor = (i: number) =>
+    items[i]?.order_season || items.slice(0, i).reverse().find(x => x.order_season)?.order_season || suggestSeason(orderDate)
 
   // 구분 변경 시 마스터 기준으로 판매가·매입가·배송비 재적용 (칸은 수정 가능 — 추천값)
   const setKind = (i: number, kind: string) => {
@@ -439,7 +447,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
     setItems(prev => {
       const parent = prev[parentIdx]
       if (!parent) return prev
-      const base: ItemDraft = { ...emptyItem(nextUid()), parent_uid: parent.uid, order_kind: parent.order_kind, quantity: parent.quantity }
+      const base: ItemDraft = { ...emptyItem(nextUid()), parent_uid: parent.uid, order_kind: parent.order_kind, quantity: parent.quantity, order_season: parent.order_season }
       const draft: ItemDraft = { ...base, ...draftFromProduct(p, base) }
       // 본 상품 행의 기존 옵션 묶음 뒤에 삽입
       let at = parentIdx + 1
@@ -467,8 +475,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
   const totals = useMemo(() => {
     const filled = items.filter(it => it.item_name.trim())
     const total = filled.reduce((s, it) => s + lineTotal(it), 0)
-    const cost = filled.reduce((s, it) => s + it.purchase_price * it.quantity + it.purchase_shipping, 0)
-    return { total, margin: total - cost }
+    const cost = filled.reduce((s, it) => s + lineCost(it), 0)
+    return { total, cost, margin: total - cost }
   }, [items])
 
   const submit = async (andContinue?: boolean) => {
@@ -880,20 +888,24 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
         <div className="text-sm font-bold text-gray-900 mb-3">
           주문 상품 <span className="text-[0.6875rem] font-normal text-gray-400 ml-1">품번·품명 검색 시 매입처·가격 자동</span>
         </div>
-        <table className="w-full text-xs min-w-[1240px] table-fixed">
+        <SeasonDatalist id="order-season-options" options={seasonOptions(orderDate, [...usedSeasons, ...items.map(x => x.order_season)])} />
+        <table className="w-full text-xs min-w-[1500px] table-fixed">
           {/* 그룹별 동일 폭: 금액 칸 6개는 같은 폭으로 세로 정렬을 맞춘다. 품명이 남는 폭 전부 차지 */}
           <colgroup>
             <col className="w-[8.5rem]" />{/* 검색 */}
             <col />{/* 품명 — 남는 폭 전부 */}
-            <col className="w-16" />{/* 구분 */}
+            <col className="w-16" />{/* 배송종류 */}
+            <col className="w-[5rem]" />{/* 주문시기 */}
             <col className="w-28" />{/* 매입처 */}
             <col className="w-[5.75rem]" />{/* 판매가 */}
             <col className="w-14" />{/* 갯수 */}
             <col className="w-[5.75rem]" />{/* 배송비 */}
-            <col className="w-[5.75rem]" />{/* 할인 */}
+            <col className="w-[5.75rem]" />{/* 판매할인 */}
             <col className="w-[5.75rem]" />{/* 합계 */}
             <col className="w-[5.75rem]" />{/* 매입가 */}
+            <col className="w-[5.75rem]" />{/* 매입할인 */}
             <col className="w-[5.75rem]" />{/* 매입배송비 */}
+            <col className="w-[5.75rem]" />{/* 매입합계 */}
             <col className="w-24" />{/* 메모 */}
             <col className="w-8" />
           </colgroup>
@@ -901,15 +913,18 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
             <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
               <th className="py-1.5 px-1.5 text-left font-medium">품번 · 품명 검색</th>
               <th className="py-1.5 px-1.5 text-left font-medium">품명</th>
-              <th className="py-1.5 px-1.5 text-left font-medium">구분</th>
+              <th className="py-1.5 px-1.5 text-left font-medium">배송종류</th>
+              <th className="py-1.5 px-1.5 text-left font-medium" title="상시 · 26설 · 26추석 등 — 목록에서 고르거나 직접 입력">주문시기</th>
               <th className="py-1.5 px-1.5 text-left font-medium">매입처</th>
               <th className="py-1.5 px-1.5 text-right font-medium">판매가</th>
               <th className="py-1.5 px-1.5 text-right font-medium">갯수</th>
               <th className="py-1.5 px-1.5 text-right font-medium">배송비</th>
-              <th className="py-1.5 px-1.5 text-right font-medium">할인금액</th>
+              <th className="py-1.5 px-1.5 text-right font-medium">판매할인</th>
               <th className="py-1.5 px-1.5 text-right font-medium">합계금액</th>
               <th className="py-1.5 px-1.5 text-right font-medium">매입가</th>
+              <th className="py-1.5 px-1.5 text-right font-medium" title="정액(행당 금액) 또는 개당 할인 — 매입합계 · 발주서 금액에 반영">매입할인</th>
               <th className="py-1.5 px-1.5 text-right font-medium">매입배송비</th>
+              <th className="py-1.5 px-1.5 text-right font-medium" title="매입가 × 갯수 + 매입배송비 − 매입할인">매입합계</th>
               <th className="py-1.5 px-1.5 text-left font-medium">메모</th>
               <th />
             </tr>
@@ -957,6 +972,10 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                     className="border border-blue-200 bg-blue-50/40 rounded px-1 py-1 text-xs">
                     <option>지점</option><option>개별</option><option>샘플</option>
                   </select>
+                </td>
+                <td className="py-1 px-1.5">
+                  <SeasonInput value={it.order_season} listId="order-season-options"
+                    normalize={normalizeSeason} onChange={v => setItem(i, { order_season: v })} />
                 </td>
                 <td className="py-1 px-1.5">
                   <input value={it.purchase_vendor_name} onChange={e => setItem(i, { purchase_vendor_name: e.target.value })}
@@ -1010,7 +1029,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                     {won(lineTotal(it))}
                     {it.discount_amount > 0 && (
                       <div className="text-[0.625rem] text-red-500 font-normal">
-                        할인 -{won(it.discount_amount)}{it.discount_mode === '단가' ? ` (${won(it.discount_unit)}/개)` : ''}
+                        판매할인 -{won(it.discount_amount)}{it.discount_mode === '단가' ? ` (${won(it.discount_unit)}/개)` : ''}
                       </div>
                     )}
                   </div>
@@ -1024,9 +1043,18 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                   )}
                 </td>
                 <td className="py-1 px-1.5 text-right">
+                  {/* 매입할인 (708) — 정액(행당) / 개당. 매입합계 · 발주서 금액에 반영 */}
+                  <DiscountInput mode={it.purchase_discount_mode} unit={it.purchase_discount_unit} amount={it.purchase_discount}
+                    quantity={it.quantity} className={numCell}
+                    onChange={d => setItem(i, { purchase_discount_mode: d.mode, purchase_discount_unit: d.unit, purchase_discount: d.amount })} />
+                </td>
+                <td className="py-1 px-1.5 text-right">
                   <input value={it.purchase_shipping ? won(it.purchase_shipping) : ''} onChange={e => setItem(i, { purchase_shipping: toInt(e.target.value) })}
                     title={purchaseShippingHint(it) ?? '카톤 정보가 없는 품목 — 직접 입력'}
                     className={numCell} placeholder="0" />
+                </td>
+                <td className="py-1 px-1.5 text-right">
+                  <div className={autoCell + ' font-semibold text-gray-700'}>{won(lineCost(it))}</div>
                 </td>
                 <td className="py-1 px-1.5">
                   <input value={it.memo} onChange={e => setItem(i, { memo: e.target.value })} title={it.memo}
@@ -1042,7 +1070,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               </tr>
               {addonCands.length > 0 && (
                 <tr className="border-b border-gray-50">
-                  <td colSpan={13} className="pb-1.5 pt-0 px-1.5">
+                  <td colSpan={16} className="pb-1.5 pt-0 px-1.5">
                     <div className="flex items-center gap-1.5 flex-wrap pl-4">
                       <span className="text-[0.625rem] text-gray-400">옵션 추가 ({it.purchase_vendor_name})</span>
                       {addonCands.map(p => (
@@ -1060,7 +1088,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
             })}
           </tbody>
         </table>
-        <button type="button" onClick={() => setItems(prev => [...prev, emptyItem(nextUid())])}
+        <button type="button"
+          onClick={() => setItems(prev => [...prev, { ...emptyItem(nextUid()), order_season: [...prev].reverse().find(x => x.order_season)?.order_season ?? '' }])}
           className="mt-2 px-3.5 py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-gray-400">
           + 상품 행 추가
         </button>
@@ -1069,6 +1098,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           <div className="flex gap-5 text-sm">
             <span>총금액 <b className="tabular-nums">{won(totals.total)}원</b>
               <span className="text-[0.6875rem] text-gray-400 ml-1">자동 합산</span></span>
+            <span className="text-gray-600">매입 합계 <b className="tabular-nums">{won(totals.cost)}원</b></span>
             <span>예상 마진 <b className="tabular-nums text-emerald-700">{won(totals.margin)}원</b></span>
           </div>
           <div className="flex gap-2">

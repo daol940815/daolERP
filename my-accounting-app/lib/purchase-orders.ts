@@ -21,11 +21,31 @@ export interface OrderItemRow {
   purchase_price: number | null
   purchase_shipping: number | null
   purchase_total: number | null
+  // 매입할인 (708) — 미적용 DB면 없음. purchase_total에는 이미 반영되어 있다
+  purchase_discount?: number | null
+  purchase_discount_mode?: string | null
+  purchase_discount_unit?: number | null
   // 판매가 발주 매입처(요아럽 — vendors.po_use_sale_price)의 스냅샷 원천
   sale_price: number | null
   shipping_fee: number | null
   line_total: number | null
   memo: string | null
+}
+
+// 발주서 품목 스냅샷의 매입 단가 · 비고 (708 매입할인 반영, 사용자 확정 2026-11-09)
+//  - 개당 할인: 단가 = 할인 후 단가 (1,000원 개당 100원 할인 → 900원), 비고에 할인 전 단가 병기
+//  - 정액 할인: 단가 그대로, 금액(매입합계)에만 반영 — 비고에 할인액 표기 (1,060,000원 → 1,000,000원)
+//  금액 = purchase_total(이미 할인 반영)이라 발주서 합계 · 업체 양식 금액은 주문 매입합계와 같다
+export function poPriceAndMemo(it: OrderItemRow): { price: number; memo: string | null } {
+  const price = it.purchase_price ?? 0
+  const disc = Number(it.purchase_discount ?? 0)
+  const unit = Number(it.purchase_discount_unit ?? 0)
+  const join = (note: string) => [it.memo, note].filter(Boolean).join(' · ')
+  if (disc <= 0) return { price, memo: it.memo }
+  if (it.purchase_discount_mode === '단가' && unit > 0) {
+    return { price: price - unit, memo: join(`개당 ${unit.toLocaleString('ko-KR')}원 할인 (할인 전 단가 ${price.toLocaleString('ko-KR')}원)`) }
+  }
+  return { price, memo: join(`매입할인 -${disc.toLocaleString('ko-KR')}원`) }
 }
 
 // POyymmdd-## 발번 (같은 날짜 내 순번)
@@ -69,9 +89,12 @@ export async function loadPurchaseSection(admin: SupabaseClient, orderId: string
     .eq('id', orderId).maybeSingle()
   if (oErr || !order) return { error: '주문을 찾을 수 없습니다.' }
 
-  const { data: rawItems, error: iErr } = await admin.from('erp_order_items')
-    .select('id, line_no, parent_line_no, is_canceled, is_prepayment, item_code, item_name, order_kind, purchase_vendor_name, purchase_alias_id, quantity, purchase_price, purchase_shipping, purchase_total, sale_price, shipping_fee, line_total, memo')
-    .eq('order_id', orderId).order('line_no')
+  const ITEM_COLS = 'id, line_no, parent_line_no, is_canceled, is_prepayment, item_code, item_name, order_kind, purchase_vendor_name, purchase_alias_id, quantity, purchase_price, purchase_shipping, purchase_total, sale_price, shipping_fee, line_total, memo'
+  const loadItems = (cols: string) => admin.from('erp_order_items')
+    .select(cols as typeof ITEM_COLS).eq('order_id', orderId).order('line_no')
+  // 매입할인(708) 열 포함 — 미적용 DB면 없이 다시 조회
+  let { data: rawItems, error: iErr } = await loadItems(`${ITEM_COLS}, purchase_discount, purchase_discount_mode, purchase_discount_unit`)
+  if (iErr && /purchase_discount/i.test(iErr.message)) ({ data: rawItems, error: iErr } = await loadItems(ITEM_COLS))
   if (iErr) return { error: iErr.message }
   // 선결제 품목은 매입이 없는 정산 항목 — 발주 대상이 아니다 (2026-11-05 사용자 확정)
   const items = (rawItems ?? []).filter(it => !it.is_prepayment)

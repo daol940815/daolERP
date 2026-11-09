@@ -3,9 +3,10 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Combo, ComboFree, autoGrow, branchLabel, draftFromProduct, emptyItem,
-  lineTotal, priceRule, purchaseShippingHint, quantityPatch, splitByGroupPrefix, toInt, won,
+  Combo, ComboFree, DiscountInput, SeasonDatalist, SeasonInput, autoGrow, branchLabel, draftExtrasFromRow, draftFromProduct, emptyItem,
+  lineCost, lineTotal, priceRule, purchaseShippingHint, quantityPatch, splitByGroupPrefix, toInt, won,
 } from '../form-shared'
+import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
 import type { ContactOpt, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
 import { isMoimVendor } from '../form-shared'
 import IndividualRegister from '../individual-register'
@@ -35,6 +36,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const [groups, setGroups] = useState<VendorGroup[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [contacts, setContacts] = useState<ContactOpt[]>([])
+  const [usedSeasons, setUsedSeasons] = useState<string[]>([])   // 주문시기(708) 드롭다운 — 이미 쓴 값
 
   // 상담 본문 (실물 컬럼 순서)
   const [consultDate, setConsultDate] = useState(() => new Date().toLocaleDateString('sv-SE'))
@@ -132,6 +134,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         if (!mRes.ok) throw new Error(m.error ?? '마스터 조회 실패')
         setVendors(m.vendors ?? [])
         setEmployees(m.employees ?? [])
+        setUsedSeasons(m.seasons ?? [])
         setIsParttime(m.me?.is_parttime === true)
         setGroups(m.groups ?? [])
         const p = await pRes.json()
@@ -202,6 +205,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 discount_unit: (it.discount_unit as number) ?? 0,
                 purchase_price: (it.purchase_price as number) ?? 0,
                 purchase_shipping: (it.purchase_shipping as number) ?? 0,
+                ...draftExtrasFromRow(it),   // 매입할인 · 주문시기 (708)
                 memo: (it.memo as string) ?? '',
                 status: (it.status as string) ?? '',
                 option_note: (it.option_note as string) ?? '',
@@ -288,6 +292,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 discount_unit: (it.discount_unit as number) ?? 0,
                 purchase_price: (it.purchase_price as number) ?? 0,
                 purchase_shipping: (it.purchase_shipping as number) ?? 0,
+                ...draftExtrasFromRow(it),
+                order_season: suggestSeason(new Date().toLocaleDateString('sv-SE')),   // 주문시기는 오늘 기준으로 새로 제안
                 memo: (it.memo as string) ?? '',
                 status: '',                                  // 상태는 복사 시점 기준 아님 — 새로 판정
                 option_note: (it.option_note as string) ?? '',
@@ -355,7 +361,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     setItems(prev => {
       const parent = prev[parentIdx]
       if (!parent) return prev
-      const base: ItemDraft = { ...emptyItem(nextUid()), parent_uid: parent.uid, order_kind: parent.order_kind, quantity: parent.quantity }
+      const base: ItemDraft = { ...emptyItem(nextUid()), parent_uid: parent.uid, order_kind: parent.order_kind, quantity: parent.quantity, order_season: parent.order_season }
       const draft: ItemDraft = { ...base, ...draftFromProduct(p, base) }
       // 본 상품 행의 기존 옵션 묶음 뒤에 삽입
       let at = parentIdx + 1
@@ -373,8 +379,11 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     const p = products.find(x => x.id === pid)
     const cur = items[i]
     if (!p || !cur) return
-    setItem(i, { ...draftFromProduct(p, cur), shipping_fee: 0 })
+    setItem(i, { ...draftFromProduct(p, cur), shipping_fee: 0, order_season: seasonFor(i) })
   }
+  // 주문시기 기본값 (708): 이미 적혀 있으면 유지 → 윗 행 값 → 상담일 기준 제안 (확정은 작성자)
+  const seasonFor = (i: number) =>
+    items[i]?.order_season || items.slice(0, i).reverse().find(x => x.order_season)?.order_season || suggestSeason(consultDate)
   const setKind = (i: number, kind: string) => {
     const it = items[i]
     if (!it) return
@@ -396,9 +405,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const totals = useMemo(() => {
     const filled = items.filter(it => it.item_name.trim())
     const total = filled.reduce((s, it) => s + lineTotal(it), 0)
-    const cost = filled.reduce((s, it) => s + it.purchase_price * it.quantity + it.purchase_shipping, 0)
+    const cost = filled.reduce((s, it) => s + lineCost(it), 0)
     const discount = filled.reduce((s, it) => s + (it.discount_amount || 0), 0)
-    return { total, cost, margin: total - cost, discount }
+    const purchaseDiscount = filled.reduce((s, it) => s + (it.purchase_discount || 0), 0)
+    return { total, cost, margin: total - cost, discount, purchaseDiscount }
   }, [items])
 
   // 단가변경 자동 판정 — 입력 판매가가 원가표(구분별 규칙) 자동가와 다르면 표기 (실무자 요청)
@@ -925,27 +935,31 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         <div className="text-sm font-bold text-gray-900 mb-3">
           상담 품목 <span className="text-[0.6875rem] font-normal text-gray-400 ml-1">품번 검색 시 원가표 기준 자동 — 수정 가능</span>
         </div>
-        <table className="w-full text-xs min-w-[1420px] table-fixed">
+        <SeasonDatalist id="consult-season-options" options={seasonOptions(consultDate, [...usedSeasons, ...items.map(x => x.order_season)])} />
+        <table className="w-full text-xs min-w-[1680px] table-fixed">
           <colgroup>
             {/* 품번 폭을 상품명과 비슷하게 — 드롭다운 가독 (사용자 피드백 6) */}
-            <col className="w-[16%]" /><col className="w-[16%]" /><col className="w-16" /><col className="w-12" />
+            <col className="w-[14%]" /><col className="w-[14%]" /><col className="w-16" /><col className="w-[5rem]" /><col className="w-12" />
             <col className="w-[4.25rem]" /><col className="w-[5.5rem]" /><col className="w-[5.5rem]" />
             <col className="w-[5.5rem]" /><col className="w-24" />
-            <col className="w-[5.5rem]" /><col className="w-[6.75rem]" /><col className="w-[5.5rem]" /><col className="w-8" />
+            <col className="w-[5.5rem]" /><col className="w-[5.5rem]" /><col className="w-[6.75rem]" /><col className="w-[5.5rem]" /><col className="w-[5.5rem]" /><col className="w-8" />
           </colgroup>
           <thead>
             <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
               <th className="py-1.5 px-1.5 text-left font-medium">품번 검색</th>
               <th className="py-1.5 px-1.5 text-left font-medium">상품명</th>
-              <th className="py-1.5 px-1.5 text-left font-medium">구분</th>
+              <th className="py-1.5 px-1.5 text-left font-medium" title="지점 배송 · 개별 배송 · 샘플 — 가격 규칙과 배송지 · 배송명단 적용이 달라집니다">배송종류</th>
+              <th className="py-1.5 px-1.5 text-left font-medium" title="상시 · 26설 · 26추석 등 — 목록에서 고르거나 직접 입력">주문시기</th>
               <th className="py-1.5 px-1.5 text-right font-medium">수량</th>
               <th className="py-1.5 px-1.5 text-right font-medium" title="원가표 카톤단위 — 자동 표기">카톤</th>
               <th className="py-1.5 px-1.5 text-right font-medium">판매가</th>
-              <th className="py-1.5 px-1.5 text-right font-medium" title="할인 적용 시 별도 표기">할인</th>
+              <th className="py-1.5 px-1.5 text-right font-medium" title="정액(행당 금액) 또는 개당 할인">판매할인</th>
               <th className="py-1.5 px-1.5 text-right font-medium">판매합계</th>
               <th className="py-1.5 px-1.5 text-left font-medium">매입처</th>
               <th className="py-1.5 px-1.5 text-right font-medium">매입가</th>
+              <th className="py-1.5 px-1.5 text-right font-medium" title="정액(행당 금액) 또는 개당 할인 — 매입합계 · 발주서 금액에 반영">매입할인</th>
               <th className="py-1.5 px-1.5 text-left font-medium" title="수량 기준 카톤단위/카톤외 자동 구분 — 수정 가능">매입배송비</th>
+              <th className="py-1.5 px-1.5 text-right font-medium" title="매입가 × 수량 + 매입배송비 − 매입할인">매입합계</th>
               <th className="py-1.5 px-1.5 text-right font-medium">마진</th>
               <th />
             </tr>
@@ -976,6 +990,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     </div>
                   </td>
                   <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
+                  <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
                   <td className="py-1 px-1.5 text-right">
                     <input value={it.quantity || ''} disabled={locked} onChange={e => setQuantity(i, toInt(e.target.value))}
                       className={numCell} placeholder="1" />
@@ -989,10 +1004,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   <td className="py-1 px-1.5 text-right">
                     <div className={autoCell + ' font-semibold text-gray-700'}>{won(lineTotal(it))}</div>
                   </td>
-                  <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
-                  <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
-                  <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
-                  <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
+                  {/* 매입처 · 매입가 · 매입할인 · 매입배송비 · 매입합계 · 마진 */}
+                  {Array.from({ length: 6 }, (_, k) => (
+                    <td key={k} className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
+                  ))}
                   <td className="py-1 px-1 text-center">
                     {!locked && (
                       <button type="button" onClick={() => removeRow(it.uid)}
@@ -1036,6 +1051,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     className="border border-blue-200 bg-blue-50/40 rounded px-1 py-1 text-xs disabled:opacity-60">
                     <option>지점</option><option>개별</option><option>샘플</option>
                   </select>
+                </td>
+                <td className="py-1 px-1.5">
+                  <SeasonInput value={it.order_season} disabled={locked} listId="consult-season-options"
+                    normalize={normalizeSeason} onChange={v => setItem(i, { order_season: v })} />
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   <input value={it.quantity || ''} disabled={locked} onChange={e => setQuantity(i, toInt(e.target.value))}
@@ -1085,7 +1104,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     {won(lineTotal(it))}
                     {it.discount_amount > 0 && (
                       <div className="text-[0.625rem] text-red-500 font-normal">
-                        할인 -{won(it.discount_amount)}{it.discount_mode === '단가' ? ` (${won(it.discount_unit)}/개)` : ''}
+                        판매할인 -{won(it.discount_amount)}{it.discount_mode === '단가' ? ` (${won(it.discount_unit)}/개)` : ''}
                       </div>
                     )}
                   </div>
@@ -1104,6 +1123,12 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     <div className="text-[0.625rem] text-gray-400 mt-0.5 tabular-nums">합계 {won(it.purchase_price * it.quantity)}</div>
                   )}
                 </td>
+                <td className="py-1 px-1.5 text-right">
+                  {/* 매입할인 (708) — 정액(행당) / 개당. 매입합계 · 발주서 금액에 반영 */}
+                  <DiscountInput mode={it.purchase_discount_mode} unit={it.purchase_discount_unit} amount={it.purchase_discount}
+                    quantity={it.quantity} disabled={locked} className={numCell}
+                    onChange={d => setItem(i, { purchase_discount_mode: d.mode, purchase_discount_unit: d.unit, purchase_discount: d.amount })} />
+                </td>
                 <td className="py-1 px-1.5">
                   {/* 매입배송비 — 수량 기준 카톤단위/카톤외 자동 구분 (수정 가능, 704 확정) */}
                   <input value={it.purchase_shipping ? won(it.purchase_shipping) : ''} disabled={locked}
@@ -1115,9 +1140,12 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   )}
                 </td>
                 <td className="py-1 px-1.5 text-right">
+                  <div className={autoCell + ' font-semibold text-gray-700'}>{won(lineCost(it))}</div>
+                </td>
+                <td className="py-1 px-1.5 text-right">
                   {(() => {
                     const total = lineTotal(it)
-                    const margin = total - it.purchase_price * it.quantity - it.purchase_shipping
+                    const margin = total - lineCost(it)
                     const pct = total > 0 ? Math.round((margin / total) * 1000) / 10 : null
                     return (
                       <div className={`${autoCell} ${margin >= 0 ? 'text-emerald-700' : 'text-red-500'}`}>
@@ -1138,7 +1166,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               </tr>
               {/* 품목별 상태·기타사항 (509 — 상담정보에서 이동) */}
               <tr className={`border-b border-gray-50 ${it.parent_uid ? 'bg-slate-50/60' : ''}`}>
-                <td colSpan={13} className="pb-1.5 pt-0 px-1.5">
+                <td colSpan={16} className="pb-1.5 pt-0 px-1.5">
                   <div className="flex items-center gap-2 pl-4 flex-wrap">
                     <span className="text-[0.625rem] text-gray-400 shrink-0">상태</span>
                     <input value={it.status} disabled={locked}
@@ -1164,7 +1192,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               </tr>
               {addonCands.length > 0 && (
                 <tr className="border-b border-gray-50">
-                  <td colSpan={13} className="pb-1.5 pt-0 px-1.5">
+                  <td colSpan={16} className="pb-1.5 pt-0 px-1.5">
                     <div className="flex items-center gap-1.5 flex-wrap pl-4">
                       <span className="text-[0.625rem] text-gray-400">옵션 추가 ({it.purchase_vendor_name})</span>
                       {addonCands.map(p => (
@@ -1188,7 +1216,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           </tbody>
         </table>
         {!locked && (
-          <button type="button" onClick={() => setItems(prev => [...prev, emptyItem(nextUid())])}
+          <button type="button"
+            onClick={() => setItems(prev => [...prev, { ...emptyItem(nextUid()), order_season: [...prev].reverse().find(x => x.order_season)?.order_season ?? '' }])}
             className="mt-2 px-3.5 py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-gray-400">
             + 품목 행 추가
           </button>
@@ -1196,11 +1225,11 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         <div className="flex gap-5 text-sm mt-3 flex-wrap">
           <span>예상 합계 <b className="tabular-nums">{won(totals.total)}원</b></span>
           {totals.discount > 0 && (
-            <span className="text-red-600">할인 합계 <b className="tabular-nums">-{won(totals.discount)}원</b></span>
+            <span className="text-red-600">판매할인 합계 <b className="tabular-nums">-{won(totals.discount)}원</b></span>
           )}
-          {/* 매입 합계 = 매입가×수량 + 매입배송비 (마진 공식과 동일 기준 — 합계 − 매입 = 마진) */}
+          {/* 매입 합계 = 매입가×수량 + 매입배송비 − 매입할인 (마진 공식과 동일 기준 — 합계 − 매입 = 마진) */}
           <span className="text-gray-600">매입 합계 <b className="tabular-nums">{won(totals.cost)}원</b>
-            <span className="text-[0.6875rem] text-gray-400 ml-1">배송비 포함</span>
+            <span className="text-[0.6875rem] text-gray-400 ml-1">배송비 포함{totals.purchaseDiscount > 0 ? ` · 매입할인 -${won(totals.purchaseDiscount)}원 반영` : ''}</span>
           </span>
           <span>예상 마진 <b className="tabular-nums text-emerald-700">{won(totals.margin)}원</b>
             {totals.total > 0 && (

@@ -115,7 +115,7 @@ export const FIELDS: FieldDef[] = [
   { key: 'unit_price', label: '매입 단가', group: '품목', scope: 'line', example: '25000' },
   { key: 'amount', label: '매입 금액', group: '품목', scope: 'line', example: '75000' },
   { key: 'ship_fee', label: '매입 배송비', group: '품목', scope: 'line', example: '3000' },
-  { key: 'order_kind', label: '배송 구분(지점 · 개별 · 샘플)', group: '품목', scope: 'line', example: '지점' },
+  { key: 'order_kind', label: '배송종류(지점 · 개별 · 샘플)', group: '품목', scope: 'line', example: '지점' },
 
   { key: 'r_name', label: '받는분 이름', group: '받는분', scope: 'line', example: '홍길동' },
   { key: 'r_name_hon', label: '받는분 이름 + 님', group: '받는분', scope: 'line', example: '홍길동 님' },
