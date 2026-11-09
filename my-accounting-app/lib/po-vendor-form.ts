@@ -213,11 +213,12 @@ function fillRowsSheet(ws: Worksheet, sm: SheetMap, ctx: FormContext, warn: (m: 
   } else if (sm.insert_before && sm.end_row == null && start + lines.length > sm.insert_before) {
     insertRowsBefore(ws, sm.insert_before, start + lines.length - sm.insert_before, sm.insert_before - 1)
   }
-  // 행 서식 통일 (2026-11-09 사용자 요청 — 두일지엘 · 제주담은귤 원본 양식이 행마다 정렬 · 날짜 표시가 달라 채운 행이 들쭉날쭉):
-  // 채우는 모든 행을 기준 행(기본 = 첫 품목 행)의 서식(정렬 · 글꼴 · 테두리 · 채움 · 표시 형식)과 높이로 맞춘다. 값 · 수식 · 드롭다운 · 조건부 서식은 그대로.
+  // 행 서식 통일 — 고정 규칙 (2026-11-09 사용자 확정: "행마다 서식이 서로 다를 경우, 가장 처음 상품명이 입력된 행의 서식을 기준으로 통일"):
+  // 채우는 모든 행을 첫 품목 행(= 처음 상품명이 들어가는 행)의 서식(정렬 · 글꼴 · 테두리 · 채움 · 표시 형식)과 높이로 맞춘다.
+  // 값 · 수식 · 드롭다운 · 조건부 서식은 그대로. 끄기 · 기준 행 변경은 두지 않는다(옛 unify_style · style_row 값은 무시).
   // 값을 넣기 전에 해야 날짜 칸 표시 형식 보정(put)이 살아 있다.
-  if (sm.unify_style !== false && lines.length) {
-    const baseNo = sm.style_row ?? start
+  if (lines.length > 1) {
+    const baseNo = start
     const base = ws.getRow(baseNo)
     const maxCol = Math.max(ws.columnCount, 1)
     for (let i = 0; i < lines.length; i++) {

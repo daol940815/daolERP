@@ -26,8 +26,8 @@ export interface SheetMap {
   end_row?: number | null               // 준비된 마지막 행 (테두리 · 수식이 있는 곳까지). 없으면 무제한
   insert_before?: number | null         // 꼬리 영역(안내 줄 · 합계) 시작 행 — 행이 늘면 이 앞에 끼워 넣는다
   clear_examples?: boolean              // 예시 행 지우기
-  unify_style?: boolean                 // 채운 행 서식을 기준 행에 맞추기 (없으면 켬 — 2026-11-09)
-  style_row?: number | null             // 서식 기준 행 (없으면 첫 품목 행)
+  unify_style?: boolean                 // (사용 안 함 — 행 서식은 항상 첫 품목 행 기준, 2026-11-09 확정. 옛 저장값 호환용)
+  style_row?: number | null             // (사용 안 함 — 위와 같음)
   columns: Record<string, ValueSpec>    // 열 글자 → 값 (rows 모드)
   cells?: Record<string, ValueSpec>     // 칸 주소 → 값 (머리 칸 · 발주처 정보 등)
   required?: string[]                   // 필수 열 — 비면 경고
@@ -67,7 +67,6 @@ export function toSheetMap(t: RecognizedSheet): SheetMap {
     end_row: t.end_row,
     insert_before: t.insert_before,
     clear_examples: t.example_rows > 0,
-    unify_style: true,
     columns: Object.fromEntries(t.columns.filter(c => c.spec.k !== 'skip').map(c => [c.col, c.spec])),
     cells: Object.fromEntries(t.cells.map(c => [c.addr, c.spec])),
     required: t.columns.filter(c => c.required).map(c => c.col),
@@ -167,7 +166,6 @@ export function validateMapping(m: unknown): { ok: true; mapping: FormMapping } 
     if (!['rows', 'catalog', 'cells-only'].includes(s.mode)) return { ok: false, error: `'${s.name}' 채우는 방식이 올바르지 않습니다.` }
     if (!Number.isInteger(s.start_row) || s.start_row < 1) return { ok: false, error: `'${s.name}' 시작 행이 올바르지 않습니다.` }
     if (s.end_row != null && s.end_row < s.start_row) return { ok: false, error: `'${s.name}' 마지막 행이 시작 행보다 앞입니다.` }
-    if (s.style_row != null && (!Number.isInteger(s.style_row) || s.style_row < 1)) return { ok: false, error: `'${s.name}' 서식 기준 행이 올바르지 않습니다.` }
     if (s.insert_before != null && s.insert_before <= s.start_row) return { ok: false, error: `'${s.name}' 꼬리 영역은 시작 행보다 뒤여야 합니다.` }
     for (const [k, v] of Object.entries(s.columns ?? {})) {
       if (!col.test(k) || !specOk(v)) return { ok: false, error: `'${s.name}' ${k}열 설정이 올바르지 않습니다.` }
