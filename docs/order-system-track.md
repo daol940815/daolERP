@@ -569,6 +569,14 @@
     - **516 사용자 승인 (2026-11-09 "516 마이그레이션 생성 진행해줘")** — `516_po_vendor_forms.sql`: erp_po_forms(매입처 · 버전 · 파일 · 상태 draft/active/archived ·
       mapping · recognized, 매입처당 active 1) + erp_purchase_orders.form_id + 비공개 버킷 po-forms + RLS. 기존 데이터 변경 없음. **실행 결과 회신 대기**
       (기대 1/1/1/0/발주서 건수 불변).
+    - **1차 화면 · API (작업 브랜치, 516 결과 확인 후 main 배포)**: 매입처 상세 '발주서 양식' 탭(`components/purchase-hub/po-form-tab.tsx`) —
+      버전 목록(작성 중 · 사용 중 · 보관, 원본 받기 · 복사해 새 버전 · 사용 멈춤 · 작성 중 삭제) + 칸 연결(시트 · 방식 명단형/품목 목록형/머리 칸만 ·
+      행 설정 · 열마다 넣을 값 · 필수 · 추천 근거 · 머리 칸 추가/빼기 · 조합 문구) + 시험 생성(가상 주문 또는 이 매입처 지난 발주서 → 파일 받기 + 확인 목록) + 사용 시작.
+      API `app/api/purchase-hub/[vendorId]/po-forms`(GET 목록 · ?download / POST 올리기+자동 인식 / PATCH save · activate · archive · copy / DELETE 작성 중만)
+      · `.../[formId]/test`(GET, 저장 · 기록 없음). 권한 = 미들웨어 /api/purchase-hub → customers(GET 외 = 수정), 화면 노출 = can_edit.
+      규칙: 사용 중 · 보관 버전은 고치지 않음(발주서 form_id 기록 보존) → 복사해 새 버전 / .xls 거절 안내 / 10MB / Storage 키 ASCII.
+      발주서 데이터 조립(loadPo · currentStaff · assembleForm)을 `lib/po-assemble.ts`로 옮김(동작 변경 없음) + `formExtraOf`(상담 sender_name · 직급 position).
+      도움말 '/orders/purchase-hub' 항목 신설(HELP_PENDING에서 뺌). 빈 양식 20개 자동 인식 결과 전부 저장 검사 통과 · 가상 주문 생성 확인.
 
 ### VIP 품목 — 직접 입력 주문 반영 (2026-11-09 사용자 승인 "제안대로 진행")
 

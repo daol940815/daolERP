@@ -37,6 +37,47 @@ export interface FormMapping {
   sheets: SheetMap[]
 }
 
+export type How = 'auto' | 'check' | 'none'
+export interface RecognizedColumn { col: string; header: string; spec: ValueSpec; how: How; reason: string; required?: boolean }
+export interface RecognizedCell { addr: string; label: string; spec: ValueSpec; how: How; reason: string }
+export interface RecognizedSheet {
+  name: string
+  state: 'visible' | 'hidden' | 'veryHidden'
+  header_row: number | null
+  start_row: number | null
+  end_row: number | null
+  insert_before: number | null
+  example_rows: number
+  mode: SheetMap['mode'] | null
+  columns: RecognizedColumn[]
+  cells: RecognizedCell[]
+  notes: string[]
+}
+export interface RecognizeResult { sheets: RecognizedSheet[]; target: string | null; mapping: FormMapping; notes: string[] }
+
+// 인식 결과(시트 1개) → 칸 연결 기본값. 화면에서 시트를 바꿀 때도 같은 규칙
+export function toSheetMap(t: RecognizedSheet): SheetMap {
+  const sm: SheetMap = {
+    name: t.name,
+    mode: t.mode ?? 'rows',
+    header_row: t.header_row,
+    start_row: t.start_row ?? 1,
+    end_row: t.end_row,
+    insert_before: t.insert_before,
+    clear_examples: t.example_rows > 0,
+    columns: Object.fromEntries(t.columns.filter(c => c.spec.k !== 'skip').map(c => [c.col, c.spec])),
+    cells: Object.fromEntries(t.cells.map(c => [c.addr, c.spec])),
+    required: t.columns.filter(c => c.required).map(c => c.col),
+  }
+  if (sm.mode === 'catalog') {
+    const n = t.columns.find(c => c.spec.k === 'tpl' && c.spec.v === '{item_name}')
+    const q = t.columns.find(c => c.spec.k === 'tpl' && c.spec.v === '{qty}')
+    if (n && q) sm.catalog = { name_col: n.col, qty_col: q.col, start_row: sm.start_row, end_row: sm.end_row ?? sm.start_row }
+    sm.columns = {}
+  }
+  return sm
+}
+
 // 다올 고정 정보 (사업자등록증 · 2026-11-09 사용자 확정 — 업체 양식 주소는 '덕이동 1234-1')
 export const COMPANY_INFO = {
   co_name: '다올커머스',

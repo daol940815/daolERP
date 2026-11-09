@@ -2,28 +2,11 @@
 // 빈 양식만 보고 머리글 행을 찾고, 열마다 '무슨 값'을 넣을지 추천한다. 추천은 직원이 칸 연결 화면에서 고친다(확정은 사람).
 //  - 규칙 = 동의어 목록(시안 검증: 빈 양식 20개 머리글 20/20 · 열 94% 추천)
 //  - 추천마다 근거(how · reason)를 남겨 화면에서 '확인 필요'만 골라 보게 한다
-import { type FormMapping, type SheetMap, type ValueSpec } from './po-vendor-form-fields'
+import { type FormMapping, type ValueSpec, type RecognizedSheet, type RecognizedCell, type RecognizeResult, type How, toSheetMap } from './po-vendor-form-fields'
+export type { RecognizedSheet, RecognizedColumn, RecognizedCell, RecognizeResult, How } from './po-vendor-form-fields'
 
 type Worksheet = import('exceljs').Worksheet
 type Cell = import('exceljs').Cell
-
-export type How = 'auto' | 'check' | 'none'
-export interface RecognizedColumn { col: string; header: string; spec: ValueSpec; how: How; reason: string; required?: boolean }
-export interface RecognizedCell { addr: string; label: string; spec: ValueSpec; how: How; reason: string }
-export interface RecognizedSheet {
-  name: string
-  state: 'visible' | 'hidden' | 'veryHidden'
-  header_row: number | null
-  start_row: number | null
-  end_row: number | null
-  insert_before: number | null
-  example_rows: number
-  mode: SheetMap['mode'] | null
-  columns: RecognizedColumn[]
-  cells: RecognizedCell[]
-  notes: string[]
-}
-export interface RecognizeResult { sheets: RecognizedSheet[]; target: string | null; mapping: FormMapping; notes: string[] }
 
 const T = (v: string): ValueSpec => ({ k: 'tpl', v })
 const SKIP: ValueSpec = { k: 'skip' }
@@ -278,26 +261,6 @@ export async function recognizeForm(file: ArrayBuffer | Buffer): Promise<Recogni
   if (!target) notes.push('품목 표를 찾지 못했습니다 — 시트와 칸을 직접 지정하세요.')
   if (wb.worksheets.length > 1) notes.push(`시트 ${wb.worksheets.length}개 — 채우는 시트 외에는 그대로 둡니다.`)
   const mapping: FormMapping = { version: 1, sheets: [] }
-  if (target) {
-    const sm: SheetMap = {
-      name: target.name,
-      mode: target.mode ?? 'rows',
-      header_row: target.header_row,
-      start_row: target.start_row ?? 1,
-      end_row: target.end_row,
-      insert_before: target.insert_before,
-      clear_examples: target.example_rows > 0,
-      columns: Object.fromEntries(target.columns.filter(c => c.spec.k !== 'skip').map(c => [c.col, c.spec])),
-      cells: Object.fromEntries(target.cells.map(c => [c.addr, c.spec])),
-      required: target.columns.filter(c => c.required).map(c => c.col),
-    }
-    if (sm.mode === 'catalog') {
-      const n = target.columns.find(c => c.spec.k === 'tpl' && c.spec.v === '{item_name}')!
-      const q = target.columns.find(c => c.spec.k === 'tpl' && c.spec.v === '{qty}')!
-      sm.catalog = { name_col: n.col, qty_col: q.col, start_row: sm.start_row, end_row: sm.end_row ?? sm.start_row }
-      sm.columns = {}
-    }
-    mapping.sheets.push(sm)
-  }
+  if (target) mapping.sheets.push(toSheetMap(target))
   return { sheets, target: target?.name ?? null, mapping, notes }
 }
