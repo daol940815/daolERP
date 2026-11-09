@@ -37,6 +37,8 @@ interface ItemRow {
   quantity: number | null
   shipping_fee: number | null
   discount_amount: number | null
+  purchase_discount?: number | null   // 708 매입할인
+  order_season?: string | null        // 708 주문시기
   line_total: number | null
   purchase_price: number | null
   purchase_shipping: number | null
@@ -65,11 +67,15 @@ export async function GET(req: NextRequest) {
   const itemsByOrder = new Map<string, ItemRow[]>()
   for (let i = 0; i < orderIds.length; i += CHUNK) {
     const chunk = orderIds.slice(i, i + CHUNK)
-    const r = await fetchAllRows<ItemRow>((pf, pt) =>
+    const BASE_COLS = 'order_id, line_no, parent_line_no, is_canceled, is_prepayment, is_vip, item_code, item_name, order_kind, purchase_vendor_name, sale_price, quantity, shipping_fee, discount_amount, line_total, purchase_price, purchase_shipping, purchase_total, channel, memo'
+    const load = (cols: string) => fetchAllRows<ItemRow>((pf, pt) =>
       admin.from('erp_order_items')
-        .select('order_id, line_no, parent_line_no, is_canceled, is_prepayment, is_vip, item_code, item_name, order_kind, purchase_vendor_name, sale_price, quantity, shipping_fee, discount_amount, line_total, purchase_price, purchase_shipping, purchase_total, channel, memo')
+        .select(cols as string as "*")
         .in('order_id', chunk).order('order_id').order('line_no').range(pf, pt),
     )
+    // 708(매입할인 · 주문시기) 미적용 DB면 새 열 없이 다시 조회
+    let r = await load(`${BASE_COLS}, purchase_discount, order_season`)
+    if ('error' in r && /purchase_discount|order_season/i.test(String(r.error))) r = await load(BASE_COLS)
     if ('error' in r) return NextResponse.json({ error: `품목 조회 실패: ${r.error}` }, { status: 500 })
     for (const it of r.data) {
       const list = itemsByOrder.get(it.order_id) ?? []
@@ -85,15 +91,17 @@ export async function GET(req: NextRequest) {
     '품번': it?.item_code ?? '',
     '품명': it?.item_name ?? '',
     '옵션': it?.parent_line_no ? `${it.parent_line_no}번 행 옵션` : '',
-    '구분': it?.order_kind ?? '',
+    '배송종류': it?.order_kind ?? '',
+    '주문시기': it?.order_season ?? '',
     '매입처': it?.purchase_vendor_name ?? '',
     '판매가': it ? it.sale_price ?? 0 : '',
     '갯수': it ? it.quantity ?? 0 : '',
     '배송비': it ? it.shipping_fee ?? 0 : '',
-    '할인금액': it ? it.discount_amount ?? 0 : '',
+    '판매할인': it ? it.discount_amount ?? 0 : '',
     '합계금액': it ? it.line_total ?? 0 : '',
     ...(showCost ? {
       '매입가': it ? it.purchase_price ?? 0 : '',
+      '매입할인': it ? it.purchase_discount ?? 0 : '',
       '매입배송비': it ? it.purchase_shipping ?? 0 : '',
       '매입합계': it ? it.purchase_total ?? 0 : '',
       '마진': it ? (it.line_total ?? 0) - (it.purchase_total ?? 0) : '',

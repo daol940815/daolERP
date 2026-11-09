@@ -42,6 +42,10 @@ export interface ItemDraft {
   discount_unit: number           // 단가 할인의 개당 할인액(원)
   purchase_price: number
   purchase_shipping: number
+  purchase_discount: number                // 매입할인 최종 금액 (708) — 매입합계 = 매입가×수량 + 매입배송비 − 매입할인
+  purchase_discount_mode: '정액' | '단가'  // 매입할인 종류 — 정액(행당 금액) / 단가(개당)
+  purchase_discount_unit: number           // 개당 매입할인액(원)
+  order_season: string                     // 주문시기 (708) — 상시 · 26설 · 26추석 …
   memo: string
   status: string                  // 품목 상태 (품절·단가변경 등 — 상담일지에서 사용)
   option_note: string             // 색상·옵션 등 기타사항 (품목별 — 상담일지에서 사용)
@@ -60,7 +64,9 @@ export const emptyItem = (uid: number): ItemDraft => ({
   product_id: null, item_code: '', item_name: '', order_kind: '지점',
   purchase_vendor_name: '', sale_price: 0, quantity: 1, shipping_fee: 0,
   discount_amount: 0, discount_mode: '정액', discount_unit: 0,
-  purchase_price: 0, purchase_shipping: 0, memo: '',
+  purchase_price: 0, purchase_shipping: 0,
+  purchase_discount: 0, purchase_discount_mode: '정액', purchase_discount_unit: 0, order_season: '',
+  memo: '',
   status: '', option_note: '', is_shipping: false,
   branch_sale_price: 0, individual_sale_price: 0, branch_purchase_price: 0,
   carton_unit: 0, carton_shipping_fee: 0, loose_shipping_fee: 0,
@@ -77,6 +83,7 @@ export function quantityPatch(it: ItemDraft, qty: number): Partial<ItemDraft> {
   return {
     quantity: qty,
     ...(it.discount_mode === '단가' ? { discount_amount: (it.discount_unit || 0) * qty } : {}),
+    ...(it.purchase_discount_mode === '단가' ? { purchase_discount: (it.purchase_discount_unit || 0) * qty } : {}),
     ...(it.carton_unit > 0
       ? { purchase_shipping: cartonShipping(it.carton_unit, it.carton_shipping_fee, it.loose_shipping_fee, qty) }
       : {}),
@@ -141,6 +148,17 @@ export const toInt = (s: string) => {
   return Number.isFinite(n) ? Math.round(n) : 0
 }
 export const lineTotal = (it: ItemDraft) => it.sale_price * it.quantity + it.shipping_fee - it.discount_amount
+// 매입합계 (708) — 매입가 × 수량 + 매입배송비 − 매입할인. 서버 purchase_total과 같은 공식
+export const lineCost = (it: Pick<ItemDraft, 'purchase_price' | 'quantity' | 'purchase_shipping' | 'purchase_discount'>) =>
+  it.purchase_price * it.quantity + it.purchase_shipping - (it.purchase_discount || 0)
+
+// 저장된 품목 행(상담·주문)에서 매입할인 · 주문시기 읽기 — 708 미적용 DB면 기본값
+export const draftExtrasFromRow = (r: Record<string, unknown>): Pick<ItemDraft, 'purchase_discount' | 'purchase_discount_mode' | 'purchase_discount_unit' | 'order_season'> => ({
+  purchase_discount: Number(r.purchase_discount ?? 0) || 0,
+  purchase_discount_mode: r.purchase_discount_mode === '단가' ? '단가' : '정액',
+  purchase_discount_unit: Number(r.purchase_discount_unit ?? 0) || 0,
+  order_season: String(r.order_season ?? ''),
+})
 
 // 구분별 가격·배송비 규칙 (원가표 확정 구조)
 //  지점: 지점판매가·지점매입가 + 배송비 = 꽉 찬 카톤×카톤택배비 + (낱개 있으면 카톤외택배비)
@@ -333,4 +351,57 @@ export function ComboFree({ text, selectedId, options, onChange, placeholder }: 
       )}
     </div>
   )
+}
+
+// ── 할인 입력 칸 (정액 / 개당) — 매입할인(708)용. 판매할인과 같은 모양 ──
+// amount는 항상 최종 할인액. 개당이면 unit × 수량으로 자동 계산
+export function DiscountInput({ mode, unit, amount, quantity, disabled, onChange, className, title }: {
+  mode: '정액' | '단가'; unit: number; amount: number; quantity: number; disabled?: boolean
+  onChange: (patch: { mode: '정액' | '단가'; unit: number; amount: number }) => void
+  className: string; title?: string
+}) {
+  return (
+    <>
+      <select value={mode} disabled={disabled}
+        onChange={e => {
+          const m = e.target.value as '정액' | '단가'
+          onChange(m === '단가' ? { mode: m, unit, amount: (unit || 0) * quantity } : { mode: m, unit: 0, amount })
+        }}
+        className="w-full border border-blue-200 bg-blue-50/40 rounded px-1 py-0.5 text-[0.625rem] mb-0.5 disabled:opacity-60">
+        <option value="정액">정액</option>
+        <option value="단가">개당</option>
+      </select>
+      <input
+        value={mode === '단가' ? (unit ? won(unit) : '') : (amount ? won(amount) : '')}
+        disabled={disabled}
+        onChange={e => {
+          const v = toInt(e.target.value)
+          onChange(mode === '단가' ? { mode, unit: v, amount: v * quantity } : { mode, unit: 0, amount: v })
+        }}
+        title={title ?? (mode === '단가' ? `개당 할인 — 할인액 ${won(amount)}원 자동 계산` : '행당 할인 금액')}
+        className={`${className} ${amount > 0 ? 'text-red-600 font-semibold border-red-200 bg-red-50/40' : ''}`}
+        placeholder="0" />
+      {mode === '단가' && amount > 0 && (
+        <div className="text-[0.625rem] text-red-500 mt-0.5 tabular-nums">-{won(amount)}</div>
+      )}
+    </>
+  )
+}
+
+// ── 주문시기 입력 (708) — 글자 입력 + 드롭다운 제안. 칸을 벗어나면 표기 통일(26 추석 → 26추석) ──
+export function SeasonInput({ value, onChange, disabled, listId, normalize }: {
+  value: string; onChange: (v: string) => void; disabled?: boolean; listId: string
+  normalize: (v: string) => string
+}) {
+  return (
+    <input value={value} disabled={disabled} list={listId}
+      onChange={e => onChange(e.target.value)}
+      onBlur={e => { const n = normalize(e.target.value); if (n !== e.target.value) onChange(n) }}
+      placeholder="선택·입력"
+      title="주문시기 — 목록에서 고르거나 직접 입력 (예: 상시, 26추석)"
+      className="w-full border border-blue-200 bg-blue-50/40 rounded px-1.5 py-1 text-xs disabled:opacity-60" />
+  )
+}
+export function SeasonDatalist({ id, options }: { id: string; options: string[] }) {
+  return <datalist id={id}>{options.map(o => <option key={o} value={o} />)}</datalist>
 }
