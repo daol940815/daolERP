@@ -5,11 +5,12 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildPoExcel, sendPoMail, smtpReady } from '@/lib/purchase-orders'
 import { fillMailTemplate, poMailVars } from '@/lib/po-form'
 import { findCustomPoForm } from '@/lib/custom-po'
-import { loadPo, currentStaff, assembleForm, one } from '@/lib/po-assemble'
+import { loadPo, currentStaff, assembleForm, formExtraOf, one } from '@/lib/po-assemble'
+import { activeVendorForm, draftVendorForm, buildWithVendorForm, recordFormUsed } from '@/lib/po-vendor-form-server'
 
 export const dynamic = 'force-dynamic'
 
-// 발주서 1건 — 조회(?excel=1 = 엑셀 다운로드) / 발송·취소 처리. 전 직원 사용 가능
+// 발주서 1건 — 조회(?excel=1 = 엑셀 다운로드, 업체 양식이면 X-Po-Warnings 헤더) / 발송·취소 처리. 전 직원 사용 가능
 // (2026-08-13 사용자 결정: 매입가 전 직원 공개).
 // PATCH { action: 'send_email' | 'manual_sent' | 'cancel' | 'update', ... }
 //  - send_email: { to? } — 엑셀 첨부 메일 발송 (성공·실패 이력 보존)
@@ -17,22 +18,31 @@ export const dynamic = 'force-dynamic'
 //  - cancel: 발주 취소 — 품목은 미발주로 복귀 (이력은 보존)
 //  - update: { delivery_note?, email_to? } — 발송 전 내용 보정
 
-// 자체 양식 매입처(lib/custom-po.ts 레지스트리)는 그 매입처 양식으로 생성 —
-// 다운로드·메일 자동 첨부 공용. 그 외 매입처는 자사 발주서 양식.
-async function excelOf(
+// 발주서 파일 만들기 — 다운로드 · 메일 첨부 공용. 분기 (2026-11-09 업체 양식 연동):
+//  ① 매입처에 '사용 중' 업로드 양식(516, 매입처 상세 › 발주서 양식)이 있으면 그 양식
+//  ② 코드로 만든 자체 양식(lib/custom-po.ts 레지스트리 — 대경사과)
+//  ③ 그 외 자사 기본 발주서
+// ①의 양식 파일을 못 읽으면 기본 양식으로 바꾸지 않고 오류를 낸다(업체에 다른 양식이 나가지 않게).
+type PoOutput =
+  | { ok: true; buffer: Buffer; fileName: string; kind: 'vendor' | 'code' | 'standard'; vendorForm: { id: string; version: number; file_name: string } | null; warnings: string[] }
+  | { ok: false; error: string }
+async function outputOf(
   admin: SupabaseClient,
   data: NonNullable<Awaited<ReturnType<typeof loadPo>>>,
   staff: { name: string | null; phone: string | null },
-) {
+  employeeId: string | null | undefined,
+): Promise<PoOutput> {
   const form = await assembleForm(admin, data, staff)
+  const base = `${data.po.po_no}_${data.po.vendor_name}.xlsx`
+  const vf = await activeVendorForm(admin, data.po.vendor_id)
+  if (vf) {
+    const r = await buildWithVendorForm(admin, vf, form, await formExtraOf(admin, data, employeeId))
+    if (!r.ok) return r
+    return { ok: true, buffer: r.buffer, fileName: `발주서_${base}`, kind: 'vendor', vendorForm: { id: vf.id, version: vf.version, file_name: vf.file_name }, warnings: r.warnings }
+  }
   const custom = findCustomPoForm(data.po.vendor_name)
-  return custom ? custom.build(form) : buildPoExcel(form)
-}
-
-// 자동 생성 첨부 파일명 — 자체 양식은 그 양식 이름(송장등록 등)으로
-function autoFileName(po: { po_no: string; vendor_name: string }) {
-  const custom = findCustomPoForm(po.vendor_name)
-  return `${custom?.filePrefix ?? '발주서'}_${po.po_no}_${po.vendor_name}.xlsx`
+  if (custom) return { ok: true, buffer: await custom.build(form), fileName: `${custom.filePrefix ?? '발주서'}_${base}`, kind: 'code', vendorForm: null, warnings: [] }
+  return { ok: true, buffer: await buildPoExcel(form), fileName: `발주서_${base}`, kind: 'standard', vendorForm: null, warnings: [] }
 }
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -45,12 +55,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   const staff = await currentStaff(admin, me.employeeId, data.po)
   if (new URL(req.url).searchParams.get('excel') === '1') {
-    const buf = await excelOf(admin, data, staff)
-    const filename = encodeURIComponent(autoFileName(data.po))
-    return new NextResponse(new Uint8Array(buf), {
+    const out = await outputOf(admin, data, staff, me.employeeId)
+    if (!out.ok) return NextResponse.json({ error: out.error }, { status: 500 })
+    await recordFormUsed(admin, data.po.id, out.vendorForm?.id ?? null)
+    return new NextResponse(new Uint8Array(out.buffer), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename*=UTF-8''${filename}`,
+        'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(out.fileName)}`,
+        'X-Po-Warnings': encodeURIComponent(JSON.stringify(out.warnings)),
       },
     })
   }
@@ -76,6 +88,18 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     })),
     form: await assembleForm(admin, data, staff),
     smtp_ready: smtpReady(),
+    // 출력 양식 (2026-11-09): 업체 양식이면 버전 · 확인 목록, 사용 시작 전 버전만 있으면 안내
+    output: await (async () => {
+      const vf = await activeVendorForm(admin, data.po.vendor_id)
+      if (vf) {
+        const out = await outputOf(admin, data, staff, me.employeeId)
+        return { kind: 'vendor', vendor_form: { id: vf.id, version: vf.version, file_name: vf.file_name },
+          warnings: out.ok ? out.warnings : [], error: out.ok ? null : out.error }
+      }
+      const draft = await draftVendorForm(admin, data.po.vendor_id)
+      return { kind: findCustomPoForm(data.po.vendor_name) ? 'code' : 'standard', vendor_form: null, warnings: [], error: null,
+        draft_version: draft?.version ?? null, vendor_id: data.po.vendor_id }
+    })(),
   })
 }
 
@@ -84,24 +108,28 @@ async function buildAttachments(
   admin: SupabaseClient,
   data: NonNullable<Awaited<ReturnType<typeof loadPo>>>,
   staff: { name: string | null; phone: string | null },
+  employeeId: string | null | undefined,
 ) {
   const { po } = data
-  const autoName = autoFileName(po)
   const { data: rows, error } = await admin.from('erp_po_attachments')
     .select('kind, file_name, storage_path').eq('po_id', po.id).order('created_at')
   const uploads = error ? [] : (rows ?? [])   // 510 미적용 — 자동 생성본만 첨부
 
   const files: { filename: string; content: Buffer }[] = []
   const replaces = uploads.filter(r => r.kind === 'replace')
+  let formId: string | null = null
   if (!replaces.length) {
-    files.push({ filename: autoName, content: await excelOf(admin, data, staff) })
+    const out = await outputOf(admin, data, staff, employeeId)
+    if (!out.ok) return { error: out.error }
+    files.push({ filename: out.fileName, content: out.buffer })
+    formId = out.vendorForm?.id ?? null
   }
   for (const r of uploads) {
     const { data: blob, error: dErr } = await admin.storage.from('po-attachments').download(r.storage_path as string)
     if (dErr || !blob) return { error: `첨부 파일을 읽지 못했습니다: ${r.file_name}` }
     files.push({ filename: r.file_name as string, content: Buffer.from(await blob.arrayBuffer()) })
   }
-  return { files }
+  return { files, formId, auto: !replaces.length }
 }
 
 // 발송 로그 기록 — 실제 발송된 제목·본문·첨부 보존 (510 미적용이면 조용히 건너뜀)
@@ -174,7 +202,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       `안녕하세요, 다올커머스입니다.\n\n발주서를 첨부하여 송부드립니다.\n- 발주번호: ${po.po_no}\n- 합계금액: ${(po.total_amount ?? 0).toLocaleString('ko-KR')}원\n\n확인 부탁드립니다. 감사합니다.`, vars)
 
     // 첨부 조립: 수정본 업로드가 있으면 자동 생성본 대신 그 파일이 나간다
-    const att = await buildAttachments(admin, data, staff)
+    const att = await buildAttachments(admin, data, staff, me.employeeId)
     if ('error' in att) return NextResponse.json({ error: att.error }, { status: 500 })
 
     const result = await sendPoMail({ to, subject, body: mailBody, attachments: att.files })
@@ -193,6 +221,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       sent_by: me.employeeId ?? null, send_error: null,
     }).eq('id', po.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (att.auto) await recordFormUsed(admin, po.id, att.formId)   // 자동 생성본이 나갔을 때만 — 수정본만 보냈으면 기록 유지
     await writeSendLog(admin, {
       po_id: po.id, method: 'email', email_to: to, subject, body: mailBody,
       attachment_names: att.files.map(f => f.filename), ok: true,
