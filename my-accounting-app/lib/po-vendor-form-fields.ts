@@ -14,6 +14,7 @@ export type ValueSpec =
 export interface CatalogMap {
   name_col: string      // 품명이 인쇄된 열
   qty_col: string       // 수량을 넣을 열
+  pack_col?: string | null   // 입수 열 — 있으면 수량 = ERP 수량 ÷ 입수(BOX 환산, 2026-11-09). '' · null = 환산 안 함, 없음 = 머리글 '입수' 자동
   start_row: number
   end_row: number
 }
@@ -74,7 +75,8 @@ export function toSheetMap(t: RecognizedSheet): SheetMap {
   if (sm.mode === 'catalog') {
     const n = t.columns.find(c => c.spec.k === 'tpl' && c.spec.v === '{item_name}')
     const q = t.columns.find(c => c.spec.k === 'tpl' && c.spec.v === '{qty}')
-    if (n && q) sm.catalog = { name_col: n.col, qty_col: q.col, start_row: sm.start_row, end_row: sm.end_row ?? sm.start_row }
+    const pack = t.columns.find(c => /입수/.test(c.header))
+    if (n && q) sm.catalog = { name_col: n.col, qty_col: q.col, pack_col: pack?.col ?? null, start_row: sm.start_row, end_row: sm.end_row ?? sm.start_row }
     sm.columns = {}
   }
   return sm
@@ -180,7 +182,7 @@ export function validateMapping(m: unknown): { ok: true; mapping: FormMapping } 
     }
     if (s.mode === 'catalog') {
       const c = s.catalog
-      if (!c || !col.test(c.name_col) || !col.test(c.qty_col) || !(c.end_row >= c.start_row)) {
+      if (!c || !col.test(c.name_col) || !col.test(c.qty_col) || (!!c.pack_col && !col.test(c.pack_col)) || !(c.end_row >= c.start_row)) {
         return { ok: false, error: `'${s.name}' 품목 목록 범위가 올바르지 않습니다.` }
       }
     }
