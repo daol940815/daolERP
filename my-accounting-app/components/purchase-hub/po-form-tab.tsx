@@ -245,7 +245,7 @@ export default function PoFormTab({ vendorId, vendorName }: { vendorId: string; 
               사용 시작을 누르세요. 새 버전은 사용 시작 전까지 적용되지 않습니다.
             </p>
             <p className="text-xs text-amber-700 mt-1">
-              지금은 등록 · 시험 생성 단계입니다. 발주서 다운로드 · 메일 첨부가 사용 중 양식으로 바뀌는 것은 다음 배포(2차)부터입니다.
+              &lsquo;사용 중&rsquo; 버전이 이 매입처 발주서의 다운로드 · 메일 첨부에 쓰입니다. 작성 중 버전은 사용 시작을 눌러야 적용되고, 사용 중 버전이 없으면 기본 발주서로 나갑니다.
             </p>
           </div>
           {canEdit && !hint && (

@@ -55,3 +55,42 @@ export async function generateWithForm(template: Buffer, mapping: FormMapping, p
   const { ctx, warnings } = buildFormContext(po, extra)
   return fillVendorForm(template, mapping, ctx, warnings)
 }
+
+// ── 발주서 출력 연동 (2026-11-09 — 2차: 다운로드 · 메일 첨부가 '사용 중' 업체 양식으로) ──────────
+// 분기: ① 매입처의 사용 중(active) 업로드 양식 → ② 코드 양식(lib/custom-po.ts, 대경사과) → ③ 자사 기본 발주서. ②③은 route가 처리
+export interface VendorFormRef { id: string; version: number; file_name: string; storage_path: string; mapping: FormMapping }
+
+export async function activeVendorForm(admin: SupabaseClient, vendorId: string | null | undefined): Promise<VendorFormRef | null> {
+  if (!vendorId) return null
+  const { data, error } = await admin.from('erp_po_forms')
+    .select('id, version, file_name, storage_path, mapping')
+    .eq('vendor_id', vendorId).eq('status', 'active').maybeSingle()
+  if (error || !data) return null          // 516 미적용 · 양식 없음 → 기존 분기 그대로
+  return data as VendorFormRef
+}
+
+// 사용 시작 전(작성 중) 버전 — 발주서 화면 안내용
+export async function draftVendorForm(admin: SupabaseClient, vendorId: string | null | undefined): Promise<{ id: string; version: number } | null> {
+  if (!vendorId) return null
+  const { data } = await admin.from('erp_po_forms').select('id, version')
+    .eq('vendor_id', vendorId).eq('status', 'draft').order('version', { ascending: false }).limit(1).maybeSingle()
+  return (data as { id: string; version: number } | null) ?? null
+}
+
+// 사용 중 양식으로 발주서 파일 만들기. 양식 파일을 못 읽으면 기본 양식으로 몰래 바꾸지 않고 오류(잘못된 양식이 업체로 나가지 않게)
+export async function buildWithVendorForm(admin: SupabaseClient, vf: VendorFormRef, po: PoExcelData, extra: FormExtra):
+  Promise<{ ok: true; buffer: Buffer; warnings: string[] } | { ok: false; error: string }> {
+  const template = await loadFormFile(admin, vf.storage_path)
+  if (!template) return { ok: false, error: `업체 양식 파일(버전 ${vf.version} · ${vf.file_name})을 읽지 못했습니다. 매입처 상세 › 발주서 양식에서 확인해 주세요.` }
+  try {
+    const out = await generateWithForm(template, vf.mapping, po, extra)
+    return { ok: true, buffer: out.buffer, warnings: out.warnings }
+  } catch (e) {
+    return { ok: false, error: `업체 양식으로 발주서를 만들지 못했습니다: ${e instanceof Error ? e.message : '알 수 없음'}` }
+  }
+}
+
+// 이 발주서가 어느 양식 버전으로 나갔는지 기록 (516 form_id) — 실패해도 출력은 막지 않는다
+export async function recordFormUsed(admin: SupabaseClient, poId: string, formId: string | null) {
+  await admin.from('erp_purchase_orders').update({ form_id: formId }).eq('id', poId).then(() => undefined, () => undefined)
+}

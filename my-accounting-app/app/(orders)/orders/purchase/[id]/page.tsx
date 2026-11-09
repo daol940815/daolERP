@@ -61,6 +61,11 @@ export default function PoSendPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  // 출력 양식 (2026-11-09): vendor = 업체 업로드 양식(사용 중) · code = 코드 자체 양식 · standard = 자사 기본
+  const [output, setOutput] = useState<{
+    kind: 'vendor' | 'code' | 'standard'; vendor_form: { id: string; version: number; file_name: string } | null
+    warnings: string[]; error: string | null; draft_version?: number | null; vendor_id?: string | null
+  } | null>(null)
 
   // 프리셋 관리 모달
   const [managing, setManaging] = useState(false)
@@ -94,6 +99,7 @@ export default function PoSendPage() {
     const json = await res.json()
     if (!res.ok) { setError(json.error ?? '조회 실패'); setLoading(false); return }
     setPo(json.po); setOrder(json.order ?? null); setForm(json.form ?? null)
+    setOutput(json.output ?? null)
     setItemCount((json.items ?? []).length)
     setSmtpReady(!!json.smtp_ready)
     setLogs(json.send_logs ?? [])
@@ -219,7 +225,9 @@ export default function PoSendPage() {
         <Link href="/orders/purchase" className="text-sm text-gray-400 hover:text-gray-600">← 발주서 이력</Link>
         <h1 className="text-xl font-bold text-gray-900">발주서 {po.po_no}</h1>
         <span className="text-gray-600 text-sm">{po.vendor_name}</span>
-        {po.uses_custom_po && badge('bg-violet-50 text-violet-600', '자체 양식', '자체 발주서 양식을 쓰는 매입처 — 수정본 업로드·수동 발송 기록 권장')}
+        {output?.kind === 'vendor' && output.vendor_form
+          ? badge('bg-violet-100 text-violet-700', `업체 양식 v${output.vendor_form.version}`, `매입처 상세 › 발주서 양식에서 사용 중인 업체 양식(${output.vendor_form.file_name})으로 다운로드 · 메일 첨부됩니다`)
+          : po.uses_custom_po && badge('bg-violet-50 text-violet-600', '자체 양식', '자체 발주서 양식을 쓰는 매입처 — 수정본 업로드·수동 발송 기록 권장')}
         {po.po_use_sale_price && badge('bg-blue-50 text-blue-600', '판매가 발주', '발주서 금액이 매입가 대신 판매가로 기재됩니다')}
         {po.status === 'canceled'
           ? badge('bg-gray-100 text-gray-400', '취소됨')
@@ -258,6 +266,25 @@ export default function PoSendPage() {
             {' · '}{form?.customer ?? '-'} · 품목 {itemCount}건 · 합계 {won(po.total_amount)}원
           </span>
         </div>
+        {output?.kind === 'vendor' && output.vendor_form && (
+          <div className={`mt-3 rounded-lg px-3 py-2 text-sm ${output.error ? 'bg-red-50 text-red-700' : output.warnings.length ? 'bg-amber-50 text-amber-800' : 'bg-violet-50 text-violet-800'}`}>
+            <div>
+              업체 양식 <b>버전 {output.vendor_form.version}</b>({output.vendor_form.file_name})으로 다운로드 · 메일 첨부됩니다.
+              {showPreview && ' 아래 화면 미리보기는 자사 양식 기준의 데이터 확인용입니다.'}
+            </div>
+            {output.error && <div className="mt-1 font-semibold">{output.error}</div>}
+            {output.warnings.length > 0 && (
+              <ul className="mt-1 list-disc pl-5 text-xs space-y-0.5">{output.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+            )}
+          </div>
+        )}
+        {output && output.kind !== 'vendor' && output.draft_version != null && (
+          <div className="mt-3 rounded-lg px-3 py-2 text-sm bg-amber-50 text-amber-800">
+            업체 양식 버전 {output.draft_version}이 아직 &lsquo;작성 중&rsquo;이라 {output.kind === 'code' ? '코드 자체 양식' : '자사 기본 양식'}으로 나갑니다.
+            {' '}매입처 상세 › 발주서 양식에서 <b>사용 시작</b>을 누르면 그 양식으로 바뀝니다.
+            {output.vendor_id && <> <Link href={`/orders/purchase-hub/${output.vendor_id}`} className="underline">매입처 상세로</Link></>}
+          </div>
+        )}
         {showPreview && <div className="mt-3"><PoDetail poId={po.id} /></div>}
       </div>
 
@@ -276,6 +303,7 @@ export default function PoSendPage() {
               attachments.some(a => a.kind === 'replace') ? 'border-gray-100 bg-gray-50 text-gray-400' : 'border-gray-200 bg-gray-50/60'}`}>
               {badge('bg-gray-200/70 text-gray-600', '자동')}
               <span className="font-medium">발주서_{po.po_no}_{po.vendor_name}.xlsx</span>
+              {output?.kind === 'vendor' && output.vendor_form && badge('bg-violet-100 text-violet-700', `업체 양식 v${output.vendor_form.version}`)}
               <span className="text-[0.6875rem] text-gray-400">
                 {attachments.some(a => a.kind === 'replace')
                   ? '수정본이 있어 발송에서 제외됩니다'
