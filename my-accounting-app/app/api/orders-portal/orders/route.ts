@@ -13,6 +13,7 @@ import {
   canCancelReissue, inheritToReissued, writeEditLogs, hasShip, syncPrepayDeposits, lineTotal,
 } from '@/lib/orders-portal'
 import { recordWorkLog, orderContent } from '@/lib/work-log'
+import { attachRosterToOrder } from '@/lib/delivery-roster-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -160,8 +161,13 @@ export async function POST(req: NextRequest) {
   const prepayWarn = await syncPrepayDeposits(admin, orderId)
 
   // 상담일지 상태 갱신 — 주문 전환 완료 (재등록은 이미 전환 상태)
+  let rosterAttached = 0
   if (consultationId && !reissueOf) {
     await admin.from('erp_consultations').update({ status: '주문전환' }).eq('id', consultationId)
+    // 개별 배송 명단(707) — 상담 명단 행 중 이 주문에 들어간 품목의 행을 주문에 연결 (분할 전환 대응)
+    rosterAttached = (await attachRosterToOrder(admin, consultationId, orderId,
+      itemRows.map(r => ({ product_id: (r as Record<string, unknown>).product_id as string | null, item_name: (r as Record<string, unknown>).item_name as string | null })))
+      .catch(() => ({ attached: 0 }))).attached
   }
   // "주문 입력됨" PC 알림 (2026-11-06 A안): 요청자 + 상담자 − 입력자 — 회신 받는 사람과 같은 기준. 신규 저장만(재등록 제외).
   // 회신 대상이 아닌 주문(받는 사람 계정 없음 등)이면 예전처럼 상담 요청자에게만
@@ -187,5 +193,5 @@ export async function POST(req: NextRequest) {
     refId: orderId,
   })
 
-  return NextResponse.json({ id: orderId, order_no: orderNo, total_amount: total, warning: prepayWarn })
+  return NextResponse.json({ id: orderId, order_no: orderNo, total_amount: total, warning: prepayWarn, roster_attached: rosterAttached })
 }

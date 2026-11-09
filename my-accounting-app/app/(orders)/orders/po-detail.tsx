@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { SHIP_KINDS, hasShip } from '@/lib/ship-address'
 import {
-  COMPANY_NAME, PO_COLORS, PO_HEADERS, PO_NUM_COLS, ROSTER_HEADERS,
+  COMPANY_NAME, PO_COLORS, PO_HEADERS, PO_NUM_COLS, ROSTER_HEADERS, ROSTER_PREVIEW_ROWS,
   poFormInfo, poFormItemRows, poRosterRows, type PoExcelData,
 } from '@/lib/po-form'
 
@@ -43,7 +43,9 @@ export default function PoDetail({ poId }: { poId: string }) {
   const form = data.form
   const info = poFormInfo(form)
   const rows = poFormItemRows(form)
-  const roster = poRosterRows(form)
+  const rosterAll = poRosterRows(form)
+  const roster = rosterAll.slice(0, ROSTER_PREVIEW_ROWS)   // 미리보기 20행 + "외 N행" (707) — 엑셀에는 전부
+  const rosterLinked = (form.roster_rows ?? []).length
   const broken = (data.items ?? []).filter(it => !it.order_item_id).length
   const cellBorder = { border: '1px solid #cbd5e1' }
   const infoRows = [info.slice(0, 3), info.slice(3, 6), info.slice(6, 9)]
@@ -131,7 +133,10 @@ export default function PoDetail({ poId }: { poId: string }) {
       {/* 시트2: 배송명단 */}
       <div className="overflow-x-auto mt-2">
         <div className="min-w-[860px] bg-white border border-gray-300 rounded-lg p-3 shadow-sm">
-          <div className="text-xs font-bold text-gray-700 mb-1.5">배송명단 (시트 2)</div>
+          <div className="text-xs font-bold text-gray-700 mb-1.5">
+            배송명단 (시트 2)
+            <span className="font-normal text-gray-400 ml-1.5">{rosterAll.length}행{rosterLinked ? ` · 개별 배송 명단 ${rosterLinked}행 연결` : ''}</span>
+          </div>
           <table className="w-full border-collapse text-[0.6875rem]">
             <thead>
               <tr>
@@ -155,6 +160,13 @@ export default function PoDetail({ poId }: { poId: string }) {
                   ))}
                 </tr>
               ))}
+              {rosterAll.length > roster.length && (
+                <tr>
+                  <td colSpan={ROSTER_HEADERS.length} className="px-2 py-1.5 text-center text-gray-400" style={cellBorder}>
+                    … 외 {rosterAll.length - roster.length}행 — 엑셀 시트에는 전부 들어갑니다
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -163,7 +175,8 @@ export default function PoDetail({ poId }: { poId: string }) {
       <div className="mt-1.5 space-y-0.5 text-[0.6875rem] text-gray-400">
         <div>
           엑셀 다운로드·메일 첨부와 동일한 내용입니다. 지점·샘플 품목은 주문 배송지가 자동으로 들어가고,
-          개별 배송 품목의 수령인·주소는 다운로드 후 수기로 보완합니다 (개별배송 명단 관리 기능은 4페이즈 예정).
+          개별 배송 품목은 주문의 배송명단(수령인별 행)이 연결되어 있으면 그 행으로 펼쳐집니다 — 없으면 다운로드 후 수기로 보완합니다.
+          우편번호는 시트에 넣지 않습니다(주소 + 상세주소만).
         </div>
         {/* 배송비 이중 기재 의심 — 상품 행 매입배송비(택배비 행)와 배송비 성격의 비용 품목이 함께 있음. 막지 않고 안내만 */}
         {form.items.some(it => it.role === 'fee' && /배송|택배/.test(it.item_name ?? ''))
@@ -178,6 +191,11 @@ export default function PoDetail({ poId }: { poId: string }) {
         {form.ship && !hasShip(form.ship) && form.items.some(it => SHIP_KINDS.has(it.order_kind ?? '지점')) && (
           <div className="text-amber-700">
             배송지 미입력 — 주문서에 배송지가 없어 배송명단 주소가 비어서 나갑니다. 주문 상세에서 입력(당일 수정 · 익일 취소 · 재등록)하거나 다운로드 후 수기로 채우세요.
+          </div>
+        )}
+        {form.items.some(it => it.role !== 'fee' && it.role !== 'addon' && !SHIP_KINDS.has(it.order_kind ?? '지점')) && !rosterLinked && (
+          <div className="text-amber-700">
+            개별 배송 품목이 있는데 연결된 배송명단이 없습니다 — 주문 상세의 배송명단에 표준 양식 엑셀을 올리면 수령인별 행이 자동으로 들어갑니다. 지금은 수령인 · 주소를 수기로 채워야 합니다.
           </div>
         )}
         {data.po?.email_to && <div>받는 이메일: <span className="text-gray-600">{data.po.email_to}</span></div>}

@@ -2,7 +2,8 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import ShipCard, { EMPTY_SHIP } from './ship-card'
-import { hasShip, needsShip, type ShipInput } from '@/lib/ship-address'
+import { hasShip, needsShip, SHIP_KINDS, type ShipInput } from '@/lib/ship-address'
+import RosterCard from './roster-card'
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -843,6 +844,18 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           />
         )
       })()}
+
+      {/* 개별 배송 명단 (707, 2026-11-09) — 저장된 주문에서. 상담 전환 주문은 상담 명단이 연결되어 따라온다 */}
+      <RosterCard
+        orderId={orderId ?? null}
+        applies={items.some(it => it.item_name.trim() && !it.is_shipping && !it.parent_uid && !SHIP_KINDS.has(it.order_kind ?? '지점'))}
+        isNew={!isEdit}
+        disabled={isEdit && !canEdit}
+        subject={[orderNo, orderDate].filter(Boolean).join(' · ') || undefined}
+        newHint={consultId
+          ? '상담일지에 올린 배송명단은 주문을 저장하면 이 주문에 포함된 품목의 행이 자동으로 연결됩니다. 직접 올리려면 저장 후 여기서 업로드하세요.'
+          : '주문을 먼저 저장하면 배송명단을 올릴 수 있습니다. 양식은 지금 내려받아 작성해두세요.'}
+      />
 
       {/* 주문 상품 — 기존 컬럼 순서 그대로 */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3 overflow-x-auto">
