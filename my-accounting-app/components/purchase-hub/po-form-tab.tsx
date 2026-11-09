@@ -411,9 +411,13 @@ export default function PoFormTab({ vendorId, vendorName }: { vendorId: string; 
                       <label className="flex items-center gap-1.5">수량 열
                         <input value={sm.catalog.qty_col} disabled={!editable} onChange={e => patchSheet(s => { s.catalog!.qty_col = e.target.value.toUpperCase().replace(/[^A-Z]/g, '') })}
                           className="w-14 border border-gray-300 rounded px-2 py-1 text-sm uppercase disabled:bg-gray-50" /></label>
+                      <label className="flex items-center gap-1.5">입수 열
+                        <input value={sm.catalog.pack_col ?? ''} disabled={!editable} placeholder={sm.catalog.pack_col === undefined ? '자동' : '없음'}
+                          onChange={e => patchSheet(s => { s.catalog!.pack_col = e.target.value.toUpperCase().replace(/[^A-Z]/g, '') || null })}
+                          className="w-14 border border-gray-300 rounded px-2 py-1 text-sm uppercase disabled:bg-gray-50" /></label>
                       <label className="flex items-center gap-1.5">{numInput(sm.catalog.start_row, n => patchSheet(s => { s.catalog!.start_row = n ?? 1 }))}행 ~ {numInput(sm.catalog.end_row, n => patchSheet(s => { s.catalog!.end_row = n ?? s.catalog!.start_row }))}행</label>
                     </div>
-                    <div className="text-xs text-gray-400">같은 품명(띄어쓰기 무시) 행의 수량 칸에만 넣습니다. 목록에 없는 품목은 확인 목록에 경고로 남습니다.</div>
+                    <div className="text-xs text-gray-400">같은 품명(띄어쓰기 무시) 행의 수량 칸에만 넣습니다. 입수 열이 있으면 BOX로 환산(ERP 수량 ÷ 입수)하고, 나누어떨어지지 않으면 경고합니다. 목록에 없는 품목은 확인 목록에 경고로 남습니다.</div>
                   </div>
                 )}
               </div>

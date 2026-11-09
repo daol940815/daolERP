@@ -257,12 +257,35 @@ function fillCatalogSheet(ws: Worksheet, sm: SheetMap, ctx: FormContext, warn: (
   const cat = sm.catalog!
   const rowOf = new Map<string, number>()
   for (let r = cat.start_row; r <= cat.end_row; r++) rowOf.set(norm(cellText(ws.getCell(`${cat.name_col}${r}`).value)), r)
+  // BOX 환산 (2026-11-09 사용자 확정, 깨끗한나라): 발주서 수량(BOX) = ERP 수량 ÷ 입수.
+  // 입수 열: 설정값 → 설정이 없던 옛 칸 연결은 머리글 '입수' 열을 찾아 씀. 빈 값('')으로 저장하면 환산하지 않음
+  let packCol = cat.pack_col
+  if (packCol === undefined && sm.header_row) {
+    ws.getRow(sm.header_row).eachCell({ includeEmpty: false }, (cell, col) => {
+      if (!packCol && /입수/.test(cellText(cell.value))) packCol = cell.address.replace(/\d+$/, '') || String(col)
+    })
+  }
+  const erpQty = new Map<number, number>()      // 같은 품목이 여러 행(수령인별)이면 ERP 수량을 합친 뒤 환산
   for (const ln of ctx.lines) {
     const r = rowOf.get(norm(ln.item_name))
     if (!r) { warn(`'${ln.item_name}' — 업체 양식 품목 목록에 같은 이름이 없어 수량을 넣지 못했습니다(직접 입력).`); continue }
-    const cur = Number(cellText(ws.getCell(`${cat.qty_col}${r}`).value) || 0)
-    ws.getCell(`${cat.qty_col}${r}`).value = cur + Number(ln.qty ?? 0)
+    erpQty.set(r, (erpQty.get(r) ?? 0) + Number(ln.qty ?? 0))
   }
+  erpQty.forEach((qty, r) => {
+    const name = cellText(ws.getCell(`${cat.name_col}${r}`).value).trim()
+    const cell = ws.getCell(`${cat.qty_col}${r}`)
+    const cur = Number(cellText(cell.value) || 0)
+    if (!packCol) { cell.value = cur + qty; return }
+    const pack = Number(cellText(ws.getCell(`${packCol}${r}`).value).replace(/[^\d.]/g, ''))
+    if (!(pack > 0)) {
+      cell.value = cur + qty
+      warn(`'${name}' — 입수가 비어 있어 ERP 수량 ${qty}을 그대로 넣었습니다. BOX 수량을 확인해 주세요.`)
+      return
+    }
+    const box = Math.round((qty / pack) * 100) / 100
+    cell.value = cur + box
+    if (qty % pack !== 0) warn(`'${name}' — ERP 수량 ${qty} ÷ 입수 ${pack} = ${box}BOX로 나누어떨어지지 않습니다. 수량을 확인해 주세요.`)
+  })
 }
 
 // 조건부 서식 보정 (2026-11-09 — 제주담은귤 '중복 값' 규칙에서 엑셀 복구 경고 발생)
