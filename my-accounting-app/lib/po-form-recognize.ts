@@ -79,6 +79,7 @@ const LABELS: [RegExp, ValueSpec, string][] = [
   [/^(연락처|핸드폰|휴대폰)$/, T('{staff_phone}'), '다올 담당자 연락처'],
   [/^(발주일|발주일자|작성일|주문일)$/, T('{po_date}'), '발주일'],
   [/^(납품처|배송처)$/, T('{customer}'), '주문처'],
+  [/^(배송메모|배송메세지|배송메시지|배송요청사항|배송정보)$/, T('{ship_memo}'), '배송지 묶음(상세주소 · 이름 · 연락처)'],
 ]
 
 // ── 칸 도우미 ────────────────────────────────────────────
@@ -171,7 +172,8 @@ function recognizeSheet(ws: Worksheet): RecognizedSheet {
       base.mode = 'catalog'
       base.end_row = last
       base.notes.push(`품목이 인쇄된 양식입니다(${start}~${last}행, ${n}개) — 같은 품명 행에 수량만 넣습니다. 목록에 없는 품목은 경고.`)
-      base.cells = headerBlockCells(ws, hr)
+      // 품목 목록형은 행이 늘지 않으므로 표 아래(합계 · 배송메모 등) 칸도 주소가 고정 — 아래 15행까지 라벨을 찾는다
+      base.cells = [...headerBlockCells(ws, 1, hr - 1), ...headerBlockCells(ws, last + 1, Math.min(ws.rowCount, last + 15))]
       return base
     }
   }
@@ -215,13 +217,13 @@ function recognizeSheet(ws: Worksheet): RecognizedSheet {
   }
 
   // 8) 머리 칸(표 위쪽 라벨 → 값)
-  base.cells = headerBlockCells(ws, hr)
+  base.cells = headerBlockCells(ws, 1, hr - 1)
   return base
 }
 
-function headerBlockCells(ws: Worksheet, hr: number): RecognizedCell[] {
+function headerBlockCells(ws: Worksheet, from: number, to: number): RecognizedCell[] {
   const out: RecognizedCell[] = []
-  for (let r = 1; r < hr; r++) {
+  for (let r = from; r <= to; r++) {
     const row = ws.getRow(r)
     row.eachCell({ includeEmpty: false }, (cell, col) => {
       if (isSlave(cell) || isFormula(cell)) return

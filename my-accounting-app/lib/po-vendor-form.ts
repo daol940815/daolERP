@@ -75,6 +75,16 @@ export function buildFormContext(po: PoExcelData, extra: FormExtra): { ctx: Form
     })
   }
   lines.forEach((l, i) => { l.line_no = i + 1; l.r_name_hon = l.r_name ? `${String(l.r_name).replace(/\s*님$/, '')} 님` : '' })
+  // 주문 배송지(머리 칸용) — 주문 배송지(513) → 없으면 첫 수령인. 상세주소 → 이름 → 연락처 순 줄바꿈 묶음 (2026-11-09 사용자 확정, 깨끗한나라 배송메모)
+  const sh = po.ship && (po.ship.ship_addr1 || po.ship.ship_name)
+    ? { name: po.ship.ship_name ?? '', phone: po.ship.ship_phone ?? '', addr: [po.ship.ship_addr1, po.ship.ship_addr2].filter(Boolean).join(' ') }
+    : (() => { const l = lines.find(x => x.r_name || x.r_addr); return l ? { name: String(l.r_name ?? ''), phone: String(l.r_phone ?? ''), addr: String(l.r_addr ?? '') } : null })()
+  order.ship_name = sh?.name || null
+  order.ship_phone = sh?.phone || null
+  order.ship_addr = sh?.addr || null
+  order.ship_memo = sh ? [sh.addr, sh.name, sh.phone].filter(Boolean).join('\n') || null : null
+  const recipients = new Set(lines.filter(l => l.r_name || l.r_addr).map(l => `${l.r_name}|${l.r_addr}`))
+  order.ship_multi = !(po.ship && (po.ship.ship_addr1 || po.ship.ship_name)) && recipients.size > 1 ? 1 : null
   if (!lines.length) warnings.push('발주할 품목이 없습니다(비용 품목만 있음).')
   if (blankRecipients) warnings.push(`수령인이 비어 있는 행 ${blankRecipients}개 — 받은 파일에 직접 채우거나 개별 배송 명단을 올려 주세요.`)
   return { ctx: { order, lines }, warnings }
@@ -327,6 +337,9 @@ export async function fillVendorForm(template: ArrayBuffer | Buffer, mapping: Fo
   const warn = (m: string) => { if (!warnings.includes(m)) warnings.push(m) }
   for (const sheet of wb.worksheets) sanitizeConditionalFormats(sheet)   // 손대지 않는 시트도 다시 쓰이므로 전부
   if (!ctx.order.sender) warn('보내는분 명의가 없습니다(상담일지 발송 정보) — 보내는분 칸을 비워 두었습니다.')
+  const usesShip = mapping.sheets.some(sm => Object.values(sm.cells ?? {}).some(v => v.k === 'tpl' && /\{ship_/.test(v.v)))
+  if (usesShip && !ctx.order.ship_memo) warn('배송지가 없습니다(주문 배송지 · 수령인 모두 비어 있음) — 배송지 칸을 비워 두었습니다.')
+  if (usesShip && ctx.order.ship_multi) warn('받는분이 여러 명입니다 — 배송지 칸에는 첫 번째 받는분만 넣었습니다. 나머지는 직접 적어 주세요.')
 
   for (const sm of mapping.sheets) {
     const ws = wb.getWorksheet(sm.name)
