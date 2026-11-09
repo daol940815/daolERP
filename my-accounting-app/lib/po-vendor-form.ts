@@ -176,7 +176,8 @@ function put(ws: Worksheet, addr: string, spec: ValueSpec | undefined, vars: Rec
   if (spec.k === 'keep') { if (keepValue !== undefined) cell.value = keepValue as never; return }
   const v = renderTpl(spec.v, vars)
   cell.value = v as never
-  if (v instanceof Date && !/[ymd]/i.test(cell.numFmt ?? '')) cell.numFmt = 'yyyy-mm-dd'   // 일반 서식 칸에 날짜 → 숫자로 보이지 않게
+  // 일반 서식 칸에 날짜 → 숫자로 보이지 않게. exceljs는 같은 서식을 칸끼리 공유하므로 복사본에 바꿔야 옆 칸(숫자)까지 날짜가 되지 않는다
+  if (v instanceof Date && !/[ymd]/i.test(cell.numFmt ?? '')) cell.style = { ...clone(cell.style), numFmt: 'yyyy-mm-dd' }
 }
 
 function fillRowsSheet(ws: Worksheet, sm: SheetMap, ctx: FormContext, warn: (m: string) => void) {
@@ -211,6 +212,21 @@ function fillRowsSheet(ws: Worksheet, sm: SheetMap, ctx: FormContext, warn: (m: 
     warn(`양식에 준비된 ${cap}행보다 ${extra}행 많아 서식을 복사해 늘렸습니다.`)
   } else if (sm.insert_before && sm.end_row == null && start + lines.length > sm.insert_before) {
     insertRowsBefore(ws, sm.insert_before, start + lines.length - sm.insert_before, sm.insert_before - 1)
+  }
+  // 행 서식 통일 (2026-11-09 사용자 요청 — 두일지엘 · 제주담은귤 원본 양식이 행마다 정렬 · 날짜 표시가 달라 채운 행이 들쭉날쭉):
+  // 채우는 모든 행을 기준 행(기본 = 첫 품목 행)의 서식(정렬 · 글꼴 · 테두리 · 채움 · 표시 형식)과 높이로 맞춘다. 값 · 수식 · 드롭다운 · 조건부 서식은 그대로.
+  // 값을 넣기 전에 해야 날짜 칸 표시 형식 보정(put)이 살아 있다.
+  if (sm.unify_style !== false && lines.length) {
+    const baseNo = sm.style_row ?? start
+    const base = ws.getRow(baseNo)
+    const maxCol = Math.max(ws.columnCount, 1)
+    for (let i = 0; i < lines.length; i++) {
+      const r = start + i
+      if (r === baseNo) continue
+      const row = ws.getRow(r)
+      row.height = base.height
+      for (let c = 1; c <= maxCol; c++) row.getCell(c).style = clone(base.getCell(c).style)
+    }
   }
   lines.forEach((ln, i) => {
     const vars = { ...ctx.order, ...ln }
