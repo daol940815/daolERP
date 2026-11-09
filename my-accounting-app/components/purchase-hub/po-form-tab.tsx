@@ -395,6 +395,12 @@ export default function PoFormTab({ vendorId, vendorName }: { vendorId: string; 
                       <input type="checkbox" checked={!!sm.clear_examples} disabled={!editable} onChange={e => patchSheet(s => { s.clear_examples = e.target.checked })} />
                       예시 행 지우고 그 자리부터 채우기
                     </label>
+                    <label className="flex flex-wrap items-center gap-1.5 text-sm">
+                      <input type="checkbox" checked={sm.unify_style !== false} disabled={!editable} onChange={e => patchSheet(s => { s.unify_style = e.target.checked })} />
+                      채운 행 서식을 모두
+                      {numInput(sm.style_row ?? sm.start_row, n => patchSheet(s => { s.style_row = n === s.start_row ? null : n }))}
+                      행과 같게 (글자 위치 · 글꼴 · 테두리 · 날짜 표시)
+                    </label>
                     <div className="text-xs text-gray-400">행이 모자라면 마지막 행 서식 · 수식을 복사해 늘리고, 안내 · 합계 영역이 있으면 그 앞에 끼워 넣습니다.</div>
                   </div>
                 )}
