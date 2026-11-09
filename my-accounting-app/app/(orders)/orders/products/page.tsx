@@ -45,10 +45,26 @@ const condMatch = (p: Product, field: CondField, q: string) => {
   }
 }
 
-// 표 머리글 클릭 정렬 (2026-11-09 사용자 요청): 오름차순 → 내림차순 → 해제(기본 = 품명순).
+// 정렬 (2026-11-09 사용자 요청 · 시안 확인 후 두 방식 병행 확정):
+//  - 검색 줄 오른쪽 "정렬 기준" 선택 상자 + 오름차순/내림차순 버튼
+//  - 표 머리글 클릭: 오름차순 → 내림차순 → 기본(품명 오름차순). 두 조작은 같은 상태를 공유
 // 빈 값('-')은 방향과 관계없이 항상 맨 아래. 문자는 한글 순 + 숫자 자연 정렬(품번 A-2 < A-10).
 type SortKey = 'code' | 'name' | 'category' | 'vendor' | 'sale' | 'individual' | 'purchase'
   | 'margin' | 'carton' | 'carton_fee' | 'loose_fee' | 'memo' | 'status'
+type SortDir = 'asc' | 'desc'
+const DEFAULT_SORT: { key: SortKey; dir: SortDir } = { key: 'name', dir: 'asc' }
+// 표 칸 순서 = 머리글 순서
+const SORT_COLS: [SortKey, string, 'left' | 'right'][] = [
+  ['code', '품번', 'left'], ['name', '품명', 'left'], ['category', '분류', 'left'],
+  ['vendor', '매입처', 'left'], ['sale', '지점판매가', 'right'], ['individual', '개별판매가', 'right'],
+  ['purchase', '매입가', 'right'], ['margin', '마진(지점)', 'right'], ['carton', '카톤단위', 'right'],
+  ['carton_fee', '카톤택배비', 'right'], ['loose_fee', '카톤외택배비', 'right'],
+  ['memo', '메모', 'left'], ['status', '상태', 'left'],
+]
+const SORT_LABEL = Object.fromEntries(SORT_COLS.map(([k, l]) => [k, l])) as Record<SortKey, string>
+// 선택 상자 순서 — 자주 쓰는 품번 · 품명 · 지점판매가를 앞에
+const SORT_OPTIONS: SortKey[] = ['code', 'name', 'sale', 'individual', 'purchase', 'margin', 'vendor',
+  'category', 'carton', 'carton_fee', 'loose_fee', 'memo', 'status']
 const sortValue = (p: Product, key: SortKey): string | number | null => {
   const txt = (v?: string | null) => (v ?? '').trim() || null
   const num = (v?: number | null) => (v ? v : null)   // 0·빈 값은 화면에서 '-' — 빈 값 취급
@@ -68,7 +84,7 @@ const sortValue = (p: Product, key: SortKey): string | number | null => {
     case 'status': return p.is_active ? 0 : 1   // 사용 → 중지
   }
 }
-const compareBy = (key: SortKey, dir: 'asc' | 'desc') => (a: Product, b: Product) => {
+const compareBy = (key: SortKey, dir: SortDir) => (a: Product, b: Product) => {
   const va = sortValue(a, key), vb = sortValue(b, key)
   if (va === null || vb === null) return va === vb ? 0 : va === null ? 1 : -1
   const c = typeof va === 'number' && typeof vb === 'number'
@@ -88,9 +104,11 @@ export default function ProductsPage() {
   const [condField, setCondField] = useState<CondField>('all')
   const [conds, setConds] = useState<{ field: CondField; value: string }[]>([])
   const [filter, setFilter] = useState<'active' | 'inactive' | 'addon' | 'cost' | 'all'>('active')
-  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null)
+  const [sort, setSort] = useState(DEFAULT_SORT)
+  const isDefaultSort = sort.key === DEFAULT_SORT.key && sort.dir === DEFAULT_SORT.dir
+  // 머리글 클릭: 다른 칸 → 오름차순, 오름차순 → 내림차순, 내림차순 → 기본 순서
   const toggleSort = (key: SortKey) => setSort(prev =>
-    prev?.key !== key ? { key, dir: 'asc' } : prev.dir === 'asc' ? { key, dir: 'desc' } : null)
+    prev.key !== key ? { key, dir: 'asc' } : prev.dir === 'asc' ? { key, dir: 'desc' } : DEFAULT_SORT)
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [draft, setDraft] = useState(emptyDraft)
   const [uploading, setUploading] = useState(false)
@@ -120,11 +138,8 @@ export default function ProductsPage() {
     })
   }, [products, search, condField, conds, filter])
 
-  // 정렬은 필터 결과에만 적용 (원본 순서 = API 품명순 유지, 같은 값끼리는 원래 순서)
-  const sorted = useMemo(
-    () => (sort ? [...filtered].sort(compareBy(sort.key, sort.dir)) : filtered),
-    [filtered, sort],
-  )
+  // 정렬은 필터 결과에만 적용 (같은 값끼리는 원래 순서 = API 품명순 유지)
+  const sorted = useMemo(() => [...filtered].sort(compareBy(sort.key, sort.dir)), [filtered, sort])
 
   // 조건 칩 추가 (Enter·매입처 클릭) — 같은 조건 중복 방지
   const addCond = (field: CondField, value: string) => {
@@ -298,12 +313,29 @@ export default function ProductsPage() {
           </button>
         )}
         <span className="text-xs text-gray-400">{filtered.length}건</span>
-        {sort && (
-          <button onClick={() => setSort(null)} className="text-xs text-gray-400 hover:text-gray-600"
-            title="기본 순서(품명순)로 되돌리기">
-            정렬 해제
-          </button>
-        )}
+        {/* 정렬 기준 선택 — 머리글 클릭과 같은 상태 */}
+        <span className="ml-auto flex items-center gap-1.5 flex-wrap">
+          {!isDefaultSort && (
+            <button onClick={() => setSort(DEFAULT_SORT)} className="text-xs text-gray-400 hover:text-gray-600 mr-1"
+              title="기본 순서(품명 오름차순)로 되돌리기">
+              정렬 해제
+            </button>
+          )}
+          <label htmlFor="product-sort-key" className="text-xs text-gray-500">정렬 기준</label>
+          <select id="product-sort-key" value={sort.key}
+            onChange={e => setSort(prev => ({ key: e.target.value as SortKey, dir: prev.dir }))}
+            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+            {SORT_OPTIONS.map(k => <option key={k} value={k}>{SORT_LABEL[k]}</option>)}
+          </select>
+          <span className="inline-flex border border-gray-300 rounded-lg overflow-hidden" role="group" aria-label="정렬 방향">
+            {(['asc', 'desc'] as const).map(d => (
+              <button key={d} onClick={() => setSort(prev => ({ ...prev, dir: d }))} aria-pressed={sort.dir === d}
+                className={`px-2.5 py-1.5 text-sm ${sort.dir === d ? 'bg-slate-900 text-white' : 'bg-white text-gray-500 hover:text-gray-800'}`}>
+                {d === 'asc' ? '오름차순' : '내림차순'}
+              </button>
+            ))}
+          </span>
+        </span>
       </div>
 
       {error && <div className="mt-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg whitespace-pre-line">{error}</div>}
@@ -395,19 +427,13 @@ export default function ProductsPage() {
           <table className="w-full text-sm min-w-[760px]">
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
-                {([
-                  ['code', '품번', 'left'], ['name', '품명', 'left'], ['category', '분류', 'left'],
-                  ['vendor', '매입처', 'left'], ['sale', '지점판매가', 'right'], ['individual', '개별판매가', 'right'],
-                  ['purchase', '매입가', 'right'], ['margin', '마진(지점)', 'right'], ['carton', '카톤단위', 'right'],
-                  ['carton_fee', '카톤택배비', 'right'], ['loose_fee', '카톤외택배비', 'right'],
-                  ['memo', '메모', 'left'], ['status', '상태', 'left'],
-                ] as const).map(([key, label, align]) => {
-                  const on = sort?.key === key
+                {SORT_COLS.map(([key, label, align]) => {
+                  const on = sort.key === key
                   return (
                     <th key={key} className={`py-2 px-3 font-medium ${align === 'right' ? 'text-right' : 'text-left'}`}
                       aria-sort={on ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
                       <button onClick={() => toggleSort(key)}
-                        title="클릭: 오름차순 → 내림차순 → 정렬 해제"
+                        title="클릭: 오름차순 → 내림차순 → 기본 순서(품명)"
                         className={`inline-flex items-center gap-0.5 whitespace-nowrap hover:text-gray-800 ${on ? 'text-gray-900' : ''}`}>
                         {label}
                         <span className={on ? '' : 'text-gray-300'}>{on ? (sort.dir === 'asc' ? '▲' : '▼') : '⇅'}</span>
