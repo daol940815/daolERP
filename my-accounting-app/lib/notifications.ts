@@ -19,9 +19,19 @@ export interface NotifItem {
 
 // 종 숫자 나눔(2026-11-05 사용자 결정): 업무 요청 알림 종류와 같은 기준 — 개인 요청 · 공용 요청 · 내 요청 (+ 휴가 결재 · 주문 승인 = 기타)
 //  업무 요청은 "요청 건수"로 센다 — 미확인이면서 마감 지남인 1건은 1로 (중복 없음)
-export type NotifBucket = 'personal' | 'shared' | 'mine' | 'other'
-export const NOTIF_BUCKETS: NotifBucket[] = ['personal', 'shared', 'mine', 'other']
-export const NOTIF_BUCKET_LABEL: Record<NotifBucket, string> = { personal: '개인', shared: '공용', mine: '내 요청', other: '기타' }
+//  2026-11-09: 주문 알림(주문 진행 요청 · 완료 회신 · 주문 수정 승인)을 '주문' 칸으로 분리 — 개인 · 공용 · 내 요청은 업무 요청만.
+export type NotifBucket = 'personal' | 'shared' | 'mine' | 'order' | 'other'
+export const NOTIF_BUCKETS: NotifBucket[] = ['personal', 'shared', 'mine', 'order', 'other']
+export const NOTIF_BUCKET_LABEL: Record<NotifBucket, string> = { personal: '개인', shared: '공용', mine: '내 요청', order: '주문', other: '기타' }
+export const NOTIF_BUCKET_HINT: Record<NotifBucket, string> = {
+  personal: '나 혼자 담당인 업무 요청', shared: '여러 명이 담당인 업무 요청(선착 · 공동)', mine: '내가 보낸 업무 요청',
+  order: '주문 진행 요청 · 완료 회신 · 주문 입력 · 주문 수정 승인', other: '휴가 결재 · 내 휴가 결과',
+}
+// 알림 출처 표기(2026-11-09) — 항목 key 접두로 판정. 패널 · 토스트 · 확인할 것에 작은 꼬리표로 붙인다.
+export type NotifSource = 'wr' | 'order' | 'leave'
+export const NOTIF_SOURCE_LABEL: Record<NotifSource, string> = { wr: '업무 요청', order: '주문', leave: '휴가' }
+export const notifSource = (key: string): NotifSource | null =>
+  key.startsWith('wr:') ? 'wr' : /^(oreq|orep|ocr):/.test(key) ? 'order' : key.startsWith('leave:') ? 'leave' : null
 
 export interface NotifData {
   at: string
