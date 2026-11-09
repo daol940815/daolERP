@@ -567,9 +567,9 @@
     - 빈 양식 20개 시험(작업 공간만, 저장소 미보관): 머리글 20/20 · 칸 270/278 / 가상 주문(수령인 24명)으로 6곳 채우기 — 행 늘리기 · 수식 유지 ·
       두일지엘 발주처 블록(B5 · D5 · F6 · H6 · I6 · B6 · B7) · 깨끗한나라 인쇄형(같은 품명 행에 수량, 없는 품목 경고) 확인.
     - **516 사용자 승인 (2026-11-09 "516 마이그레이션 생성 진행해줘")** — `516_po_vendor_forms.sql`: erp_po_forms(매입처 · 버전 · 파일 · 상태 draft/active/archived ·
-      mapping · recognized, 매입처당 active 1) + erp_purchase_orders.form_id + 비공개 버킷 po-forms + RLS. 기존 데이터 변경 없음. **실행 결과 회신 대기**
-      (기대 1/1/1/0/발주서 건수 불변).
-    - **1차 화면 · API (작업 브랜치, 516 결과 확인 후 main 배포)**: 매입처 상세 '발주서 양식' 탭(`components/purchase-hub/po-form-tab.tsx`) —
+      mapping · recognized, 매입처당 active 1) + erp_purchase_orders.form_id + 비공개 버킷 po-forms + RLS. 기존 데이터 변경 없음.
+      **운영 적용 · 검증 완료 (2026-11-09, 사용자 실행)**: 양식표 1 · 발주서_form_id 1 · 버킷 1 · 양식_건수 0 · 발주서_건수 115 — 기대값 일치.
+    - **1차 화면 · API (2026-11-09 main 배포, 516 검증 후)**: 매입처 상세 '발주서 양식' 탭(`components/purchase-hub/po-form-tab.tsx`) —
       버전 목록(작성 중 · 사용 중 · 보관, 원본 받기 · 복사해 새 버전 · 사용 멈춤 · 작성 중 삭제) + 칸 연결(시트 · 방식 명단형/품목 목록형/머리 칸만 ·
       행 설정 · 열마다 넣을 값 · 필수 · 추천 근거 · 머리 칸 추가/빼기 · 조합 문구) + 시험 생성(가상 주문 또는 이 매입처 지난 발주서 → 파일 받기 + 확인 목록) + 사용 시작.
       API `app/api/purchase-hub/[vendorId]/po-forms`(GET 목록 · ?download / POST 올리기+자동 인식 / PATCH save · activate · archive · copy / DELETE 작성 중만)
