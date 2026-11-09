@@ -238,6 +238,67 @@ function fillCatalogSheet(ws: Worksheet, sm: SheetMap, ctx: FormContext, warn: (
   }
 }
 
+// 조건부 서식 보정 (2026-11-09 — 제주담은귤 '중복 값' 규칙에서 엑셀 복구 경고 발생)
+// exceljs는 읽은 규칙 중 9종(expression · cellIs · top10 · aboveAverage · dataBar · colorScale · iconSet · containsText · timePeriod)만 쓸 수 있고,
+// 나머지(중복 값 · 고유 값 · ~로 시작 등)는 규칙을 버리고 빈 <conditionalFormatting>만 남겨 엑셀이 '읽을 수 없는 내용'으로 복구한다.
+// → 같은 뜻의 수식 규칙(expression)으로 바꿔 색은 유지하고, 바꿀 수 없는 규칙만 뺀다. 규칙이 하나도 안 남은 서식은 지운다.
+const CF_WRITABLE = new Set(['expression', 'cellIs', 'top10', 'aboveAverage', 'dataBar', 'colorScale', 'iconSet', 'containsText', 'timePeriod'])
+type CfRule = { type: string; formulae?: string[]; priority?: number; style?: unknown; [k: string]: unknown }
+type Cf = { ref: string; rules: CfRule[] }
+export function sanitizeConditionalFormats(ws: Worksheet): number {
+  const list = (ws as unknown as { conditionalFormattings?: Cf[] }).conditionalFormattings
+  if (!Array.isArray(list) || !list.length) return 0
+  let changed = 0
+  const abs = (a: string) => a.replace(/(\$?)([A-Z]{1,3})(\$?)(\d+)/g, '$$$2$$$4')
+  for (const cf of list) {
+    const areas = String(cf.ref ?? '').split(/\s+/).filter(Boolean)
+    const topLeft = (areas[0] ?? 'A1').split(':')[0].replace(/\$/g, '')
+    const count = areas.map(a => `COUNTIF(${abs(a)},${topLeft})`).join('+')
+    cf.rules = (cf.rules ?? []).flatMap((r): CfRule[] => {
+      if (CF_WRITABLE.has(r.type)) return [r]
+      changed++
+      const keep = { priority: r.priority, style: r.style }
+      if (r.type === 'duplicateValues' && count) return [{ ...keep, type: 'expression', formulae: [`(${count})>1`] }]
+      if (r.type === 'uniqueValues' && count) return [{ ...keep, type: 'expression', formulae: [`(${count})=1`] }]
+      if (r.formulae?.length) return [{ ...keep, type: 'expression', formulae: [r.formulae[0]] }]   // ~로 시작 · 빈 칸 등은 엑셀이 수식을 함께 저장
+      return []
+    })
+  }
+  const kept = list.filter(cf => cf.rules.length)
+  changed += list.length - kept.length
+  list.splice(0, list.length, ...kept)
+  return changed
+}
+
+// 드롭다운(데이터 유효성) 범위 정리 (2026-11-09) — exceljs는 읽을 때 범위를 칸 하나하나로 펼치고, 쓸 때 주소를 글자 순으로 정렬해
+// 다시 묶는다('N10'이 'N7'보다 앞) → N7:N65515 와 N10:N65515 처럼 겹치는 범위가 생겨 엑셀이 복구 경고를 낸다(삼진어묵).
+// 쓰기 전에 열마다 같은 규칙이 이어지는 행을 직접 범위로 묶어 넣는다(범위 주소는 exceljs가 그대로 쓴다).
+export function compactDataValidations(ws: Worksheet): void {
+  const holder = (ws as unknown as { dataValidations?: { model: Record<string, unknown> } }).dataValidations
+  const model = holder?.model
+  if (!model) return
+  const keys = Object.keys(model)
+  if (!keys.length) return
+  const colNum = (c: string) => c.split('').reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0)
+  type Cell1 = { col: string; row: number; sig: string; dv: unknown }
+  const cells: Cell1[] = []
+  const out: Record<string, unknown> = {}
+  for (const k of keys) {
+    const m = k.match(/^([A-Z]{1,3})(\d+)$/)
+    if (!m) { out[k] = model[k]; continue }          // 이미 범위인 것은 그대로
+    cells.push({ col: m[1], row: Number(m[2]), sig: JSON.stringify(model[k]), dv: model[k] })
+  }
+  cells.sort((a, b) => colNum(a.col) - colNum(b.col) || a.row - b.row)
+  for (let i = 0; i < cells.length;) {
+    let j = i
+    while (j + 1 < cells.length && cells[j + 1].col === cells[i].col && cells[j + 1].row === cells[j].row + 1 && cells[j + 1].sig === cells[i].sig) j++
+    const a = cells[i], b = cells[j]
+    out[a.row === b.row ? `${a.col}${a.row}` : `${a.col}${a.row}:${b.col}${b.row}`] = a.dv
+    i = j + 1
+  }
+  holder!.model = out
+}
+
 export interface FillResult { buffer: Buffer; warnings: string[] }
 
 export async function fillVendorForm(template: ArrayBuffer | Buffer, mapping: FormMapping, ctx: FormContext, baseWarnings: string[] = []): Promise<FillResult> {
@@ -247,6 +308,7 @@ export async function fillVendorForm(template: ArrayBuffer | Buffer, mapping: Fo
   wb.calcProperties = { ...(wb.calcProperties ?? {}), fullCalcOnLoad: true }   // 열 때 수식 다시 계산
   const warnings = [...baseWarnings]
   const warn = (m: string) => { if (!warnings.includes(m)) warnings.push(m) }
+  for (const sheet of wb.worksheets) sanitizeConditionalFormats(sheet)   // 손대지 않는 시트도 다시 쓰이므로 전부
   if (!ctx.order.sender) warn('보내는분 명의가 없습니다(상담일지 발송 정보) — 보내는분 칸을 비워 두었습니다.')
 
   for (const sm of mapping.sheets) {
@@ -256,5 +318,6 @@ export async function fillVendorForm(template: ArrayBuffer | Buffer, mapping: Fo
     if (sm.mode === 'rows') fillRowsSheet(ws, sm, ctx, warn)
     else if (sm.mode === 'catalog' && sm.catalog) fillCatalogSheet(ws, sm, ctx, warn)
   }
+  for (const sheet of wb.worksheets) compactDataValidations(sheet)
   return { buffer: Buffer.from(await wb.xlsx.writeBuffer()), warnings }
 }
