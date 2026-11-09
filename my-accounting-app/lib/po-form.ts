@@ -97,6 +97,40 @@ export function poFormItemRows(po: PoExcelData): (string | number)[][] {
   return rows
 }
 
+// 출고요청일 표기 통일 (2026-11-09 사용자 승인) — 상담일지 배송요청일은 자유 입력 글자('11월 12일' · '11/12' · '11.12(수)' …)라
+// 발주서에 그대로 들어가 날짜 서식이 먹지 않았다. 발주서 만들 때만 날짜로 읽어 'YYYY-MM-DD'로 통일한다(상담일지 원본은 그대로).
+//  - 연도 없음 → 주문일 연도. 주문일보다 60일 넘게 앞서면 다음 해 (12/28 주문의 '1/3' = 다음 해 1월 3일)
+//  - 날짜로 읽을 수 없는 표기('11월 중순' · '빠른 배송' · '11/12까지')는 글자 그대로
+export function normalizeShipRequest(raw: string | null | undefined, orderDate?: string | null): string | null {
+  const text = String(raw ?? '').trim()
+  if (!text) return null
+  const t = text
+    .replace(/\(\s*[월화수목금토일](요일)?\s*\)/g, '')   // (수) · (수요일)
+    .replace(/\s+[월화수목금토일]요일$/, '')               // 끝의 ' 수요일'
+    .replace(/\s+/g, ' ').trim()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const valid = (y: number, m: number, d: number) => {
+    const dt = new Date(Date.UTC(y, m - 1, d))
+    return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d
+  }
+  const out = (y: number, m: number, d: number) => (valid(y, m, d) ? `${y}-${pad(m)}-${pad(d)}` : text)
+  let m: RegExpMatchArray | null
+  if ((m = t.match(/^(\d{4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})\s*[.일]?$/))) return out(+m[1], +m[2], +m[3])
+  if ((m = t.match(/^(\d{2})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{1,2})\.?$/))) return out(2000 + +m[1], +m[2], +m[3])
+  if ((m = t.match(/^(\d{4})(\d{2})(\d{2})$/))) return out(+m[1], +m[2], +m[3])
+  if ((m = t.match(/^(\d{1,2})\s*[-./월]\s*(\d{1,2})\s*[.일]?$/))) {
+    const mo = +m[1], d = +m[2]
+    const base = /^\d{4}-\d{2}-\d{2}/.test(orderDate ?? '') ? orderDate!.slice(0, 10)
+      : new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date())
+    let y = +base.slice(0, 4)
+    if (!valid(y, mo, d)) return mo === 2 && d === 29 && valid(y + 1, mo, d) ? out(y + 1, mo, d) : text
+    const diff = (Date.UTC(y, mo - 1, d) - Date.parse(`${base}T00:00:00Z`)) / 86400000
+    if (diff < -60) y += 1
+    return out(y, mo, d)
+  }
+  return text
+}
+
 // ── 시트2 '배송명단' ──────────────────────────────────
 
 export const ROSTER_HEADERS = ['NO.', '발송인', '발송인 연락처', '수령인', '주소', '연락처', '제품명', '수량', '배송메모'] as const

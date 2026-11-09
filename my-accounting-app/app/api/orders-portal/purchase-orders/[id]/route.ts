@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildPoExcel, sendPoMail, smtpReady } from '@/lib/purchase-orders'
-import { fillMailTemplate, poMailVars } from '@/lib/po-form'
+import { fillMailTemplate, poMailVars, normalizeShipRequest } from '@/lib/po-form'
 import { findCustomPoForm } from '@/lib/custom-po'
 import { rosterRowsForOrder } from '@/lib/delivery-roster-server'
 
@@ -147,7 +147,7 @@ async function assembleForm(
   return {
     po_no: po.po_no,
     order_date: order?.order_date ?? null,
-    ship_request: shipRequest,
+    ship_request: normalizeShipRequest(shipRequest, order?.order_date ?? null),   // 'YYYY-MM-DD'로 통일 (2026-11-09)
     vendor_name: po.vendor_name,
     customer: [order?.bank_name, order?.branch_name].filter(Boolean).join(' ') || '-',
     customer_bank: (order?.bank_name as string | null) ?? null,

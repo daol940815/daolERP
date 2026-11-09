@@ -199,7 +199,8 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
     const vc = ws.getCell(valueRange.split(':')[0])
     const isDate = cell.label === '주문일' || cell.label === '출고요청일'
     vc.value = isDate ? asDate(cell.value as string | null) : (cell.value ?? '')
-    if (isDate && vc.value instanceof Date) vc.numFmt = 'mm-dd-yy'
+    // 간단한 날짜 'yyyy-mm-dd' 고정 (2026-11-09 사용자 승인 — 기본 날짜 서식은 PC 설정에 따라 다르게 보임)
+    if (isDate && vc.value instanceof Date) vc.numFmt = 'yyyy-mm-dd'
     vc.font = { name: FONT, size: 10, bold: !!cell.bold, color: { argb: argb(PO_COLORS.ink) } }
     vc.alignment = center
   })
