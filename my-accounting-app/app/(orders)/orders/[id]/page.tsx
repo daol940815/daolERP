@@ -19,6 +19,8 @@ interface Item {
   purchase_vendor_name: string | null; sale_price: number; quantity: number
   shipping_fee: number; discount_amount: number; discount_mode?: string | null; discount_unit?: number | null; line_total: number
   purchase_price: number; purchase_shipping: number; purchase_total: number
+  purchase_discount?: number | null; purchase_discount_mode?: string | null; purchase_discount_unit?: number | null   // 708
+  order_season?: string | null                                                                                     // 708 주문시기
   channel: string | null; memo: string | null
   is_cost?: boolean   // 비용 품목 (품목 마스터 체크) — 배송지 판정 제외
 }
@@ -150,6 +152,7 @@ export default function OrderDetailPage() {
   const activeItems = items.filter(it => !it.is_canceled)
   const cost = activeItems.reduce((s, it) => s + (it.purchase_total ?? 0), 0)
   const costShipping = activeItems.reduce((s, it) => s + (it.purchase_shipping ?? 0), 0)   // 매입합계에 포함된 매입배송비
+  const costDiscount = activeItems.reduce((s, it) => s + (it.purchase_discount ?? 0), 0)   // 매입합계에서 뺀 매입할인 (708)
   const total = order.total_amount as number
   const outstanding = receivable ? receivable.outstanding : Number(order.outstanding_amount ?? 0)
   const collectStatus = receivable ? receivable.collect_status : String(order.collect_status ?? '')
@@ -290,14 +293,16 @@ export default function OrderDetailPage() {
               <th className="py-2 px-2.5 text-left font-medium">#</th>
               <th className="py-2 px-2.5 text-left font-medium">품번</th>
               <th className="py-2 px-2.5 text-left font-medium">품명</th>
-              <th className="py-2 px-2.5 text-left font-medium">구분</th>
+              <th className="py-2 px-2.5 text-left font-medium">배송종류</th>
+              <th className="py-2 px-2.5 text-left font-medium">주문시기</th>
               <th className="py-2 px-2.5 text-left font-medium">매입처</th>
               <th className="py-2 px-2.5 text-right font-medium">판매가</th>
               <th className="py-2 px-2.5 text-right font-medium">갯수</th>
               <th className="py-2 px-2.5 text-right font-medium">배송비</th>
-              <th className="py-2 px-2.5 text-right font-medium">할인</th>
+              <th className="py-2 px-2.5 text-right font-medium">판매할인</th>
               <th className="py-2 px-2.5 text-right font-medium">합계</th>
               {showCost && <th className="py-2 px-2.5 text-right font-medium">매입가</th>}
+              {showCost && <th className="py-2 px-2.5 text-right font-medium">매입할인</th>}
               {showCost && <th className="py-2 px-2.5 text-right font-medium">매입배송비</th>}
               {showCost && <th className="py-2 px-2.5 text-right font-medium">매입합계</th>}
               <th className="py-2 px-2.5 text-left font-medium">상담자</th>
@@ -317,6 +322,7 @@ export default function OrderDetailPage() {
                   {it.is_vip && <span className="ml-1.5 text-[0.625rem] text-rose-500" title="품명 'VIP' — 매출 · 미수 집계에서 빠짐">VIP</span>}
                 </td>
                 <td className="py-1.5 px-2.5">{it.order_kind ?? '-'}</td>
+                <td className="py-1.5 px-2.5 whitespace-nowrap">{it.order_season || '-'}</td>
                 <td className="py-1.5 px-2.5">{it.purchase_vendor_name ?? '-'}</td>
                 <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.sale_price)}</td>
                 <td className="py-1.5 px-2.5 text-right tabular-nums">{it.quantity}</td>
@@ -330,6 +336,14 @@ export default function OrderDetailPage() {
                 </td>
                 <td className="py-1.5 px-2.5 text-right tabular-nums font-semibold">{won(it.line_total)}</td>
                 {showCost && <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_price)}</td>}
+                {showCost && (
+                  <td className="py-1.5 px-2.5 text-right tabular-nums">
+                    {won(it.purchase_discount ?? 0)}
+                    {it.purchase_discount_mode === '단가' && (it.purchase_discount_unit ?? 0) > 0 && (
+                      <div className="text-[0.625rem] text-gray-400">{won(it.purchase_discount_unit!)} /개</div>
+                    )}
+                  </td>
+                )}
                 {showCost && <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_shipping ?? 0)}</td>}
                 {showCost && <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_total)}</td>}
                 <td className="py-1.5 px-2.5 whitespace-nowrap">{it.channel ?? '-'}</td>
@@ -346,6 +360,7 @@ export default function OrderDetailPage() {
             <span className="text-gray-500">
               매입 합계 <span className="tabular-nums">{won(cost)}원</span>
               {costShipping > 0 && <span className="text-gray-400"> (매입배송비 <span className="tabular-nums">{won(costShipping)}원</span> 포함)</span>}
+              {costDiscount > 0 && <span className="text-gray-400"> (매입할인 <span className="tabular-nums">-{won(costDiscount)}원</span> 반영)</span>}
             </span>
           )}
           {showCost && <span className="text-emerald-700">예상 마진 <b className="tabular-nums">{won(total - cost)}원</b></span>}

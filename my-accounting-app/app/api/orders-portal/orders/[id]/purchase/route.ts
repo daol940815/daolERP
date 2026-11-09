@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
-import { loadPurchaseSection, nextPoNo, smtpReady, type OrderItemRow } from '@/lib/purchase-orders'
+import { loadPurchaseSection, nextPoNo, poPriceAndMemo, smtpReady, type OrderItemRow } from '@/lib/purchase-orders'
 
 export const dynamic = 'force-dynamic'
 
@@ -147,19 +147,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const rows = picked
     .sort((a, b) => a.line_no - b.line_no)
-    .map((it, i) => ({
-      po_id: poId,
-      line_no: i + 1,
-      order_item_id: it.id,
-      item_code: it.item_code,
-      item_name: it.item_name,
-      order_kind: it.order_kind,
-      quantity: it.quantity ?? 0,
-      purchase_price: (useSale ? it.sale_price : it.purchase_price) ?? 0,
-      purchase_shipping: (useSale ? it.shipping_fee : it.purchase_shipping) ?? 0,
-      purchase_total: (useSale ? it.line_total : it.purchase_total) ?? 0,
-      memo: it.memo,
-    }))
+    .map((it, i) => {
+      // 매입할인(708): 개당 할인은 할인 후 단가, 정액 할인은 비고에 할인액 — 판매가 발주는 판매 기준이라 해당 없음
+      const pm = useSale ? { price: it.sale_price ?? 0, memo: it.memo } : poPriceAndMemo(it)
+      return {
+        po_id: poId,
+        line_no: i + 1,
+        order_item_id: it.id,
+        item_code: it.item_code,
+        item_name: it.item_name,
+        order_kind: it.order_kind,
+        quantity: it.quantity ?? 0,
+        purchase_price: pm.price,
+        purchase_shipping: (useSale ? it.shipping_fee : it.purchase_shipping) ?? 0,
+        purchase_total: (useSale ? it.line_total : it.purchase_total) ?? 0,
+        memo: pm.memo,
+      }
+    })
   const { error: itemErr } = await admin.from('erp_purchase_order_items').insert(rows)
   if (itemErr) {
     await admin.from('erp_purchase_orders').delete().eq('id', poId!)

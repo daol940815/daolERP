@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { contactLabel } from '@/lib/contact-label'
 import { hasShip, shipText, type ShipInput } from './ship-address'
+import { MIGRATION_708_HINT, parsePurchaseDiscount } from './consultations'
+import { normalizeSeason } from './order-season'
 
 // 주문 포털 공용 로직 (2단계 — 직접 입력 주문)
 //  - 입력 payload 검증·금액 계산은 서버에서 다시 한다 (클라이언트 계산값 불신)
@@ -28,6 +30,10 @@ export interface OrderItemInput {
   discount_unit?: number              // 단가 할인의 개당 할인액(원)
   purchase_price?: number
   purchase_shipping?: number
+  purchase_discount?: number                // 매입할인 최종 금액 (708) — purchase_total에서 뺀다
+  purchase_discount_mode?: '정액' | '단가'  // 매입할인 종류 (708)
+  purchase_discount_unit?: number           // 개당 매입할인액(원)
+  order_season?: string | null              // 주문시기 (708)
   memo?: string | null
   parent_line_no?: number | null      // 옵션(부가상품) 행이 딸린 본 상품 행 번호
 }
@@ -85,6 +91,8 @@ export function validateOrderInput(raw: unknown): { input: OrderInput } | { erro
       discount_unit: r.discount_mode === '단가' ? toInt(r.discount_unit) : 0,
       purchase_price: toInt(r.purchase_price),
       purchase_shipping: toInt(r.purchase_shipping),
+      ...parsePurchaseDiscount({ ...r, quantity: qty }),
+      order_season: normalizeSeason(String(r.order_season ?? '')) || null,
       memo: String(r.memo ?? '').trim() || null,
       parent_line_no: toInt(r.parent_line_no) > 0 ? toInt(r.parent_line_no) : null,
     })
@@ -284,7 +292,12 @@ export function buildOrderRows(input: OrderInput, ctx: ApplyContext) {
     line_outstanding: lineTotal(it),
     purchase_price: it.purchase_price ?? 0,
     purchase_shipping: it.purchase_shipping ?? 0,
-    purchase_total: (it.purchase_price ?? 0) * it.quantity + (it.purchase_shipping ?? 0),
+    purchase_discount: it.purchase_discount ?? 0,
+    purchase_discount_mode: it.purchase_discount_mode ?? '정액',
+    purchase_discount_unit: it.purchase_discount_unit ?? 0,
+    order_season: it.order_season ?? null,
+    // 매입합계 = 매입가 × 수량 + 매입배송비 − 매입할인 (708) — 발주서 금액 · 미지급금 · 매입 집계가 이 값을 쓴다
+    purchase_total: (it.purchase_price ?? 0) * it.quantity + (it.purchase_shipping ?? 0) - (it.purchase_discount ?? 0),
     settlement_month: input.order_date.slice(0, 7),
     channel: ctx.counselorName,
     memo: it.memo ?? null,
@@ -302,14 +315,20 @@ export async function insertOrderItems(
   const hasParent = itemRows.some(it => it.parent_line_no != null)
   // 704 미적용 환경 호환: 단가 할인을 쓴 저장에만 할인 종류 컬럼을 보낸다
   const hasDiscountMode = itemRows.some(it => it.discount_mode === '단가' || (it.discount_unit ?? 0) > 0)
+  // 708 미적용 호환: 매입할인 · 주문시기를 쓴 저장에만 새 컬럼을 보낸다
+  const has708 = itemRows.some(it => it.purchase_discount > 0 || it.purchase_discount_mode === '단가' || it.order_season != null)
   const rows = []
   for (const it of itemRows) {
     const aliasId = it.purchase_vendor_name
       ? await ensureAlias(admin, 'purchase', it.purchase_vendor_name)
       : null
-    const { parent_line_no, discount_mode, discount_unit, ...rest } = it
+    const {
+      parent_line_no, discount_mode, discount_unit,
+      purchase_discount, purchase_discount_mode, purchase_discount_unit, order_season, ...rest
+    } = it
     rows.push({
       ...rest,
+      ...(has708 ? { purchase_discount, purchase_discount_mode, purchase_discount_unit, order_season } : {}),
       ...(hasParent ? { parent_line_no } : {}),
       ...(hasDiscountMode ? { discount_mode, discount_unit } : {}),
       order_id: orderId,
@@ -317,6 +336,7 @@ export async function insertOrderItems(
     })
   }
   const { error } = await admin.from('erp_order_items').insert(rows)
+  if (error && /purchase_discount|order_season/i.test(error.message)) return MIGRATION_708_HINT
   if (error && /parent_line_no/i.test(error.message)) {
     return '504 마이그레이션(부가상품 옵션)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
   }
@@ -375,6 +395,7 @@ const itemKey = (r: AnyRow) => [
   r.purchase_vendor_name ?? '', r.sale_price ?? 0, r.quantity ?? 0,
   r.shipping_fee ?? 0, r.discount_amount ?? 0,
   r.purchase_price ?? 0, r.purchase_shipping ?? 0, r.memo ?? '',
+  r.purchase_discount ?? 0, r.order_season ?? '',   // 708 — 매입할인 · 주문시기가 바뀌면 행을 새로 등록
 ].join('|')
 
 const itemBrief = (r: AnyRow) =>

@@ -83,11 +83,21 @@ export async function GET(req: NextRequest) {
     const r = await admin.from('vendor_groups').select('id, name, is_individual').eq('is_active', true).order('name')
     return r.error ? admin.from('vendor_groups').select('id, name').eq('is_active', true).order('name') : r
   }
-  const [groupsResult, employeesResult] = await Promise.all([
+  // 주문시기(708) 드롭다운 제안용 — 최근 품목에서 쓴 값. 708 미적용이면 오류 → 빈 목록
+  const seasonSel = (table: string) =>
+    admin.from(table).select('order_season').not('order_season', 'is', null)
+      .order('created_at', { ascending: false }).limit(1000)
+  const [groupsResult, employeesResult, cSeasons, oSeasons] = await Promise.all([
     groupSel(),
     admin.from('employees').select('id, name, position, team, employment_type')
       .eq('is_active', true).order('name'),
+    seasonSel('erp_consultation_items'),
+    seasonSel('erp_order_items'),
   ])
+  const seasons = Array.from(new Set(
+    [...(cSeasons.error ? [] : cSeasons.data ?? []), ...(oSeasons.error ? [] : oSeasons.data ?? [])]
+      .map(r => String((r as { order_season: string | null }).order_season ?? '').trim()).filter(Boolean),
+  ))
   if ('error' in vendorsResult) return NextResponse.json({ error: vendorsResult.error }, { status: 500 })
   if (employeesResult.error) return NextResponse.json({ error: employeesResult.error.message }, { status: 500 })
 
@@ -95,6 +105,7 @@ export async function GET(req: NextRequest) {
     vendors: vendorsResult.data,
     groups: groupsResult.error ? [] : (groupsResult.data ?? []),   // 505 미적용 시 빈 배열
     employees: employeesResult.data ?? [],
+    seasons,
     me: {
       employee_id: me.employeeId, name: me.employeeName, role: me.role,
       // 아르바이트: 신규 거래처·담당자 인라인 등록 버튼 숨김용 ((b) 정책 — API는 미들웨어가 403)

@@ -1,5 +1,6 @@
 // 상담일지 공용 로직 (생성·수정 라우트 공용)
 import { SHIP_KEYS } from './ship-address'
+import { normalizeSeason } from './order-season'
 
 export const CONSULT_TYPES = ['주문', '문의', '요청', '결제', '기타'] as const
 export const CONSULT_MIGRATION_HINT =
@@ -10,6 +11,17 @@ const toInt = (v: unknown) => {
   return Number.isFinite(n) ? Math.round(n) : 0
 }
 const toStr = (v: unknown) => String(v ?? '').trim() || null
+
+// 매입할인 파싱 (708) — 개당이면 unit × 수량으로 서버가 재계산 (판매할인 704와 같은 규칙). 주문 저장과 공용
+export function parsePurchaseDiscount(r: Record<string, unknown>) {
+  const unitMode = r.purchase_discount_mode === '단가'
+  const unit = unitMode ? Math.max(0, toInt(r.purchase_discount_unit)) : 0
+  return {
+    purchase_discount_mode: unitMode ? '단가' as const : '정액' as const,
+    purchase_discount_unit: unit,
+    purchase_discount: unitMode ? unit * toInt(r.quantity) : Math.max(0, toInt(r.purchase_discount)),
+  }
+}
 
 export interface ConsultItemInput {
   product_id: string | null
@@ -25,6 +37,10 @@ export interface ConsultItemInput {
   discount_unit: number               // 단가 할인의 개당 할인액(원)
   purchase_price: number
   purchase_shipping: number
+  purchase_discount: number                // 매입할인 최종 금액 (708) — 매입합계에서 뺀다
+  purchase_discount_mode: '정액' | '단가'  // 매입할인 종류 (708)
+  purchase_discount_unit: number           // 개당 매입할인액(원)
+  order_season: string | null              // 주문시기 (708) — 상시 · 26설 · 26추석 …
   memo: string | null
   status: string | null              // 품목 상태 — 품절·단가변경 등 (509, 실무자 요청)
   option_note: string | null         // 색상·옵션 등 기타사항 (품목별, 509)
@@ -58,6 +74,8 @@ export function parseConsultBody(body: Record<string, unknown>) {
       discount_unit: r.discount_mode === '단가' ? toInt(r.discount_unit) : 0,
       purchase_price: toInt(r.purchase_price),
       purchase_shipping: toInt(r.purchase_shipping),
+      ...parsePurchaseDiscount(r),
+      order_season: normalizeSeason(toStr(r.order_season)) || null,
       memo: toStr(r.memo),
       status: toStr(r.status),
       option_note: toStr(r.option_note),
@@ -111,9 +129,12 @@ export function consultItemRows(items: ConsultItemInput[]) {
     parent_line_no: it.parent_line_no && it.parent_line_no !== i + 1 && it.parent_line_no <= items.length
       ? it.parent_line_no : null,
     line_total: it.sale_price * it.quantity + it.shipping_fee - it.discount_amount,
-    purchase_total: it.purchase_price * it.quantity + it.purchase_shipping,
+    purchase_total: it.purchase_price * it.quantity + it.purchase_shipping - it.purchase_discount,
   }))
 }
+
+export const MIGRATION_708_HINT =
+  '708 마이그레이션(매입할인 · 주문시기)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
 
 // 509 미적용 호환 — 결제·발송 확장 필드에 값이 전혀 없으면 컬럼을 보내지 않는다
 export const CONSULT_509_HINT =
@@ -141,10 +162,16 @@ export async function insertConsultItems(
   const hasItemMeta = rows.some(it => it.status != null || it.option_note != null)
   const hasShipping = rows.some(it => it.is_shipping)
   const hasDiscountMode = rows.some(it => it.discount_mode === '단가' || it.discount_unit > 0)
+  // 708 미적용 호환 — 매입할인 · 주문시기를 쓴 저장에만 새 컬럼을 보낸다
+  const has708 = rows.some(it => it.purchase_discount > 0 || it.purchase_discount_mode === '단가' || it.order_season != null)
   const payload = rows.map(it => {
-    const { parent_line_no, status, option_note, is_shipping, discount_mode, discount_unit, ...rest } = it
+    const {
+      parent_line_no, status, option_note, is_shipping, discount_mode, discount_unit,
+      purchase_discount, purchase_discount_mode, purchase_discount_unit, order_season, ...rest
+    } = it
     return {
       ...rest,
+      ...(has708 ? { purchase_discount, purchase_discount_mode, purchase_discount_unit, order_season } : {}),
       ...(hasParent ? { parent_line_no } : {}),
       ...(hasItemMeta ? { status, option_note } : {}),
       ...(hasShipping ? { is_shipping } : {}),
@@ -153,6 +180,7 @@ export async function insertConsultItems(
     }
   })
   const { error } = await admin.from('erp_consultation_items').insert(payload)
+  if (error && /purchase_discount|order_season/i.test(error.message)) return MIGRATION_708_HINT
   if (error && /parent_line_no/i.test(error.message)) {
     return '701 마이그레이션(상담 품목 옵션)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
   }
