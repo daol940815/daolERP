@@ -13,7 +13,7 @@ import ReplyCard, { type ReplyData } from './reply-card'
 // 익일 이후는 취소·재등록. 삭제는 취소 처리로 통일 — 승인 절차 없음, 이력 보존.
 
 interface Item {
-  id: string; line_no: number; is_canceled: boolean; is_prepayment: boolean
+  id: string; line_no: number; is_canceled: boolean; is_prepayment: boolean; is_vip?: boolean
   parent_line_no: number | null
   item_code: string | null; item_name: string | null; order_kind: string | null
   purchase_vendor_name: string | null; sale_price: number; quantity: number
@@ -314,6 +314,7 @@ export default function OrderDetailPage() {
                   {it.item_name}
                   {it.is_canceled && <span className="ml-1.5 no-underline text-[0.625rem] text-red-400">취소</span>}
                   {it.is_prepayment && <span className="ml-1.5 text-[0.625rem] text-violet-500">선결제</span>}
+                  {it.is_vip && <span className="ml-1.5 text-[0.625rem] text-rose-500" title="품명 'VIP' — 매출 · 미수 집계에서 빠짐">VIP</span>}
                 </td>
                 <td className="py-1.5 px-2.5">{it.order_kind ?? '-'}</td>
                 <td className="py-1.5 px-2.5">{it.purchase_vendor_name ?? '-'}</td>

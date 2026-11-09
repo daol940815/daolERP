@@ -28,6 +28,7 @@ interface ItemRow {
   parent_line_no: number | null
   is_canceled: boolean
   is_prepayment: boolean
+  is_vip: boolean | null
   item_code: string | null
   item_name: string | null
   order_kind: string | null
@@ -66,7 +67,7 @@ export async function GET(req: NextRequest) {
     const chunk = orderIds.slice(i, i + CHUNK)
     const r = await fetchAllRows<ItemRow>((pf, pt) =>
       admin.from('erp_order_items')
-        .select('order_id, line_no, parent_line_no, is_canceled, is_prepayment, item_code, item_name, order_kind, purchase_vendor_name, sale_price, quantity, shipping_fee, discount_amount, line_total, purchase_price, purchase_shipping, purchase_total, channel, memo')
+        .select('order_id, line_no, parent_line_no, is_canceled, is_prepayment, is_vip, item_code, item_name, order_kind, purchase_vendor_name, sale_price, quantity, shipping_fee, discount_amount, line_total, purchase_price, purchase_shipping, purchase_total, channel, memo')
         .in('order_id', chunk).order('order_id').order('line_no').range(pf, pt),
     )
     if ('error' in r) return NextResponse.json({ error: `품목 조회 실패: ${r.error}` }, { status: 500 })
@@ -99,6 +100,7 @@ export async function GET(req: NextRequest) {
     } : {}),
     '취소여부': it?.is_canceled ? '취소' : '',
     '선결제': it?.is_prepayment ? '선결제' : '',
+    'VIP': it?.is_vip ? 'VIP' : '',          // 품명 'VIP' — 매출 집계 제외 (2026-11-09)
     '품목메모': it?.memo ?? '',
   })
 
@@ -137,6 +139,6 @@ export async function GET(req: NextRequest) {
     11, 13, 14, 14, 12, 9, 9, 9, 9, 8, 11, 11,    // 주문 공통 (다올직원 · 상담자 나란히 · 회신)
     12, 34, 12, 6, 14, 9, 6, 9, 9, 10,         // 품목
     ...(showCost ? [9, 9, 10, 10] : []),
-    7, 7, 14, 14,
+    7, 7, 6, 14, 14,
   ])
 }

@@ -28,6 +28,7 @@ interface Row {
   item_count: number
   channel: string | null
   is_prepay: boolean
+  is_vip?: boolean
   has_invoice: boolean
   po_status: 'none' | 'partial' | 'full' | null
   reply_state: 'waiting' | 'done' | 'changed' | 'unable' | null   // 완료 회신 (515) — 대상 아니면 null
@@ -107,6 +108,7 @@ export default function OrdersHomePage() {
   const [source, setSource] = useState('all')
   const [po, setPo] = useState('all')
   const [prepay, setPrepay] = useState(false)
+  const [vip, setVip] = useState(false)   // 품명 'VIP' 품목 주문만 (2026-11-09)
   const [invoice, setInvoice] = useState(false)
   const [mine, setMine] = useState(false)
   const [reply, setReply] = useState('all')   // 완료 회신 필터 (515): all|my_wait|my_req_wait|wait|to_me|unable
@@ -134,6 +136,7 @@ export default function OrdersHomePage() {
     if (source !== 'all') p.set('source', source)
     if (po !== 'all') p.set('po', po)
     if (prepay) p.set('prepay', '1')
+    if (vip) p.set('vip', '1')
     if (invoice) p.set('invoice', '1')
     if (mine) p.set('mine', '1')
     if (reply !== 'all') p.set('reply', reply)
@@ -147,11 +150,11 @@ export default function OrdersHomePage() {
       setExpanded(null)
     }
     setLoading(false)
-  }, [q, from, to, collect, source, po, prepay, invoice, mine, reply, page])
+  }, [q, from, to, collect, source, po, prepay, vip, invoice, mine, reply, page])
   useEffect(() => { load() }, [load])
 
   // 필터 변경 시 1페이지로
-  useEffect(() => { setPage(1) }, [q, from, to, collect, source, po, prepay, invoice, mine, reply])
+  useEffect(() => { setPage(1) }, [q, from, to, collect, source, po, prepay, vip, invoice, mine, reply])
 
   // 현재 필터 그대로 품목 행 단위 엑셀 다운로드
   const exportExcel = async () => {
@@ -164,6 +167,7 @@ export default function OrdersHomePage() {
     if (source !== 'all') p.set('source', source)
     if (po !== 'all') p.set('po', po)
     if (prepay) p.set('prepay', '1')
+    if (vip) p.set('vip', '1')
     if (invoice) p.set('invoice', '1')
     if (mine) p.set('mine', '1')
     if (reply !== 'all') p.set('reply', reply)
@@ -306,6 +310,7 @@ export default function OrdersHomePage() {
           ))}
           <span className="w-2" />
           <button onClick={() => setPrepay(v => !v)} className={chip(prepay)}>선결제만</button>
+          <button onClick={() => setVip(v => !v)} className={chip(vip)} title="품명 'VIP' 품목이 있는 주문 — VIP 금액은 매출 · 미수에서 빠짐">VIP만</button>
           <button onClick={() => setInvoice(v => !v)} className={chip(invoice)}>계산서 발행건만</button>
           <span className="flex-1" />
           <button onClick={() => setMine(v => !v)} className={chip(mine)}>내 주문만</button>
@@ -358,6 +363,9 @@ export default function OrdersHomePage() {
                         )}
                         {r.is_prepay && (
                           <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-violet-50 text-violet-600">선결제</span>
+                        )}
+                        {r.is_vip && (
+                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-rose-50 text-rose-600" title="품명 'VIP' 품목 — 매출 · 미수 집계에서 빠짐">VIP</span>
                         )}
                         {r.has_invoice && (
                           <span className="ml-1 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-blue-50 text-blue-600">계산서</span>

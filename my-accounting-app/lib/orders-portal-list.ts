@@ -72,6 +72,7 @@ export interface OrderListFilter {
   source?: string | null     // all|direct|upload
   po?: string | null         // all|none|partial|full (direct 주문 전용)
   prepayOnly?: boolean
+  vipOnly?: boolean          // 품명 'VIP' 품목이 있는 주문 (2026-11-09)
   invoiceOnly?: boolean
   mine?: boolean
   reply?: string | null      // all|wait|my_wait|my_req_wait|to_me|unable — 완료 회신 (515)
@@ -86,6 +87,7 @@ export function filterFromSearchParams(sp: URLSearchParams): OrderListFilter {
     source: sp.get('source') ?? 'all',
     po: sp.get('po') ?? 'all',
     prepayOnly: sp.get('prepay') === '1',
+    vipOnly: sp.get('vip') === '1',
     invoiceOnly: sp.get('invoice') === '1',
     mine: sp.get('mine') === '1',
     reply: sp.get('reply') ?? 'all',
@@ -190,7 +192,7 @@ export async function loadFilteredOrders(
   admin: SupabaseClient,
   me: CurrentUser,
   f: OrderListFilter,
-): Promise<{ filtered: OrderListRow[]; prepayIds: Set<string>; invoiceIds: Set<string>; poStatus: Map<string, PoStatus>; replyMap: Map<string, ReplyInfo>; replyCounts: ReplyCounts } | { error: string }> {
+): Promise<{ filtered: OrderListRow[]; prepayIds: Set<string>; vipIds: Set<string>; invoiceIds: Set<string>; poStatus: Map<string, PoStatus>; replyMap: Map<string, ReplyInfo>; replyCounts: ReplyCounts } | { error: string }> {
   // 1) 기간 필터로 주문 로드 (나머지 필터는 메모리) — 511 미적용이면 기존 컬럼으로 폴백
   const baseCols = 'id, order_no, order_date, bank_name, branch_name, manager_name, phone, contact, staff_name, total_amount, outstanding_amount, collect_status, source, memo, created_at'
   const loadBase = (cols: string) => fetchAllRows<OrderListRow>((pf, pt) => {
@@ -223,15 +225,19 @@ export async function loadFilteredOrders(
   }))
 
   // 3) 선결제·계산서 주문 집합 (배지·필터 공용)
-  const [prepayResult, invoiceResult] = await Promise.all([
+  const [prepayResult, vipResult, invoiceResult] = await Promise.all([
     fetchAllRows<{ order_id: string }>((pf, pt) =>
       admin.from('erp_order_items').select('order_id').eq('is_prepayment', true).range(pf, pt),
+    ),
+    fetchAllRows<{ order_id: string }>((pf, pt) =>
+      admin.from('erp_order_items').select('order_id').eq('is_vip', true).range(pf, pt),
     ),
     fetchAllRows<{ order_id: string }>((pf, pt) =>
       admin.from('erp_order_invoices').select('order_id').range(pf, pt),
     ),
   ])
   const prepayIds = new Set('error' in prepayResult ? [] : prepayResult.data.map(r => r.order_id))
+  const vipIds = new Set('error' in vipResult ? [] : vipResult.data.map(r => r.order_id))
   const invoiceIds = new Set('error' in invoiceResult ? [] : invoiceResult.data.map(r => r.order_id))
 
   // 조건 1개가 주문에 걸리는지: 주문 필드 매칭 또는 품목 매칭
@@ -256,6 +262,7 @@ export async function loadFilteredOrders(
     if (tokens.length && !tokens.every((tk, i) => tokenMatches(o, tk, tokenItemIds[i]))) return false
     if (f.source && f.source !== 'all' && (o.source ?? 'upload') !== f.source) return false
     if (f.prepayOnly && !prepayIds.has(o.id)) return false
+    if (f.vipOnly && !vipIds.has(o.id)) return false
     if (f.invoiceOnly && !invoiceIds.has(o.id)) return false
     if (f.mine && me.employeeName && o.staff_name !== me.employeeName) return false
     return true
@@ -308,7 +315,7 @@ export async function loadFilteredOrders(
       ? (a.order_date < b.order_date ? 1 : -1)
       : (a.created_at < b.created_at ? 1 : -1))
 
-  return { filtered, prepayIds, invoiceIds, poStatus, replyMap, replyCounts }
+  return { filtered, prepayIds, vipIds, invoiceIds, poStatus, replyMap, replyCounts }
 }
 
 export interface ReplyCounts { wait: number; my_wait: number; my_req_wait: number; to_me: number; unable: number }

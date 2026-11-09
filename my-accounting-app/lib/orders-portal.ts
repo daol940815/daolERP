@@ -119,6 +119,9 @@ export function validateOrderInput(raw: unknown): { input: OrderInput } | { erro
 export const lineTotal = (it: OrderItemInput) =>
   it.sale_price * it.quantity + (it.shipping_fee ?? 0) - (it.discount_amount ?? 0)
 
+// 품명 'VIP' = 매출 집계 제외 품목 (업로드 import와 같은 규칙, 2026-08 결정 — 직접 입력에도 적용 2026-11-09)
+export const isVipItemName = (name: string | null | undefined) => String(name ?? '').trim() === 'VIP'
+
 export const orderTotal = (items: OrderItemInput[]) =>
   items.reduce((s, it) => s + lineTotal(it), 0)
 
@@ -264,7 +267,7 @@ export function buildOrderRows(input: OrderInput, ctx: ApplyContext) {
     parent_line_no: it.parent_line_no && it.parent_line_no !== i + 1 && it.parent_line_no <= input.items.length
       ? it.parent_line_no : null,
     is_canceled: false,
-    is_vip: false,
+    is_vip: isVipItemName(it.item_name),
     is_prepayment: it.item_name === '선결제',
     product_id: it.product_id ?? null,
     item_code: it.item_code ?? null,
