@@ -171,10 +171,26 @@ export default function UploadPage() {
     setQueue(q => [...q, ...items])
     // 파일 내용이 우선, 탭은 판별 실패 시 폴백. 둘 다 없으면 사용자가 고른다.
     items.forEach(async item => {
-      const detected = await detectUploadKind(item.file)
+      // 파일 내용을 **한 번만** 디스크에서 읽어 메모리 사본으로 바꾼다 (2026-11-09).
+      // 브라우저 File은 읽을 때마다 디스크를 다시 읽는데, 판별 → 파싱 → 업로드 사이에 파일이 바뀌면
+      // (다운로드 직후 아직 쓰는 중, 엑셀이 열어 둔 채 저장, 클라우드 동기화 폴더의 자리표시자 파일)
+      // "The requested file could not be read, typically due to permission problems" 오류가 난다.
+      let file = item.file
+      try {
+        const buf = await item.file.arrayBuffer()
+        file = new File([buf], item.file.name, { type: item.file.type, lastModified: item.file.lastModified })
+        patchItem(item.id, { file })
+      } catch {
+        patchItem(item.id, {
+          status: 'error',
+          error: '파일을 읽을 수 없습니다. 다운로드가 끝났는지, 엑셀에서 열려 있지 않은지 확인하고, 클라우드 동기화 폴더(원드라이브·구글드라이브)의 파일이면 바탕화면 등 로컬로 복사한 뒤 다시 선택하세요.',
+        })
+        return
+      }
+      const detected = await detectUploadKind(file)
       patchItem(item.id, { detected })
       const source = detected ?? (tab === 'auto' ? null : tab)
-      if (source) prepareItem(item.id, item.file, source)
+      if (source) prepareItem(item.id, file, source)
       else patchItem(item.id, { status: 'need_input' })
     })
   }, [prepareItem, patchItem, tab])
