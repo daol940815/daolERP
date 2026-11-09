@@ -1018,3 +1018,16 @@
 - erp_order_items에 purchase_discount · purchase_discount_mode · purchase_discount_unit · order_season 추가(708, 2026-11-09 적용). purchase_total은 이제 매입할인을 뺀 값.
 - 화면 용어: 품목 '구분' → '배송종류', '할인금액' → '판매할인'. 주문서 표에 주문시기 · 매입할인 · 매입합계 칸, 주문 상세 · 엑셀에 주문시기 · 매입할인 열.
 - 발주서 스냅샷이 매입할인을 반영(개당 = 할인 후 단가, 정액 = 비고 표기). 상세는 docs/consultation-journal-track.md 같은 날짜 절.
+
+## 주문 현황 항목별 검색 · 내 상담건 / 내 처리건 (2026-11-09, 사용자 요청 · 승인)
+
+- 요청: 키워드 통합 검색만 있던 것을 항목별로 + '내 주문만' 버튼을 '내 상담건' / '내 처리건'으로 분리.
+- 사용자 결정(2026-11-09):
+  - 내 상담건 = **둘 중 하나라도** — 주문 상담자(`counselor_employee_id`, 고객 다올 담당) = 나 OR 연결 상담일지
+    (`consultation_id` → `erp_consultations.employee_id`) 작성자 = 나. 상담자 칸이 빈 옛 주문은 품목 `channel` 이름으로 대조.
+  - 내 처리건 = 주문 입력자(`created_by_employee_id`, 없으면 `staff_name` 이름) = 나. 옛 '내 주문만'과 같은 기준.
+  - 상담자 = 입력자인 주문은 어느 쪽을 켜도 보인다. 버튼은 전체 / 내 상담건 / 내 처리건 단일 선택, 숫자는 내 주문 필터 적용 전 건수.
+- 구현: 항목 정의는 `lib/order-search-fields.ts`(화면 · 서버 공용). 화면은 항목 선택 칸 + Enter → 조건 칩(AND, ✕로 삭제).
+  서버 파라미터 `c=<항목>:<값>`(반복, 값의 띄어쓰기 유지), `mine=consult|handled`(옛 `mine=1` = handled), 옛 `q`도 계속 받음.
+  필터는 `lib/orders-portal-list.ts` 한 곳이라 엑셀 다운로드도 같은 결과. 마이그레이션 없음.
+- '/orders?mine=consult' 등 주소로 들어오면 그 버튼이 켜진 채로 시작.

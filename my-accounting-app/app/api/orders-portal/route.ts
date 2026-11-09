@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 // 규모 전제: 주문 ~1만 건 수준이라 필터된 집합을 메모리로 집계한다.
 // (10만 단위로 커지면 102 hub_summary_json 패턴의 RPC로 이관 — 트랙 문서 참고)
 //
-// GET ?q=&from=&to=&collect=&source=&prepay=1&vip=1&invoice=1&mine=1&reply=&page=1
+// GET ?q=&c=<항목>:<값>(반복)&from=&to=&collect=&source=&prepay=1&vip=1&invoice=1&mine=consult|handled&reply=&page=1
 
 const PER_PAGE = 50
 
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   const result = await loadFilteredOrders(admin, me, filterFromSearchParams(sp))
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
-  const { filtered, prepayIds, vipIds, invoiceIds, poStatus, replyMap, replyCounts } = result
+  const { filtered, prepayIds, vipIds, invoiceIds, poStatus, replyMap, replyCounts, mineCounts } = result
 
   // 취소 주문(511)은 금액·수금 KPI에서 제외 — 목록에는 취소 배지로 표시 (상계 효과)
   const active = filtered.filter(o => !o.canceled_at)
@@ -43,6 +43,8 @@ export async function GET(req: NextRequest) {
     po_full_cnt: filtered.filter(o => poStatus.get(o.id) === 'full').length,
     // 완료 회신 (515) — 회신 필터 적용 전 숫자
     reply: replyCounts,
+    // 내 상담건 · 내 처리건 버튼 숫자 (내 주문 필터 적용 전)
+    mine: mineCounts,
   }
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
