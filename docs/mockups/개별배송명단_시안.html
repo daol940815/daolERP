@@ -60,9 +60,9 @@
   <!-- 1. 표준 양식 -->
   <h2>1. 표준 양식 (다운로드 제공)</h2>
   <div class="panel">
-    <div class="sec">배송명단 양식.xlsx <small>첫 행 = 헤더 고정 · 이 순서 그대로 · 우편번호는 비워도 됨</small>
+    <div class="sec">배송명단 양식.xlsx <small>첫 행 = 헤더 고정 · 이 순서 그대로 · 우편번호는 비워도 되고 확인하지 않음</small>
       <span class="r"><span class="btn blue">양식 다운로드</span></span></div>
-    <div class="tpl">NO | 수령인 | 연락처 | 우편번호(선택) | 주소 | 상세주소 | 상품명 | 수량 | 배송메모</div>
+    <div class="tpl">NO | 수령인 | 연락처 | 우편번호(선택·미확인) | 주소 | 상세주소 | 상품명 | 수량 | 배송메모</div>
     <div class="mini" style="margin-top:8px;">
       상품명은 상담 품목의 상품명과 같게 적으면 자동 연결됩니다(품번도 허용). 헤더가 다르면 업로드가 거부되고 어느 열이 다른지 안내.
       발송인·발송인 연락처는 회사 정보로 발주서에서 자동.
@@ -85,7 +85,6 @@
       <div>수령인 <b>128</b>명 · <b>132</b>행</div>
       <div>명단 수량 합계 <b>132</b> / 품목 수량 <b>130</b> <span class="badge b-red">+2 초과</span></div>
       <div>품목 미연결 <b>3</b>건 <span class="badge b-red">확인 필요 →</span></div>
-      <div>우편번호 미입력 <b>97</b>건 <span class="badge b-gray">선택 항목</span></div>
       <div>연락처 없음 <b>2</b>건 <span class="badge b-amber">확인 권장 →</span></div>
     </div>
 
@@ -115,7 +114,6 @@
       <span class="badge b-blue">전체 132</span>
       <span class="badge b-red">품목 미연결 3</span>
       <span class="badge b-amber">연락처 없음 2</span>
-      <span class="badge b-gray">우편번호 없음 97</span>
       <span class="badge b-gray">수정됨 0</span>
       <span style="margin-left:auto;" class="cell" style="min-width:220px;"><span class="ph">수령인 · 연락처 · 주소 검색</span></span>
     </div>
@@ -160,8 +158,8 @@
   <h2>4. 발주서 — 배송명단 시트가 매입처 품목 행만으로 자동 채워짐</h2>
   <div class="panel">
     <div class="sec">발주서 PO-20261106-003 · 한별무역 <small>시트2 '배송명단' 미리보기 — 열 구성은 현행 양식 그대로</small></div>
-    <div class="banner amber">
-      <span>우편번호 미입력 <b>9</b>건 — 선택 항목이라 발송은 됩니다. 매입처 자체 양식(송장등록)을 쓰는 매입처는 이 자동 채움 대상이 아닙니다.</span>
+    <div class="banner gray">
+      <span>매입처 자체 양식(송장등록)을 쓰는 매입처는 이 자동 채움 대상이 아닙니다. 우편번호는 있으면 주소 앞에 붙고, 없으면 그대로 비웁니다(확인 대상 아님).</span>
     </div>
     <table>
       <thead><tr><th class="c">NO.</th><th>발송인</th><th>발송인 연락처</th><th>수령인</th><th>주소</th><th>연락처</th><th>제품명</th><th class="r">수량</th><th>배송메모</th></tr></thead>
