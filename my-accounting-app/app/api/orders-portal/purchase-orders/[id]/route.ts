@@ -5,6 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildPoExcel, sendPoMail, smtpReady } from '@/lib/purchase-orders'
 import { fillMailTemplate, poMailVars } from '@/lib/po-form'
 import { findCustomPoForm } from '@/lib/custom-po'
+import { rosterRowsForOrder } from '@/lib/delivery-roster-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -140,6 +141,9 @@ async function assembleForm(
     }
   }
 
+  // 개별 배송 명단 (707) — 이 주문에 연결된 수령인 행. 미적용 DB면 빈 배열
+  const rosterRows = await rosterRowsForOrder(admin, po.order_id).catch(() => [])
+
   return {
     po_no: po.po_no,
     order_date: order?.order_date ?? null,
@@ -159,6 +163,7 @@ async function assembleForm(
       ship_zip: (order.ship_zip as string | null) ?? null, ship_addr1: (order.ship_addr1 as string | null) ?? null,
       ship_addr2: (order.ship_addr2 as string | null) ?? null,
     } : null,
+    roster_rows: rosterRows,
     items: items.map(it => ({
       item_code: it.item_code, item_name: it.item_name, order_kind: it.order_kind,
       quantity: it.quantity ?? 0, purchase_price: it.purchase_price ?? 0,

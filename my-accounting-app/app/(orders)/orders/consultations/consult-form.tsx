@@ -11,7 +11,8 @@ import { isMoimVendor } from '../form-shared'
 import IndividualRegister from '../individual-register'
 import { contactLabel } from '@/lib/contact-label'
 import ShipCard, { EMPTY_SHIP } from '../ship-card'
-import { needsShip, type ShipInput } from '@/lib/ship-address'
+import { needsShip, SHIP_KINDS, type ShipInput } from '@/lib/ship-address'
+import RosterCard from '../roster-card'
 
 // 상담일지 폼 (신규·수정 공용) — 실물 '주문상담' 시트 컬럼 구성.
 // 필수는 상담일·구분뿐. 업체·지점·담당자는 마스터 검색 + 자유 입력 겸용
@@ -1288,6 +1289,16 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             </div>
           )
         })()}
+
+        {/* 개별 배송 명단 (707, 2026-11-09) — 개별 품목이 있을 때만. 저장된 상담에서 업로드, 전환 시 주문에 연결 */}
+        <RosterCard
+          consultationId={consultId ?? null}
+          applies={items.some(it => it.item_name.trim() && !it.is_shipping && !it.parent_uid && !SHIP_KINDS.has(it.order_kind ?? '지점'))}
+          isNew={!isEdit}
+          disabled={locked}
+          subject={[bankText, branchText].filter(Boolean).join(' ') + ' 상담' || undefined}
+          newHint={copyId ? '복사한 상담을 저장하면 배송명단을 새로 올릴 수 있습니다(명단은 복사되지 않습니다).' : undefined}
+        />
 
         {/* 주문 진행 요청 (705, 2026-11-05) — 상담만 하고 주문 입력은 다른 직원에게. 비우면 내가 직접 진행 */}
         {!locked && (() => {

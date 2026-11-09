@@ -9,7 +9,8 @@
 //  - 택배비는 품목 행으로 풀어서 기재 (상품 행 금액에서 배송비 분리, 총합계 불변)
 //  - TEL·FAX 고정, 발주담당자·연락처는 발송 시점 로그인 직원 기준
 
-import { SHIP_KINDS, hasShip, shipAddrLine, type ShipInput } from './ship-address'
+import { SHIP_KINDS, hasShip, type ShipInput } from './ship-address'
+import { rosterAddr, type RosterRowInput } from './delivery-roster'
 
 export const COMPANY_NAME = '다올커머스'
 export const COMPANY_PHONE = '070-7007-4582'   // 직원 연락처 미등록 시 대체
@@ -51,6 +52,8 @@ export interface PoExcelData {
     // addon = 부가상품(쇼핑백 · 포장지 — 본 상품과 함께 감). 둘 다 자사 양식 배송명단에서 제외
     role?: 'fee' | 'addon' | null
   }[]
+  // 개별 배송 명단 행 (707) — 이 주문에 연결된 수령인 행. 개별 품목 행을 수령인별로 펼친다
+  roster_rows?: RosterRowInput[] | null
 }
 
 // ── 시트1 '발주서' ────────────────────────────────────
@@ -99,39 +102,66 @@ export function poFormItemRows(po: PoExcelData): (string | number)[][] {
 export const ROSTER_HEADERS = ['NO.', '발송인', '발송인 연락처', '수령인', '주소', '연락처', '제품명', '수량', '배송메모'] as const
 
 // 상품 행별 1행 (택배비 행 제외).
-// 배송지(513)가 있는 주문: 지점·샘플 품목 행 = 주문 배송지, 개별 품목 행 = 비움(수령인별 수기).
+// 배송지(513)가 있는 주문: 지점·샘플 품목 행 = 주문 배송지, 개별 품목 행 = 명단(707) 또는 비움(수령인별 수기).
 // 배송지가 없는 주문(513 이전·미입력): 기존대로 수령인·연락처만 주문처 담당자 프리필, 주소 수기.
+// 주소는 "주소 + 상세"만 — 우편번호는 시트에 넣지 않는다 (2026-11-09 사용자 확정: 주소 앞 우편번호 결합 금지).
 export function shipForItem(po: PoExcelData, orderKind: string | null | undefined):
-  { name: string; phone: string; zip: string; addr: string; addrLine: string } | null {
+  { name: string; phone: string; zip: string; addr: string } | null {
   if (!hasShip(po.ship)) return null
-  if (!SHIP_KINDS.has(orderKind ?? '지점')) return { name: '', phone: '', zip: '', addr: '', addrLine: '' }
+  if (!SHIP_KINDS.has(orderKind ?? '지점')) return { name: '', phone: '', zip: '', addr: '' }
   const s = po.ship!
   return {
     name: s.ship_name ?? '', phone: s.ship_phone ?? '', zip: s.ship_zip ?? '',
-    addr: [s.ship_addr1, s.ship_addr2].filter(Boolean).join(' '), addrLine: shipAddrLine(s),
+    addr: [s.ship_addr1, s.ship_addr2].filter(Boolean).join(' '),
   }
+}
+
+// 개별 품목 행에 붙는 명단 행 — 연결 품목(product_id 우선, 없으면 상품명·품번)으로 고른다
+const normKey = (v: unknown) => String(v ?? '').replace(/\s+/g, '').toLowerCase()
+export function rosterRowsForItem(po: PoExcelData, it: PoExcelData['items'][number]): RosterRowInput[] {
+  const rows = po.roster_rows ?? []
+  if (!rows.length || SHIP_KINDS.has(it.order_kind ?? '지점')) return []
+  const name = normKey(it.item_name), code = normKey(it.item_code)
+  return rows.filter(r => r.item_name && (normKey(r.item_name) === name || (code && normKey(r.item_code) === code)))
 }
 
 // 배송명단 대상 = 실제로 보내는 상품만 — 비용 품목 · 부가상품 제외 (2026-11-05 사용자 확정).
 // 품목 표(시트1)에는 그대로 남아 금액 · 수량은 빠지지 않는다.
 export const rosterItems = (po: PoExcelData) => po.items.filter(it => it.role !== 'fee' && it.role !== 'addon')
 
+// 배송명단 행 — 지점·샘플 품목 = 1행(주문 배송지), 개별 품목 = 연결된 명단 행마다 1행(707).
+// 명단이 없는 개별 품목은 기존대로 1행(수령인별 수기). 배송메모: 명단 행 메모 → 없으면 첫 행에 발주 배송메모.
 export function poRosterRows(po: PoExcelData): (string | number)[][] {
-  return rosterItems(po).map((it, i) => {
+  const out: (string | number)[][] = []
+  let noteUsed = false
+  const firstNote = () => { if (noteUsed) return ''; noteUsed = true; return po.delivery_note ?? '' }
+  for (const it of rosterItems(po)) {
+    const fromRoster = rosterRowsForItem(po, it)
+    if (fromRoster.length) {
+      for (const r of fromRoster) {
+        out.push([out.length + 1, COMPANY_NAME, COMPANY_TEL, r.recipient_name ?? '', rosterAddr(r), r.phone ?? '',
+          it.item_name ?? '', r.quantity ?? 0, r.memo ?? firstNote()])
+      }
+      continue
+    }
     const sh = shipForItem(po, it.order_kind)
-    return [
-      i + 1,
+    out.push([
+      out.length + 1,
       COMPANY_NAME,
       COMPANY_TEL,
       sh ? sh.name : po.customer_manager ?? '',
-      sh ? sh.addrLine : '',                // 배송지 없으면 주소 수기
+      sh ? sh.addr : '',                    // 배송지 없으면 주소 수기 · 우편번호는 넣지 않는다
       sh ? sh.phone : po.customer_phone ?? '',
       it.item_name ?? '',
       it.quantity ?? 0,
-      i === 0 ? po.delivery_note ?? '' : '',
-    ]
-  })
+      firstNote(),
+    ])
+  }
+  return out
 }
+
+// 미리보기 접기 (화면용) — 앞 n행만, 나머지는 "외 N행"
+export const ROSTER_PREVIEW_ROWS = 20
 
 // ── 메일 프리셋 치환 (발송 페이지·서버 발송 공용) ──────────────────
 // {발주번호} 같은 변수를 실제 값으로 바꾼다. 값이 없는 변수는 그대로 남겨

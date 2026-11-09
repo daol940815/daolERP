@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import PurchaseSection from './purchase-section'
-import { hasShip, needsShip, shipText } from '@/lib/ship-address'
+import { hasShip, needsShip, shipText, SHIP_KINDS } from '@/lib/ship-address'
+import RosterCard from '../roster-card'
 import ReplyCard, { type ReplyData } from './reply-card'
 
 // 주문 상세 (2단계) — 업로드·직접입력 공통 조회.
@@ -269,6 +270,17 @@ export default function OrderDetailPage() {
           <div className="mt-2 text-xs text-red-600">{order.etc}</div>
         )}
       </div>
+
+      {/* 개별 배송 명단 (707, 2026-11-09) — 개별 품목이 있는 주문. 상담 전환분은 상담 명단이 연결되어 보인다.
+          명단 편집은 주문 수정 가능 여부(당일)와 별개 — 취소된 주문만 잠근다 */}
+      {isDirect && (
+        <RosterCard
+          orderId={id}
+          applies={activeItems.some(it => !it.is_cost && !it.parent_line_no && !it.is_prepayment && !SHIP_KINDS.has(it.order_kind ?? '지점'))}
+          disabled={canceled}
+          subject={[order.order_no, order.order_date].filter(Boolean).map(String).join(' · ') || undefined}
+        />
+      )}
 
       {/* 품목 */}
       <div className="bg-white border border-gray-200 rounded-xl mt-3 overflow-x-auto">
