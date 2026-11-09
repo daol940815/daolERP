@@ -1005,6 +1005,6 @@
 
 ## 다른 트랙 변경 알림 — 매입할인 · 주문시기 · 용어 정리 708 (2026-11-09, 상담일지 트랙)
 
-- erp_order_items에 purchase_discount · purchase_discount_mode · purchase_discount_unit · order_season 추가(708, 실행 대기). purchase_total은 이제 매입할인을 뺀 값.
+- erp_order_items에 purchase_discount · purchase_discount_mode · purchase_discount_unit · order_season 추가(708, 2026-11-09 적용). purchase_total은 이제 매입할인을 뺀 값.
 - 화면 용어: 품목 '구분' → '배송종류', '할인금액' → '판매할인'. 주문서 표에 주문시기 · 매입할인 · 매입합계 칸, 주문 상세 · 엑셀에 주문시기 · 매입할인 열.
 - 발주서 스냅샷이 매입할인을 반영(개당 = 할인 후 단가, 정액 = 비고 표기). 상세는 docs/consultation-journal-track.md 같은 날짜 절.
