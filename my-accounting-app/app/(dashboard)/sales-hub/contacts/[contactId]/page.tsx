@@ -10,7 +10,7 @@ import { useParams, useRouter } from 'next/navigation'
 const won = (n: number) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
 interface Detail {
-  contact: { id: string; name: string; code?: string | null; phone: string | null; email: string | null; note: string | null }
+  contact: { id: string; name: string; code?: string | null; phone: string | null; tel?: string | null; email: string | null; note: string | null }
   assignments: {
     id: string; vendor_id: string; vendor_name: string; title: string | null
     is_representative: boolean; started_at: string | null; ended_at: string | null; vendor_gap: boolean
@@ -45,7 +45,7 @@ export default function ContactDetailPage() {
 
   // 정보 수정 폼
   const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState({ name: '', phone: '', email: '', note: '' })
+  const [form, setForm] = useState({ name: '', phone: '', tel: '', email: '', note: '' })
 
   // 이동 처리 폼
   const [moving, setMoving] = useState(false)
@@ -66,7 +66,7 @@ export default function ContactDetailPage() {
     if (res.ok) {
       setD(json)
       setDocSales(Array.isArray(json.doc_sales) ? json.doc_sales : [])
-      setForm({ name: json.contact.name ?? '', phone: json.contact.phone ?? '', email: json.contact.email ?? '', note: json.contact.note ?? '' })
+      setForm({ name: json.contact.name ?? '', phone: json.contact.phone ?? '', tel: json.contact.tel ?? '', email: json.contact.email ?? '', note: json.contact.note ?? '' })
     } else showMsg(`조회 실패: ${json.error ?? '알 수 없는 오류'}`)
     setLoading(false)
   }, [contactId])
@@ -134,7 +134,7 @@ export default function ContactDetailPage() {
             </div>
             {editing ? (
               <div className="space-y-2">
-                {([['name', '이름'], ['phone', '연락처'], ['email', '이메일'], ['note', '메모']] as const).map(([k, label]) => (
+                {([['name', '이름'], ['phone', '핸드폰'], ['tel', '유선'], ['email', '이메일'], ['note', '메모']] as const).map(([k, label]) => (
                   <div key={k}>
                     <label className="block text-xs text-gray-400 mb-0.5">{label}</label>
                     <input value={form[k]} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))}
@@ -150,7 +150,8 @@ export default function ContactDetailPage() {
               </div>
             ) : (
               <div className="text-sm space-y-1.5">
-                <div className="flex justify-between"><span className="text-gray-400 text-xs">연락처</span><span>{d.contact.phone ?? '-'}</span></div>
+                <div className="flex justify-between"><span className="text-gray-400 text-xs">핸드폰</span><span>{d.contact.phone ?? '-'}</span></div>
+                <div className="flex justify-between"><span className="text-gray-400 text-xs">유선</span><span>{d.contact.tel ?? '-'}</span></div>
                 <div className="flex justify-between"><span className="text-gray-400 text-xs">이메일</span><span>{d.contact.email ?? '-'}</span></div>
                 <div className="flex justify-between gap-3"><span className="text-gray-400 text-xs shrink-0">메모</span><span className="text-right">{d.contact.note ?? '-'}</span></div>
                 <div className="flex justify-between"><span className="text-gray-400 text-xs">마지막 주문</span>

@@ -14,6 +14,7 @@ import {
 } from '@/lib/orders-portal'
 import { recordWorkLog, orderContent } from '@/lib/work-log'
 import { attachRosterToOrder } from '@/lib/delivery-roster-server'
+import { fillContactPhonesIfEmpty } from '@/lib/contact-phone-sync'
 
 export const dynamic = 'force-dynamic'
 
@@ -156,6 +157,8 @@ export async function POST(req: NextRequest) {
 
   // 고객 다올 담당이 비어 있으면 이 주문의 상담자로 자동 저장 (112, 2026-11-05 — 빈 경우만)
   await fillCustomerStaffIfEmpty(admin, input.vendor_id, input.contact_id, input.counselor_employee_id)
+  // 담당자 연락처 → 인물 마스터 (116, 빈 칸만): 핸드폰 = phone, 유선 = contact
+  const phoneFilled = await fillContactPhonesIfEmpty(admin, input.contact_id, { phone: input.phone, tel: input.contact })
 
   // 선결제 품목 → 선결제 원장 입금 자동 등록 (업로드와 같은 규칙, 2026-11-05)
   const prepayWarn = await syncPrepayDeposits(admin, orderId)
@@ -193,5 +196,5 @@ export async function POST(req: NextRequest) {
     refId: orderId,
   })
 
-  return NextResponse.json({ id: orderId, order_no: orderNo, total_amount: total, warning: prepayWarn, roster_attached: rosterAttached })
+  return NextResponse.json({ id: orderId, order_no: orderNo, total_amount: total, warning: prepayWarn, roster_attached: rosterAttached, phone_filled: phoneFilled })
 }

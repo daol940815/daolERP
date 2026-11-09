@@ -111,6 +111,8 @@ export async function GET(req: NextRequest) {
       '업체(은행)': o.bank_name ?? '',
       '부서(지점)': o.branch_name ?? '',
       '담당자': honorify(o.manager_name as string | null),
+      '담당자 핸드폰': o.phone ?? '',
+      '담당자 연락처': o.contact ?? '',
       '다올직원': o.staff_name ?? '',
       // 상담자는 다올직원 바로 옆 — 같은 사람이어도 둘 다 표기 (2026-11-05 사용자 요청, 목록과 동일). 값은 품목 행마다 채움
       '상담자': '',

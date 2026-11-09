@@ -429,8 +429,12 @@ export interface ContactDetail {
 }
 
 export async function buildContactDetail(admin: SupabaseClient, contactId: string): Promise<ContactDetail | { error: string }> {
-  const { data: contact, error: ce } = await admin
-    .from('contacts').select('id, name, phone, email, note').eq('id', contactId).single()
+  // 유선 번호(116) 포함 — 미적용이면 없이 재조회
+  let { data: contact, error: ce } = await admin
+    .from('contacts').select('id, name, phone, tel, email, note').eq('id', contactId).single()
+  if (ce && /\btel\b/i.test(ce.message)) {
+    ;({ data: contact, error: ce } = await admin.from('contacts').select('id, name, phone, email, note').eq('id', contactId).single())
+  }
   if (ce || !contact) return { error: ce?.message ?? '인물을 찾을 수 없습니다.' }
   // 고객코드 (110) — 미적용 환경이면 null
   {

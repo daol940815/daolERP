@@ -33,20 +33,22 @@ export async function GET(req: NextRequest) {
 
   if (vendorId) {
     // 고객별 다올 담당(112) 포함 — 미적용이면 없이 재조회
-    const sel = (withStaff: boolean) => admin
+    // 유선 번호(116) 포함 — 미적용이면 없이 재조회
+    const sel = (withStaff: boolean, withTel: boolean) => admin
       .from('contact_assignments')
-      .select(`contact_id, title, is_representative${withStaff ? ', staff_employee_id' : ''}, contacts(id, name, phone)`)
+      .select(`contact_id, title, is_representative${withStaff ? ', staff_employee_id' : ''}, contacts(id, name, phone${withTel ? ', tel' : ''})`)
       .eq('vendor_id', vendorId)
       .is('ended_at', null)
-    let res = await sel(true)
-    if (res.error && /staff_employee_id/.test(res.error.message)) res = await sel(false)
+    let res = await sel(true, true)
+    if (res.error && /\btel\b/.test(res.error.message)) res = await sel(true, false)
+    if (res.error && /staff_employee_id/.test(res.error.message)) res = await sel(false, false)
     const { data, error } = res as unknown as { data: Record<string, unknown>[] | null; error: { message: string } | null }
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const contacts = (data ?? [])
       .map(a => {
-        const c = a.contacts as unknown as { id: string; name: string; phone: string | null } | null
+        const c = a.contacts as unknown as { id: string; name: string; phone: string | null; tel?: string | null } | null
         return c && {
-          contact_id: c.id, name: c.name, phone: c.phone,
+          contact_id: c.id, name: c.name, phone: c.phone, tel: c.tel ?? null,
           title: a.title as string | null,
           is_representative: !!a.is_representative,
           staff_employee_id: (a.staff_employee_id as string | null | undefined) ?? null,   // 다올 담당 = 상담자 (112)

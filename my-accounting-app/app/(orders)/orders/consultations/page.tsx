@@ -17,6 +17,8 @@ interface Row {
   bank_name: string | null
   branch_name: string | null
   manager_name: string | null
+  phone?: string | null
+  tel?: string | null
   sender_name: string | null
   status: string
   writer: string | null
@@ -278,7 +280,13 @@ export default function ConsultationsPage() {
                   </td>
                   <td className="py-2 px-3 font-semibold">{r.bank_name ?? '-'}</td>
                   <td className="py-2 px-3">{r.branch_name ?? <span className="text-gray-300">-</span>}</td>
-                  <td className="py-2 px-3">{honorify(r.manager_name) || '-'}</td>
+                  <td className="py-2 px-3">
+                    {honorify(r.manager_name) || '-'}
+                    {/* 담당자 연락처 (2026-11-09 문의) — 핸드폰 · 유선 */}
+                    {(r.phone || r.tel) && (
+                      <div className="text-[0.6875rem] text-gray-400 tabular-nums whitespace-nowrap">{[r.phone, r.tel].filter(Boolean).join(' · ')}</div>
+                    )}
+                  </td>
                   {all && <td className="py-2 px-3 text-xs">{r.writer ?? '-'}</td>}
                   <td className="py-2 px-3 text-xs">
                     {r.item_name ?? <span className="text-gray-300">품목 없음</span>}

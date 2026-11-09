@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { resolveIndividualVendorForSave } from '@/lib/individual-customer'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCurrentUser, type CurrentUser } from '@/lib/user-role'
+import { fillContactPhonesIfEmpty } from '@/lib/contact-phone-sync'
 import {
   validateOrderInput, applyOrderEdit, resolveDisplayNames, loadOrderSnapshot,
   cancelOrder, canCancelReissue, kstToday, kstDateOf, lineTotal,
@@ -264,6 +265,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
   // 고객 다올 담당이 비어 있으면 상담자로 자동 저장 (112 — 빈 경우만)
   await fillCustomerStaffIfEmpty(admin, parsed.input.vendor_id, parsed.input.contact_id, parsed.input.counselor_employee_id)
+  // 담당자 연락처 → 인물 마스터 (116, 빈 칸만)
+  await fillContactPhonesIfEmpty(admin, parsed.input.contact_id, { phone: parsed.input.phone, tel: parsed.input.contact })
 
   await recordWorkLog(admin, {
     employeeId: me.employeeId,

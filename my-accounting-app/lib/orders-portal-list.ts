@@ -17,6 +17,8 @@ export interface OrderListRow {
   bank_name: string | null
   branch_name: string | null
   manager_name: string | null
+  phone?: string | null             // 담당자 핸드폰 (목록 표시 · 검색, 2026-11-09)
+  contact?: string | null           // 담당자 연락처(유선)
   staff_name: string | null
   total_amount: number | null
   outstanding_amount: number | null
@@ -190,7 +192,7 @@ export async function loadFilteredOrders(
   f: OrderListFilter,
 ): Promise<{ filtered: OrderListRow[]; prepayIds: Set<string>; invoiceIds: Set<string>; poStatus: Map<string, PoStatus>; replyMap: Map<string, ReplyInfo>; replyCounts: ReplyCounts } | { error: string }> {
   // 1) 기간 필터로 주문 로드 (나머지 필터는 메모리) — 511 미적용이면 기존 컬럼으로 폴백
-  const baseCols = 'id, order_no, order_date, bank_name, branch_name, manager_name, staff_name, total_amount, outstanding_amount, collect_status, source, memo, created_at'
+  const baseCols = 'id, order_no, order_date, bank_name, branch_name, manager_name, phone, contact, staff_name, total_amount, outstanding_amount, collect_status, source, memo, created_at'
   const loadBase = (cols: string) => fetchAllRows<OrderListRow>((pf, pt) => {
     let query = admin.from('erp_orders').select(cols)
     if (f.from) query = query.gte('order_date', f.from)
@@ -237,11 +239,11 @@ export async function loadFilteredOrders(
     const has = (v: string | null) => (v ?? '').toLowerCase().includes(tk.value)
     const orderMatch = (() => {
       switch (tk.field) {
-        case null: return [o.order_no, o.bank_name, o.branch_name, o.manager_name, o.staff_name].some(has)
+        case null: return [o.order_no, o.bank_name, o.branch_name, o.manager_name, o.phone ?? null, o.contact ?? null, o.staff_name].some(has)
         case 'bank': return has(o.bank_name)
         case 'branch': return has(o.branch_name)
         case 'customer': return has([o.bank_name, o.branch_name].filter(Boolean).join(' '))
-        case 'manager': return has(o.manager_name)
+        case 'manager': return has(o.manager_name) || has(o.phone ?? null) || has(o.contact ?? null)
         case 'staff': return has(o.staff_name)
         case 'order_no': return has(o.order_no)
         default: return false   // 품목 전용 필드

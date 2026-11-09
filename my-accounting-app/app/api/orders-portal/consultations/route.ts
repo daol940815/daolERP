@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/user-role'
 import { isManagerLike } from '@/lib/permissions'
 import { encryptPayment, encryptionReady } from '@/lib/payment-crypto'
 import { parseConsultBody, consultItemRows, insertConsultItems, compatConsultFields, CONSULT_MIGRATION_HINT, CONSULT_509_HINT, CONSULT_706_HINT } from '@/lib/consultations'
+import { fillContactPhonesIfEmpty } from '@/lib/contact-phone-sync'
 import { recordWorkLog, consultContent } from '@/lib/work-log'
 import { resolveContact } from '@/lib/contact-resolve'
 import { parseOrderRequest, saveOrderRequest } from '@/lib/order-request'
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
   const me705 = me.employeeId
   const monthStart = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date()).slice(0, 8) + '01'
   // 705 적용 후에는 상담일지 → 직원 연결이 여럿이라 작성자 연결을 이름으로 지정, 미적용이면 예전처럼(연결 1개)
-  const baseCols = (with705: boolean) => 'id, consult_date, consult_type, bank_name, branch_name, manager_name, sender_name, vendor_id, contact_id, status, employee_id, memo, created_at, '
+  const baseCols = (with705: boolean) => 'id, consult_date, consult_type, bank_name, branch_name, manager_name, phone, tel, sender_name, vendor_id, contact_id, status, employee_id, memo, created_at, '
     + (with705 ? 'writer:employees!erp_consultations_employee_id_fkey(name)' : 'writer:employees(name)')
   const reqCols = ', order_assignee_id, order_requested_by, order_requested_at, order_request_memo, assignee:employees!erp_consultations_order_assignee_id_fkey(name), requester:employees!erp_consultations_order_requested_by_fkey(name)'
   const build = (with705: boolean) => {
@@ -153,7 +154,7 @@ export async function GET(req: NextRequest) {
   if (q) {
     const terms = q.split(/[\s,]+/).filter(Boolean)
     rows = rows.filter(r => terms.every(t =>
-      (['bank_name', 'branch_name', 'manager_name', 'sender_name', 'item_name', 'memo'] as const)
+      (['bank_name', 'branch_name', 'manager_name', 'phone', 'tel', 'sender_name', 'item_name', 'memo'] as const)
         .some(k => String((r as Record<string, unknown>)[k] ?? '').toLowerCase().includes(t))))
   }
 
@@ -225,6 +226,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `품목 저장 실패: ${itemErr}` }, { status: 500 })
   }
 
+  // 담당자 연락처 → 인물 마스터 (116, 빈 칸만) — 다음 상담·주문에서 담당자를 고르면 바로 채워지게
+  const phoneFilled = await fillContactPhonesIfEmpty(admin, parsed.fields.contact_id, { phone: parsed.fields.phone, tel: parsed.fields.tel })
+
   // 업무일지 자동 기재 (실패해도 상담 저장은 유지)
   // 영업일지(contact_activities)가 아니라 업무일지 — 상담일지 작성은 "ERP에서 한 업무"다.
   const workLogged = await recordWorkLog(admin, {
@@ -242,5 +246,5 @@ export async function POST(req: NextRequest) {
     ? await saveOrderRequest(admin, created.id as string, orderReq, { employeeId: me.employeeId, employeeName: me.employeeName })
     : null
 
-  return NextResponse.json({ id: created.id, work_logged: workLogged, request_error: requestError })
+  return NextResponse.json({ id: created.id, work_logged: workLogged, request_error: requestError, phone_filled: phoneFilled })
 }

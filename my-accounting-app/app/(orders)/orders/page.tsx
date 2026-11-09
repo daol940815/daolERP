@@ -18,6 +18,8 @@ interface Row {
   bank_name: string | null
   branch_name: string | null
   manager_name: string | null
+  phone?: string | null
+  contact?: string | null
   staff_name: string | null
   total_amount: number
   outstanding_amount: number
@@ -361,7 +363,13 @@ export default function OrdersHomePage() {
                           <span className="ml-1 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-blue-50 text-blue-600">계산서</span>
                         )}
                       </td>
-                      <td className="py-2 px-3">{r.manager_name ?? '-'}</td>
+                      <td className="py-2 px-3">
+                        {r.manager_name ?? '-'}
+                        {/* 담당자 연락처 (2026-11-09 문의) — 핸드폰 · 유선 */}
+                        {(r.phone || r.contact) && (
+                          <div className="text-[0.6875rem] text-gray-400 tabular-nums whitespace-nowrap">{[r.phone, r.contact].filter(Boolean).join(' · ')}</div>
+                        )}
+                      </td>
                       <td className="py-2 px-3">
                         {/* 직원 = 상담자여도 둘 다 표기 (2026-11-05 사용자 요청 — 예: 김승현 / 김승현) */}
                         {r.staff_name ?? '-'}
