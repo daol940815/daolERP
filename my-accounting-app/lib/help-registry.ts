@@ -515,12 +515,37 @@ export const HELP: HelpEntry[] = [
     keywords: ['스케줄 관리', '반복 일정', '급여일', '말일', '세무 마감', '법인카드', '출금일', '외근', '회의', '회사 행사', '순연', '앞당김', '회계 전용', '1회 일정'],
     updated: '2026-11-03',
   },
+  {
+    href: '/orders/purchase-hub', title: '매입처 관리', group: 'customers',
+    what: '매입처(공급 업체) 목록과 상세입니다. 상세에서 계산서 · 지급 내역 · ERP 발주 · 담당자를 보고, \'발주서 양식\' 탭에 업체가 쓰는 자체 발주서 엑셀을 등록합니다.',
+    who: '영업지원팀 — 매입처 정보 확인, 업체 발주서 양식 등록(매입처 관리 수정 권한).',
+    steps: [
+      '목록에서 매입처를 눌러 상세로',
+      '발주서 양식 탭 › 새 양식 올리기(.xlsx) — 업체에서 받은 빈 양식을 그대로 올리면 머리글을 읽어 칸마다 넣을 값을 추천합니다',
+      '\'확인 필요\' 칸만 넣을 값을 고르고 저장 (조합이 필요하면 \'고정 문구 · 조합 문구\' — 예: {item_name} ({qty}개))',
+      '시험 생성 — 가상 주문 또는 지난 발주서로 만들어 받은 파일을 엑셀에서 열어 확인',
+      '사용 시작 — 그 매입처의 사용 중 양식이 됩니다(이전 버전은 보관)',
+    ],
+    faq: [
+      { q: '.xls 파일은 안 올라가요', a: '옛 엑셀 형식입니다. 엑셀에서 열어 [다른 이름으로 저장 → Excel 통합 문서(.xlsx)]로 바꿔 올리세요.' },
+      { q: '사용 중인 양식을 고치고 싶어요', a: '사용 중 · 보관 버전은 그 버전으로 나간 발주서 기록이 있어 고치지 않습니다. 목록의 [복사해 새 버전] → 고치기 → 사용 시작.' },
+      { q: '업체가 양식을 바꿨어요(두일지엘 매달 등)', a: '새 파일을 다시 올리면 새 버전으로 쌓입니다. 사용 시작 전까지는 이전 버전이 그대로 쓰입니다.' },
+      { q: '보내는분 칸이 비어요', a: '보내는분 = 상담일지 발송 정보의 \'보내는분 명의\'입니다. 상담일지 없이 바로 입력한 주문은 비워 두고 확인 목록에 경고합니다.' },
+      { q: '수령인이 비어요', a: '개별 배송은 개별 배송 명단을 올린 주문만 수령인이 채워집니다. 명단이 없으면 받은 파일에 직접 채우세요.' },
+      { q: '등록했는데 발주서가 아직 자사 양식으로 나와요', a: '지금은 등록 · 시험 생성 단계입니다. 발주서 다운로드 · 메일 첨부 적용은 다음 배포부터입니다.' },
+      { q: '양식 탭에 올리기 버튼이 없어요', a: '매입처 관리(거래처 관리 그룹) 수정 권한이 필요합니다. 영업지원팀 홍창의 부장 또는 ERP 담당에게 권한을 요청하세요.' },
+    ],
+    related: ['/orders/purchase'],
+    keywords: ['매입처', '공급처', '업체', '발주서 양식', '자체 발주서', '업체 양식', '양식 등록', '칸 연결', '시험 생성', '사용 시작', '버전'],
+    updated: '2026-11-09',
+    changes: [{ date: '2026-11-09', text: '상세에 \'발주서 양식\' 탭이 생겼습니다 — 업체 자체 발주서 엑셀을 올려 자동 인식 · 칸 연결 · 시험 생성 · 사용 시작.' }],
+  },
 ]
 
 // 아직 도움말이 없는 메뉴 화면 — 빌드 검사가 실패시키지 않는 허용 목록. 항목을 쓰면 여기서 지운다(검사가 알려준다).
 // 1차(2026-11-03)는 영업지원팀 화면 10개부터. 회계 · 재무 화면은 2차(오철준 대리 검수).
 export const HELP_PENDING: string[] = [
-  '/me/journal', '/me/worklog', '/orders/purchase-hub', '/orders/delivery', '/orders/approvals', '/me/team-worklog',
+  '/me/journal', '/me/worklog', '/orders/delivery', '/orders/approvals', '/me/team-worklog',
   '/upload', '/transactions', '/cards', '/tax-invoices', '/cash-receipts', '/erp-orders', '/reports/receivables-aging', '/reports/payables-aging',
   '/purchase-hub', '/reports/monthly-pl', '/reports/vat-estimate', '/journal', '/ledger', '/vendor-ledger', '/opening-balances', '/accounts',
   '/erp-aliases', '/vendor-dedup', '/reports/vendor-reconciliation', '/reports/double-count', '/reports/erp-special',

@@ -7,6 +7,7 @@ import { getPeriodRange, DEFAULT_VIEW_FROM } from '@/lib/period-presets'
 import type { PurchaseHubDetail } from '@/lib/purchase-hub'
 import { contactLabel } from '@/lib/contact-label'
 import type { PurchaseHubPerms } from '@/components/purchase-hub/perms'
+import PoFormTab from '@/components/purchase-hub/po-form-tab'
 
 // 매입처 관리 — 매입처 360° 상세(B) 공용 컴포넌트
 // 영업·주문 영역과 회계·재무 영역 양쪽에서 쓴다 (basePath·perms는 목록과 동일 의미).
@@ -29,7 +30,7 @@ const TL_META: Record<string, { label: string; cls: string }> = {
   bank:    { label: '통장',   cls: 'bg-emerald-100 text-emerald-700' },
   card:    { label: '카드',   cls: 'bg-orange-100 text-orange-700' },
 }
-const TABS = ['개요', '계산서', '지급 내역', 'ERP 발주', '활동 메모'] as const
+const TABS = ['개요', '계산서', '지급 내역', 'ERP 발주', '발주서 양식', '활동 메모'] as const
 
 interface Candidate { id: string; name: string; phone: string | null; history?: { vendor_name: string; title: string | null; started_at: string | null; ended_at: string | null }[] }
 
@@ -685,6 +686,9 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
             </div>
           </div>
         )}
+
+        {/* 업체 발주서 양식 (516) — 등록 · 수정은 매입처 관리 수정 권한(API의 can_edit) */}
+        {tab === '발주서 양식' && <PoFormTab vendorId={vendorId} vendorName={data.vendor.name} />}
 
         {tab === '활동 메모' && (
           <div className="bg-white border border-gray-200 rounded-xl p-4 max-w-2xl">
