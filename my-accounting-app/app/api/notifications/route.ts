@@ -25,14 +25,14 @@ export async function GET() {
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   const now = new Date()
   const nowIso = now.toISOString()
-  const empty: NotifData = { at: nowIso, count: 0, breakdown: { personal: 0, shared: 0, mine: 0, other: 0 }, items: [], badges: {} }
+  const empty: NotifData = { at: nowIso, count: 0, breakdown: { personal: 0, shared: 0, mine: 0, order: 0, other: 0 }, items: [], badges: {} }
   const empId = me.employeeId
   if (!empId) return NextResponse.json(empty)
 
   const admin = createAdminClient()
   const items: NotifItem[] = []
   const badges: NotifData['badges'] = {}
-  const breakdown: Record<NotifBucket, number> = { personal: 0, shared: 0, mine: 0, other: 0 }
+  const breakdown: Record<NotifBucket, number> = { personal: 0, shared: 0, mine: 0, order: 0, other: 0 }
   const sevenDaysAgo = new Date(now.getTime() - 7 * DAY).toISOString()
   const today = kstDay(nowIso)
   const approver = isManagerLike(me)
@@ -70,11 +70,10 @@ export async function GET() {
     const shares = ((inRes.data ?? []) as unknown as MyShare[]).map(s => ({ status: s.status, r: one(s.request) })).filter((s): s is { status: WrAsgStatus; r: WR } => !!s.r && OPEN_STATUSES.includes(s.r.status))
     shares.forEach(s => { relatedIds.add(s.r.id); bucketOf.set(s.r.id, s.r.assign_mode === 'single' || !s.r.assign_mode ? 'personal' : 'shared') })
     const desc = (r: WR) => `${one(r.requester)?.name ?? ''}: ${r.title} (마감 ${fmtDue(r.due_at)})`
-    let red = 0
     for (const kind of ['personal', 'shared'] as const) {
       const mine = shares.filter(s => (s.r.assign_mode === 'single' || !s.r.assign_mode) === (kind === 'personal'))
       const label = kind === 'personal' ? '개인 요청' : '공용 요청'
-      const href = kind === 'personal' ? '/me/requests' : '/me/requests?filter=shared'
+      const href = kind === 'personal' ? '/me/requests?filter=personal' : '/me/requests?filter=shared'
       const tracked = mine.map(s => s.r).sort((a, b) => a.due_at.localeCompare(b.due_at))   // 내 몫이 미확인·수락·진행 중인 것만 (조회 조건)
       const unread = mine.filter(s => s.status === 'invited').map(s => s.r)
       const overdue = tracked.filter(r => new Date(r.due_at) < now)
@@ -83,10 +82,11 @@ export async function GET() {
       if (unread.length) items.push({ key: `wr:unread:${k}`, bucket: kind, group: 'todo', tone: 'red', title: `${label} 미확인 ${unread.length}건`, detail: desc(unread[0]) + (unread.length > 1 ? ` 외 ${unread.length - 1}` : ''), href, count: unread.length, at: latest(unread.map(r => r.created_at)) })
       if (overdue.length) items.push({ key: `wr:overdue:${k}`, bucket: kind, group: 'todo', tone: 'red', title: `${label} 마감 지남 ${overdue.length}건`, detail: desc(overdue[0]), href, count: overdue.length, at: latest(overdue.map(r => r.due_at)) })
       if (dueToday.length) items.push({ key: `wr:due_today:${k}`, bucket: kind, group: 'todo', tone: 'red', title: `${label} 오늘 마감 ${dueToday.length}건`, detail: desc(dueToday[0]), href, count: dueToday.length, at: latest(dueToday.map(r => r.created_at)) })
-      red += new Set([...unread, ...overdue].map(r => r.id)).size
       breakdown[kind] = new Set([...unread, ...overdue, ...dueToday].map(r => r.id)).size   // 요청 건수 (중복 없음)
     }
-    if (red) badges['/me/requests'] = { n: red, tone: 'red' }
+    // 사이드바 배지 = 종의 개인 + 공용 칸과 같은 숫자 (2026-11-09 — 오늘 마감 포함, 요청 건수)
+    const wrTodo = breakdown.personal + breakdown.shared
+    if (wrTodo) badges['/me/requests'] = { n: wrTodo, tone: 'red' }
   }
   if (!outRes.error) {
     const outbox = (outRes.data ?? []) as unknown as WR[]
@@ -96,7 +96,8 @@ export async function GET() {
     breakdown.mine = awaiting.length
     if (awaiting.length) items.push({ key: 'wr:awaiting', bucket: 'mine', group: 'waiting', tone: 'amber', title: `내 요청 완료 확정 대기 ${awaiting.length}건`, detail: `${one(awaiting[0].assignee)?.name ?? '담당자 전원'}이(가) 처리 보고: ${awaiting[0].title}`, href: '/me/requests?tab=outbox', count: awaiting.length, at: latest(awaiting.map(r => r.reported_at)) })
     if (rejected.length) items.push({ key: 'wr:rejected', bucket: 'mine', group: 'info', tone: 'gray', title: `내 요청 반려됨 ${rejected.length}건`, detail: `${rejected[0].title}${rejected[0].reject_reason ? ` — 사유: ${rejected[0].reject_reason}` : ''}`, href: '/me/requests?tab=outbox', count: rejected.length, at: latest(rejected.map(r => r.rejected_at)) })
-    if (!badges['/me/requests'] && awaiting.length + rejected.length) badges['/me/requests'] = { n: awaiting.length + rejected.length, tone: 'amber' }
+    // 반려된 내 요청은 할 조작이 없어(다시 요청만) 알림 목록에만 둔다 — 배지 · 종 숫자는 완료 확정 대기만 (2026-11-09)
+    if (!badges['/me/requests'] && awaiting.length) badges['/me/requests'] = { n: awaiting.length, tone: 'amber' }
   }
   // 관련 범위 넓힘(2026-11-09): 처리 보고 후에도 열린 요청의 메모는 받고, 내 담당이던 요청이 완료 확정 · 취소되면 알린다.
   //  반려 · 해제된 담당자는 대상 아님(내 몫이 끝남). 숫자(breakdown)에는 영향 없음 — 결과 통지로만.
@@ -165,15 +166,15 @@ export async function GET() {
   if (approver && !ocrPendRes.error) {
     const rows = (ocrPendRes.data ?? []) as unknown as OCR[]
     if (rows.length) {
-      items.push({ key: 'ocr:approve', group: 'todo', tone: 'red', title: `주문 수정 승인 요청 ${rows.length}건`, detail: rows.slice(0, 2).map(r => `${one(r.employees)?.name ?? ''} · ${r.request_type === 'cancel' ? '취소' : '수정'}`).join(' · ') + (rows.length > 2 ? ` 외 ${rows.length - 2}` : ''), href: '/orders/approvals', count: rows.length, at: latest(rows.map(r => r.created_at)) })
+      items.push({ key: 'ocr:approve', bucket: 'order', group: 'todo', tone: 'red', title: `주문 수정 승인 요청 ${rows.length}건`, detail: rows.slice(0, 2).map(r => `${one(r.employees)?.name ?? ''} · ${r.request_type === 'cancel' ? '취소' : '수정'}`).join(' · ') + (rows.length > 2 ? ` 외 ${rows.length - 2}` : ''), href: '/orders/approvals', count: rows.length, at: latest(rows.map(r => r.created_at)) })
       badges['/orders/approvals'] = { n: rows.length, tone: 'amber' }
-      breakdown.other += rows.length
+      breakdown.order += rows.length
     }
   }
   if (!ocrMineRes.error) {
     const rows = (ocrMineRes.data ?? []) as unknown as OCR[]
     for (const r of rows.slice(0, 3)) {
-      items.push({ key: `ocr:decided:${r.id}`, group: 'info', tone: 'blue', title: `내 주문 ${r.request_type === 'cancel' ? '취소' : '수정'} 요청 ${r.status === 'approved' ? '승인됨' : '반려됨'}`, detail: null, href: '/orders/approvals', count: 1, at: r.decided_at })
+      items.push({ key: `ocr:decided:${r.id}`, bucket: 'order', group: 'info', tone: 'blue', title: `내 주문 ${r.request_type === 'cancel' ? '취소' : '수정'} 요청 ${r.status === 'approved' ? '승인됨' : '반려됨'}`, detail: null, href: '/orders/approvals', count: 1, at: r.decided_at })
     }
   }
 
@@ -192,14 +193,14 @@ export async function GET() {
       const rows = (assigned.data ?? []) as unknown as CR[]
       if (rows.length) {
         const where = (r: CR) => [r.bank_name, r.branch_name].filter(Boolean).join(' ') || '상담일지'
-        items.push({ key: 'oreq:assigned', bucket: 'personal', group: 'todo', tone: 'red', title: `주문 진행 요청 ${rows.length}건`, detail: `${one(rows[0].requester)?.name ?? ''}: ${where(rows[0])}` + (rows.length > 1 ? ` 외 ${rows.length - 1}` : ''), href: '/orders/consultations?scope=assigned', count: rows.length, at: latest(rows.map(r => r.order_requested_at)) })
+        items.push({ key: 'oreq:assigned', bucket: 'order', group: 'todo', tone: 'red', title: `주문 진행 요청 ${rows.length}건`, detail: `${one(rows[0].requester)?.name ?? ''}: ${where(rows[0])}` + (rows.length > 1 ? ` 외 ${rows.length - 1}` : ''), href: '/orders/consultations?scope=assigned', count: rows.length, at: latest(rows.map(r => r.order_requested_at)) })
         badges['/orders/consultations'] = { n: rows.length, tone: 'red' }
-        breakdown.personal += rows.length
+        breakdown.order += rows.length
       }
     }
     if (!done.error) {
       for (const r of (done.data ?? []) as unknown as CR[]) {
-        items.push({ key: `oreq:done:${r.id}`, bucket: 'mine', group: 'info', tone: 'blue', title: `요청한 주문 입력됨 — ${one(r.assignee)?.name ?? ''}`, detail: [r.bank_name, r.branch_name].filter(Boolean).join(' ') || null, href: `/orders/consultations/${r.id}`, count: 1, at: null })
+        items.push({ key: `oreq:done:${r.id}`, bucket: 'order', group: 'info', tone: 'blue', title: `요청한 주문 입력됨 — ${one(r.assignee)?.name ?? ''}`, detail: [r.bank_name, r.branch_name].filter(Boolean).join(' ') || null, href: `/orders/consultations/${r.id}`, count: 1, at: null })
       }
     }
   }
@@ -223,9 +224,9 @@ export async function GET() {
       const rmMine = await loadReplyMap(admin, mine.map(o => o.id))
       const waiting = mine.filter(o => rmMine.get(o.id)?.state === 'waiting')
       if (waiting.length) {
-        items.push({ key: 'orep:wait', bucket: 'personal', group: 'todo', tone: 'red', title: `완료 회신 대기 ${waiting.length}건`, detail: `${where(waiting[0])} · ${waiting[0].order_no ?? ''}` + (waiting.length > 1 ? ` 외 ${waiting.length - 1}` : ''), href: '/orders?reply=my_wait', count: waiting.length, at: latest(waiting.map(o => o.created_at)) })
+        items.push({ key: 'orep:wait', bucket: 'order', group: 'todo', tone: 'red', title: `완료 회신 대기 ${waiting.length}건`, detail: `${where(waiting[0])} · ${waiting[0].order_no ?? ''}` + (waiting.length > 1 ? ` 외 ${waiting.length - 1}` : ''), href: '/orders?reply=my_wait', count: waiting.length, at: latest(waiting.map(o => o.created_at)) })
         if (!badges['/orders']) badges['/orders'] = { n: waiting.length, tone: 'red' }
-        breakdown.personal += waiting.length
+        breakdown.order += waiting.length
       }
       // 2) 처리 불가로 되돌아온 내 요청 (전환 전)
       if (!returned.error && returned.data?.length) {
@@ -233,8 +234,8 @@ export async function GET() {
         const rows = (returned.data as { id: string; bank_name: string | null; branch_name: string | null }[]).filter(c => rq.get(c.id)?.state === 'returned')
         if (rows.length) {
           const first = rq.get(rows[0].id)
-          items.push({ key: 'oreq:returned', bucket: 'mine', group: 'todo', tone: 'red', title: `처리 불가 회신 ${rows.length}건 — 다시 요청 필요`, detail: `${first?.last_by ?? ''}: ${where(rows[0])}${first?.last_memo ? ` — ${first.last_memo.slice(0, 30)}` : ''}` + (rows.length > 1 ? ` 외 ${rows.length - 1}` : ''), href: rows.length === 1 ? `/orders/consultations/${rows[0].id}` : '/orders/consultations?scope=requested', count: rows.length, at: latest(rows.map(c => rq.get(c.id)?.last_at)) })
-          breakdown.mine += rows.length
+          items.push({ key: 'oreq:returned', bucket: 'order', group: 'todo', tone: 'red', title: `처리 불가 회신 ${rows.length}건 — 다시 요청 필요`, detail: `${first?.last_by ?? ''}: ${where(rows[0])}${first?.last_memo ? ` — ${first.last_memo.slice(0, 30)}` : ''}` + (rows.length > 1 ? ` 외 ${rows.length - 1}` : ''), href: rows.length === 1 ? `/orders/consultations/${rows[0].id}` : '/orders/consultations?scope=requested', count: rows.length, at: latest(rows.map(c => rq.get(c.id)?.last_at)) })
+          breakdown.order += rows.length
         }
       }
       // 2-1) 주문 입력됨 (2026-11-06 A안) — 내가 요청자 · 상담자인 회신 대기 주문, 최근 7일 입력분. 회신이 오면 3)으로 바뀜
@@ -251,7 +252,7 @@ export async function GET() {
         const covered = new Set(entered.map(o => o.consultation_id).filter(Boolean).map(id => `oreq:done:${id}`))
         for (let i = items.length - 1; i >= 0; i--) if (covered.has(items[i].key)) items.splice(i, 1)
         for (const o of entered.slice(0, 5)) {
-          items.push({ key: `orep:entered:${o.id}`, bucket: 'mine', group: 'info', tone: 'blue', title: `주문 입력됨 — ${o.staff_name ?? ''}`, detail: `${where(o)} · ${o.order_no ?? ''} · 완료 회신 대기`, href: `/orders/${o.id}`, count: 1, at: o.created_at })
+          items.push({ key: `orep:entered:${o.id}`, bucket: 'order', group: 'info', tone: 'blue', title: `주문 입력됨 — ${o.staff_name ?? ''}`, detail: `${where(o)} · ${o.order_no ?? ''} · 완료 회신 대기`, href: `/orders/${o.id}`, count: 1, at: o.created_at })
         }
       }
       // 3) 나에게 온 회신 (요청자 · 상담자) — 주문별 최신 1건, 최근 7일
@@ -266,7 +267,7 @@ export async function GET() {
           const om = new Map((os ?? []).map(o => [o.id as string, o]))
           for (const r of toMe) {
             const o = om.get(r.order_id)
-            items.push({ key: `orep:in:${r.order_id}:${r.created_at}`, bucket: 'mine', group: 'info', tone: r.result === 'unable' ? 'red' : 'blue', title: `${r.result === 'unable' ? '처리 불가 회신' : '완료 회신'} — ${r.employee_name ?? ''}`, detail: `${o ? where(o) : ''} · ${REPLY_LABEL_LONG[r.result]}${r.memo ? ` — ${r.memo.slice(0, 30)}` : ''}`, href: `/orders/${r.order_id}`, count: 1, at: r.created_at })
+            items.push({ key: `orep:in:${r.order_id}:${r.created_at}`, bucket: 'order', group: 'info', tone: r.result === 'unable' ? 'red' : 'blue', title: `${r.result === 'unable' ? '처리 불가 회신' : '완료 회신'} — ${r.employee_name ?? ''}`, detail: `${o ? where(o) : ''} · ${REPLY_LABEL_LONG[r.result]}${r.memo ? ` — ${r.memo.slice(0, 30)}` : ''}`, href: `/orders/${r.order_id}`, count: 1, at: r.created_at })
           }
         }
       }
@@ -275,7 +276,7 @@ export async function GET() {
 
   const order: Record<string, number> = { todo: 0, waiting: 1, info: 2 }
   items.sort((a, b) => order[a.group] - order[b.group] || (b.at ?? '').localeCompare(a.at ?? ''))
-  for (const i of items) if (!i.bucket) i.bucket = 'other'   // 휴가 결재 · 주문 승인 · 내 휴가 결과 등
-  const count = breakdown.personal + breakdown.shared + breakdown.mine + breakdown.other
+  for (const i of items) if (!i.bucket) i.bucket = 'other'   // 휴가 결재 · 내 휴가 결과 등
+  const count = breakdown.personal + breakdown.shared + breakdown.mine + breakdown.order + breakdown.other
   return NextResponse.json({ at: nowIso, count, breakdown, items, badges } satisfies NotifData)
 }

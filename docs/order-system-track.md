@@ -608,7 +608,7 @@
   PushKind에 order_req · order_done 추가(알림 설정 화면 자동 노출). 상담 API: 목록 scope(mine = 작성 + 요청받음 / assigned / requested / done) + request_kpi,
   작성자 조인 FK 명시(705 후 직원 연결 다수 — 미적용 시 예전 조인 폴백), 상세 GET 열람 = 작성자 · 관리자급 · 담당자(can_edit · is_assignee · order_request),
   PATCH action 'request'(작성자 · 관리자급), 본문 저장 · 생성 시 order_request 함께(실패는 request_error로 알림, 상담은 저장).
-  주문 전환 권한: role 판정 제거 → 작성자 · 담당자 · isManagerLike, 전환 후 완료 알림. 알림 센터: "주문 진행 요청 N건"(개인 칸, 배지 /orders/consultations) +
+  주문 전환 권한: role 판정 제거 → 작성자 · 담당자 · isManagerLike, 전환 후 완료 알림. 알림 센터: "주문 진행 요청 N건"(개인 칸 → 2026-11-09 주문 칸으로 분리, docs/work-request-track.md, 배지 /orders/consultations) +
   "요청한 주문 입력됨"(최근 7일). 크론 `/api/push/cron`(업무요청 트랙 파일)에 remindOrderRequests 추가 — 어제 이전 요청 · 미전환 · 미재알림 건 담당자에게 1회.
   화면: 상담일지 작성 "주문 진행 요청" 칸(담당 select + 메모, 아르바이트 차단 안내), 담당자 보기 = 읽기 전용 + 요청 띠 + "주문서로 전환" 버튼,
   작성자 보기 = "OOO에게 요청" 띠, 목록 카드 4개 · "주문 진행" 열 · 행 "요청/요청 변경" 창, 주문 상세 "OOO 요청 → OOO 진행" 한 줄.
