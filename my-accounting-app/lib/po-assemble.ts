@@ -2,7 +2,7 @@
 // (2026-11-09 purchase-orders/[id]/route.ts에서 그대로 옮김 — 동작 변경 없음)
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { rosterRowsForOrder } from '@/lib/delivery-roster-server'
-import type { PoExcelData } from '@/lib/po-form'
+import { normalizeShipRequest, type PoExcelData } from '@/lib/po-form'
 import type { FormExtra } from '@/lib/po-vendor-form'
 
 export interface PoRecord {
@@ -135,7 +135,7 @@ export async function assembleForm(
   return {
     po_no: po.po_no,
     order_date: order?.order_date ?? null,
-    ship_request: shipRequest,
+    ship_request: normalizeShipRequest(shipRequest, order?.order_date ?? null),   // 'YYYY-MM-DD'로 통일 (2026-11-09)
     vendor_name: po.vendor_name,
     customer: [order?.bank_name, order?.branch_name].filter(Boolean).join(' ') || '-',
     customer_bank: (order?.bank_name as string | null) ?? null,
