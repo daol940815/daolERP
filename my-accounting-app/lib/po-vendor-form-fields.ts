@@ -123,6 +123,11 @@ export const FIELDS: FieldDef[] = [
   { key: 'r_zip', label: '받는분 우편번호', group: '받는분', scope: 'line', example: '10000' },
   { key: 'r_addr', label: '받는분 주소', group: '받는분', scope: 'line', example: '서울시 중구 가나로 1' },
   { key: 'r_msg', label: '배송메시지', group: '받는분', scope: 'line', example: '문 앞' },
+  // 주문 배송지(한 곳) — 머리 칸용. 배송지가 없으면 첫 수령인 (2026-11-09 깨끗한나라 배송메모)
+  { key: 'ship_memo', label: '배송지 묶음(상세주소 · 이름 · 연락처, 줄바꿈)', group: '받는분', scope: 'order', example: '서울시 중구 가나로 1 2층 / 홍길동 / 010-0000-0000' },
+  { key: 'ship_addr', label: '배송지 상세주소(주문)', group: '받는분', scope: 'order', example: '서울시 중구 가나로 1 2층' },
+  { key: 'ship_name', label: '배송지 받는분(주문)', group: '받는분', scope: 'order', example: '홍길동' },
+  { key: 'ship_phone', label: '배송지 연락처(주문)', group: '받는분', scope: 'order', example: '010-0000-0000' },
 
   { key: 'sender', label: '보내는분 명의(상담일지)', group: '보내는분 · 담당', scope: 'order', example: '가나은행 다라지점장' },
   { key: 'manager', label: '고객 담당자(님 포함)', group: '보내는분 · 담당', scope: 'order', example: '김가나 과장님' },
