@@ -577,6 +577,12 @@
       규칙: 사용 중 · 보관 버전은 고치지 않음(발주서 form_id 기록 보존) → 복사해 새 버전 / .xls 거절 안내 / 10MB / Storage 키 ASCII.
       발주서 데이터 조립(loadPo · currentStaff · assembleForm)을 `lib/po-assemble.ts`로 옮김(동작 변경 없음) + `formExtraOf`(상담 sender_name · 직급 position).
       도움말 '/orders/purchase-hub' 항목 신설(HELP_PENDING에서 뺌). 빈 양식 20개 자동 인식 결과 전부 저장 검사 통과 · 가상 주문 생성 확인.
+    - **2026-11-09 사용자 시험(제주담은귤 · 가상 주문) → 엑셀 '읽을 수 없는 내용 복구' 경고** — 원인 2가지(exceljs 한계), 엔진에서 보정:
+      ① 조건부 서식 '중복 값'(duplicateValues)을 exceljs가 못 써 빈 <conditionalFormatting>만 남김 → `sanitizeConditionalFormats`: 못 쓰는 규칙을 같은 뜻의 수식 규칙
+      (COUNTIF)으로 바꿔 색 유지, 못 바꾸면 그 규칙만 뺌 ② 드롭다운 범위를 칸별로 펼쳤다 글자 순으로 다시 묶어 겹치는 범위 생성(삼진어묵 N7:N65515 + N10:N65515)
+      → `compactDataValidations`: 쓰기 전에 열마다 직접 범위로 묶음. 빈 양식 20개 재생성 — 조건부 서식 · 드롭다운 개수 · 범위 원본과 일치.
+      남는 손실(영향 없음): 프린터 드라이버 설정(.bin — 인쇄 영역 · 방향은 유지), 두일지엘 안내 글상자('상품명으로 발주 부탁' — 다올 대상 안내), 아르모 빈 그림 영역.
+      올린 양식 원본은 그대로라 다시 올릴 필요 없음(배포 후 '만들어 받기'만 다시).
 
 ### 발주서 출고요청일 날짜 표기 (2026-11-09 사용자 승인 "제안대로 진행해줘. 달력에서 고를필요는 없어.")
 
