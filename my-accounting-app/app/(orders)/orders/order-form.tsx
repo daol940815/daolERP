@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import ShipCard, { EMPTY_SHIP } from './ship-card'
 import { hasShip, needsShip, SHIP_KINDS, type ShipInput } from '@/lib/ship-address'
 import RosterCard from './roster-card'
+import { normTel } from '@/lib/contact-phone-sync'
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -368,6 +369,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
     setContactId(cid)
     const c = contacts.find(x => x.contact_id === cid)
     if (c?.phone) setPhone(c.phone)
+    if (c?.tel) setContactTel(c.tel)          // 유선도 마스터에서 (116)
     // 직원이 고객을 다시 고르면 그 고객의 다올 담당으로 상담자를 맞춘다 (수정 · 재등록 포함)
     autoCounselor.current = true
     setCounselorId(c?.staff_employee_id ?? null)
@@ -727,14 +729,30 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               return <div className="text-[0.625rem] text-gray-400 mt-0.5">고객 다올 담당</div>
             })()}
           </div>
-          <div>
-            <label className={label}>연락처</label>
-            <input value={contactTel} onChange={e => setContactTel(e.target.value)} className={free} placeholder="02-" />
-          </div>
-          <div>
-            <label className={label}>핸드폰</label>
-            <input value={phone} onChange={e => setPhone(e.target.value)} className={free} placeholder="담당자 선택 시 자동" />
-          </div>
+          {/* 연락처 → 마스터 반영 (116): 마스터가 비어 있으면 저장 때 채워지고, 다르면 안내만 (덮어쓰지 않음) */}
+          {(() => {
+            const c = contacts.find(x => x.contact_id === contactId)
+            const hint = (mine: string, master: string | null | undefined) => {
+              if (!c || !mine.trim()) return null
+              if (!master?.trim()) return <div className="text-[0.625rem] text-gray-400 mt-0.5">저장하면 담당자 마스터에도 기록됩니다</div>
+              if (normTel(master) !== normTel(mine)) return <div className="text-[0.625rem] text-amber-700 mt-0.5">마스터 번호와 다름 ({master}) — 이 주문에만 기록</div>
+              return null
+            }
+            return (
+              <>
+                <div>
+                  <label className={label}>연락처</label>
+                  <input value={contactTel} onChange={e => setContactTel(e.target.value)} className={free} placeholder="02-" />
+                  {hint(contactTel, c?.tel)}
+                </div>
+                <div>
+                  <label className={label}>핸드폰</label>
+                  <input value={phone} onChange={e => setPhone(e.target.value)} className={free} placeholder="담당자 선택 시 자동" />
+                  {hint(phone, c?.phone)}
+                </div>
+              </>
+            )
+          })()}
           <div className="col-span-2">
             <label className={label}>메모</label>
             <input value={memo} onChange={e => setMemo(e.target.value)} className={free} />

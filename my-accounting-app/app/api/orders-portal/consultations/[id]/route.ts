@@ -5,6 +5,7 @@ import { getCurrentUser, type CurrentUser } from '@/lib/user-role'
 import { isManagerLike } from '@/lib/permissions'
 import { decryptPayment, encryptPayment, encryptionReady, maskPayment } from '@/lib/payment-crypto'
 import { parseConsultBody, consultItemRows, insertConsultItems, compatConsultFields, CONSULT_509_HINT, CONSULT_706_HINT } from '@/lib/consultations'
+import { fillContactPhonesIfEmpty } from '@/lib/contact-phone-sync'
 import { recordWorkLog, consultContent } from '@/lib/work-log'
 import { isOrderAssignee, parseOrderRequest, saveOrderRequest } from '@/lib/order-request'
 import { loadConsultReqMap, saveConsultUnable, CONSULT_REQ_LABEL } from '@/lib/order-reply'
@@ -200,6 +201,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (dErr) return NextResponse.json({ error: `품목 교체 실패: ${dErr.message}` }, { status: 500 })
   const itemErr = await insertConsultItems(admin, params.id, consultItemRows(parsed.items))
   if (itemErr) return NextResponse.json({ error: `품목 저장 실패: ${itemErr}` }, { status: 500 })
+  // 담당자 연락처 → 인물 마스터 (116, 빈 칸만)
+  const phoneFilled = await fillContactPhonesIfEmpty(admin, parsed.fields.contact_id, { phone: parsed.fields.phone, tel: parsed.fields.tel })
 
   await recordWorkLog(admin, {
     employeeId: me.employeeId,
@@ -211,7 +214,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // 주문 진행 요청 (705) — 본문은 저장된 상태로 두고 요청 실패만 따로 알려준다
   const orderReq = parseOrderRequest(body.order_request)
   const requestError = orderReq ? await saveOrderRequest(admin, params.id, orderReq, editor) : null
-  return NextResponse.json({ ok: true, request_error: requestError })
+  return NextResponse.json({ ok: true, request_error: requestError, phone_filled: phoneFilled })
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {

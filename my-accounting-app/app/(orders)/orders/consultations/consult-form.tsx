@@ -13,6 +13,7 @@ import { contactLabel } from '@/lib/contact-label'
 import ShipCard, { EMPTY_SHIP } from '../ship-card'
 import { needsShip, SHIP_KINDS, type ShipInput } from '@/lib/ship-address'
 import RosterCard from '../roster-card'
+import { normTel } from '@/lib/contact-phone-sync'
 
 // 상담일지 폼 (신규·수정 공용) — 실물 '주문상담' 시트 컬럼 구성.
 // 필수는 상담일·구분뿐. 업체·지점·담당자는 마스터 검색 + 자유 입력 겸용
@@ -761,6 +762,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   if (id) {
                     const c = contacts.find(x => x.contact_id === id)
                     if (c?.phone) setPhone(c.phone)
+                    if (c?.tel) setTel(c.tel)          // 유선도 마스터에서 (116)
                   }
                 }}
                 placeholder={vendorId ? '담당자 선택 · 자유 입력' : '자유 입력 (지점 선택 시 마스터 검색)'} />
@@ -776,14 +778,31 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 : <div className="text-[0.625rem] text-amber-700 mt-0.5">이 고객의 다올 담당 미기입 — 주문 입력 때 고른 상담자가 다올 담당으로 저장됩니다</div>
             })()}
           </div>
-          <div>
-            <label className={label}>핸드폰</label>
-            <input value={phone} disabled={locked} onChange={e => setPhone(e.target.value)} className={free} placeholder="010-" />
-          </div>
-          <div>
-            <label className={label}>연락처(유선)</label>
-            <input value={tel} disabled={locked} onChange={e => setTel(e.target.value)} className={free} placeholder="02-" />
-          </div>
+          {/* 연락처 → 마스터 반영 (116): 마스터가 비어 있으면 저장 때 채워지고, 다르면 안내만 (덮어쓰지 않음) */}
+          {(() => {
+            const c = contacts.find(x => x.contact_id === contactId)
+            const hint = (mine: string, master: string | null | undefined) => {
+              if (!c) return null
+              if (!mine.trim()) return null
+              if (!master?.trim()) return <div className="text-[0.625rem] text-gray-400 mt-0.5">저장하면 담당자 마스터에도 기록됩니다</div>
+              if (normTel(master) !== normTel(mine)) return <div className="text-[0.625rem] text-amber-700 mt-0.5">마스터 번호와 다름 ({master}) — 이 상담에만 기록</div>
+              return null
+            }
+            return (
+              <>
+                <div>
+                  <label className={label}>핸드폰</label>
+                  <input value={phone} disabled={locked} onChange={e => setPhone(e.target.value)} className={free} placeholder="010-" />
+                  {hint(phone, c?.phone)}
+                </div>
+                <div>
+                  <label className={label}>연락처(유선)</label>
+                  <input value={tel} disabled={locked} onChange={e => setTel(e.target.value)} className={free} placeholder="02-" />
+                  {hint(tel, c?.tel)}
+                </div>
+              </>
+            )
+          })()}
           {/* 상태·기타사항은 품목별 입력으로 이동 (509, 실무자 요청) — 이전 기록만 표시 */}
           {(productStatus || optionNote) && (
             <div className="col-span-2 md:col-span-6 text-xs text-gray-400">

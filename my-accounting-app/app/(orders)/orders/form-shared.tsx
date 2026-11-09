@@ -16,7 +16,7 @@ export interface IndividualCustomerOpt {
 export const isMoimVendor = (v: Vendor, groupName: string | undefined) =>
   !v.individual_contact_id && !!groupName && v.name.replace(/\s+/g, '') !== groupName.replace(/\s+/g, '')
 export interface Employee { id: string; name: string; position: string | null; team: string | null }
-export interface ContactOpt { contact_id: string; name: string; phone: string | null; title: string | null; is_representative: boolean; staff_employee_id?: string | null }
+export interface ContactOpt { contact_id: string; name: string; phone: string | null; tel?: string | null; title: string | null; is_representative: boolean; staff_employee_id?: string | null }
 export interface Product {
   id: string; item_code: string | null; item_name: string; option_name: string | null
   purchase_vendor_name: string | null; category: string | null
