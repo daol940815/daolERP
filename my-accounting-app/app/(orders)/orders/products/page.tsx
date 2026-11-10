@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { branchMargin, individualMargin, formatProfit, formatRate, type Margin } from '@/lib/product-margin'
 
 // 품목 마스터 (2단계) — 주문 입력의 품번 검색 원천.
 // 목록 화면 관례: KPI 카드(클릭=필터) + 통합 검색 + 표.
@@ -51,20 +52,25 @@ const condMatch = (p: Product, field: CondField, q: string) => {
 //  - 표 머리글 클릭: 오름차순 → 내림차순 → 기본(품명 오름차순). 두 조작은 같은 상태를 공유
 // 빈 값('-')은 방향과 관계없이 항상 맨 아래. 문자는 한글 순 + 숫자 자연 정렬(품번 A-2 < A-10).
 type SortKey = 'code' | 'name' | 'category' | 'vendor' | 'sale' | 'individual' | 'purchase'
-  | 'margin' | 'carton' | 'carton_fee' | 'loose_fee' | 'memo' | 'status'
+  | 'b_profit' | 'b_rate' | 'i_profit' | 'i_rate' | 'carton' | 'carton_fee' | 'loose_fee' | 'memo' | 'status'
 type SortDir = 'asc' | 'desc'
 const DEFAULT_SORT: { key: SortKey; dir: SortDir } = { key: 'name', dir: 'asc' }
 // 표 칸 순서 = 머리글 순서
 const SORT_COLS: [SortKey, string, 'left' | 'right'][] = [
   ['code', '품번', 'left'], ['name', '품명', 'left'], ['category', '분류', 'left'],
   ['vendor', '매입처', 'left'], ['sale', '지점판매가', 'right'], ['individual', '개별판매가', 'right'],
-  ['purchase', '매입가', 'right'], ['margin', '마진(지점)', 'right'], ['carton', '카톤단위', 'right'],
+  ['purchase', '매입가', 'right'], ['b_profit', '마진', 'right'], ['carton', '카톤단위', 'right'],
   ['carton_fee', '카톤택배비', 'right'], ['loose_fee', '카톤외택배비', 'right'],
   ['memo', '메모', 'left'], ['status', '상태', 'left'],
 ]
-const SORT_LABEL = Object.fromEntries(SORT_COLS.map(([k, l]) => [k, l])) as Record<SortKey, string>
+// 마진 칸(2026-11-10): 머리글 '마진' 클릭 = 지점 이익금 순, 선택 상자는 지점 · 개별 × 이익금 · 마진율 4가지
+const SORT_LABEL = {
+  ...Object.fromEntries(SORT_COLS.map(([k, l]) => [k, l])),
+  b_profit: '지점 이익금', b_rate: '지점 마진율', i_profit: '개별 이익금', i_rate: '개별 마진율',
+} as Record<SortKey, string>
 // 선택 상자 순서 — 자주 쓰는 품번 · 품명 · 지점판매가를 앞에
-const SORT_OPTIONS: SortKey[] = ['code', 'name', 'sale', 'individual', 'purchase', 'margin', 'vendor',
+const SORT_OPTIONS: SortKey[] = ['code', 'name', 'sale', 'individual', 'purchase',
+  'b_profit', 'b_rate', 'i_profit', 'i_rate', 'vendor',
   'category', 'carton', 'carton_fee', 'loose_fee', 'memo', 'status']
 const sortValue = (p: Product, key: SortKey): string | number | null => {
   const txt = (v?: string | null) => (v ?? '').trim() || null
@@ -77,7 +83,11 @@ const sortValue = (p: Product, key: SortKey): string | number | null => {
     case 'sale': return p.sale_price ?? 0
     case 'individual': return num(p.individual_sale_price)
     case 'purchase': return p.purchase_price ?? 0
-    case 'margin': return (p.sale_price ?? 0) - (p.purchase_price ?? 0)
+    // 마진율 (-)(판매가 없음) · 개별판매가 없음은 빈 값 = 맨 아래
+    case 'b_profit': return branchMargin(p).profit
+    case 'b_rate': return branchMargin(p).rate
+    case 'i_profit': return individualMargin(p)?.profit ?? null
+    case 'i_rate': return individualMargin(p)?.rate ?? null
     case 'carton': return num(p.carton_unit)
     case 'carton_fee': return p.carton_unit ? (p.carton_shipping_fee ?? 0) : null
     case 'loose_fee': return num(p.loose_shipping_fee)
@@ -92,6 +102,21 @@ const compareBy = (key: SortKey, dir: SortDir) => (a: Product, b: Product) => {
     ? va - vb
     : String(va).localeCompare(String(vb), 'ko', { numeric: true })
   return dir === 'asc' ? c : -c
+}
+
+// 마진 한 줄: "지점 1,420원 (31.6%)" — 마이너스 빨간색, 개별판매가 없음은 '-'
+function MarginLine({ label, m }: { label: string; m: Margin | null }) {
+  const neg = m !== null && Math.round(m.profit) < 0
+  return (
+    <div className="flex justify-end items-baseline gap-1.5">
+      <span className="text-[0.625rem] text-gray-400">{label}</span>
+      {m === null ? <span className="text-gray-400">-</span> : (
+        <span className={neg ? 'text-red-600 font-medium' : 'text-emerald-700'}>
+          {formatProfit(m.profit)} <span className="text-xs">({formatRate(m.rate)})</span>
+        </span>
+      )}
+    </div>
+  )
 }
 
 export default function ProductsPage() {
@@ -482,7 +507,10 @@ export default function ProductsPage() {
                   <td className="py-1.5 px-3 text-right tabular-nums">{won(p.sale_price)}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{p.individual_sale_price ? won(p.individual_sale_price) : '-'}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{won(p.purchase_price)}</td>
-                  <td className="py-1.5 px-3 text-right tabular-nums text-emerald-700">{won(p.sale_price - p.purchase_price)}</td>
+                  <td className="py-1.5 px-3 text-right tabular-nums whitespace-nowrap">
+                    <MarginLine label="지점" m={branchMargin(p)} />
+                    <MarginLine label="개별" m={individualMargin(p)} />
+                  </td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{p.carton_unit ?? '-'}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{p.carton_unit ? won(p.carton_shipping_fee) : '-'}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{p.loose_shipping_fee ? won(p.loose_shipping_fee) : '-'}</td>

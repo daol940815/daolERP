@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { branchMargin } from '@/lib/product-margin'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -214,8 +215,9 @@ export async function GET(req: NextRequest) {
       p.consumer_price ?? '',
       p.composition ?? '',
       p.category ?? '',
-      // 마진율 = (지점판매가 - 지점매입가) / 지점판매가 (파생)
-      p.sale_price > 0 ? Math.round((p.sale_price - p.purchase_price) / p.sale_price * 1000) / 1000 : '',
+      // 마진율 = 지점 이익금 ÷ 지점판매가, 이익금 = 지점판매가 − 매입가 − 카톤택배비 ÷ 카톤단위
+      // (파생, 2026-11-10 — lib/product-margin.ts 화면과 같은 함수. 0.0% 서식이 소수 첫째 자리로 보여 줌)
+      branchMargin(p).rate ?? '',
       p.carton_unit ?? '',
       p.carton_shipping_fee || '',
       p.loose_shipping_fee || '',
