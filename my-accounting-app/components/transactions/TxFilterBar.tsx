@@ -282,7 +282,7 @@ export default function TxFilterBar({ filters, onChange, accounts, vendors, bank
         <div className="relative flex-1 min-w-[260px]">
           <input value={qInput} onChange={e => setQInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); commitInput() } }}
-            placeholder="검색어 입력 후 Enter — 적요·보낸분/받는분·메모·거래처·계정과목 (금액:168300 같은 단축 입력도 가능)"
+            placeholder="검색어 입력 후 Enter — 적요·보낸분/받는분·메모·거래처·계정과목, 숫자만 치면 입금액·출금액도 찾음 (금액:100000~200000 같은 단축 입력 가능)"
             className="w-full border border-gray-300 rounded-lg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
           <span className="absolute left-2.5 top-1.5 text-gray-400 text-sm">⌕</span>
         </div>
