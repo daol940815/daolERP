@@ -14,6 +14,7 @@ interface FormRow {
   id: string; version: number; file_name: string; status: 'draft' | 'active' | 'archived'
   mapping: FormMapping; recognized: RecognizeResult | null; memo: string | null
   uploaded_at: string; activated_at: string | null; uploader_name: string | null; activator_name: string | null
+  used_count?: number            // 이 버전으로 나간 발주서 수
 }
 interface RecentPo { id: string; po_no: string; created_at: string; total_amount: number }
 
@@ -302,9 +303,14 @@ export default function PoFormTab({ vendorId, vendorName }: { vendorId: string; 
                           <button disabled={busy} onClick={() => confirm('이 양식 사용을 멈출까요? 그 뒤로는 자사 발주서 양식으로 나갑니다.') && patch({ action: 'archive', form_id: f.id }, '사용을 멈췄습니다.')}
                             className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-500 hover:bg-gray-50">사용 멈춤</button>
                         )}
-                        {canEdit && f.status === 'draft' && (
+                        {canEdit && (
                           <button disabled={busy} onClick={async () => {
-                            if (!confirm(`작성 중인 버전 ${f.version}을 지울까요?`)) return
+                            // 상태와 상관없이 삭제 (2026-11-10 사용자 결정 B안) — 확인창에 영향 안내
+                            const lines = [`버전 ${f.version} (${STATUS[f.status].label}) · ${f.file_name}을 지울까요?`]
+                            if (f.status === 'active') lines.push('지금 사용 중인 양식입니다. 지우면 이 매입처 발주서는 바로 기본 발주서 양식으로 나갑니다.')
+                            if (f.used_count) lines.push(`이 양식으로 나간 발주서 ${f.used_count}건의 '사용 양식' 기록이 함께 사라집니다(발주서 자체는 그대로).`)
+                            lines.push('원본 파일도 함께 지워지며 되돌릴 수 없습니다.')
+                            if (!confirm(lines.join('\n\n'))) return
                             if (await call({ method: 'DELETE', url: `/api/purchase-hub/${vendorId}/po-forms?form_id=${f.id}` }, '지웠습니다.')) {
                               if (openId === f.id) { setOpenId(null); setMapping(null); setDirty(false) }
                             }
