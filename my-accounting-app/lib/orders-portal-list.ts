@@ -29,6 +29,8 @@ export interface OrderListRow {
   memo?: string | null
   created_at: string
   canceled_at?: string | null      // 511 — 취소 주문 (집계 제외·배지)
+  canceled_by?: string | null      // 511 — 취소한 직원 id
+  cancel_reason?: string | null    // 511 — 취소 사유 (목록 배지를 누르면 보임, 2026-11-10)
   last_edited_at?: string | null   // 511 — 당일 수정됨 표시
   counselor_employee_id?: string | null    // 500 — 상담자 (내 상담건)
   created_by_employee_id?: string | null   // 500 — 입력자 (내 처리건)
@@ -49,7 +51,7 @@ export interface OrderListFilter {
   conds?: SearchCond[]       // 항목별 조건 (c 파라미터)
   from?: string | null
   to?: string | null
-  collect?: string | null    // all|collected|in_progress|outstanding
+  collect?: string | null    // all|collected|in_progress|outstanding|canceled(취소만)
   source?: string | null     // all|direct|upload
   po?: string | null         // all|none|partial|full (direct 주문 전용)
   prepayOnly?: boolean
@@ -177,7 +179,7 @@ export async function loadFilteredOrders(
   admin: SupabaseClient,
   me: CurrentUser,
   f: OrderListFilter,
-): Promise<{ filtered: OrderListRow[]; prepayIds: Set<string>; vipIds: Set<string>; invoiceIds: Set<string>; poStatus: Map<string, PoStatus>; replyMap: Map<string, ReplyInfo>; replyCounts: ReplyCounts; mineCounts: MineCounts } | { error: string }> {
+): Promise<{ filtered: OrderListRow[]; prepayIds: Set<string>; vipIds: Set<string>; invoiceIds: Set<string>; poStatus: Map<string, PoStatus>; replyMap: Map<string, ReplyInfo>; replyCounts: ReplyCounts; mineCounts: MineCounts; canceledCount: number } | { error: string }> {
   // 1) 기간 필터로 주문 로드 (나머지 필터는 메모리) — 511 미적용이면 기존 컬럼으로 폴백
   const baseCols = 'id, order_no, order_date, bank_name, branch_name, manager_name, phone, contact, staff_name, total_amount, outstanding_amount, collect_status, source, memo, created_at, counselor_employee_id, created_by_employee_id, consultation_id'
   const loadBase = (cols: string) => fetchAllRows<OrderListRow>((pf, pt) => {
@@ -186,7 +188,7 @@ export async function loadFilteredOrders(
     if (f.to) query = query.lte('order_date', f.to)
     return query.order('order_date', { ascending: false }).range(pf, pt) as unknown as PromiseLike<{ data: OrderListRow[] | null; error: { message: string } | null }>
   })
-  let base = await loadBase(`${baseCols}, canceled_at, last_edited_at`)
+  let base = await loadBase(`${baseCols}, canceled_at, canceled_by, cancel_reason, last_edited_at`)
   if ('error' in base) base = await loadBase(baseCols)
   if ('error' in base) return { error: base.error }
 
@@ -298,7 +300,10 @@ export async function loadFilteredOrders(
       o.collect_status = collectStatusFrom(o.collect_status, r)
     }
   }
-  if (f.collect && f.collect !== 'all') filtered = filtered.filter(o => o.collect_status === f.collect)
+  // 취소만 칩 (2026-11-10) — 숫자는 수금 필터 적용 전 기준
+  const canceledCount = filtered.filter(o => o.canceled_at).length
+  if (f.collect === 'canceled') filtered = filtered.filter(o => o.canceled_at)
+  else if (f.collect && f.collect !== 'all') filtered = filtered.filter(o => o.collect_status === f.collect)
 
   // 4) 발주 상태 (direct 주문 전용 배지·필터)
   const directIds = filtered.filter(o => (o.source ?? 'upload') === 'direct').map(o => o.id)
@@ -337,7 +342,7 @@ export async function loadFilteredOrders(
       ? (a.order_date < b.order_date ? 1 : -1)
       : (a.created_at < b.created_at ? 1 : -1))
 
-  return { filtered, prepayIds, vipIds, invoiceIds, poStatus, replyMap, replyCounts, mineCounts }
+  return { filtered, prepayIds, vipIds, invoiceIds, poStatus, replyMap, replyCounts, mineCounts, canceledCount }
 }
 
 export interface MineCounts { consult: number; handled: number }

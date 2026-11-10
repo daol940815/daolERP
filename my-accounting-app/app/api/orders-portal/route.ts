@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   const result = await loadFilteredOrders(admin, me, filterFromSearchParams(sp))
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
-  const { filtered, prepayIds, vipIds, invoiceIds, poStatus, replyMap, replyCounts, mineCounts } = result
+  const { filtered, prepayIds, vipIds, invoiceIds, poStatus, replyMap, replyCounts, mineCounts, canceledCount } = result
 
   // 취소 주문(511)은 금액·수금 KPI에서 제외 — 목록에는 취소 배지로 표시 (상계 효과)
   const active = filtered.filter(o => !o.canceled_at)
@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
     outstanding_cnt: active.filter(o => o.collect_status === 'outstanding').length,
     in_progress_cnt: active.filter(o => o.collect_status === 'in_progress').length,
     canceled_cnt: filtered.filter(o => o.canceled_at).length,
+    canceled_all_cnt: canceledCount,   // 취소만 칩 숫자 (수금 필터 적용 전)
     direct_cnt: filtered.filter(o => o.source === 'direct').length,
     // 발주 상태 (direct 주문만 집계 — 업로드 주문은 대상 아님)
     po_none_cnt: filtered.filter(o => poStatus.get(o.id) === 'none').length,
@@ -64,6 +65,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // 취소한 직원 이름 (목록 취소 배지의 사유 창)
+  const cancelerIds = Array.from(new Set(pageRows.map(o => o.canceled_by).filter((v): v is string => !!v)))
+  const cancelerName = new Map<string, string>()
+  if (cancelerIds.length) {
+    const { data } = await admin.from('employees').select('id, name').in('id', cancelerIds)
+    for (const e of data ?? []) cancelerName.set(e.id as string, e.name as string)
+  }
+
   return NextResponse.json({
     rows: pageRows.map(o => ({
       ...o,
@@ -77,6 +86,7 @@ export async function GET(req: NextRequest) {
       has_invoice: invoiceIds.has(o.id),
       po_status: poStatus.get(o.id) ?? null,   // direct 외에는 null
       reply_state: replyMap.get(o.id)?.state ?? null,   // 회신 대상 아니면 null
+      canceled_by_name: o.canceled_by ? cancelerName.get(o.canceled_by) ?? null : null,
     })),
     kpi,
     page,

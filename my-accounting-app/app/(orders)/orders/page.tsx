@@ -6,6 +6,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import CollectMatchModal from '@/components/erp/CollectMatchModal'
+import ReasonBadge from '@/components/ui/ReasonBadge'
 import { FIELD_SHORT, SEARCH_FIELDS, encodeCond, parseFreeText, type MineFilter, type SearchCond, type SearchField } from '@/lib/order-search-fields'
 
 // 주문 현황 (시안 v2) — KPI(클릭=필터) + 통합 검색 + 칩 필터 + 행내 상품 펼치기.
@@ -34,6 +35,8 @@ interface Row {
   po_status: 'none' | 'partial' | 'full' | null
   reply_state: 'waiting' | 'done' | 'changed' | 'unable' | null   // 완료 회신 (515) — 대상 아니면 null
   canceled_at?: string | null
+  cancel_reason?: string | null
+  canceled_by_name?: string | null
   last_edited_at?: string | null
 }
 interface Kpi {
@@ -42,6 +45,7 @@ interface Kpi {
   po_none_cnt: number; po_partial_cnt: number; po_full_cnt: number
   reply?: { wait: number; my_wait: number; my_req_wait: number; to_me: number; unable: number }
   mine?: { consult: number; handled: number }   // 내 상담건 · 내 처리건 (2026-11-09)
+  canceled_all_cnt?: number                     // 취소만 칩 숫자 (2026-11-10)
 }
 interface Item {
   id: string; line_no: number; parent_line_no: number | null
@@ -297,6 +301,10 @@ export default function OrdersHomePage() {
           {([['all', '전체'], ['collected', '수금완료'], ['in_progress', '진행중'], ['outstanding', '미수금']] as const).map(([k, l]) => (
             <button key={k} onClick={() => setCollect(k)} className={chip(collect === k)}>{l}</button>
           ))}
+          <button onClick={() => setCollect(collect === 'canceled' ? 'all' : 'canceled')} className={chip(collect === 'canceled')}
+            title="취소된 주문만 보기 — 취소 표시를 누르면 사유가 보입니다">
+            취소만{kpi?.canceled_all_cnt ? ` ${kpi.canceled_all_cnt}` : ''}
+          </button>
           <span className="w-2" />
           <span className="text-[0.6875rem] text-gray-400 mr-0.5">출처</span>
           {([['all', '전체'], ['direct', '직접입력'], ['upload', '업로드']] as const).map(([k, l]) => (
@@ -370,7 +378,10 @@ export default function OrdersHomePage() {
                         {r.branch_name ?? <span className="text-gray-300">-</span>}
                         {/* 취소·재등록(511): 취소 주문은 집계 제외 상계, 당일 수정건은 '수정됨' 표시 */}
                         {r.canceled_at && (
-                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-red-50 text-red-600">취소</span>
+                          <span className="ml-1.5">
+                            <ReasonBadge label="취소" cls="bg-red-50 text-red-600" title="취소 사유"
+                              reason={r.cancel_reason} by={r.canceled_by_name} at={r.canceled_at} />
+                          </span>
                         )}
                         {!r.canceled_at && r.last_edited_at && (
                           <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-amber-50 text-amber-600">수정됨</span>

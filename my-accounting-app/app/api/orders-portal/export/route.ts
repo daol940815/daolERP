@@ -112,6 +112,16 @@ export async function GET(req: NextRequest) {
     '품목메모': it?.memo ?? '',
   })
 
+  // 취소한 직원 이름
+  const cancelerIds = Array.from(new Set(filtered.map(o => o.canceled_by).filter((v): v is string => !!v)))
+  const cancelerName = new Map<string, string>()
+  for (let i = 0; i < cancelerIds.length; i += CHUNK) {
+    const { data } = await admin.from('employees').select('id, name').in('id', cancelerIds.slice(i, i + CHUNK))
+    for (const e of data ?? []) cancelerName.set(e.id as string, e.name as string)
+  }
+  const kstDateTime = (iso: string) =>
+    new Date(iso).toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }).slice(0, 16)
+
   const rows: Record<string, unknown>[] = []
   for (const o of filtered) {
     const items = itemsByOrder.get(o.id) ?? []
@@ -132,6 +142,10 @@ export async function GET(req: NextRequest) {
       '출처': (o.source ?? 'upload') === 'direct' ? '직접입력' : '업로드',
       '총금액(주문)': o.total_amount ?? 0,
       '미수금(주문)': o.outstanding_amount ?? 0,
+      // 주문 취소 (2026-11-10) — 취소 주문만 채움
+      '취소일': o.canceled_at ? kstDateTime(o.canceled_at) : '',
+      '취소자': o.canceled_by ? cancelerName.get(o.canceled_by) ?? '' : '',
+      '취소 사유': o.canceled_at ? o.cancel_reason ?? '' : '',
     }
     if (!items.length) {
       rows.push({ ...orderCols, ...itemColsOf(null), '주문메모': o.memo ?? '' })
