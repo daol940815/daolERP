@@ -14,7 +14,7 @@ export const maxDuration = 120
 // 품목 행 단위로 전개: 주문 정보가 각 품목 행에 반복되는 기존 ERP 다운로드 형식.
 // 원가 노출 정책: 매입가·매입배송비·매입합계·마진 컬럼 전 직원 공개 (2026-08-13 사용자 결정).
 //
-// GET ?q=&c=<항목>:<값>(반복)&from=&to=&collect=&source=&prepay=1&invoice=1&mine=consult|handled
+// GET ?q=&c=<항목>:<값>(반복)&from=&to=&collect=&source=&prepay=1&invoice=1&mine=journal|counselor|handled
 
 const STATUS_LABEL: Record<string, string> = {
   collected: '수금완료',

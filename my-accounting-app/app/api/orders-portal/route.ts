@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 // 규모 전제: 주문 ~1만 건 수준이라 필터된 집합을 메모리로 집계한다.
 // (10만 단위로 커지면 102 hub_summary_json 패턴의 RPC로 이관 — 트랙 문서 참고)
 //
-// GET ?q=&c=<항목>:<값>(반복)&from=&to=&collect=&source=&prepay=1&vip=1&invoice=1&mine=consult|handled&reply=&page=1
+// GET ?q=&c=<항목>:<값>(반복)&from=&to=&collect=&source=&prepay=1&vip=1&invoice=1&mine=journal|counselor|handled&reply=&page=1
 
 const PER_PAGE = 50
 
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
     po_full_cnt: filtered.filter(o => poStatus.get(o.id) === 'full').length,
     // 완료 회신 (515) — 회신 필터 적용 전 숫자
     reply: replyCounts,
-    // 내 상담건 · 내 처리건 버튼 숫자 (내 주문 필터 적용 전)
+    // 내 상담일지 · 상담자 · 주문처리 건 버튼 숫자 (내 주문 필터 적용 전)
     mine: mineCounts,
   }
 

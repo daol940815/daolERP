@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import CollectMatchModal from '@/components/erp/CollectMatchModal'
 import ReasonBadge from '@/components/ui/ReasonBadge'
-import { FIELD_SHORT, SEARCH_FIELDS, encodeCond, parseFreeText, type MineFilter, type SearchCond, type SearchField } from '@/lib/order-search-fields'
+import { FIELD_SHORT, MINE_FILTERS, SEARCH_FIELDS, encodeCond, parseFreeText, parseMine, type MineFilter, type SearchCond, type SearchField } from '@/lib/order-search-fields'
 
 // 주문 현황 (시안 v2) — KPI(클릭=필터) + 통합 검색 + 칩 필터 + 행내 상품 펼치기.
 // 검사 상태(정의 미확정)·배송 컬럼(3단계)은 제외 상태 — 트랙 문서 참고.
@@ -44,7 +44,7 @@ interface Kpi {
   outstanding_cnt: number; in_progress_cnt: number; direct_cnt: number
   po_none_cnt: number; po_partial_cnt: number; po_full_cnt: number
   reply?: { wait: number; my_wait: number; my_req_wait: number; to_me: number; unable: number }
-  mine?: { consult: number; handled: number }   // 내 상담건 · 내 처리건 (2026-11-09)
+  mine?: { journal: number; counselor: number; handled: number }   // 내 상담일지 · 상담자 · 주문처리 건 (2026-11-10)
   canceled_all_cnt?: number                     // 취소만 칩 숫자 (2026-11-10)
 }
 interface Item {
@@ -104,7 +104,7 @@ export default function OrdersHomePage() {
   const [prepay, setPrepay] = useState(false)
   const [vip, setVip] = useState(false)   // 품명 'VIP' 품목 주문만 (2026-11-09)
   const [invoice, setInvoice] = useState(false)
-  const [mine, setMine] = useState<MineFilter>('all')   // 내 상담건 · 내 처리건 (2026-11-09 — '내 주문만' 분리)
+  const [mine, setMine] = useState<MineFilter>('all')   // 내 상담일지 · 상담자 · 주문처리 건 (2026-11-10)
   const [reply, setReply] = useState('all')   // 완료 회신 필터 (515): all|my_wait|my_req_wait|wait|to_me|unable
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -119,8 +119,8 @@ export default function OrdersHomePage() {
     const sp = new URLSearchParams(window.location.search)
     const r = sp.get('reply')
     if (r && (REPLY_FILTERS as readonly string[]).includes(r)) setReply(r)
-    const m = sp.get('mine')
-    if (m === 'consult' || m === 'handled') setMine(m)
+    const m = parseMine(sp.get('mine'))
+    if (m !== 'all') setMine(m)
   }, [])
 
   // 목록 · 엑셀 공용 조회 조건
@@ -329,11 +329,12 @@ export default function OrdersHomePage() {
           <button onClick={() => setVip(v => !v)} className={chip(vip)} title="품명 'VIP' 품목이 있는 주문 — VIP 금액은 매출 · 미수에서 빠짐">VIP만</button>
           <button onClick={() => setInvoice(v => !v)} className={chip(invoice)}>계산서 발행건만</button>
           <span className="flex-1" />
-          {/* 내 상담건 = 상담자(고객 다올 담당)가 나이거나 내가 쓴 상담일지에서 전환 / 내 처리건 = 내가 입력 (2026-11-09) */}
+          {/* 내 주문 (2026-11-10): 상담일지 작성자 / 주문 상담자(고객 다올 담당) / 입력자 — 기준은 마우스 올리면 보임 */}
           <span className="text-[0.6875rem] text-gray-400 mr-0.5">내 주문</span>
-          {([['all', '전체', null], ['consult', '내 상담건', '상담자가 나이거나 내가 쓴 상담일지에서 전환된 주문'], ['handled', '내 처리건', '내가 입력한 주문']] as const).map(([k, l, t]) => (
-            <button key={k} onClick={() => setMine(k)} className={chip(mine === k)} title={t ?? undefined}>
-              {l}{k !== 'all' && kpi?.mine ? ` ${kpi.mine[k]}` : ''}
+          <button onClick={() => setMine('all')} className={chip(mine === 'all')}>전체</button>
+          {MINE_FILTERS.map(mf => (
+            <button key={mf.key} onClick={() => setMine(mf.key)} className={chip(mine === mf.key)} title={mf.hint}>
+              {mf.label}{kpi?.mine ? ` ${kpi.mine[mf.key] ?? 0}` : ''}
             </button>
           ))}
         </div>
