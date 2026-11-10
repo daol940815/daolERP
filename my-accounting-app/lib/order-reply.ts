@@ -201,6 +201,7 @@ export async function saveConsultUnable(
   if (ce) return ce.message
   if (!c) return '상담일지를 찾을 수 없습니다.'
   if (c.status === '주문전환') return '이미 주문으로 전환된 상담입니다. 주문 상세에서 회신해주세요.'
+  if (c.status === '종결') return '요청자가 종결한 상담입니다. 회신할 필요가 없습니다.'
   if (!c.order_assignee_id) return '주문 진행 요청이 없는 상담입니다.'
   const { error } = await admin.from('erp_order_replies').insert({
     consultation_id: consultId, order_id: null, result: 'unable', memo,

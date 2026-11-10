@@ -31,6 +31,8 @@ export async function GET(req: NextRequest) {
   const type = sp.get('type') ?? 'all'
   const all = sp.get('all') === '1' && isManagerLike(me)   // 전체 보기 = 관리자급 (role 직접 판정 금지, 109)
   const page = Math.max(1, parseInt(sp.get('page') ?? '1', 10) || 1)
+  // 숨김 삭제(709): 기본은 삭제 안 된 것만, 관리자급은 deleted=1로 삭제된 것도 함께 (2026-11-10)
+  const showDeleted = sp.get('deleted') === '1' && isManagerLike(me)
 
   // 주문 진행 요청 (705, 2026-11-05): scope = mine(내가 쓴 것 + 나에게 요청된 것) | assigned(나에게 요청 · 진행 대기)
   //   | requested(내가 요청 · 진행 대기) | done(요청 완료 · 이번 달 요청분). 705 미적용이면 요청 열 없이 기존 동작.
@@ -40,10 +42,11 @@ export async function GET(req: NextRequest) {
   // 705 적용 후에는 상담일지 → 직원 연결이 여럿이라 작성자 연결을 이름으로 지정, 미적용이면 예전처럼(연결 1개)
   const baseCols = (with705: boolean) => 'id, consult_date, consult_type, bank_name, branch_name, manager_name, phone, tel, sender_name, vendor_id, contact_id, status, employee_id, memo, created_at, '
     + (with705 ? 'writer:employees!erp_consultations_employee_id_fkey(name)' : 'writer:employees(name)')
+  const closeCols = ', closed_at, close_reason, deleted_at, delete_reason, closer:employees!erp_consultations_closed_by_fkey(name), deleter:employees!erp_consultations_deleted_by_fkey(name)'
   const reqCols = ', order_assignee_id, order_requested_by, order_requested_at, order_request_memo, assignee:employees!erp_consultations_order_assignee_id_fkey(name), requester:employees!erp_consultations_order_requested_by_fkey(name)'
-  const build = (with705: boolean) => {
+  const build = (with705: boolean, with709 = false) => {
     let query = admin.from('erp_consultations')
-      .select(baseCols(with705) + (with705 ? reqCols : ''))
+      .select(baseCols(with705) + (with705 ? reqCols : '') + (with709 ? closeCols : ''))
       .order('consult_date', { ascending: false })
       .order('created_at', { ascending: false })
     if (!all || scope !== 'mine') {
@@ -62,10 +65,15 @@ export async function GET(req: NextRequest) {
     }
     if (status !== 'all') query = query.eq('status', status)
     if (type !== 'all') query = query.eq('consult_type', type)
+    if (with709 && !showDeleted) query = query.is('deleted_at', null)
     return query.limit(2000)
   }
   if (!all && !me.employeeId) return NextResponse.json({ rows: [], page: 1, total_pages: 1, total: 0 })
-  let res = await build(true)
+  let res = await build(true, true)
+  let has709 = !res.error
+  if (res.error && /closed_|close_reason|deleted_|delete_reason|closer|deleter/i.test(res.error.message)) {
+    res = await build(true); has709 = false
+  }
   const has705 = !res.error
   if (res.error && /order_|relationship|assignee|requester/i.test(res.error.message)) res = await build(false)
   const { data, error } = res as unknown as { data: Record<string, unknown>[] | null; error: { message: string } | null }
@@ -74,7 +82,10 @@ export async function GET(req: NextRequest) {
   let requestKpi: { mine: number; assigned: number; requested: number; done: number } | null = null
   if (has705 && me705) {
     const cnt = (q: PromiseLike<{ count: number | null }>) => q.then(r => r.count ?? 0)
-    const head = () => admin.from('erp_consultations').select('id', { count: 'exact', head: true })
+    const head = () => {
+      const h = admin.from('erp_consultations').select('id', { count: 'exact', head: true })
+      return has709 ? h.is('deleted_at', null) : h
+    }
     const [mine, assigned, requested, done] = await Promise.all([
       cnt(head().or(`employee_id.eq.${me705},order_assignee_id.eq.${me705}`)),
       cnt(head().eq('order_assignee_id', me705).eq('status', '진행중')),
@@ -82,6 +93,12 @@ export async function GET(req: NextRequest) {
       cnt(head().or(`order_requested_by.eq.${me705},order_assignee_id.eq.${me705}`).not('order_assignee_id', 'is', null).eq('status', '주문전환').gte('order_requested_at', monthStart)),
     ])
     requestKpi = { mine, assigned, requested, done }
+  }
+  // 삭제된 것 보기 칩 숫자 (관리자급)
+  let deletedCount = 0
+  if (has709 && isManagerLike(me)) {
+    const { count } = await admin.from('erp_consultations').select('id', { count: 'exact', head: true }).not('deleted_at', 'is', null)
+    deletedCount = count ?? 0
   }
   if (error) {
     const missing = /relation|erp_consultations|does not exist/i.test(error.message)
@@ -122,6 +139,8 @@ export async function GET(req: NextRequest) {
       writer: nm(r.writer),
       assignee_name: nm(r.assignee),          // 주문 진행 담당 (705)
       requester_name: nm(r.requester),
+      closed_by_name: nm(r.closer),           // 종결 · 삭제 기록 (709)
+      deleted_by_name: nm(r.deleter),
       req_state: reqMap.get(r.id as string)?.state ?? null,
       req_label: reqMap.has(r.id as string) ? CONSULT_REQ_LABEL[reqMap.get(r.id as string)!.state as keyof typeof CONSULT_REQ_LABEL] : null,
       req_reply_by: reqMap.get(r.id as string)?.last_by ?? null,
@@ -165,6 +184,8 @@ export async function GET(req: NextRequest) {
     manager: isManagerLike(me),
     is_parttime: me.employmentType === 'parttime',
     request_kpi: requestKpi,
+    deleted_count: deletedCount,
+    has_709: has709,
   })
 }
 

@@ -18,10 +18,16 @@ export const maxDuration = 60
 async function remindOrderRequests(admin: SupabaseClient): Promise<{ consults: number; sent: number }> {
   const todayKst = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date())
   const startOfToday = new Date(`${todayKst}T00:00:00+09:00`).toISOString()
-  const { data, error } = await admin.from('erp_consultations')
-    .select('id, bank_name, branch_name, order_assignee_id')
-    .eq('status', '진행중').not('order_assignee_id', 'is', null)
-    .is('order_reminded_at', null).lt('order_requested_at', startOfToday)
+  const pick = (with709: boolean) => {
+    const q = admin.from('erp_consultations')
+      .select('id, bank_name, branch_name, order_assignee_id')
+      .eq('status', '진행중').not('order_assignee_id', 'is', null)
+      .is('order_reminded_at', null).lt('order_requested_at', startOfToday)
+    return with709 ? q.is('deleted_at', null) : q   // 숨김 삭제된 상담 제외 (709)
+  }
+  let res = await pick(true)
+  if (res.error && /deleted_at/.test(res.error.message)) res = await pick(false)
+  const { data, error } = res
   if (error || !data?.length) return { consults: 0, sent: 0 }
   const byEmp = new Map<string, typeof data>()
   for (const c of data) byEmp.set(c.order_assignee_id as string, [...(byEmp.get(c.order_assignee_id as string) ?? []), c])

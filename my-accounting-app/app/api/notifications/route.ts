@@ -190,13 +190,32 @@ export async function GET() {
   // ── 상담일지 주문 진행 요청 (705, 주문 트랙 2026-11-05) ── 705 미적용이면 조용히 건너뜀
   //  나에게 요청됐고 아직 전환 안 된 상담 = 할 일 / 내가 요청한 상담이 최근 7일 안에 주문으로 전환됨 = 결과 통지
   {
-    const [assigned, done] = await Promise.all([
+    const threeDaysAgo = new Date(now.getTime() - 3 * DAY).toISOString()
+    const [assigned0, done, endedRes] = await Promise.all([
       admin.from('erp_consultations').select('id, bank_name, branch_name, order_requested_at, requester:employees!erp_consultations_order_requested_by_fkey(name)')
-        .eq('order_assignee_id', empId).eq('status', '진행중').order('order_requested_at', { ascending: false }),
+        .eq('order_assignee_id', empId).eq('status', '진행중').is('deleted_at', null).order('order_requested_at', { ascending: false }),
       admin.from('erp_consultations').select('id, bank_name, branch_name, assignee:employees!erp_consultations_order_assignee_id_fkey(name)')
         .eq('order_requested_by', empId).neq('order_assignee_id', empId).not('order_assignee_id', 'is', null).eq('status', '주문전환')
         .gte('updated_at', sevenDaysAgo).order('updated_at', { ascending: false }).limit(5),
+      // 요청받은 상담을 요청자 쪽에서 종결 · 삭제함 (709, 2026-11-10) — 최근 3일, 결과 통지
+      admin.from('erp_consultations').select('id, bank_name, branch_name, status, closed_at, closed_by, close_reason, deleted_at, deleted_by, delete_reason, closer:employees!erp_consultations_closed_by_fkey(name), deleter:employees!erp_consultations_deleted_by_fkey(name)')
+        .eq('order_assignee_id', empId).or(`and(status.eq.종결,closed_at.gte.${threeDaysAgo}),deleted_at.gte.${threeDaysAgo}`).limit(10),
     ])
+    // 709 미적용이면 deleted_at 조건 없이 다시 (기존 동작)
+    const assigned = assigned0.error && /deleted_at/.test(assigned0.error.message)
+      ? await admin.from('erp_consultations').select('id, bank_name, branch_name, order_requested_at, requester:employees!erp_consultations_order_requested_by_fkey(name)')
+          .eq('order_assignee_id', empId).eq('status', '진행중').order('order_requested_at', { ascending: false })
+      : assigned0
+    if (!endedRes.error) {
+      type ER = { id: string; bank_name: string | null; branch_name: string | null; closed_at: string | null; closed_by: string | null; close_reason: string | null; deleted_at: string | null; deleted_by: string | null; delete_reason: string | null; closer: { name: string } | { name: string }[] | null; deleter: { name: string } | { name: string }[] | null }
+      for (const r of (endedRes.data ?? []) as unknown as ER[]) {
+        const del = !!r.deleted_at
+        if ((del ? r.deleted_by : r.closed_by) === empId) continue   // 내가 한 건 알리지 않음
+        const who = one(del ? r.deleter : r.closer)?.name ?? ''
+        const reason = del ? r.delete_reason : r.close_reason
+        items.push({ key: `oreq:ended:${r.id}`, bucket: 'order', group: 'info', tone: 'gray', title: `요청받은 상담 ${del ? '삭제됨' : '종결됨'} — ${who}`, detail: `${[r.bank_name, r.branch_name].filter(Boolean).join(' ') || '상담일지'}${reason ? ` — ${reason.slice(0, 40)}` : ''}`, href: del ? '/orders/consultations?scope=mine' : `/orders/consultations/${r.id}`, count: 1, at: del ? r.deleted_at : r.closed_at })
+      }
+    }
     type CR = { id: string; bank_name: string | null; branch_name: string | null; order_requested_at?: string | null; requester?: { name: string } | { name: string }[] | null; assignee?: { name: string } | { name: string }[] | null }
     if (!assigned.error) {
       const rows = (assigned.data ?? []) as unknown as CR[]
@@ -223,7 +242,7 @@ export async function GET() {
         .gte('created_at', REPLY_START).order('created_at', { ascending: false }).limit(500),
       admin.from('erp_order_replies').select('order_id, result, memo, employee_id, employee_name, created_at')
         .not('order_id', 'is', null).gte('created_at', sevenDaysAgo).order('created_at', { ascending: false }).limit(300),
-      admin.from('erp_consultations').select('id, status, bank_name, branch_name, order_assignee_id, order_requested_by, order_requested_at')
+      admin.from('erp_consultations').select('*')
         .eq('order_requested_by', empId).is('order_assignee_id', null).eq('status', '진행중'),
     ])
     if (!recent.error) {
@@ -240,7 +259,7 @@ export async function GET() {
       // 2) 처리 불가로 되돌아온 내 요청 (전환 전)
       if (!returned.error && returned.data?.length) {
         const rq = await loadConsultReqMap(admin, returned.data as unknown as ConsultReqRow[])
-        const rows = (returned.data as { id: string; bank_name: string | null; branch_name: string | null }[]).filter(c => rq.get(c.id)?.state === 'returned')
+        const rows = (returned.data as { id: string; bank_name: string | null; branch_name: string | null; deleted_at?: string | null }[]).filter(c => !c.deleted_at && rq.get(c.id)?.state === 'returned')
         if (rows.length) {
           const first = rq.get(rows[0].id)
           items.push({ key: 'oreq:returned', bucket: 'order', group: 'todo', tone: 'red', title: `처리 불가 회신 ${rows.length}건 — 다시 요청 필요`, detail: `${first?.last_by ?? ''}: ${where(rows[0])}${first?.last_memo ? ` — ${first.last_memo.slice(0, 30)}` : ''}` + (rows.length > 1 ? ` 외 ${rows.length - 1}` : ''), href: rows.length === 1 ? `/orders/consultations/${rows[0].id}` : '/orders/consultations?scope=requested', count: rows.length, at: latest(rows.map(c => rq.get(c.id)?.last_at)) })
