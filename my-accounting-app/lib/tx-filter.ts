@@ -147,7 +147,7 @@ export const serializeQuery = (filters: TxFilter[]) => filters.map(serializeFilt
 // 칩에 보이는 사람용 설명
 export function describeFilter(f: TxFilter): { label: string; value: string } {
   switch (f.kind) {
-    case 'text':   return { label: f.negate ? '제외' : '검색어', value: f.value }
+    case 'text':   return { label: f.negate ? '제외' : bareNumber(f.value) != null ? '검색어·금액' : '검색어', value: f.value }
     case 'amount': {
       const dir = DIR_LABEL[f.dir]
       if (f.op === 'none') return { label: '금액', value: dir }
@@ -171,6 +171,9 @@ export interface TxFilterContext {
   vendorMap: Record<string, Vendor>
 }
 
+// "168300" / "168,300" / "168300원" → 숫자, 그 외(날짜·계좌번호 조각 등 하이픈 포함) → null
+export const bareNumber = (s: string): number | null => /^[\d,]+원?$/.test(s.trim()) ? parseNum(s) : null
+
 const norm = (s: string | null | undefined) => (s ?? '').toLowerCase()
 const has  = (hay: string | null | undefined, needle: string) => norm(hay).includes(needle.toLowerCase())
 
@@ -192,9 +195,13 @@ function amountPass(v: number, f: Extract<TxFilter, { kind: 'amount' }>): boolea
 export function matchFilter(tx: Transaction, f: TxFilter, ctx: TxFilterContext): boolean {
   switch (f.kind) {
     case 'text': {
+      // 검색창에 "168300"·"168,300"처럼 숫자만 치면 글자 검색에 더해 입금액·출금액이 같은 행도 찾는다
+      // (금액: 접두 없이 금액을 치고 '결과 없음'을 보던 문제 — 2026-11-10 사용자 보고)
+      const n = bareNumber(f.value)
       const hit = has(tx.description, f.value) || has(tx.counterparty_name, f.value) || has(tx.memo, f.value)
         || has(tx.account_alias, f.value) || has(accountNameOf(tx, ctx), f.value)
         || (tx.vendor_id ? has(ctx.vendorMap[tx.vendor_id]?.name, f.value) : false)
+        || (n != null && ((tx.amount_in ?? 0) === n || (tx.amount_out ?? 0) === n))
       return f.negate ? !hit : hit
     }
     case 'amount': {
