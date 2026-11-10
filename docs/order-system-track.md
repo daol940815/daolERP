@@ -1063,6 +1063,10 @@
   서버 파라미터 `c=<항목>:<값>`(반복, 값의 띄어쓰기 유지), `mine=consult|handled`(옛 `mine=1` = handled), 옛 `q`도 계속 받음.
   필터는 `lib/orders-portal-list.ts` 한 곳이라 엑셀 다운로드도 같은 결과. 마이그레이션 없음.
 - '/orders?mine=consult' 등 주소로 들어오면 그 버튼이 켜진 채로 시작.
+- **2026-11-10 변경(사용자 결정)**: '내 상담건'을 둘로 나눠 버튼 세 개 — **내 상담일지 건**(`mine=journal`, 연결 상담일지 작성자 = 나) /
+  **내 상담자 건**(`mine=counselor`, 주문 상담자 `counselor_employee_id` = 나, 저장 시 기록값 — 고객 담당이 나중에 바뀌어도 그대로,
+  상담자 칸이 빈 옛 주문은 품목 `channel` 이름) / **내 주문처리 건**(`mine=handled`). 이름은 목록 칸 이름 '상담자'와 맞춘 사용자 안.
+  '상담일지 건'과 '상담자 건'이 헷갈리지 않도록 버튼에 마우스를 올리면 기준 설명(`MINE_FILTERS.hint`). 옛 주소 `mine=consult` → counselor, `mine=1` → handled.
 
 ## 주문 취소 사유 필수 · 목록에서 눌러 보기 (2026-11-10, 사용자 요청 · 시안 승인)
 
