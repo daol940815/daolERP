@@ -21,8 +21,27 @@ import type { Transaction, Account } from '@/types/transaction'
 import type { BankAccount } from '@/types/bank-account'
 import type { Vendor } from '@/types/tax-invoice'
 import SearchableCellEditor from '@/components/ui/SearchableCellEditor'
+import TxFilterBar from '@/components/transactions/TxFilterBar'
+import { highlightTerms, matchAll, parseQuery, serializeQuery, type TxFilter } from '@/lib/tx-filter'
 
 ModuleRegistry.registerModules([AllCommunityModule])
+
+// 적요 셀 — 검색어와 일치한 부분을 노란 표시 (통합 검색 2026-11-10)
+function DescriptionCell(p: ICellRendererParams<Transaction> & { terms?: string[] }) {
+  const text = String(p.value ?? '')
+  const terms = (p.terms ?? []).filter(Boolean)
+  if (!terms.length || !text) return <>{text}</>
+  const re = new RegExp(`(${terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi')
+  // 캡처 그룹으로 split하면 홀수 인덱스가 일치 구간
+  const parts = text.split(re)
+  return (
+    <>
+      {parts.map((s, i) => i % 2 === 1
+        ? <mark key={i} className="bg-yellow-100 rounded-sm">{s}</mark>
+        : <span key={i}>{s}</span>)}
+    </>
+  )
+}
 
 // 금액 포맷터
 const amountFmt = (p: ValueFormatterParams<Transaction, number>) =>
@@ -72,11 +91,11 @@ function defaultDateRange() {
   }
 }
 
+// 서버 조회 조건 — 기간·계좌·거래처만. 상태·출처·금액·검색어는 불러온 행에 즉시 적용하는
+// 클라이언트 필터(TxFilter, lib/tx-filter.ts)로 옮겼다 (통합 검색 2026-11-10).
 interface Filters {
   from: string
   to: string
-  status: string
-  source: string
   bankAccountId: string
   vendorId: string
 }
@@ -209,8 +228,12 @@ function TransactionsContent() {
   const vendorIdParam      = searchParams.get('vendorId') ?? ''
   // 드릴다운 진입(이중계상 검사·원본 레코드 화면): 이 거래의 날짜·계좌로 필터를 맞추고 행을 강조
   const focusTxId          = searchParams.get('txId') ?? ''
+  // 통합 검색·필터 — 주소 ?q= 에 단축 입력 문법으로 남겨 새로 고침·링크 공유에도 유지
+  const qParam             = searchParams.get('q') ?? ''
 
   const gridRef    = useRef<AgGridReact<Transaction>>(null)
+  const [txFilters, setTxFilters] = useState<TxFilter[]>(() => parseQuery(qParam))
+  const txFiltersRef = useRef(txFilters)
   const uploadRef  = useRef<HTMLInputElement>(null)
   const [rowData,   setRowData]   = useState<Transaction[]>([])
   const [accounts,  setAccounts]  = useState<Account[]>([])
@@ -235,8 +258,6 @@ function TransactionsContent() {
   const [autoFetchFlag, setAutoFetchFlag] = useState(0)
   const [filters, setFilters]     = useState<Filters>({
     ...defaultDateRange(),
-    status: 'all',
-    source: 'all',
     bankAccountId: bankAccountIdParam,
     vendorId: vendorIdParam,
   })
@@ -321,8 +342,8 @@ function TransactionsContent() {
     setLoading(true)
     try {
       const params = new URLSearchParams({
-        status: filters.status,
-        source: filters.source,
+        status: 'all',
+        source: 'all',
         ...(filters.from           && { from: filters.from }),
         ...(filters.to             && { to:   filters.to   }),
         ...(filters.bankAccountId  && { bankAccountId: filters.bankAccountId }),
@@ -351,12 +372,31 @@ function TransactionsContent() {
       .then(j => {
         if (cancelled || !j.data) return
         const d = String(j.data.tx_date).slice(0, 10)
-        setFilters(f => ({ ...f, from: d, to: d, status: 'all', source: 'all', bankAccountId: j.data.bank_account_id ?? '', vendorId: '' }))
+        setFilters(f => ({ ...f, from: d, to: d, bankAccountId: j.data.bank_account_id ?? '', vendorId: '' }))
+        setTxFilters([])
         setAutoFetchFlag(n => n + 1)
       })
       .catch(() => null)
     return () => { cancelled = true }
   }, [focusTxId])
+
+  // 통합 필터 변경 → 그리드 외부 필터 재평가 + 주소 ?q= 갱신(내비게이션 없이)
+  useEffect(() => {
+    txFiltersRef.current = txFilters
+    gridRef.current?.api?.onFilterChanged()
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    const q = serializeQuery(txFilters)
+    if (q) url.searchParams.set('q', q); else url.searchParams.delete('q')
+    window.history.replaceState(window.history.state, '', url.toString())
+  }, [txFilters])
+  const filterCtx = useMemo(() => ({ accountMap, vendorMap }), [accountMap, vendorMap])
+  const filterCtxRef = useRef(filterCtx)
+  useEffect(() => { filterCtxRef.current = filterCtx; gridRef.current?.api?.onFilterChanged() }, [filterCtx])
+  const isExternalFilterPresent = useCallback(() => txFiltersRef.current.length > 0, [])
+  const doesExternalFilterPass = useCallback((node: { data?: Transaction }) =>
+    !node.data || matchAll(node.data, txFiltersRef.current, filterCtxRef.current), [])
+  const terms = useMemo(() => highlightTerms(txFilters), [txFilters])
   useEffect(() => {
     if (!focusTxId || !rowData.length) return
     const api = gridRef.current?.api
@@ -610,10 +650,13 @@ function TransactionsContent() {
   }, [filters.from, filters.to, filters.bankAccountId])
 
   // 전체 거래 엑셀 다운로드 (현재 필터 그대로)
+  // 상태·출처 필터가 단일 값이면 서버 내보내기에도 그대로 넘긴다(그 외 통합 필터는 화면 전용)
   const handleExportAll = useCallback(() => {
+    const st = txFilters.find(f => f.kind === 'status')
+    const so = txFilters.find(f => f.kind === 'source')
     const params = new URLSearchParams({
-      ...(filters.status !== 'all' && { status: filters.status }),
-      ...(filters.source !== 'all' && { source: filters.source }),
+      ...(st?.kind === 'status' && st.values.length === 1 && { status: st.values[0] }),
+      ...(so?.kind === 'source' && so.values.length === 1 && { source: so.values[0] }),
       ...(filters.from          && { from: filters.from }),
       ...(filters.to            && { to:   filters.to   }),
       ...(filters.bankAccountId && { bankAccountId: filters.bankAccountId }),
@@ -622,7 +665,7 @@ function TransactionsContent() {
     const a = document.createElement('a')
     a.href = `/api/transactions/export?${params}`
     a.click()
-  }, [filters])
+  }, [filters, txFilters])
 
   // 엑셀 업로드 → 계정과목 일괄 업데이트
   const handleImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -766,6 +809,8 @@ function TransactionsContent() {
       headerName: '내용/적요',
       flex: 1,
       minWidth: 180,
+      cellRenderer: DescriptionCell,
+      cellRendererParams: { terms },
     },
     {
       field: 'counterparty_name',
@@ -778,6 +823,7 @@ function TransactionsContent() {
       headerName: '입금액',
       width: 130,
       type: 'numericColumn',
+      filter: 'agNumberColumnFilter',   // 금액 열은 글자 필터가 아니라 숫자 필터(같음·이상·이하·범위)
       valueFormatter: amountFmt,
       cellStyle: { color: '#2563eb', fontWeight: 500 },
     },
@@ -786,6 +832,7 @@ function TransactionsContent() {
       headerName: '출금액',
       width: 130,
       type: 'numericColumn',
+      filter: 'agNumberColumnFilter',
       valueFormatter: amountFmt,
       cellStyle: { color: '#dc2626', fontWeight: 500 },
     },
@@ -794,6 +841,7 @@ function TransactionsContent() {
       headerName: '잔액',
       width: 130,
       type: 'numericColumn',
+      filter: 'agNumberColumnFilter',
       valueFormatter: (p) => p.value != null ? p.value.toLocaleString('ko-KR') + '원' : '',
       cellStyle: (p) => ({ color: (p.value ?? 0) < 0 ? '#dc2626' : '#6b7280' }),
     },
@@ -943,7 +991,7 @@ function TransactionsContent() {
       headerName: '계좌',
       width: 140,
     },
-  ], [accounts, accountMap, vendors, vendorMap, pairMap])
+  ], [accounts, accountMap, vendors, vendorMap, pairMap, terms])
 
   // 현재 선택된 은행 정보 (이름 + 잔액)
   const activeBank = useMemo(() => {
@@ -994,49 +1042,40 @@ function TransactionsContent() {
       </div>
       <p className="text-gray-500 text-sm mb-4">계정과목 클릭으로 직접 분류하거나, 자동 분류를 사용하세요.</p>
 
-      {/* 기간 빠른 선택 */}
-      <PeriodPresets from={filters.from ?? ''} to={filters.to ?? ''} onChange={(from, to) => setFilters(f => ({ ...f, from, to }))} className="mb-2" />
-
-      {/* 필터 바 */}
-      <div className="flex flex-wrap items-center gap-2 mb-3">
+      {/* 기간 줄: 프리셋 칩 + 날짜 from~to + 조회 (같은 줄 — 승인 시안 2026-11-10 수정 2). 서버 조회 조건. */}
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <PeriodPresets from={filters.from ?? ''} to={filters.to ?? ''} onChange={(from, to) => setFilters(f => ({ ...f, from, to }))} />
+        <span className="text-gray-300 text-sm">|</span>
         <input
           type="date" value={filters.from}
           onChange={e => setFilters(f => ({ ...f, from: e.target.value }))}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
-        <span className="text-gray-400 text-sm">~</span>
+        <span className="text-gray-400 text-xs">~</span>
         <input
           type="date" value={filters.to}
           onChange={e => setFilters(f => ({ ...f, to: e.target.value }))}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
-        <select
-          value={filters.status}
-          onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
-        >
-          <option value="all">전체 상태</option>
-          <option value="pending">미검토</option>
-          <option value="reviewed">검토완료</option>
-          <option value="confirmed">확정</option>
-        </select>
-        <select
-          value={filters.source}
-          onChange={e => setFilters(f => ({ ...f, source: e.target.value }))}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
-        >
-          <option value="all">전체 출처</option>
-          <option value="bank">은행</option>
-          <option value="card">카드</option>
-        </select>
         <button
           onClick={fetchTransactions}
           disabled={loading}
-          className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50"
+          className="px-3 py-1 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-700 disabled:opacity-50"
         >
           {loading ? '조회 중...' : '조회'}
         </button>
       </div>
+
+      {/* 검색 줄: [+ 필터 ▾][검색창] + 적용 중 칩 + 빠른 조건 — 불러온 행에 즉시 적용 */}
+      <TxFilterBar
+        filters={txFilters}
+        onChange={setTxFilters}
+        accounts={accounts}
+        vendors={vendors}
+        banks={banks}
+        matched={stats.total}
+        total={rowData.length}
+      />
 
       {/* 요약 + 액션 바 */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -1180,6 +1219,8 @@ function TransactionsContent() {
           onCellValueChanged={onCellValueChanged}
           onFilterChanged={recomputeVisible}
           onModelUpdated={recomputeVisible}
+          isExternalFilterPresent={isExternalFilterPresent}
+          doesExternalFilterPass={doesExternalFilterPass}
           getRowStyle={(p): RowStyle | undefined => {
             if (focusTxId && p.data?.id === focusTxId) return { background: '#e0f2fe', boxShadow: 'inset 3px 0 0 #0284c7' }
             if (p.data?.status === 'confirmed') return { background: '#f0fdf4' }
