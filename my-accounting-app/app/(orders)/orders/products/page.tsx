@@ -57,6 +57,7 @@ type SortKey = 'code' | 'name' | 'category' | 'vendor' | 'sale' | 'individual' |
 type SortDir = 'asc' | 'desc'
 const DEFAULT_SORT: { key: SortKey; dir: SortDir } = { key: 'name', dir: 'asc' }
 // 표 칸 순서 = 머리글 순서
+// 세 번째 값 = 칸 값의 정렬(금액 · 수량은 오른쪽). 머리글은 모두 왼쪽(2026-11-10 사용자 확정 A안)
 const SORT_COLS: [SortKey, string, 'left' | 'right'][] = [
   ['code', '품번', 'left'], ['name', '품명', 'left'], ['category', '분류', 'left'],
   ['vendor', '매입처', 'left'], ['sale', '지점판매가', 'right'], ['individual', '개별판매가', 'right'],
@@ -109,7 +110,7 @@ const compareBy = (key: SortKey, dir: SortDir) => (a: Product, b: Product) => {
 function MarginLine({ label, m }: { label: string; m: Margin | null }) {
   const neg = m !== null && Math.round(m.profit) < 0
   return (
-    <div className="flex justify-end items-baseline gap-1.5">
+    <div className="flex justify-start items-baseline gap-1.5">
       <span className="text-[0.625rem] text-gray-400">{label}</span>
       {m === null ? <span className="text-gray-400">-</span> : (
         <span className={neg ? 'text-red-600 font-medium' : 'text-emerald-700'}>
@@ -145,14 +146,24 @@ export default function ProductsPage() {
   const [canEdit, setCanEdit] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // 매입처명 → 연락처 (이 화면 전용 조회 — 품목 목록과 동시에, 실패해도 목록은 그대로)
+  const [vendorPhones, setVendorPhones] = useState<Record<string, string>>({})
+  const loadPhones = useCallback(async () => {
+    const res = await fetch('/api/orders-portal/products/vendor-contacts').catch(() => null)
+    if (!res?.ok) return
+    const json = await res.json().catch(() => null)
+    if (json?.phones) setVendorPhones(json.phones)
+  }, [])
+
   const load = useCallback(async () => {
+    loadPhones()
     setLoading(true); setError(null)
     const res = await fetch('/api/orders-portal/products')
     const json = await res.json()
     if (!res.ok) setError(json.error ?? '조회 실패')
     else { setProducts(json.products); setCanEdit(json.can_edit === true) }
     setLoading(false)
-  }, [])
+  }, [loadPhones])
   useEffect(() => { load() }, [load])
 
   const filtered = useMemo(() => {
@@ -478,10 +489,10 @@ export default function ProductsPage() {
           <table className="w-full text-sm min-w-[760px]">
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
-                {SORT_COLS.map(([key, label, align]) => {
+                {SORT_COLS.map(([key, label]) => {
                   const on = sort.key === key
                   return (
-                    <th key={key} className={`py-2 px-3 font-medium ${align === 'right' ? 'text-right' : 'text-left'}`}
+                    <th key={key} className="py-2 px-3 font-medium text-left"
                       aria-sort={on ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
                       <button onClick={() => toggleSort(key)}
                         title="클릭: 오름차순 → 내림차순 → 기본 순서(품명)"
@@ -498,8 +509,8 @@ export default function ProductsPage() {
             <tbody>
               {sorted.map(p => (
                 <tr key={p.id} className={`border-b border-gray-50 ${p.is_active ? '' : 'text-gray-400'}`}>
-                  <td className="py-1.5 px-3 text-xs tabular-nums whitespace-nowrap">{p.item_code ?? '-'}</td>
-                  <td className="py-1.5 px-3 font-medium">
+                  <td className="py-2 px-3 text-xs tabular-nums whitespace-nowrap">{p.item_code ?? '-'}</td>
+                  <td className="py-2 px-3 font-medium">
                     {p.item_name}
                     {p.is_addon && (
                       <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-violet-50 text-violet-600">옵션</span>
@@ -515,8 +526,8 @@ export default function ProductsPage() {
                       <span className="ml-1.5 text-[0.625rem] text-amber-600 whitespace-pre-line align-middle">{p.status_note}</span>
                     )}
                   </td>
-                  <td className="py-1.5 px-3 text-xs whitespace-nowrap">{p.category ?? '-'}</td>
-                  <td className="py-1.5 px-3 whitespace-nowrap">
+                  <td className="py-2 px-3 text-xs whitespace-nowrap">{p.category ?? '-'}</td>
+                  <td className="py-2 px-3 whitespace-nowrap">
                     {p.purchase_vendor_name ? (
                       <button onClick={() => addCond('vendor', p.purchase_vendor_name!)}
                         title="클릭하면 이 매입처 조건으로 필터"
@@ -524,24 +535,28 @@ export default function ProductsPage() {
                         {p.purchase_vendor_name}
                       </button>
                     ) : '-'}
+                    {/* 매입처 연락처 (2026-11-10) — 수정 화면 매입처 정보와 같은 값, 출처 구분 없이 검정 */}
+                    {p.purchase_vendor_name && vendorPhones[p.purchase_vendor_name] && (
+                      <div className="text-xs text-gray-900 tabular-nums">{vendorPhones[p.purchase_vendor_name]}</div>
+                    )}
                   </td>
-                  <td className="py-1.5 px-3 text-right tabular-nums">{won(p.sale_price)}</td>
-                  <td className="py-1.5 px-3 text-right tabular-nums">{p.individual_sale_price ? won(p.individual_sale_price) : '-'}</td>
-                  <td className="py-1.5 px-3 text-right tabular-nums">{won(p.purchase_price)}</td>
-                  <td className="py-1.5 px-3 text-right tabular-nums whitespace-nowrap">
+                  <td className="py-2 px-3 text-right tabular-nums">{won(p.sale_price)}</td>
+                  <td className="py-2 px-3 text-right tabular-nums">{p.individual_sale_price ? won(p.individual_sale_price) : '-'}</td>
+                  <td className="py-2 px-3 text-right tabular-nums">{won(p.purchase_price)}</td>
+                  <td className="py-2 px-3 text-left tabular-nums whitespace-nowrap">
                     <MarginLine label="지점" m={branchMargin(p)} />
                     <MarginLine label="개별" m={individualMargin(p)} />
                   </td>
-                  <td className="py-1.5 px-3 text-right tabular-nums">{p.carton_unit ?? '-'}</td>
-                  <td className="py-1.5 px-3 text-right tabular-nums">{p.carton_unit ? won(p.carton_shipping_fee) : '-'}</td>
-                  <td className="py-1.5 px-3 text-right tabular-nums">{p.loose_shipping_fee ? won(p.loose_shipping_fee) : '-'}</td>
-                  <td className="py-1.5 px-3 text-xs">{p.memo ?? '-'}</td>
-                  <td className="py-1.5 px-3">
+                  <td className="py-2 px-3 text-right tabular-nums">{p.carton_unit ?? '-'}</td>
+                  <td className="py-2 px-3 text-right tabular-nums">{p.carton_unit ? won(p.carton_shipping_fee) : '-'}</td>
+                  <td className="py-2 px-3 text-right tabular-nums">{p.loose_shipping_fee ? won(p.loose_shipping_fee) : '-'}</td>
+                  <td className="py-2 px-3 text-xs">{p.memo ?? '-'}</td>
+                  <td className="py-2 px-3">
                     <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${p.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
                       {p.is_active ? '사용' : '중지'}
                     </span>
                   </td>
-                  {canEdit && <td className="py-1.5 px-3 text-right whitespace-nowrap">
+                  {canEdit && <td className="py-2 px-3 text-right whitespace-nowrap">
                     <button onClick={() => startEdit(p)} className="text-xs text-blue-700 hover:underline mr-2.5">수정</button>
                     <button onClick={() => act({ action: p.is_soldout ? 'restock' : 'soldout', id: p.id },
                         p.is_soldout ? '품절이 해제되었습니다.' : '품절 처리되었습니다. 상담·주문 입력 검색에 품절로 표시됩니다.')}
