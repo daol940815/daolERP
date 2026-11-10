@@ -36,6 +36,7 @@ export function buildFormContext(po: PoExcelData, extra: FormExtra): { ctx: Form
     order_date: dateOf(po.order_date),
     ship_request: po.ship_request ?? null,
     customer: po.customer,
+    vendor_name: po.vendor_name ?? null,     // 품목 목록형 상품명 매칭용(상표 제거 · 확정 동일 상품 범위) — 값 목록에는 노출 안 함
     customer_bank: po.customer_bank ?? null,
     customer_branch: po.customer_branch ?? null,
     manager: po.customer_manager ?? null,
@@ -253,10 +254,80 @@ function fillRowsSheet(ws: Worksheet, sm: SheetMap, ctx: FormContext, warn: (m: 
   }
 }
 
+// ── 품목 목록형 상품명 매칭 (2026-11-10 사용자 확정 — docs/order-system-track.md) ──────────────
+// 우리 품목명에는 업체 제품코드가 없어 상품명으로만 맞춘다. 확실한 것만 수량을 넣고 나머지는 비워 확인 목록에 남긴다.
+//  상품명 → ① 정리(전각 · 대소문자 · 동의어 · 매입처 상표 제거) ② 보조 표기(괄호 · 대괄호 · 끝의 _XX — 무시)
+//          ③ 규격(숫자+단위: 매 · 롤 · 입 · m · 겹 …) ④ 구분어(캡 · 리필 …) ⑤ 핵심명(나머지, 공백 · 특수문자 제거)
+//  자동 입력 = 아래를 모두 만족하는 양식 행이 정확히 1개일 때만:
+//    규격 완전 일치 · 구분어 충돌 없음 · 핵심명 같음 또는 포함(짧은 쪽 3자 이상 · 긴 쪽의 70% 이상) 또는 확정 동일 상품
+//  규격이 없는 상품명은 자동 판단하지 않는다. 유사도는 확인 목록의 '비슷한 품목' 안내에만 쓴다(자동 입력 근거 아님).
+const NAME_SYNONYMS: [string, string][] = [['키친타월', '키친타올'], ['캡형', '캡'], ['미터', 'm'], ['개입', '입'], ['ea', '개']]   // '소프트'≠'소프티'(사용자 확정 전까지 동의어 아님)
+const PKG_WORDS = ['캡', '리필', '휴대용', '미니', '점보', '대용량']
+const SPEC_UNITS = '매입|매|롤|입|m|겹|bag|팩|개|box|박스|kg|g|ml|l'
+// 사용자 확인 동일 상품 — 이름이 달라도 같은 상품(핵심명만 같게 본다. 규격 · 구분어 · 후보 1개 조건은 그대로). 매입처별로만 적용
+const CONFIRMED_SAME: { vendor: RegExp; a: string; b: string; note: string }[] = [
+  { vendor: /깨끗한나라/, a: '벚꽃로맨틱', b: '허브가든벚꽃프리미엄', note: '2026-11-10 사용자 확인: 벚꽃 로맨틱 27m 30롤 = 허브가든 벚꽃 프리미엄 27m 30롤' },
+]
+interface ParsedName { raw: string; core: string; spec: string; pkg: string }
+const escRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+export function parseProductName(raw: string, vendorName?: string | null): ParsedName {
+  let t = String(raw ?? '').normalize('NFKC').toLowerCase()
+  for (const [a, b] of NAME_SYNONYMS) t = t.split(a).join(b)
+  const brand = String(vendorName ?? '').normalize('NFKC').toLowerCase().replace(/\(주\)|㈜|주식회사|\s+/g, '')
+  if (brand.length >= 2) t = t.split(brand).join(' ')
+  t = t.replace(/\([^)]*\)|\[[^\]]*\]|_[0-9a-z가-힣]+\s*$/g, ' ')                       // 보조 표기 — 무시
+  const spec: string[] = []
+  t = t.replace(new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(${SPEC_UNITS})(?![a-z가-힣])`, 'g'), (_m, n: string, u: string) => { spec.push(`${Number(n)}${u}`); return ' ' })
+  const pkg: string[] = []
+  for (const w of PKG_WORDS) {
+    const re = new RegExp(`(^|[^가-힣])${escRe(w)}(?![가-힣])`, 'g')
+    if (re.test(t)) { pkg.push(w); t = t.replace(new RegExp(`(^|[^가-힣])${escRe(w)}(?![가-힣])`, 'g'), '$1 ') }
+  }
+  return { raw, core: t.replace(/[^0-9a-z가-힣]/g, ''), spec: spec.sort().join(','), pkg: pkg.sort().join(',') }
+}
+function coreRelation(a: string, b: string, vendorName?: string | null): string | null {
+  if (!a || !b) return null
+  if (a === b) return '핵심명 같음'
+  const [sh, lo] = a.length <= b.length ? [a, b] : [b, a]
+  if (sh.length >= 3 && lo.includes(sh) && sh.length / lo.length >= 0.7) return '핵심명 포함'
+  if (CONFIRMED_SAME.some(c => c.vendor.test(String(vendorName ?? '')) && ((c.a === a && c.b === b) || (c.a === b && c.b === a)))) return '확정 동일 상품'
+  return null
+}
+const bigrams = (x: string) => { const o: string[] = []; for (let i = 0; i < x.length - 1; i++) o.push(x.slice(i, i + 2)); return o }
+function dice(a: string, b: string): number {
+  const A = bigrams(a), B = bigrams(b)
+  if (!A.length || !B.length) return 0
+  const m = new Map<string, number>(); A.forEach(x => m.set(x, (m.get(x) ?? 0) + 1))
+  let n = 0; B.forEach(x => { const c = m.get(x); if (c) { n++; m.set(x, c - 1) } })
+  return (2 * n) / (A.length + B.length)
+}
+export type CatalogMatch = { row: number; basis: string; exact: boolean } | { row: null; reason: string }
+export function matchCatalogRow(itemName: string, rows: { row: number; name: string }[], vendorName?: string | null): CatalogMatch {
+  const exact = rows.filter(r => norm(r.name) === norm(itemName))      // 기존 방식(공백 · 대소문자만 무시) 완전 일치가 1개면 그대로
+  if (exact.length === 1) return { row: exact[0].row, basis: '이름 일치', exact: true }
+  const e = parseProductName(itemName, vendorName)
+  const parsed = rows.map(r => ({ ...r, p: parseProductName(r.name, vendorName) }))
+  if (!e.spec) return { row: null, reason: '상품명에 규격(매 · 롤 · 입 · m 등)이 없어 자동으로 판단하지 않았습니다' }
+  const pass = parsed
+    .filter(r => r.p.spec === e.spec && (!e.pkg || e.pkg === r.p.pkg) && (!r.p.pkg || !e.pkg || e.pkg === r.p.pkg))
+    .map(r => ({ r, rel: coreRelation(e.core, r.p.core, vendorName) }))
+    .filter(x => x.rel)
+  if (pass.length === 1) return { row: pass[0].r.row, basis: `규격 같음(${e.spec.replace(/,/g, ' · ')}) · ${pass[0].rel}`, exact: false }
+  if (pass.length > 1) return { row: null, reason: `조건이 맞는 행이 ${pass.length}개(${pass.map(x => `'${x.r.name}'`).join(', ')})라 고르지 않았습니다` }
+  const best = parsed.map(r => ({ r, s: dice(e.core + e.spec, r.p.core + r.p.spec) })).sort((x, y) => y.s - x.s)[0]
+  if (!best || best.s < 0.3) return { row: null, reason: '업체 양식 품목 목록에 같은 상품이 없습니다' }
+  const why = best.r.p.spec !== e.spec ? '규격(매 · 롤 · 입 등)이 달라' : (e.pkg && e.pkg !== best.r.p.pkg) ? '구분(캡 · 리필 등)이 달라' : '상품명이 달라'
+  return { row: null, reason: `비슷한 품목은 '${best.r.name}' — ${why} 자동으로 넣지 않았습니다` }
+}
+
 function fillCatalogSheet(ws: Worksheet, sm: SheetMap, ctx: FormContext, warn: (m: string) => void) {
   const cat = sm.catalog!
-  const rowOf = new Map<string, number>()
-  for (let r = cat.start_row; r <= cat.end_row; r++) rowOf.set(norm(cellText(ws.getCell(`${cat.name_col}${r}`).value)), r)
+  const vendorName = (ctx.order.vendor_name as string | null) ?? null
+  const catalogRows: { row: number; name: string }[] = []
+  for (let r = cat.start_row; r <= cat.end_row; r++) {
+    const name = cellText(ws.getCell(`${cat.name_col}${r}`).value).trim()
+    if (name) catalogRows.push({ row: r, name })
+  }
   // BOX 환산 (2026-11-09 사용자 확정, 깨끗한나라): 발주서 수량(BOX) = ERP 수량 ÷ 입수.
   // 입수 열: 설정값 → 설정이 없던 옛 칸 연결은 머리글 '입수' 열을 찾아 씀. 빈 값('')으로 저장하면 환산하지 않음
   let packCol = cat.pack_col
@@ -266,11 +337,24 @@ function fillCatalogSheet(ws: Worksheet, sm: SheetMap, ctx: FormContext, warn: (
     })
   }
   const erpQty = new Map<number, number>()      // 같은 품목이 여러 행(수령인별)이면 ERP 수량을 합친 뒤 환산
+  const namesByRow = new Map<number, Set<string>>()
+  const decided = new Map<string, CatalogMatch>()
   for (const ln of ctx.lines) {
-    const r = rowOf.get(norm(ln.item_name))
-    if (!r) { warn(`'${ln.item_name}' — 업체 양식 품목 목록에 같은 이름이 없어 수량을 넣지 못했습니다(직접 입력).`); continue }
-    erpQty.set(r, (erpQty.get(r) ?? 0) + Number(ln.qty ?? 0))
+    const itemName = String(ln.item_name ?? '')
+    let m = decided.get(itemName)
+    if (!m) {
+      m = matchCatalogRow(itemName, catalogRows, vendorName)
+      decided.set(itemName, m)
+      if (m.row === null) warn(`'${itemName}' — ${m.reason}. 수량을 직접 넣어 주세요.`)
+      else if (!m.exact) warn(`자동 연결: '${itemName}' → 양식 '${catalogRows.find(c => c.row === m!.row)?.name}' (${m.basis}) — 맞는지 확인해 주세요.`)
+    }
+    if (m.row === null) continue
+    erpQty.set(m.row, (erpQty.get(m.row) ?? 0) + Number(ln.qty ?? 0))
+    namesByRow.set(m.row, (namesByRow.get(m.row) ?? new Set()).add(itemName))
   }
+  namesByRow.forEach((names, r) => {
+    if (names.size > 1) warn(`서로 다른 품목 ${Array.from(names).map(n => `'${n}'`).join(', ')}이 양식 같은 행('${catalogRows.find(c => c.row === r)?.name}')에 합쳐졌습니다 — 확인해 주세요.`)
+  })
   erpQty.forEach((qty, r) => {
     const name = cellText(ws.getCell(`${cat.name_col}${r}`).value).trim()
     const cell = ws.getCell(`${cat.qty_col}${r}`)
