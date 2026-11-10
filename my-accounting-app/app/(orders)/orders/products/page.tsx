@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import VendorInfoPanel, { useVendorInfo } from './vendor-info-panel'
 import { branchMargin, individualMargin, formatProfit, formatRate, type Margin } from '@/lib/product-margin'
 
 // 품목 마스터 (2단계) — 주문 입력의 품번 검색 원천.
@@ -137,6 +138,8 @@ export default function ProductsPage() {
     prev.key !== key ? { key, dir: 'asc' } : prev.dir === 'asc' ? { key, dir: 'desc' } : DEFAULT_SORT)
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [draft, setDraft] = useState(emptyDraft)
+  // 매입처 담당자 · 연락처 · 이메일 (2026-11-10) — 폼이 열려 있을 때 매입처명 기준으로 조회
+  const vinfo = useVendorInfo(draft.purchase_vendor_name, editingId !== null)
   const [uploading, setUploading] = useState(false)
   // 수정 권한 (2026-11-10): 응답 받기 전에는 숨김 — 권한 없는 직원에게 버튼이 잠깐 보였다 사라지지 않게
   const [canEdit, setCanEdit] = useState(false)
@@ -198,11 +201,27 @@ export default function ProductsPage() {
 
   const save = async () => {
     if (!draft.item_name.trim()) { setError('품명을 입력해주세요.'); return }
+    const vendorPatch = vinfo.changes(draft.purchase_vendor_name)   // 바뀐 매입처 정보 칸 (권한 · 연결 있을 때만)
+    const doneMsg = editingId === 'new' ? '품목이 등록되었습니다.' : '품목이 수정되었습니다.'
     const ok = await act(
       editingId === 'new' ? { action: 'create', ...draft } : { action: 'update', id: editingId, ...draft },
-      editingId === 'new' ? '품목이 등록되었습니다.' : '품목이 수정되었습니다.',
+      doneMsg,
     )
-    if (ok) { setEditingId(null); setDraft(emptyDraft) }
+    if (!ok) return
+    if (vendorPatch) {
+      // 매입처 정보 자체 수정 — 품목에는 저장하지 않음, 그 매입처의 모든 품목에 적용
+      const res = await fetch('/api/orders-portal/products/vendor-info', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: draft.purchase_vendor_name, ...vendorPatch }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(`품목은 저장됐지만 매입처 정보는 저장하지 못했습니다 — ${json.error ?? res.status}`)
+        return   // 폼을 열어 둬 다시 시도할 수 있게
+      }
+      setNotice(`${doneMsg} 매입처 정보 ${json.updated}칸도 저장했습니다 — 이 매입처의 모든 품목에 적용됩니다.`)
+    }
+    setEditingId(null); setDraft(emptyDraft)
   }
 
   const startEdit = (p: Product) => {
@@ -444,6 +463,8 @@ export default function ProductsPage() {
               onChange={e => setDraft(d => ({ ...d, is_shipping: e.target.checked }))} />
             비용 품목
           </label>
+          <VendorInfoPanel info={vinfo.info} draft={vinfo.draft} setDraft={vinfo.setDraft}
+            loading={vinfo.loading} inputCls={inputCls} />
           <button onClick={save} className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm">
             {editingId === 'new' ? '등록' : '저장'}
           </button>
