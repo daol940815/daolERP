@@ -400,7 +400,7 @@ docs/ui-reorg-track.md의 "(b) 상담일지 미연결 정책" 요청문(사용�
 - **708 운영 적용 완료 (사용자 보고 2026-11-09)** — 검증 쿼리 8행: 두 테이블 모두 order_season text(NULL) · purchase_discount bigint(0) ·
   purchase_discount_mode text('정액') · purchase_discount_unit bigint(0). 이 트랙의 다음 번호는 709.
 
-## 상담일지 종결 · 삭제 사유 필수 · 숨김 삭제 (2026-11-10, 사용자 요청 · 시안 승인 — 마이그레이션 709)
+## 상담일지 종결 · 삭제 사유 필수 · 숨김 삭제 (2026-11-10, 사용자 요청 · 시안 승인 — **709 운영 적용 2026-11-10, 검증 6행 사용자 확인**)
 
 - 조사(2026-11-10): 종결은 상태만 '종결'로 바꾸고 사유 · 사람 · 시각을 남기지 않았다. 종결 후에도 작성자가 내용 수정 가능.
   삭제는 진행중 · 본인 상담만, DB에서 물리 삭제(기록 없음).
@@ -414,7 +414,7 @@ docs/ui-reorg-track.md의 "(b) 상담일지 미연결 정책" 요청문(사용�
   - 종결 · 재개 · 삭제는 업무일지 자동 기록(action '상담수정', 내용으로 구분 — 700 CHECK 변경 없음).
 - 709 `709_consultation_close_delete_reason.sql`: erp_consultations에 closed_at · closed_by · close_reason · deleted_at · deleted_by · delete_reason.
   상태 CHECK(진행중 · 주문전환 · 종결)는 그대로 — 삭제는 상태값이 아니라 별도 열.
-- 구현(브랜치 claude/project-thread-nxk5kq, **709 실행 확인 후 main 병합**): API `consultations/[id]` PATCH close(reason 필수)/reopen · DELETE ?reason= 숨김 삭제,
+- 구현(709 실행 확인 후 2026-11-10 main 병합): API `consultations/[id]` PATCH close(reason 필수)/reopen · DELETE ?reason= 숨김 삭제,
   삭제된 상담 GET은 관리자급만 · PATCH 전부 409. 목록 API `deleted=1`(관리자급) · `deleted_count`, 709 미적용이면 예전 열로 폴백.
   삭제된 상담 제외: 알림(주문 진행 요청 · 처리 불가 되돌아옴) · 아침 재알림 크론 · 요청 KPI. 주문 전환 API는 종결 상담을 409로 막음(분할 주문용 주문전환 상담 추가 전환은 유지).
   처리 불가 회신은 종결 상담에서 막음. 화면: 상담일지 상세 사유 창(`ReasonPicker`) · 안내줄, 목록 배지(`ReasonBadge`) · "삭제된 것 보기" 칩. 다음 번호는 710.
