@@ -256,6 +256,9 @@ function TransactionsContent() {
   const [acceptableCount, setAcceptableCount] = useState(0)   // 선택 중 추천만 있는 미검토 행
   const [confirmProgress, setConfirmProgress] = useState<string | null>(null)
   const [autoFetchFlag, setAutoFetchFlag] = useState(0)
+  // 마지막으로 실제 불러온 조회 조건 — 기간을 바꾸고 조회를 안 누른 상태를 알려주기 위해
+  // (통합 필터는 불러온 행 안에서만 거르므로, 기간만 바꾸고 검색하면 "결과 없음"이 된다 — 2026-11-10 보고)
+  const [fetched, setFetched] = useState<Filters | null>(null)
   const [filters, setFilters]     = useState<Filters>({
     ...defaultDateRange(),
     bankAccountId: bankAccountIdParam,
@@ -351,7 +354,7 @@ function TransactionsContent() {
       })
       const res  = await fetch(`/api/transactions?${params}`)
       const json = await res.json()
-      if (json.data) setRowData(json.data)
+      if (json.data) { setRowData(json.data); setFetched({ from: filters.from, to: filters.to, bankAccountId: filters.bankAccountId, vendorId: filters.vendorId }) }
       else showToast(json.error ?? '조회 실패', 'err')
     } catch {
       showToast('서버 연결 실패', 'err')
@@ -362,6 +365,10 @@ function TransactionsContent() {
 
   // 초기 로드 + bankAccountId 변경 시 자동 재조회
   useEffect(() => { fetchTransactions() }, [autoFetchFlag]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 조회 조건이 불러온 것과 다른가 (기간 칩·날짜를 바꾸고 아직 조회 전)
+  const stale = !!fetched && (fetched.from !== filters.from || fetched.to !== filters.to
+    || fetched.bankAccountId !== filters.bankAccountId || fetched.vendorId !== filters.vendorId)
 
   // ?txId= 드릴다운: 거래의 날짜·계좌로 필터를 바꾼 뒤 재조회 → 조회 결과가 오면 그 행으로 이동
   useEffect(() => {
@@ -1044,7 +1051,8 @@ function TransactionsContent() {
 
       {/* 기간 줄: 프리셋 칩 + 날짜 from~to + 조회 (같은 줄 — 승인 시안 2026-11-10 수정 2). 서버 조회 조건. */}
       <div className="flex flex-wrap items-center gap-2 mb-2">
-        <PeriodPresets from={filters.from ?? ''} to={filters.to ?? ''} onChange={(from, to) => setFilters(f => ({ ...f, from, to }))} />
+        {/* 기간 칩은 누르는 즉시 다시 불러온다 — 날짜 칸은 입력 중 값이 바뀌므로 조회 버튼으로 */}
+        <PeriodPresets from={filters.from ?? ''} to={filters.to ?? ''} onChange={(from, to) => { setFilters(f => ({ ...f, from, to })); setAutoFetchFlag(n => n + 1) }} />
         <span className="text-gray-300 text-sm">|</span>
         <input
           type="date" value={filters.from}
@@ -1060,10 +1068,14 @@ function TransactionsContent() {
         <button
           onClick={fetchTransactions}
           disabled={loading}
-          className="px-3 py-1 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-700 disabled:opacity-50"
+          className={`px-3 py-1 rounded-lg text-xs font-medium disabled:opacity-50 ${stale && !loading ? 'bg-amber-500 text-white hover:bg-amber-600 ring-2 ring-amber-200' : 'bg-slate-900 text-white hover:bg-slate-700'}`}
+          title={stale ? '기간이 바뀌었습니다. 눌러서 다시 불러오세요' : undefined}
         >
-          {loading ? '조회 중...' : '조회'}
+          {loading ? '조회 중...' : stale ? '조회 (기간 변경됨)' : '조회'}
         </button>
+        {stale && !loading && (
+          <span className="text-xs text-amber-700">기간을 바꿨습니다. 조회를 눌러야 아래 목록·검색에 반영됩니다.</span>
+        )}
       </div>
 
       {/* 검색 줄: [+ 필터 ▾][검색창] + 적용 중 칩 + 빠른 조건 — 불러온 행에 즉시 적용 */}
@@ -1235,6 +1247,15 @@ function TransactionsContent() {
               ? '<span class="text-gray-400">조회 중...</span>'
               : '<span class="text-gray-400">조회된 거래가 없습니다. 필터를 확인하거나 파일을 업로드하세요.</span>'
           }
+          // 불러온 행은 있는데 통합 필터·머리글 필터에 걸리는 행이 없을 때 (기본 "No Matching Rows")
+          localeText={{
+            noRowsToShow: `불러온 ${rowData.length.toLocaleString('ko-KR')}건(${fetched?.from ?? ''} ~ ${fetched?.to ?? ''}) 안에 조건에 맞는 거래가 없습니다. 다른 기간이면 위 기간을 바꾸고 조회하세요.`,
+            page: '페이지', of: '/', to: '~', pageSizeSelectorLabel: '페이지 크기:',
+            firstPage: '첫 페이지', previousPage: '이전', nextPage: '다음', lastPage: '마지막',
+            filterOoo: '필터...', equals: '같음', notEqual: '같지 않음', lessThan: '미만', greaterThan: '초과',
+            lessThanOrEqual: '이하', greaterThanOrEqual: '이상', inRange: '범위', blank: '비어 있음', notBlank: '비어 있지 않음',
+            contains: '포함', notContains: '포함 안 함', startsWith: '시작', endsWith: '끝', andCondition: '그리고', orCondition: '또는',
+          }}
         />
       </div>
 
