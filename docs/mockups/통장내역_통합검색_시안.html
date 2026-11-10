@@ -11,10 +11,10 @@
 <div class="max-w-6xl mx-auto p-6">
 
   <h1 class="text-2xl font-bold">통장 내역 — 통합 검색 시안</h1>
-  <p class="text-sm text-gray-500 mt-1">검색창에는 단어를 치고, 필터는 <b>+ 필터 드롭다운</b>에서 항목을 골라 값을 설정합니다(수정안 2026-11-10). 설정한 필터는 칩으로 보이고 클릭해 고치거나 ✕로 지웁니다. 검색창에 <span class='font-mono'>금액:168300</span>처럼 쳐도 같은 칩이 됩니다. 숫자는 예시입니다.</p>
+  <p class="text-sm text-gray-500 mt-1">검색창에는 단어를 치고, 필터는 검색창 <b>왼쪽의 + 필터 드롭다운</b>에서 항목을 골라 값을 설정합니다(수정안 2 · 2026-11-10). 날짜 from~to는 기간 칩과 같은 줄에 둡니다. 설정한 필터는 칩으로 보이고 클릭해 고치거나 ✕로 지웁니다. 검색창에 <span class='font-mono'>금액:168300</span>처럼 쳐도 같은 칩이 됩니다. 숫자는 예시입니다.</p>
 
-  <!-- 기간 프리셋 (기존 그대로) -->
-  <div class="flex flex-wrap gap-1 mt-5 text-xs">
+  <!-- 기간 줄: 프리셋 칩 + 날짜 from~to (같은 줄) -->
+  <div class="flex flex-wrap items-center gap-1 mt-5 text-xs">
     <span class="px-2 py-1 rounded-full border border-gray-200 bg-white text-gray-500">최근 7일</span>
     <span class="px-2 py-1 rounded-full border border-gray-200 bg-white text-gray-500">최근 30일</span>
     <span class="px-2 py-1 rounded-full border border-slate-900 bg-slate-900 text-white">당월</span>
@@ -22,17 +22,15 @@
     <span class="px-2 py-1 rounded-full border border-gray-200 bg-white text-gray-500">4분기</span>
     <span class="px-2 py-1 rounded-full border border-gray-200 bg-white text-gray-500">당년</span>
     <span class="px-2 py-1 rounded-full border border-gray-200 bg-white text-gray-500">전체 기간</span>
+    <span class="text-gray-300 mx-1">|</span>
+    <input type="date" value="2026-11-01" class="border border-gray-300 rounded-lg px-2 py-1 text-xs">
+    <span class="text-gray-400">~</span>
+    <input type="date" value="2026-11-10" class="border border-gray-300 rounded-lg px-2 py-1 text-xs">
+    <button class="ml-1 px-3 py-1 bg-slate-900 text-white rounded-lg text-xs font-medium">조회</button>
   </div>
 
-  <!-- 필터 바: 기간 + 검색창 -->
+  <!-- 검색 줄: + 필터(왼쪽) + 검색창 -->
   <div class="flex flex-wrap items-center gap-2 mt-2">
-    <input type="date" value="2026-11-01" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-    <span class="text-gray-400 text-sm">~</span>
-    <input type="date" value="2026-11-10" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-    <div class="relative flex-1 min-w-[280px]">
-      <input value="쿠쿠" placeholder="검색어 — 적요·보낸분/받는분·메모·거래처·계정과목" class="w-full border border-slate-900 rounded-lg pl-9 pr-3 py-1.5 text-sm ring-2 ring-slate-200">
-      <span class="absolute left-3 top-1.5 text-gray-400">⌕</span>
-    </div>
     <div class="relative">
       <button class="px-3 py-1.5 border border-slate-900 bg-white text-slate-900 rounded-lg text-sm font-medium">+ 필터 ▾</button>
       <!-- 열린 드롭다운 -->
@@ -73,7 +71,10 @@
         </div>
       </div>
     </div>
-    <button class="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium">조회</button>
+    <div class="relative flex-1 min-w-[280px]">
+      <input value="쿠쿠" placeholder="검색어 — 적요·보낸분/받는분·메모·거래처·계정과목" class="w-full border border-slate-900 rounded-lg pl-9 pr-3 py-1.5 text-sm ring-2 ring-slate-200">
+      <span class="absolute left-3 top-1.5 text-gray-400">⌕</span>
+    </div>
   </div>
   <div class="h-44"></div><!-- 드롭다운이 가리지 않게 여백 (시안용) -->
 
@@ -144,7 +145,8 @@
     <div class="bg-white border border-gray-200 rounded-xl p-4">
       <div class="font-semibold text-gray-700 mb-2">동작 규칙</div>
       <ul class="space-y-1 text-gray-600">
-        <li>· 기간(날짜 칸·프리셋)은 서버 조회 조건, 검색창과 빠른 조건은 불러온 행에 즉시 적용 — 조회 버튼을 안 눌러도 걸러진다</li>
+        <li>· 기간 줄(프리셋 칩 + 날짜 from~to + 조회)은 서버 조회 조건, 검색 줄(+ 필터 + 검색창)과 빠른 조건은 불러온 행에 즉시 적용 — 조회 버튼을 안 눌러도 걸러진다</li>
+        <li>· + 필터 버튼은 검색창 왼쪽에 고정. 드롭다운은 버튼 아래 왼쪽 정렬로 열린다</li>
         <li>· 위 요약(건수·입금·출금·미검토)은 걸러진 행 기준. "조건 일치 N건 / 기간 내 M건"으로 둘 다 보인다</li>
         <li>· 전체 선택·추천 수락·선택 확정은 걸러진 행만 대상 (지금과 같음)</li>
         <li>· 일치한 검색어는 적요에서 노란 표시</li>
