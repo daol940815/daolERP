@@ -13,7 +13,7 @@ export const maxDuration = 60
 // GET → { forms, recent_pos, can_edit } / GET ?download=<formId> → 원본 파일
 // POST (FormData file, memo?) → 새 버전(작성 중) + 자동 인식
 // PATCH { action: 'save' | 'activate' | 'archive' | 'copy', form_id, mapping?, memo? }
-// DELETE ?form_id= → 작성 중 버전만 삭제
+// DELETE ?form_id= → 버전 삭제(상태 무관, 2026-11-10 — 원본 파일 포함, 되돌릴 수 없음)
 
 const COLS = 'id, vendor_id, version, file_name, status, mapping, recognized, memo, uploaded_at, activated_at, updated_at, uploader:employees!erp_po_forms_uploaded_by_fkey(name), activator:employees!erp_po_forms_activated_by_fkey(name)'
 type Rel = { name: string } | { name: string }[] | null
@@ -49,10 +49,17 @@ export async function GET(req: NextRequest, { params }: { params: { vendorId: st
     if (poFormMissing(forms.error.message)) return NextResponse.json({ forms: [], recent_pos: [], can_edit: canEdit, hint: PO_FORM_HINT })
     return NextResponse.json({ error: forms.error.message }, { status: 500 })
   }
+  // 버전별로 나간 발주서 수 (form_id 기록) — 삭제 확인창 안내용
+  const ids = (forms.data ?? []).map(f => f.id as string)
+  const usedCount = new Map<string, number>()
+  if (ids.length) {
+    const { data: used } = await admin.from('erp_purchase_orders').select('form_id').in('form_id', ids)
+    for (const u of used ?? []) usedCount.set(u.form_id as string, (usedCount.get(u.form_id as string) ?? 0) + 1)
+  }
   return NextResponse.json({
     can_edit: canEdit,
     forms: (forms.data ?? []).map(f => ({
-      ...f,
+      ...f, used_count: usedCount.get(f.id as string) ?? 0,
       uploader_name: nameOf(f.uploader as unknown as Rel), activator_name: nameOf(f.activator as unknown as Rel),
       uploader: undefined, activator: undefined,
     })),
@@ -189,7 +196,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { vendorId:
   const { data: form } = await admin.from('erp_po_forms').select('id, status, storage_path')
     .eq('id', id).eq('vendor_id', params.vendorId).maybeSingle()
   if (!form) return NextResponse.json({ error: '양식을 찾을 수 없습니다.' }, { status: 404 })
-  if (form.status !== 'draft') return NextResponse.json({ error: '작성 중인 버전만 지울 수 있습니다(사용했던 버전은 기록으로 남깁니다).' }, { status: 400 })
+  // 2026-11-10 사용자 결정(B안): 상태와 상관없이 삭제 가능. 사용 중이면 그 매입처 발주서는 바로 기본(또는 코드) 양식으로 나가고,
+  // 이 버전으로 나간 발주서의 양식 기록(erp_purchase_orders.form_id)은 비워진다(FK ON DELETE SET NULL). 원본 파일도 지운다 — 되돌릴 수 없음
   const { error } = await admin.from('erp_po_forms').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   await admin.storage.from(PO_FORMS_BUCKET).remove([form.storage_path as string])
