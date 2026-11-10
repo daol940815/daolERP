@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 업무 요청 태그 (업무 계열 분류)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; word-break: keep-all; }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 16px; line-height: 1.75; }
+  .note b { color: #422006; }
+  .note.blue { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
+  .note.blue b { color: #172554; }
+  h1 { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+  h2 { font-size: 16px; font-weight: 700; margin: 34px 0 6px; }
+  h2 .no { display: inline-block; background: #0f172a; color: #fff; font-size: 11px; border-radius: 6px; padding: 2px 7px; margin-right: 8px; vertical-align: 2px; }
+  h2 .pending { display: inline-block; background: #fef3c7; color: #92400e; font-size: 11px; border-radius: 6px; padding: 2px 7px; margin-left: 6px; vertical-align: 2px; font-weight: 600; }
+  .desc { font-size: 12.5px; color: #475569; margin-bottom: 12px; line-height: 1.7; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 18px; }
+  .grid2 { display: grid; grid-template-columns: 3fr 2fr; gap: 14px; }
+  .grid2e { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  label.f { display: block; font-size: 11.5px; font-weight: 600; color: #475569; margin-bottom: 4px; }
+  .inp { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 10px; font-size: 13px; background: #fff; }
+  textarea.inp { min-height: 64px; resize: vertical; font-family: inherit; }
+  .row { margin-bottom: 12px; }
+  .btn { display: inline-block; background: #0f172a; color: #fff; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; }
+  .btn.ghost { background: #fff; color: #334155; border: 1px solid #cbd5e1; font-weight: 500; }
+  .btn.sm { padding: 4px 9px; font-size: 11.5px; border-radius: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font-size: 11px; color: #94a3b8; font-weight: 500; padding: 7px 10px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+  td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .muted { color: #94a3b8; }
+  .small { font-size: 11.5px; color: #64748b; }
+
+  /* 상태 배지(기존, 꽉 찬 칠) */
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+  .b-urgent { background: #dc2626; color: #fff; }
+  .b-first { background: #e0f2fe; color: #0369a1; }
+  .b-all { background: #ede9fe; color: #6d28d9; }
+  .b-req { background: #f1f5f9; color: #475569; } .b-prog { background: #dbeafe; color: #1d4ed8; } .b-done { background: #fef3c7; color: #92400e; }
+
+  /* 태그(새로, 테두리형 + 색 점) — 상태 배지와 헷갈리지 않게 칠하지 않는다 */
+  .tg { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 999px; padding: 1px 8px 1px 6px; font-size: 11px; font-weight: 600; white-space: nowrap; line-height: 1.6; }
+  .tg i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .tg.sel { border-color: #0f172a; background: #0f172a; color: #fff; }
+  .tg.sel i { box-shadow: 0 0 0 1.5px #fff; }
+  .tg.rec { border-style: dashed; border-color: #64748b; }
+  .tg.none { color: #94a3b8; border-style: dashed; }
+  .tg .n { font-weight: 500; color: #94a3b8; margin-left: 2px; }
+  .tg.sel .n { color: #cbd5e1; }
+  .c-order { background: #0284c7; } .c-collect { background: #d97706; } .c-sales { background: #059669; } .c-sample { background: #0d9488; }
+  .c-acct { background: #4f46e5; } .c-hr { background: #9333ea; } .c-erp { background: #475569; } .c-etc { background: #cbd5e1; } .c-new { background: #db2777; }
+  .tgs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tgpick .tg { cursor: pointer; padding: 3px 10px 3px 8px; font-size: 12px; }
+
+  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 12px; }
+  .kpi { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 14px; }
+  .kpi p:first-child { font-size: 11.5px; color: #64748b; }
+  .kpi p.v { font-size: 18px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
+  .bar .lbl { font-size: 11.5px; color: #64748b; margin-right: 2px; }
+  .filterbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; }
+  .tabs span { padding: 7px 12px; font-size: 13px; color: #64748b; }
+  .tabs span.on { color: #0f172a; font-weight: 700; border-bottom: 2px solid #0f172a; margin-bottom: -1px; }
+  .ttl { font-weight: 600; }
+  .ttl .sub { display: block; font-size: 11px; color: #94a3b8; font-weight: 400; margin-top: 1px; }
+
+  .side { background: #0f172a; color: #e2e8f0; border-radius: 12px; padding: 12px; width: 260px; }
+  .bell { border: 1px solid #334155; border-radius: 8px; overflow: hidden; }
+  .bell .hd { font-size: 10px; color: #64748b; padding: 5px 10px 2px; display: flex; }
+  .bell .cells { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: #1e293b; }
+  .bell .cells div { background: #0f172a; text-align: center; padding: 5px 0; font-size: 10.5px; color: #94a3b8; }
+  .bell .cells div b { display: block; font-size: 14px; color: #f87171; }
+  .panel { background: #fff; border: 1px solid #cbd5e1; border-radius: 12px; box-shadow: 0 10px 30px rgba(15,23,42,.15); width: 400px; }
+  .panel .it { display: grid; grid-template-columns: 8px 1fr auto; gap: 10px; padding: 9px 14px; border-bottom: 1px solid #f1f5f9; font-size: 12.5px; }
+  .panel .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; }
+  .panel .src { display: inline-block; background: #f1f5f9; color: #475569; font-size: 10px; border-radius: 4px; padding: 0 4px; margin-right: 4px; font-weight: 500; }
+  .panel .det { display: block; color: #64748b; font-size: 11px; margin-top: 3px; }
+
+  .ev { border-left: 2px solid #e2e8f0; padding-left: 12px; }
+  .ev div { font-size: 12px; padding: 5px 0; color: #334155; }
+  .ev div span { color: #94a3b8; font-size: 11px; margin-right: 6px; }
+
+  .pc { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .pc ul { padding-left: 18px; font-size: 12.5px; line-height: 1.8; color: #334155; }
+  .pc h3 { font-size: 13px; margin-bottom: 6px; }
+  .pc .plus h3 { color: #047857; } .pc .minus h3 { color: #b91c1c; }
+  .rec-box { margin-top: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; font-size: 12.5px; line-height: 1.8; }
+  code { background: #f1f5f9; border-radius: 4px; padding: 0 4px; font-size: 11.5px; }
+  pre { background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 12px 14px; font-size: 11.5px; line-height: 1.6; overflow-x: auto; }
+  .warn { color: #b45309; font-size: 11.5px; margin-top: 6px; }
+  @media (max-width: 900px) { .grid2, .grid2e, .pc, .kpis { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>시안 — 업무 요청 태그 (업무 계열 분류)</h1>
+  <p class="desc">요청마다 업무 계열 태그를 붙여, 제목 · 내용을 읽지 않아도 무슨 일인지 보이게 하고 목록 · 경영 현황에서 계열별로 걸러 본다. 2026-11-10</p>
+
+  <div class="note">
+    <b>사용자 결정 (2026-11-10)</b> ① 태그 8개로 시작 ② 1건에 여러 개 허용 ③ 담당자도 태그 수정 가능 ④ 관리자 태그 추가는 장단점 검토 후 결정 (7번)<br>
+    <b>시안의 가정 — 확인 부탁</b> 1건 최대 3개 · 작성 시 1개 이상 필수 · 수정은 요청자 · 살아 있는 담당자 · 마스터, 닫힌 요청도 가능 · 태그 변경은 이력에 남기고 알림은 보내지 않음 ·
+    목록에서 칩 여러 개를 고르면 하나라도 해당하는 요청(또는) · 도움말 질문하기 · 권한 요청은 ERP 문의 자동.
+  </div>
+
+  <h2><span class="no">1</span>태그 목록과 표기</h2>
+  <p class="desc">상태 배지(긴급 · 선착 · 공동 · 진행 상태)는 칠한 사각형이라, 태그는 <b>테두리 알약 + 색 점</b>으로 구분한다. 빨강은 긴급 · 마감 지남 전용이라 태그에 쓰지 않는다.</p>
+  <div class="card">
+    <table>
+      <thead><tr><th>태그</th><th>들어가는 일</th><th>추천 키워드 (작성 중 자동 추천)</th></tr></thead>
+      <tbody>
+        <tr><td><span class="tg"><i class="c-order"></i>주문 · 배송</span></td><td>주문 입력 확인, 발주, 배송지, 출고 · 택배 확인</td><td class="small">주문, 발주, 배송, 출고, 택배, 납품, 송장</td></tr>
+        <tr><td><span class="tg"><i class="c-collect"></i>수금 · 계산서</span></td><td>수금 독촉, 계산서 발행 · 수정, 입금 확인</td><td class="small">계산서, 수금, 입금, 미수, 청구, 독촉, 세금계산서</td></tr>
+        <tr><td><span class="tg"><i class="c-sales"></i>영업 · 고객</span></td><td>상담 자료, 거래처 등록, 담당자 정리, 고객관리 문서</td><td class="small">상담, 거래처, 고객, 담당자, 견적, 은행, 지점</td></tr>
+        <tr><td><span class="tg"><i class="c-sample"></i>샘플 · 재고</span></td><td>샘플 요청 · 발송, 재고 실사</td><td class="small">샘플, 재고, 실사, 요아럽</td></tr>
+        <tr><td><span class="tg"><i class="c-acct"></i>회계 · 자금</span></td><td>통장 분류, 지급 · 결제, 세무사 자료</td><td class="small">통장, 지급, 결제, 카드, 세무사, 분개, 부가세</td></tr>
+        <tr><td><span class="tg"><i class="c-hr"></i>인사 · 총무</span></td><td>근태, 휴가, 급여, 계약서, 비품</td><td class="small">근태, 휴가, 급여, 계약서, 아르바이트, 비품, 출근</td></tr>
+        <tr><td><span class="tg"><i class="c-erp"></i>ERP 문의</span></td><td>사용법 질문, 권한 요청, 오류 신고</td><td class="small">ERP, 권한, 오류, 화면, 로그인 · [질문] [권한] 접두는 자동 지정</td></tr>
+        <tr><td><span class="tg"><i class="c-etc"></i>기타</span></td><td>위에 안 맞는 일</td><td class="small muted">추천하지 않음 — 직접 고를 때만</td></tr>
+        <tr><td><span class="tg none">미분류</span></td><td class="muted">태그가 없는 기존 요청 (화면 표시 전용, 고를 수 없음)</td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2><span class="no">2</span>새 요청 — 태그 고르기</h2>
+  <p class="desc">제목 아래에 태그 줄. 제목 · 내용을 쓰면 키워드로 <b>추천 태그를 점선으로</b> 미리 보여 주고, 누르면 확정. 시스템은 추천만, 고르는 것은 사용자.</p>
+  <div class="grid2">
+    <div class="card">
+      <div class="row"><label class="f">담당자</label><div class="tgs"><span class="badge b-req">김주연 대리</span></div></div>
+      <div class="row"><label class="f">제목</label><input class="inp" id="title" value="한빛은행 강남지점 11월분 계산서 재발행 + 수금 확인"></div>
+      <div class="row">
+        <label class="f">업무 계열 <span class="muted" style="font-weight:400">— 1개 이상, 최대 3개</span></label>
+        <div class="tgs tgpick" id="picker"></div>
+        <p class="small" id="pickhint" style="margin-top:6px"></p>
+      </div>
+      <div class="row"><label class="f">내용</label><textarea class="inp">지난주 발행분 공급가액 오류. 수정 발행 후 입금 일정도 확인 부탁드립니다.</textarea></div>
+      <div class="row" style="display:flex; gap:8px; justify-content:flex-end"><span class="btn ghost">취소</span><span class="btn">요청 보내기</span></div>
+    </div>
+    <div class="card">
+      <p class="small" style="line-height:1.8">
+        <b>동작</b><br>
+        · 칩을 누르면 선택 · 해제. 4개째는 막고 "최대 3개" 안내.<br>
+        · 점선 칩 = 추천. 제목 · 내용의 키워드로 계산, 저장되지 않는다.<br>
+        · 아무것도 안 고르고 보내면 "업무 계열을 하나 이상 고르세요".<br>
+        · 도움말 질문하기 · 권한 요청으로 들어오면 <span class="tg"><i class="c-erp"></i>ERP 문의</span> 미리 선택.<br>
+        · 반려 건 "다시 요청"은 원래 태그를 그대로 채운다.
+      </p>
+    </div>
+  </div>
+
+  <h2><span class="no">3</span>목록 — 태그 칩 필터와 제목 위 태그</h2>
+  <p class="desc">기존 KPI 카드 · 검색 · 칩 필터 패턴에 <b>태그 줄</b>을 하나 더한다. 숫자는 지금 보이는 목록 안의 건수. 기존 "질문 · 권한 요청만" 칩은 ERP 문의 태그 칩이 대신한다.</p>
+  <div class="card">
+    <div class="tabs"><span>내가 받은</span><span>내가 보낸</span><span class="on">전체 (공용)</span></div>
+    <div class="kpis">
+      <div class="kpi"><p>진행 중 전체</p><p class="v" style="color:#1d4ed8">24</p></div>
+      <div class="kpi"><p>미확인</p><p class="v">6</p></div>
+      <div class="kpi"><p>오늘 마감</p><p class="v" style="color:#d97706">3</p></div>
+      <div class="kpi"><p>마감 지남</p><p class="v" style="color:#dc2626">4</p></div>
+      <div class="kpi"><p>완료 대기</p><p class="v">2</p></div>
+    </div>
+    <div class="filterbar"><input class="inp" style="width:240px" placeholder="제목 · 내용 · 이름 검색"><select class="inp" style="width:120px"><option>상태 전체</option></select></div>
+    <div class="bar">
+      <span class="lbl">업무 계열</span>
+      <span class="tg sel"><i class="c-order"></i>주문 · 배송<span class="n">7</span></span>
+      <span class="tg sel"><i class="c-collect"></i>수금 · 계산서<span class="n">5</span></span>
+      <span class="tg"><i class="c-sales"></i>영업 · 고객<span class="n">4</span></span>
+      <span class="tg"><i class="c-sample"></i>샘플 · 재고<span class="n">2</span></span>
+      <span class="tg"><i class="c-acct"></i>회계 · 자금<span class="n">3</span></span>
+      <span class="tg"><i class="c-hr"></i>인사 · 총무<span class="n">2</span></span>
+      <span class="tg"><i class="c-erp"></i>ERP 문의<span class="n">3</span></span>
+      <span class="tg"><i class="c-etc"></i>기타<span class="n">1</span></span>
+      <span class="tg none">미분류<span class="n">6</span></span>
+      <span class="small" style="margin-left:6px">2개 선택 · 하나라도 해당 <u>해제</u></span>
+    </div>
+    <table>
+      <thead><tr><th></th><th>제목</th><th>요청자</th><th>담당자</th><th>생성</th><th>마감</th><th>상태</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge b-urgent">긴급</span></td>
+          <td class="ttl"><div class="tgs" style="margin-bottom:3px"><span class="tg"><i class="c-collect"></i>수금 · 계산서</span></div>한빛은행 강남지점 11월분 계산서 재발행 + 수금 확인<span class="sub">공급가액 오류 — 수정 발행 후 입금 일정 확인</span></td>
+          <td>오철준</td><td>김주연</td><td class="small">11-10 09:12</td><td>11-10 18:00</td><td><span class="badge b-prog">진행 중</span></td></tr>
+        <tr><td><span class="badge b-all">공동</span></td>
+          <td class="ttl"><div class="tgs" style="margin-bottom:3px"><span class="tg"><i class="c-order"></i>주문 · 배송</span><span class="tg"><i class="c-sample"></i>샘플 · 재고</span></div>연말 선물 세트 샘플 발송 + 주문 수량 확정<span class="sub">지점 12곳 샘플 먼저, 확정 수량은 주문으로</span></td>
+          <td>김재형</td><td>영업지원팀 5명 <span class="small">· 보고 2/5</span></td><td class="small">11-09 16:40</td><td>11-14 18:00</td><td><span class="badge b-prog">진행 중</span></td></tr>
+        <tr><td></td>
+          <td class="ttl"><div class="tgs" style="margin-bottom:3px"><span class="tg"><i class="c-order"></i>주문 · 배송</span></div>신한은행 본점 배송지 변경 반영<span class="sub">12/2 출고분부터 신사옥</span></td>
+          <td>옥광일</td><td>한정호</td><td class="small">11-09 11:05</td><td>11-11 12:00</td><td><span class="badge b-req">미확인</span></td></tr>
+        <tr style="opacity:.45"><td></td>
+          <td class="ttl"><div class="tgs" style="margin-bottom:3px"><span class="tg"><i class="c-hr"></i>인사 · 총무</span></div>명절 아르바이트 근로계약서 양식 정리<span class="sub">— 선택한 계열이 아니라 숨겨지는 행 (시안 설명용 흐림)</span></td>
+          <td>강시현</td><td>오철준</td><td class="small">11-08 10:20</td><td>11-15 18:00</td><td><span class="badge b-req">미확인</span></td></tr>
+      </tbody>
+    </table>
+    <p class="small" style="margin-top:8px">태그는 제목 위 한 줄에 둔다(제목 앞에 붙이면 긴 제목이 잘려 태그가 먼저 사라짐). 행 높이가 조금 늘어나는 대신 제목 폭은 그대로.</p>
+  </div>
+
+  <h2><span class="no">4</span>상세 — 태그 수정 · 이력</h2>
+  <p class="desc">요청자 · 살아 있는 담당자(반려 · 해제 제외) · 마스터에게 "태그 수정" 버튼. 닫힌 요청도 고칠 수 있다 — 분류는 통계를 위한 것이라 나중에 바로잡을 수 있어야 한다.</p>
+  <div class="grid2e">
+    <div class="card">
+      <p style="font-size:15px; font-weight:700">연말 선물 세트 샘플 발송 + 주문 수량 확정</p>
+      <div class="tgs" style="margin:8px 0 4px; align-items:center">
+        <span class="tg"><i class="c-order"></i>주문 · 배송</span><span class="tg"><i class="c-sample"></i>샘플 · 재고</span>
+        <span class="btn ghost sm" style="margin-left:4px">태그 수정</span>
+      </div>
+      <p class="small">요청 김재형 · 공동 5명 · 마감 11-14 18:00</p>
+      <div style="margin-top:12px; border-top:1px solid #f1f5f9; padding-top:10px">
+        <label class="f">태그 수정 (펼친 모습)</label>
+        <div class="tgs tgpick">
+          <span class="tg sel"><i class="c-order"></i>주문 · 배송</span><span class="tg"><i class="c-collect"></i>수금 · 계산서</span><span class="tg sel"><i class="c-sales"></i>영업 · 고객</span>
+          <span class="tg sel"><i class="c-sample"></i>샘플 · 재고</span><span class="tg"><i class="c-acct"></i>회계 · 자금</span><span class="tg"><i class="c-hr"></i>인사 · 총무</span>
+          <span class="tg"><i class="c-erp"></i>ERP 문의</span><span class="tg"><i class="c-etc"></i>기타</span>
+        </div>
+        <div style="margin-top:8px; display:flex; gap:6px"><span class="btn sm">저장</span><span class="btn ghost sm">취소</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <label class="f">이력</label>
+      <div class="ev">
+        <div><span>11-10 10:02</span>한정호 — <b>태그 변경</b>: 주문 · 배송, 샘플 · 재고 → 주문 · 배송, 샘플 · 재고, 영업 · 고객</div>
+        <div><span>11-10 09:30</span>김주연 — 진행 메모: 지점 5곳 샘플 발송 완료</div>
+        <div><span>11-09 16:40</span>김재형 — 요청 (공동 5명)</div>
+      </div>
+      <p class="small" style="margin-top:10px; line-height:1.7">태그 변경은 이력에만 남기고 알림 · PC 알림은 보내지 않는다(분류 변경까지 알리면 소음). 업무일지에도 기록하지 않는다.</p>
+    </div>
+  </div>
+
+  <h2><span class="no">5</span>알림 — 상세 줄에 태그</h2>
+  <p class="desc">종 패널 · 토스트의 업무 요청 항목 설명 앞에 대표 태그(첫 번째)를 붙인다. PC 알림 본문에도 같은 형식. 비공개 요청은 태그도 숨긴다.</p>
+  <div style="display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap">
+    <div class="side">
+      <div class="bell">
+        <div class="hd">알림<span style="margin-left:auto">전체 보기</span></div>
+        <div class="cells"><div>개인<b>2</b></div><div>공용<b>1</b></div><div>내 요청<b style="color:#475569">0</b></div><div>주문<b>3</b></div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="it"><span class="dot" style="background:#ef4444"></span><span><b><span class="src">업무 요청</span>개인 요청 미확인 2건</b><span class="det">[수금 · 계산서] 오철준: 한빛은행 강남지점 11월분 계산서 재발행 (마감 11-10 18:00) 외 1</span></span><span class="small">09:12</span></div>
+      <div class="it"><span class="dot" style="background:#3b82f6"></span><span><span class="src">업무 요청</span>진행 메모 — 김주연<span class="det">[주문 · 배송] 연말 선물 세트 샘플 발송: 지점 5곳 샘플 발송 완료</span></span><span class="small">09:30</span></div>
+    </div>
+  </div>
+
+  <h2><span class="no">6</span>경영 현황 — 계열별 집계</h2>
+  <p class="desc">업무 요청 현황(경영 현황)에 계열별 표를 추가. 숫자를 누르면 공용 목록에서 그 태그만 걸러 보인다(드릴다운).</p>
+  <div class="card">
+    <table>
+      <thead><tr><th>업무 계열</th><th class="num">이달 생성</th><th class="num">진행 중</th><th class="num">마감 지남</th><th class="num">이달 완료</th><th class="num">평균 처리</th><th>많이 받은 사람</th></tr></thead>
+      <tbody>
+        <tr><td><span class="tg"><i class="c-order"></i>주문 · 배송</span></td><td class="num">18</td><td class="num">7</td><td class="num" style="color:#dc2626">2</td><td class="num">11</td><td class="num">1.4일</td><td class="small">한정호 6 · 김보현 5</td></tr>
+        <tr><td><span class="tg"><i class="c-collect"></i>수금 · 계산서</span></td><td class="num">12</td><td class="num">5</td><td class="num" style="color:#dc2626">1</td><td class="num">7</td><td class="num">2.1일</td><td class="small">김주연 8</td></tr>
+        <tr><td><span class="tg"><i class="c-sales"></i>영업 · 고객</span></td><td class="num">9</td><td class="num">4</td><td class="num">0</td><td class="num">5</td><td class="num">1.8일</td><td class="small">홍창의 4</td></tr>
+        <tr><td><span class="tg"><i class="c-erp"></i>ERP 문의</span></td><td class="num">6</td><td class="num">3</td><td class="num">1</td><td class="num">3</td><td class="num">0.6일</td><td class="small">오철준 6</td></tr>
+        <tr><td class="muted">… 나머지 계열</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr style="border-top:2px solid #e2e8f0"><td><b>요청 건수 합계</b></td><td class="num"><b>41</b></td><td class="num"><b>24</b></td><td class="num"><b>4</b></td><td class="num"><b>22</b></td><td class="num">1.5일</td><td></td></tr>
+      </tbody>
+    </table>
+    <p class="warn">태그를 여러 개 붙일 수 있으므로 계열별 숫자를 더하면 요청 건수보다 커진다. 합계 행은 계열 합이 아니라 실제 요청 건수(중복 없음)로 따로 센다 — 화면에 이 설명을 작게 붙인다.</p>
+  </div>
+
+  <h2><span class="no">7</span>관리자 태그 관리<span class="pending">결정 대기</span></h2>
+  <p class="desc">관리자가 태그를 추가 · 이름 변경 · 숨김할 수 있게 하는 안. 업무 요청 화면 오른쪽 위에 마스터에게만 "태그 관리" 버튼.</p>
+  <div class="grid2">
+    <div class="card">
+      <table>
+        <thead><tr><th>순서</th><th>태그</th><th>추천 키워드</th><th class="num">사용</th><th>상태</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="small">1 ↕</td><td><span class="tg"><i class="c-order"></i>주문 · 배송</span></td><td class="small">주문, 발주, 배송, 출고 …</td><td class="num">142</td><td class="small">사용</td><td><span class="btn ghost sm">수정</span></td></tr>
+          <tr><td class="small">2 ↕</td><td><span class="tg"><i class="c-collect"></i>수금 · 계산서</span></td><td class="small">계산서, 수금, 입금 …</td><td class="num">96</td><td class="small">사용</td><td><span class="btn ghost sm">수정</span></td></tr>
+          <tr><td class="small muted">…</td><td colspan="5" class="small muted">기본 8개</td></tr>
+          <tr><td class="small">9 ↕</td><td><span class="tg"><i class="c-new"></i>명절 선물</span></td><td class="small">명절, 선물세트, 추석, 설</td><td class="num">31</td><td class="small">사용</td><td><span class="btn ghost sm">수정</span></td></tr>
+          <tr style="opacity:.55"><td class="small">—</td><td><span class="tg"><i class="c-etc"></i>전시회</span></td><td class="small">전시, 부스</td><td class="num">4</td><td class="small">숨김</td><td><span class="btn ghost sm">다시 사용</span></td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:12px; border-top:1px solid #f1f5f9; padding-top:10px; display:grid; grid-template-columns: 1.2fr 2fr auto auto; gap:8px; align-items:end">
+        <div><label class="f">새 태그 이름</label><input class="inp" value="세금계산서"></div>
+        <div><label class="f">추천 키워드 (쉼표)</label><input class="inp" placeholder="예: 행사, 부스"></div>
+        <div><label class="f">색</label><select class="inp" style="width:84px"><option>분홍</option></select></div>
+        <span class="btn">추가</span>
+      </div>
+      <p class="warn">비슷한 태그가 있습니다: <b>수금 · 계산서</b> (키워드 "계산서" 겹침). 그래도 추가할까요?</p>
+    </div>
+    <div class="card small" style="line-height:1.85">
+      <b>규칙 (도입 시)</b><br>
+      · 추가 · 수정은 <b>마스터 계정만</b>(ERP 총괄 · 사장님).<br>
+      · <b>삭제 없음, 숨김만</b> — 숨긴 태그는 새 요청에서 못 고르고, 과거 요청 · 통계에는 그대로 남는다.<br>
+      · 이름을 바꾸면 과거 요청도 새 이름으로 보인다(같은 태그로 연결).<br>
+      · 사용 중인 태그 <b>최대 12개</b> — 칩 한 줄을 넘기지 않게.<br>
+      · 추가할 때 이름 · 키워드가 겹치는 태그가 있으면 경고.<br>
+      · 색은 정해진 10색 중 고르기(직접 색 코드 입력 없음 — 화면 테마 규칙).
+    </div>
+  </div>
+
+  <h2><span class="no">8</span>관리자 태그 추가 — 장단점</h2>
+  <div class="card">
+    <div class="pc">
+      <div class="plus">
+        <h3>좋은 점</h3>
+        <ul>
+          <li>배포 없이 현장에서 바로 계열을 늘린다 — 명절 선물 시즌, 신규 사업처럼 한때 몰리는 일을 따로 볼 수 있다.</li>
+          <li>"기타"에 쌓이는 일을 실제 계열로 빼낼 수 있다. 처음 8개가 틀려도 고치기 쉽다.</li>
+          <li>추천 키워드도 같이 관리해 추천이 점점 정확해진다.</li>
+          <li>태그 이름을 바꿔도 과거 요청이 자동으로 따라와 통계가 끊기지 않는다.</li>
+        </ul>
+      </div>
+      <div class="minus">
+        <h3>걱정되는 점</h3>
+        <ul>
+          <li><b>난립</b> — "세금계산서" · "계산서 발행"처럼 같은 뜻이 갈라지면 계열별 통계가 흩어져 태그를 만든 의미가 없어진다.</li>
+          <li><b>지우기 문제</b> — 태그를 지우면 과거 요청의 분류가 사라진다. 숨김만 허용해야 한다.</li>
+          <li><b>통계 연속성</b> — 중간에 생긴 태그는 그 이전 달과 비교가 안 된다.</li>
+          <li><b>화면 복잡</b> — 칩이 많아지면 작성 · 필터가 오히려 느려진다.</li>
+          <li><b>구현 비용</b> — 관리 화면 · 중복 경고 · 숨김 처리로 반나절~하루 더 든다. 나중에 합치기(병합) 기능이 필요해질 수 있다.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="rec-box">
+      <b>의견: 도입하되 좁게.</b> 태그는 어차피 테이블로 만들므로(9번) 관리 화면은 그 위에 얹는 작은 기능이다. 대신 마스터만 · 숨김만 · 최대 12개 · 중복 경고 네 가지를 같이 건다.
+      분류를 직원 누구나 늘리게 하면 3개월 안에 흩어질 가능성이 높아 권하지 않는다.
+      순서 제안: 1차는 8개로 배포하고 관리 화면은 같이 만들되, 실제 추가는 한 달 써 본 뒤 "기타" 비중을 보고 판단.
+    </div>
+  </div>
+
+  <h2><span class="no">9</span>DB 안 (904, 시안 확정 후 작성)</h2>
+  <div class="card">
+<pre>-- 태그 마스터 — 관리자 추가 여부와 무관하게 테이블로 둔다 (다수 태그 · 이름 변경 시 과거 건 자동 반영)
+work_request_tags (
+  id uuid pk, label text not null unique, color text not null,   -- color = 정해진 색 이름(sky · amber …)
+  keywords text[] not null default '{}', sort int not null, active boolean not null default true, created_at, updated_at
+)
+-- 요청 ↔ 태그 (1건 최대 3개는 API에서 검사)
+work_request_tag_links ( request_id uuid → work_requests, tag_id uuid → work_request_tags, primary key (request_id, tag_id) )
+-- 기본 8개 시드. 이력 이벤트 'tags_changed' (memo = "이전 → 이후") 추가</pre>
+    <p class="small" style="margin-top:8px; line-height:1.8">
+      기존 요청: 태그 없음 = 미분류로 표시. 열린 요청만 키워드 추천으로 드라이런(건수 · 표본) → 승인 후 일괄 적용. 닫힌 요청은 미분류 유지.<br>
+      목록 · 알림 · 경영 현황은 요청 조회에 태그를 함께 묶어 가져오므로 추가 왕복 없음. 도움말 업무 요청 항목에 태그 설명 추가.
+    </p>
+  </div>
+</div>
+
+<script>
+  // 2번 작성 화면 — 칩 선택 · 키워드 추천 시연
+  const TAGS = [
+    ['order', '주문 · 배송', ['주문','발주','배송','출고','택배','납품','송장']],
+    ['collect', '수금 · 계산서', ['계산서','수금','입금','미수','청구','독촉']],
+    ['sales', '영업 · 고객', ['상담','거래처','고객','담당자','견적']],
+    ['sample', '샘플 · 재고', ['샘플','재고','실사','요아럽']],
+    ['acct', '회계 · 자금', ['통장','지급','결제','카드','세무사','분개','부가세']],
+    ['hr', '인사 · 총무', ['근태','휴가','급여','계약서','아르바이트','비품']],
+    ['erp', 'ERP 문의', ['ERP','권한','오류','화면','로그인']],
+    ['etc', '기타', []],
+  ]
+  const picked = new Set()
+  const picker = document.getElementById('picker'), hint = document.getElementById('pickhint'), title = document.getElementById('title')
+  function render() {
+    const text = title.value + ' ' + document.querySelector('textarea').value
+    const rec = TAGS.filter(t => t[2].some(k => text.includes(k))).map(t => t[0])
+    picker.innerHTML = ''
+    for (const [k, label] of TAGS) {
+      const el = document.createElement('span')
+      el.className = 'tg' + (picked.has(k) ? ' sel' : rec.includes(k) ? ' rec' : '')
+      el.innerHTML = `<i class="c-${k}"></i>${label}${!picked.has(k) && rec.includes(k) ? ' <span class="n">추천</span>' : ''}`
+      el.onclick = () => {
+        if (picked.has(k)) picked.delete(k)
+        else if (picked.size >= 3) { hint.textContent = '최대 3개까지 고를 수 있습니다.'; hint.style.color = '#b45309'; return }
+        else picked.add(k)
+        render()
+      }
+      picker.appendChild(el)
+    }
+    hint.style.color = ''
+    hint.textContent = picked.size ? `${picked.size}개 선택` : (rec.length ? '점선 = 제목 · 내용 키워드로 추천한 계열. 눌러서 확정하세요.' : '업무 계열을 하나 이상 고르세요.')
+  }
+  title.addEventListener('input', render)
+  document.querySelector('textarea').addEventListener('input', render)
+  render()
+</script>
+</body>
+</html>
