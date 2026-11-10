@@ -13,7 +13,8 @@ export const dynamic = 'force-dynamic'
 //   create     { item_code?, item_name, purchase_vendor_name?, sale_price, purchase_price, memo? }
 //   update     { id, ...fields }
 //   deactivate / reactivate { id }
-// 조회는 전 직원, 변경은 manager/admin.
+// 조회는 전 직원, 변경은 영업·주문 그룹 수정 권한(can(me, 'orders', 'edit')).
+// GET 응답의 can_edit은 화면 버튼 노출용(추가 필드 — 주문 입력·상담일지는 products만 읽음).
 
 const MIGRATION_HINT = '500 마이그레이션(품목 마스터)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
 
@@ -36,7 +37,7 @@ export async function GET() {
     const missing = /relation|erp_products|does not exist/i.test(result.error)
     return NextResponse.json({ error: missing ? MIGRATION_HINT : result.error }, { status: 500 })
   }
-  return NextResponse.json({ products: result.data })
+  return NextResponse.json({ products: result.data, can_edit: can(me, 'orders', 'edit') })
 }
 
 export async function POST(req: NextRequest) {

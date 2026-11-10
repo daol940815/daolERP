@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 // 품목 마스터 (2단계) — 주문 입력의 품번 검색 원천.
 // 목록 화면 관례: KPI 카드(클릭=필터) + 통합 검색 + 표.
-// 조회는 전 직원, 등록·수정·엑셀 업로드는 manager/admin (API에서 차단).
+// 조회 · 엑셀 다운로드는 전 직원, 등록 · 수정 · 업로드 · 품절 · 중지는 영업·주문 그룹 수정 권한.
+// 버튼은 GET 응답의 can_edit으로 수정 권한자에게만 노출(UX용 — 실제 차단은 API·미들웨어).
 
 interface Product {
   id: string; item_code: string | null; item_name: string; option_name: string | null
@@ -112,6 +113,8 @@ export default function ProductsPage() {
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [draft, setDraft] = useState(emptyDraft)
   const [uploading, setUploading] = useState(false)
+  // 수정 권한 (2026-11-10): 응답 받기 전에는 숨김 — 권한 없는 직원에게 버튼이 잠깐 보였다 사라지지 않게
+  const [canEdit, setCanEdit] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
@@ -119,7 +122,7 @@ export default function ProductsPage() {
     const res = await fetch('/api/orders-portal/products')
     const json = await res.json()
     if (!res.ok) setError(json.error ?? '조회 실패')
-    else setProducts(json.products)
+    else { setProducts(json.products); setCanEdit(json.can_edit === true) }
     setLoading(false)
   }, [])
   useEffect(() => { load() }, [load])
@@ -249,12 +252,14 @@ export default function ProductsPage() {
             className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">
             엑셀 다운로드
           </button>
+          {canEdit && <>
           <button onClick={() => fileRef.current?.click()} disabled={uploading}
             className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 disabled:opacity-50">
             {uploading ? '처리 중...' : '상품 엑셀 업로드'}
           </button>
           <button onClick={() => { setEditingId('new'); setDraft(emptyDraft) }}
             className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">+ 품목 등록</button>
+          </>}
         </span>
       </div>
 
@@ -441,7 +446,7 @@ export default function ProductsPage() {
                     </th>
                   )
                 })}
-                <th className="py-2 px-3" />
+                {canEdit && <th className="py-2 px-3" />}
               </tr>
             </thead>
             <tbody>
@@ -487,7 +492,7 @@ export default function ProductsPage() {
                       {p.is_active ? '사용' : '중지'}
                     </span>
                   </td>
-                  <td className="py-1.5 px-3 text-right whitespace-nowrap">
+                  {canEdit && <td className="py-1.5 px-3 text-right whitespace-nowrap">
                     <button onClick={() => startEdit(p)} className="text-xs text-blue-700 hover:underline mr-2.5">수정</button>
                     <button onClick={() => act({ action: p.is_soldout ? 'restock' : 'soldout', id: p.id },
                         p.is_soldout ? '품절이 해제되었습니다.' : '품절 처리되었습니다. 상담·주문 입력 검색에 품절로 표시됩니다.')}
@@ -498,23 +503,23 @@ export default function ProductsPage() {
                       className="text-xs text-gray-400 hover:underline">
                       {p.is_active ? '중지' : '재사용'}
                     </button>
-                  </td>
+                  </td>}
                 </tr>
               ))}
               {!filtered.length && (
-                <tr><td colSpan={14} className="text-center py-12 text-gray-400 text-sm">
-                  품목이 없습니다. 상품 엑셀 업로드 또는 개별 등록으로 시작하세요.
+                <tr><td colSpan={canEdit ? 14 : 13} className="text-center py-12 text-gray-400 text-sm">
+                  {canEdit ? '품목이 없습니다. 상품 엑셀 업로드 또는 개별 등록으로 시작하세요.' : '품목이 없습니다.'}
                 </td></tr>
               )}
             </tbody>
           </table>
         )}
       </div>
-      <p className="text-xs text-gray-400 mt-2">
+      {canEdit && <p className="text-xs text-gray-400 mt-2">
         회사 원가표 엑셀을 그대로 업로드하면 됩니다 (원가표 시트의 품번 · 상품명(원가표 등록용) · 옵션명 · 매입처 ·
         지점배송매입가 · 지점/개별배송판매가 · 목차 · 카톤단위 · 택배비(카톤단위/카톤외)를 인식, 카탈로그 제작용 컬럼은 무시).
         품번 기준으로 갱신되며, 주문 입력에서 지점=지점판매가+카톤 공식 배송비 / 개별=개별판매가(배송비 포함)가 자동 적용됩니다.
-      </p>
+      </p>}
 
       {/* 업로드 확인 팝업 — 검사 결과(반영 없음)를 보여주고 확인 후 실제 업로드 */}
       {pending && (
