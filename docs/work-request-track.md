@@ -294,6 +294,25 @@
 - DB 안(904, 미작성): 태그 마스터 `work_request_tags`(이름 · 색 · 추천 키워드 · 순서 · 숨김) + 연결 `work_request_tag_links`(요청 · 태그).
   관리자 추가 여부와 무관하게 테이블로 둔다 — 다수 태그 · 이름 변경 시 과거 건 자동 반영 때문.
 
+### 업무 계열 태그 구현 (2026-11-10 사용자 승인 "시안대로 진행, 관리자 태그 관리도 진행" → 구현 · 배포, **904 실행 대기**)
+- 시안의 가정 전부 확정: 1건 1~3개(작성 시 필수) · 수정은 요청자 · 살아 있는 담당자 · 마스터(닫힌 요청도 가능, 이력 `tags_changed`만, 알림 없음) ·
+  목록 칩 여러 개 = 또는 · 도움말 질문하기 · 권한 요청은 ERP 문의 자동 · 관리자 태그 관리 도입(마스터만 · 숨김만 · 사용 중 최대 12개 · 비슷한 태그 경고).
+- **904_work_request_tags.sql**: `work_request_tags`(code · label · color · keywords · sort · active) + `work_request_tag_links`(요청 · 태그, PK) +
+  기본 8개 시드(code: order · collect · partner · sample · acct · hr · erp · etc) + 이력 종류 `tags_changed` + 기존 [질문] · [권한] 접두 요청에 ERP 문의 연결(추가만).
+  code 는 기본 8개에만 — 이름을 바꿔도 시스템이 알아보는 식별자(`WR_TAG_ERP_CODE`). 검증 쿼리: 테이블 2 · 기본 태그 8 · 이력 확장 1 · 질문권한 요청수 = ERP 문의 연결수.
+- **904 미적용 환경 보호**: `selectRows`가 태그 포함 select 를 먼저 시도하고 실패하면 태그 없이 조회(미적용 판정 60초 기억). 태그 마스터가 비면
+  화면은 태그 줄 · 필수 검사를 숨기고 기존대로 동작(목록의 '질문 · 권한 요청만' 칩도 이때만 남음). 적용 후 최대 1분 안에 자동 반영.
+- 코드: 공용 `lib/work-requests.ts`(WrTag · WR_TAG_MAX 3 · WR_TAG_ACTIVE_MAX 12 · WR_TAG_COLORS 10색 · recommendTagIds · cleanTagIds) ·
+  서버 `lib/work-requests-server.ts`(tagsReady · rowSelect · loadTags · tagPrefix · firstTagLabels · replaceTagLinks) ·
+  칩 `components/work-requests/tag-chip.tsx`(TagChip · NoTagChip · TagList · TagPicker — 테두리 알약 + 색 점, 상태 배지와 구분).
+- API: 목록 GET 응답에 `tags`(마스터) · `me.master`, POST `tag_ids` / 상세 GET `tags` · `actions.setTags`, POST `action: set_tags` /
+  `/api/work-requests/tags` GET[?usage=1] · POST · PATCH(이름 · 색 · 키워드 · active · move) — 마스터 판정은 라우트 안에서 /
+  overview `tags` · `by_tag`(미분류 = none, 계열 합 > 요청 건수 가능 — 합계 행은 요청 건수) / 알림 설명 · PC 알림 본문 앞 "[대표 태그] "(비공개 PC 알림은 숨김).
+- 화면: 새 요청(태그 고르기 + 점선 추천) · 목록(태그 칩 줄 `?tag=<id|none>`, 제목 위 태그, 마스터에게 "태그 관리" 링크) · 상세(태그 수정) ·
+  `/me/requests/tags`(태그 관리) · 경영 현황(업무 계열별 표, 숫자 = 드릴다운).
+- 남은 것: ① **904 실행**(사용자, Supabase SQL 편집기) → 검증 결과 회신 ② 기존 열린 요청 일괄 태그 — 키워드 추천 드라이런(건수 · 표본) → 승인 후 적용.
+  닫힌 요청은 미분류 유지. ③ 한 달 사용 후 "기타" 비중 보고 태그 추가 판단.
+
 ## 다음 단계
 
 1. 09:00 오늘 마감 크론 첫 실행 확인(2026-11-04). 2. 3·4 배포 확인(선착 수락 → 나머지 해제, 공동 전원 보고 → 처리 보고).
