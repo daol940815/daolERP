@@ -137,11 +137,27 @@ export async function GET(req: NextRequest) {
 
   // 매입처 정보 — 별칭 → vendors 마스터 (담당자·연락처·이메일)
   const aliasIds = Array.from(new Set(rows.map(p => p.purchase_alias_id).filter(Boolean))) as string[]
+  // 병합된 별칭은 대표를 따라간다(2026-11-10 — 품목 수정 화면의 매입처 정보 조회와 같은 매입처를 읽도록)
   const aliasVendor = new Map<string, string>()
-  for (let i = 0; i < aliasIds.length; i += 150) {
-    const { data } = await admin.from('erp_vendor_aliases')
-      .select('id, vendor_id').in('id', aliasIds.slice(i, i + 150)).not('vendor_id', 'is', null)
-    for (const a of data ?? []) aliasVendor.set(a.id as string, a.vendor_id as string)
+  const mergedTo = new Map<string, string>()   // 원래 별칭 → 병합 대표 별칭
+  let pending = aliasIds
+  for (let depth = 0; depth < 5 && pending.length; depth++) {
+    const next: string[] = []
+    for (let i = 0; i < pending.length; i += 150) {
+      const { data } = await admin.from('erp_vendor_aliases')
+        .select('id, vendor_id, merged_into_alias_id').in('id', pending.slice(i, i + 150))
+      for (const a of data ?? []) {
+        if (a.merged_into_alias_id) { mergedTo.set(a.id as string, a.merged_into_alias_id as string); next.push(a.merged_into_alias_id as string) }
+        else if (a.vendor_id) aliasVendor.set(a.id as string, a.vendor_id as string)
+      }
+    }
+    pending = Array.from(new Set(next.filter(id => !aliasVendor.has(id) && !mergedTo.has(id))))
+  }
+  for (const id of aliasIds) {
+    let cur = id
+    for (let i = 0; i < 5 && mergedTo.has(cur); i++) cur = mergedTo.get(cur)!
+    const vid = aliasVendor.get(cur)
+    if (vid) aliasVendor.set(id, vid)
   }
   const vendorIds = Array.from(new Set(aliasVendor.values()))
   const vendorById = new Map<string, { mgr: string; tel: string; email: string }>()
