@@ -193,6 +193,12 @@ function recognizeSheet(ws: Worksheet): RecognizedSheet {
   for (const c of base.columns) {
     const cell = ws.getCell(`${c.col}${start}`)
     if (isFormula(cell)) { c.spec = SKIP; c.how = 'auto'; c.reason = '수식 칸 — 그대로 둠'; continue }
+    // 업체 드롭다운(목록) 칸 (2026-11-10): 옵션 = 비움, 제품명 = 생성 때 업체 목록 값으로 변환
+    const dv = cell.dataValidation as { type?: string } | undefined
+    if (dv?.type === 'list') {
+      if (/옵션/.test(c.header)) { c.spec = BLANK; c.how = 'auto'; c.reason = '업체 드롭다운 옵션 — 비움'; continue }
+      if (c.spec.k === 'tpl' && /\{item_name\}/.test(c.spec.v)) c.reason = '품명 — 업체 드롭다운 목록 값으로 자동 변환(못 찾으면 비움)'
+    }
     if (c.how === 'none' && !ex && textOf(cell.value).trim()) { c.spec = { k: 'keep' }; c.how = 'check'; c.reason = '양식에 미리 적힌 값 — 모든 행에 반복' }
   }
 

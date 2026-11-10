@@ -191,7 +191,72 @@ function put(ws: Worksheet, addr: string, spec: ValueSpec | undefined, vars: Rec
   if (v instanceof Date && !/[ymd]/i.test(cell.numFmt ?? '')) cell.style = { ...clone(cell.style), numFmt: 'yyyy-mm-dd' }
 }
 
-function fillRowsSheet(ws: Worksheet, sm: SheetMap, ctx: FormContext, warn: (m: string) => void) {
+// ── 업체 드롭다운(데이터 유효성 '목록') 칸 처리 (2026-11-10 사용자 확정 — 삼진어묵, docs/order-system-track.md) ──────────
+// 제품명 칸에 업체 목록 드롭다운이 걸려 있으면 우리 품명을 그 목록 값으로 바꿔 넣는다(업체 품목코드 VLOOKUP이 이 값으로 동작).
+// 목록에 없는 값은 절대 넣지 않는다 — 못 찾으면 비우고 확인 목록. 옵션 드롭다운 칸은 비운다. 그 밖의 드롭다운 칸은 목록과 정확히 같은 값만.
+type Workbook = import('exceljs').Workbook
+export function dropdownListOf(wb: Workbook, ws: Worksheet, addr: string): string[] | null {
+  const dv = ws.getCell(addr).dataValidation as { type?: string; formulae?: unknown[] } | undefined
+  if (!dv || dv.type !== 'list' || !dv.formulae?.length) return null
+  let f = String(dv.formulae[0] ?? '').trim().replace(/^=/, '')
+  if (f.length >= 2 && f.startsWith('"') && f.endsWith('"')) return Array.from(new Set(f.slice(1, -1).split(',').map(x => x.trim()).filter(Boolean)))   // 직접 입력 "A,B,C"
+  const ind = f.match(/^INDIRECT\(\s*"([^"]+)"\s*\)$/i)
+  if (ind) f = ind[1]
+  let ranges: string[] = []
+  try { ranges = (wb.definedNames.getRanges(f) as { ranges?: string[] } | undefined)?.ranges ?? [] } catch { ranges = [] }
+  if (!ranges.length && /\$?[A-Z]{1,3}\$?\d+/.test(f)) ranges = [f]
+  const out: string[] = []
+  for (const rg of ranges) {
+    const m = rg.match(/^(?:'?(.+?)'?!)?\$?([A-Z]{1,3})\$?(\d+)(?::\$?([A-Z]{1,3})\$?(\d+))?$/)
+    if (!m) continue
+    const sheet = m[1] ? wb.getWorksheet(m[1]) : ws
+    if (!sheet) continue
+    const colN = (c: string) => c.split('').reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0)
+    const c1 = colN(m[2]), r1 = Number(m[3]), c2 = m[4] ? colN(m[4]) : c1, r2 = m[5] ? Number(m[5]) : r1
+    for (let r = r1; r <= Math.min(r2, r1 + 5000); r++) for (let c = c1; c <= c2; c++) {
+      const v = cellText(sheet.getCell(r, c).value).trim()
+      if (v) out.push(v)
+    }
+  }
+  return out.length ? Array.from(new Set(out)) : null
+}
+
+// 드롭다운 제품명 매칭 — 상품명 → 브랜드(매입처명 · 앞 두 글자) 제거 · 괄호 안 무시 · '세트' 제거 → 구분 토큰(호수 · 특호 · 묶음 · g · 종 · *N …) + 상품명 부분
+//  자동 = (목록과 글자 그대로 같음) 또는 (상품명 부분 2글자 이상 · 완전 일치 + 구분 토큰 완전 일치 + 그런 목록 값이 정확히 1개). 그 외는 비우고 확인 목록
+interface DropParsed { core: string; tok: string }
+function brandWordsOf(vendorName?: string | null): string[] {
+  const v = String(vendorName ?? '').normalize('NFKC').toLowerCase().replace(/\(주\)|㈜|주식회사|\s+/g, '')
+  return v.length >= 3 ? [v, v.slice(0, 2)] : v.length === 2 ? [v] : []
+}
+export function parseDropName(raw: string, vendorName?: string | null): DropParsed {
+  let t = String(raw ?? '').normalize('NFKC').toLowerCase()
+  t = t.replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')                                  // 괄호 · 대괄호 안(냉동 · 6종 · B2B · [삼진어묵]) 무시
+  for (const b of brandWordsOf(vendorName)) t = t.split(b).join(' ')
+  const tok: string[] = []
+  t = t.replace(/(\d+|특)\s*호/g, (_m, n: string) => { tok.push(`${n}호`); return ' ' })
+  t = t.replace(/(\d+(?:\.\d+)?)\s*(묶음|kg|g|ml|l|종|팀|입|개|매|롤|m|팩|박스|box)(?![a-z가-힣])/g, (_m, n: string, u: string) => { tok.push(`${Number(n)}${u}`); return ' ' })
+  t = t.replace(/[*×]\s*(\d+)/g, (_m, n: string) => { tok.push(`x${n}`); return ' ' })
+  t = t.split('세트').join(' ')
+  return { core: t.replace(/[^0-9a-z가-힣]/g, ''), tok: tok.sort().join(',') }
+}
+export type DropMatch = { value: string; exact: boolean; basis: string } | { value: null; reason: string }
+export function matchDropdownValue(itemName: string, list: string[], vendorName?: string | null): DropMatch {
+  const name = String(itemName ?? '').trim()
+  const same = list.filter(v => v.trim() === name)
+  if (same.length) return { value: same[0], exact: true, basis: '목록과 같음' }
+  const e = parseDropName(name, vendorName)
+  if (e.core.length < 2) return { value: null, reason: `브랜드 등을 빼면 상품명이 거의 남지 않아('${e.core}') 자동으로 고르지 않았습니다` }
+  const parsed = list.map(v => ({ v, p: parseDropName(v, vendorName) }))
+  const hit = parsed.filter(x => x.p.core === e.core && x.p.tok === e.tok)
+  if (hit.length === 1) return { value: hit[0].v, exact: false, basis: `상품명 '${e.core}'${e.tok ? ` · 구분 ${e.tok.replace(/,/g, ' · ')}` : ''} 일치` }
+  if (hit.length > 1) return { value: null, reason: `목록에 맞는 값이 ${hit.length}개(${hit.map(x => `'${x.v}'`).join(', ')})라 고르지 않았습니다` }
+  const best = parsed.map(x => ({ x, s: dice(e.core + e.tok, x.p.core + x.p.tok) })).sort((a, b) => b.s - a.s)[0]
+  if (!best || best.s < 0.3) return { value: null, reason: '업체 제품명 목록에 같은 상품이 없습니다' }
+  const why = best.x.p.core === e.core ? '호수 · 구분이 달라' : '상품명이 달라'
+  return { value: null, reason: `비슷한 값은 '${best.x.v}' — ${why} 자동으로 넣지 않았습니다` }
+}
+
+function fillRowsSheet(ws: Worksheet, sm: SheetMap, ctx: FormContext, warn: (m: string) => void, wb?: Workbook) {
   const start = sm.start_row
   const lines = ctx.lines
   // 양식 값 유지 칸: 시작 행에 미리 적힌 값을 모든 행에 반복
@@ -240,9 +305,44 @@ function fillRowsSheet(ws: Worksheet, sm: SheetMap, ctx: FormContext, warn: (m: 
       for (let c = 1; c <= maxCol; c++) row.getCell(c).style = clone(base.getCell(c).style)
     }
   }
+  // 드롭다운 칸 (첫 품목 행 기준) — 없으면 기존과 똑같이 put
+  const vendorName = (ctx.order.vendor_name as string | null) ?? null
+  const drop = new Map<string, { list: string[]; kind: 'name' | 'option' | 'other'; head: string }>()
+  if (wb) for (const [col, spec] of Object.entries(sm.columns)) {
+    if (spec.k !== 'tpl' && spec.k !== 'keep') continue
+    const list = dropdownListOf(wb, ws, `${col}${start}`)
+    if (!list) continue
+    const head = sm.header_row ? cellText(ws.getCell(`${col}${sm.header_row}`).value).trim() : ''
+    drop.set(col, { list, head, kind: spec.k === 'tpl' && /\{item_name\}/.test(spec.v) ? 'name' : /옵션/.test(head) ? 'option' : 'other' })
+  }
+  const nameMatch = new Map<string, DropMatch>()
   lines.forEach((ln, i) => {
     const vars = { ...ctx.order, ...ln }
-    for (const [col, spec] of Object.entries(sm.columns)) put(ws, `${col}${start + i}`, spec, vars, keepVals[col])
+    for (const [col, spec] of Object.entries(sm.columns)) {
+      const d = drop.get(col)
+      if (!d) { put(ws, `${col}${start + i}`, spec, vars, keepVals[col]); continue }
+      const cell = ws.getCell(`${col}${start + i}`)
+      if (formulaOf(cell)) continue
+      if (d.kind === 'option') { cell.value = null; continue }              // 옵션 드롭다운은 비움 (2026-11-10 사용자 결정)
+      if (d.kind === 'name') {
+        const item = String(ln.item_name ?? '')
+        let m = nameMatch.get(item)
+        if (!m) {
+          m = matchDropdownValue(item, d.list, vendorName)
+          nameMatch.set(item, m)
+          if (m.value === null) warn(`'${item}' — ${col}열(${d.head || '제품명'}) ${m.reason}. 업체 목록에서 골라 넣어 주세요.`)
+          else if (!m.exact) warn(`제품명 변환: '${item}' → 업체 목록 '${m.value}' (${m.basis}) — 맞는지 확인해 주세요.`)
+        }
+        cell.value = m.value
+        continue
+      }
+      const v = spec.k === 'keep' ? keepVals[col] : renderTpl((spec as { v: string }).v, vars)   // 그 밖의 드롭다운 칸: 목록과 같은 값만
+      const text = cellText(v).trim()
+      if (!text) { cell.value = null; continue }
+      if (d.list.includes(text)) { cell.value = text; continue }
+      cell.value = null
+      warn(`${col}열(${d.head || '드롭다운'}) 값 '${text}'이 업체 목록에 없어 비워 두었습니다.`)
+    }
   })
   if (sm.required?.length) {
     for (const col of sm.required) {
@@ -452,7 +552,7 @@ export async function fillVendorForm(template: ArrayBuffer | Buffer, mapping: Fo
     const ws = wb.getWorksheet(sm.name)
     if (!ws) { warn(`양식에 '${sm.name}' 시트가 없습니다 — 양식을 다시 확인하세요.`); continue }
     for (const [addr, spec] of Object.entries(sm.cells ?? {})) put(ws, addr, spec, ctx.order)
-    if (sm.mode === 'rows') fillRowsSheet(ws, sm, ctx, warn)
+    if (sm.mode === 'rows') fillRowsSheet(ws, sm, ctx, warn, wb)
     else if (sm.mode === 'catalog' && sm.catalog) fillCatalogSheet(ws, sm, ctx, warn)
   }
   for (const sheet of wb.worksheets) compactDataValidations(sheet)
