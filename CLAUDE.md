@@ -94,7 +94,7 @@
   2026-11-03 1차 배포)** /
   `900번대` 업무요청 트랙(인수인계: docs/work-request-track.md — 900 적용 2026-10-16, 901 비공개 열 적용 2026-11-02,
   902 담당자 다수·선착/공동 적용 2026-11-02, 903 PC 알림(Web Push) 적용 2026-11-03 — Vercel 환경변수 VAPID 3개·CRON_SECRET,
-  아침 09:00 크론 `/api/push/cron`) /
+  아침 09:00 크론 `/api/push/cron`, **904 업무 계열 태그 — 2026-11-10 배포, 실행 대기**(미적용이어도 기존 기능은 태그 없이 동작)) /
   새 트랙은 다음 100번대를 사용.
 - 원본 데이터 재적재(ERP 주문 정리본 교체, 2026-10-21 결정 — 마이그레이션 없음, 데이터 작업만):
   docs/erp-reload-track.md. **별도 세션에서 진행**(인수인계 섹션 참고). 2026-10-26 결정: 과거 내역은 재입력하지 않고 **전부 삭제 후
@@ -170,6 +170,8 @@
   서버 page.tsx가 searchParams.tab을 읽어 탭 컴포넌트를 고르고, 탭 줄은 `components/ui/PageTabs.tsx`.
   옛 주소는 리다이렉트 스텁(쿼리 보존)으로 남기고 `EXTRA_PATH_OWNERS`에 소속을 유지한다.
   업무 요청 `/me/requests`(받은|보낸)은 내 업무 그룹 전원, 경영 현황 `/reports/work-requests`는 조회 전용.
+  업무 계열 태그(904, 2026-11-10): 요청 1건에 1~3개, 마스터 `work_request_tags`(마스터 계정이 `/me/requests/tags`에서 추가 · 숨김, 삭제 없음).
+  태그 칩은 `components/work-requests/tag-chip.tsx`(테두리 알약 + 색 점 — 칠한 상태 배지와 구분), 규칙 · 색은 `lib/work-requests.ts`.
   알림 센터(2026-10-16): `/api/notifications`가 원본 상태에서 '확인할 것'을 계산(저장 없음), 사이드바 종·패널·토스트는
   `components/layout/NotificationCenter.tsx`, 폴링은 AreaSidebar의 `useNotifications` 1곳(20초, 2026-11-02). 새 알림 원천은 API에 블록 추가.
   화면 자동 갱신: 알림 결과가 바뀌면 `daol:notif-changed` 이벤트 → `useNotifRefresh(load)`(lib/use-notif-refresh.ts)로 구독한 화면이 재조회,

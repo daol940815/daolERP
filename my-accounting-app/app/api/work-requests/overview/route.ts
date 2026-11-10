@@ -5,7 +5,7 @@ import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { monthRange } from '@/lib/attendance'
 import { isManagerLike } from '@/lib/permissions'
 import { OPEN_STATUSES, DUE_TRACKED, ASG_ACTIVE, ASG_TRACKED, hoursBetween, type WrRow } from '@/lib/work-requests'
-import { ROW_SELECT, canSeePrivate, maskRow, normalize, hintFor, type RawRow } from '@/lib/work-requests-server'
+import { rowSelect, loadTags, canSeePrivate, maskRow, normalize, hintFor, type RawRow } from '@/lib/work-requests-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,8 +26,9 @@ export async function GET(req: NextRequest) {
   const fromT = new Date(fromIso).getTime(), toT = new Date(toIso).getTime()
 
   type Page = PromiseLike<{ data: RawRow[] | null; error: { message: string } | null }>
+  const [sel, tags] = await Promise.all([rowSelect(admin), loadTags(admin)])
   const result = await fetchAllRows<RawRow>((f, t) =>
-    admin.from('work_requests').select(ROW_SELECT)
+    admin.from('work_requests').select(sel)
       .or(`status.in.(${OPEN_STATUSES.join(',')}),and(created_at.gte.${fromIso},created_at.lte.${toIso})`)
       .order('created_at', { ascending: false }).range(f, t) as unknown as Page,   // 동적 select 라 행 타입 단언
   )
@@ -81,5 +82,31 @@ export async function GET(req: NextRequest) {
     .map(r => ({ ...r, reason: overdue(r) ? 'overdue' : 'unread' }))
     .sort((x, y) => (x.reason === y.reason ? x.due_at.localeCompare(y.due_at) : x.reason === 'overdue' ? -1 : 1))
 
-  return NextResponse.json({ summary, employees, attention, rows })
+  // 업무 계열별 (904) — 태그를 여러 개 붙일 수 있어 계열 합은 요청 건수보다 클 수 있다(합계는 summary 가 요청 건수 기준).
+  //  태그가 없는 요청은 '미분류'(tag_id = none). 평균 처리 = 요청 → 처리 보고 (이달 보고분, summary 와 같은 기준)
+  type TagAgg = { tag_id: string; created: number; open: number; overdue: number; completed: number; avg_hours: number | null; top: { id: string; name: string; n: number }[] }
+  const byTag: TagAgg[] = !tags.length ? [] : [...tags.map(t => t.id), 'none'].map(tagId => {
+    const mine = rows.filter(r => tagId === 'none' ? !r.tag_ids.length : r.tag_ids.includes(tagId))
+    const dur = mine.filter(r => r.reported_at && inMonth(r.reported_at)).map(r => hoursBetween(r.created_at, r.reported_at!))
+    const recv = new Map<string, { id: string; name: string; n: number }>()
+    for (const r of mine) {
+      if (!(inMonth(r.created_at) || open(r))) continue
+      for (const asg of r.assignees) {
+        if (asg.status === 'released' || !asg.employee) continue
+        const cur = recv.get(asg.employee.id) ?? { id: asg.employee.id, name: asg.employee.name, n: 0 }
+        cur.n++; recv.set(asg.employee.id, cur)
+      }
+    }
+    return {
+      tag_id: tagId,
+      created: mine.filter(r => inMonth(r.created_at)).length,
+      open: mine.filter(open).length,
+      overdue: mine.filter(overdue).length,
+      completed: mine.filter(r => inMonth(r.completed_at)).length,
+      avg_hours: dur.length ? Math.round(dur.reduce((s2, h) => s2 + h, 0) / dur.length) : null,
+      top: Array.from(recv.values()).sort((x, y) => y.n - x.n || x.name.localeCompare(y.name, 'ko')).slice(0, 2),
+    }
+  }).filter(a => a.created || a.open || a.completed || (a.tag_id !== 'none' && tags.find(t => t.id === a.tag_id)?.active))
+
+  return NextResponse.json({ summary, employees, attention, rows, tags, by_tag: byTag })
 }

@@ -1,18 +1,22 @@
 'use client'
 
 // 업무 요청 현황 — 경영 현황(조회 전용). 통계 중심(2026-11-02): 월 요약 KPI · 직원별 집계 · 지금 신경 쓸 것.
+// 2026-11-10(904): 업무 계열별 집계 표 추가 — 태그가 여러 개라 계열 합은 요청 건수보다 클 수 있다(합계 행은 요청 건수 기준).
 // 목록은 내 업무 › 업무 요청(공용)으로 드릴다운한다 — KPI·직원 행을 누르면 그 조건의 목록으로 이동.
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { kstParts, fmtDue, assigneeSummary, type WrRow } from '@/lib/work-requests'
+import { kstParts, fmtDue, assigneeSummary, type WrRow, type WrTag } from '@/lib/work-requests'
+import { TagChip, NoTagChip } from '@/components/work-requests/tag-chip'
 
 interface Overview {
   summary: { month: string; created: number; completed: number; canceled: number; rejected: number; open: number; overdue: number; unread_24h: number; avg_hours_to_report: number | null }
   employees: { id: string; name: string; team: string | null; received: number; open: number; overdue: number; completed: number; sent: number }[]
   attention: (WrRow & { reason: 'overdue' | 'unread' })[]
   rows: WrRow[]
+  tags?: WrTag[]   // 904 — 태그 마스터
+  by_tag?: { tag_id: string; created: number; open: number; overdue: number; completed: number; avg_hours: number | null; top: { id: string; name: string; n: number }[] }[]
 }
 
 export default function WorkRequestsOverviewPage() {
@@ -37,6 +41,7 @@ export default function WorkRequestsOverviewPage() {
   if (err) return <div className="px-4 py-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg">{err}</div>
   if (!data) return <div className="text-center py-20 text-gray-400">로딩 중...</div>
   const s = data.summary
+  const hoursLabel = (h: number | null) => h === null ? '-' : h < 48 ? `${h}시간` : `${(h / 24).toFixed(1)}일`
   const kpi = (k: string, v: React.ReactNode, href: string, sub?: string) => (
     <Link href={href} className="bg-white border border-gray-200 rounded-xl px-4 py-3 hover:bg-gray-50 hover:border-slate-400 transition-colors">
       <p className="text-xs text-gray-500">{k}</p><p className="text-lg font-bold mt-0.5 tabular-nums">{v}</p>{sub && <p className="text-[0.6875rem] text-gray-400 mt-0.5">{sub}</p>}
@@ -64,6 +69,42 @@ export default function WorkRequestsOverviewPage() {
         {kpi('미확인 24시간 초과', <span className={s.unread_24h ? 'text-amber-600' : ''}>{s.unread_24h}</span>, listHref({ filter: 'unread' }))}
         {kpi('평균 처리', s.avg_hours_to_report === null ? '-' : s.avg_hours_to_report < 48 ? `${s.avg_hours_to_report}시간` : `${(s.avg_hours_to_report / 24).toFixed(1)}일`, listHref(), '요청 → 처리 보고 (이달 보고분)')}
       </div>
+
+      {data.tags && data.tags.length > 0 && data.by_tag && (
+        <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 overflow-x-auto">
+          <h2 className="text-sm font-bold text-gray-900 mb-2">업무 계열별 <span className="text-xs text-gray-400 font-normal">숫자를 누르면 그 계열의 목록</span></h2>
+          <table className="w-full text-sm">
+            <thead><tr className="text-left text-xs text-gray-400 border-b border-gray-100"><th className="py-1.5 font-medium">업무 계열</th><th className="py-1.5 font-medium text-right">이달 생성</th><th className="py-1.5 font-medium text-right">진행 중</th><th className="py-1.5 font-medium text-right">마감 지남</th><th className="py-1.5 font-medium text-right">이달 완료</th><th className="py-1.5 font-medium text-right" title="요청 → 처리 보고 (이달 보고분)">평균 처리</th><th className="py-1.5 pl-4 font-medium">많이 받은 사람</th></tr></thead>
+            <tbody>
+              {data.by_tag.map(a => {
+                const tag = data.tags!.find(t => t.id === a.tag_id)
+                const num = (n: number, extra: Record<string, string>, cls = '') => n ? <Link href={listHref({ tag: a.tag_id, ...extra })} className={`hover:underline ${cls}`}>{n}</Link> : <span className="text-gray-300">0</span>
+                return (
+                  <tr key={a.tag_id} className="border-b border-gray-50">
+                    <td className="py-1.5">{tag ? <TagChip tag={tag} title={tag.active ? undefined : '숨긴 태그'} /> : <NoTagChip />}</td>
+                    <td className="py-1.5 text-right tabular-nums">{num(a.created, {})}</td>
+                    <td className="py-1.5 text-right tabular-nums">{num(a.open, { filter: 'open' }, 'text-blue-700')}</td>
+                    <td className="py-1.5 text-right tabular-nums">{num(a.overdue, { filter: 'overdue' }, 'text-red-600 font-medium')}</td>
+                    <td className="py-1.5 text-right tabular-nums">{num(a.completed, {})}</td>
+                    <td className="py-1.5 text-right tabular-nums text-gray-600">{hoursLabel(a.avg_hours)}</td>
+                    <td className="py-1.5 pl-4 text-xs text-gray-500">{a.top.length ? a.top.map(p => `${p.name} ${p.n}`).join(' · ') : '-'}</td>
+                  </tr>
+                )
+              })}
+              <tr className="border-t-2 border-gray-200 font-semibold">
+                <td className="py-1.5">요청 건수 합계</td>
+                <td className="py-1.5 text-right tabular-nums">{s.created}</td>
+                <td className="py-1.5 text-right tabular-nums">{s.open}</td>
+                <td className="py-1.5 text-right tabular-nums">{s.overdue}</td>
+                <td className="py-1.5 text-right tabular-nums">{s.completed}</td>
+                <td className="py-1.5 text-right tabular-nums text-gray-600">{hoursLabel(s.avg_hours_to_report)}</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+          <p className="text-[0.6875rem] text-amber-700 mt-2">태그를 여러 개 붙일 수 있어 계열별 숫자를 더하면 요청 건수보다 커집니다. 합계 행은 계열의 합이 아니라 실제 요청 건수(중복 없음)입니다. 태그가 없는 요청은 미분류로 셉니다.</p>
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="bg-white border border-gray-200 rounded-xl p-4">

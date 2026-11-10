@@ -4,6 +4,7 @@
 // 내가 받은·보낸: 기본은 열린 건만, '완료·취소 포함'을 켜면 최근 90일 닫힌 건도. 정렬: 생성일시 내림차순(최근 요청이 위).
 // 전체(2026-11-02 공용 전환): 지금 열린 건 전부 + 선택한 달(기본 이달)에 생성된 건. 비공개는 당사자·승인권자만 보인다.
 // ?employee= 로 들어오면(경영 현황 드릴다운) 그 직원이 요청자·담당자인 건만.
+// 업무 계열 태그(904, 2026-11-10): 필터 바 아래 태그 칩 줄(건수 · 여러 개 = 또는) + 제목 위 태그. 기존 '질문 · 권한 요청만' 칩은 ERP 문의 태그가 대신한다.
 // 902: 담당자 열은 다수를 요약(선착 "수락자 (외 N 해제)", 공동 "N명 · 보고 k/N"), 내가 담당자인 건은 '내 몫' 상태가 따로 보인다.
 //      조작 버튼은 서버와 같은 규칙(allowedActions)으로 내 몫 기준.
 
@@ -12,8 +13,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   WR_STATUS_LABEL, WR_STATUS_CLS, WR_MODE_LABEL, WR_ASG_LABEL, WR_ASG_CLS, OPEN_STATUSES, dueState, myDueState, fmtDue, fmtDT, kstParts,
-  allowedActions, assigneeSummary, myShare, isAssigneeOf, type WrRow, type WrStatus, type WrScope,
+  allowedActions, assigneeSummary, myShare, isAssigneeOf, WR_TAG_NONE, type WrRow, type WrStatus, type WrScope, type WrTag,
 } from '@/lib/work-requests'
+import { TagChip, NoTagChip, TagList } from '@/components/work-requests/tag-chip'
 import { useNotifRefresh, requestNotifRefresh } from '@/lib/use-notif-refresh'
 import { HELP_QUESTION_PREFIX, HELP_PERMISSION_PREFIX } from '@/lib/help-registry'
 
@@ -21,16 +23,18 @@ type Filter = 'all' | 'unread' | 'active' | 'due_today' | 'overdue' | 'reported'
 
 interface Resp {
   linked: boolean
-  me: { id: string; name: string | null; approver: boolean } | null
+  me: { id: string; name: string | null; approver: boolean; master?: boolean } | null
   rows: WrRow[]
+  tags?: WrTag[]   // 904 — 태그 마스터(숨김 포함). 미적용이면 빈 배열
   summary: Record<string, number> | null
   month?: string
   hiddenPrivate?: number
   error?: string
 }
+const matchTag = (r: WrRow, id: string) => id === WR_TAG_NONE ? !(r.tag_ids?.length) : !!r.tag_ids?.includes(id)
 const FILTERS: Filter[] = ['all', 'unread', 'active', 'due_today', 'overdue', 'reported', 'rejected', 'open', 'personal', 'shared']
 
-export default function RequestsList({ scope, month: monthProp, employee, initialFilter }: { scope: WrScope; month?: string; employee?: string; initialFilter?: string }) {
+export default function RequestsList({ scope, month: monthProp, employee, initialFilter, initialTag }: { scope: WrScope; month?: string; employee?: string; initialFilter?: string; initialTag?: string }) {
   const router = useRouter()
   const [data, setData] = useState<Resp | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -40,6 +44,8 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
   const [search, setSearch] = useState('')
   const [statusF, setStatusF] = useState<'' | WrStatus>('')
   const [onlyQ, setOnlyQ] = useState(false)   // 도움말 질문 · 권한 요청만 ([질문] · [권한] 접두, 2026-11-03)
+  // 업무 계열 태그 필터(904) — 여러 개 고르면 하나라도 해당하는 요청(또는). 'none' = 미분류. ?tag=<id> 로 들어오면 미리 선택(경영 현황 드릴다운)
+  const [tagF, setTagF] = useState<string[]>(() => initialTag ? [initialTag] : [])
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
@@ -80,7 +86,7 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
   const now = new Date()
   // 마감 판정: 내가 받은 탭은 내 몫 기준(공동에서 내가 보고했으면 배지 없음), 그 외는 요청 기준
   const dsOf = (r: WrRow) => scope === 'inbox' ? myDueState(r, meId, now) : dueState(r, now)
-  const visible = useMemo(() => rows.filter(r => {
+  const base = useMemo(() => rows.filter(r => {
     const ds = dsOf(r)
     const my = myShare(r, meId)
     if (filter === 'unread' && !(scope === 'inbox' && my ? my.status === 'invited' : r.status === 'requested')) return false
@@ -102,6 +108,19 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
     return true
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [rows, filter, statusF, search, scope, meId, onlyQ])
+  const tags = useMemo(() => data?.tags ?? [], [data])
+  const hasTags = tags.length > 0
+  const visible = useMemo(() => !hasTags || !tagF.length ? base : base.filter(r => tagF.some(id => matchTag(r, id))), [base, tagF, hasTags])
+  // 칩 숫자 = 다른 조건을 적용한 목록 안의 건수 (태그 조건 제외)
+  const tagCount = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const r of base) {
+      if (!r.tag_ids?.length) m.set(WR_TAG_NONE, (m.get(WR_TAG_NONE) ?? 0) + 1)
+      else for (const id of r.tag_ids) m.set(id, (m.get(id) ?? 0) + 1)
+    }
+    return m
+  }, [base])
+  const toggleTag = (id: string) => setTagF(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id])
 
   if (err) return <div className="px-4 py-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg">{err}</div>
   if (!data) return <div className="text-center py-20 text-gray-400">로딩 중...</div>
@@ -175,13 +194,24 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
             <button onClick={() => setFilter(f => f === 'shared' ? 'all' : 'shared')} className={`text-xs px-2.5 py-1 rounded-full border ${filter === 'shared' ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`} title="여러 명이 담당인 요청(선착 · 공동)">공용 요청만</button>
           </>
         )}
-        {rows.some(r => r.title.startsWith(HELP_QUESTION_PREFIX) || r.title.startsWith(HELP_PERMISSION_PREFIX)) && (
+        {!hasTags && rows.some(r => r.title.startsWith(HELP_QUESTION_PREFIX) || r.title.startsWith(HELP_PERMISSION_PREFIX)) && (
           <button onClick={() => setOnlyQ(v => !v)} className={`text-xs px-2.5 py-1 rounded-full border ${onlyQ ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>질문 · 권한 요청만</button>
         )}
         {employee && <button onClick={clearEmployee} className="text-xs px-2.5 py-1 bg-slate-100 rounded-full text-slate-700">{empName} 관련만 보는 중 ✕</button>}
-        {(filter !== 'all' || statusF || search || onlyQ) && <button onClick={() => { setFilter('all'); setStatusF(''); setSearch(''); setOnlyQ(false) }} className="text-xs text-gray-500 underline">필터 해제</button>}
+        {(filter !== 'all' || statusF || search || onlyQ || tagF.length > 0) && <button onClick={() => { setFilter('all'); setStatusF(''); setSearch(''); setOnlyQ(false); setTagF([]) }} className="text-xs text-gray-500 underline">필터 해제</button>}
         <span className="ml-auto text-xs text-gray-400">{visible.length.toLocaleString()}건{scope === 'all' && data.hiddenPrivate ? ` · 비공개 ${data.hiddenPrivate}건 제외` : ''}</span>
       </div>
+      {hasTags && (
+        <div className="flex items-center gap-1.5 flex-wrap mb-3">
+          <span className="text-xs text-gray-500 mr-1">업무 계열</span>
+          {tags.filter(t => t.active || tagCount.get(t.id) || tagF.includes(t.id)).map(t => (
+            <TagChip key={t.id} tag={t} selected={tagF.includes(t.id)} count={tagCount.get(t.id) ?? 0} onClick={() => toggleTag(t.id)} title={t.active ? undefined : '숨긴 태그'} />
+          ))}
+          {(tagCount.get(WR_TAG_NONE) || tagF.includes(WR_TAG_NONE)) ? <NoTagChip selected={tagF.includes(WR_TAG_NONE)} count={tagCount.get(WR_TAG_NONE) ?? 0} onClick={() => toggleTag(WR_TAG_NONE)} /> : null}
+          {tagF.length > 0 && <span className="text-xs text-gray-500 ml-1">{tagF.length}개 선택{tagF.length > 1 ? ' · 하나라도 해당' : ''} <button onClick={() => setTagF([])} className="underline">해제</button></span>}
+          {data.me?.master && <Link href="/me/requests/tags" className="ml-auto text-xs text-gray-500 hover:text-gray-900 underline">태그 관리</Link>}
+        </div>
+      )}
 
       {visible.length === 0 ? (
         <div className="text-center py-16 text-gray-400 text-sm bg-white border border-gray-200 rounded-xl">
@@ -220,6 +250,7 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
                       {r.is_private && <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold ml-1" title="요청자 · 담당자 · 승인권자만 볼 수 있음">비공개</span>}
                     </td>
                     <td className="py-2 px-3 min-w-[220px] max-w-[420px]">
+                      {hasTags && <TagList row={r} tags={tags} className="mb-0.5" />}
                       <p className="font-semibold text-gray-900 truncate">{r.title}</p>
                       {r.content && <p className="text-xs text-gray-500 truncate">{r.content}</p>}
                     </td>

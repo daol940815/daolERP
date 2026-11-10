@@ -4,7 +4,7 @@
 //   진행 방식 assign_mode — single(1명) / first(선착: 먼저 수락한 1명, 나머지 released) / all(공동: 전원 각자, 전원 보고 시 처리 보고)
 
 export type WrStatus = 'requested' | 'accepted' | 'in_progress' | 'done_reported' | 'completed' | 'canceled' | 'rejected'
-export type WrEvent = 'created' | 'accepted' | 'rejected' | 'memo' | 'reported' | 'completed' | 'canceled' | 'edited' | 'assignee_added'
+export type WrEvent = 'created' | 'accepted' | 'rejected' | 'memo' | 'reported' | 'completed' | 'canceled' | 'edited' | 'assignee_added' | 'tags_changed'
 export type WrMode = 'single' | 'first' | 'all'
 export type WrAsgStatus = 'invited' | 'accepted' | 'in_progress' | 'done_reported' | 'rejected' | 'released'
 
@@ -19,7 +19,7 @@ export const WR_STATUS_CLS: Record<WrStatus, string> = {
 }
 export const WR_EVENT_LABEL: Record<WrEvent, string> = {
   created: '요청 생성', accepted: '수락', rejected: '반려', memo: '진행 메모', reported: '처리 완료 보고',
-  completed: '완료 확정', canceled: '요청 취소', edited: '요청 수정', assignee_added: '담당자 추가',
+  completed: '완료 확정', canceled: '요청 취소', edited: '요청 수정', assignee_added: '담당자 추가', tags_changed: '태그 변경',
 }
 export const WR_MODE_LABEL: Record<WrMode, string> = { single: '단일', first: '선착', all: '공동' }
 export const WR_MODE_DESC: Record<WrMode, string> = {
@@ -78,6 +78,7 @@ export interface WrRow {
   requester: WrPerson | null
   assignee: WrPerson | null    // 단일·선착 수락자 (공동은 null)
   assignees: WrAssignee[]      // 902 — 담당자 전원(해제·반려 포함)
+  tag_ids: string[]            // 904 — 업무 계열 태그 id (미적용 · 미분류면 빈 배열)
 }
 
 // 목록 범위 — 전체(공용) / 내가 받은 / 내가 보낸 (2026-11-02 사용자 결정: 목록 공용 전환 + 내 업무 버튼)
@@ -197,6 +198,7 @@ export function allowedActions(row: WrRow, meId: string | null) {
     complete: isReq && open,
     cancel: isReq && open,
     edit: isReq && (s === 'requested' || s === 'accepted' || s === 'in_progress'),
+    setTags: isReq || isAsg,   // 904 — 닫힌 요청도 가능(분류 바로잡기). 마스터 계정은 API가 추가로 허용
     addAssignee: isReq && open && row.assign_mode !== 'first',
     isReq, isAsg, mine,
   }
@@ -204,3 +206,41 @@ export function allowedActions(row: WrRow, meId: string | null) {
 export type WrActions = ReturnType<typeof allowedActions>
 
 export const hoursBetween = (a: string, b: string) => (new Date(b).getTime() - new Date(a).getTime()) / 36e5
+
+// ── 업무 계열 태그 (904, 2026-11-10) ──
+//  태그 마스터는 DB(work_request_tags) — 기본 8개 + 마스터 계정이 추가. 삭제 없이 숨김(active=false)만.
+//  1건에 최대 WR_TAG_MAX 개. 상태 배지(칠한 사각형)와 구분되게 화면에서는 테두리 알약 + 색 점으로 그린다(components/work-requests/tag-chip).
+export interface WrTag { id: string; code: string | null; label: string; color: string; keywords: string[]; sort: number; active: boolean }
+export const WR_TAG_MAX = 3            // 요청 1건에 붙일 수 있는 태그 수
+export const WR_TAG_ACTIVE_MAX = 12    // 사용 중(숨김 아님) 태그 수 상한 — 칩 한 줄을 넘기지 않게
+export const WR_TAG_NONE = 'none'      // 목록 필터의 '미분류'
+export const WR_TAG_ERP_CODE = 'erp'   // 도움말 질문하기 · 권한 요청이 자동으로 고르는 태그
+// 고를 수 있는 색 — 빨강 계열은 긴급 · 마감 지남 전용이라 없다. 클래스는 정적 문자열이어야 Tailwind 가 포함한다.
+export const WR_TAG_COLORS: { key: string; label: string; dot: string }[] = [
+  { key: 'sky', label: '하늘', dot: 'bg-sky-600' }, { key: 'amber', label: '주황', dot: 'bg-amber-600' },
+  { key: 'emerald', label: '초록', dot: 'bg-emerald-600' }, { key: 'teal', label: '청록', dot: 'bg-teal-600' },
+  { key: 'indigo', label: '남색', dot: 'bg-indigo-600' }, { key: 'violet', label: '보라', dot: 'bg-violet-600' },
+  { key: 'pink', label: '분홍', dot: 'bg-pink-600' }, { key: 'lime', label: '연두', dot: 'bg-lime-600' },
+  { key: 'slate', label: '진회색', dot: 'bg-slate-600' }, { key: 'gray', label: '회색', dot: 'bg-gray-300' },
+]
+export const tagDotCls = (color: string) => WR_TAG_COLORS.find(c => c.key === color)?.dot ?? 'bg-slate-600'
+// 요청의 태그를 마스터 순서대로 (숨긴 태그도 과거 요청에는 그대로 보인다)
+export function tagsOf(row: Pick<WrRow, 'tag_ids'>, tags: WrTag[]): WrTag[] {
+  if (!row.tag_ids?.length) return []
+  const set = new Set(row.tag_ids)
+  return tags.filter(t => set.has(t.id))
+}
+// 제목 · 내용의 키워드로 추천 (사용 중인 태그만, 시스템은 추천만 — 확정은 사용자)
+export function recommendTagIds(text: string, tags: WrTag[]): string[] {
+  const hay = text.toLowerCase()
+  if (!hay.trim()) return []
+  return tags.filter(t => t.active && t.keywords.some(k => k.trim() && hay.includes(k.trim().toLowerCase()))).map(t => t.id)
+}
+// 태그 id 목록 검증 — 중복 제거 · 개수. 고를 수 있는 태그(사용 중 + 이미 붙어 있던 것)만 통과
+export function cleanTagIds(input: unknown, allowed: Set<string>): { ids: string[]; error: string | null } {
+  const ids = Array.from(new Set((Array.isArray(input) ? input : []).filter((x): x is string => typeof x === 'string' && !!x)))
+  if (!ids.length) return { ids, error: '업무 계열을 하나 이상 고르세요.' }
+  if (ids.length > WR_TAG_MAX) return { ids, error: `업무 계열은 최대 ${WR_TAG_MAX}개까지 고를 수 있습니다.` }
+  if (ids.some(id => !allowed.has(id))) return { ids, error: '고를 수 없는 태그가 있습니다. 화면을 새로 고친 뒤 다시 시도하세요.' }
+  return { ids, error: null }
+}
