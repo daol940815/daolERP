@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { getPeriodRange, DEFAULT_VIEW_FROM } from '@/lib/period-presets'
+import { getPeriodRange } from '@/lib/period-presets'
+import PeriodPresets from '@/components/ui/PeriodPresets'
 import type { PurchaseHubDetail } from '@/lib/purchase-hub'
 import { contactLabel } from '@/lib/contact-label'
 import type { PurchaseHubPerms } from '@/components/purchase-hub/perms'
@@ -43,9 +44,9 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
   const sp = useSearchParams()
   const vendorId = params.vendorId
 
-  const [from, setFrom] = useState(sp.get('from') ?? DEFAULT_VIEW_FROM)
-  const [to, setTo] = useState(sp.get('to') ?? new Date().toISOString().slice(0, 10))
-  const [preset, setPreset] = useState('')
+  // 목록에서 넘어온 기간이 기본, 없으면 당년 (관리·분석 화면 표준)
+  const [from, setFrom] = useState(sp.get('from') ?? getPeriodRange('당년').from)
+  const [to, setTo] = useState(sp.get('to') ?? getPeriodRange('당년').to)
   const [data, setData] = useState<PurchaseHubDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -89,12 +90,6 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
     fetch('/api/vendor-hub/staff').then(r => r.json()).then(j => setEmployees(j.employees ?? [])).catch(() => {})
   }, [])
 
-  const applyPreset = (p: string) => {
-    setPreset(p)
-    if (p === '전체 기간') { setFrom('2024-01-01'); setTo(new Date().toISOString().slice(0, 10)); return }
-    const r = getPeriodRange(p)
-    setFrom(r.from); setTo(r.to)
-  }
 
   const post = async (url: string, body: Record<string, unknown>) => {
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -222,15 +217,12 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
 
       {/* 상세 기간 (목록 기간이 기본값, 독립 변경) */}
       <div className="flex items-center gap-1.5 flex-wrap mt-2">
-        {['당월', '1분기', '2분기', '상반기', '당년', '전체 기간'].map(p => (
-          <button key={p} onClick={() => applyPreset(p)}
-            className={`px-2.5 py-1 rounded-full text-xs border ${preset === p ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
-            {p}
-          </button>
-        ))}
-        <input type="date" value={from} onChange={e => { setPreset(''); setFrom(e.target.value) }} className="border border-gray-300 rounded px-2 py-1 text-xs" />
+        {/* 표준 기간 칩 (최근 7일 ~ 전체 기간) — 매출처 허브 상세와 같은 부품 (2026-11-11 사용자 요청) */}
+        <PeriodPresets from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
+        <span className="text-gray-300 text-xs">|</span>
+        <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-xs" />
         <span className="text-gray-400 text-xs">~</span>
-        <input type="date" value={to} onChange={e => { setPreset(''); setTo(e.target.value) }} className="border border-gray-300 rounded px-2 py-1 text-xs" />
+        <input type="date" value={to} onChange={e => setTo(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-xs" />
         <span className="text-[11px] text-gray-400 ml-2">여기서 바꿔도 목록의 기간은 유지됩니다</span>
       </div>
 
