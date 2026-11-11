@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 회의록 (오프라인 기록 + 온라인 토론)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; word-break: keep-all; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 16px; line-height: 1.75; }
+  .note b { color: #422006; }
+  .note.blue { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
+  h1 { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+  h2 { font-size: 16px; font-weight: 700; margin: 34px 0 6px; }
+  h2 .no { display: inline-block; background: #0f172a; color: #fff; font-size: 11px; border-radius: 6px; padding: 2px 7px; margin-right: 8px; vertical-align: 2px; }
+  .desc { font-size: 12.5px; color: #475569; margin-bottom: 12px; line-height: 1.7; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 18px; }
+  .grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+  .grid2e { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  label.f { display: block; font-size: 11.5px; font-weight: 600; color: #475569; margin-bottom: 4px; }
+  .inp { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 10px; font-size: 13px; background: #fff; font-family: inherit; }
+  textarea.inp { min-height: 70px; resize: vertical; }
+  .row { margin-bottom: 12px; }
+  .btn { display: inline-block; background: #0f172a; color: #fff; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; }
+  .btn.ghost { background: #fff; color: #334155; border: 1px solid #cbd5e1; font-weight: 500; }
+  .btn.sm { padding: 4px 9px; font-size: 11.5px; border-radius: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font-size: 11px; color: #94a3b8; font-weight: 500; padding: 7px 10px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+  td { padding: 9px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .muted { color: #94a3b8; }
+  .small { font-size: 11.5px; color: #64748b; }
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+  .b-off { background: #f1f5f9; color: #475569; }
+  .b-on { background: #e0f2fe; color: #0369a1; }
+  .b-open { background: #dbeafe; color: #1d4ed8; }
+  .b-wait { background: #fef3c7; color: #92400e; }
+  .b-closed { background: #dcfce7; color: #166534; }
+  .b-lock { background: #fff; color: #64748b; border: 1px solid #cbd5e1; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+  .kpi { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 14px; cursor: pointer; }
+  .kpi.on { border-color: #0f172a; box-shadow: 0 0 0 1px #0f172a; }
+  .kpi p:first-child { font-size: 11.5px; color: #64748b; }
+  .kpi p:last-child { font-size: 20px; font-weight: 800; margin-top: 2px; }
+  .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .chip { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px; padding: 3px 11px; font-size: 12px; color: #334155; cursor: pointer; }
+  .chip.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .unread { display: inline-block; min-width: 18px; text-align: center; background: #dc2626; color: #fff; border-radius: 999px; font-size: 10.5px; font-weight: 700; padding: 0 5px; margin-left: 4px; }
+  .people { display: flex; flex-wrap: wrap; gap: 5px; }
+  .person { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 999px; padding: 2px 9px; font-size: 11.5px; }
+  .person.host { border-color: #0f172a; font-weight: 700; }
+  .person.read { color: #94a3b8; }
+  .meta { display: grid; grid-template-columns: 80px 1fr; gap: 6px 10px; font-size: 12.5px; }
+  .meta dt { color: #64748b; }
+  .body { font-size: 13px; line-height: 1.8; white-space: pre-line; background: #f8fafc; border-radius: 8px; padding: 12px 14px; }
+  .cmt { border-top: 1px solid #f1f5f9; padding: 11px 0; }
+  .cmt .who { font-size: 12.5px; font-weight: 700; }
+  .cmt .when { font-size: 11px; color: #94a3b8; margin-left: 6px; font-weight: 400; }
+  .cmt .txt { font-size: 13px; line-height: 1.7; margin-top: 3px; }
+  .cmt .acts { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+  .cmt .acts span { margin-right: 10px; cursor: pointer; }
+  .reply { margin-left: 26px; border-left: 2px solid #e2e8f0; padding-left: 12px; }
+  .deleted .txt { color: #94a3b8; font-style: italic; }
+  .conc { border: 1px solid #bbf7d0; background: #f0fdf4; border-radius: 10px; padding: 12px 14px; font-size: 13px; line-height: 1.8; }
+  .conc h4 { font-size: 12px; color: #166534; margin-bottom: 4px; }
+  .seg { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
+  .seg span { padding: 6px 14px; font-size: 12.5px; cursor: pointer; }
+  .seg span.on { background: #0f172a; color: #fff; }
+  .file { display: flex; align-items: center; gap: 8px; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; }
+  .file .sz { color: #94a3b8; margin-left: auto; }
+  .chk { font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
+  .side h3 { font-size: 12.5px; font-weight: 700; margin-bottom: 8px; }
+  .side .card + .card { margin-top: 12px; }
+  .link { color: #1d4ed8; text-decoration: underline; cursor: pointer; }
+  ol.flow { font-size: 12.5px; line-height: 1.9; padding-left: 18px; color: #334155; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>시안 — 회의록 (오프라인 기록 + 온라인 토론)</h1>
+  <p class="desc">내 업무 › 회의록 (<code>/me/meetings</code>) · 1100번대 회의록 트랙 · 2026-11-11 · 모든 이름·숫자는 예시</p>
+
+  <div class="note">
+    <b>핵심:</b> 오프라인 회의와 온라인 토론을 <b>같은 "회의 1건"</b>으로 다룬다. 둘 다 마지막에 <b>결론(결정 사항) + 후속 조치</b>가 남아 같은 모양의 회의록이 된다.<br>
+    <b>오프라인</b> = 회의가 끝난 뒤 기록으로 등록 (바로 "마감" 상태로 저장 가능) · <b>온라인</b> = 주제글을 올리고 의견 마감일까지 댓글로 토론 → 주최자가 결론을 적고 마감.<br>
+    <b>미결(사용자 확인 대기):</b> 공개 범위(추천: 전원 공개 + "참석자만 보기" 체크) · 첨부 1차 포함(추천: 예) · 아르바이트 참석 허용(추천: 아니오).
+  </div>
+
+  <!-- 1. 목록 -->
+  <h2><span class="no">1</span>회의록 목록</h2>
+  <p class="desc">KPI 카드(클릭 = 필터) + 통합 검색 + 칩 필터 + 표. 상태는 데이터에서 자동 판정: 의견 마감일 전 = 진행 중, 마감일 지났는데 결론 없음 = 결론 대기, 결론 저장 = 마감.
+    빨간 숫자 = 내가 아직 읽지 않은 새 댓글 수. 기간 필터 표준(PeriodPresets) 적용, 기본 = 당년.</p>
+  <div class="card">
+    <div class="bar" style="justify-content:space-between">
+      <div class="small">기간: <span class="chip">최근 30일</span> <span class="chip">당월</span> <span class="chip on">당년</span> <span class="chip">전체 기간</span></div>
+      <div><span class="btn ghost">오프라인 회의 기록</span> <span class="btn">온라인 주제 올리기</span></div>
+    </div>
+    <div class="kpis">
+      <div class="kpi on"><p>진행 중 토론</p><p>3</p></div>
+      <div class="kpi"><p>결론 대기</p><p>1</p></div>
+      <div class="kpi"><p>내가 참석한 회의</p><p>12</p></div>
+      <div class="kpi"><p>이번 달 회의</p><p>5</p></div>
+    </div>
+    <div class="bar">
+      <input class="inp" style="max-width:280px" placeholder="제목 · 안건 · 결론 · 댓글 · 참석자 검색">
+      <span class="chip on">전체</span><span class="chip">오프라인</span><span class="chip">온라인</span>
+      <span class="muted">|</span>
+      <span class="chip">내가 주최</span><span class="chip">내가 참석</span><span class="chip">안 읽은 댓글</span>
+    </div>
+    <table>
+      <thead><tr><th>구분</th><th>상태</th><th>제목</th><th>주최</th><th>참석</th><th>일시 / 의견 마감</th><th class="num">댓글</th><th>후속 조치</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge b-on">온라인</span></td><td><span class="badge b-open">진행 중</span></td>
+          <td><b>설 명절 아르바이트 운영 방식</b><span class="unread">3</span></td><td>강시현</td><td class="small">6명</td><td class="small">마감 11-14(금) 18:00 · D-3</td><td class="num">8</td><td class="muted">-</td></tr>
+        <tr><td><span class="badge b-on">온라인</span></td><td><span class="badge b-wait">결론 대기</span></td>
+          <td><b>배송비 청구 기준 통일</b> <span class="badge b-lock">참석자만</span></td><td>홍창의</td><td class="small">4명</td><td class="small">마감 11-10(월) 지남</td><td class="num">12</td><td class="muted">-</td></tr>
+        <tr><td><span class="badge b-off">오프라인</span></td><td><span class="badge b-closed">마감</span></td>
+          <td><b>11월 영업 주간 회의</b></td><td>김재형</td><td class="small">7명</td><td class="small">11-10(월) 09:30 · 회의실</td><td class="num">2</td><td class="small">3건 · 업무 요청 3</td></tr>
+        <tr><td><span class="badge b-off">오프라인</span></td><td><span class="badge b-closed">마감</span></td>
+          <td><b>연말 선물 카탈로그 품목 선정</b></td><td>옥광일</td><td class="small">5명</td><td class="small">11-05(수) 14:00 · 외부(거래처)</td><td class="num">0</td><td class="small">2건 · 완료 1</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 2. 온라인 토론 상세 -->
+  <h2><span class="no">2</span>온라인 토론 상세 (진행 중)</h2>
+  <p class="desc">왼쪽 = 주제글과 댓글 타래(답글 1단계), 오른쪽 = 참석자 · 첨부 · 마감 정리. 참석자 칩이 흐리면 아직 안 읽은 사람.
+    댓글 삭제는 "삭제된 댓글입니다"로 표시만 하고 원문은 DB에 남긴다(원본 보존). 수정하면 "(수정됨)" 표시 + 수정 전 내용은 이력에 보관.</p>
+  <div class="grid2">
+    <div class="card">
+      <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px"><span class="badge b-on">온라인</span><span class="badge b-open">진행 중</span><span class="small">의견 마감 11-14(금) 18:00 · D-3</span></div>
+      <h3 style="font-size:17px; font-weight:800; margin-bottom:4px">설 명절 아르바이트 운영 방식</h3>
+      <p class="small" style="margin-bottom:10px">강시현 총괄부사장 · 11-11(화) 09:12 올림</p>
+      <div class="body">작년 설에는 아르바이트 6명을 2주간 운영했습니다. 올해는 주문량이 비슷할 것으로 보여 아래 두 가지를 정하려고 합니다.
+
+1. 인원: 작년과 같이 6명으로 할지, 포장 전담 2명을 더 둘지
+2. 근무일지: 종이 대신 ERP 출근 체크로 받을지
+
+의견은 금요일 18시까지 댓글로 남겨 주세요.</div>
+
+      <div style="margin-top:16px; font-size:12.5px; font-weight:700">댓글 8</div>
+      <div class="cmt"><span class="who">홍창의 부장</span><span class="when">11-11 10:02</span>
+        <div class="txt">포장 전담 2명 찬성합니다. 작년에 포장 때문에 출고가 하루씩 밀린 날이 3번 있었습니다.</div>
+        <div class="acts"><span>답글</span></div></div>
+      <div class="cmt reply"><span class="who">김주연 대리</span><span class="when">11-11 10:20</span>
+        <div class="txt">맞습니다. 특히 2주차 수요일, 목요일이 심했어요.</div></div>
+      <div class="cmt"><span class="who">오철준 대리</span><span class="when">11-11 11:05 (수정됨)</span>
+        <div class="txt">근무일지를 ERP 출근 체크로 받으면 급여 계산이 바로 됩니다. 다만 아르바이트 계정을 미리 만들어야 해서 1주 전에 명단이 필요합니다.</div>
+        <div class="acts"><span>답글</span><span>수정</span><span>삭제</span></div></div>
+      <div class="cmt deleted"><span class="who">김승현 사원</span><span class="when">11-11 11:30</span>
+        <div class="txt">삭제된 댓글입니다.</div></div>
+      <div style="margin-top:12px">
+        <textarea class="inp" placeholder="의견을 남겨 주세요. Ctrl+Enter로 등록"></textarea>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px">
+          <span class="small">파일 첨부(사진 · 엑셀 · PDF, 1개 20MB까지)</span><span class="btn sm">댓글 등록</span>
+        </div>
+      </div>
+    </div>
+    <div class="side">
+      <div class="card">
+        <h3>참석자 6명 <span class="small" style="font-weight:400">· 읽음 4</span></h3>
+        <div class="people">
+          <span class="person host">강시현 (주최)</span><span class="person">홍창의</span><span class="person">김주연</span><span class="person">오철준</span>
+          <span class="person read">김승현</span><span class="person read">한정호</span>
+        </div>
+        <p class="small" style="margin-top:8px">전 직원 공개 · 참석자가 아닌 직원도 읽고 댓글을 달 수 있음</p>
+      </div>
+      <div class="card">
+        <h3>첨부 2</h3>
+        <div class="file">작년_설_아르바이트_근무표.xlsx<span class="sz">48KB</span></div>
+        <div class="file">포장_작업장_사진.jpg<span class="sz">1.2MB</span></div>
+      </div>
+      <div class="card">
+        <h3>주최자 메뉴</h3>
+        <p class="small" style="margin-bottom:8px">결론을 적고 마감하면 댓글이 닫히고 회의록이 확정됩니다. 마감 전까지 의견 마감일 연장 가능.</p>
+        <span class="btn ghost sm">마감일 연장</span> <span class="btn sm">결론 정리하고 마감</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 오프라인 회의 기록 등록 -->
+  <h2><span class="no">3</span>오프라인 회의 기록 / 온라인 주제 올리기 (같은 입력 화면)</h2>
+  <p class="desc">맨 위 구분만 바꾸면 칸이 달라진다. 오프라인 = 일시 · 장소 · 내용 · 결론을 한 번에 적고 바로 마감 저장 가능. 온라인 = 의견 마감일을 받고 결론 칸은 숨김(마감할 때 적음).
+    참석자는 직원 마스터(employees)에서 고르고, 팀 단위로 한 번에 추가할 수 있다.</p>
+  <div class="card">
+    <div class="row"><span class="seg"><span class="on">오프라인 회의 기록</span><span>온라인 주제 올리기</span></span></div>
+    <div class="grid2e">
+      <div class="row"><label class="f">제목</label><input class="inp" value="11월 영업 주간 회의"></div>
+      <div class="row"><label class="f">일시 · 장소</label><div style="display:flex; gap:6px"><input class="inp" value="2026-11-10 09:30"><input class="inp" value="회의실"></div></div>
+    </div>
+    <div class="row"><label class="f">참석자</label>
+      <div class="people"><span class="person host">김재형 (주최)</span><span class="person">옥광일</span><span class="person">홍창의</span><span class="person">김주연</span><span class="person">김보현</span><span class="person">김승현</span><span class="person">한정호</span>
+        <span class="chip">+ 직원 추가</span><span class="chip">+ 영업팀</span><span class="chip">+ 영업지원팀</span></div></div>
+    <div class="row"><label class="f">안건</label><textarea class="inp" style="min-height:50px">1. 연말 선물 주문 진행 현황  2. 미수 거래처 독촉 분담</textarea></div>
+    <div class="row"><label class="f">회의 내용</label><textarea class="inp">- 연말 선물 주문은 전년 대비 접수가 늦음. 주요 은행 지점 3곳 이번 주 재연락.
+- 미수 90일 이상 거래처 5곳, 담당자별로 나눠 독촉.</textarea></div>
+    <div class="row"><label class="f">결론 (결정 사항)</label><textarea class="inp" style="min-height:50px">1. 은행 지점 재연락은 영업팀이 금요일까지.  2. 미수 독촉은 영업지원팀이 거래처별로 나눠 진행.</textarea></div>
+    <div class="row"><label class="f">첨부</label><div class="file">회의_화이트보드.jpg<span class="sz">2.4MB</span></div><span class="chip">+ 파일 추가</span></div>
+    <div style="display:flex; justify-content:space-between; align-items:center">
+      <label class="chk"><input type="checkbox"> 참석자만 보기 (체크하면 참석자와 마스터 계정만 열람)</label>
+      <div><span class="btn ghost">임시 저장</span> <span class="btn">마감 저장</span></div>
+    </div>
+  </div>
+
+  <!-- 4. 마감된 회의록 -->
+  <h2><span class="no">4</span>마감된 회의록 · 후속 조치 → 업무 요청</h2>
+  <p class="desc">결론 아래에 후속 조치(할 일 · 담당 · 기한)를 적고 "업무 요청 보내기"를 누르면 업무 요청이 만들어지고, 관련 링크 칸에 이 회의록 주소가 들어간다.
+    이후 진행 상태는 업무 요청에서 읽어와 표시만 한다(두 곳에 따로 저장하지 않음). 마감 뒤에는 댓글이 닫히고, 결론 수정은 주최자 · 마스터만 가능하며 수정 이력이 남는다.</p>
+  <div class="card">
+    <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px"><span class="badge b-off">오프라인</span><span class="badge b-closed">마감</span><span class="small">11-10(월) 09:30 · 회의실 · 참석 7명</span>
+      <span style="margin-left:auto" class="btn ghost sm">인쇄 / PDF</span></div>
+    <h3 style="font-size:17px; font-weight:800; margin-bottom:10px">11월 영업 주간 회의</h3>
+    <div class="conc"><h4>결론</h4>1. 은행 지점 재연락은 영업팀이 금요일까지.<br>2. 미수 독촉은 영업지원팀이 거래처별로 나눠 진행.</div>
+    <div style="margin-top:14px; font-size:12.5px; font-weight:700; margin-bottom:6px">후속 조치 3</div>
+    <table>
+      <thead><tr><th>할 일</th><th>담당</th><th>기한</th><th>업무 요청</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>국민은행 강남 지점 외 2곳 재연락</td><td>옥광일</td><td class="small">11-14(금)</td><td><span class="badge b-open">진행 중</span> <span class="link small">열기</span></td><td></td></tr>
+        <tr><td>미수 90일 이상 5곳 독촉 분담표 작성</td><td>홍창의</td><td class="small">11-12(수)</td><td><span class="badge b-closed">완료</span> <span class="link small">열기</span></td><td></td></tr>
+        <tr><td>독촉 결과 다음 주간 회의에 보고</td><td>김주연</td><td class="small">11-17(월)</td><td class="muted small">아직 안 보냄</td><td><span class="btn sm">업무 요청 보내기</span></td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:6px"><span class="chip">+ 후속 조치 추가</span></div>
+  </div>
+
+  <!-- 5. 알림 -->
+  <h2><span class="no">5</span>알림 · 권한 · 데이터</h2>
+  <div class="grid2e">
+    <div class="card">
+      <h3 style="font-size:13px; margin-bottom:8px">알림 (알림 센터 + PC 알림, 기존 업무 요청과 같은 경로)</h3>
+      <ol class="flow">
+        <li>참석자로 지정됨 → "OOO님이 회의에 초대했습니다"</li>
+        <li>내가 주최 · 참석한 회의에 새 댓글 · 내 댓글에 답글</li>
+        <li>의견 마감 하루 전 (진행 중 토론, 아직 댓글 안 단 참석자에게만)</li>
+        <li>마감 · 결론 확정 → 참석자 전원</li>
+        <li>주최자: 마감일이 지났는데 결론이 없을 때 "결론 대기"</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h3 style="font-size:13px; margin-bottom:8px">권한 · 테이블 (1100_meetings.sql)</h3>
+      <ol class="flow">
+        <li>메뉴: 내 업무 › 회의록 (전원 조회 · 작성, API <code>/api/meetings</code> = my 그룹)</li>
+        <li>수정 · 마감 · 결론 수정: 주최자 + 마스터 계정 / 댓글 수정 · 삭제: 본인</li>
+        <li><code>meetings</code> · <code>meeting_participants</code> · <code>meeting_comments</code> · <code>meeting_actions</code> · <code>meeting_attachments</code> · <code>meeting_events</code>(수정 이력)</li>
+        <li>첨부는 Supabase Storage 비공개 버킷(발주서 첨부와 같은 방식), 내려받기는 서명 링크</li>
+        <li>회의 작성 · 댓글 · 마감은 업무일지에 자동 기재 (업무 요청과 같은 방식)</li>
+      </ol>
+    </div>
+  </div>
+</div>
+</body>
+</html>
