@@ -598,6 +598,9 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
   const [dateTo, setDateTo]           = useState(() => searchParams.get('invoiceId') ? '' : getPeriodRange('당월').to)
   const [search, setSearch]           = useState('')
   const [searchField, setSearchField] = useState<'all' | 'counterparty' | 'item' | 'note' | 'approval' | 'biz' | 'amount' | 'memo'>('all')
+  // 계정과목 필터 (2026-11-11 사용자 요청: 목록 필터만) — '' = 전체, 'none' = 미분류, 그 외 = 확정 계정 id.
+  // 불러온 행에서 거르므로 합계·선택·일괄 작업도 걸러진 행 기준이 된다.
+  const [accountFilter, setAccountFilter] = useState('')
   // 원본 상세 등에서 특정 계산서로 바로 진입 (?invoiceId=) — 그 건만 표시
   const [focusId, setFocusId]         = useState<string | null>(() => searchParams.get('invoiceId'))
   const [exporting, setExporting]     = useState(false)
@@ -669,11 +672,12 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
     if (statusFilter !== 'all') p.set('paymentStatus', statusFilter)
     if (dateFrom) p.set('from', dateFrom)
     if (dateTo)   p.set('to', dateTo)
+    if (accountFilter) p.set('accountId', accountFilter)   // 'none' = 미분류
     const a = document.createElement('a')
     a.href = `/api/tax-invoices/export?${p}`
     a.click()
     setExporting(false)
-  }, [direction, taxType, statusFilter, dateFrom, dateTo])
+  }, [direction, taxType, statusFilter, dateFrom, dateTo, accountFilter])
 
   // 직접 고른 취소쌍 상계 — 자동 탐지(같은 거래처·90일)에 안 잡힌 조합도
   // 사용자가 원+취소를 선택하면 합계 0원일 때만 상계 확인 버튼이 나타난다.
@@ -835,11 +839,11 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
           || (qDigits.length >= 4 && Math.abs(i.total_amount || 0) === Number(qDigits))
     }
   }
+  const matchesAccount = (i: TaxInvoice): boolean =>
+    !accountFilter ? true : accountFilter === 'none' ? !i.confirmed_account_id : i.confirmed_account_id === accountFilter
   const filtered = focusId
     ? invoices.filter(i => i.id === focusId)
-    : q
-    ? invoices.filter(matchesSearch)
-    : invoices
+    : invoices.filter(i => matchesAccount(i) && (!q || matchesSearch(i)))
 
   // 체크박스가 보이는(선택 가능한) 행 = 아직 매칭 안 된 건
   const selectableIds = filtered.filter(i => !i.matched_transaction_id).map(i => i.id)
@@ -966,6 +970,15 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
             className="border border-gray-300 rounded-r-lg px-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-slate-900"
           />
         </div>
+        {/* 계정과목 필터 — 확정 계정 기준, 미분류 선택 가능 (검색형) */}
+        <SearchableSelect
+          value={accountFilter}
+          onChange={setAccountFilter}
+          options={[{ id: 'none', label: '(미분류만)' }, ...accounts.map(a => ({ id: a.id, label: a.name }))]}
+          emptyLabel="계정과목: 전체"
+          className={`border rounded-lg px-3 py-1.5 text-sm bg-white min-w-[9rem] focus:outline-none focus:ring-2 focus:ring-slate-900 ${
+            accountFilter ? 'border-slate-900 text-slate-900 font-medium' : 'border-gray-300 text-gray-600'}`}
+        />
         {direction === 'sales' && (
           <button onClick={handleBulkClassifySales} disabled={bulkBusy}
             className="px-3 py-1.5 text-sm border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 disabled:opacity-50 whitespace-nowrap"

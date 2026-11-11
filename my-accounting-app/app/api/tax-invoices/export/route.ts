@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
   const paymentStatus = searchParams.get('paymentStatus')
   const from          = searchParams.get('from')
   const to            = searchParams.get('to')
+  const accountId     = searchParams.get('accountId')   // 확정 계정 id 또는 'none'(미분류) — 목록 계정과목 필터와 동일
 
   const result = await fetchAllRows<Record<string, unknown>>((rFrom, rTo) => {
     let query = admin
@@ -41,6 +42,8 @@ export async function GET(req: NextRequest) {
     if (paymentStatus) query = query.eq('payment_status', paymentStatus)
     if (from)          query = query.gte('issue_date', from)
     if (to)            query = query.lte('issue_date', to)
+    if (accountId === 'none') query = query.is('confirmed_account_id', null)
+    else if (accountId)       query = query.eq('confirmed_account_id', accountId)
     return query.range(rFrom, rTo)
   })
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
