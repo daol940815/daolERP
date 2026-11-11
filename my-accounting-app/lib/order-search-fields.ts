@@ -53,6 +53,9 @@ export function parseFreeText(q: string): SearchCond[] {
 }
 
 // URL 파라미터 c=<field>:<value> (field 'all' = 모든 항목). 항목을 고른 값은 띄어쓰기를 포함해 한 조건.
+// 주문 현황 마지막 목록 주소(필터 포함) — 주문 상세의 '← 주문 현황'이 돌아갈 곳 (2026-11-11, sessionStorage · 이 탭에서만)
+export const ORDERS_LIST_URL_KEY = 'daol:orders-list-url'
+
 export const encodeCond = (c: SearchCond) => `${c.field ?? 'all'}:${c.value}`
 export function decodeCond(s: string): SearchCond | null {
   const i = s.indexOf(':')

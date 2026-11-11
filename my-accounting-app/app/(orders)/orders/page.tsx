@@ -2,12 +2,12 @@
 
 import PeriodPresets from '@/components/ui/PeriodPresets'
 import { getPeriodRange } from '@/lib/period-presets'
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import CollectMatchModal from '@/components/erp/CollectMatchModal'
 import ReasonBadge from '@/components/ui/ReasonBadge'
-import { FIELD_SHORT, MINE_FILTERS, SEARCH_FIELDS, encodeCond, parseFreeText, parseMine, type MineFilter, type SearchCond, type SearchField } from '@/lib/order-search-fields'
+import { FIELD_SHORT, MINE_FILTERS, ORDERS_LIST_URL_KEY, SEARCH_FIELDS, decodeCond, encodeCond, parseFreeText, parseMine, type MineFilter, type SearchCond, type SearchField } from '@/lib/order-search-fields'
 
 // 주문 현황 (시안 v2) — KPI(클릭=필터) + 통합 검색 + 칩 필터 + 행내 상품 펼치기.
 // 검사 상태(정의 미확정)·배송 컬럼(3단계)은 제외 상태 — 트랙 문서 참고.
@@ -77,6 +77,8 @@ const REPLY_BADGE: Record<string, { label: string; cls: string }> = {
   unable:  { label: '처리 불가', cls: 'bg-red-100 text-red-700' },
 }
 const REPLY_FILTERS = ['my_wait', 'my_req_wait', 'wait', 'to_me', 'unable'] as const
+// 필터 유지 (2026-11-11): 마지막 목록 주소 · 상세로 갈 때의 스크롤 위치 (이 탭에서만)
+const SCROLL_KEY = 'daol:orders-list-scroll'
 
 const chip = (on: boolean) =>
   `px-3 py-1 rounded-full text-xs border whitespace-nowrap ${
@@ -114,14 +116,40 @@ export default function OrdersHomePage() {
   const [itemsCache, setItemsCache] = useState<Record<string, Item[]>>({})
   const [exporting, setExporting] = useState(false)
 
-  // 알림 센터에서 /orders?reply=my_wait 등으로 들어오면 그 필터로 시작
-  useEffect(() => {
-    const sp = new URLSearchParams(window.location.search)
+  // 필터 유지 (2026-11-11 실사용자 요청 · 사용자 승인): 필터 · 페이지를 주소(URL)에 적어 두고, 화면이 열릴 때 주소에서 다시 읽는다.
+  //  - 주문 상세 → 뒤로가기 · '← 주문 현황' · 새로고침 = 필터 그대로 / 사이드바 메뉴(/orders) = 기본값으로 새로 시작
+  //  - 알림 링크(/orders?reply=my_wait 등)도 같은 규칙으로 읽힌다
+  //  - 주소 갱신은 replaceState(뒤로가기 기록을 쌓지 않음). 기간이 기본값(최근 30일)이면 주소에서 뺀다
+  const [ready, setReady] = useState(false)
+  const restoredPage = useRef<number | null>(null)
+  const lastWritten = useRef<string | null>(null)        // 이 화면이 마지막으로 주소에 적은 조건
+  // 주소 → 필터 (없는 항목은 기본값). 처음 열릴 때 + 메뉴 · 알림 링크로 주소가 바깥에서 바뀌었을 때
+  const applyFromUrl = useCallback((sp: URLSearchParams) => {
+    const def = getPeriodRange('최근 30일')
     const r = sp.get('reply')
-    if (r && (REPLY_FILTERS as readonly string[]).includes(r)) setReply(r)
-    const m = parseMine(sp.get('mine'))
-    if (m !== 'all') setMine(m)
+    setReply(r && (REPLY_FILTERS as readonly string[]).includes(r) ? r : 'all')
+    setMine(parseMine(sp.get('mine')))                 // 옛 주소(mine=1 · consult) 호환은 parseMine
+    setConds(sp.getAll('c').map(decodeCond).filter((c): c is SearchCond => !!c))
+    setFrom(sp.has('from') ? sp.get('from') ?? '' : def.from)
+    setTo(sp.has('to') ? sp.get('to') ?? '' : def.to)
+    const pick = (k: string) => { const v = sp.get(k); return v && v !== 'all' ? v : 'all' }
+    setCollect(pick('collect')); setSource(pick('source')); setPo(pick('po'))
+    setPrepay(sp.get('prepay') === '1'); setVip(sp.get('vip') === '1'); setInvoice(sp.get('invoice') === '1')
+    const pg = Number(sp.get('page'))
+    const pageNo = Number.isInteger(pg) && pg > 1 ? pg : 1
+    restoredPage.current = pageNo
+    setPage(pageNo)
   }, [])
+  useEffect(() => {
+    applyFromUrl(new URLSearchParams(window.location.search))
+    setReady(true)
+  }, [applyFromUrl])
+  const searchParams = useSearchParams()
+  const spKey = searchParams.toString()
+  useEffect(() => {
+    if (!ready || lastWritten.current === null || spKey === lastWritten.current) return
+    applyFromUrl(new URLSearchParams(spKey))           // 사이드바 메뉴(/orders) = 기본값으로, 알림 링크 = 그 필터로
+  }, [spKey, ready, applyFromUrl])
 
   // 목록 · 엑셀 공용 조회 조건
   const filterParams = useCallback(() => {
@@ -154,6 +182,7 @@ export default function OrdersHomePage() {
   }
 
   const load = useCallback(async () => {
+    if (!ready) return                         // 주소에서 필터를 읽기 전에는 조회하지 않는다(기본값으로 한 번 더 조회 방지)
     setLoading(true); setError(null)
     const p = filterParams()
     p.set('page', String(page))
@@ -166,11 +195,54 @@ export default function OrdersHomePage() {
       setExpanded(null)
     }
     setLoading(false)
-  }, [filterParams, page])
+  }, [filterParams, page, ready])
   useEffect(() => { load() }, [load])
 
-  // 필터 변경 시 1페이지로
-  useEffect(() => { setPage(1) }, [filterParams])
+  // 필터 변경 시 1페이지로 — 단, 주소에서 페이지를 되살린 직후 한 번은 건너뛴다
+  useEffect(() => {
+    if (!ready) return
+    if (restoredPage.current !== null) { restoredPage.current = null; return }
+    setPage(1)
+  }, [filterParams, ready])
+
+  // 현재 필터 · 페이지를 주소에 적기 (+ 상세 화면의 '← 주문 현황'이 돌아올 주소로 기억)
+  useEffect(() => {
+    if (!ready) return
+    const p = filterParams()
+    const def = getPeriodRange('최근 30일')
+    if (from === def.from && to === def.to) { p.delete('from'); p.delete('to') }
+    else { p.set('from', from); p.set('to', to) }      // 비운 날짜도 그대로 기억
+    if (page > 1) p.set('page', String(page))
+    const qs = p.toString()
+    lastWritten.current = qs
+    const url = qs ? `/orders?${qs}` : '/orders'
+    if (window.location.pathname + window.location.search !== url) window.history.replaceState(window.history.state, '', url)
+    try { sessionStorage.setItem(ORDERS_LIST_URL_KEY, url) } catch { /* 저장 불가 브라우저 — 돌아가기는 /orders */ }
+    restoredPage.current = null   // 되살린 페이지는 이번 한 번만 — 다음 필터 변경부터는 1페이지로
+  }, [ready, filterParams, from, to, page])
+
+  // 상세에서 돌아왔을 때 보던 위치로 (스크롤은 본문 <main>) — 상세로 갈 때 저장한 값을 목록이 다 그려진 뒤 한 번 적용
+  const scrollRestored = useRef(false)
+  useEffect(() => {
+    if (loading || scrollRestored.current) return
+    scrollRestored.current = true
+    try {
+      const raw = sessionStorage.getItem(SCROLL_KEY)
+      if (!raw) return
+      sessionStorage.removeItem(SCROLL_KEY)
+      const { url, top } = JSON.parse(raw) as { url: string; top: number }
+      if (url === window.location.pathname + window.location.search && top > 0) {
+        requestAnimationFrame(() => { const main = document.querySelector('main'); if (main) main.scrollTop = top })
+      }
+    } catch { /* 무시 */ }
+  }, [loading])
+  const openOrder = (id: string) => {
+    try {
+      const main = document.querySelector('main')
+      sessionStorage.setItem(SCROLL_KEY, JSON.stringify({ url: window.location.pathname + window.location.search, top: main?.scrollTop ?? 0 }))
+    } catch { /* 무시 */ }
+    router.push(`/orders/${id}`)
+  }
 
   // 현재 필터 그대로 품목 행 단위 엑셀 다운로드
   const exportExcel = async () => {
@@ -368,7 +440,7 @@ export default function OrdersHomePage() {
                 const items = itemsCache[r.id]
                 return (
                   <Fragment key={r.id}>
-                    <tr onClick={() => router.push(`/orders/${r.id}`)}
+                    <tr onClick={() => openOrder(r.id)}
                       className={`border-b border-gray-50 cursor-pointer hover:bg-blue-50/40 ${r.canceled_at ? 'opacity-60' : ''}`}>
                       <td className="py-2 px-3">
                         <div className="tabular-nums text-xs font-semibold">{r.order_date}</div>
