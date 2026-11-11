@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { GROUP_KEYS, type Permissions } from '@/lib/permissions'
 import PermissionPanel, { type PermEmp } from './permission-panel'
+import StorageUsageCard from '@/components/attachments/StorageUsageCard'
 
 // 직원·계정·권한 관리 (인사·총무 수정 권한. 권한 편집은 마스터만)
 // 직원 등록 시 로그인 계정(ID 방식)을 함께 발급한다. 목록에서 수정·삭제·비번 재설정·권한 편집.
@@ -161,6 +162,7 @@ export default function EmployeesPage() {
       {error && <div className="my-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
 
       {leaveLevelReady && !loading && <LeaveApprovalLine rows={rows} />}
+      {meInfo.isMaster && <StorageUsageCard />}
 
       <div className="flex justify-end items-center gap-2 my-4">
         {selected.size > 0 && (
