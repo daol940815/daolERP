@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>상담일지 출력 양식 시안 — ERP 항목 기준 재구성 (v1, 2026-11-11)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:0.8125rem; }
+  .frame { max-width:1240px; margin:0 auto; padding:24px 20px 60px; }
+  h1 { font-size:1.1875rem; color:#0f172a; }
+  h2 { font-size:0.9375rem; color:#0f172a; margin:30px 0 8px; padding-left:10px; border-left:4px solid #0f172a; }
+  .desc { font-size:0.75rem; color:#64748b; margin:4px 0 14px; line-height:1.7; }
+  .mini { font-size:0.65625rem; color:#94a3b8; }
+  /* 엑셀 시트 재현 — A4 가로 한 장 */
+  .sheet { background:#fff; border:1px solid #cbd5e1; box-shadow:0 1px 4px rgba(15,23,42,.08); padding:18px 22px; width:1180px; }
+  .sheet table { border-collapse:collapse; width:100%; font-size:0.71875rem; table-layout:fixed; }
+  .sheet td, .sheet th { border:1px solid #94a3b8; padding:4px 6px; height:26px; vertical-align:middle; text-align:center; }
+  .sheet th { background:#dbe5f1; font-weight:normal; }
+  .sheet .lab { background:#dbe5f1; }
+  .sheet .lab2 { background:#e7e6e6; }
+  .sheet .ihead { background:#f2f2f2; }
+  .sheet .r { text-align:right; }
+  .sheet .l { text-align:left; }
+  .sheet .num { font-variant-numeric:tabular-nums; }
+  .sheet .title { font-size:1.1rem; font-weight:bold; background:#dbe5f1; height:34px; }
+  .sheet .sub { color:#64748b; font-size:0.625rem; }
+  .sheet .mask { letter-spacing:1px; }
+  .sheet .opt td { color:#475569; }
+  .sheet .opt td.l { padding-left:18px; }
+  .sheet .tot td { background:#fff2cc; font-weight:bold; }
+  .sheet .hand { background:#fffdf5; color:#b45309; font-size:0.625rem; }
+  .badge { display:inline-block; padding:1px 7px; border-radius:999px; font-size:0.625rem; font-weight:600; white-space:nowrap; }
+  .b-blue { background:#e6effc; color:#1c5cab; } .b-amber { background:#fdf3df; color:#92600a; } .b-green { background:#e7f6ec; color:#147339; } .b-gray { background:#f1f2f4; color:#6b7280; }
+  .note { margin-top:14px; background:#fffbeb; border:1px solid #f5e6b8; border-radius:10px; padding:12px 16px; font-size:0.75rem; color:#7c5e10; line-height:1.9; }
+  .note b { color:#5c470a; }
+  .flow { margin-top:12px; background:#f0f7ff; border:1px solid #cfe3f8; border-radius:10px; padding:12px 16px; font-size:0.75rem; color:#1e4e79; line-height:1.9; }
+  .map { width:100%; border-collapse:collapse; font-size:0.71875rem; background:#fff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; }
+  .map th { background:#f1f5f9; color:#475569; font-size:0.65625rem; padding:6px 8px; text-align:left; border-bottom:1.5px solid #d8dee6; }
+  .map td { padding:5px 8px; border-bottom:1px solid #eef1f5; vertical-align:top; }
+  .x { color:#b91c1c; } .ok { color:#147339; } .new { color:#1c5cab; }
+  .btnrow { display:flex; gap:8px; align-items:center; margin:8px 0 14px; font-size:0.75rem; }
+  .btn { font-size:0.75rem; padding:5px 11px; border:1px solid #cbd5e1; background:#fff; border-radius:8px; color:#334155; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .chk { font-size:0.71875rem; color:#475569; }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <h1>상담일지 출력 양식 시안 (ERP 항목 기준)</h1>
+  <p class="desc">
+    실무 엑셀 양식 "입력용(명절)"의 배치(가로 A4 한 장, 머리 정보 → 품목 표 → 총계 → 발송·결제 → 비고)는 유지하고,
+    <b>칸은 ERP 상담일지 항목으로 바꿨습니다</b>. 원 양식에 숨겨져 있던 마진율(인쇄 영역 밖 T·U열)은 표 안으로 들여 전부 보입니다.
+    다운로드는 엑셀 한 장(인쇄 설정 포함), 저장된 상담일지 상세에서 받습니다.
+  </p>
+
+  <h2>1. 다운로드 위치 — 상담일지 상세(수정 화면) 상단</h2>
+  <div class="btnrow">
+    <span class="btn">목록</span><span class="btn">주문 전환</span><span class="btn">종결</span>
+    <span class="btn pri">출력용 다운로드 (엑셀)</span>
+    <span class="chk">☐ 결제정보 평문 포함 <span class="mini">(결제정보 열람 권한자에게만 보이는 선택 — 켜면 다운로드 기록)</span></span>
+  </div>
+  <div class="mini">파일명: <b>2026-11-06_상담일지_온양농협_배방지점.xlsx</b> (거래명세서 규칙과 동일: 날짜_문서_업체_지점). 신규 작성 중(저장 전)에는 버튼이 없습니다.</div>
+
+  <h2>2. 시트1 '상담일지' — 인쇄 영역 전체 (A4 가로 · 한 장 맞춤 · 품목이 많으면 두 장)</h2>
+  <div class="sheet">
+    <table>
+      <colgroup>
+        <col style="width:4%"><col style="width:7%"><col style="width:6%"><col style="width:17%"><col style="width:5%">
+        <col style="width:7%"><col style="width:6%"><col style="width:8%"><col style="width:7%"><col style="width:7%">
+        <col style="width:8%"><col style="width:5%"><col style="width:6%"><col style="width:7%">
+      </colgroup>
+      <!-- 제목 -->
+      <tr>
+        <td colspan="3" class="l" style="border:none;"><span class="sub">다올커머스</span></td>
+        <td colspan="8" class="title">&lt; 상담일지 - 보관용 &gt;</td>
+        <td colspan="3" class="r" style="border:none;"><span class="sub">상태</span> <span class="badge b-green">주문전환</span> <span class="sub">주문번호</span> <b>20261106-003</b></td>
+      </tr>
+      <tr><td colspan="14" style="border:none; height:8px;"></td></tr>
+      <!-- 머리 정보 (ERP 기준) -->
+      <tr>
+        <th colspan="2">상담일</th><th>구분</th><th>작성자</th><th colspan="2">상담자(다올 담당)</th><th colspan="2">주문 진행</th>
+        <th colspan="3">은행/업체명</th><th colspan="3">지점/부서명</th>
+      </tr>
+      <tr>
+        <td colspan="2" class="num">2026-11-06</td><td>주문</td><td>김주연</td><td colspan="2">홍창의</td><td colspan="2">김승현 (요청)</td>
+        <td colspan="3">온양농협</td><td colspan="3">배방지점</td>
+      </tr>
+      <tr>
+        <th colspan="2">주문자명(담당자)</th><th colspan="4">연락처</th><th colspan="4">계산서 발행처(청구처)</th><th colspan="4">감사 서명란</th>
+      </tr>
+      <tr>
+        <td colspan="2">김민수 과장님</td>
+        <td colspan="4" class="l">(유 선) 041-540-1234 &nbsp;&nbsp; (핸드폰) 010-1234-5678</td>
+        <td colspan="4">온양농협 본점</td>
+        <td colspan="4" class="hand">(수기 서명)</td>
+      </tr>
+      <tr><td colspan="14" class="l" style="border:none; height:18px;"><span class="sub">※ 다올보유위한 샘플발주, 제안용 샘플발주, 서비스 발주도 매출처를 기재바랍니다. (원 양식 안내문 유지)</span></td></tr>
+      <!-- 품목 표: ERP 품목 필드 그대로 -->
+      <tr class="ihead">
+        <th>NO</th><th>품번</th><th>구분</th><th>품명</th><th>수량</th><th>판매단가<br>(vat포함)</th><th>할인</th><th>판매합계</th>
+        <th>매입단가</th><th>매입배송비</th><th>매입합계</th><th>마진율</th><th>상태</th><th>비고(메모·기타)</th>
+      </tr>
+      <tr>
+        <td>1</td><td>SK-3P</td><td>개별</td><td class="l">양말세트 3P</td><td class="num">100</td><td class="num r">12,000</td><td class="num r">50,000<br><span class="sub">개당 500</span></td><td class="num r">1,150,000</td>
+        <td class="num r">7,000</td><td class="num r">30,000</td><td class="num r">730,000</td><td class="num">36.5%</td><td><span class="badge b-amber">단가변경</span></td><td class="l">네이비 위주</td>
+      </tr>
+      <tr class="opt">
+        <td></td><td>BAG-M</td><td>부자재</td><td class="l">└ 쇼핑백(중)</td><td class="num">100</td><td class="num r">500</td><td class="num r">0</td><td class="num r">50,000</td>
+        <td class="num r">300</td><td class="num r">0</td><td class="num r">30,000</td><td class="num">40.0%</td><td></td><td class="l">본 상품과 함께</td>
+      </tr>
+      <tr>
+        <td>2</td><td>NUT-G5</td><td>지점</td><td class="l">견과류 선물세트 5종</td><td class="num">10</td><td class="num r">25,000</td><td class="num r">0</td><td class="num r">250,000</td>
+        <td class="num r">15,000</td><td class="num r">6,000</td><td class="num r">156,000</td><td class="num">37.6%</td><td><span class="badge b-gray">품절</span></td><td class="l">재입고 11/20 예정</td>
+      </tr>
+      <tr class="opt">
+        <td>3</td><td></td><td>비용</td><td class="l">배송비(카톤단위)</td><td class="num">1</td><td class="num r">0</td><td class="num r">0</td><td class="num r">0</td>
+        <td class="num r">12,000</td><td class="num r">0</td><td class="num r">12,000</td><td class="num">-</td><td></td><td class="l">고객 부담 없음</td>
+      </tr>
+      <tr><td>4</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr><td>5</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr class="tot">
+        <td colspan="4">총 계</td><td class="num">111</td><td></td><td class="num r">50,000</td><td class="num r">1,450,000</td>
+        <td></td><td class="num r">36,000</td><td class="num r">928,000</td><td class="num">36.0%</td><td colspan="2" class="l">마진 522,000원</td>
+      </tr>
+      <tr><td colspan="14" style="border:none; height:8px;"></td></tr>
+      <!-- 발송 정보 (ERP: 상담 단위) -->
+      <tr>
+        <th class="lab2" colspan="2">보내는분 명의</th><td colspan="3" class="l">온양농협 배방지점</td>
+        <th class="lab2" colspan="2">배송요청일</th><td colspan="2" class="num">2026-11-20</td>
+        <th class="lab2">인사장/명함</th><td colspan="2" class="l">인사장 동봉</td>
+        <th class="lab2">주소확인</th><td colspan="2">필요</td>
+      </tr>
+      <tr>
+        <th class="lab2" colspan="2">고객명단수단</th><td colspan="3" class="l">메일 (엑셀)</td>
+        <th class="lab2" colspan="2">배송지(지점·샘플)</th>
+        <td colspan="7" class="l">김민수 과장님 · 010-1234-5678 · 충남 아산시 배방읍 배방로 123 2층 총무과 <span class="sub">(우편번호 31470)</span></td>
+      </tr>
+      <!-- 결제 · 발행 정보 (509) -->
+      <tr>
+        <th class="lab2" colspan="2">결제정보</th><td colspan="3" class="l mask">신한 4518-****-****-1234 (12/27)</td>
+        <th class="lab2" colspan="2">계산서 이메일</th><td colspan="3" class="l">kim.ms@onyangnh.co.kr</td>
+        <th class="lab2">팩스</th><td colspan="3" class="l">041-540-1235</td>
+      </tr>
+      <tr>
+        <th class="lab2" colspan="2">사업자번호</th><td colspan="3" class="l">312-82-00123</td>
+        <th class="lab2" colspan="2">대표자명</th><td colspan="3" class="l">박영수</td>
+        <th class="lab2">선결제</th><td colspan="3" class="l">해당 없음</td>
+      </tr>
+      <!-- 비고 -->
+      <tr>
+        <th class="lab2" colspan="2" style="height:52px;">비고(상담 메모)</th>
+        <td colspan="12" class="l" style="vertical-align:top;">명절 전 수요일 도착 희망. 인사장 문구는 지점장님 명의로. 작년과 같은 구성이면 된다고 하심.</td>
+      </tr>
+      <tr><td colspan="14" class="r" style="border:none;"><span class="sub">출력 2026-11-11 14:02 · 김주연 · daolERP</span></td></tr>
+    </table>
+  </div>
+  <div class="mini" style="margin-top:8px;">
+    열 14개 = ERP 상담 품목 열 그대로(품번 · 구분 · 품명 · 수량 · 판매단가 · 할인 · 판매합계 · 매입단가 · 매입배송비 · 매입합계 · 마진율 · 상태 · 비고). 부자재는 본 상품 아래 "└" 행,
+    배송비는 비용 행(판매 0). 빈 행 2줄은 수기 추가용으로 남깁니다. 품목이 많으면 행이 늘어나 두 장으로 인쇄됩니다(총계·발송·결제는 마지막 장).
+  </div>
+
+  <h2>3. 시트2 '배송명단' — 개별 배송 명단(707)이 있는 상담만</h2>
+  <div class="sheet" style="padding:14px 22px;">
+    <table>
+      <colgroup><col style="width:5%"><col style="width:12%"><col style="width:12%"><col style="width:8%"><col style="width:30%"><col style="width:13%"><col style="width:6%"><col style="width:14%"></colgroup>
+      <tr class="ihead"><th>NO</th><th>수령인</th><th>연락처</th><th>우편번호</th><th>주소 · 상세주소</th><th>상품</th><th>수량</th><th>배송메모</th></tr>
+      <tr><td>1</td><td>김민수 과장님</td><td>010-1234-5678</td><td>31470</td><td class="l">충남 아산시 배방읍 배방로 123 2층 총무과</td><td class="l">양말세트 3P</td><td>1</td><td></td></tr>
+      <tr><td>2</td><td>박영희 대리님</td><td>010-9876-5432</td><td></td><td class="l">충남 아산시 온천대로 45 1층</td><td class="l">양말세트 3P</td><td>1</td><td class="l">경비실</td></tr>
+      <tr><td colspan="8" class="sub">… 명단 행 전부 (화면 패널과 같은 내용 · 우편번호는 별도 열, 주소 앞에 붙이지 않음)</td></tr>
+    </table>
+  </div>
+
+  <h2>4. 원 양식 → ERP 기준 대응표</h2>
+  <table class="map">
+    <thead><tr><th style="width:22%">원 양식 칸</th><th style="width:30%">ERP 기준 처리</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td>제목 "명절 주문서 - 보관용"</td><td class="new">"상담일지 - 보관용" + 상태 · 주문번호(전환 시)</td><td>ERP 상담 구분은 주문 · 문의 · 요청 · 결제 · 기타 — 머리 정보의 "구분" 칸으로.</td></tr>
+      <tr><td>PW</td><td class="x">삭제</td><td>ERP에 없음.</td></tr>
+      <tr><td>NO.(문서 번호) · 코드번호(행 번호)</td><td class="new">주문번호(전환 시)로 대체, 없으면 빈칸</td><td>상담일지에는 번호가 없음. 상담일 · 작성자로 식별.</td></tr>
+      <tr><td>상담자 · 발주자</td><td class="new">작성자 · 상담자(다올 담당) · 주문 진행(705 담당, 전환 후엔 주문 입력 직원)</td><td>ERP 용어 그대로 — 상담자 = 고객의 다올 담당.</td></tr>
+      <tr><td>주문일자</td><td class="ok">상담일</td><td></td></tr>
+      <tr><td>은행/업체명 · 지점/부서명 · 주문자명 · 연락처/핸드폰</td><td class="ok">그대로 (연락처 = 유선 · 핸드폰 두 값, 116 연동값)</td><td>담당자는 존칭 표기(김민수 과장님).</td></tr>
+      <tr><td>(없음)</td><td class="new">계산서 발행처(청구처, 114)</td><td>주문처가 본점 법인으로 계산서를 받는 부서면 표기.</td></tr>
+      <tr><td>감사 서명란</td><td class="ok">빈칸 유지(수기)</td><td></td></tr>
+      <tr><td>품목: 품번 · 지점/개별 · 품명 · 수량 · 판매단가 · 합계 · 매입단가 · 매입합계</td><td class="ok">그대로 + <span class="new">할인(정액/개당) · 매입배송비 · 마진율 · 상태 · 비고</span></td><td>ERP 품목 열 전체. 부자재 행 "└", 배송비 행 = 비용.</td></tr>
+      <tr><td>품목 행마다 배송요청일 · 인사장/명함 · 주소확인여부 · 고객명단수단</td><td class="new">상담 단위 발송 정보 블록으로 이동</td><td>ERP는 상담당 한 값 — 행마다 반복하지 않음.</td></tr>
+      <tr><td>마진율 (인쇄 영역 밖 T·U열, 숨김)</td><td class="new">표 안에 행별 · 총계 모두 표기</td><td>숨김 없음(사용자 지시). 마진 금액도 총계 행에.</td></tr>
+      <tr><td>12행 고정</td><td class="new">품목 수만큼 + 빈 행 2줄, 넘치면 두 장</td><td></td></tr>
+      <tr><td>보내는분 명의 · 비고</td><td class="ok">그대로</td><td></td></tr>
+      <tr><td>결제정보</td><td class="new">ERP 규칙 그대로 — 마스킹 기본(앞 4 · 뒤 4만), 열람 권한자만 평문 선택 + 다운로드 기록</td><td>평문 출력물은 개인정보라 누가 받았는지 남김.</td></tr>
+      <tr><td>(없음)</td><td class="new">계산서 이메일 · 팩스 · 사업자번호 · 대표자명(509) · 선결제 여부</td><td>ERP 결제 · 발행 정보.</td></tr>
+      <tr><td>배송지 주소</td><td class="ok">수령인 · 연락처 · 주소 + 상세, 우편번호는 괄호로 뒤에(706)</td><td>주소 앞에 우편번호를 붙이지 않는 규칙 유지.</td></tr>
+      <tr><td>(없음)</td><td class="new">시트2 배송명단(707) — 명단이 있는 상담만</td><td></td></tr>
+    </tbody>
+  </table>
+
+  <div class="flow">
+    <b>구현 방식</b><br>
+    exceljs로 값 채움(원 양식의 '주문상담' 참조 수식은 쓰지 않음) · 합계 · 마진율만 수식 · 열 너비 · 행 높이 · 색 · 인쇄 설정(가로 · 한 장 맞춤 · 인쇄 영역)을 양식과 같게.
+    생성 로직은 <code>lib/consult-sheet.ts</code>(거래명세서 <code>lib/trade-statement.ts</code>와 같은 구조), API <code>GET /api/orders-portal/consultations/[id]/sheet?payment=plain</code>.
+    마이그레이션: 결제정보 평문 다운로드 기록 테이블 1개(708) — 평문 선택을 쓰지 않기로 하면 없음.
+  </div>
+  <div class="note">
+    <b>확인할 것</b> ① 머리 정보에 "구분 · 작성자 · 상담자 · 주문 진행 · 청구처"가 들어간 배치 ② 발송 정보 4칸을 품목 행에서 빼 상담 단위 블록으로 옮긴 것
+    ③ 결제정보 마스킹 기본 + 권한자 평문 선택 ④ 배송명단 시트2 자동 포함 ⑤ 빈 행 2줄 유지 여부.
+  </div>
+
+</div>
+</body>
+</html>
