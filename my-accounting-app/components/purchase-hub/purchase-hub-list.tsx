@@ -377,14 +377,17 @@ export default function PurchaseHubList({ basePath, perms }: {
             <div className="text-xs text-gray-500">활성 매입처{filterActive && <span className="ml-1 text-blue-600 font-semibold">(필터 적용)</span>}</div>
             <div className="text-xl font-bold mt-0.5">{kpi.active_vendors.toLocaleString()}곳</div>
             <div className="text-[0.6875rem] text-gray-400 mt-0.5">
-              {filterActive ? `전체 ${summary.active_vendors.toLocaleString()}곳 중` : '기간 내 계산서·ERP 발주 발생 기준'}
+              {KIND_TABS.find(t => t.key === kindFilter)?.label} · 기간 내 계산서·ERP 발주 발생 기준
+              {filterActive && ` · 전체 ${summary.active_vendors.toLocaleString()}곳 중`}
             </div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
             <div className="text-xs text-gray-500">기간 매입 (계산서 총액)</div>
             <div className="text-xl font-bold mt-0.5 tabular-nums">{eok(kpi.invoice_total)}</div>
+            {/* 어느 구분·기간의 합인지 카드에 명시 — "전체로 잡히는 것 같다"는 혼동 방지 (2026-11-11) */}
             <div className="text-[0.6875rem] text-gray-400 mt-0.5">
-              {filterActive ? `전체 ${eok(summary.invoice_total)} 중` : '부가세 포함, 발행일 기준'}
+              {KIND_TABS.find(t => t.key === kindFilter)?.label} · {from} ~ {to} · 부가세 포함
+              {filterActive && ` · 전체 ${eok(summary.invoice_total)} 중`}
             </div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
