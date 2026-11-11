@@ -36,6 +36,7 @@ interface P {
   is_addon: boolean
   is_active: boolean
   is_soldout?: boolean
+  is_shipping?: boolean
   memo: string | null
   status_note?: string | null
   catalog_name?: string | null
@@ -108,8 +109,9 @@ export async function GET(req: NextRequest) {
       .order('item_code', { ascending: true, nullsFirst: false })
       .range(from, to) as unknown as PromiseLike<{ data: P[] | null; error: { message: string } | null }>,
   )
-  // 512 → 509 → 기본 순 폴백 (미적용 환경은 해당 칸 빈 값)
-  let result = await load(V512)
+  // 703(is_shipping) → 512 → 509 → 기본 순 폴백 (미적용 환경은 해당 칸 빈 값)
+  let result = await load(`${V512}, is_shipping`)
+  if ('error' in result) result = await load(V512)
   if ('error' in result) result = await load(V509)
   if ('error' in result) result = await load(BASE)
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
@@ -129,6 +131,7 @@ export async function GET(req: NextRequest) {
     if (filter === 'active' && !p.is_active) return false
     if (filter === 'inactive' && p.is_active) return false
     if (filter === 'addon' && !p.is_addon) return false
+    if (filter === 'cost' && !p.is_shipping) return false   // 비용 품목만 — 화면 '비용' 칩과 같음(2026-11-11, 그전엔 이 칩을 몰라 전 품목이 내려갔음)
     if (!conds.every(c => condMatch(p, c.field, c.value))) return false
     if (!q) return true
     return condMatch(p, 'all', q)   // 구형 q 파라미터 호환 (통합 검색)
