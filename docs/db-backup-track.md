@@ -11,7 +11,7 @@
 | 형식 | Supabase 공식 백업 형식 3개 파일(roles.sql · schema.sql · data.sql) — 공식 복원 절차를 그대로 쓸 수 있다 |
 | 언제 | 매일 03:00(한국 시간). GitHub 사정으로 수십 분 늦게 시작될 수 있다 |
 | 어디에 | GitHub Actions 아티팩트(이 저장소의 Actions 탭), `daolerp-backup-YYYYMMDD-HHMM` |
-| 얼마나 | 14일(`.github/workflows/db-backup.yml`의 `RETENTION_DAYS`) + 월 1회 회사 보관(아래) |
+| 얼마나 | GitHub 14일(`.github/workflows/db-backup.yml`의 `RETENTION_DAYS`) + 회사 PC 자동 보관 최근 60개 · 월별 12개월(아래) |
 | 암호화 | AES-256(gpg 대칭). 암호 `BACKUP_PASSPHRASE` 없이는 열 수 없다 |
 | 복원 시험 | 매주 월 05:00, 가장 최근 백업을 빈 Supabase(GitHub 서버 안 임시)에 실제로 복원해 표별 행 수 · 파일 수를 대조 |
 | 실패 알림 | GitHub가 실패 메일을 보낸다(일정 실행은 워크플로를 마지막으로 바꾼 계정으로) |
@@ -52,7 +52,31 @@ GitHub 저장소 → Settings → Secrets and variables → Actions → **New re
 넣은 뒤: 저장소 **Actions** 탭 → 왼쪽 **DB 정기 백업** → **Run workflow** → 초록 체크가 뜨면 →
 **백업 복원 시험** → **Run workflow** → 초록 체크가 뜨면 설정 끝. 실패하면 실행 화면 주소를 Claude 세션에 주면 된다.
 
-## 월 1회 회사 보관 (사용자, 매월 첫 업무일 권장)
+## 로컬(회사 PC) 자동 보관 — 2026-11-11 사용자 요청으로 추가
+
+매일 켜져 있는 회사 PC(서버가 있으면 서버)가 GitHub의 암호화 백업을 매일 받아 폴더에 쌓는다. 백업은 계속 GitHub가 만들고 PC는 받아서 보관만 한다.
+스크립트: `scripts/backup/windows/pull-backups.ps1`(받기) · `install-task.ps1`(작업 스케줄러 등록). 윈도우 기본 PowerShell만 쓴다(설치할 것 없음).
+
+- 매일 10:00 실행. 그 시각에 PC가 꺼져 있었으면 켜진 뒤 바로 실행하고, 밀린 날 것까지 받는다(GitHub 14일 보관 안에 있는 것만).
+- 기본 폴더 `D:\daolERP-backup`: 최근 60개(약 두 달) + `monthly\`에 달마다 첫 백업 1개씩 12개월.
+- 암호화된 그대로 저장한다. 실행 기록은 폴더의 `pull-backups.log`.
+
+처음 설정(한 번만):
+1. GitHub 토큰 만들기: GitHub 오른쪽 위 프로필 → Settings → Developer settings → Personal access tokens → **Fine-grained tokens** →
+   Generate new token. 이름 `daolERP 백업 받기`, 만료 1년, Repository access는 **Only select repositories → daolERP**,
+   Permissions → Repository permissions → **Actions: Read-only**(나머지는 그대로 없음). 만든 토큰을 복사.
+   만료일을 달력에 적어 두고 그 전에 새 토큰으로 2번을 다시 한다.
+2. 두 스크립트를 한 폴더(예: `C:\daolERP-backup-tool`)에 넣고, 그 폴더에서 PowerShell을 열어
+   `powershell -ExecutionPolicy Bypass -File .\pull-backups.ps1 -SetToken` → 토큰 붙여 넣기.
+   토큰은 이 PC · 이 윈도우 계정에서만 풀리게 암호화해 저장된다.
+3. `powershell -ExecutionPolicy Bypass -File .\install-task.ps1 -Dest D:\daolERP-backup` → 등록과 동시에 한 번 받아 본다.
+   D 드라이브가 없으면 `-Dest`에 다른 폴더를 준다.
+4. 확인: 폴더에 `daolerp-backup-….tar.gz.gpg`가 생기고 `pull-backups.log` 마지막 줄이 "완료"면 끝.
+
+이 PC가 고장 나도 GitHub · 백업 암호가 있으면 다른 PC에서 다시 받을 수 있다. 반대로 GitHub 계정이 사라져도 이 폴더가 남는다.
+PC 디스크 하나만 믿지 말고, 가끔(분기 1회 등) `monthly\` 폴더를 외장 디스크에도 복사해 두면 더 안전하다.
+
+## 월 1회 회사 보관 (로컬 자동 보관을 쓰지 않을 때, 매월 첫 업무일 권장)
 
 GitHub 계정 자체가 털리거나 지워지는 경우까지 대비하려면 GitHub 밖에도 한 부 있어야 한다.
 
@@ -100,9 +124,12 @@ Claude 세션에 "백업 복원"을 요청하면 아래 순서로 진행한다. 
 
 - 저장소 비공개 전환 실행 확인(2026-11-11 결정, 사용자가 GitHub 설정에서 전환). 전환 뒤 첫 백업 크기로 500MB 한도 대비 보관 기간 재검토.
 - 첫 실행 결과(백업 크기 · 소요 시간 · 복원 시험 통과) 기록.
+- 로컬 자동 보관을 둘 PC 결정 · 설정 완료 확인. PowerShell 스크립트는 이 환경에 윈도우가 없어 실행 시험을 못 했다 — 첫 설정 때 로그로 확인.
 
 ## 이력
 
 - 2026-11-11 구축: 일일 백업 + 주간 복원 시험 워크플로, 스크립트 로컬 검증(시험용 PostgreSQL로 행 수 세기 · 대조,
   모의 저장소 서버로 파일 복사/올리기 · 실패 처리, 암호화 묶기/풀기 · 틀린 암호 거부, 설정 확인 오류 문구).
   실제 운영 DB · Supabase CLI 덤프 · 임시 Supabase 복원은 이 환경에서 돌릴 수 없어 첫 GitHub 실행으로 확인한다.
+- 2026-11-11 로컬(회사 PC) 자동 보관 추가: `scripts/backup/windows/` — 윈도우 작업 스케줄러가 매일 GitHub 백업을 받아 보관
+  (최근 60개 + 월별 12개월, 토큰은 Actions 읽기 전용 · DPAPI 암호화 저장).
