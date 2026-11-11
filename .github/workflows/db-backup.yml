@@ -47,6 +47,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            my-accounting-app/package-lock.json
+            scripts/backup/excel/package-lock.json
 
       - name: DB 덤프
         run: bash scripts/backup/dump-db.sh "$WORK"
@@ -55,6 +59,22 @@ jobs:
         id: storage
         continue-on-error: true # 파일 복사가 실패해도 DB 백업은 보관한다(마지막 단계에서 실패로 표시)
         run: node scripts/backup/backup-storage.mjs "$WORK/db/storage-objects.json" "$WORK/storage"
+
+      # 보기용 엑셀: 앱 화면의 "엑셀 다운로드"와 같은 코드로 주문 현황 · 통장 내역 등을 만들어 묶음에 함께 넣는다.
+      # 읽기만 한다. 실패해도 백업은 그대로 보관한다(경고만).
+      - name: 보기용 엑셀 만들기
+        id: excel
+        continue-on-error: true
+        run: |
+          source scripts/backup/common.sh
+          if [[ -z "${SUPABASE_URL:-}" ]]; then
+            SUPABASE_URL="https://$(project_ref_from_url "$SUPABASE_DB_URL").supabase.co"
+          fi
+          (cd my-accounting-app && npm ci --no-audit --no-fund --loglevel=error)
+          (cd scripts/backup/excel && npm ci --no-audit --no-fund --loglevel=error && node build.mjs)
+          cd my-accounting-app
+          NEXT_PUBLIC_SUPABASE_URL="$SUPABASE_URL" NEXT_PUBLIC_SUPABASE_ANON_KEY=unused \
+            node node_modules/.cache/backup-excel/run.cjs "$WORK/excel"
 
       - name: 묶기 · 암호화
         run: bash scripts/backup/pack.sh "$WORK" "$RUNNER_TEMP/out/daolerp-backup-$STAMP.tar.gz.gpg"
@@ -71,6 +91,10 @@ jobs:
       - name: 작업 폴더 지우기
         if: always()
         run: rm -rf "$RUNNER_TEMP/backup" "$RUNNER_TEMP/out"
+
+      - name: 보기용 엑셀 결과 확인
+        if: steps.excel.outcome == 'failure'
+        run: echo "::warning::DB 백업은 정상 보관했지만 보기용 엑셀을 만들지 못했습니다(백업 자체에는 영향 없음)."
 
       - name: 파일 저장소 결과 확인
         if: steps.storage.outcome == 'failure'

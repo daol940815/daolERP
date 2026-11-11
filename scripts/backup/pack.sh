@@ -23,6 +23,11 @@ expected=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.ar
   echo "PostgreSQL: $(cat "$work/db/server_version_num")"
   echo "DB 표: $(wc -l < "$work/db/row-counts.tsv")개 · 행 합계 $(sum_counts "$work/db/row-counts.tsv")건 (표별 건수: db/row-counts.tsv)"
   echo "파일 저장소: ${files}/${expected}개 · ${bytes} bytes"
+  if [[ -d "$work/excel" ]]; then
+    echo "보기용 엑셀: excel/ 폴더 $(find "$work/excel" -name '*.xlsx' | wc -l)개 (앱 엑셀 다운로드와 같은 모양, 만든 결과: excel/_만들기결과.txt)"
+  else
+    echo "보기용 엑셀: 이번 백업에는 없음"
+  fi
   echo
   echo "복원 방법: 저장소 docs/db-backup-track.md '복원' 절"
 } > "$work/MANIFEST.txt"
