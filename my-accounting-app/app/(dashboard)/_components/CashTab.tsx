@@ -4,7 +4,6 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import OrphanedAccountsSection, { type OrphanedGroup } from './OrphanedAccountsSection'
 import { buildVendorLinkStatus } from '@/lib/vendor-link-status'
-import DashboardPeriodFilter from '@/components/dashboard/DashboardPeriodFilter'
 
 // force-dynamic: 정적 렌더링 방지 (빌드 시 캐싱 금지)
 
@@ -396,16 +395,14 @@ export default async function CashTab({ searchParams }: {
 
   return (
     <div className="max-w-6xl mx-auto">
-      {/* 헤더 + 기간 필터 */}
-      <div className="mb-6 flex items-end justify-between flex-wrap gap-3">
-        <div>
-          
-          <p className="text-slate-500 mt-0.5 text-sm">
-            {todayStr}
-            {hasPeriod && <span className="ml-2 text-blue-600 font-medium">— {periodLabel} 조회 중 (잔액은 {pTo} 기준)</span>}
-          </p>
-        </div>
-        <DashboardPeriodFilter from={pFrom} to={pTo} />
+      {/* 헤더 — 기간 선택은 대시보드 공통 기간 줄(page.tsx)로 옮김 (2026-11-11) */}
+      <div className="mb-6">
+        <p className="text-slate-500 mt-0.5 text-sm">
+          {todayStr}
+          {hasPeriod
+            ? <span className="ml-2 text-blue-600 font-medium">— {periodLabel} 조회 중 (잔액은 {pTo} 기준)</span>
+            : <span className="ml-2 text-slate-400">— 현재 기준 잔액 · 입출금은 {cur.label}</span>}
+        </p>
       </div>
 
       {/* 전체 요약 카드 */}

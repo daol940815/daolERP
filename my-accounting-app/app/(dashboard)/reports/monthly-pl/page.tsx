@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import MonthPresets from '@/components/ui/MonthPresets'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 const eok = (n: number) => {
@@ -118,6 +119,9 @@ export default function MonthlyPLPage() {
             className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">↓ 엑셀</button>
         </div>
       </div>
+
+      {/* 월 단위 기간 칩 — 누르면 월 입력 칸이 채워지고 바로 다시 조회된다 (2026-11-11 승인) */}
+      <MonthPresets from={monthFrom} to={monthTo} onChange={(f, t) => { setMonthFrom(f); setMonthTo(t) }} className="mt-3" />
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
 
