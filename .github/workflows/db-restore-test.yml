@@ -1,0 +1,77 @@
+# 백업 복원 시험 — 매주 월요일 새벽 05:00(한국 시간), 가장 최근 백업을 빈 Supabase에 실제로 복원해 건수를 대조한다.
+# "백업이 있다"가 아니라 "백업으로 되살릴 수 있다"를 매주 확인하는 장치. 안내: docs/db-backup-track.md
+name: 백업 복원 시험
+
+on:
+  schedule:
+    - cron: '0 20 * * 0' # UTC 일 20:00 = 한국 월 05:00
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: '시험할 백업 실행 번호(비우면 가장 최근 성공한 백업)'
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: db-restore-test
+  cancel-in-progress: false
+
+jobs:
+  restore-test:
+    if: github.repository == 'daol940815/daolERP'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      NEED_SERVICE_KEY: '0'
+      NEED_DB_URL: '0'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 비밀값 확인
+        run: bash scripts/backup/check-secrets.sh
+
+      - name: 시험할 백업 찾기
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_RUN_ID: ${{ inputs.run_id }}
+        run: |
+          rid="${INPUT_RUN_ID:-}"
+          if [[ -z "$rid" ]]; then
+            rid=$(gh run list -R "$GITHUB_REPOSITORY" --workflow db-backup.yml --status success --limit 1 \
+                    --json databaseId -q '.[0].databaseId')
+          fi
+          [[ -n "$rid" ]] || { echo "::error::성공한 백업이 아직 없습니다. 'DB 정기 백업'을 먼저 실행하세요"; exit 1; }
+          echo "BACKUP_RUN_ID=$rid" >> "$GITHUB_ENV"
+          echo "시험 대상: 백업 실행 $rid"
+
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ env.BACKUP_RUN_ID }}
+          github-token: ${{ github.token }}
+          pattern: daolerp-backup-*
+          path: ${{ runner.temp }}/dl
+          merge-multiple: true
+
+      - name: 묶음 풀기 · 체크섬 확인
+        run: |
+          f=$(ls "$RUNNER_TEMP"/dl/*.tar.gz.gpg | head -1)
+          bash scripts/backup/unpack.sh "$f" "$RUNNER_TEMP/bk"
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 빈 Supabase에 복원 · 대조
+        run: bash scripts/backup/restore-test.sh "$RUNNER_TEMP/bk"
+
+      - name: 작업 폴더 지우기
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/dl" "$RUNNER_TEMP/bk" "$RUNNER_TEMP/restore-project"
