@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { listParams, readListParams, type CondField, type ProductCond, type ProductFilter } from '@/lib/product-list-params'
 import VendorInfoPanel, { useVendorInfo } from './vendor-info-panel'
 import { branchMargin, individualMargin, formatProfit, formatRate, type Margin } from '@/lib/product-margin'
 
@@ -33,7 +35,6 @@ const emptyDraft = {
 }
 
 // 검색 구분 (기존 ERP 방식 — 2026-11-03 실무자 요청)
-type CondField = 'all' | 'code' | 'name' | 'vendor' | 'category'
 const COND_LABEL: Record<CondField, string> = {
   all: '전체', code: '품번', name: '품명', vendor: '매입처', category: '목차',
 }
@@ -56,6 +57,29 @@ type SortKey = 'code' | 'name' | 'category' | 'vendor' | 'sale' | 'individual' |
   | 'b_profit' | 'b_rate' | 'i_profit' | 'i_rate' | 'carton' | 'carton_fee' | 'loose_fee' | 'memo' | 'status'
 type SortDir = 'asc' | 'desc'
 const DEFAULT_SORT: { key: SortKey; dir: SortDir } = { key: 'name', dir: 'asc' }
+
+// 필터 유지 (2026-11-11 사용자 승인 "제안대로 진행") — 주문 현황 방식을 품목 관리에 맞춰 적용
+//  - 조건 칩 · 상태 칩 · 정렬을 주소에 적는다(replaceState — 뒤로가기 기록 안 쌓음, 기본값은 생략)
+//  - 열릴 때 주소에서 읽고, 메뉴 클릭 등으로 주소가 바깥에서 바뀌면 다시 읽는다(메뉴 = 기본값)
+//  - 스크롤(본문 <main>)은 떠날 때 저장, 뒤로가기 · 새로고침으로 돌아왔을 때만 되살린다(메뉴 클릭은 맨 위)
+const SCROLL_KEY = 'daol:products-list-scroll'
+const LIST_PATH = '/orders/products'
+let lastPopAt = 0                    // 마지막 브라우저 뒤로 · 앞으로 시각 (화면이 붙기 전에 일어나므로 모듈에서 기록)
+let initialDocLoad = true            // 문서를 새로 연 뒤 첫 화면인지 (새로고침 판정용)
+if (typeof window !== 'undefined') window.addEventListener('popstate', () => { lastPopAt = Date.now() })
+function cameBackHere(): boolean {
+  if (Date.now() - lastPopAt < 3000) return true
+  if (!initialDocLoad) return false
+  try {
+    const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
+    return nav?.type === 'reload' || nav?.type === 'back_forward'
+  } catch { return false }
+}
+const parseSort = (sp: URLSearchParams): { key: SortKey; dir: SortDir } => {
+  const k = sp.get('sort') as SortKey | null
+  const key = k && (SORT_OPTIONS as string[]).includes(k) ? k : DEFAULT_SORT.key
+  return { key, dir: sp.get('dir') === 'desc' ? 'desc' : sp.get('dir') === 'asc' ? 'asc' : (k ? 'asc' : DEFAULT_SORT.dir) }
+}
 // 표 칸 순서 = 머리글 순서
 // 세 번째 값 = 칸 값의 정렬(금액 · 수량은 오른쪽). 머리글은 모두 왼쪽(2026-11-10 사용자 확정 A안)
 const SORT_COLS: [SortKey, string, 'left' | 'right'][] = [
@@ -130,10 +154,40 @@ export default function ProductsPage() {
   // 구분·검색어 입력은 즉시 필터, Enter로 조건 칩에 쌓여 전부 만족(AND)한 품목만 표시
   const [search, setSearch] = useState('')
   const [condField, setCondField] = useState<CondField>('all')
-  const [conds, setConds] = useState<{ field: CondField; value: string }[]>([])
-  const [filter, setFilter] = useState<'active' | 'inactive' | 'addon' | 'cost' | 'all'>('active')
+  const [conds, setConds] = useState<ProductCond[]>([])
+  const [filter, setFilter] = useState<ProductFilter>('active')
   const [sort, setSort] = useState(DEFAULT_SORT)
   const isDefaultSort = sort.key === DEFAULT_SORT.key && sort.dir === DEFAULT_SORT.dir
+
+  // 주소 ↔ 조건 (필터 유지, 2026-11-11)
+  const [ready, setReady] = useState(false)          // 주소를 읽기 전에는 주소에 쓰지 않고 목록도 그리지 않음
+  const lastWritten = useRef<string | null>(null)   // 이 화면이 마지막으로 주소에 적은 조건
+  const listUrl = useRef(LIST_PATH)                 // 그 주소 전체 — 떠날 때 스크롤과 함께 저장(떠나는 순간 주소는 이미 다음 화면일 수 있음)
+  const applyFromUrl = useCallback((sp: URLSearchParams) => {
+    const { filter: f, conds: c } = readListParams(sp)
+    setFilter(f); setConds(c); setSort(parseSort(sp))
+  }, [])
+  useEffect(() => {
+    applyFromUrl(new URLSearchParams(window.location.search))
+    setReady(true)
+  }, [applyFromUrl])
+  const searchParams = useSearchParams()
+  const spKey = searchParams.toString()
+  useEffect(() => {
+    if (!ready || lastWritten.current === null || spKey === lastWritten.current) return
+    applyFromUrl(new URLSearchParams(spKey))           // 사이드바 메뉴(/orders/products) = 기본값으로
+    const main = document.querySelector('main'); if (main) main.scrollTop = 0
+  }, [spKey, ready, applyFromUrl])
+  useEffect(() => {
+    if (!ready) return
+    const p = listParams(filter, conds)
+    if (!isDefaultSort) { p.set('sort', sort.key); p.set('dir', sort.dir) }
+    const qs = p.toString()
+    lastWritten.current = qs
+    const url = qs ? `${LIST_PATH}?${qs}` : LIST_PATH
+    listUrl.current = url
+    if (window.location.pathname + window.location.search !== url) window.history.replaceState(window.history.state, '', url)
+  }, [ready, filter, conds, sort, isDefaultSort])
   // 머리글 클릭: 다른 칸 → 오름차순, 오름차순 → 내림차순, 내림차순 → 기본 순서
   const toggleSort = (key: SortKey) => setSort(prev =>
     prev.key !== key ? { key, dir: 'asc' } : prev.dir === 'asc' ? { key, dir: 'desc' } : DEFAULT_SORT)
@@ -165,6 +219,39 @@ export default function ProductsPage() {
     setLoading(false)
   }, [loadPhones])
   useEffect(() => { load() }, [load])
+
+  // 스크롤 위치 (필터 유지, 2026-11-11): 본문 <main>의 위치를 계속 기억해 두었다가 떠날 때(다른 화면 · 새로고침) 저장
+  const lastTop = useRef(0)
+  useEffect(() => {
+    const main = document.querySelector('main')
+    if (!main) return
+    const onScroll = () => { lastTop.current = main.scrollTop }
+    const save = () => {
+      try {
+        sessionStorage.setItem(SCROLL_KEY, JSON.stringify({ url: listUrl.current, top: lastTop.current }))
+      } catch { /* 저장 불가 브라우저 — 위치 복원만 안 됨 */ }
+    }
+    main.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('pagehide', save)
+    return () => { main.removeEventListener('scroll', onScroll); window.removeEventListener('pagehide', save); save() }
+  }, [])
+  // 뒤로가기 · 새로고침으로 돌아왔을 때만, 목록이 다 그려진 뒤 한 번 되살린다(메뉴 클릭 · 처음 열기 = 맨 위)
+  const scrollRestored = useRef(false)
+  useEffect(() => {
+    if (!ready || loading || scrollRestored.current) return
+    scrollRestored.current = true
+    const back = cameBackHere()
+    initialDocLoad = false
+    try {
+      const raw = sessionStorage.getItem(SCROLL_KEY)
+      sessionStorage.removeItem(SCROLL_KEY)
+      if (!back || !raw) return
+      const { url, top } = JSON.parse(raw) as { url: string; top: number }
+      if (url === window.location.pathname + window.location.search && top > 0) {
+        requestAnimationFrame(() => { const main = document.querySelector('main'); if (main) { main.scrollTop = top; lastTop.current = top } })
+      }
+    } catch { /* 무시 */ }
+  }, [ready, loading])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -296,10 +383,8 @@ export default function ProductsPage() {
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) checkFile(f) }} />
           <button onClick={() => {
-              const p = new URLSearchParams()
-              if (filter !== 'active') p.set('filter', filter)
-              // 조건 칩 + 입력 중 검색어 그대로 — 다운로드도 화면과 같은 결과
-              conds.forEach(c => p.append('cond', `${c.field}:${c.value}`))
+              // 주소와 같은 원천(listParams) + 입력 중 검색어 — 다운로드도 화면과 같은 결과
+              const p = listParams(filter, conds)
               if (search.trim()) p.append('cond', `${condField}:${search.trim()}`)
               window.location.href = `/api/orders-portal/products/export?${p}`
             }}
@@ -485,7 +570,7 @@ export default function ProductsPage() {
       )}
 
       <div className="bg-white border border-gray-200 rounded-xl mt-3 overflow-x-auto">
-        {loading ? <div className="text-center py-16 text-gray-400">로딩 중...</div> : (
+        {loading || !ready ? <div className="text-center py-16 text-gray-400">로딩 중...</div> : (
           <table className="w-full text-sm min-w-[760px]">
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">

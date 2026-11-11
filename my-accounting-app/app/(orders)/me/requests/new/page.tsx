@@ -4,6 +4,7 @@
 // 오른쪽: 선택한 담당자가 지금 맡고 있는 업무(열린 요청) — 근태·휴가 대신(2026-11-02 사용자 요청). 여유 판단은 요청자가 한다.
 // 마감은 필수(기본 당일 18:00), 긴급·비공개 체크. 본인에게 요청 가능.
 // ?from=<id> 로 들어오면(반려 건 다시 요청) 그 요청의 내용·담당자·방식·태그를 미리 채운다.
+// 첨부 파일(1200, 2026-11-11): 작성 중 올린 파일은 draft_key 로 묶였다가 요청 저장 시 연결. 저장하지 않으면 하루 뒤 정리.
 // 업무 계열 태그(904, 2026-11-10): 1개 이상 · 최대 3개. 제목 · 내용 키워드로 추천(점선)만 하고 확정은 사용자. 질문하기 · 권한 요청은 ERP 문의 자동.
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
@@ -14,6 +15,7 @@ import { TagPicker } from '@/components/work-requests/tag-chip'
 import { HELP_QUESTION_PREFIX, HELP_PERMISSION_PREFIX } from '@/lib/help-registry'
 import { GROUP_LABELS, type GroupKey } from '@/lib/permissions'
 import { deviceLabelFrom } from '@/lib/push'
+import AttachmentBox from '@/components/attachments/AttachmentBox'
 
 // 질문 · 권한 요청의 기본 마감: 익일 18:00 (KST) — 2026-11-03 결정 ⑤
 function questionDueLocal(now = new Date()): string {
@@ -52,6 +54,7 @@ function NewRequestForm() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const [draftKey] = useState(() => crypto.randomUUID())   // 작성 중 올린 첨부를 묶는 키 — 저장할 때 서버가 이 요청에 연결 (1200)
 
   useEffect(() => {
     // 태그 마스터 (904 미적용이면 빈 목록 — 태그 줄을 숨긴다)
@@ -135,7 +138,7 @@ function NewRequestForm() {
     if (hasTags && !tagIds.length) { setError('업무 계열을 하나 이상 고르세요.'); return }
     setBusy(true)
     const res = await fetch('/api/work-requests', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ assignee_ids: assignees, assign_mode: assignees.length > 1 ? mode : undefined, title: title.trim(), content, link, due_at: localToIso(due), is_urgent: urgent, is_private: isPrivate, tag_ids: tagIds }) })
+      body: JSON.stringify({ assignee_ids: assignees, assign_mode: assignees.length > 1 ? mode : undefined, title: title.trim(), content, link, due_at: localToIso(due), is_urgent: urgent, is_private: isPrivate, tag_ids: tagIds, draft_key: draftKey }) })
     const json = await res.json().catch(() => ({}))
     setBusy(false)
     if (!res.ok) { setError(json.error ?? '요청 실패'); return }
@@ -257,6 +260,7 @@ function NewRequestForm() {
             <span className="text-xs font-medium text-gray-600">관련 링크 · 서버 경로 (선택)</span>
             <input value={link} onChange={e => setLink(e.target.value)} placeholder="ERP 화면 주소, 회사 서버 경로, 문서 주소" className={`${inputCls} mt-1`} />
           </label>
+          <AttachmentBox ownerType="work_request" draftKey={draftKey} pasteAnywhere />
           <div className="flex gap-2 pt-1">
             <button type="submit" disabled={busy} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">{busy ? '보내는 중...' : assignees.length > 1 ? `요청 보내기 (${assignees.length}명 · ${mode === 'first' ? '선착' : '공동'})` : '요청 보내기'}</button>
             <Link href="/me/requests" className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">취소</Link>
