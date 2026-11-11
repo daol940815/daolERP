@@ -1013,5 +1013,8 @@ ERP 주문은 계획대로 교체(erp-reload-track). 결정 대기.
 ## 매입처 관리 카드 금액 표기 (2026-11-11 사용자 요청)
 
 - 기간 매입·미지급 잔액 등 KPI 카드의 '2.78억' 축약 표기를 폐기하고 `1,000,000원` 형식으로 바꿨다
-  (`components/purchase-hub/purchase-hub-list.tsx` · `purchase-hub-detail.tsx`의 `eok` → 전체 금액). 매출처 허브(`sales-hub`)는
-  아직 억 단위 축약 — 같은 요청이 오면 같은 방식으로.
+  (`components/purchase-hub/purchase-hub-list.tsx` · `purchase-hub-detail.tsx`의 `eok` → 전체 금액).
+- 이어서(같은 날) 매출처 허브 목록·상세(`app/(dashboard)/sales-hub/page.tsx` · `[vendorId]/page.tsx`)도 같은 방식으로 전체 금액.
+- 기간 칩: 매출처 허브는 이미 표준 `PeriodPresets`(최근 7일 ~ 전체 기간)였고, 매입처 관리 목록·상세는 자체 칩 6개(당월·1분기·2분기·
+  상반기·당년·전체 기간, 전체 기간 = 2024-01-01)였음 → 표준 `PeriodPresets`로 교체(전체 기간 = DATA_START 2025-01-01, 켜짐 판정은
+  from/to 일치). 기본 기간은 당년(상세는 목록에서 넘어온 기간).

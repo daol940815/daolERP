@@ -43,7 +43,8 @@ interface Summary {
 }
 
 const won = (n: number) => n.toLocaleString('ko-KR')
-const eok = (n: number) => n >= 100000000 ? `${(n / 100000000).toFixed(2)}억` : n >= 10000 ? `${Math.round(n / 10000).toLocaleString()}만` : won(n)
+// 카드 금액은 1,000,000원 형식 그대로 — 억·만 축약은 정확한 금액 확인이 어려워 폐기 (2026-11-11 사용자 요청, 매입처와 동일)
+const eok = (n: number) => `${won(n)}원`
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   normal:      { label: '정상',     cls: 'bg-green-100 text-green-700' },
