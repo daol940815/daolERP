@@ -259,11 +259,15 @@ function TransactionsContent() {
   // 마지막으로 실제 불러온 조회 조건 — 기간을 바꾸고 조회를 안 누른 상태를 알려주기 위해
   // (통합 필터는 불러온 행 안에서만 거르므로, 기간만 바꾸고 검색하면 "결과 없음"이 된다 — 2026-11-10 보고)
   const [fetched, setFetched] = useState<Filters | null>(null)
-  const [filters, setFilters]     = useState<Filters>({
-    ...defaultDateRange(),
-    bankAccountId: bankAccountIdParam,
-    vendorId: vendorIdParam,
+  const [filters, setFilters]     = useState<Filters>(() => {
+    // ?from=&to= 가 오면 그 기간으로 시작 (매입처 상세 '거래처 미연결 출금 보기' 등 드릴다운)
+    const d = defaultDateRange()
+    const isDate = (v: string | null) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v)
+    const pf = searchParams.get('from'), pt = searchParams.get('to')
+    return { from: isDate(pf) ? pf! : d.from, to: isDate(pt) ? pt! : d.to, bankAccountId: bankAccountIdParam, vendorId: vendorIdParam }
   })
+  // 거래처 셀에서 직접 지정했을 때 "이 적요를 통장 키워드로 추가할까요?" (423 — 계정과목 키워드 학습과 같은 흐름)
+  const [vendorKwPrompt, setVendorKwPrompt] = useState<{ vendorId: string; vendorName: string; keyword: string } | null>(null)
   const [toast, setToast]         = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
   const [keywordPrompt, setKeywordPrompt] = useState<{ accountId: string; accountName: string; keyword: string } | null>(null)
   const [journalPreview, setJournalPreview] = useState<{
@@ -434,6 +438,12 @@ function TransactionsContent() {
     } else if (colId === 'vendor') {
       // valueSetter에서 vendor_id를 이미 갱신해 둠
       body = { vendor_id: data.vendor_id ?? null }
+      if (data.vendor_id) {
+        const v = vendors.find(x => x.id === data.vendor_id)
+        const kw = ((data.counterparty_name ?? data.description) ?? '').trim()
+        const already = (v?.bank_keywords ?? v?.match_aliases ?? []).some(k => k && kw.toLowerCase().includes(k.toLowerCase()))
+        if (v && kw.length >= 2 && kw !== v.name && !already) setVendorKwPrompt({ vendorId: v.id, vendorName: v.name, keyword: kw })
+      }
     } else if (colDef.field === 'memo') {
       body = { memo: data.memo ?? null }
     } else {
@@ -456,7 +466,27 @@ function TransactionsContent() {
         setKeywordPrompt({ accountId: account.id, accountName: account.name, keyword: desc })
       }
     }
-  }, [showToast, accounts])
+  }, [showToast, accounts, vendors])
+
+  // 통장 키워드 학습 제안 적용 — vendors.bank_keywords (423 전이면 서버가 거부 → 안내)
+  const handleAddVendorKeyword = useCallback(async () => {
+    if (!vendorKwPrompt) return
+    const kw = vendorKwPrompt.keyword.trim()
+    if (!kw) { setVendorKwPrompt(null); return }
+    const v = vendors.find(x => x.id === vendorKwPrompt.vendorId)
+    const existing = v?.bank_keywords ?? []
+    const res = await fetch(`/api/vendors/${vendorKwPrompt.vendorId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bank_keywords: Array.from(new Set([...existing, kw])) }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (res.ok) {
+      setVendors(prev => prev.map(x => x.id === vendorKwPrompt.vendorId ? { ...x, bank_keywords: json.data?.bank_keywords ?? [...existing, kw] } : x))
+      const warn: string[] = json.warnings ?? []
+      showToast(warn.length ? `키워드 추가됨 · 주의: ${warn.join(' / ')}` : `"${kw}" 통장 키워드 추가 완료`, warn.length ? 'err' : 'ok')
+    } else showToast(json.error ?? '키워드 추가 실패', 'err')
+    setVendorKwPrompt(null)
+  }, [vendorKwPrompt, vendors, showToast])
 
   // 키워드 학습 제안 적용
   const handleAddKeyword = useCallback(async () => {
@@ -1527,6 +1557,22 @@ function TransactionsContent() {
           <button onClick={() => setKeywordPrompt(null)} className="px-3 py-1 text-xs text-amber-700 hover:underline">
             건너뛰기
           </button>
+        </div>
+      )}
+
+      {/* 통장 키워드 학습 제안 (거래처 직접 지정 뒤) */}
+      {vendorKwPrompt && !keywordPrompt && (
+        <div className="fixed bottom-6 left-6 max-w-md px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg shadow-lg z-50 flex flex-wrap items-center gap-2">
+          <span className="text-sm text-emerald-800">
+            <strong>{vendorKwPrompt.vendorName}</strong>의 통장 키워드로 추가해 다음에도 자동 연결되게 할까요?
+          </span>
+          <input
+            value={vendorKwPrompt.keyword}
+            onChange={e => setVendorKwPrompt(p => p && { ...p, keyword: e.target.value })}
+            className="border border-emerald-300 rounded px-2 py-1 text-sm flex-1 min-w-[140px] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          />
+          <button onClick={handleAddVendorKeyword} className="px-3 py-1 bg-emerald-600 text-white rounded text-xs font-medium hover:bg-emerald-700">추가</button>
+          <button onClick={() => setVendorKwPrompt(null)} className="px-3 py-1 text-xs text-emerald-700 hover:underline">건너뛰기</button>
         </div>
       )}
 
