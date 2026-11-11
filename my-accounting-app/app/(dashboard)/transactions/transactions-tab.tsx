@@ -1247,9 +1247,11 @@ function TransactionsContent() {
               ? '<span class="text-gray-400">조회 중...</span>'
               : '<span class="text-gray-400">조회된 거래가 없습니다. 필터를 확인하거나 파일을 업로드하세요.</span>'
           }
-          // 불러온 행은 있는데 통합 필터·머리글 필터에 걸리는 행이 없을 때 (기본 "No Matching Rows")
+          // 불러온 행은 있는데 통합 필터·머리글 필터에 걸리는 행이 없을 때 — AG Grid v35는 이 경우
+          // noRowsToShow가 아니라 별도 키 noMatchingRows("No Matching Rows")를 쓴다 (2026-11-11 수정)
           localeText={{
-            noRowsToShow: `불러온 ${rowData.length.toLocaleString('ko-KR')}건(${fetched?.from ?? ''} ~ ${fetched?.to ?? ''}) 안에 조건에 맞는 거래가 없습니다. 다른 기간이면 위 기간을 바꾸고 조회하세요.`,
+            noMatchingRows: `불러온 ${rowData.length.toLocaleString('ko-KR')}건(${fetched?.from ?? ''} ~ ${fetched?.to ?? ''}) 안에 조건에 맞는 거래가 없습니다. 다른 기간이면 위 기간을 바꾸고 조회하세요.`,
+            noRowsToShow: '조회된 거래가 없습니다. 필터를 확인하거나 파일을 업로드하세요.',
             page: '페이지', of: '/', to: '~', pageSizeSelectorLabel: '페이지 크기:',
             firstPage: '첫 페이지', previousPage: '이전', nextPage: '다음', lastPage: '마지막',
             filterOoo: '필터...', equals: '같음', notEqual: '같지 않음', lessThan: '미만', greaterThan: '초과',
