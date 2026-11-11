@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { honorify } from '@/lib/contact-label'
+import ReasonBadge from '@/components/ui/ReasonBadge'
 
 // 상담일지 목록 — 기본 본인 작성분, manager/admin은 전체 보기 전환 가능.
 // 품목 행 단위 표시 (실무자 피드백 7, 2안): 상품 1개 = 1줄, 부자재·배송비 행 제외.
@@ -43,6 +44,13 @@ interface Row {
   req_label?: string | null
   req_reply_by?: string | null
   is_owner?: boolean
+  // 종결 · 삭제 기록 (709) — 배지를 누르면 사유 창
+  closed_at?: string | null
+  close_reason?: string | null
+  closed_by_name?: string | null
+  deleted_at?: string | null
+  delete_reason?: string | null
+  deleted_by_name?: string | null
 }
 type Scope = 'mine' | 'assigned' | 'requested' | 'done'
 interface Emp { id: string; name: string; team: string | null; position: string | null; employment_type?: string | null }
@@ -84,6 +92,8 @@ export default function ConsultationsPage() {
   const [status, setStatus] = useState('all')
   const [type, setType] = useState('all')
   const [all, setAll] = useState(false)
+  const [showDeleted, setShowDeleted] = useState(false)   // 삭제된 것 보기 (관리자급, 709)
+  const [deletedCount, setDeletedCount] = useState(0)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
@@ -157,6 +167,7 @@ export default function ConsultationsPage() {
     if (status !== 'all') p.set('status', status)
     if (type !== 'all') p.set('type', type)
     if (all) p.set('all', '1')
+    if (showDeleted) p.set('deleted', '1')
     if (scope !== 'mine') p.set('scope', scope)
     p.set('page', String(page))
     const res = await fetch(`/api/orders-portal/consultations?${p}`)
@@ -166,11 +177,12 @@ export default function ConsultationsPage() {
       setRows(json.rows); setManager(json.manager === true); setIsParttime(json.is_parttime === true)
       setTotalPages(json.total_pages ?? 1); setTotal(json.total ?? 0)
       setReqKpi(json.request_kpi ?? null)
+      setDeletedCount(json.deleted_count ?? 0)
     }
     setLoading(false)
-  }, [q, status, type, all, page, scope])
+  }, [q, status, type, all, page, scope, showDeleted])
   useEffect(() => { load() }, [load])
-  useEffect(() => { setPage(1) }, [q, status, type, all, scope])
+  useEffect(() => { setPage(1) }, [q, status, type, all, scope, showDeleted])
 
   return (
     <div>
@@ -224,6 +236,10 @@ export default function ConsultationsPage() {
             <button key={t} onClick={() => setType(t)} className={chip(type === t)}>{t === 'all' ? '구분 전체' : t}</button>
           ))}
           <span className="flex-1" />
+          {manager && deletedCount > 0 && (
+            <button onClick={() => setShowDeleted(v => !v)} className={chip(showDeleted)}
+              title="숨김 삭제된 상담일지를 사유와 함께 흐리게 보여 줍니다 (관리자만)">삭제된 것 보기 {deletedCount}</button>
+          )}
           {manager && (
             <button onClick={() => setAll(v => !v)} className={chip(all)}>{all ? '전체 직원 보기 중' : '내 것만 보기 중'}</button>
           )}
@@ -266,7 +282,7 @@ export default function ConsultationsPage() {
                     }
                     router.push(`/orders/consultations/${r.id}`)
                   }}
-                  className="border-b border-gray-50 cursor-pointer hover:bg-blue-50/40">
+                  className={`border-b border-gray-50 cursor-pointer hover:bg-blue-50/40 ${r.deleted_at ? 'opacity-60' : ''}`}>
                   <td className="py-2 pl-3 pr-1" onClick={e => e.stopPropagation()}>
                     {r.line_no != null && (
                       <input type="checkbox" checked={checked.has(key)} onChange={() => toggleCheck(key)} />
@@ -320,9 +336,17 @@ export default function ConsultationsPage() {
                     ) : !r.req_state ? <span className="text-gray-300">-</span> : null}
                   </td>
                   <td className="py-2 px-3">
-                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${STATUS_BADGE[r.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                      {r.status}
-                    </span>
+                    {r.deleted_at ? (
+                      <ReasonBadge label="삭제됨" cls="bg-red-100 text-red-700" title="삭제 사유"
+                        reason={r.delete_reason} by={r.deleted_by_name} at={r.deleted_at} />
+                    ) : r.status === '종결' ? (
+                      <ReasonBadge label="종결" cls={STATUS_BADGE['종결']} title="종결 사유"
+                        reason={r.close_reason} by={r.closed_by_name} at={r.closed_at} />
+                    ) : (
+                      <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${STATUS_BADGE[r.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                        {r.status}
+                      </span>
+                    )}
                     {/* (b) 정책: 지점·담당자 마스터 연결이 끝나야 주문 전환 가능 */}
                     {!r.master_linked && (
                       <span className="ml-1 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-orange-50 text-orange-600 border border-orange-200"
@@ -333,13 +357,13 @@ export default function ConsultationsPage() {
                   </td>
                   <td className="py-2 px-3 whitespace-nowrap">
                     {/* 행 "요청" — 작성자 · 관리자급 (요청받은 직원에게는 안 보임) */}
-                    {r.status === '진행중' && (r.is_owner || manager) && !r.assigned_to_me && (
+                    {r.status === '진행중' && !r.deleted_at && (r.is_owner || manager) && !r.assigned_to_me && (
                       <button onClick={e => { e.stopPropagation(); openRequest(r) }}
                         className="text-xs text-gray-600 hover:underline mr-2" title="다른 직원에게 주문 진행을 요청">
                         {r.assignee_name ? '요청 변경' : '요청'}
                       </button>
                     )}
-                    {r.status === '진행중' && (
+                    {r.status === '진행중' && !r.deleted_at && (
                       r.master_linked ? (
                         <button onClick={e => { e.stopPropagation(); router.push(`/orders/new?consult=${r.id}`) }}
                           className="text-xs text-blue-700 hover:underline"

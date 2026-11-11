@@ -6,7 +6,8 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import CollectMatchModal from '@/components/erp/CollectMatchModal'
-import { FIELD_SHORT, ORDERS_LIST_URL_KEY, SEARCH_FIELDS, decodeCond, encodeCond, parseFreeText, type MineFilter, type SearchCond, type SearchField } from '@/lib/order-search-fields'
+import ReasonBadge from '@/components/ui/ReasonBadge'
+import { FIELD_SHORT, MINE_FILTERS, ORDERS_LIST_URL_KEY, SEARCH_FIELDS, decodeCond, encodeCond, parseFreeText, parseMine, type MineFilter, type SearchCond, type SearchField } from '@/lib/order-search-fields'
 
 // 주문 현황 (시안 v2) — KPI(클릭=필터) + 통합 검색 + 칩 필터 + 행내 상품 펼치기.
 // 검사 상태(정의 미확정)·배송 컬럼(3단계)은 제외 상태 — 트랙 문서 참고.
@@ -34,6 +35,8 @@ interface Row {
   po_status: 'none' | 'partial' | 'full' | null
   reply_state: 'waiting' | 'done' | 'changed' | 'unable' | null   // 완료 회신 (515) — 대상 아니면 null
   canceled_at?: string | null
+  cancel_reason?: string | null
+  canceled_by_name?: string | null
   last_edited_at?: string | null
 }
 interface Kpi {
@@ -41,7 +44,8 @@ interface Kpi {
   outstanding_cnt: number; in_progress_cnt: number; direct_cnt: number
   po_none_cnt: number; po_partial_cnt: number; po_full_cnt: number
   reply?: { wait: number; my_wait: number; my_req_wait: number; to_me: number; unable: number }
-  mine?: { consult: number; handled: number }   // 내 상담건 · 내 처리건 (2026-11-09)
+  mine?: { journal: number; counselor: number; handled: number }   // 내 상담일지 · 상담자 · 주문처리 건 (2026-11-10)
+  canceled_all_cnt?: number                     // 취소만 칩 숫자 (2026-11-10)
 }
 interface Item {
   id: string; line_no: number; parent_line_no: number | null
@@ -102,7 +106,7 @@ export default function OrdersHomePage() {
   const [prepay, setPrepay] = useState(false)
   const [vip, setVip] = useState(false)   // 품명 'VIP' 품목 주문만 (2026-11-09)
   const [invoice, setInvoice] = useState(false)
-  const [mine, setMine] = useState<MineFilter>('all')   // 내 상담건 · 내 처리건 (2026-11-09 — '내 주문만' 분리)
+  const [mine, setMine] = useState<MineFilter>('all')   // 내 상담일지 · 상담자 · 주문처리 건 (2026-11-10)
   const [reply, setReply] = useState('all')   // 완료 회신 필터 (515): all|my_wait|my_req_wait|wait|to_me|unable
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -124,8 +128,7 @@ export default function OrdersHomePage() {
     const def = getPeriodRange('최근 30일')
     const r = sp.get('reply')
     setReply(r && (REPLY_FILTERS as readonly string[]).includes(r) ? r : 'all')
-    const m = sp.get('mine')
-    setMine(m === 'consult' || m === 'handled' ? m : 'all')
+    setMine(parseMine(sp.get('mine')))                 // 옛 주소(mine=1 · consult) 호환은 parseMine
     setConds(sp.getAll('c').map(decodeCond).filter((c): c is SearchCond => !!c))
     setFrom(sp.has('from') ? sp.get('from') ?? '' : def.from)
     setTo(sp.has('to') ? sp.get('to') ?? '' : def.to)
@@ -370,6 +373,10 @@ export default function OrdersHomePage() {
           {([['all', '전체'], ['collected', '수금완료'], ['in_progress', '진행중'], ['outstanding', '미수금']] as const).map(([k, l]) => (
             <button key={k} onClick={() => setCollect(k)} className={chip(collect === k)}>{l}</button>
           ))}
+          <button onClick={() => setCollect(collect === 'canceled' ? 'all' : 'canceled')} className={chip(collect === 'canceled')}
+            title="취소된 주문만 보기 — 취소 표시를 누르면 사유가 보입니다">
+            취소만{kpi?.canceled_all_cnt ? ` ${kpi.canceled_all_cnt}` : ''}
+          </button>
           <span className="w-2" />
           <span className="text-[0.6875rem] text-gray-400 mr-0.5">출처</span>
           {([['all', '전체'], ['direct', '직접입력'], ['upload', '업로드']] as const).map(([k, l]) => (
@@ -394,11 +401,12 @@ export default function OrdersHomePage() {
           <button onClick={() => setVip(v => !v)} className={chip(vip)} title="품명 'VIP' 품목이 있는 주문 — VIP 금액은 매출 · 미수에서 빠짐">VIP만</button>
           <button onClick={() => setInvoice(v => !v)} className={chip(invoice)}>계산서 발행건만</button>
           <span className="flex-1" />
-          {/* 내 상담건 = 상담자(고객 다올 담당)가 나이거나 내가 쓴 상담일지에서 전환 / 내 처리건 = 내가 입력 (2026-11-09) */}
+          {/* 내 주문 (2026-11-10): 상담일지 작성자 / 주문 상담자(고객 다올 담당) / 입력자 — 기준은 마우스 올리면 보임 */}
           <span className="text-[0.6875rem] text-gray-400 mr-0.5">내 주문</span>
-          {([['all', '전체', null], ['consult', '내 상담건', '상담자가 나이거나 내가 쓴 상담일지에서 전환된 주문'], ['handled', '내 처리건', '내가 입력한 주문']] as const).map(([k, l, t]) => (
-            <button key={k} onClick={() => setMine(k)} className={chip(mine === k)} title={t ?? undefined}>
-              {l}{k !== 'all' && kpi?.mine ? ` ${kpi.mine[k]}` : ''}
+          <button onClick={() => setMine('all')} className={chip(mine === 'all')}>전체</button>
+          {MINE_FILTERS.map(mf => (
+            <button key={mf.key} onClick={() => setMine(mf.key)} className={chip(mine === mf.key)} title={mf.hint}>
+              {mf.label}{kpi?.mine ? ` ${kpi.mine[mf.key] ?? 0}` : ''}
             </button>
           ))}
         </div>
@@ -443,7 +451,10 @@ export default function OrdersHomePage() {
                         {r.branch_name ?? <span className="text-gray-300">-</span>}
                         {/* 취소·재등록(511): 취소 주문은 집계 제외 상계, 당일 수정건은 '수정됨' 표시 */}
                         {r.canceled_at && (
-                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-red-50 text-red-600">취소</span>
+                          <span className="ml-1.5">
+                            <ReasonBadge label="취소" cls="bg-red-50 text-red-600" title="취소 사유"
+                              reason={r.cancel_reason} by={r.canceled_by_name} at={r.canceled_at} />
+                          </span>
                         )}
                         {!r.canceled_at && r.last_edited_at && (
                           <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-amber-50 text-amber-600">수정됨</span>

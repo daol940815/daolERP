@@ -68,8 +68,21 @@ export function decodeCond(s: string): SearchCond | null {
   return { field: f as SearchField, value }
 }
 
-// 내 주문 필터 (2026-11-09 사용자 결정)
-//  - consult 내 상담건: 주문 상담자(고객 다올 담당) = 나 OR 연결된 상담일지 작성자 = 나
-//  - handled 내 처리건: 주문 입력자 = 나
-// 상담자 = 입력자인 주문은 어느 쪽을 켜도 보인다.
-export type MineFilter = 'all' | 'consult' | 'handled'
+// 내 주문 필터 (2026-11-10 사용자 결정 — 11-09의 '내 상담건'을 둘로 나눔)
+//  - journal   내 상담일지 건: 내가 쓴 상담일지에서 전환된 주문
+//  - counselor 내 상담자 건: 주문 상담자(고객 다올 담당, 저장 시 기록값) = 나
+//  - handled   내 주문처리 건: 주문 입력자 = 나
+// 한 번에 하나만. 여러 기준이 모두 나인 주문은 어느 버튼에도 보인다.
+export type MineFilter = 'all' | 'journal' | 'counselor' | 'handled'
+export const MINE_FILTERS: { key: Exclude<MineFilter, 'all'>; label: string; hint: string }[] = [
+  { key: 'journal', label: '내 상담일지 건', hint: '내가 쓴 상담일지에서 전환된 주문' },
+  { key: 'counselor', label: '내 상담자 건', hint: '주문의 상담자(고객의 다올 담당)가 나인 주문 — 상담일지 작성자와 다를 수 있음' },
+  { key: 'handled', label: '내 주문처리 건', hint: '내가 입력한 주문(목록의 직원)' },
+]
+// 옛 주소 호환: mine=1 · handled = 주문처리, consult(11-09 합친 기준) = 상담자
+export function parseMine(m: string | null): MineFilter {
+  if (m === 'journal' || m === 'counselor' || m === 'handled') return m
+  if (m === '1') return 'handled'
+  if (m === 'consult') return 'counselor'
+  return 'all'
+}

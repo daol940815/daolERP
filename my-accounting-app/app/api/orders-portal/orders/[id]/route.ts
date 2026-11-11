@@ -196,8 +196,15 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
           collect_status: collectStatusFrom(snap.order.collect_status as string | null, recv),
         }
       : null
+  // 취소한 직원 이름 (상세 안내줄)
+  let canceledByName: string | null = null
+  if (snap.order.canceled_by) {
+    const { data: ce } = await admin.from('employees').select('name').eq('id', snap.order.canceled_by as string).maybeSingle()
+    canceledByName = (ce?.name as string | undefined) ?? null
+  }
   return NextResponse.json({
     order: snap.order,
+    canceled_by_name: canceledByName,
     items,
     payments,
     receivable,
@@ -327,10 +334,12 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   const prepayBlock = await prepayReductionBlock(admin, params.id, 0)
   if (prepayBlock) return NextResponse.json({ error: prepayBlock }, { status: 409 })
 
-  const reason = new URL(req.url).searchParams.get('reason')
+  // 취소 사유 필수 (2026-11-10 사용자 결정)
+  const reason = (new URL(req.url).searchParams.get('reason') ?? '').trim().slice(0, 300)
+  if (!reason) return NextResponse.json({ error: '취소 사유를 고르거나 적어주세요.' }, { status: 400 })
   const err = await cancelOrder(admin, params.id, {
     employeeId: me.employeeId, employeeName: me.employeeName,
-  }, reason || null)
+  }, reason)
   if (err) return NextResponse.json({ error: err }, { status: 500 })
 
   await recordWorkLog(admin, {
@@ -341,7 +350,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       customer: [snap.order.bank_name, snap.order.branch_name].filter(Boolean).join(' '),
       orderNo: (snap.order.order_no as string) ?? null,
       itemCount: snap.items.length,
-    }, reason ? `주문 취소 (${reason})` : '주문 취소'),
+    }, `주문 취소 (${reason})`),
     refType: 'order',
     refId: params.id,
   })

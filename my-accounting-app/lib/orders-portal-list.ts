@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CurrentUser } from './user-role'
 import { fetchAllRows } from './fetch-all-rows'
 import { loadReplyMap, REPLY_START, type ReplyInfo } from './order-reply'
-import { decodeCond, parseFreeText, type MineFilter, type SearchCond, type SearchField } from './order-search-fields'
+import { decodeCond, parseFreeText, parseMine, type MineFilter, type SearchCond, type SearchField } from './order-search-fields'
 
 // 주문 현황 목록·엑셀 내보내기 공용 필터 로직.
 // 목록 API와 엑셀이 반드시 같은 결과 집합을 보도록 한 곳에 둔다.
@@ -29,6 +29,8 @@ export interface OrderListRow {
   memo?: string | null
   created_at: string
   canceled_at?: string | null      // 511 — 취소 주문 (집계 제외·배지)
+  canceled_by?: string | null      // 511 — 취소한 직원 id
+  cancel_reason?: string | null    // 511 — 취소 사유 (목록 배지를 누르면 보임, 2026-11-10)
   last_edited_at?: string | null   // 511 — 당일 수정됨 표시
   counselor_employee_id?: string | null    // 500 — 상담자 (내 상담건)
   created_by_employee_id?: string | null   // 500 — 입력자 (내 처리건)
@@ -49,13 +51,13 @@ export interface OrderListFilter {
   conds?: SearchCond[]       // 항목별 조건 (c 파라미터)
   from?: string | null
   to?: string | null
-  collect?: string | null    // all|collected|in_progress|outstanding
+  collect?: string | null    // all|collected|in_progress|outstanding|canceled(취소만)
   source?: string | null     // all|direct|upload
   po?: string | null         // all|none|partial|full (direct 주문 전용)
   prepayOnly?: boolean
   vipOnly?: boolean          // 품명 'VIP' 품목이 있는 주문 (2026-11-09)
   invoiceOnly?: boolean
-  mine?: MineFilter          // all|consult(내 상담건)|handled(내 처리건) — 옛 mine=1은 handled
+  mine?: MineFilter          // all|journal(내 상담일지 건)|counselor(내 상담자 건)|handled(내 주문처리 건)
   reply?: string | null      // all|wait|my_wait|my_req_wait|to_me|unable — 완료 회신 (515)
 }
 
@@ -71,10 +73,7 @@ export function filterFromSearchParams(sp: URLSearchParams): OrderListFilter {
     prepayOnly: sp.get('prepay') === '1',
     vipOnly: sp.get('vip') === '1',
     invoiceOnly: sp.get('invoice') === '1',
-    mine: (() => {
-      const m = sp.get('mine')
-      return m === 'consult' ? 'consult' : (m === 'handled' || m === '1') ? 'handled' : 'all'
-    })(),
+    mine: parseMine(sp.get('mine')),
     reply: sp.get('reply') ?? 'all',
   }
 }
@@ -177,7 +176,7 @@ export async function loadFilteredOrders(
   admin: SupabaseClient,
   me: CurrentUser,
   f: OrderListFilter,
-): Promise<{ filtered: OrderListRow[]; prepayIds: Set<string>; vipIds: Set<string>; invoiceIds: Set<string>; poStatus: Map<string, PoStatus>; replyMap: Map<string, ReplyInfo>; replyCounts: ReplyCounts; mineCounts: MineCounts } | { error: string }> {
+): Promise<{ filtered: OrderListRow[]; prepayIds: Set<string>; vipIds: Set<string>; invoiceIds: Set<string>; poStatus: Map<string, PoStatus>; replyMap: Map<string, ReplyInfo>; replyCounts: ReplyCounts; mineCounts: MineCounts; canceledCount: number } | { error: string }> {
   // 1) 기간 필터로 주문 로드 (나머지 필터는 메모리) — 511 미적용이면 기존 컬럼으로 폴백
   const baseCols = 'id, order_no, order_date, bank_name, branch_name, manager_name, phone, contact, staff_name, total_amount, outstanding_amount, collect_status, source, memo, created_at, counselor_employee_id, created_by_employee_id, consultation_id'
   const loadBase = (cols: string) => fetchAllRows<OrderListRow>((pf, pt) => {
@@ -186,7 +185,7 @@ export async function loadFilteredOrders(
     if (f.to) query = query.lte('order_date', f.to)
     return query.order('order_date', { ascending: false }).range(pf, pt) as unknown as PromiseLike<{ data: OrderListRow[] | null; error: { message: string } | null }>
   })
-  let base = await loadBase(`${baseCols}, canceled_at, last_edited_at`)
+  let base = await loadBase(`${baseCols}, canceled_at, canceled_by, cancel_reason, last_edited_at`)
   if ('error' in base) base = await loadBase(baseCols)
   if ('error' in base) return { error: base.error }
 
@@ -240,12 +239,13 @@ export async function loadFilteredOrders(
   const myConsultIds = new Set('error' in myConsultResult ? [] : myConsultResult.data.map(r => r.id))
   const myChannelOrderIds = new Set('error' in myChannelResult ? [] : myChannelResult.data.map(r => r.order_id))
 
-  // 내 상담건 · 내 처리건 판정 (계정 id 우선, 옛 주문은 이름으로). 직원 연결이 없는 계정은 해당 없음
-  const isMyConsult = (o: OrderListRow): boolean => {
+  // 내 상담일지 · 상담자 · 주문처리 건 판정 (계정 id 우선, 옛 주문은 이름으로). 직원 연결이 없는 계정은 해당 없음
+  const isMyJournal = (o: OrderListRow): boolean =>
+    !!empId && !!o.consultation_id && myConsultIds.has(o.consultation_id)
+  const isMyCounselor = (o: OrderListRow): boolean => {
     if (!empId) return false
-    if (o.counselor_employee_id) { if (o.counselor_employee_id === empId) return true }
-    else if (myChannelOrderIds.has(o.id)) return true
-    return !!o.consultation_id && myConsultIds.has(o.consultation_id)
+    if (o.counselor_employee_id) return o.counselor_employee_id === empId
+    return myChannelOrderIds.has(o.id)   // 상담자 칸이 빈 옛 주문: 품목 상담자 이름
   }
   const isMyHandled = (o: OrderListRow): boolean => {
     if (!empId) return false
@@ -280,12 +280,13 @@ export async function loadFilteredOrders(
     return true
   })
 
-  // 3-0) 내 상담건 · 내 처리건 — 버튼 숫자는 이 필터 적용 전, 아래 수금 · 발주 · 회신 필터 적용 후 기준
+  // 3-0) 내 주문 버튼 — 버튼 숫자는 이 필터 적용 전, 아래 수금 · 발주 · 회신 필터 적용 후 기준
   const mineOf = (rows: OrderListRow[]): MineCounts => ({
-    consult: rows.filter(isMyConsult).length,
+    journal: rows.filter(isMyJournal).length,
+    counselor: rows.filter(isMyCounselor).length,
     handled: rows.filter(isMyHandled).length,
   })
-  const mineTest = f.mine === 'consult' ? isMyConsult : f.mine === 'handled' ? isMyHandled : null
+  const mineTest = f.mine === 'journal' ? isMyJournal : f.mine === 'counselor' ? isMyCounselor : f.mine === 'handled' ? isMyHandled : null
 
   // 3-1) 미수·수금 상태를 표준 미수(매칭 반영)로 교체한 뒤 수금 필터 적용. 취소 주문은 미수 0·상태 유지
   const recv = await loadReceivableMap(admin, filtered.filter(o => !o.canceled_at).map(o => o.id))
@@ -298,7 +299,10 @@ export async function loadFilteredOrders(
       o.collect_status = collectStatusFrom(o.collect_status, r)
     }
   }
-  if (f.collect && f.collect !== 'all') filtered = filtered.filter(o => o.collect_status === f.collect)
+  // 취소만 칩 (2026-11-10) — 숫자는 수금 필터 적용 전 기준
+  const canceledCount = filtered.filter(o => o.canceled_at).length
+  if (f.collect === 'canceled') filtered = filtered.filter(o => o.canceled_at)
+  else if (f.collect && f.collect !== 'all') filtered = filtered.filter(o => o.collect_status === f.collect)
 
   // 4) 발주 상태 (direct 주문 전용 배지·필터)
   const directIds = filtered.filter(o => (o.source ?? 'upload') === 'direct').map(o => o.id)
@@ -337,9 +341,9 @@ export async function loadFilteredOrders(
       ? (a.order_date < b.order_date ? 1 : -1)
       : (a.created_at < b.created_at ? 1 : -1))
 
-  return { filtered, prepayIds, vipIds, invoiceIds, poStatus, replyMap, replyCounts, mineCounts }
+  return { filtered, prepayIds, vipIds, invoiceIds, poStatus, replyMap, replyCounts, mineCounts, canceledCount }
 }
 
-export interface MineCounts { consult: number; handled: number }
+export interface MineCounts { journal: number; counselor: number; handled: number }
 
 export interface ReplyCounts { wait: number; my_wait: number; my_req_wait: number; to_me: number; unable: number }

@@ -1,10 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import VendorInfoPanel, { useVendorInfo } from './vendor-info-panel'
+import { branchMargin, individualMargin, formatProfit, formatRate, type Margin } from '@/lib/product-margin'
 
 // 품목 마스터 (2단계) — 주문 입력의 품번 검색 원천.
 // 목록 화면 관례: KPI 카드(클릭=필터) + 통합 검색 + 표.
-// 조회는 전 직원, 등록·수정·엑셀 업로드는 manager/admin (API에서 차단).
+// 조회 · 엑셀 다운로드는 전 직원, 등록 · 수정 · 업로드 · 품절 · 중지는 영업·주문 그룹 수정 권한.
+// 버튼은 GET 응답의 can_edit으로 수정 권한자에게만 노출(UX용 — 실제 차단은 API·미들웨어).
 
 interface Product {
   id: string; item_code: string | null; item_name: string; option_name: string | null
@@ -50,20 +53,26 @@ const condMatch = (p: Product, field: CondField, q: string) => {
 //  - 표 머리글 클릭: 오름차순 → 내림차순 → 기본(품명 오름차순). 두 조작은 같은 상태를 공유
 // 빈 값('-')은 방향과 관계없이 항상 맨 아래. 문자는 한글 순 + 숫자 자연 정렬(품번 A-2 < A-10).
 type SortKey = 'code' | 'name' | 'category' | 'vendor' | 'sale' | 'individual' | 'purchase'
-  | 'margin' | 'carton' | 'carton_fee' | 'loose_fee' | 'memo' | 'status'
+  | 'b_profit' | 'b_rate' | 'i_profit' | 'i_rate' | 'carton' | 'carton_fee' | 'loose_fee' | 'memo' | 'status'
 type SortDir = 'asc' | 'desc'
 const DEFAULT_SORT: { key: SortKey; dir: SortDir } = { key: 'name', dir: 'asc' }
 // 표 칸 순서 = 머리글 순서
+// 세 번째 값 = 칸 값의 정렬(금액 · 수량은 오른쪽). 머리글은 모두 왼쪽(2026-11-10 사용자 확정 A안)
 const SORT_COLS: [SortKey, string, 'left' | 'right'][] = [
   ['code', '품번', 'left'], ['name', '품명', 'left'], ['category', '분류', 'left'],
   ['vendor', '매입처', 'left'], ['sale', '지점판매가', 'right'], ['individual', '개별판매가', 'right'],
-  ['purchase', '매입가', 'right'], ['margin', '마진(지점)', 'right'], ['carton', '카톤단위', 'right'],
+  ['purchase', '매입가', 'right'], ['b_profit', '마진', 'right'], ['carton', '카톤단위', 'right'],
   ['carton_fee', '카톤택배비', 'right'], ['loose_fee', '카톤외택배비', 'right'],
   ['memo', '메모', 'left'], ['status', '상태', 'left'],
 ]
-const SORT_LABEL = Object.fromEntries(SORT_COLS.map(([k, l]) => [k, l])) as Record<SortKey, string>
+// 마진 칸(2026-11-10): 머리글 '마진' 클릭 = 지점 이익금 순, 선택 상자는 지점 · 개별 × 이익금 · 마진율 4가지
+const SORT_LABEL = {
+  ...Object.fromEntries(SORT_COLS.map(([k, l]) => [k, l])),
+  b_profit: '지점 이익금', b_rate: '지점 마진율', i_profit: '개별 이익금', i_rate: '개별 마진율',
+} as Record<SortKey, string>
 // 선택 상자 순서 — 자주 쓰는 품번 · 품명 · 지점판매가를 앞에
-const SORT_OPTIONS: SortKey[] = ['code', 'name', 'sale', 'individual', 'purchase', 'margin', 'vendor',
+const SORT_OPTIONS: SortKey[] = ['code', 'name', 'sale', 'individual', 'purchase',
+  'b_profit', 'b_rate', 'i_profit', 'i_rate', 'vendor',
   'category', 'carton', 'carton_fee', 'loose_fee', 'memo', 'status']
 const sortValue = (p: Product, key: SortKey): string | number | null => {
   const txt = (v?: string | null) => (v ?? '').trim() || null
@@ -76,7 +85,11 @@ const sortValue = (p: Product, key: SortKey): string | number | null => {
     case 'sale': return p.sale_price ?? 0
     case 'individual': return num(p.individual_sale_price)
     case 'purchase': return p.purchase_price ?? 0
-    case 'margin': return (p.sale_price ?? 0) - (p.purchase_price ?? 0)
+    // 마진율 (-)(판매가 없음) · 개별판매가 없음은 빈 값 = 맨 아래
+    case 'b_profit': return branchMargin(p).profit
+    case 'b_rate': return branchMargin(p).rate
+    case 'i_profit': return individualMargin(p)?.profit ?? null
+    case 'i_rate': return individualMargin(p)?.rate ?? null
     case 'carton': return num(p.carton_unit)
     case 'carton_fee': return p.carton_unit ? (p.carton_shipping_fee ?? 0) : null
     case 'loose_fee': return num(p.loose_shipping_fee)
@@ -91,6 +104,21 @@ const compareBy = (key: SortKey, dir: SortDir) => (a: Product, b: Product) => {
     ? va - vb
     : String(va).localeCompare(String(vb), 'ko', { numeric: true })
   return dir === 'asc' ? c : -c
+}
+
+// 마진 한 줄: "지점 1,420원 (31.6%)" — 마이너스 빨간색, 개별판매가 없음은 '-'
+function MarginLine({ label, m }: { label: string; m: Margin | null }) {
+  const neg = m !== null && Math.round(m.profit) < 0
+  return (
+    <div className="flex justify-start items-baseline gap-1.5">
+      <span className="text-[0.625rem] text-gray-400">{label}</span>
+      {m === null ? <span className="text-gray-400">-</span> : (
+        <span className={neg ? 'text-red-600 font-medium' : 'text-emerald-700'}>
+          {formatProfit(m.profit)} <span className="text-xs">({formatRate(m.rate)})</span>
+        </span>
+      )}
+    </div>
+  )
 }
 
 export default function ProductsPage() {
@@ -111,17 +139,31 @@ export default function ProductsPage() {
     prev.key !== key ? { key, dir: 'asc' } : prev.dir === 'asc' ? { key, dir: 'desc' } : DEFAULT_SORT)
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [draft, setDraft] = useState(emptyDraft)
+  // 매입처 담당자 · 연락처 · 이메일 (2026-11-10) — 폼이 열려 있을 때 매입처명 기준으로 조회
+  const vinfo = useVendorInfo(draft.purchase_vendor_name, editingId !== null)
   const [uploading, setUploading] = useState(false)
+  // 수정 권한 (2026-11-10): 응답 받기 전에는 숨김 — 권한 없는 직원에게 버튼이 잠깐 보였다 사라지지 않게
+  const [canEdit, setCanEdit] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // 매입처명 → 연락처 (이 화면 전용 조회 — 품목 목록과 동시에, 실패해도 목록은 그대로)
+  const [vendorPhones, setVendorPhones] = useState<Record<string, string>>({})
+  const loadPhones = useCallback(async () => {
+    const res = await fetch('/api/orders-portal/products/vendor-contacts').catch(() => null)
+    if (!res?.ok) return
+    const json = await res.json().catch(() => null)
+    if (json?.phones) setVendorPhones(json.phones)
+  }, [])
+
   const load = useCallback(async () => {
+    loadPhones()
     setLoading(true); setError(null)
     const res = await fetch('/api/orders-portal/products')
     const json = await res.json()
     if (!res.ok) setError(json.error ?? '조회 실패')
-    else setProducts(json.products)
+    else { setProducts(json.products); setCanEdit(json.can_edit === true) }
     setLoading(false)
-  }, [])
+  }, [loadPhones])
   useEffect(() => { load() }, [load])
 
   const filtered = useMemo(() => {
@@ -170,11 +212,27 @@ export default function ProductsPage() {
 
   const save = async () => {
     if (!draft.item_name.trim()) { setError('품명을 입력해주세요.'); return }
+    const vendorPatch = vinfo.changes(draft.purchase_vendor_name)   // 바뀐 매입처 정보 칸 (권한 · 연결 있을 때만)
+    const doneMsg = editingId === 'new' ? '품목이 등록되었습니다.' : '품목이 수정되었습니다.'
     const ok = await act(
       editingId === 'new' ? { action: 'create', ...draft } : { action: 'update', id: editingId, ...draft },
-      editingId === 'new' ? '품목이 등록되었습니다.' : '품목이 수정되었습니다.',
+      doneMsg,
     )
-    if (ok) { setEditingId(null); setDraft(emptyDraft) }
+    if (!ok) return
+    if (vendorPatch) {
+      // 매입처 정보 자체 수정 — 품목에는 저장하지 않음, 그 매입처의 모든 품목에 적용
+      const res = await fetch('/api/orders-portal/products/vendor-info', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: draft.purchase_vendor_name, ...vendorPatch }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(`품목은 저장됐지만 매입처 정보는 저장하지 못했습니다 — ${json.error ?? res.status}`)
+        return   // 폼을 열어 둬 다시 시도할 수 있게
+      }
+      setNotice(`${doneMsg} 매입처 정보 ${json.updated}칸도 저장했습니다 — 이 매입처의 모든 품목에 적용됩니다.`)
+    }
+    setEditingId(null); setDraft(emptyDraft)
   }
 
   const startEdit = (p: Product) => {
@@ -249,12 +307,14 @@ export default function ProductsPage() {
             className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">
             엑셀 다운로드
           </button>
+          {canEdit && <>
           <button onClick={() => fileRef.current?.click()} disabled={uploading}
             className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 disabled:opacity-50">
             {uploading ? '처리 중...' : '상품 엑셀 업로드'}
           </button>
           <button onClick={() => { setEditingId('new'); setDraft(emptyDraft) }}
             className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">+ 품목 등록</button>
+          </>}
         </span>
       </div>
 
@@ -414,6 +474,8 @@ export default function ProductsPage() {
               onChange={e => setDraft(d => ({ ...d, is_shipping: e.target.checked }))} />
             비용 품목
           </label>
+          <VendorInfoPanel info={vinfo.info} draft={vinfo.draft} setDraft={vinfo.setDraft}
+            loading={vinfo.loading} inputCls={inputCls} />
           <button onClick={save} className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm">
             {editingId === 'new' ? '등록' : '저장'}
           </button>
@@ -427,10 +489,10 @@ export default function ProductsPage() {
           <table className="w-full text-sm min-w-[760px]">
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
-                {SORT_COLS.map(([key, label, align]) => {
+                {SORT_COLS.map(([key, label]) => {
                   const on = sort.key === key
                   return (
-                    <th key={key} className={`py-2 px-3 font-medium ${align === 'right' ? 'text-right' : 'text-left'}`}
+                    <th key={key} className="py-2 px-3 font-medium text-left"
                       aria-sort={on ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
                       <button onClick={() => toggleSort(key)}
                         title="클릭: 오름차순 → 내림차순 → 기본 순서(품명)"
@@ -441,14 +503,14 @@ export default function ProductsPage() {
                     </th>
                   )
                 })}
-                <th className="py-2 px-3" />
+                {canEdit && <th className="py-2 px-3" />}
               </tr>
             </thead>
             <tbody>
               {sorted.map(p => (
                 <tr key={p.id} className={`border-b border-gray-50 ${p.is_active ? '' : 'text-gray-400'}`}>
-                  <td className="py-1.5 px-3 text-xs tabular-nums whitespace-nowrap">{p.item_code ?? '-'}</td>
-                  <td className="py-1.5 px-3 font-medium">
+                  <td className="py-2 px-3 text-xs tabular-nums whitespace-nowrap">{p.item_code ?? '-'}</td>
+                  <td className="py-2 px-3 font-medium">
                     {p.item_name}
                     {p.is_addon && (
                       <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-violet-50 text-violet-600">옵션</span>
@@ -464,8 +526,8 @@ export default function ProductsPage() {
                       <span className="ml-1.5 text-[0.625rem] text-amber-600 whitespace-pre-line align-middle">{p.status_note}</span>
                     )}
                   </td>
-                  <td className="py-1.5 px-3 text-xs whitespace-nowrap">{p.category ?? '-'}</td>
-                  <td className="py-1.5 px-3 whitespace-nowrap">
+                  <td className="py-2 px-3 text-xs whitespace-nowrap">{p.category ?? '-'}</td>
+                  <td className="py-2 px-3 whitespace-nowrap">
                     {p.purchase_vendor_name ? (
                       <button onClick={() => addCond('vendor', p.purchase_vendor_name!)}
                         title="클릭하면 이 매입처 조건으로 필터"
@@ -473,21 +535,28 @@ export default function ProductsPage() {
                         {p.purchase_vendor_name}
                       </button>
                     ) : '-'}
+                    {/* 매입처 연락처 (2026-11-10) — 수정 화면 매입처 정보와 같은 값, 출처 구분 없이 검정 */}
+                    {p.purchase_vendor_name && vendorPhones[p.purchase_vendor_name] && (
+                      <div className="text-xs text-gray-900 tabular-nums">{vendorPhones[p.purchase_vendor_name]}</div>
+                    )}
                   </td>
-                  <td className="py-1.5 px-3 text-right tabular-nums">{won(p.sale_price)}</td>
-                  <td className="py-1.5 px-3 text-right tabular-nums">{p.individual_sale_price ? won(p.individual_sale_price) : '-'}</td>
-                  <td className="py-1.5 px-3 text-right tabular-nums">{won(p.purchase_price)}</td>
-                  <td className="py-1.5 px-3 text-right tabular-nums text-emerald-700">{won(p.sale_price - p.purchase_price)}</td>
-                  <td className="py-1.5 px-3 text-right tabular-nums">{p.carton_unit ?? '-'}</td>
-                  <td className="py-1.5 px-3 text-right tabular-nums">{p.carton_unit ? won(p.carton_shipping_fee) : '-'}</td>
-                  <td className="py-1.5 px-3 text-right tabular-nums">{p.loose_shipping_fee ? won(p.loose_shipping_fee) : '-'}</td>
-                  <td className="py-1.5 px-3 text-xs">{p.memo ?? '-'}</td>
-                  <td className="py-1.5 px-3">
+                  <td className="py-2 px-3 text-right tabular-nums">{won(p.sale_price)}</td>
+                  <td className="py-2 px-3 text-right tabular-nums">{p.individual_sale_price ? won(p.individual_sale_price) : '-'}</td>
+                  <td className="py-2 px-3 text-right tabular-nums">{won(p.purchase_price)}</td>
+                  <td className="py-2 px-3 text-left tabular-nums whitespace-nowrap">
+                    <MarginLine label="지점" m={branchMargin(p)} />
+                    <MarginLine label="개별" m={individualMargin(p)} />
+                  </td>
+                  <td className="py-2 px-3 text-right tabular-nums">{p.carton_unit ?? '-'}</td>
+                  <td className="py-2 px-3 text-right tabular-nums">{p.carton_unit ? won(p.carton_shipping_fee) : '-'}</td>
+                  <td className="py-2 px-3 text-right tabular-nums">{p.loose_shipping_fee ? won(p.loose_shipping_fee) : '-'}</td>
+                  <td className="py-2 px-3 text-xs">{p.memo ?? '-'}</td>
+                  <td className="py-2 px-3">
                     <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${p.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
                       {p.is_active ? '사용' : '중지'}
                     </span>
                   </td>
-                  <td className="py-1.5 px-3 text-right whitespace-nowrap">
+                  {canEdit && <td className="py-2 px-3 text-right whitespace-nowrap">
                     <button onClick={() => startEdit(p)} className="text-xs text-blue-700 hover:underline mr-2.5">수정</button>
                     <button onClick={() => act({ action: p.is_soldout ? 'restock' : 'soldout', id: p.id },
                         p.is_soldout ? '품절이 해제되었습니다.' : '품절 처리되었습니다. 상담·주문 입력 검색에 품절로 표시됩니다.')}
@@ -498,23 +567,23 @@ export default function ProductsPage() {
                       className="text-xs text-gray-400 hover:underline">
                       {p.is_active ? '중지' : '재사용'}
                     </button>
-                  </td>
+                  </td>}
                 </tr>
               ))}
               {!filtered.length && (
-                <tr><td colSpan={14} className="text-center py-12 text-gray-400 text-sm">
-                  품목이 없습니다. 상품 엑셀 업로드 또는 개별 등록으로 시작하세요.
+                <tr><td colSpan={canEdit ? 14 : 13} className="text-center py-12 text-gray-400 text-sm">
+                  {canEdit ? '품목이 없습니다. 상품 엑셀 업로드 또는 개별 등록으로 시작하세요.' : '품목이 없습니다.'}
                 </td></tr>
               )}
             </tbody>
           </table>
         )}
       </div>
-      <p className="text-xs text-gray-400 mt-2">
+      {canEdit && <p className="text-xs text-gray-400 mt-2">
         회사 원가표 엑셀을 그대로 업로드하면 됩니다 (원가표 시트의 품번 · 상품명(원가표 등록용) · 옵션명 · 매입처 ·
         지점배송매입가 · 지점/개별배송판매가 · 목차 · 카톤단위 · 택배비(카톤단위/카톤외)를 인식, 카탈로그 제작용 컬럼은 무시).
         품번 기준으로 갱신되며, 주문 입력에서 지점=지점판매가+카톤 공식 배송비 / 개별=개별판매가(배송비 포함)가 자동 적용됩니다.
-      </p>
+      </p>}
 
       {/* 업로드 확인 팝업 — 검사 결과(반영 없음)를 보여주고 확인 후 실제 업로드 */}
       {pending && (

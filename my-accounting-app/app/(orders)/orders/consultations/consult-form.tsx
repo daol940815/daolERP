@@ -14,7 +14,12 @@ import { contactLabel } from '@/lib/contact-label'
 import ShipCard, { EMPTY_SHIP } from '../ship-card'
 import { needsShip, SHIP_KINDS, type ShipInput } from '@/lib/ship-address'
 import RosterCard from '../roster-card'
+import ReasonPicker from '@/components/ui/ReasonPicker'
+import { CONSULT_CLOSE_REASONS, CONSULT_DELETE_REASONS, composeReason } from '@/lib/cancel-reasons'
 import { normTel } from '@/lib/contact-phone-sync'
+
+const fmtWhen = (iso: string) =>
+  new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
 
 // 상담일지 폼 (신규·수정 공용) — 실물 '주문상담' 시트 컬럼 구성.
 // 필수는 상담일·구분뿐. 업체·지점·담당자는 마스터 검색 + 자유 입력 겸용
@@ -120,8 +125,19 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     router.push('/orders/consultations?scope=assigned')
   }
 
+  // 종결 · 삭제 기록 (709, 2026-11-10 사용자 결정 — 사유 필수, 종결 상담 수정 잠금, 숨김 삭제)
+  const [closeInfo, setCloseInfo] = useState<{ reason: string | null; by: string | null; at: string | null } | null>(null)
+  const [deleteInfo, setDeleteInfo] = useState<{ reason: string | null; by: string | null; at: string | null } | null>(null)
+  const [endMode, setEndMode] = useState<'close' | 'delete' | null>(null)
+  const [endPick, setEndPick] = useState<string | null>(null)
+  const [endText, setEndText] = useState('')
+  const [endBusy, setEndBusy] = useState(false)
+
   const converted = status === '주문전환'
-  const locked = converted || (isEdit && !canEdit)   // 전환 후 수정 잠금(이력 보존) · 요청받은 직원 읽기 전용
+  const closed = status === '종결'
+  const deleted = !!deleteInfo
+  // 전환 후 수정 잠금(이력 보존) · 종결 · 삭제된 상담 잠금 · 요청받은 직원 읽기 전용
+  const locked = converted || (isEdit && (closed || deleted || !canEdit))
 
   useEffect(() => {
     (async () => {
@@ -174,6 +190,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             ship_addr1: v.ship_addr1 ?? null, ship_addr2: v.ship_addr2 ?? null,
           })
           setStatus(v.status)
+          setCloseInfo(v.status === '종결' ? { reason: v.close_reason ?? null, by: c.closed_by_name ?? null, at: v.closed_at ?? null } : null)
+          setDeleteInfo(v.deleted_at ? { reason: v.delete_reason ?? null, by: c.deleted_by_name ?? null, at: v.deleted_at } : null)
           setOrders(c.orders ?? [])
           setCanEdit(c.can_edit !== false)
           setIsAssignee(c.is_assignee === true)
@@ -550,15 +568,26 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     setSaving(false)
   }
 
+  // 종결 · 삭제는 사유 창에서 확정, 재개는 바로 (2026-11-10)
+  const endReason = composeReason(endPick, endText)
+  const openEnd = (mode: 'close' | 'delete') => {
+    setEndMode(endMode === mode ? null : mode); setEndPick(null); setEndText(''); setError(null)
+  }
   const act = async (action: 'close' | 'reopen' | 'delete') => {
-    if (action === 'delete' && !confirm('이 상담일지를 삭제할까요?')) return
-    const res = await fetch(`/api/orders-portal/consultations/${consultId}`, {
+    if (action !== 'reopen' && !endReason) return
+    setEndBusy(true); setError(null)
+    const res = await fetch(
+      action === 'delete'
+        ? `/api/orders-portal/consultations/${consultId}?reason=${encodeURIComponent(endReason)}`
+        : `/api/orders-portal/consultations/${consultId}`, {
       method: action === 'delete' ? 'DELETE' : 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      ...(action !== 'delete' ? { body: JSON.stringify({ action }) } : {}),
+      ...(action !== 'delete' ? { body: JSON.stringify({ action, ...(action === 'close' ? { reason: endReason } : {}) }) } : {}),
     })
-    const json = await res.json()
-    if (!res.ok) { setError(json.error); return }
+    const json = await res.json().catch(() => ({}))
+    setEndBusy(false)
+    if (!res.ok) { setError(json.error ?? '처리 실패'); return }
+    if (action === 'reopen') { window.location.reload(); return }
     router.push('/orders/consultations')
   }
 
@@ -575,9 +604,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         <h1 className="text-xl font-bold text-gray-900">{isEdit ? '상담일지' : '상담 기록'}</h1>
         {isEdit && (
           <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${
-            status === '주문전환' ? 'bg-emerald-100 text-emerald-700'
+            deleted ? 'bg-red-100 text-red-700'
+              : status === '주문전환' ? 'bg-emerald-100 text-emerald-700'
               : status === '종결' ? 'bg-gray-100 text-gray-500' : 'bg-amber-100 text-amber-800'}`}>
-            {status}
+            {deleted ? '삭제됨' : status}
           </span>
         )}
         {orders.map(o => (
@@ -588,15 +618,60 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         <span className="ml-auto flex gap-2">
           {isEdit && !locked && status === '진행중' && (
             <>
-              <button onClick={() => act('close')} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">종결</button>
-              <button onClick={() => act('delete')} className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm">삭제</button>
+              <button onClick={() => openEnd('close')} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">종결</button>
+              <button onClick={() => openEnd('delete')} className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm">삭제</button>
             </>
           )}
-          {isEdit && canEdit && status === '종결' && (
-            <button onClick={() => act('reopen')} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">재개</button>
+          {isEdit && canEdit && closed && !deleted && (
+            <button onClick={() => act('reopen')} disabled={endBusy}
+              title="다시 진행중으로 돌립니다 — 종결 기록은 업무일지에 남습니다"
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 disabled:opacity-50">재개</button>
           )}
         </span>
       </div>
+
+      {/* 종결 · 삭제 사유 (709, 2026-11-10 — 사유 필수) */}
+      {endMode && (
+        <div className={`mt-3 p-3 rounded-lg border space-y-2 ${endMode === 'delete' ? 'bg-red-50/60 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
+          <div className="text-sm font-bold text-gray-900">{endMode === 'close' ? '종결 사유' : '상담일지 삭제 사유'}</div>
+          {orderRequest && (
+            <div className="text-[0.8125rem] px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
+              이 상담은 <b>{orderRequest.assignee_name ?? ''}</b>에게 주문 진행을 요청해 둔 상태입니다. {endMode === 'close' ? '종결' : '삭제'}하면 요청이 끝나고, {orderRequest.assignee_name ?? '요청받은 직원'}에게 사유와 함께 알림이 갑니다.
+            </div>
+          )}
+          <ReasonPicker options={endMode === 'close' ? CONSULT_CLOSE_REASONS : CONSULT_DELETE_REASONS}
+            picked={endPick} onPick={setEndPick} text={endText} onText={setEndText} multiline={endMode === 'close'}
+            placeholder={endMode === 'close' ? '자세한 사유 (기타를 고르면 필수) — 예: 내년 1월 예산 확정 후 재문의 예정' : undefined} />
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={() => act(endMode)} disabled={!endReason || endBusy}
+              className={`px-3.5 py-1.5 text-white rounded-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed ${endMode === 'delete' ? 'bg-red-600' : 'bg-slate-900'}`}>
+              {endBusy ? '처리 중...' : endMode === 'close' ? '종결하기' : '삭제하기'}
+            </button>
+            <button onClick={() => setEndMode(null)} className="px-3.5 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-sm bg-white">닫기</button>
+            <span className="text-[0.6875rem] text-gray-500">
+              {endMode === 'close'
+                ? '종결하면 주문 전환 · 삭제 · 주문 진행 요청이 막히고 내용 수정이 잠깁니다. "재개"로 되돌릴 수 있습니다.'
+                : '실제로 지우지 않고 "삭제됨"으로 숨깁니다. 목록에서 안 보이고, 관리자는 "삭제된 것 보기"로 확인할 수 있습니다.'}
+            </span>
+          </div>
+        </div>
+      )}
+      {closed && !deleted && (
+        <div className="mt-3 px-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg">
+          종결된 상담입니다{closeInfo?.reason ? <> — <b>{closeInfo.reason}</b></> : ' (사유 기록 없음)'}
+          <div className="text-xs text-slate-500 mt-0.5 tabular-nums">
+            {[closeInfo?.by, closeInfo?.at ? fmtWhen(closeInfo.at) : null].filter(Boolean).join(' · ')}{closeInfo?.at ? ' 종결 · ' : ''}내용을 고치려면 &ldquo;재개&rdquo;를 누르세요.
+          </div>
+        </div>
+      )}
+      {deleted && (
+        <div className="mt-3 px-4 py-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
+          삭제된 상담일지입니다. 목록에서는 숨겨집니다.{deleteInfo?.reason && <> 사유: <b>{deleteInfo.reason}</b></>}
+          <div className="text-xs text-red-500 mt-0.5 tabular-nums">
+            {[deleteInfo?.by, deleteInfo?.at ? fmtWhen(deleteInfo.at) : null].filter(Boolean).join(' · ')} 삭제
+          </div>
+        </div>
+      )}
 
       {converted && (
         <div className="mt-3 px-4 py-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-lg">
@@ -618,7 +693,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         </div>
       )}
       {/* 처리 불가로 되돌아온 요청 (515) — 요청자 화면 */}
-      {!converted && !orderRequest && requestStatus?.state === 'returned' && (
+      {!converted && !closed && !deleted && !orderRequest && requestStatus?.state === 'returned' && (
         <div className="mt-3 px-4 py-2.5 bg-red-50 border border-red-200 text-red-900 text-sm rounded-lg">
           <span className="inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-medium mr-1.5 bg-red-100 text-red-700">처리 불가</span>
           <b>{requestStatus.by ?? ''}</b> 회신{requestStatus.memo ? `: “${requestStatus.memo}”` : ''}
@@ -626,7 +701,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         </div>
       )}
       {/* 주문 진행 요청 (705) — 요청받은 직원에게는 요청 내용, 작성자에게는 진행 상태 */}
-      {!converted && orderRequest && isAssignee && (
+      {!converted && !closed && !deleted && orderRequest && isAssignee && (
         <div className="mt-3 px-4 py-2.5 bg-blue-50 border border-blue-200 text-blue-900 text-sm rounded-lg">
           <b>{orderRequest.requested_by_name ?? ''}</b>님이 주문 진행을 요청했습니다
           {orderRequest.requested_at && <span className="text-blue-700"> · {new Date(orderRequest.requested_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
@@ -653,7 +728,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           ))}
         </div>
       )}
-      {!converted && orderRequest && !isAssignee && (
+      {!converted && !closed && !deleted && orderRequest && !isAssignee && (
         <div className="mt-3 px-4 py-2 bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-lg">
           <b>{orderRequest.assignee_name ?? ''}</b>에게 주문 진행을 요청했습니다 — 주문 입력 · 완료 회신이 오면 알림이 옵니다.
         </div>
@@ -1410,9 +1485,11 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           {/* 요청받은 직원 (읽기 전용) — 저장 없이 바로 전환 */}
           {locked && !converted && (
             <span className="flex gap-2">
-              <button disabled={!vendorId || !contactId || status !== '진행중'} onClick={() => router.push(`/orders/new?consult=${consultId}`)}
-                title={!vendorId || !contactId ? '마스터 미연결 상담은 전환할 수 없습니다 — 요청한 직원에게 연결을 부탁하세요' : undefined}
-                className="px-5 py-2 bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">주문서로 전환</button>
+              {status === '진행중' && !deleted && (
+                <button disabled={!vendorId || !contactId} onClick={() => router.push(`/orders/new?consult=${consultId}`)}
+                  title={!vendorId || !contactId ? '마스터 미연결 상담은 전환할 수 없습니다 — 요청한 직원에게 연결을 부탁하세요' : undefined}
+                  className="px-5 py-2 bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">주문서로 전환</button>
+              )}
               <button onClick={() => router.push('/orders/consultations')}
                 className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600">목록으로</button>
             </span>

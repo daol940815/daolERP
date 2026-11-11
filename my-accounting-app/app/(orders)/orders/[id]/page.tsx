@@ -7,6 +7,8 @@ import PurchaseSection from './purchase-section'
 import { hasShip, needsShip, shipText, SHIP_KINDS } from '@/lib/ship-address'
 import RosterCard from '../roster-card'
 import ReplyCard, { type ReplyData } from './reply-card'
+import ReasonPicker from '@/components/ui/ReasonPicker'
+import { ORDER_CANCEL_REASONS, composeReason } from '@/lib/cancel-reasons'
 import { ORDERS_LIST_URL_KEY } from '@/lib/order-search-fields'
 
 // 주문 상세 (2단계) — 업로드·직접입력 공통 조회.
@@ -90,7 +92,9 @@ export default function OrderDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [cancelReason, setCancelReason] = useState('')
+  const [cancelPick, setCancelPick] = useState<string | null>(null)
   const [askingCancel, setAskingCancel] = useState(false)
+  const [canceledByName, setCanceledByName] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -109,6 +113,7 @@ export default function OrderDetailPage() {
       setCanEdit(json.can_edit)
       setCanReissue(json.can_reissue ?? false)
       setCanceled(json.canceled ?? false)
+      setCanceledByName(json.canceled_by_name ?? null)
       setReissuedToNo(json.reissued_to_no ?? null)
       setReissuedFromNo(json.reissued_from_no ?? null)
     }
@@ -138,14 +143,17 @@ export default function OrderDetailPage() {
   }
 
   // 주문 취소 (삭제 대체) — 물리 삭제 없이 취소 처리, 집계에서 제외 (상계)
+  //  사유 필수 (2026-11-10) — 빠른 선택 또는 직접 입력, '기타'는 직접 입력 필수
+  const cancelText = composeReason(cancelPick, cancelReason)
   const cancelOrder = async () => {
+    if (!cancelText) return
     const res = await fetch(
-      `/api/orders-portal/orders/${id}?reason=${encodeURIComponent(cancelReason.trim())}`,
+      `/api/orders-portal/orders/${id}?reason=${encodeURIComponent(cancelText)}`,
       { method: 'DELETE' },
     )
     const json = await res.json()
     if (!res.ok) { setError(json.error); return }
-    setAskingCancel(false); setCancelReason('')
+    setAskingCancel(false); setCancelReason(''); setCancelPick(null)
     load()
   }
 
@@ -209,6 +217,11 @@ export default function OrderDetailPage() {
             <span className="text-red-500"> (사유: {order.cancel_reason})</span>
           )}
           {reissuedToNo && <span className="ml-2">재등록 주문: <b className="tabular-nums">{reissuedToNo}</b></span>}
+          {typeof order.canceled_at === 'string' && (
+            <div className="text-xs text-red-500 mt-0.5 tabular-nums">
+              {[canceledByName, new Date(order.canceled_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })].filter(Boolean).join(' · ')} 취소
+            </div>
+          )}
         </div>
       )}
       {reissuedFromNo && !canceled && (
@@ -218,14 +231,18 @@ export default function OrderDetailPage() {
       )}
 
       {askingCancel && (
-        <div className="mt-3 p-3 bg-red-50/60 border border-red-200 rounded-lg flex items-center gap-2 flex-wrap">
-          <input value={cancelReason} onChange={e => setCancelReason(e.target.value)}
-            placeholder="취소 사유 (선택)"
-            className="flex-1 min-w-64 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-          <button onClick={cancelOrder} className="px-3.5 py-1.5 bg-red-600 text-white rounded-lg text-sm">주문 취소 확정</button>
-          <span className="text-[0.6875rem] text-gray-500">
-            삭제 대신 취소로 처리됩니다 — 원본은 보존되고 집계에서만 빠집니다 (되돌리려면 재등록)
-          </span>
+        <div className="mt-3 p-3 bg-red-50/60 border border-red-200 rounded-lg space-y-2">
+          <div className="text-sm font-bold text-gray-900">주문 취소 사유</div>
+          <ReasonPicker options={ORDER_CANCEL_REASONS} picked={cancelPick} onPick={setCancelPick}
+            text={cancelReason} onText={setCancelReason} />
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={cancelOrder} disabled={!cancelText}
+              className="px-3.5 py-1.5 bg-red-600 text-white rounded-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed">주문 취소 확정</button>
+            <button onClick={() => setAskingCancel(false)} className="px-3.5 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-sm bg-white">닫기</button>
+            <span className="text-[0.6875rem] text-gray-500">
+              사유를 고르거나 적어야 취소됩니다. 삭제 대신 취소로 처리되어 원본은 보존되고 집계에서만 빠집니다 (되돌리려면 재등록)
+            </span>
+          </div>
         </div>
       )}
 
