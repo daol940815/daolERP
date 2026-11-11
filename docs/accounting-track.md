@@ -1009,3 +1009,9 @@ ERP 주문은 계획대로 교체(erp-reload-track). 결정 대기.
 - **월별 손익현황** `components/ui/MonthPresets.tsx` + `lib/period-presets.ts`의 `MONTH_PRESETS`/`getMonthPresetRange`
   ('YYYY-MM' 범위): 당월 · 전월 · 최근 3·6·12개월 · 1~4분기 · 상반기 · 하반기 · 당년(1월~당월) · 전년 · 전체 기간(2025-01~당월).
   월 단위 화면(근태·업무일지 등)이 같은 부품을 쓸 수 있다. 칩을 누르면 월 입력 칸이 채워지고 즉시 재조회.
+
+## 매입처 관리 카드 금액 표기 (2026-11-11 사용자 요청)
+
+- 기간 매입·미지급 잔액 등 KPI 카드의 '2.78억' 축약 표기를 폐기하고 `1,000,000원` 형식으로 바꿨다
+  (`components/purchase-hub/purchase-hub-list.tsx` · `purchase-hub-detail.tsx`의 `eok` → 전체 금액). 매출처 허브(`sales-hub`)는
+  아직 억 단위 축약 — 같은 요청이 오면 같은 방식으로.
