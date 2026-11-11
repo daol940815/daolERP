@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
-  WR_STATUS_LABEL, WR_STATUS_CLS, WR_EVENT_LABEL, WR_MODE_LABEL, WR_MODE_DESC, WR_ASG_LABEL, WR_ASG_CLS, OPEN_STATUSES, ASG_ACTIVE,
+  WR_STATUS_LABEL, WR_STATUS_CLS, WR_STATUS_HINT, WR_EVENT_LABEL, WR_MODE_LABEL, WR_MODE_DESC, WR_ASG_LABEL, WR_ASG_CLS, OPEN_STATUSES, ASG_ACTIVE,
   dueState, fmtDTFull, fmtDT, isoToLocal, localToIso, activeAssignees, tagsOf, WR_TAG_MAX,
   type WrRow, type WrEventRow, type WrStatus, type WrActions, type WrAssignee, type WrTag,
 } from '@/lib/work-requests'
@@ -19,7 +19,7 @@ import AttachmentBox from '@/components/attachments/AttachmentBox'
 interface Detail { row: WrRow; events: WrEventRow[]; me: { id: string | null }; actions: WrActions; tags?: WrTag[] }
 interface Emp { id: string; name: string; team: string | null; position: string | null; employment_type: string }
 const FLOW: WrStatus[] = ['requested', 'accepted', 'in_progress', 'done_reported', 'completed']
-const FLOW_LABEL: Record<string, string> = { requested: '요청', accepted: '수락', in_progress: '진행 중', done_reported: '처리 보고', completed: '완료' }
+const FLOW_LABEL: Record<string, string> = { requested: '요청', accepted: '수락', in_progress: '진행 중', done_reported: '완료 확정 대기', completed: '완료' }
 
 export default function WorkRequestDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -100,7 +100,7 @@ export default function WorkRequestDetailPage() {
         {multi && <span className={`text-[0.6875rem] px-2 py-0.5 rounded font-semibold ${r.assign_mode === 'first' ? 'bg-sky-100 text-sky-700' : 'bg-violet-100 text-violet-700'}`} title={WR_MODE_DESC[r.assign_mode]}>{WR_MODE_LABEL[r.assign_mode]}</span>}
         {r.is_private && <span className="text-[0.6875rem] px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold" title="요청자 · 담당자 · 승인권자만 볼 수 있음">비공개</span>}
         <h1 className="text-2xl font-bold text-gray-900">{r.title}</h1>
-        <span className={`ml-auto inline-block px-2.5 py-1 rounded text-xs font-semibold ${WR_STATUS_CLS[r.status]}`}>{WR_STATUS_LABEL[r.status]}{multi && r.assign_mode === 'all' && r.status === 'in_progress' ? ` (${reported}/${active.length} 보고)` : ''}</span>
+        <span title={WR_STATUS_HINT[r.status]} className={`ml-auto inline-block px-2.5 py-1 rounded text-xs font-semibold whitespace-nowrap ${WR_STATUS_CLS[r.status]}`}>{WR_STATUS_LABEL[r.status]}{multi && r.assign_mode === 'all' && r.status === 'in_progress' ? ` (${reported}/${active.length} 보고)` : ''}</span>
       </div>
       {tagList.length > 0 ? (
         <div className="mt-2">

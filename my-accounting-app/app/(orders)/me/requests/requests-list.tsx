@@ -12,7 +12,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  WR_STATUS_LABEL, WR_STATUS_CLS, WR_MODE_LABEL, WR_ASG_LABEL, WR_ASG_CLS, OPEN_STATUSES, dueState, myDueState, fmtDue, fmtDT, kstParts,
+  WR_STATUS_LABEL, WR_STATUS_CLS, WR_STATUS_HINT, WR_MODE_LABEL, WR_ASG_LABEL, WR_ASG_CLS, OPEN_STATUSES, dueState, myDueState, fmtDue, fmtDT, kstParts,
   allowedActions, assigneeSummary, myShare, isAssigneeOf, WR_TAG_NONE, type WrRow, type WrStatus, type WrScope, type WrTag,
 } from '@/lib/work-requests'
 import { TagChip, NoTagChip, TagList } from '@/components/work-requests/tag-chip'
@@ -134,19 +134,19 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
     { key: 'active', label: '진행 중', value: s.inbox_active ?? 0, cls: 'text-blue-700', sub: '수락 포함 · 내 몫' },
     { key: 'due_today', label: '오늘 마감', value: s.inbox_due_today ?? 0, cls: 'text-amber-600' },
     { key: 'overdue', label: '마감 지남', value: s.inbox_overdue ?? 0, cls: 'text-red-600', sub: '내 보고 전' },
-    { key: 'reported', label: '완료 대기', value: s.inbox_reported ?? 0, cls: 'text-gray-900', sub: '내가 보고, 요청자 확정 전' },
+    { key: 'reported', label: '완료 확정 대기', value: s.inbox_reported ?? 0, cls: 'text-gray-900', sub: '내가 보고, 요청자 확정 전' },
   ] : scope === 'outbox' ? [
     { key: 'unread', label: '미확인', value: cnt(r => r.status === 'requested'), cls: 'text-gray-900', sub: '담당자 확인 전' },
     { key: 'active', label: '진행 중', value: cnt(r => r.status === 'accepted' || r.status === 'in_progress'), cls: 'text-blue-700' },
     { key: 'overdue', label: '마감 지남', value: s.outbox_overdue ?? 0, cls: 'text-red-600' },
-    { key: 'reported', label: '완료 대기', value: s.outbox_awaiting ?? 0, cls: 'text-amber-600', sub: '내가 확정할 것' },
+    { key: 'reported', label: '완료 확정 대기', value: s.outbox_awaiting ?? 0, cls: 'text-amber-600', sub: '내가 확정할 것' },
     { key: 'rejected', label: '반려됨', value: s.outbox_rejected ?? 0, cls: 'text-red-600', sub: '수정 후 재요청 또는 취소' },
   ] : [
     { key: 'open', label: '진행 중 전체', value: open.length, cls: 'text-blue-700', sub: '지금 열린 건' },
     { key: 'unread', label: '미확인', value: cnt(r => r.status === 'requested'), cls: 'text-gray-900', sub: '담당자 확인 전' },
     { key: 'due_today', label: '오늘 마감', value: cnt(r => dueState(r, now) === 'today'), cls: 'text-amber-600' },
     { key: 'overdue', label: '마감 지남', value: cnt(r => dueState(r, now) === 'overdue'), cls: 'text-red-600', sub: '처리 보고 전' },
-    { key: 'reported', label: '완료 대기', value: cnt(r => r.status === 'done_reported'), cls: 'text-gray-900', sub: '요청자 확정 전' },
+    { key: 'reported', label: '완료 확정 대기', value: cnt(r => r.status === 'done_reported'), cls: 'text-gray-900', sub: '요청자 확정 전' },
   ]
 
   const dueCell = (r: WrRow) => {
@@ -268,7 +268,7 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
                     )}
                     <td className="py-2 px-3 whitespace-nowrap text-gray-500 text-xs tabular-nums">{fmtDT(r.created_at)}</td>
                     <td className="py-2 px-3">{dueCell(r)}</td>
-                    <td className="py-2 px-3"><span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold whitespace-nowrap ${WR_STATUS_CLS[r.status]}`}>{WR_STATUS_LABEL[r.status]}</span></td>
+                    <td className="py-2 px-3"><span title={WR_STATUS_HINT[r.status]} className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold whitespace-nowrap ${WR_STATUS_CLS[r.status]}`}>{WR_STATUS_LABEL[r.status]}</span></td>
                     <td className="py-2 px-3 text-xs text-gray-500 max-w-[260px] truncate">{r.status === 'rejected' && r.reject_reason ? `반려: ${r.reject_reason}` : r.last_memo ?? '-'}</td>
                     <td className="py-2 px-3 text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
                       {a.accept && <button disabled={b} onClick={() => act(r.id, 'accept')} className="px-2 py-1 text-xs border border-emerald-300 text-emerald-700 rounded hover:bg-emerald-50 disabled:opacity-50 mr-1">수락</button>}

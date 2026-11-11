@@ -85,12 +85,12 @@ export default function MyDashboardPage() {
       {
         label: '받은 요청', href: '/me/requests',
         value: `미확인 ${wr.inbox_unread ?? 0}`,
-        sub: `진행 중 ${wr.inbox_active ?? 0} · 지남 ${wr.inbox_overdue ?? 0}${wr.inbox_reported ? ` · 완료 대기 ${wr.inbox_reported}` : ''}`,
+        sub: `진행 중 ${wr.inbox_active ?? 0} · 지남 ${wr.inbox_overdue ?? 0}${wr.inbox_reported ? ` · 완료 확정 대기 ${wr.inbox_reported}` : ''}`,
       },
       {
         label: '보낸 요청', href: '/me/requests?tab=outbox',
         value: `진행 중 ${wr.outbox_open ?? 0}`,
-        sub: `${wr.outbox_awaiting ? `완료 대기 ${wr.outbox_awaiting}` : ''}${wr.outbox_awaiting && wr.outbox_rejected ? ' · ' : ''}${wr.outbox_rejected ? `반려 ${wr.outbox_rejected}` : ''}` || null,
+        sub: `${wr.outbox_awaiting ? `완료 확정 대기 ${wr.outbox_awaiting}` : ''}${wr.outbox_awaiting && wr.outbox_rejected ? ' · ' : ''}${wr.outbox_rejected ? `반려 ${wr.outbox_rejected}` : ''}` || null,
       },
     ] : []),
     {
