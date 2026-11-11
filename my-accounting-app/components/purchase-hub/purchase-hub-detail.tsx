@@ -466,7 +466,8 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
       {/* KPI 6 — 기간/누적 */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mt-4">
         {[
-          { tag: '기간', label: '매입 (계산서)', value: eok(data.kpi.invoice_total), sub: `계산서 ${data.invoices.length}건 (전체 기간)`, cls: '' },
+          // 금액은 선택 기간 합계 — 건수도 같은 기간으로 센다 (옛 라벨 '(전체 기간)'이 전체 합계처럼 읽혔다, 2026-11-11)
+          { tag: '기간', label: '매입 (계산서)', value: eok(data.kpi.invoice_total), sub: `${from} ~ ${to} · 계산서 ${data.invoices.filter(i => i.issue_date >= from && i.issue_date <= to).length}건 (전체 ${data.invoices.length}건)`, cls: '' },
           { tag: '기간', label: '지급액', value: eok(data.kpi.paid_total), sub: '계산서 매칭 + 미지급금 상계', cls: '' },
           { tag: '누적', label: '미지급 잔액', value: eok(data.kpi.outstanding), sub: data.kpi.outstanding < 0 ? '음수 = 과다지급' : `기초이월 ${eok(data.kpi.opening_remain)} 포함`, cls: data.kpi.outstanding > 0 ? 'text-red-600' : data.kpi.outstanding < 0 ? 'text-violet-600' : '' },
           { tag: '기간', label: 'ERP 발주', value: eok(data.kpi.erp_amount), sub: '품목 매입가 합 (취소 제외)', cls: '' },
