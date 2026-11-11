@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { normalizeName } from '@/lib/name-similarity'
 import { syncTransactionPaymentEntry } from '@/lib/vendor-ledger'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { bankKeywordsColumnExists, bankKeywordsOf } from '@/lib/vendor-keywords.server'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -17,9 +18,12 @@ export async function POST() {
   const admin = createAdminClient()
 
   // 전량 페이지 조회 — 단일 조회는 1000행에서 잘려 뒤쪽 거래처가 후보에서 빠진다 (2026-10-22)
-  const vendorsResult = await fetchAllRows<{ id: string; name: string; biz_number: string | null; match_aliases: string[] | null }>((f, t) =>
-    admin.from('vendors').select('id, name, biz_number, match_aliases')
-      .eq('is_active', true).eq('status', 'active').range(f, t))
+  // 423: 통장 매칭은 통장 키워드(bank_keywords)만 본다 — 계산서 키워드(match_aliases)는 계산서 매칭 전용.
+  // 컬럼이 없으면(423 미실행) 옛 방식대로 match_aliases.
+  const hasBank = await bankKeywordsColumnExists(admin)
+  const vendorsResult = await fetchAllRows<{ id: string; name: string; biz_number: string | null; match_aliases: string[] | null; bank_keywords?: string[] | null }>((f, t) =>
+    admin.from('vendors').select((hasBank ? 'id, name, biz_number, match_aliases, bank_keywords' : 'id, name, biz_number, match_aliases') as string)
+      .eq('is_active', true).eq('status', 'active').range(f, t) as unknown as PromiseLike<{ data: { id: string; name: string; biz_number: string | null; match_aliases: string[] | null; bank_keywords?: string[] | null }[] | null; error: { message: string } | null }>)
   if ('error' in vendorsResult) return NextResponse.json({ error: vendorsResult.error }, { status: 500 })
   const vendors = vendorsResult.data
 
@@ -27,8 +31,7 @@ export async function POST() {
     id:          v.id as string,
     bizDigits:   (v.biz_number as string | null)?.replace(/[^0-9]/g, '') ?? '',
     normName:    normalizeName((v.name as string).trim()),
-    normAliases: ((v.match_aliases as string[] | null) ?? [])
-      .filter(Boolean)
+    normAliases: bankKeywordsOf(v, hasBank)
       .map(normalizeName)
       .filter(Boolean),
   }))

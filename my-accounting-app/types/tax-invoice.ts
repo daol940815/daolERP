@@ -8,6 +8,7 @@ export interface Vendor {
   email?: string | null
   note?: string | null
   match_aliases: string[]
+  bank_keywords?: string[]   // 통장 키워드 (423) — 컬럼이 없는 환경에서는 응답에 빠진다
   card_numbers: string[]
   ledger_balance?: number | null
   ledger_balance_updated_at?: string | null

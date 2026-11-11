@@ -601,6 +601,8 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
   // 계정과목 필터 (2026-11-11 사용자 요청: 목록 필터만) — '' = 전체, 'none' = 미분류, 그 외 = 확정 계정 id.
   // 불러온 행에서 거르므로 합계·선택·일괄 작업도 걸러진 행 기준이 된다.
   const [accountFilter, setAccountFilter] = useState('')
+  // 매입처 상세 '계산서 매칭'에서 진입: ?vendorId= 로 그 거래처 계산서만 (기간은 비워 과거 계산서도 보이게)
+  const [vendorIdFilter, setVendorIdFilter] = useState<string | null>(() => searchParams.get('vendorId'))
   // 원본 상세 등에서 특정 계산서로 바로 진입 (?invoiceId=) — 그 건만 표시
   const [focusId, setFocusId]         = useState<string | null>(() => searchParams.get('invoiceId'))
   const [exporting, setExporting]     = useState(false)
@@ -632,13 +634,16 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
     setLoading(true)
     const params = new URLSearchParams({ direction, taxType })
     if (statusFilter !== 'all') params.set('paymentStatus', statusFilter)
-    if (dateFrom) params.set('from', dateFrom)
-    if (dateTo)   params.set('to', dateTo)
+    if (vendorIdFilter) params.set('vendorId', vendorIdFilter)
+    else {
+      if (dateFrom) params.set('from', dateFrom)
+      if (dateTo)   params.set('to', dateTo)
+    }
     const res  = await fetch(`/api/tax-invoices?${params.toString()}`)
     const json = await res.json()
     if (Array.isArray(json.data)) setInvoices(json.data)
     setLoading(false)
-  }, [valid, direction, taxType, statusFilter, dateFrom, dateTo])
+  }, [valid, direction, taxType, statusFilter, dateFrom, dateTo, vendorIdFilter])
 
   useEffect(() => { load() }, [load])
 
@@ -862,6 +867,12 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
         <span className="w-px h-5 bg-gray-200 mx-1" />
         <span className="text-xs text-gray-400">종류</span>
         {TAX_CHIPS.map(t => <button key={t.key} onClick={() => switchKind(direction, t.key)} className={chipCls(t.key === taxType)}>{t.label}</button>)}
+        {vendorIdFilter && (
+          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm bg-indigo-50 text-indigo-700 border border-indigo-200">
+            거래처 {invoices[0]?.counterparty_name ?? '지정'} 계산서만 (전체 기간)
+            <button onClick={() => setVendorIdFilter(null)} className="text-indigo-400 hover:text-indigo-600" title="거래처 필터 해제">✕</button>
+          </span>
+        )}
       </div>
       <div className="flex items-start justify-between mb-1 flex-wrap gap-3">
         <div>

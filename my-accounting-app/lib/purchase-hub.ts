@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { contactLabel } from '@/lib/contact-label'
+import { normalizeName } from '@/lib/name-similarity'
+import { bankKeywordsColumnExists, bankKeywordsOf } from '@/lib/vendor-keywords.server'
 
 // ─────────────────────────────────────────────────────────
 // 매입처 허브 집계 (docs/purchase-hub-track.md)
@@ -546,6 +548,21 @@ export interface PurchaseHubErpItem {
   is_canceled: boolean
 }
 
+// 통장 대사 (423, 2026-11-11 승인) — 이 매입처에 연결된 통장 거래 한 건
+export interface PurchaseHubBankRow {
+  id: string
+  tx_date: string
+  description: string | null
+  counterparty_name: string | null
+  account_alias: string | null
+  amount_in: number
+  amount_out: number
+  invoice_linked: number       // 계산서 결제연결 금액 합 (0 = 연결 없음)
+  is_offset: boolean           // 미지급금(2001) 상계 확정 출금
+  basis: string                // 연결 근거: 사업자번호 · 상호 · 통장 키워드 "x" · 직접 지정
+}
+export type BankVerdict = 'ok' | 'match_missing' | 'invoice_check' | 'inflow' | 'excluded'
+
 export interface PurchaseHubDetail {
   vendor: {
     id: string; name: string; biz_number: string | null; email: string | null
@@ -554,6 +571,20 @@ export interface PurchaseHubDetail {
   links: {
     alias_count: number
     opening: { as_of_date: string; amount: number; note: string | null } | null
+  }
+  // 키워드 두 칸 — invoice = match_aliases(계산서), bank = bank_keywords(통장). bank_column=false면 423 미실행(통장은 계산서 키워드로 대신)
+  keywords: { invoice: string[]; bank: string[]; bank_column: boolean }
+  // 통장 ↔ 계산서 대사 (선택 기간). 이체쌍 제외, 카드사 거래처는 집계 제외(excluded_reason)
+  bank: {
+    excluded_reason: string | null
+    out_total: number; out_count: number        // ① 통장 출금
+    in_total: number; in_count: number          // ② 통장 입금 (환불·정산)
+    invoice_total: number                       // ③ 계산서 합계 (= kpi.invoice_total)
+    paid_total: number                          // ④ 지급 (계산서 매칭 + 상계, = kpi.paid_total)
+    unmatched_out: number; unmatched_out_count: number   // ⑤ 계산서 연결·상계 없는 출금 (행 단위 합)
+    open_invoice_total: number                  // 기간 내 미지급 잔여가 남은 계산서 합 — 매칭 누락 판정용
+    verdict: BankVerdict
+    rows: PurchaseHubBankRow[]                  // 연결 거래 전체(기간 무관, 최신순, 최대 1,000)
   }
   staff: {
     id: string; employee_id: string; name: string; team: string | null
@@ -590,13 +621,15 @@ export async function buildPurchaseHubDetail(
 ): Promise<PurchaseHubDetail | { error: string }> {
   const inPeriod = (d: string | null) => !!d && (!fromDate || d >= fromDate) && (!toDate || d <= toDate)
 
+  const hasBankCol = await bankKeywordsColumnExists(admin)
   const [vendorRes, aliasRes, acc2001] = await Promise.all([
-    admin.from('vendors').select('id, name, biz_number, email, note, is_active').eq('id', vendorId).single(),
+    admin.from('vendors').select((hasBankCol ? 'id, name, biz_number, email, note, is_active, match_aliases, bank_keywords' : 'id, name, biz_number, email, note, is_active, match_aliases') as string).eq('id', vendorId).single() as unknown as PromiseLike<{ data: { id: string; name: string; biz_number: string | null; email: string | null; note: string | null; is_active: boolean | null; match_aliases: string[] | null; bank_keywords?: string[] | null } | null; error: { message: string } | null }>,
     admin.from('erp_vendor_aliases').select('id').eq('alias_type', 'purchase').eq('vendor_id', vendorId),
     payableAccountId(admin),
   ])
   if (vendorRes.error) return { error: vendorRes.error.message }
   if (aliasRes.error) return { error: aliasRes.error.message }
+  if (!vendorRes.data) return { error: '거래처를 찾을 수 없습니다.' }
   const vendor = vendorRes.data
   const aliasIds = (aliasRes.data ?? []).map(a => a.id as string)
 
@@ -664,6 +697,43 @@ export async function buildPurchaseHubDetail(
         .range(f, t))
     if (!('error' in r)) cardRows = r.data.filter(c => !(c.statement_status ?? '').includes('취소'))
   }
+
+  // ── 통장 대사: 이 매입처에 연결된 통장 거래 전부 (이체쌍 제외) + 연결 근거 ──
+  const invoiceKeywords = ((vendor as { match_aliases?: string[] | null }).match_aliases ?? []).filter(Boolean)
+  const bankKeywords = bankKeywordsOf(vendor as { bank_keywords?: string[] | null; match_aliases?: string[] | null }, hasBankCol)
+  type BankTx = { id: string; tx_date: string; description: string | null; counterparty_name: string | null; account_alias: string | null
+    amount_in: number | null; amount_out: number | null; status: string; confirmed_account_id: string | null }
+  const bankTxR = await fetchAllRows<BankTx>((f, t) =>
+    admin.from('transactions')
+      .select('id, tx_date, description, counterparty_name, account_alias, amount_in, amount_out, status, confirmed_account_id')
+      .eq('vendor_id', vendorId).is('transfer_pair_id', null)
+      .order('tx_date', { ascending: false }).range(f, t))
+  if ('error' in bankTxR) return bankTxR
+  const bankTxs = bankTxR.data
+  const bankLinkByTx = new Map<string, number>()
+  if (bankTxs.length) {
+    const r = await fetchByIds<{ transaction_id: string; amount: number }>(bankTxs.map(x => x.id), 100, (slice, f, t) =>
+      admin.from('tax_invoice_payments').select('transaction_id, amount').in('transaction_id', slice).range(f, t))
+    if (!('error' in r)) for (const l of r.data) bankLinkByTx.set(l.transaction_id, (bankLinkByTx.get(l.transaction_id) ?? 0) + l.amount)
+  }
+  const vendorNormName = normalizeName(vendor.name)
+  const bankKwNorm = bankKeywords.map(k => ({ raw: k, norm: normalizeName(k) })).filter(k => k.norm)
+  const basisOf = (tx: BankTx): string => {
+    const hay = `${tx.description ?? ''} ${tx.counterparty_name ?? ''}`
+    if (bizDigits.length === 10 && hay.replace(/\D/g, '').includes(bizDigits)) return '사업자번호'
+    const hayNorm = normalizeName(hay)
+    if (vendorNormName && hayNorm.includes(vendorNormName)) return '상호'
+    const kw = bankKwNorm.find(k => hayNorm.includes(k.norm))
+    if (kw) return `통장 키워드 "${kw.raw}"`
+    return '직접 지정'
+  }
+  const bankRows: PurchaseHubBankRow[] = bankTxs.map(tx => ({
+    id: tx.id, tx_date: tx.tx_date, description: tx.description, counterparty_name: tx.counterparty_name, account_alias: tx.account_alias,
+    amount_in: tx.amount_in ?? 0, amount_out: tx.amount_out ?? 0,
+    invoice_linked: bankLinkByTx.get(tx.id) ?? 0,
+    is_offset: !!acc2001 && tx.status === 'confirmed' && tx.confirmed_account_id === acc2001 && (tx.amount_out ?? 0) > 0,
+    basis: basisOf(tx),
+  }))
 
   // ERP 발주 품목 (매입 별칭 기준)
   interface ItemRow {
@@ -759,6 +829,25 @@ export async function buildPurchaseHubDetail(
   }
   timeline.sort((a, b) => b.date.localeCompare(a.date))
 
+  // 통장 대사 집계 (기간) — 카드사 거래처는 카드대금 출금이라 매입 대사 대상이 아니다
+  const bankExcluded = cardAcc ? '카드사 거래처 — 카드대금 출금은 계산서 지급이 아니라 대사에서 제외' : null
+  let bankOut = 0, bankOutCnt = 0, bankIn = 0, bankInCnt = 0, unmatchedOut = 0, unmatchedCnt = 0
+  if (!bankExcluded) {
+    for (const r of bankRows) {
+      if (!inPeriod(r.tx_date)) continue
+      if (r.amount_out > 0) {
+        bankOut += r.amount_out; bankOutCnt++
+        if (r.invoice_linked === 0 && !r.is_offset) { unmatchedOut += r.amount_out; unmatchedCnt++ }
+      }
+      if (r.amount_in > 0) { bankIn += r.amount_in; bankInCnt++ }
+    }
+  }
+  // 기간 내 계산서 중 아직 미지급 잔여가 남은 것 — 있으면 "매칭 누락(계산서 있음)", 없으면 "계산서 확인 필요"
+  const openInvoiceTotal = invR.data.reduce((s, i) => s + (inPeriod(i.issue_date) ? (fifo.unpaidByInvoice.get(i.id) ?? 0) : 0), 0)
+  const bankVerdict: BankVerdict = bankExcluded ? 'excluded'
+    : unmatchedOut > 0 ? (openInvoiceTotal > 0 ? 'match_missing' : 'invoice_check')
+    : bankIn > 0 ? 'inflow' : 'ok'
+
   // ERP 발주 — 정산월별 롤업 + 품목 목록
   let erpAmountPeriod = 0
   let lastPurchase: string | null = null
@@ -802,6 +891,16 @@ export async function buildPurchaseHubDetail(
       note: vendor.note, purchase_kind: purchaseKind, is_active: vendor.is_active !== false,
     },
     links: { alias_count: aliasIds.length, opening },
+    keywords: { invoice: invoiceKeywords, bank: bankKeywords, bank_column: hasBankCol },
+    bank: {
+      excluded_reason: bankExcluded,
+      out_total: bankOut, out_count: bankOutCnt, in_total: bankIn, in_count: bankInCnt,
+      invoice_total: invoiceTotalPeriod, paid_total: paidPeriod,
+      unmatched_out: unmatchedOut, unmatched_out_count: unmatchedCnt,
+      open_invoice_total: openInvoiceTotal,
+      verdict: bankVerdict,
+      rows: bankRows.slice(0, 1000),
+    },
     staff: staffRows.map(s => ({
       id: s.id as string,
       employee_id: s.employee_id as string,

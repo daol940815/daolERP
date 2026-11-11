@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { bankKeywordsColumnExists, bankKeywordsOf } from '@/lib/vendor-keywords.server'
 
 // 목록/상세 API에서 공통으로 사용하는 세금계산서 select — 결제 연결 내역(payments)을
 // 함께 내려줘서 한 계산서에 여러 거래내역이 부분금액으로 연결된 경우도 화면에서 바로 표현한다.
@@ -83,19 +84,21 @@ async function learnFromPaymentLink(admin: Admin, invoiceId: string, transaction
       await admin.from('transactions').update({ vendor_id: inv.vendor_id }).eq('id', transactionId)
     }
 
-    const { data: vendor } = await admin
+    // 423: 통장 적요 표현은 통장 키워드(bank_keywords)에 학습한다 — 계산서 키워드와 섞지 않는다. 컬럼 없으면 옛 칸.
+    const hasBank = await bankKeywordsColumnExists(admin)
+    const { data: vendor } = await (admin
       .from('vendors')
-      .select('name, match_aliases, biz_number')
+      .select((hasBank ? 'name, match_aliases, biz_number, bank_keywords' : 'name, match_aliases, biz_number') as string)
       .eq('id', inv.vendor_id)
-      .single()
+      .single() as unknown as PromiseLike<{ data: { name: string; match_aliases: string[] | null; biz_number: string | null; bank_keywords?: string[] | null } | null; error: { message: string } | null }>)
     if (!vendor) return
 
-    // ② 입금자명/적요 → 별칭 자동 저장
+    // ② 입금자명/적요 → 통장 키워드 자동 저장
     const alias = ((tx.counterparty_name as string | null) ?? (tx.description as string | null) ?? '').trim()
-    const existing = (vendor.match_aliases as string[] | null) ?? []
+    const existing = bankKeywordsOf(vendor as { bank_keywords?: string[] | null; match_aliases?: string[] | null }, hasBank)
     const updates: Record<string, unknown> = {}
     if (alias.length >= 2 && alias !== vendor.name && !existing.includes(alias)) {
-      updates.match_aliases = [...existing, alias]
+      updates[hasBank ? 'bank_keywords' : 'match_aliases'] = [...existing, alias]
     }
     // ③ 사업자번호 백필
     if (!vendor.biz_number && inv.counterparty_biz_number) {
