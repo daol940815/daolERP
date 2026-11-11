@@ -191,6 +191,7 @@ export const API_OWNERS: { prefix: string; group: MenuGroupKey | MenuGroupKey[] 
   // 전원
   { prefix: '/api/me', group: 'my' },
   { prefix: '/api/work-requests', group: 'my' },            // 업무 요청 (당사자 판정은 API 안에서)
+  { prefix: '/api/attachments', group: 'my' },              // 공통 첨부 파일 (1200) — 건별 권한은 lib/attachments-server 판정
   { prefix: '/api/notifications', group: 'my' },            // 알림 센터 (본인 기준 확인할 것)
   { prefix: '/api/push', group: 'my' },
   { prefix: '/api/help', group: 'my' },                     // 도움말 점검(마스터 판정은 라우트 안에서)                     // PC 알림(Web Push) 구독 (본인 기기만, /api/push/cron 은 미들웨어가 통과시키고 비밀로 검사)

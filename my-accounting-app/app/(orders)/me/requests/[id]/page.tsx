@@ -14,6 +14,7 @@ import {
 } from '@/lib/work-requests'
 import { TagChip, TagPicker } from '@/components/work-requests/tag-chip'
 import { useNotifRefresh, requestNotifRefresh } from '@/lib/use-notif-refresh'
+import AttachmentBox from '@/components/attachments/AttachmentBox'
 
 interface Detail { row: WrRow; events: WrEventRow[]; me: { id: string | null }; actions: WrActions; tags?: WrTag[] }
 interface Emp { id: string; name: string; team: string | null; position: string | null; employment_type: string }
@@ -169,6 +170,8 @@ export default function WorkRequestDetailPage() {
                 )}
               </>
             )}
+            {/* 첨부 파일 (1200) — 열린 요청의 요청자 · 담당자가 붙인다. 보기는 이 요청을 볼 수 있는 사람 전원 */}
+            <AttachmentBox key={`${r.id}:${r.status}`} ownerType="work_request" ownerId={r.id} pasteAnywhere={!editing} className="mt-4 pt-3 border-t border-gray-100" />
           </div>
 
           {/* 담당자별 진행 */}

@@ -7,6 +7,7 @@ import { OPEN_STATUSES, DUE_TRACKED, ASG_ACTIVE, ASG_TRACKED, myShare, isAssigne
 import { selectRows, canSeePrivate, normalize, hintFor, loadTags, tagPrefix, type RawRow } from '@/lib/work-requests-server'
 import { broadcastWrChanged } from '@/lib/realtime-broadcast'
 import { sendPush } from '@/lib/push-server'
+import { linkDraftAttachments } from '@/lib/attachments-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +20,7 @@ export const dynamic = 'force-dynamic'
 //  GET  ?summary=1                     — 사이드바 배지·대시보드 카드용 건수만 (내 몫 기준)
 //  POST { assignee_ids[], assign_mode?: first|all, title, content?, link?, due_at, is_urgent?, is_private?, tag_ids[] } — 새 요청 (요청자 = 나)
 //       904: tag_ids(업무 계열) 1~3개 필수 — 904 미적용 환경에서는 태그 없이 받는다. 목록 응답에 태그 마스터(tags)를 함께 내려준다.
+//       draft_key: 작성 중 올린 첨부 묶음(1200) — 저장 뒤 이 요청에 연결한다.
 //       assignee_id(단수) 도 받는다. 담당자 2명 이상이면 assign_mode 필수.
 
 function summarize(inbox: WrRow[], outbox: WrRow[], meId: string, now = new Date()) {
@@ -101,7 +103,7 @@ export async function POST(req: NextRequest) {
   if (!me.employeeId) return NextResponse.json({ error: '직원 정보와 연결되지 않은 계정은 요청할 수 없습니다.' }, { status: 400 })
   const body = await req.json().catch(() => ({})) as {
     assignee_id?: string; assignee_ids?: string[]; assign_mode?: string
-    title?: string; content?: string; link?: string; due_at?: string; is_urgent?: boolean; is_private?: boolean; tag_ids?: string[]
+    title?: string; content?: string; link?: string; due_at?: string; is_urgent?: boolean; is_private?: boolean; tag_ids?: string[]; draft_key?: string
   }
   const title = (body.title ?? '').trim()
   const ids = Array.from(new Set([...(Array.isArray(body.assignee_ids) ? body.assignee_ids : []), ...(body.assignee_id ? [body.assignee_id] : [])].filter(x => typeof x === 'string' && x)))
@@ -153,6 +155,8 @@ export async function POST(req: NextRequest) {
     request_id: r.data.id, actor_id: me.employeeId, event: 'created',
     memo: ids.length > 1 ? `담당자 ${ids.length}명 · ${mode === 'first' ? '선착' : '공동'} 방식` : null,
   })
+  // 작성 중 올린 첨부(1200) — 이 요청에 연결. 1200 미적용이면 0
+  await linkDraftAttachments(admin, { ownerType: 'work_request', ownerId: r.data.id, draftKey: body.draft_key, employeeId: me.employeeId })
   await broadcastWrChanged(r.data.id, [me.employeeId, ...ids])
   // PC 알림(⑦) — 담당자(본인 제외)에게 "새 업무 요청". 비공개는 제목 없이.
   await sendPush(admin, ids.filter(id => id !== me.employeeId), body.is_private
