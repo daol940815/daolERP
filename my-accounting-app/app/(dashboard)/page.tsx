@@ -7,6 +7,7 @@ import { buildPurchaseHubList } from '@/lib/purchase-hub'
 import MgmtTab from './_components/MgmtTab'
 import CashTab from './_components/CashTab'
 import WorkTab from './_components/WorkTab'
+import DashboardPeriodBar from '@/components/dashboard/DashboardPeriodBar'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -86,6 +87,11 @@ export default async function DashboardPage({
   if (payOverpaid < 0) checkParts.push('과다지급')
   const checkCount = loanOverdue + aliasUnlinked + (payOverpaid < 0 ? 1 : 0)
 
+  // 기간 줄 표시용 — 유효한 날짜만 (각 탭의 해석·기본값은 탭 컴포넌트가 한다)
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+  const pFrom = searchParams?.from && DATE_RE.test(searchParams.from) ? searchParams.from : null
+  const pTo   = searchParams?.to   && DATE_RE.test(searchParams.to)   ? searchParams.to   : null
+
   const qs = (t: TabKey) => {
     const p = new URLSearchParams()
     p.set('tab', t)
@@ -122,8 +128,11 @@ export default async function DashboardPage({
         </div>
       </div>
 
+      {/* 기간 줄 — 경영·자금 탭 공통 (작업 탭은 기간 없음). 2026-11-11 승인 칩 세트 */}
+      {tab !== 'work' && <DashboardPeriodBar tab={tab} from={pFrom} to={pTo} />}
+
       {/* 탭 */}
-      <div className="flex items-center gap-1 mt-5 border-b border-gray-200">
+      <div className="flex items-center gap-1 mt-3 border-b border-gray-200">
         {TABS.map(t => (
           <Link key={t.key} href={qs(t.key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap ${tab === t.key

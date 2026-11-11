@@ -965,3 +965,14 @@ ERP 주문은 계획대로 교체(erp-reload-track). 결정 대기.
 - 분개 생성: `lib/journal/` / 매출·매입 사이클: `sales-cycle`, `purchase-cycle`
 - 수금 매칭: `erp-matching`, `lib/erp-matching.ts`
 - DB 조회 함정: PostgREST 1000행 절단·URL 길이 — CLAUDE.md '자주 걸리는 함정' 참조
+
+### 대시보드·월별 손익현황 기간 칩 (2026-11-11 승인 — "전체 기간도 추가")
+
+- 사용자 요청: 대시보드와 월별 손익현황에 기간별 칩 추가. 칩 목록을 먼저 제안 → 전체 기간 포함으로 승인.
+- **대시보드** `components/dashboard/DashboardPeriodBar.tsx`: 탭 줄 위 한 줄, 경영·자금 탭 공통(작업 탭 없음). 칩 = 오늘 +
+  표준 세트(최근 7일 · 최근 30일 · 당월 · 전월 · 1~4분기 · 상반기 · 하반기 · 당년 · 전년 · 전체 기간) + 날짜 from~to · 적용 ·
+  기간 해제. 주소 `?tab=&from=&to=`로 서버 컴포넌트에 전달, 탭 이동에도 유지. 옛 자금 탭 전용 `DashboardPeriodFilter`
+  (오늘·이번달·지난달)는 삭제. 기간 없을 때: 경영 탭 당월, 자금 탭 현재 기준 잔액(헤더에 명시).
+- **월별 손익현황** `components/ui/MonthPresets.tsx` + `lib/period-presets.ts`의 `MONTH_PRESETS`/`getMonthPresetRange`
+  ('YYYY-MM' 범위): 당월 · 전월 · 최근 3·6·12개월 · 1~4분기 · 상반기 · 하반기 · 당년(1월~당월) · 전년 · 전체 기간(2025-01~당월).
+  월 단위 화면(근태·업무일지 등)이 같은 부품을 쓸 수 있다. 칩을 누르면 월 입력 칸이 채워지고 즉시 재조회.
