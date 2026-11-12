@@ -206,7 +206,7 @@ export default function MyDashboardPage() {
         <div className="bg-white border border-gray-200 rounded-xl p-4 lg:col-span-2">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-900">최근 내 주문</h2>
-            <Link href="/orders" className="text-xs text-slate-500 hover:text-slate-900">주문 현황 전체</Link>
+            <Link href="/orders" className="text-xs text-slate-500 hover:text-slate-900">주문내역 전체</Link>
           </div>
           {data.recentOrders.length ? (
             <table className="w-full text-sm mt-2">

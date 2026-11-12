@@ -56,7 +56,7 @@ export const MENU: MenuGroup[] = [
   ]},
   { key: 'orders', area: 'sales', label: '주문 · 발주', items: [
     { label: '상담일지', href: '/orders/consultations' },
-    { label: '주문 현황', href: '/orders', exact: true },
+    { label: '주문내역', href: '/orders', exact: true },   // 2026-11-12 '주문 현황'에서 이름 변경(사용자 결정)
     { label: '신규 주문', href: '/orders/new' },
     { label: '발주서', href: '/orders/purchase' },
     { label: '배송 관리', href: '/orders/delivery', wip: true },

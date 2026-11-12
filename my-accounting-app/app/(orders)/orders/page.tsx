@@ -9,7 +9,7 @@ import CollectMatchModal from '@/components/erp/CollectMatchModal'
 import ReasonBadge from '@/components/ui/ReasonBadge'
 import { FIELD_SHORT, MINE_FILTERS, ORDERS_LIST_URL_KEY, SEARCH_FIELDS, decodeCond, encodeCond, parseFreeText, parseMine, type MineFilter, type SearchCond, type SearchField } from '@/lib/order-search-fields'
 
-// 주문 현황 (시안 v2) — KPI(클릭=필터) + 통합 검색 + 칩 필터 + 행내 상품 펼치기.
+// 주문내역(2026-11-12 '주문 현황'에서 이름 변경) (시안 v2) — KPI(클릭=필터) + 통합 검색 + 칩 필터 + 행내 상품 펼치기.
 // 검사 상태(정의 미확정)·배송 컬럼(3단계)은 제외 상태 — 트랙 문서 참고.
 // 마진·매입 정보는 전 직원 공개 (2026-08-13 사용자 결정).
 
@@ -284,7 +284,7 @@ export default function OrdersHomePage() {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-900">주문 현황</h1>
+        <h1 className="text-xl font-bold text-gray-900">주문내역</h1>
         <span className="ml-auto flex gap-2">
           <button onClick={exportExcel} disabled={exporting}
             className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 disabled:opacity-50">
