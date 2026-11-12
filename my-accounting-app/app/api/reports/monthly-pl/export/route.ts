@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const basis = searchParams.get('basis') === 'erp' ? 'erp' : 'evidence'
   const result = await buildMonthlyPL(admin, from, to, basis)
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
-  const { months, items, reconcile } = result.result
+  const { months, items, reconcile, taxSplit } = result.result
 
   const rows = items.map(it => {
     const row: Record<string, unknown> = { '항목': it.is_section_header ? `[${it.label}]` : it.label }
@@ -28,6 +28,18 @@ export async function GET(req: NextRequest) {
   const sheets: { name: string; rows: Record<string, unknown>[]; cols?: number[] }[] = [
     { name: basis === 'evidence' ? '손익(증빙기준)' : '손익(ERP기준)', rows, cols },
   ]
+  if (taxSplit) {
+    const tsRows: Record<string, unknown>[] = []
+    for (const [title, r] of [['과세', taxSplit.taxable], ['면세', taxSplit.exempt], ['구분 없음', taxSplit.other]] as const) {
+      for (const [label, arr] of [['매출', r.revenue], ['매출원가', r.cogs], ['매출이익', r.gross]] as const) {
+        const row: Record<string, unknown> = { '항목': `${title} ${label}` }
+        months.forEach((m, i) => { row[m] = arr[i] })
+        row['합계'] = arr.reduce((s, v) => s + v, 0)
+        tsRows.push(row)
+      }
+    }
+    sheets.push({ name: '과세면세별 매출이익', rows: tsRows, cols })
+  }
   if (reconcile) {
     const recRows: Record<string, unknown>[] = []
     for (const [label, arr] of [['매출 (증빙 기준)', reconcile.evidence], ['매출 (ERP 기준)', reconcile.erp], ['차이 (ERP − 증빙)', reconcile.diff]] as const) {
