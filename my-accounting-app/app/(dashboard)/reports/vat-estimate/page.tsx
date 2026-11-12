@@ -219,7 +219,7 @@ export default function VatEstimatePage() {
 
           {v.card_missing.count > 0 && (
             <div className="mb-3 px-4 py-2.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg">
-              카드매출 중 공급가·세액 구분 미기재 {v.card_missing.count}건 ({fmt0(v.card_missing.amount)}원)이 있습니다 — 현재 세액 0으로 집계되므로 원자료 확인이 필요합니다.
+              카드매출 중 공급가·세액 구분 미기재 {v.card_missing.count}건 ({fmt0(v.card_missing.amount)}원)은 과세로 보고 1.1로 나눠 공급가액·세액에 포함했습니다. 원자료에 면세 건이 섞여 있으면 그만큼 세액이 많게 잡힙니다.
             </div>
           )}
 
