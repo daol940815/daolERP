@@ -38,7 +38,31 @@ export default function SalesTab() {
   const [deleting, setDeleting]   = useState(false)
   const [toast, setToast]         = useState<string | null>(null)
 
-  const showMsg = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 4000) }
+  const showMsg = (msg: string, ms = 4000) => { setToast(msg); setTimeout(() => setToast(null), ms) }
+
+  // 분개 누락 동기화 — 공급가·세액 미기재 건을 과세로 보고 1.1 분할해 전기 (2026-11-12 사용자 결정)
+  const [unposted, setUnposted] = useState<{ unposted: number; total: number; unknown_vat: number; unknown_total: number } | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const loadUnposted = useCallback(() => {
+    fetch('/api/card-sales/sync-journals', { cache: 'no-store' })
+      .then(r => r.json()).then(j => setUnposted(j.unposted !== undefined ? j : null)).catch(() => null)
+  }, [])
+  useEffect(() => { loadUnposted() }, [loadUnposted])
+  const syncUnposted = async () => {
+    if (!unposted?.unposted || syncing) return
+    const unk = unposted.unknown_vat
+      ? `\n그중 공급가·세액 미기재 ${unposted.unknown_vat}건(${won(unposted.unknown_total)})은 과세로 보고 공급가 = 금액 ÷ 1.1로 나눠 전기합니다(원본은 그대로).`
+      : ''
+    if (!window.confirm(`분개가 없는 카드매출 ${unposted.unposted}건(${won(unposted.total)})을 전기합니다.${unk}\n카드사를 알 수 없거나 금액이 맞지 않는 건은 검토 대상으로 남습니다.`)) return
+    setSyncing(true)
+    const res = await fetch('/api/card-sales/sync-journals', { method: 'POST' })
+    const json = await res.json()
+    setSyncing(false)
+    if (!res.ok) { showMsg(`동기화 실패: ${json.error ?? '오류'}`); return }
+    const why = (json.review_reasons ?? []).map((r: { reason: string; count: number }) => `${r.reason} ${r.count}건`).join(', ')
+    showMsg(`분개 동기화: 대상 ${json.targets}건 · 전기 ${json.posted}건${json.review ? ` · 검토 대상 ${json.review}건 (${why})` : ''}`, 10000)
+    loadUnposted()
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -224,6 +248,13 @@ export default function SalesTab() {
           <p className="text-sm text-blue-700 font-medium">카드 매출 상세내역 — 정산/입금 현황 확인</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
+          {unposted && unposted.unposted > 0 && (
+            <button onClick={syncUnposted} disabled={syncing}
+              className="px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm hover:bg-amber-100 disabled:opacity-50"
+              title="분개가 없는 카드매출을 전기합니다. 공급가·세액 미기재 건은 과세로 보고 1.1로 나눕니다(원본은 그대로).">
+              {syncing ? '전기 중...' : `분개 누락 ${unposted.unposted.toLocaleString()}건 동기화 (${won(unposted.total)}${unposted.unknown_vat ? ` · 미기재 ${unposted.unknown_vat.toLocaleString()}건` : ''})`}
+            </button>
+          )}
           <a href="/card-sales/customer-links"
             className="px-3 py-2 border border-blue-300 rounded-lg text-sm text-blue-700 hover:bg-blue-50 flex items-center gap-1.5">
             카드번호 매출처 연결

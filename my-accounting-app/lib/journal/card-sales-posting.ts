@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { type JournalDraft, type JournalLineDraft } from './types'
 import { postJournal, unpostJournal } from './posting'
+import { splitVat, VAT_UNKNOWN_NOTE } from '@/lib/card-sale-vat'
 
 // 카드매출 자동분개 (업무 규칙). 저장은 post_journal(RPC)이 담당.
 //
@@ -12,7 +13,8 @@ import { postJournal, unpostJournal } from './posting'
 //   * 매출 인식일 = 승인일(tx_date). 정산 입금은 통장 분류로 매출채권을 상계.
 //   * 미수금 원장 축 = 매입사(카드사). acquirer 표기를 표준 카드사명으로 정규화해
 //     is_card_company 거래처에 태깅 → 카드사별 미수 잔액이 거래처 원장에서 보인다.
-//   * 공급가/세액이 없거나(수기 PG 일부) 합계가 안 맞으면 전기하지 않고 검토 대상으로 남긴다.
+//   * 공급가·세액이 둘 다 없으면(수기 PG 등 구분 미기재) 과세로 보고 1.1로 나눠 전기한다 (2026-11-12 사용자 결정,
+//     lib/card-sale-vat.ts — 원본은 0 그대로, 분개 줄 메모에 표시). 합계가 안 맞으면 전기하지 않고 검토 대상으로 남긴다.
 
 // 매입사 표기 → 표준 카드사명 ('외환'=하나카드 전신, '하나SK카드' 등 흡수)
 export function canonicalAcquirer(acquirer: string | null): string | null {
@@ -83,10 +85,14 @@ export function buildCardSalePosting(
   // 부호: 취소(또는 음수 금액)는 역분개. 금액은 절대값으로 통일.
   const isReversal = sale.transaction_type === 'cancel' || amount < 0
   const absAmount = Math.abs(amount)
-  const supply = Math.abs(sale.supply_amount ?? 0)
-  const vat = Math.abs(sale.tax_amount ?? 0)
+  // 공급가·세액 모두 미기재 → 과세로 보고 1.1 분할 (원본은 그대로)
+  const split = splitVat(absAmount, Math.abs(sale.supply_amount ?? 0), Math.abs(sale.tax_amount ?? 0))
+  const unknownVat = split.kind === 'unknown'
+  const supply = unknownVat ? split.supply : Math.abs(sale.supply_amount ?? 0)
+  const vat = unknownVat ? split.tax : Math.abs(sale.tax_amount ?? 0)
+  const note = unknownVat ? VAT_UNKNOWN_NOTE : null
 
-  // 공급가/세액 검증 — 없거나 합계 불일치면 전기하지 않음 (과세/면세를 단정하지 않는다)
+  // 공급가/세액 검증 — 세액만 있고 공급가가 없거나 합계 불일치면 전기하지 않음
   if (supply <= 0) return { error: '공급가액 미보유 — 검토 필요(수기결제 등)' }
   if (supply + vat !== absAmount) {
     return { error: `공급가+세액(${(supply + vat).toLocaleString()}) ≠ 금액(${absAmount.toLocaleString()}) — 검토 필요` }
@@ -97,9 +103,9 @@ export function buildCardSalePosting(
 
   const lines: JournalLineDraft[] = [
     { account_id: ctx.receivableId, side: S('debit'),  amount: absAmount, vendor_id: vendorId },
-    { account_id: ctx.salesId,      side: S('credit'), amount: supply,    vendor_id: null },
+    { account_id: ctx.salesId,      side: S('credit'), amount: supply,    vendor_id: null, note },
   ]
-  if (vat > 0) lines.push({ account_id: ctx.vatPayableId, side: S('credit'), amount: vat, vendor_id: null })
+  if (vat > 0) lines.push({ account_id: ctx.vatPayableId, side: S('credit'), amount: vat, vendor_id: null, note })
 
   return {
     source_type: 'card_sale',
