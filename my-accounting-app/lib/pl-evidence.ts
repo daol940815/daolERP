@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { splitVat } from '@/lib/card-sale-vat'
 
 // ── 월별 손익 "증빙 기준" 매출·매출원가 집계 (2026-11-03 사용자 결정: 기본 보기) ─────────────
 // 매출  = 매출 세금계산서(과세, 공급가액) + 매출 계산서(면세) + 카드매출(승인−취소, 공급가액) + 현금영수증 매출(승인−취소, 공급가액)
@@ -63,9 +64,7 @@ export async function buildEvidenceRevenue(
     unclassifiedPurchase: zero(), unclassifiedPurchaseCount: 0, unclassifiedCard: zero(), unclassifiedCardCount: 0,
   }
   const monthOf = (d: string) => idx.get(d.slice(0, 7))
-  // 카드매출 · 현금영수증 과세 구분 — 세액 있음 = 과세, 세액 0 + 공급가 있음 = 면세, 둘 다 0 = 미기재(과세로 봄)
-  const vatKind = (supply: number | null, tax: number | null, amount: number | null): 'taxable' | 'exempt' | 'unknown' =>
-    (tax ?? 0) !== 0 ? 'taxable' : (supply ?? 0) !== 0 ? 'exempt' : (amount ?? 0) !== 0 ? 'unknown' : 'taxable'
+  // 카드매출 · 현금영수증 과세 구분 · 공급가 — lib/card-sale-vat.ts splitVat (분개 · 예상부가세와 같은 규칙)
 
   // 0) 미분류 원본 — 분개가 없어 손익 어디에도 안 잡히는 금액을 따로 보여준다 (0원이 "없다"가 아니라 "아직 분류 전"일 수 있다)
   {
@@ -118,9 +117,10 @@ export async function buildEvidenceRevenue(
   for (const r of csRes.data) {
     const i = monthOf(r.tx_date)
     if (i === undefined) continue
-    const s = Math.abs(supplyOf(r.supply_amount, r.amount, r.tax_amount))
+    const v = splitVat(r.amount, r.supply_amount, r.tax_amount)
+    const s = Math.abs(v.supply)
     const signed = r.transaction_type === 'cancel' ? -s : s
-    const kind = vatKind(r.supply_amount, r.tax_amount, r.amount)
+    const kind = v.kind
     if (kind === 'exempt') out.cardExempt[i] += signed
     else out.cardTaxable[i] += signed   // 미기재는 과세로 본다 (2026-11-12 사용자 결정)
     if (kind === 'unknown') out.cardUnknownCount++
@@ -136,9 +136,10 @@ export async function buildEvidenceRevenue(
   for (const r of crRes.data) {
     const i = monthOf(r.tx_date)
     if (i === undefined) continue
-    const s = Math.abs(supplyOf(r.supply_amount, r.amount, r.tax_amount))
+    const v = splitVat(r.amount, r.supply_amount, r.tax_amount)
+    const s = Math.abs(v.supply)
     const signed = r.transaction_type === 'cancel' ? -s : s
-    const exempt = vatKind(r.supply_amount, r.tax_amount, r.amount) === 'exempt'
+    const exempt = v.kind === 'exempt'
     if (exempt) out.cashExempt[i] += signed
     else out.cashTaxable[i] += signed
     if (r.transaction_type !== 'cancel') {
