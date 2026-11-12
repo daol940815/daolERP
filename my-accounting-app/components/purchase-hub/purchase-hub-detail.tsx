@@ -40,6 +40,7 @@ const VERDICT_META: Record<string, { label: string; cls: string; hint: string }>
   match_missing: { label: '매칭 누락 (계산서 있음)',   cls: 'bg-sky-100 text-sky-800',        hint: '계산서 없이 나간 출금이 있는데 미지급 잔여가 남은 계산서도 있습니다 — 계산서 내역에서 결제를 연결하세요.' },
   invoice_check: { label: '계산서 확인 필요',          cls: 'bg-amber-100 text-amber-800',    hint: '계산서 없이 나간 출금이 있고 남은 계산서가 없습니다 — 초과 지급이거나 계산서 미발행(미수취)입니다.' },
   inflow:        { label: '입금 있음 (환불·정산)',      cls: 'bg-violet-100 text-violet-800',  hint: '이 매입처에서 들어온 돈이 있습니다 — 반품·환불·정산인지 확인하세요.' },
+  other_vendor:  { label: '다른 거래처 계산서에 연결',  cls: 'bg-violet-100 text-violet-800',  hint: '이 매입처로 연결된 출금이 다른 거래처의 계산서에 배분돼 있습니다 — 같은 회사의 중복 거래처면 통합(별칭 정리), 청구처 구조면 정상, 다른 회사면 오매칭입니다.' },
   excluded:      { label: '대사 제외',                cls: 'bg-gray-100 text-gray-500',      hint: '카드사 거래처는 카드대금 출금이라 매입 대사 대상이 아닙니다.' },
 }
 
@@ -561,7 +562,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                 {/* ①이 어디로 갔는지 — 연결은 '배분 금액'이라 출금 전액과 다를 수 있다 */}
                 <p className="text-[0.6875rem] text-gray-500 mt-3">
                   ① 통장 출금 {eok(b.out_total)} = 이 매입처 계산서에 배분 {eok(b.linked_own_total)}
-                  {b.linked_other_total > 0 && <> + <span className="text-violet-700">다른 거래처 계산서에 배분 {eok(b.linked_other_total)}</span></>}
+                  {b.linked_other_total > 0 && <> + <span className="text-violet-700">다른 거래처 계산서에 배분 {eok(b.linked_other_total)} ({b.linked_other_vendors.map(v => `${v.name} ${eok(v.amount)}`).join(', ')})</span></>}
                   {b.offset_total > 0 && <> + 미지급금 상계 {eok(b.offset_total)}</>}
                   {' '}+ 미배분 잔여 {eok(b.unmatched_out)}.
                   {b.linked_own_total !== b.paid_total && <> ④ 지급과 다른 것은 ④가 이 매입처 계산서에 연결된 모든 출금(다른 거래처로 연결된 통장 거래 포함)을 세기 때문입니다.</>}
@@ -746,7 +747,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                           <td className="px-3 py-2 text-right tabular-nums text-blue-600">{r.amount_in > 0 ? won(r.amount_in) : ''}</td>
                           <td className="px-3 py-2 text-xs whitespace-nowrap">
                             {r.invoice_linked > 0 && <span className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">연결 {won(r.invoice_linked)}</span>}
-                            {r.linked_other > 0 && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 ml-1" title="이 매입처가 아닌 다른 거래처의 계산서에 연결된 금액">다른 거래처 계산서 {won(r.linked_other)}</span>}
+                            {r.linked_other > 0 && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 ml-1" title="이 매입처가 아닌 다른 거래처의 계산서에 연결된 금액">{r.linked_other_names.join(' · ') || '다른 거래처'} 계산서 {won(r.linked_other)}</span>}
                             {r.is_offset && <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">미지급금 상계</span>}
                             {r.amount_out > 0 && r.unallocated > 0 && (r.invoice_linked + r.linked_other > 0)
                               && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 ml-1" title="출금 중 계산서에 배분되지 않은 금액">잔여 {won(r.unallocated)}</span>}

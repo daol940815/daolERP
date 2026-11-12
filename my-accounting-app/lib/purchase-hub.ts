@@ -559,11 +559,12 @@ export interface PurchaseHubBankRow {
   amount_out: number
   invoice_linked: number       // 이 매입처 계산서에 결제연결된 금액 합 (배분 금액 — 출금 전액이 아닐 수 있다)
   linked_other: number         // 다른 거래처 계산서에 연결된 금액 (청구처·중복 거래처 등)
+  linked_other_names: string[] // 그 계산서의 거래처 이름 (어느 거래처로 갔는지 바로 보이게)
   is_offset: boolean           // 미지급금(2001) 상계 확정 출금
   unallocated: number          // 출금 − 연결(이 매입처+다른 거래처) − 상계 = 계산서 없이 나간 잔여 (0 = 전액 배분)
   basis: string                // 연결 근거: 사업자번호 · 상호 · 통장 키워드 "x" · 직접 지정
 }
-export type BankVerdict = 'ok' | 'match_missing' | 'invoice_check' | 'inflow' | 'excluded'
+export type BankVerdict = 'ok' | 'match_missing' | 'invoice_check' | 'inflow' | 'other_vendor' | 'excluded'
 
 export interface PurchaseHubDetail {
   vendor: {
@@ -586,6 +587,7 @@ export interface PurchaseHubDetail {
     unmatched_out: number; unmatched_out_count: number   // ⑤ 계산서 없는 출금 = 각 출금의 미배분 잔여 합 (연결은 됐지만 일부만 배분된 건 포함)
     linked_own_total: number                    // ① 중 이 매입처 계산서에 배분된 금액
     linked_other_total: number                  // ① 중 다른 거래처 계산서에 배분된 금액
+    linked_other_vendors: { name: string; amount: number }[]   // 그 금액이 간 거래처별 합 (기간)
     offset_total: number                        // ① 중 미지급금 상계
     open_invoice_total: number                  // 기간 내 미지급 잔여가 남은 계산서 합 — 매칭 누락 판정용
     verdict: BankVerdict
@@ -718,14 +720,30 @@ export async function buildPurchaseHubDetail(
   // 결제연결 금액은 '배분 금액'이다 — 출금 5,000만 원을 계산서 3,000만 원에 연결하면 연결 3,000만, 잔여 2,000만.
   // 이 매입처 계산서(invoiceIds)에 배분된 금액과 다른 거래처 계산서(청구처·중복 거래처)에 배분된 금액을 나눠 센다.
   const invoiceIdSet = new Set(invoiceIds)
-  const bankLinkByTx = new Map<string, { own: number; other: number }>()
+  const bankLinkByTx = new Map<string, { own: number; other: number; otherInv: Set<string> }>()
   if (bankTxs.length) {
     const r = await fetchByIds<{ transaction_id: string; tax_invoice_id: string; amount: number }>(bankTxs.map(x => x.id), 100, (slice, f, t) =>
       admin.from('tax_invoice_payments').select('transaction_id, tax_invoice_id, amount').in('transaction_id', slice).range(f, t))
     if (!('error' in r)) for (const l of r.data) {
-      const e = bankLinkByTx.get(l.transaction_id) ?? { own: 0, other: 0 }
-      if (invoiceIdSet.has(l.tax_invoice_id)) e.own += l.amount; else e.other += l.amount
+      const e = bankLinkByTx.get(l.transaction_id) ?? { own: 0, other: 0, otherInv: new Set<string>() }
+      if (invoiceIdSet.has(l.tax_invoice_id)) e.own += l.amount; else { e.other += l.amount; e.otherInv.add(l.tax_invoice_id) }
       bankLinkByTx.set(l.transaction_id, e)
+    }
+  }
+  // 다른 거래처 계산서로 간 연결 — 그 계산서의 거래처 이름을 붙인다 (중복 거래처·청구처 판별용)
+  const otherInvIds = Array.from(new Set(Array.from(bankLinkByTx.values()).flatMap(e => Array.from(e.otherInv))))
+  const otherInvVendor = new Map<string, string>()
+  if (otherInvIds.length) {
+    const r = await fetchByIds<{ id: string; vendor_id: string | null; counterparty_name: string | null }>(otherInvIds, 100, (slice, f, t) =>
+      admin.from('tax_invoices').select('id, vendor_id, counterparty_name').in('id', slice).range(f, t))
+    if (!('error' in r)) {
+      const vids = Array.from(new Set(r.data.map(i => i.vendor_id).filter((v): v is string => !!v)))
+      const vn = new Map<string, string>()
+      if (vids.length) {
+        const vr = await fetchByIds<{ id: string; name: string }>(vids, 100, (slice, f, t) => admin.from('vendors').select('id, name').in('id', slice).range(f, t))
+        if (!('error' in vr)) for (const v of vr.data) vn.set(v.id, v.name)
+      }
+      for (const i of r.data) otherInvVendor.set(i.id, (i.vendor_id && vn.get(i.vendor_id)) || i.counterparty_name || '(거래처 미지정 계산서)')
     }
   }
   const vendorNormName = normalizeName(vendor.name)
@@ -741,13 +759,14 @@ export async function buildPurchaseHubDetail(
   }
   const bankRows: PurchaseHubBankRow[] = bankTxs.map(tx => {
     const out = tx.amount_out ?? 0
-    const link = bankLinkByTx.get(tx.id) ?? { own: 0, other: 0 }
+    const link = bankLinkByTx.get(tx.id) ?? { own: 0, other: 0, otherInv: new Set<string>() }
     // 상계는 연결이 하나도 없는 확정 2001 출금만 (tx2001과 같은 규칙 — 이중집계 방지)
     const isOffset = !!acc2001 && tx.status === 'confirmed' && tx.confirmed_account_id === acc2001 && out > 0 && link.own + link.other === 0
     return {
       id: tx.id, tx_date: tx.tx_date, description: tx.description, counterparty_name: tx.counterparty_name, account_alias: tx.account_alias,
       amount_in: tx.amount_in ?? 0, amount_out: out,
       invoice_linked: link.own, linked_other: link.other, is_offset: isOffset,
+      linked_other_names: Array.from(new Set(Array.from(link.otherInv).map(id => otherInvVendor.get(id) ?? '(알 수 없음)'))),
       unallocated: isOffset ? 0 : Math.max(0, out - link.own - link.other),
       basis: basisOf(tx),
     }
@@ -851,13 +870,16 @@ export async function buildPurchaseHubDetail(
   const bankExcluded = cardAcc ? '카드사 거래처 — 카드대금 출금은 계산서 지급이 아니라 대사에서 제외' : null
   let bankOut = 0, bankOutCnt = 0, bankIn = 0, bankInCnt = 0, unmatchedOut = 0, unmatchedCnt = 0
   let linkedOwnTotal = 0, linkedOtherTotal = 0, offsetTotal = 0
+  const otherByVendor = new Map<string, number>()
   if (!bankExcluded) {
     for (const r of bankRows) {
       if (!inPeriod(r.tx_date)) continue
       if (r.amount_out > 0) {
         bankOut += r.amount_out; bankOutCnt++
         linkedOwnTotal += Math.min(r.amount_out, r.invoice_linked)
-        linkedOtherTotal += Math.min(Math.max(0, r.amount_out - r.invoice_linked), r.linked_other)
+        const otherAmt = Math.min(Math.max(0, r.amount_out - r.invoice_linked), r.linked_other)
+        linkedOtherTotal += otherAmt
+        if (otherAmt > 0) { const key = r.linked_other_names.join(' · ') || '(알 수 없음)'; otherByVendor.set(key, (otherByVendor.get(key) ?? 0) + otherAmt) }
         if (r.is_offset) offsetTotal += r.amount_out
         // 연결이 있어도 일부만 배분된 출금의 잔여까지 센다 (2026-11-12: 다온글로비스 — 21건 전부 연결인데 ①>④ 였던 원인)
         if (r.unallocated > 0) { unmatchedOut += r.unallocated; unmatchedCnt++ }
@@ -869,6 +891,7 @@ export async function buildPurchaseHubDetail(
   const openInvoiceTotal = invR.data.reduce((s, i) => s + (inPeriod(i.issue_date) ? (fifo.unpaidByInvoice.get(i.id) ?? 0) : 0), 0)
   const bankVerdict: BankVerdict = bankExcluded ? 'excluded'
     : unmatchedOut > 0 ? (openInvoiceTotal > 0 ? 'match_missing' : 'invoice_check')
+    : linkedOtherTotal > 0 ? 'other_vendor'
     : bankIn > 0 ? 'inflow' : 'ok'
 
   // ERP 발주 — 정산월별 롤업 + 품목 목록
@@ -921,6 +944,7 @@ export async function buildPurchaseHubDetail(
       invoice_total: invoiceTotalPeriod, paid_total: paidPeriod,
       unmatched_out: unmatchedOut, unmatched_out_count: unmatchedCnt,
       linked_own_total: linkedOwnTotal, linked_other_total: linkedOtherTotal, offset_total: offsetTotal,
+      linked_other_vendors: Array.from(otherByVendor.entries()).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount),
       open_invoice_total: openInvoiceTotal,
       verdict: bankVerdict,
       rows: bankRows.slice(0, 1000),
