@@ -557,8 +557,10 @@ export interface PurchaseHubBankRow {
   account_alias: string | null
   amount_in: number
   amount_out: number
-  invoice_linked: number       // 계산서 결제연결 금액 합 (0 = 연결 없음)
+  invoice_linked: number       // 이 매입처 계산서에 결제연결된 금액 합 (배분 금액 — 출금 전액이 아닐 수 있다)
+  linked_other: number         // 다른 거래처 계산서에 연결된 금액 (청구처·중복 거래처 등)
   is_offset: boolean           // 미지급금(2001) 상계 확정 출금
+  unallocated: number          // 출금 − 연결(이 매입처+다른 거래처) − 상계 = 계산서 없이 나간 잔여 (0 = 전액 배분)
   basis: string                // 연결 근거: 사업자번호 · 상호 · 통장 키워드 "x" · 직접 지정
 }
 export type BankVerdict = 'ok' | 'match_missing' | 'invoice_check' | 'inflow' | 'excluded'
@@ -581,7 +583,10 @@ export interface PurchaseHubDetail {
     in_total: number; in_count: number          // ② 통장 입금 (환불·정산)
     invoice_total: number                       // ③ 계산서 합계 (= kpi.invoice_total)
     paid_total: number                          // ④ 지급 (계산서 매칭 + 상계, = kpi.paid_total)
-    unmatched_out: number; unmatched_out_count: number   // ⑤ 계산서 연결·상계 없는 출금 (행 단위 합)
+    unmatched_out: number; unmatched_out_count: number   // ⑤ 계산서 없는 출금 = 각 출금의 미배분 잔여 합 (연결은 됐지만 일부만 배분된 건 포함)
+    linked_own_total: number                    // ① 중 이 매입처 계산서에 배분된 금액
+    linked_other_total: number                  // ① 중 다른 거래처 계산서에 배분된 금액
+    offset_total: number                        // ① 중 미지급금 상계
     open_invoice_total: number                  // 기간 내 미지급 잔여가 남은 계산서 합 — 매칭 누락 판정용
     verdict: BankVerdict
     rows: PurchaseHubBankRow[]                  // 연결 거래 전체(기간 무관, 최신순, 최대 1,000)
@@ -710,11 +715,18 @@ export async function buildPurchaseHubDetail(
       .order('tx_date', { ascending: false }).range(f, t))
   if ('error' in bankTxR) return bankTxR
   const bankTxs = bankTxR.data
-  const bankLinkByTx = new Map<string, number>()
+  // 결제연결 금액은 '배분 금액'이다 — 출금 5,000만 원을 계산서 3,000만 원에 연결하면 연결 3,000만, 잔여 2,000만.
+  // 이 매입처 계산서(invoiceIds)에 배분된 금액과 다른 거래처 계산서(청구처·중복 거래처)에 배분된 금액을 나눠 센다.
+  const invoiceIdSet = new Set(invoiceIds)
+  const bankLinkByTx = new Map<string, { own: number; other: number }>()
   if (bankTxs.length) {
-    const r = await fetchByIds<{ transaction_id: string; amount: number }>(bankTxs.map(x => x.id), 100, (slice, f, t) =>
-      admin.from('tax_invoice_payments').select('transaction_id, amount').in('transaction_id', slice).range(f, t))
-    if (!('error' in r)) for (const l of r.data) bankLinkByTx.set(l.transaction_id, (bankLinkByTx.get(l.transaction_id) ?? 0) + l.amount)
+    const r = await fetchByIds<{ transaction_id: string; tax_invoice_id: string; amount: number }>(bankTxs.map(x => x.id), 100, (slice, f, t) =>
+      admin.from('tax_invoice_payments').select('transaction_id, tax_invoice_id, amount').in('transaction_id', slice).range(f, t))
+    if (!('error' in r)) for (const l of r.data) {
+      const e = bankLinkByTx.get(l.transaction_id) ?? { own: 0, other: 0 }
+      if (invoiceIdSet.has(l.tax_invoice_id)) e.own += l.amount; else e.other += l.amount
+      bankLinkByTx.set(l.transaction_id, e)
+    }
   }
   const vendorNormName = normalizeName(vendor.name)
   const bankKwNorm = bankKeywords.map(k => ({ raw: k, norm: normalizeName(k) })).filter(k => k.norm)
@@ -727,13 +739,19 @@ export async function buildPurchaseHubDetail(
     if (kw) return `통장 키워드 "${kw.raw}"`
     return '직접 지정'
   }
-  const bankRows: PurchaseHubBankRow[] = bankTxs.map(tx => ({
-    id: tx.id, tx_date: tx.tx_date, description: tx.description, counterparty_name: tx.counterparty_name, account_alias: tx.account_alias,
-    amount_in: tx.amount_in ?? 0, amount_out: tx.amount_out ?? 0,
-    invoice_linked: bankLinkByTx.get(tx.id) ?? 0,
-    is_offset: !!acc2001 && tx.status === 'confirmed' && tx.confirmed_account_id === acc2001 && (tx.amount_out ?? 0) > 0,
-    basis: basisOf(tx),
-  }))
+  const bankRows: PurchaseHubBankRow[] = bankTxs.map(tx => {
+    const out = tx.amount_out ?? 0
+    const link = bankLinkByTx.get(tx.id) ?? { own: 0, other: 0 }
+    // 상계는 연결이 하나도 없는 확정 2001 출금만 (tx2001과 같은 규칙 — 이중집계 방지)
+    const isOffset = !!acc2001 && tx.status === 'confirmed' && tx.confirmed_account_id === acc2001 && out > 0 && link.own + link.other === 0
+    return {
+      id: tx.id, tx_date: tx.tx_date, description: tx.description, counterparty_name: tx.counterparty_name, account_alias: tx.account_alias,
+      amount_in: tx.amount_in ?? 0, amount_out: out,
+      invoice_linked: link.own, linked_other: link.other, is_offset: isOffset,
+      unallocated: isOffset ? 0 : Math.max(0, out - link.own - link.other),
+      basis: basisOf(tx),
+    }
+  })
 
   // ERP 발주 품목 (매입 별칭 기준)
   interface ItemRow {
@@ -832,12 +850,17 @@ export async function buildPurchaseHubDetail(
   // 통장 대사 집계 (기간) — 카드사 거래처는 카드대금 출금이라 매입 대사 대상이 아니다
   const bankExcluded = cardAcc ? '카드사 거래처 — 카드대금 출금은 계산서 지급이 아니라 대사에서 제외' : null
   let bankOut = 0, bankOutCnt = 0, bankIn = 0, bankInCnt = 0, unmatchedOut = 0, unmatchedCnt = 0
+  let linkedOwnTotal = 0, linkedOtherTotal = 0, offsetTotal = 0
   if (!bankExcluded) {
     for (const r of bankRows) {
       if (!inPeriod(r.tx_date)) continue
       if (r.amount_out > 0) {
         bankOut += r.amount_out; bankOutCnt++
-        if (r.invoice_linked === 0 && !r.is_offset) { unmatchedOut += r.amount_out; unmatchedCnt++ }
+        linkedOwnTotal += Math.min(r.amount_out, r.invoice_linked)
+        linkedOtherTotal += Math.min(Math.max(0, r.amount_out - r.invoice_linked), r.linked_other)
+        if (r.is_offset) offsetTotal += r.amount_out
+        // 연결이 있어도 일부만 배분된 출금의 잔여까지 센다 (2026-11-12: 다온글로비스 — 21건 전부 연결인데 ①>④ 였던 원인)
+        if (r.unallocated > 0) { unmatchedOut += r.unallocated; unmatchedCnt++ }
       }
       if (r.amount_in > 0) { bankIn += r.amount_in; bankInCnt++ }
     }
@@ -897,6 +920,7 @@ export async function buildPurchaseHubDetail(
       out_total: bankOut, out_count: bankOutCnt, in_total: bankIn, in_count: bankInCnt,
       invoice_total: invoiceTotalPeriod, paid_total: paidPeriod,
       unmatched_out: unmatchedOut, unmatched_out_count: unmatchedCnt,
+      linked_own_total: linkedOwnTotal, linked_other_total: linkedOtherTotal, offset_total: offsetTotal,
       open_invoice_total: openInvoiceTotal,
       verdict: bankVerdict,
       rows: bankRows.slice(0, 1000),

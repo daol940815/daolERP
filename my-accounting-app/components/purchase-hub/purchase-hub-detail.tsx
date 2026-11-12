@@ -548,7 +548,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                     { l: '② 통장 입금 (환불·정산)', v: eok(b.in_total), s: `${b.in_count}건`, cls: b.in_total > 0 ? 'text-violet-700' : '' },
                     { l: '③ 계산서 합계', v: eok(b.invoice_total), s: '매입 계산서 (발행일 기준)', cls: '' },
                     { l: '④ 지급 (매칭·상계)', v: eok(b.paid_total), s: '계산서 결제연결 + 미지급금 상계', cls: '' },
-                    { l: '⑤ 계산서 없는 출금', v: eok(b.unmatched_out), s: `결제연결·상계 없는 출금 ${b.unmatched_out_count}건`, cls: b.unmatched_out > 0 ? 'text-amber-700' : '', hi: b.unmatched_out > 0 },
+                    { l: '⑤ 계산서 없는 출금', v: eok(b.unmatched_out), s: `계산서에 배분되지 않은 출금 잔여 · ${b.unmatched_out_count}건 (일부만 연결된 건 포함)`, cls: b.unmatched_out > 0 ? 'text-amber-700' : '', hi: b.unmatched_out > 0 },
                     { l: '⑥ 통장 순지급 − 계산서', v: `${diff > 0 ? '+' : ''}${eok(diff)}`, s: '(① − ②) − ③ · +는 초과·미발행, −는 미지급', cls: diff > 0 ? 'text-amber-700' : diff < 0 ? 'text-red-600' : '' },
                   ].map((k, i) => (
                     <div key={i} className={k.hi ? 'bg-amber-50 rounded-lg p-2 -m-2' : ''}>
@@ -558,7 +558,15 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                     </div>
                   ))}
                 </div>
-                <p className="text-[0.6875rem] text-gray-500 mt-3">{v.hint} 월말 지급 · 익월 계산서처럼 시점 차이가 있으면 짧은 기간에서는 차이가 커 보입니다 — 당년 · 전체 기간으로 보세요.
+                {/* ①이 어디로 갔는지 — 연결은 '배분 금액'이라 출금 전액과 다를 수 있다 */}
+                <p className="text-[0.6875rem] text-gray-500 mt-3">
+                  ① 통장 출금 {eok(b.out_total)} = 이 매입처 계산서에 배분 {eok(b.linked_own_total)}
+                  {b.linked_other_total > 0 && <> + <span className="text-violet-700">다른 거래처 계산서에 배분 {eok(b.linked_other_total)}</span></>}
+                  {b.offset_total > 0 && <> + 미지급금 상계 {eok(b.offset_total)}</>}
+                  {' '}+ 미배분 잔여 {eok(b.unmatched_out)}.
+                  {b.linked_own_total !== b.paid_total && <> ④ 지급과 다른 것은 ④가 이 매입처 계산서에 연결된 모든 출금(다른 거래처로 연결된 통장 거래 포함)을 세기 때문입니다.</>}
+                </p>
+                <p className="text-[0.6875rem] text-gray-500 mt-1">{v.hint} 월말 지급 · 익월 계산서처럼 시점 차이가 있으면 짧은 기간에서는 차이가 커 보입니다 — 당년 · 전체 기간으로 보세요.
                   {b.unmatched_out_count > 0 && <> <button onClick={() => { setTab('통장 내역'); setBankView('unmatched') }} className="text-blue-600 hover:underline">계산서 없는 출금 {b.unmatched_out_count}건 보기</button></>}
                 </p>
               </>
@@ -710,8 +718,8 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
         )}
 
         {tab === '통장 내역' && (() => {
-          const rows = data.bank.rows.filter(r => bankView === 'all' ? true : bankView === 'in' ? r.amount_in > 0 : (r.amount_out > 0 && r.invoice_linked === 0 && !r.is_offset))
-          const cnt = { unmatched: data.bank.rows.filter(r => r.amount_out > 0 && r.invoice_linked === 0 && !r.is_offset).length, all: data.bank.rows.length, in: data.bank.rows.filter(r => r.amount_in > 0).length }
+          const rows = data.bank.rows.filter(r => bankView === 'all' ? true : bankView === 'in' ? r.amount_in > 0 : r.unallocated > 0)
+          const cnt = { unmatched: data.bank.rows.filter(r => r.unallocated > 0).length, all: data.bank.rows.length, in: data.bank.rows.filter(r => r.amount_in > 0).length }
           return (
             <div>
               <div className="flex flex-wrap items-center gap-1.5 text-xs mb-2">
@@ -728,7 +736,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100">
                     {rows.map(r => {
-                      const unmatched = r.amount_out > 0 && r.invoice_linked === 0 && !r.is_offset
+                      const unmatched = r.unallocated > 0
                       return (
                         <tr key={r.id} className={unmatched ? 'bg-amber-50/40' : ''}>
                           <td className="px-3 py-2 tabular-nums whitespace-nowrap">{r.tx_date}</td>
@@ -736,7 +744,15 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                           <td className="px-3 py-2 text-xs text-gray-500">{r.account_alias ?? '-'}</td>
                           <td className="px-3 py-2 text-right tabular-nums text-red-600">{r.amount_out > 0 ? won(r.amount_out) : ''}</td>
                           <td className="px-3 py-2 text-right tabular-nums text-blue-600">{r.amount_in > 0 ? won(r.amount_in) : ''}</td>
-                          <td className="px-3 py-2 text-xs">{r.invoice_linked > 0 ? <span className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">연결 {won(r.invoice_linked)}</span> : r.is_offset ? <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">미지급금 상계</span> : <span className="text-gray-400">없음</span>}</td>
+                          <td className="px-3 py-2 text-xs whitespace-nowrap">
+                            {r.invoice_linked > 0 && <span className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">연결 {won(r.invoice_linked)}</span>}
+                            {r.linked_other > 0 && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 ml-1" title="이 매입처가 아닌 다른 거래처의 계산서에 연결된 금액">다른 거래처 계산서 {won(r.linked_other)}</span>}
+                            {r.is_offset && <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">미지급금 상계</span>}
+                            {r.amount_out > 0 && r.unallocated > 0 && (r.invoice_linked + r.linked_other > 0)
+                              && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 ml-1" title="출금 중 계산서에 배분되지 않은 금액">잔여 {won(r.unallocated)}</span>}
+                            {r.amount_out > 0 && r.invoice_linked + r.linked_other === 0 && !r.is_offset && <span className="text-gray-400">없음</span>}
+                            {r.amount_out === 0 && <span className="text-gray-300">-</span>}
+                          </td>
                           <td className="px-3 py-2 text-xs text-gray-500">{r.basis}</td>
                           <td className="px-3 py-2 text-xs whitespace-nowrap">
                             {unmatched && <Link href={`/tax-invoices?dir=purchase&tax=taxable&vendorId=${data.vendor.id}`} className="text-blue-600 hover:underline" title="이 매입처 계산서 목록에서 결제 연결">계산서 매칭</Link>}
