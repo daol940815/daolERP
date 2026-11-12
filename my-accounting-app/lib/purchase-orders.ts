@@ -171,7 +171,7 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
   const fill = (hex: string) => ({ type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: argb(hex) } })
   // 줄바꿈 미사용 기준 (사용자 확정 2026-08-25) — 대신 열 너비를 내용에 맞춰 확보
   const center = { horizontal: 'center' as const, vertical: 'middle' as const }
-  // 날짜 칸은 원본과 동일하게 날짜 값 + mm-dd-yy 서식 (파싱 불가한 자유 표기는 문자열 유지)
+  // 날짜 칸은 날짜 값 + yyyy-mm-dd 서식 (파싱 불가한 자유 표기는 문자열 유지, 빈 칸도 서식은 날짜)
   // 엑셀 날짜 직렬값은 UTC 성분 기준 — KST 자정(+09:00)으로 만들면 표시가
   // 하루 앞으로 어긋난다 (거래명세서 작업 중 발견한 버그 수정, Z 고정)
   const asDate = (s: string | null) => {
@@ -223,7 +223,9 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
     const isDate = cell.label === '주문일' || cell.label === '출고요청일'
     vc.value = isDate ? asDate(cell.value as string | null) : (cell.value ?? '')
     // 간단한 날짜 'yyyy-mm-dd' 고정 (2026-11-09 사용자 승인 — 기본 날짜 서식은 PC 설정에 따라 다르게 보임)
-    if (isDate && vc.value instanceof Date) vc.numFmt = 'yyyy-mm-dd'
+    // 빈 칸에도 서식을 건다 (2026-11-12 사용자 요청) — 출고요청일이 비어 받은 파일에 '11/12'를 직접 적으면
+    // 일반 서식 칸이라 엑셀이 '11월 12일'로 바꿔 보였다. 날짜 서식 칸에 적은 날짜는 그 서식(2026-11-12)을 따른다
+    if (isDate) vc.numFmt = 'yyyy-mm-dd'
     vc.font = { name: FONT, size: 10, bold: !!cell.bold, color: { argb: argb(PO_COLORS.ink) } }
     vc.alignment = center
   })
