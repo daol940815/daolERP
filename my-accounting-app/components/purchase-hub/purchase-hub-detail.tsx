@@ -40,7 +40,7 @@ const VERDICT_META: Record<string, { label: string; cls: string; hint: string }>
   match_missing: { label: '매칭 누락 (계산서 있음)',   cls: 'bg-sky-100 text-sky-800',        hint: '계산서 없이 나간 출금이 있는데 미지급 잔여가 남은 계산서도 있습니다 — 계산서 내역에서 결제를 연결하세요.' },
   invoice_check: { label: '계산서 확인 필요',          cls: 'bg-amber-100 text-amber-800',    hint: '계산서 없이 나간 출금이 있고 남은 계산서가 없습니다 — 초과 지급이거나 계산서 미발행(미수취)입니다.' },
   inflow:        { label: '입금 있음 (환불·정산)',      cls: 'bg-violet-100 text-violet-800',  hint: '이 매입처에서 들어온 돈이 있습니다 — 반품·환불·정산인지 확인하세요.' },
-  other_vendor:  { label: '다른 거래처 계산서에 연결',  cls: 'bg-violet-100 text-violet-800',  hint: '이 매입처로 연결된 출금이 다른 거래처의 계산서에 배분돼 있습니다 — 같은 회사의 중복 거래처면 통합(별칭 정리), 청구처 구조면 정상, 다른 회사면 오매칭입니다.' },
+  other_vendor:  { label: '이 매입처 밖의 계산서에 연결',  cls: 'bg-violet-100 text-violet-800',  hint: '이 매입처로 연결된 출금이 이 매입처에 붙지 않은 계산서에 배분돼 있습니다 — "거래처 미연결 계산서"면 그 계산서에 거래처를 연결하면 ③·④로 들어옵니다(418 재연결 SQL). 같은 회사의 중복 거래처면 통합, 청구처 구조면 정상, 다른 회사면 오매칭입니다.' },
   excluded:      { label: '대사 제외',                cls: 'bg-gray-100 text-gray-500',      hint: '카드사 거래처는 카드대금 출금이라 매입 대사 대상이 아닙니다.' },
 }
 

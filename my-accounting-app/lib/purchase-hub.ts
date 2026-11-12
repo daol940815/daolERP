@@ -743,7 +743,11 @@ export async function buildPurchaseHubDetail(
         const vr = await fetchByIds<{ id: string; name: string }>(vids, 100, (slice, f, t) => admin.from('vendors').select('id, name').in('id', slice).range(f, t))
         if (!('error' in vr)) for (const v of vr.data) vn.set(v.id, v.name)
       }
-      for (const i of r.data) otherInvVendor.set(i.id, (i.vendor_id && vn.get(i.vendor_id)) || i.counterparty_name || '(거래처 미지정 계산서)')
+      // 거래처가 붙은 계산서면 그 거래처 이름, 거래처 미연결 계산서면 상호를 붙여 '미연결'임을 분명히 한다
+      // (2026-11-12 다온글로비스: 상호는 같은데 vendor_id가 비어 "다른 거래처"로 보이던 사례)
+      for (const i of r.data) otherInvVendor.set(i.id, i.vendor_id
+        ? (vn.get(i.vendor_id) ?? '(삭제된 거래처)')
+        : `거래처 미연결 계산서 (상호 ${i.counterparty_name ?? '없음'})`)
     }
   }
   const vendorNormName = normalizeName(vendor.name)
