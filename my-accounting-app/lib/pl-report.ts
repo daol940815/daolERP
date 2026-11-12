@@ -34,11 +34,19 @@ export interface RevenueReconcile {
   vendors: import('./pl-evidence').RevenueReconcileVendor[]
 }
 
+// 과세·면세별 매출이익 (증빙 기준, 2026-11-12 사용자 결정)
+//   과세 = 세금계산서(과세) + 카드매출(과세·미기재) + 현금영수증(과세) − 과세분 중복 / 원가 = 상품매입 세금계산서(과세)
+//   면세 = 계산서(면세) + 카드매출(면세) + 현금영수증(면세) − 면세분 중복 / 원가 = 상품매입 계산서(면세)
+//   구분 없음 = 임대료수익 등 계정 행 / 원가 = 법인카드 · 통장 · 수동 분개 상품매입
+export interface TaxSplitRow { revenue: number[]; cogs: number[]; gross: number[] }
+export interface TaxSplit { taxable: TaxSplitRow; exempt: TaxSplitRow; other: TaxSplitRow }
+
 export interface MonthlyPLResult {
   months: string[]   // 'YYYY-MM'
   basis: PLBasis
   items: PLLineItem[]
   reconcile?: RevenueReconcile   // 증빙 기준일 때 — ERP와의 매출 대사
+  taxSplit?: TaxSplit            // 증빙 기준일 때 — 과세·면세별 매출이익
 }
 
 // 손익에서 제외하는 역할분리 계정 (분개는 존재하되 ERP 수치가 대신함)
@@ -161,6 +169,7 @@ export async function buildMonthlyPL(
   let revenueLines: PLLineItem[]
   let cogsLines: PLLineItem[]
   let reconcile: RevenueReconcile | undefined
+  let taxSplit: TaxSplit | undefined
   const rentLines = opInc.map(r => line(`rev_${r.code}`, `${r.name} (계정)`, r.values, { account_id: r.accountId }))
 
   if (basis === 'evidence') {
@@ -168,16 +177,30 @@ export async function buildMonthlyPL(
     const ev = await buildEvidenceRevenue(admin, months, dateFrom, dateTo, accounts, cogsIds)
     if ('error' in ev) return { error: ev.error }
     const e = ev.data
-    const evRevenue = months.map((_, i) => e.invTaxable[i] + e.invExempt[i] + e.cardSales[i] + e.cashReceipts[i] + e.dedupe[i])
+    const revTaxable = months.map((_, i) => e.invTaxable[i] + e.cardTaxable[i] + e.cashTaxable[i] + e.dedupeTaxable[i])
+    const revExempt = months.map((_, i) => e.invExempt[i] + e.cardExempt[i] + e.cashExempt[i] + e.dedupeExempt[i])
+    const evRevenue = months.map((_, i) => revTaxable[i] + revExempt[i])
     revenueTotal = months.map((_, i) => evRevenue[i] + opIncTotal[i])
-    cogsTotal = months.map((_, i) => e.cogsInvoice[i] + e.cogsCard[i] + e.cogsOther[i])
+    const cogsOtherAll = months.map((_, i) => e.cogsCard[i] + e.cogsOther[i])
+    cogsTotal = months.map((_, i) => e.cogsInvTaxable[i] + e.cogsInvExempt[i] + cogsOtherAll[i])
+    const splitRow = (revenue: number[], cogs: number[]): TaxSplitRow => ({ revenue, cogs, gross: months.map((_, i) => revenue[i] - cogs[i]) })
+    taxSplit = {
+      taxable: splitRow(revTaxable, e.cogsInvTaxable),
+      exempt: splitRow(revExempt, e.cogsInvExempt),
+      other: splitRow(opIncTotal, cogsOtherAll),
+    }
     const invHref = (tax: 'taxable' | 'exempt') => `/tax-invoices?dir=sales&tax=${tax}`
     revenueLines = [
       line('rev_inv_taxable', '매출 세금계산서 (과세, 공급가액)', e.invTaxable, { href: invHref('taxable') }),
       line('rev_inv_exempt', '매출 계산서 (면세)', e.invExempt, { href: invHref('exempt') }),
       ...rentLines,
-      line('rev_card', '카드매출 (승인 − 취소, 공급가액)', e.cardSales, { href: '/cards' }),
-      line('rev_cash', '현금영수증 매출 (승인 − 취소, 공급가액)', e.cashReceipts, { href: '/cash-receipts' }),
+      line('rev_card_taxable', '카드매출 (과세, 승인 − 취소, 공급가액)', e.cardTaxable, {
+        href: '/cards',
+        ...(e.cardUnknownCount > 0 ? { note: `과세·면세 구분 미기재 ${e.cardUnknownCount}건은 과세로 보고 1.1로 나눠 포함` } : {}),
+      }),
+      line('rev_card_exempt', '카드매출 (면세, 승인 − 취소)', e.cardExempt, { href: '/cards' }),
+      line('rev_cash_taxable', '현금영수증 매출 (과세, 승인 − 취소, 공급가액)', e.cashTaxable, { href: '/cash-receipts' }),
+      line('rev_cash_exempt', '현금영수증 매출 (면세, 승인 − 취소)', e.cashExempt, { href: '/cash-receipts' }),
       ...(e.dedupeCount > 0 || e.dedupe.some(v => v !== 0)
         ? [line('rev_dedupe', `(−) 중복 제거 — 계산서와 함께 발행된 현금영수증 ${e.dedupeCount}건`, e.dedupe)]
         : []),
@@ -185,7 +208,8 @@ export async function buildMonthlyPL(
     ]
     const cogsAcc5002 = Array.from(accounts.entries()).find(([, a]) => a.code === '5002')?.[0]
     cogsLines = [
-      line('cogs_inv', '상품매입 — 세금계산서 (5002)', e.cogsInvoice, { account_id: cogsAcc5002 }),
+      line('cogs_inv_taxable', '상품매입 — 세금계산서 (과세, 5002)', e.cogsInvTaxable, { account_id: cogsAcc5002 }),
+      line('cogs_inv_exempt', '상품매입 — 계산서 (면세, 5002)', e.cogsInvExempt, { account_id: cogsAcc5002 }),
       line('cogs_card', '상품매입 — 법인카드 (5002)', e.cogsCard, { account_id: cogsAcc5002 }),
       ...(e.cogsOther.some(v => v !== 0) ? [line('cogs_other', '상품매입 — 통장·수동 분개', e.cogsOther, { account_id: cogsAcc5002 })] : []),
       line('cogs_total', '매출원가 합계', cogsTotal, { is_subtotal: true, note: '재고 실사가 없어 당월 매입을 당월 원가로 봅니다' }),
@@ -246,5 +270,5 @@ export async function buildMonthlyPL(
     line('net_profit', '당기순이익', netProfit, { is_subtotal: true }),
   ]
 
-  return { result: { months, basis, items, reconcile } }
+  return { result: { months, basis, items, reconcile, taxSplit } }
 }
