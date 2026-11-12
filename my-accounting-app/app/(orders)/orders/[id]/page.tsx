@@ -63,7 +63,7 @@ const REQ_STATUS: Record<string, { label: string; cls: string }> = {
 }
 
 export default function OrderDetailPage() {
-  // '← 주문 현황' = 마지막으로 보던 목록 주소(필터 · 페이지 포함, 2026-11-11). 없으면 /orders
+  // '← 주문내역' = 마지막으로 보던 목록 주소(필터 · 페이지 포함, 2026-11-11). 없으면 /orders
   const [listHref, setListHref] = useState('/orders')
   useEffect(() => {
     try { const u = sessionStorage.getItem(ORDERS_LIST_URL_KEY); if (u && u.startsWith('/orders')) setListHref(u) } catch { /* 무시 */ }
@@ -176,7 +176,7 @@ export default function OrderDetailPage() {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <Link href={listHref} className="text-sm text-gray-400 hover:text-gray-600">← 주문 현황</Link>
+        <Link href={listHref} className="text-sm text-gray-400 hover:text-gray-600">← 주문내역</Link>
         <h1 className="text-xl font-bold text-gray-900">주문 상세</h1>
         <span className="text-sm text-gray-400 tabular-nums">{String(order.order_no ?? '')}</span>
         <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${isDirect ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
