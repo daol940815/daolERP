@@ -279,6 +279,12 @@ export default function PoSendPage() {
             )}
           </div>
         )}
+        {/* 자사 기본 양식의 확인 알림 — 택배비 수량 확인 필요 등 (2026-11-12) */}
+        {output && output.kind === 'standard' && output.warnings.length > 0 && (
+          <div className="mt-3 rounded-lg px-3 py-2 text-sm bg-amber-50 text-amber-800">
+            <ul className="list-disc pl-5 text-xs space-y-0.5">{output.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+          </div>
+        )}
         {output && output.kind !== 'vendor' && output.draft_version != null && (
           <div className="mt-3 rounded-lg px-3 py-2 text-sm bg-amber-50 text-amber-800">
             업체 양식 버전 {output.draft_version}이 아직 &lsquo;작성 중&rsquo;이라 {output.kind === 'code' ? '코드 자체 양식' : '자사 기본 양식'}으로 나갑니다.

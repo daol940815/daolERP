@@ -3,8 +3,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Combo, ComboFree, DiscountInput, SeasonDatalist, SeasonInput, autoGrow, branchLabel, draftExtrasFromRow, draftFromProduct, emptyItem,
-  lineCost, lineTotal, priceRule, purchaseShippingHint, quantityPatch, splitByGroupPrefix, toInt, won,
+  Combo, ComboFree, CustomerShipInput, DiscountInput, SeasonDatalist, SeasonInput, autoGrow, branchLabel, draftExtrasFromRow, draftFromProduct, emptyItem,
+  lineCost, lineTotal, priceRule, purchaseShippingHint, quantityPatch, reshipPatch, savedBeforeShipColumn, splitByGroupPrefix, toInt, withShipUnit, won,
 } from '../form-shared'
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
 import type { ContactOpt, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
@@ -236,13 +236,16 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 loose_shipping_fee: prod?.loose_shipping_fee ?? 0,
               }
             })
-            // 702 이전 저장분: 품목 배송비 열 값은 배송비(카톤외) 행으로 풀어낸다 (합계 불변)
+            // 702 이전 저장분: 품목 배송비 열 값은 배송비(카톤외) 행으로 풀어낸다 (합계 불변).
+            // '택배비(판매)' 칸 배포 뒤 저장된 상담일지는 변환하지 않고 그 칸에 보여준다 (2026-11-12, 마지막 저장 시각 기준)
+            const legacy = savedBeforeShipColumn(v.updated_at)
             const converted: ItemDraft[] = []
             let nextId = cItems.length + 1
-            for (const it of loaded) {
-              if (it.is_shipping || it.shipping_fee <= 0) { converted.push(it); continue }
+            for (const raw of loaded) {
+              const it = withShipUnit(raw)
+              if (!legacy || it.is_shipping || it.shipping_fee <= 0) { converted.push(it); continue }
               const fee = it.shipping_fee
-              converted.push({ ...it, shipping_fee: 0 })
+              converted.push({ ...it, shipping_fee: 0, ship_unit: null })
               converted.push({
                 ...emptyItem(nextId++),
                 parent_uid: it.uid,
@@ -294,7 +297,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             uidRef.current = picked.length + 1
             setItems(picked.map((it, idx) => {
               const prod = prodList.find(x => x.id === it.product_id)
-              return {
+              return withShipUnit({
                 ...emptyItem(idx + 1),
                 parent_uid: it.parent_line_no ? (lineToUid.get(it.parent_line_no as number) ?? null) : null,
                 product_id: (it.product_id as string) ?? null,
@@ -304,7 +307,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 purchase_vendor_name: (it.purchase_vendor_name as string) ?? '',
                 sale_price: (it.sale_price as number) ?? 0,
                 quantity: (it.quantity as number) ?? 1,
-                shipping_fee: 0,
+                // 판매 배송비: 칸 배포 뒤 저장된 원본만 복사 (그 이전 값은 옛 배송비 열 — 지금처럼 복사 안 함)
+                shipping_fee: savedBeforeShipColumn(v.updated_at) ? 0 : ((it.shipping_fee as number) ?? 0),
                 discount_amount: (it.discount_amount as number) ?? 0,
                 discount_mode: (it.discount_mode as '정액' | '단가') ?? '정액',
                 discount_unit: (it.discount_unit as number) ?? 0,
@@ -322,7 +326,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 carton_unit: prod?.carton_unit ?? 0,
                 carton_shipping_fee: prod?.carton_shipping_fee ?? 0,
                 loose_shipping_fee: prod?.loose_shipping_fee ?? 0,
-              }
+              })
             }))
           }
           setNotice('이전 상담을 복사했습니다 — 내용 확인 후 저장해주세요. (결제정보는 복사되지 않습니다)')
@@ -392,12 +396,12 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const removeRow = (uid: number) =>
     setItems(prev => prev.filter(it => it.uid !== uid && it.parent_uid !== uid))
 
-  // 상담 품목은 배송비를 열이 아니라 배송비 행으로 다룬다 (702) — 판매 배송비 shipping_fee는 항상 0
+  // 고객 택배비는 '택배비(판매)' 칸(지점 품목만)에서 입력 — 품목을 고르면 기본 0원 (2026-11-12, 702의 배송비 행 방식 대체)
   const pickProduct = (i: number, pid: string | null) => {
     const p = products.find(x => x.id === pid)
     const cur = items[i]
     if (!p || !cur) return
-    setItem(i, { ...draftFromProduct(p, cur), shipping_fee: 0, order_season: seasonFor(i) })
+    setItem(i, { ...draftFromProduct(p, cur), order_season: seasonFor(i) })
   }
   // 주문시기 기본값 (708): 이미 적혀 있으면 유지 → 윗 행 값 → 상담일 기준 제안 (확정은 작성자)
   const seasonFor = (i: number) =>
@@ -405,11 +409,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const setKind = (i: number, kind: string) => {
     const it = items[i]
     if (!it) return
-    setItem(i, {
-      order_kind: kind,
-      ...(it.product_id ? priceRule({ ...it, order_kind: kind }, it.quantity) : {}),
-      shipping_fee: 0,
-    })
+    const patch: Partial<ItemDraft> = { order_kind: kind, ...(it.product_id ? priceRule({ ...it, order_kind: kind }, it.quantity) : {}) }
+    setItem(i, { ...patch, ...reshipPatch({ ...it, ...patch }) })
   }
   // 수량 변경 → 단가 할인·매입배송비(카톤단위/카톤외 자동 구분) 재계산 (704)
   const setQuantity = (i: number, qty: number) => {
@@ -1029,6 +1030,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               <th className="py-1.5 px-1.5 text-right font-medium" title="원가표 카톤단위 — 자동 표기">카톤</th>
               <th className="py-1.5 px-1.5 text-right font-medium">판매가</th>
               <th className="py-1.5 px-1.5 text-right font-medium" title="정액(행당 금액) 또는 개당 할인">판매할인</th>
+              <th className="py-1.5 px-1.5 text-right font-medium" title="고객에게 받는 택배비 (지점 품목만). 매입배송비가 있으면 박스당 단가, 0이면 받는 금액(합계)을 입력">택배비(판매)</th>
               <th className="py-1.5 px-1.5 text-right font-medium">판매합계</th>
               <th className="py-1.5 px-1.5 text-left font-medium">매입처</th>
               <th className="py-1.5 px-1.5 text-right font-medium">매입가</th>
@@ -1175,6 +1177,12 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     placeholder="0" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
+                  {/* 택배비(판매) — 매입배송비 있으면 박스당 단가, 0이면 합계 (2026-11-12) */}
+                  {it.is_shipping
+                    ? <div className="text-xs text-gray-300 text-right">—</div>
+                    : <CustomerShipInput it={it} disabled={locked} className={numCell} onChange={patch => setItem(i, patch)} />}
+                </td>
+                <td className="py-1 px-1.5 text-right">
                   <div className={autoCell + ' font-semibold text-gray-700'}>
                     {won(lineTotal(it))}
                     {it.discount_amount > 0 && (
@@ -1207,7 +1215,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 <td className="py-1 px-1.5">
                   {/* 매입배송비 — 수량 기준 카톤단위/카톤외 자동 구분 (수정 가능, 704 확정) */}
                   <input value={it.purchase_shipping ? won(it.purchase_shipping) : ''} disabled={locked}
-                    onChange={e => setItem(i, { purchase_shipping: toInt(e.target.value) })}
+                    onChange={e => { const v = toInt(e.target.value); setItem(i, { purchase_shipping: v, ...reshipPatch({ ...it, purchase_shipping: v }) }) }}
                     title={purchaseShippingHint(it) ?? '카톤 정보가 없는 품목 — 직접 입력'}
                     className={numCell} placeholder="0" />
                   {purchaseShippingHint(it) && (
@@ -1241,7 +1249,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               </tr>
               {/* 품목별 상태·기타사항 (509 — 상담정보에서 이동) */}
               <tr className={`border-b border-gray-50 ${it.parent_uid ? 'bg-slate-50/60' : ''}`}>
-                <td colSpan={16} className="pb-1.5 pt-0 px-1.5">
+                <td colSpan={17} className="pb-1.5 pt-0 px-1.5">
                   <div className="flex items-center gap-2 pl-4 flex-wrap">
                     <span className="text-[0.625rem] text-gray-400 shrink-0">상태</span>
                     <input value={it.status} disabled={locked}
@@ -1267,7 +1275,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               </tr>
               {addonCands.length > 0 && (
                 <tr className="border-b border-gray-50">
-                  <td colSpan={16} className="pb-1.5 pt-0 px-1.5">
+                  <td colSpan={17} className="pb-1.5 pt-0 px-1.5">
                     <div className="flex items-center gap-1.5 flex-wrap pl-4">
                       <span className="text-[0.625rem] text-gray-400">옵션 추가 ({it.purchase_vendor_name})</span>
                       {addonCands.map(p => (

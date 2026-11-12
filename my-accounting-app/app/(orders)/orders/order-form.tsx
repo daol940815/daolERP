@@ -8,8 +8,8 @@ import { normTel } from '@/lib/contact-phone-sync'
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Combo, DiscountInput, SeasonDatalist, SeasonInput, autoGrow, branchLabel, cartonShipping, draftExtrasFromRow, draftFromProduct,
-  emptyItem, lineCost, lineTotal, priceRule, purchaseShippingHint, quantityPatch, toInt, won,
+  Combo, CustomerShipInput, DiscountInput, SeasonDatalist, SeasonInput, autoGrow, branchLabel, draftExtrasFromRow, draftFromProduct,
+  emptyItem, lineCost, lineTotal, priceRule, purchaseShippingHint, quantityPatch, reshipPatch, toInt, withShipUnit, won,
 } from './form-shared'
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
 import type { ContactOpt, Employee, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from './form-shared'
@@ -145,7 +145,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           uidRef.current = activeItems.length + 1
           setItems(activeItems.map((it, idx) => {
             const prod = prodList.find(x => x.id === it.product_id)
-            return {
+            return withShipUnit({
               uid: idx + 1,
               parent_uid: it.parent_line_no ? (lineToUid.get(it.parent_line_no as number) ?? null) : null,
               product_id: (it.product_id as string) ?? null,
@@ -170,7 +170,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               carton_unit: prod?.carton_unit ?? 0,
               carton_shipping_fee: prod?.carton_shipping_fee ?? 0,
               loose_shipping_fee: prod?.loose_shipping_fee ?? 0,
-            }
+            })
           }))
         } else if (consultId) {
           // 상담일지 → 주문 전환: 상담 내용으로 미리 채움
@@ -241,7 +241,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
             uidRef.current = realItems.length + 1
             setItems(realItems.map((it, idx) => {
               const prod = prodList.find(x => x.id === it.product_id)
-              return {
+              return withShipUnit({
                 uid: idx + 1,
                 parent_uid: it.parent_line_no ? (realLineToUid.get(it.parent_line_no as number) ?? null) : null,
                 product_id: (it.product_id as string) ?? null,
@@ -273,7 +273,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                 carton_unit: prod?.carton_unit ?? 0,
                 carton_shipping_fee: prod?.carton_shipping_fee ?? 0,
                 loose_shipping_fee: prod?.loose_shipping_fee ?? 0,
-              }
+              })
             }))
           }
         }
@@ -438,8 +438,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
   const setKind = (i: number, kind: string) => {
     const it = items[i]
     if (!it) return
-    const next = { ...it, order_kind: kind }
-    setItem(i, { order_kind: kind, ...(it.product_id ? priceRule(next, it.quantity) : {}) })
+    const patch: Partial<ItemDraft> = { order_kind: kind, ...(it.product_id ? priceRule({ ...it, order_kind: kind }, it.quantity) : {}) }
+    setItem(i, { ...patch, ...reshipPatch({ ...it, ...patch }) })
   }
 
   // 옵션(부가상품) 추가 — 같은 매입처의 부가상품을 본 상품 행 바로 아래에 붙인다
@@ -460,16 +460,11 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
   const removeRow = (uid: number) =>
     setItems(prev => prev.filter(it => it.uid !== uid && it.parent_uid !== uid))
 
-  // 갯수 변경 시 지점 구분 + 카톤단위가 있으면 배송비 재계산
+  // 갯수 변경 → 단가 할인 · 매입배송비 자동 재계산(704) + 고객 택배비 = 박스당 단가 유지 × 새 박스 수.
+  // 고객 택배비 자동 채움(카톤 공식)은 2026-11-12 제거 — 기본 0원, '택배비(판매)' 칸에서 입력
   const setQuantity = (i: number, qty: number) => {
     const it = items[i]
-    setItem(i, {
-      quantity: qty,
-      ...(it ? quantityPatch(it, qty) : {}),   // 단가 할인·매입배송비 자동 재계산 (704)
-      ...(it && it.order_kind === '지점' && it.carton_unit > 0
-        ? { shipping_fee: cartonShipping(it.carton_unit, it.carton_shipping_fee, it.loose_shipping_fee, qty) }
-        : {}),
-    })
+    setItem(i, it ? quantityPatch(it, qty) : { quantity: qty })
   }
 
   const totals = useMemo(() => {
@@ -918,7 +913,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               <th className="py-1.5 px-1.5 text-left font-medium">매입처</th>
               <th className="py-1.5 px-1.5 text-right font-medium">판매가</th>
               <th className="py-1.5 px-1.5 text-right font-medium">갯수</th>
-              <th className="py-1.5 px-1.5 text-right font-medium">배송비</th>
+              <th className="py-1.5 px-1.5 text-right font-medium" title="고객에게 받는 택배비 (지점 품목만). 매입배송비가 있으면 박스당 단가, 0이면 받는 금액(합계)을 입력">택배비(판매)</th>
               <th className="py-1.5 px-1.5 text-right font-medium">판매할인</th>
               <th className="py-1.5 px-1.5 text-right font-medium">합계금액</th>
               <th className="py-1.5 px-1.5 text-right font-medium">매입가</th>
@@ -991,11 +986,9 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                     className="w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs text-right tabular-nums" placeholder="1" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  <input value={it.shipping_fee ? won(it.shipping_fee) : ''} onChange={e => setItem(i, { shipping_fee: toInt(e.target.value) })}
-                    className={numCell} placeholder="0"
-                    title={it.carton_unit > 0
-                      ? `자동: 꽉 찬 카톤 × ${won(it.carton_shipping_fee)} + 낱개 있으면 카톤외 ${won(it.loose_shipping_fee)} (카톤단위 ${it.carton_unit}) — 수정 가능`
-                      : undefined} />
+                  {it.is_shipping && !it.shipping_fee
+                    ? <div className="text-xs text-gray-300 text-right">—</div>
+                    : <CustomerShipInput it={it} className={numCell} onChange={patch => setItem(i, patch)} />}
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   {/* 할인 — 정액 / 개당(× 수량 자동) 구분 (704, 상담일지와 동일) */}
@@ -1049,7 +1042,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                     onChange={d => setItem(i, { purchase_discount_mode: d.mode, purchase_discount_unit: d.unit, purchase_discount: d.amount })} />
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  <input value={it.purchase_shipping ? won(it.purchase_shipping) : ''} onChange={e => setItem(i, { purchase_shipping: toInt(e.target.value) })}
+                  <input value={it.purchase_shipping ? won(it.purchase_shipping) : ''}
+                    onChange={e => { const v = toInt(e.target.value); setItem(i, { purchase_shipping: v, ...reshipPatch({ ...it, purchase_shipping: v }) }) }}
                     title={purchaseShippingHint(it) ?? '카톤 정보가 없는 품목 — 직접 입력'}
                     className={numCell} placeholder="0" />
                 </td>

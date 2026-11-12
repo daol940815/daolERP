@@ -110,7 +110,7 @@ export default function PoDetail({ poId }: { poId: string }) {
                         // 수량 빨강·비고 파랑 (원본 관례)
                         color: hex(ci === 2 ? PO_COLORS.qtyInk : ci === 5 ? PO_COLORS.noteInk : PO_COLORS.ink),
                       }}>
-                      {ci === 3 || ci === 4 ? won(Number(v)) : v}
+                      {(ci === 3 || ci === 4) && v !== '' ? won(Number(v)) : v}
                     </td>
                   ))}
                 </tr>

@@ -25,6 +25,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   // 상품 행: 판매금액 = 품목 합계 - 배송비 (할인 반영). 단가 = 금액 ÷ 수량 —
   // 할인로 나누어떨어지지 않으면 소수 단가를 그대로 두어 단가×수량 수식이 성립한다.
+  // 금액이 0원인 품목 행은 싣지 않는다 (2026-11-12 사용자 확정 — 증정품 등. 합계 불변, 원본 주문은 그대로)
   const items: StatementItem[] = active.map(it => {
     const qty = Number(it.quantity ?? 0)
     const amount = Number(it.line_total ?? 0) - Number(it.shipping_fee ?? 0)
@@ -35,10 +36,14 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       amount,
       memo: (it.memo as string | null) ?? null,
     }
-  })
+  }).filter(it => it.amount !== 0)
   const shipping = active.reduce((s, it) => s + Number(it.shipping_fee ?? 0), 0)
   if (shipping > 0) {
     items.push({ item_name: '택배비', quantity: 1, unit_price: shipping, amount: shipping, memo: null })
+  }
+
+  if (items.length === 0) {
+    return NextResponse.json({ error: '금액이 있는 품목이 없어 거래명세서를 만들 수 없습니다. (0원 품목은 거래명세서에 싣지 않습니다)' }, { status: 400 })
   }
 
   const data: StatementData = {
