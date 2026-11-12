@@ -40,6 +40,7 @@ export default function CardCustomerLinksPage() {
   const [pick, setPick] = useState<Record<string, string>>({})     // card_number → vendor_id (수동 선택)
   const [busy, setBusy] = useState<string | null>(null)
   const [onlySuggested, setOnlySuggested] = useState(false)
+  const [q, setQ] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
   const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 6000) }
 
@@ -80,7 +81,23 @@ export default function CardCustomerLinksPage() {
     load()
   }
 
-  const visible = onlySuggested ? groups.filter(g => g.suggestion) : groups
+  // 검색: 카드번호(하이픈·마스킹 무시, 숫자 일부) · 추천 매출처(별칭·거래처명) · 매입사 · 순승인액
+  const matches = (g: Group, raw: string) => {
+    const terms = raw.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    if (terms.length === 0) return true
+    const cardDigits = g.card_number.replace(/[^0-9*]/g, '')
+    const text = [g.card_number, g.suggestion?.alias_name, g.suggestion?.vendor_name, ...g.acquirers]
+      .filter(Boolean).join(' ').toLowerCase()
+    return terms.every(t => {
+      if (text.includes(t)) return true
+      const digits = t.replace(/[^0-9*]/g, '')
+      if (!digits) return false
+      if (cardDigits.includes(digits)) return true
+      return String(Math.round(g.net_amount)).includes(digits.replace(/\*/g, ''))
+    })
+  }
+  const base = onlySuggested ? groups.filter(g => g.suggestion) : groups
+  const visible = q.trim() ? base.filter(g => matches(g, q)) : base
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -109,17 +126,37 @@ export default function CardCustomerLinksPage() {
         </div>
       )}
 
-      <label className="flex items-center gap-2 text-sm text-gray-600 mb-3">
-        <input type="checkbox" checked={onlySuggested} onChange={e => setOnlySuggested(e.target.checked)} />
-        추천 있는 카드만 보기
-      </label>
+      <div className="flex items-center gap-3 flex-wrap mb-3">
+        <div className="relative flex-1 min-w-[240px] max-w-md">
+          <input
+            type="search"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="검색: 카드번호 · 추천 매출처 · 매입사 · 금액"
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white"
+          />
+        </div>
+        <label className="flex items-center gap-2 text-sm text-gray-600">
+          <input type="checkbox" checked={onlySuggested} onChange={e => setOnlySuggested(e.target.checked)} />
+          추천 있는 카드만 보기
+        </label>
+        {(q.trim() || onlySuggested) && !loading && (
+          <span className="text-xs text-gray-400">{visible.length.toLocaleString()} / {groups.length.toLocaleString()}개 표시</span>
+        )}
+      </div>
 
       {loading ? (
         <p className="text-gray-400 text-sm py-10 text-center">카드번호 그룹·추천 계산 중...</p>
       ) : visible.length === 0 ? (
-        <div className="text-center py-16 border border-green-200 bg-green-50 rounded-xl">
-          <p className="text-green-700 font-medium">연결할 카드번호가 없습니다</p>
-        </div>
+        q.trim() ? (
+          <div className="text-center py-16 border border-gray-200 bg-gray-50 rounded-xl">
+            <p className="text-gray-500 font-medium">검색 결과가 없습니다</p>
+          </div>
+        ) : (
+          <div className="text-center py-16 border border-green-200 bg-green-50 rounded-xl">
+            <p className="text-green-700 font-medium">연결할 카드번호가 없습니다</p>
+          </div>
+        )
       ) : (
         <div className="overflow-x-auto border border-gray-200 rounded-lg">
           <table className="w-full text-sm">
