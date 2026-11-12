@@ -603,6 +603,11 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
   const [accountFilter, setAccountFilter] = useState('')
   // 매입처 상세 '계산서 매칭'에서 진입: ?vendorId= 로 그 거래처 계산서만 (기간은 비워 과거 계산서도 보이게)
   const [vendorIdFilter, setVendorIdFilter] = useState<string | null>(() => searchParams.get('vendorId'))
+  // 연결된 거래처 표시·직접 연결 (2026-11-12): 계산서의 '거래처' 열은 홈택스 상호(원본)이고, 집계는 vendor_id(연결)를 본다.
+  // 418 이후에도 "남음"이 생기면 여기서 사람이 붙인다. 거래처 목록은 이름 표시·선택용.
+  const [vendorNames, setVendorNames] = useState<{ id: string; name: string; is_active?: boolean }[]>([])
+  const [unlinkedOnly, setUnlinkedOnly] = useState(false)
+  const [linkingId, setLinkingId] = useState<string | null>(null)
   // 원본 상세 등에서 특정 계산서로 바로 진입 (?invoiceId=) — 그 건만 표시
   const [focusId, setFocusId]         = useState<string | null>(() => searchParams.get('invoiceId'))
   const [exporting, setExporting]     = useState(false)
@@ -670,6 +675,24 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
       .then(d => { if (Array.isArray(d.data)) setAccounts(d.data) })
       .catch(() => {/* ignore */})
   }, [direction])
+
+  useEffect(() => {
+    fetch('/api/vendors?all=true').then(r => r.json())
+      .then(d => { if (Array.isArray(d.data)) setVendorNames(d.data.map((v: { id: string; name: string; is_active?: boolean }) => ({ id: v.id, name: v.name, is_active: v.is_active }))) })
+      .catch(() => {/* ignore */})
+  }, [])
+  const vendorNameOf = useMemo(() => new Map(vendorNames.map(v => [v.id, v.name])), [vendorNames])
+  const vendorOptions = useMemo(() => vendorNames.filter(v => v.is_active !== false).map(v => ({ id: v.id, label: v.name })), [vendorNames])
+
+  // 계산서에 거래처를 직접 연결 — 분개도 서버가 다시 맞춘다(멱등)
+  const linkVendor = async (inv: TaxInvoice, vendorId: string) => {
+    setLinkingId(null)
+    const res = await fetch(`/api/tax-invoices/${inv.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vendor_id: vendorId || null }) })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) { showMsg(`거래처 연결 실패: ${json.error ?? '오류'}`); return }
+    setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, vendor_id: vendorId || null } : i))
+    showMsg(vendorId ? `거래처 연결: ${vendorNameOf.get(vendorId) ?? ''}` : '거래처 연결 해제')
+  }
 
   const handleExport = useCallback(() => {
     setExporting(true)
@@ -848,7 +871,8 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
     !accountFilter ? true : accountFilter === 'none' ? !i.confirmed_account_id : i.confirmed_account_id === accountFilter
   const filtered = focusId
     ? invoices.filter(i => i.id === focusId)
-    : invoices.filter(i => matchesAccount(i) && (!q || matchesSearch(i)))
+    : invoices.filter(i => matchesAccount(i) && (!unlinkedOnly || !i.vendor_id) && (!q || matchesSearch(i)))
+  const unlinkedCount = invoices.filter(i => !i.vendor_id).length
 
   // 체크박스가 보이는(선택 가능한) 행 = 아직 매칭 안 된 건
   const selectableIds = filtered.filter(i => !i.matched_transaction_id).map(i => i.id)
@@ -1013,6 +1037,12 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
               {tab.label}
             </button>
           ))}
+          <button onClick={() => setUnlinkedOnly(v => !v)}
+            title="거래처 마스터에 연결되지 않은 계산서 — 집계·허브·미지급에서 빠진다"
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              unlinkedOnly ? 'bg-orange-600 text-white' : unlinkedCount ? 'bg-orange-50 text-orange-700 hover:bg-orange-100' : 'bg-gray-100 text-gray-400'}`}>
+            거래처 미연결 {unlinkedCount}
+          </button>
         </div>
         {selected.size > 0 && (
           <button
@@ -1112,6 +1142,24 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
                   <td className="py-2.5 px-3 min-w-0">
                     <p className="text-gray-900 truncate max-w-[280px]">{inv.counterparty_name ?? '-'}</p>
                     <p className="text-xs text-gray-400">{inv.counterparty_biz_number ?? ''}</p>
+                    {/* 연결된 거래처(마스터) — 상호와 별개. 비어 있으면 집계에서 빠지므로 여기서 바로 붙인다 */}
+                    {linkingId === inv.id ? (
+                      <div className="mt-0.5" onClick={e => e.stopPropagation()}>
+                        <SearchableSelect value={inv.vendor_id ?? ''} onChange={id => linkVendor(inv, id)} options={vendorOptions}
+                          emptyLabel="(연결 안 함)" className="text-xs border border-orange-300 rounded px-1.5 py-0.5 bg-white min-w-[160px]" />
+                        <button onClick={() => setLinkingId(null)} className="ml-1 text-xs text-gray-400 hover:underline">취소</button>
+                      </div>
+                    ) : inv.vendor_id ? (
+                      <button onClick={e => { e.stopPropagation(); setLinkingId(inv.id) }} title="연결된 거래처 — 클릭해 바꾸기"
+                        className="text-[0.6875rem] text-blue-700 hover:underline truncate max-w-[280px] block text-left">
+                        연결: {vendorNameOf.get(inv.vendor_id) ?? '(알 수 없는 거래처)'}
+                      </button>
+                    ) : (
+                      <button onClick={e => { e.stopPropagation(); setLinkingId(inv.id) }} title="거래처 마스터에 연결되지 않음 — 클릭해 연결"
+                        className="mt-0.5 px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-orange-100 text-orange-700 hover:bg-orange-200">
+                        거래처 미연결 — 연결하기
+                      </button>
+                    )}
                   </td>
                   <td className="py-2.5 px-3 text-gray-500 max-w-[360px] truncate">{inv.item_name ?? '-'}</td>
                   <td className="py-2.5 px-3 text-right text-gray-600 whitespace-nowrap">{won(inv.supply_amount)}</td>
