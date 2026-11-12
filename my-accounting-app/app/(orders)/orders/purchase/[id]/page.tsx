@@ -65,6 +65,7 @@ export default function PoSendPage() {
   const [output, setOutput] = useState<{
     kind: 'vendor' | 'code' | 'standard'; vendor_form: { id: string; version: number; file_name: string } | null
     warnings: string[]; error: string | null; draft_version?: number | null; vendor_id?: string | null
+    file_name?: string   // 자동 생성본 파일 이름 (2026-11-12 — 서버 poFileName과 같은 값)
   } | null>(null)
 
   // 프리셋 관리 모달
@@ -302,7 +303,7 @@ export default function PoSendPage() {
             <div className={`flex items-center gap-2.5 border rounded-lg px-3 py-2 text-sm ${
               attachments.some(a => a.kind === 'replace') ? 'border-gray-100 bg-gray-50 text-gray-400' : 'border-gray-200 bg-gray-50/60'}`}>
               {badge('bg-gray-200/70 text-gray-600', '자동')}
-              <span className="font-medium">발주서_{po.po_no}_{po.vendor_name}.xlsx</span>
+              <span className="font-medium break-all">{output?.file_name ?? `발주서_${po.po_no}_${po.vendor_name}.xlsx`}</span>
               {output?.kind === 'vendor' && output.vendor_form && badge('bg-violet-100 text-violet-700', `업체 양식 v${output.vendor_form.version}`)}
               <span className="text-[0.6875rem] text-gray-400">
                 {attachments.some(a => a.kind === 'replace')

@@ -97,6 +97,37 @@ export function poFormItemRows(po: PoExcelData): (string | number)[][] {
   return rows
 }
 
+// 발주서 파일 이름 (2026-11-12 사용자 확정) — 다운로드 · 메일 첨부 공통
+//   {작성일 yymmdd}_다올커머스_{배송종류}_발주서_{매입처}_{은행 지점}_{고객}_{순번}.xlsx
+//   - 작성일 · 순번 = 발주번호(POyymmdd-##)의 날짜 · 순번 (그날 발주서 전체 순번이라 같은 날 이름이 겹치지 않는다)
+//   - 배송종류: 발주서 품목의 지점 · 개별 · 샘플, 섞이면 둘 다 ('지점·개별')
+//   - 매출처: 은행명 + 지점명(지점명이 비면 은행명만) · 고객: 주문 담당자 이름, '님' 없이
+//   - 빈 항목은 칸째 뺀다 · 파일 이름에 못 쓰는 글자는 '_'
+const PO_KIND_ORDER = ['지점', '개별', '샘플']
+export function poFileName(p: {
+  po_no: string; created_at?: string | null; vendor_name: string | null
+  bank_name?: string | null; branch_name?: string | null; manager_name?: string | null
+  kinds: (string | null | undefined)[]
+  docLabel?: string            // 기본 '발주서' (대경사과 자체 양식은 '송장등록')
+}): string {
+  const clean = (v: string | null | undefined) =>
+    String(v ?? '').replace(/[\\/:*?"<>|\r\n\t]/g, '_').replace(/\s+/g, ' ').trim().replace(/^_+|_+$/g, '')
+  const m = p.po_no.match(/^PO(\d{6})-(\d+)$/)
+  const date = m ? m[1]
+    : p.created_at ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date(p.created_at)).slice(2).replace(/-/g, '')
+    : ''
+  const seq = m ? m[2] : clean(p.po_no)
+  const kinds = Array.from(new Set(p.kinds.map(k => clean(k)).filter(Boolean)))
+    .sort((a, b) => {
+      const ia = PO_KIND_ORDER.indexOf(a), ib = PO_KIND_ORDER.indexOf(b)
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
+    })
+  const customer = [clean(p.bank_name), clean(p.branch_name)].filter(Boolean).join(' ')
+  const manager = clean(String(p.manager_name ?? '').replace(/\s*님$/, ''))
+  const parts = [date, COMPANY_NAME, kinds.join('·'), clean(p.docLabel) || '발주서', clean(p.vendor_name), customer, manager, seq]
+  return `${parts.filter(Boolean).join('_')}.xlsx`
+}
+
 // 출고요청일 표기 통일 (2026-11-09 사용자 승인) — 상담일지 배송요청일은 자유 입력 글자('11월 12일' · '11/12' · '11.12(수)' …)라
 // 발주서에 그대로 들어가 날짜 서식이 먹지 않았다. 발주서 만들 때만 날짜로 읽어 'YYYY-MM-DD'로 통일한다(상담일지 원본은 그대로).
 //  - 연도 없음 → 주문일 연도. 주문일보다 60일 넘게 앞서면 다음 해 (12/28 주문의 '1/3' = 다음 해 1월 3일)
