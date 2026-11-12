@@ -27,11 +27,11 @@ type PoOutput =
   | { ok: true; buffer: Buffer; fileName: string; kind: 'vendor' | 'code' | 'standard'; vendorForm: { id: string; version: number; file_name: string } | null; warnings: string[] }
   | { ok: false; error: string }
 // 파일 이름 (2026-11-12 사용자 확정 — lib/po-form.ts poFileName). 화면의 자동 생성본 이름도 이 값
-function fileNameOf(data: NonNullable<Awaited<ReturnType<typeof loadPo>>>, docLabel?: string) {
+function fileNameOf(data: NonNullable<Awaited<ReturnType<typeof loadPo>>>) {
   return poFileName({
     po_no: data.po.po_no, created_at: data.po.created_at, vendor_name: data.po.vendor_name,
     bank_name: data.order?.bank_name, branch_name: data.order?.branch_name, manager_name: data.order?.manager_name,
-    kinds: data.items.map(it => it.order_kind as string | null), docLabel,
+    kinds: data.items.map(it => it.order_kind as string | null),
   })
 }
 async function outputOf(
@@ -48,7 +48,7 @@ async function outputOf(
     return { ok: true, buffer: r.buffer, fileName: fileNameOf(data), kind: 'vendor', vendorForm: { id: vf.id, version: vf.version, file_name: vf.file_name }, warnings: r.warnings }
   }
   const custom = findCustomPoForm(data.po.vendor_name)
-  if (custom) return { ok: true, buffer: await custom.build(form), fileName: fileNameOf(data, custom.filePrefix), kind: 'code', vendorForm: null, warnings: [] }
+  if (custom) return { ok: true, buffer: await custom.build(form), fileName: fileNameOf(data), kind: 'code', vendorForm: null, warnings: [] }
   return { ok: true, buffer: await buildPoExcel(form), fileName: fileNameOf(data), kind: 'standard', vendorForm: null, warnings: [] }
 }
 
@@ -104,8 +104,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
           warnings: out.ok ? out.warnings : [], error: out.ok ? null : out.error }
       }
       const draft = await draftVendorForm(admin, data.po.vendor_id)
-      const custom = findCustomPoForm(data.po.vendor_name)
-      return { kind: custom ? 'code' : 'standard', vendor_form: null, warnings: [], error: null, file_name: fileNameOf(data, custom?.filePrefix),
+      return { kind: findCustomPoForm(data.po.vendor_name) ? 'code' : 'standard', vendor_form: null, warnings: [], error: null, file_name: fileNameOf(data),
         draft_version: draft?.version ?? null, vendor_id: data.po.vendor_id }
     })(),
   })

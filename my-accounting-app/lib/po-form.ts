@@ -103,12 +103,12 @@ export function poFormItemRows(po: PoExcelData): (string | number)[][] {
 //   - 배송종류: 발주서 품목의 지점 · 개별 · 샘플, 섞이면 둘 다 ('지점·개별')
 //   - 매출처: 은행명 + 지점명(지점명이 비면 은행명만) · 고객: 주문 담당자 이름, '님' 없이
 //   - 빈 항목은 칸째 뺀다 · 파일 이름에 못 쓰는 글자는 '_'
+//   - 예외 없음 — 업체 양식 · 대경사과 자체 양식도 '발주서' (2026-11-12 사용자 확정)
 const PO_KIND_ORDER = ['지점', '개별', '샘플']
 export function poFileName(p: {
   po_no: string; created_at?: string | null; vendor_name: string | null
   bank_name?: string | null; branch_name?: string | null; manager_name?: string | null
   kinds: (string | null | undefined)[]
-  docLabel?: string            // 기본 '발주서' (대경사과 자체 양식은 '송장등록')
 }): string {
   const clean = (v: string | null | undefined) =>
     String(v ?? '').replace(/[\\/:*?"<>|\r\n\t]/g, '_').replace(/\s+/g, ' ').trim().replace(/^_+|_+$/g, '')
@@ -124,7 +124,7 @@ export function poFileName(p: {
     })
   const customer = [clean(p.bank_name), clean(p.branch_name)].filter(Boolean).join(' ')
   const manager = clean(String(p.manager_name ?? '').replace(/\s*님$/, ''))
-  const parts = [date, COMPANY_NAME, kinds.join('·'), clean(p.docLabel) || '발주서', clean(p.vendor_name), customer, manager, seq]
+  const parts = [date, COMPANY_NAME, kinds.join('·'), '발주서', clean(p.vendor_name), customer, manager, seq]
   return `${parts.filter(Boolean).join('_')}.xlsx`
 }
 
