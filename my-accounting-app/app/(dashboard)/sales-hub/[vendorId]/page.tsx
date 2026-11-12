@@ -59,6 +59,8 @@ export default function SalesHubDetailPage() {
     contact_id: string; name: string; code: string | null; phone: string | null
     others: { vendor_id: string; vendor_name: string; title: string | null }[]
   } | null>(null)
+  // 같은 이름(법인격 · 공백 무시) 매출처 — 중복이면 주문이 한쪽 상세에만 보인다 (2026-11-12)
+  const [sameName, setSameName] = useState<{ id: string; name: string; is_active: boolean; order_count: number }[]>([])
   const [linkOpen, setLinkOpen] = useState(false)
   const [billingForm, setBillingForm] = useState<{ open: boolean; q: string; options: BillingRef[]; busy: boolean }>({ open: false, q: '', options: [], busy: false })
   const [loading, setLoading] = useState(true)
@@ -89,6 +91,7 @@ export default function SalesHubDetailPage() {
       setDocSales(Array.isArray(json.doc_sales) ? json.doc_sales : [])
       setBilling(json.billing_detail ?? null)
       setIndividual(json.individual ?? null)
+      setSameName(Array.isArray(json.same_name) ? json.same_name : [])
     } catch (e) {
       setError(e instanceof Error ? e.message : '조회 실패')
     } finally { setLoading(false) }
@@ -260,6 +263,19 @@ export default function SalesHubDetailPage() {
                 </Link>
               ))}
               <span className="text-[0.6875rem] text-gray-500">그쪽 주문은 그 매출처에 집계됩니다</span>
+            </div>
+          )}
+          {sameName.length > 0 && (
+            <div className="mt-2 inline-flex items-center gap-2 flex-wrap bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+              <span className="text-[0.6875rem] font-bold text-amber-700">같은 이름 매출처</span>
+              {sameName.map(o => (
+                <Link key={o.id} href={`/sales-hub/${o.id}`} className="text-sm font-semibold text-gray-900 hover:underline">
+                  {o.name}
+                  <span className="ml-1 text-[0.6875rem] font-normal text-gray-500">{o.is_active ? '' : '비활성 · '}주문 {o.order_count}건</span>
+                </Link>
+              ))}
+              <span className="text-[0.6875rem] text-gray-500">그쪽 주문은 그 매출처에만 보입니다 — 같은 곳이면</span>
+              <Link href="/vendor-dedup" className="text-[0.6875rem] text-amber-700 underline">거래처 중복 정리에서 병합</Link>
             </div>
           )}
           {billing?.available && billing.billing && (
