@@ -12,7 +12,7 @@ export type AmountDir = 'any' | 'in' | 'out'
 export type AmountOp  = 'none' | 'eq' | 'range' | 'gte' | 'lte'
 export type TxStatus  = 'pending' | 'reviewed' | 'confirmed'
 export type TxSource  = 'bank' | 'card'
-export type LinkKind  = 'transfer' | 'invoice' | 'none'
+export type LinkKind  = 'transfer' | 'invoice' | 'cash' | 'none'
 
 export type TxFilter =
   | { kind: 'text';    value: string; negate: boolean }
@@ -39,12 +39,12 @@ export const FILTER_LABEL: Record<TxFilterKind, string> = {
 
 export const STATUS_LABEL: Record<TxStatus, string> = { pending: '미검토', reviewed: '검토완료', confirmed: '확정' }
 export const SOURCE_LABEL: Record<TxSource, string> = { bank: '은행', card: '카드' }
-export const LINK_LABEL:   Record<LinkKind, string> = { transfer: '이체쌍', invoice: '계산서 매칭', none: '미연결' }
+export const LINK_LABEL:   Record<LinkKind, string> = { transfer: '이체쌍', invoice: '계산서 매칭', cash: '현금영수증', none: '미연결' }
 export const DIR_LABEL:    Record<AmountDir, string> = { any: '입금·출금 모두', in: '입금만', out: '출금만' }
 
 const STATUS_BY_LABEL: Record<string, TxStatus> = { '미검토': 'pending', '검토완료': 'reviewed', '확정': 'confirmed' }
 const SOURCE_BY_LABEL: Record<string, TxSource> = { '은행': 'bank', '카드': 'card' }
-const LINK_BY_LABEL:   Record<string, LinkKind> = { '이체쌍': 'transfer', '이체': 'transfer', '계산서': 'invoice', '계산서매칭': 'invoice', '없음': 'none', '미연결': 'none' }
+const LINK_BY_LABEL:   Record<string, LinkKind> = { '이체쌍': 'transfer', '이체': 'transfer', '계산서': 'invoice', '계산서매칭': 'invoice', '현금영수증': 'cash', '영수증': 'cash', '없음': 'none', '미연결': 'none' }
 
 // ── 숫자 ───────────────────────────────────────────────
 export const parseNum = (s: string): number | null => {
@@ -139,7 +139,7 @@ export function serializeFilter(f: TxFilter): string {
     case 'memo':    return `메모:${f.text}`
     case 'date':    return `날짜:${f.value}`
     // 직렬화 값에는 공백이 들어가면 안 된다(토큰이 공백으로 갈라진다)
-    case 'link':    return `연결:${f.value === 'transfer' ? '이체쌍' : f.value === 'invoice' ? '계산서' : '미연결'}`
+    case 'link':    return `연결:${f.value === 'transfer' ? '이체쌍' : f.value === 'invoice' ? '계산서' : f.value === 'cash' ? '현금영수증' : '미연결'}`
   }
 }
 export const serializeQuery = (filters: TxFilter[]) => filters.map(serializeFilter).filter(Boolean).join(' ')
@@ -229,7 +229,9 @@ export function matchFilter(tx: Transaction, f: TxFilter, ctx: TxFilterContext):
     case 'link':
       if (f.value === 'transfer') return !!tx.transfer_pair_id
       if (f.value === 'invoice')  return (tx.invoice_links?.length ?? 0) > 0
-      return !tx.transfer_pair_id && !(tx.invoice_links?.length)
+      if (f.value === 'cash')     return (tx.cash_receipt_links?.length ?? 0) > 0
+      // 미연결 = 이체쌍·계산서·현금영수증 어느 것에도 연결되지 않음
+      return !tx.transfer_pair_id && !(tx.invoice_links?.length) && !(tx.cash_receipt_links?.length)
   }
 }
 
@@ -241,15 +243,19 @@ export const highlightTerms = (filters: TxFilter[]) =>
   filters.filter((f): f is Extract<TxFilter, { kind: 'text' }> => f.kind === 'text' && !f.negate).map(f => f.value)
 
 // ── 빠른 조건 칩 ────────────────────────────────────────
-export const QUICK_FILTERS: { label: string; filter: TxFilter }[] = [
-  { label: '입금만',      filter: { kind: 'amount', dir: 'in',  op: 'none', a: null, b: null } },
-  { label: '출금만',      filter: { kind: 'amount', dir: 'out', op: 'none', a: null, b: null } },
-  { label: '미검토',      filter: { kind: 'status', values: ['pending'] } },
-  { label: '추천만 있음', filter: { kind: 'account', name: '추천' } },
-  { label: '미분류',      filter: { kind: 'account', name: '없음' } },
-  { label: '이체쌍',      filter: { kind: 'link', value: 'transfer' } },
-  { label: '계산서 매칭', filter: { kind: 'link', value: 'invoice' } },
-  { label: '카드',        filter: { kind: 'source', values: ['card'] } },
+// 빠른 조건 — 하나 또는 여러 필터를 한 번에 건다 (복수: '증빙 없는 매출 입금' = 입금만 + 계정:상품매출 + 연결:없음, 2026-11-13)
+export const QUICK_FILTERS: { label: string; filters: TxFilter[]; title?: string }[] = [
+  { label: '입금만',      filters: [{ kind: 'amount', dir: 'in',  op: 'none', a: null, b: null }] },
+  { label: '출금만',      filters: [{ kind: 'amount', dir: 'out', op: 'none', a: null, b: null }] },
+  { label: '미검토',      filters: [{ kind: 'status', values: ['pending'] }] },
+  { label: '추천만 있음', filters: [{ kind: 'account', name: '추천' }] },
+  { label: '미분류',      filters: [{ kind: 'account', name: '없음' }] },
+  { label: '이체쌍',      filters: [{ kind: 'link', value: 'transfer' }] },
+  { label: '계산서 매칭', filters: [{ kind: 'link', value: 'invoice' }] },
+  { label: '현금영수증',  filters: [{ kind: 'link', value: 'cash' }] },
+  { label: '증빙 없는 매출 입금', title: '상품매출로 분류된 입금 중 계산서·현금영수증 어느 것에도 연결되지 않은 것 — 현금영수증 발행 요청 대상',
+    filters: [{ kind: 'amount', dir: 'in', op: 'none', a: null, b: null }, { kind: 'account', name: '상품매출' }, { kind: 'link', value: 'none' }] },
+  { label: '카드',        filters: [{ kind: 'source', values: ['card'] }] },
 ]
 
 export const sameFilter = (a: TxFilter, b: TxFilter) => serializeFilter(a) === serializeFilter(b)

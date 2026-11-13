@@ -1131,6 +1131,16 @@ ERP 주문은 계획대로 교체(erp-reload-track). 결정 대기.
 - 사용자 추가 요청(2026-11-13): 현금영수증 화면에 검색 · 기간 칩. 기간 칩(표준 PeriodPresets)은 이미 있었음. **검색 즉시 구현**:
   승인번호 · 발행구분 · 용도 · 가맹점명 · 사업자번호 · 메모 · 거래처명, 숫자만 치면 총금액 일치. 불러온 행에서 즉시, 요약·전체 선택·표가
   걸러진 행 기준. 시안도 표준 칩 전체 + 검색창으로 갱신.
+- **425 실행·검증 (2026-11-13 사용자 보고)**: 매출 승인 40건 · 25,085,644원 · 2026-01-07 ~ 2026-10-23. 승인으로 보고 구현 · main 반영.
+- 구현: `lib/cash-receipt-payments.server.ts`(recalcReceiptStatus · usedAmountByTx(계산서+영수증 연결 합) · addReceiptPayment(매출·승인만,
+  영수증 잔액·입금 잔액 검증) · removeReceiptPayment · loadReceiptCandidates(기본 ±7일·남은 금액 ≥ 잔액, from/to/q 직접 찾기, 점수 = 금액
+  일치 50 · 같은 날 30 · 이름 일치 40) · autoMatchReceipts(전액 미연결 입금 = 영수증 잔액 · ±7일 · 후보 1건)). 연결 시 그 입금이 미확정·
+  추천 없음이면 상품매출(4001) 추천(ai_reason '현금영수증 연결'). API `/api/cash-receipts/[id]/payments`(GET 목록·?candidates=1 후보 ·
+  POST · DELETE) · `/api/cash-receipts/auto-match`. 목록 API `paymentStatus` 필터 + 매출 행 `payments` 첨부. 통장 API `cash_receipt_links`.
+- 화면: 현금영수증 매출 탭 KPI(입금 확인됨 · 미확인=클릭 필터) · 칩(입금 전체/미확인/확인됨) · 선택 자동 매칭 · 열 "입금 확인"(미확인/부분/
+  확인됨 · 자동 표시 · 매칭 버튼) · "매칭된 입금"(통장 드릴다운 · ✕ 해제) · 모달 `components/cash-receipts/ReceiptMatchModal.tsx` ·
+  `?receiptId=` 드릴다운. 통장 내역 "현금영수증" 열(→ 현금영수증 화면), 연결 필터 '현금영수증', 미연결 = 이체·계산서·영수증 모두 없음,
+  빠른 조건 "증빙 없는 매출 입금"(입금만 + 계정:상품매출 + 연결:없음, 복수 필터 칩).
 ## 10월 매입 — 월별 손익(1.23억) vs 매입처 관리(2.76억) 차이 (2026-11-11~12 사용자 보고)
 
 - 원인 1 (실제 누락): 10월 5002 상품매입 계산서 135건 중 69건이 계정만 있고 분개 없음(공급가액 129,537,621원). 전 계정 합산 87건.

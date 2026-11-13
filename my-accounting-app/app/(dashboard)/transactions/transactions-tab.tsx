@@ -995,6 +995,30 @@ function TransactionsContent() {
       },
     },
     {
+      // 현금영수증 연결 (425) — 연결만, 분개 영향 없음. 클릭 = 현금영수증 화면
+      colId: 'cash_receipt_links',
+      headerName: '현금영수증',
+      width: 150,
+      sortable: false,
+      filter: false,
+      cellRenderer: (p: ICellRendererParams<Transaction>) => {
+        const links = p.data?.cash_receipt_links
+        if (!links?.length) return <span className="text-gray-300 text-xs">—</span>
+        const first = links[0].receipt
+        const label = links.length === 1
+          ? `${first.tx_date.slice(5)} ${(first.issue_type ?? '').slice(0, 3)} ${links[0].amount.toLocaleString('ko-KR')}`
+          : `영수증 ${links.length}건 연결`
+        const tip = links.map(l => `${l.receipt.tx_date} · ${l.receipt.issue_type ?? ''} ${l.receipt.purpose_type ?? ''} · 연결 ${l.amount.toLocaleString('ko-KR')}원 (영수증 ${Math.abs(l.receipt.amount).toLocaleString('ko-KR')}원, ${l.matched_by === 'auto' ? '자동' : '수동'})`).join('\n')
+        return (
+          <a href={`/cash-receipts?receiptId=${first.id}`}
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 max-w-full overflow-hidden"
+            title={tip} onClick={e => e.stopPropagation()}>
+            {label}
+          </a>
+        )
+      },
+    },
+    {
       field: 'transfer_pair_id',
       headerName: '이체쌍',
       width: 130,
