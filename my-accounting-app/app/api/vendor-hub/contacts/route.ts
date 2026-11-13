@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { requireStaff } from '@/lib/customer-staff'
+import { getCurrentUser } from '@/lib/user-role'
 
 export const dynamic = 'force-dynamic'
 
@@ -143,15 +144,25 @@ export async function POST(req: NextRequest) {
 
   if (action === 'update_assignment') {
     const id = String(body.assignment_id ?? '')
-    const { data: row, error: e1 } = await admin.from('contact_assignments').select('contact_id').eq('id', id).single()
+    const { data: row, error: e1 } = await admin.from('contact_assignments')
+      .select('contact_id, vendor_id, title, role_memo').eq('id', id).single()
     if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
     const str = (k: string) => (typeof body[k] === 'string' ? (body[k] as string).trim() || null : undefined)
     const aPatch: Record<string, string | null> = {}
     for (const k of ['title', 'role_memo']) { const v = str(k); if (v !== undefined) aPatch[k] = v }
     if (aPatch.title) aPatch.title = aPatch.title.replace(/님$/, '').trim() || null   // 존칭은 표시에서 붙는다
+    // 실제로 바뀐 칸만 (같은 값으로 저장하면 이력을 남기지 않는다)
+    for (const k of Object.keys(aPatch)) if ((row as Record<string, unknown>)[k] === aPatch[k]) delete aPatch[k]
     if (Object.keys(aPatch).length) {
       const { error } = await admin.from('contact_assignments').update(aPatch).eq('id', id)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      // 변경 이력 (117) — 미적용 환경이면 조용히 건너뛴다(수정 자체는 유지)
+      const me = await getCurrentUser()
+      await admin.from('contact_assignment_changes').insert(Object.entries(aPatch).map(([field, value]) => ({
+        assignment_id: id, contact_id: row.contact_id, vendor_id: row.vendor_id, field,
+        old_value: ((row as Record<string, unknown>)[field] as string | null) ?? null, new_value: value,
+        changed_by: me?.employeeId ?? null, changed_by_name: me?.employeeName ?? null,
+      })))
     }
     const cPatch: Record<string, string | null> = {}
     for (const k of ['phone', 'tel', 'email']) { const v = str(k); if (v !== undefined) cPatch[k] = v }

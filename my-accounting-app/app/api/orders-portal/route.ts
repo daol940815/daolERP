@@ -65,6 +65,25 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // 거래처 담당자 고객코드 (2026-11-13 — 같은 사람 · 동명이인 구분, 목록에 항상 표시)
+  const contactIds = Array.from(new Set(pageRows.map(o => o.contact_id).filter((v): v is string => !!v)))
+  const contactCode = new Map<string, string | null>()
+  if (contactIds.length) {
+    const { data } = await admin.from('contacts').select('id, code, merged_into_id').in('id', contactIds)
+    const merged: string[] = []
+    for (const c of data ?? []) {
+      contactCode.set(c.id as string, (c.code as string | null) ?? null)
+      if (c.merged_into_id) merged.push(c.id as string)
+    }
+    // 병합된 인물은 남는 인물의 코드로
+    if (merged.length) {
+      const into = new Map((data ?? []).filter(c => c.merged_into_id).map(c => [c.id as string, c.merged_into_id as string]))
+      const { data: tgt } = await admin.from('contacts').select('id, code').in('id', Array.from(new Set(Array.from(into.values()))))
+      const tCode = new Map((tgt ?? []).map(t => [t.id as string, (t.code as string | null) ?? null]))
+      Array.from(into.entries()).forEach(([src, dst]) => contactCode.set(src, tCode.get(dst) ?? null))
+    }
+  }
+
   // 취소한 직원 이름 (목록 취소 배지의 사유 창)
   const cancelerIds = Array.from(new Set(pageRows.map(o => o.canceled_by).filter((v): v is string => !!v)))
   const cancelerName = new Map<string, string>()
@@ -76,6 +95,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     rows: pageRows.map(o => ({
       ...o,
+      contact_code: o.contact_id ? contactCode.get(o.contact_id) ?? null : null,
       total_amount: o.total_amount ?? 0,
       outstanding_amount: o.outstanding_amount ?? 0,
       source: o.source ?? 'upload',

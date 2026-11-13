@@ -1166,3 +1166,15 @@
   회계 · 재무 › 'ERP 주문내역'(/erp-orders)은 같은 erp_orders를 회계 관점(미수 · 수금)으로 보는 별도 화면 — 이름 유지(사용자 결정).
 - 코드 주석의 '주문 현황'은 옛 이름 그대로 남아 있다(같은 화면 = /orders). 새 글에는 '주문내역'(영업)과 'ERP 주문내역'(회계)을 구분해 쓸 것.
 - **2026-11-12 사용자 화면 확인 완료 — 이상 없음.**
+
+## 다른 트랙 변경 알림 — 주문 담당자 고객코드 · 정보 카드 (2026-11-13, 고객관리 트랙)
+
+- 주문 현황 목록:
+  - `lib/orders-portal-list.ts` baseCols에 `contact_id`를 추가했다.
+  - `/api/orders-portal` 응답 행에 `contact_code`(병합 인물은 남는 쪽 코드)를 넣었다.
+  - 담당자 칸에 고객코드를 항상 표시한다.
+- 주문 상세 `app/(orders)/orders/[id]/page.tsx`:
+  - 주문처는 매출처 상세 링크가 된다.
+  - 담당자는 `contact-chip.tsx`(신설) — 표기는 원본 그대로 두고 고객코드와 정보 카드를 붙인다.
+  - 카드 API `/api/orders-portal/contact-card?contact_id=&order_id=`(orders 그룹)를 신설했다.
+- 주문 데이터는 바꾸지 않는다. 상세: docs/customer-management-track.md.

@@ -20,6 +20,7 @@ interface Row {
   bank_name: string | null
   branch_name: string | null
   manager_name: string | null
+  contact_code?: string | null   // 담당자 고객코드 (같은 사람 · 동명이인 구분, 2026-11-13)
   phone?: string | null
   contact?: string | null
   staff_name: string | null
@@ -471,6 +472,9 @@ export default function OrdersHomePage() {
                       </td>
                       <td className="py-2 px-3">
                         {r.manager_name ?? '-'}
+                        {r.contact_code && (
+                          <span className="ml-1 inline-block whitespace-nowrap px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[0.625rem] font-mono align-middle" title="고객코드 — 같으면 같은 사람">{r.contact_code}</span>
+                        )}
                         {/* 담당자 연락처 (2026-11-09 문의) — 핸드폰 · 유선 */}
                         {(r.phone || r.contact) && (
                           <div className="text-[0.6875rem] text-gray-400 tabular-nums whitespace-nowrap">{[r.phone, r.contact].filter(Boolean).join(' · ')}</div>

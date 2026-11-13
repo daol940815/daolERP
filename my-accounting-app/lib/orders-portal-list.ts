@@ -35,6 +35,7 @@ export interface OrderListRow {
   counselor_employee_id?: string | null    // 500 — 상담자 (내 상담건)
   created_by_employee_id?: string | null   // 500 — 입력자 (내 처리건)
   consultation_id?: string | null          // 상담일지에서 전환된 주문 (내 상담건)
+  contact_id?: string | null               // 거래처 담당자 인물 (고객코드 표시 · 2026-11-13)
 }
 
 const ITEM_COLUMNS: Partial<Record<SearchField, string[]>> = {
@@ -178,7 +179,7 @@ export async function loadFilteredOrders(
   f: OrderListFilter,
 ): Promise<{ filtered: OrderListRow[]; prepayIds: Set<string>; vipIds: Set<string>; invoiceIds: Set<string>; poStatus: Map<string, PoStatus>; replyMap: Map<string, ReplyInfo>; replyCounts: ReplyCounts; mineCounts: MineCounts; canceledCount: number } | { error: string }> {
   // 1) 기간 필터로 주문 로드 (나머지 필터는 메모리) — 511 미적용이면 기존 컬럼으로 폴백
-  const baseCols = 'id, order_no, order_date, bank_name, branch_name, manager_name, phone, contact, staff_name, total_amount, outstanding_amount, collect_status, source, memo, created_at, counselor_employee_id, created_by_employee_id, consultation_id'
+  const baseCols = 'id, order_no, order_date, bank_name, branch_name, manager_name, phone, contact, staff_name, total_amount, outstanding_amount, collect_status, source, memo, created_at, counselor_employee_id, created_by_employee_id, consultation_id, contact_id'
   const loadBase = (cols: string) => fetchAllRows<OrderListRow>((pf, pt) => {
     let query = admin.from('erp_orders').select(cols)
     if (f.from) query = query.gte('order_date', f.from)
