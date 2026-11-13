@@ -72,6 +72,8 @@ export default function SalesHubDetailPage() {
   // 담당 입력 상태
   const [staffForm, setStaffForm] = useState<{ open: boolean; name: string; team: string; primary: boolean }>({ open: false, name: '', team: '', primary: false })
   const [employees, setEmployees] = useState<{ id: string; name: string; team: string | null; vendor_count: number }[]>([])
+  // 거래처 담당자 줄 수정 — 직함 · 역할 메모(배정) + 핸드폰 · 유선 · 이메일(인물) (2026-11-13)
+  const [rowEdit, setRowEdit] = useState<{ id: string; title: string; role_memo: string; phone: string; tel: string; email: string; busy: boolean } | null>(null)
   const [contactForm, setContactForm] = useState<{ open: boolean; name: string; title: string; phone: string; role: string; rep: boolean; staff: string }>({ open: false, name: '', title: '', phone: '', role: '', rep: false, staff: '' })
   const [candidates, setCandidates] = useState<Candidate[] | null>(null)
   const [note, setNote] = useState('')
@@ -478,8 +480,34 @@ export default function SalesHubDetailPage() {
                 </Link>
                 {c.is_representative && <span className="ml-1.5 px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-full text-[0.625rem] font-bold">대표</span>}
                 <div className="text-[0.6875rem] text-gray-400">
-                  {[c.role_memo, c.phone, c.email].filter(Boolean).join(' · ') || '연락처 미입력'}
+                  {[c.role_memo, c.phone, c.tel, c.email].filter(Boolean).join(' · ') || '연락처 미입력'}
                 </div>
+                {rowEdit?.id === c.assignment_id && (
+                  <div className="mt-1.5 p-2 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {([['title', '직함'], ['role_memo', '역할 메모'], ['phone', '핸드폰'], ['tel', '유선'], ['email', '이메일']] as const).map(([k, l]) => (
+                        <label key={k} className={`text-[0.625rem] text-gray-500 ${k === 'email' ? 'col-span-2' : ''}`}>{l}
+                          <input value={rowEdit[k]} onChange={e => setRowEdit(r => r && ({ ...r, [k]: e.target.value }))}
+                            placeholder={k === 'title' ? '예: 부장 (님 제외)' : ''}
+                            className="mt-0.5 w-full border border-gray-300 rounded px-1.5 py-1 text-xs text-gray-900" />
+                        </label>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <span className="text-[0.625rem] text-gray-400">이름 수정 · 인물 병합은 담당자 상세에서</span>
+                      <button onClick={() => setRowEdit(null)} className="ml-auto px-2 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-600">취소</button>
+                      <button disabled={rowEdit.busy} onClick={async () => {
+                        setRowEdit(r => r && ({ ...r, busy: true }))
+                        const { ok, json } = await post('/api/vendor-hub/contacts', {
+                          action: 'update_assignment', assignment_id: rowEdit.id,
+                          title: rowEdit.title, role_memo: rowEdit.role_memo, phone: rowEdit.phone, tel: rowEdit.tel, email: rowEdit.email,
+                        })
+                        if (!ok) { flash(json.error ?? '수정 실패'); setRowEdit(r => r && ({ ...r, busy: false })); return }
+                        flash('담당자 정보를 수정했습니다.'); setRowEdit(null); load()
+                      }} className="px-2 py-0.5 bg-slate-900 text-white rounded text-[0.6875rem] disabled:opacity-50">저장</button>
+                    </div>
+                  </div>
+                )}
                 {/* 다올 담당 (112) — 은행 · 지점 · 고객 단위, 주문 상담자의 원천 */}
                 {!c.ended_at && (
                   <div className="text-[0.6875rem] mt-0.5 flex items-center gap-1">
@@ -507,6 +535,10 @@ export default function SalesHubDetailPage() {
                 {c.ended_at ? `종료 ${c.ended_at}` : `배정 ${c.started_at ?? '-'}`}
                 {!c.ended_at && canEdit && (
                   <div className="mt-0.5 flex gap-1 justify-end">
+                    <button onClick={() => setRowEdit(rowEdit?.id === c.assignment_id ? null : {
+                      id: c.assignment_id, title: c.title ?? '', role_memo: c.role_memo ?? '',
+                      phone: c.phone ?? '', tel: c.tel ?? '', email: c.email ?? '', busy: false,
+                    })} className="px-1.5 py-0.5 border border-gray-200 rounded text-[0.625rem] hover:bg-gray-50">수정</button>
                     {!c.is_representative && (
                       <button onClick={async () => { await post('/api/vendor-hub/contacts', { action: 'set_representative', assignment_id: c.assignment_id }); load() }}
                         className="px-1.5 py-0.5 border border-gray-200 rounded text-[0.625rem] hover:bg-gray-50">대표로</button>

@@ -16,6 +16,9 @@ export const dynamic = 'force-dynamic'
 //   set_representative { assignment_id }
 //   assign_new · assign 은 매출처(customer · both)면 staff_employee_id(다올 담당) 필수 (112, 2026-11-05)
 //   end_assignment     { assignment_id }
+//   update_assignment  { assignment_id, title?, role_memo?, phone?, tel?, email? }
+//               배정의 직함 · 역할 메모 수정 + 인물 연락처(핸드폰 · 유선 · 이메일) 수정 (2026-11-13 사용자 요청 —
+//               승진 등으로 직함이 바뀌어도 이력을 새로 만들지 않고 그 자리에서 고친다)
 export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   const q = new URL(req.url).searchParams.get('q')?.trim()
@@ -135,6 +138,31 @@ export async function POST(req: NextRequest) {
     await clearRep(row.vendor_id)
     const { error } = await admin.from('contact_assignments').update({ is_representative: true }).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
+
+  if (action === 'update_assignment') {
+    const id = String(body.assignment_id ?? '')
+    const { data: row, error: e1 } = await admin.from('contact_assignments').select('contact_id').eq('id', id).single()
+    if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
+    const str = (k: string) => (typeof body[k] === 'string' ? (body[k] as string).trim() || null : undefined)
+    const aPatch: Record<string, string | null> = {}
+    for (const k of ['title', 'role_memo']) { const v = str(k); if (v !== undefined) aPatch[k] = v }
+    if (aPatch.title) aPatch.title = aPatch.title.replace(/님$/, '').trim() || null   // 존칭은 표시에서 붙는다
+    if (Object.keys(aPatch).length) {
+      const { error } = await admin.from('contact_assignments').update(aPatch).eq('id', id)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    const cPatch: Record<string, string | null> = {}
+    for (const k of ['phone', 'tel', 'email']) { const v = str(k); if (v !== undefined) cPatch[k] = v }
+    if (Object.keys(cPatch).length) {
+      let { error } = await admin.from('contacts').update(cPatch).eq('id', row.contact_id)
+      if (error && /\btel\b/.test(error.message) && 'tel' in cPatch) {   // 116 미적용 — 유선 빼고 저장
+        delete cPatch.tel
+        ;({ error } = await admin.from('contacts').update(cPatch).eq('id', row.contact_id))
+      }
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    }
     return NextResponse.json({ ok: true })
   }
 

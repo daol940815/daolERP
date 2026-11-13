@@ -47,6 +47,9 @@ export default function ContactDetailPage() {
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ name: '', phone: '', tel: '', email: '', note: '' })
 
+  // 소속 이력 직함 수정 (2026-11-13 — 승진 등, 이력을 새로 만들지 않고 현재 배정의 직함만 고친다)
+  const [titleEdit, setTitleEdit] = useState<{ id: string; title: string } | null>(null)
+
   // 이동 처리 폼
   const [moving, setMoving] = useState(false)
   const [moveQ, setMoveQ] = useState('')
@@ -217,8 +220,28 @@ export default function ContactDetailPage() {
                   {a.ended_at && a.vendor_gap && (
                     <p className="text-[0.6875rem] text-red-500">→ 이 거래처는 담당 공백 (후임 미지정)</p>
                   )}
+                  {titleEdit?.id === a.id && (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <input autoFocus value={titleEdit.title} onChange={e => setTitleEdit(t => t && ({ ...t, title: e.target.value }))}
+                        placeholder="직함 (예: 부장 — 님 제외)" className="border border-gray-300 rounded px-2 py-1 text-xs w-36" />
+                      <button disabled={busy} onClick={async () => {
+                        setBusy(true)
+                        const res = await fetch('/api/vendor-hub/contacts', {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ action: 'update_assignment', assignment_id: a.id, title: titleEdit.title }),
+                        })
+                        const json = await res.json().catch(() => ({}))
+                        setBusy(false)
+                        if (!res.ok) { showMsg(`실패: ${json.error ?? '알 수 없는 오류'}`); return }
+                        showMsg('직함을 수정했습니다.'); setTitleEdit(null); load()
+                      }} className="px-2 py-1 bg-slate-900 text-white rounded text-xs disabled:opacity-50">저장</button>
+                      <button onClick={() => setTitleEdit(null)} className="px-2 py-1 border border-gray-300 rounded text-xs text-gray-600">취소</button>
+                    </div>
+                  )}
                   {!a.ended_at && canEdit && (
                     <div className="flex gap-1.5 mt-1">
+                      <button onClick={() => setTitleEdit(titleEdit?.id === a.id ? null : { id: a.id, title: a.title ?? '' })}
+                        className="text-[0.6875rem] text-slate-600 hover:underline">직함 수정</button>
                       {!a.is_representative && (
                         <button disabled={busy}
                           onClick={() => post({ action: 'set_representative', assignment_id: a.id, vendor_id: a.vendor_id }, '대표 담당자로 지정했습니다.')}
