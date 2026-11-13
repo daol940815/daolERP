@@ -1,0 +1,103 @@
+# DB 정기 백업 — 매일 새벽 03:00(한국 시간) 운영 DB 전체 + 파일 저장소를 암호화해 보관한다.
+# 설정 · 복원 · 운영 안내: docs/db-backup-track.md
+name: DB 정기 백업
+
+on:
+  schedule:
+    - cron: '0 18 * * *' # UTC 18:00 = 한국 03:00 (GitHub 사정으로 수십 분 늦게 시작될 수 있음)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+env:
+  RETENTION_DAYS: 14 # 보관 기간(일). 바꾸면 docs/db-backup-track.md 도 함께 고칠 것
+
+jobs:
+  backup:
+    # 다른 사람이 저장소를 복제(fork)해 가도 거기서는 돌지 않게
+    if: github.repository == 'daol940815/daolERP'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 비밀값 확인
+        run: bash scripts/backup/check-secrets.sh
+
+      - name: 이름 · 작업 폴더 정하기
+        run: |
+          echo "STAMP=$(TZ=Asia/Seoul date +%Y%m%d-%H%M)" >> "$GITHUB_ENV"
+          echo "WORK=$RUNNER_TEMP/backup" >> "$GITHUB_ENV"
+          psql --version
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            my-accounting-app/package-lock.json
+            scripts/backup/excel/package-lock.json
+
+      - name: DB 덤프
+        run: bash scripts/backup/dump-db.sh "$WORK"
+
+      - name: 파일 저장소 복사
+        id: storage
+        continue-on-error: true # 파일 복사가 실패해도 DB 백업은 보관한다(마지막 단계에서 실패로 표시)
+        run: node scripts/backup/backup-storage.mjs "$WORK/db/storage-objects.json" "$WORK/storage"
+
+      # 보기용 엑셀: 앱 화면의 "엑셀 다운로드"와 같은 코드로 주문 현황 · 통장 내역 등을 만들어 묶음에 함께 넣는다.
+      # 읽기만 한다. 실패해도 백업은 그대로 보관한다(경고만).
+      - name: 보기용 엑셀 만들기
+        id: excel
+        continue-on-error: true
+        run: |
+          source scripts/backup/common.sh
+          if [[ -z "${SUPABASE_URL:-}" ]]; then
+            SUPABASE_URL="https://$(project_ref_from_url "$SUPABASE_DB_URL").supabase.co"
+          fi
+          (cd my-accounting-app && npm ci --no-audit --no-fund --loglevel=error)
+          (cd scripts/backup/excel && npm ci --no-audit --no-fund --loglevel=error && node build.mjs)
+          cd my-accounting-app
+          NEXT_PUBLIC_SUPABASE_URL="$SUPABASE_URL" NEXT_PUBLIC_SUPABASE_ANON_KEY=unused \
+            node node_modules/.cache/backup-excel/run.cjs "$WORK/excel"
+
+      - name: 묶기 · 암호화
+        run: bash scripts/backup/pack.sh "$WORK" "$RUNNER_TEMP/out/daolerp-backup-$STAMP.tar.gz.gpg"
+
+      - name: 보관(GitHub 아티팩트)
+        uses: actions/upload-artifact@v4
+        with:
+          name: daolerp-backup-${{ env.STAMP }}
+          path: ${{ runner.temp }}/out/daolerp-backup-${{ env.STAMP }}.tar.gz.gpg
+          retention-days: ${{ env.RETENTION_DAYS }}
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: 작업 폴더 지우기
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/backup" "$RUNNER_TEMP/out"
+
+      - name: 보기용 엑셀 결과 확인
+        if: steps.excel.outcome == 'failure'
+        run: echo "::warning::DB 백업은 정상 보관했지만 보기용 엑셀을 만들지 못했습니다(백업 자체에는 영향 없음)."
+
+      - name: 파일 저장소 결과 확인
+        if: steps.storage.outcome == 'failure'
+        run: |
+          echo "::error::DB 백업은 보관했지만 파일 저장소 일부를 복사하지 못했습니다. 다시 실행해 보고, 계속 실패하면 확인이 필요합니다."
+          exit 1

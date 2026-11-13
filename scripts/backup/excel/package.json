@@ -1,0 +1,8 @@
+{
+  "name": "daolerp-backup-excel",
+  "private": true,
+  "description": "백업 때 앱의 엑셀 내보내기를 그대로 돌려 보기용 엑셀을 만든다 (docs/db-backup-track.md)",
+  "devDependencies": {
+    "esbuild": "0.24.2"
+  }
+}

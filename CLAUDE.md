@@ -97,6 +97,10 @@
   아침 09:00 크론 `/api/push/cron`, 904 업무 계열 태그 적용 2026-11-10) /
   **`1000번대` 품목관리 트랙(인수인계: docs/product-master-track.md — 품목 마스터 `erp_products` · 화면 `/orders/products` · 원가표 업로드/다운로드,
   2026-11-10 주문시스템 트랙에서 분리. 기존 품목 마이그레이션 500~512 · 703 · 800은 원래 번호 유지)** /
+  **DB 정기 백업(마이그레이션 없음, 인수인계: docs/db-backup-track.md — GitHub Actions 매일 03:00 DB 전체 + 파일 저장소(모든 버킷, 첨부 포함) 암호화 보관 14일,
+  매주 월 05:00 복원 시험, 회사 PC 자동 보관 `scripts/backup/windows/`, 2026-11-11 구축. 저장소 비공개 전환 결정(2026-11-11) 뒤에도
+  Actions 로그에 개인정보 · 표별 건수 · 파일 이름을 찍지 말 것. 새 버킷은 자동으로 백업된다(storage.objects 기준).
+  백업 묶음에 앱 엑셀 다운로드와 같은 보기용 엑셀 포함 — **새 엑셀 다운로드(export route)를 만들면 `scripts/backup/excel/run.ts` `EXPORTS`에 한 줄 추가)** /
   **`1200번대` 공통 첨부 파일(인수인계: docs/attachments-track.md — 테이블 `attachments` · 비공개 버킷 `attachments` · 브라우저 → Storage 직접 업로드,
   화면 부품 `components/attachments/AttachmentBox.tsx`, 쓰는 곳 등록은 `lib/attachments-server.ts` `ATTACHMENT_OWNERS`. 1차 업무 요청 2026-11-11, 1200 적용 2026-11-11.
   새 화면의 첨부는 자체 테이블 · 버킷을 만들지 말고 이 모듈을 쓸 것. 파일을 Vercel 서버로 받지 말 것 — 본문 4.5MB 한도)** /
