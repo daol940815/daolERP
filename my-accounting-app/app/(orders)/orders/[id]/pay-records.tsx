@@ -118,10 +118,10 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
     <div className="mb-3 pb-3 border-b border-gray-100">
       <div className="flex items-center gap-2 flex-wrap mb-2">
         <span className="text-xs font-semibold text-gray-700">결제 기록</span>
-        <span className="text-[0.6875rem] text-gray-400">결제한 내용을 적어 두면 회계에서 실제 입금 · 카드 매출과 대조해 확인합니다</span>
+        <span className="text-[0.6875rem] text-gray-400">결제한 내용을 적어 두면 회계에서 실제 입금 · 카드 매출과 매칭합니다</span>
         {pendingHere > 0 && (
           <span className="text-xs px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
-            확인 대기 <b className="tabular-nums">{won(pendingHere)}원</b>
+            매칭 대기 <b className="tabular-nums">{won(pendingHere)}원</b>
           </span>
         )}
         {data.can_record && !open && (
@@ -221,7 +221,7 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
             </div>
           )}
           <div className="mt-2 text-[0.6875rem] text-gray-400">
-            카드번호 전체 · 유효기간은 적지 않습니다(승인번호와 뒤 4자리로 대조). 기록만으로는 미수가 줄지 않고, 결제 확인 뒤에 줄어듭니다.
+            카드번호 전체 · 유효기간은 적지 않습니다(승인번호와 뒤 4자리로 대조). 기록만으로는 미수가 줄지 않고, 매칭된 뒤에 줄어듭니다.
           </div>
           {err && <div className="mt-1.5 text-xs text-red-600">{err}</div>}
           <div className="flex justify-end gap-2 mt-2.5">
@@ -276,10 +276,10 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
                     </td>
                     <td className="py-1.5 pr-2 text-xs whitespace-nowrap">
                       {r.confirmed_at ? (<>
-                        <span className="inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-green-100 text-green-800">결제 확인</span>
+                        <span className="inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-green-100 text-green-800">매칭 완료</span>
                         <div className="text-[0.6875rem] text-gray-400 tabular-nums">{r.confirmed_by_name ?? ''} {stamp(r.confirmed_at)}</div>
                       </>) : (
-                        <span className="inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-amber-100 text-amber-800">확인 대기</span>
+                        <span className="inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-amber-100 text-amber-800">매칭 대기</span>
                       )}
                     </td>
                     <td className="py-1.5 text-right whitespace-nowrap">

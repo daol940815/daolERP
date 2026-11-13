@@ -15,6 +15,7 @@ import { prepayBalanceOf, prepayUsedOf, vendorOfOrder, prepayReductionBlock } fr
 import { fillCustomerStaffIfEmpty } from '@/lib/customer-staff'
 import { loadOrderReplyDetail } from '@/lib/order-reply'
 import { loadRecordsOfOrder } from '@/lib/payment-records'
+import { loadPayStateMap } from '@/lib/pay-state-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -202,6 +203,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
           collect_status: collectStatusFrom(snap.order.collect_status as string | null, recv),
         }
       : null
+  // 결제 상태 한 칸 표기 (목록과 같은 규칙 — lib/pay-state.ts)
+  const payState = (await loadPayStateMap(admin, [{ id: params.id, canceled: !!snap.order.canceled_at }], recvMap)).get(params.id) ?? null
   // 취소한 직원 이름 (상세 안내줄)
   let canceledByName: string | null = null
   if (snap.order.canceled_by) {
@@ -214,6 +217,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     items,
     payments,
     receivable,
+    pay_state: payState,
     consult_request: consultRequest,
     // 완료 회신 (515): 대상 · 상태 · 받는 사람 · 이력 · 발주 요약. 회신은 주문 수정 권한자 누구나 (사용자 결정)
     reply: { ...reply, can_reply: reply.target && can(me, 'orders', 'edit') },
