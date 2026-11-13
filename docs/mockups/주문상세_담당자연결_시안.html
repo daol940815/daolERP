@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 주문 상세 담당자 연결</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; font-size: 13px; }
+  .wrap { max-width: 1240px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 14px; line-height: 1.7; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tabs button { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; color: #334155; }
+  .tabs button.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .screen { display: none; }
+  .screen.on { display: block; }
+  h1 { font-size: 20px; font-weight: 700; }
+  h2 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .sub { font-size: 12px; color: #64748b; margin-top: 3px; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+  .kpi { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; }
+  .kpi .k { font-size: 11.5px; color: #64748b; }
+  .kpi .v { font-size: 18px; font-weight: 700; margin-top: 3px; }
+  .kpi .d { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11.5px; color: #64748b; font-weight: 500; padding: 7px 8px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+  td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+  .b { display: inline-block; border-radius: 6px; padding: 2px 7px; font-size: 11px; font-weight: 600; }
+  .b-green { background: #dcfce7; color: #15803d; }
+  .b-amber { background: #fef3c7; color: #b45309; }
+  .b-orange { background: #ffedd5; color: #c2410c; }
+  .b-red { background: #fee2e2; color: #b91c1c; }
+  .b-blue { background: #dbeafe; color: #1d4ed8; }
+  .b-violet { background: #ede9fe; color: #6d28d9; }
+  .b-slate { background: #f1f5f9; color: #475569; }
+  .btn { border: 0; border-radius: 8px; padding: 7px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .btn-dark { background: #0f172a; color: #fff; }
+  .btn-line { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
+  .btn-sm { padding: 3px 9px; font-size: 11.5px; }
+  .billto { display: inline-flex; align-items: center; gap: 8px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 8px 12px; margin-top: 8px; }
+  .billto .t { font-size: 11px; color: #1d4ed8; font-weight: 700; }
+  .billto .n { font-weight: 700; }
+  .billto .s { font-size: 11px; color: #64748b; }
+  .new { outline: 2px dashed #2563eb; outline-offset: 3px; border-radius: 10px; }
+  .newtag { font-size: 10.5px; font-weight: 700; color: #2563eb; margin-left: 6px; }
+  .muted { color: #94a3b8; }
+  .link { color: #1d4ed8; text-decoration: underline; cursor: pointer; }
+  .chips { display: flex; gap: 6px; margin: 8px 0 10px; flex-wrap: wrap; }
+  .chip { border: 1px solid #cbd5e1; border-radius: 999px; padding: 4px 11px; font-size: 12px; background: #fff; color: #475569; }
+  .chip.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .modal { background: #fff; border-radius: 14px; box-shadow: 0 20px 50px rgba(15,23,42,.25); max-width: 860px; margin: 0 auto; padding: 20px 22px; border: 1px solid #e2e8f0; }
+  .inv { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; margin: 10px 0 14px; display: grid; grid-template-columns: repeat(4, auto); gap: 4px 24px; font-size: 12.5px; }
+  .inv .k { font-size: 11px; color: #64748b; }
+  .score { font-size: 11px; color: #64748b; }
+  .bar { display: inline-block; height: 6px; border-radius: 3px; background: #22c55e; vertical-align: middle; margin-right: 6px; }
+  .form label { display: block; font-size: 11.5px; color: #334155; font-weight: 600; margin: 10px 0 4px; }
+  .form input, .form select { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; font-size: 13px; background: #fff; }
+  .radio { display: flex; gap: 14px; font-size: 12.5px; margin-top: 4px; }
+  .seg { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
+  .seg span { padding: 6px 12px; font-size: 12px; background: #fff; color: #475569; }
+  .seg span.on { background: #0f172a; color: #fff; }
+  .flow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; }
+  .flow .box { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; min-width: 180px; }
+  .flow .arrow { color: #94a3b8; font-size: 18px; }
+</style>
+<style>
+  .info { display:grid; grid-template-columns: repeat(4, 1fr); gap: 10px 24px; font-size: 13px; }
+  .info .k { font-size: 11px; color:#94a3b8; }
+  .info .v { color:#1e293b; margin-top:1px; }
+  .code { display:inline-block; font-family: ui-monospace, Menlo, monospace; font-size:11px; background:#f1f5f9; color:#475569; border-radius:999px; padding:1px 7px; margin-left:5px; vertical-align:1px; }
+  .pop { position:absolute; z-index:5; top:100%; left:0; margin-top:6px; width:330px; background:#fff; border:1px solid #cbd5e1; border-radius:12px; box-shadow:0 12px 30px rgba(15,23,42,.18); padding:12px 14px; font-size:12.5px; }
+  .pop .row { display:flex; justify-content:space-between; gap:10px; padding:3px 0; }
+  .pop .row .k { color:#94a3b8; font-size:11.5px; }
+  .chg { background:#fef3c7; color:#92400e; border-radius:6px; padding:1px 6px; font-size:11px; font-weight:600; }
+  .twocol { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
+  .label { font-size:11.5px; font-weight:700; color:#64748b; margin-bottom:6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head"><div>
+    <h1>시안 — 주문 상세의 담당자(거래처) 연결</h1>
+    <p class="sub">주문에 적힌 담당자 표기는 그대로 두고(원본), 그 옆에 고객코드를 붙여 누르면 그 사람의 현재 정보와 담당자 상세로 이어지게 한다.</p>
+  </div></div>
+  <div class="note">
+    파란 점선 = 바뀌는 부분. 예시 인물은 설명용(홍길동). 주문 당시 대리였고 2026-11-13에 과장으로 직함을 고친 경우.
+    DB 변경 없음 — 주문에 이미 저장돼 있는 고객(인물) 연결을 화면에 드러내는 작업.
+  </div>
+  <div class="tabs">
+    <button class="on" data-s="s1">1. 지금 vs 바뀐 뒤</button>
+    <button data-s="s2">2. 담당자 이름을 눌렀을 때</button>
+    <button data-s="s3">3. 예전 업로드 주문</button>
+    <button data-s="s4">4. 주문 현황 목록</button>
+  </div>
+
+  <div class="screen on" id="s1">
+    <div class="label">지금 — 글자만 있다. 같은 사람인지 확인할 방법이 없다</div>
+    <div class="card" style="position:relative">
+      <div class="info">
+        <div><div class="k">주문일</div><div class="v">2026-11-03</div></div>
+        <div><div class="k">주문처</div><div class="v">하나은행 영업기획부</div></div>
+        <div style="position:relative"><div class="k">담당자(거래처)</div><div class="v">홍길동 대리님</div></div>
+        <div><div class="k">다올직원</div><div class="v">김주연</div></div>
+        <div><div class="k">연락처</div><div class="v">02-2002-1234</div></div>
+        <div><div class="k">핸드폰</div><div class="v">010-1234-5678</div></div>
+        <div><div class="k">수금 상태</div><div class="v">미수</div></div>
+        <div><div class="k">총금액</div><div class="v">1,250,000원</div></div>
+      </div>
+    </div>
+    <div class="label" style="margin-top:14px">바뀐 뒤 — 표기는 그대로, 고객코드 + 연결</div>
+    <div class="card" style="position:relative">
+      <div class="info">
+        <div><div class="k">주문일</div><div class="v">2026-11-03</div></div>
+        <div><div class="k">주문처</div><div class="v"><span class="link">하나은행 영업기획부</span></div></div>
+        <div style="position:relative"><div class="k">담당자(거래처)</div><div class="v"><span class="new" style="padding:1px 3px"><span class="link">홍길동 대리님</span><span class="code">C-482913</span></span></div></div>
+        <div><div class="k">다올직원</div><div class="v">김주연</div></div>
+        <div><div class="k">연락처</div><div class="v">02-2002-1234</div></div>
+        <div><div class="k">핸드폰</div><div class="v">010-1234-5678</div></div>
+        <div><div class="k">수금 상태</div><div class="v">미수</div></div>
+        <div><div class="k">총금액</div><div class="v">1,250,000원</div></div>
+      </div><p class="hint" style="font-size:11.5px;color:#64748b;margin-top:10px">· 담당자 이름 → 작은 정보 카드(탭 2). 고객코드가 같으면 같은 사람, 다르면 동명이인.<br>· 주문처도 눌러서 매출처 상세로 간다.<br>· 주문 당시 표기("대리님")는 원본이라 바꾸지 않는다.</p>
+    </div>
+  </div>
+
+  <div class="screen" id="s2">
+    <div class="label">담당자 이름을 누르면 — 그 사람의 지금 정보가 작은 카드로</div>
+    <div class="card" style="position:relative">
+      <div class="info">
+        <div><div class="k">주문일</div><div class="v">2026-11-03</div></div>
+        <div><div class="k">주문처</div><div class="v"><span class="link">하나은행 영업기획부</span></div></div>
+        <div style="position:relative"><div class="k">담당자(거래처)</div><div class="v"><span class="link">홍길동 대리님</span><span class="code">C-482913</span></div><div class="pop new">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
+            <b style="font-size:14px">홍길동</b><span class="code" style="margin:0">C-482913</span>
+          </div>
+          <div class="row"><span class="k">이 주문 당시</span><span>대리</span></div>
+          <div class="row"><span class="k">현재</span><span>하나은행 영업기획부 · <b>과장</b> <span class="chg">11-13 변경</span></span></div>
+          <div class="row"><span class="k">핸드폰 · 유선</span><span>010-1234-5678 · 02-2002-1234</span></div>
+          <div class="row"><span class="k">다올 담당</span><span>홍창의</span></div>
+          <div class="row"><span class="k">이 고객의 주문</span><span>14건 · 최근 2026-11-10</span></div>
+          <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px">
+            <span class="link">담당자 상세</span><span class="link">매출처 상세</span>
+          </div>
+        </div></div>
+        <div><div class="k">다올직원</div><div class="v">김주연</div></div>
+        <div><div class="k">연락처</div><div class="v">02-2002-1234</div></div>
+        <div><div class="k">핸드폰</div><div class="v">010-1234-5678</div></div>
+        <div><div class="k">수금 상태</div><div class="v">미수</div></div>
+        <div><div class="k">총금액</div><div class="v">1,250,000원</div></div>
+      </div>
+    </div>
+    <div style="height:150px"></div>
+    <div class="card"><h2>카드에 보이는 것</h2>
+      <ol style="padding-left:18px; line-height:1.9; font-size:12.5px; margin-top:6px">
+        <li><b>이 주문 당시 직함</b>과 <b>현재 직함</b>을 나란히 — 승진 · 이동을 바로 안다. (직함 변경 이력(제안 1)을 넣으면 "11-13 변경"처럼 언제 바뀌었는지도)</li>
+        <li>지금 연락처 · 다올 담당 — 수금 독촉 · 재주문 연락에 바로 쓴다.</li>
+        <li>이 고객의 전체 주문 수 — 고객코드 기준이라 직함이 달라도 같은 사람 주문은 다 모인다(제안 2와 같은 기준).</li>
+        <li>"담당자 상세"로 가면 소속 이력 · 주문 이력 · 영업일지 전체.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="screen" id="s3">
+    <div class="label">고객 연결이 없는 주문 (10-01 이전 ERP 업로드 등) — 글자만 표시하고 안내</div>
+    <div class="card" style="position:relative">
+      <div class="info">
+        <div><div class="k">주문일</div><div class="v">2026-11-03</div></div>
+        <div><div class="k">주문처</div><div class="v">하나은행 영업기획부</div></div>
+        <div style="position:relative"><div class="k">담당자(거래처)</div><div class="v">홍길동 대리님 <span class="b b-slate" style="margin-left:4px">인물 연결 없음</span></div></div>
+        <div><div class="k">다올직원</div><div class="v">김주연</div></div>
+        <div><div class="k">연락처</div><div class="v">02-2002-1234</div></div>
+        <div><div class="k">핸드폰</div><div class="v">010-1234-5678</div></div>
+        <div><div class="k">수금 상태</div><div class="v">미수</div></div>
+        <div><div class="k">총금액</div><div class="v">1,250,000원</div></div>
+      </div><p class="hint" style="font-size:11.5px;color:#64748b;margin-top:10px">· 지금 남아 있는 주문은 모두 10-01 이후 직접 입력분이라 대부분 연결돼 있다. 연결이 없는 주문만 이렇게 보인다.<br>· 여기서 사람을 고르게 하지는 않는다(원본 주문 수정이 되므로) — 연결은 담당자 관리의 "표기 연결"에서.</p>
+    </div>
+  </div>
+
+  <div class="screen" id="s4">
+    <div class="label">주문 현황 목록 — 담당자 칸에 고객코드 (줄 클릭은 기존처럼 주문 상세)</div>
+    <div class="card" style="padding:0">
+      <table>
+        <tr><th>주문번호</th><th>주문일</th><th>주문처</th><th>담당자</th><th class="r">금액</th><th>상태</th></tr>
+        <tr><td>D261103-004</td><td>2026-11-03</td><td>하나은행 영업기획부</td><td>홍길동 대리님 <span class="code">C-482913</span></td><td class="r">1,250,000</td><td><span class="b b-amber">미수</span></td></tr>
+        <tr><td>D261112-002</td><td>2026-11-12</td><td>하나은행 영업기획부</td><td>홍길동 과장님 <span class="code">C-482913</span></td><td class="r">860,000</td><td><span class="b b-green">수금</span></td></tr>
+        <tr><td>D261110-007</td><td>2026-11-10</td><td>우리은행 강남기업영업본부</td><td>홍길동 차장님 <span class="code">C-117045</span></td><td class="r">540,000</td><td><span class="b b-green">수금</span></td></tr>
+      </table>
+    </div>
+    <p class="hint" style="font-size:11.5px;color:#64748b;margin-top:8px">
+      · 위 두 줄은 같은 사람(C-482913) — 승진 전후 주문. 셋째 줄은 동명이인(C-117045).<br>
+      · 목록에 고객코드를 항상 보이게 할지, 마우스를 올릴 때만 보이게 할지는 선택 — 시안은 항상 표시.
+    </p>
+  </div>
+</div>
+<script>
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b))
+    document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === b.dataset.s))
+  }))
+</script>
+</body>
+</html>
