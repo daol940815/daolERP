@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>결제처리 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1180px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:30px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.65; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .sec { font-size:13px; font-weight:bold; color:#0f172a; margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .sec small { font-weight:normal; color:#94a3b8; font-size:11px; }
+  .sp { flex:1; }
+  .tag-new { font-size:10.5px; font-weight:bold; color:#fff; background:#3b82f6; border-radius:4px; padding:1px 6px; }
+  .btn { display:inline-block; border-radius:7px; padding:5px 11px; font-size:12px; border:1px solid #cbd5e1; background:#fff; color:#334155; white-space:nowrap; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .btn.sm { padding:2px 8px; font-size:11px; }
+  .badge { display:inline-block; font-size:10.5px; font-weight:bold; padding:1px 7px; border-radius:4px; white-space:nowrap; }
+  .b-card { background:#f5f3ff; color:#6d28d9; } .b-bank { background:#eff6ff; color:#1d4ed8; }
+  .b-inv { background:#eef2ff; color:#4338ca; } .b-pre { background:#fdf4ff; color:#a21caf; }
+  .s-wait { background:#fef3c7; color:#92400e; } .s-ok { background:#dcfce7; color:#166534; }
+  .s-bad { background:#fee2e2; color:#b91c1c; } .s-none { background:#f1f5f9; color:#64748b; }
+  .g { color:#047857; } .r { color:#dc2626; } .mut { color:#94a3b8; }
+  .sum { display:flex; gap:22px; flex-wrap:wrap; font-size:12.5px; color:#334155; padding:10px 12px; background:#f8fafc; border-radius:8px; margin-bottom:12px; }
+  .sum b { font-variant-numeric:tabular-nums; font-size:14px; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:720px; }
+  th { text-align:left; font-weight:normal; color:#64748b; font-size:11.5px; padding:6px 8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+  td { padding:8px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
+  td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  td small { color:#94a3b8; display:block; font-size:11px; margin-top:2px; }
+  .note { background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:9px 12px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.75; }
+  .note b { color:#422006; }
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:14px; align-items:start; }
+  .modal { border:1px solid #cbd5e1; border-radius:12px; background:#fff; box-shadow:0 12px 32px rgba(15,23,42,.18); overflow:hidden; }
+  .modal .mh { padding:12px 16px; font-weight:bold; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; }
+  .modal .mb { padding:14px 16px; }
+  .modal .mf { padding:10px 16px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:6px; background:#f8fafc; }
+  .seg { display:flex; gap:4px; flex-wrap:wrap; margin-bottom:12px; }
+  .seg span { border:1px solid #cbd5e1; border-radius:7px; padding:5px 10px; font-size:12px; color:#475569; background:#fff; }
+  .seg span.on { background:#0f172a; color:#fff; border-color:#0f172a; font-weight:bold; }
+  .f { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+  .f label { display:block; font-size:11px; color:#64748b; margin-bottom:3px; }
+  .box { border:1.5px solid #cbd5e1; border-radius:8px; padding:7px 10px; font-size:13px; min-height:34px; background:#fff; }
+  .box.r2 { text-align:right; font-weight:bold; font-variant-numeric:tabular-nums; }
+  .alloc { border:1px solid #e2e8f0; border-radius:8px; margin-top:6px; }
+  .alloc .ar { display:flex; gap:8px; align-items:center; padding:7px 10px; border-bottom:1px solid #f1f5f9; font-size:12.5px; }
+  .alloc .ar:last-child { border-bottom:none; }
+  .alloc .ar .no { font-weight:bold; min-width:96px; }
+  .alloc .ar .rem { color:#94a3b8; font-size:11px; flex:1; }
+  .alloc .ar .amt { border:1.5px solid #fcd34d; background:#fffbeb; border-radius:6px; padding:3px 8px; min-width:92px; text-align:right; font-weight:bold; font-variant-numeric:tabular-nums; }
+  .tot { display:flex; justify-content:space-between; font-size:12px; margin-top:8px; color:#475569; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:12px; }
+  .kpi { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:11px 14px; }
+  .kpi.on { border-color:#0f172a; box-shadow:0 0 0 2px #0f172a inset; }
+  .kpi p { font-size:11.5px; color:#64748b; } .kpi b { font-size:17px; display:block; margin-top:3px; }
+  .kpi small { color:#94a3b8; font-size:11px; }
+  .chips { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+  .chip { border:1px solid #cbd5e1; border-radius:999px; padding:3px 11px; font-size:12px; color:#475569; background:#fff; }
+  .chip.on { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .search { border:1px solid #cbd5e1; border-radius:8px; padding:5px 10px; font-size:12px; color:#94a3b8; background:#fff; min-width:200px; }
+  .cand { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:7px 10px; font-size:12px; }
+  .cand.weak { background:#f8fafc; border-color:#e2e8f0; }
+  .cand b { font-variant-numeric:tabular-nums; }
+  .flow { display:flex; gap:8px; align-items:stretch; flex-wrap:wrap; }
+  .flow div { flex:1; min-width:170px; background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; font-size:12px; line-height:1.6; }
+  .flow div b { display:block; font-size:12.5px; color:#0f172a; }
+  .flow div.me { border-color:#3b82f6; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>결제처리 시안</h1>
+  <p class="desc">2026-11-13 · 1차 결제 기록(영업지원) → 2차 결제 확인(회계 또는 다른 직원). 숫자와 이름은 예시입니다. 파란 테두리가 새로 생기는 부분입니다.</p>
+
+  <div class="flow">
+    <div class="me"><b>1차 · 결제 기록</b>영업지원이 주문 상세에서 입력. 카드결제 / 계좌이체 / 계산서 발행. 미수는 아직 그대로.</div>
+    <div class="me"><b>2차 · 결제 확인</b>카드 매출 · 통장 입금 원본과 대조해 확정. 이때 미수가 줄어듦.</div>
+    <div><b>자동 상태</b>미결제 → 확인 대기 → 결제 확인. 기록과 원본이 다르면 불일치.</div>
+  </div>
+
+  <!-- ───────────── 1 ───────────── -->
+  <h2>1. 주문 상세 › 결제 내역</h2>
+  <p class="desc">지금은 읽기 전용인 결제 내역 카드에 "결제 기록 추가"가 생깁니다. 예시는 100만 원 주문을 20만 · 30만 · 50만 원으로 나눠 결제한 경우입니다.</p>
+
+  <div class="panel new">
+    <div class="sec">결제 내역 <small>D261101-004 · 하나은행 A지점</small><span class="sp"></span>
+      <span class="btn">선결제 사용</span><span class="btn pri">결제 기록 추가</span><span class="tag-new">신규</span></div>
+    <div class="sum">
+      <span>주문 금액 <b>1,000,000</b></span>
+      <span>결제 확인 <b class="g">200,000</b></span>
+      <span>확인 대기 <b style="color:#b45309">800,000</b></span>
+      <span>기록 없음 <b class="mut">0</b></span>
+      <span>미수 <b class="r">800,000</b></span>
+    </div>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>결제일</th><th>수단</th><th>대조 단서</th><th class="n">이 주문 금액</th><th>기록</th><th>상태</th><th></th></tr></thead>
+      <tbody>
+        <tr>
+          <td>11-01</td><td><span class="badge b-card">카드</span></td>
+          <td>승인 30112345 · 카드 뒤 0302</td><td class="n">200,000</td>
+          <td>김주연<small>11-01 14:20</small></td>
+          <td><span class="badge s-ok">결제 확인</span><small>오철준 11-03 · 카드 매출 11-01 200,000</small></td>
+          <td class="mut">잠김</td>
+        </tr>
+        <tr>
+          <td>11-05</td><td><span class="badge b-card">카드</span></td>
+          <td>승인 30119876 · 카드 뒤 0302</td><td class="n">300,000</td>
+          <td>김주연<small>11-05 10:02</small></td>
+          <td><span class="badge s-wait">확인 대기</span><small>2일째</small></td>
+          <td><span class="btn sm">수정</span> <span class="btn sm">삭제</span></td>
+        </tr>
+        <tr>
+          <td>11-10</td><td><span class="badge b-bank">계좌이체</span></td>
+          <td>입금자 하나은행A지점</td><td class="n">500,000</td>
+          <td>김보현<small>11-10 16:41</small></td>
+          <td><span class="badge s-wait">확인 대기</span><small>통장 내역 최신 11-09 — 아직 대조 불가</small></td>
+          <td><span class="btn sm">수정</span> <span class="btn sm">삭제</span></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note">
+      <b>미수는 2차 확인된 금액만 줄어듭니다.</b> 확인 대기 금액은 따로 보여 주고, 이 주문은 독촉 대상에서 빠집니다.<br>
+      확인된 기록은 잠깁니다(고치려면 확인 해제 먼저). 통장 · 카드 원본 화면으로 가는 링크는 두지 않습니다.
+    </div>
+  </div>
+
+  <!-- ───────────── 2 ───────────── -->
+  <h2>2. 결제 기록 추가</h2>
+  <p class="desc">수단을 고르면 대조에 필요한 칸만 나옵니다. 카드번호 전체 · 유효기간은 받지 않습니다(승인번호 + 뒤 4자리).</p>
+
+  <div class="grid2">
+    <div class="modal">
+      <div class="mh"><span>결제 기록 추가 — 주문 1건, 일부 결제</span><span class="mut">×</span></div>
+      <div class="mb">
+        <div class="seg"><span class="on">카드결제</span><span>계좌이체</span><span>계산서 발행</span><span>현금</span></div>
+        <div class="f">
+          <div><label>결제일</label><div class="box">2026-11-05</div></div>
+          <div><label>결제 금액</label><div class="box r2">300,000</div></div>
+          <div><label>승인번호</label><div class="box">30119876</div></div>
+          <div><label>카드 뒤 4자리</label><div class="box">0302</div></div>
+        </div>
+        <label style="font-size:11px;color:#64748b">메모</label>
+        <div class="box" style="margin-top:3px">2차분. 잔액 50만은 다음 주 이체 예정</div>
+        <div class="alloc" style="margin-top:12px">
+          <div class="ar"><span class="no">D261101-004</span><span class="rem">미결제 800,000</span><span class="amt">300,000</span></div>
+        </div>
+        <div class="tot"><span class="btn sm">같은 매출처의 다른 주문 추가</span><span>배분 합계 300,000 / 결제 300,000</span></div>
+      </div>
+      <div class="mf"><span class="btn">취소</span><span class="btn pri">기록 저장</span></div>
+    </div>
+
+    <div class="modal">
+      <div class="mh"><span>결제 기록 추가 — 결제 1건으로 주문 3건</span><span class="mut">×</span></div>
+      <div class="mb">
+        <div class="seg"><span class="on">카드결제</span><span>계좌이체</span><span>계산서 발행</span><span>현금</span></div>
+        <div class="f">
+          <div><label>결제일</label><div class="box">2026-11-12</div></div>
+          <div><label>결제 금액</label><div class="box r2">1,000,000</div></div>
+          <div><label>승인번호</label><div class="box">30125550</div></div>
+          <div><label>카드 뒤 4자리</label><div class="box">7781</div></div>
+        </div>
+        <div class="alloc">
+          <div class="ar"><span class="no">D261108-002</span><span class="rem">미결제 100,000</span><span class="amt">100,000</span></div>
+          <div class="ar"><span class="no">D261109-011</span><span class="rem">미결제 500,000</span><span class="amt">500,000</span></div>
+          <div class="ar"><span class="no">D261111-003</span><span class="rem">미결제 400,000</span><span class="amt">400,000</span></div>
+        </div>
+        <div class="tot"><span class="btn sm">같은 매출처의 다른 주문 추가</span><span class="g">배분 합계 1,000,000 / 결제 1,000,000</span></div>
+        <div class="note">배분 합계가 결제 금액과 같아야 저장됩니다. 주문별 금액은 그 주문의 미결제 금액까지만 넣을 수 있습니다. 후보 주문은 같은 매출처와 그 청구처(본점) 범위입니다.</div>
+      </div>
+      <div class="mf"><span class="btn">취소</span><span class="btn pri">기록 저장</span></div>
+    </div>
+  </div>
+
+  <div class="panel new" style="margin-top:14px">
+    <div class="sec">수단별로 받는 칸 <span class="tag-new">신규</span></div>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>수단</th><th>공통</th><th>대조 단서</th><th>2차에서 대조하는 원본</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge b-card">카드결제</span></td><td>결제일 · 금액 · 메모</td><td>승인번호, 카드 뒤 4자리</td><td>카드 내역(매출)</td></tr>
+        <tr><td><span class="badge b-bank">계좌이체</span></td><td>결제일 · 금액 · 메모</td><td>입금자명</td><td>통장 내역(입금)</td></tr>
+        <tr><td><span class="badge b-inv">계산서 발행</span></td><td>발행일 · 금액 · 메모</td><td>청구처, 입금 예정일(선택)</td><td>통장 내역(입금). 홈택스 계산서와는 자동 연결</td></tr>
+        <tr><td><span class="badge s-none">현금</span></td><td>결제일 · 금액 · 메모</td><td>받은 사람</td><td>통장 내역(입금 처리분)</td></tr>
+        <tr><td><span class="badge b-pre">선결제 사용</span></td><td colspan="3">지금 기능 그대로. 원장에서 바로 차감되므로 2차 확인 없이 즉시 확정.</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- ───────────── 3 ───────────── -->
+  <h2>3. 결제 확인 (2차) — 새 화면</h2>
+  <p class="desc">미확인 결제 기록이 쌓이는 대기열입니다. 기록마다 원본에서 찾은 후보를 붙여 보여 주고, 확인자가 확정합니다. 확정하면 기록에 적힌 주문별 금액대로 수금 매칭이 한 번에 만들어집니다.</p>
+
+  <div class="kpis">
+    <div class="kpi on"><p>확인 대기</p><b>14건</b><small>6,420,000원</small></div>
+    <div class="kpi"><p>후보 있음</p><b class="g">9건</b><small>바로 확정 가능</small></div>
+    <div class="kpi"><p>불일치</p><b class="r">2건</b><small>금액 · 승인번호 다름</small></div>
+    <div class="kpi"><p>3일 넘게 대기</p><b style="color:#b45309">3건</b><small>원본 최신일 기준</small></div>
+    <div class="kpi"><p>기록 없는 입금</p><b>5건</b><small>1,180,000원</small></div>
+  </div>
+
+  <div class="panel new">
+    <div class="sec">결제 확인 <span class="tag-new">신규</span><span class="sp"></span><small>원본 최신일 — 카드 매출 11-12 · 통장 11-12</small></div>
+    <div class="chips">
+      <span class="chip on">전체 수단</span><span class="chip">카드</span><span class="chip">계좌이체</span><span class="chip">계산서 발행</span>
+      <span class="chip">내가 입력한 것</span>
+      <span class="sp"></span><span class="search">매출처 · 주문번호 · 승인번호 · 입금자 검색</span>
+    </div>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>결제일</th><th>수단</th><th>매출처 · 주문</th><th class="n">기록 금액</th><th>대조 단서</th><th>원본 후보</th><th>기록</th><th></th></tr></thead>
+      <tbody>
+        <tr>
+          <td>11-12</td><td><span class="badge b-card">카드</span></td>
+          <td>하나은행 B지점<small>D261108-002 외 2건</small></td>
+          <td class="n">1,000,000</td>
+          <td>승인 30125550<small>카드 뒤 7781</small></td>
+          <td><div class="cand">카드 매출 11-12 <b>1,000,000</b><br>승인번호 · 금액 · 카드 일치</div></td>
+          <td>김주연</td>
+          <td><span class="btn pri sm">확정</span></td>
+        </tr>
+        <tr>
+          <td>11-05</td><td><span class="badge b-card">카드</span></td>
+          <td>하나은행 A지점<small>D261101-004</small></td>
+          <td class="n">300,000</td>
+          <td>승인 30119876<small>카드 뒤 0302</small></td>
+          <td><div class="cand">카드 매출 11-05 <b>300,000</b><br>승인번호 · 금액 · 카드 일치</div></td>
+          <td>김주연</td>
+          <td><span class="btn pri sm">확정</span></td>
+        </tr>
+        <tr>
+          <td>11-07</td><td><span class="badge b-bank">계좌이체</span></td>
+          <td>NH농협손해보험 강북GA<small>D261104-013</small></td>
+          <td class="n">2,715,000</td>
+          <td>입금자 농협손보강북</td>
+          <td><div class="cand weak">통장 11-08 <b>2,715,000</b> 엔에이치농협손해<br>금액 일치 · 입금자 비슷 · 하루 차이</div></td>
+          <td>김보현</td>
+          <td><span class="btn sm">확정</span> <span class="btn sm">다른 입금 찾기</span></td>
+        </tr>
+        <tr>
+          <td>11-06</td><td><span class="badge b-card">카드</span></td>
+          <td>개인 홍길동<small>D261106-007</small></td>
+          <td class="n">228,000</td>
+          <td>승인 30120011<small>카드 뒤 4410</small></td>
+          <td><div class="cand weak" style="background:#fef2f2;border-color:#fecaca">카드 매출 11-06 <b class="r">218,000</b><br>승인번호 일치 · 금액 10,000 다름</div></td>
+          <td>한정호</td>
+          <td><span class="badge s-bad">불일치</span><br><span class="btn sm" style="margin-top:4px">입력자에게 확인 요청</span></td>
+        </tr>
+        <tr>
+          <td>11-04</td><td><span class="badge b-inv">계산서 발행</span></td>
+          <td>하나은행 영업지원그룹<small>D261104-019 · 청구처 주식회사 하나은행</small></td>
+          <td class="n">3,234,300</td>
+          <td>입금 예정 11-30<small>홈택스 계산서 11-04 연결됨</small></td>
+          <td class="mut">입금 전 (예정일 전)</td>
+          <td>김승현</td>
+          <td class="mut">대기</td>
+        </tr>
+        <tr>
+          <td>11-03</td><td><span class="badge b-bank">계좌이체</span></td>
+          <td>국방통합데이터센터<small>D261103-001</small></td>
+          <td class="n">228,000</td>
+          <td>입금자 국방데이터</td>
+          <td class="r">후보 없음 · 9일째</td>
+          <td>김주연</td>
+          <td><span class="btn sm">다른 입금 찾기</span> <span class="btn sm">입력자에게 확인 요청</span></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note">
+      <b>확정은 사람이 누릅니다.</b> 시스템은 후보만 붙입니다. 입력한 본인도 확정할 수 있습니다(누가 입력 · 확정했는지는 기록).<br>
+      <b>입력자에게 확인 요청</b>은 업무 요청으로 보냅니다. <b>다른 입금 찾기</b>는 지금 있는 수금 매칭 창을 그대로 씁니다.<br>
+      <b>기록 없는 입금</b>(고객이 안내 없이 이체한 건)은 지금처럼 입금에서 출발해 주문에 바로 붙입니다.
+    </div>
+  </div>
+
+  <!-- ───────────── 4 ───────────── -->
+  <h2>4. 정해 주실 것</h2>
+  <div class="panel">
+    <div class="scroll">
+    <table>
+      <thead><tr><th style="width:30px">#</th><th>항목</th><th>가안</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>현금 수단을 둘지</td><td>둔다. 실제로 안 쓰면 뺌.</td></tr>
+        <tr><td>2</td><td>계산서 발행 기록의 금액</td><td>주문 금액이 기본값, 고칠 수 있음. 홈택스 계산서가 올라오면 자동 연결하고 금액이 다르면 불일치로 표시.</td></tr>
+        <tr><td>3</td><td>확인 대기가 며칠 넘으면 알릴지</td><td>원본 최신일 기준 3일. 카드 · 이체만. 계산서 발행은 입금 예정일이 지난 뒤부터.</td></tr>
+        <tr><td>4</td><td>확인 해제 권한</td><td>결제 확인 화면 수정 권한자. 해제 사유 필수, 이력 기록.</td></tr>
+        <tr><td>5</td><td>결제 확인 화면의 위치</td><td>영업 · 주문 › 수금 · 정산 작업 그룹 맨 위. 기존 3화면 정리는 따로 결정.</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+</body>
+</html>
