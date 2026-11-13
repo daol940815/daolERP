@@ -140,7 +140,7 @@
     <div class="modal">
       <div class="mh"><span>결제 기록 추가 — 주문 1건, 일부 결제</span><span class="mut">×</span></div>
       <div class="mb">
-        <div class="seg"><span class="on">카드결제</span><span>계좌이체</span><span>계산서 발행</span><span>현금</span></div>
+        <div class="seg"><span class="on">카드결제</span><span>계좌이체</span><span>계산서 발행</span></div>
         <div class="f">
           <div><label>결제일</label><div class="box">2026-11-05</div></div>
           <div><label>결제 금액</label><div class="box r2">300,000</div></div>
@@ -160,7 +160,7 @@
     <div class="modal">
       <div class="mh"><span>결제 기록 추가 — 결제 1건으로 주문 3건</span><span class="mut">×</span></div>
       <div class="mb">
-        <div class="seg"><span class="on">카드결제</span><span>계좌이체</span><span>계산서 발행</span><span>현금</span></div>
+        <div class="seg"><span class="on">카드결제</span><span>계좌이체</span><span>계산서 발행</span></div>
         <div class="f">
           <div><label>결제일</label><div class="box">2026-11-12</div></div>
           <div><label>결제 금액</label><div class="box r2">1,000,000</div></div>
@@ -188,7 +188,6 @@
         <tr><td><span class="badge b-card">카드결제</span></td><td>결제일 · 금액 · 메모</td><td>승인번호, 카드 뒤 4자리</td><td>카드 내역(매출)</td></tr>
         <tr><td><span class="badge b-bank">계좌이체</span></td><td>결제일 · 금액 · 메모</td><td>입금자명</td><td>통장 내역(입금)</td></tr>
         <tr><td><span class="badge b-inv">계산서 발행</span></td><td>발행일 · 금액 · 메모</td><td>청구처, 입금 예정일(선택)</td><td>통장 내역(입금). 홈택스 계산서와는 자동 연결</td></tr>
-        <tr><td><span class="badge s-none">현금</span></td><td>결제일 · 금액 · 메모</td><td>받은 사람</td><td>통장 내역(입금 처리분)</td></tr>
         <tr><td><span class="badge b-pre">선결제 사용</span></td><td colspan="3">지금 기능 그대로. 원장에서 바로 차감되므로 2차 확인 없이 즉시 확정.</td></tr>
       </tbody>
     </table>
@@ -283,17 +282,17 @@
   </div>
 
   <!-- ───────────── 4 ───────────── -->
-  <h2>4. 정해 주실 것</h2>
+  <h2>4. 결정된 것 (2026-11-13)</h2>
   <div class="panel">
     <div class="scroll">
     <table>
-      <thead><tr><th style="width:30px">#</th><th>항목</th><th>가안</th></tr></thead>
+      <thead><tr><th style="width:30px">#</th><th>항목</th><th>결정</th></tr></thead>
       <tbody>
-        <tr><td>1</td><td>현금 수단을 둘지</td><td>둔다. 실제로 안 쓰면 뺌.</td></tr>
-        <tr><td>2</td><td>계산서 발행 기록의 금액</td><td>주문 금액이 기본값, 고칠 수 있음. 홈택스 계산서가 올라오면 자동 연결하고 금액이 다르면 불일치로 표시.</td></tr>
-        <tr><td>3</td><td>확인 대기가 며칠 넘으면 알릴지</td><td>원본 최신일 기준 3일. 카드 · 이체만. 계산서 발행은 입금 예정일이 지난 뒤부터.</td></tr>
-        <tr><td>4</td><td>확인 해제 권한</td><td>결제 확인 화면 수정 권한자. 해제 사유 필수, 이력 기록.</td></tr>
-        <tr><td>5</td><td>결제 확인 화면의 위치</td><td>영업 · 주문 › 수금 · 정산 작업 그룹 맨 위. 기존 3화면 정리는 따로 결정.</td></tr>
+        <tr><td>1</td><td>현금(현찰) 수단</td><td>두지 않는다.</td></tr>
+        <tr><td>2</td><td>계산서 발행 기록의 금액</td><td>주문 금액이 기본값, 고칠 수 있음. 홈택스 계산서와 금액이 다르면 불일치로 표시.</td></tr>
+        <tr><td>3</td><td>확인 대기 경과 알림</td><td>원본 최신일 기준 3일. 카드 · 이체만. 계산서 발행은 입금 예정일이 지난 뒤부터.</td></tr>
+        <tr><td>4</td><td>확인 해제 권한</td><td class="mut">설명 후 결정 대기</td></tr>
+        <tr><td>5</td><td>기존 3화면</td><td>입금 매칭 = 유지("기록 없는 입금" 탭) / 수금 대상 = 독촉 대상(주문 단위) 탭 / 계산서 발행 대상 = 발행 대기 주문 목록.</td></tr>
       </tbody>
     </table>
     </div>
