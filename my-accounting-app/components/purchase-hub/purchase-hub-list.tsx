@@ -439,7 +439,7 @@ export default function PurchaseHubList({ basePath, perms }: {
                 <th className="py-2 px-3 text-left font-medium">담당직원</th>
                 <th className="py-2 px-3 text-left font-medium">거래처 담당자</th>
                 <th className="py-2 px-3 text-right font-medium">기간 매입</th>
-                <th className="py-2 px-3 text-right font-medium" title="기간 안에 실제로 나간 돈 (출금일 기준)">지급액</th>
+                <th className="py-2 px-3 text-right font-medium" title="기간 안에 이 매입처로 나간 통장 출금 (출금일 기준, 계산서 연결 여부 무관)">지급액</th>
                 <th className="py-2 px-3 text-left font-medium w-32" title="기간에 발행된 계산서 중 갚아진 비율 (지급일 무관)">지급율</th>
                 <th className="py-2 px-3 text-right font-medium">ERP 발주</th>
                 <th className="py-2 px-3 text-right font-medium">{summary?.period_basis ? '기간 미지급' : '미지급 잔액'}</th>
@@ -524,7 +524,7 @@ export default function PurchaseHubList({ basePath, perms }: {
       </div>
       <p className="text-xs text-gray-400 mt-2">
         {visible.length > 300 ? `상위 300곳만 표시 중 (전체 ${visible.length.toLocaleString()}곳 — 검색·필터로 좁혀주세요) · ` : `${visible.length.toLocaleString()}곳 · `}
-        매입·미지급은 매입 계산서·출금 매칭 원본 기준 · 지급액 = 기간 안 출금(출금일 기준) · 지급율 = 기간 발행 계산서 중 갚아진 비율 ·
+        매입·미지급은 매입 계산서·출금 매칭 원본 기준 · 지급액 = 기간 안 이 매입처로 나간 통장 출금(출금일 기준, 계산서 연결 무관) · 지급율 = 기간 발행 계산서 중 갚아진 비율 ·
         기간 미지급 = 기간 안에 발행된 계산서 중 미지급(오래된 계산서부터 갚은 것으로 배분) ·
         음수 = 과다지급(기간 무관 현재 잔액) · 휴면 = 최근 6개월 매입 없음
       </p>

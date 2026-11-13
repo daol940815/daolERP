@@ -507,7 +507,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
         {[
           // 금액은 선택 기간 합계 — 건수도 같은 기간으로 센다 (옛 라벨 '(전체 기간)'이 전체 합계처럼 읽혔다, 2026-11-11)
           { tag: '기간', label: '매입 (계산서)', value: eok(data.kpi.invoice_total), sub: `${from} ~ ${to} · 계산서 ${data.invoices.filter(i => i.issue_date >= from && i.issue_date <= to).length}건 (전체 ${data.invoices.length}건)`, cls: '' },
-          { tag: '기간', label: '지급액', value: eok(data.kpi.paid_total), sub: '계산서 매칭 + 미지급금 상계', cls: '' },
+          { tag: '기간', label: '지급액', value: eok(data.kpi.paid_total), sub: '이 매입처로 나간 통장 출금 (계산서 연결 여부 무관)', cls: '' },
           // 605: 미지급도 기간 기준(기간 안에 발행된 계산서 중 미지급). 과다지급은 기간 몫이 아니라 현재 잔액으로 보여 준다
           (data.kpi.period_outstanding === undefined || data.kpi.outstanding < 0)
             ? { tag: '누적', label: '미지급 잔액', value: eok(data.kpi.outstanding), sub: data.kpi.outstanding < 0 ? '음수 = 과다지급 (기간 무관)' : `기초이월 ${eok(data.kpi.opening_remain)} 포함`, cls: data.kpi.outstanding > 0 ? 'text-red-600' : data.kpi.outstanding < 0 ? 'text-violet-600' : '' }
@@ -551,7 +551,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                     { l: '① 통장 출금', v: eok(b.out_total), s: `연결 거래 ${b.out_count}건`, cls: '' },
                     { l: '② 통장 입금 (환불·정산)', v: eok(b.in_total), s: `${b.in_count}건`, cls: b.in_total > 0 ? 'text-violet-700' : '' },
                     { l: '③ 계산서 합계', v: eok(b.invoice_total), s: '매입 계산서 (발행일 기준)', cls: '' },
-                    { l: '④ 지급 (매칭·상계)', v: eok(b.paid_total), s: '계산서 결제연결 + 미지급금 상계', cls: '' },
+                    { l: '④ 계산서 연결 지급', v: eok(b.paid_total), s: '계산서 결제연결 + 미지급금 상계 (지급액과 다를 수 있음)', cls: '' },
                     { l: '⑤ 계산서 없는 출금', v: eok(b.unmatched_out), s: `계산서에 배분되지 않은 출금 잔여 · ${b.unmatched_out_count}건 (일부만 연결된 건 포함)`, cls: b.unmatched_out > 0 ? 'text-amber-700' : '', hi: b.unmatched_out > 0 },
                     { l: '⑥ 통장 순지급 − 계산서', v: `${diff > 0 ? '+' : ''}${eok(diff)}`, s: '(① − ②) − ③ · +는 초과·미발행, −는 미지급', cls: diff > 0 ? 'text-amber-700' : diff < 0 ? 'text-red-600' : '' },
                   ].map((k, i) => (
@@ -568,7 +568,8 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                   {b.linked_other_total > 0 && <> + <span className="text-violet-700">다른 거래처 계산서에 배분 {eok(b.linked_other_total)} ({b.linked_other_vendors.map(v => `${v.name} ${eok(v.amount)}`).join(', ')})</span></>}
                   {b.offset_total > 0 && <> + 미지급금 상계 {eok(b.offset_total)}</>}
                   {' '}+ 미배분 잔여 {eok(b.unmatched_out)}.
-                  {b.linked_own_total !== b.paid_total && <> ④ 지급과 다른 것은 ④가 이 매입처 계산서에 연결된 모든 출금(다른 거래처로 연결된 통장 거래 포함)을 세기 때문입니다.</>}
+                  {b.linked_own_total !== b.paid_total && <> ④와 다른 것은 ④가 이 매입처 계산서에 연결된 모든 출금(다른 거래처로 지정된 통장 거래 포함)을 세기 때문입니다.</>}
+                  {data.kpi.paid_total !== b.paid_total && <> 위쪽 지급액({eok(data.kpi.paid_total)})은 계산서 연결 여부와 상관없이 이 매입처로 나간 출금 전부라 ④와 미배분 잔여만큼 다를 수 있습니다.</>}
                 </p>
                 <p className="text-[0.6875rem] text-gray-500 mt-1">{v.hint} 월말 지급 · 익월 계산서처럼 시점 차이가 있으면 짧은 기간에서는 차이가 커 보입니다 — 당년 · 전체 기간으로 보세요.
                   {b.unmatched_out_count > 0 && <> <button onClick={() => { setTab('통장 내역'); setBankView('unmatched') }} className="text-blue-600 hover:underline">계산서 없는 출금 {b.unmatched_out_count}건 보기</button></>}
