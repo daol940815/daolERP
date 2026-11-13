@@ -25,6 +25,8 @@ export default function CashReceiptsPage() {
   const [dateFrom,   setDateFrom]   = useState(() => getPeriodRange('당월').from)
   const [dateTo,     setDateTo]     = useState(() => getPeriodRange('당월').to)
 
+  // 통합 검색 (2026-11-13 사용자 요청) — 승인번호 · 발행구분 · 용도 · 가맹점명 · 사업자번호 · 금액(숫자만 치면 총금액 일치). 불러온 행에서 즉시.
+  const [search,    setSearch]    = useState('')
   const [selected,  setSelected]  = useState<Set<string>>(new Set())
   const [exporting, setExporting] = useState(false)
   const [deleting,  setDeleting]  = useState(false)
@@ -78,7 +80,7 @@ export default function CashReceiptsPage() {
   }, [direction, typeFilter, dateFrom, dateTo])
 
   const toggleSelect    = (id: string) => setSelected(prev => { const n = new Set(prev); if (n.has(id)) { n.delete(id) } else { n.add(id) } return n })
-  const toggleSelectAll = () => setSelected(prev => prev.size === receipts.length ? new Set<string>() : new Set(receipts.map(r => r.id)))
+  const toggleSelectAll = () => setSelected(prev => prev.size === visible.length ? new Set<string>() : new Set(visible.map(r => r.id)))
 
   const handleBulkDelete = async () => {
     if (!selected.size) return
@@ -96,12 +98,25 @@ export default function CashReceiptsPage() {
     load()
   }
 
-  // ── 요약 통계 ──────────────────────────────────────────────────
-  const cancelList   = receipts.filter(r => r.transaction_type === 'cancel')
-  const totalAmount  = receipts.reduce((s, r) => s + (r.amount || 0), 0)
-  const totalSupply  = receipts.reduce((s, r) => s + (r.supply_amount || 0), 0)
-  const totalTax     = receipts.reduce((s, r) => s + (r.tax_amount || 0), 0)
-  const deductible   = receipts.filter(r => r.deductible === true)
+  // ── 검색 적용 (요약·전체 선택·표 모두 걸러진 행 기준) ──
+  const q = search.trim().toLowerCase()
+  const qNum = /^[\d,]+원?$/.test(search.trim()) ? Number(search.replace(/[^0-9]/g, '')) : null
+  const visible = q
+    ? receipts.filter(r => {
+        const has = (v: string | null | undefined) => (v ?? '').toLowerCase().includes(q)
+        return has(r.approval_number) || has(r.issue_type) || has(r.purpose_type) || has(r.counterparty_name) || has(r.note)
+          || (r.counterparty_biz_number ?? '').replace(/\D/g, '').includes(q.replace(/\D/g, '') || '\u0000')
+          || (qNum != null && Math.abs(r.amount || 0) === qNum)
+          || (r.vendor_id ? has(vendors.find(v => v.id === r.vendor_id)?.name) : false)
+      })
+    : receipts
+
+  // ── 요약 통계 (걸러진 행 기준) ──────────────────────────────────
+  const cancelList   = visible.filter(r => r.transaction_type === 'cancel')
+  const totalAmount  = visible.reduce((s, r) => s + (r.amount || 0), 0)
+  const totalSupply  = visible.reduce((s, r) => s + (r.supply_amount || 0), 0)
+  const totalTax     = visible.reduce((s, r) => s + (r.tax_amount || 0), 0)
+  const deductible   = visible.filter(r => r.deductible === true)
   const deductibleTax = deductible.reduce((s, r) => s + (r.tax_amount || 0), 0)
 
   return (
@@ -157,7 +172,7 @@ export default function CashReceiptsPage() {
         <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
           <p className="text-xs text-gray-400 mb-1">{direction === 'sales' ? '발행 합계' : '수취 합계'} (취소 반영)</p>
           <p className="text-lg font-bold text-gray-900">{won(totalAmount)}</p>
-          <p className="text-xs text-gray-400">{receipts.length}건 ({cancelList.length > 0 ? `취소 ${cancelList.length}건` : '취소 없음'})</p>
+          <p className="text-xs text-gray-400">{visible.length}건{q && ` / 기간 내 ${receipts.length}건`} ({cancelList.length > 0 ? `취소 ${cancelList.length}건` : '취소 없음'})</p>
         </div>
         <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
           <p className="text-xs text-gray-400 mb-1">공급가액</p>
@@ -168,7 +183,7 @@ export default function CashReceiptsPage() {
           <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
             <p className="text-xs text-gray-400 mb-1">공제 가능 세액</p>
             <p className="text-lg font-bold text-green-600">{won(deductibleTax)}</p>
-            <p className="text-xs text-gray-400">공제 {deductible.length}건 · 불공제 {receipts.length - deductible.length}건</p>
+            <p className="text-xs text-gray-400">공제 {deductible.length}건 · 불공제 {visible.length - deductible.length}건</p>
           </div>
         )}
       </div>
@@ -187,6 +202,12 @@ export default function CashReceiptsPage() {
           type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
+        <div className="relative flex-1 min-w-[220px] max-w-md">
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="검색 — 승인번호 · 발행구분 · 용도 · 가맹점명 · 사업자번호 · 금액(숫자만)"
+            className="w-full border border-gray-300 rounded-lg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          <span className="absolute left-2.5 top-1.5 text-gray-400 text-sm">⌕</span>
+        </div>
         <div className="flex gap-1">
           {([
             { key: 'all',      label: '전체' },
@@ -219,9 +240,9 @@ export default function CashReceiptsPage() {
       {/* 테이블 */}
       {loading ? (
         <div className="text-center py-20 text-gray-400">로딩 중...</div>
-      ) : receipts.length === 0 ? (
+      ) : visible.length === 0 ? (
         <div className="text-center py-20 text-gray-400 text-sm">
-          등록된 현금영수증이 없습니다. 홈택스에서 다운로드한 파일을 업로드해주세요.
+          {q ? `불러온 ${receipts.length}건 안에 "${search.trim()}"에 맞는 현금영수증이 없습니다. 다른 기간이면 위 기간을 바꾸세요.` : '등록된 현금영수증이 없습니다. 홈택스에서 다운로드한 파일을 업로드해주세요.'}
         </div>
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
@@ -231,7 +252,7 @@ export default function CashReceiptsPage() {
                 <th className="py-2.5 px-3 font-medium w-8">
                   <input
                     type="checkbox"
-                    checked={selected.size > 0 && selected.size === receipts.length}
+                    checked={selected.size > 0 && selected.size === visible.length}
                     onChange={toggleSelectAll}
                     className="rounded border-gray-300"
                   />
@@ -263,7 +284,7 @@ export default function CashReceiptsPage() {
               </tr>
             </thead>
             <tbody>
-              {receipts.map(row => {
+              {visible.map(row => {
                 const meta = TYPE_META[row.transaction_type]
                 return (
                   <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50 align-middle">
