@@ -543,7 +543,6 @@ async function buildListFallback(
   }
   for (const p of payEvents) {
     const a = get(p.vendor_id)
-    if (inPeriod(p.tx_date)) a.paid_amount += p.amount
     const cutoff = openings.get(p.vendor_id)?.as_of_date ?? null
     if (paidCountsAfterCutoff(cutoff, p.tx_date, p.linked_issue)) a.paidAfter += p.amount
   }
@@ -557,6 +556,37 @@ async function buildListFallback(
     if (inPeriod(pdate)) a.erp_amount += it.purchase_total ?? 0
   }
   for (const [vid] of Array.from(openings.entries())) get(vid)
+
+  // 지급액(607) = 이 매입처로 나간 통장 출금 — 지정 출금 − 다른 거래처 계산서 연결 몫 + 다른 거래처 지정이지만 이 매입처 계산서 연결 몫.
+  // 대상(acc)은 넓히지 않는다. 카드사 거래처 제외. (폴백 근사: 매출 계산서 연결은 '다른 거래처' 판정에 쓰지 않음)
+  {
+    const [cashR, cardR] = await Promise.all([
+      fetchAllRows<{ id: string; vendor_id: string; tx_date: string; amount_out: number | null }>((f, t) =>
+        admin.from('transactions').select('id, vendor_id, tx_date, amount_out')
+          .not('vendor_id', 'is', null).is('transfer_pair_id', null).gt('amount_out', 0).range(f, t)),
+      admin.from('card_accounts').select('vendor_id').not('vendor_id', 'is', null),
+    ])
+    if ('error' in cashR) return cashR
+    const cardVendorSet = new Set((cardR.data ?? []).map(c => c.vendor_id as string))
+    const txVendor = new Map(cashR.data.map(t => [t.id, t.vendor_id]))
+    const otherLinked = new Map<string, number>()
+    for (const p of tipR.data) {
+      const inv = invById.get(p.tax_invoice_id)
+      if (!inv) continue
+      const tv = txVendor.get(p.transaction_id)
+      if (tv && tv !== inv.vendor_id) {
+        otherLinked.set(p.transaction_id, (otherLinked.get(p.transaction_id) ?? 0) + p.amount)
+        const a = acc.get(inv.vendor_id)   // 다른 거래처로 지정된 출금의 이 매입처 몫
+        const d = txDate.get(p.transaction_id) ?? ''
+        if (a && !cardVendorSet.has(inv.vendor_id) && inPeriod(d)) a.paid_amount += p.amount
+      }
+    }
+    for (const t of cashR.data) {
+      const a = acc.get(t.vendor_id)
+      if (!a || cardVendorSet.has(t.vendor_id) || !inPeriod(t.tx_date)) continue
+      a.paid_amount += Math.max(0, (t.amount_out ?? 0) - (otherLinked.get(t.id) ?? 0))
+    }
+  }
 
   const out: {
     vendor_id: string; invoice_count: number; invoice_total: number; erp_amount: number
@@ -640,6 +670,7 @@ export interface PurchaseHubBankRow {
   // 통장 거래처(transactions.vendor_id)가 이 매입처가 아닌데 이 매입처 계산서에 결제연결된 출금이면 그 거래처 이름 (2026-11-13)
   // — 한 출금을 두 거래처 계산서에 나눠 연결하면 vendor_id는 하나만 남아, 이 매입처 통장 탭에서 빠지던 문제
   tagged_vendor_name: string | null
+  other_vendor_linked: number  // 다른 거래처 계산서에 연결된 몫 (이 거래처 자신의 매출 계산서 연결 제외) — 지급액(607) 계산용
 }
 export type BankVerdict = 'ok' | 'match_missing' | 'invoice_check' | 'inflow' | 'other_vendor' | 'excluded'
 
@@ -660,7 +691,7 @@ export interface PurchaseHubDetail {
     out_total: number; out_count: number        // ① 통장 출금
     in_total: number; in_count: number          // ② 통장 입금 (환불·정산)
     invoice_total: number                       // ③ 계산서 합계 (= kpi.invoice_total)
-    paid_total: number                          // ④ 지급 (계산서 매칭 + 상계, = kpi.paid_total)
+    paid_total: number                          // ④ 계산서 연결 지급 (계산서 매칭 + 상계) — 607부터 kpi.paid_total(통장 출금 기준)과 다를 수 있다
     unmatched_out: number; unmatched_out_count: number   // ⑤ 계산서 없는 출금 = 각 출금의 미배분 잔여 합 (연결은 됐지만 일부만 배분된 건 포함)
     linked_own_total: number                    // ① 중 이 매입처 계산서에 배분된 금액
     linked_other_total: number                  // ① 중 다른 거래처 계산서에 배분된 금액
@@ -681,7 +712,7 @@ export interface PurchaseHubDetail {
   }[]
   kpi: {
     invoice_total: number   // 기간 매입 (계산서 총액)
-    paid_total: number      // 기간 지급
+    paid_total: number      // 기간 지급액 = 이 매입처로 나간 통장 출금 (계산서 연결 여부 무관, 607 · 2026-11-13 사용자 결정)
     outstanding: number     // 누적 미지급 잔액 (음수 = 과다지급)
     opening_remain: number
     period_outstanding: number  // 605: 기간 발행분 미지급 (목록과 같은 규칙)
@@ -819,19 +850,21 @@ export async function buildPurchaseHubDetail(
   // 결제연결 금액은 '배분 금액'이다 — 출금 5,000만 원을 계산서 3,000만 원에 연결하면 연결 3,000만, 잔여 2,000만.
   // 이 매입처 계산서(invoiceIds)에 배분된 금액과 다른 거래처 계산서(청구처·중복 거래처)에 배분된 금액을 나눠 센다.
   const invoiceIdSet = new Set(invoiceIds)
-  const bankLinkByTx = new Map<string, { own: number; other: number; otherInv: Set<string> }>()
+  const bankLinkByTx = new Map<string, { own: number; other: number; otherInv: Set<string>; otherAmt: Map<string, number> }>()
   if (bankTxs.length) {
     const r = await fetchByIds<{ transaction_id: string; tax_invoice_id: string; amount: number }>(bankTxs.map(x => x.id), 100, (slice, f, t) =>
       admin.from('tax_invoice_payments').select('transaction_id, tax_invoice_id, amount').in('transaction_id', slice).range(f, t))
     if (!('error' in r)) for (const l of r.data) {
-      const e = bankLinkByTx.get(l.transaction_id) ?? { own: 0, other: 0, otherInv: new Set<string>() }
-      if (invoiceIdSet.has(l.tax_invoice_id)) e.own += l.amount; else { e.other += l.amount; e.otherInv.add(l.tax_invoice_id) }
+      const e = bankLinkByTx.get(l.transaction_id) ?? { own: 0, other: 0, otherInv: new Set<string>(), otherAmt: new Map<string, number>() }
+      if (invoiceIdSet.has(l.tax_invoice_id)) e.own += l.amount
+      else { e.other += l.amount; e.otherInv.add(l.tax_invoice_id); e.otherAmt.set(l.tax_invoice_id, (e.otherAmt.get(l.tax_invoice_id) ?? 0) + l.amount) }
       bankLinkByTx.set(l.transaction_id, e)
     }
   }
   // 다른 거래처 계산서로 간 연결 — 그 계산서의 거래처 이름을 붙인다 (중복 거래처·청구처 판별용)
   const otherInvIds = Array.from(new Set(Array.from(bankLinkByTx.values()).flatMap(e => Array.from(e.otherInv))))
   const otherInvVendor = new Map<string, string>()
+  const sameVendorInv = new Set<string>()   // '다른 계산서' 중 이 거래처 자신의 계산서(매출 계산서 등) — 지급액에서 빼지 않는다(607)
   if (otherInvIds.length) {
     const r = await fetchByIds<{ id: string; vendor_id: string | null; counterparty_name: string | null }>(otherInvIds, 100, (slice, f, t) =>
       admin.from('tax_invoices').select('id, vendor_id, counterparty_name').in('id', slice).range(f, t))
@@ -844,6 +877,7 @@ export async function buildPurchaseHubDetail(
       }
       // 거래처가 붙은 계산서면 그 거래처 이름, 거래처 미연결 계산서면 상호를 붙여 '미연결'임을 분명히 한다
       // (2026-11-12 다온글로비스: 상호는 같은데 vendor_id가 비어 "다른 거래처"로 보이던 사례)
+      for (const i of r.data) if (i.vendor_id === vendorId) sameVendorInv.add(i.id)
       for (const i of r.data) otherInvVendor.set(i.id, i.vendor_id
         ? (vn.get(i.vendor_id) ?? '(삭제된 거래처)')
         : `거래처 미연결 계산서 (상호 ${i.counterparty_name ?? '없음'})`)
@@ -862,7 +896,7 @@ export async function buildPurchaseHubDetail(
   }
   const bankRows: PurchaseHubBankRow[] = bankTxs.map(tx => {
     const out = tx.amount_out ?? 0
-    const link = bankLinkByTx.get(tx.id) ?? { own: 0, other: 0, otherInv: new Set<string>() }
+    const link = bankLinkByTx.get(tx.id) ?? { own: 0, other: 0, otherInv: new Set<string>(), otherAmt: new Map<string, number>() }
     // 상계는 연결이 하나도 없는 확정 2001 출금만 (tx2001과 같은 규칙 — 이중집계 방지)
     const isOffset = !!acc2001 && tx.status === 'confirmed' && tx.confirmed_account_id === acc2001 && out > 0 && link.own + link.other === 0
     return {
@@ -873,6 +907,8 @@ export async function buildPurchaseHubDetail(
       unallocated: isOffset ? 0 : Math.max(0, out - link.own - link.other),
       basis: tx.vendor_id && tx.vendor_id !== vendorId ? '계산서 연결' : basisOf(tx),
       tagged_vendor_name: tx.vendor_id && tx.vendor_id !== vendorId ? (taggedOtherName.get(tx.vendor_id) ?? '(다른 거래처)') : null,
+      // 607 지급액용 — 다른 거래처 계산서로 간 몫(이 거래처 자신의 매출 계산서 연결은 제외)
+      other_vendor_linked: Array.from(link.otherAmt.entries()).reduce((s, [id, a]) => s + (sameVendorInv.has(id) ? 0 : a), 0),
     }
   })
 
@@ -965,7 +1001,14 @@ export async function buildPurchaseHubDetail(
   invsAfterCutoff.sort((x, y) => x.issue_date.localeCompare(y.issue_date))
 
   const paidAfterCutoff = payAll.reduce((s, p) => s + (paidCountsAfterCutoff(cutoff, p.tx_date, p.linked_issue) ? p.amount : 0), 0)
-  const paidPeriod = payAll.reduce((s, p) => s + (inPeriod(p.tx_date) ? p.amount : 0), 0)
+  // ④ 대사용 — 계산서 연결 + 미지급금 상계 (종전 지급액 정의)
+  const paidLinkedPeriod = payAll.reduce((s, p) => s + (inPeriod(p.tx_date) ? p.amount : 0), 0)
+  // 지급액(607) = 이 매입처로 나간 통장 출금: 이 매입처로 지정된 출금 − 다른 거래처 계산서에 연결된 몫 + 다른 거래처로 지정됐지만
+  // 이 매입처 계산서에 연결된 몫. 카드사 거래처는 카드대금이라 종전 정의 유지. 목록 RPC(607)와 같은 규칙.
+  const paidPeriod = cardAcc ? paidLinkedPeriod : bankRows.reduce((s, r) => {
+    if (!inPeriod(r.tx_date) || r.amount_out <= 0) return s
+    return s + (r.tagged_vendor_name ? r.invoice_linked : Math.max(0, r.amount_out - r.other_vendor_linked))
+  }, 0)
   const fifo = computeFifo(invsAfterCutoff, paidAfterCutoff, opening?.amount ?? 0, t0)
   const perUnpaid = periodUnpaidOf(invsAfterCutoff, fifo, inPeriod, opening?.as_of_date ?? null, t0)
 
@@ -1053,7 +1096,7 @@ export async function buildPurchaseHubDetail(
     bank: {
       excluded_reason: bankExcluded,
       out_total: bankOut, out_count: bankOutCnt, in_total: bankIn, in_count: bankInCnt,
-      invoice_total: invoiceTotalPeriod, paid_total: paidPeriod,
+      invoice_total: invoiceTotalPeriod, paid_total: paidLinkedPeriod,
       unmatched_out: unmatchedOut, unmatched_out_count: unmatchedCnt,
       linked_own_total: linkedOwnTotal, linked_other_total: linkedOtherTotal, offset_total: offsetTotal,
       linked_other_vendors: Array.from(otherByVendor.entries()).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount),
