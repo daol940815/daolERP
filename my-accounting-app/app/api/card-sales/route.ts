@@ -52,9 +52,17 @@ export async function GET(req: NextRequest) {
       matchAmount.set(m.source_id as string, (matchAmount.get(m.source_id as string) ?? 0) + (m.amount as number))
     }
   }
+  // 같은 승인번호의 취소 합 — 주문 매칭은 순액(승인 − 취소) 기준으로 판정 (2026-11-13)
+  const apprNos = Array.from(new Set(rows.filter(r => r.transaction_type === 'approval').map(r => r.approval_number as string)))
+  const cancelByAppr = new Map<string, number>()
+  for (let i = 0; i < apprNos.length; i += 150) {
+    const { data } = await admin.from('card_sales').select('approval_number, amount').eq('transaction_type', 'cancel').in('approval_number', apprNos.slice(i, i + 150))
+    for (const c of data ?? []) cancelByAppr.set(c.approval_number as string, (cancelByAppr.get(c.approval_number as string) ?? 0) + Math.abs((c.amount as number) || 0))
+  }
   for (const r of rows) {
     r.order_match_count = matchCount.get(r.id as string) ?? 0
     r.order_match_amount = matchAmount.get(r.id as string) ?? 0
+    if (r.transaction_type === 'approval') r.cancel_amount = cancelByAppr.get(r.approval_number as string) ?? 0
   }
 
   return NextResponse.json({ data: rows })
