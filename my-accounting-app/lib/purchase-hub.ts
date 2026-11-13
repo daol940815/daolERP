@@ -170,13 +170,18 @@ function computeFifo(
   openingAmount: number,
   asOf: string,
 ): FifoResult {
-  const openingRemain = Math.max(0, openingAmount - paidAfterCutoff)
-  let paidToInv = Math.max(0, paidAfterCutoff - openingAmount)
+  // 606: 마이너스(수정) 계산서는 매입처가 깎아 준 금액 — 지급과 같이 '갚는 몫'에 더하고, 배분은 플러스 계산서만.
+  // 그래야 계산서별 미지급 · 90일 초과가 음수가 되지 않고 잔액 = 기초 + 계산서 합 - 지급이 항상 맞는다.
+  const credit = invoices.reduce((s, inv) => s + (inv.total < 0 ? -inv.total : 0), 0)
+  const pool = paidAfterCutoff + credit
+  const openingRemain = Math.max(0, openingAmount - pool)
+  let paidToInv = Math.max(0, pool - openingAmount)
   const unpaidByInvoice = new Map<string, number>()
   const aging = { b30: 0, b60: 0, b90: 0, over90: 0 }
   let invUnpaid = 0
   let invTotal = 0
   for (const inv of invoices) {
+    if (inv.total < 0) { unpaidByInvoice.set(inv.id, 0); continue }
     invTotal += inv.total
     const covered = Math.min(inv.total, paidToInv)
     paidToInv -= covered
@@ -191,7 +196,7 @@ function computeFifo(
       else aging.over90 += unpaid
     }
   }
-  const overpaid = Math.max(0, paidAfterCutoff - openingAmount - invTotal)
+  const overpaid = Math.max(0, pool - openingAmount - invTotal)
   return {
     outstanding: openingRemain + invUnpaid - overpaid,
     over90: aging.over90,
