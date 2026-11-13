@@ -145,9 +145,9 @@ export default function TxFilterBar({ filters, onChange, accounts, vendors, bank
     onChange(mergeFilters([...filters, f]))
     setOpen(false)
   }
-  const toggleQuick = (f: TxFilter) => {
-    const on = filters.some(x => sameFilter(x, f))
-    onChange(on ? filters.filter(x => !sameFilter(x, f)) : mergeFilters([...filters, f]))
+  const toggleQuick = (fs: TxFilter[]) => {
+    const on = fs.every(f => filters.some(x => sameFilter(x, f)))
+    onChange(on ? filters.filter(x => !fs.some(f => sameFilter(x, f))) : mergeFilters([...filters, ...fs]))
   }
 
   const current = filters.find(f => f.kind === draft.kind)
@@ -309,9 +309,9 @@ export default function TxFilterBar({ filters, onChange, accounts, vendors, bank
         </>) : null}
         <span className="text-gray-400">빠른 조건:</span>
         {QUICK_FILTERS.map(q => {
-          const on = filters.some(x => sameFilter(x, q.filter))
+          const on = q.filters.every(f => filters.some(x => sameFilter(x, f)))
           return (
-            <button key={q.label} type="button" onClick={() => toggleQuick(q.filter)}
+            <button key={q.label} type="button" onClick={() => toggleQuick(q.filters)} title={q.title}
               className={`px-2 py-1 rounded-full border ${on ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400'}`}>
               {q.label}
             </button>
