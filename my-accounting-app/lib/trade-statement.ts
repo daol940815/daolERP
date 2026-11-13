@@ -92,6 +92,11 @@ export async function buildStatementExcel(data: StatementData): Promise<Buffer> 
   })
   const widths = [2.62, 8.62, 6.62, 4.62, 33.75, 8.62, 3.62, 9.62, 12.62, 3.62, 10.62, 6.62, 7.62, 8.62, 20.62, 2.62, 9.0]
   ws.columns = widths.map(w => ({ width: w }))
+  // G열 · J열 숨김 (2026-11-13 사용자 요청 — A4 한 장에 맞게, B~O 너비 145.81 → 138.57).
+  // 두 열은 단독 내용이 없고 합친 칸의 앞 열로만 쓰인다: G = 단가(G:H) · 왼쪽 정보 값 칸(D:H) 일부, J = 부가세(J:K) · 오른쪽 라벨(I:J) 일부.
+  // 합친 칸은 앞 열이 숨겨져도 남은 열에 내용이 그대로 보인다. 너비 값은 남겨 두어 숨김을 풀면 원래 모양으로 돌아간다.
+  ws.getColumn(7).hidden = true
+  ws.getColumn(10).hidden = true
 
   const thin = { style: 'thin' as const }
   const box = { top: thin, bottom: thin, left: thin, right: thin }
