@@ -8,6 +8,16 @@ import type { Vendor } from '@/types/tax-invoice'
 import type { ErpVendorAlias } from '@/types/erp'
 import { getPeriodRange } from '@/lib/period-presets'
 import SearchableSelect from '@/components/ui/SearchableSelect'
+import CardOrderMatchModal from '@/components/cards/CardOrderMatchModal'
+
+// 주문 매칭 상태 (승인 행, 순액 기준) — 2026-11-13 승인 시안
+const orderMatchState = (r: CardSale): 'none' | 'partial' | 'done' | 'over' => {
+  const net = Math.max(0, (r.amount || 0) - (r.cancel_amount ?? 0))
+  const m = r.order_match_amount ?? 0
+  if (m <= 0) return 'none'
+  if (m > net) return 'over'
+  return m >= net ? 'done' : 'partial'
+}
 
 const ALIAS_OPTION_PREFIX = 'alias:'
 
@@ -27,6 +37,9 @@ export default function SalesTab() {
 
   const [typeFilter, setTypeFilter]   = useState<'all' | CardSaleTransactionType>('all')
   const [matchFilter, setMatchFilter] = useState<'all' | 'matched' | 'unmatched'>('all')
+  // 주문 매칭 필터 · 모달 (2026-11-13)
+  const [orderFilter, setOrderFilter] = useState<'all' | 'none' | 'partial' | 'done' | 'over'>('all')
+  const [orderMatchFor, setOrderMatchFor] = useState<string | null>(null)
   const [vendorFilter, setVendorFilter] = useState('')
   // 기본 조회는 2026년부터 — 과거는 시작일을 비우거나 넓혀서 조회
   const [dateFrom, setDateFrom] = useState(() => getPeriodRange('당월').from)
@@ -192,9 +205,10 @@ export default function SalesTab() {
   const vendorNameById = useMemo(() => new Map(vendors.map(v => [v.id, v.name])), [vendors])
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return sales
+    const base = orderFilter === 'all' ? sales : sales.filter(r => r.transaction_type === 'approval' && orderMatchState(r) === orderFilter)
+    if (!q) return base
     const qDigits = q.replace(/[^0-9]/g, '')
-    return sales.filter(r => {
+    return base.filter(r => {
       const hay = [
         r.card_number, r.approval_number, r.acquirer, r.note,
         r.vendor_id ? vendorNameById.get(r.vendor_id) : null,
@@ -207,7 +221,7 @@ export default function SalesTab() {
       }
       return false
     })
-  }, [sales, search, vendorNameById])
+  }, [sales, search, vendorNameById, orderFilter])
 
   // ── 요약 통계 (검색·필터 결과 기준) ─────────────────────────────
   const approvalList = visible.filter(s => s.transaction_type === 'approval')
@@ -216,6 +230,13 @@ export default function SalesTab() {
   const cancelSum    = cancelList.reduce((s, r) => s + (r.amount || 0), 0)
   const netSum       = approvalSum + cancelSum
   const matchedCount = visible.filter(s => s.vendor_id).length
+  // 주문 매칭 KPI (승인 행 · 순액 기준)
+  const orderStat = approvalList.reduce((acc, r) => {
+    const net = Math.max(0, (r.amount || 0) - (r.cancel_amount ?? 0)); const m = r.order_match_amount ?? 0
+    acc.matched += Math.min(m, net); acc.unmatched += Math.max(0, net - m)
+    acc[orderMatchState(r)]++
+    return acc
+  }, { matched: 0, unmatched: 0, none: 0, partial: 0, done: 0, over: 0 })
 
   return (
     <div>
@@ -264,7 +285,27 @@ export default function SalesTab() {
           <p className="text-lg font-bold text-gray-900">{matchedCount} <span className="text-sm font-normal text-gray-400">/ {visible.length}건</span></p>
           <p className="text-xs text-gray-400">미매칭 {visible.length - matchedCount}건</p>
         </div>
+        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-gray-400 mb-1">주문 매칭 금액</p>
+          <p className="text-lg font-bold text-sky-700">{won(orderStat.matched)}</p>
+          <p className="text-xs text-gray-400">완료 {orderStat.done} · 부분 {orderStat.partial}</p>
+        </div>
+        <button onClick={() => setOrderFilter(f => f === 'none' ? 'all' : 'none')} title="클릭 = 주문 미매칭만 보기"
+          className={`border rounded-lg px-4 py-3 flex-1 min-w-[160px] text-left ${orderFilter === 'none' ? 'border-amber-400 bg-amber-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+          <p className="text-xs text-amber-700 mb-1">주문 미매칭</p>
+          <p className="text-lg font-bold text-amber-700">{won(orderStat.unmatched)}</p>
+          <p className="text-xs text-gray-400">{orderStat.none}건 — 어느 주문 결제인지 아직 모름</p>
+        </button>
+        {orderStat.over > 0 && (
+          <button onClick={() => setOrderFilter(f => f === 'over' ? 'all' : 'over')} title="매칭 뒤 취소가 올라와 배분이 순액을 넘은 건"
+            className={`border rounded-lg px-4 py-3 flex-1 min-w-[160px] text-left ${orderFilter === 'over' ? 'border-red-400 bg-red-50' : 'border-red-200 hover:bg-red-50'}`}>
+            <p className="text-xs text-red-600 mb-1">취소 후 재검토</p>
+            <p className="text-lg font-bold text-red-600">{orderStat.over}건</p>
+            <p className="text-xs text-gray-400">배분이 순액 초과 — 모달에서 줄이세요</p>
+          </button>
+        )}
       </div>
+      <p className="text-[0.6875rem] text-gray-400 -mt-3 mb-4">주문 매칭은 ERP 미수(수금) 기준입니다. 카드사 정산 입금은 통장 내역에서 매출채권 회수로 따로 확정합니다.</p>
 
       {/* 기간 빠른 선택 */}
       <PeriodPresets from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} className="mb-2" />
@@ -325,6 +366,12 @@ export default function SalesTab() {
             </button>
           ))}
         </div>
+        <div className="flex gap-1">
+          {([['all', '주문 전체'], ['none', `주문 미매칭 ${orderStat.none}`], ['partial', `부분 ${orderStat.partial}`], ['done', `완료 ${orderStat.done}`]] as const).map(([k, l]) => (
+            <button key={k} onClick={() => setOrderFilter(k)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${orderFilter === k ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{l}</button>
+          ))}
+        </div>
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
@@ -369,6 +416,7 @@ export default function SalesTab() {
                 <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap">금액</th>
                 <th className="py-2.5 px-3 font-medium whitespace-nowrap">처리현황 / 정산상태</th>
                 <th className="py-2.5 px-3 font-medium whitespace-nowrap">거래처</th>
+                <th className="py-2.5 px-3 font-medium whitespace-nowrap">주문 매칭</th>
               </tr>
             </thead>
             <tbody>
@@ -396,11 +444,8 @@ export default function SalesTab() {
                     <td className="py-2.5 px-3 text-right whitespace-nowrap">
                       <p className={`font-medium ${row.amount < 0 ? 'text-red-600' : 'text-gray-900'}`}>{won(row.amount)}</p>
                       <p className="text-xs text-gray-400">공급 {won(row.supply_amount)} · 세액 {won(row.tax_amount)}</p>
-                      {row.transaction_type === 'approval' && (
-                        <Link href={`/erp-matching?depositId=card:${row.id}`} className="text-[0.6875rem] text-sky-700 hover:underline"
-                          title="입금 매칭 화면에서 이 결제건을 주문에 배분">
-                          {row.order_match_count ? `주문 매칭 ${row.order_match_count}건 (${won(row.order_match_amount ?? 0)})` : '주문 매칭 →'}
-                        </Link>
+                      {row.transaction_type === 'approval' && (row.cancel_amount ?? 0) > 0 && (
+                        <p className="text-xs text-red-500">취소 −{won(row.cancel_amount ?? 0)} · 순액 {won(Math.max(0, row.amount - (row.cancel_amount ?? 0)))}</p>
                       )}
                     </td>
                     <td className="py-2.5 px-3 text-xs text-gray-500 whitespace-nowrap">
@@ -420,12 +465,31 @@ export default function SalesTab() {
                         }`}
                       />
                     </td>
+                    <td className="py-2.5 px-3 whitespace-nowrap text-xs">
+                      {row.transaction_type !== 'approval' ? <span className="text-gray-400">취소 건</span> : (() => {
+                        const st = orderMatchState(row)
+                        const m = row.order_match_amount ?? 0
+                        return (<>
+                          {st === 'none' && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">미매칭</span>}
+                          {st === 'partial' && <span className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">부분 {m.toLocaleString('ko-KR')}</span>}
+                          {st === 'done' && <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">완료 {m.toLocaleString('ko-KR')}</span>}
+                          {st === 'over' && <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700" title="매칭 뒤 취소가 올라와 배분이 순액을 넘었습니다">재검토 — 배분 {m.toLocaleString('ko-KR')} &gt; 순액</span>}
+                          {(row.order_match_count ?? 0) > 0 && <span className="ml-1 text-gray-400">{row.order_match_count}건</span>}
+                          <button onClick={() => setOrderMatchFor(row.id)} className="ml-1.5 text-blue-600 hover:underline">{st === 'none' ? '주문 매칭' : '수정'}</button>
+                        </>)
+                      })()}
+                    </td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
         </div>
+      )}
+
+      {orderMatchFor && (
+        <CardOrderMatchModal saleId={orderMatchFor} onClose={() => setOrderMatchFor(null)}
+          onSaved={(id, count, amount) => setSales(prev => prev.map(r => r.id === id ? { ...r, order_match_count: count, order_match_amount: amount } : r))} />
       )}
 
       {toast && (
