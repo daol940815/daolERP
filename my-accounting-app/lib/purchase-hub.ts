@@ -636,7 +636,10 @@ export interface PurchaseHubBankRow {
   linked_other_names: string[] // 그 계산서의 거래처 이름 (어느 거래처로 갔는지 바로 보이게)
   is_offset: boolean           // 미지급금(2001) 상계 확정 출금
   unallocated: number          // 출금 − 연결(이 매입처+다른 거래처) − 상계 = 계산서 없이 나간 잔여 (0 = 전액 배분)
-  basis: string                // 연결 근거: 사업자번호 · 상호 · 통장 키워드 "x" · 직접 지정
+  basis: string                // 연결 근거: 사업자번호 · 상호 · 통장 키워드 "x" · 직접 지정 · 계산서 연결
+  // 통장 거래처(transactions.vendor_id)가 이 매입처가 아닌데 이 매입처 계산서에 결제연결된 출금이면 그 거래처 이름 (2026-11-13)
+  // — 한 출금을 두 거래처 계산서에 나눠 연결하면 vendor_id는 하나만 남아, 이 매입처 통장 탭에서 빠지던 문제
+  tagged_vendor_name: string | null
 }
 export type BankVerdict = 'ok' | 'match_missing' | 'invoice_check' | 'inflow' | 'other_vendor' | 'excluded'
 
@@ -743,8 +746,8 @@ export async function buildPurchaseHubDetail(
     admin.from('tax_invoice_payments').select('tax_invoice_id, transaction_id, amount').in('tax_invoice_id', slice).range(f, t))
   if ('error' in tipR) return tipR
   const tipTxIds = Array.from(new Set(tipR.data.map(p => p.transaction_id)))
-  const txR = await fetchByIds<{ id: string; tx_date: string; description: string | null }>(tipTxIds, 60, (slice, f, t) =>
-    admin.from('transactions').select('id, tx_date, description').in('id', slice).range(f, t))
+  const txR = await fetchByIds<{ id: string; tx_date: string; description: string | null; amount_out: number | null }>(tipTxIds, 60, (slice, f, t) =>
+    admin.from('transactions').select('id, tx_date, description, amount_out').in('id', slice).range(f, t))
   if ('error' in txR) return txR
   const txInfo = new Map(txR.data.map(t => [t.id, t]))
 
@@ -785,14 +788,34 @@ export async function buildPurchaseHubDetail(
   const invoiceKeywords = ((vendor as { match_aliases?: string[] | null }).match_aliases ?? []).filter(Boolean)
   const bankKeywords = bankKeywordsOf(vendor as { bank_keywords?: string[] | null; match_aliases?: string[] | null }, hasBankCol)
   type BankTx = { id: string; tx_date: string; description: string | null; counterparty_name: string | null; account_alias: string | null
-    amount_in: number | null; amount_out: number | null; status: string; confirmed_account_id: string | null }
+    amount_in: number | null; amount_out: number | null; status: string; confirmed_account_id: string | null; vendor_id: string | null }
+  const BANK_COLS = 'id, tx_date, description, counterparty_name, account_alias, amount_in, amount_out, status, confirmed_account_id, vendor_id'
   const bankTxR = await fetchAllRows<BankTx>((f, t) =>
     admin.from('transactions')
-      .select('id, tx_date, description, counterparty_name, account_alias, amount_in, amount_out, status, confirmed_account_id')
+      .select(BANK_COLS)
       .eq('vendor_id', vendorId).is('transfer_pair_id', null)
       .order('tx_date', { ascending: false }).range(f, t))
   if ('error' in bankTxR) return bankTxR
   const bankTxs = bankTxR.data
+  // 이 매입처 계산서에 결제연결됐지만 통장 거래처가 다른 출금도 통장 탭에 넣는다 — 지급 내역과 건수가 맞도록 (2026-11-13 제주 담은 귤:
+  // 2/27 출금을 제주 계산서 28,595,500 + 롯데쇼핑 계산서 2,595,500으로 나눠 연결하자 vendor_id가 롯데쇼핑으로 바뀌어 통장 탭에서 빠졌다)
+  {
+    const have = new Set(bankTxs.map(x => x.id))
+    const missing = tipTxIds.filter(id => !have.has(id))
+    if (missing.length) {
+      const r = await fetchByIds<BankTx>(missing, 100, (slice, f, t) =>
+        admin.from('transactions').select(BANK_COLS).in('id', slice).is('transfer_pair_id', null).range(f, t))
+      if ('error' in r) return r
+      bankTxs.push(...r.data)
+      bankTxs.sort((a, b) => b.tx_date.localeCompare(a.tx_date))
+    }
+  }
+  const taggedOtherIds = Array.from(new Set(bankTxs.map(x => x.vendor_id).filter((v): v is string => !!v && v !== vendorId)))
+  const taggedOtherName = new Map<string, string>()
+  if (taggedOtherIds.length) {
+    const r = await fetchByIds<{ id: string; name: string }>(taggedOtherIds, 100, (slice, f, t) => admin.from('vendors').select('id, name').in('id', slice).range(f, t))
+    if (!('error' in r)) for (const v of r.data) taggedOtherName.set(v.id, v.name)
+  }
   // 결제연결 금액은 '배분 금액'이다 — 출금 5,000만 원을 계산서 3,000만 원에 연결하면 연결 3,000만, 잔여 2,000만.
   // 이 매입처 계산서(invoiceIds)에 배분된 금액과 다른 거래처 계산서(청구처·중복 거래처)에 배분된 금액을 나눠 센다.
   const invoiceIdSet = new Set(invoiceIds)
@@ -848,7 +871,8 @@ export async function buildPurchaseHubDetail(
       invoice_linked: link.own, linked_other: link.other, is_offset: isOffset,
       linked_other_names: Array.from(new Set(Array.from(link.otherInv).map(id => otherInvVendor.get(id) ?? '(알 수 없음)'))),
       unallocated: isOffset ? 0 : Math.max(0, out - link.own - link.other),
-      basis: basisOf(tx),
+      basis: tx.vendor_id && tx.vendor_id !== vendorId ? '계산서 연결' : basisOf(tx),
+      tagged_vendor_name: tx.vendor_id && tx.vendor_id !== vendorId ? (taggedOtherName.get(tx.vendor_id) ?? '(다른 거래처)') : null,
     }
   })
 
@@ -902,6 +926,10 @@ export async function buildPurchaseHubDetail(
   const paidByInvoice = new Map<string, number>()
   let avgWeighted = 0, avgAmount = 0
   const timeline: PurchaseHubTimelineEvent[] = []
+  // 지급 내역 1줄 = 출금 1건. 금액은 이 매입처 계산서들에 배분된 합(한 출금을 여러 계산서에 나눠 연결해도 합산).
+  // 출금 전액과 다르면 라벨에 '출금 X 중' 표시 (2026-11-13 — 종전엔 첫 연결 금액만 보였다)
+  const ownByTx = new Map<string, number>()
+  for (const p of tipR.data) ownByTx.set(p.transaction_id, (ownByTx.get(p.transaction_id) ?? 0) + p.amount)
   const seenTx = new Set<string>()
   for (const p of tipR.data) {
     const tx = txInfo.get(p.transaction_id)
@@ -915,7 +943,10 @@ export async function buildPurchaseHubDetail(
     }
     if (d && !seenTx.has(p.transaction_id)) {
       seenTx.add(p.transaction_id)
-      timeline.push({ kind: 'bank', date: d, label: tx?.description ?? '출금 (계산서 매칭)', amount: p.amount, ref_id: p.transaction_id })
+      const own = ownByTx.get(p.transaction_id) ?? p.amount
+      const out = tx?.amount_out ?? 0
+      const base = tx?.description ?? '출금 (계산서 매칭)'
+      timeline.push({ kind: 'bank', date: d, label: out > own ? `${base} (출금 ${out.toLocaleString('ko-KR')}원 중 이 매입처 계산서 몫)` : base, amount: own, ref_id: p.transaction_id })
     }
   }
   for (const tx of tx2001) {

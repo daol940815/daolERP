@@ -757,10 +757,13 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                             {r.amount_out > 0 && r.invoice_linked + r.linked_other === 0 && !r.is_offset && <span className="text-gray-400">없음</span>}
                             {r.amount_out === 0 && <span className="text-gray-300">-</span>}
                           </td>
-                          <td className="px-3 py-2 text-xs text-gray-500">{r.basis}</td>
+                          <td className="px-3 py-2 text-xs text-gray-500">
+                            {r.basis}
+                            {r.tagged_vendor_name && <span className="block text-violet-700" title="이 출금의 통장 거래처는 다른 곳으로 지정돼 있지만, 이 매입처 계산서에 결제연결된 금액이 있어 함께 보여 줍니다">통장 거래처: {r.tagged_vendor_name}</span>}
+                          </td>
                           <td className="px-3 py-2 text-xs whitespace-nowrap">
                             {unmatched && <Link href={`/tax-invoices?dir=purchase&tax=taxable&vendorId=${data.vendor.id}`} className="text-blue-600 hover:underline" title="이 매입처 계산서 목록에서 결제 연결">계산서 매칭</Link>}
-                            {perms.edit && <>{unmatched && ' · '}<button onClick={() => unlinkBankTx(r.id, r.basis)} className="text-gray-500 hover:underline">연결 해제</button></>}
+                            {perms.edit && !r.tagged_vendor_name && <>{unmatched && ' · '}<button onClick={() => unlinkBankTx(r.id, r.basis)} className="text-gray-500 hover:underline">연결 해제</button></>}
                           </td>
                         </tr>
                       )
