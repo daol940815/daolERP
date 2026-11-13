@@ -153,9 +153,11 @@ export function poFormItemRows(po: PoExcelData): (string | number)[][] {
   return rows
 }
 
-// 발주서 파일 이름 (2026-11-12 사용자 확정) — 다운로드 · 메일 첨부 공통
-//   {작성일 yymmdd}_다올커머스_{배송종류}_발주서_{매입처}_{은행 지점}_{고객}_{순번}.xlsx
-//   - 작성일 · 순번 = 발주번호(POyymmdd-##)의 날짜 · 순번 (그날 발주서 전체 순번이라 같은 날 이름이 겹치지 않는다)
+// 발주서 파일 이름 (2026-11-12 사용자 확정, 11-13 끝 칸 순번 → 상담자) — 다운로드 · 메일 첨부 공통
+//   {작성일 yymmdd}_다올커머스_{배송종류}_발주서_{매입처}_{은행 지점}_{고객}_{상담자}[_2].xlsx
+//   - 작성일 = 발주번호(POyymmdd-##)의 날짜
+//   - 상담자 = 연결 상담일지 작성자 → 없으면 주문 상담자 (lib/po-assemble.ts poFileNameFor)
+//   - 같은 이름이 앞서 있으면 끝에 _2 · _3 (dupNo — 같은 날 · 같은 매입처의 앞선 발주서만 비교하므로 한 번 정한 이름은 바뀌지 않는다)
 //   - 배송종류: 발주서 품목의 지점 · 개별 · 샘플, 섞이면 둘 다 ('지점·개별')
 //   - 매출처: 은행명 + 지점명(지점명이 비면 은행명만) · 고객: 주문 담당자 이름, '님' 없이
 //   - 빈 항목은 칸째 뺀다 · 파일 이름에 못 쓰는 글자는 '_'
@@ -165,6 +167,8 @@ export function poFileName(p: {
   po_no: string; created_at?: string | null; vendor_name: string | null
   bank_name?: string | null; branch_name?: string | null; manager_name?: string | null
   kinds: (string | null | undefined)[]
+  counselor?: string | null
+  dupNo?: number               // 2 이상이면 끝에 _2 · _3
 }): string {
   const clean = (v: string | null | undefined) =>
     String(v ?? '').replace(/[\\/:*?"<>|\r\n\t]/g, '_').replace(/\s+/g, ' ').trim().replace(/^_+|_+$/g, '')
@@ -172,7 +176,6 @@ export function poFileName(p: {
   const date = m ? m[1]
     : p.created_at ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date(p.created_at)).slice(2).replace(/-/g, '')
     : ''
-  const seq = m ? m[2] : clean(p.po_no)
   const kinds = Array.from(new Set(p.kinds.map(k => clean(k)).filter(Boolean)))
     .sort((a, b) => {
       const ia = PO_KIND_ORDER.indexOf(a), ib = PO_KIND_ORDER.indexOf(b)
@@ -180,7 +183,8 @@ export function poFileName(p: {
     })
   const customer = [clean(p.bank_name), clean(p.branch_name)].filter(Boolean).join(' ')
   const manager = clean(String(p.manager_name ?? '').replace(/\s*님$/, ''))
-  const parts = [date, COMPANY_NAME, kinds.join('·'), '발주서', clean(p.vendor_name), customer, manager, seq]
+  const parts = [date, COMPANY_NAME, kinds.join('·'), '발주서', clean(p.vendor_name), customer, manager, clean(p.counselor),
+    p.dupNo && p.dupNo > 1 ? String(p.dupNo) : '']
   return `${parts.filter(Boolean).join('_')}.xlsx`
 }
 
