@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>현금영수증 통장 매칭 - 시안</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>.num{font-variant-numeric:tabular-nums}</style>
+</head>
+<body class="bg-slate-50 text-gray-900" style="font-family: Pretendard, -apple-system, 'Malgun Gothic', sans-serif;">
+<div class="max-w-6xl mx-auto p-6 space-y-10">
+
+  <div>
+    <h1 class="text-2xl font-bold">현금영수증 ↔ 통장 입금 매칭 — 시안</h1>
+    <p class="text-sm text-gray-500 mt-1">현금영수증(매출 발행) 화면에서 입금을 연결한다. 계산서 결제연결과 같은 방식(부분 금액 · 여러 입금). 분개에는 영향 없음 — 연결 정보만 더한다. 숫자는 예시.</p>
+  </div>
+
+  <!-- 1. 현금영수증 화면 (매출 탭) -->
+  <section>
+    <h2 class="text-lg font-bold mb-2">1. 현금영수증 화면 — 매출(발행) 탭에 입금 확인 추가</h2>
+    <div class="flex items-center gap-2 text-sm mb-2">
+      <span class="px-3 py-1 rounded-full border border-slate-900 bg-slate-900 text-white">매출 (발행)</span>
+      <span class="px-3 py-1 rounded-full border border-gray-300 bg-white text-gray-600">매입 (수취)</span>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3 text-sm">
+      <div class="bg-white border border-gray-200 rounded-xl p-3"><div class="text-xs text-gray-400">발행 합계 (취소 반영)</div><div class="text-lg font-bold num">18,370,000원</div><div class="text-[11px] text-gray-400">승인 52 · 취소 3</div></div>
+      <div class="bg-white border border-gray-200 rounded-xl p-3"><div class="text-xs text-gray-400">입금 확인됨 <span class="text-emerald-600">(신규)</span></div><div class="text-lg font-bold num text-emerald-700">15,120,000원</div><div class="text-[11px] text-gray-400">41건 · 자동 36 · 수동 5</div></div>
+      <div class="bg-white border-2 border-amber-300 rounded-xl p-3 cursor-pointer"><div class="text-xs text-amber-700">입금 미확인 <span class="text-amber-500">(신규 · 클릭=필터)</span></div><div class="text-lg font-bold num text-amber-700">3,250,000원</div><div class="text-[11px] text-gray-400">11건 — 입금이 없거나 아직 연결 안 됨</div></div>
+      <div class="bg-white border border-gray-200 rounded-xl p-3"><div class="text-xs text-gray-400">부가세 (발행)</div><div class="text-lg font-bold num">1,670,000원</div></div>
+    </div>
+    <div class="flex flex-wrap items-center gap-1.5 text-xs mb-2">
+      <span class="px-2.5 py-1 rounded-md border border-slate-900 bg-slate-900 text-white">당월</span><span class="px-2.5 py-1 rounded-md border border-gray-300 bg-white text-gray-600">전월</span><span class="px-2.5 py-1 rounded-md border border-gray-300 bg-white text-gray-600">당년</span>
+      <span class="text-gray-300 mx-1">|</span>
+      <span class="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600">전체</span>
+      <span class="px-3 py-1.5 rounded-lg bg-slate-900 text-white">입금 미확인 11</span>
+      <span class="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600">확인됨 41</span>
+      <span class="text-gray-300 mx-1">|</span>
+      <button class="px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 bg-white">선택 7건 자동 매칭</button>
+      <span class="text-gray-400">금액이 같고 ±7일 안에 입금이 딱 1건일 때만 연결 · 계산서에 이미 연결된 입금은 제외</span>
+    </div>
+    <div class="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+      <table class="w-full text-sm num">
+        <thead><tr class="text-left text-xs text-gray-400 border-b border-gray-200">
+          <th class="py-2.5 px-3 w-8"><input type="checkbox"></th><th class="py-2.5 px-3 font-medium">거래일시</th><th class="py-2.5 px-3 font-medium">유형</th><th class="py-2.5 px-3 font-medium">발행구분</th><th class="py-2.5 px-3 font-medium">용도</th>
+          <th class="py-2.5 px-3 font-medium text-right">공급가액</th><th class="py-2.5 px-3 font-medium text-right">부가세</th><th class="py-2.5 px-3 font-medium text-right">총금액</th>
+          <th class="py-2.5 px-3 font-medium bg-emerald-50">입금 확인 <span class="text-emerald-500">신규</span></th><th class="py-2.5 px-3 font-medium bg-emerald-50">매칭된 입금 <span class="text-emerald-500">신규</span></th>
+        </tr></thead>
+        <tbody class="divide-y divide-gray-100">
+          <tr class="bg-amber-50/40"><td class="px-3 py-2"><input type="checkbox" checked></td><td class="px-3 py-2">2026-11-05 14:12</td><td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-700">승인</span></td><td class="px-3 py-2 text-xs">소비자</td><td class="px-3 py-2 text-xs">소득공제</td><td class="px-3 py-2 text-right">300,000</td><td class="px-3 py-2 text-right">30,000</td><td class="px-3 py-2 text-right font-medium">330,000</td>
+            <td class="px-3 py-2 bg-emerald-50/30"><span class="px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-800">미확인</span> <button class="ml-1 text-xs text-blue-600 hover:underline">매칭</button></td><td class="px-3 py-2 text-xs text-gray-400">—</td></tr>
+          <tr><td class="px-3 py-2"><input type="checkbox"></td><td class="px-3 py-2">2026-11-04 10:40</td><td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-700">승인</span></td><td class="px-3 py-2 text-xs">사업자</td><td class="px-3 py-2 text-xs">지출증빙</td><td class="px-3 py-2 text-right">1,000,000</td><td class="px-3 py-2 text-right">100,000</td><td class="px-3 py-2 text-right font-medium">1,100,000</td>
+            <td class="px-3 py-2 bg-emerald-50/30"><span class="px-1.5 py-0.5 rounded text-xs bg-emerald-100 text-emerald-700">확인됨</span> <span class="text-[11px] text-gray-400">자동</span></td><td class="px-3 py-2 text-xs"><a class="text-blue-700 hover:underline">11-04 하나 주거래 · 김영희 1,100,000</a> <button class="ml-1 text-gray-400">✕</button></td></tr>
+          <tr><td class="px-3 py-2"><input type="checkbox"></td><td class="px-3 py-2">2026-11-03 09:05</td><td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-700">승인</span></td><td class="px-3 py-2 text-xs">소비자</td><td class="px-3 py-2 text-xs">소득공제</td><td class="px-3 py-2 text-right">500,000</td><td class="px-3 py-2 text-right">50,000</td><td class="px-3 py-2 text-right font-medium">550,000</td>
+            <td class="px-3 py-2 bg-emerald-50/30"><span class="px-1.5 py-0.5 rounded text-xs bg-sky-100 text-sky-700">부분 250,000</span> <button class="ml-1 text-xs text-blue-600 hover:underline">매칭</button></td><td class="px-3 py-2 text-xs"><a class="text-blue-700 hover:underline">11-03 국민 · 박철수 250,000</a> <button class="ml-1 text-gray-400">✕</button></td></tr>
+          <tr><td class="px-3 py-2"></td><td class="px-3 py-2">2026-11-03 09:30</td><td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-700">취소</span></td><td class="px-3 py-2 text-xs">소비자</td><td class="px-3 py-2 text-xs">소득공제</td><td class="px-3 py-2 text-right text-red-600">-80,000</td><td class="px-3 py-2 text-right text-red-600">-8,000</td><td class="px-3 py-2 text-right font-medium text-red-600">-88,000</td>
+            <td class="px-3 py-2 bg-emerald-50/30 text-xs text-gray-400">취소 건 — 대상 아님</td><td class="px-3 py-2 text-xs text-gray-400">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-[11px] text-gray-500 mt-2">매칭된 입금 클릭 = 통장 내역의 그 행. ✕ = 연결 해제. 취소 건은 매칭 대상이 아니고 승인 건 금액 그대로 비교한다(취소분은 환불 출금으로 따로 본다).</p>
+  </section>
+
+  <!-- 2. 매칭 모달 -->
+  <section>
+    <h2 class="text-lg font-bold mb-2">2. "매칭" 모달 — 입금 후보 선택 (계산서 결제연결 모달과 같은 모양)</h2>
+    <div class="bg-white border border-gray-200 rounded-2xl shadow-xl max-w-3xl p-5">
+      <div class="flex items-center justify-between mb-1"><div class="font-bold">입금 연결 — 현금영수증 2026-11-05 · 330,000원 <span class="text-xs font-normal text-gray-400">(소비자 소득공제)</span></div><span class="text-gray-400">✕</span></div>
+      <p class="text-xs text-gray-500 mb-3">남은 금액 <b class="num">330,000원</b>. 후보는 금액이 같거나 더 큰 입금, ±7일, 계산서·다른 현금영수증에 연결되지 않은 것. 입금자명이 비슷하면 위로.</p>
+      <div class="text-xs text-gray-400 mb-1">추천 후보</div>
+      <table class="w-full text-sm num mb-3">
+        <thead><tr class="text-left text-xs text-gray-400 border-b border-gray-200"><th class="py-1.5 pr-3"></th><th class="py-1.5 pr-3 font-medium">입금일</th><th class="py-1.5 pr-3 font-medium">계좌</th><th class="py-1.5 pr-3 font-medium">적요 / 보낸분</th><th class="py-1.5 pr-3 font-medium text-right">입금액</th><th class="py-1.5 pr-3 font-medium text-right">연결 금액</th><th class="py-1.5 font-medium">근거</th></tr></thead>
+        <tbody class="divide-y divide-gray-100">
+          <tr class="bg-emerald-50/40"><td class="py-2 pr-3"><input type="radio" checked></td><td class="py-2 pr-3">2026-11-05</td><td class="py-2 pr-3 text-xs">하나 주거래</td><td class="py-2 pr-3">이수진</td><td class="py-2 pr-3 text-right">330,000</td><td class="py-2 pr-3 text-right"><input value="330,000" class="border border-gray-300 rounded px-2 py-0.5 w-28 text-right"></td><td class="py-2 text-xs text-emerald-700">금액 일치 · 같은 날</td></tr>
+          <tr><td class="py-2 pr-3"><input type="radio"></td><td class="py-2 pr-3">2026-11-04</td><td class="py-2 pr-3 text-xs">국민</td><td class="py-2 pr-3">(주)한빛유통</td><td class="py-2 pr-3 text-right">660,000</td><td class="py-2 pr-3 text-right"><input value="330,000" class="border border-gray-300 rounded px-2 py-0.5 w-28 text-right"></td><td class="py-2 text-xs text-gray-500">금액 ≥ · 1일 전 (다른 영수증과 합산 가능)</td></tr>
+        </tbody>
+      </table>
+      <div class="text-xs text-gray-400 mb-1">직접 찾기</div>
+      <div class="flex flex-wrap items-center gap-2 text-xs mb-3"><input type="date" value="2026-10-29" class="border border-gray-300 rounded px-2 py-1"><span>~</span><input type="date" value="2026-11-12" class="border border-gray-300 rounded px-2 py-1"><input placeholder="적요 · 보낸분 · 금액" class="border border-gray-300 rounded px-2 py-1 w-48"><button class="px-2.5 py-1 border border-gray-300 rounded">검색</button></div>
+      <div class="flex justify-end gap-2"><button class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">취소</button><button class="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm">연결</button></div>
+    </div>
+  </section>
+
+  <!-- 3. 통장 내역 쪽 -->
+  <section>
+    <h2 class="text-lg font-bold mb-2">3. 통장 내역 — 연결 표시 · 필터</h2>
+    <div class="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+      <table class="w-full text-sm num">
+        <thead><tr class="text-left text-xs text-gray-400 border-b border-gray-200"><th class="py-2.5 px-3 font-medium">거래일자</th><th class="py-2.5 px-3 font-medium">내용/적요</th><th class="py-2.5 px-3 font-medium text-right">입금액</th><th class="py-2.5 px-3 font-medium">계정과목</th><th class="py-2.5 px-3 font-medium">상태</th><th class="py-2.5 px-3 font-medium">계산서</th><th class="py-2.5 px-3 font-medium bg-emerald-50">현금영수증 <span class="text-emerald-500">신규</span></th></tr></thead>
+        <tbody class="divide-y divide-gray-100">
+          <tr><td class="px-3 py-2">2026-11-05</td><td class="px-3 py-2">이수진</td><td class="px-3 py-2 text-right text-blue-600">330,000</td><td class="px-3 py-2 italic text-gray-500">상품매출 (추천)</td><td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs bg-orange-50 text-orange-600">미검토</span></td><td class="px-3 py-2 text-gray-300">—</td><td class="px-3 py-2 bg-emerald-50/30"><a class="px-1.5 py-0.5 rounded text-xs bg-emerald-100 text-emerald-700">11-05 소비자 330,000</a></td></tr>
+          <tr><td class="px-3 py-2">2026-11-04</td><td class="px-3 py-2">(주)한빛유통</td><td class="px-3 py-2 text-right text-blue-600">660,000</td><td class="px-3 py-2 font-semibold">매출채권</td><td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700">확정</span></td><td class="px-3 py-2"><a class="px-1.5 py-0.5 rounded text-xs bg-sky-100 text-sky-700">한빛유통 660,000</a></td><td class="px-3 py-2 bg-emerald-50/30 text-gray-300">—</td></tr>
+          <tr class="bg-red-50/40"><td class="px-3 py-2">2026-11-02</td><td class="px-3 py-2">최민수</td><td class="px-3 py-2 text-right text-blue-600">150,000</td><td class="px-3 py-2 font-semibold">상품매출</td><td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700">확정</span></td><td class="px-3 py-2 text-gray-300">—</td><td class="px-3 py-2 bg-emerald-50/30 text-gray-300">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="text-xs text-gray-600 mt-2 space-y-1">
+      <li>· 열 "현금영수증": 연결된 영수증(날짜 · 발행구분 · 금액), 클릭 = 현금영수증 화면의 그 행.</li>
+      <li>· 통합 검색의 "연결" 필터에 <b>현금영수증</b> 항목 추가 → <span class="font-mono">입금 계정:상품매출 연결:없음</span> 조합이 <b>증빙 없는 매출 입금</b>(위 빨간 행)이 된다. 빠른 조건 칩 "증빙 없는 매출 입금" 추가.</li>
+      <li>· 분류 추천: 현금영수증에 연결된 입금은 상품매출(4001)을 추천한다(계산서 연결 입금 = 매출채권 추천과 대칭).</li>
+    </ul>
+  </section>
+
+  <!-- 4. 규칙 -->
+  <section class="bg-white border border-gray-200 rounded-xl p-4 text-xs text-gray-600">
+    <div class="font-semibold text-gray-700 mb-2">동작 규칙 · DB</div>
+    <ul class="space-y-1">
+      <li>· <b>425</b>: <span class="font-mono">cash_receipt_payments(cash_receipt_id, transaction_id, amount, matched_by auto|manual)</span> + <span class="font-mono">cash_receipts.payment_status</span>(unmatched/partial/matched). 계산서 결제연결과 같은 모양. 원본 변경 없음, 분개 영향 없음.</li>
+      <li>· 대상: 매출(발행) · 승인 건만. 취소 건은 대상 아님(승인 금액 그대로 비교, 취소분은 환불 출금으로 따로).</li>
+      <li>· 자동 매칭(버튼, 선택 건): 금액 같음 · 입금일 = 발행일 ±7일 · 그 입금이 계산서·다른 영수증에 연결 안 됨 · 후보가 딱 1건일 때만. 그 외는 사람이 모달에서.</li>
+      <li>· 한 입금에 여러 영수증(합산 입금), 한 영수증에 여러 입금(분할) 모두 허용 — 연결 금액 합이 양쪽 금액을 넘지 못한다.</li>
+      <li>· 증빙 기준 손익: 현금영수증과 계산서의 중복 제거는 지금 규칙(사업자번호·금액·±7일) 유지. 연결이 있으면 그 입금은 "증빙 있음"으로 표시.</li>
+      <li>· 업로드 시 현금영수증 재업로드(갱신)해도 연결은 유지(행 id 유지). 영수증 삭제 시 연결도 삭제(CASCADE).</li>
+    </ul>
+  </section>
+
+</div>
+</body>
+</html>
