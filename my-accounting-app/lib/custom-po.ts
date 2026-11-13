@@ -59,7 +59,6 @@ async function buildDaekyungInvoice(po: PoExcelData): Promise<Buffer> {
 interface CustomPoForm {
   key: string
   label: string                        // 발송 페이지·파일명 표기
-  filePrefix: string                   // 첨부 파일명 접두 (예: 송장등록)
   matches: (vendorName: string) => boolean
   build: (po: PoExcelData) => Promise<Buffer>
 }
@@ -68,7 +67,6 @@ const FORMS: CustomPoForm[] = [
   {
     key: 'daekyung',
     label: '대경사과원예농협 송장등록 양식',
-    filePrefix: '송장등록',
     matches: name => name.replace(/\s+/g, '').includes('대경사과'),
     build: buildDaekyungInvoice,
   },

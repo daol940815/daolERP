@@ -3,9 +3,9 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildPoExcel, sendPoMail, smtpReady } from '@/lib/purchase-orders'
-import { fillMailTemplate, poMailVars } from '@/lib/po-form'
+import { fillMailTemplate, poMailVars, poShippingLines } from '@/lib/po-form'
 import { findCustomPoForm } from '@/lib/custom-po'
-import { loadPo, currentStaff, assembleForm, formExtraOf, one } from '@/lib/po-assemble'
+import { loadPo, currentStaff, assembleForm, formExtraOf, one, poFileNameFor } from '@/lib/po-assemble'
 import { activeVendorForm, draftVendorForm, buildWithVendorForm, recordFormUsed } from '@/lib/po-vendor-form-server'
 
 export const dynamic = 'force-dynamic'
@@ -33,16 +33,16 @@ async function outputOf(
   employeeId: string | null | undefined,
 ): Promise<PoOutput> {
   const form = await assembleForm(admin, data, staff)
-  const base = `${data.po.po_no}_${data.po.vendor_name}.xlsx`
   const vf = await activeVendorForm(admin, data.po.vendor_id)
   if (vf) {
     const r = await buildWithVendorForm(admin, vf, form, await formExtraOf(admin, data, employeeId))
     if (!r.ok) return r
-    return { ok: true, buffer: r.buffer, fileName: `발주서_${base}`, kind: 'vendor', vendorForm: { id: vf.id, version: vf.version, file_name: vf.file_name }, warnings: r.warnings }
+    return { ok: true, buffer: r.buffer, fileName: await poFileNameFor(admin, data), kind: 'vendor', vendorForm: { id: vf.id, version: vf.version, file_name: vf.file_name }, warnings: r.warnings }
   }
   const custom = findCustomPoForm(data.po.vendor_name)
-  if (custom) return { ok: true, buffer: await custom.build(form), fileName: `${custom.filePrefix ?? '발주서'}_${base}`, kind: 'code', vendorForm: null, warnings: [] }
-  return { ok: true, buffer: await buildPoExcel(form), fileName: `발주서_${base}`, kind: 'standard', vendorForm: null, warnings: [] }
+  if (custom) return { ok: true, buffer: await custom.build(form), fileName: await poFileNameFor(admin, data), kind: 'code', vendorForm: null, warnings: [] }
+  // 자사 기본 양식: 택배비 줄 확인 알림(나누어떨어지지 않음 등, 2026-11-12)도 업체 양식처럼 내려보낸다
+  return { ok: true, buffer: await buildPoExcel(form), fileName: await poFileNameFor(admin, data), kind: 'standard', vendorForm: null, warnings: poShippingLines(form).warnings }
 }
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -73,6 +73,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   const vendorFlags = one(data.po.vendor)
   // form: 화면 미리보기용 양식 데이터 — 엑셀과 같은 조립 함수를 거친다
+  const form = await assembleForm(admin, data, staff)
   return NextResponse.json({
     ...data,
     po: {
@@ -86,18 +87,19 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       sender_name: (l.sender as unknown as { name: string } | null)?.name ?? null,
       sender: undefined,
     })),
-    form: await assembleForm(admin, data, staff),
+    form,
     smtp_ready: smtpReady(),
     // 출력 양식 (2026-11-09): 업체 양식이면 버전 · 확인 목록, 사용 시작 전 버전만 있으면 안내
     output: await (async () => {
       const vf = await activeVendorForm(admin, data.po.vendor_id)
       if (vf) {
         const out = await outputOf(admin, data, staff, me.employeeId)
-        return { kind: 'vendor', vendor_form: { id: vf.id, version: vf.version, file_name: vf.file_name },
+        return { kind: 'vendor', vendor_form: { id: vf.id, version: vf.version, file_name: vf.file_name }, file_name: out.ok ? out.fileName : await poFileNameFor(admin, data),
           warnings: out.ok ? out.warnings : [], error: out.ok ? null : out.error }
       }
       const draft = await draftVendorForm(admin, data.po.vendor_id)
-      return { kind: findCustomPoForm(data.po.vendor_name) ? 'code' : 'standard', vendor_form: null, warnings: [], error: null,
+      const code = !!findCustomPoForm(data.po.vendor_name)
+      return { kind: code ? 'code' : 'standard', vendor_form: null, warnings: code ? [] : poShippingLines(form).warnings, error: null, file_name: await poFileNameFor(admin, data),
         draft_version: draft?.version ?? null, vendor_id: data.po.vendor_id }
     })(),
   })

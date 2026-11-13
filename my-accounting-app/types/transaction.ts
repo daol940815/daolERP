@@ -23,6 +23,12 @@ export interface Transaction {
   transfer_pair_id?: string | null
   created_at: string
   // 이 거래에 연결된 세금계산서 결제연결 (계산서 쪽에서 매칭해도 통장 쪽에 표시 — 양방향)
+  // 이 거래에 연결된 현금영수증(매출 발행) — 425 (연결만, 분개 영향 없음)
+  cash_receipt_links?: {
+    amount: number
+    matched_by: string
+    receipt: { id: string; tx_date: string; issue_type: string | null; purpose_type: string | null; amount: number; counterparty_name: string | null }
+  }[]
   invoice_links?: {
     amount: number
     invoice: {

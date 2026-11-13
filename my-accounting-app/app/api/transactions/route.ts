@@ -71,6 +71,26 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // 현금영수증 연결(425)도 같은 방식으로 붙인다 — 테이블이 없으면 건너뜀
+  type CashLink = { transaction_id: string; amount: number; matched_by: string; receipt: { id: string; tx_date: string; issue_type: string | null; purpose_type: string | null; amount: number; counterparty_name: string | null } | null }
+  const cashResult = await fetchAllRows<CashLink>((f, t) =>
+    admin
+      .from('cash_receipt_payments')
+      .select('transaction_id, amount, matched_by, receipt:cash_receipts(id, tx_date, issue_type, purpose_type, amount, counterparty_name)')
+      .range(f, t) as unknown as PromiseLike<{ data: CashLink[] | null; error: { message: string } | null }>,
+  )
+  if (!('error' in cashResult)) {
+    const byTx = new Map<string, { amount: number; matched_by: string; receipt: NonNullable<CashLink['receipt']> }[]>()
+    for (const l of cashResult.data) {
+      if (!l.receipt) continue
+      byTx.set(l.transaction_id, [...(byTx.get(l.transaction_id) ?? []), { amount: l.amount, matched_by: l.matched_by, receipt: l.receipt }])
+    }
+    for (const tx of result.data) {
+      const links = byTx.get(tx.id as string)
+      if (links) tx.cash_receipt_links = links
+    }
+  }
+
   return NextResponse.json({ data: result.data })
 }
 

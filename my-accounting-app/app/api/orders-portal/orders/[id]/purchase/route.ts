@@ -120,8 +120,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // 판매가 발주 매입처(요아럽 — 사용자 확정 2026-08-19): 발주서 금액을 매입가 대신
   // 판매가로 스냅샷 — 단가=판매가, 배송비=판매 배송비, 합계=판매합계(할인 반영)
   const useSale = info?.po_use_sale_price ?? false
+  // 택배비(2026-11-12 확정): 매입배송비가 0인 품목의 고객 택배비는 업체와 무관한 매출 — 발주서에 줄을 만들지 않으므로
+  // 판매가 발주(요아럽)의 배송비 · 합계에서도 뺀다(발주서 표와 합계가 어긋나지 않게). 매입배송비가 있으면 판매 배송비 그대로.
+  const saleShip = (it: OrderItemRow) => ((it.purchase_shipping ?? 0) > 0 ? (it.shipping_fee ?? 0) : 0)
+  const saleTotal = (it: OrderItemRow) => (it.line_total ?? 0) - ((it.shipping_fee ?? 0) - saleShip(it))
   const totalAmount = picked.reduce(
-    (s, it) => s + ((useSale ? it.line_total : it.purchase_total) ?? 0), 0)
+    (s, it) => s + ((useSale ? saleTotal(it) : it.purchase_total) ?? 0), 0)
 
   // 발번 → 생성 (동시 생성으로 번호가 겹치면 1회 재시도)
   let poId: string | null = null
@@ -159,8 +163,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         order_kind: it.order_kind,
         quantity: it.quantity ?? 0,
         purchase_price: pm.price,
-        purchase_shipping: (useSale ? it.shipping_fee : it.purchase_shipping) ?? 0,
-        purchase_total: (useSale ? it.line_total : it.purchase_total) ?? 0,
+        purchase_shipping: (useSale ? saleShip(it) : it.purchase_shipping) ?? 0,
+        purchase_total: (useSale ? saleTotal(it) : it.purchase_total) ?? 0,
         memo: pm.memo,
       }
     })

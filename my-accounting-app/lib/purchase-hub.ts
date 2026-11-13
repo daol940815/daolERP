@@ -220,6 +220,26 @@ const paidCountsAfterCutoff = (cutoff: string | null, tx_date: string, linked_is
   !cutoff || (!!tx_date && tx_date > cutoff && (!linked_issue || linked_issue > cutoff))
 
 // ── 목록 ─────────────────────────────────────────────────
+// 기준일 기준 미지급 잔액 합계 (424, 2026-11-12) — 대시보드 요약 줄 "미지급금 (YYYY-MM-DD 기준)".
+// 별도 구매처(retail)는 즉시 결제라 제외(목록 요약과 같은 규칙). 424 미적용이면 applied=false(호출 쪽이 현재 값으로 대신).
+export async function loadPayableOutstandingAsOf(
+  admin: SupabaseClient,
+  asOf: string,
+): Promise<{ total: number; over90: number; applied: boolean }> {
+  const j = await admin.rpc('hub_purchase_summary_json', { p_from: null, p_to: null, p_asof: asOf })
+  if (j.error || !Array.isArray(j.data)) return { total: 0, over90: 0, applied: false }
+  const retail = await fetchAllRows<{ id: string }>((f, t) =>
+    admin.from('vendors').select('id').eq('purchase_kind', 'retail').range(f, t))
+  const retailSet = new Set('error' in retail ? [] : retail.data.map(v => v.id))
+  let total = 0, over90 = 0
+  for (const r of j.data as { vendor_id: string; outstanding: number; over90: number }[]) {
+    if (retailSet.has(r.vendor_id)) continue
+    total += Math.max(0, r.outstanding ?? 0)
+    over90 += r.over90 ?? 0
+  }
+  return { total, over90, applied: true }
+}
+
 export async function buildPurchaseHubList(
   admin: SupabaseClient,
   fromDate: string | null,

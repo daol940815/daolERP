@@ -65,6 +65,7 @@ export default function PoSendPage() {
   const [output, setOutput] = useState<{
     kind: 'vendor' | 'code' | 'standard'; vendor_form: { id: string; version: number; file_name: string } | null
     warnings: string[]; error: string | null; draft_version?: number | null; vendor_id?: string | null
+    file_name?: string   // 자동 생성본 파일 이름 (2026-11-12 — 서버 poFileName과 같은 값)
   } | null>(null)
 
   // 프리셋 관리 모달
@@ -278,6 +279,12 @@ export default function PoSendPage() {
             )}
           </div>
         )}
+        {/* 자사 기본 양식의 확인 알림 — 택배비 수량 확인 필요 등 (2026-11-12) */}
+        {output && output.kind === 'standard' && output.warnings.length > 0 && (
+          <div className="mt-3 rounded-lg px-3 py-2 text-sm bg-amber-50 text-amber-800">
+            <ul className="list-disc pl-5 text-xs space-y-0.5">{output.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+          </div>
+        )}
         {output && output.kind !== 'vendor' && output.draft_version != null && (
           <div className="mt-3 rounded-lg px-3 py-2 text-sm bg-amber-50 text-amber-800">
             업체 양식 버전 {output.draft_version}이 아직 &lsquo;작성 중&rsquo;이라 {output.kind === 'code' ? '코드 자체 양식' : '자사 기본 양식'}으로 나갑니다.
@@ -302,7 +309,7 @@ export default function PoSendPage() {
             <div className={`flex items-center gap-2.5 border rounded-lg px-3 py-2 text-sm ${
               attachments.some(a => a.kind === 'replace') ? 'border-gray-100 bg-gray-50 text-gray-400' : 'border-gray-200 bg-gray-50/60'}`}>
               {badge('bg-gray-200/70 text-gray-600', '자동')}
-              <span className="font-medium">발주서_{po.po_no}_{po.vendor_name}.xlsx</span>
+              <span className="font-medium break-all">{output?.file_name ?? `발주서_${po.po_no}_${po.vendor_name}.xlsx`}</span>
               {output?.kind === 'vendor' && output.vendor_form && badge('bg-violet-100 text-violet-700', `업체 양식 v${output.vendor_form.version}`)}
               <span className="text-[0.6875rem] text-gray-400">
                 {attachments.some(a => a.kind === 'replace')

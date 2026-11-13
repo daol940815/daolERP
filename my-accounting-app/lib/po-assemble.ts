@@ -2,7 +2,7 @@
 // (2026-11-09 purchase-orders/[id]/route.ts에서 그대로 옮김 — 동작 변경 없음)
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { rosterRowsForOrder } from '@/lib/delivery-roster-server'
-import { normalizeShipRequest, type PoExcelData } from '@/lib/po-form'
+import { normalizeShipRequest, poFileName, type PoExcelData } from '@/lib/po-form'
 import type { FormExtra } from '@/lib/po-vendor-form'
 
 export interface PoRecord {
@@ -106,26 +106,30 @@ export async function assembleForm(
   }
 
   // 품목 구분 (2026-11-05): 원 주문 품목 → 품목 마스터의 '비용 품목'(is_shipping) · 부가상품(is_addon 또는 옵션 행)
+  // 택배비 줄(2026-11-12): 품목 관리의 박스당 택배비 + 원 주문 품목의 실제 매입배송비도 함께 읽는다
   const roleByOrderItem = new Map<string, 'fee' | 'addon'>()
+  const shipByOrderItem = new Map<string, { box_fee: number | null; purchase: number }>()
   const orderItemIds = items.map(it => it.order_item_id).filter(Boolean) as string[]
   if (orderItemIds.length) {
     const { data: ois } = await admin.from('erp_order_items')
-      .select('id, product_id, parent_line_no').in('id', orderItemIds)
+      .select('id, product_id, parent_line_no, purchase_shipping').in('id', orderItemIds)
     const pids = Array.from(new Set((ois ?? []).map(o => o.product_id).filter(Boolean))) as string[]
-    const prodFlags = new Map<string, { fee: boolean; addon: boolean }>()
+    const prodFlags = new Map<string, { fee: boolean; addon: boolean; box_fee: number }>()
     if (pids.length) {
-      const withShip = await admin.from('erp_products').select('id, is_addon, is_shipping').in('id', pids)
+      const withShip = await admin.from('erp_products').select('id, is_addon, is_shipping, carton_shipping_fee, loose_shipping_fee').in('id', pids)
       const rows = withShip.error
-        ? (await admin.from('erp_products').select('id, is_addon').in('id', pids)).data   // 703 미적용 폴백
+        ? (await admin.from('erp_products').select('id, is_addon, carton_shipping_fee, loose_shipping_fee').in('id', pids)).data   // 703 미적용 폴백
         : withShip.data
-      for (const p of (rows ?? []) as { id: string; is_addon?: boolean; is_shipping?: boolean }[]) {
-        prodFlags.set(p.id, { fee: !!p.is_shipping, addon: !!p.is_addon })
+      for (const p of (rows ?? []) as { id: string; is_addon?: boolean; is_shipping?: boolean; carton_shipping_fee?: number | null; loose_shipping_fee?: number | null }[]) {
+        const carton = Number(p.carton_shipping_fee ?? 0) || 0
+        prodFlags.set(p.id, { fee: !!p.is_shipping, addon: !!p.is_addon, box_fee: carton > 0 ? carton : (Number(p.loose_shipping_fee ?? 0) || 0) })
       }
     }
     for (const o of ois ?? []) {
       const f = o.product_id ? prodFlags.get(o.product_id as string) : undefined
       if (f?.fee) roleByOrderItem.set(o.id as string, 'fee')
       else if (f?.addon || o.parent_line_no) roleByOrderItem.set(o.id as string, 'addon')
+      shipByOrderItem.set(o.id as string, { box_fee: f ? f.box_fee : null, purchase: Number(o.purchase_shipping ?? 0) || 0 })
     }
   }
 
@@ -158,7 +162,10 @@ export async function assembleForm(
       purchase_shipping: it.purchase_shipping ?? 0, purchase_total: it.purchase_total ?? 0,
       memo: it.memo,
       role: it.order_item_id ? roleByOrderItem.get(it.order_item_id as string) ?? null : null,
+      ship_box_fee: it.order_item_id ? shipByOrderItem.get(it.order_item_id as string)?.box_fee ?? null : null,
+      ship_purchase: it.order_item_id ? shipByOrderItem.get(it.order_item_id as string)?.purchase ?? null : null,
     })),
+    sale_basis: one(po.vendor)?.po_use_sale_price === true,
   }
 }
 
@@ -182,4 +189,46 @@ export async function formExtraOf(admin: SupabaseClient, data: LoadedPo, employe
     staff_title: ((e.data as { position?: string | null } | null)?.position ?? null) || null,
     manager_plain: manager || null,
   }
+}
+
+// 발주서 파일 이름 (2026-11-13 사용자 확정 — 규칙은 lib/po-form.ts poFileName)
+// 상담자: 연결 상담일지 작성자 → 없으면 주문 상담자(500 counselor_employee_id) → 없으면 칸 생략
+async function counselorNameOf(admin: SupabaseClient, orderId: string, consultationId: string | null | undefined): Promise<string | null> {
+  let empId: string | null = null
+  if (consultationId) {
+    const { data } = await admin.from('erp_consultations').select('employee_id').eq('id', consultationId).maybeSingle()
+    empId = (data?.employee_id as string | null) ?? null
+  }
+  if (!empId) {
+    const { data, error } = await admin.from('erp_orders').select('counselor_employee_id').eq('id', orderId).maybeSingle()
+    if (!error) empId = (data?.counselor_employee_id as string | null) ?? null
+  }
+  if (!empId) return null
+  const { data: e } = await admin.from('employees').select('name').eq('id', empId).maybeSingle()
+  return (e?.name as string | null) ?? null
+}
+async function baseFileName(admin: SupabaseClient, data: NonNullable<Awaited<ReturnType<typeof loadPo>>>, dupNo?: number) {
+  return poFileName({
+    po_no: data.po.po_no, created_at: data.po.created_at, vendor_name: data.po.vendor_name,
+    bank_name: data.order?.bank_name, branch_name: data.order?.branch_name, manager_name: data.order?.manager_name,
+    kinds: data.items.map(it => it.order_kind as string | null),
+    counselor: await counselorNameOf(admin, data.po.order_id, data.order?.consultation_id), dupNo,
+  })
+}
+// 같은 이름 대비: 같은 날(발주번호 날짜) · 같은 매입처의 앞선 발주서(취소 포함) 중 이름이 같은 것이 n개면 끝에 _(n+1).
+// 앞선 것만 보므로 나중에 발주서가 더 생겨도 이 발주서 이름은 바뀌지 않는다
+export async function poFileNameFor(admin: SupabaseClient, data: NonNullable<Awaited<ReturnType<typeof loadPo>>>): Promise<string> {
+  const mine = await baseFileName(admin, data)
+  const m = data.po.po_no.match(/^(PO\d{6}-)(\d+)$/)
+  if (!m) return mine
+  const { data: rows } = await admin.from('erp_purchase_orders')
+    .select('id, po_no').like('po_no', `${m[1]}%`).eq('vendor_name', data.po.vendor_name)
+  const seqOf = (no: string) => parseInt(no.slice(m[1].length), 10)
+  const earlier = (rows ?? []).filter(r => r.id !== data.po.id && seqOf(r.po_no as string) < seqOf(data.po.po_no))
+  const names = await Promise.all(earlier.map(async r => {
+    const d = await loadPo(admin, r.id as string)
+    return d ? baseFileName(admin, d) : null
+  }))
+  const dup = names.filter(n => n === mine).length
+  return dup ? baseFileName(admin, data, dup + 1) : mine
 }

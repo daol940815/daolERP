@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { splitVat } from '@/lib/card-sale-vat'
 
 // ── 예상 부가세 ──────────────────────────────────────────
 // 세금계산서/현금영수증/카드매출/법인카드 자료를 바탕으로 기간 내 매출세액·매입세액을
@@ -28,15 +29,10 @@ export interface VatEstimateResult {
   purchase_breakdown: VatBreakdownItem[]
 }
 
-// 카드매출 공급가·세액 구분 미기재(둘 다 0, 수기결제 PG 파일 등)는 과세로 보고 1.1로 나눈다 (2026-11-12 사용자 결정 —
-// 월별 손익과 같은 기준). 마이그레이션 400 보정식과 같다: 공급가 = round(금액/1.1), 세액 = 금액 − 공급가.
-export function cardSaleVat(amount: number | null, supply: number | null, tax: number | null): { supply: number; tax: number; missing: boolean } {
-  const amt = amount || 0, sup = supply || 0, tx = tax || 0
-  if (sup === 0 && tx === 0 && amt !== 0) {
-    const s = Math.sign(amt) * Math.round(Math.abs(amt) / 1.1)
-    return { supply: s, tax: amt - s, missing: true }
-  }
-  return { supply: sup, tax: tx, missing: false }
+// 카드매출 공급가·세액 구분 미기재(둘 다 0)는 과세로 보고 1.1로 나눈다 — lib/card-sale-vat.ts splitVat (2026-11-12 사용자 결정)
+const cardSaleVat = (amount: number | null, supply: number | null, tax: number | null) => {
+  const v = splitVat(amount, supply, tax)
+  return { supply: v.supply, tax: v.tax, missing: v.kind === 'unknown' }
 }
 
 function sumTax(rows: { tax_amount: number | null }[] | null): number {

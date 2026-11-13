@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/user-role'
 import { areasFor } from '@/lib/permissions'
@@ -10,6 +9,8 @@ export const dynamic = 'force-dynamic'
 
 // 업무 선택 — 권한이 있는 영역만 카드로(제목만). 영역이 하나뿐이면 이 화면 없이 바로 진입.
 // 카드는 /api/area/select 를 거쳐 마지막 선택 영역을 쿠키에 남기고 그 영역 홈으로 간다.
+// 카드는 일반 <a> — next/link 는 화면에 보이면 주소를 미리 불러와(prefetch) 4개 카드의 API가 클릭 전에
+// 모두 실행되고 마지막 응답이 쿠키를 덮어써 어떤 카드를 눌러도 같은 영역(대개 경영 현황)으로 갔다 (2026-11-12 수정).
 export default async function PortalPage() {
   const me = await getCurrentUser()
   if (!me) redirect('/login')
@@ -33,10 +34,10 @@ export default async function PortalPage() {
 
       <div className="flex gap-4 mt-8 flex-wrap justify-center">
         {areas.map(a => (
-          <Link key={a.key} href={`/api/area/select?area=${a.key}`}
+          <a key={a.key} href={`/api/area/select?area=${a.key}`}
             className="flex items-center justify-center bg-white rounded-2xl w-52 h-28 text-lg font-bold text-slate-900 hover:-translate-y-0.5 hover:shadow-xl transition-all">
             {a.label}
-          </Link>
+          </a>
         ))}
       </div>
 
