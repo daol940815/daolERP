@@ -64,6 +64,7 @@ export const MENU: MenuGroup[] = [
     { label: '샘플 재고', href: '/orders/sample-stock' },
   ]},
   { key: 'collections', area: 'sales', label: '수금 · 정산 작업', items: [
+    { label: '결제 확인', href: '/payments' },   // 결제 기록(1차) ↔ 카드 매출 · 통장 입금 대조(2차) — 1300, 2026-11-13
     { label: '수금 대상', href: '/reports/erp-receivables' },
     { label: '입금 매칭', href: '/erp-matching' },
     { label: '계산서 발행 대상', href: '/sales-cycle' },
@@ -215,6 +216,7 @@ export const API_OWNERS: { prefix: string; group: MenuGroupKey | MenuGroupKey[] 
   { prefix: '/api/erp-items', group: 'orders' },
   // 수금 · 정산 작업
   { prefix: '/api/erp-matching', group: 'collections' },
+  { prefix: '/api/payment-records', group: 'collections' },   // 결제 확인(2차). 1차 기록은 /api/orders-portal/orders/[id]/pay-records (주문 · 발주)
   { prefix: '/api/sales-cycle', group: 'collections' },
   { prefix: '/api/purchase-cycle', group: 'collections' },
   { prefix: '/api/purchase-hub', group: 'customers' },   // 매입처 관리가 거래처 관리 그룹으로 이동(2026-09-29)

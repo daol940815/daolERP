@@ -100,6 +100,8 @@
   **`1200번대` 공통 첨부 파일(인수인계: docs/attachments-track.md — 테이블 `attachments` · 비공개 버킷 `attachments` · 브라우저 → Storage 직접 업로드,
   화면 부품 `components/attachments/AttachmentBox.tsx`, 쓰는 곳 등록은 `lib/attachments-server.ts` `ATTACHMENT_OWNERS`. 1차 업무 요청 2026-11-11, 1200 적용 2026-11-11.
   새 화면의 첨부는 자체 테이블 · 버킷을 만들지 말고 이 모듈을 쓸 것. 파일을 Vercel 서버로 받지 말 것 — 본문 4.5MB 한도)** /
+  **`1300번대` 결제처리 트랙(인수인계: docs/payment-track.md — 결제 기록 `order_payment_records`(1차 수기 입력, 주문 상세) → 결제 확인 `/payments`(2차, 원본 대조 후 확정 = `erp_payment_matches.record_id`).
+  미수는 2차 확정에서만 줄어든다. 카드번호 전체는 저장하지 않는다(승인번호 + 뒤 4자리). 1300 실행 대기 2026-11-13)** /
   새 트랙은 다음 100번대를 사용(1100번대는 회의록 트랙이 사용 예정).
 - 원본 데이터 재적재(ERP 주문 정리본 교체, 2026-10-21 결정 — 마이그레이션 없음, 데이터 작업만):
   docs/erp-reload-track.md. **별도 세션에서 진행**(인수인계 섹션 참고). 2026-10-26 결정: 과거 내역은 재입력하지 않고 **전부 삭제 후

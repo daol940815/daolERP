@@ -7,6 +7,7 @@ import PurchaseSection from './purchase-section'
 import { hasShip, needsShip, shipText, SHIP_KINDS } from '@/lib/ship-address'
 import RosterCard from '../roster-card'
 import ReplyCard, { type ReplyData } from './reply-card'
+import PayRecords, { type PayRecordsData } from './pay-records'
 import ReasonPicker from '@/components/ui/ReasonPicker'
 import { ORDER_CANCEL_REASONS, composeReason } from '@/lib/cancel-reasons'
 import { ORDERS_LIST_URL_KEY } from '@/lib/order-search-fields'
@@ -37,7 +38,7 @@ interface EditLog {
 }
 // 결제 내역 (2026-11-04 — 표기 전용, 회계 화면 링크 없음)
 interface PaymentMatch {
-  id: string; source_type: 'bank' | 'card' | 'cash' | 'prepay'; amount: number; paid_date: string
+  id: string; source_type: 'bank' | 'card' | 'cash' | 'prepay'; amount: number; paid_date: string; record_id?: string | null
   matched_by: string; memo: string | null
   source: { label: string; total: number } | null
 }
@@ -76,6 +77,7 @@ export default function OrderDetailPage() {
   const [payments, setPayments] = useState<Payments>({ matches: [], invoices: [] })
   const [receivable, setReceivable] = useState<Receivable | null>(null)
   const [prepay, setPrepay] = useState<PrepayInfo | null>(null)
+  const [payRecords, setPayRecords] = useState<PayRecordsData>({ available: false, records: [], can_record: false })   // 결제 기록 (1300)
   const [consultRequest, setConsultRequest] = useState<{ requested_by_name: string | null; assignee_name: string | null } | null>(null)
   const [reply, setReply] = useState<ReplyData | null>(null)   // 완료 회신 (515)
   const [prepayOpen, setPrepayOpen] = useState(false)
@@ -106,6 +108,7 @@ export default function OrderDetailPage() {
       setPayments(json.payments ?? { matches: [], invoices: [] })
       setReceivable(json.receivable ?? null)
       setPrepay(json.prepay ?? null)
+      setPayRecords(json.pay_records ?? { available: false, records: [], can_record: false })
       setConsultRequest(json.consult_request ?? null)
       setReply(json.reply ?? null)
       setRequests(json.change_requests ?? [])
@@ -455,6 +458,9 @@ export default function OrderDetailPage() {
             {prepayErr && <div className="mt-1.5 text-xs text-red-600">{prepayErr}</div>}
           </div>
         )}
+        {/* 결제 기록 (1300) — 1차 수기 입력. 아래 목록은 실제 수금(2차 확인 · 직접 매칭)과 계산서 연결 */}
+        {!canceled && <PayRecords orderId={String(id)} data={payRecords} outstanding={outstanding} onChanged={load} />}
+        {payRecords.available && <div className="text-xs font-semibold text-gray-700 mb-1.5">실제 수금 · 계산서</div>}
         {payments.matches.length === 0 && payments.invoices.length === 0 ? (
           <div className="text-xs text-gray-400 py-1.5">연결된 결제 내역이 아직 없습니다.</div>
         ) : (
@@ -479,6 +485,7 @@ export default function OrderDetailPage() {
                   </span>
                 )}
                 {m.matched_by === 'auto' && <span className="text-[0.625rem] text-gray-400">자동 매칭</span>}
+                {m.record_id && <span className="text-[0.625rem] px-1 py-0.5 rounded bg-green-50 text-green-700">결제 기록 확인분</span>}
                 {m.memo && <span className="text-xs text-gray-400">{m.memo}</span>}
                 {m.source_type === 'prepay' && prepay?.can_use && (
                   <button onClick={() => releasePrepay(m.id, m.amount)}
