@@ -58,6 +58,10 @@ export interface PurchaseHubListRow {
   outstanding: number       // 누적 미지급 잔액 (음수 = 과다지급)
   over90: number            // 발행 90일 초과 계산서의 미지급 잔여
   opening_remain: number    // 기초이월 미지급 잔여 (outstanding에 포함)
+  // 605: 기간 미지급 — 기간 안에 발행된 계산서의 미지급(같은 FIFO 배분) + 기초원장 기준일이 기간 안이면 기초 잔여.
+  // 과다지급은 특정 기간 몫이 아니라 빠진다(상태 판정은 outstanding). 605 미적용 RPC면 outstanding · over90을 그대로 쓴다.
+  period_outstanding: number
+  period_over90: number
   last_purchase_date: string | null
   status: PurchaseHubStatus
 }
@@ -66,8 +70,9 @@ export interface PurchaseHubListSummary {
   active_vendors: number
   invoice_total: number
   paid_total: number
-  outstanding_total: number   // 양수 잔액 합
+  outstanding_total: number   // 기간 미지급 합 (605 미적용이면 누적 양수 잔액 합)
   over90_total: number
+  period_basis: boolean       // true = 미지급 지표가 기간 기준(605 적용 또는 JS 폴백)
   pay_ratio: number
   unlinked_items: number      // ERP 품목 매입처 표기만 있고 별칭 미연결
   unlinked_aliases: number    // 매입 별칭 중 거래처 미연결
@@ -196,6 +201,27 @@ function computeFifo(
   }
 }
 
+// 605: 기간 미지급 — 기간 안에 발행된 계산서의 FIFO 미지급 + 기초원장 기준일이 기간 안이면 기초 잔여.
+// 전 기간을 고르면 누적 잔액의 양수 몫과 같다(과다지급 거래처는 계산서가 모두 갚아져 0).
+function periodUnpaidOf(
+  invoices: { id: string; issue_date: string }[],   // 기준일 이후분 (computeFifo에 넘긴 것과 같은 목록)
+  fifo: FifoResult,
+  inPeriod: (d: string | null) => boolean,
+  openingAsOf: string | null,
+  asOf: string,
+): { unpaid: number; over90: number } {
+  const over90Before = addDays(asOf, -90)
+  let unpaid = openingAsOf && inPeriod(openingAsOf) ? fifo.opening_remain : 0
+  let over90 = 0
+  for (const inv of invoices) {
+    if (!inPeriod(inv.issue_date)) continue
+    const u = fifo.unpaidByInvoice.get(inv.id) ?? 0
+    unpaid += u
+    if (inv.issue_date < over90Before) over90 += u
+  }
+  return { unpaid, over90 }
+}
+
 function judgeStatus(
   outstanding: number, over90: number, last: string | null, dormantBefore: string,
   kind: PurchaseKind = 'partner',
@@ -270,6 +296,7 @@ export async function buildPurchaseHubList(
     vendor_id: string; invoice_count: number; invoice_total: number; erp_amount: number
     paid_amount: number; outstanding: number; over90: number; opening_remain: number
     last_purchase_date: string | null
+    period_outstanding?: number; period_over90?: number   // 605
   }
   let aggRows: RpcRow[] | null = null
   {
@@ -285,6 +312,8 @@ export async function buildPurchaseHubList(
 
   const t0 = today()
   const acc = new Map<string, RpcRow>()
+  // 605 적용 여부 — RPC 응답에 기간 미지급 칸이 있으면 기간 기준 (JS 폴백은 항상 기간 기준)
+  const periodBasis = !aggRows || aggRows.length === 0 || aggRows[0].period_outstanding !== undefined
 
   if (aggRows) {
     for (const r of aggRows) acc.set(r.vendor_id, r)
@@ -359,6 +388,8 @@ export async function buildPurchaseHubList(
       outstanding: a.outstanding,
       over90: a.over90,
       opening_remain: a.opening_remain,
+      period_outstanding: a.period_outstanding ?? Math.max(0, a.outstanding),
+      period_over90: a.period_over90 ?? a.over90,
       last_purchase_date: a.last_purchase_date,
       status: judgeStatus(a.outstanding, a.over90, a.last_purchase_date, dormantBefore, kind),
     })
@@ -375,8 +406,10 @@ export async function buildPurchaseHubList(
       invoice_total: invTotal,
       paid_total: paidTotal,
       // 별도 구매처는 즉시 결제라 미지급 지표에서 제외 (경비성은 지급 의무가 있어 포함) — 602
-      outstanding_total: rows.reduce((s, r) => s + (r.purchase_kind === 'retail' ? 0 : Math.max(0, r.outstanding)), 0),
-      over90_total: rows.reduce((s, r) => s + (r.purchase_kind === 'retail' ? 0 : r.over90), 0),
+      // 605: 기간 미지급 기준 (미적용이면 period_* = 누적 값이라 종전과 같다)
+      outstanding_total: rows.reduce((s, r) => s + (r.purchase_kind === 'retail' ? 0 : r.period_outstanding), 0),
+      over90_total: rows.reduce((s, r) => s + (r.purchase_kind === 'retail' ? 0 : r.period_over90), 0),
+      period_basis: periodBasis,
       pay_ratio: invTotal > 0 ? Math.min(1, paidTotal / invTotal) : 1,
       unlinked_items: unlinkedItemsRes.count ?? 0,
       unlinked_aliases: unlinkedAliases,
@@ -394,6 +427,7 @@ async function buildListFallback(
   vendor_id: string; invoice_count: number; invoice_total: number; erp_amount: number
   paid_amount: number; outstanding: number; over90: number; opening_remain: number
   last_purchase_date: string | null
+  period_outstanding: number; period_over90: number
 }[] } | { error: string }> {
   const inPeriod = (d: string | null) => !!d && (!fromDate || d >= fromDate) && (!toDate || d <= toDate)
 
@@ -512,11 +546,15 @@ async function buildListFallback(
     vendor_id: string; invoice_count: number; invoice_total: number; erp_amount: number
     paid_amount: number; outstanding: number; over90: number; opening_remain: number
     last_purchase_date: string | null
+    period_outstanding: number; period_over90: number
   }[] = []
   for (const [vid, a] of Array.from(acc.entries())) {
     a.invs.sort((x, y) => x.issue_date.localeCompare(y.issue_date))
     const fifo = computeFifo(a.invs, a.paidAfter, openings.get(vid)?.amount ?? 0, t0)
+    const per = periodUnpaidOf(a.invs, fifo, inPeriod, openings.get(vid)?.as_of_date ?? null, t0)
     out.push({
+      period_outstanding: per.unpaid,
+      period_over90: per.over90,
       vendor_id: vid,
       invoice_count: a.invoice_count,
       invoice_total: a.invoice_total,
@@ -627,6 +665,8 @@ export interface PurchaseHubDetail {
     paid_total: number      // 기간 지급
     outstanding: number     // 누적 미지급 잔액 (음수 = 과다지급)
     opening_remain: number
+    period_outstanding: number  // 605: 기간 발행분 미지급 (목록과 같은 규칙)
+    period_over90: number
     erp_amount: number      // 기간 ERP 발주
     card_total: number      // 기간 카드 매입 (사업자번호 매칭)
     avg_pay_days: number | null  // 계산서 발행→지급 (금액 가중)
@@ -880,6 +920,7 @@ export async function buildPurchaseHubDetail(
   const paidAfterCutoff = payAll.reduce((s, p) => s + (paidCountsAfterCutoff(cutoff, p.tx_date, p.linked_issue) ? p.amount : 0), 0)
   const paidPeriod = payAll.reduce((s, p) => s + (inPeriod(p.tx_date) ? p.amount : 0), 0)
   const fifo = computeFifo(invsAfterCutoff, paidAfterCutoff, opening?.amount ?? 0, t0)
+  const perUnpaid = periodUnpaidOf(invsAfterCutoff, fifo, inPeriod, opening?.as_of_date ?? null, t0)
 
   // 카드 매입 (기간)
   let cardTotal = 0
@@ -999,6 +1040,8 @@ export async function buildPurchaseHubDetail(
       paid_total: paidPeriod,
       outstanding: fifo.outstanding,
       opening_remain: fifo.opening_remain,
+      period_outstanding: perUnpaid.unpaid,
+      period_over90: perUnpaid.over90,
       erp_amount: erpAmountPeriod,
       card_total: cardTotal,
       avg_pay_days: avgAmount > 0 ? Math.round(avgWeighted / avgAmount) : null,
