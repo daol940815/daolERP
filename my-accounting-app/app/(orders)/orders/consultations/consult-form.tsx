@@ -1012,11 +1012,14 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           상담 품목 <span className="text-[0.6875rem] font-normal text-gray-400 ml-1">품번 검색 시 원가표 기준 자동 — 수정 가능</span>
         </div>
         <SeasonDatalist id="consult-season-options" options={seasonOptions(consultDate, [...usedSeasons, ...items.map(x => x.order_season)])} />
-        <table className="w-full text-xs min-w-[1680px] table-fixed">
+        <table className="w-full text-xs min-w-[1774px] table-fixed">
           <colgroup>
             {/* 품번 폭을 상품명과 비슷하게 — 드롭다운 가독 (사용자 피드백 6) */}
-            <col className="w-[14%]" /><col className="w-[14%]" /><col className="w-16" /><col className="w-[5rem]" /><col className="w-12" />
+            <col className="w-[13.26%]" /><col className="w-[13.26%]" /><col className="w-16" /><col className="w-[5rem]" /><col className="w-12" />
             <col className="w-[4.25rem]" /><col className="w-[5.5rem]" /><col className="w-[5.5rem]" />
+            {/* 택배비(판매) (2026-11-12). 다른 칸이 이전 너비 그대로 보이게 최소 너비 1680 → 1774px, 품번 · 상품명 14% → 13.26%로 맞춤(2026-11-13).
+                열을 더할 때는 이 너비 정의와 표 최소 너비 · 비율을 함께 고칠 것 */}
+            <col className="w-[5.5rem]" />
             <col className="w-[5.5rem]" /><col className="w-24" />
             <col className="w-[5.5rem]" /><col className="w-[5.5rem]" /><col className="w-[6.75rem]" /><col className="w-[5.5rem]" /><col className="w-[5.5rem]" /><col className="w-8" />
           </colgroup>
