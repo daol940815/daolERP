@@ -2,7 +2,7 @@
 // (2026-11-09 purchase-orders/[id]/route.ts에서 그대로 옮김 — 동작 변경 없음)
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { rosterRowsForOrder } from '@/lib/delivery-roster-server'
-import { normalizeShipRequest, type PoExcelData } from '@/lib/po-form'
+import { normalizeShipRequest, poFileName, type PoExcelData } from '@/lib/po-form'
 import type { FormExtra } from '@/lib/po-vendor-form'
 
 export interface PoRecord {
@@ -182,4 +182,46 @@ export async function formExtraOf(admin: SupabaseClient, data: LoadedPo, employe
     staff_title: ((e.data as { position?: string | null } | null)?.position ?? null) || null,
     manager_plain: manager || null,
   }
+}
+
+// 발주서 파일 이름 (2026-11-13 사용자 확정 — 규칙은 lib/po-form.ts poFileName)
+// 상담자: 연결 상담일지 작성자 → 없으면 주문 상담자(500 counselor_employee_id) → 없으면 칸 생략
+async function counselorNameOf(admin: SupabaseClient, orderId: string, consultationId: string | null | undefined): Promise<string | null> {
+  let empId: string | null = null
+  if (consultationId) {
+    const { data } = await admin.from('erp_consultations').select('employee_id').eq('id', consultationId).maybeSingle()
+    empId = (data?.employee_id as string | null) ?? null
+  }
+  if (!empId) {
+    const { data, error } = await admin.from('erp_orders').select('counselor_employee_id').eq('id', orderId).maybeSingle()
+    if (!error) empId = (data?.counselor_employee_id as string | null) ?? null
+  }
+  if (!empId) return null
+  const { data: e } = await admin.from('employees').select('name').eq('id', empId).maybeSingle()
+  return (e?.name as string | null) ?? null
+}
+async function baseFileName(admin: SupabaseClient, data: NonNullable<Awaited<ReturnType<typeof loadPo>>>, dupNo?: number) {
+  return poFileName({
+    po_no: data.po.po_no, created_at: data.po.created_at, vendor_name: data.po.vendor_name,
+    bank_name: data.order?.bank_name, branch_name: data.order?.branch_name, manager_name: data.order?.manager_name,
+    kinds: data.items.map(it => it.order_kind as string | null),
+    counselor: await counselorNameOf(admin, data.po.order_id, data.order?.consultation_id), dupNo,
+  })
+}
+// 같은 이름 대비: 같은 날(발주번호 날짜) · 같은 매입처의 앞선 발주서(취소 포함) 중 이름이 같은 것이 n개면 끝에 _(n+1).
+// 앞선 것만 보므로 나중에 발주서가 더 생겨도 이 발주서 이름은 바뀌지 않는다
+export async function poFileNameFor(admin: SupabaseClient, data: NonNullable<Awaited<ReturnType<typeof loadPo>>>): Promise<string> {
+  const mine = await baseFileName(admin, data)
+  const m = data.po.po_no.match(/^(PO\d{6}-)(\d+)$/)
+  if (!m) return mine
+  const { data: rows } = await admin.from('erp_purchase_orders')
+    .select('id, po_no').like('po_no', `${m[1]}%`).eq('vendor_name', data.po.vendor_name)
+  const seqOf = (no: string) => parseInt(no.slice(m[1].length), 10)
+  const earlier = (rows ?? []).filter(r => r.id !== data.po.id && seqOf(r.po_no as string) < seqOf(data.po.po_no))
+  const names = await Promise.all(earlier.map(async r => {
+    const d = await loadPo(admin, r.id as string)
+    return d ? baseFileName(admin, d) : null
+  }))
+  const dup = names.filter(n => n === mine).length
+  return dup ? baseFileName(admin, data, dup + 1) : mine
 }
