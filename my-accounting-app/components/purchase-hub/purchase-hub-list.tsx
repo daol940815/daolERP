@@ -35,6 +35,7 @@ interface Row {
   opening_remain: number
   period_outstanding: number   // 605: 기간 발행분 미지급
   period_over90: number
+  period_inv_unpaid: number    // 지급율용 — 기간 발행 계산서의 미지급(기초 잔여 제외)
   last_purchase_date: string | null
   status: string
 }
@@ -294,6 +295,9 @@ export default function PurchaseHubList({ basePath, perms }: {
     const active = visible.filter(r => r.invoice_count > 0 || r.erp_amount > 0)
     const inv = active.reduce((s, r) => s + r.invoice_total, 0)
     const paid = active.reduce((s, r) => s + r.paid_amount, 0)
+    // 지급율 = 기간에 발행된 계산서 중 갚아진 비율 (2026-11-13) — 지급일 기준 '지급액'과 나누면
+    // 계산서보다 돈을 먼저 낸 매입처(제주 담은 귤: 2026-03 계산서를 2025년에 지급)가 낮게 나왔다
+    const settled = active.reduce((s, r) => s + Math.max(0, r.invoice_total - r.period_inv_unpaid), 0)
     return {
       active_vendors: active.length,
       invoice_total: inv,
@@ -302,7 +306,7 @@ export default function PurchaseHubList({ basePath, perms }: {
       // 605: 미지급도 기간 기준 — 기간 안에 발행된 계산서 중 아직 지급되지 않은 몫
       outstanding_total: visible.reduce((s, r) => s + (r.purchase_kind === 'retail' ? 0 : r.period_outstanding), 0),
       over90_total: visible.reduce((s, r) => s + (r.purchase_kind === 'retail' ? 0 : r.period_over90), 0),
-      pay_ratio: inv > 0 ? Math.min(1, paid / inv) : 1,
+      pay_ratio: inv > 0 ? Math.min(1, settled / inv) : 1,
     }
   }, [visible])
 
@@ -395,9 +399,9 @@ export default function PurchaseHubList({ basePath, perms }: {
             </div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-            <div className="text-xs text-gray-500">지급율 (기간)</div>
+            <div className="text-xs text-gray-500" title="기간에 발행된 매입 계산서 중 지급(연결 · 상계)된 비율 — 지급일이 기간 밖이어도 그 계산서를 갚았으면 지급된 것으로 봅니다">지급율 (기간 발행분)</div>
             <div className="text-xl font-bold mt-0.5 tabular-nums">{(kpi.pay_ratio * 100).toFixed(1)}%</div>
-            <div className="text-[0.6875rem] text-gray-400 mt-0.5">지급 {eok(kpi.paid_total)}</div>
+            <div className="text-[0.6875rem] text-gray-400 mt-0.5">기간 출금 {eok(kpi.paid_total)}</div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
             <div className="text-xs text-gray-500">{summary.period_basis ? '미지급 (기간 발행분)' : '미지급 잔액 (누적)'}</div>
@@ -435,8 +439,8 @@ export default function PurchaseHubList({ basePath, perms }: {
                 <th className="py-2 px-3 text-left font-medium">담당직원</th>
                 <th className="py-2 px-3 text-left font-medium">거래처 담당자</th>
                 <th className="py-2 px-3 text-right font-medium">기간 매입</th>
-                <th className="py-2 px-3 text-right font-medium">지급액</th>
-                <th className="py-2 px-3 text-left font-medium w-32">지급율</th>
+                <th className="py-2 px-3 text-right font-medium" title="기간 안에 실제로 나간 돈 (출금일 기준)">지급액</th>
+                <th className="py-2 px-3 text-left font-medium w-32" title="기간에 발행된 계산서 중 갚아진 비율 (지급일 무관)">지급율</th>
                 <th className="py-2 px-3 text-right font-medium">ERP 발주</th>
                 <th className="py-2 px-3 text-right font-medium">{summary?.period_basis ? '기간 미지급' : '미지급 잔액'}</th>
                 <th className="py-2 px-3 text-left font-medium">최근 매입</th>
@@ -446,7 +450,8 @@ export default function PurchaseHubList({ basePath, perms }: {
             </thead>
             <tbody>
               {visible.slice(0, 300).map(r => {
-                const ratio = r.invoice_total > 0 ? Math.min(1, r.paid_amount / r.invoice_total) : 1
+                // 지급율 = 기간 발행 계산서 중 갚아진 비율 (지급일 무관, 2026-11-13)
+                const ratio = r.invoice_total > 0 ? Math.min(1, Math.max(0, r.invoice_total - r.period_inv_unpaid) / r.invoice_total) : 1
                 const meta = STATUS_META[r.status] ?? STATUS_META.normal
                 return (
                   <tr key={r.vendor_id} className="border-b border-gray-50 hover:bg-blue-50/40">
@@ -519,7 +524,8 @@ export default function PurchaseHubList({ basePath, perms }: {
       </div>
       <p className="text-xs text-gray-400 mt-2">
         {visible.length > 300 ? `상위 300곳만 표시 중 (전체 ${visible.length.toLocaleString()}곳 — 검색·필터로 좁혀주세요) · ` : `${visible.length.toLocaleString()}곳 · `}
-        매입·미지급은 매입 계산서·출금 매칭 원본 기준 · 기간 미지급 = 기간 안에 발행된 계산서 중 미지급(오래된 계산서부터 갚은 것으로 배분) ·
+        매입·미지급은 매입 계산서·출금 매칭 원본 기준 · 지급액 = 기간 안 출금(출금일 기준) · 지급율 = 기간 발행 계산서 중 갚아진 비율 ·
+        기간 미지급 = 기간 안에 발행된 계산서 중 미지급(오래된 계산서부터 갚은 것으로 배분) ·
         음수 = 과다지급(기간 무관 현재 잔액) · 휴면 = 최근 6개월 매입 없음
       </p>
     </div>
