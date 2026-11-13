@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import CollectMatchModal from '@/components/erp/CollectMatchModal'
 import ReasonBadge from '@/components/ui/ReasonBadge'
 import { FIELD_SHORT, MINE_FILTERS, ORDERS_LIST_URL_KEY, SEARCH_FIELDS, decodeCond, encodeCond, parseFreeText, parseMine, type MineFilter, type SearchCond, type SearchField } from '@/lib/order-search-fields'
+import { PAY_METHOD_TAG_CLS, PAY_METHOD_TAG_LABEL, PAY_STAGE_CHIPS, PAY_STAGE_CLS, PAY_STAGE_HINT, PAY_STAGE_LABEL, showMethodTag, type PayState } from '@/lib/pay-state'
 
 // 주문내역(2026-11-12 '주문 현황'에서 이름 변경) (시안 v2) — KPI(클릭=필터) + 통합 검색 + 칩 필터 + 행내 상품 펼치기.
 // 검사 상태(정의 미확정)·배송 컬럼(3단계)은 제외 상태 — 트랙 문서 참고.
@@ -26,6 +27,7 @@ interface Row {
   total_amount: number
   outstanding_amount: number
   collect_status: string | null
+  pay?: PayState   // 결제 상태 한 칸 표기 (lib/pay-state.ts)
   source: string
   item_count: number
   channel: string | null
@@ -41,7 +43,7 @@ interface Row {
 }
 interface Kpi {
   count: number; total: number; outstanding: number
-  outstanding_cnt: number; in_progress_cnt: number; direct_cnt: number
+  open_cnt: number; match_wait_cnt: number; direct_cnt: number
   po_none_cnt: number; po_partial_cnt: number; po_full_cnt: number
   reply?: { wait: number; my_wait: number; my_req_wait: number; to_me: number; unable: number }
   mine?: { journal: number; counselor: number; handled: number }   // 내 상담일지 · 상담자 · 주문처리 건 (2026-11-10)
@@ -310,7 +312,7 @@ export default function OrdersHomePage() {
           className={`${kpiCard} ${collect === 'outstanding' ? 'border-slate-800' : 'border-gray-200'}`}>
           <div className="text-[0.6875rem] text-gray-400">미수금 (클릭=미수만)</div>
           <div className="text-lg font-extrabold tabular-nums text-red-600">{kpi ? `${won(kpi.outstanding)}원` : '-'}</div>
-          {kpi && <div className="text-[0.625rem] text-gray-400">{kpi.outstanding_cnt}건 미수 · {kpi.in_progress_cnt}건 진행중</div>}
+          {kpi && <div className="text-[0.625rem] text-gray-400">완료 전 {kpi.open_cnt}건 · 그중 매칭 대기 {kpi.match_wait_cnt}건</div>}
         </button>
         <button onClick={() => setSource(source === 'direct' ? 'all' : 'direct')}
           className={`${kpiCard} ${source === 'direct' ? 'border-slate-800' : 'border-gray-200'}`}>
@@ -369,9 +371,10 @@ export default function OrdersHomePage() {
           </div>
         )}
         <div className="flex items-center gap-1.5 flex-wrap mt-2">
-          <span className="text-[0.6875rem] text-gray-400 mr-0.5">수금</span>
-          {([['all', '전체'], ['collected', '수금완료'], ['in_progress', '진행중'], ['outstanding', '미수금']] as const).map(([k, l]) => (
-            <button key={k} onClick={() => setCollect(k)} className={chip(collect === k)}>{l}</button>
+          <span className="text-[0.6875rem] text-gray-400 mr-0.5">결제</span>
+          <button onClick={() => setCollect('all')} className={chip(collect === 'all')}>전체</button>
+          {PAY_STAGE_CHIPS.map(k => (
+            <button key={k} onClick={() => setCollect(k)} className={chip(collect === k)} title={PAY_STAGE_HINT[k]}>{PAY_STAGE_LABEL[k]}</button>
           ))}
           <button onClick={() => setCollect(collect === 'canceled' ? 'all' : 'canceled')} className={chip(collect === 'canceled')}
             title="취소된 주문만 보기 — 취소 표시를 누르면 사유가 보입니다">
@@ -427,7 +430,7 @@ export default function OrdersHomePage() {
                 <th className="py-2 px-3 text-left font-medium">직원 / 상담자</th>
                 <th className="py-2 px-3 text-right font-medium">총금액</th>
                 <th className="py-2 px-3 text-right font-medium">미수금</th>
-                <th className="py-2 px-3 text-left font-medium">수금</th>
+                <th className="py-2 px-3 text-left font-medium">결제</th>
                 <th className="py-2 px-3 text-left font-medium">발주</th>
                 <th className="py-2 px-3 text-left font-medium">회신</th>
                 <th className="py-2 px-3 text-left font-medium">출처</th>
@@ -436,7 +439,12 @@ export default function OrdersHomePage() {
             </thead>
             <tbody>
               {rows.map(r => {
-                const badge = COLLECT_BADGE[r.collect_status ?? ''] ?? { label: r.collect_status ?? '-', cls: 'bg-gray-100 text-gray-500' }
+                // 결제 상태: 수단 꼬리표 + 단계. pay가 없으면(옛 응답) 기존 수금 상태로 폴백
+                const pay = r.pay
+                const badge = pay ? { label: PAY_STAGE_LABEL[pay.stage], cls: PAY_STAGE_CLS[pay.stage] }
+                  : COLLECT_BADGE[r.collect_status ?? ''] ?? { label: r.collect_status ?? '-', cls: 'bg-gray-100 text-gray-500' }
+                const payTitle = pay && pay.stage !== 'canceled'
+                  ? `${PAY_STAGE_HINT[pay.stage]}\n기록 ${won(pay.recorded)} · 매칭 ${won(pay.matched)} / 미수 ${won(r.outstanding_amount)}` : undefined
                 const items = itemsCache[r.id]
                 return (
                   <Fragment key={r.id}>
@@ -484,9 +492,18 @@ export default function OrdersHomePage() {
                       <td className="py-2 px-3 text-right tabular-nums">{won(r.total_amount)}</td>
                       <td className={`py-2 px-3 text-right tabular-nums ${r.outstanding_amount > 0 ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
                         {won(r.outstanding_amount)}
+                        {/* 미수는 매칭 기준 — 결제 기록(매칭 대기 + 매칭된 금액)은 아래에 작게 */}
+                        {pay && pay.recorded > 0 && pay.stage !== 'done' && pay.stage !== 'canceled' && (
+                          <div className="text-[0.625rem] font-normal text-gray-400">기록 {won(pay.recorded)}</div>
+                        )}
                       </td>
-                      <td className="py-2 px-3">
-                        <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${badge.cls}`}>{badge.label}</span>
+                      <td className="py-2 px-3" title={payTitle}>
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                          {pay?.method && showMethodTag(pay.stage) && (
+                            <span className={`px-1.5 py-px rounded border bg-white text-[0.625rem] font-semibold ${PAY_METHOD_TAG_CLS[pay.method]}`}>{PAY_METHOD_TAG_LABEL[pay.method]}</span>
+                          )}
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${badge.cls}`}>{badge.label}</span>
+                        </span>
                       </td>
                       <td className="py-2 px-3">
                         {r.po_status && PO_BADGE[r.po_status] ? (

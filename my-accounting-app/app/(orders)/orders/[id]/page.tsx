@@ -8,6 +8,7 @@ import { hasShip, needsShip, shipText, SHIP_KINDS } from '@/lib/ship-address'
 import RosterCard from '../roster-card'
 import ReplyCard, { type ReplyData } from './reply-card'
 import PayRecords, { type PayRecordsData } from './pay-records'
+import { PAY_METHOD_TAG_LABEL, PAY_STAGE_LABEL, showMethodTag, type PayState } from '@/lib/pay-state'
 import ReasonPicker from '@/components/ui/ReasonPicker'
 import { ORDER_CANCEL_REASONS, composeReason } from '@/lib/cancel-reasons'
 import { ORDERS_LIST_URL_KEY } from '@/lib/order-search-fields'
@@ -77,6 +78,7 @@ export default function OrderDetailPage() {
   const [payments, setPayments] = useState<Payments>({ matches: [], invoices: [] })
   const [receivable, setReceivable] = useState<Receivable | null>(null)
   const [prepay, setPrepay] = useState<PrepayInfo | null>(null)
+  const [payState, setPayState] = useState<PayState | null>(null)   // 목록과 같은 결제 상태 표기
   const [payRecords, setPayRecords] = useState<PayRecordsData>({ available: false, records: [], can_record: false })   // 결제 기록 (1300)
   const [consultRequest, setConsultRequest] = useState<{ requested_by_name: string | null; assignee_name: string | null } | null>(null)
   const [reply, setReply] = useState<ReplyData | null>(null)   // 완료 회신 (515)
@@ -108,6 +110,7 @@ export default function OrderDetailPage() {
       setPayments(json.payments ?? { matches: [], invoices: [] })
       setReceivable(json.receivable ?? null)
       setPrepay(json.prepay ?? null)
+      setPayState(json.pay_state ?? null)
       setPayRecords(json.pay_records ?? { available: false, records: [], can_record: false })
       setConsultRequest(json.consult_request ?? null)
       setReply(json.reply ?? null)
@@ -263,7 +266,9 @@ export default function OrderDetailPage() {
             ...(order.introducer ? [['소개자', String(order.introducer)]] : []),
             ...(order.supervisor || order.supervisor_contact
               ? [['책임자', [order.supervisor, order.supervisor_contact].filter(Boolean).join(' / ')]] : []),
-            ['수금 상태', STATUS_KO[collectStatus] ?? (collectStatus || '-')],
+            ['결제 상태', payState
+              ? `${payState.method && showMethodTag(payState.stage) ? `${PAY_METHOD_TAG_LABEL[payState.method]} · ` : ''}${PAY_STAGE_LABEL[payState.stage]}`
+              : STATUS_KO[collectStatus] ?? (collectStatus || '-')],
             ['총금액', `${won(total)}원`],
             ['미수금', `${won(outstanding)}원`],
             ['메모', String(order.memo ?? '-')],
@@ -485,7 +490,7 @@ export default function OrderDetailPage() {
                   </span>
                 )}
                 {m.matched_by === 'auto' && <span className="text-[0.625rem] text-gray-400">자동 매칭</span>}
-                {m.record_id && <span className="text-[0.625rem] px-1 py-0.5 rounded bg-green-50 text-green-700">결제 기록 확인분</span>}
+                {m.record_id && <span className="text-[0.625rem] px-1 py-0.5 rounded bg-green-50 text-green-700">결제 기록 매칭분</span>}
                 {m.memo && <span className="text-xs text-gray-400">{m.memo}</span>}
                 {m.source_type === 'prepay' && prepay?.can_use && (
                   <button onClick={() => releasePrepay(m.id, m.amount)}

@@ -33,8 +33,9 @@ export async function GET(req: NextRequest) {
     count: filtered.length,
     total: active.reduce((s, o) => s + (o.total_amount ?? 0), 0),
     outstanding: active.reduce((s, o) => s + (o.outstanding_amount ?? 0), 0),
-    outstanding_cnt: active.filter(o => o.collect_status === 'outstanding').length,
-    in_progress_cnt: active.filter(o => o.collect_status === 'in_progress').length,
+    // 결제 상태(lib/pay-state.ts) — 요약 카드 보조 문구용
+    open_cnt: active.filter(o => o.pay && o.pay.stage !== 'done').length,
+    match_wait_cnt: active.filter(o => o.pay?.stage === 'match_wait' || o.pay?.stage === 'partial_match').length,
     canceled_cnt: filtered.filter(o => o.canceled_at).length,
     canceled_all_cnt: canceledCount,   // 취소만 칩 숫자 (수금 필터 적용 전)
     direct_cnt: filtered.filter(o => o.source === 'direct').length,

@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CurrentUser } from './user-role'
 import { fetchAllRows } from './fetch-all-rows'
+import type { PayState } from './pay-state'
+import { loadPayStateMap } from './pay-state-server'
 import { loadReplyMap, REPLY_START, type ReplyInfo } from './order-reply'
 import { decodeCond, parseFreeText, parseMine, type MineFilter, type SearchCond, type SearchField } from './order-search-fields'
 
@@ -25,6 +27,7 @@ export interface OrderListRow {
   total_amount: number | null
   outstanding_amount: number | null
   collect_status: string | null
+  pay?: PayState                   // 결제 상태 한 칸 표기 (lib/pay-state.ts, 2026-11-13)
   source: string | null
   memo?: string | null
   created_at: string
@@ -51,7 +54,7 @@ export interface OrderListFilter {
   conds?: SearchCond[]       // 항목별 조건 (c 파라미터)
   from?: string | null
   to?: string | null
-  collect?: string | null    // all|collected|in_progress|outstanding|canceled(취소만)
+  collect?: string | null    // all|unpaid|partial_pay|match_wait|partial_match|done|outstanding(완료 전 전부)|canceled(취소만) — 옛 값 collected · in_progress 호환
   source?: string | null     // all|direct|upload
   po?: string | null         // all|none|partial|full (direct 주문 전용)
   prepayOnly?: boolean
@@ -299,10 +302,23 @@ export async function loadFilteredOrders(
       o.collect_status = collectStatusFrom(o.collect_status, r)
     }
   }
+  // 결제 상태(1차 기록 · 2차 매칭을 한 칸으로) — 미수 숫자는 위의 매칭 기준 그대로
+  const payMap = await loadPayStateMap(admin, filtered.map(o => ({ id: o.id, canceled: !!o.canceled_at })), recv)
+  for (const o of filtered) o.pay = payMap.get(o.id)
   // 취소만 칩 (2026-11-10) — 숫자는 수금 필터 적용 전 기준
   const canceledCount = filtered.filter(o => o.canceled_at).length
   if (f.collect === 'canceled') filtered = filtered.filter(o => o.canceled_at)
-  else if (f.collect && f.collect !== 'all') filtered = filtered.filter(o => o.collect_status === f.collect)
+  else if (f.collect && f.collect !== 'all') {
+    // 결제 상태(단계 5개, lib/pay-state.ts). outstanding = 완료 전 전부(요약 카드 '미수만'), 옛 주소 값 collected · in_progress 호환
+    const c = f.collect === 'collected' ? 'done' : f.collect
+    filtered = filtered.filter(o => {
+      const st = o.pay?.stage
+      if (!st || st === 'canceled') return false
+      if (c === 'outstanding') return st !== 'done'
+      if (c === 'in_progress') return st !== 'done' && (o.pay?.matched ?? 0) > 0
+      return st === c
+    })
+  }
 
   // 4) 발주 상태 (direct 주문 전용 배지·필터)
   const directIds = filtered.filter(o => (o.source ?? 'upload') === 'direct').map(o => o.id)
