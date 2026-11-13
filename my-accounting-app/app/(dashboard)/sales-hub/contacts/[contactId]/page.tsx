@@ -14,6 +14,7 @@ interface Detail {
   assignments: {
     id: string; vendor_id: string; vendor_name: string; title: string | null
     is_representative: boolean; started_at: string | null; ended_at: string | null; vendor_gap: boolean
+    changes?: { field: string; old_value: string | null; new_value: string | null; changed_at: string; changed_by_name: string | null }[]
   }[]
   connections: { name: string; count: number; sales: number }[]
   orders: { id: string; order_no: string; order_date: string; vendor_name: string; total_amount: number; outstanding: number }[]
@@ -217,6 +218,12 @@ export default function ContactDetailPage() {
                   <p className="text-xs text-gray-400">
                     {a.started_at ?? '기존'} ~ {a.ended_at ?? '현재'}
                   </p>
+                  {(a.changes ?? []).map((c, i) => (
+                    <p key={i} className="text-[0.6875rem] text-gray-500">
+                      {c.field === 'title' ? '직함' : '역할'} {c.old_value || '(없음)'} → <b className="text-gray-700">{c.new_value || '(없음)'}</b>
+                      <span className="text-gray-400"> · {c.changed_at.slice(0, 10)}{c.changed_by_name ? ` · ${c.changed_by_name}` : ''}</span>
+                    </p>
+                  ))}
                   {a.ended_at && a.vendor_gap && (
                     <p className="text-[0.6875rem] text-red-500">→ 이 거래처는 담당 공백 (후임 미지정)</p>
                   )}

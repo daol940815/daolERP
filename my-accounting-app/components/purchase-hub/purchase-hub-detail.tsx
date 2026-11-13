@@ -508,7 +508,10 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
           // 금액은 선택 기간 합계 — 건수도 같은 기간으로 센다 (옛 라벨 '(전체 기간)'이 전체 합계처럼 읽혔다, 2026-11-11)
           { tag: '기간', label: '매입 (계산서)', value: eok(data.kpi.invoice_total), sub: `${from} ~ ${to} · 계산서 ${data.invoices.filter(i => i.issue_date >= from && i.issue_date <= to).length}건 (전체 ${data.invoices.length}건)`, cls: '' },
           { tag: '기간', label: '지급액', value: eok(data.kpi.paid_total), sub: '계산서 매칭 + 미지급금 상계', cls: '' },
-          { tag: '누적', label: '미지급 잔액', value: eok(data.kpi.outstanding), sub: data.kpi.outstanding < 0 ? '음수 = 과다지급' : `기초이월 ${eok(data.kpi.opening_remain)} 포함`, cls: data.kpi.outstanding > 0 ? 'text-red-600' : data.kpi.outstanding < 0 ? 'text-violet-600' : '' },
+          // 605: 미지급도 기간 기준(기간 안에 발행된 계산서 중 미지급). 과다지급은 기간 몫이 아니라 현재 잔액으로 보여 준다
+          (data.kpi.period_outstanding === undefined || data.kpi.outstanding < 0)
+            ? { tag: '누적', label: '미지급 잔액', value: eok(data.kpi.outstanding), sub: data.kpi.outstanding < 0 ? '음수 = 과다지급 (기간 무관)' : `기초이월 ${eok(data.kpi.opening_remain)} 포함`, cls: data.kpi.outstanding > 0 ? 'text-red-600' : data.kpi.outstanding < 0 ? 'text-violet-600' : '' }
+            : { tag: '기간', label: '미지급 (기간 발행분)', value: eok(data.kpi.period_outstanding), sub: `누적 잔액 ${eok(data.kpi.outstanding)} · 90일 초과 ${eok(data.kpi.period_over90)}`, cls: data.kpi.period_outstanding > 0 ? 'text-red-600' : '' },
           { tag: '기간', label: 'ERP 발주', value: eok(data.kpi.erp_amount), sub: '품목 매입가 합 (취소 제외)', cls: '' },
           { tag: '기간', label: '카드 매입', value: eok(data.kpi.card_total), sub: '가맹점 사업자번호 매칭 (참고)', cls: '' },
           { tag: '누적', label: '평균 지급일', value: data.kpi.avg_pay_days != null ? `${data.kpi.avg_pay_days}일` : '-', sub: '계산서 발행→출금 (금액 가중)', cls: '' },

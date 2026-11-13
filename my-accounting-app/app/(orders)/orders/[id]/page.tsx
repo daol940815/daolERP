@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import PurchaseSection from './purchase-section'
+import ContactChip from './contact-chip'
 import { hasShip, needsShip, shipText, SHIP_KINDS } from '@/lib/ship-address'
 import RosterCard from '../roster-card'
 import ReplyCard, { type ReplyData } from './reply-card'
@@ -257,8 +258,11 @@ export default function OrderDetailPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm">
           {[
             ['주문일', String(order.order_date ?? '-')],
-            ['주문처', [order.bank_name, order.branch_name].filter(Boolean).join(' ') || '-'],
-            ['담당자(거래처)', String(order.manager_name ?? '-')],
+            ['주문처', order.vendor_id
+              ? <Link href={`/sales-hub/${order.vendor_id}`} className="text-blue-700 hover:underline">{[order.bank_name, order.branch_name].filter(Boolean).join(' ') || '-'}</Link>
+              : ([order.bank_name, order.branch_name].filter(Boolean).join(' ') || '-')],
+            // 담당자: 주문 표기는 원본 그대로 + 고객코드 · 정보 카드 (2026-11-13)
+            ['담당자(거래처)', <ContactChip key="c" label={String(order.manager_name ?? '')} contactId={(order.contact_id as string | null) ?? null} orderId={String(order.id)} />],
             ['다올직원', String(order.staff_name ?? '-')],
             ['연락처', String(order.contact ?? '-')],
             ['핸드폰', String(order.phone ?? '-')],
@@ -273,7 +277,7 @@ export default function OrderDetailPage() {
             ['미수금', `${won(outstanding)}원`],
             ['메모', String(order.memo ?? '-')],
           ].map(([k, v]) => (
-            <div key={k}>
+            <div key={String(k)}>
               <div className="text-[0.6875rem] text-gray-400">{k}</div>
               <div className="text-gray-800">{v}</div>
             </div>
