@@ -33,20 +33,22 @@ export async function GET(req: NextRequest) {
 
   if (vendorId) {
     // 고객별 다올 담당(112) 포함 — 미적용이면 없이 재조회
-    const sel = (withStaff: boolean) => admin
+    // 유선 번호(116) 포함 — 미적용이면 없이 재조회
+    const sel = (withStaff: boolean, withTel: boolean) => admin
       .from('contact_assignments')
-      .select(`contact_id, title, is_representative${withStaff ? ', staff_employee_id' : ''}, contacts(id, name, phone)`)
+      .select(`contact_id, title, is_representative${withStaff ? ', staff_employee_id' : ''}, contacts(id, name, phone${withTel ? ', tel' : ''})`)
       .eq('vendor_id', vendorId)
       .is('ended_at', null)
-    let res = await sel(true)
-    if (res.error && /staff_employee_id/.test(res.error.message)) res = await sel(false)
+    let res = await sel(true, true)
+    if (res.error && /\btel\b/.test(res.error.message)) res = await sel(true, false)
+    if (res.error && /staff_employee_id/.test(res.error.message)) res = await sel(false, false)
     const { data, error } = res as unknown as { data: Record<string, unknown>[] | null; error: { message: string } | null }
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const contacts = (data ?? [])
       .map(a => {
-        const c = a.contacts as unknown as { id: string; name: string; phone: string | null } | null
+        const c = a.contacts as unknown as { id: string; name: string; phone: string | null; tel?: string | null } | null
         return c && {
-          contact_id: c.id, name: c.name, phone: c.phone,
+          contact_id: c.id, name: c.name, phone: c.phone, tel: c.tel ?? null,
           title: a.title as string | null,
           is_representative: !!a.is_representative,
           staff_employee_id: (a.staff_employee_id as string | null | undefined) ?? null,   // 다올 담당 = 상담자 (112)
@@ -81,11 +83,21 @@ export async function GET(req: NextRequest) {
     const r = await admin.from('vendor_groups').select('id, name, is_individual').eq('is_active', true).order('name')
     return r.error ? admin.from('vendor_groups').select('id, name').eq('is_active', true).order('name') : r
   }
-  const [groupsResult, employeesResult] = await Promise.all([
+  // 주문시기(708) 드롭다운 제안용 — 최근 품목에서 쓴 값. 708 미적용이면 오류 → 빈 목록
+  const seasonSel = (table: string) =>
+    admin.from(table).select('order_season').not('order_season', 'is', null)
+      .order('created_at', { ascending: false }).limit(1000)
+  const [groupsResult, employeesResult, cSeasons, oSeasons] = await Promise.all([
     groupSel(),
     admin.from('employees').select('id, name, position, team, employment_type')
       .eq('is_active', true).order('name'),
+    seasonSel('erp_consultation_items'),
+    seasonSel('erp_order_items'),
   ])
+  const seasons = Array.from(new Set(
+    [...(cSeasons.error ? [] : cSeasons.data ?? []), ...(oSeasons.error ? [] : oSeasons.data ?? [])]
+      .map(r => String((r as { order_season: string | null }).order_season ?? '').trim()).filter(Boolean),
+  ))
   if ('error' in vendorsResult) return NextResponse.json({ error: vendorsResult.error }, { status: 500 })
   if (employeesResult.error) return NextResponse.json({ error: employeesResult.error.message }, { status: 500 })
 
@@ -93,6 +105,7 @@ export async function GET(req: NextRequest) {
     vendors: vendorsResult.data,
     groups: groupsResult.error ? [] : (groupsResult.data ?? []),   // 505 미적용 시 빈 배열
     employees: employeesResult.data ?? [],
+    seasons,
     me: {
       employee_id: me.employeeId, name: me.employeeName, role: me.role,
       // 아르바이트: 신규 거래처·담당자 인라인 등록 버튼 숨김용 ((b) 정책 — API는 미들웨어가 403)

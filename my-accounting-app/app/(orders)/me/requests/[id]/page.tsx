@@ -8,16 +8,18 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
-  WR_STATUS_LABEL, WR_STATUS_CLS, WR_EVENT_LABEL, WR_MODE_LABEL, WR_MODE_DESC, WR_ASG_LABEL, WR_ASG_CLS, OPEN_STATUSES, ASG_ACTIVE,
-  dueState, fmtDTFull, fmtDT, isoToLocal, localToIso, activeAssignees,
-  type WrRow, type WrEventRow, type WrStatus, type WrActions, type WrAssignee,
+  WR_STATUS_LABEL, WR_STATUS_CLS, WR_STATUS_HINT, WR_EVENT_LABEL, WR_MODE_LABEL, WR_MODE_DESC, WR_ASG_LABEL, WR_ASG_CLS, OPEN_STATUSES, ASG_ACTIVE,
+  dueState, fmtDTFull, fmtDT, isoToLocal, localToIso, activeAssignees, tagsOf, WR_TAG_MAX,
+  type WrRow, type WrEventRow, type WrStatus, type WrActions, type WrAssignee, type WrTag,
 } from '@/lib/work-requests'
+import { TagChip, TagPicker } from '@/components/work-requests/tag-chip'
 import { useNotifRefresh, requestNotifRefresh } from '@/lib/use-notif-refresh'
+import AttachmentBox from '@/components/attachments/AttachmentBox'
 
-interface Detail { row: WrRow; events: WrEventRow[]; me: { id: string | null }; actions: WrActions }
+interface Detail { row: WrRow; events: WrEventRow[]; me: { id: string | null }; actions: WrActions; tags?: WrTag[] }
 interface Emp { id: string; name: string; team: string | null; position: string | null; employment_type: string }
 const FLOW: WrStatus[] = ['requested', 'accepted', 'in_progress', 'done_reported', 'completed']
-const FLOW_LABEL: Record<string, string> = { requested: '요청', accepted: '수락', in_progress: '진행 중', done_reported: '처리 보고', completed: '완료' }
+const FLOW_LABEL: Record<string, string> = { requested: '요청', accepted: '수락', in_progress: '진행 중', done_reported: '완료 확정 대기', completed: '완료' }
 
 export default function WorkRequestDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -31,6 +33,7 @@ export default function WorkRequestDetailPage() {
   const [adding, setAdding] = useState(false)
   const [emps, setEmps] = useState<Emp[]>([])
   const [addIds, setAddIds] = useState<string[]>([])
+  const [tagEdit, setTagEdit] = useState<string[] | null>(null)   // 태그 수정 중인 선택 (null = 닫힘) — 904
   const [form, setForm] = useState({ title: '', content: '', link: '', due: '', urgent: false })
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
 
@@ -42,7 +45,7 @@ export default function WorkRequestDetailPage() {
     setForm({ title: json.row.title, content: json.row.content ?? '', link: json.row.link ?? '', due: isoToLocal(json.row.due_at), urgent: json.row.is_urgent })
   }, [id])
   useEffect(() => { load() }, [load])
-  useNotifRefresh(() => { if (!editing && !adding) load() })   // 상대가 수락·메모·보고하면 자동 갱신 (수정·추가 입력 중에는 보호)
+  useNotifRefresh(() => { if (!editing && !adding && tagEdit === null) load() })   // 상대가 수락·메모·보고하면 자동 갱신 (수정·추가 입력 중에는 보호)
   useEffect(() => { if (adding && !emps.length) fetch('/api/work-requests/employees').then(r => r.json()).then(j => setEmps(j.data ?? [])).catch(() => null) }, [adding, emps.length])
 
   const act = async (action: string, extra: Record<string, unknown> = {}) => {
@@ -73,6 +76,8 @@ export default function WorkRequestDetailPage() {
   const reported = active.filter(x => x.status === 'done_reported').length
   const acceptor = r.assign_mode === 'first' ? r.assignees.find(x => x.status !== 'invited' && x.status !== 'rejected' && x.status !== 'released') : null
   const my = r.assignees.find(x => x.employee?.id === d.me.id) ?? null
+  const tagList = d.tags ?? []          // 태그 마스터 (904 미적용이면 빈 배열 — 태그 줄을 그리지 않는다)
+  const myTags = tagsOf(r, tagList)
   const headLine = !multi
     ? (r.assignees[0]?.employee?.name ?? r.assignee?.name ?? '-')
     : r.assign_mode === 'first'
@@ -95,8 +100,27 @@ export default function WorkRequestDetailPage() {
         {multi && <span className={`text-[0.6875rem] px-2 py-0.5 rounded font-semibold ${r.assign_mode === 'first' ? 'bg-sky-100 text-sky-700' : 'bg-violet-100 text-violet-700'}`} title={WR_MODE_DESC[r.assign_mode]}>{WR_MODE_LABEL[r.assign_mode]}</span>}
         {r.is_private && <span className="text-[0.6875rem] px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold" title="요청자 · 담당자 · 승인권자만 볼 수 있음">비공개</span>}
         <h1 className="text-2xl font-bold text-gray-900">{r.title}</h1>
-        <span className={`ml-auto inline-block px-2.5 py-1 rounded text-xs font-semibold ${WR_STATUS_CLS[r.status]}`}>{WR_STATUS_LABEL[r.status]}{multi && r.assign_mode === 'all' && r.status === 'in_progress' ? ` (${reported}/${active.length} 보고)` : ''}</span>
+        <span title={WR_STATUS_HINT[r.status]} className={`ml-auto inline-block px-2.5 py-1 rounded text-xs font-semibold whitespace-nowrap ${WR_STATUS_CLS[r.status]}`}>{WR_STATUS_LABEL[r.status]}{multi && r.assign_mode === 'all' && r.status === 'in_progress' ? ` (${reported}/${active.length} 보고)` : ''}</span>
       </div>
+      {tagList.length > 0 ? (
+        <div className="mt-2">
+          {tagEdit === null ? (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {myTags.length ? myTags.map(t => <TagChip key={t.id} tag={t} title={t.active ? undefined : '숨긴 태그 — 새 요청에서는 고를 수 없습니다'} />) : <span className="text-xs text-gray-400">업무 계열 미분류</span>}
+              {d.actions.setTags && <button onClick={() => setTagEdit(r.tag_ids ?? [])} className="px-2 py-0.5 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-50">태그 수정</button>}
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-gray-600 mb-1.5">업무 계열 <span className="text-[0.6875rem] text-gray-400 font-normal">1개 이상, 최대 {WR_TAG_MAX}개 · 바꾸면 이력에 남고 알림은 가지 않습니다</span></p>
+              <TagPicker tags={tagList} value={tagEdit} onChange={setTagEdit} max={WR_TAG_MAX} onLimit={() => flash(`최대 ${WR_TAG_MAX}개까지 고를 수 있습니다.`)} />
+              <div className="flex gap-1.5 mt-2.5">
+                <button disabled={busy || !tagEdit.length} onClick={async () => { if (await act('set_tags', { tag_ids: tagEdit })) setTagEdit(null) }} className="px-3 py-1 bg-slate-900 text-white rounded text-xs font-medium disabled:opacity-50">저장</button>
+                <button onClick={() => setTagEdit(null)} className="px-3 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:bg-gray-50">취소</button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : null}
       <p className="text-sm text-gray-500 mt-1">
         {r.requester?.name ?? '-'} → {headLine} · 요청 {fmtDTFull(r.created_at)} · 마감{' '}
         <span className={ds === 'overdue' ? 'text-red-600 font-medium' : ds === 'today' ? 'text-amber-600 font-medium' : ''}>{fmtDTFull(r.due_at)}{ds === 'overdue' ? ' (지남)' : ds === 'today' ? ' (오늘)' : ''}</span>
@@ -146,6 +170,8 @@ export default function WorkRequestDetailPage() {
                 )}
               </>
             )}
+            {/* 첨부 파일 (1200) — 열린 요청의 요청자 · 담당자가 붙인다. 보기는 이 요청을 볼 수 있는 사람 전원 */}
+            <AttachmentBox key={`${r.id}:${r.status}`} ownerType="work_request" ownerId={r.id} pasteAnywhere={!editing} className="mt-4 pt-3 border-t border-gray-100" />
           </div>
 
           {/* 담당자별 진행 */}

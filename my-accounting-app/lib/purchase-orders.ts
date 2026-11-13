@@ -21,11 +21,31 @@ export interface OrderItemRow {
   purchase_price: number | null
   purchase_shipping: number | null
   purchase_total: number | null
+  // 매입할인 (708) — 미적용 DB면 없음. purchase_total에는 이미 반영되어 있다
+  purchase_discount?: number | null
+  purchase_discount_mode?: string | null
+  purchase_discount_unit?: number | null
   // 판매가 발주 매입처(요아럽 — vendors.po_use_sale_price)의 스냅샷 원천
   sale_price: number | null
   shipping_fee: number | null
   line_total: number | null
   memo: string | null
+}
+
+// 발주서 품목 스냅샷의 매입 단가 · 비고 (708 매입할인 반영, 사용자 확정 2026-11-09)
+//  - 개당 할인: 단가 = 할인 후 단가 (1,000원 개당 100원 할인 → 900원), 비고에 할인 전 단가 병기
+//  - 정액 할인: 단가 그대로, 금액(매입합계)에만 반영 — 비고에 할인액 표기 (1,060,000원 → 1,000,000원)
+//  금액 = purchase_total(이미 할인 반영)이라 발주서 합계 · 업체 양식 금액은 주문 매입합계와 같다
+export function poPriceAndMemo(it: OrderItemRow): { price: number; memo: string | null } {
+  const price = it.purchase_price ?? 0
+  const disc = Number(it.purchase_discount ?? 0)
+  const unit = Number(it.purchase_discount_unit ?? 0)
+  const join = (note: string) => [it.memo, note].filter(Boolean).join(' · ')
+  if (disc <= 0) return { price, memo: it.memo }
+  if (it.purchase_discount_mode === '단가' && unit > 0) {
+    return { price: price - unit, memo: join(`개당 ${unit.toLocaleString('ko-KR')}원 할인 (할인 전 단가 ${price.toLocaleString('ko-KR')}원)`) }
+  }
+  return { price, memo: join(`매입할인 -${disc.toLocaleString('ko-KR')}원`) }
 }
 
 // POyymmdd-## 발번 (같은 날짜 내 순번)
@@ -69,9 +89,12 @@ export async function loadPurchaseSection(admin: SupabaseClient, orderId: string
     .eq('id', orderId).maybeSingle()
   if (oErr || !order) return { error: '주문을 찾을 수 없습니다.' }
 
-  const { data: rawItems, error: iErr } = await admin.from('erp_order_items')
-    .select('id, line_no, parent_line_no, is_canceled, is_prepayment, item_code, item_name, order_kind, purchase_vendor_name, purchase_alias_id, quantity, purchase_price, purchase_shipping, purchase_total, sale_price, shipping_fee, line_total, memo')
-    .eq('order_id', orderId).order('line_no')
+  const ITEM_COLS = 'id, line_no, parent_line_no, is_canceled, is_prepayment, item_code, item_name, order_kind, purchase_vendor_name, purchase_alias_id, quantity, purchase_price, purchase_shipping, purchase_total, sale_price, shipping_fee, line_total, memo'
+  const loadItems = (cols: string) => admin.from('erp_order_items')
+    .select(cols as typeof ITEM_COLS).eq('order_id', orderId).order('line_no')
+  // 매입할인(708) 열 포함 — 미적용 DB면 없이 다시 조회
+  let { data: rawItems, error: iErr } = await loadItems(`${ITEM_COLS}, purchase_discount, purchase_discount_mode, purchase_discount_unit`)
+  if (iErr && /purchase_discount/i.test(iErr.message)) ({ data: rawItems, error: iErr } = await loadItems(ITEM_COLS))
   if (iErr) return { error: iErr.message }
   // 선결제 품목은 매입이 없는 정산 항목 — 발주 대상이 아니다 (2026-11-05 사용자 확정)
   const items = (rawItems ?? []).filter(it => !it.is_prepayment)
@@ -148,7 +171,7 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
   const fill = (hex: string) => ({ type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: argb(hex) } })
   // 줄바꿈 미사용 기준 (사용자 확정 2026-08-25) — 대신 열 너비를 내용에 맞춰 확보
   const center = { horizontal: 'center' as const, vertical: 'middle' as const }
-  // 날짜 칸은 원본과 동일하게 날짜 값 + mm-dd-yy 서식 (파싱 불가한 자유 표기는 문자열 유지)
+  // 날짜 칸은 날짜 값 + yyyy-mm-dd 서식 (파싱 불가한 자유 표기는 문자열 유지, 빈 칸도 서식은 날짜)
   // 엑셀 날짜 직렬값은 UTC 성분 기준 — KST 자정(+09:00)으로 만들면 표시가
   // 하루 앞으로 어긋난다 (거래명세서 작업 중 발견한 버그 수정, Z 고정)
   const asDate = (s: string | null) => {
@@ -199,7 +222,10 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
     const vc = ws.getCell(valueRange.split(':')[0])
     const isDate = cell.label === '주문일' || cell.label === '출고요청일'
     vc.value = isDate ? asDate(cell.value as string | null) : (cell.value ?? '')
-    if (isDate && vc.value instanceof Date) vc.numFmt = 'mm-dd-yy'
+    // 간단한 날짜 'yyyy-mm-dd' 고정 (2026-11-09 사용자 승인 — 기본 날짜 서식은 PC 설정에 따라 다르게 보임)
+    // 빈 칸에도 서식을 건다 (2026-11-12 사용자 요청) — 출고요청일이 비어 받은 파일에 '11/12'를 직접 적으면
+    // 일반 서식 칸이라 엑셀이 '11월 12일'로 바꿔 보였다. 날짜 서식 칸에 적은 날짜는 그 서식(2026-11-12)을 따른다
+    if (isDate) vc.numFmt = 'yyyy-mm-dd'
     vc.font = { name: FONT, size: 10, bold: !!cell.bold, color: { argb: argb(PO_COLORS.ink) } }
     vc.alignment = center
   })

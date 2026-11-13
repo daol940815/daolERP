@@ -134,28 +134,29 @@ export async function buildStatementExcel(data: StatementData): Promise<Buffer> 
   }
   const customer = [data.bank_name, data.branch_name].filter(Boolean).join(' ')
   // [행, 병합·값 목록] — label은 회색 배경·양쪽 맞춤, 값은 가운데(대표자 등 O열 단칸은 좌측)
+  // 왼쪽 값 칸은 D~H 병합 — H열을 따로 두면 테두리가 그려져 빈 칸처럼 보였다(2026-11-13 사용자 확정: 두 표를 바로 붙임, 열 너비 불변)
   type Cell = { range: string; v: string | number | Date; label?: boolean; date?: boolean }
   const info: Cell[][] = [
     [
-      { range: 'B4:C4', v: '일자', label: true }, { range: 'D4:G4', v: asDate(data.order_date), date: true },
+      { range: 'B4:C4', v: '일자', label: true }, { range: 'D4:H4', v: asDate(data.order_date), date: true },
       { range: 'I4:J4', v: '사업자번호', label: true }, { range: 'K4:O4', v: STMT_BIZ_NO },
     ],
     [
-      { range: 'B5:C5', v: '제목', label: true }, { range: 'D5:G5', v: '거래명세서' },
+      { range: 'B5:C5', v: '제목', label: true }, { range: 'D5:H5', v: '거래명세서' },
       { range: 'I5:J5', v: '상호', label: true }, { range: 'K5:L5', v: STMT_COMPANY },
       { range: 'M5:N5', v: '대표자', label: true }, { range: 'O5', v: STMT_CEO },
     ],
     [
-      { range: 'B6:C6', v: '거래처', label: true }, { range: 'D6:G6', v: customer },
+      { range: 'B6:C6', v: '거래처', label: true }, { range: 'D6:H6', v: customer },
       { range: 'I6:J6', v: '소재지', label: true }, { range: 'K6:O6', v: STMT_ADDRESS },
     ],
     [
-      { range: 'B7:C7', v: '담당자', label: true }, { range: 'D7:G7', v: data.manager_name ?? '' },
+      { range: 'B7:C7', v: '담당자', label: true }, { range: 'D7:H7', v: data.manager_name ?? '' },
       { range: 'I7:J7', v: '업태', label: true }, { range: 'K7:L7', v: STMT_UPTAE },
       { range: 'M7:N7', v: '종목', label: true }, { range: 'O7', v: STMT_JONGMOK },
     ],
     [
-      { range: 'B8:C8', v: '연락처', label: true }, { range: 'D8:G8', v: data.phone ?? '' },
+      { range: 'B8:C8', v: '연락처', label: true }, { range: 'D8:H8', v: data.phone ?? '' },
       { range: 'I8:J8', v: '전화번호', label: true }, { range: 'K8:L8', v: COMPANY_TEL },
       { range: 'M8:N8', v: '팩스', label: true }, { range: 'O8', v: COMPANY_FAX },
     ],
@@ -223,9 +224,19 @@ export async function buildStatementExcel(data: StatementData): Promise<Buffer> 
   })
 
   type F = import('exceljs').CellFormulaValue
+  // 긴 품명은 칸 안에서 줄바꿈 (2026-11-13 사용자 확정 — 글자 축소 없음, 열 너비 · 인쇄 범위 불변).
+  // 엑셀은 병합 칸의 행 높이를 자동으로 늘리지 않으므로 줄 수를 어림해 높이를 직접 준다.
+  // 품명 칸 = C~E 병합(열 너비 합 45). 너비 단위는 숫자 '0' 한 글자 — 한글 · 전각은 약 1.8칸으로 보고, 단어 단위 줄바꿈 여유로 38칸을 한 줄로 친다.
+  const NAME_LINE_UNITS = 38
+  const nameLines = (name: string) => {
+    let w = 0
+    for (const ch of name) w += /[\u1100-\u11ff\u2e80-\ua4cf\uac00-\ud7af\uf900-\ufaff\uff00-\uffef\u2100-\u214f]/.test(ch) ? 1.8 : 1
+    return Math.max(1, Math.ceil(w / NAME_LINE_UNITS))
+  }
   rows.forEach((it, i) => {
     const r = itemFirst + i
-    ws.getRow(r).height = 27.95
+    const lines = it ? nameLines(it.item_name ?? '') : 1
+    ws.getRow(r).height = lines > 1 ? 27.95 + (lines - 1) * 15 : 27.95   // 짧은 품명은 지금과 같은 높이
     ws.mergeCells(`C${r}:E${r}`)
     ws.mergeCells(`G${r}:H${r}`)
     ws.mergeCells(`J${r}:K${r}`)
@@ -252,7 +263,7 @@ export async function buildStatementExcel(data: StatementData): Promise<Buffer> 
     ;['B', 'C', 'F', 'G', 'I', 'J', 'L', 'N'].forEach(c => {
       const cell = ws.getCell(`${c}${r}`)
       cell.font = font()
-      cell.alignment = center
+      cell.alignment = c === 'C' ? { ...center, wrapText: true } : center
       if ('FGIJL'.includes(c)) cell.numFmt = ACCT_FMT
     })
   })

@@ -402,6 +402,7 @@ export interface HubDetail {
   staff_suggest: { name: string; order_count: number; employee_id: string | null }[]
   contacts: {
     assignment_id: string; contact_id: string; name: string; phone: string | null; email: string | null
+    tel: string | null      // 유선 (116)
     title: string | null; role_memo: string | null; is_representative: boolean
     started_at: string | null; ended_at: string | null
     staff_employee_id: string | null   // 다올 담당 (112)
@@ -491,14 +492,16 @@ export async function buildHubDetail(
     .eq('vendor_id', vendorId).is('ended_at', null)
   // 고객별 다올 담당(112) 포함 — 미적용이면 없이 재조회
   type CaRow = { id: string; contact_id: string; title: string | null; role_memo: string | null; is_representative: boolean; started_at: string | null; ended_at: string | null; staff_employee_id?: string | null; contacts: unknown }
-  const caSel = (withStaff: boolean) => admin
+  const caSel = (withStaff: boolean, withTel = true) => admin
     .from('contact_assignments')
-    .select((`id, contact_id, title, role_memo, is_representative, started_at, ended_at${withStaff ? ', staff_employee_id' : ''}, contacts(name, phone, email)`) as string)
+    .select((`id, contact_id, title, role_memo, is_representative, started_at, ended_at${withStaff ? ', staff_employee_id' : ''}, contacts(name, phone, email${withTel ? ', tel' : ''})`) as string)
     .eq('vendor_id', vendorId)
     .order('ended_at', { ascending: true, nullsFirst: true })
     .order('is_representative', { ascending: false })
     .returns<CaRow[]>()
-  const caP = caSel(true).then(r => (r.error && /staff_employee_id/.test(r.error.message) ? caSel(false) : r))
+  // 112(다올 담당) · 116(유선) 미적용 환경 폴백
+  const caP = caSel(true).then(r => (r.error && /\btel\b/.test(r.error.message) ? caSel(true, false) : r))
+    .then(r => (r.error && /staff_employee_id/.test(r.error.message) ? caSel(false, false) : r))
 
   const { data: opening } = await openingP
   const openingRemain = opening && (opening.amount as number) > 0
@@ -766,6 +769,7 @@ export async function buildHubDetail(
       name: (c.contacts as { name?: string } | null)?.name ?? '(삭제된 인물)',
       phone: (c.contacts as { phone?: string | null } | null)?.phone ?? null,
       email: (c.contacts as { email?: string | null } | null)?.email ?? null,
+      tel: (c.contacts as { tel?: string | null } | null)?.tel ?? null,
       title: c.title as string | null,
       role_memo: c.role_memo as string | null,
       is_representative: c.is_representative as boolean,

@@ -21,8 +21,27 @@ import type { Transaction, Account } from '@/types/transaction'
 import type { BankAccount } from '@/types/bank-account'
 import type { Vendor } from '@/types/tax-invoice'
 import SearchableCellEditor from '@/components/ui/SearchableCellEditor'
+import TxFilterBar from '@/components/transactions/TxFilterBar'
+import { highlightTerms, matchAll, parseQuery, serializeQuery, type TxFilter } from '@/lib/tx-filter'
 
 ModuleRegistry.registerModules([AllCommunityModule])
+
+// 적요 셀 — 검색어와 일치한 부분을 노란 표시 (통합 검색 2026-11-10)
+function DescriptionCell(p: ICellRendererParams<Transaction> & { terms?: string[] }) {
+  const text = String(p.value ?? '')
+  const terms = (p.terms ?? []).filter(Boolean)
+  if (!terms.length || !text) return <>{text}</>
+  const re = new RegExp(`(${terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi')
+  // 캡처 그룹으로 split하면 홀수 인덱스가 일치 구간
+  const parts = text.split(re)
+  return (
+    <>
+      {parts.map((s, i) => i % 2 === 1
+        ? <mark key={i} className="bg-yellow-100 rounded-sm">{s}</mark>
+        : <span key={i}>{s}</span>)}
+    </>
+  )
+}
 
 // 금액 포맷터
 const amountFmt = (p: ValueFormatterParams<Transaction, number>) =>
@@ -72,11 +91,11 @@ function defaultDateRange() {
   }
 }
 
+// 서버 조회 조건 — 기간·계좌·거래처만. 상태·출처·금액·검색어는 불러온 행에 즉시 적용하는
+// 클라이언트 필터(TxFilter, lib/tx-filter.ts)로 옮겼다 (통합 검색 2026-11-10).
 interface Filters {
   from: string
   to: string
-  status: string
-  source: string
   bankAccountId: string
   vendorId: string
 }
@@ -209,8 +228,12 @@ function TransactionsContent() {
   const vendorIdParam      = searchParams.get('vendorId') ?? ''
   // 드릴다운 진입(이중계상 검사·원본 레코드 화면): 이 거래의 날짜·계좌로 필터를 맞추고 행을 강조
   const focusTxId          = searchParams.get('txId') ?? ''
+  // 통합 검색·필터 — 주소 ?q= 에 단축 입력 문법으로 남겨 새로 고침·링크 공유에도 유지
+  const qParam             = searchParams.get('q') ?? ''
 
   const gridRef    = useRef<AgGridReact<Transaction>>(null)
+  const [txFilters, setTxFilters] = useState<TxFilter[]>(() => parseQuery(qParam))
+  const txFiltersRef = useRef(txFilters)
   const uploadRef  = useRef<HTMLInputElement>(null)
   const [rowData,   setRowData]   = useState<Transaction[]>([])
   const [accounts,  setAccounts]  = useState<Account[]>([])
@@ -233,13 +256,18 @@ function TransactionsContent() {
   const [acceptableCount, setAcceptableCount] = useState(0)   // 선택 중 추천만 있는 미검토 행
   const [confirmProgress, setConfirmProgress] = useState<string | null>(null)
   const [autoFetchFlag, setAutoFetchFlag] = useState(0)
-  const [filters, setFilters]     = useState<Filters>({
-    ...defaultDateRange(),
-    status: 'all',
-    source: 'all',
-    bankAccountId: bankAccountIdParam,
-    vendorId: vendorIdParam,
+  // 마지막으로 실제 불러온 조회 조건 — 기간을 바꾸고 조회를 안 누른 상태를 알려주기 위해
+  // (통합 필터는 불러온 행 안에서만 거르므로, 기간만 바꾸고 검색하면 "결과 없음"이 된다 — 2026-11-10 보고)
+  const [fetched, setFetched] = useState<Filters | null>(null)
+  const [filters, setFilters]     = useState<Filters>(() => {
+    // ?from=&to= 가 오면 그 기간으로 시작 (매입처 상세 '거래처 미연결 출금 보기' 등 드릴다운)
+    const d = defaultDateRange()
+    const isDate = (v: string | null) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v)
+    const pf = searchParams.get('from'), pt = searchParams.get('to')
+    return { from: isDate(pf) ? pf! : d.from, to: isDate(pt) ? pt! : d.to, bankAccountId: bankAccountIdParam, vendorId: vendorIdParam }
   })
+  // 거래처 셀에서 직접 지정했을 때 "이 적요를 통장 키워드로 추가할까요?" (423 — 계정과목 키워드 학습과 같은 흐름)
+  const [vendorKwPrompt, setVendorKwPrompt] = useState<{ vendorId: string; vendorName: string; keyword: string } | null>(null)
   const [toast, setToast]         = useState<{ msg: string; type: 'ok' | 'err' } | null>(null)
   const [keywordPrompt, setKeywordPrompt] = useState<{ accountId: string; accountName: string; keyword: string } | null>(null)
   const [journalPreview, setJournalPreview] = useState<{
@@ -321,8 +349,8 @@ function TransactionsContent() {
     setLoading(true)
     try {
       const params = new URLSearchParams({
-        status: filters.status,
-        source: filters.source,
+        status: 'all',
+        source: 'all',
         ...(filters.from           && { from: filters.from }),
         ...(filters.to             && { to:   filters.to   }),
         ...(filters.bankAccountId  && { bankAccountId: filters.bankAccountId }),
@@ -330,7 +358,7 @@ function TransactionsContent() {
       })
       const res  = await fetch(`/api/transactions?${params}`)
       const json = await res.json()
-      if (json.data) setRowData(json.data)
+      if (json.data) { setRowData(json.data); setFetched({ from: filters.from, to: filters.to, bankAccountId: filters.bankAccountId, vendorId: filters.vendorId }) }
       else showToast(json.error ?? '조회 실패', 'err')
     } catch {
       showToast('서버 연결 실패', 'err')
@@ -342,6 +370,10 @@ function TransactionsContent() {
   // 초기 로드 + bankAccountId 변경 시 자동 재조회
   useEffect(() => { fetchTransactions() }, [autoFetchFlag]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 조회 조건이 불러온 것과 다른가 (기간 칩·날짜를 바꾸고 아직 조회 전)
+  const stale = !!fetched && (fetched.from !== filters.from || fetched.to !== filters.to
+    || fetched.bankAccountId !== filters.bankAccountId || fetched.vendorId !== filters.vendorId)
+
   // ?txId= 드릴다운: 거래의 날짜·계좌로 필터를 바꾼 뒤 재조회 → 조회 결과가 오면 그 행으로 이동
   useEffect(() => {
     if (!focusTxId) return
@@ -351,12 +383,31 @@ function TransactionsContent() {
       .then(j => {
         if (cancelled || !j.data) return
         const d = String(j.data.tx_date).slice(0, 10)
-        setFilters(f => ({ ...f, from: d, to: d, status: 'all', source: 'all', bankAccountId: j.data.bank_account_id ?? '', vendorId: '' }))
+        setFilters(f => ({ ...f, from: d, to: d, bankAccountId: j.data.bank_account_id ?? '', vendorId: '' }))
+        setTxFilters([])
         setAutoFetchFlag(n => n + 1)
       })
       .catch(() => null)
     return () => { cancelled = true }
   }, [focusTxId])
+
+  // 통합 필터 변경 → 그리드 외부 필터 재평가 + 주소 ?q= 갱신(내비게이션 없이)
+  useEffect(() => {
+    txFiltersRef.current = txFilters
+    gridRef.current?.api?.onFilterChanged()
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    const q = serializeQuery(txFilters)
+    if (q) url.searchParams.set('q', q); else url.searchParams.delete('q')
+    window.history.replaceState(window.history.state, '', url.toString())
+  }, [txFilters])
+  const filterCtx = useMemo(() => ({ accountMap, vendorMap }), [accountMap, vendorMap])
+  const filterCtxRef = useRef(filterCtx)
+  useEffect(() => { filterCtxRef.current = filterCtx; gridRef.current?.api?.onFilterChanged() }, [filterCtx])
+  const isExternalFilterPresent = useCallback(() => txFiltersRef.current.length > 0, [])
+  const doesExternalFilterPass = useCallback((node: { data?: Transaction }) =>
+    !node.data || matchAll(node.data, txFiltersRef.current, filterCtxRef.current), [])
+  const terms = useMemo(() => highlightTerms(txFilters), [txFilters])
   useEffect(() => {
     if (!focusTxId || !rowData.length) return
     const api = gridRef.current?.api
@@ -387,6 +438,12 @@ function TransactionsContent() {
     } else if (colId === 'vendor') {
       // valueSetter에서 vendor_id를 이미 갱신해 둠
       body = { vendor_id: data.vendor_id ?? null }
+      if (data.vendor_id) {
+        const v = vendors.find(x => x.id === data.vendor_id)
+        const kw = ((data.counterparty_name ?? data.description) ?? '').trim()
+        const already = (v?.bank_keywords ?? v?.match_aliases ?? []).some(k => k && kw.toLowerCase().includes(k.toLowerCase()))
+        if (v && kw.length >= 2 && kw !== v.name && !already) setVendorKwPrompt({ vendorId: v.id, vendorName: v.name, keyword: kw })
+      }
     } else if (colDef.field === 'memo') {
       body = { memo: data.memo ?? null }
     } else {
@@ -409,7 +466,27 @@ function TransactionsContent() {
         setKeywordPrompt({ accountId: account.id, accountName: account.name, keyword: desc })
       }
     }
-  }, [showToast, accounts])
+  }, [showToast, accounts, vendors])
+
+  // 통장 키워드 학습 제안 적용 — vendors.bank_keywords (423 전이면 서버가 거부 → 안내)
+  const handleAddVendorKeyword = useCallback(async () => {
+    if (!vendorKwPrompt) return
+    const kw = vendorKwPrompt.keyword.trim()
+    if (!kw) { setVendorKwPrompt(null); return }
+    const v = vendors.find(x => x.id === vendorKwPrompt.vendorId)
+    const existing = v?.bank_keywords ?? []
+    const res = await fetch(`/api/vendors/${vendorKwPrompt.vendorId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bank_keywords: Array.from(new Set([...existing, kw])) }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (res.ok) {
+      setVendors(prev => prev.map(x => x.id === vendorKwPrompt.vendorId ? { ...x, bank_keywords: json.data?.bank_keywords ?? [...existing, kw] } : x))
+      const warn: string[] = json.warnings ?? []
+      showToast(warn.length ? `키워드 추가됨 · 주의: ${warn.join(' / ')}` : `"${kw}" 통장 키워드 추가 완료`, warn.length ? 'err' : 'ok')
+    } else showToast(json.error ?? '키워드 추가 실패', 'err')
+    setVendorKwPrompt(null)
+  }, [vendorKwPrompt, vendors, showToast])
 
   // 키워드 학습 제안 적용
   const handleAddKeyword = useCallback(async () => {
@@ -610,10 +687,13 @@ function TransactionsContent() {
   }, [filters.from, filters.to, filters.bankAccountId])
 
   // 전체 거래 엑셀 다운로드 (현재 필터 그대로)
+  // 상태·출처 필터가 단일 값이면 서버 내보내기에도 그대로 넘긴다(그 외 통합 필터는 화면 전용)
   const handleExportAll = useCallback(() => {
+    const st = txFilters.find(f => f.kind === 'status')
+    const so = txFilters.find(f => f.kind === 'source')
     const params = new URLSearchParams({
-      ...(filters.status !== 'all' && { status: filters.status }),
-      ...(filters.source !== 'all' && { source: filters.source }),
+      ...(st?.kind === 'status' && st.values.length === 1 && { status: st.values[0] }),
+      ...(so?.kind === 'source' && so.values.length === 1 && { source: so.values[0] }),
       ...(filters.from          && { from: filters.from }),
       ...(filters.to            && { to:   filters.to   }),
       ...(filters.bankAccountId && { bankAccountId: filters.bankAccountId }),
@@ -622,7 +702,7 @@ function TransactionsContent() {
     const a = document.createElement('a')
     a.href = `/api/transactions/export?${params}`
     a.click()
-  }, [filters])
+  }, [filters, txFilters])
 
   // 엑셀 업로드 → 계정과목 일괄 업데이트
   const handleImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -766,6 +846,8 @@ function TransactionsContent() {
       headerName: '내용/적요',
       flex: 1,
       minWidth: 180,
+      cellRenderer: DescriptionCell,
+      cellRendererParams: { terms },
     },
     {
       field: 'counterparty_name',
@@ -778,6 +860,7 @@ function TransactionsContent() {
       headerName: '입금액',
       width: 130,
       type: 'numericColumn',
+      filter: 'agNumberColumnFilter',   // 금액 열은 글자 필터가 아니라 숫자 필터(같음·이상·이하·범위)
       valueFormatter: amountFmt,
       cellStyle: { color: '#2563eb', fontWeight: 500 },
     },
@@ -786,6 +869,7 @@ function TransactionsContent() {
       headerName: '출금액',
       width: 130,
       type: 'numericColumn',
+      filter: 'agNumberColumnFilter',
       valueFormatter: amountFmt,
       cellStyle: { color: '#dc2626', fontWeight: 500 },
     },
@@ -794,6 +878,7 @@ function TransactionsContent() {
       headerName: '잔액',
       width: 130,
       type: 'numericColumn',
+      filter: 'agNumberColumnFilter',
       valueFormatter: (p) => p.value != null ? p.value.toLocaleString('ko-KR') + '원' : '',
       cellStyle: (p) => ({ color: (p.value ?? 0) < 0 ? '#dc2626' : '#6b7280' }),
     },
@@ -910,6 +995,30 @@ function TransactionsContent() {
       },
     },
     {
+      // 현금영수증 연결 (425) — 연결만, 분개 영향 없음. 클릭 = 현금영수증 화면
+      colId: 'cash_receipt_links',
+      headerName: '현금영수증',
+      width: 150,
+      sortable: false,
+      filter: false,
+      cellRenderer: (p: ICellRendererParams<Transaction>) => {
+        const links = p.data?.cash_receipt_links
+        if (!links?.length) return <span className="text-gray-300 text-xs">—</span>
+        const first = links[0].receipt
+        const label = links.length === 1
+          ? `${first.tx_date.slice(5)} ${(first.issue_type ?? '').slice(0, 3)} ${links[0].amount.toLocaleString('ko-KR')}`
+          : `영수증 ${links.length}건 연결`
+        const tip = links.map(l => `${l.receipt.tx_date} · ${l.receipt.issue_type ?? ''} ${l.receipt.purpose_type ?? ''} · 연결 ${l.amount.toLocaleString('ko-KR')}원 (영수증 ${Math.abs(l.receipt.amount).toLocaleString('ko-KR')}원, ${l.matched_by === 'auto' ? '자동' : '수동'})`).join('\n')
+        return (
+          <a href={`/cash-receipts?receiptId=${first.id}`}
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 max-w-full overflow-hidden"
+            title={tip} onClick={e => e.stopPropagation()}>
+            {label}
+          </a>
+        )
+      },
+    },
+    {
       field: 'transfer_pair_id',
       headerName: '이체쌍',
       width: 130,
@@ -943,7 +1052,7 @@ function TransactionsContent() {
       headerName: '계좌',
       width: 140,
     },
-  ], [accounts, accountMap, vendors, vendorMap, pairMap])
+  ], [accounts, accountMap, vendors, vendorMap, pairMap, terms])
 
   // 현재 선택된 은행 정보 (이름 + 잔액)
   const activeBank = useMemo(() => {
@@ -994,49 +1103,45 @@ function TransactionsContent() {
       </div>
       <p className="text-gray-500 text-sm mb-4">계정과목 클릭으로 직접 분류하거나, 자동 분류를 사용하세요.</p>
 
-      {/* 기간 빠른 선택 */}
-      <PeriodPresets from={filters.from ?? ''} to={filters.to ?? ''} onChange={(from, to) => setFilters(f => ({ ...f, from, to }))} className="mb-2" />
-
-      {/* 필터 바 */}
-      <div className="flex flex-wrap items-center gap-2 mb-3">
+      {/* 기간 줄: 프리셋 칩 + 날짜 from~to + 조회 (같은 줄 — 승인 시안 2026-11-10 수정 2). 서버 조회 조건. */}
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        {/* 기간 칩은 누르는 즉시 다시 불러온다 — 날짜 칸은 입력 중 값이 바뀌므로 조회 버튼으로 */}
+        <PeriodPresets from={filters.from ?? ''} to={filters.to ?? ''} onChange={(from, to) => { setFilters(f => ({ ...f, from, to })); setAutoFetchFlag(n => n + 1) }} />
+        <span className="text-gray-300 text-sm">|</span>
         <input
           type="date" value={filters.from}
           onChange={e => setFilters(f => ({ ...f, from: e.target.value }))}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
-        <span className="text-gray-400 text-sm">~</span>
+        <span className="text-gray-400 text-xs">~</span>
         <input
           type="date" value={filters.to}
           onChange={e => setFilters(f => ({ ...f, to: e.target.value }))}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
-        <select
-          value={filters.status}
-          onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
-        >
-          <option value="all">전체 상태</option>
-          <option value="pending">미검토</option>
-          <option value="reviewed">검토완료</option>
-          <option value="confirmed">확정</option>
-        </select>
-        <select
-          value={filters.source}
-          onChange={e => setFilters(f => ({ ...f, source: e.target.value }))}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
-        >
-          <option value="all">전체 출처</option>
-          <option value="bank">은행</option>
-          <option value="card">카드</option>
-        </select>
         <button
           onClick={fetchTransactions}
           disabled={loading}
-          className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50"
+          className={`px-3 py-1 rounded-lg text-xs font-medium disabled:opacity-50 ${stale && !loading ? 'bg-amber-500 text-white hover:bg-amber-600 ring-2 ring-amber-200' : 'bg-slate-900 text-white hover:bg-slate-700'}`}
+          title={stale ? '기간이 바뀌었습니다. 눌러서 다시 불러오세요' : undefined}
         >
-          {loading ? '조회 중...' : '조회'}
+          {loading ? '조회 중...' : stale ? '조회 (기간 변경됨)' : '조회'}
         </button>
+        {stale && !loading && (
+          <span className="text-xs text-amber-700">기간을 바꿨습니다. 조회를 눌러야 아래 목록·검색에 반영됩니다.</span>
+        )}
       </div>
+
+      {/* 검색 줄: [+ 필터 ▾][검색창] + 적용 중 칩 + 빠른 조건 — 불러온 행에 즉시 적용 */}
+      <TxFilterBar
+        filters={txFilters}
+        onChange={setTxFilters}
+        accounts={accounts}
+        vendors={vendors}
+        banks={banks}
+        matched={stats.total}
+        total={rowData.length}
+      />
 
       {/* 요약 + 액션 바 */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -1180,6 +1285,8 @@ function TransactionsContent() {
           onCellValueChanged={onCellValueChanged}
           onFilterChanged={recomputeVisible}
           onModelUpdated={recomputeVisible}
+          isExternalFilterPresent={isExternalFilterPresent}
+          doesExternalFilterPass={doesExternalFilterPass}
           getRowStyle={(p): RowStyle | undefined => {
             if (focusTxId && p.data?.id === focusTxId) return { background: '#e0f2fe', boxShadow: 'inset 3px 0 0 #0284c7' }
             if (p.data?.status === 'confirmed') return { background: '#f0fdf4' }
@@ -1194,6 +1301,17 @@ function TransactionsContent() {
               ? '<span class="text-gray-400">조회 중...</span>'
               : '<span class="text-gray-400">조회된 거래가 없습니다. 필터를 확인하거나 파일을 업로드하세요.</span>'
           }
+          // 불러온 행은 있는데 통합 필터·머리글 필터에 걸리는 행이 없을 때 — AG Grid v35는 이 경우
+          // noRowsToShow가 아니라 별도 키 noMatchingRows("No Matching Rows")를 쓴다 (2026-11-11 수정)
+          localeText={{
+            noMatchingRows: `불러온 ${rowData.length.toLocaleString('ko-KR')}건(${fetched?.from ?? ''} ~ ${fetched?.to ?? ''}) 안에 조건에 맞는 거래가 없습니다. 다른 기간이면 위 기간을 바꾸고 조회하세요.`,
+            noRowsToShow: '조회된 거래가 없습니다. 필터를 확인하거나 파일을 업로드하세요.',
+            page: '페이지', of: '/', to: '~', pageSizeSelectorLabel: '페이지 크기:',
+            firstPage: '첫 페이지', previousPage: '이전', nextPage: '다음', lastPage: '마지막',
+            filterOoo: '필터...', equals: '같음', notEqual: '같지 않음', lessThan: '미만', greaterThan: '초과',
+            lessThanOrEqual: '이하', greaterThanOrEqual: '이상', inRange: '범위', blank: '비어 있음', notBlank: '비어 있지 않음',
+            contains: '포함', notContains: '포함 안 함', startsWith: '시작', endsWith: '끝', andCondition: '그리고', orCondition: '또는',
+          }}
         />
       </div>
 
@@ -1463,6 +1581,22 @@ function TransactionsContent() {
           <button onClick={() => setKeywordPrompt(null)} className="px-3 py-1 text-xs text-amber-700 hover:underline">
             건너뛰기
           </button>
+        </div>
+      )}
+
+      {/* 통장 키워드 학습 제안 (거래처 직접 지정 뒤) */}
+      {vendorKwPrompt && !keywordPrompt && (
+        <div className="fixed bottom-6 left-6 max-w-md px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg shadow-lg z-50 flex flex-wrap items-center gap-2">
+          <span className="text-sm text-emerald-800">
+            <strong>{vendorKwPrompt.vendorName}</strong>의 통장 키워드로 추가해 다음에도 자동 연결되게 할까요?
+          </span>
+          <input
+            value={vendorKwPrompt.keyword}
+            onChange={e => setVendorKwPrompt(p => p && { ...p, keyword: e.target.value })}
+            className="border border-emerald-300 rounded px-2 py-1 text-sm flex-1 min-w-[140px] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          />
+          <button onClick={handleAddVendorKeyword} className="px-3 py-1 bg-emerald-600 text-white rounded text-xs font-medium hover:bg-emerald-700">추가</button>
+          <button onClick={() => setVendorKwPrompt(null)} className="px-3 py-1 text-xs text-emerald-700 hover:underline">건너뛰기</button>
         </div>
       )}
 

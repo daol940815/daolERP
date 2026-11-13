@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { bankKeywordsColumnExists } from '@/lib/vendor-keywords.server'
 
 const VENDOR_FIELDS = 'id, name, biz_number, type, contact_name, contact_phone, email, note, match_aliases, card_numbers, ledger_balance, ledger_balance_updated_at, is_active, created_at, updated_at'
+// 423(통장 키워드) 실행 전에는 컬럼이 없어 select가 통째로 실패하므로 프로브 뒤에만 붙인다
+const fieldsFor = (hasBank: boolean): string => hasBank ? `${VENDOR_FIELDS}, bank_keywords` : VENDOR_FIELDS
 
 // GET /api/vendors/:id
 export async function GET(
@@ -10,10 +13,11 @@ export async function GET(
 ) {
   const admin = createAdminClient()
   const { id } = await params
+  const hasBank = await bankKeywordsColumnExists(admin)
 
   const { data, error } = await admin
     .from('vendors')
-    .select(VENDOR_FIELDS)
+    .select(fieldsFor(hasBank))
     .eq('id', id)
     .single()
 
@@ -33,6 +37,7 @@ export async function PATCH(
     name?: string; biz_number?: string | null; type?: string; is_active?: boolean
     contact_name?: string | null; contact_phone?: string | null; email?: string | null; note?: string | null
     match_aliases?: string[]; card_numbers?: string[]
+    bank_keywords?: string[]          // 통장 키워드 (423) — 계산서 키워드(match_aliases)와 별개
     ledger_balance?: number | null
     uses_custom_po?: boolean; po_use_sale_price?: boolean   // 발주 관련 플래그 (507·509)
   }
@@ -46,8 +51,20 @@ export async function PATCH(
   if (body.contact_phone !== undefined) updates.contact_phone = body.contact_phone?.trim() || null
   if (body.email         !== undefined) updates.email         = body.email?.trim()         || null
   if (body.note          !== undefined) updates.note          = body.note?.trim()          || null
-  if (body.match_aliases !== undefined) updates.match_aliases = body.match_aliases
+  if (body.match_aliases !== undefined) updates.match_aliases = clean(body.match_aliases)
   if (body.card_numbers  !== undefined) updates.card_numbers  = body.card_numbers
+  const hasBank = await bankKeywordsColumnExists(admin)
+  // 통장 키워드: 다른 거래처가 같은 키워드를 가지면 자동 연결이 둘 다 건너뛰므로 저장은 하되 경고를 돌려준다
+  const warnings: string[] = []
+  if (body.bank_keywords !== undefined) {
+    if (!hasBank) return NextResponse.json({ error: '통장 키워드 칸이 아직 없습니다 — 마이그레이션 423을 먼저 실행하세요.' }, { status: 400 })
+    const kws = clean(body.bank_keywords)
+    updates.bank_keywords = kws
+    for (const kw of kws) {
+      const dup = await admin.from('vendors').select('id, name').contains('bank_keywords', [kw]).neq('id', id).limit(3)
+      if (!dup.error && dup.data?.length) warnings.push(`"${kw}" — ${dup.data.map(d => d.name).join(', ')}에도 있음 (자동 연결은 둘 다 건너뜀)`)
+    }
+  }
   if (body.uses_custom_po    !== undefined) updates.uses_custom_po    = body.uses_custom_po
   if (body.po_use_sale_price !== undefined) updates.po_use_sale_price = body.po_use_sale_price
   // 거래처원장 잔액은 거래처가 통보할 때마다 사람이 수기로 갱신하는 값 — 입력 시점을 갱신일자로 기록
@@ -64,13 +81,15 @@ export async function PATCH(
     .from('vendors')
     .update(updates)
     .eq('id', id)
-    .select(VENDOR_FIELDS)
+    .select(fieldsFor(hasBank))
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ data })
+  return NextResponse.json({ data, warnings })
 }
+
+const clean = (arr: string[]) => Array.from(new Set(arr.map(s => String(s).trim()).filter(s => s.length >= 1)))
 
 // DELETE /api/vendors/:id
 export async function DELETE(

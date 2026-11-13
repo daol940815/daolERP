@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { branchMargin } from '@/lib/product-margin'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -35,6 +36,7 @@ interface P {
   is_addon: boolean
   is_active: boolean
   is_soldout?: boolean
+  is_shipping?: boolean
   memo: string | null
   status_note?: string | null
   catalog_name?: string | null
@@ -107,8 +109,9 @@ export async function GET(req: NextRequest) {
       .order('item_code', { ascending: true, nullsFirst: false })
       .range(from, to) as unknown as PromiseLike<{ data: P[] | null; error: { message: string } | null }>,
   )
-  // 512 → 509 → 기본 순 폴백 (미적용 환경은 해당 칸 빈 값)
-  let result = await load(V512)
+  // 703(is_shipping) → 512 → 509 → 기본 순 폴백 (미적용 환경은 해당 칸 빈 값)
+  let result = await load(`${V512}, is_shipping`)
+  if ('error' in result) result = await load(V512)
   if ('error' in result) result = await load(V509)
   if ('error' in result) result = await load(BASE)
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
@@ -128,6 +131,7 @@ export async function GET(req: NextRequest) {
     if (filter === 'active' && !p.is_active) return false
     if (filter === 'inactive' && p.is_active) return false
     if (filter === 'addon' && !p.is_addon) return false
+    if (filter === 'cost' && !p.is_shipping) return false   // 비용 품목만 — 화면 '비용' 칩과 같음(2026-11-11, 그전엔 이 칩을 몰라 전 품목이 내려갔음)
     if (!conds.every(c => condMatch(p, c.field, c.value))) return false
     if (!q) return true
     return condMatch(p, 'all', q)   // 구형 q 파라미터 호환 (통합 검색)
@@ -136,11 +140,27 @@ export async function GET(req: NextRequest) {
 
   // 매입처 정보 — 별칭 → vendors 마스터 (담당자·연락처·이메일)
   const aliasIds = Array.from(new Set(rows.map(p => p.purchase_alias_id).filter(Boolean))) as string[]
+  // 병합된 별칭은 대표를 따라간다(2026-11-10 — 품목 수정 화면의 매입처 정보 조회와 같은 매입처를 읽도록)
   const aliasVendor = new Map<string, string>()
-  for (let i = 0; i < aliasIds.length; i += 150) {
-    const { data } = await admin.from('erp_vendor_aliases')
-      .select('id, vendor_id').in('id', aliasIds.slice(i, i + 150)).not('vendor_id', 'is', null)
-    for (const a of data ?? []) aliasVendor.set(a.id as string, a.vendor_id as string)
+  const mergedTo = new Map<string, string>()   // 원래 별칭 → 병합 대표 별칭
+  let pending = aliasIds
+  for (let depth = 0; depth < 5 && pending.length; depth++) {
+    const next: string[] = []
+    for (let i = 0; i < pending.length; i += 150) {
+      const { data } = await admin.from('erp_vendor_aliases')
+        .select('id, vendor_id, merged_into_alias_id').in('id', pending.slice(i, i + 150))
+      for (const a of data ?? []) {
+        if (a.merged_into_alias_id) { mergedTo.set(a.id as string, a.merged_into_alias_id as string); next.push(a.merged_into_alias_id as string) }
+        else if (a.vendor_id) aliasVendor.set(a.id as string, a.vendor_id as string)
+      }
+    }
+    pending = Array.from(new Set(next.filter(id => !aliasVendor.has(id) && !mergedTo.has(id))))
+  }
+  for (const id of aliasIds) {
+    let cur = id
+    for (let i = 0; i < 5 && mergedTo.has(cur); i++) cur = mergedTo.get(cur)!
+    const vid = aliasVendor.get(cur)
+    if (vid) aliasVendor.set(id, vid)
   }
   const vendorIds = Array.from(new Set(aliasVendor.values()))
   const vendorById = new Map<string, { mgr: string; tel: string; email: string }>()
@@ -214,8 +234,9 @@ export async function GET(req: NextRequest) {
       p.consumer_price ?? '',
       p.composition ?? '',
       p.category ?? '',
-      // 마진율 = (지점판매가 - 지점매입가) / 지점판매가 (파생)
-      p.sale_price > 0 ? Math.round((p.sale_price - p.purchase_price) / p.sale_price * 1000) / 1000 : '',
+      // 마진율 = 지점 이익금 ÷ 지점판매가, 이익금 = 지점판매가 − 매입가 − 카톤택배비 ÷ 카톤단위
+      // (파생, 2026-11-10 — lib/product-margin.ts 화면과 같은 함수. 0.0% 서식이 소수 첫째 자리로 보여 줌)
+      branchMargin(p).rate ?? '',
       p.carton_unit ?? '',
       p.carton_shipping_fee || '',
       p.loose_shipping_fee || '',

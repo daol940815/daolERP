@@ -48,8 +48,8 @@ export async function POST(req: NextRequest) {
     switch (action) {
       // 인물 정보 수정
       case 'update_contact': {
-        const { contact_id, name, phone, email, note } = body as {
-          contact_id: string; name?: string; phone?: string; email?: string; note?: string }
+        const { contact_id, name, phone, tel, email, note } = body as {
+          contact_id: string; name?: string; phone?: string; tel?: string; email?: string; note?: string }
         if (!contact_id) return bad('contact_id가 필요합니다.')
         const patch: Record<string, string | null> = {}
         if (name !== undefined) {
@@ -57,9 +57,14 @@ export async function POST(req: NextRequest) {
           patch.name = name.trim()
         }
         if (phone !== undefined) patch.phone = phone.trim() || null
+        if (tel !== undefined) patch.tel = tel.trim() || null     // 유선 (116)
         if (email !== undefined) patch.email = email.trim() || null
         if (note !== undefined) patch.note = note.trim() || null
-        const { error } = await admin.from('contacts').update(patch).eq('id', contact_id)
+        let { error } = await admin.from('contacts').update(patch).eq('id', contact_id)
+        if (error && /\btel\b/i.test(error.message) && 'tel' in patch) {   // 116 미적용 — 유선 빼고 저장
+          delete patch.tel
+          ;({ error } = await admin.from('contacts').update(patch).eq('id', contact_id))
+        }
         if (error) throw error
         // 개인 고객(115): 이름이 바뀌면 고객 전용 매출처 이름도 따라간다(옛 이름은 별칭)
         if (patch.name) await syncIndividualVendorName(admin, contact_id)

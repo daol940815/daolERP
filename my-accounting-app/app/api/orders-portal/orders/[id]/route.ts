@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { resolveIndividualVendorForSave } from '@/lib/individual-customer'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCurrentUser, type CurrentUser } from '@/lib/user-role'
+import { fillContactPhonesIfEmpty } from '@/lib/contact-phone-sync'
 import {
   validateOrderInput, applyOrderEdit, resolveDisplayNames, loadOrderSnapshot,
   cancelOrder, canCancelReissue, kstToday, kstDateOf, lineTotal,
@@ -13,6 +14,7 @@ import { can } from '@/lib/permissions'
 import { prepayBalanceOf, prepayUsedOf, vendorOfOrder, prepayReductionBlock } from '@/lib/prepay'
 import { fillCustomerStaffIfEmpty } from '@/lib/customer-staff'
 import { loadOrderReplyDetail } from '@/lib/order-reply'
+import { loadRecordsOfOrder } from '@/lib/payment-records'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,7 +41,11 @@ async function loadPayments(admin: SupabaseClient, orderId: string) {
     .select('id, source_type, source_id, amount, paid_date, matched_by, memo')
     .eq('order_id', orderId).order('paid_date')
   if (mErr) return empty   // 미적용·권한 등 — 섹션만 비워 보낸다
-  const matches = matchRows ?? []
+  const matches = (matchRows ?? []) as (NonNullable<typeof matchRows>[number] & { record_id?: string | null })[]
+  // 결제 기록(1300)으로 확정된 매칭 표시 — 미적용이면 조회가 실패하고 표시만 생략된다
+  const { data: recLinks } = await admin.from('erp_payment_matches').select('id, record_id').eq('order_id', orderId).not('record_id', 'is', null)
+  const recOf = new Map((recLinks ?? []).map(r => [r.id as string, r.record_id as string]))
+  for (const m of matches) m.record_id = recOf.get(m.id as string) ?? null
 
   // 출처 요약 — "카드매출 1,000,000원 중 300,000원 분배" 표시용
   const ids = (t: string) => matches.filter(m => m.source_type === t).map(m => m.source_id as string)
@@ -111,7 +117,7 @@ async function loadPayments(admin: SupabaseClient, orderId: string) {
   return {
     matches: matches.map(m => ({
       id: m.id, source_type: m.source_type, amount: m.amount, paid_date: m.paid_date,
-      matched_by: m.matched_by, memo: m.memo,
+      matched_by: m.matched_by, memo: m.memo, record_id: m.record_id ?? null,
       source: srcInfo.get(m.source_id as string) ?? null,
     })),
     invoices: links.map(l => ({
@@ -177,8 +183,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const edit = editability(snap.order, me)
   const prepayVendor = await vendorOfOrder(admin, snap.order)
-  const [payments, recvMap, prepayBal, reply] = await Promise.all([
+  const [payments, payRecords, recvMap, prepayBal, reply] = await Promise.all([
     loadPayments(admin, params.id),
+    loadRecordsOfOrder(admin, params.id),
     loadReceivableMap(admin, [params.id]),
     prepayBalanceOf(admin, prepayVendor, (snap.order.customer_alias_id as string | null) ?? null),
     loadOrderReplyDetail(admin, params.id),
@@ -195,14 +202,27 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
           collect_status: collectStatusFrom(snap.order.collect_status as string | null, recv),
         }
       : null
+  // 취소한 직원 이름 (상세 안내줄)
+  let canceledByName: string | null = null
+  if (snap.order.canceled_by) {
+    const { data: ce } = await admin.from('employees').select('name').eq('id', snap.order.canceled_by as string).maybeSingle()
+    canceledByName = (ce?.name as string | undefined) ?? null
+  }
   return NextResponse.json({
     order: snap.order,
+    canceled_by_name: canceledByName,
     items,
     payments,
     receivable,
     consult_request: consultRequest,
     // 완료 회신 (515): 대상 · 상태 · 받는 사람 · 이력 · 발주 요약. 회신은 주문 수정 권한자 누구나 (사용자 결정)
     reply: { ...reply, can_reply: reply.target && can(me, 'orders', 'edit') },
+    // 결제 기록 (1300): 1차 수기 입력분. 확인 대기 금액은 미수에서 빼지 않고 따로 보여 준다
+    pay_records: {
+      available: payRecords.available,
+      records: payRecords.records,
+      can_record: payRecords.available && can(me, 'orders', 'edit') && snap.order.source === 'direct' && !snap.order.canceled_at,
+    },
     // 선결제 사용 (514): 잔액 · 사용 가능 여부 (주문 수정 권한 + direct + 미취소)
     prepay: {
       balance: prepayBal.balance, deposit: prepayBal.deposit, deduction: prepayBal.deduction,
@@ -264,6 +284,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
   // 고객 다올 담당이 비어 있으면 상담자로 자동 저장 (112 — 빈 경우만)
   await fillCustomerStaffIfEmpty(admin, parsed.input.vendor_id, parsed.input.contact_id, parsed.input.counselor_employee_id)
+  // 담당자 연락처 → 인물 마스터 (116, 빈 칸만)
+  await fillContactPhonesIfEmpty(admin, parsed.input.contact_id, { phone: parsed.input.phone, tel: parsed.input.contact })
 
   await recordWorkLog(admin, {
     employeeId: me.employeeId,
@@ -320,14 +342,24 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     }, { status: 409 })
   }
 
+  // 결제 기록(1300)이 남아 있으면 기록이 취소 주문에 묶인다 — 먼저 삭제하거나 취소·재등록 (미적용이면 count null)
+  const { count: recCnt } = await admin.from('order_payment_record_orders').select('id', { count: 'exact', head: true }).eq('order_id', params.id)
+  if ((recCnt ?? 0) > 0) {
+    return NextResponse.json({
+      error: '결제 기록이 남아 있는 주문은 단순 취소할 수 없습니다. 주문 상세 › 결제 내역에서 기록을 먼저 삭제하거나, 내용을 바꾸려면 취소·재등록(기록이 새 주문으로 넘어감)을 이용하세요.',
+    }, { status: 409 })
+  }
+
   // 받은 선결제가 이미 다른 주문에서 쓰였으면 취소 차단 (잔액 마이너스 방지)
   const prepayBlock = await prepayReductionBlock(admin, params.id, 0)
   if (prepayBlock) return NextResponse.json({ error: prepayBlock }, { status: 409 })
 
-  const reason = new URL(req.url).searchParams.get('reason')
+  // 취소 사유 필수 (2026-11-10 사용자 결정)
+  const reason = (new URL(req.url).searchParams.get('reason') ?? '').trim().slice(0, 300)
+  if (!reason) return NextResponse.json({ error: '취소 사유를 고르거나 적어주세요.' }, { status: 400 })
   const err = await cancelOrder(admin, params.id, {
     employeeId: me.employeeId, employeeName: me.employeeName,
-  }, reason || null)
+  }, reason)
   if (err) return NextResponse.json({ error: err }, { status: 500 })
 
   await recordWorkLog(admin, {
@@ -338,7 +370,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       customer: [snap.order.bank_name, snap.order.branch_name].filter(Boolean).join(' '),
       orderNo: (snap.order.order_no as string) ?? null,
       itemCount: snap.items.length,
-    }, reason ? `주문 취소 (${reason})` : '주문 취소'),
+    }, `주문 취소 (${reason})`),
     refType: 'order',
     refId: params.id,
   })

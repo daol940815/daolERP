@@ -3,10 +3,11 @@ import { unstable_noStore as noStore } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase-server'
 import { buildCashPositionRows } from '@/lib/cash-reports'
 import { buildHubList } from '@/lib/vendor-hub'
-import { buildPurchaseHubList } from '@/lib/purchase-hub'
+import { buildPurchaseHubList, loadPayableOutstandingAsOf } from '@/lib/purchase-hub'
 import MgmtTab from './_components/MgmtTab'
 import CashTab from './_components/CashTab'
 import WorkTab from './_components/WorkTab'
+import DashboardPeriodBar from '@/components/dashboard/DashboardPeriodBar'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -25,7 +26,7 @@ const TABS = [
 ] as const
 type TabKey = typeof TABS[number]['key']
 
-const eok = (n: number) => `${(n / 1e8).toFixed(2)}억`
+// 요약 줄 금액은 전부 100,000,000원 형식 — '3.98억' 축약은 정확한 금액 확인이 어려워 폐기 (2026-11-12 사용자 요청)
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
 
 function Metric({
@@ -86,6 +87,14 @@ export default async function DashboardPage({
   if (payOverpaid < 0) checkParts.push('과다지급')
   const checkCount = loanOverdue + aliasUnlinked + (payOverpaid < 0 ? 1 : 0)
 
+  // 기간 줄 표시용 — 유효한 날짜만 (각 탭의 해석·기본값은 탭 컴포넌트가 한다)
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+  const pFrom = searchParams?.from && DATE_RE.test(searchParams.from) ? searchParams.from : null
+  const pTo   = searchParams?.to   && DATE_RE.test(searchParams.to)   ? searchParams.to   : null
+
+  // 기준일 미지급 (기간 종료일이 과거일 때만 — 오늘이면 현재 값과 같다)
+  const payAsOf = pTo && pTo < todayStr ? await loadPayableOutstandingAsOf(admin, pTo) : null
+
   const qs = (t: TabKey) => {
     const p = new URLSearchParams()
     p.set('tab', t)
@@ -102,15 +111,21 @@ export default async function DashboardPage({
       {/* 공통 요약 줄 — 탭과 무관하게 항상 표시 */}
       <div className="mt-4 bg-white border border-gray-200 rounded-xl p-4">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <Metric label="가용 자금" value={eok(fund?.available_funds ?? 0)}
+          <Metric label="가용 자금" value={won(fund?.available_funds ?? 0)}
             sub="보유현금 + 미사용 한도" valueClass="text-blue-600" href="/reports/cash" />
-          <Metric label="미수금" value={eok(recv?.outstanding_total ?? 0)}
-            sub={recv ? `90일 초과 ${eok(recv.over90_total)}` : undefined}
+          <Metric label="미수금" value={won(recv?.outstanding_total ?? 0)}
+            sub={recv ? `90일 초과 ${won(recv.over90_total)}` : undefined}
             valueClass={(recv?.outstanding_total ?? 0) > 0 ? 'text-red-600' : 'text-gray-900'}
             href="/sales-hub" />
-          <Metric label="미지급금" value={won(pay?.outstanding_total ?? 0)}
-            sub={payOverpaid < 0 ? `과다지급 ${won(Math.abs(payOverpaid))} — 계산서 대기` : undefined}
-            valueClass={(pay?.outstanding_total ?? 0) > 0 ? 'text-rose-600' : 'text-gray-900'}
+          {/* 미지급금만 기준일 적용 (2026-11-12 사용자 결정) — 기간 종료일이 오늘보다 앞이면 그 날짜 기준 잔액(424) */}
+          <Metric label={payAsOf?.applied ? `미지급금 (${pTo} 기준)` : '미지급금'}
+            value={won(payAsOf?.applied ? payAsOf.total : (pay?.outstanding_total ?? 0))}
+            sub={payAsOf?.applied
+              ? `90일 초과 ${won(payAsOf.over90)} · 현재 ${won(pay?.outstanding_total ?? 0)}`
+              : pTo && pTo < todayStr
+                ? '기준일 집계는 424 실행 후 가능 — 지금은 현재 기준'
+                : payOverpaid < 0 ? `과다지급 ${won(Math.abs(payOverpaid))} — 계산서 대기` : undefined}
+            valueClass={(payAsOf?.applied ? payAsOf.total : (pay?.outstanding_total ?? 0)) > 0 ? 'text-rose-600' : 'text-gray-900'}
             href="/purchase-hub" />
           <Metric label="미확정 거래" value={`${reviewed.toLocaleString('ko-KR')}건`}
             sub="확정하면 손익 반영" valueClass={reviewed > 0 ? 'text-amber-700' : 'text-gray-900'}
@@ -122,8 +137,11 @@ export default async function DashboardPage({
         </div>
       </div>
 
+      {/* 기간 줄 — 경영·자금 탭 공통 (작업 탭은 기간 없음). 2026-11-11 승인 칩 세트 */}
+      {tab !== 'work' && <DashboardPeriodBar tab={tab} from={pFrom} to={pTo} />}
+
       {/* 탭 */}
-      <div className="flex items-center gap-1 mt-5 border-b border-gray-200">
+      <div className="flex items-center gap-1 mt-3 border-b border-gray-200">
         {TABS.map(t => (
           <Link key={t.key} href={qs(t.key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap ${tab === t.key

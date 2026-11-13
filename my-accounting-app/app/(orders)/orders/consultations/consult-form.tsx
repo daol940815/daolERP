@@ -3,13 +3,23 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Combo, ComboFree, autoGrow, branchLabel, draftFromProduct, emptyItem,
-  lineTotal, priceRule, purchaseShippingHint, quantityPatch, splitByGroupPrefix, toInt, won,
+  Combo, ComboFree, CustomerShipInput, DiscountInput, SeasonDatalist, SeasonInput, autoGrow, branchLabel, draftExtrasFromRow, draftFromProduct, emptyItem,
+  lineCost, lineTotal, priceRule, purchaseShippingHint, quantityPatch, reshipPatch, savedBeforeShipColumn, splitByGroupPrefix, toInt, withShipUnit, won,
 } from '../form-shared'
+import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
 import type { ContactOpt, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
 import { isMoimVendor } from '../form-shared'
 import IndividualRegister from '../individual-register'
 import { contactLabel } from '@/lib/contact-label'
+import ShipCard, { EMPTY_SHIP } from '../ship-card'
+import { needsShip, SHIP_KINDS, type ShipInput } from '@/lib/ship-address'
+import RosterCard from '../roster-card'
+import ReasonPicker from '@/components/ui/ReasonPicker'
+import { CONSULT_CLOSE_REASONS, CONSULT_DELETE_REASONS, composeReason } from '@/lib/cancel-reasons'
+import { normTel } from '@/lib/contact-phone-sync'
+
+const fmtWhen = (iso: string) =>
+  new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
 
 // 상담일지 폼 (신규·수정 공용) — 실물 '주문상담' 시트 컬럼 구성.
 // 필수는 상담일·구분뿐. 업체·지점·담당자는 마스터 검색 + 자유 입력 겸용
@@ -31,6 +41,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const [groups, setGroups] = useState<VendorGroup[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [contacts, setContacts] = useState<ContactOpt[]>([])
+  const [usedSeasons, setUsedSeasons] = useState<string[]>([])   // 주문시기(708) 드롭다운 — 이미 쓴 값
 
   // 상담 본문 (실물 컬럼 순서)
   const [consultDate, setConsultDate] = useState(() => new Date().toLocaleDateString('sv-SE'))
@@ -52,6 +63,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const [isParttime, setIsParttime] = useState(false)         // 아르바이트 — 인라인 등록 버튼 숨김
   const [paymentRevealed, setPaymentRevealed] = useState<string | null>(null)
   const [senderName, setSenderName] = useState('')
+  const [ship, setShip] = useState<ShipInput>(EMPTY_SHIP)   // 배송지 (706) — 주문서와 같은 구조
   const [deliveryRequest, setDeliveryRequest] = useState('')
   const [greetingCard, setGreetingCard] = useState('')
   const [addressChecked, setAddressChecked] = useState('')
@@ -113,8 +125,19 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     router.push('/orders/consultations?scope=assigned')
   }
 
+  // 종결 · 삭제 기록 (709, 2026-11-10 사용자 결정 — 사유 필수, 종결 상담 수정 잠금, 숨김 삭제)
+  const [closeInfo, setCloseInfo] = useState<{ reason: string | null; by: string | null; at: string | null } | null>(null)
+  const [deleteInfo, setDeleteInfo] = useState<{ reason: string | null; by: string | null; at: string | null } | null>(null)
+  const [endMode, setEndMode] = useState<'close' | 'delete' | null>(null)
+  const [endPick, setEndPick] = useState<string | null>(null)
+  const [endText, setEndText] = useState('')
+  const [endBusy, setEndBusy] = useState(false)
+
   const converted = status === '주문전환'
-  const locked = converted || (isEdit && !canEdit)   // 전환 후 수정 잠금(이력 보존) · 요청받은 직원 읽기 전용
+  const closed = status === '종결'
+  const deleted = !!deleteInfo
+  // 전환 후 수정 잠금(이력 보존) · 종결 · 삭제된 상담 잠금 · 요청받은 직원 읽기 전용
+  const locked = converted || (isEdit && (closed || deleted || !canEdit))
 
   useEffect(() => {
     (async () => {
@@ -127,6 +150,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         if (!mRes.ok) throw new Error(m.error ?? '마스터 조회 실패')
         setVendors(m.vendors ?? [])
         setEmployees(m.employees ?? [])
+        setUsedSeasons(m.seasons ?? [])
         setIsParttime(m.me?.is_parttime === true)
         setGroups(m.groups ?? [])
         const p = await pRes.json()
@@ -161,7 +185,13 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           setFax(v.fax ?? '')
           setBizNumber(v.biz_number ?? '')
           setCeoName(v.ceo_name ?? '')
+          setShip({
+            ship_name: v.ship_name ?? null, ship_phone: v.ship_phone ?? null, ship_zip: v.ship_zip ?? null,
+            ship_addr1: v.ship_addr1 ?? null, ship_addr2: v.ship_addr2 ?? null,
+          })
           setStatus(v.status)
+          setCloseInfo(v.status === '종결' ? { reason: v.close_reason ?? null, by: c.closed_by_name ?? null, at: v.closed_at ?? null } : null)
+          setDeleteInfo(v.deleted_at ? { reason: v.delete_reason ?? null, by: c.deleted_by_name ?? null, at: v.deleted_at } : null)
           setOrders(c.orders ?? [])
           setCanEdit(c.can_edit !== false)
           setIsAssignee(c.is_assignee === true)
@@ -193,6 +223,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 discount_unit: (it.discount_unit as number) ?? 0,
                 purchase_price: (it.purchase_price as number) ?? 0,
                 purchase_shipping: (it.purchase_shipping as number) ?? 0,
+                ...draftExtrasFromRow(it),   // 매입할인 · 주문시기 (708)
                 memo: (it.memo as string) ?? '',
                 status: (it.status as string) ?? '',
                 option_note: (it.option_note as string) ?? '',
@@ -205,13 +236,16 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 loose_shipping_fee: prod?.loose_shipping_fee ?? 0,
               }
             })
-            // 702 이전 저장분: 품목 배송비 열 값은 배송비(카톤외) 행으로 풀어낸다 (합계 불변)
+            // 702 이전 저장분: 품목 배송비 열 값은 배송비(카톤외) 행으로 풀어낸다 (합계 불변).
+            // '택배비(판매)' 칸 배포 뒤 저장된 상담일지는 변환하지 않고 그 칸에 보여준다 (2026-11-12, 마지막 저장 시각 기준)
+            const legacy = savedBeforeShipColumn(v.updated_at)
             const converted: ItemDraft[] = []
             let nextId = cItems.length + 1
-            for (const it of loaded) {
-              if (it.is_shipping || it.shipping_fee <= 0) { converted.push(it); continue }
+            for (const raw of loaded) {
+              const it = withShipUnit(raw)
+              if (!legacy || it.is_shipping || it.shipping_fee <= 0) { converted.push(it); continue }
               const fee = it.shipping_fee
-              converted.push({ ...it, shipping_fee: 0 })
+              converted.push({ ...it, shipping_fee: 0, ship_unit: null })
               converted.push({
                 ...emptyItem(nextId++),
                 parent_uid: it.uid,
@@ -245,6 +279,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           setFax(v.fax ?? '')
           setBizNumber(v.biz_number ?? '')
           setCeoName(v.ceo_name ?? '')
+          setShip({
+            ship_name: v.ship_name ?? null, ship_phone: v.ship_phone ?? null, ship_zip: v.ship_zip ?? null,
+            ship_addr1: v.ship_addr1 ?? null, ship_addr2: v.ship_addr2 ?? null,
+          })
           const prodList: Product[] = pRes.ok ? (p.products ?? []) : []
           const src = (c.items ?? []) as Record<string, unknown>[]
           const wantAll = !copyLines?.length
@@ -259,7 +297,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             uidRef.current = picked.length + 1
             setItems(picked.map((it, idx) => {
               const prod = prodList.find(x => x.id === it.product_id)
-              return {
+              return withShipUnit({
                 ...emptyItem(idx + 1),
                 parent_uid: it.parent_line_no ? (lineToUid.get(it.parent_line_no as number) ?? null) : null,
                 product_id: (it.product_id as string) ?? null,
@@ -269,12 +307,15 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 purchase_vendor_name: (it.purchase_vendor_name as string) ?? '',
                 sale_price: (it.sale_price as number) ?? 0,
                 quantity: (it.quantity as number) ?? 1,
-                shipping_fee: 0,
+                // 판매 배송비: 칸 배포 뒤 저장된 원본만 복사 (그 이전 값은 옛 배송비 열 — 지금처럼 복사 안 함)
+                shipping_fee: savedBeforeShipColumn(v.updated_at) ? 0 : ((it.shipping_fee as number) ?? 0),
                 discount_amount: (it.discount_amount as number) ?? 0,
                 discount_mode: (it.discount_mode as '정액' | '단가') ?? '정액',
                 discount_unit: (it.discount_unit as number) ?? 0,
                 purchase_price: (it.purchase_price as number) ?? 0,
                 purchase_shipping: (it.purchase_shipping as number) ?? 0,
+                ...draftExtrasFromRow(it),
+                order_season: suggestSeason(new Date().toLocaleDateString('sv-SE')),   // 주문시기는 오늘 기준으로 새로 제안
                 memo: (it.memo as string) ?? '',
                 status: '',                                  // 상태는 복사 시점 기준 아님 — 새로 판정
                 option_note: (it.option_note as string) ?? '',
@@ -285,7 +326,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 carton_unit: prod?.carton_unit ?? 0,
                 carton_shipping_fee: prod?.carton_shipping_fee ?? 0,
                 loose_shipping_fee: prod?.loose_shipping_fee ?? 0,
-              }
+              })
             }))
           }
           setNotice('이전 상담을 복사했습니다 — 내용 확인 후 저장해주세요. (결제정보는 복사되지 않습니다)')
@@ -342,7 +383,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     setItems(prev => {
       const parent = prev[parentIdx]
       if (!parent) return prev
-      const base: ItemDraft = { ...emptyItem(nextUid()), parent_uid: parent.uid, order_kind: parent.order_kind, quantity: parent.quantity }
+      const base: ItemDraft = { ...emptyItem(nextUid()), parent_uid: parent.uid, order_kind: parent.order_kind, quantity: parent.quantity, order_season: parent.order_season }
       const draft: ItemDraft = { ...base, ...draftFromProduct(p, base) }
       // 본 상품 행의 기존 옵션 묶음 뒤에 삽입
       let at = parentIdx + 1
@@ -355,21 +396,21 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const removeRow = (uid: number) =>
     setItems(prev => prev.filter(it => it.uid !== uid && it.parent_uid !== uid))
 
-  // 상담 품목은 배송비를 열이 아니라 배송비 행으로 다룬다 (702) — 판매 배송비 shipping_fee는 항상 0
+  // 고객 택배비는 '택배비(판매)' 칸(지점 품목만)에서 입력 — 품목을 고르면 기본 0원 (2026-11-12, 702의 배송비 행 방식 대체)
   const pickProduct = (i: number, pid: string | null) => {
     const p = products.find(x => x.id === pid)
     const cur = items[i]
     if (!p || !cur) return
-    setItem(i, { ...draftFromProduct(p, cur), shipping_fee: 0 })
+    setItem(i, { ...draftFromProduct(p, cur), order_season: seasonFor(i) })
   }
+  // 주문시기 기본값 (708): 이미 적혀 있으면 유지 → 윗 행 값 → 상담일 기준 제안 (확정은 작성자)
+  const seasonFor = (i: number) =>
+    items[i]?.order_season || items.slice(0, i).reverse().find(x => x.order_season)?.order_season || suggestSeason(consultDate)
   const setKind = (i: number, kind: string) => {
     const it = items[i]
     if (!it) return
-    setItem(i, {
-      order_kind: kind,
-      ...(it.product_id ? priceRule({ ...it, order_kind: kind }, it.quantity) : {}),
-      shipping_fee: 0,
-    })
+    const patch: Partial<ItemDraft> = { order_kind: kind, ...(it.product_id ? priceRule({ ...it, order_kind: kind }, it.quantity) : {}) }
+    setItem(i, { ...patch, ...reshipPatch({ ...it, ...patch }) })
   }
   // 수량 변경 → 단가 할인·매입배송비(카톤단위/카톤외 자동 구분) 재계산 (704)
   const setQuantity = (i: number, qty: number) => {
@@ -383,9 +424,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const totals = useMemo(() => {
     const filled = items.filter(it => it.item_name.trim())
     const total = filled.reduce((s, it) => s + lineTotal(it), 0)
-    const cost = filled.reduce((s, it) => s + it.purchase_price * it.quantity + it.purchase_shipping, 0)
+    const cost = filled.reduce((s, it) => s + lineCost(it), 0)
     const discount = filled.reduce((s, it) => s + (it.discount_amount || 0), 0)
-    return { total, cost, margin: total - cost, discount }
+    const purchaseDiscount = filled.reduce((s, it) => s + (it.purchase_discount || 0), 0)
+    return { total, cost, margin: total - cost, discount, purchaseDiscount }
   }, [items])
 
   // 단가변경 자동 판정 — 입력 판매가가 원가표(구분별 규칙) 자동가와 다르면 표기 (실무자 요청)
@@ -481,6 +523,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     fax: fax || null,
     biz_number: bizNumber || null,
     ceo_name: ceoName || null,
+    ship,   // 배송지 (706) — 서버가 ship_* 컬럼으로 저장
     // 주문 진행 요청 (705) — 비우면 요청 취소
     order_request: { assignee_id: reqAssignee || null, memo: reqMemo.trim() || null },
     items: (() => {
@@ -526,15 +569,26 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     setSaving(false)
   }
 
+  // 종결 · 삭제는 사유 창에서 확정, 재개는 바로 (2026-11-10)
+  const endReason = composeReason(endPick, endText)
+  const openEnd = (mode: 'close' | 'delete') => {
+    setEndMode(endMode === mode ? null : mode); setEndPick(null); setEndText(''); setError(null)
+  }
   const act = async (action: 'close' | 'reopen' | 'delete') => {
-    if (action === 'delete' && !confirm('이 상담일지를 삭제할까요?')) return
-    const res = await fetch(`/api/orders-portal/consultations/${consultId}`, {
+    if (action !== 'reopen' && !endReason) return
+    setEndBusy(true); setError(null)
+    const res = await fetch(
+      action === 'delete'
+        ? `/api/orders-portal/consultations/${consultId}?reason=${encodeURIComponent(endReason)}`
+        : `/api/orders-portal/consultations/${consultId}`, {
       method: action === 'delete' ? 'DELETE' : 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      ...(action !== 'delete' ? { body: JSON.stringify({ action }) } : {}),
+      ...(action !== 'delete' ? { body: JSON.stringify({ action, ...(action === 'close' ? { reason: endReason } : {}) }) } : {}),
     })
-    const json = await res.json()
-    if (!res.ok) { setError(json.error); return }
+    const json = await res.json().catch(() => ({}))
+    setEndBusy(false)
+    if (!res.ok) { setError(json.error ?? '처리 실패'); return }
+    if (action === 'reopen') { window.location.reload(); return }
     router.push('/orders/consultations')
   }
 
@@ -551,9 +605,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         <h1 className="text-xl font-bold text-gray-900">{isEdit ? '상담일지' : '상담 기록'}</h1>
         {isEdit && (
           <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${
-            status === '주문전환' ? 'bg-emerald-100 text-emerald-700'
+            deleted ? 'bg-red-100 text-red-700'
+              : status === '주문전환' ? 'bg-emerald-100 text-emerald-700'
               : status === '종결' ? 'bg-gray-100 text-gray-500' : 'bg-amber-100 text-amber-800'}`}>
-            {status}
+            {deleted ? '삭제됨' : status}
           </span>
         )}
         {orders.map(o => (
@@ -564,15 +619,60 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         <span className="ml-auto flex gap-2">
           {isEdit && !locked && status === '진행중' && (
             <>
-              <button onClick={() => act('close')} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">종결</button>
-              <button onClick={() => act('delete')} className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm">삭제</button>
+              <button onClick={() => openEnd('close')} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">종결</button>
+              <button onClick={() => openEnd('delete')} className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm">삭제</button>
             </>
           )}
-          {isEdit && canEdit && status === '종결' && (
-            <button onClick={() => act('reopen')} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">재개</button>
+          {isEdit && canEdit && closed && !deleted && (
+            <button onClick={() => act('reopen')} disabled={endBusy}
+              title="다시 진행중으로 돌립니다 — 종결 기록은 업무일지에 남습니다"
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 disabled:opacity-50">재개</button>
           )}
         </span>
       </div>
+
+      {/* 종결 · 삭제 사유 (709, 2026-11-10 — 사유 필수) */}
+      {endMode && (
+        <div className={`mt-3 p-3 rounded-lg border space-y-2 ${endMode === 'delete' ? 'bg-red-50/60 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
+          <div className="text-sm font-bold text-gray-900">{endMode === 'close' ? '종결 사유' : '상담일지 삭제 사유'}</div>
+          {orderRequest && (
+            <div className="text-[0.8125rem] px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
+              이 상담은 <b>{orderRequest.assignee_name ?? ''}</b>에게 주문 진행을 요청해 둔 상태입니다. {endMode === 'close' ? '종결' : '삭제'}하면 요청이 끝나고, {orderRequest.assignee_name ?? '요청받은 직원'}에게 사유와 함께 알림이 갑니다.
+            </div>
+          )}
+          <ReasonPicker options={endMode === 'close' ? CONSULT_CLOSE_REASONS : CONSULT_DELETE_REASONS}
+            picked={endPick} onPick={setEndPick} text={endText} onText={setEndText} multiline={endMode === 'close'}
+            placeholder={endMode === 'close' ? '자세한 사유 (기타를 고르면 필수) — 예: 내년 1월 예산 확정 후 재문의 예정' : undefined} />
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={() => act(endMode)} disabled={!endReason || endBusy}
+              className={`px-3.5 py-1.5 text-white rounded-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed ${endMode === 'delete' ? 'bg-red-600' : 'bg-slate-900'}`}>
+              {endBusy ? '처리 중...' : endMode === 'close' ? '종결하기' : '삭제하기'}
+            </button>
+            <button onClick={() => setEndMode(null)} className="px-3.5 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-sm bg-white">닫기</button>
+            <span className="text-[0.6875rem] text-gray-500">
+              {endMode === 'close'
+                ? '종결하면 주문 전환 · 삭제 · 주문 진행 요청이 막히고 내용 수정이 잠깁니다. "재개"로 되돌릴 수 있습니다.'
+                : '실제로 지우지 않고 "삭제됨"으로 숨깁니다. 목록에서 안 보이고, 관리자는 "삭제된 것 보기"로 확인할 수 있습니다.'}
+            </span>
+          </div>
+        </div>
+      )}
+      {closed && !deleted && (
+        <div className="mt-3 px-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg">
+          종결된 상담입니다{closeInfo?.reason ? <> — <b>{closeInfo.reason}</b></> : ' (사유 기록 없음)'}
+          <div className="text-xs text-slate-500 mt-0.5 tabular-nums">
+            {[closeInfo?.by, closeInfo?.at ? fmtWhen(closeInfo.at) : null].filter(Boolean).join(' · ')}{closeInfo?.at ? ' 종결 · ' : ''}내용을 고치려면 &ldquo;재개&rdquo;를 누르세요.
+          </div>
+        </div>
+      )}
+      {deleted && (
+        <div className="mt-3 px-4 py-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
+          삭제된 상담일지입니다. 목록에서는 숨겨집니다.{deleteInfo?.reason && <> 사유: <b>{deleteInfo.reason}</b></>}
+          <div className="text-xs text-red-500 mt-0.5 tabular-nums">
+            {[deleteInfo?.by, deleteInfo?.at ? fmtWhen(deleteInfo.at) : null].filter(Boolean).join(' · ')} 삭제
+          </div>
+        </div>
+      )}
 
       {converted && (
         <div className="mt-3 px-4 py-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-lg">
@@ -594,7 +694,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         </div>
       )}
       {/* 처리 불가로 되돌아온 요청 (515) — 요청자 화면 */}
-      {!converted && !orderRequest && requestStatus?.state === 'returned' && (
+      {!converted && !closed && !deleted && !orderRequest && requestStatus?.state === 'returned' && (
         <div className="mt-3 px-4 py-2.5 bg-red-50 border border-red-200 text-red-900 text-sm rounded-lg">
           <span className="inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-medium mr-1.5 bg-red-100 text-red-700">처리 불가</span>
           <b>{requestStatus.by ?? ''}</b> 회신{requestStatus.memo ? `: “${requestStatus.memo}”` : ''}
@@ -602,7 +702,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         </div>
       )}
       {/* 주문 진행 요청 (705) — 요청받은 직원에게는 요청 내용, 작성자에게는 진행 상태 */}
-      {!converted && orderRequest && isAssignee && (
+      {!converted && !closed && !deleted && orderRequest && isAssignee && (
         <div className="mt-3 px-4 py-2.5 bg-blue-50 border border-blue-200 text-blue-900 text-sm rounded-lg">
           <b>{orderRequest.requested_by_name ?? ''}</b>님이 주문 진행을 요청했습니다
           {orderRequest.requested_at && <span className="text-blue-700"> · {new Date(orderRequest.requested_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
@@ -629,7 +729,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           ))}
         </div>
       )}
-      {!converted && orderRequest && !isAssignee && (
+      {!converted && !closed && !deleted && orderRequest && !isAssignee && (
         <div className="mt-3 px-4 py-2 bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-lg">
           <b>{orderRequest.assignee_name ?? ''}</b>에게 주문 진행을 요청했습니다 — 주문 입력 · 완료 회신이 오면 알림이 옵니다.
         </div>
@@ -748,6 +848,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   if (id) {
                     const c = contacts.find(x => x.contact_id === id)
                     if (c?.phone) setPhone(c.phone)
+                    if (c?.tel) setTel(c.tel)          // 유선도 마스터에서 (116)
                   }
                 }}
                 placeholder={vendorId ? '담당자 선택 · 자유 입력' : '자유 입력 (지점 선택 시 마스터 검색)'} />
@@ -763,14 +864,31 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 : <div className="text-[0.625rem] text-amber-700 mt-0.5">이 고객의 다올 담당 미기입 — 주문 입력 때 고른 상담자가 다올 담당으로 저장됩니다</div>
             })()}
           </div>
-          <div>
-            <label className={label}>핸드폰</label>
-            <input value={phone} disabled={locked} onChange={e => setPhone(e.target.value)} className={free} placeholder="010-" />
-          </div>
-          <div>
-            <label className={label}>연락처(유선)</label>
-            <input value={tel} disabled={locked} onChange={e => setTel(e.target.value)} className={free} placeholder="02-" />
-          </div>
+          {/* 연락처 → 마스터 반영 (116): 마스터가 비어 있으면 저장 때 채워지고, 다르면 안내만 (덮어쓰지 않음) */}
+          {(() => {
+            const c = contacts.find(x => x.contact_id === contactId)
+            const hint = (mine: string, master: string | null | undefined) => {
+              if (!c) return null
+              if (!mine.trim()) return null
+              if (!master?.trim()) return <div className="text-[0.625rem] text-gray-400 mt-0.5">저장하면 담당자 마스터에도 기록됩니다</div>
+              if (normTel(master) !== normTel(mine)) return <div className="text-[0.625rem] text-amber-700 mt-0.5">마스터 번호와 다름 ({master}) — 이 상담에만 기록</div>
+              return null
+            }
+            return (
+              <>
+                <div>
+                  <label className={label}>핸드폰</label>
+                  <input value={phone} disabled={locked} onChange={e => setPhone(e.target.value)} className={free} placeholder="010-" />
+                  {hint(phone, c?.phone)}
+                </div>
+                <div>
+                  <label className={label}>연락처(유선)</label>
+                  <input value={tel} disabled={locked} onChange={e => setTel(e.target.value)} className={free} placeholder="02-" />
+                  {hint(tel, c?.tel)}
+                </div>
+              </>
+            )
+          })()}
           {/* 상태·기타사항은 품목별 입력으로 이동 (509, 실무자 요청) — 이전 기록만 표시 */}
           {(productStatus || optionNote) && (
             <div className="col-span-2 md:col-span-6 text-xs text-gray-400">
@@ -893,27 +1011,35 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         <div className="text-sm font-bold text-gray-900 mb-3">
           상담 품목 <span className="text-[0.6875rem] font-normal text-gray-400 ml-1">품번 검색 시 원가표 기준 자동 — 수정 가능</span>
         </div>
-        <table className="w-full text-xs min-w-[1420px] table-fixed">
+        <SeasonDatalist id="consult-season-options" options={seasonOptions(consultDate, [...usedSeasons, ...items.map(x => x.order_season)])} />
+        <table className="w-full text-xs min-w-[1774px] table-fixed">
           <colgroup>
             {/* 품번 폭을 상품명과 비슷하게 — 드롭다운 가독 (사용자 피드백 6) */}
-            <col className="w-[16%]" /><col className="w-[16%]" /><col className="w-16" /><col className="w-12" />
+            <col className="w-[13.26%]" /><col className="w-[13.26%]" /><col className="w-16" /><col className="w-[5rem]" /><col className="w-12" />
             <col className="w-[4.25rem]" /><col className="w-[5.5rem]" /><col className="w-[5.5rem]" />
+            {/* 택배비(판매) (2026-11-12). 다른 칸이 이전 너비 그대로 보이게 최소 너비 1680 → 1774px, 품번 · 상품명 14% → 13.26%로 맞춤(2026-11-13).
+                열을 더할 때는 이 너비 정의와 표 최소 너비 · 비율을 함께 고칠 것 */}
+            <col className="w-[5.5rem]" />
             <col className="w-[5.5rem]" /><col className="w-24" />
-            <col className="w-[5.5rem]" /><col className="w-[6.75rem]" /><col className="w-[5.5rem]" /><col className="w-8" />
+            <col className="w-[5.5rem]" /><col className="w-[5.5rem]" /><col className="w-[6.75rem]" /><col className="w-[5.5rem]" /><col className="w-[5.5rem]" /><col className="w-8" />
           </colgroup>
           <thead>
             <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
               <th className="py-1.5 px-1.5 text-left font-medium">품번 검색</th>
               <th className="py-1.5 px-1.5 text-left font-medium">상품명</th>
-              <th className="py-1.5 px-1.5 text-left font-medium">구분</th>
+              <th className="py-1.5 px-1.5 text-left font-medium" title="지점 배송 · 개별 배송 · 샘플 — 가격 규칙과 배송지 · 배송명단 적용이 달라집니다">배송종류</th>
+              <th className="py-1.5 px-1.5 text-left font-medium" title="상시 · 26설 · 26추석 등 — 목록에서 고르거나 직접 입력">주문시기</th>
               <th className="py-1.5 px-1.5 text-right font-medium">수량</th>
               <th className="py-1.5 px-1.5 text-right font-medium" title="원가표 카톤단위 — 자동 표기">카톤</th>
               <th className="py-1.5 px-1.5 text-right font-medium">판매가</th>
-              <th className="py-1.5 px-1.5 text-right font-medium" title="할인 적용 시 별도 표기">할인</th>
+              <th className="py-1.5 px-1.5 text-right font-medium" title="정액(행당 금액) 또는 개당 할인">판매할인</th>
+              <th className="py-1.5 px-1.5 text-right font-medium" title="고객에게 받는 택배비 (지점 품목만). 매입배송비가 있으면 박스당 단가, 0이면 받는 금액(합계)을 입력">택배비(판매)</th>
               <th className="py-1.5 px-1.5 text-right font-medium">판매합계</th>
               <th className="py-1.5 px-1.5 text-left font-medium">매입처</th>
               <th className="py-1.5 px-1.5 text-right font-medium">매입가</th>
+              <th className="py-1.5 px-1.5 text-right font-medium" title="정액(행당 금액) 또는 개당 할인 — 매입합계 · 발주서 금액에 반영">매입할인</th>
               <th className="py-1.5 px-1.5 text-left font-medium" title="수량 기준 카톤단위/카톤외 자동 구분 — 수정 가능">매입배송비</th>
+              <th className="py-1.5 px-1.5 text-right font-medium" title="매입가 × 수량 + 매입배송비 − 매입할인">매입합계</th>
               <th className="py-1.5 px-1.5 text-right font-medium">마진</th>
               <th />
             </tr>
@@ -944,6 +1070,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     </div>
                   </td>
                   <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
+                  <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
                   <td className="py-1 px-1.5 text-right">
                     <input value={it.quantity || ''} disabled={locked} onChange={e => setQuantity(i, toInt(e.target.value))}
                       className={numCell} placeholder="1" />
@@ -957,10 +1084,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   <td className="py-1 px-1.5 text-right">
                     <div className={autoCell + ' font-semibold text-gray-700'}>{won(lineTotal(it))}</div>
                   </td>
-                  <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
-                  <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
-                  <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
-                  <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
+                  {/* 매입처 · 매입가 · 매입할인 · 매입배송비 · 매입합계 · 마진 */}
+                  {Array.from({ length: 6 }, (_, k) => (
+                    <td key={k} className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
+                  ))}
                   <td className="py-1 px-1 text-center">
                     {!locked && (
                       <button type="button" onClick={() => removeRow(it.uid)}
@@ -1004,6 +1131,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     className="border border-blue-200 bg-blue-50/40 rounded px-1 py-1 text-xs disabled:opacity-60">
                     <option>지점</option><option>개별</option><option>샘플</option>
                   </select>
+                </td>
+                <td className="py-1 px-1.5">
+                  <SeasonInput value={it.order_season} disabled={locked} listId="consult-season-options"
+                    normalize={normalizeSeason} onChange={v => setItem(i, { order_season: v })} />
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   <input value={it.quantity || ''} disabled={locked} onChange={e => setQuantity(i, toInt(e.target.value))}
@@ -1049,11 +1180,17 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     placeholder="0" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
+                  {/* 택배비(판매) — 매입배송비 있으면 박스당 단가, 0이면 합계 (2026-11-12) */}
+                  {it.is_shipping
+                    ? <div className="text-xs text-gray-300 text-right">—</div>
+                    : <CustomerShipInput it={it} disabled={locked} className={numCell} onChange={patch => setItem(i, patch)} />}
+                </td>
+                <td className="py-1 px-1.5 text-right">
                   <div className={autoCell + ' font-semibold text-gray-700'}>
                     {won(lineTotal(it))}
                     {it.discount_amount > 0 && (
                       <div className="text-[0.625rem] text-red-500 font-normal">
-                        할인 -{won(it.discount_amount)}{it.discount_mode === '단가' ? ` (${won(it.discount_unit)}/개)` : ''}
+                        판매할인 -{won(it.discount_amount)}{it.discount_mode === '단가' ? ` (${won(it.discount_unit)}/개)` : ''}
                       </div>
                     )}
                   </div>
@@ -1072,10 +1209,16 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     <div className="text-[0.625rem] text-gray-400 mt-0.5 tabular-nums">합계 {won(it.purchase_price * it.quantity)}</div>
                   )}
                 </td>
+                <td className="py-1 px-1.5 text-right">
+                  {/* 매입할인 (708) — 정액(행당) / 개당. 매입합계 · 발주서 금액에 반영 */}
+                  <DiscountInput mode={it.purchase_discount_mode} unit={it.purchase_discount_unit} amount={it.purchase_discount}
+                    quantity={it.quantity} disabled={locked} className={numCell}
+                    onChange={d => setItem(i, { purchase_discount_mode: d.mode, purchase_discount_unit: d.unit, purchase_discount: d.amount })} />
+                </td>
                 <td className="py-1 px-1.5">
                   {/* 매입배송비 — 수량 기준 카톤단위/카톤외 자동 구분 (수정 가능, 704 확정) */}
                   <input value={it.purchase_shipping ? won(it.purchase_shipping) : ''} disabled={locked}
-                    onChange={e => setItem(i, { purchase_shipping: toInt(e.target.value) })}
+                    onChange={e => { const v = toInt(e.target.value); setItem(i, { purchase_shipping: v, ...reshipPatch({ ...it, purchase_shipping: v }) }) }}
                     title={purchaseShippingHint(it) ?? '카톤 정보가 없는 품목 — 직접 입력'}
                     className={numCell} placeholder="0" />
                   {purchaseShippingHint(it) && (
@@ -1083,9 +1226,12 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   )}
                 </td>
                 <td className="py-1 px-1.5 text-right">
+                  <div className={autoCell + ' font-semibold text-gray-700'}>{won(lineCost(it))}</div>
+                </td>
+                <td className="py-1 px-1.5 text-right">
                   {(() => {
                     const total = lineTotal(it)
-                    const margin = total - it.purchase_price * it.quantity - it.purchase_shipping
+                    const margin = total - lineCost(it)
                     const pct = total > 0 ? Math.round((margin / total) * 1000) / 10 : null
                     return (
                       <div className={`${autoCell} ${margin >= 0 ? 'text-emerald-700' : 'text-red-500'}`}>
@@ -1106,7 +1252,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               </tr>
               {/* 품목별 상태·기타사항 (509 — 상담정보에서 이동) */}
               <tr className={`border-b border-gray-50 ${it.parent_uid ? 'bg-slate-50/60' : ''}`}>
-                <td colSpan={13} className="pb-1.5 pt-0 px-1.5">
+                <td colSpan={17} className="pb-1.5 pt-0 px-1.5">
                   <div className="flex items-center gap-2 pl-4 flex-wrap">
                     <span className="text-[0.625rem] text-gray-400 shrink-0">상태</span>
                     <input value={it.status} disabled={locked}
@@ -1132,7 +1278,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               </tr>
               {addonCands.length > 0 && (
                 <tr className="border-b border-gray-50">
-                  <td colSpan={13} className="pb-1.5 pt-0 px-1.5">
+                  <td colSpan={17} className="pb-1.5 pt-0 px-1.5">
                     <div className="flex items-center gap-1.5 flex-wrap pl-4">
                       <span className="text-[0.625rem] text-gray-400">옵션 추가 ({it.purchase_vendor_name})</span>
                       {addonCands.map(p => (
@@ -1156,7 +1302,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           </tbody>
         </table>
         {!locked && (
-          <button type="button" onClick={() => setItems(prev => [...prev, emptyItem(nextUid())])}
+          <button type="button"
+            onClick={() => setItems(prev => [...prev, { ...emptyItem(nextUid()), order_season: [...prev].reverse().find(x => x.order_season)?.order_season ?? '' }])}
             className="mt-2 px-3.5 py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-gray-400">
             + 품목 행 추가
           </button>
@@ -1164,11 +1311,11 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         <div className="flex gap-5 text-sm mt-3 flex-wrap">
           <span>예상 합계 <b className="tabular-nums">{won(totals.total)}원</b></span>
           {totals.discount > 0 && (
-            <span className="text-red-600">할인 합계 <b className="tabular-nums">-{won(totals.discount)}원</b></span>
+            <span className="text-red-600">판매할인 합계 <b className="tabular-nums">-{won(totals.discount)}원</b></span>
           )}
-          {/* 매입 합계 = 매입가×수량 + 매입배송비 (마진 공식과 동일 기준 — 합계 − 매입 = 마진) */}
+          {/* 매입 합계 = 매입가×수량 + 매입배송비 − 매입할인 (마진 공식과 동일 기준 — 합계 − 매입 = 마진) */}
           <span className="text-gray-600">매입 합계 <b className="tabular-nums">{won(totals.cost)}원</b>
-            <span className="text-[0.6875rem] text-gray-400 ml-1">배송비 포함</span>
+            <span className="text-[0.6875rem] text-gray-400 ml-1">배송비 포함{totals.purchaseDiscount > 0 ? ` · 매입할인 -${won(totals.purchaseDiscount)}원 반영` : ''}</span>
           </span>
           <span>예상 마진 <b className="tabular-nums text-emerald-700">{won(totals.margin)}원</b>
             {totals.total > 0 && (
@@ -1244,8 +1391,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             <input value={greetingCard} disabled={locked} onChange={e => setGreetingCard(e.target.value)} className={free} />
           </div>
           <div>
-            <label className={label}>주소확인여부</label>
-            <input value={addressChecked} disabled={locked} onChange={e => setAddressChecked(e.target.value)} className={free} />
+            <label className={label} title="명단 주소의 수령인에게 확인 전화를 했는지 — 배송지 기재란이 아님 (개별 주문용)">주소확인여부</label>
+            <input value={addressChecked} disabled={locked} onChange={e => setAddressChecked(e.target.value)} className={free}
+              placeholder="확인 전화 여부 (개별 주문)" />
           </div>
           <div>
             <label className={label}>고객명단수단</label>
@@ -1257,6 +1405,34 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               className="w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2.5 py-1.5 text-sm resize-y disabled:opacity-60" />
           </div>
         </div>
+
+        {/* 배송지 (706, 2026-11-06) — 주문서 ShipCard 그대로. 신규만 자동 채움, 수정·복사는 저장값.
+            주문 전환 시 여기 값이 주문처 최근 배송지보다 우선 (사용자 확정) */}
+        {(() => {
+          const c = contacts.find(x => x.contact_id === contactId)
+          return (
+            <div className="mt-3">
+              <ShipCard
+                value={ship} onChange={setShip} vendorId={vendorId}
+                contactName={c ? contactLabel(c.name, c.title) : (managerText.trim() || null)}
+                contactPhone={c?.phone ?? (phone || null)}
+                autoFill={!isEdit && !copyId}
+                applies={needsShip(items.filter(it => it.item_name.trim() && !it.is_shipping && !it.parent_uid).map(it => it.order_kind))}
+                disabled={locked}
+              />
+            </div>
+          )
+        })()}
+
+        {/* 개별 배송 명단 (707, 2026-11-09) — 개별 품목이 있을 때만. 저장된 상담에서 업로드, 전환 시 주문에 연결 */}
+        <RosterCard
+          consultationId={consultId ?? null}
+          applies={items.some(it => it.item_name.trim() && !it.is_shipping && !it.parent_uid && !SHIP_KINDS.has(it.order_kind ?? '지점'))}
+          isNew={!isEdit}
+          disabled={locked}
+          subject={[bankText, branchText].filter(Boolean).join(' ') + ' 상담' || undefined}
+          newHint={copyId ? '복사한 상담을 저장하면 배송명단을 새로 올릴 수 있습니다(명단은 복사되지 않습니다).' : undefined}
+        />
 
         {/* 주문 진행 요청 (705, 2026-11-05) — 상담만 하고 주문 입력은 다른 직원에게. 비우면 내가 직접 진행 */}
         {!locked && (() => {
@@ -1320,9 +1496,11 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           {/* 요청받은 직원 (읽기 전용) — 저장 없이 바로 전환 */}
           {locked && !converted && (
             <span className="flex gap-2">
-              <button disabled={!vendorId || !contactId || status !== '진행중'} onClick={() => router.push(`/orders/new?consult=${consultId}`)}
-                title={!vendorId || !contactId ? '마스터 미연결 상담은 전환할 수 없습니다 — 요청한 직원에게 연결을 부탁하세요' : undefined}
-                className="px-5 py-2 bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">주문서로 전환</button>
+              {status === '진행중' && !deleted && (
+                <button disabled={!vendorId || !contactId} onClick={() => router.push(`/orders/new?consult=${consultId}`)}
+                  title={!vendorId || !contactId ? '마스터 미연결 상담은 전환할 수 없습니다 — 요청한 직원에게 연결을 부탁하세요' : undefined}
+                  className="px-5 py-2 bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">주문서로 전환</button>
+              )}
               <button onClick={() => router.push('/orders/consultations')}
                 className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600">목록으로</button>
             </span>

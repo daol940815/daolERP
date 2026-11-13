@@ -3,12 +3,14 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildPoExcel, sendPoMail, smtpReady } from '@/lib/purchase-orders'
-import { fillMailTemplate, poMailVars } from '@/lib/po-form'
+import { fillMailTemplate, poMailVars, poShippingLines } from '@/lib/po-form'
 import { findCustomPoForm } from '@/lib/custom-po'
+import { loadPo, currentStaff, assembleForm, formExtraOf, one, poFileNameFor } from '@/lib/po-assemble'
+import { activeVendorForm, draftVendorForm, buildWithVendorForm, recordFormUsed } from '@/lib/po-vendor-form-server'
 
 export const dynamic = 'force-dynamic'
 
-// 발주서 1건 — 조회(?excel=1 = 엑셀 다운로드) / 발송·취소 처리. 전 직원 사용 가능
+// 발주서 1건 — 조회(?excel=1 = 엑셀 다운로드, 업체 양식이면 X-Po-Warnings 헤더) / 발송·취소 처리. 전 직원 사용 가능
 // (2026-08-13 사용자 결정: 매입가 전 직원 공개).
 // PATCH { action: 'send_email' | 'manual_sent' | 'cancel' | 'update', ... }
 //  - send_email: { to? } — 엑셀 첨부 메일 발송 (성공·실패 이력 보존)
@@ -16,175 +18,31 @@ export const dynamic = 'force-dynamic'
 //  - cancel: 발주 취소 — 품목은 미발주로 복귀 (이력은 보존)
 //  - update: { delivery_note?, email_to? } — 발송 전 내용 보정
 
-interface PoRecord {
-  id: string
-  po_no: string
-  order_id: string
-  vendor_id: string | null
-  vendor_name: string
-  total_amount: number
-  delivery_note: string | null
-  email_to: string | null
-  send_method: string | null
-  sent_at: string | null
-  status: string
-  created_at: string
-  created_by?: string | null
-  creator: { name: string; phone: string | null } | { name: string; phone: string | null }[] | null
-  vendor?: { uses_custom_po: boolean; po_use_sale_price?: boolean } | { uses_custom_po: boolean; po_use_sale_price?: boolean }[] | null
-}
-const one = <T,>(v: T | T[] | null | undefined): T | null =>
-  Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
-
-async function loadPo(admin: SupabaseClient, id: string) {
-  const sel = (withFlags: boolean) => admin.from('erp_purchase_orders')
-    .select((withFlags
-      ? 'id, po_no, order_id, vendor_id, vendor_name, total_amount, delivery_note, email_to, send_method, sent_at, status, created_at, created_by, creator:employees!erp_purchase_orders_created_by_fkey(name, phone), vendor:vendors(uses_custom_po, po_use_sale_price)'
-      : 'id, po_no, order_id, vendor_id, vendor_name, total_amount, delivery_note, email_to, send_method, sent_at, status, created_at, created_by, creator:employees!erp_purchase_orders_created_by_fkey(name, phone)') as string)
-    .eq('id', id).maybeSingle()
-  // po_use_sale_price는 509 — 미적용 환경이면 플래그 없이 재조회
-  let { data: po, error } = await sel(true)
-  if (error && /po_use_sale_price/i.test(error.message)) ({ data: po, error } = await sel(false))
-  if (error || !po) return null
-  const poRec = po as unknown as PoRecord
-  const { data: items } = await admin.from('erp_purchase_order_items')
-    .select('line_no, order_item_id, item_code, item_name, order_kind, quantity, purchase_price, purchase_shipping, purchase_total, memo')
-    .eq('po_id', id).order('line_no')
-  const baseCols = 'order_no, order_date, bank_name, branch_name, manager_name, contact, phone, consultation_id'
-  // 배송지(513) 포함 조회 — 미적용 DB면 배송지 없이 재조회
-  const withShip = await admin.from('erp_orders')
-    .select(`${baseCols}, ship_name, ship_phone, ship_zip, ship_addr1, ship_addr2`)
-    .eq('id', poRec.order_id).maybeSingle()
-  type OrderRow = {
-    order_no: string | null; order_date: string | null; bank_name: string | null; branch_name: string | null
-    manager_name: string | null; contact: string | null; phone: string | null; consultation_id: string | null
-    ship_name?: string | null; ship_phone?: string | null; ship_zip?: string | null; ship_addr1?: string | null; ship_addr2?: string | null
-  }
-  const order = (withShip.error
-    ? (await admin.from('erp_orders').select(baseCols).eq('id', poRec.order_id).maybeSingle()).data
-    : withShip.data) as OrderRow | null
-  return { po: poRec, items: items ?? [], order }
-}
-
-// 발주담당자·연락처: 발주 진행(다운로드·발송) 시점의 로그인 직원 기준 (사용자 확정
-// 2026-08-24). 직원 정보가 없으면 발주서 작성자로 대체.
-// 연락처는 업무용 핸드폰(employees.work_phone, 205) → 비어 있으면 직원 핸드폰(phone)
-// → 둘 다 없으면 비워 두어 양식이 회사 대표번호를 쓴다 (2026-11-05 사용자 결정).
-// 205 미적용 DB에서는 직원 핸드폰만 본다.
-async function currentStaff(
+// 발주서 파일 만들기 — 다운로드 · 메일 첨부 공용. 분기 (2026-11-09 업체 양식 연동):
+//  ① 매입처에 '사용 중' 업로드 양식(516, 매입처 상세 › 발주서 양식)이 있으면 그 양식
+//  ② 코드로 만든 자체 양식(lib/custom-po.ts 레지스트리 — 대경사과)
+//  ③ 그 외 자사 기본 발주서
+// ①의 양식 파일을 못 읽으면 기본 양식으로 바꾸지 않고 오류를 낸다(업체에 다른 양식이 나가지 않게).
+type PoOutput =
+  | { ok: true; buffer: Buffer; fileName: string; kind: 'vendor' | 'code' | 'standard'; vendorForm: { id: string; version: number; file_name: string } | null; warnings: string[] }
+  | { ok: false; error: string }
+async function outputOf(
   admin: SupabaseClient,
+  data: NonNullable<Awaited<ReturnType<typeof loadPo>>>,
+  staff: { name: string | null; phone: string | null },
   employeeId: string | null | undefined,
-  po: PoRecord,
-): Promise<{ name: string | null; phone: string | null }> {
-  const lookup = async (id: string) => {
-    const r = await admin.from('employees').select('name, work_phone, phone').eq('id', id).maybeSingle()
-    if (!r.error) {
-      return r.data ? {
-        name: (r.data.name as string) ?? null,
-        phone: ((r.data.work_phone as string) || (r.data.phone as string)) ?? null,
-      } : null
-    }
-    const old = await admin.from('employees').select('name, phone').eq('id', id).maybeSingle()   // 205 미적용
-    return old.data ? { name: (old.data.name as string) ?? null, phone: (old.data.phone as string) ?? null } : null
-  }
-  if (employeeId) {
-    const s = await lookup(employeeId)
-    if (s) return s
-  }
-  if (po.created_by) {
-    const s = await lookup(po.created_by)
-    if (s) return s
-  }
-  const c = one(po.creator)
-  return { name: c?.name ?? null, phone: c?.phone ?? null }
-}
-
-// 개정 양식 데이터 조립 — 양식이 요구하는 항목 중 ERP가 아는 값을 채운다.
-// 엑셀 생성과 화면 미리보기(GET의 form)가 같은 조립 결과를 쓴다.
-async function assembleForm(
-  admin: SupabaseClient,
-  data: NonNullable<Awaited<ReturnType<typeof loadPo>>>,
-  staff: { name: string | null; phone: string | null },
-) {
-  const { po, items, order } = data
-
-  // 출고요청일: 주문에 연결된 상담일지의 배송요청일 (없으면 공란 — 수기 기입)
-  let shipRequest: string | null = null
-  if (order?.consultation_id) {
-    const { data: c } = await admin.from('erp_consultations')
-      .select('delivery_request').eq('id', order.consultation_id).maybeSingle()
-    shipRequest = (c?.delivery_request as string) ?? null
-  }
-
-  // 품목 구분 (2026-11-05): 원 주문 품목 → 품목 마스터의 '비용 품목'(is_shipping) · 부가상품(is_addon 또는 옵션 행)
-  const roleByOrderItem = new Map<string, 'fee' | 'addon'>()
-  const orderItemIds = items.map(it => it.order_item_id).filter(Boolean) as string[]
-  if (orderItemIds.length) {
-    const { data: ois } = await admin.from('erp_order_items')
-      .select('id, product_id, parent_line_no').in('id', orderItemIds)
-    const pids = Array.from(new Set((ois ?? []).map(o => o.product_id).filter(Boolean))) as string[]
-    const prodFlags = new Map<string, { fee: boolean; addon: boolean }>()
-    if (pids.length) {
-      const withShip = await admin.from('erp_products').select('id, is_addon, is_shipping').in('id', pids)
-      const rows = withShip.error
-        ? (await admin.from('erp_products').select('id, is_addon').in('id', pids)).data   // 703 미적용 폴백
-        : withShip.data
-      for (const p of (rows ?? []) as { id: string; is_addon?: boolean; is_shipping?: boolean }[]) {
-        prodFlags.set(p.id, { fee: !!p.is_shipping, addon: !!p.is_addon })
-      }
-    }
-    for (const o of ois ?? []) {
-      const f = o.product_id ? prodFlags.get(o.product_id as string) : undefined
-      if (f?.fee) roleByOrderItem.set(o.id as string, 'fee')
-      else if (f?.addon || o.parent_line_no) roleByOrderItem.set(o.id as string, 'addon')
-    }
-  }
-
-  return {
-    po_no: po.po_no,
-    order_date: order?.order_date ?? null,
-    ship_request: shipRequest,
-    vendor_name: po.vendor_name,
-    customer: [order?.bank_name, order?.branch_name].filter(Boolean).join(' ') || '-',
-    customer_bank: (order?.bank_name as string | null) ?? null,
-    customer_branch: (order?.branch_name as string | null) ?? null,
-    customer_manager: order?.manager_name ?? null,
-    customer_phone: (order?.phone as string) || (order?.contact as string) || null,
-    staff_name: staff.name,
-    staff_phone: staff.phone,
-    total_amount: po.total_amount ?? 0,
-    delivery_note: po.delivery_note,
-    ship: order && 'ship_addr1' in order ? {
-      ship_name: (order.ship_name as string | null) ?? null, ship_phone: (order.ship_phone as string | null) ?? null,
-      ship_zip: (order.ship_zip as string | null) ?? null, ship_addr1: (order.ship_addr1 as string | null) ?? null,
-      ship_addr2: (order.ship_addr2 as string | null) ?? null,
-    } : null,
-    items: items.map(it => ({
-      item_code: it.item_code, item_name: it.item_name, order_kind: it.order_kind,
-      quantity: it.quantity ?? 0, purchase_price: it.purchase_price ?? 0,
-      purchase_shipping: it.purchase_shipping ?? 0, purchase_total: it.purchase_total ?? 0,
-      memo: it.memo,
-      role: it.order_item_id ? roleByOrderItem.get(it.order_item_id as string) ?? null : null,
-    })),
-  }
-}
-
-// 자체 양식 매입처(lib/custom-po.ts 레지스트리)는 그 매입처 양식으로 생성 —
-// 다운로드·메일 자동 첨부 공용. 그 외 매입처는 자사 발주서 양식.
-async function excelOf(
-  admin: SupabaseClient,
-  data: NonNullable<Awaited<ReturnType<typeof loadPo>>>,
-  staff: { name: string | null; phone: string | null },
-) {
+): Promise<PoOutput> {
   const form = await assembleForm(admin, data, staff)
+  const vf = await activeVendorForm(admin, data.po.vendor_id)
+  if (vf) {
+    const r = await buildWithVendorForm(admin, vf, form, await formExtraOf(admin, data, employeeId))
+    if (!r.ok) return r
+    return { ok: true, buffer: r.buffer, fileName: await poFileNameFor(admin, data), kind: 'vendor', vendorForm: { id: vf.id, version: vf.version, file_name: vf.file_name }, warnings: r.warnings }
+  }
   const custom = findCustomPoForm(data.po.vendor_name)
-  return custom ? custom.build(form) : buildPoExcel(form)
-}
-
-// 자동 생성 첨부 파일명 — 자체 양식은 그 양식 이름(송장등록 등)으로
-function autoFileName(po: { po_no: string; vendor_name: string }) {
-  const custom = findCustomPoForm(po.vendor_name)
-  return `${custom?.filePrefix ?? '발주서'}_${po.po_no}_${po.vendor_name}.xlsx`
+  if (custom) return { ok: true, buffer: await custom.build(form), fileName: await poFileNameFor(admin, data), kind: 'code', vendorForm: null, warnings: [] }
+  // 자사 기본 양식: 택배비 줄 확인 알림(나누어떨어지지 않음 등, 2026-11-12)도 업체 양식처럼 내려보낸다
+  return { ok: true, buffer: await buildPoExcel(form), fileName: await poFileNameFor(admin, data), kind: 'standard', vendorForm: null, warnings: poShippingLines(form).warnings }
 }
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -197,12 +55,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   const staff = await currentStaff(admin, me.employeeId, data.po)
   if (new URL(req.url).searchParams.get('excel') === '1') {
-    const buf = await excelOf(admin, data, staff)
-    const filename = encodeURIComponent(autoFileName(data.po))
-    return new NextResponse(new Uint8Array(buf), {
+    const out = await outputOf(admin, data, staff, me.employeeId)
+    if (!out.ok) return NextResponse.json({ error: out.error }, { status: 500 })
+    await recordFormUsed(admin, data.po.id, out.vendorForm?.id ?? null)
+    return new NextResponse(new Uint8Array(out.buffer), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename*=UTF-8''${filename}`,
+        'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(out.fileName)}`,
+        'X-Po-Warnings': encodeURIComponent(JSON.stringify(out.warnings)),
       },
     })
   }
@@ -213,6 +73,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   const vendorFlags = one(data.po.vendor)
   // form: 화면 미리보기용 양식 데이터 — 엑셀과 같은 조립 함수를 거친다
+  const form = await assembleForm(admin, data, staff)
   return NextResponse.json({
     ...data,
     po: {
@@ -226,8 +87,21 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       sender_name: (l.sender as unknown as { name: string } | null)?.name ?? null,
       sender: undefined,
     })),
-    form: await assembleForm(admin, data, staff),
+    form,
     smtp_ready: smtpReady(),
+    // 출력 양식 (2026-11-09): 업체 양식이면 버전 · 확인 목록, 사용 시작 전 버전만 있으면 안내
+    output: await (async () => {
+      const vf = await activeVendorForm(admin, data.po.vendor_id)
+      if (vf) {
+        const out = await outputOf(admin, data, staff, me.employeeId)
+        return { kind: 'vendor', vendor_form: { id: vf.id, version: vf.version, file_name: vf.file_name }, file_name: out.ok ? out.fileName : await poFileNameFor(admin, data),
+          warnings: out.ok ? out.warnings : [], error: out.ok ? null : out.error }
+      }
+      const draft = await draftVendorForm(admin, data.po.vendor_id)
+      const code = !!findCustomPoForm(data.po.vendor_name)
+      return { kind: code ? 'code' : 'standard', vendor_form: null, warnings: code ? [] : poShippingLines(form).warnings, error: null, file_name: await poFileNameFor(admin, data),
+        draft_version: draft?.version ?? null, vendor_id: data.po.vendor_id }
+    })(),
   })
 }
 
@@ -236,24 +110,28 @@ async function buildAttachments(
   admin: SupabaseClient,
   data: NonNullable<Awaited<ReturnType<typeof loadPo>>>,
   staff: { name: string | null; phone: string | null },
+  employeeId: string | null | undefined,
 ) {
   const { po } = data
-  const autoName = autoFileName(po)
   const { data: rows, error } = await admin.from('erp_po_attachments')
     .select('kind, file_name, storage_path').eq('po_id', po.id).order('created_at')
   const uploads = error ? [] : (rows ?? [])   // 510 미적용 — 자동 생성본만 첨부
 
   const files: { filename: string; content: Buffer }[] = []
   const replaces = uploads.filter(r => r.kind === 'replace')
+  let formId: string | null = null
   if (!replaces.length) {
-    files.push({ filename: autoName, content: await excelOf(admin, data, staff) })
+    const out = await outputOf(admin, data, staff, employeeId)
+    if (!out.ok) return { error: out.error }
+    files.push({ filename: out.fileName, content: out.buffer })
+    formId = out.vendorForm?.id ?? null
   }
   for (const r of uploads) {
     const { data: blob, error: dErr } = await admin.storage.from('po-attachments').download(r.storage_path as string)
     if (dErr || !blob) return { error: `첨부 파일을 읽지 못했습니다: ${r.file_name}` }
     files.push({ filename: r.file_name as string, content: Buffer.from(await blob.arrayBuffer()) })
   }
-  return { files }
+  return { files, formId, auto: !replaces.length }
 }
 
 // 발송 로그 기록 — 실제 발송된 제목·본문·첨부 보존 (510 미적용이면 조용히 건너뜀)
@@ -326,7 +204,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       `안녕하세요, 다올커머스입니다.\n\n발주서를 첨부하여 송부드립니다.\n- 발주번호: ${po.po_no}\n- 합계금액: ${(po.total_amount ?? 0).toLocaleString('ko-KR')}원\n\n확인 부탁드립니다. 감사합니다.`, vars)
 
     // 첨부 조립: 수정본 업로드가 있으면 자동 생성본 대신 그 파일이 나간다
-    const att = await buildAttachments(admin, data, staff)
+    const att = await buildAttachments(admin, data, staff, me.employeeId)
     if ('error' in att) return NextResponse.json({ error: att.error }, { status: 500 })
 
     const result = await sendPoMail({ to, subject, body: mailBody, attachments: att.files })
@@ -345,6 +223,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       sent_by: me.employeeId ?? null, send_error: null,
     }).eq('id', po.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (att.auto) await recordFormUsed(admin, po.id, att.formId)   // 자동 생성본이 나갔을 때만 — 수정본만 보냈으면 기록 유지
     await writeSendLog(admin, {
       po_id: po.id, method: 'email', email_to: to, subject, body: mailBody,
       attachment_names: att.files.map(f => f.filename), ok: true,

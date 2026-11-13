@@ -2,16 +2,17 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { isManagerLike } from '@/lib/permissions'
-import { OPEN_STATUSES, ASG_TRACKED, fmtDue, type WrStatus, type WrAsgStatus } from '@/lib/work-requests'
+import { OPEN_STATUSES, ASG_TRACKED, ASG_ACTIVE, fmtDue, type WrStatus, type WrAsgStatus } from '@/lib/work-requests'
 import type { NotifData, NotifItem, NotifBucket } from '@/lib/notifications'
 import { leaveActions, type LeaveStep } from '@/lib/leave-approval'
 import { loadApprovalCtx, loadSteps } from '@/lib/leave-approval.server'
+import { firstTagLabels } from '@/lib/work-requests-server'
 import { loadReplyMap, loadConsultReqMap, REPLY_START, REPLY_LABEL_LONG, type ReplyResult, type ConsultReqRow } from '@/lib/order-reply'
 
 export const dynamic = 'force-dynamic'
 
 // GET /api/notifications — 로그인 직원의 "확인할 것" (저장 없음, 원본 상태에서 계산). API_OWNERS: my(전원).
-//  원천: 업무 요청(받은 미확인·오늘 마감·지남 / 보낸 완료 대기·반려) · 휴가 결재 내 차례(3단계 결재, 204 미적용 시 승인권자) · 주문 수정 승인 요청(승인권자)
+//  원천: 업무 요청(받은 미확인·오늘 마감·지남 / 보낸 완료 확정 대기·반려 / 진행 메모·이력·완료 확정·취소 결과 통지) · 휴가 결재 내 차례(3단계 결재, 204 미적용 시 승인권자) · 주문 수정 승인 요청(승인권자)
 //        · 내 휴가 신청 결과 · 내 주문 수정 요청 결과 (최근 7일). 각 블록은 마이그레이션 미적용 시 조용히 건너뛴다.
 
 const DAY = 86400_000
@@ -25,14 +26,14 @@ export async function GET() {
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   const now = new Date()
   const nowIso = now.toISOString()
-  const empty: NotifData = { at: nowIso, count: 0, breakdown: { personal: 0, shared: 0, mine: 0, other: 0 }, items: [], badges: {} }
+  const empty: NotifData = { at: nowIso, count: 0, breakdown: { personal: 0, shared: 0, mine: 0, order: 0, other: 0 }, items: [], badges: {} }
   const empId = me.employeeId
   if (!empId) return NextResponse.json(empty)
 
   const admin = createAdminClient()
   const items: NotifItem[] = []
   const badges: NotifData['badges'] = {}
-  const breakdown: Record<NotifBucket, number> = { personal: 0, shared: 0, mine: 0, other: 0 }
+  const breakdown: Record<NotifBucket, number> = { personal: 0, shared: 0, mine: 0, order: 0, other: 0 }
   const sevenDaysAgo = new Date(now.getTime() - 7 * DAY).toISOString()
   const today = kstDay(nowIso)
   const approver = isManagerLike(me)
@@ -44,8 +45,12 @@ export async function GET() {
   type OCR = { id: string; request_type: string; status: string; created_at: string; decided_at: string | null; requested_by: string | null; employees: { name: string } | { name: string }[] | null }
 
   const wrSel = 'id, title, status, assign_mode, due_at, created_at, reported_at, rejected_at, reject_reason, is_urgent, requester:employees!work_requests_requester_id_fkey(name), assignee:employees!work_requests_assignee_id_fkey(name)'
-  const [inRes, outRes, leavePendRes, leaveMineRes, ocrPendRes, ocrMineRes, appr] = await Promise.all([
+  const [inRes, relRes, outRes, leavePendRes, leaveMineRes, ocrPendRes, ocrMineRes, appr] = await Promise.all([
     admin.from('work_request_assignees').select(`status, request:work_requests!inner(${wrSel})`).eq('employee_id', empId).in('status', ASG_TRACKED),
+    // 진행 메모 · 이력 알림 대상 넓힘(2026-11-09): 열린 요청 전부 + 최근 7일 완료 확정 · 취소된 요청 (회사 전체, 담당자 행만) — 여기서 내 몫을 가른다.
+    //  ① 내가 이미 처리 보고한 열린 요청(요청자 후속 메모) ② 내가 담당이던 요청의 완료 확정 · 취소
+    admin.from('work_requests').select('id, status, assign_mode, assignees:work_request_assignees(employee_id, status)')
+      .or(`status.in.(${OPEN_STATUSES.join(',')}),and(status.eq.completed,completed_at.gte.${sevenDaysAgo}),and(status.eq.canceled,canceled_at.gte.${sevenDaysAgo})`).limit(1000),
     // 내가 요청한 것: 열린 건 전부(진행 메모 알림용) + 최근 7일 반려
     admin.from('work_requests').select(wrSel).eq('requester_id', empId).or(`status.in.(${OPEN_STATUSES.join(',')}),and(status.eq.rejected,rejected_at.gte.${sevenDaysAgo})`).order('created_at', { ascending: false }),
     // 진행 중 휴가 — 3단계 결재(204)면 결재 단계가 있는 사람, 아니면 기존 승인권자만 실제로 쓴다
@@ -61,28 +66,30 @@ export async function GET() {
   // ── 업무 요청 (2026-11-04 사용자 결정: 종류를 셋으로 나눔 — 개인 요청 · 공용 요청 · 내 요청) ──
   //  개인 요청 = 나 혼자 담당(single) / 공용 요청 = 내가 포함된 다수 담당(선착·공동) / 내 요청 = 내가 요청자
   const relatedIds = new Set<string>()
+  const tagPending: { item: NotifItem; requestId: string }[] = []   // 904: 설명 앞에 대표 태그를 붙일 항목 (끝에서 한 번에 조회)
+  const pushWr = (item: NotifItem, requestId: string) => { items.push(item); tagPending.push({ item, requestId }) }
   const bucketOf = new Map<string, NotifBucket>()   // 요청 id → 알림 칸 (진행 메모 · 이력 알림을 같은 칸에 넣기 위해)
   if (!inRes.error) {
     const shares = ((inRes.data ?? []) as unknown as MyShare[]).map(s => ({ status: s.status, r: one(s.request) })).filter((s): s is { status: WrAsgStatus; r: WR } => !!s.r && OPEN_STATUSES.includes(s.r.status))
     shares.forEach(s => { relatedIds.add(s.r.id); bucketOf.set(s.r.id, s.r.assign_mode === 'single' || !s.r.assign_mode ? 'personal' : 'shared') })
     const desc = (r: WR) => `${one(r.requester)?.name ?? ''}: ${r.title} (마감 ${fmtDue(r.due_at)})`
-    let red = 0
     for (const kind of ['personal', 'shared'] as const) {
       const mine = shares.filter(s => (s.r.assign_mode === 'single' || !s.r.assign_mode) === (kind === 'personal'))
       const label = kind === 'personal' ? '개인 요청' : '공용 요청'
-      const href = kind === 'personal' ? '/me/requests' : '/me/requests?filter=shared'
+      const href = kind === 'personal' ? '/me/requests?filter=personal' : '/me/requests?filter=shared'
       const tracked = mine.map(s => s.r).sort((a, b) => a.due_at.localeCompare(b.due_at))   // 내 몫이 미확인·수락·진행 중인 것만 (조회 조건)
       const unread = mine.filter(s => s.status === 'invited').map(s => s.r)
       const overdue = tracked.filter(r => new Date(r.due_at) < now)
       const dueToday = tracked.filter(r => kstDay(r.due_at) === today && new Date(r.due_at) >= now)
       const k = kind === 'personal' ? 'p' : 's'
-      if (unread.length) items.push({ key: `wr:unread:${k}`, bucket: kind, group: 'todo', tone: 'red', title: `${label} 미확인 ${unread.length}건`, detail: desc(unread[0]) + (unread.length > 1 ? ` 외 ${unread.length - 1}` : ''), href, count: unread.length, at: latest(unread.map(r => r.created_at)) })
-      if (overdue.length) items.push({ key: `wr:overdue:${k}`, bucket: kind, group: 'todo', tone: 'red', title: `${label} 마감 지남 ${overdue.length}건`, detail: desc(overdue[0]), href, count: overdue.length, at: latest(overdue.map(r => r.due_at)) })
-      if (dueToday.length) items.push({ key: `wr:due_today:${k}`, bucket: kind, group: 'todo', tone: 'red', title: `${label} 오늘 마감 ${dueToday.length}건`, detail: desc(dueToday[0]), href, count: dueToday.length, at: latest(dueToday.map(r => r.created_at)) })
-      red += new Set([...unread, ...overdue].map(r => r.id)).size
+      if (unread.length) pushWr({ key: `wr:unread:${k}`, bucket: kind, group: 'todo', tone: 'red', title: `${label} 미확인 ${unread.length}건`, detail: desc(unread[0]) + (unread.length > 1 ? ` 외 ${unread.length - 1}` : ''), href, count: unread.length, at: latest(unread.map(r => r.created_at)) }, unread[0].id)
+      if (overdue.length) pushWr({ key: `wr:overdue:${k}`, bucket: kind, group: 'todo', tone: 'red', title: `${label} 마감 지남 ${overdue.length}건`, detail: desc(overdue[0]), href, count: overdue.length, at: latest(overdue.map(r => r.due_at)) }, overdue[0].id)
+      if (dueToday.length) pushWr({ key: `wr:due_today:${k}`, bucket: kind, group: 'todo', tone: 'red', title: `${label} 오늘 마감 ${dueToday.length}건`, detail: desc(dueToday[0]), href, count: dueToday.length, at: latest(dueToday.map(r => r.created_at)) }, dueToday[0].id)
       breakdown[kind] = new Set([...unread, ...overdue, ...dueToday].map(r => r.id)).size   // 요청 건수 (중복 없음)
     }
-    if (red) badges['/me/requests'] = { n: red, tone: 'red' }
+    // 사이드바 배지 = 종의 개인 + 공용 칸과 같은 숫자 (2026-11-09 — 오늘 마감 포함, 요청 건수)
+    const wrTodo = breakdown.personal + breakdown.shared
+    if (wrTodo) badges['/me/requests'] = { n: wrTodo, tone: 'red' }
   }
   if (!outRes.error) {
     const outbox = (outRes.data ?? []) as unknown as WR[]
@@ -90,9 +97,23 @@ export async function GET() {
     const awaiting = outbox.filter(r => r.status === 'done_reported')
     const rejected = outbox.filter(r => r.status === 'rejected')
     breakdown.mine = awaiting.length
-    if (awaiting.length) items.push({ key: 'wr:awaiting', bucket: 'mine', group: 'waiting', tone: 'amber', title: `내 요청 완료 확정 대기 ${awaiting.length}건`, detail: `${one(awaiting[0].assignee)?.name ?? '담당자 전원'}이(가) 처리 보고: ${awaiting[0].title}`, href: '/me/requests?tab=outbox', count: awaiting.length, at: latest(awaiting.map(r => r.reported_at)) })
-    if (rejected.length) items.push({ key: 'wr:rejected', bucket: 'mine', group: 'info', tone: 'gray', title: `내 요청 반려됨 ${rejected.length}건`, detail: `${rejected[0].title}${rejected[0].reject_reason ? ` — 사유: ${rejected[0].reject_reason}` : ''}`, href: '/me/requests?tab=outbox', count: rejected.length, at: latest(rejected.map(r => r.rejected_at)) })
-    if (!badges['/me/requests'] && awaiting.length + rejected.length) badges['/me/requests'] = { n: awaiting.length + rejected.length, tone: 'amber' }
+    if (awaiting.length) pushWr({ key: 'wr:awaiting', bucket: 'mine', group: 'waiting', tone: 'amber', title: `내 요청 완료 확정 대기 ${awaiting.length}건`, detail: `${one(awaiting[0].assignee)?.name ?? '담당자 전원'}이(가) 처리 보고: ${awaiting[0].title}`, href: '/me/requests?tab=outbox', count: awaiting.length, at: latest(awaiting.map(r => r.reported_at)) }, awaiting[0].id)
+    if (rejected.length) pushWr({ key: 'wr:rejected', bucket: 'mine', group: 'info', tone: 'gray', title: `내 요청 반려됨 ${rejected.length}건`, detail: `${rejected[0].title}${rejected[0].reject_reason ? ` — 사유: ${rejected[0].reject_reason}` : ''}`, href: '/me/requests?tab=outbox', count: rejected.length, at: latest(rejected.map(r => r.rejected_at)) }, rejected[0].id)
+    // 반려된 내 요청은 할 조작이 없어(다시 요청만) 알림 목록에만 둔다 — 배지 · 종 숫자는 완료 확정 대기만 (2026-11-09)
+    if (!badges['/me/requests'] && awaiting.length) badges['/me/requests'] = { n: awaiting.length, tone: 'amber' }
+  }
+  // 관련 범위 넓힘(2026-11-09): 처리 보고 후에도 열린 요청의 메모는 받고, 내 담당이던 요청이 완료 확정 · 취소되면 알린다.
+  //  반려 · 해제된 담당자는 대상 아님(내 몫이 끝남). 숫자(breakdown)에는 영향 없음 — 결과 통지로만.
+  if (!relRes.error) {
+    type Rel = { id: string; status: WrStatus; assign_mode: 'single' | 'first' | 'all' | null; assignees: { employee_id: string; status: WrAsgStatus }[] | null }
+    for (const r of (relRes.data ?? []) as unknown as Rel[]) {
+      const my = (r.assignees ?? []).find(a => a.employee_id === empId)
+      if (!my || !ASG_ACTIVE.includes(my.status)) continue
+      const closed = r.status === 'completed' || r.status === 'canceled'
+      if (!closed && my.status !== 'done_reported') continue   // 보고 전 열린 요청은 위(받은 요청)에서 이미 담았다
+      relatedIds.add(r.id)
+      if (!bucketOf.has(r.id)) bucketOf.set(r.id, r.assign_mode === 'single' || !r.assign_mode ? 'personal' : 'shared')
+    }
   }
   // 진행 메모 · 이력 (2026-11-04): 내가 관련된 열린 요청에서 다른 사람이 남긴 메모 · 수락 · 수정 · 담당자 추가 — 최근 7일, 최신 10건, 결과 통지로.
   if (relatedIds.size) {
@@ -102,15 +123,21 @@ export async function GET() {
     for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100))
     const evs = (await Promise.all(chunks.map(c => admin.from('work_request_events')
       .select('id, request_id, event, memo, created_at, actor:employees!work_request_events_actor_id_fkey(name), request:work_requests!inner(title, is_private)')
-      .in('request_id', c).neq('actor_id', empId).in('event', ['memo', 'accepted', 'edited', 'assignee_added']).gte('created_at', sevenDaysAgo)
+      .in('request_id', c).neq('actor_id', empId).in('event', ['memo', 'accepted', 'edited', 'assignee_added', 'completed', 'canceled']).gte('created_at', sevenDaysAgo)
       .order('created_at', { ascending: false }).limit(10))))
       .flatMap(r => (r.error ? [] : (r.data ?? [])) as unknown as Ev[])
       .sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 10)
-    const EV_LABEL: Record<string, string> = { memo: '진행 메모', accepted: '수락', edited: '요청 수정', assignee_added: '담당자 추가' }
+    const EV_LABEL: Record<string, string> = { memo: '진행 메모', accepted: '수락', edited: '요청 수정', assignee_added: '담당자 추가', completed: '완료 확정', canceled: '요청 취소' }
     for (const e of evs) {
       const req = one(e.request)
-      items.push({ key: `wr:ev:${e.id}`, bucket: bucketOf.get(e.request_id) ?? 'mine', group: 'info', tone: 'blue', title: `${EV_LABEL[e.event] ?? e.event} — ${one(e.actor)?.name ?? ''}`, detail: `${req?.title ?? ''}${e.event === 'memo' && e.memo ? `: ${e.memo}` : ''}`, href: `/me/requests/${e.request_id}`, count: 1, at: e.created_at })
+      pushWr({ key: `wr:ev:${e.id}`, bucket: bucketOf.get(e.request_id) ?? 'mine', group: 'info', tone: e.event === 'canceled' ? 'gray' : 'blue', title: `${EV_LABEL[e.event] ?? e.event} — ${one(e.actor)?.name ?? ''}`, detail: `${req?.title ?? ''}${(e.event === 'memo' || e.event === 'completed' || e.event === 'canceled') && e.memo ? `: ${e.memo}` : ''}`, href: `/me/requests/${e.request_id}`, count: 1, at: e.created_at }, e.request_id)
     }
+  }
+
+  // 업무 계열 태그(904) — 업무 요청 알림의 설명 앞에 대표 태그 "[수금 · 계산서] " (904 미적용이면 그대로)
+  if (tagPending.length) {
+    const labels = await firstTagLabels(admin, tagPending.map(p => p.requestId))
+    for (const p of tagPending) { const l = labels.get(p.requestId); if (l && p.item.detail) p.item.detail = `[${l}] ${p.item.detail}` }
   }
 
   // ── 휴가 ── 3단계 결재(204): 현재 단계의 차례가 내 결재 단계인 건만 "내 차례"로 센다
@@ -148,41 +175,60 @@ export async function GET() {
   if (approver && !ocrPendRes.error) {
     const rows = (ocrPendRes.data ?? []) as unknown as OCR[]
     if (rows.length) {
-      items.push({ key: 'ocr:approve', group: 'todo', tone: 'red', title: `주문 수정 승인 요청 ${rows.length}건`, detail: rows.slice(0, 2).map(r => `${one(r.employees)?.name ?? ''} · ${r.request_type === 'cancel' ? '취소' : '수정'}`).join(' · ') + (rows.length > 2 ? ` 외 ${rows.length - 2}` : ''), href: '/orders/approvals', count: rows.length, at: latest(rows.map(r => r.created_at)) })
+      items.push({ key: 'ocr:approve', bucket: 'order', group: 'todo', tone: 'red', title: `주문 수정 승인 요청 ${rows.length}건`, detail: rows.slice(0, 2).map(r => `${one(r.employees)?.name ?? ''} · ${r.request_type === 'cancel' ? '취소' : '수정'}`).join(' · ') + (rows.length > 2 ? ` 외 ${rows.length - 2}` : ''), href: '/orders/approvals', count: rows.length, at: latest(rows.map(r => r.created_at)) })
       badges['/orders/approvals'] = { n: rows.length, tone: 'amber' }
-      breakdown.other += rows.length
+      breakdown.order += rows.length
     }
   }
   if (!ocrMineRes.error) {
     const rows = (ocrMineRes.data ?? []) as unknown as OCR[]
     for (const r of rows.slice(0, 3)) {
-      items.push({ key: `ocr:decided:${r.id}`, group: 'info', tone: 'blue', title: `내 주문 ${r.request_type === 'cancel' ? '취소' : '수정'} 요청 ${r.status === 'approved' ? '승인됨' : '반려됨'}`, detail: null, href: '/orders/approvals', count: 1, at: r.decided_at })
+      items.push({ key: `ocr:decided:${r.id}`, bucket: 'order', group: 'info', tone: 'blue', title: `내 주문 ${r.request_type === 'cancel' ? '취소' : '수정'} 요청 ${r.status === 'approved' ? '승인됨' : '반려됨'}`, detail: null, href: '/orders/approvals', count: 1, at: r.decided_at })
     }
   }
 
   // ── 상담일지 주문 진행 요청 (705, 주문 트랙 2026-11-05) ── 705 미적용이면 조용히 건너뜀
   //  나에게 요청됐고 아직 전환 안 된 상담 = 할 일 / 내가 요청한 상담이 최근 7일 안에 주문으로 전환됨 = 결과 통지
   {
-    const [assigned, done] = await Promise.all([
+    const threeDaysAgo = new Date(now.getTime() - 3 * DAY).toISOString()
+    const [assigned0, done, endedRes] = await Promise.all([
       admin.from('erp_consultations').select('id, bank_name, branch_name, order_requested_at, requester:employees!erp_consultations_order_requested_by_fkey(name)')
-        .eq('order_assignee_id', empId).eq('status', '진행중').order('order_requested_at', { ascending: false }),
+        .eq('order_assignee_id', empId).eq('status', '진행중').is('deleted_at', null).order('order_requested_at', { ascending: false }),
       admin.from('erp_consultations').select('id, bank_name, branch_name, assignee:employees!erp_consultations_order_assignee_id_fkey(name)')
         .eq('order_requested_by', empId).neq('order_assignee_id', empId).not('order_assignee_id', 'is', null).eq('status', '주문전환')
         .gte('updated_at', sevenDaysAgo).order('updated_at', { ascending: false }).limit(5),
+      // 요청받은 상담을 요청자 쪽에서 종결 · 삭제함 (709, 2026-11-10) — 최근 3일, 결과 통지
+      admin.from('erp_consultations').select('id, bank_name, branch_name, status, closed_at, closed_by, close_reason, deleted_at, deleted_by, delete_reason, closer:employees!erp_consultations_closed_by_fkey(name), deleter:employees!erp_consultations_deleted_by_fkey(name)')
+        .eq('order_assignee_id', empId).or(`and(status.eq.종결,closed_at.gte.${threeDaysAgo}),deleted_at.gte.${threeDaysAgo}`).limit(10),
     ])
+    // 709 미적용이면 deleted_at 조건 없이 다시 (기존 동작)
+    const assigned = assigned0.error && /deleted_at/.test(assigned0.error.message)
+      ? await admin.from('erp_consultations').select('id, bank_name, branch_name, order_requested_at, requester:employees!erp_consultations_order_requested_by_fkey(name)')
+          .eq('order_assignee_id', empId).eq('status', '진행중').order('order_requested_at', { ascending: false })
+      : assigned0
+    if (!endedRes.error) {
+      type ER = { id: string; bank_name: string | null; branch_name: string | null; closed_at: string | null; closed_by: string | null; close_reason: string | null; deleted_at: string | null; deleted_by: string | null; delete_reason: string | null; closer: { name: string } | { name: string }[] | null; deleter: { name: string } | { name: string }[] | null }
+      for (const r of (endedRes.data ?? []) as unknown as ER[]) {
+        const del = !!r.deleted_at
+        if ((del ? r.deleted_by : r.closed_by) === empId) continue   // 내가 한 건 알리지 않음
+        const who = one(del ? r.deleter : r.closer)?.name ?? ''
+        const reason = del ? r.delete_reason : r.close_reason
+        items.push({ key: `oreq:ended:${r.id}`, bucket: 'order', group: 'info', tone: 'gray', title: `요청받은 상담 ${del ? '삭제됨' : '종결됨'} — ${who}`, detail: `${[r.bank_name, r.branch_name].filter(Boolean).join(' ') || '상담일지'}${reason ? ` — ${reason.slice(0, 40)}` : ''}`, href: del ? '/orders/consultations?scope=mine' : `/orders/consultations/${r.id}`, count: 1, at: del ? r.deleted_at : r.closed_at })
+      }
+    }
     type CR = { id: string; bank_name: string | null; branch_name: string | null; order_requested_at?: string | null; requester?: { name: string } | { name: string }[] | null; assignee?: { name: string } | { name: string }[] | null }
     if (!assigned.error) {
       const rows = (assigned.data ?? []) as unknown as CR[]
       if (rows.length) {
         const where = (r: CR) => [r.bank_name, r.branch_name].filter(Boolean).join(' ') || '상담일지'
-        items.push({ key: 'oreq:assigned', bucket: 'personal', group: 'todo', tone: 'red', title: `주문 진행 요청 ${rows.length}건`, detail: `${one(rows[0].requester)?.name ?? ''}: ${where(rows[0])}` + (rows.length > 1 ? ` 외 ${rows.length - 1}` : ''), href: '/orders/consultations?scope=assigned', count: rows.length, at: latest(rows.map(r => r.order_requested_at)) })
+        items.push({ key: 'oreq:assigned', bucket: 'order', group: 'todo', tone: 'red', title: `주문 진행 요청 ${rows.length}건`, detail: `${one(rows[0].requester)?.name ?? ''}: ${where(rows[0])}` + (rows.length > 1 ? ` 외 ${rows.length - 1}` : ''), href: '/orders/consultations?scope=assigned', count: rows.length, at: latest(rows.map(r => r.order_requested_at)) })
         badges['/orders/consultations'] = { n: rows.length, tone: 'red' }
-        breakdown.personal += rows.length
+        breakdown.order += rows.length
       }
     }
     if (!done.error) {
       for (const r of (done.data ?? []) as unknown as CR[]) {
-        items.push({ key: `oreq:done:${r.id}`, bucket: 'mine', group: 'info', tone: 'blue', title: `요청한 주문 입력됨 — ${one(r.assignee)?.name ?? ''}`, detail: [r.bank_name, r.branch_name].filter(Boolean).join(' ') || null, href: `/orders/consultations/${r.id}`, count: 1, at: null })
+        items.push({ key: `oreq:done:${r.id}`, bucket: 'order', group: 'info', tone: 'blue', title: `요청한 주문 입력됨 — ${one(r.assignee)?.name ?? ''}`, detail: [r.bank_name, r.branch_name].filter(Boolean).join(' ') || null, href: `/orders/consultations/${r.id}`, count: 1, at: null })
       }
     }
   }
@@ -196,7 +242,7 @@ export async function GET() {
         .gte('created_at', REPLY_START).order('created_at', { ascending: false }).limit(500),
       admin.from('erp_order_replies').select('order_id, result, memo, employee_id, employee_name, created_at')
         .not('order_id', 'is', null).gte('created_at', sevenDaysAgo).order('created_at', { ascending: false }).limit(300),
-      admin.from('erp_consultations').select('id, status, bank_name, branch_name, order_assignee_id, order_requested_by, order_requested_at')
+      admin.from('erp_consultations').select('*')
         .eq('order_requested_by', empId).is('order_assignee_id', null).eq('status', '진행중'),
     ])
     if (!recent.error) {
@@ -206,18 +252,18 @@ export async function GET() {
       const rmMine = await loadReplyMap(admin, mine.map(o => o.id))
       const waiting = mine.filter(o => rmMine.get(o.id)?.state === 'waiting')
       if (waiting.length) {
-        items.push({ key: 'orep:wait', bucket: 'personal', group: 'todo', tone: 'red', title: `완료 회신 대기 ${waiting.length}건`, detail: `${where(waiting[0])} · ${waiting[0].order_no ?? ''}` + (waiting.length > 1 ? ` 외 ${waiting.length - 1}` : ''), href: '/orders?reply=my_wait', count: waiting.length, at: latest(waiting.map(o => o.created_at)) })
+        items.push({ key: 'orep:wait', bucket: 'order', group: 'todo', tone: 'red', title: `완료 회신 대기 ${waiting.length}건`, detail: `${where(waiting[0])} · ${waiting[0].order_no ?? ''}` + (waiting.length > 1 ? ` 외 ${waiting.length - 1}` : ''), href: '/orders?reply=my_wait', count: waiting.length, at: latest(waiting.map(o => o.created_at)) })
         if (!badges['/orders']) badges['/orders'] = { n: waiting.length, tone: 'red' }
-        breakdown.personal += waiting.length
+        breakdown.order += waiting.length
       }
       // 2) 처리 불가로 되돌아온 내 요청 (전환 전)
       if (!returned.error && returned.data?.length) {
         const rq = await loadConsultReqMap(admin, returned.data as unknown as ConsultReqRow[])
-        const rows = (returned.data as { id: string; bank_name: string | null; branch_name: string | null }[]).filter(c => rq.get(c.id)?.state === 'returned')
+        const rows = (returned.data as { id: string; bank_name: string | null; branch_name: string | null; deleted_at?: string | null }[]).filter(c => !c.deleted_at && rq.get(c.id)?.state === 'returned')
         if (rows.length) {
           const first = rq.get(rows[0].id)
-          items.push({ key: 'oreq:returned', bucket: 'mine', group: 'todo', tone: 'red', title: `처리 불가 회신 ${rows.length}건 — 다시 요청 필요`, detail: `${first?.last_by ?? ''}: ${where(rows[0])}${first?.last_memo ? ` — ${first.last_memo.slice(0, 30)}` : ''}` + (rows.length > 1 ? ` 외 ${rows.length - 1}` : ''), href: rows.length === 1 ? `/orders/consultations/${rows[0].id}` : '/orders/consultations?scope=requested', count: rows.length, at: latest(rows.map(c => rq.get(c.id)?.last_at)) })
-          breakdown.mine += rows.length
+          items.push({ key: 'oreq:returned', bucket: 'order', group: 'todo', tone: 'red', title: `처리 불가 회신 ${rows.length}건 — 다시 요청 필요`, detail: `${first?.last_by ?? ''}: ${where(rows[0])}${first?.last_memo ? ` — ${first.last_memo.slice(0, 30)}` : ''}` + (rows.length > 1 ? ` 외 ${rows.length - 1}` : ''), href: rows.length === 1 ? `/orders/consultations/${rows[0].id}` : '/orders/consultations?scope=requested', count: rows.length, at: latest(rows.map(c => rq.get(c.id)?.last_at)) })
+          breakdown.order += rows.length
         }
       }
       // 2-1) 주문 입력됨 (2026-11-06 A안) — 내가 요청자 · 상담자인 회신 대기 주문, 최근 7일 입력분. 회신이 오면 3)으로 바뀜
@@ -234,7 +280,7 @@ export async function GET() {
         const covered = new Set(entered.map(o => o.consultation_id).filter(Boolean).map(id => `oreq:done:${id}`))
         for (let i = items.length - 1; i >= 0; i--) if (covered.has(items[i].key)) items.splice(i, 1)
         for (const o of entered.slice(0, 5)) {
-          items.push({ key: `orep:entered:${o.id}`, bucket: 'mine', group: 'info', tone: 'blue', title: `주문 입력됨 — ${o.staff_name ?? ''}`, detail: `${where(o)} · ${o.order_no ?? ''} · 완료 회신 대기`, href: `/orders/${o.id}`, count: 1, at: o.created_at })
+          items.push({ key: `orep:entered:${o.id}`, bucket: 'order', group: 'info', tone: 'blue', title: `주문 입력됨 — ${o.staff_name ?? ''}`, detail: `${where(o)} · ${o.order_no ?? ''} · 완료 회신 대기`, href: `/orders/${o.id}`, count: 1, at: o.created_at })
         }
       }
       // 3) 나에게 온 회신 (요청자 · 상담자) — 주문별 최신 1건, 최근 7일
@@ -249,7 +295,7 @@ export async function GET() {
           const om = new Map((os ?? []).map(o => [o.id as string, o]))
           for (const r of toMe) {
             const o = om.get(r.order_id)
-            items.push({ key: `orep:in:${r.order_id}:${r.created_at}`, bucket: 'mine', group: 'info', tone: r.result === 'unable' ? 'red' : 'blue', title: `${r.result === 'unable' ? '처리 불가 회신' : '완료 회신'} — ${r.employee_name ?? ''}`, detail: `${o ? where(o) : ''} · ${REPLY_LABEL_LONG[r.result]}${r.memo ? ` — ${r.memo.slice(0, 30)}` : ''}`, href: `/orders/${r.order_id}`, count: 1, at: r.created_at })
+            items.push({ key: `orep:in:${r.order_id}:${r.created_at}`, bucket: 'order', group: 'info', tone: r.result === 'unable' ? 'red' : 'blue', title: `${r.result === 'unable' ? '처리 불가 회신' : '완료 회신'} — ${r.employee_name ?? ''}`, detail: `${o ? where(o) : ''} · ${REPLY_LABEL_LONG[r.result]}${r.memo ? ` — ${r.memo.slice(0, 30)}` : ''}`, href: `/orders/${r.order_id}`, count: 1, at: r.created_at })
           }
         }
       }
@@ -258,7 +304,7 @@ export async function GET() {
 
   const order: Record<string, number> = { todo: 0, waiting: 1, info: 2 }
   items.sort((a, b) => order[a.group] - order[b.group] || (b.at ?? '').localeCompare(a.at ?? ''))
-  for (const i of items) if (!i.bucket) i.bucket = 'other'   // 휴가 결재 · 주문 승인 · 내 휴가 결과 등
-  const count = breakdown.personal + breakdown.shared + breakdown.mine + breakdown.other
+  for (const i of items) if (!i.bucket) i.bucket = 'other'   // 휴가 결재 · 내 휴가 결과 등
+  const count = breakdown.personal + breakdown.shared + breakdown.mine + breakdown.order + breakdown.other
   return NextResponse.json({ at: nowIso, count, breakdown, items, badges } satisfies NotifData)
 }

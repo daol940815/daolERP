@@ -23,6 +23,44 @@ export const defaultRange = (kind: PeriodKind) => getPeriodRange(kind === 'analy
 export const DEFAULT_VIEW_FROM = '2026-01-01'
 export const DEFAULT_VIEW_FROM_MONTH = '2026-01'
 
+// ── 월 단위 화면용 프리셋 (2026-11-11 사용자 승인 — 월별 손익현황, 이후 근태·업무일지 등 월 단위 화면 공용) ──
+// 값은 'YYYY-MM' 범위. 분기·반기 연도 규칙은 일 단위와 같다(안 시작한 분기는 작년).
+//   당년 = 1월 ~ 당월 (아직 안 온 달은 빈 열이라 제외) / 전년 = 1~12월 / 전체 기간 = DATA_START 월 ~ 당월
+export const MONTH_PRESETS = ['당월', '전월', '최근 3개월', '최근 6개월', '최근 12개월',
+  '1분기', '2분기', '3분기', '4분기', '상반기', '하반기', '당년', '전년', '전체 기간'] as const
+export type MonthPreset = typeof MONTH_PRESETS[number]
+
+export function getMonthPresetRange(preset: string): { from: string; to: string } {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth()
+  const ym = (yy: number, mm: number) => {   // mm는 0-based, 넘침·음수는 Date가 정규화
+    const d = new Date(yy, mm, 1)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  }
+  switch (preset) {
+    case '당월':       return { from: ym(y, m), to: ym(y, m) }
+    case '전월':       return { from: ym(y, m - 1), to: ym(y, m - 1) }
+    case '최근 3개월':  return { from: ym(y, m - 2), to: ym(y, m) }
+    case '최근 6개월':  return { from: ym(y, m - 5), to: ym(y, m) }
+    case '최근 12개월': return { from: ym(y, m - 11), to: ym(y, m) }
+    case '1분기': case '2분기': case '3분기': case '4분기': {
+      const q = Number(preset[0]) - 1
+      const qy = new Date(y, q * 3, 1) > now ? y - 1 : y
+      return { from: ym(qy, q * 3), to: ym(qy, q * 3 + 2) }
+    }
+    case '상반기': case '하반기': {
+      const h = preset === '상반기' ? 0 : 1
+      const hy = new Date(y, h * 6, 1) > now ? y - 1 : y
+      return { from: ym(hy, h * 6), to: ym(hy, h * 6 + 5) }
+    }
+    case '당년':       return { from: ym(y, 0), to: ym(y, m) }
+    case '전년':       return { from: ym(y - 1, 0), to: ym(y - 1, 11) }
+    case '전체 기간':   return { from: DATA_START.slice(0, 7), to: ym(y, m) }
+    default:          return { from: ym(y, m - 5), to: ym(y, m) }
+  }
+}
+
 export function getPeriodRange(period: string): { from: string; to: string } {
   const now = new Date()
   const y = now.getFullYear()

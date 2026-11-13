@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { splitVat } from '@/lib/card-sale-vat'
 
 // ── 예상 부가세 ──────────────────────────────────────────
 // 세금계산서/현금영수증/카드매출/법인카드 자료를 바탕으로 기간 내 매출세액·매입세액을
@@ -26,6 +27,12 @@ export interface VatEstimateResult {
   estimated_vat: number  // 매출세액 - 매입세액 (양수: 납부예상, 음수: 환급예상)
   sales_breakdown: VatBreakdownItem[]
   purchase_breakdown: VatBreakdownItem[]
+}
+
+// 카드매출 공급가·세액 구분 미기재(둘 다 0)는 과세로 보고 1.1로 나눈다 — lib/card-sale-vat.ts splitVat (2026-11-12 사용자 결정)
+const cardSaleVat = (amount: number | null, supply: number | null, tax: number | null) => {
+  const v = splitVat(amount, supply, tax)
+  return { supply: v.supply, tax: v.tax, missing: v.kind === 'unknown' }
 }
 
 function sumTax(rows: { tax_amount: number | null }[] | null): number {
@@ -125,9 +132,9 @@ export async function buildVatReturnView(
   }
   const card_missing = { count: 0, amount: 0 }
   for (const r of (cardSalesR as { data: { tx_date: string; amount: number | null; supply_amount: number | null; tax_amount: number | null }[] }).data) {
-    const amt = r.amount || 0, sup = r.supply_amount || 0, tax = r.tax_amount || 0
-    if (sup === 0 && tax === 0 && amt !== 0) { card_missing.count += 1; card_missing.amount += amt }
-    add(auto.sales_card_cash, r.tx_date, sup, tax)
+    const c = cardSaleVat(r.amount, r.supply_amount, r.tax_amount)
+    if (c.missing) { card_missing.count += 1; card_missing.amount += r.amount || 0 }
+    add(auto.sales_card_cash, r.tx_date, c.supply, c.tax)
   }
   for (const r of (cardExpR as { data: { tx_date: string; tax_amount: number | null; settled_amount: number | null; approved_amount: number | null; cancel_amount: number | null; confirmed_account_id: string | null; statement_status: string | null; classify_status: string }[] }).data) {
     if ((r.statement_status ?? '').includes('거절')) continue
@@ -219,7 +226,7 @@ export async function buildVatEstimate(
 
   // 카드매출 (승인/취소 합산, 취소는 음수)
   // 원본이 건별 공급가액/세액을 구분 제공 — 면세 건은 세액 0이라 자동 제외된다.
-  // 공급가·세액이 모두 0인데 승인금액이 있는 건은 구분 미기재(원자료 누락)로 별도 표시.
+  // 공급가·세액이 모두 0인데 승인금액이 있는 건은 구분 미기재 — 과세로 보고 1.1로 나눠 포함하고 건수를 표시한다(cardSaleVat).
   const cardSales = await fetchAllRows<{ amount: number | null; supply_amount: number | null; tax_amount: number | null }>((rFrom, rTo) =>
     admin
       .from('card_sales')
@@ -229,12 +236,13 @@ export async function buildVatEstimate(
       .range(rFrom, rTo),
   )
   if ('error' in cardSales) return { error: cardSales.error }
-  let cardTaxableSupply = 0, cardFreeAmount = 0, cardMissingCount = 0, cardMissingAmount = 0
+  let cardTaxableSupply = 0, cardFreeAmount = 0, cardMissingCount = 0, cardMissingAmount = 0, cardSalesTax = 0
   for (const r of cardSales.data) {
-    const amt = r.amount || 0, sup = r.supply_amount || 0, tax = r.tax_amount || 0
-    if (tax !== 0) cardTaxableSupply += sup
-    else if (sup === 0 && amt !== 0) { cardMissingCount += 1; cardMissingAmount += amt }
-    else cardFreeAmount += sup
+    const c = cardSaleVat(r.amount, r.supply_amount, r.tax_amount)
+    cardSalesTax += c.tax
+    if (c.missing) { cardMissingCount += 1; cardMissingAmount += r.amount || 0; cardTaxableSupply += c.supply }
+    else if (c.tax !== 0) cardTaxableSupply += c.supply
+    else cardFreeAmount += c.supply
   }
 
   // 법인카드 사용분 매입세액 (공제분만 — 파일 상단 규칙 참조)
@@ -265,7 +273,6 @@ export async function buildVatEstimate(
   const purchaseInvoiceTax = sumTax(purchaseInvoices.data)
   const salesReceiptTax   = sumTax(salesReceipts.data)
   const purchaseReceiptTax = sumTax(purchaseReceipts.data)
-  const cardSalesTax      = sumTax(cardSales.data)
 
   const sales_tax    = salesInvoiceTax + salesReceiptTax + cardSalesTax
   const purchase_tax = purchaseInvoiceTax + purchaseReceiptTax + cardExpenseTax
@@ -282,7 +289,7 @@ export async function buildVatEstimate(
         { label: '현금영수증(발행)', amount: salesReceiptTax },
         {
           label: `카드매출 (과세 공급가 ${cardTaxableSupply.toLocaleString('ko-KR')}원 · 면세 ${cardFreeAmount.toLocaleString('ko-KR')}원 세액 제외${
-            cardMissingCount ? ` · 구분 미기재 ${cardMissingCount}건 ${cardMissingAmount.toLocaleString('ko-KR')}원 — 확인 필요` : ''}`,
+            cardMissingCount ? ` · 구분 미기재 ${cardMissingCount}건 ${cardMissingAmount.toLocaleString('ko-KR')}원은 과세로 보고 포함` : ''}`,
           amount: cardSalesTax,
         },
       ],

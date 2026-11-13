@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { purgeStaleDrafts } from '@/lib/attachments-server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { OPEN_STATUSES, ASG_TRACKED, fmtDue, type WrStatus, type WrAsgStatus } from '@/lib/work-requests'
 import { prefOn, type PushPrefs } from '@/lib/push'
@@ -18,10 +19,16 @@ export const maxDuration = 60
 async function remindOrderRequests(admin: SupabaseClient): Promise<{ consults: number; sent: number }> {
   const todayKst = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date())
   const startOfToday = new Date(`${todayKst}T00:00:00+09:00`).toISOString()
-  const { data, error } = await admin.from('erp_consultations')
-    .select('id, bank_name, branch_name, order_assignee_id')
-    .eq('status', '진행중').not('order_assignee_id', 'is', null)
-    .is('order_reminded_at', null).lt('order_requested_at', startOfToday)
+  const pick = (with709: boolean) => {
+    const q = admin.from('erp_consultations')
+      .select('id, bank_name, branch_name, order_assignee_id')
+      .eq('status', '진행중').not('order_assignee_id', 'is', null)
+      .is('order_reminded_at', null).lt('order_requested_at', startOfToday)
+    return with709 ? q.is('deleted_at', null) : q   // 숨김 삭제된 상담 제외 (709)
+  }
+  let res = await pick(true)
+  if (res.error && /deleted_at/.test(res.error.message)) res = await pick(false)
+  const { data, error } = res
   if (error || !data?.length) return { consults: 0, sent: 0 }
   const byEmp = new Map<string, typeof data>()
   for (const c of data) byEmp.set(c.order_assignee_id as string, [...(byEmp.get(c.order_assignee_id as string) ?? []), c])
@@ -79,9 +86,11 @@ export async function GET(req: NextRequest) {
   if (!secret) return NextResponse.json({ error: 'CRON_SECRET 환경변수가 설정되지 않았습니다.' }, { status: 503 })
   const auth = req.headers.get('authorization') ?? ''
   if (auth !== `Bearer ${secret}`) return NextResponse.json({ error: '인증 실패' }, { status: 401 })
-  if (!pushConfigured()) return NextResponse.json({ ok: false, reason: 'VAPID 키 미설정' })
-
   const admin = createAdminClient()
+  // 첨부(1200): 하루가 지나도 저장되지 않은 임시 업로드(작성하다 취소한 것) 정리 — 알림 설정과 무관하게 먼저
+  const draftPurge = await purgeStaleDrafts(admin).catch(() => ({ removed: 0 }))
+  if (!pushConfigured()) return NextResponse.json({ ok: false, reason: 'VAPID 키 미설정', draft_purge: draftPurge })
+
   const orderReminders = await remindOrderRequests(admin).catch(() => ({ consults: 0, sent: 0 }))
   const replyReminders = await remindReplyWaiting(admin).catch(() => ({ orders: 0, sent: 0 }))
   const { data: subs, error } = await admin.from('push_subscriptions').select('id, employee_id, endpoint, p256dh, auth, prefs').eq('enabled', true)
@@ -89,7 +98,7 @@ export async function GET(req: NextRequest) {
   type Sub = { id: string; employee_id: string; endpoint: string; p256dh: string; auth: string; prefs: PushPrefs | null }
   const wanted = ((subs ?? []) as Sub[]).filter(s => prefOn(s.prefs, 'wr_due_today'))
   const empIds = Array.from(new Set(wanted.map(s => s.employee_id)))
-  if (!empIds.length) return NextResponse.json({ ok: true, employees: 0, sent: 0, order_reminders: orderReminders, reply_reminders: replyReminders })
+  if (!empIds.length) return NextResponse.json({ ok: true, employees: 0, sent: 0, order_reminders: orderReminders, reply_reminders: replyReminders, draft_purge: draftPurge })
 
   type Share = { employee_id: string; status: WrAsgStatus; request: { id: string; title: string; due_at: string; status: WrStatus; is_private: boolean | null } | { id: string; title: string; due_at: string; status: WrStatus; is_private: boolean | null }[] | null }
   const { data: shares, error: sErr } = await admin.from('work_request_assignees')
@@ -124,5 +133,5 @@ export async function GET(req: NextRequest) {
     })
     sent += r.sent; failed += r.failed; removed += r.removed
   }
-  return NextResponse.json({ ok: true, date: today, employees, sent, failed, removed, order_reminders: orderReminders, reply_reminders: replyReminders })
+  return NextResponse.json({ ok: true, date: today, employees, sent, failed, removed, order_reminders: orderReminders, reply_reminders: replyReminders, draft_purge: draftPurge })
 }

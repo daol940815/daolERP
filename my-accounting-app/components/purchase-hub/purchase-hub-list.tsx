@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { getPeriodRange, DEFAULT_VIEW_FROM } from '@/lib/period-presets'
+import { getPeriodRange } from '@/lib/period-presets'
+import PeriodPresets from '@/components/ui/PeriodPresets'
 import type { PurchaseHubPerms } from '@/components/purchase-hub/perms'
 
 // 매입처 관리 — 목록(A) 공용 컴포넌트
@@ -47,7 +48,8 @@ interface Summary {
 }
 
 const won = (n: number) => n.toLocaleString('ko-KR')
-const eok = (n: number) => Math.abs(n) >= 100000000 ? `${(n / 100000000).toFixed(2)}억` : Math.abs(n) >= 10000 ? `${Math.round(n / 10000).toLocaleString()}만` : won(n)
+// 카드 금액은 1,000,000원 형식 그대로 — '2.78억' 축약은 정확한 금액 확인이 어려워 폐기 (2026-11-11 사용자 요청)
+const eok = (n: number) => `${won(n)}원`
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   normal:   { label: '정상',            cls: 'bg-green-100 text-green-700' },
@@ -202,9 +204,9 @@ export default function PurchaseHubList({ basePath, perms }: {
   perms: PurchaseHubPerms
 }) {
   const router = useRouter()
-  const [from, setFrom] = useState(DEFAULT_VIEW_FROM)
-  const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10))
-  const [preset, setPreset] = useState<string>('당년')
+  // 기본 = 당년 (관리·분석 화면 표준). 칩은 PeriodPresets가 from/to 일치로 켜진다.
+  const [from, setFrom] = useState(() => getPeriodRange('당년').from)
+  const [to, setTo] = useState(() => getPeriodRange('당년').to)
   const [rows, setRows] = useState<Row[]>([])
   const [summary, setSummary] = useState<Summary | null>(null)
   const [loading, setLoading] = useState(true)
@@ -249,12 +251,6 @@ export default function PurchaseHubList({ basePath, perms }: {
 
   useEffect(() => { load(from, to) }, [load, from, to])
 
-  const applyPreset = (p: string) => {
-    setPreset(p)
-    if (p === '전체 기간') { setFrom('2024-01-01'); setTo(new Date().toISOString().slice(0, 10)); return }
-    const r = getPeriodRange(p)
-    setFrom(r.from); setTo(r.to)
-  }
 
   const staffNames = useMemo(() => {
     const s = new Set<string>()
@@ -344,23 +340,17 @@ export default function PurchaseHubList({ basePath, perms }: {
       <p className="text-xs text-gray-500 mt-2">{KIND_TABS.find(t => t.key === kindFilter)?.desc}</p>
 
       {/* 기간 빠른 선택 — 다른 목록 화면(거래내역·법인카드·ERP 주문내역)과 동일하게 필터 바 위 별도 행 */}
-      <div className="flex items-center gap-1.5 flex-wrap mt-4 mb-2">
-        {['당월', '1분기', '2분기', '상반기', '당년', '전체 기간'].map(p => (
-          <button key={p} onClick={() => applyPreset(p)}
-            className={`px-2.5 py-1 rounded-full text-xs border ${preset === p ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
-            {p}
-          </button>
-        ))}
-      </div>
+      {/* 표준 기간 칩 (최근 7일 ~ 전체 기간) — 매출처 허브와 같은 부품 (2026-11-11 사용자 요청) */}
+      <PeriodPresets from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} className="mt-4 mb-2" />
 
       {/* 필터 — 검색창이 맨 앞 */}
       <div className="flex items-center gap-1.5 flex-wrap">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="매입처명 · ERP 별칭 · 사업자번호 검색"
           className="border border-gray-300 rounded-lg px-3 py-1 text-xs w-72" />
-        <input type="date" value={from} onChange={e => { setPreset(''); setFrom(e.target.value) }}
+        <input type="date" value={from} onChange={e => setFrom(e.target.value)}
           className="border border-gray-300 rounded px-2 py-1 text-xs" />
         <span className="text-gray-400 text-xs">~</span>
-        <input type="date" value={to} onChange={e => { setPreset(''); setTo(e.target.value) }}
+        <input type="date" value={to} onChange={e => setTo(e.target.value)}
           className="border border-gray-300 rounded px-2 py-1 text-xs" />
         <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)}
           className="border border-gray-300 rounded px-2 py-1 text-xs">
@@ -387,14 +377,17 @@ export default function PurchaseHubList({ basePath, perms }: {
             <div className="text-xs text-gray-500">활성 매입처{filterActive && <span className="ml-1 text-blue-600 font-semibold">(필터 적용)</span>}</div>
             <div className="text-xl font-bold mt-0.5">{kpi.active_vendors.toLocaleString()}곳</div>
             <div className="text-[0.6875rem] text-gray-400 mt-0.5">
-              {filterActive ? `전체 ${summary.active_vendors.toLocaleString()}곳 중` : '기간 내 계산서·ERP 발주 발생 기준'}
+              {KIND_TABS.find(t => t.key === kindFilter)?.label} · 기간 내 계산서·ERP 발주 발생 기준
+              {filterActive && ` · 전체 ${summary.active_vendors.toLocaleString()}곳 중`}
             </div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
             <div className="text-xs text-gray-500">기간 매입 (계산서 총액)</div>
             <div className="text-xl font-bold mt-0.5 tabular-nums">{eok(kpi.invoice_total)}</div>
+            {/* 어느 구분·기간의 합인지 카드에 명시 — "전체로 잡히는 것 같다"는 혼동 방지 (2026-11-11) */}
             <div className="text-[0.6875rem] text-gray-400 mt-0.5">
-              {filterActive ? `전체 ${eok(summary.invoice_total)} 중` : '부가세 포함, 발행일 기준'}
+              {KIND_TABS.find(t => t.key === kindFilter)?.label} · {from} ~ {to} · 부가세 포함
+              {filterActive && ` · 전체 ${eok(summary.invoice_total)} 중`}
             </div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">

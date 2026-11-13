@@ -2,13 +2,15 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CurrentUser } from './user-role'
 import { fetchAllRows } from './fetch-all-rows'
 import { loadReplyMap, REPLY_START, type ReplyInfo } from './order-reply'
+import { decodeCond, parseFreeText, parseMine, type MineFilter, type SearchCond, type SearchField } from './order-search-fields'
 
 // 주문 현황 목록·엑셀 내보내기 공용 필터 로직.
 // 목록 API와 엑셀이 반드시 같은 결과 집합을 보도록 한 곳에 둔다.
 //
-// 통합 검색 다중 조건: 띄어쓰기·쉼표로 나눈 조건을 전부 만족(AND).
-//  - "홍창의 하나은행 요아럽" → 각 단어가 어느 필드든 걸리는 주문
-//  - "담당자-홍창의 업체-하나은행 품목-요아럽" → 필드 지정 (- 또는 : 구분)
+// 검색 조건(lib/order-search-fields.ts)은 전부 만족(AND).
+//  - 항목별 검색 c=<항목>:<값> — 화면의 항목 선택 칸 · 조건 칩 (2026-11-09). 값의 띄어쓰기 유지
+//  - q(전체 항목 입력, 옛 주소 호환): "김승현 하나은행 요아럽" → 각 단어가 어느 항목이든 걸리는 주문,
+//    "업체-하나은행 품목-요아럽" → 항목 지정 (- 또는 : 구분)
 
 export interface OrderListRow {
   id: string
@@ -17,6 +19,8 @@ export interface OrderListRow {
   bank_name: string | null
   branch_name: string | null
   manager_name: string | null
+  phone?: string | null             // 담당자 핸드폰 (목록 표시 · 검색, 2026-11-09)
+  contact?: string | null           // 담당자 연락처(유선)
   staff_name: string | null
   total_amount: number | null
   outstanding_amount: number | null
@@ -25,24 +29,15 @@ export interface OrderListRow {
   memo?: string | null
   created_at: string
   canceled_at?: string | null      // 511 — 취소 주문 (집계 제외·배지)
+  canceled_by?: string | null      // 511 — 취소한 직원 id
+  cancel_reason?: string | null    // 511 — 취소 사유 (목록 배지를 누르면 보임, 2026-11-10)
   last_edited_at?: string | null   // 511 — 당일 수정됨 표시
+  counselor_employee_id?: string | null    // 500 — 상담자 (내 상담건)
+  created_by_employee_id?: string | null   // 500 — 입력자 (내 처리건)
+  consultation_id?: string | null          // 상담일지에서 전환된 주문 (내 상담건)
+  contact_id?: string | null               // 거래처 담당자 인물 (고객코드 표시 · 2026-11-13)
 }
 
-type SearchField =
-  | 'bank' | 'branch' | 'customer' | 'manager' | 'staff' | 'order_no'   // 주문 필드
-  | 'item_name' | 'item_code' | 'channel' | 'purchase'                  // 품목 필드
-const FIELD_MAP: Record<string, SearchField> = {
-  '업체': 'bank', '은행': 'bank',
-  '지점': 'branch', '부서': 'branch',
-  '주문처': 'customer',
-  '담당자': 'manager',
-  '직원': 'staff', '다올직원': 'staff',
-  '상담자': 'channel',
-  '상품': 'item_name', '품목': 'item_name', '품명': 'item_name',
-  '품번': 'item_code',
-  '매입처': 'purchase',
-  '주문번호': 'order_no', '번호': 'order_no',
-}
 const ITEM_COLUMNS: Partial<Record<SearchField, string[]>> = {
   item_name: ['item_name'],
   item_code: ['item_code'],
@@ -50,42 +45,36 @@ const ITEM_COLUMNS: Partial<Record<SearchField, string[]>> = {
   purchase: ['purchase_vendor_name'],
 }
 
-interface SearchToken { field: SearchField | null; value: string }
-
-// "담당자-홍창의" / "담당자:홍창의" / 일반 키워드 파싱.
-// 필드명 화이트리스트에 없는 접두(품번 "25-01" 등)는 일반 키워드로 취급.
-function parseTokens(q: string): SearchToken[] {
-  return q.split(/[\s,]+/).filter(Boolean).map(raw => {
-    const m = raw.match(/^(.+?)[-:](.+)$/)
-    if (m && FIELD_MAP[m[1]]) return { field: FIELD_MAP[m[1]], value: m[2].toLowerCase() }
-    return { field: null, value: raw.toLowerCase() }
-  })
-}
+type SearchToken = SearchCond
 
 export interface OrderListFilter {
-  q?: string | null
+  q?: string | null          // 전체 항목 자유 입력 (옛 주소 호환)
+  conds?: SearchCond[]       // 항목별 조건 (c 파라미터)
   from?: string | null
   to?: string | null
-  collect?: string | null    // all|collected|in_progress|outstanding
+  collect?: string | null    // all|collected|in_progress|outstanding|canceled(취소만)
   source?: string | null     // all|direct|upload
   po?: string | null         // all|none|partial|full (direct 주문 전용)
   prepayOnly?: boolean
+  vipOnly?: boolean          // 품명 'VIP' 품목이 있는 주문 (2026-11-09)
   invoiceOnly?: boolean
-  mine?: boolean
+  mine?: MineFilter          // all|journal(내 상담일지 건)|counselor(내 상담자 건)|handled(내 주문처리 건)
   reply?: string | null      // all|wait|my_wait|my_req_wait|to_me|unable — 완료 회신 (515)
 }
 
 export function filterFromSearchParams(sp: URLSearchParams): OrderListFilter {
   return {
     q: (sp.get('q') ?? '').trim(),
+    conds: sp.getAll('c').map(decodeCond).filter((c): c is SearchCond => !!c),
     from: sp.get('from'),
     to: sp.get('to'),
     collect: sp.get('collect') ?? 'all',
     source: sp.get('source') ?? 'all',
     po: sp.get('po') ?? 'all',
     prepayOnly: sp.get('prepay') === '1',
+    vipOnly: sp.get('vip') === '1',
     invoiceOnly: sp.get('invoice') === '1',
-    mine: sp.get('mine') === '1',
+    mine: parseMine(sp.get('mine')),
     reply: sp.get('reply') ?? 'all',
   }
 }
@@ -188,25 +177,26 @@ export async function loadFilteredOrders(
   admin: SupabaseClient,
   me: CurrentUser,
   f: OrderListFilter,
-): Promise<{ filtered: OrderListRow[]; prepayIds: Set<string>; invoiceIds: Set<string>; poStatus: Map<string, PoStatus>; replyMap: Map<string, ReplyInfo>; replyCounts: ReplyCounts } | { error: string }> {
+): Promise<{ filtered: OrderListRow[]; prepayIds: Set<string>; vipIds: Set<string>; invoiceIds: Set<string>; poStatus: Map<string, PoStatus>; replyMap: Map<string, ReplyInfo>; replyCounts: ReplyCounts; mineCounts: MineCounts; canceledCount: number } | { error: string }> {
   // 1) 기간 필터로 주문 로드 (나머지 필터는 메모리) — 511 미적용이면 기존 컬럼으로 폴백
-  const baseCols = 'id, order_no, order_date, bank_name, branch_name, manager_name, staff_name, total_amount, outstanding_amount, collect_status, source, memo, created_at'
+  const baseCols = 'id, order_no, order_date, bank_name, branch_name, manager_name, phone, contact, staff_name, total_amount, outstanding_amount, collect_status, source, memo, created_at, counselor_employee_id, created_by_employee_id, consultation_id, contact_id'
   const loadBase = (cols: string) => fetchAllRows<OrderListRow>((pf, pt) => {
     let query = admin.from('erp_orders').select(cols)
     if (f.from) query = query.gte('order_date', f.from)
     if (f.to) query = query.lte('order_date', f.to)
     return query.order('order_date', { ascending: false }).range(pf, pt) as unknown as PromiseLike<{ data: OrderListRow[] | null; error: { message: string } | null }>
   })
-  let base = await loadBase(`${baseCols}, canceled_at, last_edited_at`)
+  let base = await loadBase(`${baseCols}, canceled_at, canceled_by, cancel_reason, last_edited_at`)
   if ('error' in base) base = await loadBase(baseCols)
   if ('error' in base) return { error: base.error }
 
   // 2) 통합 검색 — 조건별 품목 매칭 주문 id 집합 (필드 지정 시 해당 컬럼만)
-  const tokens = f.q ? parseTokens(f.q) : []
+  const tokens: SearchToken[] = [...(f.q ? parseFreeText(f.q) : []), ...(f.conds ?? [])]
+    .map(c => ({ field: c.field, value: c.value.toLowerCase() }))
   const tokenItemIds: (Set<string> | null)[] = await Promise.all(tokens.map(async tk => {
     const cols = tk.field === null
       ? ['item_name', 'item_code', 'channel']
-      : (ITEM_COLUMNS[tk.field] ?? [])
+      : (ITEM_COLUMNS[tk.field as SearchField] ?? [])
     if (!cols.length) return null   // 주문 필드 전용 조건
     const results = await Promise.all(cols.map(col =>
       fetchAllRows<{ order_id: string }>((pf, pt) =>
@@ -221,27 +211,59 @@ export async function loadFilteredOrders(
   }))
 
   // 3) 선결제·계산서 주문 집합 (배지·필터 공용)
-  const [prepayResult, invoiceResult] = await Promise.all([
+  // 내 상담건 원천: 내가 쓴 상담일지 · 상담자 이름이 나인 품목(상담자 칸이 비어 있는 옛 주문용)
+  const empId = me.employeeId
+  const [prepayResult, vipResult, invoiceResult, myConsultResult, myChannelResult] = await Promise.all([
     fetchAllRows<{ order_id: string }>((pf, pt) =>
       admin.from('erp_order_items').select('order_id').eq('is_prepayment', true).range(pf, pt),
     ),
     fetchAllRows<{ order_id: string }>((pf, pt) =>
+      admin.from('erp_order_items').select('order_id').eq('is_vip', true).range(pf, pt),
+    ),
+    fetchAllRows<{ order_id: string }>((pf, pt) =>
       admin.from('erp_order_invoices').select('order_id').range(pf, pt),
     ),
+    empId
+      ? fetchAllRows<{ id: string }>((pf, pt) =>
+          admin.from('erp_consultations').select('id').eq('employee_id', empId).range(pf, pt),
+        )
+      : Promise.resolve({ data: [] as { id: string }[] }),
+    me.employeeName
+      ? fetchAllRows<{ order_id: string }>((pf, pt) =>
+          admin.from('erp_order_items').select('order_id').eq('channel', me.employeeName as string).range(pf, pt),
+        )
+      : Promise.resolve({ data: [] as { order_id: string }[] }),
   ])
   const prepayIds = new Set('error' in prepayResult ? [] : prepayResult.data.map(r => r.order_id))
+  const vipIds = new Set('error' in vipResult ? [] : vipResult.data.map(r => r.order_id))
   const invoiceIds = new Set('error' in invoiceResult ? [] : invoiceResult.data.map(r => r.order_id))
+  const myConsultIds = new Set('error' in myConsultResult ? [] : myConsultResult.data.map(r => r.id))
+  const myChannelOrderIds = new Set('error' in myChannelResult ? [] : myChannelResult.data.map(r => r.order_id))
+
+  // 내 상담일지 · 상담자 · 주문처리 건 판정 (계정 id 우선, 옛 주문은 이름으로). 직원 연결이 없는 계정은 해당 없음
+  const isMyJournal = (o: OrderListRow): boolean =>
+    !!empId && !!o.consultation_id && myConsultIds.has(o.consultation_id)
+  const isMyCounselor = (o: OrderListRow): boolean => {
+    if (!empId) return false
+    if (o.counselor_employee_id) return o.counselor_employee_id === empId
+    return myChannelOrderIds.has(o.id)   // 상담자 칸이 빈 옛 주문: 품목 상담자 이름
+  }
+  const isMyHandled = (o: OrderListRow): boolean => {
+    if (!empId) return false
+    if (o.created_by_employee_id) return o.created_by_employee_id === empId
+    return !!me.employeeName && o.staff_name === me.employeeName
+  }
 
   // 조건 1개가 주문에 걸리는지: 주문 필드 매칭 또는 품목 매칭
   const tokenMatches = (o: OrderListRow, tk: SearchToken, itemIds: Set<string> | null): boolean => {
     const has = (v: string | null) => (v ?? '').toLowerCase().includes(tk.value)
     const orderMatch = (() => {
       switch (tk.field) {
-        case null: return [o.order_no, o.bank_name, o.branch_name, o.manager_name, o.staff_name].some(has)
+        case null: return [o.order_no, o.bank_name, o.branch_name, o.manager_name, o.phone ?? null, o.contact ?? null, o.staff_name].some(has)
         case 'bank': return has(o.bank_name)
         case 'branch': return has(o.branch_name)
         case 'customer': return has([o.bank_name, o.branch_name].filter(Boolean).join(' '))
-        case 'manager': return has(o.manager_name)
+        case 'manager': return has(o.manager_name) || has(o.phone ?? null) || has(o.contact ?? null)
         case 'staff': return has(o.staff_name)
         case 'order_no': return has(o.order_no)
         default: return false   // 품목 전용 필드
@@ -254,10 +276,18 @@ export async function loadFilteredOrders(
     if (tokens.length && !tokens.every((tk, i) => tokenMatches(o, tk, tokenItemIds[i]))) return false
     if (f.source && f.source !== 'all' && (o.source ?? 'upload') !== f.source) return false
     if (f.prepayOnly && !prepayIds.has(o.id)) return false
+    if (f.vipOnly && !vipIds.has(o.id)) return false
     if (f.invoiceOnly && !invoiceIds.has(o.id)) return false
-    if (f.mine && me.employeeName && o.staff_name !== me.employeeName) return false
     return true
   })
+
+  // 3-0) 내 주문 버튼 — 버튼 숫자는 이 필터 적용 전, 아래 수금 · 발주 · 회신 필터 적용 후 기준
+  const mineOf = (rows: OrderListRow[]): MineCounts => ({
+    journal: rows.filter(isMyJournal).length,
+    counselor: rows.filter(isMyCounselor).length,
+    handled: rows.filter(isMyHandled).length,
+  })
+  const mineTest = f.mine === 'journal' ? isMyJournal : f.mine === 'counselor' ? isMyCounselor : f.mine === 'handled' ? isMyHandled : null
 
   // 3-1) 미수·수금 상태를 표준 미수(매칭 반영)로 교체한 뒤 수금 필터 적용. 취소 주문은 미수 0·상태 유지
   const recv = await loadReceivableMap(admin, filtered.filter(o => !o.canceled_at).map(o => o.id))
@@ -270,7 +300,10 @@ export async function loadFilteredOrders(
       o.collect_status = collectStatusFrom(o.collect_status, r)
     }
   }
-  if (f.collect && f.collect !== 'all') filtered = filtered.filter(o => o.collect_status === f.collect)
+  // 취소만 칩 (2026-11-10) — 숫자는 수금 필터 적용 전 기준
+  const canceledCount = filtered.filter(o => o.canceled_at).length
+  if (f.collect === 'canceled') filtered = filtered.filter(o => o.canceled_at)
+  else if (f.collect && f.collect !== 'all') filtered = filtered.filter(o => o.collect_status === f.collect)
 
   // 4) 발주 상태 (direct 주문 전용 배지·필터)
   const directIds = filtered.filter(o => (o.source ?? 'upload') === 'direct').map(o => o.id)
@@ -301,12 +334,17 @@ export async function loadFilteredOrders(
     filtered = filtered.filter(o => { const r = replyMap.get(o.id); return !!r && test(r) })
   }
 
+  const mineCounts = mineOf(filtered)
+  if (mineTest) filtered = filtered.filter(mineTest)
+
   filtered.sort((a, b) =>
     a.order_date !== b.order_date
       ? (a.order_date < b.order_date ? 1 : -1)
       : (a.created_at < b.created_at ? 1 : -1))
 
-  return { filtered, prepayIds, invoiceIds, poStatus, replyMap, replyCounts }
+  return { filtered, prepayIds, vipIds, invoiceIds, poStatus, replyMap, replyCounts, mineCounts, canceledCount }
 }
+
+export interface MineCounts { journal: number; counselor: number; handled: number }
 
 export interface ReplyCounts { wait: number; my_wait: number; my_req_wait: number; to_me: number; unable: number }

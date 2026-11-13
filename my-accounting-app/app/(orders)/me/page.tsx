@@ -85,12 +85,12 @@ export default function MyDashboardPage() {
       {
         label: '받은 요청', href: '/me/requests',
         value: `미확인 ${wr.inbox_unread ?? 0}`,
-        sub: `진행 중 ${wr.inbox_active ?? 0} · 지남 ${wr.inbox_overdue ?? 0}${wr.inbox_reported ? ` · 완료 대기 ${wr.inbox_reported}` : ''}`,
+        sub: `진행 중 ${wr.inbox_active ?? 0} · 지남 ${wr.inbox_overdue ?? 0}${wr.inbox_reported ? ` · 완료 확정 대기 ${wr.inbox_reported}` : ''}`,
       },
       {
         label: '보낸 요청', href: '/me/requests?tab=outbox',
         value: `진행 중 ${wr.outbox_open ?? 0}`,
-        sub: `${wr.outbox_awaiting ? `완료 대기 ${wr.outbox_awaiting}` : ''}${wr.outbox_awaiting && wr.outbox_rejected ? ' · ' : ''}${wr.outbox_rejected ? `반려 ${wr.outbox_rejected}` : ''}` || null,
+        sub: `${wr.outbox_awaiting ? `완료 확정 대기 ${wr.outbox_awaiting}` : ''}${wr.outbox_awaiting && wr.outbox_rejected ? ' · ' : ''}${wr.outbox_rejected ? `반려 ${wr.outbox_rejected}` : ''}` || null,
       },
     ] : []),
     {
@@ -206,7 +206,7 @@ export default function MyDashboardPage() {
         <div className="bg-white border border-gray-200 rounded-xl p-4 lg:col-span-2">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-900">최근 내 주문</h2>
-            <Link href="/orders" className="text-xs text-slate-500 hover:text-slate-900">주문 현황 전체</Link>
+            <Link href="/orders" className="text-xs text-slate-500 hover:text-slate-900">주문내역 전체</Link>
           </div>
           {data.recentOrders.length ? (
             <table className="w-full text-sm mt-2">

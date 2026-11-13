@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { getCurrentUser } from '@/lib/user-role'
+import { can } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -15,7 +17,13 @@ export const maxDuration = 60
 const WINDOW_DAYS = 7
 
 export async function GET() {
+  const me = await getCurrentUser()
+  if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   const admin = createAdminClient()
+
+  // 연결할 거래처 선택지(매출처 · 겸용) — 회계 쪽 /api/vendors 를 거치지 않도록 여기서 내려준다(수금 · 정산 작업 권한자도 쓰므로)
+  const vendorOptsP = fetchAllRows<{ id: string; name: string; type: string }>((f, t) =>
+    admin.from('vendors').select('id, name, type').in('type', ['customer', 'both']).order('name').range(f, t))
 
   // 미연결 카드매출 (승인만 — 취소는 그룹 통계에서 상쇄)
   const salesResult = await fetchAllRows<{
@@ -130,8 +138,15 @@ export async function GET() {
   // 추천 있는 것 → 승인액 큰 것 순
   rows.sort((a, b) => (b.suggestion ? 1 : 0) - (a.suggestion ? 1 : 0) || b.net_amount - a.net_amount)
 
+  const vendorOpts = await vendorOptsP
+  if ('error' in vendorOpts) return NextResponse.json({ error: vendorOpts.error }, { status: 500 })
+
   return NextResponse.json({
     groups: rows,
+    vendors: vendorOpts.data,
+    // 화면 노출용 — 차단은 미들웨어(API_OWNERS)가 한다
+    can_edit: can(me, 'accounting', 'edit') || can(me, 'collections', 'edit'),
+    can_view_accounting: can(me, 'accounting'),
     summary: {
       card_numbers: rows.length,
       with_suggestion: rows.filter(r => r.suggestion).length,

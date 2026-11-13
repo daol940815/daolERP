@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
-import { loadPurchaseSection, nextPoNo, smtpReady, type OrderItemRow } from '@/lib/purchase-orders'
+import { loadPurchaseSection, nextPoNo, poPriceAndMemo, smtpReady, type OrderItemRow } from '@/lib/purchase-orders'
 
 export const dynamic = 'force-dynamic'
 
@@ -120,8 +120,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // 판매가 발주 매입처(요아럽 — 사용자 확정 2026-08-19): 발주서 금액을 매입가 대신
   // 판매가로 스냅샷 — 단가=판매가, 배송비=판매 배송비, 합계=판매합계(할인 반영)
   const useSale = info?.po_use_sale_price ?? false
+  // 택배비(2026-11-12 확정): 매입배송비가 0인 품목의 고객 택배비는 업체와 무관한 매출 — 발주서에 줄을 만들지 않으므로
+  // 판매가 발주(요아럽)의 배송비 · 합계에서도 뺀다(발주서 표와 합계가 어긋나지 않게). 매입배송비가 있으면 판매 배송비 그대로.
+  const saleShip = (it: OrderItemRow) => ((it.purchase_shipping ?? 0) > 0 ? (it.shipping_fee ?? 0) : 0)
+  const saleTotal = (it: OrderItemRow) => (it.line_total ?? 0) - ((it.shipping_fee ?? 0) - saleShip(it))
   const totalAmount = picked.reduce(
-    (s, it) => s + ((useSale ? it.line_total : it.purchase_total) ?? 0), 0)
+    (s, it) => s + ((useSale ? saleTotal(it) : it.purchase_total) ?? 0), 0)
 
   // 발번 → 생성 (동시 생성으로 번호가 겹치면 1회 재시도)
   let poId: string | null = null
@@ -147,19 +151,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const rows = picked
     .sort((a, b) => a.line_no - b.line_no)
-    .map((it, i) => ({
-      po_id: poId,
-      line_no: i + 1,
-      order_item_id: it.id,
-      item_code: it.item_code,
-      item_name: it.item_name,
-      order_kind: it.order_kind,
-      quantity: it.quantity ?? 0,
-      purchase_price: (useSale ? it.sale_price : it.purchase_price) ?? 0,
-      purchase_shipping: (useSale ? it.shipping_fee : it.purchase_shipping) ?? 0,
-      purchase_total: (useSale ? it.line_total : it.purchase_total) ?? 0,
-      memo: it.memo,
-    }))
+    .map((it, i) => {
+      // 매입할인(708): 개당 할인은 할인 후 단가, 정액 할인은 비고에 할인액 — 판매가 발주는 판매 기준이라 해당 없음
+      const pm = useSale ? { price: it.sale_price ?? 0, memo: it.memo } : poPriceAndMemo(it)
+      return {
+        po_id: poId,
+        line_no: i + 1,
+        order_item_id: it.id,
+        item_code: it.item_code,
+        item_name: it.item_name,
+        order_kind: it.order_kind,
+        quantity: it.quantity ?? 0,
+        purchase_price: pm.price,
+        purchase_shipping: (useSale ? saleShip(it) : it.purchase_shipping) ?? 0,
+        purchase_total: (useSale ? saleTotal(it) : it.purchase_total) ?? 0,
+        memo: pm.memo,
+      }
+    })
   const { error: itemErr } = await admin.from('erp_purchase_order_items').insert(rows)
   if (itemErr) {
     await admin.from('erp_purchase_orders').delete().eq('id', poId!)

@@ -4,20 +4,28 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import PurchaseSection from './purchase-section'
-import { hasShip, needsShip, shipText } from '@/lib/ship-address'
+import ContactChip from './contact-chip'
+import { hasShip, needsShip, shipText, SHIP_KINDS } from '@/lib/ship-address'
+import RosterCard from '../roster-card'
 import ReplyCard, { type ReplyData } from './reply-card'
+import PayRecords, { type PayRecordsData } from './pay-records'
+import ReasonPicker from '@/components/ui/ReasonPicker'
+import { ORDER_CANCEL_REASONS, composeReason } from '@/lib/cancel-reasons'
+import { ORDERS_LIST_URL_KEY } from '@/lib/order-search-fields'
 
 // 주문 상세 (2단계) — 업로드·직접입력 공통 조회.
 // direct 주문 (2026-08-25 취소·재등록 확정): 당일(본인)·관리자는 직접 수정(변경 로그),
 // 익일 이후는 취소·재등록. 삭제는 취소 처리로 통일 — 승인 절차 없음, 이력 보존.
 
 interface Item {
-  id: string; line_no: number; is_canceled: boolean; is_prepayment: boolean
+  id: string; line_no: number; is_canceled: boolean; is_prepayment: boolean; is_vip?: boolean
   parent_line_no: number | null
   item_code: string | null; item_name: string | null; order_kind: string | null
   purchase_vendor_name: string | null; sale_price: number; quantity: number
   shipping_fee: number; discount_amount: number; discount_mode?: string | null; discount_unit?: number | null; line_total: number
   purchase_price: number; purchase_shipping: number; purchase_total: number
+  purchase_discount?: number | null; purchase_discount_mode?: string | null; purchase_discount_unit?: number | null   // 708
+  order_season?: string | null                                                                                     // 708 주문시기
   channel: string | null; memo: string | null
   is_cost?: boolean   // 비용 품목 (품목 마스터 체크) — 배송지 판정 제외
 }
@@ -31,7 +39,7 @@ interface EditLog {
 }
 // 결제 내역 (2026-11-04 — 표기 전용, 회계 화면 링크 없음)
 interface PaymentMatch {
-  id: string; source_type: 'bank' | 'card' | 'cash' | 'prepay'; amount: number; paid_date: string
+  id: string; source_type: 'bank' | 'card' | 'cash' | 'prepay'; amount: number; paid_date: string; record_id?: string | null
   matched_by: string; memo: string | null
   source: { label: string; total: number } | null
 }
@@ -57,6 +65,11 @@ const REQ_STATUS: Record<string, { label: string; cls: string }> = {
 }
 
 export default function OrderDetailPage() {
+  // '← 주문내역' = 마지막으로 보던 목록 주소(필터 · 페이지 포함, 2026-11-11). 없으면 /orders
+  const [listHref, setListHref] = useState('/orders')
+  useEffect(() => {
+    try { const u = sessionStorage.getItem(ORDERS_LIST_URL_KEY); if (u && u.startsWith('/orders')) setListHref(u) } catch { /* 무시 */ }
+  }, [])
   const { id } = useParams<{ id: string }>()
   const [order, setOrder] = useState<Record<string, unknown> | null>(null)
   const [items, setItems] = useState<Item[]>([])
@@ -65,6 +78,7 @@ export default function OrderDetailPage() {
   const [payments, setPayments] = useState<Payments>({ matches: [], invoices: [] })
   const [receivable, setReceivable] = useState<Receivable | null>(null)
   const [prepay, setPrepay] = useState<PrepayInfo | null>(null)
+  const [payRecords, setPayRecords] = useState<PayRecordsData>({ available: false, records: [], can_record: false })   // 결제 기록 (1300)
   const [consultRequest, setConsultRequest] = useState<{ requested_by_name: string | null; assignee_name: string | null } | null>(null)
   const [reply, setReply] = useState<ReplyData | null>(null)   // 완료 회신 (515)
   const [prepayOpen, setPrepayOpen] = useState(false)
@@ -81,7 +95,9 @@ export default function OrderDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [cancelReason, setCancelReason] = useState('')
+  const [cancelPick, setCancelPick] = useState<string | null>(null)
   const [askingCancel, setAskingCancel] = useState(false)
+  const [canceledByName, setCanceledByName] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -93,6 +109,7 @@ export default function OrderDetailPage() {
       setPayments(json.payments ?? { matches: [], invoices: [] })
       setReceivable(json.receivable ?? null)
       setPrepay(json.prepay ?? null)
+      setPayRecords(json.pay_records ?? { available: false, records: [], can_record: false })
       setConsultRequest(json.consult_request ?? null)
       setReply(json.reply ?? null)
       setRequests(json.change_requests ?? [])
@@ -100,6 +117,7 @@ export default function OrderDetailPage() {
       setCanEdit(json.can_edit)
       setCanReissue(json.can_reissue ?? false)
       setCanceled(json.canceled ?? false)
+      setCanceledByName(json.canceled_by_name ?? null)
       setReissuedToNo(json.reissued_to_no ?? null)
       setReissuedFromNo(json.reissued_from_no ?? null)
     }
@@ -129,14 +147,17 @@ export default function OrderDetailPage() {
   }
 
   // 주문 취소 (삭제 대체) — 물리 삭제 없이 취소 처리, 집계에서 제외 (상계)
+  //  사유 필수 (2026-11-10) — 빠른 선택 또는 직접 입력, '기타'는 직접 입력 필수
+  const cancelText = composeReason(cancelPick, cancelReason)
   const cancelOrder = async () => {
+    if (!cancelText) return
     const res = await fetch(
-      `/api/orders-portal/orders/${id}?reason=${encodeURIComponent(cancelReason.trim())}`,
+      `/api/orders-portal/orders/${id}?reason=${encodeURIComponent(cancelText)}`,
       { method: 'DELETE' },
     )
     const json = await res.json()
     if (!res.ok) { setError(json.error); return }
-    setAskingCancel(false); setCancelReason('')
+    setAskingCancel(false); setCancelReason(''); setCancelPick(null)
     load()
   }
 
@@ -149,6 +170,7 @@ export default function OrderDetailPage() {
   const activeItems = items.filter(it => !it.is_canceled)
   const cost = activeItems.reduce((s, it) => s + (it.purchase_total ?? 0), 0)
   const costShipping = activeItems.reduce((s, it) => s + (it.purchase_shipping ?? 0), 0)   // 매입합계에 포함된 매입배송비
+  const costDiscount = activeItems.reduce((s, it) => s + (it.purchase_discount ?? 0), 0)   // 매입합계에서 뺀 매입할인 (708)
   const total = order.total_amount as number
   const outstanding = receivable ? receivable.outstanding : Number(order.outstanding_amount ?? 0)
   const collectStatus = receivable ? receivable.collect_status : String(order.collect_status ?? '')
@@ -158,7 +180,7 @@ export default function OrderDetailPage() {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <Link href="/orders" className="text-sm text-gray-400 hover:text-gray-600">← 주문 현황</Link>
+        <Link href={listHref} className="text-sm text-gray-400 hover:text-gray-600">← 주문내역</Link>
         <h1 className="text-xl font-bold text-gray-900">주문 상세</h1>
         <span className="text-sm text-gray-400 tabular-nums">{String(order.order_no ?? '')}</span>
         <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${isDirect ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -199,6 +221,11 @@ export default function OrderDetailPage() {
             <span className="text-red-500"> (사유: {order.cancel_reason})</span>
           )}
           {reissuedToNo && <span className="ml-2">재등록 주문: <b className="tabular-nums">{reissuedToNo}</b></span>}
+          {typeof order.canceled_at === 'string' && (
+            <div className="text-xs text-red-500 mt-0.5 tabular-nums">
+              {[canceledByName, new Date(order.canceled_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })].filter(Boolean).join(' · ')} 취소
+            </div>
+          )}
         </div>
       )}
       {reissuedFromNo && !canceled && (
@@ -208,14 +235,18 @@ export default function OrderDetailPage() {
       )}
 
       {askingCancel && (
-        <div className="mt-3 p-3 bg-red-50/60 border border-red-200 rounded-lg flex items-center gap-2 flex-wrap">
-          <input value={cancelReason} onChange={e => setCancelReason(e.target.value)}
-            placeholder="취소 사유 (선택)"
-            className="flex-1 min-w-64 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-          <button onClick={cancelOrder} className="px-3.5 py-1.5 bg-red-600 text-white rounded-lg text-sm">주문 취소 확정</button>
-          <span className="text-[0.6875rem] text-gray-500">
-            삭제 대신 취소로 처리됩니다 — 원본은 보존되고 집계에서만 빠집니다 (되돌리려면 재등록)
-          </span>
+        <div className="mt-3 p-3 bg-red-50/60 border border-red-200 rounded-lg space-y-2">
+          <div className="text-sm font-bold text-gray-900">주문 취소 사유</div>
+          <ReasonPicker options={ORDER_CANCEL_REASONS} picked={cancelPick} onPick={setCancelPick}
+            text={cancelReason} onText={setCancelReason} />
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={cancelOrder} disabled={!cancelText}
+              className="px-3.5 py-1.5 bg-red-600 text-white rounded-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed">주문 취소 확정</button>
+            <button onClick={() => setAskingCancel(false)} className="px-3.5 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-sm bg-white">닫기</button>
+            <span className="text-[0.6875rem] text-gray-500">
+              사유를 고르거나 적어야 취소됩니다. 삭제 대신 취소로 처리되어 원본은 보존되고 집계에서만 빠집니다 (되돌리려면 재등록)
+            </span>
+          </div>
         </div>
       )}
 
@@ -224,8 +255,11 @@ export default function OrderDetailPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm">
           {[
             ['주문일', String(order.order_date ?? '-')],
-            ['주문처', [order.bank_name, order.branch_name].filter(Boolean).join(' ') || '-'],
-            ['담당자(거래처)', String(order.manager_name ?? '-')],
+            ['주문처', order.vendor_id
+              ? <Link href={`/sales-hub/${order.vendor_id}`} className="text-blue-700 hover:underline">{[order.bank_name, order.branch_name].filter(Boolean).join(' ') || '-'}</Link>
+              : ([order.bank_name, order.branch_name].filter(Boolean).join(' ') || '-')],
+            // 담당자: 주문 표기는 원본 그대로 + 고객코드 · 정보 카드 (2026-11-13)
+            ['담당자(거래처)', <ContactChip key="c" label={String(order.manager_name ?? '')} contactId={(order.contact_id as string | null) ?? null} orderId={String(order.id)} />],
             ['다올직원', String(order.staff_name ?? '-')],
             ['연락처', String(order.contact ?? '-')],
             ['핸드폰', String(order.phone ?? '-')],
@@ -238,7 +272,7 @@ export default function OrderDetailPage() {
             ['미수금', `${won(outstanding)}원`],
             ['메모', String(order.memo ?? '-')],
           ].map(([k, v]) => (
-            <div key={k}>
+            <div key={String(k)}>
               <div className="text-[0.6875rem] text-gray-400">{k}</div>
               <div className="text-gray-800">{v}</div>
             </div>
@@ -270,6 +304,17 @@ export default function OrderDetailPage() {
         )}
       </div>
 
+      {/* 개별 배송 명단 (707, 2026-11-09) — 개별 품목이 있는 주문. 상담 전환분은 상담 명단이 연결되어 보인다.
+          명단 편집은 주문 수정 가능 여부(당일)와 별개 — 취소된 주문만 잠근다 */}
+      {isDirect && (
+        <RosterCard
+          orderId={id}
+          applies={activeItems.some(it => !it.is_cost && !it.parent_line_no && !it.is_prepayment && !SHIP_KINDS.has(it.order_kind ?? '지점'))}
+          disabled={canceled}
+          subject={[order.order_no, order.order_date].filter(Boolean).map(String).join(' · ') || undefined}
+        />
+      )}
+
       {/* 품목 */}
       <div className="bg-white border border-gray-200 rounded-xl mt-3 overflow-x-auto">
         <table className="w-full text-xs min-w-[900px]">
@@ -278,14 +323,16 @@ export default function OrderDetailPage() {
               <th className="py-2 px-2.5 text-left font-medium">#</th>
               <th className="py-2 px-2.5 text-left font-medium">품번</th>
               <th className="py-2 px-2.5 text-left font-medium">품명</th>
-              <th className="py-2 px-2.5 text-left font-medium">구분</th>
+              <th className="py-2 px-2.5 text-left font-medium">배송종류</th>
+              <th className="py-2 px-2.5 text-left font-medium">주문시기</th>
               <th className="py-2 px-2.5 text-left font-medium">매입처</th>
               <th className="py-2 px-2.5 text-right font-medium">판매가</th>
               <th className="py-2 px-2.5 text-right font-medium">갯수</th>
               <th className="py-2 px-2.5 text-right font-medium">배송비</th>
-              <th className="py-2 px-2.5 text-right font-medium">할인</th>
+              <th className="py-2 px-2.5 text-right font-medium">판매할인</th>
               <th className="py-2 px-2.5 text-right font-medium">합계</th>
               {showCost && <th className="py-2 px-2.5 text-right font-medium">매입가</th>}
+              {showCost && <th className="py-2 px-2.5 text-right font-medium">매입할인</th>}
               {showCost && <th className="py-2 px-2.5 text-right font-medium">매입배송비</th>}
               {showCost && <th className="py-2 px-2.5 text-right font-medium">매입합계</th>}
               <th className="py-2 px-2.5 text-left font-medium">상담자</th>
@@ -302,8 +349,10 @@ export default function OrderDetailPage() {
                   {it.item_name}
                   {it.is_canceled && <span className="ml-1.5 no-underline text-[0.625rem] text-red-400">취소</span>}
                   {it.is_prepayment && <span className="ml-1.5 text-[0.625rem] text-violet-500">선결제</span>}
+                  {it.is_vip && <span className="ml-1.5 text-[0.625rem] text-rose-500" title="품명 'VIP' — 매출 · 미수 집계에서 빠짐">VIP</span>}
                 </td>
                 <td className="py-1.5 px-2.5">{it.order_kind ?? '-'}</td>
+                <td className="py-1.5 px-2.5 whitespace-nowrap">{it.order_season || '-'}</td>
                 <td className="py-1.5 px-2.5">{it.purchase_vendor_name ?? '-'}</td>
                 <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.sale_price)}</td>
                 <td className="py-1.5 px-2.5 text-right tabular-nums">{it.quantity}</td>
@@ -317,6 +366,14 @@ export default function OrderDetailPage() {
                 </td>
                 <td className="py-1.5 px-2.5 text-right tabular-nums font-semibold">{won(it.line_total)}</td>
                 {showCost && <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_price)}</td>}
+                {showCost && (
+                  <td className="py-1.5 px-2.5 text-right tabular-nums">
+                    {won(it.purchase_discount ?? 0)}
+                    {it.purchase_discount_mode === '단가' && (it.purchase_discount_unit ?? 0) > 0 && (
+                      <div className="text-[0.625rem] text-gray-400">{won(it.purchase_discount_unit!)} /개</div>
+                    )}
+                  </td>
+                )}
                 {showCost && <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_shipping ?? 0)}</td>}
                 {showCost && <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_total)}</td>}
                 <td className="py-1.5 px-2.5 whitespace-nowrap">{it.channel ?? '-'}</td>
@@ -333,6 +390,7 @@ export default function OrderDetailPage() {
             <span className="text-gray-500">
               매입 합계 <span className="tabular-nums">{won(cost)}원</span>
               {costShipping > 0 && <span className="text-gray-400"> (매입배송비 <span className="tabular-nums">{won(costShipping)}원</span> 포함)</span>}
+              {costDiscount > 0 && <span className="text-gray-400"> (매입할인 <span className="tabular-nums">-{won(costDiscount)}원</span> 반영)</span>}
             </span>
           )}
           {showCost && <span className="text-emerald-700">예상 마진 <b className="tabular-nums">{won(total - cost)}원</b></span>}
@@ -404,6 +462,9 @@ export default function OrderDetailPage() {
             {prepayErr && <div className="mt-1.5 text-xs text-red-600">{prepayErr}</div>}
           </div>
         )}
+        {/* 결제 기록 (1300) — 1차 수기 입력. 아래 목록은 실제 수금(2차 확인 · 직접 매칭)과 계산서 연결 */}
+        {!canceled && <PayRecords orderId={String(id)} data={payRecords} outstanding={outstanding} onChanged={load} />}
+        {payRecords.available && <div className="text-xs font-semibold text-gray-700 mb-1.5">실제 수금 · 계산서</div>}
         {payments.matches.length === 0 && payments.invoices.length === 0 ? (
           <div className="text-xs text-gray-400 py-1.5">연결된 결제 내역이 아직 없습니다.</div>
         ) : (
@@ -428,6 +489,7 @@ export default function OrderDetailPage() {
                   </span>
                 )}
                 {m.matched_by === 'auto' && <span className="text-[0.625rem] text-gray-400">자동 매칭</span>}
+                {m.record_id && <span className="text-[0.625rem] px-1 py-0.5 rounded bg-green-50 text-green-700">결제 기록 확인분</span>}
                 {m.memo && <span className="text-xs text-gray-400">{m.memo}</span>}
                 {m.source_type === 'prepay' && prepay?.can_use && (
                   <button onClick={() => releasePrepay(m.id, m.amount)}

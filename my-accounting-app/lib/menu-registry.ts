@@ -56,7 +56,7 @@ export const MENU: MenuGroup[] = [
   ]},
   { key: 'orders', area: 'sales', label: '주문 · 발주', items: [
     { label: '상담일지', href: '/orders/consultations' },
-    { label: '주문 현황', href: '/orders', exact: true },
+    { label: '주문내역', href: '/orders', exact: true },   // 2026-11-12 '주문 현황'에서 이름 변경(사용자 결정)
     { label: '신규 주문', href: '/orders/new' },
     { label: '발주서', href: '/orders/purchase' },
     { label: '배송 관리', href: '/orders/delivery', wip: true },
@@ -64,9 +64,12 @@ export const MENU: MenuGroup[] = [
     { label: '샘플 재고', href: '/orders/sample-stock' },
   ]},
   { key: 'collections', area: 'sales', label: '수금 · 정산 작업', items: [
+    { label: '결제 확인', href: '/payments' },   // 결제 기록(1차) ↔ 카드 매출 · 통장 입금 대조(2차) — 1300, 2026-11-13
     { label: '수금 대상', href: '/reports/erp-receivables' },
     { label: '입금 매칭', href: '/erp-matching' },
     { label: '계산서 발행 대상', href: '/sales-cycle' },
+    // 회계 · 재무에서도 열린다(EXTRA_PATH_OWNERS) — 회계 또는 수금 · 정산 작업 권한 중 하나 (2026-11-12 사용자 결정)
+    { label: '카드번호 매출처 연결', href: '/card-sales/customer-links' },
     // 매입 결제 예외(/purchase-cycle)는 매입처 관리의 '결제 예외' 탭으로 통합 (2026-09-30 통합 7)
   ]},
   { key: 'team', area: 'sales', label: '팀 관리', items: [
@@ -176,11 +179,22 @@ export const EXTRA_PATH_OWNERS: { prefix: string; area: MenuArea; group: MenuGro
 
 export function ownersOfPath(pathname: string) {
   const own = ownersOf(pathname)
-  if (own.length) return own
   const path = pathname.split('?')[0]
   const extra = EXTRA_PATH_OWNERS
     .filter(e => path === e.prefix.replace(/\/$/, '') || path.startsWith(e.prefix))
     .sort((a, b) => b.prefix.length - a.prefix.length)
+  if (own.length) {
+    // 메뉴 항목과 같은 경로를 EXTRA 에도 적으면 두 그룹 중 하나로 열린다(any-of) — 예: 카드번호 매출처 연결
+    // (메뉴 = 수금 · 정산 작업, EXTRA = 회계 · 재무). 메뉴 항목보다 짧은 EXTRA 접두는 무시한다.
+    const menuLen = Math.max(...MENU.flatMap(g => g.items).map(it => (it.prefix ?? it.href).split('?')[0])
+      .filter(b => path === b || path.startsWith(b.endsWith('/') ? b : b + '/')).map(b => b.length), 0)
+    const same = extra.filter(e => e.prefix.replace(/\/$/, '').length >= menuLen)
+    const out = [...own]
+    for (const e of same) for (const area of expandArea(e.area)) {
+      if (!out.some(o => o.area === area && o.group === e.group)) out.push({ area, group: e.group })
+    }
+    return out
+  }
   return extra.length ? expandArea(extra[0].area).map(area => ({ area, group: extra[0].group })) : []
 }
 
@@ -191,6 +205,7 @@ export const API_OWNERS: { prefix: string; group: MenuGroupKey | MenuGroupKey[] 
   // 전원
   { prefix: '/api/me', group: 'my' },
   { prefix: '/api/work-requests', group: 'my' },            // 업무 요청 (당사자 판정은 API 안에서)
+  { prefix: '/api/attachments', group: 'my' },              // 공통 첨부 파일 (1200) — 건별 권한은 lib/attachments-server 판정
   { prefix: '/api/notifications', group: 'my' },            // 알림 센터 (본인 기준 확인할 것)
   { prefix: '/api/push', group: 'my' },
   { prefix: '/api/help', group: 'my' },                     // 도움말 점검(마스터 판정은 라우트 안에서)                     // PC 알림(Web Push) 구독 (본인 기기만, /api/push/cron 은 미들웨어가 통과시키고 비밀로 검사)
@@ -214,6 +229,7 @@ export const API_OWNERS: { prefix: string; group: MenuGroupKey | MenuGroupKey[] 
   { prefix: '/api/erp-items', group: 'orders' },
   // 수금 · 정산 작업
   { prefix: '/api/erp-matching', group: 'collections' },
+  { prefix: '/api/payment-records', group: 'collections' },   // 결제 확인(2차). 1차 기록은 /api/orders-portal/orders/[id]/pay-records (주문 · 발주)
   { prefix: '/api/sales-cycle', group: 'collections' },
   { prefix: '/api/purchase-cycle', group: 'collections' },
   { prefix: '/api/purchase-hub', group: 'customers' },   // 매입처 관리가 거래처 관리 그룹으로 이동(2026-09-29)
@@ -227,6 +243,9 @@ export const API_OWNERS: { prefix: string; group: MenuGroupKey | MenuGroupKey[] 
   { prefix: '/api/transactions', group: 'accounting' },
   { prefix: '/api/upload', group: 'accounting' },
   { prefix: '/api/card-sales', group: 'accounting' },
+  // 카드번호 매출처 연결 — 회계 · 재무 또는 수금 · 정산 작업 (2026-11-12 사용자 결정)
+  { prefix: '/api/card-sales/customer-groups', group: ['accounting', 'collections'] },
+  { prefix: '/api/card-sales/assign-customer', group: ['accounting', 'collections'] },
   { prefix: '/api/card-expenses', group: 'accounting' },
   { prefix: '/api/cash-receipts', group: 'accounting' },
   { prefix: '/api/tax-invoices', group: 'accounting' },

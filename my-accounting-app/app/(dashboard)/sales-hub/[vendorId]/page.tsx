@@ -15,7 +15,8 @@ import InvoiceLinkModal from '../../sales-cycle/invoice-link-modal'
 // 목록(A)의 기간이 URL로 넘어와 기본값이 되고, 여기서 바꿔도 목록에는 영향이 없다.
 
 const won = (n: number) => n.toLocaleString('ko-KR')
-const eok = (n: number) => Math.abs(n) >= 100000000 ? `${(n / 100000000).toFixed(2)}억` : Math.abs(n) >= 10000 ? `${Math.round(n / 10000).toLocaleString()}만` : won(n)
+// 카드 금액은 1,000,000원 형식 그대로 — 억·만 축약은 정확한 금액 확인이 어려워 폐기 (2026-11-11 사용자 요청, 매입처와 동일)
+const eok = (n: number) => `${won(n)}원`
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   normal:      { label: '정상',      cls: 'bg-green-100 text-green-700' },
@@ -58,6 +59,8 @@ export default function SalesHubDetailPage() {
     contact_id: string; name: string; code: string | null; phone: string | null
     others: { vendor_id: string; vendor_name: string; title: string | null }[]
   } | null>(null)
+  // 같은 이름(법인격 · 공백 무시) 매출처 — 중복이면 주문이 한쪽 상세에만 보인다 (2026-11-12)
+  const [sameName, setSameName] = useState<{ id: string; name: string; is_active: boolean; order_count: number }[]>([])
   const [linkOpen, setLinkOpen] = useState(false)
   const [billingForm, setBillingForm] = useState<{ open: boolean; q: string; options: BillingRef[]; busy: boolean }>({ open: false, q: '', options: [], busy: false })
   const [loading, setLoading] = useState(true)
@@ -69,6 +72,8 @@ export default function SalesHubDetailPage() {
   // 담당 입력 상태
   const [staffForm, setStaffForm] = useState<{ open: boolean; name: string; team: string; primary: boolean }>({ open: false, name: '', team: '', primary: false })
   const [employees, setEmployees] = useState<{ id: string; name: string; team: string | null; vendor_count: number }[]>([])
+  // 거래처 담당자 줄 수정 — 직함 · 역할 메모(배정) + 핸드폰 · 유선 · 이메일(인물) (2026-11-13)
+  const [rowEdit, setRowEdit] = useState<{ id: string; title: string; role_memo: string; phone: string; tel: string; email: string; busy: boolean } | null>(null)
   const [contactForm, setContactForm] = useState<{ open: boolean; name: string; title: string; phone: string; role: string; rep: boolean; staff: string }>({ open: false, name: '', title: '', phone: '', role: '', rep: false, staff: '' })
   const [candidates, setCandidates] = useState<Candidate[] | null>(null)
   const [note, setNote] = useState('')
@@ -88,6 +93,7 @@ export default function SalesHubDetailPage() {
       setDocSales(Array.isArray(json.doc_sales) ? json.doc_sales : [])
       setBilling(json.billing_detail ?? null)
       setIndividual(json.individual ?? null)
+      setSameName(Array.isArray(json.same_name) ? json.same_name : [])
     } catch (e) {
       setError(e instanceof Error ? e.message : '조회 실패')
     } finally { setLoading(false) }
@@ -259,6 +265,19 @@ export default function SalesHubDetailPage() {
                 </Link>
               ))}
               <span className="text-[0.6875rem] text-gray-500">그쪽 주문은 그 매출처에 집계됩니다</span>
+            </div>
+          )}
+          {sameName.length > 0 && (
+            <div className="mt-2 inline-flex items-center gap-2 flex-wrap bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+              <span className="text-[0.6875rem] font-bold text-amber-700">같은 이름 매출처</span>
+              {sameName.map(o => (
+                <Link key={o.id} href={`/sales-hub/${o.id}`} className="text-sm font-semibold text-gray-900 hover:underline">
+                  {o.name}
+                  <span className="ml-1 text-[0.6875rem] font-normal text-gray-500">{o.is_active ? '' : '비활성 · '}주문 {o.order_count}건</span>
+                </Link>
+              ))}
+              <span className="text-[0.6875rem] text-gray-500">그쪽 주문은 그 매출처에만 보입니다 — 같은 곳이면</span>
+              <Link href="/vendor-dedup" className="text-[0.6875rem] text-amber-700 underline">거래처 중복 정리에서 병합</Link>
             </div>
           )}
           {billing?.available && billing.billing && (
@@ -461,8 +480,34 @@ export default function SalesHubDetailPage() {
                 </Link>
                 {c.is_representative && <span className="ml-1.5 px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-full text-[0.625rem] font-bold">대표</span>}
                 <div className="text-[0.6875rem] text-gray-400">
-                  {[c.role_memo, c.phone, c.email].filter(Boolean).join(' · ') || '연락처 미입력'}
+                  {[c.role_memo, c.phone, c.tel, c.email].filter(Boolean).join(' · ') || '연락처 미입력'}
                 </div>
+                {rowEdit?.id === c.assignment_id && (
+                  <div className="mt-1.5 p-2 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {([['title', '직함'], ['role_memo', '역할 메모'], ['phone', '핸드폰'], ['tel', '유선'], ['email', '이메일']] as const).map(([k, l]) => (
+                        <label key={k} className={`text-[0.625rem] text-gray-500 ${k === 'email' ? 'col-span-2' : ''}`}>{l}
+                          <input value={rowEdit[k]} onChange={e => setRowEdit(r => r && ({ ...r, [k]: e.target.value }))}
+                            placeholder={k === 'title' ? '예: 부장 (님 제외)' : ''}
+                            className="mt-0.5 w-full border border-gray-300 rounded px-1.5 py-1 text-xs text-gray-900" />
+                        </label>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <span className="text-[0.625rem] text-gray-400">이름 수정 · 인물 병합은 담당자 상세에서</span>
+                      <button onClick={() => setRowEdit(null)} className="ml-auto px-2 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-600">취소</button>
+                      <button disabled={rowEdit.busy} onClick={async () => {
+                        setRowEdit(r => r && ({ ...r, busy: true }))
+                        const { ok, json } = await post('/api/vendor-hub/contacts', {
+                          action: 'update_assignment', assignment_id: rowEdit.id,
+                          title: rowEdit.title, role_memo: rowEdit.role_memo, phone: rowEdit.phone, tel: rowEdit.tel, email: rowEdit.email,
+                        })
+                        if (!ok) { flash(json.error ?? '수정 실패'); setRowEdit(r => r && ({ ...r, busy: false })); return }
+                        flash('담당자 정보를 수정했습니다.'); setRowEdit(null); load()
+                      }} className="px-2 py-0.5 bg-slate-900 text-white rounded text-[0.6875rem] disabled:opacity-50">저장</button>
+                    </div>
+                  </div>
+                )}
                 {/* 다올 담당 (112) — 은행 · 지점 · 고객 단위, 주문 상담자의 원천 */}
                 {!c.ended_at && (
                   <div className="text-[0.6875rem] mt-0.5 flex items-center gap-1">
@@ -490,6 +535,10 @@ export default function SalesHubDetailPage() {
                 {c.ended_at ? `종료 ${c.ended_at}` : `배정 ${c.started_at ?? '-'}`}
                 {!c.ended_at && canEdit && (
                   <div className="mt-0.5 flex gap-1 justify-end">
+                    <button onClick={() => setRowEdit(rowEdit?.id === c.assignment_id ? null : {
+                      id: c.assignment_id, title: c.title ?? '', role_memo: c.role_memo ?? '',
+                      phone: c.phone ?? '', tel: c.tel ?? '', email: c.email ?? '', busy: false,
+                    })} className="px-1.5 py-0.5 border border-gray-200 rounded text-[0.625rem] hover:bg-gray-50">수정</button>
                     {!c.is_representative && (
                       <button onClick={async () => { await post('/api/vendor-hub/contacts', { action: 'set_representative', assignment_id: c.assignment_id }); load() }}
                         className="px-1.5 py-0.5 border border-gray-200 rounded text-[0.625rem] hover:bg-gray-50">대표로</button>

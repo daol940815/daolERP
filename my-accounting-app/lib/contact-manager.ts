@@ -1,6 +1,9 @@
 // 거래처 담당자 관리 — 집계 라이브러리
 //
 // 인물 마스터 = contacts (A안). 주문 귀속 규칙:
+//   0) 주문에 저장된 인물(erp_orders.contact_id — 주문 입력 · 상담 전환분) 우선 (2026-11-13 사용자 승인):
+//      직함이 바뀌어도 · 다른 곳으로 옮겨도 · 같은 이름이 있어도 그 사람에게 정확히 붙는다. 병합된 인물은 남는 쪽으로.
+//   아래 이름 규칙은 인물 연결이 없는 주문(예전 ERP 업로드)에만 쓴다.
 //   주문 → customer_alias → vendor → 그 거래처의 담당자 중
 //   1) contact_name_links 명시 연결(무시 포함) 우선
 //   2) 주문 담당자 표기(manager_name)에 인물 이름이 포함되면 귀속
@@ -111,6 +114,8 @@ interface OrderRow {
   id: string; order_no: string; order_date: string
   customer_alias_id: string | null; manager_name: string | null
   total_amount: number | null; outstanding_amount: number | null; collect_status: string
+  contact_id?: string | null      // 주문에 저장된 인물 (주문 입력 · 상담 전환분)
+  bank_name?: string | null; branch_name?: string | null   // 상세 표시용 (주문에 저장된 주문처 표기)
 }
 interface AsgnRow {
   id: string; contact_id: string; vendor_id: string; title: string | null
@@ -141,7 +146,7 @@ export async function buildContactManagerBundle(admin: SupabaseClient): Promise<
     fetchAllParallel<OrderRow>(admin,
       () => admin.from('erp_orders').select('id', { count: 'exact', head: true }),
       (f, t) => admin.from('erp_orders')
-        .select('id, order_no, order_date, customer_alias_id, manager_name, total_amount, outstanding_amount, collect_status')
+        .select('id, order_no, order_date, customer_alias_id, manager_name, total_amount, outstanding_amount, collect_status, contact_id')
         .range(f, t)),
     // 고객코드 (110) — 미적용 환경이면 실패해도 번들은 유지 (code null)
     fetchAllRows<{ id: string; code: string | null }>(
@@ -152,8 +157,11 @@ export async function buildContactManagerBundle(admin: SupabaseClient): Promise<
   }
   const codeMap = new Map<string, string | null>(
     'error' in codesR ? [] : codesR.data.map(c => [c.id, c.code]))
-  const contacts = (contactsR as { data: { id: string; name: string; phone: string | null; merged_into_id: string | null }[] }).data
-    .filter(c => !c.merged_into_id)
+  const allContacts = (contactsR as { data: { id: string; name: string; phone: string | null; merged_into_id: string | null }[] }).data
+  const contacts = allContacts.filter(c => !c.merged_into_id)
+  // 병합된 인물 → 남는 인물 (주문에 저장된 인물이 병합됐으면 따라간다)
+  const mergedInto = new Map(allContacts.filter(c => c.merged_into_id).map(c => [c.id, c.merged_into_id as string]))
+  const liveContact = (id: string) => { let cur = id; for (let i = 0; i < 5 && mergedInto.has(cur); i++) cur = mergedInto.get(cur)!; return cur }
   const asgns = (asgnR as { data: AsgnRow[] }).data
   const has112 = asgns.some(a => 'staff_employee_id' in a)   // 112 적용 여부 (열이 오면 적용)
   const vendors = (vendorsR as { data: { id: string; name: string; type: string; status: string | null }[] }).data
@@ -230,8 +238,8 @@ export async function buildContactManagerBundle(admin: SupabaseClient): Promise<
     vendorOrders.set(vid, vo)
 
     const raw = (o.manager_name ?? '').trim()
-    let cid: string | null | undefined = undefined
-    if (raw && links.has(`${vid}|${raw}`)) cid = links.get(`${vid}|${raw}`)   // null=무시
+    let cid: string | null | undefined = o.contact_id ? liveContact(o.contact_id) : undefined   // 0) 저장된 인물
+    if (cid === undefined && raw && links.has(`${vid}|${raw}`)) cid = links.get(`${vid}|${raw}`)   // null=무시
     if (cid === undefined && raw) {
       const nraw = norm(raw)
       const cands = activeByVendor.get(vid) ?? []
@@ -412,6 +420,7 @@ export interface ContactDetail {
     id: string; vendor_id: string; vendor_name: string; title: string | null
     is_representative: boolean; started_at: string | null; ended_at: string | null
     vendor_gap: boolean            // 종료 후 그 거래처에 후임이 없는가
+    changes: { field: string; old_value: string | null; new_value: string | null; changed_at: string; changed_by_name: string | null }[]   // 직함 · 역할 변경 이력 (117)
   }[]
   connections: { name: string; count: number; sales: number }[]
   orders: {
@@ -429,8 +438,12 @@ export interface ContactDetail {
 }
 
 export async function buildContactDetail(admin: SupabaseClient, contactId: string): Promise<ContactDetail | { error: string }> {
-  const { data: contact, error: ce } = await admin
-    .from('contacts').select('id, name, phone, email, note').eq('id', contactId).single()
+  // 유선 번호(116) 포함 — 미적용이면 없이 재조회
+  let { data: contact, error: ce } = await admin
+    .from('contacts').select('id, name, phone, tel, email, note').eq('id', contactId).single()
+  if (ce && /\btel\b/i.test(ce.message)) {
+    ;({ data: contact, error: ce } = await admin.from('contacts').select('id, name, phone, email, note').eq('id', contactId).single())
+  }
   if (ce || !contact) return { error: ce?.message ?? '인물을 찾을 수 없습니다.' }
   // 고객코드 (110) — 미적용 환경이면 null
   {
@@ -478,10 +491,22 @@ export async function buildContactDetail(admin: SupabaseClient, contactId: strin
   for (let i = 0; i < aliasIds.length; i += 100) {
     const chunk = aliasIds.slice(i, i + 100)
     const r = await fetchAllRows<OrderRow>((f, t) => admin.from('erp_orders')
-      .select('id, order_no, order_date, customer_alias_id, manager_name, total_amount, outstanding_amount, collect_status')
+      .select('id, order_no, order_date, customer_alias_id, manager_name, total_amount, outstanding_amount, collect_status, contact_id, bank_name, branch_name')
       .in('customer_alias_id', chunk).range(f, t))
     if ('error' in r) return { error: r.error }
     orders = orders.concat(r.data)
+  }
+  // 이 인물(+ 이 인물로 병합된 인물)이 저장된 주문 — 배정 거래처 밖(별칭 미연결 등)의 주문도 포함
+  const { data: absorbed } = await admin.from('contacts').select('id').eq('merged_into_id', contactId)
+  const selfIds = new Set([contactId, ...((absorbed ?? []).map(a => a.id as string))])
+  {
+    const ids = Array.from(selfIds)
+    const r = await fetchAllRows<OrderRow>((f, t) => admin.from('erp_orders')
+      .select('id, order_no, order_date, customer_alias_id, manager_name, total_amount, outstanding_amount, collect_status, contact_id, bank_name, branch_name')
+      .in('contact_id', ids).range(f, t))
+    if ('error' in r) return { error: r.error }
+    const seenIds = new Set(orders.map(o => o.id))
+    for (const o of r.data) if (!seenIds.has(o.id)) orders.push(o)
   }
   let migration105 = true
   const links = new Map<string, string | null>()
@@ -495,6 +520,8 @@ export async function buildContactDetail(admin: SupabaseClient, contactId: strin
     } else for (const l of r.data) links.set(`${l.vendor_id}|${l.raw_name.trim()}`, l.contact_id)
   }
   const mine = orders.filter(o => {
+    // 0) 주문에 저장된 인물이 있으면 그것만 본다 — 같은 이름의 다른 사람 주문이 섞이지 않는다
+    if (o.contact_id) return selfIds.has(o.contact_id)
     const vid = o.customer_alias_id ? aliasVendor.get(o.customer_alias_id) : undefined
     if (!vid) return false
     const raw = (o.manager_name ?? '').trim()
@@ -526,6 +553,20 @@ export async function buildContactDetail(admin: SupabaseClient, contactId: strin
   const connections = Array.from(conn.entries())
     .map(([name, v]) => ({ name, ...v }))
     .sort((a, b) => b.sales - a.sales).slice(0, 8)
+
+  // 직함 · 역할 변경 이력 (117 — 미적용이면 빈 목록)
+  const changesByAsg = new Map<string, ContactDetail['assignments'][number]['changes']>()
+  {
+    const { data, error } = await admin.from('contact_assignment_changes')
+      .select('assignment_id, field, old_value, new_value, changed_at, changed_by_name')
+      .eq('contact_id', contactId).order('changed_at', { ascending: false }).limit(200)
+    if (!error) for (const c of data ?? []) {
+      const list = changesByAsg.get(c.assignment_id as string) ?? []
+      list.push({ field: c.field as string, old_value: (c.old_value as string | null) ?? null, new_value: (c.new_value as string | null) ?? null,
+        changed_at: c.changed_at as string, changed_by_name: (c.changed_by_name as string | null) ?? null })
+      changesByAsg.set(c.assignment_id as string, list)
+    }
+  }
 
   // 영업일지 (105 미적용 폴백)
   let activities: ContactDetail['activities'] = []
@@ -579,11 +620,13 @@ export async function buildContactDetail(admin: SupabaseClient, contactId: strin
       title: a.title, is_representative: a.is_representative,
       started_at: a.started_at, ended_at: a.ended_at,
       vendor_gap: !!a.ended_at && !vendorHasActive.has(a.vendor_id),
+      changes: changesByAsg.get(a.id) ?? [],
     })),
     connections,
     orders: mine.slice(0, 100).map(o => ({
       id: o.id, order_no: o.order_no, order_date: o.order_date,
-      vendor_name: o.customer_alias_id ? (vName.get(aliasVendor.get(o.customer_alias_id) ?? '') ?? '') : '',
+      vendor_name: (o.customer_alias_id ? vName.get(aliasVendor.get(o.customer_alias_id) ?? '') : undefined)
+        ?? ([o.bank_name, o.branch_name].filter(Boolean).join(' ') || ''),
       total_amount: o.total_amount || 0,
       outstanding: o.collect_status !== 'collected' ? (o.outstanding_amount || 0) : 0,
     })),

@@ -40,6 +40,9 @@ export default function CardCustomerLinksPage() {
   const [pick, setPick] = useState<Record<string, string>>({})     // card_number → vendor_id (수동 선택)
   const [busy, setBusy] = useState<string | null>(null)
   const [onlySuggested, setOnlySuggested] = useState(false)
+  const [q, setQ] = useState('')
+  const [canEdit, setCanEdit] = useState(false)
+  const [canViewAccounting, setCanViewAccounting] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 6000) }
 
@@ -51,20 +54,13 @@ export default function CardCustomerLinksPage() {
     if (!res.ok) { setError(json.error ?? '조회 실패'); setLoading(false); return }
     setGroups(json.groups ?? [])
     setSummary(json.summary ?? null)
+    setVendors(json.vendors ?? [])
+    setCanEdit(!!json.can_edit)
+    setCanViewAccounting(!!json.can_view_accounting)
     setLoading(false)
   }, [])
 
-  useEffect(() => {
-    load()
-    fetch('/api/vendors?all=true')
-      .then(r => r.json())
-      .then(d => {
-        if (Array.isArray(d.data)) {
-          setVendors((d.data as VendorOpt[]).filter(v => v.type === 'customer' || v.type === 'both'))
-        }
-      })
-      .catch(() => null)
-  }, [load])
+  useEffect(() => { load() }, [load])
 
   const assign = async (g: Group, vendorId: string, vendorLabel: string) => {
     if (!window.confirm(`카드 ${g.card_number} (${g.count}건 · ${won(g.net_amount)})를 "${vendorLabel}" 매출처로 연결합니다.\n이후 업로드부터 이 카드는 자동으로 태깅됩니다.`)) return
@@ -80,11 +76,27 @@ export default function CardCustomerLinksPage() {
     load()
   }
 
-  const visible = onlySuggested ? groups.filter(g => g.suggestion) : groups
+  // 검색: 카드번호(하이픈·마스킹 무시, 숫자 일부) · 추천 매출처(별칭·거래처명) · 매입사 · 순승인액
+  const matches = (g: Group, raw: string) => {
+    const terms = raw.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    if (terms.length === 0) return true
+    const cardDigits = g.card_number.replace(/[^0-9*]/g, '')
+    const text = [g.card_number, g.suggestion?.alias_name, g.suggestion?.vendor_name, ...g.acquirers]
+      .filter(Boolean).join(' ').toLowerCase()
+    return terms.every(t => {
+      if (text.includes(t)) return true
+      const digits = t.replace(/[^0-9*]/g, '')
+      if (!digits) return false
+      if (cardDigits.includes(digits)) return true
+      return String(Math.round(g.net_amount)).includes(digits.replace(/\*/g, ''))
+    })
+  }
+  const base = onlySuggested ? groups.filter(g => g.suggestion) : groups
+  const visible = q.trim() ? base.filter(g => matches(g, q)) : base
 
   return (
     <div className="max-w-6xl mx-auto">
-      <Link href="/cards" className="text-sm text-gray-500 hover:text-gray-900">← 카드 내역</Link>
+      {canViewAccounting && <Link href="/cards" className="text-sm text-gray-500 hover:text-gray-900">← 카드 내역</Link>}
       <h1 className="text-2xl font-bold text-gray-900 mt-2">카드번호 → 매출처 연결</h1>
       <p className="text-sm mt-1 text-gray-500 mb-4">
         카드로 결제한 매출처를 확인하기 위한 화면입니다. ERP 주문과 금액·일자가 대응하는 매출처를
@@ -109,17 +121,37 @@ export default function CardCustomerLinksPage() {
         </div>
       )}
 
-      <label className="flex items-center gap-2 text-sm text-gray-600 mb-3">
-        <input type="checkbox" checked={onlySuggested} onChange={e => setOnlySuggested(e.target.checked)} />
-        추천 있는 카드만 보기
-      </label>
+      <div className="flex items-center gap-3 flex-wrap mb-3">
+        <div className="relative flex-1 min-w-[240px] max-w-md">
+          <input
+            type="search"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="검색: 카드번호 · 추천 매출처 · 매입사 · 금액"
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white"
+          />
+        </div>
+        <label className="flex items-center gap-2 text-sm text-gray-600">
+          <input type="checkbox" checked={onlySuggested} onChange={e => setOnlySuggested(e.target.checked)} />
+          추천 있는 카드만 보기
+        </label>
+        {(q.trim() || onlySuggested) && !loading && (
+          <span className="text-xs text-gray-400">{visible.length.toLocaleString()} / {groups.length.toLocaleString()}개 표시</span>
+        )}
+      </div>
 
       {loading ? (
         <p className="text-gray-400 text-sm py-10 text-center">카드번호 그룹·추천 계산 중...</p>
       ) : visible.length === 0 ? (
-        <div className="text-center py-16 border border-green-200 bg-green-50 rounded-xl">
-          <p className="text-green-700 font-medium">연결할 카드번호가 없습니다</p>
-        </div>
+        q.trim() ? (
+          <div className="text-center py-16 border border-gray-200 bg-gray-50 rounded-xl">
+            <p className="text-gray-500 font-medium">검색 결과가 없습니다</p>
+          </div>
+        ) : (
+          <div className="text-center py-16 border border-green-200 bg-green-50 rounded-xl">
+            <p className="text-green-700 font-medium">연결할 카드번호가 없습니다</p>
+          </div>
+        )
       ) : (
         <div className="overflow-x-auto border border-gray-200 rounded-lg">
           <table className="w-full text-sm">
@@ -130,8 +162,8 @@ export default function CardCustomerLinksPage() {
                 <th className="px-3 py-2 text-right">순승인액</th>
                 <th className="px-3 py-2 text-left">기간</th>
                 <th className="px-3 py-2 text-left">추천 매출처 (ERP 주문 대응)</th>
-                <th className="px-3 py-2 text-left w-64">연결할 거래처</th>
-                <th className="px-3 py-2 w-20"></th>
+                {canEdit && <th className="px-3 py-2 text-left w-64">연결할 거래처</th>}
+                {canEdit && <th className="px-3 py-2 w-20"></th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -156,7 +188,7 @@ export default function CardCustomerLinksPage() {
                         <span className="text-gray-300">대응 없음</span>
                       )}
                     </td>
-                    <td className="px-3 py-2">
+                    {canEdit && <td className="px-3 py-2">
                       <SearchableSelect
                         value={picked}
                         onChange={id => setPick(prev => ({ ...prev, [g.card_number]: id }))}
@@ -164,15 +196,15 @@ export default function CardCustomerLinksPage() {
                         emptyLabel="(거래처 선택)"
                         className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-left bg-white"
                       />
-                    </td>
-                    <td className="px-3 py-2 text-right">
+                    </td>}
+                    {canEdit && <td className="px-3 py-2 text-right">
                       <button
                         onClick={() => picked && assign(g, picked, pickedName)}
                         disabled={!picked || busy === g.card_number}
                         className="px-2.5 py-1.5 bg-slate-900 text-white rounded text-xs font-medium hover:bg-slate-700 disabled:opacity-40 whitespace-nowrap">
                         {busy === g.card_number ? '연결 중...' : '연결'}
                       </button>
-                    </td>
+                    </td>}
                   </tr>
                 )
               })}
@@ -184,7 +216,7 @@ export default function CardCustomerLinksPage() {
       <p className="text-xs text-gray-400 mt-3">
         추천 기준: 카드 승인액이 ERP 주문 합계(또는 실결제액)와 일치하고 승인일이 주문일 ±7일 이내이며,
         그 대응이 한 매출처로만 좁혀지는 경우. 대응 건수가 많을수록 신뢰가 높습니다.
-        연결 해제는 거래처 상세의 카드번호 목록에서 할 수 있습니다.
+        {!canEdit && ' 연결은 회계 · 재무 또는 수금 · 정산 작업 수정 권한이 있어야 할 수 있습니다.'}
       </p>
     </div>
   )

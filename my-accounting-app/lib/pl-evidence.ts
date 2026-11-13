@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { splitVat } from '@/lib/card-sale-vat'
 
 // ── 월별 손익 "증빙 기준" 매출·매출원가 집계 (2026-11-03 사용자 결정: 기본 보기) ─────────────
 // 매출  = 매출 세금계산서(과세, 공급가액) + 매출 계산서(면세) + 카드매출(승인−취소, 공급가액) + 현금영수증 매출(승인−취소, 공급가액)
@@ -8,16 +9,27 @@ import { fetchAllRows } from '@/lib/fetch-all-rows'
 //         * 카드매출은 상대 식별 정보가 없어 중복 제거 대상이 아니다(계산서+카드 병행은 드물다고 본다)
 // 매출원가 = 상품매입(5002)·매출원가(5001) 분개를 원천(세금계산서/법인카드)별로 나눠 보여준다 — 재고 실사가 없어 당월 매입 = 당월 원가
 // 인식 시점: 계산서 작성일 · 카드 승인일 · 현금영수증 거래일 · 카드 이용일
+// 과세·면세 구분 (2026-11-12 사용자 결정 — 매출 계산서에 더해 아래 셋도 나눈다):
+//   · 상품매입 세금계산서: 분개 출처 계산서의 tax_type
+//   · 카드매출 · 현금영수증 매출: 세액 있음 = 과세, 세액 0 + 공급가 있음 = 면세,
+//     공급가·세액 모두 0(구분 미기재, 수기결제 PG 파일 등) = 과세로 보고 1.1 역산
+//   · 법인카드 상품매입 · 통장 · 수동 분개는 0원이 면세인지 간이과세인지 알 수 없어 나누지 않는다
 // 부가세 신고 합계표와 같은 숫자가 나와야 정상 — 다르면 업로드 누락.
 
 export interface EvidenceRevenue {
   invTaxable: number[]   // 매출 세금계산서(과세) 공급가액
   invExempt: number[]    // 매출 계산서(면세)
-  cardSales: number[]    // 카드매출 순액(공급가액)
-  cashReceipts: number[] // 현금영수증 매출 순액(공급가액)
-  dedupe: number[]       // 중복 제거(음수)
+  cardTaxable: number[]  // 카드매출 순액(공급가액) — 과세(구분 미기재 포함)
+  cardExempt: number[]   // 카드매출 순액 — 면세
+  cardUnknownCount: number   // 구분 미기재(공급가·세액 0) 건수 — 과세로 봄
+  cashTaxable: number[]  // 현금영수증 매출 순액(공급가액) — 과세
+  cashExempt: number[]   // 현금영수증 매출 순액 — 면세
+  dedupe: number[]       // 중복 제거(음수) — 합계
+  dedupeTaxable: number[]  // 중복 제거 중 과세 현금영수증분 (과세·면세별 매출이익용)
+  dedupeExempt: number[]
   dedupeCount: number
-  cogsInvoice: number[]  // 상품매입 — 세금계산서 분개
+  cogsInvTaxable: number[]  // 상품매입 — 세금계산서(과세) 분개
+  cogsInvExempt: number[]   // 상품매입 — 계산서(면세) 분개
   cogsCard: number[]     // 상품매입 — 법인카드 분개
   cogsOther: number[]    // 상품매입 — 그 밖(통장·수동)
   unclassifiedPurchase: number[]   // 미분류 매입 계산서 합계(분개 없음 → 원가·비용 어디에도 안 잡힘) — 0이 아니면 분류 작업 필요
@@ -45,11 +57,14 @@ export async function buildEvidenceRevenue(
   const idx = new Map(months.map((m, i) => [m, i]))
   const zero = () => months.map(() => 0)
   const out: EvidenceRevenue = {
-    invTaxable: zero(), invExempt: zero(), cardSales: zero(), cashReceipts: zero(), dedupe: zero(), dedupeCount: 0,
-    cogsInvoice: zero(), cogsCard: zero(), cogsOther: zero(),
+    invTaxable: zero(), invExempt: zero(),
+    cardTaxable: zero(), cardExempt: zero(), cardUnknownCount: 0, cashTaxable: zero(), cashExempt: zero(),
+    dedupe: zero(), dedupeTaxable: zero(), dedupeExempt: zero(), dedupeCount: 0,
+    cogsInvTaxable: zero(), cogsInvExempt: zero(), cogsCard: zero(), cogsOther: zero(),
     unclassifiedPurchase: zero(), unclassifiedPurchaseCount: 0, unclassifiedCard: zero(), unclassifiedCardCount: 0,
   }
   const monthOf = (d: string) => idx.get(d.slice(0, 7))
+  // 카드매출 · 현금영수증 과세 구분 · 공급가 — lib/card-sale-vat.ts splitVat (분개 · 예상부가세와 같은 규칙)
 
   // 0) 미분류 원본 — 분개가 없어 손익 어디에도 안 잡히는 금액을 따로 보여준다 (0원이 "없다"가 아니라 "아직 분류 전"일 수 있다)
   {
@@ -102,8 +117,13 @@ export async function buildEvidenceRevenue(
   for (const r of csRes.data) {
     const i = monthOf(r.tx_date)
     if (i === undefined) continue
-    const s = Math.abs(supplyOf(r.supply_amount, r.amount, r.tax_amount))
-    out.cardSales[i] += r.transaction_type === 'cancel' ? -s : s
+    const v = splitVat(r.amount, r.supply_amount, r.tax_amount)
+    const s = Math.abs(v.supply)
+    const signed = r.transaction_type === 'cancel' ? -s : s
+    const kind = v.kind
+    if (kind === 'exempt') out.cardExempt[i] += signed
+    else out.cardTaxable[i] += signed   // 미기재는 과세로 본다 (2026-11-12 사용자 결정)
+    if (kind === 'unknown') out.cardUnknownCount++
   }
 
   // 3) 현금영수증 매출 — 승인 − 취소, 공급가액. 같은 사업자번호·금액·±7일의 매출 계산서가 있으면 중복으로 뺀다
@@ -116,34 +136,56 @@ export async function buildEvidenceRevenue(
   for (const r of crRes.data) {
     const i = monthOf(r.tx_date)
     if (i === undefined) continue
-    const s = Math.abs(supplyOf(r.supply_amount, r.amount, r.tax_amount))
+    const v = splitVat(r.amount, r.supply_amount, r.tax_amount)
+    const s = Math.abs(v.supply)
     const signed = r.transaction_type === 'cancel' ? -s : s
-    out.cashReceipts[i] += signed
+    const exempt = v.kind === 'exempt'
+    if (exempt) out.cashExempt[i] += signed
+    else out.cashTaxable[i] += signed
     if (r.transaction_type !== 'cancel') {
       const b = digits(r.counterparty_biz_number)
       const cands = b ? invByBiz.get(b) ?? [] : []
       const k = cands.findIndex(c => c.total === (r.amount ?? 0) && dayDiff(c.date, r.tx_date.slice(0, 10)) <= 7)
-      if (k >= 0) { cands.splice(k, 1); out.dedupe[i] -= s; out.dedupeCount++ }
+      if (k >= 0) {
+        cands.splice(k, 1); out.dedupe[i] -= s; out.dedupeCount++
+        if (exempt) out.dedupeExempt[i] -= s
+        else out.dedupeTaxable[i] -= s
+      }
     }
   }
 
   // 4) 매출원가 — 5001·5002 분개를 원천별로
   if (cogsAccountIds.length) {
-    type JL = { amount: number; side: string; journal_entries: { entry_date: string; source_type: string } | { entry_date: string; source_type: string }[] | null }
+    type JE = { entry_date: string; source_type: string; source_id: string | null }
+    type JL = { amount: number; side: string; journal_entries: JE | JE[] | null }
     const jlRes = await fetchAllRows<JL>((f, t) =>
       admin.from('journal_lines')
-        .select('amount, side, journal_entries!inner(entry_date, source_type)')
+        .select('amount, side, journal_entries!inner(entry_date, source_type, source_id)')
         .in('account_id', cogsAccountIds)
         .gte('journal_entries.entry_date', dateFrom).lte('journal_entries.entry_date', dateTo)
         .range(f, t))
     if ('error' in jlRes) return { error: jlRes.error }
+    // 세금계산서 출처 분개 → 원본 계산서의 과세·면세 (150개씩 청크 조회)
+    const invIds = Array.from(new Set(jlRes.data.map(l => {
+      const je = Array.isArray(l.journal_entries) ? l.journal_entries[0] : l.journal_entries
+      return je?.source_type === 'tax_invoice' ? je.source_id : null
+    }).filter((v): v is string => !!v)))
+    const taxTypeOf = new Map<string, string>()
+    for (let k = 0; k < invIds.length; k += 150) {
+      const { data, error } = await admin.from('tax_invoices').select('id, tax_type').in('id', invIds.slice(k, k + 150))
+      if (error) return { error: error.message }
+      for (const r of data ?? []) taxTypeOf.set(r.id as string, r.tax_type as string)
+    }
     for (const l of jlRes.data) {
       const je = Array.isArray(l.journal_entries) ? l.journal_entries[0] : l.journal_entries
       if (!je) continue
       const i = monthOf(String(je.entry_date))
       if (i === undefined) continue
       const v = l.side === 'debit' ? (l.amount ?? 0) : -(l.amount ?? 0)
-      if (je.source_type === 'tax_invoice') out.cogsInvoice[i] += v
+      if (je.source_type === 'tax_invoice') {
+        if (je.source_id && taxTypeOf.get(je.source_id) === 'exempt') out.cogsInvExempt[i] += v
+        else out.cogsInvTaxable[i] += v
+      }
       else if (je.source_type === 'card') out.cogsCard[i] += v
       else out.cogsOther[i] += v
     }

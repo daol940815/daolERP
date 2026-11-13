@@ -3,8 +3,8 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { isManagerLike } from '@/lib/permissions'
 import { recordWorkLog } from '@/lib/work-log'
-import { allowedActions, myShare, fmtDue, type WrRow, type WrEventRow } from '@/lib/work-requests'
-import { selectRows, canSeePrivate, normalize, hintFor, applyAggregate, type RawRow } from '@/lib/work-requests-server'
+import { allowedActions, myShare, fmtDue, cleanTagIds, type WrRow, type WrEventRow } from '@/lib/work-requests'
+import { selectRows, canSeePrivate, normalize, hintFor, applyAggregate, loadTags, tagPrefix, replaceTagLinks, MIGRATION_HINT_904, type RawRow } from '@/lib/work-requests-server'
 import { broadcastWrChanged } from '@/lib/realtime-broadcast'
 import { sendPush } from '@/lib/push-server'
 
@@ -14,6 +14,7 @@ export const dynamic = 'force-dynamic'
 // POST /api/work-requests/[id] { action, memo?, title?, content?, link?, due_at?, is_urgent?, employee_ids? }
 //   accept · reject(memo=사유 필수) · memo · report  — 담당자(내 몫 = 내 담당자 행)
 //   complete · cancel · edit · add_assignee(employee_ids) — 요청자
+//   set_tags(tag_ids) — 요청자 · 살아 있는 담당자 · 마스터 계정. 닫힌 요청도 가능. 이력만 남기고 알림은 보내지 않는다 (904, 2026-11-10)
 //   902: 담당자별 상태를 바꾼 뒤 요청 전체 상태는 집계(applyAggregate)로 다시 쓴다.
 //   선착(first) 수락은 요청이 아직 requested 인 경우만 통과(동시 클릭은 먼저 처리된 쪽만) → 나머지 담당자 released.
 //   본인 요청(요청자 = 담당자)은 양쪽 조작 모두 가능. 판정 규칙은 lib/work-requests allowedActions 와 동일.
@@ -40,7 +41,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     .select('id, event, memo, snapshot, created_at, actor:employees!work_request_events_actor_id_fkey(id, name, team)')
     .eq('request_id', params.id).order('created_at', { ascending: true })
   const events: WrEventRow[] = ((ev ?? []) as unknown as RawEvent[]).map(e => ({ ...e, actor: Array.isArray(e.actor) ? e.actor[0] ?? null : e.actor }))
-  return NextResponse.json({ row, events, me: { id: meId }, actions: allowedActions(row, meId) })
+  const actions = allowedActions(row, meId)
+  const tags = await loadTags(admin)
+  return NextResponse.json({ row, events, me: { id: meId }, actions: { ...actions, setTags: tags.length > 0 && (actions.setTags || me.isMaster) }, tags })
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -48,7 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   if (!me.employeeId) return NextResponse.json({ error: '직원 정보와 연결되지 않은 계정입니다.' }, { status: 400 })
   const body = await req.json().catch(() => ({})) as {
-    action?: string; memo?: string; title?: string; content?: string; link?: string; due_at?: string; is_urgent?: boolean; employee_ids?: string[]
+    action?: string; memo?: string; title?: string; content?: string; link?: string; due_at?: string; is_urgent?: boolean; employee_ids?: string[]; tag_ids?: string[]
   }
   const admin = createAdminClient()
   let row: WrRow | null
@@ -176,6 +179,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         aggregate = true
         break
       }
+      case 'set_tags': {
+        if (!(ok.setTags || me.isMaster)) return deny('태그 수정은 요청자 · 담당자 · 마스터 계정만 할 수 있습니다.')
+        const tags = await loadTags(admin)
+        if (!tags.length) return bad(MIGRATION_HINT_904)
+        // 사용 중인 태그 + 이미 붙어 있던 태그(숨김 처리된 것 포함)만 고를 수 있다
+        const c = cleanTagIds(body.tag_ids, new Set([...tags.filter(t => t.active).map(t => t.id), ...row.tag_ids]))
+        if (c.error) return bad(c.error)
+        if (c.ids.length === row.tag_ids.length && c.ids.every(id => row.tag_ids.includes(id))) return NextResponse.json({ ok: true })
+        const linkErr = await replaceTagLinks(admin, row.id, row.tag_ids, c.ids)
+        if (linkErr) throw new Error(hintFor(linkErr))
+        const names = (ids: string[]) => tags.filter(t => ids.includes(t.id)).map(t => t.label).join(', ') || '미분류'
+        event = { event: 'tags_changed', memo: `${names(row.tag_ids)} → ${names(c.ids)}` }
+        break
+      }
       default:
         return bad('알 수 없는 action')
     }
@@ -202,8 +219,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
   await broadcastWrChanged(row.id, Array.from(notify))
 
-  // PC 알림(⑦) — 반려·처리 보고는 요청자에게, 담당자 추가는 추가된 사람에게. 본인에게는 보내지 않는다. 비공개는 제목 없이.
-  const safeTitle = row.is_private ? '비공개 업무 요청' : title
+  // PC 알림(⑦) — 반려·처리 보고는 요청자에게, 담당자 추가는 추가된 사람에게, 완료 확정·취소는 담당자에게. 본인에게는 보내지 않는다. 비공개는 제목 없이.
+  if (body.action === 'set_tags') return NextResponse.json({ ok: true })   // 분류 변경은 알리지 않는다
+  const tagPre = row.is_private || !row.tag_ids.length ? '' : tagPrefix(row.tag_ids, await loadTags(admin))
+  const safeTitle = row.is_private ? '비공개 업무 요청' : `${tagPre}${title}`
   const url = `/me/requests/${row.id}`, tag = `wr:${row.id}`
   const reqId = row.requester?.id && row.requester.id !== meId ? row.requester.id : null
   if (body.action === 'reject' && reqId) {
@@ -214,14 +233,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const partial = row.assign_mode === 'all' && reported < active.length
     await sendPush(admin, [reqId], { kind: 'wr_result', title: `처리 보고 — ${myName}`, body: `${safeTitle} · ${partial ? `${reported}/${active.length} 보고` : '완료 확정을 기다립니다'}`, url, tag })
   } else if (body.action === 'memo') {
-    // 진행 메모(2026-11-04): 담당자가 쓰면 요청자에게, 요청자가 쓰면 살아 있는 담당자 전원에게 (본인 제외)
-    const targets = ok.isAsg ? [reqId] : row.assignees.filter(a => a.status !== 'rejected' && a.status !== 'released').map(a => a.employee?.id).filter(id => id !== meId)
+    // 진행 메모(2026-11-04, 2026-11-09 통일): 작성자를 뺀 관련자 전원 — 요청자 + 살아 있는 담당자(반려 · 해제 제외).
+    //  단일 · 선착(수락 후)은 상대가 1명이라 이전과 같고, 공동은 다른 공동 담당자에게도 간다.
+    const targets = Array.from(new Set([row.requester?.id, ...row.assignees.filter(a => a.status !== 'rejected' && a.status !== 'released').map(a => a.employee?.id)]
+      .filter((id): id is string => !!id && id !== meId)))
     await sendPush(admin, targets, { kind: 'wr_memo', title: `진행 메모 — ${myName}`, body: `${safeTitle}: ${memo.slice(0, 80)}`, url, tag })
+  } else if (body.action === 'complete' || body.action === 'cancel') {
+    // 완료 확정 · 취소(2026-11-09): 내 몫이 살아 있던 담당자 전원에게 (반려 · 해제된 사람, 본인 제외)
+    const targets = row.assignees.filter(a => a.status !== 'rejected' && a.status !== 'released').map(a => a.employee?.id).filter((id): id is string => !!id && id !== meId)
+    const label = body.action === 'complete' ? '완료 확정' : '요청 취소'
+    await sendPush(admin, targets, { kind: 'wr_closed', title: `${label} — ${myName}`, body: `${safeTitle}${memo && !row.is_private ? `: ${memo.slice(0, 80)}` : ''}`, url, tag })
   } else if (body.action === 'add_assignee') {
     const added = Array.from(notify).filter(id => id !== meId && !row.assignees.some(a => a.employee?.id === id && a.status !== 'rejected' && a.status !== 'released'))
     await sendPush(admin, added, row.is_private
       ? { kind: 'wr_new', title: '비공개 업무 요청 1건', body: `마감 ${fmtDue(row.due_at)} · 상세는 ERP에서 확인`, url, tag }
-      : { kind: 'wr_new', title: `새 업무 요청 — ${reqName}`, body: `${title} · 마감 ${fmtDue(row.due_at)}${row.is_urgent ? ' · 긴급' : ''} · 공동`, url, tag })
+      : { kind: 'wr_new', title: `새 업무 요청 — ${reqName}`, body: `${tagPre}${title} · 마감 ${fmtDue(row.due_at)}${row.is_urgent ? ' · 긴급' : ''} · 공동`, url, tag })
   }
   return NextResponse.json({ ok: true })
 }

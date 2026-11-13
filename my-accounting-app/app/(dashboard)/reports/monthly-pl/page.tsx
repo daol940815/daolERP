@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import MonthPresets from '@/components/ui/MonthPresets'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 const eok = (n: number) => {
@@ -25,11 +26,15 @@ interface PLLineItem {
 interface ReconcileVendor { vendor_id: string | null; vendor_name: string; erp: number; evidence: number; diff: number; erp_orders: number; invoices: number }
 interface Reconcile { erp: number[]; evidence: number[]; diff: number[]; vendors: ReconcileVendor[] }
 
+interface TaxSplitRow { revenue: number[]; cogs: number[]; gross: number[] }
+interface TaxSplit { taxable: TaxSplitRow; exempt: TaxSplitRow; other: TaxSplitRow }
+
 interface MonthlyPLResult {
   months: string[]
   basis: 'evidence' | 'erp'
   items: PLLineItem[]
   reconcile?: Reconcile
+  taxSplit?: TaxSplit
 }
 
 const monthStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -118,6 +123,9 @@ export default function MonthlyPLPage() {
             className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">↓ 엑셀</button>
         </div>
       </div>
+
+      {/* 월 단위 기간 칩 — 누르면 월 입력 칸이 채워지고 바로 다시 조회된다 (2026-11-11 승인) */}
+      <MonthPresets from={monthFrom} to={monthTo} onChange={(f, t) => { setMonthFrom(f); setMonthTo(t) }} className="mt-3" />
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
 
@@ -233,6 +241,56 @@ export default function MonthlyPLPage() {
           </table>
         </div>
 
+        {/* 과세·면세별 매출이익 — 증빙 기준 (2026-11-12) */}
+        {result.taxSplit && (() => {
+          const ts = result.taxSplit
+          const groups = [
+            { key: 'taxable', title: '과세', row: ts.taxable },
+            { key: 'exempt', title: '면세', row: ts.exempt },
+            { key: 'other', title: '구분 없음', row: ts.other },
+          ] as const
+          const visible = groups.filter(g => g.key !== 'other' || g.row.revenue.some(v => v !== 0) || g.row.cogs.some(v => v !== 0))
+          const rate = (r: TaxSplitRow) => { const rev = sumOf(r.revenue); return rev ? `${((sumOf(r.gross) / rev) * 100).toFixed(1)}%` : '-' }
+          return (
+            <div className="mt-8">
+              <h2 className="text-base font-bold text-gray-900">과세 · 면세별 매출이익</h2>
+              <p className="text-xs text-gray-500 mt-1">
+                매출은 위 매출 행을 과세·면세로 모은 것이고(중복 제거분 포함), 원가는 상품매입 세금계산서(과세)·계산서(면세)입니다.
+                카드매출 구분 미기재 건은 과세로 봅니다. 임대료수익 등 계정 행과 법인카드·통장·수동 분개 상품매입은 과세·면세를 알 수 없어 &lsquo;구분 없음&rsquo;에 둡니다.
+              </p>
+              <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto mt-2">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                      <th className="py-2.5 px-3 font-medium">항목</th>
+                      {result.months.map(m => <th key={m} className="py-2.5 px-3 font-medium text-right whitespace-nowrap">{formatMonth(m)}</th>)}
+                      <th className="py-2.5 px-3 font-semibold text-right border-l border-gray-200 text-gray-500">합계</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visible.map(g => (
+                      <Fragment key={g.key}>
+                        {([['매출', g.row.revenue, false], ['매출원가', g.row.cogs, false], ['매출이익', g.row.gross, true]] as const).map(([label, arr, isSub]) => (
+                          <tr key={label} className={`border-b border-gray-100 ${isSub ? 'bg-slate-50 font-medium text-gray-900' : 'text-gray-700'}`}>
+                            <td className="py-2 px-3 whitespace-nowrap">
+                              {g.title} {label}
+                              {isSub && <span className="ml-2 text-[0.6875rem] font-normal text-gray-400">이익률 {rate(g.row)}</span>}
+                            </td>
+                            {arr.map((v, i) => (
+                              <td key={i} className={`py-2 px-3 text-right whitespace-nowrap ${isSub && v < 0 ? 'text-red-600' : ''}`}>{won(v)}</td>
+                            ))}
+                            <td className={`py-2 px-3 text-right whitespace-nowrap font-medium border-l border-gray-200 ${isSub && sumOf(arr) < 0 ? 'text-red-600' : ''}`}>{won(sumOf(arr))}</td>
+                          </tr>
+                        ))}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        })()}
+
         {/* 매출 대사 — 증빙 vs ERP */}
         {result.reconcile && (
           <div className="mt-8">
@@ -308,9 +366,9 @@ export default function MonthlyPLPage() {
             <div className="font-semibold text-gray-700 mb-2">증빙 기준 — 인식 시점과 원천</div>
             <ul className="space-y-1 text-gray-600">
               <li>· 매출 세금계산서·계산서: 작성일, 공급가액 (매출 4001 또는 미분류 건만 — 임대료수익 등은 계정별 행)</li>
-              <li>· 카드매출: 승인일, 승인 − 취소, 공급가액</li>
-              <li>· 현금영수증 매출: 거래일, 승인 − 취소, 공급가액. 같은 사업자번호·금액·7일 안의 매출 계산서가 있으면 중복으로 뺌</li>
-              <li>· 상품매입: 5002로 확정된 세금계산서·법인카드 분개 (작성일·이용일)</li>
+              <li>· 카드매출: 승인일, 승인 − 취소, 공급가액. 세액 있음 = 과세, 세액 0 = 면세, 구분 미기재(공급가·세액 없음) = 과세로 보고 1.1로 나눔</li>
+              <li>· 현금영수증 매출: 거래일, 승인 − 취소, 공급가액. 세액 0이면 면세. 같은 사업자번호·금액·7일 안의 매출 계산서가 있으면 중복으로 뺌</li>
+              <li>· 상품매입: 5002로 확정된 세금계산서·법인카드 분개 (작성일·이용일). 계산서는 원본의 과세·면세로 나눔, 법인카드는 나누지 않음</li>
               <li>· 부가세 신고 합계표와 같은 숫자가 나와야 정상 — 다르면 업로드 누락</li>
             </ul>
           </div>

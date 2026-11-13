@@ -2,12 +2,14 @@
 
 import PeriodPresets from '@/components/ui/PeriodPresets'
 import { getPeriodRange } from '@/lib/period-presets'
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import CollectMatchModal from '@/components/erp/CollectMatchModal'
+import ReasonBadge from '@/components/ui/ReasonBadge'
+import { FIELD_SHORT, MINE_FILTERS, ORDERS_LIST_URL_KEY, SEARCH_FIELDS, decodeCond, encodeCond, parseFreeText, parseMine, type MineFilter, type SearchCond, type SearchField } from '@/lib/order-search-fields'
 
-// 주문 현황 (시안 v2) — KPI(클릭=필터) + 통합 검색 + 칩 필터 + 행내 상품 펼치기.
+// 주문내역(2026-11-12 '주문 현황'에서 이름 변경) (시안 v2) — KPI(클릭=필터) + 통합 검색 + 칩 필터 + 행내 상품 펼치기.
 // 검사 상태(정의 미확정)·배송 컬럼(3단계)은 제외 상태 — 트랙 문서 참고.
 // 마진·매입 정보는 전 직원 공개 (2026-08-13 사용자 결정).
 
@@ -18,6 +20,9 @@ interface Row {
   bank_name: string | null
   branch_name: string | null
   manager_name: string | null
+  contact_code?: string | null   // 담당자 고객코드 (같은 사람 · 동명이인 구분, 2026-11-13)
+  phone?: string | null
+  contact?: string | null
   staff_name: string | null
   total_amount: number
   outstanding_amount: number
@@ -26,10 +31,13 @@ interface Row {
   item_count: number
   channel: string | null
   is_prepay: boolean
+  is_vip?: boolean
   has_invoice: boolean
   po_status: 'none' | 'partial' | 'full' | null
   reply_state: 'waiting' | 'done' | 'changed' | 'unable' | null   // 완료 회신 (515) — 대상 아니면 null
   canceled_at?: string | null
+  cancel_reason?: string | null
+  canceled_by_name?: string | null
   last_edited_at?: string | null
 }
 interface Kpi {
@@ -37,6 +45,8 @@ interface Kpi {
   outstanding_cnt: number; in_progress_cnt: number; direct_cnt: number
   po_none_cnt: number; po_partial_cnt: number; po_full_cnt: number
   reply?: { wait: number; my_wait: number; my_req_wait: number; to_me: number; unable: number }
+  mine?: { journal: number; counselor: number; handled: number }   // 내 상담일지 · 상담자 · 주문처리 건 (2026-11-10)
+  canceled_all_cnt?: number                     // 취소만 칩 숫자 (2026-11-10)
 }
 interface Item {
   id: string; line_no: number; parent_line_no: number | null
@@ -68,25 +78,13 @@ const REPLY_BADGE: Record<string, { label: string; cls: string }> = {
   unable:  { label: '처리 불가', cls: 'bg-red-100 text-red-700' },
 }
 const REPLY_FILTERS = ['my_wait', 'my_req_wait', 'wait', 'to_me', 'unable'] as const
+// 필터 유지 (2026-11-11): 마지막 목록 주소 · 상세로 갈 때의 스크롤 위치 (이 탭에서만)
+const SCROLL_KEY = 'daol:orders-list-scroll'
 
 const chip = (on: boolean) =>
   `px-3 py-1 rounded-full text-xs border whitespace-nowrap ${
     on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-gray-300 text-gray-500 hover:border-gray-400'
   }`
-
-// 다중 조건 파싱 미리보기 (서버 파서와 동일 규칙 — 필드 지정어 화이트리스트)
-const FIELD_LABEL: Record<string, string> = {
-  '업체': '업체', '은행': '업체', '지점': '지점', '부서': '지점', '주문처': '주문처',
-  '담당자': '담당자', '직원': '다올직원', '다올직원': '다올직원', '상담자': '상담자',
-  '상품': '품목', '품목': '품목', '품명': '품목', '품번': '품번', '매입처': '매입처',
-  '주문번호': '주문번호', '번호': '주문번호',
-}
-const parseTokens = (q: string) =>
-  q.split(/[\s,]+/).filter(Boolean).map(raw => {
-    const m = raw.match(/^(.+?)[-:](.+)$/)
-    if (m && FIELD_LABEL[m[1]]) return { label: FIELD_LABEL[m[1]], value: m[2] }
-    return { label: null, value: raw }
-  })
 
 export default function OrdersHomePage() {
   const router = useRouter()
@@ -97,16 +95,19 @@ export default function OrdersHomePage() {
   const [error, setError] = useState<string | null>(null)
 
   // 필터 — 기간은 날짜 칸(from/to)이 단일 기준, 프리셋 칩은 채우기 도우미
+  // 항목별 검색 (2026-11-09): 항목 선택 + 입력 → Enter로 조건 칩 추가, 칩은 모두 만족(AND)
+  const [field, setField] = useState<SearchField | 'all'>('all')
   const [qInput, setQInput] = useState('')
-  const [q, setQ] = useState('')
+  const [conds, setConds] = useState<SearchCond[]>([])
   const [from, setFrom] = useState(() => getPeriodRange('최근 30일').from)   // 작업 화면: 최근 30일
   const [to, setTo] = useState(() => getPeriodRange('최근 30일').to)
   const [collect, setCollect] = useState('all')
   const [source, setSource] = useState('all')
   const [po, setPo] = useState('all')
   const [prepay, setPrepay] = useState(false)
+  const [vip, setVip] = useState(false)   // 품명 'VIP' 품목 주문만 (2026-11-09)
   const [invoice, setInvoice] = useState(false)
-  const [mine, setMine] = useState(false)
+  const [mine, setMine] = useState<MineFilter>('all')   // 내 상담일지 · 상담자 · 주문처리 건 (2026-11-10)
   const [reply, setReply] = useState('all')   // 완료 회신 필터 (515): all|my_wait|my_req_wait|wait|to_me|unable
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -116,25 +117,75 @@ export default function OrdersHomePage() {
   const [itemsCache, setItemsCache] = useState<Record<string, Item[]>>({})
   const [exporting, setExporting] = useState(false)
 
-  // 알림 센터에서 /orders?reply=my_wait 등으로 들어오면 그 필터로 시작
-  useEffect(() => {
-    const r = new URLSearchParams(window.location.search).get('reply')
-    if (r && (REPLY_FILTERS as readonly string[]).includes(r)) setReply(r)
+  // 필터 유지 (2026-11-11 실사용자 요청 · 사용자 승인): 필터 · 페이지를 주소(URL)에 적어 두고, 화면이 열릴 때 주소에서 다시 읽는다.
+  //  - 주문 상세 → 뒤로가기 · '← 주문 현황' · 새로고침 = 필터 그대로 / 사이드바 메뉴(/orders) = 기본값으로 새로 시작
+  //  - 알림 링크(/orders?reply=my_wait 등)도 같은 규칙으로 읽힌다
+  //  - 주소 갱신은 replaceState(뒤로가기 기록을 쌓지 않음). 기간이 기본값(최근 30일)이면 주소에서 뺀다
+  const [ready, setReady] = useState(false)
+  const restoredPage = useRef<number | null>(null)
+  const lastWritten = useRef<string | null>(null)        // 이 화면이 마지막으로 주소에 적은 조건
+  // 주소 → 필터 (없는 항목은 기본값). 처음 열릴 때 + 메뉴 · 알림 링크로 주소가 바깥에서 바뀌었을 때
+  const applyFromUrl = useCallback((sp: URLSearchParams) => {
+    const def = getPeriodRange('최근 30일')
+    const r = sp.get('reply')
+    setReply(r && (REPLY_FILTERS as readonly string[]).includes(r) ? r : 'all')
+    setMine(parseMine(sp.get('mine')))                 // 옛 주소(mine=1 · consult) 호환은 parseMine
+    setConds(sp.getAll('c').map(decodeCond).filter((c): c is SearchCond => !!c))
+    setFrom(sp.has('from') ? sp.get('from') ?? '' : def.from)
+    setTo(sp.has('to') ? sp.get('to') ?? '' : def.to)
+    const pick = (k: string) => { const v = sp.get(k); return v && v !== 'all' ? v : 'all' }
+    setCollect(pick('collect')); setSource(pick('source')); setPo(pick('po'))
+    setPrepay(sp.get('prepay') === '1'); setVip(sp.get('vip') === '1'); setInvoice(sp.get('invoice') === '1')
+    const pg = Number(sp.get('page'))
+    const pageNo = Number.isInteger(pg) && pg > 1 ? pg : 1
+    restoredPage.current = pageNo
+    setPage(pageNo)
   }, [])
+  useEffect(() => {
+    applyFromUrl(new URLSearchParams(window.location.search))
+    setReady(true)
+  }, [applyFromUrl])
+  const searchParams = useSearchParams()
+  const spKey = searchParams.toString()
+  useEffect(() => {
+    if (!ready || lastWritten.current === null || spKey === lastWritten.current) return
+    applyFromUrl(new URLSearchParams(spKey))           // 사이드바 메뉴(/orders) = 기본값으로, 알림 링크 = 그 필터로
+  }, [spKey, ready, applyFromUrl])
 
-  const load = useCallback(async () => {
-    setLoading(true); setError(null)
+  // 목록 · 엑셀 공용 조회 조건
+  const filterParams = useCallback(() => {
     const p = new URLSearchParams()
-    if (q) p.set('q', q)
+    for (const c of conds) p.append('c', encodeCond(c))
     if (from) p.set('from', from)
     if (to) p.set('to', to)
     if (collect !== 'all') p.set('collect', collect)
     if (source !== 'all') p.set('source', source)
     if (po !== 'all') p.set('po', po)
     if (prepay) p.set('prepay', '1')
+    if (vip) p.set('vip', '1')
     if (invoice) p.set('invoice', '1')
-    if (mine) p.set('mine', '1')
+    if (mine !== 'all') p.set('mine', mine)
     if (reply !== 'all') p.set('reply', reply)
+    return p
+  }, [conds, from, to, collect, source, po, prepay, vip, invoice, mine, reply])
+
+  // 입력값을 조건 칩으로 — 전체 항목은 띄어쓰기로 나눠 단어마다(지정어 "업체-하나은행"도 인식), 항목을 고르면 입력 그대로 한 조건
+  const addCond = () => {
+    const v = qInput.trim()
+    if (!v) return
+    const add: SearchCond[] = field === 'all' ? parseFreeText(v) : [{ field, value: v }]
+    setConds(prev => {
+      const next = [...prev]
+      for (const c of add) if (!next.some(x => x.field === c.field && x.value === c.value)) next.push(c)
+      return next
+    })
+    setQInput('')
+  }
+
+  const load = useCallback(async () => {
+    if (!ready) return                         // 주소에서 필터를 읽기 전에는 조회하지 않는다(기본값으로 한 번 더 조회 방지)
+    setLoading(true); setError(null)
+    const p = filterParams()
     p.set('page', String(page))
     const res = await fetch(`/api/orders-portal?${p}`)
     const json = await res.json()
@@ -145,26 +196,59 @@ export default function OrdersHomePage() {
       setExpanded(null)
     }
     setLoading(false)
-  }, [q, from, to, collect, source, po, prepay, invoice, mine, reply, page])
+  }, [filterParams, page, ready])
   useEffect(() => { load() }, [load])
 
-  // 필터 변경 시 1페이지로
-  useEffect(() => { setPage(1) }, [q, from, to, collect, source, po, prepay, invoice, mine, reply])
+  // 필터 변경 시 1페이지로 — 단, 주소에서 페이지를 되살린 직후 한 번은 건너뛴다
+  useEffect(() => {
+    if (!ready) return
+    if (restoredPage.current !== null) { restoredPage.current = null; return }
+    setPage(1)
+  }, [filterParams, ready])
+
+  // 현재 필터 · 페이지를 주소에 적기 (+ 상세 화면의 '← 주문 현황'이 돌아올 주소로 기억)
+  useEffect(() => {
+    if (!ready) return
+    const p = filterParams()
+    const def = getPeriodRange('최근 30일')
+    if (from === def.from && to === def.to) { p.delete('from'); p.delete('to') }
+    else { p.set('from', from); p.set('to', to) }      // 비운 날짜도 그대로 기억
+    if (page > 1) p.set('page', String(page))
+    const qs = p.toString()
+    lastWritten.current = qs
+    const url = qs ? `/orders?${qs}` : '/orders'
+    if (window.location.pathname + window.location.search !== url) window.history.replaceState(window.history.state, '', url)
+    try { sessionStorage.setItem(ORDERS_LIST_URL_KEY, url) } catch { /* 저장 불가 브라우저 — 돌아가기는 /orders */ }
+    restoredPage.current = null   // 되살린 페이지는 이번 한 번만 — 다음 필터 변경부터는 1페이지로
+  }, [ready, filterParams, from, to, page])
+
+  // 상세에서 돌아왔을 때 보던 위치로 (스크롤은 본문 <main>) — 상세로 갈 때 저장한 값을 목록이 다 그려진 뒤 한 번 적용
+  const scrollRestored = useRef(false)
+  useEffect(() => {
+    if (loading || scrollRestored.current) return
+    scrollRestored.current = true
+    try {
+      const raw = sessionStorage.getItem(SCROLL_KEY)
+      if (!raw) return
+      sessionStorage.removeItem(SCROLL_KEY)
+      const { url, top } = JSON.parse(raw) as { url: string; top: number }
+      if (url === window.location.pathname + window.location.search && top > 0) {
+        requestAnimationFrame(() => { const main = document.querySelector('main'); if (main) main.scrollTop = top })
+      }
+    } catch { /* 무시 */ }
+  }, [loading])
+  const openOrder = (id: string) => {
+    try {
+      const main = document.querySelector('main')
+      sessionStorage.setItem(SCROLL_KEY, JSON.stringify({ url: window.location.pathname + window.location.search, top: main?.scrollTop ?? 0 }))
+    } catch { /* 무시 */ }
+    router.push(`/orders/${id}`)
+  }
 
   // 현재 필터 그대로 품목 행 단위 엑셀 다운로드
   const exportExcel = async () => {
     setExporting(true); setError(null)
-    const p = new URLSearchParams()
-    if (q) p.set('q', q)
-    if (from) p.set('from', from)
-    if (to) p.set('to', to)
-    if (collect !== 'all') p.set('collect', collect)
-    if (source !== 'all') p.set('source', source)
-    if (po !== 'all') p.set('po', po)
-    if (prepay) p.set('prepay', '1')
-    if (invoice) p.set('invoice', '1')
-    if (mine) p.set('mine', '1')
-    if (reply !== 'all') p.set('reply', reply)
+    const p = filterParams()
     try {
       const res = await fetch(`/api/orders-portal/export?${p}`)
       if (!res.ok) {
@@ -201,7 +285,7 @@ export default function OrdersHomePage() {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-900">주문 현황</h1>
+        <h1 className="text-xl font-bold text-gray-900">주문내역</h1>
         <span className="ml-auto flex gap-2">
           <button onClick={exportExcel} disabled={exporting}
             className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 disabled:opacity-50">
@@ -258,24 +342,31 @@ export default function OrdersHomePage() {
           <PeriodPresets from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
         </div>
         <div className="flex items-center gap-2 flex-wrap mt-2">
+          <select value={field} onChange={e => setField(e.target.value as SearchField | 'all')}
+            className="border border-gray-300 rounded-lg px-2.5 py-2 text-sm bg-white" title="찾을 항목">
+            <option value="all">전체 항목</option>
+            {SEARCH_FIELDS.map(sf => <option key={sf.key} value={sf.key}>{sf.label}</option>)}
+          </select>
           <input value={qInput} onChange={e => setQInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') setQ(qInput.trim()) }}
-            placeholder="통합 검색 — 여러 조건은 띄어쓰기로 (예: 담당자-홍창의 업체-하나은행 품목-요아럽) Enter"
+            onKeyDown={e => { if (e.key === 'Enter') addCond() }}
+            placeholder={field === 'all'
+              ? '전체 항목에서 검색 — 여러 단어는 띄어쓰기 (예: 하나은행 요아럽) Enter'
+              : `${SEARCH_FIELDS.find(sf => sf.key === field)?.label ?? ''}에서 검색 — 띄어쓰기 포함 그대로 Enter`}
             className="flex-1 min-w-[280px] border border-gray-300 rounded-lg px-3.5 py-2 text-sm" />
-          {q && (
-            <button onClick={() => { setQ(''); setQInput('') }}
-              className="text-xs text-gray-400 hover:text-gray-600">검색 해제 ✕</button>
-          )}
+          <button onClick={addCond} disabled={!qInput.trim()}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 disabled:opacity-40">조건 추가</button>
         </div>
-        {q && (
+        {conds.length > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap mt-2 text-[0.6875rem] text-gray-400">
-            <span>적용 조건 (모두 만족):</span>
-            {parseTokens(q).map((tk, i) => (
-              <span key={i} className="inline-block px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                {tk.label ? `${tk.label}: ${tk.value}` : tk.value}
+            <span>검색 조건 (모두 만족):</span>
+            {conds.map((c, i) => (
+              <span key={`${c.field}:${c.value}`} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                {c.field ? `${FIELD_SHORT[c.field]}: ${c.value}` : `전체: ${c.value}`}
+                <button onClick={() => setConds(prev => prev.filter((_, j) => j !== i))}
+                  className="px-1 text-slate-400 hover:text-slate-700" title="이 조건 지우기">✕</button>
               </span>
             ))}
-            <span className="text-gray-300">· 필드 지정어: 업체 지점 주문처 담당자 상담자 다올직원 품목 품번 매입처 주문번호</span>
+            <button onClick={() => setConds([])} className="ml-1 text-gray-400 hover:text-gray-600">모두 지우기</button>
           </div>
         )}
         <div className="flex items-center gap-1.5 flex-wrap mt-2">
@@ -283,6 +374,10 @@ export default function OrdersHomePage() {
           {([['all', '전체'], ['collected', '수금완료'], ['in_progress', '진행중'], ['outstanding', '미수금']] as const).map(([k, l]) => (
             <button key={k} onClick={() => setCollect(k)} className={chip(collect === k)}>{l}</button>
           ))}
+          <button onClick={() => setCollect(collect === 'canceled' ? 'all' : 'canceled')} className={chip(collect === 'canceled')}
+            title="취소된 주문만 보기 — 취소 표시를 누르면 사유가 보입니다">
+            취소만{kpi?.canceled_all_cnt ? ` ${kpi.canceled_all_cnt}` : ''}
+          </button>
           <span className="w-2" />
           <span className="text-[0.6875rem] text-gray-400 mr-0.5">출처</span>
           {([['all', '전체'], ['direct', '직접입력'], ['upload', '업로드']] as const).map(([k, l]) => (
@@ -304,9 +399,17 @@ export default function OrdersHomePage() {
           ))}
           <span className="w-2" />
           <button onClick={() => setPrepay(v => !v)} className={chip(prepay)}>선결제만</button>
+          <button onClick={() => setVip(v => !v)} className={chip(vip)} title="품명 'VIP' 품목이 있는 주문 — VIP 금액은 매출 · 미수에서 빠짐">VIP만</button>
           <button onClick={() => setInvoice(v => !v)} className={chip(invoice)}>계산서 발행건만</button>
           <span className="flex-1" />
-          <button onClick={() => setMine(v => !v)} className={chip(mine)}>내 주문만</button>
+          {/* 내 주문 (2026-11-10): 상담일지 작성자 / 주문 상담자(고객 다올 담당) / 입력자 — 기준은 마우스 올리면 보임 */}
+          <span className="text-[0.6875rem] text-gray-400 mr-0.5">내 주문</span>
+          <button onClick={() => setMine('all')} className={chip(mine === 'all')}>전체</button>
+          {MINE_FILTERS.map(mf => (
+            <button key={mf.key} onClick={() => setMine(mf.key)} className={chip(mine === mf.key)} title={mf.hint}>
+              {mf.label}{kpi?.mine ? ` ${kpi.mine[mf.key] ?? 0}` : ''}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -338,7 +441,7 @@ export default function OrdersHomePage() {
                 const items = itemsCache[r.id]
                 return (
                   <Fragment key={r.id}>
-                    <tr onClick={() => router.push(`/orders/${r.id}`)}
+                    <tr onClick={() => openOrder(r.id)}
                       className={`border-b border-gray-50 cursor-pointer hover:bg-blue-50/40 ${r.canceled_at ? 'opacity-60' : ''}`}>
                       <td className="py-2 px-3">
                         <div className="tabular-nums text-xs font-semibold">{r.order_date}</div>
@@ -349,7 +452,10 @@ export default function OrdersHomePage() {
                         {r.branch_name ?? <span className="text-gray-300">-</span>}
                         {/* 취소·재등록(511): 취소 주문은 집계 제외 상계, 당일 수정건은 '수정됨' 표시 */}
                         {r.canceled_at && (
-                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-red-50 text-red-600">취소</span>
+                          <span className="ml-1.5">
+                            <ReasonBadge label="취소" cls="bg-red-50 text-red-600" title="취소 사유"
+                              reason={r.cancel_reason} by={r.canceled_by_name} at={r.canceled_at} />
+                          </span>
                         )}
                         {!r.canceled_at && r.last_edited_at && (
                           <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-amber-50 text-amber-600">수정됨</span>
@@ -357,11 +463,23 @@ export default function OrdersHomePage() {
                         {r.is_prepay && (
                           <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-violet-50 text-violet-600">선결제</span>
                         )}
+                        {r.is_vip && (
+                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-rose-50 text-rose-600" title="품명 'VIP' 품목 — 매출 · 미수 집계에서 빠짐">VIP</span>
+                        )}
                         {r.has_invoice && (
                           <span className="ml-1 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-blue-50 text-blue-600">계산서</span>
                         )}
                       </td>
-                      <td className="py-2 px-3">{r.manager_name ?? '-'}</td>
+                      <td className="py-2 px-3">
+                        {r.manager_name ?? '-'}
+                        {r.contact_code && (
+                          <span className="ml-1 inline-block whitespace-nowrap px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[0.625rem] font-mono align-middle" title="고객코드 — 같으면 같은 사람">{r.contact_code}</span>
+                        )}
+                        {/* 담당자 연락처 (2026-11-09 문의) — 핸드폰 · 유선 */}
+                        {(r.phone || r.contact) && (
+                          <div className="text-[0.6875rem] text-gray-400 tabular-nums whitespace-nowrap">{[r.phone, r.contact].filter(Boolean).join(' · ')}</div>
+                        )}
+                      </td>
                       <td className="py-2 px-3">
                         {/* 직원 = 상담자여도 둘 다 표기 (2026-11-05 사용자 요청 — 예: 김승현 / 김승현) */}
                         {r.staff_name ?? '-'}

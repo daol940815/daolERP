@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>개별 배송 명단 시안 — 상담일지 → 주문서 → 발주서 (707)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:0.8125rem; }
+  .frame { max-width:1180px; margin:0 auto; padding:24px 20px 60px; }
+  h1 { font-size:1.1875rem; color:#0f172a; }
+  h2 { font-size:0.9375rem; color:#0f172a; margin:30px 0 8px; padding-left:10px; border-left:4px solid #0f172a; }
+  .desc { font-size:0.75rem; color:#64748b; margin:4px 0 14px; line-height:1.7; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin-top:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .sec { font-size:0.8125rem; font-weight:bold; color:#0f172a; margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .sec small { font-weight:normal; color:#94a3b8; font-size:0.6875rem; }
+  .sec .r { margin-left:auto; display:flex; gap:6px; }
+  .btn { font-size:0.75rem; padding:5px 11px; border:1px solid #cbd5e1; background:#fff; border-radius:8px; color:#334155; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .btn.blue { border-color:#bfdbfe; background:#eff6ff; color:#1d4ed8; }
+  .banner { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:0.75rem; border-radius:8px; padding:7px 12px; border:1px solid; margin-bottom:10px; }
+  .banner.green { background:#ecfdf5; border-color:#a7f3d0; color:#065f46; }
+  .banner.amber { background:#fffbeb; border-color:#fde68a; color:#92400e; }
+  .banner.blue { background:#eff6ff; border-color:#bfdbfe; color:#1e40af; }
+  .banner.gray { background:#f8fafc; border-color:#e2e8f0; color:#475569; }
+  table { width:100%; border-collapse:collapse; font-size:0.71875rem; }
+  th { background:#f1f5f9; color:#475569; font-size:0.65625rem; padding:6px 7px; text-align:left; white-space:nowrap; border-bottom:1.5px solid #d8dee6; }
+  td { padding:5px 7px; border-bottom:1px solid #eef1f5; vertical-align:middle; }
+  th.r, td.r { text-align:right; }
+  td.c, th.c { text-align:center; }
+  .cell { border:1.5px solid #e8d9a8; border-radius:6px; padding:3px 7px; background:#fffdf5; min-height:24px; }
+  .cell.auto { border-color:#e2e8f0; background:#f8fafc; color:#475569; }
+  .cell.sel { border-color:#93b8e8; background:#f5f9ff; }
+  .ph { color:#94a3b8; }
+  .badge { display:inline-block; padding:1px 7px; border-radius:999px; font-size:0.625rem; font-weight:600; white-space:nowrap; }
+  .b-green { background:#e7f6ec; color:#147339; }
+  .b-red { background:#fee2e2; color:#b91c1c; }
+  .b-amber { background:#fdf3df; color:#92600a; }
+  .b-gray { background:#f1f2f4; color:#6b7280; }
+  .b-blue { background:#e6effc; color:#1c5cab; }
+  .kpi { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  .kpi > div { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:6px 12px; font-size:0.71875rem; color:#475569; }
+  .kpi b { color:#0f172a; font-size:0.875rem; margin-left:4px; }
+  .note { margin-top:14px; background:#fffbeb; border:1px solid #f5e6b8; border-radius:10px; padding:12px 16px; font-size:0.75rem; color:#7c5e10; line-height:1.9; }
+  .note b { color:#5c470a; }
+  .flow { margin-top:12px; background:#f0f7ff; border:1px solid #cfe3f8; border-radius:10px; padding:12px 16px; font-size:0.75rem; color:#1e4e79; line-height:1.9; }
+  .x { color:#f87171; }
+  .mini { font-size:0.65625rem; color:#94a3b8; }
+  .tpl { font-family:Consolas,monospace; font-size:0.6875rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px; overflow:auto; }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <h1>개별 배송 명단 시안</h1>
+  <p class="desc">
+    개별 배송(수령인 다수) 상담에 <b>표준 양식 엑셀</b>로 명단을 올리면 수령인 행 데이터로 저장되고, 주문 전환 → 발주서 배송명단까지
+    같은 행이 따라갑니다. 지점·샘플은 기존 배송지 카드(1곳) 그대로. 매입처 자체 발주서 양식(대경사과 송장등록 등)은 예외 — 현행 유지.
+  </p>
+
+  <!-- 1. 표준 양식 -->
+  <h2>1. 표준 양식 (다운로드 제공)</h2>
+  <div class="panel">
+    <div class="sec">배송명단 양식.xlsx <small>첫 행 = 헤더 고정 · 이 순서 그대로 · 우편번호는 비워도 되고 확인하지 않음</small>
+      <span class="r"><span class="btn blue">양식 다운로드</span></span></div>
+    <div class="tpl">NO | 수령인 | 연락처 | 우편번호(선택·미확인) | 주소 | 상세주소 | 상품명 | 수량 | 배송메모</div>
+    <div class="mini" style="margin-top:8px;">
+      상품명은 상담 품목의 상품명과 같게 적으면 자동 연결됩니다(품번도 허용). 헤더가 다르면 업로드가 거부되고 어느 열이 다른지 안내.
+      발송인·발송인 연락처는 회사 정보로 발주서에서 자동.
+    </div>
+  </div>
+
+  <!-- 2. 상담일지 명단 블록 — 요약만 (대량 명단 대응, 2026-11-09 수정) -->
+  <h2>2. 상담일지 — 발송 정보 아래 "배송명단" 요약 카드 (개별 품목이 있을 때만 열림)</h2>
+  <p class="desc">폼에는 <b>요약과 확인할 것만</b> 보입니다. 행 편집은 "명단 열기"로 여는 전용 패널에서 — 100명이 넘어도 폼 길이는 그대로입니다.</p>
+  <div class="panel">
+    <div class="sec">배송명단 <small>개별 배송 품목 · 수령인별</small>
+      <span class="r"><span class="btn blue">양식 다운로드</span><span class="btn pri">엑셀 업로드</span><span class="btn">명단 열기 (132행)</span></span></div>
+
+    <div class="banner green">
+      <span>업로드 완료 — <b>명단_온양농협_11월.xlsx</b> 132행 (2026-11-06 14:02, 김주연) · 원본 파일 보관</span>
+      <span style="margin-left:auto;" class="btn">원본 다운로드</span>
+    </div>
+
+    <div class="kpi">
+      <div>수령인 <b>128</b>명 · <b>132</b>행</div>
+      <div>명단 수량 합계 <b>132</b> / 품목 수량 <b>130</b> <span class="badge b-red">+2 초과</span></div>
+      <div>품목 미연결 <b>3</b>건 <span class="badge b-red">확인 필요 →</span></div>
+      <div>연락처 없음 <b>2</b>건 <span class="badge b-amber">확인 권장 →</span></div>
+    </div>
+
+    <table>
+      <thead><tr><th class="c">NO</th><th>수령인</th><th>연락처</th><th>주소</th><th>상품</th><th class="r">수량</th><th>배송메모</th></tr></thead>
+      <tbody>
+        <tr><td class="c">1</td><td>김민수 과장님</td><td>010-1234-5678</td><td>충남 아산시 배방읍 배방로 123 2층 총무과</td><td>양말세트 3P</td><td class="r">1</td><td></td></tr>
+        <tr><td class="c">2</td><td>박영희 대리님</td><td>010-9876-5432</td><td>충남 아산시 온천대로 45 1층</td><td>양말세트 3P</td><td class="r">1</td><td>경비실</td></tr>
+        <tr><td class="c">3</td><td>이정호 님</td><td>010-5555-1212</td><td>충남 천안시 서북구 불당대로 10</td><td><span class="badge b-red">미연결</span> 양말 3족 세트</td><td class="r">1</td><td></td></tr>
+        <tr><td class="c" colspan="7" class="mini" style="text-align:center; color:#94a3b8;">… 외 129행 — "명단 열기"에서 전체 확인·수정</td></tr>
+      </tbody>
+    </table>
+    <div class="mini" style="margin-top:8px;">
+      요약 표는 읽기 전용 미리보기 3행. 빨간 배지(미연결·수량 초과)나 "확인 →"를 누르면 패널이 <b>그 문제 행만 필터된 상태</b>로 열립니다.
+      다시 업로드하면 기존 명단 교체 여부를 묻습니다.
+    </div>
+  </div>
+
+  <!-- 2-1. 명단 패널 -->
+  <h2>2-1. 명단 패널 — "명단 열기"로 여는 전용 화면 (상담·주문 공용)</h2>
+  <p class="desc">화면 오른쪽에서 열리는 전체 높이 패널(드로어). 표는 50행 단위 페이지 + 고정 높이 스크롤, 상단에 검색·문제 필터. 폼으로 돌아가도 위치가 유지됩니다.</p>
+  <div class="panel" style="border-left:4px solid #0f172a;">
+    <div class="sec">배송명단 — 온양농협 배방지점 상담 (2026-11-06) <small>132행 · 128명</small>
+      <span class="r"><span class="btn">엑셀 다운로드</span><span class="btn">+ 행 추가</span><span class="btn pri">저장</span><span class="btn">닫기</span></span></div>
+
+    <div class="banner gray" style="gap:6px;">
+      <span class="badge b-blue">전체 132</span>
+      <span class="badge b-red">품목 미연결 3</span>
+      <span class="badge b-amber">연락처 없음 2</span>
+      <span class="badge b-gray">수정됨 0</span>
+      <span style="margin-left:auto;" class="cell" style="min-width:220px;"><span class="ph">수령인 · 연락처 · 주소 검색</span></span>
+    </div>
+
+    <table>
+      <thead><tr>
+        <th class="c">NO</th><th>수령인</th><th>연락처</th><th>우편번호</th><th>주소</th><th>상세주소</th><th>상품 (상담 품목 연결)</th><th class="r">수량</th><th>배송메모</th><th></th>
+      </tr></thead>
+      <tbody>
+        <tr style="background:#fff7f7;"><td class="c">3</td><td><div class="cell">이정호 님</div></td><td><div class="cell">010-5555-1212</div></td><td><div class="cell auto"><span class="ph">—</span></div></td>
+            <td><div class="cell">충남 천안시 서북구 불당대로 10</div></td><td><div class="cell"></div></td>
+            <td><div class="cell" style="border-color:#fca5a5;background:#fef2f2;">양말 3족 세트 → <b>양말세트 3P</b> 선택 ▾</div></td><td class="r"><div class="cell">1</div></td><td><div class="cell"></div></td><td class="x">✕</td></tr>
+        <tr style="background:#fff7f7;"><td class="c">57</td><td><div class="cell">최은영 님</div></td><td><div class="cell">010-2222-3333</div></td><td><div class="cell auto"><span class="ph">—</span></div></td>
+            <td><div class="cell">경기 평택시 중앙로 77</div></td><td><div class="cell">101동 202호</div></td>
+            <td><div class="cell" style="border-color:#fca5a5;background:#fef2f2;">양말 선물세트 → 선택 ▾</div></td><td class="r"><div class="cell">1</div></td><td><div class="cell"></div></td><td class="x">✕</td></tr>
+        <tr style="background:#fff7f7;"><td class="c">118</td><td><div class="cell">(수령인 없음)</div></td><td><div class="cell"></div></td><td><div class="cell auto"><span class="ph">—</span></div></td>
+            <td><div class="cell">서울 강남구 테헤란로 1</div></td><td><div class="cell"></div></td>
+            <td><div class="cell" style="border-color:#fca5a5;background:#fef2f2;">(빈칸) → 선택 ▾</div></td><td class="r"><div class="cell">1</div></td><td><div class="cell"></div></td><td class="x">✕</td></tr>
+        <tr><td class="c" colspan="10" class="mini" style="text-align:center; color:#94a3b8;">"품목 미연결 3" 필터 적용 중 — 필터를 끄면 1~50행 · 다음 페이지</td></tr>
+      </tbody>
+    </table>
+    <div class="mini" style="margin-top:8px;">
+      "미연결 → 선택"에서 상담 품목을 고르면 같은 상품명의 다른 행에도 "모두 적용" 제안. 수정은 패널의 저장 버튼으로 한 번에 반영(상담 저장과 별개).
+    </div>
+  </div>
+
+  <!-- 3. 주문서 -->
+  <h2>3. 주문서 — 전환 시 명단이 연결되어 따라옴</h2>
+  <div class="panel">
+    <div class="sec">배송명단 <small>상담 2026-11-06 (주문) 에서 승계 · 이 주문에 포함된 품목의 수령인 행만</small>
+      <span class="r"><span class="btn">엑셀 다운로드</span><span class="btn">원본 다운로드</span></span></div>
+    <div class="banner blue">
+      <span>상담일지의 배송명단 <b>12행</b>이 이 주문에 연결되었습니다. 전환 후 수정은 여기(주문)에서 합니다 — 상담은 잠깁니다.</span>
+    </div>
+    <div class="kpi">
+      <div>수령인 <b>12</b>명</div><div>명단 수량 <b>120</b> / 품목 수량 <b>120</b> <span class="badge b-green">일치</span></div><div>지점·샘플 배송지 <span class="badge b-gray">해당 없음</span></div>
+    </div>
+    <div class="mini">주문서에도 같은 <b>요약 카드 + 명단 열기</b> 방식. 분할 전환이면 그 주문에 들어간 품목의 행만 붙고, 나머지 행은 상담에 남아 다음 전환을 기다립니다.</div>
+  </div>
+
+  <!-- 4. 발주서 -->
+  <h2>4. 발주서 — 배송명단 시트가 매입처 품목 행만으로 자동 채워짐</h2>
+  <div class="panel">
+    <div class="sec">발주서 PO-20261106-003 · 한별무역 <small>시트2 '배송명단' 미리보기 — 열 구성은 현행 양식 그대로</small></div>
+    <div class="banner gray">
+      <span>매입처 자체 양식(송장등록)을 쓰는 매입처는 이 자동 채움 대상이 아닙니다. 우편번호는 주소 앞에 붙이지 않습니다 — 별도 항목으로만 보관(확인 대상 아님).</span>
+    </div>
+    <table>
+      <thead><tr><th class="c">NO.</th><th>발송인</th><th>발송인 연락처</th><th>수령인</th><th>주소</th><th>연락처</th><th>제품명</th><th class="r">수량</th><th>배송메모</th></tr></thead>
+      <tbody>
+        <tr><td class="c">1</td><td>다올커머스</td><td>031-922-4582</td><td>김민수 과장님</td><td>충남 아산시 배방읍 배방로 123 2층 총무과</td><td>010-1234-5678</td><td>양말세트 3P</td><td class="r">10</td><td>인사장 동봉</td></tr>
+        <tr><td class="c">2</td><td>다올커머스</td><td>031-922-4582</td><td>박영희 대리님</td><td>충남 아산시 온천대로 45 1층</td><td>010-9876-5432</td><td>양말세트 3P</td><td class="r">10</td><td>경비실 맡겨주세요</td></tr>
+        <tr><td class="c">…</td><td colspan="8" class="mini">한별무역 품목(양말세트 3P)의 수령인 12행 전부 — 다른 매입처 품목의 행은 그 매입처 발주서에</td></tr>
+      </tbody>
+    </table>
+    <div class="mini" style="margin-top:8px;">지점·샘플 품목이 섞인 주문이면 그 행은 기존처럼 주문 배송지(1곳)로 채워지고, 개별 품목 행만 명단에서 옵니다. 부가상품·배송비 행은 현행대로 명단에서 제외.
+      <b>미리보기는 20행 + "외 N행"</b>으로 접고, 엑셀 시트에는 전부 들어갑니다(시트는 길어도 문제없음).</div>
+  </div>
+
+  <div class="flow">
+    <b>데이터 흐름 (707)</b><br>
+    명단 머리(어느 상담/주문에 붙었는지 · 원본 파일 · 업로드자·시각) + 수령인 행(수령인·연락처·우편번호·주소·상세·연결 품목·수량·메모 · 나중에 송장번호).<br>
+    상담 → 주문: 복사가 아니라 <b>연결</b>(주문 id 채움). 주문 → 발주서: 발주서의 품목 행에 연결된 수령인 행만 골라 시트 채움. 4페이즈: 같은 행에 송장번호 기록.
+  </div>
+  <div class="note">
+    <b>권한·보관</b> 명단은 수령인 개인정보 — 열람은 주문 그룹 조회 권한, 엑셀·원본 다운로드는 누가 언제 받았는지 기록. 원본 파일은 Storage에 보관(원본 보존), 파싱 행은 테이블.
+    상담 저장 전에도 명단을 올릴 수 있게 하려면 상담을 먼저 저장해야 하므로, 명단 블록은 <b>저장된 상담(수정 화면)</b>에서 열립니다 — 신규 작성 중에는 "저장 후 명단 업로드" 안내.
+  </div>
+
+</div>
+</body>
+</html>

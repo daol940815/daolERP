@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 // 규모 전제: 주문 ~1만 건 수준이라 필터된 집합을 메모리로 집계한다.
 // (10만 단위로 커지면 102 hub_summary_json 패턴의 RPC로 이관 — 트랙 문서 참고)
 //
-// GET ?q=&from=&to=&collect=&source=&prepay=1&invoice=1&mine=1&reply=&page=1
+// GET ?q=&c=<항목>:<값>(반복)&from=&to=&collect=&source=&prepay=1&vip=1&invoice=1&mine=journal|counselor|handled&reply=&page=1
 
 const PER_PAGE = 50
 
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   const result = await loadFilteredOrders(admin, me, filterFromSearchParams(sp))
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
-  const { filtered, prepayIds, invoiceIds, poStatus, replyMap, replyCounts } = result
+  const { filtered, prepayIds, vipIds, invoiceIds, poStatus, replyMap, replyCounts, mineCounts, canceledCount } = result
 
   // 취소 주문(511)은 금액·수금 KPI에서 제외 — 목록에는 취소 배지로 표시 (상계 효과)
   const active = filtered.filter(o => !o.canceled_at)
@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
     outstanding_cnt: active.filter(o => o.collect_status === 'outstanding').length,
     in_progress_cnt: active.filter(o => o.collect_status === 'in_progress').length,
     canceled_cnt: filtered.filter(o => o.canceled_at).length,
+    canceled_all_cnt: canceledCount,   // 취소만 칩 숫자 (수금 필터 적용 전)
     direct_cnt: filtered.filter(o => o.source === 'direct').length,
     // 발주 상태 (direct 주문만 집계 — 업로드 주문은 대상 아님)
     po_none_cnt: filtered.filter(o => poStatus.get(o.id) === 'none').length,
@@ -43,6 +44,8 @@ export async function GET(req: NextRequest) {
     po_full_cnt: filtered.filter(o => poStatus.get(o.id) === 'full').length,
     // 완료 회신 (515) — 회신 필터 적용 전 숫자
     reply: replyCounts,
+    // 내 상담일지 · 상담자 · 주문처리 건 버튼 숫자 (내 주문 필터 적용 전)
+    mine: mineCounts,
   }
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
@@ -62,18 +65,48 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // 거래처 담당자 고객코드 (2026-11-13 — 같은 사람 · 동명이인 구분, 목록에 항상 표시)
+  const contactIds = Array.from(new Set(pageRows.map(o => o.contact_id).filter((v): v is string => !!v)))
+  const contactCode = new Map<string, string | null>()
+  if (contactIds.length) {
+    const { data } = await admin.from('contacts').select('id, code, merged_into_id').in('id', contactIds)
+    const merged: string[] = []
+    for (const c of data ?? []) {
+      contactCode.set(c.id as string, (c.code as string | null) ?? null)
+      if (c.merged_into_id) merged.push(c.id as string)
+    }
+    // 병합된 인물은 남는 인물의 코드로
+    if (merged.length) {
+      const into = new Map((data ?? []).filter(c => c.merged_into_id).map(c => [c.id as string, c.merged_into_id as string]))
+      const { data: tgt } = await admin.from('contacts').select('id, code').in('id', Array.from(new Set(Array.from(into.values()))))
+      const tCode = new Map((tgt ?? []).map(t => [t.id as string, (t.code as string | null) ?? null]))
+      Array.from(into.entries()).forEach(([src, dst]) => contactCode.set(src, tCode.get(dst) ?? null))
+    }
+  }
+
+  // 취소한 직원 이름 (목록 취소 배지의 사유 창)
+  const cancelerIds = Array.from(new Set(pageRows.map(o => o.canceled_by).filter((v): v is string => !!v)))
+  const cancelerName = new Map<string, string>()
+  if (cancelerIds.length) {
+    const { data } = await admin.from('employees').select('id, name').in('id', cancelerIds)
+    for (const e of data ?? []) cancelerName.set(e.id as string, e.name as string)
+  }
+
   return NextResponse.json({
     rows: pageRows.map(o => ({
       ...o,
+      contact_code: o.contact_id ? contactCode.get(o.contact_id) ?? null : null,
       total_amount: o.total_amount ?? 0,
       outstanding_amount: o.outstanding_amount ?? 0,
       source: o.source ?? 'upload',
       item_count: itemInfo.get(o.id)?.count ?? 0,
       channel: itemInfo.get(o.id)?.channel ?? null,
       is_prepay: prepayIds.has(o.id),
+      is_vip: vipIds.has(o.id),   // 품명 'VIP' 품목 (매출 집계 제외)
       has_invoice: invoiceIds.has(o.id),
       po_status: poStatus.get(o.id) ?? null,   // direct 외에는 null
       reply_state: replyMap.get(o.id)?.state ?? null,   // 회신 대상 아니면 null
+      canceled_by_name: o.canceled_by ? cancelerName.get(o.canceled_by) ?? null : null,
     })),
     kpi,
     page,

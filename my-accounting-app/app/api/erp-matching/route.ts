@@ -122,6 +122,11 @@ export async function DELETE(req: NextRequest) {
 
   // 선결제 사용 매칭(514)은 원장 차감 행과 한 쌍 — 함께 지워야 선결제 잔액이 복원된다 (주문 트랙 2026-11-05)
   const { data: m } = await admin.from('erp_payment_matches').select('source_type, source_id').eq('id', id).maybeSingle()
+  // 결제 확인(1300)으로 만들어진 매칭은 기록과 한 묶음 — 낱개로 지우면 기록이 '확인'인데 수금이 비는 상태가 된다
+  const { data: rm } = await admin.from('erp_payment_matches').select('record_id').eq('id', id).maybeSingle()
+  if (rm?.record_id) {
+    return NextResponse.json({ error: '결제 기록으로 확정된 매칭입니다. 결제 확인 화면에서 "확인 해제"로 풀어주세요.' }, { status: 409 })
+  }
   const { error } = await admin.from('erp_payment_matches').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (m?.source_type === 'prepay') {

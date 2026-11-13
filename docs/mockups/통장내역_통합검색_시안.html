@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통장 내역 통합 검색 - 시안</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>.num{font-variant-numeric:tabular-nums}</style>
+</head>
+<body class="bg-slate-50 text-gray-900" style="font-family: Pretendard, -apple-system, 'Malgun Gothic', sans-serif;">
+<div class="max-w-6xl mx-auto p-6">
+
+  <h1 class="text-2xl font-bold">통장 내역 — 통합 검색 시안</h1>
+  <p class="text-sm text-gray-500 mt-1">검색창에는 단어를 치고, 필터는 검색창 <b>왼쪽의 + 필터 드롭다운</b>에서 항목을 골라 값을 설정합니다(수정안 2 · 2026-11-10). 날짜 from~to는 기간 칩과 같은 줄에 둡니다. 설정한 필터는 칩으로 보이고 클릭해 고치거나 ✕로 지웁니다. 검색창에 <span class='font-mono'>금액:168300</span>처럼 쳐도 같은 칩이 됩니다. 숫자는 예시입니다.</p>
+
+  <!-- 기간 줄: 프리셋 칩 + 날짜 from~to (같은 줄) -->
+  <div class="flex flex-wrap items-center gap-1 mt-5 text-xs">
+    <span class="px-2 py-1 rounded-full border border-gray-200 bg-white text-gray-500">최근 7일</span>
+    <span class="px-2 py-1 rounded-full border border-gray-200 bg-white text-gray-500">최근 30일</span>
+    <span class="px-2 py-1 rounded-full border border-slate-900 bg-slate-900 text-white">당월</span>
+    <span class="px-2 py-1 rounded-full border border-gray-200 bg-white text-gray-500">전월</span>
+    <span class="px-2 py-1 rounded-full border border-gray-200 bg-white text-gray-500">4분기</span>
+    <span class="px-2 py-1 rounded-full border border-gray-200 bg-white text-gray-500">당년</span>
+    <span class="px-2 py-1 rounded-full border border-gray-200 bg-white text-gray-500">전체 기간</span>
+    <span class="text-gray-300 mx-1">|</span>
+    <input type="date" value="2026-11-01" class="border border-gray-300 rounded-lg px-2 py-1 text-xs">
+    <span class="text-gray-400">~</span>
+    <input type="date" value="2026-11-10" class="border border-gray-300 rounded-lg px-2 py-1 text-xs">
+    <button class="ml-1 px-3 py-1 bg-slate-900 text-white rounded-lg text-xs font-medium">조회</button>
+  </div>
+
+  <!-- 검색 줄: + 필터(왼쪽) + 검색창 -->
+  <div class="flex flex-wrap items-center gap-2 mt-2">
+    <div class="relative">
+      <button class="px-3 py-1.5 border border-slate-900 bg-white text-slate-900 rounded-lg text-sm font-medium">+ 필터 ▾</button>
+      <!-- 열린 드롭다운 -->
+      <div class="absolute left-0 top-10 z-10 w-[520px] bg-white border border-gray-200 rounded-xl shadow-xl p-3 text-xs">
+        <div class="flex gap-3">
+          <div class="w-36 border-r border-gray-100 pr-2">
+            <div class="text-gray-400 mb-1">필터 항목</div>
+            <div class="px-2 py-1.5 rounded bg-slate-900 text-white">금액</div>
+            <div class="px-2 py-1.5 rounded hover:bg-gray-50 text-gray-700">계정과목</div>
+            <div class="px-2 py-1.5 rounded hover:bg-gray-50 text-gray-700">거래처</div>
+            <div class="px-2 py-1.5 rounded hover:bg-gray-50 text-gray-700">상태</div>
+            <div class="px-2 py-1.5 rounded hover:bg-gray-50 text-gray-700">계좌</div>
+            <div class="px-2 py-1.5 rounded hover:bg-gray-50 text-gray-700">출처 (은행/카드)</div>
+            <div class="px-2 py-1.5 rounded hover:bg-gray-50 text-gray-700">은행 구분</div>
+            <div class="px-2 py-1.5 rounded hover:bg-gray-50 text-gray-700">메모</div>
+            <div class="px-2 py-1.5 rounded hover:bg-gray-50 text-gray-700">날짜</div>
+            <div class="px-2 py-1.5 rounded hover:bg-gray-50 text-gray-700">연결 (이체쌍·계산서)</div>
+          </div>
+          <div class="flex-1">
+            <div class="text-gray-400 mb-1">금액 조건</div>
+            <div class="flex flex-wrap items-center gap-2">
+              <select class="border border-gray-300 rounded px-2 py-1"><option>입금·출금 모두</option><option>입금만</option><option>출금만</option></select>
+              <select class="border border-gray-300 rounded px-2 py-1"><option>범위</option><option>같음</option><option>이상</option><option>이하</option></select>
+              <input value="100,000" class="border border-gray-300 rounded px-2 py-1 w-28 text-right"><span class="text-gray-400">~</span><input value="200,000" class="border border-gray-300 rounded px-2 py-1 w-28 text-right">
+            </div>
+            <div class="text-gray-400 mt-3 mb-1">다른 항목의 입력 모양</div>
+            <ul class="space-y-1 text-gray-600">
+              <li>· 계정과목·거래처·계좌: 검색형 드롭다운(코드·이름으로 찾기), 계정은 "미분류" 선택 가능</li>
+              <li>· 상태: 미검토 / 검토완료 / 확정 (여러 개 체크) · 출처: 은행 / 카드</li>
+              <li>· 은행 구분: 현재 조회된 행에 있는 값 목록(타행송금·대체·체크카드…)에서 체크</li>
+              <li>· 메모: 글자 포함 · 날짜: 월 또는 날짜 선택 · 연결: 이체쌍 / 계산서 매칭 / 미연결</li>
+            </ul>
+            <div class="flex justify-end gap-2 mt-3">
+              <button class="px-2.5 py-1 border border-gray-300 rounded text-gray-600">취소</button>
+              <button class="px-2.5 py-1 bg-slate-900 text-white rounded">필터 추가</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="relative flex-1 min-w-[280px]">
+      <input value="쿠쿠" placeholder="검색어 — 적요·보낸분/받는분·메모·거래처·계정과목" class="w-full border border-slate-900 rounded-lg pl-9 pr-3 py-1.5 text-sm ring-2 ring-slate-200">
+      <span class="absolute left-3 top-1.5 text-gray-400">⌕</span>
+    </div>
+  </div>
+  <div class="h-44"></div><!-- 드롭다운이 가리지 않게 여백 (시안용) -->
+
+  <!-- 파싱된 조건 칩 -->
+  <div class="flex flex-wrap items-center gap-1.5 mt-2 text-xs">
+    <span class="text-gray-400">적용 중 (칩 클릭 = 수정):</span>
+    <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 border border-slate-200">검색어 <b>쿠쿠</b><button class="ml-1 text-gray-400">✕</button></span>
+    <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-sky-50 border border-sky-300 text-sky-800 cursor-pointer" title="클릭해 수정">금액 <b class="num">100,000 ~ 200,000</b> <span class="text-sky-500">입금·출금 모두</span><button class="ml-1 text-sky-400">✕</button></span>
+    <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-50 border border-amber-300 text-amber-800 cursor-pointer" title="클릭해 수정">상태 <b>미검토</b><button class="ml-1 text-amber-400">✕</button></span>
+    <button class="px-2 py-1 rounded-full border border-dashed border-gray-300 text-gray-500">모두 지우기</button>
+    <span class="text-gray-300 mx-1">|</span>
+    <span class="text-gray-400">빠른 조건:</span>
+    <span class="px-2 py-1 rounded-full border border-gray-300 bg-white text-gray-600">입금만</span>
+    <span class="px-2 py-1 rounded-full border border-gray-300 bg-white text-gray-600">출금만</span>
+    <span class="px-2 py-1 rounded-full border border-slate-900 bg-slate-900 text-white">미검토</span>
+    <span class="px-2 py-1 rounded-full border border-gray-300 bg-white text-gray-600">추천만 있음</span>
+    <span class="px-2 py-1 rounded-full border border-gray-300 bg-white text-gray-600">미분류</span>
+    <span class="px-2 py-1 rounded-full border border-gray-300 bg-white text-gray-600">이체쌍</span>
+    <span class="px-2 py-1 rounded-full border border-gray-300 bg-white text-gray-600">계산서 매칭</span>
+    <span class="px-2 py-1 rounded-full border border-gray-300 bg-white text-gray-600">카드</span>
+  </div>
+
+  <!-- 요약 (걸러진 행 기준) -->
+  <div class="flex flex-wrap gap-4 text-sm mt-3">
+    <span class="text-gray-500">조건 일치 <strong class="text-gray-900">3건</strong> <span class="text-gray-400">/ 기간 내 412건</span></span>
+    <span class="text-blue-600">입금 <strong class="num">0원</strong></span>
+    <span class="text-red-600">출금 <strong class="num">505,100원</strong></span>
+    <span class="text-orange-500">미검토 <strong>3건</strong></span>
+  </div>
+
+  <!-- 표 (기존 그리드, 금액 열엔 숫자 필터) -->
+  <div class="bg-white border border-gray-200 rounded-xl overflow-x-auto mt-2">
+    <table class="w-full text-sm num">
+      <thead>
+        <tr class="text-left text-xs text-gray-400 border-b border-gray-200">
+          <th class="py-2.5 px-3 w-8"></th><th class="py-2.5 px-3 font-medium">거래일자 <span class="text-gray-300">▾</span></th><th class="py-2.5 px-3 font-medium">내용/적요 <span class="text-gray-300">▾</span></th>
+          <th class="py-2.5 px-3 font-medium">보낸분/받는분</th><th class="py-2.5 px-3 font-medium text-right">입금액 <span class="text-sky-400" title="숫자 필터">#</span></th><th class="py-2.5 px-3 font-medium text-right">출금액 <span class="text-sky-400" title="숫자 필터">#</span></th>
+          <th class="py-2.5 px-3 font-medium">계정과목</th><th class="py-2.5 px-3 font-medium">거래처</th><th class="py-2.5 px-3 font-medium">상태</th><th class="py-2.5 px-3 font-medium">구분</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        <tr class="bg-amber-50/40"><td class="px-3 py-2"><input type="checkbox"></td><td class="px-3 py-2">2026-11-05 09:12</td><td class="px-3 py-2"><mark class="bg-yellow-100">쿠쿠</mark>홈시스(주)</td><td class="px-3 py-2">쿠쿠홈시스</td><td class="px-3 py-2 text-right"></td><td class="px-3 py-2 text-right text-red-600">168,300</td><td class="px-3 py-2 italic text-gray-400">임차료 (추천)</td><td class="px-3 py-2">쿠쿠홈시스(주)</td><td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs bg-orange-50 text-orange-600">미검토</span></td><td class="px-3 py-2 text-xs text-gray-500">타행송금</td></tr>
+        <tr><td class="px-3 py-2"><input type="checkbox"></td><td class="px-3 py-2">2026-11-05 09:12</td><td class="px-3 py-2"><mark class="bg-yellow-100">쿠쿠</mark>홈시스(주)</td><td class="px-3 py-2">쿠쿠홈시스</td><td class="px-3 py-2 text-right"></td><td class="px-3 py-2 text-right text-red-600">168,300</td><td class="px-3 py-2 italic text-gray-400">임차료 (추천)</td><td class="px-3 py-2">쿠쿠홈시스(주)</td><td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs bg-orange-50 text-orange-600">미검토</span></td><td class="px-3 py-2 text-xs text-gray-500">타행송금</td></tr>
+        <tr><td class="px-3 py-2"><input type="checkbox"></td><td class="px-3 py-2">2026-11-03 14:40</td><td class="px-3 py-2"><mark class="bg-yellow-100">쿠쿠</mark>렌탈 정수기</td><td class="px-3 py-2">쿠쿠홈시스</td><td class="px-3 py-2 text-right"></td><td class="px-3 py-2 text-right text-red-600">168,500</td><td class="px-3 py-2 text-gray-400">(미분류)</td><td class="px-3 py-2 text-gray-400">-</td><td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs bg-orange-50 text-orange-600">미검토</span></td><td class="px-3 py-2 text-xs text-gray-500">펌뱅킹</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 검색 문법 안내 -->
+  <div class="grid md:grid-cols-2 gap-3 mt-6 text-xs">
+    <div class="bg-white border border-gray-200 rounded-xl p-4">
+      <div class="font-semibold text-gray-700 mb-2">검색창 단축 입력 (드롭다운과 같은 결과 — 선택 사항)</div>
+      <table class="w-full">
+        <tbody class="divide-y divide-gray-100 text-gray-600">
+          <tr><td class="py-1 pr-3 font-mono text-gray-900 whitespace-nowrap">쿠쿠</td><td class="py-1">적요·보낸분/받는분·메모·거래처·계정과목에서 찾기 (여러 단어는 모두 포함)</td></tr>
+          <tr><td class="py-1 pr-3 font-mono text-gray-900 whitespace-nowrap">금액:168300</td><td class="py-1">입금 또는 출금이 정확히 그 금액 (168,300 · 168300원 도 같음)</td></tr>
+          <tr><td class="py-1 pr-3 font-mono text-gray-900 whitespace-nowrap">금액:100000~200000</td><td class="py-1">범위. <span class="font-mono">금액:&gt;=1000000</span> <span class="font-mono">금액:&lt;50000</span> 도 됨</td></tr>
+          <tr><td class="py-1 pr-3 font-mono text-gray-900 whitespace-nowrap">입금:168300 / 출금:&gt;=100000</td><td class="py-1">한쪽만 보기. 값 없이 <span class="font-mono">입금</span> <span class="font-mono">출금</span>만 쓰면 방향 필터</td></tr>
+          <tr><td class="py-1 pr-3 font-mono text-gray-900 whitespace-nowrap">계정:임차료</td><td class="py-1">확정 또는 추천 계정과목. <span class="font-mono">계정:없음</span> = 미분류</td></tr>
+          <tr><td class="py-1 pr-3 font-mono text-gray-900 whitespace-nowrap">거래처:에스원</td><td class="py-1">연결된 거래처 이름</td></tr>
+          <tr><td class="py-1 pr-3 font-mono text-gray-900 whitespace-nowrap">상태:미검토</td><td class="py-1">미검토 · 검토완료 · 확정</td></tr>
+          <tr><td class="py-1 pr-3 font-mono text-gray-900 whitespace-nowrap">계좌:하나 / 구분:대체 / 메모:확인</td><td class="py-1">계좌 별칭·은행명 / 은행 구분 / 메모</td></tr>
+          <tr><td class="py-1 pr-3 font-mono text-gray-900 whitespace-nowrap">날짜:2026-10 / 날짜:2026-10-05</td><td class="py-1">월 또는 날짜 (기간 칸 안에서 다시 좁히기)</td></tr>
+          <tr><td class="py-1 pr-3 font-mono text-gray-900 whitespace-nowrap">-수수료</td><td class="py-1">앞에 빼기를 붙이면 제외</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="bg-white border border-gray-200 rounded-xl p-4">
+      <div class="font-semibold text-gray-700 mb-2">동작 규칙</div>
+      <ul class="space-y-1 text-gray-600">
+        <li>· 기간 줄(프리셋 칩 + 날짜 from~to + 조회)은 서버 조회 조건, 검색 줄(+ 필터 + 검색창)과 빠른 조건은 불러온 행에 즉시 적용 — 조회 버튼을 안 눌러도 걸러진다</li>
+        <li>· + 필터 버튼은 검색창 왼쪽에 고정. 드롭다운은 버튼 아래 왼쪽 정렬로 열린다</li>
+        <li>· 위 요약(건수·입금·출금·미검토)은 걸러진 행 기준. "조건 일치 N건 / 기간 내 M건"으로 둘 다 보인다</li>
+        <li>· 전체 선택·추천 수락·선택 확정은 걸러진 행만 대상 (지금과 같음)</li>
+        <li>· 일치한 검색어는 적요에서 노란 표시</li>
+        <li>· 필터는 <b>+ 필터 드롭다운</b>으로 설정(항목 선택 → 값 입력 → 추가). 검색창 단축 입력은 같은 칩을 만드는 보조 수단</li>
+        <li>· 기존 상태·출처 드롭다운은 필터 항목으로 통합. 열 머리글 필터는 남기되 입금액·출금액·잔액은 숫자 필터로 교체</li>
+        <li>· 빠른 조건 칩은 자주 쓰는 필터를 한 번에 거는 단축키 — 걸리면 적용 중 칩에도 나타난다</li>
+        <li>· 검색어·필터는 주소에 남아(?q=…) 새로 고침·링크 공유에도 유지</li>
+        <li>· 파서는 주문 현황과 같은 부품(lib)으로 — 지정어만 화면별로 다름</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

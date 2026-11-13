@@ -3,15 +3,19 @@
 // 새 업무 요청 — 담당자 다수 지정(검색 + 칩, 팀 단위 빠른 선택) · 담당자 2명 이상이면 진행 방식(선착/공동) 선택 (902, 2026-11-02)
 // 오른쪽: 선택한 담당자가 지금 맡고 있는 업무(열린 요청) — 근태·휴가 대신(2026-11-02 사용자 요청). 여유 판단은 요청자가 한다.
 // 마감은 필수(기본 당일 18:00), 긴급·비공개 체크. 본인에게 요청 가능.
-// ?from=<id> 로 들어오면(반려 건 다시 요청) 그 요청의 내용·담당자·방식을 미리 채운다.
+// ?from=<id> 로 들어오면(반려 건 다시 요청) 그 요청의 내용·담당자·방식·태그를 미리 채운다.
+// 첨부 파일(1200, 2026-11-11): 작성 중 올린 파일은 draft_key 로 묶였다가 요청 저장 시 연결. 저장하지 않으면 하루 뒤 정리.
+// 업무 계열 태그(904, 2026-11-10): 1개 이상 · 최대 3개. 제목 · 내용 키워드로 추천(점선)만 하고 확정은 사용자. 질문하기 · 권한 요청은 ERP 문의 자동.
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { defaultDueLocal, localToIso, isoToLocal, fmtDue, kstParts, WR_MODE_DESC, WR_ASG_LABEL, WR_ASG_CLS, type WrRow, type WrMode, type WrStatus, type WrAsgStatus } from '@/lib/work-requests'
+import { defaultDueLocal, localToIso, isoToLocal, fmtDue, kstParts, WR_MODE_DESC, WR_ASG_LABEL, WR_ASG_CLS, WR_TAG_MAX, WR_TAG_ERP_CODE, recommendTagIds, type WrRow, type WrMode, type WrStatus, type WrAsgStatus, type WrTag } from '@/lib/work-requests'
+import { TagPicker } from '@/components/work-requests/tag-chip'
 import { HELP_QUESTION_PREFIX, HELP_PERMISSION_PREFIX } from '@/lib/help-registry'
 import { GROUP_LABELS, type GroupKey } from '@/lib/permissions'
 import { deviceLabelFrom } from '@/lib/push'
+import AttachmentBox from '@/components/attachments/AttachmentBox'
 
 // 질문 · 권한 요청의 기본 마감: 익일 18:00 (KST) — 2026-11-03 결정 ⑤
 function questionDueLocal(now = new Date()): string {
@@ -42,13 +46,30 @@ function NewRequestForm() {
   const [due, setDue] = useState(() => defaultDueLocal())
   const [urgent, setUrgent] = useState(false)
   const [isPrivate, setIsPrivate] = useState(false)
+  const [tags, setTags] = useState<WrTag[]>([])
+  const [tagIds, setTagIds] = useState<string[]>([])
+  const [tagHint, setTagHint] = useState<string | null>(null)
   const [loads, setLoads] = useState<Record<string, Load>>({})
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const [draftKey] = useState(() => crypto.randomUUID())   // 작성 중 올린 첨부를 묶는 키 — 저장할 때 서버가 이 요청에 연결 (1200)
 
   useEffect(() => {
+    // 태그 마스터 (904 미적용이면 빈 목록 — 태그 줄을 숨긴다)
+    fetch('/api/work-requests/tags').then(r => r.json()).then(j => {
+      const list: WrTag[] = j.tags ?? []
+      setTags(list)
+      if (sp.get('question')) { const erp = list.find(t => t.code === WR_TAG_ERP_CODE && t.active); if (erp) setTagIds([erp.id]) }
+      const fromId = sp.get('from')
+      if (fromId) {
+        fetch(`/api/work-requests/${fromId}`).then(r => r.json()).then(d => {
+          const prev: string[] = d.row?.tag_ids ?? []
+          setTagIds(prev.filter(id => list.some(t => t.id === id && t.active)).slice(0, WR_TAG_MAX))
+        }).catch(() => null)
+      }
+    }).catch(() => null)
     fetch('/api/work-requests/employees').then(r => r.json()).then(j => {
       setEmps(j.data ?? []); setMeId(j.me ?? null)
       // 도움말 "질문하기" · "권한 요청하기" (도움말 트랙, 2026-11-03): 담당자 = 질문 수신자, 제목 접두 · 내용 틀 · 마감 익일 18:00 미리 채움. 공개(기본).
@@ -106,15 +127,18 @@ function NewRequestForm() {
     return emps.filter(e => !assignees.includes(e.id) && (e.name.toLowerCase().includes(q) || (e.team ?? '').toLowerCase().includes(q) || (e.position ?? '').toLowerCase().includes(q))).slice(0, 8)
   }, [emps, assignees, query])
   const allSelected = emps.length > 0 && emps.every(e => assignees.includes(e.id))
+  const hasTags = tags.some(t => t.active)
+  const recommended = useMemo(() => recommendTagIds(`${title} ${content}`, tags), [title, content, tags])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null)
     if (!assignees.length) { setError('담당자를 선택하세요.'); return }
     if (!title.trim()) { setError('제목을 입력하세요.'); return }
     if (!due) { setError('마감 일시를 입력하세요.'); return }
+    if (hasTags && !tagIds.length) { setError('업무 계열을 하나 이상 고르세요.'); return }
     setBusy(true)
     const res = await fetch('/api/work-requests', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ assignee_ids: assignees, assign_mode: assignees.length > 1 ? mode : undefined, title: title.trim(), content, link, due_at: localToIso(due), is_urgent: urgent, is_private: isPrivate }) })
+      body: JSON.stringify({ assignee_ids: assignees, assign_mode: assignees.length > 1 ? mode : undefined, title: title.trim(), content, link, due_at: localToIso(due), is_urgent: urgent, is_private: isPrivate, tag_ids: tagIds, draft_key: draftKey }) })
     const json = await res.json().catch(() => ({}))
     setBusy(false)
     if (!res.ok) { setError(json.error ?? '요청 실패'); return }
@@ -199,6 +223,20 @@ function NewRequestForm() {
             <span className="text-xs font-medium text-gray-600">제목 <span className="text-red-500">*</span></span>
             <input value={title} onChange={e => setTitle(e.target.value)} required maxLength={120} placeholder="예: 이편한 김포 수금 독촉 통화" className={`${inputCls} mt-1`} />
           </label>
+          {hasTags && (
+            <div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-xs font-medium text-gray-600">업무 계열 <span className="text-red-500">*</span></span>
+                <span className="text-[0.6875rem] text-gray-400">1개 이상, 최대 {WR_TAG_MAX}개</span>
+              </div>
+              <div className="mt-1.5">
+                <TagPicker tags={tags} value={tagIds} onChange={ids => { setTagIds(ids); setTagHint(null) }} recommended={recommended} max={WR_TAG_MAX} onLimit={() => setTagHint(`최대 ${WR_TAG_MAX}개까지 고를 수 있습니다.`)} />
+              </div>
+              <p className={`text-[0.6875rem] mt-1.5 ${tagHint ? 'text-amber-700' : 'text-gray-400'}`}>
+                {tagHint ?? (tagIds.length ? `${tagIds.length}개 선택` : recommended.length ? '점선 = 제목 · 내용의 단어로 추천한 계열입니다. 눌러서 확정하세요.' : '이 요청이 어떤 계열의 일인지 고르세요.')}
+              </p>
+            </div>
+          )}
           <label className="block">
             <span className="text-xs font-medium text-gray-600">내용</span>
             <textarea value={content} onChange={e => setContent(e.target.value)} rows={5} placeholder="무엇을 · 어디까지 · 결과를 어떻게 남길지" className={`${inputCls} mt-1`} />
@@ -222,6 +260,7 @@ function NewRequestForm() {
             <span className="text-xs font-medium text-gray-600">관련 링크 · 서버 경로 (선택)</span>
             <input value={link} onChange={e => setLink(e.target.value)} placeholder="ERP 화면 주소, 회사 서버 경로, 문서 주소" className={`${inputCls} mt-1`} />
           </label>
+          <AttachmentBox ownerType="work_request" draftKey={draftKey} pasteAnywhere />
           <div className="flex gap-2 pt-1">
             <button type="submit" disabled={busy} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">{busy ? '보내는 중...' : assignees.length > 1 ? `요청 보내기 (${assignees.length}명 · ${mode === 'first' ? '선착' : '공동'})` : '요청 보내기'}</button>
             <Link href="/me/requests" className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">취소</Link>

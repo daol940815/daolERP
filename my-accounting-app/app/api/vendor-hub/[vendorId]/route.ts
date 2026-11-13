@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/user-role'
 import { can } from '@/lib/permissions'
 import { buildBillingDetail } from '@/lib/billing'
 import { loadIndividualDetail } from '@/lib/individual-customer'
+import { findSameNameVendors } from '@/lib/vendor-master'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -29,12 +30,13 @@ export async function GET(
     docSales = data ?? []
   }
   // 청구처(114) — 미적용이면 available false
-  const [billing, individual] = await Promise.all([
+  const [billing, individual, sameName] = await Promise.all([
     buildBillingDetail(admin, params.vendorId, sp.get('from'), sp.get('to')),
     loadIndividualDetail(admin, params.vendorId),   // 개인 고객 전용 매출처(115) — 아니면 null
+    findSameNameVendors(admin, params.vendorId, result.vendor.name as string),   // 같은 이름 매출처 (중복 안내)
   ])
   const me = await getCurrentUser()
-  return NextResponse.json({ ...result, doc_sales: docSales, billing_detail: billing, individual, can_edit: !!me && can(me, 'customers', 'edit') })
+  return NextResponse.json({ ...result, doc_sales: docSales, billing_detail: billing, individual, same_name: sameName, can_edit: !!me && can(me, 'customers', 'edit') })
 }
 
 // PATCH — 활동 메모(note) 저장 + 기본정보(name·biz_number·is_active) 수정
