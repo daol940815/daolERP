@@ -62,6 +62,9 @@ export interface PurchaseHubListRow {
   // 과다지급은 특정 기간 몫이 아니라 빠진다(상태 판정은 outstanding). 605 미적용 RPC면 outstanding · over90을 그대로 쓴다.
   period_outstanding: number
   period_over90: number
+  // 지급율용 — 기간 발행 계산서의 미지급만(기초 잔여 제외). 지급율 = (기간 매입 - 이것) / 기간 매입 (2026-11-13)
+  // 605 미적용이면 종전 지급율(지급액 / 매입)과 같아지도록 max(0, 매입 - 지급)
+  period_inv_unpaid: number
   last_purchase_date: string | null
   status: PurchaseHubStatus
 }
@@ -73,7 +76,7 @@ export interface PurchaseHubListSummary {
   outstanding_total: number   // 기간 미지급 합 (605 미적용이면 누적 양수 잔액 합)
   over90_total: number
   period_basis: boolean       // true = 미지급 지표가 기간 기준(605 적용 또는 JS 폴백)
-  pay_ratio: number
+  pay_ratio: number           // 지급율 = (기간 매입 - 기간 발행분 미지급) / 기간 매입 (2026-11-13)
   unlinked_items: number      // ERP 품목 매입처 표기만 있고 별칭 미연결
   unlinked_aliases: number    // 매입 별칭 중 거래처 미연결
 }
@@ -330,6 +333,9 @@ export async function buildPurchaseHubList(
   }
 
   const [aliasResult, vendorsResult, onlineResult, staffResult, contactResult, unlinkedItemsRes] = await sidePromise
+  // 지급율의 '기간 발행분 미지급'에서 기초 잔여를 빼려면 기초원장 기준일이 필요하다 (401행, 한 번 조회)
+  const openingsForRatio = periodBasis ? await loadOpenings(admin) : new Map<string, OpeningRow>()
+  const inPeriodList = (d: string | null) => !!d && (!fromDate || d >= fromDate) && (!toDate || d <= toDate)
   const kindById = new Map<string, PurchaseKind>(
     'error' in onlineResult ? [] : onlineResult.data.map(v => [v.id, v.purchase_kind as PurchaseKind]))
   if ('error' in aliasResult) return aliasResult
@@ -395,6 +401,9 @@ export async function buildPurchaseHubList(
       opening_remain: a.opening_remain,
       period_outstanding: a.period_outstanding ?? Math.max(0, a.outstanding),
       period_over90: a.period_over90 ?? a.over90,
+      period_inv_unpaid: a.period_outstanding !== undefined
+        ? Math.max(0, a.period_outstanding - (inPeriodList(openingsForRatio.get(vid)?.as_of_date ?? null) ? a.opening_remain : 0))
+        : Math.max(0, a.invoice_total - a.paid_amount),
       last_purchase_date: a.last_purchase_date,
       status: judgeStatus(a.outstanding, a.over90, a.last_purchase_date, dormantBefore, kind),
     })
@@ -404,6 +413,8 @@ export async function buildPurchaseHubList(
   const active = rows.filter(r => r.invoice_count > 0 || r.erp_amount > 0)
   const invTotal = active.reduce((s, r) => s + r.invoice_total, 0)
   const paidTotal = active.reduce((s, r) => s + r.paid_amount, 0)
+  // 지급율: 기간에 발행된 계산서 중 갚아진 비율 — 계산서보다 돈을 먼저 낸 매입처(제주 담은 귤)도 바르게 나온다
+  const settledTotal = active.reduce((s, r) => s + Math.max(0, r.invoice_total - r.period_inv_unpaid), 0)
   return {
     rows,
     summary: {
@@ -415,7 +426,7 @@ export async function buildPurchaseHubList(
       outstanding_total: rows.reduce((s, r) => s + (r.purchase_kind === 'retail' ? 0 : r.period_outstanding), 0),
       over90_total: rows.reduce((s, r) => s + (r.purchase_kind === 'retail' ? 0 : r.period_over90), 0),
       period_basis: periodBasis,
-      pay_ratio: invTotal > 0 ? Math.min(1, paidTotal / invTotal) : 1,
+      pay_ratio: invTotal > 0 ? Math.min(1, settledTotal / invTotal) : 1,
       unlinked_items: unlinkedItemsRes.count ?? 0,
       unlinked_aliases: unlinkedAliases,
     },
