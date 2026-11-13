@@ -33,6 +33,8 @@ interface Row {
   outstanding: number
   over90: number
   opening_remain: number
+  period_outstanding: number   // 605: 기간 발행분 미지급
+  period_over90: number
   last_purchase_date: string | null
   status: string
 }
@@ -42,6 +44,7 @@ interface Summary {
   paid_total: number
   outstanding_total: number
   over90_total: number
+  period_basis: boolean
   pay_ratio: number
   unlinked_items: number
   unlinked_aliases: number
@@ -272,7 +275,7 @@ export default function PurchaseHubList({ basePath, perms }: {
     if (staffFilter && r.staff_primary !== staffFilter) return false
     if (statusFilter && r.status !== statusFilter) return false
     if (erpOnly && r.erp_amount <= 0) return false
-    if (outstandingOnly && r.outstanding <= 0) return false
+    if (outstandingOnly && r.period_outstanding <= 0) return false
     if (kindFilter && r.purchase_kind !== kindFilter) return false
     return true
   }), [rows, search, staffFilter, statusFilter, erpOnly, outstandingOnly, kindFilter])
@@ -296,8 +299,9 @@ export default function PurchaseHubList({ basePath, perms }: {
       invoice_total: inv,
       paid_total: paid,
       // 별도 구매처는 즉시 결제라 미지급 지표에서 제외 (경비성은 지급 의무가 있어 포함) — 602
-      outstanding_total: visible.reduce((s, r) => s + (r.purchase_kind === 'retail' ? 0 : Math.max(0, r.outstanding)), 0),
-      over90_total: visible.reduce((s, r) => s + (r.purchase_kind === 'retail' ? 0 : r.over90), 0),
+      // 605: 미지급도 기간 기준 — 기간 안에 발행된 계산서 중 아직 지급되지 않은 몫
+      outstanding_total: visible.reduce((s, r) => s + (r.purchase_kind === 'retail' ? 0 : r.period_outstanding), 0),
+      over90_total: visible.reduce((s, r) => s + (r.purchase_kind === 'retail' ? 0 : r.period_over90), 0),
       pay_ratio: inv > 0 ? Math.min(1, paid / inv) : 1,
     }
   }, [visible])
@@ -396,9 +400,12 @@ export default function PurchaseHubList({ basePath, perms }: {
             <div className="text-[0.6875rem] text-gray-400 mt-0.5">지급 {eok(kpi.paid_total)}</div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-            <div className="text-xs text-gray-500">미지급 잔액 (누적)</div>
+            <div className="text-xs text-gray-500">{summary.period_basis ? '미지급 (기간 발행분)' : '미지급 잔액 (누적)'}</div>
             <div className="text-xl font-bold mt-0.5 tabular-nums text-red-600">{eok(kpi.outstanding_total)}</div>
-            <div className="text-[0.6875rem] text-gray-400 mt-0.5">90일 초과 {eok(kpi.over90_total)} 포함</div>
+            <div className="text-[0.6875rem] text-gray-400 mt-0.5"
+              title={summary.period_basis ? '기간 안에 발행된 매입 계산서 중 아직 지급되지 않은 금액 — 전체 기간을 고르면 누적 미지급 잔액과 같습니다' : undefined}>
+              90일 초과 {eok(kpi.over90_total)} 포함
+            </div>
           </div>
         </div>
       )}
@@ -431,7 +438,7 @@ export default function PurchaseHubList({ basePath, perms }: {
                 <th className="py-2 px-3 text-right font-medium">지급액</th>
                 <th className="py-2 px-3 text-left font-medium w-32">지급율</th>
                 <th className="py-2 px-3 text-right font-medium">ERP 발주</th>
-                <th className="py-2 px-3 text-right font-medium">미지급 잔액</th>
+                <th className="py-2 px-3 text-right font-medium">{summary?.period_basis ? '기간 미지급' : '미지급 잔액'}</th>
                 <th className="py-2 px-3 text-left font-medium">최근 매입</th>
                 <th className="py-2 px-3 text-left font-medium">상태</th>
                 {perms.collections && <th className="py-2 px-3 text-left font-medium">결제 예외</th>}
@@ -479,9 +486,12 @@ export default function PurchaseHubList({ basePath, perms }: {
                       </div>
                     </td>
                     <td className="py-2 px-3 text-right tabular-nums text-gray-500">{r.erp_amount > 0 ? won(r.erp_amount) : <span className="text-gray-300">-</span>}</td>
-                    <td className={`py-2 px-3 text-right tabular-nums ${r.purchase_kind === 'retail' ? 'text-gray-300' : r.outstanding > 0 ? 'text-red-600 font-medium' : r.outstanding < 0 ? 'text-violet-600 font-medium' : 'text-gray-400'}`}
-                      title={r.purchase_kind === 'retail' ? '별도 구매처 — 즉시 결제라 미지급 관리 대상이 아닙니다' : undefined}>
-                      {won(r.outstanding)}
+                    {/* 기간 미지급. 과다지급(음수 잔액)은 특정 기간 몫이 아니라 기간과 무관하게 현재 잔액으로 보여 준다 */}
+                    <td className={`py-2 px-3 text-right tabular-nums ${r.purchase_kind === 'retail' ? 'text-gray-300' : r.outstanding < 0 ? 'text-violet-600 font-medium' : r.period_outstanding > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}`}
+                      title={r.purchase_kind === 'retail' ? '별도 구매처 — 즉시 결제라 미지급 관리 대상이 아닙니다'
+                        : r.outstanding < 0 ? '과다지급 — 기간과 무관한 현재 잔액입니다'
+                        : r.outstanding !== r.period_outstanding ? `누적 미지급 잔액 ${won(r.outstanding)}` : undefined}>
+                      {won(r.outstanding < 0 ? r.outstanding : r.period_outstanding)}
                     </td>
                     <td className="py-2 px-3 tabular-nums text-gray-500 text-xs">{r.last_purchase_date ?? '-'}</td>
                     <td className="py-2 px-3">
@@ -509,7 +519,8 @@ export default function PurchaseHubList({ basePath, perms }: {
       </div>
       <p className="text-xs text-gray-400 mt-2">
         {visible.length > 300 ? `상위 300곳만 표시 중 (전체 ${visible.length.toLocaleString()}곳 — 검색·필터로 좁혀주세요) · ` : `${visible.length.toLocaleString()}곳 · `}
-        매입·미지급은 매입 계산서·출금 매칭 원본 기준 (음수 잔액 = 과다지급) · 휴면 = 최근 6개월 매입 없음
+        매입·미지급은 매입 계산서·출금 매칭 원본 기준 · 기간 미지급 = 기간 안에 발행된 계산서 중 미지급(오래된 계산서부터 갚은 것으로 배분) ·
+        음수 = 과다지급(기간 무관 현재 잔액) · 휴면 = 최근 6개월 매입 없음
       </p>
     </div>
   )
