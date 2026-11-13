@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>주문내역 결제 상태 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1180px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:30px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.65; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:760px; }
+  th { text-align:left; font-weight:normal; color:#64748b; font-size:11.5px; padding:7px 8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; background:#f8fafc; }
+  td { padding:8px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
+  td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  td small { color:#94a3b8; display:block; font-size:11px; margin-top:2px; }
+  th.hl, td.hl { background:#eff6ff; }
+  .st { display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+  .m { font-size:10.5px; font-weight:bold; padding:1px 6px; border-radius:4px; border:1px solid; background:#fff; }
+  .m-card { color:#6d28d9; border-color:#ddd6fe; } .m-bank { color:#1d4ed8; border-color:#bfdbfe; }
+  .m-inv { color:#4338ca; border-color:#c7d2fe; } .m-mix { color:#475569; border-color:#cbd5e1; } .m-pre { color:#a21caf; border-color:#f5d0fe; }
+  .b { font-size:10.5px; font-weight:bold; padding:2px 7px; border-radius:999px; }
+  .s0 { background:#fee2e2; color:#b91c1c; } .s1 { background:#ffedd5; color:#c2410c; }
+  .s2 { background:#fef3c7; color:#92400e; } .s3 { background:#dbeafe; color:#1d4ed8; } .s4 { background:#dcfce7; color:#166534; }
+  .sx { background:#f1f5f9; color:#64748b; }
+  .r { color:#dc2626; } .mut { color:#94a3b8; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:12px; }
+  .kpi { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:11px 14px; }
+  .kpi p { font-size:11.5px; color:#94a3b8; } .kpi b { font-size:17px; display:block; margin-top:3px; }
+  .kpi small { color:#94a3b8; font-size:10.5px; }
+  .chips { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+  .chips .lab { font-size:11.5px; color:#64748b; margin-right:2px; }
+  .chip { border:1px solid #cbd5e1; border-radius:999px; padding:3px 11px; font-size:12px; color:#475569; background:#fff; }
+  .chip.on { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .note { background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:9px 12px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.75; }
+  .note b { color:#422006; }
+  .who { font-size:11px; color:#64748b; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>주문내역 결제 상태 시안</h1>
+  <p class="desc">2026-11-13 · 주문내역 목록의 "수금" 칸을 "결제" 한 칸(수단 꼬리표 + 단계 5개)으로 바꿉니다. 숫자와 이름은 예시입니다. 파란 칸이 바뀌는 부분입니다.</p>
+
+  <!-- ───────────── 1 ───────────── -->
+  <h2>1. 단계 5개와 수단 꼬리표</h2>
+  <div class="panel new">
+    <div class="scroll">
+    <table>
+      <thead><tr><th>표기</th><th>언제</th><th>누구 차례</th><th>지금 표기</th></tr></thead>
+      <tbody>
+        <tr><td><span class="st"><span class="b s0">미결제</span></span></td><td>결제 기록도 매칭도 없음</td><td class="who">영업지원 — 결제 안내</td><td class="mut">미수금</td></tr>
+        <tr><td><span class="st"><span class="m m-card">카드</span><span class="b s1">일부 결제</span></span></td><td>기록 + 매칭 금액이 주문 금액보다 적음</td><td class="who">영업지원 — 나머지 결제 안내</td><td class="mut">미수금 또는 진행중</td></tr>
+        <tr><td><span class="st"><span class="m m-card">카드</span><span class="b s2">매칭 대기</span></span></td><td>전액 기록됨, 매칭된 금액 없음</td><td class="who">회계 — 결제 확인 화면에서 대조</td><td class="mut">미수금</td></tr>
+        <tr><td><span class="st"><span class="m m-card">카드</span><span class="b s3">일부 매칭</span></span></td><td>전액 기록됨, 일부만 매칭됨</td><td class="who">회계 — 나머지 대조</td><td class="mut">진행중</td></tr>
+        <tr><td><span class="st"><span class="b s4">완료</span></span></td><td>주문 금액 전액 매칭됨</td><td class="who">없음</td><td class="mut">수금완료</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; font-size:12px; color:#475569;">
+      수단 꼬리표
+      <span class="m m-card">카드</span><span class="m m-bank">이체</span><span class="m m-inv">계산서</span><span class="m m-pre">선결제</span><span class="m m-mix">혼합</span>
+      <span class="mut">— 수단이 두 가지 이상이면 "혼합". 미결제 · 완료에는 꼬리표를 붙이지 않습니다.</span>
+    </div>
+    <div class="note">
+      <b>기록이 덜 됐으면 "일부 결제"가 먼저입니다.</b> 일부가 이미 매칭됐어도 영업지원이 나머지를 받아야 하므로 "일부 결제"로 둡니다.<br>
+      <b>기록 없이 매칭된 금액도 1차에 포함합니다.</b> 입금 매칭 화면에서 바로 붙인 입금, 선결제 사용은 이미 매칭까지 끝난 것이라 1차 · 2차에 함께 들어갑니다. 전액이면 바로 "완료"입니다.<br>
+      이때 수단은 매칭된 원본에서 정합니다 — 통장 입금 = 이체, 카드 매출 = 카드, 선결제 사용 = 선결제.
+    </div>
+  </div>
+
+  <!-- ───────────── 2 ───────────── -->
+  <h2>2. 주문내역 목록</h2>
+  <p class="desc">요약 카드는 그대로입니다(미수금 = 매칭 기준). 수금 칩이 단계 5개로 바뀌고, "수금" 칸이 "결제" 칸이 됩니다.</p>
+
+  <div class="kpis">
+    <div class="kpi"><p>기간 주문</p><b>42건</b></div>
+    <div class="kpi"><p>총 금액</p><b>18,420,000원</b></div>
+    <div class="kpi"><p>미수금 (클릭=미수만)</p><b class="r">7,935,000원</b><small>완료가 아닌 주문 19건 · 매칭 기준</small></div>
+    <div class="kpi"><p>직접입력 (클릭=직접만)</p><b style="color:#1d4ed8">42건</b></div>
+  </div>
+
+  <div class="panel new">
+    <div class="chips">
+      <span class="lab">결제</span>
+      <span class="chip on">전체</span><span class="chip">미결제</span><span class="chip">일부 결제</span><span class="chip">매칭 대기</span><span class="chip">일부 매칭</span><span class="chip">완료</span><span class="chip">취소만</span>
+    </div>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>주문일 / 번호</th><th>업체(은행)</th><th>부서(지점)</th><th class="n">총금액</th><th class="n">미수금</th><th class="hl">결제</th><th>발주</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>11-12<small>D261112-004</small></td><td>하나은행</td><td>A지점</td><td class="n">1,000,000</td><td class="n r">1,000,000</td>
+          <td class="hl"><span class="st"><span class="b s0">미결제</span></span></td><td class="mut">발주완료</td>
+        </tr>
+        <tr>
+          <td>11-11<small>D261111-003</small></td><td>하나은행</td><td>B지점</td><td class="n">1,000,000</td><td class="n r">1,000,000<small>기록 300,000</small></td>
+          <td class="hl"><span class="st"><span class="m m-card">카드</span><span class="b s1">일부 결제</span></span></td><td class="mut">발주완료</td>
+        </tr>
+        <tr>
+          <td>11-10<small>D261110-007</small></td><td>NH농협손해보험</td><td>강북GA</td><td class="n">2,715,000</td><td class="n r">2,715,000<small>기록 2,715,000</small></td>
+          <td class="hl"><span class="st"><span class="m m-bank">이체</span><span class="b s2">매칭 대기</span></span></td><td class="mut">발주완료</td>
+        </tr>
+        <tr>
+          <td>11-08<small>D261108-002</small></td><td>하나은행</td><td>영업지원그룹</td><td class="n">3,234,300</td><td class="n r">3,234,300<small>기록 3,234,300</small></td>
+          <td class="hl"><span class="st"><span class="m m-inv">계산서</span><span class="b s2">매칭 대기</span></span></td><td class="mut">발주완료</td>
+        </tr>
+        <tr>
+          <td>11-07<small>D261107-011</small></td><td>우리은행</td><td>C지점</td><td class="n">1,000,000</td><td class="n r">500,000<small>기록 1,000,000</small></td>
+          <td class="hl"><span class="st"><span class="m m-mix">혼합</span><span class="b s3">일부 매칭</span></span></td><td class="mut">발주완료</td>
+        </tr>
+        <tr>
+          <td>11-06<small>D261106-007</small></td><td>개인</td><td>홍길동</td><td class="n">228,000</td><td class="n mut">0</td>
+          <td class="hl"><span class="st"><span class="b s4">완료</span></span></td><td class="mut">발주완료</td>
+        </tr>
+        <tr>
+          <td>11-05<small>D261105-001</small></td><td>국방통합데이터센터</td><td></td><td class="n mut">228,000</td><td class="n mut">0</td>
+          <td class="hl"><span class="st"><span class="b sx">취소</span></span></td><td class="mut">-</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note">
+      <b>미수금 숫자는 매칭 기준 그대로입니다.</b> 기록만으로는 줄지 않습니다. 기록이 있으면 그 아래에 "기록 N원"(확인 대기 기록 + 매칭된 금액)을 작게 붙였습니다 — 필요 없으면 빼겠습니다.<br>
+      배지에 마우스를 올리면 "기록 1,000,000 · 매칭 500,000 / 주문 1,000,000"처럼 금액이 보입니다.<br>
+      요약 카드의 "미수금(클릭=미수만)"은 완료가 아닌 주문만 보여 줍니다(지금과 같은 동작).
+    </div>
+  </div>
+
+  <!-- ───────────── 3 ───────────── -->
+  <h2>3. 엑셀 열</h2>
+  <div class="panel new">
+    <div class="scroll">
+    <table>
+      <thead><tr><th>열 이름</th><th>값</th><th>비고</th></tr></thead>
+      <tbody>
+        <tr><td><b>결제 상태</b></td><td>미결제 · 일부 결제 · 매칭 대기 · 일부 매칭 · 완료 · 취소</td><td>지금의 "수금상태" 열을 대신합니다</td></tr>
+        <tr><td><b>결제 수단</b></td><td>카드 · 이체 · 계산서 · 선결제 · 혼합 (없으면 빈칸)</td><td>새 열</td></tr>
+        <tr><td><b>결제 기록 금액</b></td><td>확인 대기 기록 + 매칭된 금액</td><td>새 열 (1차)</td></tr>
+        <tr><td><b>매칭 금액</b></td><td>실제 입금 · 카드 매출과 매칭된 금액</td><td>새 열 (2차)</td></tr>
+        <tr><td><b>미수금</b></td><td>주문 금액 − 매칭 금액</td><td>지금 그대로</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- ───────────── 4 ───────────── -->
+  <h2>4. 함께 정할 것</h2>
+  <div class="panel">
+    <div class="scroll">
+    <table>
+      <thead><tr><th style="width:30px">#</th><th>항목</th><th>가안</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>"확인"을 "매칭"으로 바꾸는 범위</td><td>이 목록뿐 아니라 주문 상세의 기록 배지(확인 대기 → 매칭 대기, 결제 확인 → 매칭 완료)도 맞춘다. 메뉴 이름 "결제 확인"과 "확인 해제"는 그대로 둔다.</td></tr>
+        <tr><td>2</td><td>미수금 칸 아래 "기록 N원"</td><td>붙인다. 필요 없으면 뺌.</td></tr>
+        <tr><td>3</td><td>주문 상세 머리의 수금 상태 표시</td><td>목록과 같은 표기로 맞춘다.</td></tr>
+        <tr><td>4</td><td>회계 쪽 ERP 주문내역</td><td>이번에는 손대지 않는다(수금완료 · 진행중 · 미수금 유지).</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+</body>
+</html>

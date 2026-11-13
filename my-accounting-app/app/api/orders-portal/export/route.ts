@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { PAY_METHOD_TAG_LABEL, PAY_STAGE_LABEL } from '@/lib/pay-state'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
@@ -136,11 +137,15 @@ export async function GET(req: NextRequest) {
       '다올직원': o.staff_name ?? '',
       // 상담자는 다올직원 바로 옆 — 같은 사람이어도 둘 다 표기 (2026-11-05 사용자 요청, 목록과 동일). 값은 품목 행마다 채움
       '상담자': '',
-      '수금상태': STATUS_LABEL[o.collect_status ?? ''] ?? (o.collect_status ?? ''),
+      // 결제 상태 한 칸 표기와 같은 값 (2026-11-13 — 옛 '수금상태' 열을 대신한다)
+      '결제 상태': o.pay ? PAY_STAGE_LABEL[o.pay.stage] : (STATUS_LABEL[o.collect_status ?? ''] ?? ''),
+      '결제 수단': o.pay?.method ? PAY_METHOD_TAG_LABEL[o.pay.method] : '',
       // 완료 회신 (515) — 회신 대상 아니면 빈 칸
       '회신': replyMap.get(o.id) ? REPLY_LABEL[replyMap.get(o.id)!.state] : '',
       '출처': (o.source ?? 'upload') === 'direct' ? '직접입력' : '업로드',
       '총금액(주문)': o.total_amount ?? 0,
+      '결제 기록 금액': o.pay?.recorded ?? 0,
+      '매칭 금액': o.pay?.matched ?? 0,
       '미수금(주문)': o.outstanding_amount ?? 0,
       // 주문 취소 (2026-11-10) — 취소 주문만 채움
       '취소일': o.canceled_at ? kstDateTime(o.canceled_at) : '',
