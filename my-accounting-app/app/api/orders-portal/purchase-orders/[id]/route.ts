@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildPoExcel, sendPoMail, smtpReady } from '@/lib/purchase-orders'
-import { fillMailTemplate, poMailVars } from '@/lib/po-form'
+import { fillMailTemplate, poMailVars, poShippingLines } from '@/lib/po-form'
 import { findCustomPoForm } from '@/lib/custom-po'
 import { loadPo, currentStaff, assembleForm, formExtraOf, one, poFileNameFor } from '@/lib/po-assemble'
 import { activeVendorForm, draftVendorForm, buildWithVendorForm, recordFormUsed } from '@/lib/po-vendor-form-server'
@@ -41,7 +41,8 @@ async function outputOf(
   }
   const custom = findCustomPoForm(data.po.vendor_name)
   if (custom) return { ok: true, buffer: await custom.build(form), fileName: await poFileNameFor(admin, data), kind: 'code', vendorForm: null, warnings: [] }
-  return { ok: true, buffer: await buildPoExcel(form), fileName: await poFileNameFor(admin, data), kind: 'standard', vendorForm: null, warnings: [] }
+  // 자사 기본 양식: 택배비 줄 확인 알림(나누어떨어지지 않음 등, 2026-11-12)도 업체 양식처럼 내려보낸다
+  return { ok: true, buffer: await buildPoExcel(form), fileName: await poFileNameFor(admin, data), kind: 'standard', vendorForm: null, warnings: poShippingLines(form).warnings }
 }
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -72,6 +73,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   const vendorFlags = one(data.po.vendor)
   // form: 화면 미리보기용 양식 데이터 — 엑셀과 같은 조립 함수를 거친다
+  const form = await assembleForm(admin, data, staff)
   return NextResponse.json({
     ...data,
     po: {
@@ -85,7 +87,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       sender_name: (l.sender as unknown as { name: string } | null)?.name ?? null,
       sender: undefined,
     })),
-    form: await assembleForm(admin, data, staff),
+    form,
     smtp_ready: smtpReady(),
     // 출력 양식 (2026-11-09): 업체 양식이면 버전 · 확인 목록, 사용 시작 전 버전만 있으면 안내
     output: await (async () => {
@@ -96,7 +98,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
           warnings: out.ok ? out.warnings : [], error: out.ok ? null : out.error }
       }
       const draft = await draftVendorForm(admin, data.po.vendor_id)
-      return { kind: findCustomPoForm(data.po.vendor_name) ? 'code' : 'standard', vendor_form: null, warnings: [], error: null, file_name: await poFileNameFor(admin, data),
+      const code = !!findCustomPoForm(data.po.vendor_name)
+      return { kind: code ? 'code' : 'standard', vendor_form: null, warnings: code ? [] : poShippingLines(form).warnings, error: null, file_name: await poFileNameFor(admin, data),
         draft_version: draft?.version ?? null, vendor_id: data.po.vendor_id }
     })(),
   })
