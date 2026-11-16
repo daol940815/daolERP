@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>결제 확인 통합 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1180px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:30px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.65; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .lab { font-size:11px; font-weight:bold; color:#64748b; margin-bottom:8px; }
+  .tabs { display:flex; gap:2px; border-bottom:1px solid #e2e8f0; margin-bottom:12px; flex-wrap:wrap; }
+  .tabs span { padding:8px 14px; font-size:13px; color:#64748b; border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; }
+  .tabs span.on { color:#0f172a; font-weight:bold; border-bottom-color:#0f172a; }
+  .tabs span i { font-style:normal; font-size:11px; color:#94a3b8; margin-left:3px; }
+  .bar { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .btn { display:inline-block; border-radius:8px; padding:5px 11px; font-size:12px; border:1px solid #cbd5e1; background:#fff; color:#334155; white-space:nowrap; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; } .btn.sm { padding:2px 8px; font-size:11px; }
+  .sp { flex:1; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:760px; }
+  th { text-align:left; font-weight:normal; color:#64748b; font-size:11.5px; padding:7px 8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; background:#f8fafc; }
+  td { padding:8px; border-bottom:1px solid #f1f5f9; vertical-align:top; line-height:1.5; }
+  td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  td small { color:#94a3b8; display:block; font-size:11px; }
+  .old { color:#94a3b8; text-decoration:line-through; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:12px; }
+  .kpi { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:11px 14px; }
+  .kpi.on { border-color:#0f172a; box-shadow:0 0 0 1px #0f172a inset; }
+  .kpi p { font-size:11.5px; color:#64748b; } .kpi b { font-size:17px; display:block; margin-top:3px; }
+  .kpi small { color:#94a3b8; font-size:11px; }
+  .chips { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+  .chip { border:1px solid #cbd5e1; border-radius:999px; padding:3px 11px; font-size:12px; color:#475569; background:#fff; }
+  .chip.on { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .search { border:1px solid #cbd5e1; border-radius:8px; padding:5px 10px; font-size:12px; color:#94a3b8; background:#fff; min-width:190px; }
+  .m { font-size:10.5px; font-weight:bold; padding:1px 6px; border-radius:4px; border:1px solid; background:#fff; }
+  .m-card { color:#6d28d9; border-color:#ddd6fe; } .m-bank { color:#1d4ed8; border-color:#bfdbfe; } .m-inv { color:#4338ca; border-color:#c7d2fe; }
+  .b { font-size:10.5px; font-weight:bold; padding:2px 7px; border-radius:999px; white-space:nowrap; }
+  .s0 { background:#fee2e2; color:#b91c1c; } .s1 { background:#ffedd5; color:#c2410c; } .s2 { background:#fef3c7; color:#92400e; } .s4 { background:#dcfce7; color:#166534; }
+  .rec { background:#dcfce7; color:#166534; } .weak { background:#f1f5f9; color:#475569; }
+  .r { color:#dc2626; } .g { color:#047857; } .mut { color:#94a3b8; } .am { color:#b45309; }
+  .note { background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:9px 12px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.75; }
+  .note b { color:#422006; }
+  .modal { border:1px solid #cbd5e1; border-radius:12px; background:#fff; box-shadow:0 12px 32px rgba(15,23,42,.18); overflow:hidden; max-width:460px; }
+  .modal .mh { padding:12px 16px; font-weight:bold; border-bottom:1px solid #e2e8f0; }
+  .modal .mb { padding:14px 16px; }
+  .modal .mf { padding:10px 16px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:6px; background:#f8fafc; }
+  .f { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+  .f label { display:block; font-size:11px; color:#64748b; margin-bottom:3px; }
+  .box { border:1.5px solid #cbd5e1; border-radius:8px; padding:7px 10px; font-size:13px; min-height:34px; background:#fff; }
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px; align-items:start; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>결제 확인 통합 시안 (3단계)</h1>
+  <p class="desc">2026-11-16 · 수금 · 정산 작업의 화면 4개를 "결제 확인" 한 화면의 탭 4개로 합칩니다. 숫자와 이름은 예시입니다. 파란 테두리가 새로 만들거나 바뀌는 부분입니다.</p>
+
+  <!-- ───────────── 1 ───────────── -->
+  <h2>1. 메뉴와 탭</h2>
+  <div class="panel new">
+    <div class="scroll">
+    <table>
+      <thead><tr><th>지금 메뉴</th><th>정리 후</th><th>누구 일</th><th>내용</th></tr></thead>
+      <tbody>
+        <tr><td>결제 확인</td><td><b>결제 확인 › 매칭 대기</b></td><td>회계</td><td>지금 화면 그대로. 주문에 남긴 결제 기록을 원본과 대조해 확정.</td></tr>
+        <tr><td class="old">입금 매칭</td><td><b>결제 확인 › 기록 없는 입금</b></td><td>회계</td><td>결제 기록 없이 들어온 통장 입금 · 카드결제를 주문에 붙임. 자동 확정은 없앰(2번).</td></tr>
+        <tr><td class="old">수금 대상</td><td><b>결제 확인 › 결제 안내 대상</b></td><td>영업지원</td><td>아직 결제가 덜 된 주문 목록. 연락 기록을 남김(3번).</td></tr>
+        <tr><td class="old">계산서 발행 대상</td><td><b>결제 확인 › 계산서 확인</b></td><td>영업지원 · 회계</td><td>계산서를 발행했다고 기록했는데 홈택스에 없는 주문, 이체로 받았는데 증빙이 없는 주문(4번).</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="tabs" style="margin-top:16px">
+      <span class="on">매칭 대기 <i>14</i></span><span>기록 없는 입금 <i>5</i></span><span>결제 안내 대상 <i>19</i></span><span>계산서 확인 <i>4</i></span>
+    </div>
+    <div class="note">
+      사이드바 "수금 · 정산 작업"에는 <b>결제 확인</b> 하나만 남습니다(매입 쪽 화면은 그대로). 옛 주소로 들어오면 해당 탭으로 넘겨 줍니다.<br>
+      매출처별 미수 합계표(지금의 수금 대상)와 매출처별 현황판(지금의 계산서 발행 대상)은 없앱니다 — 같은 숫자가 회계의 미수금 관리와 매출처 관리에 있습니다.
+    </div>
+  </div>
+
+  <!-- ───────────── 2 ───────────── -->
+  <h2>2. 기록 없는 입금 — 자동 확정을 "추천"으로</h2>
+  <p class="desc">지금은 "자동 매칭 실행"을 누르면 조건이 맞는 건이 사람 확인 없이 확정됩니다. 추천만 붙이고 확정은 사람이 누르게 바꿉니다.</p>
+  <div class="panel new">
+    <div class="bar" style="margin-bottom:10px">
+      <span class="chip on">전체 5</span><span class="chip">추천 있음 3</span><span class="chip">통장</span><span class="chip">카드</span>
+      <span class="sp"></span><span class="btn">체크한 추천 2건 확정</span>
+    </div>
+    <div class="scroll">
+    <table>
+      <thead><tr><th></th><th>구분</th><th>입금일</th><th>거래처 · 입금자</th><th class="n">미배분</th><th>추천 주문</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>☑</td><td><span class="m m-bank">통장</span></td><td>11-12</td><td>하나은행 A지점<small>하나은행A지점</small></td><td class="n">450,000</td>
+          <td><span class="b rec">추천</span> D261110-004 · 미수 450,000<small>같은 거래처 · 금액 같음 · 2일 차이 · 후보 하나뿐</small></td><td><span class="btn pri sm">확정</span> <span class="btn sm">다른 주문</span></td></tr>
+        <tr><td>☑</td><td><span class="m m-card">카드</span></td><td>11-11</td><td>개인 홍길동<small>4025-96**-****-0302</small></td><td class="n">228,000</td>
+          <td><span class="b rec">추천</span> D261111-007 · 미수 228,000<small>같은 거래처 · 금액 같음 · 같은 날 · 후보 하나뿐</small></td><td><span class="btn pri sm">확정</span> <span class="btn sm">다른 주문</span></td></tr>
+        <tr><td></td><td><span class="m m-bank">통장</span></td><td>11-10</td><td>우리은행 C지점<small>우리은행씨</small></td><td class="n">1,000,000</td>
+          <td><span class="b weak">후보 3건</span> 합이 맞는 조합 있음<small>D261105-002 400,000 + D261107-011 600,000</small></td><td><span class="btn sm">배분하기</span></td></tr>
+        <tr><td></td><td><span class="m m-bank">통장</span></td><td>11-09</td><td class="mut">(거래처 미연결)<small>김영수</small></td><td class="n">120,000</td>
+          <td class="mut">후보 없음</td><td><span class="btn sm">주문 찾기</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note">
+      <b>추천</b> = 지금 자동 확정되던 조건 그대로(같은 거래처 · 금액 같음 · 날짜 가까움 · 후보가 하나뿐). 확정 버튼을 누르거나, 체크해서 한 번에 확정합니다.<br>
+      배분하기 · 주문 찾기 · 매칭완료 목록 · 해제는 지금 입금 매칭 화면과 같습니다.
+    </div>
+  </div>
+
+  <!-- ───────────── 3 ───────────── -->
+  <h2>3. 결제 안내 대상 — 새 탭 (영업지원 작업 목록)</h2>
+  <p class="desc">주문내역의 결제 상태가 미결제 · 일부 결제인 주문만 모읍니다. 주문 단위이고, 연락한 내용을 남깁니다.</p>
+  <div class="kpis">
+    <div class="kpi on"><p>안내 대상</p><b>19건</b><small>7,935,000원</small></div>
+    <div class="kpi"><p>미결제</p><b class="r">14건</b><small>기록 없음</small></div>
+    <div class="kpi"><p>일부 결제</p><b style="color:#c2410c">5건</b><small>나머지 받아야 함</small></div>
+    <div class="kpi"><p>7일 넘게 지남</p><b class="am">8건</b><small>주문일 기준</small></div>
+    <div class="kpi"><p>약속일 지남</p><b class="r">2건</b><small>입금 약속일 경과</small></div>
+  </div>
+  <div class="panel new">
+    <div class="chips">
+      <span class="chip on">전체</span><span class="chip">내 주문</span><span class="chip">연락한 적 없음</span><span class="chip">30일 넘음</span>
+      <span class="sp"></span><span class="search">매출처 · 담당자 · 주문번호 검색</span><span class="btn">엑셀</span>
+    </div>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>주문일 / 번호</th><th>매출처 · 담당자</th><th class="n">주문 금액</th><th class="n">받을 금액</th><th>결제</th><th class="n">지난 날</th><th>최근 연락</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>10-28<small>D261028-003</small></td><td>우리은행 C지점<small>권오병 부장님 · 010-1234-5678</small></td><td class="n">1,000,000</td><td class="n r">1,000,000</td>
+          <td><span class="b s0">미결제</span></td><td class="n r">19일</td><td>11-10 전화 · 김주연<small class="r">입금 약속 11-14 (지남)</small></td><td><span class="btn sm">연락 기록</span></td></tr>
+        <tr><td>11-05<small>D261105-009</small></td><td>하나은행 B지점<small>박제현 님 · 02-555-0101</small></td><td class="n">1,000,000</td><td class="n r">700,000</td>
+          <td><span class="m m-card">카드</span> <span class="b s1">일부 결제</span></td><td class="n am">11일</td><td>11-12 문자 · 김보현<small>다음 주 카드 결제 예정</small></td><td><span class="btn sm">연락 기록</span></td></tr>
+        <tr><td>11-12<small>D261112-004</small></td><td>하나은행 A지점<small>이수진 대리님 · 010-9876-5432</small></td><td class="n">450,000</td><td class="n r">450,000</td>
+          <td><span class="b s0">미결제</span></td><td class="n">4일</td><td class="mut">없음</td><td><span class="btn sm">연락 기록</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note">
+      <b>받을 금액</b> = 주문 금액 − 기록된 금액(매칭 대기 기록 + 매칭된 금액). 전액 기록되면 이 목록에서 빠지고 "매칭 대기" 탭으로 넘어갑니다.<br>
+      행을 누르면 주문 상세로 갑니다(결제 기록 추가는 거기서). 엑셀은 화면에 걸러진 그대로 내려받습니다.
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="modal">
+      <div class="mh">연락 기록 — D261028-003 우리은행 C지점</div>
+      <div class="mb">
+        <div class="f">
+          <div><label>연락한 날</label><div class="box">2026-11-16</div></div>
+          <div><label>방법</label><div class="box">전화 ▾</div></div>
+        </div>
+        <label style="font-size:11px;color:#64748b">내용</label>
+        <div class="box" style="margin:3px 0 10px">담당자 부재, 내일 다시 연락</div>
+        <div class="f">
+          <div><label>입금 약속일 (선택)</label><div class="box mut">날짜 선택</div></div>
+        </div>
+        <div style="font-size:11.5px; color:#64748b; line-height:1.7; border-top:1px solid #f1f5f9; padding-top:8px">
+          <b style="color:#334155">지난 기록</b><br>11-10 전화 · 김주연 — 이번 주 금요일 이체 약속 (약속 11-14)<br>11-04 문자 · 김주연 — 계산서 발행 여부 문의
+        </div>
+      </div>
+      <div class="mf"><span class="btn">닫기</span><span class="btn pri">저장</span></div>
+    </div>
+    <div class="panel new" style="margin:0">
+      <div class="lab">연락 기록에 필요한 것</div>
+      <div style="font-size:12.5px; line-height:1.85; color:#334155">
+        새 테이블 1개(마이그레이션 1301)가 필요합니다 — 주문 · 날짜 · 방법(전화 · 문자 · 메일 · 방문) · 내용 · 입금 약속일 · 적은 사람.<br>
+        주문 상세의 결제 내역에도 같은 기록이 보입니다.<br>
+        <span class="mut">연락 기록 없이 목록만 먼저 만들 수도 있습니다(5번의 3).</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────── 4 ───────────── -->
+  <h2>4. 계산서 확인 — 새 탭</h2>
+  <p class="desc">"발행할 주문 목록"은 만들 수 없습니다 — 어느 주문이 계산서 대상인지(카드로 낼지 계산서로 낼지) 시스템이 미리 알 수 없기 때문입니다. 대신 확인이 필요한 세 가지를 모읍니다.</p>
+  <div class="panel new">
+    <div class="chips">
+      <span class="chip on">전체 4</span><span class="chip">홈택스에 없음 2</span><span class="chip">금액 다름 1</span><span class="chip">입금 받았는데 증빙 없음 1</span>
+    </div>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>확인할 것</th><th>주문</th><th>매출처 · 청구처</th><th class="n">주문 금액</th><th>기록 · 원본</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><span class="b s2">홈택스에 없음</span></td><td>11-04<small>D261104-019</small></td><td>하나은행 영업지원그룹<small>청구처 주식회사 하나은행</small></td><td class="n">3,234,300</td>
+          <td><span class="m m-inv">계산서</span> 11-04 발행 기록 3,234,300<small>홈택스 계산서 미연결 · 계산서 내역 최신 11-12</small></td><td><span class="btn sm">계산서 연결</span></td></tr>
+        <tr><td><span class="b s0">금액 다름</span></td><td>11-06<small>D261106-002</small></td><td>NH농협손해보험 서울GA</td><td class="n">2,070,000</td>
+          <td><span class="m m-inv">계산서</span> 11-06 발행 기록 2,070,000<small class="r">홈택스 계산서 2,007,000 — 63,000 다름</small></td><td><span class="btn sm">주문 열기</span></td></tr>
+        <tr><td><span class="b s1">증빙 없음</span></td><td>11-03<small>D261103-001</small></td><td>국방통합데이터센터</td><td class="n">228,000</td>
+          <td><span class="m m-bank">이체</span> 11-05 통장 입금 228,000 매칭됨<small>계산서 · 현금영수증 연결 없음</small></td><td><span class="btn sm">계산서 연결</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note">
+      <b>홈택스에 없음</b> = 결제 기록에 "계산서 발행"을 남겼는데 홈택스 계산서가 주문에 연결되지 않은 것. 계산서 파일이 아직 안 올라왔거나 연결이 안 된 경우입니다.<br>
+      <b>증빙 없음</b> = 이체로 돈을 받았는데 계산서도 현금영수증도 없는 주문 — 발행 누락 후보입니다. 카드 · 선결제로 받은 주문은 대상이 아닙니다.<br>
+      "계산서 연결"은 지금 있는 계산서 연결 창을 그대로 엽니다.
+    </div>
+  </div>
+
+  <!-- ───────────── 5 ───────────── -->
+  <h2>5. 정해 주실 것</h2>
+  <div class="panel">
+    <div class="scroll">
+    <table>
+      <thead><tr><th style="width:30px">#</th><th>항목</th><th>가안</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>탭 이름</td><td>매칭 대기 · 기록 없는 입금 · 결제 안내 대상 · 계산서 확인</td></tr>
+        <tr><td>2</td><td>매출처별 합계표 · 현황판을 없애도 되는지</td><td>없앤다. 같은 숫자는 미수금 관리 · 매출처 관리에서 본다.</td></tr>
+        <tr><td>3</td><td>연락 기록(1301)</td><td>넣는다. 영업지원의 수금 독촉이 남는 곳이 지금 없음.</td></tr>
+        <tr><td>4</td><td>계산서 탭의 성격</td><td>"발행 대기 목록"이 아니라 위 세 가지 확인 목록으로 한다.</td></tr>
+        <tr><td>5</td><td>추천 일괄 확정</td><td>체크한 추천만 한 번에 확정할 수 있게 한다(확인 1회).</td></tr>
+        <tr><td>6</td><td>결제 안내 대상의 권한</td><td>보기 = 수금 · 정산 작업 조회, 연락 기록 = 주문 · 발주 수정 권한(영업지원).</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+</body>
+</html>
