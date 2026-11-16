@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { netSalesOf } from '@/lib/receivable'
 import { cardNumberKey } from '@/lib/card-number'
+import { syncRecordsForOrders } from '@/lib/payment-records'
+import type { Editor } from '@/lib/orders-portal'
 
 // ── 주문 쪽 수금 매칭 (2026-11-04) ───────────────────────────────────────
 // 입금 매칭 화면(/erp-matching)은 결제 1건 → 주문 여러 건으로 출발한다. 여기는 반대로
@@ -217,12 +219,13 @@ export interface OrderAllocation { source_type: 'bank' | 'card'; source_id: stri
 
 // 주문에 결제를 배분한다. 결제·주문 잔액 검증 후 erp_payment_matches에 insert.
 // 거래처 없는 카드결제는 주문 거래처로 연결하고, registerCard면 카드번호를 거래처에 등록한다.
+// 저장 뒤 결제 기록(1300)과 동기화 — 기록의 주문 · 금액이 이 매칭으로 채워지면 자동 확정 (2026-11-16)
 export async function allocateToOrder(
   admin: SupabaseClient,
   orderId: string,
   allocations: OrderAllocation[],
-  opts: { registerCard?: boolean; memo?: string | null } = {},
-): Promise<{ inserted: number; linked_vendor: number; registered_cards: number } | { error: string }> {
+  opts: { registerCard?: boolean; memo?: string | null; editor?: Editor } = {},
+): Promise<{ inserted: number; linked_vendor: number; registered_cards: number; records_confirmed: number } | { error: string }> {
   const order = await loadOrderCollectSummary(admin, orderId)
   if ('error' in order) return order
   const rows = allocations.map(a => ({ ...a, amount: Math.round(Number(a.amount)) })).filter(a => a.amount > 0 && a.source_id)
@@ -272,6 +275,7 @@ export async function allocateToOrder(
     paid_date: paidDate.get(`${r.source_type}:${r.source_id}`), matched_by: 'manual', memo: opts.memo?.trim() || '주문 쪽 수금 매칭',
   })))
   if (ie) return { error: ie.message }
+  const sync = await syncRecordsForOrders(admin, [orderId], opts.editor ?? { employeeId: null, employeeName: null }, '주문 쪽 수금 매칭')
 
   // 거래처 없는 카드결제 → 주문 거래처로 연결 (+ 카드번호 등록)
   let linked = 0, registered = 0
@@ -292,5 +296,5 @@ export async function allocateToOrder(
       }
     }
   }
-  return { inserted: rows.length, linked_vendor: linked, registered_cards: registered }
+  return { inserted: rows.length, linked_vendor: linked, registered_cards: registered, records_confirmed: sync.confirmed }
 }

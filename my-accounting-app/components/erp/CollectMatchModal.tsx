@@ -88,7 +88,7 @@ export default function CollectMatchModal({ orderId, onClose, onSaved, hideAccou
     const json = await res.json()
     setSaving(false)
     if (!res.ok) { setMsg(json.error ?? '저장 실패'); return }
-    setMsg(`매칭 ${json.inserted}건 저장${json.linked_vendor ? ` · 카드결제 거래처 연결 ${json.linked_vendor}` : ''}${json.registered_cards ? ` · 카드번호 등록 ${json.registered_cards}` : ''}`)
+    setMsg(`매칭 ${json.inserted}건 저장${json.linked_vendor ? ` · 카드결제 거래처 연결 ${json.linked_vendor}` : ''}${json.registered_cards ? ` · 카드번호 등록 ${json.registered_cards}` : ''}${json.records_confirmed ? ` · 결제 기록 ${json.records_confirmed}건 자동 확정` : ''}`)
     onSaved?.()
     load()
   }

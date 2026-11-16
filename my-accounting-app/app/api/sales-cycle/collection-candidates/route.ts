@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { getCurrentUser } from '@/lib/user-role'
+import { syncRecordsForOrders } from '@/lib/payment-records'
 import { buildCollectionCandidates } from '@/lib/sales-collection-match'
 
 export const dynamic = 'force-dynamic'
@@ -48,6 +50,9 @@ export async function POST(req: NextRequest) {
   }))
   const { error } = await admin.from('erp_payment_matches').insert(rows)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // 결제 기록(1300)과 동기화 (2026-11-16)
+  const me = await getCurrentUser()
+  const sync = await syncRecordsForOrders(admin, rows.map(r => r.order_id), { employeeId: me?.employeeId ?? null, employeeName: me?.employeeName ?? null }, '수금후보 확정')
 
-  return NextResponse.json({ linked: rows.length, amount: rows.reduce((s, r) => s + r.amount, 0) })
+  return NextResponse.json({ linked: rows.length, amount: rows.reduce((s, r) => s + r.amount, 0), records_confirmed: sync.confirmed })
 }

@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { cardNumberKey } from '@/lib/card-number'
+import { syncRecordsForOrders } from '@/lib/payment-records'
+import type { Editor } from '@/lib/orders-portal'
 
 // 카드 결제(card_sales 승인 1건) → ERP 주문 배분 (2026-11-13 승인 시안, 자동 매칭 없음)
 // 저장은 기존 erp_payment_matches(source_type 'card'). 이 매칭은 ERP 미수(수금) 기준이고 카드사 정산 입금은 통장에서 따로 확정한다.
@@ -127,9 +129,10 @@ export async function loadCardOrderState(admin: Admin, saleId: string, q?: strin
 }
 
 // 배분 저장(교체): 이 결제의 기존 card 매칭을 지우고 새 배분을 넣는다. 합 ≤ 순액, 각 ≤ 주문 남은 미수.
+// 저장 뒤 결제 기록(1300)과 동기화: 기록의 주문 · 금액이 이 매칭으로 정확히 채워지면 기록을 자동 확정, 덮지 못하게 된 확정 기록은 자동 해제 (2026-11-16)
 export async function saveCardOrderMatch(
-  admin: Admin, saleId: string, allocations: { order_id: string; amount: number }[],
-): Promise<{ ok: true; inserted: number; linked_vendor: boolean; registered_card: boolean } | { ok: false; error: string }> {
+  admin: Admin, saleId: string, allocations: { order_id: string; amount: number }[], editor: Editor = { employeeId: null, employeeName: null },
+): Promise<{ ok: true; inserted: number; linked_vendor: boolean; registered_card: boolean; records_confirmed: number; records_released: number } | { ok: false; error: string }> {
   const state = await loadCardOrderState(admin, saleId)
   if ('error' in state) return { ok: false, error: state.error }
   const rows = allocations.map(a => ({ order_id: a.order_id, amount: Math.round(Number(a.amount)) })).filter(a => a.order_id && a.amount > 0)
@@ -160,6 +163,7 @@ export async function saveCardOrderMatch(
     })))
     if (ie) return { ok: false, error: ie.message }
   }
+  const sync = await syncRecordsForOrders(admin, [...state.current.map(m => m.order_id), ...rows.map(r => r.order_id)], editor, '카드 내역 주문 매칭')
 
   // 거래처 없는 카드 → 첫 배분 주문의 매출처로 연결 + 카드번호 학습 (주문 측 배분과 같은 규칙)
   let linked = false, registered = false
@@ -179,5 +183,5 @@ export async function saveCardOrderMatch(
       }
     }
   }
-  return { ok: true, inserted: rows.length, linked_vendor: linked, registered_card: registered }
+  return { ok: true, inserted: rows.length, linked_vendor: linked, registered_card: registered, records_confirmed: sync.confirmed, records_released: sync.released }
 }

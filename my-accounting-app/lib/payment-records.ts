@@ -320,12 +320,122 @@ export interface QueueRow extends PayRecordView {
   mine: boolean
 }
 
-async function allocatedBySource(admin: SupabaseClient, ids: string[]) {
-  const out = new Map<string, number>()
+// 원본별 배분 행 (어느 주문에 얼마, 결제 기록에 연결됐는지까지)
+type MatchRow = { id: string; order_id: string; source_type: string; source_id: string; amount: number; record_id: string | null }
+const MATCH_COLS = 'id, order_id, source_type, source_id, amount, record_id'
+async function matchRowsBySource(admin: SupabaseClient, ids: string[]): Promise<MatchRow[]> {
+  const out: MatchRow[] = []
   for (const ch of chunk(Array.from(new Set(ids)), 150)) {
-    const { data } = await admin.from('erp_payment_matches').select('source_type, source_id, amount').in('source_id', ch)
-    for (const m of data ?? []) out.set(`${m.source_type}:${m.source_id}`, (out.get(`${m.source_type}:${m.source_id}`) ?? 0) + Number(m.amount ?? 0))
+    const { data } = await admin.from('erp_payment_matches').select(MATCH_COLS).in('source_id', ch)
+    for (const m of (data ?? []) as MatchRow[]) out.push({ ...m, amount: Number(m.amount ?? 0) })
   }
+  return out
+}
+async function matchRowsByOrder(admin: SupabaseClient, orderIds: string[]): Promise<MatchRow[]> {
+  const out: MatchRow[] = []
+  for (const ch of chunk(Array.from(new Set(orderIds)), 150)) {
+    const { data } = await admin.from('erp_payment_matches').select(MATCH_COLS).in('order_id', ch).in('source_type', ['bank', 'card'])
+    for (const m of (data ?? []) as MatchRow[]) out.push({ ...m, amount: Number(m.amount ?? 0) })
+  }
+  return out
+}
+const sumBySource = (rows: MatchRow[]) => {
+  const out = new Map<string, number>()
+  for (const m of rows) out.set(`${m.source_type}:${m.source_id}`, (out.get(`${m.source_type}:${m.source_id}`) ?? 0) + m.amount)
+  return out
+}
+// ── 직접 매칭(카드 내역 주문 매칭 · 입금 매칭 · 주문 쪽 수금 매칭)과 결제 기록의 동기화 (2026-11-16 사용자 승인) ──
+// 규칙 ① 기록의 주문 전부가 같은 종류 원본(카드결제 = 같은 승인번호의 카드 매출, 계좌이체 · 계산서 발행 = 통장 입금)에서
+//        기록의 주문별 금액대로 정확히 채워졌을 때만, 그 매칭 행에 record_id를 붙이고 기록을 확정한다(확정자 = 매칭한 사람).
+//      ② 일부만 맞거나 승인번호가 다르면 손대지 않는다 — 확인 대기로 남고 결제 확인 화면이 '이 주문에 이미 N원 매칭됨'으로 보여 준다.
+//      ③ 확정된 기록을 덮던 매칭이 지워지거나 바뀌어 더는 덮지 못하면 자동으로 확인 해제(남은 연결은 풀고, 매칭 행은 지우지 않는다 —
+//        직접 매칭이 원천이고 기록은 거기에 연결되는 쪽이다). 사유는 이력에 남긴다.
+// 호출하는 쪽은 매칭 저장 · 삭제가 끝난 뒤 영향받은 주문 id를 넘긴다. 실패해도 매칭 자체는 유효해야 하므로 오류는 삼킨다(1300 미적용 포함).
+const normApproval = (s: string | null | undefined) => (s ?? '').replace(/[^0-9a-z]/gi, '').toLowerCase()
+type RecCover = { id: string; method: PayMethod; approval_number: string | null; confirmed_at: string | null; orders: { order_id: string; amount: number }[] }
+
+// 기록을 덮을 수 있는 매칭 행 고르기: 주문마다 (이미 이 기록에 연결된 금액) + (연결 안 된 행 중 정확히 맞는 1행 또는 전부의 합) = 기록 금액
+function planCover(rec: RecCover, rows: MatchRow[], approvalOf: Map<string, string>, allowedSources?: Set<string>): { link: string[] } | null {
+  const type = rec.method === 'card' ? 'card' : 'bank'
+  const link: string[] = []
+  for (const a of rec.orders) {
+    const eligible = rows.filter(m => m.order_id === a.order_id && m.source_type === type
+      && (m.record_id == null || m.record_id === rec.id)
+      && (!allowedSources || allowedSources.has(`${m.source_type}:${m.source_id}`))
+      && (type !== 'card' || !rec.approval_number || normApproval(approvalOf.get(m.source_id)) === normApproval(rec.approval_number)))
+    const linked = eligible.filter(m => m.record_id === rec.id).reduce((s, m) => s + m.amount, 0)
+    const need = a.amount - linked
+    if (need <= 0) continue
+    const free = eligible.filter(m => m.record_id == null)
+    const one = free.find(m => m.amount === need)
+    if (one) { link.push(one.id); continue }
+    if (free.length && free.reduce((s, m) => s + m.amount, 0) === need) { link.push(...free.map(m => m.id)); continue }
+    return null
+  }
+  return { link }
+}
+
+async function approvalNumbersOf(admin: SupabaseClient, rows: MatchRow[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>()
+  const ids = Array.from(new Set(rows.filter(m => m.source_type === 'card').map(m => m.source_id)))
+  for (const ch of chunk(ids, 150)) {
+    const { data } = await admin.from('card_sales').select('id, approval_number').in('id', ch)
+    for (const c of data ?? []) out.set(c.id as string, String(c.approval_number ?? ''))
+  }
+  return out
+}
+
+export async function syncRecordsForOrders(admin: SupabaseClient, orderIds: string[], editor: Editor, origin: string): Promise<{ confirmed: number; released: number }> {
+  const out = { confirmed: 0, released: 0 }
+  try {
+    const ids = Array.from(new Set(orderIds.filter(Boolean)))
+    if (!ids.length) return out
+    const recIds = new Set<string>()
+    for (const ch of chunk(ids, 150)) {
+      const { data, error } = await admin.from('order_payment_record_orders').select('record_id').in('order_id', ch)
+      if (error) return out   // 1300 미적용 등 — 조용히
+      for (const r of data ?? []) recIds.add(r.record_id as string)
+    }
+    if (!recIds.size) return out
+    const recs: RecCover[] = []
+    for (const ch of chunk(Array.from(recIds), 150)) {
+      const { data } = await admin.from('order_payment_records').select('id, method, approval_number, confirmed_at').in('id', ch)
+      for (const r of data ?? []) recs.push({ id: r.id as string, method: r.method as PayMethod, approval_number: r.approval_number as string | null, confirmed_at: r.confirmed_at as string | null, orders: [] })
+    }
+    for (const ch of chunk(recs.map(r => r.id), 150)) {
+      const { data } = await admin.from('order_payment_record_orders').select('record_id, order_id, amount').in('record_id', ch)
+      for (const l of data ?? []) recs.find(r => r.id === l.record_id)?.orders.push({ order_id: l.order_id as string, amount: Number(l.amount ?? 0) })
+    }
+    const rows = await matchRowsByOrder(admin, recs.flatMap(r => r.orders.map(o => o.order_id)))
+    const approvalOf = await approvalNumbersOf(admin, rows)
+    const now = new Date().toISOString()
+    for (const rec of recs) {
+      if (!rec.orders.length) continue
+      const plan = planCover(rec, rows, approvalOf)
+      if (plan) {
+        if (plan.link.length) {
+          const { error } = await admin.from('erp_payment_matches').update({ record_id: rec.id }).in('id', plan.link).is('record_id', null)
+          if (error) continue
+          for (const m of rows) if (plan.link.includes(m.id)) m.record_id = rec.id
+        }
+        if (!rec.confirmed_at) {
+          const { error } = await admin.from('order_payment_records')
+            .update({ confirmed_by: editor.employeeId, confirmed_by_name: editor.employeeName, confirmed_at: now }).eq('id', rec.id).is('confirmed_at', null)
+          if (error) continue
+          out.confirmed++
+          await writeLog(admin, rec.id, 'confirm', editor, `${origin}에서 직접 매칭 — 기록과 금액 · 주문이 맞아 자동 확정`)
+        }
+      } else if (rec.confirmed_at) {
+        const { error: ue } = await admin.from('erp_payment_matches').update({ record_id: null }).eq('record_id', rec.id)
+        if (ue) continue
+        const { error } = await admin.from('order_payment_records')
+          .update({ confirmed_by: null, confirmed_by_name: null, confirmed_at: null }).eq('id', rec.id)
+        if (error) continue
+        out.released++
+        await writeLog(admin, rec.id, 'release', editor, `${origin}에서 매칭 변경 — 기록을 덮는 원본이 없어 자동 확인 해제`)
+      }
+    }
+  } catch { /* 동기화 실패는 매칭 저장에 영향 주지 않는다 */ }
   return out
 }
 
@@ -458,22 +568,44 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
     }
   }
 
-  const alloc = await allocatedBySource(admin, [
+  const matchRows = await matchRowsBySource(admin, [
     ...Array.from(csByApproval.values()).flat().filter(c => c.transaction_type === 'approval').map(c => c.id),
     ...Array.from(txByAmount.values()).flat().map(t => t.id),
   ])
+  const alloc = sumBySource(matchRows)
+  // 이 원본이 기록의 주문에 이미(기록 연결 없이) 배분된 금액 — 카드 내역 · 입금 매칭에서 직접 붙인 것. 확정하면 그 행에 기록을 연결한다.
+  const ownOf = (r: QueueRow, key: string) => {
+    const mine = new Set(r.orders.map(o => o.order_id))
+    return matchRows.filter(m => `${m.source_type}:${m.source_id}` === key && m.record_id == null && mine.has(m.order_id)).reduce((s, m) => s + m.amount, 0)
+  }
+  const otherOrderNos = new Map<string, string>()
+  {
+    const ids = Array.from(new Set(matchRows.map(m => m.order_id)))
+    const os = await loadOrders(admin, ids)
+    for (const [id, o] of Array.from(os)) otherOrderNos.set(id, o.order_no ?? id.slice(0, 8))
+  }
+  const otherNote = (r: QueueRow, key: string) => {
+    const mine = new Set(r.orders.map(o => o.order_id))
+    const others = matchRows.filter(m => `${m.source_type}:${m.source_id}` === key && !mine.has(m.order_id))
+    if (!others.length) return null
+    const nos = Array.from(new Set(others.map(m => otherOrderNos.get(m.order_id) ?? ''))).filter(Boolean).slice(0, 3).join(', ')
+    return `다른 주문(${nos})에 ${won(others.reduce((s, m) => s + m.amount, 0))}원 배분됨`
+  }
 
   for (const r of rows) {
     if (r.method === 'card') {
       const hit = r.approval_number ? cardNet(r.approval_number) : null
       if (hit) {
-        const remaining = hit.net - (alloc.get(`card:${hit.appr.id}`) ?? 0)
+        const key = `card:${hit.appr.id}`
+        const own = ownOf(r, key)
+        const remaining = hit.net - (alloc.get(key) ?? 0) + own   // 이 기록의 주문에 이미 붙은 몫은 쓸 수 있는 잔액으로 본다
         const tail = String(hit.appr.card_number ?? '').replace(/\D/g, '').slice(-4)
         const same = hit.net === r.amount && remaining >= r.amount
         const parts = ['승인번호 일치']
         if (hit.net === r.amount) parts.push('금액 일치'); else parts.push(`금액 ${won(Math.abs(hit.net - r.amount))}원 다름`)
         if (r.card_last4 && tail) parts.push(r.card_last4 === tail ? '카드 일치' : `카드 뒤 4자리 다름(${tail})`)
-        if (hit.net === r.amount && remaining < r.amount) parts.push(`이미 다른 주문에 ${won(hit.net - remaining)}원 배분됨`)
+        if (own > 0) parts.push(own >= r.amount ? `이 주문에 이미 ${won(own)}원 매칭됨 — 확정하면 기록에 연결` : `이 주문에 이미 ${won(own)}원 매칭됨(기록과 다름)`)
+        if (hit.net === r.amount && remaining < r.amount) { const n = otherNote(r, key); if (n) parts.push(n) }
         r.candidates.push({
           source_type: 'card', source_id: hit.appr.id, tx_date: hit.appr.tx_date, label: `카드 매출 ${hit.appr.acquirer ?? ''}`.trim(),
           amount: hit.net, remaining, strength: same ? 'strong' : 'mismatch', reason: parts.join(' · '),
@@ -482,7 +614,7 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
         for (const c of csByAmount.get(r.amount) ?? []) {
           if (Math.abs(dayDiff(c.tx_date, r.pay_date)) > 3) continue
           const net = cardNet(c.approval_number)?.net ?? Math.abs(Number(c.amount ?? 0))
-          const remaining = net - (alloc.get(`card:${c.id}`) ?? 0)
+          const remaining = net - (alloc.get(`card:${c.id}`) ?? 0) + ownOf(r, `card:${c.id}`)
           if (net !== r.amount || remaining < r.amount) continue
           const tail = String(c.card_number ?? '').replace(/\D/g, '').slice(-4)
           if (r.card_last4 && tail && r.card_last4 !== tail) continue
@@ -498,12 +630,14 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
       const to = addDays(r.pay_date, r.method === 'invoice' ? 120 : 14)
       for (const t of txByAmount.get(r.amount) ?? []) {
         if (t.tx_date < from || t.tx_date > to) continue
-        const remaining = Number(t.amount_in ?? 0) - (alloc.get(`bank:${t.id}`) ?? 0)
+        const own = ownOf(r, `bank:${t.id}`)
+        const remaining = Number(t.amount_in ?? 0) - (alloc.get(`bank:${t.id}`) ?? 0) + own
         if (remaining < r.amount) continue
         const who = (t.counterparty_name || t.description || '').trim()
         const byName = nameHit(who, r.depositor_name) || nameHit(who, r.vendor_name)
         const byVendor = !!r.vendor_id && t.vendor_id === r.vendor_id
         const parts = ['금액 일치']
+        if (own > 0) parts.push(`이 주문에 이미 ${won(own)}원 매칭됨 — 확정하면 기록에 연결`)
         if (byVendor) parts.push('거래처 일치')
         if (byName) parts.push('입금자 비슷')
         const dd = dayDiff(t.tx_date, r.pay_date)
@@ -556,8 +690,37 @@ export async function confirmRecord(admin: SupabaseClient, recordId: string, raw
   const amount = Number(rec.amount)
   if (total !== amount) return { error: `고른 원본 합계(${won(total)}원)가 기록 금액(${won(amount)}원)과 다릅니다. 금액이 다르면 입력자에게 기록 수정을 요청하세요.` }
 
+  // 기록의 주문별 금액
+  const { data: links, error: le } = await admin.from('order_payment_record_orders').select('order_id, amount').eq('record_id', recordId)
+  if (le) return { error: errMsg(le.message) }
+  const allocs = ((links ?? []) as { order_id: string; amount: number }[]).map(l => ({ order_id: l.order_id, amount: Number(l.amount) }))
+  if (!allocs.length) return { error: '기록에 주문이 없습니다.' }
+
+  // 이 원본이 기록의 주문에 이미 직접 매칭돼 있으면(카드 내역 · 입금 매칭) 새 매칭을 만들지 않고 그 행에 기록을 연결한다 — 미수가 두 번 깎이지 않는다
+  const srcRows = await matchRowsBySource(admin, sources.map(s => s.source_id))
+  const adopt = planCover(
+    { id: recordId, method: rec.method as PayMethod, approval_number: null, confirmed_at: null, orders: allocs },
+    srcRows, new Map(), new Set(sources.map(s => `${s.source_type}:${s.source_id}`)))
+  if (adopt && adopt.link.length) {
+    const { error: ae } = await admin.from('erp_payment_matches').update({ record_id: recordId }).in('id', adopt.link).is('record_id', null)
+    if (ae) return { error: errMsg(ae.message) }
+    const { error: ue } = await admin.from('order_payment_records').update({
+      confirmed_by: editor.employeeId, confirmed_by_name: editor.employeeName, confirmed_at: new Date().toISOString(),
+    }).eq('id', recordId)
+    if (ue) {
+      await admin.from('erp_payment_matches').update({ record_id: null }).in('id', adopt.link)
+      return { error: errMsg(ue.message) }
+    }
+    await writeLog(admin, recordId, 'confirm', editor, `기존 직접 매칭에 연결 — ${sources.map(s => `${s.source_type === 'bank' ? '통장' : '카드 매출'} ${won(s.amount)}원`).join(', ')}`)
+    return { ok: true, inserted: 0 }
+  }
+  const ownTotal = srcRows.filter(m => m.record_id == null && allocs.some(a => a.order_id === m.order_id)).reduce((s, m) => s + m.amount, 0)
+  if (ownTotal > 0) {
+    return { error: `이 원본은 기록의 주문에 이미 ${won(ownTotal)}원 매칭돼 있는데 기록 금액과 달라 연결할 수 없습니다. 카드 내역 · 입금 매칭에서 매칭을 기록대로 맞추거나, 입력자에게 기록 수정을 요청하세요.` }
+  }
+
   // 원본 잔액 · 결제일
-  const alloc = await allocatedBySource(admin, sources.map(s => s.source_id))
+  const alloc = sumBySource(srcRows)
   const paidDate = new Map<string, string>()
   const cardApproval = new Map<string, { no: string; vendor_id: string | null }>()
   for (const s of sources) {
@@ -579,11 +742,7 @@ export async function confirmRecord(admin: SupabaseClient, recordId: string, raw
     if (s.amount > remaining) return { error: `원본 잔액(${won(remaining)}원)이 부족합니다. 이미 다른 주문에 배분된 입금 · 결제입니다.` }
   }
 
-  // 주문별 금액 · 주문 미수 검증
-  const { data: links, error: le } = await admin.from('order_payment_record_orders').select('order_id, amount').eq('record_id', recordId)
-  if (le) return { error: errMsg(le.message) }
-  const allocs = ((links ?? []) as { order_id: string; amount: number }[]).map(l => ({ order_id: l.order_id, amount: Number(l.amount) }))
-  if (!allocs.length) return { error: '기록에 주문이 없습니다.' }
+  // 주문 미수 검증
   const orders = await loadOrders(admin, allocs.map(a => a.order_id))
   const recv = await loadReceivableMap(admin, allocs.map(a => a.order_id))
   if (!recv) return { error: '미수 계산 뷰(v_erp_order_receivable)를 읽지 못했습니다.' }

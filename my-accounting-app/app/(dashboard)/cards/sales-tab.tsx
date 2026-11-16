@@ -520,7 +520,12 @@ export default function SalesTab() {
 
       {orderMatchFor && (
         <CardOrderMatchModal saleId={orderMatchFor} onClose={() => setOrderMatchFor(null)}
-          onSaved={(id, count, amount) => setSales(prev => prev.map(r => r.id === id ? { ...r, order_match_count: count, order_match_amount: amount } : r))} />
+          onSaved={(id, count, amount, records) => {
+            setSales(prev => prev.map(r => r.id === id ? { ...r, order_match_count: count, order_match_amount: amount } : r))
+            // 결제 기록(주문 상세 1차 입력)이 이 매칭과 맞으면 자동 확정된다 — 결제 확인 화면에서 따로 확정할 필요 없음 (2026-11-16)
+            const notes = [records?.confirmed ? `결제 기록 ${records.confirmed}건 자동 확정` : '', records?.released ? `결제 기록 ${records.released}건 확인 해제(매칭 변경)` : ''].filter(Boolean)
+            if (notes.length) showMsg(`주문 매칭 저장 — ${notes.join(' · ')}`, 6000)
+          }} />
       )}
 
       {toast && (

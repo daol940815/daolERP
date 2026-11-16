@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { getCurrentUser } from '@/lib/user-role'
 import { findAutoMatches, loadMatchingState } from '@/lib/erp-matching'
+import { syncRecordsForOrders } from '@/lib/payment-records'
+
+const editorOf = async () => { const me = await getCurrentUser(); return { employeeId: me?.employeeId ?? null, employeeName: me?.employeeName ?? null } }
 
 export const dynamic = 'force-dynamic'
 
@@ -116,8 +120,10 @@ export async function POST(req: NextRequest) {
   }))
   const { error: ie } = await admin.from('erp_payment_matches').insert(rows)
   if (ie) return NextResponse.json({ error: ie.message }, { status: 500 })
+  // 결제 기록(1300)과 동기화 — 기록의 주문 · 금액이 이 매칭으로 채워지면 자동 확정 (2026-11-16)
+  const sync = await syncRecordsForOrders(admin, rows.map(r => r.order_id), await editorOf(), '입금 매칭')
 
-  return NextResponse.json({ ok: true, inserted: rows.length })
+  return NextResponse.json({ ok: true, inserted: rows.length, records_confirmed: sync.confirmed, records_released: sync.released })
 }
 
 // DELETE /api/erp-matching?id= — 매칭 해제
@@ -127,17 +133,14 @@ export async function DELETE(req: NextRequest) {
   if (!id) return NextResponse.json({ error: 'id가 필요합니다.' }, { status: 400 })
 
   // 선결제 사용 매칭(514)은 원장 차감 행과 한 쌍 — 함께 지워야 선결제 잔액이 복원된다 (주문 트랙 2026-11-05)
-  const { data: m } = await admin.from('erp_payment_matches').select('source_type, source_id').eq('id', id).maybeSingle()
-  // 결제 확인(1300)으로 만들어진 매칭은 기록과 한 묶음 — 낱개로 지우면 기록이 '확인'인데 수금이 비는 상태가 된다
-  const { data: rm } = await admin.from('erp_payment_matches').select('record_id').eq('id', id).maybeSingle()
-  if (rm?.record_id) {
-    return NextResponse.json({ error: '결제 기록으로 확정된 매칭입니다. 결제 확인 화면에서 "확인 해제"로 풀어주세요.' }, { status: 409 })
-  }
+  const { data: m } = await admin.from('erp_payment_matches').select('source_type, source_id, order_id, record_id').eq('id', id).maybeSingle()
   const { error } = await admin.from('erp_payment_matches').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (m?.source_type === 'prepay') {
     await admin.from('erp_prepayments').delete().eq('id', m.source_id as string).eq('entry_type', 'deduction')
   }
+  // 결제 기록(1300)에 연결된 매칭을 지우면 기록은 자동으로 확인 대기로 돌아간다(이력에 사유). 2026-11-16 — 매칭을 풀면 확정도 풀린다
+  const sync = m?.order_id ? await syncRecordsForOrders(admin, [m.order_id as string], await editorOf(), '입금 매칭 해제') : { confirmed: 0, released: 0 }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, records_released: sync.released })
 }
