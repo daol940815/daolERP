@@ -194,7 +194,7 @@ export function CustomerShipInput({ it, disabled, onChange, className }: {
   const shown = perBox ? it.ship_unit! : (it.shipping_fee || 0)
   return (
     <>
-      <input value={shown ? won(shown) : ''} disabled={disabled}
+      <NumInput value={shown ? won(shown) : ''} disabled={disabled}
         onChange={e => onChange(customerShipInput(it, toInt(e.target.value)))}
         title={boxes
           ? `박스당 단가 입력 — 매입배송비 ${won(it.purchase_shipping)} ÷ 박스당 ${won(boxFeeOf(it))} = ${boxes}박스`
@@ -242,9 +242,39 @@ export function splitByGroupPrefix(name: string, groups: { id: string; name: str
 }
 
 export const won = (n: number) => n.toLocaleString('ko-KR')
+// 숫자 칸 값 읽기 — 쉼표 · 글자는 버리고 소수점은 살려 원 단위로 반올림 (2026-11-16: 점을 지워 462.2가 4622(10배)로 들어가던 문제)
 export const toInt = (s: string) => {
-  const n = Number(s.replace(/[^\d-]/g, ''))
+  const n = Number(s.replace(/[^\d.-]/g, ''))
   return Number.isFinite(n) ? Math.round(n) : 0
+}
+
+// ── 숫자 입력 칸 (상담일지 · 주문서 공용, 2026-11-16) ──
+// 금액 칸은 입력할 때마다 쉼표 표기로 다시 그려서, 소수점을 치면 점이 사라지고 다음 숫자가 뒤에 붙어 10배가 됐다(462.2 → 4622).
+// 소수점을 친 동안에는 친 글자를 그대로 보여 주고, 계산 쪽(onChange)에는 반올림한 정수만 넘긴다. 칸을 벗어나면 원 단위 표기로 돌아간다.
+// 사용법은 <input>과 같다 — onChange 안에서 toInt(e.target.value)로 읽으면 된다.
+export function NumInput({ value, onChange, onBlur, ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {
+  const [raw, setRaw] = useState<string | null>(null)
+  const rounded = raw != null ? toInt(raw) : 0
+  return (
+    <span className="relative block">
+      <input {...rest} inputMode="decimal"
+        value={raw ?? (value as string | number | undefined) ?? ''}
+        onChange={e => {
+          const typed = e.target.value
+          if (!typed.includes('.')) { setRaw(null); onChange?.(e); return }
+          setRaw(typed)
+          e.target.value = String(toInt(typed))   // 계산 쪽에는 반올림한 정수만
+          onChange?.(e)
+          e.target.value = typed
+        }}
+        onBlur={e => { setRaw(null); onBlur?.(e) }} />
+      {raw != null && (
+        <span className="absolute right-0 top-full z-10 mt-0.5 whitespace-nowrap rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[0.625rem] text-amber-700 shadow-sm">
+          원 단위로 반올림해 {won(rounded)}(으)로 저장됩니다
+        </span>
+      )}
+    </span>
+  )
 }
 export const lineTotal = (it: ItemDraft) => it.sale_price * it.quantity + it.shipping_fee - it.discount_amount
 // 매입합계 (708) — 매입가 × 수량 + 매입배송비 − 매입할인. 서버 purchase_total과 같은 공식
@@ -470,7 +500,7 @@ export function DiscountInput({ mode, unit, amount, quantity, disabled, onChange
         <option value="정액">정액</option>
         <option value="단가">개당</option>
       </select>
-      <input
+      <NumInput
         value={mode === '단가' ? (unit ? won(unit) : '') : (amount ? won(amount) : '')}
         disabled={disabled}
         onChange={e => {
