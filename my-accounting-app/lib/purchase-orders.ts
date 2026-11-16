@@ -301,6 +301,18 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
   }
 
   // ── 시트2: 배송명단 ─────────────────────────────────
+  addPoRosterSheet(wb, po)
+
+  return Buffer.from(await wb.xlsx.writeBuffer())
+}
+
+// 배송명단 시트 — 발주서 시트2. 상담일지 출력 양식(lib/consult-sheet.ts)도 같은 함수를 써서 열 · 너비 · 색 · 행 규칙이 항상 같다
+// (2026-11-16 사용자 요청: 상담일지 출력의 배송명단 = 발주서 배송명단과 완전히 동일).
+export function addPoRosterSheet(wb: import('exceljs').Workbook, po: PoExcelData) {
+  const thin = { style: 'thin' as const }
+  const box = { top: thin, bottom: thin, left: thin, right: thin }
+  const fill = (hex: string) => ({ type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: argb(hex) } })
+  const center = { horizontal: 'center' as const, vertical: 'middle' as const }
   const ws2 = wb.addWorksheet('배송명단', {
     pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   })
@@ -315,7 +327,8 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
     cell.fill = fill(PO_COLORS.labelBg)
     cell.alignment = center
   })
-  poRosterRows(po).forEach((values, i) => {
+  const rows = poRosterRows(po)
+  rows.forEach((values, i) => {
     const r = 2 + i
     values.forEach((v, ci) => {
       const cell = ws2.getCell(r, ci + 1)
@@ -327,12 +340,11 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
         : center
     })
   })
-  const rosterLast = 1 + poRosterRows(po).length
+  const rosterLast = 1 + rows.length
   for (let r = 1; r <= rosterLast; r++) {
     for (let c = 1; c <= 9; c++) ws2.getCell(r, c).border = box
   }
-
-  return Buffer.from(await wb.xlsx.writeBuffer())
+  return ws2
 }
 
 // 네이버 SMTP 발송 (NAVER_SMTP_USER/PASS, PO_CC_EMAIL 환경변수)
