@@ -17,6 +17,7 @@ export interface ConsultSheetItem {
   item_code: string | null
   order_kind: string | null
   item_name: string | null
+  purchase_vendor_name: string | null   // 매입처명 (2026-11-16 사용자 요청 — 품목 표에 열 추가)
   quantity: number
   sale_price: number
   discount_amount: number
@@ -98,8 +99,8 @@ export async function buildConsultSheetExcel(d: ConsultSheetData): Promise<Buffe
       horizontalCentered: true,
     },
   })
-  // 15열: NO 품번 배송종류 품명 수량 판매단가 판매할인 판매합계 매입단가 매입배송비 매입할인 매입합계 마진율 상태 비고
-  const widths = [4.5, 9, 7.5, 26, 6, 10, 9.5, 12, 10, 9.5, 9.5, 12, 7, 8.5, 20]
+  // 16열: NO 품번 배송종류 품명 수량 판매단가 판매할인 판매합계 매입처 매입단가 매입배송비 매입할인 매입합계 마진율 상태 비고
+  const widths = [4.5, 9, 7.5, 24, 6, 10, 9.5, 12, 11, 10, 9.5, 9.5, 12, 7, 8.5, 18]
   ws.columns = widths.map(w => ({ width: w }))
 
   const thin = { style: 'thin' as const, color: { argb: 'FF94A3B8' } }
@@ -128,41 +129,41 @@ export async function buildConsultSheetExcel(d: ConsultSheetData): Promise<Buffe
   // ── 1~2행 제목 ──
   ws.getRow(1).height = 30
   put('A1:C1', '다올커머스', { align: 'l', size: 9 })
-  put('D1:L1', '< 상담일지 - 보관용 >', { label: 'head', bold: true, size: 15 })
+  put('D1:M1', '< 상담일지 - 보관용 >', { label: 'head', bold: true, size: 15 })
   const statusText = [
     `상태 ${d.status}`,
     d.order_nos.length ? `주문번호 ${d.order_nos.join(', ')}` : '',
     d.closed ? `종결 ${[d.closed.at, d.closed.by].filter(Boolean).join(' ')}${d.closed.reason ? ` · 사유 ${d.closed.reason}` : ''}` : '',
   ].filter(Boolean).join('\n')
-  put('M1:O1', statusText, { align: 'r', size: 8 })
-  ws.getRow(1).getCell(13).alignment = { horizontal: 'right', vertical: 'middle', wrapText: true }
+  put('N1:P1', statusText, { align: 'r', size: 8 })
+  ws.getRow(1).getCell(14).alignment = { horizontal: 'right', vertical: 'middle', wrapText: true }
   ws.getRow(2).height = 6
 
   // ── 3~6행 머리 정보 (ERP 기준) ──
   for (const r of [3, 4, 5, 6]) ws.getRow(r).height = 22
   put('A3:B3', '상담일', { label: 'head' }); put('C3', '구분', { label: 'head' }); put('D3', '주문시기', { label: 'head' })
   put('E3:F3', '작성자', { label: 'head' }); put('G3:H3', '상담자(다올 담당)', { label: 'head' }); put('I3:J3', '주문 진행', { label: 'head' })
-  put('K3:L3', '은행/업체명', { label: 'head' }); put('M3:O3', '지점/부서명', { label: 'head' })
+  put('K3:L3', '은행/업체명', { label: 'head' }); put('M3:P3', '지점/부서명', { label: 'head' })
   put('A4:B4', d.consult_date); put('C4', d.consult_type); put('D4', d.season)
   put('E4:F4', d.writer); put('G4:H4', d.counselor); put('I4:J4', d.order_progress)
-  put('K4:L4', d.bank_name); put('M4:O4', d.branch_name)
+  put('K4:L4', d.bank_name); put('M4:P4', d.branch_name)
   put('A5:B5', '주문자명(담당자)', { label: 'head' }); put('C5:F5', '연락처', { label: 'head' })
-  put('G5:J5', '계산서 발행처(청구처)', { label: 'head' }); put('K5:O5', '감사 서명란', { label: 'head' })
+  put('G5:J5', '계산서 발행처(청구처)', { label: 'head' }); put('K5:P5', '감사 서명란', { label: 'head' })
   put('A6:B6', d.manager_name)
   put('C6:F6', [d.tel ? `(유 선) ${d.tel}` : '', d.phone ? `(핸드폰) ${d.phone}` : ''].filter(Boolean).join('    '), { align: 'l' })
   put('G6:J6', d.billing_name)
-  put('K6:O6', '')
+  put('K6:P6', '')
   ws.getRow(6).height = 30
-  boxRange(3, 1, 6, 15)
+  boxRange(3, 1, 6, 16)
 
   // ── 7행 안내문 ──
   ws.getRow(7).height = 16
-  put('A7:O7', CONSULT_SHEET_NOTICE, { align: 'l', size: 8 })
+  put('A7:P7', CONSULT_SHEET_NOTICE, { align: 'l', size: 8 })
   ws.getCell('A7').font = font({ size: 8, color: { argb: 'FF64748B' } })
 
   // ── 8행 품목 헤더 ──
   const HEAD = ['NO', '품번', '배송종류', '품명', '수량', '판매단가\n(vat포함)', '판매할인', '판매합계',
-    '매입단가', '매입배송비', '매입할인', '매입합계', '마진율', '상태', '비고(메모 · 기타)']
+    '매입처', '매입단가', '매입배송비', '매입할인', '매입합계', '마진율', '상태', '비고(메모 · 기타)']
   ws.getRow(8).height = 30
   HEAD.forEach((h, i) => {
     const c = ws.getCell(8, i + 1)
@@ -187,7 +188,7 @@ export async function buildConsultSheetExcel(d: ConsultSheetData): Promise<Buffe
     const vals: (string | number | null)[] = [
       sub ? '' : no, it.item_code ?? '', kind, `${sub ? '└ ' : ''}${it.item_name ?? ''}`, it.quantity,
       it.sale_price, disc, it.line_total,
-      it.purchase_price, it.purchase_shipping, pdisc, it.purchase_total,
+      it.purchase_vendor_name ?? '', it.purchase_price, it.purchase_shipping, pdisc, it.purchase_total,
       margin === null ? '-' : margin, it.status ?? '',
       [it.memo, it.option_note].filter(Boolean).join(' · '),
     ]
@@ -196,9 +197,9 @@ export async function buildConsultSheetExcel(d: ConsultSheetData): Promise<Buffe
       c.value = v
       c.font = font({ size: 9, color: sub ? { argb: 'FF475569' } : undefined })
       const col = ci + 1
-      c.alignment = col === 4 || col === 15 ? left : [6, 7, 8, 9, 10, 11, 12].includes(col) ? right : center
-      if ([6, 8, 9, 10, 12].includes(col) || (typeof v === 'number' && (col === 7 || col === 11))) c.numFmt = NUM
-      if (col === 13 && typeof v === 'number') { c.numFmt = PCT; c.alignment = center }
+      c.alignment = col === 4 || col === 16 ? left : [6, 7, 8, 10, 11, 12, 13].includes(col) ? right : center
+      if ([6, 8, 10, 11, 13].includes(col) || (typeof v === 'number' && (col === 7 || col === 12))) c.numFmt = NUM
+      if (col === 14 && typeof v === 'number') { c.numFmt = PCT; c.alignment = center }
       if (col === 5) c.numFmt = NUM
       if (col === 9 && typeof v === 'number') c.numFmt = purchasePriceNumFmt(v)   // 매입가 — 소수(462.2)는 소수까지 (518)
     })
@@ -214,7 +215,7 @@ export async function buildConsultSheetExcel(d: ConsultSheetData): Promise<Buffe
   }
   const last = blankFrom + 1
   const totalRow = last + 1
-  boxRange(8, 1, totalRow, 15)
+  boxRange(8, 1, totalRow, 16)
 
   // ── 총계 행 (수식 + 캐시 값) ──
   type F = import('exceljs').CellFormulaValue
@@ -239,14 +240,14 @@ export async function buildConsultSheetExcel(d: ConsultSheetData): Promise<Buffe
   ws.getCell(`E${totalRow}`).font = font({ size: 9, bold: true }); ws.getCell(`E${totalRow}`).alignment = center; ws.getCell(`E${totalRow}`).numFmt = NUM
   ws.getCell(`G${totalRow}`).value = sumDisc; ws.getCell(`G${totalRow}`).numFmt = NUM; ws.getCell(`G${totalRow}`).alignment = right; ws.getCell(`G${totalRow}`).font = font({ size: 9, bold: true })
   sumCell('H', `SUM(H${first}:H${last})`, sumSale)
-  sumCell('J', `SUM(J${first}:J${last})`, sumPShip)
-  ws.getCell(`K${totalRow}`).value = sumPDisc; ws.getCell(`K${totalRow}`).numFmt = NUM; ws.getCell(`K${totalRow}`).alignment = right; ws.getCell(`K${totalRow}`).font = font({ size: 9, bold: true })
-  sumCell('L', `SUM(L${first}:L${last})`, sumPur)
-  const pctCell = ws.getCell(`M${totalRow}`)
-  pctCell.value = { formula: `IF(H${totalRow}=0,0,(H${totalRow}-L${totalRow})/H${totalRow})`, result: marginPct } as F
+  sumCell('K', `SUM(K${first}:K${last})`, sumPShip)
+  ws.getCell(`L${totalRow}`).value = sumPDisc; ws.getCell(`L${totalRow}`).numFmt = NUM; ws.getCell(`L${totalRow}`).alignment = right; ws.getCell(`L${totalRow}`).font = font({ size: 9, bold: true })
+  sumCell('M', `SUM(M${first}:M${last})`, sumPur)
+  const pctCell = ws.getCell(`N${totalRow}`)
+  pctCell.value = { formula: `IF(H${totalRow}=0,0,(H${totalRow}-M${totalRow})/H${totalRow})`, result: marginPct } as F
   pctCell.font = font({ size: 9, bold: true }); pctCell.alignment = center; pctCell.numFmt = PCT
-  put(`N${totalRow}:O${totalRow}`, `마진 ${won(marginAmt)}원`, { align: 'l', bold: true, size: 9 })
-  for (let c = 1; c <= 15; c++) ws.getCell(totalRow, c).fill = fill(TOTAL_BG)
+  put(`O${totalRow}:P${totalRow}`, `마진 ${won(marginAmt)}원`, { align: 'l', bold: true, size: 9 })
+  for (let c = 1; c <= 16; c++) ws.getCell(totalRow, c).fill = fill(TOTAL_BG)
 
   // ── 발송 정보 · 결제 · 발행 정보 · 비고 ──
   const shipText = d.ship
@@ -257,12 +258,12 @@ export async function buildConsultSheetExcel(d: ConsultSheetData): Promise<Buffe
   ws.getRow(totalRow + 1).height = 6
   const blockRows = [
     [['A:B', '보내는분 명의', 'sub'], ['C:E', d.sender_name], ['F:G', '배송요청일', 'sub'], ['H', d.delivery_request],
-      ['I:J', '인사장/명함', 'sub'], ['K', d.greeting_card], ['L:M', '주소확인여부', 'sub'], ['N:O', d.address_checked]],
-    [['A:B', '고객명단수단', 'sub'], ['C:E', d.roster_method], ['F:G', '배송지(지점·샘플)', 'sub'], ['H:O', shipText]],
+      ['I:J', '인사장/명함', 'sub'], ['K', d.greeting_card], ['L:M', '주소확인여부', 'sub'], ['N:P', d.address_checked]],
+    [['A:B', '고객명단수단', 'sub'], ['C:E', d.roster_method], ['F:G', '배송지(지점·샘플)', 'sub'], ['H:P', shipText]],
     [['A:B', '결제정보', 'sub'], ['C:E', d.payment], ['F:G', '계산서 이메일', 'sub'], ['H:J', d.invoice_email],
-      ['K:L', '팩스', 'sub'], ['M:O', d.fax]],
+      ['K:L', '팩스', 'sub'], ['M:P', d.fax]],
     [['A:B', '사업자번호', 'sub'], ['C:E', d.biz_number], ['F:G', '대표자명', 'sub'], ['H:J', d.ceo_name],
-      ['K:L', '선결제', 'sub'], ['M:O', d.prepay ? '선결제 품목 있음' : '해당 없음']],
+      ['K:L', '선결제', 'sub'], ['M:P', d.prepay ? '선결제 품목 있음' : '해당 없음']],
   ] as [string, string | null, ('sub' | undefined)?][][]
   for (const cells of blockRows) {
     ws.getRow(r).height = 24
@@ -271,20 +272,20 @@ export async function buildConsultSheetExcel(d: ConsultSheetData): Promise<Buffe
       const range = c2 ? `${c1}${r}:${c2}${r}` : `${c1}${r}`
       put(range, v ?? '', lab === 'sub' ? { label: 'sub' } : { align: 'l' })
     }
-    boxRange(r, 1, r, 15)
+    boxRange(r, 1, r, 16)
     r += 1
   }
   ws.getRow(r).height = 54
   put(`A${r}:B${r}`, '비고(상담 메모)', { label: 'sub' })
-  const memoCell = put(`C${r}:O${r}`, d.memo ?? '', { align: 'l' })
+  const memoCell = put(`C${r}:P${r}`, d.memo ?? '', { align: 'l' })
   memoCell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true, indent: 1 }
-  boxRange(r, 1, r, 15)
+  boxRange(r, 1, r, 16)
   r += 1
   ws.getRow(r).height = 16
-  put(`A${r}:O${r}`, `출력 ${d.printed_at}${d.printed_by ? ` · ${d.printed_by}` : ''} · daolERP${d.payment_plain ? ' · 결제정보 평문 포함' : ''}`, { align: 'r', size: 8 })
+  put(`A${r}:P${r}`, `출력 ${d.printed_at}${d.printed_by ? ` · ${d.printed_by}` : ''} · daolERP${d.payment_plain ? ' · 결제정보 평문 포함' : ''}`, { align: 'r', size: 8 })
   ws.getCell(`A${r}`).font = font({ size: 8, color: { argb: 'FF64748B' } })
 
-  ws.pageSetup.printArea = `A1:O${r}`
+  ws.pageSetup.printArea = `A1:P${r}`
   ws.pageSetup.printTitlesRow = '8:8'
 
   // ── 시트2 배송명단 — 발주서 시트2와 완전히 동일 (addPoRosterSheet · poRosterRows 공용, 2026-11-16 사용자 요청):
