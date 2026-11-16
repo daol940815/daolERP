@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { getCurrentUser } from '@/lib/user-role'
+import { syncRecordsForOrders } from '@/lib/payment-records'
 import { loadMatchingState, findAutoMatches } from '@/lib/erp-matching'
 
 export const dynamic = 'force-dynamic'
@@ -36,8 +38,12 @@ export async function POST(req: NextRequest) {
   }))
   const { error } = await admin.from('erp_payment_matches').insert(rows)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // 결제 기록(1300)과 동기화 (2026-11-16)
+  const me = await getCurrentUser()
+  const sync = await syncRecordsForOrders(admin, rows.map(r => r.order_id), { employeeId: me?.employeeId ?? null, employeeName: me?.employeeName ?? null }, '입금 매칭 자동 실행')
 
   return NextResponse.json({
+    records_confirmed: sync.confirmed,
     matched: rows.length,
     amount: rows.reduce((s, r) => s + r.amount, 0),
     pending: state.deposits.filter(d => d.remaining > 0).length - rows.length,

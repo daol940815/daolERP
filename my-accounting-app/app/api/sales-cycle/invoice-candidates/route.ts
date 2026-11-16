@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { getCurrentUser } from '@/lib/user-role'
+import { syncRecordsForOrders } from '@/lib/payment-records'
 import { buildInvoiceLinkCandidates, isMissingOrderInvoiceTable } from '@/lib/order-invoice-match'
 
 export const dynamic = 'force-dynamic'
@@ -133,6 +135,11 @@ async function propagatePayments(
         result.amount += amt
       }
       orderPayCap.set(l.orderId, cap)
+    }
+    // 결제 기록(1300)과 동기화 — 계산서 발행 기록이 이월된 입금으로 채워지면 자동 확정 (2026-11-16)
+    if (result.count > 0) {
+      const me = await getCurrentUser()
+      await syncRecordsForOrders(admin, orderIds, { employeeId: me?.employeeId ?? null, employeeName: me?.employeeName ?? null }, '계산서 매칭 이월')
     }
   } catch {
     // 이월 실패는 연결 자체에 영향 주지 않는다 (수금후보로 언제든 보완 가능)
