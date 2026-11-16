@@ -247,7 +247,6 @@ export const highlightTerms = (filters: TxFilter[]) =>
 export const QUICK_FILTERS: { label: string; filters: TxFilter[]; title?: string }[] = [
   { label: '입금만',      filters: [{ kind: 'amount', dir: 'in',  op: 'none', a: null, b: null }] },
   { label: '출금만',      filters: [{ kind: 'amount', dir: 'out', op: 'none', a: null, b: null }] },
-  { label: '미검토',      filters: [{ kind: 'status', values: ['pending'] }] },
   { label: '추천만 있음', filters: [{ kind: 'account', name: '추천' }] },
   { label: '미분류',      filters: [{ kind: 'account', name: '없음' }] },
   { label: '이체쌍',      filters: [{ kind: 'link', value: 'transfer' }] },
