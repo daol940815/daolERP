@@ -10,6 +10,7 @@ import type { HubDetail } from '@/lib/vendor-hub'
 import { contactLabel, honorify } from '@/lib/contact-label'
 import type { BillingDetail, BillingRef } from '@/lib/billing'
 import InvoiceLinkModal from '../../sales-cycle/invoice-link-modal'
+import MergeDialog from './merge-dialog'
 
 // 매출처 허브 — 거래처 360° 상세(B)
 // 목록(A)의 기간이 URL로 넘어와 기본값이 되고, 여기서 바꿔도 목록에는 영향이 없다.
@@ -54,6 +55,7 @@ export default function SalesHubDetailPage() {
   const [docSales, setDocSales] = useState<DocSalesRow[]>([])
   // 청구처(계산서 발행처, 114) — 부서면 가리키는 법인, 법인이면 소속 부서 · 계산서별 연결 부서
   const [billing, setBilling] = useState<BillingDetail | null>(null)
+  const [mergeOpen, setMergeOpen] = useState(false)   // 다른 매출처와 합치기 (2026-11-16)
   // 개인 고객 전용 매출처(115) — 고객 정보 + 같은 인물의 다른 거래처
   const [individual, setIndividual] = useState<{
     contact_id: string; name: string; code: string | null; phone: string | null
@@ -217,6 +219,8 @@ export default function SalesHubDetailPage() {
               <span className="flex items-center gap-1 ml-1">
                 <button onClick={() => setInfoForm({ open: !infoForm.open, name: data.vendor.name, biz: data.vendor.biz_number ?? '', busy: false })}
                   className="px-2 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-600 hover:bg-gray-50">정보 수정</button>
+                <button onClick={() => setMergeOpen(true)}
+                  className="px-2 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-600 hover:bg-gray-50">다른 매출처와 합치기</button>
                 {data.vendor.is_active ? (
                   <button onClick={async () => {
                     if (!confirm(`'${data.vendor.name}' 매출처를 삭제할까요?\n연결된 데이터가 있으면 삭제 대신 비활성 처리를 안내합니다.`)) return
@@ -1057,6 +1061,7 @@ export default function SalesHubDetailPage() {
           </div>
         )}
       </div>
+      {mergeOpen && <MergeDialog vendorId={vendorId} vendorName={data.vendor.name} onClose={() => setMergeOpen(false)} />}
       {linkOpen && (
         <InvoiceLinkModal vendorId={vendorId} vendorName={data.vendor.name} from={from}
           onClose={() => setLinkOpen(false)}
