@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { NumInput, toInt } from '../form-shared'
+import { fmtPurchasePrice, toPurchasePrice } from '@/lib/purchase-price'
 import { listParams, readListParams, type CondField, type ProductCond, type ProductFilter } from '@/lib/product-list-params'
 import VendorInfoPanel, { useVendorInfo } from './vendor-info-panel'
 import { branchMargin, individualMargin, formatProfit, formatRate, type Margin } from '@/lib/product-margin'
@@ -517,7 +518,7 @@ export default function ProductsPage() {
           </div>
           <div>
             <label className="block text-[0.6875rem] text-gray-500 mb-0.5">매입가</label>
-            <NumInput value={draft.purchase_price ? won(draft.purchase_price) : ''} onChange={e => setDraft(d => ({ ...d, purchase_price: toInt(e.target.value) }))}
+            <NumInput decimals={2} value={draft.purchase_price ? fmtPurchasePrice(draft.purchase_price) : ''} onChange={e => setDraft(d => ({ ...d, purchase_price: toPurchasePrice(e.target.value) }))}
               className={`${inputCls} w-28 text-right tabular-nums`} placeholder="0" />
           </div>
           <div>
@@ -626,7 +627,7 @@ export default function ProductsPage() {
                   </td>
                   <td className="py-2 px-3 text-right tabular-nums">{won(p.sale_price)}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{p.individual_sale_price ? won(p.individual_sale_price) : '-'}</td>
-                  <td className="py-2 px-3 text-right tabular-nums">{won(p.purchase_price)}</td>
+                  <td className="py-2 px-3 text-right tabular-nums">{fmtPurchasePrice(p.purchase_price)}</td>
                   <td className="py-2 px-3 text-left tabular-nums whitespace-nowrap">
                     <MarginLine label="지점" m={branchMargin(p)} />
                     <MarginLine label="개별" m={individualMargin(p)} />

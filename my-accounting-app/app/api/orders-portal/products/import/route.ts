@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/user-role'
 import { can } from '@/lib/permissions'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { ensureAlias } from '@/lib/orders-portal'
+import { toPurchasePrice } from '@/lib/purchase-price'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -210,7 +211,8 @@ export async function POST(req: NextRequest) {
       category: col.category >= 0 ? toStr(row[col.category]) : null,
       sale_price: col.sale >= 0 ? toNumber(row[col.sale]) : 0,
       individual_sale_price: col.indiv >= 0 ? toNumber(row[col.indiv]) : 0,
-      purchase_price: col.purchase >= 0 ? toNumber(row[col.purchase]) : 0,
+      // 매입가만 소수 둘째 자리까지 그대로(462.2) — 518, 2026-11-16. 나머지 가격 · 배송비는 원 단위 반올림(toNumber)
+      purchase_price: col.purchase >= 0 ? toPurchasePrice(row[col.purchase]) : 0,
       carton_unit: cartonUnit > 0 ? cartonUnit : null,
       carton_shipping_fee: cartonFeeCol >= 0 ? toNumber(row[cartonFeeCol]) : 0,
       loose_shipping_fee: looseFeeCol >= 0 ? toNumber(row[looseFeeCol]) : 0,
@@ -344,6 +346,7 @@ export async function POST(req: NextRequest) {
       if (dryRun) delete compare.purchase_alias_id
       const changed = Object.entries(compare).some(([k, v]) => {
         const old = prev?.[k]
+        if (k === 'purchase_price') return Number(old ?? 0) !== Number(v ?? 0)   // NUMERIC — 462 와 462.00 은 같은 값
         return (old ?? null) !== (v ?? null)
       })
       if (changed) updates.push({ id: existingId, fields: compare })
