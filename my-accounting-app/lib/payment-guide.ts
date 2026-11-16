@@ -162,13 +162,15 @@ export async function loadInvoiceCheck(admin: SupabaseClient): Promise<{ error: 
   const recv = await loadReceivableMap(admin, orderIds.filter(live))
 
   // 거래처(별칭 → vendor) · 청구처 이름
-  const aliasIds = Array.from(new Set(Array.from(orders.values()).filter(o => !o.vendor_id && o.customer_alias_id).map(o => o.customer_alias_id as string)))
+  // 계산서 연결 창(lib/order-invoice-match.ts)은 주문을 "별칭의 거래처"로 찾는다 — 여기도 같은 기준이어야 창에 그 주문이 나온다.
+  // (2026-11-17 수정: 주문의 vendor_id를 먼저 쓰면 둘이 다른 주문은 창을 열어도 목록에 없었다)
+  const aliasIds = Array.from(new Set(Array.from(orders.values()).filter(o => o.customer_alias_id).map(o => o.customer_alias_id as string)))
   const aliasVendor = new Map<string, string>()
   for (const ch of chunk(aliasIds, 150)) {
     const { data } = await admin.from('erp_vendor_aliases').select('id, vendor_id').in('id', ch)
     for (const a of data ?? []) if (a.vendor_id) aliasVendor.set(a.id as string, a.vendor_id as string)
   }
-  const vendorOf = (o: O) => o.vendor_id ?? (o.customer_alias_id ? aliasVendor.get(o.customer_alias_id) ?? null : null)
+  const vendorOf = (o: O) => (o.customer_alias_id ? aliasVendor.get(o.customer_alias_id) : null) ?? o.vendor_id ?? null
   const vendorIds = Array.from(new Set(Array.from(orders.values()).map(vendorOf).filter(Boolean))) as string[]
   const billingOf = new Map<string, string | null>()
   const vName = new Map<string, string>()
