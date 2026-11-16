@@ -6,6 +6,7 @@
 //  - 행이 모자라면 마지막 행 서식 · 수식을 복사해 늘리고, 꼬리 영역(안내 줄 · 합계)이 있으면 그 앞에 끼워 넣는다
 // 서버 전용 (exceljs) — 클라이언트는 FIELD 목록 · 타입만 lib/po-vendor-form-fields.ts에서 가져간다.
 import type { PoExcelData } from './po-form'
+import { purchaseAmount } from './purchase-price'
 import { shipForItem, rosterRowsForItem } from './po-form'
 import { rosterAddr } from './delivery-roster'
 import { FIELD_KEYS, type FormMapping, type SheetMap, type ValueSpec, COMPANY_INFO } from './po-vendor-form-fields'
@@ -62,7 +63,7 @@ export function buildFormContext(po: PoExcelData, extra: FormExtra): { ctx: Form
     if (roster.length) {
       for (const r of roster) {
         lines.push({
-          ...base, qty: r.quantity ?? 0, amount: (r.quantity ?? 0) * (it.purchase_price ?? 0),
+          ...base, qty: r.quantity ?? 0, amount: purchaseAmount(it.purchase_price, r.quantity),   // 소수 매입가는 원 단위 반올림 (518)
           r_name: r.recipient_name ?? '', r_phone: r.phone ?? '', r_zip: r.zip ?? '', r_addr: rosterAddr(r), r_msg: r.memo ?? '',
         })
       }

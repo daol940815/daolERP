@@ -5,6 +5,7 @@
 //  - 품목은 ERP 품목 열 전체 15열. 부자재는 본 상품 아래 "└" 행, 배송비는 비용 행. 품목 수만큼 + 빈 행 2.
 //  - 결제정보는 호출부가 마스킹 · 평문을 정해서 넘긴다 (ERP 열람 규칙). 시트2 '배송명단'은 명단(707)이 있을 때만.
 import type { ShipInput } from './ship-address'
+import { purchasePriceNumFmt } from './purchase-price'
 import type { RosterRowInput } from './delivery-roster'
 import type { PoExcelData } from './po-form'
 import { addPoRosterSheet } from './purchase-orders'
@@ -199,6 +200,7 @@ export async function buildConsultSheetExcel(d: ConsultSheetData): Promise<Buffe
       if ([6, 8, 9, 10, 12].includes(col) || (typeof v === 'number' && (col === 7 || col === 11))) c.numFmt = NUM
       if (col === 13 && typeof v === 'number') { c.numFmt = PCT; c.alignment = center }
       if (col === 5) c.numFmt = NUM
+      if (col === 9 && typeof v === 'number') c.numFmt = purchasePriceNumFmt(v)   // 매입가 — 소수(462.2)는 소수까지 (518)
     })
     if (typeof disc === 'string' || typeof pdisc === 'string') ws.getRow(r).height = 30   // 두 줄 값 행
   })

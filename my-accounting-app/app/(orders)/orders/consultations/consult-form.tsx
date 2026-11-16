@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Combo, ComboFree, CustomerShipInput, DiscountInput, NumInput, SeasonDatalist, SeasonInput, autoGrow, branchLabel, draftExtrasFromRow, draftFromProduct, emptyItem,
+  Combo, ComboFree, CustomerShipInput, DiscountInput, NumInput, fmtPurchasePrice, purchaseAmount, toPurchasePrice, SeasonDatalist, SeasonInput, autoGrow, branchLabel, draftExtrasFromRow, draftFromProduct, emptyItem,
   lineCost, lineTotal, priceRule, purchaseShippingHint, quantityPatch, reshipPatch, savedBeforeShipColumn, splitByGroupPrefix, toInt, withShipUnit, won,
 } from '../form-shared'
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
@@ -1216,11 +1216,11 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     className="w-full border border-gray-200 bg-gray-50 rounded px-1.5 py-1 text-xs disabled:opacity-60" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  <NumInput value={it.purchase_price ? won(it.purchase_price) : ''} disabled={locked}
-                    onChange={e => setItem(i, { purchase_price: toInt(e.target.value) })} className={numCell} placeholder="0" />
+                  <NumInput decimals={2} value={it.purchase_price ? fmtPurchasePrice(it.purchase_price) : ''} disabled={locked}
+                    onChange={e => setItem(i, { purchase_price: toPurchasePrice(e.target.value) })} className={numCell} placeholder="0" />
                   {/* 품목별 매입가 합계 = 매입가 × 수량 (사용자 확정 2026-10-16) */}
                   {it.purchase_price > 0 && it.quantity > 0 && (
-                    <div className="text-[0.625rem] text-gray-400 mt-0.5 tabular-nums">합계 {won(it.purchase_price * it.quantity)}</div>
+                    <div className="text-[0.625rem] text-gray-400 mt-0.5 tabular-nums">합계 {won(purchaseAmount(it.purchase_price, it.quantity))}</div>
                   )}
                 </td>
                 <td className="py-1 px-1.5 text-right">
