@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { NumInput, toInt } from '../form-shared'
 import { listParams, readListParams, type CondField, type ProductCond, type ProductFilter } from '@/lib/product-list-params'
 import VendorInfoPanel, { useVendorInfo } from './vendor-info-panel'
 import { branchMargin, individualMargin, formatProfit, formatRate, type Margin } from '@/lib/product-margin'
@@ -22,10 +23,8 @@ interface Product {
 }
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
-const toInt = (s: string) => {
-  const n = Number(s.replace(/[^\d-]/g, ''))
-  return Number.isFinite(n) ? Math.round(n) : 0
-}
+// 숫자 칸 (2026-11-16): 이 화면의 toInt가 점(.)을 지워 462.2를 치면 4,622(10배)로 들어가던 문제 — 상담일지 · 주문서와 같은
+// form-shared의 NumInput(소수점을 치는 동안 그대로 보여 주고 반올림 안내) · toInt(점을 살려 반올림)로 교체
 
 const emptyDraft = {
   item_code: '', item_name: '', purchase_vendor_name: '', category: '',
@@ -506,34 +505,34 @@ export default function ProductsPage() {
           </div>
           <div>
             <label className="block text-[0.6875rem] text-gray-500 mb-0.5">지점판매가</label>
-            <input value={draft.sale_price ? won(draft.sale_price) : ''} onChange={e => setDraft(d => ({ ...d, sale_price: toInt(e.target.value) }))}
+            <NumInput value={draft.sale_price ? won(draft.sale_price) : ''} onChange={e => setDraft(d => ({ ...d, sale_price: toInt(e.target.value) }))}
               className={`${inputCls} w-28 text-right tabular-nums`} placeholder="0"
               title="한 곳 묶음 배송 — 배송비는 카톤 기준 별도" />
           </div>
           <div>
             <label className="block text-[0.6875rem] text-gray-500 mb-0.5">개별판매가</label>
-            <input value={draft.individual_sale_price ? won(draft.individual_sale_price) : ''} onChange={e => setDraft(d => ({ ...d, individual_sale_price: toInt(e.target.value) }))}
+            <NumInput value={draft.individual_sale_price ? won(draft.individual_sale_price) : ''} onChange={e => setDraft(d => ({ ...d, individual_sale_price: toInt(e.target.value) }))}
               className={`${inputCls} w-28 text-right tabular-nums`} placeholder="미지정"
               title="여러 곳 개별 배송 — 배송비 포함가. 비우면 지점판매가 사용" />
           </div>
           <div>
             <label className="block text-[0.6875rem] text-gray-500 mb-0.5">매입가</label>
-            <input value={draft.purchase_price ? won(draft.purchase_price) : ''} onChange={e => setDraft(d => ({ ...d, purchase_price: toInt(e.target.value) }))}
+            <NumInput value={draft.purchase_price ? won(draft.purchase_price) : ''} onChange={e => setDraft(d => ({ ...d, purchase_price: toInt(e.target.value) }))}
               className={`${inputCls} w-28 text-right tabular-nums`} placeholder="0" />
           </div>
           <div>
             <label className="block text-[0.6875rem] text-gray-500 mb-0.5">카톤단위</label>
-            <input value={draft.carton_unit || ''} onChange={e => setDraft(d => ({ ...d, carton_unit: toInt(e.target.value) }))}
+            <NumInput value={draft.carton_unit || ''} onChange={e => setDraft(d => ({ ...d, carton_unit: toInt(e.target.value) }))}
               className={`${inputCls} w-20 text-right tabular-nums`} placeholder="개/카톤" title="1카톤에 들어가는 수량 — 비우면 배송비 자동 계산 안 함" />
           </div>
           <div>
             <label className="block text-[0.6875rem] text-gray-500 mb-0.5">카톤택배비</label>
-            <input value={draft.carton_shipping_fee ? won(draft.carton_shipping_fee) : ''} onChange={e => setDraft(d => ({ ...d, carton_shipping_fee: toInt(e.target.value) }))}
+            <NumInput value={draft.carton_shipping_fee ? won(draft.carton_shipping_fee) : ''} onChange={e => setDraft(d => ({ ...d, carton_shipping_fee: toInt(e.target.value) }))}
               className={`${inputCls} w-24 text-right tabular-nums`} placeholder="0" title="카톤당 택배비" />
           </div>
           <div>
             <label className="block text-[0.6875rem] text-gray-500 mb-0.5">카톤외택배비</label>
-            <input value={draft.loose_shipping_fee ? won(draft.loose_shipping_fee) : ''} onChange={e => setDraft(d => ({ ...d, loose_shipping_fee: toInt(e.target.value) }))}
+            <NumInput value={draft.loose_shipping_fee ? won(draft.loose_shipping_fee) : ''} onChange={e => setDraft(d => ({ ...d, loose_shipping_fee: toInt(e.target.value) }))}
               className={`${inputCls} w-24 text-right tabular-nums`} placeholder="0"
               title="낱개 1건 택배비 — 지점 배송 나머지 낱개분·개별 배송 파생가 계산에 사용" />
           </div>
