@@ -60,6 +60,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const [payment, setPayment] = useState('')            // 새로 입력하는 결제정보 (평문)
   const [paymentMasked, setPaymentMasked] = useState<string | null>(null)
   const [paymentLocked, setPaymentLocked] = useState(false)   // 저장돼 있으나 열람 권한 없음 ((b) 정책)
+  const [sheetPlain, setSheetPlain] = useState(false)         // 출력용 엑셀에 결제정보 평문 포함 (열람 권한자만, 2026-11-16)
   const [isParttime, setIsParttime] = useState(false)         // 아르바이트 — 인라인 등록 버튼 숨김
   const [paymentRevealed, setPaymentRevealed] = useState<string | null>(null)
   const [senderName, setSenderName] = useState('')
@@ -616,7 +617,20 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             {o.order_no}
           </a>
         ))}
-        <span className="ml-auto flex gap-2">
+        <span className="ml-auto flex gap-2 items-center flex-wrap">
+          {/* 출력용 엑셀 (2026-11-16 사용자 승인 — 시안 docs/mockups/상담일지_출력양식_시안.html): 저장된 상담만 */}
+          {isEdit && !deleted && (
+            <>
+              {paymentMasked && !paymentLocked && (
+                <label className="flex items-center gap-1 text-[0.6875rem] text-gray-500 whitespace-nowrap" title="결제정보 열람 권한자만 — 켜고 받으면 누가 받았는지 기록됩니다">
+                  <input type="checkbox" checked={sheetPlain} onChange={e => setSheetPlain(e.target.checked)} /> 결제정보 평문 포함
+                </label>
+              )}
+              <a href={`/api/orders-portal/consultations/${consultId}/sheet${sheetPlain ? '?payment=plain' : ''}`}
+                className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-800 whitespace-nowrap"
+                title="실무 양식(A4 가로 한 장) 엑셀 — 엑셀에서 바로 인쇄">출력용 다운로드</a>
+            </>
+          )}
           {isEdit && !locked && status === '진행중' && (
             <>
               <button onClick={() => openEnd('close')} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">종결</button>
