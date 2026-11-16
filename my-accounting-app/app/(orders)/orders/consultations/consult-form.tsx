@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Combo, ComboFree, CustomerShipInput, DiscountInput, SeasonDatalist, SeasonInput, autoGrow, branchLabel, draftExtrasFromRow, draftFromProduct, emptyItem,
+  Combo, ComboFree, CustomerShipInput, DiscountInput, NumInput, SeasonDatalist, SeasonInput, autoGrow, branchLabel, draftExtrasFromRow, draftFromProduct, emptyItem,
   lineCost, lineTotal, priceRule, purchaseShippingHint, quantityPatch, reshipPatch, savedBeforeShipColumn, splitByGroupPrefix, toInt, withShipUnit, won,
 } from '../form-shared'
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
@@ -1086,12 +1086,12 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
                   <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
                   <td className="py-1 px-1.5 text-right">
-                    <input value={it.quantity || ''} disabled={locked} onChange={e => setQuantity(i, toInt(e.target.value))}
+                    <NumInput value={it.quantity || ''} disabled={locked} onChange={e => setQuantity(i, toInt(e.target.value))}
                       className={numCell} placeholder="1" />
                   </td>
                   <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
                   <td className="py-1 px-1.5 text-right">
-                    <input value={it.sale_price ? won(it.sale_price) : ''} disabled={locked}
+                    <NumInput value={it.sale_price ? won(it.sale_price) : ''} disabled={locked}
                       onChange={e => setItem(i, { sale_price: toInt(e.target.value) })} className={numCell} placeholder="0" />
                   </td>
                   <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
@@ -1151,7 +1151,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     normalize={normalizeSeason} onChange={v => setItem(i, { order_season: v })} />
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  <input value={it.quantity || ''} disabled={locked} onChange={e => setQuantity(i, toInt(e.target.value))}
+                  <NumInput value={it.quantity || ''} disabled={locked} onChange={e => setQuantity(i, toInt(e.target.value))}
                     className={numCell} placeholder="1" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
@@ -1162,7 +1162,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   </div>
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  <input value={it.sale_price ? won(it.sale_price) : ''} disabled={locked}
+                  <NumInput value={it.sale_price ? won(it.sale_price) : ''} disabled={locked}
                     onChange={e => setItem(i, { sale_price: toInt(e.target.value) })} className={numCell} placeholder="0" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
@@ -1178,7 +1178,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     <option value="정액">정액</option>
                     <option value="단가">개당</option>
                   </select>
-                  <input
+                  <NumInput
                     value={it.discount_mode === '단가'
                       ? (it.discount_unit ? won(it.discount_unit) : '')
                       : (it.discount_amount ? won(it.discount_amount) : '')}
@@ -1216,7 +1216,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     className="w-full border border-gray-200 bg-gray-50 rounded px-1.5 py-1 text-xs disabled:opacity-60" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  <input value={it.purchase_price ? won(it.purchase_price) : ''} disabled={locked}
+                  <NumInput value={it.purchase_price ? won(it.purchase_price) : ''} disabled={locked}
                     onChange={e => setItem(i, { purchase_price: toInt(e.target.value) })} className={numCell} placeholder="0" />
                   {/* 품목별 매입가 합계 = 매입가 × 수량 (사용자 확정 2026-10-16) */}
                   {it.purchase_price > 0 && it.quantity > 0 && (
@@ -1231,7 +1231,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 </td>
                 <td className="py-1 px-1.5">
                   {/* 매입배송비 — 수량 기준 카톤단위/카톤외 자동 구분 (수정 가능, 704 확정) */}
-                  <input value={it.purchase_shipping ? won(it.purchase_shipping) : ''} disabled={locked}
+                  <NumInput value={it.purchase_shipping ? won(it.purchase_shipping) : ''} disabled={locked}
                     onChange={e => { const v = toInt(e.target.value); setItem(i, { purchase_shipping: v, ...reshipPatch({ ...it, purchase_shipping: v }) }) }}
                     title={purchaseShippingHint(it) ?? '카톤 정보가 없는 품목 — 직접 입력'}
                     className={numCell} placeholder="0" />
