@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>통장 내역 버튼 정리 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1180px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:30px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.65; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .lab { font-size:11px; font-weight:bold; color:#64748b; margin-bottom:8px; }
+  .bar { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .btn { display:inline-block; border-radius:8px; padding:6px 12px; font-size:12.5px; border:1px solid #cbd5e1; background:#fff; color:#334155; white-space:nowrap; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .btn.em { border-color:#6ee7b7; color:#047857; } .btn.pu { border-color:#d8b4fe; color:#7e22ce; } .btn.puf { background:#9333ea; color:#fff; border-color:#9333ea; }
+  .btn.ind { border-color:#a5b4fc; color:#4338ca; } .btn.sm { padding:2px 8px; font-size:11px; }
+  .sp { flex:1; }
+  .sum { font-size:12.5px; color:#475569; display:flex; gap:14px; flex-wrap:wrap; }
+  .sum b { color:#0f172a; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:720px; }
+  th { text-align:left; font-weight:normal; color:#64748b; font-size:11.5px; padding:7px 8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; background:#f8fafc; }
+  td { padding:8px; border-bottom:1px solid #f1f5f9; vertical-align:top; line-height:1.55; }
+  td.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  td small { color:#94a3b8; display:block; font-size:11px; }
+  .old { color:#94a3b8; text-decoration:line-through; }
+  .menu { border:1px solid #cbd5e1; border-radius:10px; background:#fff; box-shadow:0 10px 26px rgba(15,23,42,.16); width:300px; max-width:100%; overflow:hidden; }
+  .menu .mi { padding:9px 12px; border-bottom:1px solid #f1f5f9; }
+  .menu .mi:last-child { border-bottom:none; }
+  .menu .mi b { display:block; font-size:12.5px; color:#0f172a; }
+  .menu .mi span { font-size:11px; color:#64748b; }
+  .menu .mi.hl { background:#eff6ff; }
+  .menu .sep { font-size:10.5px; color:#94a3b8; padding:6px 12px 2px; background:#f8fafc; }
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px; align-items:start; }
+  .modal { border:1px solid #cbd5e1; border-radius:12px; background:#fff; box-shadow:0 12px 32px rgba(15,23,42,.18); overflow:hidden; }
+  .modal .mh { padding:12px 16px; font-weight:bold; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; }
+  .modal .mb { padding:14px 16px; }
+  .modal .mf { padding:10px 16px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:6px; background:#f8fafc; align-items:center; }
+  .tabs { display:flex; gap:2px; border-bottom:1px solid #e2e8f0; margin-bottom:10px; }
+  .tabs span { padding:7px 12px; font-size:12.5px; color:#64748b; border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tabs span.on { color:#0f172a; font-weight:bold; border-bottom-color:#0f172a; }
+  .note { background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:9px 12px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.75; }
+  .note b { color:#422006; }
+  .chip { display:inline-block; border:1px solid #cbd5e1; border-radius:999px; padding:2px 9px; font-size:11.5px; color:#475569; background:#fff; }
+  .g { color:#047857; } .mut { color:#94a3b8; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>통장 내역 버튼 정리 시안</h1>
+  <p class="desc">2026-11-16 · ① 필터한 그대로 내려받기 ② 분류 · 매칭 버튼 5개 정리. 숫자와 이름은 예시입니다. 파란 테두리가 바뀌는 부분입니다.</p>
+
+  <!-- ───────────── 1 ───────────── -->
+  <h2>1. 지금 버튼 5개가 실제로 하는 일</h2>
+  <div class="panel">
+    <div class="scroll">
+    <table>
+      <thead><tr><th>지금 이름</th><th>실제로 하는 일</th><th>바로 저장?</th><th>범위</th></tr></thead>
+      <tbody>
+        <tr><td><b>자동 분류</b></td><td>계정과목이 없는 거래에 계정과목 <b>추천</b>을 붙임(키워드 · 카드 정산 패턴)</td><td>추천만 (확정 아님)</td><td>기간 무관 · 선택한 계좌</td></tr>
+        <tr><td><b>거래처 자동 매칭</b></td><td>거래처가 없는 거래에 거래처를 연결(적요 · 입금자명이 사업자번호 · 상호 · 통장 키워드와 한 곳에만 일치할 때)</td><td><b>바로 저장</b></td><td>기간 · 계좌 무관, 전체</td></tr>
+        <tr><td><b>계정 이체 매칭</b></td><td>우리 계좌끼리 옮긴 돈(출금 1건 + 입금 1건)을 한 쌍으로 묶고 검토완료로 바꿈</td><td><b>바로 저장</b></td><td>기간 무관 · 선택한 계좌</td></tr>
+        <tr><td><b>매칭 확인</b></td><td>위 "계정 이체 매칭"을 누르면 묶일 쌍을 미리 보기</td><td>저장 없음</td><td>위와 같음</td></tr>
+        <tr><td><b>매칭 검토</b></td><td>이미 묶인 이체 쌍 목록 보기 · 하나씩 해제</td><td>해제만</td><td>전체</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note">
+      "매칭"이 붙은 버튼 4개 중 <b>3개는 계좌 간 이체</b>, 1개는 거래처 연결입니다. 주문 · 계산서와 맞추는 매칭은 이 버튼들에 없습니다.<br>
+      세 버튼 모두 화면의 기간과 무관하게 동작하는데, 화면에는 그 안내가 없습니다.
+    </div>
+  </div>
+
+  <!-- ───────────── 2 ───────────── -->
+  <h2>2. 버튼 줄 — 지금과 정리 후</h2>
+  <div class="panel">
+    <div class="lab">지금 (항상 8개)</div>
+    <div class="bar">
+      <span class="btn em">↓ 전체 다운로드</span><span class="btn em">미분류 다운로드</span><span class="btn em">엑셀 업로드</span>
+      <span class="btn">자동 분류</span><span class="btn pu">매칭 검토</span><span class="btn pu">매칭 확인</span><span class="btn puf">계정 이체 매칭</span><span class="btn ind">거래처 자동 매칭</span>
+    </div>
+  </div>
+  <div class="panel new">
+    <div class="lab">정리 후 (4개)</div>
+    <div class="bar">
+      <div class="sum"><span>총 <b>132건</b></span><span>입금 <b>48,210,000원</b></span><span>출금 <b>31,905,400원</b></span></div>
+      <span class="sp"></span>
+      <span class="btn">계정과목 자동 추천</span><span class="btn">거래처 자동 연결</span><span class="btn">계좌 간 이체 묶기 <span class="mut">3</span></span><span class="btn pri">엑셀 ▾</span>
+    </div>
+    <div class="scroll" style="margin-top:14px">
+    <table>
+      <thead><tr><th>새 이름</th><th>전 이름</th><th>누르면</th></tr></thead>
+      <tbody>
+        <tr><td><b>계정과목 자동 추천</b></td><td class="old">자동 분류</td><td>"계정과목 없는 거래 86건에 추천을 붙입니다(기간과 무관 · 하나 1704 계좌)" 확인 → 실행. 추천은 회색 기울임으로 보이고, 확정은 지금처럼 따로 합니다.</td></tr>
+        <tr><td><b>거래처 자동 연결</b></td><td class="old">거래처 자동 매칭</td><td>연결될 거래를 <b>먼저 목록으로 보여 주고</b>(거래 · 연결될 거래처 · 근거) 확인을 누르면 저장.</td></tr>
+        <tr><td><b>계좌 간 이체 묶기</b></td><td class="old">매칭 검토 · 매칭 확인 · 계정 이체 매칭</td><td>창 하나에 탭 두 개 — "묶을 후보"(확인 후 묶기) / "묶인 이체"(해제). 버튼의 숫자는 묶을 후보 수.</td></tr>
+        <tr><td><b>엑셀 ▾</b></td><td class="old">전체 다운로드 · 미분류 다운로드 · 엑셀 업로드</td><td>아래 3번.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note">
+      이 화면에서는 <b>"매칭"이라는 말을 쓰지 않습니다</b> — 추천(계정과목) · 연결(거래처) · 묶기(이체)로 나눕니다. "매칭"은 주문 결제와 실제 입금을 맞추는 일에만 씁니다.<br>
+      행을 체크했을 때 나오는 버튼(추천 수락 · 선택 확정 · 확정 해제 · 삭제 · 분개 미리보기)은 이번에 건드리지 않습니다.
+    </div>
+  </div>
+
+  <!-- ───────────── 3 ───────────── -->
+  <h2>3. 엑셀 — 필터한 그대로 내려받기</h2>
+  <p class="desc">지금 "전체 다운로드"는 기간 · 계좌와 상태 · 출처(한 가지일 때만)만 반영합니다. 금액 · 계정과목 · 거래처 · 검색어 · 머리글 필터는 무시되어, 화면에 12건이 보여도 132건이 내려옵니다.</p>
+  <div class="grid2">
+    <div class="menu">
+      <div class="mi hl"><b>지금 보이는 12건 내려받기</b><span>기간 · + 필터 · 검색어 · 머리글 필터를 모두 반영, 화면 정렬 순서 그대로</span></div>
+      <div class="mi"><b>기간 전체 132건 내려받기</b><span>필터 무시, 불러온 기간 전부</span></div>
+      <div class="sep">계정과목 일괄 입력</div>
+      <div class="mi"><b>분류용 양식 내려받기</b><span>계정과목 없는 거래 + 추천 + 계정과목 목록 (전 "미분류 다운로드")</span></div>
+      <div class="mi"><b>분류용 양식 올리기</b><span>양식에 계정과목을 적어 올리면 검토완료로 반영 (전 "엑셀 업로드")</span></div>
+    </div>
+    <div class="panel new" style="margin:0">
+      <div class="lab">"지금 보이는 N건" 파일</div>
+      <div style="font-size:12.5px; line-height:1.9; color:#334155;">
+        <b>열</b>: 거래일자 · 시각 · 계좌 · 내용/적요 · 보낸분/받는분 · 입금액 · 출금액 · 잔액 · 계정과목 · 추천 계정과목 · 거래처 · 상태 · 메모 · 연결(계산서 · 현금영수증 · 이체쌍) · 출처<br>
+        <b>첫 줄 위 안내</b>: 기간과 적용한 조건을 한 줄로 적습니다.<br>
+        <span class="chip">2026-11-01 ~ 2026-11-16</span> <span class="chip">입금만</span> <span class="chip">금액 100,000 이상</span> <span class="chip">거래처: 하나은행</span><br>
+        <b>파일 이름</b>: 통장내역_2026-11-01~2026-11-16_12건.xlsx
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────── 4 ───────────── -->
+  <h2>4. 계좌 간 이체 묶기 — 창 하나</h2>
+  <div class="grid2">
+    <div class="modal">
+      <div class="mh"><span>계좌 간 이체 묶기</span><span class="mut">×</span></div>
+      <div class="mb">
+        <div class="tabs"><span class="on">묶을 후보 3쌍</span><span>묶인 이체 214쌍</span></div>
+        <div class="scroll">
+        <table style="min-width:420px">
+          <thead><tr><th></th><th>출금</th><th>입금</th><th style="text-align:right">금액</th></tr></thead>
+          <tbody>
+            <tr><td>☑</td><td>하나 1704<small>11-12 다올커머스</small></td><td>우리 3634<small>11-12 다올커머스</small></td><td class="n">5,000,000</td></tr>
+            <tr><td>☑</td><td>우리 3634<small>11-13 다올</small></td><td>하나 1704<small>11-14 다올커머스</small></td><td class="n">1,200,000</td></tr>
+            <tr><td>☑</td><td>하나 1704<small>11-14 다올커머스</small></td><td>국민 8821<small>11-14 다올</small></td><td class="n">800,000</td></tr>
+          </tbody>
+        </table>
+        </div>
+        <div class="note">같은 금액 · 하루 이내 · 서로 다른 우리 계좌 · 짝이 하나뿐인 것만 후보로 올립니다. 묶으면 두 거래가 검토완료가 되고 계정과목 추천은 지워집니다(계좌 간 이동이라 분개 없음).</div>
+      </div>
+      <div class="mf"><span class="mut" style="font-size:11.5px; margin-right:auto">기간과 무관 · 전체 계좌</span><span class="btn">닫기</span><span class="btn pri">선택한 3쌍 묶기</span></div>
+    </div>
+    <div class="modal">
+      <div class="mh"><span>계좌 간 이체 묶기</span><span class="mut">×</span></div>
+      <div class="mb">
+        <div class="tabs"><span>묶을 후보 3쌍</span><span class="on">묶인 이체 214쌍</span></div>
+        <div class="scroll">
+        <table style="min-width:420px">
+          <thead><tr><th>출금</th><th>입금</th><th style="text-align:right">금액</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>하나 1704<small>11-10 다올커머스</small></td><td>우리 3634<small>11-10 다올커머스</small></td><td class="n">3,000,000</td><td><span class="btn sm">해제</span></td></tr>
+            <tr><td>우리 3634<small>11-07 다올</small></td><td>하나 1704<small>11-07 다올커머스</small></td><td class="n">2,500,000</td><td><span class="btn sm">해제</span></td></tr>
+          </tbody>
+        </table>
+        </div>
+        <div class="note">지금의 "매칭 검토" 창과 같은 내용입니다. 잘못 묶인 쌍만 골라 해제합니다.</div>
+      </div>
+      <div class="mf"><span class="btn">닫기</span></div>
+    </div>
+  </div>
+
+  <!-- ───────────── 5 ───────────── -->
+  <h2>5. 정해 주실 것</h2>
+  <div class="panel">
+    <div class="scroll">
+    <table>
+      <thead><tr><th style="width:30px">#</th><th>항목</th><th>가안</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>버튼 이름</td><td>계정과목 자동 추천 · 거래처 자동 연결 · 계좌 간 이체 묶기 · 엑셀</td></tr>
+        <tr><td>2</td><td>거래처 자동 연결에 미리보기를 넣을지</td><td>넣는다. 지금은 누르면 바로 저장되어, 잘못 연결돼도 어느 거래가 바뀌었는지 알 수 없음.</td></tr>
+        <tr><td>3</td><td>이체 묶기에서 후보를 골라 묶을지</td><td>체크한 쌍만 묶는다(기본은 전부 체크).</td></tr>
+        <tr><td>4</td><td>내려받는 파일의 열</td><td>3번에 적은 열. 지금 파일에 없는 추천 계정과목 · 연결 · 출처 · 시각을 추가.</td></tr>
+        <tr><td>5</td><td>분류 작업 탭</td><td>이번에는 손대지 않는다.</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+</body>
+</html>
