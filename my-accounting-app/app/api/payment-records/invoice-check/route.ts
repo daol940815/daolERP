@@ -14,5 +14,6 @@ export async function GET() {
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   const r = await loadInvoiceCheck(createAdminClient())
   if ('error' in r) return NextResponse.json({ error: r.error }, { status: 500 })
-  return NextResponse.json({ ...r, can_edit: can(me, 'collections', 'edit') })
+  // can_set_billing: 다른 거래처 명의 계산서를 연결하면서 청구처로 지정할 수 있는지(거래처 관리 수정 권한)
+  return NextResponse.json({ ...r, can_edit: can(me, 'collections', 'edit'), can_set_billing: can(me, 'customers', 'edit') })
 }

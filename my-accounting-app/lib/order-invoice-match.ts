@@ -270,3 +270,85 @@ export async function buildInvoiceLinkCandidates(
 
   return { orders, invoices, groups }
 }
+
+// ── 다른 거래처 명의 계산서 찾기 (2026-11-17 사용자 승인 — 시안 docs/mockups/계산서연결_다른거래처_시안.html) ──
+// 출장소 주문의 계산서가 지점 명의로 발행되는 경우처럼, 계산서가 주문의 매출처 · 청구처가 아닌 거래처에 붙어 있으면
+// 연결 창 목록에 나오지 않는다. 금액 · 발행일 · 상호로 전체 매출 계산서에서 찾는다(후보만 — 연결 확정은 사용자).
+//   · 양수 계산서, 남은 금액(합계 − 기배분) > 0, 취소쌍(같은 거래처의 −같은 금액, 90일 이내) 제외
+//   · amounts: 남은 금액이 이 중 하나와 같은 것만(합계로 1차 조회 후 잔액으로 거른다) / 없으면 금액 조건 없음
+export interface FoundInvoice extends LinkInvoice {
+  counterparty_name: string | null
+  vendor_id: string | null
+}
+
+export async function searchSalesInvoices(
+  admin: SupabaseClient,
+  opts: { amounts?: number[]; from?: string | null; to?: string | null; q?: string | null; excludeVendorIds?: string[]; limit?: number },
+): Promise<{ data: FoundInvoice[] } | { error: string }> {
+  type Row = { id: string; issue_date: string; total_amount: number | null; item_name: string | null; vendor_id: string | null; counterparty_name: string | null }
+  const amounts = Array.from(new Set((opts.amounts ?? []).filter(a => a > 0)))
+  const q = (opts.q ?? '').trim()
+  const rows: Row[] = []
+  const amountChunks = amounts.length ? Array.from({ length: Math.ceil(amounts.length / 100) }, (_, i) => amounts.slice(i * 100, i * 100 + 100)) : [null]
+  for (const ch of amountChunks) {
+    const r = await fetchAllRows<Row>((f, t) => {
+      let s = admin.from('tax_invoices')
+        .select('id, issue_date, total_amount, item_name, vendor_id, counterparty_name')
+        .eq('direction', 'sales').gt('total_amount', 0).order('issue_date', { ascending: false })
+      if (ch) s = s.in('total_amount', ch)
+      if (opts.from) s = s.gte('issue_date', opts.from)
+      if (opts.to) s = s.lte('issue_date', opts.to)
+      if (q) s = s.ilike('counterparty_name', `%${q}%`)
+      return s.range(f, t)
+    })
+    if ('error' in r) return { error: r.error }
+    rows.push(...r.data)
+    if (!ch && rows.length > 2000) break
+  }
+  const exclude = new Set(opts.excludeVendorIds ?? [])
+  let cand = rows.filter(r => !(r.vendor_id && exclude.has(r.vendor_id)))
+  if (!amounts.length) cand = cand.slice(0, 500)   // 금액 조건이 없으면 최근 것부터 상한
+
+  // 취소쌍 제외
+  const totals = Array.from(new Set(cand.map(r => -(r.total_amount ?? 0))))
+  const negs: { vendor_id: string | null; total_amount: number; issue_date: string }[] = []
+  for (let i = 0; i < totals.length; i += 100) {
+    const { data, error } = await admin.from('tax_invoices').select('vendor_id, total_amount, issue_date')
+      .eq('direction', 'sales').in('total_amount', totals.slice(i, i + 100))
+    if (error) return { error: error.message }
+    negs.push(...((data ?? []) as typeof negs))
+  }
+  cand = cand.filter(r => !negs.some(n => n.vendor_id === r.vendor_id && n.total_amount === -(r.total_amount ?? 0)
+    && Math.abs(dayDiff(n.issue_date, r.issue_date)) <= CANCEL_PAIR_DAYS))
+
+  // 남은 금액
+  const alloc = new Map<string, number>()
+  const ids = cand.map(r => r.id)
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data, error } = await admin.from('erp_order_invoices').select('tax_invoice_id, amount').in('tax_invoice_id', ids.slice(i, i + 100))
+    if (error) return { error: error.message }
+    for (const m of data ?? []) alloc.set(m.tax_invoice_id as string, (alloc.get(m.tax_invoice_id as string) ?? 0) + Number(m.amount ?? 0))
+  }
+  const vIds = Array.from(new Set(cand.map(r => r.vendor_id).filter((x): x is string => !!x)))
+  const vName = new Map<string, string>()
+  for (let i = 0; i < vIds.length; i += 150) {
+    const { data } = await admin.from('vendors').select('id, name').in('id', vIds.slice(i, i + 150))
+    for (const v of data ?? []) vName.set(v.id as string, v.name as string)
+  }
+  const want = amounts.length ? new Set(amounts) : null
+  const out: FoundInvoice[] = cand
+    .map(r => ({
+      id: r.id, issue_date: r.issue_date, total_amount: r.total_amount ?? 0, item_name: r.item_name,
+      remaining: (r.total_amount ?? 0) - (alloc.get(r.id) ?? 0),
+      counterparty_name: r.counterparty_name, vendor_id: r.vendor_id,
+      vendor_name: r.vendor_id ? vName.get(r.vendor_id) ?? r.counterparty_name ?? '(이름 없음)' : `${r.counterparty_name ?? '상호 없음'} (거래처 미연결)`,
+    }))
+    .filter(r => r.remaining > 0 && (!want || want.has(r.remaining)))
+  return { data: out.slice(0, opts.limit ?? 100) }
+}
+
+// 발행일이 주문일 기준 추천 창(−7일 ~ +120일) 안인지 — 계산서 확인 탭의 후보 판정이 연결 창 추천과 같은 기준을 쓴다
+export const inInvoiceWindow = (issueDate: string, orderDate: string) => {
+  const lag = dayDiff(issueDate, orderDate)
+  return lag >= -PRE_GRACE && lag <= FAR
+}

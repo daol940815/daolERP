@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>계산서 연결 — 다른 거래처 계산서 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1100px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:30px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.65; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .lab { font-size:11px; font-weight:bold; color:#64748b; margin-bottom:8px; }
+  .btn { display:inline-block; border-radius:8px; padding:5px 11px; font-size:12px; border:1px solid #cbd5e1; background:#fff; color:#334155; white-space:nowrap; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; } .btn.sm { padding:2px 8px; font-size:11px; }
+  .btn.blue { border-color:#93c5fd; color:#1d4ed8; background:#eff6ff; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:680px; }
+  th { text-align:left; font-weight:normal; color:#64748b; font-size:11.5px; padding:7px 8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; background:#f8fafc; }
+  td { padding:8px; border-bottom:1px solid #f1f5f9; vertical-align:top; line-height:1.5; }
+  td.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  td small { color:#94a3b8; display:block; font-size:11px; }
+  .modal { border:1px solid #cbd5e1; border-radius:12px; background:#fff; box-shadow:0 12px 32px rgba(15,23,42,.18); overflow:hidden; }
+  .modal .mh { padding:12px 16px; font-weight:bold; border-bottom:1px solid #e2e8f0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .modal .mb { padding:14px 16px; }
+  .modal .mf { padding:10px 16px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:6px; background:#f8fafc; flex-wrap:wrap; }
+  .seg { display:flex; gap:4px; margin-left:auto; }
+  .seg span { border:1px solid #cbd5e1; border-radius:7px; padding:3px 9px; font-size:11.5px; color:#475569; font-weight:normal; }
+  .seg span.on { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
+  .list { border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; }
+  .list .lh { background:#f8fafc; padding:7px 10px; font-size:11.5px; color:#64748b; display:flex; align-items:center; gap:6px; border-bottom:1px solid #e2e8f0; flex-wrap:wrap; }
+  .list .li { padding:7px 10px; border-bottom:1px solid #f1f5f9; font-size:12.5px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .list .li:last-child { border-bottom:none; }
+  .list .li .a { margin-left:auto; font-weight:bold; font-variant-numeric:tabular-nums; }
+  .list .li.sel { background:#eff6ff; }
+  .list .li.for { background:#fffbeb; }
+  .tag { font-size:10.5px; font-weight:bold; padding:1px 6px; border-radius:4px; white-space:nowrap; }
+  .t-for { background:#fef3c7; color:#92400e; } .t-rec { background:#dcfce7; color:#166534; }
+  .b { font-size:10.5px; font-weight:bold; padding:2px 7px; border-radius:999px; white-space:nowrap; }
+  .s1 { background:#ffedd5; color:#c2410c; } .s2 { background:#fef3c7; color:#92400e; }
+  .find { border:1px dashed #93c5fd; background:#f8fbff; border-radius:10px; padding:10px; margin-top:10px; }
+  .find .row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px; font-size:12px; color:#475569; }
+  .box { border:1.5px solid #cbd5e1; border-radius:7px; padding:4px 8px; font-size:12px; background:#fff; }
+  .note { background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:9px 12px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.75; }
+  .note b { color:#422006; }
+  .ask { border:1px solid #cbd5e1; border-radius:12px; background:#fff; box-shadow:0 12px 32px rgba(15,23,42,.18); max-width:480px; overflow:hidden; }
+  .ask .ah { padding:12px 16px; font-weight:bold; border-bottom:1px solid #e2e8f0; }
+  .ask .ab { padding:14px 16px; font-size:12.5px; line-height:1.8; color:#334155; }
+  .ask .af { padding:10px 16px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:6px; background:#f8fafc; flex-wrap:wrap; }
+  .mut { color:#94a3b8; } .g { color:#047857; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>계산서 연결 — 다른 거래처 명의 계산서 시안</h1>
+  <p class="desc">2026-11-17 · 출장소 주문의 계산서가 지점 명의로 발행되는 경우(예: 하나은행 광운대출장소 → 하나은행 석계역지점). 숫자와 이름은 예시입니다. 파란 테두리가 새로 생기는 부분입니다.</p>
+
+  <!-- ───────────── 1 ───────────── -->
+  <h2>1. 계산서 확인 탭 — 후보를 먼저 알려 줌</h2>
+  <p class="desc">확인 목록의 주문마다, 금액이 같고 날짜가 가까운 계산서가 다른 거래처에 있으면 표시합니다.</p>
+  <div class="panel new">
+    <div class="scroll">
+    <table>
+      <thead><tr><th>확인할 것</th><th>주문</th><th>매출처</th><th style="text-align:right">주문 금액</th><th>기록 · 원본</th><th></th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="b s1">증빙 없음</span></td><td>11-12<small>D261112-025</small></td><td>하나은행 광운대출장소</td><td class="n">923,400</td>
+          <td>이체 11-14 통장 입금 923,400원 매칭됨
+            <div style="margin-top:5px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:6px 9px;">
+              <span class="tag t-rec">후보</span> <b>하나은행 석계역지점</b> 명의 계산서 11-13 · 923,400원
+              <small>금액 같음 · 주문 하루 뒤 발행 · 다른 주문에 연결 안 됨</small>
+            </div>
+          </td>
+          <td><span class="btn pri sm">이 계산서 연결</span><br><span class="btn sm" style="margin-top:4px">직접 찾기</span></td>
+        </tr>
+        <tr>
+          <td><span class="b s2">홈택스에 없음</span></td><td>11-10<small>D261110-008</small></td><td>우리은행 D출장소</td><td class="n">450,000</td>
+          <td>계산서 11-10 발행 기록 450,000원<small>홈택스 계산서 미연결</small>
+            <div style="margin-top:5px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:6px 9px;">
+              <span class="tag" style="background:#f1f5f9;color:#475569">후보 2건</span> 금액이 같은 계산서가 다른 거래처에 2장 있습니다
+            </div>
+          </td>
+          <td><span class="btn sm">직접 찾기</span></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note">
+      <b>후보 조건</b>: 매출 계산서 · 남은 금액이 주문의 미연결 금액과 같음 · 발행일이 주문일 7일 전 ~ 120일 후 · 취소쌍 아님 · 다른 주문에 연결 안 됨.<br>
+      후보가 <b>하나뿐일 때만</b> "이 계산서 연결"이 나옵니다. 여러 장이면 "직접 찾기"로 창을 열어 고릅니다. 누르기 전에는 아무것도 저장되지 않습니다.
+    </div>
+  </div>
+
+  <!-- ───────────── 2 ───────────── -->
+  <h2>2. 연결 창 — 다른 거래처 계산서에서 찾기</h2>
+  <p class="desc">지금 창은 이 매출처(와 청구처)의 계산서만 보여 줍니다. 직접 연결 탭에 찾기 버튼을 추가합니다.</p>
+  <div class="modal">
+    <div class="mh">하나은행 광운대출장소 — 주문 · 계산서 연결
+      <div class="seg"><span>추천 조합</span><span class="on">직접 연결</span></div>
+    </div>
+    <div class="mb">
+      <div class="cols">
+        <div class="list">
+          <div class="lh">미연결 주문 1건</div>
+          <div class="li sel">☑ 11-12 · D261112-025 <span class="a">923,400</span></div>
+        </div>
+        <div class="list">
+          <div class="lh">연결할 수 있는 계산서 <span class="mut">이 매출처 0장</span>
+            <span class="btn blue sm" style="margin-left:auto">다른 거래처 계산서에서 찾기</span></div>
+          <div class="li for">☑ 11-13 · 상품 <span class="tag t-for">다른 거래처 · 하나은행 석계역지점</span> <span class="a">923,400</span></div>
+        </div>
+      </div>
+      <div class="find">
+        <div class="row">
+          <b style="color:#1d4ed8">다른 거래처 계산서에서 찾기</b>
+          금액 <span class="box">923,400</span>
+          발행일 <span class="box">2026-11-05</span> ~ <span class="box">2027-03-12</span>
+          상호 <span class="box mut">예: 석계역</span>
+          <span class="btn sm pri">찾기</span>
+        </div>
+        <div class="scroll">
+        <table style="min-width:520px">
+          <thead><tr><th>발행일</th><th>계산서의 상호</th><th>연결된 거래처</th><th style="text-align:right">합계</th><th style="text-align:right">남은 금액</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>11-13</td><td>하나은행 석계역지점</td><td>하나은행 석계역지점</td><td class="n">923,400</td><td class="n">923,400</td><td><span class="btn sm">목록에 추가</span></td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+      <div class="note">
+        금액은 고른 주문의 남은 금액, 기간은 주문일 7일 전 ~ 120일 후가 기본값이고 바꿀 수 있습니다. 이미 다른 주문에 다 연결된 계산서와 취소쌍은 나오지 않습니다.<br>
+        추가한 계산서는 노란 줄로 표시되고, 연결 방식(주문 1건 ↔ 계산서 여러 장, 계산서 1장 ↔ 주문 여러 건)은 지금과 같습니다.
+      </div>
+    </div>
+    <div class="mf"><span class="btn">닫기</span><span class="btn pri">연결 확정</span></div>
+  </div>
+
+  <!-- ───────────── 3 ───────────── -->
+  <h2>3. 연결할 때 청구처 지정을 물어봄</h2>
+  <p class="desc">다른 거래처 명의 계산서를 연결하면 한 번 묻습니다. 청구처로 지정하면 다음부터는 추천 조합에 바로 뜹니다.</p>
+  <div class="panel new" style="display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start;">
+    <div class="ask">
+      <div class="ah">계산서의 거래처가 다릅니다</div>
+      <div class="ab">
+        주문은 <b>하나은행 광운대출장소</b>, 계산서는 <b>하나은행 석계역지점</b> 명의입니다.<br>
+        광운대출장소의 계산서가 앞으로도 석계역지점 명의로 발행된다면 <b>청구처로 지정</b>하세요. 다음부터 이 창에 석계역지점 계산서가 함께 나오고 자동으로 추천됩니다.<br>
+        <span class="mut">두 매출처는 합쳐지지 않습니다. 주문 · 고객 관리는 출장소 단위 그대로입니다.</span>
+      </div>
+      <div class="af"><span class="btn">취소</span><span class="btn">이번만 연결</span><span class="btn pri">연결하고 청구처로 지정</span></div>
+    </div>
+    <div style="flex:1; min-width:260px; font-size:12.5px; line-height:1.85; color:#334155;">
+      <div class="lab">묻지 않는 경우</div>
+      · 이미 청구처가 지정된 매출처 — 다른 곳 명의면 "이번만 연결"만 나옵니다(청구처는 하나만 지정됨).<br>
+      · 거래처가 없는 계산서 — 연결만 합니다.<br>
+      · 청구처 지정 권한(거래처 관리 수정)이 없는 직원 — "이번만 연결"만 나옵니다.<br>
+      <div class="lab" style="margin-top:10px">바뀌지 않는 것</div>
+      · 계산서 원본과 계산서에 연결된 거래처는 그대로입니다.<br>
+      · 매출처 관리 › 청구처 지정 화면에서 언제든 해제할 수 있습니다.
+    </div>
+  </div>
+
+  <!-- ───────────── 4 ───────────── -->
+  <h2>4. 정해 주실 것</h2>
+  <div class="panel">
+    <div class="scroll">
+    <table>
+      <thead><tr><th style="width:30px">#</th><th>항목</th><th>가안</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>후보로 알려 줄 범위</td><td>전체 매출 계산서에서 금액 · 날짜가 맞는 것(은행이 달라도 표시). 후보가 하나뿐일 때만 바로 연결 버튼.</td></tr>
+        <tr><td>2</td><td>청구처 지정 질문</td><td>다른 거래처 계산서를 연결할 때마다 한 번. "이번만 연결"도 가능.</td></tr>
+        <tr><td>3</td><td>적용 화면</td><td>계산서 확인 탭과 매출처 상세의 연결 창 모두(같은 창을 씀).</td></tr>
+        <tr><td>4</td><td>3단 구조(출장소 → 지점 → 본점)</td><td>지금처럼 한 단계만. 실제로 나오면 그때 "직접 찾기 → 이번만 연결"로 처리하고 구조를 다시 봄.</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+</body>
+</html>

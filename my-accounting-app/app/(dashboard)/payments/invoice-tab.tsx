@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import InvoiceLinkModal from '../sales-cycle/invoice-link-modal'
+import { BillingAskDialog, saveInvoiceLinks, type BillingAsk, type InvoiceLink } from '../sales-cycle/billing-ask'
 
 // 결제 확인 › 계산서 확인 (2026-11-16 3단계)
 // "발행할 주문 목록"은 만들 수 없다(카드로 낼지 계산서로 낼지 미리 알 수 없음) — 확인이 필요한 세 가지만 모은다.
@@ -16,7 +17,10 @@ interface Row {
   customer_name: string; vendor_id: string | null; billing_name: string | null; net: number
   record_date: string | null; record_amount: number | null; invoice_amount: number
   paid_date: string | null; paid_amount: number | null
+  need: number; vendor_has_billing: boolean; candidates: Cand[]; candidate_count: number
 }
+// 후보 계산서 — 남은 금액이 같고 발행일이 가까운 매출 계산서. foreign = 다른 거래처 명의
+interface Cand { id: string; issue_date: string; remaining: number; counterparty_name: string | null; vendor_id: string | null; vendor_name: string; foreign: boolean }
 const ISSUE: Record<Issue, { label: string; cls: string }> = {
   no_hometax: { label: '홈택스에 없음', cls: 'bg-amber-100 text-amber-800' },
   amount_diff: { label: '금액 다름', cls: 'bg-red-100 text-red-700' },
@@ -33,18 +37,47 @@ export default function InvoiceTab() {
   const [issue, setIssue] = useState<Issue | 'all'>('all')
   const [search, setSearch] = useState('')
   const [linkFor, setLinkFor] = useState<{ id: string; name: string } | null>(null)
+  const [canSetBilling, setCanSetBilling] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [ask, setAsk] = useState<{ ask: BillingAsk; links: InvoiceLink[]; amount: number } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     const res = await fetch('/api/payment-records/invoice-check')
     const json = await res.json().catch(() => ({}))
     if (!res.ok) { setError(json.error ?? '조회 실패'); setRows([]) }
-    else { setRows(json.rows ?? []); setLatest(json.latest_invoice ?? null); setCanEdit(!!json.can_edit) }
+    else { setRows(json.rows ?? []); setLatest(json.latest_invoice ?? null); setCanEdit(!!json.can_edit); setCanSetBilling(!!json.can_set_billing) }
     setLoading(false)
   }, [])
   useEffect(() => { load() }, [load])
 
   const count = (k: Issue) => rows.filter(r => r.issue === k).length
+
+  // 후보 계산서 바로 연결 — 같은 매출처 것이면 확인 1회, 다른 거래처 명의면 청구처 지정을 묻는다
+  const save = async (links: InvoiceLink[], billing?: { vendorId: string; billingVendorId: string }) => {
+    setBusy(true); setMsg(null)
+    const r = await saveInvoiceLinks(links, billing)
+    setBusy(false); setAsk(null); setMsg(r.message)
+    if (r.ok) load()
+  }
+  const linkCandidate = (r: Row, c: Cand) => {
+    const links: InvoiceLink[] = [{ orderId: r.order_id, taxInvoiceId: c.id, amount: r.need, issueDate: c.issue_date }]
+    if (!c.foreign) {
+      if (confirm(`주문 ${r.order_no ?? ''}에 계산서 ${c.issue_date.slice(0, 10)} ${won(r.need)}원을 연결할까요?`)) save(links)
+      return
+    }
+    setAsk({
+      links, amount: r.need,
+      ask: {
+        orderVendorId: r.vendor_id ?? '', orderVendorName: r.customer_name, invoiceVendorId: c.vendor_id, invoiceVendorName: c.vendor_name,
+        canSetBilling: !!r.vendor_id && !!c.vendor_id && !r.vendor_has_billing && canSetBilling,
+        whyNot: !c.vendor_id ? '거래처가 연결되지 않은 계산서라 청구처 지정은 묻지 않습니다. 이번 연결만 저장합니다.'
+          : r.vendor_has_billing ? `이 매출처는 이미 청구처(${r.billing_name ?? ''})가 지정되어 있습니다. 이번 연결만 저장합니다.`
+            : '청구처 지정은 거래처 관리 수정 권한이 필요합니다. 이번 연결만 저장합니다.',
+      },
+    })
+  }
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return rows.filter(r => (issue === 'all' || r.issue === issue)
@@ -63,6 +96,7 @@ export default function InvoiceTab() {
         <span className="text-gray-400"> 매출 계산서 최신일 {latest ?? '없음'}</span>
       </p>
       {error && <div className="mb-3 px-4 py-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
+      {msg && <div className="mb-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
 
       <div className="flex items-center gap-1.5 flex-wrap mb-3">
         {chip('all', '전체', rows.length)}
@@ -112,11 +146,31 @@ export default function InvoiceTab() {
                           ? <div className="text-gray-400">홈택스 계산서 미연결</div>
                           : <div className="text-red-600">홈택스 계산서 {won(r.invoice_amount)}원 — {won(Math.abs(r.invoice_amount - (r.record_amount ?? 0)))}원 다름</div>}
                       </>)}
+                      {/* 후보: 금액이 같고 날짜가 가까운 계산서 (다른 거래처 명의 포함). 하나뿐일 때만 바로 연결 */}
+                      {r.candidate_count === 1 && (
+                        <div className="mt-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1.5">
+                          <span className="inline-block px-1.5 py-px rounded bg-green-100 text-green-800 text-[0.625rem] font-semibold mr-1">후보</span>
+                          <b className="text-gray-800">{r.candidates[0].vendor_name}</b> 명의 계산서 {r.candidates[0].issue_date.slice(5, 10)} · {won(r.candidates[0].remaining)}원
+                          <div className="text-[0.6875rem] text-gray-500">금액 같음 · {r.candidates[0].foreign ? '다른 거래처 명의' : '이 매출처 계산서'} · 다른 주문에 연결 안 됨</div>
+                        </div>
+                      )}
+                      {r.candidate_count > 1 && (
+                        <div className="mt-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 text-gray-600">
+                          <span className="inline-block px-1.5 py-px rounded bg-gray-200 text-gray-700 text-[0.625rem] font-semibold mr-1">후보 {r.candidate_count}건</span>
+                          금액이 같은 계산서가 여러 장 있습니다 — 직접 찾기로 골라 주세요
+                        </div>
+                      )}
                     </td>
                     <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                      {canEdit && r.candidate_count === 1 && (
+                        <div className="mb-1">
+                          <button onClick={() => linkCandidate(r, r.candidates[0])} disabled={busy}
+                            className="text-[0.6875rem] px-2 py-0.5 rounded bg-slate-900 text-white font-semibold hover:bg-slate-700 disabled:opacity-40">이 계산서 연결</button>
+                        </div>
+                      )}
                       {canEdit && r.vendor_id ? (
                         <button onClick={() => setLinkFor({ id: r.vendor_id!, name: r.customer_name })}
-                          className="text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">계산서 연결</button>
+                          className="text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">직접 찾기</button>
                       ) : (
                         <Link href={`/orders/${r.order_id}`} className="text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">주문 열기</Link>
                       )}
@@ -134,7 +188,14 @@ export default function InvoiceTab() {
 
       {linkFor && (
         <InvoiceLinkModal vendorId={linkFor.id} vendorName={linkFor.name}
-          onClose={() => setLinkFor(null)} onApplied={() => { setLinkFor(null); load() }} />
+          onClose={() => { setLinkFor(null); load() }} onApplied={() => {}} />
+      )}
+      {ask && (
+        <BillingAskDialog ask={ask.ask} amount={ask.amount} busy={busy}
+          onChoose={c => {
+            if (c === 'cancel') { setAsk(null); return }
+            save(ask.links, c === 'link_set' && ask.ask.invoiceVendorId ? { vendorId: ask.ask.orderVendorId, billingVendorId: ask.ask.invoiceVendorId } : undefined)
+          }} />
       )}
     </div>
   )

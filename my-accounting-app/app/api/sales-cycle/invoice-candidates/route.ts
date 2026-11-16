@@ -3,6 +3,8 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { syncRecordsForOrders } from '@/lib/payment-records'
 import { buildInvoiceLinkCandidates, isMissingOrderInvoiceTable } from '@/lib/order-invoice-match'
+import { loadBillingFamily } from '@/lib/billing'
+import { can } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -25,8 +27,17 @@ export async function GET(req: NextRequest) {
     )
   }
 
+  // 청구처 상태 — 다른 거래처 명의 계산서를 연결할 때 "청구처로 지정할까요?"를 물을 수 있는지 (2026-11-17)
+  //   물을 수 있는 조건: 114 적용 · 이 매출처에 청구처가 없음 · 이 매출처가 다른 곳의 청구처가 아님 · 거래처 관리 수정 권한
+  const [fam, me] = await Promise.all([loadBillingFamily(admin, vendorId), getCurrentUser()])
+  const billing = {
+    name: fam.billing?.name ?? null,
+    can_ask: fam.available && !fam.billing && fam.children.length === 0 && !!me && can(me, 'customers', 'edit'),
+  }
+
   return NextResponse.json({
     ...result,
+    billing,
     summary: {
       open_orders: result.orders.length,
       available_invoices: result.invoices.length,
