@@ -104,7 +104,7 @@ export async function buildConsultSheetExcel(d: ConsultSheetData): Promise<Buffe
   const box = { top: thin, bottom: thin, left: thin, right: thin }
   const center = { horizontal: 'center' as const, vertical: 'middle' as const, wrapText: true }
   const left = { horizontal: 'left' as const, vertical: 'middle' as const, wrapText: true, indent: 1 }
-  const right = { horizontal: 'right' as const, vertical: 'middle' as const }
+  const right = { horizontal: 'right' as const, vertical: 'middle' as const, wrapText: true }   // 개당 할인은 두 줄 — 자동 줄바꿈
   const font = (over: Record<string, unknown> = {}) => ({ name: FONT, size: 10, ...over })
   const fill = (argb: string) => ({ type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb } })
   const boxRange = (r1: number, c1: number, r2: number, c2: number) => {
@@ -199,7 +199,7 @@ export async function buildConsultSheetExcel(d: ConsultSheetData): Promise<Buffe
       if (col === 13 && typeof v === 'number') { c.numFmt = PCT; c.alignment = center }
       if (col === 5) c.numFmt = NUM
     })
-    if (typeof disc === 'string' || typeof pdisc === 'string') ws.getRow(r).height = 28
+    if (typeof disc === 'string' || typeof pdisc === 'string') ws.getRow(r).height = 30   // 두 줄 값 행
   })
   const blankFrom = first + items.length
   for (let k = 0; k < 2; k++) {
