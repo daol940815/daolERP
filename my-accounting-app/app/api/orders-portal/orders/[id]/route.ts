@@ -16,6 +16,7 @@ import { fillCustomerStaffIfEmpty } from '@/lib/customer-staff'
 import { loadOrderReplyDetail } from '@/lib/order-reply'
 import { loadRecordsOfOrder } from '@/lib/payment-records'
 import { loadPayStateMap } from '@/lib/pay-state-server'
+import { listContacts } from '@/lib/payment-guide'
 
 export const dynamic = 'force-dynamic'
 
@@ -184,9 +185,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const edit = editability(snap.order, me)
   const prepayVendor = await vendorOfOrder(admin, snap.order)
-  const [payments, payRecords, recvMap, prepayBal, reply] = await Promise.all([
+  const [payments, payRecords, payContacts, recvMap, prepayBal, reply] = await Promise.all([
     loadPayments(admin, params.id),
     loadRecordsOfOrder(admin, params.id),
+    listContacts(admin, params.id),
     loadReceivableMap(admin, [params.id]),
     prepayBalanceOf(admin, prepayVendor, (snap.order.customer_alias_id as string | null) ?? null),
     loadOrderReplyDetail(admin, params.id),
@@ -218,6 +220,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     payments,
     receivable,
     pay_state: payState,
+    // 결제 안내 연락 기록 (1301) — 입력은 결제 확인 › 결제 안내 대상, 여기는 표시만
+    pay_contacts: payContacts.contacts,
     consult_request: consultRequest,
     // 완료 회신 (515): 대상 · 상태 · 받는 사람 · 이력 · 발주 요약. 회신은 주문 수정 권한자 누구나 (사용자 결정)
     reply: { ...reply, can_reply: reply.target && can(me, 'orders', 'edit') },

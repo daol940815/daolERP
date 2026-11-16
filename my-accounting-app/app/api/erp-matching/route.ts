@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
-import { loadMatchingState } from '@/lib/erp-matching'
+import { findAutoMatches, loadMatchingState } from '@/lib/erp-matching'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,11 +27,17 @@ export async function GET(req: NextRequest) {
     ordersByVendor.set(o.vendor_id, list)
   }
 
+  // 추천 (2026-11-16): 예전 "자동 매칭 실행"이 사람 확인 없이 확정하던 조건(같은 거래처 · 잔액 같음 · 날짜 가까움 · 양쪽 후보 하나뿐)을
+  // 이제는 추천으로만 붙인다. 확정은 화면에서 사람이 누른다(시스템은 추천만 — 절대 원칙).
+  const days = Math.min(Math.max(Number(searchParams.get('days')) || 7, 1), 120)
+  const recommend = new Map(findAutoMatches(state, days).map(p => [p.deposit.id, p.order]))
+
   // 미배분 입금별 후보 주문 (같은 거래처, 잔액 있는 주문 — 날짜 가까운 순)
   const pending = state.deposits
     .filter(d => d.remaining > 0)
     .map(d => ({
       ...d,
+      recommend: recommend.has(d.id) ? { id: recommend.get(d.id)!.id, order_no: recommend.get(d.id)!.order_no, order_date: recommend.get(d.id)!.order_date, remaining: recommend.get(d.id)!.remaining } : null,
       candidates: (ordersByVendor.get(d.vendor_id) ?? [])
         .slice()
         .sort((a, b) =>

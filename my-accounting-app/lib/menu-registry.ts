@@ -64,10 +64,9 @@ export const MENU: MenuGroup[] = [
     { label: '샘플 재고', href: '/orders/sample-stock' },
   ]},
   { key: 'collections', area: 'sales', label: '수금 · 정산 작업', items: [
-    { label: '결제 확인', href: '/payments' },   // 결제 기록(1차) ↔ 카드 매출 · 통장 입금 대조(2차) — 1300, 2026-11-13
-    { label: '수금 대상', href: '/reports/erp-receivables' },
-    { label: '입금 매칭', href: '/erp-matching' },
-    { label: '계산서 발행 대상', href: '/sales-cycle' },
+    // 결제 확인 — 탭 4개: 매칭 대기 / 기록 없는 입금(전 입금 매칭) / 결제 안내 대상(전 수금 대상) / 계산서 확인(전 계산서 발행 대상)
+    // 2026-11-16 통합. 옛 주소 /erp-matching · /reports/erp-receivables · /sales-cycle 은 리다이렉트 스텁(EXTRA_PATH_OWNERS)
+    { label: '결제 확인', href: '/payments' },
     // 회계 · 재무에서도 열린다(EXTRA_PATH_OWNERS) — 회계 또는 수금 · 정산 작업 권한 중 하나 (2026-11-12 사용자 결정)
     { label: '카드번호 매출처 연결', href: '/card-sales/customer-links' },
     // 매입 결제 예외(/purchase-cycle)는 매입처 관리의 '결제 예외' 탭으로 통합 (2026-09-30 통합 7)
@@ -167,7 +166,11 @@ export const EXTRA_PATH_OWNERS: { prefix: string; area: MenuArea; group: MenuGro
   { prefix: '/card-expenses', area: 'finance', group: 'accounting' },
   { prefix: '/vendor-opening-balances', area: 'finance', group: 'closing' },
   { prefix: '/bank-classify', area: 'finance', group: 'accounting' },
-  { prefix: '/purchase-cycle', area: 'sales', group: 'collections' },   // 옛 주소 스텁 + 거래처 진행상태 상세
+  { prefix: '/purchase-cycle', area: 'sales', group: 'collections' },
+  // 결제 확인으로 통합된 옛 주소(리다이렉트 스텁, 2026-11-16)
+  { prefix: '/erp-matching', area: 'sales', group: 'collections' },
+  { prefix: '/reports/erp-receivables', area: 'sales', group: 'collections' },
+  { prefix: '/sales-cycle', area: 'sales', group: 'collections' },   // 옛 주소 스텁 + 거래처 진행상태 상세
   { prefix: '/reports/cash-position', area: 'mgmt', group: 'mgmt' },
   { prefix: '/reports/daily-cash', area: 'mgmt', group: 'mgmt' },
   { prefix: '/customers', area: 'finance', group: 'accounting' },

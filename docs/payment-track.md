@@ -151,3 +151,21 @@
   ① 계산서 발행 기록이 있는데 홈택스 계산서 미연결 ② 기록 금액과 홈택스 금액이 다름 ③ 이체로 매칭됐는데 계산서 · 현금영수증 없음(발행 누락 후보).
 - 매출처별 미수 합계표 · 매출 사이클 현황판은 없애는 것으로 제안(같은 숫자가 미수금 관리 · 매출처 관리에 있음). 옛 주소는 탭으로 리다이렉트.
 - 승인 대기 가안 6개: 탭 이름 / 합계표 · 현황판 제거 / 연락 기록(1301) / 계산서 탭 성격 / 추천 일괄 확정 / 권한(보기 collections 조회, 연락 기록 orders 수정).
+
+### 3단계 승인 · 구현 (2026-11-16 "시안대로 진행해줘" — 빌드 통과, 실행 화면 미검증, main 병합 전)
+
+- 승인: 시안 그대로 + 가안 6개(탭 이름 / 매출처별 합계표 · 현황판 제거 / 연락 기록 1301 / 계산서 탭 = 확인 목록 3종 / 추천 일괄 확정 / 권한).
+- **1301_order_payment_contacts.sql — 실행 대기.** 미적용이어도 화면은 동작(결제 안내 대상에 안내 문구, 연락 기록 버튼만 숨김).
+- `/payments` = 서버 page(탭 4개, `?tab=match|deposits|guide|invoice`, 탭 이름에 매칭 대기 건수) +
+  `match-tab.tsx`(전 page) · `deposits-tab.tsx`(전 /erp-matching page를 옮김) · `guide-tab.tsx` · `invoice-tab.tsx`.
+- **자동 확정 폐지**: `POST /api/erp-matching/run` → 410. `GET /api/erp-matching?days=`가 같은 조건(`findAutoMatches`)을 `recommend`로 붙이고,
+  화면에서 행별 "확정" 또는 체크 후 "체크한 추천 N건 확정"(확인 1회, 기존 수동 배분 POST 사용, memo '추천 확정').
+- `lib/payment-guide.ts`: `loadGuideRows`(direct · 미취소 · 미수 > 0 주문 중 결제 상태 미결제 · 일부 결제, 받을 금액 = 순매출 − 기록 금액, 최근 연락 · 약속일 지남 · 내 주문) /
+  `listContacts` · `addContact` / `loadInvoiceCheck`(홈택스에 없음 · 금액 다름 = 계산서 발행 기록 ↔ `erp_order_invoices` 금액, 증빙 없음 = 통장 매칭이 있는데
+  계산서 연결 · 계산서 발행 기록 · 현금영수증(`cash_receipt_payments`) 모두 없음).
+- API: `GET /api/payment-records/guide` · `GET /api/payment-records/invoice-check`(collections) / `GET · POST /api/orders-portal/orders/[id]/pay-contacts`(입력은 orders 수정).
+- 주문 상세 결제 내역에 연락 기록 표시(최근 5건, 표시만). 결제 안내 대상 엑셀 = 화면에 걸러진 그대로.
+- 메뉴: 수금 대상 · 입금 매칭 · 계산서 발행 대상 항목 제거, 옛 주소는 리다이렉트 스텁 + `EXTRA_PATH_OWNERS`. `/sales-cycle` 폴더의 모달 2개는 그대로 사용
+  (매출처 상세 · 계산서 확인 탭). 도움말: 세 화면 항목 삭제, `/payments` 항목 다시 씀. 미수금 관리의 작업 링크 → 결제 안내 대상.
+- 시안과 다른 점: 탭 이름의 건수는 매칭 대기만(다른 탭은 계산이 무거워 생략) / 사이드바 수금 · 정산 작업에는 결제 확인과 "카드번호 매출처 연결"이 남는다.
+- 남은 일: 1301 실행 · 검증 → 병합 · 배포 → 시험. 그 뒤 확인 대기 경과 알림, 업무 요청 자동 채움, 카드사 정산 입금 · 현금영수증 · 선결제 입금 확인(2차 범위).

@@ -80,6 +80,7 @@ export default function OrderDetailPage() {
   const [receivable, setReceivable] = useState<Receivable | null>(null)
   const [prepay, setPrepay] = useState<PrepayInfo | null>(null)
   const [payState, setPayState] = useState<PayState | null>(null)   // 목록과 같은 결제 상태 표기
+  const [payContacts, setPayContacts] = useState<{ id: string; contact_date: string; method: string; memo: string | null; promise_date: string | null; created_by_name: string | null }[]>([])
   const [payRecords, setPayRecords] = useState<PayRecordsData>({ available: false, records: [], can_record: false })   // 결제 기록 (1300)
   const [consultRequest, setConsultRequest] = useState<{ requested_by_name: string | null; assignee_name: string | null } | null>(null)
   const [reply, setReply] = useState<ReplyData | null>(null)   // 완료 회신 (515)
@@ -112,6 +113,7 @@ export default function OrderDetailPage() {
       setReceivable(json.receivable ?? null)
       setPrepay(json.prepay ?? null)
       setPayState(json.pay_state ?? null)
+      setPayContacts(json.pay_contacts ?? [])
       setPayRecords(json.pay_records ?? { available: false, records: [], can_record: false })
       setConsultRequest(json.consult_request ?? null)
       setReply(json.reply ?? null)
@@ -469,6 +471,22 @@ export default function OrderDetailPage() {
         )}
         {/* 결제 기록 (1300) — 1차 수기 입력. 아래 목록은 실제 수금(2차 확인 · 직접 매칭)과 계산서 연결 */}
         {!canceled && <PayRecords orderId={String(id)} data={payRecords} outstanding={outstanding} onChanged={load} />}
+        {/* 결제 안내 연락 기록 (1301) — 표시만. 입력은 결제 확인 › 결제 안내 대상 */}
+        {payContacts.length > 0 && (
+          <div className="mb-3 pb-3 border-b border-gray-100">
+            <div className="text-xs font-semibold text-gray-700 mb-1">결제 안내 연락 기록</div>
+            <div className="text-xs text-gray-600 leading-relaxed">
+              {payContacts.slice(0, 5).map(c => (
+                <div key={c.id}>
+                  <span className="tabular-nums text-gray-400">{c.contact_date}</span>{' '}
+                  {({ phone: '전화', sms: '문자', email: '메일', visit: '방문', etc: '기타' } as Record<string, string>)[c.method] ?? c.method} · {c.created_by_name ?? ''}
+                  {c.memo ? ` — ${c.memo}` : ''}{c.promise_date ? <span className="text-amber-700"> (입금 약속 {c.promise_date})</span> : null}
+                </div>
+              ))}
+              {payContacts.length > 5 && <div className="text-gray-400">외 {payContacts.length - 5}건</div>}
+            </div>
+          </div>
+        )}
         {payRecords.available && <div className="text-xs font-semibold text-gray-700 mb-1.5">실제 수금 · 계산서</div>}
         {payments.matches.length === 0 && payments.invoices.length === 0 ? (
           <div className="text-xs text-gray-400 py-1.5">연결된 결제 내역이 아직 없습니다.</div>
