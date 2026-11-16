@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 매출처 합치기</title><style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; font-size: 13px; }
+  .wrap { max-width: 1240px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 14px; line-height: 1.7; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tabs button { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; color: #334155; }
+  .tabs button.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .screen { display: none; }
+  .screen.on { display: block; }
+  h1 { font-size: 20px; font-weight: 700; }
+  h2 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .sub { font-size: 12px; color: #64748b; margin-top: 3px; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+  .kpi { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; }
+  .kpi .k { font-size: 11.5px; color: #64748b; }
+  .kpi .v { font-size: 18px; font-weight: 700; margin-top: 3px; }
+  .kpi .d { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11.5px; color: #64748b; font-weight: 500; padding: 7px 8px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+  td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+  .b { display: inline-block; border-radius: 6px; padding: 2px 7px; font-size: 11px; font-weight: 600; }
+  .b-green { background: #dcfce7; color: #15803d; }
+  .b-amber { background: #fef3c7; color: #b45309; }
+  .b-orange { background: #ffedd5; color: #c2410c; }
+  .b-red { background: #fee2e2; color: #b91c1c; }
+  .b-blue { background: #dbeafe; color: #1d4ed8; }
+  .b-violet { background: #ede9fe; color: #6d28d9; }
+  .b-slate { background: #f1f5f9; color: #475569; }
+  .btn { border: 0; border-radius: 8px; padding: 7px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .btn-dark { background: #0f172a; color: #fff; }
+  .btn-line { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
+  .btn-sm { padding: 3px 9px; font-size: 11.5px; }
+  .billto { display: inline-flex; align-items: center; gap: 8px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 8px 12px; margin-top: 8px; }
+  .billto .t { font-size: 11px; color: #1d4ed8; font-weight: 700; }
+  .billto .n { font-weight: 700; }
+  .billto .s { font-size: 11px; color: #64748b; }
+  .new { outline: 2px dashed #2563eb; outline-offset: 3px; border-radius: 10px; }
+  .newtag { font-size: 10.5px; font-weight: 700; color: #2563eb; margin-left: 6px; }
+  .muted { color: #94a3b8; }
+  .link { color: #1d4ed8; text-decoration: underline; cursor: pointer; }
+  .chips { display: flex; gap: 6px; margin: 8px 0 10px; flex-wrap: wrap; }
+  .chip { border: 1px solid #cbd5e1; border-radius: 999px; padding: 4px 11px; font-size: 12px; background: #fff; color: #475569; }
+  .chip.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .modal { background: #fff; border-radius: 14px; box-shadow: 0 20px 50px rgba(15,23,42,.25); max-width: 860px; margin: 0 auto; padding: 20px 22px; border: 1px solid #e2e8f0; }
+  .inv { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; margin: 10px 0 14px; display: grid; grid-template-columns: repeat(4, auto); gap: 4px 24px; font-size: 12.5px; }
+  .inv .k { font-size: 11px; color: #64748b; }
+  .score { font-size: 11px; color: #64748b; }
+  .bar { display: inline-block; height: 6px; border-radius: 3px; background: #22c55e; vertical-align: middle; margin-right: 6px; }
+  .form label { display: block; font-size: 11.5px; color: #334155; font-weight: 600; margin: 10px 0 4px; }
+  .form input, .form select { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; font-size: 13px; background: #fff; }
+  .radio { display: flex; gap: 14px; font-size: 12.5px; margin-top: 4px; }
+  .seg { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
+  .seg span { padding: 6px 12px; font-size: 12px; background: #fff; color: #475569; }
+  .seg span.on { background: #0f172a; color: #fff; }
+  .flow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; }
+  .flow .box { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; min-width: 180px; }
+  .flow .arrow { color: #94a3b8; font-size: 18px; }
+</style><style>
+  .inp { border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; font-size:13px; background:#fff; display:flex; align-items:center; min-height:34px; }
+  .opt { border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; display:flex; gap:10px; align-items:flex-start; cursor:pointer; }
+  .opt.on { border-color:#0f172a; box-shadow:0 0 0 1px #0f172a; }
+  .radio { width:14px; height:14px; border-radius:50%; border:2px solid #94a3b8; margin-top:3px; flex-shrink:0; }
+  .opt.on .radio { border-color:#0f172a; background: radial-gradient(#0f172a 45%, #fff 50%); }
+  .arrow { text-align:center; color:#64748b; font-size:12px; margin:6px 0; }
+  .warn { background:#fff7ed; border:1px solid #fdba74; color:#9a3412; border-radius:8px; padding:8px 10px; font-size:12px; }
+  .info { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; border-radius:8px; padding:8px 10px; font-size:12px; }
+  .ok { background:#f0fdf4; border:1px solid #86efac; color:#166534; border-radius:8px; padding:8px 10px; font-size:12px; }
+  .hint { font-size:11.5px; color:#64748b; }
+  .gone { color:#94a3b8; text-decoration:line-through; }
+</style></head>
+<body><div class="wrap">
+<div class="head"><div><h1>시안 — 매출처 상세 "다른 매출처와 합치기"</h1>
+<p class="sub">같은 지점이 두 매출처로 나뉜 것을 화면에서 직접 합친다. 고객 쪽(담당자 · 다올 담당 · 주문 · 상담 · 스냅샷)과 회계 쪽(통장 · 계산서 · 카드 · 별칭)을 모두 옮기고 이력을 남긴다.</p></div></div>
+<div class="note">예시는 오늘 실제로 정리한 올림픽선수촌PB센터 건(정리 전 상태 · 실제 건수). 파란 점선 = 새로 생기는 부분.</div>
+<div class="tabs">
+<button class="on" data-s="s1">1. 버튼 위치</button><button data-s="s2">2. 대상 고르기</button><button data-s="s3">3. 미리보기</button>
+<button data-s="s4">4. 합친 뒤</button><button data-s="s5">5. 중복 정리 화면 · 막는 경우</button></div>
+<div class="screen on" id="s1"><div class="card">
+  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+    <h1>하나은행 올림픽선수촌PB센터</h1><span class="b b-slate">주문 없음</span>
+    <button class="btn btn-line btn-sm">정보 수정</button><button class="btn btn-line btn-sm">삭제</button>
+    <button class="btn btn-line btn-sm new">다른 매출처와 합치기</button>
+  </div>
+  <p class="sub">업체 하나은행 · 지점 담당 김보현 · 거래처 담당자 김혜진 팀장님</p>
+</div>
+<p class="hint">· "다른 매출처와 합치기"는 거래처 관리 <b>수정</b> 권한자에게만 보인다(정보 수정 · 삭제 옆). · 같은 상세 위쪽에 이미 있는 "같은 이름 매출처" 안내(11-12 추가)에도 이 버튼을 붙인다.</p></div><div class="screen" id="s2"><div class="modal new" style="max-width:760px"><h2>다른 매출처와 합치기</h2>
+<p class="sub">같은 지점이 두 매출처로 나뉜 경우에 씁니다. 합친 뒤 한쪽은 "병합됨"이 되고 이름은 별칭으로 남습니다(되돌리기는 관리자 요청).</p>
+<div style="margin-top:12px"><div class="hint" style="margin-bottom:4px">합칠 매출처 검색</div>
+<div class="inp">골드클럽 올림<span class="muted">&nbsp;|</span></div>
+<div class="card" style="padding:0; margin-top:4px">
+  <table><tr><td><b>하나은행 골드클럽 올림픽선수촌PB센터</b> <span class="muted">· 하나은행 · 11-13 등록</span></td><td class="r muted">주문 1 · 담당자 1</td></tr>
+  <tr><td>하나은행 올림픽공원지점 <span class="muted">· 하나은행</span></td><td class="r muted">주문 0 · 담당자 2</td></tr></table>
+</div></div>
+<div style="margin-top:14px"><div class="hint" style="margin-bottom:6px">어느 쪽을 남길까요? (남는 쪽의 이름 · 업체 · 사업자번호 · 청구처가 기준)</div>
+<div class="grid2">
+  <div class="opt"><div class="radio"></div><div><b>하나은행 올림픽선수촌PB센터</b><div class="hint">지금 보고 있는 매출처 · 2026-07 등록 · 고객관리문서 표기</div></div></div>
+  <div class="opt on"><div class="radio"></div><div><b>하나은행 골드클럽 올림픽선수촌PB센터</b><div class="hint">2026-11-13 등록 · 주문 1 · 상담 1</div></div></div>
+</div></div>
+<div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px"><button class="btn btn-line">취소</button><button class="btn btn-dark">미리보기</button></div></div></div><div class="screen" id="s3"><div class="modal new" style="max-width:760px"><h2>합치기 미리보기</h2>
+<div class="arrow">하나은행 올림픽선수촌PB센터 <b>→</b> <b>하나은행 골드클럽 올림픽선수촌PB센터</b> (남김)</div>
+<table>
+  <tr><th>옮겨지는 것</th><th class="r">건수</th><th>비고</th></tr>
+  <tr><td>주문</td><td class="r">0</td><td class="muted">남는 쪽에 이미 1건</td></tr>
+  <tr><td>상담일지</td><td class="r">0</td><td></td></tr>
+  <tr><td>거래처 담당자 배정</td><td class="r">2</td><td>김혜진 팀장님(대표) · 김효진 팀장님(종료)</td></tr>
+  <tr><td>지점 담당(다올)</td><td class="r">2</td><td>김보현(주) · 오철준(종료)</td></tr>
+  <tr><td>계산서 · 통장 · 카드매출</td><td class="r">0 · 0 · 8</td><td>회계 연결도 함께</td></tr>
+  <tr><td>ERP 별칭 · 표기 연결</td><td class="r">1 · 1</td><td></td></tr>
+  <tr><td>과거 매출 스냅샷</td><td class="r">1</td><td>19,301,300원</td></tr>
+  <tr><td>이름</td><td class="r">-</td><td>"하나은행 올림픽선수촌PB센터"는 별칭으로 — 이 이름으로 들어와도 남는 쪽으로 잡힘</td></tr>
+</table>
+<div class="info" style="margin-top:10px">같은 이름 담당자가 양쪽에 있습니다: <b>김혜진 팀장님</b> (C-302700 · C-421226). 합친 뒤 "인물 병합" 안내가 나옵니다 — 같은 분인지는 직접 확인해 주세요(자동으로 합치지 않음).</div>
+<div class="warn" style="margin-top:8px">확인할 것이 있으면 여기 표시 — 예: 업체가 다름 · 한쪽이 청구처 법인(소속 부서 있음) · 개인 고객 매출처 · 사업자번호가 서로 다름. 해당 없으면 안 보임.</div>
+<div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px"><button class="btn btn-line">뒤로</button><button class="btn btn-dark">합치기 실행</button></div></div></div>
+<div class="screen" id="s4"><div class="modal new" style="max-width:760px"><div class="ok"><b>합쳤습니다.</b> 하나은행 올림픽선수촌PB센터 → 하나은행 골드클럽 올림픽선수촌PB센터 · 담당자 배정 2 · 지점 담당 2 · 카드매출 8 · 별칭 1 · 스냅샷 1 이동. 병합 이력에 남았습니다.</div>
+<div class="card" style="margin-top:10px"><h2>같은 이름 담당자 — 같은 분이면 합쳐 주세요</h2>
+<table style="margin-top:6px">
+  <tr><th>이름</th><th>고객코드</th><th>현재 배정</th><th>주문 · 상담</th><th></th></tr>
+  <tr><td>김혜진 팀장님</td><td class="mono">C-421226</td><td>현재 · 다올 김보현</td><td>1 · 1</td><td rowspan="2" style="vertical-align:middle"><span class="link">한 사람으로 합치기 (남길 분 선택)</span></td></tr>
+  <tr><td>김혜진 팀장님</td><td class="mono">C-302700</td><td>현재 · 대표 · 다올 김보현</td><td>0 · 0</td></tr>
+</table>
+<p class="hint" style="margin-top:6px">· 합치면 주문 · 상담 · 과거 매출 · 직함 이력이 남는 분으로 모이고, 같은 지점의 중복 배정 한 줄이 정리됩니다. · "다른 분"이면 그대로 두면 됩니다.</p></div>
+<div style="display:flex; justify-content:flex-end; margin-top:12px"><button class="btn btn-dark">남는 매출처 상세로</button></div></div></div><div class="screen" id="s5"><div class="card"><h2>회계·재무 › 점검·정리 도구 › 거래처 중복 정리 — 같이 고치는 것</h2>
+<ol style="padding-left:18px; line-height:1.9; font-size:12.5px; margin-top:6px">
+  <li><b>병합 방식 통일</b>: "대표로 병합"도 위와 같은 전체 병합을 쓴다 — 지금은 회계 연결(통장 · 계산서 · 카드 · ERP 별칭)만 옮기고 <span class="gone">담당자 배정 · 지점 담당 · 주문 주문처 · 상담 · 스냅샷 · 표기 연결은 흡수된 쪽에 남김</span>(결함).</li>
+  <li>병합 전 <b>미리보기 건수</b>를 똑같이 보여 준다.</li>
+  <li>후보 목록은 그대로(이름이 거의 같은 것만). 이름이 다른 같은 지점(이번 골드클럽 건처럼)은 매출처 상세의 "다른 매출처와 합치기"로.</li>
+</ol></div>
+<div class="card"><h2>합치기에서 막는 것 · 묻는 것</h2>
+<table style="margin-top:6px">
+  <tr><th>상황</th><th>처리</th></tr>
+  <tr><td>남길 쪽이 이미 병합됨 · 비활성</td><td>고를 수 없음(목록에 안 나옴). 비활성은 "비활성 포함"으로 찾으면 재활성 후 합침</td></tr>
+  <tr><td>업체가 서로 다름</td><td>경고 후 진행 가능 — 남는 쪽 업체 유지</td></tr>
+  <tr><td>한쪽이 청구처 법인(소속 부서 있음)</td><td>경고 — 소속 부서는 남는 쪽을 가리키도록 자동 승계(114 트리거)</td></tr>
+  <tr><td>개인 고객 매출처</td><td>다른 고객의 매출처와는 합칠 수 없음(같은 인물일 때만) — 인물 병합으로 안내</td></tr>
+  <tr><td>사업자번호가 서로 다름</td><td>막음 — 다른 법인일 가능성</td></tr>
+</table></div></div>
+</div>
+<script>
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b))
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === b.dataset.s))
+}))
+</script></body></html>
