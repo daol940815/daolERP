@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { getCurrentUser } from '@/lib/user-role'
 import { allocateToOrder, loadCollectCandidates, loadOrderCollectSummary, type OrderAllocation } from '@/lib/erp-order-collect'
 
 export const dynamic = 'force-dynamic'
@@ -32,7 +33,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({})) as { order_id?: string; allocations?: OrderAllocation[]; register_card?: boolean; memo?: string }
   if (!body.order_id) return NextResponse.json({ error: 'order_id가 필요합니다.' }, { status: 400 })
   const allocations = (body.allocations ?? []).filter(a => (a.source_type === 'bank' || a.source_type === 'card') && a.source_id)
-  const r = await allocateToOrder(admin, body.order_id, allocations, { registerCard: body.register_card !== false, memo: body.memo ?? null })
+  const me = await getCurrentUser()
+  const r = await allocateToOrder(admin, body.order_id, allocations, {
+    registerCard: body.register_card !== false, memo: body.memo ?? null,
+    editor: { employeeId: me?.employeeId ?? null, employeeName: me?.employeeName ?? null },
+  })
   if ('error' in r) return NextResponse.json({ error: r.error }, { status: 400 })
   return NextResponse.json({ ok: true, ...r })
 }

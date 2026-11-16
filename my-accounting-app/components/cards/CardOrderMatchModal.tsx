@@ -13,7 +13,7 @@ const num = (s: string) => Number(String(s).replace(/[^0-9]/g, '')) || 0
 export default function CardOrderMatchModal({ saleId, onClose, onSaved }: {
   saleId: string
   onClose: () => void
-  onSaved: (saleId: string, count: number, amount: number) => void
+  onSaved: (saleId: string, count: number, amount: number, records?: { confirmed: number; released: number }) => void
 }) {
   const [state, setState] = useState<CardOrderState | null>(null)
   const [loading, setLoading] = useState(true)
@@ -65,7 +65,8 @@ export default function CardOrderMatchModal({ saleId, onClose, onSaved }: {
     setBusy(false)
     if (!res.ok) { setErr(json.error ?? '저장 실패'); return }
     const st = json.state as CardOrderState | null
-    onSaved(saleId, st?.current.length ?? allocations.length, st?.sale.allocated ?? allocations.reduce((s, a) => s + a.amount, 0))
+    onSaved(saleId, st?.current.length ?? allocations.length, st?.sale.allocated ?? allocations.reduce((s, a) => s + a.amount, 0),
+      { confirmed: Number(json.records_confirmed ?? 0), released: Number(json.records_released ?? 0) })
     onClose()
   }
 
