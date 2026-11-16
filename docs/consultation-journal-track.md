@@ -432,7 +432,7 @@ docs/ui-reorg-track.md의 "(b) 상담일지 미연결 정책" 요청문(사용�
 삭제: PW·코드번호. 구현 예정: `lib/consult-sheet.ts`(exceljs, 거래명세서 구조) + `GET /api/orders-portal/consultations/[id]/sheet`, 파일명 "상담일_상담일지_업체_지점.xlsx",
 버튼은 저장된 상담 상세 상단. 평문 다운로드 기록 쓰면 710(708 · 709는 병행 세션이 사용). 708 반영: 열 이름 배송종류 · 판매할인, 매입할인 열 · 주문시기 칸 추가, 매입합계 = 매입가 × 수량 + 매입배송비 − 매입할인. 709 반영: 종결 상담은 종결 사유를 상태 줄에. → **사용자 승인 2026-11-16 "시안대로 진행".**
 
-### 구현 (2026-11-16 배포 — **710 실행 대기**, 검증 `테이블_기대1 = 1`)
+### 구현 (2026-11-16 배포 — **710 운영 적용 2026-11-16, 검증 테이블_기대1 = 1 사용자 확인**. 이 트랙의 다음 번호는 711)
 
 - `710_consultation_sheet_downloads.sql`: 다운로드 기록 `erp_consultation_sheet_downloads`(consultation_id · employee_id · payment_plain · created_at).
   마스킹 다운로드도 기록(payment_plain=false). 미적용이면 기록 없이 다운로드는 동작.
