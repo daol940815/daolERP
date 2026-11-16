@@ -7,6 +7,7 @@
 import type { ShipInput } from './ship-address'
 import type { RosterRowInput } from './delivery-roster'
 import { rosterAddr } from './delivery-roster'
+import { COMPANY_NAME, COMPANY_TEL, PO_COLORS, ROSTER_HEADERS } from './po-form'
 
 export interface ConsultSheetItem {
   line_no: number
@@ -284,25 +285,35 @@ export async function buildConsultSheetExcel(d: ConsultSheetData): Promise<Buffe
   ws.pageSetup.printArea = `A1:O${r}`
   ws.pageSetup.printTitlesRow = '8:8'
 
-  // ── 시트2 배송명단 (707) — 명단이 있을 때만 ──
+  // ── 시트2 배송명단 (707) — 명단이 있을 때만. 발주서 배송명단 시트와 같은 양식(열 · 너비 · 색, lib/po-form ROSTER_HEADERS —
+  //    발송인 = 다올커머스 · 회사 TEL, 주소 = 주소 + 상세(우편번호 없음), 사용자 확정 2026-11-16) ──
   if (d.roster_rows && d.roster_rows.length) {
     const ws2 = wb.addWorksheet('배송명단', {
-      views: [{ showGridLines: false }],
       pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
     })
-    ws2.columns = [5, 16, 16, 10, 44, 24, 7, 24].map(w => ({ width: w }))
-    const head2 = ['NO', '수령인', '연락처', '우편번호', '주소 · 상세주소', '상품', '수량', '배송메모']
-    head2.forEach((h, i) => {
+    ws2.columns = [
+      { width: 4.62 }, { width: 20.62 }, { width: 15.62 }, { width: 14 }, { width: 50.62 },
+      { width: 15.62 }, { width: 40.62 }, { width: 10.62 }, { width: 30.62 },
+    ]
+    const poBox = { top: { style: 'thin' as const }, bottom: { style: 'thin' as const }, left: { style: 'thin' as const }, right: { style: 'thin' as const } }
+    const poCenter = { horizontal: 'center' as const, vertical: 'middle' as const }
+    ROSTER_HEADERS.forEach((label, i) => {
       const c = ws2.getCell(1, i + 1)
-      c.value = h; c.font = font({ size: 9, bold: true }); c.fill = fill(IHEAD_BG); c.alignment = center; c.border = box
+      c.value = label
+      c.font = { name: FONT, size: 10, bold: true, color: { argb: `FF${PO_COLORS.label}` } }
+      c.fill = fill(`FF${PO_COLORS.labelBg}`)
+      c.alignment = poCenter
+      c.border = poBox
     })
     d.roster_rows.forEach((row, i) => {
-      const vals = [row.seq, row.recipient_name ?? '', row.phone ?? '', row.zip ?? '', rosterAddr(row),
-        row.item_name ?? row.item_name_raw ?? '', row.quantity, row.memo ?? '']
+      const vals: (string | number)[] = [row.seq, COMPANY_NAME, COMPANY_TEL, row.recipient_name ?? '', rosterAddr(row),
+        row.phone ?? '', row.item_name ?? row.item_name_raw ?? '', row.quantity, row.memo ?? '']
       vals.forEach((v, ci) => {
         const c = ws2.getCell(2 + i, ci + 1)
-        c.value = v; c.font = font({ size: 9}); c.border = box
-        c.alignment = ci === 4 || ci === 5 || ci === 7 ? { horizontal: 'left', vertical: 'middle' } : center
+        c.value = v
+        c.font = { name: FONT, size: 10, color: { argb: `FF${PO_COLORS.ink}` } }
+        c.alignment = ci === 4 ? { horizontal: 'left', vertical: 'middle' } : poCenter   // 주소만 좌측 (발주서와 동일)
+        c.border = poBox
       })
     })
     ws2.pageSetup.printTitlesRow = '1:1'
