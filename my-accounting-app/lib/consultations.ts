@@ -1,5 +1,6 @@
 // 상담일지 공용 로직 (생성·수정 라우트 공용)
 import { SHIP_KEYS } from './ship-address'
+import { purchaseAmount, toPurchasePrice } from '@/lib/purchase-price'
 import { normalizeSeason } from './order-season'
 
 export const CONSULT_TYPES = ['주문', '문의', '요청', '결제', '기타'] as const
@@ -72,7 +73,7 @@ export function parseConsultBody(body: Record<string, unknown>) {
         : toInt(r.discount_amount),
       discount_mode: r.discount_mode === '단가' ? '단가' as const : '정액' as const,
       discount_unit: r.discount_mode === '단가' ? toInt(r.discount_unit) : 0,
-      purchase_price: toInt(r.purchase_price),
+      purchase_price: toPurchasePrice(r.purchase_price),   // 소수 둘째 자리까지 (518)
       purchase_shipping: toInt(r.purchase_shipping),
       ...parsePurchaseDiscount(r),
       order_season: normalizeSeason(toStr(r.order_season)) || null,
@@ -129,7 +130,7 @@ export function consultItemRows(items: ConsultItemInput[]) {
     parent_line_no: it.parent_line_no && it.parent_line_no !== i + 1 && it.parent_line_no <= items.length
       ? it.parent_line_no : null,
     line_total: it.sale_price * it.quantity + it.shipping_fee - it.discount_amount,
-    purchase_total: it.purchase_price * it.quantity + it.purchase_shipping - it.purchase_discount,
+    purchase_total: purchaseAmount(it.purchase_price, it.quantity) + it.purchase_shipping - it.purchase_discount,   // 원 단위 반올림 (518)
   }))
 }
 

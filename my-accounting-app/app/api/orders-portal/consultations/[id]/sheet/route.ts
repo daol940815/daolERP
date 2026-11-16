@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { purchaseAmount } from '@/lib/purchase-price'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser, type CurrentUser } from '@/lib/user-role'
 import { isManagerLike } from '@/lib/permissions'
@@ -109,7 +110,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     purchase_price: n(it.purchase_price), purchase_shipping: n(it.purchase_shipping),
     purchase_discount: n(it.purchase_discount), purchase_discount_mode: s(it.purchase_discount_mode), purchase_discount_unit: n(it.purchase_discount_unit),
     // purchase_total 컬럼이 없는(구) 환경 대비 — 708 정의로 재계산
-    purchase_total: it.purchase_total != null ? n(it.purchase_total) : n(it.purchase_price) * n(it.quantity) + n(it.purchase_shipping) - n(it.purchase_discount),
+    purchase_total: it.purchase_total != null ? n(it.purchase_total) : purchaseAmount(n(it.purchase_price), n(it.quantity)) + n(it.purchase_shipping) - n(it.purchase_discount),
     status: s(it.status), memo: s(it.memo), option_note: s(it.option_note),
   }))
 
