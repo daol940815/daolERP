@@ -1,6 +1,6 @@
 'use client'
 
-// 알림 폴링 훅 — NOTIF_POLL_MS(20초)마다 /api/notifications. 직전 결과와 비교해 새로 생긴(또는 건수가 늘어난) 항목을 토스트로 올린다.
+// 알림 폴링 훅 — NOTIF_POLL_MS(60초, 보이는 탭만)마다 /api/notifications. 직전 결과와 비교해 새로 생긴(또는 건수가 늘어난) 항목을 토스트로 올린다.
 // 첫 응답은 토스트 없이(로그인 직후는 '확인할 것' 패널이 담당). 확인함(seenAt)은 localStorage.
 // 결과가 직전과 달라지면 window 이벤트(NOTIF_CHANGED)를 쏴서 열린 화면(업무 요청 목록·상세·대시보드)이 자기 데이터를 다시 조회한다.
 // 화면 조작 뒤 requestNotifRefresh() 가 오면 즉시 한 번 폴링한다. (⑥ 1단계, 2026-11-02)
@@ -57,7 +57,8 @@ export function useNotifications(enabled = true) {
   useEffect(() => {
     if (!enabled) return
     poll()
-    const t = setInterval(() => poll(), NOTIF_POLL_MS)
+    // 숨은 탭(다른 탭 · 최소화)은 폴링을 쉰다 — 돌아오면 visibilitychange 에서 즉시 한 번 조회 (2026-11-16, 서버 사용량 절감)
+    const t = setInterval(() => { if (document.visibilityState === 'visible') poll() }, NOTIF_POLL_MS)
     const onVis = () => { if (document.visibilityState === 'visible') poll() }
     const onReq = () => { poll() }
     document.addEventListener('visibilitychange', onVis)

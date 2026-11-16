@@ -186,7 +186,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
             </div>
           ) : (
             <div className="group relative">
-              <Link href={bankHref(bank.id)} className={linkCls(activeBankId === bank.id)}>
+              <Link prefetch={false} href={bankHref(bank.id)} className={linkCls(activeBankId === bank.id)}>
                 <span className={dotCls}>·</span>
                 <div className="flex flex-col min-w-0 flex-1 pr-5">
                   <span className="truncate flex items-center gap-1.5">
@@ -232,7 +232,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
             </div>
           ) : (
             <div className="group relative">
-              <Link href={`/cards?tab=expenses&cardAccountId=${card.id}`} className={linkCls(pathname === '/cards' && searchParams.get('tab') === 'expenses' && activeCardId === card.id)}>
+              <Link prefetch={false} href={`/cards?tab=expenses&cardAccountId=${card.id}`} className={linkCls(pathname === '/cards' && searchParams.get('tab') === 'expenses' && activeCardId === card.id)}>
                 <span className={dotCls}>·</span>
                 <div className="flex flex-col min-w-0 flex-1 pr-5">
                   <span className="truncate">{card.alias?.trim() || card.card_company}</span>
@@ -269,7 +269,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
       return (
         <div key={it.href}>
           <div className="flex items-center mb-0.5">
-            <Link href={it.href} className={`flex-1 min-w-0 ${linkCls(isActive(it) && !childActive)}`}>
+            <Link prefetch={false} href={it.href} className={`flex-1 min-w-0 ${linkCls(isActive(it) && !childActive)}`}>
               <span className="truncate">{it.label}</span>
             </Link>
             <button onClick={() => setIsOpen(!isOpen)} className="shrink-0 px-2 py-2 text-xs text-slate-500 hover:text-white" title={isOpen ? '접기' : '펼치기'}>
@@ -281,7 +281,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
           {isOpen && it.children && (
             <div className={subCls}>
               {it.children.map(c => (
-                <Link key={c.href} href={c.href} className={linkCls(pathname === c.href.split('?')[0])}>
+                <Link key={c.href} prefetch={false} href={c.href} className={linkCls(pathname === c.href.split('?')[0])}>
                   <span className={dotCls}>·</span><span className="truncate">{c.label}</span>
                 </Link>
               ))}
@@ -292,7 +292,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
     }
     const changed = helpNew[it.href.split('?')[0]]
     return (
-      <Link key={it.href} href={it.href} className={linkCls(isActive(it))}>
+      <Link key={it.href} prefetch={false} href={it.href} className={linkCls(isActive(it))}>
         <span className="flex items-center gap-1.5">{it.label}{changed && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" title={`${changed} 이후 바뀐 것이 있습니다 — 화면 도움말에서 확인`} />}</span>
         {(() => { const b = badgeOf(it.href); return b ? (
           <span className={`ml-auto text-[0.625rem] font-bold rounded-full px-1.5 py-0.5 leading-none ${b.tone === 'red' ? 'bg-red-500 text-white' : 'bg-amber-400 text-slate-900'}`}>{b.n}</span>
@@ -334,7 +334,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
         {/* 이 화면 도움말 — 본문 버튼을 가리지 않도록 사이드바 하단에 (2026-11-05) */}
         <Suspense fallback={null}><HelpLauncher levels={helpLevels} /></Suspense>
         {showAreaSelect && (
-          <Link href="/portal" className={linkCls(false)}>
+          <Link prefetch={false} href="/portal" className={linkCls(false)}>
             <span>업무 선택</span>
           </Link>
         )}
