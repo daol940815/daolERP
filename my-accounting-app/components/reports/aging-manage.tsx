@@ -105,7 +105,7 @@ export const RECEIVABLE_CONFIG: AgingManageConfig = {
     billing_name: (r.billing_vendor_name as string | null) ?? null,
   }),
   unlinkedHref: '/erp-aliases?type=customer',
-  workLink: { label: '수금 대상', href: '/reports/erp-receivables' },
+  workLink: { label: '결제 안내 대상', href: '/payments?tab=guide' },
 }
 
 export const PAYABLE_CONFIG: AgingManageConfig = {
