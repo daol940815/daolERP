@@ -6,8 +6,8 @@
 //  - 결제정보는 호출부가 마스킹 · 평문을 정해서 넘긴다 (ERP 열람 규칙). 시트2 '배송명단'은 명단(707)이 있을 때만.
 import type { ShipInput } from './ship-address'
 import type { RosterRowInput } from './delivery-roster'
-import { rosterAddr } from './delivery-roster'
-import { COMPANY_NAME, COMPANY_TEL, PO_COLORS, ROSTER_HEADERS } from './po-form'
+import type { PoExcelData } from './po-form'
+import { addPoRosterSheet } from './purchase-orders'
 
 export interface ConsultSheetItem {
   line_no: number
@@ -66,7 +66,7 @@ export interface ConsultSheetData {
   memo: string | null
   printed_by: string | null
   printed_at: string                  // 표시용 문자열
-  roster_rows: RosterRowInput[] | null
+  roster_rows: RosterRowInput[] | null   // 707 명단 행 — 시트2는 발주서와 같은 규칙으로 품목 행에 붙인다
 }
 
 export const CONSULT_SHEET_NOTICE = '※ 다올보유위한 샘플발주, 제안용 샘플발주, 서비스 발주도 매출처를 기재바랍니다.'
@@ -285,38 +285,23 @@ export async function buildConsultSheetExcel(d: ConsultSheetData): Promise<Buffe
   ws.pageSetup.printArea = `A1:O${r}`
   ws.pageSetup.printTitlesRow = '8:8'
 
-  // ── 시트2 배송명단 (707) — 명단이 있을 때만. 발주서 배송명단 시트와 같은 양식(열 · 너비 · 색, lib/po-form ROSTER_HEADERS —
-  //    발송인 = 다올커머스 · 회사 TEL, 주소 = 주소 + 상세(우편번호 없음), 사용자 확정 2026-11-16) ──
-  if (d.roster_rows && d.roster_rows.length) {
-    const ws2 = wb.addWorksheet('배송명단', {
-      pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
-    })
-    ws2.columns = [
-      { width: 4.62 }, { width: 20.62 }, { width: 15.62 }, { width: 14 }, { width: 50.62 },
-      { width: 15.62 }, { width: 40.62 }, { width: 10.62 }, { width: 30.62 },
-    ]
-    const poBox = { top: { style: 'thin' as const }, bottom: { style: 'thin' as const }, left: { style: 'thin' as const }, right: { style: 'thin' as const } }
-    const poCenter = { horizontal: 'center' as const, vertical: 'middle' as const }
-    ROSTER_HEADERS.forEach((label, i) => {
-      const c = ws2.getCell(1, i + 1)
-      c.value = label
-      c.font = { name: FONT, size: 10, bold: true, color: { argb: `FF${PO_COLORS.label}` } }
-      c.fill = fill(`FF${PO_COLORS.labelBg}`)
-      c.alignment = poCenter
-      c.border = poBox
-    })
-    d.roster_rows.forEach((row, i) => {
-      const vals: (string | number)[] = [row.seq, COMPANY_NAME, COMPANY_TEL, row.recipient_name ?? '', rosterAddr(row),
-        row.phone ?? '', row.item_name ?? row.item_name_raw ?? '', row.quantity, row.memo ?? '']
-      vals.forEach((v, ci) => {
-        const c = ws2.getCell(2 + i, ci + 1)
-        c.value = v
-        c.font = { name: FONT, size: 10, color: { argb: `FF${PO_COLORS.ink}` } }
-        c.alignment = ci === 4 ? { horizontal: 'left', vertical: 'middle' } : poCenter   // 주소만 좌측 (발주서와 동일)
-        c.border = poBox
-      })
-    })
-    ws2.pageSetup.printTitlesRow = '1:1'
+  // ── 시트2 배송명단 — 발주서 시트2와 완전히 동일 (addPoRosterSheet · poRosterRows 공용, 2026-11-16 사용자 요청):
+  //    지점 · 샘플 품목 = 상담 배송지(706) 1행, 개별 품목 = 연결된 명단(707) 행마다 1행(없으면 빈 1행), 비용 · 부자재 행 제외,
+  //    발송인 = 다올커머스 · 회사 TEL, 배송지 없으면 수령인 · 연락처는 담당자. 발주서는 매입처별 품목만, 여기는 상담 품목 전체.
+  const rosterItems = items.filter(it => !it.parent_line_no && !it.is_shipping && it.item_name)
+  if (rosterItems.length) {
+    const poLike: PoExcelData = {
+      po_no: '', order_date: d.consult_date, ship_request: d.delivery_request, vendor_name: '', customer: [d.bank_name, d.branch_name].filter(Boolean).join(' ') || '-',
+      customer_bank: d.bank_name, customer_branch: d.branch_name, customer_manager: d.manager_name, customer_phone: d.phone ?? d.tel,
+      staff_name: d.writer, staff_phone: null, total_amount: 0, delivery_note: null, ship: d.ship,
+      roster_rows: d.roster_rows ?? null,
+      items: items.map(it => ({
+        item_code: it.item_code, item_name: it.item_name, order_kind: it.order_kind, quantity: it.quantity,
+        purchase_price: it.purchase_price, purchase_shipping: it.purchase_shipping, purchase_total: it.purchase_total, memo: it.memo,
+        role: it.is_shipping ? 'fee' : it.parent_line_no ? 'addon' : null,
+      })),
+    }
+    addPoRosterSheet(wb, poLike)
   }
 
   return Buffer.from(await wb.xlsx.writeBuffer())
