@@ -27,7 +27,7 @@ WHERE l.source_key IN ('legacy:73', 'legacy:33a', 'legacy:112')
       AND (f.source_key IS NULL OR f.source_key NOT LIKE 'legacy:%'))
 RETURNING source_key, entry_date, amount;
 
--- STEP 3. 검증: 세 지점 잔액 = 파일 잔액 (여의도 3,500,000 / 서린 820,100 / 투자상품전략부 3,017,800), 적재 행 41 · 11,482,150
+-- STEP 3. 검증: 세 지점 잔액 = 파일 잔액 (여의도 3,500,000 / 서린 820,100 / 투자상품전략부 3,017,800), 적재 행 41 · 9,482,150 (17,216,450 − 7,734,300)
 SELECT a.erp_name,
        SUM(CASE WHEN p.entry_type = 'deposit' THEN p.amount ELSE -p.amount END) AS 현재_잔액
 FROM erp_prepayments p JOIN erp_vendor_aliases a ON a.id = p.alias_id
