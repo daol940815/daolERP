@@ -22,7 +22,7 @@ import type { BankAccount } from '@/types/bank-account'
 import type { Vendor } from '@/types/tax-invoice'
 import SearchableCellEditor from '@/components/ui/SearchableCellEditor'
 import TxFilterBar from '@/components/transactions/TxFilterBar'
-import { highlightTerms, matchAll, parseQuery, serializeQuery, type TxFilter } from '@/lib/tx-filter'
+import { STATUS_LABEL, describeFilter, highlightTerms, matchAll, parseQuery, serializeQuery, type TxFilter, type TxStatus } from '@/lib/tx-filter'
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
@@ -247,13 +247,26 @@ function TransactionsContent() {
   const [matchingVendors, setMatchingVendors] = useState(false)
   const [previewing,   setPreviewing]   = useState(false)
   const [previewPairs, setPreviewPairs] = useState<PreviewPair[] | null>(null)
-  const [reviewing,    setReviewing]    = useState(false)
   const [matchedPairs,    setMatchedPairs]    = useState<MatchedPair[] | null>(null)
   const [matchedTruncated, setMatchedTruncated] = useState(false)
   const [unlinking,       setUnlinking]       = useState<string | null>(null)
   const [importing,    setImporting]    = useState(false)
   const [selectedCount, setSelectedCount] = useState(0)
-  const [acceptableCount, setAcceptableCount] = useState(0)   // 선택 중 추천만 있는 미검토 행
+  const [acceptableCount, setAcceptableCount] = useState(0)   // 선택 중 추천만 있는 미검토 행 (검토 확정 대상)
+  // 선택 작업 줄 (2026-11-16 버튼 정리): 버튼마다 실제 처리될 건수를 보여 준다
+  const [selInfo, setSelInfo] = useState({ pending: 0, reviewed: 0, confirmed: 0, confirmable: 0 })
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [excelOpen, setExcelOpen] = useState(false)
+  // 계좌 간 이체 묶기 창 — 탭 두 개(묶을 후보 | 묶인 이체). 후보는 체크한 쌍만 묶는다
+  const [transferTab, setTransferTab] = useState<'cand' | 'done' | null>(null)
+  const [pairSel, setPairSel] = useState<Set<number>>(new Set())
+  const [transferCandCount, setTransferCandCount] = useState<number | null>(null)
+  // 거래처 자동 연결 미리보기 — 확인 후 저장
+  const [vendorPreview, setVendorPreview] = useState<{
+    total: number; checked: number
+    matches: { tx: { id: string; description: string | null; counterparty_name: string | null; amount_in: number | null; amount_out: number | null; tx_date: string; account_alias: string | null }; vendor: { id: string; name: string }; reason: string }[]
+  } | null>(null)
+  const [vendorSel, setVendorSel] = useState<Set<string>>(new Set())
   const [confirmProgress, setConfirmProgress] = useState<string | null>(null)
   const [autoFetchFlag, setAutoFetchFlag] = useState(0)
   // 마지막으로 실제 불러온 조회 조건 — 기간을 바꾸고 조회를 안 누른 상태를 알려주기 위해
@@ -517,7 +530,14 @@ function TransactionsContent() {
   const runBulkConfirm = useCallback(async (confirm: boolean) => {
     const selected = gridRef.current?.api.getSelectedRows() as Transaction[]
     if (!selected?.length || confirmProgress) return
-    const ids = selected.map(r => r.id)
+    // 체크한 행 중 실제 대상만 보낸다 — 과목 확정: 계정과목이 정해진 미확정 행(이체쌍 제외) / 해제: 확정된 행
+    const ids = selected
+      .filter(r => confirm ? (!!r.confirmed_account_id && !r.transfer_pair_id && r.status !== 'confirmed') : r.status === 'confirmed')
+      .map(r => r.id)
+    if (!ids.length) { showToast(confirm ? '체크한 행 중 과목 확정할 수 있는 행이 없습니다 (계정과목이 정해진 행만)' : '체크한 행 중 확정된 행이 없습니다'); return }
+    if (!window.confirm(confirm
+      ? `체크한 ${selected.length}건 중 ${ids.length}건을 확정하고 분개를 만듭니다.\n(계정과목이 없는 행 · 이체쌍 · 이미 확정된 행은 제외)\n\n진행할까요?`
+      : `체크한 행 중 확정된 ${ids.length}건의 확정을 해제하고 분개를 취소합니다.\n\n진행할까요?`)) return
     let done = 0, skipped = 0, errors = 0
     try {
       for (let i = 0; i < ids.length; i += CONFIRM_CHUNK) {
@@ -613,6 +633,8 @@ function TransactionsContent() {
 
   // 자동 분류 실행
   const handleClassify = useCallback(async () => {
+    const scope = filters.bankAccountId ? '지금 고른 계좌' : '전체 계좌'
+    if (!window.confirm(`계정과목이 없는 거래에 추천을 붙입니다.\n\n· 범위: ${scope}, 화면의 기간과 무관하게 전부\n· 추천만 붙습니다(회색 기울임). 확정은 따로 합니다.\n\n실행할까요?`)) return
     setClassifying(true)
     try {
       const body = filters.bankAccountId ? { bank_account_id: filters.bankAccountId } : {}
@@ -632,10 +654,10 @@ function TransactionsContent() {
   }, [filters.bankAccountId, fetchTransactions, showToast])
 
   // 이체 거래 쌍 자동 매칭
-  const handleMatchTransfers = useCallback(async () => {
+  const handleMatchTransfers = useCallback(async (pairs?: [string, string][]) => {
     setMatching(true)
     try {
-      const body = filters.bankAccountId ? { bank_account_id: filters.bankAccountId } : {}
+      const body = { ...(filters.bankAccountId ? { bank_account_id: filters.bankAccountId } : {}), ...(pairs ? { pairs } : {}) }
       const res  = await fetch('/api/transactions/match-transfers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -643,13 +665,14 @@ function TransactionsContent() {
       })
       const json = await res.json()
       if (json.matched > 0) {
-        showToast(`${json.matched}쌍 이체 매칭 완료`)
+        showToast(`${json.matched}쌍을 계좌 간 이체로 묶었습니다`)
         fetchTransactions()
       } else {
-        showToast('매칭 가능한 이체 거래 없음')
+        showToast('묶을 수 있는 이체가 없습니다')
       }
+      setTransferCandCount(null)
     } catch {
-      showToast('이체 매칭 실패', 'err')
+      showToast('이체 묶기 실패', 'err')
     } finally {
       setMatching(false)
     }
@@ -659,20 +682,38 @@ function TransactionsContent() {
   const handleMatchVendors = useCallback(async () => {
     setMatchingVendors(true)
     try {
-      const res  = await fetch('/api/transactions/match-vendors', { method: 'POST' })
+      const res  = await fetch('/api/transactions/match-vendors')
       const json = await res.json()
-      if (json.matched > 0) {
-        showToast(`${json.matched}건 거래처 매칭 완료`)
-        fetchTransactions()
-      } else {
-        showToast('매칭 가능한 거래 없음')
-      }
+      if (!res.ok) { showToast(json.error ?? '거래처 연결 후보 조회 실패', 'err'); return }
+      if (!json.matches?.length) { showToast(`연결할 수 있는 거래가 없습니다 (거래처 없는 거래 ${json.checked ?? 0}건 확인)`); return }
+      setVendorPreview(json)
+      setVendorSel(new Set((json.matches as { tx: { id: string } }[]).map(m => m.tx.id)))
     } catch {
-      showToast('거래처 매칭 실패', 'err')
+      showToast('거래처 연결 후보 조회 실패', 'err')
     } finally {
       setMatchingVendors(false)
     }
-  }, [fetchTransactions, showToast])
+  }, [showToast])
+
+  const applyVendorMatches = useCallback(async () => {
+    if (!vendorPreview || !vendorSel.size) return
+    setMatchingVendors(true)
+    try {
+      const res  = await fetch('/api/transactions/match-vendors', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(vendorSel) }),
+      })
+      const json = await res.json()
+      if (!res.ok) { showToast(json.error ?? '거래처 연결 실패', 'err'); return }
+      showToast(`${json.matched}건에 거래처를 연결했습니다`)
+      setVendorPreview(null)
+      fetchTransactions()
+    } catch {
+      showToast('거래처 연결 실패', 'err')
+    } finally {
+      setMatchingVendors(false)
+    }
+  }, [vendorPreview, vendorSel, fetchTransactions, showToast])
 
   // 미분류 거래 엑셀 다운로드
   const handleExport = useCallback(() => {
@@ -686,23 +727,55 @@ function TransactionsContent() {
     a.click()
   }, [filters.from, filters.to, filters.bankAccountId])
 
-  // 전체 거래 엑셀 다운로드 (현재 필터 그대로)
-  // 상태·출처 필터가 단일 값이면 서버 내보내기에도 그대로 넘긴다(그 외 통합 필터는 화면 전용)
+  // 기간 전체 내려받기 — 통합 필터 · 머리글 필터는 무시하고 불러온 기간 · 계좌 · 거래처 전부 (서버)
   const handleExportAll = useCallback(() => {
-    const st = txFilters.find(f => f.kind === 'status')
-    const so = txFilters.find(f => f.kind === 'source')
+    const f = fetched ?? filters
     const params = new URLSearchParams({
-      ...(st?.kind === 'status' && st.values.length === 1 && { status: st.values[0] }),
-      ...(so?.kind === 'source' && so.values.length === 1 && { source: so.values[0] }),
-      ...(filters.from          && { from: filters.from }),
-      ...(filters.to            && { to:   filters.to   }),
-      ...(filters.bankAccountId && { bankAccountId: filters.bankAccountId }),
-      ...(filters.vendorId      && { vendorId: filters.vendorId }),
+      ...(f.from          && { from: f.from }),
+      ...(f.to            && { to:   f.to   }),
+      ...(f.bankAccountId && { bankAccountId: f.bankAccountId }),
+      ...(f.vendorId      && { vendorId: f.vendorId }),
     })
     const a = document.createElement('a')
     a.href = `/api/transactions/export?${params}`
     a.click()
-  }, [filters, txFilters])
+  }, [filters, fetched])
+
+  // 지금 보이는 N건 내려받기 (2026-11-16 사용자 요청) — 기간 · + 필터 · 검색어 · 머리글 필터 · 정렬을 화면 그대로.
+  // 서버로 조건을 다시 보내면 화면과 어긋날 수 있어, 그리드가 걸러 놓은 행을 그대로 파일로 만든다.
+  const handleExportVisible = useCallback(async () => {
+    const api = gridRef.current?.api
+    if (!api) return
+    const rows: Transaction[] = []
+    api.forEachNodeAfterFilterAndSort(n => { if (n.data) rows.push(n.data) })
+    if (!rows.length) { showToast('내려받을 거래가 없습니다', 'err'); return }
+    const f = fetched ?? filters
+    const conds = txFiltersRef.current.map(x => { const d = describeFilter(x); return d.value ? `${d.label}: ${d.value}` : d.label })
+    const bank = banks.find(b => b.id === f.bankAccountId)
+    const info = [`기간 ${f.from} ~ ${f.to}`, bank && `계좌 ${bank.bank_name}`, f.vendorId && `거래처 ${vendorMap[f.vendorId]?.name ?? ''}`, ...conds]
+      .filter(Boolean).join(' / ')
+    const header = ['거래일자', '시각', '계좌', '내용/적요', '보낸분/받는분', '입금액', '출금액', '잔액', '계정과목', '추천 계정과목', '거래처', '상태', '메모', '연결', '출처']
+    const linkOf = (r: Transaction) => [
+      r.invoice_links?.length ? `계산서 ${r.invoice_links.length}건 ${r.invoice_links.reduce((x, l) => x + l.amount, 0).toLocaleString('ko-KR')}원` : '',
+      r.cash_receipt_links?.length ? `현금영수증 ${r.cash_receipt_links.length}건 ${r.cash_receipt_links.reduce((x, l) => x + l.amount, 0).toLocaleString('ko-KR')}원` : '',
+      r.transfer_pair_id ? '이체쌍' : '',
+    ].filter(Boolean).join(', ')
+    const body = rows.map(r => [
+      r.tx_date.slice(0, 10), (r.tx_time ?? '').slice(0, 8), r.account_alias ?? '', r.description ?? '', r.counterparty_name ?? '',
+      r.amount_in || '', r.amount_out || '', r.balance ?? '',
+      r.confirmed_account_id ? accountMap[r.confirmed_account_id]?.name ?? '' : '',
+      !r.confirmed_account_id && r.suggested_account_id ? accountMap[r.suggested_account_id]?.name ?? '' : '',
+      r.vendor_id ? vendorMap[r.vendor_id]?.name ?? '' : '',
+      STATUS_LABEL[r.status as TxStatus] ?? r.status, r.memo ?? '', linkOf(r),
+      r.source === 'bank' ? '은행' : r.source === 'card' ? '카드' : r.source,
+    ])
+    const XLSX = await import('xlsx')
+    const ws = XLSX.utils.aoa_to_sheet([[`${info} — ${rows.length.toLocaleString('ko-KR')}건`], [], header, ...body])
+    ws['!cols'] = [12, 10, 18, 40, 20, 14, 14, 14, 20, 20, 24, 10, 30, 28, 8].map(wch => ({ wch }))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '통장내역')
+    XLSX.writeFile(wb, `통장내역_${f.from}~${f.to}_${rows.length}건.xlsx`)
+  }, [fetched, filters, banks, vendorMap, accountMap, showToast])
 
   // 엑셀 업로드 → 계정과목 일괄 업데이트
   const handleImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -731,36 +804,30 @@ function TransactionsContent() {
     }
   }, [fetchTransactions, showToast])
 
-  // 이체 매칭 미리보기 (드라이런)
-  const handlePreview = useCallback(async () => {
+  // 계좌 간 이체 묶기 창 열기 — 묶을 후보(저장 없음)와 이미 묶인 쌍을 함께 불러온다
+  const openTransfers = useCallback(async () => {
     setPreviewing(true)
     try {
       const params = new URLSearchParams()
       if (filters.bankAccountId) params.set('bank_account_id', filters.bankAccountId)
-      const res  = await fetch(`/api/transactions/match-transfers?${params}`)
-      const json = await res.json()
-      setPreviewPairs(json.pairs ?? [])
+      const [cand, done] = await Promise.all([
+        fetch(`/api/transactions/match-transfers?${params}`).then(r => r.json()),
+        fetch('/api/transactions/matched-pairs').then(r => r.json()),
+      ])
+      const pairs = (cand.pairs ?? []) as PreviewPair[]
+      setPreviewPairs(pairs)
+      setPairSel(new Set(pairs.map((_, i) => i)))
+      setTransferCandCount(pairs.length)
+      setMatchedPairs(done.pairs ?? [])
+      setMatchedTruncated(done.truncated ?? false)
+      setTransferTab(pairs.length ? 'cand' : 'done')
     } catch {
-      showToast('미리보기 조회 실패', 'err')
+      showToast('이체 내역 조회 실패', 'err')
     } finally {
       setPreviewing(false)
     }
   }, [filters.bankAccountId, showToast])
-
-  // 현재 매칭된 쌍 검토 모달 열기
-  const handleReview = useCallback(async () => {
-    setReviewing(true)
-    try {
-      const res  = await fetch('/api/transactions/matched-pairs')
-      const json = await res.json()
-      setMatchedPairs(json.pairs ?? [])
-      setMatchedTruncated(json.truncated ?? false)
-    } catch {
-      showToast('매칭 내역 조회 실패', 'err')
-    } finally {
-      setReviewing(false)
-    }
-  }, [showToast])
+  const closeTransfers = useCallback(() => { setTransferTab(null); setPreviewPairs(null); setMatchedPairs(null) }, [])
 
   // 특정 쌍 매칭 해제
   const handleUnlink = useCallback(async (pairId: string) => {
@@ -818,6 +885,25 @@ function TransactionsContent() {
     return { totalIn, totalOut, pending, unclassified, total: rows.length }
   }, [visibleRows, rowData])
 
+  // 상태 칩 (2026-11-16): 전체 · 미검토 · 검토완료 · 확정 — 건수는 상태 조건만 뺀 나머지 통합 필터 기준
+  const statusCounts = useMemo(() => {
+    const rest = txFilters.filter(f => f.kind !== 'status')
+    const c = { all: 0, pending: 0, reviewed: 0, confirmed: 0 }
+    for (const r of rowData) {
+      if (!matchAll(r, rest, filterCtx)) continue
+      c.all++
+      if (r.status === 'pending' || r.status === 'reviewed' || r.status === 'confirmed') c[r.status]++
+    }
+    return c
+  }, [rowData, txFilters, filterCtx])
+  const statusFilter = txFilters.find(f => f.kind === 'status')
+  const activeStatus: TxStatus | 'all' | 'multi' = !statusFilter || statusFilter.kind !== 'status' ? 'all'
+    : statusFilter.values.length === 1 ? statusFilter.values[0] : 'multi'
+  const pickStatus = (st: TxStatus | 'all') => setTxFilters(fs => {
+    const rest = fs.filter(f => f.kind !== 'status')
+    return st === 'all' || activeStatus === st ? rest : [...rest, { kind: 'status', values: [st] }]
+  })
+
   // AG Grid 컬럼 정의 (accounts 로드 후 memo 필드 처리 포함)
   const colDefs = useMemo<ColDef<Transaction>[]>(() => [
     {
@@ -825,6 +911,9 @@ function TransactionsContent() {
       // 헤더 전체선택은 현재 필터에 걸린 행만 대상으로 한다
       // (기본값은 필터 무시 전체선택이라 필터 밖 행까지 일괄 확정될 위험)
       headerCheckboxSelectionFilteredOnly: true,
+      // 머리의 전체 선택은 지금 페이지만 (2026-11-16) — 50건만 고른 줄 알고 다른 페이지까지 확정하는 일 방지.
+      // 걸러진 전체는 선택 작업 줄의 "걸러진 N건 모두 선택"으로
+      headerCheckboxSelectionCurrentPageOnly: true,
       checkboxSelection: true,
       width: 48,
       pinned: 'left',
@@ -1101,7 +1190,6 @@ function TransactionsContent() {
           </span>
         )}
       </div>
-      <p className="text-gray-500 text-sm mb-4">계정과목 클릭으로 직접 분류하거나, 자동 분류를 사용하세요.</p>
 
       {/* 기간 줄: 프리셋 칩 + 날짜 from~to + 조회 (같은 줄 — 승인 시안 2026-11-10 수정 2). 서버 조회 조건. */}
       <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -1143,130 +1231,126 @@ function TransactionsContent() {
         total={rowData.length}
       />
 
-      {/* 요약 + 액션 바 */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-        {/* 통계 */}
-        <div className="flex flex-wrap gap-4 text-sm">
-          <span className="text-gray-500">총 <strong className="text-gray-900">{stats.total.toLocaleString()}건</strong></span>
+      {/* 상태 칩 + 요약 + 버튼 줄 (2026-11-16 버튼 정리 — 시안 docs/mockups/통장내역_버튼정리_시안.html) */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-2">
+        <div className="flex items-center gap-1 flex-wrap">
+          {([['all', '전체'], ['pending', '미검토'], ['reviewed', '검토완료'], ['confirmed', '확정']] as const).map(([k, label]) => (
+            <button key={k} onClick={() => pickStatus(k)}
+              title={k === 'all' ? '상태 조건 해제' : `${label}만 보기 (다시 누르면 해제)`}
+              className={`px-2.5 py-1 rounded-full text-xs border ${activeStatus === k ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+              {label} <span className="tabular-nums">{statusCounts[k].toLocaleString('ko-KR')}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-3 text-sm">
+          <span className="text-gray-500">보이는 <strong className="text-gray-900">{stats.total.toLocaleString()}건</strong></span>
           <span className="text-blue-600">입금 <strong>{stats.totalIn.toLocaleString()}원</strong></span>
           <span className="text-red-600">출금 <strong>{stats.totalOut.toLocaleString()}원</strong></span>
-          {stats.pending > 0 && (
-            <span className="text-orange-500">미검토 <strong>{stats.pending}건</strong></span>
-          )}
           {stats.unclassified > 0 && (
             <span className="text-gray-400">미분류 <strong>{stats.unclassified}건</strong></span>
           )}
         </div>
 
-        {/* 액션 버튼 */}
-        <div className="flex gap-2 flex-wrap">
-          {/* 숨겨진 파일 입력 */}
-          <input
-            ref={uploadRef}
-            type="file"
-            accept=".xlsx,.xls"
-            className="hidden"
-            onChange={handleImport}
-          />
-          <button
-            onClick={handleExportAll}
-            className="px-3 py-1.5 border border-emerald-300 rounded-lg text-sm text-emerald-700 hover:bg-emerald-50"
-          >
-            ↓ 전체 다운로드
+        <div className="flex gap-2 flex-wrap ml-auto">
+          <input ref={uploadRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImport} />
+          <button onClick={handleClassify} disabled={classifying}
+            title="계정과목이 없는 거래에 추천을 붙입니다(키워드 · 카드 정산). 추천만 붙고 확정은 따로 합니다. 화면의 기간과 무관하게 전부 대상입니다."
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            {classifying ? '추천 중...' : '계정과목 자동 추천'}
           </button>
-          <button
-            onClick={handleExport}
-            className="px-3 py-1.5 border border-emerald-300 rounded-lg text-sm text-emerald-700 hover:bg-emerald-50"
-          >
-            미분류 다운로드
+          <button onClick={handleMatchVendors} disabled={matchingVendors}
+            title="거래처가 없는 거래 중 적요 · 입금자명이 한 거래처에만 일치하는 것을 찾아 보여 줍니다. 목록을 확인한 뒤 저장됩니다. 화면의 기간과 무관하게 전부 대상입니다."
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            {matchingVendors ? '찾는 중...' : '거래처 자동 연결'}
           </button>
-          <button
-            onClick={() => uploadRef.current?.click()}
-            disabled={importing}
-            className="px-3 py-1.5 border border-emerald-300 rounded-lg text-sm text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-          >
-            {importing ? '업로드 중...' : '엑셀 업로드'}
+          <button onClick={openTransfers} disabled={previewing}
+            title="우리 계좌끼리 옮긴 돈(출금 1건 + 입금 1건)을 한 쌍으로 묶습니다. 묶을 후보를 확인해 묶거나, 이미 묶인 쌍을 해제합니다."
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            {previewing ? '조회 중...' : '계좌 간 이체 묶기'}
+            {transferCandCount ? <span className="ml-1 text-xs text-gray-400 tabular-nums">{transferCandCount}</span> : null}
           </button>
-          <button
-            onClick={handleClassify}
-            disabled={classifying}
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-          >
-            {classifying ? '분류 중...' : '자동 분류'}
-          </button>
-          <button
-            onClick={handleReview}
-            disabled={reviewing}
-            className="px-3 py-1.5 border border-purple-300 rounded-lg text-sm text-purple-700 hover:bg-purple-50 disabled:opacity-50"
-          >
-            {reviewing ? '조회 중...' : '매칭 검토'}
-          </button>
-          <button
-            onClick={handlePreview}
-            disabled={previewing}
-            className="px-3 py-1.5 border border-purple-300 rounded-lg text-sm text-purple-700 hover:bg-purple-50 disabled:opacity-50"
-          >
-            {previewing ? '조회 중...' : '매칭 확인'}
-          </button>
-          <button
-            onClick={handleMatchTransfers}
-            disabled={matching}
-            className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
-          >
-            {matching ? '매칭 중...' : '계정 이체 매칭'}
-          </button>
-          <button
-            onClick={handleMatchVendors}
-            disabled={matchingVendors}
-            className="px-3 py-1.5 border border-indigo-300 rounded-lg text-sm text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
-          >
-            {matchingVendors ? '매칭 중...' : '거래처 자동 매칭'}
-          </button>
-          {selectedCount === 1 && (
-            <button
-              onClick={handlePreviewJournal}
-              className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50"
-            >
-              분개 미리보기
+          <div className="relative">
+            <button onClick={() => setExcelOpen(v => !v)}
+              className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">
+              {importing ? '올리는 중...' : '엑셀 ▾'}
             </button>
-          )}
-          {selectedCount > 0 && (
-            <>
-              {/* 행을 체크하면 항상 보인다 — 받아들일 추천이 없으면 비활성 (2026-10-22: 안 보여서 못 찾던 문제) */}
-              <button
-                onClick={handleAcceptSuggestions}
-                disabled={!!confirmProgress || acceptableCount === 0}
-                title={acceptableCount > 0
-                  ? '선택한 행의 시스템 추천 계정(기울임 회색)을 그대로 받아들여 검토완료로 바꿉니다 (분개는 선택 확정에서)'
-                  : '선택한 행 중 추천만 있는 미검토 행이 없습니다'}
-                className="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-40"
-              >
-                추천 수락 {acceptableCount}건
-              </button>
-              <button
-                onClick={handleBulkConfirm}
-                disabled={!!confirmProgress}
-                className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-60"
-              >
-                {confirmProgress ?? `선택 ${selectedCount}건 확정`}
-              </button>
-              <button
-                onClick={handleBulkUnconfirm}
-                disabled={!!confirmProgress}
-                className="px-3 py-1.5 border border-green-300 rounded-lg text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-60"
-              >
-                확정 해제
-              </button>
-              <button
-                onClick={handleBulkDelete}
-                className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
-              >
-                선택 {selectedCount}건 삭제
-              </button>
-            </>
-          )}
+            {excelOpen && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setExcelOpen(false)} />
+                <div className="absolute right-0 mt-1 w-80 max-w-[90vw] bg-white border border-gray-300 rounded-xl shadow-xl z-30 overflow-hidden text-left">
+                  <button onClick={() => { setExcelOpen(false); handleExportVisible() }} className="block w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-gray-100">
+                    <span className="block text-sm font-semibold text-gray-900">지금 보이는 {stats.total.toLocaleString()}건 내려받기</span>
+                    <span className="block text-xs text-gray-500">기간 · + 필터 · 검색어 · 머리글 필터 · 정렬을 화면 그대로</span>
+                  </button>
+                  <button onClick={() => { setExcelOpen(false); handleExportAll() }} className="block w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-gray-100">
+                    <span className="block text-sm font-semibold text-gray-900">기간 전체 {rowData.length.toLocaleString()}건 내려받기</span>
+                    <span className="block text-xs text-gray-500">필터 무시 — 불러온 기간 · 계좌 전부</span>
+                  </button>
+                  <div className="px-3 pt-2 pb-1 text-[0.6875rem] text-gray-400 bg-gray-50">계정과목 일괄 입력</div>
+                  <button onClick={() => { setExcelOpen(false); handleExport() }} className="block w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-gray-100">
+                    <span className="block text-sm font-semibold text-gray-900">분류용 양식 내려받기</span>
+                    <span className="block text-xs text-gray-500">계정과목 없는 거래 + 추천 + 계정과목 목록</span>
+                  </button>
+                  <button onClick={() => { setExcelOpen(false); uploadRef.current?.click() }} disabled={importing} className="block w-full text-left px-3 py-2.5 hover:bg-slate-50 disabled:opacity-50">
+                    <span className="block text-sm font-semibold text-gray-900">분류용 양식 올리기</span>
+                    <span className="block text-xs text-gray-500">양식에 계정과목을 적어 올리면 검토완료로 반영</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* 선택 작업 줄 — 행을 체크했을 때만. 버튼의 숫자 = 체크한 행 중 실제로 처리될 건수 */}
+      {selectedCount > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+          <span className="text-sm font-semibold text-gray-900">{selectedCount.toLocaleString()}건 선택</span>
+          <span className="text-xs text-gray-500">
+            {[selInfo.pending && `미검토 ${selInfo.pending}`, selInfo.reviewed && `검토완료 ${selInfo.reviewed}`, selInfo.confirmed && `확정 ${selInfo.confirmed}`].filter(Boolean).join(' · ')}
+          </span>
+          {selectedCount < stats.total && (
+            <button onClick={() => gridRef.current?.api.selectAll('filtered')}
+              className="text-xs text-slate-600 underline hover:text-slate-900">걸러진 {stats.total.toLocaleString()}건 모두 선택</button>
+          )}
+          <button onClick={() => gridRef.current?.api.deselectAll()} className="text-xs text-gray-400 underline hover:text-gray-600">선택 해제</button>
+          <span className="flex-1" />
+          <button onClick={handleAcceptSuggestions} disabled={!!confirmProgress || acceptableCount === 0}
+            title={acceptableCount > 0
+              ? '체크한 행의 추천 계정과목(회색 기울임)을 받아들여 미검토 → 검토완료로 바꿉니다. 분개는 과목 확정에서 만듭니다.'
+              : '체크한 행 중 추천만 있는 미검토 행이 없습니다'}
+            className="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-40">
+            검토 확정 {acceptableCount}건
+          </button>
+          <button onClick={handleBulkConfirm} disabled={!!confirmProgress || selInfo.confirmable === 0}
+            title={selInfo.confirmable > 0
+              ? '체크한 행 중 계정과목이 정해진 행을 확정하고 분개를 만듭니다.'
+              : '체크한 행 중 계정과목이 정해진 미확정 행이 없습니다'}
+            className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-40">
+            {confirmProgress ?? `과목 확정 ${selInfo.confirmable}건`}
+          </button>
+          <button onClick={handleBulkUnconfirm} disabled={!!confirmProgress || selInfo.confirmed === 0}
+            title="체크한 행 중 확정된 행을 검토완료로 되돌리고 분개를 취소합니다."
+            className="px-3 py-1.5 border border-green-300 rounded-lg text-sm font-medium text-green-700 bg-white hover:bg-green-50 disabled:opacity-40">
+            확정 해제{selInfo.confirmed ? ` ${selInfo.confirmed}건` : ''}
+          </button>
+          <div className="relative">
+            <button onClick={() => setMoreOpen(v => !v)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white hover:bg-gray-50">더보기 ▾</button>
+            {moreOpen && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setMoreOpen(false)} />
+                <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-300 rounded-xl shadow-xl z-30 overflow-hidden">
+                  <button onClick={() => { setMoreOpen(false); handlePreviewJournal() }} disabled={selectedCount !== 1}
+                    title={selectedCount !== 1 ? '1건만 체크했을 때 볼 수 있습니다' : undefined}
+                    className="block w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-slate-50 disabled:opacity-40 border-b border-gray-100">분개 미리보기 (1건)</button>
+                  <button onClick={() => { setMoreOpen(false); handleBulkDelete() }}
+                    className="block w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50">체크한 {selectedCount}건 삭제</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* AG Grid */}
       <div className="ag-theme-quartz flex-1 rounded-lg overflow-hidden border border-gray-200" style={{ minHeight: 400 }}>
@@ -1281,6 +1365,13 @@ function TransactionsContent() {
             const rows = e.api.getSelectedRows() as Transaction[]
             setSelectedCount(rows.length)
             setAcceptableCount(rows.filter(r => r.status === 'pending' && !r.confirmed_account_id && (r.suggested_account_id || r.transfer_pair_id)).length)
+            setSelInfo({
+              pending: rows.filter(r => r.status === 'pending').length,
+              reviewed: rows.filter(r => r.status === 'reviewed').length,
+              confirmed: rows.filter(r => r.status === 'confirmed').length,
+              confirmable: rows.filter(r => !!r.confirmed_account_id && !r.transfer_pair_id && r.status !== 'confirmed').length,
+            })
+            if (!rows.length) setMoreOpen(false)
           }}
           onCellValueChanged={onCellValueChanged}
           onFilterChanged={recomputeVisible}
@@ -1317,7 +1408,7 @@ function TransactionsContent() {
 
       {/* 안내 문구 */}
       <p className="text-xs text-gray-400 mt-2">
-        계정과목 셀 클릭 → 드롭다운으로 분류 &nbsp;·&nbsp; 메모 셀 클릭 → 직접 입력 &nbsp;·&nbsp; 행 체크 후 추천 수락(검토완료) → 선택 확정(분개 자동 생성)
+        계정과목 셀 클릭 → 드롭다운으로 분류 &nbsp;·&nbsp; 메모 셀 클릭 → 직접 입력 &nbsp;·&nbsp; 행 체크 후 검토 확정(검토완료) → 과목 확정(분개 자동 생성)
       </p>
 
       {/* 분개 미리보기 모달 */}
@@ -1382,13 +1473,17 @@ function TransactionsContent() {
       )}
 
       {/* 이체 매칭 검토 모달 (기존 매칭 쌍 — 개별 해제 가능) */}
-      {matchedPairs !== null && (
+      {transferTab === 'done' && matchedPairs !== null && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b">
+            <div className="flex items-start justify-between px-6 py-4 border-b">
               <div>
-                <h2 className="text-lg font-semibold text-slate-800">이체 매칭 검토</h2>
-                <p className="text-xs text-slate-500 mt-0.5">잘못 매칭된 쌍은 &quot;해제&quot; 버튼으로 개별 해제할 수 있습니다.</p>
+                <h2 className="text-lg font-semibold text-slate-800">계좌 간 이체 묶기</h2>
+                <p className="text-xs text-slate-500 mt-0.5">이미 묶인 이체입니다. 잘못 묶인 쌍만 &quot;해제&quot;로 풉니다.</p>
+              <div className="flex gap-1 mt-3 -mb-4">
+                <button onClick={() => setTransferTab('cand')} className={`px-3 py-2 text-sm border-b-2 ${false ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>묶을 후보 {previewPairs?.length ?? 0}쌍</button>
+                <button onClick={() => setTransferTab('done')} className={`px-3 py-2 text-sm border-b-2 ${true ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>묶인 이체 {matchedPairs?.length ?? 0}쌍</button>
+              </div>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-purple-700 bg-purple-50 px-3 py-1 rounded-full">
@@ -1404,7 +1499,7 @@ function TransactionsContent() {
 
             <div className="overflow-auto flex-1 px-6 py-4">
               {matchedPairs.length === 0 ? (
-                <p className="text-slate-400 text-sm py-8 text-center">현재 매칭된 이체 쌍이 없습니다.</p>
+                <p className="text-slate-400 text-sm py-8 text-center">묶인 이체가 없습니다.</p>
               ) : (
                 <table className="w-full text-sm border-collapse">
                   <thead>
@@ -1458,7 +1553,7 @@ function TransactionsContent() {
 
             <div className="px-6 py-4 border-t flex items-center justify-end">
               <button
-                onClick={() => { setMatchedPairs(null); fetchTransactions() }}
+                onClick={() => { closeTransfers(); fetchTransactions() }}
                 className="px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50"
               >
                 닫기
@@ -1469,15 +1564,19 @@ function TransactionsContent() {
       )}
 
       {/* 이체 매칭 미리보기 모달 */}
-      {previewPairs !== null && (
+      {transferTab === 'cand' && previewPairs !== null && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b">
+            <div className="flex items-start justify-between px-6 py-4 border-b">
               <div>
-                <h2 className="text-lg font-semibold text-slate-800">이체 매칭 미리보기</h2>
+                <h2 className="text-lg font-semibold text-slate-800">계좌 간 이체 묶기</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  동일 금액 + ±1일 + 다른 계좌 조건으로 매칭 가능한 쌍 (저장되지 않음)
+                  같은 금액 · 하루 이내 · 서로 다른 우리 계좌 · 짝이 하나뿐인 것만 후보입니다. 체크한 쌍만 묶습니다(아직 저장 전).
                 </p>
+              <div className="flex gap-1 mt-3 -mb-4">
+                <button onClick={() => setTransferTab('cand')} className={`px-3 py-2 text-sm border-b-2 ${true ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>묶을 후보 {previewPairs?.length ?? 0}쌍</button>
+                <button onClick={() => setTransferTab('done')} className={`px-3 py-2 text-sm border-b-2 ${false ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>묶인 이체 {matchedPairs?.length ?? 0}쌍</button>
+              </div>
               </div>
               <span className="text-sm font-medium text-purple-700 bg-purple-50 px-3 py-1 rounded-full">
                 {previewPairs.length}쌍
@@ -1486,7 +1585,7 @@ function TransactionsContent() {
 
             <div className="overflow-auto flex-1 px-6 py-4">
               {previewPairs.length === 0 ? (
-                <p className="text-slate-400 text-sm py-8 text-center">매칭 가능한 이체 거래가 없습니다.</p>
+                <p className="text-slate-400 text-sm py-8 text-center">묶을 후보가 없습니다.</p>
               ) : (
                 <table className="w-full text-sm border-collapse">
                   <thead>
@@ -1510,7 +1609,10 @@ function TransactionsContent() {
                       const inAmt   = pair.in.amount_in as number
                       return (
                       <tr key={i} className="border-b border-slate-50 hover:bg-slate-50 text-xs">
-                        <td className="py-2 pr-3 text-slate-400 text-center">{i + 1}</td>
+                        <td className="py-2 pr-3 text-center">
+                          <input type="checkbox" checked={pairSel.has(i)}
+                            onChange={e => setPairSel(prev => { const n = new Set(prev); if (e.target.checked) n.add(i); else n.delete(i); return n })} />
+                        </td>
                         <td className="py-2 pr-3 text-slate-700 font-medium">
                           {pair.out.account_alias ?? '—'}
                           {isMinus && <span className="ml-1 text-orange-500 text-[0.625rem]">마이너스</span>}
@@ -1537,27 +1639,86 @@ function TransactionsContent() {
 
             <div className="px-6 py-4 border-t flex items-center justify-between gap-3">
               <p className="text-xs text-slate-400">
-                미확정 쌍은 저장되지 않습니다. &quot;이체 매칭 실행&quot;을 눌러야 DB에 반영됩니다.
+                묶으면 두 거래가 검토완료가 되고 계정과목 추천은 지워집니다(계좌 간 이동이라 분개 없음). 화면의 기간과 무관합니다.
               </p>
               <div className="flex gap-2">
-                <button
-                  onClick={() => setPreviewPairs(null)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50"
-                >
-                  닫기
-                </button>
+                <button onClick={closeTransfers}
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">닫기</button>
                 {previewPairs.length > 0 && (
                   <button
                     onClick={() => {
-                      setPreviewPairs(null)
-                      handleMatchTransfers()
+                      const pairs = previewPairs.filter((_, i) => pairSel.has(i)).map(p => [p.out.id, p.in.id] as [string, string])
+                      closeTransfers()
+                      handleMatchTransfers(pairs)
                     }}
-                    disabled={matching}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
-                  >
-                    {matching ? '매칭 중...' : `${previewPairs.length}쌍 계정 이체 매칭 실행`}
+                    disabled={matching || pairSel.size === 0}
+                    className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+                    {matching ? '묶는 중...' : `체크한 ${pairSel.size}쌍 묶기`}
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 거래처 자동 연결 미리보기 — 확인 후 저장 (2026-11-16) */}
+      {vendorPreview && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+            <div className="px-6 py-4 border-b">
+              <h2 className="text-lg font-semibold text-slate-800">거래처 자동 연결</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                거래처 없는 거래 {vendorPreview.checked.toLocaleString()}건 중 적요 · 입금자명이 한 거래처에만 일치하는 {vendorPreview.total.toLocaleString()}건입니다. 체크한 것만 연결합니다(아직 저장 전).
+                {vendorPreview.total > vendorPreview.matches.length && ` 목록은 앞 ${vendorPreview.matches.length.toLocaleString()}건만 보입니다 — 연결 후 다시 누르면 나머지가 나옵니다.`}
+              </p>
+            </div>
+            <div className="overflow-auto flex-1 px-6 py-3">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="text-left text-slate-500 border-b">
+                    <th className="pb-2 pr-2 w-6">
+                      <input type="checkbox" checked={vendorSel.size === vendorPreview.matches.length}
+                        onChange={e => setVendorSel(e.target.checked ? new Set(vendorPreview.matches.map(m => m.tx.id)) : new Set())} />
+                    </th>
+                    <th className="pb-2 pr-3 font-medium">거래일</th>
+                    <th className="pb-2 pr-3 font-medium">계좌</th>
+                    <th className="pb-2 pr-3 font-medium">적요 / 보낸분</th>
+                    <th className="pb-2 pr-3 font-medium text-right">금액</th>
+                    <th className="pb-2 pr-3 font-medium">연결될 거래처</th>
+                    <th className="pb-2 font-medium">근거</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vendorPreview.matches.map(m => (
+                    <tr key={m.tx.id} className="border-b border-slate-50 hover:bg-slate-50">
+                      <td className="py-1.5 pr-2">
+                        <input type="checkbox" checked={vendorSel.has(m.tx.id)}
+                          onChange={e => setVendorSel(prev => { const n = new Set(prev); if (e.target.checked) n.add(m.tx.id); else n.delete(m.tx.id); return n })} />
+                      </td>
+                      <td className="py-1.5 pr-3 text-slate-500 whitespace-nowrap tabular-nums">{m.tx.tx_date.slice(0, 10)}</td>
+                      <td className="py-1.5 pr-3 text-slate-500 whitespace-nowrap">{m.tx.account_alias ?? '—'}</td>
+                      <td className="py-1.5 pr-3 text-slate-700 max-w-[16rem] truncate" title={`${m.tx.description ?? ''} ${m.tx.counterparty_name ?? ''}`}>
+                        {m.tx.description ?? ''}{m.tx.counterparty_name ? <span className="text-slate-400"> · {m.tx.counterparty_name}</span> : null}
+                      </td>
+                      <td className={`py-1.5 pr-3 text-right whitespace-nowrap tabular-nums ${(m.tx.amount_in ?? 0) > 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                        {(m.tx.amount_in ?? 0) > 0 ? `입금 ${(m.tx.amount_in ?? 0).toLocaleString('ko-KR')}` : `출금 ${(m.tx.amount_out ?? 0).toLocaleString('ko-KR')}`}
+                      </td>
+                      <td className="py-1.5 pr-3 font-medium text-slate-800">{m.vendor.name}</td>
+                      <td className="py-1.5 text-slate-500 whitespace-nowrap">{m.reason} 일치</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-6 py-4 border-t flex items-center justify-between gap-3">
+              <p className="text-xs text-slate-400">화면의 기간 · 계좌와 무관하게 전체 거래가 대상입니다. 잘못된 것은 체크를 풀고 연결하세요.</p>
+              <div className="flex gap-2">
+                <button onClick={() => setVendorPreview(null)} className="px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">닫기</button>
+                <button onClick={applyVendorMatches} disabled={matchingVendors || vendorSel.size === 0}
+                  className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+                  {matchingVendors ? '연결 중...' : `체크한 ${vendorSel.size}건 연결`}
+                </button>
               </div>
             </div>
           </div>

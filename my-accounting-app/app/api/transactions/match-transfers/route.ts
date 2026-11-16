@@ -104,7 +104,8 @@ export async function GET(req: NextRequest) {
 // Body: { bank_account_id?: string }
 export async function POST(req: NextRequest) {
   const admin = createAdminClient()
-  const body  = await req.json().catch(() => ({})) as { bank_account_id?: string }
+  // pairs: 미리보기에서 체크한 쌍만 묶는다([출금 id, 입금 id]). 없으면 후보 전부(옛 동작) — 2026-11-16
+  const body  = await req.json().catch(() => ({})) as { bank_account_id?: string; pairs?: [string, string][] }
   const bankAccountId = body.bank_account_id
 
   type TxRow = Record<string, unknown>
@@ -186,6 +187,12 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  if (Array.isArray(body.pairs)) {
+    const want = new Set(body.pairs.map(p => [p[0], p[1]].sort().join(':')))
+    for (let i = pairs.length - 1; i >= 0; i--) {
+      if (!want.has([pairs[i][0], pairs[i][1]].sort().join(':'))) pairs.splice(i, 1)
+    }
+  }
   if (pairs.length === 0) {
     return NextResponse.json({ matched: 0, total: outgoing.length })
   }
