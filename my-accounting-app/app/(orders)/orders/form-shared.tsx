@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { fmtPurchasePrice, purchaseAmount, toPurchasePrice } from '@/lib/purchase-price'
 
 // 주문 입력·상담일지 폼 공용 부품 — 마스터 타입, 품목 행 모델, 가격 규칙, 자동완성 콤보.
 // 가격 규칙(구분별 자동)은 두 화면이 반드시 같아야 하므로 여기 한 곳에만 둔다.
@@ -194,7 +195,7 @@ export function CustomerShipInput({ it, disabled, onChange, className }: {
   const shown = perBox ? it.ship_unit! : (it.shipping_fee || 0)
   return (
     <>
-      <input value={shown ? won(shown) : ''} disabled={disabled}
+      <NumInput value={shown ? won(shown) : ''} disabled={disabled}
         onChange={e => onChange(customerShipInput(it, toInt(e.target.value)))}
         title={boxes
           ? `박스당 단가 입력 — 매입배송비 ${won(it.purchase_shipping)} ÷ 박스당 ${won(boxFeeOf(it))} = ${boxes}박스`
@@ -242,14 +243,49 @@ export function splitByGroupPrefix(name: string, groups: { id: string; name: str
 }
 
 export const won = (n: number) => n.toLocaleString('ko-KR')
+// 숫자 칸 값 읽기 — 쉼표 · 글자는 버리고 소수점은 살려 원 단위로 반올림 (2026-11-16: 점을 지워 462.2가 4622(10배)로 들어가던 문제)
 export const toInt = (s: string) => {
-  const n = Number(s.replace(/[^\d-]/g, ''))
+  const n = Number(s.replace(/[^\d.-]/g, ''))
   return Number.isFinite(n) ? Math.round(n) : 0
+}
+
+// ── 숫자 입력 칸 (상담일지 · 주문서 공용, 2026-11-16) ──
+// 금액 칸은 입력할 때마다 쉼표 표기로 다시 그려서, 소수점을 치면 점이 사라지고 다음 숫자가 뒤에 붙어 10배가 됐다(462.2 → 4622).
+// 소수점을 친 동안에는 친 글자를 그대로 보여 주고, 계산 쪽(onChange)에는 반올림한 정수만 넘긴다. 칸을 벗어나면 원 단위 표기로 돌아간다.
+// 사용법은 <input>과 같다 — onChange 안에서 toInt(e.target.value)로 읽으면 된다.
+// decimals: 소수 자리를 받는 칸(매입가 — 518, 둘째 자리까지). 이때는 친 값을 그대로 넘기고, 셋째 자리부터만 반올림 안내.
+export function NumInput({ value, onChange, onBlur, decimals = 0, ...rest }: React.InputHTMLAttributes<HTMLInputElement> & { decimals?: number }) {
+  const [raw, setRaw] = useState<string | null>(null)
+  const round = (t: string) => decimals > 0 ? toPurchasePrice(t) : toInt(t)
+  const rounded = raw != null ? round(raw) : 0
+  const frac = raw != null ? (raw.split('.')[1] ?? '').replace(/\D/g, '') : ''
+  const showTip = raw != null && frac.length > decimals
+  return (
+    <span className="relative block">
+      <input {...rest} inputMode="decimal"
+        value={raw ?? (value as string | number | undefined) ?? ''}
+        onChange={e => {
+          const typed = e.target.value
+          if (!typed.includes('.')) { setRaw(null); onChange?.(e); return }
+          setRaw(typed)
+          e.target.value = String(round(typed))   // 계산 쪽에는 반올림한 값만 (정수 칸은 정수, 매입가는 소수 둘째 자리)
+          onChange?.(e)
+          e.target.value = typed
+        }}
+        onBlur={e => { setRaw(null); onBlur?.(e) }} />
+      {showTip && (
+        <span className="absolute right-0 top-full z-10 mt-0.5 whitespace-nowrap rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[0.625rem] text-amber-700 shadow-sm">
+          {decimals > 0 ? `소수 ${decimals}째 자리까지 — ${fmtPurchasePrice(rounded)}` : `원 단위로 반올림해 ${won(rounded)}`}(으)로 저장됩니다
+        </span>
+      )}
+    </span>
+  )
 }
 export const lineTotal = (it: ItemDraft) => it.sale_price * it.quantity + it.shipping_fee - it.discount_amount
 // 매입합계 (708) — 매입가 × 수량 + 매입배송비 − 매입할인. 서버 purchase_total과 같은 공식
 export const lineCost = (it: Pick<ItemDraft, 'purchase_price' | 'quantity' | 'purchase_shipping' | 'purchase_discount'>) =>
-  it.purchase_price * it.quantity + it.purchase_shipping - (it.purchase_discount || 0)
+  purchaseAmount(it.purchase_price, it.quantity) + it.purchase_shipping - (it.purchase_discount || 0)   // 매입가는 소수 가능 — 원 단위 반올림 (518)
+export { fmtPurchasePrice, purchaseAmount, toPurchasePrice }
 
 // 저장된 품목 행(상담·주문)에서 매입할인 · 주문시기 읽기 — 708 미적용 DB면 기본값
 export const draftExtrasFromRow = (r: Record<string, unknown>): Pick<ItemDraft, 'purchase_discount' | 'purchase_discount_mode' | 'purchase_discount_unit' | 'order_season'> => ({
@@ -273,7 +309,7 @@ export function priceRule(
       sale_price: it.individual_sale_price > 0
         ? it.individual_sale_price
         : it.branch_sale_price + it.loose_shipping_fee,
-      purchase_price: it.branch_purchase_price + it.loose_shipping_fee,
+      purchase_price: toPurchasePrice(it.branch_purchase_price + it.loose_shipping_fee),
       shipping_fee: 0,
     }
   }
@@ -289,7 +325,7 @@ export function priceRule(
     return {
       sale_price: 0,
       shipping_fee: 0,
-      purchase_price: it.branch_purchase_price + it.loose_shipping_fee,
+      purchase_price: toPurchasePrice(it.branch_purchase_price + it.loose_shipping_fee),
     }
   }
   return {}
@@ -470,7 +506,7 @@ export function DiscountInput({ mode, unit, amount, quantity, disabled, onChange
         <option value="정액">정액</option>
         <option value="단가">개당</option>
       </select>
-      <input
+      <NumInput
         value={mode === '단가' ? (unit ? won(unit) : '') : (amount ? won(amount) : '')}
         disabled={disabled}
         onChange={e => {

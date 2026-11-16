@@ -4,7 +4,8 @@
 //            마진율 = 이익금 ÷ 지점판매가
 // 개별 마진: 이익금 = 개별판매가 − (매입가 + 카톤외택배비)   — 개별 1개 = 낱개 1건 배송이라 카톤외택배비 전액을 1개에 붙임
 //            마진율 = 이익금 ÷ 개별판매가
-// 금액은 모두 VAT 포함 그대로. 계산은 반올림 전 값, 표시만 반올림(이익금 원 · 마진율 소수 첫째 자리).
+// 금액은 모두 VAT 포함 그대로. 매입가는 소수 둘째 자리까지 올 수 있음(518) — 계산은 그대로, 이익금 표시는 roundProfit(매입가 소수면 둘째 자리).
+// 계산은 반올림 전 값, 표시만 반올림(이익금 원 · 마진율 소수 첫째 자리).
 // 판매가 없음(0): 지점은 이익금만(마진율 null), 개별은 전체 null(개별로 팔지 않는 품목).
 // 카톤단위가 비었거나 1 미만이면 카톤택배비 몫은 0 — 501 설계('빈값 · 0 = 카톤 미사용')와 주문 입력 자동 배송비 규칙과 같음.
 // 주문 · 상담 화면의 마진은 별도(입력 당시 값 기준)이며 이 함수를 쓰지 않는다.
@@ -39,9 +40,17 @@ export function individualMargin(p: MarginInput): Margin | null {
 }
 
 /** 이익금 표시: 원 단위 반올림 — "1,420원" */
-export function formatProfit(profit: number): string {
-  const n = Math.round(profit)
-  return `${(n === 0 ? 0 : n).toLocaleString('ko-KR')}원`
+/** 이익금 표시 반올림 — 매입가에 소수가 있으면 소수 둘째 자리, 없으면 원 단위(2026-11-16 사용자 선택 2번).
+ *  카톤택배비 ÷ 카톤단위에서 생기는 소수는 지금처럼 원 단위(예: 71.43 → 71원) — 소수 표시는 매입가 소수 품목만 */
+export function roundProfit(profit: number, purchasePrice?: number | null): number {
+  const keep = !Number.isInteger(Number(purchasePrice) || 0)
+  const n = keep ? Math.round(profit * 100) / 100 : Math.round(profit)
+  return n === 0 ? 0 : n
+}
+
+/** 이익금 표시: "1,420원" · 매입가 소수 품목은 "146.8원" */
+export function formatProfit(profit: number, purchasePrice?: number | null): string {
+  return `${roundProfit(profit, purchasePrice).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}원`
 }
 
 /** 마진율 표시: 소수 첫째 자리 — "31.6%", 판매가 없으면 "-" */

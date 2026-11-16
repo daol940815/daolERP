@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { branchMargin } from '@/lib/product-margin'
+import { toPurchasePrice } from '@/lib/purchase-price'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -55,6 +56,7 @@ const GRAY = 'FFC3C9D0'        // 참고·파생 열
 const YELLOW = 'FFFFFF00'      // 상태·매입처 정보 열
 const ORANGE = 'FFF2AA84'      // 마진율·택배비 열
 const ACCT = '_-* #,##0_-;\\-* #,##0_-;_-* "-"_-;_-@_-'
+const ACCT_DEC = '_-* #,##0.0#_-;\\-* #,##0.0#_-;_-* "-"_-;_-@_-'   // 소수 매입가용 (462.2 · 462.25)
 // 열별 정의: [헤더 1행 문구, 너비, 헤더 배경, 데이터 표시형식, 데이터 정렬]
 const COLS: [string, number, string, string | null, 'left' | 'center'][] = [
   ['*품번', 15.5, PINK, null, 'center'],
@@ -226,9 +228,9 @@ export async function GET(req: NextRequest) {
       p.option_name ?? '',
       status,
       p.purchase_vendor_name ?? '',
-      p.purchase_price || 0,
+      Number(p.purchase_price) || 0,
       // 개별배송매입가 = 지점배송매입가 + 카톤외택배비 (파생, 참고용)
-      p.purchase_price > 0 && p.loose_shipping_fee > 0 ? p.purchase_price + p.loose_shipping_fee : '',
+      p.purchase_price > 0 && p.loose_shipping_fee > 0 ? toPurchasePrice(Number(p.purchase_price) + p.loose_shipping_fee) : '',
       p.sale_price || 0,
       p.individual_sale_price || '',
       p.consumer_price ?? '',
@@ -254,7 +256,8 @@ export async function GET(req: NextRequest) {
       cell.font = { name: FONT, size: 10, color: { argb: 'FF000000' } }
       cell.alignment = { horizontal: COLS[ci][4], vertical: 'middle' }
       const fmt = COLS[ci][3]
-      if (fmt) cell.numFmt = fmt
+      // 매입가 · 개별배송 매입가(6 · 7열)가 소수(462.2)면 회계 서식에 소수 자리만 더함 — 정수 칸은 원본 원가표 서식 그대로(왕복 유지, 518)
+      if (fmt) cell.numFmt = (ci === 6 || ci === 7) && typeof val === 'number' && !Number.isInteger(val) ? ACCT_DEC : fmt
     })
   })
 

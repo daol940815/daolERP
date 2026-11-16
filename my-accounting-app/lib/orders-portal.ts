@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { purchaseAmount, toPurchasePrice } from '@/lib/purchase-price'
 import { contactLabel } from '@/lib/contact-label'
 import { hasShip, shipText, type ShipInput } from './ship-address'
 import { MIGRATION_708_HINT, parsePurchaseDiscount } from './consultations'
@@ -89,7 +90,7 @@ export function validateOrderInput(raw: unknown): { input: OrderInput } | { erro
       discount_amount: r.discount_mode === '단가' ? toInt(r.discount_unit) * qty : toInt(r.discount_amount),
       discount_mode: (r.discount_mode === '단가' ? '단가' : '정액') as '정액' | '단가',
       discount_unit: r.discount_mode === '단가' ? toInt(r.discount_unit) : 0,
-      purchase_price: toInt(r.purchase_price),
+      purchase_price: toPurchasePrice(r.purchase_price),   // 소수 둘째 자리까지 (518)
       purchase_shipping: toInt(r.purchase_shipping),
       ...parsePurchaseDiscount({ ...r, quantity: qty }),
       order_season: normalizeSeason(String(r.order_season ?? '')) || null,
@@ -297,7 +298,7 @@ export function buildOrderRows(input: OrderInput, ctx: ApplyContext) {
     purchase_discount_unit: it.purchase_discount_unit ?? 0,
     order_season: it.order_season ?? null,
     // 매입합계 = 매입가 × 수량 + 매입배송비 − 매입할인 (708) — 발주서 금액 · 미지급금 · 매입 집계가 이 값을 쓴다
-    purchase_total: (it.purchase_price ?? 0) * it.quantity + (it.purchase_shipping ?? 0) - (it.purchase_discount ?? 0),
+    purchase_total: purchaseAmount(it.purchase_price, it.quantity) + (it.purchase_shipping ?? 0) - (it.purchase_discount ?? 0),   // 매입금액은 원 단위 반올림 (518)
     settlement_month: input.order_date.slice(0, 7),
     channel: ctx.counselorName,
     memo: it.memo ?? null,

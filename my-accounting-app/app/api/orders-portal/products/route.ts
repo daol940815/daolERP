@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/user-role'
 import { can } from '@/lib/permissions'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { ensureAlias } from '@/lib/orders-portal'
+import { toPurchasePrice } from '@/lib/purchase-price'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,7 +70,7 @@ export async function POST(req: NextRequest) {
       purchase_alias_id: purchaseName ? await ensureAlias(admin, 'purchase', purchaseName) : null,
       sale_price: toInt(body.sale_price),
       individual_sale_price: toInt(body.individual_sale_price),
-      purchase_price: toInt(body.purchase_price),
+      purchase_price: toPurchasePrice(body.purchase_price),   // 소수 둘째 자리까지 (518)
       carton_unit: toInt(body.carton_unit) > 0 ? toInt(body.carton_unit) : null,
       carton_shipping_fee: toInt(body.carton_shipping_fee),
       loose_shipping_fee: toInt(body.loose_shipping_fee),

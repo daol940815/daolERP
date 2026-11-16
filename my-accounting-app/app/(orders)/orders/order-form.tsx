@@ -8,7 +8,7 @@ import { normTel } from '@/lib/contact-phone-sync'
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Combo, CustomerShipInput, DiscountInput, SeasonDatalist, SeasonInput, autoGrow, branchLabel, draftExtrasFromRow, draftFromProduct,
+  Combo, CustomerShipInput, DiscountInput, NumInput, fmtPurchasePrice, purchaseAmount, toPurchasePrice, SeasonDatalist, SeasonInput, autoGrow, branchLabel, draftExtrasFromRow, draftFromProduct,
   emptyItem, lineCost, lineTotal, priceRule, purchaseShippingHint, quantityPatch, reshipPatch, toInt, withShipUnit, won,
 } from './form-shared'
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
@@ -978,11 +978,11 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                     className="w-full border border-gray-200 bg-gray-50 rounded px-1.5 py-1 text-xs" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  <input value={it.sale_price ? won(it.sale_price) : ''} onChange={e => setItem(i, { sale_price: toInt(e.target.value) })}
+                  <NumInput value={it.sale_price ? won(it.sale_price) : ''} onChange={e => setItem(i, { sale_price: toInt(e.target.value) })}
                     className={numCell} placeholder="0" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  <input value={it.quantity || ''} onChange={e => setQuantity(i, toInt(e.target.value))}
+                  <NumInput value={it.quantity || ''} onChange={e => setQuantity(i, toInt(e.target.value))}
                     className="w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs text-right tabular-nums" placeholder="1" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
@@ -1003,7 +1003,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                     <option value="정액">정액</option>
                     <option value="단가">개당</option>
                   </select>
-                  <input
+                  <NumInput
                     value={it.discount_mode === '단가'
                       ? (it.discount_unit ? won(it.discount_unit) : '')
                       : (it.discount_amount ? won(it.discount_amount) : '')}
@@ -1028,11 +1028,11 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                   </div>
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  <input value={it.purchase_price ? won(it.purchase_price) : ''} onChange={e => setItem(i, { purchase_price: toInt(e.target.value) })}
+                  <NumInput decimals={2} value={it.purchase_price ? fmtPurchasePrice(it.purchase_price) : ''} onChange={e => setItem(i, { purchase_price: toPurchasePrice(e.target.value) })}
                     className={numCell} placeholder="0" />
                   {/* 품목별 매입가 합계 = 매입가 × 수량 (704 확정) */}
                   {it.purchase_price > 0 && it.quantity > 0 && (
-                    <div className="text-[0.625rem] text-gray-400 mt-0.5 tabular-nums">합계 {won(it.purchase_price * it.quantity)}</div>
+                    <div className="text-[0.625rem] text-gray-400 mt-0.5 tabular-nums">합계 {won(purchaseAmount(it.purchase_price, it.quantity))}</div>
                   )}
                 </td>
                 <td className="py-1 px-1.5 text-right">
@@ -1042,7 +1042,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                     onChange={d => setItem(i, { purchase_discount_mode: d.mode, purchase_discount_unit: d.unit, purchase_discount: d.amount })} />
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  <input value={it.purchase_shipping ? won(it.purchase_shipping) : ''}
+                  <NumInput value={it.purchase_shipping ? won(it.purchase_shipping) : ''}
                     onChange={e => { const v = toInt(e.target.value); setItem(i, { purchase_shipping: v, ...reshipPatch({ ...it, purchase_shipping: v }) }) }}
                     title={purchaseShippingHint(it) ?? '카톤 정보가 없는 품목 — 직접 입력'}
                     className={numCell} placeholder="0" />
