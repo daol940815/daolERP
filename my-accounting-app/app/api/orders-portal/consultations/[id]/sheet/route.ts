@@ -104,6 +104,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const sheetItems: ConsultSheetItem[] = items.map(it => ({
     line_no: n(it.line_no), parent_line_no: it.parent_line_no ? n(it.parent_line_no) : null, is_shipping: it.is_shipping === true,
     item_code: s(it.item_code), order_kind: s(it.order_kind), item_name: s(it.item_name),
+    purchase_vendor_name: s(it.purchase_vendor_name),
     quantity: n(it.quantity), sale_price: n(it.sale_price),
     discount_amount: n(it.discount_amount), discount_mode: s(it.discount_mode), discount_unit: n(it.discount_unit),
     line_total: n(it.line_total),
