@@ -671,6 +671,8 @@ export interface PurchaseHubBankRow {
   // — 한 출금을 두 거래처 계산서에 나눠 연결하면 vendor_id는 하나만 남아, 이 매입처 통장 탭에서 빠지던 문제
   tagged_vendor_name: string | null
   other_vendor_linked: number  // 다른 거래처 계산서에 연결된 몫 (이 거래처 자신의 매출 계산서 연결 제외) — 지급액(607) 계산용
+  tagged_here: boolean         // 통장 거래처가 이 매입처로 지정돼 있는가 ('거래처 지정 해제' 대상)
+  own_links: { payment_id: string; invoice_id: string; issue_date: string; amount: number }[]  // 이 매입처 계산서와의 결제연결 ('계산서 연결 해제' 대상)
 }
 export type BankVerdict = 'ok' | 'match_missing' | 'invoice_check' | 'inflow' | 'other_vendor' | 'excluded'
 
@@ -850,13 +852,13 @@ export async function buildPurchaseHubDetail(
   // 결제연결 금액은 '배분 금액'이다 — 출금 5,000만 원을 계산서 3,000만 원에 연결하면 연결 3,000만, 잔여 2,000만.
   // 이 매입처 계산서(invoiceIds)에 배분된 금액과 다른 거래처 계산서(청구처·중복 거래처)에 배분된 금액을 나눠 센다.
   const invoiceIdSet = new Set(invoiceIds)
-  const bankLinkByTx = new Map<string, { own: number; other: number; otherInv: Set<string>; otherAmt: Map<string, number> }>()
+  const bankLinkByTx = new Map<string, { own: number; other: number; otherInv: Set<string>; otherAmt: Map<string, number>; ownLinks: { payment_id: string; invoice_id: string; amount: number }[] }>()
   if (bankTxs.length) {
-    const r = await fetchByIds<{ transaction_id: string; tax_invoice_id: string; amount: number }>(bankTxs.map(x => x.id), 100, (slice, f, t) =>
-      admin.from('tax_invoice_payments').select('transaction_id, tax_invoice_id, amount').in('transaction_id', slice).range(f, t))
+    const r = await fetchByIds<{ id: string; transaction_id: string; tax_invoice_id: string; amount: number }>(bankTxs.map(x => x.id), 100, (slice, f, t) =>
+      admin.from('tax_invoice_payments').select('id, transaction_id, tax_invoice_id, amount').in('transaction_id', slice).range(f, t))
     if (!('error' in r)) for (const l of r.data) {
-      const e = bankLinkByTx.get(l.transaction_id) ?? { own: 0, other: 0, otherInv: new Set<string>(), otherAmt: new Map<string, number>() }
-      if (invoiceIdSet.has(l.tax_invoice_id)) e.own += l.amount
+      const e = bankLinkByTx.get(l.transaction_id) ?? { own: 0, other: 0, otherInv: new Set<string>(), otherAmt: new Map<string, number>(), ownLinks: [] }
+      if (invoiceIdSet.has(l.tax_invoice_id)) { e.own += l.amount; e.ownLinks.push({ payment_id: l.id, invoice_id: l.tax_invoice_id, amount: l.amount }) }
       else { e.other += l.amount; e.otherInv.add(l.tax_invoice_id); e.otherAmt.set(l.tax_invoice_id, (e.otherAmt.get(l.tax_invoice_id) ?? 0) + l.amount) }
       bankLinkByTx.set(l.transaction_id, e)
     }
@@ -896,7 +898,7 @@ export async function buildPurchaseHubDetail(
   }
   const bankRows: PurchaseHubBankRow[] = bankTxs.map(tx => {
     const out = tx.amount_out ?? 0
-    const link = bankLinkByTx.get(tx.id) ?? { own: 0, other: 0, otherInv: new Set<string>(), otherAmt: new Map<string, number>() }
+    const link = bankLinkByTx.get(tx.id) ?? { own: 0, other: 0, otherInv: new Set<string>(), otherAmt: new Map<string, number>(), ownLinks: [] }
     // 상계는 연결이 하나도 없는 확정 2001 출금만 (tx2001과 같은 규칙 — 이중집계 방지)
     const isOffset = !!acc2001 && tx.status === 'confirmed' && tx.confirmed_account_id === acc2001 && out > 0 && link.own + link.other === 0
     return {
@@ -905,8 +907,11 @@ export async function buildPurchaseHubDetail(
       invoice_linked: link.own, linked_other: link.other, is_offset: isOffset,
       linked_other_names: Array.from(new Set(Array.from(link.otherInv).map(id => otherInvVendor.get(id) ?? '(알 수 없음)'))),
       unallocated: isOffset ? 0 : Math.max(0, out - link.own - link.other),
-      basis: tx.vendor_id && tx.vendor_id !== vendorId ? '계산서 연결' : basisOf(tx),
-      tagged_vendor_name: tx.vendor_id && tx.vendor_id !== vendorId ? (taggedOtherName.get(tx.vendor_id) ?? '(다른 거래처)') : null,
+      // 통장 거래처가 이 매입처가 아니면(다른 거래처 · 지정 없음) 이 매입처 계산서 연결로만 들어온 줄이다
+      basis: tx.vendor_id !== vendorId ? '계산서 연결' : basisOf(tx),
+      tagged_vendor_name: tx.vendor_id === vendorId ? null : tx.vendor_id ? (taggedOtherName.get(tx.vendor_id) ?? '(다른 거래처)') : '(지정 없음)',
+      tagged_here: tx.vendor_id === vendorId,
+      own_links: link.ownLinks.map(l => ({ ...l, issue_date: invDate.get(l.invoice_id) ?? '' })),
       // 607 지급액용 — 다른 거래처 계산서로 간 몫(이 거래처 자신의 매출 계산서 연결은 제외)
       other_vendor_linked: Array.from(link.otherAmt.entries()).reduce((s, [id, a]) => s + (sameVendorInv.has(id) ? 0 : a), 0),
     }
