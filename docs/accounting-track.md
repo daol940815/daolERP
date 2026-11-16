@@ -1302,3 +1302,12 @@ ERP 주문은 계획대로 교체(erp-reload-track). 결정 대기.
     머리 전체 선택 = 지금 페이지만(`headerCheckboxSelectionCurrentPageOnly`), "걸러진 N건 모두 선택"(`api.selectAll('filtered')`) 별도.
   - 도움말 `/transactions` 항목 신설(HELP_PENDING에서 제거). 위쪽 안내 문구 한 줄 제거.
   - 손대지 않은 것: 분류 작업 탭, 열 구성(연결 3칸 합치기 · 주문 매칭 표시는 미결), 요약 카드화, 계좌 칩 ✕ 초기화.
+
+## 다른 트랙 변경 알림 — 거래처 중복 정리 병합 방식 변경 (2026-11-16, 고객관리 트랙)
+
+- `/api/vendor-master/merge`(kind vendor)가 `merge_vendor` 단독 호출에서 `lib/vendor-merge.ts` `executeVendorMerge`(전체 병합)로 바뀌었다.
+  - 회계 연결(통장 · 계산서 · 카드 · 분개 · 원장 · 기초잔액 · 별칭)은 그대로 옮긴다.
+  - 추가로 담당자 배정 · 지점 담당 · 주문 주문처 · 상담 · 표기 연결 · 과거 매출 스냅샷도 옮긴다(예전에는 흡수된 거래처에 남는 결함).
+- 화면(`/vendor-dedup`) 확인 창에 미리보기 건수 · 경고가 나온다. 막는 이유가 있으면 병합하지 않는다:
+  - 이미 병합됨 · 대표 비활성 · 서로 다른 개인 고객
+- ERP 별칭 병합(kind erp_alias)은 변경 없음.

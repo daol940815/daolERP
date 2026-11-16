@@ -41,7 +41,23 @@ export default function VendorDedupPage() {
     const into = primary[key] ?? g.members[0].id
     const others = g.members.filter(m => m.id !== into)
     const intoName = g.members.find(m => m.id === into)?.name
-    if (!confirm(`'${intoName}'을(를) 대표로 하여 ${others.length}건을 병합합니다.\n병합된 이름은 별칭으로 저장되어 이후 자동 인식됩니다.\n진행할까요?`)) return
+    // 거래처는 병합 전 미리보기(옮겨지는 건수 · 경고 · 막는 이유) — 매출처 상세 "다른 매출처와 합치기"와 같은 병합 (2026-11-16)
+    let detail = ''
+    if (sec.kind === 'vendor') {
+      const lines: string[] = []
+      for (const m of others) {
+        const r = await fetch(`/api/vendor-hub/merge?from=${m.id}&into=${into}`)
+        const pv = await r.json().catch(() => ({}))
+        if (!r.ok) { setMsg(`'${m.name}' 미리보기 실패: ${pv.error ?? ''}`); return }
+        if (pv.blockers?.length) { alert(`'${m.name}'은(는) 합칠 수 없습니다:\n${pv.blockers.join('\n')}`); return }
+        const moved = (pv.counts as { label: string; from: number }[]).filter(c => c.from > 0).map(c => `${c.label} ${c.from}`).join(' · ')
+        lines.push(`· ${m.name}: ${moved || '옮길 연결 없음'}`)
+        for (const w of (pv.warnings as string[])) lines.push(`  주의 — ${w}`)
+        for (const g2 of (pv.same_name as { name: string }[])) lines.push(`  같은 이름 담당자: ${g2.name} 님 — 합친 뒤 매출처 상세에서 확인`)
+      }
+      detail = `\n\n옮겨지는 것:\n${lines.join('\n')}`
+    }
+    if (!confirm(`'${intoName}'을(를) 대표로 하여 ${others.length}건을 병합합니다.\n병합된 이름은 별칭으로 저장되어 이후 자동 인식됩니다.${detail}\n\n진행할까요?`)) return
     setBusy(key); setMsg(null)
     try {
       for (const m of others) {
@@ -53,7 +69,7 @@ export default function VendorDedupPage() {
         const data = await res.json()
         if (!res.ok) throw new Error(`'${m.name}' 병합 실패: ${data.error}`)
       }
-      setMsg(`✅ '${intoName}' 그룹 병합 완료 (${others.length}건 흡수)`)
+      setMsg(`'${intoName}' 그룹 병합 완료 (${others.length}건 흡수)`)
       await load()
     } catch (e) {
       setMsg(e instanceof Error ? e.message : '병합 오류')
