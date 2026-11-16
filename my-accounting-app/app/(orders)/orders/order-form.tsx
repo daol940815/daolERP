@@ -8,7 +8,7 @@ import { normTel } from '@/lib/contact-phone-sync'
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Combo, CustomerShipInput, DiscountInput, NumInput, SeasonDatalist, SeasonInput, autoGrow, branchLabel, draftExtrasFromRow, draftFromProduct,
+  Combo, CustomerShipInput, DiscountInput, NumInput, fmtPurchasePrice, purchaseAmount, toPurchasePrice, SeasonDatalist, SeasonInput, autoGrow, branchLabel, draftExtrasFromRow, draftFromProduct,
   emptyItem, lineCost, lineTotal, priceRule, purchaseShippingHint, quantityPatch, reshipPatch, toInt, withShipUnit, won,
 } from './form-shared'
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
@@ -1028,11 +1028,11 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                   </div>
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  <NumInput value={it.purchase_price ? won(it.purchase_price) : ''} onChange={e => setItem(i, { purchase_price: toInt(e.target.value) })}
+                  <NumInput decimals={2} value={it.purchase_price ? fmtPurchasePrice(it.purchase_price) : ''} onChange={e => setItem(i, { purchase_price: toPurchasePrice(e.target.value) })}
                     className={numCell} placeholder="0" />
                   {/* 품목별 매입가 합계 = 매입가 × 수량 (704 확정) */}
                   {it.purchase_price > 0 && it.quantity > 0 && (
-                    <div className="text-[0.625rem] text-gray-400 mt-0.5 tabular-nums">합계 {won(it.purchase_price * it.quantity)}</div>
+                    <div className="text-[0.625rem] text-gray-400 mt-0.5 tabular-nums">합계 {won(purchaseAmount(it.purchase_price, it.quantity))}</div>
                   )}
                 </td>
                 <td className="py-1 px-1.5 text-right">

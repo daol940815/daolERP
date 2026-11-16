@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { purchasePriceNumFmt } from '@/lib/purchase-price'
 
 // 발주서 공용 로직 (3단계 — 주문 단위 발주)
 // 발주서 1장 = 주문 1건 × 매입처 1곳. 품목 연결로 중복 발주를 막고
@@ -263,7 +264,9 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
         // 금액 = 단가×수량 수식 (원본 방식) — 어긋나면 값으로
         const qty = Number(values[2]) || 0
         const price = Number(values[3]) || 0
-        cell.value = qty * price === Number(v)
+        // 단가 × 수량이 원 단위로 딱 떨어지고 금액과 같을 때만 수식 — 소수 매입가(518)를 반올림한 금액이면 값으로
+        const exactCents = Math.round(price * 100) * qty
+        cell.value = exactCents % 100 === 0 && exactCents / 100 === Number(v)
           ? ({ formula: `E${r}*D${r}`, result: Number(v) } as import('exceljs').CellFormulaValue)
           : Number(v)
       } else {
@@ -274,7 +277,8 @@ export async function buildPoExcel(po: PoExcelData): Promise<Buffer> {
         color: { argb: argb(ci === 2 ? PO_COLORS.qtyInk : ci === 5 ? PO_COLORS.noteInk : PO_COLORS.ink) },
       }
       cell.alignment = center
-      if (ci === 3 || ci === 4) cell.numFmt = '#,##0'
+      if (ci === 4) cell.numFmt = '#,##0'
+      if (ci === 3) cell.numFmt = purchasePriceNumFmt(Number(v))   // 단가 — 소수 매입가(462.2)는 소수까지 (518)
     })
   }
 
