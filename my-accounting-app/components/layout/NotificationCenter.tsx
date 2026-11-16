@@ -112,7 +112,7 @@ export function NotificationBell({ data, seenAt, onSeen, live }: { data: NotifDa
                   {sub.map(i => {
                     const seen = !!seenAt && !!i.at && i.at <= seenAt
                     return (
-                      <Link key={i.key} prefetch={false} href={i.href} onClick={() => setTab(null)}
+                      <Link key={i.key} href={i.href} onClick={() => setTab(null)}
                         className="grid grid-cols-[8px_1fr_auto] gap-2.5 px-4 py-2 border-b border-gray-50 hover:bg-gray-50 items-start">
                         <span className={`w-2 h-2 rounded-full mt-1.5 ${DOT[i.tone]}`} />
                         <span className="min-w-0">
@@ -180,7 +180,7 @@ export function TodoPanel({ variant, data }: { variant: 'dark' | 'light'; data: 
           <li key={i.key} className={`flex items-center gap-2.5 py-1.5 text-[0.8125rem] border-t ${dark ? 'border-slate-800' : 'border-gray-100'}`}>
             <span className={`text-[0.625rem] font-bold rounded-full px-1.5 py-0.5 leading-none ${pill(i)}`}>{i.count}</span>
             <span className="truncate"><SourceTag item={i} dark={dark} />{i.title.replace(/\s\d+건$/, '')}</span>
-            <Link prefetch={false} href={i.href} className={`ml-auto text-[0.6875rem] whitespace-nowrap hover:underline ${dark ? 'text-sky-300' : 'text-blue-600'}`}>바로가기 →</Link>
+            <Link href={i.href} className={`ml-auto text-[0.6875rem] whitespace-nowrap hover:underline ${dark ? 'text-sky-300' : 'text-blue-600'}`}>바로가기 →</Link>
           </li>
         ))}
       </ul>

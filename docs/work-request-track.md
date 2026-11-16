@@ -206,7 +206,7 @@
   in_progress, accepted×2). API가 쓰는 임베드 3종(요청→담당자 행, 담당자 행→요청 inner, staff-status 중첩 역참조) PostgREST 200.
 
 - 2026-11-03 사용자 확인: 알림 패널 "즉시 갱신 연결됨 · 20초마다 갱신" 표시 — ⑥ 2단계 정상.
-- 2026-11-16: Vercel 무료 한도 초과(일시 중지)로 폴링 20초 → 60초, 숨은 탭은 폴링 중지. 업무 요청은 실시간 신호로 즉시 유지. docs/hosting-track.md.
+- 2026-11-16: Vercel 무료 한도 초과(일시 중지) 뒤 숨은 탭(다른 탭 · 최소화)은 폴링 중지, 복귀 시 즉시 1회. 주기 20초 유지(Pro 전환 결정). docs/hosting-track.md.
 
 ### ⑦ PC 알림(Web Push) 구현 (2026-11-03 배포 — **903 실행 + Vercel 환경변수 4개 대기**)
 - **903** `supabase/migrations/903_push_subscriptions.sql`: `push_subscriptions`(employee_id · endpoint UNIQUE · p256dh · auth · device_label ·
