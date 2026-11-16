@@ -6,7 +6,7 @@ import { NumInput, toInt } from '../form-shared'
 import { fmtPurchasePrice, toPurchasePrice } from '@/lib/purchase-price'
 import { listParams, readListParams, type CondField, type ProductCond, type ProductFilter } from '@/lib/product-list-params'
 import VendorInfoPanel, { useVendorInfo } from './vendor-info-panel'
-import { branchMargin, individualMargin, formatProfit, formatRate, type Margin } from '@/lib/product-margin'
+import { branchMargin, individualMargin, formatProfit, formatRate, roundProfit, type Margin } from '@/lib/product-margin'
 
 // 품목 마스터 (2단계) — 주문 입력의 품번 검색 원천.
 // 목록 화면 관례: KPI 카드(클릭=필터) + 통합 검색 + 표.
@@ -131,14 +131,14 @@ const compareBy = (key: SortKey, dir: SortDir) => (a: Product, b: Product) => {
 }
 
 // 마진 한 줄: "지점 1,420원 (31.6%)" — 마이너스 빨간색, 개별판매가 없음은 '-'
-function MarginLine({ label, m }: { label: string; m: Margin | null }) {
-  const neg = m !== null && Math.round(m.profit) < 0
+function MarginLine({ label, m, purchase }: { label: string; m: Margin | null; purchase: number }) {
+  const neg = m !== null && roundProfit(m.profit, purchase) < 0
   return (
     <div className="flex justify-start items-baseline gap-1.5">
       <span className="text-[0.625rem] text-gray-400">{label}</span>
       {m === null ? <span className="text-gray-400">-</span> : (
         <span className={neg ? 'text-red-600 font-medium' : 'text-emerald-700'}>
-          {formatProfit(m.profit)} <span className="text-xs">({formatRate(m.rate)})</span>
+          {formatProfit(m.profit, purchase)} <span className="text-xs">({formatRate(m.rate)})</span>
         </span>
       )}
     </div>
@@ -629,8 +629,8 @@ export default function ProductsPage() {
                   <td className="py-2 px-3 text-right tabular-nums">{p.individual_sale_price ? won(p.individual_sale_price) : '-'}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{fmtPurchasePrice(p.purchase_price)}</td>
                   <td className="py-2 px-3 text-left tabular-nums whitespace-nowrap">
-                    <MarginLine label="지점" m={branchMargin(p)} />
-                    <MarginLine label="개별" m={individualMargin(p)} />
+                    <MarginLine label="지점" m={branchMargin(p)} purchase={p.purchase_price} />
+                    <MarginLine label="개별" m={individualMargin(p)} purchase={p.purchase_price} />
                   </td>
                   <td className="py-2 px-3 text-right tabular-nums">{p.carton_unit ?? '-'}</td>
                   <td className="py-2 px-3 text-right tabular-nums">{p.carton_unit ? won(p.carton_shipping_fee) : '-'}</td>
