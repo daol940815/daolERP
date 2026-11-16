@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { BillingAskDialog, saveInvoiceLinks, type BillingAsk, type InvoiceLink } from './billing-ask'
 
 // 주문 ↔ 계산서 연결 모달 (매출 사이클)
 // - 추천 조합: 금액이 정확히 맞는 조합 제시 (후보는 시스템, 확정은 사용자)
@@ -20,7 +21,8 @@ interface Group {
   links: { orderId: string; taxInvoiceId: string; amount: number; issueDate: string }[]
 }
 interface OpenOrder { id: string; order_no: string; order_date: string; net_amount: number; remaining: number; vendor_name?: string }
-interface OpenInvoice { id: string; issue_date: string; total_amount: number; item_name: string | null; remaining: number; vendor_name?: string }
+// foreign: '다른 거래처 계산서에서 찾기'로 추가한 계산서 (이 매출처 · 청구처가 아닌 거래처 명의, 2026-11-17)
+interface OpenInvoice { id: string; issue_date: string; total_amount: number; item_name: string | null; remaining: number; vendor_name?: string; foreign?: boolean; vendor_id?: string | null; counterparty_name?: string | null }
 
 export default function InvoiceLinkModal({ vendorId, vendorName, from, onClose, onApplied }: {
   vendorId: string
@@ -42,6 +44,16 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, onClose, 
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [applying, setApplying] = useState(false)
+  // 다른 거래처 계산서에서 찾기
+  const [billing, setBilling] = useState<{ name: string | null; can_ask: boolean }>({ name: null, can_ask: false })
+  const [findOpen, setFindOpen] = useState(false)
+  const [findAmount, setFindAmount] = useState('')
+  const [findFrom, setFindFrom] = useState('')
+  const [findTo, setFindTo] = useState('')
+  const [findQ, setFindQ] = useState('')
+  const [found, setFound] = useState<OpenInvoice[] | null>(null)
+  const [finding, setFinding] = useState(false)
+  const [ask, setAsk] = useState<{ ask: BillingAsk; links: InvoiceLink[]; amount: number } | null>(null)
 
   const load = () => {
     setGroups(null)
@@ -53,6 +65,8 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, onClose, 
         setOrders(j.orders ?? [])
         setInvoices(j.invoices ?? [])
         setSummary(j.summary ?? null)
+        setBilling(j.billing ?? { name: null, can_ask: false })
+        setFound(null)
         setChecked(new Set())
         setSelOrders(new Set())
         setSelInvoices(new Set())
@@ -119,28 +133,49 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, onClose, 
     }
   }, [orders, invoices, selOrders, selInvoices])
 
-  const postLinks = async (links: { orderId: string; taxInvoiceId: string; amount: number; issueDate: string }[], confirmMsg: string) => {
-    if (!confirm(confirmMsg)) return
+  const postLinks = async (links: InvoiceLink[], confirmMsg: string | null, setBillingTo?: string) => {
+    if (confirmMsg && !confirm(confirmMsg)) return
     setApplying(true)
     setError(null)
     setNotice(null)
-    const res = await fetch('/api/sales-cycle/invoice-candidates', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ links }),
-    })
-    const json = await res.json()
+    const r = await saveInvoiceLinks(links, setBillingTo ? { vendorId, billingVendorId: setBillingTo } : undefined)
     setApplying(false)
-    if (!res.ok) { setError(json.error ?? '확정 실패'); return }
-    const prop = json.propagated as { count: number; amount: number } | undefined
-    setNotice(
-      `연결 ${json.linked}건 확정 (${won(json.amount ?? 0)})`
-      + (prop && prop.count > 0
-        ? ` · 계산서에 매칭된 입금 ${prop.count}건(${won(prop.amount)})을 수금배분으로 이월했습니다.`
-        : '')
-    )
+    setAsk(null)
+    if (!r.ok) { setError(r.message); return }
+    setNotice(r.message)
     onApplied()
     load() // 모달을 닫지 않고 다음 연결을 이어서 할 수 있게 갱신
+  }
+
+  // 다른 거래처 계산서에서 찾기 — 금액 기본값은 고른 주문의 남은 금액 합, 기간은 주문일 −7일 ~ +120일
+  const openFind = () => {
+    const os = orders.filter(o => selOrders.has(o.id))
+    const base = os.length ? os : orders
+    setFindAmount(os.length ? String(os.reduce((x, o) => x + o.remaining, 0)) : '')
+    if (base.length) {
+      const dates = base.map(o => o.order_date.slice(0, 10)).sort()
+      const shift = (d: string, n: number) => new Date(new Date(d).getTime() + n * 86400000).toISOString().slice(0, 10)
+      setFindFrom(shift(dates[0], -7)); setFindTo(shift(dates[dates.length - 1], 120))
+    }
+    setFindQ(''); setFound(null); setFindOpen(true)
+  }
+  const runFind = async () => {
+    setFinding(true); setError(null)
+    const p = new URLSearchParams({ vendorId })
+    const amt = findAmount.replace(/[^0-9]/g, '')
+    if (amt) p.set('amount', amt)
+    if (findFrom) p.set('from', findFrom)
+    if (findTo) p.set('to', findTo)
+    if (findQ.trim()) p.set('q', findQ.trim())
+    const res = await fetch(`/api/sales-cycle/invoice-search?${p}`, { cache: 'no-store' })
+    const j = await res.json().catch(() => ({}))
+    setFinding(false)
+    if (!res.ok) { setError(j.error ?? '찾기 실패'); setFound([]); return }
+    setFound(((j.invoices ?? []) as OpenInvoice[]).map(v => ({ ...v, foreign: true })))
+  }
+  const addFound = (v: OpenInvoice) => {
+    setInvoices(prev => (prev.some(x => x.id === v.id) ? prev : [...prev, v]))
+    setSelInvoices(prev => new Set(prev).add(v.id))
   }
 
   const applyAuto = () => {
@@ -153,7 +188,27 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, onClose, 
 
   const applyManual = () => {
     if (!manualPlan || !manualPlan.valid || !manualPlan.links) return
-    postLinks(manualPlan.links, `${manualPlan.links.length}건 연결(${won(manualPlan.linked ?? 0)})을 확정합니다.`)
+    const links = manualPlan.links.map(({ orderId, taxInvoiceId, amount, issueDate }) => ({ orderId, taxInvoiceId, amount, issueDate }))
+    // 다른 거래처 명의 계산서가 섞여 있으면 묻는 창을 띄운다 — 청구처로 지정하면 다음부터 추천에 뜬다
+    const foreign = invoices.filter(v => v.foreign && links.some(l => l.taxInvoiceId === v.id))
+    if (foreign.length) {
+      const vendors = Array.from(new Set(foreign.map(v => v.vendor_id ?? '')))
+      const one = vendors.length === 1 && vendors[0] ? foreign[0] : null
+      setAsk({
+        links, amount: manualPlan.linked ?? 0,
+        ask: {
+          orderVendorId: vendorId, orderVendorName: vendorName,
+          invoiceVendorId: one?.vendor_id ?? null,
+          invoiceVendorName: one ? (one.vendor_name ?? '') : foreign.map(v => v.vendor_name ?? '').filter((x, i, a) => a.indexOf(x) === i).join(', '),
+          canSetBilling: !!one && billing.can_ask,
+          whyNot: !one ? (vendors.length > 1 ? '서로 다른 거래처의 계산서가 섞여 있어 청구처 지정은 묻지 않습니다. 이번 연결만 저장합니다.' : '거래처가 연결되지 않은 계산서라 청구처 지정은 묻지 않습니다. 이번 연결만 저장합니다.')
+            : billing.name ? `이 매출처는 이미 청구처(${billing.name})가 지정되어 있습니다. 이번 연결만 저장합니다.`
+              : '청구처 지정은 거래처 관리 수정 권한이 필요하거나, 이 매출처가 다른 매출처의 청구처로 쓰이고 있습니다. 이번 연결만 저장합니다.',
+        },
+      })
+      return
+    }
+    postLinks(links, `${links.length}건 연결(${won(manualPlan.linked ?? 0)})을 확정합니다.`)
   }
 
   const filteredOrders = orders.filter(o =>
@@ -245,17 +300,27 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, onClose, 
                 </div>
               </div>
               <div className="border border-gray-200 rounded-lg">
-                <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2">
+                <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2 flex-wrap">
                   <p className="text-xs font-semibold text-indigo-800">미배분 계산서 ({filteredInvoices.length})</p>
+                  <button onClick={() => (findOpen ? setFindOpen(false) : openFind())}
+                    title="계산서가 다른 거래처(지점 · 본점 등) 명의로 발행된 경우, 전체 매출 계산서에서 금액 · 발행일 · 상호로 찾습니다"
+                    className="px-2 py-1 rounded border border-blue-300 bg-blue-50 text-blue-700 text-[0.6875rem] font-medium hover:bg-blue-100">
+                    {findOpen ? '찾기 닫기' : '다른 거래처 계산서에서 찾기'}
+                  </button>
                   <input value={invoiceQuery} onChange={e => setInvoiceQuery(e.target.value)} placeholder="품목·금액 검색"
-                    className="ml-auto border border-gray-200 rounded px-2 py-1 text-xs w-32" />
+                    className="ml-auto border border-gray-200 rounded px-2 py-1 text-xs w-28" />
                 </div>
                 <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
                   {filteredInvoices.map(v => (
-                    <label key={v.id} className={`flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer ${selInvoices.has(v.id) ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}>
+                    <label key={v.id} className={`flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer ${v.foreign ? 'bg-amber-50' : selInvoices.has(v.id) ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}>
                       <input type="checkbox" checked={selInvoices.has(v.id)} onChange={() => toggleId(selInvoices, setSelInvoices, v.id)} />
                       <span className="text-gray-500 whitespace-nowrap">{v.issue_date.slice(0, 10)}</span>
-                      <span className="text-gray-900 truncate">{v.vendor_name ? <span className="text-blue-700">{v.vendor_name} · </span> : null}{v.item_name ?? '(품목 미상)'}</span>
+                      <span className="text-gray-900 truncate">
+                        {v.foreign
+                          ? <span className="inline-block px-1 py-px rounded bg-amber-100 text-amber-800 text-[0.625rem] font-semibold mr-1">다른 거래처 · {v.vendor_name}</span>
+                          : v.vendor_name ? <span className="text-blue-700">{v.vendor_name} · </span> : null}
+                        {v.item_name ?? '(품목 미상)'}
+                      </span>
                       <span className="ml-auto tabular-nums font-medium whitespace-nowrap">{won(v.remaining)}</span>
                     </label>
                   ))}
@@ -263,6 +328,45 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, onClose, 
                 </div>
               </div>
             </div>
+
+            {findOpen && (
+              <div className="mt-3 p-3 rounded-lg border border-dashed border-blue-300 bg-blue-50/40">
+                <div className="flex items-center gap-2 flex-wrap text-xs text-gray-600 mb-2">
+                  <b className="text-blue-700">다른 거래처 계산서에서 찾기</b>
+                  <span>금액</span>
+                  <input value={findAmount ? Number(findAmount.replace(/[^0-9]/g, '') || 0).toLocaleString('ko-KR') : ''} onChange={e => setFindAmount(e.target.value.replace(/[^0-9]/g, ''))}
+                    placeholder="전체" inputMode="numeric" className="border border-gray-300 rounded px-2 py-1 w-28 text-right bg-white tabular-nums" />
+                  <span>발행일</span>
+                  <input type="date" value={findFrom} onChange={e => setFindFrom(e.target.value)} className="border border-gray-300 rounded px-1.5 py-1 bg-white" />
+                  <span>~</span>
+                  <input type="date" value={findTo} onChange={e => setFindTo(e.target.value)} className="border border-gray-300 rounded px-1.5 py-1 bg-white" />
+                  <input value={findQ} onChange={e => setFindQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') runFind() }}
+                    placeholder="상호 (예: 석계역)" className="border border-gray-300 rounded px-2 py-1 w-36 bg-white" />
+                  <button onClick={runFind} disabled={finding} className="px-2.5 py-1 rounded bg-slate-900 text-white font-medium disabled:opacity-50">{finding ? '찾는 중...' : '찾기'}</button>
+                </div>
+                {found === null ? (
+                  <p className="text-xs text-gray-400">금액은 계산서의 남은 금액과 같은 것만 찾습니다. 금액을 비우면 상호로 찾습니다. 이미 다른 주문에 다 연결된 계산서와 취소쌍은 나오지 않습니다.</p>
+                ) : found.length === 0 ? (
+                  <p className="text-xs text-gray-500">조건에 맞는 계산서가 없습니다. 계산서 파일이 아직 올라오지 않았거나, 금액 · 기간이 다를 수 있습니다.</p>
+                ) : (
+                  <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                    {found.map(v => {
+                      const added = invoices.some(x => x.id === v.id)
+                      return (
+                        <div key={v.id} className="flex items-center gap-2 px-2.5 py-1.5 text-xs flex-wrap">
+                          <span className="text-gray-500 tabular-nums">{v.issue_date.slice(0, 10)}</span>
+                          <span className="text-gray-900">{v.counterparty_name ?? '(상호 없음)'}</span>
+                          <span className="text-gray-400">거래처 {v.vendor_name}</span>
+                          <span className="ml-auto tabular-nums">남은 금액 <b>{won(v.remaining)}</b>{v.remaining !== v.total_amount && <span className="text-gray-400"> / {won(v.total_amount)}</span>}</span>
+                          <button onClick={() => addFound(v)} disabled={added}
+                            className="px-2 py-0.5 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 disabled:opacity-40">{added ? '추가됨' : '목록에 추가'}</button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {manualPlan && (
               <div className={`mt-3 px-3 py-2.5 rounded-lg text-xs border ${manualPlan.valid ? 'bg-slate-50 border-slate-200 text-gray-700' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
@@ -292,6 +396,13 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, onClose, 
           </>
         )}
       </div>
+      {ask && (
+        <BillingAskDialog ask={ask.ask} amount={ask.amount} busy={applying}
+          onChoose={c => {
+            if (c === 'cancel') { setAsk(null); return }
+            postLinks(ask.links, null, c === 'link_set' && ask.ask.invoiceVendorId ? ask.ask.invoiceVendorId : undefined)
+          }} />
+      )}
     </div>
   )
 }

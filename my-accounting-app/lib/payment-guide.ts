@@ -6,6 +6,7 @@ import { loadPayStateMap } from './pay-state-server'
 import type { PayState } from './pay-state'
 import { honorify } from './contact-label'
 import { DATA_START } from './period-presets'
+import { inInvoiceWindow, searchSalesInvoices } from './order-invoice-match'
 
 // ── 결제 확인 3단계 (2026-11-16 사용자 승인 — 시안 docs/mockups/결제확인_통합_시안.html) ──
 //   결제 안내 대상: 결제 상태가 미결제 · 일부 결제인 주문(영업지원 작업 목록) + 연락 기록(1301)
@@ -128,6 +129,15 @@ export interface InvoiceCheckRow {
   record_date: string | null; record_amount: number | null   // 계산서 발행 기록 (이 주문 분)
   invoice_amount: number                                       // 주문에 연결된 홈택스 계산서 금액 합
   paid_date: string | null; paid_amount: number | null         // 증빙 없음: 이체로 매칭된 금액
+  // 후보 (2026-11-17): 남은 금액이 need와 같고 발행일이 주문일 −7 ~ +120일인 매출 계산서. foreign = 주문 매출처 · 청구처가 아닌 거래처 명의
+  need: number
+  vendor_has_billing: boolean
+  candidates: InvoiceCandidate[]
+  candidate_count: number
+}
+export interface InvoiceCandidate {
+  id: string; issue_date: string; remaining: number; counterparty_name: string | null
+  vendor_id: string | null; vendor_name: string; foreign: boolean
 }
 
 export async function loadInvoiceCheck(admin: SupabaseClient): Promise<{ error: string } | { rows: InvoiceCheckRow[]; latest_invoice: string | null }> {
@@ -200,6 +210,7 @@ export async function loadInvoiceCheck(admin: SupabaseClient): Promise<{ error: 
       order_id: o.id, order_no: o.order_no, order_date: o.order_date,
       customer_name: [o.bank_name, o.branch_name].filter(Boolean).join(' '), vendor_id: vid,
       billing_name: bill ? vName.get(bill) ?? null : null, net: recv?.get(o.id)?.net_sales ?? 0,
+      need: 0, vendor_has_billing: !!bill, candidates: [] as InvoiceCandidate[], candidate_count: 0,
     }
   }
   const rows: InvoiceCheckRow[] = []
@@ -232,6 +243,31 @@ export async function loadInvoiceCheck(admin: SupabaseClient): Promise<{ error: 
     rows.push({ ...base(orders.get(orderId)!), issue: 'no_evidence', record_date: null, record_amount: null, invoice_amount: 0, paid_date: p.date, paid_amount: p.amount })
   }
   rows.sort((a, b) => a.order_date.localeCompare(b.order_date))
+
+  // 후보 계산서 — 금액이 같고 날짜가 가까운 매출 계산서(다른 거래처 명의 포함). 표시만 하고 연결은 사람이 누른다
+  for (const r of rows) {
+    r.need = r.issue === 'no_hometax' ? (r.record_amount ?? 0) : r.issue === 'no_evidence' ? Math.max(0, r.net - r.invoice_amount) : 0
+  }
+  const needs = Array.from(new Set(rows.map(r => r.need).filter(n => n > 0)))
+  if (needs.length) {
+    const minDate = rows.reduce((m, r) => (r.need > 0 && r.order_date < m ? r.order_date : m), kstToday())
+    const from = new Date(new Date(minDate).getTime() - 7 * 86400000).toISOString().slice(0, 10)
+    const found = await searchSalesInvoices(admin, { amounts: needs, from, limit: 3000 })
+    if (!('error' in found)) {
+      for (const r of rows) {
+        if (r.need <= 0) continue
+        const own = new Set([r.vendor_id, r.vendor_id ? billingOf.get(r.vendor_id) ?? null : null].filter(Boolean) as string[])
+        const cs = found.data
+          .filter(v => v.remaining === r.need && inInvoiceWindow(v.issue_date, r.order_date))
+          .sort((a, b) => Math.abs(new Date(a.issue_date).getTime() - new Date(r.order_date).getTime()) - Math.abs(new Date(b.issue_date).getTime() - new Date(r.order_date).getTime()))
+        r.candidate_count = cs.length
+        r.candidates = cs.slice(0, 3).map(v => ({
+          id: v.id, issue_date: v.issue_date, remaining: v.remaining, counterparty_name: v.counterparty_name,
+          vendor_id: v.vendor_id, vendor_name: v.vendor_name ?? '', foreign: !(v.vendor_id && own.has(v.vendor_id)),
+        }))
+      }
+    }
+  }
 
   const { data: li } = await admin.from('tax_invoices').select('issue_date').eq('direction', 'sales').order('issue_date', { ascending: false }).limit(1)
   return { rows, latest_invoice: (li?.[0]?.issue_date as string | undefined)?.slice(0, 10) ?? null }
