@@ -126,15 +126,27 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
       load()
     } finally { setKwBusy(false) }
   }
-  // 통장 거래의 거래처 연결 해제 (오매칭 교정) — 원본은 그대로, 연결 정보만 비운다
+  // 계산서 연결 해제 — 이 출금과 이 매입처 계산서 사이의 결제연결(tax_invoice_payments)을 지운다 (2026-11-16)
+  // 종전 '연결 해제' 버튼은 거래처 지정만 비워서 계산서 연결이 그대로 남았다(사용자 지적).
+  const unlinkInvoices = async (links: { payment_id: string; invoice_id: string; issue_date: string; amount: number }[]) => {
+    if (!links.length) return
+    const list = links.map(l => `· ${l.issue_date} 계산서 ${won(l.amount)}원`).join('\n')
+    if (!window.confirm(`이 출금과 아래 계산서의 결제연결을 해제합니다.\n${list}\n\n계산서는 다시 '미지급'이 되고, 출금 자체와 거래처 지정은 바뀌지 않습니다. 계속할까요?`)) return
+    for (const l of links) {
+      const res = await fetch(`/api/tax-invoices/${l.invoice_id}/payments`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: l.payment_id }) })
+      if (!res.ok) { flash(res.status === 403 ? '계산서 연결 해제 실패 — 회계 · 재무 수정 권한이 필요합니다' : '계산서 연결 해제 실패'); load(); return }
+    }
+    flash('계산서 연결 해제 완료'); load()
+  }
+  // 거래처 지정 해제 (오매칭 교정) — 통장 거래의 거래처만 비운다. 계산서 연결은 '계산서 연결 해제'로 따로 푼다
   const unlinkBankTx = async (txId: string, basis: string) => {
-    if (!window.confirm('이 거래의 매입처 연결을 해제합니다. 거래 자체는 바뀌지 않습니다. 계속할까요?')) return
+    if (!window.confirm('이 통장 거래의 거래처 지정(이 매입처)을 해제합니다. 계산서 결제연결과 거래 자체는 바뀌지 않습니다. 계속할까요?')) return
     const res = await fetch(`/api/transactions/${txId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vendor_id: null }) })
-    if (!res.ok) { flash('연결 해제 실패'); return }
+    if (!res.ok) { flash(res.status === 403 ? '거래처 지정 해제 실패 — 회계 · 재무 수정 권한이 필요합니다' : '거래처 지정 해제 실패'); return }
     const m = basis.match(/통장 키워드 "(.+)"/)
     if (m && data && window.confirm(`통장 키워드 "${m[1]}"로 연결된 거래였습니다. 이 키워드도 지울까요? (지우지 않으면 다음 자동 매칭에서 다시 연결됩니다)`)) {
       await saveKeywords('bank', data.keywords.bank.filter(k => k !== m[1]))
-    } else { flash('연결 해제 완료'); load() }
+    } else { flash('거래처 지정 해제 완료'); load() }
   }
 
   const assignStaff = async (employeeId?: string) => {
@@ -764,7 +776,8 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                           </td>
                           <td className="px-3 py-2 text-xs whitespace-nowrap">
                             {unmatched && <Link href={`/tax-invoices?dir=purchase&tax=taxable&vendorId=${data.vendor.id}`} className="text-blue-600 hover:underline" title="이 매입처 계산서 목록에서 결제 연결">계산서 매칭</Link>}
-                            {perms.edit && !r.tagged_vendor_name && <>{unmatched && ' · '}<button onClick={() => unlinkBankTx(r.id, r.basis)} className="text-gray-500 hover:underline">연결 해제</button></>}
+                            {perms.accountingEdit && r.own_links.length > 0 && <>{unmatched && ' · '}<button onClick={() => unlinkInvoices(r.own_links)} className="text-red-600 hover:underline" title="이 출금과 이 매입처 계산서의 결제연결을 지웁니다">계산서 연결 해제</button></>}
+                            {perms.accountingEdit && r.tagged_here && <>{(unmatched || r.own_links.length > 0) && ' · '}<button onClick={() => unlinkBankTx(r.id, r.basis)} className="text-gray-500 hover:underline" title="통장 거래의 거래처 지정만 비웁니다 (계산서 연결은 그대로)">거래처 지정 해제</button></>}
                           </td>
                         </tr>
                       )

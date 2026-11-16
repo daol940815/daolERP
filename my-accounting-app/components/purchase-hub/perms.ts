@@ -7,12 +7,14 @@ import { can, type PermSubject } from '@/lib/permissions'
 //   collections 결제 예외 탭(매입 사이클, /api/purchase-cycle) — 수금·정산 조회 권한 (2026-09-30 사용자 확정)
 //   edit        거래처 관리(customers) 수정 권한 — 등록·수정·삭제·담당 배정 버튼 노출 (차단은 미들웨어, 2026-10-01)
 //   collectionsEdit 결제 예외 탭의 쓰기(확인 기록·지급 연결·자동 매칭)
+//   accountingEdit  상세 통장 탭의 계산서 연결 해제 · 거래처 지정 해제 (/api/tax-invoices · /api/transactions = 회계 수정 권한, 2026-11-16)
 export interface PurchaseHubPerms {
   accounting: boolean
   tools: boolean
   collections: boolean
   edit: boolean
   collectionsEdit: boolean
+  accountingEdit: boolean
 }
 
 export const purchaseHubPerms = (me: PermSubject | null): PurchaseHubPerms => ({
@@ -21,4 +23,5 @@ export const purchaseHubPerms = (me: PermSubject | null): PurchaseHubPerms => ({
   collections: !!me && can(me, 'collections'),
   edit: !!me && can(me, 'customers', 'edit'),
   collectionsEdit: !!me && can(me, 'collections', 'edit'),
+  accountingEdit: !!me && can(me, 'accounting', 'edit'),
 })
