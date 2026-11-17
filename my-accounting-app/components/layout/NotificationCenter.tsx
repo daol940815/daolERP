@@ -4,12 +4,17 @@
 // 종 숫자 = 해야 할 것 + 기다리는 것(결과 통지 제외, 2026-10-16 권장안 확정). 소리 없음.
 // 2026-11-05: 종 숫자를 개인 · 공용 · 내 요청(· 기타)으로 나눠 보여준다. 사이드바 종은 세 칸 버튼 + 칸별 패널(NotificationBell),
 //  확인할 것 패널(TodoPanel)은 알약(BucketPills).
+// 2026-11-17(905): 결과 통지(수락 · 진행 메모 · 완료 확정 등)에 '확인' 버튼 · '모두 확인' — 확인한 것은 서버에 남겨 다시 나오지 않는다(lib/notif-read.ts).
+//  바로가기로 연 결과 통지도 확인한 것으로 친다. 해야 할 것 · 기다리는 것(마감 지남 · 미확인 등)은 일이 끝나야 사라진다.
 
 import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { NOTIF_BUCKETS, NOTIF_BUCKET_LABEL, NOTIF_BUCKET_HINT, NOTIF_GROUP_LABEL, NOTIF_POLL_MS, NOTIF_SOURCE_LABEL, notifSource, type NotifBucket, type NotifData, type NotifGroup, type NotifItem } from '@/lib/notifications'
 import type { Toast } from '@/lib/use-notifications'
+import { canMarkRead, useNotifRead } from '@/lib/notif-read'
+
+const READ_ALL_HINT = '수락 · 진행 메모 · 완료 확정 같은 소식을 모두 확인한 것으로 처리합니다(다시 나오지 않음). 마감 지남 · 미확인처럼 처리할 일은 일이 끝나야 사라집니다.'
 
 const DOT: Record<string, string> = { red: 'bg-red-500', amber: 'bg-amber-400', blue: 'bg-blue-500', gray: 'bg-slate-300' }
 // 출처 꼬리표(2026-11-09) — 업무 요청 · 주문 · 휴가
@@ -51,7 +56,8 @@ const bucketOfItem = (i: NotifItem): NotifBucket => i.bucket ?? 'other'
 
 export function NotificationBell({ data, seenAt, onSeen, live }: { data: NotifData | null; seenAt: string | null; onSeen: () => void; live?: boolean }) {
   const [tab, setTab] = useState<BellTab | null>(null)   // null = 닫힘
-  const items = data?.items ?? []
+  const rd = useNotifRead()
+  const items = rd.visible(data?.items ?? [])
   const bd = data?.breakdown ?? { personal: 0, shared: 0, mine: 0, order: 0, other: 0 }
   const groups: NotifGroup[] = ['todo', 'waiting', 'info']
   const unseenInfo = (b: NotifBucket) => items.some(i => bucketOfItem(i) === b && i.group === 'info' && (!seenAt || (!!i.at && i.at > seenAt)))
@@ -111,23 +117,31 @@ export function NotificationBell({ data, seenAt, onSeen, live }: { data: NotifDa
                   <p className="px-4 pt-2.5 pb-1 text-[0.65625rem] text-gray-400 uppercase tracking-wide">{NOTIF_GROUP_LABEL[g]}</p>
                   {sub.map(i => {
                     const seen = !!seenAt && !!i.at && i.at <= seenAt
+                    const readable = canMarkRead(i)
                     return (
-                      <Link key={i.key} href={i.href} onClick={() => setTab(null)}
-                        className="grid grid-cols-[8px_1fr_auto] gap-2.5 px-4 py-2 border-b border-gray-50 hover:bg-gray-50 items-start">
-                        <span className={`w-2 h-2 rounded-full mt-1.5 ${DOT[i.tone]}`} />
-                        <span className="min-w-0">
-                          <span className={`block text-[0.8125rem] ${seen ? 'text-gray-600' : 'font-semibold text-gray-900'}`}><SourceTag item={i} />{i.title}</span>
-                          {i.detail && <span className="block text-[0.6875rem] text-gray-500 truncate">{i.detail}</span>}
-                        </span>
-                        <span className="text-[0.65625rem] text-gray-400 whitespace-nowrap pt-0.5">{timeLabel(i.at)}</span>
-                      </Link>
+                      <div key={i.key} className="relative border-b border-gray-50">
+                        <Link href={i.href} onClick={() => { if (readable) rd.mark([i]); setTab(null) }}
+                          className="grid grid-cols-[8px_1fr_auto] gap-2.5 px-4 py-2 hover:bg-gray-50 items-start">
+                          <span className={`w-2 h-2 rounded-full mt-1.5 ${DOT[i.tone]}`} />
+                          <span className="min-w-0">
+                            <span className={`block text-[0.8125rem] ${seen ? 'text-gray-600' : 'font-semibold text-gray-900'}`}><SourceTag item={i} />{i.title}</span>
+                            {i.detail && <span className={`block text-[0.6875rem] text-gray-500 truncate ${readable ? 'pr-8' : ''}`}>{i.detail}</span>}
+                          </span>
+                          <span className="text-[0.65625rem] text-gray-400 whitespace-nowrap pt-0.5">{timeLabel(i.at)}</span>
+                        </Link>
+                        {readable && (
+                          <button onClick={() => rd.mark([i])} title="확인 — 다시 나오지 않습니다"
+                            className="absolute right-3 bottom-1.5 px-1.5 py-0.5 rounded border border-gray-200 bg-white text-[0.625rem] text-gray-500 hover:text-gray-900 hover:border-gray-400">확인</button>
+                        )}
+                      </div>
                     )
                   })}
                 </div>
               )
             })}
             <div className="flex items-center px-4 py-2 bg-gray-50 text-[0.6875rem] text-gray-500">
-              <button onClick={() => { onSeen(); setTab(null) }} className="hover:text-gray-800 underline">모두 확인함으로 표시</button>
+              <button onClick={() => { rd.mark(items, true); onSeen(); setTab(null) }} title={READ_ALL_HINT} className="hover:text-gray-800 underline">모두 확인</button>
+              {rd.error && <span className="ml-2 text-red-600">{rd.error}</span>}
               <span className="ml-auto" title={live ? '업무 요청 변경은 즉시 반영됩니다. 폴링은 안전망.' : '실시간 신호 연결 전 — 폴링으로 갱신'}>{live ? '즉시 갱신 연결됨 · ' : ''}{Math.round(NOTIF_POLL_MS / 1000)}초마다 갱신</span>
             </div>
           </div>
@@ -164,8 +178,12 @@ export function NotificationToasts({ toasts, onDismiss }: { toasts: Toast[]; onD
 
 // 로그인 직후 "확인할 것" — 업무 선택(dark)·내 대시보드(light). 자체 1회 조회. 0건이면 렌더하지 않는다.
 export function TodoPanel({ variant, data }: { variant: 'dark' | 'light'; data: NotifData | null }) {
-  if (!data || data.items.length === 0) return null
+  const rd = useNotifRead()
+  const items = rd.visible(data?.items ?? [])
+  if (!data || items.length === 0) return null
   const dark = variant === 'dark'
+  const infoCount = items.filter(canMarkRead).length
+  const btn = dark ? 'border-slate-600 text-slate-300 hover:text-white hover:border-slate-400' : 'border-gray-300 text-gray-600 hover:text-gray-900 hover:border-gray-500'
   const pill = (i: NotifItem) => i.tone === 'red' ? 'bg-red-500 text-white' : i.tone === 'amber' ? 'bg-amber-400 text-slate-900' : i.tone === 'blue' ? 'bg-blue-500 text-white' : 'bg-slate-300 text-slate-800'
   return (
     <div className={`${dark ? 'bg-white/5 border border-slate-700 text-slate-100' : 'bg-white border border-gray-200 text-gray-900'} rounded-xl px-4 py-3 text-left`}>
@@ -173,14 +191,17 @@ export function TodoPanel({ variant, data }: { variant: 'dark' | 'light'; data: 
         확인할 것
         <span className={`ml-auto flex items-center gap-2 text-[0.6875rem] font-normal ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
           {data.count > 0 && <BucketPills data={data} tone={dark ? 'dark' : 'light'} />}{timeLabel(data.at)} 기준
+          {infoCount > 0 && <button onClick={() => rd.mark(items, true)} title={READ_ALL_HINT} className={`px-2 py-0.5 rounded border font-medium ${btn}`}>모두 확인 {infoCount}</button>}
         </span>
       </div>
+      {rd.error && <p className="mt-1 text-[0.6875rem] text-red-500">{rd.error}</p>}
       <ul className="mt-2">
-        {data.items.map(i => (
+        {items.map(i => (
           <li key={i.key} className={`flex items-center gap-2.5 py-1.5 text-[0.8125rem] border-t ${dark ? 'border-slate-800' : 'border-gray-100'}`}>
             <span className={`text-[0.625rem] font-bold rounded-full px-1.5 py-0.5 leading-none ${pill(i)}`}>{i.count}</span>
             <span className="truncate"><SourceTag item={i} dark={dark} />{i.title.replace(/\s\d+건$/, '')}</span>
-            <Link href={i.href} className={`ml-auto text-[0.6875rem] whitespace-nowrap hover:underline ${dark ? 'text-sky-300' : 'text-blue-600'}`}>바로가기 →</Link>
+            {canMarkRead(i) && <button onClick={() => rd.mark([i])} title="확인 — 다시 나오지 않습니다" className={`ml-auto px-1.5 py-0.5 rounded border text-[0.625rem] whitespace-nowrap ${btn}`}>확인</button>}
+            <Link href={i.href} onClick={() => { if (canMarkRead(i)) rd.mark([i]) }} className={`${canMarkRead(i) ? '' : 'ml-auto '}text-[0.6875rem] whitespace-nowrap hover:underline ${dark ? 'text-sky-300' : 'text-blue-600'}`}>바로가기 →</Link>
           </li>
         ))}
       </ul>
