@@ -265,7 +265,8 @@
 
 - 사용자 결정: 권장안 5개(1302 진행 / 과거 건 소급 안 함 / 주문↔계산서 연결 해제 추가 / 계산서 → 주문 방향 먼저 / 넘어온 연결은 원래 붙인 쪽에서만 풂) +
   "회계 세션 내용도 같이 진행" — 계산서 상태에 **부분 확인** 추가, 수동 확인 보존. 주문 상세 계산서 줄은 "계산서 입금 대기 / 계산서 부분 입금 / 계산서 입금 완료"로.
-- **1302_link_sync_and_invoice_partial.sql — 실행 대기**: `erp_payment_matches.from_invoice_id`(ON DELETE CASCADE) · `tax_invoice_payments.from_order_sync` ·
+- **1302_link_sync_and_invoice_partial.sql — 실행 · 검증 완료 2026-11-17**(사용자 회신: 출처 칸 1 · 1, 수동 확인 칸 1, 허용 값에 partial 포함, 넘어온 수금 0, 부분 확인 0,
+  확인됨 5,337 · 미확인 1,326 — 실행 전 건수를 따로 재지 않아 '변동 없음'은 직접 대조하지 못했으나 1302는 칸 · 허용 값만 추가함): `erp_payment_matches.from_invoice_id`(ON DELETE CASCADE) · `tax_invoice_payments.from_order_sync` ·
   `tax_invoices.payment_manual` · `payment_status` CHECK에 'partial'. 기존 행 값은 바꾸지 않음. 미적용이어도 화면은 예전처럼 동작(동기화 안 함, 부분 확인은 미확인으로 저장).
 - **기존 계산서 상태 보정은 별도**: `supabase/checks/invoice_status_backfill_check.sql`(조회)로 건수 확인 → 승인 → 1303으로 실행 예정.
   A = 미확인인데 입금 일부 붙음 → 부분 확인 / B = 확인됨인데 입금 합계 부족 → 수동 확인 표시(상태 유지).

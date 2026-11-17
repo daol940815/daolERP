@@ -1369,7 +1369,7 @@ ERP 주문은 계획대로 교체(erp-reload-track). 결정 대기.
 
 ## 계산서 상태 "부분 확인" + 수동 확인 보존 + 주문 수금 연동 (2026-11-17, 결제처리 세션에서 작업 — 상세는 docs/payment-track.md)
 
-- 사용자 결정으로 회계 화면 범위를 결제처리 세션이 함께 고침. 마이그레이션 **1302**(실행 대기)에 `tax_invoices.payment_status` 'partial' 허용 · `payment_manual` 칸 포함.
+- 사용자 결정으로 회계 화면 범위를 결제처리 세션이 함께 고침. 마이그레이션 **1302**(적용 2026-11-17 — 계산서 확인됨 5,337 · 미확인 1,326 · 부분 확인 0)에 `tax_invoices.payment_status` 'partial' 허용 · `payment_manual` 칸 포함.
 - `lib/tax-invoice-payments.server.ts`: `recalcInvoiceStatus`가 3단계(미확인 · 부분 확인 · 확인됨)로 계산하고 `payment_manual = true`면 확인됨 유지
   (예전에는 수동 확인한 계산서에 입금을 일부 붙이면 미확인으로 되돌아갔음). `addInvoicePayment` · `removeInvoicePayment` · `clearInvoicePayments` 끝에
   `syncOrderMatchesFromInvoices` 호출 — 매출 계산서가 주문에 연결돼 있으면 붙인 입금이 주문 수금으로 넘어감(매입 계산서는 영향 없음).
