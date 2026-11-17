@@ -30,9 +30,19 @@ export interface VatEstimateResult {
 }
 
 // 카드매출 공급가·세액 구분 미기재(둘 다 0)는 과세로 보고 1.1로 나눈다 — lib/card-sale-vat.ts splitVat (2026-11-12 사용자 결정)
-const cardSaleVat = (amount: number | null, supply: number | null, tax: number | null) => {
-  const v = splitVat(amount, supply, tax)
+// 2026-11-17: 수기결제 CPID 해석 열(vat_kind, 427)을 먼저 본다 — 면세 CP(CDA23815)는 전액 공급가 · 세액 0
+const cardSaleVat = (amount: number | null, supply: number | null, tax: number | null, vatKind?: string | null) => {
+  const v = splitVat(amount, supply, tax, vatKind ?? null)
   return { supply: v.supply, tax: v.tax, missing: v.kind === 'unknown' }
+}
+type CardSaleVatRow = { tx_date: string; amount: number | null; supply_amount: number | null; tax_amount: number | null; vat_kind?: string | null }
+// 427 미적용(vat_kind 열 없음)이면 열 없이 다시 읽는다
+async function fetchCardSalesForVat(admin: SupabaseClient, from: string, to: string) {
+  const run = (cols: string) => fetchAllRows<CardSaleVatRow>((f, t) =>
+    (admin.from('card_sales').select(cols as '*').gte('tx_date', from).lte('tx_date', to).range(f, t)) as unknown as PromiseLike<{ data: CardSaleVatRow[] | null; error: { message: string } | null }>)
+  const r = await run('tx_date, amount, supply_amount, tax_amount, vat_kind')
+  if ('error' in r && /vat_kind|schema cache/i.test(r.error)) return run('tx_date, amount, supply_amount, tax_amount')
+  return r
 }
 
 function sumTax(rows: { tax_amount: number | null }[] | null): number {
@@ -94,10 +104,7 @@ export async function buildVatReturnView(
       (f, t) => admin.from('cash_receipts')
         .select('tx_date, direction, deductible, supply_amount, tax_amount')
         .gte('tx_date', from).lte('tx_date', to).range(f, t)),
-    fetchAllRows<{ tx_date: string; amount: number | null; supply_amount: number | null; tax_amount: number | null }>(
-      (f, t) => admin.from('card_sales')
-        .select('tx_date, amount, supply_amount, tax_amount')
-        .gte('tx_date', from).lte('tx_date', to).range(f, t)),
+    fetchCardSalesForVat(admin, from, to),
     fetchAllRows<{ tx_date: string; tax_amount: number | null; settled_amount: number | null; approved_amount: number | null; cancel_amount: number | null; confirmed_account_id: string | null; statement_status: string | null; classify_status: string }>(
       (f, t) => admin.from('card_expenses')
         .select('tx_date, tax_amount, settled_amount, approved_amount, cancel_amount, confirmed_account_id, statement_status, classify_status')
@@ -131,8 +138,8 @@ export async function buildVatReturnView(
     }
   }
   const card_missing = { count: 0, amount: 0 }
-  for (const r of (cardSalesR as { data: { tx_date: string; amount: number | null; supply_amount: number | null; tax_amount: number | null }[] }).data) {
-    const c = cardSaleVat(r.amount, r.supply_amount, r.tax_amount)
+  for (const r of (cardSalesR as { data: CardSaleVatRow[] }).data) {
+    const c = cardSaleVat(r.amount, r.supply_amount, r.tax_amount, r.vat_kind)
     if (c.missing) { card_missing.count += 1; card_missing.amount += r.amount || 0 }
     add(auto.sales_card_cash, r.tx_date, c.supply, c.tax)
   }
@@ -227,18 +234,11 @@ export async function buildVatEstimate(
   // 카드매출 (승인/취소 합산, 취소는 음수)
   // 원본이 건별 공급가액/세액을 구분 제공 — 면세 건은 세액 0이라 자동 제외된다.
   // 공급가·세액이 모두 0인데 승인금액이 있는 건은 구분 미기재 — 과세로 보고 1.1로 나눠 포함하고 건수를 표시한다(cardSaleVat).
-  const cardSales = await fetchAllRows<{ amount: number | null; supply_amount: number | null; tax_amount: number | null }>((rFrom, rTo) =>
-    admin
-      .from('card_sales')
-      .select('amount, supply_amount, tax_amount')
-      .gte('tx_date', from)
-      .lte('tx_date', to)
-      .range(rFrom, rTo),
-  )
+  const cardSales = await fetchCardSalesForVat(admin, from, to)
   if ('error' in cardSales) return { error: cardSales.error }
   let cardTaxableSupply = 0, cardFreeAmount = 0, cardMissingCount = 0, cardMissingAmount = 0, cardSalesTax = 0
   for (const r of cardSales.data) {
-    const c = cardSaleVat(r.amount, r.supply_amount, r.tax_amount)
+    const c = cardSaleVat(r.amount, r.supply_amount, r.tax_amount, r.vat_kind)
     cardSalesTax += c.tax
     if (c.missing) { cardMissingCount += 1; cardMissingAmount += r.amount || 0; cardTaxableSupply += c.supply }
     else if (c.tax !== 0) cardTaxableSupply += c.supply

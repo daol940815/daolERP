@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { type JournalDraft, type JournalLineDraft } from './types'
 import { postJournal, unpostJournal } from './posting'
-import { splitVat, VAT_UNKNOWN_NOTE } from '@/lib/card-sale-vat'
+import { splitVat, VAT_UNKNOWN_NOTE, VAT_EXEMPT_CPID_NOTE, VAT_TAXABLE_CPID_NOTE } from '@/lib/card-sale-vat'
 
 // 카드매출 자동분개 (업무 규칙). 저장은 post_journal(RPC)이 담당.
 //
@@ -15,6 +15,7 @@ import { splitVat, VAT_UNKNOWN_NOTE } from '@/lib/card-sale-vat'
 //     is_card_company 거래처에 태깅 → 카드사별 미수 잔액이 거래처 원장에서 보인다.
 //   * 공급가·세액이 둘 다 없으면(수기 PG 등 구분 미기재) 과세로 보고 1.1로 나눠 전기한다 (2026-11-12 사용자 결정,
 //     lib/card-sale-vat.ts — 원본은 0 그대로, 분개 줄 메모에 표시). 합계가 안 맞으면 전기하지 않고 검토 대상으로 남긴다.
+//   * 수기결제 CPID 해석 열(vat_kind, 427 · 2026-11-17): exempt = 전액 상품매출(부가세예수금 없음), taxable = 1.1 분할.
 
 // 매입사 표기 → 표준 카드사명 ('외환'=하나카드 전신, '하나SK카드' 등 흡수)
 export function canonicalAcquirer(acquirer: string | null): string | null {
@@ -40,6 +41,7 @@ export interface CardSaleForPosting {
   amount: number | null
   supply_amount: number | null
   tax_amount: number | null
+  vat_kind?: string | null
 }
 
 // 계정/카드사 거래처 사전 조회 컨텍스트 — 대량 전기 시 행마다 재조회하지 않도록 공유
@@ -86,11 +88,11 @@ export function buildCardSalePosting(
   const isReversal = sale.transaction_type === 'cancel' || amount < 0
   const absAmount = Math.abs(amount)
   // 공급가·세액 모두 미기재 → 과세로 보고 1.1 분할 (원본은 그대로)
-  const split = splitVat(absAmount, Math.abs(sale.supply_amount ?? 0), Math.abs(sale.tax_amount ?? 0))
-  const unknownVat = split.kind === 'unknown'
-  const supply = unknownVat ? split.supply : Math.abs(sale.supply_amount ?? 0)
-  const vat = unknownVat ? split.tax : Math.abs(sale.tax_amount ?? 0)
-  const note = unknownVat ? VAT_UNKNOWN_NOTE : null
+  const split = splitVat(absAmount, Math.abs(sale.supply_amount ?? 0), Math.abs(sale.tax_amount ?? 0), sale.vat_kind ?? null)
+  const byKind = split.kind === 'unknown' || !!sale.vat_kind   // 미기재 분할 또는 CPID 해석 → 계산값 사용
+  const supply = byKind ? split.supply : Math.abs(sale.supply_amount ?? 0)
+  const vat = byKind ? split.tax : Math.abs(sale.tax_amount ?? 0)
+  const note = sale.vat_kind === 'exempt' ? VAT_EXEMPT_CPID_NOTE : sale.vat_kind === 'taxable' ? VAT_TAXABLE_CPID_NOTE : split.kind === 'unknown' ? VAT_UNKNOWN_NOTE : null
 
   // 공급가/세액 검증 — 세액만 있고 공급가가 없거나 합계 불일치면 전기하지 않음
   if (supply <= 0) return { error: '공급가액 미보유 — 검토 필요(수기결제 등)' }
@@ -126,10 +128,25 @@ export async function syncCardSaleJournal(
 ): Promise<{ ok: true } | { error: string }> {
   const { data: sale, error } = await admin
     .from('card_sales')
-    .select('id, tx_date, transaction_type, approval_number, acquirer, amount, supply_amount, tax_amount')
+    .select('id, tx_date, transaction_type, approval_number, acquirer, amount, supply_amount, tax_amount, vat_kind')
     .eq('id', saleId)
     .single()
-  if (error) return { error: error.message }
+  if (error) {
+    // 427 미적용이면 vat_kind 없이 다시 읽는다
+    if (!/vat_kind|schema cache/i.test(error.message)) return { error: error.message }
+    const retry = await admin.from('card_sales').select('id, tx_date, transaction_type, approval_number, acquirer, amount, supply_amount, tax_amount').eq('id', saleId).single()
+    if (retry.error) return { error: retry.error.message }
+    return syncCardSaleJournalWith(admin, retry.data as CardSaleForPosting, sharedCtx)
+  }
+  return syncCardSaleJournalWith(admin, sale as CardSaleForPosting, sharedCtx)
+}
+
+async function syncCardSaleJournalWith(
+  admin: SupabaseClient,
+  sale: CardSaleForPosting,
+  sharedCtx?: CardSaleContext,
+): Promise<{ ok: true } | { error: string }> {
+  const saleId = sale.id
 
   const ctx = sharedCtx ?? await loadCardSaleContext(admin)
   if ('error' in ctx) return ctx
