@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>주문 · 계산서 · 입금 연결 동기화 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1100px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:30px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.65; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .lab { font-size:11px; font-weight:bold; color:#64748b; margin-bottom:8px; }
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px; align-items:start; }
+  .tri { display:grid; grid-template-columns:1fr auto 1fr; gap:8px; align-items:center; margin:6px 0; }
+  .node { border:1.5px solid #cbd5e1; border-radius:10px; padding:8px 10px; background:#fff; text-align:center; font-weight:bold; font-size:12.5px; }
+  .node small { display:block; font-weight:normal; color:#64748b; font-size:11px; margin-top:2px; }
+  .edge { font-size:11px; color:#475569; text-align:center; white-space:nowrap; }
+  .edge b { display:block; font-size:16px; line-height:1; }
+  .edge.auto { color:#1d4ed8; } .edge.off { color:#cbd5e1; }
+  .btn { display:inline-block; border-radius:8px; padding:4px 10px; font-size:11.5px; border:1px solid #cbd5e1; background:#fff; color:#334155; white-space:nowrap; }
+  .btn.sm { padding:2px 8px; font-size:11px; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:640px; }
+  th { text-align:left; font-weight:normal; color:#64748b; font-size:11.5px; padding:7px 8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; background:#f8fafc; }
+  td { padding:8px; border-bottom:1px solid #f1f5f9; vertical-align:top; line-height:1.55; }
+  td.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  td small { color:#94a3b8; display:block; font-size:11px; }
+  .tag { font-size:10.5px; font-weight:bold; padding:1px 6px; border-radius:4px; white-space:nowrap; }
+  .t-bank { background:#eff6ff; color:#1d4ed8; } .t-inv { background:#fef3c7; color:#92400e; }
+  .t-auto { background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; }
+  .t-man { background:#f1f5f9; color:#475569; }
+  .ok { color:#047857; } .r { color:#dc2626; } .mut { color:#94a3b8; }
+  .sum { display:flex; gap:18px; flex-wrap:wrap; font-size:12.5px; color:#334155; padding:9px 12px; background:#f8fafc; border-radius:8px; margin-bottom:10px; }
+  .sum b { font-variant-numeric:tabular-nums; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:6px 0; border-bottom:1px solid #f1f5f9; font-size:12.5px; }
+  .row:last-child { border-bottom:none; }
+  .row .d { color:#94a3b8; font-size:11px; width:44px; }
+  .row .a { font-weight:bold; font-variant-numeric:tabular-nums; }
+  .row .m { color:#64748b; font-size:11.5px; }
+  .sp { flex:1; }
+  .note { background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:9px 12px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.75; }
+  .note b { color:#422006; }
+  .step { display:flex; gap:10px; align-items:flex-start; padding:7px 0; border-bottom:1px solid #f1f5f9; font-size:12.5px; line-height:1.6; }
+  .step:last-child { border-bottom:none; }
+  .step i { font-style:normal; font-weight:bold; color:#fff; background:#0f172a; border-radius:50%; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0; margin-top:1px; }
+  .step i.sys { background:#0284c7; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>주문 · 계산서 · 입금 연결 동기화 시안</h1>
+  <p class="desc">2026-11-17 · 주문과 계산서가 연결돼 있으면, 입금을 어느 쪽에 붙이든 다른 쪽에도 자동으로 반영합니다. 숫자와 이름은 예시입니다. 파란 테두리가 바뀌는 부분입니다.</p>
+
+  <!-- ───────────── 1 ───────────── -->
+  <h2>1. 지금과 바뀐 뒤</h2>
+  <div class="grid2">
+    <div class="panel">
+      <div class="lab">지금 — 세 연결이 따로</div>
+      <div class="tri"><div class="node">주문<small>D261110-004</small></div><div class="edge">연결됨<b>↔</b></div><div class="node">계산서<small>11-11 · 450,000</small></div></div>
+      <div class="tri"><div class="node">주문</div><div class="edge off">없음<b>···</b></div><div class="node">통장 입금<small>11-14 · 450,000</small></div></div>
+      <div class="tri"><div class="node">계산서</div><div class="edge">회계가 붙임<b>↔</b></div><div class="node">통장 입금</div></div>
+      <div class="note">회계가 계산서에 입금을 붙여도 <b>주문 미수는 450,000원 그대로</b>입니다. 주문 쪽에서 같은 입금을 한 번 더 붙여야 합니다. 반대로 주문에 입금을 붙이면 계산서는 "입금 대기"로 남습니다.</div>
+    </div>
+    <div class="panel new">
+      <div class="lab">바뀐 뒤 — 한쪽에 붙이면 다른 쪽도</div>
+      <div class="tri"><div class="node">주문<small>D261110-004</small></div><div class="edge">연결됨<b>↔</b></div><div class="node">계산서<small>11-11 · 450,000</small></div></div>
+      <div class="tri"><div class="node">주문</div><div class="edge auto">자동으로 넘어옴<b>↔</b></div><div class="node">통장 입금<small>11-14 · 450,000</small></div></div>
+      <div class="tri"><div class="node">계산서</div><div class="edge">회계가 붙임<b>↔</b></div><div class="node">통장 입금</div></div>
+      <div class="note">회계가 계산서에 입금을 붙이는 순간 <b>주문 수금으로도 넘어가 미수가 0</b>이 됩니다. 주문에 먼저 붙였다면 계산서가 "입금 완료"가 됩니다.</div>
+    </div>
+  </div>
+
+  <!-- ───────────── 2 ───────────── -->
+  <h2>2. 주문 상세에서 보이는 모습</h2>
+  <p class="desc">자동으로 넘어온 수금에는 어디서 왔는지가 표시됩니다. 직접 붙인 것과 구분됩니다.</p>
+  <div class="panel new">
+    <div class="sum"><span>순매출 <b>450,000</b></span><span>수금 <b class="ok">450,000</b></span><span>미수 <b class="mut">0</b></span></div>
+    <div class="lab">실제 수금 · 계산서</div>
+    <div class="row"><span class="d">11-14</span><span class="tag t-bank">통장</span><span class="a">450,000원</span><span class="m">통장 입금 (하나은행A지점)</span><span class="tag t-auto">계산서 입금에서 넘어옴</span><span class="sp"></span><span class="mut" style="font-size:11px">계산서 쪽에서 풀면 함께 풀림</span></div>
+    <div class="row"><span class="d">11-11</span><span class="tag t-inv">계산서</span><span class="a">450,000원</span><span class="ok" style="font-size:12px">입금 완료 (11-14)</span><span class="sp"></span><span class="btn sm">연결 해제</span></div>
+    <div class="note">
+      <b>연결 해제</b>(새 기능)는 수금 · 정산 작업 수정 권한자에게만 보입니다. 주문과 계산서의 연결을 풀면, 그 연결 때문에 자동으로 넘어온 수금도 함께 풀리고 미수가 되돌아옵니다. 직접 붙인 수금은 그대로 남습니다.
+    </div>
+  </div>
+
+  <!-- ───────────── 3 ───────────── -->
+  <h2>3. 계산서 내역에서 보이는 모습</h2>
+  <p class="desc">주문에 붙인 입금이 계산서로 넘어온 경우입니다. 회계가 직접 붙인 것과 구분됩니다.</p>
+  <div class="panel new">
+    <div class="scroll">
+    <table>
+      <thead><tr><th>발행일</th><th>거래처</th><th style="text-align:right">합계</th><th>입금 연결</th><th>상태</th></tr></thead>
+      <tbody>
+        <tr><td>11-11</td><td>하나은행 A지점</td><td class="n">450,000</td>
+          <td>11-14 하나은행A지점 450,000 <span class="tag t-auto">주문 수금에서 넘어옴</span><small>주문 D261110-004 · 주문 쪽에서 풀면 함께 풀림</small></td><td class="ok">입금 완료</td></tr>
+        <tr><td>11-09</td><td>우리은행 C지점</td><td class="n">1,000,000</td>
+          <td>11-12 우리은행씨 1,000,000 <span class="tag t-man">직접 연결</span></td><td class="ok">입금 완료</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note">계산서 내역 화면의 모양은 그대로이고, 입금 연결 옆에 꼬리표 하나만 붙습니다. 자동으로 넘어온 연결은 이 화면에서 지울 수 없고(주문 쪽에서 풉니다), 직접 연결은 지금처럼 지웁니다.</div>
+  </div>
+
+  <!-- ───────────── 4 ───────────── -->
+  <h2>4. 경우별 동작</h2>
+  <div class="panel new">
+    <div class="scroll">
+    <table>
+      <thead><tr><th>사람이 한 일</th><th>자동으로 일어나는 일</th><th>풀 때</th></tr></thead>
+      <tbody>
+        <tr><td><b>계산서에 입금을 붙임</b><small>회계 · 계산서 내역</small></td><td>그 계산서에 연결된 주문의 수금으로 넘김 → 주문 미수 감소 · 결제 기록이 있으면 매칭 완료</td><td>계산서에서 입금을 풀면 주문 수금도 함께 풀림</td></tr>
+        <tr><td><b>주문에 통장 입금을 붙임</b><small>결제 확인 · 수금 매칭 창</small></td><td>그 주문에 연결된 계산서의 입금으로 넘김 → 계산서 "입금 완료"</td><td>주문에서 수금을 풀면 계산서 입금도 함께 풀림</td></tr>
+        <tr><td><b>주문과 계산서를 연결함</b><small>계산서 확인 · 주문 상세</small></td><td>양쪽에 이미 붙어 있던 입금을 서로 넘김(지금은 계산서 → 주문만)</td><td>연결을 풀면 그 연결로 넘어온 것만 풀림</td></tr>
+        <tr><td><b>카드 매출 · 선결제를 주문에 붙임</b></td><td>없음 — 계산서와 무관</td><td>—</td></tr>
+        <tr><td><b>주문과 계산서가 연결돼 있지 않음</b></td><td>없음 — 지금과 같음</td><td>—</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note">
+      <b>사람이 붙인 연결은 건드리지 않습니다.</b> 자동으로 넘어온 것만 만들고 지웁니다. 자동으로 넘어온 것이 다시 반대쪽으로 넘어가지는 않습니다(되돌이 없음).<br>
+      <b>넘치지 않게</b>: 주문 미수, 계산서 남은 금액, 입금 잔액 중 가장 작은 값까지만 넘깁니다. 주문 여러 건 · 계산서 여러 장이면 날짜 순으로 채웁니다.
+    </div>
+  </div>
+
+  <!-- ───────────── 5 ───────────── -->
+  <h2>5. 예: 순서가 반대일 때 (지금 가장 자주 막히는 경우)</h2>
+  <div class="panel">
+    <div class="step"><i>1</i><div><b>11-11</b> 영업지원이 계산서를 발행하고 주문 상세에 "계산서 발행 450,000원"을 기록 → 결제 상태 <b>계산서 · 매칭 대기</b></div></div>
+    <div class="step"><i>2</i><div><b>11-12</b> 홈택스 계산서 파일이 올라와 주문과 계산서를 연결 (아직 입금 전)</div></div>
+    <div class="step"><i>3</i><div><b>11-14</b> 입금 · 회계가 계산서 내역에서 계산서에 입금을 붙임</div></div>
+    <div class="step"><i class="sys">→</i><div><b>바뀐 뒤</b>: 그 순간 주문 수금으로 넘어가 미수 0, 결제 기록 "매칭 완료", 결제 상태 <b>완료</b>. <span class="mut">지금은 3번 뒤에도 주문이 "매칭 대기"로 남아 결제 확인에서 한 번 더 확정해야 합니다.</span></div></div>
+  </div>
+
+  <!-- ───────────── 6 ───────────── -->
+  <h2>6. 정해 주실 것</h2>
+  <div class="panel">
+    <div class="scroll">
+    <table>
+      <thead><tr><th style="width:30px">#</th><th>항목</th><th>권장</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>마이그레이션 1302</td><td>진행. 출처를 적는 칸 2개만 추가하고 기존 데이터는 바꾸지 않음.</td></tr>
+        <tr><td>2</td><td>이미 연결된 과거 건</td><td>소급하지 않음. 앞으로의 조작부터 적용. 필요하면 건수를 먼저 조회하고 따로 승인.</td></tr>
+        <tr><td>3</td><td>주문 ↔ 계산서 연결 해제</td><td>넣는다(2번 화면). 지금은 잘못 연결해도 풀 방법이 없음.</td></tr>
+        <tr><td>4</td><td>넣는 순서</td><td>먼저 "계산서에 입금을 붙이면 주문으로"(5번의 경우) → 확인 후 반대 방향.</td></tr>
+        <tr><td>5</td><td>자동으로 넘어온 연결을 반대쪽 화면에서 지울 수 있게 할지</td><td>못 지우게 한다. 원래 붙인 쪽에서만 풀어야 양쪽이 어긋나지 않음.</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+</body>
+</html>
