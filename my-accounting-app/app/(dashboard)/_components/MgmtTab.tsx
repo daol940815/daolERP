@@ -8,6 +8,7 @@ import { buildVendorAnalysisRows } from '@/lib/vendor-analysis'
 import { buildMonthlyPL } from '@/lib/pl-report'
 import { buildVatEstimate } from '@/lib/vat-report'
 import { getPeriodRange } from '@/lib/period-presets'
+import { termMonthlyInterest } from '@/lib/loan-math'
 
 export const maxDuration = 60
 
@@ -67,7 +68,7 @@ export default async function MgmtTab({
     buildVendorAnalysisRows(admin, from, to),
     buildMonthlyPL(admin, monthFrom, monthTo),
     buildVatEstimate(admin, from, to),
-    admin.from('loans').select('current_balance, monthly_principal, monthly_interest, maturity_date, status'),
+    admin.from('loans').select('current_balance, interest_rate, monthly_principal, monthly_interest, maturity_date, status, product_type'),
   ])
 
 
@@ -84,12 +85,13 @@ export default async function MgmtTab({
   const vat = 'result' in vatEstimate ? vatEstimate.result : null
 
   // 대출 현황 (loans 마스터 — 402 미실행이면 빈 목록으로 표시)
-  type LoanRow = { current_balance: number; monthly_principal: number; monthly_interest: number; maturity_date: string | null; status: string }
+  type LoanRow = { current_balance: number; interest_rate: number | null; monthly_principal: number; monthly_interest: number; maturity_date: string | null; status: string; product_type?: 'term' | 'credit_line' | null }
   const loanRows: LoanRow[] = loansRes.error ? [] : ((loansRes.data ?? []) as LoanRow[])
   const activeLoans = loanRows.filter(l => l.status === 'active')
   const loanBalance   = activeLoans.reduce((s, l) => s + (l.current_balance ?? 0), 0)
   const loanPrincipal = activeLoans.reduce((s, l) => s + (l.monthly_principal ?? 0), 0)
-  const loanInterest  = activeLoans.reduce((s, l) => s + (l.monthly_interest ?? 0), 0)
+  // 월 이자 = 잔액 × 이율 ÷ 12 (대출 관리 화면과 같은 계산, lib/loan-math) — 한도대출은 0 (2026-11-17)
+  const loanInterest  = activeLoans.reduce((s, l) => s + termMonthlyInterest(l), 0)
   const in6Months = new Date(now.getFullYear(), now.getMonth() + 6, now.getDate()).toISOString().slice(0, 10)
   const loanOverdue = activeLoans.filter(l => l.maturity_date && l.maturity_date < todayStr).length
   const loanDueSoon = activeLoans.filter(l => l.maturity_date && l.maturity_date >= todayStr && l.maturity_date <= in6Months).length

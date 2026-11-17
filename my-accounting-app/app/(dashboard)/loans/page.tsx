@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import AnnualReport from './annual-report'
+import { termMonthlyInterest } from '@/lib/loan-math'
 
 const won = (n: number | null | undefined) => (n ?? 0).toLocaleString('ko-KR')
 const eok = (n: number) => `${(n / 1e8).toFixed(2)}억`
@@ -56,6 +57,8 @@ const acctLabel = (b: { bank_name: string; account_number: string | null } | nul
 
 const today = () => new Date().toISOString().slice(0, 10)
 const isCreditLine = (l: Loan) => (l.product_type ?? 'term') === 'credit_line'
+// 일반 대출 월 이자(참고) = 현 잔액 × 이율 ÷ 12 — 저장값이 아니라 계산값 (2026-11-17)
+const termInterest = (l: Loan) => termMonthlyInterest(l)
 
 // 마이너스 통장 이자 = 사용액 x 연이율 / 365 x 사용일수 (일할 후취)
 // 화면에는 "현재 사용액이 당월 내내 유지된다고 가정한" 예상 월 이자를 표시한다.
@@ -176,7 +179,7 @@ export default function LoansPage() {
     balance: activeTerms.reduce((s, l) => s + l.current_balance, 0),
     original: terms.filter(l => l.status !== 'closed').reduce((s, l) => s + l.original_amount, 0),
     principal: activeTerms.reduce((s, l) => s + l.monthly_principal, 0),
-    interest: activeTerms.reduce((s, l) => s + l.monthly_interest, 0),
+    interest: activeTerms.reduce((s, l) => s + termInterest(l), 0),
     check: loans.filter(l => needsCheck(l) || isOverdue(l)).length,
     limit: lines.filter(l => l.status !== 'closed').reduce((s, l) => s + usage(l).limit, 0),
     used: lines.filter(l => l.status !== 'closed').reduce((s, l) => s + usage(l).used, 0),
@@ -220,7 +223,9 @@ export default function LoansPage() {
       monthly_principal: creditLine ? 0 : num(form.monthly_principal),
       balance_date: form.balance_date || null,
       interest_rate: form.interest_rate === '' ? null : Number(form.interest_rate),
-      monthly_interest: creditLine ? 0 : num(form.monthly_interest),
+      // 월 이자는 계산값(잔액 × 이율 ÷ 12)을 함께 저장해 SQL · 다른 화면이 같은 숫자를 보게 한다. 이율이 없을 때만 직접 입력값.
+      monthly_interest: creditLine ? 0 : form.interest_rate === '' ? num(form.monthly_interest)
+        : termMonthlyInterest({ current_balance: num(form.current_balance), interest_rate: Number(form.interest_rate) }),
       payment_day: form.payment_day === '' ? null : Math.min(Math.max(parseInt(form.payment_day) || 1, 1), 31),
       start_date: form.start_date || null, maturity_date: form.maturity_date || null,
       term_type: form.term_type, status: form.status, memo: form.memo.trim() || null,
@@ -396,8 +401,9 @@ export default function LoansPage() {
                     <td className={`py-2 px-3 text-right whitespace-nowrap ${l.monthly_principal ? '' : 'text-gray-400'}`}>
                       {l.monthly_principal ? won(l.monthly_principal) : '-'}
                     </td>
-                    <td className={`py-2 px-3 text-right whitespace-nowrap ${l.monthly_interest ? '' : 'text-gray-400'}`}>
-                      {l.monthly_interest ? won(l.monthly_interest) : '-'}
+                    <td className={`py-2 px-3 text-right whitespace-nowrap ${termInterest(l) ? '' : 'text-gray-400'}`}
+                      title={l.interest_rate != null ? `현 잔액 ${won(l.current_balance)}원 × ${l.interest_rate}% ÷ 12` : '이율이 없어 직접 입력한 값'}>
+                      {termInterest(l) ? won(termInterest(l)) : '-'}
                     </td>
                     <td className="py-2 px-3 text-center whitespace-nowrap">{l.payment_day ? `${l.payment_day}일` : '-'}</td>
                     <td className={`py-2 px-3 whitespace-nowrap ${isOverdue(l) ? 'text-red-600' : ''}`}>{l.maturity_date ?? '-'}</td>
@@ -421,7 +427,7 @@ export default function LoansPage() {
                   <td className="py-2 px-3 text-right">{won(visibleTerms.reduce((s, l) => s + l.current_balance, 0))}</td>
                   <td className="py-2 px-3" />
                   <td className="py-2 px-3 text-right">{won(visibleTerms.reduce((s, l) => s + l.monthly_principal, 0))}</td>
-                  <td className="py-2 px-3 text-right">{won(visibleTerms.reduce((s, l) => s + l.monthly_interest, 0))}</td>
+                  <td className="py-2 px-3 text-right">{won(visibleTerms.reduce((s, l) => s + termInterest(l), 0))}</td>
                   <td className="py-2 px-3" colSpan={5} />
                 </tr>
               </tfoot>
@@ -620,9 +626,18 @@ export default function LoansPage() {
                   <label className="block"><span className="text-xs text-gray-500">월 원금 상환액 (원, 0=이자만)</span>
                     <input value={form.monthly_principal} onChange={e => setForm(f => ({ ...f, monthly_principal: e.target.value }))}
                       className={`${input} text-right`} inputMode="numeric" /></label>
-                  <label className="block"><span className="text-xs text-gray-500">월 이자 · 참고 (원)</span>
-                    <input value={form.monthly_interest} onChange={e => setForm(f => ({ ...f, monthly_interest: e.target.value }))}
-                      className={`${input} text-right`} inputMode="numeric" /></label>
+                  {form.interest_rate === '' ? (
+                    <label className="block"><span className="text-xs text-gray-500">월 이자 · 참고 (원) — 이율이 없어 직접 입력</span>
+                      <input value={form.monthly_interest} onChange={e => setForm(f => ({ ...f, monthly_interest: e.target.value }))}
+                        className={`${input} text-right`} inputMode="numeric" /></label>
+                  ) : (
+                    <div className="block"><span className="text-xs text-gray-500">월 이자 · 참고 (자동)</span>
+                      <div className={`${input} text-right bg-slate-50 text-gray-700 tabular-nums`}>
+                        {won(termMonthlyInterest({ current_balance: Math.round(Number(String(form.current_balance).replace(/,/g, '')) || 0), interest_rate: Number(form.interest_rate) || 0 }))}
+                      </div>
+                      <div className="text-[0.6875rem] text-gray-400 mt-0.5">현 잔액 × 이율 ÷ 12. 은행 실제 청구(일할)와 달마다 조금 다를 수 있습니다.</div>
+                    </div>
+                  )}
                 </>
               )}
 

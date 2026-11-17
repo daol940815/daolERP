@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
       .eq('employment_type', 'parttime').eq('is_active', true),
     showMoney
       ? admin.from('loans')
-          .select('id, bank_name, title, monthly_principal, monthly_interest, payment_day, status, maturity_date')
+          .select('id, bank_name, title, monthly_principal, monthly_interest, payment_day, status, maturity_date, current_balance, interest_rate, product_type')
       : Promise.resolve({ data: null, error: null }),
     // 생일 — 203 전에는 컬럼이 없어 실패하므로 오류를 err 체인에 넣지 않는다
     admin.from('employees').select('id, name, birth_date')
