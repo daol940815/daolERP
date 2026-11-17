@@ -9,6 +9,7 @@ import type { ErpVendorAlias } from '@/types/erp'
 import { getPeriodRange } from '@/lib/period-presets'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import CardOrderMatchModal from '@/components/cards/CardOrderMatchModal'
+import { isCardSaleVoided } from '@/lib/card-sale-status'
 
 // 주문 매칭 상태 (승인 행, 순액 기준) — 2026-11-13 승인 시안
 const orderMatchState = (r: CardSale): 'none' | 'partial' | 'done' | 'over' => {
@@ -57,7 +58,7 @@ export default function SalesTab() {
   const showMsg = (msg: string, ms = 4000) => { setToast(msg); setTimeout(() => setToast(null), ms) }
 
   // 분개 누락 동기화 — 공급가·세액 미기재 건을 과세로 보고 1.1 분할해 전기 (2026-11-12 사용자 결정)
-  const [unposted, setUnposted] = useState<{ unposted: number; total: number; unknown_vat: number; unknown_total: number } | null>(null)
+  const [unposted, setUnposted] = useState<{ unposted: number; total: number; unknown_vat: number; unknown_total: number; voided_posted?: number; voided_total?: number } | null>(null)
   const [syncing, setSyncing] = useState(false)
   const loadUnposted = useCallback(() => {
     fetch('/api/card-sales/sync-journals', { cache: 'no-store' })
@@ -65,18 +66,19 @@ export default function SalesTab() {
   }, [])
   useEffect(() => { loadUnposted() }, [loadUnposted])
   const syncUnposted = async () => {
-    if (!unposted?.unposted || syncing) return
+    if ((!unposted?.unposted && !unposted?.voided_posted) || syncing) return
     const unk = unposted.unknown_vat
       ? `\n그중 공급가·세액 미기재 ${unposted.unknown_vat}건(${won(unposted.unknown_total)})은 과세로 보고 공급가 = 금액 ÷ 1.1로 나눠 전기합니다(원본은 그대로).`
       : ''
-    if (!window.confirm(`분개가 없는 카드매출 ${unposted.unposted}건(${won(unposted.total)})을 전기합니다.${unk}\n카드사를 알 수 없거나 금액이 맞지 않는 건은 검토 대상으로 남습니다.`)) return
+    const vd = unposted.voided_posted ? `\n정산상태 중복해제인데 전기돼 있는 ${unposted.voided_posted}건(${won(unposted.voided_total ?? 0)})은 분개를 취소합니다(수금 없음).` : ''
+    if (!window.confirm(`분개가 없는 카드매출 ${unposted.unposted}건(${won(unposted.total)})을 전기합니다.${unk}${vd}\n카드사를 알 수 없거나 금액이 맞지 않는 건은 검토 대상으로 남습니다.`)) return
     setSyncing(true)
     const res = await fetch('/api/card-sales/sync-journals', { method: 'POST' })
     const json = await res.json()
     setSyncing(false)
     if (!res.ok) { showMsg(`동기화 실패: ${json.error ?? '오류'}`); return }
     const why = (json.review_reasons ?? []).map((r: { reason: string; count: number }) => `${r.reason} ${r.count}건`).join(', ')
-    showMsg(`분개 동기화: 대상 ${json.targets}건 · 전기 ${json.posted}건${json.review ? ` · 검토 대상 ${json.review}건 (${why})` : ''}`, 10000)
+    showMsg(`분개 동기화: 대상 ${json.targets}건 · 전기 ${json.posted}건${json.review ? ` · 검토 대상 ${json.review}건 (${why})` : ''}${json.voided_unposted ? ` · 중복해제 분개 취소 ${json.voided_unposted}건` : ''}`, 10000)
     loadUnposted()
   }
 
@@ -254,12 +256,14 @@ export default function SalesTab() {
   // ── 요약 통계 (검색·필터 결과 기준) ─────────────────────────────
   const approvalList = visible.filter(s => s.transaction_type === 'approval')
   const cancelList   = visible.filter(s => s.transaction_type === 'cancel')
-  const approvalSum  = approvalList.reduce((s, r) => s + (r.amount || 0), 0)
+  const voidedList   = approvalList.filter(isCardSaleVoided)   // 정산상태 중복해제 — 수금 없음, 합계에서 뺀다 (2026-11-17)
+  const approvalSum  = approvalList.reduce((s, r) => s + (isCardSaleVoided(r) ? 0 : (r.amount || 0)), 0)
   const cancelSum    = cancelList.reduce((s, r) => s + (r.amount || 0), 0)
   const netSum       = approvalSum + cancelSum
   const matchedCount = visible.filter(s => s.vendor_id).length
   // 주문 매칭 KPI (승인 행 · 순액 기준)
   const orderStat = approvalList.reduce((acc, r) => {
+    if (isCardSaleVoided(r)) return acc
     const net = Math.max(0, (r.amount || 0) - (r.cancel_amount ?? 0)); const m = r.order_match_amount ?? 0
     acc.matched += Math.min(m, net); acc.unmatched += Math.max(0, net - m)
     acc[orderMatchState(r)]++
@@ -273,11 +277,11 @@ export default function SalesTab() {
           <p className="text-sm text-blue-700 font-medium">카드 매출 상세내역 — 정산/입금 현황 확인</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          {unposted && unposted.unposted > 0 && (
+          {unposted && (unposted.unposted > 0 || (unposted.voided_posted ?? 0) > 0) && (
             <button onClick={syncUnposted} disabled={syncing}
               className="px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm hover:bg-amber-100 disabled:opacity-50"
               title="분개가 없는 카드매출을 전기합니다. 공급가·세액 미기재 건은 과세로 보고 1.1로 나눕니다(원본은 그대로).">
-              {syncing ? '전기 중...' : `분개 누락 ${unposted.unposted.toLocaleString()}건 동기화 (${won(unposted.total)}${unposted.unknown_vat ? ` · 미기재 ${unposted.unknown_vat.toLocaleString()}건` : ''})`}
+              {syncing ? '전기 중...' : `분개 누락 ${unposted.unposted.toLocaleString()}건 동기화 (${won(unposted.total)}${unposted.unknown_vat ? ` · 미기재 ${unposted.unknown_vat.toLocaleString()}건` : ''}${unposted.voided_posted ? ` · 중복해제 분개 취소 ${unposted.voided_posted}건` : ''})`}
             </button>
           )}
           <a href="/card-sales/customer-links"
@@ -323,7 +327,7 @@ export default function SalesTab() {
         <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
           <p className="text-xs text-gray-400 mb-1">주문 매칭 금액</p>
           <p className="text-lg font-bold text-sky-700">{won(orderStat.matched)}</p>
-          <p className="text-xs text-gray-400">완료 {orderStat.done} · 부분 {orderStat.partial}</p>
+          <p className="text-xs text-gray-400">완료 {orderStat.done} · 부분 {orderStat.partial}{voidedList.length ? ` · 중복해제 ${voidedList.length}건 제외` : ''}</p>
         </div>
         <button onClick={() => setOrderFilter(f => f === 'none' ? 'all' : 'none')} title="클릭 = 주문 미매칭만 보기"
           className={`border rounded-lg px-4 py-3 flex-1 min-w-[160px] text-left ${orderFilter === 'none' ? 'border-amber-400 bg-amber-50' : 'border-gray-200 hover:bg-gray-50'}`}>
@@ -494,6 +498,7 @@ export default function SalesTab() {
                     </td>
                     <td className="py-2.5 px-3 text-xs text-gray-500 whitespace-nowrap">
                       <p>{row.processing_status ?? '-'} {row.settlement_status ? `· ${row.settlement_status}` : ''}</p>
+                      {isCardSaleVoided(row) && <p><span className="inline-block px-1.5 py-0.5 rounded bg-red-100 text-red-700" title="카드사가 중복 승인으로 해제한 건 — 수금 없음. 분개 · 수금 후보 · 주문 배분에서 제외">중복해제 — 수금 없음</span></p>}
                       {row.deposit_expected_date && <p className="text-gray-400">입금예정 {row.deposit_expected_date}</p>}
                     </td>
                     <td className="py-2.5 px-3">

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { NOT_VOID_OR } from '@/lib/card-sale-status'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 // ERP 매출처/매입처명 단위 대조: ERP 매출/매입 vs 입출금·카드·현금영수증·세금계산서
@@ -193,7 +194,7 @@ export async function buildReconciliationRows(
       let cq = admin
         .from('card_sales')
         .select('vendor_id, amount, transaction_type')
-        .not('vendor_id', 'is', null)
+        .not('vendor_id', 'is', null).or(NOT_VOID_OR)   // 중복해제 제외 (2026-11-17)
       if (from) cq = cq.gte('tx_date', from)
       if (to)   cq = cq.lte('tx_date', to)
       return cq.range(rFrom, rTo)

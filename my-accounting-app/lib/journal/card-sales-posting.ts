@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { type JournalDraft, type JournalLineDraft } from './types'
 import { postJournal, unpostJournal } from './posting'
 import { splitVat, VAT_UNKNOWN_NOTE, VAT_EXEMPT_CPID_NOTE, VAT_TAXABLE_CPID_NOTE } from '@/lib/card-sale-vat'
+import { isCardSaleVoided, CARD_SALE_VOID_NOTE } from '@/lib/card-sale-status'
 
 // 카드매출 자동분개 (업무 규칙). 저장은 post_journal(RPC)이 담당.
 //
@@ -42,6 +43,7 @@ export interface CardSaleForPosting {
   supply_amount: number | null
   tax_amount: number | null
   vat_kind?: string | null
+  settlement_status?: string | null
 }
 
 // 계정/카드사 거래처 사전 조회 컨텍스트 — 대량 전기 시 행마다 재조회하지 않도록 공유
@@ -78,6 +80,8 @@ export function buildCardSalePosting(
 ): JournalDraft | { error: string } {
   const amount = sale.amount ?? 0
   if (amount === 0) return { error: '전기할 금액이 없습니다.' }
+  // 정산상태 '중복해제' = 카드사가 중복 승인으로 해제 — 수금 없음, 전기하지 않는다 (2026-11-17)
+  if (isCardSaleVoided(sale)) return { error: CARD_SALE_VOID_NOTE }
 
   const canonical = canonicalAcquirer(sale.acquirer)
   if (!canonical) return { error: `매입사 인식 불가: "${sale.acquirer ?? ''}" — 검토 필요` }
@@ -128,13 +132,13 @@ export async function syncCardSaleJournal(
 ): Promise<{ ok: true } | { error: string }> {
   const { data: sale, error } = await admin
     .from('card_sales')
-    .select('id, tx_date, transaction_type, approval_number, acquirer, amount, supply_amount, tax_amount, vat_kind')
+    .select('id, tx_date, transaction_type, approval_number, acquirer, amount, supply_amount, tax_amount, vat_kind, settlement_status')
     .eq('id', saleId)
     .single()
   if (error) {
     // 427 미적용이면 vat_kind 없이 다시 읽는다
     if (!/vat_kind|schema cache/i.test(error.message)) return { error: error.message }
-    const retry = await admin.from('card_sales').select('id, tx_date, transaction_type, approval_number, acquirer, amount, supply_amount, tax_amount').eq('id', saleId).single()
+    const retry = await admin.from('card_sales').select('id, tx_date, transaction_type, approval_number, acquirer, amount, supply_amount, tax_amount, settlement_status').eq('id', saleId).single()
     if (retry.error) return { error: retry.error.message }
     return syncCardSaleJournalWith(admin, retry.data as CardSaleForPosting, sharedCtx)
   }

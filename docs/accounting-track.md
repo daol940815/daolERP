@@ -1358,3 +1358,9 @@ ERP 주문은 계획대로 교체(erp-reload-track). 결정 대기.
   **중복 쌍 5건은 정산상태 '중복해제'로 확정**: 20262008 100,000 · 22262008 934,500(검단금융센터) · 28603700 1,053,700 · 23102710 1,000,000 ·
   19308001 100,000 = 3,188,200 — 카드사 · VAN이 중복 승인으로 해제한 건. 취소 행이 없어 시스템은 매출 · 매출채권으로 전기 중(과대).
   김해중앙 164,000은 정산삭제 + 취소 행으로 이미 순액 0. 제안(승인 대기): 정산상태 '중복해제' 건은 분개 제외 · 수금 후보 제외 · 매출 탭 표시.
+- **중복해제 규칙 구현(2026-11-17 승인)**: `lib/card-sale-status.ts` — `CARD_SALE_VOID_STATUSES = ['중복해제']`, `isCardSaleVoided`, PostgREST 필터 `NOT_VOID_OR`
+  (NULL 유지). 적용: 분개(`card-sales-posting` — 전기 거부 → 재업로드 · 동기화 시 기존 분개 자동 취소, 메모 "정산상태 중복해제 — 수금 없음"),
+  분개 동기화 대상(`sync-journals`), 예상 부가세(`vat-report`), 월별 손익 근거(`pl-evidence`), 입금 매칭 후보(`erp-matching`), 주문 쪽 수금 후보
+  (`erp-order-collect`), 수금후보(`sales-collection-match`), 결제 확인 카드 후보(`payment-records`), 카드 주문 배분(`card-order-match` 거부),
+  매출처 허브 카드 목록 · 매출 대조(`vendor-hub` · `vendor-reconciliation`), 매출 탭(배지 "중복해제 — 수금 없음", 승인 합계 · 주문 KPI에서 제외).
+  기존 전기분 5건: 배포 뒤 매출 탭의 "분개 누락 … 중복해제 분개 취소 N건" 동기화 버튼(sync-journals 가 중복해제인데 전기된 건을 찾아 unpost)을 누르면 취소됨. 검증: 427 ② 식과 같은 방식으로 `settlement_status='중복해제'` 건의 journal_entries 존재 여부 = 0 기대.

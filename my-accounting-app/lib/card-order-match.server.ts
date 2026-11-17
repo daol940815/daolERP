@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { cardNumberKey } from '@/lib/card-number'
+import { isCardSaleVoided, CARD_SALE_VOID_NOTE } from '@/lib/card-sale-status'
 import { syncRecordsForOrders } from '@/lib/payment-records'
 import type { Editor } from '@/lib/orders-portal'
 
@@ -41,10 +42,11 @@ async function vendorNames(admin: Admin, ids: string[]): Promise<Map<string, str
 
 export async function loadCardOrderState(admin: Admin, saleId: string, q?: string | null): Promise<CardOrderState | { error: string }> {
   const { data: s } = await admin.from('card_sales')
-    .select('id, tx_date, tx_time, card_number, acquirer, approval_number, amount, transaction_type, vendor_id')
+    .select('id, tx_date, tx_time, card_number, acquirer, approval_number, amount, transaction_type, vendor_id, settlement_status')
     .eq('id', saleId).single()
   if (!s) return { error: '카드 결제를 찾을 수 없습니다.' }
   if (s.transaction_type !== 'approval') return { error: '승인 건만 주문에 배분할 수 있습니다.' }
+  if (isCardSaleVoided(s)) return { error: CARD_SALE_VOID_NOTE + ' — 주문에 배분할 수 없습니다.' }
 
   // 순액 = 승인 − 같은 승인번호의 취소 합
   const { data: cancels } = await admin.from('card_sales').select('amount').eq('transaction_type', 'cancel').eq('approval_number', s.approval_number)
