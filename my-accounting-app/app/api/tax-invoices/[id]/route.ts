@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
-import { TAX_INVOICE_SELECT } from '@/lib/tax-invoice-payments.server'
+import { TAX_INVOICE_SELECT, recalcInvoiceStatus } from '@/lib/tax-invoice-payments.server'
 import { syncTaxInvoiceJournal } from '@/lib/journal/tax-invoice-posting'
 
 // PATCH /api/tax-invoices/:id
@@ -15,7 +15,7 @@ export async function PATCH(
   const { id } = await params
   const body = await req.json() as {
     vendor_id?: string | null
-    payment_status?: 'matched' | 'unmatched'
+    payment_status?: 'matched' | 'partial' | 'unmatched'
     payment_memo?: string | null
     confirmed_account_id?: string | null
   }
@@ -39,11 +39,24 @@ export async function PATCH(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // 수동 확인 표시 (1302): 확인됨으로 바꾸면 payment_manual = true(입금을 붙여도 유지), 해제하면 false 로 돌리고
+  // 붙어 있는 입금 합계로 상태를 다시 계산한다(일부 붙어 있으면 부분 확인). 칸이 없으면(1302 전) 조용히 건너뛴다.
+  let fresh = data
+  if ('payment_status' in body) {
+    const manual = body.payment_status === 'matched'
+    const { error: me } = await admin.from('tax_invoices').update({ payment_manual: manual }).eq('id', id)
+    if (!me && !manual) {
+      await recalcInvoiceStatus(admin, id)
+      const again = await admin.from('tax_invoices').select(TAX_INVOICE_SELECT).eq('id', id).single()
+      if (!again.error && again.data) fresh = again.data
+    }
+  }
+
   // 분개 동기화 — 계정과목·거래처가 분개에 영향을 주므로 변경 시 재전기(멱등)
   if ('confirmed_account_id' in updates || 'vendor_id' in updates) {
     const jr = await syncTaxInvoiceJournal(admin, id)
     if ('error' in jr) return NextResponse.json({ error: `분개 전기 실패: ${jr.error}` }, { status: 500 })
   }
 
-  return NextResponse.json({ data })
+  return NextResponse.json({ data: fresh })
 }

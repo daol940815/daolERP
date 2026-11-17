@@ -19,7 +19,8 @@ export interface Vendor {
 
 export type TaxInvoiceDirection = 'sales' | 'purchase'
 export type TaxInvoiceTaxType   = 'taxable' | 'exempt'
-export type TaxInvoicePaymentStatus = 'matched' | 'unmatched'
+// 'partial' = 부분 확인 — 입금이 일부만 붙음 (1302, 2026-11-17)
+export type TaxInvoicePaymentStatus = 'matched' | 'partial' | 'unmatched'
 
 export interface TaxInvoice {
   classified_by?: string | null   // 분류 출처 (422): auto:history|auto:default|auto:keyword|manual|bulk

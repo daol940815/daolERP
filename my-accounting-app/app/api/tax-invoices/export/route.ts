@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 const DIRECTION_LABEL: Record<string, string> = { sales: '매출', purchase: '매입' }
 const TAX_TYPE_LABEL:  Record<string, string> = { taxable: '과세', exempt: '면세' }
-const STATUS_LABEL:    Record<string, string> = { matched: '확인됨', unmatched: '미확인' }
+const STATUS_LABEL:    Record<string, string> = { matched: '확인됨', partial: '부분 확인', unmatched: '미확인' }
 
 // GET /api/tax-invoices/export
 // 현재 필터 기준으로 세금계산서 목록을 XLSX로 내보내기

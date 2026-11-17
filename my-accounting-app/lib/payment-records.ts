@@ -799,6 +799,10 @@ export async function releaseRecord(admin: SupabaseClient, recordId: string, rea
   if (error) return { error: errMsg(error.message) }
   if (!rec) return { error: '결제 기록을 찾을 수 없습니다.' }
   if (!rec.confirmed_at) return { error: '확인 대기 상태의 기록입니다.' }
+  // 계산서 입금에서 넘어온 수금(1302)이 이 기록을 채우고 있으면 여기서 풀 수 없다 — 계산서 쪽에서 풀어야 양쪽이 어긋나지 않는다
+  // (칸이 없으면 조회가 실패하고 건너뛴다. 문구는 lib/link-sync.ts FROM_INVOICE_BLOCK 과 같게 — 순환 import 를 피하려고 여기 적는다)
+  const { data: derived } = await admin.from('erp_payment_matches').select('id').eq('record_id', recordId).not('from_invoice_id', 'is', null).limit(1)
+  if (derived?.length) return { error: '계산서에 붙은 입금에서 자동으로 넘어온 수금입니다. 회계 › 계산서 내역에서 그 입금 연결을 풀거나, 주문 상세 › 결제 내역에서 계산서 연결을 해제하면 함께 풀립니다.' }
   const { error: de } = await admin.from('erp_payment_matches').delete().eq('record_id', recordId)
   if (de) return { error: errMsg(de.message) }
   const { error: ue } = await admin.from('order_payment_records')

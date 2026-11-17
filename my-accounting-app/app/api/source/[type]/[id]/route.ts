@@ -99,7 +99,7 @@ export async function GET(
       { label: '거래처', value: `${r.counterparty_name ?? '-'} (${r.counterparty_biz_number ?? '-'})` },
       { label: '품목', value: String(r.item_name ?? '-') },
       { label: '공급가/세액/합계', value: `${won(r.supply_amount as number)} / ${won(r.tax_amount as number)} / ${won(r.total_amount as number)}` },
-      { label: '결제상태', value: r.payment_status === 'matched' ? '매칭됨' : '미매칭' },
+      { label: '결제상태', value: r.payment_status === 'matched' ? '매칭됨' : r.payment_status === 'partial' ? '부분 매칭' : '미매칭' },
     )
     // invoiceId를 넘겨 목록 화면이 이 계산서만 바로 보여주게 한다 (별도 검색 불필요)
     link = { href: `/tax-invoices/${r.direction}/${r.tax_type}?invoiceId=${id}`, label: '세금계산서 화면으로' }
