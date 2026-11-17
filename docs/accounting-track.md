@@ -1323,3 +1323,18 @@ ERP 주문은 계획대로 교체(erp-reload-track). 결정 대기.
 - 구현: `lib/loan-math.ts` `termMonthlyInterest(l)` 한 곳 — 대출 관리 표 · 합계 · KPI(`loans/page.tsx`), 경영 현황 대시보드 월 이자(`MgmtTab.tsx`,
   select에 interest_rate · product_type 추가), 상환 스케줄(`lib/schedule.ts` + `/api/schedule` select 보강), 연간 보고서(`annual-report.tsx`).
   저장 시 `monthly_interest` 컬럼에도 계산값을 함께 기록(SQL · 다른 조회가 같은 숫자를 보게). 기존 행의 저장값은 다음 수정 때 갱신되나 화면은 이미 계산값.
+
+## 카드매출 수기결제 CPID 과세 · 면세 (427, 2026-11-17 사용자 승인 · 구현)
+
+- 사용자 확인: 수기결제(PG) 파일의 CPID **CDA23815 = 면세**(CP명 "주식회사 다올커머스(다올커머스(비과세))"), CDA23814 = 과세. 샘플 파일
+  261001~261116 listdown: 10건 · 3,607,500(10-02~10-30, 취소 0) — 열 구성은 과세 파일과 동일.
+- 현황: 업로드가 CPID를 읽지 않았고 PG 파일은 공급가 · 세금 열이 없어 0 → 2026-11-12 규칙(미기재 = 과세 1.1 분할)로 CDA23815도 과세 분개
+  (부가세예수금 과대 · 상품매출 과소). 지난 두 파일(10/01~10/31 · 10/14~11/13, 67건)은 모두 CDA23814.
+- 결정: 원본 공급가 · 세금 0은 유지, 해석 열 `vat_kind`로 판정. CPID 규칙은 코드 상수 한 곳(`lib/card-sale-vat.ts` `CPID_VAT_RULES`) — 면세 CP가 늘면
+  사용자 확인 뒤 추가. 모르는 CPID는 면세로 단정하지 않고(과세 1.1) 업로드 결과에 '미확인 CPID'로 표시. 단말기 파일은 CPID 없음 → 기존 판정.
+- 구현: `427_card_sales_cpid_vat_kind.sql`(cpid · cp_name · vat_kind + 검증 쿼리 주석, **실행 대기**). 업로드 `/api/card-sales/import`(CPID · CP명 읽기,
+  vat_kind 저장, 427 미적용이면 그 열만 빼고 저장 + `migration427:false`, 응답 `exempt · unknown_cpids`) / 분개 `card-sales-posting`(vat_kind 우선 —
+  exempt = 전액 상품매출, 메모 "면세 CP(CPID)") / 예상 부가세 `vat-report`(vat_kind 반영, 미적용이면 열 없이 재조회) / 목록 · 상세 API `select('*')` /
+  카드 내역 매출 탭 과세 · 면세 칩 + 면세 배지 · CPID 표시 / 업로드 결과 문구.
+- 기존 행 채우기: 427 실행 → CDA23815 PG 파일 재업로드(같은 승인번호 덮어쓰기, 거래처 연결 유지) → 분개 자동 재전기. 검증은 427 파일 하단 ① ②.
+- **427 실행 · 재업로드(2026-11-17, 사용자)**: 427 실행 완료, CDA23815 파일 재업로드 결과 "면세 CP 10건" 확인. 검증 쿼리 ①(CPID별 건수 · 판정) ②(면세 건 분개의 2003 잔존, 기대 0)는 미회신.

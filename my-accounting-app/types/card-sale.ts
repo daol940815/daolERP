@@ -20,6 +20,9 @@ export interface CardSale {
   settlement_status?: string | null
   vendor_id?: string | null
   note?: string | null
+  cpid?: string | null            // 수기결제(PG) 파일 CPID (427)
+  cp_name?: string | null
+  vat_kind?: 'taxable' | 'exempt' | null   // CPID 해석 — exempt = 면세 CP (2026-11-17)
   created_at: string
   updated_at: string
 }

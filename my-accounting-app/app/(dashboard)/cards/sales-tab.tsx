@@ -37,6 +37,9 @@ export default function SalesTab() {
 
   const [typeFilter, setTypeFilter]   = useState<'all' | CardSaleTransactionType>('all')
   const [matchFilter, setMatchFilter] = useState<'all' | 'matched' | 'unmatched'>('all')
+  // 과세 · 면세 (수기결제 CPID 해석 vat_kind, 427 — 단말기 파일은 세액 열로 판정) 2026-11-17
+  const [vatFilter, setVatFilter] = useState<'all' | 'taxable' | 'exempt'>('all')
+  const vatOf = (r: CardSale): 'taxable' | 'exempt' => r.vat_kind === 'exempt' ? 'exempt' : r.vat_kind === 'taxable' ? 'taxable' : (r.tax_amount === 0 && r.supply_amount !== 0) ? 'exempt' : 'taxable'
   // 주문 매칭 필터 · 모달 (2026-11-13)
   const [orderFilter, setOrderFilter] = useState<'all' | 'none' | 'partial' | 'done' | 'over'>('all')
   const [orderMatchFor, setOrderMatchFor] = useState<string | null>(null)
@@ -229,7 +232,8 @@ export default function SalesTab() {
   const vendorNameById = useMemo(() => new Map(vendors.map(v => [v.id, v.name])), [vendors])
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
-    const base = orderFilter === 'all' ? sales : sales.filter(r => r.transaction_type === 'approval' && orderMatchState(r) === orderFilter)
+    const base0 = orderFilter === 'all' ? sales : sales.filter(r => r.transaction_type === 'approval' && orderMatchState(r) === orderFilter)
+    const base = vatFilter === 'all' ? base0 : base0.filter(r => vatOf(r) === vatFilter)
     if (!q) return base
     const qDigits = q.replace(/[^0-9]/g, '')
     return base.filter(r => {
@@ -245,7 +249,7 @@ export default function SalesTab() {
       }
       return false
     })
-  }, [sales, search, vendorNameById, orderFilter])
+  }, [sales, search, vendorNameById, orderFilter, vatFilter])
 
   // ── 요약 통계 (검색·필터 결과 기준) ─────────────────────────────
   const approvalList = visible.filter(s => s.transaction_type === 'approval')
@@ -403,6 +407,12 @@ export default function SalesTab() {
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${orderFilter === k ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{l}</button>
           ))}
         </div>
+        <div className="flex gap-1">
+          {([['all', '과세 · 면세 전체'], ['taxable', '과세'], ['exempt', '면세']] as const).map(([k, l]) => (
+            <button key={k} onClick={() => setVatFilter(k)} title="수기결제는 CPID(CDA23815 = 면세)로, 단말기결제는 세액 열로 판정"
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${vatFilter === k ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{l}</button>
+          ))}
+        </div>
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
@@ -474,7 +484,10 @@ export default function SalesTab() {
                     <td className="py-2.5 px-3 whitespace-nowrap text-gray-500">{row.acquirer ?? '-'}</td>
                     <td className="py-2.5 px-3 text-right whitespace-nowrap">
                       <p className={`font-medium ${row.amount < 0 ? 'text-red-600' : 'text-gray-900'}`}>{won(row.amount)}</p>
-                      <p className="text-xs text-gray-400">공급 {won(row.supply_amount)} · 세액 {won(row.tax_amount)}</p>
+                      <p className="text-xs text-gray-400">공급 {won(row.supply_amount)} · 세액 {won(row.tax_amount)}
+                        {row.vat_kind === 'exempt' && <span className="ml-1 px-1 py-0.5 rounded bg-emerald-50 text-emerald-700" title={`면세 CP ${row.cpid ?? ''} ${row.cp_name ?? ''}`.trim()}>면세</span>}
+                        {row.cpid && row.vat_kind !== 'exempt' && <span className="ml-1 text-gray-300" title={row.cp_name ?? ''}>{row.cpid}</span>}
+                      </p>
                       {row.transaction_type === 'approval' && (row.cancel_amount ?? 0) > 0 && (
                         <p className="text-xs text-red-500">취소 −{won(row.cancel_amount ?? 0)} · 순액 {won(Math.max(0, row.amount - (row.cancel_amount ?? 0)))}</p>
                       )}

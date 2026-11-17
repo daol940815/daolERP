@@ -314,6 +314,12 @@ export default function UploadPage() {
     if (data.posted)  parts.push(`분개 ${data.posted.toLocaleString()}건`)
     if (data.skipped) parts.push(`제외 ${data.skipped.toLocaleString()}건`)
     if (data.skipped_existing) parts.push(`기존 기간 제외 ${data.skipped_existing.toLocaleString()}건`)
+    // 카드매출 수기결제: CPID 면세 판정 결과 (427, 2026-11-17)
+    if (data.exempt) parts.push(`면세 CP ${Number(data.exempt).toLocaleString()}건`)
+    if (Array.isArray(data.unknown_cpids) && data.unknown_cpids.length) {
+      parts.push(`미확인 CPID ${data.unknown_cpids.map((u: { cpid: string; count: number }) => `${u.cpid} ${u.count}건`).join(', ')} — 과세로 처리됨, 면세 CP면 회계 담당에게 알려 규칙 추가`)
+    }
+    if (data.migration427 === false) parts.push('427 미적용 — CPID · 면세 표시는 저장되지 않음(SQL 편집기에서 427 실행 후 재업로드)')
     if (data.duplicates_other_format) parts.push(`다른 양식과 중복 제외 ${data.duplicates_other_format.toLocaleString()}건`)
     if (data.holds)   parts.push(`가승인 취소 ${data.holds.toLocaleString()}건(금액 0)`)
     if (data.refunds) parts.push(`환불 취소 ${data.refunds.toLocaleString()}건`)

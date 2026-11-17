@@ -5,12 +5,7 @@ import { fetchAllRows } from '@/lib/fetch-all-rows'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-const CARD_SALE_FIELDS = `
-  id, tx_date, tx_time, transaction_type, approval_number, card_number, acquirer,
-  amount, supply_amount, tax_amount,
-  processing_status, deposit_expected_date, cancelled_at, settlement_status,
-  vendor_id, note, created_at, updated_at
-`
+// 열은 전부 읽는다('*') — 427(cpid · cp_name · vat_kind) 적용 전후 모두 동작 (2026-11-17)
 
 // GET /api/card-sales?vendorId=...&type=approval|cancel&from=&to=&unmatched=true&limit=
 export async function GET(req: NextRequest) {
@@ -27,7 +22,7 @@ export async function GET(req: NextRequest) {
   const result = await fetchAllRows<Record<string, unknown>>((f, t) => {
     let query = admin
       .from('card_sales')
-      .select(CARD_SALE_FIELDS)
+      .select('*')
       .order('tx_date', { ascending: false })
       .order('tx_time', { ascending: false })
     if (vendorId)  query = query.eq('vendor_id', vendorId)

@@ -96,7 +96,7 @@ export default function CustomerKpiTiles({ mode, flags, filter, onFilter }: {
           </Link>
         </span>
         <span className="text-[0.6875rem] text-gray-400">
-          기준연도 {flags.y0} 자동 · 타일 클릭 = 목록 필터 · 매출은 최근 2개년 순매출
+          기준연도 {flags.y0} 자동 · 타일 클릭 = 목록 필터 · 매출은 {flags.y0 - 1}~{flags.y0} 순매출 (2026-10까지는 고객관리문서 기준 참고값)
         </span>
       </div>
 
@@ -122,9 +122,10 @@ export default function CustomerKpiTiles({ mode, flags, filter, onFilter }: {
           </div>
         </div>
 
-        {/* 주문 금액대 */}
+        {/* 주문 금액대 — 큰 숫자 = 이 화면 단위(지점/담당자), "/N" = 다른 단위의 같은 금액대 수.
+            118(2026-11-17): 담당자 귀속 = 주문 저장 인물 우선 + 고객관리문서 스냅샷(2025-01~2026-10) 포함 */}
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <p className="text-xs text-gray-500">주문 금액대 <span className="text-gray-400">(최근 2개년 누적)</span></p>
+          <p className="text-xs text-gray-500">주문 금액대 <span className="text-gray-400">({flags.y0 - 1}~{flags.y0} 누적)</span></p>
           <div className="flex h-2 rounded-full overflow-hidden mt-2.5">
             {TIERS.map(t => (
               <div key={t.key} className={t.bar} style={{ width: `${(c.m[t.key] / tierSum) * 100}%` }} />
@@ -138,7 +139,10 @@ export default function CustomerKpiTiles({ mode, flags, filter, onFilter }: {
                 <span className="truncate">{t.label}</span>
                 <span className="ml-auto font-bold text-gray-900 tabular-nums">
                   {c.m[t.key].toLocaleString()}
-                  <span className="font-normal text-gray-400 text-[0.625rem]"> /{c.s[t.key].toLocaleString()}{subUnit}</span>
+                  <span className="font-normal text-gray-400 text-[0.625rem]"
+                    title={mode === 'vendor'
+                      ? '같은 금액대에 드는 거래처 담당자(고객) 수 — 고객 금액은 그 고객에게 붙은 주문만 합산해 지점 수와 1:1로 맞지 않습니다'
+                      : '같은 금액대에 드는 지점 수 — 지점 금액은 그 지점의 모든 주문 합산'}> /{c.s[t.key].toLocaleString()}{subUnit}</span>
                 </span>
               </button>
             ))}

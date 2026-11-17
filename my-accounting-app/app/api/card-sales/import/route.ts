@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { loadCardSaleContext, syncCardSaleJournal } from '@/lib/journal/card-sales-posting'
 import { cardNumberKey } from '@/lib/card-number'
+import { vatKindOfCpid, normalizeCpid } from '@/lib/card-sale-vat'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -49,6 +50,10 @@ type ParsedRow = {
   deposit_expected_date: string | null
   cancelled_at: string | null
   settlement_status: string | null
+  // 수기결제(PG) 파일의 CPID · CP명 — 과세 · 면세 해석(427, 2026-11-17). 단말기 파일은 모두 null
+  cpid: string | null
+  cp_name: string | null
+  vat_kind: 'taxable' | 'exempt' | null
 }
 
 // POST /api/card-sales/import
@@ -95,6 +100,7 @@ export async function POST(req: NextRequest) {
 
   const parsed: ParsedRow[] = []
   let skipped = 0
+  const unknownCpids = new Map<string, number>()   // 규칙에 없는 CPID (수기결제 파일)
 
   if (format === 'terminal') {
     const col = {
@@ -135,6 +141,7 @@ export async function POST(req: NextRequest) {
         deposit_expected_date: toDate(row[col.depositDate]),
         cancelled_at: String(row[col.cancelledAt] ?? '').trim() || null,
         settlement_status: String(row[col.settlement] ?? '').trim() || null,
+        cpid: null, cp_name: null, vat_kind: null,
       })
     }
   } else {
@@ -150,6 +157,8 @@ export async function POST(req: NextRequest) {
       cancelDate:   findCol(header, '취소일자'),
       procStatus:   findCol(header, '결제상태'),
       settlement:   findCol(header, '최종상태'),
+      cpid:         findCol(header, 'CPID'),
+      cpName:       findCol(header, 'CP명(서비스명)'),
     }
 
     for (const row of dataRows) {
@@ -162,6 +171,11 @@ export async function POST(req: NextRequest) {
       const procStatus   = String(row[col.procStatus] ?? '').trim() || null
       const settlement   = String(row[col.settlement] ?? '').trim() || null
       const cancelAmount = toNumber(row[col.cancelAmount])
+      // CPID → 과세 · 면세. 열이 없는 옛 양식이면 null(기존 규칙). 모르는 CPID도 null + 결과에 표시(면세로 단정하지 않음)
+      const cpid = col.cpid >= 0 ? normalizeCpid(String(row[col.cpid] ?? '')) || null : null
+      const cpName = col.cpName >= 0 ? String(row[col.cpName] ?? '').trim() || null : null
+      const vatKind = vatKindOfCpid(cpid)
+      if (cpid && !vatKind) unknownCpids.set(cpid, (unknownCpids.get(cpid) ?? 0) + 1)
 
       parsed.push({
         tx_date: payDate,
@@ -177,6 +191,7 @@ export async function POST(req: NextRequest) {
         deposit_expected_date: null,
         cancelled_at: null,
         settlement_status: settlement,
+        cpid, cp_name: cpName, vat_kind: vatKind,
       })
 
       if (cancelAmount > 0) {
@@ -197,6 +212,7 @@ export async function POST(req: NextRequest) {
           deposit_expected_date: null,
           cancelled_at: cancelledAtRaw,
           settlement_status: settlement,
+          cpid, cp_name: cpName, vat_kind: vatKind,
         })
       }
     }
@@ -255,11 +271,20 @@ export async function POST(req: NextRequest) {
     return { ...row, vendor_id: vendorId }
   })
 
-  const { data: upserted, error } = await admin
+  let upsertRes = await admin
     .from('card_sales')
     .upsert(rowsToUpsert, { onConflict: 'approval_number,transaction_type', ignoreDuplicates: false })
     .select('id')
-
+  // 427 미적용(cpid · vat_kind 열 없음)이면 그 열만 빼고 다시 저장 — 업로드는 막지 않고 결과에 알린다
+  let migration427 = true
+  if (upsertRes.error && /cpid|cp_name|vat_kind|schema cache/i.test(upsertRes.error.message)) {
+    migration427 = false
+    upsertRes = await admin
+      .from('card_sales')
+      .upsert(rowsToUpsert.map(r => { const { cpid, cp_name, vat_kind, ...rest } = r; void cpid; void cp_name; void vat_kind; return rest }), { onConflict: 'approval_number,transaction_type', ignoreDuplicates: false })
+      .select('id')
+  }
+  const { data: upserted, error } = upsertRes
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // ── 자동 전기 — 카드 승인/취소는 사실 데이터 (업로드 = 회계 자동 생성) ──
@@ -287,5 +312,9 @@ export async function POST(req: NextRequest) {
     review,
     skipped,
     total: dataRows.length,
+    format,
+    exempt: parsed.filter(r => r.vat_kind === 'exempt').length,
+    unknown_cpids: Array.from(unknownCpids, ([cpid, count]) => ({ cpid, count })),
+    migration427,
   })
 }
