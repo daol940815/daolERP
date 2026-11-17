@@ -37,7 +37,11 @@ export interface PayState {
   method: PayMethodTag | null   // 미결제 · 완료 · 취소에도 값은 들어 있다(엑셀용). 화면 꼬리표는 진행 단계에만 붙인다
   recorded: number              // 1차: 매칭 대기 기록 + 매칭된 금액
   matched: number               // 2차: 매칭된 금액
+  // 계산서 표시 (2026-11-17): 계산서 발행 기록이 있는데 홈택스 계산서가 주문에 연결되지 않았거나(unlinked) 금액이 다름(diff).
+  // 계산서 확인 탭과 같은 판정. 목록에서는 누를 수 없는 꼬리표로만 보여 준다(연결은 주문 상세 · 계산서 확인에서).
+  invoice_flag?: 'unlinked' | 'diff' | null
 }
+export const INVOICE_FLAG_LABEL: Record<'unlinked' | 'diff', string> = { unlinked: '계산서 미연결', diff: '계산서 금액 다름' }
 
 export function payStageOf(i: { canceled: boolean; net: number; outstanding: number; pending: number }): { stage: PayStage; recorded: number; matched: number } {
   if (i.canceled) return { stage: 'canceled', recorded: 0, matched: 0 }

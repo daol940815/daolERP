@@ -8,7 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import CollectMatchModal from '@/components/erp/CollectMatchModal'
 import ReasonBadge from '@/components/ui/ReasonBadge'
 import { FIELD_SHORT, MINE_FILTERS, ORDERS_LIST_URL_KEY, SEARCH_FIELDS, decodeCond, encodeCond, parseFreeText, parseMine, type MineFilter, type SearchCond, type SearchField } from '@/lib/order-search-fields'
-import { PAY_METHOD_TAG_CLS, PAY_METHOD_TAG_LABEL, PAY_STAGE_CHIPS, PAY_STAGE_CLS, PAY_STAGE_HINT, PAY_STAGE_LABEL, showMethodTag, type PayState } from '@/lib/pay-state'
+import { INVOICE_FLAG_LABEL, PAY_METHOD_TAG_CLS, PAY_METHOD_TAG_LABEL, PAY_STAGE_CHIPS, PAY_STAGE_CLS, PAY_STAGE_HINT, PAY_STAGE_LABEL, showMethodTag, type PayState } from '@/lib/pay-state'
 
 // 주문내역(2026-11-12 '주문 현황'에서 이름 변경) (시안 v2) — KPI(클릭=필터) + 통합 검색 + 칩 필터 + 행내 상품 펼치기.
 // 검사 상태(정의 미확정)·배송 컬럼(3단계)은 제외 상태 — 트랙 문서 참고.
@@ -508,6 +508,13 @@ export default function OrdersHomePage() {
                           )}
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${badge.cls}`}>{badge.label}</span>
                         </span>
+                        {/* 계산서 표시 — 발행 기록은 있는데 홈택스 계산서 미연결 · 금액 다름. 꼬리표만(연결은 주문 상세 · 결제 확인 › 계산서 확인) */}
+                        {pay?.invoice_flag && (
+                          <div className="mt-0.5 text-[0.625rem] text-amber-700 whitespace-nowrap"
+                            title="계산서를 발행했다고 기록했는데 홈택스 계산서가 이 주문에 연결되지 않았거나 금액이 다릅니다. 주문 상세 › 결제 내역의 '계산서 연결' 또는 결제 확인 › 계산서 확인에서 연결합니다.">
+                            {INVOICE_FLAG_LABEL[pay.invoice_flag]}
+                          </div>
+                        )}
                       </td>
                       <td className="py-2 px-3">
                         {r.po_status && PO_BADGE[r.po_status] ? (

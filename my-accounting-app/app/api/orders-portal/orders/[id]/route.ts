@@ -131,6 +131,20 @@ async function loadPayments(admin: SupabaseClient, orderId: string) {
   }
 }
 
+// 계산서 연결 버튼용 — 연결 창(lib/order-invoice-match.ts)은 주문을 "별칭의 거래처"로 찾으므로 같은 기준으로 매출처를 정한다
+async function invoiceLinkInfo(admin: SupabaseClient, order: OrderRow, allowed: boolean) {
+  const none = { can_link: false, vendor_id: null as string | null, vendor_name: null as string | null, reason: null as string | null }
+  if (!allowed || order.source !== 'direct' || order.canceled_at) return none
+  let vendorId: string | null = null
+  if (order.customer_alias_id) {
+    const { data } = await admin.from('erp_vendor_aliases').select('vendor_id').eq('id', order.customer_alias_id as string).maybeSingle()
+    vendorId = (data?.vendor_id as string | null) ?? null
+  }
+  if (!vendorId) return { ...none, reason: '이 주문의 매출처가 거래처에 연결되지 않아 계산서를 연결할 수 없습니다. 매출처 연결 키워드에서 먼저 연결하세요.' }
+  const { data: v } = await admin.from('vendors').select('name').eq('id', vendorId).maybeSingle()
+  return { can_link: true, vendor_id: vendorId, vendor_name: (v?.name as string | null) ?? '', reason: null }
+}
+
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
@@ -220,6 +234,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     payments,
     receivable,
     pay_state: payState,
+    // 계산서 연결 (2026-11-17 주문시스템 트랙 요청): 수금 · 정산 작업 수정 권한자만. 연결 창은 매출처 기준이라 그 매출처를 함께 내려 준다
+    invoice_link: await invoiceLinkInfo(admin, snap.order, can(me, 'collections', 'edit')),
     // 결제 안내 연락 기록 (1301) — 입력은 결제 확인 › 결제 안내 대상, 여기는 표시만
     pay_contacts: payContacts.contacts,
     consult_request: consultRequest,
