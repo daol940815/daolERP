@@ -64,18 +64,17 @@ export default function CustomerKpiTiles({ mode, flags, filter, onFilter }: {
 }) {
   const c = useMemo(() => {
     if (!flags) return null
+    // 이 화면 단위의 숫자만 센다 — 지점 화면 = 지점 수, 고객 화면 = 고객 수 (2026-11-17 사용자 결정:
+    // 다른 단위 숫자("2 /1명"의 /1명)를 함께 보여 주면 헷갈린다)
     const main = mode === 'vendor' ? flags.vendors : flags.contacts
-    const sub = mode === 'vendor' ? flags.contacts : flags.vendors
     const cats: KpiCategory[] = ['new', 'churn', 't1', 't2', 't3', 't4', 'both', 'regular_only', 'season_only', 'none']
     const m: Record<string, number> = {}
-    const s: Record<string, number> = {}
-    for (const cat of cats) { m[cat] = count(main, cat); s[cat] = count(sub, cat) }
-    return { m, s, mainTotal: main.length }
+    for (const cat of cats) m[cat] = count(main, cat)
+    return { m, mainTotal: main.length }
   }, [flags, mode])
 
   if (!flags || !c) return null
   const unit = mode === 'vendor' ? '곳' : '명'
-  const subUnit = mode === 'vendor' ? '명' : '곳'
   const tierSum = TIERS.reduce((a, t) => a + c.m[t.key], 0) || 1
   const click = (cat: KpiCategory) => onFilter(filter === cat ? null : cat)
   const cellCls = (cat: KpiCategory) =>
@@ -96,7 +95,7 @@ export default function CustomerKpiTiles({ mode, flags, filter, onFilter }: {
           </Link>
         </span>
         <span className="text-[0.6875rem] text-gray-400">
-          기준연도 {flags.y0} 자동 · 타일 클릭 = 목록 필터 · 매출은 {flags.y0 - 1}~{flags.y0} 순매출 (2026-10까지는 고객관리문서 기준 참고값)
+          기준연도 {flags.y0} 자동 · 타일 클릭 = 목록 필터 · 매출은 최근 2개년 순매출
         </span>
       </div>
 
@@ -110,22 +109,21 @@ export default function CustomerKpiTiles({ mode, flags, filter, onFilter }: {
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />신규
               </span>
               <span className="block text-lg font-bold tabular-nums">{c.m['new'].toLocaleString()}{unit}</span>
-              <span className="text-[0.625rem] text-gray-400">{c.s['new'].toLocaleString()}{subUnit} · 최초 주문이 올해</span>
+              <span className="text-[0.625rem] text-gray-400">최초 주문이 올해</span>
             </button>
             <button onClick={() => click('churn')} className={cellCls('churn')}>
               <span className="text-[0.6875rem] text-gray-500 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500" />이탈
               </span>
               <span className="block text-lg font-bold tabular-nums">{c.m['churn'].toLocaleString()}{unit}</span>
-              <span className="text-[0.625rem] text-gray-400">{c.s['churn'].toLocaleString()}{subUnit} · 올해 주문 없음</span>
+              <span className="text-[0.625rem] text-gray-400">올해 주문 없음</span>
             </button>
           </div>
         </div>
 
-        {/* 주문 금액대 — 큰 숫자 = 이 화면 단위(지점/담당자), "/N" = 다른 단위의 같은 금액대 수.
-            118(2026-11-17): 담당자 귀속 = 주문 저장 인물 우선 + 고객관리문서 스냅샷(2025-01~2026-10) 포함 */}
+        {/* 주문 금액대 */}
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <p className="text-xs text-gray-500">주문 금액대 <span className="text-gray-400">({flags.y0 - 1}~{flags.y0} 누적)</span></p>
+          <p className="text-xs text-gray-500">주문 금액대 <span className="text-gray-400">(최근 2개년 누적)</span></p>
           <div className="flex h-2 rounded-full overflow-hidden mt-2.5">
             {TIERS.map(t => (
               <div key={t.key} className={t.bar} style={{ width: `${(c.m[t.key] / tierSum) * 100}%` }} />
@@ -139,10 +137,7 @@ export default function CustomerKpiTiles({ mode, flags, filter, onFilter }: {
                 <span className="truncate">{t.label}</span>
                 <span className="ml-auto font-bold text-gray-900 tabular-nums">
                   {c.m[t.key].toLocaleString()}
-                  <span className="font-normal text-gray-400 text-[0.625rem]"
-                    title={mode === 'vendor'
-                      ? '같은 금액대에 드는 거래처 담당자(고객) 수 — 고객 금액은 그 고객에게 붙은 주문만 합산해 지점 수와 1:1로 맞지 않습니다'
-                      : '같은 금액대에 드는 지점 수 — 지점 금액은 그 지점의 모든 주문 합산'}> /{c.s[t.key].toLocaleString()}{subUnit}</span>
+                  <span className="font-normal text-gray-400 text-[0.625rem]">{unit}</span>
                 </span>
               </button>
             ))}
@@ -159,7 +154,7 @@ export default function CustomerKpiTiles({ mode, flags, filter, onFilter }: {
                   {OTYPE_META[k].label}
                 </span>
                 <span className="block text-base font-bold tabular-nums mt-0.5">{c.m[k].toLocaleString()}{unit}</span>
-                <span className="text-[0.625rem] text-gray-400">{c.s[k].toLocaleString()}{subUnit} · {OTYPE_META[k].hint}</span>
+                <span className="text-[0.625rem] text-gray-400">{OTYPE_META[k].hint}</span>
               </button>
             ))}
           </div>
