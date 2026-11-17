@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { syncInvoicesForOrders } from '@/lib/link-sync'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { netSalesOf } from '@/lib/receivable'
 import { cardNumberKey } from '@/lib/card-number'
@@ -277,6 +278,7 @@ export async function allocateToOrder(
   })))
   if (ie) return { error: ie.message }
   const sync = await syncRecordsForOrders(admin, [orderId], opts.editor ?? { employeeId: null, employeeName: null }, '주문 쪽 수금 매칭')
+  await syncInvoicesForOrders(admin, [orderId])   // 연결된 계산서의 입금으로도 넘김 (1302 2단계)
 
   // 거래처 없는 카드결제 → 주문 거래처로 연결 (+ 카드번호 등록)
   let linked = 0, registered = 0

@@ -1376,3 +1376,6 @@ ERP 주문은 계획대로 교체(erp-reload-track). 결정 대기.
 - `PATCH /api/tax-invoices/[id]`: 상태 수동 전환 시 `payment_manual` 갱신. 계산서 내역 `list-tab.tsx`: 필터 · 배지에 "부분 확인"(그 외 화면 구조는 그대로).
 - 자동 매칭 · 취소쌍 정리는 손대지 않음(대상은 그대로 미확인). 기존 계산서 상태 보정 = **1303 적용 2026-11-17**(미확인인데 입금 일부 붙은 18건 → 부분 확인, 확인됨인데 입금 합계가 모자란 413건 → 수동 확인 표시 · 상태 유지.
   검증: 부분 확인 18 · 확인됨 5,337 · 미확인 1,308 · 수동 확인 413 · 전체 6,663).
+- 2단계(2026-11-17, 빌드 통과 · main 병합 전): 주문에 직접 붙인 통장 수금이 연결된 매출 계산서의 입금으로 넘어옴(`tax_invoice_payments.from_order_sync = true`,
+  `lib/link-sync.ts` `syncInvoicePaymentsFromOrders`). 계산서 내역 입금 줄에 "주문 수금에서 넘어옴" 꼬리표 — 이 행은 계산서 내역에서 해제할 수 없고(409),
+  "전부 해제"는 직접 붙인 것만 지운다. 직접 붙이면 직접 행으로 저장. `removeInvoicePayment` · `clearInvoicePayments`가 결과(Result)를 돌려주도록 바뀜.

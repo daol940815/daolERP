@@ -157,3 +157,163 @@ export async function syncOrderMatchesFromInvoices(admin: SupabaseClient, invoic
   } catch { /* 동기화 실패는 원래 조작(입금 연결 · 계산서 연결)에 영향을 주지 않는다 */ }
   return out
 }
+
+// ── 2단계: 주문 → 계산서 (2026-11-17 사용자 "2단계 진행해줘") ─────────────────────────
+// 주문과 계산서가 연결돼 있으면, 주문에 직접 붙인 통장 입금을 그 계산서의 입금으로도 넘긴다 → 계산서가 부분 확인 · 확인됨이 된다.
+//   · 넘어온 계산서 입금 = tax_invoice_payments.from_order_sync = true. 회계가 직접 붙인 행(false)은 만들지도 지우지도 않는다.
+//   · 원천은 주문에 직접 붙인 통장 수금뿐(from_invoice_id IS NULL · source_type 'bank') — 1단계로 넘어온 수금은 원천이 아니다(되돌이 없음).
+//   · 같은 계산서 · 같은 입금을 회계가 이미 직접 붙여 뒀으면 그 금액만큼은 넘기지 않는다(이미 반영된 돈).
+//   · 넘치지 않게: 연결 금액 · 계산서 남은 금액(합계 − 직접 붙인 입금) · 입금의 계산서 배분 잔액 중 작은 값까지.
+//     주문 1건이 계산서 여러 장에 연결돼 있으면 발행일 순으로 채운다.
+// 넘어온 계산서 입금은 계산서 내역에서 지울 수 없다 — 주문 쪽 수금을 풀면 함께 풀린다.
+export const FROM_ORDER_BLOCK = '주문에 붙인 수금에서 자동으로 넘어온 입금입니다. 결제 확인 또는 주문 쪽에서 그 수금을 풀면 함께 풀립니다.'
+
+export async function syncInvoicePaymentsFromOrders(admin: SupabaseClient, invoiceIdsIn: string[]): Promise<{ created: number; removed: number; invoiceIds: string[] }> {
+  const out = { created: 0, removed: 0, invoiceIds: [] as string[] }
+  try {
+    const seed = Array.from(new Set(invoiceIdsIn.filter(Boolean)))
+    if (!seed.length || !(await linkSyncReady(admin))) return out
+
+    // 범위 넓히기: 요청 계산서 → 연결된 주문 → 그 주문들에 연결된 계산서 전부 (주문 1건이 계산서 여러 장에 걸친 경우를 함께 계산)
+    type Link = { order_id: string; tax_invoice_id: string; amount: number }
+    const seedLinks: Link[] = []
+    for (const ch of chunk(seed)) {
+      const { data, error } = await admin.from('erp_order_invoices').select('order_id, tax_invoice_id, amount').in('tax_invoice_id', ch)
+      if (error) return out
+      seedLinks.push(...((data ?? []) as Link[]))
+    }
+    const orderIds = Array.from(new Set(seedLinks.map(l => l.order_id)))
+    const links: Link[] = []
+    for (const ch of chunk(orderIds)) {
+      const { data, error } = await admin.from('erp_order_invoices').select('order_id, tax_invoice_id, amount').in('order_id', ch)
+      if (error) return out
+      links.push(...((data ?? []) as Link[]).map(x => ({ ...x, amount: Number(x.amount ?? 0) })))
+    }
+    const scope = Array.from(new Set([...seed, ...links.map(l => l.tax_invoice_id)]))
+
+    // 계산서(매출 · 양수만 대상), 계산서 입금(직접 · 넘어온 것)
+    const inv = new Map<string, { total: number; issue_date: string }>()
+    type PayRow = { id: string; tax_invoice_id: string; transaction_id: string; amount: number; from_order_sync: boolean }
+    const payRows: PayRow[] = []
+    for (const ch of chunk(scope)) {
+      const [t, p] = await Promise.all([
+        admin.from('tax_invoices').select('id, direction, total_amount, issue_date').in('id', ch),
+        admin.from('tax_invoice_payments').select('id, tax_invoice_id, transaction_id, amount, from_order_sync').in('tax_invoice_id', ch),
+      ])
+      if (t.error || p.error) return out
+      for (const x of t.data ?? []) if (x.direction === 'sales' && Number(x.total_amount ?? 0) > 0) inv.set(x.id as string, { total: Number(x.total_amount), issue_date: String(x.issue_date).slice(0, 10) })
+      payRows.push(...((p.data ?? []) as PayRow[]).map(x => ({ ...x, amount: Number(x.amount ?? 0) })))
+    }
+    const manual = payRows.filter(p => !p.from_order_sync)
+    const derived = payRows.filter(p => p.from_order_sync)
+
+    // 주문(취소 제외)과 주문에 직접 붙인 통장 수금
+    const orderDate = new Map<string, string>()
+    type M = { order_id: string; source_id: string; amount: number; paid_date: string }
+    const matches: M[] = []
+    for (const ch of chunk(orderIds)) {
+      const [o, m] = await Promise.all([
+        admin.from('erp_orders').select('id, order_date, canceled_at').in('id', ch),
+        admin.from('erp_payment_matches').select('order_id, source_id, amount, paid_date').in('order_id', ch).eq('source_type', 'bank').is('from_invoice_id', null),
+      ])
+      if (o.error || m.error) return out
+      for (const x of o.data ?? []) if (!x.canceled_at) orderDate.set(x.id as string, String(x.order_date))
+      matches.push(...((m.data ?? []) as M[]).map(x => ({ ...x, amount: Number(x.amount ?? 0), paid_date: String(x.paid_date).slice(0, 10) })))
+    }
+
+    // 상한: 계산서 남은 금액(직접 붙인 입금 제외), 입금의 계산서 배분 잔액(범위 밖 계산서에 붙은 것 + 범위 안 직접 붙인 것 제외)
+    const invCap = new Map<string, number>()
+    for (const [id, v] of Array.from(inv)) invCap.set(id, Math.max(0, v.total - manual.filter(p => p.tax_invoice_id === id).reduce((s, p) => s + Math.max(0, p.amount), 0)))
+    const txIds = Array.from(new Set(matches.map(m => m.source_id)))
+    const txAmount = new Map<string, number>()
+    const txUsed = new Map<string, number>()
+    const scopeSet = new Set(scope)
+    for (const ch of chunk(txIds)) {
+      const [t, p] = await Promise.all([
+        admin.from('transactions').select('id, amount_in').in('id', ch),
+        admin.from('tax_invoice_payments').select('tax_invoice_id, transaction_id, amount, from_order_sync').in('transaction_id', ch),
+      ])
+      if (t.error || p.error) return out
+      for (const x of t.data ?? []) txAmount.set(x.id as string, Number(x.amount_in ?? 0))
+      for (const x of p.data ?? []) {
+        if (x.from_order_sync && scopeSet.has(x.tax_invoice_id as string)) continue   // 이번에 다시 계산하는 넘어온 행
+        txUsed.set(x.transaction_id as string, (txUsed.get(x.transaction_id as string) ?? 0) + Math.max(0, Number(x.amount ?? 0)))
+      }
+    }
+    const txCap = new Map<string, number>()
+    for (const id of txIds) txCap.set(id, Math.max(0, (txAmount.get(id) ?? 0) - (txUsed.get(id) ?? 0)))
+    const manualPair = new Map<string, number>()
+    for (const p of manual) manualPair.set(`${p.tax_invoice_id}|${p.transaction_id}`, Math.max(0, p.amount))
+
+    // 있어야 할 모습: 주문(주문일 순)마다 수금(입금일 순)을 연결된 계산서(발행일 순)에 채운다
+    const want = new Map<string, number>()
+    const orders = Array.from(orderDate.keys()).sort((a, b) => orderDate.get(a)!.localeCompare(orderDate.get(b)!))
+    for (const oid of orders) {
+      const ls = links.filter(l => l.order_id === oid && inv.has(l.tax_invoice_id))
+        .sort((a, b) => inv.get(a.tax_invoice_id)!.issue_date.localeCompare(inv.get(b.tax_invoice_id)!.issue_date))
+        .map(l => ({ ...l }))
+      const ms = matches.filter(m => m.order_id === oid).sort((a, b) => a.paid_date.localeCompare(b.paid_date))
+      for (const m of ms) {
+        let rest = m.amount
+        for (const l of ls) {
+          if (rest <= 0) break
+          if (l.amount <= 0) continue
+          const pair = `${l.tax_invoice_id}|${m.source_id}`
+          const already = manualPair.get(pair) ?? 0
+          if (already > 0) {
+            // 회계가 이 계산서에 같은 입금을 직접 붙여 둠 — 그만큼은 이미 반영된 돈
+            const cover = Math.min(rest, l.amount, already)
+            rest -= cover; l.amount -= cover; manualPair.set(pair, already - cover)
+            continue
+          }
+          const amt = Math.min(rest, l.amount, invCap.get(l.tax_invoice_id) ?? 0, txCap.get(m.source_id) ?? 0)
+          if (amt <= 0) continue
+          want.set(pair, (want.get(pair) ?? 0) + amt)
+          rest -= amt; l.amount -= amt
+          invCap.set(l.tax_invoice_id, (invCap.get(l.tax_invoice_id) ?? 0) - amt)
+          txCap.set(m.source_id, (txCap.get(m.source_id) ?? 0) - amt)
+        }
+      }
+    }
+    // 직접 붙인 행과 같은 (계산서, 입금) 쌍에는 넘어온 행을 만들 수 없다(쌍당 1행) — 남은 것이 있어도 건너뛴다
+    for (const p of manual) want.delete(`${p.tax_invoice_id}|${p.transaction_id}`)
+
+    // 차이만 고친다
+    const touched = new Set<string>()
+    for (const d of derived) {
+      const k = `${d.tax_invoice_id}|${d.transaction_id}`
+      const w = want.get(k)
+      if (!w) { await admin.from('tax_invoice_payments').delete().eq('id', d.id).eq('from_order_sync', true); out.removed++; touched.add(d.tax_invoice_id); continue }
+      if (d.amount !== w) { await admin.from('tax_invoice_payments').update({ amount: w }).eq('id', d.id).eq('from_order_sync', true); touched.add(d.tax_invoice_id) }
+      want.delete(k)
+    }
+    const inserts = Array.from(want, ([k, amount]) => { const [tax_invoice_id, transaction_id] = k.split('|'); return { tax_invoice_id, transaction_id, amount, from_order_sync: true } })
+    if (inserts.length) {
+      const { error } = await admin.from('tax_invoice_payments').insert(inserts)
+      if (!error) { out.created = inserts.length; for (const r of inserts) touched.add(r.tax_invoice_id) }
+    }
+
+    // 계산서 상태 재계산 (부분 확인 · 확인됨). 순환 import 를 피하려고 필요할 때 불러온다
+    out.invoiceIds = Array.from(touched)
+    if (out.invoiceIds.length) {
+      const { recalcInvoiceStatus } = await import('./tax-invoice-payments.server')
+      for (const id of out.invoiceIds) await recalcInvoiceStatus(admin, id)
+    }
+  } catch { /* 동기화 실패는 원래 조작(수금 매칭 · 계산서 연결)에 영향을 주지 않는다 */ }
+  return out
+}
+
+// 주문 수금이 바뀐 뒤 부르는 진입점 — 그 주문들에 연결된 계산서를 찾아 맞춘다. 연결이 없으면 아무 일도 하지 않는다.
+export async function syncInvoicesForOrders(admin: SupabaseClient, orderIds: string[]): Promise<void> {
+  try {
+    const ids = Array.from(new Set(orderIds.filter(Boolean)))
+    if (!ids.length || !(await linkSyncReady(admin))) return
+    const invoiceIds = new Set<string>()
+    for (const ch of chunk(ids)) {
+      const { data, error } = await admin.from('erp_order_invoices').select('tax_invoice_id').in('order_id', ch)
+      if (error) return
+      for (const r of data ?? []) invoiceIds.add(r.tax_invoice_id as string)
+    }
+    if (invoiceIds.size) await syncInvoicePaymentsFromOrders(admin, Array.from(invoiceIds))
+  } catch { /* 조용히 */ }
+}

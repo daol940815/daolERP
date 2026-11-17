@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { findAutoMatches, loadMatchingState } from '@/lib/erp-matching'
-import { FROM_INVOICE_BLOCK } from '@/lib/link-sync'
+import { FROM_INVOICE_BLOCK, syncInvoicesForOrders } from '@/lib/link-sync'
 import { syncRecordsForOrders } from '@/lib/payment-records'
 
 const editorOf = async () => { const me = await getCurrentUser(); return { employeeId: me?.employeeId ?? null, employeeName: me?.employeeName ?? null } }
@@ -123,6 +123,8 @@ export async function POST(req: NextRequest) {
   if (ie) return NextResponse.json({ error: ie.message }, { status: 500 })
   // 결제 기록(1300)과 동기화 — 기록의 주문 · 금액이 이 매칭으로 채워지면 자동 확정 (2026-11-16)
   const sync = await syncRecordsForOrders(admin, rows.map(r => r.order_id), await editorOf(), '입금 매칭')
+  // 주문이 계산서에 연결돼 있으면 이 통장 입금을 계산서 입금으로도 넘긴다 (1302 2단계)
+  if (body.source_type === 'bank') await syncInvoicesForOrders(admin, rows.map(r => r.order_id))
 
   return NextResponse.json({ ok: true, inserted: rows.length, records_confirmed: sync.confirmed, records_released: sync.released })
 }
@@ -145,6 +147,8 @@ export async function DELETE(req: NextRequest) {
   }
   // 결제 기록(1300)에 연결된 매칭을 지우면 기록은 자동으로 확인 대기로 돌아간다(이력에 사유). 2026-11-16 — 매칭을 풀면 확정도 풀린다
   const sync = m?.order_id ? await syncRecordsForOrders(admin, [m.order_id as string], await editorOf(), '입금 매칭 해제') : { confirmed: 0, released: 0 }
+  // 계산서로 넘어갔던 입금도 함께 푼다 (1302 2단계)
+  if (m?.order_id && m.source_type === 'bank') await syncInvoicesForOrders(admin, [m.order_id as string])
 
   return NextResponse.json({ ok: true, records_released: sync.released })
 }

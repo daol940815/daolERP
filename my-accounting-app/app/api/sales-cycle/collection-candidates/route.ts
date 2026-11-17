@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { syncInvoicesForOrders } from '@/lib/link-sync'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { syncRecordsForOrders } from '@/lib/payment-records'
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
   // 결제 기록(1300)과 동기화 (2026-11-16)
   const me = await getCurrentUser()
   const sync = await syncRecordsForOrders(admin, rows.map(r => r.order_id), { employeeId: me?.employeeId ?? null, employeeName: me?.employeeName ?? null }, '수금후보 확정')
+  await syncInvoicesForOrders(admin, rows.map(r => r.order_id))   // 연결된 계산서의 입금으로도 넘김 (1302 2단계)
 
   return NextResponse.json({ linked: rows.length, amount: rows.reduce((s, r) => s + r.amount, 0), records_confirmed: sync.confirmed })
 }
