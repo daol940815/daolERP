@@ -1374,4 +1374,5 @@ ERP 주문은 계획대로 교체(erp-reload-track). 결정 대기.
   (예전에는 수동 확인한 계산서에 입금을 일부 붙이면 미확인으로 되돌아갔음). `addInvoicePayment` · `removeInvoicePayment` · `clearInvoicePayments` 끝에
   `syncOrderMatchesFromInvoices` 호출 — 매출 계산서가 주문에 연결돼 있으면 붙인 입금이 주문 수금으로 넘어감(매입 계산서는 영향 없음).
 - `PATCH /api/tax-invoices/[id]`: 상태 수동 전환 시 `payment_manual` 갱신. 계산서 내역 `list-tab.tsx`: 필터 · 배지에 "부분 확인"(그 외 화면 구조는 그대로).
-- 자동 매칭 · 취소쌍 정리는 손대지 않음(대상은 그대로 미확인). 기존 계산서 상태 보정은 `checks/invoice_status_backfill_check.sql` 조회 후 별도 승인.
+- 자동 매칭 · 취소쌍 정리는 손대지 않음(대상은 그대로 미확인). 기존 계산서 상태 보정 = **1303 적용 2026-11-17**(미확인인데 입금 일부 붙은 18건 → 부분 확인, 확인됨인데 입금 합계가 모자란 413건 → 수동 확인 표시 · 상태 유지.
+  검증: 부분 확인 18 · 확인됨 5,337 · 미확인 1,308 · 수동 확인 413 · 전체 6,663).
