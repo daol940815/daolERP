@@ -14,6 +14,8 @@ export const dynamic = 'force-dynamic'
 // GET /api/notifications — 로그인 직원의 "확인할 것" (저장 없음, 원본 상태에서 계산). API_OWNERS: my(전원).
 //  원천: 업무 요청(받은 미확인·오늘 마감·지남 / 보낸 완료 확정 대기·반려 / 진행 메모·이력·완료 확정·취소 결과 통지) · 휴가 결재 내 차례(3단계 결재, 204 미적용 시 승인권자) · 주문 수정 승인 요청(승인권자)
 //        · 내 휴가 신청 결과 · 내 주문 수정 요청 결과 (최근 7일). 각 블록은 마이그레이션 미적용 시 조용히 건너뛴다.
+//  확인한 결과 통지 숨김(905, 2026-11-17): notification_reads 에 남긴 key · '모두 확인' 시각 이전 결과 통지(info)는 내려주지 않는다.
+//   해야 할 것 · 기다리는 것은 숨기지 않는다(일이 끝나야 사라짐). 저장은 POST /api/notifications/read.
 
 const DAY = 86400_000
 const kstDay = (iso: string) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date(iso))
@@ -45,7 +47,7 @@ export async function GET() {
   type OCR = { id: string; request_type: string; status: string; created_at: string; decided_at: string | null; requested_by: string | null; employees: { name: string } | { name: string }[] | null }
 
   const wrSel = 'id, title, status, assign_mode, due_at, created_at, reported_at, rejected_at, reject_reason, is_urgent, requester:employees!work_requests_requester_id_fkey(name), assignee:employees!work_requests_assignee_id_fkey(name)'
-  const [inRes, relRes, outRes, leavePendRes, leaveMineRes, ocrPendRes, ocrMineRes, appr] = await Promise.all([
+  const [inRes, relRes, outRes, leavePendRes, leaveMineRes, ocrPendRes, ocrMineRes, appr, readRes] = await Promise.all([
     admin.from('work_request_assignees').select(`status, request:work_requests!inner(${wrSel})`).eq('employee_id', empId).in('status', ASG_TRACKED),
     // 진행 메모 · 이력 알림 대상 넓힘(2026-11-09): 열린 요청 전부 + 최근 7일 완료 확정 · 취소된 요청 (회사 전체, 담당자 행만) — 여기서 내 몫을 가른다.
     //  ① 내가 이미 처리 보고한 열린 요청(요청자 후속 메모) ② 내가 담당이던 요청의 완료 확정 · 취소
@@ -61,7 +63,16 @@ export async function GET() {
       : Promise.resolve({ data: [], error: null }),
     admin.from('erp_order_change_requests').select('id, request_type, status, created_at, decided_at, requested_by, employees!erp_order_change_requests_requested_by_fkey(name)').eq('requested_by', empId).in('status', ['approved', 'rejected']).gte('decided_at', sevenDaysAgo).order('decided_at', { ascending: false }),
     loadApprovalCtx(admin),
+    // 905: 확인한 결과 통지 (최근 30일만 남아 있다 — 저장 때 정리). 미적용이면 error → 숨김 없이 그대로
+    admin.from('notification_reads').select('item_key, read_at').eq('employee_id', empId),
   ])
+  const readKeys = new Set<string>()
+  let readAllAt: number | null = null   // '모두 확인' 시각 — 이 시각 이전에 생긴 결과 통지는 숨김
+  if (!readRes.error) for (const r of (readRes.data ?? []) as { item_key: string; read_at: string }[]) {
+    if (r.item_key === '*') readAllAt = Date.parse(r.read_at)
+    else readKeys.add(r.item_key)
+  }
+  const isRead = (key: string, at: string | null | undefined) => readKeys.has(key) || (readAllAt !== null && !!at && Date.parse(at) <= readAllAt)
 
   // ── 업무 요청 (2026-11-04 사용자 결정: 종류를 셋으로 나눔 — 개인 요청 · 공용 요청 · 내 요청) ──
   //  개인 요청 = 나 혼자 담당(single) / 공용 요청 = 내가 포함된 다수 담당(선착·공동) / 내 요청 = 내가 요청자
@@ -121,11 +132,14 @@ export async function GET() {
     const ids = Array.from(relatedIds)
     const chunks: string[][] = []
     for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100))
+    // 확인한 메모는 빼고 최신 10건 — 숨긴 만큼 더 오래된 것이 올라오도록 넉넉히 받고, '모두 확인' 이전 것은 조회에서 뺀다
+    const evSince = readAllAt !== null && readAllAt > Date.parse(sevenDaysAgo) ? new Date(readAllAt + 1).toISOString() : sevenDaysAgo
     const evs = (await Promise.all(chunks.map(c => admin.from('work_request_events')
       .select('id, request_id, event, memo, created_at, actor:employees!work_request_events_actor_id_fkey(name), request:work_requests!inner(title, is_private)')
-      .in('request_id', c).neq('actor_id', empId).in('event', ['memo', 'accepted', 'edited', 'assignee_added', 'completed', 'canceled']).gte('created_at', sevenDaysAgo)
-      .order('created_at', { ascending: false }).limit(10))))
+      .in('request_id', c).neq('actor_id', empId).in('event', ['memo', 'accepted', 'edited', 'assignee_added', 'completed', 'canceled']).gte('created_at', evSince)
+      .order('created_at', { ascending: false }).limit(Math.min(10 + readKeys.size, 200)))))
       .flatMap(r => (r.error ? [] : (r.data ?? [])) as unknown as Ev[])
+      .filter(e => !readKeys.has(`wr:ev:${e.id}`))
       .sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 10)
     const EV_LABEL: Record<string, string> = { memo: '진행 메모', accepted: '수락', edited: '요청 수정', assignee_added: '담당자 추가', completed: '완료 확정', canceled: '요청 취소' }
     for (const e of evs) {
@@ -302,6 +316,8 @@ export async function GET() {
     }
   }
 
+  // 905: 확인한 결과 통지 숨김 (해야 할 것 · 기다리는 것은 그대로)
+  for (let i = items.length - 1; i >= 0; i--) if (items[i].group === 'info' && isRead(items[i].key, items[i].at)) items.splice(i, 1)
   const order: Record<string, number> = { todo: 0, waiting: 1, info: 2 }
   items.sort((a, b) => order[a.group] - order[b.group] || (b.at ?? '').localeCompare(a.at ?? ''))
   for (const i of items) if (!i.bucket) i.bucket = 'other'   // 휴가 결재 · 내 휴가 결과 등
