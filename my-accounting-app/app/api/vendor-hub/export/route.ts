@@ -14,7 +14,7 @@ const OTYPE_LABEL: Record<string, string> = {
   both: '명절+상시', regular_only: '상시만', season_only: '명절만', none: '주문없음',
 }
 
-interface Flag { vendor_id: string; is_new: boolean; is_churn: boolean; otype: string; tier: string }
+interface Flag { vendor_id: string; is_new: boolean; is_churn: boolean; otype: string; tier: string; total2y?: number }
 
 // GET /api/vendor-hub/export — 매출처 관리 (지점) 목록을 화면 필터 그대로 XLSX로.
 // Query: from, to, mine, q, staff, status, vip, outstanding, inactive, cat
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
     if (!f) return false
     if (cat === 'new') return f.is_new
     if (cat === 'churn') return f.is_churn
-    if (['t1', 't2', 't3', 't4'].includes(cat)) return f.tier === cat
+    if (['t1', 't2', 't3', 't4'].includes(cat)) return f.tier === cat && (f.total2y ?? 0) > 0   // 금액대 = 주문 있는 곳만 (화면과 동일)
     return f.otype === cat
   }
   rows = rows.filter((r: HubListRow) => {
