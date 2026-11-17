@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     let query = admin
       .from('tax_invoices')
       .select(`
-        issue_date, direction, tax_type, counterparty_name, counterparty_biz_number,
+        id, issue_date, direction, tax_type, counterparty_name, counterparty_biz_number,
         supply_amount, tax_amount, total_amount, item_name, approval_number, payment_status, note,
         matched_transaction:transactions!matched_transaction_id (
           account_alias,
@@ -49,6 +49,23 @@ export async function GET(req: NextRequest) {
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
   const data = result.data
 
+  // 연결 주문 (매출 계산서) — 주문번호 나열
+  const linkedOrders = new Map<string, string[]>()
+  const salesIds = data.filter(r => r.direction === 'sales').map(r => r.id as string)
+  const linkRows: { tax_invoice_id: string; order_id: string }[] = []
+  for (let i = 0; i < salesIds.length; i += 150) {
+    const { data: ls, error } = await admin.from('erp_order_invoices').select('tax_invoice_id, order_id').in('tax_invoice_id', salesIds.slice(i, i + 150))
+    if (error) break
+    linkRows.push(...((ls ?? []) as typeof linkRows))
+  }
+  const linkOrderIds = Array.from(new Set(linkRows.map(l => l.order_id)))
+  const linkOrderNo = new Map<string, string>()
+  for (let i = 0; i < linkOrderIds.length; i += 150) {
+    const { data: os } = await admin.from('erp_orders').select('id, order_no').in('id', linkOrderIds.slice(i, i + 150))
+    for (const o of os ?? []) linkOrderNo.set(o.id as string, (o.order_no as string) ?? '')
+  }
+  for (const l of linkRows) linkedOrders.set(l.tax_invoice_id, [...(linkedOrders.get(l.tax_invoice_id) ?? []), linkOrderNo.get(l.order_id) ?? ''])
+
   const rows = data.map(r => {
     const tx  = r.matched_transaction as unknown as { account_alias: string | null; bank_accounts: { bank_name: string; account_number: string | null } | null } | null
     const acc = tx?.bank_accounts
@@ -66,6 +83,7 @@ export async function GET(req: NextRequest) {
       '품목':       r.item_name                     ?? '',
       '승인번호':   r.approval_number               ?? '',
       '확인상태':   STATUS_LABEL[r.payment_status as string]  ?? (r.payment_status ?? ''),
+      '연결 주문':  (linkedOrders.get(r.id as string) ?? []).filter(Boolean).join(', '),
       '매칭계좌':   matchedAccount,
       '메모':       r.note                          ?? '',
     }

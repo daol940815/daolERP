@@ -9,6 +9,7 @@ import SearchableSelect from '@/components/ui/SearchableSelect'
 import { getPeriodRange } from '@/lib/period-presets'
 import { lagDays } from '@/lib/matching-rules'
 import CancelPairsModal from './cancel-pairs-modal'
+import InvoiceLinkModal from '../sales-cycle/invoice-link-modal'
 
 const DIRECTION_META: Record<string, { label: string; sub: string; color: string }> = {
   sales:    { label: '매출 세금계산서', sub: '받을 돈 (입금 확인)', color: 'text-blue-700' },
@@ -597,6 +598,11 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
   const valid     = (direction === 'sales' || direction === 'purchase') && (taxType === 'taxable' || taxType === 'exempt')
 
   const [invoices, setInvoices]       = useState<TaxInvoice[]>([])
+  // 주문 연결 (2026-11-17) — 매출 계산서가 어느 주문에 연결돼 있는지 · 연결 창 · 미연결 필터
+  const [orderLinks, setOrderLinks]   = useState<Record<string, { order_id: string; order_no: string | null; amount: number }[]>>({})
+  const [canLinkOrder, setCanLinkOrder] = useState(false)
+  const [orderLinkFor, setOrderLinkFor] = useState<TaxInvoice | null>(null)
+  const [noOrderOnly, setNoOrderOnly] = useState(false)
   const [accounts, setAccounts]       = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading]         = useState(true)
   const [statusFilter, setStatusFilter] = useState<'all' | 'matched' | 'partial' | 'unmatched'>('all')
@@ -655,6 +661,8 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
     const res  = await fetch(`/api/tax-invoices?${params.toString()}`)
     const json = await res.json()
     if (Array.isArray(json.data)) setInvoices(json.data)
+    setOrderLinks(json.order_links ?? {})
+    setCanLinkOrder(!!json.can_link_order)
     setLoading(false)
   }, [valid, direction, taxType, statusFilter, dateFrom, dateTo, vendorIdFilter])
 
@@ -880,7 +888,9 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
     !accountFilter ? true : accountFilter === 'none' ? !i.confirmed_account_id : i.confirmed_account_id === accountFilter
   const filtered = focusId
     ? invoices.filter(i => i.id === focusId)
-    : invoices.filter(i => matchesAccount(i) && (!unlinkedOnly || !i.vendor_id) && (!q || matchesSearch(i)))
+    : invoices.filter(i => matchesAccount(i) && (!unlinkedOnly || !i.vendor_id) && (!q || matchesSearch(i))
+        && (!noOrderOnly || direction !== 'sales' || (i.total_amount > 0 && !(orderLinks[i.id]?.length))))
+  const noOrderCount = direction === 'sales' ? invoices.filter(i => i.total_amount > 0 && !(orderLinks[i.id]?.length)).length : 0
   const unlinkedCount = invoices.filter(i => !i.vendor_id).length
 
   // 체크박스가 보이는(선택 가능한) 행 = 아직 매칭 안 된 건
@@ -1053,6 +1063,15 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
               unlinkedOnly ? 'bg-orange-600 text-white' : unlinkedCount ? 'bg-orange-50 text-orange-700 hover:bg-orange-100' : 'bg-gray-100 text-gray-400'}`}>
             거래처 미연결 {unlinkedCount}
           </button>
+          {/* 주문 미연결 (2026-11-17) — 주문이 하나도 연결되지 않은 매출 계산서. 매출 탭만 */}
+          {direction === 'sales' && (
+            <button onClick={() => setNoOrderOnly(v => !v)}
+              title="주문이 하나도 연결되지 않은 매출 계산서 — 계산서에 입금을 붙여도 주문 미수가 줄지 않는다"
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                noOrderOnly ? 'bg-indigo-600 text-white' : noOrderCount ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100' : 'bg-gray-100 text-gray-400'}`}>
+              주문 미연결 {noOrderCount}
+            </button>
+          )}
         </div>
         {selected.size > 0 && (
           <button
@@ -1133,6 +1152,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
                 <th className="py-2.5 px-3 font-medium">계정과목</th>
                 <th className="py-2.5 px-3 font-medium whitespace-nowrap">{direction === 'sales' ? '입금 확인' : '출금 확인'}</th>
                 <th className="py-2.5 px-3 font-medium whitespace-nowrap">매칭된 거래</th>
+                {direction === 'sales' && <th className="py-2.5 px-3 font-medium whitespace-nowrap">주문</th>}
               </tr>
             </thead>
             <tbody>
@@ -1231,11 +1251,44 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
                       <button onClick={() => setMatchingInvoice(inv)} className="text-xs text-slate-600 hover:text-slate-900 underline">매칭하기</button>
                     )}
                   </td>
+                  {/* 주문 연결 — 매출 탭만. 연결된 주문번호 · 금액, 남은 금액이 있으면 '주문 연결' (수금 · 정산 작업 수정 권한자) */}
+                  {direction === 'sales' && (() => {
+                    const ls = orderLinks[inv.id] ?? []
+                    const linked = ls.reduce((s, l) => s + l.amount, 0)
+                    const left = inv.total_amount - linked
+                    return (
+                      <td className="py-2.5 px-3 text-xs whitespace-nowrap">
+                        {inv.total_amount <= 0 ? <span className="text-gray-300">—</span> : (<>
+                          {ls.length === 0 ? <span className="text-amber-700">주문 미연결</span> : ls.map(l => (
+                            <div key={l.order_id}>
+                              <Link href={`/orders/${l.order_id}`} className="text-slate-800 hover:underline tabular-nums">{l.order_no ?? '-'}</Link>
+                              <span className="text-gray-500 tabular-nums"> {l.amount.toLocaleString('ko-KR')}</span>
+                            </div>
+                          ))}
+                          {ls.length > 0 && (left > 0
+                            ? <div className="text-[0.6875rem] text-amber-700 tabular-nums">{left.toLocaleString('ko-KR')} 남음</div>
+                            : <div className="text-[0.6875rem] text-gray-400">전액 연결{ls.length > 1 ? ` · 주문 ${ls.length}건` : ''}</div>)}
+                          {canLinkOrder && left > 0 && (
+                            <button onClick={() => setOrderLinkFor(inv)} disabled={!inv.vendor_id}
+                              title={inv.vendor_id ? '이 계산서를 주문과 연결합니다 (결제 확인 › 계산서 확인과 같은 창)' : '거래처가 연결되지 않은 계산서입니다. 거래처를 먼저 연결하세요.'}
+                              className="mt-0.5 px-2 py-0.5 rounded border border-indigo-200 bg-indigo-50 text-indigo-700 text-[0.6875rem] font-semibold hover:bg-indigo-100 disabled:opacity-40">
+                              주문 연결
+                            </button>
+                          )}
+                        </>)}
+                      </td>
+                    )
+                  })()}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {orderLinkFor && orderLinkFor.vendor_id && (
+        <InvoiceLinkModal vendorId={orderLinkFor.vendor_id} vendorName={orderLinkFor.counterparty_name ?? ''} focusInvoiceId={orderLinkFor.id}
+          onClose={() => { setOrderLinkFor(null); load() }} onApplied={() => {}} />
       )}
 
       {matchingInvoice && (

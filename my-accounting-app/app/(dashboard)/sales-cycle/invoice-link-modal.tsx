@@ -24,11 +24,13 @@ interface OpenOrder { id: string; order_no: string; order_date: string; net_amou
 // foreign: '다른 거래처 계산서에서 찾기'로 추가한 계산서 (이 매출처 · 청구처가 아닌 거래처 명의, 2026-11-17)
 interface OpenInvoice { id: string; issue_date: string; total_amount: number; item_name: string | null; remaining: number; vendor_name?: string; foreign?: boolean; vendor_id?: string | null; counterparty_name?: string | null }
 
-export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrderId, onClose, onApplied }: {
+export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrderId, focusInvoiceId, onClose, onApplied }: {
   vendorId: string
   vendorName: string
   // 주문 상세에서 열 때 — 그 주문 기준으로 연다(직접 연결에 미리 체크 · 추천 조합은 그 주문이 든 것만, 2026-11-17)
   focusOrderId?: string
+  // 계산서 내역에서 열 때 — 그 계산서 기준으로 연다(직접 연결에 미리 체크 · 추천 조합은 그 계산서가 든 것만, 2026-11-17)
+  focusInvoiceId?: string
   from?: string   // 주문일 하한 — 화면의 조회 기간과 연동
   onClose: () => void
   onApplied: () => void
@@ -46,6 +48,7 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [applying, setApplying] = useState(false)
+  const [focusInvMissing, setFocusInvMissing] = useState(false)   // 지정한 계산서가 미배분 목록에 없음(전액 연결 · 취소쌍 등)
   const [focusMissing, setFocusMissing] = useState(false)   // 지정한 주문이 미연결 목록에 없음(이미 전액 연결 등)
   // 다른 거래처 계산서에서 찾기
   const [billing, setBilling] = useState<{ name: string | null; can_ask: boolean }>({ name: null, can_ask: false })
@@ -65,12 +68,15 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
       .then(({ ok, j }) => {
         if (!ok) { setError(j.error ?? '후보 조회 실패'); setGroups([]); return }
         const allGroups = (j.groups ?? []) as Group[]
-        const gs = focusOrderId ? allGroups.filter(g => g.orders.some(o => o.id === focusOrderId)) : allGroups
+        const gs = focusOrderId ? allGroups.filter(g => g.orders.some(o => o.id === focusOrderId))
+          : focusInvoiceId ? allGroups.filter(g => g.invoices.some(v => v.id === focusInvoiceId)) : allGroups
         const hasFocus = !!focusOrderId && ((j.orders ?? []) as OpenOrder[]).some(o => o.id === focusOrderId)
+        const hasFocusInv = !!focusInvoiceId && ((j.invoices ?? []) as OpenInvoice[]).some(v => v.id === focusInvoiceId)
         setGroups(gs)
         setFocusMissing(!!focusOrderId && !hasFocus)
-        // 그 주문이 든 추천이 없으면 직접 연결 탭에서 시작
-        if (focusOrderId) setMode(gs.length ? 'auto' : 'manual')
+        setFocusInvMissing(!!focusInvoiceId && !hasFocusInv)
+        // 지정한 주문 · 계산서가 든 추천이 없으면 직접 연결 탭에서 시작
+        if (focusOrderId || focusInvoiceId) setMode(gs.length ? 'auto' : 'manual')
         setOrders(j.orders ?? [])
         setInvoices(j.invoices ?? [])
         setSummary(j.summary ?? null)
@@ -78,11 +84,11 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
         setFound(null)
         setChecked(new Set())
         setSelOrders(hasFocus ? new Set([focusOrderId!]) : new Set())
-        setSelInvoices(new Set())
+        setSelInvoices(hasFocusInv ? new Set([focusInvoiceId!]) : new Set())
       })
       .catch(() => { setError('네트워크 오류'); setGroups([]) })
   }
-  useEffect(load, [vendorId, from, focusOrderId])
+  useEffect(load, [vendorId, from, focusOrderId, focusInvoiceId])
 
   const toggle = (i: number) => setChecked(prev => {
     const next = new Set(prev)
@@ -250,6 +256,16 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
             이 주문은 계산서를 더 연결할 금액이 없습니다(이미 전액 연결됐거나 순매출이 0). 아래는 같은 매출처의 다른 미연결 주문입니다.
           </div>
         )}
+        {focusInvMissing && groups && (
+          <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg">
+            이 계산서는 더 연결할 금액이 없거나(이미 전액 연결) 취소쌍이라 목록에 없습니다. 아래는 같은 거래처의 다른 미배분 계산서입니다.
+          </div>
+        )}
+        {focusInvoiceId && groups && !focusInvMissing && orders.length === 0 && (
+          <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg">
+            이 거래처(와 이 거래처를 청구처로 둔 매출처)에 계산서가 연결되지 않은 주문이 없습니다. 주문이 다른 매출처에 있다면 그 매출처의 청구처를 이 거래처로 지정하거나, 주문 상세 › 결제 내역의 &quot;계산서 연결&quot;에서 &quot;다른 거래처 계산서에서 찾기&quot;로 연결하세요.
+          </div>
+        )}
         {error && <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
         {notice && <div className="mb-3 px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-lg">{notice}</div>}
 
@@ -259,7 +275,7 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
           <>
             {groups.length === 0 ? (
               <p className="text-gray-400 text-sm py-8 text-center">
-                {focusOrderId ? '이 주문과 금액이 맞는 조합이 없습니다.' : '금액이 맞는 조합이 없습니다.'} [직접 연결] 탭에서 수동으로 연결해주세요.
+                {focusOrderId ? '이 주문과 금액이 맞는 조합이 없습니다.' : focusInvoiceId ? '이 계산서와 금액이 맞는 조합이 없습니다.' : '금액이 맞는 조합이 없습니다.'} [직접 연결] 탭에서 수동으로 연결해주세요.
               </p>
             ) : (
               <div className="space-y-2.5">

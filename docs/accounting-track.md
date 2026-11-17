@@ -1379,3 +1379,5 @@ ERP 주문은 계획대로 교체(erp-reload-track). 결정 대기.
 - 2단계(2026-11-17, 빌드 통과 · main 병합 전): 주문에 직접 붙인 통장 수금이 연결된 매출 계산서의 입금으로 넘어옴(`tax_invoice_payments.from_order_sync = true`,
   `lib/link-sync.ts` `syncInvoicePaymentsFromOrders`). 계산서 내역 입금 줄에 "주문 수금에서 넘어옴" 꼬리표 — 이 행은 계산서 내역에서 해제할 수 없고(409),
   "전부 해제"는 직접 붙인 것만 지운다. 직접 붙이면 직접 행으로 저장. `removeInvoicePayment` · `clearInvoicePayments`가 결과(Result)를 돌려주도록 바뀜.
+- 계산서 내역에서 주문 연결(2026-11-17, 빌드 통과 · main 병합 전): 매출 탭에 "주문" 칸 · "주문 연결" 버튼(collections 수정 권한자) · "주문 미연결" 칩,
+  `GET /api/tax-invoices` 응답에 `order_links` · `can_link_order`, 엑셀 "연결 주문" 열. 회계 담당에게 수금 · 정산 작업 수정 권한이 없으면 버튼이 보이지 않는다.
