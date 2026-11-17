@@ -58,6 +58,11 @@ export async function POST(req: NextRequest) {
   const links = (body?.links ?? []).filter(l => l.orderId && l.taxInvoiceId && l.amount > 0)
   if (!links.length) return NextResponse.json({ error: '확정할 연결이 없습니다.' }, { status: 400 })
 
+  // 서버 재검사 (2026-11-17) — 연결 창구가 계산서 확인 · 매출처 상세 · 주문 상세 3곳으로 늘어 동시에 연결할 수 있다.
+  // 화면의 후보 계산을 믿지 않고, 저장 직전에 주문 · 계산서의 남은 금액을 다시 계산해 넘치면 거부한다.
+  const blocked = await recheckLinks(admin, links)
+  if (blocked) return NextResponse.json({ error: blocked }, { status: 409 })
+
   const rows = links.map(l => ({
     order_id: l.orderId,
     tax_invoice_id: l.taxInvoiceId,
@@ -81,6 +86,79 @@ export async function POST(req: NextRequest) {
     amount: rows.reduce((s, r) => s + r.amount, 0),
     propagated,
   })
+}
+
+// ── 저장 전 재검사 ─────────────────────────────────────────────
+// 거부 사유를 한 문장으로 돌려준다(없으면 null). 검사: 주문 존재 · 취소 아님 / 매출 계산서(양수) / 같은 주문-계산서 중복 /
+// 주문 남은 금액(순매출 − 기연결) · 계산서 남은 금액(합계 − 기배분) 초과.
+async function recheckLinks(
+  admin: ReturnType<typeof createAdminClient>,
+  links: { orderId: string; taxInvoiceId: string; amount: number }[],
+): Promise<string | null> {
+  const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
+  const orderIds = Array.from(new Set(links.map(l => l.orderId)))
+  const invoiceIds = Array.from(new Set(links.map(l => l.taxInvoiceId)))
+  const seen = new Set<string>()
+  for (const l of links) {
+    if (!Number.isInteger(l.amount)) return '연결 금액이 올바르지 않습니다.'
+    const k = `${l.orderId}:${l.taxInvoiceId}`
+    if (seen.has(k)) return '같은 주문과 계산서가 두 번 들어 있습니다.'
+    seen.add(k)
+  }
+  const chunk = <T,>(a: T[], n = 100) => Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, i * n + n))
+
+  const orders = new Map<string, { order_no: string | null; total: number; canceled: boolean }>()
+  const excluded = new Map<string, number>()
+  const invoices = new Map<string, { total: number; direction: string; issue_date: string }>()
+  const linkedByOrder = new Map<string, number>()
+  const linkedByInvoice = new Map<string, number>()
+  const existing = new Set<string>()
+  for (const ch of chunk(orderIds)) {
+    const [o, it, ex] = await Promise.all([
+      admin.from('erp_orders').select('id, order_no, total_amount, canceled_at').in('id', ch),
+      admin.from('erp_order_items').select('order_id, line_total').in('order_id', ch).or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true'),
+      admin.from('erp_order_invoices').select('order_id, tax_invoice_id, amount').in('order_id', ch),
+    ])
+    if (o.error || it.error || ex.error) return (o.error ?? it.error ?? ex.error)!.message
+    for (const r of o.data ?? []) orders.set(r.id as string, { order_no: r.order_no as string | null, total: Number(r.total_amount ?? 0), canceled: !!r.canceled_at })
+    for (const r of it.data ?? []) excluded.set(r.order_id as string, (excluded.get(r.order_id as string) ?? 0) + Number(r.line_total ?? 0))
+    for (const r of ex.data ?? []) {
+      linkedByOrder.set(r.order_id as string, (linkedByOrder.get(r.order_id as string) ?? 0) + Number(r.amount ?? 0))
+      existing.add(`${r.order_id}:${r.tax_invoice_id}`)
+    }
+  }
+  for (const ch of chunk(invoiceIds)) {
+    const [v, ex] = await Promise.all([
+      admin.from('tax_invoices').select('id, total_amount, direction, issue_date').in('id', ch),
+      admin.from('erp_order_invoices').select('tax_invoice_id, amount').in('tax_invoice_id', ch),
+    ])
+    if (v.error || ex.error) return (v.error ?? ex.error)!.message
+    for (const r of v.data ?? []) invoices.set(r.id as string, { total: Number(r.total_amount ?? 0), direction: r.direction as string, issue_date: String(r.issue_date).slice(0, 10) })
+    for (const r of ex.data ?? []) linkedByInvoice.set(r.tax_invoice_id as string, (linkedByInvoice.get(r.tax_invoice_id as string) ?? 0) + Number(r.amount ?? 0))
+  }
+
+  const addOrder = new Map<string, number>(), addInvoice = new Map<string, number>()
+  for (const l of links) {
+    const o = orders.get(l.orderId), v = invoices.get(l.taxInvoiceId)
+    if (!o) return '주문을 찾을 수 없습니다. 화면을 새로 고친 뒤 다시 시도하세요.'
+    if (o.canceled) return `취소된 주문(${o.order_no ?? ''})에는 계산서를 연결할 수 없습니다.`
+    if (!v) return '계산서를 찾을 수 없습니다. 화면을 새로 고친 뒤 다시 시도하세요.'
+    if (v.direction !== 'sales' || v.total <= 0) return '매출 계산서(양수)만 주문에 연결할 수 있습니다.'
+    if (existing.has(`${l.orderId}:${l.taxInvoiceId}`)) return `주문 ${o.order_no ?? ''}에 이미 연결된 계산서입니다. 다른 사람이 먼저 연결했을 수 있으니 화면을 새로 고쳐 주세요.`
+    addOrder.set(l.orderId, (addOrder.get(l.orderId) ?? 0) + l.amount)
+    addInvoice.set(l.taxInvoiceId, (addInvoice.get(l.taxInvoiceId) ?? 0) + l.amount)
+  }
+  for (const [id, add] of Array.from(addOrder)) {
+    const o = orders.get(id)!
+    const left = o.total - (excluded.get(id) ?? 0) - (linkedByOrder.get(id) ?? 0)
+    if (add > left) return `주문 ${o.order_no ?? ''}의 계산서 미연결 금액은 ${won(Math.max(0, left))}입니다. ${won(add)}은 연결할 수 없습니다. (다른 사람이 먼저 연결했을 수 있습니다 — 화면을 새로 고쳐 주세요)`
+  }
+  for (const [id, add] of Array.from(addInvoice)) {
+    const v = invoices.get(id)!
+    const left = v.total - (linkedByInvoice.get(id) ?? 0)
+    if (add > left) return `계산서(${v.issue_date})의 남은 금액은 ${won(Math.max(0, left))}입니다. ${won(add)}은 연결할 수 없습니다. (이미 다른 주문에 연결됐을 수 있습니다 — 화면을 새로 고쳐 주세요)`
+  }
+  return null
 }
 
 // ── 수금 이월 ──────────────────────────────────────────────────

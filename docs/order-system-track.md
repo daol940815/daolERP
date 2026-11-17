@@ -1214,3 +1214,10 @@
   맞춤 인쇄로 전체가 작아짐을 사용자 수용). 어림 배율: 29자 약 63% · 40자 약 53% · 60자 약 44%.
 - 받는분 주소(지점 + 담당자 기준) · 택배비(카톤 + 낱개 박스 구성)는 같은 날 결정 — 프리뷰 먼저(아래 절).
 
+
+### 주문 쪽 계산서 연결 (2026-11-17, 결제처리 세션에서 구현 — 상세는 docs/payment-track.md)
+
+- 주문 상세 › 결제 내역에 "계산서 연결" 버튼(수금 · 정산 작업 수정 권한자만, `invoice_link` — 상세 API). 창은 결제 확인 › 계산서 확인과 같은 `InvoiceLinkModal`(`focusOrderId`).
+- 주문내역 목록은 버튼 없이 결제 칸 아래 꼬리표("계산서 미연결" · "계산서 금액 다름", `row.pay.invoice_flag`)만 — 사용자 결정. 엑셀 '계산서 확인' 열.
+- 고친 주문 트랙 파일: `app/(orders)/orders/[id]/page.tsx`(버튼 · 창 열기) · `app/(orders)/orders/page.tsx`(꼬리표) · `app/api/orders-portal/orders/[id]/route.ts`(`invoice_link`) ·
+  `app/api/orders-portal/export/route.ts`(열 1개). 그 밖의 동작은 건드리지 않음.

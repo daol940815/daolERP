@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PAY_METHOD_TAG_LABEL, PAY_STAGE_LABEL } from '@/lib/pay-state'
+import { INVOICE_FLAG_LABEL, PAY_METHOD_TAG_LABEL, PAY_STAGE_LABEL } from '@/lib/pay-state'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
@@ -140,6 +140,7 @@ export async function GET(req: NextRequest) {
       // 결제 상태 한 칸 표기와 같은 값 (2026-11-13 — 옛 '수금상태' 열을 대신한다)
       '결제 상태': o.pay ? PAY_STAGE_LABEL[o.pay.stage] : (STATUS_LABEL[o.collect_status ?? ''] ?? ''),
       '결제 수단': o.pay?.method ? PAY_METHOD_TAG_LABEL[o.pay.method] : '',
+      '계산서 확인': o.pay?.invoice_flag ? INVOICE_FLAG_LABEL[o.pay.invoice_flag] : '',
       // 완료 회신 (515) — 회신 대상 아니면 빈 칸
       '회신': replyMap.get(o.id) ? REPLY_LABEL[replyMap.get(o.id)!.state] : '',
       '출처': (o.source ?? 'upload') === 'direct' ? '직접입력' : '업로드',

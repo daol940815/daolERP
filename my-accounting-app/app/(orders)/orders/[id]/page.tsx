@@ -9,6 +9,7 @@ import { hasShip, needsShip, shipText, SHIP_KINDS } from '@/lib/ship-address'
 import RosterCard from '../roster-card'
 import ReplyCard, { type ReplyData } from './reply-card'
 import PayRecords, { type PayRecordsData } from './pay-records'
+import InvoiceLinkModal from '@/app/(dashboard)/sales-cycle/invoice-link-modal'
 import { PAY_METHOD_TAG_LABEL, PAY_STAGE_LABEL, showMethodTag, type PayState } from '@/lib/pay-state'
 import ReasonPicker from '@/components/ui/ReasonPicker'
 import { ORDER_CANCEL_REASONS, composeReason } from '@/lib/cancel-reasons'
@@ -80,6 +81,9 @@ export default function OrderDetailPage() {
   const [receivable, setReceivable] = useState<Receivable | null>(null)
   const [prepay, setPrepay] = useState<PrepayInfo | null>(null)
   const [payState, setPayState] = useState<PayState | null>(null)   // 목록과 같은 결제 상태 표기
+  // 계산서 연결 (2026-11-17) — 수금 · 정산 작업 수정 권한자에게만 버튼이 보인다. 창은 결제 확인 › 계산서 확인과 같은 것
+  const [invoiceLink, setInvoiceLink] = useState<{ can_link: boolean; vendor_id: string | null; vendor_name: string | null; reason: string | null } | null>(null)
+  const [invoiceOpen, setInvoiceOpen] = useState(false)
   const [payContacts, setPayContacts] = useState<{ id: string; contact_date: string; method: string; memo: string | null; promise_date: string | null; created_by_name: string | null }[]>([])
   const [payRecords, setPayRecords] = useState<PayRecordsData>({ available: false, records: [], can_record: false })   // 결제 기록 (1300)
   const [consultRequest, setConsultRequest] = useState<{ requested_by_name: string | null; assignee_name: string | null } | null>(null)
@@ -113,6 +117,7 @@ export default function OrderDetailPage() {
       setReceivable(json.receivable ?? null)
       setPrepay(json.prepay ?? null)
       setPayState(json.pay_state ?? null)
+      setInvoiceLink(json.invoice_link ?? null)
       setPayContacts(json.pay_contacts ?? [])
       setPayRecords(json.pay_records ?? { available: false, records: [], can_record: false })
       setConsultRequest(json.consult_request ?? null)
@@ -419,6 +424,14 @@ export default function OrderDetailPage() {
             미수 <b className={`tabular-nums ${outstanding > 0 ? 'text-red-600' : 'text-gray-400'}`}>
               {won(outstanding)}원</b>
           </span>
+          {/* 계산서 연결 — 수금 · 정산 작업 수정 권한자만. 매출처가 연결 안 된 주문은 이유를 보여 주고 끈다 */}
+          {invoiceLink && (invoiceLink.can_link || invoiceLink.reason) && (
+            <button onClick={() => setInvoiceOpen(true)} disabled={!invoiceLink.can_link}
+              title={invoiceLink.reason ?? '이 주문에 매출 세금계산서를 연결합니다 (결제 확인 › 계산서 확인과 같은 창)'}
+              className="text-xs px-2.5 py-1 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 font-semibold hover:bg-indigo-100 disabled:opacity-40">
+              계산서 연결
+            </button>
+          )}
           {/* 선결제 사용 (514) — 잔액이 있을 때만. 한도 = 잔액 · 미수 중 작은 값 */}
           {prepay && prepay.balance > 0 && (
             <span className="flex items-center gap-2">
@@ -616,6 +629,11 @@ export default function OrderDetailPage() {
             })}
           </div>
         </div>
+      )}
+      {invoiceOpen && invoiceLink?.can_link && invoiceLink.vendor_id && (
+        <InvoiceLinkModal vendorId={invoiceLink.vendor_id} vendorName={invoiceLink.vendor_name ?? ''} focusOrderId={String(id)}
+          // 다시 불러오기는 창을 닫을 때만 — 불러오는 동안 화면이 '로딩 중'으로 바뀌어 창이 함께 닫히기 때문
+          onClose={() => { setInvoiceOpen(false); load() }} onApplied={() => {}} />
       )}
     </div>
   )
