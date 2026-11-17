@@ -260,3 +260,24 @@
 - 사용자 요청(2026-11-17) "시안 먼저 확인" → 시안 `docs/mockups/연결동기화_시안.html`(승인 대기): 지금/바뀐 뒤 그림, 주문 상세 · 계산서 내역에 출처 꼬리표("계산서 입금에서 넘어옴" ·
   "주문 수금에서 넘어옴"), 주문↔계산서 연결 해제 버튼, 경우별 동작 표. 가안 5개 — 1302 진행 / 과거 건 소급 안 함 / 연결 해제 추가 /
   계산서 → 주문 방향 먼저 / 자동으로 넘어온 연결은 원래 붙인 쪽에서만 풀 수 있음.
+
+### 연결 동기화 1단계 + 계산서 부분 확인 — 승인 · 구현 (2026-11-17 "권장안대로 진행해줘" — 빌드 통과, 실행 화면 미검증, main 병합 전)
+
+- 사용자 결정: 권장안 5개(1302 진행 / 과거 건 소급 안 함 / 주문↔계산서 연결 해제 추가 / 계산서 → 주문 방향 먼저 / 넘어온 연결은 원래 붙인 쪽에서만 풂) +
+  "회계 세션 내용도 같이 진행" — 계산서 상태에 **부분 확인** 추가, 수동 확인 보존. 주문 상세 계산서 줄은 "계산서 입금 대기 / 계산서 부분 입금 / 계산서 입금 완료"로.
+- **1302_link_sync_and_invoice_partial.sql — 실행 대기**: `erp_payment_matches.from_invoice_id`(ON DELETE CASCADE) · `tax_invoice_payments.from_order_sync` ·
+  `tax_invoices.payment_manual` · `payment_status` CHECK에 'partial'. 기존 행 값은 바꾸지 않음. 미적용이어도 화면은 예전처럼 동작(동기화 안 함, 부분 확인은 미확인으로 저장).
+- **기존 계산서 상태 보정은 별도**: `supabase/checks/invoice_status_backfill_check.sql`(조회)로 건수 확인 → 승인 → 1303으로 실행 예정.
+  A = 미확인인데 입금 일부 붙음 → 부분 확인 / B = 확인됨인데 입금 합계 부족 → 수동 확인 표시(상태 유지).
+- `lib/link-sync.ts` `syncOrderMatchesFromInvoices(invoiceIds, origin)`: 매출 계산서(양수)만. 회계가 직접 붙인 계산서 입금(from_order_sync = false, 통장 입금)을
+  연결된 주문(주문일 순)에 입금일 순으로 채워 "있어야 할 넘어온 수금"을 계산하고, 지금 있는 것(from_invoice_id)과 차이만 insert · update · delete.
+  상한 = 연결 금액 · 주문 순매출 − 다른 수금 · 입금액 − 다른 배분. 끝에 `syncRecordsForOrders`로 결제 기록 맞춤. 실패해도 원래 조작에는 영향 없음.
+  예전 이월 행(memo '계산서 매칭 이월', 출처 없음)은 "다른 수금"으로 세어 중복을 막는다(소급해 출처를 붙이지는 않음).
+- 부르는 곳: `addInvoicePayment` · `removeInvoicePayment` · `clearInvoicePayments`(계산서 내역 수동 · 합산 · 자동 매칭 · 매입 지급 적용이 모두 거침) /
+  주문↔계산서 연결 저장(1302 적용 시 예전 `propagatePayments` 대신) / 주문↔계산서 연결 해제.
+- 주문↔계산서 연결 해제: `DELETE /api/sales-cycle/invoice-candidates?linkId=`(collections 수정) — 주문 상세 계산서 줄 "연결 해제".
+- 보호: 넘어온 수금은 `DELETE /api/erp-matching` 409, 결제 기록 확인 해제(`releaseRecord`)도 거부 — 계산서 쪽에서 풀라고 안내.
+- 계산서 상태: `recalcInvoiceStatus` 3단계 + `payment_manual`이면 항상 확인됨. `PATCH /api/tax-invoices/[id]`의 수동 전환이 `payment_manual`을 켜고 끔(끄면 입금 합계로 재계산).
+  계산서 내역 필터 · 배지 · 엑셀 · 원본 상세에 "부분 확인".
+- 하지 않은 것: 주문 → 계산서 방향(2단계, `from_order_sync` 칸만 준비) / 계산서 내역의 "주문 수금에서 넘어옴" 꼬리표(2단계에서 행이 생기면) /
+  계산서 자동 매칭 대상 확대(자동 매칭은 계산서 합계 전액을 붙이는 방식이라 부분 확인 계산서에는 맞지 않음 — 그대로 미확인만 대상).

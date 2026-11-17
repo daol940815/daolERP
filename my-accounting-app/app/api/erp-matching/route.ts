@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { findAutoMatches, loadMatchingState } from '@/lib/erp-matching'
+import { FROM_INVOICE_BLOCK } from '@/lib/link-sync'
 import { syncRecordsForOrders } from '@/lib/payment-records'
 
 const editorOf = async () => { const me = await getCurrentUser(); return { employeeId: me?.employeeId ?? null, employeeName: me?.employeeName ?? null } }
@@ -134,6 +135,9 @@ export async function DELETE(req: NextRequest) {
 
   // 선결제 사용 매칭(514)은 원장 차감 행과 한 쌍 — 함께 지워야 선결제 잔액이 복원된다 (주문 트랙 2026-11-05)
   const { data: m } = await admin.from('erp_payment_matches').select('source_type, source_id, order_id, record_id').eq('id', id).maybeSingle()
+  // 계산서 입금에서 넘어온 수금(1302)은 계산서 쪽에서만 푼다 — 여기서 지우면 계산서는 입금 완료인데 주문만 미수로 어긋난다
+  const { data: fm } = await admin.from('erp_payment_matches').select('from_invoice_id').eq('id', id).maybeSingle()
+  if (fm?.from_invoice_id) return NextResponse.json({ error: FROM_INVOICE_BLOCK }, { status: 409 })
   const { error } = await admin.from('erp_payment_matches').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (m?.source_type === 'prepay') {

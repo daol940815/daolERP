@@ -48,6 +48,9 @@ async function loadPayments(admin: SupabaseClient, orderId: string) {
   const { data: recLinks } = await admin.from('erp_payment_matches').select('id, record_id').eq('order_id', orderId).not('record_id', 'is', null)
   const recOf = new Map((recLinks ?? []).map(r => [r.id as string, r.record_id as string]))
   for (const m of matches) m.record_id = recOf.get(m.id as string) ?? null
+  // 계산서 입금에서 넘어온 수금(1302) 표시 — 칸이 없으면 조회가 실패하고 표시만 생략
+  const { data: fromInv } = await admin.from('erp_payment_matches').select('id').eq('order_id', orderId).not('from_invoice_id', 'is', null)
+  const fromInvoice = new Set((fromInv ?? []).map(r => r.id as string))
 
   // 출처 요약 — "카드매출 1,000,000원 중 300,000원 분배" 표시용
   const ids = (t: string) => matches.filter(m => m.source_type === t).map(m => m.source_id as string)
@@ -120,6 +123,7 @@ async function loadPayments(admin: SupabaseClient, orderId: string) {
     matches: matches.map(m => ({
       id: m.id, source_type: m.source_type, amount: m.amount, paid_date: m.paid_date,
       matched_by: m.matched_by, memo: m.memo, record_id: m.record_id ?? null,
+      from_invoice: fromInvoice.has(m.id as string),
       source: srcInfo.get(m.source_id as string) ?? null,
     })),
     invoices: links.map(l => ({

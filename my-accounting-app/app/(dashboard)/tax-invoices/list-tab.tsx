@@ -591,7 +591,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
   const [invoices, setInvoices]       = useState<TaxInvoice[]>([])
   const [accounts, setAccounts]       = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading]         = useState(true)
-  const [statusFilter, setStatusFilter] = useState<'all' | 'matched' | 'unmatched'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'matched' | 'partial' | 'unmatched'>('all')
   // 기본 조회는 2026년부터 — 2025년은 시작일을 비우거나 넓혀서 조회.
   // 단, 특정 계산서 딥링크(?invoiceId=) 진입 시에는 기간을 비워 과거 계산서도 바로 보이게 한다.
   const [dateFrom, setDateFrom]       = useState(() => searchParams.get('invoiceId') ? '' : getPeriodRange('당월').from)
@@ -1025,6 +1025,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
           {[
             { key: 'all', label: '전체' },
             { key: 'matched', label: '확인됨' },
+            { key: 'partial', label: '부분 확인' },
             { key: 'unmatched', label: '미확인' },
           ].map(tab => (
             <button
@@ -1188,11 +1189,15 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
                       className={`px-2 py-1 rounded-full text-xs font-medium transition-colors ${
                         inv.payment_status === 'matched'
                           ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                          : inv.payment_status === 'partial'
+                            ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                       }`}
-                      title="클릭하여 수동으로 확인/미확인 전환"
+                      title={inv.payment_status === 'partial'
+                        ? '입금이 일부만 붙어 있습니다. 클릭하면 수동으로 확인됨 처리합니다(입금을 더 붙여도 유지).'
+                        : '클릭하여 수동으로 확인/미확인 전환 — 수동으로 확인한 계산서는 입금을 붙이거나 풀어도 확인됨이 유지됩니다'}
                     >
-                      {inv.payment_status === 'matched' ? '✓ 확인됨' : '미확인'}
+                      {inv.payment_status === 'matched' ? '✓ 확인됨' : inv.payment_status === 'partial' ? '부분 확인' : '미확인'}
                     </button>
                     {inv.payment_status !== 'matched' && cancelPairIds.has(inv.id) && (
                       <button

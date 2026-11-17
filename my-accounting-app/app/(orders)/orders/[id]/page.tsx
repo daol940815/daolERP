@@ -41,7 +41,7 @@ interface EditLog {
 }
 // 결제 내역 (2026-11-04 — 표기 전용, 회계 화면 링크 없음)
 interface PaymentMatch {
-  id: string; source_type: 'bank' | 'card' | 'cash' | 'prepay'; amount: number; paid_date: string; record_id?: string | null
+  id: string; source_type: 'bank' | 'card' | 'cash' | 'prepay'; amount: number; paid_date: string; record_id?: string | null; from_invoice?: boolean
   matched_by: string; memo: string | null
   source: { label: string; total: number } | null
 }
@@ -134,6 +134,15 @@ export default function OrderDetailPage() {
     setLoading(false)
   }, [id])
   useEffect(() => { load() }, [load])
+
+  // 주문 ↔ 계산서 연결 해제 (2026-11-17) — 수금 · 정산 작업 수정 권한자. 이 연결로 넘어온 수금도 함께 풀린다
+  const unlinkInvoice = async (linkId: string, amount: number) => {
+    if (!window.confirm(`계산서 연결 ${won(amount)}원을 해제할까요?\n이 연결로 계산서 입금에서 넘어온 수금이 있으면 함께 풀리고 미수가 되돌아옵니다.`)) return
+    const res = await fetch(`/api/sales-cycle/invoice-candidates?linkId=${linkId}`, { method: 'DELETE' })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) { alert(json.error ?? '연결 해제 실패'); return }
+    load()
+  }
 
   // 선결제 사용 / 해제 (514) — 원장 차감 + 수금 매칭, 해제는 둘 다 삭제
   const submitPrepay = async () => {
@@ -526,6 +535,12 @@ export default function OrderDetailPage() {
                 )}
                 {m.matched_by === 'auto' && <span className="text-[0.625rem] text-gray-400">자동 매칭</span>}
                 {m.record_id && <span className="text-[0.625rem] px-1 py-0.5 rounded bg-green-50 text-green-700">결제 기록 매칭분</span>}
+                {m.from_invoice && (
+                  <span className="text-[0.625rem] px-1 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200"
+                    title="연결된 계산서에 회계가 붙인 입금이 이 주문 수금으로 자동으로 넘어온 것입니다. 계산서 쪽에서 입금 연결을 풀거나 아래 계산서 연결을 해제하면 함께 풀립니다.">
+                    계산서 입금에서 넘어옴
+                  </span>
+                )}
                 {m.memo && <span className="text-xs text-gray-400">{m.memo}</span>}
                 {m.source_type === 'prepay' && prepay?.can_use && (
                   <button onClick={() => releasePrepay(m.id, m.amount)}
@@ -544,10 +559,16 @@ export default function OrderDetailPage() {
                 <span className={`text-xs ${
                   v.invoice_total != null && v.paid_sum >= v.invoice_total ? 'text-emerald-700'
                     : v.paid_sum > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                  {/* 계산서 자체의 입금 상태 — 주문의 결제 상태(위 머리)와 다른 것임이 드러나게 '계산서'를 붙인다 (2026-11-17) */}
                   {v.invoice_total != null && v.paid_sum >= v.invoice_total
-                    ? `입금 완료${v.paid_last_date ? ` (${v.paid_last_date})` : ''}`
-                    : v.paid_sum > 0 ? `부분 입금 ${won(v.paid_sum)}원` : '입금 대기'}
+                    ? `계산서 입금 완료${v.paid_last_date ? ` (${v.paid_last_date})` : ''}`
+                    : v.paid_sum > 0 ? `계산서 부분 입금 ${won(v.paid_sum)}원` : '계산서 입금 대기'}
                 </span>
+                {invoiceLink?.can_link && (
+                  <button onClick={() => unlinkInvoice(v.id, v.amount)}
+                    title="이 주문과 계산서의 연결을 풉니다. 이 연결로 계산서 입금에서 넘어온 수금도 함께 풀리고, 직접 붙인 수금은 그대로 남습니다."
+                    className="ml-auto text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">연결 해제</button>
+                )}
               </div>
             ))}
           </div>

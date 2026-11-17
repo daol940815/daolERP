@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/user-role'
 import { syncRecordsForOrders } from '@/lib/payment-records'
 import { buildInvoiceLinkCandidates, isMissingOrderInvoiceTable } from '@/lib/order-invoice-match'
 import { loadBillingFamily } from '@/lib/billing'
+import { linkSyncReady, syncOrderMatchesFromInvoices } from '@/lib/link-sync'
 import { can } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
@@ -79,13 +80,39 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const propagated = await propagatePayments(admin, links)
+  // 계산서에 이미 붙어 있던 입금을 주문 수금으로 넘긴다.
+  // 1302 적용 후: 출처(from_invoice_id)가 남는 동기화 함수 — 나중에 계산서 쪽에서 입금을 풀면 함께 풀린다.
+  // 1302 전: 예전 이월(출처 표시 없음) 그대로.
+  let propagated: { count: number; amount: number }
+  if (await linkSyncReady(admin)) {
+    const r = await syncOrderMatchesFromInvoices(admin, links.map(l => l.taxInvoiceId), '계산서 연결')
+    propagated = { count: r.created, amount: r.amount }
+  } else {
+    propagated = await propagatePayments(admin, links)
+  }
 
   return NextResponse.json({
     linked: rows.length,
     amount: rows.reduce((s, r) => s + r.amount, 0),
     propagated,
   })
+}
+
+// DELETE /api/sales-cycle/invoice-candidates?linkId=  — 주문 ↔ 계산서 연결 해제 (2026-11-17)
+// 연결 1건을 지우고, 그 연결 때문에 계산서 입금에서 넘어온 주문 수금을 함께 푼다(직접 붙인 수금은 그대로).
+// 권한: 수금 · 정산 작업 수정(미들웨어 — GET 외 = 수정).
+export async function DELETE(req: NextRequest) {
+  const admin = createAdminClient()
+  const linkId = new URL(req.url).searchParams.get('linkId')
+  if (!linkId) return NextResponse.json({ error: 'linkId가 필요합니다.' }, { status: 400 })
+  const { data: link, error: le } = await admin.from('erp_order_invoices')
+    .select('id, order_id, tax_invoice_id, amount').eq('id', linkId).maybeSingle()
+  if (le) return NextResponse.json({ error: le.message }, { status: 500 })
+  if (!link) return NextResponse.json({ error: '이미 해제된 연결입니다. 화면을 새로 고쳐 주세요.' }, { status: 404 })
+  const { error } = await admin.from('erp_order_invoices').delete().eq('id', linkId)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const r = await syncOrderMatchesFromInvoices(admin, [link.tax_invoice_id as string], '계산서 연결 해제')
+  return NextResponse.json({ ok: true, removed_matches: r.removed })
 }
 
 // ── 저장 전 재검사 ─────────────────────────────────────────────

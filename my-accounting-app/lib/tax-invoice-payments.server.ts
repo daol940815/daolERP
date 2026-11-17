@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bankKeywordsColumnExists, bankKeywordsOf } from '@/lib/vendor-keywords.server'
+import { syncOrderMatchesFromInvoices } from '@/lib/link-sync'
 
 // 목록/상세 API에서 공통으로 사용하는 세금계산서 select — 결제 연결 내역(payments)을
 // 함께 내려줘서 한 계산서에 여러 거래내역이 부분금액으로 연결된 경우도 화면에서 바로 표현한다.
@@ -26,13 +27,23 @@ export const TAX_INVOICE_SELECT = `
 type Admin = SupabaseClient
 
 // 결제 연결 내역 합계로 payment_status·matched_transaction_id(최근 연결 거래, 표시용)를 재계산
+// 상태 3단계 (1302, 2026-11-17): 미확인(붙은 입금 없음) · 부분 확인(일부) · 확인됨(합계만큼, 또는 수동 확인).
+//   payment_manual = 사람이 입금 연결과 무관하게 확인됨으로 바꾼 계산서 — 입금을 붙이거나 풀어도 확인됨을 지우지 않는다
+//   (예전에는 수동 확인한 계산서에 입금을 일부 붙이면 미확인으로 되돌아갔다).
+// 1302 미적용 환경: payment_manual 칸이 없으면 수동 확인 없음으로 보고, 'partial' 저장이 막히면 예전처럼 미확인으로 둔다.
 export async function recalcInvoiceStatus(admin: Admin, invoiceId: string) {
-  const { data: invoice } = await admin
-    .from('tax_invoices')
-    .select('total_amount')
-    .eq('id', invoiceId)
-    .single()
-  if (!invoice) return
+  let manual = false
+  let total: number
+  const withManual = await admin.from('tax_invoices').select('total_amount, payment_manual').eq('id', invoiceId).single()
+  if (withManual.error) {
+    const { data: invoice } = await admin.from('tax_invoices').select('total_amount').eq('id', invoiceId).single()
+    if (!invoice) return
+    total = invoice.total_amount as number
+  } else {
+    if (!withManual.data) return
+    total = withManual.data.total_amount as number
+    manual = withManual.data.payment_manual === true
+  }
 
   const { data: payments } = await admin
     .from('tax_invoice_payments')
@@ -43,16 +54,19 @@ export async function recalcInvoiceStatus(admin: Admin, invoiceId: string) {
   const paidTotal = (payments ?? []).reduce((s, p) => s + (p.amount as number), 0)
   // 음수(수정) 계산서는 상계 연결(음수 금액)이 총액에 도달해야 확인됨 —
   // 부호 없이 비교하면 연결 0원일 때도 0 >= 음수총액이라 잘못 matched가 된다
-  const total = invoice.total_amount as number
-  const status = total >= 0
-    ? (paidTotal >= total ? 'matched' : 'unmatched')
-    : (paidTotal <= total ? 'matched' : 'unmatched')
+  const full = total >= 0 ? paidTotal >= total : paidTotal <= total
+  const some = total >= 0 ? paidTotal > 0 : paidTotal < 0
+  const status = manual || full ? 'matched' : some ? 'partial' : 'unmatched'
   const latestTransactionId = (payments?.[0]?.transaction_id as string | undefined) ?? null
 
-  await admin
+  const { error } = await admin
     .from('tax_invoices')
     .update({ payment_status: status, matched_transaction_id: latestTransactionId })
     .eq('id', invoiceId)
+  if (error && status === 'partial') {
+    // 1302 전 — 'partial'을 받지 않는다. 예전 2단계로 저장
+    await admin.from('tax_invoices').update({ payment_status: 'unmatched', matched_transaction_id: latestTransactionId }).eq('id', invoiceId)
+  }
 }
 
 type Result = { ok: true } | { ok: false; error: string }
@@ -166,15 +180,19 @@ export async function addInvoicePayment(
 
   await recalcInvoiceStatus(admin, invoiceId)
   await learnFromPaymentLink(admin, invoiceId, transactionId)
+  // 이 계산서가 주문에 연결돼 있으면 붙인 입금을 주문 수금으로도 넘긴다 (1302 — 매출 계산서만, 내부에서 판정)
+  await syncOrderMatchesFromInvoices(admin, [invoiceId], '계산서 입금 연결')
   return { ok: true }
 }
 
 export async function removeInvoicePayment(admin: Admin, invoiceId: string, paymentId: string) {
   await admin.from('tax_invoice_payments').delete().eq('id', paymentId).eq('tax_invoice_id', invoiceId)
   await recalcInvoiceStatus(admin, invoiceId)
+  await syncOrderMatchesFromInvoices(admin, [invoiceId], '계산서 입금 해제')   // 넘어갔던 주문 수금도 함께 푼다
 }
 
 export async function clearInvoicePayments(admin: Admin, invoiceId: string) {
   await admin.from('tax_invoice_payments').delete().eq('tax_invoice_id', invoiceId)
   await recalcInvoiceStatus(admin, invoiceId)
+  await syncOrderMatchesFromInvoices(admin, [invoiceId], '계산서 입금 해제')
 }
