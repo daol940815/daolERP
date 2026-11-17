@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>계산서 내역 — 주문 연결 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1180px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:30px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.65; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .lab { font-size:11px; font-weight:bold; color:#64748b; margin-bottom:8px; }
+  .chips { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+  .chip { border-radius:8px; padding:5px 11px; font-size:12.5px; color:#475569; background:#f1f5f9; }
+  .chip.on { background:#0f172a; color:#fff; }
+  .chip.nw { outline:2px solid #3b82f6; outline-offset:1px; }
+  .sep { width:1px; height:18px; background:#e2e8f0; margin:0 4px; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:920px; }
+  th { text-align:left; font-weight:normal; color:#64748b; font-size:11.5px; padding:8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; background:#f8fafc; }
+  td { padding:9px 8px; border-bottom:1px solid #f1f5f9; vertical-align:top; line-height:1.5; }
+  td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  td small { color:#94a3b8; display:block; font-size:11px; }
+  th.hl, td.hl { background:#eff6ff; }
+  .st { font-size:11px; font-weight:bold; padding:3px 8px; border-radius:999px; white-space:nowrap; }
+  .ok { background:#dcfce7; color:#166534; } .pt { background:#fef3c7; color:#92400e; } .no { background:#f1f5f9; color:#64748b; }
+  .btn { display:inline-block; border-radius:7px; padding:2px 8px; font-size:11px; border:1px solid #cbd5e1; background:#fff; color:#334155; white-space:nowrap; }
+  .btn.blue { border-color:#c7d2fe; background:#eef2ff; color:#4338ca; font-weight:bold; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; padding:5px 11px; font-size:12px; }
+  .ord { color:#0f172a; font-variant-numeric:tabular-nums; }
+  .mut { color:#94a3b8; } .am { color:#b45309; }
+  .tag { font-size:10.5px; font-weight:bold; padding:1px 6px; border-radius:4px; white-space:nowrap; }
+  .t-auto { background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; }
+  .note { background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:9px 12px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.75; }
+  .note b { color:#422006; }
+  .modal { border:1px solid #cbd5e1; border-radius:12px; background:#fff; box-shadow:0 12px 32px rgba(15,23,42,.18); overflow:hidden; }
+  .modal .mh { padding:12px 16px; font-weight:bold; border-bottom:1px solid #e2e8f0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .modal .mb { padding:14px 16px; }
+  .modal .mf { padding:10px 16px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:6px; background:#f8fafc; }
+  .seg { display:flex; gap:4px; margin-left:auto; }
+  .seg span { border:1px solid #cbd5e1; border-radius:7px; padding:3px 9px; font-size:11.5px; color:#475569; font-weight:normal; }
+  .seg span.on { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
+  .list { border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; }
+  .list .lh { background:#f8fafc; padding:7px 10px; font-size:11.5px; color:#64748b; border-bottom:1px solid #e2e8f0; }
+  .list .li { padding:7px 10px; border-bottom:1px solid #f1f5f9; font-size:12.5px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .list .li:last-child { border-bottom:none; }
+  .list .li .a { margin-left:auto; font-weight:bold; font-variant-numeric:tabular-nums; }
+  .list .li.sel { background:#eff6ff; }
+  .prev { margin-top:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 11px; font-size:12px; line-height:1.7; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>계산서 내역 — 주문 연결 시안</h1>
+  <p class="desc">2026-11-17 · 계산서 내역(회계)에서 그 계산서가 어느 주문 것인지 보이고, 그 자리에서 주문과 연결할 수 있게 합니다. 매출 계산서에만 해당합니다. 숫자와 이름은 예시입니다. 파란 칸이 새로 생기는 부분입니다.</p>
+
+  <!-- ───────────── 1 ───────────── -->
+  <h2>1. 계산서 내역 목록 — "주문" 칸</h2>
+  <div class="panel new">
+    <div class="chips">
+      <span class="chip on">전체</span><span class="chip">확인됨</span><span class="chip">부분 확인</span><span class="chip">미확인</span>
+      <span class="sep"></span>
+      <span class="chip nw">주문 미연결 6</span>
+    </div>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>작성일자</th><th>거래처</th><th>품목</th><th class="n">합계금액</th><th>입금 확인</th><th>매칭된 거래</th><th class="hl">주문</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>11-13</td><td>하나은행 석계역지점</td><td>상품</td><td class="n">923,400</td>
+          <td><span class="st no">미확인</span></td><td class="mut">—</td>
+          <td class="hl"><span class="am">주문 미연결</span><br><span class="btn blue" style="margin-top:3px">주문 연결</span></td>
+        </tr>
+        <tr>
+          <td>11-11</td><td>하나은행 A지점</td><td>상품</td><td class="n">450,000</td>
+          <td><span class="st ok">✓ 확인됨</span></td><td>하나 1704 · 11-14 · 450,000</td>
+          <td class="hl"><span class="ord">D261110-004</span> 450,000<small>전액 연결</small></td>
+        </tr>
+        <tr>
+          <td>11-09</td><td>우리은행 C지점</td><td>상품 외</td><td class="n">1,000,000</td>
+          <td><span class="st pt">부분 확인</span></td><td>우리 3634 · 11-12 · 400,000</td>
+          <td class="hl"><span class="ord">D261105-002</span> 400,000<br><span class="ord">D261107-011</span> 600,000<small>전액 연결 · 주문 2건</small></td>
+        </tr>
+        <tr>
+          <td>11-06</td><td>NH농협손해보험 서울GA</td><td>상품</td><td class="n">2,070,000</td>
+          <td><span class="st no">미확인</span></td><td class="mut">—</td>
+          <td class="hl"><span class="ord">D261106-002</span> 1,500,000<small class="am">570,000 남음</small><span class="btn blue" style="margin-top:3px">주문 연결</span></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note">
+      <b>주문 칸</b>은 매출 탭에서만 보입니다. 주문번호를 누르면 주문 상세로 갑니다(주문 · 발주 조회 권한이 있을 때).<br>
+      <b>"주문 연결" 버튼</b>은 계산서 금액이 아직 다 연결되지 않았을 때만, 수금 · 정산 작업 수정 권한자에게만 보입니다.<br>
+      <b>"주문 미연결" 칩</b>은 주문이 하나도 연결되지 않은 매출 계산서만 걸러 줍니다(다른 필터 · 기간과 함께 적용).
+    </div>
+  </div>
+
+  <!-- ───────────── 2 ───────────── -->
+  <h2>2. "주문 연결"을 누르면</h2>
+  <p class="desc">결제 확인 · 주문 상세와 같은 연결 창이 열립니다. 이번에는 그 계산서가 미리 체크돼 있습니다.</p>
+  <div class="modal">
+    <div class="mh">하나은행 석계역지점 — 주문 · 계산서 연결
+      <div class="seg"><span>추천 조합</span><span class="on">직접 연결</span></div>
+    </div>
+    <div class="mb">
+      <div class="cols">
+        <div class="list">
+          <div class="lh">미연결 주문 (2)</div>
+          <div class="li sel">☑ 11-12 · <span style="color:#1d4ed8">하나은행 광운대출장소 ·</span> D261112-025 <span class="a">923,400</span></div>
+          <div class="li">☐ 11-10 · D261110-009 <span class="a">310,000</span></div>
+        </div>
+        <div class="list">
+          <div class="lh">미배분 계산서 (1)</div>
+          <div class="li sel">☑ 11-13 · 상품 <span class="a">923,400</span></div>
+        </div>
+      </div>
+      <div class="prev"><b>배분 미리보기 — 연결 923,400원</b><br>계산서 2026-11-13 → 주문 D261112-025 · 923,400원</div>
+      <div class="note">
+        주문 목록은 그 계산서 거래처의 주문과, 그 거래처를 청구처로 둔 매출처(출장소 등)의 주문입니다 — 지금 연결 창의 규칙 그대로입니다.<br>
+        그 계산서와 금액이 맞는 추천 조합이 있으면 "추천 조합" 탭에서 시작합니다.
+      </div>
+    </div>
+    <div class="mf"><span class="btn" style="padding:5px 11px;font-size:12px">닫기</span><span class="btn pri">선택 연결 확정</span></div>
+  </div>
+
+  <!-- ───────────── 3 ───────────── -->
+  <h2>3. 연결하면 일어나는 일</h2>
+  <div class="panel">
+    <div style="font-size:12.5px; line-height:1.9; color:#334155;">
+      · 계산서 줄의 "주문" 칸에 주문번호와 금액이 나타납니다.<br>
+      · 계산서에 이미 입금이 붙어 있었다면, 그 입금이 주문 수금으로 넘어가 주문 미수가 줄어듭니다 <span class="tag t-auto">계산서 입금에서 넘어옴</span><br>
+      · 주문에 이미 통장 입금이 붙어 있었다면, 그 입금이 계산서로 넘어와 계산서가 확인됨이 됩니다 <span class="tag t-auto">주문 수금에서 넘어옴</span><br>
+      · 연결을 풀 때는 주문 상세 › 결제 내역의 계산서 줄 "연결 해제"를 씁니다(이번에 계산서 내역에는 해제 버튼을 두지 않음).
+    </div>
+  </div>
+
+  <!-- ───────────── 4 ───────────── -->
+  <h2>4. 정해 주실 것</h2>
+  <div class="panel">
+    <div class="scroll">
+    <table style="min-width:640px">
+      <thead><tr><th style="width:30px">#</th><th>항목</th><th>가안</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>버튼 권한</td><td>수금 · 정산 작업 수정 권한자에게만 보인다(다른 연결 창구와 같음). 회계 담당에게 이 권한이 없으면 버튼이 안 보이므로 권한을 주어야 함.</td></tr>
+        <tr><td>2</td><td>주문 칸 위치</td><td>맨 오른쪽("매칭된 거래" 다음). 매입 탭에서는 숨김.</td></tr>
+        <tr><td>3</td><td>연결 해제를 계산서 내역에도 둘지</td><td>두지 않는다. 주문 상세에서만 해제.</td></tr>
+        <tr><td>4</td><td>엑셀</td><td>계산서 내역 엑셀에 "연결 주문" 열 추가(주문번호 나열).</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+</body>
+</html>
