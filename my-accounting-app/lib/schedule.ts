@@ -7,6 +7,7 @@
 // 서버 라우트와 화면이 함께 쓰는 순수 함수만 둔다 (lib/attendance.ts의 날짜 유틸 재사용).
 
 import { addDays, isOffDate, monthRange, workDaySegments, type HolidayMap } from '@/lib/attendance'
+import { termMonthlyInterest } from '@/lib/loan-math'
 
 export type ScheduleKind =
   | 'holiday'        // 공휴일·회사 휴무 (배경)
@@ -145,6 +146,9 @@ export interface LoanRow {
   payment_day: number | null
   status: string
   maturity_date: string | null
+  current_balance?: number | null
+  interest_rate?: number | null
+  product_type?: 'term' | 'credit_line' | null
 }
 
 /** 상환일이 있는 진행 중 대출을 해당 월의 일정으로. 자동이체라 휴일이면 다음 영업일. */
@@ -156,7 +160,8 @@ export function loanPayments(loans: LoanRow[], month: string, holidays: HolidayM
     .map(l => {
       const due = dayInMonth(month, l.payment_day!)
       const shown = nextBusinessDay(due, holidays)
-      const amount = (l.monthly_principal ?? 0) + (l.monthly_interest ?? 0)
+      // 월 이자 = 잔액 × 이율 ÷ 12 (lib/loan-math) — 이율이 없으면 저장값 (2026-11-17)
+      const amount = (l.monthly_principal ?? 0) + termMonthlyInterest({ current_balance: l.current_balance ?? null, interest_rate: l.interest_rate ?? null, monthly_interest: l.monthly_interest, product_type: l.product_type ?? null })
       return {
         kind: 'loan' as const,
         date: shown > mEnd ? mEnd : shown,

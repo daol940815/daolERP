@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { termMonthlyInterest } from '@/lib/loan-math'
 
 const won = (n: number) => n.toLocaleString('ko-KR')
 const eok = (n: number) => `${(n / 1e8).toFixed(2)}억`
@@ -39,7 +40,7 @@ const daysInThisMonth = () => {
 }
 // 대출별 월 이자: 일반 대출은 마스터에 입력된 값, 한도대출은 사용액 기준 계산값
 const monthlyInterestOf = (l: ReportLoan) => {
-  if (l.product_type !== 'credit_line') return l.monthly_interest
+  if (l.product_type !== 'credit_line') return termMonthlyInterest(l)   // 잔액 × 이율 ÷ 12 (2026-11-17)
   const used = l.usage?.used ?? 0
   if (!used || l.interest_rate == null) return 0
   return Math.round((used * (l.interest_rate / 100) / 365) * daysInThisMonth())
@@ -81,7 +82,7 @@ export default function AnnualReport({ loans }: { loans: ReportLoan[] }) {
 
   // 계획 월 이자 = 일반 대출(마스터 입력, 매월 동일) + 한도대출(통장 일별 잔액 기준, 월별 상이)
   const planTerm = live.filter(l => l.product_type !== 'credit_line' && l.status === 'active')
-    .reduce((s, l) => s + l.monthly_interest, 0)
+    .reduce((s, l) => s + termMonthlyInterest(l), 0)
   // 서버가 일별 잔액으로 산출한 월별 한도대출 이자. 없으면 현재 사용액 기준 단순 추정.
   const fallbackLine = live.filter(l => l.product_type === 'credit_line')
     .reduce((s, l) => s + monthlyInterestOf(l), 0)
