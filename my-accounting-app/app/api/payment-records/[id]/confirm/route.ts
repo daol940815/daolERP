@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { can } from '@/lib/permissions'
 import { confirmRecord, releaseRecord, type ConfirmSource } from '@/lib/payment-records'
+import { syncInvoicesForOrders } from '@/lib/link-sync'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,18 +19,28 @@ async function guard() {
   return { editor: { employeeId: me.employeeId, employeeName: me.employeeName } }
 }
 
+// 확정 · 해제로 주문 수금이 바뀌면, 그 주문에 연결된 계산서의 입금도 맞춘다 (1302 2단계)
+async function syncInvoicesOfRecord(admin: ReturnType<typeof createAdminClient>, recordId: string) {
+  const { data } = await admin.from('order_payment_record_orders').select('order_id').eq('record_id', recordId)
+  await syncInvoicesForOrders(admin, (data ?? []).map(r => r.order_id as string))
+}
+
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const g = await guard(); if ('res' in g) return g.res
   const body = await req.json().catch(() => ({})) as { sources?: ConfirmSource[] }
-  const r = await confirmRecord(createAdminClient(), params.id, body.sources ?? [], g.editor)
+  const admin = createAdminClient()
+  const r = await confirmRecord(admin, params.id, body.sources ?? [], g.editor)
   if ('error' in r) return NextResponse.json({ error: r.error }, { status: 400 })
+  await syncInvoicesOfRecord(admin, params.id)
   return NextResponse.json(r)
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const g = await guard(); if ('res' in g) return g.res
   const body = await req.json().catch(() => ({})) as { reason?: string }
-  const r = await releaseRecord(createAdminClient(), params.id, body.reason ?? '', g.editor)
+  const admin = createAdminClient()
+  const r = await releaseRecord(admin, params.id, body.reason ?? '', g.editor)
   if ('error' in r) return NextResponse.json({ error: r.error }, { status: 400 })
+  await syncInvoicesOfRecord(admin, params.id)
   return NextResponse.json(r)
 }

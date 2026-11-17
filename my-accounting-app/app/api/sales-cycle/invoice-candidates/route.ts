@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/user-role'
 import { syncRecordsForOrders } from '@/lib/payment-records'
 import { buildInvoiceLinkCandidates, isMissingOrderInvoiceTable } from '@/lib/order-invoice-match'
 import { loadBillingFamily } from '@/lib/billing'
-import { linkSyncReady, syncOrderMatchesFromInvoices } from '@/lib/link-sync'
+import { linkSyncReady, syncInvoicePaymentsFromOrders, syncOrderMatchesFromInvoices } from '@/lib/link-sync'
 import { can } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
@@ -87,6 +87,8 @@ export async function POST(req: NextRequest) {
   if (await linkSyncReady(admin)) {
     const r = await syncOrderMatchesFromInvoices(admin, links.map(l => l.taxInvoiceId), '계산서 연결')
     propagated = { count: r.created, amount: r.amount }
+    // 반대 방향 — 주문에 이미 직접 붙어 있던 통장 수금을 계산서 입금으로 넘긴다 (2단계)
+    await syncInvoicePaymentsFromOrders(admin, links.map(l => l.taxInvoiceId))
   } else {
     propagated = await propagatePayments(admin, links)
   }
@@ -112,6 +114,7 @@ export async function DELETE(req: NextRequest) {
   const { error } = await admin.from('erp_order_invoices').delete().eq('id', linkId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   const r = await syncOrderMatchesFromInvoices(admin, [link.tax_invoice_id as string], '계산서 연결 해제')
+  await syncInvoicePaymentsFromOrders(admin, [link.tax_invoice_id as string])   // 이 연결로 계산서에 넘어갔던 입금도 푼다 (2단계)
   return NextResponse.json({ ok: true, removed_matches: r.removed })
 }
 

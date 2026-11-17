@@ -62,11 +62,12 @@ export async function DELETE(
   const { id } = await params
   const body = await req.json().catch(() => ({})) as { paymentId?: string }
 
-  if (body.paymentId) await removeInvoicePayment(admin, id, body.paymentId)
-  else                 await clearInvoicePayments(admin, id)
+  // 주문 수금에서 넘어온 입금은 여기서 풀 수 없다 — 사유를 함께 돌려준다(data 는 최신 상태)
+  const r = body.paymentId ? await removeInvoicePayment(admin, id, body.paymentId) : await clearInvoicePayments(admin, id)
 
   const { data, error } = await admin.from('tax_invoices').select(TAX_INVOICE_SELECT).eq('id', id).single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  if (!r.ok) return NextResponse.json({ error: r.error, data }, { status: 409 })
   return NextResponse.json({ data })
 }

@@ -56,6 +56,8 @@ export interface TaxInvoice {
 
 export interface TaxInvoicePayment {
   id: string
+  // 주문에 붙인 수금에서 자동으로 넘어온 입금 (1302 2단계) — 계산서 내역에서는 지울 수 없다
+  from_order_sync?: boolean
   amount: number
   transaction_id: string
   created_at: string

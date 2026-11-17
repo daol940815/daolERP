@@ -208,10 +208,11 @@ function MatchPickerModal({
     })
     const json = await res.json()
     setRemovingId(null)
-    if (res.ok && json.data) {
+    if (json.data) {
       setCurrentInvoice(json.data)
       onMatched(json.data)
     }
+    if (!res.ok && json.error) alert(json.error)
   }
 
   const handleSaveAlias = async () => {
@@ -330,13 +331,20 @@ function MatchPickerModal({
                   </span>
                   <span className="flex items-center gap-2 shrink-0">
                     <span className="font-medium text-gray-900">{won(p.amount)}</span>
-                    <button
-                      onClick={() => handleRemovePayment(p.id)}
-                      disabled={removingId !== null}
-                      className="text-gray-400 hover:text-red-600 underline disabled:opacity-50"
-                    >
-                      {removingId === p.id ? '해제 중...' : '해제'}
-                    </button>
+                    {p.from_order_sync ? (
+                      <span className="px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 text-[0.625rem] whitespace-nowrap"
+                        title="주문에 붙인 수금에서 자동으로 넘어온 입금입니다. 결제 확인 또는 주문 쪽에서 그 수금을 풀면 함께 풀립니다.">
+                        주문 수금에서 넘어옴
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleRemovePayment(p.id)}
+                        disabled={removingId !== null}
+                        className="text-gray-400 hover:text-red-600 underline disabled:opacity-50"
+                      >
+                        {removingId === p.id ? '해제 중...' : '해제'}
+                      </button>
+                    )}
                   </span>
                 </div>
               ))}
@@ -785,7 +793,8 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
       body: JSON.stringify({}),
     })
     const json = await res.json()
-    if (res.ok && json.data) setInvoices(prev => prev.map(x => x.id === inv.id ? json.data : x))
+    if (json.data) setInvoices(prev => prev.map(x => x.id === inv.id ? json.data : x))
+    if (!res.ok && json.error) showMsg(json.error)
   }
 
   const toggleSelect = (id: string) => {
