@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { splitVat } from '@/lib/card-sale-vat'
+import { NOT_VOID_OR } from '@/lib/card-sale-status'
 
 // ── 월별 손익 "증빙 기준" 매출·매출원가 집계 (2026-11-03 사용자 결정: 기본 보기) ─────────────
 // 매출  = 매출 세금계산서(과세, 공급가액) + 매출 계산서(면세) + 카드매출(승인−취소, 공급가액) + 현금영수증 매출(승인−취소, 공급가액)
@@ -112,6 +113,7 @@ export async function buildEvidenceRevenue(
   type CardSale = { tx_date: string; transaction_type: string; amount: number | null; supply_amount: number | null; tax_amount: number | null }
   const csRes = await fetchAllRows<CardSale>((f, t) =>
     admin.from('card_sales').select('tx_date, transaction_type, amount, supply_amount, tax_amount')
+      .or(NOT_VOID_OR)   // 정산상태 중복해제 제외 (2026-11-17)
       .gte('tx_date', dateFrom).lte('tx_date', dateTo).range(f, t))
   if ('error' in csRes) return { error: csRes.error }
   for (const r of csRes.data) {

@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { netSalesOf } from '@/lib/receivable'
 import { cardNumberKey } from '@/lib/card-number'
+import { NOT_VOID_OR } from '@/lib/card-sale-status'
 import { syncRecordsForOrders } from '@/lib/payment-records'
 import type { Editor } from '@/lib/orders-portal'
 
@@ -155,7 +156,7 @@ export async function loadCollectCandidates(
   const csRes = await fetchAllRows<Cs>((f, t) => {
     let s = admin.from('card_sales')
       .select('id, tx_date, tx_time, approval_number, card_number, acquirer, amount, transaction_type, vendor_id, vendors(name)')
-      .eq('transaction_type', 'approval').order('tx_date', { ascending: false })
+      .eq('transaction_type', 'approval').or(NOT_VOID_OR).order('tx_date', { ascending: false })   // 중복해제 제외 (2026-11-17)
     if (scope === 'vendor') s = s.eq('vendor_id', order.vendor_id!)
     if (from) s = s.gte('tx_date', from)
     if (to) s = s.lte('tx_date', to)

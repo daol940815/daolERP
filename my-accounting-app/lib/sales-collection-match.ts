@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { NOT_VOID_OR } from '@/lib/card-sale-status'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { MATCH_RULES } from '@/lib/matching-rules'
 
@@ -154,7 +155,7 @@ export async function buildCollectionCandidates(
   const cardResult = await fetchAllRows<{ id: string; tx_date: string; tx_time: string | null; approval_number: string; card_number: string | null; acquirer: string | null; amount: number | null; transaction_type: string }>((f, t) =>
     admin.from('card_sales')
       .select('id, tx_date, tx_time, approval_number, card_number, acquirer, amount, transaction_type')
-      .eq('vendor_id', vendorId)
+      .eq('vendor_id', vendorId).or(NOT_VOID_OR)   // 중복해제 제외 (2026-11-17)
       .range(f, t))
   if ('error' in cardResult) return { error: cardResult.error }
 

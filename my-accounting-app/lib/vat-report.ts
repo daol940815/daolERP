@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { splitVat } from '@/lib/card-sale-vat'
+import { isCardSaleVoided } from '@/lib/card-sale-status'
 
 // ── 예상 부가세 ──────────────────────────────────────────
 // 세금계산서/현금영수증/카드매출/법인카드 자료를 바탕으로 기간 내 매출세액·매입세액을
@@ -35,14 +36,15 @@ const cardSaleVat = (amount: number | null, supply: number | null, tax: number |
   const v = splitVat(amount, supply, tax, vatKind ?? null)
   return { supply: v.supply, tax: v.tax, missing: v.kind === 'unknown' }
 }
-type CardSaleVatRow = { tx_date: string; amount: number | null; supply_amount: number | null; tax_amount: number | null; vat_kind?: string | null }
+type CardSaleVatRow = { tx_date: string; amount: number | null; supply_amount: number | null; tax_amount: number | null; vat_kind?: string | null; settlement_status?: string | null }
 // 427 미적용(vat_kind 열 없음)이면 열 없이 다시 읽는다
 async function fetchCardSalesForVat(admin: SupabaseClient, from: string, to: string) {
   const run = (cols: string) => fetchAllRows<CardSaleVatRow>((f, t) =>
     (admin.from('card_sales').select(cols as '*').gte('tx_date', from).lte('tx_date', to).range(f, t)) as unknown as PromiseLike<{ data: CardSaleVatRow[] | null; error: { message: string } | null }>)
-  const r = await run('tx_date, amount, supply_amount, tax_amount, vat_kind')
-  if ('error' in r && /vat_kind|schema cache/i.test(r.error)) return run('tx_date, amount, supply_amount, tax_amount')
-  return r
+  let r = await run('tx_date, amount, supply_amount, tax_amount, vat_kind, settlement_status')
+  if ('error' in r && /vat_kind|schema cache/i.test(r.error)) r = await run('tx_date, amount, supply_amount, tax_amount, settlement_status')
+  // 정산상태 '중복해제'(카드사 중복 승인 해제, 수금 없음)는 제외 (2026-11-17)
+  return 'error' in r ? r : { data: r.data.filter(x => !isCardSaleVoided(x)) }
 }
 
 function sumTax(rows: { tax_amount: number | null }[] | null): number {

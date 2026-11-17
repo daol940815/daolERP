@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { NOT_VOID_OR } from '@/lib/card-sale-status'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 // 입금 ↔ ERP 주문 건 단위 매칭 (마이그레이션 021: erp_payment_matches)
@@ -206,6 +207,7 @@ export async function loadMatchingState(
       .from('card_sales')
       .select('id, tx_date, tx_time, approval_number, card_number, acquirer, amount, transaction_type, vendor_id')
       .not('vendor_id', 'is', null)
+      .or(NOT_VOID_OR)   // 정산상태 중복해제(수금 없음) 제외 (2026-11-17)
       .order('tx_date', { ascending: false })
     if (from) cq = cq.gte('tx_date', from)
     if (to)   cq = cq.lte('tx_date', to)

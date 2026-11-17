@@ -4,6 +4,8 @@ import { kstToday, type Editor } from './orders-portal'
 import { loadReceivableMap } from './orders-portal-list'
 import { vendorOfOrder } from './prepay'
 import { loadBillingFamily } from './billing'
+// 정산상태 중복해제(카드사 중복 승인 해제, 수금 없음)는 후보에서 제외 (2026-11-17)
+import { NOT_VOID_OR } from '@/lib/card-sale-status'
 
 // ── 결제 기록 (1300, 2026-11-13 사용자 확정 — docs/payment-track.md · 시안 docs/mockups/결제처리_시안.html) ──
 // 1차: 영업지원이 주문 상세에서 결제를 기록한다(카드결제 / 계좌이체 / 계산서 발행). 미수는 그대로 — '확인 대기'.
@@ -525,7 +527,7 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
   const approvals = Array.from(new Set(cardRecs.map(r => r.approval_number).filter(Boolean))) as string[]
   const csByApproval = new Map<string, Cs[]>()
   for (const ch of chunk(approvals, 100)) {
-    const { data: cs } = await admin.from('card_sales').select('id, tx_date, approval_number, card_number, acquirer, amount, transaction_type').in('approval_number', ch)
+    const { data: cs } = await admin.from('card_sales').select('id, tx_date, approval_number, card_number, acquirer, amount, transaction_type').or(NOT_VOID_OR).in('approval_number', ch)
     for (const c of (cs ?? []) as Cs[]) { const l = csByApproval.get(c.approval_number) ?? []; l.push(c); csByApproval.set(c.approval_number, l) }
   }
   // 승인번호로 못 찾은 카드 기록 → 금액으로 보조 검색
@@ -535,13 +537,13 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
     const minDate = addDays(cardRecs.reduce((m, r) => (r.pay_date < m ? r.pay_date : m), today), -3)
     for (const ch of chunk(fallbackAmounts, 100)) {
       const { data: cs } = await admin.from('card_sales').select('id, tx_date, approval_number, card_number, acquirer, amount, transaction_type')
-        .eq('transaction_type', 'approval').in('amount', ch).gte('tx_date', minDate).limit(1000)
+        .eq('transaction_type', 'approval').or(NOT_VOID_OR).in('amount', ch).gte('tx_date', minDate).limit(1000)
       for (const c of (cs ?? []) as Cs[]) { const l = csByAmount.get(Number(c.amount)) ?? []; l.push(c); csByAmount.set(Number(c.amount), l) }
     }
     // 보조 후보의 취소 행 (순액 계산)
     const extraNos = Array.from(new Set(Array.from(csByAmount.values()).flat().map(c => c.approval_number))).filter(n => !csByApproval.has(n))
     for (const ch of chunk(extraNos, 100)) {
-      const { data: cs } = await admin.from('card_sales').select('id, tx_date, approval_number, card_number, acquirer, amount, transaction_type').in('approval_number', ch)
+      const { data: cs } = await admin.from('card_sales').select('id, tx_date, approval_number, card_number, acquirer, amount, transaction_type').or(NOT_VOID_OR).in('approval_number', ch)
       for (const c of (cs ?? []) as Cs[]) { const l = csByApproval.get(c.approval_number) ?? []; l.push(c); csByApproval.set(c.approval_number, l) }
     }
   }

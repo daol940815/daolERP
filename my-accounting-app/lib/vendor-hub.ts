@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { NOT_VOID_OR } from '@/lib/card-sale-status'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { computeOrderDeliveryStatus } from '@/lib/erp-delivery-status'
 import { contactLabel } from '@/lib/contact-label'
@@ -474,7 +475,7 @@ export async function buildHubDetail(
   const cardP = fetchAllRows<{ id: string; tx_date: string; amount: number | null; transaction_type: string | null; cancelled_at: string | null; acquirer: string | null; card_number: string | null; approval_number: string | null }>((f, t) =>
     admin.from('card_sales')
       .select('id, tx_date, amount, transaction_type, cancelled_at, acquirer, card_number, approval_number')
-      .eq('vendor_id', vendorId)
+      .eq('vendor_id', vendorId).or(NOT_VOID_OR)   // 중복해제 제외 (2026-11-17)
       .order('tx_date', { ascending: false })
       .range(f, t))
   const prepayP = aliasIds.length
