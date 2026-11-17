@@ -10,6 +10,7 @@
 //  - TEL·FAX 고정, 발주담당자·연락처는 발송 시점 로그인 직원 기준
 
 import { SHIP_KINDS, hasShip, type ShipInput } from './ship-address'
+import { shipBoxes } from './ship-boxes'
 import { rosterAddr, type RosterRowInput } from './delivery-roster'
 
 export const COMPANY_NAME = '다올커머스'
@@ -51,9 +52,11 @@ export interface PoExcelData {
     // 품목 구분 (2026-11-05): fee = 비용 품목(품목 마스터 '비용 품목' 체크 — 배송비 · 퀵비 · 설치비 등),
     // addon = 부가상품(쇼핑백 · 포장지 — 본 상품과 함께 감). 둘 다 자사 양식 배송명단에서 제외
     role?: 'fee' | 'addon' | null
-    // 택배비 줄 (2026-11-12): 품목 관리의 박스당 택배비(카톤택배비 > 0 이면 카톤, 0이면 카톤외)와
+    // 택배비 줄 (2026-11-12 · 11-17): 품목 관리의 카톤단위 · 카톤택배비 · 카톤외택배비와
     // 원 주문 품목의 실제 매입배송비(판매가 발주 요아럽은 스냅샷이 판매 배송비라 박스 수를 여기서 센다). null = 알 수 없음
-    ship_box_fee?: number | null
+    ship_carton_unit?: number | null
+    ship_carton_fee?: number | null
+    ship_loose_fee?: number | null
     ship_purchase?: number | null
   }[]
   // 판매가 발주 매입처(요아럽 — po_use_sale_price): 택배비 줄 단가 · 금액이 고객 택배비 기준
@@ -87,7 +90,8 @@ export const SHIPPING_ROW_LABEL = '택배비'
 
 // 택배비 줄 (2026-11-12 사용자 확정 — 자사 기본 발주서만, 업체 자체 발주서는 대상 아님):
 //  - 매입배송비가 있는 품목만 줄을 만든다(모든 업체). 합포장은 사람이 매입배송비를 0으로 고친다.
-//  - 박스 수 = 매입배송비 ÷ 박스당 택배비. 줄 = 박스 수 × 단가, 박스당 금액이 다르면 줄을 나눈다. 합계는 늘 저장값과 같다.
+//  - 박스 구성은 lib/ship-boxes.ts (2026-11-17): 매입배송비가 자동 계산값이면 수량으로 센다(카톤 2 × 4,000 / 낱개 1 × 3,500 — 두 줄),
+//    고친 값이면 박스당 택배비로 나눈다. 박스당 금액이 같은 줄은 합친다. 합계는 늘 저장값과 같다.
 //  - 나누어떨어지지 않으면 수량 · 단가를 비우고(금액은 그대로) 알림 — 사람이 엑셀을 고쳐 수정본으로 올린다.
 //  - 판매가 발주(요아럽): 조건 · 박스 수는 같고, 단가 · 금액만 고객 택배비(스냅샷) 기준 — 기본 0원이면 박스 수 × 0.
 export interface PoShipLine { qty: number | null; unit: number | null; amount: number }
@@ -106,8 +110,8 @@ export function poShippingLines(po: PoExcelData): { lines: PoShipLine[]; warning
   const name = (it: PoExcelData['items'][number]) => it.item_name || '품목'
   for (const it of po.items) {
     const stored = it.purchase_shipping ?? 0            // 발주 스냅샷 (판매가 발주면 고객 택배비)
-    const fee = it.ship_box_fee ?? 0
     const actual = po.sale_basis ? it.ship_purchase : stored   // 박스 수를 셀 실제 매입배송비
+    const fee = (it.ship_carton_fee ?? 0) > 0 ? (it.ship_carton_fee ?? 0) : (it.ship_loose_fee ?? 0)   // 알림 문구용 박스당 택배비
     if (actual == null) {
       // 원 주문 품목 연결이 끊겨 실제 매입배송비를 알 수 없음 — 저장된 값 그대로 한 줄(이전 방식)
       if (stored > 0) {
@@ -124,13 +128,21 @@ export function poShippingLines(po: PoExcelData): { lines: PoShipLine[]; warning
       }
       continue
     }
-    const boxes = fee > 0 && actual % fee === 0 ? actual / fee : null
-    if (boxes && stored % boxes === 0) { add(stored / boxes, boxes); continue }
+    const comp = shipBoxes({
+      quantity: it.quantity ?? 0, carton_unit: it.ship_carton_unit, carton_shipping_fee: it.ship_carton_fee,
+      loose_shipping_fee: it.ship_loose_fee, purchase_shipping: actual,
+    })
+    const boxes = comp.boxes
+    if (!po.sale_basis && boxes) {
+      for (const l of comp.lines) add(l.fee, l.qty)   // 매입 기준: 카톤 · 낱개 금액별 줄
+      continue
+    }
+    if (po.sale_basis && boxes && stored % boxes === 0) { add(stored / boxes, boxes); continue }   // 요아럽: 박스 수 × 고객 택배비 단가
     lines.push({ qty: null, unit: null, amount: stored })
     warnings.push(`택배비 수량 확인 필요 — ${name(it)}: ${
-      fee > 0
-        ? `매입배송비 ${w(actual)}원이 박스당 ${w(fee)}원으로 나누어떨어지지 않아`
-        : boxes ? `고객 택배비 ${w(stored)}원이 ${boxes}박스로 나누어떨어지지 않아` : '품목 관리에 박스당 택배비가 없어'
+      boxes
+        ? `고객 택배비 ${w(stored)}원이 ${boxes}박스로 나누어떨어지지 않아`
+        : fee > 0 ? `직접 고친 매입배송비 ${w(actual)}원이 박스당 ${w(fee)}원으로 나누어떨어지지 않아` : '품목 관리에 카톤 · 카톤외 택배비가 없어'
     } 수량 · 단가를 비웠습니다. 엑셀을 내려받아 고친 뒤 수정본으로 올려 주세요. 합계는 ${w(stored)}원 그대로입니다.`)
   }
   return { lines, warnings }

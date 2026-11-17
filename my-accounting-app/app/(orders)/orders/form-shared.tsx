@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { fmtPurchasePrice, purchaseAmount, toPurchasePrice } from '@/lib/purchase-price'
+import { shipBoxes } from '@/lib/ship-boxes'
 
 // 주문 입력·상담일지 폼 공용 부품 — 마스터 타입, 품목 행 모델, 가격 규칙, 자동완성 콤보.
 // 가격 규칙(구분별 자동)은 두 화면이 반드시 같아야 하므로 여기 한 곳에만 둔다.
@@ -124,22 +125,31 @@ export const cartonShipping = (unit: number, cartonFee: number, looseFee: number
 }
 
 // ── 고객 택배비 '택배비(판매)' (2026-11-12 사용자 확정, DB 변경 없음) ──
-//  박스당 택배비 = 카톤택배비 > 0 이면 카톤택배비, 0이면 카톤외택배비 (품목 관리 값)
-//  박스 수 = 매입배송비 ÷ 박스당 택배비 — 매입배송비가 있고 나누어떨어질 때만 (아니면 null)
+//  박스 수 (2026-11-17 확정, lib/ship-boxes.ts): 매입배송비가 자동 계산값 그대로면 수량으로 센다 — 꽉 찬 카톤 수 + 낱개 1박스.
+//  사람이 고친 매입배송비는 박스당 택배비(카톤택배비, 없으면 카톤외택배비)로 나누어떨어질 때만 (아니면 null)
 //  지점 품목만 입력: 박스 수가 있으면 박스당 단가 입력(합계 = 박스 수 × 단가), 없으면 받는 금액(합계) 그대로.
 //  저장은 기존 판매 배송비(shipping_fee)에 합계. 기본값 0원. 발주서 택배비 줄과 같은 규칙(lib/po-form.ts).
 export const boxFeeOf = (it: Pick<ItemDraft, 'carton_shipping_fee' | 'loose_shipping_fee'>) =>
   (it.carton_shipping_fee || 0) > 0 ? it.carton_shipping_fee : (it.loose_shipping_fee || 0)
-export function boxCountOf(it: Pick<ItemDraft, 'purchase_shipping' | 'carton_shipping_fee' | 'loose_shipping_fee'>): number | null {
-  const fee = boxFeeOf(it)
-  const ps = it.purchase_shipping || 0
-  if (ps <= 0 || fee <= 0 || ps % fee !== 0) return null
-  return ps / fee
+export function boxCountOf(it: Pick<ItemDraft, 'purchase_shipping' | 'carton_shipping_fee' | 'loose_shipping_fee' | 'carton_unit' | 'quantity'>): number | null {
+  return shipBoxes(it).boxes
+}
+// 칸 안내용 박스 구성 글 (2카톤 × 4,000 + 낱개 1 × 3,500)
+export function boxBreakdown(it: Pick<ItemDraft, 'purchase_shipping' | 'carton_shipping_fee' | 'loose_shipping_fee' | 'carton_unit' | 'quantity'>): string {
+  const r = shipBoxes(it)
+  if (!r.boxes) return ''
+  if (r.composed) {
+    const cartons = Math.floor((it.quantity || 0) / (it.carton_unit || 1))
+    const loose = r.boxes - cartons
+    return [cartons ? `${cartons}카톤 × ${won(it.carton_shipping_fee || 0)}` : '', loose ? `낱개 1 × ${won(it.loose_shipping_fee || 0)}` : '']
+      .filter(Boolean).join(' + ')
+  }
+  return `매입배송비 ${won(it.purchase_shipping || 0)} ÷ ${won(r.lines[0]?.fee ?? 0)}`
 }
 export const customerShipApplies = (it: Pick<ItemDraft, 'order_kind'>) => it.order_kind === '지점'
 
 // 저장값(합계)에서 화면 상태 복원 — 나누어떨어지면 박스당 단가, 아니면 합계 그대로(null)
-export function shipUnitFromTotal(it: Pick<ItemDraft, 'order_kind' | 'shipping_fee' | 'purchase_shipping' | 'carton_shipping_fee' | 'loose_shipping_fee'>): number | null {
+export function shipUnitFromTotal(it: Pick<ItemDraft, 'order_kind' | 'shipping_fee' | 'purchase_shipping' | 'carton_shipping_fee' | 'loose_shipping_fee' | 'carton_unit' | 'quantity'>): number | null {
   if (!customerShipApplies(it)) return null
   const boxes = boxCountOf(it)
   if (!boxes) return null
@@ -198,9 +208,9 @@ export function CustomerShipInput({ it, disabled, onChange, className }: {
       <NumInput value={shown ? won(shown) : ''} disabled={disabled}
         onChange={e => onChange(customerShipInput(it, toInt(e.target.value)))}
         title={boxes
-          ? `박스당 단가 입력 — 매입배송비 ${won(it.purchase_shipping)} ÷ 박스당 ${won(boxFeeOf(it))} = ${boxes}박스`
+          ? `박스당 단가 입력 — ${boxBreakdown(it)} = ${boxes}박스`
           : (it.purchase_shipping || 0) > 0
-            ? `받는 금액(합계)을 입력 — 매입배송비 ${won(it.purchase_shipping)}가 박스당 택배비${boxFeeOf(it) ? ` ${won(boxFeeOf(it))}` : '(품목 관리 값 없음)'}로 나누어떨어지지 않아 박스 수를 셀 수 없습니다`
+            ? `받는 금액(합계)을 입력 — 직접 고친 매입배송비 ${won(it.purchase_shipping)}가 박스당 택배비${boxFeeOf(it) ? ` ${won(boxFeeOf(it))}` : '(품목 관리 값 없음)'}로 나누어떨어지지 않아 박스 수를 셀 수 없습니다`
             : '받는 금액(합계)을 그대로 입력 — 매입배송비가 없어 박스 계산이 없습니다'}
         className={className} placeholder="0" />
       <div className={`text-[0.625rem] mt-0.5 tabular-nums whitespace-nowrap ${needCheck ? 'text-amber-600' : 'text-gray-400'}`}>
