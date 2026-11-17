@@ -32,7 +32,9 @@ export interface KpiFlags {
 export function matchCategory(f: VendorFlag, cat: KpiCategory): boolean {
   if (cat === 'new') return f.is_new
   if (cat === 'churn') return f.is_churn
-  if (cat === 't1' || cat === 't2' || cat === 't3' || cat === 't4') return f.tier === cat
+  // 주문 금액대는 주문이 있는 곳만 센다 (2026-11-17 사용자 결정) — 최근 2개년 순매출이 0이면 어느 금액대에도 넣지 않는다.
+  // (예전에는 주문 없는 곳이 전부 '100만 미만'으로 잡혔다)
+  if (cat === 't1' || cat === 't2' || cat === 't3' || cat === 't4') return f.tier === cat && f.total2y > 0
   return f.otype === cat
 }
 
@@ -123,7 +125,7 @@ export default function CustomerKpiTiles({ mode, flags, filter, onFilter }: {
 
         {/* 주문 금액대 */}
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <p className="text-xs text-gray-500">주문 금액대 <span className="text-gray-400">(최근 2개년 누적)</span></p>
+          <p className="text-xs text-gray-500">주문 금액대 <span className="text-gray-400">(최근 2개년 누적 · 주문 있는 {mode === 'vendor' ? '곳' : '고객'}만)</span></p>
           <div className="flex h-2 rounded-full overflow-hidden mt-2.5">
             {TIERS.map(t => (
               <div key={t.key} className={t.bar} style={{ width: `${(c.m[t.key] / tierSum) * 100}%` }} />
