@@ -1364,3 +1364,5 @@ ERP 주문은 계획대로 교체(erp-reload-track). 결정 대기.
   (`erp-order-collect`), 수금후보(`sales-collection-match`), 결제 확인 카드 후보(`payment-records`), 카드 주문 배분(`card-order-match` 거부),
   매출처 허브 카드 목록 · 매출 대조(`vendor-hub` · `vendor-reconciliation`), 매출 탭(배지 "중복해제 — 수금 없음", 승인 합계 · 주문 KPI에서 제외).
   기존 전기분 5건: 배포 뒤 매출 탭의 "분개 누락 … 중복해제 분개 취소 N건" 동기화 버튼(sync-journals 가 중복해제인데 전기된 건을 찾아 unpost)을 누르면 취소됨. 검증: 427 ② 식과 같은 방식으로 `settlement_status='중복해제'` 건의 journal_entries 존재 여부 = 0 기대.
+- **중복해제 검증(2026-11-17, 사용자)**: 배포 후 매출 탭 동기화 실행 → `settlement_status='중복해제'` 건의 journal_entries 0건 확인.
+  5건 3,188,200 분개 취소 완료. 카드매출 CPID · 중복해제 작업 종결. 남은 작업 목록: 거래처 미연결 PG 108건 연결(카드 내역 매출 탭).
