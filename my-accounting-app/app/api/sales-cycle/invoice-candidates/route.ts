@@ -6,6 +6,7 @@ import { buildInvoiceLinkCandidates, isMissingOrderInvoiceTable } from '@/lib/or
 import { loadBillingFamily } from '@/lib/billing'
 import { linkSyncReady, syncInvoicePaymentsFromOrders, syncOrderMatchesFromInvoices } from '@/lib/link-sync'
 import { can } from '@/lib/permissions'
+import { netSalesOf } from '@/lib/receivable'
 import { loadRecordedInvoiceVat, vatCompatible } from '@/lib/payment-kind-server'
 
 export const dynamic = 'force-dynamic'
@@ -121,7 +122,7 @@ export async function DELETE(req: NextRequest) {
 
 // ── 저장 전 재검사 ─────────────────────────────────────────────
 // 거부 사유를 한 문장으로 돌려준다(없으면 null). 검사: 주문 존재 · 취소 아님 / 매출 계산서(양수) / 같은 주문-계산서 중복 /
-// 주문 남은 금액(순매출 − 기연결) · 계산서 남은 금액(합계 − 기배분) 초과 /
+// 주문 남은 금액(순매출 − 기연결, 순매출은 품목 합) · 계산서 남은 금액(합계 − 기배분) 초과 /
 // 주문의 계산서 발행 기록에 적은 과세 구분과 계산서 종류가 다름(1304, 2026-11-18 — 구분이 다르면 연결하지 않는다).
 async function recheckLinks(
   admin: ReturnType<typeof createAdminClient>,
@@ -139,8 +140,8 @@ async function recheckLinks(
   }
   const chunk = <T,>(a: T[], n = 100) => Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, i * n + n))
 
-  const orders = new Map<string, { order_no: string | null; total: number; canceled: boolean }>()
-  const excluded = new Map<string, number>()
+  const orders = new Map<string, { order_no: string | null; canceled: boolean }>()
+  const netByOrder = new Map<string, number>()   // 순매출 = 제외(취소 · VIP · 선결제) 아닌 품목 합 — lib/receivable.ts 표준
   const invoices = new Map<string, { total: number; direction: string; issue_date: string; tax_type: string | null }>()
   const recVat = await loadRecordedInvoiceVat(admin, orderIds)
   const linkedByOrder = new Map<string, number>()
@@ -148,13 +149,16 @@ async function recheckLinks(
   const existing = new Set<string>()
   for (const ch of chunk(orderIds)) {
     const [o, it, ex] = await Promise.all([
-      admin.from('erp_orders').select('id, order_no, total_amount, canceled_at').in('id', ch),
-      admin.from('erp_order_items').select('order_id, line_total').in('order_id', ch).or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true'),
+      admin.from('erp_orders').select('id, order_no, canceled_at').in('id', ch),
+      admin.from('erp_order_items').select('order_id, line_total, is_canceled, is_vip, is_prepayment').in('order_id', ch),
       admin.from('erp_order_invoices').select('order_id, tax_invoice_id, amount').in('order_id', ch),
     ])
     if (o.error || it.error || ex.error) return (o.error ?? it.error ?? ex.error)!.message
-    for (const r of o.data ?? []) orders.set(r.id as string, { order_no: r.order_no as string | null, total: Number(r.total_amount ?? 0), canceled: !!r.canceled_at })
-    for (const r of it.data ?? []) excluded.set(r.order_id as string, (excluded.get(r.order_id as string) ?? 0) + Number(r.line_total ?? 0))
+    for (const r of o.data ?? []) orders.set(r.id as string, { order_no: r.order_no as string | null, canceled: !!r.canceled_at })
+    for (const r of it.data ?? []) {
+      if (r.is_canceled || r.is_vip || r.is_prepayment) continue
+      netByOrder.set(r.order_id as string, (netByOrder.get(r.order_id as string) ?? 0) + Number(r.line_total ?? 0))
+    }
     for (const r of ex.data ?? []) {
       linkedByOrder.set(r.order_id as string, (linkedByOrder.get(r.order_id as string) ?? 0) + Number(r.amount ?? 0))
       existing.add(`${r.order_id}:${r.tax_invoice_id}`)
@@ -187,7 +191,7 @@ async function recheckLinks(
   }
   for (const [id, add] of Array.from(addOrder)) {
     const o = orders.get(id)!
-    const left = o.total - (excluded.get(id) ?? 0) - (linkedByOrder.get(id) ?? 0)
+    const left = (netByOrder.get(id) ?? 0) - (linkedByOrder.get(id) ?? 0)
     if (add > left) return `주문 ${o.order_no ?? ''}의 계산서 미연결 금액은 ${won(Math.max(0, left))}입니다. ${won(add)}은 연결할 수 없습니다. (다른 사람이 먼저 연결했을 수 있습니다 — 화면을 새로 고쳐 주세요)`
   }
   for (const [id, add] of Array.from(addInvoice)) {
@@ -213,12 +217,10 @@ async function propagatePayments(
     const orderIds = Array.from(new Set(links.map(l => l.orderId)))
     const orderPayCap = new Map<string, number>()
     for (const oid of orderIds) {
-      const { data: ord } = await admin.from('erp_orders').select('total_amount').eq('id', oid).single()
       const { data: items } = await admin.from('erp_order_items')
-        .select('line_total')
+        .select('line_total, is_canceled, is_vip, is_prepayment')
         .eq('order_id', oid)
-        .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
-      const net = (ord?.total_amount ?? 0) - (items ?? []).reduce((s, r) => s + ((r.line_total as number) ?? 0), 0)
+      const net = netSalesOf(items ?? [])
       const { data: alloc } = await admin.from('erp_payment_matches').select('amount').eq('order_id', oid)
       orderPayCap.set(oid, net - (alloc ?? []).reduce((s, r) => s + (r.amount as number), 0))
     }
