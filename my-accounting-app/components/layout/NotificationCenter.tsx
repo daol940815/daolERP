@@ -129,6 +129,21 @@ export function NotificationBell({ data, seenAt, onSeen, live }: { data: NotifDa
                           </span>
                           <span className="text-[0.65625rem] text-gray-400 whitespace-nowrap pt-0.5">{timeLabel(i.at)}</span>
                         </Link>
+                        {i.subs && i.subs.length > 0 && (
+                          // 묶인 요청 펼침 (2026-11-18) — 각 줄을 누르면 그 요청 상세로
+                          <ul className="pl-[2.125rem] pr-4 pb-2 -mt-0.5 space-y-0.5">
+                            {i.subs.map(s => (
+                              <li key={s.id}>
+                                <Link href={s.href} onClick={() => setTab(null)} className="flex items-baseline gap-2 text-[0.6875rem] rounded px-1.5 py-0.5 -mx-1.5 hover:bg-gray-100">
+                                  <span className="text-gray-300">·</span>
+                                  <span className="truncate text-gray-700">{s.title}</span>
+                                  {s.detail && <span className="ml-auto shrink-0 text-gray-400 tabular-nums">{s.detail}</span>}
+                                </Link>
+                              </li>
+                            ))}
+                            {i.more ? <li><Link href={i.href} onClick={() => setTab(null)} className="text-[0.6875rem] text-gray-500 hover:text-gray-900 underline pl-3.5">외 {i.more}건 — 목록에서 보기</Link></li> : null}
+                          </ul>
+                        )}
                         {readable && (
                           <button onClick={() => rd.mark([i])} title="확인 — 다시 나오지 않습니다"
                             className="absolute right-3 bottom-1.5 px-1.5 py-0.5 rounded border border-gray-200 bg-white text-[0.625rem] text-gray-500 hover:text-gray-900 hover:border-gray-400">확인</button>

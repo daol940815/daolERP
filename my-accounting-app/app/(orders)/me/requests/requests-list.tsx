@@ -19,7 +19,10 @@ import { TagChip, NoTagChip, TagList } from '@/components/work-requests/tag-chip
 import { useNotifRefresh, requestNotifRefresh } from '@/lib/use-notif-refresh'
 import { HELP_QUESTION_PREFIX, HELP_PERMISSION_PREFIX } from '@/lib/help-registry'
 
-type Filter = 'all' | 'unread' | 'active' | 'due_today' | 'overdue' | 'reported' | 'rejected' | 'open' | 'personal' | 'shared'
+type Filter = 'all' | 'unread' | 'active' | 'due_today' | 'overdue' | 'reported' | 'rejected' | 'open'
+// 개인 · 공용(담당자 1명 / 여러 명)은 KPI 필터와 함께 걸 수 있게 따로 둔다 (2026-11-18 — 알림 '공용 요청 마감 지남' = 공용 + 마감 지남)
+type Kind = '' | 'personal' | 'shared'
+const kindOf = (v?: string): Kind => v === 'personal' || v === 'shared' ? v : ''
 
 interface Resp {
   linked: boolean
@@ -32,20 +35,29 @@ interface Resp {
   error?: string
 }
 const matchTag = (r: WrRow, id: string) => id === WR_TAG_NONE ? !(r.tag_ids?.length) : !!r.tag_ids?.includes(id)
-const FILTERS: Filter[] = ['all', 'unread', 'active', 'due_today', 'overdue', 'reported', 'rejected', 'open', 'personal', 'shared']
+const FILTERS: Filter[] = ['all', 'unread', 'active', 'due_today', 'overdue', 'reported', 'rejected', 'open']
+const filterOf = (v?: string): Filter => (FILTERS as string[]).includes(v ?? '') ? v as Filter : 'all'
 
-export default function RequestsList({ scope, month: monthProp, employee, initialFilter, initialTag }: { scope: WrScope; month?: string; employee?: string; initialFilter?: string; initialTag?: string }) {
+export default function RequestsList({ scope, month: monthProp, employee, initialFilter, initialKind, initialTag }: { scope: WrScope; month?: string; employee?: string; initialFilter?: string; initialKind?: string; initialTag?: string }) {
   const router = useRouter()
   const [data, setData] = useState<Resp | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [closed, setClosed] = useState(false)
   const [month, setMonth] = useState(() => monthProp && /^\d{4}-\d{2}$/.test(monthProp) ? monthProp : kstParts(new Date()).date.slice(0, 7))
-  const [filter, setFilter] = useState<Filter>(() => (FILTERS as string[]).includes(initialFilter ?? '') ? initialFilter as Filter : 'all')
+  const [filter, setFilter] = useState<Filter>(() => filterOf(initialFilter))
+  // ?kind= (옛 주소 ?filter=personal|shared 도 받는다)
+  const [kind, setKind] = useState<Kind>(() => kindOf(initialKind) || kindOf(initialFilter))
   const [search, setSearch] = useState('')
   const [statusF, setStatusF] = useState<'' | WrStatus>('')
   const [onlyQ, setOnlyQ] = useState(false)   // 도움말 질문 · 권한 요청만 ([질문] · [권한] 접두, 2026-11-03)
   // 업무 계열 태그 필터(904) — 여러 개 고르면 하나라도 해당하는 요청(또는). 'none' = 미분류. ?tag=<id> 로 들어오면 미리 선택(경영 현황 드릴다운)
   const [tagF, setTagF] = useState<string[]>(() => initialTag ? [initialTag] : [])
+  // 이 화면을 보고 있는 중에 알림을 눌러 주소만 바뀌어도 그 조건을 따른다 (2026-11-18 — 처음 열 때만 읽던 문제)
+  useEffect(() => {
+    setFilter(filterOf(initialFilter))
+    setKind(kindOf(initialKind) || kindOf(initialFilter))
+    setTagF(initialTag ? [initialTag] : [])
+  }, [initialFilter, initialKind, initialTag])
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
@@ -96,8 +108,8 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
     if (filter === 'reported' && !(scope === 'inbox' && my ? my.status === 'done_reported' && OPEN_STATUSES.includes(r.status) : r.status === 'done_reported')) return false
     if (filter === 'rejected' && r.status !== 'rejected') return false
     if (filter === 'open' && !OPEN_STATUSES.includes(r.status)) return false
-    if (filter === 'personal' && r.assignees.length > 1) return false   // 개인 요청 = 담당자 1명 (알림 종류 분리, 2026-11-04)
-    if (filter === 'shared' && r.assignees.length <= 1) return false     // 공용 요청 = 다수 담당(선착 · 공동)
+    if (kind === 'personal' && r.assignees.length > 1) return false   // 개인 요청 = 담당자 1명 (알림 종류 분리, 2026-11-04)
+    if (kind === 'shared' && r.assignees.length <= 1) return false     // 공용 요청 = 다수 담당(선착 · 공동)
     if (statusF && r.status !== statusF) return false
     if (onlyQ && !(r.title.startsWith(HELP_QUESTION_PREFIX) || r.title.startsWith(HELP_PERMISSION_PREFIX))) return false
     if (search.trim()) {
@@ -107,7 +119,7 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
     }
     return true
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [rows, filter, statusF, search, scope, meId, onlyQ])
+  }), [rows, filter, kind, statusF, search, scope, meId, onlyQ])
   const tags = useMemo(() => data?.tags ?? [], [data])
   const hasTags = tags.length > 0
   const visible = useMemo(() => !hasTags || !tagF.length ? base : base.filter(r => tagF.some(id => matchTag(r, id))), [base, tagF, hasTags])
@@ -188,17 +200,17 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
         ) : (
           <label className="text-xs text-gray-600 flex items-center gap-1"><input type="checkbox" checked={closed} onChange={e => setClosed(e.target.checked)} /> 완료 · 취소 포함 (최근 90일)</label>
         )}
-        {scope !== 'outbox' && rows.some(r => r.assignees.length > 1) && (
+        {scope !== 'outbox' && (kind || rows.some(r => r.assignees.length > 1)) && (
           <>
-            <button onClick={() => setFilter(f => f === 'personal' ? 'all' : 'personal')} className={`text-xs px-2.5 py-1 rounded-full border ${filter === 'personal' ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`} title="담당자가 나 혼자인 요청">개인 요청만</button>
-            <button onClick={() => setFilter(f => f === 'shared' ? 'all' : 'shared')} className={`text-xs px-2.5 py-1 rounded-full border ${filter === 'shared' ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`} title="여러 명이 담당인 요청(선착 · 공동)">공용 요청만</button>
+            <button onClick={() => setKind(k => k === 'personal' ? '' : 'personal')} className={`text-xs px-2.5 py-1 rounded-full border ${kind === 'personal' ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`} title="담당자가 나 혼자인 요청">개인 요청만</button>
+            <button onClick={() => setKind(k => k === 'shared' ? '' : 'shared')} className={`text-xs px-2.5 py-1 rounded-full border ${kind === 'shared' ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`} title="여러 명이 담당인 요청(선착 · 공동)">공용 요청만</button>
           </>
         )}
         {!hasTags && rows.some(r => r.title.startsWith(HELP_QUESTION_PREFIX) || r.title.startsWith(HELP_PERMISSION_PREFIX)) && (
           <button onClick={() => setOnlyQ(v => !v)} className={`text-xs px-2.5 py-1 rounded-full border ${onlyQ ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>질문 · 권한 요청만</button>
         )}
         {employee && <button onClick={clearEmployee} className="text-xs px-2.5 py-1 bg-slate-100 rounded-full text-slate-700">{empName} 관련만 보는 중 ✕</button>}
-        {(filter !== 'all' || statusF || search || onlyQ || tagF.length > 0) && <button onClick={() => { setFilter('all'); setStatusF(''); setSearch(''); setOnlyQ(false); setTagF([]) }} className="text-xs text-gray-500 underline">필터 해제</button>}
+        {(filter !== 'all' || kind || statusF || search || onlyQ || tagF.length > 0) && <button onClick={() => { setFilter('all'); setKind(''); setStatusF(''); setSearch(''); setOnlyQ(false); setTagF([]) }} className="text-xs text-gray-500 underline">필터 해제</button>}
         <span className="ml-auto text-xs text-gray-400">{visible.length.toLocaleString()}건{scope === 'all' && data.hiddenPrivate ? ` · 비공개 ${data.hiddenPrivate}건 제외` : ''}</span>
       </div>
       {hasTags && (

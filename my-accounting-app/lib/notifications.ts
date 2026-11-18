@@ -15,7 +15,12 @@ export interface NotifItem {
   count: number
   at: string | null      // 가장 최근 발생 시각 (확인함 판정·정렬)
   bucket?: NotifBucket   // 알림 칸 — 개인 · 공용 · 내 요청 · 기타 (2026-11-05, 종 버튼 세 칸 + 패널 탭)
+  subs?: NotifSub[]      // 요약 줄에 묶인 요청들 (2026-11-18 — 2건 이상일 때 최대 NOTIF_SUB_MAX 건, 누르면 그 요청 상세)
+  more?: number          // subs 밖에 남은 건수 ("외 N건")
 }
+// 요약 줄 아래에 펼쳐 보이는 개별 요청 — 공용 요청 마감 지남 2건이면 2건이 각각 보이게 (2026-11-18 사용자 지적: 숫자는 2인데 1건만 보임)
+export interface NotifSub { id: string; title: string; detail: string | null; href: string }
+export const NOTIF_SUB_MAX = 3
 
 // 종 숫자 나눔(2026-11-05 사용자 결정): 업무 요청 알림 종류와 같은 기준 — 개인 요청 · 공용 요청 · 내 요청 (+ 휴가 결재 · 주문 승인 = 기타)
 //  업무 요청은 "요청 건수"로 센다 — 미확인이면서 마감 지남인 1건은 1로 (중복 없음)
