@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>결제 기록 취소 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1180px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:30px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.65; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .lab { font-size:11px; font-weight:bold; color:#64748b; margin-bottom:8px; }
+  .chips { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+  .chip { border-radius:8px; padding:5px 11px; font-size:12.5px; color:#475569; background:#f1f5f9; }
+  .chip.on { background:#0f172a; color:#fff; }
+  .chip.nw { outline:2px solid #3b82f6; outline-offset:1px; }
+  .sep { width:1px; height:18px; background:#e2e8f0; margin:0 4px; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:920px; }
+  th { text-align:left; font-weight:normal; color:#64748b; font-size:11.5px; padding:8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; background:#f8fafc; }
+  td { padding:9px 8px; border-bottom:1px solid #f1f5f9; vertical-align:top; line-height:1.5; }
+  td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  td small { color:#94a3b8; display:block; font-size:11px; }
+  th.hl, td.hl { background:#eff6ff; }
+  .st { font-size:11px; font-weight:bold; padding:3px 8px; border-radius:999px; white-space:nowrap; }
+  .ok { background:#dcfce7; color:#166534; } .pt { background:#fef3c7; color:#92400e; } .no { background:#f1f5f9; color:#64748b; }
+  .btn { display:inline-block; border-radius:7px; padding:2px 8px; font-size:11px; border:1px solid #cbd5e1; background:#fff; color:#334155; white-space:nowrap; }
+  .btn.blue { border-color:#c7d2fe; background:#eef2ff; color:#4338ca; font-weight:bold; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; padding:5px 11px; font-size:12px; }
+  .ord { color:#0f172a; font-variant-numeric:tabular-nums; }
+  .mut { color:#94a3b8; } .am { color:#b45309; }
+  .tag { font-size:10.5px; font-weight:bold; padding:1px 6px; border-radius:4px; white-space:nowrap; }
+  .t-auto { background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; }
+  .note { background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:9px 12px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.75; }
+  .note b { color:#422006; }
+  .modal { border:1px solid #cbd5e1; border-radius:12px; background:#fff; box-shadow:0 12px 32px rgba(15,23,42,.18); overflow:hidden; }
+  .modal .mh { padding:12px 16px; font-weight:bold; border-bottom:1px solid #e2e8f0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .modal .mb { padding:14px 16px; }
+  .modal .mf { padding:10px 16px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:6px; background:#f8fafc; }
+  .seg { display:flex; gap:4px; margin-left:auto; }
+  .seg span { border:1px solid #cbd5e1; border-radius:7px; padding:3px 9px; font-size:11.5px; color:#475569; font-weight:normal; }
+  .seg span.on { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
+  .list { border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; }
+  .list .lh { background:#f8fafc; padding:7px 10px; font-size:11.5px; color:#64748b; border-bottom:1px solid #e2e8f0; }
+  .list .li { padding:7px 10px; border-bottom:1px solid #f1f5f9; font-size:12.5px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .list .li:last-child { border-bottom:none; }
+  .list .li .a { margin-left:auto; font-weight:bold; font-variant-numeric:tabular-nums; }
+  .list .li.sel { background:#eff6ff; }
+  .prev { margin-top:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 11px; font-size:12px; line-height:1.7; }
+
+  .fgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px 12px; margin-top:12px; }
+  .f label { display:block; font-size:11px; color:#64748b; margin-bottom:4px; }
+  .f .in { border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; font-size:12.5px; background:#fff; color:#0f172a; }
+  .f .in.ph { color:#94a3b8; }
+  .pick { display:flex; gap:5px; flex-wrap:wrap; }
+  .pick span { border:1px solid #cbd5e1; border-radius:8px; padding:6px 13px; font-size:12.5px; color:#475569; background:#fff; }
+  .pick span.on { background:#0f172a; color:#fff; border-color:#0f172a; font-weight:bold; }
+  .pick span.dis { background:#f1f5f9; color:#cbd5e1; border-color:#e2e8f0; }
+  .newbox { border:2px solid #3b82f6; border-radius:10px; padding:10px 12px; background:#eff6ff; margin-top:12px; }
+  .newbox .row { display:flex; gap:24px; flex-wrap:wrap; }
+  .req { color:#dc2626; }
+  .bad { background:#fee2e2; color:#991b1b; }
+  .t-warn { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+  .t-none { background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; }
+  .t-src { background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; }
+  .bd-card { background:#e0e7ff; color:#3730a3; } .bd-inv { background:#fae8ff; color:#86198f; } .bd-tr { background:#ccfbf1; color:#115e59; }
+
+
+  .hid { border:1px dashed #94a3b8; background:#f8fafc; border-radius:8px; padding:7px 11px; font-size:12px; color:#475569; margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .hid.new { border:2px solid #3b82f6; background:#eff6ff; }
+  .li.off { background:#f8fafc; color:#94a3b8; }
+  .kd { font-size:11px; padding:1px 7px; border-radius:999px; border:1px solid #cbd5e1; color:#475569; background:#fff; white-space:nowrap; }
+  .kd.tx { border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff; } .kd.ex { border-color:#fde68a; color:#92400e; background:#fffbeb; }
+
+
+  tr.cx td { background:#fff7ed; }
+  tr.dead td { color:#94a3b8; } tr.dead td.amt { text-decoration:line-through; }
+  .cn { background:#ffedd5; color:#9a3412; } .cw { background:#fef3c7; color:#92400e; } .cd { background:#e2e8f0; color:#475569; }
+  .tip { position:relative; display:inline-block; cursor:help; border-bottom:1px dotted #94a3b8; }
+  .tipbox { display:inline-block; margin-top:5px; background:#0f172a; color:#fff; border-radius:8px; padding:7px 10px; font-size:11.5px; line-height:1.6; font-weight:normal; white-space:normal; max-width:280px; }
+  .combo { border:1px solid #cbd5e1; border-radius:8px; background:#fff; overflow:hidden; max-width:360px; }
+  .combo .q { padding:7px 10px; border-bottom:1px solid #e2e8f0; font-size:12.5px; }
+  .combo .opt { padding:6px 10px; font-size:12.5px; color:#334155; }
+  .combo .opt.on { background:#eff6ff; color:#1d4ed8; font-weight:bold; }
+  .combo .opt mark { background:#fde68a; color:inherit; }
+  .neg { color:#b91c1c; }
+  .sub { padding-left:18px; position:relative; } .sub:before { content:"└"; position:absolute; left:4px; color:#94a3b8; }
+
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>결제 기록 취소 시안</h1>
+  <p class="desc">2026-11-18 · 취소 = 실제로 실행한 결제(카드 승인 · 계산서 발행 · 이체)를 되돌린 것. 삭제 = 잘못 적은 기록을 없애는 것. 취소는 기록을 지우지 않고 원 기록 아래에 "취소" 줄로 남기며, 2차에서 취소도 원본(카드 취소 행 · 취소 계산서 · 환불 출금)과 매칭합니다. 숫자와 이름은 예시입니다.</p>
+
+  <h2>1. 주문 상세 › 결제 기록 — 카드 취소 후 다른 카드로 재결제</h2>
+  <p class="desc">10만 원을 카드로 결제했다가 취소하고 다른 카드로 다시 결제한 경우입니다. 세 줄이 모두 남습니다.</p>
+  <div class="panel new">
+    <div class="scroll"><table>
+      <tr><th>결제일</th><th>수단</th><th>구분</th><th>대조 단서</th><th class="n">금액</th><th>상태</th><th></th></tr>
+      <tr class="dead"><td>11-18</td><td><span class="st bd-card">카드</span></td><td>수기 · 과세</td><td>승인 30157741 · 카드 뒤 4821</td><td class="n amt">100,000</td><td><span class="st cd tip">취소됨</span></td><td></td></tr>
+      <tr class="cx"><td class="sub">11-18</td><td><span class="st cn">취소</span></td><td></td><td>승인 30157741의 취소</td><td class="n neg">−100,000</td><td><span class="st ok tip">취소 매칭 완료</span><br><span class="tipbox">취소 사유: 결제 수단 변경(다른 카드 · 이체로)<br>김주연 대리 · 11-18 14:20<br>매칭: 오철준 대리 · 11-19 09:05</span></td><td></td></tr>
+      <tr><td>11-18</td><td><span class="st bd-card">카드</span></td><td>수기 · 과세</td><td>승인 30158802 · 카드 뒤 0917</td><td class="n">100,000</td><td><span class="st pt">매칭 대기</span></td><td><span class="btn">수정</span> <span class="btn">취소</span> <span class="btn">삭제</span></td></tr>
+    </table></div>
+    <div class="note">
+      <b>상태에 마우스를 올리면</b> 사유 · 처리한 사람 · 시각이 보입니다(위 검은 상자). 같은 내용은 기록을 펼친 이력에도 남습니다.<br>
+      <b>버튼</b>: 수정 · 삭제는 매칭 대기 기록에만, 취소는 매칭 대기 · 매칭 완료 기록 모두에 있습니다. 취소된 기록과 취소 줄은 잠깁니다(취소 줄을 잘못 남겼으면 그 줄을 삭제).
+    </div>
+  </div>
+
+  <h2>2. 취소 창</h2>
+  <div class="cols">
+    <div class="modal">
+      <div class="mh">결제 취소 기록 <span class="mut" style="font-weight:normal;font-size:12px">카드 11-18 · 승인 30157741 · 100,000원</span></div>
+      <div class="mb">
+        <div class="fgrid" style="margin-top:0">
+          <div class="f"><label>취소일 <span class="req">*</span></label><div class="in">2026-11-18</div></div>
+          <div class="f"><label>취소 금액 <span class="req">*</span></label><div class="in" style="text-align:right">100,000</div></div>
+        </div>
+        <div class="pick" style="margin-top:8px"><span class="on">전액 취소</span><span>부분 취소</span></div>
+        <div class="f" style="margin-top:12px"><label>취소 사유 <span class="req">*</span> — 글자를 치면 맞는 항목이 나옵니다</label>
+          <div class="combo">
+            <div class="q">카드</div>
+            <div class="opt on">결제 수단 변경(다른 <mark>카드</mark> · 이체로)</div>
+            <div class="opt">중복 결제(<mark>카드</mark> 두 번 승인)</div>
+            <div class="opt">기타 — 직접 입력</div>
+          </div>
+        </div>
+        <div class="note">실제로 카드 승인을 취소한 경우에만 남깁니다. 기록을 잘못 적은 것이면 "삭제"를 쓰세요. 취소만으로는 미수가 바뀌지 않고, 회계가 카드 매출의 취소 내역과 매칭하면 바뀝니다.</div>
+      </div>
+      <div class="mf"><span class="btn">닫기</span><span class="btn pri">취소 기록 저장</span></div>
+    </div>
+    <div class="panel">
+      <div class="lab">"기타"를 고르면</div>
+      <div class="f"><label>사유 직접 입력 <span class="req">*</span></label><div class="in ph">예: 고객사 내부 결재 반려로 전액 취소</div></div>
+      <div class="lab" style="margin-top:16px">부분 취소</div>
+      <div class="prev" style="margin-top:0">취소 금액을 직접 적습니다(남은 금액 이하). 한 기록에 여러 번 남길 수 있고, 원 기록은 "부분 취소(남은 70,000)"로 보입니다. 전부 취소되면 "취소됨".</div>
+      <div class="lab" style="margin-top:16px">삭제 · 수정 창</div>
+      <div class="prev" style="margin-top:0">같은 방식의 사유 칸이 붙습니다. 삭제 = "잘못 입력(다른 주문) · 중복 입력 · 금액 오기재 · 수단 오기재 · 테스트 입력 · 기타". 수정 = "금액 오기재 · 승인번호 · 입금자 오타 · 결제일 오기재 · 수단 · 구분 오기재 · 주문 배분 변경 · 기타".</div>
+    </div>
+  </div>
+
+  <h2>3. 계산서 — 발행 후 취소 (재발행 없음)</h2>
+  <p class="desc">취소 계산서까지만 매칭됩니다. 원 계산서에 입금이 붙어 있었다면 자동으로 풀리고 미수가 생깁니다. 재발행 대기 같은 표시는 두지 않습니다. 계산서 두 장은 주문에 연결된 채로 남습니다.</p>
+  <div class="panel new">
+    <div class="scroll"><table>
+      <tr><th>발행일</th><th>수단</th><th>구분</th><th>연결된 홈택스 계산서</th><th class="n">금액</th><th>상태</th></tr>
+      <tr class="dead"><td>11-10</td><td><span class="st bd-inv">계산서</span></td><td>과세</td><td>11-10 세금계산서 1,000,000</td><td class="n amt">1,000,000</td><td><span class="st cd tip">취소됨</span></td></tr>
+      <tr class="cx"><td class="sub">11-17</td><td><span class="st cn">취소</span></td><td></td><td>11-17 취소 계산서 −1,000,000</td><td class="n neg">−1,000,000</td><td><span class="st ok tip">취소 매칭 완료</span></td></tr>
+    </table></div>
+    <div class="prev">
+      <b>취소 계산서를 매칭한 순간</b> — 원 계산서에 붙어 있던 통장 입금 1,000,000원이 자동으로 풀립니다. 계산서를 거쳐 넘어와 있던 주문 수금도 함께 풀려 <b>주문 미수 1,000,000원</b>이 됩니다. 풀린 입금은 미연결 입금으로 돌아갑니다.
+    </div>
+  </div>
+
+  <h2>4. 계산서 — 오발행 · 취소 · 재발행</h2>
+  <p class="desc">재발행 계산서를 매칭하면, 회계가 그 계산서에 입금을 따로 붙입니다. 그때 주문 수금으로 다시 넘어갑니다.</p>
+  <div class="panel">
+    <div class="scroll"><table>
+      <tr><th>발행일</th><th>수단</th><th>구분</th><th>연결된 홈택스 계산서</th><th class="n">금액</th><th>상태</th></tr>
+      <tr class="dead"><td>11-10</td><td><span class="st bd-inv">계산서</span></td><td>과세</td><td>11-10 세금계산서 1,000,000</td><td class="n amt">1,000,000</td><td><span class="st cd">취소됨</span></td></tr>
+      <tr class="cx"><td class="sub">11-17</td><td><span class="st cn">취소</span></td><td></td><td>11-17 취소 계산서 −1,000,000</td><td class="n neg">−1,000,000</td><td><span class="st ok">취소 매칭 완료</span></td></tr>
+      <tr><td>11-17</td><td><span class="st bd-inv">계산서</span></td><td>면세</td><td>11-17 계산서 1,000,000</td><td class="n">1,000,000</td><td><span class="st ok">매칭 완료</span></td></tr>
+      <tr><td colspan="4" style="text-align:right;color:#64748b">이 주문에 연결된 계산서 합계 (3장)</td><td class="n"><b>1,000,000</b></td><td></td></tr>
+    </table></div>
+  </div>
+
+  <h2>5. 결제 확인 › 매칭 대기 — 취소 기록도 대조</h2>
+  <p class="desc">취소 기록이 한 줄로 올라오고, 수단에 맞는 원본에서 후보를 찾습니다. 확정은 사람이 누릅니다.</p>
+  <div class="panel new">
+    <div class="scroll"><table>
+      <tr><th>기록</th><th>수단</th><th class="n">금액</th><th>후보 원본</th><th>판정</th><th></th></tr>
+      <tr><td><span class="ord">D261118-014</span><small>승인 30157741의 취소 · 11-18</small></td><td><span class="st cn">카드 취소</span></td><td class="n neg">−100,000</td><td>카드 매출 취소 11-18 · 승인 30157741 · −100,000</td><td><span class="st ok">승인번호 일치</span></td><td><span class="btn pri">취소 확정</span></td></tr>
+      <tr><td><span class="ord">D261110-007</span><small>11-10 계산서의 취소 · 11-17</small></td><td><span class="st cn">계산서 취소</span></td><td class="n neg">−1,000,000</td><td>취소 계산서 11-17 · 농협은행 수원지점 · −1,000,000</td><td><span class="st ok">원 계산서와 짝</span></td><td><span class="btn pri">취소 확정</span></td></tr>
+      <tr><td><span class="ord">D261112-020</span><small>11-12 이체의 환불 · 11-18</small></td><td><span class="st cn">이체 환불</span></td><td class="n neg">−80,000</td><td>통장 출금 11-18 · 김다올 · 80,000</td><td><span class="st no">금액 일치</span></td><td><span class="btn pri">취소 확정</span></td></tr>
+      <tr><td><span class="ord">D261116-003</span><small>승인 41870026의 취소 · 11-17</small></td><td><span class="st cn">카드 취소</span></td><td class="n neg">−230,000</td><td class="mut">후보 없음 — 카드 매출에 취소 내역이 아직 없음</td><td><span class="st pt">취소 대기</span></td><td></td></tr>
+    </table></div>
+    <div class="note">
+      <b>확정하면</b> — 카드: 그 승인의 수금 매칭이 취소 금액만큼 줄어듭니다. 계산서: 취소 계산서가 주문에 연결되고 원 계산서의 입금이 풀립니다. 이체: 입금은 그대로 두고 환불 출금이 마이너스로 붙습니다(입금 +80,000 · 환불 −80,000).<br>
+      <b>반대 경우</b> — 직원이 취소를 남기지 않았는데 원본에 취소가 올라오면 "원본이 취소됨 — 취소 기록 필요"로 알립니다. 시스템이 대신 취소하지는 않습니다.
+    </div>
+  </div>
+
+  <h2>6. 아직 정하지 않으셔서 제가 가정한 것</h2>
+  <div class="panel">
+    <div class="prev" style="margin-top:0">
+      <b>① 계좌이체 환불</b> — 통장 출금에 매칭합니다(5번 표 셋째 줄). 카드 · 계산서를 먼저 넣고 이어서 넣습니다. 그 전까지 이체 취소 기록은 "취소 대기"로 남습니다.<br>
+      <b>② 수정 사유</b> — 금액 · 수단 · 승인번호 · 주문 배분 · 구분을 바꿀 때만 필수, 메모만 고칠 때는 받지 않습니다.<br>
+      <b>③ 사유 항목</b> — 2번에 적은 초안. 취소 = 고객 요청 · 결제 수단 변경 · 금액 변경 후 재결제 · 주문 취소 · 반품 · 중복 결제 · 과세 · 면세 창구 오류 · 계산서 정정 발행 · 기타.<br>
+      <b>④ 입금이 풀리는 시점</b> — 2차에서 취소 계산서를 "취소 확정"한 순간. 홈택스 파일에 올라온 것만으로는 풀지 않습니다.<br>
+      <b>⑤ 주문내역 목록</b> — 결제 상태 단계 5개는 그대로. 취소된 금액은 기록 금액 · 매칭 금액에서 빠집니다(전액 취소되면 "미결제"로 돌아감).
+    </div>
+  </div>
+</div>
+</body>
+</html>
