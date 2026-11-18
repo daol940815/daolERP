@@ -43,21 +43,24 @@ export async function GET(req: NextRequest) {
   if ('error' in ordersResult) return NextResponse.json({ error: ordersResult.error }, { status: 500 })
   const orders = ordersResult.data.filter(o => aliasToVendor.has(o.customer_alias_id as string))
 
-  // 순매출 보정 (취소/VIP/선결제 품목 차감)
-  // 주의: 주문 ID를 .in()으로 URL에 싣지 않는다 — ID 500개면 URL이 18KB를 넘어
-  // 경로에 따라 연결이 끊기며 'fetch failed'가 난다. 해당 품목은 전체가 수천 행
-  // 수준이라 짧은 URL로 전부 읽고 메모리에서 거르는 쪽이 안전하고 빠르다.
-  const orderIdSet = new Set(orders.map(o => o.id))
-  const excluded = new Map<string, number>()
-  const flaggedResult = await fetchAllRows<{ order_id: string; line_total: number | null }>((f, t) =>
-    admin.from('erp_order_items')
-      .select('order_id, line_total')
-      .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
-      .range(f, t))
-  if ('error' in flaggedResult) return NextResponse.json({ error: flaggedResult.error }, { status: 500 })
-  for (const it of flaggedResult.data) {
-    if (!orderIdSet.has(it.order_id)) continue
-    excluded.set(it.order_id, (excluded.get(it.order_id) ?? 0) + (it.line_total ?? 0))
+  // 순매출 = 취소/VIP/선결제가 아닌 품목 합 (lib/receivable.ts 표준, 2026-11-18)
+  //   '총액 − 제외 품목'은 수정한 직접 입력 주문에서 취소 행을 두 번 빼므로 쓰지 않는다.
+  // 주의: 주문 ID를 한 번에 .in()으로 싣지 않는다 — ID 500개면 URL이 18KB를 넘어
+  // 'fetch failed'가 난다. 150개씩 나눠 조회한다(약 5.6KB).
+  const orderIds = orders.map(o => o.id)
+  const netByOrder = new Map<string, number>()
+  for (let i = 0; i < orderIds.length; i += 150) {
+    const ch = orderIds.slice(i, i + 150)
+    const itemsResult = await fetchAllRows<{ order_id: string; line_total: number | null; is_canceled: boolean | null; is_vip: boolean | null; is_prepayment: boolean | null }>((f, t) =>
+      admin.from('erp_order_items')
+        .select('order_id, line_total, is_canceled, is_vip, is_prepayment')
+        .in('order_id', ch)
+        .range(f, t))
+    if ('error' in itemsResult) return NextResponse.json({ error: itemsResult.error }, { status: 500 })
+    for (const it of itemsResult.data) {
+      if (it.is_canceled || it.is_vip || it.is_prepayment) continue
+      netByOrder.set(it.order_id, (netByOrder.get(it.order_id) ?? 0) + (it.line_total ?? 0))
+    }
   }
 
   const matchesResult = await fetchAllRows<{ order_id: string; amount: number }>((f, t) =>
@@ -117,7 +120,7 @@ export async function GET(req: NextRequest) {
 
   for (const o of orders) {
     const vid = aliasToVendor.get(o.customer_alias_id as string)!
-    const net = (o.total_amount ?? 0) - (excluded.get(o.id) ?? 0)
+    const net = netByOrder.get(o.id) ?? 0
     const alloc = Math.min(allocByOrder.get(o.id) ?? 0, net)
     const r = row(vid)
     r.order_count++

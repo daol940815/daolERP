@@ -139,18 +139,22 @@ export async function buildInvoiceLinkCandidates(
     orderRows.push(...r.data)
   }
 
-  // 순매출 = 총액 - 취소/VIP/선결제 품목
+  // 순매출 = 취소 · VIP · 선결제가 아닌 품목 합 (lib/receivable.ts 표준, 2026-11-18)
+  //   '총액 − 제외 품목'은 쓰지 않는다 — 직접 입력 주문은 수정할 때 바뀐 품목을 취소 행으로 남기고 총액에서는 이미 빼므로
+  //   취소 행을 한 번 더 빼면 순매출이 0 이하가 되어 미연결 목록에서 사라졌다(기프트 광개토 사례).
   const orderIds = orderRows.map(o => o.id)
-  const excluded = new Map<string, number>()
+  const netByOrder = new Map<string, number>()
   for (let i = 0; i < orderIds.length; i += 100) {
-    const r = await fetchAllRows<{ order_id: string; line_total: number | null }>((f, t) =>
+    const r = await fetchAllRows<{ order_id: string; line_total: number | null; is_canceled: boolean | null; is_vip: boolean | null; is_prepayment: boolean | null }>((f, t) =>
       admin.from('erp_order_items')
-        .select('order_id, line_total')
+        .select('order_id, line_total, is_canceled, is_vip, is_prepayment')
         .in('order_id', orderIds.slice(i, i + 100))
-        .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
         .range(f, t))
     if ('error' in r) return { error: r.error }
-    for (const it of r.data) excluded.set(it.order_id, (excluded.get(it.order_id) ?? 0) + (it.line_total ?? 0))
+    for (const it of r.data) {
+      if (it.is_canceled || it.is_vip || it.is_prepayment) continue
+      netByOrder.set(it.order_id, (netByOrder.get(it.order_id) ?? 0) + (it.line_total ?? 0))
+    }
   }
 
   // 매출 계산서 (양수, 취소쌍 제외) — 부서면 자기 것 + 청구처 법인 것
@@ -195,7 +199,7 @@ export async function buildInvoiceLinkCandidates(
   const recVat = await loadRecordedInvoiceVat(admin, orderIds)
   const orders: LinkOrder[] = orderRows
     .map(o => {
-      const net = (o.total_amount ?? 0) - (excluded.get(o.id) ?? 0)
+      const net = netByOrder.get(o.id) ?? 0
       const ov = o.customer_alias_id ? aliasVendor.get(o.customer_alias_id) : undefined
       return {
         id: o.id, order_no: o.order_no, order_date: o.order_date, net_amount: net, remaining: net - (allocByOrder.get(o.id) ?? 0),

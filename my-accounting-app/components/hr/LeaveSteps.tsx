@@ -8,7 +8,7 @@ import {
 // 휴가 결재 진행 칸 — 1차 · 2차 · 3차 (204). 휴가 목록 · 내 근태가 같이 쓴다.
 // 이력이 없는 승인 건은 3단계 결재 도입 전 승인(기존 방식)으로 표시한다.
 
-export default function LeaveSteps({ steps, status, myTurn, roster, applicantId, decidedByName, stepsReady }: {
+export default function LeaveSteps({ steps, status, myTurn, roster, applicantId, decidedByName, stepsReady, source }: {
   steps: LeaveStep[]
   status: string
   myTurn?: boolean
@@ -16,7 +16,16 @@ export default function LeaveSteps({ steps, status, myTurn, roster, applicantId,
   applicantId?: string
   decidedByName?: string | null
   stepsReady: boolean
+  source?: string | null      // 207: excel 엑셀 이관 · proxy 인사·총무 대리 등록 — 결재 단계 없이 승인된 건
 }) {
+  if (source === 'excel' || source === 'proxy') {
+    return (
+      <span className={`inline-block rounded-md border text-[0.65625rem] px-1.5 py-0.5 ${source === 'excel' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-sky-200 bg-sky-50 text-sky-800'}`}>
+        {source === 'excel' ? '엑셀 이관' : `대리 등록${decidedByName ? ` · ${decidedByName}` : ''}`}
+        {status === 'canceled' ? ' (취소)' : ''}
+      </span>
+    )
+  }
   if (!stepsReady || (!steps.length && status !== 'requested')) {
     if (status === 'requested') return <span className="text-[0.6875rem] text-amber-700">승인 대기</span>
     if (status === 'canceled' && !steps.length) return <span className="text-[0.6875rem] text-gray-400">-</span>

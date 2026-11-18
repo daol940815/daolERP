@@ -11,6 +11,8 @@ import {
 } from '@/lib/leave-approval'
 import { levelPeople, loadApprovalCtx, loadSteps, turnPeople } from '@/lib/leave-approval.server'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { computeBalance } from '@/lib/leave-balance'
+import { loadBalanceData } from '@/lib/leave-balance.server'
 import { sendPush, approverIds } from '@/lib/push-server'
 
 export const dynamic = 'force-dynamic'
@@ -30,11 +32,13 @@ export const dynamic = 'force-dynamic'
 //   cancel  { id, note? } — 본인의 진행 중 건 취소. 승인된 건은 인사·총무 수정 권한자만, 사유 필수
 //     (2026-10-12 결정, 지난 날짜도 허용).
 //   본인 건은 누구도 본인이 결재하지 못한다.
+//   proxy_register { employee_id, leave_type, start_date, end_date, reason? } — 인사·총무 수정 권한자의 대리 등록(207).
+//     로그인 계정이 없는 직원(다른 법인 등)용. 3단계 결재를 건너뛰고 바로 승인, 등록자를 남긴다(2026-11-18 결정 A).
 // 204 미적용이면 기존 1단계 승인(중간 관리자 · 승인권자)으로 동작한다.
 
 const MIGRATION_HINT = '200 마이그레이션(근태)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
 const missingTable = (msg: string) => /attendance_|relation .* does not exist/i.test(msg)
-const LEAVE_TYPES: LeaveType[] = ['annual', 'half_am', 'half_pm', 'sick', 'official', 'other']
+const LEAVE_TYPES: LeaveType[] = ['annual', 'half_am', 'half_pm', 'sick', 'official', 'unpaid', 'other']
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 const LEAVE_COLS = 'id, employee_id, leave_type, start_date, end_date, reason, status, decided_by, decided_at, decide_note, created_at'
@@ -67,8 +71,9 @@ export async function GET(req: NextRequest) {
   const from = DATE_RE.test(sp.get('from') ?? '') ? sp.get('from') : null
   const to = DATE_RE.test(sp.get('to') ?? '') ? sp.get('to') : null
 
-  const fetched = await fetchAllRows<Row>((a, b) => {
-    let q = admin.from('attendance_leaves').select(LEAVE_COLS)
+  // 출처(source, 207) 포함 조회 — 207 미적용이면 출처 없이 다시 읽는다
+  const fetchWith = (cols: string) => fetchAllRows<Row>((a, b) => {
+    let q = admin.from('attendance_leaves').select(cols)
       .order('created_at', { ascending: false }).range(a, b)
     if (scope === 'self') q = q.eq('employee_id', employeeId)
     if (status) q = q.eq('status', status)
@@ -76,6 +81,8 @@ export async function GET(req: NextRequest) {
     if (to) q = q.lte('start_date', to)
     return q as unknown as PromiseLike<PgRes>
   })
+  let fetched = await fetchWith(`${LEAVE_COLS}, source`)
+  if ('error' in fetched && /source/.test(fetched.error)) fetched = await fetchWith(LEAVE_COLS)
   if ('error' in fetched) {
     return NextResponse.json({ error: missingTable(fetched.error) ? MIGRATION_HINT : fetched.error }, { status: 500 })
   }
@@ -113,6 +120,20 @@ export async function GET(req: NextRequest) {
   }
   const holidays = await loadHolidays(admin, hFrom, hTo)
 
+  // 진행 중 신청의 신청자 잔여(207) — 결재 권한자 · 인사·총무 · 본인에게 행 펼침에서 보여준다
+  const balYear = Number(kstToday().slice(0, 4))
+  const pendingApplicants = Array.from(new Set(base.filter(l => l.status === 'requested').map(l => l.employee_id as string)))
+  const balMap = new Map<string, ReturnType<typeof computeBalance> & { managed: boolean }>()
+  if (pendingApplicants.length) {
+    const bd = await loadBalanceData(admin, balYear, pendingApplicants)
+    if (bd.ready) {
+      for (const id of pendingApplicants) {
+        const g = bd.grants.filter(x => x.employee_id === id)
+        balMap.set(id, { ...computeBalance({ year: balYear, grants: g, leaves: bd.leaves.filter(x => x.employee_id === id), holidays: bd.holidays }), managed: g.some(x => x.status === 'active') })
+      }
+    }
+  }
+
   const leaves = base.map(l => {
     const id = l.id as string
     const mine = l.employee_id === employeeId
@@ -135,6 +156,7 @@ export async function GET(req: NextRequest) {
       days: leaveDays(l as unknown as AttendanceLeave, undefined, undefined, holidays),
       steps: canSee ? steps : steps.map(s => ({ ...s, note: null })),
       current_step: appr.ready && st === 'requested' ? currentStep(steps) : null,
+      applicant_balance: canSee && st === 'requested' ? (balMap.get(l.employee_id as string) ?? null) : null,
       actions: {
         ...acts,
         cancel: mine && st === 'requested',
@@ -206,7 +228,10 @@ export async function POST(req: NextRequest) {
       start_date: start, end_date: end,
       reason: str('reason').trim() || null,
     }).select('id').single()
-    if (error || !ins) return NextResponse.json({ error: error?.message ?? '신청 실패' }, { status: 500 })
+    if (error || !ins) {
+      const typeMissing = !!error && /leave_type_check/i.test(error.message) && leaveType === 'unpaid'
+      return NextResponse.json({ error: typeMissing ? '무급휴가는 206 마이그레이션 실행 후 신청할 수 있습니다. 인사 · 총무에 알려주세요.' : (error?.message ?? '신청 실패') }, { status: typeMissing ? 400 : 500 })
+    }
     const leaveId = ins.id as string
     const what = `${LEAVE_TYPE_LABEL[leaveType] ?? leaveType} ${periodText(start, end)} · ${days}일`
 
@@ -258,6 +283,39 @@ export async function POST(req: NextRequest) {
       })
     }
     return NextResponse.json({ ok: true })
+  }
+
+  if (action === 'proxy_register') {
+    if (!isHrAdmin(me)) {
+      return NextResponse.json({ error: '휴가 대리 등록은 인사 · 총무 수정 권한이 필요합니다. 권한은 마스터 계정에 요청하세요.' }, { status: 403 })
+    }
+    const target = str('employee_id')
+    const leaveType = str('leave_type') as LeaveType
+    const start = str('start_date')
+    const end = str('end_date') || start
+    if (!target) return NextResponse.json({ error: '직원을 고르세요.' }, { status: 400 })
+    if (!LEAVE_TYPES.includes(leaveType)) return NextResponse.json({ error: '휴가 종류가 올바르지 않습니다.' }, { status: 400 })
+    if (!DATE_RE.test(start) || !DATE_RE.test(end)) return NextResponse.json({ error: '날짜 형식은 YYYY-MM-DD' }, { status: 400 })
+    if (end < start) return NextResponse.json({ error: '종료일이 시작일보다 빠릅니다.' }, { status: 400 })
+    if (HALF_DAY_TYPES.includes(leaveType) && start !== end) return NextResponse.json({ error: '반차는 하루만 선택할 수 있습니다.' }, { status: 400 })
+    const days = leaveDays({ start_date: start, end_date: end, leave_type: leaveType } as AttendanceLeave,
+      undefined, undefined, await loadHolidays(admin, start, end))
+    if (days === 0) return NextResponse.json({ error: '선택한 기간에 근무일이 없습니다. 주말과 공휴일은 휴가 일수에서 제외됩니다.' }, { status: 400 })
+    const { data: overlap } = await admin.from('attendance_leaves').select('start_date, end_date')
+      .eq('employee_id', target).in('status', ['requested', 'approved']).lte('start_date', end).gte('end_date', start).limit(1)
+    if (overlap?.length) {
+      return NextResponse.json({ error: `해당 기간에 이미 신청 · 승인된 휴가가 있습니다 (${overlap[0].start_date}~${overlap[0].end_date}).` }, { status: 400 })
+    }
+    const { error } = await admin.from('attendance_leaves').insert({
+      employee_id: target, leave_type: leaveType, start_date: start, end_date: end,
+      reason: str('reason').trim() || null, status: 'approved',
+      decided_by: employeeId, decided_at: now, source: 'proxy', created_by: employeeId,
+    })
+    if (error) {
+      const notReady = /source|created_by|leave_type_check/i.test(error.message)
+      return NextResponse.json({ error: notReady ? '대리 등록은 207 마이그레이션 실행 후 사용할 수 있습니다.' : error.message }, { status: notReady ? 400 : 500 })
+    }
+    return NextResponse.json({ ok: true, days })
   }
 
   if (action === 'cancel') {

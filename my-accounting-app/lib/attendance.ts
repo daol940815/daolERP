@@ -20,7 +20,10 @@ export interface AttendanceRecord {
   edit_note: string | null
 }
 
-export type LeaveType = 'annual' | 'half_am' | 'half_pm' | 'sick' | 'official' | 'other'
+// unpaid = 무급휴가 (206) · half = 반차(오전 · 오후 미기재) — 엑셀 이관 전용 (207), 신청 양식에는 없음
+export type LeaveType = 'annual' | 'half_am' | 'half_pm' | 'half' | 'sick' | 'official' | 'unpaid' | 'other'
+/** 휴가 출처 (207): 본인 신청 · 인사·총무 대리 등록 · 엑셀 이관 */
+export type LeaveSource = 'request' | 'proxy' | 'excel'
 export type LeaveStatus = 'requested' | 'approved' | 'rejected' | 'canceled'
 
 export interface AttendanceLeave {
@@ -34,16 +37,21 @@ export interface AttendanceLeave {
   decided_by: string | null
   decide_note: string | null
   created_at: string
+  source?: LeaveSource          // 207 미적용이면 없음 (= request)
 }
 
 export const LEAVE_TYPE_LABEL: Record<LeaveType, string> = {
-  annual: '연차', half_am: '오전 반차', half_pm: '오후 반차',
-  sick: '병가', official: '공가', other: '기타',
+  annual: '연차', half_am: '오전 반차', half_pm: '오후 반차', half: '반차(미기재)',
+  sick: '병가', official: '공가', unpaid: '무급휴가', other: '기타',
 }
+/** 신청 · 대리 등록 양식에 나오는 종류 — 반차(미기재)는 엑셀 이관 전용이라 뺀다 */
+export const REQUEST_LEAVE_TYPES: LeaveType[] = ['annual', 'half_am', 'half_pm', 'sick', 'official', 'unpaid', 'other']
+/** 연차에서 차감하는 종류 (2026-11-18 결정: 병가도 차감, 공가 · 무급 · 기타는 차감 안 함) */
+export const DEDUCT_LEAVE_TYPES: LeaveType[] = ['annual', 'half_am', 'half_pm', 'half', 'sick']
 export const LEAVE_STATUS_LABEL: Record<LeaveStatus, string> = {
   requested: '승인 대기', approved: '승인', rejected: '반려', canceled: '취소',
 }
-export const HALF_DAY_TYPES: LeaveType[] = ['half_am', 'half_pm']
+export const HALF_DAY_TYPES: LeaveType[] = ['half_am', 'half_pm', 'half']
 
 // ── KST 날짜·시각 (Supabase timestamptz는 UTC — 한국은 DST가 없어 +9h 고정) ──
 const KST_MS = 9 * 60 * 60 * 1000
