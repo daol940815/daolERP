@@ -5,7 +5,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
-import { prefOn, type PushPayload, type PushPrefs } from '@/lib/push'
+import { prefOn, type PushPayload, type PushPrefs, pushSticky } from '@/lib/push'
 
 export const vapidPublicKey = () => process.env.VAPID_PUBLIC_KEY ?? ''
 export const pushConfigured = () => !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY)
@@ -38,7 +38,7 @@ export async function sendPush(admin: SupabaseClient, employeeIds: (string | nul
 // 특정 구독 행들에 직접 발송 (테스트 알림·아침 마감 알림)
 export async function sendToSubscriptions(admin: SupabaseClient, subs: { id: string; endpoint: string; p256dh: string; auth: string }[], payload: PushPayload): Promise<SendResult> {
   if (!ensureVapid()) return { sent: 0, failed: 0, removed: 0, skipped: true }
-  const body = JSON.stringify(payload)
+  const body = JSON.stringify({ ...payload, sticky: payload.sticky ?? pushSticky(payload.kind) })   // 확인 전까지 남길지 (2026-11-18)
   const now = new Date().toISOString()
   const r: SendResult = { sent: 0, failed: 0, removed: 0, skipped: false }
   await Promise.all(subs.map(async s => {

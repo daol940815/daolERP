@@ -15,6 +15,11 @@ export const PUSH_KIND_LABEL: Record<PushKind, string> = {
   order_reply: '내가 요청 · 상담한 주문에 완료 회신 · 처리 불가 회신이 왔을 때',
   order_reply_wait: '회신 안 한 주문 (입력 다음 날 아침 09:00 1회)',
 }
+// 화면에 남는 방식(2026-11-18 사용자 결정): 진행 메모 · 아침 오늘 마감 알림은 몇 초 뒤 저절로 내려가고(Windows 알림 센터로),
+//  나머지는 눌러서 확인해야 내려간다(requireInteraction — 크롬 · 엣지 Windows 지원). 서비스 워커는 발송 본문의 sticky 만 따른다.
+//  아침 정기 알림 중 주문 진행 요청 재알림(order_req) · 회신 안 한 주문(order_reply_wait)은 남는 쪽.
+export const PUSH_AUTO_DISMISS: PushKind[] = ['wr_memo', 'wr_due_today']
+export const pushSticky = (kind: PushKind) => !PUSH_AUTO_DISMISS.includes(kind)
 export type PushPrefs = Partial<Record<PushKind, boolean>>
 export const prefOn = (prefs: PushPrefs | null | undefined, kind: PushKind) => prefs?.[kind] !== false
 
@@ -31,7 +36,7 @@ export interface PushSubRow {
 }
 
 // 푸시 본문 — 서비스 워커(public/sw.js)가 읽는 모양
-export interface PushPayload { title: string; body: string; url: string; tag?: string; kind: PushKind }
+export interface PushPayload { title: string; body: string; url: string; tag?: string; kind: PushKind; sticky?: boolean }   // sticky 는 발송 시 kind 로 채운다
 
 // 브라우저 UA → 기기 이름 기본값 ("Chrome · Windows")
 export function deviceLabelFrom(ua: string): string {
