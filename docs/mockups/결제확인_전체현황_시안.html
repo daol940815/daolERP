@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>결제 확인 — 전체 현황 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1180px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:30px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.65; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .lab { font-size:11px; font-weight:bold; color:#64748b; margin-bottom:8px; }
+  .chips { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+  .chip { border-radius:8px; padding:5px 11px; font-size:12.5px; color:#475569; background:#f1f5f9; }
+  .chip.on { background:#0f172a; color:#fff; }
+  .chip.nw { outline:2px solid #3b82f6; outline-offset:1px; }
+  .sep { width:1px; height:18px; background:#e2e8f0; margin:0 4px; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:920px; }
+  th { text-align:left; font-weight:normal; color:#64748b; font-size:11.5px; padding:8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; background:#f8fafc; }
+  td { padding:9px 8px; border-bottom:1px solid #f1f5f9; vertical-align:top; line-height:1.5; }
+  td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  td small { color:#94a3b8; display:block; font-size:11px; }
+  th.hl, td.hl { background:#eff6ff; }
+  .st { font-size:11px; font-weight:bold; padding:3px 8px; border-radius:999px; white-space:nowrap; }
+  .ok { background:#dcfce7; color:#166534; } .pt { background:#fef3c7; color:#92400e; } .no { background:#f1f5f9; color:#64748b; }
+  .btn { display:inline-block; border-radius:7px; padding:2px 8px; font-size:11px; border:1px solid #cbd5e1; background:#fff; color:#334155; white-space:nowrap; }
+  .btn.blue { border-color:#c7d2fe; background:#eef2ff; color:#4338ca; font-weight:bold; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; padding:5px 11px; font-size:12px; }
+  .ord { color:#0f172a; font-variant-numeric:tabular-nums; }
+  .mut { color:#94a3b8; } .am { color:#b45309; }
+  .tag { font-size:10.5px; font-weight:bold; padding:1px 6px; border-radius:4px; white-space:nowrap; }
+  .t-auto { background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; }
+  .note { background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:9px 12px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.75; }
+  .note b { color:#422006; }
+  .modal { border:1px solid #cbd5e1; border-radius:12px; background:#fff; box-shadow:0 12px 32px rgba(15,23,42,.18); overflow:hidden; }
+  .modal .mh { padding:12px 16px; font-weight:bold; border-bottom:1px solid #e2e8f0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .modal .mb { padding:14px 16px; }
+  .modal .mf { padding:10px 16px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:6px; background:#f8fafc; }
+  .seg { display:flex; gap:4px; margin-left:auto; }
+  .seg span { border:1px solid #cbd5e1; border-radius:7px; padding:3px 9px; font-size:11.5px; color:#475569; font-weight:normal; }
+  .seg span.on { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
+  .list { border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; }
+  .list .lh { background:#f8fafc; padding:7px 10px; font-size:11.5px; color:#64748b; border-bottom:1px solid #e2e8f0; }
+  .list .li { padding:7px 10px; border-bottom:1px solid #f1f5f9; font-size:12.5px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .list .li:last-child { border-bottom:none; }
+  .list .li .a { margin-left:auto; font-weight:bold; font-variant-numeric:tabular-nums; }
+  .list .li.sel { background:#eff6ff; }
+  .prev { margin-top:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 11px; font-size:12px; line-height:1.7; }
+
+  .fgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px 12px; margin-top:12px; }
+  .f label { display:block; font-size:11px; color:#64748b; margin-bottom:4px; }
+  .f .in { border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; font-size:12.5px; background:#fff; color:#0f172a; }
+  .f .in.ph { color:#94a3b8; }
+  .pick { display:flex; gap:5px; flex-wrap:wrap; }
+  .pick span { border:1px solid #cbd5e1; border-radius:8px; padding:6px 13px; font-size:12.5px; color:#475569; background:#fff; }
+  .pick span.on { background:#0f172a; color:#fff; border-color:#0f172a; font-weight:bold; }
+  .pick span.dis { background:#f1f5f9; color:#cbd5e1; border-color:#e2e8f0; }
+  .newbox { border:2px solid #3b82f6; border-radius:10px; padding:10px 12px; background:#eff6ff; margin-top:12px; }
+  .newbox .row { display:flex; gap:24px; flex-wrap:wrap; }
+  .req { color:#dc2626; }
+  .bad { background:#fee2e2; color:#991b1b; }
+  .t-warn { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+  .t-none { background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; }
+  .t-src { background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; }
+  .bd-card { background:#e0e7ff; color:#3730a3; } .bd-inv { background:#fae8ff; color:#86198f; } .bd-tr { background:#ccfbf1; color:#115e59; }
+
+
+  .hid { border:1px dashed #94a3b8; background:#f8fafc; border-radius:8px; padding:7px 11px; font-size:12px; color:#475569; margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .hid.new { border:2px solid #3b82f6; background:#eff6ff; }
+  .li.off { background:#f8fafc; color:#94a3b8; }
+  .kd { font-size:11px; padding:1px 7px; border-radius:999px; border:1px solid #cbd5e1; color:#475569; background:#fff; white-space:nowrap; }
+  .kd.tx { border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff; } .kd.ex { border-color:#fde68a; color:#92400e; background:#fffbeb; }
+
+
+  tr.cx td { background:#fff7ed; }
+  tr.dead td { color:#94a3b8; } tr.dead td.amt { text-decoration:line-through; }
+  .cn { background:#ffedd5; color:#9a3412; } .cw { background:#fef3c7; color:#92400e; } .cd { background:#e2e8f0; color:#475569; }
+  .tip { position:relative; display:inline-block; cursor:help; border-bottom:1px dotted #94a3b8; }
+  .tipbox { display:inline-block; margin-top:5px; background:#0f172a; color:#fff; border-radius:8px; padding:7px 10px; font-size:11.5px; line-height:1.6; font-weight:normal; white-space:normal; max-width:280px; }
+  .combo { border:1px solid #cbd5e1; border-radius:8px; background:#fff; overflow:hidden; max-width:360px; }
+  .combo .q { padding:7px 10px; border-bottom:1px solid #e2e8f0; font-size:12.5px; }
+  .combo .opt { padding:6px 10px; font-size:12.5px; color:#334155; }
+  .combo .opt.on { background:#eff6ff; color:#1d4ed8; font-weight:bold; }
+  .combo .opt mark { background:#fde68a; color:inherit; }
+  .neg { color:#b91c1c; }
+  .sub { padding-left:18px; position:relative; } .sub:before { content:"└"; position:absolute; left:4px; color:#94a3b8; }
+
+
+  .tabs { display:flex; gap:2px; border-bottom:1px solid #e2e8f0; margin-bottom:12px; flex-wrap:wrap; }
+  .tabs span { padding:8px 14px; font-size:13px; color:#64748b; border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tabs span.on { color:#0f172a; font-weight:bold; border-color:#0f172a; }
+  .tabs span.gone { text-decoration:line-through; color:#cbd5e1; }
+  .bar { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .sel { border:1px solid #cbd5e1; border-radius:8px; padding:5px 9px; font-size:12.5px; background:#fff; color:#334155; }
+  .srch { border:1px solid #cbd5e1; border-radius:8px; padding:5px 10px; font-size:12.5px; background:#fff; color:#94a3b8; min-width:220px; }
+  .cnt { font-size:11px; opacity:.75; margin-left:3px; }
+  .s-un { background:#fee2e2; color:#991b1b; } .s-pp { background:#ffedd5; color:#9a3412; } .s-mw { background:#fef3c7; color:#92400e; } .s-pm { background:#e0e7ff; color:#3730a3; } .s-dn { background:#dcfce7; color:#166534; }
+  tr.open td { background:#f8fafc; }
+  .inner { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; }
+  .who { color:#64748b; font-size:11px; display:block; }
+
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>결제 확인 — 전체 현황 시안</h1>
+  <p class="desc">2026-11-18 · 실무자 요청 반영. "매칭 대기"와 "결제 안내 대상" 탭을 주문 단위의 "전체 현황" 하나로 합칩니다. 한 줄이 주문 1건이고, 결제 상태 칩으로 거릅니다. 처음 열면 내 담당 지점만 보입니다. 숫자와 이름은 예시입니다. 파란 테두리가 새로 생기거나 바뀌는 부분입니다.</p>
+
+  <h2>1. 탭 구성</h2>
+  <div class="panel">
+    <div class="tabs"><span class="on">전체 현황</span><span>기록 없는 입금</span><span>계산서 확인</span><span class="gone">매칭 대기</span><span class="gone">결제 안내 대상</span></div>
+    <div class="prev" style="margin-top:0">탭 4개 → 3개. 옛 주소(?tab=match · ?tab=guide)로 들어오면 전체 현황으로 넘어갑니다. 매칭 완료 목록 · 연락 기록 · 취소 대기는 전체 현황 안으로 들어갑니다(아래 3 · 4번).</div>
+  </div>
+
+  <h2>2. 전체 현황 — 목록</h2>
+  <div class="panel new">
+    <div class="chips" style="margin-bottom:8px">
+      <span class="chip">최근 7일</span><span class="chip">최근 30일</span><span class="chip">당월</span><span class="chip">전월</span><span class="chip">1분기</span><span class="chip">…</span><span class="chip">당년</span><span class="chip on">전체 기간</span>
+    </div>
+    <div class="bar">
+      <span class="sel">매출처 ▾</span><span class="srch">검색어 입력 후 Enter</span>
+      <span class="sel">2026-10-01</span><span class="mut">~</span><span class="sel">2026-11-18</span>
+      <span class="sep"></span>
+      <span class="chip on nw">내 담당</span><span class="chip nw">전체</span><span class="chip nw">담당 미지정 <span class="cnt">3</span></span>
+      <span class="sel">담당 직원: 전체 ▾</span>
+    </div>
+    <div class="chips">
+      <span class="chip on">전체 <span class="cnt">42</span></span>
+      <span class="chip nw">미결제 <span class="cnt">9</span></span><span class="chip nw">일부 결제 <span class="cnt">4</span></span><span class="chip nw">매칭 대기 <span class="cnt">7</span></span><span class="chip nw">일부 매칭 <span class="cnt">2</span></span><span class="chip nw">완료 <span class="cnt">20</span></span>
+      <span class="sep"></span>
+      <span class="chip">취소 대기 <span class="cnt">1</span></span><span class="chip">구분 · 금액 불일치 <span class="cnt">1</span></span><span class="chip">약속일 지남 <span class="cnt">2</span></span>
+    </div>
+    <div class="scroll"><table>
+      <tr><th>주문일 / 번호</th><th>매출처 · 고객</th><th class="hl">지점 담당</th><th class="n">주문 금액</th><th class="n">미수</th><th>결제 상태</th><th class="hl">결제 기록 · 대조 단서</th><th>최근 연락</th><th></th></tr>
+      <tr><td>11-18<small>D261118-014</small></td><td>신한은행 강남지점<small>권오병 부장님</small></td><td class="hl">김주연 대리</td><td class="n">1,000,000</td><td class="n">1,000,000</td><td><span class="st s-mw">매칭 대기</span> <span class="tag t-none">카드</span></td>
+        <td class="hl">카드(수기 · 과세) 승인 30157741 · 1,000,000<span class="who">기재 김주연 대리 · 11-18 14:20</span><span class="tag t-src">후보 1건</span></td><td class="mut">-</td><td><span class="btn blue">펼치기</span></td></tr>
+      <tr><td>11-17<small>D261117-030</small></td><td>기업은행 판교지점<small>박제현 님</small></td><td class="hl">김주연 대리</td><td class="n">1,200,000</td><td class="n">1,200,000</td><td><span class="st s-pp">일부 결제</span> <span class="tag t-none">계산서</span></td>
+        <td class="hl">계산서(면세) 발행 · 700,000<span class="who">기재 김보현 주임 · 11-17 10:05</span></td><td>11-18 전화<small>잔액 11-25 입금 약속</small></td><td><span class="btn blue">펼치기</span></td></tr>
+      <tr><td>11-15<small>D261115-008</small></td><td>농협은행 수원지점<small>이서준 과장님</small></td><td class="hl">김주연 대리</td><td class="n">330,000</td><td class="n">330,000</td><td><span class="st s-un">미결제</span></td>
+        <td class="hl mut">기록 없음</td><td class="am">연락 기록 없음 · 3일째</td><td><span class="btn">연락 기록</span></td></tr>
+      <tr><td>11-13<small>D261113-002</small></td><td>우리은행 종로지점<small>최민아 대리님</small></td><td class="hl">김주연 대리</td><td class="n">610,000</td><td class="n">0</td><td><span class="st s-dn">완료</span> <span class="tag t-none">카드</span></td>
+        <td class="hl">카드(수기) 승인 22904418 · 610,000<span class="who">기재 김주연 대리 · 11-13 16:40 · 매칭 오철준 대리 · 11-14 09:10</span></td><td class="mut">-</td><td><span class="btn blue">펼치기</span></td></tr>
+    </table></div>
+    <div class="note">
+      <b>기본 보기</b> — 로그인한 직원이 지점 담당인 매출처의 주문만. "전체"를 누르거나 "담당 직원"에서 다른 직원을 고르면 그 범위로 바뀝니다. 담당 지점이 하나도 없는 사람(회계 담당 등)은 처음부터 "전체"로 열립니다.<br>
+      <b>담당 미지정</b> — 지점 담당이 지정되지 않은 매출처의 주문. 누구의 "내 담당"에도 안 잡히므로 따로 모아 봅니다.<br>
+      <b>정렬</b> — 주문일 최신순(같은 날은 주문번호 역순). 기본 기간은 전체 기간입니다.<br>
+      <b>결제 기록 · 대조 단서</b> — 기록마다 기재한 사람 · 시각을 적고, 매칭됐으면 매칭한 사람 · 시각을 함께 적습니다. 기록이 여러 건이면 첫 건 + "외 N건".<br>
+      <b>검색 항목</b> — 매출처 · 주문번호 · 고객(담당자) · 승인번호 · 입금자 · 금액 · 지점 담당.
+    </div>
+  </div>
+
+  <h2>3. 줄을 펼쳤을 때 — 매칭 대기 주문</h2>
+  <p class="desc">지금 "매칭 대기" 탭에서 하던 일을 여기서 합니다. 기록마다 원본 후보가 붙고, 확정은 사람이 누릅니다.</p>
+  <div class="panel new">
+    <div class="inner">
+      <div class="lab">D261118-014 · 신한은행 강남지점 — 결제 기록 1건</div>
+      <div class="scroll"><table style="min-width:760px">
+        <tr><th>결제일</th><th>수단 · 구분</th><th>대조 단서</th><th class="n">금액</th><th>원본 후보</th><th></th></tr>
+        <tr><td>11-18</td><td><span class="st bd-card">카드</span> 수기 · 과세</td><td>승인 30157741 · 카드 뒤 4821<span class="who">기재 김주연 대리 · 11-18 14:20</span></td><td class="n">1,000,000</td>
+          <td>카드 매출 11-18 · 1,000,000 <span class="kd tx">수기 · 과세</span><small>승인번호 일치 · 금액 일치</small></td><td><span class="btn pri">확정</span> <span class="btn">다른 입금 찾기</span></td></tr>
+      </table></div>
+      <div class="mut" style="font-size:11px;margin-top:6px">취소 줄이 있으면 그 아래에 "취소 대기 — 취소 확정"이 함께 나옵니다. 주문 상세로 가는 링크 · 연락 기록 버튼도 이 영역에 둡니다.</div>
+    </div>
+  </div>
+
+  <h2>4. 줄을 펼쳤을 때 — 완료 주문 / 미결제 주문</h2>
+  <div class="cols">
+    <div class="panel"><div class="lab">완료 주문 (전 "매칭 완료" 목록)</div>
+      <div class="prev" style="margin-top:0">카드(수기) 승인 22904418 · 610,000 — 카드 매출 11-13과 매칭<br>기재 김주연 대리 · 11-13 16:40<br>매칭 오철준 대리 · 11-14 09:10 <span class="btn">매칭 해제</span><br><span class="mut">매칭 해제는 사유를 골라야 합니다(지금과 같음).</span></div>
+    </div>
+    <div class="panel"><div class="lab">미결제 · 일부 결제 주문 (전 "결제 안내 대상")</div>
+      <div class="prev" style="margin-top:0">고객 연락처 · 받을 금액 · 지난 날<br>연락 기록 남기기(전화 · 문자 · 메일 · 방문, 입금 약속일) — 지금과 같음<br>최근 연락 3건 표시<br><span class="mut">결제 기록 추가는 지금처럼 주문 상세에서 합니다(여기서는 주문 상세로 가는 링크).</span></div>
+    </div>
+  </div>
+
+  <h2>5. 바뀌지 않는 것 · 확인이 필요한 것</h2>
+  <div class="panel">
+    <div class="prev" style="margin-top:0">
+      <b>그대로</b> — 기록 없는 입금 · 계산서 확인 탭, 확정 · 취소 확정 · 매칭 해제의 규칙, 결제 상태 5단계의 판정(주문내역 목록과 같은 기준).<br>
+      <b>요약 카드</b> — 위쪽 큰 카드 5개는 없애고 상태 칩의 건수로 대신합니다(칩이 곧 필터). 받을 금액 합계는 칩 줄 오른쪽에 한 줄로 적습니다.<br>
+      <b>완료 주문의 양</b> — 전체 기간이면 완료 주문이 계속 쌓입니다. 표는 100건씩 보여 주고 "더 보기"로 이어 붙입니다.<br>
+      <b>대상 주문</b> — 직접 입력한 주문(취소 제외)만. 지금 두 탭과 같습니다.<br>
+      <b>여러 주문에 걸친 결제 기록</b> — 기록 1건이 주문 3건에 걸치면 세 주문 줄에 각각 나오고, 어느 줄에서 확정해도 세 주문이 함께 처리됩니다("주문 3건에 걸친 결제" 표시).
+    </div>
+  </div>
+</div>
+</body>
+</html>
