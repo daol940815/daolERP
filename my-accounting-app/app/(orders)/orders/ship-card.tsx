@@ -4,14 +4,15 @@ import { useEffect, useRef, useState } from 'react'
 import type { ShipInput } from '@/lib/ship-address'
 
 // 주문서 배송지 카드 (513, 2026-11-04 사용자 확정 — 시안 docs/mockups/배송지_주문서_시안.html)
-//  - 자동 채움: 같은 주문처의 가장 최근 배송지 → 없으면 수령인·연락처만 거래처 담당자로
+//  - 자동 채움 (2026-11-17 기준 = 지점 + 담당자): 같은 지점 + 같은 담당자의 최근 배송지 → 없으면 같은 지점의 최근 배송지
+//    → 그것도 없으면 수령인 · 연락처만 거래처 담당자로. 근거는 주문 + 상담일지에 적은 배송지(최근순). 담당자를 고르거나 바꾸면 다시 채운다
 //  - 사용자가 직접 고친 뒤에는 자동 채움이 덮어쓰지 않는다 (주문처를 바꿔도 유지)
 //  - 주소는 카카오(다음) 우편번호 검색으로만 입력, 상세주소만 직접 입력
 //  - 개별 배송 품목만 있으면 카드를 닫고 안내 (수령인별 주소는 발주서 배송명단)
 
 export const EMPTY_SHIP: ShipInput = { ship_name: null, ship_phone: null, ship_zip: null, ship_addr1: null, ship_addr2: null }
 
-interface RecentAddr extends ShipInput { last_order_no: string | null; last_date: string; count: number }
+interface RecentAddr extends ShipInput { last_order_no: string | null; last_date: string; count: number; from?: 'order' | 'consult'; same_contact?: boolean }
 
 interface DaumPostcodeData { zonecode: string; roadAddress: string; address: string; buildingName: string; apartment: string }
 declare global {
@@ -31,10 +32,11 @@ function loadPostcode(): Promise<void> {
   })
 }
 
-export default function ShipCard({ value, onChange, vendorId, contactName, contactPhone, autoFill, applies, disabled }: {
+export default function ShipCard({ value, onChange, vendorId, contactId, contactName, contactPhone, autoFill, applies, disabled }: {
   value: ShipInput
   onChange: (v: ShipInput) => void
   vendorId: string | null
+  contactId?: string | null      // 거래처 담당자(contacts) — 자동 채움 기준 지점 + 담당자 (2026-11-17)
   contactName: string | null     // 거래처 담당자 표기 (존칭 포함)
   contactPhone: string | null
   autoFill: boolean              // 신규·상담 전환만 true (수정·재등록은 원본 값 유지)
@@ -42,7 +44,7 @@ export default function ShipCard({ value, onChange, vendorId, contactName, conta
   disabled?: boolean
 }) {
   const [recent, setRecent] = useState<RecentAddr[]>([])
-  const [source, setSource] = useState<{ kind: 'recent'; no: string | null; date: string } | { kind: 'contact' } | null>(null)
+  const [source, setSource] = useState<{ kind: 'recent'; no: string | null; date: string; from: 'order' | 'consult'; same: boolean } | { kind: 'contact' } | null>(null)
   const [openList, setOpenList] = useState(false)
   const [pcError, setPcError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)      // 513 미적용
@@ -53,13 +55,13 @@ export default function ShipCard({ value, onChange, vendorId, contactName, conta
 
   useEffect(() => { loadPostcode().catch(() => {}) }, [])
 
-  // 주문처가 바뀌면 최근 배송지 조회 + (자동 채움 대상이면) 첫 번째로 채움
+  // 주문처 · 담당자가 바뀌면 최근 배송지 조회 + (자동 채움 대상이면) 첫 번째로 채움 — 같은 담당자 것이 먼저 온다
   useEffect(() => {
     setRecent([]); setOpenList(false)
     if (!vendorId) { setSource(null); return }
     let alive = true
     ;(async () => {
-      const res = await fetch(`/api/orders-portal/ship-addresses?vendor_id=${vendorId}`)
+      const res = await fetch(`/api/orders-portal/ship-addresses?vendor_id=${vendorId}${contactId ? `&contact_id=${contactId}` : ''}`)
       const json = await res.json().catch(() => ({}))
       if (!alive) return
       const list: RecentAddr[] = res.ok ? (json.data ?? []) : []
@@ -69,7 +71,7 @@ export default function ShipCard({ value, onChange, vendorId, contactName, conta
       if (list.length) {
         const r = list[0]
         onChange({ ship_name: r.ship_name, ship_phone: r.ship_phone, ship_zip: r.ship_zip, ship_addr1: r.ship_addr1, ship_addr2: r.ship_addr2 })
-        setSource({ kind: 'recent', no: r.last_order_no, date: r.last_date })
+        setSource({ kind: 'recent', no: r.last_order_no, date: r.last_date, from: r.from ?? 'order', same: !!r.same_contact })
       } else {
         onChange({ ...EMPTY_SHIP, ship_name: contactName, ship_phone: contactPhone })
         setSource({ kind: 'contact' })
@@ -77,7 +79,7 @@ export default function ShipCard({ value, onChange, vendorId, contactName, conta
     })()
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vendorId])
+  }, [vendorId, contactId])
 
   // 지난 배송지가 없는 주문처: 담당자를 나중에 고르면 수령인·연락처를 그때 채운다
   useEffect(() => {
@@ -109,7 +111,7 @@ export default function ShipCard({ value, onChange, vendorId, contactName, conta
   const pick = (r: RecentAddr) => {
     touched.current = true
     onChange({ ship_name: r.ship_name, ship_phone: r.ship_phone, ship_zip: r.ship_zip, ship_addr1: r.ship_addr1, ship_addr2: r.ship_addr2 })
-    setSource({ kind: 'recent', no: r.last_order_no, date: r.last_date })
+    setSource({ kind: 'recent', no: r.last_order_no, date: r.last_date, from: r.from ?? 'order', same: !!r.same_contact })
     setOpenList(false)
   }
 
@@ -142,7 +144,10 @@ export default function ShipCard({ value, onChange, vendorId, contactName, conta
                   : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
               <span>
                 {source?.kind === 'recent'
-                  ? <>지난 주문 <b>{source.no ?? ''}</b> ({source.date}) 배송지를 불러왔습니다</>
+                  ? <>
+                      {source.from === 'consult' ? <>상담일지({source.date})에 적은</> : <>지난 주문 <b>{source.no ?? ''}</b> ({source.date})</>}
+                      {' '}배송지를 불러왔습니다{contactId ? (source.same ? ' — 같은 담당자' : ' — 이 담당자로 보낸 기록이 없어 같은 지점의 최근 배송지') : ''}
+                    </>
                   : source?.kind === 'contact'
                     ? (value.ship_addr1 ? '주소를 입력했습니다' : '이 주문처로 보낸 기록이 없습니다 — 수령인은 담당자로 채웠습니다. 주소를 검색해주세요.')
                     : vendorId ? '배송지를 확인하세요' : '주문처를 고르면 그 주문처로 보냈던 최근 배송지가 자동으로 채워집니다'}
@@ -158,13 +163,14 @@ export default function ShipCard({ value, onChange, vendorId, contactName, conta
             </div>
             {openList && (
               <div className="absolute right-0 z-20 mt-1 w-full md:w-[34rem] bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden text-xs">
-                <div className="px-3 py-1.5 text-[0.65625rem] text-gray-400 bg-gray-50">이 주문처로 보낸 배송지 (최근순 · 같은 배송지는 1번만)</div>
+                <div className="px-3 py-1.5 text-[0.65625rem] text-gray-400 bg-gray-50">이 주문처의 배송지 — 같은 담당자 먼저, 최근순 · 같은 배송지는 1번만 (주문 + 상담일지)</div>
                 {recent.map((r, i) => (
                   <button key={i} type="button" onClick={() => pick(r)}
                     className="block w-full text-left px-3 py-2 border-t border-gray-100 hover:bg-blue-50">
                     <div className="text-gray-800">{[r.ship_name, r.ship_phone].filter(Boolean).join(' · ') || '(수령인 없음)'}</div>
                     <div className="text-gray-500 mt-0.5">
-                      {[r.ship_addr1, r.ship_addr2].filter(Boolean).join(' · ')} — {r.last_date}{r.count > 1 ? ` 외 ${r.count - 1}회` : ''}
+                      {[r.ship_addr1, r.ship_addr2].filter(Boolean).join(' · ')} — {r.from === 'consult' ? '상담일지 ' : ''}{r.last_date}{r.count > 1 ? ` 외 ${r.count - 1}회` : ''}
+                      {r.same_contact && <span className="ml-1.5 text-emerald-700">같은 담당자</span>}
                     </div>
                   </button>
                 ))}

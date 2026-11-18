@@ -856,7 +856,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
         const c = contacts.find(x => x.contact_id === contactId)
         return (
           <ShipCard
-            value={ship} onChange={setShip} vendorId={vendorId}
+            value={ship} onChange={setShip} vendorId={vendorId} contactId={contactId}
             contactName={c ? contactLabel(c.name, c.title) : null}
             contactPhone={c?.phone ?? (phone || null)}
             autoFill={!orderId && !reissueId && !shipFromConsult}

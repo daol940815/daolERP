@@ -1427,7 +1427,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           return (
             <div className="mt-3">
               <ShipCard
-                value={ship} onChange={setShip} vendorId={vendorId}
+                value={ship} onChange={setShip} vendorId={vendorId} contactId={contactId}
                 contactName={c ? contactLabel(c.name, c.title) : (managerText.trim() || null)}
                 contactPhone={c?.phone ?? (phone || null)}
                 autoFill={!isEdit && !copyId}
