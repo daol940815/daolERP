@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { can } from '@/lib/permissions'
-import { loadOverview, loadOverviewDetail, loadStaffScope } from '@/lib/payment-overview'
+import { findOrdersByMatchedSource, loadOverview, loadOverviewDetail, loadStaffScope } from '@/lib/payment-overview'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -15,6 +15,13 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   const orderId = new URL(req.url).searchParams.get('order_id')
   if (orderId) return NextResponse.json(await loadOverviewDetail(admin, orderId))
+  // ?find=검색어&field=all|depositor|approval — 매칭된 통장 입금자 · 카드 승인번호로 주문 찾기 (목록에는 매칭 내역이 없어서 서버가 찾는다)
+  const sp = new URL(req.url).searchParams
+  const find = sp.get('find')
+  if (find != null) {
+    const field = sp.get('field') === 'depositor' ? 'depositor' : sp.get('field') === 'approval' ? 'approval' : 'all'
+    return NextResponse.json({ order_ids: await findOrdersByMatchedSource(admin, find, field) })
+  }
   const r = await loadOverview(admin)
   if ('error' in r) return NextResponse.json({ error: r.error }, { status: 500 })
   return NextResponse.json({ ...r, scope: await loadStaffScope(admin, me), can_edit: can(me, 'collections', 'edit') })

@@ -157,6 +157,31 @@ export async function loadOverviewDetail(admin: SupabaseClient, orderId: string)
   }
 }
 
+// 매칭된 원본의 이름으로 주문 찾기 (2026-11-18) — 목록에는 매칭 내역을 싣지 않으므로(가볍게), 입금자 · 승인번호 검색은 서버가 원본에서 찾아 주문 id 를 돌려준다.
+//   입금자: 통장 거래의 입금자 · 적요에 검색어가 들어간 입금 → 그 입금이 붙은 주문 / 승인번호: 카드 매출의 승인번호 → 그 결제가 붙은 주문
+export async function findOrdersByMatchedSource(admin: SupabaseClient, q: string, field: 'all' | 'depositor' | 'approval'): Promise<string[]> {
+  const kw = q.trim().replace(/[%,()]/g, ' ').trim()
+  if (kw.length < 2) return []
+  const out = new Set<string>()
+  const collect = async (type: 'bank' | 'card', ids: string[]) => {
+    for (const ch of chunk(ids)) {
+      const r = await fetchAllRows<{ order_id: string }>((f, t) => admin.from('erp_payment_matches').select('order_id').eq('source_type', type).in('source_id', ch).range(f, t))
+      if (!('error' in r)) for (const m of r.data) out.add(m.order_id)
+    }
+  }
+  if (field !== 'approval') {
+    const r = await fetchAllRows<{ id: string }>((f, t) => admin.from('transactions').select('id')
+      .or(`counterparty_name.ilike.%${kw}%,description.ilike.%${kw}%`).gte('tx_date', DATA_START).range(f, t))
+    if (!('error' in r)) await collect('bank', r.data.map(x => x.id))
+  }
+  const digits = kw.replace(/[^0-9a-z]/gi, '')
+  if (field !== 'depositor' && digits.length >= 3) {
+    const r = await fetchAllRows<{ id: string }>((f, t) => admin.from('card_sales').select('id').ilike('approval_number', `%${digits}%`).eq('transaction_type', 'approval').range(f, t))
+    if (!('error' in r)) await collect('card', r.data.map(x => x.id))
+  }
+  return Array.from(out)
+}
+
 // ── 주문 미리보기 (주문번호를 누르면 뜨는 보기 전용 창) — 매입가 · 마진은 내려보내지 않는다 ──
 export interface OrderPreview {
   order_id: string; order_no: string | null; order_date: string; canceled: boolean

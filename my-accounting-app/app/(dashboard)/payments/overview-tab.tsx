@@ -44,6 +44,17 @@ export default function OverviewTab() {
   const [openId, setOpenId] = useState<string | null>(null)
   // 펼친 주문의 상세(매칭 내역 · 연락 기록) — 펼칠 때 그 주문 것만 읽는다(목록을 가볍게)
   const [details, setDetails] = useState<Record<string, Detail>>({})
+  // 매칭된 통장 입금자 · 카드 승인번호로 찾은 주문 (목록에는 매칭 내역이 없어 서버가 찾아 준다 — 검색 항목이 전체 · 입금자 · 승인번호일 때)
+  const [sourceHits, setSourceHits] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    const q = filter.q.trim()
+    if (q.length < 2 || !['all', 'depositor', 'approval'].includes(filter.field)) { setSourceHits(new Set()); return }
+    let alive = true
+    fetch(`/api/payment-records/overview?find=${encodeURIComponent(q)}&field=${filter.field}`, { cache: 'no-store' }).then(r => r.json())
+      .then(j => { if (alive) setSourceHits(new Set((j.order_ids ?? []) as string[])) })
+      .catch(() => { if (alive) setSourceHits(new Set()) })
+    return () => { alive = false }
+  }, [filter.q, filter.field])
   const [shown, setShown] = useState(PAGE)
   const [showReleased, setShowReleased] = useState(false)
   const reasonDlg = useReasonDialog()
@@ -68,14 +79,14 @@ export default function OverviewTab() {
   }, [openId, details])
 
   // 기간 · 검색 · 지점 담당까지 거른 것 (상태 칩의 건수는 이 범위에서 센다)
-  const scoped = useMemo(() => rows.filter(r => passPayFilter(filter, {
+  const scoped = useMemo(() => rows.filter(r => passPayFilter(sourceHits.has(r.order_id) ? { ...filter, q: '' } : filter, {
     staff_ids: r.staff_ids, date: r.order_date,
     fields: {
       vendor: r.customer_name, order: r.order_no, manager: r.manager,
       approval: r.records.map(x => x.clue).join(' '), depositor: r.records.map(x => x.clue).join(' '),
       amount: [r.net, r.outstanding, ...r.records.map(x => x.amount)].join(' '),
     },
-  })), [rows, filter])
+  })), [rows, filter, sourceHits])
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: scoped.length }
     for (const r of scoped) c[r.pay.stage] = (c[r.pay.stage] ?? 0) + 1
