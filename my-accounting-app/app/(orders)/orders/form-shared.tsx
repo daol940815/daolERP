@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { fmtPurchasePrice, purchaseAmount, toPurchasePrice } from '@/lib/purchase-price'
 import { shipBoxes } from '@/lib/ship-boxes'
 
@@ -375,6 +376,113 @@ export function draftFromProduct(p: Product, base: ItemDraft): Partial<ItemDraft
   return draft
 }
 
+// ── 콤보 드롭다운 공용 (2026-11-18 사용자 피드백) ──
+// 1) 목록을 body 아래에 띄운다(포털 + fixed) — 상담 품목 표처럼 overflow가 걸린 카드 안에서도 잘리지 않는다.
+//    아래 공간이 모자라면 위로 펼친다. 스크롤 · 창 크기 변경 시 입력칸을 따라간다.
+// 2) 방향키 ↑↓로 항목 이동, Tab · Enter로 선택 확정, Esc로 닫기. Tab은 선택 후 다음 칸으로 그대로 넘어간다.
+type FloatPos = { left: number; top?: number; bottom?: number; minWidth: number; maxWidth: number; maxHeight: number }
+
+function useFloatingList(open: boolean, anchorRef: React.RefObject<HTMLElement>, opts: { maxRem: number; wide: boolean }) {
+  const [pos, setPos] = useState<FloatPos | null>(null)
+  const { maxRem, wide } = opts
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return }
+    const place = () => {
+      const el = anchorRef.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+      const vw = window.innerWidth, vh = window.innerHeight
+      const want = maxRem * rem
+      const below = vh - r.bottom - 12, above = r.top - 12
+      const up = below < Math.min(want, 12 * rem) && above > below
+      const left = Math.max(8, Math.min(r.left, vw - 8 - r.width))
+      const maxWidth = wide ? Math.max(r.width, Math.min(34 * rem, vw - left - 8)) : r.width
+      setPos({
+        left, minWidth: r.width, maxWidth,
+        maxHeight: Math.max(6 * rem, Math.min(want, up ? above : below)),
+        ...(up ? { bottom: vh - r.top + 4 } : { top: r.bottom + 4 }),
+      })
+    }
+    place()
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+  }, [open, anchorRef, maxRem, wide])
+  return pos
+}
+
+function useComboKeys<T>(open: boolean, filtered: T[], listRef: React.RefObject<HTMLDivElement>,
+  handlers: { pick: (o: T) => void; openList: () => void; close: () => void }) {
+  const [active, setActive] = useState(-1)
+  useEffect(() => { if (!open) setActive(-1) }, [open])
+  useEffect(() => { setActive(a => (a >= filtered.length ? filtered.length - 1 : a)) }, [filtered.length])
+  useEffect(() => {
+    if (active < 0) return
+    listRef.current?.querySelector(`[data-idx="${active}"]`)?.scrollIntoView({ block: 'nearest' })
+  }, [active, listRef])
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!open) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); handlers.openList() }
+      return
+    }
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setActive(a => Math.min(a + 1, filtered.length - 1))
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        setActive(a => Math.max(a - 1, 0))
+        break
+      case 'Enter':
+        if (e.nativeEvent.isComposing) return   // 한글 조합 중 Enter는 글자 확정용
+        if (active >= 0 && filtered[active]) { e.preventDefault(); handlers.pick(filtered[active]) }
+        break
+      case 'Tab':
+        // 고른 항목이 있으면 확정하고, 포커스는 다음 칸으로 그대로 넘어간다
+        if (active >= 0 && filtered[active]) handlers.pick(filtered[active])
+        else handlers.close()
+        break
+      case 'Escape':
+        e.preventDefault()
+        handlers.close()
+        break
+    }
+  }
+  return { active, setActive, onKeyDown, resetActive: () => setActive(-1) }
+}
+
+function FloatingList({ pos, listRef, children }: {
+  pos: FloatPos | null; listRef: React.RefObject<HTMLDivElement>; children: React.ReactNode
+}) {
+  if (!pos || typeof document === 'undefined') return null
+  return createPortal(
+    <div ref={listRef} role="listbox"
+      style={{ position: 'fixed', left: pos.left, top: pos.top, bottom: pos.bottom, minWidth: pos.minWidth, maxWidth: pos.maxWidth, maxHeight: pos.maxHeight }}
+      className="z-50 bg-white border border-gray-300 rounded-lg shadow-lg overflow-y-auto text-sm w-max">
+      {children}
+    </div>,
+    document.body,
+  )
+}
+
+function useOutsideClose(open: boolean, refs: React.RefObject<HTMLElement>[], close: () => void) {
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (!refs.some(r => r.current?.contains(e.target as Node))) close()
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+}
+
 // ── 자동완성 콤보 (마스터 선택 전용 — 목록에 없는 값은 확정 불가) ──
 export function Combo({ value, display, options, onSelect, placeholder, required, footer }: {
   value: string | null
@@ -388,14 +496,8 @@ export function Combo({ value, display, options, onSelect, placeholder, required
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const boxRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (!boxRef.current?.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [])
+  const listRef = useRef<HTMLDivElement>(null)
+  useOutsideClose(open, [boxRef, listRef], () => setOpen(false))
 
   const q = text.trim().toLowerCase()
   const filtered = useMemo(() => {
@@ -405,26 +507,36 @@ export function Combo({ value, display, options, onSelect, placeholder, required
     ).slice(0, 50)
   }, [options, q])
 
+  // 행 길이 확대(실무자 요청): 입력칸보다 넓게 펼쳐 긴 품명이 잘리지 않게 한다(최대 34rem)
+  const pos = useFloatingList(open, boxRef, { maxRem: 20, wide: true })
+  const pick = (o: { id: string }) => { onSelect(o.id); setOpen(false) }
+  const keys = useComboKeys(open, filtered, listRef, {
+    pick, openList: () => { setOpen(true); setText('') }, close: () => setOpen(false),
+  })
+
   return (
     <div ref={boxRef} className="relative">
       <input
         value={open ? text : display}
         onFocus={() => { setOpen(true); setText('') }}
-        onChange={e => setText(e.target.value)}
+        onChange={e => { setText(e.target.value); setOpen(true); keys.resetActive() }}
+        onKeyDown={keys.onKeyDown}
         placeholder={placeholder}
         className={`w-full border rounded-lg px-2.5 py-1.5 text-sm bg-blue-50/40 ${
           required && !value ? 'border-red-300' : 'border-blue-200'
         }`}
       />
       {open && (
-        // 행 길이 확대(실무자 요청): 입력칸보다 넓게 펼쳐 긴 품명이 잘리지 않게 한다
-        <div className="absolute z-20 top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg
-                        max-h-80 overflow-y-auto text-sm min-w-full w-max max-w-[34rem]">
-          {filtered.map(o => (
-            <button type="button" key={o.id}
+        <FloatingList pos={pos} listRef={listRef}>
+          {filtered.map((o, idx) => (
+            <button type="button" key={o.id} data-idx={idx} tabIndex={-1}
+              role="option" aria-selected={idx === keys.active}
               onMouseDown={e => e.preventDefault()}
-              onClick={() => { onSelect(o.id); setOpen(false) }}
-              className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-gray-50 whitespace-normal leading-snug">
+              onMouseMove={() => { if (keys.active !== idx) keys.setActive(idx) }}
+              onClick={() => pick(o)}
+              className={`w-full text-left px-3 py-2 border-b border-gray-50 whitespace-normal leading-snug ${
+                idx === keys.active ? 'bg-blue-100' : 'hover:bg-blue-50'
+              }`}>
               {o.label}
               {o.soldout && (
                 <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-[0.625rem] font-medium bg-red-50 text-red-600 align-middle">품절</span>
@@ -436,7 +548,7 @@ export function Combo({ value, display, options, onSelect, placeholder, required
           ))}
           {!filtered.length && <div className="px-3 py-2 text-xs text-gray-400">일치하는 항목이 없습니다</div>}
           {footer}
-        </div>
+        </FloatingList>
       )}
     </div>
   )
@@ -452,14 +564,8 @@ export function ComboFree({ text, selectedId, options, onChange, placeholder }: 
 }) {
   const [open, setOpen] = useState(false)
   const boxRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (!boxRef.current?.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [])
+  const listRef = useRef<HTMLDivElement>(null)
+  useOutsideClose(open, [boxRef, listRef], () => setOpen(false))
 
   const q = text.trim().toLowerCase()
   const filtered = useMemo(() => {
@@ -469,12 +575,19 @@ export function ComboFree({ text, selectedId, options, onChange, placeholder }: 
     ).slice(0, 50)
   }, [options, q])
 
+  const pos = useFloatingList(open, boxRef, { maxRem: 16, wide: false })
+  const pick = (o: { id: string; label: string }) => { onChange({ id: o.id, text: o.label }); setOpen(false) }
+  const keys = useComboKeys(open, filtered, listRef, {
+    pick, openList: () => setOpen(true), close: () => setOpen(false),
+  })
+
   return (
     <div ref={boxRef} className="relative">
       <input
         value={text}
         onFocus={() => setOpen(true)}
-        onChange={e => onChange({ id: null, text: e.target.value })}
+        onChange={e => { onChange({ id: null, text: e.target.value }); setOpen(true); keys.resetActive() }}
+        onKeyDown={keys.onKeyDown}
         placeholder={placeholder}
         className={`w-full border rounded-lg px-2.5 py-1.5 text-sm ${
           selectedId ? 'bg-blue-50/40 border-blue-200' : 'bg-amber-50/30 border-amber-200'
@@ -482,17 +595,21 @@ export function ComboFree({ text, selectedId, options, onChange, placeholder }: 
         title={selectedId ? '마스터 연결됨' : '자유 입력 (마스터 미연결)'}
       />
       {open && filtered.length > 0 && (
-        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto text-sm">
-          {filtered.map(o => (
-            <button type="button" key={o.id}
+        <FloatingList pos={pos} listRef={listRef}>
+          {filtered.map((o, idx) => (
+            <button type="button" key={o.id} data-idx={idx} tabIndex={-1}
+              role="option" aria-selected={idx === keys.active}
               onMouseDown={e => e.preventDefault()}
-              onClick={() => { onChange({ id: o.id, text: o.label }); setOpen(false) }}
-              className="w-full text-left px-3 py-1.5 hover:bg-blue-50 border-b border-gray-50">
+              onMouseMove={() => { if (keys.active !== idx) keys.setActive(idx) }}
+              onClick={() => pick(o)}
+              className={`w-full text-left px-3 py-1.5 border-b border-gray-50 ${
+                idx === keys.active ? 'bg-blue-100' : 'hover:bg-blue-50'
+              }`}>
               {o.label}
               {o.sub && <span className="text-xs text-gray-400 ml-1.5">{o.sub}</span>}
             </button>
           ))}
-        </div>
+        </FloatingList>
       )}
     </div>
   )
