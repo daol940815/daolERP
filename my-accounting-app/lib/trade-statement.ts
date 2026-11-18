@@ -83,7 +83,8 @@ export async function buildStatementExcel(data: StatementData): Promise<Buffer> 
     pageSetup: {
       // A4 한 장 맞춤 (2026-11-17 사용자 확정): 배율 64% 고정은 한글 엑셀에서 폭이 인쇄 가능 폭과 거의 같아 PDF 저장 때 잘렸다.
       // 페이지에 맞춤(fitToPage) + 너비 1 · 높이 1 — 엑셀 인쇄 · PDF 저장 · 다른 뷰어 모두 이 설정을 따른다.
-      paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 1,
+      // 2026-11-18: 사용자 양식(실무 거래명세서)처럼 A4 가로 — G · J열을 숨기지 않아도 한 장에 들어간다.
+      paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 1,
       margins: {
         left: 0.23622047244094491, right: 0.23622047244094491,
         top: 0.74803149606299213, bottom: 0.74803149606299213,
@@ -104,11 +105,8 @@ export async function buildStatementExcel(data: StatementData): Promise<Buffer> 
   const longest = Math.max(0, ...data.items.map(it => nameUnits(String(it.item_name ?? ''))))
   widths[4] = Math.max(widths[4], Math.ceil((longest + 2 - widths[2] - widths[3]) * 100) / 100)
   ws.columns = widths.map(w => ({ width: w }))
-  // G열 · J열 숨김 (2026-11-13 사용자 요청 — A4 한 장에 맞게, B~O 너비 145.81 → 138.57).
-  // 두 열은 단독 내용이 없고 합친 칸의 앞 열로만 쓰인다: G = 단가(G:H) · 왼쪽 정보 값 칸(D:H) 일부, J = 부가세(J:K) · 오른쪽 라벨(I:J) 일부.
-  // 합친 칸은 앞 열이 숨겨져도 남은 열에 내용이 그대로 보인다. 너비 값은 남겨 두어 숨김을 풀면 원래 모양으로 돌아간다.
-  ws.getColumn(7).hidden = true
-  ws.getColumn(10).hidden = true
+  // G · J열은 숨기지 않고 좁은 폭(3.62)으로 둔다 (2026-11-18 사용자 양식 기준). 11-13의 숨김은 사업자번호 칸(I:J)을 I열 폭으로 줄여
+  // 항목명이 '사업자번 / 호' 두 줄로 잘렸다 — 가로 용지로 바꿔 숨김 없이 한 장에 들어간다.
 
   const thin = { style: 'thin' as const }
   const box = { top: thin, bottom: thin, left: thin, right: thin }
@@ -151,29 +149,29 @@ export async function buildStatementExcel(data: StatementData): Promise<Buffer> 
   }
   const customer = [data.bank_name, data.branch_name].filter(Boolean).join(' ')
   // [행, 병합·값 목록] — label은 회색 배경·양쪽 맞춤, 값은 가운데(대표자 등 O열 단칸은 좌측)
-  // 왼쪽 값 칸은 D~H 병합 — H열을 따로 두면 테두리가 그려져 빈 칸처럼 보였다(2026-11-13 사용자 확정: 두 표를 바로 붙임, 열 너비 불변)
-  type Cell = { range: string; v: string | number | Date; label?: boolean; date?: boolean }
+  // 왼쪽 값 칸은 D~G 병합, H열은 테두리 없는 간격 — 왼쪽 표와 오른쪽 자사 정보표를 띄운다 (2026-11-18 사용자 양식 기준)
+  type Cell = { range: string; v: string | number | Date; label?: boolean; date?: boolean; left?: boolean }
   const info: Cell[][] = [
     [
-      { range: 'B4:C4', v: '일자', label: true }, { range: 'D4:H4', v: asDate(data.order_date), date: true },
+      { range: 'B4:C4', v: '일자', label: true }, { range: 'D4:G4', v: asDate(data.order_date), date: true },
       { range: 'I4:J4', v: '사업자번호', label: true }, { range: 'K4:O4', v: STMT_BIZ_NO },
     ],
     [
-      { range: 'B5:C5', v: '제목', label: true }, { range: 'D5:H5', v: '거래명세서' },
+      { range: 'B5:C5', v: '제목', label: true }, { range: 'D5:G5', v: '거래명세서' },
       { range: 'I5:J5', v: '상호', label: true }, { range: 'K5:L5', v: STMT_COMPANY },
-      { range: 'M5:N5', v: '대표자', label: true }, { range: 'O5', v: STMT_CEO },
+      { range: 'M5:N5', v: '대표자', label: true }, { range: 'O5', v: STMT_CEO, left: true },
     ],
     [
-      { range: 'B6:C6', v: '거래처', label: true }, { range: 'D6:H6', v: customer },
+      { range: 'B6:C6', v: '거래처', label: true }, { range: 'D6:G6', v: customer },
       { range: 'I6:J6', v: '소재지', label: true }, { range: 'K6:O6', v: STMT_ADDRESS },
     ],
     [
-      { range: 'B7:C7', v: '담당자', label: true }, { range: 'D7:H7', v: '' }   /* 담당자 · 연락처는 항목명만 두고 값은 빈칸 (2026-11-17 사용자 확정) */,
+      { range: 'B7:C7', v: '담당자', label: true }, { range: 'D7:G7', v: '' }   /* 담당자 · 연락처는 항목명만 두고 값은 빈칸 (2026-11-17 사용자 확정) */,
       { range: 'I7:J7', v: '업태', label: true }, { range: 'K7:L7', v: STMT_UPTAE },
       { range: 'M7:N7', v: '종목', label: true }, { range: 'O7', v: STMT_JONGMOK },
     ],
     [
-      { range: 'B8:C8', v: '연락처', label: true }, { range: 'D8:H8', v: '' },
+      { range: 'B8:C8', v: '연락처', label: true }, { range: 'D8:G8', v: '' },
       { range: 'I8:J8', v: '전화번호', label: true }, { range: 'K8:L8', v: COMPANY_TEL },
       { range: 'M8:N8', v: '팩스', label: true }, { range: 'O8', v: COMPANY_FAX },
     ],
@@ -189,11 +187,13 @@ export async function buildStatementExcel(data: StatementData): Promise<Buffer> 
       // 들여쓰기 1 — 양쪽 맞춤이 테두리에 붙지 않게 여백을 주고 글자 간격도 좁힌다 (사용자 요청)
       cell.alignment = { horizontal: 'distributed', vertical: 'distributed', indent: 1 }
     } else {
-      cell.alignment = center   // 값 셀은 전부 가운데 (대표자 포함 — 사용자 확정)
+      // 값 셀은 가운데, 대표자만 왼쪽 맞춤 + 들여쓰기 (2026-11-18 사용자 양식 기준)
+      cell.alignment = cellDef.left ? { horizontal: 'left', vertical: 'middle', indent: 1 } : center
     }
     if (cellDef.date && cell.value instanceof Date) cell.numFmt = 'mm-dd-yy'
   })
-  boxRange(4, 2, 8, 15)
+  boxRange(4, 2, 8, 7)     // 왼쪽 표 B~G
+  boxRange(4, 9, 8, 15)    // 오른쪽 자사 정보표 I~O (H열은 간격 — 테두리 없음)
 
   // ── 총 금액 행 (12행) — 한글 금액 수식 + ₩ 금액(합계 연동) + (VAT포함) ──
   ws.getRow(9).height = 9.95
@@ -307,11 +307,11 @@ export async function buildStatementExcel(data: StatementData): Promise<Buffer> 
   // 하단 여백 + 특이사항 자유기입 칸 (비워둔다 — 사용자 확정)
   ws.getRow(spacerRow).height = 15
   ws.mergeCells(`B${spacerRow}:O${spacerRow}`)
-  ws.getRow(noteRow).height = 134.25
+  ws.getRow(noteRow).height = 111.75   // 사용자 양식 기준 (2026-11-18)
   ws.mergeCells(`B${noteRow}:O${noteRow}`)
   const note = ws.getCell(`B${noteRow}`)
   note.font = font()
-  note.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true }
+  note.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
   boxRange(noteRow, 2, noteRow, 15)
 
   // ── 로고·도장 이미지 — 원본과 같은 위치·크기 (EMU 오프셋을 셀 분수로 환산) ──
@@ -324,7 +324,7 @@ export async function buildStatementExcel(data: StatementData): Promise<Buffer> 
     editAs: 'oneCell',
   } as unknown as Parameters<typeof ws.addImage>[1])
   ws.addImage(stampId, {
-    tl: { nativeCol: 14, nativeColOff: 737907, nativeRow: 2, nativeRowOff: 235323 },
+    tl: { nativeCol: 14, nativeColOff: 760319, nativeRow: 2, nativeRowOff: 44823 },   // 도장 — 사용자 양식 위치 (2026-11-18)
     ext: { width: 73.92, height: 76.94 },
     editAs: 'oneCell',
   } as unknown as Parameters<typeof ws.addImage>[1])
@@ -332,5 +332,21 @@ export async function buildStatementExcel(data: StatementData): Promise<Buffer> 
   // 인쇄 영역 (B열~O열, 명세 전체)
   ws.pageSetup.printArea = `B1:O${noteRow}`
 
-  return Buffer.from(await wb.xlsx.writeBuffer())
+  return withMalgunNormalFont(Buffer.from(await wb.xlsx.writeBuffer()))
+}
+
+// 기본 글꼴(표준 스타일)을 맑은 고딕 11로 (2026-11-18). 엑셀은 열 너비를 '기본 글꼴의 숫자 한 글자 폭' 단위로 계산한다.
+// exceljs는 기본 글꼴을 Calibri로 고정해 써서, 같은 너비 숫자라도 사용자 양식(기본 글꼴 맑은 고딕)보다 칸이 좁게 그려졌다.
+// 저장된 파일의 styles.xml에서 첫 글꼴(표준 스타일)만 맑은 고딕으로 바꾼다 — 칸에 직접 지정한 글꼴은 그대로.
+async function withMalgunNormalFont(buf: Buffer): Promise<Buffer> {
+  const JSZip = (await import('jszip')).default
+  const zip = await JSZip.loadAsync(buf)
+  const file = zip.file('xl/styles.xml')
+  if (!file) return buf
+  const xml = await file.async('string')
+  const fixed = xml.replace(/(<fonts[^>]*>)<font>[\s\S]*?<\/font>/,
+    '$1<font><sz val="11"/><color theme="1"/><name val="맑은 고딕"/><family val="2"/><charset val="129"/></font>')
+  if (fixed === xml) return buf
+  zip.file('xl/styles.xml', fixed)
+  return Buffer.from(await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }))
 }
