@@ -345,7 +345,7 @@ export default function AreaSidebar({ area, areaLabel, groups, userName, userSub
       </div>
     </aside>
     {showAddModal && <AddBankModal onClose={() => setShowAddModal(false)} onSaved={fetchBanks} />}
-    <NotificationToasts toasts={notif.toasts} onDismiss={notif.dismiss} />
+    <NotificationToasts toasts={notif.toasts} onDismiss={notif.dismiss} onDismissAll={notif.dismissAll} />
     </>
   )
 }

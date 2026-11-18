@@ -10,13 +10,33 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { NOTIF_BUCKETS, NOTIF_BUCKET_LABEL, NOTIF_BUCKET_HINT, NOTIF_GROUP_LABEL, NOTIF_POLL_MS, NOTIF_SOURCE_LABEL, notifSource, type NotifBucket, type NotifData, type NotifGroup, type NotifItem } from '@/lib/notifications'
+import { NOTIF_BUCKETS, NOTIF_BUCKET_LABEL, NOTIF_BUCKET_HINT, NOTIF_GROUP_LABEL, NOTIF_POLL_MS, NOTIF_SOURCE_LABEL, NOTIF_WR_PANEL_MAX, NOTIF_WR_LIST_HREF, isWrRequestItem, notifSource, type NotifBucket, type NotifData, type NotifGroup, type NotifItem } from '@/lib/notifications'
 import type { Toast } from '@/lib/use-notifications'
-import { canMarkRead, useNotifRead } from '@/lib/notif-read'
+import { canMarkRead, markNotifRead, useNotifRead } from '@/lib/notif-read'
 
 const READ_ALL_HINT = '수락 · 진행 메모 · 완료 확정 같은 소식을 모두 확인한 것으로 처리합니다(다시 나오지 않음). 마감 지남 · 미확인처럼 처리할 일은 일이 끝나야 사라집니다.'
 
 const DOT: Record<string, string> = { red: 'bg-red-500', amber: 'bg-amber-400', blue: 'bg-blue-500', gray: 'bg-slate-300' }
+// 업무 요청 상태 표시 (2026-11-18 — 요청별 표시). 마감 지남은 빨강, 오늘 마감 · 완료 확정 대기는 주황, 그 외 회색
+const FLAG_CLS: Record<string, string> = { '마감 지남': 'bg-red-100 text-red-700', '오늘 마감': 'bg-amber-100 text-amber-800', '완료 확정 대기': 'bg-amber-100 text-amber-800' }
+function Flags({ item, dark }: { item: NotifItem; dark?: boolean }) {
+  if (!item.flags?.length) return null
+  return <>{item.flags.map(f => <span key={f} className={`inline-block text-[0.625rem] font-semibold rounded px-1 py-px ml-1 align-[1px] whitespace-nowrap ${FLAG_CLS[f] ?? (dark ? 'bg-white/15 text-slate-200' : 'bg-gray-100 text-gray-600')}`}>{f}</span>)}</>
+}
+// 칸마다 업무 요청 줄은 NOTIF_WR_PANEL_MAX 건까지 — 넘친 건수는 칸별로 돌려준다 (목록 링크용)
+function capWr(list: NotifItem[]): { shown: NotifItem[]; over: Partial<Record<NotifBucket, number>> } {
+  const seen: Partial<Record<NotifBucket, number>> = {}, over: Partial<Record<NotifBucket, number>> = {}
+  const shown = list.filter(i => {
+    if (!isWrRequestItem(i)) return true
+    const b = i.bucket ?? 'other'
+    seen[b] = (seen[b] ?? 0) + 1
+    if (seen[b]! <= NOTIF_WR_PANEL_MAX) return true
+    over[b] = (over[b] ?? 0) + 1
+    return false
+  })
+  return { shown, over }
+}
+
 // 출처 꼬리표(2026-11-09) — 업무 요청 · 주문 · 휴가
 function SourceTag({ item, dark }: { item: NotifItem; dark?: boolean }) {
   const src = notifSource(item.key)
@@ -63,7 +83,9 @@ export function NotificationBell({ data, seenAt, onSeen, live }: { data: NotifDa
   const unseenInfo = (b: NotifBucket) => items.some(i => bucketOfItem(i) === b && i.group === 'info' && (!seenAt || (!!i.at && i.at > seenAt)))
   const showOther = bd.other > 0 || items.some(i => bucketOfItem(i) === 'other')
   const cells: NotifBucket[] = showOther ? ['personal', 'shared', 'mine', 'order', 'other'] : ['personal', 'shared', 'mine', 'order']
-  const list = tab === null ? [] : tab === 'all' ? items : items.filter(i => bucketOfItem(i) === tab)
+  const capped = capWr(tab === null ? [] : tab === 'all' ? items : items.filter(i => bucketOfItem(i) === tab))
+  const list = capped.shown
+  const overflow = (Object.entries(capped.over) as [NotifBucket, number][]).filter(([, n]) => n > 0)
   const toggle = (b: BellTab) => setTab(t => t === b ? null : b)
   const tabs: BellTab[] = [...cells, 'all']
   const tabLabel = (t: BellTab) => t === 'all' ? '전체' : NOTIF_BUCKET_LABEL[t]
@@ -124,26 +146,11 @@ export function NotificationBell({ data, seenAt, onSeen, live }: { data: NotifDa
                           className="grid grid-cols-[8px_1fr_auto] gap-2.5 px-4 py-2 hover:bg-gray-50 items-start">
                           <span className={`w-2 h-2 rounded-full mt-1.5 ${DOT[i.tone]}`} />
                           <span className="min-w-0">
-                            <span className={`block text-[0.8125rem] ${seen ? 'text-gray-600' : 'font-semibold text-gray-900'}`}><SourceTag item={i} />{i.title}</span>
+                            <span className={`block text-[0.8125rem] ${seen ? 'text-gray-600' : 'font-semibold text-gray-900'}`}><SourceTag item={i} />{i.title}<Flags item={i} /></span>
                             {i.detail && <span className={`block text-[0.6875rem] text-gray-500 truncate ${readable ? 'pr-8' : ''}`}>{i.detail}</span>}
                           </span>
                           <span className="text-[0.65625rem] text-gray-400 whitespace-nowrap pt-0.5">{timeLabel(i.at)}</span>
                         </Link>
-                        {i.subs && i.subs.length > 0 && (
-                          // 묶인 요청 펼침 (2026-11-18) — 각 줄을 누르면 그 요청 상세로
-                          <ul className="pl-[2.125rem] pr-4 pb-2 -mt-0.5 space-y-0.5">
-                            {i.subs.map(s => (
-                              <li key={s.id}>
-                                <Link href={s.href} onClick={() => setTab(null)} className="flex items-baseline gap-2 text-[0.6875rem] rounded px-1.5 py-0.5 -mx-1.5 hover:bg-gray-100">
-                                  <span className="text-gray-300">·</span>
-                                  <span className="truncate text-gray-700">{s.title}</span>
-                                  {s.detail && <span className="ml-auto shrink-0 text-gray-400 tabular-nums">{s.detail}</span>}
-                                </Link>
-                              </li>
-                            ))}
-                            {i.more ? <li><Link href={i.href} onClick={() => setTab(null)} className="text-[0.6875rem] text-gray-500 hover:text-gray-900 underline pl-3.5">외 {i.more}건 — 목록에서 보기</Link></li> : null}
-                          </ul>
-                        )}
                         {readable && (
                           <button onClick={() => rd.mark([i])} title="확인 — 다시 나오지 않습니다"
                             className="absolute right-3 bottom-1.5 px-1.5 py-0.5 rounded border border-gray-200 bg-white text-[0.625rem] text-gray-500 hover:text-gray-900 hover:border-gray-400">확인</button>
@@ -154,6 +161,11 @@ export function NotificationBell({ data, seenAt, onSeen, live }: { data: NotifDa
                 </div>
               )
             })}
+            {overflow.map(([b, n]) => (
+              <Link key={b} href={NOTIF_WR_LIST_HREF[b] ?? '/me/requests'} onClick={() => setTab(null)} className="block px-4 py-2 text-[0.75rem] text-gray-600 hover:bg-gray-50 border-b border-gray-50">
+                {NOTIF_BUCKET_LABEL[b]} 업무 요청 외 {n}건 — 목록에서 전체 보기 →
+              </Link>
+            ))}
             <div className="flex items-center px-4 py-2 bg-gray-50 text-[0.6875rem] text-gray-500">
               <button onClick={() => { rd.mark(items, true); onSeen(); setTab(null) }} title={READ_ALL_HINT} className="hover:text-gray-800 underline">모두 확인</button>
               {rd.error && <span className="ml-2 text-red-600">{rd.error}</span>}
@@ -166,27 +178,37 @@ export function NotificationBell({ data, seenAt, onSeen, live }: { data: NotifDa
   )
 }
 
-export function NotificationToasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: string) => void }) {
+// 토스트 (2026-11-18 사용자 결정): 개수 제한 없음 · 확인하기 전까지 내려가지 않음. 많으면 목록이 스크롤되고 위에 "모두 확인".
+//  확인 = 토스트만 닫는다(결과 통지면 905 확인 기록도 함께). 해야 할 일이 끝나 알림에서 사라지면 토스트도 자동으로 닫힌다(use-notifications).
+export function NotificationToasts({ toasts, onDismiss, onDismissAll }: { toasts: Toast[]; onDismiss: (id: string) => void; onDismissAll?: () => void }) {
   const router = useRouter()
   if (!toasts.length) return null
+  const done = (t: Toast) => { onDismiss(t.id); if (canMarkRead(t.item)) markNotifRead([t.item.key]) }
   return (
-    <div className="fixed right-4 bottom-4 z-50 flex flex-col gap-2 w-[320px]">
-      {toasts.map(t => (
-        <div key={t.id} className="bg-slate-900 text-white rounded-xl shadow-2xl px-4 py-3 text-sm">
-          <div className="flex items-start gap-2">
-            <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${DOT[t.item.tone]}`} />
-            <div className="min-w-0 flex-1">
-              <p className="font-semibold"><SourceTag item={t.item} dark />{t.item.title}</p>
-              {t.item.detail && <p className="text-xs text-slate-300 mt-0.5 truncate">{t.item.detail}</p>}
-            </div>
-            <button onClick={() => onDismiss(t.id)} className="text-slate-400 hover:text-white text-xs leading-none" title="닫기">✕</button>
-          </div>
-          <div className="flex gap-1.5 mt-2.5">
-            <button onClick={() => { onDismiss(t.id); router.push(t.item.href) }} className="px-2.5 py-1 rounded-md bg-white text-slate-900 text-xs font-semibold">열기</button>
-            <button onClick={() => onDismiss(t.id)} className="px-2.5 py-1 rounded-md bg-white/10 text-xs">나중에</button>
-          </div>
+    <div className="fixed right-4 bottom-4 z-50 w-[340px] max-h-[80vh] flex flex-col">
+      {toasts.length > 1 && (
+        <div className="flex items-center mb-1.5 px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 text-xs shadow-lg">
+          새 알림 {toasts.length}건
+          <button onClick={() => { const keys = toasts.filter(t => canMarkRead(t.item)).map(t => t.item.key); if (keys.length) markNotifRead(keys); onDismissAll?.() }} className="ml-auto underline hover:text-white">모두 확인</button>
         </div>
-      ))}
+      )}
+      <div className="flex flex-col gap-2 overflow-y-auto pr-0.5">
+        {toasts.map(t => (
+          <div key={t.id} className="bg-slate-900 text-white rounded-xl shadow-2xl px-4 py-3 text-sm shrink-0">
+            <div className="flex items-start gap-2">
+              <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${DOT[t.item.tone]}`} />
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold"><SourceTag item={t.item} dark />{t.item.title}<Flags item={t.item} dark /></p>
+                {t.item.detail && <p className="text-xs text-slate-300 mt-0.5 truncate">{t.item.detail}</p>}
+              </div>
+            </div>
+            <div className="flex gap-1.5 mt-2.5">
+              <button onClick={() => { done(t); router.push(t.item.href) }} className="px-2.5 py-1 rounded-md bg-white text-slate-900 text-xs font-semibold">열기</button>
+              <button onClick={() => done(t)} className="px-2.5 py-1 rounded-md bg-white/10 text-xs hover:bg-white/20">확인</button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -196,6 +218,17 @@ export function TodoPanel({ variant, data }: { variant: 'dark' | 'light'; data: 
   const rd = useNotifRead()
   const items = rd.visible(data?.items ?? [])
   if (!data || items.length === 0) return null
+  // 요약 유지(2026-11-18): 업무 요청은 요청별로 오지만 여기서는 "개인 요청 마감 지남 2건"처럼 묶어 보인다 (1건이면 그 요청으로 바로)
+  const rows: { key: string; item: NotifItem; members: NotifItem[] }[] = []
+  for (const i of items) {
+    if (!i.sum) { rows.push({ key: i.key, item: i, members: [i] }); continue }
+    const row = rows.find(r => r.key === i.sum!.key)
+    if (row) row.members.push(i)
+    else rows.push({ key: i.sum.key, item: i, members: [i] })
+  }
+  const view = rows.map(r => r.members.length === 1 && !r.item.sum ? r : {
+    ...r, item: { ...r.item, title: r.item.sum!.label, count: r.members.length, href: r.members.length === 1 ? r.item.href : r.item.sum!.href, flags: undefined },
+  })
   const dark = variant === 'dark'
   const infoCount = items.filter(canMarkRead).length
   const btn = dark ? 'border-slate-600 text-slate-300 hover:text-white hover:border-slate-400' : 'border-gray-300 text-gray-600 hover:text-gray-900 hover:border-gray-500'
@@ -211,12 +244,12 @@ export function TodoPanel({ variant, data }: { variant: 'dark' | 'light'; data: 
       </div>
       {rd.error && <p className="mt-1 text-[0.6875rem] text-red-500">{rd.error}</p>}
       <ul className="mt-2">
-        {items.map(i => (
-          <li key={i.key} className={`flex items-center gap-2.5 py-1.5 text-[0.8125rem] border-t ${dark ? 'border-slate-800' : 'border-gray-100'}`}>
+        {view.map(({ key, item: i, members }) => (
+          <li key={key} className={`flex items-center gap-2.5 py-1.5 text-[0.8125rem] border-t ${dark ? 'border-slate-800' : 'border-gray-100'}`}>
             <span className={`text-[0.625rem] font-bold rounded-full px-1.5 py-0.5 leading-none ${pill(i)}`}>{i.count}</span>
             <span className="truncate"><SourceTag item={i} dark={dark} />{i.title.replace(/\s\d+건$/, '')}</span>
-            {canMarkRead(i) && <button onClick={() => rd.mark([i])} title="확인 — 다시 나오지 않습니다" className={`ml-auto px-1.5 py-0.5 rounded border text-[0.625rem] whitespace-nowrap ${btn}`}>확인</button>}
-            <Link href={i.href} onClick={() => { if (canMarkRead(i)) rd.mark([i]) }} className={`${canMarkRead(i) ? '' : 'ml-auto '}text-[0.6875rem] whitespace-nowrap hover:underline ${dark ? 'text-sky-300' : 'text-blue-600'}`}>바로가기 →</Link>
+            {canMarkRead(i) && <button onClick={() => rd.mark(members)} title="확인 — 다시 나오지 않습니다" className={`ml-auto px-1.5 py-0.5 rounded border text-[0.625rem] whitespace-nowrap ${btn}`}>확인</button>}
+            <Link href={i.href} onClick={() => { if (canMarkRead(i) && members.length === 1) rd.mark(members) }} className={`${canMarkRead(i) ? '' : 'ml-auto '}text-[0.6875rem] whitespace-nowrap hover:underline ${dark ? 'text-sky-300' : 'text-blue-600'}`}>바로가기 →</Link>
           </li>
         ))}
       </ul>
