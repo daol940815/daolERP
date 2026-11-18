@@ -13,6 +13,7 @@ import {
   type WrRow, type WrEventRow, type WrStatus, type WrActions, type WrAssignee, type WrTag,
 } from '@/lib/work-requests'
 import { TagChip, TagPicker } from '@/components/work-requests/tag-chip'
+import { MemoTextarea, MEMO_KEY_HINT, useMemoPrompt } from '@/components/work-requests/memo-input'
 import { useNotifRefresh, requestNotifRefresh } from '@/lib/use-notif-refresh'
 import AttachmentBox from '@/components/attachments/AttachmentBox'
 
@@ -27,6 +28,7 @@ export default function WorkRequestDetailPage() {
   const [d, setD] = useState<Detail | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [memo, setMemo] = useState('')
+  const prompt = useMemoPrompt()   // 처리 보고 결과 메모 · 반려 사유 — 여러 줄 입력 (2026-11-18)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
@@ -93,6 +95,7 @@ export default function WorkRequestDetailPage() {
 
   return (
     <div className="max-w-5xl mx-auto">
+      {prompt.element}
       <Link href="/me/requests" className="text-sm text-gray-500 hover:text-gray-900">← 업무 요청</Link>
       {msg && <div className="mt-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
       <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -235,12 +238,14 @@ export default function WorkRequestDetailPage() {
               ))}
             </ul>
             {a.memo && (
-              <div className="flex gap-2 mt-3">
-                <input value={memo} onChange={e => setMemo(e.target.value)} placeholder={multi && a.isAsg ? '내 진행 메모 입력' : '진행 메모 입력'}
-                  onKeyDown={async e => { if (e.key === 'Enter' && memo.trim()) { if (await act('memo', { memo: memo.trim() })) setMemo('') } }}
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-                <button disabled={busy || !memo.trim()} onClick={async () => { if (await act('memo', { memo: memo.trim() })) setMemo('') }}
-                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">메모 추가</button>
+              <div className="mt-3">
+                <div className="flex gap-2 items-end">
+                  <MemoTextarea value={memo} onChange={setMemo} disabled={busy} placeholder={multi && a.isAsg ? '내 진행 메모 입력' : '진행 메모 입력'}
+                    onSubmit={async () => { if (await act('memo', { memo: memo.trim() })) setMemo('') }} className="flex-1" />
+                  <button disabled={busy || !memo.trim()} onClick={async () => { if (await act('memo', { memo: memo.trim() })) setMemo('') }}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 whitespace-nowrap">메모 추가</button>
+                </div>
+                <p className="text-[0.6875rem] text-gray-400 mt-1">{MEMO_KEY_HINT}</p>
               </div>
             )}
           </div>
@@ -252,9 +257,9 @@ export default function WorkRequestDetailPage() {
               <h2 className="text-sm font-bold text-gray-900 mb-3">{multi ? '내 조작' : '담당자 조작'}</h2>
               <div className="flex flex-col gap-2">
                 {a.accept && <button disabled={busy} onClick={() => act('accept')} className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">수락{r.assign_mode === 'first' ? ' (먼저 수락하면 내가 담당)' : ''}</button>}
-                {a.report && <button disabled={busy} onClick={() => { const m = window.prompt('처리 완료 보고 — 결과 메모 (선택)'); if (m !== null) act('report', { memo: m.trim() || undefined }) }}
+                {a.report && <button disabled={busy} onClick={async () => { const m = await prompt.ask({ title: '처리 완료 보고 — 결과 메모', detail: r.title, confirmLabel: '보고하기', placeholder: '무엇을 했는지 · 결과는 어디에 있는지' }); if (m !== null) act('report', { memo: m || undefined }) }}
                   className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">처리 완료 보고</button>}
-                {a.reject && <button disabled={busy} onClick={() => { const m = window.prompt('반려 사유를 입력하세요 (필수).'); if (m?.trim()) act('reject', { memo: m.trim() }) }}
+                {a.reject && <button disabled={busy} onClick={async () => { const m = await prompt.ask({ title: '반려 사유', detail: r.title, required: true, danger: true, confirmLabel: '반려하기' }); if (m) act('reject', { memo: m }) }}
                   className="px-3 py-2 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 disabled:opacity-50">반려 (사유 필수)</button>}
                 {a.report && <p className="text-xs text-gray-400">{r.assign_mode === 'all' ? '내 몫만 보고합니다. 다른 사람 진행은 담당자 표에서 확인. 전원이 보고하면 요청자가 완료를 확정합니다.' : '보고하면 요청자가 확인 후 완료를 확정합니다.'}</p>}
               </div>

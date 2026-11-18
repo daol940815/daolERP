@@ -16,6 +16,7 @@ import {
   allowedActions, assigneeSummary, myShare, isAssigneeOf, WR_TAG_NONE, type WrRow, type WrStatus, type WrScope, type WrTag,
 } from '@/lib/work-requests'
 import { TagChip, NoTagChip, TagList } from '@/components/work-requests/tag-chip'
+import { useMemoPrompt } from '@/components/work-requests/memo-input'
 import { useNotifRefresh, requestNotifRefresh } from '@/lib/use-notif-refresh'
 import { HELP_QUESTION_PREFIX, HELP_PERMISSION_PREFIX } from '@/lib/help-registry'
 
@@ -59,6 +60,7 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
     setTagF(initialTag ? [initialTag] : [])
   }, [initialFilter, initialKind, initialTag])
   const [busy, setBusy] = useState<string | null>(null)
+  const prompt = useMemoPrompt()   // 처리 보고 결과 메모 · 반려 사유 — 여러 줄 입력 (2026-11-18)
   const [msg, setMsg] = useState<string | null>(null)
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
 
@@ -84,14 +86,14 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
     if (!res.ok) { flash(json.error ?? '처리 실패'); load(); return }
     load(); requestNotifRefresh()
   }
-  const reject = (r: WrRow) => { const reason = window.prompt(`'${r.title}' 요청을 반려합니다. 사유를 입력하세요 (필수).`); if (reason?.trim()) act(r.id, 'reject', reason.trim()) }
+  const reject = async (r: WrRow) => { const reason = await prompt.ask({ title: '반려 사유', detail: r.title, required: true, danger: true, confirmLabel: '반려하기' }); if (reason) act(r.id, 'reject', reason) }
   const cancel = (r: WrRow) => { if (window.confirm(`'${r.title}' 요청을 취소할까요?`)) act(r.id, 'cancel') }
   const complete = (r: WrRow) => {
     const pending = r.assignees.filter(a => a.status === 'accepted' || a.status === 'in_progress' || a.status === 'invited').length
     const warn = r.assign_mode === 'all' && pending ? `\n아직 보고하지 않은 담당자 ${pending}명에게는 "요청자가 완료 처리함"으로 닫힙니다.` : ''
     if (window.confirm(`'${r.title}' 요청을 완료로 확정할까요?${warn}`)) act(r.id, 'complete')
   }
-  const report = (r: WrRow) => { const memo = window.prompt('처리 완료 보고 — 결과 메모 (선택)'); if (memo !== null) act(r.id, 'report', memo.trim() || undefined) }
+  const report = async (r: WrRow) => { const memo = await prompt.ask({ title: '처리 완료 보고 — 결과 메모', detail: r.title, confirmLabel: '보고하기', placeholder: '무엇을 했는지 · 결과는 어디에 있는지' }); if (memo !== null) act(r.id, 'report', memo || undefined) }
 
   const rows = data?.rows ?? []
   const meId = data?.me?.id ?? null
@@ -177,6 +179,7 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
 
   return (
     <div>
+      {prompt.element}
       {msg && <div className="mb-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
         {cards.map(c => (
