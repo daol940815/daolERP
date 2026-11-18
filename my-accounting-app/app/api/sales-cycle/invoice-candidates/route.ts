@@ -6,6 +6,7 @@ import { buildInvoiceLinkCandidates, isMissingOrderInvoiceTable } from '@/lib/or
 import { loadBillingFamily } from '@/lib/billing'
 import { linkSyncReady, syncInvoicePaymentsFromOrders, syncOrderMatchesFromInvoices } from '@/lib/link-sync'
 import { can } from '@/lib/permissions'
+import { loadRecordedInvoiceVat, vatCompatible } from '@/lib/payment-kind-server'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -120,7 +121,8 @@ export async function DELETE(req: NextRequest) {
 
 // ── 저장 전 재검사 ─────────────────────────────────────────────
 // 거부 사유를 한 문장으로 돌려준다(없으면 null). 검사: 주문 존재 · 취소 아님 / 매출 계산서(양수) / 같은 주문-계산서 중복 /
-// 주문 남은 금액(순매출 − 기연결) · 계산서 남은 금액(합계 − 기배분) 초과.
+// 주문 남은 금액(순매출 − 기연결) · 계산서 남은 금액(합계 − 기배분) 초과 /
+// 주문의 계산서 발행 기록에 적은 과세 구분과 계산서 종류가 다름(1304, 2026-11-18 — 구분이 다르면 연결하지 않는다).
 async function recheckLinks(
   admin: ReturnType<typeof createAdminClient>,
   links: { orderId: string; taxInvoiceId: string; amount: number }[],
@@ -139,7 +141,8 @@ async function recheckLinks(
 
   const orders = new Map<string, { order_no: string | null; total: number; canceled: boolean }>()
   const excluded = new Map<string, number>()
-  const invoices = new Map<string, { total: number; direction: string; issue_date: string }>()
+  const invoices = new Map<string, { total: number; direction: string; issue_date: string; tax_type: string | null }>()
+  const recVat = await loadRecordedInvoiceVat(admin, orderIds)
   const linkedByOrder = new Map<string, number>()
   const linkedByInvoice = new Map<string, number>()
   const existing = new Set<string>()
@@ -159,11 +162,11 @@ async function recheckLinks(
   }
   for (const ch of chunk(invoiceIds)) {
     const [v, ex] = await Promise.all([
-      admin.from('tax_invoices').select('id, total_amount, direction, issue_date').in('id', ch),
+      admin.from('tax_invoices').select('id, total_amount, direction, issue_date, tax_type').in('id', ch),
       admin.from('erp_order_invoices').select('tax_invoice_id, amount').in('tax_invoice_id', ch),
     ])
     if (v.error || ex.error) return (v.error ?? ex.error)!.message
-    for (const r of v.data ?? []) invoices.set(r.id as string, { total: Number(r.total_amount ?? 0), direction: r.direction as string, issue_date: String(r.issue_date).slice(0, 10) })
+    for (const r of v.data ?? []) invoices.set(r.id as string, { total: Number(r.total_amount ?? 0), direction: r.direction as string, issue_date: String(r.issue_date).slice(0, 10), tax_type: (r.tax_type as string | null) ?? null })
     for (const r of ex.data ?? []) linkedByInvoice.set(r.tax_invoice_id as string, (linkedByInvoice.get(r.tax_invoice_id as string) ?? 0) + Number(r.amount ?? 0))
   }
 
@@ -174,6 +177,10 @@ async function recheckLinks(
     if (o.canceled) return `취소된 주문(${o.order_no ?? ''})에는 계산서를 연결할 수 없습니다.`
     if (!v) return '계산서를 찾을 수 없습니다. 화면을 새로 고친 뒤 다시 시도하세요.'
     if (v.direction !== 'sales' || v.total <= 0) return '매출 계산서(양수)만 주문에 연결할 수 있습니다.'
+    if (!vatCompatible(recVat.get(l.orderId), v.tax_type)) {
+      const L = (t: string | null | undefined) => (t === 'exempt' ? '면세' : '과세')
+      return `주문 ${o.order_no ?? ''}의 결제 기록은 ${L(recVat.get(l.orderId))}인데 계산서(${v.issue_date})는 ${L(v.tax_type)}입니다. 구분이 다르면 연결할 수 없습니다. 기록을 잘못 적었으면 주문 상세에서 기록을 고치고, 계산서 종류를 잘못 발행했으면 수정 발행해야 합니다.`
+    }
     if (existing.has(`${l.orderId}:${l.taxInvoiceId}`)) return `주문 ${o.order_no ?? ''}에 이미 연결된 계산서입니다. 다른 사람이 먼저 연결했을 수 있으니 화면을 새로 고쳐 주세요.`
     addOrder.set(l.orderId, (addOrder.get(l.orderId) ?? 0) + l.amount)
     addInvoice.set(l.taxInvoiceId, (addInvoice.get(l.taxInvoiceId) ?? 0) + l.amount)

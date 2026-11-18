@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { can } from '@/lib/permissions'
-import { createRecord, deleteRecord, loadCandidateOrders, updateRecord, validateRecordInput } from '@/lib/payment-records'
+import { createRecord, deleteRecord, loadCandidateOrders, loadRecKinds, updateRecord, validateRecordInput } from '@/lib/payment-records'
 
 export const dynamic = 'force-dynamic'
 
 // 결제 기록 (1300, 2026-11-13 사용자 확정) — 1차 입력: 영업지원팀(주문 · 발주 수정 권한)
 //   GET    ?exclude=<record_id>   → 같은 결제로 함께 처리할 수 있는 주문(같은 매출처 · 청구처, 미결제)
-//   POST   { method, pay_date, amount, approval_number?, card_last4?, depositor_name?, due_date?, memo?, allocations: [{order_id, amount}] }
+//   POST   { method, pay_date, amount, card_entry?, vat_kind? (1304 — 새 기록은 필수, 계좌이체 제외), approval_number?, card_last4?, depositor_name?, due_date?, memo?, allocations: [{order_id, amount}] }
 //   PATCH  ?record_id=  같은 본문 → 확인 대기 기록만 수정
 //   DELETE ?record_id=           → 확인 대기 기록만 삭제
 const DENY = '결제 기록은 주문 · 발주 수정 권한이 필요합니다. 영업지원팀 홍창의 부장 또는 ERP 담당에게 요청해주세요.'
@@ -30,9 +30,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const g = await guard(); if ('res' in g) return g.res
-  const input = validateRecordInput(await req.json().catch(() => ({})))
+  const admin = createAdminClient()
+  // 새 기록은 방식 · 과세 구분 필수 (1304 미적용이면 받지 않는다). 이전 기록 수정(PATCH)은 선택.
+  const input = validateRecordInput(await req.json().catch(() => ({})), (await loadRecKinds(admin, [])) != null)
   if ('error' in input) return NextResponse.json({ error: input.error }, { status: 400 })
-  const r = await createRecord(createAdminClient(), params.id, input, g.editor)
+  const r = await createRecord(admin, params.id, input, g.editor)
   if ('error' in r) return NextResponse.json({ error: r.error }, { status: 400 })
   return NextResponse.json(r)
 }

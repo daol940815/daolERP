@@ -248,6 +248,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     // 결제 기록 (1300): 1차 수기 입력분. 확인 대기 금액은 미수에서 빼지 않고 따로 보여 준다
     pay_records: {
       available: payRecords.available,
+      kinds: payRecords.kinds,   // 1304 적용 여부 — 방식 · 과세 구분 칸을 보여 줄지
       records: payRecords.records,
       can_record: payRecords.available && can(me, 'orders', 'edit') && snap.order.source === 'direct' && !snap.order.canceled_at,
     },

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>결제 기록 — 방식 · 과세 구분 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1180px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:30px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.65; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .lab { font-size:11px; font-weight:bold; color:#64748b; margin-bottom:8px; }
+  .chips { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+  .chip { border-radius:8px; padding:5px 11px; font-size:12.5px; color:#475569; background:#f1f5f9; }
+  .chip.on { background:#0f172a; color:#fff; }
+  .chip.nw { outline:2px solid #3b82f6; outline-offset:1px; }
+  .sep { width:1px; height:18px; background:#e2e8f0; margin:0 4px; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:920px; }
+  th { text-align:left; font-weight:normal; color:#64748b; font-size:11.5px; padding:8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; background:#f8fafc; }
+  td { padding:9px 8px; border-bottom:1px solid #f1f5f9; vertical-align:top; line-height:1.5; }
+  td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  td small { color:#94a3b8; display:block; font-size:11px; }
+  th.hl, td.hl { background:#eff6ff; }
+  .st { font-size:11px; font-weight:bold; padding:3px 8px; border-radius:999px; white-space:nowrap; }
+  .ok { background:#dcfce7; color:#166534; } .pt { background:#fef3c7; color:#92400e; } .no { background:#f1f5f9; color:#64748b; }
+  .btn { display:inline-block; border-radius:7px; padding:2px 8px; font-size:11px; border:1px solid #cbd5e1; background:#fff; color:#334155; white-space:nowrap; }
+  .btn.blue { border-color:#c7d2fe; background:#eef2ff; color:#4338ca; font-weight:bold; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; padding:5px 11px; font-size:12px; }
+  .ord { color:#0f172a; font-variant-numeric:tabular-nums; }
+  .mut { color:#94a3b8; } .am { color:#b45309; }
+  .tag { font-size:10.5px; font-weight:bold; padding:1px 6px; border-radius:4px; white-space:nowrap; }
+  .t-auto { background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; }
+  .note { background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:9px 12px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.75; }
+  .note b { color:#422006; }
+  .modal { border:1px solid #cbd5e1; border-radius:12px; background:#fff; box-shadow:0 12px 32px rgba(15,23,42,.18); overflow:hidden; }
+  .modal .mh { padding:12px 16px; font-weight:bold; border-bottom:1px solid #e2e8f0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .modal .mb { padding:14px 16px; }
+  .modal .mf { padding:10px 16px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:6px; background:#f8fafc; }
+  .seg { display:flex; gap:4px; margin-left:auto; }
+  .seg span { border:1px solid #cbd5e1; border-radius:7px; padding:3px 9px; font-size:11.5px; color:#475569; font-weight:normal; }
+  .seg span.on { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
+  .list { border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; }
+  .list .lh { background:#f8fafc; padding:7px 10px; font-size:11.5px; color:#64748b; border-bottom:1px solid #e2e8f0; }
+  .list .li { padding:7px 10px; border-bottom:1px solid #f1f5f9; font-size:12.5px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .list .li:last-child { border-bottom:none; }
+  .list .li .a { margin-left:auto; font-weight:bold; font-variant-numeric:tabular-nums; }
+  .list .li.sel { background:#eff6ff; }
+  .prev { margin-top:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 11px; font-size:12px; line-height:1.7; }
+
+  .fgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px 12px; margin-top:12px; }
+  .f label { display:block; font-size:11px; color:#64748b; margin-bottom:4px; }
+  .f .in { border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; font-size:12.5px; background:#fff; color:#0f172a; }
+  .f .in.ph { color:#94a3b8; }
+  .pick { display:flex; gap:5px; flex-wrap:wrap; }
+  .pick span { border:1px solid #cbd5e1; border-radius:8px; padding:6px 13px; font-size:12.5px; color:#475569; background:#fff; }
+  .pick span.on { background:#0f172a; color:#fff; border-color:#0f172a; font-weight:bold; }
+  .pick span.dis { background:#f1f5f9; color:#cbd5e1; border-color:#e2e8f0; }
+  .newbox { border:2px solid #3b82f6; border-radius:10px; padding:10px 12px; background:#eff6ff; margin-top:12px; }
+  .newbox .row { display:flex; gap:24px; flex-wrap:wrap; }
+  .req { color:#dc2626; }
+  .bad { background:#fee2e2; color:#991b1b; }
+  .t-warn { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+  .t-none { background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; }
+  .t-src { background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; }
+  .bd-card { background:#e0e7ff; color:#3730a3; } .bd-inv { background:#fae8ff; color:#86198f; } .bd-tr { background:#ccfbf1; color:#115e59; }
+
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>결제 기록 — 단말기 · 수기, 과세 · 면세 구분 시안</h1>
+  <p class="desc">2026-11-18 · 영업지원이 남기는 결제 기록(1차)에 카드 결제 방식(단말기 / 수기)과 과세 구분(과세 / 면세)을 추가합니다. 이전 ERP의 여섯 가지 구분(카드단말기 과세 · 면세, 수기 과세 · 면세, 계산서 과세 · 면세)과 같은 정보입니다. 숫자와 이름은 예시입니다. 파란 칸이 새로 생기는 부분입니다.</p>
+
+  <h2>1. 결제 기록 추가 창 — 카드결제</h2>
+  <p class="desc">수단을 고르면 바로 아래에 구분 줄이 나옵니다. 버튼 두 번으로 끝납니다. 나머지 칸은 지금과 같습니다.</p>
+  <div class="modal" style="max-width:720px">
+    <div class="mh">결제 기록 추가 <span class="mut" style="font-weight:normal;font-size:12px">D261118-014 · 신한은행 강남지점</span></div>
+    <div class="mb">
+      <div class="f"><label>수단</label>
+        <div class="pick"><span class="on">카드결제</span><span>계좌이체</span><span>계산서 발행</span></div>
+      </div>
+      <div class="newbox">
+        <div class="row">
+          <div class="f"><label>카드 결제 방식 <span class="req">*</span></label>
+            <div class="pick"><span>단말기</span><span class="on">수기</span></div>
+          </div>
+          <div class="f"><label>과세 구분 <span class="req">*</span></label>
+            <div class="pick"><span>과세</span><span class="on">면세</span></div>
+          </div>
+        </div>
+        <div class="mut" style="font-size:11px;margin-top:7px">단말기 = 매장 카드 단말기로 긁은 결제 · 수기 = 카드번호를 받아 결제 창구(PG)에서 입력한 결제</div>
+      </div>
+      <div class="fgrid">
+        <div class="f"><label>결제일</label><div class="in">2026-11-18</div></div>
+        <div class="f"><label>승인번호</label><div class="in">30157742</div></div>
+        <div class="f"><label>카드 뒤 4자리</label><div class="in">4821</div></div>
+        <div class="f"><label>금액</label><div class="in" style="text-align:right">700,000</div></div>
+      </div>
+      <div class="note">카드번호 전체 · 유효기간은 적지 않습니다(지금과 같음). 방식과 과세 구분을 고르지 않으면 저장되지 않습니다.</div>
+    </div>
+    <div class="mf"><span class="btn">취소</span><span class="btn pri">저장</span></div>
+  </div>
+
+  <h2>2. 수단별로 나오는 구분</h2>
+  <div class="cols">
+    <div class="panel"><div class="lab">카드결제</div>
+      <div class="newbox" style="margin-top:0"><div class="row">
+        <div class="f"><label>카드 결제 방식 *</label><div class="pick"><span class="on">단말기</span><span>수기</span></div></div>
+        <div class="f"><label>과세 구분 *</label><div class="pick"><span class="on">과세</span><span>면세</span></div></div>
+      </div></div>
+    </div>
+    <div class="panel"><div class="lab">계산서 발행</div>
+      <div class="newbox" style="margin-top:0"><div class="row">
+        <div class="f"><label>과세 구분 *</label><div class="pick"><span class="on">과세</span><span>면세</span></div></div>
+      </div>
+      <div class="mut" style="font-size:11px;margin-top:7px">과세 = 세금계산서 · 면세 = 계산서. 결제 방식 줄은 나오지 않습니다.</div></div>
+    </div>
+    <div class="panel"><div class="lab">계좌이체</div>
+      <div class="prev" style="margin-top:0">구분 줄이 나오지 않습니다. 이체 자체에는 과세 · 면세가 없고, 증빙(계산서)에 붙기 때문입니다.</div>
+    </div>
+  </div>
+
+  <h2>3. 과세와 면세 품목이 섞인 주문</h2>
+  <p class="desc">결제가 실제로 두 번 일어나므로 기록도 두 건으로 남깁니다. 지금 구조 그대로 됩니다.</p>
+  <div class="panel">
+    <div class="lab">주문 상세 › 결제 기록 (순매출 1,000,000원)</div>
+    <div class="scroll"><table>
+      <tr><th>수단</th><th class="hl">구분</th><th>결제일</th><th>단서</th><th class="n">금액</th><th>상태</th></tr>
+      <tr><td><span class="st bd-card">카드</span></td><td class="hl">수기 · 과세</td><td>11-18</td><td>승인 30157741 · 카드 뒤 4821</td><td class="n">300,000</td><td><span class="st pt">매칭 대기</span></td></tr>
+      <tr><td><span class="st bd-card">카드</span></td><td class="hl">수기 · 면세</td><td>11-18</td><td>승인 30157742 · 카드 뒤 4821</td><td class="n">700,000</td><td><span class="st pt">매칭 대기</span></td></tr>
+    </table></div>
+  </div>
+
+  <h2>4. 주문 상세 › 결제 기록 표 — 이미 남긴 기록 포함</h2>
+  <p class="desc">새 "구분" 칸이 생깁니다. 이전에 남긴 기록은 지워지거나 바뀌지 않고 "미기재"로 보입니다.</p>
+  <div class="panel new">
+    <div class="scroll"><table>
+      <tr><th>수단</th><th class="hl">구분</th><th>결제일</th><th>단서</th><th class="n">금액</th><th>상태</th><th></th></tr>
+      <tr><td><span class="st bd-card">카드</span></td><td class="hl">단말기 · 과세</td><td>11-18</td><td>승인 55120093 · 카드 뒤 7710</td><td class="n">450,000</td><td><span class="st pt">매칭 대기</span></td><td><span class="btn">수정</span></td></tr>
+      <tr><td><span class="st bd-inv">계산서</span></td><td class="hl">면세</td><td>11-17</td><td>입금 예정 11-30</td><td class="n">1,200,000</td><td><span class="st pt">매칭 대기</span></td><td><span class="btn">수정</span></td></tr>
+      <tr><td><span class="st bd-tr">이체</span></td><td class="hl mut">-</td><td>11-17</td><td>입금자 김다올</td><td class="n">80,000</td><td><span class="st pt">매칭 대기</span></td><td><span class="btn">수정</span></td></tr>
+      <tr><td><span class="st bd-card">카드</span></td><td class="hl"><span class="tag t-none">미기재</span></td><td>11-14</td><td>승인 41870026 · 카드 뒤 3305</td><td class="n">230,000</td><td><span class="st pt">매칭 대기</span></td><td><span class="btn">수정</span></td></tr>
+      <tr><td><span class="st bd-card">카드</span></td><td class="hl"><span class="tag t-none">미기재</span> <span class="tag t-src">원본: 수기 · 과세</span></td><td>11-13</td><td>승인 22904418 · 카드 뒤 9012</td><td class="n">610,000</td><td><span class="st ok">매칭됨</span></td><td></td></tr>
+    </table></div>
+    <div class="note">
+      <b>이전 기록(아래 두 줄)</b><br>
+      매칭 대기인 것: "미기재"로 남고, 수정 창에서 구분을 채울 수 있습니다(채우지 않아도 저장 · 매칭은 지금처럼 됩니다).<br>
+      이미 매칭된 것: 기록은 그대로 두고, 연결된 원본에서 읽은 값을 "원본: 수기 · 과세"로 옆에 보여 줍니다. 매칭이 끝났으므로 원본 값이 곧 사실입니다.
+    </div>
+  </div>
+
+  <h2>5. 결제 확인 › 매칭 대기 — 기록과 원본 비교</h2>
+  <p class="desc">구분을 적은 기록은 같은 종류의 원본에서 먼저 찾습니다(단말기 기록 = 단말기 파일, 수기 기록 = 수기결제 파일). 승인번호가 맞는데 구분이 다르면 숨기지 않고 "구분 다름"으로 보여 줍니다. 확정은 그대로 할 수 있습니다(시스템은 표시만, 판단은 사람).</p>
+  <div class="panel new">
+    <div class="scroll"><table>
+      <tr><th>기록</th><th class="hl">기록한 구분</th><th class="n">금액</th><th>후보 원본</th><th class="hl">원본 구분</th><th>판정</th><th></th></tr>
+      <tr><td><span class="ord">D261118-014</span><small>신한은행 강남지점 · 승인 30157742</small></td><td class="hl">수기 · 면세</td><td class="n">700,000</td><td>수기결제 11-18 · 승인 30157742</td><td class="hl">수기 · 면세</td><td><span class="st ok">승인번호 일치</span></td><td><span class="btn pri">매칭 확정</span></td></tr>
+      <tr><td><span class="ord">D261118-009</span><small>국민은행 서초지점 · 승인 30157688</small></td><td class="hl">수기 · 과세</td><td class="n">300,000</td><td>수기결제 11-18 · 승인 30157688</td><td class="hl"><b style="color:#991b1b">수기 · 면세</b></td><td><span class="st ok">승인번호 일치</span> <span class="tag t-warn">구분 다름</span></td><td><span class="btn pri">매칭 확정</span></td></tr>
+      <tr><td><span class="ord">D261114-031</span><small>우리은행 종로지점 · 승인 41870026</small></td><td class="hl"><span class="tag t-none">미기재</span></td><td class="n">230,000</td><td>단말기 11-14 · 승인 41870026</td><td class="hl">단말기 · 과세</td><td><span class="st ok">승인번호 일치</span></td><td><span class="btn pri">매칭 확정</span></td></tr>
+    </table></div>
+    <div class="note">
+      <b>두 번째 줄</b>: 과세로 기록했는데 면세 창구로 결제된 경우입니다. 기록을 잘못 적었는지, 창구를 잘못 골랐는지 영업지원에 확인할 신호입니다. 창구를 잘못 골랐다면 결제 취소 후 재결제가 필요한 일이라 일찍 아는 것이 중요합니다.<br>
+      <b>세 번째 줄</b>: 이전 기록(미기재)은 지금처럼 양쪽 원본 모두에서 찾습니다. 비교할 값이 없으므로 "구분 다름"은 뜨지 않습니다.<br>
+      <b>계산서 발행 기록</b>: 과세로 적었는데 연결하려는 계산서가 면세면 같은 방식으로 "구분 다름"을 표시합니다.
+    </div>
+  </div>
+
+  <h2>6. 바뀌지 않는 것</h2>
+  <div class="panel">
+    <div class="prev" style="margin-top:0">
+      주문내역 목록의 수단 꼬리표는 지금처럼 "카드 · 이체 · 계산서 · 혼합"입니다(칸이 좁아 자세한 구분은 넣지 않음).<br>
+      결제 상태 단계 5개, 미수 계산(매칭된 금액만 차감), 연결 동기화는 그대로입니다.<br>
+      엑셀 다운로드에는 "카드 결제 방식", "과세 구분" 열을 추가합니다.
+    </div>
+  </div>
+</div>
+</body>
+</html>
