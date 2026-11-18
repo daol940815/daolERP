@@ -4,9 +4,10 @@ import RequestsList from './requests-list'
 import type { WrScope } from '@/lib/work-requests'
 
 // 업무 요청 — 내 업무 그룹(전 영역 공통). 공용 목록(전체) / 내가 받은 / 내가 보낸 (900·901, docs/work-request-track.md)
+// 2026-11-18: ?kind=personal|shared — 개인 · 공용 요청 필터(KPI 필터와 함께 걸림, 알림 링크). 옛 ?filter=personal|shared 도 받는다.
 // 2026-11-10: ?tag=<태그 id | none> — 업무 계열 태그 필터 미리 선택(경영 현황 드릴다운, 904)
 // 2026-11-02: 목록 공용 전환 + '내 업무만' 버튼(받은·보낸). ?tab=all|inbox|outbox, ?month=, ?employee= (경영 현황 드릴다운)
-export default function WorkRequestsPage({ searchParams }: { searchParams: { tab?: string; month?: string; employee?: string; filter?: string; tag?: string } }) {
+export default function WorkRequestsPage({ searchParams }: { searchParams: { tab?: string; month?: string; employee?: string; filter?: string; kind?: string; tag?: string } }) {
   const scope: WrScope = searchParams.tab === 'all' ? 'all' : searchParams.tab === 'outbox' ? 'outbox' : 'inbox'
   const q = (extra: Record<string, string | undefined>) => {
     const p = new URLSearchParams()
@@ -24,7 +25,7 @@ export default function WorkRequestsPage({ searchParams }: { searchParams: { tab
         { key: 'outbox', label: '내가 보낸', href: `/me/requests${q({ tab: 'outbox' })}` },
         { key: 'all', label: '전체 (공용)', href: `/me/requests${q({ tab: 'all' })}` },
       ]} />
-      <RequestsList scope={scope} month={searchParams.month} employee={searchParams.employee} initialFilter={searchParams.filter} initialTag={searchParams.tag} />
+      <RequestsList scope={scope} month={searchParams.month} employee={searchParams.employee} initialFilter={searchParams.filter} initialKind={searchParams.kind} initialTag={searchParams.tag} />
     </div>
   )
 }

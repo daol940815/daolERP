@@ -79,24 +79,38 @@ export async function GET() {
   const relatedIds = new Set<string>()
   const tagPending: { item: NotifItem; requestId: string }[] = []   // 904: 설명 앞에 대표 태그를 붙일 항목 (끝에서 한 번에 조회)
   const pushWr = (item: NotifItem, requestId: string) => { items.push(item); tagPending.push({ item, requestId }) }
+  // 요청별 표시(2026-11-18 사용자 결정): 업무 요청 알림은 요약이 아니라 요청 1건당 한 줄 — 종 숫자(요청 건수)와 줄 수가 같다.
+  //  같은 요청이 미확인이면서 마감 지남이면 한 줄에 표시(flags)를 함께 붙인다. sum = 확인할 것 패널(요약 유지)에서 묶을 기준(가장 급한 상태).
+  //  prio = 해야 할 것 안에서의 순서(마감 지남 → 오늘 마감 → 미확인). 사이드바 패널은 칸별 최대 NOTIF_WR_PANEL_MAX 건, 넘치면 목록 링크.
   const bucketOf = new Map<string, NotifBucket>()   // 요청 id → 알림 칸 (진행 메모 · 이력 알림을 같은 칸에 넣기 위해)
   if (!inRes.error) {
     const shares = ((inRes.data ?? []) as unknown as MyShare[]).map(s => ({ status: s.status, r: one(s.request) })).filter((s): s is { status: WrAsgStatus; r: WR } => !!s.r && OPEN_STATUSES.includes(s.r.status))
     shares.forEach(s => { relatedIds.add(s.r.id); bucketOf.set(s.r.id, s.r.assign_mode === 'single' || !s.r.assign_mode ? 'personal' : 'shared') })
-    const desc = (r: WR) => `${one(r.requester)?.name ?? ''}: ${r.title} (마감 ${fmtDue(r.due_at)})`
     for (const kind of ['personal', 'shared'] as const) {
       const mine = shares.filter(s => (s.r.assign_mode === 'single' || !s.r.assign_mode) === (kind === 'personal'))
       const label = kind === 'personal' ? '개인 요청' : '공용 요청'
-      const href = kind === 'personal' ? '/me/requests?filter=personal' : '/me/requests?filter=shared'
-      const tracked = mine.map(s => s.r).sort((a, b) => a.due_at.localeCompare(b.due_at))   // 내 몫이 미확인·수락·진행 중인 것만 (조회 조건)
-      const unread = mine.filter(s => s.status === 'invited').map(s => s.r)
-      const overdue = tracked.filter(r => new Date(r.due_at) < now)
-      const dueToday = tracked.filter(r => kstDay(r.due_at) === today && new Date(r.due_at) >= now)
       const k = kind === 'personal' ? 'p' : 's'
-      if (unread.length) pushWr({ key: `wr:unread:${k}`, bucket: kind, group: 'todo', tone: 'red', title: `${label} 미확인 ${unread.length}건`, detail: desc(unread[0]) + (unread.length > 1 ? ` 외 ${unread.length - 1}` : ''), href, count: unread.length, at: latest(unread.map(r => r.created_at)) }, unread[0].id)
-      if (overdue.length) pushWr({ key: `wr:overdue:${k}`, bucket: kind, group: 'todo', tone: 'red', title: `${label} 마감 지남 ${overdue.length}건`, detail: desc(overdue[0]), href, count: overdue.length, at: latest(overdue.map(r => r.due_at)) }, overdue[0].id)
-      if (dueToday.length) pushWr({ key: `wr:due_today:${k}`, bucket: kind, group: 'todo', tone: 'red', title: `${label} 오늘 마감 ${dueToday.length}건`, detail: desc(dueToday[0]), href, count: dueToday.length, at: latest(dueToday.map(r => r.created_at)) }, dueToday[0].id)
-      breakdown[kind] = new Set([...unread, ...overdue, ...dueToday].map(r => r.id)).size   // 요청 건수 (중복 없음)
+      // 목록 주소(확인할 것 패널 요약 줄): 받은 탭 + 개인/공용(kind) + 상태(filter)
+      const href = (f: string) => `/me/requests?kind=${kind}&filter=${f}`
+      const ids = new Set<string>()
+      for (const s of mine) {   // 조회 조건상 내 몫이 미확인 · 수락 · 진행 중인 것만
+        const r = s.r
+        const isOver = new Date(r.due_at) < now
+        const isToday = !isOver && kstDay(r.due_at) === today
+        const isUnread = s.status === 'invited'
+        if (!isOver && !isToday && !isUnread) continue
+        ids.add(r.id)
+        const flags = [isOver ? '마감 지남' : null, isToday ? '오늘 마감' : null, isUnread ? '미확인' : null].filter((x): x is string => !!x)
+        const primary = isOver ? 'overdue' : isToday ? 'due_today' : 'unread'
+        const sumLabel = `${label} ${isOver ? '마감 지남' : isToday ? '오늘 마감' : '미확인'}`
+        pushWr({
+          key: `wr:req:${r.id}`, bucket: kind, group: 'todo', tone: 'red', title: r.title,
+          detail: `${one(r.requester)?.name ?? ''} · 마감 ${fmtDue(r.due_at)}${r.is_urgent ? ' · 긴급' : ''}`,
+          href: `/me/requests/${r.id}`, count: 1, at: isOver ? r.due_at : r.created_at,
+          flags, prio: isOver ? 0 : isToday ? 1 : 2, sum: { key: `wr:${primary}:${k}`, label: sumLabel, href: href(primary) },
+        }, r.id)
+      }
+      breakdown[kind] = ids.size   // 요청 건수 (중복 없음)
     }
     // 사이드바 배지 = 종의 개인 + 공용 칸과 같은 숫자 (2026-11-09 — 오늘 마감 포함, 요청 건수)
     const wrTodo = breakdown.personal + breakdown.shared
@@ -108,8 +122,16 @@ export async function GET() {
     const awaiting = outbox.filter(r => r.status === 'done_reported')
     const rejected = outbox.filter(r => r.status === 'rejected')
     breakdown.mine = awaiting.length
-    if (awaiting.length) pushWr({ key: 'wr:awaiting', bucket: 'mine', group: 'waiting', tone: 'amber', title: `내 요청 완료 확정 대기 ${awaiting.length}건`, detail: `${one(awaiting[0].assignee)?.name ?? '담당자 전원'}이(가) 처리 보고: ${awaiting[0].title}`, href: '/me/requests?tab=outbox', count: awaiting.length, at: latest(awaiting.map(r => r.reported_at)) }, awaiting[0].id)
-    if (rejected.length) pushWr({ key: 'wr:rejected', bucket: 'mine', group: 'info', tone: 'gray', title: `내 요청 반려됨 ${rejected.length}건`, detail: `${rejected[0].title}${rejected[0].reject_reason ? ` — 사유: ${rejected[0].reject_reason}` : ''}`, href: '/me/requests?tab=outbox', count: rejected.length, at: latest(rejected.map(r => r.rejected_at)) }, rejected[0].id)
+    for (const r of awaiting) pushWr({
+      key: `wr:await:${r.id}`, bucket: 'mine', group: 'waiting', tone: 'amber', title: r.title,
+      detail: `${one(r.assignee)?.name ?? '담당자 전원'}이(가) 처리 보고`, href: `/me/requests/${r.id}`, count: 1, at: r.reported_at,
+      flags: ['완료 확정 대기'], sum: { key: 'wr:awaiting', label: '내 요청 완료 확정 대기', href: '/me/requests?tab=outbox&filter=reported' },
+    }, r.id)
+    for (const r of rejected) pushWr({
+      key: `wr:rej:${r.id}`, bucket: 'mine', group: 'info', tone: 'gray', title: r.title,
+      detail: r.reject_reason ? `사유: ${r.reject_reason}` : null, href: `/me/requests/${r.id}`, count: 1, at: r.rejected_at,
+      flags: ['반려'], sum: { key: 'wr:rejected', label: '내 요청 반려됨', href: '/me/requests?tab=outbox&filter=rejected' },
+    }, r.id)
     // 반려된 내 요청은 할 조작이 없어(다시 요청만) 알림 목록에만 둔다 — 배지 · 종 숫자는 완료 확정 대기만 (2026-11-09)
     if (!badges['/me/requests'] && awaiting.length) badges['/me/requests'] = { n: awaiting.length, tone: 'amber' }
   }
@@ -151,7 +173,7 @@ export async function GET() {
   // 업무 계열 태그(904) — 업무 요청 알림의 설명 앞에 대표 태그 "[수금 · 계산서] " (904 미적용이면 그대로)
   if (tagPending.length) {
     const labels = await firstTagLabels(admin, tagPending.map(p => p.requestId))
-    for (const p of tagPending) { const l = labels.get(p.requestId); if (l && p.item.detail) p.item.detail = `[${l}] ${p.item.detail}` }
+    for (const p of tagPending) { const l = labels.get(p.requestId); if (l) p.item.detail = p.item.detail ? `[${l}] ${p.item.detail}` : `[${l}]` }
   }
 
   // ── 휴가 ── 3단계 결재(204): 현재 단계의 차례가 내 결재 단계인 건만 "내 차례"로 센다
@@ -319,7 +341,7 @@ export async function GET() {
   // 905: 확인한 결과 통지 숨김 (해야 할 것 · 기다리는 것은 그대로)
   for (let i = items.length - 1; i >= 0; i--) if (items[i].group === 'info' && isRead(items[i].key, items[i].at)) items.splice(i, 1)
   const order: Record<string, number> = { todo: 0, waiting: 1, info: 2 }
-  items.sort((a, b) => order[a.group] - order[b.group] || (b.at ?? '').localeCompare(a.at ?? ''))
+  items.sort((a, b) => order[a.group] - order[b.group] || (a.prio ?? 9) - (b.prio ?? 9) || (b.at ?? '').localeCompare(a.at ?? ''))
   for (const i of items) if (!i.bucket) i.bucket = 'other'   // 휴가 결재 · 내 휴가 결과 등
   const count = breakdown.personal + breakdown.shared + breakdown.mine + breakdown.order + breakdown.other
   return NextResponse.json({ at: nowIso, count, breakdown, items, badges } satisfies NotifData)
