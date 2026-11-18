@@ -95,7 +95,7 @@ export async function loadMatchingState(
   if ('error' in vendorRowsResult) return { error: vendorRowsResult.error }
   const vendorName = new Map(vendorRowsResult.data.map(v => [v.id, v.name]))
 
-  // 주문 (순매출 = total - 취소/VIP/선결제 품목)
+  // 주문 (순매출 = 취소/VIP/선결제가 아닌 품목 합)
   const orderRowsResult = await fetchAllRows<{
     id: string
     order_no: string
@@ -118,26 +118,26 @@ export async function loadMatchingState(
 
   const matched = orderRowsResult.data.filter(o => aliasToVendor.has(o.customer_alias_id))
   const orderIds = matched.map(o => o.id)
-  const excludedByOrder = new Map<string, number>()
-  for (let i = 0; i < orderIds.length; i += 500) {
-    const idChunk = orderIds.slice(i, i + 500)
-    const itemsResult = await fetchAllRows<{ order_id: string; line_total: number | null }>((rFrom, rTo) =>
+  // 순매출 = 취소 · VIP · 선결제가 아닌 품목 합 (lib/receivable.ts 표준, 2026-11-18 — '총액 − 제외 품목'은 수정한 직접 입력 주문에서 취소 행을 두 번 뺀다)
+  const netByOrder = new Map<string, number>()
+  for (let i = 0; i < orderIds.length; i += 150) {
+    const idChunk = orderIds.slice(i, i + 150)
+    const itemsResult = await fetchAllRows<{ order_id: string; line_total: number | null; is_canceled: boolean | null; is_vip: boolean | null; is_prepayment: boolean | null }>((rFrom, rTo) =>
       admin
         .from('erp_order_items')
-        .select('order_id, line_total')
+        .select('order_id, line_total, is_canceled, is_vip, is_prepayment')
         .in('order_id', idChunk)
-        .or('is_canceled.eq.true,is_vip.eq.true,is_prepayment.eq.true')
         .range(rFrom, rTo),
     )
     if ('error' in itemsResult) return { error: itemsResult.error }
     for (const it of itemsResult.data) {
-      const cur = excludedByOrder.get(it.order_id) ?? 0
-      excludedByOrder.set(it.order_id, cur + ((it.line_total as number) || 0))
+      if (it.is_canceled || it.is_vip || it.is_prepayment) continue
+      netByOrder.set(it.order_id, (netByOrder.get(it.order_id) ?? 0) + ((it.line_total as number) || 0))
     }
   }
 
   const orders: OrderState[] = matched.map(o => {
-    const net = ((o.total_amount as number) || 0) - (excludedByOrder.get(o.id as string) ?? 0)
+    const net = netByOrder.get(o.id as string) ?? 0
     const alloc = allocByOrder.get(o.id as string) ?? 0
     return {
       id: o.id as string,

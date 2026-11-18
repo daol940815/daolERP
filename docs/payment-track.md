@@ -416,4 +416,5 @@
   `total_amount`는 남은 품목 합으로 다시 쓰므로, 취소 행을 한 번 더 빼서 순매출이 0 이하 → 목록에서 제외됐다.
   주문 상세 · 미수(`lib/receivable.ts` `netSalesOf`)는 품목 합 기준이라 182,500원으로 보였다.
 - 수정: 세 곳을 `lib/receivable.ts` 표준(제외 아닌 품목 합)으로 통일. 레거시 수금 이월(`propagatePayments`)도 같이.
-- 같은 계산이 남은 곳(이번에 손대지 않음): `lib/erp-matching.ts` · `lib/vendor-reconciliation.ts` · `app/api/sales-cycle/pipeline/route.ts` — 수정된 주문의 금액이 작게 잡힐 수 있다.
+- 같은 계산이 남은 3곳도 사용자 "수정해줘"로 같은 기준으로 고침: `lib/erp-matching.ts`(입금 매칭) · `lib/vendor-reconciliation.ts`(매출처 대사) · `app/api/sales-cycle/pipeline/route.ts`(매출 파이프라인, 품목 조회를 전체 읽기 대신 주문 150개씩 나눠 조회).
+- 남은 `총액 − 제외 품목` 계산 없음(2026-11-18 grep 기준).
