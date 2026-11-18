@@ -7,6 +7,7 @@ import { filterFromSearchParams, loadFilteredOrders } from '@/lib/orders-portal-
 import { xlsxResponse } from '@/lib/xlsx-export'
 import { honorify } from '@/lib/contact-label'
 import { REPLY_LABEL } from '@/lib/order-reply'
+import { loadOrderKindText } from '@/lib/payment-kind-server'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -123,6 +124,8 @@ export async function GET(req: NextRequest) {
   const kstDateTime = (iso: string) =>
     new Date(iso).toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }).slice(0, 16)
 
+  // 결제 기록의 카드 결제 방식 · 과세 구분 (1304, 2026-11-18) — 기록이 여러 건이면 서로 다른 값만 이어 적는다
+  const kindText = await loadOrderKindText(admin, filtered.map(o => o.id))
   const rows: Record<string, unknown>[] = []
   for (const o of filtered) {
     const items = itemsByOrder.get(o.id) ?? []
@@ -140,6 +143,8 @@ export async function GET(req: NextRequest) {
       // 결제 상태 한 칸 표기와 같은 값 (2026-11-13 — 옛 '수금상태' 열을 대신한다)
       '결제 상태': o.pay ? PAY_STAGE_LABEL[o.pay.stage] : (STATUS_LABEL[o.collect_status ?? ''] ?? ''),
       '결제 수단': o.pay?.method ? PAY_METHOD_TAG_LABEL[o.pay.method] : '',
+      '카드 결제 방식': kindText.get(o.id)?.entry ?? '',
+      '과세 구분': kindText.get(o.id)?.vat ?? '',
       '계산서 확인': o.pay?.invoice_flag ? INVOICE_FLAG_LABEL[o.pay.invoice_flag] : '',
       // 완료 회신 (515) — 회신 대상 아니면 빈 칸
       '회신': replyMap.get(o.id) ? REPLY_LABEL[replyMap.get(o.id)!.state] : '',
