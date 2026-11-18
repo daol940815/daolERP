@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>같은 구분 안에서만 찾기 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1180px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:30px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.65; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .lab { font-size:11px; font-weight:bold; color:#64748b; margin-bottom:8px; }
+  .chips { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+  .chip { border-radius:8px; padding:5px 11px; font-size:12.5px; color:#475569; background:#f1f5f9; }
+  .chip.on { background:#0f172a; color:#fff; }
+  .chip.nw { outline:2px solid #3b82f6; outline-offset:1px; }
+  .sep { width:1px; height:18px; background:#e2e8f0; margin:0 4px; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:920px; }
+  th { text-align:left; font-weight:normal; color:#64748b; font-size:11.5px; padding:8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; background:#f8fafc; }
+  td { padding:9px 8px; border-bottom:1px solid #f1f5f9; vertical-align:top; line-height:1.5; }
+  td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  td small { color:#94a3b8; display:block; font-size:11px; }
+  th.hl, td.hl { background:#eff6ff; }
+  .st { font-size:11px; font-weight:bold; padding:3px 8px; border-radius:999px; white-space:nowrap; }
+  .ok { background:#dcfce7; color:#166534; } .pt { background:#fef3c7; color:#92400e; } .no { background:#f1f5f9; color:#64748b; }
+  .btn { display:inline-block; border-radius:7px; padding:2px 8px; font-size:11px; border:1px solid #cbd5e1; background:#fff; color:#334155; white-space:nowrap; }
+  .btn.blue { border-color:#c7d2fe; background:#eef2ff; color:#4338ca; font-weight:bold; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; padding:5px 11px; font-size:12px; }
+  .ord { color:#0f172a; font-variant-numeric:tabular-nums; }
+  .mut { color:#94a3b8; } .am { color:#b45309; }
+  .tag { font-size:10.5px; font-weight:bold; padding:1px 6px; border-radius:4px; white-space:nowrap; }
+  .t-auto { background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; }
+  .note { background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:9px 12px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.75; }
+  .note b { color:#422006; }
+  .modal { border:1px solid #cbd5e1; border-radius:12px; background:#fff; box-shadow:0 12px 32px rgba(15,23,42,.18); overflow:hidden; }
+  .modal .mh { padding:12px 16px; font-weight:bold; border-bottom:1px solid #e2e8f0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .modal .mb { padding:14px 16px; }
+  .modal .mf { padding:10px 16px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:6px; background:#f8fafc; }
+  .seg { display:flex; gap:4px; margin-left:auto; }
+  .seg span { border:1px solid #cbd5e1; border-radius:7px; padding:3px 9px; font-size:11.5px; color:#475569; font-weight:normal; }
+  .seg span.on { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
+  .list { border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; }
+  .list .lh { background:#f8fafc; padding:7px 10px; font-size:11.5px; color:#64748b; border-bottom:1px solid #e2e8f0; }
+  .list .li { padding:7px 10px; border-bottom:1px solid #f1f5f9; font-size:12.5px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .list .li:last-child { border-bottom:none; }
+  .list .li .a { margin-left:auto; font-weight:bold; font-variant-numeric:tabular-nums; }
+  .list .li.sel { background:#eff6ff; }
+  .prev { margin-top:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 11px; font-size:12px; line-height:1.7; }
+
+  .fgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px 12px; margin-top:12px; }
+  .f label { display:block; font-size:11px; color:#64748b; margin-bottom:4px; }
+  .f .in { border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; font-size:12.5px; background:#fff; color:#0f172a; }
+  .f .in.ph { color:#94a3b8; }
+  .pick { display:flex; gap:5px; flex-wrap:wrap; }
+  .pick span { border:1px solid #cbd5e1; border-radius:8px; padding:6px 13px; font-size:12.5px; color:#475569; background:#fff; }
+  .pick span.on { background:#0f172a; color:#fff; border-color:#0f172a; font-weight:bold; }
+  .pick span.dis { background:#f1f5f9; color:#cbd5e1; border-color:#e2e8f0; }
+  .newbox { border:2px solid #3b82f6; border-radius:10px; padding:10px 12px; background:#eff6ff; margin-top:12px; }
+  .newbox .row { display:flex; gap:24px; flex-wrap:wrap; }
+  .req { color:#dc2626; }
+  .bad { background:#fee2e2; color:#991b1b; }
+  .t-warn { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+  .t-none { background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; }
+  .t-src { background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; }
+  .bd-card { background:#e0e7ff; color:#3730a3; } .bd-inv { background:#fae8ff; color:#86198f; } .bd-tr { background:#ccfbf1; color:#115e59; }
+
+
+  .hid { border:1px dashed #94a3b8; background:#f8fafc; border-radius:8px; padding:7px 11px; font-size:12px; color:#475569; margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .hid.new { border:2px solid #3b82f6; background:#eff6ff; }
+  .li.off { background:#f8fafc; color:#94a3b8; }
+  .kd { font-size:11px; padding:1px 7px; border-radius:999px; border:1px solid #cbd5e1; color:#475569; background:#fff; white-space:nowrap; }
+  .kd.tx { border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff; } .kd.ex { border-color:#fde68a; color:#92400e; background:#fffbeb; }
+
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>같은 구분 안에서만 찾기 시안</h1>
+  <p class="desc">2026-11-18 · 결제 기록에 구분(과세 · 면세, 단말기 · 수기)이 적혀 있으면, 원본을 찾을 때 같은 구분 안에서만 찾습니다. 다른 구분은 지우지 않고 접어 둡니다 — 종류를 잘못 발행한 경우를 놓치지 않기 위해서입니다. 숫자와 이름은 예시입니다. 파란 테두리가 새로 생기는 부분입니다.</p>
+
+  <h2>1. 계산서 연결 창 — 과세로 기록한 주문</h2>
+  <p class="desc">주문 D261118-021에 "계산서 발행 · 과세 880,000원" 기록이 있습니다. 같은 거래처에 금액이 같은 면세 계산서도 있지만 기본 목록과 추천 조합에서 빠집니다.</p>
+  <div class="modal">
+    <div class="mh">계산서 연결 <span class="mut" style="font-weight:normal;font-size:12px">농협은행 수원지점</span>
+      <span class="kd tx" style="margin-left:6px">결제 기록: 과세 — 과세 계산서만 표시</span>
+    </div>
+    <div class="mb">
+      <div class="cols">
+        <div class="list">
+          <div class="lh">주문 (미연결)</div>
+          <div class="li sel"><span class="ord">D261118-021</span><span class="kd tx">과세</span><span class="a">880,000</span></div>
+          <div class="li"><span class="ord">D261115-008</span><span class="kd">구분 미기재</span><span class="a">330,000</span></div>
+        </div>
+        <div class="list">
+          <div class="lh">매출 계산서 (미연결) — 과세 2건</div>
+          <div class="li sel"><span>11-18</span><span class="kd tx">과세</span><span class="a">880,000</span></div>
+          <div class="li"><span>11-15</span><span class="kd tx">과세</span><span class="a">330,000</span></div>
+        </div>
+      </div>
+      <div class="hid new">
+        <b>면세 계산서 1건은 숨김</b> <span>(이 주문의 결제 기록은 과세)</span>
+        <span class="btn" style="margin-left:auto">보기</span>
+      </div>
+      <div class="prev"><b>추천 조합</b> — D261118-021 880,000 = 11-18 과세 계산서 880,000 <span class="mut">(과세 계산서 안에서만 조합)</span></div>
+    </div>
+    <div class="mf"><span class="btn">닫기</span><span class="btn pri">연결 저장</span></div>
+  </div>
+
+  <h2>2. "보기"를 눌렀을 때</h2>
+  <p class="desc">숨긴 계산서가 회색으로 나타납니다. 볼 수는 있지만 이 주문에는 연결할 수 없습니다.</p>
+  <div class="panel new">
+    <div class="list">
+      <div class="lh">매출 계산서 (미연결) — 과세 2건 · 면세 1건</div>
+      <div class="li"><span>11-18</span><span class="kd tx">과세</span><span class="a">880,000</span></div>
+      <div class="li"><span>11-15</span><span class="kd tx">과세</span><span class="a">330,000</span></div>
+      <div class="li off"><span>11-18</span><span class="kd ex">면세</span><span class="tag t-warn">구분 다름 · 연결 불가</span><span class="a">880,000</span></div>
+    </div>
+    <div class="note">
+      금액이 같은 면세 계산서가 보이면 둘 중 하나입니다 — <b>기록을 잘못 적었거나</b>(입력자가 주문 상세에서 기록 수정), <b>계산서 종류를 잘못 발행했거나</b>(수정 발행).<br>
+      회색 계산서를 고르려 하면 "결제 기록은 과세인데 이 계산서는 면세입니다" 안내가 뜨고 저장되지 않습니다.
+    </div>
+  </div>
+
+  <h2>3. 계산서 확인 탭 — 후보 표시</h2>
+  <p class="desc">"홈택스에 없음" 주문에 붙는 후보(금액 같고 날짜 가까운 계산서)도 같은 구분에서만 찾습니다.</p>
+  <div class="panel new">
+    <div class="scroll"><table>
+      <tr><th>주문</th><th class="hl">기록한 구분</th><th class="n">기록 금액</th><th>상태</th><th>후보</th></tr>
+      <tr><td><span class="ord">D261118-021</span><small>농협은행 수원지점</small></td><td class="hl">과세</td><td class="n">880,000</td><td><span class="st no">홈택스에 없음</span></td><td>후보 1건 — 11-18 과세 880,000 <span class="btn blue">이 계산서 연결</span></td></tr>
+      <tr><td><span class="ord">D261117-030</span><small>기업은행 판교지점</small></td><td class="hl">면세</td><td class="n">1,200,000</td><td><span class="st no">홈택스에 없음</span></td><td class="mut">후보 없음 <small style="color:#b45309">금액이 같은 과세 계산서 1건 있음(구분 다름)</small></td></tr>
+      <tr><td><span class="ord">D261114-012</span><small>우리은행 종로지점</small></td><td class="hl"><span class="tag t-none">미기재</span></td><td class="n">450,000</td><td><span class="st no">홈택스에 없음</span></td><td>후보 1건 — 11-14 면세 450,000 <span class="btn blue">이 계산서 연결</span></td></tr>
+    </table></div>
+    <div class="note"><b>둘째 줄</b>: 다른 구분의 계산서는 후보로 올리지 않되, 있다는 사실은 한 줄로 알립니다. <b>셋째 줄</b>: 구분을 적지 않은 이전 기록은 지금처럼 전부에서 찾습니다.</div>
+  </div>
+
+  <h2>4. 결제 확인 › 매칭 대기 — 카드 "다른 입금 찾기"</h2>
+  <p class="desc">수기 · 면세로 기록한 카드 건을 직접 찾을 때, 같은 구분의 카드 매출만 나옵니다. 승인번호가 맞는 원본은 지금처럼 구분이 달라도 "구분 다름 · 매칭 불가"로 보여 줍니다(바뀌지 않음).</p>
+  <div class="panel new">
+    <div class="lab">카드 매출에서 직접 찾기 — 기록: 수기 · 면세 700,000원</div>
+    <div class="list">
+      <div class="li"><span>11-18</span><span>카드 매출 신한</span><span class="kd ex">수기 · 면세</span><span class="a">잔액 700,000</span><span class="btn pri">이 원본으로 확정</span></div>
+      <div class="li"><span>11-17</span><span>카드 매출 국민</span><span class="kd">구분 모름</span><span class="a">잔액 700,000</span><span class="btn pri">이 원본으로 확정</span></div>
+    </div>
+    <div class="hid new"><b>구분이 다른 카드 매출 3건은 숨김</b> <span>(단말기 2 · 수기 과세 1)</span><span class="btn" style="margin-left:auto">보기</span></div>
+    <div class="note"><b>"구분 모름"</b>은 숨기지 않습니다 — 11-17 이전에 올린 수기결제 파일은 구분 정보가 없어서, 숨기면 찾을 방법이 없어집니다.</div>
+  </div>
+
+  <h2>5. 걸러내지 않는 경우</h2>
+  <div class="panel">
+    <div class="prev" style="margin-top:0">
+      <b>구분 미기재 기록</b>(1304 이전 18건) · <b>결제 기록이 없는 주문</b> — 지금처럼 전부 보여 줍니다.<br>
+      <b>한 주문에 과세 기록과 면세 기록이 둘 다 있는 경우</b> — 계산서 연결 창에서 걸러낼 기준이 없으므로 전부 보여 줍니다(머리에 "과세 · 면세 기록 모두 있음" 표시).<br>
+      <b>연결 창에서 주문을 여러 건 고른 경우</b> — 고른 주문들의 구분이 모두 같을 때만 걸러냅니다.<br>
+      <b>회계 › 계산서 내역에서 계산서 기준으로 연 연결 창</b> — 반대 방향입니다. 과세 계산서를 기준으로 열면, 면세로 기록한 주문이 같은 방식으로 접힙니다.<br>
+      <b>계좌이체 기록 · 통장 입금</b> — 구분이 없으므로 해당 없습니다.
+    </div>
+  </div>
+</div>
+</body>
+</html>
