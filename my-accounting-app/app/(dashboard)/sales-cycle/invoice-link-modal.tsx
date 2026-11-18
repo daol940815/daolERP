@@ -9,8 +9,16 @@ import { BillingAskDialog, saveInvoiceLinks, type BillingAsk, type InvoiceLink }
 //   (같은 금액 주문이 여러 건이라 자동 짝짓기가 애매한 매출처용)
 //   규칙: 주문 1건 + 계산서 N장 또는 주문 N건 + 계산서 1장. 날짜순 waterfall로
 //   배분 미리보기를 보여주고, 남는 금액이 있으면 그대로 표시한다(부분 발행 허용).
+// - 같은 구분 안에서만(1304, 2026-11-18 — 시안 docs/mockups/같은구분_안에서_찾기_시안.html):
+//   고른 주문의 계산서 발행 기록에 과세 구분이 적혀 있으면 다른 종류의 계산서는 접어 둔다("N건 숨김 — 보기", 펼쳐도 고를 수 없음).
+//   계산서를 먼저 고르면 반대로 다른 구분으로 기록한 주문이 접힌다. 구분 미기재 · 과세와 면세 기록이 섞인 주문은 걸러내지 않는다. 저장은 서버가 다시 막는다.
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
+type Vat = 'taxable' | 'exempt'
+const VAT_LABEL: Record<string, string> = { taxable: '과세', exempt: '면세', mixed: '과세 · 면세' }
+const VatBadge = ({ v, muted }: { v?: string | null; muted?: boolean }) => v ? (
+  <span className={`shrink-0 px-1.5 py-px rounded-full border text-[0.625rem] whitespace-nowrap ${muted ? 'border-gray-200 text-gray-400' : v === 'exempt' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>{VAT_LABEL[v] ?? v}</span>
+) : null
 
 interface Group {
   type: 'exact' | 'combined_orders' | 'split_invoices'
@@ -20,9 +28,9 @@ interface Group {
   amount: number
   links: { orderId: string; taxInvoiceId: string; amount: number; issueDate: string }[]
 }
-interface OpenOrder { id: string; order_no: string; order_date: string; net_amount: number; remaining: number; vendor_name?: string }
+interface OpenOrder { id: string; order_no: string; order_date: string; net_amount: number; remaining: number; vendor_name?: string; vat?: Vat | 'mixed' }
 // foreign: '다른 거래처 계산서에서 찾기'로 추가한 계산서 (이 매출처 · 청구처가 아닌 거래처 명의, 2026-11-17)
-interface OpenInvoice { id: string; issue_date: string; total_amount: number; item_name: string | null; remaining: number; vendor_name?: string; foreign?: boolean; vendor_id?: string | null; counterparty_name?: string | null }
+interface OpenInvoice { id: string; issue_date: string; total_amount: number; item_name: string | null; remaining: number; vendor_name?: string; foreign?: boolean; vendor_id?: string | null; counterparty_name?: string | null; tax_type?: string | null }
 
 export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrderId, focusInvoiceId, onClose, onApplied }: {
   vendorId: string
@@ -60,6 +68,8 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
   const [found, setFound] = useState<OpenInvoice[] | null>(null)
   const [finding, setFinding] = useState(false)
   const [ask, setAsk] = useState<{ ask: BillingAsk; links: InvoiceLink[]; amount: number } | null>(null)
+  const [showOtherInv, setShowOtherInv] = useState(false)   // 구분이 다른 계산서 펼치기
+  const [showOtherOrd, setShowOtherOrd] = useState(false)   // 구분이 다른 주문 펼치기
 
   const load = () => {
     setGroups(null)
@@ -103,11 +113,29 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
     setter(next)
   }
 
+  // ── 같은 구분 안에서만 ──
+  // 고른 주문들의 기록 구분이 한 종류면 그 종류의 계산서만, 고른 계산서들이 한 종류면 그 구분(또는 미기재)의 주문만 보여 준다
+  const wantTax = useMemo<Vat | null>(() => {
+    const set = new Set(orders.filter(o => selOrders.has(o.id) && o.vat && o.vat !== 'mixed').map(o => o.vat as Vat))
+    return set.size === 1 ? Array.from(set)[0] : null
+  }, [orders, selOrders])
+  const wantVat = useMemo<Vat | null>(() => {
+    const set = new Set(invoices.filter(v => selInvoices.has(v.id) && (v.tax_type === 'taxable' || v.tax_type === 'exempt')).map(v => v.tax_type as Vat))
+    return set.size === 1 ? Array.from(set)[0] : null
+  }, [invoices, selInvoices])
+  const pairOk = (o: OpenOrder, v: OpenInvoice) => !o.vat || o.vat === 'mixed' || !v.tax_type || o.vat === v.tax_type
+  const invBlocked = (v: OpenInvoice) => !!wantTax && !!v.tax_type && v.tax_type !== wantTax
+  const ordBlocked = (o: OpenOrder) => !!wantVat && !!o.vat && o.vat !== 'mixed' && o.vat !== wantVat
+
   // ── 직접 연결: 선택 유효성 + 배분 미리보기 (날짜순 waterfall) ──
   const manualPlan = useMemo(() => {
     const os = orders.filter(o => selOrders.has(o.id))
     const vs = invoices.filter(v => selInvoices.has(v.id))
     if (!os.length || !vs.length) return null
+    const clash = os.flatMap(o => vs.filter(v => !pairOk(o, v)).map(v => ({ o, v })))[0]
+    if (clash) {
+      return { valid: false as const, message: `주문 ${clash.o.order_no}의 결제 기록은 ${VAT_LABEL[clash.o.vat!]}인데 계산서(${clash.v.issue_date.slice(0, 10)})는 ${VAT_LABEL[clash.v.tax_type!] ?? clash.v.tax_type}입니다. 구분이 다르면 연결할 수 없습니다 — 기록을 잘못 적었으면 주문 상세에서 고치고, 계산서 종류를 잘못 발행했으면 수정 발행해야 합니다.` }
+    }
     if (os.length > 1 && vs.length > 1) {
       return { valid: false as const, message: '주문 여러 건 + 계산서 여러 장 조합은 지원하지 않습니다. 한쪽은 1건만 선택하세요.' }
     }
@@ -230,12 +258,26 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
     !orderQuery.trim() || o.order_no.includes(orderQuery.trim()) || String(o.remaining).includes(orderQuery.replace(/[^0-9]/g, '')))
   const filteredInvoices = invoices.filter(v =>
     !invoiceQuery.trim() || (v.item_name ?? '').includes(invoiceQuery.trim()) || String(v.remaining).includes(invoiceQuery.replace(/[^0-9]/g, '')))
+  // 구분이 달라 접어 둔 것 (이미 고른 것은 풀 수 있게 계속 보여 준다)
+  const hiddenInv = filteredInvoices.filter(v => invBlocked(v) && !selInvoices.has(v.id))
+  const hiddenOrd = filteredOrders.filter(o => ordBlocked(o) && !selOrders.has(o.id))
+  const shownInvoices = showOtherInv ? filteredInvoices : filteredInvoices.filter(v => !hiddenInv.includes(v))
+  const shownOrders = showOtherOrd ? filteredOrders : filteredOrders.filter(o => !hiddenOrd.includes(o))
+  const focusVat = focusOrderId ? orders.find(o => o.id === focusOrderId)?.vat : undefined
+  const hiddenBar = (count: number, what: string, why: string, open: boolean, toggle: () => void) => count > 0 && (
+    <div className="flex items-center gap-2 flex-wrap px-3 py-1.5 border-t border-dashed border-gray-300 bg-gray-50 text-[0.6875rem] text-gray-600">
+      <b>{what} {count}건은 {open ? '연결 불가' : '숨김'}</b><span className="text-gray-400">{why}</span>
+      <button type="button" onClick={toggle} className="ml-auto px-2 py-0.5 border border-gray-300 rounded bg-white text-gray-600 hover:bg-gray-50">{open ? '숨기기' : '보기'}</button>
+    </div>
+  )
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[88vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-3">
           <h3 className="text-lg font-bold text-gray-900">{vendorName} — 주문·계산서 연결</h3>
+          {focusVat && focusVat !== 'mixed' && <span className="px-2 py-0.5 rounded-full border border-blue-200 bg-blue-50 text-blue-700 text-[0.6875rem] whitespace-nowrap">결제 기록: {VAT_LABEL[focusVat]} — {VAT_LABEL[focusVat]} 계산서만 표시</span>}
+          {focusVat === 'mixed' && <span className="px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-gray-600 text-[0.6875rem] whitespace-nowrap">과세 · 면세 기록 모두 있음</span>}
           <div className="flex gap-1 ml-auto">
             {([['auto', '추천 조합'], ['manual', '직접 연결']] as const).map(([k, label]) => (
               <button key={k} onClick={() => setMode(k)}
@@ -288,11 +330,11 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
                     </div>
                     <div className="pl-6 text-xs text-gray-600 space-y-0.5">
                       {g.orders.map(o => (
-                        <p key={o.id}>주문 {o.order_date.slice(0, 10)} · {o.vendor_name ? `${o.vendor_name} · ` : ''}{o.order_no} · {won(o.remaining)}</p>
+                        <p key={o.id}>주문 {o.order_date.slice(0, 10)} · {o.vendor_name ? `${o.vendor_name} · ` : ''}{o.order_no} · {won(o.remaining)} <VatBadge v={(o as OpenOrder).vat} /></p>
                       ))}
                       {g.invoices.map(v => (
                         <p key={v.id} className="text-indigo-800">
-                          계산서 {v.issue_date.slice(0, 10)} · {v.item_name ?? '(품목 미상)'} · {won(v.remaining)}
+                          계산서 {v.issue_date.slice(0, 10)} · {v.item_name ?? '(품목 미상)'} · {won(v.remaining)} <VatBadge v={(v as OpenInvoice).tax_type} />
                         </p>
                       ))}
                     </div>
@@ -313,25 +355,31 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="border border-gray-200 rounded-lg">
                 <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2">
-                  <p className="text-xs font-semibold text-gray-700">미연결 주문 ({filteredOrders.length})</p>
+                  <p className="text-xs font-semibold text-gray-700">미연결 주문 ({shownOrders.length})</p>
                   <input value={orderQuery} onChange={e => setOrderQuery(e.target.value)} placeholder="주문번호·금액 검색"
                     className="ml-auto border border-gray-200 rounded px-2 py-1 text-xs w-32" />
                 </div>
                 <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
-                  {filteredOrders.map(o => (
-                    <label key={o.id} className={`flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer ${selOrders.has(o.id) ? 'bg-slate-50' : 'hover:bg-gray-50'}`}>
-                      <input type="checkbox" checked={selOrders.has(o.id)} onChange={() => toggleId(selOrders, setSelOrders, o.id)} />
+                  {shownOrders.map(o => {
+                    const off = hiddenOrd.includes(o)
+                    return (
+                    <label key={o.id} className={`flex items-center gap-2 px-3 py-1.5 text-xs ${off ? 'bg-gray-50 text-gray-400' : `cursor-pointer ${selOrders.has(o.id) ? 'bg-slate-50' : 'hover:bg-gray-50'}`}`}>
+                      <input type="checkbox" checked={selOrders.has(o.id)} disabled={off} onChange={() => toggleId(selOrders, setSelOrders, o.id)} />
                       <span className="text-gray-500 whitespace-nowrap">{o.order_date.slice(0, 10)}</span>
-                      <span className="text-gray-900 truncate">{o.vendor_name ? <span className="text-blue-700">{o.vendor_name} · </span> : null}{o.order_no}</span>
+                      <span className={`truncate ${off ? '' : 'text-gray-900'}`}>{o.vendor_name ? <span className="text-blue-700">{o.vendor_name} · </span> : null}{o.order_no}</span>
+                      <VatBadge v={o.vat} muted={off} />
+                      {off && <span className="shrink-0 px-1 py-px rounded bg-red-100 text-red-700 text-[0.625rem] font-semibold whitespace-nowrap">구분 다름</span>}
                       <span className="ml-auto tabular-nums font-medium whitespace-nowrap">{won(o.remaining)}</span>
                     </label>
-                  ))}
-                  {filteredOrders.length === 0 && <p className="text-xs text-gray-400 text-center py-6">미연결 주문이 없습니다.</p>}
+                    )
+                  })}
+                  {shownOrders.length === 0 && <p className="text-xs text-gray-400 text-center py-6">{hiddenOrd.length ? '같은 구분의 미연결 주문이 없습니다.' : '미연결 주문이 없습니다.'}</p>}
                 </div>
+                {hiddenBar(hiddenOrd.length, `${wantVat === 'taxable' ? '면세' : '과세'}로 기록한 주문`, `(고른 계산서는 ${wantVat ? VAT_LABEL[wantVat] : ''})`, showOtherOrd, () => setShowOtherOrd(v => !v))}
               </div>
               <div className="border border-gray-200 rounded-lg">
                 <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2 flex-wrap">
-                  <p className="text-xs font-semibold text-indigo-800">미배분 계산서 ({filteredInvoices.length})</p>
+                  <p className="text-xs font-semibold text-indigo-800">미배분 계산서 ({shownInvoices.length})</p>
                   <button onClick={() => (findOpen ? setFindOpen(false) : openFind())}
                     title="계산서가 다른 거래처(지점 · 본점 등) 명의로 발행된 경우, 전체 매출 계산서에서 금액 · 발행일 · 상호로 찾습니다"
                     className="px-2 py-1 rounded border border-blue-300 bg-blue-50 text-blue-700 text-[0.6875rem] font-medium hover:bg-blue-100">
@@ -341,11 +389,15 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
                     className="ml-auto border border-gray-200 rounded px-2 py-1 text-xs w-28" />
                 </div>
                 <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
-                  {filteredInvoices.map(v => (
-                    <label key={v.id} className={`flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer ${v.foreign ? 'bg-amber-50' : selInvoices.has(v.id) ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}>
-                      <input type="checkbox" checked={selInvoices.has(v.id)} onChange={() => toggleId(selInvoices, setSelInvoices, v.id)} />
+                  {shownInvoices.map(v => {
+                    const off = hiddenInv.includes(v)
+                    return (
+                    <label key={v.id} className={`flex items-center gap-2 px-3 py-1.5 text-xs ${off ? 'bg-gray-50 text-gray-400' : `cursor-pointer ${v.foreign ? 'bg-amber-50' : selInvoices.has(v.id) ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}`}>
+                      <input type="checkbox" checked={selInvoices.has(v.id)} disabled={off} onChange={() => toggleId(selInvoices, setSelInvoices, v.id)} />
                       <span className="text-gray-500 whitespace-nowrap">{v.issue_date.slice(0, 10)}</span>
-                      <span className="text-gray-900 truncate">
+                      <VatBadge v={v.tax_type} muted={off} />
+                      {off && <span className="shrink-0 px-1 py-px rounded bg-red-100 text-red-700 text-[0.625rem] font-semibold whitespace-nowrap">구분 다름</span>}
+                      <span className={`truncate ${off ? '' : 'text-gray-900'}`}>
                         {v.foreign
                           ? <span className="inline-block px-1 py-px rounded bg-amber-100 text-amber-800 text-[0.625rem] font-semibold mr-1">다른 거래처 · {v.vendor_name}</span>
                           : v.vendor_name ? <span className="text-blue-700">{v.vendor_name} · </span> : null}
@@ -353,9 +405,11 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
                       </span>
                       <span className="ml-auto tabular-nums font-medium whitespace-nowrap">{won(v.remaining)}</span>
                     </label>
-                  ))}
-                  {filteredInvoices.length === 0 && <p className="text-xs text-gray-400 text-center py-6">미배분 계산서가 없습니다.</p>}
+                    )
+                  })}
+                  {shownInvoices.length === 0 && <p className="text-xs text-gray-400 text-center py-6">{hiddenInv.length ? '같은 구분의 미배분 계산서가 없습니다.' : '미배분 계산서가 없습니다.'}</p>}
                 </div>
+                {hiddenBar(hiddenInv.length, `${wantTax === 'taxable' ? '면세' : '과세'} 계산서`, `(고른 주문의 결제 기록은 ${wantTax ? VAT_LABEL[wantTax] : ''})`, showOtherInv, () => setShowOtherInv(v => !v))}
               </div>
             </div>
 
@@ -385,11 +439,13 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
                       return (
                         <div key={v.id} className="flex items-center gap-2 px-2.5 py-1.5 text-xs flex-wrap">
                           <span className="text-gray-500 tabular-nums">{v.issue_date.slice(0, 10)}</span>
+                          <VatBadge v={v.tax_type} />
                           <span className="text-gray-900">{v.counterparty_name ?? '(상호 없음)'}</span>
                           <span className="text-gray-400">거래처 {v.vendor_name}</span>
                           <span className="ml-auto tabular-nums">남은 금액 <b>{won(v.remaining)}</b>{v.remaining !== v.total_amount && <span className="text-gray-400"> / {won(v.total_amount)}</span>}</span>
-                          <button onClick={() => addFound(v)} disabled={added}
-                            className="px-2 py-0.5 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 disabled:opacity-40">{added ? '추가됨' : '목록에 추가'}</button>
+                          <button onClick={() => addFound(v)} disabled={added || invBlocked(v)}
+                            title={invBlocked(v) ? '고른 주문의 결제 기록과 과세 구분이 달라 연결할 수 없습니다' : undefined}
+                            className="px-2 py-0.5 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 disabled:opacity-40">{added ? '추가됨' : invBlocked(v) ? '구분 다름' : '목록에 추가'}</button>
                         </div>
                       )
                     })}

@@ -32,6 +32,7 @@ interface Row {
 interface Found {
   source_type: 'bank' | 'card'; id: string; tx_date: string; label: string; vendor_name: string | null
   amount: number; remaining: number
+  kind?: string | null; kind_diff?: boolean
 }
 
 const won = (n: number) => n.toLocaleString('ko-KR')
@@ -66,6 +67,7 @@ export default function MatchTab() {
   const [findAmount, setFindAmount] = useState(true)
   const [found, setFound] = useState<Found[]>([])
   const [finding, setFinding] = useState(false)
+  const [showOtherKind, setShowOtherKind] = useState(false)   // 다른 입금 찾기 — 구분이 다른 카드 매출도 보기
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -142,7 +144,7 @@ export default function MatchTab() {
   }
   const openFind = (r: Row) => {
     if (findId === r.id) { setFindId(null); return }
-    setFindId(r.id); setFindQ(''); setFindAmount(true); setFound([]); runFind(r, '', true)
+    setFindId(r.id); setFindQ(''); setFindAmount(true); setFound([]); setShowOtherKind(false); runFind(r, '', true)
   }
 
   const kpiCard = (key: Kpi, label: string, value: string, sub: string, tone = 'text-gray-900') => (
@@ -335,20 +337,32 @@ export default function MatchTab() {
                         {finding ? <div className="text-xs text-gray-400 py-2">찾는 중...</div>
                           : found.length === 0 ? <div className="text-xs text-gray-400 py-2">조건에 맞는 원본이 없습니다. 원본 파일이 아직 올라오지 않았을 수 있습니다.</div>
                             : (
+                              <>
                               <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-64 overflow-y-auto">
-                                {found.map(c => (
-                                  <div key={c.id} className="flex items-center gap-3 px-2.5 py-1.5 text-xs flex-wrap">
+                                {found.filter(c => showOtherKind || !c.kind_diff).map(c => (
+                                  <div key={c.id} className={`flex items-center gap-3 px-2.5 py-1.5 text-xs flex-wrap ${c.kind_diff ? 'bg-gray-50 text-gray-400' : ''}`}>
                                     <span className="tabular-nums text-gray-500">{c.tx_date}</span>
-                                    <span className="text-gray-800">{c.label}</span>
+                                    <span className={c.kind_diff ? '' : 'text-gray-800'}>{c.label}</span>
+                                    {c.source_type === 'card' && <span className="px-1.5 py-px rounded-full border border-gray-200 bg-white text-[0.6875rem] text-gray-500 whitespace-nowrap">{c.kind ?? '구분 모름'}</span>}
                                     {c.vendor_name && <span className="text-gray-400">{c.vendor_name}</span>}
                                     <span className="ml-auto tabular-nums">잔액 <b>{won(c.remaining)}</b>{c.remaining !== c.amount && <span className="text-gray-400"> / {won(c.amount)}</span>}</span>
-                                    {c.remaining >= r.amount ? (
+                                    {c.kind_diff ? <span className="px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-red-100 text-red-700">구분 다름 · 매칭 불가</span>
+                                    : c.remaining >= r.amount ? (
                                       <button onClick={() => confirmWith(r, { source_type: c.source_type, source_id: c.id, tx_date: c.tx_date, label: c.label })} disabled={busyId === r.id}
                                         className="px-2 py-0.5 rounded bg-slate-900 text-white font-semibold disabled:opacity-40">이 원본으로 확정</button>
                                     ) : <span className="text-gray-400">잔액 부족</span>}
                                   </div>
                                 ))}
+                                {found.every(c => c.kind_diff) && !showOtherKind && <div className="px-2.5 py-2 text-xs text-gray-400">같은 구분의 원본이 없습니다.</div>}
                               </div>
+                              {found.some(c => c.kind_diff) && (
+                                <div className="mt-2 flex items-center gap-2 flex-wrap rounded-lg border border-dashed border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-600">
+                                  <b>구분이 다른 카드 매출 {found.filter(c => c.kind_diff).length}건은 숨김</b>
+                                  <span className="text-gray-400">기록은 {kindLabel(r) ?? ''}</span>
+                                  <button onClick={() => setShowOtherKind(v => !v)} className="ml-auto px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">{showOtherKind ? '숨기기' : '보기'}</button>
+                                </div>
+                              )}
+                              </>
                             )}
                       </td>
                     </tr>

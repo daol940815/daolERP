@@ -50,7 +50,7 @@ export async function loadRecKinds(admin: SupabaseClient, ids: string[]): Promis
   return out
 }
 // 카드 매출 원본의 구분 (427 미적용이면 공급가 · 세액 칸만으로 판정)
-async function loadCardKinds(admin: SupabaseClient, ids: string[]): Promise<Map<string, PayKind>> {
+export async function loadCardKinds(admin: SupabaseClient, ids: string[]): Promise<Map<string, PayKind>> {
   const out = new Map<string, PayKind>()
   for (const ch of chunk(Array.from(new Set(ids)), 150)) {
     let res = await admin.from('card_sales').select('id, amount, supply_amount, tax_amount, cpid, vat_kind').in('id', ch)

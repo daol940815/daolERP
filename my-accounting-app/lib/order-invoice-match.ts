@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { MATCH_RULES } from '@/lib/matching-rules'
 import { loadBillingFamily } from '@/lib/billing'
+import { loadRecordedInvoiceVat, vatCompatible, type OrderVat } from '@/lib/payment-kind-server'
 
 // ── 주문 ↔ 매출 계산서 연결 후보 (매출 사이클 3단 대사의 가운데 변) ──────────
 // 한 매출처의 "계산서 미연결 주문"과 "미배분 매출 계산서"를 놓고 조합을 찾는다.
@@ -11,6 +12,8 @@ import { loadBillingFamily } from '@/lib/billing'
 // 원칙: 후보만 만든다 — 연결 확정은 사용자가 한다.
 // 날짜: 주문 후 발행이 원칙 — 발행일이 주문일 -7일(유예) ~ +120일 창 (30일 우선).
 // 취소쌍(원+취소 합계 0, 90일 이내) 계산서는 발행 자체가 무효라 후보에서 제외한다.
+// 과세 구분(1304, 2026-11-18): 주문에 구분을 적은 계산서 발행 기록이 있으면 같은 종류(과세 · 면세)의 계산서하고만 조합한다.
+//   목록에는 다른 종류도 내려보내고(vat · tax_type), 화면이 접어서 보여 준다. 저장은 서버가 다시 막는다.
 // 청구처(114): 본점 법인으로 계산서가 나가는 부서는 '청구처 가족' 범위에서 찾는다 —
 //   부서에서 열면 주문 = 그 부서, 계산서 = 자기 것 + 청구처 법인 것
 //   청구처 법인에서 열면 주문 = 법인 + 소속 부서 전부, 계산서 = 법인 것
@@ -22,6 +25,7 @@ export interface LinkOrder {
   net_amount: number
   remaining: number   // 순매출 - 기연결 계산서 금액
   vendor_name?: string // 청구처 가족 범위일 때 주문처(부서) 이름
+  vat?: OrderVat       // 계산서 발행 기록에 적은 과세 구분 (없으면 미기재 · 기록 없음)
 }
 export interface LinkInvoice {
   id: string
@@ -30,6 +34,7 @@ export interface LinkInvoice {
   item_name: string | null
   remaining: number   // 합계 - 기배분 금액
   vendor_name?: string // 청구처 법인 계산서일 때 발행 법인 이름
+  tax_type?: string | null   // taxable | exempt
 }
 export interface LinkGroup {
   type: 'exact' | 'combined_orders' | 'split_invoices'
@@ -148,9 +153,9 @@ export async function buildInvoiceLinkCandidates(
   }
 
   // 매출 계산서 (양수, 취소쌍 제외) — 부서면 자기 것 + 청구처 법인 것
-  const invResult = await fetchAllRows<{ id: string; issue_date: string; total_amount: number; item_name: string | null; vendor_id: string }>((f, t) =>
+  const invResult = await fetchAllRows<{ id: string; issue_date: string; total_amount: number; item_name: string | null; vendor_id: string; tax_type: string | null }>((f, t) =>
     admin.from('tax_invoices')
-      .select('id, issue_date, total_amount, item_name, vendor_id')
+      .select('id, issue_date, total_amount, item_name, vendor_id, tax_type')
       .eq('direction', 'sales')
       .in('vendor_id', invoiceVendorIds)
       .range(f, t))
@@ -184,6 +189,7 @@ export async function buildInvoiceLinkCandidates(
     }
   }
 
+  const recVat = await loadRecordedInvoiceVat(admin, orderIds)
   const orders: LinkOrder[] = orderRows
     .map(o => {
       const net = (o.total_amount ?? 0) - (excluded.get(o.id) ?? 0)
@@ -191,6 +197,7 @@ export async function buildInvoiceLinkCandidates(
       return {
         id: o.id, order_no: o.order_no, order_date: o.order_date, net_amount: net, remaining: net - (allocByOrder.get(o.id) ?? 0),
         ...(isRoot && ov ? { vendor_name: nameOf.get(ov) } : {}),
+        ...(recVat.has(o.id) ? { vat: recVat.get(o.id) } : {}),
       }
     })
     .filter(o => o.remaining > 0)
@@ -199,7 +206,7 @@ export async function buildInvoiceLinkCandidates(
   const invoices: LinkInvoice[] = invoiceRows
     .map(r => ({
       id: r.id, issue_date: r.issue_date, total_amount: r.total_amount, item_name: r.item_name,
-      remaining: r.total_amount - (allocByInvoice.get(r.id) ?? 0),
+      remaining: r.total_amount - (allocByInvoice.get(r.id) ?? 0), tax_type: r.tax_type,
       ...(r.vendor_id !== vendorId ? { vendor_name: nameOf.get(r.vendor_id) } : {}),
     }))
     .filter(r => r.remaining > 0)
@@ -211,7 +218,7 @@ export async function buildInvoiceLinkCandidates(
   const usedInv = new Set<string>()
   // 발행일 - 주문일 = lag, 허용 창: -PRE_GRACE ~ maxDays
   const invWindow = (o: LinkOrder, maxDays: number) => invoices.filter(v =>
-    !usedInv.has(v.id) &&
+    !usedInv.has(v.id) && vatCompatible(o.vat, v.tax_type) &&
     dayDiff(v.issue_date, o.order_date) >= -PRE_GRACE &&
     dayDiff(v.issue_date, o.order_date) <= maxDays)
 
@@ -252,7 +259,7 @@ export async function buildInvoiceLinkCandidates(
   for (const v of invoices) {
     if (usedInv.has(v.id)) continue
     const pool = orders
-      .filter(o => !usedOrd.has(o.id) &&
+      .filter(o => !usedOrd.has(o.id) && vatCompatible(o.vat, v.tax_type) &&
         dayDiff(v.issue_date, o.order_date) >= -PRE_GRACE &&
         dayDiff(v.issue_date, o.order_date) <= FAR)
       .map(o => ({ id: o.id, amount: o.remaining }))
@@ -285,7 +292,7 @@ export async function searchSalesInvoices(
   admin: SupabaseClient,
   opts: { amounts?: number[]; from?: string | null; to?: string | null; q?: string | null; excludeVendorIds?: string[]; limit?: number },
 ): Promise<{ data: FoundInvoice[] } | { error: string }> {
-  type Row = { id: string; issue_date: string; total_amount: number | null; item_name: string | null; vendor_id: string | null; counterparty_name: string | null }
+  type Row = { id: string; issue_date: string; total_amount: number | null; item_name: string | null; vendor_id: string | null; counterparty_name: string | null; tax_type: string | null }
   const amounts = Array.from(new Set((opts.amounts ?? []).filter(a => a > 0)))
   const q = (opts.q ?? '').trim()
   const rows: Row[] = []
@@ -293,7 +300,7 @@ export async function searchSalesInvoices(
   for (const ch of amountChunks) {
     const r = await fetchAllRows<Row>((f, t) => {
       let s = admin.from('tax_invoices')
-        .select('id, issue_date, total_amount, item_name, vendor_id, counterparty_name')
+        .select('id, issue_date, total_amount, item_name, vendor_id, counterparty_name, tax_type')
         .eq('direction', 'sales').gt('total_amount', 0).order('issue_date', { ascending: false })
       if (ch) s = s.in('total_amount', ch)
       if (opts.from) s = s.gte('issue_date', opts.from)
@@ -340,7 +347,7 @@ export async function searchSalesInvoices(
     .map(r => ({
       id: r.id, issue_date: r.issue_date, total_amount: r.total_amount ?? 0, item_name: r.item_name,
       remaining: (r.total_amount ?? 0) - (alloc.get(r.id) ?? 0),
-      counterparty_name: r.counterparty_name, vendor_id: r.vendor_id,
+      counterparty_name: r.counterparty_name, vendor_id: r.vendor_id, tax_type: r.tax_type,
       vendor_name: r.vendor_id ? vName.get(r.vendor_id) ?? r.counterparty_name ?? '(이름 없음)' : `${r.counterparty_name ?? '상호 없음'} (거래처 미연결)`,
     }))
     .filter(r => r.remaining > 0 && (!want || want.has(r.remaining)))

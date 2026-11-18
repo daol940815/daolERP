@@ -18,6 +18,7 @@ interface Row {
   record_date: string | null; record_amount: number | null; invoice_amount: number
   paid_date: string | null; paid_amount: number | null
   need: number; vendor_has_billing: boolean; candidates: Cand[]; candidate_count: number
+  record_vat?: 'taxable' | 'exempt' | 'mixed' | null; other_kind_count?: number
 }
 // 후보 계산서 — 남은 금액이 같고 발행일이 가까운 매출 계산서. foreign = 다른 거래처 명의
 interface Cand { id: string; issue_date: string; remaining: number; counterparty_name: string | null; vendor_id: string | null; vendor_name: string; foreign: boolean }
@@ -141,7 +142,9 @@ export default function InvoiceTab() {
                         <div className="text-gray-700">이체 {r.paid_date?.slice(5)} 통장 입금 {won(r.paid_amount ?? 0)}원 매칭됨</div>
                         <div className="text-gray-400">계산서 · 현금영수증 연결 없음</div>
                       </>) : (<>
-                        <div className="text-gray-700">계산서 {r.record_date?.slice(5)} 발행 기록 {won(r.record_amount ?? 0)}원</div>
+                        <div className="text-gray-700">계산서 {r.record_date?.slice(5)} 발행 기록 {won(r.record_amount ?? 0)}원
+                          {r.record_vat && <span className="ml-1 px-1.5 py-px rounded-full border border-gray-200 text-[0.6875rem] text-gray-500">{r.record_vat === 'mixed' ? '과세 · 면세' : r.record_vat === 'exempt' ? '면세' : '과세'}</span>}
+                        </div>
                         {r.issue === 'no_hometax'
                           ? <div className="text-gray-400">홈택스 계산서 미연결</div>
                           : <div className="text-red-600">홈택스 계산서 {won(r.invoice_amount)}원 — {won(Math.abs(r.invoice_amount - (r.record_amount ?? 0)))}원 다름</div>}
@@ -152,6 +155,11 @@ export default function InvoiceTab() {
                           <span className="inline-block px-1.5 py-px rounded bg-green-100 text-green-800 text-[0.625rem] font-semibold mr-1">후보</span>
                           <b className="text-gray-800">{r.candidates[0].vendor_name}</b> 명의 계산서 {r.candidates[0].issue_date.slice(5, 10)} · {won(r.candidates[0].remaining)}원
                           <div className="text-[0.6875rem] text-gray-500">금액 같음 · {r.candidates[0].foreign ? '다른 거래처 명의' : '이 매출처 계산서'} · 다른 주문에 연결 안 됨</div>
+                        </div>
+                      )}
+                      {(r.other_kind_count ?? 0) > 0 && (
+                        <div className="mt-1 text-[0.6875rem] text-amber-700">
+                          금액이 같은 {r.record_vat === 'exempt' ? '과세' : '면세'} 계산서 {r.other_kind_count}건 있음(구분 다름 — 후보에서 제외)
                         </div>
                       )}
                       {r.candidate_count > 1 && (

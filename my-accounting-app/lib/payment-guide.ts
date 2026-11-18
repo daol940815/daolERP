@@ -7,6 +7,7 @@ import type { PayState } from './pay-state'
 import { honorify } from './contact-label'
 import { DATA_START } from './period-presets'
 import { inInvoiceWindow, searchSalesInvoices } from './order-invoice-match'
+import { loadRecordedInvoiceVat, vatCompatible } from './payment-kind-server'
 
 // ── 결제 확인 3단계 (2026-11-16 사용자 승인 — 시안 docs/mockups/결제확인_통합_시안.html) ──
 //   결제 안내 대상: 결제 상태가 미결제 · 일부 결제인 주문(영업지원 작업 목록) + 연락 기록(1301)
@@ -129,6 +130,8 @@ export interface InvoiceCheckRow {
   record_date: string | null; record_amount: number | null   // 계산서 발행 기록 (이 주문 분)
   invoice_amount: number                                       // 주문에 연결된 홈택스 계산서 금액 합
   paid_date: string | null; paid_amount: number | null         // 증빙 없음: 이체로 매칭된 금액
+  record_vat: 'taxable' | 'exempt' | 'mixed' | null            // 계산서 발행 기록에 적은 과세 구분 (1304) — 후보는 같은 구분에서만
+  other_kind_count: number                                     // 금액 · 날짜는 맞지만 구분이 달라 후보에서 뺀 계산서 수
   // 후보 (2026-11-17): 남은 금액이 need와 같고 발행일이 주문일 −7 ~ +120일인 매출 계산서. foreign = 주문 매출처 · 청구처가 아닌 거래처 명의
   need: number
   vendor_has_billing: boolean
@@ -138,6 +141,7 @@ export interface InvoiceCheckRow {
 export interface InvoiceCandidate {
   id: string; issue_date: string; remaining: number; counterparty_name: string | null
   vendor_id: string | null; vendor_name: string; foreign: boolean
+  tax_type?: string | null
 }
 
 export async function loadInvoiceCheck(admin: SupabaseClient): Promise<{ error: string } | { rows: InvoiceCheckRow[]; latest_invoice: string | null }> {
@@ -211,6 +215,7 @@ export async function loadInvoiceCheck(admin: SupabaseClient): Promise<{ error: 
       customer_name: [o.bank_name, o.branch_name].filter(Boolean).join(' '), vendor_id: vid,
       billing_name: bill ? vName.get(bill) ?? null : null, net: recv?.get(o.id)?.net_sales ?? 0,
       need: 0, vendor_has_billing: !!bill, candidates: [] as InvoiceCandidate[], candidate_count: 0,
+      record_vat: null as InvoiceCheckRow['record_vat'], other_kind_count: 0,
     }
   }
   const rows: InvoiceCheckRow[] = []
@@ -253,16 +258,23 @@ export async function loadInvoiceCheck(admin: SupabaseClient): Promise<{ error: 
     const minDate = rows.reduce((m, r) => (r.need > 0 && r.order_date < m ? r.order_date : m), kstToday())
     const from = new Date(new Date(minDate).getTime() - 7 * 86400000).toISOString().slice(0, 10)
     const found = await searchSalesInvoices(admin, { amounts: needs, from, limit: 3000 })
+    // 같은 구분 안에서만 후보를 찾는다(1304, 2026-11-18). 금액 · 날짜가 맞는 다른 구분 계산서는 건수만 알린다
+    const recVat = await loadRecordedInvoiceVat(admin, rows.filter(r => r.need > 0).map(r => r.order_id))
     if (!('error' in found)) {
       for (const r of rows) {
         if (r.need <= 0) continue
         const own = new Set([r.vendor_id, r.vendor_id ? billingOf.get(r.vendor_id) ?? null : null].filter(Boolean) as string[])
-        const cs = found.data
-          .filter(v => v.remaining === r.need && inInvoiceWindow(v.issue_date, r.order_date))
+        const near = found.data.filter(v => v.remaining === r.need && inInvoiceWindow(v.issue_date, r.order_date))
+        const ov = recVat.get(r.order_id)
+        r.record_vat = ov ?? null
+        r.other_kind_count = near.filter(v => !vatCompatible(ov, v.tax_type)).length
+        const cs = near
+          .filter(v => vatCompatible(ov, v.tax_type))
           .sort((a, b) => Math.abs(new Date(a.issue_date).getTime() - new Date(r.order_date).getTime()) - Math.abs(new Date(b.issue_date).getTime() - new Date(r.order_date).getTime()))
         r.candidate_count = cs.length
         r.candidates = cs.slice(0, 3).map(v => ({
           id: v.id, issue_date: v.issue_date, remaining: v.remaining, counterparty_name: v.counterparty_name,
+          tax_type: v.tax_type ?? null,
           vendor_id: v.vendor_id, vendor_name: v.vendor_name ?? '', foreign: !(v.vendor_id && own.has(v.vendor_id)),
         }))
       }
