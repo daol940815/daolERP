@@ -3,7 +3,7 @@ import { kstToday, type Editor } from './orders-portal'
 import { hasCancelCols, loadCancelLines, loadCancelRowIds } from './payment-cancel-meta'
 import { syncRecordsForOrders, writeLog, type PayMethod, type Reason } from './payment-records'
 import { resolveReason } from './payment-reasons'
-import { insertMatches } from './match-log'
+import { insertMatches, logLink, logUnmatch } from './match-log'
 
 // ── 결제 기록 취소 (1305, 2026-11-18 사용자 확정 — 시안 docs/mockups/결제기록_취소_시안.html) ──
 // 취소 = 실제로 실행한 결제를 되돌린 것(삭제와 다르다). 원 기록 아래에 취소 줄로 남기고, 2차에서 취소도 원본과 매칭한다.
@@ -262,6 +262,7 @@ export async function confirmCancel(admin: SupabaseClient, cancelId: string, raw
         const cur = Number(m.amount ?? 0), cut = Math.min(cur, rest)
         const res = cut === cur ? await admin.from('erp_payment_matches').delete().eq('id', m.id) : await admin.from('erp_payment_matches').update({ amount: cur - cut }).eq('id', m.id)
         if (res.error) return { error: res.error.message }
+        await logUnmatch(admin, [{ id: m.id, order_id: a.order_id, source_type: 'card', amount: cut, record_id: orig.id }], '카드 취소 확정 — 수금 매칭 감액', { code: 'etc', text: '카드 취소' }, editor)
         rest -= cut; reduced += cut
       }
     }
@@ -287,24 +288,28 @@ export async function confirmCancel(admin: SupabaseClient, cancelId: string, raw
     })))
     if (ie) return { error: /cancel_record_id|cancels_invoice_id|amount_check|schema cache/i.test(ie.message) ? MIGRATION_1305_MSG : ie.message }
     // ② 원 계산서에 붙어 있던 입금을 전부 푼다 → 계산서를 거쳐 넘어와 있던 주문 수금도 함께 풀린다(원 계산서는 이제 동기화 대상이 아니다)
-    const { count: payCount } = await admin.from('tax_invoice_payments').select('id', { count: 'exact', head: true }).eq('tax_invoice_id', posId)
+    const { data: cr } = await admin.from('order_payment_records').select('reason_code, reason_text').eq('id', cancelId).maybeSingle()
+    const why = cr?.reason_text ? { code: (cr.reason_code as string | null) ?? 'etc', text: `계산서 취소 — ${cr.reason_text}` } : { code: 'etc', text: '계산서 취소' }
+    const { data: payRows } = await admin.from('tax_invoice_payments').select('id, transaction_id, amount').eq('tax_invoice_id', posId)
+    const payCount = payRows?.length ?? 0
     await admin.from('tax_invoice_payments').delete().eq('tax_invoice_id', posId)
+    await logLink(admin, 'unmatch', (payRows ?? []).map(p => ({ id: p.id, source_type: 'invoice_payment', source_id: p.transaction_id, amount: p.amount })), '계산서 취소 — 원 계산서 입금 해제', why, editor)
     const { syncOrderMatchesFromInvoices } = await import('./link-sync')
     const { recalcInvoiceStatus } = await import('./tax-invoice-payments.server')
     await recalcInvoiceStatus(admin, posId)
-    const sync = await syncOrderMatchesFromInvoices(admin, [posId], '계산서 취소')
+    const sync = await syncOrderMatchesFromInvoices(admin, [posId], '계산서 취소', why)
     // ③ 결제 확인에서 이 계산서 발행 기록을 통장 입금에 직접 확정해 둔 수금도 푼다
-    const { data: direct } = await admin.from('erp_payment_matches').select('id, amount').eq('record_id', orig.id).in('order_id', orderIds)
+    const { data: direct } = await admin.from('erp_payment_matches').select('id, amount, order_id, source_type, source_id, paid_date, record_id').eq('record_id', orig.id).in('order_id', orderIds)
     const directSum = (direct ?? []).reduce((x, m) => x + Number(m.amount ?? 0), 0)
-    if (direct?.length) await admin.from('erp_payment_matches').delete().in('id', direct.map(m => m.id as string))
+    if (direct?.length) { await admin.from('erp_payment_matches').delete().in('id', direct.map(m => m.id as string)); await logUnmatch(admin, direct, '계산서 취소 — 발행 기록의 수금 해제', why, editor) }
     // ④ 전액 취소면 두 계산서를 상계(확인됨)로 표시 — 주고받을 돈이 없는 쌍
     if (Number(pos.total_amount) === amount) {
       const memo = '취소발행 상계 — 주문 취소 기록에서 확인'
       const up = await admin.from('tax_invoices').update({ payment_status: 'matched', payment_manual: true, payment_memo: memo }).in('id', [posId, negId])
       if (up.error) await admin.from('tax_invoices').update({ payment_status: 'matched', payment_memo: memo }).in('id', [posId, negId])
     }
-    const freed = sync.removed > 0 || directSum > 0 || (payCount ?? 0) > 0
-    message = `취소 계산서를 주문에 연결했습니다.${freed ? ` 원 계산서에 붙어 있던 입금 ${payCount ?? 0}건을 풀었고, 주문 미수가 다시 생겼습니다. 풀린 입금은 미연결 입금으로 돌아갑니다.` : ' 원 계산서에 붙은 입금은 없었습니다.'}`
+    const freed = sync.removed > 0 || directSum > 0 || payCount > 0
+    message = `취소 계산서를 주문에 연결했습니다.${freed ? ` 원 계산서에 붙어 있던 입금 ${payCount}건을 풀었고, 주문 미수가 다시 생겼습니다. 풀린 입금은 미연결 입금으로 돌아갑니다.` : ' 원 계산서에 붙은 입금은 없었습니다.'}`
   } else {
     // 계좌이체 환불 (1306): 입금 매칭은 그대로 두고, 환불 출금을 같은 주문에 마이너스 금액으로 붙인다
     const txId = String(b.tx_id ?? '')

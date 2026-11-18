@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import type { CardOrderState } from '@/lib/card-order-match.server'
+import { useReasonDialog } from '@/components/payments/ReasonDialog'
 
 // 카드 결제 1건을 주문에 배분하는 모달 (2026-11-13 승인 시안). 자동 매칭 없음 — 체크 + 금액 입력으로 사람이 배분.
 // 저장은 교체: 체크를 풀면 해제된다. 이 매칭은 ERP 미수(수금) 기준이고 카드사 정산 입금은 통장에서 따로 확정한다.
@@ -56,11 +57,19 @@ export default function CardOrderMatchModal({ saleId, onClose, onSaved }: {
     return n
   })
 
+  const reasonDlg = useReasonDialog()
   const save = async () => {
     if (!sale) return
-    setBusy(true); setErr(null)
     const allocations = Object.entries(alloc).map(([order_id, v]) => ({ order_id, amount: num(v) })).filter(a => a.amount > 0)
-    const res = await fetch(`/api/card-sales/${saleId}/order-match`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ allocations }) })
+    // 기존 매칭이 빠지거나 금액이 줄면 해제 사유를 받는다 (1307, 2026-11-18)
+    const cut = (state?.current ?? []).filter(m => (allocations.find(a => a.order_id === m.order_id)?.amount ?? 0) < m.amount)
+    let reason = null
+    if (cut.length) {
+      reason = await reasonDlg.ask('release', `매칭 해제 · 감액 ${cut.length}건`, cut.map(m => `${m.order_no} ${m.amount.toLocaleString('ko-KR')}원`).join('\n'))
+      if (!reason) return
+    }
+    setBusy(true); setErr(null)
+    const res = await fetch(`/api/card-sales/${saleId}/order-match`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ allocations, reason }) })
     const json = await res.json().catch(() => ({}))
     setBusy(false)
     if (!res.ok) { setErr(json.error ?? '저장 실패'); return }
@@ -72,6 +81,7 @@ export default function CardOrderMatchModal({ saleId, onClose, onSaved }: {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div onClick={e => e.stopPropagation()}>{reasonDlg.node}</div>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between">

@@ -3,6 +3,7 @@ import { loadCanceledInvoices } from './payment-cancel-meta'
 import { getCurrentUser } from './user-role'
 import { loadReceivableMap } from './orders-portal-list'
 import { syncRecordsForOrders } from './payment-records'
+import { logUnmatch } from './match-log'
 
 // ── 주문 · 계산서 · 통장 입금 연결 동기화 (1302, 2026-11-17 사용자 승인 — 시안 docs/mockups/연결동기화_시안.html) ──
 // 연결은 세 갈래로 저장된다: 주문↔입금(erp_payment_matches) · 주문↔계산서(erp_order_invoices) · 계산서↔통장(tax_invoice_payments).
@@ -29,7 +30,7 @@ export const FROM_INVOICE_BLOCK = '계산서에 붙은 입금에서 자동으로
 
 export interface SyncResult { created: number; removed: number; amount: number; orderIds: string[] }
 
-export async function syncOrderMatchesFromInvoices(admin: SupabaseClient, invoiceIds: string[], origin: string): Promise<SyncResult> {
+export async function syncOrderMatchesFromInvoices(admin: SupabaseClient, invoiceIds: string[], origin: string, reason?: { code: string; text: string } | null): Promise<SyncResult> {
   const out: SyncResult = { created: 0, removed: 0, amount: 0, orderIds: [] }
   try {
     const ids = Array.from(new Set(invoiceIds.filter(Boolean)))
@@ -132,13 +133,14 @@ export async function syncOrderMatchesFromInvoices(admin: SupabaseClient, invoic
 
     // 차이만 고친다
     const touched = new Set<string>()
+    const gone: Derived[] = []   // 풀린 넘어온 수금 — 매칭 해제 이력(1307)에 남긴다
     const have = new Map<string, Derived[]>()
     for (const d of existing) { const k = `${d.from_invoice_id}|${d.order_id}|${d.source_id}`; have.set(k, [...(have.get(k) ?? []), d]) }
     for (const [k, rows] of Array.from(have)) {
       const w = want.get(k)
       const [first, ...dups] = rows
-      for (const d of dups) { await admin.from('erp_payment_matches').delete().eq('id', d.id); out.removed++; touched.add(d.order_id) }
-      if (!w) { await admin.from('erp_payment_matches').delete().eq('id', first.id); out.removed++; touched.add(first.order_id); continue }
+      for (const d of dups) { await admin.from('erp_payment_matches').delete().eq('id', d.id); out.removed++; touched.add(d.order_id); gone.push(d) }
+      if (!w) { await admin.from('erp_payment_matches').delete().eq('id', first.id); out.removed++; touched.add(first.order_id); gone.push(first); continue }
       if (Number(first.amount) !== w.amount) { await admin.from('erp_payment_matches').update({ amount: w.amount }).eq('id', first.id); touched.add(first.order_id) }
       want.delete(k)
     }
@@ -151,6 +153,7 @@ export async function syncOrderMatchesFromInvoices(admin: SupabaseClient, invoic
       if (!error) { out.created = inserts.length; out.amount = inserts.reduce((s, r) => s + r.amount, 0); for (const r of inserts) touched.add(r.order_id) }
     }
 
+    if (gone.length) await logUnmatch(admin, gone.map(d => ({ id: d.id, order_id: d.order_id, source_type: 'bank', source_id: d.source_id, amount: d.amount })), `${origin} — 넘어온 수금 자동 해제`, reason ?? null)
     out.orderIds = Array.from(touched)
     // 결제 기록(1300)과 맞춘다 — 넘어온 수금으로 기록이 채워지면 매칭 완료, 빠지면 매칭 대기로
     if (out.orderIds.length) {

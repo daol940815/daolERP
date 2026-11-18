@@ -10,6 +10,7 @@ import { getPeriodRange } from '@/lib/period-presets'
 import { lagDays } from '@/lib/matching-rules'
 import CancelPairsModal from './cancel-pairs-modal'
 import InvoiceLinkModal from '../sales-cycle/invoice-link-modal'
+import { useReasonDialog } from '@/components/payments/ReasonDialog'
 
 const DIRECTION_META: Record<string, { label: string; sub: string; color: string }> = {
   sales:    { label: '매출 세금계산서', sub: '받을 돈 (입금 확인)', color: 'text-blue-700' },
@@ -200,12 +201,19 @@ function MatchPickerModal({
     }
   }
 
+  // 매출 계산서의 입금 해제는 사유 필수 (1307, 2026-11-18)
+  const reasonDlg = useReasonDialog()
   const handleRemovePayment = async (paymentId: string) => {
+    let reason = null
+    if (invoice.direction === 'sales') {
+      reason = await reasonDlg.ask('release', '계산서 입금 연결 해제', '이 계산서에 붙인 입금을 풉니다. 주문에 연결된 계산서면 주문 수금으로 넘어가 있던 금액도 함께 풀립니다.')
+      if (!reason) return
+    }
     setRemovingId(paymentId)
     const res = await fetch(`/api/tax-invoices/${invoice.id}/payments`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paymentId }),
+      body: JSON.stringify({ paymentId, reason }),
     })
     const json = await res.json()
     setRemovingId(null)
@@ -313,6 +321,7 @@ function MatchPickerModal({
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+      <div onClick={e => e.stopPropagation()}>{reasonDlg.node}</div>
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <h2 className="text-lg font-bold text-gray-900 mb-1">거래내역 매칭</h2>
         <p className="text-sm text-gray-500 mb-4">
@@ -591,6 +600,7 @@ export default function ListTab(props: ListTabProps) {
 }
 
 function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: ListTabProps) {
+  const unlinkDlg = useReasonDialog()   // 매출 계산서 입금 해제 사유 (1307)
   const searchParams = useSearchParams()
   const router = useRouter()
   const [direction, setDirection] = useState<Dir>(initialDir)
@@ -795,10 +805,15 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
   }
 
   const handleUnlink = async (inv: TaxInvoice) => {
+    let reason = null
+    if (inv.direction === 'sales') {
+      reason = await unlinkDlg.ask('release', '계산서 입금 연결 전부 해제', '이 계산서에 붙인 입금을 모두 풉니다. 주문에 연결된 계산서면 주문 수금으로 넘어가 있던 금액도 함께 풀립니다.')
+      if (!reason) return
+    }
     const res  = await fetch(`/api/tax-invoices/${inv.id}/payments`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ reason }),
     })
     const json = await res.json()
     if (json.data) setInvoices(prev => prev.map(x => x.id === inv.id ? json.data : x))
@@ -904,6 +919,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
 
   return (
     <div>
+      {unlinkDlg.node}
       <div className="flex items-center gap-2 flex-wrap mb-3">
         <span className="text-xs text-gray-400">구분</span>
         {DIR_CHIPS.map(d => <button key={d.key} onClick={() => switchKind(d.key, taxType)} className={chipCls(d.key === direction)}>{d.label}</button>)}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { loadCardOrderState, saveCardOrderMatch } from '@/lib/card-order-match.server'
+import { resolveReason } from '@/lib/payment-reasons'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,9 +22,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const admin = createAdminClient()
   const me = await getCurrentUser()
   const { id } = await params
-  const body = await req.json().catch(() => ({})) as { allocations?: { order_id: string; amount: number }[] }
+  const body = await req.json().catch(() => ({})) as { allocations?: { order_id: string; amount: number }[]; reason?: unknown }
+  // 기존 배분을 풀거나 줄일 때는 사유 필수(1307) — 화면이 그때만 reason 을 보낸다. 보냈으면 항목 검사
+  let reason: { code: string; text: string } | null = null
+  if (body.reason) {
+    const rr = resolveReason('release', body.reason)
+    if ('error' in rr) return NextResponse.json({ error: rr.error }, { status: 400 })
+    reason = rr
+  }
   const r = await saveCardOrderMatch(admin, id, Array.isArray(body.allocations) ? body.allocations : [],
-    { employeeId: me?.employeeId ?? null, employeeName: me?.employeeName ?? null })
+    { employeeId: me?.employeeId ?? null, employeeName: me?.employeeName ?? null }, reason)
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 })
   const state = await loadCardOrderState(admin, id)
   return NextResponse.json({ ...r, state: 'error' in state ? null : state })

@@ -49,6 +49,12 @@ export async function logUnmatch(admin: SupabaseClient, rows: MatchLike[], origi
   await writeLogs(admin, 'unmatch', rows, await whoOf(editor), origin, reason)
 }
 
+// 수금 매칭 표 밖의 연결(계산서 ↔ 입금, 주문 ↔ 계산서, 선결제 사용)도 같은 이력 표에 남긴다 — source_type 으로 구분
+//   invoice_payment = 계산서에 붙인 입금 / invoice_link = 주문 ↔ 계산서 연결 / prepay = 선결제 사용
+export async function logLink(admin: SupabaseClient, action: 'match' | 'unmatch', rows: MatchLike[], origin: string, reason?: { code: string; text: string } | null, editor?: Who | null) {
+  await writeLogs(admin, action, rows, await whoOf(editor), origin, reason)
+}
+
 // 최근 해제 이력 (기록 없는 입금 탭 아래 표)
 export interface UnmatchLog { id: string; order_id: string | null; order_no: string | null; source_type: string | null; amount: number | null; paid_date: string | null; origin: string | null; reason_text: string | null; employee_name: string | null; created_at: string }
 export async function loadRecentUnmatches(admin: SupabaseClient, limit = 50): Promise<UnmatchLog[]> {

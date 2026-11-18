@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from './fetch-all-rows'
 import { kstToday, writeEditLogs, type Editor } from './orders-portal'
 import { loadReceivableMap } from './orders-portal-list'
+import { logLink } from './match-log'
 
 // ── 선결제 사용 (514, 2026-11-05 사용자 확정 — 시안 docs/mockups/선결제_사용_시안.html) ──
 // 선결제 사용 = 주문 결제 수단 하나. 사용 1건 =
@@ -105,7 +106,7 @@ export async function applyPrepayUse(
 }
 
 export async function releasePrepay(
-  admin: SupabaseClient, orderId: string, matchId: string, editor: Editor,
+  admin: SupabaseClient, orderId: string, matchId: string, editor: Editor, reason: { code: string; text: string } | null = null,
 ): Promise<{ error: string } | { ok: true }> {
   const { data: m } = await admin.from('erp_payment_matches')
     .select('id, order_id, source_type, source_id, amount').eq('id', matchId).maybeSingle()
@@ -115,7 +116,8 @@ export async function releasePrepay(
   const { error: de } = await admin.from('erp_payment_matches').delete().eq('id', matchId)
   if (de) return { error: `해제 실패: ${de.message}` }
   await admin.from('erp_prepayments').delete().eq('id', m.source_id as string).eq('entry_type', 'deduction')
-  await writeEditLogs(admin, orderId, editor, [{ field: '선결제 사용 해제', before: `${won(Number(m.amount ?? 0))}원`, after: null }])
+  await logLink(admin, 'unmatch', [{ id: m.id, order_id: orderId, source_type: 'prepay', source_id: m.source_id, amount: m.amount }], '선결제 사용 해제', reason, editor)
+  await writeEditLogs(admin, orderId, editor, [{ field: '선결제 사용 해제', before: `${won(Number(m.amount ?? 0))}원`, after: reason ? `사유: ${reason.text}` : null }])
   return { ok: true }
 }
 

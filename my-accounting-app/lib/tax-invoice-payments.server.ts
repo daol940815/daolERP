@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { bankKeywordsColumnExists, bankKeywordsOf } from '@/lib/vendor-keywords.server'
 import { FROM_ORDER_BLOCK, syncInvoicePaymentsFromOrders, syncOrderMatchesFromInvoices } from '@/lib/link-sync'
+import { logLink } from './match-log'
 
 // 목록/상세 API에서 공통으로 사용하는 세금계산서 select — 결제 연결 내역(payments)을
 // 함께 내려줘서 한 계산서에 여러 거래내역이 부분금액으로 연결된 경우도 화면에서 바로 표현한다.
@@ -187,21 +188,26 @@ export async function addInvoicePayment(
 }
 
 // 넘어온 입금(from_order_sync — 주문 수금에서 자동으로 넘어옴, 1302 2단계)은 여기서 지우지 않는다. 주문 쪽 수금을 풀면 함께 풀린다.
-export async function removeInvoicePayment(admin: Admin, invoiceId: string, paymentId: string): Promise<Result> {
-  const { data: row } = await admin.from('tax_invoice_payments').select('from_order_sync').eq('id', paymentId).eq('tax_invoice_id', invoiceId).maybeSingle()
+type Why = { code: string; text: string } | null
+// reason: 해제 사유(1307) — 매출 계산서는 필수(라우트가 검사), 이력에 사유 · 사람 · 시각이 남는다
+export async function removeInvoicePayment(admin: Admin, invoiceId: string, paymentId: string, reason: Why = null): Promise<Result> {
+  const { data: row } = await admin.from('tax_invoice_payments').select('id, from_order_sync, transaction_id, amount').eq('id', paymentId).eq('tax_invoice_id', invoiceId).maybeSingle()
   if (row?.from_order_sync) return { ok: false, error: FROM_ORDER_BLOCK }
   await admin.from('tax_invoice_payments').delete().eq('id', paymentId).eq('tax_invoice_id', invoiceId)
+  if (row) await logLink(admin, 'unmatch', [{ id: row.id, source_type: 'invoice_payment', source_id: row.transaction_id, amount: row.amount }], '계산서 입금 해제', reason)
   await recalcInvoiceStatus(admin, invoiceId)
-  await syncOrderMatchesFromInvoices(admin, [invoiceId], '계산서 입금 해제')   // 넘어갔던 주문 수금도 함께 푼다
+  await syncOrderMatchesFromInvoices(admin, [invoiceId], '계산서 입금 해제', reason)   // 넘어갔던 주문 수금도 함께 푼다
   await syncInvoicePaymentsFromOrders(admin, [invoiceId])                       // 직접 행이 빠진 자리를 주문 수금이 채울 수 있으면 채운다
   return { ok: true }
 }
 
 // 전부 해제 — 직접 붙인 입금만 지운다. 넘어온 입금은 남는다(남은 것이 있으면 알려 준다).
-export async function clearInvoicePayments(admin: Admin, invoiceId: string): Promise<Result> {
+export async function clearInvoicePayments(admin: Admin, invoiceId: string, reason: Why = null): Promise<Result> {
+  const { data: rows } = await admin.from('tax_invoice_payments').select('id, transaction_id, amount').eq('tax_invoice_id', invoiceId).eq('from_order_sync', false)
   await admin.from('tax_invoice_payments').delete().eq('tax_invoice_id', invoiceId).eq('from_order_sync', false)
+  await logLink(admin, 'unmatch', (rows ?? []).map(r => ({ id: r.id, source_type: 'invoice_payment', source_id: r.transaction_id, amount: r.amount })), '계산서 입금 해제', reason)
   await recalcInvoiceStatus(admin, invoiceId)
-  await syncOrderMatchesFromInvoices(admin, [invoiceId], '계산서 입금 해제')
+  await syncOrderMatchesFromInvoices(admin, [invoiceId], '계산서 입금 해제', reason)
   await syncInvoicePaymentsFromOrders(admin, [invoiceId])
   const { count } = await admin.from('tax_invoice_payments').select('id', { count: 'exact', head: true }).eq('tax_invoice_id', invoiceId).eq('from_order_sync', true)
   return (count ?? 0) > 0 ? { ok: false, error: `직접 붙인 입금은 해제했습니다. 남은 ${count}건은 ${FROM_ORDER_BLOCK}` } : { ok: true }
