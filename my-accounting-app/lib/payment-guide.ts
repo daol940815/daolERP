@@ -9,6 +9,7 @@ import { DATA_START } from './period-presets'
 import { inInvoiceWindow, searchSalesInvoices } from './order-invoice-match'
 import { loadRecordedInvoiceVat, vatCompatible } from './payment-kind-server'
 import { netRecordLinks } from './payment-cancel-meta'
+import { loadOrderStaff } from './payment-overview'
 
 // ── 결제 확인 3단계 (2026-11-16 사용자 승인 — 시안 docs/mockups/결제확인_통합_시안.html) ──
 //   결제 안내 대상: 결제 상태가 미결제 · 일부 결제인 주문(영업지원 작업 목록) + 연락 기록(1301)
@@ -30,12 +31,13 @@ type OrderRow = {
   id: string; order_no: string | null; order_date: string; bank_name: string | null; branch_name: string | null
   manager_name: string | null; phone: string | null; contact: string | null; staff_name: string | null
   total_amount: number | null; created_by_employee_id: string | null; counselor_employee_id: string | null
+  customer_alias_id: string | null; vendor_id: string | null
 }
 
 // 진행 중일 수 있는 주문: direct · 미취소. 기간은 자료 시작일부터(결제가 안 끝난 주문은 오래돼도 남아야 한다)
 async function loadOpenOrders(admin: SupabaseClient): Promise<{ error: string } | { orders: OrderRow[]; recv: Map<string, { outstanding: number; net_sales: number }> }> {
   const res = await fetchAllRows<OrderRow>((f, t) => admin.from('erp_orders')
-    .select('id, order_no, order_date, bank_name, branch_name, manager_name, phone, contact, staff_name, total_amount, created_by_employee_id, counselor_employee_id')
+    .select('id, order_no, order_date, bank_name, branch_name, manager_name, phone, contact, staff_name, total_amount, created_by_employee_id, counselor_employee_id, customer_alias_id, vendor_id')
     .eq('source', 'direct').is('canceled_at', null).gte('order_date', DATA_START)
     .order('order_date', { ascending: true }).range(f, t))
   if ('error' in res) return { error: res.error }
@@ -52,6 +54,7 @@ export interface GuideRow {
   pay: PayState; days: number                // 주문일부터 지난 날
   last_contact: PayContact | null; contact_count: number
   promise_overdue: boolean; mine: boolean
+  staff_ids: string[]; staff_names: string[]   // 지점 담당 (2026-11-18)
 }
 
 export async function loadGuideRows(admin: SupabaseClient, meId: string | null): Promise<{ error: string } | { rows: GuideRow[]; contacts_available: boolean }> {
@@ -72,6 +75,7 @@ export async function loadGuideRows(admin: SupabaseClient, meId: string | null):
     for (const c of (data ?? []) as PayContact[]) { const l = byOrder.get(c.order_id) ?? []; l.push(c); byOrder.set(c.order_id, l) }
   }
 
+  const staff = await loadOrderStaff(admin, target)
   const today = kstToday()
   const rows: GuideRow[] = target.map(o => {
     const pay = payMap.get(o.id)!
@@ -87,6 +91,7 @@ export async function loadGuideRows(admin: SupabaseClient, meId: string | null):
       // 가장 최근 연락의 약속일이 지났는데 아직 이 목록에 있으면 약속 불이행
       promise_overdue: !!last?.promise_date && last.promise_date < today,
       mine: !!meId && (o.created_by_employee_id === meId || o.counselor_employee_id === meId),
+      staff_ids: staff.get(o.id)?.staff_ids ?? [], staff_names: staff.get(o.id)?.staff_names ?? [],
     }
   }).sort((a, b) => b.days - a.days)
   return { rows, contacts_available: available }

@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { can } from '@/lib/permissions'
 import { loadGuideRows } from '@/lib/payment-guide'
+import { loadStaffScope } from '@/lib/payment-overview'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -12,7 +13,8 @@ export const maxDuration = 60
 export async function GET() {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
-  const r = await loadGuideRows(createAdminClient(), me.employeeId)
+  const admin = createAdminClient()
+  const r = await loadGuideRows(admin, me.employeeId)
   if ('error' in r) return NextResponse.json({ error: r.error }, { status: 500 })
-  return NextResponse.json({ ...r, can_contact: r.contacts_available && can(me, 'orders', 'edit') })
+  return NextResponse.json({ ...r, scope: await loadStaffScope(admin, me), can_contact: r.contacts_available && can(me, 'orders', 'edit') })
 }

@@ -64,7 +64,7 @@ export const MENU: MenuGroup[] = [
     { label: '샘플 재고', href: '/orders/sample-stock' },
   ]},
   { key: 'collections', area: 'sales', label: '수금 · 정산 작업', items: [
-    // 결제 확인 — 탭 4개: 매칭 대기 / 기록 없는 입금(전 입금 매칭) / 결제 안내 대상(전 수금 대상) / 계산서 확인(전 계산서 발행 대상)
+    // 결제 확인 — 탭 5개(2026-11-18): 전체 현황 / 매칭 대기 / 결제 안내 대상 / 입금대장(전 기록 없는 입금 · 입금 매칭) / 계산서 확인. 이전 설명: 매칭 대기 / 기록 없는 입금(전 입금 매칭) / 결제 안내 대상(전 수금 대상) / 계산서 확인(전 계산서 발행 대상)
     // 2026-11-16 통합. 옛 주소 /erp-matching · /reports/erp-receivables · /sales-cycle 은 리다이렉트 스텁(EXTRA_PATH_OWNERS)
     { label: '결제 확인', href: '/payments' },
     // 회계 · 재무에서도 열린다(EXTRA_PATH_OWNERS) — 회계 또는 수금 · 정산 작업 권한 중 하나 (2026-11-12 사용자 결정)

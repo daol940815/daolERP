@@ -4,6 +4,7 @@ import PeriodPresets from '@/components/ui/PeriodPresets'
 import { Fragment, Suspense, useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { DATA_START, getPeriodRange } from '@/lib/period-presets'
+import { OrderNoLink } from '@/components/payments/OrderPreview'
 import ReasonPicker, { reasonReady, type ReasonValue } from '@/components/payments/ReasonPicker'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
@@ -13,6 +14,7 @@ interface Candidate {
   order_no: string
   order_date: string
   customer_name: string
+  manager?: string
   collect_status: string
   net_amount: number
   allocated: number
@@ -32,7 +34,7 @@ interface PendingDeposit {
   remaining: number
   candidates: Candidate[]
   // 추천 주문 — 같은 거래처 · 잔액 같음 · 날짜 가까움 · 양쪽 후보가 하나뿐 (확정은 사람이 누른다, 2026-11-16)
-  recommend: { id: string; order_no: string; order_date: string; remaining: number } | null
+  recommend: { id: string; order_no: string; order_date: string; remaining: number; customer_name?: string; manager?: string } | null
 }
 
 interface MatchedRow {
@@ -200,7 +202,6 @@ function ErpMatchingContent() {
     !q || m.order_no.includes(q) || m.customer_name.includes(q) || (m.counterparty_name ?? '').includes(q))
 
   const pendingTotal = filteredPending.reduce((s, d) => s + d.remaining, 0)
-  const matchedTotal = filteredMatched.reduce((s, m) => s + m.amount, 0)
 
   return (
     <div className="w-full">
@@ -253,23 +254,10 @@ function ErpMatchingContent() {
         </div>
       )}
 
-      {/* 탭 */}
-      <div className="flex items-center gap-1 mb-4 border-b border-gray-200">
-        {([
-          ['pending', `주문에 붙일 입금 ${filteredPending.length}건 (${won(pendingTotal)})`],
-          ['matched', `매칭완료 ${filteredMatched.length}건 (${won(matchedTotal)})`],
-        ] as [Tab, string][]).map(([t, label]) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors ${
-              tab === t ? 'border-slate-900 text-slate-900 font-medium' : 'border-transparent text-gray-400 hover:text-gray-600'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* 입금대장 (2026-11-18): 하위 탭 없이 '주문에 붙일 입금'만 보여 준다. 매칭된 입금의 내역 · 해제 · 해제 이력은 전체 현황 탭으로 옮겼다
+          (아래 matched 분기는 tab 이 항상 'pending' 이라 그려지지 않는다) */}
+      <div className="mb-3 text-sm text-gray-700">주문에 붙일 입금 <b>{filteredPending.length}건</b> <span className="text-gray-500">({won(pendingTotal)})</span>
+        <span className="text-xs text-gray-400"> · 붙인 뒤의 내역과 매칭 해제는 전체 현황 탭에서 주문을 펼쳐 봅니다</span></div>
 
       {loading ? (
         <div className="text-center py-20 text-gray-400">로딩 중...</div>
@@ -325,7 +313,8 @@ function ErpMatchingContent() {
                                 onChange={e => setRecSel(prev => { const n = new Set(prev); if (e.target.checked) n.add(d.id); else n.delete(d.id); return n })} />
                               <span>
                                 <span className="inline-block px-1.5 py-0.5 rounded-full text-[0.625rem] font-semibold bg-green-100 text-green-800 mr-1">추천</span>
-                                <span className="text-gray-800 tabular-nums">{d.recommend.order_no}</span>
+                                <OrderNoLink id={d.recommend.id} no={d.recommend.order_no} />
+                                <span className="text-gray-700"> · {d.recommend.customer_name ?? ''}{d.recommend.manager ? ` · ${d.recommend.manager}` : ''}</span>
                                 <span className="text-gray-400"> · {d.recommend.order_date} · 미수 {won(d.recommend.remaining)}</span>
                               </span>
                             </label>
@@ -355,7 +344,8 @@ function ErpMatchingContent() {
                                 <tr className="text-left text-gray-400">
                                   <th className="py-1 pr-3 font-medium">주문번호</th>
                                   <th className="py-1 pr-3 font-medium">주문일</th>
-                                  <th className="py-1 pr-3 font-medium">매출처</th>
+                                  <th className="py-1 pr-3 font-medium">은행 · 지점</th>
+                                  <th className="py-1 pr-3 font-medium">고객</th>
                                   <th className="py-1 pr-3 font-medium text-right">순매출</th>
                                   <th className="py-1 pr-3 font-medium text-right">기배분</th>
                                   <th className="py-1 pr-3 font-medium text-right">잔액</th>
@@ -365,9 +355,10 @@ function ErpMatchingContent() {
                               <tbody>
                                 {[...d.candidates, ...(extraCands[d.id] ?? []).filter(x => !d.candidates.some(c => c.id === x.id))].map(c => (
                                   <tr key={c.id} className="border-t border-gray-200 text-gray-700">
-                                    <td className="py-1.5 pr-3 whitespace-nowrap">{c.order_no}</td>
+                                    <td className="py-1.5 pr-3 whitespace-nowrap"><OrderNoLink id={c.id} no={c.order_no} /></td>
                                     <td className="py-1.5 pr-3 whitespace-nowrap">{c.order_date}</td>
-                                    <td className="py-1.5 pr-3 max-w-[180px] truncate">{c.customer_name}</td>
+                                    <td className="py-1.5 pr-3 whitespace-nowrap">{c.customer_name}</td>
+                                    <td className="py-1.5 pr-3 whitespace-nowrap text-gray-600">{c.manager ?? ''}</td>
                                     <td className="py-1.5 pr-3 text-right whitespace-nowrap">{won(c.net_amount)}</td>
                                     <td className="py-1.5 pr-3 text-right whitespace-nowrap text-gray-400">{won(c.allocated)}</td>
                                     <td className="py-1.5 pr-3 text-right whitespace-nowrap font-medium">{won(c.remaining)}</td>

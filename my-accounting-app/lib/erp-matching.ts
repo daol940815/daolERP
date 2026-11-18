@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { NOT_VOID_OR } from '@/lib/card-sale-status'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { honorify } from '@/lib/contact-label'
 
 // 입금 ↔ ERP 주문 건 단위 매칭 (마이그레이션 021: erp_payment_matches)
 // 은행 입금과 카드결제(거래처 매칭된 card_sales) 대상. 현금영수증은 스키마만 지원.
@@ -35,6 +36,7 @@ export interface OrderState {
   order_no: string
   order_date: string
   customer_name: string
+  manager?: string     // 고객(담당자) — 같은 지점의 주문을 구분하려고 (2026-11-18)
   vendor_id: string
   collect_status: string
   net_amount: number  // 순매출 (취소/VIP/선결제 제외)
@@ -102,13 +104,14 @@ export async function loadMatchingState(
     order_date: string
     bank_name: string | null
     branch_name: string | null
+    manager_name: string | null
     customer_alias_id: string
     total_amount: number | null
     collect_status: string
   }>((rFrom, rTo) => {
     let oq = admin
       .from('erp_orders')
-      .select('id, order_no, order_date, bank_name, branch_name, customer_alias_id, total_amount, collect_status')
+      .select('id, order_no, order_date, bank_name, branch_name, manager_name, customer_alias_id, total_amount, collect_status')
       .not('customer_alias_id', 'is', null)
     if (from) oq = oq.gte('order_date', from)
     if (to)   oq = oq.lte('order_date', to)
@@ -144,6 +147,7 @@ export async function loadMatchingState(
       order_no: o.order_no as string,
       order_date: o.order_date as string,
       customer_name: [o.bank_name, o.branch_name].filter(Boolean).join(' '),
+      manager: honorify(o.manager_name),
       vendor_id: aliasToVendor.get(o.customer_alias_id as string)!,
       collect_status: o.collect_status as string,
       net_amount: net,
