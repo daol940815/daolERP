@@ -13,6 +13,7 @@ import {
 import { defaultRange } from '@/lib/period-presets'
 import PeriodPresets from '@/components/ui/PeriodPresets'
 import LeaveSteps from '@/components/hr/LeaveSteps'
+import ProxyLeaveDialog, { type ProxyEmp } from '@/components/hr/ProxyLeaveDialog'
 import { requestNotifRefresh, useNotifRefresh } from '@/lib/use-notif-refresh'
 
 // 휴가 목록 (2026-11-04 — 승인 대기 · 처리 내역을 한 목록으로 통합, 3단계 결재 · 전결)
@@ -29,6 +30,8 @@ type Row = AttendanceLeave & {
   steps: LeaveStep[]
   current_step: ApproveLevel | null
   actions: LeaveActions & { cancel: boolean; cancel_approved: boolean }
+  // 진행 중 신청의 신청자 잔여(207) — 결재 권한자 · 인사·총무 · 본인에게만
+  applicant_balance?: { remainBase: number; remainComp: number; remainTotal: number; over: number; managed: boolean } | null
 }
 interface Res {
   leaves: Row[]
@@ -67,6 +70,14 @@ export default function LeaveListPage() {
   const [team, setTeam] = useState<string>('all')
   const [q, setQ] = useState('')
   const [open, setOpen] = useState<string | null>(null)
+  const [proxyEmps, setProxyEmps] = useState<ProxyEmp[] | null>(null)   // 대리 등록 창 (인사 · 총무 수정 권한)
+  const openProxy = async () => {
+    const res = await fetch('/api/employees')
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) { flash(json.error ?? '직원 목록 조회 실패'); return }
+    setProxyEmps(((json.employees ?? []) as { id: string; name: string; team: string | null; is_active: boolean; auth_user_id: string | null }[])
+      .filter(e => e.is_active).map(e => ({ id: e.id, name: e.name, team: e.team, has_login: !!e.auth_user_id })))
+  }
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 4000) }
 
@@ -170,7 +181,16 @@ export default function LeaveListPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-bold text-gray-900">휴가 목록</h1>
+      <div className="flex items-center gap-2">
+        <h1 className="text-xl font-bold text-gray-900">휴가 목록</h1>
+        {data?.can_edit && (
+          <button onClick={openProxy} className="ml-auto px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium hover:bg-gray-50">휴가 대리 등록</button>
+        )}
+      </div>
+      {proxyEmps && (
+        <ProxyLeaveDialog employees={proxyEmps} onClose={() => setProxyEmps(null)}
+          onDone={m => { setProxyEmps(null); flash(m); load(); requestNotifRefresh() }} />
+      )}
       <p className="text-sm text-gray-500 mt-1">
         전 직원의 휴가 신청과 결재 진행을 한 목록에서 봅니다. 내 차례인 건은 노란 줄로 표시되고 그 줄에서 바로 처리합니다.
         휴가 신청은 <Link href="/hr/attendance" className="underline">근태 · 휴가</Link>에서 합니다.
@@ -249,7 +269,7 @@ export default function LeaveListPage() {
                       <td className="py-2 px-3 tabular-nums text-xs whitespace-nowrap">{leavePeriodText(r, r.days)}</td>
                       <td className="py-2 px-3">
                         <LeaveSteps steps={r.steps} status={r.status} myTurn={a.myTurn} roster={roster}
-                          applicantId={r.employee_id} decidedByName={r.decided_by_name} stepsReady={!!data?.stepsReady} />
+                          applicantId={r.employee_id} decidedByName={r.decided_by_name} stepsReady={!!data?.stepsReady} source={r.source} />
                       </td>
                       <td className="py-2 px-3 whitespace-nowrap">
                         <span className={`px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${STATUS_BADGE[r.status]}`}>
@@ -308,6 +328,18 @@ function History({ r, roster, stepsReady }: { r: Row; roster: ApproverRoster; st
       <div><b className="inline-block w-12 text-gray-500">신청</b>{r.employee?.name} · {kst(r.created_at, true)}
         {r.reason && <> · 사유 &ldquo;{r.reason}&rdquo;</>}
       </div>
+      {r.applicant_balance?.managed && (
+        <div><b className="inline-block w-12 text-gray-500">잔여</b>
+          기본 {r.applicant_balance.remainBase} · 보상 {r.applicant_balance.remainComp}
+          {r.applicant_balance.over > 0
+            ? <span className="text-red-600 font-semibold"> · 이미 초과 {r.applicant_balance.over}일</span>
+            : <span> · 합계 {r.applicant_balance.remainTotal}일</span>}
+          {['annual', 'half_am', 'half_pm', 'sick'].includes(r.leave_type) && (() => {
+            const after = Math.round((r.applicant_balance!.remainTotal - r.applicant_balance!.over - r.days) * 10) / 10
+            return <span className={after < 0 ? 'text-red-600 font-semibold' : 'text-gray-500'}> → 이 신청 승인 시 {after < 0 ? `초과 ${-after}일` : `잔여 ${after}일`}</span>
+          })()}
+        </div>
+      )}
       {stepsReady && STEPS.map(st => {
         const row = r.steps.find(x => x.step === st)
         if (row) {

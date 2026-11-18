@@ -114,6 +114,7 @@ export const MENU: MenuGroup[] = [
     { label: '직원 · 계정 · 권한', href: '/employees' },
     { label: '근태 현황', href: '/hr/admin' },
     { label: '휴가 목록', href: '/hr/leaves' },
+    { label: '연차 관리', href: '/hr/leave-balance' },   // 부여 · 사용 · 잔여 (207, 2026-11-18)
     { label: '스케줄', href: '/hr/schedule' },
   ]},
 
@@ -216,6 +217,7 @@ export const API_OWNERS: { prefix: string; group: MenuGroupKey | MenuGroupKey[] 
   { prefix: '/api/attendance', group: 'my' },
   // 공휴일은 전사 설정 — 조회·편집 모두 인사·총무 권한 (더 긴 접두가 우선 적용됨)
   { prefix: '/api/attendance/holidays', group: 'hr' },
+  { prefix: '/api/attendance/balance', group: 'hr' },   // 연차 관리 (207) — 내 잔여는 /api/attendance/my-balance (my)
   // 스케줄 — 인사·총무 + 경영 현황(any-of). mgmt는 viewOnly라 GET만 통과하고 관리 탭 POST는 hr 수정 권한 필요.
   // 자금 항목(대출·세무)은 라우트에서 회계 조회 권한으로 한 번 더 거른다
   { prefix: '/api/schedule', group: ['hr', 'mgmt'] },

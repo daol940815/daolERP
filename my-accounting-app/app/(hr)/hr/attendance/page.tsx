@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
-  DAY_STATUS_LABEL, DOW_LABEL, LEAVE_STATUS_LABEL, LEAVE_TYPE_LABEL,
+  DAY_STATUS_LABEL, DOW_LABEL, LEAVE_STATUS_LABEL, LEAVE_TYPE_LABEL, REQUEST_LEAVE_TYPES,
   dayOfWeek, isOffKind, judgeDay, kstMonthNow, kstTime, leaveDays, leavePeriodText, monthDates, summarizeMonth,
   type AttendanceLeave, type AttendancePolicy, type AttendanceRecord,
   type DayStatusKind, type HolidayMap, type LeaveType,
@@ -52,6 +52,8 @@ export default function MyAttendancePage() {
   const [month, setMonth] = useState(kstMonthNow())
   const [myLeaves, setMyLeaves] = useState<MyLeave[]>([])
   const [leaveHolidays, setLeaveHolidays] = useState<HolidayMap>({})   // 신청 양식 일수 미리보기용
+  // 내 연차 잔여 (207) — 연차 대상(그해 부여 있음)일 때만 양식에 보여준다
+  const [myBal, setMyBal] = useState<{ remainBase: number; remainComp: number; remainTotal: number; over: number } | null>(null)
   const [approval, setApproval] = useState<{ ready: boolean; myLevel: ApproveLevel | null; roster: ApproverRoster }>(
     { ready: false, myLevel: null, roster: emptyRoster() })
   const [skip, setSkip] = useState({ ...EMPTY_SKIP })
@@ -85,7 +87,12 @@ export default function MyAttendancePage() {
     setApproval({ ready: !!json.stepsReady, myLevel: json.myLevel ?? null, roster: json.roster ?? emptyRoster() })
   }, [])
 
-  useEffect(() => { loadStatus(); loadLeaves() }, [loadStatus, loadLeaves])
+  const loadMyBal = useCallback(async () => {
+    const res = await fetch('/api/attendance/my-balance')
+    const json = await res.json().catch(() => ({}))
+    setMyBal(res.ok && json.ready && json.managed ? json.balance : null)
+  }, [])
+  useEffect(() => { loadStatus(); loadLeaves(); loadMyBal() }, [loadStatus, loadLeaves, loadMyBal])
   useEffect(() => { loadMonth() }, [loadMonth])
 
   const post = async (url: string, body: Record<string, unknown>) => {
@@ -268,7 +275,7 @@ export default function MyAttendancePage() {
               <select value={form.leave_type}
                 onChange={e => setForm(f => ({ ...f, leave_type: e.target.value as LeaveType }))}
                 className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
-                {Object.entries(LEAVE_TYPE_LABEL).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+                {REQUEST_LEAVE_TYPES.map(v => <option key={v} value={v}>{LEAVE_TYPE_LABEL[v]}</option>)}
               </select>
             </div>
             <div>
@@ -301,6 +308,24 @@ export default function MyAttendancePage() {
                       <span className="text-gray-400"> (달력 {formSpan}일 중 주말 · 공휴일 제외)</span>}</>}
               </p>
             )}
+            {myBal && (() => {
+              // 차감 종류(연차 · 반차 · 병가)만 잔여에 영향 — 초과여도 막지 않고 경고만 (2026-11-18 결정)
+              const deduct = ['annual', 'half_am', 'half_pm', 'sick'].includes(form.leave_type) ? (formDays ?? 0) : 0
+              const left = Math.round((myBal.remainTotal - myBal.over) * 10) / 10
+              const after = Math.round((left - deduct) * 10) / 10
+              return (
+                <p className="col-span-full text-xs text-gray-600">
+                  내 연차 잔여 <b>기본 {myBal.remainBase} · 보상 {myBal.remainComp}</b>
+                  {myBal.over > 0 && <span className="text-red-600 font-semibold"> (이미 초과 {myBal.over}일 사용 중)</span>}
+                  {deduct > 0 && after < 0 && (
+                    <span className="block text-amber-700 mt-0.5">
+                      잔여보다 {Math.min(deduct, -after)}일 많습니다. 신청은 할 수 있고, 승인되면 초과 사용({-after}일)으로 표시됩니다.
+                    </span>
+                  )}
+                  {deduct > 0 && after >= 0 && <span className="text-gray-400"> → 승인 시 잔여 {after}일</span>}
+                </p>
+              )
+            })()}
             {approval.ready && <ApprovalLine approval={approval} skip={skip} setSkip={setSkip} />}
           </div>
         )}
@@ -313,7 +338,7 @@ export default function MyAttendancePage() {
                 <td className="py-1.5 px-3 text-xs text-gray-500">{l.reason ?? ''}</td>
                 <td className="py-1.5 px-3">
                   <LeaveSteps steps={l.steps ?? []} status={l.status} roster={approval.roster}
-                    applicantId={l.employee_id} decidedByName={l.decided_by_name} stepsReady={approval.ready} />
+                    applicantId={l.employee_id} decidedByName={l.decided_by_name} stepsReady={approval.ready} source={l.source} />
                 </td>
                 <td className="py-1.5 px-3">
                   <span className={`px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${
