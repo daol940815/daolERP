@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { methodTagOf, payStageOf, type PayState } from './pay-state'
+import { netRecordLinks } from './payment-cancel-meta'
 
 const chunk = <T,>(a: T[], n: number) => { const o: T[][] = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o }
 
@@ -26,7 +27,8 @@ export async function loadPayStateMap(
   const invRecorded = new Map<string, number>()
   const invLinked = new Map<string, number>()
   for (const r of invRes) for (const x of (r.error ? [] : (r.data ?? []))) invLinked.set(x.order_id as string, (invLinked.get(x.order_id as string) ?? 0) + Number(x.amount ?? 0))
-  const links = linkRes.flatMap(r => (r.error ? [] : (r.data ?? []))) as { order_id: string; amount: number; record_id: string }[]
+  // 취소 줄(1305)은 원 기록 금액에서 뺀다 — 취소한 금액은 기록 금액 · 계산서 발행 기록 금액에서 빠진다
+  const links = await netRecordLinks(admin, linkRes.flatMap(r => (r.error ? [] : (r.data ?? []))) as { order_id: string; amount: number; record_id: string }[])
   const recIds = Array.from(new Set(links.map(l => l.record_id)))
   const recInfo = new Map<string, { method: string; confirmed: boolean }>()
   const recRes = await Promise.all(chunk(recIds, 150).map(ch => admin.from('order_payment_records').select('id, method, confirmed_at').in('id', ch)))

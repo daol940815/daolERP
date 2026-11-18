@@ -249,6 +249,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     pay_records: {
       available: payRecords.available,
       kinds: payRecords.kinds,   // 1304 적용 여부 — 방식 · 과세 구분 칸을 보여 줄지
+      cancelable: !!payRecords.cancelable,   // 1305 적용 여부 — 취소 · 사유를 보여 줄지
       records: payRecords.records,
       can_record: payRecords.available && can(me, 'orders', 'edit') && snap.order.source === 'direct' && !snap.order.canceled_at,
     },

@@ -29,6 +29,14 @@ interface Row {
   card_entry?: CardEntry | null; vat_kind?: RecVat | null
   invoice_kind?: string | null; invoice_kind_diff?: boolean
 }
+// 취소 대기 (1305): 1차에서 남긴 취소 줄 — 카드 매출의 취소 행 · 홈택스 취소 계산서와 매칭해 확정한다
+interface CancelCand { kind: 'card' | 'invoice'; label: string; date: string; amount: number; note: string; neg_invoice_id?: string; pos_invoice_id?: string }
+interface CancelRow {
+  id: string; method: Method; cancel_date: string; amount: number; reason_text: string | null; created_by_name: string | null; vendor_name: string | null
+  orig: { id: string; pay_date: string; amount: number; approval_number: string | null; confirmed: boolean }
+  orders: { order_id: string; order_no: string | null; amount: number }[]
+  candidates: CancelCand[]; note: string | null
+}
 interface Found {
   source_type: 'bank' | 'card'; id: string; tx_date: string; label: string; vendor_name: string | null
   amount: number; remaining: number
@@ -51,6 +59,7 @@ type Kpi = 'all' | 'ready' | 'mismatch' | 'overdue'
 export default function MatchTab() {
   const [tab, setTab] = useState<'pending' | 'confirmed'>('pending')
   const [rows, setRows] = useState<Row[]>([])
+  const [cancels, setCancels] = useState<CancelRow[]>([])
   const [latest, setLatest] = useState<{ card: string | null; bank: string | null }>({ card: null, bank: null })
   const [canEdit, setCanEdit] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -73,8 +82,8 @@ export default function MatchTab() {
     setLoading(true); setError(null)
     const res = await fetch(`/api/payment-records?state=${tab}`)
     const json = await res.json().catch(() => ({}))
-    if (!res.ok) { setError(json.error ?? '조회 실패'); setRows([]) }
-    else { setRows(json.rows ?? []); setLatest(json.latest ?? { card: null, bank: null }); setCanEdit(!!json.can_edit) }
+    if (!res.ok) { setError(json.error ?? '조회 실패'); setRows([]); setCancels([]) }
+    else { setRows(json.rows ?? []); setCancels(json.cancels ?? []); setLatest(json.latest ?? { card: null, bank: null }); setCanEdit(!!json.can_edit) }
     setLoading(false)
   }, [tab])
   useEffect(() => { load() }, [load])
@@ -113,6 +122,23 @@ export default function MatchTab() {
     if (!res.ok) { setMsg(json.error ?? '확정 실패'); return }
     setMsg(`확정했습니다 — ${r.vendor_name ?? ''} ${won(r.amount)}원, 주문 ${r.orders.length}건의 미수가 줄었습니다.`)
     setFindId(null); requestNotifRefresh(); load()
+  }
+
+  const confirmCancel = async (c: CancelRow, cand: CancelCand) => {
+    const effect = c.method === 'card'
+      ? (c.orig.confirmed ? `원 결제의 수금 매칭이 ${won(c.amount)}원 줄고 주문 미수가 그만큼 늘어납니다.` : '원 결제가 아직 매칭 전이라 미수는 그대로입니다.')
+      : '취소 계산서가 주문에 연결되고, 원 계산서에 붙어 있던 입금이 풀려 주문 미수가 다시 생깁니다.'
+    if (!confirm(`이 취소를 확정할까요?\n\n취소 기록: ${SHORT[c.method]} ${c.cancel_date} −${won(c.amount)}원\n원본: ${cand.label} ${cand.date}\n\n${effect}\n확정한 취소는 되돌릴 수 없습니다.`)) return
+    setBusyId(c.id); setMsg(null)
+    const res = await fetch(`/api/payment-records/${c.id}/cancel-confirm`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cand.kind === 'invoice' ? { neg_invoice_id: cand.neg_invoice_id, pos_invoice_id: cand.pos_invoice_id } : {}),
+    })
+    const json = await res.json().catch(() => ({}))
+    setBusyId(null)
+    if (!res.ok) { setMsg(json.error ?? '취소 확정 실패'); return }
+    setMsg(json.message ?? '취소를 확정했습니다.')
+    requestNotifRefresh(); load()
   }
 
   const release = async (r: Row) => {
@@ -203,6 +229,67 @@ export default function MatchTab() {
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="매출처 · 주문번호 · 승인번호 · 입금자 · 금액 검색"
           className="ml-auto border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-72 max-w-full focus:outline-none focus:ring-2 focus:ring-slate-900" />
       </div>
+
+      {tab === 'pending' && !loading && cancels.length > 0 && (
+        <div className="mb-4 bg-white border border-orange-200 rounded-xl overflow-x-auto">
+          <div className="px-3 py-2 border-b border-orange-100 bg-orange-50 text-sm">
+            <b className="text-orange-900">취소 대기 {cancels.length}건</b>
+            <span className="text-xs text-orange-800"> — 주문에 남긴 결제 취소를 카드 매출의 취소 내역 · 홈택스 취소 계산서와 매칭합니다. 확정해야 미수에 반영됩니다.</span>
+          </div>
+          <table className="w-full text-sm min-w-[60rem]">
+            <thead>
+              <tr className="text-left text-xs text-gray-500 border-b border-gray-200">
+                <th className="py-2 px-3 font-medium">취소일</th>
+                <th className="py-2 px-3 font-medium">수단</th>
+                <th className="py-2 px-3 font-medium">매출처 · 주문</th>
+                <th className="py-2 px-3 font-medium text-right">취소 금액</th>
+                <th className="py-2 px-3 font-medium">원 결제 · 사유</th>
+                <th className="py-2 px-3 font-medium">원본 후보</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cancels.map(c => (
+                <tr key={c.id} className="border-b border-gray-100 align-top">
+                  <td className="py-2.5 px-3 tabular-nums whitespace-nowrap">{c.cancel_date}</td>
+                  <td className="py-2.5 px-3"><span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-orange-100 text-orange-800">{SHORT[c.method]} 취소</span></td>
+                  <td className="py-2.5 px-3">
+                    <div className="text-gray-900">{c.vendor_name ?? '(매출처 미연결)'}</div>
+                    <div className="text-[0.6875rem] text-gray-500">
+                      {c.orders.map((o, i) => (
+                        <Fragment key={o.order_id}>{i > 0 && ', '}<Link href={`/orders/${o.order_id}`} className="hover:underline tabular-nums">{o.order_no ?? '-'}</Link>{c.orders.length > 1 && <span className="text-gray-400"> {won(o.amount)}</span>}</Fragment>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="py-2.5 px-3 text-right font-semibold tabular-nums whitespace-nowrap text-red-700">−{won(c.amount)}</td>
+                  <td className="py-2.5 px-3 text-xs text-gray-700">
+                    {c.orig.pay_date} {won(c.orig.amount)}원{c.orig.approval_number && ` · 승인 ${c.orig.approval_number}`}
+                    <span className={`ml-1 px-1.5 py-px rounded text-[0.625rem] ${c.orig.confirmed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'}`}>{c.orig.confirmed ? '매칭 완료' : '매칭 전'}</span>
+                    <div className="text-[0.6875rem] text-gray-500">{c.reason_text ?? ''}{c.created_by_name && ` · ${c.created_by_name}`}</div>
+                  </td>
+                  <td className="py-2.5 px-3 text-xs">
+                    {c.candidates.length === 0 ? <span className="text-gray-400">{c.note}</span> : (
+                      <div className="space-y-1">
+                        {c.candidates.map((cand, i) => (
+                          <div key={i} className="rounded-lg border border-green-200 bg-green-50 px-2 py-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-800">{cand.label} <span className="tabular-nums">{cand.date}</span></span>
+                              {canEdit && (
+                                <button onClick={() => confirmCancel(c, cand)} disabled={busyId === c.id}
+                                  className="ml-auto whitespace-nowrap px-2 py-0.5 rounded text-[0.6875rem] font-semibold bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-40">취소 확정</button>
+                              )}
+                            </div>
+                            <div className="text-[0.6875rem] text-gray-500">{cand.note}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-20 text-gray-400">불러오는 중...</div>

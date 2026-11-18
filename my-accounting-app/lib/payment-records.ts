@@ -6,6 +6,7 @@ import { vendorOfOrder } from './prepay'
 import { loadBillingFamily } from './billing'
 // 정산상태 중복해제(카드사 중복 승인 해제, 수금 없음)는 후보에서 제외 (2026-11-17)
 import { NOT_VOID_OR } from '@/lib/card-sale-status'
+import { hasCancelCols, loadCancelLines, loadCancelRowIds, netRecordLinks, type CancelLine } from './payment-cancel-meta'
 import { kindDiff, kindLabel, kindMissing, kindOfCardSale, CARD_ENTRY_LABEL, REC_VAT_LABEL, type CardEntry, type PayKind, type RecVat } from './payment-kind'
 
 // ── 결제 기록 (1300, 2026-11-13 사용자 확정 — docs/payment-track.md · 시안 docs/mockups/결제처리_시안.html) ──
@@ -144,9 +145,12 @@ export function validateRecordInput(raw: unknown, requireKind = false): RecordIn
   return { method, pay_date: b.pay_date, amount, approval_number: approval, card_last4: last4, depositor_name: depositor, due_date: due, memo: text(b.memo, 300), card_entry: entry, vat_kind: vat, allocations }
 }
 
-async function writeLog(admin: SupabaseClient, recordId: string, action: string, editor: Editor, detail: string | null) {
+export type Reason = { code: string; text: string }
+export async function writeLog(admin: SupabaseClient, recordId: string, action: string, editor: Editor, detail: string | null, reason?: Reason | null) {
   await admin.from('order_payment_record_logs').insert({
-    record_id: recordId, action, employee_id: editor.employeeId, employee_name: editor.employeeName, detail,
+    record_id: recordId, action, employee_id: editor.employeeId, employee_name: editor.employeeName,
+    detail: reason ? [detail, `사유: ${reason.text}`].filter(Boolean).join(' · ') : detail,
+    ...(reason ? { reason_code: reason.code, reason_text: reason.text } : {}),   // 사유 칸(1305) — 없는 환경에서는 사유를 넘기지 않는다
   })
 }
 
@@ -166,15 +170,17 @@ export async function unpaidOfOrders(admin: SupabaseClient, orderIds: string[], 
     const { data, error } = await admin.from('order_payment_record_orders')
       .select('order_id, amount, record_id').in('order_id', ch)
     if (error) return { error: errMsg(error.message) }
+    // 취소 줄(1305)은 원 기록의 금액에서 뺀다 — 취소한 만큼은 다시 기록할 수 있는 미결제 금액이 된다
+    const net = await netRecordLinks(admin, ((data ?? []) as { record_id: string; order_id: string; amount: number }[]))
     // 확인 대기 기록만 (임베드 필터 대신 두 번 조회 — 건수가 적다)
-    const recIds = Array.from(new Set((data ?? []).map(r => r.record_id as string)))
+    const recIds = Array.from(new Set(net.map(r => r.record_id as string)))
     const open = new Set<string>()
     for (const rc of chunk(recIds, 150)) {
       const { data: rs, error: re } = await admin.from('order_payment_records').select('id').in('id', rc).is('confirmed_at', null)
       if (re) return { error: errMsg(re.message) }
       for (const x of rs ?? []) open.add(x.id as string)
     }
-    for (const r of data ?? []) {
+    for (const r of net) {
       if (!open.has(r.record_id as string)) continue
       if (excludeRecordId && r.record_id === excludeRecordId) continue
       pending.set(r.order_id as string, (pending.get(r.order_id as string) ?? 0) + Number(r.amount ?? 0))
@@ -249,17 +255,21 @@ async function loadPendingRecord(admin: SupabaseClient, recordId: string): Promi
   if (error) return { error: errMsg(error.message) }
   if (!data) return { error: '결제 기록을 찾을 수 없습니다.' }
   if (data.confirmed_at) return { error: '결제 확인된 기록은 잠겨 있습니다. 고치려면 결제 확인 화면에서 확인 해제를 먼저 해야 합니다.' }
+  // 취소 줄이 달린 기록은 고치거나 지울 수 없다 — 실제로 일어난 결제 · 취소의 이력이기 때문 (취소 줄을 잘못 남겼으면 그 줄을 먼저 삭제)
+  if ((await loadCancelLines(admin, [recordId])).get(recordId)?.length) return { error: '취소 기록이 달린 결제 기록은 수정 · 삭제할 수 없습니다. 취소를 잘못 남겼으면 그 취소 줄을 먼저 삭제하세요.' }
   return { rec: data as { id: string; method: PayMethod; pay_date: string; amount: number } }
 }
 
-export async function updateRecord(admin: SupabaseClient, recordId: string, input: RecordInput, editor: Editor): Promise<{ error: string } | { ok: true }> {
+export async function updateRecord(admin: SupabaseClient, recordId: string, input: RecordInput, editor: Editor, reason?: Reason | null): Promise<{ error: string } | { ok: true }> {
   const cur = await loadPendingRecord(admin, recordId)
   if ('error' in cur) return cur
+  if ((await loadCancelRowIds(admin, [recordId])).has(recordId)) return { error: '취소 줄은 수정할 수 없습니다. 삭제하고 다시 남기세요.' }
   const chk = await checkAllocations(admin, input, recordId)
   if ('error' in chk) return chk
   const hasKind = (await loadRecKinds(admin, [])) != null
   const { error } = await admin.from('order_payment_records').update({
     ...(hasKind ? { card_entry: input.card_entry, vat_kind: input.vat_kind } : {}),
+    ...(reason ? { reason_code: reason.code, reason_text: reason.text } : {}),   // 마지막 수정 사유 (1305)
     method: input.method, pay_date: input.pay_date, amount: input.amount,
     approval_number: input.approval_number, card_last4: input.card_last4, depositor_name: input.depositor_name,
     due_date: input.due_date, memo: input.memo, updated_at: new Date().toISOString(),
@@ -269,16 +279,16 @@ export async function updateRecord(admin: SupabaseClient, recordId: string, inpu
   const { error: ae } = await admin.from('order_payment_record_orders')
     .insert(input.allocations.map(a => ({ record_id: recordId, order_id: a.order_id, amount: a.amount })))
   if (ae) return { error: errMsg(ae.message) }
-  await writeLog(admin, recordId, 'update', editor, `${summaryOf(cur.rec, 0)} → ${summaryOf(input, input.allocations.length)}`)
+  await writeLog(admin, recordId, 'update', editor, `${summaryOf(cur.rec, 0)} → ${summaryOf(input, input.allocations.length)}`, reason)
   return { ok: true }
 }
 
-export async function deleteRecord(admin: SupabaseClient, recordId: string, editor: Editor): Promise<{ error: string } | { ok: true }> {
+export async function deleteRecord(admin: SupabaseClient, recordId: string, editor: Editor, reason?: Reason | null): Promise<{ error: string } | { ok: true }> {
   const cur = await loadPendingRecord(admin, recordId)
   if ('error' in cur) return cur
   const { error } = await admin.from('order_payment_records').delete().eq('id', recordId).is('confirmed_at', null)
   if (error) return { error: errMsg(error.message) }
-  await writeLog(admin, recordId, 'delete', editor, summaryOf(cur.rec, 0))
+  await writeLog(admin, recordId, 'delete', editor, summaryOf(cur.rec, 0), reason)
   return { ok: true }
 }
 
@@ -302,6 +312,9 @@ export interface PayRecordView {
   card_entry: CardEntry | null       // 1304 — 미기재 · 미적용이면 null
   vat_kind: RecVat | null
   source_kind?: string | null        // 매칭된 기록: 연결된 원본에서 읽은 구분 (주문 상세 표시용)
+  cancels?: CancelLine[]             // 취소 줄 (1305) — 취소일 순
+  canceled?: number                  // 취소 줄 금액 합
+  reason_text?: string | null        // 마지막 수정 사유 (1305)
   orders: { order_id: string; order_no: string | null; amount: number }[]
 }
 const REC_COLS = 'id, method, pay_date, amount, approval_number, card_last4, depositor_name, due_date, memo, vendor_id, created_by, created_by_name, created_at, confirmed_by_name, confirmed_at'
@@ -325,7 +338,7 @@ async function attachOrders(admin: SupabaseClient, recs: Record<string, unknown>
 }
 
 // 주문 상세용: 이 주문이 들어 있는 결제 기록 (1300 미적용이면 available=false)
-export async function loadRecordsOfOrder(admin: SupabaseClient, orderId: string): Promise<{ available: boolean; kinds: boolean; records: PayRecordView[] }> {
+export async function loadRecordsOfOrder(admin: SupabaseClient, orderId: string): Promise<{ available: boolean; kinds: boolean; cancelable?: boolean; records: PayRecordView[] }> {
   const { data: links, error } = await admin.from('order_payment_record_orders').select('record_id').eq('order_id', orderId)
   if (error) return { available: false, kinds: false, records: [] }
   const kinds = (await loadRecKinds(admin, [])) != null
@@ -333,7 +346,17 @@ export async function loadRecordsOfOrder(admin: SupabaseClient, orderId: string)
   if (!ids.length) return { available: true, kinds, records: [] }
   const { data, error: re } = await admin.from('order_payment_records').select(REC_COLS).in('id', ids).order('pay_date').order('created_at')
   if (re) return { available: false, kinds: false, records: [] }
-  const records = await attachOrders(admin, (data ?? []) as Record<string, unknown>[])
+  // 취소 줄(1305)은 원 기록 아래에 붙인다 — 목록의 한 줄로 따로 세지 않는다
+  const cancelOf = await loadCancelRowIds(admin, ids)
+  const records = await attachOrders(admin, ((data ?? []) as Record<string, unknown>[]).filter(r => !cancelOf.has(r.id as string)))
+  const lines = await loadCancelLines(admin, records.map(r => r.id))
+  const cancelable = await hasCancelCols(admin)
+  const { data: rs } = cancelable ? await admin.from('order_payment_records').select('id, reason_text').in('id', records.map(r => r.id).slice(0, 150)) : { data: null }
+  for (const r of records) {
+    r.cancels = lines.get(r.id) ?? []
+    r.canceled = r.cancels.reduce((x, c) => x + c.amount, 0)
+    r.reason_text = (rs ?? []).find(x => x.id === r.id)?.reason_text as string | null ?? null
+  }
   // 매칭된 기록 — 연결된 원본에서 읽은 구분 (카드 = 카드 매출, 계산서 발행 = 주문에 연결된 홈택스 계산서)
   const done = records.filter(r => r.confirmed_at && r.method !== 'transfer')
   if (kinds && done.length) {
@@ -356,7 +379,7 @@ export async function loadRecordsOfOrder(admin: SupabaseClient, orderId: string)
       }
     }
   }
-  return { available: true, kinds, records }
+  return { available: true, kinds, cancelable, records }
 }
 
 // 같은 결제로 함께 처리할 수 있는 주문: 같은 매출처 + 청구처 가족의 미결제 direct 주문
@@ -492,6 +515,7 @@ export async function syncRecordsForOrders(admin: SupabaseClient, orderIds: stri
       if (error) return out   // 1300 미적용 등 — 조용히
       for (const r of data ?? []) recIds.add(r.record_id as string)
     }
+    for (const id of Array.from((await loadCancelRowIds(admin, Array.from(recIds))).keys())) recIds.delete(id)   // 취소 줄은 대상이 아니다
     if (!recIds.size) return out
     const recs: RecCover[] = []
     for (const ch of chunk(Array.from(recIds), 150)) {
@@ -501,6 +525,12 @@ export async function syncRecordsForOrders(admin: SupabaseClient, orderIds: stri
     for (const ch of chunk(recs.map(r => r.id), 150)) {
       const { data } = await admin.from('order_payment_record_orders').select('record_id, order_id, amount').in('record_id', ch)
       for (const l of data ?? []) recs.find(r => r.id === l.record_id)?.orders.push({ order_id: l.order_id as string, amount: Number(l.amount ?? 0) })
+    }
+    // 취소한 만큼은 덮을 필요가 없다 — 주문별 금액에서 뺀다(전액 취소된 기록은 orders 가 비어 건너뛴다)
+    const syncCancels = await loadCancelLines(admin, recs.map(r => r.id))
+    for (const r of recs) {
+      const ls = syncCancels.get(r.id); if (!ls?.length) continue
+      r.orders = r.orders.map(o => ({ ...o, amount: o.amount - ls.reduce((x, c) => x + (c.orders.find(y => y.order_id === o.order_id)?.amount ?? 0), 0) })).filter(o => o.amount > 0)
     }
     const rows = await matchRowsByOrder(admin, recs.flatMap(r => r.orders.map(o => o.order_id)))
     const approvalOf = await approvalNumbersOf(admin, rows)
@@ -565,7 +595,21 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
     : q.not('confirmed_at', 'is', null).order('confirmed_at', { ascending: false }).limit(200)
   const { data, error } = await q
   if (error) return { error: errMsg(error.message) }
-  const recs = await attachOrders(admin, (data ?? []) as Record<string, unknown>[])
+  // 취소 줄(1305)은 이 목록에 넣지 않는다(취소 대기열은 lib/payment-cancel.ts). 원 기록은 취소한 만큼 뺀 금액으로 대조하고, 전액 취소된 대기 기록은 뺀다
+  const cancelOf = await loadCancelRowIds(admin, ((data ?? []) as { id: string }[]).map(r => r.id))
+  let recs = await attachOrders(admin, ((data ?? []) as Record<string, unknown>[]).filter(r => !cancelOf.has(r.id as string)))
+  const cancelLines = await loadCancelLines(admin, recs.map(r => r.id))
+  if (cancelLines.size) {
+    for (const r of recs) {
+      const ls = cancelLines.get(r.id); if (!ls?.length) continue
+      r.canceled = ls.reduce((x, c) => x + c.amount, 0)
+      if (opts.state === 'pending') {
+        r.amount -= r.canceled
+        r.orders = r.orders.map(o => ({ ...o, amount: o.amount - ls.reduce((x, c) => x + (c.orders.find(y => y.order_id === o.order_id)?.amount ?? 0), 0) })).filter(o => o.amount > 0)
+      }
+    }
+    if (opts.state === 'pending') recs = recs.filter(r => r.amount > 0)
+  }
 
   const [{ data: lc }, { data: lb }] = await Promise.all([
     admin.from('card_sales').select('tx_date').order('tx_date', { ascending: false }).limit(1),
@@ -802,6 +846,8 @@ export async function confirmRecord(admin: SupabaseClient, recordId: string, raw
   if (error) return { error: errMsg(error.message) }
   if (!rec) return { error: '결제 기록을 찾을 수 없습니다.' }
   if (rec.confirmed_at) return { error: '이미 확인된 기록입니다.' }
+  if ((await loadCancelRowIds(admin, [recordId])).has(recordId)) return { error: '취소 줄입니다. 매칭 대기 위의 "취소 대기"에서 취소 확정을 하세요.' }
+  const myCancels = (await loadCancelLines(admin, [recordId])).get(recordId) ?? []
   if (!SELF_CONFIRM_ALLOWED && rec.created_by && rec.created_by === editor.employeeId) return { error: '입력한 본인은 확정할 수 없습니다. 다른 직원에게 요청하세요.' }
   const { count } = await admin.from('erp_payment_matches').select('id', { count: 'exact', head: true }).eq('record_id', recordId)
   if ((count ?? 0) > 0) return { error: '이 기록에 이미 수금 매칭이 붙어 있습니다. 확인 해제 후 다시 시도하세요.' }
@@ -816,13 +862,16 @@ export async function confirmRecord(admin: SupabaseClient, recordId: string, raw
   const sources = Array.from(merged.values())
   if (!sources.length) return { error: '대조할 입금 · 카드 매출을 고르세요.' }
   const total = sources.reduce((s, x) => s + x.amount, 0)
-  const amount = Number(rec.amount)
+  const amount = Number(rec.amount) - myCancels.reduce((x, c) => x + c.amount, 0)   // 취소한 만큼은 대조 대상이 아니다
+  if (amount <= 0) return { error: '전액 취소된 기록입니다. 매칭할 금액이 없습니다.' }
   if (total !== amount) return { error: `고른 원본 합계(${won(total)}원)가 기록 금액(${won(amount)}원)과 다릅니다. 금액이 다르면 입력자에게 기록 수정을 요청하세요.` }
 
   // 기록의 주문별 금액
   const { data: links, error: le } = await admin.from('order_payment_record_orders').select('order_id, amount').eq('record_id', recordId)
   if (le) return { error: errMsg(le.message) }
-  const allocs = ((links ?? []) as { order_id: string; amount: number }[]).map(l => ({ order_id: l.order_id, amount: Number(l.amount) }))
+  const allocs = ((links ?? []) as { order_id: string; amount: number }[])
+    .map(l => ({ order_id: l.order_id, amount: Number(l.amount) - myCancels.reduce((x, c) => x + (c.orders.find(y => y.order_id === l.order_id)?.amount ?? 0), 0) }))
+    .filter(a => a.amount > 0)
   if (!allocs.length) return { error: '기록에 주문이 없습니다.' }
 
   // 방식 · 과세 구분 (1304, 2026-11-18 사용자 결정): 기록과 원본의 구분이 다르면 매칭하지 않는다 (미기재 기록 · 구분 모르는 원본은 통과)
@@ -942,6 +991,7 @@ export async function releaseRecord(admin: SupabaseClient, recordId: string, rea
   if (error) return { error: errMsg(error.message) }
   if (!rec) return { error: '결제 기록을 찾을 수 없습니다.' }
   if (!rec.confirmed_at) return { error: '확인 대기 상태의 기록입니다.' }
+  if ((await loadCancelRowIds(admin, [recordId])).has(recordId)) return { error: '취소 매칭은 해제할 수 없습니다. 잘못 확정했으면 ERP 담당에게 요청해주세요.' }
   // 계산서 입금에서 넘어온 수금(1302)이 이 기록을 채우고 있으면 여기서 풀 수 없다 — 계산서 쪽에서 풀어야 양쪽이 어긋나지 않는다
   // (칸이 없으면 조회가 실패하고 건너뛴다. 문구는 lib/link-sync.ts FROM_INVOICE_BLOCK 과 같게 — 순환 import 를 피하려고 여기 적는다)
   const { data: derived } = await admin.from('erp_payment_matches').select('id').eq('record_id', recordId).not('from_invoice_id', 'is', null).limit(1)
