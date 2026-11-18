@@ -39,8 +39,8 @@ interface Res {
   can_edit: boolean
 }
 type Kpi = 'turn' | 'mine' | 'requested' | 'approved' | 'rejected' | 'canceled'
-type TypeChip = 'all' | 'annual' | 'half' | 'sick' | 'official' | 'other'
-const TYPE_CHIPS: [TypeChip, string][] = [['all', '전체 종류'], ['annual', '연차'], ['half', '반차'], ['sick', '병가'], ['official', '공가'], ['other', '기타']]
+type TypeChip = 'all' | 'annual' | 'half' | 'sick' | 'official' | 'unpaid' | 'other'
+const TYPE_CHIPS: [TypeChip, string][] = [['all', '전체 종류'], ['annual', '연차'], ['half', '반차'], ['sick', '병가'], ['official', '공가'], ['unpaid', '무급휴가'], ['other', '기타']]
 const typeOf = (t: LeaveType): TypeChip => (t === 'half_am' || t === 'half_pm' ? 'half' : t)
 
 const kst = (iso: string | null | undefined, withTime = false) => {

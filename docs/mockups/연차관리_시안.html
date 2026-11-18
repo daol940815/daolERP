@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 연차 관리 (부여 · 사용 · 잔여)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; font-size: 13px; }
+  .wrap { max-width: 1360px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 14px; line-height: 1.75; }
+  .ask { background: #eff6ff; border-color: #93c5fd; color: #1e3a8a; }
+  h2 { font-size: 15px; font-weight: 700; margin: 26px 0 10px; }
+  h2 small { font-size: 12px; font-weight: 500; color: #64748b; margin-left: 6px; }
+  .shell { display: grid; grid-template-columns: 190px 1fr; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; background: #fff; }
+  .side { background: #0f172a; padding: 14px 10px; color: #94a3b8; font-size: 12.5px; }
+  .side .t { color: #fff; font-weight: 700; font-size: 14px; padding: 0 8px 12px; border-bottom: 1px solid #334155; margin-bottom: 10px; }
+  .side .g { padding: 4px 8px; font-size: 10.5px; color: #64748b; margin-top: 8px; }
+  .side a { display: block; padding: 6px 10px; border-radius: 6px; }
+  .side a.on { background: #334155; color: #fff; }
+  .side .new { font-size: 9.5px; background: #dcfce7; color: #15803d; border-radius: 999px; padding: 0 5px; margin-left: 4px; font-weight: 700; }
+  .main { padding: 16px 18px; overflow-x: auto; }
+  h1 { font-size: 18px; font-weight: 700; }
+  .sub { font-size: 12px; color: #64748b; margin: 3px 0 10px; }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid #e2e8f0; margin-bottom: 12px; }
+  .tab { padding: 7px 14px; font-size: 12.5px; color: #64748b; border-bottom: 2px solid transparent; }
+  .tab.on { color: #0f172a; font-weight: 700; border-color: #0f172a; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+  .kpi { border: 1px solid #e2e8f0; border-radius: 10px; padding: 9px 12px; }
+  .kpi .l { font-size: 11px; color: #64748b; font-weight: 600; }
+  .kpi .v { font-size: 20px; font-weight: 800; margin-top: 2px; }
+  .kpi .h { font-size: 10.5px; color: #94a3b8; }
+  .kpi.red .v { color: #dc2626; } .kpi.vio .v { color: #6d28d9; } .kpi.amb .v { color: #b45309; }
+  .bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .chip { border: 1px solid #cbd5e1; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; color: #475569; }
+  .chip.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .inp { border: 1px solid #cbd5e1; border-radius: 7px; padding: 5px 9px; font-size: 12px; color: #64748b; background: #fff; display: inline-block; }
+  .btn { display: inline-block; border: 1px solid #cbd5e1; border-radius: 7px; padding: 5px 11px; font-size: 11.5px; font-weight: 600; background: #fff; white-space: nowrap; }
+  .btn.p { background: #0f172a; color: #fff; border-color: #0f172a; }
+  table { border-collapse: collapse; font-size: 12px; width: 100%; }
+  th { font-size: 10.5px; color: #64748b; font-weight: 600; padding: 5px 6px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; text-align: center; white-space: nowrap; }
+  th.l, td.l { text-align: left; }
+  td { padding: 6px; border-bottom: 1px solid #f1f5f9; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.m { color: #334155; } td.m.z { color: #e2e8f0; }
+  td.m a { text-decoration: underline dotted; text-underline-offset: 2px; }
+  .grp { border-left: 1px solid #e2e8f0; }
+  .neg { color: #dc2626; font-weight: 700; }
+  .tag { font-size: 9.5px; border-radius: 999px; padding: 0 6px; font-weight: 700; margin-left: 4px; }
+  .t-nolog { background: #f1f5f9; color: #64748b; }
+  .t-ex { background: #fef3c7; color: #92400e; }
+  .muted { color: #94a3b8; font-size: 11px; }
+  .card { background: #fff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 14px 16px; }
+  .card h3 { font-size: 13.5px; font-weight: 700; margin-bottom: 8px; }
+  .card h3 small { font-weight: 500; color: #64748b; font-size: 11.5px; margin-left: 4px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .kind { display: inline-block; border-radius: 5px; padding: 1px 7px; font-size: 10.5px; font-weight: 700; }
+  .k-base { background: #e0f2fe; color: #075985; } .k-comp { background: #ede9fe; color: #5b21b6; }
+  .k-carry { background: #fce7f3; color: #9d174d; } .k-adj { background: #f1f5f9; color: #475569; }
+  .src { font-size: 10.5px; color: #64748b; }
+  .form { display: grid; grid-template-columns: 1.2fr .7fr 1fr 2fr auto; gap: 8px; align-items: end; margin-bottom: 10px; }
+  .form label { display: block; font-size: 10.5px; color: #64748b; font-weight: 700; margin-bottom: 3px; }
+  .form .inp { width: 100%; color: #0f172a; }
+  .box { border: 1px solid #e2e8f0; border-radius: 9px; padding: 10px 12px; margin-top: 8px; font-size: 12px; line-height: 1.8; }
+  .warn { color: #b45309; } .err { color: #dc2626; }
+  .steps { margin: 4px 0 0 18px; line-height: 1.9; font-size: 12px; }
+  .steps b { color: #0f172a; }
+  .ok { color: #15803d; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="note">
+  <b>시안 — 연차 관리 (2026-11-18)</b><br>
+  사용자 결정: ① 김재형 대표는 엑셀 일수 19일 그대로, 2027-01-01에 규칙으로 다시 계산 ② 엑셀 18명 모두 관리 대상. 다른 법인 직원은 로그인 계정 없이 등록
+  ③ 잔여보다 많이 신청하면 경고만 하고 막지 않음. 초과분은 표시 ④ 남은 기본 연차는 연말 소멸, 보상 연차만 이월
+  ⑤ 엑셀과 ERP가 겹치는 날은 엑셀 기준 ⑥ 경조 · 예비군은 차감 안 함, 무급휴가는 휴가 종류로 추가(이번 배포에 포함).<br>
+  이지원 · 김대희는 퇴사자라 사용자가 직원 목록에서 삭제 — 이관 대상에서 뺐습니다. 이름 · 숫자는 엑셀 실제 값입니다.
+</div>
+
+<div class="note ask">
+  <b>시안과 함께 확인 부탁드리는 것 3가지</b> — 답이 없으면 각 항목의 "시안 기준"으로 구현합니다.<br>
+  <b>A. 로그인 계정이 없는 직원의 휴가는 누가 넣나?</b> 시안 기준: <b>인사 · 총무가 "대리 등록"</b>하고 바로 승인으로 처리합니다(3단계 결재 생략, 등록자 기록).
+  로그인 계정이 있는 직원은 지금처럼 본인이 신청하고 결재를 받습니다.<br>
+  <b>B. 병가 · 기타는 연차에서 빼나?</b> 엑셀에는 병가가 없었습니다. 시안 기준: <b>연차 · 오전 반차 · 오후 반차만 차감</b>. 병가 · 공가(경조 · 예비군) · 무급휴가 · 기타는 차감 안 함.<br>
+  <b>C. 엑셀의 반차(0.5)는 오전 · 오후 구분이 없습니다.</b> 시안 기준: <b>"반차(엑셀 이관 — 오전 · 오후 미기재)"</b>로 옮깁니다. 일수 계산은 같고, 지난 날짜라 근태 판정에도 영향이 없습니다.
+</div>
+
+<!-- ============================================ -->
+<h2>① 연차 관리 — 현황 탭 <small>인사 · 총무 › 연차 관리 (신설). 엑셀 "연차일수" 시트와 같은 표</small></h2>
+<div class="shell">
+  <div class="side">
+    <div class="t">daolERP</div>
+    <div class="g">인사 · 총무</div>
+    <a>직원 · 계정 · 권한</a>
+    <a>근태 현황</a>
+    <a>휴가 목록</a>
+    <a class="on">연차 관리 <span class="new">신설</span></a>
+    <a>스케줄</a>
+  </div>
+  <div class="main">
+    <h1>연차 관리</h1>
+    <p class="sub">직원별 연차 부여 · 사용 · 잔여입니다. 사용은 승인된 연차 · 반차에서 자동 계산되고, 월 숫자를 누르면 그 달의 휴가가 열립니다. 사용은 기본 연차를 먼저 쓰고 넘치면 보상 연차에서 뺍니다.</p>
+    <div class="tabs"><span class="tab on">현황</span><span class="tab">부여 내역</span><span class="tab">연말 · 연초 정리</span></div>
+
+    <div class="bar">
+      <span class="inp" style="color:#0f172a;font-weight:700">2026년</span>
+      <span class="inp" style="width:160px">이름 검색</span>
+      <span class="chip on">전체</span><span class="chip">영업팀</span><span class="chip">영업지원팀</span><span class="chip">경영지원팀</span><span class="chip">다른 법인</span>
+      <span style="margin-left:auto"><span class="btn">휴가 대리 등록</span> <span class="btn">엑셀 다운로드</span></span>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="l">관리 대상</div><div class="v">16명</div><div class="h">계정 없는 직원은 "계정 없음" 표시</div></div>
+      <div class="kpi red"><div class="l">초과 사용</div><div class="v">2명</div><div class="h">김보현 1.5 · 오연수 0.5</div></div>
+      <div class="kpi vio"><div class="l">보상 연차 잔여</div><div class="v">19.5일</div><div class="h">연말에 다음 해로 이월</div></div>
+      <div class="kpi amb"><div class="l">기본 연차 잔여</div><div class="v">31일</div><div class="h">12월 31일에 소멸</div></div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th class="l" rowspan="2">이름</th><th rowspan="2">직함</th><th rowspan="2">입사일</th>
+          <th colspan="3" class="grp">부여</th>
+          <th colspan="13" class="grp">사용</th>
+          <th colspan="3" class="grp">잔여</th>
+        </tr>
+        <tr>
+          <th class="grp">기본</th><th>보상</th><th>합계</th>
+          <th class="grp">1월</th><th>2월</th><th>3월</th><th>4월</th><th>5월</th><th>6월</th><th>7월</th><th>8월</th><th>9월</th><th>10월</th><th>11월</th><th>12월</th><th>합계</th>
+          <th class="grp">기본</th><th>보상</th><th>합계</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="l"><b>김재형</b></td><td>대표</td><td>2017-09-01</td><td class="grp">19</td><td>0</td><td>19</td>
+          <td class="m grp"><a>0.5</a></td><td class="m"><a>2.5</a></td><td class="m"><a>2</a></td><td class="m"><a>1</a></td><td class="m"><a>2</a></td><td class="m"><a>3.5</a></td><td class="m"><a>0.5</a></td><td class="m"><a>1</a></td><td class="m z">0</td><td class="m"><a>2</a></td><td class="m"><a>3</a></td><td class="m z">0</td><td><b>18</b></td>
+          <td class="grp">1</td><td>0</td><td><b>1</b></td></tr>
+        <tr><td class="l"><b>강시현</b></td><td>부사장</td><td>2020-12-21</td><td class="grp">17</td><td>2</td><td>19</td>
+          <td class="m z grp">0</td><td class="m z">0</td><td class="m"><a>1</a></td><td class="m"><a>2</a></td><td class="m"><a>4</a></td><td class="m"><a>1</a></td><td class="m"><a>1.5</a></td><td class="m"><a>2.5</a></td><td class="m"><a>0.5</a></td><td class="m"><a>2</a></td><td class="m"><a>2</a></td><td class="m z">0</td><td><b>16.5</b></td>
+          <td class="grp">0.5</td><td>2</td><td><b>2.5</b></td></tr>
+        <tr><td class="l"><b>홍창의</b></td><td>부장</td><td>2020-01-01</td><td class="grp">17</td><td>7.5</td><td>24.5</td>
+          <td class="m grp"><a>0.5</a></td><td class="m"><a>1.5</a></td><td class="m"><a>1.5</a></td><td class="m"><a>1.5</a></td><td class="m"><a>1</a></td><td class="m"><a>1.5</a></td><td class="m"><a>2</a></td><td class="m z">0</td><td class="m"><a>0.5</a></td><td class="m"><a>5</a></td><td class="m"><a>3.5</a></td><td class="m z">0</td><td><b>18.5</b></td>
+          <td class="grp">0</td><td>6</td><td><b>6</b></td></tr>
+        <tr><td class="l"><b>정이경</b><span class="tag t-nolog">계정 없음</span></td><td>본부장</td><td>2018-11-26</td><td class="grp">18</td><td>0</td><td>18</td>
+          <td class="m z grp">0</td><td class="m z">0</td><td class="m"><a>1</a></td><td class="m"><a>0.5</a></td><td class="m"><a>1.5</a></td><td class="m"><a>1</a></td><td class="m"><a>4</a></td><td class="m"><a>1</a></td><td class="m"><a>1</a></td><td class="m"><a>1</a></td><td class="m z">0</td><td class="m z">0</td><td><b>11</b></td>
+          <td class="grp">7</td><td>0</td><td><b>7</b></td></tr>
+        <tr><td class="l"><b>김보현</b></td><td>주임</td><td>2024-07-01</td><td class="grp">15</td><td>1</td><td>16</td>
+          <td class="m z grp">0</td><td class="m"><a>1</a></td><td class="m"><a>1</a></td><td class="m"><a>5</a></td><td class="m"><a>4</a></td><td class="m"><a>2</a></td><td class="m"><a>1</a></td><td class="m"><a>1.5</a></td><td class="m z">0</td><td class="m"><a>1</a></td><td class="m"><a>1</a></td><td class="m z">0</td><td><b>17.5</b></td>
+          <td class="grp">0</td><td>0</td><td class="neg">초과 1.5</td></tr>
+        <tr><td class="l"><b>오연수</b><span class="tag t-nolog">계정 없음</span></td><td>사원</td><td>2026-06-01</td><td class="grp">6</td><td>0</td><td>6</td>
+          <td class="m z grp">0</td><td class="m z">0</td><td class="m z">0</td><td class="m z">0</td><td class="m"><a>1</a></td><td class="m"><a>1</a></td><td class="m"><a>1</a></td><td class="m"><a>3</a></td><td class="m z">0</td><td class="m"><a>0.5</a></td><td class="m z">0</td><td class="m z">0</td><td><b>6.5</b></td>
+          <td class="grp">0</td><td>0</td><td class="neg">초과 0.5</td></tr>
+        <tr><td class="l muted" colspan="25">… 나머지 10명</td></tr>
+      </tbody>
+    </table>
+    <p class="muted" style="margin-top:8px">
+      잔여 = 부여 - 사용. 사용은 기본에서 먼저 빼고, 기본을 넘으면 보상에서, 보상까지 넘으면 합계 칸에 "초과"로 빨갛게 표시합니다(엑셀은 0으로 가렸던 부분). 위 숫자는 엑셀 실제 값으로 계산했고, "계정 없음" 표시는 예시입니다.
+      차감 대상은 연차 · 오전 반차 · 오후 반차뿐이고 병가 · 공가 · 무급휴가 · 기타는 세지 않습니다(확인 B). 이름을 누르면 그 직원의 부여 내역과 휴가 목록이 한 화면에 나옵니다.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2>② 부여 내역 탭 <small>엑셀 오른쪽 "보상 일일 연차 · 이월 보상" 표를 대신하는 원장</small></h2>
+<div class="card">
+  <div class="form">
+    <div><label>직원</label><span class="inp">홍창의</span></div>
+    <div><label>일수 (0.5 단위)</label><span class="inp">1</span></div>
+    <div><label>날짜</label><span class="inp">2026-08-10</span></div>
+    <div><label>사유 (필수)</label><span class="inp">2026 추석 카탈로그 작업</span></div>
+    <div><span class="btn p">보상 연차 부여</span> <span class="btn">조정</span></div>
+  </div>
+  <table>
+    <thead><tr><th class="l">날짜</th><th class="l">직원</th><th>구분</th><th>일수</th><th class="l">사유</th><th class="l">출처 · 등록자</th><th></th></tr></thead>
+    <tbody>
+      <tr><td class="l">2026-08-10</td><td class="l">홍창의</td><td><span class="kind k-comp">보상</span></td><td>1</td><td class="l">2026 추석 카탈로그 작업</td><td class="l src">엑셀 이관</td><td><span class="btn">취소</span></td></tr>
+      <tr><td class="l">2026-06-14</td><td class="l">주삼재</td><td><span class="kind k-comp">보상</span></td><td>1</td><td class="l">주말근무</td><td class="l src">엑셀 이관</td><td><span class="btn">취소</span></td></tr>
+      <tr><td class="l">2026-06-13</td><td class="l">강시현</td><td><span class="kind k-comp">보상</span></td><td>2</td><td class="l">0613/14 공사 현장 감독</td><td class="l src">엑셀 이관</td><td><span class="btn">취소</span></td></tr>
+      <tr><td class="l">2026-01-01</td><td class="l">홍창의</td><td><span class="kind k-carry">이월</span></td><td>5.5</td><td class="l">2025년 보상 연차 이월</td><td class="l src">엑셀 이관</td><td><span class="btn">취소</span></td></tr>
+      <tr><td class="l">2026-01-01</td><td class="l">김재형</td><td><span class="kind k-base">기본</span></td><td>19</td><td class="l">2026년 기본 연차 (엑셀 값, 2027-01-01 규칙 재계산)</td><td class="l src">엑셀 이관</td><td><span class="btn">취소</span></td></tr>
+      <tr><td class="l">2026-01-01</td><td class="l">오철준</td><td><span class="kind k-base">기본</span></td><td>15</td><td class="l">2026년 기본 연차</td><td class="l src">엑셀 이관</td><td><span class="btn">취소</span></td></tr>
+    </tbody>
+  </table>
+  <p class="muted" style="margin-top:8px">
+    부여는 지우지 않고 "취소"로 남깁니다(누가 언제 취소했는지 기록). 구분: <span class="kind k-base">기본</span> 연초 법정 연차 · <span class="kind k-comp">보상</span> 주말근무 · 행사 등 ·
+    <span class="kind k-carry">이월</span> 지난해 남은 보상 연차 · <span class="kind k-adj">조정</span> 오류 정정(+ / - 모두, 사유 필수).
+  </p>
+</div>
+
+<!-- ============================================ -->
+<h2>③ 연말 · 연초 정리 탭 <small>2027-01-01 — 시스템은 추천만, 확정은 인사 · 총무</small></h2>
+<div class="card">
+  <p class="sub" style="margin-top:0">"2027년 연차 추천 만들기"를 누르면 아래 표가 채워집니다. 숫자를 고칠 수 있고, 체크한 행만 "확정"으로 부여 내역에 들어갑니다.</p>
+  <table>
+    <thead><tr><th style="width:24px"></th><th class="l">직원</th><th>입사일</th><th>근속 (1/1 기준)</th><th>기본 연차 추천</th><th>보상 잔여 → 이월 추천</th><th>2026 기본 잔여 (소멸)</th><th class="l">메모</th></tr></thead>
+    <tbody>
+      <tr><td>&#9745;</td><td class="l">김재형</td><td>2017-09-01</td><td>9년</td><td><span class="inp" style="color:#0f172a">19</span></td><td>0</td><td>1</td><td class="l muted">2026년은 엑셀 값 19 — 규칙 재계산 결과도 19</td></tr>
+      <tr><td>&#9745;</td><td class="l">홍창의</td><td>2020-01-01</td><td>7년</td><td><span class="inp" style="color:#0f172a">18</span></td><td>6</td><td>0</td><td class="l muted"></td></tr>
+      <tr><td>&#9745;</td><td class="l">한정호</td><td>2026-08-03</td><td>1년 미만</td><td><span class="inp" style="color:#0f172a">매월 1일</span></td><td>0</td><td>1</td><td class="l muted">입사 1년 전까지 매월 1일씩 자동 추천(월초)</td></tr>
+    </tbody>
+  </table>
+  <p class="muted" style="margin-top:8px">
+    기본 연차 규칙(엑셀 값과 맞춘 것): 1월 1일 기준 근속 n년 → 15 + (n - 1) / 2 내림, 최대 25일. 1년 미만은 매월 1일.
+    남은 기본 연차는 12월 31일에 소멸(사용자 결정 ④), 보상 잔여만 이월로 추천합니다. 초과 사용분은 다음 해로 넘기지 않고 표에만 남깁니다.
+  </p>
+</div>
+
+<!-- ============================================ -->
+<h2>④ 휴가 신청 양식 · 휴가 목록 <small>기존 화면에 잔여 표시</small></h2>
+<div class="grid2">
+  <div class="card">
+    <h3>근태 · 휴가 › 휴가 신청 <small>김보현 주임 예시</small></h3>
+    <div class="box">
+      내 연차 잔여 <b>기본 0 · 보상 0</b> <span class="err">(초과 1.5일 사용 중)</span><br>
+      연차 · 2026-11-27 · 근무일 1일<br>
+      <span class="warn">잔여보다 1일 많습니다. 신청은 할 수 있고, 승인되면 초과 사용(2.5일)으로 표시됩니다.</span>
+    </div>
+    <p class="muted" style="margin-top:6px">종류 목록에 "무급휴가"가 생겼습니다(이번 배포). 무급휴가 · 병가 · 공가 · 기타는 잔여에 영향이 없어 경고도 없습니다.</p>
+  </div>
+  <div class="card">
+    <h3>휴가 목록 · 휴가 대리 등록 <small>인사 · 총무 수정 권한</small></h3>
+    <div class="box">
+      직원 <span class="inp">정이경 (계정 없음)</span> · 종류 <span class="inp">연차</span> · 날짜 <span class="inp">2026-11-20</span> · 사유 <span class="inp">-</span>
+      <span class="btn p">대리 등록</span><br>
+      <span class="muted">로그인 계정이 없는 직원용. 결재 칸에 "대리 등록 · 오철준"으로 남고 바로 승인됩니다(확인 A).</span>
+    </div>
+    <p class="muted" style="margin-top:6px">결재 권한자는 휴가 목록에서 행을 펼치면 신청자의 잔여(신청 후 잔여 포함)를 같이 봅니다.</p>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2>⑤ 엑셀 이관 계획 <small>DB 변경 루틴: 승인 → 드라이런 → 실행 → 검증</small></h2>
+<div class="card">
+  <table style="width:auto;margin-bottom:10px">
+    <thead><tr><th class="l">옮길 것</th><th>건수</th><th class="l">ERP에 들어가는 형태</th></tr></thead>
+    <tbody>
+      <tr><td class="l">2026 기본 연차</td><td>16명 · 231일</td><td class="l">부여 내역 "기본" (2026-01-01, 출처 엑셀 이관)</td></tr>
+      <tr><td class="l">보상 일일 연차</td><td>8건</td><td class="l">부여 내역 "보상" (엑셀의 날짜 · 사유 그대로)</td></tr>
+      <tr><td class="l">작년 이월 보상</td><td>7명</td><td class="l">부여 내역 "이월" (2026-01-01)</td></tr>
+      <tr><td class="l">월별 사용 1 · 0.5</td><td>178일 · 반차 54</td><td class="l">승인된 휴가 (연차 · 반차, 출처 엑셀 이관 — 결재 칸에 "엑셀 이관")</td></tr>
+      <tr><td class="l">경조 · 예비군</td><td>3일</td><td class="l">승인된 휴가 "공가" (사유 경조 / 예비군) — 차감 안 함</td></tr>
+      <tr><td class="l muted">이지원 · 김대희 · 칭찬/지적 일지 · 연장근무</td><td class="muted">-</td><td class="l muted">옮기지 않음 (퇴사 · 범위 밖 · 2026 입력 없음)</td></tr>
+    </tbody>
+  </table>
+  <ol class="steps">
+    <li><b>사용자:</b> 이지원 · 김대희 삭제. 다른 법인 직원이 직원 목록에 있는지 확인(없으면 계정 없이 등록 — 이름이 엑셀과 같아야 연결됨)</li>
+    <li><b>사용자:</b> 207 마이그레이션 실행 (부여 원장 표 + 휴가 출처 칸)</li>
+    <li><b>드라이런:</b> 이관 SQL의 확인용 조회 — 이름이 ERP에 없는 사람, 사람별 이관 건수 · 일수, ERP 휴가와 겹치는 날 목록</li>
+    <li><b>겹치는 날:</b> 엑셀 기준(결정 ⑤). ERP의 겹치는 휴가는 지우지 않고 "취소 — 엑셀 이관과 중복"으로 상태만 바꿉니다. 목록을 보여드리고 승인받은 뒤 실행</li>
+    <li><b>실행 · 검증:</b> 사람별 기본 · 보상 · 사용 · 잔여를 엑셀 요약 시트와 한 줄씩 대조해 보고 <span class="ok">(차이 0이어야 완료)</span></li>
+    <li><b>기준일 이후:</b> 엑셀은 더 이상 고치지 않고 ERP만 씁니다. 이관 직전 최신 엑셀을 다시 받아서 옮깁니다(지금 파일의 마지막 사용일 11-23)</li>
+  </ol>
+</div>
+
+</div>
+</body>
+</html>

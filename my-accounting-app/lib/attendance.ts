@@ -20,7 +20,7 @@ export interface AttendanceRecord {
   edit_note: string | null
 }
 
-export type LeaveType = 'annual' | 'half_am' | 'half_pm' | 'sick' | 'official' | 'other'
+export type LeaveType = 'annual' | 'half_am' | 'half_pm' | 'sick' | 'official' | 'unpaid' | 'other'   // unpaid = 무급휴가 (206)
 export type LeaveStatus = 'requested' | 'approved' | 'rejected' | 'canceled'
 
 export interface AttendanceLeave {
@@ -38,7 +38,7 @@ export interface AttendanceLeave {
 
 export const LEAVE_TYPE_LABEL: Record<LeaveType, string> = {
   annual: '연차', half_am: '오전 반차', half_pm: '오후 반차',
-  sick: '병가', official: '공가', other: '기타',
+  sick: '병가', official: '공가', unpaid: '무급휴가', other: '기타',
 }
 export const LEAVE_STATUS_LABEL: Record<LeaveStatus, string> = {
   requested: '승인 대기', approved: '승인', rejected: '반려', canceled: '취소',
