@@ -5,7 +5,7 @@
 //  PC·브라우저마다 허용이 따로 필요하다(회사 PC + 집 노트북 = 2회). 비밀번호처럼 민감한 정보는 없다.
 
 import { useCallback, useEffect, useState } from 'react'
-import { PUSH_KIND_LABEL, type PushKind, type PushPrefs, type PushSubRow, prefOn } from '@/lib/push'
+import { PUSH_KIND_LABEL, pushSticky, type PushKind, type PushPrefs, type PushSubRow, prefOn } from '@/lib/push'
 import { currentSubscription, disablePush, enablePush, pushState, type PushState } from '@/lib/push-client'
 import { fmtDT } from '@/lib/work-requests'
 
@@ -136,6 +136,7 @@ export default function NotifyTab() {
               <label key={k} className="flex items-center gap-2 text-sm text-gray-800">
                 <input type="checkbox" checked={prefOn(selected.prefs, k)} onChange={e => { const prefs: PushPrefs = { ...selected.prefs, [k]: e.target.checked }; patch(selected.id, { prefs }) }} />
                 {PUSH_KIND_LABEL[k]}
+                <span className="text-[0.6875rem] text-gray-400">{pushSticky(k) ? '· 눌러야 내려감' : '· 몇 초 뒤 저절로 내려감'}</span>
               </label>
             ))}
           </div>

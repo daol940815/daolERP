@@ -1,5 +1,6 @@
 /* daolERP 서비스 워커 — PC 알림(Web Push) 전용 (업무요청 트랙 ⑦, 2026-11-03)
-   캐시·오프라인 기능은 없다. 푸시가 오면 OS 알림을 띄우고, 누르면 해당 화면을 연다(열려 있으면 그 탭으로). */
+   캐시·오프라인 기능은 없다. 푸시가 오면 OS 알림을 띄우고, 누르면 해당 화면을 연다(열려 있으면 그 탭으로).
+   2026-11-18: 본문의 sticky 가 true 면 누를 때까지 화면에 남긴다(requireInteraction). 어떤 종류가 남는지는 서버(lib/push.ts PUSH_AUTO_DISMISS)가 정한다. */
 
 self.addEventListener('install', function () { self.skipWaiting() })
 self.addEventListener('activate', function (event) { event.waitUntil(self.clients.claim()) })
@@ -12,6 +13,7 @@ self.addEventListener('push', function (event) {
     body: data.body || '',
     tag: data.tag || undefined,
     renotify: !!data.tag,
+    requireInteraction: data.sticky === true,
     data: { url: data.url || '/me/requests' },
     icon: '/favicon.ico',
     badge: '/favicon.ico',
