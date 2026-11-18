@@ -225,7 +225,7 @@ export default function MatchTab() {
       )}
 
       <div className="flex gap-1 border-b border-gray-200 mb-3">
-        {([['pending', '매칭 대기'], ['confirmed', '매칭 완료 (최근 200건)']] as const).map(([k, label]) => (
+        {([['pending', '매칭 대기'], ['confirmed', '매칭 완료']] as const).map(([k, label]) => (
           <button key={k} onClick={() => { setTab(k); setKpi('all'); setFindId(null) }}
             className={`px-4 py-2 -mb-px text-sm font-medium border-b-2 whitespace-nowrap ${tab === k ? 'border-slate-900 text-slate-900' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
             {label}

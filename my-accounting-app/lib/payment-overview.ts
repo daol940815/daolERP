@@ -91,9 +91,10 @@ export async function loadOverview(admin: SupabaseClient): Promise<{ error: stri
   // 결제 기록 (원 기록 + 취소 줄, 이 주문 몫)
   const links: { order_id: string; record_id: string; amount: number }[] = []
   for (const ch of chunk(ids)) {
-    const { data, error } = await admin.from('order_payment_record_orders').select('order_id, record_id, amount').in('order_id', ch)
-    if (error) break   // 1300 미적용 — 기록 없이 보여 준다
-    links.push(...((data ?? []) as typeof links))
+    // 묶음마다 끝까지 읽는다 — 한 번 조회는 1000행에서 잘린다(주문이 많아져도 기록 · 매칭이 빠지지 않게)
+    const r = await fetchAllRows<typeof links[number]>((f, t) => admin.from('order_payment_record_orders').select('order_id, record_id, amount').in('order_id', ch).range(f, t))
+    if ('error' in r) break   // 1300 미적용 — 기록 없이 보여 준다
+    links.push(...r.data)
   }
   type Rec = { id: string; method: string; pay_date: string; approval_number: string | null; card_last4: string | null; depositor_name: string | null; due_date: string | null
     created_by_name: string | null; created_at: string; confirmed_by_name: string | null; confirmed_at: string | null; card_entry?: string | null; vat_kind?: string | null; cancel_of?: string | null; reason_text?: string | null }
@@ -123,8 +124,8 @@ export async function loadOverview(admin: SupabaseClient): Promise<{ error: stri
   type M = { id: string; order_id: string; source_type: string; source_id: string; amount: number; paid_date: string; record_id: string | null; from_invoice_id?: string | null; matched_by_name?: string | null; created_at?: string | null }
   const matches: M[] = []
   for (const ch of chunk(ids)) {
-    const { data } = await admin.from('erp_payment_matches').select('*').in('order_id', ch)
-    matches.push(...((data ?? []) as M[]))
+    const r = await fetchAllRows<M>((f, t) => admin.from('erp_payment_matches').select('*').in('order_id', ch).range(f, t))
+    if (!('error' in r)) matches.push(...r.data)
   }
   const label = new Map<string, string>()
   for (const ch of chunk(Array.from(new Set(matches.filter(m => m.source_type === 'bank').map(m => m.source_id))))) {
@@ -149,9 +150,9 @@ export async function loadOverview(admin: SupabaseClient): Promise<{ error: stri
   // 연락 기록 (1301 미적용이면 생략)
   const contacts = new Map<string, { count: number; last: string }>()
   for (const ch of chunk(ids)) {
-    const { data, error } = await admin.from('order_payment_contacts').select('order_id, contact_date').in('order_id', ch)
-    if (error) break
-    for (const c of data ?? []) {
+    const r = await fetchAllRows<{ order_id: string; contact_date: string }>((f, t) => admin.from('order_payment_contacts').select('order_id, contact_date').in('order_id', ch).range(f, t))
+    if ('error' in r) break
+    for (const c of r.data) {
       const cur = contacts.get(c.order_id as string) ?? { count: 0, last: '' }
       cur.count++; if (String(c.contact_date) > cur.last) cur.last = String(c.contact_date)
       contacts.set(c.order_id as string, cur)

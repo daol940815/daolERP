@@ -608,12 +608,16 @@ const dayDiff = (a: string, b: string) => Math.round((new Date(a).getTime() - ne
 export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pending' | 'confirmed'; meId: string | null }): Promise<
   { error: string } | { rows: QueueRow[]; latest: { card: string | null; bank: string | null } }
 > {
-  let q = admin.from('order_payment_records').select(REC_COLS)
-  q = opts.state === 'pending'
-    ? q.is('confirmed_at', null).order('pay_date', { ascending: true }).limit(500)
-    : q.not('confirmed_at', 'is', null).order('confirmed_at', { ascending: false }).limit(200)
-  const { data, error } = await q
-  if (error) return { error: errMsg(error.message) }
+  // 건수 제한 없이 전부 읽는다(2026-11-18) — 예전의 대기 500건 · 완료 200건 제한은 그 밖의 기록이 검색 · 필터에서 빠지는 문제가 있었다.
+  // 최근 것이 위로: 대기 = 결제일 최신순, 완료 = 매칭한 시각 최신순
+  const recRes = await fetchAllRows<Record<string, unknown>>((f, t) => {
+    const q = admin.from('order_payment_records').select(REC_COLS)
+    return (opts.state === 'pending'
+      ? q.is('confirmed_at', null).order('pay_date', { ascending: false }).order('created_at', { ascending: false })
+      : q.not('confirmed_at', 'is', null).order('confirmed_at', { ascending: false })).range(f, t)
+  })
+  if ('error' in recRes) return { error: errMsg(recRes.error) }
+  const data = recRes.data
   // 취소 줄(1305)은 이 목록에 넣지 않는다(취소 대기열은 lib/payment-cancel.ts). 원 기록은 취소한 만큼 뺀 금액으로 대조하고, 전액 취소된 대기 기록은 뺀다
   const cancelOf = await loadCancelRowIds(admin, ((data ?? []) as { id: string }[]).map(r => r.id))
   let recs = await attachOrders(admin, ((data ?? []) as Record<string, unknown>[]).filter(r => !cancelOf.has(r.id as string)))
