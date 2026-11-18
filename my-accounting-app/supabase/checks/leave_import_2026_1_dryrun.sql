@@ -4,39 +4,13 @@
 -- 원본: 사용자 제공 "2026 연차" 엑셀 (2026-11-18 받은 파일). 생성 스크립트로 만든 파일 — 손으로 고치지 말 것.
 -- 제외: 이지원 · 김대희(퇴사) · 박강용 (사용자 지시). 칭찬/지적 일지 · 연장근무(2026 입력 없음)는 옮기지 않음.
 -- 선행: 206 · 207 실행, 대상 직원이 employees 에 같은 이름으로 등록(재직)되어 있어야 함.
--- 결과 4개를 차례로 확인해 알려주세요:
---  ① 이름 확인: '없음' · '동명이인' 이 있으면 실행 SQL이 멈춘다 — 직원 등록/이름 정리 후 다시
---  ② 사람별 이관 건수 · 일수
---  ③ 겹치는 ERP 휴가: 엑셀 기준이라 실행 시 '취소'로 바뀐다. 엑셀에 없는 근무일이 포함된 건(부분 겹침)은 따로 알려주세요
---  ④ 이미 이관된 흔적: 0 이어야 한다(두 번 실행 방지)
+-- 결과는 표 하나(구분 · 이름 · 내용)로 나온다. 전체를 복사해 알려주세요.
+--  1 이름: '없음' · '동명이인' 이 있으면 실행 SQL이 멈춘다 — 직원 등록/이름 정리 후 다시
+--  2 건수: 사람별 이관 건수 · 일수 (엑셀 사용 합계와 같아야 함)
+--  3 겹침: 엑셀 기준이라 실행 시 '취소'로 바뀌는 ERP 휴가. "엑셀에 없는 근무일"이 1 이상이면 부분 겹침
+--  4 흔적: 이미 이관된 부여 · 휴가 (0 이어야 함)
 -- =====================================================
 
--- ① 이름 확인
-WITH excel_people(name, base_days, comp_total, used_total) AS (VALUES
-  ('김재형', 19::numeric, 0::numeric, 18::numeric),
-  ('강시현', 17::numeric, 2::numeric, 16.5::numeric),
-  ('옥광일', 18::numeric, 0.5::numeric, 14.5::numeric),
-  ('정이경', 18::numeric, 0::numeric, 11::numeric),
-  ('홍창의', 17::numeric, 7.5::numeric, 18.5::numeric),
-  ('이동훈', 17::numeric, 1.5::numeric, 14::numeric),
-  ('김주연', 16::numeric, 1.5::numeric, 16.5::numeric),
-  ('오철준', 15::numeric, 5::numeric, 15::numeric),
-  ('김보현', 15::numeric, 1::numeric, 17.5::numeric),
-  ('주삼재', 16::numeric, 1.5::numeric, 14::numeric),
-  ('최효순', 16::numeric, 1::numeric, 14::numeric),
-  ('구본신', 15::numeric, 0::numeric, 14::numeric),
-  ('오연수', 6::numeric, 0::numeric, 6.5::numeric),
-  ('김승현', 6::numeric, 1::numeric, 4::numeric),
-  ('한정호', 4::numeric, 0::numeric, 3::numeric)
-)
-SELECT ep.name AS 엑셀_이름,
-       count(e.id) AS 일치_직원수,
-       CASE WHEN count(e.id) = 0 THEN '없음 — 직원 등록 필요' WHEN count(e.id) > 1 THEN '동명이인 — 정리 필요' ELSE '확인' END AS 상태,
-       bool_or(e.auth_user_id IS NOT NULL) AS 로그인_계정
-FROM excel_people ep LEFT JOIN employees e ON e.name = ep.name AND e.is_active
-GROUP BY ep.name ORDER BY 상태 DESC, ep.name;
-
--- ② 사람별 이관 건수 · 일수
 WITH excel_people(name, base_days, comp_total, used_total) AS (VALUES
   ('김재형', 19::numeric, 0::numeric, 18::numeric),
   ('강시현', 17::numeric, 2::numeric, 16.5::numeric),
@@ -314,261 +288,45 @@ excel_use(name, day, leave_type, reason) AS (VALUES
   ('한정호', DATE '2026-11-16', 'annual', '엑셀 이관'),
   ('한정호', DATE '2026-11-17', 'annual', '엑셀 이관'),
   ('한정호', DATE '2026-11-18', 'annual', '엑셀 이관')
-)
-SELECT ep.name AS 이름,
-  ep.base_days AS 기본,
-  (SELECT coalesce(sum(days),0) FROM excel_grants g WHERE g.name = ep.name AND g.kind IN ('comp','carry')) AS 보상_이월,
-  (SELECT count(*) FROM excel_use u WHERE u.name = ep.name) AS 휴가_건수,
-  (SELECT coalesce(sum(CASE leave_type WHEN 'annual' THEN 1 WHEN 'half' THEN 0.5 ELSE 0 END),0) FROM excel_use u WHERE u.name = ep.name) AS 차감_일수,
-  ep.used_total AS 엑셀_사용합계
-FROM excel_people ep ORDER BY ep.name;
-
--- ③ 겹치는 ERP 휴가 (엑셀 기준 → 실행 시 취소)
-WITH excel_use(name, day, leave_type, reason) AS (VALUES
-  ('김재형', DATE '2026-01-16', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('옥광일', DATE '2026-01-05', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('옥광일', DATE '2026-01-08', 'annual', '엑셀 이관'),
-  ('홍창의', DATE '2026-01-26', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('이동훈', DATE '2026-01-06', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('이동훈', DATE '2026-01-13', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('이동훈', DATE '2026-01-15', 'annual', '엑셀 이관'),
-  ('이동훈', DATE '2026-01-27', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('김주연', DATE '2026-01-09', 'annual', '엑셀 이관'),
-  ('주삼재', DATE '2026-01-12', 'annual', '엑셀 이관'),
-  ('최효순', DATE '2026-01-16', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-02-25', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('김재형', DATE '2026-02-26', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-02-27', 'annual', '엑셀 이관'),
-  ('옥광일', DATE '2026-02-20', 'annual', '엑셀 이관'),
-  ('홍창의', DATE '2026-02-23', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('홍창의', DATE '2026-02-24', 'annual', '엑셀 이관'),
-  ('이동훈', DATE '2026-02-12', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('오철준', DATE '2026-02-10', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('오철준', DATE '2026-02-11', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('오철준', DATE '2026-02-27', 'annual', '엑셀 이관'),
-  ('김보현', DATE '2026-02-23', 'annual', '엑셀 이관'),
-  ('주삼재', DATE '2026-02-27', 'annual', '엑셀 이관'),
-  ('최효순', DATE '2026-02-20', 'official', '엑셀 이관 — 경조'),
-  ('최효순', DATE '2026-02-24', 'official', '엑셀 이관 — 경조'),
-  ('구본신', DATE '2026-02-19', 'annual', '엑셀 이관'),
-  ('구본신', DATE '2026-02-20', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-03-13', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-03-16', 'annual', '엑셀 이관'),
-  ('강시현', DATE '2026-03-03', 'annual', '엑셀 이관'),
-  ('옥광일', DATE '2026-03-12', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('옥광일', DATE '2026-03-31', 'annual', '엑셀 이관'),
-  ('정이경', DATE '2026-03-24', 'annual', '엑셀 이관'),
-  ('홍창의', DATE '2026-03-27', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('홍창의', DATE '2026-03-30', 'annual', '엑셀 이관'),
-  ('이동훈', DATE '2026-03-13', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('이동훈', DATE '2026-03-30', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('김주연', DATE '2026-03-03', 'annual', '엑셀 이관'),
-  ('김주연', DATE '2026-03-25', 'annual', '엑셀 이관'),
-  ('오철준', DATE '2026-03-05', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('오철준', DATE '2026-03-13', 'annual', '엑셀 이관'),
-  ('오철준', DATE '2026-03-18', 'annual', '엑셀 이관'),
-  ('오철준', DATE '2026-03-26', 'annual', '엑셀 이관'),
-  ('오철준', DATE '2026-03-30', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('김보현', DATE '2026-03-13', 'annual', '엑셀 이관'),
-  ('주삼재', DATE '2026-03-27', 'annual', '엑셀 이관'),
-  ('최효순', DATE '2026-03-13', 'annual', '엑셀 이관'),
-  ('구본신', DATE '2026-03-23', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-04-22', 'annual', '엑셀 이관'),
-  ('강시현', DATE '2026-04-09', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('강시현', DATE '2026-04-13', 'annual', '엑셀 이관'),
-  ('강시현', DATE '2026-04-15', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('옥광일', DATE '2026-04-01', 'annual', '엑셀 이관'),
-  ('정이경', DATE '2026-04-06', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('홍창의', DATE '2026-04-10', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('홍창의', DATE '2026-04-22', 'annual', '엑셀 이관'),
-  ('이동훈', DATE '2026-04-10', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('김보현', DATE '2026-04-13', 'annual', '엑셀 이관'),
-  ('김보현', DATE '2026-04-14', 'annual', '엑셀 이관'),
-  ('김보현', DATE '2026-04-15', 'annual', '엑셀 이관'),
-  ('김보현', DATE '2026-04-16', 'annual', '엑셀 이관'),
-  ('김보현', DATE '2026-04-17', 'annual', '엑셀 이관'),
-  ('주삼재', DATE '2026-04-30', 'annual', '엑셀 이관'),
-  ('최효순', DATE '2026-04-09', 'annual', '엑셀 이관'),
-  ('구본신', DATE '2026-04-15', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-05-04', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-05-13', 'annual', '엑셀 이관'),
-  ('강시현', DATE '2026-05-07', 'annual', '엑셀 이관'),
-  ('강시현', DATE '2026-05-08', 'annual', '엑셀 이관'),
-  ('강시현', DATE '2026-05-11', 'annual', '엑셀 이관'),
-  ('강시현', DATE '2026-05-22', 'annual', '엑셀 이관'),
-  ('정이경', DATE '2026-05-20', 'annual', '엑셀 이관'),
-  ('정이경', DATE '2026-05-28', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('홍창의', DATE '2026-05-04', 'annual', '엑셀 이관'),
-  ('이동훈', DATE '2026-05-15', 'annual', '엑셀 이관'),
-  ('이동훈', DATE '2026-05-22', 'annual', '엑셀 이관'),
-  ('김주연', DATE '2026-05-04', 'annual', '엑셀 이관'),
-  ('김주연', DATE '2026-05-06', 'annual', '엑셀 이관'),
-  ('김주연', DATE '2026-05-07', 'annual', '엑셀 이관'),
-  ('김주연', DATE '2026-05-08', 'annual', '엑셀 이관'),
-  ('김주연', DATE '2026-05-21', 'annual', '엑셀 이관'),
-  ('김주연', DATE '2026-05-22', 'annual', '엑셀 이관'),
-  ('오철준', DATE '2026-05-04', 'annual', '엑셀 이관'),
-  ('오철준', DATE '2026-05-06', 'annual', '엑셀 이관'),
-  ('오철준', DATE '2026-05-15', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('오철준', DATE '2026-05-21', 'annual', '엑셀 이관'),
-  ('김보현', DATE '2026-05-12', 'annual', '엑셀 이관'),
-  ('김보현', DATE '2026-05-13', 'annual', '엑셀 이관'),
-  ('김보현', DATE '2026-05-20', 'annual', '엑셀 이관'),
-  ('김보현', DATE '2026-05-28', 'annual', '엑셀 이관'),
-  ('주삼재', DATE '2026-05-15', 'annual', '엑셀 이관'),
-  ('최효순', DATE '2026-05-22', 'annual', '엑셀 이관'),
-  ('구본신', DATE '2026-05-04', 'annual', '엑셀 이관'),
-  ('오연수', DATE '2026-05-29', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-06-04', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-06-05', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-06-11', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-06-26', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('강시현', DATE '2026-06-26', 'annual', '엑셀 이관'),
-  ('옥광일', DATE '2026-06-09', 'annual', '엑셀 이관'),
-  ('옥광일', DATE '2026-06-17', 'annual', '엑셀 이관'),
-  ('옥광일', DATE '2026-06-25', 'annual', '엑셀 이관'),
-  ('정이경', DATE '2026-06-08', 'annual', '엑셀 이관'),
-  ('홍창의', DATE '2026-06-05', 'annual', '엑셀 이관'),
-  ('홍창의', DATE '2026-06-15', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('이동훈', DATE '2026-06-04', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('이동훈', DATE '2026-06-17', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('이동훈', DATE '2026-06-18', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('김주연', DATE '2026-06-15', 'annual', '엑셀 이관'),
-  ('오철준', DATE '2026-06-16', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('오철준', DATE '2026-06-24', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('김보현', DATE '2026-06-09', 'annual', '엑셀 이관'),
-  ('김보현', DATE '2026-06-25', 'annual', '엑셀 이관'),
-  ('주삼재', DATE '2026-06-08', 'annual', '엑셀 이관'),
-  ('최효순', DATE '2026-06-25', 'annual', '엑셀 이관'),
-  ('구본신', DATE '2026-06-26', 'annual', '엑셀 이관'),
-  ('오연수', DATE '2026-06-15', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-07-07', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('강시현', DATE '2026-07-16', 'annual', '엑셀 이관'),
-  ('강시현', DATE '2026-07-22', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('옥광일', DATE '2026-07-02', 'annual', '엑셀 이관'),
-  ('옥광일', DATE '2026-07-15', 'annual', '엑셀 이관'),
-  ('정이경', DATE '2026-07-22', 'annual', '엑셀 이관'),
-  ('정이경', DATE '2026-07-23', 'annual', '엑셀 이관'),
-  ('정이경', DATE '2026-07-24', 'annual', '엑셀 이관'),
-  ('정이경', DATE '2026-07-29', 'annual', '엑셀 이관'),
-  ('홍창의', DATE '2026-07-10', 'annual', '엑셀 이관'),
-  ('홍창의', DATE '2026-07-13', 'annual', '엑셀 이관'),
-  ('이동훈', DATE '2026-07-10', 'annual', '엑셀 이관'),
-  ('김주연', DATE '2026-07-16', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('오철준', DATE '2026-07-03', 'annual', '엑셀 이관'),
-  ('오철준', DATE '2026-07-23', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('오철준', DATE '2026-07-29', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('김보현', DATE '2026-07-23', 'annual', '엑셀 이관'),
-  ('주삼재', DATE '2026-07-03', 'annual', '엑셀 이관'),
-  ('최효순', DATE '2026-07-21', 'annual', '엑셀 이관'),
-  ('최효순', DATE '2026-07-22', 'annual', '엑셀 이관'),
-  ('최효순', DATE '2026-07-23', 'annual', '엑셀 이관'),
-  ('최효순', DATE '2026-07-24', 'annual', '엑셀 이관'),
-  ('구본신', DATE '2026-07-16', 'annual', '엑셀 이관'),
-  ('구본신', DATE '2026-07-27', 'annual', '엑셀 이관'),
-  ('오연수', DATE '2026-07-20', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-08-26', 'annual', '엑셀 이관'),
-  ('강시현', DATE '2026-08-06', 'annual', '엑셀 이관'),
-  ('강시현', DATE '2026-08-07', 'annual', '엑셀 이관'),
-  ('강시현', DATE '2026-08-13', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('옥광일', DATE '2026-08-06', 'annual', '엑셀 이관'),
-  ('옥광일', DATE '2026-08-20', 'annual', '엑셀 이관'),
-  ('옥광일', DATE '2026-08-24', 'annual', '엑셀 이관'),
-  ('정이경', DATE '2026-08-21', 'annual', '엑셀 이관'),
-  ('이동훈', DATE '2026-08-06', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('이동훈', DATE '2026-08-07', 'annual', '엑셀 이관'),
-  ('이동훈', DATE '2026-08-14', 'annual', '엑셀 이관'),
-  ('이동훈', DATE '2026-08-28', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('김주연', DATE '2026-08-06', 'annual', '엑셀 이관'),
-  ('김주연', DATE '2026-08-07', 'annual', '엑셀 이관'),
-  ('김주연', DATE '2026-08-28', 'annual', '엑셀 이관'),
-  ('오철준', DATE '2026-08-20', 'annual', '엑셀 이관'),
-  ('김보현', DATE '2026-08-07', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('김보현', DATE '2026-08-31', 'annual', '엑셀 이관'),
-  ('주삼재', DATE '2026-08-03', 'annual', '엑셀 이관'),
-  ('주삼재', DATE '2026-08-04', 'annual', '엑셀 이관'),
-  ('주삼재', DATE '2026-08-05', 'annual', '엑셀 이관'),
-  ('주삼재', DATE '2026-08-06', 'annual', '엑셀 이관'),
-  ('주삼재', DATE '2026-08-07', 'annual', '엑셀 이관'),
-  ('최효순', DATE '2026-08-14', 'annual', '엑셀 이관'),
-  ('구본신', DATE '2026-08-13', 'annual', '엑셀 이관'),
-  ('구본신', DATE '2026-08-20', 'annual', '엑셀 이관'),
-  ('오연수', DATE '2026-08-18', 'annual', '엑셀 이관'),
-  ('오연수', DATE '2026-08-19', 'annual', '엑셀 이관'),
-  ('오연수', DATE '2026-08-20', 'annual', '엑셀 이관'),
-  ('김승현', DATE '2026-08-19', 'official', '엑셀 이관 — 예비군'),
-  ('김승현', DATE '2026-08-25', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('강시현', DATE '2026-09-30', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('옥광일', DATE '2026-09-29', 'annual', '엑셀 이관'),
-  ('정이경', DATE '2026-09-29', 'annual', '엑셀 이관'),
-  ('홍창의', DATE '2026-09-28', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('구본신', DATE '2026-09-23', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('구본신', DATE '2026-09-28', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-10-22', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-10-23', 'annual', '엑셀 이관'),
-  ('강시현', DATE '2026-10-29', 'annual', '엑셀 이관'),
-  ('강시현', DATE '2026-10-30', 'annual', '엑셀 이관'),
-  ('옥광일', DATE '2026-10-19', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('정이경', DATE '2026-10-07', 'annual', '엑셀 이관'),
-  ('홍창의', DATE '2026-10-08', 'annual', '엑셀 이관'),
-  ('홍창의', DATE '2026-10-12', 'annual', '엑셀 이관'),
-  ('홍창의', DATE '2026-10-13', 'annual', '엑셀 이관'),
-  ('홍창의', DATE '2026-10-23', 'annual', '엑셀 이관'),
-  ('홍창의', DATE '2026-10-26', 'annual', '엑셀 이관'),
-  ('이동훈', DATE '2026-10-08', 'annual', '엑셀 이관'),
-  ('이동훈', DATE '2026-10-19', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('이동훈', DATE '2026-10-23', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('김주연', DATE '2026-10-02', 'annual', '엑셀 이관'),
-  ('김주연', DATE '2026-10-08', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('김주연', DATE '2026-10-12', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('오철준', DATE '2026-10-08', 'annual', '엑셀 이관'),
-  ('오철준', DATE '2026-10-20', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('김보현', DATE '2026-10-13', 'annual', '엑셀 이관'),
-  ('주삼재', DATE '2026-10-02', 'annual', '엑셀 이관'),
-  ('최효순', DATE '2026-10-08', 'annual', '엑셀 이관'),
-  ('구본신', DATE '2026-10-16', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('구본신', DATE '2026-10-28', 'annual', '엑셀 이관'),
-  ('구본신', DATE '2026-10-29', 'annual', '엑셀 이관'),
-  ('오연수', DATE '2026-10-16', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('김승현', DATE '2026-10-16', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('김승현', DATE '2026-10-26', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-11-06', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-11-09', 'annual', '엑셀 이관'),
-  ('김재형', DATE '2026-11-13', 'annual', '엑셀 이관'),
-  ('강시현', DATE '2026-11-09', 'annual', '엑셀 이관'),
-  ('강시현', DATE '2026-11-10', 'annual', '엑셀 이관'),
-  ('홍창의', DATE '2026-11-06', 'annual', '엑셀 이관'),
-  ('홍창의', DATE '2026-11-09', 'annual', '엑셀 이관'),
-  ('홍창의', DATE '2026-11-20', 'half', '엑셀 이관 — 반차(오전 · 오후 미기재)'),
-  ('홍창의', DATE '2026-11-23', 'annual', '엑셀 이관'),
-  ('김주연', DATE '2026-11-06', 'annual', '엑셀 이관'),
-  ('김보현', DATE '2026-11-11', 'annual', '엑셀 이관'),
-  ('주삼재', DATE '2026-11-04', 'annual', '엑셀 이관'),
-  ('최효순', DATE '2026-11-06', 'annual', '엑셀 이관'),
-  ('최효순', DATE '2026-11-13', 'annual', '엑셀 이관'),
-  ('최효순', DATE '2026-11-18', 'annual', '엑셀 이관'),
-  ('김승현', DATE '2026-11-20', 'annual', '엑셀 이관'),
-  ('김승현', DATE '2026-11-23', 'annual', '엑셀 이관'),
-  ('한정호', DATE '2026-11-16', 'annual', '엑셀 이관'),
-  ('한정호', DATE '2026-11-17', 'annual', '엑셀 이관'),
-  ('한정호', DATE '2026-11-18', 'annual', '엑셀 이관')
 ),
-emp AS (SELECT id, name FROM employees WHERE is_active),
+emp AS (SELECT id, name, auth_user_id FROM employees WHERE is_active),
+r1 AS (
+  SELECT '1 이름' AS 구분, ep.name AS 이름,
+    CASE WHEN count(e.id) = 0 THEN '없음 — 직원 등록 필요' WHEN count(e.id) > 1 THEN '동명이인 — 정리 필요'
+         ELSE '확인' || CASE WHEN bool_or(e.auth_user_id IS NOT NULL) THEN ' (로그인 계정 있음)' ELSE ' (계정 없음)' END END AS 내용
+  FROM excel_people ep LEFT JOIN emp e ON e.name = ep.name GROUP BY ep.name
+),
+r2 AS (
+  SELECT '2 건수' AS 구분, ep.name AS 이름,
+    '기본 ' || ep.base_days || ' · 보상/이월 ' || (SELECT coalesce(sum(days),0) FROM excel_grants g WHERE g.name = ep.name AND g.kind IN ('comp','carry'))
+    || ' · 휴가 ' || (SELECT count(*) FROM excel_use u WHERE u.name = ep.name) || '건'
+    || ' · 차감 ' || (SELECT coalesce(sum(CASE leave_type WHEN 'annual' THEN 1 WHEN 'half' THEN 0.5 ELSE 0 END),0) FROM excel_use u WHERE u.name = ep.name)
+    || '일 (엑셀 사용 합계 ' || ep.used_total || ')' AS 내용
+  FROM excel_people ep
+),
 erp AS (
   SELECT l.id, e.name, l.leave_type, l.start_date, l.end_date, l.status
   FROM attendance_leaves l JOIN emp e ON e.id = l.employee_id
   WHERE l.status IN ('requested','approved') AND coalesce(l.source,'request') <> 'excel'
+),
+r3 AS (
+  SELECT '3 겹침' AS 구분, erp.name AS 이름,
+    erp.leave_type || ' ' || erp.start_date || '~' || erp.end_date || ' (' || erp.status || ')'
+    || ' · 엑셀과 겹친 날 ' || (SELECT count(*) FROM excel_use u WHERE u.name = erp.name AND u.day BETWEEN erp.start_date AND erp.end_date)
+    || ' · 엑셀에 없는 근무일 ' || (SELECT count(*) FROM generate_series(erp.start_date, erp.end_date, interval '1 day') g(d)
+        WHERE extract(isodow FROM g.d) < 6
+          AND NOT EXISTS (SELECT 1 FROM attendance_holidays h WHERE h.holiday_date = g.d::date)
+          AND NOT EXISTS (SELECT 1 FROM excel_use u WHERE u.name = erp.name AND u.day = g.d::date)) AS 내용
+  FROM erp
+  WHERE EXISTS (SELECT 1 FROM excel_use u WHERE u.name = erp.name AND u.day BETWEEN erp.start_date AND erp.end_date)
+),
+r4 AS (
+  SELECT '4 흔적' AS 구분, '-' AS 이름,
+    '이관된 부여 ' || (SELECT count(*) FROM attendance_leave_grants WHERE source = 'excel' AND year = 2026)
+    || ' · 이관된 휴가 ' || (SELECT count(*) FROM attendance_leaves WHERE source = 'excel') AS 내용
 )
-SELECT erp.name AS 이름, erp.leave_type AS 종류, erp.start_date AS 시작, erp.end_date AS 종료, erp.status AS 상태,
-  (SELECT count(*) FROM excel_use u WHERE u.name = erp.name AND u.day BETWEEN erp.start_date AND erp.end_date) AS 엑셀과_겹친_날,
-  (SELECT count(*) FROM generate_series(erp.start_date, erp.end_date, interval '1 day') g(d)
-     WHERE extract(isodow FROM g.d) < 6
-       AND NOT EXISTS (SELECT 1 FROM attendance_holidays h WHERE h.holiday_date = g.d::date)
-       AND NOT EXISTS (SELECT 1 FROM excel_use u WHERE u.name = erp.name AND u.day = g.d::date)) AS 엑셀에_없는_근무일
-FROM erp
-WHERE EXISTS (SELECT 1 FROM excel_use u WHERE u.name = erp.name AND u.day BETWEEN erp.start_date AND erp.end_date)
-ORDER BY erp.name, erp.start_date;
-
--- ④ 이미 이관된 흔적 (0 이어야 함)
-SELECT (SELECT count(*) FROM attendance_leave_grants WHERE source = 'excel' AND year = 2026) AS 이관된_부여,
-       (SELECT count(*) FROM attendance_leaves WHERE source = 'excel') AS 이관된_휴가;
+SELECT * FROM (
+  SELECT * FROM r1 UNION ALL SELECT * FROM r2 UNION ALL
+  SELECT * FROM r3 UNION ALL SELECT '3 겹침', '-', '겹치는 ERP 휴가 없음' WHERE NOT EXISTS (SELECT 1 FROM r3) UNION ALL
+  SELECT * FROM r4
+) x ORDER BY 구분, (내용 LIKE '확인%'), 이름;
