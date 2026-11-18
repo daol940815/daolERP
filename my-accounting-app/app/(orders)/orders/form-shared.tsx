@@ -484,14 +484,17 @@ function useOutsideClose(open: boolean, refs: React.RefObject<HTMLElement>[], cl
 }
 
 // ── 자동완성 콤보 (마스터 선택 전용 — 목록에 없는 값은 확정 불가) ──
-export function Combo({ value, display, options, onSelect, placeholder, required, footer }: {
+// footer는 노드 또는 (입력어 · 닫기) 함수 — 고객 쌍방향 추천(2026-11-18)이 목록 아래 구역을 붙일 때 쓴다. onQuery = 입력어 알림
+export type ComboFooter = React.ReactNode | ((ctx: { q: string; close: () => void }) => React.ReactNode)
+export function Combo({ value, display, options, onSelect, placeholder, required, footer, onQuery }: {
   value: string | null
   display: string
   options: { id: string; label: string; sub?: string; soldout?: boolean; note?: string }[]
   onSelect: (id: string | null) => void
   placeholder: string
   required?: boolean
-  footer?: React.ReactNode
+  footer?: ComboFooter
+  onQuery?: (q: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
@@ -513,13 +516,14 @@ export function Combo({ value, display, options, onSelect, placeholder, required
   const keys = useComboKeys(open, filtered, listRef, {
     pick, openList: () => { setOpen(true); setText('') }, close: () => setOpen(false),
   })
+  const footerNode = typeof footer === 'function' ? footer({ q: text, close: () => setOpen(false) }) : footer
 
   return (
     <div ref={boxRef} className="relative">
       <input
         value={open ? text : display}
-        onFocus={() => { setOpen(true); setText('') }}
-        onChange={e => { setText(e.target.value); setOpen(true); keys.resetActive() }}
+        onFocus={() => { setOpen(true); setText(''); onQuery?.('') }}
+        onChange={e => { setText(e.target.value); setOpen(true); keys.resetActive(); onQuery?.(e.target.value) }}
         onKeyDown={keys.onKeyDown}
         placeholder={placeholder}
         className={`w-full border rounded-lg px-2.5 py-1.5 text-sm bg-blue-50/40 ${
@@ -546,8 +550,9 @@ export function Combo({ value, display, options, onSelect, placeholder, required
               {o.sub && <span className="text-xs text-gray-400 ml-1.5">{o.sub}</span>}
             </button>
           ))}
-          {!filtered.length && <div className="px-3 py-2 text-xs text-gray-400">일치하는 항목이 없습니다</div>}
-          {footer}
+          {/* 고를 목록 자체가 비어 있으면(지점 미선택 담당자 칸 등) 안내 없이 아래 구역만 */}
+          {!filtered.length && options.length > 0 && <div className="px-3 py-2 text-xs text-gray-400">일치하는 항목이 없습니다</div>}
+          {footerNode}
         </FloatingList>
       )}
     </div>
@@ -555,12 +560,13 @@ export function Combo({ value, display, options, onSelect, placeholder, required
 }
 
 // ── 자유 입력 겸용 콤보 (상담일지 — 마스터에 없으면 입력한 문자열 그대로 사용) ──
-export function ComboFree({ text, selectedId, options, onChange, placeholder }: {
+export function ComboFree({ text, selectedId, options, onChange, placeholder, footer }: {
   text: string
   selectedId: string | null
   options: { id: string; label: string; sub?: string }[]
   onChange: (patch: { id: string | null; text: string }) => void
   placeholder: string
+  footer?: ComboFooter
 }) {
   const [open, setOpen] = useState(false)
   const boxRef = useRef<HTMLDivElement>(null)
@@ -575,7 +581,8 @@ export function ComboFree({ text, selectedId, options, onChange, placeholder }: 
     ).slice(0, 50)
   }, [options, q])
 
-  const pos = useFloatingList(open, boxRef, { maxRem: 16, wide: false })
+  const footerNode = typeof footer === 'function' ? footer({ q: text, close: () => setOpen(false) }) : footer
+  const pos = useFloatingList(open, boxRef, { maxRem: footerNode ? 26 : 16, wide: !!footerNode })
   const pick = (o: { id: string; label: string }) => { onChange({ id: o.id, text: o.label }); setOpen(false) }
   const keys = useComboKeys(open, filtered, listRef, {
     pick, openList: () => setOpen(true), close: () => setOpen(false),
@@ -594,7 +601,7 @@ export function ComboFree({ text, selectedId, options, onChange, placeholder }: 
         }`}
         title={selectedId ? '마스터 연결됨' : '자유 입력 (마스터 미연결)'}
       />
-      {open && filtered.length > 0 && (
+      {open && (filtered.length > 0 || !!footerNode) && (
         <FloatingList pos={pos} listRef={listRef}>
           {filtered.map((o, idx) => (
             <button type="button" key={o.id} data-idx={idx} tabIndex={-1}
@@ -609,6 +616,7 @@ export function ComboFree({ text, selectedId, options, onChange, placeholder }: 
               {o.sub && <span className="text-xs text-gray-400 ml-1.5">{o.sub}</span>}
             </button>
           ))}
+          {footerNode}
         </FloatingList>
       )}
     </div>

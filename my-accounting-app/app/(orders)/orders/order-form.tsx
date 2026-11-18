@@ -5,6 +5,10 @@ import ShipCard, { EMPTY_SHIP } from './ship-card'
 import { hasShip, needsShip, SHIP_KINDS, type ShipInput } from '@/lib/ship-address'
 import RosterCard from './roster-card'
 import { normTel } from '@/lib/contact-phone-sync'
+import {
+  CustomerHitList, FillBanner, PhoneSearchInput, SimilarHint, asgPlace, bannerBtn, bannerBtnPri, isPhoneLike, useCustomerSearch,
+  type CustomerAsg, type CustomerHit,
+} from './customer-search'
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -420,6 +424,58 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
       : '매출처가 등록되었습니다 — 담당자를 선택하거나 신규 등록해주세요.')
   }
 
+  // ── 고객 쌍방향 추천 (2026-11-18 사용자 승인 — 시안 docs/mockups/고객_쌍방향추천_시안.html) ──
+  //  담당자 이름 · 핸드폰으로 전체 담당자에서 찾아 업체 · 지점 · 담당자 · 번호 · 상담자를 한 번에 채운다. 고를 때만 채움 · 되돌리기
+  const staffName = (id: string | null) => (id ? employees.find(e => e.id === id)?.name ?? null : null)
+  const [contactQ, setContactQ] = useState('')
+  const [globalOpen, setGlobalOpen] = useState(false)
+  useEffect(() => { setGlobalOpen(false) }, [vendorId])
+  const nameKey = contactQ.trim().replace(/님$/, '').trim()
+  const localNameMatch = !!nameKey && contacts.some(c =>
+    contactLabel(c.name, c.title).includes(nameKey) || c.name.includes(nameKey.split(/\s+/)[0]))
+  const nameSearch = useCustomerSearch(contactQ,
+    !indPick && nameKey.length >= 2 && !isPhoneLike(contactQ) && (!vendorId || globalOpen || !localNameMatch))
+  const phoneSearch = useCustomerSearch(phone, !indPick && !contactId && isPhoneLike(phone))
+  type CustSnap = { groupId: string | null; vendorId: string | null; contactId: string | null; phone: string; contactTel: string; counselorId: string | null }
+  const [fill, setFill] = useState<{ text: string; prev: CustSnap; movedFrom: string | null } | null>(null)
+  const [phoneDismissed, setPhoneDismissed] = useState('')
+  const placeOfVendor = (vid: string | null) => {
+    const v = vendors.find(x => x.id === vid)
+    if (!v) return ''
+    const g = groups.find(x => x.id === v.group_id)?.name
+    return [g, branchLabel(v.name, g)].filter(Boolean).join(' ') || v.name
+  }
+  const applyCustomer = (h: CustomerHit, a: CustomerAsg) => {
+    const prev: CustSnap = { groupId, vendorId, contactId, phone, contactTel, counselorId }
+    setGroupId(a.group_id ?? null)
+    setVendorId(a.vendor_id)
+    setContactId(h.contact_id)
+    if (!phone.trim() && h.phone) setPhone(h.phone)
+    if (!contactTel.trim() && h.tel) setContactTel(h.tel)
+    autoCounselor.current = true
+    setCounselorId(a.staff_employee_id ?? null)     // 상담자 = 고객의 다올 담당 (112)
+    setAddingContact(false); setAddingIndividual(null); setGlobalOpen(false)
+    const movedFrom = prev.vendorId && prev.vendorId !== a.vendor_id ? placeOfVendor(prev.vendorId) : null
+    const staff = staffName(a.staff_employee_id)
+    setFill({ text: `${asgPlace(a)} · ${contactLabel(h.name, a.title)}${staff ? ` · 상담자 ${staff}` : ''}`, prev, movedFrom })
+  }
+  const undoFill = () => {
+    if (!fill) return
+    const p = fill.prev
+    setGroupId(p.groupId); setVendorId(p.vendorId); setContactId(p.contactId)
+    setPhone(p.phone); setContactTel(p.contactTel); setCounselorId(p.counselorId)
+    setFill(null)
+  }
+  // 인사이동: 처음 고른 지점으로 되돌린다 — 주문서는 마스터 담당자만 저장하므로 그 지점에서 담당자를 다시 고르거나 등록
+  const keepTypedBranch = () => {
+    if (!fill) return
+    const p = fill.prev
+    setGroupId(p.groupId); setVendorId(p.vendorId); setContactId(null)
+    setFill(null)
+  }
+  const exactPhoneHits = phoneSearch.hits.filter(h => h.exact)
+  const exactPhone = exactPhoneHits.length === 1 && normTel(phone) !== phoneDismissed ? exactPhoneHits[0] : null
+
   const setItem = (i: number, patch: Partial<ItemDraft>) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, ...patch } : it))
 
@@ -687,20 +743,40 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                 if (c) pickIndividual(c)
                 else { setContactId(null) }
               }}
-              placeholder={indPick ? '개인 고객 검색 (이름 · 전화번호)' : vendorId ? '담당자 선택' : '주문처를 먼저 선택'}
+              placeholder={indPick ? '개인 고객 검색 (이름 · 전화번호)' : vendorId ? '담당자 선택' : '이름으로 찾기 — 지점을 몰라도 됩니다'}
               required
-              footer={indPick ? (!isParttime && (
+              onQuery={setContactQ}
+              footer={({ close }) => indPick ? (!isParttime && (
                 <button type="button" onMouseDown={e => e.preventDefault()}
                   onClick={() => setAddingIndividual({})}
                   className="w-full text-left px-3 py-1.5 text-blue-700 font-medium hover:bg-blue-50">
                   + 신규 개인 고객 등록
                 </button>
-              )) : vendorId && !isParttime && (
-                <button type="button" onMouseDown={e => e.preventDefault()}
-                  onClick={() => setAddingContact(true)}
-                  className="w-full text-left px-3 py-1.5 text-blue-700 font-medium hover:bg-blue-50">
-                  + 신규 담당자 등록
-                </button>
+              )) : (
+                <>
+                  {/* 고객 쌍방향 추천: 이름으로 전체 담당자에서 찾기 (2026-11-18) */}
+                  {nameKey.length >= 2 && !isPhoneLike(contactQ) && (vendorId && localNameMatch && !globalOpen ? (
+                    <button type="button" tabIndex={-1} onMouseDown={e => e.preventDefault()} onClick={() => setGlobalOpen(true)}
+                      className="w-full text-left px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-50 border-t border-gray-100">
+                      다른 지점에서 &ldquo;{nameKey}&rdquo; 찾기
+                    </button>
+                  ) : (
+                    <CustomerHitList hits={nameSearch.hits} loading={nameSearch.loading} staffName={staffName}
+                      excludeVendorId={vendorId}
+                      heading={vendorId
+                        ? (localNameMatch ? '다른 지점에서 찾은 담당자' : `이 지점에 "${nameKey}" 없음 — 다른 지점에서 찾은 결과`)
+                        : `"${nameKey}" 담당자 — 고르면 업체 · 지점 · 핸드폰 · 상담자가 함께 채워집니다`}
+                      emptyText="마스터에 없는 담당자입니다 — 지점을 고른 뒤 신규 담당자로 등록하세요"
+                      onPick={(h, a) => { applyCustomer(h, a); close() }} />
+                  ))}
+                  {vendorId && !isParttime && (
+                    <button type="button" onMouseDown={e => e.preventDefault()}
+                      onClick={() => setAddingContact(true)}
+                      className="w-full text-left px-3 py-1.5 text-blue-700 font-medium hover:bg-blue-50">
+                      + 신규 담당자 등록
+                    </button>
+                  )}
+                </>
               )}
             />
           </div>
@@ -750,9 +826,42 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                 </div>
                 <div>
                   <label className={label}>핸드폰</label>
-                  <input value={phone} onChange={e => setPhone(e.target.value)} className={free} placeholder="담당자 선택 시 자동" />
+                  <PhoneSearchInput value={phone} onChange={setPhone} className={free} placeholder="담당자 선택 시 자동 · 번호로 찾기"
+                    hits={phoneSearch.hits} loading={phoneSearch.loading} staffName={staffName}
+                    suppress={!!contactId || indPick} onPick={applyCustomer} />
                   {hint(phone, c?.phone)}
                 </div>
+                {/* 고객 쌍방향 추천 안내 (2026-11-18) */}
+                {(exactPhone && !contactId || fill) && (
+                  <div className="col-span-2 md:col-span-6 -mt-1">
+                    {exactPhone && !contactId && (() => {
+                      const a = exactPhone.assignments.find(x => x.current) ?? exactPhone.assignments[0]
+                      return a ? (
+                        <FillBanner kind="blue" actions={<>
+                          <button type="button" className={bannerBtnPri} onClick={() => applyCustomer(exactPhone, a)}>이 고객으로 채우기</button>
+                          <button type="button" className={bannerBtn} onClick={() => setPhoneDismissed(normTel(phone))}>아니에요</button>
+                        </>}>
+                          이 번호는 <b>{contactLabel(exactPhone.name, a.title)} · {asgPlace(a)}</b>입니다.
+                        </FillBanner>
+                      ) : null
+                    })()}
+                    {fill && (fill.movedFrom ? (
+                      <FillBanner kind="amber" actions={<>
+                        <button type="button" className={bannerBtn} onClick={keepTypedBranch}>{fill.movedFrom}(으)로 되돌리기</button>
+                        <button type="button" className={bannerBtn} onClick={() => setFill(null)}>닫기</button>
+                      </>}>
+                        고른 지점({fill.movedFrom})과 현재 소속이 달라 <b>{fill.text}</b>(으)로 바꿨습니다. 되돌리면 그 지점에서 담당자를 다시 고르세요.
+                      </FillBanner>
+                    ) : (
+                      <FillBanner kind="green" actions={<>
+                        <button type="button" className={bannerBtn} onClick={undoFill}>되돌리기</button>
+                        <button type="button" className={bannerBtn} onClick={() => setFill(null)}>닫기</button>
+                      </>}>
+                        고객으로 채웠습니다 — {fill.text}
+                      </FillBanner>
+                    ))}
+                  </div>
+                )}
               </>
             )
           })()}
@@ -777,12 +886,23 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               <input value={newVendor.group_name}
                 onChange={e => setNewVendor(p => ({ ...p, group_name: e.target.value }))}
                 placeholder="하나은행" className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm w-40" />
+              <SimilarHint input={newVendor.group_name} items={groups} nameOf={g => g.name} what="업체"
+                onPick={g => { setGroupId(g.id); setNewVendor(p => ({ ...p, group_name: g.name })) }} />
             </div>
             <div>
               <label className={label}>지점(부서)명</label>
               <input value={newVendor.branch_name}
                 onChange={e => setNewVendor(p => ({ ...p, branch_name: e.target.value }))}
                 placeholder="OO지점 (단일 업체는 비움)" className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm w-44" />
+              {newVendor.branch_name.trim() && (
+                <SimilarHint what="지점"
+                  input={[newVendor.group_name, newVendor.branch_name].filter(Boolean).join(' ')}
+                  items={vendors.filter(v => !v.individual_contact_id)} nameOf={v => v.name}
+                  onPick={v => {
+                    setVendorId(v.id); setGroupId(v.group_id ?? null); setContactId(null)
+                    setAddingVendor(false); setNewVendor({ group_name: '', branch_name: '' })
+                  }} />
+              )}
             </div>
             <button type="button" onClick={createVendor}
               className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm">등록</button>
