@@ -529,7 +529,7 @@ export async function syncRecordsForOrders(admin: SupabaseClient, orderIds: stri
     // 취소한 만큼은 덮을 필요가 없다 — 주문별 금액에서 뺀다(전액 취소된 기록은 orders 가 비어 건너뛴다)
     const syncCancels = await loadCancelLines(admin, recs.map(r => r.id))
     for (const r of recs) {
-      const ls = syncCancels.get(r.id); if (!ls?.length) continue
+      const ls = syncCancels.get(r.id); if (!ls?.length || r.method === 'transfer') continue   // 계좌이체는 빼지 않는다(환불은 별도 마이너스 매칭)
       r.orders = r.orders.map(o => ({ ...o, amount: o.amount - ls.reduce((x, c) => x + (c.orders.find(y => y.order_id === o.order_id)?.amount ?? 0), 0) })).filter(o => o.amount > 0)
     }
     const rows = await matchRowsByOrder(admin, recs.flatMap(r => r.orders.map(o => o.order_id)))
@@ -603,7 +603,8 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
     for (const r of recs) {
       const ls = cancelLines.get(r.id); if (!ls?.length) continue
       r.canceled = ls.reduce((x, c) => x + c.amount, 0)
-      if (opts.state === 'pending') {
+      // 계좌이체는 빼지 않는다 — 입금은 전액 들어왔고 환불은 별도 출금으로 따로 매칭한다(1306)
+      if (opts.state === 'pending' && r.method !== 'transfer') {
         r.amount -= r.canceled
         r.orders = r.orders.map(o => ({ ...o, amount: o.amount - ls.reduce((x, c) => x + (c.orders.find(y => y.order_id === o.order_id)?.amount ?? 0), 0) })).filter(o => o.amount > 0)
       }
@@ -847,7 +848,8 @@ export async function confirmRecord(admin: SupabaseClient, recordId: string, raw
   if (!rec) return { error: '결제 기록을 찾을 수 없습니다.' }
   if (rec.confirmed_at) return { error: '이미 확인된 기록입니다.' }
   if ((await loadCancelRowIds(admin, [recordId])).has(recordId)) return { error: '취소 줄입니다. 매칭 대기 위의 "취소 대기"에서 취소 확정을 하세요.' }
-  const myCancels = (await loadCancelLines(admin, [recordId])).get(recordId) ?? []
+  // 계좌이체는 취소 줄을 대조 금액에서 빼지 않는다 — 입금은 전액 들어왔고 환불은 별도 출금으로 매칭한다(1306)
+  const myCancels = rec.method === 'transfer' ? [] : (await loadCancelLines(admin, [recordId])).get(recordId) ?? []
   if (!SELF_CONFIRM_ALLOWED && rec.created_by && rec.created_by === editor.employeeId) return { error: '입력한 본인은 확정할 수 없습니다. 다른 직원에게 요청하세요.' }
   const { count } = await admin.from('erp_payment_matches').select('id', { count: 'exact', head: true }).eq('record_id', recordId)
   if ((count ?? 0) > 0) return { error: '이 기록에 이미 수금 매칭이 붙어 있습니다. 확인 해제 후 다시 시도하세요.' }
@@ -992,6 +994,8 @@ export async function releaseRecord(admin: SupabaseClient, recordId: string, rea
   if (!rec) return { error: '결제 기록을 찾을 수 없습니다.' }
   if (!rec.confirmed_at) return { error: '확인 대기 상태의 기록입니다.' }
   if ((await loadCancelRowIds(admin, [recordId])).has(recordId)) return { error: '취소 매칭은 해제할 수 없습니다. 잘못 확정했으면 ERP 담당에게 요청해주세요.' }
+  // 취소가 확정된 기록은 확인 해제할 수 없다 — 환불(마이너스 매칭)만 남으면 주문 수금이 음수가 된다
+  if (((await loadCancelLines(admin, [recordId])).get(recordId) ?? []).some(c => c.confirmed_at)) return { error: '취소가 확정된 결제 기록은 확인 해제할 수 없습니다.' }
   // 계산서 입금에서 넘어온 수금(1302)이 이 기록을 채우고 있으면 여기서 풀 수 없다 — 계산서 쪽에서 풀어야 양쪽이 어긋나지 않는다
   // (칸이 없으면 조회가 실패하고 건너뛴다. 문구는 lib/link-sync.ts FROM_INVOICE_BLOCK 과 같게 — 순환 import 를 피하려고 여기 적는다)
   const { data: derived } = await admin.from('erp_payment_matches').select('id').eq('record_id', recordId).not('from_invoice_id', 'is', null).limit(1)

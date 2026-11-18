@@ -65,6 +65,17 @@ export async function netRecordLinks<T extends { record_id: string; order_id: st
     .filter(l => l.amount > 0)
 }
 
+// 수금 매칭 1건을 손으로 풀어도 되는가 (1306) — 환불(마이너스) 행과, 환불이 확정된 결제 기록의 입금 행은 풀 수 없다.
+// 하나만 지우면 주문 수금이 음수가 되거나 환불이 사라진다. 막아야 하면 사유 문구, 아니면 null.
+export async function refundGuard(admin: SupabaseClient, matchId: string): Promise<string | null> {
+  const { data: m, error } = await admin.from('erp_payment_matches').select('amount, record_id').eq('id', matchId).maybeSingle()
+  if (error || !m) return null
+  if (Number(m.amount ?? 0) < 0) return '환불 출금 매칭은 여기서 풀 수 없습니다. 잘못 매칭했으면 ERP 담당에게 요청해주세요.'
+  if (!m.record_id) return null
+  const { data: c } = await admin.from('order_payment_records').select('id').eq('cancel_of', m.record_id as string).not('confirmed_at', 'is', null).limit(1)
+  return c?.length ? '취소(환불)가 확정된 결제 기록의 수금입니다. 풀 수 없습니다.' : null
+}
+
 // 취소 계산서가 연결된 계산서들 — originals = 전액 취소된 원 계산서(연결 동기화 · 연결 후보에서 뺀다), cancels = 취소 계산서 자신.
 // 일부만 취소된 원 계산서(취소 금액 합 < 계산서 합계)는 originals 에 넣지 않는다 — 남은 금액에는 입금이 다시 붙어 주문으로 넘어가야 한다.
 export async function loadCanceledInvoices(admin: SupabaseClient, invoiceIds: string[]): Promise<{ originals: Set<string>; cancels: Set<string> }> {

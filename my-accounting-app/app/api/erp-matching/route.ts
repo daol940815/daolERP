@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { refundGuard } from '@/lib/payment-cancel-meta'
 import { getCurrentUser } from '@/lib/user-role'
 import { findAutoMatches, loadMatchingState } from '@/lib/erp-matching'
 import { FROM_INVOICE_BLOCK, syncInvoicesForOrders } from '@/lib/link-sync'
@@ -140,6 +141,9 @@ export async function DELETE(req: NextRequest) {
   // 계산서 입금에서 넘어온 수금(1302)은 계산서 쪽에서만 푼다 — 여기서 지우면 계산서는 입금 완료인데 주문만 미수로 어긋난다
   const { data: fm } = await admin.from('erp_payment_matches').select('from_invoice_id').eq('id', id).maybeSingle()
   if (fm?.from_invoice_id) return NextResponse.json({ error: FROM_INVOICE_BLOCK }, { status: 409 })
+  // 환불(마이너스) 매칭 · 취소가 확정된 기록의 수금은 여기서 풀지 않는다 (1306)
+  const guard = await refundGuard(admin, id)
+  if (guard) return NextResponse.json({ error: guard }, { status: 409 })
   const { error } = await admin.from('erp_payment_matches').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (m?.source_type === 'prepay') {

@@ -9,10 +9,12 @@ import { resolveReason } from './payment-reasons'
 //   카드   : 카드 매출의 취소 행(같은 승인번호)이 있어야 확정 → 원 기록의 수금 매칭을 취소 금액만큼 줄인다
 //   계산서 : 취소 계산서(마이너스)를 골라 확정 → 취소 계산서를 주문에 마이너스로 연결(원 계산서 연결은 그대로 둔다),
 //            원 계산서에 붙어 있던 입금을 전부 풀고(계산서를 거쳐 넘어온 주문 수금도 함께 풀린다), 원 계산서는 연결 동기화에서 빠진다
-//   계좌이체: 취소 줄은 남길 수 있으나 2차 매칭(환불 출금)은 2단계 — 그때까지 '취소 대기'
+//   계좌이체: 통장의 환불 출금을 골라 확정(1306) → 입금 매칭(+)은 그대로 두고 환불 출금을 같은 주문에 마이너스 금액으로 붙인다(record_id = 취소 줄).
+//            원 이체 기록이 입금과 매칭돼 있어야 확정할 수 있다(입금 없이 환불만 붙으면 수금이 음수가 된다)
 // 재발행 여부는 알 수 없으므로 아무것도 자동으로 옮기지 않는다. 재발행 계산서는 새 기록 · 새 연결 · 새 입금으로 따로 붙인다.
 
 export const MIGRATION_1305_MSG = '1305 마이그레이션(결제 기록 취소)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
+export const MIGRATION_1306_MSG = '1306 마이그레이션(계좌이체 환불 매칭)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
 const won = (n: number) => n.toLocaleString('ko-KR')
 const chunk = <T,>(a: T[], n = 150) => { const o: T[][] = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o }
 const isDate = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)
@@ -75,9 +77,10 @@ export async function createCancel(admin: SupabaseClient, origId: string, raw: u
 
 // ── 2차: 취소 대기열 ────────────────────────────────────────────────
 export interface CancelCandidate {
-  kind: 'card' | 'invoice'
+  kind: 'card' | 'invoice' | 'bank'
   label: string; date: string; amount: number; note: string
   neg_invoice_id?: string; pos_invoice_id?: string
+  tx_id?: string
 }
 export interface CancelQueueRow {
   id: string; method: PayMethod; cancel_date: string; amount: number
@@ -158,6 +161,25 @@ export async function loadCancelQueue(admin: SupabaseClient): Promise<CancelQueu
     for (const l of ls ?? []) usedNeg.add(l.tax_invoice_id as string)
   }
 
+  // 계좌이체: 환불 출금 후보 — 출금액이 취소 금액과 같고, 원 결제일 ~ 취소일 +14일, 아직 환불로 쓰이지 않은 것
+  type Tx = { id: string; tx_date: string; amount_out: number | null; counterparty_name: string | null; description: string | null }
+  const trCs = cs.filter(c => c.method === 'transfer')
+  const outs: Tx[] = []
+  if (trCs.length) {
+    const from = trCs.reduce((m, c) => { const d = origs.get(c.cancel_of)?.pay_date ?? c.pay_date; return d < m ? d : m }, '9999-12-31')
+    for (const ch of chunk(Array.from(new Set(trCs.map(c => c.amount))), 100)) {
+      const { data: ts } = await admin.from('transactions').select('id, tx_date, amount_out, counterparty_name, description')
+        .in('amount_out', ch).gte('tx_date', from).order('tx_date').limit(1000)
+      outs.push(...((ts ?? []) as Tx[]))
+    }
+  }
+  const usedOut = new Set<string>()
+  for (const ch of chunk(outs.map(t => t.id))) {
+    const { data: ms } = await admin.from('erp_payment_matches').select('source_id').eq('source_type', 'bank').in('source_id', ch)
+    for (const m of ms ?? []) usedOut.add(m.source_id as string)
+  }
+  const plusDays = (iso: string, n: number) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
+
   return cs.map(c => {
     const orig = origs.get(c.cancel_of)
     const orders = links.filter(l => l.record_id === c.id).map(l => ({ order_id: l.order_id, order_no: orderNo.get(l.order_id) ?? null, amount: Number(l.amount ?? 0) }))
@@ -184,7 +206,19 @@ export async function loadCancelQueue(admin: SupabaseClient): Promise<CancelQueu
         }
       }
       if (!candidates.length) note = ps.length ? '홈택스에 금액이 맞는 취소 계산서가 아직 없습니다' : '이 주문에 연결된 원 계산서가 없습니다 — 원 계산서부터 주문에 연결해야 취소 계산서를 붙일 수 있습니다'
-    } else note = '계좌이체 환불의 매칭(통장 출금)은 준비 중입니다 — 그때까지 취소 대기로 남습니다'
+    } else {
+      if (!orig?.confirmed_at) note = '원 이체 기록이 아직 입금과 매칭되지 않았습니다 — 아래 매칭 대기에서 입금부터 확정하세요'
+      else {
+        for (const t of outs) {
+          const d = String(t.tx_date).slice(0, 10)
+          if (usedOut.has(t.id) || Number(t.amount_out ?? 0) !== c.amount || d < orig.pay_date || d > plusDays(c.pay_date, 14)) continue
+          const who = (t.counterparty_name || t.description || '').trim()
+          candidates.push({ kind: 'bank', label: `통장 출금 ${who.slice(0, 20)}`.trim(), date: d, amount: -c.amount, note: `금액 일치 · 취소일 ${c.pay_date}`, tx_id: t.id })
+        }
+        candidates.sort((x, y) => Math.abs(new Date(x.date).getTime() - new Date(c.pay_date).getTime()) - Math.abs(new Date(y.date).getTime() - new Date(c.pay_date).getTime()))
+        if (!candidates.length) note = '통장에 금액이 맞는 환불 출금이 아직 없습니다 (원 결제일 ~ 취소일 +14일)'
+      }
+    }
     return {
       id: c.id, method: c.method, cancel_date: c.pay_date, amount: c.amount, reason_text: c.reason_text, created_by_name: c.created_by_name,
       vendor_name: c.vendor_id ? vName.get(c.vendor_id) ?? null : null,
@@ -195,7 +229,7 @@ export async function loadCancelQueue(admin: SupabaseClient): Promise<CancelQueu
 }
 
 // ── 2차: 취소 확정 ──────────────────────────────────────────────────
-// body: 카드 = {} / 계산서 = { neg_invoice_id, pos_invoice_id }
+// body: 카드 = {} / 계산서 = { neg_invoice_id, pos_invoice_id } / 계좌이체 = { tx_id }
 export async function confirmCancel(admin: SupabaseClient, cancelId: string, raw: unknown, editor: Editor): Promise<{ error: string } | { ok: true; message: string; orderIds: string[] }> {
   const b = (raw ?? {}) as Record<string, unknown>
   const { data: c0 } = await admin.from('order_payment_records').select(ORIG_COLS).eq('id', cancelId).maybeSingle()
@@ -271,7 +305,30 @@ export async function confirmCancel(admin: SupabaseClient, cancelId: string, raw
     const freed = sync.removed > 0 || directSum > 0 || (payCount ?? 0) > 0
     message = `취소 계산서를 주문에 연결했습니다.${freed ? ` 원 계산서에 붙어 있던 입금 ${payCount ?? 0}건을 풀었고, 주문 미수가 다시 생겼습니다. 풀린 입금은 미연결 입금으로 돌아갑니다.` : ' 원 계산서에 붙은 입금은 없었습니다.'}`
   } else {
-    return { error: '계좌이체 환불의 매칭(통장 출금)은 준비 중입니다. 취소 기록은 취소 대기로 남습니다.' }
+    // 계좌이체 환불 (1306): 입금 매칭은 그대로 두고, 환불 출금을 같은 주문에 마이너스 금액으로 붙인다
+    const txId = String(b.tx_id ?? '')
+    if (!txId) return { error: '환불 출금을 고르세요.' }
+    if (!orig.confirmed_at) return { error: '원 이체 기록이 아직 입금과 매칭되지 않았습니다. 입금부터 확정한 뒤 환불을 매칭하세요.' }
+    const { data: tx } = await admin.from('transactions').select('id, tx_date, amount_out').eq('id', txId).maybeSingle()
+    if (!tx || !(Number(tx.amount_out ?? 0) > 0)) return { error: '통장 출금 내역을 찾을 수 없습니다.' }
+    const { data: used } = await admin.from('erp_payment_matches').select('amount').eq('source_type', 'bank').eq('source_id', txId)
+    const usedSum = (used ?? []).reduce((x, m) => x + Math.abs(Number(m.amount ?? 0)), 0)
+    if (Number(tx.amount_out) - usedSum < amount) return { error: `이 출금의 남은 금액(${won(Number(tx.amount_out) - usedSum)}원)이 환불 금액(${won(amount)}원)보다 적습니다.` }
+    // 주문별로, 이 기록이 그 주문에서 실제로 수금한 금액을 넘겨 환불할 수 없다 (수금이 음수가 되지 않게)
+    const { data: plus } = await admin.from('erp_payment_matches').select('order_id, amount').eq('record_id', orig.id).in('order_id', orderIds)
+    const got = new Map<string, number>()
+    for (const m of plus ?? []) got.set(m.order_id as string, (got.get(m.order_id as string) ?? 0) + Number(m.amount ?? 0))
+    const doneLines = ((await loadCancelLines(admin, [orig.id])).get(orig.id) ?? []).filter(l => l.confirmed_at)
+    for (const a of allocs) {
+      const back = doneLines.reduce((x, l) => x + (l.orders.find(o => o.order_id === a.order_id)?.amount ?? 0), 0)
+      if ((got.get(a.order_id) ?? 0) - back < a.amount) return { error: '이 주문에서 수금한 금액보다 큰 환불입니다. 원 이체 기록의 매칭 상태를 확인하세요.' }
+    }
+    const { error: ie } = await admin.from('erp_payment_matches').insert(allocs.map(a => ({
+      order_id: a.order_id, source_type: 'bank', source_id: txId, amount: -a.amount, paid_date: String(tx.tx_date).slice(0, 10),
+      matched_by: 'manual', record_id: cancelId, memo: ['이체 환불', editor.employeeName].filter(Boolean).join(' · '),
+    })))
+    if (ie) return { error: /amount_check|violates check/i.test(ie.message) ? MIGRATION_1306_MSG : ie.message }
+    message = `환불 출금을 매칭했습니다 — 입금은 그대로 두고 환불 ${won(amount)}원을 주문에 붙여 미수가 그만큼 늘었습니다.`
   }
 
   const { error: ue } = await admin.from('order_payment_records').update(stamp).eq('id', cancelId).is('confirmed_at', null)

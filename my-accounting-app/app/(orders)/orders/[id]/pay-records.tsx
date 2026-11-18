@@ -387,7 +387,6 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
               <div className="mt-2 text-[0.6875rem] text-gray-500">
                 실제로 {act.rec.method === 'card' ? '카드 승인을 취소' : act.rec.method === 'invoice' ? '취소 계산서를 발행' : '돈을 돌려준'}한 경우에만 남깁니다. 기록을 잘못 적은 것이면 &quot;삭제&quot;를 쓰세요.
                 취소만으로는 미수가 바뀌지 않고, 회계가 {act.rec.method === 'card' ? '카드 매출의 취소 내역' : act.rec.method === 'invoice' ? '홈택스 취소 계산서' : '통장 출금'}과 매칭하면 바뀝니다.
-                {act.rec.method === 'transfer' && ' (계좌이체 환불의 매칭은 준비 중이라 그때까지 취소 대기로 남습니다)'}
               </div>
             </>) : (<>
               <ReasonPicker kind="delete" value={actReason} onChange={setActReason} label="삭제 사유" />

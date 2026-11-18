@@ -30,7 +30,7 @@ interface Row {
   invoice_kind?: string | null; invoice_kind_diff?: boolean
 }
 // 취소 대기 (1305): 1차에서 남긴 취소 줄 — 카드 매출의 취소 행 · 홈택스 취소 계산서와 매칭해 확정한다
-interface CancelCand { kind: 'card' | 'invoice'; label: string; date: string; amount: number; note: string; neg_invoice_id?: string; pos_invoice_id?: string }
+interface CancelCand { kind: 'card' | 'invoice' | 'bank'; label: string; date: string; amount: number; note: string; neg_invoice_id?: string; pos_invoice_id?: string; tx_id?: string }
 interface CancelRow {
   id: string; method: Method; cancel_date: string; amount: number; reason_text: string | null; created_by_name: string | null; vendor_name: string | null
   orig: { id: string; pay_date: string; amount: number; approval_number: string | null; confirmed: boolean }
@@ -127,12 +127,13 @@ export default function MatchTab() {
   const confirmCancel = async (c: CancelRow, cand: CancelCand) => {
     const effect = c.method === 'card'
       ? (c.orig.confirmed ? `원 결제의 수금 매칭이 ${won(c.amount)}원 줄고 주문 미수가 그만큼 늘어납니다.` : '원 결제가 아직 매칭 전이라 미수는 그대로입니다.')
-      : '취소 계산서가 주문에 연결되고, 원 계산서에 붙어 있던 입금이 풀려 주문 미수가 다시 생깁니다.'
+      : c.method === 'invoice' ? '취소 계산서가 주문에 연결되고, 원 계산서에 붙어 있던 입금이 풀려 주문 미수가 다시 생깁니다.'
+        : `입금 매칭은 그대로 두고 환불 출금 ${won(c.amount)}원을 주문에 붙입니다. 주문 미수가 그만큼 늘어납니다.`
     if (!confirm(`이 취소를 확정할까요?\n\n취소 기록: ${SHORT[c.method]} ${c.cancel_date} −${won(c.amount)}원\n원본: ${cand.label} ${cand.date}\n\n${effect}\n확정한 취소는 되돌릴 수 없습니다.`)) return
     setBusyId(c.id); setMsg(null)
     const res = await fetch(`/api/payment-records/${c.id}/cancel-confirm`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cand.kind === 'invoice' ? { neg_invoice_id: cand.neg_invoice_id, pos_invoice_id: cand.pos_invoice_id } : {}),
+      body: JSON.stringify(cand.kind === 'invoice' ? { neg_invoice_id: cand.neg_invoice_id, pos_invoice_id: cand.pos_invoice_id } : cand.kind === 'bank' ? { tx_id: cand.tx_id } : {}),
     })
     const json = await res.json().catch(() => ({}))
     setBusyId(null)
@@ -234,7 +235,7 @@ export default function MatchTab() {
         <div className="mb-4 bg-white border border-orange-200 rounded-xl overflow-x-auto">
           <div className="px-3 py-2 border-b border-orange-100 bg-orange-50 text-sm">
             <b className="text-orange-900">취소 대기 {cancels.length}건</b>
-            <span className="text-xs text-orange-800"> — 주문에 남긴 결제 취소를 카드 매출의 취소 내역 · 홈택스 취소 계산서와 매칭합니다. 확정해야 미수에 반영됩니다.</span>
+            <span className="text-xs text-orange-800"> — 주문에 남긴 결제 취소를 카드 매출의 취소 내역 · 홈택스 취소 계산서 · 통장의 환불 출금과 매칭합니다. 확정해야 미수에 반영됩니다.</span>
           </div>
           <table className="w-full text-sm min-w-[60rem]">
             <thead>
@@ -251,7 +252,7 @@ export default function MatchTab() {
               {cancels.map(c => (
                 <tr key={c.id} className="border-b border-gray-100 align-top">
                   <td className="py-2.5 px-3 tabular-nums whitespace-nowrap">{c.cancel_date}</td>
-                  <td className="py-2.5 px-3"><span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-orange-100 text-orange-800">{SHORT[c.method]} 취소</span></td>
+                  <td className="py-2.5 px-3"><span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-orange-100 text-orange-800">{c.method === 'transfer' ? '이체 환불' : `${SHORT[c.method]} 취소`}</span></td>
                   <td className="py-2.5 px-3">
                     <div className="text-gray-900">{c.vendor_name ?? '(매출처 미연결)'}</div>
                     <div className="text-[0.6875rem] text-gray-500">
