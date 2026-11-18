@@ -7,7 +7,8 @@
 -- 결과는 표 하나(구분 · 이름 · 내용)로 나온다. 전체를 복사해 알려주세요.
 --  1 이름: '없음' · '동명이인' 이 있으면 실행 SQL이 멈춘다 — 직원 등록/이름 정리 후 다시
 --  2 건수: 사람별 이관 건수 · 일수 (엑셀 사용 합계와 같아야 함)
---  3 겹침: 엑셀 기준이라 실행 시 '취소'로 바뀌는 ERP 휴가. "엑셀에 없는 근무일"이 1 이상이면 부분 겹침
+--  3 겹침: 엑셀 날짜에 이미 있는 ERP 휴가 — ERP 기록을 그대로 두고 그 날짜는 엑셀에서 빼고 옮긴다(2026-11-18 선택).
+--         '결재 진행 중' 또는 '값 다름'이 있으면 실행 전에 알려주세요
 --  4 흔적: 이미 이관된 부여 · 휴가 (0 이어야 함)
 -- =====================================================
 
@@ -304,21 +305,21 @@ r2 AS (
     || '일 (엑셀 사용 합계 ' || ep.used_total || ')' AS 내용
   FROM excel_people ep
 ),
-erp AS (
-  SELECT l.id, e.name, l.leave_type, l.start_date, l.end_date, l.status
-  FROM attendance_leaves l JOIN emp e ON e.id = l.employee_id
+erp_cover AS (
+  SELECT e.name, g.d::date AS day, l.id AS leave_id, l.leave_type, l.status,
+    CASE WHEN l.leave_type IN ('half_am','half_pm','half') THEN 0.5 WHEN l.leave_type IN ('annual','sick') THEN 1 ELSE 0 END AS weight
+  FROM attendance_leaves l JOIN employees e ON e.id = l.employee_id AND e.is_active
+  CROSS JOIN LATERAL generate_series(l.start_date, l.end_date, interval '1 day') g(d)
   WHERE l.status IN ('requested','approved') AND coalesce(l.source,'request') <> 'excel'
 ),
 r3 AS (
-  SELECT '3 겹침' AS 구분, erp.name AS 이름,
-    erp.leave_type || ' ' || erp.start_date || '~' || erp.end_date || ' (' || erp.status || ')'
-    || ' · 엑셀과 겹친 날 ' || (SELECT count(*) FROM excel_use u WHERE u.name = erp.name AND u.day BETWEEN erp.start_date AND erp.end_date)
-    || ' · 엑셀에 없는 근무일 ' || (SELECT count(*) FROM generate_series(erp.start_date, erp.end_date, interval '1 day') g(d)
-        WHERE extract(isodow FROM g.d) < 6
-          AND NOT EXISTS (SELECT 1 FROM attendance_holidays h WHERE h.holiday_date = g.d::date)
-          AND NOT EXISTS (SELECT 1 FROM excel_use u WHERE u.name = erp.name AND u.day = g.d::date)) AS 내용
-  FROM erp
-  WHERE EXISTS (SELECT 1 FROM excel_use u WHERE u.name = erp.name AND u.day BETWEEN erp.start_date AND erp.end_date)
+  SELECT '3 겹침' AS 구분, u.name AS 이름,
+    u.day || ' 엑셀 ' || CASE u.leave_type WHEN 'annual' THEN '1' WHEN 'half' THEN '0.5' ELSE u.reason END
+    || ' · ERP ' || c.leave_type || ' (' || c.status || ')'
+    || CASE WHEN c.status = 'requested' THEN ' — 결재 진행 중: 실행 SQL이 멈춤(먼저 처리 필요)'
+            WHEN u.leave_type IN ('annual','half') AND c.weight <> CASE u.leave_type WHEN 'annual' THEN 1 ELSE 0.5 END THEN ' — 값 다름: 확인 필요'
+            ELSE ' — ERP 기록 유지, 엑셀 이 날짜는 옮기지 않음' END AS 내용
+  FROM excel_use u JOIN erp_cover c ON c.name = u.name AND c.day = u.day
 ),
 r4 AS (
   SELECT '4 흔적' AS 구분, '-' AS 이름,
