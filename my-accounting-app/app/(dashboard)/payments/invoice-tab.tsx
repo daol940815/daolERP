@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { OrderNoLink } from '@/components/payments/OrderPreview'
 import InvoiceLinkModal from '../sales-cycle/invoice-link-modal'
 import { BillingAskDialog, saveInvoiceLinks, type BillingAsk, type InvoiceLink } from '../sales-cycle/billing-ask'
 
@@ -130,7 +131,7 @@ export default function InvoiceTab() {
                     <td className="py-2.5 px-3"><span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[0.6875rem] font-semibold ${ISSUE[r.issue].cls}`}>{ISSUE[r.issue].label}</span></td>
                     <td className="py-2.5 px-3 whitespace-nowrap tabular-nums">
                       {r.order_date}
-                      <div><Link href={`/orders/${r.order_id}`} className="text-[0.6875rem] text-gray-500 hover:underline">{r.order_no ?? '-'}</Link></div>
+                      <div className="text-[0.6875rem]"><OrderNoLink id={r.order_id} no={r.order_no} /></div>
                     </td>
                     <td className="py-2.5 px-3">
                       <div className="text-gray-900">{r.customer_name || '-'}</div>

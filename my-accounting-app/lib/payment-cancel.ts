@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { fetchAllRows } from './fetch-all-rows'
 import { kstToday, type Editor } from './orders-portal'
 import { hasCancelCols, loadCancelLines, loadCancelRowIds } from './payment-cancel-meta'
 import { syncRecordsForOrders, writeLog, type PayMethod, type Reason } from './payment-records'
@@ -93,10 +94,12 @@ export interface CancelQueueRow {
 }
 
 export async function loadCancelQueue(admin: SupabaseClient): Promise<CancelQueueRow[]> {
-  const { data, error } = await admin.from('order_payment_records')
+  // 건수 제한 없이 전부 (2026-11-18 — 제한을 넘는 취소 줄이 목록에서 빠지지 않게)
+  const all = await fetchAllRows<Record<string, unknown>>((f, t) => admin.from('order_payment_records')
     .select('id, method, pay_date, amount, reason_text, created_by_name, vendor_id, cancel_of')
-    .not('cancel_of', 'is', null).is('confirmed_at', null).order('pay_date').limit(300)
-  if (error || !data?.length) return []
+    .not('cancel_of', 'is', null).is('confirmed_at', null).order('pay_date').range(f, t))
+  if ('error' in all || !all.data.length) return []
+  const data = all.data
   type C = { id: string; method: PayMethod; pay_date: string; amount: number; reason_text: string | null; created_by_name: string | null; vendor_id: string | null; cancel_of: string }
   const cs = (data as unknown as C[]).map(c => ({ ...c, amount: Number(c.amount ?? 0) }))
 

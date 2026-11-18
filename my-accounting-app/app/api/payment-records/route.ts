@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/user-role'
 import { can } from '@/lib/permissions'
 import { loadConfirmQueue } from '@/lib/payment-records'
 import { loadCancelQueue } from '@/lib/payment-cancel'
+import { loadStaffScope } from '@/lib/payment-overview'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -19,5 +20,5 @@ export async function GET(req: NextRequest) {
   if ('error' in r) return NextResponse.json({ error: r.error }, { status: 500 })
   // 취소 대기열 (1305) — 1차에서 남긴 취소 줄 가운데 아직 원본과 매칭하지 않은 것
   const cancels = state === 'pending' ? await loadCancelQueue(admin) : []
-  return NextResponse.json({ ...r, cancels, can_edit: can(me, 'collections', 'edit') })
+  return NextResponse.json({ ...r, cancels, scope: await loadStaffScope(admin, me), can_edit: can(me, 'collections', 'edit') })
 }

@@ -9,6 +9,7 @@ import { NOT_VOID_OR } from '@/lib/card-sale-status'
 import { insertMatches, logUnmatch } from './match-log'
 import { hasCancelCols, loadCancelLines, loadCancelRowIds, netRecordLinks, type CancelLine } from './payment-cancel-meta'
 import { kindDiff, kindLabel, kindMissing, kindOfCardSale, CARD_ENTRY_LABEL, REC_VAT_LABEL, type CardEntry, type PayKind, type RecVat } from './payment-kind'
+import { loadVendorStaff } from './payment-overview'
 
 // ── 결제 기록 (1300, 2026-11-13 사용자 확정 — docs/payment-track.md · 시안 docs/mockups/결제처리_시안.html) ──
 // 1차: 영업지원이 주문 상세에서 결제를 기록한다(카드결제 / 계좌이체 / 계산서 발행). 미수는 그대로 — '확인 대기'.
@@ -452,6 +453,7 @@ export interface QueueRow extends PayRecordView {
   invoice_linked: number | null      // 계산서 발행 기록: 주문에 연결된 홈택스 계산서 금액 합 (없으면 0)
   matched: { source_type: string; label: string; paid_date: string; amount: number }[]
   mine: boolean
+  staff_ids?: string[]; staff_names?: string[]   // 지점 담당 (vendor_staff 현재 배정) — 공통 필터 '내 담당' (2026-11-18)
   invoice_kind?: string | null       // 계산서 발행 기록: 주문에 연결된 홈택스 계산서의 과세 구분
   invoice_kind_diff?: boolean        // 기록한 과세 구분과 다름 — 매칭 불가
 }
@@ -606,12 +608,16 @@ const dayDiff = (a: string, b: string) => Math.round((new Date(a).getTime() - ne
 export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pending' | 'confirmed'; meId: string | null }): Promise<
   { error: string } | { rows: QueueRow[]; latest: { card: string | null; bank: string | null } }
 > {
-  let q = admin.from('order_payment_records').select(REC_COLS)
-  q = opts.state === 'pending'
-    ? q.is('confirmed_at', null).order('pay_date', { ascending: true }).limit(500)
-    : q.not('confirmed_at', 'is', null).order('confirmed_at', { ascending: false }).limit(200)
-  const { data, error } = await q
-  if (error) return { error: errMsg(error.message) }
+  // 건수 제한 없이 전부 읽는다(2026-11-18) — 예전의 대기 500건 · 완료 200건 제한은 그 밖의 기록이 검색 · 필터에서 빠지는 문제가 있었다.
+  // 최근 것이 위로: 대기 = 결제일 최신순, 완료 = 매칭한 시각 최신순
+  const recRes = await fetchAllRows<Record<string, unknown>>((f, t) => {
+    const q = admin.from('order_payment_records').select(REC_COLS)
+    return (opts.state === 'pending'
+      ? q.is('confirmed_at', null).order('pay_date', { ascending: false }).order('created_at', { ascending: false })
+      : q.not('confirmed_at', 'is', null).order('confirmed_at', { ascending: false })).range(f, t)
+  })
+  if ('error' in recRes) return { error: errMsg(recRes.error) }
+  const data = recRes.data
   // 취소 줄(1305)은 이 목록에 넣지 않는다(취소 대기열은 lib/payment-cancel.ts). 원 기록은 취소한 만큼 뺀 금액으로 대조하고, 전액 취소된 대기 기록은 뺀다
   const cancelOf = await loadCancelRowIds(admin, ((data ?? []) as { id: string }[]).map(r => r.id))
   let recs = await attachOrders(admin, ((data ?? []) as Record<string, unknown>[]).filter(r => !cancelOf.has(r.id as string)))
@@ -656,9 +662,10 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
     return set
   }
 
+  const staffOf = await loadVendorStaff(admin, vendorIds)
   const today = kstToday()
   const rows: QueueRow[] = recs.map(r => ({
-    ...r, vendor_name: r.vendor_id ? vendorName.get(r.vendor_id) ?? null : null,
+    ...r, staff_ids: r.vendor_id ? staffOf.get(r.vendor_id)?.ids ?? [] : [], staff_names: r.vendor_id ? staffOf.get(r.vendor_id)?.names ?? [] : [], vendor_name: r.vendor_id ? vendorName.get(r.vendor_id) ?? null : null,
     state: opts.state, candidates: [], flag: null, wait_days: Math.max(0, dayDiff(today, r.pay_date)),
     invoice_linked: r.method === 'invoice' ? r.orders.reduce((s, o) => s + (invByOrder.get(o.order_id) ?? 0), 0) : null,
     matched: [], mine: !!opts.meId && r.created_by === opts.meId,

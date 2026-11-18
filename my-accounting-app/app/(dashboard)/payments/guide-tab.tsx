@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
+import PayFilterBar, { passPayFilter, usePayFilter, type StaffScope } from '@/components/payments/PayFilterBar'
+import { OrderNoLink } from '@/components/payments/OrderPreview'
 import { PAY_METHOD_TAG_CLS, PAY_METHOD_TAG_LABEL, PAY_STAGE_CLS, PAY_STAGE_LABEL, showMethodTag, type PayState } from '@/lib/pay-state'
 
 // 결제 확인 › 결제 안내 대상 (2026-11-16 3단계) — 영업지원 작업 목록
@@ -15,6 +16,7 @@ interface Row {
   customer_name: string; manager: string; phone: string; staff_name: string | null
   net: number; to_collect: number; pay: PayState; days: number
   last_contact: Contact | null; contact_count: number; promise_overdue: boolean; mine: boolean
+  staff_ids?: string[]; staff_names?: string[]
 }
 type Kpi = 'all' | 'unpaid' | 'partial' | 'over7' | 'promise'
 type Chip = 'all' | 'mine' | 'never' | 'over30'
@@ -30,7 +32,9 @@ export default function GuideTab() {
   const [error, setError] = useState<string | null>(null)
   const [kpi, setKpi] = useState<Kpi>('all')
   const [chip, setChip] = useState<Chip>('all')
-  const [search, setSearch] = useState('')
+  // 공통 필터 줄 (2026-11-18) — 지점 담당(기본 내 담당) · 기간(주문일) · 검색
+  const { filter, update, applyScope } = usePayFilter()
+  const [scope, setScope] = useState<StaffScope | null>(null)
   // 연락 기록 창
   const [target, setTarget] = useState<Row | null>(null)
   const [history, setHistory] = useState<Contact[]>([])
@@ -46,9 +50,9 @@ export default function GuideTab() {
     const res = await fetch('/api/payment-records/guide')
     const json = await res.json().catch(() => ({}))
     if (!res.ok) { setError(json.error ?? '조회 실패'); setRows([]) }
-    else { setRows(json.rows ?? []); setCanContact(!!json.can_contact); setContactsAvailable(json.contacts_available !== false) }
+    else { setRows(json.rows ?? []); setCanContact(!!json.can_contact); setContactsAvailable(json.contacts_available !== false); setScope(json.scope ?? null); applyScope(json.scope) }
     setLoading(false)
-  }, [])
+  }, [applyScope])
   useEffect(() => { load() }, [load])
 
   const counts = useMemo(() => ({
@@ -59,20 +63,23 @@ export default function GuideTab() {
     promise: rows.filter(r => r.promise_overdue).length,
   }), [rows])
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return rows.filter(r => {
-      if (kpi === 'unpaid' && r.pay.stage !== 'unpaid') return false
-      if (kpi === 'partial' && r.pay.stage !== 'partial_pay') return false
-      if (kpi === 'over7' && r.days <= 7) return false
-      if (kpi === 'promise' && !r.promise_overdue) return false
-      if (chip === 'mine' && !r.mine) return false
-      if (chip === 'never' && r.contact_count > 0) return false
-      if (chip === 'over30' && r.days <= 30) return false
-      if (!q) return true
-      return [r.customer_name, r.manager, r.order_no, r.staff_name, r.phone].some(v => (v ?? '').toLowerCase().includes(q))
+  const filtered = useMemo(() => rows.filter(r => {
+    if (kpi === 'unpaid' && r.pay.stage !== 'unpaid') return false
+    if (kpi === 'partial' && r.pay.stage !== 'partial_pay') return false
+    if (kpi === 'over7' && r.days <= 7) return false
+    if (kpi === 'promise' && !r.promise_overdue) return false
+    if (chip === 'mine' && !r.mine) return false
+    if (chip === 'never' && r.contact_count > 0) return false
+    if (chip === 'over30' && r.days <= 30) return false
+    return passPayFilter(filter, {
+      staff_ids: r.staff_ids, date: r.order_date,
+      fields: { vendor: r.customer_name, order: r.order_no, manager: [r.manager, r.phone, r.staff_name].filter(Boolean).join(' '), amount: [r.net, r.to_collect].join(' ') },
     })
-  }, [rows, kpi, chip, search])
+  }), [rows, kpi, chip, filter])
+  const noneCount = useMemo(() => rows.filter(r => !(r.staff_ids ?? []).length).length, [rows])
+  // 화면에는 100건씩 그린다(검색 · 필터 · 건수 · 엑셀은 전체 기준) (2026-11-18)
+  const [shown, setShown] = useState(100)
+  useEffect(() => { setShown(100) }, [filter, kpi, chip])
 
   const openContact = async (r: Row) => {
     setTarget(r); setHistory([]); setCDate(today()); setCMethod('phone'); setCMemo(''); setCPromise(''); setFormErr(null)
@@ -143,12 +150,11 @@ export default function GuideTab() {
         {kpiCard('promise', '약속일 지남', `${counts.promise}건`, '입금 약속일 경과', 'text-red-600')}
       </div>
 
+      <PayFilterBar filter={filter} update={update} scope={scope} noneCount={noneCount} />
       <div className="flex items-center gap-1.5 flex-wrap mb-3">
         {chipBtn('all', '전체')}{chipBtn('mine', '내 주문')}{chipBtn('never', '연락한 적 없음')}{chipBtn('over30', '30일 넘음')}
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="매출처 · 담당자 · 주문번호 검색"
-          className="ml-auto border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-64 max-w-full focus:outline-none focus:ring-2 focus:ring-slate-900" />
         <button onClick={exportXlsx} disabled={!filtered.length}
-          className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">엑셀 ({filtered.length}건)</button>
+          className="ml-auto px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">엑셀 ({filtered.length}건)</button>
       </div>
 
       {loading ? <div className="text-center py-20 text-gray-400">불러오는 중...</div>
@@ -161,6 +167,7 @@ export default function GuideTab() {
                 <tr className="text-left text-xs text-gray-500 border-b border-gray-200 bg-gray-50">
                   <th className="py-2.5 px-3 font-medium">주문일 / 번호</th>
                   <th className="py-2.5 px-3 font-medium">매출처 · 담당자</th>
+                  <th className="py-2.5 px-3 font-medium">지점 담당</th>
                   <th className="py-2.5 px-3 font-medium text-right">주문 금액</th>
                   <th className="py-2.5 px-3 font-medium text-right">받을 금액</th>
                   <th className="py-2.5 px-3 font-medium">결제</th>
@@ -170,16 +177,17 @@ export default function GuideTab() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(r => (
+                {filtered.slice(0, shown).map(r => (
                   <tr key={r.order_id} className="border-b border-gray-100 align-top hover:bg-gray-50">
                     <td className="py-2.5 px-3 whitespace-nowrap tabular-nums">
                       {r.order_date}
-                      <div><Link href={`/orders/${r.order_id}`} className="text-[0.6875rem] text-gray-500 hover:underline">{r.order_no ?? '-'}</Link></div>
+                      <div className="text-[0.6875rem]"><OrderNoLink id={r.order_id} no={r.order_no} /></div>
                     </td>
                     <td className="py-2.5 px-3">
                       <div className="text-gray-900">{r.customer_name || '-'}</div>
                       <div className="text-[0.6875rem] text-gray-500">{[r.manager, r.phone].filter(Boolean).join(' · ')}{r.staff_name ? <span className="text-gray-400"> · 다올 {r.staff_name}</span> : null}</div>
                     </td>
+                    <td className="py-2.5 px-3 text-xs whitespace-nowrap">{r.staff_names?.length ? r.staff_names.join(', ') : <span className="text-gray-400">담당 미지정</span>}</td>
                     <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">{won(r.net)}</td>
                     <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap font-semibold text-red-600">{won(r.to_collect)}</td>
                     <td className="py-2.5 px-3">
@@ -209,6 +217,11 @@ export default function GuideTab() {
                 ))}
               </tbody>
             </table>
+            {filtered.length > shown && (
+              <div className="p-3 text-center border-t border-gray-100">
+                <button onClick={() => setShown(n => n + 100)} className="px-4 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">더 보기 ({shown} / {filtered.length})</button>
+              </div>
+            )}
           </div>
         )}
 

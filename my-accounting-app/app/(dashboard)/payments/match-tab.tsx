@@ -4,6 +4,8 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useNotifRefresh, requestNotifRefresh } from '@/lib/use-notif-refresh'
 import ReasonPicker, { reasonReady, type ReasonValue } from '@/components/payments/ReasonPicker'
+import PayFilterBar, { passPayFilter, usePayFilter, type StaffScope } from '@/components/payments/PayFilterBar'
+import { OrderNoLink } from '@/components/payments/OrderPreview'
 import { kindLabel, type CardEntry, type RecVat } from '@/lib/payment-kind'
 
 // 결제 확인 (1300, 2026-11-13 사용자 확정 — 시안 docs/mockups/결제처리_시안.html)
@@ -30,6 +32,7 @@ interface Row {
   card_entry?: CardEntry | null; vat_kind?: RecVat | null
   invoice_kind?: string | null; invoice_kind_diff?: boolean
   last_release?: { text: string; by: string | null; at: string } | null
+  staff_ids?: string[]; staff_names?: string[]
 }
 // 취소 대기 (1305): 1차에서 남긴 취소 줄 — 카드 매출의 취소 행 · 홈택스 취소 계산서와 매칭해 확정한다
 interface CancelCand { kind: 'card' | 'invoice' | 'bank'; label: string; date: string; amount: number; note: string; neg_invoice_id?: string; pos_invoice_id?: string; tx_id?: string }
@@ -70,7 +73,9 @@ export default function MatchTab() {
   const [kpi, setKpi] = useState<Kpi>('all')
   const [method, setMethod] = useState<Method | 'all'>('all')
   const [mineOnly, setMineOnly] = useState(false)
-  const [search, setSearch] = useState('')
+  // 공통 필터 줄 (2026-11-18) — 지점 담당(기본 내 담당) · 기간(결제일 기준) · 검색. 전체 현황 · 결제 안내 대상과 조건을 함께 쓴다
+  const { filter, update, applyScope } = usePayFilter()
+  const [scope, setScope] = useState<StaffScope | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   // 다른 입금 찾기
   const [findId, setFindId] = useState<string | null>(null)
@@ -87,9 +92,9 @@ export default function MatchTab() {
     const res = await fetch(`/api/payment-records?state=${tab}`)
     const json = await res.json().catch(() => ({}))
     if (!res.ok) { setError(json.error ?? '조회 실패'); setRows([]); setCancels([]) }
-    else { setRows(json.rows ?? []); setCancels(json.cancels ?? []); setLatest(json.latest ?? { card: null, bank: null }); setCanEdit(!!json.can_edit) }
+    else { setRows(json.rows ?? []); setCancels(json.cancels ?? []); setLatest(json.latest ?? { card: null, bank: null }); setCanEdit(!!json.can_edit); setScope(json.scope ?? null); applyScope(json.scope) }
     setLoading(false)
-  }, [tab])
+  }, [tab, applyScope])
   useEffect(() => { load() }, [load])
   useNotifRefresh(load)
 
@@ -101,17 +106,22 @@ export default function MatchTab() {
     overdue: rows.filter(r => r.flag === 'overdue').length,
   }), [rows])
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return rows.filter(r => {
-      if (tab === 'pending' && kpi !== 'all' && r.flag !== kpi) return false
-      if (method !== 'all' && r.method !== method) return false
-      if (mineOnly && !r.mine) return false
-      if (!q) return true
-      return [r.vendor_name, r.approval_number, r.depositor_name, r.created_by_name, r.memo, String(r.amount), ...r.orders.map(o => o.order_no)]
-        .some(v => (v ?? '').toLowerCase().includes(q))
+  const filtered = useMemo(() => rows.filter(r => {
+    if (tab === 'pending' && kpi !== 'all' && r.flag !== kpi) return false
+    if (method !== 'all' && r.method !== method) return false
+    if (mineOnly && !r.mine) return false
+    return passPayFilter(filter, {
+      staff_ids: r.staff_ids, date: r.pay_date,
+      fields: {
+        vendor: r.vendor_name, order: r.orders.map(o => o.order_no ?? '').join(' '), approval: r.approval_number, depositor: r.depositor_name,
+        amount: [r.amount, ...r.orders.map(o => o.amount)].join(' '), manager: [r.created_by_name, r.memo].filter(Boolean).join(' '),
+      },
     })
-  }, [rows, tab, kpi, method, mineOnly, search])
+  }), [rows, tab, kpi, method, mineOnly, filter])
+  const noneCount = useMemo(() => rows.filter(r => !(r.staff_ids ?? []).length).length, [rows])
+  // 화면에는 100건씩 그린다(검색 · 필터 · 건수는 전체 기준) — 기록이 수천 건이 돼도 화면이 버벅이지 않게 (2026-11-18)
+  const [shown, setShown] = useState(100)
+  useEffect(() => { setShown(100) }, [filter, tab, kpi, method, mineOnly])
 
   const confirmWith = async (r: Row, src: { source_type: 'bank' | 'card'; source_id: string; tx_date: string; label: string }) => {
     const orders = r.orders.map(o => `${o.order_no ?? ''} ${won(o.amount)}원`).join('\n')
@@ -210,15 +220,15 @@ export default function MatchTab() {
           {kpiCard('mismatch', '불일치', `${counts.mismatch}건`, '금액 · 원본 잔액 · 구분이 기록과 다름', 'text-red-600')}
           {kpiCard('overdue', '대기 경과', `${counts.overdue}건`, '원본이 올라왔는데 후보 없음', 'text-amber-700')}
           <Link href="/payments?tab=deposits" className="text-left bg-white border border-gray-200 hover:border-gray-300 rounded-xl px-4 py-3">
-            <p className="text-xs text-gray-500">기록 없는 입금</p>
-            <p className="text-sm font-semibold mt-1 text-gray-900">기록 없는 입금 탭으로</p>
+            <p className="text-xs text-gray-500">입금대장</p>
+            <p className="text-sm font-semibold mt-1 text-gray-900">입금대장 탭으로</p>
             <p className="text-[0.6875rem] text-gray-400">안내 없이 들어온 입금을 주문에 붙임</p>
           </Link>
         </div>
       )}
 
       <div className="flex gap-1 border-b border-gray-200 mb-3">
-        {([['pending', '매칭 대기'], ['confirmed', '매칭 완료 (최근 200건)']] as const).map(([k, label]) => (
+        {([['pending', '매칭 대기'], ['confirmed', '매칭 완료']] as const).map(([k, label]) => (
           <button key={k} onClick={() => { setTab(k); setKpi('all'); setFindId(null) }}
             className={`px-4 py-2 -mb-px text-sm font-medium border-b-2 whitespace-nowrap ${tab === k ? 'border-slate-900 text-slate-900' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
             {label}
@@ -226,13 +236,12 @@ export default function MatchTab() {
         ))}
       </div>
 
+      <PayFilterBar filter={filter} update={update} scope={scope} noneCount={noneCount} />
       <div className="flex items-center gap-1.5 flex-wrap mb-3">
         {chip(method === 'all', '전체 수단', () => setMethod('all'))}
         {(['card', 'transfer', 'invoice'] as Method[]).map(m => <Fragment key={m}>{chip(method === m, SHORT[m], () => setMethod(m))}</Fragment>)}
         <span className="w-px h-5 bg-gray-200 mx-1" />
         {chip(mineOnly, '내가 입력한 것', () => setMineOnly(v => !v))}
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="매출처 · 주문번호 · 승인번호 · 입금자 · 금액 검색"
-          className="ml-auto border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-72 max-w-full focus:outline-none focus:ring-2 focus:ring-slate-900" />
       </div>
 
       {tab === 'pending' && !loading && cancels.length > 0 && (
@@ -261,7 +270,7 @@ export default function MatchTab() {
                     <div className="text-gray-900">{c.vendor_name ?? '(매출처 미연결)'}</div>
                     <div className="text-[0.6875rem] text-gray-500">
                       {c.orders.map((o, i) => (
-                        <Fragment key={o.order_id}>{i > 0 && ', '}<Link href={`/orders/${o.order_id}`} className="hover:underline tabular-nums">{o.order_no ?? '-'}</Link>{c.orders.length > 1 && <span className="text-gray-400"> {won(o.amount)}</span>}</Fragment>
+                        <Fragment key={o.order_id}>{i > 0 && ', '}<OrderNoLink id={o.order_id} no={o.order_no} />{c.orders.length > 1 && <span className="text-gray-400"> {won(o.amount)}</span>}</Fragment>
                       ))}
                     </div>
                   </td>
@@ -310,15 +319,15 @@ export default function MatchTab() {
                 <th className="py-2.5 px-3 font-medium">결제일</th>
                 <th className="py-2.5 px-3 font-medium">수단</th>
                 <th className="py-2.5 px-3 font-medium">매출처 · 주문</th>
+                <th className="py-2.5 px-3 font-medium">지점 담당</th>
                 <th className="py-2.5 px-3 font-medium text-right">기록 금액</th>
                 <th className="py-2.5 px-3 font-medium">대조 단서</th>
                 <th className="py-2.5 px-3 font-medium">{tab === 'pending' ? '원본 후보' : '대조한 원본'}</th>
-                <th className="py-2.5 px-3 font-medium">{tab === 'pending' ? '기록' : '기록 · 확인'}</th>
                 <th className="py-2.5 px-3 font-medium text-right"></th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map(r => (
+              {filtered.slice(0, shown).map(r => (
                 <Fragment key={r.id}>
                   <tr className="border-b border-gray-100 align-top">
                     <td className="py-2.5 px-3 tabular-nums whitespace-nowrap">{r.pay_date}</td>
@@ -334,12 +343,13 @@ export default function MatchTab() {
                         {r.orders.map((o, i) => (
                           <Fragment key={o.order_id}>
                             {i > 0 && ', '}
-                            <Link href={`/orders/${o.order_id}`} className="hover:underline tabular-nums">{o.order_no ?? '-'}</Link>
+                            <OrderNoLink id={o.order_id} no={o.order_no} />
                             {r.orders.length > 1 && <span className="text-gray-400"> {won(o.amount)}</span>}
                           </Fragment>
                         ))}
                       </div>
                     </td>
+                    <td className="py-2.5 px-3 text-xs whitespace-nowrap">{r.staff_names?.length ? r.staff_names.join(', ') : <span className="text-gray-400">담당 미지정</span>}</td>
                     <td className="py-2.5 px-3 text-right font-semibold tabular-nums whitespace-nowrap">{won(r.amount)}</td>
                     <td className="py-2.5 px-3 text-xs text-gray-700">
                       {clue(r)}
@@ -354,6 +364,12 @@ export default function MatchTab() {
                         </div>
                       )}
                       {r.memo && <div className="text-[0.6875rem] text-gray-400">{r.memo}</div>}
+                      <div className="text-[0.6875rem] text-gray-500 whitespace-nowrap">기재 {r.created_by_name ?? '-'}{r.mine && ' (나)'} · {when(r.created_at)}</div>
+                      {tab === 'confirmed' && <div className="text-[0.6875rem] text-gray-500 whitespace-nowrap">매칭 {r.confirmed_by_name ?? '-'} · {r.confirmed_at ? when(r.confirmed_at) : ''}</div>}
+                      {tab === 'pending' && r.last_release && (
+                        <div><span title={`매칭 해제 사유: ${r.last_release.text}\n${r.last_release.by ?? ''} · ${when(r.last_release.at)}`}
+                          className="inline-block mt-0.5 px-1.5 py-0.5 rounded border border-gray-200 text-[0.6875rem] text-gray-500 cursor-help">매칭 해제됨</span></div>
+                      )}
                     </td>
                     <td className="py-2.5 px-3 text-xs">
                       {tab === 'confirmed' ? (
@@ -385,14 +401,6 @@ export default function MatchTab() {
                             </div>
                           ))}
                         </div>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-3 text-xs text-gray-700 whitespace-nowrap">
-                      {r.created_by_name ?? '-'}{r.mine && <span className="text-[0.625rem] text-gray-400"> (나)</span>}
-                      {tab === 'confirmed' && <div className="text-[0.6875rem] text-gray-500">매칭 {r.confirmed_by_name ?? '-'} · {r.confirmed_at ? when(r.confirmed_at) : ''}</div>}
-                      {tab === 'pending' && r.last_release && (
-                        <div><span title={`매칭 해제 사유: ${r.last_release.text}\n${r.last_release.by ?? ''} · ${when(r.last_release.at)}`}
-                          className="inline-block mt-0.5 px-1.5 py-0.5 rounded border border-gray-200 text-[0.6875rem] text-gray-500 cursor-help">매칭 해제됨</span></div>
                       )}
                     </td>
                     <td className="py-2.5 px-3 text-right whitespace-nowrap">
@@ -482,6 +490,11 @@ export default function MatchTab() {
               ))}
             </tbody>
           </table>
+          {filtered.length > shown && (
+            <div className="p-3 text-center border-t border-gray-100">
+              <button onClick={() => setShown(n => n + 100)} className="px-4 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">더 보기 ({shown} / {filtered.length})</button>
+            </div>
+          )}
         </div>
       )}
 

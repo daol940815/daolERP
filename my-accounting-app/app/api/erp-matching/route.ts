@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
     .filter(d => d.remaining > 0)
     .map(d => ({
       ...d,
-      recommend: recommend.has(d.id) ? { id: recommend.get(d.id)!.id, order_no: recommend.get(d.id)!.order_no, order_date: recommend.get(d.id)!.order_date, remaining: recommend.get(d.id)!.remaining } : null,
+      recommend: recommend.has(d.id) ? { id: recommend.get(d.id)!.id, order_no: recommend.get(d.id)!.order_no, order_date: recommend.get(d.id)!.order_date, remaining: recommend.get(d.id)!.remaining, customer_name: recommend.get(d.id)!.customer_name, manager: recommend.get(d.id)!.manager ?? '' } : null,
       candidates: (ordersByVendor.get(d.vendor_id) ?? [])
         .slice()
         .sort((a, b) =>
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
     matched_by: 'manual',
     memo: body.memo?.trim() || null,
   }))
-  const { error: ie } = await insertMatches(admin, rows, '기록 없는 입금')
+  const { error: ie } = await insertMatches(admin, rows, '입금대장')
   if (ie) return NextResponse.json({ error: ie.message }, { status: 500 })
   // 결제 기록(1300)과 동기화 — 기록의 주문 · 금액이 이 매칭으로 채워지면 자동 확정 (2026-11-16)
   const sync = await syncRecordsForOrders(admin, rows.map(r => r.order_id), await editorOf(), '입금 매칭')
