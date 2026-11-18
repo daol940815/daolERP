@@ -5,6 +5,8 @@ import { getCurrentUser } from '@/lib/user-role'
 import { findAutoMatches, loadMatchingState } from '@/lib/erp-matching'
 import { FROM_INVOICE_BLOCK, syncInvoicesForOrders } from '@/lib/link-sync'
 import { syncRecordsForOrders } from '@/lib/payment-records'
+import { insertMatches, logUnmatch, loadRecentUnmatches } from '@/lib/match-log'
+import { resolveReason } from '@/lib/payment-reasons'
 
 const editorOf = async () => { const me = await getCurrentUser(); return { employeeId: me?.employeeId ?? null, employeeName: me?.employeeName ?? null } }
 
@@ -72,7 +74,8 @@ export async function GET(req: NextRequest) {
     })
     .sort((a, b) => b.paid_date.localeCompare(a.paid_date))
 
-  return NextResponse.json({ pending, matched })
+  // 최근 해제 이력 (1307) — 사유 · 사람 · 시각
+  return NextResponse.json({ pending, matched, released: await loadRecentUnmatches(admin) })
 }
 
 // POST /api/erp-matching — 수동 배분
@@ -120,7 +123,7 @@ export async function POST(req: NextRequest) {
     matched_by: 'manual',
     memo: body.memo?.trim() || null,
   }))
-  const { error: ie } = await admin.from('erp_payment_matches').insert(rows)
+  const { error: ie } = await insertMatches(admin, rows, '기록 없는 입금')
   if (ie) return NextResponse.json({ error: ie.message }, { status: 500 })
   // 결제 기록(1300)과 동기화 — 기록의 주문 · 금액이 이 매칭으로 채워지면 자동 확정 (2026-11-16)
   const sync = await syncRecordsForOrders(admin, rows.map(r => r.order_id), await editorOf(), '입금 매칭')
@@ -130,14 +133,17 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, inserted: rows.length, records_confirmed: sync.confirmed, records_released: sync.released })
 }
 
-// DELETE /api/erp-matching?id= — 매칭 해제
+// DELETE /api/erp-matching?id=  { reason: { code, text } } — 매칭 해제. 사유 필수(1307, 2026-11-18) — 해제 이력에 사유 · 사람 · 시각이 남는다
 export async function DELETE(req: NextRequest) {
   const admin = createAdminClient()
   const id = new URL(req.url).searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id가 필요합니다.' }, { status: 400 })
 
   // 선결제 사용 매칭(514)은 원장 차감 행과 한 쌍 — 함께 지워야 선결제 잔액이 복원된다 (주문 트랙 2026-11-05)
-  const { data: m } = await admin.from('erp_payment_matches').select('source_type, source_id, order_id, record_id').eq('id', id).maybeSingle()
+  const body = await req.json().catch(() => ({})) as { reason?: unknown }
+  const reason = resolveReason('release', body.reason)
+  if ('error' in reason) return NextResponse.json({ error: reason.error }, { status: 400 })
+  const { data: m } = await admin.from('erp_payment_matches').select('id, source_type, source_id, order_id, record_id, amount, paid_date').eq('id', id).maybeSingle()
   // 계산서 입금에서 넘어온 수금(1302)은 계산서 쪽에서만 푼다 — 여기서 지우면 계산서는 입금 완료인데 주문만 미수로 어긋난다
   const { data: fm } = await admin.from('erp_payment_matches').select('from_invoice_id').eq('id', id).maybeSingle()
   if (fm?.from_invoice_id) return NextResponse.json({ error: FROM_INVOICE_BLOCK }, { status: 409 })
@@ -146,6 +152,7 @@ export async function DELETE(req: NextRequest) {
   if (guard) return NextResponse.json({ error: guard }, { status: 409 })
   const { error } = await admin.from('erp_payment_matches').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (m) await logUnmatch(admin, [m], '매칭 해제', reason)
   if (m?.source_type === 'prepay') {
     await admin.from('erp_prepayments').delete().eq('id', m.source_id as string).eq('entry_type', 'deduction')
   }

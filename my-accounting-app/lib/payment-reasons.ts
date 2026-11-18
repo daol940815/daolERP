@@ -1,7 +1,7 @@
 // 결제 기록 취소 · 삭제 · 수정 사유 항목 (1305, 2026-11-18 사용자 확정 — 초안대로)
 // 화면: 글자를 치면 label · keywords 로 걸러지는 드롭다운에서 고른다. 'etc'(기타)는 직접 입력이 필수.
 // 항목을 고치려면 여기만 고친다(저장은 code + 표시 문구). 클라이언트에서도 쓴다.
-export type ReasonKind = 'cancel' | 'delete' | 'update'
+export type ReasonKind = 'cancel' | 'delete' | 'update' | 'release'
 export interface ReasonItem { code: string; label: string; keywords?: string }
 
 export const REASONS: Record<ReasonKind, ReasonItem[]> = {
@@ -31,6 +31,15 @@ export const REASONS: Record<ReasonKind, ReasonItem[]> = {
     { code: 'allocation', label: '주문 배분 변경', keywords: '주문 배분 합산 분할' },
     { code: 'etc', label: '기타 — 직접 입력' },
   ],
+  // 매칭 해제(2차 확정을 되돌림) — 1307, 2026-11-18
+  release: [
+    { code: 'wrong_source', label: '다른 입금 · 결제에 잘못 매칭', keywords: '잘못 다른 입금 카드 결제 원본' },
+    { code: 'wrong_order', label: '다른 주문의 입금 · 결제', keywords: '다른 주문 잘못' },
+    { code: 'amount', label: '금액을 잘못 배분', keywords: '금액 배분 잘못' },
+    { code: 'record_fix', label: '결제 기록 수정 필요(입력자 요청)', keywords: '기록 수정 입력자 요청 오기재' },
+    { code: 'duplicate', label: '중복 매칭', keywords: '중복 두 번' },
+    { code: 'etc', label: '기타 — 직접 입력' },
+  ],
 }
 
 export interface ReasonInput { code: string; text: string }
@@ -40,7 +49,7 @@ export function resolveReason(kind: ReasonKind, raw: unknown): { code: string; t
   const b = (raw ?? {}) as Record<string, unknown>
   const code = String(b.code ?? '').trim()
   const item = REASONS[kind].find(r => r.code === code)
-  const name = kind === 'cancel' ? '취소' : kind === 'delete' ? '삭제' : '수정'
+  const name = kind === 'cancel' ? '취소' : kind === 'delete' ? '삭제' : kind === 'release' ? '매칭 해제' : '수정'
   if (!item) return { error: `${name} 사유를 고르세요.` }
   if (code === 'etc') {
     const text = String(b.text ?? '').trim()

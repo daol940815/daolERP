@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useNotifRefresh, requestNotifRefresh } from '@/lib/use-notif-refresh'
+import ReasonPicker, { reasonReady, type ReasonValue } from '@/components/payments/ReasonPicker'
 import { kindLabel, type CardEntry, type RecVat } from '@/lib/payment-kind'
 
 // 결제 확인 (1300, 2026-11-13 사용자 확정 — 시안 docs/mockups/결제처리_시안.html)
@@ -28,6 +29,7 @@ interface Row {
   mine: boolean
   card_entry?: CardEntry | null; vat_kind?: RecVat | null
   invoice_kind?: string | null; invoice_kind_diff?: boolean
+  last_release?: { text: string; by: string | null; at: string } | null
 }
 // 취소 대기 (1305): 1차에서 남긴 취소 줄 — 카드 매출의 취소 행 · 홈택스 취소 계산서와 매칭해 확정한다
 interface CancelCand { kind: 'card' | 'invoice' | 'bank'; label: string; date: string; amount: number; note: string; neg_invoice_id?: string; pos_invoice_id?: string; tx_id?: string }
@@ -76,6 +78,8 @@ export default function MatchTab() {
   const [findAmount, setFindAmount] = useState(true)
   const [found, setFound] = useState<Found[]>([])
   const [finding, setFinding] = useState(false)
+  const [relId, setRelId] = useState<string | null>(null)            // 매칭 해제 사유 창이 열린 기록
+  const [relReason, setRelReason] = useState<ReasonValue | null>(null)
   const [showOtherKind, setShowOtherKind] = useState(false)   // 다른 입금 찾기 — 구분이 다른 카드 매출도 보기
 
   const load = useCallback(async () => {
@@ -142,20 +146,20 @@ export default function MatchTab() {
     requestNotifRefresh(); load()
   }
 
+  // 매칭 해제 — 사유를 항목에서 골라야 한다(1307). 사유 · 사람 · 시각이 이력에 남는다
   const release = async (r: Row) => {
-    const reason = prompt(`확인 해제 — 이 결제의 수금 처리를 되돌립니다.\n기록은 "확인 대기"로 돌아가고 주문 미수가 ${won(r.amount)}원 다시 늘어납니다.\n\n해제 사유를 입력하세요.`)
-    if (reason == null) return
-    if (reason.trim().length < 2) { setMsg('확인 해제 사유를 입력해야 합니다.'); return }
+    if (!reasonReady(relReason)) return
     setBusyId(r.id); setMsg(null)
     const res = await fetch(`/api/payment-records/${r.id}/confirm`, {
-      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }),
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: relReason }),
     })
     const json = await res.json().catch(() => ({}))
     setBusyId(null)
-    if (!res.ok) { setMsg(json.error ?? '확인 해제 실패'); return }
-    setMsg('확인 해제했습니다 — 기록이 확인 대기로 돌아갔습니다.')
-    requestNotifRefresh(); load()
+    if (!res.ok) { setMsg(json.error ?? '매칭 해제 실패'); return }
+    setMsg('매칭을 해제했습니다 — 기록이 매칭 대기로 돌아갔습니다.')
+    setRelId(null); requestNotifRefresh(); load()
   }
+  const when = (iso: string) => { const d = new Date(new Date(iso).getTime() + 9 * 3600000).toISOString(); return `${d.slice(5, 10)} ${d.slice(11, 16)}` }
 
   const runFind = async (r: Row, q = findQ, useAmount = findAmount) => {
     setFinding(true)
@@ -385,7 +389,11 @@ export default function MatchTab() {
                     </td>
                     <td className="py-2.5 px-3 text-xs text-gray-700 whitespace-nowrap">
                       {r.created_by_name ?? '-'}{r.mine && <span className="text-[0.625rem] text-gray-400"> (나)</span>}
-                      {tab === 'confirmed' && <div className="text-[0.6875rem] text-gray-400">확인 {r.confirmed_by_name ?? '-'} {r.confirmed_at?.slice(5, 10)}</div>}
+                      {tab === 'confirmed' && <div className="text-[0.6875rem] text-gray-500">매칭 {r.confirmed_by_name ?? '-'} · {r.confirmed_at ? when(r.confirmed_at) : ''}</div>}
+                      {tab === 'pending' && r.last_release && (
+                        <div><span title={`매칭 해제 사유: ${r.last_release.text}\n${r.last_release.by ?? ''} · ${when(r.last_release.at)}`}
+                          className="inline-block mt-0.5 px-1.5 py-0.5 rounded border border-gray-200 text-[0.6875rem] text-gray-500 cursor-help">매칭 해제됨</span></div>
+                      )}
                     </td>
                     <td className="py-2.5 px-3 text-right whitespace-nowrap">
                       {tab === 'pending' ? (<>
@@ -402,11 +410,26 @@ export default function MatchTab() {
                           </div>
                         )}
                       </>) : canEdit && (
-                        <button onClick={() => release(r)} disabled={busyId === r.id}
-                          className="text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50 disabled:opacity-40">확인 해제</button>
+                        <button onClick={() => { setRelId(relId === r.id ? null : r.id); setRelReason(null) }} disabled={busyId === r.id}
+                          className="text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50 disabled:opacity-40">{relId === r.id ? '닫기' : '매칭 해제'}</button>
                       )}
                     </td>
                   </tr>
+                  {relId === r.id && tab === 'confirmed' && (
+                    <tr className="border-b border-gray-100 bg-orange-50">
+                      <td colSpan={8} className="px-3 py-3">
+                        <div className="text-xs text-gray-700 mb-2">
+                          <b>매칭 해제</b> — 이 결제의 수금 처리를 되돌립니다. 기록은 매칭 대기로 돌아가고 주문 미수가 {won(r.amount)}원 다시 늘어납니다. 사유 · 해제한 사람 · 시각이 남습니다.
+                        </div>
+                        <ReasonPicker kind="release" value={relReason} onChange={setRelReason} label="매칭 해제 사유" />
+                        <div className="flex justify-end gap-2 mt-2">
+                          <button onClick={() => setRelId(null)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">닫기</button>
+                          <button onClick={() => release(r)} disabled={busyId === r.id || !reasonReady(relReason)}
+                            className="px-3 py-1.5 rounded-lg text-xs bg-slate-900 text-white font-semibold disabled:opacity-40">매칭 해제</button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                   {findId === r.id && (
                     <tr className="border-b border-gray-100 bg-slate-50">
                       <td colSpan={8} className="px-3 py-3">
@@ -464,7 +487,7 @@ export default function MatchTab() {
 
       <p className="text-[0.6875rem] text-gray-400 mt-3 leading-relaxed">
         확정은 사람이 누릅니다 — 시스템은 후보만 붙입니다. 금액이나 구분(단말기 · 수기, 과세 · 면세)이 기록과 다르면 확정할 수 없으니 입력자가 기록을 고친 뒤 확정하세요.
-        확정된 기록은 잠기며, 잘못 확정했으면 확인 완료 탭에서 확인 해제(사유 필수)로 되돌립니다.
+        확정된 기록은 잠기며, 잘못 확정했으면 매칭 완료 탭에서 매칭 해제(사유 필수)로 되돌립니다. 누가 언제 매칭 · 해제했는지 남습니다.
       </p>
     </div>
   )

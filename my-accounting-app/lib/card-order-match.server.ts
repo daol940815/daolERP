@@ -3,6 +3,7 @@ import { cardNumberKey } from '@/lib/card-number'
 import { isCardSaleVoided, CARD_SALE_VOID_NOTE } from '@/lib/card-sale-status'
 import { syncRecordsForOrders } from '@/lib/payment-records'
 import type { Editor } from '@/lib/orders-portal'
+import { insertMatches } from './match-log'
 
 // 카드 결제(card_sales 승인 1건) → ERP 주문 배분 (2026-11-13 승인 시안, 자동 매칭 없음)
 // 저장은 기존 erp_payment_matches(source_type 'card'). 이 매칭은 ERP 미수(수금) 기준이고 카드사 정산 입금은 통장에서 따로 확정한다.
@@ -160,9 +161,9 @@ export async function saveCardOrderMatch(
   const { error: de } = await admin.from('erp_payment_matches').delete().eq('source_type', 'card').eq('source_id', saleId)
   if (de) return { ok: false, error: de.message }
   if (rows.length) {
-    const { error: ie } = await admin.from('erp_payment_matches').insert(rows.map(r => ({
+    const { error: ie } = await insertMatches(admin, rows.map(r => ({
       order_id: r.order_id, source_type: 'card', source_id: saleId, amount: r.amount, paid_date: state.sale.tx_date, matched_by: 'manual',
-    })))
+    })), '카드 내역 주문 매칭', editor)
     if (ie) return { ok: false, error: ie.message }
   }
   const sync = await syncRecordsForOrders(admin, [...state.current.map(m => m.order_id), ...rows.map(r => r.order_id)], editor, '카드 내역 주문 매칭')

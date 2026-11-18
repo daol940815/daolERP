@@ -3,6 +3,7 @@ import { kstToday, type Editor } from './orders-portal'
 import { hasCancelCols, loadCancelLines, loadCancelRowIds } from './payment-cancel-meta'
 import { syncRecordsForOrders, writeLog, type PayMethod, type Reason } from './payment-records'
 import { resolveReason } from './payment-reasons'
+import { insertMatches } from './match-log'
 
 // ── 결제 기록 취소 (1305, 2026-11-18 사용자 확정 — 시안 docs/mockups/결제기록_취소_시안.html) ──
 // 취소 = 실제로 실행한 결제를 되돌린 것(삭제와 다르다). 원 기록 아래에 취소 줄로 남기고, 2차에서 취소도 원본과 매칭한다.
@@ -323,10 +324,10 @@ export async function confirmCancel(admin: SupabaseClient, cancelId: string, raw
       const back = doneLines.reduce((x, l) => x + (l.orders.find(o => o.order_id === a.order_id)?.amount ?? 0), 0)
       if ((got.get(a.order_id) ?? 0) - back < a.amount) return { error: '이 주문에서 수금한 금액보다 큰 환불입니다. 원 이체 기록의 매칭 상태를 확인하세요.' }
     }
-    const { error: ie } = await admin.from('erp_payment_matches').insert(allocs.map(a => ({
+    const { error: ie } = await insertMatches(admin, allocs.map(a => ({
       order_id: a.order_id, source_type: 'bank', source_id: txId, amount: -a.amount, paid_date: String(tx.tx_date).slice(0, 10),
       matched_by: 'manual', record_id: cancelId, memo: ['이체 환불', editor.employeeName].filter(Boolean).join(' · '),
-    })))
+    })), '이체 환불 매칭', editor)
     if (ie) return { error: /amount_check|violates check/i.test(ie.message) ? MIGRATION_1306_MSG : ie.message }
     message = `환불 출금을 매칭했습니다 — 입금은 그대로 두고 환불 ${won(amount)}원을 주문에 붙여 미수가 그만큼 늘었습니다.`
   }

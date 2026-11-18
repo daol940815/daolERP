@@ -21,6 +21,7 @@ export interface PayRecord {
   confirmed_by_name: string | null; confirmed_at: string | null
   card_entry?: CardEntry | null; vat_kind?: RecVat | null; source_kind?: string | null
   cancels?: CancelLine[]; canceled?: number; reason_text?: string | null
+  last_release?: { text: string; by: string | null; at: string } | null
   orders: { order_id: string; order_no: string | null; amount: number }[]
 }
 export interface CancelLine {
@@ -469,6 +470,10 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
                         <div className="text-[0.6875rem] text-gray-400 tabular-nums">{r.confirmed_by_name ?? ''} {stamp(r.confirmed_at)}</div>
                       </>) : (
                         <span className="inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-amber-100 text-amber-800">매칭 대기</span>
+                      )}
+                      {!r.confirmed_at && r.last_release && (
+                        <div><span title={`매칭 해제 사유: ${r.last_release.text}\n${r.last_release.by ?? ''} · ${stamp(r.last_release.at)}`}
+                          className="inline-block mt-0.5 px-1.5 py-0.5 rounded border border-gray-200 text-[0.6875rem] text-gray-500 cursor-help">매칭 해제됨</span></div>
                       )}
                       {!dead && canceled > 0 && (
                         <div><span title={cancelTip} className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-orange-100 text-orange-800 cursor-help">부분 취소 · 남은 {won(r.amount - canceled)}</span></div>

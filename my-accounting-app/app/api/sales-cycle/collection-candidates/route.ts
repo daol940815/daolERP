@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { syncRecordsForOrders } from '@/lib/payment-records'
 import { buildCollectionCandidates } from '@/lib/sales-collection-match'
+import { insertMatches } from '@/lib/match-log'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
     matched_by: 'manual',
     memo: '수금후보 확정',
   }))
-  const { error } = await admin.from('erp_payment_matches').insert(rows)
+  const { error } = await insertMatches(admin, rows, '수금후보 확정')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   // 결제 기록(1300)과 동기화 (2026-11-16)
   const me = await getCurrentUser()

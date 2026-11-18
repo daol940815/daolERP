@@ -4,6 +4,7 @@ import PeriodPresets from '@/components/ui/PeriodPresets'
 import { Fragment, Suspense, useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { DATA_START, getPeriodRange } from '@/lib/period-presets'
+import ReasonPicker, { reasonReady, type ReasonValue } from '@/components/payments/ReasonPicker'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
@@ -44,7 +45,12 @@ interface MatchedRow {
   order_no: string
   customer_name: string
   counterparty_name: string | null
+  matched_by_name?: string | null   // 매칭한 사람 (1307). 시각은 created_at
+  created_at?: string
 }
+// 매칭 해제 이력 (1307) — 사유 · 사람 · 시각
+interface ReleasedRow { id: string; order_no: string | null; source_type: string | null; amount: number | null; paid_date: string | null; reason_text: string | null; employee_name: string | null; created_at: string }
+const when = (iso?: string | null) => { if (!iso) return ''; const d = new Date(new Date(iso).getTime() + 9 * 3600000).toISOString(); return `${d.slice(5, 10)} ${d.slice(11, 16)}` }
 
 type Tab = 'pending' | 'matched'
 
@@ -55,6 +61,9 @@ function ErpMatchingContent() {
   const [tab, setTab]           = useState<Tab>('pending')
   const [pending, setPending]   = useState<PendingDeposit[]>([])
   const [matched, setMatched]   = useState<MatchedRow[]>([])
+  const [released, setReleased] = useState<ReleasedRow[]>([])
+  const [relId, setRelId] = useState<string | null>(null)            // 해제 사유 창이 열린 매칭
+  const [relReason, setRelReason] = useState<ReasonValue | null>(null)
   const [loading, setLoading]   = useState(true)
   const [working, setWorking]   = useState(false)
   const [dateFrom, setDateFrom] = useState(() => (focusDeposit ? DATA_START : getPeriodRange('당월').from))
@@ -99,6 +108,7 @@ function ErpMatchingContent() {
     if (res.ok) {
       setPending(json.pending ?? [])
       setMatched(json.matched ?? [])
+      setReleased(json.released ?? [])
     } else {
       showMsg(json.error ?? '조회 실패')
       setPending([]); setMatched([])
@@ -169,13 +179,15 @@ function ErpMatchingContent() {
   }
 
   const handleUnmatch = async (m: MatchedRow) => {
-    if (!window.confirm(`주문 ${m.order_no}의 매칭(${won(m.amount)}, ${m.paid_date})을 해제할까요?`)) return
+    // 사유를 항목에서 골라야 한다 (1307) — 사유 · 사람 · 시각이 해제 이력에 남는다
+    if (!reasonReady(relReason)) return
     setWorking(true)
-    const res  = await fetch(`/api/erp-matching?id=${m.id}`, { method: 'DELETE' })
+    const res  = await fetch(`/api/erp-matching?id=${m.id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: relReason }) })
     const json = await res.json()
     setWorking(false)
     if (!res.ok) { showMsg(json.error ?? '해제 실패'); return }
     showMsg('매칭 해제 완료')
+    setRelId(null)
     load()
   }
 
@@ -420,12 +432,14 @@ function ErpMatchingContent() {
                   <th className="py-2.5 px-3 font-medium">입금자/카드번호</th>
                   <th className="py-2.5 px-3 font-medium text-right">매칭 금액</th>
                   <th className="py-2.5 px-3 font-medium">구분</th>
+                  <th className="py-2.5 px-3 font-medium">매칭한 사람 · 시각</th>
                   <th className="py-2.5 px-3 font-medium text-right">액션</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredMatched.map(m => (
-                  <tr key={m.id} className="border-b border-gray-100 hover:bg-gray-50">
+                  <Fragment key={m.id}>
+                  <tr className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-2 px-3 whitespace-nowrap text-gray-600">{m.paid_date}</td>
                     <td className="py-2 px-3 whitespace-nowrap">{m.order_no}</td>
                     <td className="py-2 px-3"><p className="truncate max-w-[180px]">{m.customer_name}</p></td>
@@ -443,21 +457,68 @@ function ErpMatchingContent() {
                         {m.matched_by === 'auto' ? '자동' : '수동'}
                       </span>
                     </td>
+                    <td className="py-2 px-3 text-xs text-gray-600 whitespace-nowrap">
+                      {m.matched_by_name ?? (m.matched_by === 'auto' ? '자동' : <span className="text-gray-400">기록 없음</span>)}
+                      <span className="text-gray-400 tabular-nums"> · {when(m.created_at)}</span>
+                    </td>
                     <td className="py-2 px-3 text-right">
                       <button
-                        onClick={() => handleUnmatch(m)}
+                        onClick={() => { setRelId(relId === m.id ? null : m.id); setRelReason(null) }}
                         disabled={working}
                         className="px-2 py-1 text-xs border border-red-200 text-red-600 rounded hover:bg-red-50 disabled:opacity-40"
                       >
-                        해제
+                        {relId === m.id ? '닫기' : '해제'}
                       </button>
                     </td>
                   </tr>
+                  {relId === m.id && (
+                    <tr className="border-b border-gray-100 bg-orange-50">
+                      <td colSpan={8} className="px-3 py-3">
+                        <div className="text-xs text-gray-700 mb-2"><b>매칭 해제</b> — 주문 {m.order_no}의 매칭 {won(m.amount)}({m.paid_date})을 풉니다. 사유 · 해제한 사람 · 시각이 남습니다.</div>
+                        <ReasonPicker kind="release" value={relReason} onChange={setRelReason} label="매칭 해제 사유" />
+                        <div className="flex justify-end gap-2 mt-2">
+                          <button onClick={() => setRelId(null)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">닫기</button>
+                          <button onClick={() => handleUnmatch(m)} disabled={working || !reasonReady(relReason)}
+                            className="px-3 py-1.5 rounded-lg text-xs bg-slate-900 text-white font-semibold disabled:opacity-40">매칭 해제</button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
           </div>
         )
+      )}
+      {tab === 'matched' && released.length > 0 && (
+        <div className="mt-4 bg-white border border-gray-200 rounded-xl overflow-x-auto">
+          <div className="px-3 py-2 border-b border-gray-100 text-sm"><b className="text-gray-800">최근 매칭 해제 이력</b> <span className="text-xs text-gray-400">최근 {released.length}건 · 기간 필터와 무관</span></div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                <th className="py-2 px-3 font-medium">해제 시각</th>
+                <th className="py-2 px-3 font-medium">해제한 사람</th>
+                <th className="py-2 px-3 font-medium">주문번호</th>
+                <th className="py-2 px-3 font-medium">결제일</th>
+                <th className="py-2 px-3 font-medium text-right">금액</th>
+                <th className="py-2 px-3 font-medium">사유</th>
+              </tr>
+            </thead>
+            <tbody>
+              {released.map(l => (
+                <tr key={l.id} className="border-b border-gray-100">
+                  <td className="py-2 px-3 whitespace-nowrap tabular-nums text-gray-600">{when(l.created_at)}</td>
+                  <td className="py-2 px-3 whitespace-nowrap">{l.employee_name ?? '-'}</td>
+                  <td className="py-2 px-3 whitespace-nowrap">{l.order_no ?? '-'}</td>
+                  <td className="py-2 px-3 whitespace-nowrap text-gray-600">{l.paid_date ?? '-'}</td>
+                  <td className="py-2 px-3 text-right whitespace-nowrap">{won(l.amount)}</td>
+                  <td className="py-2 px-3 text-gray-700">{l.reason_text ?? <span className="text-gray-400">사유 없음</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

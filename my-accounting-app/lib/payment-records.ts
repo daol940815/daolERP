@@ -6,6 +6,7 @@ import { vendorOfOrder } from './prepay'
 import { loadBillingFamily } from './billing'
 // 정산상태 중복해제(카드사 중복 승인 해제, 수금 없음)는 후보에서 제외 (2026-11-17)
 import { NOT_VOID_OR } from '@/lib/card-sale-status'
+import { insertMatches, logUnmatch } from './match-log'
 import { hasCancelCols, loadCancelLines, loadCancelRowIds, netRecordLinks, type CancelLine } from './payment-cancel-meta'
 import { kindDiff, kindLabel, kindMissing, kindOfCardSale, CARD_ENTRY_LABEL, REC_VAT_LABEL, type CardEntry, type PayKind, type RecVat } from './payment-kind'
 
@@ -313,14 +314,30 @@ export interface PayRecordView {
   vat_kind: RecVat | null
   source_kind?: string | null        // 매칭된 기록: 연결된 원본에서 읽은 구분 (주문 상세 표시용)
   cancels?: CancelLine[]             // 취소 줄 (1305) — 취소일 순
+  last_release?: { text: string; by: string | null; at: string } | null   // 마지막 매칭 해제 (사유 · 사람 · 시각) — 지금 매칭 대기인 기록에만
   canceled?: number                  // 취소 줄 금액 합
   reason_text?: string | null        // 마지막 수정 사유 (1305)
   orders: { order_id: string; order_no: string | null; amount: number }[]
 }
 const REC_COLS = 'id, method, pay_date, amount, approval_number, card_last4, depositor_name, due_date, memo, vendor_id, created_by, created_by_name, created_at, confirmed_by_name, confirmed_at'
 
+// 기록별 마지막 매칭 해제 이력 (사유 · 사람 · 시각)
+async function loadLastReleases(admin: SupabaseClient, ids: string[]): Promise<Map<string, { text: string; by: string | null; at: string }>> {
+  const out = new Map<string, { text: string; by: string | null; at: string }>()
+  for (const ch of chunk(ids, 150)) {
+    let res = await admin.from('order_payment_record_logs').select('record_id, detail, reason_text, employee_name, created_at').eq('action', 'release').in('record_id', ch).order('created_at', { ascending: false })
+    if (res.error) res = await admin.from('order_payment_record_logs').select('record_id, detail, employee_name, created_at').eq('action', 'release').in('record_id', ch).order('created_at', { ascending: false }) as unknown as typeof res
+    for (const l of res.data ?? []) {
+      if (out.has(l.record_id as string)) continue
+      out.set(l.record_id as string, { text: ((l as { reason_text?: string | null }).reason_text ?? (l.detail as string | null) ?? '사유 없음'), by: (l.employee_name as string | null) ?? null, at: l.created_at as string })
+    }
+  }
+  return out
+}
+
 async function attachOrders(admin: SupabaseClient, recs: Record<string, unknown>[]): Promise<PayRecordView[]> {
   const ids = recs.map(r => r.id as string)
+  const releases = await loadLastReleases(admin, recs.filter(r => !r.confirmed_at).map(r => r.id as string))
   const links: { record_id: string; order_id: string; amount: number }[] = []
   for (const ch of chunk(ids, 150)) {
     const { data } = await admin.from('order_payment_record_orders').select('record_id, order_id, amount').in('record_id', ch)
@@ -334,7 +351,7 @@ async function attachOrders(admin: SupabaseClient, recs: Record<string, unknown>
     list.push({ order_id: l.order_id, order_no: orders.get(l.order_id)?.order_no ?? null, amount: Number(l.amount) })
     by.set(l.record_id, list)
   }
-  return recs.map(r => ({ ...(r as unknown as PayRecordView), card_entry: kinds?.get(r.id as string)?.card_entry ?? null, vat_kind: kinds?.get(r.id as string)?.vat_kind ?? null, amount: Number(r.amount), orders: (by.get(r.id as string) ?? []).sort((a, b) => (a.order_no ?? '').localeCompare(b.order_no ?? '')) }))
+  return recs.map(r => ({ ...(r as unknown as PayRecordView), last_release: releases.get(r.id as string) ?? null, card_entry: kinds?.get(r.id as string)?.card_entry ?? null, vat_kind: kinds?.get(r.id as string)?.vat_kind ?? null, amount: Number(r.amount), orders: (by.get(r.id as string) ?? []).sort((a, b) => (a.order_no ?? '').localeCompare(b.order_no ?? '')) }))
 }
 
 // 주문 상세용: 이 주문이 들어 있는 결제 기록 (1300 미적용이면 available=false)
@@ -966,7 +983,7 @@ export async function confirmRecord(admin: SupabaseClient, recordId: string, raw
       a.amount -= use; rest -= use
     }
   }
-  const { error: ie } = await admin.from('erp_payment_matches').insert(rowsToInsert)
+  const { error: ie } = await insertMatches(admin, rowsToInsert, '결제 확인', editor)
   if (ie) return { error: errMsg(ie.message) }
   const { error: ue } = await admin.from('order_payment_records').update({
     confirmed_by: editor.employeeId, confirmed_by_name: editor.employeeName, confirmed_at: new Date().toISOString(),
@@ -986,9 +1003,8 @@ export async function confirmRecord(admin: SupabaseClient, recordId: string, raw
   return { ok: true, inserted: rowsToInsert.length }
 }
 
-export async function releaseRecord(admin: SupabaseClient, recordId: string, reason: string, editor: Editor): Promise<{ error: string } | { ok: true }> {
-  const why = (reason ?? '').trim()
-  if (why.length < 2) return { error: '확인 해제 사유를 입력하세요.' }
+// 사유는 항목에서 고른다(1307, 2026-11-18 — lib/payment-reasons.ts 'release'). 사유 · 사람 · 시각이 기록 이력과 매칭 해제 이력에 남는다.
+export async function releaseRecord(admin: SupabaseClient, recordId: string, reason: Reason, editor: Editor): Promise<{ error: string } | { ok: true }> {
   const { data: rec, error } = await admin.from('order_payment_records').select('id, confirmed_at').eq('id', recordId).maybeSingle()
   if (error) return { error: errMsg(error.message) }
   if (!rec) return { error: '결제 기록을 찾을 수 없습니다.' }
@@ -1000,11 +1016,13 @@ export async function releaseRecord(admin: SupabaseClient, recordId: string, rea
   // (칸이 없으면 조회가 실패하고 건너뛴다. 문구는 lib/link-sync.ts FROM_INVOICE_BLOCK 과 같게 — 순환 import 를 피하려고 여기 적는다)
   const { data: derived } = await admin.from('erp_payment_matches').select('id').eq('record_id', recordId).not('from_invoice_id', 'is', null).limit(1)
   if (derived?.length) return { error: '계산서에 붙은 입금에서 자동으로 넘어온 수금입니다. 회계 › 계산서 내역에서 그 입금 연결을 풀거나, 주문 상세 › 결제 내역에서 계산서 연결을 해제하면 함께 풀립니다.' }
+  const { data: gone } = await admin.from('erp_payment_matches').select('id, order_id, source_type, source_id, amount, paid_date, record_id').eq('record_id', recordId)
   const { error: de } = await admin.from('erp_payment_matches').delete().eq('record_id', recordId)
   if (de) return { error: errMsg(de.message) }
+  await logUnmatch(admin, gone ?? [], '결제 확인 — 매칭 해제', reason, editor)
   const { error: ue } = await admin.from('order_payment_records')
     .update({ confirmed_by: null, confirmed_by_name: null, confirmed_at: null }).eq('id', recordId)
   if (ue) return { error: errMsg(ue.message) }
-  await writeLog(admin, recordId, 'release', editor, why.slice(0, 300))
+  await writeLog(admin, recordId, 'release', editor, '매칭 해제', reason)
   return { ok: true }
 }
