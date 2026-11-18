@@ -20,7 +20,7 @@ export const dynamic = 'force-dynamic'
 const DAY = 86400_000
 const kstDay = (iso: string) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date(iso))
 const latest = (xs: (string | null | undefined)[]) => xs.filter((x): x is string => !!x).sort().at(-1) ?? null
-const LEAVE_LABEL: Record<string, string> = { annual: '연차', half_am: '반차(오전)', half_pm: '반차(오후)', sick: '병가', official: '공가', other: '기타' }
+const LEAVE_LABEL: Record<string, string> = { annual: '연차', half_am: '반차(오전)', half_pm: '반차(오후)', sick: '병가', official: '공가', unpaid: '무급휴가', other: '기타' }
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? v[0] ?? null : v ?? null)
 
 export async function GET() {

@@ -34,7 +34,7 @@ export const dynamic = 'force-dynamic'
 
 const MIGRATION_HINT = '200 마이그레이션(근태)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
 const missingTable = (msg: string) => /attendance_|relation .* does not exist/i.test(msg)
-const LEAVE_TYPES: LeaveType[] = ['annual', 'half_am', 'half_pm', 'sick', 'official', 'other']
+const LEAVE_TYPES: LeaveType[] = ['annual', 'half_am', 'half_pm', 'sick', 'official', 'unpaid', 'other']
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 const LEAVE_COLS = 'id, employee_id, leave_type, start_date, end_date, reason, status, decided_by, decided_at, decide_note, created_at'
@@ -206,7 +206,10 @@ export async function POST(req: NextRequest) {
       start_date: start, end_date: end,
       reason: str('reason').trim() || null,
     }).select('id').single()
-    if (error || !ins) return NextResponse.json({ error: error?.message ?? '신청 실패' }, { status: 500 })
+    if (error || !ins) {
+      const typeMissing = !!error && /leave_type_check/i.test(error.message) && leaveType === 'unpaid'
+      return NextResponse.json({ error: typeMissing ? '무급휴가는 206 마이그레이션 실행 후 신청할 수 있습니다. 인사 · 총무에 알려주세요.' : (error?.message ?? '신청 실패') }, { status: typeMissing ? 400 : 500 })
+    }
     const leaveId = ins.id as string
     const what = `${LEAVE_TYPE_LABEL[leaveType] ?? leaveType} ${periodText(start, end)} · ${days}일`
 
