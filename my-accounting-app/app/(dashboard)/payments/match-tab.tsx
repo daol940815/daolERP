@@ -3,15 +3,18 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useNotifRefresh, requestNotifRefresh } from '@/lib/use-notif-refresh'
+import { kindLabel, type CardEntry, type RecVat } from '@/lib/payment-kind'
 
 // 결제 확인 (1300, 2026-11-13 사용자 확정 — 시안 docs/mockups/결제처리_시안.html)
 // 영업지원이 주문 상세에 남긴 결제 기록(1차)을 카드 매출 · 통장 입금 원본과 대조해 확정한다(2차).
+// 방식 · 과세 구분(1304, 2026-11-18): 기록한 구분과 원본의 구분이 다르면 '구분 다름'으로 보여 주고 확정을 막는다(서버도 거부).
 // 시스템은 후보만 붙이고, 확정은 사람이 누른다. 확정하면 기록의 주문별 금액대로 수금 매칭이 만들어져 미수가 줄어든다.
 
 type Method = 'card' | 'transfer' | 'invoice'
 interface Cand {
   source_type: 'bank' | 'card'; source_id: string; tx_date: string; label: string
   amount: number; remaining: number; strength: 'strong' | 'weak' | 'mismatch'; reason: string
+  kind?: string | null; kind_diff?: boolean
 }
 interface Row {
   id: string; method: Method; pay_date: string; amount: number
@@ -23,6 +26,8 @@ interface Row {
   invoice_linked: number | null
   matched: { source_type: string; label: string; paid_date: string; amount: number }[]
   mine: boolean
+  card_entry?: CardEntry | null; vat_kind?: RecVat | null
+  invoice_kind?: string | null; invoice_kind_diff?: boolean
 }
 interface Found {
   source_type: 'bank' | 'card'; id: string; tx_date: string; label: string; vendor_name: string | null
@@ -169,7 +174,7 @@ export default function MatchTab() {
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
           {kpiCard('all', '확인 대기', `${counts.all}건`, `${won(counts.amount)}원`)}
           {kpiCard('ready', '후보 있음', `${counts.ready}건`, '원본에서 찾음 — 확인 후 확정', 'text-emerald-700')}
-          {kpiCard('mismatch', '불일치', `${counts.mismatch}건`, '금액 · 원본 잔액이 기록과 다름', 'text-red-600')}
+          {kpiCard('mismatch', '불일치', `${counts.mismatch}건`, '금액 · 원본 잔액 · 구분이 기록과 다름', 'text-red-600')}
           {kpiCard('overdue', '대기 경과', `${counts.overdue}건`, '원본이 올라왔는데 후보 없음', 'text-amber-700')}
           <Link href="/payments?tab=deposits" className="text-left bg-white border border-gray-200 hover:border-gray-300 rounded-xl px-4 py-3">
             <p className="text-xs text-gray-500">기록 없는 입금</p>
@@ -225,6 +230,9 @@ export default function MatchTab() {
                     <td className="py-2.5 px-3 tabular-nums whitespace-nowrap">{r.pay_date}</td>
                     <td className="py-2.5 px-3">
                       <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${BADGE[r.method]}`}>{SHORT[r.method]}</span>
+                      {r.method !== 'transfer' && (
+                        <div className="text-[0.6875rem] text-gray-500 mt-0.5 whitespace-nowrap">{kindLabel(r) ?? <span className="text-gray-400">구분 미기재</span>}</div>
+                      )}
                     </td>
                     <td className="py-2.5 px-3">
                       <div className="text-gray-900">{r.vendor_name ?? '(매출처 미연결)'}</div>
@@ -246,6 +254,11 @@ export default function MatchTab() {
                           {r.invoice_linked === 0 ? '홈택스 계산서 미연결' : r.invoice_linked === r.amount ? '홈택스 계산서 연결됨' : `홈택스 계산서 ${won(r.invoice_linked)}원 — 기록과 다름`}
                         </div>
                       )}
+                      {r.method === 'invoice' && r.invoice_kind && (
+                        <div className={`text-[0.6875rem] ${r.invoice_kind_diff ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
+                          연결된 계산서 {r.invoice_kind}{r.invoice_kind_diff && ' — 기록한 구분과 다름(매칭 불가)'}
+                        </div>
+                      )}
                       {r.memo && <div className="text-[0.6875rem] text-gray-400">{r.memo}</div>}
                     </td>
                     <td className="py-2.5 px-3 text-xs">
@@ -262,10 +275,12 @@ export default function MatchTab() {
                       ) : (
                         <div className="space-y-1">
                           {r.candidates.map(c => (
-                            <div key={c.source_id} className={`rounded-lg border px-2 py-1.5 ${c.strength === 'strong' ? 'bg-green-50 border-green-200' : c.strength === 'mismatch' ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
+                            <div key={c.source_id} className={`rounded-lg border px-2 py-1.5 ${c.kind_diff || c.strength === 'mismatch' ? 'bg-red-50 border-red-200' : c.strength === 'strong' ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
                               <div className="flex items-center gap-2">
                                 <span className="text-gray-800">{c.label} <span className="tabular-nums">{c.tx_date}</span> <b className={`tabular-nums ${c.strength === 'mismatch' ? 'text-red-600' : ''}`}>{won(c.amount)}</b></span>
-                                {canEdit && c.strength !== 'mismatch' && (
+                                {c.kind && <span className={`whitespace-nowrap text-[0.6875rem] ${c.kind_diff ? 'text-red-700 font-semibold' : 'text-gray-500'}`}>{c.kind}</span>}
+                                {c.kind_diff && <span className="ml-auto whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-red-100 text-red-700">구분 다름 · 매칭 불가</span>}
+                                {canEdit && c.strength !== 'mismatch' && !c.kind_diff && (
                                   <button onClick={() => confirmWith(r, c)} disabled={busyId === r.id}
                                     className={`ml-auto whitespace-nowrap px-2 py-0.5 rounded text-[0.6875rem] font-semibold disabled:opacity-40 ${c.strength === 'strong' ? 'bg-slate-900 text-white hover:bg-slate-700' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'}`}>
                                     확정
@@ -346,7 +361,7 @@ export default function MatchTab() {
       )}
 
       <p className="text-[0.6875rem] text-gray-400 mt-3 leading-relaxed">
-        확정은 사람이 누릅니다 — 시스템은 후보만 붙입니다. 금액이 기록과 다르면 확정할 수 없으니 입력자가 기록을 고친 뒤 확정하세요.
+        확정은 사람이 누릅니다 — 시스템은 후보만 붙입니다. 금액이나 구분(단말기 · 수기, 과세 · 면세)이 기록과 다르면 확정할 수 없으니 입력자가 기록을 고친 뒤 확정하세요.
         확정된 기록은 잠기며, 잘못 확정했으면 확인 완료 탭에서 확인 해제(사유 필수)로 되돌립니다.
       </p>
     </div>

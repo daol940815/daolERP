@@ -1,10 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { CARD_ENTRIES, CARD_ENTRY_LABEL, REC_VATS, REC_VAT_LABEL, kindLabel, type CardEntry, type RecVat } from '@/lib/payment-kind'
 
 // 결제 기록 (1300, 2026-11-13 사용자 확정 — 시안 docs/mockups/결제처리_시안.html)
 // 1차 수기 입력: 카드결제 / 계좌이체 / 계산서 발행. 기록만으로는 미수가 줄지 않는다('확인 대기').
 // 2차 결제 확인(수금 · 정산 작업 › 결제 확인)에서 원본과 대조해 확정하면 미수가 줄고 기록은 잠긴다.
+// 방식 · 과세 구분(1304, 2026-11-18): 카드 = 단말기 · 수기 + 과세 · 면세, 계산서 발행 = 과세 · 면세, 계좌이체 = 없음.
+//   새 기록은 필수, 이전 기록은 '미기재'(수정 때 채울 수 있으나 강제하지 않음). 매칭된 미기재 기록은 원본에서 읽은 값을 옆에 보여 준다.
 // 이 화면에서 통장 · 카드 원본 화면으로 가는 링크는 두지 않는다(주문 화면 → 회계 이동 불가 원칙).
 
 export type PayMethod = 'card' | 'transfer' | 'invoice'
@@ -13,9 +16,10 @@ export interface PayRecord {
   approval_number: string | null; card_last4: string | null; depositor_name: string | null; due_date: string | null
   memo: string | null; created_by_name: string | null; created_at: string
   confirmed_by_name: string | null; confirmed_at: string | null
+  card_entry?: CardEntry | null; vat_kind?: RecVat | null; source_kind?: string | null
   orders: { order_id: string; order_no: string | null; amount: number }[]
 }
-export interface PayRecordsData { available: boolean; records: PayRecord[]; can_record: boolean }
+export interface PayRecordsData { available: boolean; kinds?: boolean; records: PayRecord[]; can_record: boolean }
 interface Cand { order_id: string; order_no: string | null; order_date: string; customer_name: string; unpaid: number }
 
 const METHODS: { key: PayMethod; label: string }[] = [
@@ -48,6 +52,8 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
   const [payDate, setPayDate] = useState(today())
   const [approval, setApproval] = useState('')
   const [last4, setLast4] = useState('')
+  const [entry, setEntry] = useState<CardEntry | null>(null)
+  const [vat, setVat] = useState<RecVat | null>(null)
   const [depositor, setDepositor] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [memo, setMemo] = useState('')
@@ -65,6 +71,7 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
     setErr(null); setEditId(rec?.id ?? null)
     setMethod(rec?.method ?? 'card'); setPayDate(rec?.pay_date ?? today())
     setApproval(rec?.approval_number ?? ''); setLast4(rec?.card_last4 ?? '')
+    setEntry(rec?.card_entry ?? null); setVat(rec?.vat_kind ?? null)
     setDepositor(rec?.depositor_name ?? ''); setDueDate(rec?.due_date ?? ''); setMemo(rec?.memo ?? '')
     setOpen(true)
     const res = await fetch(`/api/orders-portal/orders/${orderId}/pay-records${rec ? `?exclude=${rec.id}` : ''}`)
@@ -89,6 +96,7 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
     setBusy(true); setErr(null)
     const body = {
       method, pay_date: payDate, amount: total,
+      card_entry: method === 'card' ? entry : null, vat_kind: method === 'transfer' ? null : vat,
       approval_number: approval, card_last4: last4, depositor_name: depositor, due_date: dueDate || null, memo,
       allocations: Object.entries(alloc).map(([order_id, v]) => ({ order_id, amount: num(v) })).filter(a => a.amount > 0),
     }
@@ -110,6 +118,20 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
   }
 
   if (!data.available) return null   // 1300 미적용 — 기존 화면 그대로
+
+  const kinds = !!data.kinds
+  // 새 기록은 구분 필수. 이전 기록(미기재) 수정은 비워 둬도 저장된다.
+  const kindNeeded = kinds && !editId && (method === 'card' ? !entry || !vat : method === 'invoice' ? !vat : false)
+  const pick = <T extends string>(cur: T | null, list: T[], label: Record<T, string>, set: (v: T) => void) => (
+    <div className="flex gap-1">
+      {list.map(v => (
+        <button key={v} type="button" onClick={() => set(v)}
+          className={`px-3 py-1.5 rounded-lg text-xs border ${cur === v ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+          {label[v]}
+        </button>
+      ))}
+    </div>
+  )
 
   const inputCls = 'w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
   const labelCls = 'block text-[0.6875rem] text-gray-500 mb-1'
@@ -143,6 +165,28 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
               </button>
             ))}
           </div>
+          {kinds && method !== 'transfer' && (
+            <div className="mb-3 p-2.5 rounded-lg border border-slate-200 bg-white">
+              <div className="flex gap-x-6 gap-y-2 flex-wrap">
+                {method === 'card' && (
+                  <div>
+                    <label className={labelCls}>카드 결제 방식{!editId && <span className="text-red-600"> *</span>}</label>
+                    {pick(entry, CARD_ENTRIES, CARD_ENTRY_LABEL, setEntry)}
+                  </div>
+                )}
+                <div>
+                  <label className={labelCls}>과세 구분{!editId && <span className="text-red-600"> *</span>}</label>
+                  {pick(vat, REC_VATS, REC_VAT_LABEL, setVat)}
+                </div>
+              </div>
+              <div className="mt-1.5 text-[0.6875rem] text-gray-400">
+                {method === 'card'
+                  ? '단말기 = 카드 단말기로 결제 · 수기 = 카드번호를 받아 결제 창구에서 입력. 과세와 면세 품목이 섞여 결제가 둘로 나뉘었으면 기록도 두 건으로 남깁니다.'
+                  : '과세 = 세금계산서 · 면세 = 계산서. 둘 다 발행했으면 기록도 두 건으로 남깁니다.'}
+                {' '}실제 결제(발행)와 구분이 다르면 매칭되지 않습니다.
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-2.5">
             <div>
               <label className={labelCls}>{method === 'invoice' ? '발행일' : '결제일'}</label>
@@ -226,7 +270,8 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
           {err && <div className="mt-1.5 text-xs text-red-600">{err}</div>}
           <div className="flex justify-end gap-2 mt-2.5">
             <button onClick={() => setOpen(false)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white">취소</button>
-            <button onClick={submit} disabled={busy || total <= 0}
+            <button onClick={submit} disabled={busy || total <= 0 || kindNeeded}
+              title={kindNeeded ? (method === 'card' ? '카드 결제 방식과 과세 구분을 고르세요' : '과세 구분을 고르세요') : undefined}
               className="px-3 py-1.5 rounded-lg text-sm bg-slate-900 text-white font-semibold hover:bg-slate-700 disabled:opacity-40">
               {busy ? '저장 중...' : editId ? '기록 수정' : '기록 저장'}
             </button>
@@ -243,6 +288,7 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
               <tr className="text-left text-[0.6875rem] text-gray-500 border-b border-gray-200">
                 <th className="py-1.5 pr-2 font-normal">결제일</th>
                 <th className="py-1.5 pr-2 font-normal">수단</th>
+                {kinds && <th className="py-1.5 pr-2 font-normal">구분</th>}
                 <th className="py-1.5 pr-2 font-normal">대조 단서</th>
                 <th className="py-1.5 pr-2 font-normal text-right">이 주문 금액</th>
                 <th className="py-1.5 pr-2 font-normal">기록</th>
@@ -260,6 +306,15 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
                     <td className="py-1.5 pr-2">
                       <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${BADGE[r.method]}`}>{SHORT[r.method]}</span>
                     </td>
+                    {kinds && (
+                      <td className="py-1.5 pr-2 text-xs text-gray-700 whitespace-nowrap">
+                        {r.method === 'transfer' ? <span className="text-gray-300">-</span>
+                          : kindLabel(r) ?? (<>
+                            <span className="inline-block px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 text-[0.6875rem] text-gray-500">미기재</span>
+                            {r.confirmed_at && r.source_kind && <div className="text-[0.6875rem] text-emerald-700 mt-0.5">원본: {r.source_kind}</div>}
+                          </>)}
+                      </td>
+                    )}
                     <td className="py-1.5 pr-2 text-xs text-gray-700">
                       {clueOf(r)}
                       {r.memo && <div className="text-[0.6875rem] text-gray-400">{r.memo}</div>}

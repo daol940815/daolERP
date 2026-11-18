@@ -6,6 +6,7 @@ import { vendorOfOrder } from './prepay'
 import { loadBillingFamily } from './billing'
 // 정산상태 중복해제(카드사 중복 승인 해제, 수금 없음)는 후보에서 제외 (2026-11-17)
 import { NOT_VOID_OR } from '@/lib/card-sale-status'
+import { kindDiff, kindLabel, kindMissing, kindOfCardSale, CARD_ENTRY_LABEL, REC_VAT_LABEL, type CardEntry, type PayKind, type RecVat } from './payment-kind'
 
 // ── 결제 기록 (1300, 2026-11-13 사용자 확정 — docs/payment-track.md · 시안 docs/mockups/결제처리_시안.html) ──
 // 1차: 영업지원이 주문 상세에서 결제를 기록한다(카드결제 / 계좌이체 / 계산서 발행). 미수는 그대로 — '확인 대기'.
@@ -31,7 +32,56 @@ const toInt = (v: unknown) => Math.round(Number(String(v ?? '').replace(/,/g, ''
 
 export const MIGRATION_1300_MSG = '1300 마이그레이션(결제 기록)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
 const missing = (msg: string | undefined) => !!msg && /order_payment_record|record_id|schema cache|does not exist/i.test(msg)
-const errMsg = (msg: string | undefined) => (missing(msg) ? MIGRATION_1300_MSG : (msg ?? '알 수 없는 오류'))
+export const MIGRATION_1304_MSG = '1304 마이그레이션(결제 기록 방식 · 과세 구분)이 아직 적용되지 않았습니다. SQL 편집기에서 실행해주세요.'
+const errMsg = (msg: string | undefined) => (msg && /card_entry|vat_kind/i.test(msg) ? MIGRATION_1304_MSG : missing(msg) ? MIGRATION_1300_MSG : (msg ?? '알 수 없는 오류'))
+
+// ── 방식 · 과세 구분 (1304) — 칸이 없으면(미적용) null 을 돌려주고, 부르는 쪽은 구분 없이 예전처럼 동작한다 ──
+export async function loadRecKinds(admin: SupabaseClient, ids: string[]): Promise<Map<string, PayKind> | null> {
+  const out = new Map<string, PayKind>()
+  if (!ids.length) {
+    const { error } = await admin.from('order_payment_records').select('card_entry').limit(1)
+    return error ? null : out
+  }
+  for (const ch of chunk(Array.from(new Set(ids)), 150)) {
+    const { data, error } = await admin.from('order_payment_records').select('id, card_entry, vat_kind').in('id', ch)
+    if (error) return null
+    for (const r of data ?? []) out.set(r.id as string, { card_entry: (r.card_entry as CardEntry | null) ?? null, vat_kind: (r.vat_kind as RecVat | null) ?? null })
+  }
+  return out
+}
+// 카드 매출 원본의 구분 (427 미적용이면 공급가 · 세액 칸만으로 판정)
+async function loadCardKinds(admin: SupabaseClient, ids: string[]): Promise<Map<string, PayKind>> {
+  const out = new Map<string, PayKind>()
+  for (const ch of chunk(Array.from(new Set(ids)), 150)) {
+    let res = await admin.from('card_sales').select('id, amount, supply_amount, tax_amount, cpid, vat_kind').in('id', ch)
+    if (res.error) res = await admin.from('card_sales').select('id, amount, supply_amount, tax_amount').in('id', ch) as unknown as typeof res
+    for (const c of res.data ?? []) out.set(c.id as string, kindOfCardSale(c as Parameters<typeof kindOfCardSale>[0]))
+  }
+  return out
+}
+// 주문에 연결된 홈택스 계산서의 과세 구분 (주문별 집합)
+async function loadInvoiceVatOfOrders(admin: SupabaseClient, orderIds: string[]): Promise<Map<string, Set<RecVat>>> {
+  const out = new Map<string, Set<RecVat>>()
+  const links: { order_id: string; tax_invoice_id: string }[] = []
+  for (const ch of chunk(Array.from(new Set(orderIds)), 150)) {
+    const { data } = await admin.from('erp_order_invoices').select('order_id, tax_invoice_id').in('order_id', ch)
+    links.push(...((data ?? []) as typeof links))
+  }
+  const typeOf = new Map<string, RecVat>()
+  for (const ch of chunk(Array.from(new Set(links.map(l => l.tax_invoice_id))), 150)) {
+    const { data } = await admin.from('tax_invoices').select('id, tax_type').in('id', ch)
+    for (const t of data ?? []) if (t.tax_type === 'taxable' || t.tax_type === 'exempt') typeOf.set(t.id as string, t.tax_type)
+  }
+  for (const l of links) {
+    const t = typeOf.get(l.tax_invoice_id); if (!t) continue
+    const set = out.get(l.order_id) ?? new Set<RecVat>(); set.add(t); out.set(l.order_id, set)
+  }
+  return out
+}
+const vatSetLabel = (s: Set<RecVat>) => Array.from(s).map(v => REC_VAT_LABEL[v]).join(' · ')
+const KIND_FIX = '기록을 잘못 적었으면 입력자가 주문 상세에서 기록을 고치고, 결제(발행)가 잘못됐으면 취소 후 다시 해야 합니다.'
+const kindBlockMsg = (rec: Partial<PayKind>, srcLabel: string, src: Partial<PayKind>) =>
+  `기록은 "${kindLabel(rec)}"인데 ${srcLabel}은(는) "${kindLabel(src)}"입니다. 구분이 다르면 매칭할 수 없습니다. ${KIND_FIX}`
 
 export interface RecordInput {
   method: PayMethod
@@ -42,10 +92,13 @@ export interface RecordInput {
   depositor_name: string | null
   due_date: string | null
   memo: string | null
+  card_entry: CardEntry | null
+  vat_kind: RecVat | null
   allocations: { order_id: string; amount: number }[]
 }
 
-export function validateRecordInput(raw: unknown): RecordInput | { error: string } {
+// requireKind: 새 기록은 방식 · 과세 구분 필수. 1304 이전 기록의 수정 · 1304 미적용 환경에서는 선택(false).
+export function validateRecordInput(raw: unknown, requireKind = false): RecordInput | { error: string } {
   const b = (raw ?? {}) as Record<string, unknown>
   const method = b.method as PayMethod
   if (!['card', 'transfer', 'invoice'].includes(method)) return { error: '결제 수단을 고르세요.' }
@@ -56,6 +109,12 @@ export function validateRecordInput(raw: unknown): RecordInput | { error: string
   const text = (v: unknown, max: number) => { const s = String(v ?? '').trim(); return s ? s.slice(0, max) : null }
 
   let approval: string | null = null, last4: string | null = null, depositor: string | null = null, due: string | null = null
+  // 방식 · 과세 구분 (1304): 카드 = 둘 다, 계산서 = 과세 구분만, 계좌이체 = 받지 않는다
+  const entry = method === 'card' && (b.card_entry === 'terminal' || b.card_entry === 'manual') ? b.card_entry : null
+  const vat = method !== 'transfer' && (b.vat_kind === 'taxable' || b.vat_kind === 'exempt') ? b.vat_kind : null
+  if (requireKind && kindMissing(method, { card_entry: entry, vat_kind: vat })) {
+    return { error: method === 'card' ? '카드 결제 방식(단말기 · 수기)과 과세 구분(과세 · 면세)을 고르세요.' : '과세 구분(과세 · 면세)을 고르세요.' }
+  }
   if (method === 'card') {
     approval = text(b.approval_number, 30)
     if (!approval) return { error: '승인번호를 입력하세요. (2차 대조에 쓰입니다)' }
@@ -82,7 +141,7 @@ export function validateRecordInput(raw: unknown): RecordInput | { error: string
   if (!allocations.length) return { error: '주문별 금액을 입력하세요.' }
   const sum = allocations.reduce((s, a) => s + a.amount, 0)
   if (sum !== amount) return { error: `주문별 금액 합계(${won(sum)}원)가 결제 금액(${won(amount)}원)과 다릅니다.` }
-  return { method, pay_date: b.pay_date, amount, approval_number: approval, card_last4: last4, depositor_name: depositor, due_date: due, memo: text(b.memo, 300), allocations }
+  return { method, pay_date: b.pay_date, amount, approval_number: approval, card_last4: last4, depositor_name: depositor, due_date: due, memo: text(b.memo, 300), card_entry: entry, vat_kind: vat, allocations }
 }
 
 async function writeLog(admin: SupabaseClient, recordId: string, action: string, editor: Editor, detail: string | null) {
@@ -91,8 +150,8 @@ async function writeLog(admin: SupabaseClient, recordId: string, action: string,
   })
 }
 
-const summaryOf = (i: { method: PayMethod; pay_date: string; amount: number }, orderCount: number) =>
-  `${PAY_METHOD_LABEL[i.method]} ${i.pay_date} ${won(i.amount)}원${orderCount > 1 ? ` · 주문 ${orderCount}건` : ''}`
+const summaryOf = (i: { method: PayMethod; pay_date: string; amount: number; card_entry?: CardEntry | null; vat_kind?: RecVat | null }, orderCount: number) =>
+  `${PAY_METHOD_LABEL[i.method]}${kindLabel(i) ? `(${kindLabel(i)})` : ''} ${i.pay_date} ${won(i.amount)}원${orderCount > 1 ? ` · 주문 ${orderCount}건` : ''}`
 
 // ── 주문별 미결제 금액 = 표준 미수 − 확인 대기 기록 합 ─────────────────────
 export interface UnpaidInfo { outstanding: number; pending: number; unpaid: number }
@@ -170,6 +229,7 @@ export async function createRecord(admin: SupabaseClient, baseOrderId: string, i
     method: input.method, pay_date: input.pay_date, amount: input.amount,
     approval_number: input.approval_number, card_last4: input.card_last4, depositor_name: input.depositor_name,
     due_date: input.due_date, memo: input.memo, vendor_id: vendorId,
+    ...(input.card_entry || input.vat_kind ? { card_entry: input.card_entry, vat_kind: input.vat_kind } : {}),
     created_by: editor.employeeId, created_by_name: editor.employeeName,
   }).select('id').single()
   if (error || !rec) return { error: errMsg(error?.message) }
@@ -197,7 +257,9 @@ export async function updateRecord(admin: SupabaseClient, recordId: string, inpu
   if ('error' in cur) return cur
   const chk = await checkAllocations(admin, input, recordId)
   if ('error' in chk) return chk
+  const hasKind = (await loadRecKinds(admin, [])) != null
   const { error } = await admin.from('order_payment_records').update({
+    ...(hasKind ? { card_entry: input.card_entry, vat_kind: input.vat_kind } : {}),
     method: input.method, pay_date: input.pay_date, amount: input.amount,
     approval_number: input.approval_number, card_last4: input.card_last4, depositor_name: input.depositor_name,
     due_date: input.due_date, memo: input.memo, updated_at: new Date().toISOString(),
@@ -237,6 +299,9 @@ export interface PayRecordView {
   created_at: string
   confirmed_by_name: string | null
   confirmed_at: string | null
+  card_entry: CardEntry | null       // 1304 — 미기재 · 미적용이면 null
+  vat_kind: RecVat | null
+  source_kind?: string | null        // 매칭된 기록: 연결된 원본에서 읽은 구분 (주문 상세 표시용)
   orders: { order_id: string; order_no: string | null; amount: number }[]
 }
 const REC_COLS = 'id, method, pay_date, amount, approval_number, card_last4, depositor_name, due_date, memo, vendor_id, created_by, created_by_name, created_at, confirmed_by_name, confirmed_at'
@@ -249,24 +314,49 @@ async function attachOrders(admin: SupabaseClient, recs: Record<string, unknown>
     links.push(...((data ?? []) as typeof links))
   }
   const orders = await loadOrders(admin, links.map(l => l.order_id))
+  const kinds = await loadRecKinds(admin, ids)
   const by = new Map<string, PayRecordView['orders']>()
   for (const l of links) {
     const list = by.get(l.record_id) ?? []
     list.push({ order_id: l.order_id, order_no: orders.get(l.order_id)?.order_no ?? null, amount: Number(l.amount) })
     by.set(l.record_id, list)
   }
-  return recs.map(r => ({ ...(r as unknown as PayRecordView), amount: Number(r.amount), orders: (by.get(r.id as string) ?? []).sort((a, b) => (a.order_no ?? '').localeCompare(b.order_no ?? '')) }))
+  return recs.map(r => ({ ...(r as unknown as PayRecordView), card_entry: kinds?.get(r.id as string)?.card_entry ?? null, vat_kind: kinds?.get(r.id as string)?.vat_kind ?? null, amount: Number(r.amount), orders: (by.get(r.id as string) ?? []).sort((a, b) => (a.order_no ?? '').localeCompare(b.order_no ?? '')) }))
 }
 
 // 주문 상세용: 이 주문이 들어 있는 결제 기록 (1300 미적용이면 available=false)
-export async function loadRecordsOfOrder(admin: SupabaseClient, orderId: string): Promise<{ available: boolean; records: PayRecordView[] }> {
+export async function loadRecordsOfOrder(admin: SupabaseClient, orderId: string): Promise<{ available: boolean; kinds: boolean; records: PayRecordView[] }> {
   const { data: links, error } = await admin.from('order_payment_record_orders').select('record_id').eq('order_id', orderId)
-  if (error) return { available: false, records: [] }
+  if (error) return { available: false, kinds: false, records: [] }
+  const kinds = (await loadRecKinds(admin, [])) != null
   const ids = (links ?? []).map(l => l.record_id as string)
-  if (!ids.length) return { available: true, records: [] }
+  if (!ids.length) return { available: true, kinds, records: [] }
   const { data, error: re } = await admin.from('order_payment_records').select(REC_COLS).in('id', ids).order('pay_date').order('created_at')
-  if (re) return { available: false, records: [] }
-  return { available: true, records: await attachOrders(admin, (data ?? []) as Record<string, unknown>[]) }
+  if (re) return { available: false, kinds: false, records: [] }
+  const records = await attachOrders(admin, (data ?? []) as Record<string, unknown>[])
+  // 매칭된 기록 — 연결된 원본에서 읽은 구분 (카드 = 카드 매출, 계산서 발행 = 주문에 연결된 홈택스 계산서)
+  const done = records.filter(r => r.confirmed_at && r.method !== 'transfer')
+  if (kinds && done.length) {
+    const ms: { record_id: string; source_id: string }[] = []
+    for (const ch of chunk(done.filter(r => r.method === 'card').map(r => r.id), 150)) {
+      const { data: m } = await admin.from('erp_payment_matches').select('record_id, source_id').eq('source_type', 'card').in('record_id', ch)
+      ms.push(...((m ?? []) as typeof ms))
+    }
+    const [cardKinds, invVat] = await Promise.all([
+      loadCardKinds(admin, ms.map(m => m.source_id)),
+      loadInvoiceVatOfOrders(admin, done.filter(r => r.method === 'invoice').flatMap(r => r.orders.map(o => o.order_id))),
+    ])
+    for (const r of done) {
+      if (r.method === 'card') {
+        const labels = new Set(ms.filter(m => m.record_id === r.id).map(m => kindLabel(cardKinds.get(m.source_id))).filter(Boolean) as string[])
+        r.source_kind = labels.size ? Array.from(labels).join(', ') : null
+      } else {
+        const set = new Set<RecVat>(); for (const o of r.orders) for (const v of Array.from(invVat.get(o.order_id) ?? [])) set.add(v)
+        r.source_kind = set.size ? vatSetLabel(set) : null
+      }
+    }
+  }
+  return { available: true, kinds, records }
 }
 
 // 같은 결제로 함께 처리할 수 있는 주문: 같은 매출처 + 청구처 가족의 미결제 direct 주문
@@ -310,6 +400,8 @@ export interface SourceCandidate {
   remaining: number       // 아직 주문에 배분되지 않은 금액
   strength: 'strong' | 'weak' | 'mismatch'
   reason: string
+  kind?: string | null      // 원본에서 읽은 구분 (카드 매출)
+  kind_diff?: boolean       // 기록한 구분과 다름 — 매칭 불가
 }
 export interface QueueRow extends PayRecordView {
   vendor_name: string | null
@@ -320,6 +412,8 @@ export interface QueueRow extends PayRecordView {
   invoice_linked: number | null      // 계산서 발행 기록: 주문에 연결된 홈택스 계산서 금액 합 (없으면 0)
   matched: { source_type: string; label: string; paid_date: string; amount: number }[]
   mine: boolean
+  invoice_kind?: string | null       // 계산서 발행 기록: 주문에 연결된 홈택스 계산서의 과세 구분
+  invoice_kind_diff?: boolean        // 기록한 과세 구분과 다름 — 매칭 불가
 }
 
 // 원본별 배분 행 (어느 주문에 얼마, 결제 기록에 연결됐는지까지)
@@ -411,9 +505,23 @@ export async function syncRecordsForOrders(admin: SupabaseClient, orderIds: stri
     const rows = await matchRowsByOrder(admin, recs.flatMap(r => r.orders.map(o => o.order_id)))
     const approvalOf = await approvalNumbersOf(admin, rows)
     const now = new Date().toISOString()
+    // 1304: 구분이 다른 원본으로는 자동 확정하지 않는다(확인 대기로 남아 결제 확인 화면에 '구분 다름'으로 보인다).
+    //       이미 확정된 기록은 건드리지 않는다 — 구분 때문에 자동 해제하지 않는다.
+    const pendingIds = recs.filter(r => !r.confirmed_at).map(r => r.id)
+    const recKinds = pendingIds.length ? await loadRecKinds(admin, pendingIds) : null
+    const cardKinds = recKinds ? await loadCardKinds(admin, rows.filter(m => m.source_type === 'card').map(m => m.source_id)) : new Map<string, PayKind>()
+    const invVat = recKinds ? await loadInvoiceVatOfOrders(admin, recs.filter(r => !r.confirmed_at && r.method === 'invoice').flatMap(r => r.orders.map(o => o.order_id))) : new Map<string, Set<RecVat>>()
+    const kindBlocked = (rec: RecCover, link: string[]) => {
+      const k = recKinds?.get(rec.id)
+      if (rec.confirmed_at || !k || (!k.card_entry && !k.vat_kind)) return false
+      if (rec.method === 'card') return rows.some(m => link.includes(m.id) && kindDiff(k, cardKinds.get(m.source_id)).length > 0)
+      if (rec.method === 'invoice') return rec.orders.some(o => Array.from(invVat.get(o.order_id) ?? []).some(v => v !== k.vat_kind))
+      return false
+    }
     for (const rec of recs) {
       if (!rec.orders.length) continue
       const plan = planCover(rec, rows, approvalOf)
+      if (plan && kindBlocked(rec, plan.link)) continue
       if (plan) {
         if (plan.link.length) {
           const { error } = await admin.from('erp_payment_matches').update({ record_id: rec.id }).in('id', plan.link).is('record_id', null)
@@ -480,12 +588,19 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
     for (const i of inv ?? []) invByOrder.set(i.order_id as string, (invByOrder.get(i.order_id as string) ?? 0) + Number(i.amount ?? 0))
   }
 
+  const invVat = await loadInvoiceVatOfOrders(admin, invOrderIds)
+  const invKindOf = (r: PayRecordView) => {
+    const set = new Set<RecVat>(); for (const o of r.orders) for (const v of Array.from(invVat.get(o.order_id) ?? [])) set.add(v)
+    return set
+  }
+
   const today = kstToday()
   const rows: QueueRow[] = recs.map(r => ({
     ...r, vendor_name: r.vendor_id ? vendorName.get(r.vendor_id) ?? null : null,
     state: opts.state, candidates: [], flag: null, wait_days: Math.max(0, dayDiff(today, r.pay_date)),
     invoice_linked: r.method === 'invoice' ? r.orders.reduce((s, o) => s + (invByOrder.get(o.order_id) ?? 0), 0) : null,
     matched: [], mine: !!opts.meId && r.created_by === opts.meId,
+    ...(r.method === 'invoice' ? (() => { const s = invKindOf(r); return { invoice_kind: s.size ? vatSetLabel(s) : null, invoice_kind_diff: !!r.vat_kind && Array.from(s).some(v => v !== r.vat_kind) } })() : {}),
   }))
 
   if (opts.state === 'confirmed') {
@@ -575,6 +690,13 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
     ...Array.from(txByAmount.values()).flat().map(t => t.id),
   ])
   const alloc = sumBySource(matchRows)
+  // 카드 매출 원본의 구분 (1304) — 기록한 구분과 다르면 후보에 '구분 다름'으로 보여 주고 확정은 막는다
+  const cardKinds = await loadCardKinds(admin, [
+    ...Array.from(csByApproval.values()).flat().filter(c => c.transaction_type === 'approval').map(c => c.id),
+    ...Array.from(csByAmount.values()).flat().map(c => c.id),
+  ])
+  const diffNote = (r: PayRecordView, src: PayKind | undefined) =>
+    kindDiff(r, src).map(k => (k === 'card_entry' ? `방식 다름(원본 ${CARD_ENTRY_LABEL[src!.card_entry!]})` : `과세 구분 다름(원본 ${REC_VAT_LABEL[src!.vat_kind!]})`))
   // 이 원본이 기록의 주문에 이미(기록 연결 없이) 배분된 금액 — 카드 내역 · 입금 매칭에서 직접 붙인 것. 확정하면 그 행에 기록을 연결한다.
   const ownOf = (r: QueueRow, key: string) => {
     const mine = new Set(r.orders.map(o => o.order_id))
@@ -608,7 +730,9 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
         if (r.card_last4 && tail) parts.push(r.card_last4 === tail ? '카드 일치' : `카드 뒤 4자리 다름(${tail})`)
         if (own > 0) parts.push(own >= r.amount ? `이 주문에 이미 ${won(own)}원 매칭됨 — 확정하면 기록에 연결` : `이 주문에 이미 ${won(own)}원 매칭됨(기록과 다름)`)
         if (hit.net === r.amount && remaining < r.amount) { const n = otherNote(r, key); if (n) parts.push(n) }
+        const sk = cardKinds.get(hit.appr.id); const dn = diffNote(r, sk); parts.push(...dn)
         r.candidates.push({
+          kind: kindLabel(sk), kind_diff: dn.length > 0,
           source_type: 'card', source_id: hit.appr.id, tx_date: hit.appr.tx_date, label: `카드 매출 ${hit.appr.acquirer ?? ''}`.trim(),
           amount: hit.net, remaining, strength: same ? 'strong' : 'mismatch', reason: parts.join(' · '),
         })
@@ -620,7 +744,9 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
           if (net !== r.amount || remaining < r.amount) continue
           const tail = String(c.card_number ?? '').replace(/\D/g, '').slice(-4)
           if (r.card_last4 && tail && r.card_last4 !== tail) continue
+          if (kindDiff(r, cardKinds.get(c.id)).length) continue   // 구분을 적은 기록은 같은 종류의 원본에서만 찾는다
           r.candidates.push({
+            kind: kindLabel(cardKinds.get(c.id)), kind_diff: false,
             source_type: 'card', source_id: c.id, tx_date: c.tx_date, label: `카드 매출 ${c.acquirer ?? ''}`.trim(),
             amount: net, remaining, strength: 'weak',
             reason: `승인번호 다름(원본 ${c.approval_number}) · 금액 일치${r.card_last4 && tail ? ' · 카드 일치' : ''}`,
@@ -651,10 +777,11 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
       }
       r.candidates.sort((a, b) => (a.strength === b.strength ? Math.abs(dayDiff(a.tx_date, r.pay_date)) - Math.abs(dayDiff(b.tx_date, r.pay_date)) : a.strength === 'strong' ? -1 : 1))
       r.candidates = r.candidates.slice(0, 5)
+      if (r.invoice_kind_diff) for (const c of r.candidates) c.kind_diff = true
     }
 
     // 표시용 판정
-    if (r.candidates.some(c => c.strength === 'mismatch')) r.flag = 'mismatch'
+    if (r.candidates.some(c => c.strength === 'mismatch' || c.kind_diff) || r.invoice_kind_diff) r.flag = 'mismatch'
     else if (r.candidates.length) r.flag = 'ready'
     else if (r.method === 'invoice') r.flag = r.due_date && r.due_date < today ? 'overdue' : 'waiting'
     else {
@@ -697,6 +824,22 @@ export async function confirmRecord(admin: SupabaseClient, recordId: string, raw
   if (le) return { error: errMsg(le.message) }
   const allocs = ((links ?? []) as { order_id: string; amount: number }[]).map(l => ({ order_id: l.order_id, amount: Number(l.amount) }))
   if (!allocs.length) return { error: '기록에 주문이 없습니다.' }
+
+  // 방식 · 과세 구분 (1304, 2026-11-18 사용자 결정): 기록과 원본의 구분이 다르면 매칭하지 않는다 (미기재 기록 · 구분 모르는 원본은 통과)
+  const myKind = (await loadRecKinds(admin, [recordId]))?.get(recordId)
+  if (myKind && (myKind.card_entry || myKind.vat_kind)) {
+    if (rec.method === 'card') {
+      const ck = await loadCardKinds(admin, sources.filter(s => s.source_type === 'card').map(s => s.source_id))
+      for (const s of sources) {
+        const sk = ck.get(s.source_id)
+        if (kindDiff(myKind, sk).length) return { error: kindBlockMsg(myKind, '고른 카드 매출', sk!) }
+      }
+    } else if (rec.method === 'invoice' && myKind.vat_kind) {
+      const iv = await loadInvoiceVatOfOrders(admin, allocs.map(a => a.order_id))
+      const set = new Set<RecVat>(); for (const a of allocs) for (const v of Array.from(iv.get(a.order_id) ?? [])) set.add(v)
+      if (Array.from(set).some(v => v !== myKind.vat_kind)) return { error: kindBlockMsg(myKind, '주문에 연결된 홈택스 계산서', { vat_kind: Array.from(set).find(v => v !== myKind.vat_kind)! }) }
+    }
+  }
 
   // 이 원본이 기록의 주문에 이미 직접 매칭돼 있으면(카드 내역 · 입금 매칭) 새 매칭을 만들지 않고 그 행에 기록을 연결한다 — 미수가 두 번 깎이지 않는다
   const srcRows = await matchRowsBySource(admin, sources.map(s => s.source_id))
