@@ -9,6 +9,8 @@ import { kindLabel } from './payment-kind'
 import { loadRecentUnmatches, type UnmatchLog } from './match-log'
 
 // ── 결제 확인 › 전체 현황 (2026-11-18 실무자 요청 — 시안 docs/mockups/결제확인_탭5개_시안.html) ──
+// 속도(2026-11-18): 목록(loadOverview)은 검색 · 필터 · 상태 판정에 필요한 것만 전체로 읽고, 매칭 내역 · 원본 이름 · 연락 기록은
+//   줄을 펼칠 때 그 주문 것만 읽는다(loadOverviewDetail). 화면은 100건씩 그린다. 주문이 수천 건이 되면 상태 계산을 DB 한 번 호출(RPC)로 옮길 것.
 // 주문 한 줄씩, 결제 상태(주문내역 목록과 같은 5단계)로 거르는 "보는 화면". 확정 · 연락 기록은 매칭 대기 · 결제 안내 대상 탭에서 한다.
 // 예외로 매칭 해제만 여기서 한다(입금대장의 '매칭 내역'을 없애고 옮겨 옴).
 // 지점 담당 = vendor_staff 의 현재 배정(ended_at IS NULL) — 사용자 결정: 고객별 다올 담당 · 주문의 상담자가 아니다.
@@ -68,9 +70,10 @@ export interface OverviewRow extends StaffInfo {
   order_id: string; order_no: string | null; order_date: string
   customer_name: string; manager: string
   net: number; outstanding: number; pay: PayState
-  records: OverviewRecord[]; matches: OverviewMatch[]
-  contact_count: number; last_contact: string | null
+  records: OverviewRecord[]
 }
+// 줄을 펼칠 때 따로 읽는 상세 (2026-11-18 — 목록은 가볍게, 무거운 것은 보이는 줄만)
+export interface OverviewDetail { matches: OverviewMatch[]; contact_count: number; last_contact: string | null }
 
 export async function loadOverview(admin: SupabaseClient): Promise<{ error: string } | { rows: OverviewRow[]; released: UnmatchLog[] }> {
   type O = { id: string; order_no: string | null; order_date: string; bank_name: string | null; branch_name: string | null; manager_name: string | null; customer_alias_id: string | null; vendor_id: string | null }
@@ -120,55 +123,38 @@ export async function loadOverview(admin: SupabaseClient): Promise<{ error: stri
     recByOrder.set(l.order_id, list)
   }
 
-  // 수금 매칭 (누가 · 언제 — 1307 미적용이면 이름 없음)
-  type M = { id: string; order_id: string; source_type: string; source_id: string; amount: number; paid_date: string; record_id: string | null; from_invoice_id?: string | null; matched_by_name?: string | null; created_at?: string | null }
-  const matches: M[] = []
-  for (const ch of chunk(ids)) {
-    const r = await fetchAllRows<M>((f, t) => admin.from('erp_payment_matches').select('*').in('order_id', ch).range(f, t))
-    if (!('error' in r)) matches.push(...r.data)
-  }
-  const label = new Map<string, string>()
-  for (const ch of chunk(Array.from(new Set(matches.filter(m => m.source_type === 'bank').map(m => m.source_id))))) {
-    const { data } = await admin.from('transactions').select('id, counterparty_name, description').in('id', ch)
-    for (const t of data ?? []) label.set(t.id as string, `통장 ${String(t.counterparty_name || t.description || '').slice(0, 20)}`.trim())
-  }
-  for (const ch of chunk(Array.from(new Set(matches.filter(m => m.source_type === 'card').map(m => m.source_id))))) {
-    const { data } = await admin.from('card_sales').select('id, approval_number').in('id', ch)
-    for (const c of data ?? []) label.set(c.id as string, `카드 매출 승인 ${c.approval_number ?? ''}`.trim())
-  }
-  const matchByOrder = new Map<string, OverviewMatch[]>()
-  for (const m of matches) {
-    const list = matchByOrder.get(m.order_id) ?? []
-    list.push({
-      id: m.id, source_type: m.source_type, amount: Number(m.amount ?? 0), paid_date: String(m.paid_date).slice(0, 10),
-      label: m.source_type === 'prepay' ? '선결제 사용' : Number(m.amount ?? 0) < 0 ? `환불 ${label.get(m.source_id) ?? '출금'}` : (label.get(m.source_id) ?? m.source_type),
-      matched_by_name: m.matched_by_name ?? null, created_at: m.created_at ?? null, record_id: m.record_id ?? null, derived: !!m.from_invoice_id,
-    })
-    matchByOrder.set(m.order_id, list)
-  }
-
-  // 연락 기록 (1301 미적용이면 생략)
-  const contacts = new Map<string, { count: number; last: string }>()
-  for (const ch of chunk(ids)) {
-    const r = await fetchAllRows<{ order_id: string; contact_date: string }>((f, t) => admin.from('order_payment_contacts').select('order_id, contact_date').in('order_id', ch).range(f, t))
-    if ('error' in r) break
-    for (const c of r.data) {
-      const cur = contacts.get(c.order_id as string) ?? { count: 0, last: '' }
-      cur.count++; if (String(c.contact_date) > cur.last) cur.last = String(c.contact_date)
-      contacts.set(c.order_id as string, cur)
-    }
-  }
-
   const rows: OverviewRow[] = orders.map(o => ({
     order_id: o.id, order_no: o.order_no, order_date: o.order_date,
     customer_name: [o.bank_name, o.branch_name].filter(Boolean).join(' '), manager: honorify(o.manager_name),
     ...(staff.get(o.id) ?? { vendor_id: null, staff_ids: [], staff_names: [] }),
     net: recv.get(o.id)?.net_sales ?? 0, outstanding: recv.get(o.id)?.outstanding ?? 0, pay: payMap.get(o.id)!,
     records: (recByOrder.get(o.id) ?? []).sort((a, b) => a.pay_date.localeCompare(b.pay_date) || a.created_at.localeCompare(b.created_at)),
-    matches: (matchByOrder.get(o.id) ?? []).sort((a, b) => a.paid_date.localeCompare(b.paid_date)),
-    contact_count: contacts.get(o.id)?.count ?? 0, last_contact: contacts.get(o.id)?.last ?? null,
   }))
   return { rows, released: await loadRecentUnmatches(admin) }
+}
+
+export async function loadOverviewDetail(admin: SupabaseClient, orderId: string): Promise<OverviewDetail> {
+  type M = { id: string; order_id: string; source_type: string; source_id: string; amount: number; paid_date: string; record_id: string | null; from_invoice_id?: string | null; matched_by_name?: string | null; created_at?: string | null }
+  const { data: ms } = await admin.from('erp_payment_matches').select('*').eq('order_id', orderId)
+  const matches = (ms ?? []) as M[]
+  const label = new Map<string, string>()
+  const bankIds = Array.from(new Set(matches.filter(m => m.source_type === 'bank').map(m => m.source_id)))
+  const cardIds = Array.from(new Set(matches.filter(m => m.source_type === 'card').map(m => m.source_id)))
+  const [t, c, ct] = await Promise.all([
+    bankIds.length ? admin.from('transactions').select('id, counterparty_name, description').in('id', bankIds.slice(0, 150)) : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    cardIds.length ? admin.from('card_sales').select('id, approval_number').in('id', cardIds.slice(0, 150)) : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    admin.from('order_payment_contacts').select('contact_date').eq('order_id', orderId).order('contact_date', { ascending: false }),
+  ])
+  for (const x of t.data ?? []) label.set(x.id as string, `통장 ${String(x.counterparty_name || x.description || '').slice(0, 20)}`.trim())
+  for (const x of c.data ?? []) label.set(x.id as string, `카드 매출 승인 ${x.approval_number ?? ''}`.trim())
+  return {
+    matches: matches.map(m => ({
+      id: m.id, source_type: m.source_type, amount: Number(m.amount ?? 0), paid_date: String(m.paid_date).slice(0, 10),
+      label: m.source_type === 'prepay' ? '선결제 사용' : Number(m.amount ?? 0) < 0 ? `환불 ${label.get(m.source_id) ?? '출금'}` : (label.get(m.source_id) ?? m.source_type),
+      matched_by_name: m.matched_by_name ?? null, created_at: m.created_at ?? null, record_id: m.record_id ?? null, derived: !!m.from_invoice_id,
+    })).sort((a, b) => a.paid_date.localeCompare(b.paid_date)),
+    contact_count: ct.error ? 0 : (ct.data?.length ?? 0), last_contact: ct.error ? null : ((ct.data?.[0]?.contact_date as string | undefined) ?? null),
+  }
 }
 
 // ── 주문 미리보기 (주문번호를 누르면 뜨는 보기 전용 창) — 매입가 · 마진은 내려보내지 않는다 ──

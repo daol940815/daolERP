@@ -17,8 +17,9 @@ interface Match { id: string; source_type: string; label: string; amount: number
 interface Row {
   order_id: string; order_no: string | null; order_date: string; customer_name: string; manager: string
   staff_ids: string[]; staff_names: string[]; net: number; outstanding: number; pay: PayState
-  records: Rec[]; matches: Match[]; contact_count: number; last_contact: string | null
+  records: Rec[]
 }
+interface Detail { matches: Match[]; contact_count: number; last_contact: string | null }
 interface Released { id: string; order_no: string | null; amount: number | null; paid_date: string | null; reason_text: string | null; employee_name: string | null; created_at: string; origin: string | null }
 type Stage = 'all' | 'unpaid' | 'partial_pay' | 'match_wait' | 'partial_match' | 'done'
 const STAGES: { key: Stage; label: string }[] = [
@@ -41,6 +42,8 @@ export default function OverviewTab() {
   const [msg, setMsg] = useState<string | null>(null)
   const [stage, setStage] = useState<Stage>('all')
   const [openId, setOpenId] = useState<string | null>(null)
+  // 펼친 주문의 상세(매칭 내역 · 연락 기록) — 펼칠 때 그 주문 것만 읽는다(목록을 가볍게)
+  const [details, setDetails] = useState<Record<string, Detail>>({})
   const [shown, setShown] = useState(PAGE)
   const [showReleased, setShowReleased] = useState(false)
   const reasonDlg = useReasonDialog()
@@ -50,18 +53,26 @@ export default function OverviewTab() {
     const res = await fetch('/api/payment-records/overview', { cache: 'no-store' })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) { setError(json.error ?? '조회 실패'); setRows([]) }
-    else { setRows(json.rows ?? []); setReleased(json.released ?? []); setScope(json.scope ?? null); setCanEdit(!!json.can_edit); applyScope(json.scope) }
+    else { setRows(json.rows ?? []); setReleased(json.released ?? []); setScope(json.scope ?? null); setCanEdit(!!json.can_edit); applyScope(json.scope); setDetails({}) }
     setLoading(false)
   }, [applyScope])
   useEffect(() => { load() }, [load])
   useNotifRefresh(load)
+  useEffect(() => {
+    if (!openId || details[openId]) return
+    let alive = true
+    fetch(`/api/payment-records/overview?order_id=${openId}`, { cache: 'no-store' }).then(r => r.json())
+      .then(j => { if (alive) setDetails(d => ({ ...d, [openId]: { matches: j.matches ?? [], contact_count: j.contact_count ?? 0, last_contact: j.last_contact ?? null } })) })
+      .catch(() => { if (alive) setDetails(d => ({ ...d, [openId]: { matches: [], contact_count: 0, last_contact: null } })) })
+    return () => { alive = false }
+  }, [openId, details])
 
   // 기간 · 검색 · 지점 담당까지 거른 것 (상태 칩의 건수는 이 범위에서 센다)
   const scoped = useMemo(() => rows.filter(r => passPayFilter(filter, {
     staff_ids: r.staff_ids, date: r.order_date,
     fields: {
       vendor: r.customer_name, order: r.order_no, manager: r.manager,
-      approval: r.records.map(x => x.clue).join(' '), depositor: r.records.map(x => x.clue).join(' ') + ' ' + r.matches.map(m => m.label).join(' '),
+      approval: r.records.map(x => x.clue).join(' '), depositor: r.records.map(x => x.clue).join(' '),
       amount: [r.net, r.outstanding, ...r.records.map(x => x.amount)].join(' '),
     },
   })), [rows, filter])
@@ -134,6 +145,7 @@ export default function OverviewTab() {
                 const first = r.records.find(x => !x.cancel) ?? r.records[0]
                 const open = openId === r.order_id
                 const pendingRec = r.records.some(x => !x.confirmed_at)
+                const det = details[r.order_id]
                 return (
                   <Fragment key={r.order_id}>
                     <tr className={`border-b border-gray-100 align-top ${open ? 'bg-slate-50' : ''}`}>
@@ -150,8 +162,8 @@ export default function OverviewTab() {
                         {first ? (<>
                           {recLine(first)}{r.records.length > 1 && <span className="text-gray-400"> 외 {r.records.length - 1}건</span>}
                           <div className="text-[0.6875rem] text-gray-500">기재 {first.created_by_name ?? '-'} · {when(first.created_at)}{first.confirmed_at && ` · 매칭 ${first.confirmed_by_name ?? '-'} · ${when(first.confirmed_at)}`}</div>
-                        </>) : r.matches.length ? <span className="text-gray-500">기록 없이 입금 · 결제를 직접 붙임</span>
-                          : <span className="text-gray-400">기록 없음{r.pay.stage !== 'done' && (r.contact_count ? ` · 최근 연락 ${r.last_contact?.slice(5)}` : ' · 연락 기록 없음')}</span>}
+                        </>) : r.pay.matched > 0 ? <span className="text-gray-500">기록 없이 입금 · 결제를 직접 붙임</span>
+                          : <span className="text-gray-400">기록 없음</span>}
                       </td>
                       <td className="py-2.5 px-3 text-right whitespace-nowrap">
                         <button onClick={() => setOpenId(open ? null : r.order_id)} className="text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">{open ? '접기' : '펼치기'}</button>
@@ -161,7 +173,7 @@ export default function OverviewTab() {
                       <tr className="border-b border-gray-100 bg-slate-50">
                         <td colSpan={8} className="px-3 pb-3">
                           <div className="bg-white border border-gray-200 rounded-lg p-3 text-xs">
-                            <div className="text-gray-500 mb-1.5">결제 기록 {r.records.filter(x => !x.cancel).length}건 · 수금 매칭 {r.matches.length}건 · 연락 기록 {r.contact_count}건</div>
+                            <div className="text-gray-500 mb-1.5">결제 기록 {r.records.filter(x => !x.cancel).length}건{det ? ` · 수금 매칭 ${det.matches.length}건 · 연락 기록 ${det.contact_count}건${det.last_contact ? ` (최근 ${det.last_contact.slice(5)})` : ''}` : ' · 매칭 내역 불러오는 중...'}</div>
                             {r.records.map(x => (
                               <div key={x.id} className={`py-1 border-t border-gray-100 first:border-t-0 ${x.cancel ? 'text-orange-800' : 'text-gray-800'}`}>
                                 <span className="tabular-nums">{x.pay_date}</span> · {recLine(x)}원
@@ -169,7 +181,7 @@ export default function OverviewTab() {
                                 <span className="text-gray-500"> 기재 {x.created_by_name ?? '-'} · {when(x.created_at)}{x.confirmed_at && ` · 매칭 ${x.confirmed_by_name ?? '-'} · ${when(x.confirmed_at)}`}</span>
                               </div>
                             ))}
-                            {r.matches.map(m => (
+                            {(det?.matches ?? []).map(m => (
                               <div key={m.id} className="py-1 border-t border-gray-100 flex items-center gap-2 flex-wrap">
                                 <span className="text-gray-800"><span className="tabular-nums">{m.paid_date}</span> · {m.label} · <b className={`tabular-nums ${m.amount < 0 ? 'text-red-700' : ''}`}>{won(m.amount)}원</b></span>
                                 <span className="text-gray-500">매칭 {m.matched_by_name ?? (m.derived ? '계산서 입금에서 넘어옴' : '기록 없음')}{m.created_at && ` · ${when(m.created_at)}`}</span>
@@ -178,7 +190,7 @@ export default function OverviewTab() {
                                 )}
                               </div>
                             ))}
-                            {r.records.length === 0 && r.matches.length === 0 && <div className="text-gray-400 py-1">결제 기록과 수금 매칭이 없습니다.</div>}
+                            {det && r.records.length === 0 && det.matches.length === 0 && <div className="text-gray-400 py-1">결제 기록과 수금 매칭이 없습니다.</div>}
                             <div className="flex gap-2 flex-wrap mt-2.5">
                               {pendingRec && <Link href={`/payments?tab=match&q=${encodeURIComponent(r.order_no ?? '')}`} className="px-2.5 py-1 rounded bg-slate-900 text-white font-semibold">매칭 대기에서 열기</Link>}
                               {(r.pay.stage === 'unpaid' || r.pay.stage === 'partial_pay') && <Link href={`/payments?tab=guide&q=${encodeURIComponent(r.order_no ?? '')}`} className="px-2.5 py-1 rounded bg-slate-900 text-white font-semibold">결제 안내에서 열기</Link>}

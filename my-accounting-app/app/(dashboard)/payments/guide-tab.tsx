@@ -77,6 +77,9 @@ export default function GuideTab() {
     })
   }), [rows, kpi, chip, filter])
   const noneCount = useMemo(() => rows.filter(r => !(r.staff_ids ?? []).length).length, [rows])
+  // 화면에는 100건씩 그린다(검색 · 필터 · 건수 · 엑셀은 전체 기준) (2026-11-18)
+  const [shown, setShown] = useState(100)
+  useEffect(() => { setShown(100) }, [filter, kpi, chip])
 
   const openContact = async (r: Row) => {
     setTarget(r); setHistory([]); setCDate(today()); setCMethod('phone'); setCMemo(''); setCPromise(''); setFormErr(null)
@@ -174,7 +177,7 @@ export default function GuideTab() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(r => (
+                {filtered.slice(0, shown).map(r => (
                   <tr key={r.order_id} className="border-b border-gray-100 align-top hover:bg-gray-50">
                     <td className="py-2.5 px-3 whitespace-nowrap tabular-nums">
                       {r.order_date}
@@ -214,6 +217,11 @@ export default function GuideTab() {
                 ))}
               </tbody>
             </table>
+            {filtered.length > shown && (
+              <div className="p-3 text-center border-t border-gray-100">
+                <button onClick={() => setShown(n => n + 100)} className="px-4 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">더 보기 ({shown} / {filtered.length})</button>
+              </div>
+            )}
           </div>
         )}
 

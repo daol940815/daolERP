@@ -119,6 +119,9 @@ export default function MatchTab() {
     })
   }), [rows, tab, kpi, method, mineOnly, filter])
   const noneCount = useMemo(() => rows.filter(r => !(r.staff_ids ?? []).length).length, [rows])
+  // 화면에는 100건씩 그린다(검색 · 필터 · 건수는 전체 기준) — 기록이 수천 건이 돼도 화면이 버벅이지 않게 (2026-11-18)
+  const [shown, setShown] = useState(100)
+  useEffect(() => { setShown(100) }, [filter, tab, kpi, method, mineOnly])
 
   const confirmWith = async (r: Row, src: { source_type: 'bank' | 'card'; source_id: string; tx_date: string; label: string }) => {
     const orders = r.orders.map(o => `${o.order_no ?? ''} ${won(o.amount)}원`).join('\n')
@@ -324,7 +327,7 @@ export default function MatchTab() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(r => (
+              {filtered.slice(0, shown).map(r => (
                 <Fragment key={r.id}>
                   <tr className="border-b border-gray-100 align-top">
                     <td className="py-2.5 px-3 tabular-nums whitespace-nowrap">{r.pay_date}</td>
@@ -487,6 +490,11 @@ export default function MatchTab() {
               ))}
             </tbody>
           </table>
+          {filtered.length > shown && (
+            <div className="p-3 text-center border-t border-gray-100">
+              <button onClick={() => setShown(n => n + 100)} className="px-4 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">더 보기 ({shown} / {filtered.length})</button>
+            </div>
+          )}
         </div>
       )}
 
