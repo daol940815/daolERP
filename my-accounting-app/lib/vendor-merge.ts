@@ -11,6 +11,13 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 //   - 청구처(114) · 개인 고객(115) 연결은 DB 트리거가 남는 쪽으로 승계.
 //   - 사업자번호가 다르면 경고만(사용자 결정 — 막지 않음). 개인 고객 두 명의 매출처는 막는다(인물 병합으로).
 // 화면: 매출처 상세 "다른 매출처와 합치기", 회계·재무 › 거래처 중복 정리(같은 함수).
+//
+// 병합 취소 (119, 2026-11-18 사용자 승인): 합치기 직전에 흡수되는 쪽의 건별 목록 · 합산 전 값을
+// vendor_merge_snapshots 에 남기고(vendor_merge_snapshot), 취소는 그 목록의 건만 원래 매출처로 돌려보낸다
+// (unmerge_vendor — DB 함수 한 번 = 한 트랜잭션). 합친 뒤 새로 들어온 건은 남는 쪽에 둔다.
+//   - 119 미적용이면 기록 없이 합친다(전과 같음 — 그 병합은 취소할 수 없다).
+//   - 합치기가 도중에 실패하면 그때까지 옮긴 것을 같은 함수로 되돌린다.
+//   - 119 이전 병합 · 합치면서 같이 한 담당자(인물) 병합은 취소 대상이 아니다.
 // ─────────────────────────────────────────────────────────
 
 export interface MergeCount { key: string; label: string; from: number; into: number }
@@ -120,10 +127,28 @@ export async function previewVendorMerge(admin: SupabaseClient, fromId: string, 
 }
 
 // 전체 병합 실행. 미리보기의 blockers가 있으면 거절한다.
-export async function executeVendorMerge(admin: SupabaseClient, fromId: string, intoId: string, actor: string | null): Promise<{ ok: true; moved: Record<string, unknown> } | { error: string }> {
+export async function executeVendorMerge(admin: SupabaseClient, fromId: string, intoId: string, actor: string | null): Promise<{ ok: true; moved: Record<string, unknown>; undoable: boolean } | { error: string }> {
   const pv = await previewVendorMerge(admin, fromId, intoId)
   if ('error' in pv) return pv
   if (pv.blockers.length) return { error: pv.blockers.join(' ') }
+
+  // 0) 병합 취소용 기록 (119). 지난번에 도중 실패해 남은 기록이 있으면 먼저 되돌려 놓고 새로 찍는다.
+  let snapId: string | null = null
+  {
+    const { data: stale, error: stErr } = await admin.from('vendor_merge_snapshots').select('id')
+      .eq('from_id', fromId).is('completed_at', null).is('undone_at', null)
+    if (!stErr) for (const st of stale ?? []) await admin.rpc('unmerge_vendor', { p_snapshot: st.id, p_actor: '자동(이전 실패 정리)' })
+    const sn = await admin.rpc('vendor_merge_snapshot', { p_from: fromId, p_into: intoId, p_actor: actor })
+    if (sn.error) {
+      if (!isMissing119(sn.error)) return { error: `병합 준비 실패(취소용 기록): ${sn.error.message}` }
+    } else snapId = sn.data as string
+  }
+  // 도중 실패 → 옮기던 것을 되돌린다
+  const fail = async (msg: string): Promise<{ error: string }> => {
+    if (!snapId) return { error: msg }
+    const u = await admin.rpc('unmerge_vendor', { p_snapshot: snapId, p_actor: '자동(병합 실패)' })
+    return { error: u.error ? `${msg} — 옮기던 것을 되돌리지 못했습니다(${u.error.message}). ERP 담당자에게 알려 주세요.` : `${msg} — 옮기던 것은 원래대로 되돌렸습니다.` }
+  }
 
   // 1) 대표 담당자 충돌: 남는 쪽에 현재 대표가 있으면 흡수 쪽 대표 표시를 내린다(유니크 uq_contact_asgn_rep)
   const { data: rep } = await admin.from('contact_assignments').select('id')
@@ -135,14 +160,19 @@ export async function executeVendorMerge(admin: SupabaseClient, fromId: string, 
   const moved: Record<string, unknown> = {}
   for (const t of ['contact_assignments', 'contact_name_links', 'doc_sales_snapshot', 'erp_consultations', 'contact_review_events']) {
     const { data, error } = await admin.from(t).update({ vendor_id: intoId }).eq('vendor_id', fromId).select('vendor_id')
-    if (error && !/does not exist|relation|schema cache/i.test(error.message)) return { error: `${t} 이전 실패: ${error.message}` }
+    if (error && !/does not exist|relation|schema cache/i.test(error.message)) return fail(`${t} 이전 실패: ${error.message}`)
     if (data?.length) moved[t] = data.length
   }
   // 3) 배정 · 지점 담당 · 영업일지 · 주문 · 발주 → 4) 회계 연결 · 별칭 · 병합 표시 · 이력
   const x = await admin.rpc('merge_vendor_extra_refs', { p_from: fromId, p_into: intoId })
-  if (x.error) return { error: `병합 실패(고객 연결): ${x.error.message}` }
+  if (x.error) return fail(`병합 실패(고객 연결): ${x.error.message}`)
   const m = await admin.rpc('merge_vendor', { p_from: fromId, p_into: intoId, p_actor: actor })
-  if (m.error) return { error: `병합 실패: ${m.error.message}` }
+  if (m.error) return fail(`병합 실패: ${m.error.message}`)
+  if (snapId) {
+    const { data: lg } = await admin.from('vendor_merge_logs').select('id')
+      .eq('kind', 'vendor').eq('from_id', fromId).eq('into_id', intoId).order('merged_at', { ascending: false }).limit(1)
+    await admin.from('vendor_merge_snapshots').update({ completed_at: new Date().toISOString(), log_id: lg?.[0]?.id ?? null }).eq('id', snapId)
+  }
 
   // 5) 남는 쪽 별칭에서 공용 이름(업체명과 같은 이름 — 예: '개인')은 뺀다. 남겨 두면 그 표기가 이 매출처로 잡힌다.
   if (pv.into.group_name) {
@@ -151,7 +181,118 @@ export async function executeVendorMerge(admin: SupabaseClient, fromId: string, 
     const kept = al.filter(a => normName(a) !== normName(pv.into.group_name!))
     if (kept.length !== al.length) await admin.from('vendors').update({ match_aliases: kept }).eq('id', intoId)
   }
-  return { ok: true, moved: { ...moved, ...((x.data as Record<string, unknown>) ?? {}), ...((m.data as Record<string, unknown>) ?? {}) } }
+  return { ok: true, undoable: !!snapId, moved: { ...moved, ...((x.data as Record<string, unknown>) ?? {}), ...((m.data as Record<string, unknown>) ?? {}) } }
+}
+
+// ── 병합 이력 · 병합 취소 (119) ─────────────────────────
+const isMissing119 = (e: { message?: string; code?: string } | null) =>
+  !!e && (e.code === 'PGRST202' || e.code === '42883' || e.code === '42P01' || e.code === 'PGRST205'
+    || /vendor_merge_snapshot|unmerge_vendor|schema cache|does not exist/i.test(e.message ?? ''))
+
+export interface MergeHistoryRow {
+  log_id: string
+  merged_at: string
+  actor: string | null
+  from_id: string
+  from_name: string
+  moved_total: number
+  snapshot_id: string | null        // 있으면 건별 기록이 있는 병합
+  undone_at: string | null
+  undone_by: string | null
+  can_undo: boolean
+  why_not: string | null
+}
+
+// 이 매출처로 합쳐진 병합 목록 (최근 것부터)
+export async function listMergeHistory(admin: SupabaseClient, vendorId: string): Promise<MergeHistoryRow[]> {
+  const { data: logs } = await admin.from('vendor_merge_logs')
+    .select('id, merged_at, actor, from_id, from_name, moved_refs').eq('kind', 'vendor').eq('into_id', vendorId)
+    .order('merged_at', { ascending: false }).limit(100)
+  if (!logs?.length) return []
+  const { data: snaps, error } = await admin.from('vendor_merge_snapshots')
+    .select('id, log_id, from_id, created_at, completed_at, undone_at, undone_by').eq('into_id', vendorId).not('completed_at', 'is', null)
+  const byLog = new Map<string, { id: string; undone_at: string | null; undone_by: string | null }>()
+  if (!error) for (const sn of snaps ?? []) {
+    if (sn.log_id) byLog.set(sn.log_id as string, { id: sn.id as string, undone_at: (sn.undone_at as string | null) ?? null, undone_by: (sn.undone_by as string | null) ?? null })
+  }
+  // 흡수된 쪽의 지금 상태 — 아직 이 매출처에 병합돼 있어야 취소할 수 있다
+  const fromIds = Array.from(new Set(logs.map(l => l.from_id as string)))
+  const cur = new Map<string, { status: string; merged_into_id: string | null }>()
+  for (let k = 0; k < fromIds.length; k += 100) {
+    const { data } = await admin.from('vendors').select('id, status, merged_into_id').in('id', fromIds.slice(k, k + 100))
+    for (const v of data ?? []) cur.set(v.id as string, { status: v.status as string, merged_into_id: (v.merged_into_id as string | null) ?? null })
+  }
+  return logs.map(l => {
+    const sn = byLog.get(l.id as string) ?? null
+    const c = cur.get(l.from_id as string)
+    const refs = (l.moved_refs ?? {}) as Record<string, unknown>
+    const moved_total = Object.entries(refs).reduce((a, [k, v]) => a + (k !== 'opening_balance_moved' && typeof v === 'number' ? v : 0), 0)
+    let why: string | null = null
+    if (!sn) why = '건별 기록이 없는 병합입니다(병합 취소 기능 이전) — 화면에서 취소할 수 없습니다.'
+    else if (sn.undone_at) why = '이미 취소했습니다.'
+    else if (!c || c.status !== 'merged' || c.merged_into_id !== vendorId) why = '흡수된 매출처의 상태가 그 뒤 바뀌었습니다.'
+    return {
+      log_id: l.id as string, merged_at: l.merged_at as string, actor: (l.actor as string | null) ?? null,
+      from_id: l.from_id as string, from_name: l.from_name as string, moved_total,
+      snapshot_id: sn?.id ?? null, undone_at: sn?.undone_at ?? null, undone_by: sn?.undone_by ?? null,
+      can_undo: !why, why_not: why,
+    }
+  })
+}
+
+// 표 이름 → 화면 표기 (REF_TABLES 와 같은 말)
+const UNDO_LABELS: Record<string, string> = {
+  ...Object.fromEntries(REF_TABLES.filter(t => !t.col).map(t => [t.table, t.label])),
+  card_accounts: '카드 계좌', purchase_cycle_reviews: '매입 정산 확인', contact_review_events: '담당자 확인 이력',
+}
+const UNDO_ORDER = REF_TABLES.filter(t => !t.col).map(t => t.table)
+
+export interface UnmergePreview {
+  snapshot_id: string
+  from_id: string; from_name: string
+  into_id: string; into_name: string
+  actor: string | null
+  created_at: string
+  blockers: string[]
+  counts: { table: string; label: string; total: number; back: number }[]   // total = 병합 때 옮긴 건, back = 지금 돌아갈 건
+  staff_restore: number
+  aliases_remove: string[]
+  opening_from: number | null
+  purchase_opening_from: number | null
+  billing_children: number
+}
+
+export async function previewVendorUnmerge(admin: SupabaseClient, snapshotId: string): Promise<UnmergePreview | { error: string }> {
+  if (!/^[0-9a-f-]{36}$/i.test(snapshotId)) return { error: '병합 기록을 찾을 수 없습니다.' }
+  const { data, error } = await admin.rpc('unmerge_vendor_preview', { p_snapshot: snapshotId })
+  if (error) return { error: isMissing119(error) ? '병합 취소 기능이 아직 적용되지 않았습니다(마이그레이션 119).' : error.message }
+  const d = (data ?? {}) as Record<string, unknown>
+  if (!d.snapshot_id) return { error: ((d.blockers as string[] | undefined) ?? ['병합 기록을 찾을 수 없습니다.']).join(' ') }
+  const tables = (d.tables ?? {}) as Record<string, { total: number; back: number }>
+  const counts = Object.entries(tables)
+    .map(([table, v]) => ({ table, label: UNDO_LABELS[table] ?? table, total: v.total, back: v.back }))
+    .sort((a, b) => (UNDO_ORDER.indexOf(a.table) + 100) % 100 - (UNDO_ORDER.indexOf(b.table) + 100) % 100)
+  return {
+    snapshot_id: d.snapshot_id as string,
+    from_id: d.from_id as string, from_name: d.from_name as string,
+    into_id: d.into_id as string, into_name: d.into_name as string,
+    actor: (d.actor as string | null) ?? null, created_at: d.created_at as string,
+    blockers: (d.blockers as string[] | null) ?? [],
+    counts,
+    staff_restore: Number(d.staff_restore ?? 0),
+    aliases_remove: (d.aliases_remove as string[] | null) ?? [],
+    opening_from: d.opening_from == null ? null : Number(d.opening_from),
+    purchase_opening_from: d.purchase_opening_from == null ? null : Number(d.purchase_opening_from),
+    billing_children: Number(d.billing_children ?? 0),
+  }
+}
+
+// 병합 취소 실행 — DB 함수 한 번(한 트랜잭션). 막는 이유가 있으면 함수가 거절한다.
+export async function executeVendorUnmerge(admin: SupabaseClient, snapshotId: string, actor: string | null): Promise<{ ok: true; result: Record<string, unknown> } | { error: string }> {
+  if (!/^[0-9a-f-]{36}$/i.test(snapshotId)) return { error: '병합 기록을 찾을 수 없습니다.' }
+  const { data, error } = await admin.rpc('unmerge_vendor', { p_snapshot: snapshotId, p_actor: actor })
+  if (error) return { error: isMissing119(error) && !/취소|병합|매출처/.test(error.message) ? '병합 취소 기능이 아직 적용되지 않았습니다(마이그레이션 119).' : `병합 취소 실패: ${error.message}` }
+  return { ok: true, result: (data ?? {}) as Record<string, unknown> }
 }
 
 // 합치기 대상 검색 — 활성 매출처(병합 제외), 이름 · 별칭

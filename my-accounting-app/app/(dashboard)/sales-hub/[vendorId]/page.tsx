@@ -11,6 +11,7 @@ import { contactLabel, honorify } from '@/lib/contact-label'
 import type { BillingDetail, BillingRef } from '@/lib/billing'
 import InvoiceLinkModal from '../../sales-cycle/invoice-link-modal'
 import MergeDialog from './merge-dialog'
+import MergeHistoryDialog from './merge-history'
 
 // 매출처 허브 — 거래처 360° 상세(B)
 // 목록(A)의 기간이 URL로 넘어와 기본값이 되고, 여기서 바꿔도 목록에는 영향이 없다.
@@ -56,6 +57,7 @@ export default function SalesHubDetailPage() {
   // 청구처(계산서 발행처, 114) — 부서면 가리키는 법인, 법인이면 소속 부서 · 계산서별 연결 부서
   const [billing, setBilling] = useState<BillingDetail | null>(null)
   const [mergeOpen, setMergeOpen] = useState(false)   // 다른 매출처와 합치기 (2026-11-16)
+  const [mergeHist, setMergeHist] = useState<{ open: boolean; count: number }>({ open: false, count: 0 })   // 병합 이력 · 취소 (119, 2026-11-18)
   // 개인 고객 전용 매출처(115) — 고객 정보 + 같은 인물의 다른 거래처
   const [individual, setIndividual] = useState<{
     contact_id: string; name: string; code: string | null; phone: string | null
@@ -84,6 +86,13 @@ export default function SalesHubDetailPage() {
   const router = useRouter()
   const [canEdit, setCanEdit] = useState(false)
   const [infoForm, setInfoForm] = useState<{ open: boolean; name: string; biz: string; busy: boolean }>({ open: false, name: '', biz: '', busy: false })
+
+  // 병합 이력 건수 — 수정 권한자에게만 버튼을 보인다 (이 매출처로 합쳐진 기록이 있을 때)
+  const loadMergeCount = useCallback(() => {
+    fetch(`/api/vendor-hub/merge?history=${vendorId}`).then(r => r.json())
+      .then(j => setMergeHist(h => ({ ...h, count: Array.isArray(j.history) ? j.history.length : 0 }))).catch(() => {})
+  }, [vendorId])
+  useEffect(() => { if (canEdit) loadMergeCount() }, [canEdit, loadMergeCount])
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -221,6 +230,10 @@ export default function SalesHubDetailPage() {
                   className="px-2 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-600 hover:bg-gray-50">정보 수정</button>
                 <button onClick={() => setMergeOpen(true)}
                   className="px-2 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-600 hover:bg-gray-50">다른 매출처와 합치기</button>
+                {mergeHist.count > 0 && (
+                  <button onClick={() => setMergeHist(h => ({ ...h, open: true }))}
+                    className="px-2 py-0.5 border border-gray-300 rounded text-[0.6875rem] text-gray-600 hover:bg-gray-50">병합 이력 {mergeHist.count}</button>
+                )}
                 {data.vendor.is_active ? (
                   <button onClick={async () => {
                     if (!confirm(`'${data.vendor.name}' 매출처를 삭제할까요?\n연결된 데이터가 있으면 삭제 대신 비활성 처리를 안내합니다.`)) return
@@ -1062,6 +1075,8 @@ export default function SalesHubDetailPage() {
         )}
       </div>
       {mergeOpen && <MergeDialog vendorId={vendorId} vendorName={data.vendor.name} onClose={() => setMergeOpen(false)} />}
+      {mergeHist.open && <MergeHistoryDialog vendorId={vendorId} vendorName={data.vendor.name}
+        onClose={() => setMergeHist(h => ({ ...h, open: false }))} onChanged={() => { load(); loadMergeCount() }} />}
       {linkOpen && (
         <InvoiceLinkModal vendorId={vendorId} vendorName={data.vendor.name} from={from}
           onClose={() => setLinkOpen(false)}

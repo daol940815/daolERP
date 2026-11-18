@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 
 // 매출처 상세 › 다른 매출처와 합치기 (2026-11-16 사용자 승인, 시안 docs/mockups/매출처_합치기_시안.html)
 // 1) 대상 검색 · 남길 쪽 선택 → 2) 미리보기(건수 · 경고 · 막는 이유) → 3) 실행 → 같은 이름 담당자 합치기 안내
+// 취소는 남은 매출처 상세 › 병합 이력(merge-history.tsx, 119).
 interface Target { id: string; name: string; is_active: boolean; created_at: string; group_name: string | null }
 interface Preview {
   from: { id: string; name: string }
@@ -27,6 +28,7 @@ export default function MergeDialog({ vendorId, vendorName, onClose }: { vendorI
   const [msg, setMsg] = useState<string | null>(null)
   const [keepers, setKeepers] = useState<Record<string, string>>({})   // 같은 이름 → 남길 인물
   const [personDone, setPersonDone] = useState<Record<string, boolean>>({})
+  const [undoable, setUndoable] = useState(false)   // 119 적용 = 병합 취소 가능
 
   useEffect(() => {
     if (step !== 'pick' || !q.trim()) { setList([]); return }
@@ -62,6 +64,7 @@ export default function MergeDialog({ vendorId, vendorName, onClose }: { vendorI
     const json = await res.json().catch(() => ({}))
     setBusy(false)
     if (!res.ok) { setMsg(json.error ?? '합치기 실패'); return }
+    setUndoable(!!json.undoable)
     setStep('done')
   }
   const mergePeople = async (name: string, ids: string[]) => {
@@ -168,6 +171,7 @@ export default function MergeDialog({ vendorId, vendorName, onClose }: { vendorI
             <div className="px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
               <b>합쳤습니다.</b> {pv.from.name} → {pv.into.name} ·{' '}
               {pv.counts.filter(c => c.from > 0).map(c => `${c.label} ${c.from}`).join(' · ') || '옮길 연결 없음'}. 병합 이력에 남았습니다.
+              {undoable && ' 잘못 합쳤으면 남은 매출처 상세의 "병합 이력"에서 취소할 수 있습니다.'}
             </div>
             {pv.same_name.length > 0 && (
               <div className="mt-3 border border-gray-200 rounded-lg p-3">
