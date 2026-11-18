@@ -3,6 +3,7 @@ import { cardNumberKey } from '@/lib/card-number'
 import { isCardSaleVoided, CARD_SALE_VOID_NOTE } from '@/lib/card-sale-status'
 import { syncRecordsForOrders } from '@/lib/payment-records'
 import type { Editor } from '@/lib/orders-portal'
+import { insertMatches, logUnmatch } from './match-log'
 
 // 카드 결제(card_sales 승인 1건) → ERP 주문 배분 (2026-11-13 승인 시안, 자동 매칭 없음)
 // 저장은 기존 erp_payment_matches(source_type 'card'). 이 매칭은 ERP 미수(수금) 기준이고 카드사 정산 입금은 통장에서 따로 확정한다.
@@ -134,6 +135,7 @@ export async function loadCardOrderState(admin: Admin, saleId: string, q?: strin
 // 저장 뒤 결제 기록(1300)과 동기화: 기록의 주문 · 금액이 이 매칭으로 정확히 채워지면 기록을 자동 확정, 덮지 못하게 된 확정 기록은 자동 해제 (2026-11-16)
 export async function saveCardOrderMatch(
   admin: Admin, saleId: string, allocations: { order_id: string; amount: number }[], editor: Editor = { employeeId: null, employeeName: null },
+  reason: { code: string; text: string } | null = null,   // 기존 배분이 빠지거나 줄어들 때 필수 (1307, 2026-11-18)
 ): Promise<{ ok: true; inserted: number; linked_vendor: boolean; registered_card: boolean; records_confirmed: number; records_released: number } | { ok: false; error: string }> {
   const state = await loadCardOrderState(admin, saleId)
   if ('error' in state) return { ok: false, error: state.error }
@@ -157,12 +159,23 @@ export async function saveCardOrderMatch(
     if (r.amount > c.remaining) return { ok: false, error: `주문 #${c.order_no || r.order_id.slice(0, 8)}의 남은 미수(${c.remaining.toLocaleString('ko-KR')}원)보다 큰 금액은 배분할 수 없습니다.` }
   }
 
-  const { error: de } = await admin.from('erp_payment_matches').delete().eq('source_type', 'card').eq('source_id', saleId)
-  if (de) return { ok: false, error: de.message }
-  if (rows.length) {
-    const { error: ie } = await admin.from('erp_payment_matches').insert(rows.map(r => ({
+  // 바뀐 것만 고친다 (1307) — 그대로인 배분은 손대지 않아 "누가 · 언제 매칭"이 유지된다
+  const want = new Map(rows.map(r => [r.order_id, r.amount]))
+  const keep = state.current.filter(m => want.get(m.order_id) === m.amount)
+  const drop = state.current.filter(m => want.get(m.order_id) !== m.amount)
+  const needsReason = drop.some(m => (want.get(m.order_id) ?? 0) < m.amount)   // 빠졌거나 금액이 줄어든 배분
+  if (needsReason && !reason) return { ok: false, error: '기존 매칭을 풀거나 줄이려면 매칭 해제 사유를 고르세요.' }
+  if (drop.length) {
+    const { error: de } = await admin.from('erp_payment_matches').delete().in('id', drop.map(m => m.id))
+    if (de) return { ok: false, error: de.message }
+    await logUnmatch(admin, drop.map(m => ({ id: m.id, order_id: m.order_id, source_type: 'card', source_id: saleId, amount: m.amount, paid_date: m.paid_date })), '카드 내역 주문 매칭', needsReason ? reason : null, editor)
+  }
+  const keepIds = new Set(keep.map(m => m.order_id))
+  const fresh = rows.filter(r => !keepIds.has(r.order_id))
+  if (fresh.length) {
+    const { error: ie } = await insertMatches(admin, fresh.map(r => ({
       order_id: r.order_id, source_type: 'card', source_id: saleId, amount: r.amount, paid_date: state.sale.tx_date, matched_by: 'manual',
-    })))
+    })), '카드 내역 주문 매칭', editor)
     if (ie) return { ok: false, error: ie.message }
   }
   const sync = await syncRecordsForOrders(admin, [...state.current.map(m => m.order_id), ...rows.map(r => r.order_id)], editor, '카드 내역 주문 매칭')

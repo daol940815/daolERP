@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useNotifRefresh, requestNotifRefresh } from '@/lib/use-notif-refresh'
+import ReasonPicker, { reasonReady, type ReasonValue } from '@/components/payments/ReasonPicker'
 import { kindLabel, type CardEntry, type RecVat } from '@/lib/payment-kind'
 
 // 결제 확인 (1300, 2026-11-13 사용자 확정 — 시안 docs/mockups/결제처리_시안.html)
@@ -28,6 +29,15 @@ interface Row {
   mine: boolean
   card_entry?: CardEntry | null; vat_kind?: RecVat | null
   invoice_kind?: string | null; invoice_kind_diff?: boolean
+  last_release?: { text: string; by: string | null; at: string } | null
+}
+// 취소 대기 (1305): 1차에서 남긴 취소 줄 — 카드 매출의 취소 행 · 홈택스 취소 계산서와 매칭해 확정한다
+interface CancelCand { kind: 'card' | 'invoice' | 'bank'; label: string; date: string; amount: number; note: string; neg_invoice_id?: string; pos_invoice_id?: string; tx_id?: string }
+interface CancelRow {
+  id: string; method: Method; cancel_date: string; amount: number; reason_text: string | null; created_by_name: string | null; vendor_name: string | null
+  orig: { id: string; pay_date: string; amount: number; approval_number: string | null; confirmed: boolean }
+  orders: { order_id: string; order_no: string | null; amount: number }[]
+  candidates: CancelCand[]; note: string | null
 }
 interface Found {
   source_type: 'bank' | 'card'; id: string; tx_date: string; label: string; vendor_name: string | null
@@ -51,6 +61,7 @@ type Kpi = 'all' | 'ready' | 'mismatch' | 'overdue'
 export default function MatchTab() {
   const [tab, setTab] = useState<'pending' | 'confirmed'>('pending')
   const [rows, setRows] = useState<Row[]>([])
+  const [cancels, setCancels] = useState<CancelRow[]>([])
   const [latest, setLatest] = useState<{ card: string | null; bank: string | null }>({ card: null, bank: null })
   const [canEdit, setCanEdit] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -67,14 +78,16 @@ export default function MatchTab() {
   const [findAmount, setFindAmount] = useState(true)
   const [found, setFound] = useState<Found[]>([])
   const [finding, setFinding] = useState(false)
+  const [relId, setRelId] = useState<string | null>(null)            // 매칭 해제 사유 창이 열린 기록
+  const [relReason, setRelReason] = useState<ReasonValue | null>(null)
   const [showOtherKind, setShowOtherKind] = useState(false)   // 다른 입금 찾기 — 구분이 다른 카드 매출도 보기
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     const res = await fetch(`/api/payment-records?state=${tab}`)
     const json = await res.json().catch(() => ({}))
-    if (!res.ok) { setError(json.error ?? '조회 실패'); setRows([]) }
-    else { setRows(json.rows ?? []); setLatest(json.latest ?? { card: null, bank: null }); setCanEdit(!!json.can_edit) }
+    if (!res.ok) { setError(json.error ?? '조회 실패'); setRows([]); setCancels([]) }
+    else { setRows(json.rows ?? []); setCancels(json.cancels ?? []); setLatest(json.latest ?? { card: null, bank: null }); setCanEdit(!!json.can_edit) }
     setLoading(false)
   }, [tab])
   useEffect(() => { load() }, [load])
@@ -115,20 +128,38 @@ export default function MatchTab() {
     setFindId(null); requestNotifRefresh(); load()
   }
 
-  const release = async (r: Row) => {
-    const reason = prompt(`확인 해제 — 이 결제의 수금 처리를 되돌립니다.\n기록은 "확인 대기"로 돌아가고 주문 미수가 ${won(r.amount)}원 다시 늘어납니다.\n\n해제 사유를 입력하세요.`)
-    if (reason == null) return
-    if (reason.trim().length < 2) { setMsg('확인 해제 사유를 입력해야 합니다.'); return }
-    setBusyId(r.id); setMsg(null)
-    const res = await fetch(`/api/payment-records/${r.id}/confirm`, {
-      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }),
+  const confirmCancel = async (c: CancelRow, cand: CancelCand) => {
+    const effect = c.method === 'card'
+      ? (c.orig.confirmed ? `원 결제의 수금 매칭이 ${won(c.amount)}원 줄고 주문 미수가 그만큼 늘어납니다.` : '원 결제가 아직 매칭 전이라 미수는 그대로입니다.')
+      : c.method === 'invoice' ? '취소 계산서가 주문에 연결되고, 원 계산서에 붙어 있던 입금이 풀려 주문 미수가 다시 생깁니다.'
+        : `입금 매칭은 그대로 두고 환불 출금 ${won(c.amount)}원을 주문에 붙입니다. 주문 미수가 그만큼 늘어납니다.`
+    if (!confirm(`이 취소를 확정할까요?\n\n취소 기록: ${SHORT[c.method]} ${c.cancel_date} −${won(c.amount)}원\n원본: ${cand.label} ${cand.date}\n\n${effect}\n확정한 취소는 되돌릴 수 없습니다.`)) return
+    setBusyId(c.id); setMsg(null)
+    const res = await fetch(`/api/payment-records/${c.id}/cancel-confirm`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cand.kind === 'invoice' ? { neg_invoice_id: cand.neg_invoice_id, pos_invoice_id: cand.pos_invoice_id } : cand.kind === 'bank' ? { tx_id: cand.tx_id } : {}),
     })
     const json = await res.json().catch(() => ({}))
     setBusyId(null)
-    if (!res.ok) { setMsg(json.error ?? '확인 해제 실패'); return }
-    setMsg('확인 해제했습니다 — 기록이 확인 대기로 돌아갔습니다.')
+    if (!res.ok) { setMsg(json.error ?? '취소 확정 실패'); return }
+    setMsg(json.message ?? '취소를 확정했습니다.')
     requestNotifRefresh(); load()
   }
+
+  // 매칭 해제 — 사유를 항목에서 골라야 한다(1307). 사유 · 사람 · 시각이 이력에 남는다
+  const release = async (r: Row) => {
+    if (!reasonReady(relReason)) return
+    setBusyId(r.id); setMsg(null)
+    const res = await fetch(`/api/payment-records/${r.id}/confirm`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: relReason }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setBusyId(null)
+    if (!res.ok) { setMsg(json.error ?? '매칭 해제 실패'); return }
+    setMsg('매칭을 해제했습니다 — 기록이 매칭 대기로 돌아갔습니다.')
+    setRelId(null); requestNotifRefresh(); load()
+  }
+  const when = (iso: string) => { const d = new Date(new Date(iso).getTime() + 9 * 3600000).toISOString(); return `${d.slice(5, 10)} ${d.slice(11, 16)}` }
 
   const runFind = async (r: Row, q = findQ, useAmount = findAmount) => {
     setFinding(true)
@@ -203,6 +234,67 @@ export default function MatchTab() {
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="매출처 · 주문번호 · 승인번호 · 입금자 · 금액 검색"
           className="ml-auto border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-72 max-w-full focus:outline-none focus:ring-2 focus:ring-slate-900" />
       </div>
+
+      {tab === 'pending' && !loading && cancels.length > 0 && (
+        <div className="mb-4 bg-white border border-orange-200 rounded-xl overflow-x-auto">
+          <div className="px-3 py-2 border-b border-orange-100 bg-orange-50 text-sm">
+            <b className="text-orange-900">취소 대기 {cancels.length}건</b>
+            <span className="text-xs text-orange-800"> — 주문에 남긴 결제 취소를 카드 매출의 취소 내역 · 홈택스 취소 계산서 · 통장의 환불 출금과 매칭합니다. 확정해야 미수에 반영됩니다.</span>
+          </div>
+          <table className="w-full text-sm min-w-[60rem]">
+            <thead>
+              <tr className="text-left text-xs text-gray-500 border-b border-gray-200">
+                <th className="py-2 px-3 font-medium">취소일</th>
+                <th className="py-2 px-3 font-medium">수단</th>
+                <th className="py-2 px-3 font-medium">매출처 · 주문</th>
+                <th className="py-2 px-3 font-medium text-right">취소 금액</th>
+                <th className="py-2 px-3 font-medium">원 결제 · 사유</th>
+                <th className="py-2 px-3 font-medium">원본 후보</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cancels.map(c => (
+                <tr key={c.id} className="border-b border-gray-100 align-top">
+                  <td className="py-2.5 px-3 tabular-nums whitespace-nowrap">{c.cancel_date}</td>
+                  <td className="py-2.5 px-3"><span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-orange-100 text-orange-800">{c.method === 'transfer' ? '이체 환불' : `${SHORT[c.method]} 취소`}</span></td>
+                  <td className="py-2.5 px-3">
+                    <div className="text-gray-900">{c.vendor_name ?? '(매출처 미연결)'}</div>
+                    <div className="text-[0.6875rem] text-gray-500">
+                      {c.orders.map((o, i) => (
+                        <Fragment key={o.order_id}>{i > 0 && ', '}<Link href={`/orders/${o.order_id}`} className="hover:underline tabular-nums">{o.order_no ?? '-'}</Link>{c.orders.length > 1 && <span className="text-gray-400"> {won(o.amount)}</span>}</Fragment>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="py-2.5 px-3 text-right font-semibold tabular-nums whitespace-nowrap text-red-700">−{won(c.amount)}</td>
+                  <td className="py-2.5 px-3 text-xs text-gray-700">
+                    {c.orig.pay_date} {won(c.orig.amount)}원{c.orig.approval_number && ` · 승인 ${c.orig.approval_number}`}
+                    <span className={`ml-1 px-1.5 py-px rounded text-[0.625rem] ${c.orig.confirmed ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'}`}>{c.orig.confirmed ? '매칭 완료' : '매칭 전'}</span>
+                    <div className="text-[0.6875rem] text-gray-500">{c.reason_text ?? ''}{c.created_by_name && ` · ${c.created_by_name}`}</div>
+                  </td>
+                  <td className="py-2.5 px-3 text-xs">
+                    {c.candidates.length === 0 ? <span className="text-gray-400">{c.note}</span> : (
+                      <div className="space-y-1">
+                        {c.candidates.map((cand, i) => (
+                          <div key={i} className="rounded-lg border border-green-200 bg-green-50 px-2 py-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-800">{cand.label} <span className="tabular-nums">{cand.date}</span></span>
+                              {canEdit && (
+                                <button onClick={() => confirmCancel(c, cand)} disabled={busyId === c.id}
+                                  className="ml-auto whitespace-nowrap px-2 py-0.5 rounded text-[0.6875rem] font-semibold bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-40">취소 확정</button>
+                              )}
+                            </div>
+                            <div className="text-[0.6875rem] text-gray-500">{cand.note}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-20 text-gray-400">불러오는 중...</div>
@@ -297,7 +389,11 @@ export default function MatchTab() {
                     </td>
                     <td className="py-2.5 px-3 text-xs text-gray-700 whitespace-nowrap">
                       {r.created_by_name ?? '-'}{r.mine && <span className="text-[0.625rem] text-gray-400"> (나)</span>}
-                      {tab === 'confirmed' && <div className="text-[0.6875rem] text-gray-400">확인 {r.confirmed_by_name ?? '-'} {r.confirmed_at?.slice(5, 10)}</div>}
+                      {tab === 'confirmed' && <div className="text-[0.6875rem] text-gray-500">매칭 {r.confirmed_by_name ?? '-'} · {r.confirmed_at ? when(r.confirmed_at) : ''}</div>}
+                      {tab === 'pending' && r.last_release && (
+                        <div><span title={`매칭 해제 사유: ${r.last_release.text}\n${r.last_release.by ?? ''} · ${when(r.last_release.at)}`}
+                          className="inline-block mt-0.5 px-1.5 py-0.5 rounded border border-gray-200 text-[0.6875rem] text-gray-500 cursor-help">매칭 해제됨</span></div>
+                      )}
                     </td>
                     <td className="py-2.5 px-3 text-right whitespace-nowrap">
                       {tab === 'pending' ? (<>
@@ -314,11 +410,26 @@ export default function MatchTab() {
                           </div>
                         )}
                       </>) : canEdit && (
-                        <button onClick={() => release(r)} disabled={busyId === r.id}
-                          className="text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50 disabled:opacity-40">확인 해제</button>
+                        <button onClick={() => { setRelId(relId === r.id ? null : r.id); setRelReason(null) }} disabled={busyId === r.id}
+                          className="text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50 disabled:opacity-40">{relId === r.id ? '닫기' : '매칭 해제'}</button>
                       )}
                     </td>
                   </tr>
+                  {relId === r.id && tab === 'confirmed' && (
+                    <tr className="border-b border-gray-100 bg-orange-50">
+                      <td colSpan={8} className="px-3 py-3">
+                        <div className="text-xs text-gray-700 mb-2">
+                          <b>매칭 해제</b> — 이 결제의 수금 처리를 되돌립니다. 기록은 매칭 대기로 돌아가고 주문 미수가 {won(r.amount)}원 다시 늘어납니다. 사유 · 해제한 사람 · 시각이 남습니다.
+                        </div>
+                        <ReasonPicker kind="release" value={relReason} onChange={setRelReason} label="매칭 해제 사유" />
+                        <div className="flex justify-end gap-2 mt-2">
+                          <button onClick={() => setRelId(null)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">닫기</button>
+                          <button onClick={() => release(r)} disabled={busyId === r.id || !reasonReady(relReason)}
+                            className="px-3 py-1.5 rounded-lg text-xs bg-slate-900 text-white font-semibold disabled:opacity-40">매칭 해제</button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                   {findId === r.id && (
                     <tr className="border-b border-gray-100 bg-slate-50">
                       <td colSpan={8} className="px-3 py-3">
@@ -376,7 +487,7 @@ export default function MatchTab() {
 
       <p className="text-[0.6875rem] text-gray-400 mt-3 leading-relaxed">
         확정은 사람이 누릅니다 — 시스템은 후보만 붙입니다. 금액이나 구분(단말기 · 수기, 과세 · 면세)이 기록과 다르면 확정할 수 없으니 입력자가 기록을 고친 뒤 확정하세요.
-        확정된 기록은 잠기며, 잘못 확정했으면 확인 완료 탭에서 확인 해제(사유 필수)로 되돌립니다.
+        확정된 기록은 잠기며, 잘못 확정했으면 매칭 완료 탭에서 매칭 해제(사유 필수)로 되돌립니다. 누가 언제 매칭 · 해제했는지 남습니다.
       </p>
     </div>
   )

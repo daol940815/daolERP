@@ -3,12 +3,13 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { can } from '@/lib/permissions'
 import { applyPrepayUse, releasePrepay } from '@/lib/prepay'
+import { resolveReason } from '@/lib/payment-reasons'
 
 export const dynamic = 'force-dynamic'
 
 // 선결제 사용 / 해제 (514, 2026-11-05 사용자 확정) — 영업지원팀(주문 수정 권한) 처리
 //   POST   { amount, memo? }  → 원장 차감 + 수금 매칭(prepay)
-//   DELETE ?match_id=         → 둘 다 삭제 (잔액 복원)
+//   DELETE ?match_id=  { reason: { code, text } }  → 둘 다 삭제 (잔액 복원). 사유 필수(1307, 2026-11-18)
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
@@ -30,8 +31,10 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   }
   const matchId = new URL(req.url).searchParams.get('match_id')
   if (!matchId) return NextResponse.json({ error: 'match_id가 필요합니다.' }, { status: 400 })
+  const reason = resolveReason('release', ((await req.json().catch(() => ({}))) as { reason?: unknown }).reason)
+  if ('error' in reason) return NextResponse.json({ error: reason.error }, { status: 400 })
   const r = await releasePrepay(createAdminClient(), params.id, matchId,
-    { employeeId: me.employeeId, employeeName: me.employeeName })
+    { employeeId: me.employeeId, employeeName: me.employeeName }, reason)
   if ('error' in r) return NextResponse.json({ error: r.error }, { status: 400 })
   return NextResponse.json(r)
 }

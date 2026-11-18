@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { can } from '@/lib/permissions'
 import { loadConfirmQueue } from '@/lib/payment-records'
+import { loadCancelQueue } from '@/lib/payment-cancel'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -13,7 +14,10 @@ export async function GET(req: NextRequest) {
   const me = await getCurrentUser()
   if (!me) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
   const state = new URL(req.url).searchParams.get('state') === 'confirmed' ? 'confirmed' : 'pending'
-  const r = await loadConfirmQueue(createAdminClient(), { state, meId: me.employeeId })
+  const admin = createAdminClient()
+  const r = await loadConfirmQueue(admin, { state, meId: me.employeeId })
   if ('error' in r) return NextResponse.json({ error: r.error }, { status: 500 })
-  return NextResponse.json({ ...r, can_edit: can(me, 'collections', 'edit') })
+  // 취소 대기열 (1305) — 1차에서 남긴 취소 줄 가운데 아직 원본과 매칭하지 않은 것
+  const cancels = state === 'pending' ? await loadCancelQueue(admin) : []
+  return NextResponse.json({ ...r, cancels, can_edit: can(me, 'collections', 'edit') })
 }

@@ -8,6 +8,8 @@ import { linkSyncReady, syncInvoicePaymentsFromOrders, syncOrderMatchesFromInvoi
 import { can } from '@/lib/permissions'
 import { netSalesOf } from '@/lib/receivable'
 import { loadRecordedInvoiceVat, vatCompatible } from '@/lib/payment-kind-server'
+import { logLink } from '@/lib/match-log'
+import { resolveReason } from '@/lib/payment-reasons'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -75,6 +77,7 @@ export async function POST(req: NextRequest) {
     memo: '계산서연결 확정',
   }))
   const { error } = await admin.from('erp_order_invoices').insert(rows)
+  if (!error) await logLink(admin, 'match', links.map(l => ({ order_id: l.orderId, source_type: 'invoice_link', source_id: l.taxInvoiceId, amount: l.amount })), '계산서 연결')
   if (error) {
     return NextResponse.json(
       { error: isMissingOrderInvoiceTable(error.message) ? MIGRATION_HINT : error.message },
@@ -102,6 +105,7 @@ export async function POST(req: NextRequest) {
   })
 }
 
+// 사유 필수(1307, 2026-11-18) — body { reason: { code, text } }. 연결 해제와 그 때문에 풀린 수금이 이력에 남는다.
 // DELETE /api/sales-cycle/invoice-candidates?linkId=  — 주문 ↔ 계산서 연결 해제 (2026-11-17)
 // 연결 1건을 지우고, 그 연결 때문에 계산서 입금에서 넘어온 주문 수금을 함께 푼다(직접 붙인 수금은 그대로).
 // 권한: 수금 · 정산 작업 수정(미들웨어 — GET 외 = 수정).
@@ -109,13 +113,16 @@ export async function DELETE(req: NextRequest) {
   const admin = createAdminClient()
   const linkId = new URL(req.url).searchParams.get('linkId')
   if (!linkId) return NextResponse.json({ error: 'linkId가 필요합니다.' }, { status: 400 })
+  const reason = resolveReason('release', ((await req.json().catch(() => ({}))) as { reason?: unknown }).reason)
+  if ('error' in reason) return NextResponse.json({ error: reason.error }, { status: 400 })
   const { data: link, error: le } = await admin.from('erp_order_invoices')
     .select('id, order_id, tax_invoice_id, amount').eq('id', linkId).maybeSingle()
   if (le) return NextResponse.json({ error: le.message }, { status: 500 })
   if (!link) return NextResponse.json({ error: '이미 해제된 연결입니다. 화면을 새로 고쳐 주세요.' }, { status: 404 })
   const { error } = await admin.from('erp_order_invoices').delete().eq('id', linkId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  const r = await syncOrderMatchesFromInvoices(admin, [link.tax_invoice_id as string], '계산서 연결 해제')
+  await logLink(admin, 'unmatch', [{ id: link.id, order_id: link.order_id, source_type: 'invoice_link', source_id: link.tax_invoice_id, amount: link.amount }], '계산서 연결 해제', reason)
+  const r = await syncOrderMatchesFromInvoices(admin, [link.tax_invoice_id as string], '계산서 연결 해제', reason)
   await syncInvoicePaymentsFromOrders(admin, [link.tax_invoice_id as string])   // 이 연결로 계산서에 넘어갔던 입금도 푼다 (2단계)
   return NextResponse.json({ ok: true, removed_matches: r.removed })
 }

@@ -8,6 +8,7 @@ import { honorify } from './contact-label'
 import { DATA_START } from './period-presets'
 import { inInvoiceWindow, searchSalesInvoices } from './order-invoice-match'
 import { loadRecordedInvoiceVat, vatCompatible } from './payment-kind-server'
+import { netRecordLinks } from './payment-cancel-meta'
 
 // ── 결제 확인 3단계 (2026-11-16 사용자 승인 — 시안 docs/mockups/결제확인_통합_시안.html) ──
 //   결제 안내 대상: 결제 상태가 미결제 · 일부 결제인 주문(영업지원 작업 목록) + 연락 기록(1301)
@@ -156,6 +157,8 @@ export async function loadInvoiceCheck(admin: SupabaseClient): Promise<{ error: 
     if (error) return { error: error.message }
     recLinks.push(...((data ?? []) as typeof recLinks))
   }
+  // 취소 줄(1305)은 원 기록 금액에서 뺀다 — 발행 +100 · 취소 −100 이면 기록 금액 0
+  { const net = await netRecordLinks(admin, recLinks); recLinks.length = 0; recLinks.push(...net) }
   const bankRes = await fetchAllRows<{ order_id: string; source_id: string; amount: number; paid_date: string }>((f, t) =>
     admin.from('erp_payment_matches').select('order_id, source_id, amount, paid_date').eq('source_type', 'bank').range(f, t))
   if ('error' in bankRes) return { error: bankRes.error }

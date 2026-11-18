@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { MATCH_RULES } from '@/lib/matching-rules'
 import { loadBillingFamily } from '@/lib/billing'
+import { loadCanceledInvoices } from '@/lib/payment-cancel-meta'
 import { loadRecordedInvoiceVat, vatCompatible, type OrderVat } from '@/lib/payment-kind-server'
 
 // ── 주문 ↔ 매출 계산서 연결 후보 (매출 사이클 3단 대사의 가운데 변) ──────────
@@ -164,9 +165,11 @@ export async function buildInvoiceLinkCandidates(
       .in('vendor_id', invoiceVendorIds)
       .range(f, t))
   if ('error' in invResult) return { error: invResult.error }
+  // 주문에 이미 연결된 취소쌍(원 계산서 · 취소 계산서, 1305)은 먼저 뺀다 — 남겨 두면 아래 추정이 취소 계산서를 재발행 계산서와 짝지어 재발행분을 숨긴다
+  const known = await loadCanceledInvoices(admin, invResult.data.map(r => r.id))
   // 취소쌍은 발행 법인 안에서만 짝짓는다
   const invoiceRows = invoiceVendorIds.flatMap(vid =>
-    excludeCancelPairs(invResult.data.filter(r => r.vendor_id === vid).map(r => ({ ...r, total_amount: r.total_amount ?? 0 }))))
+    excludeCancelPairs(invResult.data.filter(r => r.vendor_id === vid && !known.originals.has(r.id) && !known.cancels.has(r.id)).map(r => ({ ...r, total_amount: r.total_amount ?? 0 }))))
 
   // 기존 연결(배분) — 주문·계산서 양쪽 잔액 계산
   const allocByOrder = new Map<string, number>()
@@ -322,14 +325,17 @@ export async function searchSalesInvoices(
 
   // 취소쌍 제외
   const totals = Array.from(new Set(cand.map(r => -(r.total_amount ?? 0))))
-  const negs: { vendor_id: string | null; total_amount: number; issue_date: string }[] = []
+  const negs: { id: string; vendor_id: string | null; total_amount: number; issue_date: string }[] = []
   for (let i = 0; i < totals.length; i += 100) {
-    const { data, error } = await admin.from('tax_invoices').select('vendor_id, total_amount, issue_date')
+    const { data, error } = await admin.from('tax_invoices').select('id, vendor_id, total_amount, issue_date')
       .eq('direction', 'sales').in('total_amount', totals.slice(i, i + 100))
     if (error) return { error: error.message }
     negs.push(...((data ?? []) as typeof negs))
   }
-  cand = cand.filter(r => !negs.some(n => n.vendor_id === r.vendor_id && n.total_amount === -(r.total_amount ?? 0)
+  // 이미 주문에 연결된 취소쌍(1305)은 짝이 정해져 있다 — 그 취소 계산서로 다른 계산서(재발행분)를 지우지 않는다
+  const knownPairs = await loadCanceledInvoices(admin, [...cand.map(r => r.id), ...negs.map(n => n.id)])
+  cand = cand.filter(r => !knownPairs.originals.has(r.id))
+  cand = cand.filter(r => !negs.some(n => !knownPairs.cancels.has(n.id) && n.vendor_id === r.vendor_id && n.total_amount === -(r.total_amount ?? 0)
     && Math.abs(dayDiff(n.issue_date, r.issue_date)) <= CANCEL_PAIR_DAYS))
 
   // 남은 금액

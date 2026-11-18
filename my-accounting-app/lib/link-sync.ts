@@ -1,7 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { loadCanceledInvoices } from './payment-cancel-meta'
 import { getCurrentUser } from './user-role'
 import { loadReceivableMap } from './orders-portal-list'
 import { syncRecordsForOrders } from './payment-records'
+import { logUnmatch } from './match-log'
 
 // ── 주문 · 계산서 · 통장 입금 연결 동기화 (1302, 2026-11-17 사용자 승인 — 시안 docs/mockups/연결동기화_시안.html) ──
 // 연결은 세 갈래로 저장된다: 주문↔입금(erp_payment_matches) · 주문↔계산서(erp_order_invoices) · 계산서↔통장(tax_invoice_payments).
@@ -28,7 +30,7 @@ export const FROM_INVOICE_BLOCK = '계산서에 붙은 입금에서 자동으로
 
 export interface SyncResult { created: number; removed: number; amount: number; orderIds: string[] }
 
-export async function syncOrderMatchesFromInvoices(admin: SupabaseClient, invoiceIds: string[], origin: string): Promise<SyncResult> {
+export async function syncOrderMatchesFromInvoices(admin: SupabaseClient, invoiceIds: string[], origin: string, reason?: { code: string; text: string } | null): Promise<SyncResult> {
   const out: SyncResult = { created: 0, removed: 0, amount: 0, orderIds: [] }
   try {
     const ids = Array.from(new Set(invoiceIds.filter(Boolean)))
@@ -40,6 +42,8 @@ export async function syncOrderMatchesFromInvoices(admin: SupabaseClient, invoic
       const { data } = await admin.from('tax_invoices').select('id, direction, total_amount').in('id', ch)
       for (const t of data ?? []) if (t.direction === 'sales' && Number(t.total_amount ?? 0) > 0) salesIds.push(t.id as string)
     }
+    // 취소 계산서가 붙은 원 계산서(1305)는 대상에서 뺀다 — 넘어가 있던 주문 수금은 아래에서 '있어야 할 모습'에 없어 지워진다
+    { const dead = (await loadCanceledInvoices(admin, salesIds)).originals; for (let i = salesIds.length - 1; i >= 0; i--) if (dead.has(salesIds[i])) salesIds.splice(i, 1) }
 
     // 지금 있는 넘어온 수금 (지워진 계산서 · 매입 계산서로 바뀐 경우까지 정리하려고 요청 id 전부로 읽는다)
     type Derived = { id: string; order_id: string; source_id: string; amount: number; from_invoice_id: string }
@@ -129,13 +133,14 @@ export async function syncOrderMatchesFromInvoices(admin: SupabaseClient, invoic
 
     // 차이만 고친다
     const touched = new Set<string>()
+    const gone: Derived[] = []   // 풀린 넘어온 수금 — 매칭 해제 이력(1307)에 남긴다
     const have = new Map<string, Derived[]>()
     for (const d of existing) { const k = `${d.from_invoice_id}|${d.order_id}|${d.source_id}`; have.set(k, [...(have.get(k) ?? []), d]) }
     for (const [k, rows] of Array.from(have)) {
       const w = want.get(k)
       const [first, ...dups] = rows
-      for (const d of dups) { await admin.from('erp_payment_matches').delete().eq('id', d.id); out.removed++; touched.add(d.order_id) }
-      if (!w) { await admin.from('erp_payment_matches').delete().eq('id', first.id); out.removed++; touched.add(first.order_id); continue }
+      for (const d of dups) { await admin.from('erp_payment_matches').delete().eq('id', d.id); out.removed++; touched.add(d.order_id); gone.push(d) }
+      if (!w) { await admin.from('erp_payment_matches').delete().eq('id', first.id); out.removed++; touched.add(first.order_id); gone.push(first); continue }
       if (Number(first.amount) !== w.amount) { await admin.from('erp_payment_matches').update({ amount: w.amount }).eq('id', first.id); touched.add(first.order_id) }
       want.delete(k)
     }
@@ -148,6 +153,7 @@ export async function syncOrderMatchesFromInvoices(admin: SupabaseClient, invoic
       if (!error) { out.created = inserts.length; out.amount = inserts.reduce((s, r) => s + r.amount, 0); for (const r of inserts) touched.add(r.order_id) }
     }
 
+    if (gone.length) await logUnmatch(admin, gone.map(d => ({ id: d.id, order_id: d.order_id, source_type: 'bank', source_id: d.source_id, amount: d.amount })), `${origin} — 넘어온 수금 자동 해제`, reason ?? null)
     out.orderIds = Array.from(touched)
     // 결제 기록(1300)과 맞춘다 — 넘어온 수금으로 기록이 채워지면 매칭 완료, 빠지면 매칭 대기로
     if (out.orderIds.length) {
@@ -204,6 +210,8 @@ export async function syncInvoicePaymentsFromOrders(admin: SupabaseClient, invoi
       for (const x of t.data ?? []) if (x.direction === 'sales' && Number(x.total_amount ?? 0) > 0) inv.set(x.id as string, { total: Number(x.total_amount), issue_date: String(x.issue_date).slice(0, 10) })
       payRows.push(...((p.data ?? []) as PayRow[]).map(x => ({ ...x, amount: Number(x.amount ?? 0) })))
     }
+    // 취소된 원 계산서(1305)로는 주문 수금을 넘기지 않는다
+    for (const id of Array.from((await loadCanceledInvoices(admin, Array.from(inv.keys()))).originals)) inv.delete(id)
     const manual = payRows.filter(p => !p.from_order_sync)
     const derived = payRows.filter(p => p.from_order_sync)
 

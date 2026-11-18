@@ -14,6 +14,7 @@ import { PAY_METHOD_TAG_LABEL, PAY_STAGE_LABEL, showMethodTag, type PayState } f
 import ReasonPicker from '@/components/ui/ReasonPicker'
 import { ORDER_CANCEL_REASONS, composeReason } from '@/lib/cancel-reasons'
 import { ORDERS_LIST_URL_KEY } from '@/lib/order-search-fields'
+import { useReasonDialog } from '@/components/payments/ReasonDialog'
 
 // 주문 상세 (2단계) — 업로드·직접입력 공통 조회.
 // direct 주문 (2026-08-25 취소·재등록 확정): 당일(본인)·관리자는 직접 수정(변경 로그),
@@ -136,9 +137,12 @@ export default function OrderDetailPage() {
   useEffect(() => { load() }, [load])
 
   // 주문 ↔ 계산서 연결 해제 (2026-11-17) — 수금 · 정산 작업 수정 권한자. 이 연결로 넘어온 수금도 함께 풀린다
+  // 해제 사유 필수 (1307, 2026-11-18) — 사유 · 사람 · 시각이 이력에 남는다
+  const reasonDlg = useReasonDialog()
   const unlinkInvoice = async (linkId: string, amount: number) => {
-    if (!window.confirm(`계산서 연결 ${won(amount)}원을 해제할까요?\n이 연결로 계산서 입금에서 넘어온 수금이 있으면 함께 풀리고 미수가 되돌아옵니다.`)) return
-    const res = await fetch(`/api/sales-cycle/invoice-candidates?linkId=${linkId}`, { method: 'DELETE' })
+    const reason = await reasonDlg.ask('release', `계산서 연결 ${won(amount)}원 해제`, '이 연결로 계산서 입금에서 넘어온 수금이 있으면 함께 풀리고 미수가 되돌아옵니다.')
+    if (!reason) return
+    const res = await fetch(`/api/sales-cycle/invoice-candidates?linkId=${linkId}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) { alert(json.error ?? '연결 해제 실패'); return }
     load()
@@ -158,8 +162,9 @@ export default function OrderDetailPage() {
     load()
   }
   const releasePrepay = async (matchId: string, amount: number) => {
-    if (!window.confirm(`선결제 사용 ${won(amount)}원을 해제할까요? 선결제 잔액으로 되돌아갑니다.`)) return
-    const res = await fetch(`/api/orders-portal/orders/${id}/prepay?match_id=${matchId}`, { method: 'DELETE' })
+    const reason = await reasonDlg.ask('release', `선결제 사용 ${won(amount)}원 해제`, '선결제 잔액으로 되돌아갑니다.')
+    if (!reason) return
+    const res = await fetch(`/api/orders-portal/orders/${id}/prepay?match_id=${matchId}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) { window.alert(json.error ?? '해제 실패'); return }
     load()
@@ -198,6 +203,7 @@ export default function OrderDetailPage() {
 
   return (
     <div>
+      {reasonDlg.node}
       <div className="flex items-center gap-3 flex-wrap">
         <Link href={listHref} className="text-sm text-gray-400 hover:text-gray-600">← 주문내역</Link>
         <h1 className="text-xl font-bold text-gray-900">주문 상세</h1>

@@ -6,6 +6,7 @@ import { cardNumberKey } from '@/lib/card-number'
 import { NOT_VOID_OR } from '@/lib/card-sale-status'
 import { syncRecordsForOrders } from '@/lib/payment-records'
 import type { Editor } from '@/lib/orders-portal'
+import { insertMatches } from './match-log'
 
 // ── 주문 쪽 수금 매칭 (2026-11-04) ───────────────────────────────────────
 // 입금 매칭 화면(/erp-matching)은 결제 1건 → 주문 여러 건으로 출발한다. 여기는 반대로
@@ -272,10 +273,10 @@ export async function allocateToOrder(
     if (r.amount > rem) return { error: `결제 잔액(${rem.toLocaleString('ko-KR')}원)보다 큰 금액(${r.amount.toLocaleString('ko-KR')}원)은 배분할 수 없습니다.` }
   }
 
-  const { error: ie } = await admin.from('erp_payment_matches').insert(rows.map(r => ({
+  const { error: ie } = await insertMatches(admin, rows.map(r => ({
     order_id: orderId, source_type: r.source_type, source_id: r.source_id, amount: r.amount,
     paid_date: paidDate.get(`${r.source_type}:${r.source_id}`), matched_by: 'manual', memo: opts.memo?.trim() || '주문 쪽 수금 매칭',
-  })))
+  })), '주문 쪽 수금 매칭', opts.editor)
   if (ie) return { error: ie.message }
   const sync = await syncRecordsForOrders(admin, [orderId], opts.editor ?? { employeeId: null, employeeName: null }, '주문 쪽 수금 매칭')
   await syncInvoicesForOrders(admin, [orderId])   // 연결된 계산서의 입금으로도 넘김 (1302 2단계)

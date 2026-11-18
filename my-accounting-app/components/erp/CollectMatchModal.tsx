@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import ReasonPicker, { reasonReady, type ReasonValue } from '@/components/payments/ReasonPicker'
 
 // 주문 쪽 수금 매칭 모달 (2026-11-04) — ERP 주문내역·주문 현황에서 "수금 매칭" 버튼으로 연다.
 // 이 주문의 거래처 미배분 결제(은행 입금·카드결제)를 고르고 금액을 붙인다. 한 결제를 여러 주문에
@@ -40,6 +41,9 @@ export default function CollectMatchModal({ orderId, onClose, onSaved, hideAccou
   const [alloc, setAlloc] = useState<Record<string, string>>({})   // `${type}:${id}` → 입력값
   const [registerCard, setRegisterCard] = useState(true)
   const [unmatching, setUnmatching] = useState<string | null>(null)
+  // 매칭 해제 사유 (1307, 2026-11-18) — 사유를 골라야 해제된다. 사유 · 사람 · 시각이 해제 이력에 남는다
+  const [relId, setRelId] = useState<string | null>(null)
+  const [relReason, setRelReason] = useState<ReasonValue | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -94,11 +98,12 @@ export default function CollectMatchModal({ orderId, onClose, onSaved, hideAccou
   }
 
   const unmatch = async (m: OrderSummary['matches'][number]) => {
-    if (!window.confirm(`매칭 ${won(m.amount)} (${m.paid_date}, ${m.label})을 해제할까요?`)) return
+    if (!reasonReady(relReason)) return
     setUnmatching(m.id)
-    const res = await fetch(`/api/erp-matching?id=${m.id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/erp-matching?id=${m.id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: relReason }) })
     setUnmatching(null)
-    if (!res.ok) { setMsg('해제 실패'); return }
+    if (!res.ok) { const j = await res.json().catch(() => ({})); setMsg(j.error ?? '해제 실패'); return }
+    setRelId(null)
     onSaved?.()
     load()
   }
@@ -131,10 +136,20 @@ export default function CollectMatchModal({ orderId, onClose, onSaved, hideAccou
                 <span key={m.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-gray-50">
                   <span className={`px-1 rounded ${m.source_type === 'card' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>{m.source_type === 'card' ? '카드' : '계좌'}</span>
                   {m.paid_date} · {won(m.amount)} <span className="text-gray-400">{m.label}</span>
-                  <button onClick={() => unmatch(m)} disabled={unmatching === m.id} className="text-red-500 hover:underline ml-1">해제</button>
+                  <button onClick={() => { setRelId(relId === m.id ? null : m.id); setRelReason(null) }} disabled={unmatching === m.id} className="text-red-500 hover:underline ml-1">{relId === m.id ? '닫기' : '해제'}</button>
                 </span>
               ))}
             </div>
+            {order.matches.filter(m => m.id === relId).map(m => (
+              <div key={m.id} className="mt-2 p-2.5 rounded-lg border border-orange-200 bg-orange-50">
+                <div className="text-gray-700 mb-2"><b>매칭 해제</b> — {m.paid_date} · {won(m.amount)} {m.label}. 사유 · 해제한 사람 · 시각이 남습니다.</div>
+                <ReasonPicker kind="release" value={relReason} onChange={setRelReason} label="매칭 해제 사유" />
+                <div className="flex justify-end gap-2 mt-2">
+                  <button onClick={() => setRelId(null)} className="px-3 py-1.5 border border-gray-300 rounded-lg bg-white">닫기</button>
+                  <button onClick={() => unmatch(m)} disabled={unmatching === m.id || !reasonReady(relReason)} className="px-3 py-1.5 rounded-lg bg-slate-900 text-white font-semibold disabled:opacity-40">매칭 해제</button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
