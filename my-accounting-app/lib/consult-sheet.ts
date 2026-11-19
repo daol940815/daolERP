@@ -89,6 +89,36 @@ const NUM = '#,##0'
 const PCT = '0.0%'
 const won = (n: number) => Math.round(n).toLocaleString('ko-KR')
 
+// 16열: NO 품번 배송종류 품명 수량 판매단가 판매할인 판매합계 매입처 매입단가 매입배송비 매입할인 매입합계 마진율 상태 비고
+const WIDTHS = [4.5, 9, 7.5, 24, 6, 10, 9.5, 12, 11, 10, 9.5, 9.5, 12, 7, 8.5, 18]
+
+// ── 행 높이 맞춤 (2026-11-19 사용자 승인 — 시안 docs/mockups/상담일지_출력_높이맞춤_시안.html) ──
+// 엑셀은 병합 칸 · 높이를 정한 행을 자동으로 늘리지 않으므로, 글자 수와 칸 넓이로 줄 수를 세어 높이를 넣는다.
+// 지금 높이는 최소값(짧은 상담은 모양 그대로). 한글 = 글자 크기만큼, 영문 · 숫자 = 그 절반 남짓으로 폭을 잡고 여유를 둔다.
+const MAX_ROW_PT = 409          // 엑셀 행 높이 한계 — 메모는 나누지 않으므로(사용자 결정) 이보다 길면 그 이상은 잘린다
+const colPx = (w: number) => Math.floor(w * 7 + 5)
+function textPx(line: string, size: number): number {
+  let px = 0
+  for (const ch of line) {
+    const code = ch.codePointAt(0) ?? 0
+    const wide = code >= 0x1100 && (code <= 0x115f || (code >= 0x2e80 && code <= 0xa4cf) || (code >= 0xac00 && code <= 0xd7a3)
+      || (code >= 0xf900 && code <= 0xfaff) || (code >= 0xfe30 && code <= 0xfe4f) || (code >= 0xff00 && code <= 0xff60))
+    px += size * 1.333 * (wide ? 0.92 : ch === ' ' ? 0.3 : 0.52)   // 맑은 고딕 기준 근사
+  }
+  return px
+}
+// 칸 하나에 필요한 높이(pt) — widthUnits = 칸(병합이면 합친) 열 넓이 합, indent = 왼쪽 들여쓰기 여부
+export function neededHeight(text: string, widthUnits: number, size: number, indent = false): number {
+  if (!text) return 0
+  const usable = Math.max(20, colPx(widthUnits) - (indent ? 14 : 6))
+  let lines = 0
+  // 낱말 단위 줄바꿈으로 줄 끝이 비는 만큼 여유
+  for (const para of text.split('\n')) lines += Math.max(1, Math.ceil(textPx(para, size) * 1.08 / usable))
+  const lineH = size * 1.5                      // 맑은 고딕 줄 간격 (9pt 두 줄 = 30 — 기존 개당 할인 행 높이와 같음)
+  return Math.min(MAX_ROW_PT, (lines + (lines >= 3 ? 0.5 : 0)) * lineH + 3)
+}
+const colIdx = (letters: string) => letters.split('').reduce((n, ch) => n * 26 + (ch.charCodeAt(0) - 64), 0)
+
 // 한 장을 두 부 찍는다 (2026-11-19 실무 요청 — 예전 주문서 출력처럼 상담자 보관용 1장 + 발주자 실무용 1장).
 //  두 부는 내용이 같고 제목만 다르다. 한 시트에 위아래로 쌓고 사이에 페이지 나누기 → 엑셀 인쇄 한 번에 2장.
 export const CONSULT_SHEET_COPIES = [
@@ -108,9 +138,7 @@ export async function buildConsultSheetExcel(d: ConsultSheetData): Promise<Buffe
       horizontalCentered: true,
     },
   })
-  // 16열: NO 품번 배송종류 품명 수량 판매단가 판매할인 판매합계 매입처 매입단가 매입배송비 매입할인 매입합계 마진율 상태 비고
-  const widths = [4.5, 9, 7.5, 24, 6, 10, 9.5, 12, 11, 10, 9.5, 9.5, 12, 7, 8.5, 18]
-  ws.columns = widths.map(w => ({ width: w }))
+  ws.columns = WIDTHS.map(w => ({ width: w }))
 
   const items = [...d.items].sort((a, b) => a.line_no - b.line_no)
   let top = 1
@@ -152,6 +180,9 @@ function writeConsultCopy(ws: import('exceljs').Worksheet, d: ConsultSheetData, 
   const row = (n: number) => ws.getRow(R(n))
   const cellAt = (n: number, c: number) => ws.getCell(R(n), c)
   const cellA = (ref: string) => ws.getCell(shift(ref))
+  // 행마다 필요한 높이(상대 행 → pt) — 마지막에 지금 높이와 비교해 큰 쪽으로
+  const need = new Map<number, number>()
+  const wantH = (r: number, h: number) => { if (h > (need.get(r) ?? 0)) need.set(r, h) }
 
   const thin = { style: 'thin' as const, color: { argb: 'FF94A3B8' } }
   const box = { top: thin, bottom: thin, left: thin, right: thin }
@@ -174,6 +205,14 @@ function writeConsultCopy(ws: import('exceljs').Worksheet, d: ConsultSheetData, 
     if (opt.label === 'head') cell.fill = fill(LABEL_BG)
     if (opt.label === 'sub') cell.fill = fill(LABEL2_BG)
     if (opt.fmt) cell.numFmt = opt.fmt
+    if (typeof v === 'string' && v && !opt.label) {   // 라벨(고정 문구)은 지금 높이 기준으로 설계됨 — 계산하지 않는다
+      const m = range.match(/^([A-Z]+)(\d+)(?::([A-Z]+)\d+)?$/)
+      if (m) {
+        const c1 = colIdx(m[1]), c2 = m[3] ? colIdx(m[3]) : c1
+        const w = WIDTHS.slice(c1 - 1, c2).reduce((a, b) => a + b, 0)
+        wantH(Number(m[2]), neededHeight(v, w, opt.size ?? 10, opt.align === 'l'))
+      }
+    }
     return cell
   }
 
@@ -252,6 +291,7 @@ function writeConsultCopy(ws: import('exceljs').Worksheet, d: ConsultSheetData, 
       if (col === 14 && typeof v === 'number') { c.numFmt = PCT; c.alignment = center }
       if (col === 5) c.numFmt = NUM
       if (col === 9 && typeof v === 'number') c.numFmt = purchasePriceNumFmt(v)   // 매입가 — 소수(462.2)는 소수까지 (518)
+      if (typeof v === 'string' && v) wantH(r, neededHeight(v, WIDTHS[ci], 9, col === 4 || col === 16))
     })
     if (typeof disc === 'string' || typeof pdisc === 'string') row(r).height = 30   // 두 줄 값 행
   })
@@ -338,5 +378,11 @@ function writeConsultCopy(ws: import('exceljs').Worksheet, d: ConsultSheetData, 
   row(r).height = 16
   put(`A${r}:P${r}`, `출력 ${d.printed_at}${d.printed_by ? ` · ${d.printed_by}` : ''} · daolERP${d.payment_plain ? ' · 결제정보 평문 포함' : ''}`, { align: 'r', size: 8 })
   cellA(`A${r}`).font = font({ size: 8, color: { argb: 'FF64748B' } })
+  // 높이 맞춤 적용 — 정한 높이가 최소값, 글이 길면 그만큼 늘린다 (상담 메모도 나누지 않고 한 행)
+  need.forEach((h, rel) => {
+    const rw = row(rel)
+    const base = rw.height ?? 15
+    if (h > base) rw.height = Math.ceil(h)
+  })
   return R(r)
 }
