@@ -695,7 +695,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               )}
               <a href={`/api/orders-portal/consultations/${consultId}/sheet${sheetPlain ? '?payment=plain' : ''}`}
                 className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-800 whitespace-nowrap"
-                title="실무 양식(A4 가로 한 장) 엑셀 — 엑셀에서 바로 인쇄">출력용 다운로드</a>
+                title="실무 양식 엑셀(A4 가로) — 인쇄하면 상담자용 · 발주자용 2장이 함께 나옵니다">출력용 다운로드</a>
             </>
           )}
           {isEdit && !locked && status === '진행중' && (
