@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Combo, ComboFree, CustomerShipInput, DiscountInput, NumInput, fmtPurchasePrice, purchaseAmount, toPurchasePrice, SeasonDatalist, SeasonInput, autoGrow, branchLabel, draftExtrasFromRow, draftFromProduct, emptyItem,
+  Combo, ComboFree, CustomerShipInput, DiscountInput, NumInput, fmtPurchasePrice, purchaseAmount, toPurchasePrice, SeasonDatalist, SeasonInput, autoGrow, branchLabel, branchText as branchShown, NO_BRANCH, draftExtrasFromRow, draftFromProduct, emptyItem,
   lineCost, lineTotal, priceRule, purchaseShippingHint, quantityPatch, reshipPatch, savedBeforeShipColumn, splitByGroupPrefix, toInt, withShipUnit, won,
 } from '../form-shared'
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
@@ -852,7 +852,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           </div>
           <div className="col-span-2">
             <label className={label}>부서(지점)</label>
-            {locked ? <div className={free}>{branchText || '-'}</div> : (
+            {locked ? <div className={free}>{branchText || (vendorId ? NO_BRANCH : '-')}</div> : (
               <ComboFree text={branchText}
                 selectedId={indPick ? null : vendorId}
                 options={(groupId ? vendors.filter(v => v.group_id === groupId) : vendors)
@@ -863,7 +863,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     const split = !gName ? splitByGroupPrefix(v.name, groups) : null
                     return {
                       id: v.id,
-                      label: gName ? branchLabel(v.name, gName) : (split?.branch ?? v.name),
+                      label: gName ? branchShown(v.name, gName) : (split?.branch ?? v.name),
                       sub: gName ?? split?.group.name ?? '',
                     }
                   })}
@@ -893,7 +893,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   }
                   setContactId(null)
                 }}
-                placeholder={indMode ? '개인 고객은 지점 없음 — 모임만 선택' : '지점 검색 · 자유 입력'} />
+                placeholder={indMode ? '개인 고객은 지점 없음 — 모임만 선택' : vendorId ? `${NO_BRANCH} (업체 직접)` : '지점 검색 · 자유 입력'} />
             )}
             {!locked && !vendorId && !indMode && groupId && (
               <SimilarHint input={branchText} what="지점"
