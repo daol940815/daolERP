@@ -30,21 +30,19 @@
 |---|---|---|
 | 확인할 것 패널 | `/api/notifications` | 각 알림 대상 |
 | 받은 요청 / 보낸 요청 카드 | `/api/work-requests?summary=1` | `/me/requests`, `?tab=outbox` |
-| 이번 달 내 주문 · 내 미수 잔액 | RPC `my_dashboard_summary` | `/orders` |
+| 이번 달 내 작성 주문 | `lib/my-dashboard.ts` (입력자 = 나) | `/orders?mine=handled&from=당월 1일&to=오늘` |
+| 내 작성 주문 미수 | 같음 (기간 무관, 표준 미수) | `/orders?mine=handled&from=&to=&collect=outstanding` |
+| 이번 달 내 담당 지점 주문 (담당 지점이 있을 때만) | 같음 (매출처의 현재 지점 담당 = 나) | 결제 확인 `/payments`(기본 필터 = 내 담당). 수금 · 회계 권한 없으면 링크 없음 |
 | 담당 거래처 | RPC (`vendor_staff.employee_id`, 현재 배정) | 거래처 권한 있으면 `/sales-hub?mine=1`, 없으면 `/me/profile?tab=work` |
 | 이번 달 업무일지 | `/api/me/worklog` | `/me/worklog` |
 | 이번 달 영업일지 | RPC (`contact_activities.employee_id`) | `/me/journal` |
 | 오늘 근태 · 휴가 | `attendance_records` · `attendance_leaves` | `/hr/attendance` |
-| 최근 내 주문 / 최근 업무일지 / 최근 영업일지 | summary API | 각 전체 화면 |
+| 최근 내 작성 주문 / 최근 업무일지 / 최근 영업일지 | summary API | 각 전체 화면 |
 
 ## 알고 있는 문제 · 미결 (사용자 확인 필요)
 
-1. **300 마이그레이션 적용 여부 미확인** — CLAUDE.md "현재 적용 완료" 목록에 300이 없다. 미적용이면 KPI 카드 대신
-   "300 마이그레이션이 아직 적용되지 않았습니다" 문구가 뜬다(`MIGRATION_300_HINT`). 사용자 화면에서 확인 필요.
-2. **내 주문 판정이 이름 대조** — `erp_orders.staff_name = 직원 이름`. 500 마이그레이션 이후 직접 입력 주문에는
-   `erp_orders.created_by_employee_id`(로그인 자동 기록)가 있다. 2026-10-30 주문 전량 삭제로 현재 주문은 모두 직접 입력분이므로
-   `created_by_employee_id` 기준으로 바꾸는 것이 정확하다(동명이인 · 이름 변경에 안전). 단 "입력한 사람"과 "담당 영업(상담자 = 품목 channel)"
-   중 무엇을 "내 주문"으로 볼지는 사용자 결정 사항 — 바꾸려면 300번대 새 마이그레이션(301)으로 RPC 교체.
+1. (해결 2026-11-19) 300 마이그레이션 — 사용자 실행 완료 확인.
+2. (해결 2026-11-19) 내 주문 판정 — 아래 결정 기록 참고.
 3. 역할별 대시보드 구성(영업팀 / 영업지원팀 / 경영지원팀)을 다르게 할지 — 미정. 지금은 전원 같은 구성.
 
 ## 작업 규칙
@@ -58,3 +56,13 @@
 ## 결정 기록
 
 - 2026-11-19: 내 대시보드 관리 세션 개설(사용자 요청). 이 문서를 인수인계 문서로 둔다.
+- 2026-11-19: 300 마이그레이션 적용 완료(사용자 회신).
+- 2026-11-19 (사용자 결정): '이번 달 내 주문' → **'이번 달 내 작성 주문'**. 기준 = 입력자(`created_by_employee_id`, 비어 있는 옛 주문만
+  `staff_name` 이름 대조) — 주문내역 '내 주문처리 건'과 같은 판정. '내 미수 잔액' → '내 작성 주문 미수', '최근 내 주문' → '최근 내 작성 주문'.
+- 2026-11-19 (사용자 제안 채택): **'이번 달 내 담당 지점 주문'** 카드 신설. 기준 = 주문의 매출처(별칭 거래처 우선, 없으면 `vendor_id`)의
+  현재 지점 담당(`vendor_staff`, `ended_at IS NULL`)이 나 — 결제 확인 '지점 담당' 필터와 같은 기준. 담당 지점이 0곳이면 카드 숨김.
+  주의: 이것은 **상담자(고객별 다올 담당, `counselor_employee_id`)와 다른 기준**이다(payment-overview 주석의 기존 사용자 결정 —
+  지점 담당 ≠ 주문의 상담자). 상담자 기준 카드(주문내역 '내 상담자 건')는 두지 않았다 — 필요하면 사용자 확인 후 추가.
+- 구현: 주문 집계를 300 RPC에서 `lib/my-dashboard.ts`(`loadMyOrderStats`)로 옮김. 취소 주문 제외, 미수는 표준 미수
+  (`v_erp_order_receivable`, 매칭 반영 — 전에는 RPC가 원본 `outstanding_amount`를 그대로 합산하고 취소 주문도 포함했다). DB 변경 없음.
+  300 RPC는 담당 거래처 수 · 영업일지 수 · 이번 달 상담 주문 수에만 쓴다.
