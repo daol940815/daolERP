@@ -33,7 +33,9 @@ SELECT
     ELSE v.name
   END                                                                                       AS 지점,
   v.name                                                                                    AS 매출처명,
-  CASE WHEN c.id IS NULL THEN ''
+  CASE WHEN c.id IS NULL THEN ''                                                          -- 화면 contactLabel 과 같은 규칙 (2026-11-19 — '님님' 방지)
+       WHEN btrim(c.name) LIKE '%님' THEN btrim(c.name)
+       WHEN nullif(btrim(ca.title), '') IS NOT NULL AND btrim(ca.title) LIKE '%님' THEN c.name || ' ' || btrim(ca.title)
        WHEN nullif(btrim(ca.title), '') IS NOT NULL THEN c.name || ' ' || btrim(ca.title) || '님'
        ELSE c.name || ' 님' END                                                             AS 담당자,
   coalesce(c.phone, '')                                                                     AS 핸드폰,

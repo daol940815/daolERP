@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cleanContactName, cleanContactTitle } from '@/lib/contact-label'
 import { createAdminClient } from '@/lib/supabase-server'
 import { requireStaff } from '@/lib/customer-staff'
 import { getCurrentUser } from '@/lib/user-role'
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
     const { error } = await admin.from('contact_assignments').insert({
       vendor_id: vendorId, contact_id: contactId,
       ...(staffId ? { staff_employee_id: staffId } : {}),
-      title: String(body.title ?? '').trim() || null,
+      title: cleanContactTitle(String(body.title ?? '')),
       role_memo: String(body.role_memo ?? '').trim() || null,
       is_representative: body.is_representative === true,
       started_at: todayStr,
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
 
   if (action === 'assign_new') {
     const vendorId = String(body.vendor_id ?? '')
-    const name = String(body.name ?? '').trim()
+    const name = cleanContactName(String(body.name ?? '')).name
     if (!vendorId || !name) return NextResponse.json({ error: '거래처와 이름이 필요합니다.' }, { status: 400 })
     const phone = String(body.phone ?? '').trim() || null
     const st = await requireStaff(admin, vendorId, body.staff_employee_id)

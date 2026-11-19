@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cleanContactTitle } from '@/lib/contact-label'
 import { createAdminClient } from '@/lib/supabase-server'
 import { buildPurchaseHubList } from '@/lib/purchase-hub'
 
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
     await admin.from('contact_assignments').insert({
       contact_id: contact.id,
       vendor_id: vendorId,
-      title: (body.contact_title ?? '').trim() || null,
+      title: cleanContactTitle(body.contact_title),
       started_at: new Date().toISOString().slice(0, 10),
     })
   }

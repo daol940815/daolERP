@@ -21,6 +21,24 @@ export function contactLabel(name: string | null | undefined, title?: string | n
   return `${n} 님`
 }
 
+// 저장 직전 정리 (2026-11-19 — 목록 내려받기에서 '차장님님' · '허정 대리님' 같은 저장값 발견).
+// 직함 칸에 '차장님'을, 이름 칸에 '김민수 과장님'을 그대로 쳐도 마스터 규칙(이름만 · 직함은 배정 · 존칭은 표시)대로 저장한다.
+export function cleanContactTitle(title: string | null | undefined): string | null {
+  const t = (title ?? '').trim().replace(/(\s*님)+$/, '').trim()
+  return t || null
+}
+// 이름 칸: 끝의 '님'을 떼고, 띄어쓰기 뒤에 직함이 붙어 있으면(그리고 직함 칸이 비었으면) 직함으로 옮긴다.
+export function cleanContactName(name: string | null | undefined, title?: string | null): { name: string; title: string | null } {
+  const n = (name ?? '').trim().replace(/(\s*님)+$/, '').trim()
+  let t = cleanContactTitle(title)
+  const parts = n.split(/\s+/)
+  if (parts.length >= 2 && /^[가-힣]{2,4}$/.test(parts[0])) {
+    if (!t) t = cleanContactTitle(parts.slice(1).join(' '))
+    return { name: parts[0], title: t }
+  }
+  return { name: n, title: t }
+}
+
 // 이미 완성된 표시 문자열(자유 입력 담당자 표기 등)에 존칭만 보충한다.
 // 직함이 포함돼 있으면 직함 뒤에 붙는다: '이경준 센터장' → '이경준 센터장님'
 export function honorify(display: string | null | undefined): string {
