@@ -18,6 +18,7 @@ import {
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
 import type { ContactOpt, Employee, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from './form-shared'
 import { isMoimVendor } from './form-shared'
+import ProductRegisterDialog, { UnregisteredTag, isUnregisteredRow, linkPatch } from './product-register-dialog'
 import IndividualRegister from './individual-register'
 import { InactiveVendorHits, matchInactiveVendors, reactivateVendor, type InactiveVendor } from './inactive-vendor-hits'
 import { BranchStdHint, ExistingVendorNote, GroupStdHint, NamePreview, useVendorNameCheck } from '@/components/vendors/vendor-name-hints'
@@ -123,6 +124,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
         setIsParttime(m.me?.is_parttime === true)
         const p = await pRes.json()
         if (pRes.ok) setProducts((p.products ?? []).filter((x: Product) => x.is_active))
+        setCanRegisterProduct(p.can_edit === true)   // 품목 등록 권한(영업 · 주문 수정) — '품목 등록' 버튼 노출용
 
         if (orderId || reissueId) {
           const srcId = orderId ?? reissueId
@@ -508,6 +510,10 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
   const exactPhoneHits = phoneSearch.hits.filter(h => h.exact)
   const exactPhone = exactPhoneHits.length === 1 && normTel(phone) !== phoneDismissed ? exactPhoneHits[0] : null
 
+  // 미등록 상품 → 품목 관리 등록 (2026-11-19, 품목관리 트랙 부품 product-register-dialog)
+  const [canRegisterProduct, setCanRegisterProduct] = useState(false)
+  const [registerUid, setRegisterUid] = useState<number | null>(null)
+  const registerRow = registerUid === null ? null : items.find(x => x.uid === registerUid) ?? null
   const setItem = (i: number, patch: Partial<ItemDraft>) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, ...patch } : it))
 
@@ -1137,6 +1143,9 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                     placeholder="마스터에 없으면 직접 입력"
                     className="w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs
                                resize-none overflow-hidden leading-relaxed block" />
+                  {isUnregisteredRow(it) && !(isEdit && !canEdit) && (
+                    <UnregisteredTag canRegister={canRegisterProduct} onRegister={() => setRegisterUid(it.uid)} />
+                  )}
                 </td>
                 <td className="py-1 px-1.5">
                   <select value={it.order_kind} onChange={e => setKind(i, e.target.value)}
@@ -1285,6 +1294,18 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
             </button>
           </div>
         </div>
+      {registerRow && (
+        <ProductRegisterDialog
+          seed={{ item_name: registerRow.item_name, purchase_vendor_name: registerRow.purchase_vendor_name,
+            order_kind: registerRow.order_kind, sale_price: registerRow.sale_price, purchase_price: registerRow.purchase_price }}
+          products={products}
+          onClose={() => setRegisterUid(null)}
+          onDone={(prod, created) => {
+            if (created) setProducts(prev => [...prev, prod])
+            setItems(prev => prev.map(x => x.uid === registerRow.uid ? { ...x, ...linkPatch(prod) } : x))
+            setRegisterUid(null)
+          }} />
+      )}
       </div>
     </div>
   )

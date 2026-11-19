@@ -11,6 +11,7 @@ import {
   type FilterFieldKey, type FilterOp, type ItemFilter, type PriceBasis,
 } from '@/lib/product-filters'
 import VendorInfoPanel, { useVendorInfo } from './vendor-info-panel'
+import ProductRegisterDialog, { type RegisterSeed } from '../product-register-dialog'
 import { branchMargin, individualMargin, formatProfit, formatRate, roundProfit, type Margin } from '@/lib/product-margin'
 
 // 품목 마스터 (2단계) — 주문 입력의 품번 검색 원천.
@@ -226,15 +227,30 @@ export default function ProductsPage() {
     if (json?.phones) setVendorPhones(json.phones)
   }, [])
 
+  // 미등록 품목 (2026-11-19) — 주문 · 상담에 직접 입력된 품명. KPI 카드로 목록 보기, 등록은 상담 · 주문과 같은 창
+  type Unreg = { item_name: string; purchase_vendor_name: string; last_sale: number; last_purchase: number; last_date: string
+    orders: number; consults: number; uses: { kind: 'order' | 'consult'; id: string; label: string; date: string }[] }
+  const [unreg, setUnreg] = useState<Unreg[] | null>(null)
+  const [showUnreg, setShowUnreg] = useState(false)
+  const [unregOpen, setUnregOpen] = useState<string | null>(null)
+  const [registerSeed, setRegisterSeed] = useState<RegisterSeed | null>(null)
+  const loadUnreg = useCallback(async () => {
+    const res = await fetch('/api/orders-portal/products/unregistered').catch(() => null)
+    if (!res?.ok) return
+    const json = await res.json().catch(() => null)
+    if (json?.items) setUnreg(json.items)
+  }, [])
+
   const load = useCallback(async () => {
     loadPhones()
+    loadUnreg()
     setLoading(true); setError(null)
     const res = await fetch('/api/orders-portal/products')
     const json = await res.json()
     if (!res.ok) setError(json.error ?? '조회 실패')
     else { setProducts(json.products); setCanEdit(json.can_edit === true) }
     setLoading(false)
-  }, [loadPhones])
+  }, [loadPhones, loadUnreg])
   useEffect(() => { load() }, [load])
 
   // 스크롤 위치 (필터 유지, 2026-11-11): 본문 <main>의 위치를 계속 기억해 두었다가 떠날 때(다른 화면 · 새로고침) 저장
@@ -437,24 +453,30 @@ export default function ProductsPage() {
       </div>
 
       {/* KPI 카드 (클릭=필터) — 전체 품목 카드가 전체 조회 (2026-11-03 사용자 요청) */}
-      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 mt-4 max-w-5xl">
+      <div className="grid grid-cols-2 sm:grid-cols-7 gap-2.5 mt-4 max-w-6xl">
         {([
           ['all', '전체 품목', products.length, 'text-blue-700'],
           ['active', '사용 중 품목', kpi.active, ''],
           ['inactive', '중지 품목', kpi.inactive, 'text-gray-400'],
           ['addon', '부가상품(옵션)', kpi.addon, 'text-violet-600'],
         ] as const).map(([key, title, val, cls]) => (
-          <button key={key} onClick={() => setFilter(key)}
-            className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === key ? 'border-slate-800' : 'border-gray-200'}`}>
+          <button key={key} onClick={() => { setFilter(key); setShowUnreg(false) }}
+            className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === key && !showUnreg ? 'border-slate-800' : 'border-gray-200'}`}>
             <div className="text-[0.6875rem] text-gray-400">{title}</div>
             <div className={`text-lg font-bold tabular-nums ${cls}`}>{val}</div>
           </button>
         ))}
         {/* 비용 품목 (배송비 · 퀵비 · 설치비 등) — 발주서 배송명단 제외 대상 (이름 키워드 후보 추천은 오판만 나와 폐지, 2026-11-05) */}
-        <button onClick={() => setFilter('cost')}
-          className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === 'cost' ? 'border-slate-800' : 'border-gray-200'}`}>
+        <button onClick={() => { setFilter('cost'); setShowUnreg(false) }}
+          className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === 'cost' && !showUnreg ? 'border-slate-800' : 'border-gray-200'}`}>
           <div className="text-[0.6875rem] text-gray-400">비용 품목</div>
           <div className="text-lg font-bold tabular-nums text-amber-700">{kpi.cost}</div>
+        </button>
+        {/* 미등록 품목 (2026-11-19) — 주문 · 상담에 직접 입력된 품명. 누르면 표가 이 목록으로 바뀜 */}
+        <button onClick={() => setShowUnreg(v => !v)} aria-pressed={showUnreg}
+          className={`bg-white border rounded-xl px-4 py-3 text-left ${showUnreg ? 'border-slate-800' : 'border-gray-200'}`}>
+          <div className="text-[0.6875rem] text-gray-400">미등록 품목</div>
+          <div className="text-lg font-bold tabular-nums text-orange-700">{unreg ? unreg.length : '-'}</div>
         </button>
         {/* 매입처 수 — 정보 표시용 (필터 아님) */}
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-left">
@@ -695,6 +717,70 @@ export default function ProductsPage() {
         </div>
       )}
 
+      {showUnreg ? (
+        <div className="bg-white border border-gray-200 rounded-xl mt-3 overflow-x-auto">
+          <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-100">
+            미등록 품목 — 주문(직접 입력) · 상담에 품번 연결 없이 쓰인 품명을 품명 + 매입처로 묶었습니다. 등록해도 이미 저장된 주문 · 상담은 바뀌지 않고, 같은 품명 + 매입처가 품목에 생기면 이 목록에서 빠집니다.
+          </div>
+          <table className="w-full text-sm min-w-[760px]">
+            <thead>
+              <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+                <th className="py-2 px-3 font-medium text-left">품명 (직접 입력)</th>
+                <th className="py-2 px-3 font-medium text-left">매입처</th>
+                <th className="py-2 px-3 font-medium text-left">최근 판매가</th>
+                <th className="py-2 px-3 font-medium text-left">최근 매입가</th>
+                <th className="py-2 px-3 font-medium text-left">쓰인 곳</th>
+                <th className="py-2 px-3 font-medium text-left">최근 사용</th>
+                <th className="py-2 px-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {(unreg ?? []).map(u => {
+                const k = `${u.item_name}|${u.purchase_vendor_name}`
+                return (
+                  <tr key={k} className="border-b border-gray-50 align-top">
+                    <td className="py-2 px-3 font-medium">
+                      {u.item_name}
+                      {unregOpen === k && (
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-normal">
+                          {u.uses.map(x => (
+                            <a key={`${x.kind}:${x.id}`} href={x.kind === 'order' ? `/orders/${x.id}` : `/orders/consultations/${x.id}`}
+                              className="text-blue-700 hover:underline">{x.label}</a>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-2 px-3 whitespace-nowrap">{u.purchase_vendor_name || '-'}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">{u.last_sale ? won(u.last_sale) : '-'}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">{u.last_purchase ? fmtPurchasePrice(u.last_purchase) : '-'}</td>
+                    <td className="py-2 px-3 whitespace-nowrap text-xs">
+                      {[u.orders ? `주문 ${u.orders}` : '', u.consults ? `상담 ${u.consults}` : ''].filter(Boolean).join(' · ')}
+                    </td>
+                    <td className="py-2 px-3 whitespace-nowrap text-xs tabular-nums">{u.last_date}</td>
+                    <td className="py-2 px-3 text-right whitespace-nowrap">
+                      {canEdit && (
+                        <button onClick={() => setRegisterSeed({ item_name: u.item_name, purchase_vendor_name: u.purchase_vendor_name,
+                            sale_price: u.last_sale, purchase_price: u.last_purchase })}
+                          className="px-2.5 py-1 bg-slate-900 text-white rounded-lg text-xs mr-1.5">등록</button>
+                      )}
+                      <button onClick={() => setUnregOpen(o => o === k ? null : k)}
+                        className="px-2.5 py-1 border border-gray-300 rounded-lg text-xs text-gray-600">
+                        {unregOpen === k ? '접기' : '쓰인 곳 보기'}
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+              {unreg && !unreg.length && (
+                <tr><td colSpan={7} className="text-center py-12 text-gray-400 text-sm">미등록 품목이 없습니다.</td></tr>
+              )}
+              {!unreg && (
+                <tr><td colSpan={7} className="text-center py-12 text-gray-400 text-sm">불러오는 중...</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : (
       <div className="bg-white border border-gray-200 rounded-xl mt-3 overflow-x-auto">
         {loading || !ready ? <div className="text-center py-16 text-gray-400">로딩 중...</div> : (
           <table className="w-full text-sm min-w-[760px]">
@@ -790,11 +876,23 @@ export default function ProductsPage() {
           </table>
         )}
       </div>
-      {canEdit && <p className="text-xs text-gray-400 mt-2">
+      )}
+      {canEdit && !showUnreg && <p className="text-xs text-gray-400 mt-2">
         회사 원가표 엑셀을 그대로 업로드하면 됩니다 (원가표 시트의 품번 · 상품명(원가표 등록용) · 옵션명 · 매입처 ·
         지점배송매입가 · 지점/개별배송판매가 · 목차 · 카톤단위 · 택배비(카톤단위/카톤외)를 인식, 카탈로그 제작용 컬럼은 무시).
         품번 기준으로 갱신되며, 주문 입력에서 지점=지점판매가+카톤 공식 배송비 / 개별=개별판매가(배송비 포함)가 자동 적용됩니다.
       </p>}
+
+      {/* 미등록 품목 등록 — 상담 · 주문과 같은 창(product-register-dialog). 비슷한 품목 '연결'은 여기서는 등록하지 않고 닫기만 */}
+      {registerSeed && (
+        <ProductRegisterDialog seed={registerSeed} products={products}
+          onClose={() => setRegisterSeed(null)}
+          onDone={(prod, created) => {
+            setRegisterSeed(null)
+            if (created) { setNotice(`품목을 등록했습니다: ${[prod.item_code, prod.item_name].filter(Boolean).join(' ')}`); load() }
+            else setNotice(`이미 있는 품목입니다: ${[prod.item_code, prod.item_name].filter(Boolean).join(' ')} — 새로 등록하지 않았습니다.`)
+          }} />
+      )}
 
       {/* 업로드 확인 팝업 — 검사 결과(반영 없음)를 보여주고 확인 후 실제 업로드 */}
       {pending && (

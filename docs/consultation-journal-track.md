@@ -532,3 +532,8 @@ docs/ui-reorg-track.md의 "(b) 상담일지 미연결 정책" 요청문(사용�
 - **완료 회신 (2026-11-05, 주문 트랙 515 — 운영 적용 2026-11-06)**: 주문 진행 요청은 전환이 아니라 담당의 완료 회신으로 완료된다. 전환 전 처리 불가 회신
   (상담 PATCH `action: 'unable'`)은 `erp_order_replies`(order_id NULL)에 남고 `order_assignee_id`만 비워 요청자에게 되돌린다(요청자 · 요청 시각 유지).
   상담 목록 scope `requested` = 요청자 기준 진행중(처리 불가로 되돌아온 것 포함), 행 `req_state`. 상세 docs/order-system-track.md "완료 회신".
+
+### 미등록 상품 품목 등록 (2026-11-19, 품목관리 트랙이 이 화면 수정 — 사용자 승인)
+
+- 품명을 직접 쓴 품목 행(품번 연결 없음 · 비용 행 아님) 아래 '미등록 품목' 태그 + 품목 등록 권한자에게 '품목 등록' → 창에서 품목 관리에 등록하고 그 행을 연결
+  (행의 판매가 · 매입가 · 수량은 그대로). 부품은 품목관리 트랙 소유 `app/(orders)/orders/product-register-dialog.tsx`, 기록은 docs/product-master-track.md.
