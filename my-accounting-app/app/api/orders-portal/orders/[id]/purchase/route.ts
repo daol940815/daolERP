@@ -17,8 +17,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   if ('error' in section) return NextResponse.json({ error: section.error }, { status: 500 })
   const { order, items, pos, poItemMap, vendorInfo, deliveryNote } = section
 
-  // 발주서별 품목 수·연결 끊김 수 (주문 수정으로 품목 행이 교체되면 링크가 NULL —
-  // 발주서 내용은 스냅샷으로 보존되지만 재발주 검토가 필요하므로 경고 표시)
+  // 발주서별 품목 수·연결 끊김 수 — 발주서 내용은 스냅샷으로 보존되지만 재발주 검토가 필요하므로 경고 표시.
+  // 끊김 = 링크 NULL(품목 행 삭제) 또는 링크가 취소된 품목 행을 가리킴. 주문 수정은 바뀐 품목을 지우지 않고
+  // 취소 + 새 행으로 바꾸므로 뒤쪽이 실제로 생기는 경우다 (2026-11-19 — NULL만 세서 경고가 한 번도 뜨지 않았음)
+  const canceledItemIds = new Set((items as OrderItemRow[]).filter(it => it.is_canceled).map(it => it.id))
   const poStats = new Map<string, { item_count: number; broken_count: number }>()
   if (pos.length) {
     const { data: poItems } = await admin.from('erp_purchase_order_items')
@@ -27,7 +29,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       let s = poStats.get(pi.po_id as string)
       if (!s) { s = { item_count: 0, broken_count: 0 }; poStats.set(pi.po_id as string, s) }
       s.item_count += 1
-      if (!pi.order_item_id) s.broken_count += 1
+      if (!pi.order_item_id || canceledItemIds.has(pi.order_item_id as string)) s.broken_count += 1
     }
   }
   const poNoById = new Map(pos.map(p => [p.id, p.po_no]))

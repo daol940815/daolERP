@@ -13,7 +13,7 @@ import {
 
 interface Data {
   form: PoExcelData
-  items: { order_item_id: string | null }[]
+  items: { order_item_id: string | null; order_item_canceled?: boolean }[]
   po: { status: string; email_to: string | null }
 }
 
@@ -46,7 +46,10 @@ export default function PoDetail({ poId }: { poId: string }) {
   const rosterAll = poRosterRows(form)
   const roster = rosterAll.slice(0, ROSTER_PREVIEW_ROWS)   // 미리보기 20행 + "외 N행" (707) — 엑셀에는 전부
   const rosterLinked = (form.roster_rows ?? []).length
-  const broken = (data.items ?? []).filter(it => !it.order_item_id).length
+  // 주문 수정으로 바뀌거나 빠진 품목 — 링크 NULL 또는 취소된 품목 행을 가리킴 (유효 발주서만)
+  const broken = data.po?.status === 'active'
+    ? (data.items ?? []).filter(it => !it.order_item_id || it.order_item_canceled).length
+    : 0
   const cellBorder = { border: '1px solid #cbd5e1' }
   const infoRows = [info.slice(0, 3), info.slice(3, 6), info.slice(6, 9)]
 
@@ -201,7 +204,7 @@ export default function PoDetail({ poId }: { poId: string }) {
         {data.po?.email_to && <div>받는 이메일: <span className="text-gray-600">{data.po.email_to}</span></div>}
         {broken > 0 && (
           <div className="text-red-500">
-            주문 수정으로 연결이 끊긴 품목 {broken}건 — 발주서는 발주 시점 내용으로 보존되며, 해당 품목은 주문에서 미발주로 표시됩니다.
+            발주 뒤 주문에서 바뀌거나 빠진 품목 {broken}건 — 이 발주서는 발주 시점 내용 그대로이고, 바뀐 품목은 주문에서 미발주로 표시됩니다. 이 발주서를 취소하고 바뀐 내용으로 다시 발주하세요(수정본 파일을 올려 보내도 주문의 발주 상태는 바뀌지 않습니다).
           </div>
         )}
       </div>
