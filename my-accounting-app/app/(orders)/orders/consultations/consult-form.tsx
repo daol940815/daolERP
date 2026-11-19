@@ -9,6 +9,7 @@ import {
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
 import type { ContactOpt, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
 import { isMoimVendor } from '../form-shared'
+import ProductRegisterDialog, { UnregisteredTag, isUnregisteredRow, linkPatch } from '../product-register-dialog'
 import IndividualRegister from '../individual-register'
 import { BranchStdHint, ExistingVendorNote, GroupStdHint, NamePreview, useVendorNameCheck } from '@/components/vendors/vendor-name-hints'
 import { groupKey, groupSearchKeywords, standardizeGroupName } from '@/lib/vendor-group-names'
@@ -169,6 +170,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         setGroups(m.groups ?? [])
         const p = await pRes.json()
         if (pRes.ok) setProducts((p.products ?? []).filter((x: Product) => x.is_active))
+        setCanRegisterProduct(p.can_edit === true)   // 품목 등록 권한(영업 · 주문 수정) — '품목 등록' 버튼 노출용
 
         if (consultId) {
           const cRes = await fetch(`/api/orders-portal/consultations/${consultId}`)
@@ -452,6 +454,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     }
   }
 
+  // 미등록 상품 → 품목 관리 등록 (2026-11-19, 품목관리 트랙 부품 product-register-dialog)
+  const [canRegisterProduct, setCanRegisterProduct] = useState(false)
+  const [registerUid, setRegisterUid] = useState<number | null>(null)
+  const registerRow = registerUid === null ? null : items.find(x => x.uid === registerUid) ?? null
   const setItem = (i: number, patch: Partial<ItemDraft>) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, ...patch } : it))
 
@@ -1354,6 +1360,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     onChange={e => { setItem(i, { item_name: e.target.value, product_id: null }); autoGrow(e.target) }}
                     placeholder="마스터에 없으면 직접 입력"
                     className="w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs resize-none overflow-hidden leading-relaxed block disabled:opacity-60" />
+                  {isUnregisteredRow(it) && !locked && (
+                    <UnregisteredTag canRegister={canRegisterProduct} onRegister={() => setRegisterUid(it.uid)} />
+                  )}
                 </td>
                 <td className="py-1 px-1.5">
                   <select value={it.order_kind} disabled={locked} onChange={e => setKind(i, e.target.value)}
@@ -1744,6 +1753,18 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             </span>
           )}
         </div>
+      {registerRow && (
+        <ProductRegisterDialog
+          seed={{ item_name: registerRow.item_name, purchase_vendor_name: registerRow.purchase_vendor_name,
+            order_kind: registerRow.order_kind, sale_price: registerRow.sale_price, purchase_price: registerRow.purchase_price }}
+          products={products}
+          onClose={() => setRegisterUid(null)}
+          onDone={(prod, created) => {
+            if (created) setProducts(prev => [...prev, prod])
+            setItems(prev => prev.map(x => x.uid === registerRow.uid ? { ...x, ...linkPatch(prod) } : x))
+            setRegisterUid(null)
+          }} />
+      )}
       </div>
     </div>
   )
