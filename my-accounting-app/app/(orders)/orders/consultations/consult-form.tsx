@@ -16,6 +16,7 @@ import { contactLabel } from '@/lib/contact-label'
 import ShipCard, { EMPTY_SHIP } from '../ship-card'
 import { needsShip, SHIP_KINDS, type ShipInput } from '@/lib/ship-address'
 import RosterCard from '../roster-card'
+import { InactiveVendorHits, matchInactiveVendors, reactivateVendor, type InactiveVendor } from '../inactive-vendor-hits'
 import ReasonPicker from '@/components/ui/ReasonPicker'
 import { CONSULT_CLOSE_REASONS, CONSULT_DELETE_REASONS, composeReason } from '@/lib/cancel-reasons'
 import { normTel } from '@/lib/contact-phone-sync'
@@ -45,6 +46,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   // 마스터
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [groups, setGroups] = useState<VendorGroup[]>([])
+  const [inactiveVendors, setInactiveVendors] = useState<InactiveVendor[]>([])   // 지점 검색 때만 회색으로 (2026-11-19)
+  const [reactivating, setReactivating] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
   const [contacts, setContacts] = useState<ContactOpt[]>([])
   const [usedSeasons, setUsedSeasons] = useState<string[]>([])   // 주문시기(708) 드롭다운 — 이미 쓴 값
@@ -159,6 +162,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         const m = await mRes.json()
         if (!mRes.ok) throw new Error(m.error ?? '마스터 조회 실패')
         setVendors(m.vendors ?? [])
+        setInactiveVendors(m.inactive_vendors ?? [])
         setEmployees(m.employees ?? [])
         setUsedSeasons(m.seasons ?? [])
         setIsParttime(m.me?.is_parttime === true)
@@ -525,6 +529,32 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     setRegOpen(true)
   }
 
+  // 매출처 목록 다시 읽기 (등록 · 다시 사용 뒤)
+  const reloadVendorLists = async () => {
+    const mRes = await fetch('/api/orders-portal/masters')
+    const m = await mRes.json().catch(() => ({}))
+    if (!mRes.ok) return null
+    setVendors(m.vendors ?? []); setGroups(m.groups ?? []); setInactiveVendors(m.inactive_vendors ?? [])
+    return { vendors: (m.vendors ?? []) as Vendor[], groups: (m.groups ?? []) as VendorGroup[] }
+  }
+  // 비활성 매출처 다시 사용 (2026-11-19) — 지점 검색의 회색 항목을 고르면 활성화 후 지점 선택과 같게 채운다
+  const pickInactiveVendor = async (iv: InactiveVendor) => {
+    setReactivating(true); setError(null)
+    const r = await reactivateVendor(iv.id)
+    if ('error' in r) { setError(r.error); setReactivating(false); return }
+    const lists = await reloadVendorLists()
+    const gs = lists?.groups ?? groups
+    const gName = r.group_id ? gs.find(g => g.id === r.group_id)?.name ?? null : null
+    const split = !gName ? splitByGroupPrefix(r.name, gs) : null
+    setVendorId(r.vendor_id)
+    if (r.group_id && gName) { setGroupId(r.group_id); setBankText(gName); setBranchText(branchLabel(r.name, gName)) }
+    else if (split) { setGroupId(split.group.id); setBankText(split.group.name); setBranchText(split.branch) }
+    else { setBankText(r.name); setBranchText('') }
+    setContactId(null)
+    setNotice(`비활성이던 매출처 '${r.name}'을(를) 다시 사용합니다 — 매출처관리 목록에도 다시 보입니다.`)
+    setReactivating(false)
+  }
+
   const registerVendor = async () => {
     if (!vendorId && !regGroupName.trim()) { alert('업체명을 입력해주세요.'); return }
     if (regContactName.trim() && !regStaff) { alert('다올 담당(자사 영업 직원)을 선택해주세요. 은행 · 지점 · 고객마다 담당이 기입되어야 합니다.'); return }
@@ -555,8 +585,11 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         setManagerText(contactLabel(regContactName, regContactTitle || null))
       }
       setRegOpen(false)
+      // 새로 만들었거나 비활성에서 다시 쓴 매출처가 지점 목록에 보이도록 목록을 다시 읽는다 (2026-11-19)
+      if (!json.vendor_reused || json.vendor_reactivated) await reloadVendorLists()
       setNotice([
-        json.vendor_reused ? '기존 지점에 연결했습니다' : '지점을 매출처 마스터에 등록했습니다',
+        json.vendor_reactivated ? '비활성이던 같은 이름의 지점을 다시 사용합니다(새로 만들지 않음)'
+          : json.vendor_reused ? '기존 지점에 연결했습니다' : '지점을 매출처 마스터에 등록했습니다',
         json.contact_id ? (json.contact_reused ? '기존 담당자에 연결했습니다' : '담당자를 등록했습니다') : '',
       ].filter(Boolean).join(' · ') + ' — 매출처 목록에 반영됩니다.')
     } catch (e) {
@@ -855,6 +888,15 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               <ComboFree text={bankText} selectedId={groupId}
                 options={groups.map(g => ({ id: g.id, label: g.name, keywords: groupSearchKeywords(g.name) }))}
                 onChange={onGroupChange}
+                footer={({ q, close }) => {
+                  // 업체 칸에 단독 매출처 이름을 치는 경우 — 비활성 매출처도 회색으로 (2026-11-19)
+                  if (indMode) return null
+                  const hits = matchInactiveVendors(q, inactiveVendors, { activeNames: vendors.map(v => v.name), limit: 6 })
+                  return hits.length ? (
+                    <InactiveVendorHits hits={hits} parttime={isParttime} busy={reactivating}
+                      onPick={v => { close(); pickInactiveVendor(v) }} />
+                  ) : null
+                }}
                 placeholder="마스터 검색 · 신규명 자유 입력" />
             )}
             {/* 비슷한 업체 안내 (2026-11-18 — 오타 업체 방지, 막지 않음) */}
@@ -910,6 +952,16 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     setBranchText(text)
                   }
                   setContactId(null)
+                }}
+                footer={({ q, close }) => {
+                  if (indMode) return null
+                  const hits = matchInactiveVendors(q, inactiveVendors, {
+                    activeNames: vendors.map(v => v.name), groupId, groupName: selGroup?.name ?? null,
+                  })
+                  return hits.length ? (
+                    <InactiveVendorHits hits={hits} parttime={isParttime} busy={reactivating}
+                      onPick={v => { close(); pickInactiveVendor(v) }} />
+                  ) : null
                 }}
                 placeholder={indMode ? '개인 고객은 지점 없음 — 모임만 선택' : vendorId ? `${NO_BRANCH} (업체 직접)` : '지점 검색 · 자유 입력'} />
             )}
@@ -1162,7 +1214,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 <GroupStdHint c={regCheck} onSuggest={n => setRegGroupName(n)} />
                 <BranchStdHint c={regCheck} />
                 <NamePreview c={regCheck} label="등록될 지점" />
-                <ExistingVendorNote c={regCheck} />
+                <ExistingVendorNote c={regCheck} reuseInactive />
               </div>
             )}
             <div className="flex items-center gap-2 mt-2.5">

@@ -7,7 +7,7 @@ import { STAFF_REQUIRED_MSG } from '@/lib/customer-staff'
 import { loadBillingFamily } from '@/lib/billing'
 import { listIndividualCustomers, createIndividualCustomer } from '@/lib/individual-customer'
 import { standardizeGroupName, stripGroupPrefix } from '@/lib/vendor-group-names'
-import { checkVendorName } from '@/lib/vendor-name-check'
+import { checkVendorName, findVendorByFullName } from '@/lib/vendor-name-check'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +21,7 @@ const SALES_TYPES = ['customer', 'both']
 // GET ?name_check=1&group=&branch=&group_id= → 신규 지점 등록 입력 확인 (업체명 자동 표준화, 2026-11-19)
 // POST { action: 'create_individual', group_id, name, title?, phone?, staff_employee_id, force_new? }
 //   → 개인 고객 등록(인물 + 고객 전용 매출처). 같은 이름이 있으면 409 { duplicates, need_phone }
+// POST { action: 'reactivate_vendor', vendor_id } → 비활성 매출처를 다시 사용 (지점 검색의 회색 항목, 2026-11-19)
 // POST { action: 'create_contact', vendor_id, name, phone?, title? }
 //   → 담당자 마스터에 없는 인물을 그 자리에서 등록 (contacts + 현재 배정)
 // POST { action: 'create_sales_vendor', group_id?, group_name?, branch_name?,
@@ -100,12 +101,17 @@ export async function GET(req: NextRequest) {
   const seasonSel = (table: string) =>
     admin.from(table).select('order_season').not('order_season', 'is', null)
       .order('created_at', { ascending: false }).limit(1000)
-  const [groupsResult, employeesResult, cSeasons, oSeasons] = await Promise.all([
+  // 비활성 매출처 — 지점 검색에서 검색어가 있을 때만 회색으로 보여 주고, 고르면 다시 활성화한다 (2026-11-19). 개인 고객 전용 제외.
+  const inactiveSel = () => fetchAllRows<{ id: string; name: string; group_id: string | null }>((f, t) =>
+    admin.from('vendors').select('id, name, group_id').eq('is_active', false).in('type', SALES_TYPES).neq('status', 'merged')
+      .is('individual_contact_id', null).order('name').range(f, t))
+  const [groupsResult, employeesResult, cSeasons, oSeasons, inactiveResult] = await Promise.all([
     groupSel(),
     admin.from('employees').select('id, name, position, team, employment_type')
       .eq('is_active', true).order('name'),
     seasonSel('erp_consultation_items'),
     seasonSel('erp_order_items'),
+    inactiveSel(),
   ])
   const seasons = Array.from(new Set(
     [...(cSeasons.error ? [] : cSeasons.data ?? []), ...(oSeasons.error ? [] : oSeasons.data ?? [])]
@@ -120,6 +126,7 @@ export async function GET(req: NextRequest) {
   const groupsAll = (groupsResult.error ? [] : (groupsResult.data ?? [])) as { id: string; name: string; is_individual?: boolean }[]
   return NextResponse.json({
     vendors: vendorsResult.data,
+    inactive_vendors: 'error' in inactiveResult ? [] : inactiveResult.data,
     groups: groupsAll.filter(g => g.is_individual || groupsWithBranch.has(g.id)),   // 505 미적용 시 빈 배열
     employees: employeesResult.data ?? [],
     seasons,
@@ -131,20 +138,20 @@ export async function GET(req: NextRequest) {
   })
 }
 
-// 같은 매출처가 이미 있는지 — 업체 그룹과 무관하게 활성 매출처 전체의 이름·별칭을
-// 법인 접두·공백 무시로 비교한다. 그룹 안에서만 찾으면 그룹 미지정 거래처(정비·과거 등록분)를
-// 못 찾아 같은 지점이 중복 생성된다(2026-11-03~04 실제 발생 6쌍).
-const normVendor = (s: string) =>
-  s.replace(/^\s*(\(주\)|㈜|주식회사)\s*/, '').replace(/\s+/g, '').toLowerCase()
-async function findSalesVendor(admin: ReturnType<typeof createAdminClient>, fullName: string) {
-  const key = normVendor(fullName)
-  const r = await fetchAllRows<{ id: string; name: string; group_id: string | null; match_aliases: string[] | null }>((f, t) =>
-    admin.from('vendors').select('id, name, group_id, match_aliases')
-      .in('type', ['customer', 'both']).eq('is_active', true).neq('status', 'merged').range(f, t))
-  if ('error' in r) return null
-  return r.data.find(v => normVendor(v.name) === key)
-    ?? r.data.find(v => (v.match_aliases ?? []).some(a => normVendor(a) === key))
-    ?? null
+// 같은 매출처가 이미 있는지 — 업체 그룹과 무관하게 매출처 전체의 이름 · 옛 이름(별칭)을 법인 표기 · 공백 무시로 비교한다
+// (`findVendorByFullName`, 활성 우선). 그룹 안에서만 찾으면 그룹 미지정 거래처를 못 찾아 같은 지점이 중복 생성된다(2026-11-03~04 실제 6쌍).
+// **비활성 매출처도 찾는다 — 찾으면 다시 활성화해서 쓴다**(2026-11-19 사용자 원칙: 같은 이름의 매출처는 활성 · 비활성을 통틀어 하나만).
+// 전에는 활성만 찾아 비활성과 같은 이름의 새 매출처를 만들었고, 새 주문의 표기 별칭이 비활성 쪽에 붙어 매출이 갈렸다.
+async function findSalesVendor(admin: ReturnType<typeof createAdminClient>, fullName: string)
+  : Promise<{ id: string; name: string; group_id: string | null; reactivated: boolean } | null> {
+  const e = await findVendorByFullName(admin, fullName)
+  if (!e) return null
+  let reactivated = false
+  if (!e.is_active) {
+    const { error } = await admin.from('vendors').update({ is_active: true }).eq('id', e.id).neq('status', 'merged')
+    reactivated = !error
+  }
+  return { id: e.id, name: e.name, group_id: e.group_id, reactivated }
 }
 
 export async function POST(req: NextRequest) {
@@ -259,7 +266,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       group_id: groupId, group_name: groupLabel || null,
       vendor_id: vendorId, vendor_name: vendorName,
-      vendor_reused: vendorReused,
+      vendor_reused: vendorReused, vendor_reactivated: !!existing?.reactivated,
       contact_id: contactId, contact_reused: contactReused,
     })
   }
@@ -284,6 +291,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ contact_id: contact.id })
   }
 
+  // 비활성 매출처 다시 사용 (2026-11-19) — 상담 · 주문의 지점 검색에서 회색 '비활성' 항목을 고르면 그 자리에서 활성화한다.
+  // 같은 이름의 새 매출처를 만들지 않게 하는 것이 목적(같은 이름 매출처는 하나만). 매출처 유형 · 병합 안 된 것만.
+  if (body.action === 'reactivate_vendor') {
+    const id = (body.vendor_id ?? '').trim()
+    if (!id) return NextResponse.json({ error: '매출처가 필요합니다.' }, { status: 400 })
+    const { data: v } = await admin.from('vendors').select('id, name, type, status, is_active, group_id').eq('id', id).maybeSingle()
+    if (!v || v.status === 'merged' || !SALES_TYPES.includes(String(v.type))) {
+      return NextResponse.json({ error: '다시 사용할 수 없는 매출처입니다(병합됨 또는 매입처).' }, { status: 400 })
+    }
+    if (!v.is_active) {
+      const { error } = await admin.from('vendors').update({ is_active: true }).eq('id', id)
+      if (error) return NextResponse.json({ error: `활성화 실패: ${error.message}` }, { status: 500 })
+    }
+    return NextResponse.json({ vendor_id: v.id, group_id: (v.group_id as string | null) ?? null, name: v.name, reactivated: !v.is_active })
+  }
+
   // 신규 매출처 인라인 등록 (2026-08-25 확정) — 데이터는 vendors 마스터 단일 원천에
   // 쓴다 (허브에서도 즉시 보임). 같은 이름이 이미 있으면 만들지 않고 그걸 선택한다.
   if (body.action === 'create_vendor') {
@@ -296,7 +319,7 @@ export async function POST(req: NextRequest) {
 
     const existing = await findSalesVendor(admin, fullName)
     if (existing) {
-      return NextResponse.json({ vendor_id: existing.id, group_id: existing.group_id ?? null, existed: true })
+      return NextResponse.json({ vendor_id: existing.id, group_id: existing.group_id ?? null, existed: true, reactivated: existing.reactivated })
     }
 
     // 업체 그룹 연결 (없으면 생성) — 지점명이 없는 단독 업체도 같은 이름의 업체에 연결(2026-11-05 규칙).
