@@ -10,7 +10,7 @@
 --   - 같은 사람이 남은 쪽에도 배정돼 있으면 흡수 쪽 배정 줄은 지운다(남은 쪽 줄 유지).
 --   - 같은 직원이 남은 쪽 지점 담당이면 흡수 쪽 줄은 지운다. 주담당 · 대표 담당자가 남은 쪽에 있으면 흡수 쪽 표시를 내린다.
 --   - 표기 연결은 남은 쪽에 같은 표기가 있으면 흡수 쪽 줄을 지운다(유니크).
---   - 병합이 여러 번 이어졌으면 끝까지 따라간다. 최종 매출처가 비활성이면 옮기지 않고 목록에만 보인다.
+--   - 병합이 여러 번 이어졌으면 끝까지 따라간다. 최종 매출처가 비활성이어도 옮긴다(활성화는 STEP 2-b, 사용자 결정).
 -- 원본(주문 · 상담에 저장된 글자)은 손대지 않는다.
 --
 -- 순서: STEP 1 드라이런(조회만) → 결과 검토 · 승인 → STEP 2 실행 → STEP 3 검증 (블록별로 따로 실행)
@@ -78,7 +78,7 @@ BEGIN
     ),
     fin AS (SELECT DISTINCT ON (root) root AS from_id, cur AS into_id FROM ch ORDER BY root, d DESC)
     SELECT f.from_id, f.into_id FROM fin f JOIN vendors t ON t.id = f.into_id
-     WHERE t.status IS DISTINCT FROM 'merged' AND t.is_active
+     WHERE t.status IS DISTINCT FROM 'merged'      -- 남은 쪽이 비활성이어도 옮긴다(2026-11-19 드라이런: 15곳 중 13곳이 비활성)
   LOOP
     -- 대표 담당자: 남은 쪽에 현재 대표가 있으면 흡수 쪽 대표 표시를 내린다 (uq_contact_asgn_rep)
     IF EXISTS (SELECT 1 FROM contact_assignments WHERE vendor_id = r.into_id AND is_representative AND ended_at IS NULL) THEN
@@ -117,6 +117,26 @@ BEGIN
   END IF;
   RAISE NOTICE '처리한 병합 매출처 %곳, 남은 참조 0', n_total;
 END $$;
+
+
+-- ── STEP 2-b. 남은 쪽 활성화 (사용자 결정 후 — STEP 2 다음에 실행) ─────────
+-- 2026-11-19 드라이런: 11-12 같은 이름 중복 정리에서 '사업자번호 · 계산서 있는 쪽'을 남겼는데 그쪽이 비활성(11-02 정비에서 고객관리문서에 없던 회계용 기록)이라
+-- 고객 쪽 기록은 병합으로 숨고 남은 쪽은 비활성 → 매출처관리 기본 목록 · 상담 · 주문 목록에서 둘 다 사라졌다.
+-- 규칙: 병합으로 흡수된 매출처를 가진 비활성 매출처 중, 지금 현재 배정(고객)이 있는 곳만 활성화한다.
+-- 드라이런(조회만): 이 SELECT로 대상 확인
+SELECT t.id, t.name AS 활성화할_매출처,
+       (SELECT count(*) FROM contact_assignments a WHERE a.vendor_id = t.id AND a.ended_at IS NULL) AS 현재배정,
+       (SELECT string_agg(m.name, ', ') FROM vendors m WHERE m.merged_into_id = t.id) AS 흡수된_매출처
+  FROM vendors t
+ WHERE t.is_active = false AND t.status IS DISTINCT FROM 'merged' AND t.type IN ('customer', 'both')
+   AND EXISTS (SELECT 1 FROM vendors m WHERE m.merged_into_id = t.id AND m.status = 'merged')
+   AND EXISTS (SELECT 1 FROM contact_assignments a WHERE a.vendor_id = t.id AND a.ended_at IS NULL)
+ ORDER BY t.name;
+-- 실행 (위 결과를 확인한 뒤 주석을 풀고 이 문장만 실행)
+-- UPDATE vendors t SET is_active = true
+--  WHERE t.is_active = false AND t.status IS DISTINCT FROM 'merged' AND t.type IN ('customer', 'both')
+--    AND EXISTS (SELECT 1 FROM vendors m WHERE m.merged_into_id = t.id AND m.status = 'merged')
+--    AND EXISTS (SELECT 1 FROM contact_assignments a WHERE a.vendor_id = t.id AND a.ended_at IS NULL);
 
 
 -- ── STEP 3. 검증 — 전부 0 이 기대값 (최종 매출처가 비활성인 건은 STEP 1 목록에 남는다) ──
