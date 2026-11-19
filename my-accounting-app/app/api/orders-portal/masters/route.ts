@@ -6,6 +6,8 @@ import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { STAFF_REQUIRED_MSG } from '@/lib/customer-staff'
 import { loadBillingFamily } from '@/lib/billing'
 import { listIndividualCustomers, createIndividualCustomer } from '@/lib/individual-customer'
+import { standardizeGroupName, stripGroupPrefix } from '@/lib/vendor-group-names'
+import { checkVendorName } from '@/lib/vendor-name-check'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +18,7 @@ const SALES_TYPES = ['customer', 'both']
 // GET                     → { vendors, employees }  (폼 최초 로드)
 // GET ?vendor_id=<id>     → { contacts }            (주문처 선택 시 담당자 목록)
 // GET ?individual_group=<id> → { customers }        (개인 고객 업체의 고객 목록, 115)
+// GET ?name_check=1&group=&branch=&group_id= → 신규 지점 등록 입력 확인 (업체명 자동 표준화, 2026-11-19)
 // POST { action: 'create_individual', group_id, name, title?, phone?, staff_employee_id, force_new? }
 //   → 개인 고객 등록(인물 + 고객 전용 매출처). 같은 이름이 있으면 409 { duplicates, need_phone }
 // POST { action: 'create_contact', vendor_id, name, phone?, title? }
@@ -31,6 +34,12 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   const vendorId = new URL(req.url).searchParams.get('vendor_id')
   const individualGroup = new URL(req.url).searchParams.get('individual_group')
+  {
+    const sp = new URL(req.url).searchParams
+    if (sp.get('name_check') === '1') {
+      return NextResponse.json(await checkVendorName(admin, sp.get('group') ?? '', sp.get('branch') ?? '', sp.get('group_id') || null))
+    }
+  }
   if (individualGroup) {
     return NextResponse.json({ customers: await listIndividualCustomers(admin, individualGroup) })
   }
@@ -169,8 +178,10 @@ export async function POST(req: NextRequest) {
     const norm = (s: string) =>
       s.replace(/^\s*(\(주\)|㈜|주식회사)\s*/, '').replace(/\s+/g, '').toLowerCase()
     const groupIdIn = (body.group_id ?? '').trim() || null
-    const groupName = (body.group_name ?? '').trim()
-    const branchName = (body.branch_name ?? '').trim()
+    const typedGroup = (body.group_name ?? '').trim()
+    // 업체명 자동 표준화 (2026-11-19, lib/vendor-group-names.ts) — 옛 업체명은 표준명으로
+    const groupName = standardizeGroupName(typedGroup).name
+    let branchName = (body.branch_name ?? '').trim()
     if (!groupIdIn && !groupName) {
       return NextResponse.json({ error: '업체명을 입력해주세요.' }, { status: 400 })
     }
@@ -196,7 +207,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2) 지점(vendors) — 정규화 동일명이 있으면 재사용 (매출처 목록 오염 방지)
+    // 2) 지점(vendors) — 정규화 동일명이 있으면 재사용 (매출처 목록 오염 방지). 지점명 앞 은행명은 뗀다(2026-11-19).
+    branchName = stripGroupPrefix(groupLabel, branchName, typedGroup).branch
     const vendorName = branchName ? `${groupLabel} ${branchName}` : groupLabel
     const existing = await findSalesVendor(admin, vendorName)
     let vendorId = existing?.id as string | undefined
@@ -275,8 +287,10 @@ export async function POST(req: NextRequest) {
   // 신규 매출처 인라인 등록 (2026-08-25 확정) — 데이터는 vendors 마스터 단일 원천에
   // 쓴다 (허브에서도 즉시 보임). 같은 이름이 이미 있으면 만들지 않고 그걸 선택한다.
   if (body.action === 'create_vendor') {
-    const groupName = (body.group_name ?? '').trim()    // 업체명
-    const branchName = (body.branch_name ?? '').trim()  // 지점명 (선택 — 단일 업체는 비움)
+    // 업체명 자동 표준화 (2026-11-19) — 옛 업체명은 표준명으로, 지점명 앞 은행명은 뗀다
+    const typedGroup = (body.group_name ?? '').trim()
+    const groupName = standardizeGroupName(typedGroup).name    // 업체명
+    const branchName = stripGroupPrefix(groupName, body.branch_name ?? '', typedGroup).branch  // 지점명 (선택 — 단일 업체는 비움)
     if (!groupName) return NextResponse.json({ error: '업체명을 입력해주세요.' }, { status: 400 })
     const fullName = [groupName, branchName].filter(Boolean).join(' ')
 

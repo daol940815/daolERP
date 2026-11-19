@@ -819,3 +819,21 @@
     결과 이름이 이미 있으면(옛 이름 별칭 포함) 새로 만들지 않고 기존 매출처. 매출처 관리 검색에 별칭 포함.
   - 확인 필요: 'KB' 단독 입력은 바꾸지 않고 안내만 하는 안(KB증권 · KB라이프파트너스 등 별도 업체) 권고.
   - 사용자 수정 (2026-11-19): 이미 있는 매출처 버튼 문구 '기존 매출처 열기' → **'기존 매출처 사용'** (시안 반영).
+  - **사용자 승인 (2026-11-19)**: "1 진행 · 2 'KB'는 권고대로 안내만" → **구현 · 배포**
+    - 규칙 표 `lib/vendor-group-names.ts`(순수 함수 — 화면 · 서버 공용): IBK기업은행 ← 기업은행 · 중소기업은행 · IBK · IBK기업,
+      KB국민은행 ← 국민은행 · KB국민. 'KB'는 GROUP_NAME_HINTS(안내 + "KB국민은행으로 입력" 버튼만). 비교는 법인 표기 · 공백 · 대소문자 무시.
+    - 지점명 앞 은행명 떼기(`stripGroupPrefix`): 표준명 · 입력 업체명 · 규칙의 옛 이름. 표준명의 앞부분인 약칭('IBK' · 'KB국민')은
+      떼지 않는다('IBK파이낸스타워지점' 보호). 규칙 밖 업체에도 적용('하나은행' + '하나은행 부평지점' → '하나은행 부평지점').
+    - 서버 판정 `lib/vendor-name-check.ts`(`checkVendorName` · `findVendorByFullName` · `findGroupByName`) —
+      확인 API: 매출처 관리 `GET /api/vendor-hub/name-check`, 주문 · 상담 `GET /api/orders-portal/masters?name_check=1`(각 영역 권한 그대로).
+    - 저장 API 3곳에 같은 표준화: `/api/vendor-hub` POST(이미 있으면 409 + vendor_id → 화면이 그 매출처를 열지 물음),
+      masters `create_vendor` · `create_sales_vendor`(이미 있으면 기존 매출처 선택 — 원래 동작, 이제 표준화한 이름으로 찾음).
+    - 화면 부품 `components/vendors/vendor-name-hints.tsx`(`useVendorNameCheck` 300ms + GroupStdHint · BranchStdHint · NamePreview · ExistingVendorNote).
+      매출처 등록 창: 이미 있으면 "등록" 대신 **"기존 매출처 사용"**(그 매출처 상세로 이동). 주문 입력 신규 지점 등록: 버튼 "기존 매출처 사용"(선택).
+      상담일지 신규 매출처 등록: "기존 매출처 사용" / 담당자 이름이 있으면 "기존 매출처에 담당자 등록".
+    - 상담일지 업체 칸 자유 입력: 옛 업체명이면 칸 아래 안내 + 저장 시 표준 업체(vendor_group_id)와 표준 표기(bank_name)로 저장.
+    - 업체 콤보(주문 · 상담) 검색에 옛 이름 포함(`ComboFree` · `Combo`의 options.keywords) — '중소기업은행'으로 IBK기업은행이 걸림.
+    - 매출처 관리 목록 · 엑셀 검색에 옛 이름(vendors.match_aliases, `HubListRow.old_names`) 포함.
+    - 검증(운영 DB 읽기 전용): '국민은행'+'문산지점' → 기존 'KB국민은행 문산지점'(업체 KB 42곳), '기업은행'+'기업은행 인사동지점' → 기존 'IBK기업은행 인사동지점',
+      '중소기업은행'+'노원역지점' → 새 지점 'IBK기업은행 노원역지점'(업체 IBK 82곳), 'KB'+'문산지점' → 바꾸지 않고 안내, 규칙 밖 새 업체는 그대로.
+      로그인 화면 조작 확인은 하지 않음(빌드 · 타입 검사 · 판정 함수 대조까지).

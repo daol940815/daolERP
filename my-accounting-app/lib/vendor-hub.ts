@@ -39,6 +39,7 @@ export interface HubListRow {
   billing_vendor_name: string | null
   individual: boolean     // 개인 고객 전용 매출처(115) — 목록 배지 · 칩
   alias_names: string[]   // ERP 표기 검색용
+  old_names: string[]     // 옛 이름(match_aliases) — 검색용 (2026-11-19: '중소기업은행 …'으로도 IBK기업은행 지점이 찾아지게)
   alias_count: number
   card_count: number
   staff_primary: string | null
@@ -154,8 +155,8 @@ export async function buildHubList(
     fetchAllRows<{ id: string; vendor_id: string; erp_name: string | null }>((f, t) =>
       admin.from('erp_vendor_aliases').select('id, vendor_id, erp_name')
         .eq('alias_type', 'customer').not('vendor_id', 'is', null).range(f, t)),
-    fetchAllRows<{ id: string; name: string; card_numbers: string[] | null; biz_number: string | null; is_active: boolean | null; type: string | null; status: string | null }>((f, t) =>
-      admin.from('vendors').select('id, name, card_numbers, biz_number, is_active, type, status').range(f, t)),
+    fetchAllRows<{ id: string; name: string; card_numbers: string[] | null; biz_number: string | null; is_active: boolean | null; type: string | null; status: string | null; match_aliases: string[] | null }>((f, t) =>
+      admin.from('vendors').select('id, name, card_numbers, biz_number, is_active, type, status, match_aliases').range(f, t)),
     fetchAllRows<{ vendor_id: string; is_primary: boolean; employees: unknown }>((f, t) =>
       admin.from('vendor_staff').select('vendor_id, is_primary, employees(name)')
         .is('ended_at', null).range(f, t)),
@@ -321,6 +322,7 @@ export async function buildHubList(
       billing_vendor_name: billingMap.get(vid)?.name ?? null,
       individual: individualIds.has(vid),
       alias_names: aliasNames.get(vid) ?? [],
+      old_names: v?.match_aliases ?? [],
       alias_count: aliasCount.get(vid) ?? 0,
       card_count: v?.card_numbers?.length ?? 0,
       staff_primary: st?.primary ?? null,
