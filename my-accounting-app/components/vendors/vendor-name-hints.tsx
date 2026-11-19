@@ -96,14 +96,15 @@ export function NamePreview({ c, label = '등록될 매출처 이름' }: { c: Na
 }
 
 // 이미 있는 매출처
-export function ExistingVendorNote({ c, children }: { c: NameCheck; children?: ReactNode }) {
+// reuseInactive: 상담 · 주문 등록 — 비활성이면 저장할 때 서버가 다시 활성화해 쓴다(2026-11-19). 매출처관리 등록 창은 상세로 이동해 재활성.
+export function ExistingVendorNote({ c, children, reuseInactive }: { c: NameCheck; children?: ReactNode; reuseInactive?: boolean }) {
   const e = c.existing
   if (!e) return null
   return (
     <div className={`${box} bg-amber-50 border border-amber-200 text-amber-800`}>
       이미 등록된 매출처가 있습니다 — <b>{e.name}</b>
       {e.via_alias && <span className="ml-1 inline-block rounded px-1.5 py-0.5 text-[0.6875rem] bg-gray-100 text-gray-600">옛 이름: {e.via_alias}</span>}
-      {!e.is_active && <span className="ml-1 text-red-600">(비활성 — 상세에서 재활성하세요)</span>}
+      {!e.is_active && <span className="ml-1 text-red-600">{reuseInactive ? '(비활성 — 사용하면 다시 활성화됩니다)' : '(비활성 — 상세에서 재활성하세요)'}</span>}
       <br />새로 만들지 않고 이 매출처를 씁니다. {children}
     </div>
   )

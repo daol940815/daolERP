@@ -19,6 +19,7 @@ import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-seaso
 import type { ContactOpt, Employee, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from './form-shared'
 import { isMoimVendor } from './form-shared'
 import IndividualRegister from './individual-register'
+import { InactiveVendorHits, matchInactiveVendors, reactivateVendor, type InactiveVendor } from './inactive-vendor-hits'
 import { BranchStdHint, ExistingVendorNote, GroupStdHint, NamePreview, useVendorNameCheck } from '@/components/vendors/vendor-name-hints'
 import { groupSearchKeywords } from '@/lib/vendor-group-names'
 import { contactLabel } from '@/lib/contact-label'
@@ -39,6 +40,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
 
   // 마스터
   const [vendors, setVendors] = useState<Vendor[]>([])
+  const [inactiveVendors, setInactiveVendors] = useState<InactiveVendor[]>([])   // 지점 검색 때만 회색으로 (2026-11-19)
+  const [reactivating, setReactivating] = useState(false)
   const [groups, setGroups] = useState<VendorGroup[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -107,6 +110,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
         const m = await mRes.json()
         if (!mRes.ok) throw new Error(m.error ?? '마스터 조회 실패')
         setVendors(m.vendors ?? [])
+        setInactiveVendors(m.inactive_vendors ?? [])
         // 목록은 활성 매출처만(2026-11-19) — 저장된 주문 · 상담의 거래처가 비활성 · 매입처라 빠졌으면 이름만 보이게 붙여 둔다
         const keepVendor = (id: string | null | undefined, name: string) => {
           if (!id || ((m.vendors ?? []) as Vendor[]).some(v => v.id === id)) return
@@ -424,15 +428,32 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
     // 마스터 목록 갱신 후 방금 등록한 매출처 선택
     const mRes = await fetch('/api/orders-portal/masters')
     const m = await mRes.json()
-    if (mRes.ok) { setVendors(m.vendors ?? []); setGroups(m.groups ?? []) }
+    if (mRes.ok) { setVendors(m.vendors ?? []); setGroups(m.groups ?? []); setInactiveVendors(m.inactive_vendors ?? []) }
     setGroupId(json.group_id ?? null)
     setVendorId(json.vendor_id)
     setContactId(null)
     setAddingVendor(false)
     setNewVendor({ group_name: '', branch_name: '' })
-    setNotice(json.existed
+    setNotice(json.reactivated
+      ? '비활성이던 같은 이름의 매출처를 다시 사용합니다(새로 만들지 않음) — 담당자를 선택하거나 신규 등록해주세요.'
+      : json.existed
       ? '이미 등록된 매출처를 선택했습니다(새로 만들지 않음).'
       : '매출처가 등록되었습니다 — 담당자를 선택하거나 신규 등록해주세요.')
+  }
+
+  // 비활성 매출처 다시 사용 (2026-11-19) — 지점 검색의 회색 항목을 고르면 활성화 후 선택
+  const pickInactiveVendor = async (v: InactiveVendor) => {
+    setReactivating(true); setError(null)
+    const r = await reactivateVendor(v.id)
+    if ('error' in r) { setError(r.error); setReactivating(false); return }
+    const mRes = await fetch('/api/orders-portal/masters')
+    const m = await mRes.json()
+    if (mRes.ok) { setVendors(m.vendors ?? []); setGroups(m.groups ?? []); setInactiveVendors(m.inactive_vendors ?? []) }
+    setVendorId(r.vendor_id)
+    setGroupId(r.group_id ?? groupId)
+    setContactId(null)
+    setNotice(`비활성이던 매출처 '${r.name}'을(를) 다시 사용합니다 — 매출처관리 목록에도 다시 보입니다.`)
+    setReactivating(false)
   }
 
   // ── 고객 쌍방향 추천 (2026-11-18 사용자 승인 — 시안 docs/mockups/고객_쌍방향추천_시안.html) ──
@@ -685,6 +706,14 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                 setAddingIndividual(null)
               }}
               placeholder="업체 검색 (지점에서 바로 검색도 가능)"
+              footer={({ q, close }) => {
+                // 단독 매출처 이름을 업체 칸에 치는 경우 — 비활성 매출처도 회색으로 (2026-11-19)
+                const hits = matchInactiveVendors(q, inactiveVendors, { activeNames: vendors.map(v => v.name), limit: 6 })
+                return hits.length ? (
+                  <InactiveVendorHits hits={hits} parttime={isParttime} busy={reactivating}
+                    onPick={v => { close(); pickInactiveVendor(v) }} />
+                ) : null
+              }}
             />
             <div className="text-[0.625rem] text-gray-400 mt-0.5">업체별 통계의 기준 — 단독 업체도 업체로 고르면 지점이 자동 선택됩니다</div>
           </div>
@@ -711,16 +740,23 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               }}
               placeholder={indMode ? '개인 고객은 지점 없음 — 모임 주문만 선택' : groupId ? '소속 지점 선택' : '거래처 마스터 검색 — 자유 입력 불가'}
               required={!indMode}
-              footer={!indMode &&
-                <button type="button" onMouseDown={e => e.preventDefault()}
-                  onClick={() => {
-                    setNewVendor(p => ({ ...p, group_name: groups.find(g => g.id === groupId)?.name ?? p.group_name }))
-                    setAddingVendor(true)
-                  }}
-                  className="w-full text-left px-3 py-1.5 text-blue-700 font-medium hover:bg-blue-50">
-                  + 신규 매출처 등록
-                </button>
-              }
+              footer={({ q, close }) => !indMode && (
+                <>
+                  <InactiveVendorHits parttime={isParttime} busy={reactivating}
+                    hits={matchInactiveVendors(q, inactiveVendors, {
+                      activeNames: vendors.map(v => v.name), groupId, groupName: groups.find(g => g.id === groupId)?.name ?? null,
+                    })}
+                    onPick={v => { close(); pickInactiveVendor(v) }} />
+                  <button type="button" onMouseDown={e => e.preventDefault()}
+                    onClick={() => {
+                      setNewVendor(p => ({ ...p, group_name: groups.find(g => g.id === groupId)?.name ?? p.group_name }))
+                      setAddingVendor(true)
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-blue-700 font-medium hover:bg-blue-50">
+                    + 신규 매출처 등록
+                  </button>
+                </>
+              )}
             />
             {billingTo && (
               <div className="text-[0.6875rem] text-blue-700 mt-0.5">
@@ -920,7 +956,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                 <GroupStdHint c={vnCheck} onSuggest={n => setNewVendor(p => ({ ...p, group_name: n }))} />
                 <BranchStdHint c={vnCheck} />
                 <NamePreview c={vnCheck} label="등록될 지점" />
-                <ExistingVendorNote c={vnCheck} />
+                <ExistingVendorNote c={vnCheck} reuseInactive />
               </div>
             )}
             <button type="button" onClick={createVendor}
