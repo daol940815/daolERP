@@ -42,6 +42,7 @@ interface Data {
   }[]
   attendance: { check_in_at: string | null; check_out_at: string | null } | null
   attendanceReady: boolean
+  leaveBalance: { year: number; base: number; comp: number; granted: number; used: number; remainBase: number; remainComp: number; remainTotal: number; over: number } | null
   leaves: { id: string; leave_type: LeaveType; start_date: string; end_date: string; status: LeaveStatus }[]
 }
 
@@ -122,6 +123,12 @@ export default function MyDashboardPage() {
       value: s ? `${s.vendor_cnt}곳` : '-',
       sub: s && s.consult_month.order_cnt > 0 ? `이번 달 상담 주문 ${s.consult_month.order_cnt}건` : null,
     },
+    // 올해 연차 (207 연차 관리와 같은 계산 — 부여 원장이 있는 직원만, 2026-11-19)
+    ...(data.leaveBalance ? [{
+      label: `${data.leaveBalance.year}년 남은 연차`, href: '/hr/attendance',
+      value: data.leaveBalance.over > 0 ? `초과 ${data.leaveBalance.over}일` : `${data.leaveBalance.remainTotal}일`,
+      sub: `부여 ${data.leaveBalance.granted} · 사용 ${data.leaveBalance.used}${data.leaveBalance.comp > 0 ? ` (남은 기본 ${data.leaveBalance.remainBase} · 보상 ${data.leaveBalance.remainComp})` : ''}`,
+    }] : []),
     {
       label: '이번 달 업무일지', href: '/me/worklog',
       value: work ? `${work.rows.length}건` : '-',

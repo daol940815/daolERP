@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { kstToday, kstMonthNow } from '@/lib/attendance'
 import { loadMyOrderStats } from '@/lib/my-dashboard'
+import { computeBalance } from '@/lib/leave-balance'
+import { loadBalanceData } from '@/lib/leave-balance.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +24,7 @@ export async function GET() {
   const month = kstMonthNow()
   const today = kstToday()
 
-  const [summaryRes, orderStats, recentJournalRes, attRes, leaveRes] = await Promise.all([
+  const [summaryRes, orderStats, balData, recentJournalRes, attRes, leaveRes] = await Promise.all([
     // KPI 집계 (300 RPC)
     admin.rpc('my_dashboard_summary', {
       p_employee_id: me.employeeId,
@@ -31,6 +33,8 @@ export async function GET() {
     }),
     // 주문 카드 — 내 작성 주문 · 내 담당 지점 주문 (2026-11-19, lib/my-dashboard.ts)
     loadMyOrderStats(admin, me, month),
+    // 올해 연차 잔여 (207) — 연차 관리와 같은 계산(lib/leave-balance.ts). 미적용이면 ready=false
+    me.employeeId ? loadBalanceData(admin, Number(today.slice(0, 4)), [me.employeeId]) : Promise.resolve(null),
     // 최근 내 영업일지 5건
     me.employeeId
       ? admin
@@ -95,5 +99,9 @@ export async function GET() {
     attendance: attRes.error ? null : attRes.data ?? null,
     attendanceReady: !attRes.error,
     leaves: leaveRes.error ? [] : leaveRes.data ?? [],
+    // 올해 연차 — 그해 유효 부여가 있는 직원만(연차 대상). 없으면 null = 카드 숨김 (2026-11-19)
+    leaveBalance: balData?.ready && balData.grants.some(g => g.status === 'active')
+      ? { year: Number(today.slice(0, 4)), ...computeBalance({ year: Number(today.slice(0, 4)), grants: balData.grants, leaves: balData.leaves, holidays: balData.holidays }) }
+      : null,
   })
 }
