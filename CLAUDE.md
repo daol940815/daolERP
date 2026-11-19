@@ -84,7 +84,7 @@
 - 실행은 사용자가 Supabase SQL 편집기에서 직접 한다. 파일만 만들어 전달할 것.
 - 번호 대역: `06x~07x` CRM 트랙(별도 세션) / `100번대` 매출처 허브·담당자 관리(총괄 세션) /
   `200번대` 인사·총무 트랙(인수인계: docs/hr-track.md, 근태 설계 docs/attendance-design.md) /
-  `300번대` 직원 개인화면(마이페이지) 트랙 /
+  `300번대` 직원 개인화면(마이페이지) 트랙 — 내 대시보드 `/me` 관리(인수인계: docs/my-dashboard-track.md, 2026-11-19 세션 개설) /
   `400번대` 회계 트랙(인수인계: docs/accounting-track.md) /
   `500번대` 주문시스템 트랙(인수인계: docs/order-system-track.md) /
   **`600번대` 매입처 허브 트랙(인수인계: docs/purchase-hub-track.md)** /
