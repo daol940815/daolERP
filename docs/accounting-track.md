@@ -1387,3 +1387,6 @@ ERP 주문은 계획대로 교체(erp-reload-track). 결정 대기.
 - `v_erp_order_receivable` 에 `prepay_amount`(유효 선결제 품목) · `billable`(= net_sales + prepay_amount) 칸 추가, **미수 상한을 net_sales → billable** 로.
   선결제는 매출(net_sales)이 아니지만 고객이 낼 돈이라 미수에 포함(상품 150 + 선결제 25 주문의 받을 돈 = 175). net_sales · 월별 손익은 그대로.
 - JS 미러(`lib/receivable.ts` `outstandingOf` 의 prepay)도 같은 규칙. 상세 · 실행 순서는 docs/payment-track.md "청구 금액".
+- **통장 분류 원칙 정리(2026-11-19 사용자 확인)**: 계산서 발행 건 입금 = 외상매출금(1101) 회수(발행 시 매출 기계상, 상품매출로 분류하면 이중).
+  카드사 정산 입금 = 외상매출금[카드사] 회수(수수료 차액은 지급수수료). 법인카드 대금 출금 = 미지급금(2001)[카드사] 상환(승인 시 비용 기계상).
+  상품매출 직접 분류는 계산서 · 카드 없이 들어온 매출 입금(현금영수증 건 · 개인 송금)만.
