@@ -12,7 +12,7 @@ import {
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Combo, CustomerShipInput, DiscountInput, NumInput, fmtPurchasePrice, purchaseAmount, toPurchasePrice, SeasonDatalist, SeasonInput, autoGrow, branchLabel, draftExtrasFromRow, draftFromProduct,
+  Combo, CustomerShipInput, DiscountInput, NumInput, fmtPurchasePrice, purchaseAmount, toPurchasePrice, SeasonDatalist, SeasonInput, autoGrow, branchLabel, branchText, draftExtrasFromRow, draftFromProduct,
   emptyItem, lineCost, lineTotal, priceRule, purchaseShippingHint, quantityPatch, reshipPatch, toInt, withShipUnit, won,
 } from './form-shared'
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
@@ -691,14 +691,14 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               display={(() => {
                 const v = vendors.find(x => x.id === vendorId)
                 if (!v || indPick) return ''
-                return branchLabel(v.name, groups.find(g => g.id === v.group_id)?.name)
+                return branchText(v.name, groups.find(g => g.id === v.group_id)?.name)
               })()}
               options={(groupId ? vendors.filter(v => v.group_id === groupId) : vendors)
                 .filter(v => !indMode || isMoimVendor(v, selGroup?.name))
                 .filter(v => !v.individual_contact_id)
                 .map(v => {
                   const gName = groups.find(g => g.id === v.group_id)?.name
-                  return { id: v.id, label: branchLabel(v.name, gName), sub: gName ?? '' }
+                  return { id: v.id, label: branchText(v.name, gName), sub: gName ?? '' }
                 })}
               onSelect={id => {
                 setVendorId(id)

@@ -230,16 +230,19 @@ export function CustomerShipInput({ it, disabled, onChange, className }: {
 // 법인 접두("(주)", "㈜", "주식회사")는 양쪽에서 무시하고 매칭한다 —
 // "(주)하나은행오류동지점" + "하나은행" → "오류동지점" (2026-08-18 보정, 702와 동일 규칙)
 const stripCorpPrefix = (s: string) => s.replace(/^\s*(\(주\)|㈜|주식회사)\s*/, '')
+// 단독 매출처(이름 = 업체명, 예: '푸본현대생명')는 지점이 없으므로 빈 문자열 — 화면에는 NO_BRANCH로 보인다
+// (2026-11-19 사용자 요청: 지점 칸에 업체명이 반복돼 '없는 지점'으로 오해).
+export const NO_BRANCH = '지점 없음'
 export const branchLabel = (vendorName: string, groupName?: string | null): string => {
   if (!groupName) return vendorName
   const vn = stripCorpPrefix(vendorName)
   const gn = stripCorpPrefix(groupName)
-  if (vn.startsWith(gn)) {
-    const rest = vn.slice(gn.length).trim()
-    return rest || vendorName
-  }
+  if (vn.startsWith(gn)) return vn.slice(gn.length).trim()
   return vendorName
 }
+// 목록 · 표시용 — 단독 매출처는 '지점 없음'
+export const branchText = (vendorName: string, groupName?: string | null): string =>
+  branchLabel(vendorName, groupName) || NO_BRANCH
 
 // 그룹 미연결 거래처의 업체명 접두 분리 — "하나은행오류동지점"처럼 그룹에 안 이어진
 // 거래처도 이름이 어느 업체(그룹)명으로 시작하면 업체/지점으로 나눠 보여준다
