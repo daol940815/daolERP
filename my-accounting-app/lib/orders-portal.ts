@@ -532,24 +532,29 @@ export async function applyOrderEdit(
 //  - 주문 저장·당일 수정·취소 때마다 호출: 원하는 상태(유효 선결제 품목)와 자동 등록분을 맞춘다
 //  - 취소 주문은 자동 등록분 삭제(주문은 취소 기록으로 남음 — 사용으로 상계하면 잔액 KPI의 사용액이 부풀어 삭제로 처리)
 //  - 수동 입력분(차감 등, source_key 없음 또는 다른 접두)은 건드리지 않는다
+// 2026-11-19 (결제처리 트랙, 사용자 승인 A안): 마이너스 선결제 품목 = "선결제 사용" → 원장 '차감'을 자동 등록한다.
+//   예전 ERP처럼 주문서에 선결제 −38만을 넣어 잔액에서 쓰는 방식. 1308 이후 마이너스 품목이 주문의 받을 돈을 줄이므로
+//   원장도 같이 줄여야 같은 돈을 두 번 쓰지 않는다. 키 = pre:direct:<주문id>:u<n> (같은 접두라 정리 · 취소 규칙을 그대로 탄다).
+//   잔액이 모자라면 저장은 하되 경고를 돌려준다. 주문 상세의 "선결제 사용"(514)과 결과가 같다 — 둘 중 하나만 쓸 것.
 export async function syncPrepayDeposits(admin: SupabaseClient, orderId: string): Promise<string | null> {
   const prefix = `pre:direct:${orderId}:`
   const { data: order } = await admin.from('erp_orders')
-    .select('id, order_no, order_date, customer_alias_id, canceled_at').eq('id', orderId).maybeSingle()
+    .select('id, order_no, order_date, customer_alias_id, vendor_id, canceled_at').eq('id', orderId).maybeSingle()
   if (!order) return null
   const { data: items } = await admin.from('erp_order_items')
     .select('line_no, line_total, is_canceled, is_prepayment').eq('order_id', orderId).order('line_no')
-  const wanted = order.canceled_at ? [] : (items ?? [])
-    .filter(it => it.is_prepayment && !it.is_canceled && Number(it.line_total ?? 0) > 0)
-    .map((it, i) => ({
-      direction: 'customer', entry_type: 'deposit',
-      alias_id: order.customer_alias_id as string,
-      entry_date: order.order_date as string,
-      amount: Number(it.line_total),
-      order_id: orderId,
-      source_key: `${prefix}${i + 1}`,
+  const valid = order.canceled_at ? [] : (items ?? []).filter(it => it.is_prepayment && !it.is_canceled)
+  const base = { direction: 'customer', alias_id: order.customer_alias_id as string, entry_date: order.order_date as string, order_id: orderId }
+  const wanted = [
+    ...valid.filter(it => Number(it.line_total ?? 0) > 0).map((it, i) => ({
+      ...base, entry_type: 'deposit', amount: Number(it.line_total), source_key: `${prefix}${i + 1}`,
       memo: `주문 ${order.order_no ?? ''} 자동 등록 (품명: 선결제)`,
-    }))
+    })),
+    ...valid.filter(it => Number(it.line_total ?? 0) < 0).map((it, i) => ({
+      ...base, entry_type: 'deduction', amount: -Number(it.line_total), source_key: `${prefix}u${i + 1}`,
+      memo: `주문 ${order.order_no ?? ''} 자동 차감 (마이너스 선결제 품목)`,
+    })),
+  ]
   if (wanted.length && !order.customer_alias_id) return '매출처 별칭이 없어 선결제 원장에 등록하지 못했습니다.'
 
   const { data: existing, error: exErr } = await admin.from('erp_prepayments')
@@ -564,6 +569,12 @@ export async function syncPrepayDeposits(admin: SupabaseClient, orderId: string)
   if (wanted.length) {
     const { error } = await admin.from('erp_prepayments').upsert(wanted, { onConflict: 'source_key' })
     if (error) return `선결제 원장 등록 실패: ${error.message}`
+  }
+  // 마이너스 품목으로 차감했는데 잔액이 모자라면 알린다 (저장은 그대로 — 순환 import 를 피하려고 필요할 때 불러온다)
+  if (wanted.some(w => w.entry_type === 'deduction')) {
+    const { prepayBalanceOf, vendorOfOrder } = await import('./prepay')
+    const bal = await prepayBalanceOf(admin, await vendorOfOrder(admin, order), (order.customer_alias_id as string | null) ?? null)
+    if (bal.balance < 0) return `선결제 잔액이 ${(-bal.balance).toLocaleString('ko-KR')}원 모자랍니다 — 마이너스 선결제 품목 금액을 확인하세요(받은 선결제보다 많이 썼습니다).`
   }
   return null
 }

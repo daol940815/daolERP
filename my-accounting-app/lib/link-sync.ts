@@ -101,7 +101,7 @@ export async function syncOrderMatchesFromInvoices(admin: SupabaseClient, invoic
       }
     }
     const orderCap = new Map<string, number>()
-    for (const id of Array.from(orderDate.keys())) orderCap.set(id, Math.max(0, (recv?.get(id)?.net_sales ?? 0) - (orderOther.get(id) ?? 0)))
+    for (const id of Array.from(orderDate.keys())) orderCap.set(id, Math.max(0, (recv?.get(id)?.billable ?? recv?.get(id)?.net_sales ?? 0) - (orderOther.get(id) ?? 0)))   // 받을 돈(선결제 포함, 1308)
     const txCap = new Map<string, number>()
     for (const p of pays) if (p.transaction) txCap.set(p.transaction.id, Math.max(0, Number(p.transaction.amount_in ?? 0) - (txOther.get(p.transaction.id) ?? 0)))
 

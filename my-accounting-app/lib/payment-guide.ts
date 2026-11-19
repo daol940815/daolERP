@@ -35,7 +35,7 @@ type OrderRow = {
 }
 
 // 진행 중일 수 있는 주문: direct · 미취소. 기간은 자료 시작일부터(결제가 안 끝난 주문은 오래돼도 남아야 한다)
-async function loadOpenOrders(admin: SupabaseClient): Promise<{ error: string } | { orders: OrderRow[]; recv: Map<string, { outstanding: number; net_sales: number }> }> {
+async function loadOpenOrders(admin: SupabaseClient): Promise<{ error: string } | { orders: OrderRow[]; recv: Map<string, { outstanding: number; net_sales: number; billable: number; prepay: number }> }> {
   const res = await fetchAllRows<OrderRow>((f, t) => admin.from('erp_orders')
     .select('id, order_no, order_date, bank_name, branch_name, manager_name, phone, contact, staff_name, total_amount, created_by_employee_id, counselor_employee_id, customer_alias_id, vendor_id')
     .eq('source', 'direct').is('canceled_at', null).gte('order_date', DATA_START)
@@ -50,7 +50,8 @@ async function loadOpenOrders(admin: SupabaseClient): Promise<{ error: string } 
 export interface GuideRow {
   order_id: string; order_no: string | null; order_date: string
   customer_name: string; manager: string; phone: string; staff_name: string | null
-  net: number; to_collect: number            // 받을 금액 = 주문 금액(순매출) − 기록 금액
+  net: number; to_collect: number            // 받을 금액 = 청구 금액(순매출 + 선결제, 1308) − 기록 금액
+  prepay: number                             // 그중 선결제
   pay: PayState; days: number                // 주문일부터 지난 날
   last_contact: PayContact | null; contact_count: number
   promise_overdue: boolean; mine: boolean
@@ -79,14 +80,14 @@ export async function loadGuideRows(admin: SupabaseClient, meId: string | null):
   const today = kstToday()
   const rows: GuideRow[] = target.map(o => {
     const pay = payMap.get(o.id)!
-    const net = base.recv.get(o.id)?.net_sales ?? 0
+    const net = base.recv.get(o.id)?.billable ?? 0   // 받을 돈 = 청구 금액(선결제 포함, 1308)
     const cs = byOrder.get(o.id) ?? []
     const last = cs[0] ?? null
     return {
       order_id: o.id, order_no: o.order_no, order_date: o.order_date,
       customer_name: [o.bank_name, o.branch_name].filter(Boolean).join(' '),
       manager: honorify(o.manager_name), phone: o.phone || o.contact || '', staff_name: o.staff_name,
-      net, to_collect: Math.max(0, net - pay.recorded), pay, days: Math.max(0, dayDiff(today, o.order_date)),
+      net, prepay: base.recv.get(o.id)?.prepay ?? 0, to_collect: Math.max(0, net - pay.recorded), pay, days: Math.max(0, dayDiff(today, o.order_date)),
       last_contact: last, contact_count: cs.length,
       // 가장 최근 연락의 약속일이 지났는데 아직 이 목록에 있으면 약속 불이행
       promise_overdue: !!last?.promise_date && last.promise_date < today,
@@ -221,7 +222,8 @@ export async function loadInvoiceCheck(admin: SupabaseClient): Promise<{ error: 
     return {
       order_id: o.id, order_no: o.order_no, order_date: o.order_date,
       customer_name: [o.bank_name, o.branch_name].filter(Boolean).join(' '), vendor_id: vid,
-      billing_name: bill ? vName.get(bill) ?? null : null, net: recv?.get(o.id)?.net_sales ?? 0,
+      billing_name: bill ? vName.get(bill) ?? null : null, net: recv?.get(o.id)?.billable ?? 0,   // 계산서는 선결제분까지 포함해 발행(1308)
+     
       need: 0, vendor_has_billing: !!bill, candidates: [] as InvoiceCandidate[], candidate_count: 0,
       record_vat: null as InvoiceCheckRow['record_vat'], other_kind_count: 0,
     }

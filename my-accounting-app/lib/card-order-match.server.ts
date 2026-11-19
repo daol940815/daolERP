@@ -29,7 +29,15 @@ export interface CardOrderState {
 const dayDiff = (a: string, b: string) => Math.round((new Date(a).getTime() - new Date(b).getTime()) / 86400000)
 const WINDOW_BEFORE = 7, WINDOW_AFTER = 60
 
-type ViewRow = { order_id: string; order_no: string; order_date: string; vendor_id: string | null; staff_name: string | null; bank_name: string | null; branch_name: string | null; net_sales: number | null; matched_all: number | null; collect_status: string | null }
+// 뷰 읽기 — 1308(billable) 미적용이면 billable 없이 다시 읽는다
+const VIEW_COLS = 'order_id, order_no, order_date, vendor_id, staff_name, bank_name, branch_name, net_sales, matched_all, collect_status'
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function viewRead(q: (cols: string) => PromiseLike<{ data: any; error: any }>, cols = VIEW_COLS): Promise<{ data: any }> {
+  const r = await q(`${cols}, billable`)
+  return r.error ? await q(cols) : r
+}
+
+type ViewRow = { order_id: string; order_no: string; order_date: string; vendor_id: string | null; staff_name: string | null; bank_name: string | null; branch_name: string | null; net_sales: number | null; billable?: number | null; matched_all: number | null; collect_status: string | null }
 
 async function vendorNames(admin: Admin, ids: string[]): Promise<Map<string, string>> {
   const m = new Map<string, string>()
@@ -61,8 +69,7 @@ export async function loadCardOrderState(admin: Admin, saleId: string, q?: strin
   const orderIds = matches.map(m => m.order_id as string)
   const orderInfo = new Map<string, ViewRow>()
   if (orderIds.length) {
-    const { data } = await admin.from('v_erp_order_receivable')
-      .select('order_id, order_no, order_date, vendor_id, staff_name, bank_name, branch_name, net_sales, matched_all, collect_status').in('order_id', orderIds)
+    const { data } = await viewRead(c => admin.from('v_erp_order_receivable').select(c).in('order_id', orderIds))
     for (const r of (data ?? []) as ViewRow[]) orderInfo.set(r.order_id, r)
   }
 
@@ -70,15 +77,13 @@ export async function loadCardOrderState(admin: Admin, saleId: string, q?: strin
   let rows: ViewRow[] = []
   if (q && q.trim().length >= 2) {
     const term = q.trim()
-    const { data } = await admin.from('v_erp_order_receivable')
-      .select('order_id, order_no, order_date, vendor_id, staff_name, bank_name, branch_name, net_sales, matched_all, collect_status')
+    const { data } = await viewRead(c => admin.from('v_erp_order_receivable').select(c)
       .or(`order_no.ilike.%${term}%,bank_name.ilike.%${term}%,branch_name.ilike.%${term}%`)
-      .order('order_date', { ascending: false }).limit(40)
+      .order('order_date', { ascending: false }).limit(40))
     rows = (data ?? []) as ViewRow[]
   } else if (s.vendor_id) {
-    const { data } = await admin.from('v_erp_order_receivable')
-      .select('order_id, order_no, order_date, vendor_id, staff_name, bank_name, branch_name, net_sales, matched_all, collect_status')
-      .eq('vendor_id', s.vendor_id).order('order_date', { ascending: false }).limit(300)
+    const { data } = await viewRead(c => admin.from('v_erp_order_receivable').select(c)
+      .eq('vendor_id', s.vendor_id).order('order_date', { ascending: false }).limit(300))
     rows = (data ?? []) as ViewRow[]
   }
   const vn = await vendorNames(admin, [s.vendor_id as string, ...rows.map(r => r.vendor_id as string), ...Array.from(orderInfo.values()).map(r => r.vendor_id as string)])
@@ -86,7 +91,7 @@ export async function loadCardOrderState(admin: Admin, saleId: string, q?: strin
   const currentByOrder = new Map(matches.map(m => [m.order_id as string, (m.amount as number) || 0]))
 
   const candidates: CardOrderCandidate[] = rows.map(r => {
-    const netSales = r.net_sales ?? 0
+    const netSales = r.billable ?? r.net_sales ?? 0   // 받을 돈 = 청구 금액(선결제 포함, 1308)
     // 이 결제가 이미 배분한 몫은 '남은 미수'에 다시 더해 보여 준다(수정 시 그 몫을 다시 쓸 수 있게)
     const remaining = Math.max(0, netSales - (r.matched_all ?? 0)) + (currentByOrder.get(r.order_id) ?? 0)
     const lag = dayDiff(s.tx_date as string, r.order_date)
@@ -146,11 +151,11 @@ export async function saveCardOrderMatch(
   const byId = new Map(state.candidates.map(c => [c.id, c]))
   const missing = rows.filter(r => !byId.has(r.order_id)).map(r => r.order_id)
   if (missing.length) {
-    const { data } = await admin.from('v_erp_order_receivable').select('order_id, net_sales, matched_all, vendor_id').in('order_id', missing)
+    const { data } = await viewRead(c => admin.from('v_erp_order_receivable').select(c).in('order_id', missing), 'order_id, net_sales, matched_all, vendor_id')
     const cur = new Map(state.current.map(m => [m.order_id, m.amount]))
-    for (const r of (data ?? []) as { order_id: string; net_sales: number | null; matched_all: number | null; vendor_id: string | null }[]) {
-      byId.set(r.order_id, { id: r.order_id, order_no: '', order_date: '', vendor_id: r.vendor_id, customer_name: '', staff_name: null, net_amount: r.net_sales ?? 0,
-        remaining: Math.max(0, (r.net_sales ?? 0) - (r.matched_all ?? 0)) + (cur.get(r.order_id) ?? 0), lag: 0, reason: '', score: 0, in_window: true })
+    for (const r of (data ?? []) as { order_id: string; net_sales: number | null; billable?: number | null; matched_all: number | null; vendor_id: string | null }[]) {
+      byId.set(r.order_id, { id: r.order_id, order_no: '', order_date: '', vendor_id: r.vendor_id, customer_name: '', staff_name: null, net_amount: r.billable ?? r.net_sales ?? 0,
+        remaining: Math.max(0, (r.billable ?? r.net_sales ?? 0) - (r.matched_all ?? 0)) + (cur.get(r.order_id) ?? 0), lag: 0, reason: '', score: 0, in_window: true })
     }
   }
   for (const r of rows) {

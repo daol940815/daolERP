@@ -9,12 +9,12 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   const q = (new URL(req.url).searchParams.get('q') ?? '').trim()
   if (q.length < 3) return NextResponse.json({ error: '주문번호를 3자 이상 입력하세요.' }, { status: 400 })
-  const { data, error } = await admin
-    .from('v_erp_order_receivable')
-    .select('order_id, order_no, order_date, vendor_id, collect_status, net_sales, matched_all, bank_name, branch_name')
-    .ilike('order_no', `%${q}%`)
-    .order('order_date', { ascending: false })
-    .limit(20)
+  const read = (cols: string) => admin.from('v_erp_order_receivable').select(cols).ilike('order_no', `%${q}%`).order('order_date', { ascending: false }).limit(20)
+  const BASE = 'order_id, order_no, order_date, vendor_id, collect_status, net_sales, matched_all, bank_name, branch_name'
+  let res = await read(`${BASE}, billable`)
+  if (res.error) res = await read(BASE)   // 1308 미적용
+  const { error } = res
+  const data = (res.data ?? []) as unknown as Record<string, unknown>[]
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   const vendorIds = Array.from(new Set((data ?? []).map(r => r.vendor_id).filter(Boolean))) as string[]
   const vname = new Map<string, string>()
@@ -26,8 +26,9 @@ export async function GET(req: NextRequest) {
     data: (data ?? []).map(r => ({
       id: r.order_id, order_no: r.order_no, order_date: r.order_date, vendor_id: r.vendor_id,
       customer_name: [r.bank_name, r.branch_name].filter(Boolean).join(' ') || (r.vendor_id ? vname.get(r.vendor_id as string) ?? '' : ''),
-      collect_status: r.collect_status, net_amount: r.net_sales ?? 0,
-      allocated: r.matched_all ?? 0, remaining: Math.max(0, (r.net_sales ?? 0) - (r.matched_all ?? 0)),
+      // 받을 돈 = 청구 금액(선결제 포함, 1308)
+      collect_status: r.collect_status, net_amount: Number(r.billable ?? r.net_sales ?? 0),
+      allocated: Number(r.matched_all ?? 0), remaining: Math.max(0, (Number(r.billable ?? r.net_sales ?? 0)) - (Number(r.matched_all ?? 0))),
     })),
   })
 }

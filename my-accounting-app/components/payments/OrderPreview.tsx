@@ -10,7 +10,7 @@ interface Preview {
   order_id: string; order_no: string | null; order_date: string; canceled: boolean
   customer_name: string; manager: string; counselor: string | null; staff_names: string[]
   items: { item_name: string | null; quantity: number; sale_price: number; line_total: number; flag: string | null }[]
-  net: number; outstanding: number; pay: PayState | null
+  net: number; prepay?: number; outstanding: number; pay: PayState | null   // net = 청구 금액(선결제 포함)
   records: { id: string; cancel: boolean; method: string; kind: string | null; pay_date: string; amount: number; clue: string; created_by_name: string | null; confirmed_at: string | null }[]
   match_count: number; contact_count: number; memo: string | null
 }
@@ -77,7 +77,7 @@ function OrderPreviewModal({ id, onClose }: { id: string; onClose: () => void })
             </table>
           </div>
           <div className="flex justify-end gap-4 mt-2 text-sm">
-            <span>주문 금액 <b className="tabular-nums">{won(data.net)}원</b></span>
+            <span>청구 금액 <b className="tabular-nums">{won(data.net)}원</b>{(data.prepay ?? 0) > 0 && <span className="text-[0.6875rem] text-violet-700"> (선결제 {won(data.prepay ?? 0)} 포함)</span>}</span>
             <span>미수 <b className={`tabular-nums ${data.outstanding > 0 ? 'text-red-700' : ''}`}>{won(data.outstanding)}원</b></span>
           </div>
           <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700 space-y-0.5">

@@ -8,6 +8,9 @@ import { listIndividualCustomers, createIndividualCustomer } from '@/lib/individ
 
 export const dynamic = 'force-dynamic'
 
+// 상담 · 주문의 업체 · 지점 목록 = 매출처관리와 같은 기준 (2026-11-19 — 매입처 457곳 · 매입처만 있는 업체가 섞여 있었음)
+const SALES_TYPES = ['customer', 'both']
+
 // 주문 입력용 마스터 조회
 // GET                     → { vendors, employees }  (폼 최초 로드)
 // GET ?vendor_id=<id>     → { contacts }            (주문처 선택 시 담당자 목록)
@@ -65,18 +68,18 @@ export async function GET(req: NextRequest) {
   // 115: 개인 고객 전용 매출처 표시(individual_contact_id) — 미적용이면 없이 재조회
   let vendorsResult = await fetchAllRows<{ id: string; name: string; type: string | null; group_id?: string | null; individual_contact_id?: string | null }>(
     (from, to) => admin.from('vendors').select('id, name, type, group_id, individual_contact_id')
-      .eq('is_active', true).order('name').range(from, to),
+      .eq('is_active', true).in('type', SALES_TYPES).neq('status', 'merged').order('name').range(from, to),
   )
   if ('error' in vendorsResult) {
     vendorsResult = await fetchAllRows<{ id: string; name: string; type: string | null; group_id?: string | null }>(
       (from, to) => admin.from('vendors').select('id, name, type, group_id')
-        .eq('is_active', true).order('name').range(from, to),
+        .eq('is_active', true).in('type', SALES_TYPES).neq('status', 'merged').order('name').range(from, to),
     )
   }
   if ('error' in vendorsResult) {
     vendorsResult = await fetchAllRows<{ id: string; name: string; type: string | null }>(
       (from, to) => admin.from('vendors').select('id, name, type')
-        .eq('is_active', true).order('name').range(from, to),
+        .eq('is_active', true).in('type', SALES_TYPES).neq('status', 'merged').order('name').range(from, to),
     )
   }
   const groupSel = async () => {

@@ -9,7 +9,7 @@ const chunk = <T,>(a: T[], n: number) => { const o: T[][] = []; for (let i = 0; 
 export async function loadPayStateMap(
   admin: SupabaseClient,
   orders: { id: string; canceled: boolean }[],
-  recv: Map<string, { outstanding: number; net_sales: number }> | null,
+  recv: Map<string, { outstanding: number; net_sales: number; billable?: number }> | null,
 ): Promise<Map<string, PayState>> {
   const out = new Map<string, PayState>()
   const ids = orders.filter(o => !o.canceled).map(o => o.id)
@@ -52,7 +52,8 @@ export async function loadPayStateMap(
 
   for (const o of orders) {
     const rv = recv?.get(o.id)
-    const st = payStageOf({ canceled: o.canceled, net: rv?.net_sales ?? 0, outstanding: rv?.outstanding ?? 0, pending: pending.get(o.id) ?? 0 })
+    const st = payStageOf({ canceled: o.canceled, net: rv?.billable ?? rv?.net_sales ?? 0,   // 받을 돈 = 청구 금액(선결제 포함, 1308)
+      outstanding: rv?.outstanding ?? 0, pending: pending.get(o.id) ?? 0 })
     const rec = invRecorded.get(o.id) ?? 0, lk = invLinked.get(o.id) ?? 0
     const invoice_flag = o.canceled || rec <= 0 || rec === lk ? null : lk === 0 ? 'unlinked' as const : 'diff' as const
     out.set(o.id, { ...st, method: methodTagOf(methods.get(o.id) ?? []), invoice_flag })

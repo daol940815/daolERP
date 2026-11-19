@@ -130,7 +130,7 @@ export async function prepayReductionBlock(
   admin: SupabaseClient, orderId: string, newDepositTotal: number, newVendorId?: string | null,
 ): Promise<string | null> {
   const { data: auto } = await admin.from('erp_prepayments')
-    .select('amount').like('source_key', `pre:direct:${orderId}:%`)
+    .select('amount').like('source_key', `pre:direct:${orderId}:%`).eq('entry_type', 'deposit')   // 자동 '차감'(마이너스 품목, :u키)은 빼고 입금만
   const oldTotal = (auto ?? []).reduce((s, e) => s + Number(e.amount ?? 0), 0)
   if (oldTotal <= 0) return null
   const order = await loadOrder(admin, orderId)

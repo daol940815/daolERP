@@ -134,7 +134,8 @@ export async function loadMatchingState(
     )
     if ('error' in itemsResult) return { error: itemsResult.error }
     for (const it of itemsResult.data) {
-      if (it.is_canceled || it.is_vip || it.is_prepayment) continue
+      // 받을 돈 = 청구 금액: 선결제 품목도 포함 (1308, 2026-11-19 — 선결제도 입금을 붙여야 한다)
+      if (it.is_canceled || it.is_vip) continue
       netByOrder.set(it.order_id, (netByOrder.get(it.order_id) ?? 0) + ((it.line_total as number) || 0))
     }
   }

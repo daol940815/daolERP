@@ -16,7 +16,7 @@ interface Rec { id: string; cancel: boolean; method: string; kind: string | null
 interface Match { id: string; source_type: string; label: string; amount: number; paid_date: string; matched_by_name: string | null; created_at: string | null; record_id: string | null; derived: boolean }
 interface Row {
   order_id: string; order_no: string | null; order_date: string; customer_name: string; manager: string
-  staff_ids: string[]; staff_names: string[]; net: number; outstanding: number; pay: PayState
+  staff_ids: string[]; staff_names: string[]; net: number; prepay: number; outstanding: number; pay: PayState   // net = 청구 금액(선결제 포함)
   records: Rec[]
 }
 interface Detail { matches: Match[]; contact_count: number; last_contact: string | null }
@@ -144,7 +144,7 @@ export default function OverviewTab() {
                 <th className="py-2.5 px-3 font-medium">주문일 / 번호</th>
                 <th className="py-2.5 px-3 font-medium">매출처 · 고객</th>
                 <th className="py-2.5 px-3 font-medium">지점 담당</th>
-                <th className="py-2.5 px-3 font-medium text-right">주문 금액</th>
+                <th className="py-2.5 px-3 font-medium text-right" title="받을 돈 = 순매출 + 선결제 품목">청구 금액</th>
                 <th className="py-2.5 px-3 font-medium text-right">미수</th>
                 <th className="py-2.5 px-3 font-medium">결제 상태</th>
                 <th className="py-2.5 px-3 font-medium">결제 기록 · 대조 단서</th>
@@ -163,7 +163,7 @@ export default function OverviewTab() {
                       <td className="py-2.5 px-3 whitespace-nowrap tabular-nums">{r.order_date}<div className="text-[0.6875rem]"><OrderNoLink id={r.order_id} no={r.order_no} /></div></td>
                       <td className="py-2.5 px-3"><div className="text-gray-900">{r.customer_name || '-'}</div><div className="text-[0.6875rem] text-gray-500">{r.manager}</div></td>
                       <td className="py-2.5 px-3 text-xs whitespace-nowrap">{r.staff_names.length ? r.staff_names.join(', ') : <span className="text-gray-400">담당 미지정</span>}</td>
-                      <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">{won(r.net)}</td>
+                      <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">{won(r.net)}{r.prepay > 0 && <div className="text-[0.6875rem] text-violet-700">선결제 {won(r.prepay)} 포함</div>}</td>
                       <td className={`py-2.5 px-3 text-right tabular-nums whitespace-nowrap ${r.outstanding > 0 ? 'font-semibold' : 'text-gray-400'}`}>{won(r.outstanding)}</td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
                         <span className={`inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold ${PAY_STAGE_CLS[r.pay.stage]}`}>{PAY_STAGE_LABEL[r.pay.stage]}</span>

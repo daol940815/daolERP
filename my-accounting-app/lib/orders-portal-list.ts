@@ -148,7 +148,8 @@ export async function loadPoStatusMap(
 // erp_orders.outstanding_amount는 원본값이라 수금 매칭(erp_payment_matches)을 반영하지 않는다.
 // 매칭 차감은 DB 뷰 v_erp_order_receivable(406·416, = lib/receivable.ts)에서만 이뤄지므로
 // 주문 화면의 미수·수금 상태는 반드시 이 뷰 값으로 표시한다. (2026-11-04)
-export interface ReceivableInfo { outstanding: number; net_sales: number }
+// billable = 청구 금액(받을 돈) = 순매출 + 유효 선결제, prepay = 그중 선결제 (1308, 2026-11-19). 1308 미적용이면 billable = net_sales, prepay = 0
+export interface ReceivableInfo { outstanding: number; net_sales: number; billable: number; prepay: number }
 
 export async function loadReceivableMap(
   admin: SupabaseClient,
@@ -156,13 +157,16 @@ export async function loadReceivableMap(
 ): Promise<Map<string, ReceivableInfo> | null> {
   const map = new Map<string, ReceivableInfo>()
   if (!orderIds.length) return map
-  const results = await Promise.all(chunk(orderIds, 150).map(ch =>
-    admin.from('v_erp_order_receivable').select('order_id, outstanding, net_sales').in('order_id', ch),
+  const read = (cols: string) => Promise.all(chunk(orderIds, 150).map(ch =>
+    admin.from('v_erp_order_receivable').select(cols).in('order_id', ch),
   ))
+  let results = await read('order_id, outstanding, net_sales, billable, prepay_amount')
+  if (results.some(r => r.error)) results = await read('order_id, outstanding, net_sales')   // 1308 미적용
   for (const r of results) {
     if (r.error) return null   // 뷰 미적용 등 — 호출 측이 원본값으로 폴백
-    for (const v of r.data ?? []) {
-      map.set(v.order_id as string, { outstanding: Number(v.outstanding ?? 0), net_sales: Number(v.net_sales ?? 0) })
+    for (const v of (r.data ?? []) as unknown as Record<string, unknown>[]) {
+      const net = Number(v.net_sales ?? 0)
+      map.set(v.order_id as string, { outstanding: Number(v.outstanding ?? 0), net_sales: net, billable: v.billable != null ? Number(v.billable) : net, prepay: Number(v.prepay_amount ?? 0) })
     }
   }
   return map
@@ -171,7 +175,7 @@ export async function loadReceivableMap(
 // 수금 상태도 데이터에서 판정: 미수 0 = 수금완료 / 일부 수금 = 수금진행중 / 그 외 미수금
 export function collectStatusFrom(rawStatus: string | null, r: ReceivableInfo): string {
   if (rawStatus === 'collected' || r.outstanding <= 0) return 'collected'
-  if (r.outstanding < r.net_sales) return 'in_progress'
+  if (r.outstanding < (r.billable ?? r.net_sales)) return 'in_progress'
   return 'outstanding'
 }
 

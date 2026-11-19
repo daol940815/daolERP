@@ -52,10 +52,9 @@ export function CustomerHitList({ hits, loading, heading, staffName, onPick, exc
   emptyText?: string
 }) {
   const rows = hits.map(h => {
-    const cur = h.assignments.filter(a => a.current && a.vendor_id !== excludeVendorId)
-    // 현재 소속이 하나도 없으면 가장 최근 소속을 고를 수 있게 둔다
-    const pickable = cur.length ? cur : h.assignments.filter(a => a.vendor_id !== excludeVendorId).slice(0, 1)
-    const past = h.assignments.filter(a => !a.current && !pickable.includes(a)).slice(0, 2)
+    // 현재 소속(활성 매출처)만 고를 수 있다 — 서버가 비활성 · 병합 · 매입처 소속을 이미 뺐다 (2026-11-19)
+    const pickable = h.assignments.filter(a => a.current && a.vendor_id !== excludeVendorId)
+    const past = h.assignments.filter(a => !a.current).slice(0, 2)
     return { h, pickable, past }
   }).filter(r => r.pickable.length)
   return (
@@ -73,9 +72,7 @@ export function CustomerHitList({ hits, loading, heading, staffName, onPick, exc
                 className={`w-full text-left px-3 py-1.5 hover:bg-blue-50 flex gap-2 items-baseline flex-wrap ${h.exact ? 'bg-blue-50/60' : ''}`}>
                 <b className="text-gray-900 text-sm">{contactLabel(h.name, a.title)}</b>
                 <span className="text-gray-700 text-xs">{asgPlace(a)}</span>
-                {a.current
-                  ? (h.assignments.some(x => !x.current) && <span className="px-1.5 rounded-full text-[0.625rem] font-semibold bg-blue-100 text-blue-700">현재 소속</span>)
-                  : <span className="px-1.5 rounded-full text-[0.625rem] font-semibold bg-gray-100 text-gray-500">최근 소속{a.ended_at ? ` ~${a.ended_at.slice(0, 7)}` : ''}</span>}
+                {h.assignments.some(x => !x.current) && <span className="px-1.5 rounded-full text-[0.625rem] font-semibold bg-blue-100 text-blue-700">현재 소속</span>}
                 <span className="ml-auto text-[0.6875rem] text-gray-400 whitespace-nowrap">
                   {[tail4(h.phone) || '번호 없음', staff ? `다올 ${staff}` : '', h.last_order ? `최근 주문 ${h.last_order.slice(5)}` : '주문 없음'].filter(Boolean).join(' · ')}
                 </span>
