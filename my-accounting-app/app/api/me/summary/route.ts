@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { can, isManagerLike } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
-import { kstToday, kstMonthNow } from '@/lib/attendance'
+import { kstToday, kstMonthNow, leaveDays, DEDUCT_LEAVE_TYPES, type AttendanceLeave } from '@/lib/attendance'
 import { loadMyOrderStats } from '@/lib/my-dashboard'
 import { computeBalance } from '@/lib/leave-balance'
 import { loadBalanceData } from '@/lib/leave-balance.server'
@@ -24,7 +24,7 @@ export async function GET() {
   const month = kstMonthNow()
   const today = kstToday()
 
-  const [summaryRes, orderStats, balData, recentJournalRes, attRes, leaveRes] = await Promise.all([
+  const [summaryRes, orderStats, balData, recentJournalRes, attRes, leaveRes, pendingRes] = await Promise.all([
     // KPI 집계 (300 RPC)
     admin.rpc('my_dashboard_summary', {
       p_employee_id: me.employeeId,
@@ -63,6 +63,16 @@ export async function GET() {
           .order('created_at', { ascending: false })
           .limit(3)
       : Promise.resolve({ data: [], error: null }),
+    // 승인 대기 휴가 전부 (2026-11-19 사용자 요청) — 결재 중인 신청은 아직 연차에서 빠지지 않으므로 따로 보여준다
+    me.employeeId
+      ? admin
+          .from('attendance_leaves')
+          .select('id, employee_id, leave_type, start_date, end_date, status, created_at')
+          .eq('employee_id', me.employeeId)
+          .eq('status', 'requested')
+          .order('start_date')
+          .limit(50)
+      : Promise.resolve({ data: [], error: null }),
   ])
 
   type JournalRow = {
@@ -76,6 +86,11 @@ export async function GET() {
   }
   const one = (v: { name: string } | { name: string }[] | null) =>
     (Array.isArray(v) ? v[0]?.name : v?.name) ?? null
+
+  // 승인 대기 휴가 일수 계산용 — 공휴일은 연차 잔여 조회에서 읽은 올해 것(207 미적용이면 주말만 제외)
+  const year = Number(today.slice(0, 4))
+  const holidays = balData?.ready ? balData.holidays : {}
+  const pendingRows = (pendingRes.error ? [] : pendingRes.data ?? []) as unknown as AttendanceLeave[]
 
   return NextResponse.json({
     // canCustomers: 담당 거래처 카드의 드릴다운 목적지 결정용 (내 고객 목록 vs 내 정보 요약)
@@ -99,6 +114,12 @@ export async function GET() {
     attendance: attRes.error ? null : attRes.data ?? null,
     attendanceReady: !attRes.error,
     leaves: leaveRes.error ? [] : leaveRes.data ?? [],
+    // 승인 대기 휴가 — days = 근무일 수, deduct = 올해 연차에서 빠질 일수(차감 종류만, 올해 안 부분)
+    pendingLeaves: pendingRows.map(l => ({
+      id: l.id, leave_type: l.leave_type, start_date: l.start_date, end_date: l.end_date,
+      days: leaveDays(l, undefined, undefined, holidays),
+      deduct: DEDUCT_LEAVE_TYPES.includes(l.leave_type) ? leaveDays(l, `${year}-01-01`, `${year}-12-31`, holidays) : 0,
+    })),
     // 올해 연차 — 그해 유효 부여가 있는 직원만(연차 대상). 없으면 null = 카드 숨김 (2026-11-19)
     leaveBalance: balData?.ready && balData.grants.some(g => g.status === 'active')
       ? { year: Number(today.slice(0, 4)), ...computeBalance({ year: Number(today.slice(0, 4)), grants: balData.grants, leaves: balData.leaves, holidays: balData.holidays }) }

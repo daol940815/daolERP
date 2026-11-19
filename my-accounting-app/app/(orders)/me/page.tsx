@@ -43,6 +43,7 @@ interface Data {
   attendance: { check_in_at: string | null; check_out_at: string | null } | null
   attendanceReady: boolean
   leaveBalance: { year: number; base: number; comp: number; granted: number; used: number; remainBase: number; remainComp: number; remainTotal: number; over: number } | null
+  pendingLeaves: { id: string; leave_type: LeaveType; start_date: string; end_date: string; days: number; deduct: number }[]
   leaves: { id: string; leave_type: LeaveType; start_date: string; end_date: string; status: LeaveStatus }[]
 }
 
@@ -87,6 +88,10 @@ export default function MyDashboardPage() {
 
   const s = data.summary
   const o = data.orders
+  // 승인 대기 휴가 중 올해 연차에서 빠질 일수 · 승인되면 남는 일수 (2026-11-19)
+  const r1 = (n: number) => Math.round(n * 10) / 10
+  const pendingDeduct = r1(data.pendingLeaves.reduce((a, l) => a + l.deduct, 0))
+  const afterPending = data.leaveBalance ? r1(data.leaveBalance.remainTotal - data.leaveBalance.over - pendingDeduct) : 0
   const kpis = [
     ...(wr ? [
       {
@@ -127,7 +132,8 @@ export default function MyDashboardPage() {
     ...(data.leaveBalance ? [{
       label: `${data.leaveBalance.year}년 남은 연차`, href: '/hr/attendance',
       value: data.leaveBalance.over > 0 ? `초과 ${data.leaveBalance.over}일` : `${data.leaveBalance.remainTotal}일`,
-      sub: `부여 ${data.leaveBalance.granted} · 사용 ${data.leaveBalance.used}${data.leaveBalance.comp > 0 ? ` (남은 기본 ${data.leaveBalance.remainBase} · 보상 ${data.leaveBalance.remainComp})` : ''}`,
+      sub: `부여 ${data.leaveBalance.granted} · 사용 ${data.leaveBalance.used}${data.leaveBalance.comp > 0 ? ` (남은 기본 ${data.leaveBalance.remainBase} · 보상 ${data.leaveBalance.remainComp})` : ''}`
+        + (pendingDeduct > 0 ? ` · 승인 대기 ${pendingDeduct}일 (승인되면 ${afterPending >= 0 ? `남는 ${afterPending}일` : `초과 ${-afterPending}일`})` : ''),
     }] : []),
     {
       label: '이번 달 업무일지', href: '/me/worklog',
@@ -207,10 +213,23 @@ export default function MyDashboardPage() {
           ) : (
             <p className="mt-3 text-xs text-gray-400">근태(200) 마이그레이션 적용 후 표시됩니다.</p>
           )}
-          {data.leaves.length > 0 && (
+          {data.pendingLeaves.length > 0 && (
+            <div className="mt-3 border-t border-gray-100 pt-2.5">
+              <p className="text-xs text-gray-500 mb-1.5">승인 대기 휴가 {data.pendingLeaves.length}건</p>
+              {data.pendingLeaves.map(l => (
+                <p key={l.id} className="text-xs text-gray-600 mb-1 tabular-nums">
+                  {l.start_date}{l.end_date !== l.start_date ? ` ~ ${l.end_date}` : ''} · {LEAVE_TYPE_LABEL[l.leave_type] ?? l.leave_type} {l.days}일
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-amber-100 text-amber-700">
+                    {LEAVE_STATUS_LABEL.requested}
+                  </span>
+                </p>
+              ))}
+            </div>
+          )}
+          {data.leaves.some(l => l.status !== 'requested') && (
             <div className="mt-3 border-t border-gray-100 pt-2.5">
               <p className="text-xs text-gray-500 mb-1.5">최근 휴가 신청</p>
-              {data.leaves.map(l => (
+              {data.leaves.filter(l => l.status !== 'requested').map(l => (
                 <p key={l.id} className="text-xs text-gray-600 mb-1 tabular-nums">
                   {l.start_date}{l.end_date !== l.start_date ? ` ~ ${l.end_date}` : ''} · {LEAVE_TYPE_LABEL[l.leave_type] ?? l.leave_type}
                   <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${
