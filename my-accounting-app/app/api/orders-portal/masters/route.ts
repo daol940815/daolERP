@@ -101,9 +101,13 @@ export async function GET(req: NextRequest) {
   if ('error' in vendorsResult) return NextResponse.json({ error: vendorsResult.error }, { status: 500 })
   if (employeesResult.error) return NextResponse.json({ error: employeesResult.error.message }, { status: 500 })
 
+  // 업체 목록 = 활성 지점이 1곳 이상인 업체 + 개인 고객 업체 (2026-11-18 — 지점 없는 업체 42곳이 상담 · 주문 목록에만
+  // 남아 오타 업체('푸본헌대생명')가 보이던 문제. DB는 그대로, 목록 조건만. 점검: supabase/checks/vendor_group_orphans_check.sql)
+  const groupsWithBranch = new Set(vendorsResult.data.map(v => (v as { group_id?: string | null }).group_id).filter(Boolean) as string[])
+  const groupsAll = (groupsResult.error ? [] : (groupsResult.data ?? [])) as { id: string; name: string; is_individual?: boolean }[]
   return NextResponse.json({
     vendors: vendorsResult.data,
-    groups: groupsResult.error ? [] : (groupsResult.data ?? []),   // 505 미적용 시 빈 배열
+    groups: groupsAll.filter(g => g.is_individual || groupsWithBranch.has(g.id)),   // 505 미적용 시 빈 배열
     employees: employeesResult.data ?? [],
     seasons,
     me: {

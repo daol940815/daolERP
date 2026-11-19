@@ -3,11 +3,13 @@ import { can, isManagerLike } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { kstToday, kstMonthNow } from '@/lib/attendance'
+import { loadMyOrderStats } from '@/lib/my-dashboard'
 
 export const dynamic = 'force-dynamic'
 
 // 내 대시보드 요약 — 개인화면(마이페이지) 홈에서 1회 호출로 필요한 것을 모두 받는다.
-//  - KPI 집계: my_dashboard_summary RPC (300 마이그레이션, JSONB 단일 응답)
+//  - KPI 집계: my_dashboard_summary RPC (300 마이그레이션, JSONB 단일 응답) — 담당 거래처 · 영업일지 수만 사용
+//  - 주문 카드: loadMyOrderStats (내 작성 주문 · 내 담당 지점 주문, 표준 미수 — 2026-11-19)
 //  - 최근 목록·오늘 근태: 소량 조회라 PostgREST 직접 (병렬)
 // 300·200 미적용 환경에서도 화면이 죽지 않도록 각 블록은 개별 폴백한다.
 
@@ -20,23 +22,15 @@ export async function GET() {
   const month = kstMonthNow()
   const today = kstToday()
 
-  const [summaryRes, recentOrdersRes, recentJournalRes, attRes, leaveRes] = await Promise.all([
+  const [summaryRes, orderStats, recentJournalRes, attRes, leaveRes] = await Promise.all([
     // KPI 집계 (300 RPC)
     admin.rpc('my_dashboard_summary', {
       p_employee_id: me.employeeId,
       p_staff_name: me.employeeName,
       p_month: month,
     }),
-    // 최근 내 입력 주문 5건 (이름 대조)
-    me.employeeName
-      ? admin
-          .from('erp_orders')
-          .select('id, order_no, order_date, bank_name, branch_name, total_amount, outstanding_amount')
-          .eq('staff_name', me.employeeName)
-          .order('order_date', { ascending: false })
-          .order('created_at', { ascending: false })
-          .limit(5)
-      : Promise.resolve({ data: [], error: null }),
+    // 주문 카드 — 내 작성 주문 · 내 담당 지점 주문 (2026-11-19, lib/my-dashboard.ts)
+    loadMyOrderStats(admin, me, month),
     // 최근 내 영업일지 5건
     me.employeeId
       ? admin
@@ -81,19 +75,14 @@ export async function GET() {
 
   return NextResponse.json({
     // canCustomers: 담당 거래처 카드의 드릴다운 목적지 결정용 (내 고객 목록 vs 내 정보 요약)
-    me: { name: me.employeeName, role: isManagerLike(me) ? (me.role === 'sales' ? 'manager' : me.role) : 'sales', linked: !!me.employeeId, canCustomers: can(me, 'customers') },
+    me: { name: me.employeeName, canPayments: can(me, 'collections') || can(me, 'accounting'), role: isManagerLike(me) ? (me.role === 'sales' ? 'manager' : me.role) : 'sales', linked: !!me.employeeId, canCustomers: can(me, 'customers') },
     month,
     today,
     summary: summaryRes.error ? null : summaryRes.data,
     summaryError: summaryRes.error ? MIGRATION_300_HINT : null,
-    recentOrders: (recentOrdersRes.data ?? []).map(o => ({
-      id: o.id,
-      order_no: o.order_no,
-      order_date: o.order_date,
-      customer: [o.bank_name, o.branch_name].filter(Boolean).join(' ') || '(주문처 미상)',
-      total_amount: o.total_amount ?? 0,
-      outstanding_amount: o.outstanding_amount ?? 0,
-    })),
+    orders: 'error' in orderStats ? null : orderStats,
+    ordersError: 'error' in orderStats ? orderStats.error : null,
+    recentOrders: 'error' in orderStats ? [] : orderStats.recent_written,
     recentJournal: ((recentJournalRes.data ?? []) as JournalRow[]).map(a => ({
       id: a.id,
       activity_date: a.activity_date,

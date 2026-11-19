@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
       for (const h of extra ?? []) leaveHolidays[h.holiday_date as string] = h.name as string
     }
     const LABEL: Record<string, string> = {
-      annual: '연차', half_am: '오전 반차', half_pm: '오후 반차',
+      annual: '연차', half_am: '오전 반차', half_pm: '오후 반차', half: '반차',   // half = 엑셀 이관 반차(오전 · 오후 미기재, 207)
       sick: '병가', official: '공가', unpaid: '무급휴가', other: '휴가',
     }
     for (const l of leaveRows) {

@@ -17,6 +17,10 @@ import RosterCard from '../roster-card'
 import ReasonPicker from '@/components/ui/ReasonPicker'
 import { CONSULT_CLOSE_REASONS, CONSULT_DELETE_REASONS, composeReason } from '@/lib/cancel-reasons'
 import { normTel } from '@/lib/contact-phone-sync'
+import {
+  CustomerHitList, FillBanner, PhoneSearchInput, SimilarHint, asgPlace, bannerBtn, bannerBtnPri, isPhoneLike, useCustomerSearch,
+  type CustomerAsg, type CustomerHit,
+} from '../customer-search'
 
 const fmtWhen = (iso: string) =>
   new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
@@ -375,6 +379,69 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
       setContacts(res.ok ? (json.contacts ?? []) : [])
     })()
   }, [vendorId])
+
+  // ── 고객 쌍방향 추천 (2026-11-18 사용자 승인 — 시안 docs/mockups/고객_쌍방향추천_시안.html) ──
+  //  담당자 이름 · 핸드폰으로 전체 담당자에서 찾아 업체 · 지점 · 담당자 · 번호를 한 번에 채운다. 고를 때만 채우고 되돌리기 제공.
+  const staffName = (id: string | null) => (id ? employees.find(e => e.id === id)?.name ?? null : null)
+  const [globalOpen, setGlobalOpen] = useState(false)        // 지점을 고른 뒤 "다른 지점에서 찾기"
+  useEffect(() => { setGlobalOpen(false) }, [vendorId])
+  const nameQ = !locked && !indPick && !contactId ? managerText.trim() : ''
+  const nameKey = nameQ.replace(/님$/, '').trim()
+  const localNameMatch = !!nameKey && contacts.some(c =>
+    contactLabel(c.name, c.title).includes(nameKey) || c.name.includes(nameKey.split(/\s+/)[0]))
+  const nameSearch = useCustomerSearch(nameQ,
+    nameKey.length >= 2 && !isPhoneLike(nameQ) && (!vendorId || globalOpen || !localNameMatch))
+  const phoneSearch = useCustomerSearch(phone, !locked && !indPick && !contactId && isPhoneLike(phone))
+  type CustSnap = { groupId: string | null; bankText: string; vendorId: string | null; branchText: string; contactId: string | null; managerText: string; phone: string; tel: string }
+  const [fill, setFill] = useState<{ text: string; prev: CustSnap; movedFrom: string | null } | null>(null)
+  const [phoneDismissed, setPhoneDismissed] = useState('')
+  const applyCustomer = (h: CustomerHit, a: CustomerAsg) => {
+    const prev: CustSnap = { groupId, bankText, vendorId, branchText, contactId, managerText, phone, tel }
+    const newBranch = a.individual || !a.group_name ? '' : branchLabel(a.vendor_name, a.group_name)
+    setGroupId(a.group_id); setBankText(a.group_name ?? a.vendor_name)
+    setVendorId(a.vendor_id); setBranchText(newBranch)
+    setContactId(h.contact_id); setManagerText(contactLabel(h.name, a.title))
+    if (!phone.trim() && h.phone) setPhone(h.phone)
+    if (!tel.trim() && h.tel) setTel(h.tel)
+    setGlobalOpen(false)
+    // 입력해 둔 지점과 현재 소속이 다르면(인사이동) 알리고 되돌릴 수 있게
+    const prevPlace = prev.vendorId
+      ? [prev.bankText, prev.branchText].filter(Boolean).join(' ')
+      : prev.branchText.trim()
+    const moved = !!prevPlace && (prev.vendorId ? prev.vendorId !== a.vendor_id : prev.branchText.replace(/\s/g, '') !== newBranch.replace(/\s/g, ''))
+    const staff = staffName(a.staff_employee_id)
+    setFill({
+      text: `${asgPlace(a)} · ${contactLabel(h.name, a.title)}${staff ? ` · 다올 담당 ${staff}(주문 시 상담자)` : ''}`,
+      prev, movedFrom: moved ? prevPlace : null,
+    })
+  }
+  const undoFill = () => {
+    if (!fill) return
+    const p = fill.prev
+    setGroupId(p.groupId); setBankText(p.bankText); setVendorId(p.vendorId); setBranchText(p.branchText)
+    setContactId(p.contactId); setManagerText(p.managerText); setPhone(p.phone); setTel(p.tel)
+    setFill(null)
+  }
+  // 인사이동: 입력했던 지점으로 되돌리고 담당자는 이름만 남긴다 — 저장 때 지금처럼 자동 판별(이동 의심 기록)
+  const keepTypedBranch = () => {
+    if (!fill) return
+    const p = fill.prev
+    setGroupId(p.groupId); setBankText(p.bankText); setVendorId(p.vendorId); setBranchText(p.branchText)
+    setContactId(null)
+    setFill(null)
+  }
+  const exactPhoneHits = phoneSearch.hits.filter(h => h.exact)
+  const exactPhone = exactPhoneHits.length === 1 && normTel(phone) !== phoneDismissed ? exactPhoneHits[0] : null
+
+  const onGroupChange = ({ id, text }: { id: string | null; text: string }) => {
+    setGroupId(id); setBankText(text)
+    if (id) {
+      const branches = vendors.filter(v => v.group_id === id)
+      const individual = !!groups.find(g => g.id === id)?.is_individual
+      if (individual) { setVendorId(null); setBranchText(''); setContactId(null) }
+      else if (branches.length === 1) { setVendorId(branches[0].id); setBranchText('') }
+    }
+  }
 
   const setItem = (i: number, patch: Partial<ItemDraft>) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, ...patch } : it))
@@ -774,16 +841,13 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             {locked ? <div className={free}>{bankText || '-'}</div> : (
               <ComboFree text={bankText} selectedId={groupId}
                 options={groups.map(g => ({ id: g.id, label: g.name }))}
-                onChange={({ id, text }) => {
-                  setGroupId(id); setBankText(text)
-                  if (id) {
-                    const branches = vendors.filter(v => v.group_id === id)
-                    const individual = !!groups.find(g => g.id === id)?.is_individual
-                    if (individual) { setVendorId(null); setBranchText(''); setContactId(null) }
-                    else if (branches.length === 1) { setVendorId(branches[0].id); setBranchText('') }
-                  }
-                }}
+                onChange={onGroupChange}
                 placeholder="마스터 검색 · 신규명 자유 입력" />
+            )}
+            {/* 비슷한 업체 안내 (2026-11-18 — 오타 업체 방지, 막지 않음) */}
+            {!locked && !groupId && (
+              <SimilarHint input={bankText} items={groups} nameOf={g => g.name} what="업체"
+                onPick={g => onGroupChange({ id: g.id, text: g.name })} />
             )}
           </div>
           <div className="col-span-2">
@@ -831,6 +895,14 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 }}
                 placeholder={indMode ? '개인 고객은 지점 없음 — 모임만 선택' : '지점 검색 · 자유 입력'} />
             )}
+            {!locked && !vendorId && !indMode && groupId && (
+              <SimilarHint input={branchText} what="지점"
+                items={vendors.filter(v => v.group_id === groupId && !v.individual_contact_id)}
+                nameOf={v => branchLabel(v.name, selGroup?.name) || v.name}
+                onPick={v => {
+                  setVendorId(v.id); setBranchText(branchLabel(v.name, selGroup?.name)); setContactId(null)
+                }} />
+            )}
           </div>
 
           <div className="col-span-2">
@@ -865,7 +937,28 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     if (c?.tel) setTel(c.tel)          // 유선도 마스터에서 (116)
                   }
                 }}
-                placeholder={vendorId ? '담당자 선택 · 자유 입력' : '자유 입력 (지점 선택 시 마스터 검색)'} />
+                footer={({ close }) => {
+                  // 고객 쌍방향 추천: 지점을 몰라도 이름으로 전체 담당자에서 찾는다
+                  if (nameKey.length < 2 || isPhoneLike(nameQ)) return null
+                  if (vendorId && localNameMatch && !globalOpen) {
+                    return (
+                      <button type="button" tabIndex={-1} onMouseDown={e => e.preventDefault()} onClick={() => setGlobalOpen(true)}
+                        className="w-full text-left px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-50 border-t border-gray-100">
+                        다른 지점에서 &ldquo;{nameKey}&rdquo; 찾기
+                      </button>
+                    )
+                  }
+                  return (
+                    <CustomerHitList hits={nameSearch.hits} loading={nameSearch.loading} staffName={staffName}
+                      excludeVendorId={vendorId}
+                      heading={vendorId
+                        ? (localNameMatch ? '다른 지점에서 찾은 담당자' : `이 지점에 "${nameKey}" 없음 — 다른 지점에서 찾은 결과`)
+                        : `"${nameKey}" 담당자 — 고르면 업체 · 지점 · 핸드폰 · 유선이 함께 채워집니다`}
+                      emptyText="마스터에 없는 담당자입니다 — 그대로 적고 아래에서 등록할 수 있습니다"
+                      onPick={(h, a) => { applyCustomer(h, a); close() }} />
+                  )
+                }}
+                placeholder={vendorId ? '담당자 선택 · 자유 입력' : '이름으로 찾기 — 지점을 몰라도 됩니다'} />
             )}
             {/* 고객별 다올 담당 (112) — 주문 전환 시 상담자가 됨 (상담일지 작성자 아님) */}
             {contactId && (() => {
@@ -892,7 +985,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               <>
                 <div>
                   <label className={label}>핸드폰</label>
-                  <input value={phone} disabled={locked} onChange={e => setPhone(e.target.value)} className={free} placeholder="010-" />
+                  <PhoneSearchInput value={phone} disabled={locked} onChange={setPhone} className={free} placeholder="010- · 번호로 찾기"
+                    hits={phoneSearch.hits} loading={phoneSearch.loading} staffName={staffName}
+                    suppress={!!contactId || indPick} onPick={applyCustomer} />
                   {hint(phone, c?.phone)}
                 </div>
                 <div>
@@ -900,6 +995,37 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   <input value={tel} disabled={locked} onChange={e => setTel(e.target.value)} className={free} placeholder="02-" />
                   {hint(tel, c?.tel)}
                 </div>
+                {/* 고객 쌍방향 추천 안내 (2026-11-18) */}
+                {!locked && (exactPhone && !contactId || fill) && (
+                  <div className="col-span-2 md:col-span-6 -mt-1">
+                    {exactPhone && !contactId && (() => {
+                      const a = exactPhone.assignments.find(x => x.current) ?? exactPhone.assignments[0]
+                      return a ? (
+                        <FillBanner kind="blue" actions={<>
+                          <button type="button" className={bannerBtnPri} onClick={() => applyCustomer(exactPhone, a)}>이 고객으로 채우기</button>
+                          <button type="button" className={bannerBtn} onClick={() => setPhoneDismissed(normTel(phone))}>아니에요</button>
+                        </>}>
+                          이 번호는 <b>{contactLabel(exactPhone.name, a.title)} · {asgPlace(a)}</b>입니다.
+                        </FillBanner>
+                      ) : null
+                    })()}
+                    {fill && (fill.movedFrom ? (
+                      <FillBanner kind="amber" actions={<>
+                        <button type="button" className={bannerBtn} onClick={keepTypedBranch}>{fill.movedFrom}(으)로 되돌리기</button>
+                        <button type="button" className={bannerBtn} onClick={() => setFill(null)}>닫기</button>
+                      </>}>
+                        입력한 지점({fill.movedFrom})과 현재 소속이 달라 <b>{fill.text}</b>(으)로 바꿨습니다.
+                      </FillBanner>
+                    ) : (
+                      <FillBanner kind="green" actions={<>
+                        <button type="button" className={bannerBtn} onClick={undoFill}>되돌리기</button>
+                        <button type="button" className={bannerBtn} onClick={() => setFill(null)}>닫기</button>
+                      </>}>
+                        고객으로 채웠습니다 — {fill.text}
+                      </FillBanner>
+                    ))}
+                  </div>
+                )}
               </>
             )
           })()}
@@ -969,12 +1095,22 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 <input value={regGroupName} disabled={!!groupId || regBusy}
                   onChange={e => setRegGroupName(e.target.value)}
                   className={free} placeholder="예: 하나은행" />
+                {!groupId && (
+                  <SimilarHint input={regGroupName} items={groups} nameOf={g => g.name} what="업체"
+                    onPick={g => { onGroupChange({ id: g.id, text: g.name }); setRegGroupName(g.name) }} />
+                )}
               </div>
               <div>
                 <label className={label}>지점명 <span className="text-gray-400">(없으면 단일 업체)</span></label>
                 <input value={regBranch} disabled={regBusy || !!vendorId}
                   onChange={e => setRegBranch(e.target.value)}
                   className={free} placeholder="예: 오류동지점" />
+                {!vendorId && groupId && (
+                  <SimilarHint input={regBranch} what="지점"
+                    items={vendors.filter(v => v.group_id === groupId && !v.individual_contact_id)}
+                    nameOf={v => branchLabel(v.name, selGroup?.name) || v.name}
+                    onPick={v => { setVendorId(v.id); setBranchText(branchLabel(v.name, selGroup?.name)); setContactId(null) }} />
+                )}
               </div>
               <div>
                 <label className={label}>담당자 이름 <span className="text-gray-400">(직함 제외)</span></label>
@@ -1451,7 +1587,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         {/* 주문 진행 요청 (705, 2026-11-05) — 상담만 하고 주문 입력은 다른 직원에게. 비우면 내가 직접 진행 */}
         {!locked && (() => {
           const picked = employees.find(e => e.id === reqAssignee)
-          const ptBlock = picked?.employment_type === 'parttime' && (!vendorId || !contactId)
+          const ptBlock = !!reqAssignee && (!vendorId || !contactId)   // 마스터 미연결이면 누구에게도 요청 불가 (2026-11-19, 서버 lib/order-request.ts와 같은 규칙)
           return (
             <div className="mt-4 p-3 rounded-lg border border-blue-200 bg-blue-50/40">
               <div className="text-sm font-bold text-gray-900 mb-2">
@@ -1479,7 +1615,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               </div>
               {ptBlock && (
                 <div className="mt-2 text-xs px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
-                  이 상담은 주문처 · 담당자가 마스터에 연결되지 않았습니다. 아르바이트는 신규 거래처 · 담당자 등록이 막혀 있어 전환할 수 없습니다 — 먼저 연결하거나 다른 직원에게 요청하세요.
+                  이 상담은 주문처 · 담당자가 마스터에 연결되지 않았습니다. 요청받은 직원은 상담을 고칠 수 없어 주문서로 전환하지 못합니다 —
+                  위에서 지점 · 담당자를 마스터에서 고르거나 &lsquo;매출처 마스터 등록&rsquo;으로 등록한 뒤 저장하면 요청됩니다.
                 </div>
               )}
               {reqAssignee && !ptBlock && (

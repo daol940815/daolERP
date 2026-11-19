@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>고객 쌍방향 추천 시안 — 상담일지 · 주문서 (v1, 2026-11-18)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:0.8125rem; }
+  .frame { max-width:1180px; margin:0 auto; padding:24px 20px 60px; }
+  h1 { font-size:1.1875rem; color:#0f172a; }
+  h2 { font-size:0.9375rem; color:#0f172a; margin:30px 0 8px; padding-left:10px; border-left:4px solid #0f172a; }
+  .desc { font-size:0.75rem; color:#64748b; margin:4px 0 14px; line-height:1.7; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin-top:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .sec { font-size:0.8125rem; font-weight:bold; color:#0f172a; margin-bottom:10px; }
+  .sec small { font-weight:normal; color:#94a3b8; font-size:0.6875rem; margin-left:6px; }
+  .grid { display:grid; grid-template-columns: 1.1fr 1.1fr 1.3fr 1fr 1fr; gap:10px; align-items:start; }
+  .lab { font-size:0.6875rem; color:#64748b; margin-bottom:3px; }
+  .cell { border:1.5px solid #e8d9a8; border-radius:8px; padding:6px 9px; background:#fffdf5; min-height:32px; font-size:0.8125rem; }
+  .cell.focus { border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,.15); background:#fff; }
+  .cell.filled { border-color:#86efac; background:#f0fdf4; }
+  .cell.warn { border-color:#fcd34d; background:#fffbeb; }
+  .ph { color:#94a3b8; }
+  .drop { position:relative; }
+  .list { position:absolute; z-index:5; left:0; top:100%; margin-top:4px; width:560px; background:#fff; border:1px solid #cbd5e1; border-radius:10px; box-shadow:0 8px 24px rgba(15,23,42,.12); overflow:hidden; }
+  .list .head { font-size:0.65625rem; color:#94a3b8; background:#f8fafc; padding:6px 12px; border-bottom:1px solid #eef1f5; }
+  .opt { padding:8px 12px; border-top:1px solid #f1f5f9; display:flex; gap:10px; align-items:center; }
+  .opt:first-of-type { border-top:none; }
+  .opt.hl { background:#eff6ff; }
+  .opt .nm { font-weight:bold; color:#0f172a; min-width:110px; }
+  .opt .org { color:#334155; flex:1; }
+  .opt .meta { color:#94a3b8; font-size:0.6875rem; white-space:nowrap; }
+  .opt.old { opacity:.55; }
+  .badge { display:inline-block; padding:1px 7px; border-radius:999px; font-size:0.625rem; font-weight:600; white-space:nowrap; }
+  .b-blue { background:#e6effc; color:#1c5cab; } .b-gray { background:#f1f2f4; color:#6b7280; } .b-amber { background:#fdf3df; color:#92600a; } .b-green { background:#e7f6ec; color:#147339; }
+  .banner { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:0.75rem; border-radius:8px; padding:8px 12px; border:1px solid; margin-top:10px; }
+  .banner.green { background:#ecfdf5; border-color:#a7f3d0; color:#065f46; }
+  .banner.amber { background:#fffbeb; border-color:#fde68a; color:#92400e; }
+  .banner.blue { background:#eff6ff; border-color:#bfdbfe; color:#1e40af; }
+  .btn { font-size:0.71875rem; padding:4px 10px; border:1px solid #cbd5e1; background:#fff; border-radius:7px; color:#334155; white-space:nowrap; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .btn.blue { border-color:#bfdbfe; background:#eff6ff; color:#1d4ed8; }
+  .r { margin-left:auto; display:flex; gap:6px; }
+  .mini { font-size:0.65625rem; color:#94a3b8; margin-top:8px; line-height:1.7; }
+  .spacer { height:250px; }
+  .note { margin-top:14px; background:#fffbeb; border:1px solid #f5e6b8; border-radius:10px; padding:12px 16px; font-size:0.75rem; color:#7c5e10; line-height:1.9; }
+  .note b { color:#5c470a; }
+  .flow { margin-top:12px; background:#f0f7ff; border:1px solid #cfe3f8; border-radius:10px; padding:12px 16px; font-size:0.75rem; color:#1e4e79; line-height:1.9; }
+  .tbl { width:100%; border-collapse:collapse; font-size:0.71875rem; background:#fff; border:1px solid #e2e8f0; }
+  .tbl th { background:#f1f5f9; color:#475569; font-size:0.65625rem; padding:6px 8px; text-align:left; border-bottom:1.5px solid #d8dee6; }
+  .tbl td { padding:6px 8px; border-bottom:1px solid #eef1f5; vertical-align:top; }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <h1>고객 쌍방향 추천 시안 (상담일지 · 주문서 공용)</h1>
+  <p class="desc">
+    지금은 <b>업체 → 지점 → 담당자</b> 한 방향으로만 고릅니다. 영업자는 지점명보다 <b>고객 이름 · 핸드폰</b>을 더 정확히 알고 있으므로,
+    어느 칸에서 시작하든 나머지를 채울 수 있게 합니다. 칸 배치는 지금과 같고, 담당자 · 핸드폰 칸이 검색 칸이 됩니다.
+    <b>목록에서 고를 때만 채웁니다</b>(시스템은 추천, 확정은 사용자). 업체 → 지점 → 담당자 순서로 고르는 기존 방식도 그대로 됩니다.
+  </p>
+
+  <!-- 1 -->
+  <h2>1. 이름으로 찾기 — 업체 · 지점을 모를 때</h2>
+  <p class="desc">담당자 칸에 이름 2글자 이상 → 전체 거래처 담당자(약 2,800명)에서 찾아 <b>소속과 함께</b> 보여줍니다. 동명이인은 업체 · 지점 · 직함 · 번호 뒷자리로 구분합니다.</p>
+  <div class="panel">
+    <div class="sec">주문처 · 담당자 <small>상담일지 · 주문서 같은 칸</small></div>
+    <div class="grid">
+      <div><div class="lab">업체(은행)</div><div class="cell"><span class="ph">비어 있음</span></div></div>
+      <div><div class="lab">부서(지점)</div><div class="cell"><span class="ph">비어 있음</span></div></div>
+      <div class="drop"><div class="lab">담당자</div><div class="cell focus">김민수|</div>
+        <div class="list">
+          <div class="head">"김민수" 담당자 3명 · 현재 소속순 · 고르면 업체 · 지점 · 핸드폰 · 유선이 함께 채워집니다</div>
+          <div class="opt hl"><span class="nm">김민수 과장님</span><span class="org">온양농협 배방지점</span><span class="meta">010-…5678 · 다올 홍창의 · 최근 주문 11-06</span></div>
+          <div class="opt"><span class="nm">김민수 님</span><span class="org">하나은행 오류동지점</span><span class="meta">010-…2210 · 다올 김주연 · 최근 주문 09-14</span></div>
+          <div class="opt"><span class="nm">김민수 차장님</span><span class="org">푸본현대생명 본사</span><span class="meta">번호 없음 · 다올 옥광일 · 주문 없음</span></div>
+        </div>
+      </div>
+      <div><div class="lab">핸드폰</div><div class="cell"><span class="ph">010-</span></div></div>
+      <div><div class="lab">연락처(유선)</div><div class="cell"><span class="ph">02-</span></div></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="lab" style="margin-top:4px;">↓ 첫 번째를 고른 뒤</div>
+    <div class="grid" style="margin-top:6px;">
+      <div><div class="lab">업체(은행)</div><div class="cell filled">온양농협</div></div>
+      <div><div class="lab">부서(지점)</div><div class="cell filled">배방지점</div></div>
+      <div><div class="lab">담당자</div><div class="cell filled">김민수 과장님</div></div>
+      <div><div class="lab">핸드폰</div><div class="cell filled">010-1234-5678</div></div>
+      <div><div class="lab">연락처(유선)</div><div class="cell filled">041-540-1234</div></div>
+    </div>
+    <div class="banner green">고객으로 채웠습니다 — 온양농협 배방지점 · 김민수 과장님 · 다올 담당 홍창의(주문 시 상담자)<span class="r"><span class="btn">되돌리기</span></span></div>
+    <div class="mini">지점을 먼저 골랐다면 지금처럼 그 지점 담당자만 나오고, 목록 맨 아래 "다른 지점에서 찾기 (전체 N명)"로 넓힐 수 있습니다.</div>
+  </div>
+
+  <!-- 2 -->
+  <h2>2. 핸드폰으로 찾기 — 번호만 알 때</h2>
+  <p class="desc">핸드폰 칸에 번호를 치면 그 번호의 담당자를 찾습니다. <b>뒷자리 4개</b>부터 후보가 나오고, <b>번호 전체가 맞으면</b> 한 줄 안내로 바로 고를 수 있게 합니다.</p>
+  <div class="panel">
+    <div class="grid">
+      <div><div class="lab">업체(은행)</div><div class="cell"><span class="ph">비어 있음</span></div></div>
+      <div><div class="lab">부서(지점)</div><div class="cell"><span class="ph">비어 있음</span></div></div>
+      <div><div class="lab">담당자</div><div class="cell"><span class="ph">비어 있음</span></div></div>
+      <div class="drop"><div class="lab">핸드폰</div><div class="cell focus">5678|</div>
+        <div class="list" style="width:520px; left:-260px;">
+          <div class="head">뒷자리 "5678" 담당자 2명</div>
+          <div class="opt hl"><span class="nm">김민수 과장님</span><span class="org">온양농협 배방지점</span><span class="meta">010-1234-5678</span></div>
+          <div class="opt"><span class="nm">이정호 님</span><span class="org">고양시흰돌종합사회복지관</span><span class="meta">010-9921-5678</span></div>
+        </div>
+      </div>
+      <div><div class="lab">연락처(유선)</div><div class="cell"><span class="ph">02-</span></div></div>
+    </div>
+    <div class="spacer" style="height:130px;"></div>
+    <div class="lab">번호 전체를 친 경우</div>
+    <div class="grid" style="margin-top:6px;">
+      <div><div class="lab">업체(은행)</div><div class="cell"><span class="ph">비어 있음</span></div></div>
+      <div><div class="lab">부서(지점)</div><div class="cell"><span class="ph">비어 있음</span></div></div>
+      <div><div class="lab">담당자</div><div class="cell"><span class="ph">비어 있음</span></div></div>
+      <div><div class="lab">핸드폰</div><div class="cell">010-1234-5678</div></div>
+      <div><div class="lab">연락처(유선)</div><div class="cell"><span class="ph">02-</span></div></div>
+    </div>
+    <div class="banner blue">이 번호는 <b>김민수 과장님 · 온양농협 배방지점</b>입니다.<span class="r"><span class="btn pri">이 고객으로 채우기</span><span class="btn">아니에요</span></span></div>
+    <div class="mini">번호가 마스터에 없는 담당자는 찾을 수 없습니다. 상담 · 주문을 저장할 때 비어 있는 마스터 번호가 채워지므로(116) 쓸수록 잘 찾아집니다.</div>
+  </div>
+
+  <!-- 3 -->
+  <h2>3. 인사이동된 담당자 — 영업자가 아는 지점이 예전 지점일 때</h2>
+  <p class="desc">검색 결과에 <b>현재 소속</b>을 위에, 끝난 소속은 흐리게 "이전 소속"으로 보여줍니다. 예전 지점을 쳐도 사람을 찾아 현재 지점으로 갈 수 있습니다.</p>
+  <div class="panel">
+    <div class="grid">
+      <div><div class="lab">업체(은행)</div><div class="cell">온양농협</div></div>
+      <div><div class="lab">부서(지점)</div><div class="cell">탕정지점</div></div>
+      <div class="drop"><div class="lab">담당자</div><div class="cell focus">박영희|</div>
+        <div class="list">
+          <div class="head">탕정지점 담당자 중 "박영희" 없음 — 다른 지점에서 찾은 결과</div>
+          <div class="opt hl"><span class="nm">박영희 대리님</span><span class="org">온양농협 배방지점 <span class="badge b-blue">현재 소속</span></span><span class="meta">010-…5432 · 2026-09 이동</span></div>
+          <div class="opt old"><span class="nm">박영희 대리님</span><span class="org">온양농협 탕정지점 <span class="badge b-gray">이전 소속 ~2026-09</span></span><span class="meta">같은 사람</span></div>
+        </div>
+      </div>
+      <div><div class="lab">핸드폰</div><div class="cell"><span class="ph">010-</span></div></div>
+      <div><div class="lab">연락처(유선)</div><div class="cell"><span class="ph">02-</span></div></div>
+    </div>
+    <div class="spacer" style="height:120px;"></div>
+    <div class="banner amber">입력한 지점(탕정지점)과 박영희 대리님의 현재 소속(배방지점)이 달라 <b>배방지점으로 바꿨습니다</b>.
+      <span class="r"><span class="btn">탕정지점으로 되돌리기</span></span></div>
+    <div class="mini">되돌리면 탕정지점 그대로 저장되고, 지금처럼 담당자 확인 큐에 "이동 의심"으로 남아 매출처 관리에서 확인합니다.</div>
+  </div>
+
+  <!-- 4 -->
+  <h2>4. 신규 등록 — 비슷한 이름이 이미 있을 때 (오타 업체 방지)</h2>
+  <p class="desc">처음 오는 고객은 지금처럼 직접 입력해 "신규 등록"합니다. 이때 <b>한두 글자만 다른 업체 · 지점이 있으면</b> 먼저 묻습니다. 이번 '푸본헌대생명' 같은 오타를 여기서 잡습니다.</p>
+  <div class="panel">
+    <div class="grid">
+      <div><div class="lab">업체(은행)</div><div class="cell warn">푸본헌대생명</div></div>
+      <div><div class="lab">부서(지점)</div><div class="cell warn">강남지점</div></div>
+      <div><div class="lab">담당자</div><div class="cell">최은영 님</div></div>
+      <div><div class="lab">핸드폰</div><div class="cell">010-2222-3333</div></div>
+      <div><div class="lab">연락처(유선)</div><div class="cell"><span class="ph">02-</span></div></div>
+    </div>
+    <div class="banner amber" style="display:block;">
+      <div><b>비슷한 업체가 이미 있습니다</b> — 같은 곳이면 아래에서 고르세요.</div>
+      <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+        <span class="btn blue">푸본현대생명 (지점 3곳) — 이 업체로</span>
+        <span class="btn blue">푸본현대생명 강남지점 — 이 지점으로</span>
+        <span class="btn">그래도 "푸본헌대생명"으로 새로 등록</span>
+      </div>
+    </div>
+    <div class="mini">비교는 공백 · 법인 접두("(주)" · "㈜" · "주식회사")를 빼고, 한두 글자 차이와 포함 관계("서강ROTC" ↔ "서강대ROTC총동문회")를 봅니다. 막지는 않고 묻기만 합니다.</div>
+  </div>
+
+  <h2>5. 동작 규칙</h2>
+  <table class="tbl">
+    <thead><tr><th style="width:22%">항목</th><th>규칙</th></tr></thead>
+    <tbody>
+      <tr><td>채우는 시점</td><td>목록에서 고를 때만. 자동으로 덮어쓰지 않음. 고른 뒤 "되돌리기"로 이전 값 복원.</td></tr>
+      <tr><td>검색 시작</td><td>이름 2글자 이상 · 번호 숫자 4개 이상. 결과 최대 20명.</td></tr>
+      <tr><td>검색 대상</td><td>거래처 담당자 마스터(병합된 인물 제외). 현재 소속 → 이전 소속 순, 같은 순위는 최근 주문일 순.</td></tr>
+      <tr><td>지점을 먼저 고른 경우</td><td>지금처럼 그 지점 담당자만 먼저, 없으면 "다른 지점에서 찾기"로 전체.</td></tr>
+      <tr><td>채우는 항목</td><td>업체 · 지점 · 담당자 · 핸드폰 · 유선(116) · 다올 담당(주문 시 상담자). 이미 손으로 친 핸드폰 · 유선은 다를 때 안내만(116 규칙).</td></tr>
+      <tr><td>개인 고객 업체</td><td>업체 '개인'은 지금의 개인 고객 검색(이름 · 전화번호) 그대로.</td></tr>
+      <tr><td>권한</td><td>주문 그룹 조회 권한이면 검색 가능(아르바이트 포함, 읽기만). 신규 등록 차단 규칙은 그대로.</td></tr>
+      <tr><td>DB</td><td>마이그레이션 없음. 검색 API 1개 추가(상담 · 주문 공용).</td></tr>
+    </tbody>
+  </table>
+
+  <div class="flow">
+    <b>함께 정리할 것 (점검 결과 연계)</b><br>
+    업체 목록에 지점 없는 업체 42곳이 남아 있습니다. 업체 칸 목록은 <b>활성 지점이 1곳 이상인 업체 + 개인 고객 업체</b>만 보이게 하면 '푸본헌대생명' 같은 고아 업체가 사라집니다(DB 변경 없음).
+  </div>
+  <div class="note">
+    <b>확인할 것</b> ① 담당자 · 핸드폰 칸을 검색 칸으로 쓰는 방식(별도 "고객 찾기" 칸 없이) ② 번호 전체가 맞을 때 한 줄 안내 + "이 고객으로 채우기"
+    ③ 인사이동 시 현재 소속으로 바꾸고 되돌리기 제공 ④ 신규 등록 시 비슷한 이름 경고(막지 않고 묻기) ⑤ 업체 목록에서 지점 없는 업체 숨김을 함께 적용.
+  </div>
+
+</div>
+</body>
+</html>

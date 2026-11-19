@@ -21,8 +21,13 @@ interface Summary {
   journal: { month_cnt: number; total_cnt: number }
 }
 
+interface OrderStat { cnt: number; total: number; outstanding: number; outstanding_cnt: number }
+
 interface Data {
-  me: { name: string | null; role: string; linked: boolean; canCustomers?: boolean }
+  me: { name: string | null; role: string; linked: boolean; canCustomers?: boolean; canPayments?: boolean }
+  // 주문 카드 (2026-11-19, lib/my-dashboard.ts) — 내 작성 주문 · 내 담당 지점 주문
+  orders: { written_month: OrderStat; written_open: OrderStat; branch_month: OrderStat; branch_vendor_cnt: number } | null
+  ordersError: string | null
   month: string
   today: string
   summary: Summary | null
@@ -80,6 +85,7 @@ export default function MyDashboardPage() {
   if (!data) return <div className="text-center py-16 text-gray-400">로딩 중...</div>
 
   const s = data.summary
+  const o = data.orders
   const kpis = [
     ...(wr ? [
       {
@@ -93,16 +99,23 @@ export default function MyDashboardPage() {
         sub: `${wr.outbox_awaiting ? `완료 확정 대기 ${wr.outbox_awaiting}` : ''}${wr.outbox_awaiting && wr.outbox_rejected ? ' · ' : ''}${wr.outbox_rejected ? `반려 ${wr.outbox_rejected}` : ''}` || null,
       },
     ] : []),
+    // 내 작성 주문 = 주문내역 '내 주문처리 건'과 같은 기준 (2026-11-19 사용자 결정 — 옛 이름 '내 주문')
     {
-      label: '이번 달 내 주문', href: '/orders',
-      value: s ? `${s.orders_month.cnt}건` : '-',
-      sub: s ? `${won(s.orders_month.total)}원` : null,
+      label: '이번 달 내 작성 주문', href: `/orders?mine=handled&from=${data.month}-01&to=${data.today}`,
+      value: o ? `${o.written_month.cnt}건` : '-',
+      sub: o ? `${won(o.written_month.total)}원` : null,
     },
     {
-      label: '내 미수 잔액', href: '/orders',
-      value: s ? `${won(s.outstanding_total.outstanding)}원` : '-',
-      sub: s ? `미수 주문 ${s.outstanding_total.cnt}건` : null,
+      label: '내 작성 주문 미수', href: '/orders?mine=handled&from=&to=&collect=outstanding',
+      value: o ? `${won(o.written_open.outstanding)}원` : '-',
+      sub: o ? `미수 주문 ${o.written_open.outstanding_cnt}건` : null,
     },
+    // 내 담당 지점 주문 = 매출처의 현재 지점 담당(vendor_staff)이 나 — 결제 확인 '내 담당' 필터와 같은 기준 (2026-11-19 사용자 제안)
+    ...(o && o.branch_vendor_cnt > 0 ? [{
+      label: '이번 달 내 담당 지점 주문', href: data.me.canPayments ? '/payments' : null,
+      value: `${o.branch_month.cnt}건`,
+      sub: `${won(o.branch_month.total)}원${o.branch_month.outstanding > 0 ? ` · 미수 ${won(o.branch_month.outstanding)}원` : ''}`,
+    }] : []),
     {
       // 거래처 관리 권한자는 내 고객 목록으로, 없으면 내 정보 › 내 업무 요약(담당 거래처 표)으로 (2026-10-05)
       label: '담당 거래처', href: data.me.canCustomers ? '/sales-hub?mine=1' : '/me/profile?tab=work',
@@ -136,6 +149,9 @@ export default function MyDashboardPage() {
         <div className="mt-4 px-4 py-2.5 bg-amber-50 text-amber-800 text-sm rounded-lg">
           직원 정보와 연결되지 않은 계정입니다. 직원·계정 관리에서 연결하면 본인 데이터가 표시됩니다.
         </div>
+      )}
+      {data.ordersError && (
+        <div className="mt-4 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">주문 집계를 불러오지 못했습니다: {data.ordersError}</div>
       )}
       {data.summaryError && (
         <div className="mt-4 px-4 py-2.5 bg-amber-50 text-amber-800 text-sm rounded-lg">{data.summaryError}</div>
@@ -202,11 +218,11 @@ export default function MyDashboardPage() {
           )}
         </div>
 
-        {/* 최근 내 주문 */}
+        {/* 최근 내 작성 주문 */}
         <div className="bg-white border border-gray-200 rounded-xl p-4 lg:col-span-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-900">최근 내 주문</h2>
-            <Link href="/orders" className="text-xs text-slate-500 hover:text-slate-900">주문내역 전체</Link>
+            <h2 className="text-sm font-semibold text-gray-900">최근 내 작성 주문</h2>
+            <Link href="/orders?mine=handled" className="text-xs text-slate-500 hover:text-slate-900">주문내역 전체</Link>
           </div>
           {data.recentOrders.length ? (
             <table className="w-full text-sm mt-2">
@@ -232,7 +248,7 @@ export default function MyDashboardPage() {
               </tbody>
             </table>
           ) : (
-            <p className="mt-3 text-sm text-gray-400">내 이름으로 입력된 주문이 없습니다.</p>
+            <p className="mt-3 text-sm text-gray-400">내가 작성한 주문이 없습니다.</p>
           )}
         </div>
       </div>
