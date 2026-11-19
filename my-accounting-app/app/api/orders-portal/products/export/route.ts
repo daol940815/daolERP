@@ -4,6 +4,8 @@ import { getCurrentUser } from '@/lib/user-role'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { branchMargin } from '@/lib/product-margin'
 import { toPurchasePrice } from '@/lib/purchase-price'
+import { matchBands, matchFilter, readFilterParams } from '@/lib/product-filters'
+import { loadVendorPhones } from '@/lib/vendor-phones'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -102,6 +104,8 @@ export async function GET(req: NextRequest) {
     const i = raw.indexOf(':')
     return i > 0 ? { field: raw.slice(0, i), value: raw.slice(i + 1).trim().toLowerCase() } : null
   }).filter((c): c is { field: string; value: string } => !!c && !!c.value)
+  // 항목 필터 · 금액대 칩 (2026-11-19) — 화면과 같은 규칙(lib/product-filters.ts)
+  const { filters: itemFilters, bands, basis } = readFilterParams(sp)
 
   const BASE = 'item_code, item_name, option_name, purchase_vendor_name, purchase_alias_id, category, sale_price, individual_sale_price, purchase_price, carton_unit, carton_shipping_fee, loose_shipping_fee, is_addon, is_active, memo'
   const V509 = `${BASE}, is_soldout`
@@ -117,6 +121,14 @@ export async function GET(req: NextRequest) {
   if ('error' in result) result = await load(V509)
   if ('error' in result) result = await load(BASE)
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
+
+  // 매입처 연락처 필터가 있을 때만 연락처를 읽는다(목록 화면과 같은 값)
+  let phones: Record<string, string> | undefined
+  if (itemFilters.some(f => f.field === 'phone')) {
+    const ph = await loadVendorPhones(admin)
+    if ('error' in ph) return NextResponse.json({ error: ph.error }, { status: 500 })
+    phones = ph.phones
+  }
 
   // 화면과 동일한 필터 (page.tsx의 filtered·condMatch 로직과 맞출 것)
   const condMatch = (p: P, field: string, v: string) => {
@@ -135,6 +147,8 @@ export async function GET(req: NextRequest) {
     if (filter === 'addon' && !p.is_addon) return false
     if (filter === 'cost' && !p.is_shipping) return false   // 비용 품목만 — 화면 '비용' 칩과 같음(2026-11-11, 그전엔 이 칩을 몰라 전 품목이 내려갔음)
     if (!conds.every(c => condMatch(p, c.field, c.value))) return false
+    if (!itemFilters.every(f => matchFilter(p, f, phones))) return false
+    if (!matchBands(p, bands, basis)) return false
     if (!q) return true
     return condMatch(p, 'all', q)   // 구형 q 파라미터 호환 (통합 검색)
   })
