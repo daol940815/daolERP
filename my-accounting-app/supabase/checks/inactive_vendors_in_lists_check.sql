@@ -44,3 +44,25 @@ SELECT count(DISTINCT ca.contact_id) AS "매입처_소속_담당자"
   FROM contact_assignments ca
   JOIN vendors v ON v.id = ca.vendor_id
  WHERE ca.ended_at IS NULL AND v.is_active = true AND (v.type NOT IN ('customer', 'both') OR v.type IS NULL);
+
+-- [한 번에] SQL 편집기는 마지막 결과만 보여주므로, 위 [1]~[4]를 한 줄로 모은 조회 (2026-11-19 추가)
+WITH act AS (
+  SELECT id, type, group_id FROM vendors WHERE is_active = true AND status IS DISTINCT FROM 'merged'
+), asg AS (
+  SELECT ca.contact_id, ca.ended_at, v.is_active, v.status, v.type
+    FROM contact_assignments ca
+    JOIN vendors v ON v.id = ca.vendor_id
+    JOIN contacts c ON c.id = ca.contact_id AND c.merged_into_id IS NULL
+)
+SELECT
+  (SELECT count(*) FROM act WHERE type IN ('customer', 'both'))                         AS "1_매출처_지점목록",
+  (SELECT count(*) FROM act WHERE type NOT IN ('customer', 'both') OR type IS NULL)     AS "1_매입처_지점목록에섞임",
+  (SELECT string_agg(g.name, ' · ' ORDER BY g.name) FROM vendor_groups g
+    WHERE g.is_active = true
+      AND EXISTS (SELECT 1 FROM act WHERE act.group_id = g.id)
+      AND NOT EXISTS (SELECT 1 FROM act WHERE act.group_id = g.id AND act.type IN ('customer', 'both'))) AS "2_매입처만_있는_업체",
+  (SELECT count(DISTINCT contact_id) FROM asg WHERE contact_id NOT IN (
+     SELECT contact_id FROM asg WHERE ended_at IS NULL AND is_active = true
+       AND status IS DISTINCT FROM 'merged' AND type IN ('customer', 'both')))           AS "3_비활성소속만_있는_담당자",
+  (SELECT count(DISTINCT contact_id) FROM asg WHERE ended_at IS NULL AND is_active = true
+     AND (type NOT IN ('customer', 'both') OR type IS NULL))                            AS "4_매입처_소속_담당자";
