@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
     if (q) {
       const hit = norm(r.vendor_name).includes(norm(q))
         || r.alias_names.some(a => norm(a).includes(norm(q)))
+        || (r.old_names ?? []).some(a => norm(a).includes(norm(q)))
         || (digits.length >= 3 && (r.biz_number ?? '').replace(/\D/g, '').includes(digits))
       if (!hit) return false
     }

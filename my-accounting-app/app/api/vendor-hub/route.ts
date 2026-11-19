@@ -4,6 +4,8 @@ import { buildHubList } from '@/lib/vendor-hub'
 import { getCurrentUser } from '@/lib/user-role'
 import { can } from '@/lib/permissions'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { standardizeVendorInput } from '@/lib/vendor-group-names'
+import { findGroupByName, findVendorByFullName } from '@/lib/vendor-name-check'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -46,10 +48,12 @@ export async function POST(req: NextRequest) {
     group_name?: string; branch_name?: string; name?: string; biz_number?: string; note?: string
     billing_vendor_id?: string   // 계산서 발행처(청구처, 114) — 비우면 자기 자신
   }
-  const groupName = (body.group_name ?? body.name ?? '').trim()
-  const branchName = (body.branch_name ?? '').trim()
+  // 업체명 자동 표준화 (2026-11-19) — 옛 업체명은 표준명으로, 지점명 앞 은행명은 뗀다 (lib/vendor-group-names.ts)
+  const std = standardizeVendorInput(body.group_name ?? body.name ?? '', body.branch_name ?? '')
+  const groupName = std.group.name
+  const branchName = std.branch.name
   if (!groupName) return NextResponse.json({ error: '업체명을 입력하세요.' }, { status: 400 })
-  const name = branchName ? `${groupName} ${branchName}` : groupName
+  const name = std.fullName
 
   // 개인 고객 업체(115): 고객은 주문 · 상담 입력의 '신규 개인 고객 등록'으로 만든다(고객 전용 매출처 자동 생성).
   // 여기서는 모임처럼 지점명이 있는 것만 등록한다.
@@ -63,22 +67,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 중복 검사: 병합되지 않은 거래처 전체의 이름·별칭 (법인 접두·공백 무시, 1,000행 제한 회피)
-  const norm = (s: string) => s.replace(/^\s*(\(주\)|㈜|주식회사)\s*/, '').replace(/\s+/g, '').toLowerCase()
-  const all = await fetchAllRows<{ id: string; name: string; match_aliases: string[] | null; is_active: boolean | null }>((f, t) =>
-    admin.from('vendors').select('id, name, match_aliases, is_active').neq('status', 'merged').range(f, t))
-  if ('error' in all) return NextResponse.json({ error: all.error }, { status: 500 })
-  const hit = all.data.find(v => norm(v.name) === norm(name) || (v.match_aliases ?? []).some(a => norm(a) === norm(name)))
+  // 중복 검사: 병합되지 않은 매출처의 이름 · 옛 이름(별칭) (법인 접두 · 공백 무시) — 있으면 만들지 않고 그 매출처를 쓴다
+  const hit = await findVendorByFullName(admin, name)
   if (hit) {
-    const why = hit.is_active === false ? ' (비활성 상태 — 목록에서 "비활성 포함"을 켜고 재활성하세요)' : ''
-    return NextResponse.json({ error: `같은 이름의 거래처가 이미 있습니다: ${hit.name}${why}`, vendor_id: hit.id }, { status: 409 })
+    const why = !hit.is_active ? ' (비활성 상태 — 목록에서 "비활성 포함"을 켜고 재활성하세요)' : ''
+    return NextResponse.json({ error: `같은 이름의 매출처가 이미 있습니다: ${hit.name}${why}`, vendor_id: hit.id, existing: hit }, { status: 409 })
   }
 
   // 업체 — 같은 이름(공백·법인 접두 무시)이 있으면 연결, 없으면 생성
-  const groups = await fetchAllRows<{ id: string; name: string }>((f, t) =>
-    admin.from('vendor_groups').select('id, name').range(f, t))
-  if ('error' in groups) return NextResponse.json({ error: groups.error }, { status: 500 })
-  let groupId = groups.data.find(g => norm(g.name) === norm(groupName))?.id ?? null
+  let groupId = (await findGroupByName(admin, groupName))?.id ?? null
   if (!groupId) {
     const { data: g, error: ge } = await admin.from('vendor_groups').insert({ name: groupName }).select('id').single()
     if (ge) return NextResponse.json({ error: `업체 등록 실패: ${ge.message}` }, { status: 500 })

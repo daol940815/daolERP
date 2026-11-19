@@ -19,6 +19,8 @@ import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-seaso
 import type { ContactOpt, Employee, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from './form-shared'
 import { isMoimVendor } from './form-shared'
 import IndividualRegister from './individual-register'
+import { BranchStdHint, ExistingVendorNote, GroupStdHint, NamePreview, useVendorNameCheck } from '@/components/vendors/vendor-name-hints'
+import { groupSearchKeywords } from '@/lib/vendor-group-names'
 import { contactLabel } from '@/lib/contact-label'
 
 // 주문 입력 폼 (신규·수정·재등록 공용) — 시안 "입력은 기존을 닮게" 기준
@@ -81,6 +83,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
   // 신규 매출처 인라인 등록 (2026-08-25 확정) — vendors 마스터 단일 원천에 등록
   const [addingVendor, setAddingVendor] = useState(false)
   const [newVendor, setNewVendor] = useState({ group_name: '', branch_name: '' })
+  // 업체명 자동 표준화 (2026-11-19) — 표준 업체명 · 지점명 정리 · 이미 있는 매출처
+  const vnCheck = useVendorNameCheck('/api/orders-portal/masters?name_check=1', newVendor.group_name, newVendor.branch_name, { enabled: addingVendor })
   // 상담 전환: 자유 입력 담당자명 — 담당자 목록 로드 후 자동 매칭/프리필
   const [pendingManager, setPendingManager] = useState<string | null>(null)
   const [contactsLoadedFor, setContactsLoadedFor] = useState<string | null>(null)
@@ -427,7 +431,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
     setAddingVendor(false)
     setNewVendor({ group_name: '', branch_name: '' })
     setNotice(json.existed
-      ? '같은 이름의 매출처가 이미 있어 선택했습니다.'
+      ? '이미 등록된 매출처를 선택했습니다(새로 만들지 않음).'
       : '매출처가 등록되었습니다 — 담당자를 선택하거나 신규 등록해주세요.')
   }
 
@@ -670,7 +674,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
             <Combo
               value={groupId}
               display={groups.find(g => g.id === groupId)?.name ?? ''}
-              options={groups.map(g => ({ id: g.id, label: g.name }))}
+              options={groups.map(g => ({ id: g.id, label: g.name, keywords: groupSearchKeywords(g.name) }))}
               onSelect={id => {
                 setGroupId(id)
                 const branches = vendors.filter(v => v.group_id === id)
@@ -911,8 +915,18 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                   }} />
               )}
             </div>
+            {(newVendor.group_name.trim() || newVendor.branch_name.trim()) && (
+              <div className="w-full space-y-1.5">
+                <GroupStdHint c={vnCheck} onSuggest={n => setNewVendor(p => ({ ...p, group_name: n }))} />
+                <BranchStdHint c={vnCheck} />
+                <NamePreview c={vnCheck} label="등록될 지점" />
+                <ExistingVendorNote c={vnCheck} />
+              </div>
+            )}
             <button type="button" onClick={createVendor}
-              className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm">등록</button>
+              className={`px-3 py-1.5 text-white rounded-lg text-sm ${vnCheck.existing ? 'bg-blue-600' : 'bg-slate-900'}`}>
+              {vnCheck.existing ? '기존 매출처 사용' : '등록'}
+            </button>
             <button type="button" onClick={() => setAddingVendor(false)}
               className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">취소</button>
             <span className="text-[0.6875rem] text-gray-400">

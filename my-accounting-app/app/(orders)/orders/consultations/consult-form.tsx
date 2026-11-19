@@ -10,6 +10,8 @@ import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-seaso
 import type { ContactOpt, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
 import { isMoimVendor } from '../form-shared'
 import IndividualRegister from '../individual-register'
+import { BranchStdHint, ExistingVendorNote, GroupStdHint, NamePreview, useVendorNameCheck } from '@/components/vendors/vendor-name-hints'
+import { groupKey, groupSearchKeywords, standardizeGroupName } from '@/lib/vendor-group-names'
 import { contactLabel } from '@/lib/contact-label'
 import ShipCard, { EMPTY_SHIP } from '../ship-card'
 import { needsShip, SHIP_KINDS, type ShipInput } from '@/lib/ship-address'
@@ -96,6 +98,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const [regBusy, setRegBusy] = useState(false)
   const [regGroupName, setRegGroupName] = useState('')
   const [regBranch, setRegBranch] = useState('')
+  // 업체명 자동 표준화 (2026-11-19) — 신규 매출처 등록 칸의 표준 업체명 · 지점명 정리 · 이미 있는 매출처
+  const regCheck = useVendorNameCheck('/api/orders-portal/masters?name_check=1', regGroupName, regBranch,
+    { groupId, groupName: groups.find(g => g.id === groupId)?.name ?? null, enabled: regOpen && !vendorId })
   const [regContactName, setRegContactName] = useState('')
   const [regContactTitle, setRegContactTitle] = useState('')
   const [regContactPhone, setRegContactPhone] = useState('')
@@ -567,13 +572,21 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     else setError(json.error)
   }
 
+  // 업체 칸 자유 입력의 표준화 (2026-11-19) — 옛 업체명('국민은행')이면 표준 업체(KB국민은행)로 연결 · 표기
+  const bankStd = (() => {
+    if (groupId || !bankText.trim()) return null
+    const std = standardizeGroupName(bankText)
+    if (!std.changed) return null
+    const g = groups.find(x => groupKey(x.name) === groupKey(std.name)) ?? null
+    return { name: std.name, groupId: g?.id ?? null }
+  })()
   const buildPayload = () => ({
     consult_date: consultDate,
     consult_type: consultType,
-    vendor_group_id: groupId,
+    vendor_group_id: groupId ?? bankStd?.groupId ?? null,
     vendor_id: vendorId,
     contact_id: contactId,
-    bank_name: bankText || null,
+    bank_name: (bankStd?.name ?? bankText) || null,
     branch_name: branchText || null,
     manager_name: managerText || null,
     phone: phone || null,
@@ -840,12 +853,17 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             <label className={label}>업체(은행)</label>
             {locked ? <div className={free}>{bankText || '-'}</div> : (
               <ComboFree text={bankText} selectedId={groupId}
-                options={groups.map(g => ({ id: g.id, label: g.name }))}
+                options={groups.map(g => ({ id: g.id, label: g.name, keywords: groupSearchKeywords(g.name) }))}
                 onChange={onGroupChange}
                 placeholder="마스터 검색 · 신규명 자유 입력" />
             )}
             {/* 비슷한 업체 안내 (2026-11-18 — 오타 업체 방지, 막지 않음) */}
-            {!locked && !groupId && (
+            {!locked && !groupId && bankStd && (
+              <div className="mt-1 rounded-lg px-2.5 py-1.5 text-xs bg-blue-50 border border-blue-200 text-blue-800">
+                &lsquo;<b>{bankText.trim()}</b>&rsquo;은(는) 표준 업체명 &lsquo;<b>{bankStd.name}</b>&rsquo;(으)로 저장됩니다.
+              </div>
+            )}
+            {!locked && !groupId && !bankStd && (
               <SimilarHint input={bankText} items={groups} nameOf={g => g.name} what="업체"
                 onPick={g => onGroupChange({ id: g.id, text: g.name })} />
             )}
@@ -1139,6 +1157,14 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 </select>
               </div>
             </div>
+            {!vendorId && (regGroupName.trim() || regBranch.trim()) && (
+              <div className="mt-2 space-y-1.5">
+                <GroupStdHint c={regCheck} onSuggest={n => setRegGroupName(n)} />
+                <BranchStdHint c={regCheck} />
+                <NamePreview c={regCheck} label="등록될 지점" />
+                <ExistingVendorNote c={regCheck} />
+              </div>
+            )}
             <div className="flex items-center gap-2 mt-2.5">
               <span className="text-[0.6875rem] text-gray-400">
                 인물 마스터에는 이름만 저장됩니다 — 직함은 배정 정보로, 존칭은 표시에서 붙습니다.
@@ -1147,8 +1173,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 <button type="button" disabled={regBusy} onClick={() => setRegOpen(false)}
                   className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600">닫기</button>
                 <button type="button" disabled={regBusy} onClick={registerVendor}
-                  className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-medium disabled:opacity-50">
-                  {regBusy ? '등록 중...' : '마스터에 등록'}
+                  className={`px-3.5 py-1.5 text-white rounded-lg text-xs font-medium disabled:opacity-50 ${!vendorId && regCheck.existing ? 'bg-blue-600' : 'bg-slate-900'}`}>
+                  {regBusy ? '등록 중...' : !vendorId && regCheck.existing
+                    ? (regContactName.trim() ? '기존 매출처에 담당자 등록' : '기존 매출처 사용') : '마스터에 등록'}
                 </button>
               </span>
             </div>

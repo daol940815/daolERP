@@ -492,7 +492,7 @@ export type ComboFooter = React.ReactNode | ((ctx: { q: string; close: () => voi
 export function Combo({ value, display, options, onSelect, placeholder, required, footer, onQuery }: {
   value: string | null
   display: string
-  options: { id: string; label: string; sub?: string; soldout?: boolean; note?: string }[]
+  options: { id: string; label: string; sub?: string; soldout?: boolean; note?: string; keywords?: string }[]
   onSelect: (id: string | null) => void
   placeholder: string
   required?: boolean
@@ -509,7 +509,7 @@ export function Combo({ value, display, options, onSelect, placeholder, required
   const filtered = useMemo(() => {
     if (!q) return options.slice(0, 50)
     return options.filter(o =>
-      o.label.toLowerCase().includes(q) || (o.sub ?? '').toLowerCase().includes(q),
+      o.label.toLowerCase().includes(q) || (o.sub ?? '').toLowerCase().includes(q) || (o.keywords ?? '').toLowerCase().includes(q),
     ).slice(0, 50)
   }, [options, q])
 
@@ -566,7 +566,7 @@ export function Combo({ value, display, options, onSelect, placeholder, required
 export function ComboFree({ text, selectedId, options, onChange, placeholder, footer }: {
   text: string
   selectedId: string | null
-  options: { id: string; label: string; sub?: string }[]
+  options: { id: string; label: string; sub?: string; keywords?: string }[]   // keywords = 검색에만 쓰는 별칭(표시 안 함, 2026-11-19)
   onChange: (patch: { id: string | null; text: string }) => void
   placeholder: string
   footer?: ComboFooter
@@ -580,7 +580,7 @@ export function ComboFree({ text, selectedId, options, onChange, placeholder, fo
   const filtered = useMemo(() => {
     if (!q) return options.slice(0, 50)
     return options.filter(o =>
-      o.label.toLowerCase().includes(q) || (o.sub ?? '').toLowerCase().includes(q),
+      o.label.toLowerCase().includes(q) || (o.sub ?? '').toLowerCase().includes(q) || (o.keywords ?? '').toLowerCase().includes(q),
     ).slice(0, 50)
   }, [options, q])
 
