@@ -71,11 +71,21 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     .select('id, method, email_to, subject, body, attachment_names, ok, error, sent_at, sender:employees!erp_po_send_logs_sent_by_fkey(name)')
     .eq('po_id', params.id).order('sent_at', { ascending: false })
 
+  // 주문 수정으로 바뀐 품목 표시 (2026-11-19): 발주서 줄이 가리키는 주문 품목이 취소됐으면 경고 대상.
+  // 주문 수정은 바뀐 품목을 지우지 않고 취소 + 새 행으로 바꾸므로 링크 NULL만으로는 잡히지 않는다.
+  const linkedIds = data.items.map(it => it.order_item_id as string | null).filter(Boolean) as string[]
+  const canceledIds = new Set<string>()
+  if (linkedIds.length) {
+    const { data: ois } = await admin.from('erp_order_items').select('id').in('id', linkedIds).eq('is_canceled', true)
+    for (const o of ois ?? []) canceledIds.add(o.id as string)
+  }
+
   const vendorFlags = one(data.po.vendor)
   // form: 화면 미리보기용 양식 데이터 — 엑셀과 같은 조립 함수를 거친다
   const form = await assembleForm(admin, data, staff)
   return NextResponse.json({
     ...data,
+    items: data.items.map(it => ({ ...it, order_item_canceled: canceledIds.has(it.order_item_id as string) })),
     po: {
       ...data.po,
       creator: undefined, vendor: undefined,

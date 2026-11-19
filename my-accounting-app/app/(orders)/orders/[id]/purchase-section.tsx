@@ -164,7 +164,7 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
                 )}
                 {p.status === 'active' && p.broken_count > 0 && (
                   <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-red-50 text-red-600">
-                    주문 수정됨 — 품목 {p.broken_count}건 연결 끊김, 재발주 검토
+                    주문 수정됨 — 품목 {p.broken_count}건 바뀜, 이 발주서 취소 후 재발주
                   </span>
                 )}
                 <span className="ml-auto flex items-center gap-1.5">
