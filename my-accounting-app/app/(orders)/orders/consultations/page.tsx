@@ -414,15 +414,16 @@ export default function ConsultationsPage() {
             <input value={reqMemo} onChange={e => setReqMemo(e.target.value)} disabled={!reqAssignee}
               placeholder="예: 11/10 출고 맞춰서 발주까지 부탁해요"
               className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm disabled:bg-gray-50" />
-            {emps.find(e => e.id === reqAssignee)?.employment_type === 'parttime' && !reqFor.master_linked && (
+            {!!reqAssignee && !reqFor.master_linked && (
               <div className="mt-2 text-xs px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
-                마스터 미연결 상담은 아르바이트에게 요청할 수 없습니다 — 상담일지에서 먼저 연결하세요.
+                마스터 미연결 상담은 요청할 수 없습니다 — 요청받은 직원은 상담을 고칠 수 없어 주문서로 전환하지 못합니다.
+                상담일지를 열어 지점 · 담당자를 마스터에서 고르거나 등록한 뒤 요청하세요.
               </div>
             )}
             {reqErr && <div className="mt-2 text-xs text-red-600">{reqErr}</div>}
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setReqFor(null)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">닫기</button>
-              <button onClick={submitRequest} disabled={reqBusy}
+              <button onClick={submitRequest} disabled={reqBusy || (!!reqAssignee && !reqFor.master_linked)}
                 className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">
                 {reqBusy ? '저장 중...' : reqAssignee ? '요청 보내기' : '요청 취소'}
               </button>
