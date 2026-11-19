@@ -103,6 +103,11 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
         const m = await mRes.json()
         if (!mRes.ok) throw new Error(m.error ?? '마스터 조회 실패')
         setVendors(m.vendors ?? [])
+        // 목록은 활성 매출처만(2026-11-19) — 저장된 주문 · 상담의 거래처가 비활성 · 매입처라 빠졌으면 이름만 보이게 붙여 둔다
+        const keepVendor = (id: string | null | undefined, name: string) => {
+          if (!id || ((m.vendors ?? []) as Vendor[]).some(v => v.id === id)) return
+          setVendors(prev => prev.some(v => v.id === id) ? prev : [...prev, { id, name: name || '(목록에 없는 거래처)', type: null, group_id: null }])
+        }
         setUsedSeasons(m.seasons ?? [])
         setGroups(m.groups ?? [])
         setEmployees(m.employees ?? [])
@@ -129,6 +134,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           }
           setOrderDate(ord.order_date)
           setVendorId(ord.vendor_id)
+          keepVendor(ord.vendor_id, [ord.bank_name, ord.branch_name].filter(Boolean).join(' '))
           setGroupId(((m.vendors ?? []) as Vendor[]).find(v => v.id === ord.vendor_id)?.group_id ?? null)
           setContactId(ord.contact_id)
           setCounselorId(ord.counselor_employee_id)
@@ -183,6 +189,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           if (!cRes.ok) throw new Error(c.error ?? '상담일지 조회 실패')
           const consult = c.consult
           setVendorId(consult.vendor_id)
+          keepVendor(consult.vendor_id, [consult.bank_name, consult.branch_name].filter(Boolean).join(' '))
           setGroupId(consult.vendor_group_id
             ?? ((m.vendors ?? []) as Vendor[]).find(v => v.id === consult.vendor_id)?.group_id ?? null)
           setContactId(consult.contact_id)
