@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { syncInvoicesForOrders } from '@/lib/link-sync'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
-import { netSalesOf } from '@/lib/receivable'
+import { billableOf } from '@/lib/receivable'
 import { cardNumberKey } from '@/lib/card-number'
 import { NOT_VOID_OR } from '@/lib/card-sale-status'
 import { syncRecordsForOrders } from '@/lib/payment-records'
@@ -95,7 +95,7 @@ export async function loadOrderCollectSummary(admin: SupabaseClient, orderId: st
   const { data: items, error: ie } = await admin.from('erp_order_items')
     .select('line_total, is_canceled, is_vip, is_prepayment').eq('order_id', orderId)
   if (ie) return { error: ie.message }
-  const net = netSalesOf(items ?? [])
+  const net = billableOf(items ?? [])   // 받을 돈 = 청구 금액(선결제 포함, 1308)
 
   const { data: ms, error: me } = await admin.from('erp_payment_matches')
     .select('id, source_type, source_id, amount, paid_date').eq('order_id', orderId).order('paid_date')

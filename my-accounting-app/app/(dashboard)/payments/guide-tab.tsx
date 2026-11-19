@@ -6,7 +6,7 @@ import { OrderNoLink } from '@/components/payments/OrderPreview'
 import { PAY_METHOD_TAG_CLS, PAY_METHOD_TAG_LABEL, PAY_STAGE_CLS, PAY_STAGE_LABEL, showMethodTag, type PayState } from '@/lib/pay-state'
 
 // 결제 확인 › 결제 안내 대상 (2026-11-16 3단계) — 영업지원 작업 목록
-// 결제 상태가 미결제 · 일부 결제인 주문. 받을 금액 = 주문 금액 − 기록 금액. 연락 기록(1301)을 남긴다.
+// 결제 상태가 미결제 · 일부 결제인 주문. 받을 금액 = 청구 금액(순매출 + 선결제, 1308) − 기록 금액. 연락 기록(1301)을 남긴다.
 
 type Method = 'phone' | 'sms' | 'email' | 'visit' | 'etc'
 const METHOD_LABEL: Record<Method, string> = { phone: '전화', sms: '문자', email: '메일', visit: '방문', etc: '기타' }
@@ -14,7 +14,7 @@ interface Contact { id: string; contact_date: string; method: Method; memo: stri
 interface Row {
   order_id: string; order_no: string | null; order_date: string
   customer_name: string; manager: string; phone: string; staff_name: string | null
-  net: number; to_collect: number; pay: PayState; days: number
+  net: number; prepay?: number; to_collect: number; pay: PayState; days: number   // net = 청구 금액(선결제 포함)
   last_contact: Contact | null; contact_count: number; promise_overdue: boolean; mine: boolean
   staff_ids?: string[]; staff_names?: string[]
 }
@@ -103,7 +103,7 @@ export default function GuideTab() {
   // 화면에 걸러진 그대로 내려받기
   const exportXlsx = async () => {
     if (!filtered.length) return
-    const header = ['주문일', '주문번호', '매출처', '담당자', '연락처', '다올 직원', '주문 금액', '받을 금액', '결제 상태', '결제 수단', '지난 날', '최근 연락일', '최근 연락', '입금 약속일']
+    const header = ['주문일', '주문번호', '매출처', '담당자', '연락처', '다올 직원', '청구 금액', '받을 금액', '결제 상태', '결제 수단', '지난 날', '최근 연락일', '최근 연락', '입금 약속일']
     const body = filtered.map(r => [
       r.order_date, r.order_no ?? '', r.customer_name, r.manager, r.phone, r.staff_name ?? '', r.net, r.to_collect,
       PAY_STAGE_LABEL[r.pay.stage], r.pay.method ? PAY_METHOD_TAG_LABEL[r.pay.method] : '', r.days,
@@ -168,7 +168,7 @@ export default function GuideTab() {
                   <th className="py-2.5 px-3 font-medium">주문일 / 번호</th>
                   <th className="py-2.5 px-3 font-medium">매출처 · 담당자</th>
                   <th className="py-2.5 px-3 font-medium">지점 담당</th>
-                  <th className="py-2.5 px-3 font-medium text-right">주문 금액</th>
+                  <th className="py-2.5 px-3 font-medium text-right" title="받을 돈 = 순매출 + 선결제 품목">청구 금액</th>
                   <th className="py-2.5 px-3 font-medium text-right">받을 금액</th>
                   <th className="py-2.5 px-3 font-medium">결제</th>
                   <th className="py-2.5 px-3 font-medium text-right">지난 날</th>
@@ -188,7 +188,7 @@ export default function GuideTab() {
                       <div className="text-[0.6875rem] text-gray-500">{[r.manager, r.phone].filter(Boolean).join(' · ')}{r.staff_name ? <span className="text-gray-400"> · 다올 {r.staff_name}</span> : null}</div>
                     </td>
                     <td className="py-2.5 px-3 text-xs whitespace-nowrap">{r.staff_names?.length ? r.staff_names.join(', ') : <span className="text-gray-400">담당 미지정</span>}</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">{won(r.net)}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">{won(r.net)}{(r.prepay ?? 0) > 0 && <div className="text-[0.6875rem] text-violet-700">선결제 {won((r.prepay ?? 0))} 포함</div>}</td>
                     <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap font-semibold text-red-600">{won(r.to_collect)}</td>
                     <td className="py-2.5 px-3">
                       <span className="inline-flex items-center gap-1 whitespace-nowrap">

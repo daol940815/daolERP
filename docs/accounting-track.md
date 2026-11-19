@@ -1381,3 +1381,9 @@ ERP 주문은 계획대로 교체(erp-reload-track). 결정 대기.
   "전부 해제"는 직접 붙인 것만 지운다. 직접 붙이면 직접 행으로 저장. `removeInvoicePayment` · `clearInvoicePayments`가 결과(Result)를 돌려주도록 바뀜.
 - 계산서 내역에서 주문 연결(2026-11-17, 빌드 통과 · main 병합 전): 매출 탭에 "주문" 칸 · "주문 연결" 버튼(collections 수정 권한자) · "주문 미연결" 칩,
   `GET /api/tax-invoices` 응답에 `order_links` · `can_link_order`, 엑셀 "연결 주문" 열. 회계 담당에게 수금 · 정산 작업 수정 권한이 없으면 버튼이 보이지 않는다.
+
+### 2026-11-19 표준 미수 뷰 변경 공유 — 1308 (결제처리 트랙, 사용자 승인)
+
+- `v_erp_order_receivable` 에 `prepay_amount`(유효 선결제 품목) · `billable`(= net_sales + prepay_amount) 칸 추가, **미수 상한을 net_sales → billable** 로.
+  선결제는 매출(net_sales)이 아니지만 고객이 낼 돈이라 미수에 포함(상품 150 + 선결제 25 주문의 받을 돈 = 175). net_sales · 월별 손익은 그대로.
+- JS 미러(`lib/receivable.ts` `outstandingOf` 의 prepay)도 같은 규칙. 상세 · 실행 순서는 docs/payment-track.md "청구 금액".

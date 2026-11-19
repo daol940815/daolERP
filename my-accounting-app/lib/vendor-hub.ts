@@ -79,7 +79,7 @@ interface OrderLite {
 }
 
 // net = 비제외 품목 합(표준 순매출) / excluded = 제외 품목 합(참고)
-interface FlagAgg { net: number; excluded: number; vip: number; vipCanceled: number }
+interface FlagAgg { net: number; excluded: number; vip: number; vipCanceled: number; prepay?: number }   // prepay: 유효 선결제 — 미수 상한에 더한다(1308)
 
 const today = () => new Date().toISOString().slice(0, 10)
 const addDays = (iso: string, days: number) => {
@@ -130,8 +130,9 @@ async function loadFlaggedLines(admin: SupabaseClient) {
   const byOrder = new Map<string, FlagAgg>()
   for (const it of r.data) {
     let a = byOrder.get(it.order_id)
-    if (!a) { a = { net: 0, excluded: 0, vip: 0, vipCanceled: 0 }; byOrder.set(it.order_id, a) }
+    if (!a) { a = { net: 0, excluded: 0, vip: 0, vipCanceled: 0, prepay: 0 }; byOrder.set(it.order_id, a) }
     const amt = it.line_total ?? 0
+    if (it.is_prepayment && !it.is_canceled && !it.is_vip) a.prepay = (a.prepay ?? 0) + amt
     if (it.is_canceled || it.is_vip || it.is_prepayment) a.excluded += amt
     else a.net += amt
     if (it.is_vip) {
@@ -284,7 +285,7 @@ export async function buildHubList(
       const inPeriod = (!fromDate || o.order_date >= fromDate) && (!toDate || o.order_date <= toDate)
       if (!inPeriod) continue
       const net = flags?.net ?? 0
-      const out = outstandingOf(o, { net, alloc: cutoffAlloc(o, fallback.payEvents.get(o.id)) })
+      const out = outstandingOf(o, { net, prepay: flags?.prepay ?? 0, alloc: cutoffAlloc(o, fallback.payEvents.get(o.id)) })
       a.order_count++
       a.net += net
       a.outstanding += out
@@ -630,9 +631,10 @@ export async function buildHubDetail(
   // ── 집계 ──
   const flaggedLocal = new Map<string, FlagAgg>()
   for (const [oid, items] of Array.from(itemsByOrder.entries())) {
-    const a: FlagAgg = { net: 0, excluded: 0, vip: 0, vipCanceled: 0 }
+    const a: FlagAgg = { net: 0, excluded: 0, vip: 0, vipCanceled: 0, prepay: 0 }
     for (const it of items) {
       const amt = it.line_total ?? 0
+      if (it.is_prepayment && !it.is_canceled && !it.is_vip) a.prepay = (a.prepay ?? 0) + amt
       if (it.is_canceled || it.is_vip || it.is_prepayment) a.excluded += amt
       else a.net += amt
       if (it.is_vip && !it.is_canceled) a.vip += amt
@@ -654,7 +656,7 @@ export async function buildHubDetail(
     vipTotal += flags?.vip ?? 0
     const oNet = flags?.net ?? 0
     // 표준 미수 (lib/receivable.ts = DB 뷰 v_erp_order_receivable과 동일 규칙)
-    const oOut = outstandingOf(o, { net: oNet, alloc: cutoffAlloc(o, payEventsByOrder.get(o.id)) })
+    const oOut = outstandingOf(o, { net: oNet, prepay: flags?.prepay ?? 0, alloc: cutoffAlloc(o, payEventsByOrder.get(o.id)) })
     if (oOut > 0) {
       const age = Math.floor((new Date(t0).getTime() - new Date(o.order_date).getTime()) / 86400000)
       if (age <= 30) aging.b30 += oOut

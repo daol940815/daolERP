@@ -187,6 +187,7 @@ async function buildReceivableFromOrders(
 
   // 순매출은 비제외 품목 합(lib/receivable.ts 표준) — 품목 전체를 청크로 읽는다
   const netByOrder = new Map<string, number>()
+  const prepayByOrder = new Map<string, number>()   // 유효 선결제 — 미수 상한에 더한다(1308)
   for (let i = 0; i < orderIds.length; i += 300) {
     const chunk = orderIds.slice(i, i + 300)
     const itRes = await fetchAllRows<{ order_id: string; line_total: number | null; is_canceled: boolean | null; is_vip: boolean | null; is_prepayment: boolean | null }>((rFrom, rTo) =>
@@ -198,6 +199,7 @@ async function buildReceivableFromOrders(
     )
     if ('error' in itRes) return { error: itRes.error }
     for (const it of itRes.data) {
+      if (it.is_prepayment && !it.is_canceled && !it.is_vip) prepayByOrder.set(it.order_id, (prepayByOrder.get(it.order_id) ?? 0) + (it.line_total || 0))
       if (it.is_canceled || it.is_vip || it.is_prepayment) continue
       netByOrder.set(it.order_id, (netByOrder.get(it.order_id) ?? 0) + (it.line_total || 0))
     }
@@ -286,7 +288,7 @@ async function buildReceivableFromOrders(
     g.total_amount += net
     g.excluded_amount += excluded
     const remaining = outstandingOf(order, {
-      net,
+      net, prepay: prepayByOrder.get(o.id as string) ?? 0,
       alloc: cutoffAlloc(order, matchesByOrder.get(o.id as string)),
     })
     g.outstanding_amount += remaining
@@ -495,6 +497,7 @@ export async function buildReceivableAgingRows(
   // 표준 미수(lib/receivable.ts)를 쓰려면 주문별 제외금액과 매칭 입금일이 필요하다.
   // 매칭 테이블이 아직 없는 환경도 있어 조회 실패는 매칭 없음으로 넘긴다.
   const netByOrder = new Map<string, number>()
+  const prepayByOrder = new Map<string, number>()   // 유효 선결제 — 미수 상한에 더한다(1308)
   const matchesByOrder = new Map<string, { amount: number; paid_date: string | null }[]>()
   for (let i = 0; i < orderIds.length; i += 300) {
     const chunk = orderIds.slice(i, i + 300)
@@ -516,6 +519,7 @@ export async function buildReceivableAgingRows(
     ])
     if ('error' in exRes) return { error: exRes.error }
     for (const it of exRes.data) {
+      if (it.is_prepayment && !it.is_canceled && !it.is_vip) prepayByOrder.set(it.order_id, (prepayByOrder.get(it.order_id) ?? 0) + (it.line_total || 0))
       if (it.is_canceled || it.is_vip || it.is_prepayment) continue
       netByOrder.set(it.order_id, (netByOrder.get(it.order_id) ?? 0) + (it.line_total || 0))
     }
@@ -545,7 +549,7 @@ export async function buildReceivableAgingRows(
     const oid = o.id as string
     const order = o as ReceivableOrderLike
     const remaining = outstandingOf(order, {
-      net: netByOrder.get(oid) ?? 0,
+      net: netByOrder.get(oid) ?? 0, prepay: prepayByOrder.get(oid) ?? 0,
       alloc: cutoffAlloc(order, matchesByOrder.get(oid)),
     })
     if (remaining <= 0) continue

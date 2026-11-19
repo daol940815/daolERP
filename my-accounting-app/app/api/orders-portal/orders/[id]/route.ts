@@ -214,11 +214,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   // 표준 미수(매칭 반영) — erp_orders.outstanding_amount는 매칭 전 원본값이라 표시에 쓰지 않는다
   const recv = recvMap?.get(params.id)
   const receivable = snap.order.canceled_at
-    ? { net_sales: 0, collected: 0, outstanding: 0, collect_status: String(snap.order.collect_status ?? '') }
+    ? { net_sales: 0, billable: 0, prepay: 0, collected: 0, outstanding: 0, collect_status: String(snap.order.collect_status ?? '') }
     : recv
       ? {
           net_sales: recv.net_sales,
-          collected: Math.max(0, recv.net_sales - recv.outstanding),
+          billable: recv.billable, prepay: recv.prepay,   // 받을 돈 = 순매출 + 선결제 (1308)
+          collected: Math.max(0, recv.billable - recv.outstanding),
           outstanding: recv.outstanding,
           collect_status: collectStatusFrom(snap.order.collect_status as string | null, recv),
         }
@@ -332,7 +333,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   let warning = result.warning
   const used = await prepayUsedOf(admin, params.id)
   if (used > 0) {
-    const net = (await loadReceivableMap(admin, [params.id]))?.get(params.id)?.net_sales ?? 0
+    const rv = (await loadReceivableMap(admin, [params.id]))?.get(params.id)
+    const net = rv?.billable ?? rv?.net_sales ?? 0
     if (used > net) {
       warning = [warning, `선결제 사용(${used.toLocaleString('ko-KR')}원)이 주문 금액(${net.toLocaleString('ko-KR')}원)보다 큽니다 — 결제 내역에서 해제 후 다시 사용하세요.`]
         .filter(Boolean).join(' / ')

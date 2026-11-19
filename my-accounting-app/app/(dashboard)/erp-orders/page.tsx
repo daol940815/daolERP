@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ErpOrder, ErpOrderItem } from '@/types/erp'
 import { getPeriodRange } from '@/lib/period-presets'
 import { computeOrderDeliveryStatus, ITEM_DELIVERY_STATUS_LABEL, ORDER_DELIVERY_STATUS_LABEL } from '@/lib/erp-delivery-status'
-import { cutoffAlloc, netSalesOf, outstandingOf } from '@/lib/receivable'
+import { cutoffAlloc, netSalesOf, outstandingOf, prepayOf } from '@/lib/receivable'
 import CollectMatchModal from '@/components/erp/CollectMatchModal'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
@@ -380,9 +380,10 @@ export default function ErpOrdersPage() {
                 const allocated = cutoffAlloc(o, orderMatches)
                 const preUpload = orderMatches.reduce((s, m) => s + m.amount, 0) - allocated
                 const netSales = netSalesOf(oItems)
-                const remaining = outstandingOf(o, { net: netSales, alloc: allocated })
+                const prepaySum = prepayOf(oItems)
+                const remaining = outstandingOf(o, { net: netSales, prepay: prepaySum, alloc: allocated })
                 const cappedByNet = o.collect_status !== 'collected'
-                  && Math.max(o.outstanding_amount - allocated, 0) > Math.max(netSales, 0)
+                  && Math.max(o.outstanding_amount - allocated, 0) > Math.max(netSales + prepaySum, 0)
                 const status = remaining <= 0
                   ? STATUS_LABEL.collected
                   : allocated > 0

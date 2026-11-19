@@ -6,7 +6,7 @@ import { buildInvoiceLinkCandidates, isMissingOrderInvoiceTable } from '@/lib/or
 import { loadBillingFamily } from '@/lib/billing'
 import { linkSyncReady, syncInvoicePaymentsFromOrders, syncOrderMatchesFromInvoices } from '@/lib/link-sync'
 import { can } from '@/lib/permissions'
-import { netSalesOf } from '@/lib/receivable'
+import { billableOf } from '@/lib/receivable'
 import { loadRecordedInvoiceVat, vatCompatible } from '@/lib/payment-kind-server'
 import { logLink } from '@/lib/match-log'
 import { resolveReason } from '@/lib/payment-reasons'
@@ -163,7 +163,7 @@ async function recheckLinks(
     if (o.error || it.error || ex.error) return (o.error ?? it.error ?? ex.error)!.message
     for (const r of o.data ?? []) orders.set(r.id as string, { order_no: r.order_no as string | null, canceled: !!r.canceled_at })
     for (const r of it.data ?? []) {
-      if (r.is_canceled || r.is_vip || r.is_prepayment) continue
+      if (r.is_canceled || r.is_vip) continue   // 계산서 · 수금은 선결제분 포함(청구 금액, 1308)
       netByOrder.set(r.order_id as string, (netByOrder.get(r.order_id as string) ?? 0) + Number(r.line_total ?? 0))
     }
     for (const r of ex.data ?? []) {
@@ -227,7 +227,7 @@ async function propagatePayments(
       const { data: items } = await admin.from('erp_order_items')
         .select('line_total, is_canceled, is_vip, is_prepayment')
         .eq('order_id', oid)
-      const net = netSalesOf(items ?? [])
+      const net = billableOf(items ?? [])   // 받을 돈(선결제 포함, 1308)
       const { data: alloc } = await admin.from('erp_payment_matches').select('amount').eq('order_id', oid)
       orderPayCap.set(oid, net - (alloc ?? []).reduce((s, r) => s + (r.amount as number), 0))
     }
