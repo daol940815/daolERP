@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { cleanContactTitle } from '@/lib/contact-label'
 import { parseManagerName } from '@/lib/contact-resolve'
 
 // ─────────────────────────────────────────────────────────
@@ -139,7 +140,7 @@ export async function ensureIndividualVendor(admin: SupabaseClient, input: {
     .select('id, title, staff_employee_id').eq('vendor_id', vendorId).eq('contact_id', input.contactId).is('ended_at', null).limit(1)
   let staff = input.staffEmployeeId ?? (cur?.[0]?.staff_employee_id as string | null | undefined) ?? null
   if (!cur?.length) {
-    let title = input.title ?? null
+    let title = cleanContactTitle(input.title)
     if (!title || !staff) {
       const { data: prev } = await admin.from('contact_assignments')
         .select('title, staff_employee_id, vendors!inner(group_id)')

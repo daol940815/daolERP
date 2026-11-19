@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cleanContactName, cleanContactTitle } from '@/lib/contact-label'
 import { createAdminClient } from '@/lib/supabase-server'
 import { followContactMerge, syncIndividualVendorName } from '@/lib/individual-customer'
 import { requireStaff } from '@/lib/customer-staff'
@@ -84,11 +85,11 @@ export async function POST(req: NextRequest) {
           staff = st.staff
         }
         const { data: c, error } = await admin.from('contacts')
-          .insert({ name: name.trim(), phone: phone?.trim() || null }).select('id').single()
+          .insert({ name: cleanContactName(name, title).name, phone: phone?.trim() || null }).select('id').single()
         if (error || !c) throw error ?? new Error('생성 실패')
         if (vendor_id) {
           const { error: ae } = await admin.from('contact_assignments')
-            .insert({ contact_id: c.id, vendor_id, title: title?.trim() || null, started_at: today, ...(staff ? { staff_employee_id: staff } : {}) })
+            .insert({ contact_id: c.id, vendor_id, title: cleanContactName(name, title).title, started_at: today, ...(staff ? { staff_employee_id: staff } : {}) })
           if (ae) throw ae
           // 주문 표기와 함께 온 경우 명시 연결도 기록 (오타 등 포함 관계가 아니어도 귀속되도록)
           if (raw_name?.trim()) {
@@ -114,7 +115,7 @@ export async function POST(req: NextRequest) {
           if (ue) throw ue
         }
         const { error } = await admin.from('contact_assignments').insert({
-          contact_id, vendor_id, title: title?.trim() || null,
+          contact_id, vendor_id, title: cleanContactTitle(title),
           is_representative: !!is_representative, started_at: today, ...(st.staff ? { staff_employee_id: st.staff } : {}) })
         if (error) throw error
         return ok()
@@ -132,7 +133,7 @@ export async function POST(req: NextRequest) {
           .eq('contact_id', contact_id).is('ended_at', null)
         if (ee) throw ee
         const { error } = await admin.from('contact_assignments')
-          .insert({ contact_id, vendor_id: to_vendor_id, title: title?.trim() || null, started_at: today, ...(st.staff ? { staff_employee_id: st.staff } : {}) })
+          .insert({ contact_id, vendor_id: to_vendor_id, title: cleanContactTitle(title), started_at: today, ...(st.staff ? { staff_employee_id: st.staff } : {}) })
         if (error) throw error
         return ok()
       }
@@ -205,7 +206,7 @@ export async function POST(req: NextRequest) {
         if (qe) throw qe
         if (!exist?.length) {
           const { error: ae } = await admin.from('contact_assignments')
-            .insert({ contact_id, vendor_id, title: title?.trim() || null, started_at: today })
+            .insert({ contact_id, vendor_id, title: cleanContactTitle(title), started_at: today })
           if (ae) throw ae
         }
         const { error } = await admin.from('contact_name_links')

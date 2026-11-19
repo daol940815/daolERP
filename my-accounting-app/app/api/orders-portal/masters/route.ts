@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cleanContactName } from '@/lib/contact-label'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
@@ -150,7 +151,7 @@ export async function POST(req: NextRequest) {
     if (!groupId || !(body.name ?? '').trim()) return NextResponse.json({ error: '업체와 고객 이름이 필요합니다.' }, { status: 400 })
     if (!staffId) return NextResponse.json({ error: STAFF_REQUIRED_MSG }, { status: 400 })
     const r = await createIndividualCustomer(admin, {
-      groupId, name: body.name!, title: body.title ?? null, phone: body.phone ?? null,
+      groupId, ...cleanContactName(body.name, body.title), phone: body.phone ?? null,
       staffEmployeeId: staffId, forceNew: String(body.force_new) === 'true',
     })
     if ('error' in r) return NextResponse.json({ error: r.error }, { status: 400 })
@@ -212,7 +213,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 3) 담당자(선택) — 같은 지점에 정규화 동일명이 배정되어 있으면 재사용
-    const contactName = (body.contact_name ?? '').trim()
+    const cleaned = cleanContactName(body.contact_name, body.contact_title)
+    const contactName = cleaned.name
     let contactId: string | null = null
     let contactReused = false
     if (contactName) {
@@ -226,7 +228,7 @@ export async function POST(req: NextRequest) {
       if (hit) { contactId = hit.contact_id as string; contactReused = true }
       else {
         const phone = (body.contact_phone ?? '').trim() || null
-        const title = (body.contact_title ?? '').trim() || null
+        const title = cleaned.title
         // 매출처 고객 신규 배정 — 다올 담당 필수 (112, 2026-11-05)
         const staffId = (body.staff_employee_id ?? '').trim() || null
         if (!staffId) return NextResponse.json({ error: STAFF_REQUIRED_MSG }, { status: 400 })
@@ -252,10 +254,9 @@ export async function POST(req: NextRequest) {
 
   if (body.action === 'create_contact') {
     const vendorId = body.vendor_id
-    const name = (body.name ?? '').trim()
+    const { name, title } = cleanContactName(body.name, body.title)
     if (!vendorId || !name) return NextResponse.json({ error: '거래처와 이름이 필요합니다.' }, { status: 400 })
     const phone = (body.phone ?? '').trim() || null
-    const title = (body.title ?? '').trim() || null
     // 다올 담당 필수 (112, 2026-11-05 — 은행 · 지점 · 고객마다 담당 기입)
     const staffId = (body.staff_employee_id ?? '').trim() || null
     if (!staffId) return NextResponse.json({ error: STAFF_REQUIRED_MSG }, { status: 400 })
