@@ -1587,7 +1587,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         {/* 주문 진행 요청 (705, 2026-11-05) — 상담만 하고 주문 입력은 다른 직원에게. 비우면 내가 직접 진행 */}
         {!locked && (() => {
           const picked = employees.find(e => e.id === reqAssignee)
-          const ptBlock = picked?.employment_type === 'parttime' && (!vendorId || !contactId)
+          const ptBlock = !!reqAssignee && (!vendorId || !contactId)   // 마스터 미연결이면 누구에게도 요청 불가 (2026-11-19, 서버 lib/order-request.ts와 같은 규칙)
           return (
             <div className="mt-4 p-3 rounded-lg border border-blue-200 bg-blue-50/40">
               <div className="text-sm font-bold text-gray-900 mb-2">
@@ -1615,7 +1615,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               </div>
               {ptBlock && (
                 <div className="mt-2 text-xs px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
-                  이 상담은 주문처 · 담당자가 마스터에 연결되지 않았습니다. 아르바이트는 신규 거래처 · 담당자 등록이 막혀 있어 전환할 수 없습니다 — 먼저 연결하거나 다른 직원에게 요청하세요.
+                  이 상담은 주문처 · 담당자가 마스터에 연결되지 않았습니다. 요청받은 직원은 상담을 고칠 수 없어 주문서로 전환하지 못합니다 —
+                  위에서 지점 · 담당자를 마스터에서 고르거나 &lsquo;매출처 마스터 등록&rsquo;으로 등록한 뒤 저장하면 요청됩니다.
                 </div>
               )}
               {reqAssignee && !ptBlock && (

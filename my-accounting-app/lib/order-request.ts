@@ -48,8 +48,11 @@ export async function saveOrderRequest(
     const { data: emp } = await admin.from('employees')
       .select('id, name, is_active, employment_type').eq('id', input.assignee_id).maybeSingle()
     if (!emp || emp.is_active === false) return '주문 진행 담당으로 고를 수 없는 직원입니다.'
-    if (emp.employment_type === 'parttime' && !masterLinked(c)) {
-      return '이 상담은 주문처 · 담당자가 마스터에 연결되지 않았습니다. 아르바이트는 신규 거래처 · 담당자 등록이 막혀 있어 전환할 수 없습니다 — 먼저 연결하거나 다른 직원에게 요청하세요.'
+    // 마스터 미연결 상담은 요청 불가 (2026-11-19 사용자 결정 — 다안, 전에는 아르바이트만 막았다):
+    // 요청받은 직원은 상담을 열람 · 전환만 할 수 있어 연결을 못 하고, 전환 버튼은 지점 · 담당자 연결이 끝나야 켜진다.
+    // 요청 취소(담당 비우기)는 막지 않는다.
+    if (!masterLinked(c)) {
+      return '이 상담은 주문처 · 담당자가 마스터에 연결되지 않았습니다. 요청받은 직원은 상담을 고칠 수 없어 주문서로 전환하지 못합니다 — 상담일지에서 지점 · 담당자를 마스터에서 고르거나 등록한 뒤 요청하세요.'
     }
   }
 
