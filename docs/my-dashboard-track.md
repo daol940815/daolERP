@@ -36,6 +36,7 @@
 | 담당 거래처 | RPC (`vendor_staff.employee_id`, 현재 배정) | 거래처 권한 있으면 `/sales-hub?mine=1`, 없으면 `/me/profile?tab=work` |
 | 이번 달 업무일지 | `/api/me/worklog` | `/me/worklog` |
 | 이번 달 영업일지 | RPC (`contact_activities.employee_id`) | `/me/journal` |
+| 올해 남은 연차 (부여 원장이 있는 직원만) | `loadBalanceData` + `computeBalance` (207, 연차 관리와 같은 계산) | `/hr/attendance` |
 | 오늘 근태 · 휴가 | `attendance_records` · `attendance_leaves` | `/hr/attendance` |
 | 최근 내 작성 주문 / 최근 업무일지 / 최근 영업일지 | summary API | 각 전체 화면 |
 
@@ -66,3 +67,5 @@
 - 구현: 주문 집계를 300 RPC에서 `lib/my-dashboard.ts`(`loadMyOrderStats`)로 옮김. 취소 주문 제외, 미수는 표준 미수
   (`v_erp_order_receivable`, 매칭 반영 — 전에는 RPC가 원본 `outstanding_amount`를 그대로 합산하고 취소 주문도 포함했다). DB 변경 없음.
   300 RPC는 담당 거래처 수 · 영업일지 수 · 이번 달 상담 주문 수에만 쓴다.
+- 2026-11-19 (사용자 요청): **올해 남은 연차** 카드 추가. 계산은 인사·총무 트랙 원천(`lib/leave-balance.ts` · `.server.ts`)을 그대로 호출 —
+  대시보드에서 규칙을 따로 만들지 않는다. 그해 유효 부여가 없는 직원(연차 대상 아님)은 숨김. 초과 사용이면 '초과 N일'. DB 변경 없음.
