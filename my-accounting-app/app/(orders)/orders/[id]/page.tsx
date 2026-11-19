@@ -54,7 +54,7 @@ interface Payments { matches: PaymentMatch[]; invoices: PaymentInvoice[] }
 // 선결제 사용 (514, 2026-11-05) — 주문처 잔액 · 사용 가능 여부
 interface PrepayInfo { balance: number; deposit: number; deduction: number; can_use: boolean }
 // 표준 미수(회계 트랙 v_erp_order_receivable — 수금 매칭 반영). 뷰 미적용이면 null → 원본값 폴백
-interface Receivable { net_sales: number; collected: number; outstanding: number; collect_status: string }
+interface Receivable { net_sales: number; billable?: number; prepay?: number; collected: number; outstanding: number; collect_status: string }
 
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
 const STATUS_KO: Record<string, string> = {
@@ -198,7 +198,9 @@ export default function OrderDetailPage() {
   const total = order.total_amount as number
   const outstanding = receivable ? receivable.outstanding : Number(order.outstanding_amount ?? 0)
   const collectStatus = receivable ? receivable.collect_status : String(order.collect_status ?? '')
-  const salesBase = receivable ? receivable.net_sales : total
+  // 받을 돈 = 청구 금액(순매출 + 선결제, 1308). 1308 미적용이면 순매출
+  const salesBase = receivable ? (receivable.billable ?? receivable.net_sales) : total
+  const prepayInBill = receivable?.prepay ?? 0   // 청구 금액 중 선결제
   const collectedAmt = receivable ? receivable.collected : Math.max(0, total - outstanding)
 
   return (
@@ -431,8 +433,9 @@ export default function OrderDetailPage() {
           <div className="text-sm font-bold text-gray-900">결제 내역</div>
           <span className="text-[0.6875rem] text-gray-400">수금 · 계산서 연결이 자동으로 표시됩니다 · 선결제 사용은 여기서 처리</span>
           <span className="ml-auto text-sm text-gray-700">
-            <span title="취소·VIP·선결제 품목을 뺀 금액 (미수 계산 기준)">{receivable ? '순매출' : '총금액'}</span>{' '}
+            <span title="받을 돈 = 순매출(취소 · VIP · 선결제 제외) + 선결제 품목. 선결제는 매출이 아니지만 고객이 내야 할 돈이라 미수에 포함됩니다">{receivable ? '청구 금액' : '총금액'}</span>{' '}
             <b className="tabular-nums">{won(salesBase)}원</b>
+            {prepayInBill > 0 && <span className="text-[0.6875rem] text-violet-700"> (순매출 {won(receivable?.net_sales ?? 0)} + 선결제 {won(prepayInBill)})</span>}
             <span className="mx-1 text-gray-300">·</span>
             수금 <b className="tabular-nums text-emerald-700">{won(collectedAmt)}원</b>
             <span className="mx-1 text-gray-300">·</span>

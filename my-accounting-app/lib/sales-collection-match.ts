@@ -121,7 +121,7 @@ export async function buildCollectionCandidates(
         .range(f, t))
     if ('error' in r) return { error: r.error }
     for (const it of r.data) {
-      if (it.is_canceled || it.is_vip || it.is_prepayment) continue
+      if (it.is_canceled || it.is_vip) continue   // 받을 돈 = 청구 금액(선결제 포함, 1308)
       netByOrder.set(it.order_id, (netByOrder.get(it.order_id) ?? 0) + (it.line_total ?? 0))
     }
   }

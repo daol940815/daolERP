@@ -97,6 +97,7 @@ export async function buildVendorSalesDetail(
   // 품목 — 주문별 건수 + 순매출(비제외 합) + 선호 품목(품목명 그룹핑, 취소/VIP/선결제 제외) 집계
   const itemCountByOrder = new Map<string, number>()
   const netByOrder = new Map<string, number>()
+  const prepayByOrder = new Map<string, number>()   // 유효 선결제 — 미수 상한에 더한다(1308)
   const itemGroups = new Map<string, { item_name: string; quantity: number; line_total: number; orderIds: Set<string> }>()
 
   for (let i = 0; i < orderIds.length; i += 500) {
@@ -112,6 +113,7 @@ export async function buildVendorSalesDetail(
     for (const it of itemsResult.data) {
       const orderId = it.order_id as string
       itemCountByOrder.set(orderId, (itemCountByOrder.get(orderId) ?? 0) + 1)
+      if (it.is_prepayment && !it.is_canceled && !it.is_vip) prepayByOrder.set(orderId, (prepayByOrder.get(orderId) ?? 0) + ((it.line_total as number) || 0))
       if (it.is_canceled || it.is_vip || it.is_prepayment) continue
       // 순매출 = 비제외 품목 합 (lib/receivable.ts 표준)
       netByOrder.set(orderId, (netByOrder.get(orderId) ?? 0) + ((it.line_total as number) || 0))
@@ -139,7 +141,7 @@ export async function buildVendorSalesDetail(
 
   const orderRows: VendorOrderRow[] = orders.map(o => {
     const netAmount = netByOrder.get(o.id) ?? 0
-    const remaining = outstandingOf(o, { net: netAmount, alloc: cutoffAlloc(o, matchesByOrder.get(o.id)) })
+    const remaining = outstandingOf(o, { net: netAmount, prepay: prepayByOrder.get(o.id) ?? 0, alloc: cutoffAlloc(o, matchesByOrder.get(o.id)) })
 
     const staffName = o.staff_name?.trim()
     if (staffName) staffSet.add(staffName)

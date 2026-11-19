@@ -152,7 +152,8 @@ export async function buildInvoiceLinkCandidates(
         .range(f, t))
     if ('error' in r) return { error: r.error }
     for (const it of r.data) {
-      if (it.is_canceled || it.is_vip || it.is_prepayment) continue
+      // 계산서는 선결제분까지 포함해 발행한다 (1308, 2026-11-19 사용자 결정) — 연결 금액 = 청구 금액
+      if (it.is_canceled || it.is_vip) continue
       netByOrder.set(it.order_id, (netByOrder.get(it.order_id) ?? 0) + (it.line_total ?? 0))
     }
   }

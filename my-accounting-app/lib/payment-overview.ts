@@ -69,7 +69,7 @@ export interface OverviewMatch {
 export interface OverviewRow extends StaffInfo {
   order_id: string; order_no: string | null; order_date: string
   customer_name: string; manager: string
-  net: number; outstanding: number; pay: PayState
+  net: number; prepay: number; outstanding: number; pay: PayState   // net = 청구 금액(선결제 포함, 1308), prepay = 그중 선결제
   records: OverviewRecord[]
 }
 // 줄을 펼칠 때 따로 읽는 상세 (2026-11-18 — 목록은 가볍게, 무거운 것은 보이는 줄만)
@@ -127,7 +127,7 @@ export async function loadOverview(admin: SupabaseClient): Promise<{ error: stri
     order_id: o.id, order_no: o.order_no, order_date: o.order_date,
     customer_name: [o.bank_name, o.branch_name].filter(Boolean).join(' '), manager: honorify(o.manager_name),
     ...(staff.get(o.id) ?? { vendor_id: null, staff_ids: [], staff_names: [] }),
-    net: recv.get(o.id)?.net_sales ?? 0, outstanding: recv.get(o.id)?.outstanding ?? 0, pay: payMap.get(o.id)!,
+    net: recv.get(o.id)?.billable ?? 0, prepay: recv.get(o.id)?.prepay ?? 0, outstanding: recv.get(o.id)?.outstanding ?? 0, pay: payMap.get(o.id)!,
     records: (recByOrder.get(o.id) ?? []).sort((a, b) => a.pay_date.localeCompare(b.pay_date) || a.created_at.localeCompare(b.created_at)),
   }))
   return { rows, released: await loadRecentUnmatches(admin) }
@@ -187,7 +187,7 @@ export interface OrderPreview {
   order_id: string; order_no: string | null; order_date: string; canceled: boolean
   customer_name: string; manager: string; counselor: string | null; staff_names: string[]
   items: { item_name: string | null; quantity: number; sale_price: number; line_total: number; flag: string | null }[]
-  net: number; outstanding: number; pay: PayState | null
+  net: number; prepay: number; outstanding: number; pay: PayState | null   // net = 청구 금액(선결제 포함)
   records: OverviewRecord[]; match_count: number; contact_count: number; memo: string | null
 }
 
@@ -232,7 +232,7 @@ export async function loadOrderPreview(admin: SupabaseClient, orderId: string): 
       item_name: it.item_name as string | null, quantity: Number(it.quantity ?? 0), sale_price: Number(it.sale_price ?? 0), line_total: Number(it.line_total ?? 0),
       flag: it.is_canceled ? '취소' : it.is_vip ? 'VIP' : it.is_prepayment ? '선결제' : null,
     })),
-    net: recv?.get(orderId)?.net_sales ?? 0, outstanding: o.canceled_at ? 0 : (recv?.get(orderId)?.outstanding ?? 0), pay: payMap.get(orderId) ?? null,
+    net: recv?.get(orderId)?.billable ?? 0, prepay: recv?.get(orderId)?.prepay ?? 0, outstanding: o.canceled_at ? 0 : (recv?.get(orderId)?.outstanding ?? 0), pay: payMap.get(orderId) ?? null,
     records, match_count: mc ?? 0, contact_count: cc.error ? 0 : (cc.count ?? 0), memo: (o.memo as string | null) ?? null,
   }
 }

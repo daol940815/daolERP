@@ -66,6 +66,19 @@ export function netSalesOf(items: ReceivableItemLike[] | undefined): number {
   return sum
 }
 
+/** 유효 선결제 품목 합 (취소 · VIP 아님) — 매출은 아니지만 받을 돈이다 (1308, 2026-11-19) */
+export function prepayOf(items: ReceivableItemLike[] | undefined): number {
+  if (!items?.length) return 0
+  let sum = 0
+  for (const it of items) if (it.is_prepayment && !it.is_canceled && !it.is_vip) sum += it.line_total ?? 0
+  return sum
+}
+
+/** 청구 금액(받을 돈) = 순매출 + 유효 선결제 (1308). 미수의 상한이다 — DB 뷰 v_erp_order_receivable.billable 과 같은 규칙 */
+export function billableOf(items: ReceivableItemLike[] | undefined): number {
+  return netSalesOf(items) + prepayOf(items)
+}
+
 /** 컷오프를 통과해 실제로 차감되는 매칭 입금액 */
 export function cutoffAlloc(o: ReceivableOrderLike, events: PayEvent[] | undefined): number {
   if (!events?.length) return 0
@@ -83,12 +96,12 @@ export function cutoffAlloc(o: ReceivableOrderLike, events: PayEvent[] | undefin
 /** 표준 미수 (구성요소를 이미 들고 있을 때) */
 export function outstandingOf(
   o: ReceivableOrderLike,
-  opts: { net: number; alloc: number },
+  opts: { net: number; alloc: number; prepay?: number },   // prepay: 유효 선결제 품목 합 — 미수 상한 = 순매출 + 선결제(1308)
 ): number {
   if (o.collect_status === 'collected') return 0
   return Math.min(
     Math.max(0, (o.outstanding_amount ?? 0) - opts.alloc),
-    Math.max(0, opts.net),
+    Math.max(0, opts.net + (opts.prepay ?? 0)),
   )
 }
 
@@ -98,5 +111,5 @@ export function orderOutstanding(
   items: ReceivableItemLike[] | undefined,
   events: PayEvent[] | undefined,
 ): number {
-  return outstandingOf(o, { net: netSalesOf(items), alloc: cutoffAlloc(o, events) })
+  return outstandingOf(o, { net: netSalesOf(items), prepay: prepayOf(items), alloc: cutoffAlloc(o, events) })
 }

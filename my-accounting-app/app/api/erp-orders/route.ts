@@ -91,6 +91,7 @@ export async function GET(req: NextRequest) {
     // 미수·순매출은 lib/receivable.ts 표준 규칙으로 계산한다 (RPC·허브와 같은 값).
     // 순매출은 비제외 품목 합이므로 품목 전체를 읽어야 한다 — 청크로 나눠 조회.
     const netByOrder = new Map<string, number>()
+    const prepayByOrder = new Map<string, number>()   // 유효 선결제 — 미수 상한에 더한다(1308)
     const matchesByOrder = new Map<string, { amount: number; paid_date: string | null }[]>()
     for (let i = 0; i < allIds.length; i += 300) {
       const chunkIds = allIds.slice(i, i + 300)
@@ -113,6 +114,7 @@ export async function GET(req: NextRequest) {
       if ('error' in flaggedResult) return NextResponse.json({ error: flaggedResult.error }, { status: 500 })
       if ('error' in matchResult)  return NextResponse.json({ error: matchResult.error }, { status: 500 })
       for (const it of flaggedResult.data) {
+        if (it.is_prepayment && !it.is_canceled && !it.is_vip) prepayByOrder.set(it.order_id, (prepayByOrder.get(it.order_id) ?? 0) + (it.line_total || 0))
         if (it.is_canceled || it.is_vip || it.is_prepayment) continue
         netByOrder.set(it.order_id, (netByOrder.get(it.order_id) ?? 0) + (it.line_total || 0))
       }
@@ -127,7 +129,7 @@ export async function GET(req: NextRequest) {
     for (const o of allOrders) {
       const net = netByOrder.get(o.id) ?? 0
       netSales += net
-      outstanding += outstandingOf(o, { net, alloc: cutoffAlloc(o, matchesByOrder.get(o.id)) })
+      outstanding += outstandingOf(o, { net, prepay: prepayByOrder.get(o.id) ?? 0, alloc: cutoffAlloc(o, matchesByOrder.get(o.id)) })
     }
   } else {
     return NextResponse.json({ error: se.message }, { status: 500 })
