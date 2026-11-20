@@ -27,6 +27,11 @@ export interface OrgData {
   totals: { self: OrgTotals; subtree: OrgTotals }
   changes: { field: string; old_name: string | null; new_name: string | null; changed_by_name: string | null; changed_at: string }[]
   can_edit: boolean
+  located?: LocatedRow[]
+}
+export interface LocatedRow {
+  id: string; name: string; path: string; depth: number
+  contact_rep: string | null; contacts: number; net: number; outstanding: number; order_count: number
 }
 
 export function useOrg(vendorId: string, from: string, to: string) {
@@ -83,6 +88,7 @@ export function OrgHeader({ org, vendorName, onEdit, scope, setScope, part }: {
           </>
         )}
       </div>
+      {!!org.located?.length && <LocatedBox rows={org.located} />}
       {org.child_count > 0 && (
         <div className="mt-2 flex items-center gap-3 flex-wrap bg-white border border-gray-200 rounded-xl px-3 py-2">
           <span className="text-xs text-gray-500">집계 범위</span>
@@ -98,6 +104,58 @@ export function OrgHeader({ org, vendorName, onEdit, scope, setScope, part }: {
         </div>
       )}
       </>}
+    </div>
+  )
+}
+
+// 이 지점에 있는 조직 (2026-11-20) — 위치(자리)만 같고 소속은 다르다. 숫자는 참고용이며 이 매출처의 집계에 더하지 않는다.
+function LocatedBox({ rows }: { rows: LocatedRow[] }) {
+  const [open, setOpen] = useState(false)
+  const sum = rows.reduce((a, r) => ({ net: a.net + r.net, outstanding: a.outstanding + r.outstanding }), { net: 0, outstanding: 0 })
+  return (
+    <div className="mt-2 bg-white border border-gray-200 rounded-xl">
+      <button onClick={() => setOpen(o => !o)} className="w-full px-3 py-2 flex items-center gap-2 flex-wrap text-left">
+        <span className="text-xs font-bold text-gray-700">이 지점에 있는 조직 {rows.length}</span>
+        <span className="text-xs text-gray-600 truncate">{rows.filter(r => r.depth === 0).map(r => r.path).join(' · ')}{rows.some(r => r.depth > 0) ? ` 외 하위 ${rows.filter(r => r.depth > 0).length}` : ''}</span>
+        <span className="text-[0.6875rem] text-gray-400">소속이 달라 이 지점 집계에는 들어가지 않습니다</span>
+        <span className="ml-auto text-xs text-blue-700">{open ? '접기' : '목록 보기'}</span>
+      </button>
+      {open && (
+        <div className="overflow-x-auto border-t border-gray-100">
+          <table className="w-full text-sm min-w-[640px]">
+            <thead>
+              <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+                <th className="py-2 px-3 text-left font-medium">조직 (소속 경로)</th>
+                <th className="py-2 px-3 text-left font-medium">대표 담당자</th>
+                <th className="py-2 px-3 text-right font-medium">담당자</th>
+                <th className="py-2 px-3 text-right font-medium">기간 매출</th>
+                <th className="py-2 px-3 text-right font-medium">미수</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
+                  <td className="py-1.5 px-3">
+                    <span style={{ paddingLeft: `${r.depth * 1.1}rem` }} className="inline-flex items-center gap-1">
+                      {r.depth > 0 && <span className="text-gray-300">└</span>}
+                      <Link href={`/sales-hub/${r.id}`} className="text-gray-800 hover:underline">{r.path}</Link>
+                    </span>
+                  </td>
+                  <td className="py-1.5 px-3 text-xs text-gray-700">{r.contact_rep ?? <span className="text-gray-300">-</span>}</td>
+                  <td className="py-1.5 px-3 text-right tabular-nums">{r.contacts}</td>
+                  <td className="py-1.5 px-3 text-right tabular-nums">{won(r.net)}</td>
+                  <td className={`py-1.5 px-3 text-right tabular-nums ${r.outstanding > 0 ? 'text-red-600' : 'text-gray-400'}`}>{won(r.outstanding)}</td>
+                </tr>
+              ))}
+              <tr className="bg-gray-50">
+                <td className="py-1.5 px-3 text-xs text-gray-500" colSpan={3}>참고 합계 (이 지점 숫자와 별도)</td>
+                <td className="py-1.5 px-3 text-right tabular-nums text-gray-600">{won(sum.net)}</td>
+                <td className="py-1.5 px-3 text-right tabular-nums text-gray-600">{won(sum.outstanding)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
