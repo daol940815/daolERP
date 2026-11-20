@@ -151,6 +151,13 @@ export interface OrgDetail {
   child_count: number     // 하위 전체 수
   totals: { self: OrgTotals; subtree: OrgTotals }
   changes: { field: string; old_name: string | null; new_name: string | null; changed_by_name: string | null; changed_at: string }[]
+  // 이 지점에 있는 조직(2026-11-20) — 위치가 이 매출처인 조직 + 그 하위 중 위치를 따로 정하지 않은 조직.
+  // 소속이 다르므로 이 매출처의 숫자(totals)에는 더하지 않는다 — 참고로만 보여 준다.
+  located: LocatedRow[]
+}
+export interface LocatedRow {
+  id: string; name: string; path: string; depth: number
+  contact_rep: string | null; contacts: number; net: number; outstanding: number; order_count: number
 }
 export interface OrgTotals { net: number; outstanding: number; order_count: number; contacts: number }
 
@@ -162,7 +169,7 @@ export async function loadOrgDetail(admin: SupabaseClient, vendorId: string, fro
   const gName = me.group_id ? groupName.get(me.group_id as string) ?? null : null
   const base: OrgDetail = {
     available, path: [], group: me.group_id ? { id: me.group_id as string, name: gName ?? '' } : null,
-    parent: null, location: null, unit: me.name as string, rows: [], child_count: 0, totals: { self: empty, subtree: empty }, changes: [],
+    parent: null, location: null, unit: me.name as string, rows: [], child_count: 0, totals: { self: empty, subtree: empty }, changes: [], located: [],
   }
   if (!available) return base
   // 업체 미지정이면 nodes 에 자기만 없을 수 있다 — 단독으로 다시 읽는다
@@ -176,6 +183,24 @@ export async function loadOrgDetail(admin: SupabaseClient, vendorId: string, fro
   const desc = descendantIds(vendorId, children)
   const ids = [vendorId, ...desc]
 
+  // 이 지점에 있는 조직: 위치 = 이 매출처(업체가 달라도) + 같은 업체 안 그 하위 중 위치 미지정
+  const locatedIds: { id: string; depth: number }[] = []
+  {
+    const { data: lv } = await admin.from('vendors').select('id, name, group_id, parent_vendor_id, location_vendor_id, is_active')
+      .eq('location_vendor_id', vendorId).neq('status', 'merged')
+    const seen = new Set<string>()
+    const add = (id: string, depth: number) => {
+      if (seen.has(id) || id === vendorId) return
+      seen.add(id); locatedIds.push({ id, depth })
+      for (const c of children.get(id) ?? []) if (!c.location_vendor_id && c.is_active) add(c.id, depth + 1)
+    }
+    for (const v of (lv ?? []).sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'))) {
+      if (!byId.has(v.id as string)) byId.set(v.id as string, { ...(v as OrgNode), is_active: v.is_active !== false })
+      add(v.id as string, 0)
+    }
+  }
+  const numIds = [...ids, ...locatedIds.map(l => l.id)]
+
   // 위치 이름 (다른 업체일 수도 있어 따로 읽는다)
   const locIds = Array.from(new Set(ids.map(i => byId.get(i)?.location_vendor_id).filter((x): x is string => !!x)))
   const locName = new Map<string, string>()
@@ -186,10 +211,11 @@ export async function loadOrgDetail(admin: SupabaseClient, vendorId: string, fro
 
   // 숫자: 매출처 목록과 같은 계산(기간 매출 · 미수 · 주문) + 현재 담당자 수
   const hub = await buildHubList(admin, from, to)
-  const hubRow = new Map(('error' in hub ? [] : hub.rows).filter(r => ids.includes(r.vendor_id)).map(r => [r.vendor_id, r]))
+  const numSet = new Set(numIds)
+  const hubRow = new Map(('error' in hub ? [] : hub.rows).filter(r => numSet.has(r.vendor_id)).map(r => [r.vendor_id, r]))
   const contactCount = new Map<string, number>()
-  for (let i = 0; i < ids.length; i += 150) {
-    const { data } = await admin.from('contact_assignments').select('vendor_id').in('vendor_id', ids.slice(i, i + 150)).is('ended_at', null)
+  for (let i = 0; i < numIds.length; i += 150) {
+    const { data } = await admin.from('contact_assignments').select('vendor_id').in('vendor_id', numIds.slice(i, i + 150)).is('ended_at', null)
     for (const a of data ?? []) contactCount.set(a.vendor_id as string, (contactCount.get(a.vendor_id as string) ?? 0) + 1)
   }
 
@@ -222,6 +248,16 @@ export async function loadOrgDetail(admin: SupabaseClient, vendorId: string, fro
     rows, child_count: desc.length,
     totals: { self: sum(rows.filter(r => r.is_self)), subtree: sum(rows) },
     changes: (ch ?? []) as OrgDetail['changes'],
+    located: locatedIds.map(({ id, depth }) => {
+      const n = byId.get(id)!, h = hubRow.get(id)
+      const gn = n.group_id ? groupName.get(n.group_id) ?? null : null
+      return {
+        id, name: n.name, depth,
+        path: [...ancestorsOf(id, byId).map(a => unitName(a, byId, gn)), unitName(n, byId, gn)].join(' › '),
+        contact_rep: h?.contact_rep ?? null, contacts: contactCount.get(id) ?? 0,
+        net: h?.net ?? 0, outstanding: h?.outstanding ?? 0, order_count: h?.order_count ?? 0,
+      }
+    }),
   }
 }
 
