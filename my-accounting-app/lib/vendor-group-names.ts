@@ -19,6 +19,8 @@ export interface GroupNameRule {
 export const GROUP_NAME_RULES: GroupNameRule[] = [
   { standard: 'IBK기업은행', aliases: ['기업은행', '중소기업은행', 'IBK', 'IBK기업'], decided: '2026-11-19' },
   { standard: 'KB국민은행', aliases: ['국민은행', 'KB국민'], decided: '2026-11-19' },
+  // '농협' 단독은 넣지 않는다 — 지역 농협(송포농협 · 금정농협 등)과 NH농협손해보험 · NH농협생명은 다른 업체
+  { standard: 'NH농협은행', aliases: ['농협은행', 'NH농협'], decided: '2026-11-20' },
 ]
 
 // 바꾸지 않고 안내만 (2026-11-19 사용자 결정 — 'KB' 단독 입력)
