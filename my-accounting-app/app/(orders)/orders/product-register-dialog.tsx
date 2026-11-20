@@ -123,7 +123,7 @@ export default function ProductRegisterDialog({ seed, products, onClose, onDone 
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3">
           <div><label className={label}>품번</label>
-            <input value={f.item_code} onChange={e => set({ item_code: e.target.value })} placeholder="(선택)" className={`${cls} ${pre(false)}`} /></div>
+            <input value={f.item_code} onChange={e => set({ item_code: e.target.value })} placeholder="없으면 빈칸" className={`${cls} ${pre(false)}`} /></div>
           <div className="col-span-2"><label className={label}>품명 {req}</label>
             <input value={f.item_name} onChange={e => set({ item_name: e.target.value })} className={`${cls} ${pre(!!seed.item_name.trim())}`} /></div>
           <div><label className={label}>매입처 {req}</label>

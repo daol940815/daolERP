@@ -640,7 +640,7 @@ export default function ProductsPage() {
           <div>
             <label className="block text-[0.6875rem] text-gray-500 mb-0.5">품번</label>
             <input value={draft.item_code} onChange={e => setDraft(d => ({ ...d, item_code: e.target.value }))}
-              className={`${inputCls} w-28`} placeholder="선택" />
+              className={`${inputCls} w-28`} placeholder="없으면 빈칸" />
           </div>
           <div>
             <label className="block text-[0.6875rem] text-gray-500 mb-0.5">품명 *</label>

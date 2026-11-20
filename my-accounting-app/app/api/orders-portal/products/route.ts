@@ -5,6 +5,7 @@ import { can } from '@/lib/permissions'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { ensureAlias } from '@/lib/orders-portal'
 import { toPurchasePrice } from '@/lib/purchase-price'
+import { normalizeItemCode } from '@/lib/product-list-params'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
     }
     const purchaseName = String(body.purchase_vendor_name ?? '').trim() || null
     const fields: Record<string, unknown> = {
-      item_code: String(body.item_code ?? '').trim() || null,
+      item_code: normalizeItemCode(body.item_code),   // 빈칸 · '-' = 품번 없음 (2026-11-20)
       item_name: itemName,
       purchase_vendor_name: purchaseName,
       purchase_alias_id: purchaseName ? await ensureAlias(admin, 'purchase', purchaseName) : null,
