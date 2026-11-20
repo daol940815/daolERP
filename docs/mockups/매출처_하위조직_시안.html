@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 매출처 하위 조직</title><style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; font-size: 13px; }
+  .wrap { max-width: 1240px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 14px; line-height: 1.75; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tabs button { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; color: #334155; }
+  .tabs button.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .screen { display: none; } .screen.on { display: block; }
+  h1 { font-size: 20px; font-weight: 700; } h2 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  .sub { font-size: 12px; color: #64748b; margin-top: 3px; line-height: 1.6; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+  .grid2 { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; align-items: start; }
+  .crumb { font-size: 12px; color: #64748b; margin-bottom: 4px; } .crumb a { color: #1d4ed8; text-decoration: none; } .crumb b { color: #0f172a; }
+  .b { display: inline-block; border-radius: 6px; padding: 2px 7px; font-size: 11px; font-weight: 600; }
+  .b-blue { background: #dbeafe; color: #1d4ed8; } .b-slate { background: #f1f5f9; color: #475569; } .b-violet { background: #ede9fe; color: #6d28d9; } .b-amber { background: #fef3c7; color: #b45309; }
+  .btn { border: 0; border-radius: 8px; padding: 6px 11px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .btn-dark { background: #0f172a; color: #fff; } .btn-line { background: #fff; color: #334155; border: 1px solid #cbd5e1; } .btn-sm { padding: 3px 9px; font-size: 11.5px; }
+  .ptabs { display: flex; gap: 2px; border-bottom: 1px solid #e2e8f0; margin: 12px 0; }
+  .ptabs span { padding: 7px 13px; font-size: 13px; color: #94a3b8; } .ptabs span.on { color: #0f172a; font-weight: 700; border-bottom: 2px solid #0f172a; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11.5px; color: #64748b; font-weight: 500; padding: 7px 8px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+  td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; } td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+  .tree { color: #94a3b8; font-family: ui-monospace, monospace; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0; }
+  .kpi { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; } .kpi .k { font-size: 11.5px; color: #64748b; } .kpi .v { font-size: 17px; font-weight: 700; margin-top: 2px; } .kpi .d { font-size: 11px; color: #94a3b8; }
+  .toggle { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; } .toggle span { padding: 4px 10px; font-size: 12px; } .toggle span.on { background: #0f172a; color: #fff; }
+  .modal { background: #fff; border-radius: 14px; box-shadow: 0 20px 50px rgba(15,23,42,.25); padding: 20px; max-width: 520px; }
+  label { display: block; font-size: 12px; font-weight: 600; color: #334155; margin: 10px 0 4px; } .input { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+  .dd { border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 4px; } .dd div { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; font-size: 12.5px; } .dd div:last-child { border-bottom: 0; } .dd .p { color: #94a3b8; font-size: 11.5px; }
+  .hint { margin-top: 6px; border-radius: 8px; padding: 7px 10px; font-size: 12px; line-height: 1.6; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+  .explain { font-size: 12px; color: #334155; line-height: 1.85; } .explain li { margin-left: 16px; }
+  code { background: #f1f5f9; border-radius: 4px; padding: 0 4px; font-size: 11.5px; }
+</style></head><body><div class="wrap">
+
+<h1>시안 — 매출처 하위 조직 (지점 › 팀 › 하위 팀)</h1>
+<p class="sub">2026-11-20 영업팀 의견: 은행을 지점 단위로만 관리해 하위 조직(본점 부서 › 팀, 원큐 › 자동차금융팀 등)을 다룰 수 없다. 예시는 하나은행 원큐(1Q) — 화면의 숫자와 경로(본점 › 채널전략부 › 원큐, 위치 방배금융센터)는 설명용 가정이고, 실제 소속은 보내 드린 엑셀로 확인한다.</p>
+
+<div class="note" style="margin-top:12px">
+  <b>핵심</b> — 팀도 지금처럼 매출처 하나다(주문 · 상담 · 담당자가 붙는 곳). 다만 매출처마다 <b>상위 조직</b>을 하나 지정할 수 있게 해 트리(조직도)를 만든다.
+  상위 조직과 별개로 <b>위치(소재 지점)</b>를 둘 수 있다 — 영남영업그룹팀은 원큐 소속이지만 서면역금융센터에 있다.<br>
+  <b>청구처와는 다른 개념</b> — 청구처(계산서 발행 법인, 탭 "소속 부서")는 돈의 흐름, 상위 조직은 조직도. 둘 다 따로 둔다.
+</div>
+
+<div class="tabs">
+  <button class="on" data-s="s1">1. 매출처 상세 — 경로 · 하위 조직</button>
+  <button data-s="s2">2. 상위 조직 지정</button>
+  <button data-s="s3">3. 매출처 목록 — 조직도 보기</button>
+  <button data-s="s4">4. 주문 · 상담 입력</button>
+  <button data-s="s5">5. 데이터 · 정해 주실 것</button>
+</div>
+
+<!-- 1 -->
+<div class="screen on" id="s1"><div class="grid2"><div>
+  <div class="crumb"><a>하나은행</a> › <a>본점</a> › <a>채널전략부</a> › <b>원큐(1Q)</b></div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <h1>하나은행 원큐(1Q)</h1><span class="b b-blue">활성</span>
+    <span class="b b-slate">위치: 하나은행 방배금융센터</span>
+    <button class="btn btn-line btn-sm">상위 조직 · 위치 변경</button>
+    <button class="btn btn-line btn-sm">하위 조직 추가</button>
+  </div>
+  <div style="margin-top:10px;display:flex;align-items:center;gap:8px"><span class="sub" style="margin:0">집계 범위</span>
+    <span class="toggle"><span>이 조직만</span><span class="on">하위 포함 (6)</span></span></div>
+  <div class="kpis">
+    <div class="kpi"><div class="k">기간 매출</div><div class="v">48,200,000</div><div class="d">하위 6곳 포함</div></div>
+    <div class="kpi"><div class="k">미수</div><div class="v">3,150,000</div><div class="d">자동차금융팀 2,400,000</div></div>
+    <div class="kpi"><div class="k">현재 담당자</div><div class="v">19명</div><div class="d">이 조직 3 · 하위 16</div></div>
+    <div class="kpi"><div class="k">주문</div><div class="v">27건</div><div class="d">하위 포함</div></div>
+  </div>
+  <div class="ptabs"><span>개요</span><span>주문 내역</span><span>수금 내역</span><span>계산서</span><span class="on">하위 조직 6</span><span>활동 메모</span></div>
+  <div class="card" style="padding:0">
+    <table>
+      <thead><tr><th>조직</th><th>위치</th><th>대표 담당자</th><th class="r">담당자</th><th class="r">기간 매출</th><th class="r">미수</th><th>다올 담당</th></tr></thead>
+      <tbody>
+        <tr><td><b>원큐(1Q)</b> <span class="b b-slate">이 조직</span></td><td>방배금융센터</td><td>김OO 센터장님</td><td class="r">3</td><td class="r">2,100,000</td><td class="r">0</td><td>김보현</td></tr>
+        <tr><td><span class="tree">└ </span>소호(기업)금융팀</td><td>—</td><td>이OO 팀장님</td><td class="r">3</td><td class="r">6,300,000</td><td class="r">0</td><td>김보현</td></tr>
+        <tr><td><span class="tree">└ </span>신용대출팀</td><td>—</td><td>박OO 팀장님</td><td class="r">4</td><td class="r">9,800,000</td><td class="r">350,000</td><td>김보현</td></tr>
+        <tr><td><span class="tree">└ </span>부동산금융팀</td><td>—</td><td>—</td><td class="r">2</td><td class="r">4,000,000</td><td class="r">0</td><td>한정호</td></tr>
+        <tr><td><span class="tree">└ </span>자동차금융팀</td><td>—</td><td>정OO 팀장님</td><td class="r">3</td><td class="r">15,600,000</td><td class="r">2,400,000</td><td>김보현</td></tr>
+        <tr><td><span class="tree">└ </span>집단대출팀</td><td>—</td><td>최OO 차장님</td><td class="r">2</td><td class="r">7,200,000</td><td class="r">400,000</td><td>김보현</td></tr>
+        <tr><td><span class="tree">└ </span>영남영업그룹팀</td><td><span class="b b-amber">서면역금융센터</span></td><td>한OO 팀장님</td><td class="r">2</td><td class="r">3,200,000</td><td class="r">0</td><td>홍창의</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="card explain">
+  <h2>매출처 상세</h2>
+  <ul>
+    <li><b>경로</b>(맨 위): 업체 › 상위 조직들 › 이 조직. 누르면 그 조직 상세로.</li>
+    <li><b>위치</b> 배지: 상위 조직과 다른 곳에 앉아 있을 때만(영남영업그룹팀 = 서면역금융센터). 방문 · 배송 기본 주소에 쓸 수 있다.</li>
+    <li><b>집계 범위</b>: "이 조직만" / "하위 포함". 하위 포함이면 매출 · 미수 · 주문 · 담당자를 하위 조직까지 더한다(숫자는 각 하위 조직 화면으로 드릴다운).</li>
+    <li><b>하위 조직 탭</b>: 바로 아래만이 아니라 전체 트리. 행을 누르면 그 조직 상세. "하위 조직 추가"는 등록 창에 상위 조직을 미리 채워 연다.</li>
+    <li>주문 · 계산서 · 담당자 배정은 지금처럼 <b>가장 아래 조직</b>에 붙는다 — 팀 주문은 팀에, 원큐 공용 주문은 원큐에.</li>
+    <li>기존 "소속 부서" 탭(청구처 법인 → 계산서를 대신 받는 부서)은 그대로 둔다 — 이름이 비슷해 헷갈리지 않게 새 탭은 "하위 조직".</li>
+  </ul>
+</div></div></div>
+
+<!-- 2 -->
+<div class="screen" id="s2"><div class="grid2">
+  <div class="modal">
+    <h2>상위 조직 · 위치 변경 — 하나은행 원큐자동차금융팀</h2>
+    <label>상위 조직</label>
+    <input class="input" value="원큐">
+    <div class="dd">
+      <div><b>하나은행 원큐(1Q)</b> <span class="p">하나은행 › 본점 › 채널전략부 › 원큐(1Q) · 하위 5</span></div>
+      <div>하나은행 원큐스테이션 <span class="p">하나은행 › 원큐스테이션 · 하위 0</span></div>
+      <div>하나은행 채널전략부 원큐파이오니어팀 <span class="p">하나은행 › 본점 › 채널전략부 › …</span></div>
+    </div>
+    <div class="hint">같은 업체(하나은행) 안에서만 고를 수 있습니다. 자기 자신 · 자기 하위 조직은 고를 수 없습니다(순환 방지).</div>
+    <label>위치(소재 지점) <span style="font-weight:400;color:#94a3b8">— 상위 조직과 다른 곳에 있을 때만</span></label>
+    <input class="input" placeholder="비우면 상위 조직과 같은 곳">
+    <label>이름 정리(제안)</label>
+    <div class="hint" style="background:#f8fafc;border-color:#e2e8f0;color:#334155">지금 이름 <b>하나은행 원큐자동차금융팀</b> → <b>하나은행 원큐 자동차금융팀</b>? <span style="color:#64748b">(정해 주실 것 1 — 이름 규칙에 따라)</span></div>
+    <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:14px"><button class="btn btn-line">취소</button><button class="btn btn-dark">저장</button></div>
+  </div>
+  <div class="card explain">
+    <h2>상위 조직 지정</h2>
+    <ul>
+      <li>매출처 상세의 "상위 조직 · 위치 변경", 등록 창의 "상위 조직(선택)" 칸에서 지정한다.</li>
+      <li>후보는 같은 업체의 매출처만. 검색 결과마다 경로를 보여 줘 같은 이름(예: 본점 자동차금융부 vs 원큐 자동차금융팀)을 구분한다.</li>
+      <li>순환 금지(자기 하위를 상위로 못 고름), 깊이는 최대 5단계(업체 아래).</li>
+      <li>상위 조직을 바꿔도 주문 · 계산서 · 담당자는 그대로 이 조직에 남는다(집계 경로만 바뀜). 변경 이력을 남긴다(누가 · 언제 · 전 → 후).</li>
+      <li>하위 조직을 새로 등록할 때 청구처는 상위 조직의 청구처를 기본값으로 제안(확정은 사람).</li>
+      <li>매출처 합치기: 흡수되는 쪽의 하위 조직은 남는 쪽 아래로 따라간다. 병합 취소하면 원래대로(119 기록에 함께 남김).</li>
+    </ul>
+  </div>
+</div></div>
+
+<!-- 3 -->
+<div class="screen" id="s3"><div class="grid2"><div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><h1>매출처 관리</h1>
+    <span class="toggle"><span>목록</span><span class="on">조직도</span></span>
+    <input class="input" style="max-width:240px" value="하나은행"></div>
+  <div class="card" style="padding:0">
+    <table>
+      <thead><tr><th>조직</th><th class="r">현재 담당자</th><th class="r">기간 매출(하위 포함)</th><th class="r">미수</th><th>상태</th></tr></thead>
+      <tbody>
+        <tr><td><b>하나은행</b> <span class="sub">(업체 · 매출처 412)</span></td><td class="r">1,180</td><td class="r">812,400,000</td><td class="r">41,300,000</td><td></td></tr>
+        <tr><td><span class="tree">├ ▾ </span>본점 <span class="b b-slate">부서 46</span></td><td class="r">71</td><td class="r">96,500,000</td><td class="r">5,100,000</td><td></td></tr>
+        <tr><td><span class="tree">│ &nbsp;├ ▾ </span>채널전략부</td><td class="r">23</td><td class="r">51,000,000</td><td class="r">3,150,000</td><td></td></tr>
+        <tr><td><span class="tree">│ &nbsp;│ &nbsp;└ ▸ </span>원큐(1Q) <span class="b b-slate">하위 6</span></td><td class="r">19</td><td class="r">48,200,000</td><td class="r">3,150,000</td><td></td></tr>
+        <tr><td><span class="tree">│ &nbsp;└ ▸ </span>영업지원부</td><td class="r">4</td><td class="r">3,100,000</td><td class="r">0</td><td></td></tr>
+        <tr><td><span class="tree">├ </span>강남금융센터</td><td class="r">6</td><td class="r">12,300,000</td><td class="r">0</td><td></td></tr>
+        <tr><td><span class="tree">├ </span>공덕역금융센터</td><td class="r">2</td><td class="r">4,800,000</td><td class="r">0</td><td></td></tr>
+        <tr><td><span class="tree">└ </span>… 지점 360</td><td></td><td></td><td></td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="card explain">
+  <h2>매출처 목록</h2>
+  <ul>
+    <li>기본은 지금 그대로의 <b>목록</b>(평평한 표) — "상위 조직" 열이 하나 늘고, 검색은 지금처럼 이름 · 별칭으로.</li>
+    <li><b>조직도</b> 보기: 업체를 고르면 트리로 접고 펼친다. 상위 행의 숫자는 하위 포함 합계.</li>
+    <li>지점은 대부분 상위 없이 업체 바로 아래(지금과 같음). 본점 부서 · 원큐처럼 하위가 있는 곳만 트리가 깊어진다.</li>
+    <li>KPI 카드 · 칩 필터 · 엑셀은 그대로. 엑셀에 "경로" 열 추가.</li>
+  </ul>
+</div></div></div>
+
+<!-- 4 -->
+<div class="screen" id="s4"><div class="grid2"><div>
+  <div class="card">
+    <div class="sub" style="margin:0 0 6px">주문 입력 › 주문처</div>
+    <label style="margin-top:0">업체 (은행 · 그룹)</label><input class="input" value="하나은행">
+    <label>지점 (부서)</label><input class="input" value="자동차">
+    <div class="dd">
+      <div><b>원큐 자동차금융팀</b> <span class="p">본점 › 채널전략부 › 원큐(1Q) ›</span></div>
+      <div><b>자동차금융부</b> <span class="p">본점 ›</span></div>
+    </div>
+  </div>
+</div>
+<div class="card explain">
+  <h2>주문 · 상담 입력</h2>
+  <ul>
+    <li>지점 칸 검색 결과 줄마다 <b>경로</b>를 작게 보여 준다 — 같은 이름의 팀을 헷갈리지 않게.</li>
+    <li>고른 뒤 저장되는 주문의 지점 표기는 지금처럼 그 매출처 이름(원본 보존). 경로는 화면 표시용으로만 붙는다.</li>
+    <li>입력 방식(업체 → 지점 검색)은 바뀌지 않는다. 지점이 늘어도 키워드로 1~3개만 뜨는 것은 11-20 실측과 같다.</li>
+  </ul>
+</div></div></div>
+
+<!-- 5 -->
+<div class="screen" id="s5">
+  <div class="card explain">
+    <h2>데이터 (마이그레이션 120 — 100번대)</h2>
+    <ul>
+      <li><code>vendors.parent_vendor_id</code> 상위 조직(같은 업체의 매출처, 비우면 업체 바로 아래) · <code>vendors.location_vendor_id</code> 위치(소재 지점, 선택).</li>
+      <li>순환 · 자기 참조 금지 트리거, 깊이 5 제한. 병합 시 하위 조직 · 위치를 남는 쪽으로 옮기는 트리거(청구처 114와 같은 방식), 119 병합 기록 · 취소에 포함.</li>
+      <li>변경 이력 표 <code>vendor_parent_changes</code>(전 → 후 · 누가 · 언제). 원본(주문 · 계산서)은 손대지 않는다 — 연결 정보만 추가.</li>
+      <li>집계는 저장하지 않고 화면에서 트리를 따라 더한다(하위 포함 합계 = 각 조직 숫자의 합, 드릴다운 가능).</li>
+    </ul>
+  </div>
+  <div class="card explain">
+    <h2>정해 주실 것</h2>
+    <ol style="margin-left:16px">
+      <li><b>팀 이름 규칙</b> — (가) 지금처럼 '하나은행 자동차금융팀'으로 두고 경로로 구분 / (나) 상위 단위를 이름에 넣어 '하나은행 원큐 자동차금융팀'. 권고 (나): 엑셀 · 계산서 · 주문 표기처럼 경로가 안 보이는 곳에서도 구분된다.</li>
+      <li><b>본점 노드</b> — 본점 부서(채널전략부 · 영업지원부 등 46곳)를 묶는 '하나은행 본점' 매출처를 새로 만들지. 권고: 만든다(주문은 받지 않는 묶음용). 청구처 법인 '주식회사 하나은행'과는 별개.</li>
+      <li><b>위치(소재 지점)</b> 칸을 둘지 — 권고: 둔다(영남영업그룹팀처럼 소속과 자리가 다른 경우).</li>
+      <li><b>집계 기본값</b> — 상세 화면을 열었을 때 "이 조직만" / "하위 포함". 권고: 하위가 있으면 "하위 포함".</li>
+      <li><b>첫 적용 범위</b> — 하나은행 원큐 계열 · 본점 부서부터(보내 드린 엑셀의 '상위 조직(제안)' 칸 → 그대로 반영), 다른 은행은 실무자가 화면에서.</li>
+    </ol>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b))
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === b.dataset.s))
+}))
+</script>
+</div></body></html>
