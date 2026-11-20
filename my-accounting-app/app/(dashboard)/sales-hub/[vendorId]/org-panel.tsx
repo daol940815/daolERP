@@ -247,6 +247,7 @@ export function OrgDialog({ mode, org, vendorId, vendorName, onClose, onDone }: 
   const [unit, setUnit] = useState('')
   const [rename, setRename] = useState<string | null>(null)
   const [useRename, setUseRename] = useState(true)
+  const [renameText, setRenameText] = useState('')   // 제안 이름을 고쳐 쓸 수 있게
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
@@ -256,7 +257,7 @@ export function OrgDialog({ mode, org, vendorId, vendorName, onClose, onDone }: 
   useEffect(() => {
     if (!renameTarget || mode === 'create') { setRename(null); return }
     fetch(`/api/vendor-hub/org?rename_for=${renameTarget}&parent_id=${renameParent ?? ''}`)
-      .then(r => r.json()).then(j => setRename(j.name ?? null)).catch(() => setRename(null))
+      .then(r => r.json()).then(j => { setRename(j.name ?? null); setRenameText(j.name ?? '') }).catch(() => setRename(null))
   }, [renameTarget, renameParent, mode])
 
   const parentUnit = org.unit || vendorName
@@ -265,10 +266,10 @@ export function OrgDialog({ mode, org, vendorId, vendorName, onClose, onDone }: 
   const save = async () => {
     setBusy(true); setMsg(null)
     let body: Record<string, unknown>
-    if (mode === 'set') body = { action: 'set', vendor_id: vendorId, parent_id: noParent ? null : parent?.id ?? null, location_id: location?.id ?? null, rename: useRename ? rename : null }
+    if (mode === 'set') body = { action: 'set', vendor_id: vendorId, parent_id: noParent ? null : parent?.id ?? null, location_id: location?.id ?? null, rename: useRename ? (renameText.trim() || rename) : null }
     else if (mode === 'attach') {
       if (!child) { setBusy(false); setMsg('편입할 매출처를 고르세요.'); return }
-      body = { action: 'set', vendor_id: child.id, parent_id: vendorId, ...(location ? { location_id: location.id } : {}), rename: useRename ? rename : null }
+      body = { action: 'set', vendor_id: child.id, parent_id: vendorId, ...(location ? { location_id: location.id } : {}), rename: useRename ? (renameText.trim() || rename) : null }
     } else {
       if (!unit.trim()) { setBusy(false); setMsg('조직 이름(팀명)을 입력하세요.'); return }
       body = { action: 'create_child', parent_id: vendorId, unit: unit.trim(), location_id: location?.id ?? null }
@@ -321,7 +322,10 @@ export function OrgDialog({ mode, org, vendorId, vendorName, onClose, onDone }: 
         {mode !== 'create' && rename && (
           <label className="mt-4 flex items-start gap-2 text-xs bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-blue-900">
             <input type="checkbox" checked={useRename} onChange={e => setUseRename(e.target.checked)} className="mt-0.5" />
-            <span>이름도 규칙에 맞춰 바꾸기 → <b>{rename}</b><br /><span className="text-blue-700">업체명 + 상위 단위 + 팀명. 옛 이름은 별칭으로 남아 계산서 · ERP 표기 연결은 그대로입니다.</span></span>
+            <span className="flex-1">이름도 규칙에 맞춰 바꾸기 (고쳐 쓸 수 있음)
+              <input value={renameText} disabled={!useRename} onChange={e => setRenameText(e.target.value)}
+                className="mt-1 w-full border border-blue-200 rounded px-2 py-1 text-sm text-gray-900 bg-white disabled:opacity-50" />
+              <span className="text-blue-700">업체명 + 상위 단위 + 팀명. 옛 이름은 별칭으로 남아 계산서 · ERP 표기 연결은 그대로입니다.</span></span>
           </label>
         )}
 

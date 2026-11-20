@@ -104,12 +104,24 @@ export function unitName(n: OrgNode, byId: Map<string, OrgNode>, groupName: stri
   return n.name
 }
 
+const UNIT_SYNONYMS: [string, string][] = [['1Q', '원큐']]   // [다른 표기, 표준 단위] — 하나은행 원큐(1Q)
 // 이름 규칙(사용자 결정 2026-11-20): 업체명 + 상위 단위 + 팀명. 상위가 없으면 업체명 + 팀명.
 export function suggestChildName(groupName: string | null, parent: OrgNode | null, byId: Map<string, OrgNode>, childUnit: string): string {
-  const unit = childUnit.trim()
+  let unit = childUnit.trim()
   const parentUnit = parent ? unitName(parent, byId, groupName) : ''
-  const parts = [groupName ?? '', parentUnit && !norm(unit).startsWith(norm(parentUnit)) ? parentUnit : '', unit].filter(Boolean)
-  return parts.join(' ').replace(/\s+/g, ' ').trim()
+  // 팀명 앞부분이 상위 단위와 겹치면 그 부분을 뗀다 — '원큐자동차금융팀'(상위 '원큐') → '자동차금융팀'
+  if (parentUnit) {
+    // 같은 단위의 다른 표기(1Q = 원큐)는 맞춰서 비교
+    for (const [a, b2] of UNIT_SYNONYMS) {
+      if (parentUnit.startsWith(b2) && unit.toUpperCase().startsWith(a.toUpperCase())) unit = b2 + unit.slice(a.length)
+    }
+    const u = Array.from(unit), pu = Array.from(parentUnit.replace(/\s+/g, ''))
+    let i = 0, k = 0
+    while (i < u.length && k < pu.length && (u[i] === ' ' || u[i] === pu[k])) { if (u[i] !== ' ') k++; i++ }
+    const rest = u.slice(i).join('').trim()
+    if (k >= 2 && rest) unit = rest
+  }
+  return [groupName ?? '', parentUnit, unit].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
 }
 
 export interface OrgRow {
