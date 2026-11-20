@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 연차 입사일 기준 전환 (비례 부여)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; font-size: 13px; }
+  .wrap { max-width: 1360px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 14px; line-height: 1.75; }
+  .ask { background: #eff6ff; border-color: #93c5fd; color: #1e3a8a; }
+  h2 { font-size: 15px; font-weight: 700; margin: 26px 0 10px; }
+  h2 small { font-size: 12px; font-weight: 500; color: #64748b; margin-left: 6px; }
+  .shell { display: grid; grid-template-columns: 190px 1fr; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; background: #fff; }
+  .side { background: #0f172a; padding: 14px 10px; color: #94a3b8; font-size: 12.5px; }
+  .side .t { color: #fff; font-weight: 700; font-size: 14px; padding: 0 8px 12px; border-bottom: 1px solid #334155; margin-bottom: 10px; }
+  .side .g { padding: 4px 8px; font-size: 10.5px; color: #64748b; margin-top: 8px; }
+  .side a { display: block; padding: 6px 10px; border-radius: 6px; }
+  .side a.on { background: #334155; color: #fff; }
+  .side .cnt { float: right; font-size: 10px; background: #f59e0b; color: #fff; border-radius: 999px; padding: 0 6px; font-weight: 700; }
+  .main { padding: 16px 18px; overflow-x: auto; }
+  h1 { font-size: 18px; font-weight: 700; }
+  .sub { font-size: 12px; color: #64748b; margin: 3px 0 10px; line-height: 1.6; }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid #e2e8f0; margin-bottom: 12px; }
+  .tab { padding: 7px 14px; font-size: 12.5px; color: #64748b; border-bottom: 2px solid transparent; }
+  .tab.on { color: #0f172a; font-weight: 700; border-color: #0f172a; }
+  .tab .new { font-size: 9.5px; background: #dcfce7; color: #15803d; border-radius: 999px; padding: 0 5px; margin-left: 3px; font-weight: 700; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+  .kpi { border: 1px solid #e2e8f0; border-radius: 10px; padding: 9px 12px; }
+  .kpi .l { font-size: 11px; color: #64748b; font-weight: 600; }
+  .kpi .v { font-size: 20px; font-weight: 800; margin-top: 2px; }
+  .kpi .h { font-size: 10.5px; color: #94a3b8; }
+  .kpi.amb .v { color: #b45309; } .kpi.red .v { color: #dc2626; } .kpi.vio .v { color: #6d28d9; }
+  .bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .chip { border: 1px solid #cbd5e1; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; color: #475569; }
+  .chip.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .inp { border: 1px solid #cbd5e1; border-radius: 7px; padding: 4px 9px; font-size: 12px; color: #0f172a; background: #fff; display: inline-block; }
+  .btn { display: inline-block; border: 1px solid #cbd5e1; border-radius: 7px; padding: 5px 11px; font-size: 11.5px; font-weight: 600; background: #fff; white-space: nowrap; }
+  .btn.p { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .btn.b { background: #2563eb; color: #fff; border-color: #2563eb; }
+  table { border-collapse: collapse; font-size: 12px; width: 100%; }
+  th { font-size: 10.5px; color: #64748b; font-weight: 600; padding: 6px 7px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; text-align: center; white-space: nowrap; }
+  th.l, td.l { text-align: left; }
+  td { padding: 6px 7px; border-bottom: 1px solid #f1f5f9; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .muted { color: #94a3b8; font-size: 11px; }
+  .tag { font-size: 9.5px; border-radius: 999px; padding: 0 6px; font-weight: 700; margin-left: 4px; }
+  .t-tr { background: #fef3c7; color: #92400e; } .t-new { background: #e0f2fe; color: #075985; } .t-nolog { background: #f1f5f9; color: #64748b; }
+  .soon { color: #b45309; font-weight: 700; }
+  .card { background: #fff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 14px 16px; }
+  .card h3 { font-size: 13.5px; font-weight: 700; margin-bottom: 8px; }
+  .card h3 small { font-weight: 500; color: #64748b; font-size: 11.5px; margin-left: 4px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .box { border: 1px solid #e2e8f0; border-radius: 9px; padding: 10px 12px; margin-top: 8px; font-size: 12px; line-height: 1.8; }
+  .warn { color: #b45309; }
+  .kind { display: inline-block; border-radius: 5px; padding: 1px 7px; font-size: 10.5px; font-weight: 700; }
+  .k-ann { background: #e0f2fe; color: #075985; } .k-mon { background: #ecfccb; color: #3f6212; }
+  .k-end { background: #fee2e2; color: #991b1b; } .k-carry { background: #fce7f3; color: #9d174d; } .k-tr { background: #fef3c7; color: #92400e; }
+  .bold { font-weight: 700; }
+  .tl { position: relative; height: 26px; background: #f8fafc; border-radius: 6px; margin: 4px 0; }
+  .tl span { position: absolute; top: 3px; height: 20px; border-radius: 4px; font-size: 10.5px; line-height: 20px; padding: 0 6px; white-space: nowrap; overflow: hidden; }
+  ul.ul { margin: 4px 0 0 18px; font-size: 12px; line-height: 1.85; color: #334155; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="note">
+  <b>시안 — 연차 입사일 기준 전환 · 비례 부여 (2026-11-20)</b><br>
+  사용자 방향: 회계연도 기준(매년 1월 1일 부여) → <b>입사일 기준</b>(각자 입사 기념일에 부여). 전환 정산은 <b>비례 부여</b>.<br>
+  규칙(근로기준법 60조): 입사 1년 미만은 한 달 개근마다 1일(최대 11일), 1년이 되는 날 15일, 3년차부터 2년마다 1일 가산(최대 25일).<br>
+  비례 부여 = 2027-01-01부터 각자 2027년 입사 기념일 전날까지의 "전환 기간"에 직전 기념일 기준 일수 × 전환 기간 일수 ÷ 365 (0.5 단위 올림 — 직원에게 불리하지 않게).<br>
+  아래 숫자는 15명의 실제 입사일로 계산했습니다. 보상 · 사용 숫자는 예시입니다.
+</div>
+
+<div class="note ask">
+  <b>시안과 함께 확인 부탁드리는 것 4가지</b> — 답이 없으면 각 항목의 "시안 기준"으로 구현합니다.<br>
+  <b>A. 전환일</b> — 시안 기준: <b>2027-01-01</b>. 2026년 연차(회계연도)는 지금처럼 12월 31일까지 쓰고, 그다음 날부터 입사일 기준.<br>
+  <b>B. 보상 연차 이월 시점</b> — 시안 기준: <b>각자 산정 기간 끝</b>(기본 연차와 같은 기간). 2026년 보상 잔여는 전환 기간으로 이월.<br>
+  <b>C. 기간이 끝날 때 남은 기본 연차</b> — 시안 기준: 화면에 <b>"소멸 · 수당 대상"</b>으로 표시. 연차 사용 촉진(61조)을 하지 않았다면 소멸이 아니라 수당 지급 대상이라, 금액 계산은 하지 않고 일수만 남깁니다.<br>
+  <b>D. 1년 미만 직원의 매월 1일</b> — 시안 기준: 매달 "이번 달 갱신" 탭에 추천으로 뜨고 인사 · 총무가 한 번에 확정(자동 부여 안 함 — 시스템은 추천, 확정은 사람).
+</div>
+
+<!-- ============================================ -->
+<h2>① 전환 정산 탭 <small>2027-01-01에 한 번만 — 비례 부여 추천 → 확정</small></h2>
+<div class="card">
+  <p class="sub" style="margin-top:0">"전환 추천 만들기"를 누르면 아래 표가 채워집니다. 숫자는 고칠 수 있고, 체크한 행만 확정됩니다. 확정하면 부여 내역에 <span class="kind k-tr">전환 비례</span>로 남습니다.</p>
+  <table>
+    <thead>
+      <tr><th style="width:24px"></th><th class="l">직원</th><th>입사일</th><th>직전 기념일 근속</th><th>직전 기준 일수</th><th>전환 기간</th><th>일수</th><th>계산</th><th>비례 부여 (추천)</th><th>2027 기념일 부여</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>&#9745;</td><td class="l bold">옥광일</td><td>2018-01-01</td><td>-</td><td>-</td><td class="muted">없음 (1/1 입사)</td><td>0</td><td class="muted">-</td><td class="muted">없음</td><td><b>1/1에 19일</b> (근속 9년)</td></tr>
+      <tr><td>&#9745;</td><td class="l bold">홍창의</td><td>2020-01-01</td><td>-</td><td>-</td><td class="muted">없음 (1/1 입사)</td><td>0</td><td class="muted">-</td><td class="muted">없음</td><td><b>1/1에 18일</b> (근속 7년)</td></tr>
+      <tr><td>&#9745;</td><td class="l bold">주삼재</td><td>2022-04-01</td><td>4년</td><td>16</td><td>1/1 ~ 3/31</td><td>90</td><td class="muted">16 × 90/365 = 3.95</td><td><span class="inp">4</span></td><td>4/1에 17일</td></tr>
+      <tr><td>&#9745;</td><td class="l bold">최효순</td><td>2022-04-01</td><td>4년</td><td>16</td><td>1/1 ~ 3/31</td><td>90</td><td class="muted">16 × 90/365 = 3.95</td><td><span class="inp">4</span></td><td>4/1에 17일</td></tr>
+      <tr><td>&#9745;</td><td class="l bold">김보현</td><td>2024-07-01</td><td>2년</td><td>15</td><td>1/1 ~ 6/30</td><td>181</td><td class="muted">15 × 181/365 = 7.44</td><td><span class="inp">7.5</span></td><td>7/1에 16일</td></tr>
+      <tr><td>&#9745;</td><td class="l bold">이동훈<span class="tag t-nolog">계정 없음</span></td><td>2020-07-03</td><td>6년</td><td>17</td><td>1/1 ~ 7/2</td><td>183</td><td class="muted">17 × 183/365 = 8.52</td><td><span class="inp">9</span></td><td>7/3에 18일</td></tr>
+      <tr><td>&#9745;</td><td class="l bold">구본신<span class="tag t-nolog">계정 없음</span></td><td>2023-08-01</td><td>3년</td><td>16</td><td>1/1 ~ 7/31</td><td>212</td><td class="muted">16 × 212/365 = 9.29</td><td><span class="inp">9.5</span></td><td>8/1에 16일</td></tr>
+      <tr><td>&#9745;</td><td class="l bold">김재형</td><td>2017-09-01</td><td>9년</td><td>19</td><td>1/1 ~ 8/31</td><td>243</td><td class="muted">19 × 243/365 = 12.65</td><td><span class="inp">13</span></td><td>9/1에 19일</td></tr>
+      <tr><td>&#9745;</td><td class="l bold">김주연</td><td>2022-09-01</td><td>4년</td><td>16</td><td>1/1 ~ 8/31</td><td>243</td><td class="muted">16 × 243/365 = 10.65</td><td><span class="inp">11</span></td><td>9/1에 17일</td></tr>
+      <tr><td>&#9745;</td><td class="l bold">정이경<span class="tag t-nolog">계정 없음</span></td><td>2018-11-26</td><td>8년</td><td>18</td><td>1/1 ~ 11/25</td><td>329</td><td class="muted">18 × 329/365 = 16.22</td><td><span class="inp">16.5</span></td><td>11/26에 19일</td></tr>
+      <tr><td>&#9745;</td><td class="l bold">오철준</td><td>2023-12-19</td><td>3년</td><td>16</td><td>1/1 ~ 12/18</td><td>352</td><td class="muted">16 × 352/365 = 15.43</td><td><span class="inp">15.5</span></td><td>12/19에 16일</td></tr>
+      <tr><td>&#9745;</td><td class="l bold">강시현</td><td>2020-12-21</td><td>6년</td><td>17</td><td>1/1 ~ 12/20</td><td>354</td><td class="muted">17 × 354/365 = 16.49</td><td><span class="inp">16.5</span></td><td>12/21에 18일</td></tr>
+      <tr style="background:#f8fafc"><td>&#9745;</td><td class="l bold">오연수<span class="tag t-new">1년 미만</span></td><td>2026-06-01</td><td colspan="5" class="muted">비례 없음 — 입사 1년까지 매월 1일 계속 (2027년 1~5월, 5일)</td><td class="muted">매월 1일</td><td>6/1에 15일</td></tr>
+      <tr style="background:#f8fafc"><td>&#9745;</td><td class="l bold">김승현<span class="tag t-new">1년 미만</span></td><td>2026-06-08</td><td colspan="5" class="muted">비례 없음 — 입사 1년까지 매월 1일 계속 (2027년 1~5월, 5일)</td><td class="muted">매월 1일</td><td>6/8에 15일</td></tr>
+      <tr style="background:#f8fafc"><td>&#9745;</td><td class="l bold">한정호<span class="tag t-new">1년 미만</span></td><td>2026-08-03</td><td colspan="5" class="muted">비례 없음 — 입사 1년까지 매월 1일 계속 (2027년 1~7월, 7일)</td><td class="muted">매월 1일</td><td>8/3에 15일</td></tr>
+    </tbody>
+  </table>
+  <div class="box">
+    <b>2026년 연차(회계연도) 마감 — 같은 화면 아래쪽</b><br>
+    · 2026년 기본 연차 잔여: 12월 31일로 기간 종료 → <span class="kind k-end">소멸 · 수당 대상</span>으로 일수만 표시(확인 C)<br>
+    · 2026년 보상 연차 잔여: 전환 기간으로 <span class="kind k-carry">이월</span> 추천(확인 B) — 예: 홍창의 6 · 오철준 5 · 강시현 2 …<br>
+    · 2026년 초과 사용(김보현 1.5 · 오연수 0.5): 넘기지 않고 표에만 남김
+  </div>
+  <p class="muted" style="margin-top:6px">직전 기념일 기준 일수 = 2026년 기념일에 입사일 기준이었다면 받았을 일수(1월 1일 기준 근속과 같음). 1월 1일 입사자는 전환일이 곧 기념일이라 비례 없이 1년치를 받습니다.</p>
+</div>
+
+<!-- ============================================ -->
+<h2>② 현황 탭 (입사일 기준) <small>예시 날짜 2027-03-20 — "올해 잔여"가 아니라 "각자 현재 기간의 잔여"</small></h2>
+<div class="shell">
+  <div class="side">
+    <div class="t">daolERP</div>
+    <div class="g">인사 · 총무</div>
+    <a>직원 · 계정 · 권한</a>
+    <a>근태 현황</a>
+    <a>휴가 목록</a>
+    <a class="on">연차 관리 <span class="cnt">5</span></a>
+    <a>스케줄</a>
+  </div>
+  <div class="main">
+    <h1>연차 관리</h1>
+    <p class="sub">직원마다 입사 기념일부터 다음 기념일 전날까지가 한 기간입니다. 기간이 끝나면 남은 기본 연차는 종료(소멸 · 수당 대상), 보상 연차는 다음 기간으로 넘어갑니다.</p>
+    <div class="tabs"><span class="tab on">현황</span><span class="tab">이번 달 갱신 <span class="new">신설</span></span><span class="tab">부여 내역</span><span class="tab">전환 정산 <span class="new">2027-01</span></span></div>
+    <div class="kpis">
+      <div class="kpi"><div class="l">관리 대상</div><div class="v">15명</div><div class="h">기간 시작일이 8개 달에 흩어짐</div></div>
+      <div class="kpi amb"><div class="l">이번 달 갱신</div><div class="v">5건</div><div class="h">3월: 1년 미만 월 발생 3 · 기간 종료 2 (3/31)</div></div>
+      <div class="kpi red"><div class="l">기간 끝 60일 안 · 잔여 있음</div><div class="v">2명</div><div class="h">사용 권유 대상 (주삼재 · 최효순 3/31 종료)</div></div>
+      <div class="kpi vio"><div class="l">초과 사용</div><div class="v">0명</div><div class="h">기간 단위로 판정</div></div>
+    </div>
+    <table>
+      <thead>
+        <tr><th class="l">이름</th><th>입사일</th><th>근속</th><th class="l">현재 기간</th><th>기본</th><th>보상 · 이월</th><th>사용</th><th>잔여</th><th>기간 종료까지</th><th class="l">다음 갱신</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="l bold">주삼재</td><td>2022-04-01</td><td>4년</td><td class="l">2027-01-01 ~ 03-31 <span class="tag t-tr">전환 기간</span></td><td>4</td><td>1.5</td><td>2</td><td class="bold">3.5</td><td class="soon">D-11</td><td class="l">4/1 기본 17일</td></tr>
+        <tr><td class="l bold">최효순</td><td>2022-04-01</td><td>4년</td><td class="l">2027-01-01 ~ 03-31 <span class="tag t-tr">전환 기간</span></td><td>4</td><td>1</td><td>3</td><td class="bold">2</td><td class="soon">D-11</td><td class="l">4/1 기본 17일</td></tr>
+        <tr><td class="l bold">옥광일</td><td>2018-01-01</td><td>9년</td><td class="l">2027-01-01 ~ 12-31</td><td>19</td><td>0.5</td><td>2.5</td><td class="bold">17</td><td>D-286</td><td class="l">2028-01-01</td></tr>
+        <tr><td class="l bold">김재형</td><td>2017-09-01</td><td>9년</td><td class="l">2027-01-01 ~ 08-31 <span class="tag t-tr">전환 기간</span></td><td>13</td><td>0</td><td>3</td><td class="bold">10</td><td>D-164</td><td class="l">9/1 기본 19일</td></tr>
+        <tr><td class="l bold">한정호<span class="tag t-new">1년 미만</span></td><td>2026-08-03</td><td>7개월</td><td class="l">입사 ~ 2027-08-02</td><td>7 <span class="muted">(월 발생)</span></td><td>0</td><td>4</td><td class="bold">3</td><td>D-135</td><td class="l">4/3 월 1일 · 8/3 기본 15일</td></tr>
+        <tr><td class="l muted" colspan="10">… 나머지 10명</td></tr>
+      </tbody>
+    </table>
+    <p class="muted" style="margin-top:8px">행을 누르면 기간 타임라인과 그 기간의 부여 · 사용 내역이 펼쳐집니다. 1~12월 사용 표는 행 펼침 안의 "월별 보기"로 옮깁니다(사람마다 기간이 달라 한 줄 비교가 어렵기 때문).</p>
+    <div class="box" style="background:#f8fafc">
+      <b>행 펼침 예 — 김재형</b>
+      <div class="tl">
+        <span style="left:0;width:30%;background:#fde68a;color:#78350f">2026 회계연도 (1/1~12/31) 19일 — 종료</span>
+        <span style="left:31%;width:22%;background:#fef3c7;color:#92400e">전환 기간 1/1~8/31 13일</span>
+        <span style="left:54%;width:45%;background:#e0f2fe;color:#075985">2027-09-01 ~ 2028-08-31 19일 (근속 10년)</span>
+      </div>
+      <span class="muted">부여 · 사용 내역(기간별) · 월별 사용 · 휴가 목록으로 가기</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2>③ 이번 달 갱신 탭 <small>"연말 · 연초 정리" 대신 — 매달 한 번, 추천 → 확정</small></h2>
+<div class="card">
+  <div class="bar"><span class="inp bold">2027년 4월</span><span class="btn">추천 다시 만들기</span><span style="margin-left:auto" class="btn b">체크한 행 확정</span></div>
+  <table>
+    <thead><tr><th style="width:24px"></th><th class="l">직원</th><th>날짜</th><th>구분</th><th class="l">내용</th><th>일수</th><th class="l">메모</th></tr></thead>
+    <tbody>
+      <tr><td>&#9745;</td><td class="l bold">주삼재</td><td>4/1</td><td><span class="kind k-carry">이월</span></td><td class="l">보상 잔여 → 새 기간</td><td>1.5</td><td class="l muted">3/31 기간 종료(기본 잔여 → 소멸 · 수당 대상)는 3월 탭에서 처리</td></tr>
+      <tr><td>&#9745;</td><td class="l bold">주삼재</td><td>4/1</td><td><span class="kind k-ann">기념일</span></td><td class="l">근속 5년 → 15 + 2</td><td><span class="inp">17</span></td><td class="l muted">2027-04-01 ~ 2028-03-31</td></tr>
+      <tr><td>&#9745;</td><td class="l bold">최효순</td><td>4/1</td><td><span class="kind k-ann">기념일</span></td><td class="l">근속 5년 → 15 + 2</td><td><span class="inp">17</span></td><td class="l muted">(기간 종료 · 이월 줄 생략)</td></tr>
+      <tr><td>&#9745;</td><td class="l bold">오연수</td><td>4/1</td><td><span class="kind k-mon">월 발생</span></td><td class="l">입사 10개월째 개근</td><td>1</td><td class="l muted">결근한 달이면 체크 해제</td></tr>
+      <tr><td>&#9745;</td><td class="l bold">한정호</td><td>4/3</td><td><span class="kind k-mon">월 발생</span></td><td class="l">입사 8개월째 개근</td><td>1</td><td class="l muted"></td></tr>
+      <tr><td>&#9745;</td><td class="l bold">김승현</td><td>4/8</td><td><span class="kind k-mon">월 발생</span></td><td class="l">입사 10개월째 개근</td><td>1</td><td class="l muted"></td></tr>
+    </tbody>
+  </table>
+  <p class="muted" style="margin-top:8px">
+    이번 달에 날짜가 오는 것만 나옵니다(미리 확정 가능). 근태 기록에 결근이 있는 달은 월 발생 행이 체크 해제된 채로 뜹니다.
+    연간 갱신 달: 1월 2명 · 4월 2명 · 6월 2명 · 7월 2명 · 8월 2명 · 9월 2명 · 11월 1명 · 12월 2명 + 1년 미만 직원의 매월 발생.
+  </p>
+</div>
+
+<!-- ============================================ -->
+<h2>④ 알림 · 직원 화면</h2>
+<div class="grid2">
+  <div class="card">
+    <h3>알림 센터 <small>인사 · 총무</small></h3>
+    <div class="box">
+      <b>연차 갱신 확정할 것 5건 (3월)</b> — 기간 종료 2건(주삼재 · 최효순 3/31) · 월 발생 3건 → 연차 관리 › 이번 달 갱신<br>
+      <b>기간 종료 임박 · 기본 잔여 있음 2명</b> — 주삼재 기본 2일 · 최효순 기본 1일 (3/31 종료, 보상은 다음 기간으로 넘어감)
+    </div>
+    <p class="muted" style="margin-top:6px">사용 촉진(61조)을 운영하기로 하시면 "6개월 전 · 2개월 전 통지 대상"도 이 자리에 띄울 수 있습니다(이번 범위 밖).</p>
+  </div>
+  <div class="card">
+    <h3>근태 · 휴가 › 휴가 신청 <small>직원 본인 — 김재형 예시</small></h3>
+    <div class="box">
+      내 연차 <b>2027-01-01 ~ 08-31</b> <span class="tag t-tr">전환 기간</span> 잔여 <b>기본 10 · 보상 0</b><br>
+      다음 연차: <b>9/1에 19일</b> (근속 10년)<br>
+      <span class="warn">기간 종료 D-164 — 남은 연차는 8월 31일까지 쓰는 것이 좋습니다.</span>
+    </div>
+    <p class="muted" style="margin-top:6px">휴가 기간이 두 기간에 걸치면(예: 8/30~9/2) 날짜별로 각 기간에서 차감합니다.</p>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2>⑤ 바뀌는 것 요약 <small>구현 범위</small></h2>
+<div class="card">
+  <ul class="ul">
+    <li><b>데이터 (208):</b> 부여 원장에 산정 기간(시작 · 끝) 칸 추가, 구분에 "전환 비례" · "월 발생" · "기간 종료" 추가. 2026년 이관분은 기간 2026-01-01 ~ 12-31로 그대로 둡니다.</li>
+    <li><b>계산:</b> 잔여를 "연도"가 아니라 "기간"으로 — 사용은 날짜가 속한 기간에서 차감, 기간이 겹치는 휴가는 날짜별로 나눔. 사용 순서(기본 → 보상 → 초과)는 그대로.</li>
+    <li><b>화면:</b> 현황(기간 단위) · 이번 달 갱신(연말 · 연초 정리 대체) · 부여 내역(기간 칸 추가) · 전환 정산(2027-01-01 한 번). 신청 양식 · 휴가 목록의 잔여도 현재 기간 기준.</li>
+    <li><b>알림:</b> 인사 · 총무에게 이번 달 갱신 · 기간 종료 임박. 직원에게는 신청 양식에서만(따로 알림은 사용 촉진 결정 후).</li>
+    <li><b>그대로인 것:</b> 3단계 결재 · 대리 등록 · 차감 종류(연차 · 반차 · 병가) · 엑셀 이관 데이터 · 스케줄 표시.</li>
+  </ul>
+</div>
+
+</div>
+</body>
+</html>
