@@ -124,8 +124,15 @@ export async function GET(req: NextRequest) {
   // 남아 오타 업체('푸본헌대생명')가 보이던 문제. DB는 그대로, 목록 조건만. 점검: supabase/checks/vendor_group_orphans_check.sql)
   const groupsWithBranch = new Set(vendorsResult.data.map(v => (v as { group_id?: string | null }).group_id).filter(Boolean) as string[])
   const groupsAll = (groupsResult.error ? [] : (groupsResult.data ?? [])) as { id: string; name: string; is_individual?: boolean }[]
+  // 하위 조직(120): 상위 조직 id — 지점 검색 결과에 경로를 붙이는 데만 쓴다. 미적용이면 없음.
+  const parentOf = new Map<string, string>()
+  {
+    const r = await fetchAllRows<{ id: string; parent_vendor_id: string | null }>((f, t) =>
+      admin.from('vendors').select('id, parent_vendor_id').not('parent_vendor_id', 'is', null).neq('status', 'merged').range(f, t))
+    if (!('error' in r)) for (const v of r.data) if (v.parent_vendor_id) parentOf.set(v.id, v.parent_vendor_id)
+  }
   return NextResponse.json({
-    vendors: vendorsResult.data,
+    vendors: parentOf.size ? vendorsResult.data.map(v => parentOf.has(v.id) ? { ...v, parent_vendor_id: parentOf.get(v.id) } : v) : vendorsResult.data,
     inactive_vendors: 'error' in inactiveResult ? [] : inactiveResult.data,
     groups: groupsAll.filter(g => g.is_individual || groupsWithBranch.has(g.id)),   // 505 미적용 시 빈 배열
     employees: employeesResult.data ?? [],

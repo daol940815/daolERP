@@ -8,7 +8,7 @@ import {
 } from '../form-shared'
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
 import type { ContactOpt, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
-import { isMoimVendor } from '../form-shared'
+import { isMoimVendor, orgSubLabel } from '../form-shared'
 import ProductRegisterDialog, { UnregisteredTag, isUnregisteredRow, linkPatch } from '../product-register-dialog'
 import IndividualRegister from '../individual-register'
 import { BranchStdHint, ExistingVendorNote, GroupStdHint, NamePreview, useVendorNameCheck } from '@/components/vendors/vendor-name-hints'
@@ -46,6 +46,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
 
   // 마스터
   const [vendors, setVendors] = useState<Vendor[]>([])
+  const vendorById = useMemo(() => new Map(vendors.map(v => [v.id, v])), [vendors])   // 하위 조직 경로용(120)
   const [groups, setGroups] = useState<VendorGroup[]>([])
   const [inactiveVendors, setInactiveVendors] = useState<InactiveVendor[]>([])   // 지점 검색 때만 회색으로 (2026-11-19)
   const [reactivating, setReactivating] = useState(false)
@@ -930,7 +931,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     return {
                       id: v.id,
                       label: gName ? branchShown(v.name, gName) : (split?.branch ?? v.name),
-                      sub: gName ?? split?.group.name ?? '',
+                      sub: gName ? orgSubLabel(v, vendorById, gName) : (split?.group.name ?? ''),   // 하위 조직(120) 경로
                     }
                   })}
                 onChange={({ id, text }) => {
