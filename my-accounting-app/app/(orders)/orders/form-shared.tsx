@@ -8,7 +8,33 @@ import { shipBoxes } from '@/lib/ship-boxes'
 // 주문 입력·상담일지 폼 공용 부품 — 마스터 타입, 품목 행 모델, 가격 규칙, 자동완성 콤보.
 // 가격 규칙(구분별 자동)은 두 화면이 반드시 같아야 하므로 여기 한 곳에만 둔다.
 
-export interface Vendor { id: string; name: string; type: string | null; group_id?: string | null; individual_contact_id?: string | null }
+export interface Vendor { id: string; name: string; type: string | null; group_id?: string | null; individual_contact_id?: string | null; parent_vendor_id?: string | null }
+
+// 하위 조직(120) 경로 — 지점 검색 결과에 '본점 › 채널전략부 ›'처럼 상위 조직 단위를 붙인다(같은 이름 팀 구분용, 표시 전용).
+// 단위 이름 = 매출처 이름에서 상위 조직 이름(없으면 업체명)을 뗀 것.
+export function orgPathLabel(v: Vendor, byId: Map<string, Vendor>, groupName: string | null | undefined): string {
+  const strip = (name: string, prefix: string | null | undefined) => {
+    if (!prefix) return name
+    const n = name.replace(/\s+/g, ''), p = prefix.replace(/\s+/g, '')
+    if (!n.startsWith(p) || n === p) return name
+    let i = 0, k = 0
+    while (i < name.length && k < p.length) { if (name[i] !== ' ') k++; i++ }
+    return name.slice(i).trim()
+  }
+  const units: string[] = []
+  const seen = new Set<string>([v.id])
+  let cur = v.parent_vendor_id ? byId.get(v.parent_vendor_id) : undefined
+  while (cur && !seen.has(cur.id) && units.length < 6) {
+    seen.add(cur.id)
+    const parent = cur.parent_vendor_id ? byId.get(cur.parent_vendor_id) : undefined
+    units.unshift(strip(cur.name, parent?.name ?? groupName))
+    cur = parent
+  }
+  return units.join(' › ')
+}
+// 지점 검색 결과 보조 줄: 업체 › 상위 조직 단위들
+export const orgSubLabel = (v: Vendor, byId: Map<string, Vendor>, groupName: string | null | undefined) =>
+  [groupName ?? '', orgPathLabel(v, byId, groupName)].filter(Boolean).join(' › ')
 export interface VendorGroup { id: string; name: string; is_individual?: boolean }
 // 개인 고객 업체(115)의 고객 — 고객마다 전용 매출처(vendor_id)
 export interface IndividualCustomerOpt {

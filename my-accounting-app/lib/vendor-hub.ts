@@ -40,6 +40,8 @@ export interface HubListRow {
   individual: boolean     // 개인 고객 전용 매출처(115) — 목록 배지 · 칩
   alias_names: string[]   // ERP 표기 검색용
   old_names: string[]     // 옛 이름(match_aliases) — 검색용 (2026-11-19: '중소기업은행 …'으로도 IBK기업은행 지점이 찾아지게)
+  parent_vendor_id: string | null    // 상위 조직(120) — 목록 조직도 보기 · 경로 표시. 미적용이면 null
+  location_vendor_id: string | null  // 위치(소재 지점, 120)
   alias_count: number
   card_count: number
   staff_primary: string | null
@@ -300,6 +302,13 @@ export async function buildHubList(
   }
 
   const [billingMap, individualIds] = await Promise.all([loadBillingMap(admin), loadIndividualVendorIds(admin)])
+  // 하위 조직 · 위치(120) — 미적용이면 빈 값
+  const orgOf = new Map<string, { parent: string | null; location: string | null }>()
+  {
+    const r = await fetchAllRows<{ id: string; parent_vendor_id: string | null; location_vendor_id: string | null }>((f, t) =>
+      admin.from('vendors').select('id, parent_vendor_id, location_vendor_id').or('parent_vendor_id.not.is.null,location_vendor_id.not.is.null').range(f, t))
+    if (!('error' in r)) for (const v of r.data) orgOf.set(v.id, { parent: v.parent_vendor_id, location: v.location_vendor_id })
+  }
   const rows: HubListRow[] = []
   for (const [vid, a] of Array.from(acc.entries())) {
     const v = vInfo.get(vid)
@@ -323,6 +332,8 @@ export async function buildHubList(
       individual: individualIds.has(vid),
       alias_names: aliasNames.get(vid) ?? [],
       old_names: v?.match_aliases ?? [],
+      parent_vendor_id: orgOf.get(vid)?.parent ?? null,
+      location_vendor_id: orgOf.get(vid)?.location ?? null,
       alias_count: aliasCount.get(vid) ?? 0,
       card_count: v?.card_numbers?.length ?? 0,
       staff_primary: st?.primary ?? null,

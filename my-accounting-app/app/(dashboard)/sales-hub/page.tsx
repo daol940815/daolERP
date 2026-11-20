@@ -20,6 +20,7 @@ interface Row {
   individual?: boolean    // 개인 고객 전용 매출처 (115)
   alias_names: string[]
   old_names?: string[]   // 옛 이름(별칭) — 검색용 (2026-11-19)
+  parent_vendor_id?: string | null    // 상위 조직(120)
   alias_count: number
   card_count: number
   staff_primary: string | null
@@ -71,6 +72,7 @@ export default function SalesHubPage() {
   const [vipOnly, setVipOnly] = useState(false)
   const [outstandingOnly, setOutstandingOnly] = useState(false)
   const [showInactive, setShowInactive] = useState(false)   // 비활성 거래처는 기본 숨김
+  const [view, setView] = useState<'list' | 'tree'>('list')   // 조직도 보기 (하위 조직 120, 2026-11-20)
   const [indFilter, setIndFilter] = useState<'' | 'only' | 'exclude'>('')   // 개인 고객 (115)
 
   // 고객관리 집계 (108 RPC) — 기간 필터와 독립, 기준연도 자동
@@ -165,6 +167,38 @@ export default function SalesHubPage() {
     }
     return true
   }), [rows, search, staffFilter, statusFilter, vipOnly, outstandingOnly, showInactive, catFilter, vendorFlagMap, indFilter])
+
+  // 조직도 보기: 걸러진 행 + 그 상위들(맥락)을 트리 순서로. 하위가 있는 행은 하위 포함 합계를 함께 보인다.
+  const rowById = useMemo(() => new Map(rows.map(r => [r.vendor_id, r])), [rows])
+  const hasOrg = useMemo(() => rows.some(r => r.parent_vendor_id), [rows])
+  const display = useMemo(() => {
+    type D = { r: Row; depth: number; kids: number; subNet: number; subOut: number; context: boolean }
+    if (view === 'list' || !hasOrg) return visible.map(r => ({ r, depth: 0, kids: 0, subNet: r.net, subOut: r.outstanding, context: false }) as D)
+    const inSet = new Set(visible.map(r => r.vendor_id))
+    const ctx = new Set<string>()
+    for (const r of visible) {
+      let p = r.parent_vendor_id, guard = 0
+      while (p && rowById.has(p) && guard++ < 10) { if (!inSet.has(p)) ctx.add(p); p = rowById.get(p)!.parent_vendor_id }
+    }
+    const ids = new Set([...Array.from(inSet), ...Array.from(ctx)])
+    const kids = new Map<string, Row[]>()
+    for (const id of Array.from(ids)) {
+      const r = rowById.get(id)!; const p = r.parent_vendor_id
+      if (p && ids.has(p)) kids.set(p, [...(kids.get(p) ?? []), r])
+    }
+    const roots = Array.from(ids).map(id => rowById.get(id)!).filter(r => !r.parent_vendor_id || !ids.has(r.parent_vendor_id))
+      .sort((a, b) => a.vendor_name.localeCompare(b.vendor_name, 'ko'))
+    const sum = (r: Row): [number, number] => (kids.get(r.vendor_id) ?? []).reduce<[number, number]>((a, k) => { const [n, o] = sum(k); return [a[0] + n, a[1] + o] }, [r.net, r.outstanding])
+    const out: D[] = []
+    const walk = (r: Row, depth: number) => {
+      const ks = (kids.get(r.vendor_id) ?? []).sort((a, b) => a.vendor_name.localeCompare(b.vendor_name, 'ko'))
+      const [n, o] = sum(r)
+      out.push({ r, depth, kids: ks.length, subNet: n, subOut: o, context: ctx.has(r.vendor_id) })
+      for (const k of ks) walk(k, depth + 1)
+    }
+    for (const r of roots) walk(r, 0)
+    return out
+  }, [view, hasOrg, visible, rowById])
 
   const filterActive = !!(search || staffFilter || statusFilter || vipOnly || outstandingOnly || catFilter || indFilter)
   const individualCount = useMemo(() => rows.filter(r => r.individual && (showInactive || r.is_active !== false)).length, [rows, showInactive])
@@ -395,6 +429,12 @@ export default function SalesHubPage() {
         <label className="text-xs text-gray-600 flex items-center gap-1">
           <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} /> 비활성 포함
         </label>
+        {hasOrg && (
+          <span className="inline-flex border border-gray-300 rounded-lg overflow-hidden" title="하위 조직(팀 · 부서)을 상위 조직 아래로 묶어 봅니다">
+            <button onClick={() => setView('list')} className={`px-2.5 py-1 text-xs ${view === 'list' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-gray-600'}`}>목록</button>
+            <button onClick={() => setView('tree')} className={`px-2.5 py-1 text-xs ${view === 'tree' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-gray-600'}`}>조직도</button>
+          </span>
+        )}
         {individualCount > 0 && (
           <select value={indFilter} onChange={e => setIndFilter(e.target.value as '' | 'only' | 'exclude')}
             className="border border-gray-300 rounded px-2 py-1 text-xs">
@@ -462,19 +502,23 @@ export default function SalesHubPage() {
               </tr>
             </thead>
             <tbody>
-              {visible.slice(0, 300).map(r => {
+              {display.slice(0, 300).map(({ r, depth, kids, subNet, subOut, context }) => {
                 const ratio = r.net > 0 ? r.collected / r.net : 1
+                const parentName = r.parent_vendor_id ? rowById.get(r.parent_vendor_id)?.vendor_name ?? null : null
                 const meta = STATUS_META[r.status] ?? STATUS_META.normal
                 return (
-                  <tr key={r.vendor_id} className="border-b border-gray-50 hover:bg-blue-50/40">
+                  <tr key={r.vendor_id} className={`border-b border-gray-50 hover:bg-blue-50/40 ${context ? 'opacity-60' : ''}`}>
                     <td className="py-2 px-3">
-                      <Link href={`/sales-hub/${r.vendor_id}?from=${from}&to=${to}`} className="block">
+                      <Link href={`/sales-hub/${r.vendor_id}?from=${from}&to=${to}`} className="block" style={depth ? { paddingLeft: `${depth * 1.1}rem` } : undefined}>
                         <div className="font-semibold text-gray-900">
+                          {depth > 0 && <span className="text-gray-300 font-normal mr-1">└</span>}
                           {r.vendor_name}
+                          {kids > 0 && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-gray-100 text-gray-500 align-middle">하위 {kids}</span>}
                           {r.individual && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-violet-100 text-violet-700 align-middle">개인 고객</span>}
                           {r.is_active === false && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-gray-200 text-gray-600 align-middle">비활성</span>}
                         </div>
                         <div className="text-[0.6875rem] text-gray-400">
+                          {view === 'list' && parentName && <span className="text-gray-500">상위: {parentName} · </span>}
                           별칭 {r.alias_count} · 카드 {r.card_count || '-'}{r.vip_total > 0 ? ` · VIP 누적 ${eok(r.vip_total)}` : ''}
                         </div>
                       </Link>
@@ -499,7 +543,11 @@ export default function SalesHubPage() {
                         </td>
                       )
                     })()}
-                    <td className="py-2 px-3 text-right tabular-nums">{won(r.net)}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">
+                      {won(r.net)}
+                      {kids > 0 && subNet !== r.net && <div className="text-[0.625rem] text-gray-400">하위 포함 {won(subNet)}</div>}
+                      {kids > 0 && subOut > 0 && <div className="text-[0.625rem] text-red-500">하위 포함 미수 {won(subOut)}</div>}
+                    </td>
                     <td className="py-2 px-3 text-right tabular-nums">{won(r.collected)}</td>
                     <td className="py-2 px-3">
                       <div className="flex items-center gap-2">
@@ -559,7 +607,7 @@ export default function SalesHubPage() {
         )}
       </div>
       <p className="text-xs text-gray-400 mt-2">
-        {visible.length > 300 ? `상위 300곳만 표시 중 (전체 ${visible.length.toLocaleString()}곳 — 검색·필터로 좁혀주세요) · ` : `${visible.length.toLocaleString()}곳 · `}
+        {display.length > 300 ? `상위 300곳만 표시 중 (전체 ${display.length.toLocaleString()}곳 — 검색·필터로 좁혀주세요) · ` : `${visible.length.toLocaleString()}곳 · `}
         매출·미수는 ERP 원본(주문·미수금) 기준 · 휴면 = 최근 6개월 주문 없음
       </p>
     </div>
