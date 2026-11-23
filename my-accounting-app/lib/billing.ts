@@ -104,8 +104,8 @@ export async function buildBillingSuggestions(admin: SupabaseClient): Promise<{
   if (probe.error) return { available: false, suggestions: [], linked: [], self_count: 0 }
 
   const [vr, gr, ir, sr] = await Promise.all([
-    fetchAllRows<{ id: string; name: string; biz_number: string | null; group_id: string | null; type: string | null; status: string | null; is_active: boolean | null; billing_vendor_id: string | null; billing_self_confirmed: boolean | null }>((f, t) =>
-      admin.from('vendors').select('id, name, biz_number, group_id, type, status, is_active, billing_vendor_id, billing_self_confirmed')
+    fetchAllRows<{ id: string; name: string; biz_number: string | null; group_id: string | null; type: string | null; status: string | null; is_active: boolean | null; billing_vendor_id: string | null; billing_self_confirmed: boolean | null; match_aliases: string[] | null }>((f, t) =>
+      admin.from('vendors').select('id, name, biz_number, group_id, type, status, is_active, billing_vendor_id, billing_self_confirmed, match_aliases')
         .neq('status', 'merged').range(f, t)),
     fetchAllRows<{ id: string; name: string }>((f, t) => admin.from('vendor_groups').select('id, name').range(f, t)),
     fetchAllRows<{ vendor_id: string | null }>((f, t) =>
@@ -130,11 +130,24 @@ export async function buildBillingSuggestions(admin: SupabaseClient): Promise<{
   const byId = new Map(vendors.map(v => [v.id, v]))
   // 본점 법인 후보: 사업자번호 + 자체 매출 계산서가 있는 거래처, 정규화 이름 → 거래처
   const entityByName = new Map<string, typeof vendors[number]>()
+  // 이름과 별칭(옛 법인 이름) 모두로 찾는다 — 법인을 '하나은행 본점'처럼 본점으로 쓰면(2026-11-23 본점 · 법인 하나로)
+  // 이름이 업체명과 달라지므로 별칭 '주식회사 하나은행'으로 업체 '하나은행'의 법인을 찾는다. 이름이 별칭보다 우선.
+  const byNameOnly = new Set<string>()
   for (const v of vendors) {
     if (!v.biz_number || !invCount.get(v.id)) continue
     const k = normName(v.name)
+    byNameOnly.add(k)
     const cur = entityByName.get(k)
     if (!cur || (invCount.get(v.id) ?? 0) > (invCount.get(cur.id) ?? 0)) entityByName.set(k, v)
+  }
+  for (const v of vendors) {
+    if (!v.biz_number || !invCount.get(v.id)) continue
+    for (const a of v.match_aliases ?? []) {
+      const k = normName(a)
+      if (!k || byNameOnly.has(k)) continue
+      const cur = entityByName.get(k)
+      if (!cur || (invCount.get(v.id) ?? 0) > (invCount.get(cur.id) ?? 0)) entityByName.set(k, v)
+    }
   }
   const groupName = new Map(gr.data.map(g => [g.id, g.name]))
 
@@ -174,13 +187,20 @@ export async function buildBillingSuggestions(admin: SupabaseClient): Promise<{
 // 청구처로 고를 수 있는 법인 목록 (사업자번호가 있고 다른 청구처를 가리키지 않는 거래처)
 export async function listBillingEntities(admin: SupabaseClient, q: string): Promise<BillingRef[]> {
   const key = q.replace(/\s+/g, '')
-  let query = admin.from('vendors').select('id, name, biz_number')
+  const base = () => admin.from('vendors').select('id, name, biz_number')
     .not('biz_number', 'is', null).neq('status', 'merged').is('billing_vendor_id', null)
-    .order('name').limit(30)
+  let query = base().order('name').limit(30)
   if (key) query = query.ilike('name', `%${q.trim()}%`)
-  const { data, error } = await query
+  // 별칭(옛 법인 이름)이 정확히 같은 곳을 맨 앞에 — 'IBK기업은행' · '주식회사 하나은행'으로 'IBK기업은행 본점' · '하나은행 본점'이 바로 나오게(2026-11-23)
+  const [{ data, error }, alias] = await Promise.all([
+    query,
+    key ? base().contains('match_aliases', [q.trim()]).limit(5) : Promise.resolve({ data: [] as { id: string; name: string; biz_number: string | null }[] }),
+  ])
   if (error) return []
-  return (data ?? []).map(v => ({ id: v.id as string, name: v.name as string, biz_number: (v.biz_number as string | null) ?? null }))
+  const rows = [...(alias.data ?? []), ...(data ?? [])]
+  const seen = new Set<string>()
+  return rows.filter(v => !seen.has(v.id as string) && seen.add(v.id as string))
+    .map(v => ({ id: v.id as string, name: v.name as string, biz_number: (v.biz_number as string | null) ?? null }))
 }
 
 // ── 360° 상세용 청구처 데이터 ─────────────────────────────

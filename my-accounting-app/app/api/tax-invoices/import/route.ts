@@ -270,8 +270,8 @@ export async function POST(req: NextRequest) {
   // 거래처를 못 보고 같은 사업자번호로 새 거래처를 만들었다 (2026-10-22 확인: 동명 100그룹 216행).
   // 활성 거래처만 — 병합된(merged)·비활성 행까지 읽으면 같은 사업자번호가 병합 행에 매칭돼
   // 새 계산서가 죽은 거래처에 붙는다 (2026-10-22 413 검증에서 발견, 414로 정리).
-  const vendorsResult = await fetchAllRows<{ id: string; name: string; biz_number: string | null; type: string; default_account_id: string | null }>((f, t) =>
-    admin.from('vendors').select('id, name, biz_number, type, default_account_id')
+  const vendorsResult = await fetchAllRows<{ id: string; name: string; biz_number: string | null; type: string; default_account_id: string | null; match_aliases: string[] | null }>((f, t) =>
+    admin.from('vendors').select('id, name, biz_number, type, default_account_id, match_aliases')
       .eq('status', 'active').range(f, t))
   if ('error' in vendorsResult) return NextResponse.json({ error: vendorsResult.error }, { status: 500 })
   const vendors = vendorsResult.data
@@ -282,6 +282,25 @@ export async function POST(req: NextRequest) {
     if (v.biz_number) vendorByBiz.set(v.biz_number as string, { id: v.id as string, type: v.type as string })
     vendorByName.set((v.name as string).trim().toLowerCase(), { id: v.id as string, type: v.type as string })
     if (v.default_account_id) vendorDefaultAcc.set(v.id as string, v.default_account_id as string)
+  }
+  // 상호가 매출처 이름과 다를 때: 별칭(match_aliases — 계산서 매칭 키워드 · 옛 이름)으로 찾는다 (2026-11-23).
+  // 예: 법인 매출처 이름을 'IBK기업은행 본점'으로 바꾼 뒤에도 상호 'IBK기업은행' 계산서가 새 거래처를 만들지 않고 그 법인에 붙는다.
+  // 이름이 우선이고, 여러 매출처에 같은 별칭이 있으면 쓰지 않는다(엉뚱한 곳에 붙지 않게).
+  {
+    const aliasOwners = new Map<string, Set<string>>()
+    const aliasVendor = new Map<string, { id: string; type: string }>()
+    for (const v of vendors ?? []) {
+      for (const a of v.match_aliases ?? []) {
+        const k = a.trim().toLowerCase()
+        if (!k) continue
+        if (!aliasOwners.has(k)) aliasOwners.set(k, new Set())
+        aliasOwners.get(k)!.add(v.id as string)
+        aliasVendor.set(k, { id: v.id as string, type: v.type as string })
+      }
+    }
+    aliasOwners.forEach((owners, k) => {
+      if (owners.size === 1 && !vendorByName.has(k)) vendorByName.set(k, aliasVendor.get(k)!)
+    })
   }
 
   // ── 거래처별 확정 이력 (과반 계정) — 자동분류 최우선 추천 재료 ──────────

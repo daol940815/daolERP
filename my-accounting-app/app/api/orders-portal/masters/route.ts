@@ -1,19 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { registerBranch, searchUnlinkedBranches } from '@/lib/bank-branches'
+import { cleanContactName } from '@/lib/contact-label'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { STAFF_REQUIRED_MSG } from '@/lib/customer-staff'
 import { loadBillingFamily } from '@/lib/billing'
 import { listIndividualCustomers, createIndividualCustomer } from '@/lib/individual-customer'
+import { standardizeGroupName, stripGroupPrefix } from '@/lib/vendor-group-names'
+import { checkVendorName, findVendorByFullName } from '@/lib/vendor-name-check'
 
 export const dynamic = 'force-dynamic'
+
+// 상담 · 주문의 업체 · 지점 목록 = 매출처관리와 같은 기준 (2026-11-19 — 매입처 457곳 · 매입처만 있는 업체가 섞여 있었음)
+const SALES_TYPES = ['customer', 'both']
 
 // 주문 입력용 마스터 조회
 // GET                     → { vendors, employees }  (폼 최초 로드)
 // GET ?vendor_id=<id>     → { contacts }            (주문처 선택 시 담당자 목록)
 // GET ?individual_group=<id> → { customers }        (개인 고객 업체의 고객 목록, 115)
+// GET ?name_check=1&group=&branch=&group_id= → 신규 지점 등록 입력 확인 (업체명 자동 표준화, 2026-11-19)
 // POST { action: 'create_individual', group_id, name, title?, phone?, staff_employee_id, force_new? }
 //   → 개인 고객 등록(인물 + 고객 전용 매출처). 같은 이름이 있으면 409 { duplicates, need_phone }
+// POST { action: 'reactivate_vendor', vendor_id } → 비활성 매출처를 다시 사용 (지점 검색의 회색 항목, 2026-11-19)
 // POST { action: 'create_contact', vendor_id, name, phone?, title? }
 //   → 담당자 마스터에 없는 인물을 그 자리에서 등록 (contacts + 현재 배정)
 // POST { action: 'create_sales_vendor', group_id?, group_name?, branch_name?,
@@ -27,6 +36,16 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   const vendorId = new URL(req.url).searchParams.get('vendor_id')
   const individualGroup = new URL(req.url).searchParams.get('individual_group')
+  {
+    const sp = new URL(req.url).searchParams
+    if (sp.get('name_check') === '1') {
+      return NextResponse.json(await checkVendorName(admin, sp.get('group') ?? '', sp.get('branch') ?? '', sp.get('group_id') || null))
+    }
+    // 은행 점포(121) — 지점 칸 아래 "미등록 점포"(2026-11-23). 표가 없으면 빈 목록
+    if (sp.has('bank_q')) {
+      return NextResponse.json({ items: await searchUnlinkedBranches(admin, sp.get('bank_q') ?? '', sp.get('group_name') || null, 5) })
+    }
+  }
   if (individualGroup) {
     return NextResponse.json({ customers: await listIndividualCustomers(admin, individualGroup) })
   }
@@ -65,18 +84,18 @@ export async function GET(req: NextRequest) {
   // 115: 개인 고객 전용 매출처 표시(individual_contact_id) — 미적용이면 없이 재조회
   let vendorsResult = await fetchAllRows<{ id: string; name: string; type: string | null; group_id?: string | null; individual_contact_id?: string | null }>(
     (from, to) => admin.from('vendors').select('id, name, type, group_id, individual_contact_id')
-      .eq('is_active', true).order('name').range(from, to),
+      .eq('is_active', true).in('type', SALES_TYPES).neq('status', 'merged').order('name').range(from, to),
   )
   if ('error' in vendorsResult) {
     vendorsResult = await fetchAllRows<{ id: string; name: string; type: string | null; group_id?: string | null }>(
       (from, to) => admin.from('vendors').select('id, name, type, group_id')
-        .eq('is_active', true).order('name').range(from, to),
+        .eq('is_active', true).in('type', SALES_TYPES).neq('status', 'merged').order('name').range(from, to),
     )
   }
   if ('error' in vendorsResult) {
     vendorsResult = await fetchAllRows<{ id: string; name: string; type: string | null }>(
       (from, to) => admin.from('vendors').select('id, name, type')
-        .eq('is_active', true).order('name').range(from, to),
+        .eq('is_active', true).in('type', SALES_TYPES).neq('status', 'merged').order('name').range(from, to),
     )
   }
   const groupSel = async () => {
@@ -87,12 +106,17 @@ export async function GET(req: NextRequest) {
   const seasonSel = (table: string) =>
     admin.from(table).select('order_season').not('order_season', 'is', null)
       .order('created_at', { ascending: false }).limit(1000)
-  const [groupsResult, employeesResult, cSeasons, oSeasons] = await Promise.all([
+  // 비활성 매출처 — 지점 검색에서 검색어가 있을 때만 회색으로 보여 주고, 고르면 다시 활성화한다 (2026-11-19). 개인 고객 전용 제외.
+  const inactiveSel = () => fetchAllRows<{ id: string; name: string; group_id: string | null }>((f, t) =>
+    admin.from('vendors').select('id, name, group_id').eq('is_active', false).in('type', SALES_TYPES).neq('status', 'merged')
+      .is('individual_contact_id', null).order('name').range(f, t))
+  const [groupsResult, employeesResult, cSeasons, oSeasons, inactiveResult] = await Promise.all([
     groupSel(),
     admin.from('employees').select('id, name, position, team, employment_type')
       .eq('is_active', true).order('name'),
     seasonSel('erp_consultation_items'),
     seasonSel('erp_order_items'),
+    inactiveSel(),
   ])
   const seasons = Array.from(new Set(
     [...(cSeasons.error ? [] : cSeasons.data ?? []), ...(oSeasons.error ? [] : oSeasons.data ?? [])]
@@ -105,8 +129,16 @@ export async function GET(req: NextRequest) {
   // 남아 오타 업체('푸본헌대생명')가 보이던 문제. DB는 그대로, 목록 조건만. 점검: supabase/checks/vendor_group_orphans_check.sql)
   const groupsWithBranch = new Set(vendorsResult.data.map(v => (v as { group_id?: string | null }).group_id).filter(Boolean) as string[])
   const groupsAll = (groupsResult.error ? [] : (groupsResult.data ?? [])) as { id: string; name: string; is_individual?: boolean }[]
+  // 하위 조직(120): 상위 조직 id — 지점 검색 결과에 경로를 붙이는 데만 쓴다. 미적용이면 없음.
+  const parentOf = new Map<string, string>()
+  {
+    const r = await fetchAllRows<{ id: string; parent_vendor_id: string | null }>((f, t) =>
+      admin.from('vendors').select('id, parent_vendor_id').not('parent_vendor_id', 'is', null).neq('status', 'merged').range(f, t))
+    if (!('error' in r)) for (const v of r.data) if (v.parent_vendor_id) parentOf.set(v.id, v.parent_vendor_id)
+  }
   return NextResponse.json({
-    vendors: vendorsResult.data,
+    vendors: parentOf.size ? vendorsResult.data.map(v => parentOf.has(v.id) ? { ...v, parent_vendor_id: parentOf.get(v.id) } : v) : vendorsResult.data,
+    inactive_vendors: 'error' in inactiveResult ? [] : inactiveResult.data,
     groups: groupsAll.filter(g => g.is_individual || groupsWithBranch.has(g.id)),   // 505 미적용 시 빈 배열
     employees: employeesResult.data ?? [],
     seasons,
@@ -118,20 +150,20 @@ export async function GET(req: NextRequest) {
   })
 }
 
-// 같은 매출처가 이미 있는지 — 업체 그룹과 무관하게 활성 매출처 전체의 이름·별칭을
-// 법인 접두·공백 무시로 비교한다. 그룹 안에서만 찾으면 그룹 미지정 거래처(정비·과거 등록분)를
-// 못 찾아 같은 지점이 중복 생성된다(2026-11-03~04 실제 발생 6쌍).
-const normVendor = (s: string) =>
-  s.replace(/^\s*(\(주\)|㈜|주식회사)\s*/, '').replace(/\s+/g, '').toLowerCase()
-async function findSalesVendor(admin: ReturnType<typeof createAdminClient>, fullName: string) {
-  const key = normVendor(fullName)
-  const r = await fetchAllRows<{ id: string; name: string; group_id: string | null; match_aliases: string[] | null }>((f, t) =>
-    admin.from('vendors').select('id, name, group_id, match_aliases')
-      .in('type', ['customer', 'both']).eq('is_active', true).neq('status', 'merged').range(f, t))
-  if ('error' in r) return null
-  return r.data.find(v => normVendor(v.name) === key)
-    ?? r.data.find(v => (v.match_aliases ?? []).some(a => normVendor(a) === key))
-    ?? null
+// 같은 매출처가 이미 있는지 — 업체 그룹과 무관하게 매출처 전체의 이름 · 옛 이름(별칭)을 법인 표기 · 공백 무시로 비교한다
+// (`findVendorByFullName`, 활성 우선). 그룹 안에서만 찾으면 그룹 미지정 거래처를 못 찾아 같은 지점이 중복 생성된다(2026-11-03~04 실제 6쌍).
+// **비활성 매출처도 찾는다 — 찾으면 다시 활성화해서 쓴다**(2026-11-19 사용자 원칙: 같은 이름의 매출처는 활성 · 비활성을 통틀어 하나만).
+// 전에는 활성만 찾아 비활성과 같은 이름의 새 매출처를 만들었고, 새 주문의 표기 별칭이 비활성 쪽에 붙어 매출이 갈렸다.
+async function findSalesVendor(admin: ReturnType<typeof createAdminClient>, fullName: string)
+  : Promise<{ id: string; name: string; group_id: string | null; reactivated: boolean } | null> {
+  const e = await findVendorByFullName(admin, fullName)
+  if (!e) return null
+  let reactivated = false
+  if (!e.is_active) {
+    const { error } = await admin.from('vendors').update({ is_active: true }).eq('id', e.id).neq('status', 'merged')
+    reactivated = !error
+  }
+  return { id: e.id, name: e.name, group_id: e.group_id, reactivated }
 }
 
 export async function POST(req: NextRequest) {
@@ -147,7 +179,7 @@ export async function POST(req: NextRequest) {
     if (!groupId || !(body.name ?? '').trim()) return NextResponse.json({ error: '업체와 고객 이름이 필요합니다.' }, { status: 400 })
     if (!staffId) return NextResponse.json({ error: STAFF_REQUIRED_MSG }, { status: 400 })
     const r = await createIndividualCustomer(admin, {
-      groupId, name: body.name!, title: body.title ?? null, phone: body.phone ?? null,
+      groupId, ...cleanContactName(body.name, body.title), phone: body.phone ?? null,
       staffEmployeeId: staffId, forceNew: String(body.force_new) === 'true',
     })
     if ('error' in r) return NextResponse.json({ error: r.error }, { status: 400 })
@@ -165,8 +197,10 @@ export async function POST(req: NextRequest) {
     const norm = (s: string) =>
       s.replace(/^\s*(\(주\)|㈜|주식회사)\s*/, '').replace(/\s+/g, '').toLowerCase()
     const groupIdIn = (body.group_id ?? '').trim() || null
-    const groupName = (body.group_name ?? '').trim()
-    const branchName = (body.branch_name ?? '').trim()
+    const typedGroup = (body.group_name ?? '').trim()
+    // 업체명 자동 표준화 (2026-11-19, lib/vendor-group-names.ts) — 옛 업체명은 표준명으로
+    const groupName = standardizeGroupName(typedGroup).name
+    let branchName = (body.branch_name ?? '').trim()
     if (!groupIdIn && !groupName) {
       return NextResponse.json({ error: '업체명을 입력해주세요.' }, { status: 400 })
     }
@@ -192,7 +226,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2) 지점(vendors) — 정규화 동일명이 있으면 재사용 (매출처 목록 오염 방지)
+    // 2) 지점(vendors) — 정규화 동일명이 있으면 재사용 (매출처 목록 오염 방지). 지점명 앞 은행명은 뗀다(2026-11-19).
+    branchName = stripGroupPrefix(groupLabel, branchName, typedGroup).branch
     const vendorName = branchName ? `${groupLabel} ${branchName}` : groupLabel
     const existing = await findSalesVendor(admin, vendorName)
     let vendorId = existing?.id as string | undefined
@@ -209,7 +244,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 3) 담당자(선택) — 같은 지점에 정규화 동일명이 배정되어 있으면 재사용
-    const contactName = (body.contact_name ?? '').trim()
+    const cleaned = cleanContactName(body.contact_name, body.contact_title)
+    const contactName = cleaned.name
     let contactId: string | null = null
     let contactReused = false
     if (contactName) {
@@ -223,7 +259,7 @@ export async function POST(req: NextRequest) {
       if (hit) { contactId = hit.contact_id as string; contactReused = true }
       else {
         const phone = (body.contact_phone ?? '').trim() || null
-        const title = (body.contact_title ?? '').trim() || null
+        const title = cleaned.title
         // 매출처 고객 신규 배정 — 다올 담당 필수 (112, 2026-11-05)
         const staffId = (body.staff_employee_id ?? '').trim() || null
         if (!staffId) return NextResponse.json({ error: STAFF_REQUIRED_MSG }, { status: 400 })
@@ -242,17 +278,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       group_id: groupId, group_name: groupLabel || null,
       vendor_id: vendorId, vendor_name: vendorName,
-      vendor_reused: vendorReused,
+      vendor_reused: vendorReused, vendor_reactivated: !!existing?.reactivated,
       contact_id: contactId, contact_reused: contactReused,
     })
   }
 
   if (body.action === 'create_contact') {
     const vendorId = body.vendor_id
-    const name = (body.name ?? '').trim()
+    const { name, title } = cleanContactName(body.name, body.title)
     if (!vendorId || !name) return NextResponse.json({ error: '거래처와 이름이 필요합니다.' }, { status: 400 })
     const phone = (body.phone ?? '').trim() || null
-    const title = (body.title ?? '').trim() || null
     // 다올 담당 필수 (112, 2026-11-05 — 은행 · 지점 · 고객마다 담당 기입)
     const staffId = (body.staff_employee_id ?? '').trim() || null
     if (!staffId) return NextResponse.json({ error: STAFF_REQUIRED_MSG }, { status: 400 })
@@ -268,17 +303,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ contact_id: contact.id })
   }
 
+  // 비활성 매출처 다시 사용 (2026-11-19) — 상담 · 주문의 지점 검색에서 회색 '비활성' 항목을 고르면 그 자리에서 활성화한다.
+  // 같은 이름의 새 매출처를 만들지 않게 하는 것이 목적(같은 이름 매출처는 하나만). 매출처 유형 · 병합 안 된 것만.
+  if (body.action === 'reactivate_vendor') {
+    const id = (body.vendor_id ?? '').trim()
+    if (!id) return NextResponse.json({ error: '매출처가 필요합니다.' }, { status: 400 })
+    const { data: v } = await admin.from('vendors').select('id, name, type, status, is_active, group_id').eq('id', id).maybeSingle()
+    if (!v || v.status === 'merged' || !SALES_TYPES.includes(String(v.type))) {
+      return NextResponse.json({ error: '다시 사용할 수 없는 매출처입니다(병합됨 또는 매입처).' }, { status: 400 })
+    }
+    if (!v.is_active) {
+      const { error } = await admin.from('vendors').update({ is_active: true }).eq('id', id)
+      if (error) return NextResponse.json({ error: `활성화 실패: ${error.message}` }, { status: 500 })
+    }
+    return NextResponse.json({ vendor_id: v.id, group_id: (v.group_id as string | null) ?? null, name: v.name, reactivated: !v.is_active })
+  }
+
   // 신규 매출처 인라인 등록 (2026-08-25 확정) — 데이터는 vendors 마스터 단일 원천에
   // 쓴다 (허브에서도 즉시 보임). 같은 이름이 이미 있으면 만들지 않고 그걸 선택한다.
+  // 미등록 은행 점포를 골랐을 때 매출처로 등록(121, 2026-11-23 사용자 결정: 주문 입력자 누구나 — 아르바이트는 미들웨어가 막음)
+  if (body.action === 'register_bank_branch') {
+    if (!body.branch_id) return NextResponse.json({ error: 'branch_id가 필요합니다.' }, { status: 400 })
+    const r = await registerBranch(admin, body.branch_id, me.employeeName ?? '주문 입력')
+    return 'error' in r ? NextResponse.json(r, { status: 400 }) : NextResponse.json(r)
+  }
+
   if (body.action === 'create_vendor') {
-    const groupName = (body.group_name ?? '').trim()    // 업체명
-    const branchName = (body.branch_name ?? '').trim()  // 지점명 (선택 — 단일 업체는 비움)
+    // 업체명 자동 표준화 (2026-11-19) — 옛 업체명은 표준명으로, 지점명 앞 은행명은 뗀다
+    const typedGroup = (body.group_name ?? '').trim()
+    const groupName = standardizeGroupName(typedGroup).name    // 업체명
+    const branchName = stripGroupPrefix(groupName, body.branch_name ?? '', typedGroup).branch  // 지점명 (선택 — 단일 업체는 비움)
     if (!groupName) return NextResponse.json({ error: '업체명을 입력해주세요.' }, { status: 400 })
     const fullName = [groupName, branchName].filter(Boolean).join(' ')
 
     const existing = await findSalesVendor(admin, fullName)
     if (existing) {
-      return NextResponse.json({ vendor_id: existing.id, group_id: existing.group_id ?? null, existed: true })
+      return NextResponse.json({ vendor_id: existing.id, group_id: existing.group_id ?? null, existed: true, reactivated: existing.reactivated })
     }
 
     // 업체 그룹 연결 (없으면 생성) — 지점명이 없는 단독 업체도 같은 이름의 업체에 연결(2026-11-05 규칙).

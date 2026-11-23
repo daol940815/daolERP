@@ -123,13 +123,21 @@ export async function loadPoStatusMap(
 
   // 주문별 유효 품목 수 대비 발주된 품목 수
   const counts = new Map<string, { total: number; done: number }>()
+  const stockOnly = new Set<string>()   // 재고 출고 행이 있는 주문 — 발주할 품목이 하나도 없으면 발주 완료로 본다
   await Promise.all(chunks.map(async ch => {
-    const r = await fetchAllRows<{ id: string; order_id: string; is_canceled: boolean; is_prepayment: boolean }>((pf, pt) =>
-      admin.from('erp_order_items').select('id, order_id, is_canceled, is_prepayment').in('order_id', ch).range(pf, pt),
+    type Row = { id: string; order_id: string; is_canceled: boolean; is_prepayment: boolean; stock_role?: string | null }
+    let r = await fetchAllRows<Row>((pf, pt) =>
+      admin.from('erp_order_items').select('id, order_id, is_canceled, is_prepayment, stock_role').in('order_id', ch).range(pf, pt),
     )
+    if ('error' in r && /stock_role/i.test(r.error)) {   // 1400 미적용
+      r = await fetchAllRows<Row>((pf, pt) =>
+        admin.from('erp_order_items').select('id, order_id, is_canceled, is_prepayment').in('order_id', ch).range(pf, pt),
+      )
+    }
     if ('error' in r) return
     for (const it of r.data) {
       if (it.is_canceled || it.is_prepayment) continue   // 선결제는 발주 대상 아님
+      if (it.stock_role === 'out') { stockOnly.add(it.order_id); continue }   // 재고 출고는 사무실에서 직접 발송 — 발주 대상 아님 (1400)
       let c = counts.get(it.order_id)
       if (!c) { c = { total: 0, done: 0 }; counts.set(it.order_id, c) }
       c.total += 1
@@ -139,6 +147,7 @@ export async function loadPoStatusMap(
 
   for (const id of orderIds) {
     const c = counts.get(id)
+    if (!c && stockOnly.has(id)) { map.set(id, 'full'); continue }
     map.set(id, !c || c.done === 0 ? 'none' : c.done >= c.total ? 'full' : 'partial')
   }
   return map

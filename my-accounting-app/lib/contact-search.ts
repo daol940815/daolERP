@@ -1,7 +1,9 @@
 // 고객 쌍방향 추천 — 담당자 이름 · 핸드폰으로 소속(업체 · 지점)까지 찾는다
 // (2026-11-18 사용자 승인 — 시안 docs/mockups/고객_쌍방향추천_시안.html)
 //  - 이름 2글자 이상 · 번호 숫자 4개 이상. 결과 최대 20명.
-//  - 대상: 거래처 담당자 마스터(병합된 인물 제외), 소속(배정)이 하나라도 있는 사람만.
+//  - 대상: 거래처 담당자 마스터(병합된 인물 제외) 중 **활성 매출처에 현재 소속**이 있는 사람만 (2026-11-19 수정 —
+//    비활성 · 병합 · 매입처 소속이 '최근 소속'으로 나와 고를 수 있던 결함. 매출처관리와 같은 기준: type customer · both, 활성, 병합 제외).
+//    이전 소속(인사이동 안내)도 활성 매출처의 끝난 배정만 보여준다.
 //  - 정렬: 현재 소속이 있는 사람 → 최근 주문일 → 이름. 소속은 현재 → 이전(끝난 날짜 최근순).
 //  - 고를 때만 채운다(화면). 여기는 조회만 한다.
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -82,7 +84,7 @@ export async function searchCustomers(admin: SupabaseClient, q: string): Promise
   if (!vendorIds.length) return []
 
   const vSel = (with115: boolean) => admin.from('vendors')
-    .select(`id, name, group_id, is_active, status${with115 ? ', individual_contact_id' : ''}`).in('id', vendorIds)
+    .select(`id, name, type, group_id, is_active, status${with115 ? ', individual_contact_id' : ''}`).in('id', vendorIds)
   let vRes = await vSel(true)
   if (vRes.error) vRes = await vSel(false)
   const vendors = new Map(((vRes.data ?? []) as unknown as Record<string, unknown>[]).map(v => [String(v.id), v]))
@@ -101,8 +103,9 @@ export async function searchCustomers(admin: SupabaseClient, q: string): Promise
   for (const c of people) {
     const list: CustomerAsg[] = asgs.filter(a => a.contact_id === c.id).flatMap(a => {
       const v = vendors.get(String(a.vendor_id))
-      if (!v) return []
-      const active = v.is_active !== false && v.status !== 'merged'
+      // 매출처관리에 보이는 거래처만 — 비활성 · 병합 · 매입처는 현재든 이전이든 보이지 않는다
+      if (!v || v.is_active === false || v.status === 'merged' || !['customer', 'both'].includes(String(v.type))) return []
+      const active = true
       const gid = (v.group_id as string | null) ?? null
       return [{
         vendor_id: String(v.id), vendor_name: String(v.name ?? ''),
@@ -114,7 +117,7 @@ export async function searchCustomers(admin: SupabaseClient, q: string): Promise
         ended_at: (a.ended_at as string | null) ?? null,
       }]
     })
-    if (!list.length) continue
+    if (!list.some(x => x.current)) continue     // 고를 수 있는 현재 소속이 없으면 결과에서 뺀다
     list.sort((x, y) => Number(y.current) - Number(x.current) || String(y.ended_at ?? '').localeCompare(String(x.ended_at ?? '')))
     hits.push({
       contact_id: c.id, name: c.name, phone: c.phone ?? null, tel: c.tel ?? null,

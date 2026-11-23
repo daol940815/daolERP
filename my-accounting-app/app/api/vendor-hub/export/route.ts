@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
     if (q) {
       const hit = norm(r.vendor_name).includes(norm(q))
         || r.alias_names.some(a => norm(a).includes(norm(q)))
+        || (r.old_names ?? []).some(a => norm(a).includes(norm(q)))
         || (digits.length >= 3 && (r.biz_number ?? '').replace(/\D/g, '').includes(digits))
       if (!hit) return false
     }
@@ -76,10 +77,12 @@ export async function GET(req: NextRequest) {
     return true
   })
 
+  const nameById = new Map(result.rows.map(r => [r.vendor_id, r.vendor_name]))   // 상위 조직 이름(120)
   const out = rows.map(r => {
     const f = flagMap.get(r.vendor_id)
     return {
       '매출처명': r.vendor_name,
+      '상위 조직': r.parent_vendor_id ? nameById.get(r.parent_vendor_id) ?? '' : '',
       '활성': r.is_active === false ? '비활성' : '활성',
       '사업자번호': r.biz_number ?? '',
       '담당직원': r.staff_primary ?? '',

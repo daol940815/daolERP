@@ -42,3 +42,11 @@ export function readListParams(sp: URLSearchParams): { filter: ProductFilter; co
   }
   return { filter: f && PRODUCT_FILTERS.includes(f) ? f : DEFAULT_FILTER, conds }
 }
+
+/** 품번 정리 (2026-11-20 사용자 확인): 빈칸 · '-' 류(기존 ERP에서 품번 필수라 넣던 자리 채움)는 품번 없음(null).
+ *  품번은 겹치면 안 되므로 '-'를 실제 품번으로 받으면 두 번째부터 등록이 막히고, 원가표 업로드에서는 같은 품번으로 보여 첫 행만 남는다. */
+export function normalizeItemCode(v: unknown): string | null {
+  const s = String(v ?? '').trim()
+  if (!s || /^[-－—–‐]+$/.test(s)) return null
+  return s
+}

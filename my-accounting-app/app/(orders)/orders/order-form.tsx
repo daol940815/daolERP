@@ -12,14 +12,37 @@ import {
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Combo, CustomerShipInput, DiscountInput, NumInput, fmtPurchasePrice, purchaseAmount, toPurchasePrice, SeasonDatalist, SeasonInput, autoGrow, branchLabel, draftExtrasFromRow, draftFromProduct,
+  Combo, CustomerShipInput, DiscountInput, NumInput, fmtPurchasePrice, purchaseAmount, toPurchasePrice, SeasonDatalist, SeasonInput, autoGrow, branchLabel, branchText, draftExtrasFromRow, draftFromProduct,
   emptyItem, lineCost, lineTotal, priceRule, purchaseShippingHint, quantityPatch, reshipPatch, toInt, withShipUnit, won,
 } from './form-shared'
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
 import type { ContactOpt, Employee, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from './form-shared'
-import { isMoimVendor } from './form-shared'
+import { isMoimVendor, orgSubLabel } from './form-shared'
+import ProductRegisterDialog, { UnregisteredTag, isUnregisteredRow, linkPatch } from './product-register-dialog'
 import IndividualRegister from './individual-register'
+import { InactiveVendorHits, matchInactiveVendors, reactivateVendor, type InactiveVendor } from './inactive-vendor-hits'
+import { BankBranchHits, type RegisteredBranch } from './bank-branch-hits'
+import { BranchStdHint, ExistingVendorNote, GroupStdHint, NamePreview, useVendorNameCheck } from '@/components/vendors/vendor-name-hints'
+import { groupSearchKeywords } from '@/lib/vendor-group-names'
 import { contactLabel } from '@/lib/contact-label'
+import { STOCK_ROLE_LABEL, previewFifo } from '@/lib/stock-cost'
+import { cartonShipping } from './form-shared'
+
+// 선매입 재고 안내 (1400) — /api/stock/available 응답
+type StockAvail = Record<string, { qty: number; lots: { date: string; order_no: string | null; remaining: number; unit_cost: number }[] }>
+const mmdd = (d: string) => d.slice(5).replace('-', '/')
+
+// 재고 칸 고정값 (서버 validateOrderInput 과 같은 규칙): 입고 = 판매 쪽 0, 출고 = 매입 쪽 0. 품번이 없으면 재고 칸을 쓸 수 없다
+function enforceStock(it: ItemDraft): ItemDraft {
+  if (it.stock_role && !it.product_id) return { ...it, stock_role: null }
+  if (it.stock_role === 'in') {
+    return { ...it, sale_price: 0, shipping_fee: 0, ship_unit: null, discount_amount: 0, discount_mode: '정액', discount_unit: 0 }
+  }
+  if (it.stock_role === 'out') {
+    return { ...it, purchase_price: 0, purchase_shipping: 0, purchase_discount: 0, purchase_discount_mode: '정액', purchase_discount_unit: 0 }
+  }
+  return it
+}
 
 // 주문 입력 폼 (신규·수정·재등록 공용) — 시안 "입력은 기존을 닮게" 기준
 // 필드 구성·순서는 기존 ERP 업로드 컬럼 순서. 오타의 원천(자유 입력)만
@@ -37,6 +60,9 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
 
   // 마스터
   const [vendors, setVendors] = useState<Vendor[]>([])
+  const vendorById = useMemo(() => new Map(vendors.map(v => [v.id, v])), [vendors])   // 하위 조직 경로용(120)
+  const [inactiveVendors, setInactiveVendors] = useState<InactiveVendor[]>([])   // 지점 검색 때만 회색으로 (2026-11-19)
+  const [reactivating, setReactivating] = useState(false)
   const [groups, setGroups] = useState<VendorGroup[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -81,6 +107,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
   // 신규 매출처 인라인 등록 (2026-08-25 확정) — vendors 마스터 단일 원천에 등록
   const [addingVendor, setAddingVendor] = useState(false)
   const [newVendor, setNewVendor] = useState({ group_name: '', branch_name: '' })
+  // 업체명 자동 표준화 (2026-11-19) — 표준 업체명 · 지점명 정리 · 이미 있는 매출처
+  const vnCheck = useVendorNameCheck('/api/orders-portal/masters?name_check=1', newVendor.group_name, newVendor.branch_name, { enabled: addingVendor })
   // 상담 전환: 자유 입력 담당자명 — 담당자 목록 로드 후 자동 매칭/프리필
   const [pendingManager, setPendingManager] = useState<string | null>(null)
   const [contactsLoadedFor, setContactsLoadedFor] = useState<string | null>(null)
@@ -103,6 +131,12 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
         const m = await mRes.json()
         if (!mRes.ok) throw new Error(m.error ?? '마스터 조회 실패')
         setVendors(m.vendors ?? [])
+        setInactiveVendors(m.inactive_vendors ?? [])
+        // 목록은 활성 매출처만(2026-11-19) — 저장된 주문 · 상담의 거래처가 비활성 · 매입처라 빠졌으면 이름만 보이게 붙여 둔다
+        const keepVendor = (id: string | null | undefined, name: string) => {
+          if (!id || ((m.vendors ?? []) as Vendor[]).some(v => v.id === id)) return
+          setVendors(prev => prev.some(v => v.id === id) ? prev : [...prev, { id, name: name || '(목록에 없는 거래처)', type: null, group_id: null }])
+        }
         setUsedSeasons(m.seasons ?? [])
         setGroups(m.groups ?? [])
         setEmployees(m.employees ?? [])
@@ -110,6 +144,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
         setIsParttime(m.me?.is_parttime === true)
         const p = await pRes.json()
         if (pRes.ok) setProducts((p.products ?? []).filter((x: Product) => x.is_active))
+        setCanRegisterProduct(p.can_edit === true)   // 품목 등록 권한(영업 · 주문 수정) — '품목 등록' 버튼 노출용
 
         if (orderId || reissueId) {
           const srcId = orderId ?? reissueId
@@ -129,6 +164,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           }
           setOrderDate(ord.order_date)
           setVendorId(ord.vendor_id)
+          keepVendor(ord.vendor_id, [ord.bank_name, ord.branch_name].filter(Boolean).join(' '))
           setGroupId(((m.vendors ?? []) as Vendor[]).find(v => v.id === ord.vendor_id)?.group_id ?? null)
           setContactId(ord.contact_id)
           setCounselorId(ord.counselor_employee_id)
@@ -166,6 +202,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               purchase_price: (it.purchase_price as number) ?? 0,
               purchase_shipping: (it.purchase_shipping as number) ?? 0,
               ...draftExtrasFromRow(it),   // 매입할인 · 주문시기 (708)
+              stock_role: it.stock_role === 'in' || it.stock_role === 'out' ? it.stock_role : null,   // 재고 칸 (1400)
+              stock_cost_saved: it.stock_cost != null ? Number(it.stock_cost) : null,
               memo: (it.memo as string) ?? '',
               status: '', option_note: '',   // 상담일지 전용 필드 — 주문 폼에서는 미사용
               branch_sale_price: prod?.sale_price ?? 0,
@@ -183,6 +221,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           if (!cRes.ok) throw new Error(c.error ?? '상담일지 조회 실패')
           const consult = c.consult
           setVendorId(consult.vendor_id)
+          keepVendor(consult.vendor_id, [consult.bank_name, consult.branch_name].filter(Boolean).join(' '))
           setGroupId(consult.vendor_group_id
             ?? ((m.vendors ?? []) as Vendor[]).find(v => v.id === consult.vendor_id)?.group_id ?? null)
           setContactId(consult.contact_id)
@@ -413,15 +452,43 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
     // 마스터 목록 갱신 후 방금 등록한 매출처 선택
     const mRes = await fetch('/api/orders-portal/masters')
     const m = await mRes.json()
-    if (mRes.ok) { setVendors(m.vendors ?? []); setGroups(m.groups ?? []) }
+    if (mRes.ok) { setVendors(m.vendors ?? []); setGroups(m.groups ?? []); setInactiveVendors(m.inactive_vendors ?? []) }
     setGroupId(json.group_id ?? null)
     setVendorId(json.vendor_id)
     setContactId(null)
     setAddingVendor(false)
     setNewVendor({ group_name: '', branch_name: '' })
-    setNotice(json.existed
-      ? '같은 이름의 매출처가 이미 있어 선택했습니다.'
+    setNotice(json.reactivated
+      ? '비활성이던 같은 이름의 매출처를 다시 사용합니다(새로 만들지 않음) — 담당자를 선택하거나 신규 등록해주세요.'
+      : json.existed
+      ? '이미 등록된 매출처를 선택했습니다(새로 만들지 않음).'
       : '매출처가 등록되었습니다 — 담당자를 선택하거나 신규 등록해주세요.')
+  }
+
+  // 비활성 매출처 다시 사용 (2026-11-19) — 지점 검색의 회색 항목을 고르면 활성화 후 선택
+  const pickInactiveVendor = async (v: InactiveVendor) => {
+    setReactivating(true); setError(null)
+    const r = await reactivateVendor(v.id)
+    if ('error' in r) { setError(r.error); setReactivating(false); return }
+    const mRes = await fetch('/api/orders-portal/masters')
+    const m = await mRes.json()
+    if (mRes.ok) { setVendors(m.vendors ?? []); setGroups(m.groups ?? []); setInactiveVendors(m.inactive_vendors ?? []) }
+    setVendorId(r.vendor_id)
+    setGroupId(r.group_id ?? groupId)
+    setContactId(null)
+    setNotice(`비활성이던 매출처 '${r.name}'을(를) 다시 사용합니다 — 매출처관리 목록에도 다시 보입니다.`)
+    setReactivating(false)
+  }
+
+  // 미등록 은행 점포를 골라 매출처로 등록한 뒤 그 지점을 쓴다 (121, 2026-11-23)
+  const pickRegisteredBranch = async (r: RegisteredBranch) => {
+    const mRes = await fetch('/api/orders-portal/masters')
+    const m = await mRes.json()
+    if (mRes.ok) { setVendors(m.vendors ?? []); setGroups(m.groups ?? []); setInactiveVendors(m.inactive_vendors ?? []) }
+    setVendorId(r.vendor_id)
+    setGroupId(r.group_id ?? groupId)
+    setContactId(null)
+    setNotice(r.existed ? `이미 있던 매출처 '${r.name}'을(를) 선택했습니다.` : `은행연합회 점포 '${r.name}'을(를) 매출처로 등록했습니다 — 담당자를 선택하거나 신규 등록해주세요.`)
   }
 
   // ── 고객 쌍방향 추천 (2026-11-18 사용자 승인 — 시안 docs/mockups/고객_쌍방향추천_시안.html) ──
@@ -476,8 +543,55 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
   const exactPhoneHits = phoneSearch.hits.filter(h => h.exact)
   const exactPhone = exactPhoneHits.length === 1 && normTel(phone) !== phoneDismissed ? exactPhoneHits[0] : null
 
+  // 미등록 상품 → 품목 관리 등록 (2026-11-19, 품목관리 트랙 부품 product-register-dialog)
+  const [canRegisterProduct, setCanRegisterProduct] = useState(false)
+  const [registerUid, setRegisterUid] = useState<number | null>(null)
+  const registerRow = registerUid === null ? null : items.find(x => x.uid === registerUid) ?? null
   const setItem = (i: number, patch: Partial<ItemDraft>) =>
-    setItems(prev => prev.map((it, idx) => idx === i ? { ...it, ...patch } : it))
+    setItems(prev => prev.map((it, idx) => idx === i ? enforceStock({ ...it, ...patch }) : it))
+
+  // ── 선매입 재고 (1400) ──
+  // 품번이 고른 품목들의 남은 재고를 받아 둔다 — 재고 있음 안내 · 재고 원가 미리보기용(저장 때 서버가 다시 계산)
+  const [stockAvail, setStockAvail] = useState<StockAvail>({})
+  const stockFetched = useRef(new Set<string>())
+  const productKey = useMemo(() => Array.from(new Set(items.map(x => x.product_id).filter(Boolean) as string[])).sort().join(','), [items])
+  useEffect(() => {
+    const need = productKey.split(',').filter(id => id && !stockFetched.current.has(id))
+    if (!need.length) return
+    need.forEach(id => stockFetched.current.add(id))
+    const ex = orderId ?? reissueId
+    fetch(`/api/stock/available?product_ids=${need.join(',')}${ex ? `&exclude=${ex}` : ''}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (j?.products) setStockAvail(prev => ({ ...prev, ...j.products })) })
+      .catch(() => { /* 안내용 — 실패해도 저장 검사는 서버가 한다 */ })
+  }, [productKey, orderId, reissueId])
+  // 재고 출고 행별 예상 재고 원가 (먼저 들어온 입고분부터, 같은 품목 여러 행은 위에서부터 차례로)
+  const stockPreview = useMemo(() => {
+    const left = new Map<string, { remaining: number; unit_cost: number; date: string }[]>()
+    const out = new Map<number, ReturnType<typeof previewFifo>>()
+    for (const it of items) {
+      if (it.stock_role !== 'out' || !it.product_id) continue
+      if (!left.has(it.product_id)) left.set(it.product_id, (stockAvail[it.product_id]?.lots ?? []).map(l => ({ ...l })))
+      const lots = left.get(it.product_id)!
+      const pv = previewFifo(lots, it.quantity || 0)
+      // 가져간 만큼 줄여 다음 행에 넘긴다
+      let take = (it.quantity || 0) - pv.short
+      for (const l of lots) { if (take <= 0) break; const t = Math.min(take, l.remaining); l.remaining -= t; take -= t }
+      out.set(it.uid, pv)
+    }
+    return out
+  }, [items, stockAvail])
+  // 재고 칸 변경 — "없음"으로 돌아가면 품목 마스터 가격을 다시 채운다(추천값)
+  const setStockRole = (i: number, role: 'in' | 'out' | null) => {
+    const it = items[i]
+    if (!it) return
+    if (role) { setItem(i, { stock_role: role, stock_dismissed: false }); return }
+    const restore: Partial<ItemDraft> = it.product_id ? {
+      ...priceRule(it, it.quantity),
+      ...(it.carton_unit > 0 ? { purchase_shipping: cartonShipping(it.carton_unit, it.carton_shipping_fee, it.loose_shipping_fee, it.quantity) } : {}),
+    } : {}
+    setItem(i, { stock_role: null, ...restore })
+  }
 
   const pickProduct = (i: number, pid: string | null) => {
     const p = products.find(x => x.id === pid)
@@ -523,12 +637,15 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
     setItem(i, it ? quantityPatch(it, qty) : { quantity: qty })
   }
 
+  // 마진 원가 = 매입합계 + 재고 원가, 선매입 입고 행은 빠진다 (lib/stock-cost.ts marginCostOf 와 같은 식 — 재고 원가는 미리보기)
   const totals = useMemo(() => {
     const filled = items.filter(it => it.item_name.trim())
     const total = filled.reduce((s, it) => s + lineTotal(it), 0)
     const cost = filled.reduce((s, it) => s + lineCost(it), 0)
-    return { total, cost, margin: total - cost }
-  }, [items])
+    const stockIn = filled.filter(it => it.stock_role === 'in').reduce((s, it) => s + lineCost(it), 0)
+    const stockCost = filled.filter(it => it.stock_role === 'out').reduce((s, it) => s + (stockPreview.get(it.uid)?.cost ?? 0), 0)
+    return { total, cost, stockIn, stockCost, margin: total - (cost - stockIn) - stockCost }
+  }, [items, stockPreview])
 
   const submit = async (andContinue?: boolean) => {
     setError(null); setNotice(null)
@@ -544,16 +661,26 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
       items: (() => {
         const filled = items.filter(it => it.item_name.trim())
         const posByUid = new Map(filled.map((it, idx) => [it.uid, idx + 1]))
-        return filled.map(it => ({
-          ...it,
-          parent_line_no: it.parent_uid ? (posByUid.get(it.parent_uid) ?? null) : null,
-        }))
+        // 화면 전용 칸(재고 안내 닫음 · 저장된 재고 원가)은 보내지 않는다 — 서버는 재고 원가를 직접 계산 · 승계
+        return filled.map(it => {
+          const row: Record<string, unknown> = { ...it, parent_line_no: it.parent_uid ? (posByUid.get(it.parent_uid) ?? null) : null }
+          delete row.stock_dismissed; delete row.stock_cost_saved
+          return row
+        })
       })(),
     }
     if (!payload.vendor_id) { setError('주문처를 선택해주세요.'); return }
     if (!payload.contact_id) { setError('거래처 담당자를 선택해주세요. (없으면 "+ 신규 담당자"로 등록)'); return }
     if (!payload.counselor_employee_id) { setError('상담자를 선택해주세요.'); return }
     if (!payload.items.length) { setError('품목을 1개 이상 입력해주세요.'); return }
+    // 재고 출고가 남은 재고보다 많으면 저장 전에 알린다 (서버도 같은 검사로 막는다)
+    const shortRow = items.find(it => it.stock_role === 'out' && (stockPreview.get(it.uid)?.short ?? 0) > 0)
+    if (shortRow) {
+      const pv = stockPreview.get(shortRow.uid)!
+      const left = (shortRow.quantity || 0) - pv.short
+      setError(`재고 출고 "${shortRow.item_name}" ${won(shortRow.quantity)}개가 남은 선매입 재고 ${won(left)}개보다 많습니다 — 수량을 줄이거나, 초과분 ${won(pv.short)}개는 행을 나눠 재고 칸 "없음"(새로 매입)으로 넣어 주세요.`)
+      return
+    }
 
     setSaving(true)
     try {
@@ -569,6 +696,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
         })
         const json = await res.json()
         if (!res.ok) throw new Error(json.error ?? '저장 실패')
+        if (json.warning) window.alert(json.warning)
         if (andContinue && !reissueId) {
           setNotice(`주문 ${json.order_no} 저장 완료 — 이어서 입력하세요.`)
           setGroupId(null); setVendorId(null); setContactId(null); setContactTel(''); setPhone(''); setMemo('')
@@ -663,7 +791,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
             <Combo
               value={groupId}
               display={groups.find(g => g.id === groupId)?.name ?? ''}
-              options={groups.map(g => ({ id: g.id, label: g.name }))}
+              options={groups.map(g => ({ id: g.id, label: g.name, keywords: groupSearchKeywords(g.name) }))}
               onSelect={id => {
                 setGroupId(id)
                 const branches = vendors.filter(v => v.group_id === id)
@@ -674,6 +802,14 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                 setAddingIndividual(null)
               }}
               placeholder="업체 검색 (지점에서 바로 검색도 가능)"
+              footer={({ q, close }) => {
+                // 단독 매출처 이름을 업체 칸에 치는 경우 — 비활성 매출처도 회색으로 (2026-11-19)
+                const hits = matchInactiveVendors(q, inactiveVendors, { activeNames: vendors.map(v => v.name), limit: 6 })
+                return hits.length ? (
+                  <InactiveVendorHits hits={hits} parttime={isParttime} busy={reactivating}
+                    onPick={v => { close(); pickInactiveVendor(v) }} />
+                ) : null
+              }}
             />
             <div className="text-[0.625rem] text-gray-400 mt-0.5">업체별 통계의 기준 — 단독 업체도 업체로 고르면 지점이 자동 선택됩니다</div>
           </div>
@@ -684,14 +820,15 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               display={(() => {
                 const v = vendors.find(x => x.id === vendorId)
                 if (!v || indPick) return ''
-                return branchLabel(v.name, groups.find(g => g.id === v.group_id)?.name)
+                return branchText(v.name, groups.find(g => g.id === v.group_id)?.name)
               })()}
               options={(groupId ? vendors.filter(v => v.group_id === groupId) : vendors)
                 .filter(v => !indMode || isMoimVendor(v, selGroup?.name))
                 .filter(v => !v.individual_contact_id)
                 .map(v => {
                   const gName = groups.find(g => g.id === v.group_id)?.name
-                  return { id: v.id, label: branchLabel(v.name, gName), sub: gName ?? '' }
+                  // 하위 조직(120)이면 보조 줄에 상위 조직 경로(같은 이름 팀 구분)
+                  return { id: v.id, label: branchText(v.name, gName), sub: orgSubLabel(v, vendorById, gName) }
                 })}
               onSelect={id => {
                 setVendorId(id)
@@ -700,16 +837,25 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               }}
               placeholder={indMode ? '개인 고객은 지점 없음 — 모임 주문만 선택' : groupId ? '소속 지점 선택' : '거래처 마스터 검색 — 자유 입력 불가'}
               required={!indMode}
-              footer={!indMode &&
-                <button type="button" onMouseDown={e => e.preventDefault()}
-                  onClick={() => {
-                    setNewVendor(p => ({ ...p, group_name: groups.find(g => g.id === groupId)?.name ?? p.group_name }))
-                    setAddingVendor(true)
-                  }}
-                  className="w-full text-left px-3 py-1.5 text-blue-700 font-medium hover:bg-blue-50">
-                  + 신규 매출처 등록
-                </button>
-              }
+              footer={({ q, close }) => !indMode && (
+                <>
+                  <InactiveVendorHits parttime={isParttime} busy={reactivating}
+                    hits={matchInactiveVendors(q, inactiveVendors, {
+                      activeNames: vendors.map(v => v.name), groupId, groupName: groups.find(g => g.id === groupId)?.name ?? null,
+                    })}
+                    onPick={v => { close(); pickInactiveVendor(v) }} />
+                  <BankBranchHits q={q} groupName={groups.find(g => g.id === groupId)?.name ?? null} parttime={isParttime}
+                    onError={setError} onRegistered={r => { close(); pickRegisteredBranch(r) }} />
+                  <button type="button" onMouseDown={e => e.preventDefault()}
+                    onClick={() => {
+                      setNewVendor(p => ({ ...p, group_name: groups.find(g => g.id === groupId)?.name ?? p.group_name }))
+                      setAddingVendor(true)
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-blue-700 font-medium hover:bg-blue-50">
+                    + 신규 매출처 등록
+                  </button>
+                </>
+              )}
             />
             {billingTo && (
               <div className="text-[0.6875rem] text-blue-700 mt-0.5">
@@ -904,8 +1050,18 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                   }} />
               )}
             </div>
+            {(newVendor.group_name.trim() || newVendor.branch_name.trim()) && (
+              <div className="w-full space-y-1.5">
+                <GroupStdHint c={vnCheck} onSuggest={n => setNewVendor(p => ({ ...p, group_name: n }))} />
+                <BranchStdHint c={vnCheck} />
+                <NamePreview c={vnCheck} label="등록될 지점" />
+                <ExistingVendorNote c={vnCheck} reuseInactive />
+              </div>
+            )}
             <button type="button" onClick={createVendor}
-              className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm">등록</button>
+              className={`px-3 py-1.5 text-white rounded-lg text-sm ${vnCheck.existing ? 'bg-blue-600' : 'bg-slate-900'}`}>
+              {vnCheck.existing ? '기존 매출처 사용' : '등록'}
+            </button>
             <button type="button" onClick={() => setAddingVendor(false)}
               className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">취소</button>
             <span className="text-[0.6875rem] text-gray-400">
@@ -1004,12 +1160,13 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           주문 상품 <span className="text-[0.6875rem] font-normal text-gray-400 ml-1">품번·품명 검색 시 매입처·가격 자동</span>
         </div>
         <SeasonDatalist id="order-season-options" options={seasonOptions(orderDate, [...usedSeasons, ...items.map(x => x.order_season)])} />
-        <table className="w-full text-xs min-w-[1500px] table-fixed">
+        <table className="w-full text-xs min-w-[1600px] table-fixed">
           {/* 그룹별 동일 폭: 금액 칸 6개는 같은 폭으로 세로 정렬을 맞춘다. 품명이 남는 폭 전부 차지 */}
           <colgroup>
             <col className="w-[8.5rem]" />{/* 검색 */}
             <col />{/* 품명 — 남는 폭 전부 */}
             <col className="w-16" />{/* 배송종류 */}
+            <col className="w-[6.5rem]" />{/* 재고 (1400) */}
             <col className="w-[5rem]" />{/* 주문시기 */}
             <col className="w-28" />{/* 매입처 */}
             <col className="w-[5.75rem]" />{/* 판매가 */}
@@ -1029,6 +1186,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               <th className="py-1.5 px-1.5 text-left font-medium">품번 · 품명 검색</th>
               <th className="py-1.5 px-1.5 text-left font-medium">품명</th>
               <th className="py-1.5 px-1.5 text-left font-medium">배송종류</th>
+              <th className="py-1.5 px-1.5 text-left font-medium" title="없음(기본) / 선매입 입고: 판매가 0, 재고에 쌓임, 발주서 포함 / 재고 출고: 매입가 0, 발주 제외, 재고 원가 자동">재고</th>
               <th className="py-1.5 px-1.5 text-left font-medium" title="상시 · 26설 · 26추석 등 — 목록에서 고르거나 직접 입력">주문시기</th>
               <th className="py-1.5 px-1.5 text-left font-medium">매입처</th>
               <th className="py-1.5 px-1.5 text-right font-medium">판매가</th>
@@ -1080,6 +1238,9 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                     placeholder="마스터에 없으면 직접 입력"
                     className="w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs
                                resize-none overflow-hidden leading-relaxed block" />
+                  {isUnregisteredRow(it) && !(isEdit && !canEdit) && (
+                    <UnregisteredTag canRegister={canRegisterProduct} onRegister={() => setRegisterUid(it.uid)} />
+                  )}
                 </td>
                 <td className="py-1 px-1.5">
                   <select value={it.order_kind} onChange={e => setKind(i, e.target.value)}
@@ -1087,6 +1248,25 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                     className="border border-blue-200 bg-blue-50/40 rounded px-1 py-1 text-xs">
                     <option>지점</option><option>개별</option><option>샘플</option>
                   </select>
+                </td>
+                <td className="py-1 px-1.5">
+                  {/* 재고 칸 (1400) — 한 칸에서 고른다(입고 · 출고를 함께 고르는 실수 방지) */}
+                  <select value={it.stock_role ?? ''} disabled={!it.product_id}
+                    onChange={e => setStockRole(i, (e.target.value || null) as 'in' | 'out' | null)}
+                    title={it.product_id ? '없음 / 선매입 입고 / 재고 출고' : '품번(품목 관리)을 고르면 쓸 수 있습니다'}
+                    className={`w-full border rounded px-1 py-1 text-xs disabled:opacity-50 ${
+                      it.stock_role === 'in' ? 'border-violet-300 bg-violet-50 text-violet-800'
+                      : it.stock_role === 'out' ? 'border-teal-300 bg-teal-50 text-teal-800'
+                      : 'border-blue-200 bg-blue-50/40'}`}>
+                    <option value="">없음</option>
+                    <option value="in">{STOCK_ROLE_LABEL.in}</option>
+                    <option value="out">{STOCK_ROLE_LABEL.out}</option>
+                  </select>
+                  {it.stock_role === 'in' && <div className="text-[0.625rem] text-violet-600 mt-0.5">판매가 0 · 재고에 쌓임</div>}
+                  {it.stock_role === 'out' && <div className="text-[0.625rem] text-teal-700 mt-0.5">발주 제외 · 사무실 발송</div>}
+                  {!it.stock_role && it.stock_dismissed && (stockAvail[it.product_id ?? '']?.qty ?? 0) > 0 && (
+                    <div className="text-[0.625rem] text-amber-700 mt-0.5" title="재고가 있는데 새로 매입 — 매입가가 두 번 잡히지 않았는지 확인">재고 있음 · 새로 매입</div>
+                  )}
                 </td>
                 <td className="py-1 px-1.5">
                   <SeasonInput value={it.order_season} listId="order-season-options"
@@ -1099,7 +1279,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   <NumInput value={it.sale_price ? won(it.sale_price) : ''} onChange={e => setItem(i, { sale_price: toInt(e.target.value) })}
-                    className={numCell} placeholder="0" />
+                    disabled={it.stock_role === 'in'} title={it.stock_role === 'in' ? '선매입 입고 — 판매가 0 고정' : undefined}
+                    className={`${numCell} disabled:opacity-50`} placeholder="0" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   <NumInput value={it.quantity || ''} onChange={e => setQuantity(i, toInt(e.target.value))}
@@ -1108,11 +1289,11 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                 <td className="py-1 px-1.5 text-right">
                   {it.is_shipping && !it.shipping_fee
                     ? <div className="text-xs text-gray-300 text-right">—</div>
-                    : <CustomerShipInput it={it} className={numCell} onChange={patch => setItem(i, patch)} />}
+                    : <CustomerShipInput it={it} className={numCell} disabled={it.stock_role === 'in'} onChange={patch => setItem(i, patch)} />}
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   {/* 할인 — 정액 / 개당(× 수량 자동) 구분 (704, 상담일지와 동일) */}
-                  <select value={it.discount_mode}
+                  <select value={it.discount_mode} disabled={it.stock_role === 'in'}
                     onChange={e => {
                       const mode = e.target.value as '정액' | '단가'
                       setItem(i, mode === '단가'
@@ -1133,6 +1314,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                         ? { discount_unit: v, discount_amount: v * it.quantity }
                         : { discount_amount: v })
                     }}
+                    disabled={it.stock_role === 'in'}
                     title={it.discount_mode === '단가' ? `개당 할인 — 할인액 ${won(it.discount_amount)}원 자동 계산` : '행당 할인 금액'}
                     className={`${numCell} ${it.discount_amount > 0 ? 'text-red-600 font-semibold border-red-200 bg-red-50/40' : ''}`}
                     placeholder="0" />
@@ -1149,7 +1331,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   <NumInput decimals={2} value={it.purchase_price ? fmtPurchasePrice(it.purchase_price) : ''} onChange={e => setItem(i, { purchase_price: toPurchasePrice(e.target.value) })}
-                    className={numCell} placeholder="0" />
+                    disabled={it.stock_role === 'out'} title={it.stock_role === 'out' ? '재고 출고 — 매입처에 줄 돈이 없어 매입가 0 고정(원가는 재고 원가로)' : undefined}
+                    className={`${numCell} disabled:opacity-50`} placeholder="0" />
                   {/* 품목별 매입가 합계 = 매입가 × 수량 (704 확정) */}
                   {it.purchase_price > 0 && it.quantity > 0 && (
                     <div className="text-[0.625rem] text-gray-400 mt-0.5 tabular-nums">합계 {won(purchaseAmount(it.purchase_price, it.quantity))}</div>
@@ -1158,17 +1341,30 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                 <td className="py-1 px-1.5 text-right">
                   {/* 매입할인 (708) — 정액(행당) / 개당. 매입합계 · 발주서 금액에 반영 */}
                   <DiscountInput mode={it.purchase_discount_mode} unit={it.purchase_discount_unit} amount={it.purchase_discount}
-                    quantity={it.quantity} className={numCell}
+                    quantity={it.quantity} className={numCell} disabled={it.stock_role === 'out'}
                     onChange={d => setItem(i, { purchase_discount_mode: d.mode, purchase_discount_unit: d.unit, purchase_discount: d.amount })} />
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   <NumInput value={it.purchase_shipping ? won(it.purchase_shipping) : ''}
                     onChange={e => { const v = toInt(e.target.value); setItem(i, { purchase_shipping: v, ...reshipPatch({ ...it, purchase_shipping: v }) }) }}
-                    title={purchaseShippingHint(it) ?? '카톤 정보가 없는 품목 — 직접 입력'}
-                    className={numCell} placeholder="0" />
+                    title={it.stock_role === 'out' ? '재고 출고 — 매입배송비 0 고정' : (purchaseShippingHint(it) ?? '카톤 정보가 없는 품목 — 직접 입력')}
+                    disabled={it.stock_role === 'out'}
+                    className={`${numCell} disabled:opacity-50`} placeholder="0" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   <div className={autoCell + ' font-semibold text-gray-700'}>{won(lineCost(it))}</div>
+                  {it.stock_role === 'out' && (() => {
+                    const pv = stockPreview.get(it.uid)
+                    if (!pv) return null
+                    const detail = pv.parts.map(p => `${mmdd(p.date)} 입고분 ${won(p.qty)}개 × ${won(Math.round(p.unit_cost))} = ${won(p.amount)}`).join(' + ')
+                    return (
+                      <div className={`text-[0.625rem] mt-0.5 tabular-nums ${pv.short > 0 ? 'text-red-600' : 'text-teal-700'}`}
+                        title={`먼저 들어온 입고분부터: ${detail || '재고 없음'} — 저장할 때 확정됩니다`}>
+                        {pv.short > 0 ? `재고 ${won(pv.short)}개 부족` : `재고 원가 ${won(pv.cost)}`}
+                      </div>
+                    )
+                  })()}
+                  {it.stock_role === 'in' && <div className="text-[0.625rem] text-violet-600 mt-0.5">재고로 보관 · 마진 제외</div>}
                 </td>
                 <td className="py-1 px-1.5">
                   <input value={it.memo} onChange={e => setItem(i, { memo: e.target.value })} title={it.memo}
@@ -1182,9 +1378,28 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                   )}
                 </td>
               </tr>
+              {!it.stock_role && !it.stock_dismissed && it.product_id && (stockAvail[it.product_id]?.qty ?? 0) > 0 && (() => {
+                const av = stockAvail[it.product_id!]
+                return (
+                  <tr className="border-b border-gray-50">
+                    <td colSpan={17} className="pb-1.5 pt-0 px-1.5">
+                      <div className="flex items-center gap-2 flex-wrap ml-4 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-[0.75rem] text-amber-900">
+                        <span>
+                          이 품목은 선매입 재고가 <b className="tabular-nums">{won(av.qty)}개</b> 있습니다
+                          ({av.lots.slice(0, 3).map(l => mmdd(l.date)).join(' · ')}{av.lots.length > 3 ? ' 외' : ''} 입고). 재고에서 내보내나요?
+                        </span>
+                        <button type="button" onClick={() => setStockRole(i, 'out')}
+                          className="px-2.5 py-0.5 bg-slate-900 text-white rounded-md text-[0.6875rem]">재고 출고로 바꾸기</button>
+                        <button type="button" onClick={() => setItem(i, { stock_dismissed: true })}
+                          className="px-2.5 py-0.5 border border-amber-300 bg-white rounded-md text-[0.6875rem]">새로 매입 (재고 안 씀)</button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })()}
               {addonCands.length > 0 && (
                 <tr className="border-b border-gray-50">
-                  <td colSpan={16} className="pb-1.5 pt-0 px-1.5">
+                  <td colSpan={17} className="pb-1.5 pt-0 px-1.5">
                     <div className="flex items-center gap-1.5 flex-wrap pl-4">
                       <span className="text-[0.625rem] text-gray-400">옵션 추가 ({it.purchase_vendor_name})</span>
                       {addonCands.map(p => (
@@ -1212,8 +1427,10 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           <div className="flex gap-5 text-sm">
             <span>총금액 <b className="tabular-nums">{won(totals.total)}원</b>
               <span className="text-[0.6875rem] text-gray-400 ml-1">자동 합산</span></span>
-            <span className="text-gray-600">매입 합계 <b className="tabular-nums">{won(totals.cost)}원</b></span>
-            <span>예상 마진 <b className="tabular-nums text-emerald-700">{won(totals.margin)}원</b></span>
+            <span className="text-gray-600" title="매입처에 줄 돈 (선매입 입고 포함)">매입 합계 <b className="tabular-nums">{won(totals.cost)}원</b></span>
+            {totals.stockCost > 0 && <span className="text-teal-700" title="재고 출고 행의 예상 재고 원가 — 저장할 때 확정">재고 원가 <b className="tabular-nums">{won(totals.stockCost)}원</b></span>}
+            <span title="합계 − 매입합계(선매입 입고 제외) − 재고 원가">예상 마진 <b className="tabular-nums text-emerald-700">{won(totals.margin)}원</b></span>
+            {totals.stockIn > 0 && <span className="text-violet-700 text-xs self-center">선매입 입고 {won(totals.stockIn)}원은 재고로 보관 (마진 제외)</span>}
           </div>
           <div className="flex gap-2">
             {!isEdit && !reissueFromNo && (
@@ -1228,6 +1445,18 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
             </button>
           </div>
         </div>
+      {registerRow && (
+        <ProductRegisterDialog
+          seed={{ item_name: registerRow.item_name, purchase_vendor_name: registerRow.purchase_vendor_name,
+            order_kind: registerRow.order_kind, sale_price: registerRow.sale_price, purchase_price: registerRow.purchase_price }}
+          products={products}
+          onClose={() => setRegisterUid(null)}
+          onDone={(prod, created) => {
+            if (created) setProducts(prev => [...prev, prod])
+            setItems(prev => prev.map(x => x.uid === registerRow.uid ? { ...x, ...linkPatch(prod) } : x))
+            setRegisterUid(null)
+          }} />
+      )}
       </div>
     </div>
   )

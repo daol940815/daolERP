@@ -1,3 +1,4 @@
+import { STOCK_ROLE_LABEL, marginCostOf } from '@/lib/stock-cost'
 import { NextRequest, NextResponse } from 'next/server'
 import { INVOICE_FLAG_LABEL, PAY_METHOD_TAG_LABEL, PAY_STAGE_LABEL } from '@/lib/pay-state'
 import { createAdminClient } from '@/lib/supabase-server'
@@ -45,6 +46,8 @@ interface ItemRow {
   purchase_price: number | null
   purchase_shipping: number | null
   purchase_total: number | null
+  stock_role?: string | null          // 1400 재고 칸
+  stock_cost?: number | null          // 1400 재고 원가
   channel: string | null
   memo: string | null
 }
@@ -76,7 +79,9 @@ export async function GET(req: NextRequest) {
         .in('order_id', chunk).order('order_id').order('line_no').range(pf, pt),
     )
     // 708(매입할인 · 주문시기) 미적용 DB면 새 열 없이 다시 조회
-    let r = await load(`${BASE_COLS}, purchase_discount, order_season`)
+    // 1400(재고 칸) 미적용이면 재고 열 없이
+    let r = await load(`${BASE_COLS}, purchase_discount, order_season, stock_role, stock_cost`)
+    if ('error' in r && /stock_role|stock_cost/i.test(String(r.error))) r = await load(`${BASE_COLS}, purchase_discount, order_season`)
     if ('error' in r && /purchase_discount|order_season/i.test(String(r.error))) r = await load(BASE_COLS)
     if ('error' in r) return NextResponse.json({ error: `품목 조회 실패: ${r.error}` }, { status: 500 })
     for (const it of r.data) {
@@ -106,7 +111,10 @@ export async function GET(req: NextRequest) {
       '매입할인': it ? it.purchase_discount ?? 0 : '',
       '매입배송비': it ? it.purchase_shipping ?? 0 : '',
       '매입합계': it ? it.purchase_total ?? 0 : '',
-      '마진': it ? (it.line_total ?? 0) - (it.purchase_total ?? 0) : '',
+      '재고': it?.stock_role ? STOCK_ROLE_LABEL[it.stock_role as 'in' | 'out'] ?? '' : '',
+      '재고원가': it ? (it.stock_role === 'out' ? Number(it.stock_cost) || 0 : '') : '',
+      // 마진 = 합계 − 매입합계 − 재고 원가, 선매입 입고 행은 마진 없음(재고로 보관) — lib/stock-cost.ts
+      '마진': it ? (it.stock_role === 'in' ? '' : (it.line_total ?? 0) - marginCostOf(it)) : '',
     } : {}),
     '취소여부': it?.is_canceled ? '취소' : '',
     '선결제': it?.is_prepayment ? '선결제' : '',

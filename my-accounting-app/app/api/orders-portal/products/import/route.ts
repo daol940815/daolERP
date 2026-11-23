@@ -5,6 +5,7 @@ import { can } from '@/lib/permissions'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { ensureAlias } from '@/lib/orders-portal'
 import { toPurchasePrice } from '@/lib/purchase-price'
+import { normalizeItemCode } from '@/lib/product-list-params'
 import * as XLSX from 'xlsx'
 
 export const dynamic = 'force-dynamic'
@@ -189,7 +190,8 @@ export async function POST(req: NextRequest) {
   for (const row of dataRows) {
     const name = toStr(row[col.name])
     if (!name) { skipped++; continue }
-    const code = col.code >= 0 ? toStr(row[col.code]) : null
+    // 빈칸 · '-' = 품번 없음 → 품명 + 매입처로 찾음 (2026-11-20 — '-'를 품번으로 보면 같은 품번이라 첫 행만 남았음)
+    const code = col.code >= 0 ? normalizeItemCode(row[col.code]) : null
     if (code) {
       if (seenCodes.has(code)) { skipped++; continue }   // 파일 내 품번 중복은 첫 행만
       seenCodes.add(code)

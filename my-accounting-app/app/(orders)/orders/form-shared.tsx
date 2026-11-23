@@ -8,7 +8,33 @@ import { shipBoxes } from '@/lib/ship-boxes'
 // 주문 입력·상담일지 폼 공용 부품 — 마스터 타입, 품목 행 모델, 가격 규칙, 자동완성 콤보.
 // 가격 규칙(구분별 자동)은 두 화면이 반드시 같아야 하므로 여기 한 곳에만 둔다.
 
-export interface Vendor { id: string; name: string; type: string | null; group_id?: string | null; individual_contact_id?: string | null }
+export interface Vendor { id: string; name: string; type: string | null; group_id?: string | null; individual_contact_id?: string | null; parent_vendor_id?: string | null }
+
+// 하위 조직(120) 경로 — 지점 검색 결과에 '본점 › 채널전략부 ›'처럼 상위 조직 단위를 붙인다(같은 이름 팀 구분용, 표시 전용).
+// 단위 이름 = 매출처 이름에서 상위 조직 이름(없으면 업체명)을 뗀 것.
+export function orgPathLabel(v: Vendor, byId: Map<string, Vendor>, groupName: string | null | undefined): string {
+  const strip = (name: string, prefix: string | null | undefined) => {
+    if (!prefix) return name
+    const n = name.replace(/\s+/g, ''), p = prefix.replace(/\s+/g, '')
+    if (!n.startsWith(p) || n === p) return name
+    let i = 0, k = 0
+    while (i < name.length && k < p.length) { if (name[i] !== ' ') k++; i++ }
+    return name.slice(i).trim()
+  }
+  const units: string[] = []
+  const seen = new Set<string>([v.id])
+  let cur = v.parent_vendor_id ? byId.get(v.parent_vendor_id) : undefined
+  while (cur && !seen.has(cur.id) && units.length < 6) {
+    seen.add(cur.id)
+    const parent = cur.parent_vendor_id ? byId.get(cur.parent_vendor_id) : undefined
+    units.unshift(strip(cur.name, parent?.name ?? groupName))
+    cur = parent
+  }
+  return units.join(' › ')
+}
+// 지점 검색 결과 보조 줄: 업체 › 상위 조직 단위들
+export const orgSubLabel = (v: Vendor, byId: Map<string, Vendor>, groupName: string | null | undefined) =>
+  [groupName ?? '', orgPathLabel(v, byId, groupName)].filter(Boolean).join(' › ')
 export interface VendorGroup { id: string; name: string; is_individual?: boolean }
 // 개인 고객 업체(115)의 고객 — 고객마다 전용 매출처(vendor_id)
 export interface IndividualCustomerOpt {
@@ -63,6 +89,10 @@ export interface ItemDraft {
   // 고객 택배비 박스당 단가 (화면 전용 — 저장은 shipping_fee 합계만, 2026-11-12 택배비 확정)
   // null = 합계 입력 상태(매입배송비 0 · 박스 수 불명 · 나누어떨어지지 않는 옛 값)
   ship_unit?: number | null
+  // 재고 칸 (1400, 주문 입력 전용 — 상담일지는 쓰지 않음): in 선매입 입고 / out 재고 출고 / null 없음
+  stock_role?: 'in' | 'out' | null
+  stock_dismissed?: boolean       // 재고 있음 안내에서 "새로 매입"을 고름 (화면 전용 — 서버 전송 안 함)
+  stock_cost_saved?: number | null  // 저장된 재고 원가 (수정 화면 표시용 — 서버는 다시 계산하지 않고 승계)
 }
 
 export const emptyItem = (uid: number): ItemDraft => ({
@@ -230,16 +260,19 @@ export function CustomerShipInput({ it, disabled, onChange, className }: {
 // 법인 접두("(주)", "㈜", "주식회사")는 양쪽에서 무시하고 매칭한다 —
 // "(주)하나은행오류동지점" + "하나은행" → "오류동지점" (2026-08-18 보정, 702와 동일 규칙)
 const stripCorpPrefix = (s: string) => s.replace(/^\s*(\(주\)|㈜|주식회사)\s*/, '')
+// 단독 매출처(이름 = 업체명, 예: '푸본현대생명')는 지점이 없으므로 빈 문자열 — 화면에는 NO_BRANCH로 보인다
+// (2026-11-19 사용자 요청: 지점 칸에 업체명이 반복돼 '없는 지점'으로 오해).
+export const NO_BRANCH = '지점 없음'
 export const branchLabel = (vendorName: string, groupName?: string | null): string => {
   if (!groupName) return vendorName
   const vn = stripCorpPrefix(vendorName)
   const gn = stripCorpPrefix(groupName)
-  if (vn.startsWith(gn)) {
-    const rest = vn.slice(gn.length).trim()
-    return rest || vendorName
-  }
+  if (vn.startsWith(gn)) return vn.slice(gn.length).trim()
   return vendorName
 }
+// 목록 · 표시용 — 단독 매출처는 '지점 없음'
+export const branchText = (vendorName: string, groupName?: string | null): string =>
+  branchLabel(vendorName, groupName) || NO_BRANCH
 
 // 그룹 미연결 거래처의 업체명 접두 분리 — "하나은행오류동지점"처럼 그룹에 안 이어진
 // 거래처도 이름이 어느 업체(그룹)명으로 시작하면 업체/지점으로 나눠 보여준다
@@ -486,15 +519,21 @@ function useOutsideClose(open: boolean, refs: React.RefObject<HTMLElement>[], cl
 // ── 자동완성 콤보 (마스터 선택 전용 — 목록에 없는 값은 확정 불가) ──
 // footer는 노드 또는 (입력어 · 닫기) 함수 — 고객 쌍방향 추천(2026-11-18)이 목록 아래 구역을 붙일 때 쓴다. onQuery = 입력어 알림
 export type ComboFooter = React.ReactNode | ((ctx: { q: string; close: () => void }) => React.ReactNode)
-export function Combo({ value, display, options, onSelect, placeholder, required, footer, onQuery }: {
+// 검색은 이름(label)과 옛 이름 별칭(keywords)만 본다(2026-11-23 사용자 결정 — 업체명은 업체명만, 지점명은 지점명만, 고객명은 고객명만).
+// 보조 줄(sub — 상위 조직 경로 · 담당 직원 · 전화 · 품목 분류 · 매입처 등)은 보여 주기만 한다. 보조 줄도 찾아야 하는 칸이 생기면 searchSub(지금은 쓰는 곳 없음).
+const comboMatch = (o: { label: string; sub?: string; keywords?: string }, q: string, searchSub: boolean) =>
+  o.label.toLowerCase().includes(q) || (o.keywords ?? '').toLowerCase().includes(q) || (searchSub && (o.sub ?? '').toLowerCase().includes(q))
+
+export function Combo({ value, display, options, onSelect, placeholder, required, footer, onQuery, searchSub = false }: {
   value: string | null
   display: string
-  options: { id: string; label: string; sub?: string; soldout?: boolean; note?: string }[]
+  options: { id: string; label: string; sub?: string; soldout?: boolean; note?: string; keywords?: string }[]
   onSelect: (id: string | null) => void
   placeholder: string
   required?: boolean
   footer?: ComboFooter
   onQuery?: (q: string) => void
+  searchSub?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
@@ -505,10 +544,8 @@ export function Combo({ value, display, options, onSelect, placeholder, required
   const q = text.trim().toLowerCase()
   const filtered = useMemo(() => {
     if (!q) return options.slice(0, 50)
-    return options.filter(o =>
-      o.label.toLowerCase().includes(q) || (o.sub ?? '').toLowerCase().includes(q),
-    ).slice(0, 50)
-  }, [options, q])
+    return options.filter(o => comboMatch(o, q, searchSub)).slice(0, 50)
+  }, [options, q, searchSub])
 
   // 행 길이 확대(실무자 요청): 입력칸보다 넓게 펼쳐 긴 품명이 잘리지 않게 한다(최대 34rem)
   const pos = useFloatingList(open, boxRef, { maxRem: 20, wide: true })
@@ -560,13 +597,14 @@ export function Combo({ value, display, options, onSelect, placeholder, required
 }
 
 // ── 자유 입력 겸용 콤보 (상담일지 — 마스터에 없으면 입력한 문자열 그대로 사용) ──
-export function ComboFree({ text, selectedId, options, onChange, placeholder, footer }: {
+export function ComboFree({ text, selectedId, options, onChange, placeholder, footer, searchSub = false }: {
   text: string
   selectedId: string | null
-  options: { id: string; label: string; sub?: string }[]
+  options: { id: string; label: string; sub?: string; keywords?: string }[]   // keywords = 검색에만 쓰는 별칭(표시 안 함, 2026-11-19)
   onChange: (patch: { id: string | null; text: string }) => void
   placeholder: string
   footer?: ComboFooter
+  searchSub?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const boxRef = useRef<HTMLDivElement>(null)
@@ -576,10 +614,8 @@ export function ComboFree({ text, selectedId, options, onChange, placeholder, fo
   const q = text.trim().toLowerCase()
   const filtered = useMemo(() => {
     if (!q) return options.slice(0, 50)
-    return options.filter(o =>
-      o.label.toLowerCase().includes(q) || (o.sub ?? '').toLowerCase().includes(q),
-    ).slice(0, 50)
-  }, [options, q])
+    return options.filter(o => comboMatch(o, q, searchSub)).slice(0, 50)
+  }, [options, q, searchSub])
 
   const footerNode = typeof footer === 'function' ? footer({ q: text, close: () => setOpen(false) }) : footer
   const pos = useFloatingList(open, boxRef, { maxRem: footerNode ? 26 : 16, wide: !!footerNode })

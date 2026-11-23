@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 품목 관리 필터 · 조건 중첩 · 금액대 칩</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Pretendard',-apple-system,'Malgun Gothic',sans-serif;background:#f1f5f9;color:#0f172a;padding:24px;font-size:14px;line-height:1.5}
+.wrap{max-width:1300px;margin:0 auto;display:grid;gap:16px}
+h1{font-size:20px}h2{font-size:15px;margin-bottom:8px}
+.note{background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#713f12}
+.note li{margin-left:18px}
+section{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px}
+.desc{font-size:12.5px;color:#475569;margin-top:8px}
+.screen{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px}
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;max-width:980px}
+.kpi{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:10px 14px}
+.kpi.on{border-color:#1e293b}.kpi .t{font-size:11px;color:#9ca3af}.kpi .v{font-size:18px;font-weight:700}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.sel,.inp{border:1px solid #d1d5db;border-radius:8px;padding:6px 10px;font-size:14px;background:#fff}
+.inp{width:320px;color:#9ca3af}
+.btn{border:1px solid #d1d5db;border-radius:8px;padding:6px 12px;font-size:13px;background:#fff;color:#374151}
+.btn.dark{background:#0f172a;color:#fff;border-color:#0f172a}
+.btn.on{border-color:#0f172a;color:#0f172a;font-weight:600}
+.builder{margin-top:10px;background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:12px}
+.builder .lbl{font-size:11px;color:#6b7280;margin-bottom:2px}
+.builder .f{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:12.5px;border:1px solid}
+.chip.s{background:#f1f5f9;border-color:#cbd5e1;color:#334155}
+.chip.f{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}
+.chip b{font-weight:600}.x{color:#94a3b8}
+.and{font-size:11px;color:#94a3b8}
+.band{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.bc{border:1px solid #d1d5db;border-radius:999px;padding:3px 11px;font-size:12.5px;background:#fff;color:#374151}
+.bc.on{background:#0f172a;color:#fff;border-color:#0f172a}
+.bc small{color:#9ca3af;margin-left:3px}.bc.on small{color:#cbd5e1}
+.tw{overflow-x:auto;border:1px solid #e5e7eb;border-radius:12px;background:#fff;margin-top:12px}
+table{width:100%;border-collapse:collapse;min-width:1100px}
+th{background:#f9fafb;color:#6b7280;font-size:12px;font-weight:500;padding:8px 12px;text-align:left;border-bottom:1px solid #e5e7eb;white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:14px;white-space:nowrap}
+td.r{text-align:right;font-variant-numeric:tabular-nums}
+.pos{color:#047857}.lbl2{font-size:10px;color:#9ca3af;margin-right:6px}
+.ops{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}
+.op{background:#f8fafc;border-radius:8px;padding:10px 12px;font-size:12.5px}
+.op b{display:block;margin-bottom:4px}
+.q{font-size:13px;padding-left:20px;display:grid;gap:6px}
+.res{font-size:12px;color:#64748b;margin-top:8px}
+</style></head><body><div class="wrap">
+<h1>시안 — 품목 관리: 항목 필터 · 조건 중첩 · 금액대 칩</h1>
+<div class="note"><ul>
+<li>지금 화면(KPI 카드 · 구분 검색 · 정렬)은 그대로 두고 <b>"+ 필터" 버튼과 금액대 칩 줄</b>을 더하는 안입니다. 코드는 아직 바꾸지 않았습니다.</li>
+<li>표의 품목은 예시입니다(실제 품번 일부 + 가격 예시). 건수 숫자도 예시입니다.</li>
+</ul></div>
+
+<section><h2>1. 화면 — 필터를 몇 개 건 상태</h2>
+<div class="screen">
+<div class="kpis">
+<div class="kpi"><div class="t">전체 품목</div><div class="v" style="color:#1d4ed8">2,358</div></div>
+<div class="kpi on"><div class="t">사용 중 품목</div><div class="v">2,281</div></div>
+<div class="kpi"><div class="t">중지 품목</div><div class="v" style="color:#9ca3af">77</div></div>
+<div class="kpi"><div class="t">부가상품(옵션)</div><div class="v" style="color:#7c3aed">64</div></div>
+<div class="kpi"><div class="t">비용 품목</div><div class="v" style="color:#b45309">5</div></div>
+<div class="kpi"><div class="t">매입처 수</div><div class="v" style="color:#6b7280">112</div></div>
+</div>
+
+<div class="row">
+<span class="sel">전체 ▾</span><span class="inp">전체 검색 — Enter로 조건 고정(결과 내 재검색)</span>
+<span class="btn on">+ 필터</span>
+<span style="margin-left:auto;font-size:12px;color:#6b7280">정렬 기준</span><span class="sel">품명 ▾</span><span class="btn dark">오름차순</span><span class="btn">내림차순</span>
+</div>
+
+<div class="builder">
+<div class="f">
+<div><div class="lbl">항목</div><span class="sel">지점판매가 ▾</span></div>
+<div><div class="lbl">조건</div><span class="sel">범위 ▾</span></div>
+<div><div class="lbl">값</div><span class="sel" style="display:inline-block;width:110px;text-align:right">3,000</span> ~ <span class="sel" style="display:inline-block;width:110px;text-align:right">15,000</span></div>
+<span class="btn dark">조건 추가</span>
+<span style="font-size:12px;color:#64748b">항목을 고르면 조건 · 값 칸이 항목 종류(글자 · 금액 · 예/아니오)에 맞게 바뀝니다. Enter도 추가.</span>
+</div>
+</div>
+
+<div class="chips">
+<span class="chip s"><b>매입처</b> 깨끗한나라 <span class="x">×</span></span><span class="and">그리고</span>
+<span class="chip f"><b>지점판매가</b> 3,000 ~ 15,000 <span class="x">×</span></span><span class="and">그리고</span>
+<span class="chip f"><b>지점 마진율</b> 20% 이상 <span class="x">×</span></span><span class="and">그리고</span>
+<span class="chip f"><b>품절</b> 아니오 <span class="x">×</span></span><span class="and">그리고</span>
+<span class="chip f"><b>메모</b> 비어 있음 <span class="x">×</span></span>
+<span style="font-size:12px;color:#94a3b8;margin-left:6px">모두 지우기</span>
+</div>
+
+<div class="band">
+<span style="font-size:12px;color:#6b7280">금액대</span><span class="sel" style="padding:3px 8px;font-size:12.5px">지점판매가 ▾</span>
+<span class="bc">전체</span>
+<span class="bc">1천원 미만<small>182</small></span>
+<span class="bc">1천~5천<small>641</small></span>
+<span class="bc on">5천~1만<small>418</small></span>
+<span class="bc on">1만~3만<small>603</small></span>
+<span class="bc">3만~5만<small>211</small></span>
+<span class="bc">5만~10만<small>150</small></span>
+<span class="bc">10만 이상<small>76</small></span>
+</div>
+<div class="res">결과 4건 — 조건 칩 5개를 모두 만족하고, 금액대 5천~1만 또는 1만~3만인 품목</div>
+
+<div class="tw"><table><thead><tr><th>품번</th><th>품명</th><th>분류</th><th>매입처</th><th>지점판매가</th><th>개별판매가</th><th>매입가</th><th>마진</th><th>카톤단위</th><th>메모</th><th>상태</th></tr></thead><tbody>
+<tr><td>25-50-08</td><td>깨끗한나라 데일리 키친타월 150매 8롤</td><td>-</td><td>깨끗한나라</td><td class="r">7,200</td><td class="r">7,200</td><td class="r">5,500</td><td><span class="lbl2">지점</span><span class="pos">1,700원 (23.6%)</span></td><td class="r">3</td><td>-</td><td>사용</td></tr>
+<tr><td>25-50-11</td><td>깨끗한나라 3겹 니가필요해 22m 30롤</td><td>-</td><td>깨끗한나라</td><td class="r">12,900</td><td class="r">12,900</td><td class="r">9,900</td><td><span class="lbl2">지점</span><span class="pos">3,000원 (23.3%)</span></td><td class="r">3</td><td>-</td><td>사용</td></tr>
+<tr><td>예시-1</td><td>깨끗한나라 예시 품목 A</td><td>-</td><td>깨끗한나라</td><td class="r">8,800</td><td class="r">-</td><td class="r">6,600</td><td><span class="lbl2">지점</span><span class="pos">2,200원 (25.0%)</span></td><td class="r">6</td><td>-</td><td>사용</td></tr>
+<tr><td>예시-2</td><td>깨끗한나라 예시 품목 B</td><td>-</td><td>깨끗한나라</td><td class="r">9,500</td><td class="r">-</td><td class="r">7,300</td><td><span class="lbl2">지점</span><span class="pos">2,200원 (23.2%)</span></td><td class="r">4</td><td>-</td><td>사용</td></tr>
+</tbody></table></div>
+</div>
+<p class="desc">회색 칩 = 지금 있는 검색 조건 칩(Enter), 파란 칩 = 새 항목 필터. 둘은 같은 줄에 쌓이고 <b>전부 만족(그리고)</b>해야 표시됩니다. 금액대 칩은 따로 한 줄 — 여러 개를 켜면 그중 하나에 들면 됩니다(또는).</p>
+</section>
+
+<section><h2>2. 필터 항목 · 조건 (품목 관리 표의 모든 항목)</h2>
+<div class="ops">
+<div class="op"><b>글자 항목</b>품번 · 품명 · 분류(목차) · 매입처 · 매입처 연락처 · 메모 · 원가표 상태 메모<br>조건: 포함 / 포함 안 함 / 같음 / 비어 있음 / 값 있음</div>
+<div class="op"><b>금액 · 숫자 항목</b>지점판매가 · 개별판매가 · 매입가 · 카톤단위 · 카톤택배비 · 카톤외택배비 · 지점 이익금 · 개별 이익금<br>조건: 이상 / 이하 / 범위(~) / 같음 / 비어 있음(0 또는 미입력)</div>
+<div class="op"><b>비율 항목</b>지점 마진율 · 개별 마진율 (% 로 입력)<br>조건: 이상 / 이하 / 범위 / 마이너스만 / 계산 불가(판매가 없음)</div>
+<div class="op"><b>예 / 아니오 항목</b>사용 중 · 품절 · 부가상품(옵션) · 비용 품목<br>조건: 예 / 아니오</div>
+</div>
+<p class="desc">마진 계산은 지금 표와 같은 함수(lib/product-margin.ts)를 씁니다. 매입처 연락처는 목록에 보이는 연락처와 같은 값입니다.</p>
+</section>
+
+<section><h2>3. 함께 맞추는 것</h2>
+<div class="ops">
+<div class="op"><b>조건 중첩</b>칩을 몇 개든 쌓을 수 있고 모두 "그리고"로 묶습니다. 같은 항목도 여러 번 가능(예: 품명 포함 "타올" 그리고 품명 포함 안 함 "세트").</div>
+<div class="op"><b>필터 유지</b>새 필터 · 금액대 칩도 주소에 적어, 다른 화면에 다녀오거나 새로고침해도 유지(2026-11-11 필터 유지와 같은 규칙). 메뉴 클릭 = 초기화.</div>
+<div class="op"><b>엑셀 다운로드</b>화면에 걸린 필터 · 금액대 그대로 원가표를 받습니다(품번순 고정은 그대로). 걸러내는 규칙은 화면 · 다운로드가 한 파일을 같이 씁니다.</div>
+<div class="op"><b>속도</b>품목 2,300여 건을 이미 한 번에 받아 화면에서 거르므로 서버 조회는 늘지 않습니다.</div>
+</div></section>
+
+<section><h2>진행 전 확인할 것</h2>
+<ol class="q">
+<li><b>금액대 칩 기준</b>: 기본을 <b>지점판매가</b>로 두고 선택 상자로 개별판매가 · 매입가로 바꿀 수 있게 할까요? (기준 하나만 고정해도 됩니다)</li>
+<li><b>금액대 구간</b>: 1천원 미만 / 1천~5천 / 5천~1만 / 1만~3만 / 3만~5만 / 5만~10만 / 10만 이상 — 이 구간으로 괜찮을까요? 실제 품목 가격 분포에 맞게 바꾸고 싶으면 알려 주세요. (경계값은 아래 구간에 포함: 5,000원은 "5천~1만")</li>
+<li><b>금액대 칩 여러 개</b>: 여러 개를 켜면 "또는"(그중 하나)로 묶는 안입니다. 한 번에 하나만 고르게 할까요?</li>
+<li><b>조건 중첩 방식</b>: 모두 "그리고"로만 묶는 안입니다. "또는" 묶음(예: 매입처 A 또는 B)까지 필요할까요? 필요하면 같은 항목 칩끼리만 "또는"으로 묶는 방식을 제안합니다.</li>
+</ol></section>
+</div></body></html>

@@ -3,17 +3,22 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Combo, ComboFree, CustomerShipInput, DiscountInput, NumInput, fmtPurchasePrice, purchaseAmount, toPurchasePrice, SeasonDatalist, SeasonInput, autoGrow, branchLabel, draftExtrasFromRow, draftFromProduct, emptyItem,
+  Combo, ComboFree, CustomerShipInput, DiscountInput, NumInput, fmtPurchasePrice, purchaseAmount, toPurchasePrice, SeasonDatalist, SeasonInput, autoGrow, branchLabel, branchText as branchShown, NO_BRANCH, draftExtrasFromRow, draftFromProduct, emptyItem,
   lineCost, lineTotal, priceRule, purchaseShippingHint, quantityPatch, reshipPatch, savedBeforeShipColumn, splitByGroupPrefix, toInt, withShipUnit, won,
 } from '../form-shared'
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
 import type { ContactOpt, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
-import { isMoimVendor } from '../form-shared'
+import { isMoimVendor, orgSubLabel } from '../form-shared'
+import ProductRegisterDialog, { UnregisteredTag, isUnregisteredRow, linkPatch } from '../product-register-dialog'
 import IndividualRegister from '../individual-register'
+import { BranchStdHint, ExistingVendorNote, GroupStdHint, NamePreview, useVendorNameCheck } from '@/components/vendors/vendor-name-hints'
+import { groupKey, groupSearchKeywords, standardizeGroupName } from '@/lib/vendor-group-names'
 import { contactLabel } from '@/lib/contact-label'
 import ShipCard, { EMPTY_SHIP } from '../ship-card'
 import { needsShip, SHIP_KINDS, type ShipInput } from '@/lib/ship-address'
 import RosterCard from '../roster-card'
+import { InactiveVendorHits, matchInactiveVendors, reactivateVendor, type InactiveVendor } from '../inactive-vendor-hits'
+import { BankBranchHits, type RegisteredBranch } from '../bank-branch-hits'
 import ReasonPicker from '@/components/ui/ReasonPicker'
 import { CONSULT_CLOSE_REASONS, CONSULT_DELETE_REASONS, composeReason } from '@/lib/cancel-reasons'
 import { normTel } from '@/lib/contact-phone-sync'
@@ -42,7 +47,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
 
   // 마스터
   const [vendors, setVendors] = useState<Vendor[]>([])
+  const vendorById = useMemo(() => new Map(vendors.map(v => [v.id, v])), [vendors])   // 하위 조직 경로용(120)
   const [groups, setGroups] = useState<VendorGroup[]>([])
+  const [inactiveVendors, setInactiveVendors] = useState<InactiveVendor[]>([])   // 지점 검색 때만 회색으로 (2026-11-19)
+  const [reactivating, setReactivating] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
   const [contacts, setContacts] = useState<ContactOpt[]>([])
   const [usedSeasons, setUsedSeasons] = useState<string[]>([])   // 주문시기(708) 드롭다운 — 이미 쓴 값
@@ -96,6 +104,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
   const [regBusy, setRegBusy] = useState(false)
   const [regGroupName, setRegGroupName] = useState('')
   const [regBranch, setRegBranch] = useState('')
+  // 업체명 자동 표준화 (2026-11-19) — 신규 매출처 등록 칸의 표준 업체명 · 지점명 정리 · 이미 있는 매출처
+  const regCheck = useVendorNameCheck('/api/orders-portal/masters?name_check=1', regGroupName, regBranch,
+    { groupId, groupName: groups.find(g => g.id === groupId)?.name ?? null, enabled: regOpen && !vendorId })
   const [regContactName, setRegContactName] = useState('')
   const [regContactTitle, setRegContactTitle] = useState('')
   const [regContactPhone, setRegContactPhone] = useState('')
@@ -154,12 +165,14 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         const m = await mRes.json()
         if (!mRes.ok) throw new Error(m.error ?? '마스터 조회 실패')
         setVendors(m.vendors ?? [])
+        setInactiveVendors(m.inactive_vendors ?? [])
         setEmployees(m.employees ?? [])
         setUsedSeasons(m.seasons ?? [])
         setIsParttime(m.me?.is_parttime === true)
         setGroups(m.groups ?? [])
         const p = await pRes.json()
         if (pRes.ok) setProducts((p.products ?? []).filter((x: Product) => x.is_active))
+        setCanRegisterProduct(p.can_edit === true)   // 품목 등록 권한(영업 · 주문 수정) — '품목 등록' 버튼 노출용
 
         if (consultId) {
           const cRes = await fetch(`/api/orders-portal/consultations/${consultId}`)
@@ -443,6 +456,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     }
   }
 
+  // 미등록 상품 → 품목 관리 등록 (2026-11-19, 품목관리 트랙 부품 product-register-dialog)
+  const [canRegisterProduct, setCanRegisterProduct] = useState(false)
+  const [registerUid, setRegisterUid] = useState<number | null>(null)
+  const registerRow = registerUid === null ? null : items.find(x => x.uid === registerUid) ?? null
   const setItem = (i: number, patch: Partial<ItemDraft>) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, ...patch } : it))
 
@@ -520,6 +537,44 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     setRegOpen(true)
   }
 
+  // 매출처 목록 다시 읽기 (등록 · 다시 사용 뒤)
+  const reloadVendorLists = async () => {
+    const mRes = await fetch('/api/orders-portal/masters')
+    const m = await mRes.json().catch(() => ({}))
+    if (!mRes.ok) return null
+    setVendors(m.vendors ?? []); setGroups(m.groups ?? []); setInactiveVendors(m.inactive_vendors ?? [])
+    return { vendors: (m.vendors ?? []) as Vendor[], groups: (m.groups ?? []) as VendorGroup[] }
+  }
+  // 비활성 매출처 다시 사용 (2026-11-19) — 지점 검색의 회색 항목을 고르면 활성화 후 지점 선택과 같게 채운다
+  const pickInactiveVendor = async (iv: InactiveVendor) => {
+    setReactivating(true); setError(null)
+    const r = await reactivateVendor(iv.id)
+    if ('error' in r) { setError(r.error); setReactivating(false); return }
+    const lists = await reloadVendorLists()
+    const gs = lists?.groups ?? groups
+    const gName = r.group_id ? gs.find(g => g.id === r.group_id)?.name ?? null : null
+    const split = !gName ? splitByGroupPrefix(r.name, gs) : null
+    setVendorId(r.vendor_id)
+    if (r.group_id && gName) { setGroupId(r.group_id); setBankText(gName); setBranchText(branchLabel(r.name, gName)) }
+    else if (split) { setGroupId(split.group.id); setBankText(split.group.name); setBranchText(split.branch) }
+    else { setBankText(r.name); setBranchText('') }
+    setContactId(null)
+    setNotice(`비활성이던 매출처 '${r.name}'을(를) 다시 사용합니다 — 매출처관리 목록에도 다시 보입니다.`)
+    setReactivating(false)
+  }
+
+  // 미등록 은행 점포를 골라 매출처로 등록한 뒤 그 지점을 쓴다 (121, 2026-11-23)
+  const pickRegisteredBranch = async (r: RegisteredBranch) => {
+    const lists = await reloadVendorLists()
+    const gs = lists?.groups ?? groups
+    const gName = r.group_id ? gs.find(g => g.id === r.group_id)?.name ?? null : null
+    setVendorId(r.vendor_id)
+    if (r.group_id && gName) { setGroupId(r.group_id); setBankText(gName); setBranchText(branchLabel(r.name, gName)) }
+    else { setBankText(r.name); setBranchText('') }
+    setContactId(null)
+    setNotice(r.existed ? `이미 있던 매출처 '${r.name}'을(를) 선택했습니다.` : `은행연합회 점포 '${r.name}'을(를) 매출처로 등록했습니다.`)
+  }
+
   const registerVendor = async () => {
     if (!vendorId && !regGroupName.trim()) { alert('업체명을 입력해주세요.'); return }
     if (regContactName.trim() && !regStaff) { alert('다올 담당(자사 영업 직원)을 선택해주세요. 은행 · 지점 · 고객마다 담당이 기입되어야 합니다.'); return }
@@ -550,8 +605,11 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         setManagerText(contactLabel(regContactName, regContactTitle || null))
       }
       setRegOpen(false)
+      // 새로 만들었거나 비활성에서 다시 쓴 매출처가 지점 목록에 보이도록 목록을 다시 읽는다 (2026-11-19)
+      if (!json.vendor_reused || json.vendor_reactivated) await reloadVendorLists()
       setNotice([
-        json.vendor_reused ? '기존 지점에 연결했습니다' : '지점을 매출처 마스터에 등록했습니다',
+        json.vendor_reactivated ? '비활성이던 같은 이름의 지점을 다시 사용합니다(새로 만들지 않음)'
+          : json.vendor_reused ? '기존 지점에 연결했습니다' : '지점을 매출처 마스터에 등록했습니다',
         json.contact_id ? (json.contact_reused ? '기존 담당자에 연결했습니다' : '담당자를 등록했습니다') : '',
       ].filter(Boolean).join(' · ') + ' — 매출처 목록에 반영됩니다.')
     } catch (e) {
@@ -567,13 +625,21 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     else setError(json.error)
   }
 
+  // 업체 칸 자유 입력의 표준화 (2026-11-19) — 옛 업체명('국민은행')이면 표준 업체(KB국민은행)로 연결 · 표기
+  const bankStd = (() => {
+    if (groupId || !bankText.trim()) return null
+    const std = standardizeGroupName(bankText)
+    if (!std.changed) return null
+    const g = groups.find(x => groupKey(x.name) === groupKey(std.name)) ?? null
+    return { name: std.name, groupId: g?.id ?? null }
+  })()
   const buildPayload = () => ({
     consult_date: consultDate,
     consult_type: consultType,
-    vendor_group_id: groupId,
+    vendor_group_id: groupId ?? bankStd?.groupId ?? null,
     vendor_id: vendorId,
     contact_id: contactId,
-    bank_name: bankText || null,
+    bank_name: (bankStd?.name ?? bankText) || null,
     branch_name: branchText || null,
     manager_name: managerText || null,
     phone: phone || null,
@@ -695,7 +761,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               )}
               <a href={`/api/orders-portal/consultations/${consultId}/sheet${sheetPlain ? '?payment=plain' : ''}`}
                 className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-800 whitespace-nowrap"
-                title="실무 양식(A4 가로 한 장) 엑셀 — 엑셀에서 바로 인쇄">출력용 다운로드</a>
+                title="실무 양식 엑셀(A4 가로) — 인쇄하면 상담자용 · 발주자용 2장이 함께 나옵니다">출력용 다운로드</a>
             </>
           )}
           {isEdit && !locked && status === '진행중' && (
@@ -840,19 +906,33 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             <label className={label}>업체(은행)</label>
             {locked ? <div className={free}>{bankText || '-'}</div> : (
               <ComboFree text={bankText} selectedId={groupId}
-                options={groups.map(g => ({ id: g.id, label: g.name }))}
+                options={groups.map(g => ({ id: g.id, label: g.name, keywords: groupSearchKeywords(g.name) }))}
                 onChange={onGroupChange}
+                footer={({ q, close }) => {
+                  // 업체 칸에 단독 매출처 이름을 치는 경우 — 비활성 매출처도 회색으로 (2026-11-19)
+                  if (indMode) return null
+                  const hits = matchInactiveVendors(q, inactiveVendors, { activeNames: vendors.map(v => v.name), limit: 6 })
+                  return hits.length ? (
+                    <InactiveVendorHits hits={hits} parttime={isParttime} busy={reactivating}
+                      onPick={v => { close(); pickInactiveVendor(v) }} />
+                  ) : null
+                }}
                 placeholder="마스터 검색 · 신규명 자유 입력" />
             )}
             {/* 비슷한 업체 안내 (2026-11-18 — 오타 업체 방지, 막지 않음) */}
-            {!locked && !groupId && (
+            {!locked && !groupId && bankStd && (
+              <div className="mt-1 rounded-lg px-2.5 py-1.5 text-xs bg-blue-50 border border-blue-200 text-blue-800">
+                &lsquo;<b>{bankText.trim()}</b>&rsquo;은(는) 표준 업체명 &lsquo;<b>{bankStd.name}</b>&rsquo;(으)로 저장됩니다.
+              </div>
+            )}
+            {!locked && !groupId && !bankStd && (
               <SimilarHint input={bankText} items={groups} nameOf={g => g.name} what="업체"
                 onPick={g => onGroupChange({ id: g.id, text: g.name })} />
             )}
           </div>
           <div className="col-span-2">
             <label className={label}>부서(지점)</label>
-            {locked ? <div className={free}>{branchText || '-'}</div> : (
+            {locked ? <div className={free}>{branchText || (vendorId ? NO_BRANCH : '-')}</div> : (
               <ComboFree text={branchText}
                 selectedId={indPick ? null : vendorId}
                 options={(groupId ? vendors.filter(v => v.group_id === groupId) : vendors)
@@ -863,8 +943,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     const split = !gName ? splitByGroupPrefix(v.name, groups) : null
                     return {
                       id: v.id,
-                      label: gName ? branchLabel(v.name, gName) : (split?.branch ?? v.name),
-                      sub: gName ?? split?.group.name ?? '',
+                      label: gName ? branchShown(v.name, gName) : (split?.branch ?? v.name),
+                      sub: gName ? orgSubLabel(v, vendorById, gName) : (split?.group.name ?? ''),   // 하위 조직(120) 경로
                     }
                   })}
                 onChange={({ id, text }) => {
@@ -893,7 +973,23 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   }
                   setContactId(null)
                 }}
-                placeholder={indMode ? '개인 고객은 지점 없음 — 모임만 선택' : '지점 검색 · 자유 입력'} />
+                footer={({ q, close }) => {
+                  if (indMode) return null
+                  const hits = matchInactiveVendors(q, inactiveVendors, {
+                    activeNames: vendors.map(v => v.name), groupId, groupName: selGroup?.name ?? null,
+                  })
+                  return (
+                    <>
+                      {hits.length > 0 && (
+                        <InactiveVendorHits hits={hits} parttime={isParttime} busy={reactivating}
+                          onPick={v => { close(); pickInactiveVendor(v) }} />
+                      )}
+                      <BankBranchHits q={q} groupName={selGroup?.name ?? (bankText.trim() || null)} parttime={isParttime}
+                        onError={setError} onRegistered={r => { close(); pickRegisteredBranch(r) }} />
+                    </>
+                  )
+                }}
+                placeholder={indMode ? '개인 고객은 지점 없음 — 모임만 선택' : vendorId ? `${NO_BRANCH} (업체 직접)` : '지점 검색 · 자유 입력'} />
             )}
             {!locked && !vendorId && !indMode && groupId && (
               <SimilarHint input={branchText} what="지점"
@@ -1139,6 +1235,14 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 </select>
               </div>
             </div>
+            {!vendorId && (regGroupName.trim() || regBranch.trim()) && (
+              <div className="mt-2 space-y-1.5">
+                <GroupStdHint c={regCheck} onSuggest={n => setRegGroupName(n)} />
+                <BranchStdHint c={regCheck} />
+                <NamePreview c={regCheck} label="등록될 지점" />
+                <ExistingVendorNote c={regCheck} reuseInactive />
+              </div>
+            )}
             <div className="flex items-center gap-2 mt-2.5">
               <span className="text-[0.6875rem] text-gray-400">
                 인물 마스터에는 이름만 저장됩니다 — 직함은 배정 정보로, 존칭은 표시에서 붙습니다.
@@ -1147,8 +1251,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 <button type="button" disabled={regBusy} onClick={() => setRegOpen(false)}
                   className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600">닫기</button>
                 <button type="button" disabled={regBusy} onClick={registerVendor}
-                  className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-medium disabled:opacity-50">
-                  {regBusy ? '등록 중...' : '마스터에 등록'}
+                  className={`px-3.5 py-1.5 text-white rounded-lg text-xs font-medium disabled:opacity-50 ${!vendorId && regCheck.existing ? 'bg-blue-600' : 'bg-slate-900'}`}>
+                  {regBusy ? '등록 중...' : !vendorId && regCheck.existing
+                    ? (regContactName.trim() ? '기존 매출처에 담당자 등록' : '기존 매출처 사용') : '마스터에 등록'}
                 </button>
               </span>
             </div>
@@ -1275,6 +1380,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     onChange={e => { setItem(i, { item_name: e.target.value, product_id: null }); autoGrow(e.target) }}
                     placeholder="마스터에 없으면 직접 입력"
                     className="w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs resize-none overflow-hidden leading-relaxed block disabled:opacity-60" />
+                  {isUnregisteredRow(it) && !locked && (
+                    <UnregisteredTag canRegister={canRegisterProduct} onRegister={() => setRegisterUid(it.uid)} />
+                  )}
                 </td>
                 <td className="py-1 px-1.5">
                   <select value={it.order_kind} disabled={locked} onChange={e => setKind(i, e.target.value)}
@@ -1665,6 +1773,18 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             </span>
           )}
         </div>
+      {registerRow && (
+        <ProductRegisterDialog
+          seed={{ item_name: registerRow.item_name, purchase_vendor_name: registerRow.purchase_vendor_name,
+            order_kind: registerRow.order_kind, sale_price: registerRow.sale_price, purchase_price: registerRow.purchase_price }}
+          products={products}
+          onClose={() => setRegisterUid(null)}
+          onDone={(prod, created) => {
+            if (created) setProducts(prev => [...prev, prod])
+            setItems(prev => prev.map(x => x.uid === registerRow.uid ? { ...x, ...linkPatch(prod) } : x))
+            setRegisterUid(null)
+          }} />
+      )}
       </div>
     </div>
   )

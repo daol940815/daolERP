@@ -5,6 +5,7 @@ import { can } from '@/lib/permissions'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { ensureAlias } from '@/lib/orders-portal'
 import { toPurchasePrice } from '@/lib/purchase-price'
+import { normalizeItemCode } from '@/lib/product-list-params'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
     }
     const purchaseName = String(body.purchase_vendor_name ?? '').trim() || null
     const fields: Record<string, unknown> = {
-      item_code: String(body.item_code ?? '').trim() || null,
+      item_code: normalizeItemCode(body.item_code),   // 빈칸 · '-' = 품번 없음 (2026-11-20)
       item_name: itemName,
       purchase_vendor_name: purchaseName,
       purchase_alias_id: purchaseName ? await ensureAlias(admin, 'purchase', purchaseName) : null,
@@ -88,9 +89,10 @@ export async function POST(req: NextRequest) {
       return message
     }
     if (action === 'create') {
-      const { error } = await admin.from('erp_products').insert(fields)
+      // 만든 품목을 돌려준다(2026-11-19) — 상담일지 · 주문서의 '품목 등록'이 그 행을 새 품목에 바로 연결
+      const { data: created, error } = await admin.from('erp_products').insert(fields).select('*').single()
       if (error) return NextResponse.json({ error: saveError(error.message) }, { status: 400 })
-      return NextResponse.json({ ok: true })
+      return NextResponse.json({ ok: true, product: created })
     }
     if (!body.id) return NextResponse.json({ error: 'id가 필요합니다.' }, { status: 400 })
     if (!itemName) delete fields.item_name

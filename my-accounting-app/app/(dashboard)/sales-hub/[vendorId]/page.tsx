@@ -12,6 +12,8 @@ import type { BillingDetail, BillingRef } from '@/lib/billing'
 import InvoiceLinkModal from '../../sales-cycle/invoice-link-modal'
 import MergeDialog from './merge-dialog'
 import MergeHistoryDialog from './merge-history'
+import { OrgDialog, OrgHeader, OrgTab, useOrg, type OrgMode } from './org-panel'
+import { BankBranchCard } from './bank-branch-card'
 
 // 매출처 허브 — 거래처 360° 상세(B)
 // 목록(A)의 기간이 URL로 넘어와 기본값이 되고, 여기서 바꿔도 목록에는 영향이 없다.
@@ -34,7 +36,7 @@ const TL_META: Record<string, { label: string; cls: string }> = {
   card:    { label: '카드',   cls: 'bg-orange-100 text-orange-700' },
   alloc:   { label: '배분',   cls: 'bg-slate-200 text-slate-600' },
 }
-const TABS = ['개요', '주문 내역', '수금 내역', '계산서', '소속 부서', 'VIP 내역', '선결제 내역', '활동 메모'] as const
+const TABS = ['개요', '주문 내역', '수금 내역', '계산서', '소속 부서', '하위 조직', 'VIP 내역', '선결제 내역', '활동 메모'] as const
 
 interface Candidate { id: string; name: string; phone: string | null; history?: { vendor_name: string; title: string | null; started_at: string | null; ended_at: string | null }[] }
 
@@ -58,6 +60,10 @@ export default function SalesHubDetailPage() {
   const [billing, setBilling] = useState<BillingDetail | null>(null)
   const [mergeOpen, setMergeOpen] = useState(false)   // 다른 매출처와 합치기 (2026-11-16)
   const [mergeHist, setMergeHist] = useState<{ open: boolean; count: number }>({ open: false, count: 0 })   // 병합 이력 · 취소 (119, 2026-11-18)
+  // 하위 조직 · 위치 (120, 2026-11-20) — 경로 · 집계 범위 · 하위 조직 탭
+  const { org, reload: reloadOrg } = useOrg(vendorId, from, to)
+  const [orgMode, setOrgMode] = useState<OrgMode>(null)
+  const [orgScope, setOrgScope] = useState<'self' | 'subtree'>('subtree')   // 하위가 있으면 기본 = 하위 포함(사용자 결정)
   // 개인 고객 전용 매출처(115) — 고객 정보 + 같은 인물의 다른 거래처
   const [individual, setIndividual] = useState<{
     contact_id: string; name: string; code: string | null; phone: string | null
@@ -217,6 +223,7 @@ export default function SalesHubDetailPage() {
       {/* 헤더 */}
       <div className="flex items-start justify-between gap-4 flex-wrap mt-3">
         <div>
+          {org && <OrgHeader part="crumb" org={org} vendorName={data.vendor.name} onEdit={setOrgMode} scope={orgScope} setScope={setOrgScope} />}
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-gray-900">{data.vendor.name}</h1>
             {individual && <span className="px-2 py-0.5 rounded text-[0.6875rem] font-semibold bg-violet-100 text-violet-700">개인 고객</span>}
@@ -265,6 +272,8 @@ export default function SalesHubDetailPage() {
               </span>
             )}
           </div>
+          {org && <OrgHeader part="rest" org={org} vendorName={data.vendor.name} onEdit={setOrgMode} scope={orgScope} setScope={setOrgScope} />}
+          <BankBranchCard vendorId={vendorId} />
           {individual && (
             <div className="mt-1 text-xs text-gray-500">
               고객 <Link href={`/sales-hub/contacts/${individual.contact_id}`} className="font-semibold text-gray-800 hover:underline">{individual.name}</Link>
@@ -663,9 +672,11 @@ export default function SalesHubDetailPage() {
 
       {/* 탭 */}
       <div className="flex gap-0.5 border-b border-gray-200 mt-5">
-        {TABS.filter(t => t !== '소속 부서' || (billing?.children.length ?? 0) > 0).map(t => {
+        {TABS.filter(t => (t !== '소속 부서' || (billing?.children.length ?? 0) > 0)
+          && (t !== '하위 조직' || (!!org?.available && (org.child_count > 0 || org.can_edit)))).map(t => {
           const count = t === '주문 내역' ? data.orders.length
             : t === '소속 부서' ? (billing?.children.length ?? 0)
+            : t === '하위 조직' ? (org?.child_count ?? 0)
             : t === '수금 내역' ? data.timeline.filter(e => e.kind !== 'invoice').length
             : t === '계산서' ? data.invoices.length
             : t === 'VIP 내역' ? data.vip_items.length
@@ -682,6 +693,9 @@ export default function SalesHubDetailPage() {
 
       {/* 탭 내용 */}
       <div className="mt-4">
+        {tab === '하위 조직' && org && (
+          <OrgTab org={org} onEdit={setOrgMode} onChanged={() => { reloadOrg(); load() }} />
+        )}
         {(tab === '개요' || tab === '주문 내역') && (
           <div className={tab === '개요' ? 'grid xl:grid-cols-5 gap-3' : ''}>
             {isPersonal && tab === '주문 내역' && (
@@ -1074,6 +1088,15 @@ export default function SalesHubDetailPage() {
           </div>
         )}
       </div>
+      {orgMode && org && (
+        <OrgDialog mode={orgMode} org={org} vendorId={vendorId} vendorName={data.vendor.name}
+          onClose={() => setOrgMode(null)}
+          onDone={(newId) => {
+            setOrgMode(null); reloadOrg(); load()
+            if (newId) flash('하위 조직을 등록했습니다 — 하위 조직 탭에서 확인하세요.')
+            else flash('저장했습니다.')
+          }} />
+      )}
       {mergeOpen && <MergeDialog vendorId={vendorId} vendorName={data.vendor.name} onClose={() => setMergeOpen(false)} />}
       {mergeHist.open && <MergeHistoryDialog vendorId={vendorId} vendorName={data.vendor.name}
         onClose={() => setMergeHist(h => ({ ...h, open: false }))} onChanged={() => { load(); loadMergeCount() }} />}

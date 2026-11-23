@@ -3,7 +3,9 @@
 import PeriodPresets from '@/components/ui/PeriodPresets'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { BranchStdHint, ExistingVendorNote, GroupStdHint, NamePreview, useVendorNameCheck } from '@/components/vendors/vendor-name-hints'
+import { BankBranchSuggest } from './bank-branch-suggest'
 import { getPeriodRange } from '@/lib/period-presets'
 import CustomerKpiTiles, { matchCategory, OTYPE_META } from './_components/CustomerKpiTiles'
 import type { KpiCategory, KpiFlags, VendorFlag } from './_components/CustomerKpiTiles'
@@ -18,6 +20,8 @@ interface Row {
   is_active: boolean
   individual?: boolean    // 개인 고객 전용 매출처 (115)
   alias_names: string[]
+  old_names?: string[]   // 옛 이름(별칭) — 검색용 (2026-11-19)
+  parent_vendor_id?: string | null    // 상위 조직(120)
   alias_count: number
   card_count: number
   staff_primary: string | null
@@ -69,6 +73,7 @@ export default function SalesHubPage() {
   const [vipOnly, setVipOnly] = useState(false)
   const [outstandingOnly, setOutstandingOnly] = useState(false)
   const [showInactive, setShowInactive] = useState(false)   // 비활성 거래처는 기본 숨김
+  const [view, setView] = useState<'list' | 'tree'>('list')   // 조직도 보기 (하위 조직 120, 2026-11-20)
   const [indFilter, setIndFilter] = useState<'' | 'only' | 'exclude'>('')   // 개인 고객 (115)
 
   // 고객관리 집계 (108 RPC) — 기간 필터와 독립, 기준연도 자동
@@ -96,6 +101,9 @@ export default function SalesHubPage() {
   const ADD_EMPTY = { open: false, group: '', branch: '', biz: '', note: '', busy: false, msg: null as string | null,
     billMode: 'self' as 'self' | 'other', billQ: '', billId: '', billName: '' }
   const [addForm, setAddForm] = useState(ADD_EMPTY)
+  // 업체명 자동 표준화 (2026-11-19) — 표준 업체명 · 지점명 정리 · 이미 있는 매출처 확인
+  const nameCheck = useVendorNameCheck('/api/vendor-hub/name-check', addForm.group, addForm.branch, { enabled: addForm.open })
+  const router = useRouter()
   const [billOpts, setBillOpts] = useState<{ id: string; name: string; biz_number: string | null }[]>([])
   useEffect(() => {
     if (!addForm.open || addForm.billMode !== 'other') return
@@ -143,6 +151,7 @@ export default function SalesHubPage() {
       const digits = search.replace(/\D/g, '')
       const hit = norm(r.vendor_name).includes(q)
         || r.alias_names.some(a => norm(a).includes(q))
+        || (r.old_names ?? []).some(a => norm(a).includes(q))
         || (digits.length >= 3 && (r.biz_number ?? '').replace(/\D/g, '').includes(digits))
       if (!hit) return false
     }
@@ -159,6 +168,38 @@ export default function SalesHubPage() {
     }
     return true
   }), [rows, search, staffFilter, statusFilter, vipOnly, outstandingOnly, showInactive, catFilter, vendorFlagMap, indFilter])
+
+  // 조직도 보기: 걸러진 행 + 그 상위들(맥락)을 트리 순서로. 하위가 있는 행은 하위 포함 합계를 함께 보인다.
+  const rowById = useMemo(() => new Map(rows.map(r => [r.vendor_id, r])), [rows])
+  const hasOrg = useMemo(() => rows.some(r => r.parent_vendor_id), [rows])
+  const display = useMemo(() => {
+    type D = { r: Row; depth: number; kids: number; subNet: number; subOut: number; context: boolean }
+    if (view === 'list' || !hasOrg) return visible.map(r => ({ r, depth: 0, kids: 0, subNet: r.net, subOut: r.outstanding, context: false }) as D)
+    const inSet = new Set(visible.map(r => r.vendor_id))
+    const ctx = new Set<string>()
+    for (const r of visible) {
+      let p = r.parent_vendor_id, guard = 0
+      while (p && rowById.has(p) && guard++ < 10) { if (!inSet.has(p)) ctx.add(p); p = rowById.get(p)!.parent_vendor_id }
+    }
+    const ids = new Set([...Array.from(inSet), ...Array.from(ctx)])
+    const kids = new Map<string, Row[]>()
+    for (const id of Array.from(ids)) {
+      const r = rowById.get(id)!; const p = r.parent_vendor_id
+      if (p && ids.has(p)) kids.set(p, [...(kids.get(p) ?? []), r])
+    }
+    const roots = Array.from(ids).map(id => rowById.get(id)!).filter(r => !r.parent_vendor_id || !ids.has(r.parent_vendor_id))
+      .sort((a, b) => a.vendor_name.localeCompare(b.vendor_name, 'ko'))
+    const sum = (r: Row): [number, number] => (kids.get(r.vendor_id) ?? []).reduce<[number, number]>((a, k) => { const [n, o] = sum(k); return [a[0] + n, a[1] + o] }, [r.net, r.outstanding])
+    const out: D[] = []
+    const walk = (r: Row, depth: number) => {
+      const ks = (kids.get(r.vendor_id) ?? []).sort((a, b) => a.vendor_name.localeCompare(b.vendor_name, 'ko'))
+      const [n, o] = sum(r)
+      out.push({ r, depth, kids: ks.length, subNet: n, subOut: o, context: ctx.has(r.vendor_id) })
+      for (const k of ks) walk(k, depth + 1)
+    }
+    for (const r of roots) walk(r, 0)
+    return out
+  }, [view, hasOrg, visible, rowById])
 
   const filterActive = !!(search || staffFilter || statusFilter || vipOnly || outstandingOnly || catFilter || indFilter)
   const individualCount = useMemo(() => rows.filter(r => r.individual && (showInactive || r.is_active !== false)).length, [rows, showInactive])
@@ -206,6 +247,12 @@ export default function SalesHubPage() {
             className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
             ↓ 엑셀
           </button>
+          {!mine && (
+            <Link href="/sales-hub/bank-branches" title="은행연합회 점포 전체 — 거래 없는 점포를 찾아 매출처로 등록"
+              className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
+              은행 점포
+            </Link>
+          )}
           {canEdit && !mine && (
             <Link href="/sales-hub/billing"
               className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
@@ -236,23 +283,28 @@ export default function SalesHubPage() {
                 <datalist id="vendor-group-names">
                   {groupNames.map(n => <option key={n} value={n} />)}
                 </datalist>
-                <p className="text-[0.6875rem] text-gray-400 mt-1">
-                  {!addForm.group.trim() ? '목록에 있는 업체를 고르면 그 업체에 연결됩니다.'
-                    : groupNames.some(n => n.replace(/\s+/g, '') === addForm.group.trim().replace(/\s+/g, ''))
-                      ? '기존 업체에 연결됩니다.' : '새 업체로 등록됩니다 — 오타가 아닌지 확인하세요.'}
-                </p>
+                {nameCheck.input.group.changed || nameCheck.input.hint
+                  ? <GroupStdHint c={nameCheck} onSuggest={n => setAddForm(f => ({ ...f, group: n }))} />
+                  : (
+                    <p className="text-[0.6875rem] text-gray-400 mt-1">
+                      {!addForm.group.trim() ? '목록에 있는 업체를 고르면 그 업체에 연결됩니다.'
+                        : groupNames.some(n => n.replace(/\s+/g, '') === addForm.group.trim().replace(/\s+/g, ''))
+                          ? '기존 업체에 연결됩니다.' : '새 업체로 등록됩니다 — 오타가 아닌지 확인하세요.'}
+                    </p>
+                  )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">지점명 <span className="text-gray-400">(선택 — 단독 업체는 비움)</span></label>
                 <input value={addForm.branch} onChange={e => setAddForm(f => ({ ...f, branch: e.target.value }))}
                   placeholder="예: 계동지점 · 에너지자원공학과 동창회"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                <BranchStdHint c={nameCheck} />
+                <BankBranchSuggest group={addForm.group} branch={addForm.branch}
+                  onError={m => setAddForm(f => ({ ...f, msg: m }))}
+                  onRegistered={id => { setAddForm(ADD_EMPTY); router.push(`/sales-hub/${id}`) }} />
               </div>
-              {addForm.group.trim() && (
-                <div className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
-                  등록될 매출처: <b className="text-gray-900">{[addForm.group.trim(), addForm.branch.trim()].filter(Boolean).join(' ')}</b>
-                </div>
-              )}
+              {addForm.group.trim() && <NamePreview c={nameCheck} />}
+              <ExistingVendorNote c={nameCheck} />
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">사업자번호 <span className="text-gray-400">(선택)</span></label>
                 <input value={addForm.biz} onChange={e => setAddForm(f => ({ ...f, biz: e.target.value }))}
@@ -308,6 +360,10 @@ export default function SalesHubPage() {
             <div className="flex gap-2 mt-5">
               <button onClick={() => setAddForm(f => ({ ...f, open: false }))}
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">취소</button>
+              {nameCheck.existing ? (
+                <button onClick={() => { const id = nameCheck.existing!.id; setAddForm(ADD_EMPTY); router.push(`/sales-hub/${id}`) }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">기존 매출처 사용</button>
+              ) : (
               <button disabled={addForm.busy} onClick={async () => {
                 if (!addForm.group.trim()) { setAddForm(f => ({ ...f, msg: '업체명을 입력하세요.' })); return }
                 if (addForm.billMode === 'other' && !addForm.billId) { setAddForm(f => ({ ...f, msg: '계산서 발행 법인을 고르세요.' })); return }
@@ -321,6 +377,11 @@ export default function SalesHubPage() {
                   }),
                 })
                 const json = await res.json().catch(() => ({}))
+                if (res.status === 409 && json.vendor_id) {
+                  if (confirm(`${json.error}\n그 매출처를 열까요? (새로 만들지 않습니다)`)) { setAddForm(ADD_EMPTY); router.push(`/sales-hub/${json.vendor_id}`) }
+                  else setAddForm(f => ({ ...f, busy: false, msg: json.error }))
+                  return
+                }
                 if (!res.ok) { setAddForm(f => ({ ...f, busy: false, msg: json.error ?? '등록 실패' })); return }
                 if (json.billing_warning) alert(`매출처는 등록되었습니다. 다만 청구처 지정은 실패했습니다: ${json.billing_warning}`)
                 setAddForm(ADD_EMPTY)
@@ -330,6 +391,7 @@ export default function SalesHubPage() {
                 className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
                 {addForm.busy ? '등록 중...' : '등록'}
               </button>
+              )}
             </div>
           </div>
         </div>
@@ -377,6 +439,12 @@ export default function SalesHubPage() {
         <label className="text-xs text-gray-600 flex items-center gap-1">
           <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} /> 비활성 포함
         </label>
+        {hasOrg && (
+          <span className="inline-flex border border-gray-300 rounded-lg overflow-hidden" title="하위 조직(팀 · 부서)을 상위 조직 아래로 묶어 봅니다">
+            <button onClick={() => setView('list')} className={`px-2.5 py-1 text-xs ${view === 'list' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-gray-600'}`}>목록</button>
+            <button onClick={() => setView('tree')} className={`px-2.5 py-1 text-xs ${view === 'tree' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-gray-600'}`}>조직도</button>
+          </span>
+        )}
         {individualCount > 0 && (
           <select value={indFilter} onChange={e => setIndFilter(e.target.value as '' | 'only' | 'exclude')}
             className="border border-gray-300 rounded px-2 py-1 text-xs">
@@ -444,19 +512,23 @@ export default function SalesHubPage() {
               </tr>
             </thead>
             <tbody>
-              {visible.slice(0, 300).map(r => {
+              {display.slice(0, 300).map(({ r, depth, kids, subNet, subOut, context }) => {
                 const ratio = r.net > 0 ? r.collected / r.net : 1
+                const parentName = r.parent_vendor_id ? rowById.get(r.parent_vendor_id)?.vendor_name ?? null : null
                 const meta = STATUS_META[r.status] ?? STATUS_META.normal
                 return (
-                  <tr key={r.vendor_id} className="border-b border-gray-50 hover:bg-blue-50/40">
+                  <tr key={r.vendor_id} className={`border-b border-gray-50 hover:bg-blue-50/40 ${context ? 'opacity-60' : ''}`}>
                     <td className="py-2 px-3">
-                      <Link href={`/sales-hub/${r.vendor_id}?from=${from}&to=${to}`} className="block">
+                      <Link href={`/sales-hub/${r.vendor_id}?from=${from}&to=${to}`} className="block" style={depth ? { paddingLeft: `${depth * 1.1}rem` } : undefined}>
                         <div className="font-semibold text-gray-900">
+                          {depth > 0 && <span className="text-gray-300 font-normal mr-1">└</span>}
                           {r.vendor_name}
+                          {kids > 0 && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-gray-100 text-gray-500 align-middle">하위 {kids}</span>}
                           {r.individual && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-violet-100 text-violet-700 align-middle">개인 고객</span>}
                           {r.is_active === false && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-gray-200 text-gray-600 align-middle">비활성</span>}
                         </div>
                         <div className="text-[0.6875rem] text-gray-400">
+                          {view === 'list' && parentName && <span className="text-gray-500">상위: {parentName} · </span>}
                           별칭 {r.alias_count} · 카드 {r.card_count || '-'}{r.vip_total > 0 ? ` · VIP 누적 ${eok(r.vip_total)}` : ''}
                         </div>
                       </Link>
@@ -481,7 +553,11 @@ export default function SalesHubPage() {
                         </td>
                       )
                     })()}
-                    <td className="py-2 px-3 text-right tabular-nums">{won(r.net)}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">
+                      {won(r.net)}
+                      {kids > 0 && subNet !== r.net && <div className="text-[0.625rem] text-gray-400">하위 포함 {won(subNet)}</div>}
+                      {kids > 0 && subOut > 0 && <div className="text-[0.625rem] text-red-500">하위 포함 미수 {won(subOut)}</div>}
+                    </td>
                     <td className="py-2 px-3 text-right tabular-nums">{won(r.collected)}</td>
                     <td className="py-2 px-3">
                       <div className="flex items-center gap-2">
@@ -541,7 +617,7 @@ export default function SalesHubPage() {
         )}
       </div>
       <p className="text-xs text-gray-400 mt-2">
-        {visible.length > 300 ? `상위 300곳만 표시 중 (전체 ${visible.length.toLocaleString()}곳 — 검색·필터로 좁혀주세요) · ` : `${visible.length.toLocaleString()}곳 · `}
+        {display.length > 300 ? `상위 300곳만 표시 중 (전체 ${display.length.toLocaleString()}곳 — 검색·필터로 좁혀주세요) · ` : `${visible.length.toLocaleString()}곳 · `}
         매출·미수는 ERP 원본(주문·미수금) 기준 · 휴면 = 최근 6개월 주문 없음
       </p>
     </div>

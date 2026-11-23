@@ -48,6 +48,7 @@ const REF_TABLES: { key: string; label: string; table: string; col?: string }[] 
   { key: 'snapshot', label: '과거 매출 스냅샷', table: 'doc_sales_snapshot' },
   { key: 'purchase_orders', label: '발주서', table: 'erp_purchase_orders' },
   { key: 'billing_children', label: '청구처 소속 부서', table: 'vendors', col: 'billing_vendor_id' },
+  { key: 'org_children', label: '하위 조직', table: 'vendors', col: 'parent_vendor_id' },   // 120 — 미적용이면 0
 ]
 
 async function countRefs(admin: SupabaseClient, vendorId: string) {
@@ -101,6 +102,9 @@ export async function previewVendorMerge(admin: SupabaseClient, fromId: string, 
     warnings.push(`'${from.name}'은(는) 청구처 법인입니다(소속 부서 ${cf.get('billing_children')}곳) — 소속 부서는 남는 쪽을 가리키도록 자동으로 옮겨집니다.`)
   }
   if (!from.is_active) warnings.push(`'${from.name}'은(는) 비활성 매출처입니다.`)
+  if ((cf.get('org_children') ?? 0) > 0) {
+    warnings.push(`'${from.name}'의 하위 조직 ${cf.get('org_children')}곳은 남는 쪽 아래로 옮겨집니다(병합 취소하면 원래대로).`)
+  }
 
   // 같은 이름 담당자 (양쪽 배정 인물 중 이름이 같은데 인물이 다른 경우)
   const { data: asg } = await admin.from('contact_assignments')

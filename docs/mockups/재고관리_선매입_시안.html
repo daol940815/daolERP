@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 재고 관리 (선매입 재고 · 부자재 · 비품)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; font-size: 13px; }
+  .wrap { max-width: 1360px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 14px; line-height: 1.75; }
+  .ask { background: #eff6ff; border-color: #93c5fd; color: #1e3a8a; }
+  h2 { font-size: 15px; font-weight: 700; margin: 26px 0 10px; }
+  h2 small { font-size: 12px; font-weight: 500; color: #64748b; margin-left: 6px; }
+  .shell { display: grid; grid-template-columns: 190px 1fr; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; background: #fff; }
+  .side { background: #0f172a; padding: 14px 10px; color: #94a3b8; font-size: 12.5px; }
+  .side .t { color: #fff; font-weight: 700; font-size: 14px; padding: 0 8px 12px; border-bottom: 1px solid #334155; margin-bottom: 10px; }
+  .side .g { padding: 4px 8px; font-size: 10.5px; color: #64748b; margin-top: 8px; }
+  .side a { display: block; padding: 6px 10px; border-radius: 6px; }
+  .side a.on { background: #334155; color: #fff; }
+  .side .new { font-size: 9.5px; background: #dcfce7; color: #15803d; border-radius: 999px; padding: 0 5px; margin-left: 3px; font-weight: 700; }
+  .main { padding: 16px 18px; overflow-x: auto; }
+  h1 { font-size: 18px; font-weight: 700; }
+  .sub { font-size: 12px; color: #64748b; margin: 3px 0 10px; line-height: 1.6; }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid #e2e8f0; margin-bottom: 12px; }
+  .tab { padding: 7px 14px; font-size: 12.5px; color: #64748b; border-bottom: 2px solid transparent; }
+  .tab.on { color: #0f172a; font-weight: 700; border-color: #0f172a; }
+  .tab .cnt { font-size: 9.5px; background: #f59e0b; color: #fff; border-radius: 999px; padding: 0 5px; margin-left: 3px; font-weight: 700; }
+  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 10px; }
+  .kpi { border: 1px solid #e2e8f0; border-radius: 10px; padding: 9px 12px; }
+  .kpi.on { border-color: #0f172a; box-shadow: 0 0 0 1px #0f172a; }
+  .kpi .l { font-size: 11px; color: #64748b; font-weight: 600; }
+  .kpi .v { font-size: 20px; font-weight: 800; margin-top: 2px; }
+  .kpi .h { font-size: 10.5px; color: #94a3b8; }
+  .kpi.amb .v { color: #b45309; } .kpi.red .v { color: #dc2626; }
+  .bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .chip { border: 1px solid #cbd5e1; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; color: #475569; }
+  .chip.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .inp { border: 1px solid #cbd5e1; border-radius: 7px; padding: 4px 9px; font-size: 12px; color: #0f172a; background: #fff; display: inline-block; }
+  .inp.lock { background: #f1f5f9; color: #94a3b8; }
+  .inp.hi { border-color: #2563eb; box-shadow: 0 0 0 1px #2563eb; }
+  .btn { display: inline-block; border: 1px solid #cbd5e1; border-radius: 7px; padding: 5px 11px; font-size: 11.5px; font-weight: 600; background: #fff; white-space: nowrap; }
+  .btn.p { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .btn.s { padding: 2px 8px; font-size: 10.5px; }
+  .right { margin-left: auto; }
+  table { border-collapse: collapse; font-size: 12px; width: 100%; }
+  th { font-size: 10.5px; color: #64748b; font-weight: 600; padding: 6px 7px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; text-align: right; white-space: nowrap; }
+  th.l, td.l { text-align: left; }
+  th.c, td.c { text-align: center; }
+  td { padding: 6px 7px; border-bottom: 1px solid #f1f5f9; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  tfoot td { background: #f8fafc; font-weight: 700; border-top: 2px solid #e2e8f0; }
+  .muted { color: #94a3b8; font-size: 11px; }
+  .bold { font-weight: 700; }
+  .link { color: #1d4ed8; text-decoration: underline; text-underline-offset: 2px; }
+  .neg { color: #dc2626; font-weight: 700; }
+  .pos { color: #15803d; font-weight: 700; }
+  .warn { color: #b45309; }
+  .tag { display: inline-block; font-size: 10px; border-radius: 999px; padding: 1px 7px; font-weight: 700; }
+  .t-in { background: #ecfdf5; color: #047857; }
+  .t-out { background: #eff6ff; color: #1d4ed8; }
+  .t-adj { background: #fefce8; color: #a16207; }
+  .t-gray { background: #f1f5f9; color: #64748b; }
+  .t-red { background: #fee2e2; color: #b91c1c; }
+  .t-amb { background: #fef3c7; color: #92400e; }
+  .t-vio { background: #f5f3ff; color: #6d28d9; }
+  .card { background: #fff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 14px 16px; }
+  .card h3 { font-size: 13.5px; font-weight: 700; margin-bottom: 8px; }
+  .card h3 small { font-weight: 500; color: #64748b; font-size: 11.5px; margin-left: 4px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .box { border: 1px solid #e2e8f0; border-radius: 9px; padding: 10px 12px; margin-top: 8px; font-size: 12px; line-height: 1.8; }
+  .suggest { border: 1px solid #93c5fd; background: #eff6ff; border-radius: 9px; padding: 9px 12px; font-size: 12px; color: #1e3a8a; line-height: 1.7; margin: 6px 0; }
+  .block { border: 1px solid #fca5a5; background: #fef2f2; border-radius: 9px; padding: 9px 12px; font-size: 12px; color: #991b1b; line-height: 1.7; margin: 6px 0; }
+  .sel { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 7px; overflow: hidden; font-size: 11px; }
+  .sel span { padding: 3px 8px; color: #64748b; border-right: 1px solid #e2e8f0; }
+  .sel span:last-child { border-right: 0; }
+  .sel span.on { background: #0f172a; color: #fff; font-weight: 700; }
+  .sel span.on.in { background: #047857; }
+  .sel span.on.out { background: #1d4ed8; }
+  tr.sub-row td { background: #f8fafc; font-size: 11px; color: #475569; }
+  ul.ul { margin: 4px 0 0 18px; font-size: 12px; line-height: 1.85; color: #334155; }
+  .flow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .flow .card { padding: 12px 14px; }
+  .flow .n { display: inline-block; width: 20px; height: 20px; border-radius: 999px; background: #0f172a; color: #fff; font-size: 11px; font-weight: 700; text-align: center; line-height: 20px; margin-right: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="note">
+  <b>시안 — 재고 관리: 선매입 재고 · 부자재 · 비품 (2026-11-23, 같은 날 ⑧ 월별 손익 재고 증감 줄 추가)</b><br>
+  사용자 결정(2026-11-23): ① 선매입한 물건은 회사(사무실)로 들어온다 ② 재고 원가를 따로 싣는 안 ③ 비품 = 생필품(휴지 · 물티슈 · 커피 등, 매출과 무관한 소모품) + 장비 자산(PC 등).
+  쇼핑백 · 포장재는 비품이 아니라 <b>부자재</b> ④ 기존에 샘플로 넣은 선매입 건의 기초재고 이관은 확인 후 결정(이번 범위 아님).<br>
+  상품명 · 수량 · 금액은 모두 예시입니다.
+</div>
+
+<div class="note ask">
+  <b>시안과 함께 확인 부탁드리는 것 4가지</b> — 답이 없으면 각 항목의 "시안 기준"으로 구현합니다.<br>
+  <b>A. 선매입 주문의 매출처</b> — 시안 기준: 매출처 칸에 <b>"자사 재고(다올커머스)"</b>를 고르면 선매입 전용 주문이 됩니다. 고객 주문을 받으면서 일부만 더 사 두는 경우는 같은 주문에 행을 하나 더(선매입 입고) 넣습니다.<br>
+  <b>B. 재고 원가 계산</b> — 시안 기준: <b>먼저 들어온 입고분부터</b> 나간 것으로 보고 그 입고 단가를 씁니다(선입선출). 두 입고분에 걸치면 원장에 두 줄로 나뉩니다.<br>
+  <b>C. 부자재 사용 기록</b> — 시안 기준: 쇼핑백 · 포장재는 주문마다 차감하지 않고 <b>사용 기록 + 월말 실사</b>로 관리합니다(주문 연결은 선택). 주문마다 붙여 원가에 넣고 싶으시면 알려주세요.<br>
+  <b>D. 비품 메뉴 위치</b> — 시안 기준: 비품은 매출과 무관하고 경영지원팀 업무라 <b>인사 · 총무 영역의 "비품 관리"</b>로 둡니다. 선매입 재고 · 부자재 · 샘플 재고는 영업 · 주문 영역의 "재고 관리"에 둡니다.
+</div>
+
+<!-- ============================================ -->
+<h2>흐름 한눈에 <small>숫자 두 칸이 각자 한 가지 뜻만 갖게 합니다</small></h2>
+<div class="flow">
+  <div class="card">
+    <h3><span class="n">1</span>선매입 (입고)</h3>
+    <div style="font-size:12px; line-height:1.8">
+      주문 입력에서 품목 행의 재고 칸 = <span class="tag t-in">선매입 입고</span><br>
+      발주서는 평소처럼 매입처로 나갑니다.<br>
+      <b>매입합계</b> = 매입액 (매입처에 줄 돈, 미지급금 · 대사에 그대로)<br>
+      <b>재고 원가</b> = 0 (아직 팔지 않음, 재고로 보관)<br>
+      판매가 0 · 매출 0, <b>마진 집계에서 제외</b>(손실로 보이지 않음)
+    </div>
+  </div>
+  <div class="card">
+    <h3><span class="n">2</span>재고 관리 › 선매입 재고</h3>
+    <div style="font-size:12px; line-height:1.8">
+      입고분(주문 행)마다 남은 수량 · 단가가 자동으로 쌓입니다.<br>
+      재고 = 입고 − 출고 ± 조정 (저장하지 않고 계산)<br>
+      실사로 실제 수량을 확인하고, 차이는 조정 행으로 남깁니다.<br>
+      재고 금액 = 남은 입고분 수량 × 각 입고 단가
+    </div>
+  </div>
+  <div class="card">
+    <h3><span class="n">3</span>재고 출고 (판매 · 샘플 · 내부 사용)</h3>
+    <div style="font-size:12px; line-height:1.8">
+      품목 행의 재고 칸 = <span class="tag t-out">재고 출고</span><br>
+      사무실에서 직접 내보내므로 <b>발주 대상에서 제외</b><br>
+      <b>매입합계</b> = 0 (매입처에 줄 돈 없음, 칸 잠금)<br>
+      <b>재고 원가</b> = 입고 단가 × 수량 (자동, 저장 후 불변)<br>
+      마진 = 합계 − 매입합계 − 재고 원가
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2>① 주문 입력 — 품목 표에 "재고" 칸 <small>체크박스 대신 한 칸에서 고르기 (둘 다 체크하는 실수 방지)</small></h2>
+<div class="card">
+  <p class="sub" style="margin-top:0">주문 2026-11-24 · 매출처 하나은행 강남지점 · 품목 3행. 재고 칸 기본값은 "없음"(지금과 같음).</p>
+  <table>
+    <thead>
+      <tr><th class="c">#</th><th class="l">품번</th><th class="l">품명</th><th class="c">배송종류</th><th class="c">재고</th><th>수량</th><th>판매가</th><th>합계</th><th>매입가</th><th>매입배송비</th><th>매입합계</th><th>재고 원가</th><th>마진</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="c">1</td><td class="l">25-02-11</td><td class="l bold">[예시] 프리미엄 홍삼 스틱 30포</td><td class="c">지점</td>
+        <td class="c"><span class="sel"><span>없음</span><span class="in">선매입 입고</span><span class="on out">재고 출고</span></span></td>
+        <td><span class="inp hi">40</span></td><td>32,000</td><td>1,280,000</td>
+        <td><span class="inp lock">0</span></td><td><span class="inp lock">0</span></td><td class="muted">0</td>
+        <td class="bold">900,000</td><td class="pos">380,000</td>
+      </tr>
+      <tr class="sub-row">
+        <td></td><td colspan="12" class="l">재고에서 출고: 11/03 입고분 20개 × 21,500 = 430,000 + 11/18 입고분 20개 × 23,500 = 470,000, 재고 원가 900,000 (먼저 들어온 것부터) · 출고 후 남는 재고 80개</td>
+      </tr>
+      <tr>
+        <td class="c">2</td><td class="l">25-04-02</td><td class="l bold">[예시] 수제 쿠키 선물세트</td><td class="c">지점</td>
+        <td class="c"><span class="sel"><span class="on">없음</span><span class="in">선매입 입고</span><span class="out">재고 출고</span></span></td>
+        <td><span class="inp">20</span></td><td>18,000</td><td>360,000</td>
+        <td><span class="inp">12,000</span></td><td><span class="inp">0</span></td><td>240,000</td>
+        <td class="muted">-</td><td class="pos">120,000</td>
+      </tr>
+      <tr>
+        <td class="c">3</td><td class="l">25-02-11</td><td class="l bold">[예시] 프리미엄 홍삼 스틱 30포</td><td class="c">개별</td>
+        <td class="c"><span class="sel"><span class="on">없음</span><span class="in">선매입 입고</span><span class="out">재고 출고</span></span></td>
+        <td><span class="inp">5</span></td><td>35,500</td><td>177,500</td>
+        <td><span class="inp hi">25,000</span></td><td><span class="inp">0</span></td><td>125,000</td>
+        <td class="muted">-</td><td class="pos">52,500</td>
+      </tr>
+    </tbody>
+    <tfoot>
+      <tr><td colspan="7" class="l">합계</td><td>1,817,500</td><td colspan="2"></td><td>365,000</td><td>900,000</td><td>552,500</td></tr>
+    </tfoot>
+  </table>
+
+  <div class="suggest">
+    <b>3행 안내 (품번을 고르는 순간 표시)</b> — 이 품목은 <b>선매입 재고가 120개</b> 있습니다(11/03 · 11/18 입고). 재고에서 내보내나요?
+    &nbsp;<span class="btn s p">재고 출고로 바꾸기</span> <span class="btn s">새로 매입 (재고 안 씀)</span><br>
+    <span class="muted">시스템은 권하기만 합니다. "새로 매입"을 고르면 안내가 닫히고, 행 옆에 "재고 있음 · 새로 매입" 표시가 남아 나중에 확인 목록에서 다시 볼 수 있습니다. 지금 중복이 생기는 원인(품번을 고르면 품목 매입가가 자동으로 채워짐)을 여기서 막습니다.</span>
+  </div>
+  <div class="block">
+    <b>저장 막힘 예시</b> — 1행 재고 출고 수량 150개가 남은 재고 120개보다 많습니다. 수량을 줄이거나, 초과분 30개는 행을 나눠 "없음"(새로 매입)으로 넣어 주세요.
+  </div>
+
+  <div class="grid2" style="margin-top:8px">
+    <div class="box">
+      <b>재고 칸 규칙</b>
+      <ul class="ul">
+        <li><b>선매입 입고</b>: 판매가 0 고정, 매입가는 지금처럼 입력. 발주서에 포함. 매출 · 마진 집계에서 빠지고 재고에 쌓임.</li>
+        <li><b>재고 출고</b>: 매입가 · 매입배송비 0으로 잠금, 발주 대상에서 제외(발주 대기에 안 뜸). 재고 원가는 저장할 때 계산해 고정.</li>
+        <li>배송종류(지점 · 개별 · 샘플)는 그대로 둡니다. 샘플로 재고를 쓰면 배송종류 샘플 + 재고 출고 = 판매가 0, 재고 원가만 발생(샘플 비용).</li>
+      </ul>
+    </div>
+    <div class="box">
+      <b>취소 · 수정 때</b>
+      <ul class="ul">
+        <li>재고 출고 행을 취소하면 재고가 자동으로 돌아옵니다(취소 행은 계산에서 빠짐).</li>
+        <li>선매입 입고 행은 이미 출고된 만큼보다 적게 줄이거나 취소할 수 없습니다. 먼저 출고 쪽을 정리하라는 안내가 뜹니다.</li>
+        <li>재고 원가는 저장 시점 값이 남습니다. 나중에 품목 매입가가 바뀌어도 바뀌지 않습니다.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2>② 주문 현황 · 주문 상세의 마진 <small>선매입 주문은 손실로, 재고 출고 주문은 100% 마진으로 보이지 않게</small></h2>
+<div class="card">
+  <table>
+    <thead><tr><th class="l">주문번호</th><th class="l">매출처</th><th class="l">구분</th><th>합계</th><th>매입합계</th><th>재고 원가</th><th>마진</th><th>마진율</th><th class="l">지금 방식(0원)이면</th></tr></thead>
+    <tbody>
+      <tr><td class="l link">D261103-004</td><td class="l">자사 재고(다올커머스)</td><td class="l"><span class="tag t-in">선매입 입고</span></td><td>0</td><td>2,150,000</td><td class="muted">-</td><td class="muted">집계 제외</td><td class="muted">-</td><td class="l neg">마진 -2,150,000</td></tr>
+      <tr><td class="l link">D261124-002</td><td class="l">하나은행 강남지점</td><td class="l"><span class="tag t-out">재고 출고</span> 포함</td><td>1,817,500</td><td>365,000</td><td>900,000</td><td class="pos">552,500</td><td>30.4%</td><td class="l warn">마진 1,452,500 (79.9%)</td></tr>
+    </tbody>
+  </table>
+  <p class="muted" style="margin-top:6px">매출처 분석 · 품목 마진 · 월별 손익의 원가도 같은 식(매입합계 + 재고 원가)으로 바뀝니다. 매입처 대사 · 미지급금 · 매입 사이클은 매입합계만 읽으므로 그대로입니다.</p>
+</div>
+
+<!-- ============================================ -->
+<h2>③ 재고 관리 › 선매입 재고 탭 <small>영업 · 주문 › 주문 · 발주 › 재고 관리</small></h2>
+<div class="shell">
+  <div class="side">
+    <div class="t">영업 · 주문</div>
+    <div class="g">주문 · 발주</div>
+    <a>주문 현황</a><a>주문 입력</a><a>발주 대기</a><a>품목 관리</a>
+    <a class="on">재고 관리 <span class="new">새</span></a>
+    <div class="g">상담</div>
+    <a>상담일지</a>
+  </div>
+  <div class="main">
+    <div class="bar" style="margin-bottom:0">
+      <div>
+        <h1>재고 관리</h1>
+        <p class="sub">사무실에 있는 물건의 입고 · 출고 · 실사. 재고 수량은 원장에서 자동으로 계산합니다.</p>
+      </div>
+      <span class="right"></span>
+      <span class="btn">실사 입력</span><span class="btn">엑셀 다운로드</span>
+    </div>
+    <div class="tabs">
+      <span class="tab on">선매입 재고</span><span class="tab">부자재</span><span class="tab">샘플 재고</span><span class="tab">확인 필요 <span class="cnt">3</span></span>
+    </div>
+    <div class="kpis">
+      <div class="kpi on"><div class="l">재고 있는 품목</div><div class="v">6</div><div class="h">전체 선매입 품목 9</div></div>
+      <div class="kpi"><div class="l">재고 금액</div><div class="v">7,922,000</div><div class="h">남은 입고분 × 입고 단가</div></div>
+      <div class="kpi"><div class="l">이번 달 입고</div><div class="v">3,890,000</div><div class="h">선매입 입고 4건</div></div>
+      <div class="kpi"><div class="l">이번 달 출고 원가</div><div class="v">2,604,000</div><div class="h">재고 출고 11건</div></div>
+      <div class="kpi amb"><div class="l">오래된 재고</div><div class="v">2</div><div class="h">입고 후 90일 넘게 남음</div></div>
+    </div>
+    <div class="bar">
+      <span class="inp" style="width:240px; color:#94a3b8">품번 · 품명 · 매입처 검색</span>
+      <span class="chip on">재고 있음</span><span class="chip">재고 0</span><span class="chip">실사 차이</span><span class="chip">전체</span>
+    </div>
+    <table>
+      <thead><tr><th class="l">품번</th><th class="l">품명</th><th class="l">매입처</th><th>입고 누계</th><th>출고 누계</th><th>조정</th><th>재고</th><th>평균 단가</th><th>재고 금액</th><th class="l">가장 오래된 입고</th><th class="l">최근 실사</th></tr></thead>
+      <tbody>
+        <tr><td class="l">25-02-11</td><td class="l bold link">[예시] 프리미엄 홍삼 스틱 30포</td><td class="l">○○헬스</td><td>200</td><td>80</td><td>0</td><td class="bold">120</td><td>23,167</td><td>2,780,000</td><td class="l">11/03 (20일)</td><td class="l">11/20 · 일치</td></tr>
+        <tr class="sub-row"><td></td><td colspan="10" class="l">입고분: <span class="link">D261103-004</span> 11/03 · 100개 × 21,500 · 남음 20 &nbsp;|&nbsp; <span class="link">D261118-011</span> 11/18 · 100개 × 23,500 · 남음 100 &nbsp;· 다음 출고는 11/03분 20개부터</td></tr>
+        <tr><td class="l">25-03-07</td><td class="l bold link">[예시] 핸드크림 3종 세트</td><td class="l">○○코스메틱</td><td>150</td><td>62</td><td class="warn">-2</td><td class="bold">86</td><td>15,000</td><td>1,290,000</td><td class="l">10/14 (40일)</td><td class="l warn">11/20 · 2개 부족 → 조정</td></tr>
+        <tr><td class="l">25-01-19</td><td class="l bold link">[예시] 텀블러 500ml</td><td class="l">○○리빙</td><td>80</td><td>5</td><td>0</td><td class="bold">75</td><td>18,000</td><td>1,350,000</td><td class="l warn">08/11 (104일)</td><td class="l muted">없음</td></tr>
+        <tr><td class="l">25-04-21</td><td class="l bold link">[예시] 견과 선물세트</td><td class="l">○○푸드</td><td>60</td><td>20</td><td>0</td><td class="bold">40</td><td>31,300</td><td>1,252,000</td><td class="l">11/10 (13일)</td><td class="l muted">없음</td></tr>
+        <tr><td class="l">25-02-30</td><td class="l bold link">[예시] 아로마 디퓨저</td><td class="l">○○리빙</td><td>40</td><td>18</td><td>0</td><td class="bold">22</td><td>40,000</td><td>880,000</td><td class="l warn">07/29 (117일)</td><td class="l muted">없음</td></tr>
+        <tr><td class="l">25-05-03</td><td class="l bold link">[예시] 손수건 세트</td><td class="l">○○섬유</td><td>50</td><td>0</td><td>0</td><td class="bold">50</td><td>7,400</td><td>370,000</td><td class="l">11/05 (18일)</td><td class="l muted">없음</td></tr>
+      </tbody>
+      <tfoot><tr><td colspan="6" class="l">재고 있는 6품목</td><td>393</td><td></td><td>7,922,000</td><td colspan="2"></td></tr></tfoot>
+    </table>
+    <p class="muted" style="margin-top:6px">품명을 누르면 그 품목의 원장(아래 ④), 주문번호를 누르면 주문 미리보기. 재고 금액은 세무사 자료가 오기 전 내부 확인용 기말 재고 금액으로도 씁니다.</p>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2>④ 품목 원장 <small>선매입 재고에서 품명을 눌렀을 때 — 입고 · 출고 · 조정이 모두 원본(주문 행 · 실사)으로 이어짐</small></h2>
+<div class="card">
+  <h3>[예시] 프리미엄 홍삼 스틱 30포 <small>25-02-11 · 재고 120</small></h3>
+  <table>
+    <thead><tr><th class="l">날짜</th><th class="c">구분</th><th class="l">원본</th><th class="l">매출처 · 사용처</th><th class="l">용도</th><th>수량</th><th>단가</th><th>금액</th><th class="l">입고분</th><th>재고</th><th class="l">입력</th></tr></thead>
+    <tbody>
+      <tr><td class="l">11/03</td><td class="c"><span class="tag t-in">입고</span></td><td class="l link">D261103-004 #1</td><td class="l muted">자사 재고</td><td class="l muted">-</td><td>100</td><td>21,500</td><td>2,150,000</td><td class="l">11/03분</td><td>100</td><td class="l">김주연</td></tr>
+      <tr><td class="l">11/07</td><td class="c"><span class="tag t-out">출고</span></td><td class="l link">D261107-009 #2</td><td class="l">IBK기업은행 역삼지점</td><td class="l">판매</td><td>50</td><td>21,500</td><td>1,075,000</td><td class="l">11/03분</td><td>50</td><td class="l">김보현</td></tr>
+      <tr><td class="l">11/12</td><td class="c"><span class="tag t-out">출고</span></td><td class="l link">D261112-003 #1</td><td class="l">하나은행 본점</td><td class="l">샘플</td><td>20</td><td>21,500</td><td>430,000</td><td class="l">11/03분</td><td>30</td><td class="l">김승현</td></tr>
+      <tr><td class="l">11/18</td><td class="c"><span class="tag t-in">입고</span></td><td class="l link">D261118-011 #1</td><td class="l muted">자사 재고</td><td class="l muted">-</td><td>100</td><td>23,500</td><td>2,350,000</td><td class="l">11/18분</td><td>130</td><td class="l">김주연</td></tr>
+      <tr><td class="l">11/20</td><td class="c"><span class="tag t-adj">실사</span></td><td class="l">실사 기록</td><td class="l muted">-</td><td class="l muted">-</td><td class="muted">130 확인</td><td></td><td></td><td></td><td>130</td><td class="l">한정호</td></tr>
+      <tr><td class="l">11/21</td><td class="c"><span class="tag t-out">출고</span></td><td class="l link">D261121-006 #3</td><td class="l muted">사무실</td><td class="l">내부 사용</td><td>10</td><td>21,500</td><td>215,000</td><td class="l">11/03분</td><td>120</td><td class="l">홍창의</td></tr>
+    </tbody>
+  </table>
+  <p class="muted" style="margin-top:6px">용도: 판매(배송종류 지점 · 개별) / 샘플(배송종류 샘플) / 내부 사용 — 주문 행에서 자동으로 정해지고, 조정 사유는 실사에서 받습니다.</p>
+</div>
+
+<!-- ============================================ -->
+<h2>⑤ 확인 필요 탭 <small>매입가가 두 번 잡혔을 수 있는 행 — 시스템은 찾아서 보여주고, 처리는 사람이</small></h2>
+<div class="card">
+  <table>
+    <thead><tr><th class="l">주문</th><th class="l">날짜</th><th class="l">품명</th><th class="l">왜 떴나</th><th>수량</th><th>매입합계</th><th class="l">처리</th></tr></thead>
+    <tbody>
+      <tr><td class="l link">D261122-007 #2</td><td class="l">11/22</td><td class="l">[예시] 텀블러 500ml</td><td class="l"><span class="tag t-amb">재고 있음 · 새로 매입</span> 재고 75개인데 매입가가 잡혔고 발주서도 안 나감</td><td>10</td><td>180,000</td><td class="l"><span class="btn s p">재고 출고로 바꾸기</span> <span class="btn s">맞음 (실제 새로 매입)</span></td></tr>
+      <tr><td class="l link">D261119-012 #1</td><td class="l">11/19</td><td class="l">[예시] 아로마 디퓨저</td><td class="l"><span class="tag t-amb">재고 있음 · 새로 매입</span> 발주서 발송됨</td><td>30</td><td>1,200,000</td><td class="l"><span class="btn s p">맞음 (실제 새로 매입)</span> <span class="btn s">재고 출고로 바꾸기</span></td></tr>
+      <tr><td class="l link">D261115-002 #4</td><td class="l">11/15</td><td class="l">[예시] 핸드크림 3종 세트</td><td class="l"><span class="tag t-red">실사 부족</span> 전산 88 · 실사 86</td><td>-2</td><td class="muted">-</td><td class="l"><span class="btn s p">조정 기록</span> <span class="btn s">출고 누락 찾기</span></td></tr>
+    </tbody>
+  </table>
+  <p class="muted" style="margin-top:6px">"재고 출고로 바꾸기"는 저장된 주문 행을 고치는 일이라 확인 창에서 사유를 받고 이력을 남깁니다. "맞음"으로 처리한 행은 다시 뜨지 않습니다.</p>
+</div>
+
+<!-- ============================================ -->
+<h2>⑥ 재고 관리 › 부자재 탭 <small>쇼핑백 · 포장재 — 수량만 관리, 사용 기록 + 실사</small></h2>
+<div class="card">
+  <div class="bar"><span class="chip on">재고 있음</span><span class="chip">부족</span><span class="chip">전체</span><span class="right"></span><span class="btn">입고 기록</span><span class="btn p">사용 기록</span></div>
+  <table>
+    <thead><tr><th class="l">품명</th><th class="l">구입처</th><th>입고 누계</th><th>사용 누계</th><th>재고</th><th>부족 기준</th><th>최근 단가</th><th class="l">최근 입고</th><th class="l">상태</th></tr></thead>
+    <tbody>
+      <tr><td class="l bold">[예시] 고급 쇼핑백 (대)</td><td class="l">○○패키지</td><td>1,000</td><td>820</td><td class="bold">180</td><td>200</td><td>850</td><td class="l">10/02 · 카드</td><td class="l"><span class="tag t-amb">부족</span></td></tr>
+      <tr><td class="l bold">[예시] 선물 포장지 롤</td><td class="l">○○패키지</td><td>30</td><td>12</td><td class="bold">18</td><td>5</td><td>9,000</td><td class="l">09/15 · 계산서</td><td class="l"><span class="tag t-gray">충분</span></td></tr>
+      <tr><td class="l bold">[예시] 완충 에어캡</td><td class="l">○○상사</td><td>20</td><td>17</td><td class="bold">3</td><td>4</td><td>22,000</td><td class="l">11/01 · 카드</td><td class="l"><span class="tag t-amb">부족</span></td></tr>
+    </tbody>
+  </table>
+  <p class="muted" style="margin-top:6px">입고는 카드 · 계산서로 산 것을 직접 기록(증빙 행 연결 선택). 기존 요아럽 쇼핑백은 지금처럼 샘플 재고 탭에 남깁니다 — 옮길지는 4번(기초재고) 확인 때 함께 정합니다.</p>
+</div>
+
+<!-- ============================================ -->
+<h2>⑦ 인사 · 총무 › 비품 관리 <small>소모품(생필품) 탭 + 장비 자산 탭 — 매출 · 마진과 무관</small></h2>
+<div class="grid2">
+  <div class="card">
+    <h3>소모품 탭 <small>휴지 · 물티슈 · 커피 등 — 남은 양만 보고, 떨어지기 전에 알림</small></h3>
+    <table>
+      <thead><tr><th class="l">품목</th><th>남은 수량</th><th>부족 기준</th><th class="l">최근 구입</th><th>이번 달 구입액</th><th class="l">상태</th></tr></thead>
+      <tbody>
+        <tr><td class="l bold">[예시] 두루마리 휴지 30롤</td><td>2 팩</td><td>2</td><td class="l">11/04 · 카드</td><td>38,000</td><td class="l"><span class="tag t-amb">살 때 됨</span></td></tr>
+        <tr><td class="l bold">[예시] 물티슈 100매</td><td>14 개</td><td>5</td><td class="l">11/10 · 카드</td><td>21,000</td><td class="l"><span class="tag t-gray">충분</span></td></tr>
+        <tr><td class="l bold">[예시] 원두 1kg</td><td>1 봉</td><td>2</td><td class="l">10/28 · 카드</td><td>0</td><td class="l"><span class="tag t-red">부족</span></td></tr>
+        <tr><td class="l bold">[예시] 종이컵 1,000개</td><td>3 박스</td><td>1</td><td class="l">09/20 · 카드</td><td>0</td><td class="l"><span class="tag t-gray">충분</span></td></tr>
+      </tbody>
+    </table>
+    <div class="box">
+      <b>가볍게 관리</b> — 하나 쓸 때마다 기록하지 않습니다. 살 때 "구입 기록"(카드 내역 행에서 바로 연결 가능), 가끔 "남은 수량"만 고치면 됩니다.
+      부족 기준 아래로 내려가면 경영지원팀에 알림. 비용 처리는 지금처럼 카드 · 계산서 분류(회계)에서 하고, 이 화면은 수량 확인용입니다.
+    </div>
+  </div>
+  <div class="card">
+    <h3>장비 자산 탭 <small>PC · 모니터 · 프린터 등 — 자산 대장</small></h3>
+    <table>
+      <thead><tr><th class="l">자산번호</th><th class="l">이름</th><th class="l">분류</th><th class="l">사용자</th><th class="l">구입일</th><th>구입가</th><th class="l">상태</th></tr></thead>
+      <tbody>
+        <tr><td class="l">A-2026-001</td><td class="l bold">[예시] 사무용 PC</td><td class="l">PC</td><td class="l">오철준</td><td class="l">2026-03-02</td><td>1,180,000</td><td class="l"><span class="tag t-in">사용 중</span></td></tr>
+        <tr><td class="l">A-2026-002</td><td class="l bold">[예시] 27인치 모니터</td><td class="l">모니터</td><td class="l">오철준</td><td class="l">2026-03-02</td><td>320,000</td><td class="l"><span class="tag t-in">사용 중</span></td></tr>
+        <tr><td class="l">A-2024-007</td><td class="l bold">[예시] 노트북</td><td class="l">PC</td><td class="l muted">보관</td><td class="l">2024-06-11</td><td>1,450,000</td><td class="l"><span class="tag t-gray">보관</span></td></tr>
+        <tr><td class="l">A-2022-003</td><td class="l bold">[예시] 복합기</td><td class="l">프린터</td><td class="l muted">공용</td><td class="l">2022-01-17</td><td>2,300,000</td><td class="l"><span class="tag t-vio">수리 중</span></td></tr>
+      </tbody>
+    </table>
+    <div class="box">
+      자산 1건 = 구입 증빙(카드 · 계산서 행 연결) + 사용자(직원 마스터) + 위치 + 상태(사용 중 · 보관 · 수리 중 · 폐기) + 첨부(보증서 · 사진, 공통 첨부 모듈).
+      사용자 변경 · 폐기는 이력으로 남깁니다. 퇴사 처리 때 "이 직원이 쓰는 자산 2건" 확인에 씁니다. 감가상각 계산은 세무사 몫이라 넣지 않습니다.
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2>⑧ 회계 · 재무 › 월별 손익 — 재고 증감 줄 <small>2026-11-23 추가 · 산 달이 아니라 판 달에 원가가 잡히게</small></h2>
+<div class="card">
+  <p class="sub" style="margin-top:0">예시: 26년 11월에 선매입(공급가액 2,000,000), 27년 4월에 전량 판매(공급가액 3,000,000). 이 제품만 떼어 본 숫자입니다. 기준 = 증빙 기준(지금 기본값).</p>
+  <table>
+    <thead><tr><th class="l">항목</th><th>26-11</th><th>26-12</th><th>27-01 ~ 03</th><th>27-04</th><th>기간 합계</th></tr></thead>
+    <tbody>
+      <tr><td class="l bold">매출</td><td>0</td><td>0</td><td>0</td><td>3,000,000</td><td>3,000,000</td></tr>
+      <tr><td class="l">&nbsp;&nbsp;상품매입 — 세금계산서 (과세, 5002)</td><td>2,000,000</td><td>0</td><td>0</td><td>0</td><td>2,000,000</td></tr>
+      <tr style="background:#eff6ff"><td class="l">&nbsp;&nbsp;<b>재고 증감 (월초 재고 − 월말 재고)</b> <span class="tag t-in">새 줄</span></td><td class="link">−2,000,000</td><td class="link">0</td><td class="link">0</td><td class="link">+2,000,000</td><td>0</td></tr>
+      <tr><td class="l bold">매출원가</td><td>0</td><td>0</td><td>0</td><td>2,000,000</td><td>2,000,000</td></tr>
+      <tr><td class="l bold">매출이익</td><td>0</td><td>0</td><td>0</td><td class="pos">1,000,000</td><td class="pos">1,000,000</td></tr>
+      <tr class="sub-row"><td class="l">참고: 월말 선매입 재고 (부가세 제외)</td><td>2,000,000</td><td>2,000,000 <span class="tag t-amb">연말 재고</span></td><td>2,000,000</td><td>0</td><td></td></tr>
+      <tr class="sub-row"><td class="l">참고: 재고 줄이 없으면(지금) 매출이익</td><td class="neg">−2,000,000</td><td>0</td><td>0</td><td class="neg">+3,000,000</td><td>1,000,000</td></tr>
+    </tbody>
+  </table>
+  <div class="grid2" style="margin-top:8px">
+    <div class="box">
+      <b>계산 규칙</b>
+      <ul class="ul">
+        <li>재고 증감 = 그달 초 재고 금액 − 그달 말 재고 금액. 재고가 늘면 원가에서 빠지고(−), 줄면 원가에 더해집니다(+).</li>
+        <li>재고 금액 = 그날 남은 입고분 수량 × 입고 단가. 주문의 매입가는 부가세 포함이라 손익에서는 <b>과세 품목 ÷ 1.1</b>, 면세 품목은 그대로(품목의 과세 · 면세 구분 기준).</li>
+        <li>대상은 <b>선매입 재고만</b>입니다. 부자재 · 비품은 매출원가가 아니라 판매관리비(소모품비 등)라 넣지 않습니다. 요아럽 샘플 재고도 넣지 않습니다(샘플 비용은 따로 집계).</li>
+        <li>금액을 누르면 재고 관리 › 선매입 재고의 그달 말 기준 목록이 열립니다(드릴다운).</li>
+      </ul>
+    </div>
+    <div class="box">
+      <b>달라지는 것과 그대로인 것</b>
+      <ul class="ul">
+        <li><b>기간 전체 이익은 같습니다</b>(위 예시 합계 1,000,000). 어느 달에 잡히느냐만 바뀝니다.</li>
+        <li>ERP 기준 토글: 원가 = 매입합계 + 재고 원가(선매입 입고 행 제외)라 이미 판 달에 맞춰지므로 이 줄이 필요 없습니다. 두 기준이 같은 방향으로 맞춰집니다.</li>
+        <li>연말(12월) 재고 금액 = 세무사에게 넘길 기말 재고자산. 화면에 "연말 재고" 표시와 엑셀 시트를 둡니다.</li>
+        <li>부가세 · 자금 화면은 바뀌지 않습니다(계산서 · 돈이 움직인 날짜 그대로).</li>
+        <li>주의: 기존에 샘플로 넣은 선매입 잔량은 기초재고를 넣기 전까지 이 줄에 반영되지 않습니다(4번 확인 후).</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2>⑨ 저장 구조 (안) <small>마이그레이션 1400번대 — 원본은 주문 행 · 실사, 재고는 계산</small></h2>
+<div class="card">
+  <ul class="ul">
+    <li><b>erp_order_items</b>에 칸 2개: <b>stock_role</b>(없음 · 선매입 입고 · 재고 출고) · <b>stock_cost</b>(재고 원가, 저장 시 고정). 매입합계(purchase_total)의 뜻은 바꾸지 않습니다 = 매입처에 줄 돈.</li>
+    <li><b>재고 배정</b> 표: 재고 출고 행이 어느 입고분(선매입 입고 행)에서 몇 개를 · 얼마에 가져갔는지(선입선출 결과). 원장 · 입고분별 남은 수량이 여기서 나옵니다.</li>
+    <li><b>재고 조정 · 실사</b>: 선매입 재고 · 부자재 공용(실사 수량, 그때 전산재고 사본, 사유, 입력 계정). 샘플 재고(800)와 같은 방식.</li>
+    <li><b>부자재</b>: 품목 + 입고 · 사용 기록(수량 · 단가 · 증빙 행 연결 선택). <b>비품</b>: 소모품(남은 수량 · 부족 기준 · 구입 기록) + 장비 자산 대장(+ 이력). 비품은 인사 · 총무 권한.</li>
+    <li>요아럽 샘플 재고(800)는 데이터를 옮기지 않고 같은 "재고 관리" 화면의 탭으로만 묶습니다(이관 위험 없음).</li>
+    <li>월별 손익(<code>lib/pl-report.ts</code>): 증빙 기준에 재고 증감 줄 추가(월초 · 월말 재고 금액은 입고 · 배정 기록에서 날짜 기준으로 계산, 저장 안 함), ERP 기준은 원가 식만 교체.</li>
+    <li>마진을 계산하는 곳(주문 현황 · 상세 · 엑셀 · 품목 마진 · 매출처 분석 · 결제 미리보기 등 약 20곳)은 원가 = 매입합계 + 재고 원가로 한 함수에 모읍니다. 선매입 입고 행은 마진 집계에서 뺍니다.</li>
+  </ul>
+  <p class="muted" style="margin-top:8px">구현 순서(안): 1차 주문 입력 재고 칸 + 선매입 재고 탭 + 원장 + 마진 보정 + 월별 손익 재고 증감 줄 → 2차 확인 필요 탭 · 실사 → 3차 부자재 · 비품. 기존에 샘플로 넣은 선매입 건의 기초재고는 확인 후 별도 데이터 작업.</p>
+</div>
+
+</div>
+</body>
+</html>

@@ -61,7 +61,8 @@ export const MENU: MenuGroup[] = [
     { label: '발주서', href: '/orders/purchase' },
     { label: '배송 관리', href: '/orders/delivery', wip: true },
     { label: '품목 관리', href: '/orders/products' },
-    { label: '샘플 재고', href: '/orders/sample-stock' },
+    // 재고 관리 (1400, 2026-11-23) — 선매입 재고 / 샘플 재고 탭. 옛 주소 /orders/sample-stock 은 리다이렉트 스텁
+    { label: '재고 관리', href: '/orders/stock' },
   ]},
   { key: 'collections', area: 'sales', label: '수금 · 정산 작업', items: [
     // 결제 확인 — 탭 5개(2026-11-18): 전체 현황 / 매칭 대기 / 결제 안내 대상 / 입금대장(전 기록 없는 입금 · 입금 매칭) / 계산서 확인. 이전 설명: 매칭 대기 / 기록 없는 입금(전 입금 매칭) / 결제 안내 대상(전 수금 대상) / 계산서 확인(전 계산서 발행 대상)
@@ -231,6 +232,7 @@ export const API_OWNERS: { prefix: string; group: MenuGroupKey | MenuGroupKey[] 
   // 주문 · 발주
   { prefix: '/api/orders-portal', group: 'orders' },
   { prefix: '/api/sample-stock', group: 'orders' },
+  { prefix: '/api/stock', group: 'orders' },   // 재고 관리 — 선매입 재고 (1400)
   { prefix: '/api/erp-items', group: 'orders' },
   // 수금 · 정산 작업
   { prefix: '/api/erp-matching', group: 'collections' },

@@ -5,7 +5,13 @@ import { useSearchParams } from 'next/navigation'
 import { NumInput, toInt } from '../form-shared'
 import { fmtPurchasePrice, toPurchasePrice } from '@/lib/purchase-price'
 import { listParams, readListParams, type CondField, type ProductCond, type ProductFilter } from '@/lib/product-list-params'
+import {
+  FILTER_FIELDS, PRICE_BANDS, PRICE_BASES, DEFAULT_BASIS, appendFilterParams, readFilterParams, encodeFilter, filterLabel,
+  fieldOf, inBand, isComplete, matchBands, matchFilter, opsOf, priceOf,
+  type FilterFieldKey, type FilterOp, type ItemFilter, type PriceBasis,
+} from '@/lib/product-filters'
 import VendorInfoPanel, { useVendorInfo } from './vendor-info-panel'
+import ProductRegisterDialog, { type RegisterSeed } from '../product-register-dialog'
 import { branchMargin, individualMargin, formatProfit, formatRate, roundProfit, type Margin } from '@/lib/product-margin'
 
 // 품목 마스터 (2단계) — 주문 입력의 품번 검색 원천.
@@ -157,6 +163,15 @@ export default function ProductsPage() {
   const [conds, setConds] = useState<ProductCond[]>([])
   const [filter, setFilter] = useState<ProductFilter>('active')
   const [sort, setSort] = useState(DEFAULT_SORT)
+  // 항목 필터 · 금액대 칩 (2026-11-19 실무자 요청 · 사용자 승인) — 규칙은 lib/product-filters.ts (원가표 다운로드와 공용)
+  const [itemFilters, setItemFilters] = useState<ItemFilter[]>([])
+  const [bands, setBands] = useState<string[]>([])
+  const [basis, setBasis] = useState<PriceBasis>(DEFAULT_BASIS)
+  const [builderOpen, setBuilderOpen] = useState(false)
+  const [bField, setBField] = useState<FilterFieldKey>('sale')
+  const [bOp, setBOp] = useState<FilterOp>('gte')
+  const [bA, setBA] = useState('')
+  const [bB, setBB] = useState('')
   const isDefaultSort = sort.key === DEFAULT_SORT.key && sort.dir === DEFAULT_SORT.dir
 
   // 주소 ↔ 조건 (필터 유지, 2026-11-11)
@@ -166,6 +181,8 @@ export default function ProductsPage() {
   const applyFromUrl = useCallback((sp: URLSearchParams) => {
     const { filter: f, conds: c } = readListParams(sp)
     setFilter(f); setConds(c); setSort(parseSort(sp))
+    const x = readFilterParams(sp)
+    setItemFilters(x.filters); setBands(x.bands); setBasis(x.basis)
   }, [])
   useEffect(() => {
     applyFromUrl(new URLSearchParams(window.location.search))
@@ -181,13 +198,14 @@ export default function ProductsPage() {
   useEffect(() => {
     if (!ready) return
     const p = listParams(filter, conds)
+    appendFilterParams(p, itemFilters, bands, basis)
     if (!isDefaultSort) { p.set('sort', sort.key); p.set('dir', sort.dir) }
     const qs = p.toString()
     lastWritten.current = qs
     const url = qs ? `${LIST_PATH}?${qs}` : LIST_PATH
     listUrl.current = url
     if (window.location.pathname + window.location.search !== url) window.history.replaceState(window.history.state, '', url)
-  }, [ready, filter, conds, sort, isDefaultSort])
+  }, [ready, filter, conds, sort, isDefaultSort, itemFilters, bands, basis])
   // 머리글 클릭: 다른 칸 → 오름차순, 오름차순 → 내림차순, 내림차순 → 기본 순서
   const toggleSort = (key: SortKey) => setSort(prev =>
     prev.key !== key ? { key, dir: 'asc' } : prev.dir === 'asc' ? { key, dir: 'desc' } : DEFAULT_SORT)
@@ -209,15 +227,30 @@ export default function ProductsPage() {
     if (json?.phones) setVendorPhones(json.phones)
   }, [])
 
+  // 미등록 품목 (2026-11-19) — 주문 · 상담에 직접 입력된 품명. KPI 카드로 목록 보기, 등록은 상담 · 주문과 같은 창
+  type Unreg = { item_name: string; purchase_vendor_name: string; last_sale: number; last_purchase: number; last_date: string
+    orders: number; consults: number; uses: { kind: 'order' | 'consult'; id: string; label: string; date: string }[] }
+  const [unreg, setUnreg] = useState<Unreg[] | null>(null)
+  const [showUnreg, setShowUnreg] = useState(false)
+  const [unregOpen, setUnregOpen] = useState<string | null>(null)
+  const [registerSeed, setRegisterSeed] = useState<RegisterSeed | null>(null)
+  const loadUnreg = useCallback(async () => {
+    const res = await fetch('/api/orders-portal/products/unregistered').catch(() => null)
+    if (!res?.ok) return
+    const json = await res.json().catch(() => null)
+    if (json?.items) setUnreg(json.items)
+  }, [])
+
   const load = useCallback(async () => {
     loadPhones()
+    loadUnreg()
     setLoading(true); setError(null)
     const res = await fetch('/api/orders-portal/products')
     const json = await res.json()
     if (!res.ok) setError(json.error ?? '조회 실패')
     else { setProducts(json.products); setCanEdit(json.can_edit === true) }
     setLoading(false)
-  }, [loadPhones])
+  }, [loadPhones, loadUnreg])
   useEffect(() => { load() }, [load])
 
   // 스크롤 위치 (필터 유지, 2026-11-11): 본문 <main>의 위치를 계속 기억해 두었다가 떠날 때(다른 화면 · 새로고침) 저장
@@ -253,7 +286,8 @@ export default function ProductsPage() {
     } catch { /* 무시 */ }
   }, [ready, loading])
 
-  const filtered = useMemo(() => {
+  // 금액대 칩을 뺀 결과 — 금액대 칩마다 '켜면 몇 건'을 보여 주는 데 씀
+  const preBand = useMemo(() => {
     const q = search.trim().toLowerCase()
     return products.filter(p => {
       if (filter === 'active' && !p.is_active) return false
@@ -262,10 +296,24 @@ export default function ProductsPage() {
       if (filter === 'cost' && !p.is_shipping) return false   // 비용 품목만
       // 고정된 조건 전부 만족(AND) = 검색 결과 내 재검색
       if (!conds.every(c => condMatch(p, c.field, c.value.toLowerCase()))) return false
+      if (!itemFilters.every(f => matchFilter(p, f, vendorPhones))) return false   // 항목 필터 — 모두 "그리고"
       if (!q) return true
       return condMatch(p, condField, q)   // 입력 중인 검색어는 즉시 필터
     })
-  }, [products, search, condField, conds, filter])
+  }, [products, search, condField, conds, filter, itemFilters, vendorPhones])
+  const filtered = useMemo(() => preBand.filter(p => matchBands(p, bands, basis)), [preBand, bands, basis])   // 금액대 — 켠 것 중 하나("또는")
+  const bandCounts = useMemo(() => Object.fromEntries(PRICE_BANDS.map(b =>
+    [b.key, preBand.filter(p => inBand(priceOf(p, basis), b.key)).length])), [preBand, basis])
+
+  // 항목 필터 추가 — 항목을 바꾸면 그 종류의 첫 조건으로
+  const pickField = (k: FilterFieldKey) => { setBField(k); setBOp(opsOf(k)[0].op); setBA(''); setBB('') }
+  const draftFilter: ItemFilter = { field: bField, op: bOp, ...(bA.trim() ? { a: bA.trim() } : {}), ...(bB.trim() ? { b: bB.trim() } : {}) }
+  const addFilter = () => {
+    if (!isComplete(draftFilter)) return
+    setItemFilters(prev => prev.some(f => encodeFilter(f) === encodeFilter(draftFilter)) ? prev : [...prev, draftFilter])
+    setBA(''); setBB('')
+  }
+  const priceSortKey: SortKey = basis   // 기준과 같은 이름의 정렬 칸(sale · individual · purchase)
 
   // 정렬은 필터 결과에만 적용 (같은 값끼리는 원래 순서 = API 품명순 유지)
   const sorted = useMemo(() => [...filtered].sort(compareBy(sort.key, sort.dir)), [filtered, sort])
@@ -386,6 +434,7 @@ export default function ProductsPage() {
               // 주소와 같은 원천(listParams) + 입력 중 검색어 — 다운로드도 화면과 같은 결과
               const p = listParams(filter, conds)
               if (search.trim()) p.append('cond', `${condField}:${search.trim()}`)
+              appendFilterParams(p, itemFilters, bands, basis)   // 항목 필터 · 금액대도 화면과 같게
               window.location.href = `/api/orders-portal/products/export?${p}`
             }}
             title="현재 필터·검색 조건 그대로 원가표 양식으로 다운로드 — 수정 후 그대로 재업로드 가능"
@@ -404,24 +453,30 @@ export default function ProductsPage() {
       </div>
 
       {/* KPI 카드 (클릭=필터) — 전체 품목 카드가 전체 조회 (2026-11-03 사용자 요청) */}
-      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 mt-4 max-w-5xl">
+      <div className="grid grid-cols-2 sm:grid-cols-7 gap-2.5 mt-4 max-w-6xl">
         {([
           ['all', '전체 품목', products.length, 'text-blue-700'],
           ['active', '사용 중 품목', kpi.active, ''],
           ['inactive', '중지 품목', kpi.inactive, 'text-gray-400'],
           ['addon', '부가상품(옵션)', kpi.addon, 'text-violet-600'],
         ] as const).map(([key, title, val, cls]) => (
-          <button key={key} onClick={() => setFilter(key)}
-            className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === key ? 'border-slate-800' : 'border-gray-200'}`}>
+          <button key={key} onClick={() => { setFilter(key); setShowUnreg(false) }}
+            className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === key && !showUnreg ? 'border-slate-800' : 'border-gray-200'}`}>
             <div className="text-[0.6875rem] text-gray-400">{title}</div>
             <div className={`text-lg font-bold tabular-nums ${cls}`}>{val}</div>
           </button>
         ))}
         {/* 비용 품목 (배송비 · 퀵비 · 설치비 등) — 발주서 배송명단 제외 대상 (이름 키워드 후보 추천은 오판만 나와 폐지, 2026-11-05) */}
-        <button onClick={() => setFilter('cost')}
-          className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === 'cost' ? 'border-slate-800' : 'border-gray-200'}`}>
+        <button onClick={() => { setFilter('cost'); setShowUnreg(false) }}
+          className={`bg-white border rounded-xl px-4 py-3 text-left ${filter === 'cost' && !showUnreg ? 'border-slate-800' : 'border-gray-200'}`}>
           <div className="text-[0.6875rem] text-gray-400">비용 품목</div>
           <div className="text-lg font-bold tabular-nums text-amber-700">{kpi.cost}</div>
+        </button>
+        {/* 미등록 품목 (2026-11-19) — 주문 · 상담에 직접 입력된 품명. 누르면 표가 이 목록으로 바뀜 */}
+        <button onClick={() => setShowUnreg(v => !v)} aria-pressed={showUnreg}
+          className={`bg-white border rounded-xl px-4 py-3 text-left ${showUnreg ? 'border-slate-800' : 'border-gray-200'}`}>
+          <div className="text-[0.6875rem] text-gray-400">미등록 품목</div>
+          <div className="text-lg font-bold tabular-nums text-orange-700">{unreg ? unreg.length : '-'}</div>
         </button>
         {/* 매입처 수 — 정보 표시용 (필터 아님) */}
         <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-left">
@@ -444,6 +499,10 @@ export default function ProductsPage() {
           }}
           placeholder={`${COND_LABEL[condField]} 검색 — Enter로 조건 고정(결과 내 재검색)`}
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-80" />
+        <button onClick={() => setBuilderOpen(o => !o)} aria-expanded={builderOpen}
+          className={`px-3 py-1.5 rounded-lg text-sm border ${builderOpen ? 'border-slate-800 text-slate-900 font-medium' : 'border-gray-300 text-gray-600'}`}>
+          + 필터
+        </button>
         {conds.map((c, i) => (
           <span key={`${c.field}:${c.value}`}
             className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200">
@@ -452,8 +511,16 @@ export default function ProductsPage() {
               className="text-blue-400 hover:text-blue-700" title="조건 제거">×</button>
           </span>
         ))}
-        {conds.length > 0 && (
-          <button onClick={() => setConds([])} className="text-xs text-gray-400 hover:text-gray-600">
+        {itemFilters.map((f, i) => (
+          <span key={encodeFilter(f)}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-slate-50 text-slate-700 border border-slate-300">
+            {filterLabel(f)}
+            <button onClick={() => setItemFilters(prev => prev.filter((_, j) => j !== i))}
+              className="text-slate-400 hover:text-slate-700" title="필터 제거">×</button>
+          </span>
+        ))}
+        {(conds.length > 0 || itemFilters.length > 0) && (
+          <button onClick={() => { setConds([]); setItemFilters([]) }} className="text-xs text-gray-400 hover:text-gray-600">
             조건 모두 지우기
           </button>
         )}
@@ -483,6 +550,87 @@ export default function ProductsPage() {
         </span>
       </div>
 
+      {/* 항목 필터 만들기 (2026-11-19) — 항목 · 조건 · 값 → 칩. 칩끼리 · 검색 칩과 모두 "그리고" */}
+      {builderOpen && (() => {
+        const kind = fieldOf(bField).kind
+        const nVals = opsOf(bField).find(o => o.op === bOp)?.values ?? 0
+        const valCls = `border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm ${kind === 'text' ? 'w-48' : 'w-28 text-right tabular-nums'}`
+        const unit = kind === 'rate' ? '%' : ''
+        return (
+          <div className="mt-2 p-3 bg-white border border-slate-300 rounded-xl flex items-end gap-2.5 flex-wrap"
+            onKeyDown={e => { if (e.key === 'Enter') addFilter() }}>
+            <div>
+              <label className="block text-[0.6875rem] text-gray-500 mb-0.5">항목</label>
+              <select value={bField} onChange={e => pickField(e.target.value as FilterFieldKey)}
+                className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                {FILTER_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[0.6875rem] text-gray-500 mb-0.5">조건</label>
+              <select value={bOp} onChange={e => setBOp(e.target.value as FilterOp)}
+                className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                {opsOf(bField).map(o => <option key={o.op} value={o.op}>{o.label}</option>)}
+              </select>
+            </div>
+            {nVals > 0 && (
+              <div>
+                <label className="block text-[0.6875rem] text-gray-500 mb-0.5">값{unit ? ` (${unit})` : ''}</label>
+                <span className="inline-flex items-center gap-1.5">
+                  <input value={bA} onChange={e => setBA(e.target.value)} className={valCls}
+                    inputMode={kind === 'text' ? 'text' : 'decimal'} placeholder={nVals === 2 ? '부터' : ''} />
+                  {nVals === 2 && <>
+                    <span className="text-gray-400">~</span>
+                    <input value={bB} onChange={e => setBB(e.target.value)} className={valCls} inputMode="decimal" placeholder="까지" />
+                  </>}
+                </span>
+              </div>
+            )}
+            <button onClick={addFilter} disabled={!isComplete(draftFilter)}
+              className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-40">조건 추가</button>
+            <span className="text-xs text-gray-400 pb-1.5">
+              칩은 몇 개든 쌓을 수 있고 모두 만족하는 품목만 보입니다. Enter로도 추가.
+              {kind === 'rate' ? ' 마진율은 %로 입력(예: 20).' : ''}
+            </span>
+          </div>
+        )
+      })()}
+
+      {/* 금액대 칩 (2026-11-19) — 기준 선택, 여러 개 켜면 그중 하나에 드는 품목. 높은 · 낮은 가격순 = 기준 금액 정렬 */}
+      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+        <span className="text-xs text-gray-500">금액대</span>
+        <select value={basis} onChange={e => setBasis(e.target.value as PriceBasis)} aria-label="금액대 기준"
+          className="border border-gray-300 rounded-lg px-2 py-1 text-xs">
+          {PRICE_BASES.map(b => <option key={b.key} value={b.key}>{b.label}</option>)}
+        </select>
+        <button onClick={() => setBands([])}
+          className={`px-2.5 py-1 rounded-full text-xs border ${bands.length ? 'bg-white border-gray-300 text-gray-600' : 'bg-slate-900 border-slate-900 text-white'}`}>
+          전체
+        </button>
+        {PRICE_BANDS.map(b => {
+          const on = bands.includes(b.key)
+          return (
+            <button key={b.key} aria-pressed={on}
+              onClick={() => setBands(prev => on ? prev.filter(x => x !== b.key) : [...prev, b.key])}
+              className={`px-2.5 py-1 rounded-full text-xs border tabular-nums ${on ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-gray-300 text-gray-600'}`}>
+              {b.label} <span className={on ? 'text-slate-300' : 'text-gray-400'}>{bandCounts[b.key] ?? 0}</span>
+            </button>
+          )
+        })}
+        <span className="ml-2 inline-flex border border-gray-300 rounded-lg overflow-hidden" role="group" aria-label="가격순 정렬">
+          {([['desc', '높은 가격순'], ['asc', '낮은 가격순']] as const).map(([d, label]) => {
+            const on = sort.key === priceSortKey && sort.dir === d
+            return (
+              <button key={d} onClick={() => setSort({ key: priceSortKey, dir: d })} aria-pressed={on}
+                title={`${PRICE_BASES.find(x => x.key === basis)?.label} 기준 정렬 (금액대 기준을 바꾸면 함께 바뀜)`}
+                className={`px-2.5 py-1 text-xs ${on ? 'bg-slate-900 text-white' : 'bg-white text-gray-500 hover:text-gray-800'}`}>
+                {label}
+              </button>
+            )
+          })}
+        </span>
+      </div>
+
       {error && <div className="mt-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg whitespace-pre-line">{error}</div>}
       {notice && <div className="mt-3 px-4 py-2.5 bg-emerald-50 text-emerald-700 text-sm rounded-lg">{notice}</div>}
 
@@ -492,7 +640,7 @@ export default function ProductsPage() {
           <div>
             <label className="block text-[0.6875rem] text-gray-500 mb-0.5">품번</label>
             <input value={draft.item_code} onChange={e => setDraft(d => ({ ...d, item_code: e.target.value }))}
-              className={`${inputCls} w-28`} placeholder="선택" />
+              className={`${inputCls} w-28`} placeholder="없으면 빈칸" />
           </div>
           <div>
             <label className="block text-[0.6875rem] text-gray-500 mb-0.5">품명 *</label>
@@ -569,6 +717,70 @@ export default function ProductsPage() {
         </div>
       )}
 
+      {showUnreg ? (
+        <div className="bg-white border border-gray-200 rounded-xl mt-3 overflow-x-auto">
+          <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-100">
+            미등록 품목 — 주문(직접 입력) · 상담에 품번 연결 없이 쓰인 품명을 품명 + 매입처로 묶었습니다. 등록해도 이미 저장된 주문 · 상담은 바뀌지 않고, 같은 품명 + 매입처가 품목에 생기면 이 목록에서 빠집니다.
+          </div>
+          <table className="w-full text-sm min-w-[760px]">
+            <thead>
+              <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+                <th className="py-2 px-3 font-medium text-left">품명 (직접 입력)</th>
+                <th className="py-2 px-3 font-medium text-left">매입처</th>
+                <th className="py-2 px-3 font-medium text-left">최근 판매가</th>
+                <th className="py-2 px-3 font-medium text-left">최근 매입가</th>
+                <th className="py-2 px-3 font-medium text-left">쓰인 곳</th>
+                <th className="py-2 px-3 font-medium text-left">최근 사용</th>
+                <th className="py-2 px-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {(unreg ?? []).map(u => {
+                const k = `${u.item_name}|${u.purchase_vendor_name}`
+                return (
+                  <tr key={k} className="border-b border-gray-50 align-top">
+                    <td className="py-2 px-3 font-medium">
+                      {u.item_name}
+                      {unregOpen === k && (
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-normal">
+                          {u.uses.map(x => (
+                            <a key={`${x.kind}:${x.id}`} href={x.kind === 'order' ? `/orders/${x.id}` : `/orders/consultations/${x.id}`}
+                              className="text-blue-700 hover:underline">{x.label}</a>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-2 px-3 whitespace-nowrap">{u.purchase_vendor_name || '-'}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">{u.last_sale ? won(u.last_sale) : '-'}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">{u.last_purchase ? fmtPurchasePrice(u.last_purchase) : '-'}</td>
+                    <td className="py-2 px-3 whitespace-nowrap text-xs">
+                      {[u.orders ? `주문 ${u.orders}` : '', u.consults ? `상담 ${u.consults}` : ''].filter(Boolean).join(' · ')}
+                    </td>
+                    <td className="py-2 px-3 whitespace-nowrap text-xs tabular-nums">{u.last_date}</td>
+                    <td className="py-2 px-3 text-right whitespace-nowrap">
+                      {canEdit && (
+                        <button onClick={() => setRegisterSeed({ item_name: u.item_name, purchase_vendor_name: u.purchase_vendor_name,
+                            sale_price: u.last_sale, purchase_price: u.last_purchase })}
+                          className="px-2.5 py-1 bg-slate-900 text-white rounded-lg text-xs mr-1.5">등록</button>
+                      )}
+                      <button onClick={() => setUnregOpen(o => o === k ? null : k)}
+                        className="px-2.5 py-1 border border-gray-300 rounded-lg text-xs text-gray-600">
+                        {unregOpen === k ? '접기' : '쓰인 곳 보기'}
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+              {unreg && !unreg.length && (
+                <tr><td colSpan={7} className="text-center py-12 text-gray-400 text-sm">미등록 품목이 없습니다.</td></tr>
+              )}
+              {!unreg && (
+                <tr><td colSpan={7} className="text-center py-12 text-gray-400 text-sm">불러오는 중...</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : (
       <div className="bg-white border border-gray-200 rounded-xl mt-3 overflow-x-auto">
         {loading || !ready ? <div className="text-center py-16 text-gray-400">로딩 중...</div> : (
           <table className="w-full text-sm min-w-[760px]">
@@ -664,11 +876,23 @@ export default function ProductsPage() {
           </table>
         )}
       </div>
-      {canEdit && <p className="text-xs text-gray-400 mt-2">
+      )}
+      {canEdit && !showUnreg && <p className="text-xs text-gray-400 mt-2">
         회사 원가표 엑셀을 그대로 업로드하면 됩니다 (원가표 시트의 품번 · 상품명(원가표 등록용) · 옵션명 · 매입처 ·
         지점배송매입가 · 지점/개별배송판매가 · 목차 · 카톤단위 · 택배비(카톤단위/카톤외)를 인식, 카탈로그 제작용 컬럼은 무시).
         품번 기준으로 갱신되며, 주문 입력에서 지점=지점판매가+카톤 공식 배송비 / 개별=개별판매가(배송비 포함)가 자동 적용됩니다.
       </p>}
+
+      {/* 미등록 품목 등록 — 상담 · 주문과 같은 창(product-register-dialog). 비슷한 품목 '연결'은 여기서는 등록하지 않고 닫기만 */}
+      {registerSeed && (
+        <ProductRegisterDialog seed={registerSeed} products={products}
+          onClose={() => setRegisterSeed(null)}
+          onDone={(prod, created) => {
+            setRegisterSeed(null)
+            if (created) { setNotice(`품목을 등록했습니다: ${[prod.item_code, prod.item_name].filter(Boolean).join(' ')}`); load() }
+            else setNotice(`이미 있는 품목입니다: ${[prod.item_code, prod.item_name].filter(Boolean).join(' ')} — 새로 등록하지 않았습니다.`)
+          }} />
+      )}
 
       {/* 업로드 확인 팝업 — 검사 결과(반영 없음)를 보여주고 확인 후 실제 업로드 */}
       {pending && (

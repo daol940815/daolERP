@@ -1,5 +1,6 @@
 'use client'
 
+import { marginCostOf } from '@/lib/stock-cost'
 import PeriodPresets from '@/components/ui/PeriodPresets'
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
@@ -488,7 +489,7 @@ export default function ErpOrdersPage() {
                           </thead>
                           <tbody>
                             {oItems.map((it, itemIdx) => {
-                              const margin = it.line_total > 0 ? ((it.line_total - it.purchase_total) / it.line_total) * 100 : null
+                              const margin = it.line_total > 0 ? ((it.line_total - marginCostOf(it)) / it.line_total) * 100 : null   // 원가 = 매입합계 + 재고 원가 (1400)
                               const payDate = payDates[itemIdx]
                               return (
                               <tr key={it.id} className={`border-t border-gray-200 ${it.is_canceled ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
