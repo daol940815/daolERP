@@ -519,7 +519,12 @@ function useOutsideClose(open: boolean, refs: React.RefObject<HTMLElement>[], cl
 // ── 자동완성 콤보 (마스터 선택 전용 — 목록에 없는 값은 확정 불가) ──
 // footer는 노드 또는 (입력어 · 닫기) 함수 — 고객 쌍방향 추천(2026-11-18)이 목록 아래 구역을 붙일 때 쓴다. onQuery = 입력어 알림
 export type ComboFooter = React.ReactNode | ((ctx: { q: string; close: () => void }) => React.ReactNode)
-export function Combo({ value, display, options, onSelect, placeholder, required, footer, onQuery }: {
+// 검색은 이름(label)과 옛 이름 별칭(keywords)만 본다(2026-11-23 사용자 결정 — 업체명은 업체명만, 지점명은 지점명만, 고객명은 고객명만).
+// 보조 줄(sub — 상위 조직 경로 · 담당 직원 · 전화 등)은 보여 주기만 한다. 품목처럼 보조 줄도 찾아야 하는 칸만 searchSub.
+const comboMatch = (o: { label: string; sub?: string; keywords?: string }, q: string, searchSub: boolean) =>
+  o.label.toLowerCase().includes(q) || (o.keywords ?? '').toLowerCase().includes(q) || (searchSub && (o.sub ?? '').toLowerCase().includes(q))
+
+export function Combo({ value, display, options, onSelect, placeholder, required, footer, onQuery, searchSub = false }: {
   value: string | null
   display: string
   options: { id: string; label: string; sub?: string; soldout?: boolean; note?: string; keywords?: string }[]
@@ -528,6 +533,7 @@ export function Combo({ value, display, options, onSelect, placeholder, required
   required?: boolean
   footer?: ComboFooter
   onQuery?: (q: string) => void
+  searchSub?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
@@ -538,10 +544,8 @@ export function Combo({ value, display, options, onSelect, placeholder, required
   const q = text.trim().toLowerCase()
   const filtered = useMemo(() => {
     if (!q) return options.slice(0, 50)
-    return options.filter(o =>
-      o.label.toLowerCase().includes(q) || (o.sub ?? '').toLowerCase().includes(q) || (o.keywords ?? '').toLowerCase().includes(q),
-    ).slice(0, 50)
-  }, [options, q])
+    return options.filter(o => comboMatch(o, q, searchSub)).slice(0, 50)
+  }, [options, q, searchSub])
 
   // 행 길이 확대(실무자 요청): 입력칸보다 넓게 펼쳐 긴 품명이 잘리지 않게 한다(최대 34rem)
   const pos = useFloatingList(open, boxRef, { maxRem: 20, wide: true })
@@ -593,13 +597,14 @@ export function Combo({ value, display, options, onSelect, placeholder, required
 }
 
 // ── 자유 입력 겸용 콤보 (상담일지 — 마스터에 없으면 입력한 문자열 그대로 사용) ──
-export function ComboFree({ text, selectedId, options, onChange, placeholder, footer }: {
+export function ComboFree({ text, selectedId, options, onChange, placeholder, footer, searchSub = false }: {
   text: string
   selectedId: string | null
   options: { id: string; label: string; sub?: string; keywords?: string }[]   // keywords = 검색에만 쓰는 별칭(표시 안 함, 2026-11-19)
   onChange: (patch: { id: string | null; text: string }) => void
   placeholder: string
   footer?: ComboFooter
+  searchSub?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const boxRef = useRef<HTMLDivElement>(null)
@@ -609,10 +614,8 @@ export function ComboFree({ text, selectedId, options, onChange, placeholder, fo
   const q = text.trim().toLowerCase()
   const filtered = useMemo(() => {
     if (!q) return options.slice(0, 50)
-    return options.filter(o =>
-      o.label.toLowerCase().includes(q) || (o.sub ?? '').toLowerCase().includes(q) || (o.keywords ?? '').toLowerCase().includes(q),
-    ).slice(0, 50)
-  }, [options, q])
+    return options.filter(o => comboMatch(o, q, searchSub)).slice(0, 50)
+  }, [options, q, searchSub])
 
   const footerNode = typeof footer === 'function' ? footer({ q: text, close: () => setOpen(false) }) : footer
   const pos = useFloatingList(open, boxRef, { maxRem: footerNode ? 26 : 16, wide: !!footerNode })

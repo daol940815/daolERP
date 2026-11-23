@@ -135,6 +135,11 @@ async function missingBankVendors(admin: SupabaseClient, bankGroups: string[], l
 }
 
 // ── 주문 · 상담 · 등록 창 검색 — 미등록 점포 (매출처 결과 아래, 최대 limit) ──
+// 드롭박스 검색은 이름만(2026-11-23 사용자 결정) — 점포명 · 표시 지점명 · '은행명 + 지점명'. 주소 · 시군구 · 전화는 보지 않는다.
+const matchName = (b: BankBranch, q: string) => {
+  const k = qKey(q)
+  return !!k && [b.display_name, b.branch_name, fullNameOf(b)].some(x => qKey(x).includes(k))
+}
 export interface BranchHit { id: string; group_name: string; display_name: string; full_name: string; address: string | null; phone: string | null }
 export async function searchUnlinkedBranches(admin: SupabaseClient, q: string, groupName: string | null, limit = 5): Promise<BranchHit[]> {
   const k = qKey(q)
@@ -142,14 +147,14 @@ export async function searchUnlinkedBranches(admin: SupabaseClient, q: string, g
   let query = admin.from('bank_branches').select(COLS).eq('is_current', true).is('vendor_id', null).limit(300)
   if (groupName) query = query.eq('group_name', groupName)
   // 표 쪽에서 먼저 좁힌다 — 점포명 · 시군구 · 동 · 주소 중 하나에 검색어(공백 무시는 아래에서 다시 확인)
-  // 업체를 안 골랐을 때 '광주은행 상무'처럼 은행명까지 치면 마지막 낱말로 좁히고, 아래 matchQ가 전체 이름(은행 + 지점)으로 확인한다
+  // 업체를 안 골랐을 때 '광주은행 상무'처럼 은행명까지 치면 마지막 낱말로 좁히고, 아래 matchName이 전체 이름(은행 + 지점)으로 확인한다
   const words = q.trim().split(/\s+/)
   const like = `%${(words[words.length - 1] ?? '').replace(/[%_,()"]/g, '')}%`
-  query = query.or(`display_name.ilike.${like},branch_name.ilike.${like},sigungu.ilike.${like},dong.ilike.${like},address.ilike.${like}`)
+  query = query.or(`display_name.ilike.${like},branch_name.ilike.${like}`)
   const { data, error } = await query
   if (error) return []
   return ((data ?? []) as BankBranch[])
-    .filter(b => matchQ(b, q))
+    .filter(b => matchName(b, q))
     .sort((a, b) => Number(!qKey(a.display_name).startsWith(k)) - Number(!qKey(b.display_name).startsWith(k)) || a.display_name.localeCompare(b.display_name, 'ko'))
     .slice(0, limit)
     .map(b => ({ id: b.id, group_name: b.group_name, display_name: b.display_name, full_name: fullNameOf(b), address: b.address, phone: b.phone }))

@@ -1215,7 +1215,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                   <div className="flex items-center gap-1">
                     {it.parent_uid != null && <span className="text-gray-400 text-xs shrink-0" title="옵션 (부가상품)">└</span>}
                     <div className="flex-1">
-                      <Combo
+                      <Combo searchSub
                         value={it.product_id}
                         display={it.item_code || (it.product_id ? it.item_name : '')}
                         options={products.map(p => ({
