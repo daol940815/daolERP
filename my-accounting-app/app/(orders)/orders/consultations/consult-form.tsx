@@ -18,6 +18,7 @@ import ShipCard, { EMPTY_SHIP } from '../ship-card'
 import { needsShip, SHIP_KINDS, type ShipInput } from '@/lib/ship-address'
 import RosterCard from '../roster-card'
 import { InactiveVendorHits, matchInactiveVendors, reactivateVendor, type InactiveVendor } from '../inactive-vendor-hits'
+import { BankBranchHits, type RegisteredBranch } from '../bank-branch-hits'
 import ReasonPicker from '@/components/ui/ReasonPicker'
 import { CONSULT_CLOSE_REASONS, CONSULT_DELETE_REASONS, composeReason } from '@/lib/cancel-reasons'
 import { normTel } from '@/lib/contact-phone-sync'
@@ -562,6 +563,18 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     setReactivating(false)
   }
 
+  // 미등록 은행 점포를 골라 매출처로 등록한 뒤 그 지점을 쓴다 (121, 2026-11-23)
+  const pickRegisteredBranch = async (r: RegisteredBranch) => {
+    const lists = await reloadVendorLists()
+    const gs = lists?.groups ?? groups
+    const gName = r.group_id ? gs.find(g => g.id === r.group_id)?.name ?? null : null
+    setVendorId(r.vendor_id)
+    if (r.group_id && gName) { setGroupId(r.group_id); setBankText(gName); setBranchText(branchLabel(r.name, gName)) }
+    else { setBankText(r.name); setBranchText('') }
+    setContactId(null)
+    setNotice(r.existed ? `이미 있던 매출처 '${r.name}'을(를) 선택했습니다.` : `은행연합회 점포 '${r.name}'을(를) 매출처로 등록했습니다.`)
+  }
+
   const registerVendor = async () => {
     if (!vendorId && !regGroupName.trim()) { alert('업체명을 입력해주세요.'); return }
     if (regContactName.trim() && !regStaff) { alert('다올 담당(자사 영업 직원)을 선택해주세요. 은행 · 지점 · 고객마다 담당이 기입되어야 합니다.'); return }
@@ -965,10 +978,16 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   const hits = matchInactiveVendors(q, inactiveVendors, {
                     activeNames: vendors.map(v => v.name), groupId, groupName: selGroup?.name ?? null,
                   })
-                  return hits.length ? (
-                    <InactiveVendorHits hits={hits} parttime={isParttime} busy={reactivating}
-                      onPick={v => { close(); pickInactiveVendor(v) }} />
-                  ) : null
+                  return (
+                    <>
+                      {hits.length > 0 && (
+                        <InactiveVendorHits hits={hits} parttime={isParttime} busy={reactivating}
+                          onPick={v => { close(); pickInactiveVendor(v) }} />
+                      )}
+                      <BankBranchHits q={q} groupName={selGroup?.name ?? (bankText.trim() || null)} parttime={isParttime}
+                        onError={setError} onRegistered={r => { close(); pickRegisteredBranch(r) }} />
+                    </>
+                  )
                 }}
                 placeholder={indMode ? '개인 고객은 지점 없음 — 모임만 선택' : vendorId ? `${NO_BRANCH} (업체 직접)` : '지점 검색 · 자유 입력'} />
             )}

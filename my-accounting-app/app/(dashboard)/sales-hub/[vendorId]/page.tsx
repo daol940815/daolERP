@@ -13,6 +13,7 @@ import InvoiceLinkModal from '../../sales-cycle/invoice-link-modal'
 import MergeDialog from './merge-dialog'
 import MergeHistoryDialog from './merge-history'
 import { OrgDialog, OrgHeader, OrgTab, useOrg, type OrgMode } from './org-panel'
+import { BankBranchCard } from './bank-branch-card'
 
 // 매출처 허브 — 거래처 360° 상세(B)
 // 목록(A)의 기간이 URL로 넘어와 기본값이 되고, 여기서 바꿔도 목록에는 영향이 없다.
@@ -272,6 +273,7 @@ export default function SalesHubDetailPage() {
             )}
           </div>
           {org && <OrgHeader part="rest" org={org} vendorName={data.vendor.name} onEdit={setOrgMode} scope={orgScope} setScope={setOrgScope} />}
+          <BankBranchCard vendorId={vendorId} />
           {individual && (
             <div className="mt-1 text-xs text-gray-500">
               고객 <Link href={`/sales-hub/contacts/${individual.contact_id}`} className="font-semibold text-gray-800 hover:underline">{individual.name}</Link>
