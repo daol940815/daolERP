@@ -112,8 +112,8 @@ export async function POST(req: NextRequest) {
 
   // 2) 완전 동일명이면 기존 거래처 재사용 — 매출처로만 있던 곳이면 매입도 겸하도록 type 보정
   const { data: scope } = groupId
-    ? await admin.from('vendors').select('id, name, type').eq('group_id', groupId)
-    : await admin.from('vendors').select('id, name, type').is('group_id', null)
+    ? await admin.from('vendors').select('id, name, type').eq('group_id', groupId).neq('status', 'merged')   // 병합된 거래처를 다시 쓰지 않는다(2026-11-23)
+    : await admin.from('vendors').select('id, name, type').is('group_id', null).neq('status', 'merged')
   const same = (scope ?? []).find(v => norm(v.name as string) === norm(vendorName))
   if (same) {
     if (same.type === 'customer') {
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
     const key = norm(vendorName)
     const core = key.length >= 2 ? key.slice(0, 2) : key
     const { data: near } = await admin.from('vendors')
-      .select('id, name, biz_number, type').ilike('name', `%${core}%`).limit(50)
+      .select('id, name, biz_number, type').neq('status', 'merged').ilike('name', `%${core}%`).limit(50)
     const candidates = (near ?? []).filter(v => {
       const n = norm(v.name as string)
       return n.includes(key) || key.includes(n)

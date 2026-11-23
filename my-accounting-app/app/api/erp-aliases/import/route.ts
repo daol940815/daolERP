@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
     admin
       .from('vendors')
       .select('id, name, type, biz_number, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active')
+      .neq('status', 'merged')   // 이름으로 병합된 거래처에 연결되지 않게(2026-11-23)
       .range(from, to),
   )
   if ('error' in vendorsResult) return NextResponse.json({ error: vendorsResult.error }, { status: 500 })
@@ -62,6 +63,24 @@ export async function POST(req: NextRequest) {
   if ('error' in aliasesResult) return NextResponse.json({ error: aliasesResult.error }, { status: 500 })
 
   const vendorByName = new Map<string, VendorRow>(vendorsResult.data.map(v => [v.name.trim(), v]))
+  // 엑셀에 병합되어 없어진 거래처 이름이 적혀 있으면 남은 거래처로 잇는다(2026-11-23) —
+  // 병합된 행에 연결하지도, 옛 이름으로 새 거래처를 다시 만들지도 않게.
+  {
+    const merged = await fetchAllRows<{ id: string; name: string; merged_into_id: string | null }>((from, to) =>
+      admin.from('vendors').select('id, name, merged_into_id').eq('status', 'merged').range(from, to))
+    if (!('error' in merged)) {
+      const liveById = new Map(vendorsResult.data.map(v => [v.id, v]))
+      const mergedById = new Map(merged.data.map(m => [m.id, m]))
+      for (const m of merged.data) {
+        const key = m.name.trim()
+        if (vendorByName.has(key)) continue
+        let cur = m.merged_into_id, hops = 0
+        while (cur && !liveById.has(cur) && hops++ < 10) cur = mergedById.get(cur)?.merged_into_id ?? null
+        const live = cur ? liveById.get(cur) : undefined
+        if (live) vendorByName.set(key, live)
+      }
+    }
+  }
   const aliasByName  = new Map(aliasesResult.data.map(a => [a.erp_name.trim(), a]))
 
   const defaultType = type === 'customer' ? 'customer' : 'vendor'
