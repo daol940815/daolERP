@@ -89,6 +89,10 @@ export interface ItemDraft {
   // 고객 택배비 박스당 단가 (화면 전용 — 저장은 shipping_fee 합계만, 2026-11-12 택배비 확정)
   // null = 합계 입력 상태(매입배송비 0 · 박스 수 불명 · 나누어떨어지지 않는 옛 값)
   ship_unit?: number | null
+  // 재고 칸 (1400, 주문 입력 전용 — 상담일지는 쓰지 않음): in 선매입 입고 / out 재고 출고 / null 없음
+  stock_role?: 'in' | 'out' | null
+  stock_dismissed?: boolean       // 재고 있음 안내에서 "새로 매입"을 고름 (화면 전용 — 서버 전송 안 함)
+  stock_cost_saved?: number | null  // 저장된 재고 원가 (수정 화면 표시용 — 서버는 다시 계산하지 않고 승계)
 }
 
 export const emptyItem = (uid: number): ItemDraft => ({

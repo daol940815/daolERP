@@ -15,6 +15,7 @@ import {
 import { recordWorkLog, orderContent } from '@/lib/work-log'
 import { attachRosterToOrder } from '@/lib/delivery-roster-server'
 import { fillContactPhonesIfEmpty } from '@/lib/contact-phone-sync'
+import { stockPrecheck, syncOrderStock } from '@/lib/stock'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,6 +62,10 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
   }
+
+  // 선매입 재고 (1400): 재고 출고가 남은 재고보다 많거나, 재발행으로 이미 출고된 입고분이 줄면 저장 전에 차단
+  const stockBlock = await stockPrecheck(admin, input.items, reissueOf ? [reissueOf] : [])
+  if (stockBlock) return NextResponse.json({ error: stockBlock }, { status: 409 })
 
   // 상담일지 전환: consultation_id가 오면 소유 확인 후 주문에 연결
   const consultationId = (((rawBody ?? {}) as Record<string, unknown>).consultation_id as string | undefined)
@@ -159,6 +164,10 @@ export async function POST(req: NextRequest) {
     }])
   }
 
+  // 선매입 재고 (1400): 재발행이면 원본 입고분 · 출고 원가를 새 주문으로 옮기고(원본 취소 뒤), 새 출고 행을 선입선출 배정
+  const stockWarn = await syncOrderStock(admin, orderId,
+    reissueSnap ? (reissueSnap.items as Record<string, unknown>[]).filter(it => !it.is_canceled).map(it => it.id as string) : [])
+
   // 고객 다올 담당이 비어 있으면 이 주문의 상담자로 자동 저장 (112, 2026-11-05 — 빈 경우만)
   await fillCustomerStaffIfEmpty(admin, input.vendor_id, input.contact_id, input.counselor_employee_id)
   // 담당자 연락처 → 인물 마스터 (116, 빈 칸만): 핸드폰 = phone, 유선 = contact
@@ -200,5 +209,5 @@ export async function POST(req: NextRequest) {
     refId: orderId,
   })
 
-  return NextResponse.json({ id: orderId, order_no: orderNo, total_amount: total, warning: prepayWarn, roster_attached: rosterAttached, phone_filled: phoneFilled })
+  return NextResponse.json({ id: orderId, order_no: orderNo, total_amount: total, warning: [prepayWarn, stockWarn].filter(Boolean).join(' / ') || null, roster_attached: rosterAttached, phone_filled: phoneFilled })
 }

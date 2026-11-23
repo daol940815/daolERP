@@ -93,12 +93,14 @@ export async function loadPurchaseSection(admin: SupabaseClient, orderId: string
   const ITEM_COLS = 'id, line_no, parent_line_no, is_canceled, is_prepayment, item_code, item_name, order_kind, purchase_vendor_name, purchase_alias_id, quantity, purchase_price, purchase_shipping, purchase_total, sale_price, shipping_fee, line_total, memo'
   const loadItems = (cols: string) => admin.from('erp_order_items')
     .select(cols as typeof ITEM_COLS).eq('order_id', orderId).order('line_no')
-  // 매입할인(708) 열 포함 — 미적용 DB면 없이 다시 조회
-  let { data: rawItems, error: iErr } = await loadItems(`${ITEM_COLS}, purchase_discount, purchase_discount_mode, purchase_discount_unit`)
+  // 매입할인(708) · 재고 칸(1400) 열 포함 — 미적용 DB면 없이 다시 조회
+  let { data: rawItems, error: iErr } = await loadItems(`${ITEM_COLS}, purchase_discount, purchase_discount_mode, purchase_discount_unit, stock_role`)
+  if (iErr && /stock_role/i.test(iErr.message)) ({ data: rawItems, error: iErr } = await loadItems(`${ITEM_COLS}, purchase_discount, purchase_discount_mode, purchase_discount_unit`))
   if (iErr && /purchase_discount/i.test(iErr.message)) ({ data: rawItems, error: iErr } = await loadItems(ITEM_COLS))
   if (iErr) return { error: iErr.message }
   // 선결제 품목은 매입이 없는 정산 항목 — 발주 대상이 아니다 (2026-11-05 사용자 확정)
-  const items = (rawItems ?? []).filter(it => !it.is_prepayment)
+  // 재고 출고 행은 사무실 재고에서 직접 내보낸다 — 발주 대상이 아니다 (1400, 2026-11-23 사용자 확정). 선매입 입고 행은 발주서에 포함
+  const items = (rawItems ?? []).filter(it => !it.is_prepayment && (it as { stock_role?: string | null }).stock_role !== 'out')
 
   // 유효 발주서 + 품목 연결
   const { data: pos, error: pErr } = await admin.from('erp_purchase_orders')

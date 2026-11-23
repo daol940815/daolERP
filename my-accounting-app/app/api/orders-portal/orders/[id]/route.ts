@@ -8,6 +8,7 @@ import {
   validateOrderInput, applyOrderEdit, resolveDisplayNames, loadOrderSnapshot,
   cancelOrder, canCancelReissue, kstToday, kstDateOf, lineTotal,
 } from '@/lib/orders-portal'
+import { stockCancelBlock, stockPrecheck, syncOrderStock } from '@/lib/stock'
 import { recordWorkLog, orderContent } from '@/lib/work-log'
 import { loadReceivableMap, collectStatusFrom } from '@/lib/orders-portal-list'
 import { can } from '@/lib/permissions'
@@ -308,11 +309,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const prepayBlock = await prepayReductionBlock(admin, params.id, newPrepay, parsed.input.vendor_id)
   if (prepayBlock) return NextResponse.json({ error: prepayBlock }, { status: 409 })
 
+  // 선매입 재고 (1400): 이 주문의 입고 · 출고는 새 입력으로 바뀐다고 보고 검사
+  const stockBlock = await stockPrecheck(admin, parsed.input.items, [params.id])
+  if (stockBlock) return NextResponse.json({ error: stockBlock }, { status: 409 })
+
   const result = await applyOrderEdit(admin, params.id, parsed.input, {
     managerName: names.managerName,
     counselorName: names.counselorName,
   }, { employeeId: me.employeeId, employeeName: me.employeeName })
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 500 })
+  const stockWarn = await syncOrderStock(admin, params.id, result.released)
   // 고객 다올 담당이 비어 있으면 상담자로 자동 저장 (112 — 빈 경우만)
   await fillCustomerStaffIfEmpty(admin, parsed.input.vendor_id, parsed.input.contact_id, parsed.input.counselor_employee_id)
   // 담당자 연락처 → 인물 마스터 (116, 빈 칸만)
@@ -330,7 +336,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     refId: params.id,
   })
   // 선결제 사용분이 수정 후 주문 금액(순매출)보다 크면 경고 — 사용분은 그대로 유지
-  let warning = result.warning
+  let warning = [result.warning, stockWarn].filter(Boolean).join(' / ') || null
   const used = await prepayUsedOf(admin, params.id)
   if (used > 0) {
     const rv = (await loadReceivableMap(admin, [params.id]))?.get(params.id)
@@ -381,6 +387,10 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       error: '결제 기록이 남아 있는 주문은 단순 취소할 수 없습니다. 주문 상세 › 결제 내역에서 기록을 먼저 삭제하거나, 내용을 바꾸려면 취소·재등록(기록이 새 주문으로 넘어감)을 이용하세요.',
     }, { status: 409 })
   }
+
+  // 선매입 입고분이 이미 다른 주문에서 출고됐으면 취소 차단 (1400)
+  const stockBlock = await stockCancelBlock(admin, params.id)
+  if (stockBlock) return NextResponse.json({ error: stockBlock }, { status: 409 })
 
   // 받은 선결제가 이미 다른 주문에서 쓰였으면 취소 차단 (잔액 마이너스 방지)
   const prepayBlock = await prepayReductionBlock(admin, params.id, 0)
