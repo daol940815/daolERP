@@ -21,6 +21,7 @@ import { isMoimVendor, orgSubLabel } from './form-shared'
 import ProductRegisterDialog, { UnregisteredTag, isUnregisteredRow, linkPatch } from './product-register-dialog'
 import IndividualRegister from './individual-register'
 import { InactiveVendorHits, matchInactiveVendors, reactivateVendor, type InactiveVendor } from './inactive-vendor-hits'
+import { BankBranchHits, type RegisteredBranch } from './bank-branch-hits'
 import { BranchStdHint, ExistingVendorNote, GroupStdHint, NamePreview, useVendorNameCheck } from '@/components/vendors/vendor-name-hints'
 import { groupSearchKeywords } from '@/lib/vendor-group-names'
 import { contactLabel } from '@/lib/contact-label'
@@ -459,6 +460,17 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
     setReactivating(false)
   }
 
+  // 미등록 은행 점포를 골라 매출처로 등록한 뒤 그 지점을 쓴다 (121, 2026-11-23)
+  const pickRegisteredBranch = async (r: RegisteredBranch) => {
+    const mRes = await fetch('/api/orders-portal/masters')
+    const m = await mRes.json()
+    if (mRes.ok) { setVendors(m.vendors ?? []); setGroups(m.groups ?? []); setInactiveVendors(m.inactive_vendors ?? []) }
+    setVendorId(r.vendor_id)
+    setGroupId(r.group_id ?? groupId)
+    setContactId(null)
+    setNotice(r.existed ? `이미 있던 매출처 '${r.name}'을(를) 선택했습니다.` : `은행연합회 점포 '${r.name}'을(를) 매출처로 등록했습니다 — 담당자를 선택하거나 신규 등록해주세요.`)
+  }
+
   // ── 고객 쌍방향 추천 (2026-11-18 사용자 승인 — 시안 docs/mockups/고객_쌍방향추천_시안.html) ──
   //  담당자 이름 · 핸드폰으로 전체 담당자에서 찾아 업체 · 지점 · 담당자 · 번호 · 상담자를 한 번에 채운다. 고를 때만 채움 · 되돌리기
   const staffName = (id: string | null) => (id ? employees.find(e => e.id === id)?.name ?? null : null)
@@ -755,6 +767,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                       activeNames: vendors.map(v => v.name), groupId, groupName: groups.find(g => g.id === groupId)?.name ?? null,
                     })}
                     onPick={v => { close(); pickInactiveVendor(v) }} />
+                  <BankBranchHits q={q} groupName={groups.find(g => g.id === groupId)?.name ?? null} parttime={isParttime}
+                    onError={setError} onRegistered={r => { close(); pickRegisteredBranch(r) }} />
                   <button type="button" onMouseDown={e => e.preventDefault()}
                     onClick={() => {
                       setNewVendor(p => ({ ...p, group_name: groups.find(g => g.id === groupId)?.name ?? p.group_name }))

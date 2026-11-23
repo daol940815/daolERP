@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { registerBranch, searchUnlinkedBranches } from '@/lib/bank-branches'
 import { cleanContactName } from '@/lib/contact-label'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
@@ -39,6 +40,10 @@ export async function GET(req: NextRequest) {
     const sp = new URL(req.url).searchParams
     if (sp.get('name_check') === '1') {
       return NextResponse.json(await checkVendorName(admin, sp.get('group') ?? '', sp.get('branch') ?? '', sp.get('group_id') || null))
+    }
+    // 은행 점포(121) — 지점 칸 아래 "미등록 점포"(2026-11-23). 표가 없으면 빈 목록
+    if (sp.has('bank_q')) {
+      return NextResponse.json({ items: await searchUnlinkedBranches(admin, sp.get('bank_q') ?? '', sp.get('group_name') || null, 5) })
     }
   }
   if (individualGroup) {
@@ -316,6 +321,13 @@ export async function POST(req: NextRequest) {
 
   // 신규 매출처 인라인 등록 (2026-08-25 확정) — 데이터는 vendors 마스터 단일 원천에
   // 쓴다 (허브에서도 즉시 보임). 같은 이름이 이미 있으면 만들지 않고 그걸 선택한다.
+  // 미등록 은행 점포를 골랐을 때 매출처로 등록(121, 2026-11-23 사용자 결정: 주문 입력자 누구나 — 아르바이트는 미들웨어가 막음)
+  if (body.action === 'register_bank_branch') {
+    if (!body.branch_id) return NextResponse.json({ error: 'branch_id가 필요합니다.' }, { status: 400 })
+    const r = await registerBranch(admin, body.branch_id, me.employeeName ?? '주문 입력')
+    return 'error' in r ? NextResponse.json(r, { status: 400 }) : NextResponse.json(r)
+  }
+
   if (body.action === 'create_vendor') {
     // 업체명 자동 표준화 (2026-11-19) — 옛 업체명은 표준명으로, 지점명 앞 은행명은 뗀다
     const typedGroup = (body.group_name ?? '').trim()

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { BranchStdHint, ExistingVendorNote, GroupStdHint, NamePreview, useVendorNameCheck } from '@/components/vendors/vendor-name-hints'
+import { BankBranchSuggest } from './bank-branch-suggest'
 import { getPeriodRange } from '@/lib/period-presets'
 import CustomerKpiTiles, { matchCategory, OTYPE_META } from './_components/CustomerKpiTiles'
 import type { KpiCategory, KpiFlags, VendorFlag } from './_components/CustomerKpiTiles'
@@ -246,6 +247,12 @@ export default function SalesHubPage() {
             className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
             ↓ 엑셀
           </button>
+          {!mine && (
+            <Link href="/sales-hub/bank-branches" title="은행연합회 점포 전체 — 거래 없는 점포를 찾아 매출처로 등록"
+              className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
+              은행 점포
+            </Link>
+          )}
           {canEdit && !mine && (
             <Link href="/sales-hub/billing"
               className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
@@ -292,6 +299,9 @@ export default function SalesHubPage() {
                   placeholder="예: 계동지점 · 에너지자원공학과 동창회"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
                 <BranchStdHint c={nameCheck} />
+                <BankBranchSuggest group={addForm.group} branch={addForm.branch}
+                  onError={m => setAddForm(f => ({ ...f, msg: m }))}
+                  onRegistered={id => { setAddForm(ADD_EMPTY); router.push(`/sales-hub/${id}`) }} />
               </div>
               {addForm.group.trim() && <NamePreview c={nameCheck} />}
               <ExistingVendorNote c={nameCheck} />
