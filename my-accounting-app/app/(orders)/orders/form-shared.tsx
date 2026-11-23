@@ -520,7 +520,7 @@ function useOutsideClose(open: boolean, refs: React.RefObject<HTMLElement>[], cl
 // footer는 노드 또는 (입력어 · 닫기) 함수 — 고객 쌍방향 추천(2026-11-18)이 목록 아래 구역을 붙일 때 쓴다. onQuery = 입력어 알림
 export type ComboFooter = React.ReactNode | ((ctx: { q: string; close: () => void }) => React.ReactNode)
 // 검색은 이름(label)과 옛 이름 별칭(keywords)만 본다(2026-11-23 사용자 결정 — 업체명은 업체명만, 지점명은 지점명만, 고객명은 고객명만).
-// 보조 줄(sub — 상위 조직 경로 · 담당 직원 · 전화 등)은 보여 주기만 한다. 품목처럼 보조 줄도 찾아야 하는 칸만 searchSub.
+// 보조 줄(sub — 상위 조직 경로 · 담당 직원 · 전화 · 품목 분류 · 매입처 등)은 보여 주기만 한다. 보조 줄도 찾아야 하는 칸이 생기면 searchSub(지금은 쓰는 곳 없음).
 const comboMatch = (o: { label: string; sub?: string; keywords?: string }, q: string, searchSub: boolean) =>
   o.label.toLowerCase().includes(q) || (o.keywords ?? '').toLowerCase().includes(q) || (searchSub && (o.sub ?? '').toLowerCase().includes(q))
 
