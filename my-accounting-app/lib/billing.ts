@@ -187,14 +187,20 @@ export async function buildBillingSuggestions(admin: SupabaseClient): Promise<{
 // 청구처로 고를 수 있는 법인 목록 (사업자번호가 있고 다른 청구처를 가리키지 않는 거래처)
 export async function listBillingEntities(admin: SupabaseClient, q: string): Promise<BillingRef[]> {
   const key = q.replace(/\s+/g, '')
-  let query = admin.from('vendors').select('id, name, biz_number')
+  const base = () => admin.from('vendors').select('id, name, biz_number')
     .not('biz_number', 'is', null).neq('status', 'merged').is('billing_vendor_id', null)
-    .order('name').limit(30)
-  // 이름 일부 또는 별칭(옛 법인 이름, 정확히 같을 때) — '주식회사 하나은행'으로도 '하나은행 본점'이 찾아지게(2026-11-23)
-  if (key) { const t = q.trim().replace(/"/g, ''); query = query.or(`name.ilike."%${t}%",match_aliases.cs.{"${t}"}`) }
-  const { data, error } = await query
+  let query = base().order('name').limit(30)
+  if (key) query = query.ilike('name', `%${q.trim()}%`)
+  // 별칭(옛 법인 이름)이 정확히 같은 곳을 맨 앞에 — 'IBK기업은행' · '주식회사 하나은행'으로 'IBK기업은행 본점' · '하나은행 본점'이 바로 나오게(2026-11-23)
+  const [{ data, error }, alias] = await Promise.all([
+    query,
+    key ? base().contains('match_aliases', [q.trim()]).limit(5) : Promise.resolve({ data: [] as { id: string; name: string; biz_number: string | null }[] }),
+  ])
   if (error) return []
-  return (data ?? []).map(v => ({ id: v.id as string, name: v.name as string, biz_number: (v.biz_number as string | null) ?? null }))
+  const rows = [...(alias.data ?? []), ...(data ?? [])]
+  const seen = new Set<string>()
+  return rows.filter(v => !seen.has(v.id as string) && seen.add(v.id as string))
+    .map(v => ({ id: v.id as string, name: v.name as string, biz_number: (v.biz_number as string | null) ?? null }))
 }
 
 // ── 360° 상세용 청구처 데이터 ─────────────────────────────
