@@ -10,6 +10,7 @@ import { insertMatches, logUnmatch } from './match-log'
 import { hasCancelCols, loadCancelLines, loadCancelRowIds, netRecordLinks, type CancelLine } from './payment-cancel-meta'
 import { kindDiff, kindLabel, kindMissing, kindOfCardSale, CARD_ENTRY_LABEL, REC_VAT_LABEL, type CardEntry, type PayKind, type RecVat } from './payment-kind'
 import { loadVendorStaff } from './payment-overview'
+import { loadSettledKeys } from './source-settle'
 
 // ── 결제 기록 (1300, 2026-11-13 사용자 확정 — docs/payment-track.md · 시안 docs/mockups/결제처리_시안.html) ──
 // 1차: 영업지원이 주문 상세에서 결제를 기록한다(카드결제 / 계좌이체 / 계산서 발행). 미수는 그대로 — '확인 대기'.
@@ -759,6 +760,7 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
     ...Array.from(txByAmount.values()).flat().map(t => t.id),
   ])
   const alloc = sumBySource(matchRows)
+  const settledKeys = await loadSettledKeys(admin)
   // 카드 매출 원본의 구분 (1304) — 기록한 구분과 다르면 후보에 '구분 다름'으로 보여 주고 확정은 막는다
   const cardKinds = await loadCardKinds(admin, [
     ...Array.from(csByApproval.values()).flat().filter(c => c.transaction_type === 'approval').map(c => c.id),
@@ -849,6 +851,8 @@ export async function loadConfirmQueue(admin: SupabaseClient, opts: { state: 'pe
       if (r.invoice_kind_diff) for (const c of r.candidates) c.kind_diff = true
     }
 
+    // 이전 처리분(1309)으로 표시한 원본은 후보에서 뺀다
+    if (settledKeys.size) r.candidates = r.candidates.filter(c => !settledKeys.has(`${c.source_type}:${c.source_id}`))
     // 표시용 판정
     if (r.candidates.some(c => c.strength === 'mismatch' || c.kind_diff) || r.invoice_kind_diff) r.flag = 'mismatch'
     else if (r.candidates.length) r.flag = 'ready'

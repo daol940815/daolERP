@@ -7,6 +7,7 @@ import { NOT_VOID_OR } from '@/lib/card-sale-status'
 import { syncRecordsForOrders } from '@/lib/payment-records'
 import type { Editor } from '@/lib/orders-portal'
 import { insertMatches } from './match-log'
+import { loadSettledKeys } from './source-settle'
 
 // ── 주문 쪽 수금 매칭 (2026-11-04) ───────────────────────────────────────
 // 입금 매칭 화면(/erp-matching)은 결제 1건 → 주문 여러 건으로 출발한다. 여기는 반대로
@@ -207,7 +208,8 @@ export async function loadCollectCandidates(
       vendor_id: a.vendor_id, vendor_name: vName(a.vendors), amount: net, allocated: used, remaining: net - used,
     })
   }
-  const filtered = qy.onlyRemaining === false ? out : out.filter(c => c.remaining > 0)
+  const settled = await loadSettledKeys(admin)   // 이전 처리분(1309)은 후보에서 뺀다
+  const filtered = (qy.onlyRemaining === false ? out : out.filter(c => c.remaining > 0)).filter(c => !settled.has(`${c.source_type}:${c.id}`))
   // 주문일에 가까운 순, 같은 날이면 금액이 주문 잔액과 같은 것 먼저
   const od = new Date(order.order_date).getTime()
   filtered.sort((x, y) => {

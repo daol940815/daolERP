@@ -1,7 +1,7 @@
 // 결제 기록 취소 · 삭제 · 수정 사유 항목 (1305, 2026-11-18 사용자 확정 — 초안대로)
 // 화면: 글자를 치면 label · keywords 로 걸러지는 드롭다운에서 고른다. 'etc'(기타)는 직접 입력이 필수.
 // 항목을 고치려면 여기만 고친다(저장은 code + 표시 문구). 클라이언트에서도 쓴다.
-export type ReasonKind = 'cancel' | 'delete' | 'update' | 'release'
+export type ReasonKind = 'cancel' | 'delete' | 'update' | 'release' | 'settle' | 'unsettle'
 export interface ReasonItem { code: string; label: string; keywords?: string }
 
 export const REASONS: Record<ReasonKind, ReasonItem[]> = {
@@ -31,6 +31,20 @@ export const REASONS: Record<ReasonKind, ReasonItem[]> = {
     { code: 'allocation', label: '주문 배분 변경', keywords: '주문 배분 합산 분할' },
     { code: 'etc', label: '기타 — 직접 입력' },
   ],
+  // 이전 처리분 표시 · 해제 — 1309, 2026-11-23 (주문 없이 이미 처리된 입금 · 카드 결제)
+  settle: [
+    { code: 'legacy_erp', label: '기존 ERP에서 처리 완료', keywords: '기존 ERP 이전 처리 완료' },
+    { code: 'prepay_ledger', label: '선결제 원장에 이미 반영됨', keywords: '선결제 원장 반영' },
+    { code: 'not_order', label: '주문과 무관한 입금(내부 이체 · 이자 · 환급 등)', keywords: '무관 내부 이체 이자 환급' },
+    { code: 'wrong_payer', label: '다른 회사 · 개인 입금(잘못 들어온 돈)', keywords: '잘못 다른 회사 개인 오입금' },
+    { code: 'etc', label: '기타 — 직접 입력' },
+  ],
+  unsettle: [
+    { code: 'needs_order', label: '주문에 붙여야 할 입금이었음', keywords: '주문 붙여야 매칭' },
+    { code: 'wrong_item', label: '다른 입금을 잘못 표시함', keywords: '잘못 다른 입금' },
+    { code: 'wrong_reason', label: '사유를 잘못 고름(다시 표시 예정)', keywords: '사유 잘못 다시' },
+    { code: 'etc', label: '기타 — 직접 입력' },
+  ],
   // 매칭 해제(2차 확정을 되돌림) — 1307, 2026-11-18
   release: [
     { code: 'wrong_source', label: '다른 입금 · 결제에 잘못 매칭', keywords: '잘못 다른 입금 카드 결제 원본' },
@@ -49,7 +63,7 @@ export function resolveReason(kind: ReasonKind, raw: unknown): { code: string; t
   const b = (raw ?? {}) as Record<string, unknown>
   const code = String(b.code ?? '').trim()
   const item = REASONS[kind].find(r => r.code === code)
-  const name = kind === 'cancel' ? '취소' : kind === 'delete' ? '삭제' : kind === 'release' ? '매칭 해제' : '수정'
+  const name = kind === 'cancel' ? '취소' : kind === 'delete' ? '삭제' : kind === 'release' ? '매칭 해제' : kind === 'settle' ? '이전 처리분' : kind === 'unsettle' ? '이전 처리분 해제' : '수정'
   if (!item) return { error: `${name} 사유를 고르세요.` }
   if (code === 'etc') {
     const text = String(b.text ?? '').trim()

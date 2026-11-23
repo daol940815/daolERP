@@ -745,3 +745,15 @@
 - 2026-11-23 사용자 요청: **해제할 때도 사유 필수** → 시안 3번에 해제 사유 창 · 항목 초안(주문에 붙여야 할 입금이었음 / 다른 입금을 잘못 표시함 / 사유를 잘못 고름 / 기타) ·
   "이전 처리분 보기"에서도 체크 + 위쪽 "체크한 것 해제". 표시 · 해제 모두 사유 · 사람 · 시각 이력.
 - **2026-11-23 사용자 승인**: IBK 중기산업연구실 선결제 잔액 보정(−39,000) — `prepay_ibk_jungki_adjust.sql` 전달(드라이런 → 실행 → 검증, 실행 대기). 이전 처리분 시안대로 진행 — 구현 착수.
+
+### 2026-11-23 구현 — 입금대장 이전 처리분 (1309 실행 대기 · main 미병합)
+
+- 마이그레이션 `1309_payment_source_settlements.sql`: 표 `payment_source_settlements`(원본 종류 · id · 금액 · 날짜 · 입금자 사본 · 거래처 · 사유 · 메모 · 표시한 사람 · 시각 ·
+  해제한 사람 · 시각 · 해제 사유). 해제는 행을 지우지 않고 released_at 을 채운다. 원본 하나에 살아 있는 표시는 하나(부분 유일 색인).
+- 규칙 한 곳 `lib/source-settle.ts`(loadSettledKeys · settleSources · releaseSettlements · loadSettledList), API `GET/POST/DELETE /api/erp-matching/settle`(수금 · 정산 작업 권한).
+  사유 항목 `lib/payment-reasons.ts` settle · unsettle(시안 초안대로).
+- 빠지는 곳: 입금대장(`loadMatchingState` — 붙이기 POST도 막힘), 결제 확인 매칭 대기의 원본 후보(`loadConfirmQueue`), 다른 입금 찾기 · 주문 쪽 수금 매칭(`loadCollectCandidates`), 매출처 수금 후보(`sales-collection-match`).
+- 화면(`deposits-tab.tsx`): 체크 칸을 모든 줄에(전에는 추천 있는 줄만 — 같은 recSel 공용), 머리 칸 = 보이는 줄 모두 체크. 위쪽: "체크한 추천 확정(N)"(체크 중 추천 있는 줄만) ·
+  "이전 처리분 확정(N)"(사유 창, 추천 섞이면 포함 여부 확인) · "체크 해제". "이전 처리분 보기 N" 칩 → 표시 목록(사유 · 메모 · 사람 · 시각) + 체크 → "체크한 것 해제"(사유 창).
+- 한계: ① 표시는 원본 단위 — 일부만 주문에 붙은 입금을 표시하면 남은 금액 전체가 빠진다(나중에 붙인 몫을 풀어도 다시 나타나지 않음, 해제해야 함)
+  ② 이전 처리분 보기는 기간 필터와 무관하게 전부 ③ 회계 쪽(통장 분류 · 계산서 입금)과는 별개 ④ 빌드 통과만 확인.
