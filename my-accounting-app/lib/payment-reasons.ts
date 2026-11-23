@@ -1,7 +1,7 @@
 // 결제 기록 취소 · 삭제 · 수정 사유 항목 (1305, 2026-11-18 사용자 확정 — 초안대로)
 // 화면: 글자를 치면 label · keywords 로 걸러지는 드롭다운에서 고른다. 'etc'(기타)는 직접 입력이 필수.
 // 항목을 고치려면 여기만 고친다(저장은 code + 표시 문구). 클라이언트에서도 쓴다.
-export type ReasonKind = 'cancel' | 'delete' | 'update' | 'release'
+export type ReasonKind = 'cancel' | 'delete' | 'update' | 'release' | 'stock_out' | 'stock_confirm' | 'stock_adjust'
 export interface ReasonItem { code: string; label: string; keywords?: string }
 
 export const REASONS: Record<ReasonKind, ReasonItem[]> = {
@@ -40,6 +40,24 @@ export const REASONS: Record<ReasonKind, ReasonItem[]> = {
     { code: 'duplicate', label: '중복 매칭', keywords: '중복 두 번' },
     { code: 'etc', label: '기타 — 직접 입력' },
   ],
+  // 재고 관리 확인 필요 탭 (1401, 2026-11-23 — 재고 관리 트랙)
+  stock_out: [
+    { code: 'from_stock', label: '사무실 선매입 재고에서 보냄(매입 중복)', keywords: '재고 사무실 중복 매입가 두 번' },
+    { code: 'input_miss', label: '입력할 때 재고 칸을 빠뜨림', keywords: '실수 누락 빠뜨림 입력' },
+    { code: 'etc', label: '기타 — 직접 입력' },
+  ],
+  stock_confirm: [
+    { code: 'new_buy', label: '실제로 새로 매입함(재고와 별개)', keywords: '새로 매입 별개 추가 구매' },
+    { code: 'diff_spec', label: '같은 품번이지만 다른 사양 · 구성', keywords: '사양 구성 옵션 다름' },
+    { code: 'etc', label: '기타 — 직접 입력' },
+  ],
+  stock_adjust: [
+    { code: 'damage', label: '파손 · 불량', keywords: '파손 불량 깨짐' },
+    { code: 'lost', label: '분실', keywords: '분실 없어짐' },
+    { code: 'out_missing', label: '출고 기록 누락(주문 없이 나감)', keywords: '출고 누락 주문 없이 샘플' },
+    { code: 'in_missing', label: '입고 기록 누락 · 수량 차이', keywords: '입고 누락 수량 더 들어옴' },
+    { code: 'etc', label: '기타 — 직접 입력' },
+  ],
 }
 
 export interface ReasonInput { code: string; text: string }
@@ -49,7 +67,8 @@ export function resolveReason(kind: ReasonKind, raw: unknown): { code: string; t
   const b = (raw ?? {}) as Record<string, unknown>
   const code = String(b.code ?? '').trim()
   const item = REASONS[kind].find(r => r.code === code)
-  const name = kind === 'cancel' ? '취소' : kind === 'delete' ? '삭제' : kind === 'release' ? '매칭 해제' : '수정'
+  const name = kind === 'cancel' ? '취소' : kind === 'delete' ? '삭제' : kind === 'release' ? '매칭 해제'
+    : kind === 'stock_out' ? '재고 출고로 바꾸는' : kind === 'stock_confirm' ? '확인' : kind === 'stock_adjust' ? '조정' : '수정'
   if (!item) return { error: `${name} 사유를 고르세요.` }
   if (code === 'etc') {
     const text = String(b.text ?? '').trim()

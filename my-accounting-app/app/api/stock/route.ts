@@ -4,6 +4,7 @@ import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { getCurrentUser } from '@/lib/user-role'
 import { isStockMissing, loadLots, loadMoves, STOCK_MIGRATION_HINT } from '@/lib/stock'
 import { kstToday } from '@/lib/orders-portal'
+import { can } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -102,7 +103,7 @@ export async function GET(req: NextRequest) {
   }).sort((a, b) => (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) || a.item_name.localeCompare(b.item_name, 'ko'))
 
   return NextResponse.json({
-    asof, today, old_days: OLD_DAYS,
+    asof, today, old_days: OLD_DAYS, can_edit: can(me, 'orders', 'edit'),
     rows: list,
     kpi: {
       products_with_stock: list.filter(r => r.stock > 0).length,

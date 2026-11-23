@@ -20,7 +20,7 @@ interface Row {
   lots: LotRow[]
 }
 interface Overview {
-  asof: string; today: string; old_days: number; rows: Row[]
+  asof: string; today: string; old_days: number; rows: Row[]; can_edit?: boolean
   kpi: { products_with_stock: number; products_total: number; value: number; month_in: number; month_in_count: number; month_out_cost: number; month_out_count: number; old: number; pending_out: number }
   migration1400?: boolean; error?: string
 }
@@ -43,6 +43,8 @@ export default function PreStockView({ asof: asofParam, productId }: { asof: str
   const [chip, setChip] = useState<Chip>('stock')
   const [open, setOpen] = useState<Set<string>>(new Set())
   const [ledgerOf, setLedgerOf] = useState<string | null>(productId)
+  const [taking, setTaking] = useState(false)   // 실사 입력 창
+  const [takeMsg, setTakeMsg] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -86,8 +88,17 @@ export default function PreStockView({ asof: asofParam, productId }: { asof: str
         {asof && <button type="button" onClick={() => setAsof('')} className="text-slate-500 underline">오늘로</button>}
         {isPast && <span className="text-amber-700">{data!.asof} 말 기준 재고입니다{yearEnd ? ' — 연말 재고(세무사에게 넘길 기말 재고자산)' : ''}.</span>}
         <span className="ml-auto text-slate-400 text-[0.75rem]">입력 · 수정은 주문 입력의 품목 행 &quot;재고&quot; 칸에서 합니다</span>
+        {data?.can_edit && (data?.rows.length ?? 0) > 0 && (
+          <button type="button" onClick={() => { setTaking(true); setTakeMsg(null) }}
+            className="px-3 py-1.5 border border-slate-300 bg-white rounded-lg text-[0.8125rem] font-semibold text-slate-700 hover:bg-slate-50">실사 입력</button>
+        )}
       </div>
 
+      {takeMsg && <div className="mb-3 px-4 py-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-lg">{takeMsg}</div>}
+      {taking && data && (
+        <StocktakeDialog rows={data.rows} today={data.today} onClose={() => setTaking(false)}
+          onDone={msg => { setTaking(false); setTakeMsg(msg); load() }} />
+      )}
       {error && <div className="mb-3 px-4 py-2.5 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg">{error}</div>}
 
       {k && (
@@ -294,6 +305,59 @@ function Ledger({ productId, asof, onClose }: { productId: string; asof: string 
           <p className="px-4 py-2 text-[0.75rem] text-slate-400">용도: 판매(배송종류 지점 · 개별) / 샘플(배송종류 샘플) — 주문 행에서 자동으로 정해집니다. 출고 한 행이 두 입고분에 걸치면 두 줄로 나뉩니다.</p>
         </div>
       )}
+    </div>
+  )
+}
+
+// 실사 입력 (2차) — 실제로 센 수량을 넣으면 그날 말 전산 재고와 비교해 남긴다. 차이는 확인 필요 탭에서 조정 기록.
+function StocktakeDialog({ rows, today, onClose, onDone }: { rows: Row[]; today: string; onClose: () => void; onDone: (msg: string) => void }) {
+  const [pid, setPid] = useState('')
+  const [date, setDate] = useState(today)
+  const [qty, setQty] = useState('')
+  const [note, setNote] = useState('')
+  const [err, setErr] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const save = async () => {
+    setErr(null)
+    if (!pid) { setErr('품목을 골라 주세요.'); return }
+    if (qty.trim() === '' || !/^\d+$/.test(qty.trim())) { setErr('실사 수량은 0 이상의 숫자로 적어 주세요.'); return }
+    setSaving(true)
+    try {
+      const r = await fetch('/api/stock/stocktakes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: pid, take_date: date, counted_qty: Number(qty), note }) })
+      const j = await r.json()
+      if (!r.ok) throw new Error(j.error ?? '저장 실패')
+      const name = rows.find(x => x.product_id === pid)?.item_name ?? ''
+      onDone(j.diff === 0 ? `${name} 실사 저장 — 전산 재고 ${won(j.computed)}개와 일치합니다.`
+        : `${name} 실사 저장 — 전산 ${won(j.computed)}개, 차이 ${j.diff > 0 ? '+' : ''}${j.diff}개. 확인 필요 탭에서 조정 기록을 남겨 주세요.`)
+    } catch (e) { setErr(e instanceof Error ? e.message : '저장 실패') }
+    setSaving(false)
+  }
+  const field = 'w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm'
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-5" onClick={e => e.stopPropagation()}>
+        <h3 className="text-base font-bold text-slate-900">선매입 재고 실사 입력</h3>
+        <p className="text-[0.75rem] text-slate-500 mt-1 mb-3">실제로 센 수량을 넣습니다. 전산 재고는 그날 말 기준으로 자동 계산해 함께 남깁니다. 차이는 실사 기록을 고치지 않고 확인 필요 탭에서 조정 기록으로 해소합니다.</p>
+        <label className="block text-[0.75rem] text-slate-500 mb-0.5">품목</label>
+        <select value={pid} onChange={e => setPid(e.target.value)} className={field}>
+          <option value="">품목 선택</option>
+          {rows.map(r => <option key={r.product_id} value={r.product_id}>{r.item_name}{r.item_code ? ` (${r.item_code})` : ''} — 전산 {r.stock}</option>)}
+        </select>
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <div><label className="block text-[0.75rem] text-slate-500 mb-0.5">실사일</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} className={field} /></div>
+          <div><label className="block text-[0.75rem] text-slate-500 mb-0.5">실사 수량</label>
+            <input value={qty} onChange={e => setQty(e.target.value)} inputMode="numeric" placeholder="0" className={`${field} text-right tabular-nums`} /></div>
+        </div>
+        <label className="block text-[0.75rem] text-slate-500 mb-0.5 mt-2">메모 (선택)</label>
+        <input value={note} onChange={e => setNote(e.target.value)} className={field} />
+        {err && <div className="mt-2 text-[0.8125rem] text-red-600">{err}</div>}
+        <div className="flex justify-end gap-2 mt-4">
+          <button type="button" onClick={onClose} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-white">닫기</button>
+          <button type="button" disabled={saving} onClick={save} className="px-3 py-1.5 rounded-lg text-sm bg-slate-900 text-white font-semibold disabled:opacity-40">{saving ? '저장 중...' : '저장'}</button>
+        </div>
+      </div>
     </div>
   )
 }
