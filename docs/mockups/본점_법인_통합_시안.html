@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시안 — 본점 · 법인 하나로</title><style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, 'Malgun Gothic', sans-serif; background: #f1f5f9; color: #0f172a; padding: 24px; font-size: 13px; }
+  .wrap { max-width: 1240px; margin: 0 auto; }
+  .note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #713f12; margin-bottom: 14px; line-height: 1.75; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tabs button { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; color: #334155; }
+  .tabs button.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+  .screen { display: none; } .screen.on { display: block; }
+  h1 { font-size: 20px; font-weight: 700; } h2 { font-size: 14px; font-weight: 700; margin-bottom: 6px; } h3 { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+  .sub { font-size: 12px; color: #64748b; margin-top: 3px; line-height: 1.6; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+  .crumb { font-size: 12px; color: #64748b; margin-bottom: 4px; } .crumb a { color: #1d4ed8; text-decoration: none; } .crumb b { color: #0f172a; }
+  .b { display: inline-block; border-radius: 6px; padding: 2px 7px; font-size: 11px; font-weight: 600; }
+  .b-blue { background: #dbeafe; color: #1d4ed8; } .b-slate { background: #f1f5f9; color: #475569; } .b-violet { background: #ede9fe; color: #6d28d9; } .b-amber { background: #fef3c7; color: #b45309; } .b-green { background: #dcfce7; color: #15803d; } .b-red { background: #fee2e2; color: #b91c1c; }
+  .btn { border: 0; border-radius: 8px; padding: 6px 11px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .btn-line { background: #fff; color: #334155; border: 1px solid #cbd5e1; } .btn-sm { padding: 3px 9px; font-size: 11.5px; }
+  .ptabs { display: flex; gap: 2px; border-bottom: 1px solid #e2e8f0; margin: 12px 0; flex-wrap: wrap; }
+  .ptabs span { padding: 7px 13px; font-size: 13px; color: #94a3b8; } .ptabs span.on { color: #0f172a; font-weight: 700; border-bottom: 2px solid #0f172a; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11.5px; color: #64748b; font-weight: 500; padding: 7px 8px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+  td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; } td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+  .tree { color: #94a3b8; font-family: ui-monospace, monospace; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0; }
+  .kpi { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; } .kpi .k { font-size: 11.5px; color: #64748b; } .kpi .v { font-size: 17px; font-weight: 700; margin-top: 2px; } .kpi .d { font-size: 11px; color: #94a3b8; }
+  .toggle { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; } .toggle span { padding: 4px 10px; font-size: 12px; } .toggle span.on { background: #0f172a; color: #fff; }
+  .explain { font-size: 12px; color: #334155; line-height: 1.85; } .explain li { margin-left: 16px; }
+  .box { border: 1px dashed #cbd5e1; border-radius: 10px; padding: 10px 12px; background: #f8fafc; }
+  .box .t { font-weight: 700; font-size: 13px; } .box .m { font-size: 11.5px; color: #64748b; margin-top: 2px; line-height: 1.6; }
+  .arrow { text-align: center; color: #94a3b8; font-size: 18px; margin: 6px 0; }
+  .billcard { border: 1px solid #bfdbfe; background: #eff6ff; border-radius: 10px; padding: 8px 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .flow { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; } .flow .step { flex: 1; min-width: 180px; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; background: #fff; }
+  .flow .step .n { font-size: 11px; color: #64748b; } .flow .step.new { border-color: #86efac; background: #f0fdf4; }
+  .muted { color: #94a3b8; }
+  .diff { font-size: 11.5px; border-radius: 6px; padding: 6px 9px; margin-top: 8px; line-height: 1.6; background: #f8fafc; border: 1px solid #e2e8f0; color: #475569; }
+</style></head><body><div class="wrap">
+
+<h1>시안 — 본점 · 법인 하나로 (하나은행 본점 / IBK기업은행 본점)</h1>
+<p class="sub">2026-11-23 사용자 제안: 법인(청구처)과 본점(상위 조직)을 매출처 하나로 쓴다. 은행 본점의 사업자번호가 곧 법인 번호이므로 본점 = 계산서 받는 곳.
+이름 · 건수는 운영 DB 기준(2026-11-23), 금액 · 일부 행은 설명용 예시.</p>
+
+<div class="note" style="margin-top:12px">
+  <b>핵심</b> — 매출처 하나가 두 역할을 한다.
+  <b>청구처</b>(계산서 · 입금이 붙는 법인, 사업자번호) + <b>상위 조직</b>(본점 부서를 묶는 곳). 화면에서는 탭 두 개로 나눠 보인다:
+  <b>소속 부서</b> = 계산서를 본점 번호로 받는 곳 전부(지점 · 원큐 · 지역본부 포함) / <b>하위 조직</b> = 본점 조직 안의 부서만.
+  원본(계산서 · 통장)은 건드리지 않고 붙어 있는 매출처만 하나로 합친다(병합 기록 — 되돌릴 수 있음).
+</div>
+
+<div class="tabs">
+  <button class="on" data-s="s1">1. 바뀌는 구조</button>
+  <button data-s="s2">2. 하나은행 본점 — 소속 부서 탭</button>
+  <button data-s="s3">3. 하나은행 본점 — 하위 조직 탭</button>
+  <button data-s="s4">4. 부서 상세 (IBK 중기산업연구실)</button>
+  <button data-s="s5">5. 주문 화면</button>
+  <button data-s="s6">6. 자동 처리 · 실행 순서</button>
+</div>
+
+<!-- 1 -->
+<div class="screen on" id="s1">
+  <div class="grid2">
+    <div class="card">
+      <h2>하나은행</h2>
+      <div class="sub" style="margin-bottom:8px">지금 — 둘로 나뉘어 있음</div>
+      <div class="grid2" style="gap:8px">
+        <div class="box"><div class="t">주식회사 하나은행</div><div class="m">청구처 · 202-81-14695<br>계산서 165 · 통장 94<br>청구처로 지정한 매출처 44</div></div>
+        <div class="box"><div class="t">하나은행 본점</div><div class="m">상위 조직(11-20 생성) · 번호 없음<br>계산서 0 · 통장 0<br>하위 조직 43</div></div>
+      </div>
+      <div class="arrow">↓ '주식회사 하나은행'을 '하나은행 본점'에 합침</div>
+      <div class="box" style="border-color:#86efac;background:#f0fdf4">
+        <div class="t">하나은행 본점 <span class="b b-blue">청구처 법인</span> <span class="b b-violet">상위 조직</span></div>
+        <div class="m">202-81-14695 · 계산서 165 · 통장 94 · 소속 부서 44 · 하위 조직 43<br>별칭: 주식회사 하나은행 (계산서 상호 · 검색으로 찾힘)</div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>IBK기업은행</h2>
+      <div class="sub" style="margin-bottom:8px">지금 — 법인 하나, 본점 묶음 없음</div>
+      <div class="box"><div class="t">IBK기업은행</div><div class="m">청구처 · 202-81-00978(옛 중소기업은행)<br>계산서 65 · 통장 29 · 청구처로 지정한 매출처 1(중기산업연구실)</div></div>
+      <div class="arrow">↓ 이름만 'IBK기업은행 본점'으로 (합칠 것 없음)</div>
+      <div class="box" style="border-color:#86efac;background:#f0fdf4">
+        <div class="t">IBK기업은행 본점 <span class="b b-blue">청구처 법인</span> <span class="b b-violet">상위 조직</span></div>
+        <div class="m">202-81-00978 · 계산서 65 · 통장 29 · 소속 부서 11 · 하위 조직 11<br>별칭: IBK기업은행 · 중소기업은행</div>
+      </div>
+      <div class="diff">하위 조직 11: 감사실 · 개인고객부 · 검사부 · 경영전략부 · 경제경영연구실 · 국군금융지원팀 · 보완비상계획팀 · 비서실 · 자산관리사업부 · 중기산업연구실 · 투자금융부<br>
+        지역본부 5곳(경기남부영업 · 경기남부지역 · 경수 · 남부 · 중부)은 본점 아래에 넣지 않음(하나은행 지역 영업본부와 같은 결정). 중기산연구실 → 중기산업연구실 합침.</div>
+    </div>
+  </div>
+  <div class="card explain">
+    <h3>무엇이 같고 무엇이 달라지나</h3>
+    <ul>
+      <li>부서 · 지점은 매출처 그대로 — 주문 · 매출 · 담당자 · 상담은 각자에 남는다. 본점에 합치는 것은 <b>법인 매출처</b>뿐.</li>
+      <li>계산서 원본(공급받는자 상호 '주식회사 하나은행' · '중소기업은행')은 그대로. 붙어 있는 매출처 이름만 '… 본점'으로 보인다.</li>
+      <li>다른 은행 법인((주)우리은행 · 주식회사 신한은행 등)은 이번 범위 밖 — 이 방식이 괜찮으면 따로 여쭤 맞춘다.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 2 -->
+<div class="screen" id="s2">
+  <div class="card">
+    <div class="crumb">하나은행 › <b>본점</b></div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <h1>하나은행 본점</h1>
+      <span class="b b-blue">청구처 · 소속 44곳</span>
+      <span class="b b-violet">하위 조직 43</span>
+      <span class="b b-slate">202-81-14695</span>
+    </div>
+    <div class="sub">별칭: 주식회사 하나은행 · 하나은행 본점 &nbsp;|&nbsp; 지점 담당(다올) 김재형</div>
+    <div style="margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap" class="card">
+      <span class="sub" style="margin:0">집계 범위</span>
+      <span class="toggle"><span>이 조직만</span><span class="on">하위 포함 (43)</span></span>
+      <span class="sub" style="margin:0">기간 매출 <b>12,840,000</b> · 미수 <b style="color:#dc2626">1,920,000</b> · 주문 18건 · 현재 담당자 50명</span>
+      <span class="sub muted" style="margin:0">하위 포함 = 본점 조직 안 부서만 (원큐 · 지역본부 제외)</span>
+    </div>
+    <div class="ptabs"><span>개요</span><span>주문 내역</span><span>수금 내역</span><span>계산서 165</span><span class="on">소속 부서 44</span><span>하위 조직 43</span><span>활동 메모</span></div>
+    <div class="sub" style="margin-bottom:8px"><b>소속 부서</b> = 이 매출처를 <b>청구처</b>로 지정한 곳 — 계산서를 본점 번호(202-81-14695)로 받는다. 본점 부서가 아닌 곳도 들어간다.</div>
+    <table>
+      <thead><tr><th>매출처</th><th>본점 조직 안?</th><th class="r">기간 매출</th><th class="r">미수</th><th class="r">연결 계산서</th></tr></thead>
+      <tbody>
+        <tr><td>하나은행 홍보부</td><td><span class="b b-violet">하위 조직</span></td><td class="r">2,400,000</td><td class="r">0</td><td class="r">2</td></tr>
+        <tr><td>하나은행 디지털전략사업부</td><td><span class="b b-violet">하위 조직</span></td><td class="r">1,150,000</td><td class="r">380,000</td><td class="r">1</td></tr>
+        <tr><td>하나은행 정책금융부</td><td><span class="b b-violet">하위 조직</span></td><td class="r">860,000</td><td class="r">0</td><td class="r">1</td></tr>
+        <tr><td>하나은행 원큐</td><td><span class="b b-slate">아님 — 맨 위 조직</span></td><td class="r">640,000</td><td class="r">640,000</td><td class="r">0</td></tr>
+        <tr><td>하나은행 중앙영업본부</td><td><span class="b b-slate">아님 — 지역 영업본부</span></td><td class="r">520,000</td><td class="r">0</td><td class="r">1</td></tr>
+        <tr><td>하나은행 부산경남영업본부</td><td><span class="b b-slate">아님 — 지역 영업본부</span></td><td class="r">0</td><td class="r">0</td><td class="r">0</td></tr>
+        <tr><td class="muted" colspan="5">… 44곳 (하위 조직 25 · 그 외 19)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 3 -->
+<div class="screen" id="s3">
+  <div class="card">
+    <div class="crumb">하나은행 › <b>본점</b></div>
+    <h1>하나은행 본점</h1>
+    <div class="ptabs"><span>개요</span><span>주문 내역</span><span>수금 내역</span><span>계산서 165</span><span>소속 부서 44</span><span class="on">하위 조직 43</span><span>활동 메모</span></div>
+    <div class="sub" style="margin-bottom:8px"><b>하위 조직</b> = 본점 조직 안의 부서(상위 조직 = 하나은행 본점). 계산서를 어디로 받든 상관없이 <b>소속</b>으로 묶는다 — '하위 포함' 합계는 이 목록 기준.</div>
+    <table>
+      <thead><tr><th>조직</th><th>청구처</th><th>대표 담당자</th><th class="r">담당자</th><th class="r">기간 매출</th><th class="r">미수</th></tr></thead>
+      <tbody>
+        <tr><td><b>본점</b> <span class="b b-slate">이 조직</span></td><td class="muted">자기 자신(법인)</td><td class="muted">-</td><td class="r">0</td><td class="r">0</td><td class="r">0</td></tr>
+        <tr><td><span class="tree">└</span> 재무기획부</td><td><span class="b b-blue">본점</span></td><td>김○○ 차장님</td><td class="r">2</td><td class="r">0</td><td class="r">0</td></tr>
+        <tr><td><span class="tree">└</span> 영업기획부</td><td><span class="b b-blue">본점</span></td><td>오지석 차장님</td><td class="r">5</td><td class="r">1,300,000</td><td class="r">0</td></tr>
+        <tr><td><span class="tree">└</span> 홍보부</td><td><span class="b b-blue">본점</span></td><td>이○○ 과장님</td><td class="r">1</td><td class="r">2,400,000</td><td class="r">0</td></tr>
+        <tr><td><span class="tree">└</span> 채널전략부</td><td><span class="b b-blue">본점</span></td><td>이서원 팀장님</td><td class="r">3</td><td class="r">0</td><td class="r">0</td></tr>
+        <tr><td><span class="tree">&nbsp;&nbsp;&nbsp;└</span> 신용대출팀</td><td class="muted">미지정</td><td>안선준 팀장님</td><td class="r">1</td><td class="r">0</td><td class="r">0</td></tr>
+        <tr><td><span class="tree">&nbsp;&nbsp;&nbsp;└</span> 원큐파이오니어팀</td><td class="muted">미지정</td><td class="muted">-</td><td class="r">0</td><td class="r">0</td><td class="r">0</td></tr>
+        <tr><td><span class="tree">└</span> ODS영업지원부</td><td><span class="b b-blue">본점</span></td><td>윤세훈 팀장님</td><td class="r">2</td><td class="r">0</td><td class="r">0</td></tr>
+        <tr><td class="muted" colspan="6">… 43곳</td></tr>
+      </tbody>
+    </table>
+    <div class="diff">두 탭의 차이 — 원큐 · 지역 영업본부처럼 <b>계산서는 본점 번호로 받지만 본점 부서는 아닌 곳</b>은 소속 부서 탭에만 나온다.
+      반대로 청구처를 아직 지정하지 않은 본점 부서(예: 채널전략부 › 신용대출팀)는 하위 조직 탭에만 나온다. 청구처 칸으로 한눈에 구분.</div>
+  </div>
+</div>
+
+<!-- 4 -->
+<div class="screen" id="s4">
+  <div class="card">
+    <div class="crumb">IBK기업은행 › <a href="#">본점</a> › <b>중기산업연구실</b></div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h1>IBK기업은행 중기산업연구실</h1><span class="b b-slate">활성</span></div>
+    <div class="billcard">
+      <span class="b b-blue">청구처</span>
+      <b>IBK기업은행 본점</b>
+      <span class="sub" style="margin:0">202-81-00978 · 이 매출처 주문의 계산서는 청구처 법인으로 발행됩니다</span>
+      <button class="btn btn-line btn-sm">청구처 변경</button>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="k">기간 매출</div><div class="v">306,000</div><div class="d">주문 1건</div></div>
+      <div class="kpi"><div class="k">수금</div><div class="v">0</div></div>
+      <div class="kpi"><div class="k">미수</div><div class="v" style="color:#dc2626">306,000</div></div>
+      <div class="kpi"><div class="k">현재 담당자</div><div class="v">1</div></div>
+    </div>
+    <div class="ptabs"><span>개요</span><span>주문 내역 1</span><span>수금 내역</span><span class="on">계산서 1</span><span>활동 메모</span></div>
+    <h3>청구처 발행 계산서 <span class="sub" style="font-weight:400">IBK기업은행 본점으로 발행되어 이 매출처 주문에 연결된 것</span></h3>
+    <table>
+      <thead><tr><th>발행일</th><th>품목</th><th class="r">합계</th><th>연결 주문</th><th class="r">연결 금액</th><th>수금 상태</th></tr></thead>
+      <tbody><tr><td>2026-11-25</td><td>요아럽 선물세트</td><td class="r">306,000</td><td><a href="#" style="color:#1d4ed8">O-2611-0142</a></td><td class="r">306,000</td><td><span class="b b-amber">미확인</span></td></tr></tbody>
+    </table>
+    <div class="diff">청구처가 지정돼 있고 계산서가 이 부서 주문에 연결되면 여기 보인다(지금 기능 그대로 — 이름만 '본점'으로 바뀜).
+      10-30 이전 과거 계산서 · 입금(주문이 없는 것)은 본점 상세에서만 보인다.</div>
+  </div>
+</div>
+
+<!-- 5 -->
+<div class="screen" id="s5">
+  <div class="grid2">
+    <div class="card">
+      <h2>주문 입력 — 지점(주문처) 고르면</h2>
+      <div style="border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;margin-top:6px">하나은행 홍보부</div>
+      <div class="sub">하나은행 › 본점 › 홍보부</div>
+      <div class="billcard"><span class="b b-blue">계산서 발행처</span><b>하나은행 본점</b><span class="sub" style="margin:0">202-81-14695</span></div>
+      <div class="diff">지금은 "계산서 발행처: 주식회사 하나은행"으로 나온다. 바뀐 뒤 이름이 "하나은행 본점"이 되고 사업자번호를 같이 보여 법인임을 알 수 있게 한다.</div>
+    </div>
+    <div class="card">
+      <h2>원큐 팀 주문이면</h2>
+      <div style="border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;margin-top:6px">하나은행 원큐 자동차금융팀</div>
+      <div class="sub">하나은행 › 원큐 › 자동차금융팀 · 위치 방배기업센터지점</div>
+      <div class="billcard"><span class="b b-blue">계산서 발행처</span><b>하나은행 본점</b><span class="sub" style="margin:0">202-81-14695 (원큐가 청구처를 본점으로 지정한 경우)</span></div>
+      <div class="diff">소속(원큐)과 계산서 발행처(본점)가 다를 수 있다 — 청구처는 소속과 별개라 지금처럼 동작.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 6 -->
+<div class="screen" id="s6">
+  <div class="card">
+    <h2>같이 고치는 자동 처리 2곳</h2>
+    <div class="sub" style="margin-bottom:10px">법인 매출처 이름이 '… 본점'으로 바뀌어도 지금처럼 찾게 — 별칭(옛 법인 이름)까지 본다.</div>
+    <h3>① 청구처 추천 (매출처 관리 › 청구처 지정)</h3>
+    <div class="flow">
+      <div class="step"><div class="n">부서</div><b>하나은행 홍보부</b><div class="sub">업체 '하나은행', 청구처 미지정</div></div>
+      <div class="step"><div class="n">지금</div>업체명과 이름이 같은 법인을 찾음<div class="sub">'주식회사 하나은행' → 하나은행</div></div>
+      <div class="step new"><div class="n">바뀐 뒤</div>이름 <b>또는 별칭</b>이 업체명과 같은 법인<div class="sub">'하나은행 본점'의 별칭 '주식회사 하나은행' → 추천 유지</div></div>
+    </div>
+    <h3 style="margin-top:14px">② 계산서 가져오기 (홈택스 엑셀)</h3>
+    <div class="flow">
+      <div class="step"><div class="n">1순위</div>사업자번호<div class="sub">202-81-00978 → IBK기업은행 본점 (지금도 동작)</div></div>
+      <div class="step"><div class="n">2순위</div>매출처 이름<div class="sub">'IBK기업은행'이라는 매출처가 없어짐</div></div>
+      <div class="step new"><div class="n">추가 3순위</div><b>별칭</b><div class="sub">옛 번호 209-85-00472 · 상호 'IBK기업은행' 계산서 → 별칭으로 IBK기업은행 본점에. 지금은 새 매출처가 생긴다</div></div>
+    </div>
+    <div class="diff">②는 회계 트랙 파일(계산서 가져오기)이라 회계 트랙 문서에도 남긴다. 별칭 칸(match_aliases)은 원래 "계산서 매칭 키워드" 용도라 방향이 맞다.</div>
+  </div>
+  <div class="card explain">
+    <h3>실행 순서 (승인 후)</h3>
+    <ul>
+      <li>1. 코드 ① · ② 수정 → 빌드 → 배포 (데이터 바꾸기 전에)</li>
+      <li>2. 하나은행: '주식회사 하나은행' → '하나은행 본점' 합치기 — 계산서 165 · 통장 94 · 청구처 44 · 사업자번호 이동, 병합 기록(되돌리기 가능)</li>
+      <li>3. IBK: 'IBK기업은행' 이름 → 'IBK기업은행 본점'(옛 이름 별칭) · 본점 부서 11곳 하위로 · 중기산연구실 → 중기산업연구실 합치기 · 부서 10곳 청구처 = 본점</li>
+      <li>4. 확인: 본점 상세 두 탭 숫자, 부서 상세 청구처 표시, 청구처 추천이 그대로 나오는지, 계산서 가져오기 드라이런</li>
+    </ul>
+  </div>
+</div>
+
+</div>
+<script>
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b))
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === b.dataset.s))
+})
+</script>
+</body></html>
