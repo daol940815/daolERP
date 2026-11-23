@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { NOT_VOID_OR } from '@/lib/card-sale-status'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { MATCH_RULES } from '@/lib/matching-rules'
+import { loadSettledKeys } from './source-settle'
 
 // ── 매출 수금 후보 탐색 (매출 사이클 — 매입 지급후보의 매출판) ─────────────
 // 한 매출처의 "미수 ERP 주문"과 "미배분 입금(통장 + 카드 순매출)"을 놓고 조합을 찾는다.
@@ -181,10 +182,11 @@ export async function buildCollectionCandidates(
   }
 
   const deposits: CollectionDeposit[] = []
+  const settled = await loadSettledKeys(admin)   // 이전 처리분(1309)은 수금 후보에서 뺀다
   for (const t of txResult.data) {
     const amt = t.amount_in ?? 0
     const rem = amt - (allocBySource.get(`bank:${t.id}`) ?? 0)
-    if (rem > 0) deposits.push({
+    if (rem > 0 && !settled.has(`bank:${t.id}`)) deposits.push({
       id: t.id, source_type: 'bank', tx_date: t.tx_date, tx_time: t.tx_time,
       label: (t.counterparty_name || t.description || '입금').trim(), amount: amt, remaining: rem,
     })
@@ -199,7 +201,7 @@ export async function buildCollectionCandidates(
     const net = rows.reduce((s, r) => s + (r.amount ?? 0), 0)
     if (net <= 0) continue
     const rem = net - (allocBySource.get(`card:${appr.id}`) ?? 0)
-    if (rem > 0) deposits.push({
+    if (rem > 0 && !settled.has(`card:${appr.id}`)) deposits.push({
       id: appr.id, source_type: 'card', tx_date: appr.tx_date, tx_time: appr.tx_time,
       label: `카드 ${appr.card_number ?? ''} ${appr.acquirer ?? ''}`.trim(), amount: net, remaining: rem,
     })

@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { NOT_VOID_OR } from '@/lib/card-sale-status'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { honorify } from '@/lib/contact-label'
+import { loadSettledKeys } from '@/lib/source-settle'
 
 // 입금 ↔ ERP 주문 건 단위 매칭 (마이그레이션 021: erp_payment_matches)
 // 은행 입금과 카드결제(거래처 매칭된 card_sales) 대상. 현금영수증은 스키마만 지원.
@@ -263,7 +264,10 @@ export async function loadMatchingState(
     })
   }
 
-  return { deposits: [...deposits, ...cardDeposits], orders, matches }
+  // 이전 처리분(1309)으로 표시한 입금 · 카드 결제는 주문에 붙일 대상이 아니다
+  const settled = await loadSettledKeys(admin)
+  const live = (d: DepositState) => !settled.has(`${d.source_type}:${d.id}`)
+  return { deposits: [...deposits, ...cardDeposits].filter(live), orders, matches }
 }
 
 // 고신뢰 자동 매칭: 같은 거래처 + 잔액 정확 일치 + 날짜 차이 windowDays 이내 + 1:1 유일

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이전 처리분 시안</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:#eef1f5; color:#1e293b; font-size:13px; }
+  .frame { max-width:1180px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:20px; color:#0f172a; }
+  h2 { font-size:15px; color:#0f172a; margin:30px 0 4px; }
+  .desc { font-size:12px; color:#64748b; margin:4px 0 14px; line-height:1.65; }
+  .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .panel.new { border:2px solid #3b82f6; box-shadow:0 0 0 4px rgba(59,130,246,.08); }
+  .lab { font-size:11px; font-weight:bold; color:#64748b; margin-bottom:8px; }
+  .chips { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+  .chip { border-radius:8px; padding:5px 11px; font-size:12.5px; color:#475569; background:#f1f5f9; }
+  .chip.on { background:#0f172a; color:#fff; }
+  .chip.nw { outline:2px solid #3b82f6; outline-offset:1px; }
+  .sep { width:1px; height:18px; background:#e2e8f0; margin:0 4px; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:920px; }
+  th { text-align:left; font-weight:normal; color:#64748b; font-size:11.5px; padding:8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; background:#f8fafc; }
+  td { padding:9px 8px; border-bottom:1px solid #f1f5f9; vertical-align:top; line-height:1.5; }
+  td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  td small { color:#94a3b8; display:block; font-size:11px; }
+  th.hl, td.hl { background:#eff6ff; }
+  .st { font-size:11px; font-weight:bold; padding:3px 8px; border-radius:999px; white-space:nowrap; }
+  .ok { background:#dcfce7; color:#166534; } .pt { background:#fef3c7; color:#92400e; } .no { background:#f1f5f9; color:#64748b; }
+  .btn { display:inline-block; border-radius:7px; padding:2px 8px; font-size:11px; border:1px solid #cbd5e1; background:#fff; color:#334155; white-space:nowrap; }
+  .btn.blue { border-color:#c7d2fe; background:#eef2ff; color:#4338ca; font-weight:bold; }
+  .btn.pri { background:#0f172a; color:#fff; border-color:#0f172a; padding:5px 11px; font-size:12px; }
+  .ord { color:#0f172a; font-variant-numeric:tabular-nums; }
+  .mut { color:#94a3b8; } .am { color:#b45309; }
+  .tag { font-size:10.5px; font-weight:bold; padding:1px 6px; border-radius:4px; white-space:nowrap; }
+  .t-auto { background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; }
+  .note { background:#fefce8; border:1px dashed #eab308; border-radius:8px; padding:9px 12px; font-size:11.5px; color:#713f12; margin-top:10px; line-height:1.75; }
+  .note b { color:#422006; }
+  .modal { border:1px solid #cbd5e1; border-radius:12px; background:#fff; box-shadow:0 12px 32px rgba(15,23,42,.18); overflow:hidden; }
+  .modal .mh { padding:12px 16px; font-weight:bold; border-bottom:1px solid #e2e8f0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .modal .mb { padding:14px 16px; }
+  .modal .mf { padding:10px 16px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:6px; background:#f8fafc; }
+  .seg { display:flex; gap:4px; margin-left:auto; }
+  .seg span { border:1px solid #cbd5e1; border-radius:7px; padding:3px 9px; font-size:11.5px; color:#475569; font-weight:normal; }
+  .seg span.on { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
+  .list { border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; }
+  .list .lh { background:#f8fafc; padding:7px 10px; font-size:11.5px; color:#64748b; border-bottom:1px solid #e2e8f0; }
+  .list .li { padding:7px 10px; border-bottom:1px solid #f1f5f9; font-size:12.5px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .list .li:last-child { border-bottom:none; }
+  .list .li .a { margin-left:auto; font-weight:bold; font-variant-numeric:tabular-nums; }
+  .list .li.sel { background:#eff6ff; }
+  .prev { margin-top:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 11px; font-size:12px; line-height:1.7; }
+
+  .fgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px 12px; margin-top:12px; }
+  .f label { display:block; font-size:11px; color:#64748b; margin-bottom:4px; }
+  .f .in { border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; font-size:12.5px; background:#fff; color:#0f172a; }
+  .f .in.ph { color:#94a3b8; }
+  .pick { display:flex; gap:5px; flex-wrap:wrap; }
+  .pick span { border:1px solid #cbd5e1; border-radius:8px; padding:6px 13px; font-size:12.5px; color:#475569; background:#fff; }
+  .pick span.on { background:#0f172a; color:#fff; border-color:#0f172a; font-weight:bold; }
+  .pick span.dis { background:#f1f5f9; color:#cbd5e1; border-color:#e2e8f0; }
+  .newbox { border:2px solid #3b82f6; border-radius:10px; padding:10px 12px; background:#eff6ff; margin-top:12px; }
+  .newbox .row { display:flex; gap:24px; flex-wrap:wrap; }
+  .req { color:#dc2626; }
+  .bad { background:#fee2e2; color:#991b1b; }
+  .t-warn { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+  .t-none { background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; }
+  .t-src { background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; }
+  .bd-card { background:#e0e7ff; color:#3730a3; } .bd-inv { background:#fae8ff; color:#86198f; } .bd-tr { background:#ccfbf1; color:#115e59; }
+
+
+  .hid { border:1px dashed #94a3b8; background:#f8fafc; border-radius:8px; padding:7px 11px; font-size:12px; color:#475569; margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .hid.new { border:2px solid #3b82f6; background:#eff6ff; }
+  .li.off { background:#f8fafc; color:#94a3b8; }
+  .kd { font-size:11px; padding:1px 7px; border-radius:999px; border:1px solid #cbd5e1; color:#475569; background:#fff; white-space:nowrap; }
+  .kd.tx { border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff; } .kd.ex { border-color:#fde68a; color:#92400e; background:#fffbeb; }
+
+
+  tr.cx td { background:#fff7ed; }
+  tr.dead td { color:#94a3b8; } tr.dead td.amt { text-decoration:line-through; }
+  .cn { background:#ffedd5; color:#9a3412; } .cw { background:#fef3c7; color:#92400e; } .cd { background:#e2e8f0; color:#475569; }
+  .tip { position:relative; display:inline-block; cursor:help; border-bottom:1px dotted #94a3b8; }
+  .tipbox { display:inline-block; margin-top:5px; background:#0f172a; color:#fff; border-radius:8px; padding:7px 10px; font-size:11.5px; line-height:1.6; font-weight:normal; white-space:normal; max-width:280px; }
+  .combo { border:1px solid #cbd5e1; border-radius:8px; background:#fff; overflow:hidden; max-width:360px; }
+  .combo .q { padding:7px 10px; border-bottom:1px solid #e2e8f0; font-size:12.5px; }
+  .combo .opt { padding:6px 10px; font-size:12.5px; color:#334155; }
+  .combo .opt.on { background:#eff6ff; color:#1d4ed8; font-weight:bold; }
+  .combo .opt mark { background:#fde68a; color:inherit; }
+  .neg { color:#b91c1c; }
+  .sub { padding-left:18px; position:relative; } .sub:before { content:"└"; position:absolute; left:4px; color:#94a3b8; }
+
+
+  .tabs { display:flex; gap:2px; border-bottom:1px solid #e2e8f0; margin-bottom:12px; flex-wrap:wrap; }
+  .tabs span { padding:8px 14px; font-size:13px; color:#64748b; border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tabs span.on { color:#0f172a; font-weight:bold; border-color:#0f172a; }
+  .tabs span.gone { text-decoration:line-through; color:#cbd5e1; }
+  .bar { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .sel { border:1px solid #cbd5e1; border-radius:8px; padding:5px 9px; font-size:12.5px; background:#fff; color:#334155; }
+  .srch { border:1px solid #cbd5e1; border-radius:8px; padding:5px 10px; font-size:12.5px; background:#fff; color:#94a3b8; min-width:220px; }
+  .cnt { font-size:11px; opacity:.75; margin-left:3px; }
+  .s-un { background:#fee2e2; color:#991b1b; } .s-pp { background:#ffedd5; color:#9a3412; } .s-mw { background:#fef3c7; color:#92400e; } .s-pm { background:#e0e7ff; color:#3730a3; } .s-dn { background:#dcfce7; color:#166534; }
+  tr.open td { background:#f8fafc; }
+  .inner { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; }
+  .who { color:#64748b; font-size:11px; display:block; }
+
+
+  .lk { color:#1d4ed8; text-decoration:underline; text-decoration-style:dotted; cursor:pointer; }
+  .fbar { border:2px solid #3b82f6; border-radius:10px; padding:8px 10px; background:#eff6ff; margin-bottom:10px; }
+  .kv { display:grid; grid-template-columns:90px 1fr; gap:4px 10px; font-size:12.5px; }
+  .kv span:nth-child(odd) { color:#64748b; }
+
+
+  .combo { border:1px solid #cbd5e1; border-radius:8px; background:#fff; overflow:hidden; max-width:360px; }
+  .combo .q { padding:7px 10px; border-bottom:1px solid #e2e8f0; font-size:12.5px; }
+  .combo .opt { padding:6px 10px; font-size:12.5px; color:#334155; }
+  .combo .opt.on { background:#eff6ff; color:#1d4ed8; font-weight:bold; }
+  .combo .opt mark { background:#fde68a; color:inherit; }
+
+  .s-pr { background:#e2e8f0; color:#334155; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <h1>입금대장 — 이전 처리분 시안</h1>
+  <p class="desc">2026-11-23 (수정: 체크 + 위쪽 버튼) · 주문 없이 이미 처리된 입금 · 카드 결제(예: 기존 ERP에서 처리했거나 선결제 원장에 이미 반영된 것)를 "이전 처리분"으로 표시해 입금대장에서 뺍니다. 누가 · 언제 · 왜 표시했는지 남고, 잘못 표시했으면 풀 수 있습니다. 원본(통장 · 카드 매출)은 바뀌지 않습니다. 숫자와 이름은 예시입니다. 파란 테두리가 새로 생기는 부분입니다.</p>
+
+  <h2>1. 입금대장 목록 — 체크하고 위쪽 "이전 처리분 확정"</h2>
+  <p class="desc">2026-11-23 사용자 의견 반영: 줄마다 버튼을 두지 않고, 체크한 줄만 위쪽 버튼으로 한꺼번에 확정합니다.</p>
+  <div class="panel new">
+    <div class="chips">
+      <span class="chip">최근 7일</span><span class="chip">당월</span><span class="chip on">전월</span><span class="chip">전체 기간</span>
+      <span class="sep"></span>
+      <span class="chip">추천 있음 <span class="cnt">1</span></span>
+      <span class="chip nw">이전 처리분 보기 <span class="cnt">3</span></span>
+    </div>
+    <div class="hid new" style="margin:0 0 8px">
+      <b>체크 3건</b> <span class="mut">(추천 있는 줄 1건 포함)</span>
+      <span class="btn pri" style="margin-left:auto">체크한 추천 확정 (1건)</span>
+      <span class="btn blue">이전 처리분 확정 (3건)</span>
+      <span class="btn">체크 해제</span>
+    </div>
+    <div class="scroll"><table>
+      <tr><th><input type="checkbox"></th><th>입금일</th><th>입금자 / 카드</th><th>거래처</th><th class="n">남은 금액</th><th>추천 주문</th><th></th></tr>
+      <tr><td><input type="checkbox" checked></td><td>10-16</td><td>카드 4140-03**-****-8921</td><td>IBK기업은행 중기산업연구실</td><td class="n">420,000</td>
+        <td class="mut">후보 없음</td><td><span class="btn">주문 고르기</span></td></tr>
+      <tr><td><input type="checkbox" checked></td><td>10-21</td><td>하나은행여의도</td><td>하나은행 여의도금융센터</td><td class="n">1,500,000</td>
+        <td class="mut">후보 없음</td><td><span class="btn">주문 고르기</span></td></tr>
+      <tr><td><input type="checkbox" checked></td><td>10-28</td><td>신한강남</td><td>신한은행 강남지점</td><td class="n">450,000</td>
+        <td><span class="tag t-src">추천</span> D261102-003 · 미수 450,000</td><td><span class="btn">주문 고르기</span></td></tr>
+    </table></div>
+    <div class="note">
+      <b>체크 칸은 모든 줄에</b> — 지금은 추천이 있는 줄에만 체크 칸이 있습니다(추천 일괄 확정용). 이제 모든 줄에 두고, 위쪽 버튼이 체크한 것 중 해당하는 줄만 처리합니다.<br>
+      <b>체크한 추천 확정</b> — 체크한 줄 가운데 추천이 있는 것만 주문에 붙입니다(지금과 같은 기능).<br>
+      <b>이전 처리분 확정</b> — 체크한 줄 전부를 같은 사유로 표시합니다. 추천이 있는 줄이 섞여 있으면 "추천 주문이 있는 입금 1건이 포함돼 있습니다 — 이전 처리분으로 표시할까요, 빼고 할까요?"를 묻습니다.<br>
+      <b>줄마다 버튼 없음</b> — 줄 끝에는 지금처럼 "주문 고르기"만 남습니다.
+    </div>
+  </div>
+
+  <h2>2. 사유 창</h2>
+  <div class="cols">
+    <div class="modal">
+      <div class="mh">이전 처리분으로 표시 <span class="mut" style="font-weight:normal;font-size:12px">카드 10-16 · 420,000 · IBK기업은행 중기산업연구실</span></div>
+      <div class="mb">
+        <div class="f"><label>사유 <span class="req">*</span> — 글자를 치면 맞는 항목이 나옵니다</label>
+          <div class="combo">
+            <div class="q">선결제</div>
+            <div class="opt on"><mark>선결제</mark> 원장에 이미 반영됨</div>
+            <div class="opt">기존 ERP에서 처리 완료</div>
+            <div class="opt">기타 — 직접 입력</div>
+          </div>
+        </div>
+        <div class="f" style="margin-top:10px"><label>메모 (선택)</label><div class="in ph">예: 기존 ERP 선결제 10-16 카드분, 원장 legacy:3</div></div>
+        <div class="note">표시하면 입금대장 · 결제 확인의 원본 후보에서 빠집니다. 주문 미수는 바뀌지 않습니다(어느 주문에도 붙지 않으므로).</div>
+      </div>
+      <div class="mf"><span class="btn">닫기</span><span class="btn pri">이전 처리분으로 표시</span></div>
+    </div>
+    <div class="panel">
+      <div class="lab">사유 항목 (초안)</div>
+      <div class="prev" style="margin-top:0">
+        · 기존 ERP에서 처리 완료<br>
+        · 선결제 원장에 이미 반영됨<br>
+        · 주문과 무관한 입금(내부 이체 · 이자 · 환급 등)<br>
+        · 다른 회사 · 개인 입금(잘못 들어온 돈)<br>
+        · 기타 — 직접 입력
+      </div>
+      <div class="lab" style="margin-top:14px">누가 쓸 수 있나</div>
+      <div class="prev" style="margin-top:0">수금 · 정산 작업 수정 권한자(입금대장에서 주문에 붙이는 사람과 같음).</div>
+    </div>
+  </div>
+
+  <h2>3. "이전 처리분 보기" — 표시한 것 목록 · 해제</h2>
+  <div class="panel new">
+    <div class="hid new" style="margin:0 0 8px"><b>체크 1건</b> <span class="btn blue" style="margin-left:auto">체크한 것 해제 (1건)</span></div>
+    <div class="scroll"><table>
+      <tr><th><input type="checkbox"></th><th>입금일</th><th>입금자 / 카드</th><th>거래처</th><th class="n">금액</th><th>사유 · 메모</th><th>표시한 사람 · 시각</th><th></th></tr>
+      <tr><td><input type="checkbox" checked></td><td>10-16</td><td>카드 4140-03**-****-8921</td><td>IBK기업은행 중기산업연구실</td><td class="n">420,000</td>
+        <td>선결제 원장에 이미 반영됨<small>기존 ERP 선결제 10-16 카드분</small></td><td>오철준 대리<small>11-23 15:10</small></td><td></td></tr>
+      <tr><td><input type="checkbox"></td><td>10-21</td><td>하나은행여의도</td><td>하나은행 여의도금융센터</td><td class="n">1,500,000</td>
+        <td>기존 ERP에서 처리 완료</td><td>오철준 대리<small>11-23 15:12</small></td><td></td></tr>
+    </table></div>
+    <div class="cols" style="margin-top:10px">
+      <div class="modal">
+        <div class="mh">이전 처리분 해제 <span class="mut" style="font-weight:normal;font-size:12px">카드 10-16 · 420,000 · IBK기업은행 중기산업연구실</span></div>
+        <div class="mb">
+          <div class="f"><label>해제 사유 <span class="req">*</span> — 글자를 치면 맞는 항목이 나옵니다</label>
+            <div class="combo">
+              <div class="q">주문</div>
+              <div class="opt on"><mark>주문</mark>에 붙여야 할 입금이었음</div>
+              <div class="opt">기타 — 직접 입력</div>
+            </div>
+          </div>
+          <div class="note">해제하면 입금대장 목록으로 돌아옵니다. 처음 표시한 사유 · 사람 · 시각과 해제 사유 · 사람 · 시각이 모두 이력에 남습니다.</div>
+        </div>
+        <div class="mf"><span class="btn">닫기</span><span class="btn pri">해제</span></div>
+      </div>
+      <div class="panel">
+        <div class="lab">해제 사유 항목 (초안)</div>
+        <div class="prev" style="margin-top:0">
+          · 주문에 붙여야 할 입금이었음<br>
+          · 다른 입금을 잘못 표시함<br>
+          · 사유를 잘못 고름(다시 표시 예정)<br>
+          · 기타 — 직접 입력
+        </div>
+        <div class="lab" style="margin-top:14px">여러 건 해제</div>
+        <div class="prev" style="margin-top:0">"이전 처리분 보기"에서도 체크 후 위쪽 "체크한 것 해제"로 한꺼번에 — 같은 해제 사유를 한 번만 고릅니다.</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>4. 바뀌지 않는 것 · 알아둘 것</h2>
+  <div class="panel">
+    <div class="prev" style="margin-top:0">
+      <b>원본</b> — 통장 · 카드 매출은 그대로. "처리 완료" 표시만 따로 저장합니다(마이그레이션 1309 — 표 하나).<br>
+      <b>미수 · 매출</b> — 바뀌지 않습니다. 어느 주문에도 붙지 않기 때문입니다.<br>
+      <b>회계 쪽</b> — 통장 내역의 분류 · 계산서 입금 연결과는 별개입니다. 이 표시는 "주문에 붙일 돈인가"만 정리합니다.<br>
+      <b>이미 주문에 일부 붙은 입금</b> — 남은 금액만 이전 처리분으로 표시합니다(남은 금액이 0이 되어 목록에서 빠짐).
+    </div>
+  </div>
+</div>
+</body>
+</html>

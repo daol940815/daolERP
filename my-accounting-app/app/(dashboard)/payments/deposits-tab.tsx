@@ -5,9 +5,14 @@ import { Fragment, Suspense, useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { DATA_START, getPeriodRange } from '@/lib/period-presets'
 import { OrderNoLink } from '@/components/payments/OrderPreview'
+import { useReasonDialog } from '@/components/payments/ReasonDialog'
 import ReasonPicker, { reasonReady, type ReasonValue } from '@/components/payments/ReasonPicker'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
+
+// 이전 처리분 (1309)
+interface SettledRow { id: string; source_type: string; amount: number; tx_date: string | null; label: string | null; vendor_name: string | null; reason_text: string; memo: string | null; created_by_name: string | null; created_at: string }
+const stamp = (iso: string) => { const d = new Date(new Date(iso).getTime() + 9 * 3600000).toISOString(); return `${d.slice(5, 10)} ${d.slice(11, 16)}` }
 
 interface Candidate {
   id: string
@@ -28,6 +33,7 @@ interface PendingDeposit {
   tx_time?: string | null
   counterparty_name: string | null
   description: string | null
+  vendor_id?: string
   vendor_name: string
   amount: number
   allocated: number
@@ -75,6 +81,12 @@ function ErpMatchingContent() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [recSel, setRecSel] = useState<Set<string>>(new Set())   // 체크한 추천 (일괄 확정)
   const [recOnly, setRecOnly] = useState(false)
+  // 이전 처리분 (1309, 2026-11-23) — 체크 칸은 모든 줄에(recSel 공용), 위쪽 버튼이 체크한 것 중 해당하는 줄만 처리한다
+  const [showSettled, setShowSettled] = useState(false)
+  const [settled, setSettled] = useState<SettledRow[]>([])
+  const [settledOk, setSettledOk] = useState(true)
+  const [setSel, setSetSel] = useState<Set<string>>(new Set())   // 이전 처리분 보기에서 체크한 것(해제용)
+  const reasonDlg = useReasonDialog()
   // 펼친 입금의 주문별 배분 입력값
   const [alloc, setAlloc]       = useState<Record<string, string>>({})
   // 기간 밖 주문을 주문번호로 찾아 후보에 추가 (입금별)
@@ -111,6 +123,8 @@ function ErpMatchingContent() {
       setPending(json.pending ?? [])
       setMatched(json.matched ?? [])
       setReleased(json.released ?? [])
+      const sr = await fetch('/api/erp-matching/settle').then(r => r.json()).catch(() => ({ available: false, rows: [] }))
+      setSettled(sr.rows ?? []); setSettledOk(sr.available !== false); setSetSel(new Set())
     } else {
       showMsg(json.error ?? '조회 실패')
       setPending([]); setMatched([])
@@ -130,6 +144,44 @@ function ErpMatchingContent() {
   useEffect(() => { load() }, [load])
 
   // 추천 확정 — 추천된 주문 1건에 입금 잔액 전액을 붙인다. 확정은 사람이 누른다(자동 확정 폐지, 2026-11-16)
+  // 체크한 입금을 이전 처리분으로 (사유 필수). 추천이 있는 줄이 섞이면 포함할지 묻는다
+  const settleChecked = async () => {
+    let list = pending.filter(d => recSel.has(d.id))
+    if (!list.length) return
+    const withRec = list.filter(d => d.recommend)
+    if (withRec.length) {
+      const keep = window.confirm(`추천 주문이 있는 입금 ${withRec.length}건이 포함돼 있습니다.\n추천이 있다는 것은 주문에 붙여야 할 돈일 수 있습니다.\n\n[확인] 함께 이전 처리분으로 표시 / [취소] 추천 있는 줄은 빼고 표시`)
+      if (!keep) list = list.filter(d => !d.recommend)
+      if (!list.length) return
+    }
+    const sum = list.reduce((x, d) => x + d.remaining, 0)
+    const reason = await reasonDlg.ask('settle', `이전 처리분 확정 — ${list.length}건 · ${won(sum)}`, '주문 없이 이미 처리된 입금 · 카드 결제로 표시합니다. 입금대장과 결제 확인 후보에서 빠지고, 미수 · 매출은 바뀌지 않습니다. 해제할 수 있습니다.')
+    if (!reason) return
+    setWorking(true)
+    const res = await fetch('/api/erp-matching/settle', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason, items: list.map(d => ({ source_type: d.source_type, source_id: d.id, amount: d.remaining, tx_date: d.tx_date, label: (d.counterparty_name || d.description || '').slice(0, 80), vendor_id: d.vendor_id ?? null })) }),
+    })
+    const j = await res.json().catch(() => ({}))
+    setWorking(false)
+    if (!res.ok) { showMsg(j.error ?? '이전 처리분 표시 실패'); return }
+    showMsg(`${j.count ?? list.length}건을 이전 처리분으로 표시했습니다`)
+    setRecSel(new Set()); load()
+  }
+  const releaseChecked = async () => {
+    const ids = Array.from(setSel)
+    if (!ids.length) return
+    const reason = await reasonDlg.ask('unsettle', `이전 처리분 해제 — ${ids.length}건`, '해제하면 입금대장 목록으로 돌아옵니다. 처음 표시한 사유와 해제 사유가 모두 남습니다.')
+    if (!reason) return
+    setWorking(true)
+    const res = await fetch('/api/erp-matching/settle', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, reason }) })
+    const j = await res.json().catch(() => ({}))
+    setWorking(false)
+    if (!res.ok) { showMsg(j.error ?? '해제 실패'); return }
+    showMsg(`${j.count ?? ids.length}건을 해제했습니다`)
+    load()
+  }
+
   const confirmRecommended = async (list: PendingDeposit[]) => {
     const targets = list.filter(d => d.recommend)
     if (!targets.length) return
@@ -202,9 +254,11 @@ function ErpMatchingContent() {
     !q || m.order_no.includes(q) || m.customer_name.includes(q) || (m.counterparty_name ?? '').includes(q))
 
   const pendingTotal = filteredPending.reduce((s, d) => s + d.remaining, 0)
+  const recChecked = pending.filter(d => recSel.has(d.id) && d.recommend)   // 체크한 줄 중 추천 있는 것
 
   return (
     <div className="w-full">
+      {reasonDlg.node}
       <div className="mb-2 flex items-start justify-between gap-3 flex-wrap">
         <p className="text-sm text-gray-500">
           결제 기록 없이 들어온 통장 입금 · 카드결제를 주문에 붙입니다. 같은 거래처 · 금액 같음 · 날짜 가까움 · 후보가 하나뿐이면 <b className="text-gray-700">추천</b>으로 표시하고, 확정은 직접 누릅니다.
@@ -238,18 +292,70 @@ function ErpMatchingContent() {
         />
       </div>
 
-      {tab === 'pending' && recCount > 0 && (
+      {tab === 'pending' && (
         <div className="flex items-center gap-2 mb-3 flex-wrap">
-          <button onClick={() => setRecOnly(v => !v)}
-            className={`px-3 py-1 rounded-full text-xs border ${recOnly ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
-            추천 있음 {recCount}
-          </button>
-          <button onClick={() => setRecSel(new Set(pending.filter(d => d.recommend).map(d => d.id)))} className="text-xs text-gray-500 underline">추천 모두 체크</button>
-          {recSel.size > 0 && (
-            <button onClick={() => confirmRecommended(pending.filter(d => recSel.has(d.id)))} disabled={working}
-              className="ml-auto px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-40">
-              체크한 추천 {recSel.size}건 확정
+          {recCount > 0 && (<>
+            <button onClick={() => { setRecOnly(v => !v); setShowSettled(false) }}
+              className={`px-3 py-1 rounded-full text-xs border ${recOnly && !showSettled ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+              추천 있음 {recCount}
             </button>
+            <button onClick={() => setRecSel(new Set(pending.filter(d => d.recommend).map(d => d.id)))} className="text-xs text-gray-500 underline">추천 모두 체크</button>
+          </>)}
+          {settledOk && (
+            <button onClick={() => setShowSettled(v => !v)}
+              className={`px-3 py-1 rounded-full text-xs border ${showSettled ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+              이전 처리분 보기 {settled.length}
+            </button>
+          )}
+          <span className="ml-auto flex items-center gap-2 flex-wrap">
+            {!showSettled && recSel.size > 0 && (<>
+              <span className="text-xs text-gray-600">체크 {recSel.size}건</span>
+              {recChecked.length > 0 && (
+                <button onClick={() => confirmRecommended(recChecked)} disabled={working}
+                  className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-40">체크한 추천 확정 ({recChecked.length}건)</button>
+              )}
+              {settledOk && (
+                <button onClick={settleChecked} disabled={working}
+                  className="px-3 py-1.5 border border-indigo-200 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-100 disabled:opacity-40">이전 처리분 확정 ({recSel.size}건)</button>
+              )}
+              <button onClick={() => setRecSel(new Set())} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">체크 해제</button>
+            </>)}
+            {showSettled && setSel.size > 0 && (
+              <button onClick={releaseChecked} disabled={working}
+                className="px-3 py-1.5 border border-indigo-200 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-100 disabled:opacity-40">체크한 것 해제 ({setSel.size}건)</button>
+            )}
+          </span>
+        </div>
+      )}
+
+      {tab === 'pending' && showSettled && (
+        <div className="mb-4 bg-white border border-gray-200 rounded-xl overflow-x-auto">
+          <div className="px-3 py-2 border-b border-gray-100 text-sm"><b className="text-gray-800">이전 처리분 {settled.length}건</b>
+            <span className="text-xs text-gray-400"> · 주문 없이 처리 완료로 표시한 입금 · 카드 결제 (기간 필터와 무관)</span></div>
+          {settled.length === 0 ? <div className="py-8 text-center text-sm text-gray-400">이전 처리분이 없습니다.</div> : (
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                <th className="py-2 px-3"><input type="checkbox" checked={setSel.size === settled.length && settled.length > 0}
+                  onChange={e => setSetSel(e.target.checked ? new Set(settled.map(x => x.id)) : new Set())} aria-label="모두 체크" /></th>
+                <th className="py-2 px-3 font-medium">구분</th><th className="py-2 px-3 font-medium">입금일</th><th className="py-2 px-3 font-medium">거래처</th>
+                <th className="py-2 px-3 font-medium">입금자/카드</th><th className="py-2 px-3 font-medium text-right">금액</th>
+                <th className="py-2 px-3 font-medium">사유 · 메모</th><th className="py-2 px-3 font-medium">표시한 사람 · 시각</th>
+              </tr></thead>
+              <tbody>
+                {settled.map(x => (
+                  <tr key={x.id} className="border-b border-gray-100">
+                    <td className="py-2 px-3"><input type="checkbox" checked={setSel.has(x.id)} onChange={e => setSetSel(p => { const n = new Set(p); if (e.target.checked) n.add(x.id); else n.delete(x.id); return n })} /></td>
+                    <td className="py-2 px-3"><span className={`px-1.5 py-0.5 text-[0.6875rem] rounded ${x.source_type === 'card' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>{x.source_type === 'card' ? '카드' : '계좌'}</span></td>
+                    <td className="py-2 px-3 whitespace-nowrap text-gray-600">{x.tx_date ?? '-'}</td>
+                    <td className="py-2 px-3"><p className="truncate max-w-[180px]">{x.vendor_name ?? '-'}</p></td>
+                    <td className="py-2 px-3"><p className="truncate max-w-[180px] text-gray-600">{x.label ?? '-'}</p></td>
+                    <td className="py-2 px-3 text-right whitespace-nowrap">{won(x.amount)}</td>
+                    <td className="py-2 px-3 text-xs text-gray-700">{x.reason_text}{x.memo && <div className="text-[0.6875rem] text-gray-400">{x.memo}</div>}</td>
+                    <td className="py-2 px-3 text-xs whitespace-nowrap">{x.created_by_name ?? '-'}<div className="text-[0.6875rem] text-gray-400">{stamp(x.created_at)}</div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
       )}
@@ -272,6 +378,9 @@ function ErpMatchingContent() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                  <th className="py-2.5 px-3"><input type="checkbox" aria-label="보이는 줄 모두 체크"
+                    checked={filteredPending.length > 0 && filteredPending.every(d => recSel.has(d.id))}
+                    onChange={e => setRecSel(e.target.checked ? new Set(filteredPending.map(d => d.id)) : new Set())} /></th>
                   <th className="py-2.5 px-3 font-medium">구분</th>
                   <th className="py-2.5 px-3 font-medium">입금일</th>
                   <th className="py-2.5 px-3 font-medium">거래처</th>
@@ -292,6 +401,8 @@ function ErpMatchingContent() {
                   return (
                     <Fragment key={d.id}>
                       <tr className={`border-b border-gray-100 ${expanded ? 'bg-slate-50' : 'hover:bg-gray-50'}`}>
+                        <td className="py-2 px-3"><input type="checkbox" checked={recSel.has(d.id)} aria-label="체크"
+                          onChange={e => setRecSel(prev => { const n = new Set(prev); if (e.target.checked) n.add(d.id); else n.delete(d.id); return n })} /></td>
                         <td className="py-2 px-3">
                           <span className={`px-1.5 py-0.5 text-[0.6875rem] rounded ${
                             d.source_type === 'card' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'
@@ -308,9 +419,7 @@ function ErpMatchingContent() {
                         <td className="py-2 px-3 text-right whitespace-nowrap font-medium text-red-600">{won(d.remaining)}</td>
                         <td className="py-2 px-3 text-xs">
                           {d.recommend ? (
-                            <label className="flex items-start gap-1.5 cursor-pointer">
-                              <input type="checkbox" className="mt-0.5" checked={recSel.has(d.id)}
-                                onChange={e => setRecSel(prev => { const n = new Set(prev); if (e.target.checked) n.add(d.id); else n.delete(d.id); return n })} />
+                            <label className="flex items-start gap-1.5">
                               <span>
                                 <span className="inline-block px-1.5 py-0.5 rounded-full text-[0.625rem] font-semibold bg-green-100 text-green-800 mr-1">추천</span>
                                 <OrderNoLink id={d.recommend.id} no={d.recommend.order_no} />
@@ -338,7 +447,7 @@ function ErpMatchingContent() {
                       </tr>
                       {expanded && (
                         <tr className="border-b border-gray-200 bg-slate-50">
-                          <td colSpan={8} className="px-5 py-3">
+                          <td colSpan={9} className="px-5 py-3">
                             <table className="w-full text-xs mb-3">
                               <thead>
                                 <tr className="text-left text-gray-400">
