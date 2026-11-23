@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await admin
       .from('vendors')
       .select('id, name, type')
+      .neq('status', 'merged')   // 병합된 거래처 제외(2026-11-23)
       .ilike('name', `%${q}%`)
       .order('name')
       .limit(50)

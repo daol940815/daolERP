@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
     admin
       .from('vendors')
       .select('id, name, type, biz_number, contact_name, contact_phone, email, note, match_aliases, card_numbers, is_active')
+      .neq('status', 'merged')   // 병합된 거래처는 엑셀에 넣지 않는다(2026-11-23)
       .order('name')
       .range(from, to),
   )

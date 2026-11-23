@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
     let query = admin
       .from('vendors')
       .select(VENDOR_FIELDS)
+      .neq('status', 'merged')   // 병합된 거래처는 all=true 여도 선택지 · 목록에 내려주지 않는다(2026-11-23 — 참조는 남은 쪽으로 옮겨져 있다)
       .order('name')
 
     if (!all)            query = query.eq('is_active', true)

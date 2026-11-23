@@ -1409,3 +1409,9 @@ ERP 주문은 계획대로 교체(erp-reload-track). 결정 대기.
 
 - `app/api/card-sales/customer-groups/route.ts` "연결할 거래처" 선택지에 `status <> 'merged'` · `is_active = true` 조건 추가(전에는 병합된 매출처도 나옴),
   `assign-customer` POST는 병합된 매출처면 400 안내. 병합된 매출처에 붙은 카드매출은 0건이었다. 기록 docs/customer-management-track.md.
+
+## (고객관리 트랙 알림) 병합된 거래처를 선택 목록에서 제외 (2026-11-23)
+
+- `/api/vendors`: `all=true` 여도 `status = 'merged'` 거래처는 내려주지 않는다(카드 내역 · 현금영수증 · 매입 미지급 · ERP 별칭 · 통장 내역 화면의 거래처 선택지 · 추천에 병합된 곳이 나오던 문제).
+- `/api/vendor-opening-balances` 거래처 검색, `/api/purchase-hub` 매입처 등록의 같은 이름 재사용 · 비슷한 이름 후보, `/api/erp-aliases/export` · `import`(병합된 이름은 남은 거래처로 연결),
+  `/api/vendors/[id]` 통장 키워드 중복 경고에서 병합된 거래처 제외. 기록 docs/customer-management-track.md.

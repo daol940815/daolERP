@@ -61,7 +61,7 @@ export async function PATCH(
     const kws = clean(body.bank_keywords)
     updates.bank_keywords = kws
     for (const kw of kws) {
-      const dup = await admin.from('vendors').select('id, name').contains('bank_keywords', [kw]).neq('id', id).limit(3)
+      const dup = await admin.from('vendors').select('id, name').contains('bank_keywords', [kw]).neq('id', id).neq('status', 'merged').limit(3)
       if (!dup.error && dup.data?.length) warnings.push(`"${kw}" — ${dup.data.map(d => d.name).join(', ')}에도 있음 (자동 연결은 둘 다 건너뜀)`)
     }
   }
