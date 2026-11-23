@@ -1404,3 +1404,8 @@ ERP 주문은 계획대로 교체(erp-reload-track). 결정 대기.
 - ERP 기준: 1400이 `monthly_pl_order_summary`(025) · `vendor_sales_analysis`(035)를 재정의 — 원가 = 매입합계 + 재고 원가, 선매입 입고 행 제외.
 - 엑셀: 기간에 12월이 있으면 "연말 재고 YYYY" 시트(세무사용 기말 재고자산 내부 확인).
 - `PLLineItem`에 `cell_hrefs`(월별 칸 드릴다운) · `no_total`(잔액 행) 선택 칸 추가 — 화면 · 엑셀 반영.
+
+## (고객관리 트랙 알림) 카드번호 매출처 연결 — 병합 · 비활성 매출처 선택지 제외 (2026-11-23)
+
+- `app/api/card-sales/customer-groups/route.ts` "연결할 거래처" 선택지에 `status <> 'merged'` · `is_active = true` 조건 추가(전에는 병합된 매출처도 나옴),
+  `assign-customer` POST는 병합된 매출처면 400 안내. 병합된 매출처에 붙은 카드매출은 0건이었다. 기록 docs/customer-management-track.md.

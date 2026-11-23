@@ -17,8 +17,10 @@ export async function POST(req: NextRequest) {
   }
 
   const { data: vendor, error: vErr } = await admin
-    .from('vendors').select('id, name, card_numbers').eq('id', vendorId).single()
+    .from('vendors').select('id, name, card_numbers, status').eq('id', vendorId).single()
   if (vErr || !vendor) return NextResponse.json({ error: '거래처를 찾을 수 없습니다.' }, { status: 404 })
+  // 병합된 매출처에는 연결하지 않는다 — 화면을 열어 둔 사이 합쳐진 경우(2026-11-23)
+  if (vendor.status === 'merged') return NextResponse.json({ error: `'${vendor.name}'은(는) 다른 매출처로 합쳐졌습니다. 화면을 새로 고친 뒤 남은 매출처를 골라 주세요.` }, { status: 400 })
 
   const { data: updated, error: uErr } = await admin
     .from('card_sales')

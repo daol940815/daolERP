@@ -23,7 +23,8 @@ export async function GET() {
 
   // 연결할 거래처 선택지(매출처 · 겸용) — 회계 쪽 /api/vendors 를 거치지 않도록 여기서 내려준다(수금 · 정산 작업 권한자도 쓰므로)
   const vendorOptsP = fetchAllRows<{ id: string; name: string; type: string }>((f, t) =>
-    admin.from('vendors').select('id, name, type').in('type', ['customer', 'both']).order('name').range(f, t))
+    // 병합된 매출처 · 비활성 매출처는 선택지에서 뺀다(2026-11-23 — 병합된 'IBK기업은행 중기산연구실'이 목록에 나오던 문제)
+    admin.from('vendors').select('id, name, type').in('type', ['customer', 'both']).neq('status', 'merged').eq('is_active', true).order('name').range(f, t))
 
   // 미연결 카드매출 (승인만 — 취소는 그룹 통계에서 상쇄)
   const salesResult = await fetchAllRows<{
