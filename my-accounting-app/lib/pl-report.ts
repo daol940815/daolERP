@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { buildEvidenceRevenue, buildRevenueReconcileByVendor } from './pl-evidence'
+import { stockValueAt } from './stock'
+import { STOCK_VAT_NOTE } from './stock-cost'
 
 // ── 월별 손익현황 (경영관리용) — 분개 기반 ───────────────────────
 // 기준 두 가지 (2026-11-03 사용자 결정 — 기본은 증빙 기준):
@@ -23,6 +25,8 @@ export interface PLLineItem {
   account_id?: string        // 분개 기반 동적 행 — 계정별 원장 드릴다운용
   href?: string              // 원본 화면 드릴다운 (증빙 기준 매출·원가 행)
   note?: string              // 행 설명(한계 등)
+  cell_hrefs?: (string | null)[]   // 월별 칸 드릴다운 (재고 증감 · 월말 재고 → 그달 말 재고 목록, 1400)
+  no_total?: boolean         // 기간 합계를 내지 않는 잔액 행 (월말 재고 — 합하면 뜻이 없다)
 }
 
 export type PLBasis = 'evidence' | 'erp'
@@ -170,6 +174,7 @@ export async function buildMonthlyPL(
   let cogsLines: PLLineItem[]
   let reconcile: RevenueReconcile | undefined
   let taxSplit: TaxSplit | undefined
+  let stockClosing: { closing: number[]; hrefs: string[]; ends: string[] } | null = null   // 월말 선매입 재고 (1400)
   const rentLines = opInc.map(r => line(`rev_${r.code}`, `${r.name} (계정)`, r.values, { account_id: r.accountId }))
 
   if (basis === 'evidence') {
@@ -207,12 +212,38 @@ export async function buildMonthlyPL(
       line('revenue_total', '매출 합계', revenueTotal, { is_subtotal: true }),
     ]
     const cogsAcc5002 = Array.from(accounts.entries()).find(([, a]) => a.code === '5002')?.[0]
+    // 재고 증감 (1400, 2026-11-23 사용자 결정): 증빙 원가 = 그달 상품매입 분개라 선매입이 산 달 원가로 잡힌다.
+    //   재고 증감 = 월초 재고 − 월말 재고(선매입 재고만, 공급가액)를 원가에 더해 판 달에 원가가 잡히게 한다. 기간 합계 이익은 같다.
+    //   1400 미적용 · 선매입 기록 없음이면 줄을 내지 않는다.
+    const stockLines: PLLineItem[] = []
+    const prevEnd = (() => { const [y, m] = from.split('-').map(Number); const d = new Date(y, m - 1, 0); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })()
+    const ends = months.map(lastDayOfMonth)
+    const sv = await stockValueAt(admin, [prevEnd, ...ends])
+    if (!('error' in sv)) {
+      const at = (d: string) => sv.data.get(d)?.supply ?? 0
+      const closing = ends.map(at)
+      const opening = [at(prevEnd), ...closing.slice(0, -1)]
+      const delta = months.map((_, i) => opening[i] - closing[i])
+      if (closing.some(v => v !== 0) || delta.some(v => v !== 0)) {
+        const hrefs = ends.map(d => `/orders/stock?asof=${d}`)
+        stockLines.push(line('cogs_stock_delta', '재고 증감 (월초 재고 − 월말 재고, 선매입)', delta, {
+          cell_hrefs: hrefs, href: '/orders/stock',
+          note: `재고가 늘면 원가에서 빠지고(−) 줄면 더해집니다 · ${STOCK_VAT_NOTE}`,
+        }))
+        stockClosing = { closing, hrefs, ends }
+      }
+      for (let i = 0; i < months.length; i++) cogsTotal[i] += delta[i]
+      taxSplit!.taxable.cogs = taxSplit!.taxable.cogs.map((v, i) => v + delta[i])
+      taxSplit!.taxable.gross = months.map((_, i) => taxSplit!.taxable.revenue[i] - taxSplit!.taxable.cogs[i])
+    }
     cogsLines = [
       line('cogs_inv_taxable', '상품매입 — 세금계산서 (과세, 5002)', e.cogsInvTaxable, { account_id: cogsAcc5002 }),
       line('cogs_inv_exempt', '상품매입 — 계산서 (면세, 5002)', e.cogsInvExempt, { account_id: cogsAcc5002 }),
       line('cogs_card', '상품매입 — 법인카드 (5002)', e.cogsCard, { account_id: cogsAcc5002 }),
       ...(e.cogsOther.some(v => v !== 0) ? [line('cogs_other', '상품매입 — 통장·수동 분개', e.cogsOther, { account_id: cogsAcc5002 })] : []),
-      line('cogs_total', '매출원가 합계', cogsTotal, { is_subtotal: true, note: '재고 실사가 없어 당월 매입을 당월 원가로 봅니다' }),
+      ...stockLines,
+      line('cogs_total', '매출원가 합계', cogsTotal, { is_subtotal: true,
+        note: stockLines.length ? '선매입 재고는 판 달에 원가로 잡힙니다(재고 증감 반영)' : '재고 실사가 없어 당월 매입을 당월 원가로 봅니다' }),
       // 분류 전이라 원가·비용 어디에도 안 잡힌 원본 — 0원이 "없음"이 아니라 "분류 전"일 수 있음을 드러낸다
       ...(e.unclassifiedPurchaseCount > 0 ? [line('unclassified_purchase', `미분류 매입 계산서 ${e.unclassifiedPurchaseCount}건 (원가·비용 미반영)`, e.unclassifiedPurchase,
         { href: '/tax-invoices?tab=classify', note: '분류하면 상품매입·비용에 들어갑니다' })] : []),
@@ -254,6 +285,11 @@ export async function buildMonthlyPL(
     line('cogs_header', basis === 'evidence' ? '매출원가 (증빙 기준 — 상품매입 분개)' : '매출원가 (ERP 기준)', zero, { is_section_header: true }),
     ...cogsLines,
     line('gross_profit', '매출이익', grossProfit, { is_subtotal: true }),
+    // 참고: 월말 선매입 재고(공급가액) — 12월 말 = 연말 재고(세무사에게 넘길 기말 재고자산)
+    ...(stockClosing ? [line('stock_closing', '참고: 월말 선매입 재고 (부가세 제외)', stockClosing.closing, {
+      cell_hrefs: stockClosing.hrefs, no_total: true,
+      ...(stockClosing.ends.some(d => d.endsWith('-12-31')) ? { note: '12월 말 = 연말 재고' } : {}),
+    })] : []),
     line('sga_header', '판매관리비', zero, { is_section_header: true }),
     ...sga.map(r => line(`sga_${r.code}`, r.name, r.values, { account_id: r.accountId })),
     // 급여·감가상각은 분개가 생기면 위 동적 목록에 자동 포함 — 없는 동안 미반영 표시

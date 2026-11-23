@@ -15,6 +15,7 @@ import ReasonPicker from '@/components/ui/ReasonPicker'
 import { ORDER_CANCEL_REASONS, composeReason } from '@/lib/cancel-reasons'
 import { ORDERS_LIST_URL_KEY } from '@/lib/order-search-fields'
 import { useReasonDialog } from '@/components/payments/ReasonDialog'
+import { STOCK_ROLE_LABEL, marginCostOf, stockCostPending } from '@/lib/stock-cost'
 
 // 주문 상세 (2단계) — 업로드·직접입력 공통 조회.
 // direct 주문 (2026-08-25 취소·재등록 확정): 당일(본인)·관리자는 직접 수정(변경 로그),
@@ -31,6 +32,8 @@ interface Item {
   order_season?: string | null                                                                                     // 708 주문시기
   channel: string | null; memo: string | null
   is_cost?: boolean   // 비용 품목 (품목 마스터 체크) — 배송지 판정 제외
+  stock_role?: 'in' | 'out' | null   // 재고 칸 (1400)
+  stock_cost?: number | null         // 재고 원가 (1400, 선입선출 · 저장 시 고정)
 }
 interface ChangeRequest {
   id: string; request_type: string; reason: string; status: string
@@ -195,6 +198,11 @@ export default function OrderDetailPage() {
   const cost = activeItems.reduce((s, it) => s + (it.purchase_total ?? 0), 0)
   const costShipping = activeItems.reduce((s, it) => s + (it.purchase_shipping ?? 0), 0)   // 매입합계에 포함된 매입배송비
   const costDiscount = activeItems.reduce((s, it) => s + (it.purchase_discount ?? 0), 0)   // 매입합계에서 뺀 매입할인 (708)
+  // 마진 원가 = 매입합계 + 재고 원가, 선매입 입고 행 제외 (1400 — lib/stock-cost.ts)
+  const hasStock = items.some(it => it.stock_role)
+  const stockCost = activeItems.reduce((s, it) => s + (it.stock_role === 'out' ? Number(it.stock_cost) || 0 : 0), 0)
+  const stockInCost = activeItems.reduce((s, it) => s + (it.stock_role === 'in' ? it.purchase_total ?? 0 : 0), 0)
+  const marginCost = activeItems.reduce((s, it) => s + marginCostOf(it), 0)
   const total = order.total_amount as number
   const outstanding = receivable ? receivable.outstanding : Number(order.outstanding_amount ?? 0)
   const collectStatus = receivable ? receivable.collect_status : String(order.collect_status ?? '')
@@ -363,7 +371,8 @@ export default function OrderDetailPage() {
               {showCost && <th className="py-2 px-2.5 text-right font-medium">매입가</th>}
               {showCost && <th className="py-2 px-2.5 text-right font-medium">매입할인</th>}
               {showCost && <th className="py-2 px-2.5 text-right font-medium">매입배송비</th>}
-              {showCost && <th className="py-2 px-2.5 text-right font-medium">매입합계</th>}
+              {showCost && <th className="py-2 px-2.5 text-right font-medium" title="매입처에 줄 돈">매입합계</th>}
+              {showCost && hasStock && <th className="py-2 px-2.5 text-right font-medium" title="재고에서 나간 물건의 원가 (먼저 들어온 입고분 단가, 저장 시 고정)">재고 원가</th>}
               <th className="py-2 px-2.5 text-left font-medium">상담자</th>
               <th className="py-2 px-2.5 text-left font-medium">메모</th>
             </tr>
@@ -379,6 +388,8 @@ export default function OrderDetailPage() {
                   {it.is_canceled && <span className="ml-1.5 no-underline text-[0.625rem] text-red-400">취소</span>}
                   {it.is_prepayment && <span className="ml-1.5 text-[0.625rem] text-violet-500">선결제</span>}
                   {it.is_vip && <span className="ml-1.5 text-[0.625rem] text-rose-500" title="품명 'VIP' — 매출 · 미수 집계에서 빠짐">VIP</span>}
+                  {it.stock_role === 'in' && <span className="ml-1.5 text-[0.625rem] text-violet-600" title="선매입 입고 — 판매가 0, 재고에 쌓임, 마진 집계 제외">{STOCK_ROLE_LABEL.in}</span>}
+                  {it.stock_role === 'out' && <span className="ml-1.5 text-[0.625rem] text-teal-700" title="재고 출고 — 발주 제외, 원가는 재고 원가">{STOCK_ROLE_LABEL.out}</span>}
                 </td>
                 <td className="py-1.5 px-2.5">{it.order_kind ?? '-'}</td>
                 <td className="py-1.5 px-2.5 whitespace-nowrap">{it.order_season || '-'}</td>
@@ -405,6 +416,15 @@ export default function OrderDetailPage() {
                 )}
                 {showCost && <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_shipping ?? 0)}</td>}
                 {showCost && <td className="py-1.5 px-2.5 text-right tabular-nums">{won(it.purchase_total)}</td>}
+                {showCost && hasStock && (
+                  <td className="py-1.5 px-2.5 text-right tabular-nums">
+                    {it.stock_role === 'out'
+                      ? (stockCostPending(it) && !it.is_canceled
+                        ? <span className="text-red-600 text-[0.6875rem]" title="재고가 모자라 아직 배정되지 않았습니다 — 재고 관리에서 확인">미배정</span>
+                        : won(Number(it.stock_cost) || 0))
+                      : '-'}
+                  </td>
+                )}
                 <td className="py-1.5 px-2.5 whitespace-nowrap">{it.channel ?? '-'}</td>
                 <td className="py-1.5 px-2.5">
                   <div className="max-w-[11rem] truncate" title={it.memo ?? undefined}>{it.memo ?? '-'}</div>
@@ -422,7 +442,9 @@ export default function OrderDetailPage() {
               {costDiscount > 0 && <span className="text-gray-400"> (매입할인 <span className="tabular-nums">-{won(costDiscount)}원</span> 반영)</span>}
             </span>
           )}
-          {showCost && <span className="text-emerald-700">예상 마진 <b className="tabular-nums">{won(total - cost)}원</b></span>}
+          {showCost && stockCost > 0 && <span className="text-teal-700">재고 원가 <b className="tabular-nums">{won(stockCost)}원</b></span>}
+          {showCost && <span className="text-emerald-700" title="합계 − 매입합계(선매입 입고 제외) − 재고 원가">예상 마진 <b className="tabular-nums">{won(total - marginCost)}원</b></span>}
+          {showCost && stockInCost > 0 && <span className="text-violet-700 text-xs self-center">선매입 입고 {won(stockInCost)}원은 재고로 보관 (마진 제외)</span>}
         </div>
       </div>
 

@@ -9,6 +9,7 @@ import CollectMatchModal from '@/components/erp/CollectMatchModal'
 import ReasonBadge from '@/components/ui/ReasonBadge'
 import { FIELD_SHORT, MINE_FILTERS, ORDERS_LIST_URL_KEY, SEARCH_FIELDS, decodeCond, encodeCond, parseFreeText, parseMine, type MineFilter, type SearchCond, type SearchField } from '@/lib/order-search-fields'
 import { INVOICE_FLAG_LABEL, PAY_METHOD_TAG_CLS, PAY_METHOD_TAG_LABEL, PAY_STAGE_CHIPS, PAY_STAGE_CLS, PAY_STAGE_HINT, PAY_STAGE_LABEL, showMethodTag, type PayState } from '@/lib/pay-state'
+import { STOCK_ROLE_LABEL, marginCostOf } from '@/lib/stock-cost'
 
 // 주문내역(2026-11-12 '주문 현황'에서 이름 변경) (시안 v2) — KPI(클릭=필터) + 통합 검색 + 칩 필터 + 행내 상품 펼치기.
 // 검사 상태(정의 미확정)·배송 컬럼(3단계)은 제외 상태 — 트랙 문서 참고.
@@ -56,6 +57,7 @@ interface Item {
   item_name: string | null; order_kind: string | null
   purchase_vendor_name: string | null; quantity: number
   shipping_fee: number; line_total: number; purchase_total: number
+  stock_role?: 'in' | 'out' | null; stock_cost?: number | null   // 재고 칸 · 재고 원가 (1400)
   purchase_shipping: number | null
 }
 
@@ -566,6 +568,9 @@ export default function OrdersHomePage() {
                                       <span className="ml-1.5 no-underline inline-block px-1 py-0 rounded text-[0.625rem] bg-gray-100 text-gray-500">{it.order_kind}</span>
                                     )}
                                     {it.is_canceled && <span className="ml-1 text-[0.625rem] text-red-400 no-underline">취소</span>}
+                                    {it.stock_role && (
+                                      <span className={`ml-1 text-[0.625rem] no-underline ${it.stock_role === 'in' ? 'text-violet-600' : 'text-teal-700'}`}>{STOCK_ROLE_LABEL[it.stock_role]}</span>
+                                    )}
                                   </span>
                                   <span className="tabular-nums">판매 {won(it.line_total)}</span>
                                   <span className="tabular-nums text-gray-400">배송비 {won(it.shipping_fee)}</span>
@@ -573,11 +578,14 @@ export default function OrdersHomePage() {
                                     <span className="tabular-nums text-gray-500">
                                       매입 {won(it.purchase_total)}
                                       <span className="text-gray-400"> (배송비 {won(it.purchase_shipping ?? 0)})</span>
+                                      {it.stock_role === 'out' && <span className="text-teal-700"> · 재고 원가 {won(Number(it.stock_cost) || 0)}</span>}
                                     </span>
                                   ) : <span />}
                                   {showCost ? (
-                                    <span className={`tabular-nums ${it.line_total - it.purchase_total >= 0 ? 'text-emerald-700' : 'text-red-500'}`}>
-                                      마진 {won(it.line_total - it.purchase_total)}
+                                    it.stock_role === 'in'
+                                      ? <span className="text-violet-600" title="선매입 입고 — 재고로 보관, 마진 집계 제외">재고로 보관{it.purchase_vendor_name && <span className="text-gray-400 ml-1.5">{it.purchase_vendor_name}</span>}</span>
+                                      : <span className={`tabular-nums ${it.line_total - marginCostOf(it) >= 0 ? 'text-emerald-700' : 'text-red-500'}`}>
+                                      마진 {won(it.line_total - marginCostOf(it))}
                                       {it.purchase_vendor_name && <span className="text-gray-400 ml-1.5">{it.purchase_vendor_name}</span>}
                                     </span>
                                   ) : <span />}

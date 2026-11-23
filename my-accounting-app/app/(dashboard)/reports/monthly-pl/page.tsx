@@ -21,6 +21,8 @@ interface PLLineItem {
   account_id?: string
   href?: string
   note?: string
+  cell_hrefs?: (string | null)[]   // 월별 칸 드릴다운 (재고 증감 · 월말 재고, 1400)
+  no_total?: boolean               // 잔액 행 — 기간 합계 없음
 }
 
 interface ReconcileVendor { vendor_id: string | null; vendor_name: string; erp: number; evidence: number; diff: number; erp_orders: number; invoices: number }
@@ -222,10 +224,13 @@ export default function MonthlyPLPage() {
                             : ''
                       }`}
                     >
-                      {item.is_placeholder ? '미반영' : won(v)}
+                      {item.is_placeholder ? '미반영' : item.cell_hrefs?.[i]
+                        ? <Link href={item.cell_hrefs[i]!} className="hover:text-blue-700 hover:underline" title="그달 말 선매입 재고 목록으로 (드릴다운)">{won(v)}</Link>
+                        : won(v)}
                     </td>
                   ))}
                   {(() => {
+                    if (item.no_total) return <td className="py-2 px-3 border-l border-gray-200 text-right text-gray-300">-</td>
                     const total = item.values.reduce((s, v) => s + v, 0)
                     return (
                       <td className={`py-2 px-3 text-right whitespace-nowrap font-medium border-l border-gray-200 ${

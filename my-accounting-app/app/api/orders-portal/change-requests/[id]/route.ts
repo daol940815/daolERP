@@ -1,3 +1,4 @@
+import { stockCancelBlock, stockPrecheck, syncOrderStock } from '@/lib/stock'
 import { NextRequest, NextResponse } from 'next/server'
 import { isManagerLike } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase-server'
@@ -55,12 +56,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       const names = await resolveDisplayNames(admin, parsed.input)
       if (names.error) return NextResponse.json({ error: names.error }, { status: 400 })
       // 잔여 pending 요청 처리용 — 신규 요청은 취소·재등록 방식 도입으로 더 받지 않는다
+      const stockBlock = await stockPrecheck(admin, parsed.input.items, [reqRow.order_id as string])
+      if (stockBlock) return NextResponse.json({ error: stockBlock }, { status: 409 })
       const result = await applyOrderEdit(admin, reqRow.order_id as string, parsed.input, {
         managerName: names.managerName,
         counselorName: names.counselorName,
       }, { employeeId: me.employeeId, employeeName: me.employeeName })
       if ('error' in result) return NextResponse.json({ error: `반영 실패: ${result.error}` }, { status: 500 })
+      await syncOrderStock(admin, reqRow.order_id as string, result.released)
     } else {
+      const stockBlock = await stockCancelBlock(admin, reqRow.order_id as string)
+      if (stockBlock) return NextResponse.json({ error: stockBlock }, { status: 409 })
       // 취소 승인: 품목 전체 취소 처리 + 금액 0. 원본 행은 남겨 이력 보존.
       const { error: iErr } = await admin.from('erp_order_items')
         .update({ is_canceled: true }).eq('order_id', reqRow.order_id)

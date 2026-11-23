@@ -1301,3 +1301,9 @@
 
 - 품명을 직접 쓴 품목 행(품번 연결 없음 · 비용 행 아님) 아래 '미등록 품목' 태그 + 품목 등록 권한자에게 '품목 등록' → 창에서 품목 관리에 등록하고 그 행을 연결
   (행의 판매가 · 매입가 · 수량은 그대로). 부품은 품목관리 트랙 소유 `app/(orders)/orders/product-register-dialog.tsx`, 기록은 docs/product-master-track.md.
+
+## 다른 트랙 변경 알림 — 재고 칸 · 재고 원가 1400 (2026-11-23, 재고 관리 트랙)
+
+- 주문 품목 행에 "재고" 칸(`stock_role`: 선매입 입고 / 재고 출고 / 없음)과 재고 원가(`stock_cost`, 선입선출 · 저장 시 고정). 상세: docs/inventory-track.md "1차 구현".
+- 고친 주문시스템 파일: `lib/orders-portal.ts`(검증 · 행 구성 · 삽입 호환 · itemKey · applyOrderEdit 반환에 released), 주문 API 3곳 + 수정 요청 승인, `order-form.tsx`(재고 칸 · 안내 · 잠금 · 미리보기), `form-shared.tsx`(ItemDraft 선택 칸 3개), 주문 상세 · 주문내역 · 엑셀 마진, `lib/purchase-orders.ts` · `lib/orders-portal-list.ts`(재고 출고 행 발주 제외).
+- 규칙: `purchase_total` 뜻은 그대로(줄 돈). 마진은 `lib/stock-cost.ts` `marginCostOf`를 거칠 것. 1400 미적용이면 재고 칸을 쓴 저장만 안내로 막힌다.
