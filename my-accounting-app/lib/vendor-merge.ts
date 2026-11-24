@@ -106,6 +106,16 @@ export async function previewVendorMerge(admin: SupabaseClient, fromId: string, 
     warnings.push(`'${from.name}'의 하위 조직 ${cf.get('org_children')}곳은 남는 쪽 아래로 옮겨집니다(병합 취소하면 원래대로).`)
   }
 
+  // 같은 사람이 양쪽에 모두 현재 배정 — 합치면 한 줄로(남는 쪽 줄 유지, 2026-11-24)
+  {
+    const { data: curAsg } = await admin.from('contact_assignments')
+      .select('vendor_id, contact_id, contacts(name)').in('vendor_id', [fromId, intoId]).is('ended_at', null)
+    const intoSet = new Set((curAsg ?? []).filter(a => a.vendor_id === intoId).map(a => a.contact_id as string))
+    const both = Array.from(new Set((curAsg ?? []).filter(a => a.vendor_id === fromId && intoSet.has(a.contact_id as string))
+      .map(a => (a.contacts as unknown as { name?: string } | null)?.name ?? '')))
+    if (both.length) warnings.push(`같은 사람이 양쪽에 모두 현재 배정돼 있습니다(${both.join(', ')}) — 남는 쪽 배정 한 줄만 남깁니다. 병합 취소해도 흡수 쪽의 그 배정 줄은 되살아나지 않습니다.`)
+  }
+
   // 같은 이름 담당자 (양쪽 배정 인물 중 이름이 같은데 인물이 다른 경우)
   const { data: asg } = await admin.from('contact_assignments')
     .select('vendor_id, contact_id, contacts(name, code)').in('vendor_id', [fromId, intoId])
@@ -160,8 +170,32 @@ export async function executeVendorMerge(admin: SupabaseClient, fromId: string, 
   if (rep?.length) {
     await admin.from('contact_assignments').update({ is_representative: false }).eq('vendor_id', fromId).eq('is_representative', true)
   }
-  // 2) 병합 함수가 옮기지 않는 고객 쪽 표 (없는 표는 건너뜀)
+  // 1-b) 같은 사람이 양쪽에 모두 현재 배정이면 남는 쪽 줄만 남긴다(2026-11-24).
+  //   전에는 배정을 먼저 옮긴 뒤 merge_vendor_extra_refs 를 불러 그 함수의 중복 정리가 듣지 않았고, 합치면 같은 지점에 같은 사람 현재 배정이 두 줄 남았다.
+  //   남는 쪽 줄을 살리는 이유: 병합 취소(119)는 옮긴 줄을 되돌릴 뿐 지운 줄을 다시 만들지 않으므로, 남는 쪽 원래 기록이 사라지지 않게.
+  //   남는 쪽 줄에 다올 담당 · 직함이 비어 있으면 흡수 쪽 값을 이어받고, 직함 변경 이력(117)은 남는 줄로 옮긴다.
   const moved: Record<string, unknown> = {}
+  {
+    const { data: cur } = await admin.from('contact_assignments')
+      .select('id, vendor_id, contact_id, title, staff_employee_id, is_representative').in('vendor_id', [fromId, intoId]).is('ended_at', null)
+    const keepOf = new Map((cur ?? []).filter(a => a.vendor_id === intoId).map(a => [a.contact_id as string, a]))
+    const dups = (cur ?? []).filter(a => a.vendor_id === fromId && keepOf.has(a.contact_id as string))
+    const intoHasRep = (cur ?? []).some(a => a.vendor_id === intoId && a.is_representative)
+    for (const d of dups) {
+      const keep = keepOf.get(d.contact_id as string)!
+      const patch: Record<string, unknown> = {}
+      if (!keep.staff_employee_id && d.staff_employee_id) patch.staff_employee_id = d.staff_employee_id
+      if (!keep.title && d.title) patch.title = d.title
+      if (d.is_representative && !intoHasRep) patch.is_representative = true
+      // 흡수 쪽 줄을 먼저 지운다(대표 유니크 — 같은 사람이 양쪽 대표일 수 없게)
+      await admin.from('contact_assignment_changes').update({ assignment_id: keep.id }).eq('assignment_id', d.id)
+      const del = await admin.from('contact_assignments').delete().eq('id', d.id)
+      if (del.error) return fail(`중복 배정 정리 실패: ${del.error.message}`)
+      if (Object.keys(patch).length) await admin.from('contact_assignments').update(patch).eq('id', keep.id)
+    }
+    if (dups.length) moved.same_person_assignments = dups.length
+  }
+  // 2) 병합 함수가 옮기지 않는 고객 쪽 표 (없는 표는 건너뜀)
   for (const t of ['contact_assignments', 'contact_name_links', 'doc_sales_snapshot', 'erp_consultations', 'contact_review_events']) {
     const { data, error } = await admin.from(t).update({ vendor_id: intoId }).eq('vendor_id', fromId).select('vendor_id')
     if (error && !/does not exist|relation|schema cache/i.test(error.message)) return fail(`${t} 이전 실패: ${error.message}`)

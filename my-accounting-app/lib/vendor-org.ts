@@ -108,7 +108,9 @@ const UNIT_SYNONYMS: [string, string][] = [['1Q', '원큐']]   // [다른 표기
 // 이름 규칙(사용자 결정 2026-11-20): 업체명 + 상위 단위 + 팀명. 상위가 없으면 업체명 + 팀명.
 export function suggestChildName(groupName: string | null, parent: OrgNode | null, byId: Map<string, OrgNode>, childUnit: string): string {
   let unit = childUnit.trim()
-  const parentUnit = parent ? unitName(parent, byId, groupName) : ''
+  let parentUnit = parent ? unitName(parent, byId, groupName) : ''
+  // 상위가 업체명과 같은 이름(업체 메인 매출처)이면 상위 단위를 이름에 넣지 않는다 — '한국수자원공사 한국수자원공사 감사실' 방지(2026-11-24)
+  if (groupName && norm(parentUnit) === norm(groupName)) parentUnit = ''
   // 팀명 앞부분이 상위 단위와 겹치면 그 부분을 뗀다 — '원큐자동차금융팀'(상위 '원큐') → '자동차금융팀'
   if (parentUnit) {
     // 같은 단위의 다른 표기(1Q = 원큐)는 맞춰서 비교

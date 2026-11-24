@@ -23,6 +23,7 @@ export const GROUP_NAME_RULES: GroupNameRule[] = [
   { standard: 'NH농협은행', aliases: ['농협은행', 'NH농협'], decided: '2026-11-20' },
   { standard: 'NH농협손해보험', aliases: ['농협손해보험'], decided: '2026-11-23' },
   { standard: '하나생명', aliases: ['하나생명보험'], decided: '2026-11-23' },
+  { standard: 'NH농협생명', aliases: ['농협생명', '농협생명보험'], decided: '2026-11-24' },
 ]
 
 // 바꾸지 않고 안내만 (2026-11-19 사용자 결정 — 'KB' 단독 입력)
