@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 import { getCurrentUser } from '@/lib/user-role'
-import { isManagerLike } from '@/lib/permissions'
+import { isManagerLike, isHrAdmin } from '@/lib/permissions'
 import { OPEN_STATUSES, ASG_TRACKED, ASG_ACTIVE, fmtDue, type WrStatus, type WrAsgStatus } from '@/lib/work-requests'
 import type { NotifData, NotifItem, NotifBucket } from '@/lib/notifications'
 import { leaveActions, type LeaveStep } from '@/lib/leave-approval'
@@ -204,6 +204,29 @@ export async function GET() {
     const rows = (leaveMineRes.data ?? []) as unknown as Leave[]
     for (const l of rows.slice(0, 3)) {
       items.push({ key: `leave:decided:${l.id}`, group: 'info', tone: 'blue', title: `내 휴가 신청 ${l.status === 'approved' ? '승인됨' : '반려됨'}`, detail: `${l.start_date}${l.end_date !== l.start_date ? ` ~ ${l.end_date}` : ''} ${LEAVE_LABEL[l.leave_type] ?? l.leave_type}`, href: '/hr/attendance', count: 1, at: l.decided_at })
+    }
+  }
+  // 승인된 휴가 취소 요청(208) — 인사·총무: 처리할 요청 / 본인: 최근 7일 반려된 요청. 208 미적용이면 조용히 건너뜀
+  {
+    const sel = 'id, employee_id, leave_type, start_date, end_date, cancel_requested_at, cancel_replied_at, cancel_request_reply, employees!attendance_leaves_employee_id_fkey(name)'
+    type CR = { id: string; leave_type: string; start_date: string; end_date: string; cancel_requested_at: string | null; cancel_replied_at: string | null; cancel_request_reply: string | null; employees: { name: string } | { name: string }[] | null }
+    const per = (l: CR) => `${l.start_date.slice(5)}${l.end_date !== l.start_date ? `~${l.end_date.slice(5)}` : ''}`
+    const [pendRes, rejRes] = await Promise.all([
+      isHrAdmin(me)
+        ? admin.from('attendance_leaves').select(sel).eq('status', 'approved').eq('cancel_request_status', 'pending').neq('employee_id', empId).order('cancel_requested_at')
+        : Promise.resolve({ data: [], error: null }),
+      admin.from('attendance_leaves').select(sel).eq('employee_id', empId).eq('cancel_request_status', 'rejected').gte('cancel_replied_at', sevenDaysAgo),
+    ])
+    const pend = pendRes.error ? [] : ((pendRes.data ?? []) as unknown as CR[])
+    if (pend.length) {
+      items.push({ key: 'leave:cancel_req', group: 'todo', tone: 'red', title: `휴가 취소 요청 ${pend.length}건`, detail: pend.slice(0, 2).map(l => `${one(l.employees)?.name ?? ''} ${LEAVE_LABEL[l.leave_type] ?? l.leave_type} ${per(l)}`).join(' · ') + (pend.length > 2 ? ` 외 ${pend.length - 2}` : ''), href: '/hr/leaves', count: pend.length, at: latest(pend.map(l => l.cancel_requested_at)) })
+      const prev = badges['/hr/leaves']?.n ?? 0
+      badges['/hr/leaves'] = { n: prev + pend.length, tone: 'amber' }
+      breakdown.other += pend.length
+    }
+    const rej = rejRes.error ? [] : ((rejRes.data ?? []) as unknown as CR[])
+    for (const l of rej.slice(0, 3)) {
+      items.push({ key: `leave:cancel_rej:${l.id}`, group: 'info', tone: 'gray', title: '휴가 취소 요청 반려됨', detail: `${per(l)} ${LEAVE_LABEL[l.leave_type] ?? l.leave_type}${l.cancel_request_reply ? ` — ${l.cancel_request_reply}` : ''}`, href: '/hr/attendance', count: 1, at: l.cancel_replied_at })
     }
   }
 

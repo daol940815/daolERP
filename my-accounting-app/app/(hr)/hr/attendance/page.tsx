@@ -42,6 +42,11 @@ type MyLeave = AttendanceLeave & {
   decided_by_name?: string | null; decided_at?: string | null
   days?: number                    // 근무일 기준 일수 (주말·공휴일 제외, 반차 0.5) — 서버 계산
   steps?: LeaveStep[]              // 3단계 결재 이력 (204)
+  // 승인된 휴가 취소 요청 (208)
+  cancel_request_status?: 'pending' | 'rejected' | 'done' | null
+  cancel_request_note?: string | null
+  cancel_request_reply?: string | null
+  actions?: { cancel_request?: boolean; cancel_request_withdraw?: boolean }
 }
 const fmtDay = (iso: string | null | undefined) =>
   iso ? new Date(new Date(iso).getTime() + 9 * 3600 * 1000).toISOString().slice(5, 10).replace('-', '/') : ''
@@ -144,6 +149,19 @@ export default function MyAttendancePage() {
   const cancelLeave = async (id: string) => {
     if (!window.confirm('이 휴가 신청을 취소할까요?')) return
     if (await post('/api/attendance/leaves', { action: 'cancel', id })) { flash('취소했습니다.'); loadLeaves() }
+  }
+  // 승인된 휴가는 본인이 바로 취소할 수 없다 — 인사 · 총무에 취소 요청(208, 사유 필수)
+  const requestCancel = async (id: string) => {
+    const note = window.prompt('승인된 휴가의 취소를 인사 · 총무에 요청합니다. 취소 사유를 입력하세요 (필수):')
+    if (note === null) return
+    if (!note.trim()) { flash('취소 사유를 입력해야 합니다.'); return }
+    if (await post('/api/attendance/leaves', { action: 'cancel_request', id, note: note.trim() })) {
+      flash('취소를 요청했습니다. 인사 · 총무가 확인하면 휴가가 취소됩니다.'); loadLeaves()
+    }
+  }
+  const withdrawCancelRequest = async (id: string) => {
+    if (!window.confirm('취소 요청을 철회할까요? 휴가는 그대로 승인 상태로 남습니다.')) return
+    if (await post('/api/attendance/leaves', { action: 'cancel_request_withdraw', id })) { flash('취소 요청을 철회했습니다.'); loadLeaves() }
   }
 
   const inTime = kstTime(status?.record?.check_in_at ?? null)
@@ -351,11 +369,25 @@ export default function MyAttendancePage() {
                     <span className="ml-2 text-[0.6875rem] text-gray-500">{l.decided_by_name} · {fmtDay(l.decided_at)}</span>
                   )}
                   {l.decide_note && <span className="ml-2 text-[0.6875rem] text-gray-400">{l.decide_note}</span>}
+                  {l.status === 'approved' && l.cancel_request_status === 'pending' && (
+                    <span className="ml-2 px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-amber-100 text-amber-800" title={l.cancel_request_note ?? ''}>취소 요청 중</span>
+                  )}
+                  {l.status === 'approved' && l.cancel_request_status === 'rejected' && (
+                    <span className="ml-2 text-[0.6875rem] text-gray-500">취소 요청 반려{l.cancel_request_reply ? `: ${l.cancel_request_reply}` : ''}</span>
+                  )}
                 </td>
-                <td className="py-1.5 pl-3 text-right">
+                <td className="py-1.5 pl-3 text-right whitespace-nowrap">
                   {l.status === 'requested' && (
                     <button onClick={() => cancelLeave(l.id)} disabled={busy}
                       className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">신청 취소</button>
+                  )}
+                  {l.actions?.cancel_request && (
+                    <button onClick={() => requestCancel(l.id)} disabled={busy}
+                      className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">취소 요청</button>
+                  )}
+                  {l.actions?.cancel_request_withdraw && (
+                    <button onClick={() => withdrawCancelRequest(l.id)} disabled={busy}
+                      className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">요청 철회</button>
                   )}
                 </td>
               </tr>
