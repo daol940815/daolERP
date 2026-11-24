@@ -86,7 +86,7 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
     setBusy(false)
     if (!res.ok) { setError(json.error ?? '발주서 생성 실패'); return }
     // 생성 즉시 발송 페이지로 — 다운로드 확인 → 첨부 → 메일 작성 → 발송 (시안 v3)
-    router.push(`/orders/purchase/${json.po_id}`)
+    router.push(`/orders/purchase/${json.po_id}?from=order`)
   }
 
   const downloadExcel = (po: Po) => {
@@ -175,7 +175,7 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
                   <button onClick={() => downloadExcel(p)} disabled={busy}
                     className="px-2.5 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:border-gray-400">엑셀</button>
                   {/* 발송·첨부·수동 기록은 발송 페이지에서 (시안 v3 — 화면 분리) */}
-                  <Link href={`/orders/purchase/${p.id}`}
+                  <Link href={`/orders/purchase/${p.id}?from=order`}
                     className="px-2.5 py-1 bg-slate-900 text-white rounded text-xs">
                     {p.status === 'active' && !p.sent_at ? '발송 페이지' : '발송 상세'}
                   </Link>
