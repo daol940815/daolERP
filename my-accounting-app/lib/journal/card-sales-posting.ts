@@ -44,6 +44,7 @@ export interface CardSaleForPosting {
   tax_amount: number | null
   vat_kind?: string | null
   settlement_status?: string | null
+  processing_status?: string | null
 }
 
 // 계정/카드사 거래처 사전 조회 컨텍스트 — 대량 전기 시 행마다 재조회하지 않도록 공유
@@ -132,13 +133,13 @@ export async function syncCardSaleJournal(
 ): Promise<{ ok: true } | { error: string }> {
   const { data: sale, error } = await admin
     .from('card_sales')
-    .select('id, tx_date, transaction_type, approval_number, acquirer, amount, supply_amount, tax_amount, vat_kind, settlement_status')
+    .select('id, tx_date, transaction_type, approval_number, acquirer, amount, supply_amount, tax_amount, vat_kind, settlement_status, processing_status')
     .eq('id', saleId)
     .single()
   if (error) {
     // 427 미적용이면 vat_kind 없이 다시 읽는다
     if (!/vat_kind|schema cache/i.test(error.message)) return { error: error.message }
-    const retry = await admin.from('card_sales').select('id, tx_date, transaction_type, approval_number, acquirer, amount, supply_amount, tax_amount, settlement_status').eq('id', saleId).single()
+    const retry = await admin.from('card_sales').select('id, tx_date, transaction_type, approval_number, acquirer, amount, supply_amount, tax_amount, settlement_status, processing_status').eq('id', saleId).single()
     if (retry.error) return { error: retry.error.message }
     return syncCardSaleJournalWith(admin, retry.data as CardSaleForPosting, sharedCtx)
   }
