@@ -499,7 +499,7 @@ export default function SalesTab() {
                     <td className="py-2.5 px-3 text-xs text-gray-500 whitespace-nowrap">
                       <p>{row.processing_status ?? '-'} {row.settlement_status ? `· ${row.settlement_status}` : ''}</p>
                       {isCardSaleVoided(row) && <p><span className="inline-block px-1.5 py-0.5 rounded bg-red-100 text-red-700" title="카드사가 중복 승인으로 해제한 건 — 수금 없음. 분개 · 수금 후보 · 주문 배분에서 제외">중복해제 — 수금 없음</span></p>}
-                      {!isCardSaleVoided(row) && (row.settlement_status ?? '').trim() === '중복해제' && <p><span className="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-800" title="정산상태는 중복해제지만 처리현황이 입금완료 — 정산된 것으로 본다(2026-11-24). 같은 카드 · 같은 금액의 짝 승인과 이중으로 잡히지 않았는지 확인">중복해제 · 입금완료 — 정산으로 봄</span></p>}
+                      {!isCardSaleVoided(row) && (row.settlement_status ?? '').trim() === '중복해제' && <p><span className="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-800" title="정산상태는 중복해제지만 처리현황이 입금완료 — 정산된 것으로 본다(2026-11-24). 분할 결제(같은 카드로 같은 금액을 여러 번)를 카드사가 중복으로 판정한 건">중복해제 · 입금완료 — 정산으로 봄</span></p>}
                       {row.deposit_expected_date && <p className="text-gray-400">입금예정 {row.deposit_expected_date}</p>}
                     </td>
                     <td className="py-2.5 px-3">
