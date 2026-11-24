@@ -32,6 +32,10 @@ export const dynamic = 'force-dynamic'
 //   cancel  { id, note? } — 본인의 진행 중 건 취소. 승인된 건은 인사·총무 수정 권한자만, 사유 필수
 //     (2026-10-12 결정, 지난 날짜도 허용).
 //   본인 건은 누구도 본인이 결재하지 못한다.
+//   cancel_request { id, note } — 승인된 내 휴가의 취소 요청(208, 사유 필수). 인사·총무에게 알림.
+//   cancel_request_withdraw { id } — 요청 중인 내 취소 요청 철회.
+//   cancel_request_reject { id, note } — 인사·총무 수정 권한자의 요청 반려(회신 사유 필수).
+//     요청을 받아들일 때는 기존 cancel(승인 취소)을 쓴다 — 요청이 있으면 done 으로 닫힌다.
 //   proxy_register { employee_id, leave_type, start_date, end_date, reason? } — 인사·총무 수정 권한자의 대리 등록(207).
 //     로그인 계정이 없는 직원(다른 법인 등)용. 3단계 결재를 건너뛰고 바로 승인, 등록자를 남긴다(2026-11-18 결정 A).
 // 204 미적용이면 기존 1단계 승인(중간 관리자 · 승인권자)으로 동작한다.
@@ -81,7 +85,11 @@ export async function GET(req: NextRequest) {
     if (to) q = q.lte('start_date', to)
     return q as unknown as PromiseLike<PgRes>
   })
-  let fetched = await fetchWith(`${LEAVE_COLS}, source`)
+  // 취소 요청 칸(208) → 출처(207) → 기본 순으로 내려가며 읽는다 — 마이그레이션 미적용 환경 보호
+  const CANCEL_COLS = 'cancel_request_status, cancel_requested_at, cancel_request_note, cancel_request_reply, cancel_replied_at'
+  let fetched = await fetchWith(`${LEAVE_COLS}, source, ${CANCEL_COLS}`)
+  const cancelReady = !('error' in fetched)
+  if ('error' in fetched && /cancel_/.test(fetched.error)) fetched = await fetchWith(`${LEAVE_COLS}, source`)
   if ('error' in fetched && /source/.test(fetched.error)) fetched = await fetchWith(LEAVE_COLS)
   if ('error' in fetched) {
     return NextResponse.json({ error: missingTable(fetched.error) ? MIGRATION_HINT : fetched.error }, { status: 500 })
@@ -161,13 +169,20 @@ export async function GET(req: NextRequest) {
         ...acts,
         cancel: mine && st === 'requested',
         cancel_approved: hrAdmin && st === 'approved',
+        // 취소 요청(208): 본인 승인 휴가 → 요청 · 요청 중이면 철회 / 인사·총무는 요청 반려
+        cancel_request: cancelReady && mine && st === 'approved' && l.cancel_request_status !== 'pending',
+        cancel_request_withdraw: cancelReady && mine && st === 'approved' && l.cancel_request_status === 'pending',
+        cancel_request_reject: cancelReady && hrAdmin && st === 'approved' && l.cancel_request_status === 'pending',
       },
+      // 취소 요청 사유 · 회신은 본인 · 인사·총무 · 결재 권한자에게만
+      cancel_request_note: canSee ? (l.cancel_request_note ?? null) : null,
+      cancel_request_reply: canSee ? (l.cancel_request_reply ?? null) : null,
     }
   })
 
   return NextResponse.json({
     leaves, holidays, myEmployeeId: employeeId, myLevel,
-    stepsReady: appr.ready, roster: appr.roster,
+    stepsReady: appr.ready, roster: appr.roster, cancelRequestReady: cancelReady,
     can_edit: hrAdmin,   // 승인된 휴가 취소 권한 (버튼 노출용 — 실제 차단은 POST에서)
   })
 }
@@ -318,6 +333,64 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, days })
   }
 
+  if (action === 'cancel_request' || action === 'cancel_request_withdraw' || action === 'cancel_request_reject') {
+    const id = str('id')
+    const note = str('note').trim()
+    if (!id) return NextResponse.json({ error: 'id가 필요합니다.' }, { status: 400 })
+    const { data: leave, error: e1 } = await admin.from('attendance_leaves')
+      .select('employee_id, status, leave_type, start_date, end_date, cancel_request_status').eq('id', id).single()
+    if (e1) {
+      const notReady = /cancel_request/.test(e1.message)
+      return NextResponse.json({ error: notReady ? '취소 요청은 208 마이그레이션 실행 후 사용할 수 있습니다. 인사 · 총무에 알려주세요.' : e1.message }, { status: notReady ? 400 : 500 })
+    }
+    if (leave.status !== 'approved') return NextResponse.json({ error: '승인된 휴가만 취소 요청을 할 수 있습니다. 결재 중인 휴가는 "신청 취소"로 바로 취소하세요.' }, { status: 400 })
+    const mine = leave.employee_id === employeeId
+    const what = `${LEAVE_TYPE_LABEL[leave.leave_type as LeaveType] ?? '휴가'} ${periodText(leave.start_date, leave.end_date)}`
+
+    if (action === 'cancel_request') {
+      if (!mine) return NextResponse.json({ error: '본인 휴가만 취소 요청할 수 있습니다.' }, { status: 403 })
+      if (leave.cancel_request_status === 'pending') return NextResponse.json({ error: '이미 취소 요청 중입니다.' }, { status: 400 })
+      if (!note) return NextResponse.json({ error: '취소 사유를 입력하세요.' }, { status: 400 })
+      const { error } = await admin.from('attendance_leaves').update({
+        cancel_request_status: 'pending', cancel_requested_at: now, cancel_request_note: note,
+        cancel_request_reply: null, cancel_replied_by: null, cancel_replied_at: null,
+      }).eq('id', id).eq('status', 'approved')
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      // 인사·총무 수정 권한자(마스터 포함)에게 알림 — 승인된 휴가 취소는 인사·총무가 한다(2026-10-12 결정)
+      const { data: emps } = await admin.from('employees').select('id, is_master, permissions, role, work_end').eq('is_active', true).not('login_id', 'is', null)
+      const today = now.slice(0, 10)
+      const hr = ((emps ?? []) as { id: string; is_master: boolean | null; permissions: Record<string, string> | null; role: string | null; work_end: string | null }[])
+        .filter(e => e.id !== employeeId && !(e.work_end && e.work_end < today))
+        .filter(e => e.is_master || e.permissions?.hr === 'edit' || (!e.permissions && e.role === 'admin'))
+        .map(e => e.id)
+      await sendPush(admin, hr, {
+        kind: 'leave_approve', title: `휴가 취소 요청 — ${myName}`, body: `${what} · 사유: ${note}`,
+        url: '/hr/leaves', tag: `leave-cancel-req:${id}`,
+      })
+      return NextResponse.json({ ok: true })
+    }
+    if (action === 'cancel_request_withdraw') {
+      if (!mine) return NextResponse.json({ error: '본인 요청만 철회할 수 있습니다.' }, { status: 403 })
+      if (leave.cancel_request_status !== 'pending') return NextResponse.json({ error: '요청 중인 취소 요청이 없습니다.' }, { status: 400 })
+      const { error } = await admin.from('attendance_leaves').update({
+        cancel_request_status: null, cancel_requested_at: null, cancel_request_note: null,
+      }).eq('id', id).eq('cancel_request_status', 'pending')
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ ok: true })
+    }
+    // cancel_request_reject
+    if (!isHrAdmin(me)) {
+      return NextResponse.json({ error: '취소 요청 반려는 인사 · 총무 수정 권한이 필요합니다. 권한은 마스터 계정에 요청하세요.' }, { status: 403 })
+    }
+    if (leave.cancel_request_status !== 'pending') return NextResponse.json({ error: '요청 중인 취소 요청이 없습니다. 화면을 새로고침하세요.' }, { status: 400 })
+    if (!note) return NextResponse.json({ error: '반려 사유를 입력하세요.' }, { status: 400 })
+    const { error } = await admin.from('attendance_leaves').update({
+      cancel_request_status: 'rejected', cancel_request_reply: note, cancel_replied_by: employeeId, cancel_replied_at: now,
+    }).eq('id', id).eq('cancel_request_status', 'pending')
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
+
   if (action === 'cancel') {
     const id = str('id')
     if (!id) return NextResponse.json({ error: 'id가 필요합니다.' }, { status: 400 })
@@ -341,6 +414,11 @@ export async function POST(req: NextRequest) {
       ...(note ? { decide_note: note } : {}),
     }).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    // 직원의 취소 요청이 있었다면 "처리됨"으로 닫는다(208 미적용이면 조용히 건너뜀)
+    if (leave.status === 'approved') {
+      await admin.from('attendance_leaves').update({ cancel_request_status: 'done', cancel_replied_by: employeeId, cancel_replied_at: now })
+        .eq('id', id).eq('cancel_request_status', 'pending')
+    }
     return NextResponse.json({ ok: true })
   }
 

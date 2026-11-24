@@ -29,7 +29,15 @@ type Row = AttendanceLeave & {
   reason_hidden: boolean
   steps: LeaveStep[]
   current_step: ApproveLevel | null
-  actions: LeaveActions & { cancel: boolean; cancel_approved: boolean }
+  actions: LeaveActions & {
+    cancel: boolean; cancel_approved: boolean
+    cancel_request?: boolean; cancel_request_withdraw?: boolean; cancel_request_reject?: boolean   // 208 취소 요청
+  }
+  // 승인된 휴가 취소 요청 (208) — pending 요청 중 · rejected 반려 · done 처리됨
+  cancel_request_status?: 'pending' | 'rejected' | 'done' | null
+  cancel_requested_at?: string | null
+  cancel_request_note?: string | null
+  cancel_request_reply?: string | null
   // 진행 중 신청의 신청자 잔여(207) — 결재 권한자 · 인사·총무 · 본인에게만
   applicant_balance?: { remainBase: number; remainComp: number; remainTotal: number; over: number; managed: boolean } | null
 }
@@ -41,7 +49,7 @@ interface Res {
   roster: ApproverRoster
   can_edit: boolean
 }
-type Kpi = 'turn' | 'mine' | 'requested' | 'approved' | 'rejected' | 'canceled'
+type Kpi = 'turn' | 'mine' | 'requested' | 'approved' | 'rejected' | 'canceled' | 'cancelreq'
 type TypeChip = 'all' | 'annual' | 'half' | 'sick' | 'official' | 'unpaid' | 'other'
 const TYPE_CHIPS: [TypeChip, string][] = [['all', '전체 종류'], ['annual', '연차'], ['half', '반차'], ['sick', '병가'], ['official', '공가'], ['unpaid', '무급휴가'], ['other', '기타']]
 const typeOf = (t: LeaveType): TypeChip => (t === 'half_am' || t === 'half_pm' ? 'half' : t)
@@ -103,6 +111,7 @@ export default function LeaveListPage() {
     approved: rows.filter(r => r.status === 'approved').length,
     rejected: rows.filter(r => r.status === 'rejected').length,
     canceled: rows.filter(r => r.status === 'canceled').length,
+    cancelreq: rows.filter(r => r.status === 'approved' && r.cancel_request_status === 'pending').length,
   }), [rows, me])
 
   const teams = useMemo(() => Array.from(new Set(rows.map(r => r.employee?.team).filter((t): t is string => !!t))).sort(), [rows])
@@ -111,12 +120,14 @@ export default function LeaveListPage() {
     const kw = q.trim()
     return rows
       .filter(r => !kpi
-        || (kpi === 'turn' ? r.actions.myTurn : kpi === 'mine' ? r.employee_id === me : r.status === kpi))
+        || (kpi === 'turn' ? r.actions.myTurn : kpi === 'mine' ? r.employee_id === me
+          : kpi === 'cancelreq' ? (r.status === 'approved' && r.cancel_request_status === 'pending') : r.status === kpi))
       .filter(r => typeChip === 'all' || typeOf(r.leave_type) === typeChip)
       .filter(r => team === 'all' || r.employee?.team === team)
       .filter(r => !kw || (r.employee?.name ?? '').includes(kw) || (r.reason ?? '').includes(kw))
       // 내 차례 → 진행 중 → 나머지(신청 최신순)
       .sort((a, b) => Number(b.actions.myTurn) - Number(a.actions.myTurn)
+        || Number(!!b.actions.cancel_request_reject) - Number(!!a.actions.cancel_request_reject)   // 인사·총무: 처리할 취소 요청
         || Number(b.status === 'requested') - Number(a.status === 'requested')
         || b.created_at.localeCompare(a.created_at))
   }, [rows, kpi, typeChip, team, q, me])
@@ -160,10 +171,29 @@ export default function LeaveListPage() {
     post({ action: 'cancel', id: r.id }, '신청을 취소했습니다.')
   }
   const cancelApproved = (r: Row) => {
-    const note = window.prompt(`${who(r)}\n승인을 취소합니다. 취소 사유를 입력하세요 (필수):`)
+    const note = window.prompt(`${who(r)}\n승인을 취소합니다. 취소 사유를 입력하세요 (필수):`,
+      r.cancel_request_status === 'pending' && r.cancel_request_note ? `직원 취소 요청: ${r.cancel_request_note}` : '')
     if (note === null) return
     if (!note.trim()) { flash('취소 사유를 입력해야 합니다.'); return }
     post({ action: 'cancel', id: r.id, note: note.trim() }, '승인을 취소했습니다. 해당 날짜는 다시 근무일로 계산됩니다.')
+  }
+
+  // 승인된 휴가 취소 요청 (208) — 직원은 요청 · 철회, 인사·총무는 승인 취소 또는 요청 반려
+  const requestCancel = (r: Row) => {
+    const note = window.prompt(`${who(r)}\n승인된 휴가의 취소를 인사 · 총무에 요청합니다. 취소 사유를 입력하세요 (필수):`)
+    if (note === null) return
+    if (!note.trim()) { flash('취소 사유를 입력해야 합니다.'); return }
+    post({ action: 'cancel_request', id: r.id, note: note.trim() }, '취소를 요청했습니다. 인사 · 총무가 확인하면 휴가가 취소됩니다.')
+  }
+  const withdrawCancelRequest = (r: Row) => {
+    if (!window.confirm(`${who(r)}\n취소 요청을 철회할까요? 휴가는 그대로 승인 상태로 남습니다.`)) return
+    post({ action: 'cancel_request_withdraw', id: r.id }, '취소 요청을 철회했습니다.')
+  }
+  const rejectCancelRequest = (r: Row) => {
+    const note = window.prompt(`${who(r)}\n직원의 취소 요청을 반려합니다(휴가는 승인 상태 유지). 반려 사유를 입력하세요 (필수):`)
+    if (note === null) return
+    if (!note.trim()) { flash('반려 사유를 입력해야 합니다.'); return }
+    post({ action: 'cancel_request_reject', id: r.id, note: note.trim() }, '취소 요청을 반려했습니다.')
   }
 
   const missingLevels = data?.stepsReady ? STEPS.filter(l => !roster[l].length) : []
@@ -210,12 +240,13 @@ export default function LeaveListPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mt-4">
+      <div className={`grid grid-cols-2 gap-2 mt-4 ${data?.can_edit ? 'lg:grid-cols-6' : 'lg:grid-cols-5'}`}>
         {approver ? <KpiCard k="turn" label="내 차례" tone="text-amber-600" /> : <KpiCard k="mine" label="내 신청" tone="text-slate-900" />}
         <KpiCard k="requested" label="진행 중" tone="text-slate-900" />
         <KpiCard k="approved" label="승인" tone="text-green-700" />
         <KpiCard k="rejected" label="반려" tone="text-red-600" />
         <KpiCard k="canceled" label="취소" tone="text-gray-500" />
+        {data?.can_edit && <KpiCard k="cancelreq" label="취소 요청" tone="text-amber-600" />}
       </div>
 
       <PeriodPresets from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} className="mt-3" />
@@ -259,7 +290,7 @@ export default function LeaveListPage() {
                 return (
                   <Fragment key={r.id}>
                     <tr onClick={() => setOpen(isOpen ? null : r.id)}
-                      className={`border-b border-gray-50 cursor-pointer ${a.myTurn ? 'bg-amber-50/70' : 'hover:bg-gray-50/60'}`}>
+                      className={`border-b border-gray-50 cursor-pointer ${a.myTurn || a.cancel_request_reject ? 'bg-amber-50/70' : 'hover:bg-gray-50/60'}`}>
                       <td className="py-2 px-3 whitespace-nowrap">
                         <span className="font-semibold">{r.employee?.name ?? '-'}</span>
                         {r.employee?.team && <span className="ml-1.5 text-[0.6875rem] text-gray-400">{r.employee.team}</span>}
@@ -276,10 +307,18 @@ export default function LeaveListPage() {
                           {progressLabel(r.status, r.steps, !!data?.stepsReady)}
                         </span>
                         {r.status !== 'requested' && r.decided_at && <span className="ml-1.5 text-[0.6875rem] text-gray-400">{kst(r.decided_at)}</span>}
+                        {r.status === 'approved' && r.cancel_request_status === 'pending' && (
+                          <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.6875rem] font-semibold bg-amber-100 text-amber-800">취소 요청</span>
+                        )}
+                        {r.status === 'approved' && r.cancel_request_status === 'rejected' && (
+                          <span className="ml-1.5 text-[0.6875rem] text-gray-400">취소 요청 반려</span>
+                        )}
                       </td>
                       <td className="py-2 px-3 text-xs text-gray-600 max-w-[220px]">
                         {r.reason_hidden ? <span className="text-gray-300">-</span> : (r.reason ?? <span className="text-gray-300">-</span>)}
                         {r.decide_note && <span className="text-gray-400"> · {r.status === 'rejected' ? '반려' : '처리'}: {r.decide_note}</span>}
+                        {r.cancel_request_note && r.cancel_request_status !== 'done' && <span className="block text-amber-700">취소 요청 사유: {r.cancel_request_note}</span>}
+                        {r.cancel_request_status === 'rejected' && r.cancel_request_reply && <span className="block text-gray-400">반려: {r.cancel_request_reply}</span>}
                       </td>
                       <td className="py-2 px-3 text-xs text-gray-400 tabular-nums whitespace-nowrap">{kst(r.created_at)}</td>
                       <td className="py-2 px-3 text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
@@ -293,7 +332,13 @@ export default function LeaveListPage() {
                         {a.cancel && <button onClick={() => cancel(r)} disabled={busy}
                           className="text-xs px-2.5 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50">신청 취소</button>}
                         {a.cancel_approved && <button onClick={() => cancelApproved(r)} disabled={busy}
-                          className="text-xs px-2.5 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50">승인 취소</button>}
+                          className={`text-xs px-2.5 py-1 rounded disabled:opacity-50 ${a.cancel_request_reject ? 'bg-slate-900 text-white hover:bg-slate-700 mr-1' : 'border border-gray-300 hover:bg-gray-50'}`}>승인 취소</button>}
+                        {a.cancel_request_reject && <button onClick={() => rejectCancelRequest(r)} disabled={busy}
+                          className="text-xs px-2.5 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50 disabled:opacity-50">요청 반려</button>}
+                        {a.cancel_request && <button onClick={() => requestCancel(r)} disabled={busy}
+                          className="text-xs px-2.5 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50">취소 요청</button>}
+                        {a.cancel_request_withdraw && <button onClick={() => withdrawCancelRequest(r)} disabled={busy}
+                          className="text-xs px-2.5 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50">요청 철회</button>}
                       </td>
                     </tr>
                     {isOpen && (
