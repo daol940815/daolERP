@@ -64,10 +64,11 @@ export function OrgHeader({ org, vendorName, onEdit, scope, setScope, part }: {
     <div className="mb-1">
       {part === 'crumb' && (
         <div className="text-xs text-gray-500 flex items-center gap-1 flex-wrap">
-          {org.group && <span>{org.group.name}</span>}
-          {org.path.map(p => (
+          {/* 맨 위 상위 조직이 업체명과 같은 이름(업체 메인 매출처)이면 업체 이름을 따로 쓰지 않고 그 링크 하나만 보인다(2026-11-24) */}
+          {org.group && org.path[0]?.unit.replace(/\s+/g, '') !== org.group.name.replace(/\s+/g, '') && <span>{org.group.name}</span>}
+          {org.path.map((p, i) => (
             <span key={p.id} className="flex items-center gap-1">
-              <span className="text-gray-300">›</span>
+              {(i > 0 || (org.group && p.unit.replace(/\s+/g, '') !== org.group.name.replace(/\s+/g, ''))) && <span className="text-gray-300">›</span>}
               <Link href={`/sales-hub/${p.id}`} className="text-blue-700 hover:underline">{p.unit}</Link>
             </span>
           ))}

@@ -30,7 +30,9 @@ export function orgPathLabel(v: Vendor, byId: Map<string, Vendor>, groupName: st
     units.unshift(strip(cur.name, parent?.name ?? groupName))
     cur = parent
   }
-  return units.join(' › ')
+  // 상위 조직이 업체명과 같은 이름(업체 메인 매출처 — 예: '한국수자원공사')이면 '업체 › 업체'로 겹치지 않게 뺀다(2026-11-24)
+  const gk = (groupName ?? '').replace(/\s+/g, '')
+  return units.filter(u => u.replace(/\s+/g, '') !== gk).join(' › ')
 }
 // 지점 검색 결과 보조 줄: 업체 › 상위 조직 단위들
 export const orgSubLabel = (v: Vendor, byId: Map<string, Vendor>, groupName: string | null | undefined) =>
