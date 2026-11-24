@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { purchaseAmount, toPurchasePrice } from '@/lib/purchase-price'
 import { contactLabel } from '@/lib/contact-label'
+import { isLegalTail } from '@/lib/vendor-group-names'
 import { hasShip, shipText, type ShipInput } from './ship-address'
 import { MIGRATION_708_HINT, parsePurchaseDiscount } from './consultations'
 import { normalizeSeason } from './order-season'
@@ -204,6 +205,8 @@ export async function resolveVendorNames(
   if (individual) return { vendorName: name, bankName: groupName, branchName: null, aliasName: name }
   let branch = name
   if (name.startsWith(groupName)) branch = name.slice(groupName.length).trim()
+  // 업체명 + 법인 표기뿐인 이름(법인 메인 — 'NH농협생명보험')은 지점이 없는 것으로 본다
+  if (name.startsWith(groupName) && isLegalTail(branch)) return { vendorName: name, bankName: groupName, branchName: null, aliasName: name }
   return { vendorName: name, bankName: groupName, branchName: branch || null, aliasName: [groupName, branch].filter(Boolean).join(' ') }
 }
 
