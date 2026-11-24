@@ -6,7 +6,7 @@ select v.tx_date, v.approval_number, right(coalesce(v.card_number,''),4) as card
          where p.id <> v.id and p.transaction_type = 'approval' and p.tx_date = v.tx_date
            and p.amount = v.amount and right(coalesce(p.card_number,''),4) = right(coalesce(v.card_number,''),4)
            and coalesce(p.settlement_status,'') <> '중복해제') as pair_settled,
-       exists(select 1 from journal_entries j where j.source_type = 'card_sale' and j.source_id = v.id::text) as posted
+       exists(select 1 from journal_entries j where j.source_type = 'card_sale' and j.source_id = v.id) as posted
 from card_sales v left join vendors ven on ven.id = v.vendor_id
 where v.transaction_type = 'approval' and trim(v.settlement_status) = '중복해제' and trim(v.processing_status) = '입금완료'
 order by v.tx_date desc;
