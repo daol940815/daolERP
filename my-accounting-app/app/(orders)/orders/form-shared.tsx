@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { fmtPurchasePrice, purchaseAmount, toPurchasePrice } from '@/lib/purchase-price'
 import { shipBoxes } from '@/lib/ship-boxes'
+import { isLegalTail } from '@/lib/vendor-group-names'
 
 // 주문 입력·상담일지 폼 공용 부품 — 마스터 타입, 품목 행 모델, 가격 규칙, 자동완성 콤보.
 // 가격 규칙(구분별 자동)은 두 화면이 반드시 같아야 하므로 여기 한 곳에만 둔다.
@@ -16,7 +17,7 @@ export function orgPathLabel(v: Vendor, byId: Map<string, Vendor>, groupName: st
   const strip = (name: string, prefix: string | null | undefined) => {
     if (!prefix) return name
     const n = name.replace(/\s+/g, ''), p = prefix.replace(/\s+/g, '')
-    if (!n.startsWith(p) || n === p) return name
+    if (!n.startsWith(p) || n === p || isLegalTail(n.slice(p.length))) return name
     let i = 0, k = 0
     while (i < name.length && k < p.length) { if (name[i] !== ' ') k++; i++ }
     return name.slice(i).trim()
@@ -269,7 +270,7 @@ export const branchLabel = (vendorName: string, groupName?: string | null): stri
   if (!groupName) return vendorName
   const vn = stripCorpPrefix(vendorName)
   const gn = stripCorpPrefix(groupName)
-  if (vn.startsWith(gn)) return vn.slice(gn.length).trim()
+  if (vn.startsWith(gn)) { const rest = vn.slice(gn.length).trim(); return isLegalTail(rest) ? '' : rest }
   return vendorName
 }
 // 목록 · 표시용 — 단독 매출처는 '지점 없음'

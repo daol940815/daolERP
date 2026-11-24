@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { buildHubList } from '@/lib/vendor-hub'
 import { findVendorByFullName } from '@/lib/vendor-name-check'
+import { isLegalTail } from '@/lib/vendor-group-names'
 
 // ─────────────────────────────────────────────────────────
 // 매출처 하위 조직 · 위치 (120) — 2026-11-20 사용자 승인 (시안 docs/mockups/매출처_하위조직_시안.html)
@@ -93,7 +94,7 @@ const norm = (s: string) => s.replace(/\s+/g, '')
 export function unitName(n: OrgNode, byId: Map<string, OrgNode>, groupName: string | null): string {
   const p = n.parent_vendor_id ? byId.get(n.parent_vendor_id) : null
   for (const prefix of [p?.name, groupName].filter(Boolean) as string[]) {
-    if (norm(n.name).startsWith(norm(prefix)) && norm(n.name) !== norm(prefix)) {
+    if (norm(n.name).startsWith(norm(prefix)) && norm(n.name) !== norm(prefix) && !isLegalTail(norm(n.name).slice(norm(prefix).length))) {
       // 원래 띄어쓰기를 살려 앞부분만 뗀다
       let i = 0, k = 0
       const pk = norm(prefix)

@@ -33,6 +33,10 @@ export const GROUP_NAME_HINTS: { input: string; suggest: string; why: string }[]
 
 const LEGAL = /^\s*(\(주\)|㈜|주식회사)\s*|\s*(\(주\)|㈜|주식회사)\s*$/g
 
+// 업체명 뒤에 법인 표기만 붙은 이름(예: 업체 'NH농협생명'의 매출처 'NH농협생명보험', '하나생명'의 '하나생명보험 주식회사')은
+// 지점이 아니라 그 업체 자체(법인 메인)다 — 지점명을 '보험'으로 떼어 보이지 않게 한다(2026-11-24).
+export const isLegalTail = (rest: string) => /^(보험|주식회사|\(주\)|㈜)+$/.test(rest.replace(/\s+/g, ''))
+
 // 비교 키: 법인 표기 · 공백 · 대소문자 무시
 export const groupKey = (s: string) => s.replace(LEGAL, '').replace(/\s+/g, '').toLowerCase()
 
