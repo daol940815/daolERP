@@ -51,7 +51,7 @@ async function vendorNames(admin: Admin, ids: string[]): Promise<Map<string, str
 
 export async function loadCardOrderState(admin: Admin, saleId: string, q?: string | null): Promise<CardOrderState | { error: string }> {
   const { data: s } = await admin.from('card_sales')
-    .select('id, tx_date, tx_time, card_number, acquirer, approval_number, amount, transaction_type, vendor_id, settlement_status')
+    .select('id, tx_date, tx_time, card_number, acquirer, approval_number, amount, transaction_type, vendor_id, settlement_status, processing_status')
     .eq('id', saleId).single()
   if (!s) return { error: '카드 결제를 찾을 수 없습니다.' }
   if (s.transaction_type !== 'approval') return { error: '승인 건만 주문에 배분할 수 있습니다.' }

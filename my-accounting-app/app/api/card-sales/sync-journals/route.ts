@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
-import { NOT_VOID_OR, CARD_SALE_VOID_STATUSES } from '@/lib/card-sale-status'
+import { NOT_VOID_OR, CARD_SALE_VOID_STATUSES, isCardSaleVoided } from '@/lib/card-sale-status'
 import { fetchAllRows } from '@/lib/fetch-all-rows'
 import { loadCardSaleContext, syncCardSaleJournal } from '@/lib/journal/card-sales-posting'
 
@@ -23,9 +23,9 @@ async function findUnposted(admin: ReturnType<typeof createAdminClient>) {
   const has = new Set(posted.data.map(p => p.source_id))
   const list = sales.data.filter(s => !has.has(s.id))
   // 정산상태 중복해제(수금 없음)인데 전기돼 있는 건 — 규칙 도입(2026-11-17) 전 전기분. 동기화 때 전기 취소 대상
-  const voidedPosted = await fetchAllRows<{ id: string; amount: number | null }>((f, t) =>
-    admin.from('card_sales').select('id, amount').in('settlement_status', [...CARD_SALE_VOID_STATUSES]).range(f, t))
-  const voided = 'error' in voidedPosted ? [] : voidedPosted.data.filter(s => has.has(s.id))
+  const voidedPosted = await fetchAllRows<{ id: string; amount: number | null; settlement_status: string | null; processing_status: string | null }>((f, t) =>
+    admin.from('card_sales').select('id, amount, settlement_status, processing_status').in('settlement_status', [...CARD_SALE_VOID_STATUSES]).range(f, t))
+  const voided = 'error' in voidedPosted ? [] : voidedPosted.data.filter(s => has.has(s.id) && isCardSaleVoided(s))   // 입금완료 예외(2026-11-24)는 취소 대상 아님
   const isUnknown = (s: Sale) => !(s.supply_amount ?? 0) && !(s.tax_amount ?? 0)
   const unknown = list.filter(isUnknown)
   return {
