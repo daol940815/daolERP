@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import PoDetail from '../../po-detail'
 import { fillMailTemplate, poMailVars, type PoExcelData } from '@/lib/po-form'
@@ -39,6 +39,8 @@ const VARS = ['{발주번호}', '{매입처명}', '{주문번호}', '{주문처}
 export default function PoSendPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  // 돌아가기 (2026-11-24 사용자 결정 — 나안): 주문 상세에서 들어왔으면(?from=order) 주문 상세로, 그 밖(발주서 이력 등)은 발주서 이력으로
+  const fromOrder = useSearchParams().get('from') === 'order'
 
   const [po, setPo] = useState<Po | null>(null)
   const [order, setOrder] = useState<{ order_no: string | null } | null>(null)
@@ -177,7 +179,8 @@ export default function PoSendPage() {
 
   const cancelPo = async () => {
     const ok = await patch({ action: 'cancel' }, '이 발주서를 취소할까요? 담긴 품목은 미발주로 돌아갑니다.')
-    if (ok) router.push('/orders/purchase')
+    // 취소하면 품목이 주문 상세에서 미발주로 돌아가므로 다시 발주할 수 있게 그 주문 상세로 (2026-11-24 사용자 결정)
+    if (ok) router.push(po?.order_id ? `/orders/${po.order_id}` : '/orders/purchase')
   }
 
   // 프리셋 저장 (관리 모달)
@@ -223,7 +226,9 @@ export default function PoSendPage() {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <Link href="/orders/purchase" className="text-sm text-gray-400 hover:text-gray-600">← 발주서 이력</Link>
+        {fromOrder
+          ? <Link href={`/orders/${po.order_id}`} className="text-sm text-gray-400 hover:text-gray-600">← 주문 상세{order?.order_no ? ` (${order.order_no})` : ''}</Link>
+          : <Link href="/orders/purchase" className="text-sm text-gray-400 hover:text-gray-600">← 발주서 이력</Link>}
         <h1 className="text-xl font-bold text-gray-900">발주서 {po.po_no}</h1>
         <span className="text-gray-600 text-sm">{po.vendor_name}</span>
         {output?.kind === 'vendor' && output.vendor_form
