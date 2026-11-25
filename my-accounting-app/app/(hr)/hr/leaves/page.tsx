@@ -212,7 +212,7 @@ export default function LeaveListPage() {
   return (
     <div>
       <div className="flex items-center gap-2">
-        <h1 className="text-xl font-bold text-slate-900">휴가 목록</h1>
+        <h1 className="text-2xl font-bold text-slate-900">휴가 목록</h1>
         {data?.can_edit && (
           <button onClick={openProxy} className="ml-auto px-3 py-1.5 border border-slate-400 rounded-lg text-xs font-medium hover:bg-slate-50">휴가 대리 등록</button>
         )}

@@ -130,7 +130,7 @@ function VendorModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
         <h2 className="text-lg font-bold text-slate-900 mb-4">{vendor ? '거래처 수정' : '기타 거래처 추가'}</h2>
         {!vendor && (
@@ -552,7 +552,7 @@ function ErpAliasesContent() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div>
       <div className="mb-1">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-slate-900">{tabLabel} 관리</h1>

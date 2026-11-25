@@ -156,7 +156,7 @@ function NewVendorModal({ tx, vendors, onClose, onCreated }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
         <h2 className="text-lg font-bold text-slate-900 mb-1">새 거래처 등록</h2>
         <p className="text-sm text-slate-600 mb-4">
@@ -1413,7 +1413,7 @@ function TransactionsContent() {
 
       {/* 분개 미리보기 모달 */}
       {journalPreview && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setJournalPreview(null)}>
+        <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 p-4" onClick={() => setJournalPreview(null)}>
           <div className="bg-white rounded-xl shadow-2xl p-5 w-[440px] max-w-full" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-bold text-slate-900">분개 미리보기</h3>
             <p className="text-xs text-slate-500 mb-3 mt-0.5 truncate">{journalPreview.tx.tx_date} · {journalPreview.tx.description ?? ''}</p>
@@ -1474,7 +1474,7 @@ function TransactionsContent() {
 
       {/* 이체 매칭 검토 모달 (기존 매칭 쌍 — 개별 해제 가능) */}
       {transferTab === 'done' && matchedPairs !== null && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col">
             <div className="flex items-start justify-between px-6 py-4 border-b">
               <div>
@@ -1565,7 +1565,7 @@ function TransactionsContent() {
 
       {/* 이체 매칭 미리보기 모달 */}
       {transferTab === 'cand' && previewPairs !== null && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col">
             <div className="flex items-start justify-between px-6 py-4 border-b">
               <div>
@@ -1664,7 +1664,7 @@ function TransactionsContent() {
 
       {/* 거래처 자동 연결 미리보기 — 확인 후 저장 (2026-11-16) */}
       {vendorPreview && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col">
             <div className="px-6 py-4 border-b">
               <h2 className="text-lg font-semibold text-slate-900">거래처 자동 연결</h2>

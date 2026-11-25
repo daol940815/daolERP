@@ -363,7 +363,7 @@ export default function UploadPage() {
   const tabHint         = tab === 'auto' ? AUTO_HINT : SOURCE_META[tab].hint
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold text-slate-900 mb-1">파일 업로드</h1>
       <p className="text-slate-600 text-sm mb-5">
         업로드할 데이터 종류를 선택한 뒤, 파일을 여러 개 선택하거나 드래그해서 일괄 업로드하세요.

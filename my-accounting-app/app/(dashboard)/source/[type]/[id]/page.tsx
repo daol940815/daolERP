@@ -34,7 +34,7 @@ export default function SourceDetailPage() {
         <p className="text-slate-500 text-sm py-10 text-center">불러오는 중...</p>
       ) : (
         <div className="bg-white border border-slate-300 rounded-xl p-6">
-          <h1 className="text-xl font-bold text-slate-900 mb-4">{data.title} <span className="text-xs font-normal text-slate-500">원본 레코드</span></h1>
+          <h1 className="text-2xl font-bold text-slate-900 mb-4">{data.title} <span className="text-xs font-normal text-slate-500">원본 레코드</span></h1>
           <dl className="divide-y divide-slate-200">
             {data.fields.map((f, i) => (
               <div key={i} className="py-2.5 flex gap-4">

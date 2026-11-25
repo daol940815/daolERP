@@ -105,7 +105,7 @@ export default async function DashboardPage({
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div>
       <h1 className="text-2xl font-bold text-slate-900">대시보드</h1>
 
       {/* 공통 요약 줄 — 탭과 무관하게 항상 표시 */}

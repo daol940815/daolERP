@@ -82,7 +82,7 @@ export default function JournalPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div>
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">분개장</h1>
@@ -271,7 +271,7 @@ function ManualJournalModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl p-5 w-full max-w-2xl" onClick={e => e.stopPropagation()}>
         <h3 className="text-base font-bold text-slate-900 mb-3">수동 분개 입력</h3>
         {error && <p className="text-red-500 text-xs mb-2">{error}</p>}

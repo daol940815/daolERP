@@ -42,7 +42,7 @@ export default function VendorSalesPage() {
   const totalSales  = filtered.reduce((s, r) => s + r.sales_amount, 0)
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div>
       <div className="mb-1">
         <h1 className="text-2xl font-bold text-slate-900">거래처별 매출 분석</h1>
         <p className="text-sm mt-1 text-slate-600">매출처(은행·지점)별 기간 내 순매출과 주문/수량 현황을 확인합니다. (취소/VIP/선결제 제외)</p>

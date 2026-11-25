@@ -204,7 +204,7 @@ export default function AttendanceAdminPage() {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-slate-900">근태 현황</h1>
+        <h1 className="text-2xl font-bold text-slate-900">근태 현황</h1>
         <input type="month" value={month} onChange={e => setMonth(e.target.value)}
           className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm" />
         <div className="ml-auto flex items-center gap-2 text-xs text-slate-600">

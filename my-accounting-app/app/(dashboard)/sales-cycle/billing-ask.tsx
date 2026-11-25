@@ -41,7 +41,7 @@ export function BillingAskDialog({ ask, amount, busy, onChoose }: {
   ask: BillingAsk; amount: number; busy: boolean; onChoose: (c: 'cancel' | 'link' | 'link_set') => void
 }) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4" onClick={() => !busy && onChoose('cancel')}>
+    <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-[60] p-4" onClick={() => !busy && onChoose('cancel')}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-3.5 border-b border-slate-300 font-semibold text-slate-900">계산서의 거래처가 다릅니다</div>
         <div className="px-5 py-4 text-sm text-slate-800 leading-relaxed">

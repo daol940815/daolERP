@@ -98,7 +98,7 @@ export default function MonthlyPLPage() {
   const ledgerHref = (accountId: string) => `/ledger?accountId=${accountId}&from=${monthFrom}-01&to=${lastDay(monthTo)}`
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div>
       <div className="flex items-start justify-between flex-wrap gap-3 mb-1">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">월별 손익현황 (경영관리용)</h1>

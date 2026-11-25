@@ -95,7 +95,7 @@ export default function CardCustomerLinksPage() {
   const visible = q.trim() ? base.filter(g => matches(g, q)) : base
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div>
       {canViewAccounting && <Link href="/cards" className="text-sm text-slate-600 hover:text-slate-900">← 카드 내역</Link>}
       <h1 className="text-2xl font-bold text-slate-900 mt-2">카드번호 → 매출처 연결</h1>
       <p className="text-sm mt-1 text-slate-600 mb-4">

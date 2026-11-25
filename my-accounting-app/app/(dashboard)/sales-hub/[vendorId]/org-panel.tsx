@@ -342,7 +342,7 @@ export function OrgDialog({ mode, org, vendorId, vendorName, onClose, onDone }: 
 
   const title = mode === 'set' ? `상위 조직 · 위치 — ${vendorName}` : mode === 'attach' ? `기존 매출처를 하위로 편입 — ${vendorName} 아래` : `새 하위 조직 — ${vendorName} 아래`
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !busy && onClose()}>
+    <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 p-4" onClick={() => !busy && onClose()}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
         <h3 className="text-base font-bold text-slate-900">{title}</h3>
         <p className="text-xs text-slate-600 mt-0.5">팀도 매출처 하나입니다(주문 · 담당자가 붙는 곳). 상위 조직은 같은 업체 안에서만 고를 수 있습니다. 청구처(계산서 법인)와는 별개입니다.</p>

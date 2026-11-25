@@ -122,7 +122,7 @@ export default function PermissionPanel({ emp, others, canEdit, leaveLevelReady 
 
   let lastArea = ''
   return (
-    <div className="fixed inset-0 bg-black/40 z-40 flex items-start justify-end" onClick={onClose}>
+    <div className="fixed inset-0 bg-slate-900/40 z-40 flex items-start justify-end" onClick={onClose}>
       <div className="bg-white h-full w-[720px] max-w-full overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-slate-300 flex items-start justify-between gap-3 sticky top-0 bg-white">
           <div>

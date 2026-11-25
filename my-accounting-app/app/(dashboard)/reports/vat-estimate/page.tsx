@@ -152,7 +152,7 @@ export default function VatEstimatePage() {
   const th = 'py-2 px-2 text-xs font-medium whitespace-nowrap'
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div>
       <div className="flex items-start justify-between flex-wrap gap-3 mb-1">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">예상 부가세</h1>

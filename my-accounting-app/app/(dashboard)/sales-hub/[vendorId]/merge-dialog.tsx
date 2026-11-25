@@ -82,7 +82,7 @@ export default function MergeDialog({ vendorId, vendorName, onClose }: { vendorI
     setBusy(false); setPersonDone(d => ({ ...d, [name]: true }))
   }
 
-  const box = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'
+  const box = 'fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 p-4'
   return (
     <div className={box} onClick={() => !busy && step !== 'done' && onClose()}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
