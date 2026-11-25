@@ -90,6 +90,7 @@
   **`600번대` 매입처 허브 트랙(인수인계: docs/purchase-hub-track.md)** /
   `700번대` 상담·영업·업무일지 트랙(인수인계: docs/consultation-journal-track.md) /
   **`800번대` 요아럽 샘플 재고 트랙(인수인계: docs/sample-stock-track.md)** /
+  **UI 디자인 트랙(마이그레이션 없음, 인수인계: docs/ui-design-track.md — 엑셀형 셀 표 · 묶음 색 · 전체 색감(선명도), 2026-11-25 개설. 색감 선택 대기)** /
   **도움말 트랙(마이그레이션 없음, 인수인계: docs/help-track.md — 화면별 도움말 `lib/help-registry.ts` 단일 원천, 질문하기 = 업무 요청,
   2026-11-03 1차 배포)** /
   `900번대` 업무요청 트랙(인수인계: docs/work-request-track.md — 900 적용 2026-10-16, 901 비공개 열 적용 2026-11-02,
