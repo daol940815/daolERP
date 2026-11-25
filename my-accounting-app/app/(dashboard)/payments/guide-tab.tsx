@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import PayFilterBar, { passPayFilter, usePayFilter, type StaffScope } from '@/components/payments/PayFilterBar'
 import { OrderNoLink } from '@/components/payments/OrderPreview'
 import { PAY_METHOD_TAG_CLS, PAY_METHOD_TAG_LABEL, PAY_STAGE_CLS, PAY_STAGE_LABEL, showMethodTag, type PayState } from '@/lib/pay-state'
+import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
 
 // 결제 확인 › 결제 안내 대상 (2026-11-16 3단계) — 영업지원 작업 목록
 // 결제 상태가 미결제 · 일부 결제인 주문. 받을 금액 = 청구 금액(순매출 + 선결제, 1308) − 기록 금액. 연락 기록(1301)을 남긴다.
@@ -120,17 +121,17 @@ export default function GuideTab() {
 
   const kpiCard = (key: Kpi, label: string, value: string, sub: string, tone = 'text-slate-900') => (
     <button onClick={() => setKpi(kpi === key ? 'all' : key)}
-      className={`text-left bg-white border rounded-xl px-4 py-3 ${kpi === key ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:border-slate-400'}`}>
-      <p className="text-xs text-slate-600">{label}</p>
-      <p className={`text-lg font-bold mt-1 ${tone}`}>{value}</p>
-      <p className="text-xs text-slate-500">{sub}</p>
+      className={`text-left bg-white border rounded-xl px-3.5 py-2.5 ${kpi === key ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:border-slate-400'}`}>
+      <p className="text-xs font-bold text-slate-700">{label}</p>
+      <p className={`text-xl font-extrabold tabular-nums ${tone}`}>{value}</p>
+      <p className="text-xs text-slate-600">{sub}</p>
     </button>
   )
   const chipBtn = (key: Chip, label: string) => (
     <button onClick={() => setChip(chip === key ? 'all' : key)}
-      className={`px-3 py-1 rounded-full text-xs border ${chip === key ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50'}`}>{label}</button>
+      className={chipCls(chip === key)}>{label}</button>
   )
-  const inputCls = 'w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
+  const inputCls = fieldBox()
 
   return (
     <div className="w-full">
@@ -154,7 +155,7 @@ export default function GuideTab() {
       <div className="flex items-center gap-1.5 flex-wrap mb-3">
         {chipBtn('all', '전체')}{chipBtn('mine', '내 주문')}{chipBtn('never', '연락한 적 없음')}{chipBtn('over30', '30일 넘음')}
         <button onClick={exportXlsx} disabled={!filtered.length}
-          className="ml-auto px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-40">엑셀 ({filtered.length}건)</button>
+          className={btnCls('secondary', 'md', 'ml-auto')}>엑셀 ({filtered.length}건)</button>
       </div>
 
       {loading ? <div className="text-center py-20 text-slate-500">불러오는 중...</div>
@@ -210,7 +211,7 @@ export default function GuideTab() {
                     <td className="py-2.5 px-3 text-right whitespace-nowrap">
                       {contactsAvailable && (
                         <button onClick={() => openContact(r)}
-                          className="text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">{canContact ? '연락 기록' : '연락 내역'}</button>
+                          className={btnCls('secondary', 'sm')}>{canContact ? '연락 기록' : '연락 내역'}</button>
                       )}
                     </td>
                   </tr>
@@ -219,7 +220,7 @@ export default function GuideTab() {
             </table>
             {filtered.length > shown && (
               <div className="p-3 text-center border-t border-slate-200">
-                <button onClick={() => setShown(n => n + 100)} className="px-4 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">더 보기 ({shown} / {filtered.length})</button>
+                <button onClick={() => setShown(n => n + 100)} className={btnCls('secondary', 'md')}>더 보기 ({shown} / {filtered.length})</button>
               </div>
             )}
           </div>
@@ -267,7 +268,7 @@ export default function GuideTab() {
               <button onClick={() => setTarget(null)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm bg-white">닫기</button>
               {canContact && (
                 <button onClick={saveContact} disabled={busy}
-                  className="px-3 py-1.5 rounded-lg text-sm bg-slate-900 text-white font-semibold hover:bg-slate-700 disabled:opacity-40">{busy ? '저장 중...' : '저장'}</button>
+                  className={btnCls('primary', 'md')}>{busy ? '저장 중...' : '저장'}</button>
               )}
             </div>
           </div>

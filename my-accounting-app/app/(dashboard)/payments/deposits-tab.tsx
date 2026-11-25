@@ -7,6 +7,7 @@ import { DATA_START, getPeriodRange } from '@/lib/period-presets'
 import { OrderNoLink } from '@/components/payments/OrderPreview'
 import { useReasonDialog } from '@/components/payments/ReasonDialog'
 import ReasonPicker, { reasonReady, type ReasonValue } from '@/components/payments/ReasonPicker'
+import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
@@ -270,7 +271,7 @@ function ErpMatchingContent() {
         <div className="flex items-center gap-2">
           <label className="text-xs text-slate-600">추천 기준</label>
           <select value={days} onChange={e => setDays(Number(e.target.value))}
-            className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm text-slate-700" title="추천할 때 입금일과 주문일 차이 허용 범위">
+            className={fieldBox({ noWidth: true })} title="추천할 때 입금일과 주문일 차이 허용 범위">
             {[3, 7, 15, 30, 60].map(d => <option key={d} value={d}>±{d}일</option>)}
           </select>
         </div>
@@ -284,15 +285,15 @@ function ErpMatchingContent() {
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox({ noWidth: true })} />
         <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox({ noWidth: true })} />
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="거래처·입금자·주문번호 검색"
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className={fieldBox({ noWidth: true, extra: 'w-56' })}
         />
       </div>
 
@@ -300,14 +301,14 @@ function ErpMatchingContent() {
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           {recCount > 0 && (<>
             <button onClick={() => { setRecOnly(v => !v); setShowSettled(false) }}
-              className={`px-3 py-1 rounded-full text-xs border ${recOnly && !showSettled ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50'}`}>
+              className={chipCls(recOnly && !showSettled)}>
               추천 있음 {recCount}
             </button>
             <button onClick={() => setRecSel(new Set(pending.filter(d => d.recommend).map(d => d.id)))} className="text-xs text-slate-600 underline">추천 모두 체크</button>
           </>)}
           {settledOk && (
             <button onClick={() => setShowSettled(v => !v)}
-              className={`px-3 py-1 rounded-full text-xs border ${showSettled ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50'}`}>
+              className={chipCls(showSettled)}>
               이전 처리분 보기 {settled.length}
             </button>
           )}
@@ -316,13 +317,13 @@ function ErpMatchingContent() {
               <span className="text-xs text-slate-700">체크 {recSel.size}건</span>
               {recChecked.length > 0 && (
                 <button onClick={() => confirmRecommended(recChecked)} disabled={working}
-                  className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-40">체크한 추천 확정 ({recChecked.length}건)</button>
+                  className={btnCls('primary', 'md')}>체크한 추천 확정 ({recChecked.length}건)</button>
               )}
               {settledOk && (
                 <button onClick={settleChecked} disabled={working}
                   className="px-3 py-1.5 border border-indigo-200 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-100 disabled:opacity-40">이전 처리분 확정 ({recSel.size}건)</button>
               )}
-              <button onClick={() => setRecSel(new Set())} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700 hover:bg-slate-50">체크 해제</button>
+              <button onClick={() => setRecSel(new Set())} className={btnCls('secondary', 'md')}>체크 해제</button>
             </>)}
             {showSettled && setSel.size > 0 && (
               <button onClick={releaseChecked} disabled={working}
@@ -443,7 +444,7 @@ function ErpMatchingContent() {
                         <td className="py-2 px-3 text-right whitespace-nowrap">
                           {d.recommend && (
                             <button onClick={() => confirmRecommended([d])} disabled={working}
-                              className="mr-1 px-2 py-1 text-xs rounded bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-40">확정</button>
+                              className={btnCls('primary', 'sm', 'mr-1')}>확정</button>
                           )}
                           <button
                             onClick={() => toggleExpand(d)}
@@ -487,11 +488,11 @@ function ErpMatchingContent() {
                                         value={alloc[c.id] ?? ''}
                                         onChange={e => setAlloc(prev => ({ ...prev, [c.id]: e.target.value }))}
                                         placeholder="0"
-                                        className="border border-slate-400 rounded px-2 py-1 text-xs w-28 text-right focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                                        className={fieldBox({ size: 'sm', noWidth: true, extra: 'w-28 text-right' })}
                                       />
                                       <button
                                         onClick={() => setAlloc(prev => ({ ...prev, [c.id]: String(Math.min(c.remaining, d.remaining)) }))}
-                                        className="ml-1 px-1.5 py-1 text-xs border border-slate-400 rounded text-slate-600 hover:bg-slate-100"
+                                        className={btnCls('secondary', 'sm', 'ml-1')}
                                         title="주문 잔액(또는 입금 잔액)만큼 채우기"
                                       >채움</button>
                                     </td>
@@ -503,8 +504,8 @@ function ErpMatchingContent() {
                               <input value={orderQ} onChange={e => setOrderQ(e.target.value)}
                                 onKeyDown={e => { if (e.key === 'Enter') searchOrder(d.id) }}
                                 placeholder="주문번호로 찾기 (기간 밖·다른 거래처 주문도)"
-                                className="border border-slate-400 rounded px-2 py-1 w-64 bg-white" />
-                              <button onClick={() => searchOrder(d.id)} className="px-2 py-1 border border-slate-400 rounded text-slate-700 hover:bg-slate-100">추가</button>
+                                className={fieldBox({ noWidth: true, extra: 'w-64' })} />
+                              <button onClick={() => searchOrder(d.id)} className={btnCls('secondary', 'sm')}>추가</button>
                             </div>
                             <div className="flex items-center gap-3">
                               <button
@@ -576,7 +577,7 @@ function ErpMatchingContent() {
                       <button
                         onClick={() => { setRelId(relId === m.id ? null : m.id); setRelReason(null) }}
                         disabled={working}
-                        className="px-2 py-1 text-xs border border-red-200 text-red-600 rounded hover:bg-red-50 disabled:opacity-40"
+                        className={btnCls('danger', 'sm')}
                       >
                         {relId === m.id ? '닫기' : '해제'}
                       </button>
@@ -590,7 +591,7 @@ function ErpMatchingContent() {
                         <div className="flex justify-end gap-2 mt-2">
                           <button onClick={() => setRelId(null)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs bg-white">닫기</button>
                           <button onClick={() => handleUnmatch(m)} disabled={working || !reasonReady(relReason)}
-                            className="px-3 py-1.5 rounded-lg text-xs bg-slate-900 text-white font-semibold disabled:opacity-40">매칭 해제</button>
+                            className={btnCls('primary', 'sm')}>매칭 해제</button>
                         </div>
                       </td>
                     </tr>

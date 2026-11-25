@@ -7,6 +7,7 @@ import PayFilterBar, { passPayFilter, usePayFilter, type StaffScope } from '@/co
 import { OrderNoLink } from '@/components/payments/OrderPreview'
 import { useReasonDialog } from '@/components/payments/ReasonDialog'
 import { useNotifRefresh, requestNotifRefresh } from '@/lib/use-notif-refresh'
+import { btnCls, chipCls } from '@/components/ui/kit'
 
 // 결제 확인 › 전체 현황 (2026-11-18 실무자 요청 — 시안 docs/mockups/결제확인_탭5개_시안.html)
 // 주문 한 줄씩, 결제 상태 칩으로 거르는 "보는 화면". 처음 열면 내 담당 지점 · 전체 기간 · 주문일 최신순.
@@ -114,7 +115,7 @@ export default function OverviewTab() {
 
   const recLine = (x: Rec) => `${x.cancel ? '취소' : METHOD[x.method] ?? x.method}${x.kind ? `(${x.kind})` : ''} ${x.clue} · ${x.cancel ? '−' : ''}${won(x.amount)}`
   const chip = (on: boolean, label: string, onClick: () => void) => (
-    <button key={label} onClick={onClick} className={`px-3 py-1 rounded-full text-xs border whitespace-nowrap ${on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50'}`}>{label}</button>
+    <button key={label} onClick={onClick} className={chipCls(on)}>{label}</button>
   )
 
   return (
@@ -177,7 +178,7 @@ export default function OverviewTab() {
                           : <span className="text-slate-500">기록 없음</span>}
                       </td>
                       <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                        <button onClick={() => setOpenId(open ? null : r.order_id)} className="text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">{open ? '접기' : '펼치기'}</button>
+                        <button onClick={() => setOpenId(open ? null : r.order_id)} className={btnCls('secondary', 'sm')}>{open ? '접기' : '펼치기'}</button>
                       </td>
                     </tr>
                     {open && (
@@ -197,15 +198,15 @@ export default function OverviewTab() {
                                 <span className="text-slate-900"><span className="tabular-nums">{m.paid_date}</span> · {m.label} · <b className={`tabular-nums ${m.amount < 0 ? 'text-red-700' : ''}`}>{won(m.amount)}원</b></span>
                                 <span className="text-slate-600">매칭 {m.matched_by_name ?? (m.derived ? '계산서 입금에서 넘어옴' : '기록 없음')}{m.created_at && ` · ${when(m.created_at)}`}</span>
                                 {canEdit && !m.derived && m.amount > 0 && m.source_type !== 'prepay' && (
-                                  <button onClick={() => unmatch(r, m)} className="ml-auto px-2 py-0.5 border border-red-200 text-red-600 rounded hover:bg-red-50">매칭 해제</button>
+                                  <button onClick={() => unmatch(r, m)} className={btnCls('danger', 'sm', 'ml-auto')}>매칭 해제</button>
                                 )}
                               </div>
                             ))}
                             {det && r.records.length === 0 && det.matches.length === 0 && <div className="text-slate-500 py-1">결제 기록과 수금 매칭이 없습니다.</div>}
                             <div className="flex gap-2 flex-wrap mt-2.5">
-                              {pendingRec && <Link href={`/payments?tab=match&q=${encodeURIComponent(r.order_no ?? '')}`} className="px-2.5 py-1 rounded bg-slate-900 text-white font-semibold">매칭 대기에서 열기</Link>}
-                              {(r.pay.stage === 'unpaid' || r.pay.stage === 'partial_pay') && <Link href={`/payments?tab=guide&q=${encodeURIComponent(r.order_no ?? '')}`} className="px-2.5 py-1 rounded bg-slate-900 text-white font-semibold">결제 안내에서 열기</Link>}
-                              <Link href={`/orders/${r.order_id}`} className="px-2.5 py-1 border border-slate-400 rounded text-slate-800 hover:bg-slate-50">주문 상세</Link>
+                              {pendingRec && <Link href={`/payments?tab=match&q=${encodeURIComponent(r.order_no ?? '')}`} className={btnCls('primary', 'sm')}>매칭 대기에서 열기</Link>}
+                              {(r.pay.stage === 'unpaid' || r.pay.stage === 'partial_pay') && <Link href={`/payments?tab=guide&q=${encodeURIComponent(r.order_no ?? '')}`} className={btnCls('primary', 'sm')}>결제 안내에서 열기</Link>}
+                              <Link href={`/orders/${r.order_id}`} className={btnCls('secondary', 'sm')}>주문 상세</Link>
                             </div>
                           </div>
                         </td>
@@ -218,7 +219,7 @@ export default function OverviewTab() {
           </table>
           {filtered.length > shown && (
             <div className="p-3 text-center border-t border-slate-200">
-              <button onClick={() => setShown(n => n + PAGE)} className="px-4 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">더 보기 ({shown} / {filtered.length})</button>
+              <button onClick={() => setShown(n => n + PAGE)} className={btnCls('secondary', 'md')}>더 보기 ({shown} / {filtered.length})</button>
             </div>
           )}
         </div>

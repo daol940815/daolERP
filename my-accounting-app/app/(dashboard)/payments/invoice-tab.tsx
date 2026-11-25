@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { OrderNoLink } from '@/components/payments/OrderPreview'
 import InvoiceLinkModal from '../sales-cycle/invoice-link-modal'
 import { BillingAskDialog, saveInvoiceLinks, type BillingAsk, type InvoiceLink } from '../sales-cycle/billing-ask'
+import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
 
 // 결제 확인 › 계산서 확인 (2026-11-16 3단계)
 // "발행할 주문 목록"은 만들 수 없다(카드로 낼지 계산서로 낼지 미리 알 수 없음) — 확인이 필요한 세 가지만 모은다.
@@ -88,7 +89,7 @@ export default function InvoiceTab() {
 
   const chip = (k: Issue | 'all', label: string, n: number) => (
     <button onClick={() => setIssue(issue === k ? 'all' : k)}
-      className={`px-3 py-1 rounded-full text-xs border ${issue === k ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50'}`}>{label} {n}</button>
+      className={chipCls(issue === k)}>{label} {n}</button>
   )
 
   return (
@@ -106,7 +107,7 @@ export default function InvoiceTab() {
         {chip('amount_diff', '금액 다름', count('amount_diff'))}
         {chip('no_evidence', '입금 받았는데 증빙 없음', count('no_evidence'))}
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="매출처 · 청구처 · 주문번호 검색"
-          className="ml-auto border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-64 max-w-full focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox({ noWidth: true, extra: 'ml-auto w-64' })} />
       </div>
 
       {loading ? <div className="text-center py-20 text-slate-500">불러오는 중...</div>
@@ -174,14 +175,14 @@ export default function InvoiceTab() {
                       {canEdit && r.candidate_count === 1 && (
                         <div className="mb-1">
                           <button onClick={() => linkCandidate(r, r.candidates[0])} disabled={busy}
-                            className="text-xs px-2 py-0.5 rounded bg-slate-900 text-white font-semibold hover:bg-slate-700 disabled:opacity-40">이 계산서 연결</button>
+                            className={btnCls('primary', 'sm')}>이 계산서 연결</button>
                         </div>
                       )}
                       {canEdit && r.vendor_id ? (
                         <button onClick={() => setLinkFor({ id: r.vendor_id!, name: r.customer_name })}
-                          className="text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">직접 찾기</button>
+                          className={btnCls('secondary', 'sm')}>직접 찾기</button>
                       ) : (
-                        <Link href={`/orders/${r.order_id}`} className="text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">주문 열기</Link>
+                        <Link href={`/orders/${r.order_id}`} className={btnCls('secondary', 'sm')}>주문 열기</Link>
                       )}
                     </td>
                   </tr>

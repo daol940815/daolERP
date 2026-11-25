@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { PAY_STAGE_CLS, PAY_STAGE_LABEL, type PayState } from '@/lib/pay-state'
+import { btnCls } from '@/components/ui/kit'
 
 // 주문 미리보기 (2026-11-18 실무자 요청) — 결제 확인 화면에서 주문번호를 누르면 화면을 벗어나지 않고 주문 내역을 보여 준다.
 // 보기 전용. 매입가 · 마진은 나오지 않는다(판매 금액만). 쓰는 법: <OrderNoLink id={주문 id} no={주문번호} />
@@ -91,8 +92,8 @@ function OrderPreviewModal({ id, onClose }: { id: string; onClose: () => void })
           </div>
         </>)}
         <div className="flex justify-end gap-2 mt-4">
-          <Link href={`/orders/${id}`} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">주문 상세 열기</Link>
-          <button onClick={onClose} className="px-3 py-1.5 rounded-lg text-sm bg-slate-900 text-white font-semibold">닫기</button>
+          <Link href={`/orders/${id}`} className={btnCls('secondary', 'md')}>주문 상세 열기</Link>
+          <button onClick={onClose} className={btnCls('primary', 'md')}>닫기</button>
         </div>
       </div>
     </div>
