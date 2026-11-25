@@ -12,6 +12,7 @@ import { kstTime, LEAVE_TYPE_LABEL, LEAVE_STATUS_LABEL, type LeaveType, type Lea
 import NotifyTab from './notify-tab'
 import DisplayTab from './display-tab'
 
+import { btnCls } from '@/components/ui/kit'
 export type ProfileTab = 'basic' | 'account' | 'work' | 'notify' | 'display'
 
 export interface EmployeeRow {
@@ -170,8 +171,8 @@ function BasicTab({ p, onSaved }: { p: Profile; onSaved: () => void }) {
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" className={`${inputCls} mt-1`} />
         </label>
         <div className="flex gap-2">
-          <button onClick={save} disabled={busy || !dirty} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-40">{busy ? '저장 중...' : '저장'}</button>
-          <button onClick={() => { setPhone(emp.phone ?? ''); setWorkPhone(emp.work_phone ?? ''); setEmail(emp.email ?? ''); setMsg(null) }} disabled={!dirty} className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-40">취소</button>
+          <button onClick={save} disabled={busy || !dirty} className={btnCls('primary', 'md')}>{busy ? '저장 중...' : '저장'}</button>
+          <button onClick={() => { setPhone(emp.phone ?? ''); setWorkPhone(emp.work_phone ?? ''); setEmail(emp.email ?? ''); setMsg(null) }} disabled={!dirty} className={btnCls('secondary', 'md')}>취소</button>
         </div>
       </Card>
     </div>
@@ -232,7 +233,7 @@ export function PasswordForm() {
       <div>
         <p className="text-sm text-green-700 font-medium">비밀번호가 변경되었습니다.</p>
         <p className="text-xs text-slate-600 mt-1">다음 로그인부터 새 비밀번호를 사용하세요. 지금 세션은 그대로 유지됩니다.</p>
-        <button onClick={() => setDone(false)} className="mt-3 px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">다시 변경</button>
+        <button onClick={() => setDone(false)} className={btnCls('secondary', 'md', 'mt-3')}>다시 변경</button>
       </div>
     )
   }
@@ -245,7 +246,7 @@ export function PasswordForm() {
         <input type="password" autoComplete="new-password" value={next} onChange={e => setNext(e.target.value)} required minLength={MIN_LEN} className={`${inputCls} mt-1`} /></label>
       <label className="block"><span className="text-xs font-medium text-slate-700">새 비밀번호 확인</span>
         <input type="password" autoComplete="new-password" value={confirm} onChange={e => setConfirm(e.target.value)} required minLength={MIN_LEN} className={`${inputCls} mt-1`} /></label>
-      <button type="submit" disabled={busy} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">{busy ? '변경 중...' : '비밀번호 변경'}</button>
+      <button type="submit" disabled={busy} className={btnCls('primary', 'md')}>{busy ? '변경 중...' : '비밀번호 변경'}</button>
     </form>
   )
 }

@@ -10,6 +10,7 @@ import SearchableSelect from '@/components/ui/SearchableSelect'
 import ReceiptMatchModal from '@/components/cash-receipts/ReceiptMatchModal'
 import type { CashReceiptPayment } from '@/types/cash-receipt'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 425: 매출 발행 건의 입금 확인 상태
 const PAY_META: Record<string, { label: string; cls: string }> = {
   unmatched: { label: '미확인', cls: 'bg-amber-100 text-amber-800' },
@@ -184,7 +185,7 @@ export default function CashReceiptsPage() {
             ↓ {exporting ? '다운로드 중...' : '엑셀 다운로드'}
           </button>
           {/* 원본 업로드는 파일 업로드 단일 창구에서 (2026-10-12) */}
-          <Link href="/upload?source=cash_receipts" className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 flex items-center gap-1.5">
+          <Link href="/upload?source=cash_receipts" className={btnCls('secondary', 'md')}>
             ↑ 파일 업로드 →
           </Link>
         </div>
@@ -263,12 +264,12 @@ export default function CashReceiptsPage() {
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <input
           type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className={fieldBox({ noWidth: true })}
         />
         <span className="text-slate-500 text-sm">~</span>
         <input
           type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className={fieldBox({ noWidth: true })}
         />
         <div className="relative flex-1 min-w-[220px] max-w-md">
           <input value={search} onChange={e => setSearch(e.target.value)}

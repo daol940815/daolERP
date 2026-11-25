@@ -6,6 +6,7 @@ import { CandidateModal } from './candidate-modal'
 import { ReviewBadge, type ReviewInfo } from './review-badge'
 import { won } from '@/lib/purchase-cycle-status'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 type CycleStatus = '완료' | '계산서 대기' | '지급 대기' | '금액 차이' | '과다 지급' | '경비성'
 type Severity = '정상 대기' | '주의' | '확인 필요'
 
@@ -158,18 +159,18 @@ export default function ExceptionsTab({ vendorId, basePath, canEdit = true }: { 
       {/* 기간 + 필터 */}
       <div className="flex items-center gap-2 my-3 flex-wrap">
         <input type="month" value={monthFrom} onChange={e => setMonthFrom(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+          className={fieldBox({ noWidth: true })} />
         <span className="text-slate-500 text-sm">~</span>
         <input type="month" value={monthTo} onChange={e => setMonthTo(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+          className={fieldBox({ noWidth: true })} />
         <select value={minSeverity} onChange={e => setMinSeverity(e.target.value as typeof minSeverity)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm">
+          className={fieldBox({ noWidth: true })}>
           <option>주의 이상</option>
           <option>확인 필요만</option>
           <option>전체</option>
         </select>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="거래처 검색"
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-44" />
+          className={fieldBox({ noWidth: true, extra: 'w-44' })} />
       </div>
 
       {/* 유형 칩 (클릭 = 필터) */}
@@ -250,14 +251,14 @@ export default function ExceptionsTab({ vendorId, basePath, canEdit = true }: { 
                       <ReviewBadge review={r.review} />
                       {canEdit && reviewsAvailable && (!r.review || r.review.stale) && (
                         <button onClick={() => review(r)} disabled={reviewing === `${r.vendor_id}|${r.month}|${r.status}`}
-                          className="px-2 py-1 border border-slate-400 text-slate-700 rounded text-xs hover:bg-slate-100 disabled:opacity-50"
+                          className={btnCls('secondary', 'sm')}
                           title="현재 금액을 스냅샷으로 기록합니다. 이후 금액이 바뀌면 자동으로 재검토 필요로 표시됩니다.">
                           확인
                         </button>
                       )}
                       {canEdit && (r.status === '지급 대기' || r.status === '과다 지급') && (
                         <button onClick={() => setModal({ vendorId: r.vendor_id, vendorName: r.vendor_name })}
-                          className="px-2 py-1 bg-slate-900 text-white rounded text-xs font-medium hover:bg-slate-700">
+                          className={btnCls('primary', 'sm')}>
                           지급 후보
                         </button>
                       )}

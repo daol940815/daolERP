@@ -9,6 +9,7 @@ import { PUSH_KIND_LABEL, pushSticky, type PushKind, type PushPrefs, type PushSu
 import { currentSubscription, disablePush, enablePush, pushState, type PushState } from '@/lib/push-client'
 import { fmtDT } from '@/lib/work-requests'
 
+import { btnCls } from '@/components/ui/kit'
 interface Resp { linked: boolean; vapidPublicKey: string; configured: boolean; approver: boolean; kinds: PushKind[]; subscriptions: PushSubRow[]; warning?: string; error?: string }
 
 export default function NotifyTab() {
@@ -90,10 +91,10 @@ export default function NotifyTab() {
         <h2 className="text-sm font-bold text-slate-900">이 PC</h2>
         <p className="text-sm text-slate-800 mt-1">{stateText[state]}</p>
         <div className="flex gap-2 mt-3 flex-wrap">
-          {(state === 'ready' || (state === 'subscribed' && !cur)) && <button onClick={enable} disabled={busy || !data.configured} className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-40">이 PC에서 알림 받기</button>}
+          {(state === 'ready' || (state === 'subscribed' && !cur)) && <button onClick={enable} disabled={busy || !data.configured} className={btnCls('primary', 'md')}>이 PC에서 알림 받기</button>}
           {state === 'subscribed' && cur && <>
-            <button onClick={() => test(cur.endpoint)} disabled={busy} className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-40">테스트 알림 보내기</button>
-            <button onClick={disable} disabled={busy} className="px-3 py-2 border border-slate-400 text-slate-800 rounded-lg text-sm hover:bg-slate-50 disabled:opacity-40">이 PC 알림 끄기</button>
+            <button onClick={() => test(cur.endpoint)} disabled={busy} className={btnCls('primary', 'md')}>테스트 알림 보내기</button>
+            <button onClick={disable} disabled={busy} className={btnCls('secondary', 'md')}>이 PC 알림 끄기</button>
           </>}
         </div>
         <p className="text-xs text-slate-500 mt-3 leading-relaxed">
@@ -120,7 +121,7 @@ export default function NotifyTab() {
                 <td className="py-2"><label className="inline-flex items-center gap-1.5 text-xs"><input type="checkbox" checked={s.enabled} onChange={e => patch(s.id, { enabled: e.target.checked })} /> {s.enabled ? '켬' : '끔'}</label></td>
                 <td className="py-2 text-right whitespace-nowrap">
                   <button onClick={() => test(s.endpoint)} disabled={busy || !s.enabled} className="px-2 py-1 text-xs border border-slate-400 rounded hover:bg-slate-50 disabled:opacity-40 mr-1">테스트</button>
-                  <button onClick={() => remove(s)} disabled={busy} className="px-2 py-1 text-xs border border-red-200 text-red-600 rounded hover:bg-red-50 disabled:opacity-40">삭제</button>
+                  <button onClick={() => remove(s)} disabled={busy} className={btnCls('danger', 'sm')}>삭제</button>
                 </td>
               </tr>
             ))}</tbody>

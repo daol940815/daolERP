@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BillingAskDialog, saveInvoiceLinks, type BillingAsk, type InvoiceLink } from './billing-ask'
 
+import { btnCls } from '@/components/ui/kit'
 // 주문 ↔ 계산서 연결 모달 (매출 사이클)
 // - 추천 조합: 금액이 정확히 맞는 조합 제시 (후보는 시스템, 확정은 사용자)
 // - 직접 연결: 미연결 주문과 미배분 계산서를 나란히 놓고 사용자가 직접 골라 연결
@@ -255,7 +256,7 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
   const hiddenBar = (count: number, what: string, why: string, open: boolean, toggle: () => void) => count > 0 && (
     <div className="flex items-center gap-2 flex-wrap px-3 py-1.5 border-t border-dashed border-slate-400 bg-slate-50 text-xs text-slate-700">
       <b>{what} {count}건은 {open ? '연결 불가' : '숨김'}</b><span className="text-slate-500">{why}</span>
-      <button type="button" onClick={toggle} className="ml-auto px-2 py-0.5 border border-slate-400 rounded bg-white text-slate-700 hover:bg-slate-50">{open ? '숨기기' : '보기'}</button>
+      <button type="button" onClick={toggle} className={btnCls('secondary', 'sm', 'ml-auto')}>{open ? '숨기기' : '보기'}</button>
     </div>
   )
 
@@ -332,10 +333,10 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
             )}
             <div className="flex items-center gap-2 mt-4">
               <button onClick={applyAuto} disabled={applying || !groups.length || checked.size === 0}
-                className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+                className={btnCls('primary', 'md')}>
                 {applying ? '확정 중...' : `선택 ${checked.size}개 조합 확정`}
               </button>
-              <button onClick={onClose} className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
+              <button onClick={onClose} className={btnCls('secondary', 'md')}>닫기</button>
             </div>
           </>
         ) : (
@@ -414,7 +415,7 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
                   <input type="date" value={findTo} onChange={e => setFindTo(e.target.value)} className="border border-slate-400 rounded px-1.5 py-1 bg-white" />
                   <input value={findQ} onChange={e => setFindQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') runFind() }}
                     placeholder="상호 (예: 석계역)" className="border border-slate-400 rounded px-2 py-1 w-36 bg-white" />
-                  <button onClick={runFind} disabled={finding} className="px-2.5 py-1 rounded bg-slate-900 text-white font-medium disabled:opacity-50">{finding ? '찾는 중...' : '찾기'}</button>
+                  <button onClick={runFind} disabled={finding} className={btnCls('primary', 'sm')}>{finding ? '찾는 중...' : '찾기'}</button>
                 </div>
                 {found === null ? (
                   <p className="text-xs text-slate-500">금액은 계산서의 남은 금액과 같은 것만 찾습니다. 금액을 비우면 상호로 찾습니다. 이미 다른 주문에 다 연결된 계산서와 취소쌍은 나오지 않습니다.</p>
@@ -433,7 +434,7 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
                           <span className="ml-auto tabular-nums">남은 금액 <b>{won(v.remaining)}</b>{v.remaining !== v.total_amount && <span className="text-slate-500"> / {won(v.total_amount)}</span>}</span>
                           <button onClick={() => addFound(v)} disabled={added || invBlocked(v)}
                             title={invBlocked(v) ? '고른 주문의 결제 기록과 과세 구분이 달라 연결할 수 없습니다' : undefined}
-                            className="px-2 py-0.5 border border-slate-400 rounded text-slate-800 hover:bg-slate-50 disabled:opacity-40">{added ? '추가됨' : invBlocked(v) ? '구분 다름' : '목록에 추가'}</button>
+                            className={btnCls('secondary', 'sm')}>{added ? '추가됨' : invBlocked(v) ? '구분 다름' : '목록에 추가'}</button>
                         </div>
                       )
                     })}
@@ -459,12 +460,12 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
 
             <div className="flex items-center gap-2 mt-4">
               <button onClick={applyManual} disabled={applying || !manualPlan?.valid}
-                className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+                className={btnCls('primary', 'md')}>
                 {applying ? '확정 중...' : '선택 연결 확정'}
               </button>
               <button onClick={() => { setSelOrders(new Set()); setSelInvoices(new Set()) }}
-                className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-700 hover:bg-slate-50">선택 해제</button>
-              <button onClick={onClose} className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
+                className={btnCls('secondary', 'md')}>선택 해제</button>
+              <button onClick={onClose} className={btnCls('secondary', 'md')}>닫기</button>
               <span className="text-xs text-slate-500">확정 후에도 모달이 열려 있어 이어서 연결할 수 있습니다.</span>
             </div>
           </>

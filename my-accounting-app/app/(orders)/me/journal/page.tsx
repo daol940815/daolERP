@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { contactLabel } from '@/lib/contact-label'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 내 영업일지 — 본인 활동 기록 목록 + 작성.
 // 기록은 인물(contacts) 기준(105 트랙과 동일 테이블) — 담당자가 거래처를
 // 옮겨도 이력이 인물을 따라간다. 여기서는 본인(employee_id) 기록만 다룬다.
@@ -103,7 +104,7 @@ export default function MyJournalPage() {
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-2xl font-bold text-slate-900">영업일지</h1>
         <button onClick={() => setOpen(v => !v)}
-          className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">
+          className={btnCls('primary', 'md')}>
           {open ? '작성 닫기' : '일지 작성'}
         </button>
         <span className="ml-auto text-xs text-slate-500">최근 100건 표시 · 본인 기록만</span>
@@ -121,7 +122,7 @@ export default function MyJournalPage() {
               <input value={contactQ}
                 onChange={e => { setContactQ(e.target.value); setPicked(null) }}
                 placeholder="이름 검색"
-                className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+                className={fieldBox()} />
               {picked && (
                 <p className="text-xs text-emerald-700 mt-1">
                   선택됨: {picked.name}{picked.vendor_name ? ` · ${picked.vendor_name}` : ''}
@@ -145,12 +146,12 @@ export default function MyJournalPage() {
             <div>
               <label className="block text-xs text-slate-600 mb-1">날짜 (비우면 오늘)</label>
               <input type="date" value={activityDate} onChange={e => setActivityDate(e.target.value)}
-                className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+                className={fieldBox()} />
             </div>
             <div>
               <label className="block text-xs text-slate-600 mb-1">유형</label>
               <select value={activityType} onChange={e => setActivityType(e.target.value)}
-                className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm bg-white">
+                className={fieldBox()}>
                 {ACTIVITY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
@@ -159,17 +160,17 @@ export default function MyJournalPage() {
             <label className="block text-xs text-slate-600 mb-1">내용</label>
             <textarea value={content} onChange={e => setContent(e.target.value)} rows={3}
               placeholder="상담·방문 내용"
-              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm" />
+              className={fieldBox({ area: true })} />
           </div>
           <div className="mt-3 flex items-end gap-3">
             <div className="flex-1">
               <label className="block text-xs text-slate-600 mb-1">다음 액션 (선택)</label>
               <input value={nextAction} onChange={e => setNextAction(e.target.value)}
                 placeholder="예: 다음 주 견적서 발송"
-                className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+                className={fieldBox()} />
             </div>
             <button onClick={submit} disabled={saving}
-              className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+              className={btnCls('primary', 'md')}>
               {saving ? '저장 중...' : '저장'}
             </button>
           </div>

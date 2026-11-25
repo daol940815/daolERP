@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import ReasonPicker, { reasonReady, type ReasonValue } from '@/components/payments/ReasonPicker'
 
+import { btnCls } from '@/components/ui/kit'
 // 주문 쪽 수금 매칭 모달 (2026-11-04) — ERP 주문내역·주문 현황에서 "수금 매칭" 버튼으로 연다.
 // 이 주문의 거래처 미배분 결제(은행 입금·카드결제)를 고르고 금액을 붙인다. 한 결제를 여러 주문에
 // 나누는 작업은 입금 매칭 화면(/erp-matching?depositId=)으로 잇는다.
@@ -146,7 +147,7 @@ export default function CollectMatchModal({ orderId, onClose, onSaved, hideAccou
                 <ReasonPicker kind="release" value={relReason} onChange={setRelReason} label="매칭 해제 사유" />
                 <div className="flex justify-end gap-2 mt-2">
                   <button onClick={() => setRelId(null)} className="px-3 py-1.5 border border-slate-400 rounded-lg bg-white">닫기</button>
-                  <button onClick={() => unmatch(m)} disabled={unmatching === m.id || !reasonReady(relReason)} className="px-3 py-1.5 rounded-lg bg-slate-900 text-white font-semibold disabled:opacity-40">매칭 해제</button>
+                  <button onClick={() => unmatch(m)} disabled={unmatching === m.id || !reasonReady(relReason)} className={btnCls('primary', 'md')}>매칭 해제</button>
                 </div>
               </div>
             ))}

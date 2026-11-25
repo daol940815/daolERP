@@ -7,6 +7,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getPeriodRange } from '@/lib/period-presets'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
 interface Account { id: string; code: string; name: string; type: string }
@@ -264,11 +265,11 @@ function CardExpensesContent() {
             if (status) p.set('status', status)
             const a = document.createElement('a'); a.href = `/api/card-expenses/export?${p}`; a.click()
           }}
-            className="px-3 py-1.5 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50">
+            className={btnCls('secondary', 'md')}>
             ↓ 엑셀
           </button>
           {/* 원본 업로드는 파일 업로드 단일 창구에서 (2026-10-12) */}
-          <Link href="/upload?source=card_expenses" className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">
+          <Link href="/upload?source=card_expenses" className={btnCls('primary', 'md')}>
             ↑ 파일 업로드 →
           </Link>
         </div>
@@ -282,23 +283,23 @@ function CardExpensesContent() {
       {/* 필터 */}
       <div className="flex items-center gap-2 my-3 flex-wrap">
         <select value={cardAccountId} onChange={e => changeCard(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm">
+          className={fieldBox({ noWidth: true })}>
           <option value="">전체 카드</option>
           {cardAccounts.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+          className={fieldBox({ noWidth: true })} />
         <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+          className={fieldBox({ noWidth: true })} />
         <select value={status} onChange={e => setStatus(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm">
+          className={fieldBox({ noWidth: true })}>
           <option value="">전체 상태</option>
           <option value="pending">미확정</option>
           <option value="confirmed">확정</option>
         </select>
         <select value={accountFilter} onChange={e => setAccountFilter(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm">
+          className={fieldBox({ noWidth: true })}>
           <option value="">전체 계정과목</option>
           <option value="none">추천 없음 ({accountOptions.noneCount})</option>
           {accountOptions.list.map(a => (
@@ -306,7 +307,7 @@ function CardExpensesContent() {
           ))}
         </select>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="가맹점 검색"
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-44" />
+          className={fieldBox({ noWidth: true, extra: 'w-44' })} />
       </div>
 
       {/* 요약 */}
@@ -332,7 +333,7 @@ function CardExpensesContent() {
           ) : (
             <>
               <button onClick={() => runBulk('confirm')}
-                className="ml-2 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-700"
+                className={btnCls('primary', 'sm', 'ml-2')}
                 title="지정한 계정이 있으면 그 계정으로, 없으면 추천 계정으로 확정">
                 선택 확정{draftCount > 0 ? ` (지정 ${draftCount})` : ''}
               </button>

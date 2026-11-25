@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import AnnualReport from './annual-report'
 import { termMonthlyInterest } from '@/lib/loan-math'
 
+import { btnCls, chipCls } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => (n ?? 0).toLocaleString('ko-KR')
 const eok = (n: number) => `${(n / 1e8).toFixed(2)}억`
 const manwon = (n: number) => `${Math.round(n / 1e4).toLocaleString('ko-KR')}만`
@@ -248,8 +249,7 @@ export default function LoansPage() {
   const input = 'mt-1 w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
   const chip = (key: string, label: string, count?: number) => (
     <button key={key} onClick={() => setFilter(key)}
-      className={`px-3 py-1 rounded-full text-sm whitespace-nowrap ${filter === key
-        ? 'bg-slate-900 text-white' : 'bg-white border border-slate-400 text-slate-700 hover:bg-slate-50'}`}>
+      className={chipCls(filter === key, 'whitespace-nowrap')}>
       {label}{count !== undefined ? ` ${count}` : ''}
     </button>
   )
@@ -270,7 +270,7 @@ export default function LoansPage() {
         </div>
         {tab === 'list' && (
           <button onClick={() => openEdit('new')}
-            className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 whitespace-nowrap">
+            className={btnCls('primary', 'md', 'whitespace-nowrap')}>
             + 대출 등록
           </button>
         )}
@@ -667,7 +667,7 @@ export default function LoansPage() {
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setEditing(null)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm hover:bg-slate-50">취소</button>
               <button onClick={save} disabled={saving}
-                className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+                className={btnCls('primary', 'md')}>
                 {saving ? '저장 중...' : '저장'}
               </button>
             </div>

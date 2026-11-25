@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import CollectMatchModal from '@/components/erp/CollectMatchModal'
 import ReasonBadge from '@/components/ui/ReasonBadge'
-import { PageHeader, FilterRow, KpiGrid, KpiCard, Button, btnCls, fieldBox } from '@/components/ui/kit'
+import { Button, FilterRow, KpiCard, KpiGrid, PageHeader, btnCls, fieldBox } from '@/components/ui/kit'
 import { FIELD_SHORT, MINE_FILTERS, ORDERS_LIST_URL_KEY, SEARCH_FIELDS, decodeCond, encodeCond, parseFreeText, parseMine, type MineFilter, type SearchCond, type SearchField } from '@/lib/order-search-fields'
 import { INVOICE_FLAG_LABEL, PAY_METHOD_TAG_CLS, PAY_METHOD_TAG_LABEL, PAY_STAGE_CHIPS, PAY_STAGE_CLS, PAY_STAGE_HINT, PAY_STAGE_LABEL, showMethodTag, type PayState } from '@/lib/pay-state'
 import { STOCK_ROLE_LABEL, marginCostOf } from '@/lib/stock-cost'
@@ -320,7 +320,7 @@ export default function OrdersHomePage() {
       <div className="bg-white border border-slate-300 rounded-xl p-3">
         <div className="flex items-center gap-2 flex-wrap">
           <select value={field} onChange={e => setField(e.target.value as SearchField | 'all')}
-            className="border border-slate-400 rounded-lg px-2.5 py-2 text-sm bg-white" title="찾을 항목">
+            className={fieldBox({ noWidth: true })} title="찾을 항목">
             <option value="all">전체 항목</option>
             {SEARCH_FIELDS.map(sf => <option key={sf.key} value={sf.key}>{sf.label}</option>)}
           </select>
@@ -329,9 +329,9 @@ export default function OrdersHomePage() {
             placeholder={field === 'all'
               ? '전체 항목에서 검색 — 여러 단어는 띄어쓰기 (예: 하나은행 요아럽) Enter'
               : `${SEARCH_FIELDS.find(sf => sf.key === field)?.label ?? ''}에서 검색 — 띄어쓰기 포함 그대로 Enter`}
-            className="flex-1 min-w-[280px] border border-slate-400 rounded-lg px-3.5 py-2 text-sm" />
+            className={fieldBox({ noWidth: true, extra: 'flex-1 min-w-[280px]' })} />
           <button onClick={addCond} disabled={!qInput.trim()}
-            className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-700 disabled:opacity-40">조건 추가</button>
+            className={btnCls('secondary', 'md')}>조건 추가</button>
         </div>
         {conds.length > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap mt-2 text-xs text-slate-500">

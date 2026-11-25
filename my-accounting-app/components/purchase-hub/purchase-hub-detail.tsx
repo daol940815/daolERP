@@ -10,6 +10,7 @@ import { contactLabel } from '@/lib/contact-label'
 import type { PurchaseHubPerms } from '@/components/purchase-hub/perms'
 import PoFormTab from '@/components/purchase-hub/po-form-tab'
 
+import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
 // 매입처 관리 — 매입처 360° 상세(B) 공용 컴포넌트
 // 영업·주문 영역과 회계·재무 영역 양쪽에서 쓴다 (basePath·perms는 목록과 동일 의미).
 // 목록(A)의 기간이 URL로 넘어와 기본값이 되고, 여기서 바꿔도 목록에는 영향이 없다.
@@ -303,7 +304,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
               <span className="text-slate-600">사업자번호</span>
               <input value={infoForm.biz} onChange={e => setInfoForm(f => ({ ...f, biz: e.target.value }))}
                 placeholder="숫자 10자리" className="border border-slate-400 rounded px-2 py-1 w-36" />
-              <button onClick={saveInfo} className="px-2.5 py-1 bg-slate-900 text-white rounded">저장</button>
+              <button onClick={saveInfo} className={btnCls('primary', 'sm')}>저장</button>
               <button onClick={() => setInfoForm({ open: false, name: '', biz: '' })}
                 className="text-xs text-slate-500 hover:text-slate-700">취소</button>
             </div>
@@ -323,7 +324,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                   placeholder="example@company.com" autoFocus
                   onKeyDown={e => { if (e.key === 'Enter') saveEmail() }}
                   className="border border-slate-400 rounded px-2 py-0.5 text-xs w-56" />
-                <button onClick={saveEmail} className="px-2 py-0.5 bg-slate-900 text-white rounded text-xs">저장</button>
+                <button onClick={saveEmail} className={btnCls('primary', 'sm')}>저장</button>
                 <button onClick={() => setEmailForm({ open: false, value: '' })}
                   className="text-xs text-slate-500 hover:text-slate-700">취소</button>
               </>
@@ -361,7 +362,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                 placeholder="0" className="border border-slate-400 rounded px-2 py-1 w-32 text-right tabular-nums" />
               <input value={openingForm.note} onChange={e => setOpeningForm(f => ({ ...f, note: e.target.value }))}
                 placeholder="메모 (선택)" className="border border-slate-400 rounded px-2 py-1 w-40" />
-              <button onClick={saveOpening} className="px-2.5 py-1 bg-slate-900 text-white rounded">저장</button>
+              <button onClick={saveOpening} className={btnCls('primary', 'sm')}>저장</button>
               <span className="text-xs text-slate-500">기준일 이후 계산서(+)·지급(-)만 잔액에 반영됩니다</span>
             </div>
           )}
@@ -371,7 +372,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
           {perms.edit && <div className="mt-1.5 flex gap-1.5 justify-end">
             <button onClick={toggleActive}
               title="기록은 남기고 신규 선택 목록에서만 제외합니다"
-              className="px-2 py-1 border border-slate-400 rounded text-xs text-slate-700 hover:bg-slate-50">
+              className={btnCls('secondary', 'sm')}>
               {data.vendor.is_active ? '비활성화' : '활성화'}
             </button>
             <button onClick={removeVendor}
@@ -430,7 +431,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                   <input type="checkbox" checked={staffForm.primary} onChange={e => setStaffForm(f => ({ ...f, primary: e.target.checked }))} /> 주담당
                 </label>
                 <button onClick={() => staffForm.name.trim() && assignStaff()}
-                  className="px-2.5 py-1 bg-slate-900 text-white rounded text-xs">등록·배정</button>
+                  className={btnCls('primary', 'sm')}>등록·배정</button>
               </div>
             </div>
           )}
@@ -487,7 +488,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                   <input type="checkbox" checked={contactForm.rep} onChange={e => setContactForm(f => ({ ...f, rep: e.target.checked }))} /> 대표
                 </label>
                 <button onClick={() => contactForm.name.trim() && submitContact()}
-                  className="px-2.5 py-1 bg-slate-900 text-white rounded text-xs">등록·배정</button>
+                  className={btnCls('primary', 'sm')}>등록·배정</button>
               </div>
               {candidates && (
                 <div className="px-3 py-2 bg-white border border-amber-200 rounded-lg text-xs">
@@ -741,7 +742,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
             <div>
               <div className="flex flex-wrap items-center gap-1.5 text-xs mb-2">
                 {([['unmatched', `계산서 없는 출금만 (${cnt.unmatched})`], ['all', `전체 (${cnt.all})`], ['in', `입금만 (${cnt.in})`]] as const).map(([k, l]) => (
-                  <button key={k} onClick={() => setBankView(k)} className={`px-2 py-1 rounded-full border ${bankView === k ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-400 text-slate-700 hover:border-slate-400'}`}>{l}</button>
+                  <button key={k} onClick={() => setBankView(k)} className={chipCls(bankView === k)}>{l}</button>
                 ))}
                 <span className="text-slate-500 ml-1">연결 거래 전체(기간 무관) · 적요 클릭 = 통장 내역 화면의 그 행</span>
               </div>
@@ -887,9 +888,9 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
             <div className="text-sm font-bold text-slate-900 mb-2">활동 메모</div>
             <textarea value={note} onChange={e => setNote(e.target.value)} rows={6}
               placeholder="지급 협의, 정산 이슈 등 이 매입처 관련 메모" readOnly={!perms.edit}
-              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm read-only:bg-slate-50" />
+              className={fieldBox({ area: true })} />
             {perms.edit && <div className="flex justify-end mt-2">
-              <button onClick={saveNote} className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">저장</button>
+              <button onClick={saveNote} className={btnCls('primary', 'md')}>저장</button>
             </div>}
           </div>
         )}

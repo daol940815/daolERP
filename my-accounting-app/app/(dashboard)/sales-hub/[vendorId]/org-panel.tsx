@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 매출처 하위 조직 · 위치 (120, 2026-11-20 사용자 승인 — 시안 docs/mockups/매출처_하위조직_시안.html)
 //  - OrgHeader: 경로(업체 › 상위들 › 이 조직) · 위치 배지 · 상위 조직/위치 변경 · 하위 조직 추가 · 집계 범위(이 조직만 / 하위 포함)
 //  - OrgTab: 하위 조직 트리(숫자 포함) · 새 하위 조직 등록 · 기존 매출처 편입 · 하위에서 빼기 · 변경 이력
@@ -84,8 +85,8 @@ export function OrgHeader({ org, vendorName, onEdit, scope, setScope, part }: {
         )}
         {org.can_edit && (
           <>
-            <button onClick={() => onEdit('set')} className="px-2 py-0.5 border border-slate-400 rounded text-xs text-slate-700 hover:bg-slate-50">상위 조직 · 위치</button>
-            <button onClick={() => onEdit('create')} className="px-2 py-0.5 border border-slate-400 rounded text-xs text-slate-700 hover:bg-slate-50">하위 조직 추가</button>
+            <button onClick={() => onEdit('set')} className={btnCls('secondary', 'sm')}>상위 조직 · 위치</button>
+            <button onClick={() => onEdit('create')} className={btnCls('secondary', 'sm')}>하위 조직 추가</button>
           </>
         )}
       </div>
@@ -182,8 +183,8 @@ export function OrgTab({ org, onEdit, onChanged }: {
           <span className="text-xs text-slate-500">주문 · 계산서 · 담당자는 각 조직에 붙습니다 — 행을 누르면 그 조직 상세</span>
           {org.can_edit && (
             <span className="ml-auto flex gap-1.5">
-              <button onClick={() => onEdit('create')} className="px-2.5 py-1 bg-slate-900 text-white rounded-lg text-xs">새 하위 조직 등록</button>
-              <button onClick={() => onEdit('attach')} className="px-2.5 py-1 border border-slate-400 rounded-lg text-xs text-slate-800 hover:bg-slate-50">기존 매출처 편입</button>
+              <button onClick={() => onEdit('create')} className={btnCls('primary', 'sm')}>새 하위 조직 등록</button>
+              <button onClick={() => onEdit('attach')} className={btnCls('secondary', 'sm')}>기존 매출처 편입</button>
             </span>
           )}
         </div>
@@ -280,7 +281,7 @@ function SearchPick({ kind, vendorId, value, onPick, placeholder }: {
   return (
     <div>
       <input value={q} onChange={e => setQ(e.target.value)} placeholder={placeholder}
-        className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        className={fieldBox()} />
       {(q.trim() || kind !== 'location') && (
         <div className="mt-1 border border-slate-300 rounded-lg max-h-48 overflow-y-auto">
           {items.length === 0 && <p className="text-xs text-slate-500 px-3 py-2">{q.trim() ? '검색 결과 없음' : '이름 일부를 입력하세요'}</p>}
@@ -366,7 +367,7 @@ export function OrgDialog({ mode, org, vendorId, vendorName, onClose, onDone }: 
           <>
             <label className="block text-xs font-medium text-slate-800 mt-4 mb-1">조직 이름 (팀 · 부서명)</label>
             <input autoFocus value={unit} onChange={e => setUnit(e.target.value)} placeholder="예: 자동차금융팀"
-              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+              className={fieldBox()} />
             {createPreview && (
               <div className="mt-2 text-xs text-slate-600 bg-slate-50 border border-dashed border-slate-400 rounded-lg px-3 py-2">
                 등록될 매출처 이름 <b className="text-slate-900">{createPreview}</b> <span className="text-slate-500">(업체명 + 상위 단위 + 팀명)</span>
@@ -390,8 +391,8 @@ export function OrgDialog({ mode, org, vendorId, vendorName, onClose, onDone }: 
 
         {msg && <p className="text-xs text-red-600 mt-3">{msg}</p>}
         <div className="flex justify-end gap-2 mt-5">
-          <button disabled={busy} onClick={onClose} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">취소</button>
-          <button disabled={busy} onClick={save} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-40">
+          <button disabled={busy} onClick={onClose} className={btnCls('secondary', 'md')}>취소</button>
+          <button disabled={busy} onClick={save} className={btnCls('primary', 'md')}>
             {busy ? '저장 중...' : mode === 'create' ? '등록' : mode === 'attach' ? '편입' : '저장'}
           </button>
         </div>

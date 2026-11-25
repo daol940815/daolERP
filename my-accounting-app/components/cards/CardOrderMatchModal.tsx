@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { CardOrderState } from '@/lib/card-order-match.server'
 import { useReasonDialog } from '@/components/payments/ReasonDialog'
 
+import { btnCls, chipCls } from '@/components/ui/kit'
 // 카드 결제 1건을 주문에 배분하는 모달 (2026-11-13 승인 시안). 자동 매칭 없음 — 체크 + 금액 입력으로 사람이 배분.
 // 저장은 교체: 체크를 풀면 해제된다. 이 매칭은 ERP 미수(수금) 기준이고 카드사 정산 입금은 통장에서 따로 확정한다.
 
@@ -104,8 +105,8 @@ export default function CardOrderMatchModal({ saleId, onClose, onSaved }: {
 
         <div className="px-5 py-3 overflow-auto flex-1 text-sm">
           <div className="flex flex-wrap items-center gap-2 text-xs mb-2">
-            <button onClick={() => { setMode('vendor'); setQ(''); load() }} className={`px-2 py-1 rounded-full border ${mode === 'vendor' ? 'bg-slate-900 border-slate-900 text-white' : 'border-slate-400 text-slate-700'}`}>이 매출처 주문</button>
-            <button onClick={() => setMode('all')} className={`px-2 py-1 rounded-full border ${mode === 'all' ? 'bg-slate-900 border-slate-900 text-white' : 'border-slate-400 text-slate-700'}`}>전체 주문 검색</button>
+            <button onClick={() => { setMode('vendor'); setQ(''); load() }} className={chipCls(mode === 'vendor')}>이 매출처 주문</button>
+            <button onClick={() => setMode('all')} className={chipCls(mode === 'all')}>전체 주문 검색</button>
             {mode === 'all' && (<>
               <input value={q} onChange={e => setQ(e.target.value)} placeholder="주문번호 · 업체 · 지점" className="border border-slate-400 rounded px-2 py-1 w-48"
                 onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) load(q) }} />
@@ -160,8 +161,8 @@ export default function CardOrderMatchModal({ saleId, onClose, onSaved }: {
         <div className="px-5 py-3 border-t border-slate-300 flex items-center justify-between">
           <Link href={`/erp-matching?depositId=card:${saleId}`} className="text-xs text-slate-600 hover:underline">입금 매칭 화면에서 열기 →</Link>
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
-            <button onClick={save} disabled={busy || over || !sale} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-40">
+            <button onClick={onClose} className={btnCls('secondary', 'md')}>닫기</button>
+            <button onClick={save} disabled={busy || over || !sale} className={btnCls('primary', 'md')}>
               {busy ? '저장 중...' : Object.keys(alloc).length ? '배분 저장' : '배분 전부 해제'}
             </button>
           </div>

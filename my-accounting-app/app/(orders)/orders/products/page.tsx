@@ -14,6 +14,7 @@ import VendorInfoPanel, { useVendorInfo } from './vendor-info-panel'
 import ProductRegisterDialog, { type RegisterSeed } from '../product-register-dialog'
 import { branchMargin, individualMargin, formatProfit, formatRate, roundProfit, type Margin } from '@/lib/product-margin'
 
+import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
 // 품목 마스터 (2단계) — 주문 입력의 품번 검색 원천.
 // 목록 화면 관례: KPI 카드(클릭=필터) + 통합 검색 + 표.
 // 조회 · 엑셀 다운로드는 전 직원, 등록 · 수정 · 업로드 · 품절 · 중지는 영업·주문 그룹 수정 권한.
@@ -438,16 +439,16 @@ export default function ProductsPage() {
               window.location.href = `/api/orders-portal/products/export?${p}`
             }}
             title="현재 필터·검색 조건 그대로 원가표 양식으로 다운로드 — 수정 후 그대로 재업로드 가능"
-            className="px-3.5 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">
+            className={btnCls('secondary', 'md')}>
             엑셀 다운로드
           </button>
           {canEdit && <>
           <button onClick={() => fileRef.current?.click()} disabled={uploading}
-            className="px-3.5 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700 disabled:opacity-50">
+            className={btnCls('secondary', 'md')}>
             {uploading ? '처리 중...' : '상품 엑셀 업로드'}
           </button>
           <button onClick={() => { setEditingId('new'); setDraft(emptyDraft) }}
-            className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">+ 품목 등록</button>
+            className={btnCls('primary', 'md')}>+ 품목 등록</button>
           </>}
         </span>
       </div>
@@ -488,7 +489,7 @@ export default function ProductsPage() {
       {/* 구분 검색 + 결과 내 재검색: Enter로 조건이 쌓이고 전부 만족한 품목만 표시 */}
       <div className="flex items-center gap-2 mt-3 flex-wrap">
         <select value={condField} onChange={e => setCondField(e.target.value as CondField)}
-          className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm">
+          className={fieldBox({ noWidth: true })}>
           {(Object.keys(COND_LABEL) as CondField[]).map(f => (
             <option key={f} value={f}>{COND_LABEL[f]}</option>
           ))}
@@ -498,7 +499,7 @@ export default function ProductsPage() {
             if (e.key === 'Enter' && search.trim()) { addCond(condField, search); setSearch('') }
           }}
           placeholder={`${COND_LABEL[condField]} 검색 — Enter로 조건 고정(결과 내 재검색)`}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-80" />
+          className={fieldBox({ noWidth: true, extra: 'w-80' })} />
         <button onClick={() => setBuilderOpen(o => !o)} aria-expanded={builderOpen}
           className={`px-3 py-1.5 rounded-lg text-sm border ${builderOpen ? 'border-slate-800 text-slate-900 font-medium' : 'border-slate-400 text-slate-700'}`}>
           + 필터
@@ -536,7 +537,7 @@ export default function ProductsPage() {
           <label htmlFor="product-sort-key" className="text-xs text-slate-600">정렬 기준</label>
           <select id="product-sort-key" value={sort.key}
             onChange={e => setSort(prev => ({ key: e.target.value as SortKey, dir: prev.dir }))}
-            className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm">
+            className={fieldBox({ noWidth: true })}>
             {SORT_OPTIONS.map(k => <option key={k} value={k}>{SORT_LABEL[k]}</option>)}
           </select>
           <span className="inline-flex border border-slate-400 rounded-lg overflow-hidden" role="group" aria-label="정렬 방향">
@@ -562,14 +563,14 @@ export default function ProductsPage() {
             <div>
               <label className="block text-xs text-slate-600 mb-0.5">항목</label>
               <select value={bField} onChange={e => pickField(e.target.value as FilterFieldKey)}
-                className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm">
+                className={fieldBox({ noWidth: true })}>
                 {FILTER_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-xs text-slate-600 mb-0.5">조건</label>
               <select value={bOp} onChange={e => setBOp(e.target.value as FilterOp)}
-                className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm">
+                className={fieldBox({ noWidth: true })}>
                 {opsOf(bField).map(o => <option key={o.op} value={o.op}>{o.label}</option>)}
               </select>
             </div>
@@ -587,7 +588,7 @@ export default function ProductsPage() {
               </div>
             )}
             <button onClick={addFilter} disabled={!isComplete(draftFilter)}
-              className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-40">조건 추가</button>
+              className={btnCls('primary', 'md')}>조건 추가</button>
             <span className="text-xs text-slate-500 pb-1.5">
               칩은 몇 개든 쌓을 수 있고 모두 만족하는 품목만 보입니다. Enter로도 추가.
               {kind === 'rate' ? ' 마진율은 %로 입력(예: 20).' : ''}
@@ -604,7 +605,7 @@ export default function ProductsPage() {
           {PRICE_BASES.map(b => <option key={b.key} value={b.key}>{b.label}</option>)}
         </select>
         <button onClick={() => setBands([])}
-          className={`px-2.5 py-1 rounded-full text-xs border ${bands.length ? 'bg-white border-slate-400 text-slate-700' : 'bg-slate-900 border-slate-900 text-white'}`}>
+          className={chipCls(!(bands.length))}>
           전체
         </button>
         {PRICE_BANDS.map(b => {
@@ -612,7 +613,7 @@ export default function ProductsPage() {
           return (
             <button key={b.key} aria-pressed={on}
               onClick={() => setBands(prev => on ? prev.filter(x => x !== b.key) : [...prev, b.key])}
-              className={`px-2.5 py-1 rounded-full text-xs border tabular-nums ${on ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-400 text-slate-700'}`}>
+              className={chipCls(on, 'tabular-nums')}>
               {b.label} <span className={on ? 'text-slate-400' : 'text-slate-500'}>{bandCounts[b.key] ?? 0}</span>
             </button>
           )
@@ -709,11 +710,11 @@ export default function ProductsPage() {
           </label>
           <VendorInfoPanel info={vinfo.info} draft={vinfo.draft} setDraft={vinfo.setDraft}
             loading={vinfo.loading} inputCls={inputCls} />
-          <button onClick={save} className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm">
+          <button onClick={save} className={btnCls('primary', 'md')}>
             {editingId === 'new' ? '등록' : '저장'}
           </button>
           <button onClick={() => { setEditingId(null); setDraft(emptyDraft) }}
-            className="px-3.5 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">취소</button>
+            className={btnCls('secondary', 'md')}>취소</button>
         </div>
       )}
 
@@ -761,10 +762,10 @@ export default function ProductsPage() {
                       {canEdit && (
                         <button onClick={() => setRegisterSeed({ item_name: u.item_name, purchase_vendor_name: u.purchase_vendor_name,
                             sale_price: u.last_sale, purchase_price: u.last_purchase })}
-                          className="px-2.5 py-1 bg-slate-900 text-white rounded-lg text-xs mr-1.5">등록</button>
+                          className={btnCls('primary', 'sm', 'mr-1.5')}>등록</button>
                       )}
                       <button onClick={() => setUnregOpen(o => o === k ? null : k)}
-                        className="px-2.5 py-1 border border-slate-400 rounded-lg text-xs text-slate-700">
+                        className={btnCls('secondary', 'sm')}>
                         {unregOpen === k ? '접기' : '쓰인 곳 보기'}
                       </button>
                     </td>
@@ -921,9 +922,9 @@ export default function ProductsPage() {
             )}
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={() => setPending(null)}
-                className="px-3.5 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">취소</button>
+                className={btnCls('secondary', 'md')}>취소</button>
               <button onClick={() => upload(pending.file)}
-                className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">업로드</button>
+                className={btnCls('primary', 'md')}>업로드</button>
             </div>
           </div>
         </div>

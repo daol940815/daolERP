@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
+import { btnCls } from '@/components/ui/kit'
 // 거래처 연동 재정비 2단계 — ERP 별칭 등록 대기.
 // ERP 업로드가 만든 별칭 중 거래처 미연결분을 자동 판정과 함께 보여주고,
 // 선택한 것을 일괄 생성·연결하거나 제외한다 (확정은 사용자).
@@ -102,11 +103,11 @@ export default function ErpAliasPendingPage() {
 
       <div className="flex items-center gap-2 mb-3">
         <button onClick={() => run('apply')} disabled={busy || !rows?.length}
-          className="px-3 py-2 rounded-lg text-sm font-medium bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-50">
+          className={btnCls('primary', 'md')}>
           {busy ? '처리 중...' : `선택 ${checked.size}건 자동 판정대로 생성·연결`}
         </button>
         <button onClick={() => run('exclude')} disabled={busy || !rows?.length}
-          className="px-3 py-2 rounded-lg text-sm border border-slate-400 text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+          className={btnCls('secondary', 'md')}>
           선택 제외 (거래처 관리 안 함)
         </button>
         {rows && rows.length > 0 && (

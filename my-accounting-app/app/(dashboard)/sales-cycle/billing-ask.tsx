@@ -1,4 +1,5 @@
 'use client'
+import { btnCls } from '@/components/ui/kit'
 
 // 다른 거래처 명의 계산서를 연결할 때 묻는 창 + 연결 저장 도우미 (2026-11-17, 시안 docs/mockups/계산서연결_다른거래처_시안.html)
 // 출장소 주문의 계산서가 지점 명의로 발행되는 경우: 연결하면서 "청구처로 지정"하면 다음부터 연결 창 추천에 바로 뜬다.
@@ -60,7 +61,7 @@ export function BillingAskDialog({ ask, amount, busy, onChoose }: {
           <button onClick={() => onChoose('link')} disabled={busy} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm bg-white hover:bg-slate-50 disabled:opacity-40">이번만 연결</button>
           {ask.canSetBilling && (
             <button onClick={() => onChoose('link_set')} disabled={busy}
-              className="px-3 py-1.5 rounded-lg text-sm bg-slate-900 text-white font-semibold hover:bg-slate-700 disabled:opacity-40">{busy ? '저장 중...' : '연결하고 청구처로 지정'}</button>
+              className={btnCls('primary', 'md')}>{busy ? '저장 중...' : '연결하고 청구처로 지정'}</button>
           )}
         </div>
       </div>

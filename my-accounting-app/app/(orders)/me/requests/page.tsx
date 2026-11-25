@@ -3,6 +3,7 @@ import PageTabs from '@/components/ui/PageTabs'
 import RequestsList from './requests-list'
 import type { WrScope } from '@/lib/work-requests'
 
+import { btnCls } from '@/components/ui/kit'
 // 업무 요청 — 내 업무 그룹(전 영역 공통). 공용 목록(전체) / 내가 받은 / 내가 보낸 (900·901, docs/work-request-track.md)
 // 2026-11-18: ?kind=personal|shared — 개인 · 공용 요청 필터(KPI 필터와 함께 걸림, 알림 링크). 옛 ?filter=personal|shared 도 받는다.
 // 2026-11-10: ?tag=<태그 id | none> — 업무 계열 태그 필터 미리 선택(경영 현황 드릴다운, 904)
@@ -18,7 +19,7 @@ export default function WorkRequestsPage({ searchParams }: { searchParams: { tab
     <div className="w-full">
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-2xl font-bold text-slate-900">업무 요청</h1>
-        <Link href="/me/requests/new" className="ml-auto px-3 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">+ 새 요청</Link>
+        <Link href="/me/requests/new" className={btnCls('primary', 'md', 'ml-auto')}>+ 새 요청</Link>
       </div>
       <PageTabs className="mt-3 mb-4" active={scope} tabs={[
         { key: 'inbox', label: '내가 받은', href: `/me/requests${q({ tab: undefined })}` },

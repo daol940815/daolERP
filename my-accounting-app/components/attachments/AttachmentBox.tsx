@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { btnCls } from '@/components/ui/kit'
 import {
   ATTACH_BUCKET, ATTACH_ACCEPT, ATTACH_MAX_BYTES, ATTACH_MAX_PER_OWNER, ATTACH_IMAGE_LONG_SIDE,
   isAllowedFile, isImageName, extOf, fmtBytes, shrinkImage, type AttachmentItem,
@@ -166,7 +167,7 @@ export default function AttachmentBox({ ownerType, ownerId, draftKey, title = '�
             <span className="text-slate-700">올리는 중… {uploading[0]}{uploading.length > 1 ? ` 외 ${uploading.length - 1}개` : ''}</span>
           ) : (
             <span className="text-slate-600">
-              <button type="button" onClick={() => inputRef.current?.click()} className="px-2.5 py-1 border border-slate-400 rounded-lg text-slate-800 hover:bg-slate-50 mr-2">파일 선택</button>
+              <button type="button" onClick={() => inputRef.current?.click()} className={btnCls('secondary', 'sm', 'mr-2')}>파일 선택</button>
               여기로 끌어놓거나{pasteAnywhere ? ' 화면 캡처를 Ctrl+V 로 붙여넣으세요' : ' 파일을 선택하세요'}
             </span>
           )}

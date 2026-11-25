@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { CashReceipt, CashReceiptPayment } from '@/types/cash-receipt'
 
+import { btnCls } from '@/components/ui/kit'
 // 현금영수증(매출 발행) 입금 연결 모달 (425, 2026-11-13 승인 시안) — 계산서 결제연결 모달과 같은 흐름.
 // 추천 후보(발행일 ±7일 · 남은 금액 ≥ 잔액 · 계산서·다른 영수증 미연결) + 직접 찾기(기간·검색어). 연결 금액은 고칠 수 있다(분할·합산).
 
@@ -162,7 +163,7 @@ export default function ReceiptMatchModal({ receipt, onClose, onChanged }: {
         </div>
 
         <div className="px-5 py-3 border-t border-slate-300 flex justify-end gap-2">
-          <button onClick={onClose} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
+          <button onClick={onClose} className={btnCls('secondary', 'md')}>닫기</button>
           <button onClick={link} disabled={busy || !picked || remain <= 0} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-40">
             {busy ? '연결 중...' : remain <= 0 ? '전액 연결됨' : '연결'}
           </button>

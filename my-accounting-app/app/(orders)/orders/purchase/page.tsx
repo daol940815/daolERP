@@ -1,7 +1,7 @@
 'use client'
 
 import PeriodPresets from '@/components/ui/PeriodPresets'
-import { PageHeader, FilterRow, KpiGrid, KpiCard, Chip, fieldBox } from '@/components/ui/kit'
+import { Chip, FilterRow, KpiCard, KpiGrid, PageHeader, btnCls, fieldBox } from '@/components/ui/kit'
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import PoDetail from '../po-detail'
@@ -181,11 +181,11 @@ export default function PurchaseHistoryPage() {
                   <td className="py-2 px-3 text-xs text-slate-600">{r.payment_term ?? '-'}</td>
                   <td className="py-2 px-3 text-right whitespace-nowrap">
                     <button onClick={() => setOpenPo(v => v === r.id ? null : r.id)}
-                      className="px-2.5 py-1 border border-slate-400 rounded text-xs text-slate-700 hover:border-slate-400 mr-1.5">
+                      className={btnCls('secondary', 'sm', 'mr-1.5')}>
                       {openPo === r.id ? '접기' : '내용'}
                     </button>
                     <a href={`/api/orders-portal/purchase-orders/${r.id}?excel=1`}
-                      className="px-2.5 py-1 border border-slate-400 rounded text-xs text-slate-700 hover:border-slate-400">엑셀</a>
+                      className={btnCls('secondary', 'sm')}>엑셀</a>
                   </td>
                 </tr>
                 {openPo === r.id && (

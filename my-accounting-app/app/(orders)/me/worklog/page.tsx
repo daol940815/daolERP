@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
+import { btnCls, chipCls } from '@/components/ui/kit'
 // 업무일지 — 계정이 ERP에서 진행한 업무 이력.
 // 자동 기재(상담·주문·영업일지)와 직접 기재(ERP 밖 업무)를 한 화면에서 시간순으로 본다.
 // 자동 기재 줄은 수정 불가, 직접 기재 줄만 본인이 수정·삭제한다.
@@ -176,7 +177,7 @@ export default function MyWorklogPage() {
               {(data?.employees ?? []).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
             <Link href="/me/team-worklog"
-              className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50">
+              className={btnCls('secondary', 'md')}>
               팀 업무 현황
             </Link>
           </div>
@@ -215,8 +216,7 @@ export default function MyWorklogPage() {
         </select>
         {['all', ...(data?.actions ?? [])].map(a => (
           <button key={a} onClick={() => setAction(a)}
-            className={`px-3 py-1 rounded-full text-xs border transition-colors ${
-              action === a ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}>
+            className={chipCls(action === a)}>
             {a === 'all' ? '전체' : a}
           </button>
         ))}
@@ -236,7 +236,7 @@ export default function MyWorklogPage() {
             placeholder="ERP 밖에서 한 업무를 한 줄로 적어주세요 (예: 배송 포장 40건, 거래처 방문 회의)"
             className="flex-1 min-w-[240px] border border-slate-300 rounded-lg px-3 py-2 text-sm" />
           <button onClick={submit} disabled={saving}
-            className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+            className={btnCls('primary', 'md')}>
             {saving ? '저장 중' : '기재'}
           </button>
         </div>

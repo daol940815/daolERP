@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 interface Account {
   id: string
   code: string
@@ -118,7 +119,7 @@ function AddAccountModal({ onClose, onSave }: { onClose: () => void; onSave: (a:
               value={form.code}
               onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
               placeholder="예: 5114"
-              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className={fieldBox()}
             />
           </div>
           <div>
@@ -127,7 +128,7 @@ function AddAccountModal({ onClose, onSave }: { onClose: () => void; onSave: (a:
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder="예: 도서인쇄비"
-              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className={fieldBox()}
             />
           </div>
           <div>
@@ -135,7 +136,7 @@ function AddAccountModal({ onClose, onSave }: { onClose: () => void; onSave: (a:
             <select
               value={form.type}
               onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
-              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className={fieldBox()}
             >
               {TYPE_ORDER.map(t => (
                 <option key={t} value={t}>{TYPE_META[t]?.label ?? t}</option>
@@ -146,14 +147,14 @@ function AddAccountModal({ onClose, onSave }: { onClose: () => void; onSave: (a:
         <div className="flex gap-2 mt-5">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50"
+            className={btnCls('secondary', 'md', 'flex-1')}
           >
             취소
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50"
+            className={btnCls('primary', 'md', 'flex-1')}
           >
             {saving ? '저장 중...' : '추가'}
           </button>
@@ -370,21 +371,21 @@ export default function AccountsPage() {
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <button
             onClick={handleTemplate}
-            className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 flex items-center gap-1.5"
+            className={btnCls('secondary', 'md')}
           >
             업로드 양식
           </button>
           <button
             onClick={handleDownload}
             disabled={accounts.length === 0}
-            className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1.5"
+            className={btnCls('secondary', 'md')}
           >
             엑셀 다운로드
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1.5"
+            className={btnCls('secondary', 'md')}
           >
             {uploading ? '업로드 중...' : '엑셀 업로드'}
           </button>
@@ -400,7 +401,7 @@ export default function AccountsPage() {
           />
           <button
             onClick={() => setShowAdd(true)}
-            className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700"
+            className={btnCls('primary', 'md')}
           >
             + 계정 추가
           </button>

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { getPeriodRange } from '@/lib/period-presets'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => (n ?? 0).toLocaleString('ko-KR')
 
 const TYPE_LABEL: Record<string, string> = {
@@ -109,7 +110,7 @@ function AccountLedgerContent() {
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <select value={accountId} onChange={e => setAccountId(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm min-w-[240px]">
+          className={fieldBox({ noWidth: true, extra: 'min-w-[240px]' })}>
           {accounts.length === 0 && <option value="">분개된 계정이 없습니다</option>}
           {accounts.map(a => (
             <option key={a.id} value={a.id}>
@@ -118,16 +119,16 @@ function AccountLedgerContent() {
           ))}
         </select>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+          className={fieldBox({ noWidth: true })} />
         <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+          className={fieldBox({ noWidth: true })} />
         <button onClick={() => {
           if (!accountId) return
           const a = document.createElement('a')
           a.href = `/api/ledger/account/export?accountId=${accountId}&from=${dateFrom}&to=${dateTo}`; a.click()
         }} disabled={!ledger}
-          className="px-3 py-1.5 border border-slate-400 text-slate-800 rounded-lg text-sm hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap">
+          className={btnCls('secondary', 'md', 'whitespace-nowrap')}>
           ↓ 엑셀
         </button>
       </div>

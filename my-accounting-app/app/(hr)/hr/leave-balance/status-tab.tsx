@@ -6,6 +6,7 @@ import { GRANT_KIND_LABEL } from '@/lib/leave-balance'
 import ProxyLeaveDialog, { type ProxyEmp } from '@/components/hr/ProxyLeaveDialog'
 import { fetchBalance, fmt, type BalanceRes, type BalanceRow } from './types'
 
+import { chipCls } from '@/components/ui/kit'
 // 연차 관리 › 현황 — 엑셀 "연차일수" 시트와 같은 표. 행(또는 월 숫자)을 누르면 그 직원의 부여 · 사용 내역이 펼쳐진다.
 type Kpi = 'over' | 'nolog' | null
 const MONTHS = Array.from({ length: 12 }, (_, i) => i)
@@ -54,7 +55,7 @@ export default function StatusTab() {
     </button>
   )
   const Chip = ({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) => (
-    <button onClick={onClick} className={`px-2.5 py-1 rounded-full text-xs border ${on ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-400 text-slate-700 hover:bg-slate-50'}`}>{children}</button>
+    <button onClick={onClick} className={chipCls(on)}>{children}</button>
   )
 
   const overRows = rows.filter(r => r.over > 0)

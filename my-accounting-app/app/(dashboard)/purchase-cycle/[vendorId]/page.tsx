@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from 'next/navigation'
 import { CandidateModal, won } from '../candidate-modal'
 import { ReviewBadge, type ReviewInfo } from '../review-badge'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 거래처 진행상태 — 파이프라인 (설계 §3)
 // ERP 주문 ─▶ 세금계산서 ─▶ 지급 흐름을 거래처 하나에 대해 보여주고,
 // 월별 셀을 세로로 쌓아 클릭하면 근거 레코드(원본 드릴다운)까지 내려간다.
@@ -159,10 +160,10 @@ function VendorCycleInner() {
           )}
         </div>
         <div className="flex items-center gap-2 text-sm">
-          <Link href={`/purchase-hub/${vendorId}`} className="px-2.5 py-1.5 border border-slate-400 rounded-lg text-slate-700 hover:bg-slate-50">거래처 상세</Link>
-          <Link href={`/transactions?vendorId=${vendorId}`} className="px-2.5 py-1.5 border border-slate-400 rounded-lg text-slate-700 hover:bg-slate-50">통장 거래</Link>
+          <Link href={`/purchase-hub/${vendorId}`} className={btnCls('secondary', 'md')}>거래처 상세</Link>
+          <Link href={`/transactions?vendorId=${vendorId}`} className={btnCls('secondary', 'md')}>통장 거래</Link>
           <button onClick={() => setShowModal(true)}
-            className="px-2.5 py-1.5 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-700">지급 후보</button>
+            className={btnCls('primary', 'md')}>지급 후보</button>
         </div>
       </div>
 
@@ -172,10 +173,10 @@ function VendorCycleInner() {
       {/* 기간 */}
       <div className="flex items-center gap-2 my-3">
         <input type="month" value={monthFrom} onChange={e => setMonthFrom(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+          className={fieldBox({ noWidth: true })} />
         <span className="text-slate-500 text-sm">~</span>
         <input type="month" value={monthTo} onChange={e => setMonthTo(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+          className={fieldBox({ noWidth: true })} />
       </div>
 
       {loading ? (
@@ -205,7 +206,7 @@ function VendorCycleInner() {
                 <ReviewBadge review={v.review} />
                 {reviewsAvailable && (!v.review || v.review.stale) && (
                   <button onClick={() => review(v)} disabled={reviewing === `${v.month}|${v.status}`}
-                    className="px-2 py-1 border border-slate-400 text-slate-700 rounded text-xs hover:bg-slate-100 disabled:opacity-50">
+                    className={btnCls('secondary', 'sm')}>
                     확인
                   </button>
                 )}
@@ -261,7 +262,7 @@ function VendorCycleInner() {
                             <ReviewBadge review={j.review} />
                             {reviewsAvailable && (!j.review || j.review.stale) && (
                               <button onClick={() => review(j)} disabled={reviewing === `${j.month}|${j.status}`}
-                                className="px-2 py-1 border border-slate-400 text-slate-700 rounded text-xs hover:bg-slate-100 disabled:opacity-50">
+                                className={btnCls('secondary', 'sm')}>
                                 확인
                               </button>
                             )}

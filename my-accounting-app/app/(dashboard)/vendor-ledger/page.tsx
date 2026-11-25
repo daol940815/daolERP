@@ -4,6 +4,7 @@ import PeriodPresets from '@/components/ui/PeriodPresets'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getPeriodRange } from '@/lib/period-presets'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => (n ?? 0).toLocaleString('ko-KR')
 
 interface Balance {
@@ -105,20 +106,20 @@ export default function VendorLedgerPage() {
       <PeriodPresets from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t) }} className="mb-2" />
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+          className={fieldBox({ noWidth: true })} />
         <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+          className={fieldBox({ noWidth: true })} />
         {tab === 'balance' && (
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="거래처명 검색"
-            className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-52" />
+            className={fieldBox({ noWidth: true, extra: 'w-52' })} />
         )}
         <button onClick={() => {
           const p = new URLSearchParams({ from: dateFrom, to: dateTo })
           if (tab === 'detail' && vendorId) p.set('vendorId', vendorId)
           const a = document.createElement('a'); a.href = `/api/ledger/vendor/export?${p}`; a.click()
         }} disabled={tab === 'detail' && !vendorId}
-          className="px-3 py-1.5 border border-slate-400 text-slate-800 rounded-lg text-sm hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap">
+          className={btnCls('secondary', 'md', 'whitespace-nowrap')}>
           ↓ 엑셀
         </button>
       </div>
@@ -168,7 +169,7 @@ export default function VendorLedgerPage() {
         <div>
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <select value={vendorId} onChange={e => setVendorId(e.target.value)}
-              className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm min-w-[220px]">
+              className={fieldBox({ noWidth: true, extra: 'min-w-[220px]' })}>
               <option value="">거래처 선택…</option>
               {balances.map(b => <option key={b.vendor_id} value={b.vendor_id}>{b.vendor_name}</option>)}
             </select>

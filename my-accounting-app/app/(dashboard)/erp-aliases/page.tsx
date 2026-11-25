@@ -8,6 +8,7 @@ import type { Vendor } from '@/types/tax-invoice'
 import { bestNameMatch } from '@/lib/name-similarity'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 type VendorInfo = Pick<Vendor,
   'id' | 'name' | 'type' | 'biz_number' | 'contact_name' | 'contact_phone' | 'email' | 'note' | 'match_aliases' | 'card_numbers' | 'is_active'
 > & { uses_custom_po?: boolean; po_use_sale_price?: boolean }   // 발주 관련 플래그 (507·509)
@@ -144,7 +145,7 @@ function VendorModal({
               autoFocus
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className={fieldBox()}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -154,7 +155,7 @@ function VendorModal({
                 value={form.biz_number}
                 onChange={e => setForm(f => ({ ...f, biz_number: e.target.value }))}
                 placeholder="000-00-00000"
-                className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+                className={fieldBox()}
               />
             </div>
             <div>
@@ -162,7 +163,7 @@ function VendorModal({
               <select
                 value={form.type}
                 onChange={e => setForm(f => ({ ...f, type: e.target.value as 'vendor' | 'customer' | 'both' }))}
-                className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+                className={fieldBox()}
               >
                 <option value="vendor">매입처</option>
                 <option value="customer">매출처</option>
@@ -176,7 +177,7 @@ function VendorModal({
               <input
                 value={form.contact_name}
                 onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))}
-                className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+                className={fieldBox()}
               />
             </div>
             <div>
@@ -184,7 +185,7 @@ function VendorModal({
               <input
                 value={form.contact_phone}
                 onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))}
-                className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+                className={fieldBox()}
               />
             </div>
           </div>
@@ -193,7 +194,7 @@ function VendorModal({
             <input
               value={form.email}
               onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className={fieldBox()}
             />
           </div>
           <div>
@@ -202,7 +203,7 @@ function VendorModal({
               value={form.note}
               onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
               rows={2}
-              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className={fieldBox({ area: true })}
             />
           </div>
           <div>
@@ -227,7 +228,7 @@ function VendorModal({
                 value={form.ledger_balance}
                 onChange={e => setForm(f => ({ ...f, ledger_balance: e.target.value }))}
                 placeholder="예: 2919000"
-                className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+                className={fieldBox()}
               />
             </div>
           )}
@@ -244,11 +245,11 @@ function VendorModal({
           </div>
         </div>
         <div className="flex gap-2 mt-5">
-          <button onClick={onClose} className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">취소</button>
+          <button onClick={onClose} className={btnCls('secondary', 'md', 'flex-1')}>취소</button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50"
+            className={btnCls('primary', 'md', 'flex-1')}
           >
             {saving ? '저장 중...' : '저장'}
           </button>
@@ -594,14 +595,14 @@ function ErpAliasesContent() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder={`ERP ${tabLabel}명/거래처명 검색`}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className={fieldBox({ noWidth: true, extra: 'w-52' })}
         />
         <span className="text-xs text-slate-500">미연결 {unmatchedCount} / 전체 {aliases.length}</span>
         <div className="flex-1" />
         <button
           onClick={handleExport}
           disabled={loading || working || importing}
-          className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+          className={btnCls('secondary', 'sm')}
         >
           엑셀 다운로드
         </button>
@@ -619,21 +620,21 @@ function ErpAliasesContent() {
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={loading || working || importing}
-          className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+          className={btnCls('secondary', 'sm')}
         >
           {importing ? '업로드 중...' : '엑셀 업로드'}
         </button>
         <button
           onClick={selectHighConfidence}
           disabled={loading || working}
-          className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+          className={btnCls('secondary', 'sm')}
         >
           유사도 90%↑ 전체선택
         </button>
         <button
           onClick={handleBulkConnect}
           disabled={loading || working || selected.size === 0}
-          className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs hover:bg-slate-700 disabled:opacity-40"
+          className={btnCls('primary', 'sm')}
         >
           {working ? '처리 중...' : `선택 ${selected.size}건 일괄 연결`}
         </button>
@@ -741,7 +742,7 @@ function ErpAliasesContent() {
                             <button
                               onClick={() => handleCreateVendor(a)}
                               disabled={working}
-                              className="px-2 py-1 text-xs border border-slate-400 text-slate-700 rounded hover:bg-slate-50 disabled:opacity-40"
+                              className={btnCls('secondary', 'sm')}
                             >
                               + 신규 생성
                             </button>
@@ -762,7 +763,7 @@ function ErpAliasesContent() {
                                 value={draft.biz}
                                 onChange={e => setDraft(d => d ? { ...d, biz: e.target.value } : d)}
                                 placeholder="123-45-67890"
-                                className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                                className={fieldBox({ noWidth: true, extra: 'w-44' })}
                               />
                             </div>
 
@@ -773,7 +774,7 @@ function ErpAliasesContent() {
                                 <input
                                   value={draft.contactName}
                                   onChange={e => setDraft(d => d ? { ...d, contactName: e.target.value } : d)}
-                                  className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                                  className={fieldBox({ noWidth: true, extra: 'w-32' })}
                                 />
                               </div>
                               <div>
@@ -781,7 +782,7 @@ function ErpAliasesContent() {
                                 <input
                                   value={draft.contactPhone}
                                   onChange={e => setDraft(d => d ? { ...d, contactPhone: e.target.value } : d)}
-                                  className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                                  className={fieldBox({ noWidth: true, extra: 'w-36' })}
                                 />
                               </div>
                             </div>
@@ -813,11 +814,11 @@ function ErpAliasesContent() {
                                     }
                                   }}
                                   placeholder="예: 하나은행본점, (주)다올"
-                                  className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                                  className={fieldBox({ noWidth: true, extra: 'w-48' })}
                                 />
                                 <button
                                   onClick={() => draft.newAlias.trim() && setDraft(d => d ? { ...d, aliases: [...d.aliases, d.newAlias.trim()], newAlias: '' } : d)}
-                                  className="px-2.5 py-1 text-xs border border-slate-400 rounded-lg text-slate-700 hover:bg-slate-100"
+                                  className={btnCls('secondary', 'sm')}
                                 >추가</button>
                               </div>
                             </div>
@@ -848,11 +849,11 @@ function ErpAliasesContent() {
                                       }
                                     }}
                                     placeholder="1234-56**-****-7890"
-                                    className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                                    className={fieldBox({ noWidth: true, extra: 'w-48' })}
                                   />
                                   <button
                                     onClick={() => draft.newCard.trim() && setDraft(d => d ? { ...d, cards: [...d.cards, d.newCard.trim()], newCard: '' } : d)}
-                                    className="px-2.5 py-1 text-xs border border-slate-400 rounded-lg text-slate-700 hover:bg-slate-100"
+                                    className={btnCls('secondary', 'sm')}
                                   >추가</button>
                                 </div>
                               </div>
@@ -865,7 +866,7 @@ function ErpAliasesContent() {
                                 value={draft.note}
                                 onChange={e => setDraft(d => d ? { ...d, note: e.target.value } : d)}
                                 rows={2}
-                                className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                                className={fieldBox({ area: true })}
                               />
                             </div>
                           </div>
@@ -892,28 +893,28 @@ function ErpAliasesContent() {
                             <button
                               onClick={() => handleSaveMatchInfo(a)}
                               disabled={working}
-                              className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-xs hover:bg-slate-700 disabled:opacity-40"
+                              className={btnCls('primary', 'sm')}
                             >
                               {working ? '저장 중...' : '저장'}
                             </button>
                             <button
                               onClick={() => { setExpandedId(null); setDraft(null) }}
                               disabled={working}
-                              className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                              className={btnCls('secondary', 'sm')}
                             >취소</button>
                             <Link
                               href={a.alias_type === 'purchase' ? `/purchase-hub/${a.vendor_id}` : `/sales-hub/${a.vendor_id}`}
-                              className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700 hover:bg-slate-100"
+                              className={btnCls('secondary', 'sm')}
                             >거래처 상세 →</Link>
                             <button
                               onClick={() => handleToggleActive(a)}
                               disabled={working}
-                              className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                              className={btnCls('secondary', 'sm')}
                             >{a.vendors?.is_active ? '비활성화' : '활성화'}</button>
                             <button
                               onClick={() => handleDeleteVendor(a)}
                               disabled={working}
-                              className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs hover:bg-red-50 disabled:opacity-40"
+                              className={btnCls('danger', 'sm')}
                             >거래처 삭제</button>
                             {sharedCount > 1 && (
                               <span className="text-xs text-amber-600">
@@ -940,7 +941,7 @@ function ErpAliasesContent() {
         </div>
         <button
           onClick={() => setShowAddVendor(true)}
-          className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs hover:bg-slate-700"
+          className={btnCls('primary', 'sm')}
         >
           + 기타 거래처 추가
         </button>

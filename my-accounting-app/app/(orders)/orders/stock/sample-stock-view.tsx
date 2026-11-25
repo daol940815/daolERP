@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => (n ?? 0).toLocaleString('ko-KR')
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -244,7 +245,7 @@ export default function SampleStockView() {
         <div className="flex gap-1.5">
           <button onClick={() => setModal('take')} className="rounded-lg border border-slate-400 bg-white px-3.5 py-2 text-[0.8125rem] font-semibold text-slate-800 hover:bg-slate-50">실사 입력</button>
           <button onClick={() => setModal('in')} className="rounded-lg border border-slate-400 bg-white px-3.5 py-2 text-[0.8125rem] font-semibold text-slate-800 hover:bg-slate-50">입고 입력</button>
-          <button onClick={() => setModal('out')} className="rounded-lg bg-slate-900 px-3.5 py-2 text-[0.8125rem] font-semibold text-white hover:bg-slate-800">출고 입력</button>
+          <button onClick={() => setModal('out')} className={btnCls('primary', 'md')}>출고 입력</button>
         </div>
       </div>
 
@@ -295,7 +296,7 @@ export default function SampleStockView() {
                 value={stockSearch}
                 onChange={(e) => setStockSearch(e.target.value)}
                 placeholder="품명 검색..."
-                className="w-64 rounded-lg border border-slate-400 px-3 py-1.5 text-[0.8125rem] outline-none focus:border-slate-500"
+                className={fieldBox({ noWidth: true, extra: 'w-64' })}
               />
               {['all', '세트', '핸드크림', '디퓨저', '부자재', '기타'].map((c) => (
                 <button key={c} className={chipCls(stockChip === c)} onClick={() => setStockChip(c)}>
@@ -449,7 +450,7 @@ export default function SampleStockView() {
                 value={ledgerSearch}
                 onChange={(e) => { setLedgerSearch(e.target.value); setLedgerPage(1) }}
                 placeholder="품명 · 출고처 · 담당자 검색..."
-                className="w-72 rounded-lg border border-slate-400 px-3 py-1.5 text-[0.8125rem] outline-none focus:border-slate-500"
+                className={fieldBox({ noWidth: true, extra: 'w-72' })}
               />
               {[['all', '전체'], ['in', '입고'], ['out', '출고'], ['adjust', '실사 조정'], ['gift', '선물증정만'], ['unlinked', '직원 미연결'], ['manual', '직접 입력분']].map(([k, label]) => (
                 <button key={k} className={chipCls(ledgerChip === k)} onClick={() => { setLedgerChip(k); setLedgerPage(1) }}>{label}</button>
@@ -693,7 +694,7 @@ function MoveModal({ initialType, stock, employees, onClose, onSaved }: {
           {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[0.78125rem] text-red-700">{err}</div>}
           <div className="flex justify-end gap-2 pt-1">
             <button onClick={onClose} className="rounded-lg border border-slate-400 px-4 py-2 text-[0.8125rem] text-slate-700">취소</button>
-            <button onClick={save} disabled={saving} className="rounded-lg bg-slate-900 px-4 py-2 text-[0.8125rem] font-semibold text-white disabled:opacity-50">
+            <button onClick={save} disabled={saving} className={btnCls('primary', 'md')}>
               {saving ? '저장 중...' : '원장에 기록'}
             </button>
           </div>
@@ -798,7 +799,7 @@ function StocktakeModal({ stock, employees, onClose, onSaved }: {
         {err && <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[0.78125rem] text-red-700">{err}</div>}
         <div className="mt-4 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border border-slate-400 px-4 py-2 text-[0.8125rem] text-slate-700">취소</button>
-          <button onClick={save} disabled={saving} className="rounded-lg bg-slate-900 px-4 py-2 text-[0.8125rem] font-semibold text-white disabled:opacity-50">
+          <button onClick={save} disabled={saving} className={btnCls('primary', 'md')}>
             {saving ? '저장 중...' : '실사 기록'}
           </button>
         </div>

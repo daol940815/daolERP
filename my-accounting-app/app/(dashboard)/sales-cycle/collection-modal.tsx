@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
+import { btnCls } from '@/components/ui/kit'
 // 수금 후보 모달 (매출 사이클 — 후보는 시스템, 확정은 사용자)
 // 매입 지급후보 모달과 동일한 구조: 금액이 정확히 맞는 조합만 제시한다.
 
@@ -119,10 +120,10 @@ export default function CollectionModal({ vendorId, vendorName, from, onClose, o
 
         <div className="flex items-center gap-2 mt-4">
           <button onClick={apply} disabled={applying || !groups?.length}
-            className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+            className={btnCls('primary', 'md')}>
             {applying ? '확정 중...' : `선택 ${checked.size}개 조합 확정`}
           </button>
-          <button onClick={onClose} className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
+          <button onClick={onClose} className={btnCls('secondary', 'md')}>닫기</button>
           <span className="text-xs text-slate-500">확정 시 ERP 수금 대사에 기록되며 언제든 해제할 수 있습니다.</span>
         </div>
       </div>

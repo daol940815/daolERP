@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation'
 import { kstParts, fmtDue, assigneeSummary, type WrRow, type WrTag } from '@/lib/work-requests'
 import { TagChip, NoTagChip } from '@/components/work-requests/tag-chip'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 interface Overview {
   summary: { month: string; created: number; completed: number; canceled: number; rejected: number; open: number; overdue: number; unread_24h: number; avg_hours_to_report: number | null }
   employees: { id: string; name: string; team: string | null; received: number; open: number; overdue: number; completed: number; sent: number }[]
@@ -52,12 +53,12 @@ export default function WorkRequestsOverviewPage() {
     <div className="w-full">
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-2xl font-bold text-slate-900">업무 요청 현황</h1>
-        <Link href={listHref()} className="ml-auto px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">전체 목록 보기 →</Link>
+        <Link href={listHref()} className={btnCls('secondary', 'md', 'ml-auto')}>전체 목록 보기 →</Link>
       </div>
       <p className="text-sm mt-1 text-slate-600">직원별 업무 요청 진행 상태 요약. 숫자나 직원을 누르면 업무 요청 목록(전체)으로 이동합니다. 조회 전용이며 평가 지표로 쓰지 않습니다.</p>
       <div className="flex items-center gap-2 flex-wrap mt-3 mb-4">
-        <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
-        <select value={team} onChange={e => setTeam(e.target.value)} className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm bg-white">
+        <input type="month" value={month} onChange={e => setMonth(e.target.value)} className={fieldBox({ noWidth: true })} />
+        <select value={team} onChange={e => setTeam(e.target.value)} className={fieldBox({ noWidth: true })}>
           <option value="">팀: 전체</option>
           {teams.map(t => <option key={t} value={t}>{t}</option>)}
         </select>

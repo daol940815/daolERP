@@ -8,6 +8,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { STOCK_VAT_NOTE } from '@/lib/stock-cost'
 
+import { btnCls, chipCls } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => Math.round(n ?? 0).toLocaleString('ko-KR')
 const mmdd = (d: string | null) => (d ? d.slice(5).replace('-', '/') : '-')
 
@@ -136,7 +137,7 @@ export default function PreStockView({ asof: asofParam, productId }: { asof: str
           className="border border-slate-300 rounded-lg px-3 py-1.5 text-[0.8125rem] w-64" />
         {CHIPS.map(c => (
           <button key={c.key} type="button" onClick={() => setChip(c.key)}
-            className={`px-3 py-1 rounded-full text-xs border ${chip === c.key ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300'}`}>
+            className={chipCls(chip === c.key)}>
             {c.label} <span className="tabular-nums opacity-70">{chipCount(c.key)}</span>
           </button>
         ))}
@@ -355,7 +356,7 @@ function StocktakeDialog({ rows, today, onClose, onDone }: { rows: Row[]; today:
         {err && <div className="mt-2 text-[0.8125rem] text-red-600">{err}</div>}
         <div className="flex justify-end gap-2 mt-4">
           <button type="button" onClick={onClose} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm bg-white">닫기</button>
-          <button type="button" disabled={saving} onClick={save} className="px-3 py-1.5 rounded-lg text-sm bg-slate-900 text-white font-semibold disabled:opacity-40">{saving ? '저장 중...' : '저장'}</button>
+          <button type="button" disabled={saving} onClick={save} className={btnCls('primary', 'md')}>{saving ? '저장 중...' : '저장'}</button>
         </div>
       </div>
     </div>

@@ -15,6 +15,7 @@ import MergeHistoryDialog from './merge-history'
 import { OrgDialog, OrgHeader, OrgTab, useOrg, type OrgMode } from './org-panel'
 import { BankBranchCard } from './bank-branch-card'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 매출처 허브 — 거래처 360° 상세(B)
 // 목록(A)의 기간이 URL로 넘어와 기본값이 되고, 여기서 바꿔도 목록에는 영향이 없다.
 
@@ -234,12 +235,12 @@ export default function SalesHubDetailPage() {
             {canEdit && (
               <span className="flex items-center gap-1 ml-1">
                 <button onClick={() => setInfoForm({ open: !infoForm.open, name: data.vendor.name, biz: data.vendor.biz_number ?? '', busy: false })}
-                  className="px-2 py-0.5 border border-slate-400 rounded text-xs text-slate-700 hover:bg-slate-50">정보 수정</button>
+                  className={btnCls('secondary', 'sm')}>정보 수정</button>
                 <button onClick={() => setMergeOpen(true)}
-                  className="px-2 py-0.5 border border-slate-400 rounded text-xs text-slate-700 hover:bg-slate-50">다른 매출처와 합치기</button>
+                  className={btnCls('secondary', 'sm')}>다른 매출처와 합치기</button>
                 {mergeHist.count > 0 && (
                   <button onClick={() => setMergeHist(h => ({ ...h, open: true }))}
-                    className="px-2 py-0.5 border border-slate-400 rounded text-xs text-slate-700 hover:bg-slate-50">병합 이력 {mergeHist.count}</button>
+                    className={btnCls('secondary', 'sm')}>병합 이력 {mergeHist.count}</button>
                 )}
                 {data.vendor.is_active ? (
                   <button onClick={async () => {
@@ -258,7 +259,7 @@ export default function SalesHubDetailPage() {
                       }
                     } else flash(json.error ?? '삭제 실패')
                   }}
-                    className="px-2 py-0.5 border border-red-200 text-red-600 rounded text-xs hover:bg-red-50">삭제</button>
+                    className={btnCls('danger', 'sm')}>삭제</button>
                 ) : (
                   <button onClick={async () => {
                     const r = await fetch(`/api/vendor-hub/${vendorId}`, {
@@ -312,7 +313,7 @@ export default function SalesHubDetailPage() {
               <Link href={`/sales-hub/${billing.billing.id}`} className="text-sm font-bold text-slate-900 hover:underline">{billing.billing.name}</Link>
               <span className="text-xs text-slate-600">{billing.billing.biz_number ?? ''} · 이 매출처 주문의 계산서는 청구처 법인으로 발행됩니다</span>
               {canEdit && <button onClick={() => setBillingForm(f => ({ ...f, open: !f.open }))}
-                className="px-2 py-0.5 border border-slate-400 bg-white rounded text-xs text-slate-700 hover:bg-slate-50">변경</button>}
+                className={btnCls('secondary', 'sm')}>변경</button>}
             </div>
           )}
           {billing?.available && !billing.billing && billing.children.length > 0 && (
@@ -346,7 +347,7 @@ export default function SalesHubDetailPage() {
                     const j = await res.json().catch(() => ({}))
                     setBillingForm({ open: false, q: '', options: [], busy: false })
                     flash(res.ok ? '청구처를 해제했습니다 — 이 매출처가 직접 계산서를 받습니다.' : (j.error ?? '해제 실패')); if (res.ok) load()
-                  }} className="px-2 py-1 border border-slate-400 bg-white rounded text-xs text-slate-700">해제(자체 발행)</button>
+                  }} className={btnCls('secondary', 'sm')}>해제(자체 발행)</button>
                 )}
                 <button onClick={() => setBillingForm({ open: false, q: '', options: [], busy: false })} className="text-xs text-slate-600">닫기</button>
               </div>
@@ -389,9 +390,9 @@ export default function SalesHubDetailPage() {
                 if (res.ok) { setInfoForm(f => ({ ...f, open: false })); flash('저장되었습니다. 이름 변경 시 옛 이름은 별칭으로 보존됩니다.'); load() }
                 else flash(json.error ?? '저장 실패')
               }}
-                className="px-3 py-1 bg-slate-900 text-white rounded text-xs font-medium disabled:opacity-50">저장</button>
+                className={btnCls('primary', 'sm')}>저장</button>
               <button onClick={() => setInfoForm(f => ({ ...f, open: false }))}
-                className="px-3 py-1 border border-slate-400 rounded text-xs text-slate-700">취소</button>
+                className={btnCls('secondary', 'sm')}>취소</button>
             </div>
           )}
           <div className="flex gap-1.5 flex-wrap mt-2">
@@ -480,7 +481,7 @@ export default function SalesHubDetailPage() {
                   <input type="checkbox" checked={staffForm.primary} onChange={e => setStaffForm(f => ({ ...f, primary: e.target.checked }))} /> 주담당
                 </label>
                 <button onClick={() => staffForm.name.trim() && assignStaff()}
-                  className="px-2.5 py-1 bg-slate-900 text-white rounded text-xs">등록·배정</button>
+                  className={btnCls('primary', 'sm')}>등록·배정</button>
               </div>
             </div>
           )}
@@ -521,7 +522,7 @@ export default function SalesHubDetailPage() {
                     </div>
                     <div className="flex items-center gap-1.5 mt-1.5">
                       <span className="text-xs text-slate-500">이름 수정 · 인물 병합은 담당자 상세에서</span>
-                      <button onClick={() => setRowEdit(null)} className="ml-auto px-2 py-0.5 border border-slate-400 rounded text-xs text-slate-700">취소</button>
+                      <button onClick={() => setRowEdit(null)} className={btnCls('secondary', 'sm', 'ml-auto')}>취소</button>
                       <button disabled={rowEdit.busy} onClick={async () => {
                         setRowEdit(r => r && ({ ...r, busy: true }))
                         const { ok, json } = await post('/api/vendor-hub/contacts', {
@@ -530,7 +531,7 @@ export default function SalesHubDetailPage() {
                         })
                         if (!ok) { flash(json.error ?? '수정 실패'); setRowEdit(r => r && ({ ...r, busy: false })); return }
                         flash('담당자 정보를 수정했습니다.'); setRowEdit(null); load()
-                      }} className="px-2 py-0.5 bg-slate-900 text-white rounded text-xs disabled:opacity-50">저장</button>
+                      }} className={btnCls('primary', 'sm')}>저장</button>
                     </div>
                   </div>
                 )}
@@ -597,7 +598,7 @@ export default function SalesHubDetailPage() {
                   {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                 </select>
                 <button onClick={() => contactForm.name.trim() && submitContact()}
-                  className="px-2.5 py-1 bg-slate-900 text-white rounded text-xs">등록·배정</button>
+                  className={btnCls('primary', 'sm')}>등록·배정</button>
               </div>
               {candidates && (
                 <div className="px-3 py-2 bg-white border border-amber-200 rounded-lg text-xs">
@@ -1081,9 +1082,9 @@ export default function SalesHubDetailPage() {
             <div className="text-sm font-bold text-slate-900 mb-2">활동 메모</div>
             <textarea value={note} onChange={e => setNote(e.target.value)} rows={6}
               placeholder="수금 협의, 방문 기록 등 이 거래처 관련 메모" readOnly={!canEdit}
-              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm read-only:bg-slate-50" />
+              className={fieldBox({ area: true })} />
             {canEdit && <div className="flex justify-end mt-2">
-              <button onClick={saveNote} className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">저장</button>
+              <button onClick={saveNote} className={btnCls('primary', 'md')}>저장</button>
             </div>}
           </div>
         )}

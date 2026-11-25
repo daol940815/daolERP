@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { btnCls } from '@/components/ui/kit'
 import {
   FIELDS, FIELD_BY_KEY, toSheetMap,
   type FormMapping, type SheetMap, type ValueSpec, type RecognizeResult, type RecognizedSheet, type How,
@@ -301,7 +302,7 @@ export default function PoFormTab({ vendorId, vendorName }: { vendorId: string; 
                         )}
                         {canEdit && f.status === 'active' && (
                           <button disabled={busy} onClick={() => confirm('이 양식 사용을 멈출까요? 그 뒤로는 자사 발주서 양식으로 나갑니다.') && patch({ action: 'archive', form_id: f.id }, '사용을 멈췄습니다.')}
-                            className="text-xs px-2 py-1 rounded border border-slate-400 text-slate-600 hover:bg-slate-50">사용 멈춤</button>
+                            className={btnCls('secondary', 'sm')}>사용 멈춤</button>
                         )}
                         {canEdit && (
                           <button disabled={busy} onClick={async () => {
@@ -314,7 +315,7 @@ export default function PoFormTab({ vendorId, vendorName }: { vendorId: string; 
                             if (await call({ method: 'DELETE', url: `/api/purchase-hub/${vendorId}/po-forms?form_id=${f.id}` }, '지웠습니다.')) {
                               if (openId === f.id) { setOpenId(null); setMapping(null); setDirty(false) }
                             }
-                          }} className="text-xs px-2 py-1 rounded border border-red-200 text-red-600 hover:bg-red-50">삭제</button>
+                          }} className={btnCls('danger', 'sm')}>삭제</button>
                         )}
                       </td>
                     </tr>
@@ -522,7 +523,7 @@ export default function PoFormTab({ vendorId, vendorName }: { vendorId: string; 
           {/* 저장 · 시험 생성 · 사용 시작 */}
           <div className="border-t border-slate-300 pt-3 flex flex-wrap items-center gap-2">
             {editable && (
-              <button disabled={busy || !dirty} onClick={save} className="px-3.5 py-1.5 rounded-lg text-sm bg-slate-900 text-white disabled:bg-slate-300">저장</button>
+              <button disabled={busy || !dirty} onClick={save} className={btnCls('primary', 'md')}>저장</button>
             )}
             <span className="text-xs text-slate-600 ml-2">시험 생성</span>
             <select value={testPo} onChange={e => setTestPo(e.target.value)} className="border border-slate-400 rounded px-2 py-1 text-sm max-w-xs">

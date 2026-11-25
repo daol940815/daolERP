@@ -17,6 +17,7 @@ import { MemoTextarea, MEMO_KEY_HINT, useMemoPrompt } from '@/components/work-re
 import { useNotifRefresh, requestNotifRefresh } from '@/lib/use-notif-refresh'
 import AttachmentBox from '@/components/attachments/AttachmentBox'
 
+import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
 interface Detail { row: WrRow; events: WrEventRow[]; me: { id: string | null }; actions: WrActions; tags?: WrTag[] }
 interface Emp { id: string; name: string; team: string | null; position: string | null; employment_type: string }
 const FLOW: WrStatus[] = ['requested', 'accepted', 'in_progress', 'done_reported', 'completed']
@@ -110,15 +111,15 @@ export default function WorkRequestDetailPage() {
           {tagEdit === null ? (
             <div className="flex items-center gap-1.5 flex-wrap">
               {myTags.length ? myTags.map(t => <TagChip key={t.id} tag={t} title={t.active ? undefined : '숨긴 태그 — 새 요청에서는 고를 수 없습니다'} />) : <span className="text-xs text-slate-500">업무 계열 미분류</span>}
-              {d.actions.setTags && <button onClick={() => setTagEdit(r.tag_ids ?? [])} className="px-2 py-0.5 text-xs border border-slate-400 rounded text-slate-700 hover:bg-slate-50">태그 수정</button>}
+              {d.actions.setTags && <button onClick={() => setTagEdit(r.tag_ids ?? [])} className={btnCls('secondary', 'sm')}>태그 수정</button>}
             </div>
           ) : (
             <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
               <p className="text-xs font-medium text-slate-700 mb-1.5">업무 계열 <span className="text-xs text-slate-500 font-normal">1개 이상, 최대 {WR_TAG_MAX}개 · 바꾸면 이력에 남고 알림은 가지 않습니다</span></p>
               <TagPicker tags={tagList} value={tagEdit} onChange={setTagEdit} max={WR_TAG_MAX} onLimit={() => flash(`최대 ${WR_TAG_MAX}개까지 고를 수 있습니다.`)} />
               <div className="flex gap-1.5 mt-2.5">
-                <button disabled={busy || !tagEdit.length} onClick={async () => { if (await act('set_tags', { tag_ids: tagEdit })) setTagEdit(null) }} className="px-3 py-1 bg-slate-900 text-white rounded text-xs font-medium disabled:opacity-50">저장</button>
-                <button onClick={() => setTagEdit(null)} className="px-3 py-1 border border-slate-400 rounded text-xs text-slate-700 hover:bg-slate-50">취소</button>
+                <button disabled={busy || !tagEdit.length} onClick={async () => { if (await act('set_tags', { tag_ids: tagEdit })) setTagEdit(null) }} className={btnCls('primary', 'sm')}>저장</button>
+                <button onClick={() => setTagEdit(null)} className={btnCls('secondary', 'sm')}>취소</button>
               </div>
             </div>
           )}
@@ -151,15 +152,15 @@ export default function WorkRequestDetailPage() {
             </div>
             {editing ? (
               <div className="space-y-3">
-                <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm" />
-                <textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} rows={5} className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm" />
-                <input value={form.link} onChange={e => setForm(f => ({ ...f, link: e.target.value }))} placeholder="관련 링크 · 서버 경로" className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm" />
+                <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} className={fieldBox()} />
+                <textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} rows={5} className={fieldBox({ area: true })} />
+                <input value={form.link} onChange={e => setForm(f => ({ ...f, link: e.target.value }))} placeholder="관련 링크 · 서버 경로" className={fieldBox()} />
                 <div className="flex items-center gap-4 flex-wrap">
-                  <input type="datetime-local" value={form.due} onChange={e => setForm(f => ({ ...f, due: e.target.value }))} className="border border-slate-400 rounded-lg px-3 py-2 text-sm" />
+                  <input type="datetime-local" value={form.due} onChange={e => setForm(f => ({ ...f, due: e.target.value }))} className={fieldBox({ noWidth: true })} />
                   <label className="text-sm flex items-center gap-1.5"><input type="checkbox" checked={form.urgent} onChange={e => setForm(f => ({ ...f, urgent: e.target.checked }))} /> 긴급</label>
                 </div>
                 <button disabled={busy} onClick={async () => { if (await act('edit', { title: form.title, content: form.content, link: form.link, due_at: localToIso(form.due), is_urgent: form.urgent })) { setEditing(false); flash('수정되었습니다.') } }}
-                  className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700 disabled:opacity-50">저장</button>
+                  className={btnCls('primary', 'md')}>저장</button>
               </div>
             ) : (
               <>
@@ -168,7 +169,7 @@ export default function WorkRequestDetailPage() {
                   <p className="text-xs mt-3 flex items-center gap-2">
                     <span className="text-slate-500">관련:</span>
                     {/^https?:\/\//.test(r.link) ? <a href={r.link} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline break-all">{r.link}</a> : <span className="text-slate-800 break-all">{r.link}</span>}
-                    <button onClick={() => navigator.clipboard?.writeText(r.link!).then(() => flash('복사했습니다.'))} className="px-1.5 py-0.5 border border-slate-400 rounded text-xs text-slate-700 hover:bg-slate-50">복사</button>
+                    <button onClick={() => navigator.clipboard?.writeText(r.link!).then(() => flash('복사했습니다.'))} className={btnCls('secondary', 'sm')}>복사</button>
                   </p>
                 )}
               </>
@@ -208,7 +209,7 @@ export default function WorkRequestDetailPage() {
                 <div className="flex flex-wrap gap-1.5 max-h-40 overflow-auto">
                   {addCandidates.map(e => (
                     <button key={e.id} type="button" onClick={() => setAddIds(ids => ids.includes(e.id) ? ids.filter(i => i !== e.id) : [...ids, e.id])}
-                      className={`px-2.5 py-1 rounded-full text-xs border ${addIds.includes(e.id) ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-400 text-slate-800 hover:bg-slate-100'}`}>
+                      className={chipCls(addIds.includes(e.id))}>
                       {e.name}{e.team ? <span className="opacity-70"> · {e.team}</span> : ''}
                     </button>
                   ))}
@@ -216,8 +217,8 @@ export default function WorkRequestDetailPage() {
                 </div>
                 <div className="flex gap-2 mt-2">
                   <button disabled={busy || !addIds.length} onClick={async () => { if (await act('add_assignee', { employee_ids: addIds })) { setAdding(false); setAddIds([]); flash('담당자를 추가했습니다.') } }}
-                    className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs hover:bg-slate-700 disabled:opacity-40">{addIds.length ? `${addIds.length}명 추가` : '추가'}</button>
-                  <button onClick={() => { setAdding(false); setAddIds([]) }} className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-800">취소</button>
+                    className={btnCls('primary', 'sm')}>{addIds.length ? `${addIds.length}명 추가` : '추가'}</button>
+                  <button onClick={() => { setAdding(false); setAddIds([]) }} className={btnCls('secondary', 'sm')}>취소</button>
                 </div>
               </div>
             )}
@@ -243,7 +244,7 @@ export default function WorkRequestDetailPage() {
                   <MemoTextarea value={memo} onChange={setMemo} disabled={busy} placeholder={multi && a.isAsg ? '내 진행 메모 입력' : '진행 메모 입력'}
                     onSubmit={async () => { if (await act('memo', { memo: memo.trim() })) setMemo('') }} className="flex-1" />
                   <button disabled={busy || !memo.trim()} onClick={async () => { if (await act('memo', { memo: memo.trim() })) setMemo('') }}
-                    className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-40 whitespace-nowrap">메모 추가</button>
+                    className={btnCls('secondary', 'md', 'whitespace-nowrap')}>메모 추가</button>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">{MEMO_KEY_HINT}</p>
               </div>
@@ -258,9 +259,9 @@ export default function WorkRequestDetailPage() {
               <div className="flex flex-col gap-2">
                 {a.accept && <button disabled={busy} onClick={() => act('accept')} className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">수락{r.assign_mode === 'first' ? ' (먼저 수락하면 내가 담당)' : ''}</button>}
                 {a.report && <button disabled={busy} onClick={async () => { const m = await prompt.ask({ title: '처리 완료 보고 — 결과 메모', detail: r.title, confirmLabel: '보고하기', placeholder: '무엇을 했는지 · 결과는 어디에 있는지' }); if (m !== null) act('report', { memo: m || undefined }) }}
-                  className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">처리 완료 보고</button>}
+                  className={btnCls('primary', 'md')}>처리 완료 보고</button>}
                 {a.reject && <button disabled={busy} onClick={async () => { const m = await prompt.ask({ title: '반려 사유', detail: r.title, required: true, danger: true, confirmLabel: '반려하기' }); if (m) act('reject', { memo: m }) }}
-                  className="px-3 py-2 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 disabled:opacity-50">반려 (사유 필수)</button>}
+                  className={btnCls('danger', 'md')}>반려 (사유 필수)</button>}
                 {a.report && <p className="text-xs text-slate-500">{r.assign_mode === 'all' ? '내 몫만 보고합니다. 다른 사람 진행은 담당자 표에서 확인. 전원이 보고하면 요청자가 완료를 확정합니다.' : '보고하면 요청자가 확인 후 완료를 확정합니다.'}</p>}
               </div>
             </div>
@@ -277,7 +278,7 @@ export default function WorkRequestDetailPage() {
                 {a.complete && <button disabled={busy} onClick={completeConfirm}
                   className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">완료 확정</button>}
                 {a.cancel && <button disabled={busy} onClick={() => { if (window.confirm('이 요청을 취소할까요?')) act('cancel') }}
-                  className="px-3 py-2 border border-slate-400 text-slate-800 rounded-lg text-sm hover:bg-slate-50 disabled:opacity-50">요청 취소</button>}
+                  className={btnCls('secondary', 'md')}>요청 취소</button>}
                 {r.assign_mode === 'all' && a.complete && r.status !== 'done_reported' && <p className="text-xs text-slate-500">전원 보고 전에도 완료 확정은 가능합니다(요청자 판단). 미보고자에게는 &quot;요청자가 완료 처리함&quot;으로 닫힙니다.</p>}
               </div>
             </div>
@@ -286,7 +287,7 @@ export default function WorkRequestDetailPage() {
             <div className="bg-white border border-slate-300 rounded-xl p-5">
               <h2 className="text-sm font-bold text-slate-900 mb-2">반려됨</h2>
               <p className="text-sm text-slate-800">{r.reject_reason}</p>
-              <button onClick={() => router.push(`/me/requests/new?from=${r.id}`)} className="mt-3 px-3 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700">수정해서 다시 요청</button>
+              <button onClick={() => router.push(`/me/requests/new?from=${r.id}`)} className={btnCls('primary', 'md', 'mt-3')}>수정해서 다시 요청</button>
             </div>
           )}
           <div className="bg-white border border-slate-300 rounded-xl p-5 text-xs text-slate-600 space-y-1">

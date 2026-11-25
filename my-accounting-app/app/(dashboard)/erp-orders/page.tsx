@@ -10,6 +10,7 @@ import { computeOrderDeliveryStatus, ITEM_DELIVERY_STATUS_LABEL, ORDER_DELIVERY_
 import { cutoffAlloc, netSalesOf, outstandingOf, prepayOf } from '@/lib/receivable'
 import CollectMatchModal from '@/components/erp/CollectMatchModal'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
@@ -228,7 +229,7 @@ export default function ErpOrdersPage() {
             <button
               onClick={handleBulkDelete}
               disabled={deleting}
-              className="px-3 py-2 border border-red-300 rounded-lg text-sm text-red-600 hover:bg-red-50 disabled:opacity-40"
+              className={btnCls('danger', 'md')}
             >
               {deleting ? '삭제 중...' : `선택 ${selected.size}건 삭제`}
             </button>
@@ -236,14 +237,14 @@ export default function ErpOrdersPage() {
           <button
             onClick={handleExport}
             disabled={loading || total === 0}
-            className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            className={btnCls('secondary', 'md')}
           >
             ↓ 엑셀 다운로드
           </button>
           {/* 원본 업로드는 파일 업로드 단일 창구에서 (2026-10-12) */}
           <Link
             href="/upload?source=erp_orders"
-            className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700"
+            className={btnCls('primary', 'md')}
           >
             ↑ 파일 업로드 →
           </Link>
@@ -279,12 +280,12 @@ export default function ErpOrdersPage() {
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox({ noWidth: true })} />
         <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox({ noWidth: true })} />
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+          className={fieldBox({ noWidth: true })}>
           <option value="all">전체 상태</option>
           <option value="collected">수금완료</option>
           <option value="outstanding">미수금</option>
@@ -294,15 +295,15 @@ export default function ErpOrdersPage() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="주문번호/은행/지점 검색"
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className={fieldBox({ noWidth: true, extra: 'w-52' })}
         />
         <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+          className={fieldBox({ noWidth: true })}>
           <option value="all">직원 전체</option>
           {options.staff.map(n => <option key={n} value={n}>{n}</option>)}
         </select>
         <select value={channelFilter} onChange={e => setChannelFilter(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+          className={fieldBox({ noWidth: true })}>
           <option value="all">상담자 전체</option>
           {options.channels.map(n => <option key={n} value={n}>{n}</option>)}
         </select>
@@ -310,13 +311,13 @@ export default function ErpOrdersPage() {
           value={managerFilter}
           onChange={e => setManagerFilter(e.target.value)}
           placeholder="담당자 검색"
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className={fieldBox({ noWidth: true, extra: 'w-36' })}
         />
         <input
           value={itemFilter}
           onChange={e => setItemFilter(e.target.value)}
           placeholder="품목(품명·품번) 검색"
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className={fieldBox({ noWidth: true, extra: 'w-40' })}
         />
         {(staffFilter !== 'all' || channelFilter !== 'all' || managerFilter || itemFilter) && (
           <button onClick={() => { setStaffFilter('all'); setChannelFilter('all'); setManagerFilter(''); setItemFilter('') }}
@@ -559,7 +560,7 @@ export default function ErpOrdersPage() {
             <button
               onClick={() => setPage(p => Math.min(p + 1, totalPages))}
               disabled={page >= totalPages}
-              className="px-3 py-1.5 border border-slate-400 rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-30"
+              className={btnCls('secondary', 'md')}
             >
               다음 →
             </button>

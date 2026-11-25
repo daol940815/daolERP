@@ -4,6 +4,7 @@ import { Fragment, useState } from 'react'
 import ReasonPicker, { reasonReady, type ReasonValue } from '@/components/payments/ReasonPicker'
 import { CARD_ENTRIES, CARD_ENTRY_LABEL, REC_VATS, REC_VAT_LABEL, kindLabel, type CardEntry, type RecVat } from '@/lib/payment-kind'
 
+import { btnCls } from '@/components/ui/kit'
 // 결제 기록 (1300, 2026-11-13 사용자 확정 — 시안 docs/mockups/결제처리_시안.html)
 // 1차 수기 입력: 카드결제 / 계좌이체 / 계산서 발행. 기록만으로는 미수가 줄지 않는다('확인 대기').
 // 2차 결제 확인(수금 · 정산 작업 › 결제 확인)에서 원본과 대조해 확정하면 미수가 줄고 기록은 잠긴다.
@@ -291,10 +292,10 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
                     onChange={e => setAlloc(a => ({ ...a, [c.order_id]: e.target.value.replace(/[^\d]/g, '') }))}
                     className="w-28 border border-amber-300 bg-amber-50 rounded-lg px-2 py-1 text-sm text-right font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-slate-900" />
                   <button type="button" onClick={() => setAlloc(a => ({ ...a, [c.order_id]: String(c.unpaid) }))}
-                    className="text-xs px-1.5 py-1 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">전액</button>
+                    className={btnCls('secondary', 'sm')}>전액</button>
                   {c.order_id !== orderId && (
                     <button type="button" onClick={() => setAlloc(a => { const n = { ...a }; delete n[c.order_id]; return n })}
-                      className="text-xs px-1.5 py-1 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">빼기</button>
+                      className={btnCls('secondary', 'sm')}>빼기</button>
                   )}
                 </span>
               </div>
@@ -303,7 +304,7 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             {others.length > 0 && (
               <button type="button" onClick={() => setShowOthers(v => !v)}
-                className="text-xs px-2 py-1 border border-slate-400 rounded-lg bg-white text-slate-700 hover:bg-slate-50">
+                className={btnCls('secondary', 'sm')}>
                 {showOthers ? '다른 주문 접기' : `같은 매출처의 다른 주문 추가 (${others.length}건)`}
               </button>
             )}
@@ -484,14 +485,14 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
                     </td>
                     <td className="py-1.5 text-right whitespace-nowrap">
                       {data.can_record && !r.confirmed_at && canceled === 0 && (<>
-                        <button onClick={() => openForm(r)} className="text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50 mr-1">수정</button>
+                        <button onClick={() => openForm(r)} className={btnCls('secondary', 'sm', 'mr-1')}>수정</button>
                       </>)}
                       {data.can_record && data.cancelable && !dead && (
                         <button onClick={() => openAct('cancel', r)} title="실제로 결제를 되돌린 경우 — 기록은 지워지지 않고 취소 줄이 남습니다"
                           className="text-xs px-2 py-0.5 border border-orange-300 rounded text-orange-700 hover:bg-orange-50 mr-1">취소</button>
                       )}
                       {data.can_record && !r.confirmed_at && canceled === 0 && (
-                        <button onClick={() => remove(r)} title="잘못 적은 기록을 없앱니다" className="text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">삭제</button>
+                        <button onClick={() => remove(r)} title="잘못 적은 기록을 없앱니다" className={btnCls('secondary', 'sm')}>삭제</button>
                       )}
                       {r.confirmed_at && !data.cancelable && <span className="text-xs text-slate-500">잠김</span>}
                     </td>
@@ -514,7 +515,7 @@ export default function PayRecords({ orderId, data, outstanding, onChanged }: {
                         </td>
                         <td className="py-1.5 text-right whitespace-nowrap">
                           {data.can_record && !c.confirmed_at && (
-                            <button onClick={() => openAct('delete', r, c.id)} className="text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">삭제</button>
+                            <button onClick={() => openAct('delete', r, c.id)} className={btnCls('secondary', 'sm')}>삭제</button>
                           )}
                         </td>
                       </tr>

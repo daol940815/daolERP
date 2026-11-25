@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { termMonthlyInterest } from '@/lib/loan-math'
 
+import { fieldBox } from '@/components/ui/kit'
 const won = (n: number) => n.toLocaleString('ko-KR')
 const eok = (n: number) => `${(n / 1e8).toFixed(2)}억`
 
@@ -136,7 +137,7 @@ export default function AnnualReport({ loans }: { loans: ReportLoan[] }) {
           실적은 확정된 이자비용 분개에서 집계합니다.
         </p>
         <select value={year} onChange={e => setYear(Number(e.target.value))}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm">
+          className={fieldBox({ noWidth: true })}>
           {years.map(y => <option key={y} value={y}>{y}년</option>)}
         </select>
       </div>

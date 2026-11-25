@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
+import { btnCls } from '@/components/ui/kit'
 interface CandInvoice { id: string; issue_date: string; item_name: string | null; total_amount: number; remaining: number }
 interface CandTx { id: string; tx_date: string; tx_time?: string | null; description: string | null; amount_out: number; remaining: number }
 interface CandGroup {
@@ -102,9 +103,9 @@ export function CandidateModal({ vendorId, vendorName, onClose, onApplied }: {
               ))}
             </div>
             <div className="flex gap-2 mt-5">
-              <button onClick={onClose} className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
+              <button onClick={onClose} className={btnCls('secondary', 'md', 'flex-1')}>닫기</button>
               <button onClick={apply} disabled={applying || checked.size === 0}
-                className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+                className={btnCls('primary', 'md', 'flex-1')}>
                 {applying ? '연결 중...' : `선택 ${checked.size}개 그룹 연결 확정`}
               </button>
             </div>

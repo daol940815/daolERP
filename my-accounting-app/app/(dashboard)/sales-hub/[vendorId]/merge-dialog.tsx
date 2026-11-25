@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 매출처 상세 › 다른 매출처와 합치기 (2026-11-16 사용자 승인, 시안 docs/mockups/매출처_합치기_시안.html)
 // 1) 대상 검색 · 남길 쪽 선택 → 2) 미리보기(건수 · 경고 · 막는 이유) → 3) 실행 → 같은 이름 담당자 합치기 안내
 // 취소는 남은 매출처 상세 › 병합 이력(merge-history.tsx, 119).
@@ -92,7 +93,7 @@ export default function MergeDialog({ vendorId, vendorName, onClose }: { vendorI
             <p className="text-xs text-slate-600 mt-0.5">같은 지점이 두 매출처로 나뉜 경우에 씁니다. 합친 뒤 한쪽은 &ldquo;병합됨&rdquo;이 되고 이름은 별칭으로 남습니다.</p>
             <label className="block text-xs text-slate-600 mt-4 mb-1">합칠 매출처 검색</label>
             <input autoFocus value={q} onChange={e => { setQ(e.target.value); setTarget(null) }} placeholder="이름 일부 (예: 올림픽선수촌)"
-              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+              className={fieldBox()} />
             {!target && list.length > 0 && (
               <div className="mt-1 border border-slate-300 rounded-lg max-h-56 overflow-y-auto">
                 {list.map(v => (
@@ -121,8 +122,8 @@ export default function MergeDialog({ vendorId, vendorName, onClose }: { vendorI
             )}
             {msg && <p className="text-xs text-red-600 mt-3">{msg}</p>}
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={onClose} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">취소</button>
-              <button disabled={!target || busy} onClick={loadPreview} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-40">
+              <button onClick={onClose} className={btnCls('secondary', 'md')}>취소</button>
+              <button disabled={!target || busy} onClick={loadPreview} className={btnCls('primary', 'md')}>
                 {busy ? '확인 중...' : '미리보기'}
               </button>
             </div>
@@ -158,8 +159,8 @@ export default function MergeDialog({ vendorId, vendorName, onClose }: { vendorI
             {pv.blockers.map((w, i) => <div key={i} className="mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{w}</div>)}
             {msg && <p className="text-xs text-red-600 mt-3">{msg}</p>}
             <div className="flex justify-end gap-2 mt-5">
-              <button disabled={busy} onClick={() => setStep('pick')} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">뒤로</button>
-              <button disabled={busy || pv.blockers.length > 0} onClick={run} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-40">
+              <button disabled={busy} onClick={() => setStep('pick')} className={btnCls('secondary', 'md')}>뒤로</button>
+              <button disabled={busy || pv.blockers.length > 0} onClick={run} className={btnCls('primary', 'md')}>
                 {busy ? '합치는 중...' : '합치기 실행'}
               </button>
             </div>
@@ -200,7 +201,7 @@ export default function MergeDialog({ vendorId, vendorName, onClose }: { vendorI
             {msg && <p className="text-xs text-red-600 mt-3">{msg}</p>}
             <div className="flex justify-end mt-5">
               <button onClick={() => { onClose(); router.push(`/sales-hub/${pv.into.id}`); router.refresh() }}
-                className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm">남은 매출처 상세로</button>
+                className={btnCls('primary', 'md')}>남은 매출처 상세로</button>
             </div>
           </>
         )}

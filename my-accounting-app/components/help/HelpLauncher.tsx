@@ -14,6 +14,7 @@ import { usePathname, useSearchParams } from 'next/navigation'
 import { findHelp, helpByHref, HELP_RECENT_DAYS, HELP_QUESTION_RECIPIENT_NAME, PERMISSION_CONTACT, type HelpEntry } from '@/lib/help-registry'
 import { GROUP_LABELS, type GroupKey, type PermLevel } from '@/lib/permissions'
 
+import { btnCls } from '@/components/ui/kit'
 export const HELP_SEEN_KEY = 'help-seen'
 export const HELP_SEEN_EVENT = 'daol:help-seen'
 export function readSeen(): Record<string, string> { try { return JSON.parse(localStorage.getItem(HELP_SEEN_KEY) ?? '{}') } catch { return {} } }
@@ -83,7 +84,7 @@ export default function HelpLauncher({ levels }: { levels: Partial<Record<GroupK
               {!entry ? (
                 <>
                   <p className="text-slate-700 leading-relaxed">이 화면의 도움말은 아직 준비 중입니다. 막히는 점은 바로 질문해 주세요 — {HELP_QUESTION_RECIPIENT_NAME}가 답합니다.</p>
-                  <Link href={questionHref(null, pathname)} className="inline-block px-3 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">이 화면에 대해 질문하기</Link>
+                  <Link href={questionHref(null, pathname)} className={btnCls('primary', 'md')}>이 화면에 대해 질문하기</Link>
                   <p><Link href="/me/help" className="text-xs text-slate-700 underline">전체 도움말 목록</Link></p>
                 </>
               ) : (
@@ -117,8 +118,8 @@ export default function HelpLauncher({ levels }: { levels: Partial<Record<GroupK
                     </Section>
                   )}
                   <div className="border-t border-slate-300 pt-3 flex items-center gap-2 flex-wrap">
-                    <Link href={questionHref(entry, pathname)} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-700">이 화면에 대해 질문하기</Link>
-                    <Link href="/me/help" className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-800 hover:bg-slate-50">전체 도움말 목록</Link>
+                    <Link href={questionHref(entry, pathname)} className={btnCls('primary', 'sm')}>이 화면에 대해 질문하기</Link>
+                    <Link href="/me/help" className={btnCls('secondary', 'sm')}>전체 도움말 목록</Link>
                     <span className="ml-auto text-xs text-slate-500">최근 확인 {entry.updated}</span>
                   </div>
                 </>

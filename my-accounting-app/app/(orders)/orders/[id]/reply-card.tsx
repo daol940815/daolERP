@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { requestNotifRefresh } from '@/lib/use-notif-refresh'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 완료 회신 카드 (515, 2026-11-05 사용자 확정 — 시안 docs/mockups/완료회신_시안.html A)
 // 주문 · 발주를 처리한 직원이 요청자 · 상담자에게 결과를 회신한다. 회신해야 완료.
 //  - 처리 결과 요약은 주문 · 발주서에서 화면 표시 시 계산 (저장 안 함)
@@ -117,7 +118,7 @@ export default function ReplyCard({ orderId, reply, summary, onSaved }: {
           </div>
           <textarea value={memo} onChange={e => setMemo(e.target.value)} rows={3}
             placeholder={result === 'done' ? '회신 메모 (선택) — 예: 발주 완료, 11/7 도착 예정' : result === 'changed' ? '무엇이 바뀌었는지 (필수) — 예: A품목 품절로 B로 대체, 고객 확인 완료' : '처리 불가 사유 (필수)'}
-            className="mt-2 w-full border border-slate-400 rounded-lg px-3 py-2 text-sm" />
+            className={fieldBox({ area: true, extra: 'mt-2' })} />
           {result === 'unable' && (
             <div className="mt-1 text-xs text-red-600">처리 불가 회신은 주문을 자동으로 취소하지 않습니다. 취소가 필요하면 위의 주문 취소로 따로 처리하세요.</div>
           )}
@@ -127,7 +128,7 @@ export default function ReplyCard({ orderId, reply, summary, onSaved }: {
               <button type="button" onClick={() => { setOpen(false); setErr(null) }} className="px-3 py-1.5 text-xs text-slate-600">닫기</button>
             )}
             <button type="button" onClick={submit} disabled={busy}
-              className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">
+              className={btnCls('primary', 'md')}>
               {busy ? '보내는 중...' : '회신 보내기'}
             </button>
           </div>
@@ -135,7 +136,7 @@ export default function ReplyCard({ orderId, reply, summary, onSaved }: {
       ) : (
         <div className="mt-2.5">
           <button type="button" onClick={() => setOpen(true)}
-            className="px-3 py-1 text-xs rounded-lg border border-slate-400 text-slate-700 hover:bg-slate-50">
+            className={btnCls('secondary', 'sm')}>
             {reply.replies.length ? '추가 회신' : '회신 쓰기'}
           </button>
         </div>

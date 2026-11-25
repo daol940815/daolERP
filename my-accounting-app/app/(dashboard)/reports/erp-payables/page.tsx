@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ErpPayableRow, ErpOrderItem } from '@/types/erp'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 interface Vendor { id: string; name: string }
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
@@ -224,12 +225,12 @@ export default function ErpPayablesPage() {
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 mt-3 flex-wrap">
         <input type="month" value={monthFrom} onChange={e => setMonthFrom(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox({ noWidth: true })} />
         <span className="text-slate-500 text-sm">~</span>
         <input type="month" value={monthTo} onChange={e => setMonthTo(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox({ noWidth: true })} />
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+          className={fieldBox({ noWidth: true })}>
           <option value="all">전체</option>
           <option value="unpaid">미결제</option>
           <option value="paid">결제완료</option>
@@ -238,7 +239,7 @@ export default function ErpPayablesPage() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="매입처명 검색"
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className={fieldBox({ noWidth: true, extra: 'w-52' })}
         />
       </div>
 
@@ -340,7 +341,7 @@ export default function ErpPayablesPage() {
                         </button>
                       ) : (
                         <button onClick={() => handleUnpay(r)}
-                          className="px-2 py-1 text-xs border border-slate-400 text-slate-600 rounded hover:bg-slate-50">
+                          className={btnCls('secondary', 'sm')}>
                           되돌리기
                         </button>
                       )}
@@ -371,7 +372,7 @@ export default function ErpPayablesPage() {
                                   <td className="py-1 pr-3 whitespace-nowrap">{it.settlement_month}</td>
                                   <td className="py-1 text-right">
                                     <button onClick={() => handleMoveItem(it)}
-                                      className="px-1.5 py-0.5 border border-slate-400 rounded text-slate-600 hover:bg-slate-100">
+                                      className={btnCls('secondary', 'sm')}>
                                       이월 →
                                     </button>
                                   </td>

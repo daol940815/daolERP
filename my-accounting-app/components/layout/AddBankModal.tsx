@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 계좌 직접 등록 모달 — 사이드바 통장 내역의 계좌 목록에서 사용 (구 Sidebar.tsx에서 분리)
 
 // ── 계좌 직접 등록 모달 ─────────────────────────────────────────
@@ -55,7 +56,7 @@ export default function AddBankModal({ onClose, onSaved }: { onClose: () => void
               onChange={e => setForm(f => ({ ...f, bank_name: e.target.value }))}
               onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
               placeholder="예: 우리은행"
-              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className={fieldBox()}
             />
           </div>
           <div>
@@ -66,7 +67,7 @@ export default function AddBankModal({ onClose, onSaved }: { onClose: () => void
               value={form.account_number}
               onChange={e => setForm(f => ({ ...f, account_number: e.target.value }))}
               placeholder="예: 1005-804-575410"
-              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className={fieldBox()}
             />
           </div>
           <div>
@@ -77,21 +78,21 @@ export default function AddBankModal({ onClose, onSaved }: { onClose: () => void
               value={form.alias}
               onChange={e => setForm(f => ({ ...f, alias: e.target.value }))}
               placeholder="예: 법인 운영계좌"
-              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className={fieldBox()}
             />
           </div>
         </div>
         <div className="flex gap-2 mt-5">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50"
+            className={btnCls('secondary', 'md', 'flex-1')}
           >
             취소
           </button>
           <button
             onClick={handleSave}
             disabled={saving || linked !== null}
-            className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50"
+            className={btnCls('primary', 'md', 'flex-1')}
           >
             {saving ? '저장 중...' : linked !== null ? '✓ 등록 완료' : '등록'}
           </button>

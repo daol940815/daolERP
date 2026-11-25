@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { WR_TAG_COLORS, tagDotCls, type WrTag } from '@/lib/work-requests'
 import { TagChip } from '@/components/work-requests/tag-chip'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 interface Resp { tags: WrTag[]; ready: boolean; can_manage: boolean; active_max: number; usage?: Record<string, number>; error?: string }
 const splitKw = (v: string) => Array.from(new Set(v.split(',').map(x => x.trim()).filter(Boolean)))
 
@@ -83,7 +84,7 @@ export default function TagManagePage() {
   const colorSelect = (value: string, onChange: (v: string) => void) => (
     <span className="inline-flex items-center gap-1.5">
       <span className={`w-2.5 h-2.5 rounded-full ${tagDotCls(value)}`} />
-      <select value={value} onChange={e => onChange(e.target.value)} className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm bg-white">
+      <select value={value} onChange={e => onChange(e.target.value)} className={fieldBox({ noWidth: true })}>
         {WR_TAG_COLORS.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
       </select>
     </span>
@@ -115,16 +116,16 @@ export default function TagManagePage() {
         <td className="py-2 px-3 text-right whitespace-nowrap">
           {editing ? (
             <>
-              <button disabled={busy} onClick={saveEdit} className="px-2 py-1 text-xs bg-slate-900 text-white rounded disabled:opacity-50 mr-1">저장</button>
-              <button onClick={() => setEdit(null)} className="px-2 py-1 text-xs border border-slate-400 rounded text-slate-700 hover:bg-slate-50">취소</button>
+              <button disabled={busy} onClick={saveEdit} className={btnCls('primary', 'sm', 'mr-1')}>저장</button>
+              <button onClick={() => setEdit(null)} className={btnCls('secondary', 'sm')}>취소</button>
             </>
           ) : t.active ? (
             <>
-              <button onClick={() => setEdit({ id: t.id, label: t.label, keywords: t.keywords.join(', '), color: t.color })} className="px-2 py-1 text-xs border border-slate-400 rounded text-slate-700 hover:bg-slate-50 mr-1">수정</button>
-              <button disabled={busy} onClick={() => hide(t)} className="px-2 py-1 text-xs border border-slate-400 rounded text-slate-700 hover:bg-slate-50 disabled:opacity-50">숨김</button>
+              <button onClick={() => setEdit({ id: t.id, label: t.label, keywords: t.keywords.join(', '), color: t.color })} className={btnCls('secondary', 'sm', 'mr-1')}>수정</button>
+              <button disabled={busy} onClick={() => hide(t)} className={btnCls('secondary', 'sm')}>숨김</button>
             </>
           ) : (
-            <button disabled={busy} onClick={() => send('PATCH', { id: t.id, active: true })} className="px-2 py-1 text-xs border border-slate-400 rounded text-slate-700 hover:bg-slate-50 disabled:opacity-50">다시 사용</button>
+            <button disabled={busy} onClick={() => send('PATCH', { id: t.id, active: true })} className={btnCls('secondary', 'sm')}>다시 사용</button>
           )}
         </td>
       </tr>
@@ -165,7 +166,7 @@ export default function TagManagePage() {
           <label className="block"><span className="text-xs font-medium text-slate-700">태그 이름</span><input value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} maxLength={20} placeholder="예: 명절 선물" className={`${inputCls} mt-1`} /></label>
           <label className="block"><span className="text-xs font-medium text-slate-700">추천 키워드 (쉼표로 구분)</span><input value={form.keywords} onChange={e => setForm(f => ({ ...f, keywords: e.target.value }))} placeholder="예: 명절, 선물세트, 추석, 설" className={`${inputCls} mt-1`} /></label>
           <div><span className="block text-xs font-medium text-slate-700 mb-1">색</span>{colorSelect(form.color, v => setForm(f => ({ ...f, color: v })))}</div>
-          <button type="submit" disabled={busy || active.length >= data.active_max} className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">추가</button>
+          <button type="submit" disabled={busy || active.length >= data.active_max} className={btnCls('primary', 'md')}>추가</button>
         </div>
         {similarNew.length > 0 && (
           <p className="text-xs text-amber-700 mt-2">비슷한 태그가 있습니다: {similarNew.map(x => <span key={x.tag.id} className="mr-2"><b>{x.tag.label}</b> ({x.why}{x.tag.active ? '' : ' · 숨김'})</span>)}— 같은 뜻이면 기존 태그를 쓰는 편이 통계가 갈라지지 않습니다.</p>

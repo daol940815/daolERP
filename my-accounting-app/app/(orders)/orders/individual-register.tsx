@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { contactLabel } from '@/lib/contact-label'
 import type { IndividualCustomerOpt } from './form-shared'
 
+import { btnCls } from '@/components/ui/kit'
 // 신규 개인 고객 등록 (115, 시안 docs/mockups/개인고객_분리_시안.html 탭 2)
 // 같은 이름의 개인 고객이 있으면 경고 — 같은 분이면 그 고객을 고르고, 다른 분이면 전화번호를 넣어야 등록된다.
 // 등록하면 인물 + 고객 전용 매출처("개인 {이름}")가 함께 생긴다.
@@ -66,12 +67,12 @@ export default function IndividualRegister({ groupId, employees, initial, onDone
         </div>
         {dups.length === 0 ? (
           <button type="button" disabled={busy || !name.trim() || !staff} onClick={() => submit(false)}
-            className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">{busy ? '등록 중...' : '등록'}</button>
+            className={btnCls('primary', 'md')}>{busy ? '등록 중...' : '등록'}</button>
         ) : (
           <button type="button" disabled={busy || !phone.trim() || !staff} onClick={() => submit(true)}
-            className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">다른 분 — 새로 등록</button>
+            className={btnCls('primary', 'md')}>다른 분 — 새로 등록</button>
         )}
-        <button type="button" onClick={onCancel} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">취소</button>
+        <button type="button" onClick={onCancel} className={btnCls('secondary', 'md')}>취소</button>
       </div>
       {dups.length > 0 && (
         <div className="mt-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-800">

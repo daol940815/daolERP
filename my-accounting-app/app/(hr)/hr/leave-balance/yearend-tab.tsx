@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { fetchBalance, fmt, type BalanceRes, type RecommendRow } from './types'
 
+import { btnCls } from '@/components/ui/kit'
 // 연차 관리 › 연말 · 연초 정리 — 그해 기본 연차와 지난해 보상 잔여(이월)를 추천하고, 체크한 행만 부여로 확정한다.
 // 시스템은 추천만, 확정은 인사 · 총무(CLAUDE.md 원칙). 이미 기본 · 이월이 있는 직원은 기본 체크를 끈다(두 번 확정 방지).
 // 규칙: 1월 1일 기준 근속 n년 → 15 + (n-1)/2 내림(최대 25), 1년 미만은 그해 돌아오는 입사 월마다 1일.
@@ -64,7 +65,7 @@ export default function YearEndTab() {
           <select value={year} onChange={e => { setYear(Number(e.target.value)); setData(null) }} className="border border-slate-400 rounded-lg px-2 py-1 text-sm font-semibold">
             {[thisYear, thisYear + 1].map(y => <option key={y} value={y}>{y}년 연차</option>)}
           </select>
-          <button onClick={make} disabled={busy} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+          <button onClick={make} disabled={busy} className={btnCls('primary', 'md')}>
             {data ? '추천 다시 만들기' : '추천 만들기'}
           </button>
           {data && (

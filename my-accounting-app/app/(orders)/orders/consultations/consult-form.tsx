@@ -9,7 +9,7 @@ import {
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
 import type { ContactOpt, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
 import { cellTableCls, cellBlankTh, cellCls, calcCls, CellBand, CellHead, SummaryPill } from '@/components/ui/cell-grid'
-import { fieldCls, fieldBox, labelCls } from '@/components/ui/kit'
+import { btnCls, fieldBox, fieldCls, labelCls } from '@/components/ui/kit'
 import { isMoimVendor, orgSubLabel } from '../form-shared'
 import ProductRegisterDialog, { UnregisteredTag, isUnregisteredRow, linkPatch } from '../product-register-dialog'
 import IndividualRegister from '../individual-register'
@@ -763,20 +763,20 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 </label>
               )}
               <a href={`/api/orders-portal/consultations/${consultId}/sheet${sheetPlain ? '?payment=plain' : ''}`}
-                className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-800 whitespace-nowrap"
+                className={btnCls('primary', 'md', 'whitespace-nowrap')}
                 title="실무 양식 엑셀(A4 가로) — 인쇄하면 상담자용 · 발주자용 2장이 함께 나옵니다">출력용 다운로드</a>
             </>
           )}
           {isEdit && !locked && status === '진행중' && (
             <>
-              <button onClick={() => openEnd('close')} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">종결</button>
-              <button onClick={() => openEnd('delete')} className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm">삭제</button>
+              <button onClick={() => openEnd('close')} className={btnCls('secondary', 'md')}>종결</button>
+              <button onClick={() => openEnd('delete')} className={btnCls('danger', 'md')}>삭제</button>
             </>
           )}
           {isEdit && canEdit && closed && !deleted && (
             <button onClick={() => act('reopen')} disabled={endBusy}
               title="다시 진행중으로 돌립니다 — 종결 기록은 업무일지에 남습니다"
-              className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700 disabled:opacity-50">재개</button>
+              className={btnCls('secondary', 'md')}>재개</button>
           )}
         </span>
       </div>
@@ -798,7 +798,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               className={`px-3.5 py-1.5 text-white rounded-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed ${endMode === 'delete' ? 'bg-red-600' : 'bg-slate-900'}`}>
               {endBusy ? '처리 중...' : endMode === 'close' ? '종결하기' : '삭제하기'}
             </button>
-            <button onClick={() => setEndMode(null)} className="px-3.5 py-1.5 border border-slate-400 text-slate-700 rounded-lg text-sm bg-white">닫기</button>
+            <button onClick={() => setEndMode(null)} className={btnCls('secondary', 'md')}>닫기</button>
             <span className="text-xs text-slate-600">
               {endMode === 'close'
                 ? '종결하면 주문 전환 · 삭제 · 주문 진행 요청이 막히고 내용 수정이 잠깁니다. "재개"로 되돌릴 수 있습니다.'
@@ -874,7 +874,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           ) : (
             <div className="mt-2 text-right">
               <button type="button" onClick={() => setUnableOpen(true)}
-                className="px-3 py-1 text-xs rounded-lg border border-red-300 text-red-700 bg-white hover:bg-red-50">처리 불가 회신</button>
+                className={btnCls('danger', 'sm')}>처리 불가 회신</button>
             </div>
           ))}
         </div>
@@ -1252,7 +1252,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               </span>
               <span className="ml-auto flex gap-2">
                 <button type="button" disabled={regBusy} onClick={() => setRegOpen(false)}
-                  className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700">닫기</button>
+                  className={btnCls('secondary', 'sm')}>닫기</button>
                 <button type="button" disabled={regBusy} onClick={registerVendor}
                   className={`px-3.5 py-1.5 text-white rounded-lg text-xs font-medium disabled:opacity-50 ${!vendorId && regCheck.existing ? 'bg-blue-600' : 'bg-slate-900'}`}>
                   {regBusy ? '등록 중...' : !vendorId && regCheck.existing
@@ -1740,7 +1740,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           {!locked && (
             <span className="flex gap-2">
               <button disabled={saving} onClick={() => save(false)}
-                className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-700 disabled:opacity-50">저장</button>
+                className={btnCls('secondary', 'md')}>저장</button>
               {/* (b) 정책: 지점·담당자 마스터 연결이 끝난 상담만 주문 전환 */}
               <button disabled={saving || !vendorId || !contactId} onClick={() => save(true)}
                 title={!vendorId || !contactId
@@ -1760,7 +1760,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   className="px-5 py-2 bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">주문서로 전환</button>
               )}
               <button onClick={() => router.push('/orders/consultations')}
-                className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-700">목록으로</button>
+                className={btnCls('secondary', 'md')}>목록으로</button>
             </span>
           )}
           {converted && (
@@ -1768,7 +1768,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               <button onClick={() => router.push(`/orders/new?consult=${consultId}`)}
                 className="px-4 py-2 border border-blue-200 text-blue-700 rounded-lg text-sm">주문서로 추가 전환 (분할 주문)</button>
               <button onClick={() => router.push('/orders/consultations')}
-                className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-700">목록으로</button>
+                className={btnCls('secondary', 'md')}>목록으로</button>
             </span>
           )}
         </div>

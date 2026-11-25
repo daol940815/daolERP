@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import { btnCls } from '@/components/ui/kit'
 // 매출처 상세 — 은행연합회 점포 정보 (121, 2026-11-23 · 시안 docs/mockups/은행점포_목록_시안.html 4번)
 //  - 연결된 점포가 있으면 점포명 · 주소 · 전화(기준월)
 //  - 은행 매출처인데 연결이 없으면 "점포 목록에 없음" + 비슷한 미연결 점포로 연결 / "점포 아님"(본점 부서 · 팀 · 모임) 표시
@@ -63,7 +64,7 @@ export function BankBranchCard({ vendorId }: { vendorId: string }) {
             </button>
           ))}
           <button disabled={busy} onClick={() => post({ action: 'not_branch', vendor_id: vendorId, value: true })}
-            className="px-2 py-0.5 border border-slate-400 bg-white rounded text-slate-700 hover:bg-slate-50">점포 아님(부서 · 팀 · 모임)</button>
+            className={btnCls('secondary', 'sm')}>점포 아님(부서 · 팀 · 모임)</button>
         </div>
       )}
     </div>
