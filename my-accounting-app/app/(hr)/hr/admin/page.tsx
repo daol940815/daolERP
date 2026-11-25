@@ -192,10 +192,10 @@ export default function AttendanceAdminPage() {
 
   const kpiCard = (label: string, value: string | number, f: Filter, tone = 'text-slate-900') => (
     <button onClick={() => setFilter(filter === f ? 'all' : f)}
-      className={`bg-white border rounded-xl p-4 text-left transition-colors ${
+      className={`bg-white border rounded-xl px-3.5 py-2.5 text-left transition-colors ${
         filter === f && f !== 'all' ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:border-slate-400'}`}>
-      <p className="text-xs text-slate-600">{label}</p>
-      <p className={`text-2xl font-bold mt-1 tabular-nums ${tone}`}>{value}</p>
+      <p className="text-xs font-bold text-slate-700">{label}</p>
+      <p className={`text-xl font-extrabold mt-1 tabular-nums ${tone}`}>{value}</p>
     </button>
   )
 

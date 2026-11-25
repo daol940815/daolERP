@@ -135,22 +135,22 @@ export default function MonthlyPLPage() {
       {/* KPI (기간 합계) */}
       {kpi && !loading && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 my-4">
-          <div className="bg-white border border-slate-300 rounded-xl p-4">
-            <div className="text-xs text-slate-500">매출 ({basis === 'evidence' ? '증빙' : 'ERP'})</div>
-            <div className="text-xl font-bold mt-1">{eok(kpi.revenue)}</div>
+          <div className="bg-white border border-slate-300 rounded-xl px-3.5 py-2.5">
+            <div className="text-xs font-bold text-slate-700">매출 ({basis === 'evidence' ? '증빙' : 'ERP'})</div>
+            <div className="text-xl font-extrabold mt-1">{eok(kpi.revenue)}</div>
           </div>
-          <div className="bg-white border border-slate-300 rounded-xl p-4">
-            <div className="text-xs text-slate-500">매출원가</div>
-            <div className="text-xl font-bold mt-1">{eok(kpi.cogs)}</div>
+          <div className="bg-white border border-slate-300 rounded-xl px-3.5 py-2.5">
+            <div className="text-xs font-bold text-slate-700">매출원가</div>
+            <div className="text-xl font-extrabold mt-1">{eok(kpi.cogs)}</div>
           </div>
-          <div className="bg-white border border-slate-300 rounded-xl p-4">
-            <div className="text-xs text-slate-500">매출이익률</div>
-            <div className="text-xl font-bold mt-1">{kpi.margin.toFixed(1)}%</div>
+          <div className="bg-white border border-slate-300 rounded-xl px-3.5 py-2.5">
+            <div className="text-xs font-bold text-slate-700">매출이익률</div>
+            <div className="text-xl font-extrabold mt-1">{kpi.margin.toFixed(1)}%</div>
             <div className="text-xs text-slate-500 mt-0.5">매출이익 {eok(kpi.gross)}</div>
           </div>
-          <div className="bg-white border border-slate-300 rounded-xl p-4">
-            <div className="text-xs text-slate-500">영업이익</div>
-            <div className={`text-xl font-bold mt-1 ${kpi.op < 0 ? 'text-red-600' : ''}`}>{eok(kpi.op)}</div>
+          <div className="bg-white border border-slate-300 rounded-xl px-3.5 py-2.5">
+            <div className="text-xs font-bold text-slate-700">영업이익</div>
+            <div className={`text-xl font-extrabold mt-1 ${kpi.op < 0 ? 'text-red-600' : ''}`}>{eok(kpi.op)}</div>
             <div className="text-xs text-slate-500 mt-0.5">판관비 {eok(kpi.sga)}</div>
           </div>
           {kpi.diff !== null ? (

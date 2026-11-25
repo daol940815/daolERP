@@ -66,11 +66,14 @@ export default function TeamWorklogClient() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold text-slate-900">팀 업무 현황</h1>
-        <span className="text-xs text-slate-500">직원별 업무 건수 집계 · 이름을 누르면 해당 직원 업무일지로 이동합니다.</span>
+      {/* 제목 줄(UI 통일 기준) — 제목 + 설명은 아래 한 줄, 조작은 오른쪽 위 */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">팀 업무 현황</h1>
+          <p className="mt-0.5 text-sm text-slate-700">직원별 업무 건수 집계입니다. 이름을 누르면 해당 직원 업무일지로 이동합니다.</p>
+        </div>
         <Link href="/me/worklog"
-          className={btnCls('secondary', 'md', 'ml-auto')}>
+          className={btnCls('secondary', 'md')}>
           내 업무일지
         </Link>
       </div>
@@ -95,9 +98,9 @@ export default function TeamWorklogClient() {
             { label: '기록 없는 직원', value: `${idle}명`, sub: idle ? '확인 필요' : '전원 기록' },
             { label: '직접 기재', value: `${data.totals['직접기재'] ?? 0}건`, sub: 'ERP 밖 업무' },
           ].map(k => (
-            <div key={k.label} className="bg-white border border-slate-300 rounded-xl px-3.5 py-3">
-              <div className="text-xs text-slate-600">{k.label}</div>
-              <div className="text-xl font-bold text-slate-900 mt-0.5 tabular-nums">{k.value}</div>
+            <div key={k.label} className="bg-white border border-slate-300 rounded-xl px-3.5 py-2.5">
+              <div className="text-xs font-bold text-slate-700">{k.label}</div>
+              <div className="text-xl font-extrabold text-slate-900 mt-0.5 tabular-nums">{k.value}</div>
               {k.sub && <div className="text-xs text-slate-500 mt-0.5">{k.sub}</div>}
             </div>
           ))}

@@ -44,8 +44,8 @@ export default function WorkRequestsOverviewPage() {
   const s = data.summary
   const hoursLabel = (h: number | null) => h === null ? '-' : h < 48 ? `${h}시간` : `${(h / 24).toFixed(1)}일`
   const kpi = (k: string, v: React.ReactNode, href: string, sub?: string) => (
-    <Link href={href} className="bg-white border border-slate-300 rounded-xl px-4 py-3 hover:bg-slate-50 hover:border-slate-400 transition-colors">
-      <p className="text-xs text-slate-600">{k}</p><p className="text-lg font-bold mt-0.5 tabular-nums">{v}</p>{sub && <p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
+    <Link href={href} className="bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 hover:bg-slate-50 hover:border-slate-400 transition-colors">
+      <p className="text-xs font-bold text-slate-700">{k}</p><p className="text-xl font-extrabold mt-0.5 tabular-nums">{v}</p>{sub && <p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
     </Link>
   )
 

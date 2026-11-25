@@ -177,8 +177,8 @@ export default function MyDashboardPage() {
         {kpis.map(k => {
           const body = (
             <>
-              <p className="text-xs text-slate-600">{k.label}</p>
-              <p className="text-lg font-bold text-slate-900 mt-1 tabular-nums">{k.value}</p>
+              <p className="text-xs font-bold text-slate-700">{k.label}</p>
+              <p className="text-xl font-extrabold text-slate-900 tabular-nums">{k.value}</p>
               {k.sub && <p className="text-xs text-slate-500 mt-0.5 tabular-nums">{k.sub}</p>}
             </>
           )
