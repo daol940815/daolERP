@@ -1,0 +1,269 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>상담 품목 셀 UI 시안</title>
+<style>
+:root{
+  --bg:#f1f5f9;--card:#fff;--ink:#0f172a;--sub:#475569;--muted:#94a3b8;--line:#e2e8f0;
+  /* 묶음 색 — 품목(회색) · 판매(파랑) · 매입(주황) · 결과(초록) */
+  --item-h:#e2e8f0;--item-t:#334155;--item-b:#cbd5e1;
+  --sale-h:#dbeafe;--sale-t:#1e40af;--sale-b:#bfdbfe;--sale-c:#eff6ff;--sale-v:#1d4ed8;
+  --pur-h:#ffedd5;--pur-t:#9a3412;--pur-b:#fed7aa;--pur-c:#fff7ed;--pur-v:#c2410c;
+  --res-h:#dcfce7;--res-t:#166534;--res-c:#f0fdf4;--res-v:#15803d;
+  --focus:#475569;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;line-height:1.5}
+main{max-width:1920px;margin:0 auto;padding:24px 16px 60px}
+h1{font-size:1.35rem;margin:0 0 4px}
+h2{font-size:1.05rem;margin:28px 0 10px}
+p.lead{color:var(--sub);margin:0 0 18px;font-size:.92rem}
+.card{background:var(--card);border-radius:14px;padding:16px 18px;box-shadow:0 1px 2px rgba(15,23,42,.06);margin-bottom:14px}
+.points{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-bottom:18px}
+.points .card{margin:0}
+.points b{display:block;margin-bottom:4px}
+.points p{margin:0;color:var(--sub);font-size:.87rem}
+
+/* 요약 막대 */
+.sumbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.sumbar .title{font-weight:700;font-size:1rem}
+.sumbar .title small{font-weight:400;color:var(--muted);font-size:.75rem;margin-left:6px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border-radius:999px;padding:5px 14px;font-size:.85rem;font-weight:600;white-space:nowrap}
+.chip b{font-variant-numeric:tabular-nums;margin-left:4px}
+.chip.sale{background:var(--sale-h);color:var(--sale-t)}
+.chip.pur{background:var(--pur-h);color:var(--pur-t)}
+.chip.res{background:var(--res-h);color:var(--res-t)}
+.chip.disc{background:#fee2e2;color:#b91c1c}
+
+/* 셀 표 */
+.scroll{overflow-x:auto;padding-bottom:4px}
+table.grid{border-collapse:separate;border-spacing:4px 4px;min-width:1640px;width:100%;table-layout:fixed;font-size:13px}
+.grid th{font-weight:700;font-size:12px;height:30px;border-radius:7px;padding:0 6px;white-space:nowrap}
+.grid tr.band th{height:22px;font-size:11px;letter-spacing:.02em}
+.g-item{background:var(--item-h);color:var(--item-t)}
+.g-sale{background:var(--sale-h);color:var(--sale-t)}
+.g-pur{background:var(--pur-h);color:var(--pur-t)}
+.g-res{background:var(--res-h);color:var(--res-t)}
+.grid td{padding:0;vertical-align:middle}
+.cell{display:flex;align-items:center;height:34px;border:1px solid var(--item-b);border-radius:7px;background:#fff;padding:0 8px;overflow:hidden;white-space:nowrap}
+.cell input,.cell select{all:unset;width:100%;font:inherit;color:inherit}
+.cell select{cursor:pointer}
+.cell:focus-within{outline:2px solid var(--focus);outline-offset:-1px;border-color:var(--focus)}
+.num{justify-content:flex-end;font-variant-numeric:tabular-nums}
+.num input{text-align:right}
+.ctr{justify-content:center}
+.ctr input{text-align:center}
+/* 묶음별 입력 칸 테두리 */
+.s .cell{border-color:var(--sale-b)}
+.p .cell{border-color:var(--pur-b)}
+/* 자동 계산 칸 — 입력 칸처럼 보이지 않게 칠하고 굵게 */
+.calc .cell{border-color:transparent;font-weight:700}
+.calc.s .cell{background:var(--sale-c);color:var(--sale-v)}
+.calc.p .cell{background:var(--pur-c);color:var(--pur-v)}
+.calc.r .cell{background:var(--res-c);color:var(--res-v);flex-direction:column;justify-content:center;align-items:flex-end;line-height:1.15}
+.calc.r .cell small{font-weight:600;font-size:11px}
+.calc.i .cell{background:#f8fafc;color:var(--sub);font-weight:600}
+.no .cell{border-color:transparent;background:transparent;color:var(--muted);justify-content:center;font-size:12px}
+.sel .cell{justify-content:space-between}
+.sel .cell::after{content:'';flex:none;width:6px;height:6px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(45deg) translateY(-2px);margin-left:6px}
+.disc .cell{color:#b91c1c;font-weight:700;border-color:#fecaca;background:#fef2f2}
+.sub{display:block;font-size:10.5px;color:var(--muted);text-align:right;margin-top:1px;font-weight:400}
+.del{all:unset;cursor:pointer;color:#f87171;font-size:15px;width:100%;text-align:center}
+.del:hover{color:#dc2626}
+/* 둘째 줄 — 상태 · 색상옵션 · 비고 */
+tr.meta td .cell{height:30px;font-size:12px;background:#f8fafc;border-color:var(--line)}
+tr.meta .lab{font-size:11px;color:var(--muted);margin-right:8px;flex:none}
+tr.meta .status .cell{background:#fef2f2;border-color:#fecaca;color:#b91c1c;font-weight:700}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;margin-left:6px}
+.badge.amber{background:#fef3c7;color:#92400e}
+/* 옵션 · 비용 행 */
+tr.opt .name .cell{padding-left:22px;position:relative;color:#475569}
+tr.opt .name .cell::before{content:'└';position:absolute;left:8px;color:var(--muted)}
+tr.cost td .cell{background:#fffbeb;border-color:#fde68a}
+tr.cost .name .cell{color:#92400e;font-weight:600}
+/* 품목 묶음 사이 간격 */
+tr.gap td{height:6px}
+.addons{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:2px 0 2px 6px;font-size:12px}
+.addons span{color:var(--muted);font-size:11px}
+.addons button{all:unset;cursor:pointer;border:1px solid #ddd6fe;background:#f5f3ff;color:#6d28d9;border-radius:999px;padding:2px 10px;font-size:11.5px}
+.addons button.ship{border-color:#fcd34d;background:#fffbeb;color:#92400e}
+.addrow{all:unset;cursor:pointer;margin:8px 0 0 4px;border:1px dashed #94a3b8;border-radius:8px;padding:6px 14px;font-size:12.5px;color:var(--sub)}
+.addrow:hover{border-color:#475569;color:#0f172a}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--sub);margin-top:12px}
+.legend i{display:inline-block;width:16px;height:12px;border-radius:4px;vertical-align:-1px;margin-right:5px}
+/* 비교 */
+.cmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}
+.cmp .card{margin:0}
+.cmp ul{margin:6px 0 0 18px;padding:0;color:var(--sub);font-size:.87rem}
+.tag{display:inline-block;font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:999px;margin-right:6px}
+.tag.bad{background:#fee2e2;color:#dc2626}
+.tag.good{background:#dcfce7;color:#15803d}
+</style></head><body><main>
+<h1>상담 품목 — 셀 UI 개편 시안</h1>
+<p class="lead">엑셀처럼 칸이 하나하나 떨어진 셀 표, 모서리는 살짝 둥글게. 품목 · 판매 · 매입 · 결과를 색으로 묶어 어디를 보고 있는지 바로 알 수 있게 했습니다. 아래 표는 실제로 눌러서 고쳐 볼 수 있습니다(합계 · 마진이 바로 다시 계산됨).</p>
+
+<div class="points">
+  <div class="card"><b>1. 엑셀 같은 셀</b><p>칸 사이에 간격을 두고 칸마다 둥근 테두리(7px). 칸 자체가 입력 칸이라 안에 또 상자가 없습니다. 누른 칸은 진한 테두리로 표시. 숫자는 오른쪽 정렬, 글자 13px(지금 12px).</p></div>
+  <div class="card"><b>2. 묶음별 색</b><p>머리줄 위에 묶음 띠(품목 · 판매 · 매입 · 결과)를 두고, 판매는 파랑 · 매입은 주황 · 결과는 초록 테두리와 머리 색으로 구분. 지금처럼 비슷한 회색 칸이 이어지지 않습니다.</p></div>
+  <div class="card"><b>3. 입력 칸과 계산 칸 구분</b><p>사람이 넣는 칸은 흰 바탕 + 묶음 색 테두리, 자동 계산 칸(카톤 · 판매합계 · 매입합계 · 마진)은 묶음 색으로 칠하고 굵게 — 손댈 칸과 볼 칸이 한눈에 갈립니다.</p></div>
+  <div class="card"><b>4. 요약 막대</b><p>표 위 오른쪽에 판매합계 · 매입합계 · 마진을 같은 묶음 색 알약으로. 할인이 있으면 빨간 알약이 하나 더 붙습니다(지금은 표 아래 글줄).</p></div>
+</div>
+
+<div class="card">
+  <div class="sumbar">
+    <div class="title">상담 품목<small>품번 검색 시 원가표 기준 자동 — 수정 가능</small></div>
+    <div class="chips">
+      <span class="chip sale">판매합계<b id="tSale">0원</b></span>
+      <span class="chip disc" id="tDiscWrap" hidden>판매할인<b id="tDisc">0원</b></span>
+      <span class="chip pur">매입합계<b id="tPur">0원</b></span>
+      <span class="chip res">마진<b id="tMar">0원</b></span>
+    </div>
+  </div>
+  <div class="scroll">
+  <table class="grid" id="grid">
+    <colgroup>
+      <col style="width:34px"><col style="width:150px"><col style="width:230px"><col style="width:78px"><col style="width:80px">
+      <col style="width:58px"><col style="width:52px">
+      <col style="width:88px"><col style="width:84px"><col style="width:84px"><col style="width:100px">
+      <col style="width:104px"><col style="width:84px"><col style="width:84px"><col style="width:96px"><col style="width:100px">
+      <col style="width:84px"><col style="width:30px">
+    </colgroup>
+    <thead>
+      <tr class="band">
+        <th></th><th class="g-item" colspan="6">품목</th><th class="g-sale" colspan="4">판매</th><th class="g-pur" colspan="5">매입</th><th class="g-res">결과</th><th></th>
+      </tr>
+      <tr>
+        <th></th><th class="g-item">품번 검색</th><th class="g-item">상품명</th><th class="g-item">배송종류</th><th class="g-item">주문시기</th><th class="g-item">수량</th><th class="g-item">카톤</th>
+        <th class="g-sale">판매가</th><th class="g-sale">판매할인</th><th class="g-sale">택배비(판매)</th><th class="g-sale">판매합계</th>
+        <th class="g-pur">매입처</th><th class="g-pur">매입가</th><th class="g-pur">매입할인</th><th class="g-pur">매입배송비</th><th class="g-pur">매입합계</th>
+        <th class="g-res">마진</th><th></th>
+      </tr>
+    </thead>
+    <tbody id="body"></tbody>
+  </table>
+  </div>
+  <button type="button" class="addrow">+ 품목 행 추가</button>
+  <div class="legend">
+    <span><i style="background:#fff;border:1px solid var(--sale-b)"></i>입력 칸(판매)</span>
+    <span><i style="background:#fff;border:1px solid var(--pur-b)"></i>입력 칸(매입)</span>
+    <span><i style="background:var(--sale-c)"></i><i style="background:var(--pur-c)"></i><i style="background:var(--res-c)"></i>자동 계산 칸</span>
+    <span><i style="background:#fef2f2;border:1px solid #fecaca"></i>할인 · 품절 등 주의</span>
+    <span><i style="background:#fffbeb;border:1px solid #fde68a"></i>비용 행(택배비 등)</span>
+  </div>
+</div>
+
+<h2>지금과 무엇이 달라지나</h2>
+<div class="cmp">
+  <div class="card"><span class="tag bad">지금</span>
+    <ul>
+      <li>모든 칸이 비슷한 회색 · 옅은 파랑 상자 — 판매인지 매입인지 머리줄을 다시 봐야 함</li>
+      <li>칸 안에 입력 상자가 또 있어 선이 이중으로 보임</li>
+      <li>합계 · 마진이 입력 칸과 같은 모양이라 고칠 칸으로 착각</li>
+      <li>요약(예상 합계 · 매입 합계 · 마진)이 표 아래 글줄</li>
+    </ul>
+  </div>
+  <div class="card"><span class="tag good">개편</span>
+    <ul>
+      <li>칸 = 입력 상자 하나, 칸 사이 간격 4px, 둥근 모서리 — 엑셀 셀처럼</li>
+      <li>품목 회색 · 판매 파랑 · 매입 주황 · 결과 초록 — 묶음 띠와 칸 테두리 색이 같음</li>
+      <li>자동 계산 칸은 칠한 칸 + 굵은 글자, 입력 칸은 흰 칸</li>
+      <li>상태 · 색상옵션 · 비고는 지금처럼 품목 아래 둘째 줄(옅은 칸), 품절 등 상태가 있으면 빨간 칸</li>
+      <li>열 구성 · 순서 · 입력 규칙 · 단축키(↑↓ Tab Enter Esc)는 그대로 — 모양만 바뀜</li>
+    </ul>
+  </div>
+</div>
+
+<h2>함께 정할 것</h2>
+<div class="card"><ul style="margin:0 0 0 18px;padding:0;color:var(--sub);font-size:.9rem">
+  <li><b>주문서(신규 주문 · 주문 상세)의 주문 상품 표</b>도 같은 모양으로 바꿀지 — 같은 규칙의 표라 함께 바꾸면 화면 간 혼동이 줄어듭니다(권장).</li>
+  <li><b>색 테마</b>: 묶음 색(파랑 · 주황 · 초록)은 의미 색이라 테마와 무관하게 유지, 바탕 회색은 직원별 색 테마를 따릅니다. 글자 크기 설정(크게)에서도 칸 높이가 함께 커집니다.</li>
+</ul></div>
+
+<script>
+const rows = [
+  { no:1, code:'25-02-01', name:'요아럽 바이탈라이징 바디케어세트', kind:'지점', season:'26설', qty:16, carton:16, price:13500, disc:0, ship:0, vendor:'요아럽', pprice:9100, pdisc:0, pship:0,
+    status:'품절/11.16', option:'블랙 색상', memo:'', priceChanged:false, addons:['롯데포장지(대) (300)','롯데쇼핑백(대) (250)'],
+    opts:[{ name:'롯데포장지(대)', qty:16, price:0, vendor:'요아럽', pprice:300 }, { name:'롯데쇼핑백', qty:16, price:0, vendor:'요아럽', pprice:250 }] },
+  { no:2, code:'25-02-04', name:'요아럽 블랙에디션 바디케어세트', kind:'지점', season:'26설', qty:16, carton:16, price:14000, disc:16000, discUnit:1000, ship:0, vendor:'요아럽', pprice:9450, pdisc:0, pship:0,
+    status:'', option:'', memo:'명함 동봉', priceChanged:true, addons:[], opts:[] },
+  { no:3, code:'25-50-05', name:'깨끗한나라 오곡물티슈 캡 100매', kind:'개별', season:'상시', qty:40, carton:40, price:1300, disc:0, ship:0, vendor:'깨끗한나라', pprice:935, pdisc:0, pship:3000,
+    status:'', option:'', memo:'', priceChanged:false, addons:[], opts:[] },
+]
+const cost = { name:'택배비', price:0, pprice:3500 }
+const won = n => Math.round(n).toLocaleString('ko-KR')
+const cell = (v, cls='', inner) => `<td class="${cls}"><div class="cell ${cls.includes('n')?'num':''}">${inner ?? `<input value="${v}">`}</div></td>`
+const ncell = (v, cls='') => `<td class="${cls}"><div class="cell num"><input inputmode="numeric" value="${v}"></div></td>`
+function render(){
+  const b = document.getElementById('body'); let h = ''
+  rows.forEach((r, i) => {
+    const sale = r.qty * r.price - r.disc + r.ship, pur = r.qty * r.pprice + r.pship - r.pdisc
+    const m = sale - pur, pct = sale > 0 ? (m / sale * 100).toFixed(1) : null
+    h += `<tr data-i="${i}">
+      <td class="no"><div class="cell">${r.no}</div></td>
+      ${cell(r.code,'')}
+      <td class="name"><div class="cell"><input value="${r.name}"></div></td>
+      <td class="sel"><div class="cell"><select><option ${r.kind==='지점'?'selected':''}>지점</option><option ${r.kind==='개별'?'selected':''}>개별</option><option>샘플</option></select></div></td>
+      ${cell(r.season,'')}
+      <td><div class="cell num"><input data-k="qty" value="${r.qty}"></div></td>
+      <td class="calc i"><div class="cell num">${r.carton}</div></td>
+      <td class="s"><div class="cell num"><input data-k="price" value="${won(r.price)}"></div>${r.priceChanged?'':''}</td>
+      <td class="s ${r.disc>0?'disc':''}"><div class="cell num" style="${r.discUnit?'flex-direction:column;align-items:flex-end;justify-content:center;line-height:1.1':''}"><input data-k="disc" value="${won(r.disc)}">${r.discUnit?`<span class="sub" style="color:#b91c1c">개당 ${won(r.discUnit)}</span>`:''}</div></td>
+      <td class="s"><div class="cell num"><input data-k="ship" value="${won(r.ship)}"></div></td>
+      <td class="calc s"><div class="cell num">${won(sale)}</div></td>
+      <td class="p"><div class="cell"><input value="${r.vendor}"></div></td>
+      <td class="p"><div class="cell num"><input data-k="pprice" value="${won(r.pprice)}"></div></td>
+      <td class="p"><div class="cell num"><input data-k="pdisc" value="${won(r.pdisc)}"></div></td>
+      <td class="p"><div class="cell num"><input data-k="pship" value="${won(r.pship)}"></div></td>
+      <td class="calc p"><div class="cell num">${won(pur)}</div></td>
+      <td class="calc r"><div class="cell">${won(m)}<small>${pct===null?'-':pct+'%'}</small></div></td>
+      <td><button class="del" title="행 삭제">✕</button></td></tr>
+    <tr class="meta">
+      <td></td>
+      <td colspan="3" class="${r.status?'status':''}"><div class="cell"><span class="lab">상태</span><input value="${r.status}" placeholder="품절·단가변경 등 (품절 상품 선택 시 자동)">${r.priceChanged?'<span class="badge amber">단가변경</span>':''}</div></td>
+      <td colspan="7"><div class="cell"><span class="lab">색상·옵션 등 기타</span><input value="${r.option}" placeholder="색상, 각인 문구 등"></div></td>
+      <td colspan="6"><div class="cell"><span class="lab">비고</span><input value="${r.memo}"></div></td>
+      <td></td></tr>`
+    r.opts.forEach(o => {
+      const p = o.qty * o.pprice
+      h += `<tr class="opt"><td class="no"><div class="cell"></div></td><td><div class="cell" style="color:#94a3b8">옵션</div></td>
+        <td class="name"><div class="cell"><input value="${o.name}"></div></td>
+        <td class="calc i"><div class="cell">-</div></td><td class="calc i"><div class="cell">-</div></td>
+        <td><div class="cell num"><input value="${o.qty}"></div></td><td class="calc i"><div class="cell num">-</div></td>
+        <td class="s"><div class="cell num"><input value="${won(o.price)}"></div></td><td class="calc s"><div class="cell num" style="color:#94a3b8;font-weight:400">-</div></td><td class="calc s"><div class="cell num" style="color:#94a3b8;font-weight:400">-</div></td>
+        <td class="calc s"><div class="cell num">${won(o.qty*o.price)}</div></td>
+        <td class="p"><div class="cell"><input value="${o.vendor}"></div></td><td class="p"><div class="cell num"><input value="${won(o.pprice)}"></div></td>
+        <td class="p"><div class="cell num"><input value="0"></div></td><td class="p"><div class="cell num"><input value="0"></div></td>
+        <td class="calc p"><div class="cell num">${won(p)}</div></td><td class="calc r"><div class="cell">-${won(p)}</div></td>
+        <td><button class="del" title="옵션 행 삭제">✕</button></td></tr>`
+    })
+    if (r.addons.length) h += `<tr><td></td><td colspan="17"><div class="addons"><span>옵션 추가 (${r.vendor})</span>${r.addons.map(a=>`<button>+ ${a}</button>`).join('')}<button class="ship">+ 택배비 (매입 3,500)</button></div></td></tr>`
+    h += `<tr class="gap"><td colspan="18"></td></tr>`
+  })
+  h += `<tr class="cost"><td class="no"><div class="cell" style="background:transparent;border-color:transparent"></div></td><td><div class="cell" style="color:#92400e">비용</div></td>
+    <td class="name"><div class="cell">${cost.name}</div></td><td colspan="4"><div class="cell" style="color:#b45309;font-size:12px">비용 품목 — 매출 0, 매입만 반영</div></td>
+    <td colspan="4"><div class="cell num" style="color:#b45309">-</div></td>
+    <td colspan="4"><div class="cell num">매입 ${won(cost.pprice)}</div></td><td class="calc p"><div class="cell num">${won(cost.pprice)}</div></td>
+    <td class="calc r"><div class="cell">-${won(cost.pprice)}</div></td><td><button class="del">✕</button></td></tr>`
+  b.innerHTML = h
+  totals()
+}
+function totals(){
+  let s=0,p=0,d=0
+  rows.forEach(r => { s += r.qty*r.price - r.disc + r.ship; d += r.disc; p += r.qty*r.pprice + r.pship - r.pdisc; r.opts.forEach(o => { s += o.qty*o.price; p += o.qty*o.pprice }) })
+  p += cost.pprice
+  const m = s - p
+  document.getElementById('tSale').textContent = won(s)+'원'
+  document.getElementById('tPur').textContent = won(p)+'원'
+  document.getElementById('tMar').textContent = `${won(m)}원 · ${s>0?(m/s*100).toFixed(1):0}%`
+  document.getElementById('tDisc').textContent = '-'+won(d)+'원'
+  document.getElementById('tDiscWrap').hidden = d === 0
+}
+document.getElementById('body').addEventListener('change', e => {
+  const k = e.target.dataset.k; if (!k) return
+  const tr = e.target.closest('tr'); const r = rows[+tr.dataset.i]
+  r[k] = Number(String(e.target.value).replace(/[^\d]/g,'')) || 0
+  if (k === 'disc') r.discUnit = 0
+  render()
+})
+render()
+</script>
+</main></body></html>
