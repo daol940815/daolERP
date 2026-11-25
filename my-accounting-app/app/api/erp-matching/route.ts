@@ -7,6 +7,7 @@ import { FROM_INVOICE_BLOCK, syncInvoicesForOrders } from '@/lib/link-sync'
 import { syncRecordsForOrders } from '@/lib/payment-records'
 import { insertMatches, logUnmatch, loadRecentUnmatches } from '@/lib/match-log'
 import { resolveReason } from '@/lib/payment-reasons'
+import { addBankKeyword, learnableKeyword, loadBankKeywords } from '@/lib/vendor-keywords.server'
 
 const editorOf = async () => { const me = await getCurrentUser(); return { employeeId: me?.employeeId ?? null, employeeName: me?.employeeName ?? null } }
 
@@ -40,11 +41,14 @@ export async function GET(req: NextRequest) {
   const days = Math.min(Math.max(Number(searchParams.get('days')) || 7, 1), 120)
   const recommend = new Map(findAutoMatches(state, days).map(p => [p.deposit.id, p.order]))
 
+  // 통장 키워드(2026-11-25) — 입금을 붙일 때 입금자 표기를 그 매출처 통장 키워드로 기록할지(화면 체크 칸, 기본 체크)
+  const open = state.deposits.filter(d => d.remaining > 0)
+  const kw = await loadBankKeywords(admin, open.filter(d => d.source_type === 'bank').map(d => d.vendor_id))
   // 미배분 입금별 후보 주문 (같은 거래처, 잔액 있는 주문 — 날짜 가까운 순)
-  const pending = state.deposits
-    .filter(d => d.remaining > 0)
+  const pending = open
     .map(d => ({
       ...d,
+      learn: d.source_type === 'bank' ? learnableKeyword((d.counterparty_name || d.description || '').trim(), d.vendor_name, kw.get(d.vendor_id) ?? []) : null,
       recommend: recommend.has(d.id) ? { id: recommend.get(d.id)!.id, order_no: recommend.get(d.id)!.order_no, order_date: recommend.get(d.id)!.order_date, remaining: recommend.get(d.id)!.remaining, customer_name: recommend.get(d.id)!.customer_name, manager: recommend.get(d.id)!.manager ?? '' } : null,
       candidates: (ordersByVendor.get(d.vendor_id) ?? [])
         .slice()
@@ -87,6 +91,7 @@ export async function POST(req: NextRequest) {
     source_id?: string
     allocations?: { order_id: string; amount: number }[]
     memo?: string
+    learn_keyword?: string | null   // 통장: 입금자 표기를 매출처 통장 키워드로 기록 (2026-11-25)
   }
 
   if ((body.source_type !== 'bank' && body.source_type !== 'card') || !body.source_id) {
@@ -130,7 +135,9 @@ export async function POST(req: NextRequest) {
   // 주문이 계산서에 연결돼 있으면 이 통장 입금을 계산서 입금으로도 넘긴다 (1302 2단계)
   if (body.source_type === 'bank') await syncInvoicesForOrders(admin, rows.map(r => r.order_id))
 
-  return NextResponse.json({ ok: true, inserted: rows.length, records_confirmed: sync.confirmed, records_released: sync.released })
+  const learned = body.source_type === 'bank' && typeof body.learn_keyword === 'string' && source.vendor_id
+    ? (await addBankKeyword(admin, source.vendor_id, body.learn_keyword).catch(() => ({ keyword: null }))).keyword : null
+  return NextResponse.json({ ok: true, inserted: rows.length, records_confirmed: sync.confirmed, records_released: sync.released, keyword: learned })
 }
 
 // DELETE /api/erp-matching?id=  { reason: { code, text } } — 매칭 해제. 사유 필수(1307, 2026-11-18) — 해제 이력에 사유 · 사람 · 시각이 남는다
