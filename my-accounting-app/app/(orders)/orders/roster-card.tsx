@@ -390,7 +390,7 @@ export default function RosterCard({ consultationId, orderId, applies, isNew, di
                 <tbody>
                   {pageRows.map(r => {
                     const cell = `w-full border rounded-md px-1.5 py-1 text-xs disabled:opacity-60 ${
-                      disabled ? 'border-slate-300 bg-slate-50' : 'border-amber-200 bg-amber-50/30'}`
+                      disabled ? 'border-slate-300 bg-slate-100' : 'border-slate-400 bg-white'}`
                     const linked = !!r.item_name
                     return (
                       <tr key={r._key} className={`border-t border-slate-200 ${!linked ? 'bg-red-50/40' : r._dirty || r._new ? 'bg-blue-50/30' : ''}`}>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { ShipInput } from '@/lib/ship-address'
+import { fieldCls, labelCls } from '@/components/ui/kit'
 
 // 주문서 배송지 카드 (513, 2026-11-04 사용자 확정 — 시안 docs/mockups/배송지_주문서_시안.html)
 //  - 자동 채움 (2026-11-17 기준 = 지점 + 담당자): 같은 지점 + 같은 담당자의 최근 배송지 → 없으면 같은 지점의 최근 배송지
@@ -115,8 +116,8 @@ export default function ShipCard({ value, onChange, vendorId, contactId, contact
     setOpenList(false)
   }
 
-  const label = 'block text-xs text-slate-600 mb-0.5'
-  const free = 'w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-60'
+  const label = labelCls
+  const free = fieldCls('free')   // 입력 칸 — components/ui/kit.tsx (흰 = 직접 입력 · 회색 = 자동)
   const btn = 'px-2 py-1 text-xs border border-slate-400 rounded-md text-slate-700 hover:bg-slate-50 disabled:opacity-50'
 
   return (
@@ -193,7 +194,7 @@ export default function ShipCard({ value, onChange, vendorId, contactId, contact
               <label className={label}>우편번호</label>
               <div className="flex gap-1.5">
                 <input value={value.ship_zip ?? ''} readOnly
-                  className="w-full border border-slate-300 bg-slate-50 rounded-lg px-2.5 py-1.5 text-sm text-slate-800" placeholder="주소 검색" />
+                  className={fieldCls('auto')} placeholder="주소 검색" />
                 <button type="button" onClick={searchAddr} disabled={disabled}
                   className="px-3 py-1.5 text-sm rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 whitespace-nowrap disabled:opacity-50">
                   주소 검색
@@ -203,7 +204,7 @@ export default function ShipCard({ value, onChange, vendorId, contactId, contact
             <div className="col-span-2 md:col-span-4">
               <label className={label}>주소 <span className="text-slate-500">(주소 검색으로 입력)</span></label>
               <input value={value.ship_addr1 ?? ''} readOnly onClick={() => !disabled && !value.ship_addr1 && searchAddr()}
-                className="w-full border border-slate-300 bg-slate-50 rounded-lg px-2.5 py-1.5 text-sm text-slate-800 cursor-pointer"
+                className={fieldCls('auto', 'md', 'cursor-pointer')}
                 placeholder="주소 검색을 눌러 입력" />
             </div>
             <div className="col-span-2 md:col-span-2">

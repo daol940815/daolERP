@@ -18,6 +18,7 @@ import {
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
 import type { ContactOpt, Employee, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from './form-shared'
 import { cellTableCls, cellBlankTh, cellCls, calcCls, CellBand, CellHead, SummaryPill } from '@/components/ui/cell-grid'
+import { fieldCls, fieldBox, labelCls } from '@/components/ui/kit'
 import { isMoimVendor, orgSubLabel } from './form-shared'
 import ProductRegisterDialog, { UnregisteredTag, isUnregisteredRow, linkPatch } from './product-register-dialog'
 import IndividualRegister from './individual-register'
@@ -730,9 +731,10 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
     )
   }
 
-  const label = 'block text-xs text-slate-600 mb-0.5'
-  const free = 'w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2.5 py-1.5 text-sm'
-  const auto = 'w-full border border-slate-300 bg-slate-50 rounded-lg px-2.5 py-1.5 text-sm text-slate-600'
+  // 입력 칸 — 테두리는 한 가지, 종류는 바탕으로(흰 = 직접 입력 · 옅은 파랑 = 마스터에서 선택 · 회색 = 자동) — components/ui/kit.tsx
+  const label = labelCls
+  const free = fieldCls('free')
+  const auto = fieldCls('auto')
   // 금액 칸은 colgroup으로 전부 동일 폭 — 칸 안 요소는 폭을 채운다
   // 주문 상품 표 숫자 칸 — 묶음(판매 · 매입)별 셀 모양 (components/ui/cell-grid.tsx)
   const nSale = cellCls('sale', { num: true }), nBuy = cellCls('buy', { num: true })
@@ -740,14 +742,14 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-slate-900">
+        <h1 className="text-2xl font-bold text-slate-900">
           {isEdit ? '주문 수정' : reissueFromNo ? '주문 취소·재등록' : '신규 주문'}
         </h1>
         {isEdit && orderNo && <span className="text-sm text-slate-500 tabular-nums">{orderNo}</span>}
-        <span className="text-xs text-slate-500 ml-auto">
-          <span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-50 border border-blue-200 align-middle mr-1" />마스터 선택
-          <span className="inline-block w-2.5 h-2.5 rounded-sm bg-slate-50 border border-slate-300 align-middle ml-3 mr-1" />자동
-          <span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-50 border border-amber-200 align-middle ml-3 mr-1" />자유 입력
+        <span className="text-xs text-slate-700 ml-auto">
+          <span className="inline-block w-3 h-3 rounded-sm bg-blue-50 border border-slate-400 align-middle mr-1" />마스터 선택
+          <span className="inline-block w-3 h-3 rounded-sm bg-slate-100 border border-slate-300 align-middle ml-3 mr-1" />자동
+          <span className="inline-block w-3 h-3 rounded-sm bg-white border border-slate-400 align-middle ml-3 mr-1" />직접 입력
         </span>
       </div>
 
@@ -785,7 +787,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           <div>
             <label className={label}>주문일 <em className="not-italic text-red-500">*</em></label>
             <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)}
-              className="w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2 py-1.5 text-sm" />
+              className={fieldCls('free')} />
           </div>
           <div className="col-span-2">
             <label className={label}>업체 (은행·그룹)</label>
@@ -1032,7 +1034,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               <label className={label}>업체명 *</label>
               <input value={newVendor.group_name}
                 onChange={e => setNewVendor(p => ({ ...p, group_name: e.target.value }))}
-                placeholder="하나은행" className="border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm w-40" />
+                placeholder="하나은행" className={fieldBox({ noWidth: true, extra: 'w-40' })} />
               <SimilarHint input={newVendor.group_name} items={groups} nameOf={g => g.name} what="업체"
                 onPick={g => { setGroupId(g.id); setNewVendor(p => ({ ...p, group_name: g.name })) }} />
             </div>
@@ -1040,7 +1042,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               <label className={label}>지점(부서)명</label>
               <input value={newVendor.branch_name}
                 onChange={e => setNewVendor(p => ({ ...p, branch_name: e.target.value }))}
-                placeholder="OO지점 (단일 업체는 비움)" className="border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm w-44" />
+                placeholder="OO지점 (단일 업체는 비움)" className={fieldBox({ noWidth: true, extra: 'w-44' })} />
               {newVendor.branch_name.trim() && (
                 <SimilarHint what="지점"
                   input={[newVendor.group_name, newVendor.branch_name].filter(Boolean).join(' ')}
@@ -1099,22 +1101,22 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
             <div>
               <label className={label}>이름 *</label>
               <input value={newContact.name} onChange={e => setNewContact(p => ({ ...p, name: e.target.value }))}
-                className="border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm w-32" />
+                className={fieldBox({ noWidth: true, extra: 'w-32' })} />
             </div>
             <div>
               <label className={label}>직함</label>
               <input value={newContact.title} onChange={e => setNewContact(p => ({ ...p, title: e.target.value }))}
-                placeholder="지점장 등" className="border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm w-28" />
+                placeholder="지점장 등" className={fieldBox({ noWidth: true, extra: 'w-28' })} />
             </div>
             <div>
               <label className={label}>휴대폰</label>
               <input value={newContact.phone} onChange={e => setNewContact(p => ({ ...p, phone: e.target.value }))}
-                placeholder="010-" className="border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm w-36" />
+                placeholder="010-" className={fieldBox({ noWidth: true, extra: 'w-36' })} />
             </div>
             <div>
               <label className={label}>다올 담당 *</label>
               <select value={newContact.staff_employee_id} onChange={e => setNewContact(p => ({ ...p, staff_employee_id: e.target.value }))}
-                className="border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm w-36 bg-white">
+                className={fieldBox({ noWidth: true, extra: 'w-36' })}>
                 <option value="">선택</option>
                 {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
               </select>

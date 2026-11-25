@@ -6,6 +6,7 @@ import { fmtPurchasePrice, purchaseAmount, toPurchasePrice } from '@/lib/purchas
 import { shipBoxes } from '@/lib/ship-boxes'
 import { isLegalTail } from '@/lib/vendor-group-names'
 import { cellCls, type CellGroup } from '@/components/ui/cell-grid'
+import { fieldBox } from '@/components/ui/kit'
 
 // 주문 입력·상담일지 폼 공용 부품 — 마스터 타입, 품목 행 모델, 가격 규칙, 자동완성 콤보.
 // 가격 규칙(구분별 자동)은 두 화면이 반드시 같아야 하므로 여기 한 곳에만 둔다.
@@ -569,9 +570,7 @@ export function Combo({ value, display, options, onSelect, placeholder, required
         onChange={e => { setText(e.target.value); setOpen(true); keys.resetActive(); onQuery?.(e.target.value) }}
         onKeyDown={keys.onKeyDown}
         placeholder={placeholder}
-        className={inputClassName ?? `w-full border rounded-lg px-2.5 py-1.5 text-sm bg-blue-50/40 ${
-          required && !value ? 'border-red-300' : 'border-blue-200'
-        }`}
+        className={inputClassName ?? fieldBox({ kind: 'pick', invalid: !!required && !value })}
       />
       {open && (
         <FloatingList pos={pos} listRef={listRef}>
@@ -638,9 +637,7 @@ export function ComboFree({ text, selectedId, options, onChange, placeholder, fo
         onChange={e => { onChange({ id: null, text: e.target.value }); setOpen(true); keys.resetActive() }}
         onKeyDown={keys.onKeyDown}
         placeholder={placeholder}
-        className={`w-full border rounded-lg px-2.5 py-1.5 text-sm ${
-          selectedId ? 'bg-blue-50/40 border-blue-200' : 'bg-amber-50/30 border-amber-200'
-        }`}
+        className={fieldBox({ kind: selectedId ? 'pick' : 'free' })}
         title={selectedId ? '마스터 연결됨' : '자유 입력 (마스터 미연결)'}
       />
       {open && (filtered.length > 0 || !!footerNode) && (
