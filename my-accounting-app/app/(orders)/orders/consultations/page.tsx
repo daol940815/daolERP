@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { honorify } from '@/lib/contact-label'
 import ReasonBadge from '@/components/ui/ReasonBadge'
 
-import { btnCls, fieldBox } from '@/components/ui/kit'
+import { KpiCard, KpiGrid, PageHeader, btnCls, fieldBox } from '@/components/ui/kit'
 // 상담일지 목록 — 기본 본인 작성분, manager/admin은 전체 보기 전환 가능.
 // 품목 행 단위 표시 (실무자 피드백 7, 2안): 상품 1개 = 1줄, 부자재·배송비 행 제외.
 // 같은 상담의 줄들은 하나의 상담일지로 인식 — 행 클릭 = 상세, 전환도 상담 단위.
@@ -187,40 +187,28 @@ export default function ConsultationsPage() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold text-slate-900">상담일지</h1>
-        <span className="text-xs text-slate-500">상담 기록 → 주문 확정 시 주문서로 전환 · 품목별 1줄 표시 (같은 상담은 하나의 일지)</span>
-        <span className="ml-auto flex items-center gap-2">
+      <PageHeader title="상담일지" desc="상담을 기록하고, 주문이 확정되면 주문서로 전환합니다. 품목마다 한 줄로 보입니다(같은 상담은 하나의 일지)."
+        actions={<>
           {checked.size > 0 && (
             <button onClick={copySelected}
-              className="px-3.5 py-1.5 border border-blue-300 text-blue-700 bg-blue-50 rounded-lg text-sm hover:bg-blue-100">
+              className="h-9 px-3.5 border border-blue-300 text-blue-700 bg-blue-50 rounded-lg text-sm font-semibold hover:bg-blue-100">
               선택 {checked.size}건 복사해 새 상담
             </button>
           )}
-          <Link href="/orders/consultations/new"
-            className={btnCls('primary', 'md')}>+ 상담 기록</Link>
-        </span>
-      </div>
+          <Link href="/orders/consultations/new" className={btnCls('primary', 'md')}>+ 상담 기록</Link>
+        </>} />
 
       {/* 주문 진행 요청 카드 (705) — 클릭 = 범위 전환 */}
       {reqKpi && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 max-w-4xl">
-          {([
-            ['mine', '내 상담 (요청받은 것 포함)', reqKpi.mine, 'text-slate-900'],
-            ['assigned', '나에게 요청됨 (진행 대기)', reqKpi.assigned, reqKpi.assigned ? 'text-orange-700' : 'text-slate-500'],
-            ['requested', '내가 요청함 (진행 대기 · 처리 불가)', reqKpi.requested, 'text-slate-900'],
-            ['done', '주문 입력됨 (이번 달 요청 · 회신 포함)', reqKpi.done, 'text-emerald-700'],
-          ] as const).map(([key, title, val, cls]) => (
-            <button key={key} onClick={() => setScope(key)}
-              className={`bg-white border rounded-xl px-4 py-3 text-left ${scope === key ? 'border-slate-800' : 'border-slate-300'}`}>
-              <div className="text-xs text-slate-500">{title}</div>
-              <div className={`text-lg font-bold tabular-nums ${cls}`}>{val}</div>
-            </button>
-          ))}
-        </div>
+        <KpiGrid cols={4}>
+          <KpiCard label="내 상담 (요청받은 것 포함)" value={reqKpi.mine} active={scope === 'mine'} onClick={() => setScope('mine')} />
+          <KpiCard label="나에게 요청됨 (진행 대기)" value={reqKpi.assigned} tone={reqKpi.assigned ? 'amber' : 'gray'} active={scope === 'assigned'} onClick={() => setScope('assigned')} />
+          <KpiCard label="내가 요청함 (진행 대기 · 처리 불가)" value={reqKpi.requested} active={scope === 'requested'} onClick={() => setScope('requested')} />
+          <KpiCard label="주문 입력됨 (이번 달 요청 · 회신 포함)" value={reqKpi.done} tone="green" active={scope === 'done'} onClick={() => setScope('done')} />
+        </KpiGrid>
       )}
 
-      <div className="bg-white border border-slate-300 rounded-xl p-3 mt-4">
+      <div className="bg-white border border-slate-300 rounded-xl p-3">
         <div className="flex items-center gap-2 flex-wrap">
           <input value={qInput} onChange={e => setQInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') setQ(qInput.trim()) }}

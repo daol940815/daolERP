@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useReasonDialog } from '@/components/payments/ReasonDialog'
 
+import { kpiCls, kpiLabelCls } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => Math.round(n ?? 0).toLocaleString('ko-KR')
 const mmdd = (d: string) => d.slice(5).replace('-', '/')
 
@@ -74,9 +75,9 @@ export default function ReviewView() {
   const btn = 'px-2.5 py-1 rounded-md text-xs disabled:opacity-40'
   const card = (k: Kind, label: string, n: number, hint: string) => (
     <button type="button" onClick={() => setKind(kind === k ? 'all' : k)}
-      className={`rounded-xl border bg-white px-4 py-3 text-left ${kind === k ? 'border-slate-900' : 'border-slate-300'}`}>
-      <div className="text-xs text-slate-600">{label}</div>
-      <div className={`text-lg font-bold tabular-nums ${n > 0 ? 'text-amber-700' : ''}`}>{won(n)}<span className="text-xs font-normal text-slate-500 ml-1">{hint}</span></div>
+      className={kpiCls(kind === k, true)}>
+      <div className={kpiLabelCls}>{label}</div>
+      <div className={`text-xl font-extrabold tabular-nums ${n > 0 ? 'text-amber-700' : ''}`}>{won(n)}<span className="text-xs font-normal text-slate-500 ml-1">{hint}</span></div>
     </button>
   )
 
