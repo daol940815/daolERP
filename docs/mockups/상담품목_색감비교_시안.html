@@ -1,0 +1,113 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>상담 품목 색감 비교</title>
+<style>body{margin:0;background:#e2e8f0;font-family:'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif;color:#0f172a}
+.wrap{overflow-x:auto;padding:16px}.board{width:1720px;box-sizing:border-box;padding:28px 44px;background:#fff;border-radius:14px;margin:0 auto 20px;display:flex;flex-direction:column;gap:18px}
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:24px}.name{font-size:22px;font-weight:700}.desc{font-size:14px;color:#475569}
+.chips{display:flex;gap:8px}.grid{display:grid;grid-template-columns:32px 140px 230px 76px 76px 56px 52px 88px 84px 84px 100px 100px 84px 84px 92px 100px 88px;gap:4px;font-size:13px}
+.leg{display:flex;gap:18px;font-size:12px;color:#475569}h1{font-size:24px;margin:8px auto 16px;width:1720px}</style></head><body><div class="wrap"><h1>상담 품목 색감 비교 — 같은 표, 색만 다르게</h1><div id="root"></div></div>
+<script>function build(variant, radius){ const props={variant, radius}; const self={props};
+
+    const P = {
+      now: { name: '0. 현재 시안 (기준)', desc: '옅은 파스텔 — 지금 시안. 묶음 구분은 되지만 전체가 흐릿하게 보입니다.',
+        band: { i: ['#e2e8f0', '#334155'], s: ['#dbeafe', '#1e40af'], p: ['#ffedd5', '#9a3412'], r: ['#dcfce7', '#166534'] },
+        head: { i: ['#e2e8f0', '#334155'], s: ['#dbeafe', '#1e40af'], p: ['#ffedd5', '#9a3412'], r: ['#dcfce7', '#166534'] },
+        line: { i: '#cbd5e1', s: '#bfdbfe', p: '#fed7aa' }, lw: 1,
+        calc: { i: ['#f8fafc', '#475569'], s: ['#eff6ff', '#1d4ed8'], p: ['#fff7ed', '#c2410c'], r: ['#f0fdf4', '#15803d'] },
+        meta: ['#f8fafc', '#e2e8f0'] },
+      vivid: { name: 'A. 선명', desc: '머리줄을 진한 단색 + 흰 글자로. 판매 파랑 · 매입 주황 · 결과 초록이 멀리서도 갈립니다. 입력 칸 테두리도 한 단계 진하게.',
+        band: { i: ['#1e293b', '#ffffff'], s: ['#1e40af', '#ffffff'], p: ['#9a3412', '#ffffff'], r: ['#065f46', '#ffffff'] },
+        head: { i: ['#475569', '#ffffff'], s: ['#2563eb', '#ffffff'], p: ['#c2410c', '#ffffff'], r: ['#047857', '#ffffff'] },
+        line: { i: '#94a3b8', s: '#60a5fa', p: '#fb923c' }, lw: 1.5,
+        calc: { i: ['#e2e8f0', '#1e293b'], s: ['#dbeafe', '#1d4ed8'], p: ['#ffedd5', '#c2410c'], r: ['#d1fae5', '#047857'] },
+        meta: ['#f8fafc', '#cbd5e1'] },
+      deep: { name: 'B. 진한 톤', desc: '남색 · 적갈 · 숲색의 짙은 머리줄. 차분하지만 무게감이 있어 표 경계가 또렷합니다. 계산 칸은 한 단계 진한 바탕.',
+        band: { i: ['#0f172a', '#ffffff'], s: ['#172554', '#ffffff'], p: ['#431407', '#ffffff'], r: ['#052e16', '#ffffff'] },
+        head: { i: ['#1e293b', '#ffffff'], s: ['#1e3a8a', '#ffffff'], p: ['#7c2d12', '#ffffff'], r: ['#14532d', '#ffffff'] },
+        line: { i: '#cbd5e1', s: '#93c5fd', p: '#fdba74' }, lw: 1.5,
+        calc: { i: ['#f1f5f9', '#0f172a'], s: ['#dbeafe', '#1e3a8a'], p: ['#fed7aa', '#7c2d12'], r: ['#bbf7d0', '#14532d'] },
+        meta: ['#f8fafc', '#cbd5e1'] },
+      contrast: { name: 'C. 고대비', desc: '머리줄은 모두 검정, 묶음 색은 위 띠와 계산 칸 글자에만. 칸 테두리가 진해 엑셀처럼 칸이 분명합니다.',
+        band: { i: ['#475569', '#ffffff'], s: ['#2563eb', '#ffffff'], p: ['#c2410c', '#ffffff'], r: ['#047857', '#ffffff'] },
+        head: { i: ['#0f172a', '#ffffff'], s: ['#0f172a', '#ffffff'], p: ['#0f172a', '#ffffff'], r: ['#0f172a', '#ffffff'] },
+        line: { i: '#64748b', s: '#64748b', p: '#64748b' }, lw: 1.5,
+        calc: { i: ['#f1f5f9', '#0f172a'], s: ['#f1f5f9', '#1d4ed8'], p: ['#f1f5f9', '#c2410c'], r: ['#f1f5f9', '#047857'] },
+        meta: ['#ffffff', '#cbd5e1'] },
+      muted: { name: 'D. 차분한 진함', desc: '청록 · 테라코타 · 보라. 원색보다 눈이 덜 피로하고, 세 묶음의 밝기가 달라 색약에도 구분됩니다.',
+        band: { i: ['#44403c', '#ffffff'], s: ['#115e59', '#ffffff'], p: ['#9a3412', '#ffffff'], r: ['#5b21b6', '#ffffff'] },
+        head: { i: ['#57534e', '#ffffff'], s: ['#0f766e', '#ffffff'], p: ['#b45309', '#ffffff'], r: ['#6d28d9', '#ffffff'] },
+        line: { i: '#d6d3d1', s: '#5eead4', p: '#fdba74' }, lw: 1.5,
+        calc: { i: ['#f5f5f4', '#44403c'], s: ['#ccfbf1', '#115e59'], p: ['#ffedd5', '#9a3412'], r: ['#ede9fe', '#5b21b6'] },
+        meta: ['#fafaf9', '#d6d3d1'] },
+      excel: { name: 'E. 엑셀형', desc: '머리줄은 엑셀처럼 회색, 입력 칸은 모두 같은 회색 테두리. 색은 위 띠와 진하게 칠한 계산 칸에만 — 가장 단정합니다.',
+        band: { i: ['#64748b', '#ffffff'], s: ['#2563eb', '#ffffff'], p: ['#c2410c', '#ffffff'], r: ['#047857', '#ffffff'] },
+        head: { i: ['#e5e7eb', '#111827'], s: ['#e5e7eb', '#111827'], p: ['#e5e7eb', '#111827'], r: ['#e5e7eb', '#111827'] },
+        line: { i: '#d1d5db', s: '#d1d5db', p: '#d1d5db' }, lw: 1,
+        calc: { i: ['#e5e7eb', '#111827'], s: ['#bfdbfe', '#1e3a8a'], p: ['#fed7aa', '#7c2d12'], r: ['#bbf7d0', '#14532d'] },
+        meta: ['#f9fafb', '#e5e7eb'] },
+    }
+    const p = P[props.variant] ?? P.now
+    const R = props.radius ?? 7
+    const grp = c => c === 0 ? null : c <= 6 ? 'i' : c <= 10 ? 's' : c <= 15 ? 'p' : 'r'
+    const CALC = [6, 10, 15, 16]
+    const NUM = [5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16]
+    const base = (span, bg, fg, border, extra) =>
+      `grid-column: span ${span}; box-sizing: border-box; height: ${extra && extra.h ? extra.h : 34}px; display: flex; align-items: center; ` +
+      `justify-content: ${extra && extra.j ? extra.j : 'flex-start'}; padding: 0 8px; border-radius: ${R}px; background: ${bg}; color: ${fg}; ` +
+      `border: ${border}; font-weight: ${extra && extra.w ? extra.w : 400}; white-space: pre-line; line-height: 1.15; overflow: hidden; ` +
+      `text-align: ${extra && extra.j === 'flex-end' ? 'right' : extra && extra.j === 'center' ? 'center' : 'left'}; ${extra && extra.more ? extra.more : ''}`
+    const cells = []
+    const push = (text, style) => cells.push({ text, style })
+    // 묶음 띠
+    push('', base(1, 'transparent', '#0f172a', '0', { h: 24 }))
+    const bands = [['품목', 6, 'i'], ['판매', 4, 's'], ['매입', 5, 'p'], ['결과', 1, 'r']]
+    bands.forEach(([t, n, g]) => push(t, base(n, p.band[g][0], p.band[g][1], '0', { h: 24, j: 'center', w: 700, more: 'font-size: 12px; letter-spacing: 0.04em;' })))
+    // 머리줄
+    const HEAD = ['', '품번 검색', '상품명', '배송종류', '주문시기', '수량', '카톤', '판매가', '판매할인', '택배비(판매)', '판매합계', '매입처', '매입가', '매입할인', '매입배송비', '매입합계', '마진']
+    HEAD.forEach((t, c) => {
+      const g = grp(c)
+      push(t, g ? base(1, p.head[g][0], p.head[g][1], '0', { h: 32, j: 'center', w: 700, more: 'font-size: 12.5px;' }) : base(1, 'transparent', '#0f172a', '0', { h: 32 }))
+    })
+    const row = (vals, opt) => vals.forEach((v, c) => {
+      const g = grp(c)
+      const j = c === 0 ? 'center' : NUM.includes(c) ? 'flex-end' : 'flex-start'
+      if (c === 0) return push(v, base(1, 'transparent', '#94a3b8', '0', { j: 'center', more: 'font-size: 12px;' }))
+      if (CALC.includes(c)) {
+        const k = p.calc[g]
+        return push(v, base(1, k[0], k[1], `${p.lw}px solid transparent`, { j, w: 700 }))
+      }
+      if (opt && opt.disc === c) return push(v, base(1, '#fee2e2', '#b91c1c', `${p.lw}px solid #fca5a5`, { j, w: 700, more: 'font-size: 12px;' }))
+      const fg = opt && opt.opt && (c === 1 || v === '-') ? '#94a3b8' : '#0f172a'
+      push(v, base(1, '#ffffff', fg, `${p.lw}px solid ${p.line[g === 'r' ? 'i' : g]}`, { j }))
+    })
+    const meta = (status, statusKind, option, memo) => {
+      push('', base(1, 'transparent', '#0f172a', '0', { h: 30 }))
+      const st = statusKind === 'out' ? ['#fee2e2', '#b91c1c', '#fca5a5', 700] : statusKind === 'chg' ? ['#fef3c7', '#92400e', '#fcd34d', 700] : [p.meta[0], '#94a3b8', p.meta[1], 400]
+      push(`상태   ${status}`, base(3, st[0], st[1], `1px solid ${st[2]}`, { h: 30, w: st[3], more: 'font-size: 12px;' }))
+      push(`색상·옵션 등 기타   ${option}`, base(7, p.meta[0], option ? '#334155' : '#94a3b8', `1px solid ${p.meta[1]}`, { h: 30, more: 'font-size: 12px;' }))
+      push(`비고   ${memo}`, base(6, p.meta[0], memo ? '#334155' : '#94a3b8', `1px solid ${p.meta[1]}`, { h: 30, more: 'font-size: 12px;' }))
+    }
+    row(['1', '25-02-01', '요아럽 바이탈라이징 바디케어세트', '지점', '26설', '16', '16', '13,500', '0', '0', '216,000', '요아럽', '9,100', '0', '0', '145,600', '70,400\n32.6%'])
+    meta('품절/11.16', 'out', '블랙 색상', '')
+    row(['', '옵션', '└ 롯데포장지(대)', '-', '-', '16', '-', '0', '-', '-', '0', '요아럽', '300', '0', '0', '4,800', '-4,800'], { opt: true })
+    row(['2', '25-02-04', '요아럽 블랙에디션 바디케어세트', '지점', '26설', '16', '16', '14,000', '16,000\n개당 1,000', '0', '208,000', '요아럽', '9,450', '0', '0', '151,200', '56,800\n27.3%'], { disc: 8 })
+    meta('단가변경', 'chg', '', '명함 동봉')
+    row(['3', '25-50-05', '깨끗한나라 오곡물티슈 캡 100매', '개별', '상시', '40', '40', '1,300', '0', '0', '52,000', '깨끗한나라', '935', '0', '3,000', '40,400', '11,600\n22.3%'])
+    const chip = (t, k) => ({ text: t, style: `border-radius: 999px; padding: 6px 14px; font-size: 14px; font-weight: 700; white-space: nowrap; background: ${k[0]}; color: ${k[1]};` })
+    const chips = [
+      chip('판매합계 476,000원', p.head.s),
+      chip('판매할인 -16,000원', ['#fee2e2', '#b91c1c']),
+      chip('매입합계 342,000원', p.head.p),
+      chip('마진 134,000원 · 28.2%', p.head.r),
+    ]
+    
+return { p, cells, chips } }
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+const root=document.getElementById('root')
+for (const v of ['now','vivid','deep','contrast','muted','excel']) {
+  const {p,cells,chips}=build(v,7)
+  const d=document.createElement('section'); d.className='board'; d.id=v
+  d.innerHTML=`<div class="top"><div><div class="name">${esc(p.name)}</div><div class="desc">${esc(p.desc)}</div></div><div class="chips">${chips.map(c=>`<span style="${c.style}">${esc(c.text)}</span>`).join('')}</div></div>
+  <div class="grid">${cells.map(c=>`<div style="${c.style}">${esc(c.text)}</div>`).join('')}</div>
+  <div class="leg"><span>흰 칸 = 입력 칸 · 칠한 칸 = 자동 계산(카톤 · 판매합계 · 매입합계 · 마진)</span><span>빨강 = 할인 · 품절 등 주의</span><span>노랑 = 단가변경</span></div>`
+  root.appendChild(d)
+}
+</script></body></html>
