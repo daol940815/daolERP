@@ -107,7 +107,6 @@ export default function OrdersHomePage() {
   const [from, setFrom] = useState(() => getPeriodRange('최근 30일').from)   // 작업 화면: 최근 30일
   const [to, setTo] = useState(() => getPeriodRange('최근 30일').to)
   const [collect, setCollect] = useState('all')
-  const [source, setSource] = useState('all')
   const [po, setPo] = useState('all')
   const [prepay, setPrepay] = useState(false)
   const [vip, setVip] = useState(false)   // 품명 'VIP' 품목 주문만 (2026-11-09)
@@ -139,7 +138,7 @@ export default function OrdersHomePage() {
     setFrom(sp.has('from') ? sp.get('from') ?? '' : def.from)
     setTo(sp.has('to') ? sp.get('to') ?? '' : def.to)
     const pick = (k: string) => { const v = sp.get(k); return v && v !== 'all' ? v : 'all' }
-    setCollect(pick('collect')); setSource(pick('source')); setPo(pick('po'))
+    setCollect(pick('collect')); setPo(pick('po'))
     setPrepay(sp.get('prepay') === '1'); setVip(sp.get('vip') === '1'); setInvoice(sp.get('invoice') === '1')
     const pg = Number(sp.get('page'))
     const pageNo = Number.isInteger(pg) && pg > 1 ? pg : 1
@@ -164,7 +163,6 @@ export default function OrdersHomePage() {
     if (from) p.set('from', from)
     if (to) p.set('to', to)
     if (collect !== 'all') p.set('collect', collect)
-    if (source !== 'all') p.set('source', source)
     if (po !== 'all') p.set('po', po)
     if (prepay) p.set('prepay', '1')
     if (vip) p.set('vip', '1')
@@ -172,7 +170,7 @@ export default function OrdersHomePage() {
     if (mine !== 'all') p.set('mine', mine)
     if (reply !== 'all') p.set('reply', reply)
     return p
-  }, [conds, from, to, collect, source, po, prepay, vip, invoice, mine, reply])
+  }, [conds, from, to, collect, po, prepay, vip, invoice, mine, reply])
 
   // 입력값을 조건 칩으로 — 전체 항목은 띄어쓰기로 나눠 단어마다(지정어 "업체-하나은행"도 인식), 항목을 고르면 입력 그대로 한 조건
   const addCond = () => {
@@ -304,15 +302,14 @@ export default function OrdersHomePage() {
       </FilterRow>
 
       {/* KPI — 클릭=필터 */}
-      <KpiGrid cols={5}>
+      {/* 직접입력 카드 · 출처 칩 · 출처 칸 제거 (2026-11-25 사용자 결정 — 업로드 주문 삭제 뒤 전 주문이 직접입력이라 정보가 없음) */}
+      <KpiGrid cols={4}>
         <KpiCard label="기간 주문" value={kpi ? `${won(kpi.count)}건` : '-'}
-          active={collect === 'all' && source === 'all'} onClick={() => { setCollect('all'); setSource('all') }} />
+          active={collect === 'all'} onClick={() => setCollect('all')} />
         <KpiCard label="총 금액" value={kpi ? `${won(kpi.total)}원` : '-'} />
         <KpiCard label="미수금 (클릭=미수만)" tone="red" value={kpi ? `${won(kpi.outstanding)}원` : '-'}
           sub={kpi ? `완료 전 ${kpi.open_cnt}건 · 그중 매칭 대기 ${kpi.match_wait_cnt}건` : undefined}
           active={collect === 'outstanding'} onClick={() => setCollect(collect === 'outstanding' ? 'all' : 'outstanding')} />
-        <KpiCard label="직접입력 (클릭=직접만)" tone="blue" value={kpi ? `${won(kpi.direct_cnt)}건` : '-'}
-          active={source === 'direct'} onClick={() => setSource(source === 'direct' ? 'all' : 'direct')} />
         {/* 완료 회신 (515) — 내가 입력했고 아직 회신 안 한 주문 */}
         <KpiCard label="내가 회신할 것 (클릭=필터)" tone={kpi?.reply?.my_wait ? 'amber' : 'gray'} value={kpi?.reply ? `${won(kpi.reply.my_wait)}건` : '-'}
           sub={kpi?.reply ? `내 상담 회신 대기 ${kpi.reply.my_req_wait}건 · 나에게 온 회신 ${kpi.reply.to_me}건` : undefined}
@@ -360,11 +357,6 @@ export default function OrdersHomePage() {
             취소만{kpi?.canceled_all_cnt ? ` ${kpi.canceled_all_cnt}` : ''}
           </button>
           <span className="w-2" />
-          <span className="text-xs text-slate-500 mr-0.5">출처</span>
-          {([['all', '전체'], ['direct', '직접입력'], ['upload', '업로드']] as const).map(([k, l]) => (
-            <button key={k} onClick={() => setSource(k)} className={chip(source === k)}>{l}</button>
-          ))}
-          <span className="w-2" />
           <span className="text-xs text-slate-500 mr-0.5">발주</span>
           {([['all', '전체'], ['none', '미발주'], ['partial', '부분발주'], ['full', '발주완료']] as const).map(([k, l]) => (
             <button key={k} onClick={() => setPo(k)} className={chip(po === k)}>
@@ -407,12 +399,12 @@ export default function OrdersHomePage() {
                 <th className="py-2 px-3 text-left font-medium">부서(지점)</th>
                 <th className="py-2 px-3 text-left font-medium">담당자 (주문처)</th>
                 <th className="py-2 px-3 text-left font-medium">직원 / 상담자</th>
+                <th className="py-2 px-3 text-left font-medium" title="취소 · 수정됨 · 선결제 · VIP · 계산서 — 항상 이 순서">구분</th>
                 <th className="py-2 px-3 text-right font-medium">총금액</th>
                 <th className="py-2 px-3 text-right font-medium">미수금</th>
                 <th className="py-2 px-3 text-left font-medium">결제</th>
                 <th className="py-2 px-3 text-left font-medium">발주</th>
                 <th className="py-2 px-3 text-left font-medium">회신</th>
-                <th className="py-2 px-3 text-left font-medium">출처</th>
                 <th className="py-2 px-3" />
               </tr>
             </thead>
@@ -428,7 +420,7 @@ export default function OrdersHomePage() {
                 return (
                   <Fragment key={r.id}>
                     <tr onClick={() => openOrder(r.id)}
-                      className={`border-b border-slate-200 cursor-pointer hover:bg-blue-50/40 ${r.canceled_at ? 'opacity-60' : ''}`}>
+                      className={`border-b border-slate-200 cursor-pointer hover:bg-blue-50/40 ${r.canceled_at ? 'opacity-60 line-through decoration-red-600 decoration-2' : ''}`}>
                       <td className="py-2 px-3">
                         <div className="tabular-nums text-xs font-semibold">{r.order_date}</div>
                         <div className="tabular-nums text-xs text-slate-500">{r.order_no ?? '-'}</div>
@@ -436,25 +428,6 @@ export default function OrdersHomePage() {
                       <td className="py-2 px-3 font-semibold">{r.bank_name ?? '(주문처 미상)'}</td>
                       <td className="py-2 px-3">
                         {r.branch_name ?? <span className="text-slate-400">-</span>}
-                        {/* 취소·재등록(511): 취소 주문은 집계 제외 상계, 당일 수정건은 '수정됨' 표시 */}
-                        {r.canceled_at && (
-                          <span className="ml-1.5">
-                            <ReasonBadge label="취소" cls="bg-red-50 text-red-600" title="취소 사유"
-                              reason={r.cancel_reason} by={r.canceled_by_name} at={r.canceled_at} />
-                          </span>
-                        )}
-                        {!r.canceled_at && r.last_edited_at && (
-                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-600">수정됨</span>
-                        )}
-                        {r.is_prepay && (
-                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-violet-50 text-violet-600">선결제</span>
-                        )}
-                        {r.is_vip && (
-                          <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-rose-50 text-rose-600" title="품명 'VIP' 품목 — 매출 · 미수 집계에서 빠짐">VIP</span>
-                        )}
-                        {r.has_invoice && (
-                          <span className="ml-1 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-600">계산서</span>
-                        )}
                       </td>
                       <td className="py-2 px-3">
                         {r.manager_name ?? '-'}
@@ -470,6 +443,31 @@ export default function OrdersHomePage() {
                         {/* 직원 = 상담자여도 둘 다 표기 (2026-11-05 사용자 요청 — 예: 김승현 / 김승현) */}
                         {r.staff_name ?? '-'}
                         <span className="text-slate-500"> / {r.channel ?? '-'}</span>
+                      </td>
+                      {/* 구분 칸 (2026-11-25 사용자 결정) — 지점 칸에 붙던 꼬리표를 따로 모음. 순서 고정: 취소 → 수정됨 → 선결제 → VIP → 계산서 */}
+                      <td className="py-2 px-3">
+                        <div className="flex flex-wrap gap-1">
+                          {/* 취소·재등록(511): 취소 주문은 집계 제외 상계, 당일 수정건은 '수정됨' 표시 */}
+                          {r.canceled_at && (
+                            <span>
+                              <ReasonBadge label="취소" cls="bg-red-50 text-red-600" title="취소 사유"
+                                reason={r.cancel_reason} by={r.canceled_by_name} at={r.canceled_at} />
+                            </span>
+                          )}
+                          {!r.canceled_at && r.last_edited_at && (
+                            <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-600">수정됨</span>
+                          )}
+                          {r.is_prepay && (
+                            <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-violet-50 text-violet-600">선결제</span>
+                          )}
+                          {r.is_vip && (
+                            <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-rose-50 text-rose-600" title="품명 'VIP' 품목 — 매출 · 미수 집계에서 빠짐">VIP</span>
+                          )}
+                          {r.has_invoice && (
+                            <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-600">계산서</span>
+                          )}
+                          {!r.canceled_at && !r.last_edited_at && !r.is_prepay && !r.is_vip && !r.has_invoice && <span className="text-slate-400 text-xs">-</span>}
+                        </div>
                       </td>
                       <td className="py-2 px-3 text-right tabular-nums">{won(r.total_amount)}</td>
                       <td className={`py-2 px-3 text-right tabular-nums ${r.outstanding_amount > 0 ? 'text-red-600 font-semibold' : 'text-slate-500'}`}>
@@ -507,11 +505,6 @@ export default function OrdersHomePage() {
                             {REPLY_BADGE[r.reply_state].label}
                           </span>
                         ) : <span className="text-slate-400 text-xs">-</span>}
-                      </td>
-                      <td className="py-2 px-3">
-                        <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${r.source === 'direct' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
-                          {r.source === 'direct' ? '직접입력' : '업로드'}
-                        </span>
                       </td>
                       <td className="py-2 px-3 whitespace-nowrap">
                         {!r.canceled_at && (
