@@ -9,6 +9,7 @@ import {
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
 import type { ContactOpt, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
 import { cellTableCls, cellBlankTh, cellCls, calcCls, CellBand, CellHead, SummaryPill } from '@/components/ui/cell-grid'
+import { fieldCls, fieldBox, labelCls } from '@/components/ui/kit'
 import { isMoimVendor, orgSubLabel } from '../form-shared'
 import ProductRegisterDialog, { UnregisteredTag, isUnregisteredRow, linkPatch } from '../product-register-dialog'
 import IndividualRegister from '../individual-register'
@@ -729,15 +730,16 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
 
   if (loading) return <div className="text-center py-16 text-slate-500">로딩 중...</div>
 
-  const label = 'block text-xs text-slate-600 mb-0.5'
-  const free = 'w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-60'
+  // 입력 칸 — 테두리는 한 가지, 종류는 바탕으로(흰 = 직접 입력 · 옅은 파랑 = 마스터에서 선택 · 회색 = 자동) — components/ui/kit.tsx
+  const label = labelCls
+  const free = fieldCls('free')
   // 품목 표 숫자 칸 — 묶음(품목 · 판매 · 매입)별 셀 모양 (components/ui/cell-grid.tsx)
   const nItem = cellCls('item', { num: true }), nSale = cellCls('sale', { num: true }), nBuy = cellCls('buy', { num: true })
 
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-slate-900">{isEdit ? '상담일지' : '상담 기록'}</h1>
+        <h1 className="text-2xl font-bold text-slate-900">{isEdit ? '상담일지' : '상담 기록'}</h1>
         {isEdit && (
           <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${
             deleted ? 'bg-red-100 text-red-700'
@@ -899,7 +901,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           <div>
             <label className={label}>구분 <em className="not-italic text-red-500">*</em></label>
             <select value={consultType} disabled={locked} onChange={e => setConsultType(e.target.value)}
-              className="w-full border border-blue-200 bg-blue-50/40 rounded-lg px-2 py-1.5 text-sm disabled:opacity-60">
+              className={fieldCls('pick')}>
               {TYPES.map(t => <option key={t}>{t}</option>)}
             </select>
           </div>
@@ -1230,7 +1232,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               <div>
                 <label className={label}>다올 담당 {regContactName.trim() && <em className="not-italic text-red-500">*</em>}</label>
                 <select value={regStaff} disabled={regBusy} onChange={e => setRegStaff(e.target.value)}
-                  className="w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2.5 py-1.5 text-sm">
+                  className={fieldCls('free')}>
                   <option value="">선택</option>
                   {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                 </select>
@@ -1657,7 +1659,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           <div className="col-span-2 md:col-span-2">
             <label className={label}>메모 (감사 문구 등)</label>
             <textarea value={memo} rows={2} disabled={locked} onChange={e => setMemo(e.target.value)}
-              className="w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2.5 py-1.5 text-sm resize-y disabled:opacity-60" />
+              className={fieldBox({ area: true, extra: 'resize-y' })} />
           </div>
         </div>
 
@@ -1702,7 +1704,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 <div className="w-64">
                   <label className={label}>주문 진행 담당</label>
                   <select value={reqAssignee} onChange={e => setReqAssignee(e.target.value)}
-                    className="w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm bg-white">
+                    className={fieldCls('free')}>
                     <option value="">요청 안 함 (내가 진행)</option>
                     {employees.map(e => (
                       <option key={e.id} value={e.id}>
@@ -1715,7 +1717,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   <label className={label}>요청 메모 (선택)</label>
                   <input value={reqMemo} onChange={e => setReqMemo(e.target.value)} disabled={!reqAssignee}
                     placeholder="예: 11/10 출고 맞춰서 발주까지 부탁해요"
-                    className="w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm bg-white disabled:bg-slate-50" />
+                    className={fieldCls('free')} />
                 </div>
               </div>
               {ptBlock && (

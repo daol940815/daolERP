@@ -72,15 +72,25 @@ export function Button({ variant = 'secondary', size = 'md', className, type = '
 // (pick 은 시안의 옅은 노랑에서 파랑으로 바꿈 — 기존 화면에서 파랑 = 마스터 선택, 노랑 = 자유 입력이었기 때문. 뜻이 뒤집히지 않게)
 export type FieldKind = 'free' | 'pick' | 'auto'
 export type FieldSize = 'md' | 'sm'
-const FIELD_BASE = 'w-full border rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-slate-900 disabled:bg-slate-100 disabled:text-slate-600'
+// 같은 속성의 클래스가 겹치지 않게 조각을 나눠 붙인다(너비 · 높이 · 바탕 · 글자색 · 테두리색은 경우마다 한 가지)
+const FIELD_BASE = 'border rounded-lg placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-slate-900 disabled:opacity-60'
 const FIELD_SIZE: Record<FieldSize, string> = { md: 'h-9 px-2.5 text-sm', sm: 'h-8 px-2 text-xs' }
-const FIELD_KIND: Record<FieldKind, string> = {
-  free: 'bg-white border-slate-400',
-  pick: 'bg-blue-50 border-slate-400',
-  auto: 'bg-slate-100 border-slate-300 text-slate-700',
+const FIELD_AREA: Record<FieldSize, string> = { md: 'px-2.5 py-2 text-sm', sm: 'px-2 py-1.5 text-xs' }
+const FIELD_BG: Record<FieldKind, string> = { free: 'bg-white text-slate-900', pick: 'bg-blue-50 text-slate-900', auto: 'bg-slate-100 text-slate-700' }
+export interface FieldOpts {
+  kind?: FieldKind
+  size?: FieldSize
+  invalid?: boolean      // 필수인데 비어 있음 · 값 오류 — 빨간 테두리
+  area?: boolean         // textarea — 높이를 고정하지 않는다
+  noWidth?: boolean      // 너비를 화면이 직접 줌(w-40 등을 extra 로)
+  extra?: string
 }
-/** 입력 칸 클래스 — 자체 입력 부품(SearchableSelect 등)에 같은 모양을 줄 때 */
-export const fieldCls = (kind: FieldKind = 'free', size: FieldSize = 'md', extra?: string) => cx(FIELD_BASE, FIELD_SIZE[size], FIELD_KIND[kind], extra)
+/** 입력 칸 클래스(옵션형) — 자체 입력 부품(검색 콤보 등) · textarea · 너비를 따로 주는 칸 */
+export const fieldBox = (o: FieldOpts = {}) => cx(FIELD_BASE, !o.noWidth && 'w-full',
+  (o.area ? FIELD_AREA : FIELD_SIZE)[o.size ?? 'md'], FIELD_BG[o.kind ?? 'free'],
+  o.invalid ? 'border-red-500' : o.kind === 'auto' ? 'border-slate-300' : 'border-slate-400', o.extra)
+/** 입력 칸 클래스 — input · select */
+export const fieldCls = (kind: FieldKind = 'free', size: FieldSize = 'md', extra?: string) => fieldBox({ kind, size, extra })
 
 type FieldOwn = { kind?: FieldKind; fieldSize?: FieldSize }
 export function Input({ kind = 'free', fieldSize = 'md', className, ...rest }: InputHTMLAttributes<HTMLInputElement> & FieldOwn) {
@@ -90,7 +100,7 @@ export function Select({ kind = 'free', fieldSize = 'md', className, ...rest }: 
   return <select className={fieldCls(kind, fieldSize, className)} {...rest} />
 }
 export function Textarea({ kind = 'free', className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement> & { kind?: FieldKind }) {
-  return <textarea className={cx(FIELD_BASE, FIELD_KIND[kind], 'px-2.5 py-2 text-sm', className)} {...rest} />
+  return <textarea className={fieldBox({ kind, area: true, extra: className })} {...rest} />
 }
 export const labelCls = 'block mb-1 text-xs font-bold text-slate-700'
 /** 라벨(칸 위) + 입력 칸 묶음. 필수는 라벨의 빨간 별. */
