@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 
-import { btnCls, fieldBox } from '@/components/ui/kit'
+import { btnCls, fieldBox, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 // 카드번호 → 매출처 연결 (매출 사이클 ③)
 // 카드로 결제한 매출처를 확인하기 위해, 매출처 미연결 카드매출을 카드번호 단위로 묶고
 // ERP 주문과의 금액·일자 대응을 추천으로 보여준다. 확정은 사용자.
@@ -109,15 +109,15 @@ export default function CardCustomerLinksPage() {
 
       {summary && (
         <div className="flex gap-3 flex-wrap mb-4">
-          <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-            <p className="text-xs text-slate-500 mb-1">미연결 카드번호</p>
-            <p className="text-lg font-bold text-slate-900">{summary.card_numbers.toLocaleString()}개</p>
-            <p className="text-xs text-slate-500">순승인액 {won(summary.total_net)}</p>
+          <div className={kpiCls(false, false, 'flex-1 min-w-[150px]')}>
+            <p className={kpiLabelCls}>미연결 카드번호</p>
+            <p className="text-xl font-extrabold tabular-nums text-slate-900">{summary.card_numbers.toLocaleString()}개</p>
+            <p className={kpiLabelCls}>순승인액 {won(summary.total_net)}</p>
           </div>
-          <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-            <p className="text-xs text-slate-500 mb-1">ERP 주문 대응 추천</p>
-            <p className="text-lg font-bold text-blue-700">{summary.with_suggestion.toLocaleString()}개</p>
-            <p className="text-xs text-slate-500">그중 거래처 연결까지 준비된 것 {summary.linkable_now.toLocaleString()}개</p>
+          <div className={kpiCls(false, false, 'flex-1 min-w-[150px]')}>
+            <p className={kpiLabelCls}>ERP 주문 대응 추천</p>
+            <p className="text-xl font-extrabold tabular-nums text-blue-700">{summary.with_suggestion.toLocaleString()}개</p>
+            <p className={kpiLabelCls}>그중 거래처 연결까지 준비된 것 {summary.linkable_now.toLocaleString()}개</p>
           </div>
         </div>
       )}

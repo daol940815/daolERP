@@ -12,6 +12,7 @@ import CancelPairsModal from './cancel-pairs-modal'
 import InvoiceLinkModal from '../sales-cycle/invoice-link-modal'
 import { useReasonDialog } from '@/components/payments/ReasonDialog'
 
+import { btnCls, chipCls, fieldBox, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 const DIRECTION_META: Record<string, { label: string; sub: string; color: string }> = {
   sales:    { label: '매출 세금계산서', sub: '받을 돈 (입금 확인)', color: 'text-blue-700' },
   purchase: { label: '매입 세금계산서', sub: '줄 돈 (출금 확인)',   color: 'text-orange-700' },
@@ -263,7 +264,7 @@ function MatchPickerModal({
             autoFocus
             value={confirmAmount}
             onChange={e => setConfirmAmount(e.target.value)}
-            className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+            className={fieldBox()}
           />
           <p className="text-xs text-slate-500 mt-1.5">
             합계금액 {won(currentInvoice.total_amount)} · 남은 금액 {won(remaining)}
@@ -272,14 +273,14 @@ function MatchPickerModal({
           <div className="flex gap-2 mt-5">
             <button
               onClick={() => { setConfirmTarget(null); setLinkError(null) }}
-              className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50"
+              className={btnCls('secondary', 'md', 'flex-1')}
             >
               취소
             </button>
             <button
               onClick={handleConfirmLink}
               disabled={linking}
-              className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50"
+              className={btnCls('primary', 'md', 'flex-1')}
             >
               {linking ? '연결 중...' : '연결'}
             </button>
@@ -302,14 +303,14 @@ function MatchPickerModal({
             value={aliasInput}
             onChange={e => setAliasInput(e.target.value)}
             placeholder="예: 입금자명 또는 적요 표현"
-            className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+            className={fieldBox()}
           />
           <div className="flex gap-2 mt-5">
-            <button onClick={handleSkipAlias} className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">건너뛰기</button>
+            <button onClick={handleSkipAlias} className={btnCls('secondary', 'md', 'flex-1')}>건너뛰기</button>
             <button
               onClick={handleSaveAlias}
               disabled={savingAlias || !aliasInput.trim()}
-              className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50"
+              className={btnCls('primary', 'md', 'flex-1')}
             >
               {savingAlias ? '저장 중...' : '별칭으로 저장'}
             </button>
@@ -410,20 +411,20 @@ function MatchPickerModal({
             <div className="mt-3">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <input type="date" value={manualFrom} onChange={e => setManualFrom(e.target.value)}
-                  className="border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  className={fieldBox({ noWidth: true })} />
                 <span className="text-slate-500 text-sm">~</span>
                 <input type="date" value={manualTo} onChange={e => setManualTo(e.target.value)}
-                  className="border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  className={fieldBox({ noWidth: true })} />
                 <input
                   value={manualQuery}
                   onChange={e => setManualQuery(e.target.value)}
                   placeholder="적요·보낸분 검색"
-                  className="border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm flex-1 min-w-[120px] focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  className={fieldBox({ noWidth: true, extra: 'flex-1 min-w-[120px]' })}
                 />
                 <button
                   onClick={handleManualSearch}
                   disabled={manualLoading}
-                  className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50"
+                  className={btnCls('primary', 'md')}
                 >
                   {manualLoading ? '검색 중...' : '검색'}
                 </button>
@@ -470,7 +471,7 @@ function MatchPickerModal({
         </div>
 
         <div className="flex justify-end mt-4">
-          <button onClick={onClose} className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
+          <button onClick={onClose} className={btnCls('secondary', 'md')}>닫기</button>
         </div>
       </div>
     </div>
@@ -575,7 +576,7 @@ function SumMatchPickerModal({
           </div>
         )}
         <div className="flex justify-end mt-4">
-          <button onClick={onClose} className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
+          <button onClick={onClose} className={btnCls('secondary', 'md')}>닫기</button>
         </div>
       </div>
     </div>
@@ -649,8 +650,6 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
     setFocusId(null); setSelected(new Set())
     router.replace(`/tax-invoices?dir=${d}&tax=${t}`, { scroll: false })
   }
-  const chipCls = (on: boolean) =>
-    `px-3 py-1 rounded-full text-sm border transition-colors ${on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-400 hover:bg-slate-50'}`
   const [sumMatching, setSumMatching] = useState(false)
   const [bulkBusy, setBulkBusy]       = useState(false)
   const [deleting, setDeleting]       = useState(false)
@@ -948,7 +947,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
           <button
             onClick={() => handleAutoMatch()}
             disabled={matching || invoices.length === 0}
-            className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1.5"
+            className={btnCls('secondary', 'md')}
           >
             {matching ? '매칭 중...' : '자동 매칭'}
           </button>
@@ -964,7 +963,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
           {/* 원본 업로드는 파일 업로드 단일 창구에서 (2026-10-12) */}
           <Link
             href="/upload?source=tax_invoices"
-            className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 flex items-center gap-1.5"
+            className={btnCls('secondary', 'md')}
           >
             ↑ 파일 업로드 →
           </Link>
@@ -994,20 +993,20 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
 
       {/* 요약 카드 */}
       <div className="flex gap-3 flex-wrap mb-5">
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">발행 합계</p>
-          <p className="text-lg font-bold text-slate-900">{won(totalAmt)}</p>
-          <p className="text-xs text-slate-500">{filtered.length}건</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>발행 합계</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{won(totalAmt)}</p>
+          <p className={kpiLabelCls}>{filtered.length}건</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">{direction === 'sales' ? '입금 확인' : '출금 확인'}</p>
-          <p className="text-lg font-bold text-green-600">{won(matchedAmt)}</p>
-          <p className="text-xs text-slate-500">{matchedList.length}건</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>{direction === 'sales' ? '입금 확인' : '출금 확인'}</p>
+          <p className="text-xl font-extrabold tabular-nums text-green-600">{won(matchedAmt)}</p>
+          <p className={kpiLabelCls}>{matchedList.length}건</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">{direction === 'sales' ? '미수 잔액' : '미지급 잔액'}</p>
-          <p className={`text-lg font-bold ${remaining > 0 ? 'text-red-600' : 'text-slate-500'}`}>{won(remaining)}</p>
-          <p className="text-xs text-slate-500">{filtered.length - matchedList.length}건</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>{direction === 'sales' ? '미수 잔액' : '미지급 잔액'}</p>
+          <p className={`text-xl font-extrabold tabular-nums ${remaining > 0 ? 'text-red-600' : 'text-slate-500'}`}>{won(remaining)}</p>
+          <p className={kpiLabelCls}>{filtered.length - matchedList.length}건</p>
         </div>
       </div>
 
@@ -1017,10 +1016,10 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
       {/* 필터: 기간 · 검색 · 확인 상태 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox({ noWidth: true })} />
         <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox({ noWidth: true })} />
         <div className="flex items-center">
           <select value={searchField} onChange={e => setSearchField(e.target.value as typeof searchField)}
             className="border border-slate-400 rounded-l-lg border-r-0 px-2 py-1.5 text-sm bg-slate-50 text-slate-700 focus:outline-none">
@@ -1118,13 +1117,13 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
         )}
         {selectableIds.length > 0 && (
           <button onClick={() => setSelected(new Set(selectableIds))}
-            className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-400 text-slate-700 hover:bg-slate-50">
+            className={btnCls('secondary', 'sm')}>
             전체 선택 ({selectableIds.length})
           </button>
         )}
         {selected.size > 0 && (
           <button onClick={handleDeleteSelected} disabled={deleting}
-            className="px-3 py-1.5 rounded-lg text-sm font-medium border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50">
+            className={btnCls('danger', 'md')}>
             {deleting ? '삭제 중…' : `선택 ${selected.size}건 삭제`}
           </button>
         )}

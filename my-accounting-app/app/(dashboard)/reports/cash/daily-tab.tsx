@@ -4,7 +4,7 @@ import PeriodPresets from '@/components/ui/PeriodPresets'
 import { useCallback, useEffect, useState } from 'react'
 import { getPeriodRange } from '@/lib/period-presets'
 
-import { btnCls, fieldBox } from '@/components/ui/kit'
+import { btnCls, fieldBox, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
 interface DailyCashRow {
@@ -101,25 +101,25 @@ export default function DailyTab() {
 
       {/* 요약 카드 */}
       <div className="flex gap-3 flex-wrap mb-5">
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">기간 입금 합계</p>
-          <p className="text-lg font-bold text-blue-600">{won(totalIn)}</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>기간 입금 합계</p>
+          <p className="text-xl font-extrabold tabular-nums text-blue-600">{won(totalIn)}</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">기간 출금 합계</p>
-          <p className="text-lg font-bold text-rose-600">{won(totalOut)}</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>기간 출금 합계</p>
+          <p className="text-xl font-extrabold tabular-nums text-rose-600">{won(totalOut)}</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">기말 보유현금</p>
-          <p className="text-lg font-bold text-slate-900">{won(lastHeldCash)}</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>기말 보유현금</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{won(lastHeldCash)}</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">기말 마이너스통장 사용액</p>
-          <p className="text-lg font-bold text-rose-600">{won(lastOverdraftUsed)}</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>기말 마이너스통장 사용액</p>
+          <p className="text-xl font-extrabold tabular-nums text-rose-600">{won(lastOverdraftUsed)}</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">기말 순현금 ({dateTo})</p>
-          <p className={`text-lg font-bold ${lastNetCash < 0 ? 'text-rose-600' : 'text-slate-900'}`}>{won(lastNetCash)}</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>기말 순현금 ({dateTo})</p>
+          <p className={`text-xl font-extrabold tabular-nums ${lastNetCash < 0 ? 'text-rose-600' : 'text-slate-900'}`}>{won(lastNetCash)}</p>
         </div>
       </div>
 

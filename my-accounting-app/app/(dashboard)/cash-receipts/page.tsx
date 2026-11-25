@@ -10,7 +10,7 @@ import SearchableSelect from '@/components/ui/SearchableSelect'
 import ReceiptMatchModal from '@/components/cash-receipts/ReceiptMatchModal'
 import type { CashReceiptPayment } from '@/types/cash-receipt'
 
-import { btnCls, fieldBox } from '@/components/ui/kit'
+import { btnCls, fieldBox, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 // 425: 매출 발행 건의 입금 확인 상태
 const PAY_META: Record<string, { label: string; cls: string }> = {
   unmatched: { label: '미확인', cls: 'bg-amber-100 text-amber-800' },
@@ -218,21 +218,21 @@ export default function CashReceiptsPage() {
 
       {/* 요약 카드 */}
       <div className="flex gap-3 flex-wrap mb-5">
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-          <p className="text-xs text-slate-500 mb-1">{direction === 'sales' ? '발행 합계' : '수취 합계'} (취소 반영)</p>
-          <p className="text-lg font-bold text-slate-900">{won(totalAmount)}</p>
-          <p className="text-xs text-slate-500">{visible.length}건{q && ` / 기간 내 ${receipts.length}건`} ({cancelList.length > 0 ? `취소 ${cancelList.length}건` : '취소 없음'})</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[150px]')}>
+          <p className={kpiLabelCls}>{direction === 'sales' ? '발행 합계' : '수취 합계'} (취소 반영)</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{won(totalAmount)}</p>
+          <p className={kpiLabelCls}>{visible.length}건{q && ` / 기간 내 ${receipts.length}건`} ({cancelList.length > 0 ? `취소 ${cancelList.length}건` : '취소 없음'})</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-          <p className="text-xs text-slate-500 mb-1">공급가액</p>
-          <p className="text-lg font-bold text-slate-900">{won(totalSupply)}</p>
-          <p className="text-xs text-slate-500">부가세 {won(totalTax)}</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[150px]')}>
+          <p className={kpiLabelCls}>공급가액</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{won(totalSupply)}</p>
+          <p className={kpiLabelCls}>부가세 {won(totalTax)}</p>
         </div>
         {direction === 'sales' && (<>
-          <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-            <p className="text-xs text-slate-500 mb-1">입금 확인됨</p>
-            <p className="text-lg font-bold text-emerald-700">{won(confirmedAmt)}</p>
-            <p className="text-xs text-slate-500">{salesApprovals.length - unconfirmedCnt}건 · 자동 {autoCnt}건</p>
+          <div className={kpiCls(false, false, 'flex-1 min-w-[150px]')}>
+            <p className={kpiLabelCls}>입금 확인됨</p>
+            <p className="text-xl font-extrabold tabular-nums text-emerald-700">{won(confirmedAmt)}</p>
+            <p className={kpiLabelCls}>{salesApprovals.length - unconfirmedCnt}건 · 자동 {autoCnt}건</p>
           </div>
           <button onClick={() => setPayFilter(f => f === 'unmatched' ? 'all' : 'unmatched')}
             className={`border rounded-lg px-4 py-3 flex-1 min-w-[150px] text-left ${payFilter === 'unmatched' ? 'border-amber-400 bg-amber-50' : 'border-slate-300 hover:bg-slate-50'}`}
@@ -243,10 +243,10 @@ export default function CashReceiptsPage() {
           </button>
         </>)}
         {direction === 'purchase' && (
-          <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-            <p className="text-xs text-slate-500 mb-1">공제 가능 세액</p>
-            <p className="text-lg font-bold text-green-600">{won(deductibleTax)}</p>
-            <p className="text-xs text-slate-500">공제 {deductible.length}건 · 불공제 {visible.length - deductible.length}건</p>
+          <div className={kpiCls(false, false, 'flex-1 min-w-[150px]')}>
+            <p className={kpiLabelCls}>공제 가능 세액</p>
+            <p className="text-xl font-extrabold tabular-nums text-green-600">{won(deductibleTax)}</p>
+            <p className={kpiLabelCls}>공제 {deductible.length}건 · 불공제 {visible.length - deductible.length}건</p>
           </div>
         )}
       </div>

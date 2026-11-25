@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { VendorAnalysisRow } from '@/types/erp'
 import { getPeriodRange } from '@/lib/period-presets'
 
-import { btnCls, fieldBox } from '@/components/ui/kit'
+import { btnCls, fieldBox, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 const num = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}`
 
@@ -73,18 +73,18 @@ export default function VendorSalesPage() {
 
       {/* 요약 카드 */}
       <div className="flex gap-3 flex-wrap mb-5">
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">순매출 합계</p>
-          <p className="text-lg font-bold text-slate-900">{won(totalSales)}</p>
-          <p className="text-xs text-slate-500">매출처 {filtered.length}곳</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>순매출 합계</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{won(totalSales)}</p>
+          <p className={kpiLabelCls}>매출처 {filtered.length}곳</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">주문 건수</p>
-          <p className="text-lg font-bold text-blue-600">{num(totalOrders)}건</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>주문 건수</p>
+          <p className="text-xl font-extrabold tabular-nums text-blue-600">{num(totalOrders)}건</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">판매 수량</p>
-          <p className="text-lg font-bold text-slate-900">{num(totalQty)}개</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>판매 수량</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{num(totalQty)}개</p>
         </div>
       </div>
 

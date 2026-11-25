@@ -4,7 +4,7 @@ import PeriodPresets from '@/components/ui/PeriodPresets'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getPeriodRange } from '@/lib/period-presets'
 
-import { btnCls, fieldBox } from '@/components/ui/kit'
+import { btnCls, fieldBox, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
 interface Line {
@@ -133,13 +133,13 @@ export default function JournalPage() {
 
       {/* 요약 */}
       <div className="flex gap-3 flex-wrap mb-4">
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">전표 수</p>
-          <p className="text-lg font-bold text-slate-900">{summary.count.toLocaleString()}건</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>전표 수</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{summary.count.toLocaleString()}건</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">분개 금액 합계(차변)</p>
-          <p className="text-lg font-bold text-slate-900">{won(summary.total_amount)}</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>분개 금액 합계(차변)</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{won(summary.total_amount)}</p>
         </div>
       </div>
 

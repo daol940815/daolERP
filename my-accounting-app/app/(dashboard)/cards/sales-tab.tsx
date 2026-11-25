@@ -11,7 +11,7 @@ import SearchableSelect from '@/components/ui/SearchableSelect'
 import CardOrderMatchModal from '@/components/cards/CardOrderMatchModal'
 import { isCardSaleVoided } from '@/lib/card-sale-status'
 
-import { btnCls, fieldBox } from '@/components/ui/kit'
+import { btnCls, fieldBox, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 // 주문 매칭 상태 (승인 행, 순액 기준) — 2026-11-13 승인 시안
 const orderMatchState = (r: CardSale): 'none' | 'partial' | 'done' | 'over' => {
   const net = Math.max(0, (r.amount || 0) - (r.cancel_amount ?? 0))
@@ -310,25 +310,25 @@ export default function SalesTab() {
 
       {/* 요약 카드 */}
       <div className="flex gap-3 flex-wrap mb-5">
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">순 매출 (취소 반영)</p>
-          <p className="text-lg font-bold text-slate-900">{won(netSum)}</p>
-          <p className="text-xs text-slate-500">{visible.length}건</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>순 매출 (취소 반영)</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{won(netSum)}</p>
+          <p className={kpiLabelCls}>{visible.length}건</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">취소</p>
-          <p className={`text-lg font-bold ${cancelList.length ? 'text-red-600' : 'text-slate-500'}`}>{won(cancelSum)}</p>
-          <p className="text-xs text-slate-500">{cancelList.length}건</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>취소</p>
+          <p className={`text-xl font-extrabold tabular-nums ${cancelList.length ? 'text-red-600' : 'text-slate-500'}`}>{won(cancelSum)}</p>
+          <p className={kpiLabelCls}>{cancelList.length}건</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">거래처 매칭</p>
-          <p className="text-lg font-bold text-slate-900">{matchedCount} <span className="text-sm font-normal text-slate-500">/ {visible.length}건</span></p>
-          <p className="text-xs text-slate-500">미매칭 {visible.length - matchedCount}건</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>거래처 매칭</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{matchedCount} <span className="text-sm font-normal text-slate-500">/ {visible.length}건</span></p>
+          <p className={kpiLabelCls}>미매칭 {visible.length - matchedCount}건</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">주문 매칭 금액</p>
-          <p className="text-lg font-bold text-sky-700">{won(orderStat.matched)}</p>
-          <p className="text-xs text-slate-500">완료 {orderStat.done} · 부분 {orderStat.partial}{voidedList.length ? ` · 중복해제 ${voidedList.length}건 제외` : ''}</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>주문 매칭 금액</p>
+          <p className="text-xl font-extrabold tabular-nums text-sky-700">{won(orderStat.matched)}</p>
+          <p className={kpiLabelCls}>완료 {orderStat.done} · 부분 {orderStat.partial}{voidedList.length ? ` · 중복해제 ${voidedList.length}건 제외` : ''}</p>
         </div>
         <button onClick={() => setOrderFilter(f => f === 'none' ? 'all' : 'none')} title="클릭 = 주문 미매칭만 보기"
           className={`border rounded-lg px-4 py-3 flex-1 min-w-[160px] text-left ${orderFilter === 'none' ? 'border-amber-400 bg-amber-50' : 'border-slate-300 hover:bg-slate-50'}`}>

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ErpSpecialData } from '@/lib/erp-special'
 import { getPeriodRange } from '@/lib/period-presets'
 
-import { fieldBox } from '@/components/ui/kit'
+import { fieldBox, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
 type Tab = 'vip' | 'prepayment'
@@ -101,10 +101,10 @@ export default function ErpSpecialPage() {
         <>
           {/* VIP 요약 */}
           <div className="flex gap-3 flex-wrap mb-5">
-            <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-              <p className="text-xs text-slate-500 mb-1">VIP 금액 합계 (취소 제외)</p>
-              <p className="text-lg font-bold text-violet-600">{won(vipTotal)}</p>
-              <p className="text-xs text-slate-500">{data.vip_items.length}건</p>
+            <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+              <p className={kpiLabelCls}>VIP 금액 합계 (취소 제외)</p>
+              <p className="text-xl font-extrabold tabular-nums text-violet-600">{won(vipTotal)}</p>
+              <p className={kpiLabelCls}>{data.vip_items.length}건</p>
             </div>
           </div>
 
@@ -154,17 +154,17 @@ export default function ErpSpecialPage() {
         <>
           {/* 선결제 요약 */}
           <div className="flex gap-3 flex-wrap mb-5">
-            <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-              <p className="text-xs text-slate-500 mb-1">입금 합계 (전체 기간)</p>
-              <p className="text-lg font-bold text-slate-900">{won(depositTotal)}</p>
+            <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+              <p className={kpiLabelCls}>입금 합계 (전체 기간)</p>
+              <p className="text-xl font-extrabold tabular-nums text-slate-900">{won(depositTotal)}</p>
             </div>
-            <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-              <p className="text-xs text-slate-500 mb-1">차감 합계 (전체 기간)</p>
-              <p className="text-lg font-bold text-slate-900">{won(deductTotal)}</p>
+            <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+              <p className={kpiLabelCls}>차감 합계 (전체 기간)</p>
+              <p className="text-xl font-extrabold tabular-nums text-slate-900">{won(deductTotal)}</p>
             </div>
-            <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-              <p className="text-xs text-slate-500 mb-1">선결제 잔액 합계</p>
-              <p className="text-lg font-bold text-sky-600">{won(balanceTotal)}</p>
+            <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+              <p className={kpiLabelCls}>선결제 잔액 합계</p>
+              <p className="text-xl font-extrabold tabular-nums text-sky-600">{won(balanceTotal)}</p>
             </div>
           </div>
 

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ErpPayableRow, ErpOrderItem } from '@/types/erp'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 
-import { btnCls, fieldBox } from '@/components/ui/kit'
+import { btnCls, fieldBox, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 interface Vendor { id: string; name: string }
 
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
@@ -245,14 +245,14 @@ export default function ErpPayablesPage() {
 
       {/* 요약 카드 */}
       <div className="flex gap-3 flex-wrap mb-5">
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">매입액 합계</p>
-          <p className="text-lg font-bold text-slate-900">{won(totalPurchase)}</p>
-          <p className="text-xs text-slate-500">{filtered.length}개 정산 그룹</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>매입액 합계</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{won(totalPurchase)}</p>
+          <p className={kpiLabelCls}>{filtered.length}개 정산 그룹</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">미결제 합계</p>
-          <p className={`text-lg font-bold ${totalUnpaid > 0 ? 'text-red-600' : 'text-slate-500'}`}>{won(totalUnpaid)}</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>미결제 합계</p>
+          <p className={`text-xl font-extrabold tabular-nums ${totalUnpaid > 0 ? 'text-red-600' : 'text-slate-500'}`}>{won(totalUnpaid)}</p>
         </div>
       </div>
 
