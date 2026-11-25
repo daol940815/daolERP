@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ReconciliationRow } from '@/lib/vendor-reconciliation'
 import { getPeriodRange } from '@/lib/period-presets'
 
-import { fieldBox } from '@/components/ui/kit'
+import { fieldBox, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
 type Direction = 'sales' | 'purchase'
@@ -137,18 +137,18 @@ export default function VendorReconciliationPage() {
 
       {/* 요약 카드 */}
       <div className="flex gap-3 flex-wrap mb-5">
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">ERP {isSales ? '순매출' : '매입'} 합계</p>
-          <p className="text-lg font-bold text-slate-900">{won(totalErp)}</p>
-          <p className="text-xs text-slate-500">{isSales ? '매출처' : '매입처'} {erpRows.length}곳</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>ERP {isSales ? '순매출' : '매입'} 합계</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{won(totalErp)}</p>
+          <p className={kpiLabelCls}>{isSales ? '매출처' : '매입처'} {erpRows.length}곳</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">{isSales ? '수금' : '결제'} 합계 (은행{isSales ? '+카드' : ''}+현금영수증)</p>
-          <p className="text-lg font-bold text-slate-900">{won(totalPayment)}</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>{isSales ? '수금' : '결제'} 합계 (은행{isSales ? '+카드' : ''}+현금영수증)</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{won(totalPayment)}</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">차액 합계 (ERP − {isSales ? '수금' : '결제'})</p>
-          <p className={`text-lg font-bold ${diffCls(totalDiff)}`}>{won(totalDiff)}</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>차액 합계 (ERP − {isSales ? '수금' : '결제'})</p>
+          <p className={`text-xl font-extrabold tabular-nums ${diffCls(totalDiff)}`}>{won(totalDiff)}</p>
         </div>
       </div>
 

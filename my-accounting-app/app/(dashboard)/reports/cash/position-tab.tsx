@@ -4,7 +4,7 @@ import PeriodPresets from '@/components/ui/PeriodPresets'
 import { useCallback, useEffect, useState } from 'react'
 import { getPeriodRange } from '@/lib/period-presets'
 
-import { btnCls, fieldBox } from '@/components/ui/kit'
+import { btnCls, fieldBox, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
 interface CashPositionRow {
@@ -90,25 +90,25 @@ export default function PositionTab() {
       {/* 전체 자금 요약 */}
       <h2 className="text-sm font-semibold text-slate-800 mb-2">전체 자금 요약</h2>
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-        <div className="border border-slate-300 rounded-lg px-4 py-3">
-          <p className="text-xs text-slate-500 mb-1">보유 현금</p>
-          <p className="text-lg font-bold text-slate-900">{won(summary?.held_cash)}</p>
+        <div className={kpiCls()}>
+          <p className={kpiLabelCls}>보유 현금</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{won(summary?.held_cash)}</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3">
-          <p className="text-xs text-slate-500 mb-1">마이너스통장 사용액</p>
-          <p className="text-lg font-bold text-rose-600">{won(summary?.overdraft_used)}</p>
+        <div className={kpiCls()}>
+          <p className={kpiLabelCls}>마이너스통장 사용액</p>
+          <p className="text-xl font-extrabold tabular-nums text-rose-600">{won(summary?.overdraft_used)}</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3">
-          <p className="text-xs text-slate-500 mb-1">마이너스통장 미사용한도</p>
-          <p className="text-lg font-bold text-emerald-600">{won(summary?.overdraft_available)}</p>
+        <div className={kpiCls()}>
+          <p className={kpiLabelCls}>마이너스통장 미사용한도</p>
+          <p className="text-xl font-extrabold tabular-nums text-emerald-600">{won(summary?.overdraft_available)}</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3">
-          <p className="text-xs text-slate-500 mb-1">순현금/순차입 포지션</p>
-          <p className={`text-lg font-bold ${(summary?.net_cash ?? 0) < 0 ? 'text-rose-600' : 'text-slate-900'}`}>{won(summary?.net_cash)}</p>
+        <div className={kpiCls()}>
+          <p className={kpiLabelCls}>순현금/순차입 포지션</p>
+          <p className={`text-xl font-extrabold tabular-nums ${(summary?.net_cash ?? 0) < 0 ? 'text-rose-600' : 'text-slate-900'}`}>{won(summary?.net_cash)}</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3">
-          <p className="text-xs text-slate-500 mb-1">가용 자금</p>
-          <p className="text-lg font-bold text-blue-600">{won(summary?.available_funds)}</p>
+        <div className={kpiCls()}>
+          <p className={kpiLabelCls}>가용 자금</p>
+          <p className="text-xl font-extrabold tabular-nums text-blue-600">{won(summary?.available_funds)}</p>
         </div>
       </div>
 
@@ -213,13 +213,13 @@ export default function PositionTab() {
 
           {/* 기간 입출금 합계 (전체) */}
           <div className="flex gap-3 flex-wrap">
-            <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-              <p className="text-xs text-slate-500 mb-1">전체 계좌 기간 입금 합계</p>
-              <p className="text-lg font-bold text-blue-600">{won(totalIn)}</p>
+            <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+              <p className={kpiLabelCls}>전체 계좌 기간 입금 합계</p>
+              <p className="text-xl font-extrabold tabular-nums text-blue-600">{won(totalIn)}</p>
             </div>
-            <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-              <p className="text-xs text-slate-500 mb-1">전체 계좌 기간 출금 합계</p>
-              <p className="text-lg font-bold text-rose-600">{won(totalOut)}</p>
+            <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+              <p className={kpiLabelCls}>전체 계좌 기간 출금 합계</p>
+              <p className="text-xl font-extrabold tabular-nums text-rose-600">{won(totalOut)}</p>
             </div>
           </div>
         </>

@@ -7,7 +7,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getPeriodRange } from '@/lib/period-presets'
 
-import { btnCls, fieldBox } from '@/components/ui/kit'
+import { btnCls, fieldBox, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
 interface Account { id: string; code: string; name: string; type: string }
@@ -312,14 +312,14 @@ function CardExpensesContent() {
 
       {/* 요약 */}
       <div className="flex gap-3 flex-wrap mb-4">
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">사용액 합계(승인금액)</p>
-          <p className="text-lg font-bold text-slate-900">{won(viewSummary.approved_total)}</p>
-          <p className="text-xs text-slate-500">{viewSummary.count.toLocaleString()}건</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>사용액 합계(승인금액)</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{won(viewSummary.approved_total)}</p>
+          <p className={kpiLabelCls}>{viewSummary.count.toLocaleString()}건</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-slate-500 mb-1">미확정(승인 필요)</p>
-          <p className="text-lg font-bold text-amber-600">{viewSummary.pending_count.toLocaleString()}건</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[160px]')}>
+          <p className={kpiLabelCls}>미확정(승인 필요)</p>
+          <p className="text-xl font-extrabold tabular-nums text-amber-600">{viewSummary.pending_count.toLocaleString()}건</p>
         </div>
       </div>
 

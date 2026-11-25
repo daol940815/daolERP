@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
-import { btnCls, chipCls } from '@/components/ui/kit'
+import { btnCls, chipCls, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 interface CellV { supply: number; tax: number }
 interface ReturnView {
   year: number; m1: number; m2: number; months: number[]; period_key: string
@@ -195,25 +195,25 @@ export default function VatEstimatePage() {
         <>
           {/* KPI */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            <div className="border border-slate-300 rounded-lg px-4 py-3 bg-white">
-              <p className="text-xs text-slate-500 mb-1">차가감 납부할 세액</p>
-              <p className={`text-lg font-bold ${finalTax >= 0 ? 'text-red-600' : 'text-blue-600'}`}>{fmt0(finalTax)}원</p>
-              <p className="text-xs text-slate-500">{finalTax >= 0 ? '납부 예상' : '환급 예상'} · 정산 항목 반영</p>
+            <div className={kpiCls()}>
+              <p className={kpiLabelCls}>차가감 납부할 세액</p>
+              <p className={`text-xl font-extrabold tabular-nums ${finalTax >= 0 ? 'text-red-600' : 'text-blue-600'}`}>{fmt0(finalTax)}원</p>
+              <p className={kpiLabelCls}>{finalTax >= 0 ? '납부 예상' : '환급 예상'} · 정산 항목 반영</p>
             </div>
-            <div className="border border-slate-300 rounded-lg px-4 py-3 bg-white">
-              <p className="text-xs text-slate-500 mb-1">{v.months[n - 1]}월 발생 부가세</p>
-              <p className="text-lg font-bold text-slate-900">{fmt0(payMonthly(n - 1))}원</p>
-              <p className="text-xs text-slate-500">해당 월 매출세액 - 매입세액</p>
+            <div className={kpiCls()}>
+              <p className={kpiLabelCls}>{v.months[n - 1]}월 발생 부가세</p>
+              <p className="text-xl font-extrabold tabular-nums text-slate-900">{fmt0(payMonthly(n - 1))}원</p>
+              <p className={kpiLabelCls}>해당 월 매출세액 - 매입세액</p>
             </div>
-            <div className="border border-slate-300 rounded-lg px-4 py-3 bg-white">
-              <p className="text-xs text-slate-500 mb-1">매출세액 계</p>
-              <p className="text-lg font-bold text-slate-900">{fmt0(salesTotal.tax)}원</p>
-              <p className="text-xs text-slate-500">공급가액 {fmt0(salesTotal.supply)}원</p>
+            <div className={kpiCls()}>
+              <p className={kpiLabelCls}>매출세액 계</p>
+              <p className="text-xl font-extrabold tabular-nums text-slate-900">{fmt0(salesTotal.tax)}원</p>
+              <p className={kpiLabelCls}>공급가액 {fmt0(salesTotal.supply)}원</p>
             </div>
-            <div className="border border-slate-300 rounded-lg px-4 py-3 bg-white">
-              <p className="text-xs text-slate-500 mb-1">매입세액 차감계</p>
-              <p className="text-lg font-bold text-slate-900">{fmt0(buyCell(n).tax)}원</p>
-              <p className="text-xs text-slate-500">공급가액 {fmt0(buyCell(n).supply)}원</p>
+            <div className={kpiCls()}>
+              <p className={kpiLabelCls}>매입세액 차감계</p>
+              <p className="text-xl font-extrabold tabular-nums text-slate-900">{fmt0(buyCell(n).tax)}원</p>
+              <p className={kpiLabelCls}>공급가액 {fmt0(buyCell(n).supply)}원</p>
             </div>
           </div>
 

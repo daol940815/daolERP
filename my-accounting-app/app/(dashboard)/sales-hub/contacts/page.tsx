@@ -10,7 +10,7 @@ import { contactLabel } from '@/lib/contact-label'
 import CustomerKpiTiles, { matchCategory, OTYPE_META } from '../_components/CustomerKpiTiles'
 import type { ContactFlag, KpiCategory, KpiFlags } from '../_components/CustomerKpiTiles'
 
-import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
+import { btnCls, chipCls, fieldBox, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 const won = (n: number) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 const norm = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, '').toLowerCase()
 
@@ -246,26 +246,26 @@ export default function ContactManagerPage() {
       {bundle && kpiOf && (
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3 my-4">
           <button onClick={() => { setTab('list'); setStatusFilter('all') }}
-            className="border border-slate-300 rounded-lg px-4 py-3 text-left bg-white hover:border-slate-400">
-            <p className="text-xs text-slate-500 mb-1">등록 담당자{filterActive && tab === 'list' ? ' (필터)' : ''}</p>
-            <p className="text-lg font-bold text-slate-900">{kpiOf.total.toLocaleString()}명</p>
-            {filterActive && <p className="text-xs text-slate-500">전체 {bundle.kpi.total.toLocaleString()}명</p>}
+            className={kpiCls(false, true)}>
+            <p className={kpiLabelCls}>등록 담당자{filterActive && tab === 'list' ? ' (필터)' : ''}</p>
+            <p className="text-xl font-extrabold tabular-nums text-slate-900">{kpiOf.total.toLocaleString()}명</p>
+            {filterActive && <p className={kpiLabelCls}>전체 {bundle.kpi.total.toLocaleString()}명</p>}
           </button>
           <button onClick={() => setTab('gaps')}
-            className="border border-slate-300 rounded-lg px-4 py-3 text-left bg-white hover:border-slate-400">
-            <p className="text-xs text-slate-500 mb-1">담당 공백 거래처</p>
-            <p className={`text-lg font-bold ${bundle.kpi.gap_vendors ? 'text-red-600' : 'text-slate-900'}`}>{bundle.kpi.gap_vendors.toLocaleString()}곳</p>
+            className={kpiCls(false, true)}>
+            <p className={kpiLabelCls}>담당 공백 거래처</p>
+            <p className={`text-xl font-extrabold tabular-nums ${bundle.kpi.gap_vendors ? 'text-red-600' : 'text-slate-900'}`}>{bundle.kpi.gap_vendors.toLocaleString()}곳</p>
           </button>
           <button onClick={() => setTab('queue')}
-            className="border border-slate-300 rounded-lg px-4 py-3 text-left bg-white hover:border-slate-400">
-            <p className="text-xs text-slate-500 mb-1">미확인 담당자명</p>
-            <p className={`text-lg font-bold ${bundle.kpi.unmatched ? 'text-red-600' : 'text-slate-900'}`}>{bundle.kpi.unmatched.toLocaleString()}건</p>
+            className={kpiCls(false, true)}>
+            <p className={kpiLabelCls}>미확인 담당자명</p>
+            <p className={`text-xl font-extrabold tabular-nums ${bundle.kpi.unmatched ? 'text-red-600' : 'text-slate-900'}`}>{bundle.kpi.unmatched.toLocaleString()}건</p>
           </button>
           <button onClick={() => { setTab('list'); setStatusFilter('no_order_90') }}
-            className="border border-slate-300 rounded-lg px-4 py-3 text-left bg-white hover:border-slate-400">
-            <p className="text-xs text-slate-500 mb-1">미주문 주의</p>
-            <p className={`text-lg font-bold ${kpiOf.attention90 ? 'text-orange-600' : 'text-slate-900'}`}>{kpiOf.attention90.toLocaleString()}명</p>
-            <p className="text-xs text-slate-500">90일 초과 (180일 초과 {kpiOf.attention180}명 포함)</p>
+            className={kpiCls(false, true)}>
+            <p className={kpiLabelCls}>미주문 주의</p>
+            <p className={`text-xl font-extrabold tabular-nums ${kpiOf.attention90 ? 'text-orange-600' : 'text-slate-900'}`}>{kpiOf.attention90.toLocaleString()}명</p>
+            <p className={kpiLabelCls}>90일 초과 (180일 초과 {kpiOf.attention180}명 포함)</p>
           </button>
           {/* 다올 담당 미기입 (112) — 은행 · 지점 · 고객마다 담당이 기입되어야 함. 클릭 = 미기입만 */}
           <button onClick={() => { setTab('list'); setStatusFilter('all'); setMissingOnly(v => !v) }}
@@ -275,9 +275,9 @@ export default function ContactManagerPage() {
             <p className="text-xs text-slate-500">허브 상세에서 고객별로 지정</p>
           </button>
           <button onClick={() => { setTab('list'); setStatusFilter('recent_move') }}
-            className="border border-slate-300 rounded-lg px-4 py-3 text-left bg-white hover:border-slate-400">
-            <p className="text-xs text-slate-500 mb-1">최근 30일 이동·진급</p>
-            <p className="text-lg font-bold text-slate-900">{kpiOf.recent_moves.toLocaleString()}건</p>
+            className={kpiCls(false, true)}>
+            <p className={kpiLabelCls}>최근 30일 이동·진급</p>
+            <p className="text-xl font-extrabold tabular-nums text-slate-900">{kpiOf.recent_moves.toLocaleString()}건</p>
           </button>
         </div>
       )}

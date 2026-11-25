@@ -10,7 +10,7 @@ import { computeOrderDeliveryStatus, ITEM_DELIVERY_STATUS_LABEL, ORDER_DELIVERY_
 import { cutoffAlloc, netSalesOf, outstandingOf, prepayOf } from '@/lib/receivable'
 import CollectMatchModal from '@/components/erp/CollectMatchModal'
 
-import { btnCls, fieldBox } from '@/components/ui/kit'
+import { btnCls, fieldBox, kpiCls, kpiLabelCls } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
@@ -329,17 +329,17 @@ export default function ErpOrdersPage() {
 
       {/* 요약 카드 (필터 전체 범위 기준) */}
       <div className="flex gap-3 flex-wrap mb-5">
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-          <p className="text-xs text-slate-500 mb-1">주문 수</p>
-          <p className="text-lg font-bold text-slate-900">{total.toLocaleString()}건</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[150px]')}>
+          <p className={kpiLabelCls}>주문 수</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{total.toLocaleString()}건</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-          <p className="text-xs text-slate-500 mb-1">순매출 (취소·VIP·선결제 제외)</p>
-          <p className="text-lg font-bold text-slate-900">{won(summary.net_sales)}</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[150px]')}>
+          <p className={kpiLabelCls}>순매출 (취소·VIP·선결제 제외)</p>
+          <p className="text-xl font-extrabold tabular-nums text-slate-900">{won(summary.net_sales)}</p>
         </div>
-        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-          <p className="text-xs text-slate-500 mb-1">미수금</p>
-          <p className={`text-lg font-bold ${summary.outstanding > 0 ? 'text-red-600' : 'text-slate-500'}`}>{won(summary.outstanding)}</p>
+        <div className={kpiCls(false, false, 'flex-1 min-w-[150px]')}>
+          <p className={kpiLabelCls}>미수금</p>
+          <p className={`text-xl font-extrabold tabular-nums ${summary.outstanding > 0 ? 'text-red-600' : 'text-slate-500'}`}>{won(summary.outstanding)}</p>
         </div>
       </div>
 
