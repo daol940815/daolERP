@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import MonthPresets from '@/components/ui/MonthPresets'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 const eok = (n: number) => {
   const abs = Math.abs(n)
@@ -117,12 +118,12 @@ export default function MonthlyPLPage() {
               className={`px-3 py-1.5 font-medium ${basis === 'erp' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'}`}>ERP 기준</button>
           </div>
           <input type="month" value={monthFrom} onChange={e => setMonthFrom(e.target.value)}
-            className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+            className={fieldBox({ noWidth: true })} />
           <span className="text-slate-500 text-sm">~</span>
           <input type="month" value={monthTo} onChange={e => setMonthTo(e.target.value)}
-            className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+            className={fieldBox({ noWidth: true })} />
           <button onClick={() => { const a = document.createElement('a'); a.href = `/api/reports/monthly-pl/export?from=${monthFrom}&to=${monthTo}&basis=${basis}`; a.click() }}
-            className="px-3 py-1.5 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap">↓ 엑셀</button>
+            className={btnCls('secondary', 'md', 'whitespace-nowrap')}>↓ 엑셀</button>
         </div>
       </div>
 

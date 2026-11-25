@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { honorify } from '@/lib/contact-label'
 import ReasonBadge from '@/components/ui/ReasonBadge'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 상담일지 목록 — 기본 본인 작성분, manager/admin은 전체 보기 전환 가능.
 // 품목 행 단위 표시 (실무자 피드백 7, 2안): 상품 1개 = 1줄, 부자재·배송비 행 제외.
 // 같은 상담의 줄들은 하나의 상담일지로 인식 — 행 클릭 = 상세, 전환도 상담 단위.
@@ -197,7 +198,7 @@ export default function ConsultationsPage() {
             </button>
           )}
           <Link href="/orders/consultations/new"
-            className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">+ 상담 기록</Link>
+            className={btnCls('primary', 'md')}>+ 상담 기록</Link>
         </span>
       </div>
 
@@ -224,7 +225,7 @@ export default function ConsultationsPage() {
           <input value={qInput} onChange={e => setQInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') setQ(qInput.trim()) }}
             placeholder="검색 — 업체 · 지점 · 담당자 · 보내는분 · 상품명 · 메모 (띄어쓰기로 다중 조건, Enter)"
-            className="flex-1 min-w-[260px] border border-slate-400 rounded-lg px-3.5 py-2 text-sm" />
+            className={fieldBox({ noWidth: true, extra: 'flex-1 min-w-[260px]' })} />
           {q && <button onClick={() => { setQ(''); setQInput('') }} className="text-xs text-slate-500">해제 ✕</button>}
         </div>
         <div className="flex items-center gap-1.5 flex-wrap mt-2">
@@ -404,7 +405,7 @@ export default function ConsultationsPage() {
             <div className="text-xs text-slate-600 mt-0.5">요청받은 직원은 이 상담을 열람 · 주문 전환만 할 수 있습니다. 비우면 요청 취소.</div>
             <label className="block text-xs text-slate-600 mt-3 mb-0.5">주문 진행 담당</label>
             <select value={reqAssignee} onChange={e => setReqAssignee(e.target.value)}
-              className="w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm bg-white">
+              className={fieldBox()}>
               <option value="">요청 안 함 (내가 진행)</option>
               {emps.map(e => (
                 <option key={e.id} value={e.id}>{e.name}{e.team || e.position ? ` (${[e.team, e.employment_type === 'parttime' ? '아르바이트' : e.position].filter(Boolean).join(' · ')})` : ''}</option>
@@ -413,7 +414,7 @@ export default function ConsultationsPage() {
             <label className="block text-xs text-slate-600 mt-2 mb-0.5">요청 메모 (선택)</label>
             <input value={reqMemo} onChange={e => setReqMemo(e.target.value)} disabled={!reqAssignee}
               placeholder="예: 11/10 출고 맞춰서 발주까지 부탁해요"
-              className="w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm disabled:bg-slate-50" />
+              className={fieldBox()} />
             {!!reqAssignee && !reqFor.master_linked && (
               <div className="mt-2 text-xs px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
                 마스터 미연결 상담은 요청할 수 없습니다 — 요청받은 직원은 상담을 고칠 수 없어 주문서로 전환하지 못합니다.
@@ -424,7 +425,7 @@ export default function ConsultationsPage() {
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setReqFor(null)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm">닫기</button>
               <button onClick={submitRequest} disabled={reqBusy || (!!reqAssignee && !reqFor.master_linked)}
-                className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">
+                className={btnCls('primary', 'md')}>
                 {reqBusy ? '저장 중...' : reqAssignee ? '요청 보내기' : '요청 취소'}
               </button>
             </div>

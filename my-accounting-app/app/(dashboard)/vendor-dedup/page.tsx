@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import { btnCls } from '@/components/ui/kit'
 interface Member { id: string; name: string; count?: number; amount?: number; type?: string; biz_number?: string | null }
 interface Group { members: Member[] }
 interface Dups { alias_customer: Group[]; alias_purchase: Group[]; vendors: Group[] }
@@ -121,7 +122,7 @@ export default function VendorDedupPage() {
                     </div>
                     <div className="mt-2.5 flex justify-end">
                       <button onClick={() => merge(sec, g)} disabled={busy !== null}
-                        className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-700 disabled:opacity-40">
+                        className={btnCls('primary', 'sm')}>
                         {busy === key ? '병합 중…' : `대표로 병합 (${g.members.length - 1}건 흡수)`}
                       </button>
                     </div>

@@ -10,6 +10,7 @@ import { contactLabel } from '@/lib/contact-label'
 import CustomerKpiTiles, { matchCategory, OTYPE_META } from '../_components/CustomerKpiTiles'
 import type { ContactFlag, KpiCategory, KpiFlags } from '../_components/CustomerKpiTiles'
 
+import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
 const won = (n: number) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 const norm = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, '').toLowerCase()
 
@@ -213,7 +214,7 @@ export default function ContactManagerPage() {
               if (staffFilter !== 'all') p.set('staff', staffFilter)
               const a = document.createElement('a'); a.href = `/api/contact-manager/export?${p}`; a.click()
             }}
-            className="px-3 py-2 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap">
+            className={btnCls('secondary', 'md', 'whitespace-nowrap')}>
             ↓ 엑셀
           </button>
           {canEdit && <button
@@ -223,7 +224,7 @@ export default function ContactManagerPage() {
               const okd = await post({ action: 'create_contact', name: name.trim() }, `${name.trim()} 등록됨 — 상세에서 소속을 지정하세요.`)
               if (okd) setSearch(name.trim())
             }}
-            className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700 whitespace-nowrap">
+            className={btnCls('primary', 'md', 'whitespace-nowrap')}>
             담당자 등록
           </button>}
         </div>
@@ -302,7 +303,7 @@ export default function ContactManagerPage() {
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="이름 · 고객코드 · 소속 거래처 · 직함 · 연락처 검색"
-              className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-slate-900" />
+              className={fieldBox({ noWidth: true, extra: 'w-72' })} />
             {filterActive && (
               <button onClick={() => { setSearch(''); setStatusFilter('all'); setStaffFilter('all') }}
                 className="text-xs text-slate-500 hover:text-slate-700">✕ 필터 해제</button>
@@ -321,12 +322,12 @@ export default function ContactManagerPage() {
           <div className="flex items-center gap-1.5 mb-4 flex-wrap">
             <span className="text-xs text-slate-500 w-14">상담 직원</span>
             <button onClick={() => setStaffFilter('all')}
-              className={`px-2.5 py-1 text-xs rounded-full border ${staffFilter === 'all' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-400 hover:border-slate-500'}`}>
+              className={chipCls(staffFilter === 'all')}>
               전체
             </button>
             {staffChips.map(n => (
               <button key={n} onClick={() => setStaffFilter(staffFilter === n ? 'all' : n)}
-                className={`px-2.5 py-1 text-xs rounded-full border ${staffFilter === n ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-400 hover:border-slate-500'}`}>
+                className={chipCls(staffFilter === n)}>
                 {n}
               </button>
             ))}
@@ -424,7 +425,7 @@ export default function ContactManagerPage() {
                 className="px-3 py-1.5 border border-slate-400 rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-30">← 이전</button>
               <span className="px-3 text-slate-600 text-xs">{page} / {totalPages}</span>
               <button onClick={() => setPage(p => Math.min(p + 1, totalPages))} disabled={page >= totalPages}
-                className="px-3 py-1.5 border border-slate-400 rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-30">다음 →</button>
+                className={btnCls('secondary', 'md')}>다음 →</button>
             </div>
           </div>
         </>
@@ -468,7 +469,7 @@ export default function ContactManagerPage() {
                     <td className="py-2 px-3 whitespace-nowrap text-xs text-slate-700">{g.staff_names.slice(0, 2).join(' · ') || '-'}</td>
                     <td className="py-2 px-3 text-right whitespace-nowrap">
                       {canEdit && <button onClick={() => setGapForm(gapForm?.vendor_id === g.vendor_id ? null : { vendor_id: g.vendor_id, q: '' })}
-                        className="px-2 py-1 text-xs border border-slate-400 text-slate-800 rounded hover:bg-slate-50">
+                        className={btnCls('secondary', 'sm')}>
                         {g.never_assigned ? '담당자 등록' : '후임 지정'}
                       </button>}
                     </td>
@@ -480,9 +481,9 @@ export default function ContactManagerPage() {
                           <input autoFocus value={gapForm.q}
                             onChange={e => setGapForm({ ...gapForm, q: e.target.value })}
                             placeholder="담당자 이름 검색 또는 신규 이름 입력"
-                            className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                            className={fieldBox({ noWidth: true, extra: 'w-64' })} />
                           <select value={gapStaff} onChange={e => setGapStaff(e.target.value)}
-                            className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm bg-white" title="이 고객의 다올 담당 — 필수">
+                            className={fieldBox({ noWidth: true })} title="이 고객의 다올 담당 — 필수">
                             <option value="">다올 담당 선택 *</option>
                             {emps.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                           </select>
@@ -586,14 +587,14 @@ export default function ContactManagerPage() {
                                   post({ action: 'merge_review', event_id: ev.id, source_id: ev.contact_id, target_id: c.contact_id },
                                     `${c.name}와 병합 완료`)
                                 }}
-                                className="px-2 py-1 text-xs border border-red-300 text-red-600 rounded hover:bg-red-50">
+                                className={btnCls('danger', 'sm')}>
                                 {c.name}{c.code ? ` ${c.code}` : ''}와 병합
                               </button>
                             ))}
                             <button disabled={busy}
                               onClick={() => post({ action: 'resolve_review', event_id: ev.id },
                                 ev.event_type === 'name_conflict' ? '별개 인물로 확인 완료' : '확인 완료')}
-                              className="px-2 py-1 text-xs border border-slate-400 text-slate-700 rounded hover:bg-slate-50">
+                              className={btnCls('secondary', 'sm')}>
                               {ev.event_type === 'name_conflict' ? '별개 인물 확인' : '확인'}
                             </button>
                           </div>
@@ -666,13 +667,13 @@ export default function ContactManagerPage() {
                             vendor_id: u.vendor_id, raw_name: u.raw_name, staff_employee_id: staff.id },
                             `${name.trim()} 신규 등록 + 연결 완료`)
                         }}
-                        className="px-2 py-1 text-xs border border-slate-400 text-slate-800 rounded hover:bg-slate-50 mr-1">
+                        className={btnCls('secondary', 'sm', 'mr-1')}>
                         신규 인물
                       </button>
                       <button disabled={busy}
                         onClick={() => post({ action: 'ignore_name', vendor_id: u.vendor_id, raw_name: u.raw_name },
                           `"${u.raw_name}" 무시 처리 (공란 취급)`)}
-                        className="px-2 py-1 text-xs border border-slate-400 text-slate-600 rounded hover:bg-slate-50">
+                        className={btnCls('secondary', 'sm')}>
                         무시
                       </button></>}
                     </td>

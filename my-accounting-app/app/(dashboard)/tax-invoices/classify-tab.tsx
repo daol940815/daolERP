@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
 
 interface Account { id: string; code: string; name: string; type: string }
@@ -147,7 +148,7 @@ export default function ClassifyTab() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="거래처 검색"
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-56"
+          className={fieldBox({ noWidth: true, extra: 'w-56' })}
         />
       </div>
 
@@ -207,7 +208,7 @@ export default function ClassifyTab() {
                     <button
                       onClick={() => confirmGroup(g)}
                       disabled={busyKey === g.key || !pick[g.key]}
-                      className="px-3 py-1 bg-slate-900 text-white rounded text-xs font-medium hover:bg-slate-700 disabled:opacity-40"
+                      className={btnCls('primary', 'sm')}
                     >
                       {busyKey === g.key ? '처리 중...' : `${g.count}건 확정`}
                     </button>

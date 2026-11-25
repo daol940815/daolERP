@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { GRANT_KIND_LABEL, GRANT_SOURCE_LABEL, type GrantKind } from '@/lib/leave-balance'
 import { fetchBalance, fmt, type BalanceRes } from './types'
 
+import { btnCls, chipCls } from '@/components/ui/kit'
 // 연차 관리 › 부여 내역 — 기본 · 보상 · 이월 · 조정 원장. 엑셀 오른쪽 "보상 일일 연차 · 이월 보상" 표를 대신한다.
 // 잘못 넣은 부여는 지우지 않고 "취소"로 남긴다(누가 · 언제 · 왜).
 const KIND_TONE: Record<GrantKind, string> = {
@@ -60,7 +61,7 @@ export default function GrantsTab() {
     .filter(g => !q.trim() || (g.employee_name ?? '').includes(q.trim()) || (g.reason ?? '').includes(q.trim())), [data, showCanceled, kind, q])
   const inp = 'w-full border border-slate-400 rounded-lg px-2 py-1.5 text-sm'
   const Chip = ({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) => (
-    <button onClick={onClick} className={`px-2.5 py-1 rounded-full text-xs border ${on ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-400 text-slate-700 hover:bg-slate-50'}`}>{children}</button>
+    <button onClick={onClick} className={chipCls(on)}>{children}</button>
   )
 
   return (
@@ -97,7 +98,7 @@ export default function GrantsTab() {
               <input value={f.reason} onChange={e => setF(s => ({ ...s, reason: e.target.value }))}
                 placeholder={f.kind === 'comp' ? '예: 주말근무 · 추석 카탈로그 작업' : f.kind === 'adjust' ? '예: 엑셀 이관 오류 정정 (빼려면 일수에 -)' : ''} className={inp} />
             </div>
-            <button onClick={add} disabled={busy} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">부여</button>
+            <button onClick={add} disabled={busy} className={btnCls('primary', 'md')}>부여</button>
           </div>
           <p className="text-xs text-slate-500 mt-2">
             보상 = 주말근무 · 행사 등으로 주는 연차 · 조정 = 오류 정정(음수 가능, 사유 필수) · 기본 · 이월은 보통 연말 · 연초 정리 탭에서 확정합니다.

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 
+import { btnCls } from '@/components/ui/kit'
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
 
 interface Finding {
@@ -51,12 +52,12 @@ export default function DoubleCountPage() {
         <div className="flex gap-2">
           <button onClick={() => { const a = document.createElement('a'); a.href = '/api/reports/double-count/export'; a.click() }}
             disabled={loading}
-            className="px-3 py-1.5 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+            className={btnCls('secondary', 'md')}
             title="요약·상세 두 시트. 상세에는 확정 계정, 상대 계산서, 권장 조치가 들어갑니다">
             ↓ 엑셀
           </button>
           <button onClick={load} disabled={loading}
-            className="px-3 py-1.5 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 disabled:opacity-50">
+            className={btnCls('secondary', 'md')}>
             {loading ? '검사 중...' : '↻ 다시 검사'}
           </button>
         </div>

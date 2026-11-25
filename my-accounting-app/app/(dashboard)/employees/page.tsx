@@ -5,6 +5,7 @@ import { GROUP_KEYS, type Permissions } from '@/lib/permissions'
 import PermissionPanel, { type PermEmp } from './permission-panel'
 import StorageUsageCard from '@/components/attachments/StorageUsageCard'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 직원·계정·권한 관리 (인사·총무 수정 권한. 권한 편집은 마스터만)
 // 직원 등록 시 로그인 계정(ID 방식)을 함께 발급한다. 목록에서 수정·삭제·비번 재설정·권한 편집.
 
@@ -167,12 +168,12 @@ export default function EmployeesPage() {
       <div className="flex justify-end items-center gap-2 my-4">
         {selected.size > 0 && (
           <button onClick={bulkRemove} disabled={busy}
-            className="px-3.5 py-2 border border-red-300 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 disabled:opacity-50">
+            className={btnCls('danger', 'md')}>
             선택 {selected.size}명 삭제
           </button>
         )}
         <button onClick={() => setShowForm(s => !s)}
-          className="px-3.5 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">
+          className={btnCls('primary', 'md')}>
           {showForm ? '입력 닫기' : '+ 직원 등록'}
         </button>
       </div>
@@ -190,7 +191,7 @@ export default function EmployeesPage() {
                 <label className="block text-xs text-slate-600 font-semibold mb-1">{label}</label>
                 <input type={type} value={form[k]} list={k === 'team' ? 'team-list' : undefined}
                   onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))}
-                  className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+                  className={fieldBox()} />
               </div>
             ))}
             <datalist id="team-list">{TEAMS.map(t => <option key={t} value={t} />)}</datalist>
@@ -251,7 +252,7 @@ export default function EmployeesPage() {
                   <td className="py-2 px-3"><input type="date" value={edit.birth_date} disabled={!birthdayReady} title={birthdayReady ? '' : '203 마이그레이션 실행 후 입력 가능'} onChange={e => setEdit(s => ({ ...s, birth_date: e.target.value }))} className={inp} /></td>
                   <td className="py-2 px-3"></td>
                   <td className="py-2 px-3 text-right whitespace-nowrap">
-                    <button onClick={saveEdit} disabled={busy} className="text-xs px-2 py-1 bg-slate-900 text-white rounded mr-1">저장</button>
+                    <button onClick={saveEdit} disabled={busy} className={btnCls('primary', 'sm', 'mr-1')}>저장</button>
                     <button onClick={() => setEditId(null)} className="text-xs px-2 py-1 border border-slate-400 rounded">취소</button>
                   </td>
                 </tr>
@@ -312,7 +313,7 @@ export default function EmployeesPage() {
                       {r.is_active ? '비활성화' : '재활성화'}
                     </button>
                     <button onClick={() => remove(r)} disabled={busy}
-                      className="text-xs px-2 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50">삭제</button>
+                      className={btnCls('danger', 'sm')}>삭제</button>
                   </td>
                 </tr>
               ))}

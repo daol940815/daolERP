@@ -5,6 +5,7 @@ import { parseFile } from '@/lib/file-parser'
 import { detectUploadKind, UPLOAD_KIND_LABEL, type UploadKind } from '@/lib/upload-kind'
 import type { AccountPreview, ParseResult, ParsedRow, UploadResult } from '@/types/upload'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // ── 타입 ────────────────────────────────────────────────────
 type ItemStatus = 'parsing' | 'ready' | 'need_input' | 'uploading' | 'success' | 'duplicate' | 'error'
 
@@ -498,7 +499,7 @@ export default function UploadPage() {
                       onChange={e => patchItem(item.id, { accountNumber: e.target.value })}
                       placeholder="계좌번호 (선택)"
                       disabled={item.status === 'uploading' || isUploading}
-                      className="w-36 text-sm border border-slate-400 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:bg-slate-50 disabled:text-slate-500"
+                      className={fieldBox({ noWidth: true, extra: 'w-36' })}
                     />
                   </div>
                 )}
@@ -681,13 +682,13 @@ export default function UploadPage() {
               <>
                 <button
                   onClick={() => setQueue([])}
-                  className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50"
+                  className={btnCls('secondary', 'md')}
                 >
                   초기화
                 </button>
                 <a
                   href={doneMeta.doneHref}
-                  className="px-5 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700"
+                  className={btnCls('primary', 'md')}
                 >
                   {doneMeta.doneLabel}
                 </a>
@@ -697,7 +698,7 @@ export default function UploadPage() {
                 {!isUploading && (
                   <button
                     onClick={() => setQueue([])}
-                    className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50"
+                    className={btnCls('secondary', 'md')}
                   >
                     초기화
                   </button>
@@ -705,7 +706,7 @@ export default function UploadPage() {
                 <button
                   onClick={handleUploadAll}
                   disabled={!canUpload}
-                  className="px-6 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className={btnCls('primary', 'md')}
                 >
                   {isUploading
                     ? `업로드 중… (${doneCount}/${uploadableCount + doneCount})`

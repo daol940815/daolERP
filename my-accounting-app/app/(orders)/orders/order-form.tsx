@@ -18,7 +18,7 @@ import {
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
 import type { ContactOpt, Employee, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from './form-shared'
 import { cellTableCls, cellBlankTh, cellCls, calcCls, CellBand, CellHead, SummaryPill } from '@/components/ui/cell-grid'
-import { fieldCls, fieldBox, labelCls } from '@/components/ui/kit'
+import { btnCls, fieldBox, fieldCls, labelCls } from '@/components/ui/kit'
 import { isMoimVendor, orgSubLabel } from './form-shared'
 import ProductRegisterDialog, { UnregisteredTag, isUnregisteredRow, linkPatch } from './product-register-dialog'
 import IndividualRegister from './individual-register'
@@ -1066,7 +1066,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               {vnCheck.existing ? '기존 매출처 사용' : '등록'}
             </button>
             <button type="button" onClick={() => setAddingVendor(false)}
-              className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">취소</button>
+              className={btnCls('secondary', 'md')}>취소</button>
             <span className="text-xs text-slate-500">
               거래처 마스터에 즉시 등록됩니다 (매출처 허브에도 보임) — 같은 이름이 있으면 새로 만들지 않고 선택합니다
             </span>
@@ -1122,9 +1122,9 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               </select>
             </div>
             <button type="button" onClick={createContact} disabled={!newContact.name.trim() || !newContact.staff_employee_id}
-              className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">등록</button>
+              className={btnCls('primary', 'md')}>등록</button>
             <button type="button" onClick={() => setAddingContact(false)}
-              className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">취소</button>
+              className={btnCls('secondary', 'md')}>취소</button>
             <span className="text-xs text-slate-500">거래처 담당자 마스터에 즉시 등록됩니다</span>
           </div>
         )}
@@ -1406,7 +1406,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                           ({av.lots.slice(0, 3).map(l => mmdd(l.date)).join(' · ')}{av.lots.length > 3 ? ' 외' : ''} 입고). 재고에서 내보내나요?
                         </span>
                         <button type="button" onClick={() => setStockRole(i, 'out')}
-                          className="px-2.5 py-0.5 bg-slate-900 text-white rounded-md text-xs">재고 출고로 바꾸기</button>
+                          className={btnCls('primary', 'sm')}>재고 출고로 바꾸기</button>
                         <button type="button" onClick={() => setItem(i, { stock_dismissed: true })}
                           className="px-2.5 py-0.5 border border-amber-300 bg-white rounded-md text-xs">새로 매입 (재고 안 씀)</button>
                       </div>
@@ -1445,12 +1445,12 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
           <div className="flex gap-2">
             {!isEdit && !reissueFromNo && (
               <button type="button" disabled={saving} onClick={() => submit(true)}
-                className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-700 disabled:opacity-50">
+                className={btnCls('secondary', 'md')}>
                 저장 후 계속 입력
               </button>
             )}
             <button type="button" disabled={saving} onClick={() => submit(false)}
-              className="px-5 py-2 bg-slate-900 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+              className={btnCls('primary', 'md')}>
               {saving ? '저장 중...' : isEdit ? '수정 저장' : reissueFromNo ? '취소·재등록 저장' : '주문 저장'}
             </button>
           </div>

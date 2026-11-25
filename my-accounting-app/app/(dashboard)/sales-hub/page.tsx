@@ -10,6 +10,7 @@ import { getPeriodRange } from '@/lib/period-presets'
 import CustomerKpiTiles, { matchCategory, OTYPE_META } from './_components/CustomerKpiTiles'
 import type { KpiCategory, KpiFlags, VendorFlag } from './_components/CustomerKpiTiles'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 매출처 관리 허브 — 목록(A)
 // 기간 매출·수금·미수·담당·상태를 매출처 단위로 요약하고, 행 클릭 시 360° 상세로 드릴다운.
 
@@ -244,24 +245,24 @@ export default function SalesHubPage() {
             if (catFilter) p.set('cat', catFilter)
             const a = document.createElement('a'); a.href = `/api/vendor-hub/export?${p}`; a.click()
           }}
-            className="px-3 py-2 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap">
+            className={btnCls('secondary', 'md', 'whitespace-nowrap')}>
             ↓ 엑셀
           </button>
           {!mine && (
             <Link href="/sales-hub/bank-branches" title="은행연합회 점포 전체 — 거래 없는 점포를 찾아 매출처로 등록"
-              className="px-3 py-2 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap">
+              className={btnCls('secondary', 'md', 'whitespace-nowrap')}>
               은행 점포
             </Link>
           )}
           {canEdit && !mine && (
             <Link href="/sales-hub/billing"
-              className="px-3 py-2 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap">
+              className={btnCls('secondary', 'md', 'whitespace-nowrap')}>
               청구처 지정
             </Link>
           )}
           {canEdit && !mine && (
             <button onClick={() => setAddForm(f => ({ ...f, open: true, msg: null }))}
-              className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 whitespace-nowrap">
+              className={btnCls('primary', 'md', 'whitespace-nowrap')}>
               매출처 등록
             </button>
           )}
@@ -279,7 +280,7 @@ export default function SalesHubPage() {
                 <label className="block text-xs font-medium text-slate-800 mb-1">업체명 <span className="text-red-500">*</span></label>
                 <input autoFocus list="vendor-group-names" value={addForm.group} onChange={e => setAddForm(f => ({ ...f, group: e.target.value }))}
                   placeholder="예: 하나은행 · 서울대학교 · 육군본부"
-                  className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  className={fieldBox()} />
                 <datalist id="vendor-group-names">
                   {groupNames.map(n => <option key={n} value={n} />)}
                 </datalist>
@@ -297,7 +298,7 @@ export default function SalesHubPage() {
                 <label className="block text-xs font-medium text-slate-800 mb-1">지점명 <span className="text-slate-500">(선택 — 단독 업체는 비움)</span></label>
                 <input value={addForm.branch} onChange={e => setAddForm(f => ({ ...f, branch: e.target.value }))}
                   placeholder="예: 계동지점 · 에너지자원공학과 동창회"
-                  className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  className={fieldBox()} />
                 <BranchStdHint c={nameCheck} />
                 <BankBranchSuggest group={addForm.group} branch={addForm.branch}
                   onError={m => setAddForm(f => ({ ...f, msg: m }))}
@@ -309,7 +310,7 @@ export default function SalesHubPage() {
                 <label className="block text-xs font-medium text-slate-800 mb-1">사업자번호 <span className="text-slate-500">(선택)</span></label>
                 <input value={addForm.biz} onChange={e => setAddForm(f => ({ ...f, biz: e.target.value }))}
                   placeholder="000-00-00000"
-                  className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  className={fieldBox()} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-800 mb-1">계산서 발행처</label>
@@ -334,7 +335,7 @@ export default function SalesHubPage() {
                       <>
                         <input value={addForm.billQ} onChange={e => setAddForm(f => ({ ...f, billQ: e.target.value }))}
                           placeholder="법인명 검색 (사업자번호 있는 거래처)"
-                          className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                          className={fieldBox()} />
                         <div className="max-h-36 overflow-y-auto mt-1 border border-slate-200 rounded-lg">
                           {billOpts.length === 0 && <p className="text-xs text-slate-500 px-3 py-2">검색 결과 없음</p>}
                           {billOpts.map(o => (
@@ -354,12 +355,12 @@ export default function SalesHubPage() {
               <div>
                 <label className="block text-xs font-medium text-slate-800 mb-1">메모 <span className="text-slate-500">(선택)</span></label>
                 <input value={addForm.note} onChange={e => setAddForm(f => ({ ...f, note: e.target.value }))}
-                  className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  className={fieldBox()} />
               </div>
             </div>
             <div className="flex gap-2 mt-5">
               <button onClick={() => setAddForm(f => ({ ...f, open: false }))}
-                className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">취소</button>
+                className={btnCls('secondary', 'md', 'flex-1')}>취소</button>
               {nameCheck.existing ? (
                 <button onClick={() => { const id = nameCheck.existing!.id; setAddForm(ADD_EMPTY); router.push(`/sales-hub/${id}`) }}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">기존 매출처 사용</button>
@@ -388,7 +389,7 @@ export default function SalesHubPage() {
                 setGroupNames([])
                 load(from, to)
               }}
-                className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+                className={btnCls('primary', 'md', 'flex-1')}>
                 {addForm.busy ? '등록 중...' : '등록'}
               </button>
               )}
@@ -402,7 +403,7 @@ export default function SalesHubPage() {
           <p className="text-base font-semibold text-slate-900">담당 고객 없음</p>
           <p className="text-sm text-slate-600 mt-1">내 이름으로 지정된 담당 거래처가 없습니다. 담당 지정은 매출처 관리의 거래처 상세에서 합니다.</p>
           <div className="flex justify-center gap-2 mt-5">
-            <Link href="/sales-hub" className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">매출처 관리 (지점)</Link>
+            <Link href="/sales-hub" className={btnCls('primary', 'md')}>매출처 관리 (지점)</Link>
             <Link href="/sales-hub/contacts" className="px-4 py-2 border border-slate-400 rounded-lg text-sm font-medium hover:bg-slate-50">매출처 관리 (고객)</Link>
           </div>
         </div>
@@ -602,7 +603,7 @@ export default function SalesHubPage() {
                               }
                             } else alert(json.error ?? '삭제 실패')
                           }}
-                            className="px-2 py-0.5 border border-red-200 text-red-600 rounded text-xs hover:bg-red-50">삭제</button>
+                            className={btnCls('danger', 'sm')}>삭제</button>
                         )}
                       </td>
                     )}

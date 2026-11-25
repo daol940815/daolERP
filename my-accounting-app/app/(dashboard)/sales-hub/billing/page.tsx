@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
+import { btnCls, chipCls } from '@/components/ui/kit'
 interface Suggestion {
   vendor_id: string; vendor_name: string; entity_id: string; entity_name: string; entity_biz: string | null
   group_name: string; staff: string | null; reasons: string[]; caution: string | null
@@ -97,7 +98,7 @@ export default function BillingAssignPage() {
         </div>
         {canEdit && view === 'suggest' && (
           <button disabled={busy || !pickedRows.length} onClick={confirmPicked}
-            className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-40">
+            className={btnCls('primary', 'md')}>
             선택 {pickedRows.length}곳 확정
           </button>
         )}
@@ -136,12 +137,12 @@ export default function BillingAssignPage() {
             <>
               <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                 <button onClick={() => setEntity('')}
-                  className={`px-2.5 py-1 text-xs rounded-full border ${!entity ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-400'}`}>
+                  className={chipCls(!entity)}>
                   전체 {b.suggestions.length}
                 </button>
                 {entities.map(e => (
                   <button key={e.id} onClick={() => setEntity(entity === e.id ? '' : e.id)}
-                    className={`px-2.5 py-1 text-xs rounded-full border ${entity === e.id ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-400'}`}>
+                    className={chipCls(entity === e.id)}>
                     {e.name} {e.n}
                   </button>
                 ))}
@@ -180,7 +181,7 @@ export default function BillingAssignPage() {
                         <td className="py-2 px-3 text-xs text-slate-700">{s.staff ?? '-'}</td>
                         <td className="py-2 px-3 text-right">
                           {canEdit && <button disabled={busy} onClick={() => markSelf(s)}
-                            className="px-2 py-1 text-xs border border-slate-400 text-slate-700 rounded hover:bg-slate-50">아니다(자체 발행)</button>}
+                            className={btnCls('secondary', 'sm')}>아니다(자체 발행)</button>}
                         </td>
                       </tr>
                     ))}
@@ -210,7 +211,7 @@ export default function BillingAssignPage() {
                       <td className="py-2 px-3"><Link href={`/sales-hub/${l.vendor_id}`} className="text-blue-700 hover:underline">{l.vendor_name}</Link></td>
                       <td className="py-2 px-3 text-right">
                         {canEdit && <button disabled={busy} onClick={() => clearLink(l)}
-                          className="px-2 py-1 text-xs border border-slate-400 text-slate-700 rounded hover:bg-slate-50">해제</button>}
+                          className={btnCls('secondary', 'sm')}>해제</button>}
                       </td>
                     </tr>
                   ))}

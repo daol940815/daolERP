@@ -10,6 +10,7 @@ import {
 import { emptyRoster, type ApproveLevel, type ApproverRoster, type LeaveStep } from '@/lib/leave-approval'
 import LeaveSteps from '@/components/hr/LeaveSteps'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 내 근태 (직원 관리 모드) — 출퇴근 체크 + 월별 내 기록 + 휴가 신청
 // 휴가 승인은 상단 "휴가 승인" 메뉴 (중간 관리자·전체 관리자)
 
@@ -282,7 +283,7 @@ export default function MyAttendancePage() {
         <div className="flex items-center justify-between">
           <h2 className="font-bold text-slate-900">휴가</h2>
           <button onClick={() => setShowLeaveForm(s => !s)}
-            className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-700">
+            className={btnCls('primary', 'sm')}>
             {showLeaveForm ? '입력 닫기' : '+ 휴가 신청'}
           </button>
         </div>
@@ -292,7 +293,7 @@ export default function MyAttendancePage() {
               <label className="block text-xs text-slate-600 font-semibold mb-1">종류</label>
               <select value={form.leave_type}
                 onChange={e => setForm(f => ({ ...f, leave_type: e.target.value as LeaveType }))}
-                className="w-full border border-slate-400 rounded-lg px-2 py-1.5 text-sm">
+                className={fieldBox()}>
                 {REQUEST_LEAVE_TYPES.map(v => <option key={v} value={v}>{LEAVE_TYPE_LABEL[v]}</option>)}
               </select>
             </div>
@@ -300,18 +301,18 @@ export default function MyAttendancePage() {
               <label className="block text-xs text-slate-600 font-semibold mb-1">시작일</label>
               <input type="date" value={form.start_date}
                 onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
-                className="w-full border border-slate-400 rounded-lg px-2 py-1.5 text-sm" />
+                className={fieldBox()} />
             </div>
             <div>
               <label className="block text-xs text-slate-600 font-semibold mb-1">종료일 (비우면 하루)</label>
               <input type="date" value={form.end_date}
                 onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
-                className="w-full border border-slate-400 rounded-lg px-2 py-1.5 text-sm" />
+                className={fieldBox()} />
             </div>
             <div>
               <label className="block text-xs text-slate-600 font-semibold mb-1">사유 (선택)</label>
               <input value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
-                className="w-full border border-slate-400 rounded-lg px-2 py-1.5 text-sm" />
+                className={fieldBox()} />
             </div>
             <button onClick={requestLeave} disabled={busy || formDays === 0}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
@@ -436,7 +437,7 @@ function ApprovalLine({ approval, skip, setSkip }: {
           <label className="block text-xs text-slate-600 font-semibold mb-1">전결 사유 (필수)</label>
           <input value={skip.note} onChange={e => { const v = e.target.value; setSkip(s => ({ ...s, note: v })) }}
             placeholder="예: 팀장 출장"
-            className="w-full border border-slate-400 rounded-lg px-2 py-1.5 text-sm" />
+            className={fieldBox()} />
           <p className="text-xs text-amber-700 mt-1">전결한 단계의 승인권자에게는 나중에 알림이 가고, 휴가 목록에 &ldquo;신청자 전결&rdquo;과 사유가 남습니다.</p>
         </div>
       )}

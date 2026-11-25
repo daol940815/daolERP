@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 
+import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
 // 주문 수정·취소 승인 (manager/admin)
 // 익일 이후 sales의 수정 경로 — 음수 상계 주문 방식의 대체.
 // sales 본인은 자기 요청의 진행 상태만 보인다 (API에서 분리).
@@ -80,7 +81,7 @@ export default function ApprovalsPage() {
         <span className="ml-auto flex gap-1.5">
           {(['pending', 'all'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-3 py-1 rounded-full text-xs border ${tab === t ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-400 text-slate-600'}`}>
+              className={chipCls(tab === t)}>
               {t === 'pending' ? '대기 중' : '전체 이력'}
             </button>
           ))}
@@ -161,11 +162,11 @@ export default function ApprovalsPage() {
                 <div className="mt-3 flex items-center gap-2 flex-wrap">
                   <input value={memos[r.id] ?? ''} onChange={e => setMemos(m => ({ ...m, [r.id]: e.target.value }))}
                     placeholder="처리 메모 (반려 시 필수)"
-                    className="flex-1 min-w-56 border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+                    className={fieldBox({ noWidth: true, extra: 'flex-1 min-w-56' })} />
                   <button disabled={busy === r.id} onClick={() => decide(r.id, 'approve')}
-                    className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">승인·반영</button>
+                    className={btnCls('primary', 'md')}>승인·반영</button>
                   <button disabled={busy === r.id} onClick={() => decide(r.id, 'reject')}
-                    className="px-4 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm disabled:opacity-50">반려</button>
+                    className={btnCls('danger', 'md')}>반려</button>
                 </div>
               ) : (
                 <div className="mt-2 text-xs text-slate-500">

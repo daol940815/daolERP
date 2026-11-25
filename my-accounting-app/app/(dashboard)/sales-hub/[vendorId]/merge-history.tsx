@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import { btnCls } from '@/components/ui/kit'
 // 매출처 상세 › 병합 이력 · 병합 취소 (119, 2026-11-18 사용자 승인)
 // 이 매출처로 합쳐진 병합 목록을 보여 주고, 건별 기록이 있는 병합은 취소할 수 있다.
 //  - 취소 = 병합 때 옮겨 온 건만 원래 매출처로 돌려보냄. 합친 뒤 새로 들어온 건은 이 매출처에 남는다.
@@ -101,7 +102,7 @@ export default function MergeHistoryDialog({ vendorId, vendorName, onClose, onCh
                       <td className="py-1.5 text-right whitespace-nowrap">
                         {r.can_undo && r.snapshot_id && (
                           <button disabled={busy} onClick={() => openPreview(r.snapshot_id!)}
-                            className="px-2 py-0.5 border border-red-300 text-red-700 rounded text-xs hover:bg-red-50 disabled:opacity-40">병합 취소</button>
+                            className={btnCls('danger', 'sm')}>병합 취소</button>
                         )}
                       </td>
                     </tr>
@@ -111,7 +112,7 @@ export default function MergeHistoryDialog({ vendorId, vendorName, onClose, onCh
             )}
             {msg && <p className="text-xs text-red-600 mt-3">{msg}</p>}
             <div className="flex justify-end mt-5">
-              <button onClick={onClose} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">닫기</button>
+              <button onClick={onClose} className={btnCls('secondary', 'md')}>닫기</button>
             </div>
           </>
         )}
@@ -157,7 +158,7 @@ export default function MergeHistoryDialog({ vendorId, vendorName, onClose, onCh
             {pv.blockers.map((w, i) => <div key={i} className="mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{w}</div>)}
             {msg && <p className="text-xs text-red-600 mt-3">{msg}</p>}
             <div className="flex justify-end gap-2 mt-5">
-              <button disabled={busy} onClick={() => { setPv(null); setMsg(null) }} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">뒤로</button>
+              <button disabled={busy} onClick={() => { setPv(null); setMsg(null) }} className={btnCls('secondary', 'md')}>뒤로</button>
               <button disabled={busy || pv.blockers.length > 0} onClick={run} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm disabled:opacity-40">
                 {busy ? '취소하는 중...' : '병합 취소 실행'}
               </button>

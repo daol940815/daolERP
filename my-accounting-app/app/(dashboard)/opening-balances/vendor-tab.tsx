@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 const won = (n: number) => Math.abs(n).toLocaleString('ko-KR')
 
 interface Row {
@@ -83,11 +84,11 @@ export default function VendorTab() {
         <input value={search} onChange={e => setSearch(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') load(search) }}
           placeholder="거래처명 검색 후 Enter (미입력 시 기초잔액 등록된 거래처만 표시)"
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm flex-1" />
+          className={fieldBox({ noWidth: true, extra: 'flex-1' })} />
         <button onClick={() => load(search)} disabled={busy}
-          className="px-3.5 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">검색</button>
+          className={btnCls('primary', 'md')}>검색</button>
         <button onClick={() => { const a = document.createElement('a'); a.href = '/api/vendor-opening-balances/export'; a.click() }}
-          className="px-3.5 py-2 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap">↓ 엑셀</button>
+          className={btnCls('secondary', 'md', 'whitespace-nowrap')}>↓ 엑셀</button>
       </div>
 
       {loading ? (

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 
+import { btnCls } from '@/components/ui/kit'
 // 취소발행 상계 확인 모달 — 원 계산서(+A)와 취소 계산서(-A) 쌍을 보여주고
 // 사용자가 선택한 쌍만 '확인됨'으로 상계 처리한다. (추천만 — 확정은 사용자)
 
@@ -135,11 +136,11 @@ export default function CancelPairsModal({ direction, onClose, onApplied }: {
               <b>{checked.size}</b>쌍 선택 · 상계 금액 {won(selectedAmount)}
             </p>
           )}
-          <button onClick={onClose} className="ml-auto px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700 hover:bg-slate-50">
+          <button onClick={onClose} className={btnCls('secondary', 'md', 'ml-auto')}>
             닫기
           </button>
           <button onClick={apply} disabled={busy || !pairs || checked.size === 0}
-            className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-40">
+            className={btnCls('primary', 'md')}>
             {busy ? '처리 중...' : `선택 ${checked.size}쌍 상계 확인`}
           </button>
         </div>

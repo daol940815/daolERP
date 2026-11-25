@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 
+import { btnCls, chipCls } from '@/components/ui/kit'
 // 팀 업무 현황 — 직원별 업무 건수를 유형별로 집계. 행 클릭 시 그 직원의 업무일지로 드릴다운.
 // "오늘 아무 기록도 없는 직원"이 보여야 하므로 활동 0건인 직원도 행으로 남긴다.
 
@@ -69,7 +70,7 @@ export default function TeamWorklogClient() {
         <h1 className="text-2xl font-bold text-slate-900">팀 업무 현황</h1>
         <span className="text-xs text-slate-500">직원별 업무 건수 집계 · 이름을 누르면 해당 직원 업무일지로 이동합니다.</span>
         <Link href="/me/worklog"
-          className="ml-auto px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50">
+          className={btnCls('secondary', 'md', 'ml-auto')}>
           내 업무일지
         </Link>
       </div>
@@ -79,8 +80,7 @@ export default function TeamWorklogClient() {
       <div className="flex items-center gap-2 mt-4">
         {PERIODS.map(p => (
           <button key={p.key} onClick={() => setPeriod(p.key)}
-            className={`px-3.5 py-1.5 rounded-full text-xs border transition-colors ${
-              period === p.key ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}>
+            className={chipCls(period === p.key)}>
             {p.label}
           </button>
         ))}

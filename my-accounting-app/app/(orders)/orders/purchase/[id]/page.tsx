@@ -6,6 +6,7 @@ import Link from 'next/link'
 import PoDetail from '../../po-detail'
 import { fillMailTemplate, poMailVars, type PoExcelData } from '@/lib/po-form'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 발주서 발송 페이지 (시안 v3, 2026-08-20 사용자 확정) — 발송 업무 전용 화면.
 // 흐름: 1 발주서 확인(다운로드 우선) → 2 첨부(수정본 업로드 시 자동 생성본 대체)
 //      → 3 메일 작성(프리셋·치환 변수) → 4 발송(실제 발송 내용은 로그로 보존).
@@ -242,7 +243,7 @@ export default function PoSendPage() {
             : badge('bg-amber-100 text-amber-800', '미발송')}
         {active && (
           <button onClick={cancelPo} disabled={busy}
-            className="ml-auto px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm">발주 취소</button>
+            className={btnCls('danger', 'md', 'ml-auto')}>발주 취소</button>
         )}
       </div>
 
@@ -264,7 +265,7 @@ export default function PoSendPage() {
           <a href={`/api/orders-portal/purchase-orders/${po.id}?excel=1`}
             className="px-4 py-2 bg-blue-700 text-white rounded-lg text-sm font-semibold">발주서 엑셀 다운로드</a>
           <button onClick={() => setShowPreview(v => !v)}
-            className="px-3.5 py-2 border border-slate-400 rounded-lg text-sm text-slate-700">
+            className={btnCls('secondary', 'md')}>
             {showPreview ? '미리보기 접기' : '화면 미리보기'}
           </button>
           <span className="text-xs text-slate-500">
@@ -333,10 +334,10 @@ export default function PoSendPage() {
                 </span>
                 <span className="ml-auto flex gap-1.5">
                   <a href={`/api/orders-portal/purchase-orders/${po.id}/attachments?download=${a.id}`}
-                    className="px-2.5 py-1 border border-slate-400 rounded text-xs text-slate-700">다운로드</a>
+                    className={btnCls('secondary', 'sm')}>다운로드</a>
                   {active && (
                     <button onClick={() => removeAttachment(a)} disabled={busy}
-                      className="px-2.5 py-1 border border-red-200 rounded text-xs text-red-600">제거</button>
+                      className={btnCls('danger', 'sm')}>제거</button>
                   )}
                 </span>
               </div>
@@ -377,7 +378,7 @@ export default function PoSendPage() {
             <div className="flex items-center gap-1.5">
               <select value={presetId ?? ''} disabled={!active}
                 onChange={e => { const p = presets.find(x => x.id === e.target.value); if (p) applyPreset(p) }}
-                className="flex-1 border border-slate-400 rounded-lg px-2 py-1.5 text-sm bg-white disabled:opacity-60">
+                className={fieldBox({ noWidth: true, extra: 'flex-1' })}>
                 {!presets.length && <option value="">프리셋 없음</option>}
                 {presets.map(p => (
                   <option key={p.id} value={p.id}>{p.name}{p.is_default ? ' (기본)' : ''}</option>
@@ -386,10 +387,10 @@ export default function PoSendPage() {
               {active && (
                 <button onClick={() => setEditing({ id: null, name: '', subject, body: mailBody })}
                   title="현재 제목·본문을 새 프리셋으로 저장"
-                  className="px-2.5 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700 whitespace-nowrap">프리셋 저장</button>
+                  className={btnCls('secondary', 'sm', 'whitespace-nowrap')}>프리셋 저장</button>
               )}
               <button onClick={() => setManaging(true)}
-                className="px-2.5 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-800 whitespace-nowrap">프리셋 관리</button>
+                className={btnCls('secondary', 'sm', 'whitespace-nowrap')}>프리셋 관리</button>
             </div>
           </div>
         </div>
@@ -402,7 +403,7 @@ export default function PoSendPage() {
           <label className="block text-xs text-slate-600 mb-0.5">본문</label>
           <textarea value={mailBody} rows={7} disabled={!active}
             onChange={e => { setMailBody(e.target.value); setMailTouched(true) }}
-            className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm resize-y disabled:opacity-60" />
+            className={fieldBox({ area: true })} />
         </div>
         <div className="mt-2 text-xs text-slate-500">
           치환 변수 {VARS.map(v => (
@@ -422,7 +423,7 @@ export default function PoSendPage() {
               {busy ? '처리 중...' : po.sent_at && po.send_method === 'email' ? '메일 재발송' : '메일 발송'}
             </button>
             <button onClick={manualSent} disabled={busy}
-              className="px-3.5 py-2 border border-slate-400 rounded-lg text-sm text-slate-700">수동 발송 기록</button>
+              className={btnCls('secondary', 'md')}>수동 발송 기록</button>
             <span className="text-xs text-slate-500">발송하면 실제 발송된 제목·본문·첨부 파일명이 이력으로 남습니다</span>
           </div>
         )}
@@ -466,16 +467,16 @@ export default function PoSendPage() {
                   {p.is_default
                     ? badge('bg-blue-100 text-blue-700', '기본')
                     : <button onClick={() => presetAct('set_default', p)} disabled={busy}
-                        className="px-2 py-0.5 border border-slate-400 rounded text-xs text-slate-600">기본 지정</button>}
+                        className={btnCls('secondary', 'sm')}>기본 지정</button>}
                   <span className="text-xs text-slate-500 truncate max-w-[16rem]" title={p.subject}>{p.subject}</span>
                   <span className="ml-auto flex gap-1.5 items-center">
                     {p.editor_name && <span className="text-xs text-slate-400">{p.editor_name} · {p.updated_at.slice(5, 10)}</span>}
                     <button onClick={() => setEditing({ id: p.id, name: p.name, subject: p.subject, body: p.body })}
-                      className="px-2 py-0.5 border border-slate-400 rounded text-xs text-slate-700">수정</button>
+                      className={btnCls('secondary', 'sm')}>수정</button>
                     <button onClick={() => setEditing({ id: null, name: `${p.name} (복제)`, subject: p.subject, body: p.body })}
-                      className="px-2 py-0.5 border border-slate-400 rounded text-xs text-slate-700">복제</button>
+                      className={btnCls('secondary', 'sm')}>복제</button>
                     <button onClick={() => presetAct('delete', p)} disabled={busy}
-                      className="px-2 py-0.5 border border-red-200 rounded text-xs text-red-600">삭제</button>
+                      className={btnCls('danger', 'sm')}>삭제</button>
                   </span>
                 </div>
               ))}
@@ -483,7 +484,7 @@ export default function PoSendPage() {
             </div>
             {!editing && (
               <button onClick={() => setEditing({ id: null, name: '', subject: '', body: '' })}
-                className="mt-3 px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-xs">+ 새 프리셋</button>
+                className={btnCls('primary', 'sm', 'mt-3')}>+ 새 프리셋</button>
             )}
             {editing && (
               <div className="mt-3 border-t border-slate-300 pt-3 space-y-2.5">
@@ -502,16 +503,16 @@ export default function PoSendPage() {
                   <label className="block text-xs text-slate-600 mb-0.5">본문</label>
                   <textarea value={editing.body} rows={6}
                     onChange={e => setEditing(v => v ? { ...v, body: e.target.value } : v)}
-                    className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm resize-y" />
+                    className={fieldBox({ area: true })} />
                 </div>
                 <div className="text-xs text-slate-500">
                   치환 변수 사용 가능: {VARS.join(' ')}
                 </div>
                 <div className="flex gap-2">
                   <button onClick={savePreset} disabled={busy}
-                    className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-xs disabled:opacity-50">저장</button>
+                    className={btnCls('primary', 'sm')}>저장</button>
                   <button onClick={() => setEditing(null)}
-                    className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700">취소</button>
+                    className={btnCls('secondary', 'sm')}>취소</button>
                 </div>
               </div>
             )}

@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
+import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
 interface Row {
   id: string; group_name: string; branch_name: string; display_name: string
   sido: string | null; sigungu: string | null; address: string | null; phone: string | null
@@ -110,10 +111,10 @@ export default function BankBranchesPage() {
 
           <div className="flex gap-1.5 flex-wrap mt-3">
             <button onClick={() => { setGroup(''); setSido(''); setSigungu('') }}
-              className={`px-2.5 py-1 rounded-full text-xs border ${!group ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-800 border-slate-400'}`}>전체 은행</button>
+              className={chipCls(!group)}>전체 은행</button>
             {(b?.banks ?? []).map(x => (
               <button key={x.group_name} onClick={() => { setGroup(x.group_name); setSido(''); setSigungu('') }}
-                className={`px-2.5 py-1 rounded-full text-xs border ${group === x.group_name ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-800 border-slate-400'}`}>
+                className={chipCls(group === x.group_name)}>
                 {x.group_name} <span className="opacity-70 tabular-nums">{n(status === 'unlinked' ? x.unlinked : x.total)}</span>
               </button>
             ))}
@@ -121,16 +122,16 @@ export default function BankBranchesPage() {
 
           {status !== 'missing' && (
             <div className="flex gap-2 flex-wrap items-center mt-3">
-              <select value={sido} onChange={e => { setSido(e.target.value); setSigungu('') }} className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm bg-white">
+              <select value={sido} onChange={e => { setSido(e.target.value); setSigungu('') }} className={fieldBox({ noWidth: true })}>
                 <option value="">시도: 전체</option>
                 {(b?.sidos ?? []).map(s => <option key={s} value={s}>{s}</option>)}
               </select>
-              <select value={sigungu} onChange={e => setSigungu(e.target.value)} disabled={!sido} className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm bg-white disabled:bg-slate-50">
+              <select value={sigungu} onChange={e => setSigungu(e.target.value)} disabled={!sido} className={fieldBox({ noWidth: true })}>
                 <option value="">시군구: 전체</option>
                 {(b?.sigungus ?? []).map(s => <option key={s} value={s}>{s}</option>)}
               </select>
               <input value={q} onChange={e => setQ(e.target.value)} placeholder="점포명 · 주소 · 전화 검색"
-                className="flex-1 min-w-[14rem] border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+                className={fieldBox({ noWidth: true, extra: 'flex-1 min-w-[14rem]' })} />
               <span className="text-xs text-slate-600">{loading ? '불러오는 중…' : `${n(b?.row_total ?? 0)}곳`}</span>
             </div>
           )}
@@ -186,7 +187,7 @@ export default function BankBranchesPage() {
                       <td className="py-1.5 px-3 text-right whitespace-nowrap">
                         {!r.vendor_id && canEdit && (
                           <button disabled={!!busy} onClick={() => register(r)}
-                            className="px-2 py-0.5 border border-slate-400 rounded text-xs text-slate-800 hover:bg-slate-50 disabled:opacity-50">
+                            className={btnCls('secondary', 'sm')}>
                             {busy === r.id ? '등록 중…' : '매출처로 등록'}
                           </button>
                         )}
@@ -198,7 +199,7 @@ export default function BankBranchesPage() {
               </table>
               {(b?.row_total ?? 0) > (b?.rows.length ?? 0) && (
                 <div className="p-3 text-center">
-                  <button onClick={() => setLimit(l => l + PAGE)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">
+                  <button onClick={() => setLimit(l => l + PAGE)} className={btnCls('secondary', 'md')}>
                     더 보기 ({n((b?.row_total ?? 0) - (b?.rows.length ?? 0))}곳 남음)
                   </button>
                 </div>

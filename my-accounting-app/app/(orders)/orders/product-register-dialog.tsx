@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { NumInput, toInt, type ItemDraft, type Product } from './form-shared'
 import { fmtPurchasePrice, toPurchasePrice } from '@/lib/purchase-price'
 
+import { btnCls } from '@/components/ui/kit'
 // 미등록 상품 → 품목 관리 등록 (2026-11-19 사용자 승인 "제안대로", 시안 docs/mockups/미등록품목_등록_시안.html)
 // 품목관리 트랙(docs/product-master-track.md) 소유 부품 — 상담일지 · 주문서 품목 행과 품목 관리 '미등록 품목' 목록이 같이 쓴다.
 //  - 품번 검색에서 고르지 않고 품명을 직접 쓴 행에 '미등록 품목' 표시 + (품목 등록 권한자만) '품목 등록' 버튼
@@ -166,9 +167,9 @@ export default function ProductRegisterDialog({ seed, products, onClose, onDone 
         )}
         {error && <div className="mt-3 px-3 py-2 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
         <div className="flex justify-end gap-2 mt-4">
-          <button type="button" onClick={onClose} className="px-3.5 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">취소</button>
+          <button type="button" onClick={onClose} className={btnCls('secondary', 'md')}>취소</button>
           <button type="button" onClick={save} disabled={saving}
-            className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">
+            className={btnCls('primary', 'md')}>
             {saving ? '등록 중...' : '등록하고 연결'}
           </button>
         </div>

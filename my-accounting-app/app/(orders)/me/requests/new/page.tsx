@@ -17,6 +17,7 @@ import { GROUP_LABELS, type GroupKey } from '@/lib/permissions'
 import { deviceLabelFrom } from '@/lib/push'
 import AttachmentBox from '@/components/attachments/AttachmentBox'
 
+import { btnCls } from '@/components/ui/kit'
 // 질문 · 권한 요청의 기본 마감: 익일 18:00 (KST) — 2026-11-03 결정 ⑤
 function questionDueLocal(now = new Date()): string {
   const k = kstParts(new Date(now.getTime() + 86400_000))
@@ -262,8 +263,8 @@ function NewRequestForm() {
           </label>
           <AttachmentBox ownerType="work_request" draftKey={draftKey} pasteAnywhere />
           <div className="flex gap-2 pt-1">
-            <button type="submit" disabled={busy} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">{busy ? '보내는 중...' : assignees.length > 1 ? `요청 보내기 (${assignees.length}명 · ${mode === 'first' ? '선착' : '공동'})` : '요청 보내기'}</button>
-            <Link href="/me/requests" className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">취소</Link>
+            <button type="submit" disabled={busy} className={btnCls('primary', 'md')}>{busy ? '보내는 중...' : assignees.length > 1 ? `요청 보내기 (${assignees.length}명 · ${mode === 'first' ? '선착' : '공동'})` : '요청 보내기'}</button>
+            <Link href="/me/requests" className={btnCls('secondary', 'md')}>취소</Link>
           </div>
         </form>
 

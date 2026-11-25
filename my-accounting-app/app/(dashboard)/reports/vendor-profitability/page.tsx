@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { VendorAnalysisRow } from '@/types/erp'
 import { getPeriodRange } from '@/lib/period-presets'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 const pct = (n: number | null | undefined) => `${(n ?? 0).toFixed(1)}%`
 
@@ -50,7 +51,7 @@ export default function VendorProfitabilityPage() {
         <h1 className="text-2xl font-bold text-slate-900">거래처별 수익성 분석</h1>
         <p className="text-sm mt-1 text-slate-600">매출처(은행·지점)별 기간 내 매출·매입원가 대비 매출이익/이익률을 확인합니다. (취소/VIP/선결제 제외)</p>
         <button onClick={() => { const a = document.createElement('a'); a.href = `/api/reports/vendor-profitability/export?from=${dateFrom}&to=${dateTo}`; a.click() }}
-          className="mt-2 px-3 py-1.5 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap inline-block">↓ 엑셀</button>
+          className={btnCls('secondary', 'md', 'mt-2 whitespace-nowrap')}>↓ 엑셀</button>
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
@@ -61,15 +62,15 @@ export default function VendorProfitabilityPage() {
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox({ noWidth: true })} />
         <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox({ noWidth: true })} />
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="매출처명 검색"
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className={fieldBox({ noWidth: true, extra: 'w-52' })}
         />
       </div>
 

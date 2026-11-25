@@ -4,6 +4,7 @@
 // 누르는 즉시 이 화면에 적용되고 계정에 저장된다(다른 PC에서도 같게). 표시만 바뀌고 계산 · 권한 · 기간 기본값과는 무관.
 
 import { useEffect, useState } from 'react'
+import { btnCls } from '@/components/ui/kit'
 import {
   DEFAULT_UI_PREFS, FONT_SCALES, FONT_SCALE_LABEL, FONT_SCALE_PERCENT, UI_THEMES, UI_THEME_LABEL, UI_THEME_SWATCH, UI_PREFS_EVENT,
   applyUiPrefs, type UiPrefs,
@@ -78,7 +79,7 @@ export default function DisplayTab() {
       </div>
 
       <div className="flex items-center gap-3">
-        <button disabled={busy || isDefault} onClick={() => save(DEFAULT_UI_PREFS)} className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-40">기본값으로 되돌리기</button>
+        <button disabled={busy || isDefault} onClick={() => save(DEFAULT_UI_PREFS)} className={btnCls('secondary', 'md')}>기본값으로 되돌리기</button>
         <span className="text-xs text-slate-500">브라우저 확대(Ctrl + / Ctrl −)와 함께 써도 됩니다. 확대는 PC마다, 이 설정은 계정마다 저장됩니다.</span>
       </div>
     </div>

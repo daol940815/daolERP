@@ -4,6 +4,7 @@ import PeriodPresets from '@/components/ui/PeriodPresets'
 import { useCallback, useEffect, useState } from 'react'
 import { getPeriodRange } from '@/lib/period-presets'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
 interface CashPositionRow {
@@ -69,7 +70,7 @@ export default function PositionTab() {
       <div className="mb-1">
         <p className="text-sm text-slate-600">법인계좌별 최신 잔액과 기간 내 입출금 합계를 한눈에 확인합니다.</p>
         <button onClick={() => { const a = document.createElement('a'); a.href = `/api/reports/cash-position/export?from=${dateFrom}&to=${dateTo}`; a.click() }}
-          className="mt-2 px-3 py-1.5 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap inline-block">↓ 엑셀</button>
+          className={btnCls('secondary', 'md', 'mt-2 whitespace-nowrap')}>↓ 엑셀</button>
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
@@ -80,10 +81,10 @@ export default function PositionTab() {
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox({ noWidth: true })} />
         <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox({ noWidth: true })} />
       </div>
 
       {/* 전체 자금 요약 */}

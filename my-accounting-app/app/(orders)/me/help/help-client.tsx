@@ -9,6 +9,7 @@ import { HELP, HELP_PENDING, HELP_QUESTION_RECIPIENT_NAME, type HelpEntry } from
 import { MENU } from '@/lib/menu-registry'
 import { questionHref } from '@/components/help/HelpLauncher'
 
+import { btnCls } from '@/components/ui/kit'
 const GROUP_LABEL: Record<string, string> = Object.fromEntries(MENU.map(g => [g.key, g.label]))
 const menuLabel = (href: string) => { for (const g of MENU) for (const it of g.items) if (it.href === href) return it.label; return href }
 
@@ -63,8 +64,8 @@ function ListTab({ initialQuery }: { initialQuery: string }) {
                         <div><b className="text-slate-600 text-xs uppercase">순서</b><ol className="list-decimal ml-5 mt-1 space-y-0.5">{h.steps.map((s, i) => <li key={i}>{s}</li>)}</ol></div>
                         <div><b className="text-slate-600 text-xs uppercase">자주 막히는 것</b><div className="mt-1 divide-y divide-dashed divide-slate-300">{h.faq.map((f, i) => <div key={i} className="py-1.5"><p className="font-semibold text-slate-900">{f.q}</p><p className="text-slate-700">{f.a}</p></div>)}</div></div>
                         <div className="flex items-center gap-2 pt-1">
-                          <Link href={h.href} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-700">화면 열기</Link>
-                          <Link href={questionHref(h, h.href)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-800 hover:bg-slate-50">이 화면에 대해 질문하기</Link>
+                          <Link href={h.href} className={btnCls('primary', 'sm')}>화면 열기</Link>
+                          <Link href={questionHref(h, h.href)} className={btnCls('secondary', 'sm')}>이 화면에 대해 질문하기</Link>
                           <span className="ml-auto text-xs text-slate-500">최근 확인 {h.updated}</span>
                         </div>
                       </div>

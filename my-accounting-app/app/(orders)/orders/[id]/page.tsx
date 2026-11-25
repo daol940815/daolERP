@@ -17,6 +17,7 @@ import { ORDERS_LIST_URL_KEY } from '@/lib/order-search-fields'
 import { useReasonDialog } from '@/components/payments/ReasonDialog'
 import { STOCK_ROLE_LABEL, marginCostOf, stockCostPending } from '@/lib/stock-cost'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 주문 상세 (2단계) — 업로드·직접입력 공통 조회.
 // direct 주문 (2026-08-25 취소·재등록 확정): 당일(본인)·관리자는 직접 수정(변경 로그),
 // 익일 이후는 취소·재등록. 삭제는 취소 처리로 통일 — 승인 절차 없음, 이력 보존.
@@ -232,16 +233,16 @@ export default function OrderDetailPage() {
           </a>
           {isDirect && canEdit && (
             <Link href={`/orders/${id}/edit`}
-              className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">수정</Link>
+              className={btnCls('primary', 'md')}>수정</Link>
           )}
           {isDirect && !canEdit && canReissue && (
             <Link href={`/orders/new?reissue=${id}`}
-              className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm"
+              className={btnCls('primary', 'md')}
               title="원본을 취소 처리하고 내용을 프리필해 새 주문으로 등록합니다">취소·재등록</Link>
           )}
           {isDirect && canReissue && (
             <button onClick={() => setAskingCancel(v => !v)}
-              className="px-3.5 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm">주문 취소</button>
+              className={btnCls('danger', 'md')}>주문 취소</button>
           )}
         </span>
       </div>
@@ -277,7 +278,7 @@ export default function OrderDetailPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={cancelOrder} disabled={!cancelText}
               className="px-3.5 py-1.5 bg-red-600 text-white rounded-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed">주문 취소 확정</button>
-            <button onClick={() => setAskingCancel(false)} className="px-3.5 py-1.5 border border-slate-400 text-slate-700 rounded-lg text-sm bg-white">닫기</button>
+            <button onClick={() => setAskingCancel(false)} className={btnCls('secondary', 'md')}>닫기</button>
             <span className="text-xs text-slate-600">
               사유를 고르거나 적어야 취소됩니다. 삭제 대신 취소로 처리되어 원본은 보존되고 집계에서만 빠집니다 (되돌리려면 재등록)
             </span>
@@ -504,17 +505,17 @@ export default function OrderDetailPage() {
                   <input value={prepayAmt} onChange={e => setPrepayAmt(e.target.value.replace(/[^\d,]/g, ''))}
                     className="w-36 border border-amber-300 bg-amber-50 rounded-lg px-2.5 py-1.5 text-sm text-right font-semibold tabular-nums" />
                   <button type="button" onClick={() => setPrepayAmt(String(Math.min(prepay.balance, outstanding)))}
-                    className="px-2 py-1 text-xs border border-slate-400 rounded-lg text-slate-700 bg-white">전액</button>
+                    className={btnCls('secondary', 'sm')}>전액</button>
                 </div>
               </div>
               <div className="flex-1 min-w-[12rem]">
                 <label className="block text-xs text-slate-600 mb-0.5">메모 (선택)</label>
                 <input value={prepayMemo} onChange={e => setPrepayMemo(e.target.value)} placeholder="예: 11/1 선결제분에서 차감"
-                  className="w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm bg-white" />
+                  className={fieldBox()} />
               </div>
               <button onClick={() => setPrepayOpen(false)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm bg-white">취소</button>
               <button onClick={submitPrepay} disabled={prepayBusy}
-                className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">
+                className={btnCls('primary', 'md')}>
                 {prepayBusy ? '처리 중...' : `사용 (${won(Number(prepayAmt.replace(/,/g, '')) || 0)}원)`}
               </button>
             </div>
@@ -575,7 +576,7 @@ export default function OrderDetailPage() {
                 {m.memo && <span className="text-xs text-slate-500">{m.memo}</span>}
                 {m.source_type === 'prepay' && prepay?.can_use && (
                   <button onClick={() => releasePrepay(m.id, m.amount)}
-                    className="ml-auto text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">해제</button>
+                    className={btnCls('secondary', 'sm', 'ml-auto')}>해제</button>
                 )}
               </div>
             ))}
@@ -598,7 +599,7 @@ export default function OrderDetailPage() {
                 {invoiceLink?.can_link && (
                   <button onClick={() => unlinkInvoice(v.id, v.amount)}
                     title="이 주문과 계산서의 연결을 풉니다. 이 연결로 계산서 입금에서 넘어온 수금도 함께 풀리고, 직접 붙인 수금은 그대로 남습니다."
-                    className="ml-auto text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">연결 해제</button>
+                    className={btnCls('secondary', 'sm', 'ml-auto')}>연결 해제</button>
                 )}
               </div>
             ))}

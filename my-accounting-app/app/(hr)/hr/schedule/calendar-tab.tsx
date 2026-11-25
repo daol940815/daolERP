@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { chipCls } from '@/components/ui/kit'
 import {
   DOW_LABEL, addDays, dayOfWeek, kstMonthNow, monthDates, monthRange,
   type HolidayMap,
@@ -144,8 +145,7 @@ export default function CalendarTab() {
           if (n === 0 && !['leave', 'meeting'].includes(k)) return null   // 없는 종류는 칩을 숨겨 줄을 짧게
           return (
             <button key={k} onClick={() => toggle(k)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                on ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-400 text-slate-600 hover:bg-slate-50'}`}>
+              className={chipCls(on)}>
               <span className={`w-2 h-2 rounded-sm ${DOT[k]}`} />
               {KIND_LABEL[k]} {n}
             </button>

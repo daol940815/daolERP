@@ -24,6 +24,7 @@ import SearchableCellEditor from '@/components/ui/SearchableCellEditor'
 import TxFilterBar from '@/components/transactions/TxFilterBar'
 import { STATUS_LABEL, describeFilter, highlightTerms, matchAll, parseQuery, serializeQuery, type TxFilter, type TxStatus } from '@/lib/tx-filter'
 
+import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
 ModuleRegistry.registerModules([AllCommunityModule])
 
 // 적요 셀 — 검색어와 일치한 부분을 노란 표시 (통합 검색 2026-11-10)
@@ -164,17 +165,17 @@ function NewVendorModal({ tx, vendors, onClose, onCreated }: {
         </p>
         <label className="block text-xs text-slate-600 mb-1">거래처명</label>
         <input autoFocus value={name} onChange={e => setName(e.target.value)}
-          className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox()} />
         <label className="block text-xs text-slate-600 mb-1 mt-3">유형</label>
         <select value={type} onChange={e => setType(e.target.value)}
-          className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+          className={fieldBox()}>
           <option value="vendor">매입처{(tx.amount_out ?? 0) > 0 ? ' (출금 거래라 기본값)' : ''}</option>
           <option value="customer">매출처{(tx.amount_in ?? 0) > 0 ? ' (입금 거래라 기본값)' : ''}</option>
           <option value="both">매입·매출 겸용</option>
         </select>
         <label className="block text-xs text-slate-600 mb-1 mt-3">사업자번호 (선택)</label>
         <input value={bizNumber} onChange={e => setBizNumber(e.target.value)} placeholder="000-00-00000"
-          className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox()} />
         {similar.length > 0 && (
           <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
             유사한 기존 거래처가 있습니다: {similar.map(v => v.name).join(', ')} — 같은 곳이면 등록 대신 셀에서 그 거래처를 선택하세요.
@@ -182,9 +183,9 @@ function NewVendorModal({ tx, vendors, onClose, onCreated }: {
         )}
         {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
         <div className="flex gap-2 mt-5">
-          <button onClick={onClose} className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">취소</button>
+          <button onClick={onClose} className={btnCls('secondary', 'md', 'flex-1')}>취소</button>
           <button onClick={submit} disabled={saving}
-            className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+            className={btnCls('primary', 'md', 'flex-1')}>
             {saving ? '등록 중...' : '등록하고 이 거래에 연결'}
           </button>
         </div>
@@ -1237,7 +1238,7 @@ function TransactionsContent() {
           {([['all', '전체'], ['pending', '미검토'], ['reviewed', '검토완료'], ['confirmed', '확정']] as const).map(([k, label]) => (
             <button key={k} onClick={() => pickStatus(k)}
               title={k === 'all' ? '상태 조건 해제' : `${label}만 보기 (다시 누르면 해제)`}
-              className={`px-2.5 py-1 rounded-full text-xs border ${activeStatus === k ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50'}`}>
+              className={chipCls(activeStatus === k)}>
               {label} <span className="tabular-nums">{statusCounts[k].toLocaleString('ko-KR')}</span>
             </button>
           ))}
@@ -1255,23 +1256,23 @@ function TransactionsContent() {
           <input ref={uploadRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImport} />
           <button onClick={handleClassify} disabled={classifying}
             title="계정과목이 없는 거래에 추천을 붙입니다(키워드 · 카드 정산). 추천만 붙고 확정은 따로 합니다. 화면의 기간과 무관하게 전부 대상입니다."
-            className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-50">
+            className={btnCls('secondary', 'md')}>
             {classifying ? '추천 중...' : '계정과목 자동 추천'}
           </button>
           <button onClick={handleMatchVendors} disabled={matchingVendors}
             title="거래처가 없는 거래 중 적요 · 입금자명이 한 거래처에만 일치하는 것을 찾아 보여 줍니다. 목록을 확인한 뒤 저장됩니다. 화면의 기간과 무관하게 전부 대상입니다."
-            className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-50">
+            className={btnCls('secondary', 'md')}>
             {matchingVendors ? '찾는 중...' : '거래처 자동 연결'}
           </button>
           <button onClick={openTransfers} disabled={previewing}
             title="우리 계좌끼리 옮긴 돈(출금 1건 + 입금 1건)을 한 쌍으로 묶습니다. 묶을 후보를 확인해 묶거나, 이미 묶인 쌍을 해제합니다."
-            className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-50">
+            className={btnCls('secondary', 'md')}>
             {previewing ? '조회 중...' : '계좌 간 이체 묶기'}
             {transferCandCount ? <span className="ml-1 text-xs text-slate-500 tabular-nums">{transferCandCount}</span> : null}
           </button>
           <div className="relative">
             <button onClick={() => setExcelOpen(v => !v)}
-              className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">
+              className={btnCls('primary', 'md')}>
               {importing ? '올리는 중...' : '엑셀 ▾'}
             </button>
             {excelOpen && (
@@ -1335,7 +1336,7 @@ function TransactionsContent() {
             확정 해제{selInfo.confirmed ? ` ${selInfo.confirmed}건` : ''}
           </button>
           <div className="relative">
-            <button onClick={() => setMoreOpen(v => !v)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 bg-white hover:bg-slate-50">더보기 ▾</button>
+            <button onClick={() => setMoreOpen(v => !v)} className={btnCls('secondary', 'md')}>더보기 ▾</button>
             {moreOpen && (
               <>
                 <div className="fixed inset-0 z-20" onClick={() => setMoreOpen(false)} />
@@ -1445,7 +1446,7 @@ function TransactionsContent() {
                   차변 {(journalPreview.data.debit ?? 0).toLocaleString()} / 대변 {(journalPreview.data.credit ?? 0).toLocaleString()} {journalPreview.data.balanced ? '✓ 균형' : '불균형'}
                 </p>
                 <div className="flex gap-2 mt-4">
-                  <button onClick={() => setJournalPreview(null)} className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
+                  <button onClick={() => setJournalPreview(null)} className={btnCls('secondary', 'md', 'flex-1')}>닫기</button>
                   <button
                     onClick={async () => {
                       const id = journalPreview.tx.id
@@ -1465,7 +1466,7 @@ function TransactionsContent() {
             ) : (
               <>
                 <p className="text-sm text-amber-600 py-2">{journalPreview.data.reason ?? '분개를 만들 수 없습니다.'}</p>
-                <button onClick={() => setJournalPreview(null)} className="w-full mt-2 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
+                <button onClick={() => setJournalPreview(null)} className={btnCls('secondary', 'md', 'w-full mt-2')}>닫기</button>
               </>
             )}
           </div>
@@ -1554,7 +1555,7 @@ function TransactionsContent() {
             <div className="px-6 py-4 border-t flex items-center justify-end">
               <button
                 onClick={() => { closeTransfers(); fetchTransactions() }}
-                className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-700 hover:bg-slate-50"
+                className={btnCls('secondary', 'md')}
               >
                 닫기
               </button>
@@ -1643,7 +1644,7 @@ function TransactionsContent() {
               </p>
               <div className="flex gap-2">
                 <button onClick={closeTransfers}
-                  className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-700 hover:bg-slate-50">닫기</button>
+                  className={btnCls('secondary', 'md')}>닫기</button>
                 {previewPairs.length > 0 && (
                   <button
                     onClick={() => {
@@ -1652,7 +1653,7 @@ function TransactionsContent() {
                       handleMatchTransfers(pairs)
                     }}
                     disabled={matching || pairSel.size === 0}
-                    className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+                    className={btnCls('primary', 'md')}>
                     {matching ? '묶는 중...' : `체크한 ${pairSel.size}쌍 묶기`}
                   </button>
                 )}
@@ -1714,9 +1715,9 @@ function TransactionsContent() {
             <div className="px-6 py-4 border-t flex items-center justify-between gap-3">
               <p className="text-xs text-slate-500">화면의 기간 · 계좌와 무관하게 전체 거래가 대상입니다. 잘못된 것은 체크를 풀고 연결하세요.</p>
               <div className="flex gap-2">
-                <button onClick={() => setVendorPreview(null)} className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-700 hover:bg-slate-50">닫기</button>
+                <button onClick={() => setVendorPreview(null)} className={btnCls('secondary', 'md')}>닫기</button>
                 <button onClick={applyVendorMatches} disabled={matchingVendors || vendorSel.size === 0}
-                  className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+                  className={btnCls('primary', 'md')}>
                   {matchingVendors ? '연결 중...' : `체크한 ${vendorSel.size}건 연결`}
                 </button>
               </div>

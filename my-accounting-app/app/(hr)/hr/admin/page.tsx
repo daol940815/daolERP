@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { btnCls, fieldBox } from '@/components/ui/kit'
 import {
   DAY_STATUS_LABEL, DOW_LABEL, LEAVE_TYPE_LABEL,
   dayOfWeek, isOffKind, judgeDay, kstMonthNow, kstTime, monthDates, summarizeMonth,
@@ -206,7 +207,7 @@ export default function AttendanceAdminPage() {
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-2xl font-bold text-slate-900">근태 현황</h1>
         <input type="month" value={month} onChange={e => setMonth(e.target.value)}
-          className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm" />
+          className={fieldBox({ noWidth: true })} />
         <div className="ml-auto flex items-center gap-2 text-xs text-slate-600">
           {data && !policyEdit && (
             <span>근무 {data.policy.work_start.slice(0, 5)}~{data.policy.work_end.slice(0, 5)}
@@ -222,7 +223,7 @@ export default function AttendanceAdminPage() {
               유예
               <input value={policyEdit.grace} onChange={e => setPolicyEdit(p => p && { ...p, grace: e.target.value })}
                 className="border border-slate-400 rounded px-1.5 py-1 w-12 text-xs" />분
-              <button onClick={savePolicy} disabled={busy} className="px-2 py-1 bg-slate-900 text-white rounded text-xs ml-1">저장</button>
+              <button onClick={savePolicy} disabled={busy} className={btnCls('primary', 'sm', 'ml-1')}>저장</button>
               <button onClick={() => setPolicyEdit(null)} className="px-2 py-1 border border-slate-400 rounded text-xs">취소</button>
             </span>
           ) : (
@@ -293,12 +294,12 @@ export default function AttendanceAdminPage() {
           <div className="flex flex-wrap items-end gap-2 mb-3">
             <input type="date" value={holidayForm.date}
               onChange={e => setHolidayForm(f => ({ ...f, date: e.target.value }))}
-              className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm" />
+              className={fieldBox({ noWidth: true })} />
             <input value={holidayForm.name} placeholder="휴일명 (예: 창립기념일)"
               onChange={e => setHolidayForm(f => ({ ...f, name: e.target.value }))}
-              className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-52" />
+              className={fieldBox({ noWidth: true, extra: 'w-52' })} />
             <button onClick={addHoliday} disabled={busy}
-              className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+              className={btnCls('primary', 'md')}>
               추가
             </button>
           </div>
@@ -365,7 +366,7 @@ export default function AttendanceAdminPage() {
           <span className="text-slate-600">진행 중 {pending.length}건
             {myTurn[0] && ` · ${myTurn[0].employee?.name ?? ''} ${LEAVE_TYPE_LABEL[myTurn[0].leave_type]} ${leavePeriodText(myTurn[0], myTurn[0].days)}${myTurn.length > 1 ? ` 외 ${myTurn.length - 1}` : ''}`}
           </span>
-          <Link href="/hr/leaves" className="ml-auto text-xs px-3 py-1.5 bg-slate-900 text-white rounded-lg hover:bg-slate-700">휴가 목록에서 처리</Link>
+          <Link href="/hr/leaves" className={btnCls('primary', 'sm', 'ml-auto')}>휴가 목록에서 처리</Link>
         </div>
       )}
 
@@ -473,7 +474,7 @@ function FragmentRow({ emp, sum, records, leaves, data, open, onToggle, adjust, 
                       <input value={adjust.note} placeholder="사유 (필수)" className={`${inp} flex-1 min-w-[90px]`}
                         onChange={e => setAdjust({ ...adjust, note: e.target.value })} />
                       <button onClick={saveAdjust} disabled={busy}
-                        className="px-2 py-1 bg-slate-900 text-white rounded text-xs">저장</button>
+                        className={btnCls('primary', 'sm')}>저장</button>
                     </div>
                   ) : (
                     <p className="mt-1 tabular-nums text-slate-800">

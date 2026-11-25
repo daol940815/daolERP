@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { LEAVE_TYPE_LABEL, REQUEST_LEAVE_TYPES, type LeaveType } from '@/lib/attendance'
 
+import { btnCls } from '@/components/ui/kit'
 // 휴가 대리 등록 (207, 2026-11-18 결정 A) — 인사 · 총무 수정 권한자가 로그인 계정 없는 직원(다른 법인 등)의 휴가를 넣는다.
 // 3단계 결재를 건너뛰고 바로 승인되며, 결재 칸에 "대리 등록 · 등록자"가 남는다. 휴가 목록 · 연차 관리에서 같이 쓴다.
 
@@ -68,7 +69,7 @@ export default function ProxyLeaveDialog({ employees, onClose, onDone }: {
         </div>
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={onClose} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm">닫기</button>
-          <button onClick={submit} disabled={busy} className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+          <button onClick={submit} disabled={busy} className={btnCls('primary', 'md')}>
             {busy ? '등록 중…' : '대리 등록'}
           </button>
         </div>

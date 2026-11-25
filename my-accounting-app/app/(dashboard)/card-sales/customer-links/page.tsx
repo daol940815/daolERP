@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 카드번호 → 매출처 연결 (매출 사이클 ③)
 // 카드로 결제한 매출처를 확인하기 위해, 매출처 미연결 카드매출을 카드번호 단위로 묶고
 // ERP 주문과의 금액·일자 대응을 추천으로 보여준다. 확정은 사용자.
@@ -128,7 +129,7 @@ export default function CardCustomerLinksPage() {
             value={q}
             onChange={e => setQ(e.target.value)}
             placeholder="검색: 카드번호 · 추천 매출처 · 매입사 · 금액"
-            className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm bg-white"
+            className={fieldBox()}
           />
         </div>
         <label className="flex items-center gap-2 text-sm text-slate-700">
@@ -201,7 +202,7 @@ export default function CardCustomerLinksPage() {
                       <button
                         onClick={() => picked && assign(g, picked, pickedName)}
                         disabled={!picked || busy === g.card_number}
-                        className="px-2.5 py-1.5 bg-slate-900 text-white rounded text-xs font-medium hover:bg-slate-700 disabled:opacity-40 whitespace-nowrap">
+                        className={btnCls('primary', 'sm', 'whitespace-nowrap')}>
                         {busy === g.card_number ? '연결 중...' : '연결'}
                       </button>
                     </td>}

@@ -11,6 +11,7 @@ import SearchableSelect from '@/components/ui/SearchableSelect'
 import CardOrderMatchModal from '@/components/cards/CardOrderMatchModal'
 import { isCardSaleVoided } from '@/lib/card-sale-status'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 주문 매칭 상태 (승인 행, 순액 기준) — 2026-11-13 승인 시안
 const orderMatchState = (r: CardSale): 'none' | 'partial' | 'done' | 'over' => {
   const net = Math.max(0, (r.amount || 0) - (r.cancel_amount ?? 0))
@@ -296,7 +297,7 @@ export default function SalesTab() {
             ↓ {exporting ? '다운로드 중...' : '엑셀 다운로드'}
           </button>
           {/* 원본 업로드는 파일 업로드 단일 창구에서 (2026-10-12) */}
-          <Link href="/upload?source=card_sales" className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 flex items-center gap-1.5">
+          <Link href="/upload?source=card_sales" className={btnCls('secondary', 'md')}>
             ↑ 파일 업로드 →
           </Link>
         </div>
@@ -355,14 +356,14 @@ export default function SalesTab() {
           type="date"
           value={dateFrom}
           onChange={e => setDateFrom(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className={fieldBox({ noWidth: true })}
         />
         <span className="text-slate-500 text-sm">~</span>
         <input
           type="date"
           value={dateTo}
           onChange={e => setDateTo(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className={fieldBox({ noWidth: true })}
         />
         <SearchableSelect
           value={vendorFilter}
@@ -421,7 +422,7 @@ export default function SalesTab() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="검색: 카드번호·승인번호·매입사·거래처·금액"
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className={fieldBox({ noWidth: true, extra: 'w-72' })}
         />
 
         {selected.size > 0 && (

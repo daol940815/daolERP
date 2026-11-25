@@ -16,6 +16,7 @@ import LeaveSteps from '@/components/hr/LeaveSteps'
 import ProxyLeaveDialog, { type ProxyEmp } from '@/components/hr/ProxyLeaveDialog'
 import { requestNotifRefresh, useNotifRefresh } from '@/lib/use-notif-refresh'
 
+import { btnCls, chipCls } from '@/components/ui/kit'
 // 휴가 목록 (2026-11-04 — 승인 대기 · 처리 내역을 한 목록으로 통합, 3단계 결재 · 전결)
 // 전 직원이 본다. 처리 버튼은 서버가 행마다 내려주는 actions 대로만 보인다(실제 차단은 API).
 // 사유는 본인 · 결재 권한자 · 인사·총무 수정 권한자에게만 내려온다.
@@ -206,7 +207,7 @@ export default function LeaveListPage() {
     </button>
   )
   const Chip = ({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) => (
-    <button onClick={onClick} className={`px-2.5 py-1 rounded-full text-xs border ${on ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-400 text-slate-700 hover:bg-slate-50'}`}>{children}</button>
+    <button onClick={onClick} className={chipCls(on)}>{children}</button>
   )
 
   return (
@@ -323,18 +324,18 @@ export default function LeaveListPage() {
                       <td className="py-2 px-3 text-xs text-slate-500 tabular-nums whitespace-nowrap">{kst(r.created_at)}</td>
                       <td className="py-2 px-3 text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
                         {a.approve && <button onClick={() => approve(r)} disabled={busy}
-                          className="text-xs px-2.5 py-1 bg-slate-900 text-white rounded mr-1 hover:bg-slate-700 disabled:opacity-50">승인</button>}
+                          className={btnCls('primary', 'sm', 'mr-1')}>승인</button>}
                         {a.proxy && <button onClick={() => proxy(r)} disabled={busy}
                           className="text-xs px-2.5 py-1 border border-violet-300 bg-violet-50 text-violet-700 rounded mr-1 hover:bg-violet-100 disabled:opacity-50">3차 전결</button>}
                         {a.reject && <button onClick={() => reject(r)} disabled={busy}
-                          className="text-xs px-2.5 py-1 border border-red-200 text-red-600 rounded mr-1 hover:bg-red-50 disabled:opacity-50">반려</button>}
+                          className={btnCls('danger', 'sm', 'mr-1')}>반려</button>}
                         {mine && r.status === 'requested' && <span className="text-xs text-slate-500 mr-1.5">본인 건 결재 불가</span>}
                         {a.cancel && <button onClick={() => cancel(r)} disabled={busy}
                           className="text-xs px-2.5 py-1 border border-slate-400 rounded hover:bg-slate-50 disabled:opacity-50">신청 취소</button>}
                         {a.cancel_approved && <button onClick={() => cancelApproved(r)} disabled={busy}
                           className={`text-xs px-2.5 py-1 rounded disabled:opacity-50 ${a.cancel_request_reject ? 'bg-slate-900 text-white hover:bg-slate-700 mr-1' : 'border border-slate-400 hover:bg-slate-50'}`}>승인 취소</button>}
                         {a.cancel_request_reject && <button onClick={() => rejectCancelRequest(r)} disabled={busy}
-                          className="text-xs px-2.5 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50 disabled:opacity-50">요청 반려</button>}
+                          className={btnCls('danger', 'sm')}>요청 반려</button>}
                         {a.cancel_request && <button onClick={() => requestCancel(r)} disabled={busy}
                           className="text-xs px-2.5 py-1 border border-slate-400 rounded hover:bg-slate-50 disabled:opacity-50">취소 요청</button>}
                         {a.cancel_request_withdraw && <button onClick={() => withdrawCancelRequest(r)} disabled={busy}

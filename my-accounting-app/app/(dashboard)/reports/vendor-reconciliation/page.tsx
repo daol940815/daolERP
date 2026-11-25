@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ReconciliationRow } from '@/lib/vendor-reconciliation'
 import { getPeriodRange } from '@/lib/period-presets'
 
+import { fieldBox } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
 type Direction = 'sales' | 'purchase'
@@ -118,15 +119,15 @@ export default function VendorReconciliationPage() {
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox({ noWidth: true })} />
         <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox({ noWidth: true })} />
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder={`ERP ${isSales ? '매출처' : '매입처'}·거래처명 검색`}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className={fieldBox({ noWidth: true, extra: 'w-56' })}
         />
         <label className="flex items-center gap-1.5 text-sm text-slate-700">
           <input type="checkbox" checked={onlyDiff} onChange={e => setOnlyDiff(e.target.checked)} />

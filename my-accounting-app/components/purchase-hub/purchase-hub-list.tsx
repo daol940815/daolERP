@@ -7,6 +7,7 @@ import { getPeriodRange } from '@/lib/period-presets'
 import PeriodPresets from '@/components/ui/PeriodPresets'
 import type { PurchaseHubPerms } from '@/components/purchase-hub/perms'
 
+import { btnCls } from '@/components/ui/kit'
 // 매입처 관리 — 목록(A) 공용 컴포넌트
 // 회계·경영 모드(/purchase-hub)와 주문 관리 모드(/orders/purchase-hub) 양쪽에서 쓴다.
 //   basePath  상세 화면 링크의 기준 경로 (영역마다 다르다)
@@ -192,9 +193,9 @@ function NewVendorModal({ onClose, onCreated, showKind }: {
         )}
 
         <div className="flex gap-2 mt-5">
-          <button onClick={onClose} className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">취소</button>
+          <button onClick={onClose} className={btnCls('secondary', 'md', 'flex-1')}>취소</button>
           <button onClick={() => submit(!!dups)} disabled={saving}
-            className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+            className={btnCls('primary', 'md', 'flex-1')}>
             {saving ? '등록 중...' : dups ? '그래도 새로 등록' : '등록'}
           </button>
         </div>
@@ -320,7 +321,7 @@ export default function PurchaseHubList({ basePath, perms }: {
         </div>
         {perms.edit && (
           <button onClick={() => setShowNew(true)}
-            className="px-3 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700 shrink-0">
+            className={btnCls('primary', 'md', 'shrink-0')}>
             매입처 등록
           </button>
         )}

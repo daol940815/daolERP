@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
+import { btnCls } from '@/components/ui/kit'
 export const MEMO_KEY_HINT = 'Enter 저장 · Shift+Enter 줄바꿈'
 const MAX_HEIGHT_REM = 16
 
@@ -61,7 +62,7 @@ export function useMemoPrompt() {
         </div>
         <div className="flex items-center gap-2 mt-3">
           <span className="text-xs text-slate-500">{MEMO_KEY_HINT}</span>
-          <button onClick={() => close(null)} className="ml-auto px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">취소</button>
+          <button onClick={() => close(null)} className={btnCls('secondary', 'md', 'ml-auto')}>취소</button>
           <button onClick={ok} disabled={!!ask.required && !text.trim()}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium text-white disabled:opacity-40 ${ask.danger ? 'bg-red-600 hover:bg-red-700' : 'bg-slate-900 hover:bg-slate-700'}`}>{ask.confirmLabel ?? '확인'}</button>
         </div>

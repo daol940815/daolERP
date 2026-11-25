@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 const won = (n: number) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
 interface Detail {
@@ -142,7 +143,7 @@ export default function ContactDetailPage() {
                   <div key={k}>
                     <label className="block text-xs text-slate-500 mb-0.5">{label}</label>
                     <input value={form[k]} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))}
-                      className="w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                      className={fieldBox()} />
                   </div>
                 ))}
                 <button disabled={busy}
@@ -164,7 +165,7 @@ export default function ContactDetailPage() {
             )}
             {canEdit && <div className="flex gap-1.5 mt-3 flex-wrap">
               <button onClick={() => { setMoving(m => !m); setMoveQ(''); setMoveTitle('') }}
-                className="px-2.5 py-1 text-xs border border-slate-400 text-slate-800 rounded hover:bg-slate-50">이동 처리</button>
+                className={btnCls('secondary', 'sm')}>이동 처리</button>
               {d.same_name.length > 0 && (
                 <button disabled={busy}
                   onClick={() => {
@@ -184,11 +185,11 @@ export default function ContactDetailPage() {
               <div className="mt-3 border-t border-slate-200 pt-3 space-y-2">
                 <p className="text-xs text-slate-600">현재 배정을 모두 종료하고 새 거래처로 이동합니다. 이전 거래처는 담당 공백으로 표시됩니다.</p>
                 <input autoFocus value={moveQ} onChange={e => setMoveQ(e.target.value)} placeholder="이동할 거래처 검색"
-                  className="w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  className={fieldBox()} />
                 <input value={moveTitle} onChange={e => setMoveTitle(e.target.value)} placeholder="새 직함 (예: 지점장 — 선택)"
-                  className="w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  className={fieldBox()} />
                 <select value={moveStaff} onChange={e => setMoveStaff(e.target.value)}
-                  className="w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm bg-white">
+                  className={fieldBox()}>
                   <option value="">새 지점의 다올 담당 (매출처는 필수)</option>
                   {d.employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                 </select>
@@ -241,8 +242,8 @@ export default function ContactDetailPage() {
                         setBusy(false)
                         if (!res.ok) { showMsg(`실패: ${json.error ?? '알 수 없는 오류'}`); return }
                         showMsg('직함을 수정했습니다.'); setTitleEdit(null); load()
-                      }} className="px-2 py-1 bg-slate-900 text-white rounded text-xs disabled:opacity-50">저장</button>
-                      <button onClick={() => setTitleEdit(null)} className="px-2 py-1 border border-slate-400 rounded text-xs text-slate-700">취소</button>
+                      }} className={btnCls('primary', 'sm')}>저장</button>
+                      <button onClick={() => setTitleEdit(null)} className={btnCls('secondary', 'sm')}>취소</button>
                     </div>
                   )}
                   {!a.ended_at && canEdit && (
@@ -363,26 +364,26 @@ export default function ContactDetailPage() {
                         '영업일지를 기록했습니다.').then(okd => okd && setAct(a => ({ ...a, content: '', next_action: '' })))
                     } }}
                     placeholder="활동 내용 (예: 화곡역지점 방문, 추석 물량 협의)"
-                    className="flex-1 min-w-[220px] border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                    className={fieldBox({ noWidth: true, extra: 'flex-1 min-w-[220px]' })} />
                   <select value={act.activity_type} onChange={e => setAct(a => ({ ...a, activity_type: e.target.value }))}
-                    className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm">
+                    className={fieldBox({ noWidth: true })}>
                     {ACT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                   <input type="date" value={act.activity_date} onChange={e => setAct(a => ({ ...a, activity_date: e.target.value }))}
-                    className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm" />
+                    className={fieldBox({ noWidth: true })} />
                   <select value={act.employee_id} onChange={e => setAct(a => ({ ...a, employee_id: e.target.value }))}
-                    className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm">
+                    className={fieldBox({ noWidth: true })}>
                     <option value="">직원 선택</option>
                     {d.employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                   </select>
                   <input value={act.next_action} onChange={e => setAct(a => ({ ...a, next_action: e.target.value }))}
                     placeholder="다음 액션 (선택)"
-                    className="w-40 border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm" />
+                    className={fieldBox({ noWidth: true, extra: 'w-40' })} />
                   <button disabled={busy || !act.content.trim()}
                     onClick={() => post({ action: 'add_activity', contact_id: d.contact.id, vendor_id: active[0]?.vendor_id,
                       ...act, employee_id: act.employee_id || undefined, next_action: act.next_action || undefined },
                       '영업일지를 기록했습니다.').then(okd => okd && setAct(a => ({ ...a, content: '', next_action: '' })))}
-                    className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-700 disabled:opacity-40">
+                    className={btnCls('primary', 'md')}>
                     기록
                   </button>
                 </div>}

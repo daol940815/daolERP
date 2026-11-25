@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 
+import { btnCls } from '@/components/ui/kit'
 interface SourceDetail {
   title: string
   fields: { label: string; value: string }[]
@@ -44,7 +45,7 @@ export default function SourceDetailPage() {
             ))}
           </dl>
           {data.link && (
-            <Link href={data.link.href} className="inline-block mt-5 px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">
+            <Link href={data.link.href} className={btnCls('secondary', 'md', 'mt-5')}>
               {data.link.label} →
             </Link>
           )}

@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import { btnCls, chipCls } from '@/components/ui/kit'
 interface CellV { supply: number; tax: number }
 interface ReturnView {
   year: number; m1: number; m2: number; months: number[]; period_key: string
@@ -161,7 +162,7 @@ export default function VatEstimatePage() {
           </p>
         </div>
         <a href={v ? `/api/reports/vat-estimate/export?from=${v.year}-${String(v.m1).padStart(2, '0')}-01&to=${v.year}-${String(v.m2).padStart(2, '0')}-${new Date(v.year, v.m2, 0).getDate()}` : '#'}
-          className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-700 hover:bg-slate-50">
+          className={btnCls('secondary', 'md')}>
           ↓ 엑셀 다운로드
         </a>
       </div>
@@ -176,14 +177,13 @@ export default function VatEstimatePage() {
       {/* 연도 + 신고기간 칩 */}
       <div className="flex items-center gap-2 my-4 flex-wrap">
         <div className="flex items-center gap-1 mr-2">
-          <button onClick={() => setYear(y => y - 1)} className="px-2 py-1 border border-slate-400 rounded text-sm text-slate-700 hover:bg-slate-50">←</button>
+          <button onClick={() => setYear(y => y - 1)} className={btnCls('secondary', 'sm')}>←</button>
           <span className="text-sm font-semibold text-slate-900 w-14 text-center">{year}년</span>
-          <button onClick={() => setYear(y => y + 1)} className="px-2 py-1 border border-slate-400 rounded text-sm text-slate-700 hover:bg-slate-50">→</button>
+          <button onClick={() => setYear(y => y + 1)} className={btnCls('secondary', 'sm')}>→</button>
         </div>
         {PRESETS.map((p, i) => (
           <button key={p.label} onClick={() => setPreset(i)}
-            className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
-              preset === i ? 'bg-slate-900 text-white border-slate-900 font-semibold' : 'bg-white text-slate-700 border-slate-400 hover:border-slate-500'}`}>
+            className={chipCls(preset === i)}>
             {p.label}
           </button>
         ))}

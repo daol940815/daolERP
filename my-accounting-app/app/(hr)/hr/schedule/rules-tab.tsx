@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { KIND_LABEL, RULE_CATEGORIES, type RuleCategory, type RuleRow } from '@/lib/schedule'
 
+import { btnCls } from '@/components/ui/kit'
 // 스케줄 관리 — ERP 원본에서 끌어올 수 없는 일정만 여기서 등록한다.
 // 반복(매월·매년)은 규칙만 저장하고 캘린더가 그 달의 날짜를 계산한다.
 // 휴일 처리 방향이 항목마다 다르다: 세무는 순연(next), 급여는 앞당김(prev).
@@ -134,7 +135,7 @@ export default function RulesTab() {
         </p>
         {canEdit && (
           <button onClick={() => { setForm({ ...EMPTY }); setOpen(o => !o) }}
-            className="ml-auto px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-700">
+            className={btnCls('primary', 'sm', 'ml-auto')}>
             {open ? '입력 닫기' : '+ 일정 등록'}
           </button>
         )}
@@ -274,7 +275,7 @@ export default function RulesTab() {
                         {r.active ? '끄기' : '켜기'}
                       </button>
                       <button onClick={() => remove(r)} disabled={busy}
-                        className="text-xs px-2 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50">삭제</button>
+                        className={btnCls('danger', 'sm')}>삭제</button>
                     </>)}
                   </td>
                 </tr>

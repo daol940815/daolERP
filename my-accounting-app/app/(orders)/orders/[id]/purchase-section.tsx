@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import PoDetail from '../po-detail'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 // 주문 상세의 발주 섹션 (3단계, 시안 v3) — direct 주문 전용, 전 직원 사용 가능.
 // 매입처별 미발주 품목을 골라 발주서를 만들고, 엑셀 다운로드·메일 발송·수동
 // 발송 기록·취소를 이 자리에서 처리한다. 발주서 1장 = 주문 1건 × 매입처 1곳.
@@ -169,14 +170,14 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
                 )}
                 <span className="ml-auto flex items-center gap-1.5">
                   <button onClick={() => setOpenPo(v => v === p.id ? null : p.id)}
-                    className="px-2.5 py-1 border border-slate-400 rounded text-xs text-slate-700 hover:border-slate-400">
+                    className={btnCls('secondary', 'sm')}>
                     {openPo === p.id ? '내용 접기' : '내용 보기'}
                   </button>
                   <button onClick={() => downloadExcel(p)} disabled={busy}
-                    className="px-2.5 py-1 border border-slate-400 rounded text-xs text-slate-700 hover:border-slate-400">엑셀</button>
+                    className={btnCls('secondary', 'sm')}>엑셀</button>
                   {/* 발송·첨부·수동 기록은 발송 페이지에서 (시안 v3 — 화면 분리) */}
                   <Link href={`/orders/purchase/${p.id}?from=order`}
-                    className="px-2.5 py-1 bg-slate-900 text-white rounded text-xs">
+                    className={btnCls('primary', 'sm')}>
                     {p.status === 'active' && !p.sent_at ? '발송 페이지' : '발송 상세'}
                   </Link>
                 </span>
@@ -197,7 +198,7 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
           <div className="mb-2">
             <label className="block text-xs text-slate-500 mb-1">배송 참고 (발주서에 함께 인쇄 — 주문 메모·상담일지에서 자동 취합, 수정 가능)</label>
             <textarea value={deliveryNote} onChange={e => setDeliveryNote(e.target.value)} rows={2}
-              className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+              className={fieldBox({ area: true })} />
           </div>
           <div className="space-y-2.5">
             {pendingGroups.map(g => {
@@ -245,7 +246,7 @@ export default function PurchaseSection({ orderId }: { orderId: string }) {
                       <b className="tabular-nums">{won(sum)}원</b>
                     </span>
                     <button onClick={() => createPo(g)} disabled={busy || !selected.length}
-                      className="ml-auto px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-medium disabled:opacity-40">
+                      className={btnCls('primary', 'sm', 'ml-auto')}>
                       발주서 생성
                     </button>
                   </div>

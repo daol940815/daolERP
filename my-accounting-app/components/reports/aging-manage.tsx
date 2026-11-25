@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ErpAgingRow, AgingBuckets } from '@/types/erp'
 import { getPeriodRange } from '@/lib/period-presets'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => `${Math.round(n ?? 0).toLocaleString('ko-KR')}원`
 const eok = (n: number) => {
   const a = Math.abs(n)
@@ -268,7 +269,7 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
           <p className="text-sm mt-1 text-slate-600">{cfg.description}</p>
         </div>
         <button onClick={() => { const a = document.createElement('a'); a.href = `${cfg.agingApi}/export?asOf=${asOf}`; a.click() }}
-          className="px-3 py-1.5 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap">↓ 엑셀</button>
+          className={btnCls('secondary', 'md', 'whitespace-nowrap')}>↓ 엑셀</button>
       </div>
 
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
@@ -282,7 +283,7 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
       <div className="flex items-center gap-2 mb-4 mt-3 flex-wrap">
         <span className="text-sm text-slate-600">기준일</span>
         <input type="date" value={asOf} onChange={e => setAsOf(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox({ noWidth: true })} />
         <span className="w-px h-5 bg-slate-200 mx-1" />
         {hasBilling && (
           <>
@@ -295,16 +296,16 @@ export default function AgingManage({ cfg }: { cfg: AgingManageConfig }) {
             <span className="w-px h-5 bg-slate-200 mx-1" />
           </>
         )}
-        <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)} className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm bg-white">
+        <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)} className={fieldBox({ noWidth: true })}>
           <option value="">담당직원: 전체</option>
           {staffNames.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm bg-white">
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={fieldBox({ noWidth: true })}>
           <option value="">상태: 전체</option>
           {Object.entries(cfg.statusMeta).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`${cfg.counterpartyLabel} · ERP 표기 검색`}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className={fieldBox({ noWidth: true, extra: 'w-56' })} />
         {(bucketFilter || staffFilter || statusFilter || search) && (
           <button onClick={() => { setBucketFilter(null); setStaffFilter(''); setStatusFilter(''); setSearch('') }} className="text-xs text-slate-600 underline">필터 해제</button>
         )}

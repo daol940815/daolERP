@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { GROUP_KEYS, GROUP_LABELS, type GroupKey, type PermLevel, type Permissions } from '@/lib/permissions'
 
+import { btnCls } from '@/components/ui/kit'
 // 직원 권한 편집 패널 — 그룹 8 × 없음/조회/수정 + 별도 잠금 2 + 승인권 + 마스터 + 팀·고용형태·근무기간.
 // 마스터 계정만 저장할 수 있고(API가 다시 검사), 그 외는 읽기 전용으로 본다.
 
@@ -143,7 +144,7 @@ export default function PermissionPanel({ emp, others, canEdit, leaveLevelReady 
             )}
             <button onClick={onClose} className="text-xs px-2.5 py-1.5 border border-slate-400 rounded-lg">닫기</button>
             {canEdit && (
-              <button onClick={save} disabled={busy} className="text-xs px-3 py-1.5 bg-slate-900 text-white rounded-lg font-semibold disabled:opacity-50">
+              <button onClick={save} disabled={busy} className={btnCls('primary', 'sm')}>
                 {busy ? '저장 중…' : '저장'}
               </button>
             )}

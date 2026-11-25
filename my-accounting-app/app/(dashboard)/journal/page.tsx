@@ -4,6 +4,7 @@ import PeriodPresets from '@/components/ui/PeriodPresets'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getPeriodRange } from '@/lib/period-presets'
 
+import { btnCls, fieldBox } from '@/components/ui/kit'
 const won = (n: number | null | undefined) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 
 interface Line {
@@ -95,11 +96,11 @@ export default function JournalPage() {
             if (sourceType !== 'all') p.set('sourceType', sourceType); if (search.trim()) p.set('q', search.trim())
             const a = document.createElement('a'); a.href = `/api/journal/export?${p}`; a.click()
           }}
-            className="px-3.5 py-2 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap">
+            className={btnCls('secondary', 'md', 'whitespace-nowrap')}>
             ↓ 엑셀
           </button>
           <button onClick={() => setShowManual(true)}
-            className="px-3.5 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 whitespace-nowrap">
+            className={btnCls('primary', 'md', 'whitespace-nowrap')}>
             + 수동 분개
           </button>
         </div>
@@ -113,12 +114,12 @@ export default function JournalPage() {
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+          className={fieldBox({ noWidth: true })} />
         <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+          className={fieldBox({ noWidth: true })} />
         <select value={sourceType} onChange={e => setSourceType(e.target.value)}
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm">
+          className={fieldBox({ noWidth: true })}>
           <option value="all">전체 출처</option>
           <option value="bank">은행</option>
           <option value="card">법인카드</option>
@@ -127,7 +128,7 @@ export default function JournalPage() {
           <option value="manual">수동</option>
         </select>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="전표번호·적요 검색"
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-52" />
+          className={fieldBox({ noWidth: true, extra: 'w-52' })} />
       </div>
 
       {/* 요약 */}
@@ -278,9 +279,9 @@ function ManualJournalModal({
 
         <div className="flex items-center gap-2 mb-3">
           <input type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)}
-            className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+            className={fieldBox({ noWidth: true })} />
           <input value={description} onChange={e => setDescription(e.target.value)} placeholder="적요"
-            className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm flex-1" />
+            className={fieldBox({ noWidth: true, extra: 'flex-1' })} />
         </div>
 
         <table className="w-full text-sm mb-2">
@@ -330,9 +331,9 @@ function ManualJournalModal({
             <span className={balanced ? 'text-green-600' : 'text-amber-600'}>{balanced ? '✓ 균형' : '불균형'}</span>
           </div>
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">취소</button>
+            <button onClick={onClose} className={btnCls('secondary', 'md')}>취소</button>
             <button onClick={save} disabled={saving || !balanced}
-              className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
+              className={btnCls('primary', 'md')}>
               {saving ? '저장 중…' : '저장'}
             </button>
           </div>

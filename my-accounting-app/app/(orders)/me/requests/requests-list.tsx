@@ -20,6 +20,7 @@ import { useMemoPrompt } from '@/components/work-requests/memo-input'
 import { useNotifRefresh, requestNotifRefresh } from '@/lib/use-notif-refresh'
 import { HELP_QUESTION_PREFIX, HELP_PERMISSION_PREFIX } from '@/lib/help-registry'
 
+import { btnCls, chipCls, fieldBox } from '@/components/ui/kit'
 type Filter = 'all' | 'unread' | 'active' | 'due_today' | 'overdue' | 'reported' | 'rejected' | 'open'
 // 개인 · 공용(담당자 1명 / 여러 명)은 KPI 필터와 함께 걸 수 있게 따로 둔다 (2026-11-18 — 알림 '공용 요청 마감 지남' = 공용 + 마감 지남)
 type Kind = '' | 'personal' | 'shared'
@@ -193,8 +194,8 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
       </div>
       <div className="flex items-center gap-2 flex-wrap mb-3">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="제목 · 내용 · 이름 검색"
-          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-60 focus:outline-none focus:ring-2 focus:ring-slate-900" />
-        <select value={statusF} onChange={e => setStatusF(e.target.value as '' | WrStatus)} className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm bg-white">
+          className={fieldBox({ noWidth: true, extra: 'w-60' })} />
+        <select value={statusF} onChange={e => setStatusF(e.target.value as '' | WrStatus)} className={fieldBox({ noWidth: true })}>
           <option value="">상태: 전체</option>
           {(Object.keys(WR_STATUS_LABEL) as WrStatus[]).map(k => <option key={k} value={k}>{WR_STATUS_LABEL[k]}</option>)}
         </select>
@@ -205,12 +206,12 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
         )}
         {scope !== 'outbox' && (kind || rows.some(r => r.assignees.length > 1)) && (
           <>
-            <button onClick={() => setKind(k => k === 'personal' ? '' : 'personal')} className={`text-xs px-2.5 py-1 rounded-full border ${kind === 'personal' ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-400 text-slate-700 hover:bg-slate-50'}`} title="담당자가 나 혼자인 요청">개인 요청만</button>
-            <button onClick={() => setKind(k => k === 'shared' ? '' : 'shared')} className={`text-xs px-2.5 py-1 rounded-full border ${kind === 'shared' ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-400 text-slate-700 hover:bg-slate-50'}`} title="여러 명이 담당인 요청(선착 · 공동)">공용 요청만</button>
+            <button onClick={() => setKind(k => k === 'personal' ? '' : 'personal')} className={chipCls(kind === 'personal')} title="담당자가 나 혼자인 요청">개인 요청만</button>
+            <button onClick={() => setKind(k => k === 'shared' ? '' : 'shared')} className={chipCls(kind === 'shared')} title="여러 명이 담당인 요청(선착 · 공동)">공용 요청만</button>
           </>
         )}
         {!hasTags && rows.some(r => r.title.startsWith(HELP_QUESTION_PREFIX) || r.title.startsWith(HELP_PERMISSION_PREFIX)) && (
-          <button onClick={() => setOnlyQ(v => !v)} className={`text-xs px-2.5 py-1 rounded-full border ${onlyQ ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-400 text-slate-700 hover:bg-slate-50'}`}>질문 · 권한 요청만</button>
+          <button onClick={() => setOnlyQ(v => !v)} className={chipCls(onlyQ)}>질문 · 권한 요청만</button>
         )}
         {employee && <button onClick={clearEmployee} className="text-xs px-2.5 py-1 bg-slate-100 rounded-full text-slate-800">{empName} 관련만 보는 중 ✕</button>}
         {(filter !== 'all' || kind || statusF || search || onlyQ || tagF.length > 0) && <button onClick={() => { setFilter('all'); setKind(''); setStatusF(''); setSearch(''); setOnlyQ(false); setTagF([]) }} className="text-xs text-slate-600 underline">필터 해제</button>}
@@ -287,13 +288,13 @@ export default function RequestsList({ scope, month: monthProp, employee, initia
                     <td className="py-2 px-3 text-xs text-slate-600 max-w-[260px] truncate">{r.status === 'rejected' && r.reject_reason ? `반려: ${r.reject_reason}` : r.last_memo ?? '-'}</td>
                     <td className="py-2 px-3 text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
                       {a.accept && <button disabled={b} onClick={() => act(r.id, 'accept')} className="px-2 py-1 text-xs border border-emerald-300 text-emerald-700 rounded hover:bg-emerald-50 disabled:opacity-50 mr-1">수락</button>}
-                      {a.reject && my?.status === 'invited' && <button disabled={b} onClick={() => reject(r)} className="px-2 py-1 text-xs border border-red-200 text-red-600 rounded hover:bg-red-50 disabled:opacity-50">반려</button>}
-                      {a.report && <button disabled={b} onClick={() => report(r)} className="px-2 py-1 text-xs bg-slate-900 text-white rounded hover:bg-slate-700 disabled:opacity-50">처리 완료</button>}
+                      {a.reject && my?.status === 'invited' && <button disabled={b} onClick={() => reject(r)} className={btnCls('danger', 'sm')}>반려</button>}
+                      {a.report && <button disabled={b} onClick={() => report(r)} className={btnCls('primary', 'sm')}>처리 완료</button>}
                       {my?.status === 'done_reported' && OPEN_STATUSES.includes(r.status) && !a.isReq && <span className="text-xs text-slate-500">{r.assign_mode === 'all' && r.status !== 'done_reported' ? '다른 담당자 보고 대기' : '요청자 확정 대기'}</span>}
                       {my?.status === 'released' && <span className="text-xs text-slate-500">조작 없음</span>}
                       {a.complete && <button disabled={b} onClick={() => complete(r)} className="px-2 py-1 text-xs border border-emerald-300 text-emerald-700 rounded hover:bg-emerald-50 disabled:opacity-50 ml-1">완료</button>}
-                      {a.cancel && <button disabled={b} onClick={() => cancel(r)} className="px-2 py-1 text-xs border border-slate-400 text-slate-700 rounded hover:bg-slate-50 disabled:opacity-50 ml-1">취소</button>}
-                      {a.isReq && r.status === 'rejected' && <Link href={`/me/requests/new?from=${r.id}`} className="px-2 py-1 text-xs border border-slate-400 text-slate-800 rounded hover:bg-slate-50">다시 요청</Link>}
+                      {a.cancel && <button disabled={b} onClick={() => cancel(r)} className={btnCls('secondary', 'sm', 'ml-1')}>취소</button>}
+                      {a.isReq && r.status === 'rejected' && <Link href={`/me/requests/new?from=${r.id}`} className={btnCls('secondary', 'sm')}>다시 요청</Link>}
                     </td>
                   </tr>
                 )
