@@ -205,18 +205,18 @@ export default function RosterCard({ consultationId, orderId, applies, isNew, di
   if (!key) return null
   if (!applies && !roster && !loading) return null
 
-  const btn = 'px-2.5 py-1 text-[0.75rem] border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap'
-  const btnBlue = 'px-2.5 py-1 text-[0.75rem] border border-blue-200 rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 whitespace-nowrap'
-  const btnDark = 'px-2.5 py-1 text-[0.75rem] rounded-md text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap'
-  const badge = 'inline-block px-1.5 py-px rounded-full text-[0.625rem] font-semibold whitespace-nowrap'
+  const btn = 'px-2.5 py-1 text-xs border border-slate-400 rounded-md text-slate-800 bg-white hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap'
+  const btnBlue = 'px-2.5 py-1 text-xs border border-blue-200 rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 whitespace-nowrap'
+  const btnDark = 'px-2.5 py-1 text-xs rounded-md text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap'
+  const badge = 'inline-block px-1.5 py-px rounded-full text-xs font-semibold whitespace-nowrap'
   const fromConsult = !!(orderId && roster?.consultation_id)
   const preview = rows.slice(0, 3)
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
+    <div className="bg-white border border-slate-300 rounded-xl p-4 mt-3">
       <div className="flex items-center gap-2 flex-wrap mb-2">
-        <div className="text-sm font-bold text-gray-900">
-          배송명단 <span className="text-[0.6875rem] font-normal text-gray-400 ml-1">
+        <div className="text-sm font-bold text-slate-900">
+          배송명단 <span className="text-xs font-normal text-slate-500 ml-1">
             {fromConsult ? '상담일지에서 승계 · 이 주문에 포함된 품목의 수령인 행만' : '개별 배송 품목 · 수령인별 · 표준 양식 엑셀'}
           </span>
         </div>
@@ -241,15 +241,15 @@ export default function RosterCard({ consultationId, orderId, applies, isNew, di
       )}
 
       {isNew ? (
-        <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 leading-relaxed">
+        <div className="text-xs text-slate-600 bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 leading-relaxed">
           {newHint ?? '먼저 저장하면 배송명단을 올릴 수 있습니다. 양식은 지금 내려받아 작성해두세요.'}
         </div>
       ) : !roster ? (
-        <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 leading-relaxed">
+        <div className="text-xs text-slate-600 bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 leading-relaxed">
           {loading ? '명단을 불러오는 중...' : <>
             아직 올린 명단이 없습니다. <b>양식 다운로드</b>로 받은 파일에 수령인을 적어 <b>엑셀 업로드</b>하세요 —
             상품명을 품목의 상품명과 같게 적으면 자동 연결됩니다. 우편번호는 비워도 됩니다.
-            {fromConsult === false && orderId && <span className="text-gray-400"> 상담에서 전환된 주문은 상담 명단이 자동으로 따라옵니다.</span>}
+            {fromConsult === false && orderId && <span className="text-slate-500"> 상담에서 전환된 주문은 상담 명단이 자동으로 따라옵니다.</span>}
           </>}
         </div>
       ) : (
@@ -263,32 +263,32 @@ export default function RosterCard({ consultationId, orderId, applies, isNew, di
           </div>
 
           <div className="flex gap-2 flex-wrap mb-2">
-            <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[0.71875rem] text-gray-600">
-              수령인 <b className="text-gray-900 text-sm ml-0.5">{summary?.recipient_count ?? 0}</b>명 · <b className="text-gray-900 text-sm">{rows.length}</b>행
+            <div className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-700">
+              수령인 <b className="text-slate-900 text-sm ml-0.5">{summary?.recipient_count ?? 0}</b>명 · <b className="text-slate-900 text-sm">{rows.length}</b>행
             </div>
             {qty && (
-              <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[0.71875rem] text-gray-600">
-                명단 수량 <b className="text-gray-900 text-sm ml-0.5">{qty.roster}</b> / 품목 수량 <b className="text-gray-900 text-sm">{qty.item}</b>
+              <div className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-700">
+                명단 수량 <b className="text-slate-900 text-sm ml-0.5">{qty.roster}</b> / 품목 수량 <b className="text-slate-900 text-sm">{qty.item}</b>
                 {qty.item > 0 && (qty.mismatch
                   ? <span className={`${badge} bg-red-100 text-red-700 ml-1.5`}>{qty.roster > qty.item ? `+${qty.roster - qty.item} 초과` : qty.roster < qty.item ? `${qty.roster - qty.item} 부족` : `품목별 불일치 ${qty.mismatch}`}</span>
                   : <span className={`${badge} bg-emerald-100 text-emerald-700 ml-1.5`}>일치</span>)}
               </div>
             )}
             <button type="button" onClick={() => openPanel('unlinked')}
-              className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[0.71875rem] text-gray-600 hover:bg-gray-100 text-left">
-              품목 미연결 <b className="text-gray-900 text-sm ml-0.5">{unlinkedRows}</b>건
+              className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 text-left">
+              품목 미연결 <b className="text-slate-900 text-sm ml-0.5">{unlinkedRows}</b>건
               {unlinkedRows > 0 && <span className={`${badge} bg-red-100 text-red-700 ml-1.5`}>확인 필요 →</span>}
             </button>
             <button type="button" onClick={() => openPanel('nophone')}
-              className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[0.71875rem] text-gray-600 hover:bg-gray-100 text-left">
-              연락처 없음 <b className="text-gray-900 text-sm ml-0.5">{noPhoneRows}</b>건
+              className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 text-left">
+              연락처 없음 <b className="text-slate-900 text-sm ml-0.5">{noPhoneRows}</b>건
               {noPhoneRows > 0 && <span className={`${badge} bg-amber-100 text-amber-800 ml-1.5`}>확인 권장 →</span>}
             </button>
           </div>
 
-          <table className="w-full text-[0.71875rem]">
+          <table className="w-full text-xs">
             <thead>
-              <tr className="text-[0.65625rem] text-gray-500 bg-gray-50">
+              <tr className="text-xs text-slate-600 bg-slate-50">
                 <th className="px-2 py-1 text-center font-medium w-10">NO</th>
                 <th className="px-2 py-1 text-left font-medium">수령인</th>
                 <th className="px-2 py-1 text-left font-medium">연락처</th>
@@ -300,28 +300,28 @@ export default function RosterCard({ consultationId, orderId, applies, isNew, di
             </thead>
             <tbody>
               {preview.map(r => (
-                <tr key={r._key} className="border-t border-gray-100">
-                  <td className="px-2 py-1 text-center text-gray-500">{r.seq}</td>
-                  <td className="px-2 py-1 text-gray-800">{r.recipient_name ?? <span className="text-gray-400">(수령인 없음)</span>}</td>
-                  <td className="px-2 py-1 text-gray-700">{r.phone ?? ''}</td>
-                  <td className="px-2 py-1 text-gray-700">{[r.addr1, r.addr2].filter(Boolean).join(' ')}</td>
-                  <td className="px-2 py-1 text-gray-800">
+                <tr key={r._key} className="border-t border-slate-200">
+                  <td className="px-2 py-1 text-center text-slate-600">{r.seq}</td>
+                  <td className="px-2 py-1 text-slate-900">{r.recipient_name ?? <span className="text-slate-500">(수령인 없음)</span>}</td>
+                  <td className="px-2 py-1 text-slate-800">{r.phone ?? ''}</td>
+                  <td className="px-2 py-1 text-slate-800">{[r.addr1, r.addr2].filter(Boolean).join(' ')}</td>
+                  <td className="px-2 py-1 text-slate-900">
                     {r.item_name ?? <><span className={`${badge} bg-red-100 text-red-700 mr-1`}>미연결</span>{r.item_name_raw ?? ''}</>}
                   </td>
                   <td className="px-2 py-1 text-right tabular-nums">{r.quantity}</td>
-                  <td className="px-2 py-1 text-gray-600">{r.memo ?? ''}</td>
+                  <td className="px-2 py-1 text-slate-700">{r.memo ?? ''}</td>
                 </tr>
               ))}
               {rows.length > 3 && (
-                <tr className="border-t border-gray-100">
-                  <td colSpan={7} className="px-2 py-1.5 text-center text-[0.65625rem] text-gray-400">
-                    … 외 {rows.length - 3}행 — <button type="button" className="underline hover:text-gray-600" onClick={() => openPanel()}>명단 열기</button>에서 전체 확인 · 수정
+                <tr className="border-t border-slate-200">
+                  <td colSpan={7} className="px-2 py-1.5 text-center text-xs text-slate-500">
+                    … 외 {rows.length - 3}행 — <button type="button" className="underline hover:text-slate-700" onClick={() => openPanel()}>명단 열기</button>에서 전체 확인 · 수정
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
-          <div className="mt-1.5 text-[0.6875rem] text-gray-400">
+          <div className="mt-1.5 text-xs text-slate-500">
             요약 표는 읽기 전용 미리보기 3행. 빨간 배지나 &ldquo;확인 →&rdquo;를 누르면 그 문제 행만 걸러서 패널이 열립니다. 다시 업로드하면 기존 명단을 교체합니다.
           </div>
         </>
@@ -332,10 +332,10 @@ export default function RosterCard({ consultationId, orderId, applies, isNew, di
         <div className="fixed inset-0 z-50 flex justify-end" onMouseDown={e => { if (e.target === e.currentTarget) closePanel() }}>
           <div className="absolute inset-0 bg-slate-900/30" />
           <div className="relative h-full w-full md:w-[min(100vw-2rem,78rem)] bg-white shadow-2xl flex flex-col border-l-4 border-slate-900">
-            <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-2 flex-wrap">
-              <div className="text-sm font-bold text-gray-900">
+            <div className="px-4 py-3 border-b border-slate-300 flex items-center gap-2 flex-wrap">
+              <div className="text-sm font-bold text-slate-900">
                 배송명단{subject ? ` — ${subject}` : ''}
-                <span className="text-[0.6875rem] font-normal text-gray-400 ml-2">{rows.length}행 · {summary?.recipient_count ?? 0}명</span>
+                <span className="text-xs font-normal text-slate-500 ml-2">{rows.length}행 · {summary?.recipient_count ?? 0}명</span>
               </div>
               <div className="ml-auto flex gap-1.5 flex-wrap">
                 <button type="button" className={btn} onClick={() => download('excel')}>엑셀 다운로드</button>
@@ -346,18 +346,18 @@ export default function RosterCard({ consultationId, orderId, applies, isNew, di
               </div>
             </div>
 
-            <div className="px-4 py-2 border-b border-gray-100 bg-gray-50 flex items-center gap-1.5 flex-wrap text-xs">
+            <div className="px-4 py-2 border-b border-slate-200 bg-slate-50 flex items-center gap-1.5 flex-wrap text-xs">
               {([
                 ['all', `전체 ${rows.length}`, 'bg-blue-100 text-blue-800'],
                 ['unlinked', `품목 미연결 ${unlinkedRows}`, 'bg-red-100 text-red-700'],
                 ['nophone', `연락처 없음 ${noPhoneRows}`, 'bg-amber-100 text-amber-800'],
-                ['dirty', `수정됨 ${dirtyCount}`, 'bg-gray-200 text-gray-700'],
+                ['dirty', `수정됨 ${dirtyCount}`, 'bg-slate-200 text-slate-800'],
               ] as [Filter, string, string][]).map(([f, label, cls]) => (
                 <button key={f} type="button" onClick={() => setFilter(f)}
                   className={`${badge} px-2 py-0.5 ${cls} ${filter === f ? 'ring-2 ring-slate-900' : 'opacity-80 hover:opacity-100'}`}>{label}</button>
               ))}
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="수령인 · 연락처 · 주소 · 상품 검색"
-                className="ml-auto w-64 border border-gray-300 rounded-md px-2 py-1 text-xs bg-white" />
+                className="ml-auto w-64 border border-slate-400 rounded-md px-2 py-1 text-xs bg-white" />
             </div>
 
             {applyHint && (
@@ -372,9 +372,9 @@ export default function RosterCard({ consultationId, orderId, applies, isNew, di
             )}
 
             <div className="flex-1 overflow-auto">
-              <table className="w-full text-[0.71875rem] min-w-[72rem]">
-                <thead className="sticky top-0 bg-gray-50 z-10">
-                  <tr className="text-[0.65625rem] text-gray-500">
+              <table className="w-full text-xs min-w-[72rem]">
+                <thead className="sticky top-0 bg-slate-50 z-10">
+                  <tr className="text-xs text-slate-600">
                     <th className="px-1.5 py-1.5 text-center font-medium w-10">NO</th>
                     <th className="px-1.5 py-1.5 text-left font-medium w-28">수령인</th>
                     <th className="px-1.5 py-1.5 text-left font-medium w-28">연락처</th>
@@ -389,12 +389,12 @@ export default function RosterCard({ consultationId, orderId, applies, isNew, di
                 </thead>
                 <tbody>
                   {pageRows.map(r => {
-                    const cell = `w-full border rounded-md px-1.5 py-1 text-[0.71875rem] disabled:opacity-60 ${
-                      disabled ? 'border-gray-200 bg-gray-50' : 'border-amber-200 bg-amber-50/30'}`
+                    const cell = `w-full border rounded-md px-1.5 py-1 text-xs disabled:opacity-60 ${
+                      disabled ? 'border-slate-300 bg-slate-50' : 'border-amber-200 bg-amber-50/30'}`
                     const linked = !!r.item_name
                     return (
-                      <tr key={r._key} className={`border-t border-gray-100 ${!linked ? 'bg-red-50/40' : r._dirty || r._new ? 'bg-blue-50/30' : ''}`}>
-                        <td className="px-1.5 py-1 text-center text-gray-500">{r.seq}</td>
+                      <tr key={r._key} className={`border-t border-slate-200 ${!linked ? 'bg-red-50/40' : r._dirty || r._new ? 'bg-blue-50/30' : ''}`}>
+                        <td className="px-1.5 py-1 text-center text-slate-600">{r.seq}</td>
                         <td className="px-1.5 py-1"><input className={cell} disabled={disabled} value={r.recipient_name ?? ''} onChange={e => patch(r._key, { recipient_name: t(e.target.value) })} /></td>
                         <td className="px-1.5 py-1"><input className={cell} disabled={disabled} value={r.phone ?? ''} onChange={e => patch(r._key, { phone: t(e.target.value) })} placeholder="010-" /></td>
                         <td className="px-1.5 py-1"><input className={cell} disabled={disabled} value={r.zip ?? ''} onChange={e => patch(r._key, { zip: t(e.target.value) })} /></td>
@@ -420,7 +420,7 @@ export default function RosterCard({ consultationId, orderId, applies, isNew, di
                     )
                   })}
                   {!pageRows.length && (
-                    <tr><td colSpan={10} className="px-3 py-6 text-center text-xs text-gray-400">
+                    <tr><td colSpan={10} className="px-3 py-6 text-center text-xs text-slate-500">
                       {filter !== 'all' || search ? '조건에 맞는 행이 없습니다 — 필터를 끄거나 검색어를 지워보세요.' : '행이 없습니다.'}
                     </td></tr>
                   )}
@@ -428,7 +428,7 @@ export default function RosterCard({ consultationId, orderId, applies, isNew, di
               </table>
             </div>
 
-            <div className="px-4 py-2 border-t border-gray-200 flex items-center gap-2 text-xs text-gray-500 flex-wrap">
+            <div className="px-4 py-2 border-t border-slate-300 flex items-center gap-2 text-xs text-slate-600 flex-wrap">
               <span>{filter !== 'all' || search ? `필터 적용 중 — ${filtered.length}행` : `${rows.length}행`}</span>
               {pageCount > 1 && (
                 <span className="ml-auto flex items-center gap-1.5">
@@ -437,7 +437,7 @@ export default function RosterCard({ consultationId, orderId, applies, isNew, di
                   <button type="button" className={btn} disabled={page >= pageCount - 1} onClick={() => setPage(p => p + 1)}>다음</button>
                 </span>
               )}
-              <span className={pageCount > 1 ? 'w-full text-[0.6875rem] text-gray-400' : 'ml-auto text-[0.6875rem] text-gray-400'}>
+              <span className={pageCount > 1 ? 'w-full text-xs text-slate-500' : 'ml-auto text-xs text-slate-500'}>
                 수정은 패널의 저장 버튼으로 한 번에 반영됩니다(문서 저장과 별개). 우편번호는 확인 대상이 아니며 주소 앞에 붙이지 않습니다.
               </span>
             </div>

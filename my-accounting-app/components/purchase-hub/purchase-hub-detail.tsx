@@ -24,7 +24,7 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
   unpaid:   { label: '미지급',          cls: 'bg-amber-100 text-amber-700' },
   over90:   { label: '미지급 90일 초과', cls: 'bg-red-100 text-red-700' },
   overpaid: { label: '과다지급',        cls: 'bg-violet-100 text-violet-700' },
-  dormant:  { label: '휴면 전환',       cls: 'bg-gray-100 text-gray-500' },
+  dormant:  { label: '휴면 전환',       cls: 'bg-slate-100 text-slate-600' },
   retail:   { label: '별도 구매처',      cls: 'bg-sky-100 text-sky-700' },
 }
 const TL_META: Record<string, { label: string; cls: string }> = {
@@ -36,12 +36,12 @@ const TABS = ['개요', '계산서', '지급 내역', '통장 내역', 'ERP 발�
 
 // 통장 ↔ 계산서 대사 판정 (423, 2026-11-11 승인 시안)
 const VERDICT_META: Record<string, { label: string; cls: string; hint: string }> = {
-  ok:            { label: '정상',                     cls: 'bg-gray-100 text-gray-600',      hint: '계산서 없이 나간 출금이 없습니다.' },
+  ok:            { label: '정상',                     cls: 'bg-slate-100 text-slate-700',      hint: '계산서 없이 나간 출금이 없습니다.' },
   match_missing: { label: '매칭 누락 (계산서 있음)',   cls: 'bg-sky-100 text-sky-800',        hint: '계산서 없이 나간 출금이 있는데 미지급 잔여가 남은 계산서도 있습니다 — 계산서 내역에서 결제를 연결하세요.' },
   invoice_check: { label: '계산서 확인 필요',          cls: 'bg-amber-100 text-amber-800',    hint: '계산서 없이 나간 출금이 있고 남은 계산서가 없습니다 — 초과 지급이거나 계산서 미발행(미수취)입니다.' },
   inflow:        { label: '입금 있음 (환불·정산)',      cls: 'bg-violet-100 text-violet-800',  hint: '이 매입처에서 들어온 돈이 있습니다 — 반품·환불·정산인지 확인하세요.' },
   other_vendor:  { label: '이 매입처 밖의 계산서에 연결',  cls: 'bg-violet-100 text-violet-800',  hint: '이 매입처로 연결된 출금이 이 매입처에 붙지 않은 계산서에 배분돼 있습니다 — "거래처 미연결 계산서"면 그 계산서에 거래처를 연결하면 ③·④로 들어옵니다(418 재연결 SQL). 같은 회사의 중복 거래처면 통합, 청구처 구조면 정상, 다른 회사면 오매칭입니다.' },
-  excluded:      { label: '대사 제외',                cls: 'bg-gray-100 text-gray-500',      hint: '카드사 거래처는 카드대금 출금이라 매입 대사 대상이 아닙니다.' },
+  excluded:      { label: '대사 제외',                cls: 'bg-slate-100 text-slate-600',      hint: '카드사 거래처는 카드대금 출금이라 매입 대사 대상이 아닙니다.' },
 }
 
 interface Candidate { id: string; name: string; phone: string | null; history?: { vendor_name: string; title: string | null; started_at: string | null; ended_at: string | null }[] }
@@ -253,7 +253,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
     return null
   }, [invTaxType, vendorId, perms.accounting])
 
-  if (loading && !data) return <div className="text-center py-24 text-gray-400">매입처 데이터를 모으는 중...</div>
+  if (loading && !data) return <div className="text-center py-24 text-slate-500">매입처 데이터를 모으는 중...</div>
   if (error) return <div className="mt-8 px-4 py-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>
   if (!data) return null
   const meta = STATUS_META[data.status] ?? STATUS_META.normal
@@ -262,121 +262,121 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
     <div>
       {msg && <div className="fixed top-4 right-4 z-50 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg shadow">{msg}</div>}
 
-      <div className="text-xs text-gray-400">
+      <div className="text-xs text-slate-500">
         <Link href={`${basePath}?from=${sp.get('from') ?? from}&to=${sp.get('to') ?? to}`} className="hover:underline">매입처 관리</Link>
-        {' > '}<b className="text-gray-700">{data.vendor.name}</b>
+        {' > '}<b className="text-slate-800">{data.vendor.name}</b>
       </div>
 
       {/* 상세 기간 (목록 기간이 기본값, 독립 변경) */}
       <div className="flex items-center gap-1.5 flex-wrap mt-2">
         {/* 표준 기간 칩 (최근 7일 ~ 전체 기간) — 매출처 허브 상세와 같은 부품 (2026-11-11 사용자 요청) */}
         <PeriodPresets from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
-        <span className="text-gray-300 text-xs">|</span>
-        <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-xs" />
-        <span className="text-gray-400 text-xs">~</span>
-        <input type="date" value={to} onChange={e => setTo(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-xs" />
-        <span className="text-[0.6875rem] text-gray-400 ml-2">여기서 바꿔도 목록의 기간은 유지됩니다</span>
+        <span className="text-slate-400 text-xs">|</span>
+        <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="border border-slate-400 rounded px-2 py-1 text-xs" />
+        <span className="text-slate-500 text-xs">~</span>
+        <input type="date" value={to} onChange={e => setTo(e.target.value)} className="border border-slate-400 rounded px-2 py-1 text-xs" />
+        <span className="text-xs text-slate-500 ml-2">여기서 바꿔도 목록의 기간은 유지됩니다</span>
       </div>
 
       {/* 헤더 */}
       <div className="flex items-start justify-between gap-4 flex-wrap mt-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-gray-900">{data.vendor.name}</h1>
+            <h1 className="text-xl font-bold text-slate-900">{data.vendor.name}</h1>
             {!data.vendor.is_active && (
-              <span className="px-2 py-0.5 rounded text-[0.6875rem] font-semibold bg-gray-200 text-gray-600">비활성</span>
+              <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-200 text-slate-700">비활성</span>
             )}
-            <span className={`px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${meta.cls}`}>{meta.label}</span>
+            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${meta.cls}`}>{meta.label}</span>
             <select value={data.vendor.purchase_kind} onChange={e => changeKind(e.target.value)} disabled={!perms.edit}
               title="상품 매입처=발주·미지급 관리 대상 / 별도 구매처=온·오프라인에서 사 온 곳(즉시 결제) / 경비성=택배·전기·리스 등"
-              className="border border-gray-300 rounded px-1.5 py-0.5 text-[0.6875rem] text-gray-600">
+              className="border border-slate-400 rounded px-1.5 py-0.5 text-xs text-slate-700">
               <option value="partner">상품 매입처</option>
               <option value="retail">별도 구매처</option>
               <option value="expense">경비성</option>
             </select>
           </div>
           {infoForm.open ? (
-            <div className="mt-1.5 p-3 bg-gray-50 border border-gray-200 rounded-lg flex gap-2 flex-wrap items-center text-xs">
-              <span className="text-gray-500">거래처명</span>
+            <div className="mt-1.5 p-3 bg-slate-50 border border-slate-300 rounded-lg flex gap-2 flex-wrap items-center text-xs">
+              <span className="text-slate-600">거래처명</span>
               <input value={infoForm.name} onChange={e => setInfoForm(f => ({ ...f, name: e.target.value }))}
-                className="border border-gray-300 rounded px-2 py-1 w-48" />
-              <span className="text-gray-500">사업자번호</span>
+                className="border border-slate-400 rounded px-2 py-1 w-48" />
+              <span className="text-slate-600">사업자번호</span>
               <input value={infoForm.biz} onChange={e => setInfoForm(f => ({ ...f, biz: e.target.value }))}
-                placeholder="숫자 10자리" className="border border-gray-300 rounded px-2 py-1 w-36" />
+                placeholder="숫자 10자리" className="border border-slate-400 rounded px-2 py-1 w-36" />
               <button onClick={saveInfo} className="px-2.5 py-1 bg-slate-900 text-white rounded">저장</button>
               <button onClick={() => setInfoForm({ open: false, name: '', biz: '' })}
-                className="text-[0.6875rem] text-gray-400 hover:text-gray-600">취소</button>
+                className="text-xs text-slate-500 hover:text-slate-700">취소</button>
             </div>
           ) : (
-            <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5">
+            <div className="text-xs text-slate-600 mt-0.5 flex items-center gap-1.5">
               <span>사업자번호 {data.vendor.biz_number ?? '미입력'}</span>
               {perms.edit && <button onClick={() => setInfoForm({ open: true, name: data.vendor.name, biz: data.vendor.biz_number ?? '' })}
-                className="text-[0.6875rem] text-gray-400 hover:text-gray-600 underline">정보 수정</button>}
+                className="text-xs text-slate-500 hover:text-slate-700 underline">정보 수정</button>}
             </div>
           )}
           {/* 발주 이메일 — 발주서 발송에 쓰는 주소 (원가표 적재분, 누락 시 여기서 보완) */}
           <div className="text-xs mt-0.5 flex items-center gap-1.5 flex-wrap">
-            <span className="text-gray-500">발주 이메일</span>
+            <span className="text-slate-600">발주 이메일</span>
             {emailForm.open ? (
               <>
                 <input value={emailForm.value} onChange={e => setEmailForm(f => ({ ...f, value: e.target.value }))}
                   placeholder="example@company.com" autoFocus
                   onKeyDown={e => { if (e.key === 'Enter') saveEmail() }}
-                  className="border border-gray-300 rounded px-2 py-0.5 text-xs w-56" />
-                <button onClick={saveEmail} className="px-2 py-0.5 bg-slate-900 text-white rounded text-[0.6875rem]">저장</button>
+                  className="border border-slate-400 rounded px-2 py-0.5 text-xs w-56" />
+                <button onClick={saveEmail} className="px-2 py-0.5 bg-slate-900 text-white rounded text-xs">저장</button>
                 <button onClick={() => setEmailForm({ open: false, value: '' })}
-                  className="text-[0.6875rem] text-gray-400 hover:text-gray-600">취소</button>
+                  className="text-xs text-slate-500 hover:text-slate-700">취소</button>
               </>
             ) : (
               <>
                 {data.vendor.email
                   ? <a href={`mailto:${data.vendor.email}`} className="text-blue-600 hover:underline">{data.vendor.email}</a>
                   : data.vendor.purchase_kind !== 'partner'
-                    ? <span className="text-gray-400">관리 대상 아님</span>
+                    ? <span className="text-slate-500">관리 대상 아님</span>
                     : <span className="text-orange-600">미입력</span>}
                 {perms.edit && <button onClick={() => setEmailForm({ open: true, value: data.vendor.email ?? '' })}
-                  className="text-[0.6875rem] text-gray-400 hover:text-gray-600 underline">수정</button>}
+                  className="text-xs text-slate-500 hover:text-slate-700 underline">수정</button>}
               </>
             )}
           </div>
           <div className="flex gap-1.5 flex-wrap mt-2">
             <Link href={`/erp-aliases?type=purchase&q=${encodeURIComponent(data.vendor.name)}`}
               title="매입처 연결 키워드에서 별칭 관리"
-              className={`px-2 py-0.5 rounded-full text-[0.6875rem] border hover:underline ${data.links.alias_count ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
+              className={`px-2 py-0.5 rounded-full text-xs border hover:underline ${data.links.alias_count ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               ERP 별칭 {data.links.alias_count || '미'}연동
             </Link>
             <button onClick={() => perms.edit && setOpeningForm(f => ({ ...f, open: !f.open }))} disabled={!perms.edit}
               title={perms.edit ? '미결제금 기초원장 (기준일 + 기초잔액) 입력' : '기초원장 (수정 권한 필요)'}
-              className={`px-2 py-0.5 rounded-full text-[0.6875rem] border hover:underline ${data.links.opening ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
+              className={`px-2 py-0.5 rounded-full text-xs border hover:underline ${data.links.opening ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-orange-50 text-orange-700 border-orange-100'}`}>
               기초원장 {data.links.opening ? `${data.links.opening.as_of_date} 기준 ${eok(data.links.opening.amount)}` : '미입력'}
             </button>
           </div>
           {openingForm.open && (
-            <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg flex gap-2 flex-wrap items-center text-xs">
-              <span className="text-gray-500">기준일</span>
+            <div className="mt-2 p-3 bg-slate-50 border border-slate-300 rounded-lg flex gap-2 flex-wrap items-center text-xs">
+              <span className="text-slate-600">기준일</span>
               <input type="date" value={openingForm.asOf} onChange={e => setOpeningForm(f => ({ ...f, asOf: e.target.value }))}
-                className="border border-gray-300 rounded px-2 py-1" />
-              <span className="text-gray-500">기초 미지급 잔액</span>
+                className="border border-slate-400 rounded px-2 py-1" />
+              <span className="text-slate-600">기초 미지급 잔액</span>
               <input value={openingForm.amount} onChange={e => setOpeningForm(f => ({ ...f, amount: e.target.value }))}
-                placeholder="0" className="border border-gray-300 rounded px-2 py-1 w-32 text-right tabular-nums" />
+                placeholder="0" className="border border-slate-400 rounded px-2 py-1 w-32 text-right tabular-nums" />
               <input value={openingForm.note} onChange={e => setOpeningForm(f => ({ ...f, note: e.target.value }))}
-                placeholder="메모 (선택)" className="border border-gray-300 rounded px-2 py-1 w-40" />
+                placeholder="메모 (선택)" className="border border-slate-400 rounded px-2 py-1 w-40" />
               <button onClick={saveOpening} className="px-2.5 py-1 bg-slate-900 text-white rounded">저장</button>
-              <span className="text-[0.6875rem] text-gray-400">기준일 이후 계산서(+)·지급(-)만 잔액에 반영됩니다</span>
+              <span className="text-xs text-slate-500">기준일 이후 계산서(+)·지급(-)만 잔액에 반영됩니다</span>
             </div>
           )}
         </div>
-        <div className="text-right text-xs text-gray-500">
+        <div className="text-right text-xs text-slate-600">
           {data.vendor.note && <div>최근 메모: &quot;{data.vendor.note.slice(0, 40)}{data.vendor.note.length > 40 ? '…' : ''}&quot;</div>}
           {perms.edit && <div className="mt-1.5 flex gap-1.5 justify-end">
             <button onClick={toggleActive}
               title="기록은 남기고 신규 선택 목록에서만 제외합니다"
-              className="px-2 py-1 border border-gray-300 rounded text-[0.6875rem] text-gray-600 hover:bg-gray-50">
+              className="px-2 py-1 border border-slate-400 rounded text-xs text-slate-700 hover:bg-slate-50">
               {data.vendor.is_active ? '비활성화' : '활성화'}
             </button>
             <button onClick={removeVendor}
               title="실적이 없는 거래처만 삭제됩니다"
-              className="px-2 py-1 border border-gray-200 rounded text-[0.6875rem] text-red-500 hover:bg-red-50">
+              className="px-2 py-1 border border-slate-300 rounded text-xs text-red-500 hover:bg-red-50">
               삭제
             </button>
           </div>}
@@ -386,46 +386,46 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
       {/* 담당 패널 */}
       <div className="grid lg:grid-cols-2 gap-3 mt-4">
         {/* 자사 담당직원 */}
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
+        <div className="bg-white border border-slate-300 rounded-xl p-4">
           <div className="flex items-center justify-between">
-            <div className="text-sm font-bold text-gray-800">자사 담당직원 <span className="text-gray-400 font-normal">· {data.staff.length}명</span></div>
+            <div className="text-sm font-bold text-slate-900">자사 담당직원 <span className="text-slate-500 font-normal">· {data.staff.length}명</span></div>
             {perms.edit && <button onClick={() => setStaffForm(f => ({ ...f, open: !f.open }))}
-              className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">담당 추가</button>}
+              className="text-xs px-2 py-1 border border-slate-400 rounded hover:bg-slate-50">담당 추가</button>}
           </div>
           {data.staff.map(s => (
-            <div key={s.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+            <div key={s.id} className="flex items-center justify-between py-2 border-b border-slate-200 last:border-0">
               <div>
                 <span className="font-semibold text-sm">{s.name}</span>
-                {s.is_primary && <span className="ml-1.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[0.625rem] font-bold">주담당</span>}
-                <div className="text-[0.6875rem] text-gray-400">{s.team ?? '팀 미지정'} · 배정 {s.started_at ?? '-'}</div>
+                {s.is_primary && <span className="ml-1.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">주담당</span>}
+                <div className="text-xs text-slate-500">{s.team ?? '팀 미지정'} · 배정 {s.started_at ?? '-'}</div>
               </div>
-              <div className="text-right text-[0.6875rem] text-gray-500">
+              <div className="text-right text-xs text-slate-600">
                 담당처 {s.vendor_count}곳
                 {perms.edit && <div className="mt-0.5 flex gap-1 justify-end">
                   {!s.is_primary && (
                     <button onClick={async () => { await post('/api/vendor-hub/staff', { action: 'set_primary', assignment_id: s.id }); load() }}
-                      className="px-1.5 py-0.5 border border-gray-200 rounded text-[0.625rem] hover:bg-gray-50">주담당으로</button>
+                      className="px-1.5 py-0.5 border border-slate-300 rounded text-xs hover:bg-slate-50">주담당으로</button>
                   )}
                   <button onClick={async () => { await post('/api/vendor-hub/staff', { action: 'unassign', assignment_id: s.id }); load() }}
-                    className="px-1.5 py-0.5 border border-gray-200 rounded text-[0.625rem] text-red-500 hover:bg-red-50">해제</button>
+                    className="px-1.5 py-0.5 border border-slate-300 rounded text-xs text-red-500 hover:bg-red-50">해제</button>
                 </div>}
               </div>
             </div>
           ))}
-          {!data.staff.length && <div className="text-xs text-gray-400 py-3">배정된 담당직원이 없습니다.</div>}
+          {!data.staff.length && <div className="text-xs text-slate-500 py-3">배정된 담당직원이 없습니다.</div>}
           {staffForm.open && (
-            <div className="mt-3 p-3 bg-gray-50 rounded-lg space-y-2">
+            <div className="mt-3 p-3 bg-slate-50 rounded-lg space-y-2">
               <div className="flex gap-2 flex-wrap">
                 <select onChange={e => { if (e.target.value) assignStaff(e.target.value) }} defaultValue=""
-                  className="border border-gray-300 rounded px-2 py-1 text-xs">
+                  className="border border-slate-400 rounded px-2 py-1 text-xs">
                   <option value="">기존 직원 선택...</option>
                   {employees.map(e => <option key={e.id} value={e.id}>{e.name} ({e.team ?? '-'} · 담당 {e.vendor_count})</option>)}
                 </select>
-                <span className="text-xs text-gray-400 self-center">또는 신규:</span>
+                <span className="text-xs text-slate-500 self-center">또는 신규:</span>
                 <input value={staffForm.name} onChange={e => setStaffForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="이름" className="border border-gray-300 rounded px-2 py-1 text-xs w-24" />
+                  placeholder="이름" className="border border-slate-400 rounded px-2 py-1 text-xs w-24" />
                 <input value={staffForm.team} onChange={e => setStaffForm(f => ({ ...f, team: e.target.value }))}
-                  placeholder="팀 (선택)" className="border border-gray-300 rounded px-2 py-1 text-xs w-24" />
+                  placeholder="팀 (선택)" className="border border-slate-400 rounded px-2 py-1 text-xs w-24" />
                 <label className="text-xs flex items-center gap-1">
                   <input type="checkbox" checked={staffForm.primary} onChange={e => setStaffForm(f => ({ ...f, primary: e.target.checked }))} /> 주담당
                 </label>
@@ -437,52 +437,52 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
         </div>
 
         {/* 거래처 담당자 */}
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
+        <div className="bg-white border border-slate-300 rounded-xl p-4">
           <div className="flex items-center justify-between">
-            <div className="text-sm font-bold text-gray-800">
-              거래처 담당자 <span className="text-gray-400 font-normal">
+            <div className="text-sm font-bold text-slate-900">
+              거래처 담당자 <span className="text-slate-500 font-normal">
                 · 활성 {data.contacts.filter(c => !c.ended_at).length}명 · 이전 {data.contacts.filter(c => c.ended_at).length}명
               </span>
             </div>
             {perms.edit && <button onClick={() => setContactForm(f => ({ ...f, open: !f.open }))}
-              className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">담당자 추가</button>}
+              className="text-xs px-2 py-1 border border-slate-400 rounded hover:bg-slate-50">담당자 추가</button>}
           </div>
           {data.contacts.map(c => (
-            <div key={c.assignment_id} className={`flex items-start justify-between py-2 border-b border-gray-50 last:border-0 ${c.ended_at ? 'opacity-50' : ''}`}>
+            <div key={c.assignment_id} className={`flex items-start justify-between py-2 border-b border-slate-200 last:border-0 ${c.ended_at ? 'opacity-50' : ''}`}>
               <div>
                 <span className="font-semibold text-sm">{contactLabel(c.name, c.title)}</span>
-                {c.is_representative && <span className="ml-1.5 px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-full text-[0.625rem] font-bold">대표</span>}
-                <div className="text-[0.6875rem] text-gray-400">
+                {c.is_representative && <span className="ml-1.5 px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-full text-xs font-bold">대표</span>}
+                <div className="text-xs text-slate-500">
                   {[c.role_memo, c.phone, c.email].filter(Boolean).join(' · ') || '연락처 미입력'}
                 </div>
               </div>
-              <div className="text-right text-[0.6875rem] text-gray-500 whitespace-nowrap">
+              <div className="text-right text-xs text-slate-600 whitespace-nowrap">
                 {c.ended_at ? `종료 ${c.ended_at}` : `배정 ${c.started_at ?? '-'}`}
                 {!c.ended_at && perms.edit && (
                   <div className="mt-0.5 flex gap-1 justify-end">
                     {!c.is_representative && (
                       <button onClick={async () => { await post('/api/vendor-hub/contacts', { action: 'set_representative', assignment_id: c.assignment_id }); load() }}
-                        className="px-1.5 py-0.5 border border-gray-200 rounded text-[0.625rem] hover:bg-gray-50">대표로</button>
+                        className="px-1.5 py-0.5 border border-slate-300 rounded text-xs hover:bg-slate-50">대표로</button>
                     )}
                     <button onClick={async () => { await post('/api/vendor-hub/contacts', { action: 'end_assignment', assignment_id: c.assignment_id }); load() }}
-                      className="px-1.5 py-0.5 border border-gray-200 rounded text-[0.625rem] text-red-500 hover:bg-red-50">종료</button>
+                      className="px-1.5 py-0.5 border border-slate-300 rounded text-xs text-red-500 hover:bg-red-50">종료</button>
                   </div>
                 )}
               </div>
             </div>
           ))}
-          {!data.contacts.length && <div className="text-xs text-gray-400 py-3">등록된 거래처 담당자가 없습니다.</div>}
+          {!data.contacts.length && <div className="text-xs text-slate-500 py-3">등록된 거래처 담당자가 없습니다.</div>}
           {contactForm.open && (
-            <div className="mt-3 p-3 bg-gray-50 rounded-lg space-y-2">
+            <div className="mt-3 p-3 bg-slate-50 rounded-lg space-y-2">
               <div className="flex gap-2 flex-wrap">
                 <input value={contactForm.name} onChange={e => setContactForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="성함" className="border border-gray-300 rounded px-2 py-1 text-xs w-24" />
+                  placeholder="성함" className="border border-slate-400 rounded px-2 py-1 text-xs w-24" />
                 <input value={contactForm.title} onChange={e => setContactForm(f => ({ ...f, title: e.target.value }))}
-                  placeholder="직함" className="border border-gray-300 rounded px-2 py-1 text-xs w-20" />
+                  placeholder="직함" className="border border-slate-400 rounded px-2 py-1 text-xs w-20" />
                 <input value={contactForm.phone} onChange={e => setContactForm(f => ({ ...f, phone: e.target.value }))}
-                  placeholder="휴대폰 (선택)" className="border border-gray-300 rounded px-2 py-1 text-xs w-32" />
+                  placeholder="휴대폰 (선택)" className="border border-slate-400 rounded px-2 py-1 text-xs w-32" />
                 <input value={contactForm.role} onChange={e => setContactForm(f => ({ ...f, role: e.target.value }))}
-                  placeholder="역할 메모 (선택)" className="border border-gray-300 rounded px-2 py-1 text-xs w-32" />
+                  placeholder="역할 메모 (선택)" className="border border-slate-400 rounded px-2 py-1 text-xs w-32" />
                 <label className="text-xs flex items-center gap-1">
                   <input type="checkbox" checked={contactForm.rep} onChange={e => setContactForm(f => ({ ...f, rep: e.target.checked }))} /> 대표
                 </label>
@@ -493,20 +493,20 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                 <div className="px-3 py-2 bg-white border border-amber-200 rounded-lg text-xs">
                   <div className="font-semibold text-amber-800 mb-1">같은 인물일 수 있는 기존 담당자가 있습니다 — 확인해주세요.</div>
                   {candidates.map(c => (
-                    <div key={c.id} className="flex items-center justify-between py-1 border-b border-gray-50 last:border-0">
+                    <div key={c.id} className="flex items-center justify-between py-1 border-b border-slate-200 last:border-0">
                       <span>{c.name} {c.phone ?? '(번호 없음)'}
-                        {c.history?.length ? <span className="text-gray-400"> — {c.history.map(h => `${h.vendor_name} ${h.title ?? ''}`).join(' → ')}</span> : null}
+                        {c.history?.length ? <span className="text-slate-500"> — {c.history.map(h => `${h.vendor_name} ${h.title ?? ''}`).join(' → ')}</span> : null}
                       </span>
                       <span className="flex gap-1">
                         <button onClick={() => submitContact(false, c.id, true)}
-                          className="px-1.5 py-0.5 border rounded text-[0.625rem] hover:bg-gray-50">같은 인물 (이동 처리)</button>
+                          className="px-1.5 py-0.5 border rounded text-xs hover:bg-slate-50">같은 인물 (이동 처리)</button>
                         <button onClick={() => submitContact(false, c.id, false)}
-                          className="px-1.5 py-0.5 border rounded text-[0.625rem] hover:bg-gray-50">같은 인물 (겸직)</button>
+                          className="px-1.5 py-0.5 border rounded text-xs hover:bg-slate-50">같은 인물 (겸직)</button>
                       </span>
                     </div>
                   ))}
                   <button onClick={() => submitContact(true)}
-                    className="mt-1.5 px-2 py-0.5 border rounded text-[0.625rem] hover:bg-gray-50">아니요, 새 인물로 등록</button>
+                    className="mt-1.5 px-2 py-0.5 border rounded text-xs hover:bg-slate-50">아니요, 새 인물로 등록</button>
                 </div>
               )}
             </div>
@@ -528,13 +528,13 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
           { tag: '기간', label: '카드 매입', value: eok(data.kpi.card_total), sub: '가맹점 사업자번호 매칭 (참고)', cls: '' },
           { tag: '누적', label: '평균 지급일', value: data.kpi.avg_pay_days != null ? `${data.kpi.avg_pay_days}일` : '-', sub: '계산서 발행→출금 (금액 가중)', cls: '' },
         ].map((k, i) => (
-          <div key={i} className="bg-white border border-gray-200 rounded-xl px-3.5 py-3">
-            <div className="text-[0.6875rem] text-gray-500">
-              <span className={`px-1.5 py-0.5 rounded-full text-[0.625rem] font-bold mr-1 ${k.tag === '기간' ? 'bg-blue-100 text-blue-700' : 'bg-violet-100 text-violet-700'}`}>{k.tag}</span>
+          <div key={i} className="bg-white border border-slate-300 rounded-xl px-3.5 py-3">
+            <div className="text-xs text-slate-600">
+              <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold mr-1 ${k.tag === '기간' ? 'bg-blue-100 text-blue-700' : 'bg-violet-100 text-violet-700'}`}>{k.tag}</span>
               {k.label}
             </div>
             <div className={`text-lg font-bold mt-0.5 tabular-nums ${k.cls}`}>{k.value}</div>
-            <div className="text-[0.625rem] text-gray-400 mt-0.5">{k.sub}</div>
+            <div className="text-xs text-slate-500 mt-0.5">{k.sub}</div>
           </div>
         ))}
       </div>
@@ -546,16 +546,16 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
         const net = b.out_total - b.in_total
         const diff = net - b.invoice_total
         return (
-          <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
+          <div className="bg-white border border-slate-300 rounded-xl p-4 mt-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="text-sm font-bold text-gray-800">통장 ↔ 계산서 대사 <span className="font-normal text-gray-400 text-xs">({from} ~ {to} · 이 매입처에 연결된 통장 거래 기준)</span></div>
+              <div className="text-sm font-bold text-slate-900">통장 ↔ 계산서 대사 <span className="font-normal text-slate-500 text-xs">({from} ~ {to} · 이 매입처에 연결된 통장 거래 기준)</span></div>
               <div className="flex items-center gap-2">
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${v.cls}`}>{v.label}{b.unmatched_out > 0 ? ` — 계산서 없는 출금 ${eok(b.unmatched_out)}` : ''}</span>
                 <Link href={`/transactions?q=${encodeURIComponent('거래처:없음 출금')}&from=${from}&to=${to}`} className="text-xs text-blue-600 hover:underline" title="아직 어느 거래처에도 연결되지 않은 출금 — 이 매입처 것이 있으면 거래처를 지정하고 통장 키워드를 학습시키세요">거래처 미연결 출금 보기 →</Link>
               </div>
             </div>
             {b.excluded_reason ? (
-              <p className="text-xs text-gray-500 mt-2">{b.excluded_reason}</p>
+              <p className="text-xs text-slate-600 mt-2">{b.excluded_reason}</p>
             ) : (
               <>
                 <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-sm mt-3">
@@ -568,14 +568,14 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                     { l: '⑥ 통장 순지급 − 계산서', v: `${diff > 0 ? '+' : ''}${eok(diff)}`, s: '(① − ②) − ③ · +는 초과·미발행, −는 미지급', cls: diff > 0 ? 'text-amber-700' : diff < 0 ? 'text-red-600' : '' },
                   ].map((k, i) => (
                     <div key={i} className={k.hi ? 'bg-amber-50 rounded-lg p-2 -m-2' : ''}>
-                      <div className="text-[0.6875rem] text-gray-500">{k.l}</div>
+                      <div className="text-xs text-slate-600">{k.l}</div>
                       <div className={`font-bold tabular-nums ${k.cls}`}>{k.v}</div>
-                      <div className="text-[0.625rem] text-gray-400">{k.s}</div>
+                      <div className="text-xs text-slate-500">{k.s}</div>
                     </div>
                   ))}
                 </div>
                 {/* ①이 어디로 갔는지 — 연결은 '배분 금액'이라 출금 전액과 다를 수 있다 */}
-                <p className="text-[0.6875rem] text-gray-500 mt-3">
+                <p className="text-xs text-slate-600 mt-3">
                   ① 통장 출금 {eok(b.out_total)} = 이 매입처 계산서에 배분 {eok(b.linked_own_total)}
                   {b.linked_other_total > 0 && <> + <span className="text-violet-700">다른 거래처 계산서에 배분 {eok(b.linked_other_total)} ({b.linked_other_vendors.map(v => `${v.name} ${eok(v.amount)}`).join(', ')})</span></>}
                   {b.offset_total > 0 && <> + 미지급금 상계 {eok(b.offset_total)}</>}
@@ -583,7 +583,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                   {b.linked_own_total !== b.paid_total && <> ④와 다른 것은 ④가 이 매입처 계산서에 연결된 모든 출금(다른 거래처로 지정된 통장 거래 포함)을 세기 때문입니다.</>}
                   {data.kpi.paid_total !== b.paid_total && <> 위쪽 지급액({eok(data.kpi.paid_total)})은 계산서 연결 여부와 상관없이 이 매입처로 나간 출금 전부라 ④와 미배분 잔여만큼 다를 수 있습니다.</>}
                 </p>
-                <p className="text-[0.6875rem] text-gray-500 mt-1">{v.hint} 월말 지급 · 익월 계산서처럼 시점 차이가 있으면 짧은 기간에서는 차이가 커 보입니다 — 당년 · 전체 기간으로 보세요.
+                <p className="text-xs text-slate-600 mt-1">{v.hint} 월말 지급 · 익월 계산서처럼 시점 차이가 있으면 짧은 기간에서는 차이가 커 보입니다 — 당년 · 전체 기간으로 보세요.
                   {b.unmatched_out_count > 0 && <> <button onClick={() => { setTab('통장 내역'); setBankView('unmatched') }} className="text-blue-600 hover:underline">계산서 없는 출금 {b.unmatched_out_count}건 보기</button></>}
                 </p>
               </>
@@ -593,10 +593,10 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
       })()}
 
       {/* 미지급 경과기간 */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
+      <div className="bg-white border border-slate-300 rounded-xl p-4 mt-3">
         <div className="flex items-center justify-between">
-          <div className="text-sm font-bold text-gray-800">미지급 경과기간별 현황 <span className="font-normal text-gray-400 text-xs">(전체 기간 · 지급 누계가 오래된 계산서부터 갚은 것으로 보고 계산)</span></div>
-          {data.aging.opening > 0 && <div className="text-[0.6875rem] text-gray-500">기초이월 잔여 {eok(data.aging.opening)} 별도</div>}
+          <div className="text-sm font-bold text-slate-900">미지급 경과기간별 현황 <span className="font-normal text-slate-500 text-xs">(전체 기간 · 지급 누계가 오래된 계산서부터 갚은 것으로 보고 계산)</span></div>
+          {data.aging.opening > 0 && <div className="text-xs text-slate-600">기초이월 잔여 {eok(data.aging.opening)} 별도</div>}
         </div>
         {agingTotal > 0 ? (
           <div className="flex h-6 rounded-md overflow-hidden mt-2">
@@ -607,16 +607,16 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
               { v: data.aging.over90, c: '#104281', t: '#fff' },
             ].map((b, i) => b.v > 0 && (
               <div key={i} style={{ flex: b.v, background: b.c, color: b.t }}
-                className="flex items-center justify-center text-[0.625rem] font-semibold border-r-2 border-white last:border-0">
+                className="flex items-center justify-center text-xs font-semibold border-r-2 border-white last:border-0">
                 {['~30일', '31~60일', '61~90일', '90일+'][i]} {eok(b.v)}
               </div>
             ))}
           </div>
-        ) : <div className="text-xs text-gray-400 mt-2">계산서 기준 미지급 잔액이 없습니다.</div>}
+        ) : <div className="text-xs text-slate-500 mt-2">계산서 기준 미지급 잔액이 없습니다.</div>}
       </div>
 
       {/* 탭 */}
-      <div className="flex gap-0.5 border-b border-gray-200 mt-5">
+      <div className="flex gap-0.5 border-b border-slate-300 mt-5">
         {TABS.map(t => {
           const count = t === '계산서' ? data.invoices.length
             : t === '지급 내역' ? paymentRows.length
@@ -625,7 +625,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
             : null
           return (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-3.5 py-2 text-sm border-b-2 -mb-px ${tab === t ? 'border-slate-900 text-gray-900 font-bold' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
+              className={`px-3.5 py-2 text-sm border-b-2 -mb-px ${tab === t ? 'border-slate-900 text-slate-900 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
               {t}{count != null ? ` ${count}` : ''}
             </button>
           )
@@ -636,14 +636,14 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
       <div className="mt-4">
         {(tab === '개요' || tab === '계산서') && (
           <div className={tab === '개요' ? 'grid xl:grid-cols-5 gap-3' : ''}>
-            <div className={`bg-white border border-gray-200 rounded-xl overflow-x-auto ${tab === '개요' ? 'xl:col-span-3' : ''}`}>
-              <div className="px-4 pt-3 text-sm font-bold text-gray-800">매입 세금계산서{tab === '개요' ? ' (최근)' : ''}</div>
-              <div className="px-4 pb-1 text-[0.6875rem] text-gray-400">
+            <div className={`bg-white border border-slate-300 rounded-xl overflow-x-auto ${tab === '개요' ? 'xl:col-span-3' : ''}`}>
+              <div className="px-4 pt-3 text-sm font-bold text-slate-900">매입 세금계산서{tab === '개요' ? ' (최근)' : ''}</div>
+              <div className="px-4 pb-1 text-xs text-slate-500">
                 지급·잔여는 이 계산서에 실제로 연결된 출금 기준입니다. 매입처 전체 잔액·경과기간 막대는 오래된 계산서부터 지급된 것으로 보는 총액 방식이라 건별 합계와 다를 수 있습니다.
               </div>
               <table className="w-full text-sm min-w-[640px]">
                 <thead>
-                  <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+                  <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-300">
                     <th className="py-2 px-3 text-left font-medium">발행일</th>
                     <th className="py-2 px-3 text-left font-medium">구분</th>
                     <th className="py-2 px-3 text-right font-medium">총액 (부가세 포함)</th>
@@ -660,39 +660,39 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                       : inv.paid_alloc > 0 ? { t: '일부', c: 'bg-amber-100 text-amber-700' }
                       : { t: '미연결', c: 'bg-red-100 text-red-700' }
                     return (
-                      <tr key={inv.id} className="border-b border-gray-50">
+                      <tr key={inv.id} className="border-b border-slate-200">
                         <td className="py-1.5 px-3 tabular-nums">
                           <Link href={`/tax-invoices?dir=purchase&tax=${inv.tax_type ?? 'taxable'}&invoiceId=${inv.id}`}
                             className="text-blue-600 hover:underline" title="계산서 화면에서 열기">{inv.issue_date}</Link>
                         </td>
-                        <td className="py-1.5 px-3 text-xs text-gray-500">{inv.tax_type === 'exempt' ? '면세' : '과세'}</td>
+                        <td className="py-1.5 px-3 text-xs text-slate-600">{inv.tax_type === 'exempt' ? '면세' : '과세'}</td>
                         <td className="py-1.5 px-3 text-right tabular-nums">{won(inv.total_amount)}</td>
-                        <td className="py-1.5 px-3"><span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${payBadge.c}`}>{payBadge.t}</span></td>
-                        <td className={`py-1.5 px-3 text-right tabular-nums ${linkUnpaid > 0 ? 'text-red-600' : 'text-gray-400'}`}>{won(linkUnpaid)}</td>
+                        <td className="py-1.5 px-3"><span className={`px-1.5 py-0.5 rounded text-xs font-medium ${payBadge.c}`}>{payBadge.t}</span></td>
+                        <td className={`py-1.5 px-3 text-right tabular-nums ${linkUnpaid > 0 ? 'text-red-600' : 'text-slate-500'}`}>{won(linkUnpaid)}</td>
                       </tr>
                     )
                   })}
-                  {!data.invoices.length && <tr><td colSpan={5} className="text-center py-10 text-gray-400 text-sm">수취한 매입 계산서가 없습니다.</td></tr>}
+                  {!data.invoices.length && <tr><td colSpan={5} className="text-center py-10 text-slate-500 text-sm">수취한 매입 계산서가 없습니다.</td></tr>}
                 </tbody>
               </table>
               {tab === '개요' && data.invoices.length > 12 && (
                 <button onClick={() => setTab('계산서')}
-                  className="w-full px-4 py-2 text-left text-[0.6875rem] text-blue-600 hover:bg-blue-50/40 border-t border-gray-100">
+                  className="w-full px-4 py-2 text-left text-xs text-blue-600 hover:bg-blue-50/40 border-t border-slate-200">
                   최근 12건만 표시 중 — 외 {data.invoices.length - 12}건은 계산서 탭에서 확인
                 </button>
               )}
             </div>
             {tab === '개요' && (
-              <div className="bg-white border border-gray-200 rounded-xl xl:col-span-2">
-                <div className="px-4 pt-3 text-sm font-bold text-gray-800">매입·지급 타임라인</div>
-                <div className="px-4 pb-1 text-[0.6875rem] text-gray-400">계산서 수취와 출금을 시간순으로 함께 봅니다 (최근)</div>
+              <div className="bg-white border border-slate-300 rounded-xl xl:col-span-2">
+                <div className="px-4 pt-3 text-sm font-bold text-slate-900">매입·지급 타임라인</div>
+                <div className="px-4 pb-1 text-xs text-slate-500">계산서 수취와 출금을 시간순으로 함께 봅니다 (최근)</div>
                 <ul className="px-4 pb-3">
                   {data.timeline.slice(0, 12).map((e, i) => {
                     const href = tlHref(e)
                     return (
-                      <li key={i} className="flex items-baseline gap-2 py-1.5 border-b border-gray-50 last:border-0 text-sm">
-                        <span className={`px-1.5 py-0.5 rounded text-[0.625rem] font-bold w-12 text-center ${TL_META[e.kind].cls}`}>{TL_META[e.kind].label}</span>
-                        <span className="text-xs text-gray-400 tabular-nums w-20">{e.date}</span>
+                      <li key={i} className="flex items-baseline gap-2 py-1.5 border-b border-slate-200 last:border-0 text-sm">
+                        <span className={`px-1.5 py-0.5 rounded text-xs font-bold w-12 text-center ${TL_META[e.kind].cls}`}>{TL_META[e.kind].label}</span>
+                        <span className="text-xs text-slate-500 tabular-nums w-20">{e.date}</span>
                         {href
                           ? <Link href={href} className="flex-1 truncate text-blue-700 hover:underline" title="원본 화면에서 열기">{e.label}</Link>
                           : <span className="flex-1 truncate">{e.label}</span>}
@@ -700,7 +700,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                       </li>
                     )
                   })}
-                  {!data.timeline.length && <li className="text-xs text-gray-400 py-4">지급·수취 이력이 없습니다.</li>}
+                  {!data.timeline.length && <li className="text-xs text-slate-500 py-4">지급·수취 이력이 없습니다.</li>}
                 </ul>
               </div>
             )}
@@ -708,8 +708,8 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
         )}
 
         {tab === '지급 내역' && (
-          <div className="bg-white border border-gray-200 rounded-xl">
-            <div className="px-4 pt-3 text-[0.6875rem] text-gray-400">
+          <div className="bg-white border border-slate-300 rounded-xl">
+            <div className="px-4 pt-3 text-xs text-slate-500">
               실제로 돈이 나간 기록만 봅니다 — 계산서 발행 기록은 계산서 탭에 있습니다.
               [통장]은 계산서에 연결된 출금과 미지급금(2001) 상계로 확정된 출금,
               [카드]는 가맹점 사업자번호가 이 매입처와 일치하는 법인카드 결제분입니다.
@@ -719,9 +719,9 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
               {paymentRows.map((e, i) => {
                 const href = tlHref(e)
                 return (
-                  <li key={i} className="flex items-baseline gap-2 py-1.5 border-b border-gray-50 last:border-0 text-sm">
-                    <span className={`px-1.5 py-0.5 rounded text-[0.625rem] font-bold w-12 text-center ${TL_META[e.kind].cls}`}>{TL_META[e.kind].label}</span>
-                    <span className="text-xs text-gray-400 tabular-nums w-20">{e.date}</span>
+                  <li key={i} className="flex items-baseline gap-2 py-1.5 border-b border-slate-200 last:border-0 text-sm">
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-bold w-12 text-center ${TL_META[e.kind].cls}`}>{TL_META[e.kind].label}</span>
+                    <span className="text-xs text-slate-500 tabular-nums w-20">{e.date}</span>
                     {href
                       ? <Link href={href} className="flex-1 truncate text-blue-700 hover:underline" title="원본 화면에서 열기">{e.label}</Link>
                       : <span className="flex-1 truncate">{e.label}</span>}
@@ -729,7 +729,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                   </li>
                 )
               })}
-              {!paymentRows.length && <li className="text-xs text-gray-400 py-6">지급 이력이 없습니다.</li>}
+              {!paymentRows.length && <li className="text-xs text-slate-500 py-6">지급 이력이 없습니다.</li>}
             </ul>
           </div>
         )}
@@ -741,24 +741,24 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
             <div>
               <div className="flex flex-wrap items-center gap-1.5 text-xs mb-2">
                 {([['unmatched', `계산서 없는 출금만 (${cnt.unmatched})`], ['all', `전체 (${cnt.all})`], ['in', `입금만 (${cnt.in})`]] as const).map(([k, l]) => (
-                  <button key={k} onClick={() => setBankView(k)} className={`px-2 py-1 rounded-full border ${bankView === k ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400'}`}>{l}</button>
+                  <button key={k} onClick={() => setBankView(k)} className={`px-2 py-1 rounded-full border ${bankView === k ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-400 text-slate-700 hover:border-slate-400'}`}>{l}</button>
                 ))}
-                <span className="text-gray-400 ml-1">연결 거래 전체(기간 무관) · 적요 클릭 = 통장 내역 화면의 그 행</span>
+                <span className="text-slate-500 ml-1">연결 거래 전체(기간 무관) · 적요 클릭 = 통장 내역 화면의 그 행</span>
               </div>
-              <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+              <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead><tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                  <thead><tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                     <th className="py-2.5 px-3 font-medium">거래일</th><th className="py-2.5 px-3 font-medium">적요 / 보낸분·받는분</th><th className="py-2.5 px-3 font-medium">계좌</th>
                     <th className="py-2.5 px-3 font-medium text-right">출금</th><th className="py-2.5 px-3 font-medium text-right">입금</th><th className="py-2.5 px-3 font-medium">계산서 연결</th><th className="py-2.5 px-3 font-medium">연결 근거</th><th className="py-2.5 px-3 font-medium">조치</th>
                   </tr></thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-slate-200">
                     {rows.map(r => {
                       const unmatched = r.unallocated > 0
                       return (
                         <tr key={r.id} className={unmatched ? 'bg-amber-50/40' : ''}>
                           <td className="px-3 py-2 tabular-nums whitespace-nowrap">{r.tx_date}</td>
-                          <td className="px-3 py-2"><Link href={`/transactions?txId=${r.id}`} className="text-blue-700 hover:underline">{r.description ?? '(적요 없음)'}</Link>{r.counterparty_name && r.counterparty_name !== r.description && <span className="text-gray-400 text-xs ml-1">{r.counterparty_name}</span>}</td>
-                          <td className="px-3 py-2 text-xs text-gray-500">{r.account_alias ?? '-'}</td>
+                          <td className="px-3 py-2"><Link href={`/transactions?txId=${r.id}`} className="text-blue-700 hover:underline">{r.description ?? '(적요 없음)'}</Link>{r.counterparty_name && r.counterparty_name !== r.description && <span className="text-slate-500 text-xs ml-1">{r.counterparty_name}</span>}</td>
+                          <td className="px-3 py-2 text-xs text-slate-600">{r.account_alias ?? '-'}</td>
                           <td className="px-3 py-2 text-right tabular-nums text-red-600">{r.amount_out > 0 ? won(r.amount_out) : ''}</td>
                           <td className="px-3 py-2 text-right tabular-nums text-blue-600">{r.amount_in > 0 ? won(r.amount_in) : ''}</td>
                           <td className="px-3 py-2 text-xs whitespace-nowrap">
@@ -767,22 +767,22 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                             {r.is_offset && <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">미지급금 상계</span>}
                             {r.amount_out > 0 && r.unallocated > 0 && (r.invoice_linked + r.linked_other > 0)
                               && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 ml-1" title="출금 중 계산서에 배분되지 않은 금액">잔여 {won(r.unallocated)}</span>}
-                            {r.amount_out > 0 && r.invoice_linked + r.linked_other === 0 && !r.is_offset && <span className="text-gray-400">없음</span>}
-                            {r.amount_out === 0 && <span className="text-gray-300">-</span>}
+                            {r.amount_out > 0 && r.invoice_linked + r.linked_other === 0 && !r.is_offset && <span className="text-slate-500">없음</span>}
+                            {r.amount_out === 0 && <span className="text-slate-400">-</span>}
                           </td>
-                          <td className="px-3 py-2 text-xs text-gray-500">
+                          <td className="px-3 py-2 text-xs text-slate-600">
                             {r.basis}
                             {r.tagged_vendor_name && <span className="block text-violet-700" title="이 출금의 통장 거래처는 다른 곳으로 지정돼 있지만, 이 매입처 계산서에 결제연결된 금액이 있어 함께 보여 줍니다">통장 거래처: {r.tagged_vendor_name}</span>}
                           </td>
                           <td className="px-3 py-2 text-xs whitespace-nowrap">
                             {unmatched && <Link href={`/tax-invoices?dir=purchase&tax=taxable&vendorId=${data.vendor.id}`} className="text-blue-600 hover:underline" title="이 매입처 계산서 목록에서 결제 연결">계산서 매칭</Link>}
                             {perms.accountingEdit && r.own_links.length > 0 && <>{unmatched && ' · '}<button onClick={() => unlinkInvoices(r.own_links)} className="text-red-600 hover:underline" title="이 출금과 이 매입처 계산서의 결제연결을 지웁니다">계산서 연결 해제</button></>}
-                            {perms.accountingEdit && r.tagged_here && <>{(unmatched || r.own_links.length > 0) && ' · '}<button onClick={() => unlinkBankTx(r.id, r.basis)} className="text-gray-500 hover:underline" title="통장 거래의 거래처 지정만 비웁니다 (계산서 연결은 그대로)">거래처 지정 해제</button></>}
+                            {perms.accountingEdit && r.tagged_here && <>{(unmatched || r.own_links.length > 0) && ' · '}<button onClick={() => unlinkBankTx(r.id, r.basis)} className="text-slate-600 hover:underline" title="통장 거래의 거래처 지정만 비웁니다 (계산서 연결은 그대로)">거래처 지정 해제</button></>}
                           </td>
                         </tr>
                       )
                     })}
-                    {!rows.length && <tr><td colSpan={8} className="text-center py-10 text-gray-400 text-sm">해당하는 통장 거래가 없습니다.</td></tr>}
+                    {!rows.length && <tr><td colSpan={8} className="text-center py-10 text-slate-500 text-sm">해당하는 통장 거래가 없습니다.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -793,9 +793,9 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                   const list = kind === 'invoice' ? data.keywords.invoice : data.keywords.bank
                   const disabled = !perms.edit || kwBusy || (kind === 'bank' && !data.keywords.bank_column)
                   return (
-                    <div key={kind} className={`bg-white border rounded-xl p-4 ${kind === 'bank' ? 'border-emerald-300' : 'border-gray-200'}`}>
-                      <div className="font-bold text-gray-800 text-sm">{kind === 'invoice' ? '계산서 매칭 키워드' : '통장 키워드'}</div>
-                      <p className="text-[0.6875rem] text-gray-500 mb-2">
+                    <div key={kind} className={`bg-white border rounded-xl p-4 ${kind === 'bank' ? 'border-emerald-300' : 'border-slate-300'}`}>
+                      <div className="font-bold text-slate-900 text-sm">{kind === 'invoice' ? '계산서 매칭 키워드' : '통장 키워드'}</div>
+                      <p className="text-xs text-slate-600 mb-2">
                         {kind === 'invoice'
                           ? '계산서의 공급자 상호가 거래처명과 다를 때 씁니다. 사업자번호가 있으면 거의 쓰이지 않습니다.'
                           : data.keywords.bank_column
@@ -808,12 +808,12 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                             {k}{perms.edit && !disabled && <button onClick={() => saveKeywords(kind, list.filter(x => x !== k))} className="opacity-60 hover:opacity-100" title="제거">✕</button>}
                           </span>
                         ))}
-                        {!list.length && <span className="text-gray-400">없음</span>}
+                        {!list.length && <span className="text-slate-500">없음</span>}
                         {perms.edit && (
                           <input value={kwInput[kind]} disabled={disabled}
                             onChange={e => setKwInput(s => ({ ...s, [kind]: e.target.value }))}
                             onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && kwInput[kind].trim()) { e.preventDefault(); saveKeywords(kind, [...list, kwInput[kind].trim()]) } }}
-                            placeholder="+ 추가 후 Enter" className="border border-gray-300 rounded px-2 py-0.5 w-32 disabled:opacity-50" />
+                            placeholder="+ 추가 후 Enter" className="border border-slate-400 rounded px-2 py-0.5 w-32 disabled:opacity-50" />
                         )}
                       </div>
                     </div>
@@ -826,24 +826,24 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
 
         {tab === 'ERP 발주' && (
           <div className="space-y-3">
-            <div className="bg-white border border-gray-200 rounded-xl p-4">
-              <div className="text-sm font-bold text-gray-800 mb-1">정산월별 발주 규모 <span className="font-normal text-gray-400 text-xs">(취소 제외, 정산월 없으면 주문월)</span></div>
+            <div className="bg-white border border-slate-300 rounded-xl p-4">
+              <div className="text-sm font-bold text-slate-900 mb-1">정산월별 발주 규모 <span className="font-normal text-slate-500 text-xs">(취소 제외, 정산월 없으면 주문월)</span></div>
               <div className="flex gap-1.5 flex-wrap">
                 {data.erp_months.slice(0, 18).map(m => (
-                  <div key={m.month} className="px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs">
-                    <span className="text-gray-500">{m.month}</span>
+                  <div key={m.month} className="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs">
+                    <span className="text-slate-600">{m.month}</span>
                     <span className="ml-1.5 font-semibold tabular-nums">{eok(m.amount)}</span>
-                    <span className="ml-1 text-gray-400">({m.item_count}건)</span>
+                    <span className="ml-1 text-slate-500">({m.item_count}건)</span>
                   </div>
                 ))}
-                {!data.erp_months.length && <span className="text-xs text-gray-400 py-2">ERP 발주 이력이 없습니다. 매입 별칭 연결을 확인하세요.</span>}
+                {!data.erp_months.length && <span className="text-xs text-slate-500 py-2">ERP 발주 이력이 없습니다. 매입 별칭 연결을 확인하세요.</span>}
               </div>
             </div>
-            <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-              <div className="px-4 pt-3 pb-1 text-sm font-bold text-gray-800">발주 품목 <span className="font-normal text-gray-400 text-xs">주문시스템 3단계(발주서)가 열리면 발주 이력의 원천이 됩니다</span></div>
+            <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
+              <div className="px-4 pt-3 pb-1 text-sm font-bold text-slate-900">발주 품목 <span className="font-normal text-slate-500 text-xs">주문시스템 3단계(발주서)가 열리면 발주 이력의 원천이 됩니다</span></div>
               <table className="w-full text-sm min-w-[680px]">
                 <thead>
-                  <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+                  <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-300">
                     <th className="py-2 px-3 text-left font-medium">주문번호</th>
                     <th className="py-2 px-3 text-left font-medium">주문일</th>
                     <th className="py-2 px-3 text-left font-medium">품목</th>
@@ -854,26 +854,26 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
                 </thead>
                 <tbody>
                   {data.erp_items.map((it, i) => (
-                    <tr key={i} className={`border-b border-gray-50 ${it.is_canceled ? 'opacity-40 line-through' : ''}`}>
+                    <tr key={i} className={`border-b border-slate-200 ${it.is_canceled ? 'opacity-40 line-through' : ''}`}>
                       <td className="py-1.5 px-3 text-xs tabular-nums">
                         {it.order_no
                           ? <Link href={`/erp-orders?q=${encodeURIComponent(it.order_no)}`} className="text-blue-600 hover:underline" title="ERP 주문내역에서 열기">{it.order_no}</Link>
-                          : <span className="text-gray-500">-</span>}
+                          : <span className="text-slate-600">-</span>}
                       </td>
                       <td className="py-1.5 px-3 tabular-nums text-xs">{it.order_date ?? '-'}</td>
                       <td className="py-1.5 px-3">{it.item_name ?? '-'}</td>
                       <td className="py-1.5 px-3 text-right tabular-nums">{it.quantity}</td>
                       <td className="py-1.5 px-3 text-right tabular-nums">{won(it.purchase_total)}</td>
-                      <td className="py-1.5 px-3 tabular-nums text-xs text-gray-500">{it.settlement_month ?? '-'}</td>
+                      <td className="py-1.5 px-3 tabular-nums text-xs text-slate-600">{it.settlement_month ?? '-'}</td>
                     </tr>
                   ))}
                   {!data.erp_items.length && (
-                    <tr><td colSpan={6} className="text-center py-10 text-gray-400 text-sm">발주 품목이 없습니다.</td></tr>
+                    <tr><td colSpan={6} className="text-center py-10 text-slate-500 text-sm">발주 품목이 없습니다.</td></tr>
                   )}
                 </tbody>
               </table>
               {data.erp_items.length >= 500 && (
-                <div className="px-4 py-2 text-[0.6875rem] text-gray-400">최근 500건만 표시 중 — 전체는 ERP 주문내역 화면에서 확인하세요.</div>
+                <div className="px-4 py-2 text-xs text-slate-500">최근 500건만 표시 중 — 전체는 ERP 주문내역 화면에서 확인하세요.</div>
               )}
             </div>
           </div>
@@ -883,11 +883,11 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
         {tab === '발주서 양식' && <PoFormTab vendorId={vendorId} vendorName={data.vendor.name} />}
 
         {tab === '활동 메모' && (
-          <div className="bg-white border border-gray-200 rounded-xl p-4 max-w-2xl">
-            <div className="text-sm font-bold text-gray-800 mb-2">활동 메모</div>
+          <div className="bg-white border border-slate-300 rounded-xl p-4 max-w-2xl">
+            <div className="text-sm font-bold text-slate-900 mb-2">활동 메모</div>
             <textarea value={note} onChange={e => setNote(e.target.value)} rows={6}
               placeholder="지급 협의, 정산 이슈 등 이 매입처 관련 메모" readOnly={!perms.edit}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm read-only:bg-gray-50" />
+              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm read-only:bg-slate-50" />
             {perms.edit && <div className="flex justify-end mt-2">
               <button onClick={saveNote} className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">저장</button>
             </div>}

@@ -116,7 +116,7 @@ export default function ClassifyTab() {
   return (
     <div>
       <div className="mb-1">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-slate-600">
           미분류 매입 세금계산서를 거래처 단위로 묶어 한 번에 확정합니다. 확정 즉시 분개가 생성되고,
           기본계정을 저장하면 다음 분류부터 자동 추천됩니다.
         </p>
@@ -126,10 +126,10 @@ export default function ClassifyTab() {
 
       {summary && (
         <div className="flex gap-4 my-3 text-sm">
-          <div className="px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="px-3 py-2 bg-slate-50 rounded-lg border border-slate-300">
             미분류 <b>{summary.unclassified.toLocaleString()}</b>건 / 전체 {summary.total.toLocaleString()}건
           </div>
-          <div className="px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="px-3 py-2 bg-slate-50 rounded-lg border border-slate-300">
             거래처 그룹 <b>{summary.groups.toLocaleString()}</b>개 (추천 있음 {summary.suggested_groups.toLocaleString()}개)
           </div>
           {missing && missing.missing > 0 && (
@@ -147,18 +147,18 @@ export default function ClassifyTab() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="거래처 검색"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-56"
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-56"
         />
       </div>
 
       {loading ? (
-        <p className="text-gray-400 text-sm py-10 text-center">불러오는 중...</p>
+        <p className="text-slate-500 text-sm py-10 text-center">불러오는 중...</p>
       ) : filtered.length === 0 ? (
-        <p className="text-gray-400 text-sm py-10 text-center">미분류 계산서가 없습니다. </p>
+        <p className="text-slate-500 text-sm py-10 text-center">미분류 계산서가 없습니다. </p>
       ) : (
-        <div className="overflow-x-auto border border-gray-200 rounded-lg">
+        <div className="overflow-x-auto border border-slate-300 rounded-lg">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 text-xs">
+            <thead className="bg-slate-50 text-slate-600 text-xs">
               <tr>
                 <th className="px-3 py-2 text-left">거래처</th>
                 <th className="px-3 py-2 text-right">건수</th>
@@ -170,23 +170,23 @@ export default function ClassifyTab() {
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-200">
               {filtered.map(g => (
-                <tr key={g.key} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 font-medium text-gray-900">{g.counterparty_name}</td>
+                <tr key={g.key} className="hover:bg-slate-50">
+                  <td className="px-3 py-2 font-medium text-slate-900">{g.counterparty_name}</td>
                   <td className="px-3 py-2 text-right">{g.count.toLocaleString()}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{won(g.supply_total)}</td>
-                  <td className="px-3 py-2 text-xs text-gray-500">{g.date_from.slice(2, 10)} ~ {g.date_to.slice(2, 10)}</td>
+                  <td className="px-3 py-2 text-xs text-slate-600">{g.date_from.slice(2, 10)} ~ {g.date_to.slice(2, 10)}</td>
                   <td className="px-3 py-2 text-xs">
                     {g.suggestion
-                      ? <span className="text-blue-700">{g.suggestion.name} <span className="text-gray-400">({g.suggestion.reason})</span></span>
-                      : <span className="text-gray-300">—</span>}
+                      ? <span className="text-blue-700">{g.suggestion.name} <span className="text-slate-500">({g.suggestion.reason})</span></span>
+                      : <span className="text-slate-400">—</span>}
                   </td>
                   <td className="px-3 py-2">
                     <select
                       value={pick[g.key] ?? ''}
                       onChange={e => setPick(p => ({ ...p, [g.key]: e.target.value }))}
-                      className="border border-gray-300 rounded px-2 py-1 text-xs w-44"
+                      className="border border-slate-400 rounded px-2 py-1 text-xs w-44"
                     >
                       <option value="">선택...</option>
                       {expenseFirst.map(a => (

@@ -82,15 +82,15 @@ export default function PreStockView({ asof: asofParam, productId }: { asof: str
   return (
     <div>
       <div className="flex items-center gap-2 flex-wrap mb-3 text-[0.8125rem]">
-        <label className="text-slate-500">기준일</label>
+        <label className="text-slate-600">기준일</label>
         <input type="date" value={asof || data?.today || ''} onChange={e => setAsof(e.target.value)}
-          className="border border-slate-200 rounded-lg px-2 py-1 text-[0.8125rem]" />
-        {asof && <button type="button" onClick={() => setAsof('')} className="text-slate-500 underline">오늘로</button>}
+          className="border border-slate-300 rounded-lg px-2 py-1 text-[0.8125rem]" />
+        {asof && <button type="button" onClick={() => setAsof('')} className="text-slate-600 underline">오늘로</button>}
         {isPast && <span className="text-amber-700">{data!.asof} 말 기준 재고입니다{yearEnd ? ' — 연말 재고(세무사에게 넘길 기말 재고자산)' : ''}.</span>}
-        <span className="ml-auto text-slate-400 text-[0.75rem]">입력 · 수정은 주문 입력의 품목 행 &quot;재고&quot; 칸에서 합니다</span>
+        <span className="ml-auto text-slate-500 text-xs">입력 · 수정은 주문 입력의 품목 행 &quot;재고&quot; 칸에서 합니다</span>
         {data?.can_edit && (data?.rows.length ?? 0) > 0 && (
           <button type="button" onClick={() => { setTaking(true); setTakeMsg(null) }}
-            className="px-3 py-1.5 border border-slate-300 bg-white rounded-lg text-[0.8125rem] font-semibold text-slate-700 hover:bg-slate-50">실사 입력</button>
+            className="px-3 py-1.5 border border-slate-400 bg-white rounded-lg text-[0.8125rem] font-semibold text-slate-800 hover:bg-slate-50">실사 입력</button>
         )}
       </div>
 
@@ -103,25 +103,25 @@ export default function PreStockView({ asof: asofParam, productId }: { asof: str
 
       {k && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 mb-3">
-          <button type="button" onClick={() => setChip('stock')} className={`${card} ${chip === 'stock' ? 'border-slate-900' : 'border-slate-200'}`}>
-            <div className="text-[0.75rem] text-slate-500">재고 있는 품목</div>
-            <div className="text-lg font-bold tabular-nums">{won(k.products_with_stock)}<span className="text-[0.75rem] font-normal text-slate-400 ml-1">/ 전체 {won(k.products_total)}</span></div>
+          <button type="button" onClick={() => setChip('stock')} className={`${card} ${chip === 'stock' ? 'border-slate-900' : 'border-slate-300'}`}>
+            <div className="text-xs text-slate-600">재고 있는 품목</div>
+            <div className="text-lg font-bold tabular-nums">{won(k.products_with_stock)}<span className="text-xs font-normal text-slate-500 ml-1">/ 전체 {won(k.products_total)}</span></div>
           </button>
-          <div className={`${card} border-slate-200`} title={`남은 입고분 × 입고 단가(부가세 포함). 월별 손익에서는 공급가액 — ${STOCK_VAT_NOTE}`}>
-            <div className="text-[0.75rem] text-slate-500">재고 금액{yearEnd ? ' (연말 재고)' : ''}</div>
+          <div className={`${card} border-slate-300`} title={`남은 입고분 × 입고 단가(부가세 포함). 월별 손익에서는 공급가액 — ${STOCK_VAT_NOTE}`}>
+            <div className="text-xs text-slate-600">재고 금액{yearEnd ? ' (연말 재고)' : ''}</div>
             <div className="text-lg font-bold tabular-nums">{won(k.value)}</div>
           </div>
-          <div className={`${card} border-slate-200`}>
-            <div className="text-[0.75rem] text-slate-500">{data!.asof.slice(5, 7)}월 입고</div>
-            <div className="text-lg font-bold tabular-nums">{won(k.month_in)}<span className="text-[0.75rem] font-normal text-slate-400 ml-1">{k.month_in_count}건</span></div>
+          <div className={`${card} border-slate-300`}>
+            <div className="text-xs text-slate-600">{data!.asof.slice(5, 7)}월 입고</div>
+            <div className="text-lg font-bold tabular-nums">{won(k.month_in)}<span className="text-xs font-normal text-slate-500 ml-1">{k.month_in_count}건</span></div>
           </div>
-          <div className={`${card} border-slate-200`}>
-            <div className="text-[0.75rem] text-slate-500">{data!.asof.slice(5, 7)}월 출고 원가</div>
-            <div className="text-lg font-bold tabular-nums">{won(k.month_out_cost)}<span className="text-[0.75rem] font-normal text-slate-400 ml-1">{k.month_out_count}건</span></div>
+          <div className={`${card} border-slate-300`}>
+            <div className="text-xs text-slate-600">{data!.asof.slice(5, 7)}월 출고 원가</div>
+            <div className="text-lg font-bold tabular-nums">{won(k.month_out_cost)}<span className="text-xs font-normal text-slate-500 ml-1">{k.month_out_count}건</span></div>
           </div>
-          <button type="button" onClick={() => setChip('old')} className={`${card} ${chip === 'old' ? 'border-slate-900' : 'border-slate-200'}`}>
-            <div className="text-[0.75rem] text-slate-500">오래된 재고</div>
-            <div className={`text-lg font-bold tabular-nums ${k.old > 0 ? 'text-amber-700' : ''}`}>{won(k.old)}<span className="text-[0.75rem] font-normal text-slate-400 ml-1">입고 후 {data!.old_days}일 넘게</span></div>
+          <button type="button" onClick={() => setChip('old')} className={`${card} ${chip === 'old' ? 'border-slate-900' : 'border-slate-300'}`}>
+            <div className="text-xs text-slate-600">오래된 재고</div>
+            <div className={`text-lg font-bold tabular-nums ${k.old > 0 ? 'text-amber-700' : ''}`}>{won(k.old)}<span className="text-xs font-normal text-slate-500 ml-1">입고 후 {data!.old_days}일 넘게</span></div>
           </button>
         </div>
       )}
@@ -133,19 +133,19 @@ export default function PreStockView({ asof: asofParam, productId }: { asof: str
 
       <div className="flex items-center gap-2 flex-wrap mb-2">
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="품번 · 품명 · 매입처 검색"
-          className="border border-slate-200 rounded-lg px-3 py-1.5 text-[0.8125rem] w-64" />
+          className="border border-slate-300 rounded-lg px-3 py-1.5 text-[0.8125rem] w-64" />
         {CHIPS.map(c => (
           <button key={c.key} type="button" onClick={() => setChip(c.key)}
-            className={`px-3 py-1 rounded-full text-[0.75rem] border ${chip === c.key ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200'}`}>
+            className={`px-3 py-1 rounded-full text-xs border ${chip === c.key ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300'}`}>
             {c.label} <span className="tabular-nums opacity-70">{chipCount(c.key)}</span>
           </button>
         ))}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
+      <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
         <table className="w-full text-[0.8125rem] min-w-[60rem]">
           <thead>
-            <tr className="bg-slate-50 text-slate-500 border-b border-slate-200">
+            <tr className="bg-slate-50 text-slate-600 border-b border-slate-300">
               <th className="py-2 px-2.5 text-left font-medium">품번</th>
               <th className="py-2 px-2.5 text-left font-medium">품명</th>
               <th className="py-2 px-2.5 text-left font-medium">매입처</th>
@@ -160,9 +160,9 @@ export default function PreStockView({ asof: asofParam, productId }: { asof: str
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={11} className="py-8 text-center text-slate-400">불러오는 중...</td></tr>}
+            {loading && <tr><td colSpan={11} className="py-8 text-center text-slate-500">불러오는 중...</td></tr>}
             {!loading && !rows.length && (
-              <tr><td colSpan={11} className="py-8 text-center text-slate-400">
+              <tr><td colSpan={11} className="py-8 text-center text-slate-500">
                 {(data?.rows.length ?? 0) === 0 ? '선매입 입고 행이 아직 없습니다 — 주문 입력에서 품목 행의 재고 칸을 &quot;선매입 입고&quot;로 저장하면 여기에 쌓입니다.' : '조건에 맞는 품목이 없습니다.'}
               </td></tr>
             )}
@@ -172,37 +172,37 @@ export default function PreStockView({ asof: asofParam, productId }: { asof: str
               const take = r.last_take
               return (
                 <Fragment key={r.product_id}>
-                  <tr className="border-b border-slate-100 hover:bg-slate-50/60">
-                    <td className="py-2 px-2.5 tabular-nums text-slate-500">{r.item_code ?? '-'}</td>
+                  <tr className="border-b border-slate-200 hover:bg-slate-50/60">
+                    <td className="py-2 px-2.5 tabular-nums text-slate-600">{r.item_code ?? '-'}</td>
                     <td className="py-2 px-2.5">
                       <button type="button" onClick={() => setLedgerOf(r.product_id)} className="font-medium text-slate-900 hover:underline text-left">{r.item_name}</button>
                       {r.lots.length > 0 && (
-                        <button type="button" onClick={() => toggle(r.product_id)} className="ml-2 text-[0.6875rem] text-slate-400 hover:text-slate-700">
+                        <button type="button" onClick={() => toggle(r.product_id)} className="ml-2 text-xs text-slate-500 hover:text-slate-800">
                           입고분 {r.lots.length} {open.has(r.product_id) ? '접기' : '보기'}
                         </button>
                       )}
                     </td>
-                    <td className="py-2 px-2.5 text-slate-600">{r.purchase_vendor_name ?? '-'}</td>
+                    <td className="py-2 px-2.5 text-slate-700">{r.purchase_vendor_name ?? '-'}</td>
                     <td className="py-2 px-2.5 text-right tabular-nums">{won(r.in_qty)}</td>
                     <td className="py-2 px-2.5 text-right tabular-nums">{won(r.out_qty)}</td>
                     <td className={`py-2 px-2.5 text-right tabular-nums ${r.adj_qty < 0 ? 'text-red-600' : ''}`}>{r.adj_qty ? (r.adj_qty > 0 ? `+${won(r.adj_qty)}` : won(r.adj_qty)) : '0'}</td>
                     <td className="py-2 px-2.5 text-right tabular-nums font-bold">{won(r.stock)}</td>
                     <td className="py-2 px-2.5 text-right tabular-nums">{r.stock > 0 ? won(r.avg_cost) : '-'}</td>
                     <td className="py-2 px-2.5 text-right tabular-nums font-semibold">{won(r.value)}</td>
-                    <td className={`py-2 px-2.5 tabular-nums ${old ? 'text-amber-700 font-semibold' : 'text-slate-600'}`}>
+                    <td className={`py-2 px-2.5 tabular-nums ${old ? 'text-amber-700 font-semibold' : 'text-slate-700'}`}>
                       {r.oldest_date ? `${mmdd(r.oldest_date)} (${r.oldest_days}일)` : '-'}
                     </td>
-                    <td className="py-2 px-2.5 text-slate-600">
+                    <td className="py-2 px-2.5 text-slate-700">
                       {take ? `${mmdd(take.take_date)} · ${take.counted_qty === take.computed_qty ? '일치' : `${take.counted_qty - take.computed_qty > 0 ? '+' : ''}${take.counted_qty - take.computed_qty}`}` : '없음'}
                     </td>
                   </tr>
                   {open.has(r.product_id) && (
-                    <tr className="border-b border-slate-100 bg-slate-50/60">
+                    <tr className="border-b border-slate-200 bg-slate-50/60">
                       <td />
-                      <td colSpan={10} className="py-1.5 px-2.5 text-[0.75rem] text-slate-600">
+                      <td colSpan={10} className="py-1.5 px-2.5 text-xs text-slate-700">
                         {r.lots.map((l, i) => (
                           <span key={l.key}>
-                            {i > 0 && <span className="text-slate-300 mx-1.5">|</span>}
+                            {i > 0 && <span className="text-slate-400 mx-1.5">|</span>}
                             {l.order_id
                               ? <Link href={`/orders/${l.order_id}`} className="text-blue-700 hover:underline tabular-nums">{l.order_no}{l.line_no ? ` #${l.line_no}` : ''}</Link>
                               : <span>조정</span>}
@@ -219,7 +219,7 @@ export default function PreStockView({ asof: asofParam, productId }: { asof: str
           </tbody>
           {!loading && rows.length > 0 && (
             <tfoot>
-              <tr className="bg-slate-50 font-bold border-t-2 border-slate-200">
+              <tr className="bg-slate-50 font-bold border-t-2 border-slate-300">
                 <td className="py-2 px-2.5" colSpan={6}>합계 ({rows.length}품목)</td>
                 <td className="py-2 px-2.5 text-right tabular-nums">{won(rows.reduce((s, r) => s + r.stock, 0))}</td>
                 <td />
@@ -230,7 +230,7 @@ export default function PreStockView({ asof: asofParam, productId }: { asof: str
           )}
         </table>
       </div>
-      <p className="mt-2 text-[0.75rem] text-slate-400 leading-relaxed">
+      <p className="mt-2 text-xs text-slate-500 leading-relaxed">
         · 재고 금액 = 남은 입고분 수량 × 각 입고 단가(입고 행 매입합계 ÷ 수량, 부가세 포함). 세무사 자료가 오기 전 내부 확인용 기말 재고 금액으로도 씁니다.<br />
         · 기존에 배송종류 &quot;샘플&quot;로 넣은 선매입 건은 기초재고를 넣기 전까지 여기에 나오지 않습니다(확인 중).
       </p>
@@ -255,19 +255,19 @@ function Ledger({ productId, asof, onClose }: { productId: string; asof: string 
     in: { label: '입고', cls: 'text-violet-700' }, out: { label: '출고', cls: 'text-teal-700' }, adjust: { label: '조정', cls: 'text-amber-700' },
   }
   return (
-    <div className="mt-4 bg-white border border-slate-200 rounded-xl">
-      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-100">
+    <div className="mt-4 bg-white border border-slate-300 rounded-xl">
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-200">
         <div className="text-sm font-bold text-slate-900">품목 원장</div>
-        {d?.product && <span className="text-[0.8125rem] text-slate-600">{d.product.item_name} <span className="text-slate-400 tabular-nums">{d.product.item_code ?? ''}</span> · 재고 <b className="tabular-nums">{won(d.stock)}</b></span>}
-        <button type="button" onClick={onClose} className="ml-auto text-[0.75rem] text-slate-500 hover:text-slate-800">닫기</button>
+        {d?.product && <span className="text-[0.8125rem] text-slate-700">{d.product.item_name} <span className="text-slate-500 tabular-nums">{d.product.item_code ?? ''}</span> · 재고 <b className="tabular-nums">{won(d.stock)}</b></span>}
+        <button type="button" onClick={onClose} className="ml-auto text-xs text-slate-600 hover:text-slate-900">닫기</button>
       </div>
       {err && <div className="px-4 py-3 text-sm text-red-600">{err}</div>}
-      {!d && !err && <div className="px-4 py-6 text-center text-slate-400 text-sm">불러오는 중...</div>}
+      {!d && !err && <div className="px-4 py-6 text-center text-slate-500 text-sm">불러오는 중...</div>}
       {d && (
         <div className="overflow-x-auto">
           <table className="w-full text-[0.8125rem] min-w-[56rem]">
             <thead>
-              <tr className="bg-slate-50 text-slate-500 border-b border-slate-200">
+              <tr className="bg-slate-50 text-slate-600 border-b border-slate-300">
                 <th className="py-1.5 px-2.5 text-left font-medium">날짜</th>
                 <th className="py-1.5 px-2.5 text-left font-medium">구분</th>
                 <th className="py-1.5 px-2.5 text-left font-medium">원본</th>
@@ -282,9 +282,9 @@ function Ledger({ productId, asof, onClose }: { productId: string; asof: string 
               </tr>
             </thead>
             <tbody>
-              {!d.lines.length && <tr><td colSpan={11} className="py-6 text-center text-slate-400">기록이 없습니다.</td></tr>}
+              {!d.lines.length && <tr><td colSpan={11} className="py-6 text-center text-slate-500">기록이 없습니다.</td></tr>}
               {d.lines.map((l, i) => (
-                <tr key={i} className={`border-b border-slate-50 ${asof && l.date > asof ? 'text-slate-400' : ''}`}>
+                <tr key={i} className={`border-b border-slate-200 ${asof && l.date > asof ? 'text-slate-500' : ''}`}>
                   <td className="py-1.5 px-2.5 tabular-nums">{mmdd(l.date)}</td>
                   <td className={`py-1.5 px-2.5 font-medium ${KIND[l.kind].cls}`}>{KIND[l.kind].label}</td>
                   <td className="py-1.5 px-2.5 tabular-nums">
@@ -297,12 +297,12 @@ function Ledger({ productId, asof, onClose }: { productId: string; asof: string 
                   <td className="py-1.5 px-2.5 text-right tabular-nums">{won(Math.abs(l.amount))}</td>
                   <td className="py-1.5 px-2.5">{l.lot}</td>
                   <td className="py-1.5 px-2.5 text-right tabular-nums font-semibold">{won(l.balance)}</td>
-                  <td className="py-1.5 px-2.5 text-slate-500">{l.staff ?? '-'}</td>
+                  <td className="py-1.5 px-2.5 text-slate-600">{l.staff ?? '-'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="px-4 py-2 text-[0.75rem] text-slate-400">용도: 판매(배송종류 지점 · 개별) / 샘플(배송종류 샘플) — 주문 행에서 자동으로 정해집니다. 출고 한 행이 두 입고분에 걸치면 두 줄로 나뉩니다.</p>
+          <p className="px-4 py-2 text-xs text-slate-500">용도: 판매(배송종류 지점 · 개별) / 샘플(배송종류 샘플) — 주문 행에서 자동으로 정해집니다. 출고 한 행이 두 입고분에 걸치면 두 줄로 나뉩니다.</p>
         </div>
       )}
     </div>
@@ -333,28 +333,28 @@ function StocktakeDialog({ rows, today, onClose, onDone }: { rows: Row[]; today:
     } catch (e) { setErr(e instanceof Error ? e.message : '저장 실패') }
     setSaving(false)
   }
-  const field = 'w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm'
+  const field = 'w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm'
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-5" onClick={e => e.stopPropagation()}>
         <h3 className="text-base font-bold text-slate-900">선매입 재고 실사 입력</h3>
-        <p className="text-[0.75rem] text-slate-500 mt-1 mb-3">실제로 센 수량을 넣습니다. 전산 재고는 그날 말 기준으로 자동 계산해 함께 남깁니다. 차이는 실사 기록을 고치지 않고 확인 필요 탭에서 조정 기록으로 해소합니다.</p>
-        <label className="block text-[0.75rem] text-slate-500 mb-0.5">품목</label>
+        <p className="text-xs text-slate-600 mt-1 mb-3">실제로 센 수량을 넣습니다. 전산 재고는 그날 말 기준으로 자동 계산해 함께 남깁니다. 차이는 실사 기록을 고치지 않고 확인 필요 탭에서 조정 기록으로 해소합니다.</p>
+        <label className="block text-xs text-slate-600 mb-0.5">품목</label>
         <select value={pid} onChange={e => setPid(e.target.value)} className={field}>
           <option value="">품목 선택</option>
           {rows.map(r => <option key={r.product_id} value={r.product_id}>{r.item_name}{r.item_code ? ` (${r.item_code})` : ''} — 전산 {r.stock}</option>)}
         </select>
         <div className="grid grid-cols-2 gap-2 mt-2">
-          <div><label className="block text-[0.75rem] text-slate-500 mb-0.5">실사일</label>
+          <div><label className="block text-xs text-slate-600 mb-0.5">실사일</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} className={field} /></div>
-          <div><label className="block text-[0.75rem] text-slate-500 mb-0.5">실사 수량</label>
+          <div><label className="block text-xs text-slate-600 mb-0.5">실사 수량</label>
             <input value={qty} onChange={e => setQty(e.target.value)} inputMode="numeric" placeholder="0" className={`${field} text-right tabular-nums`} /></div>
         </div>
-        <label className="block text-[0.75rem] text-slate-500 mb-0.5 mt-2">메모 (선택)</label>
+        <label className="block text-xs text-slate-600 mb-0.5 mt-2">메모 (선택)</label>
         <input value={note} onChange={e => setNote(e.target.value)} className={field} />
         {err && <div className="mt-2 text-[0.8125rem] text-red-600">{err}</div>}
         <div className="flex justify-end gap-2 mt-4">
-          <button type="button" onClick={onClose} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-white">닫기</button>
+          <button type="button" onClick={onClose} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm bg-white">닫기</button>
           <button type="button" disabled={saving} onClick={save} className="px-3 py-1.5 rounded-lg text-sm bg-slate-900 text-white font-semibold disabled:opacity-40">{saving ? '저장 중...' : '저장'}</button>
         </div>
       </div>

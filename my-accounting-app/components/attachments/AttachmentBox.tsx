@@ -123,21 +123,21 @@ export default function AttachmentBox({ ownerType, ownerId, draftKey, title = '�
       onDragLeave={() => setDrag(false)}
       onDrop={e => { if (!canAdd) return; e.preventDefault(); setDrag(false); addFiles(Array.from(e.dataTransfer.files)) }}>
       <div className="flex items-baseline gap-2 flex-wrap">
-        <span className="text-xs font-medium text-gray-600">{title}{items.length ? ` ${items.length}개` : ''}</span>
-        {canAdd && <span className="text-[0.6875rem] text-gray-400">사진은 긴 변 {ATTACH_IMAGE_LONG_SIDE}px 로 자동 축소 · 그 밖의 파일은 1개 {fmtBytes(ATTACH_MAX_BYTES)}까지 · 최대 {ATTACH_MAX_PER_OWNER}개</span>}
+        <span className="text-xs font-medium text-slate-700">{title}{items.length ? ` ${items.length}개` : ''}</span>
+        {canAdd && <span className="text-xs text-slate-500">사진은 긴 변 {ATTACH_IMAGE_LONG_SIDE}px 로 자동 축소 · 그 밖의 파일은 1개 {fmtBytes(ATTACH_MAX_BYTES)}까지 · 최대 {ATTACH_MAX_PER_OWNER}개</span>}
       </div>
 
       {images.length > 0 && (
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-2">
           {images.map(a => (
-            <div key={a.id} className="relative group border border-gray-200 rounded-lg overflow-hidden bg-slate-50">
+            <div key={a.id} className="relative group border border-slate-300 rounded-lg overflow-hidden bg-slate-50">
               <button type="button" onClick={() => download(a, true)} className="block w-full aspect-square" title={`${a.file_name} · ${fmtBytes(a.size_bytes)}${a.uploader ? ` · ${a.uploader.name}` : ''}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={a.preview_url!} alt={a.file_name} className="w-full h-full object-cover" loading="lazy" />
               </button>
-              <div className="absolute inset-x-0 bottom-0 bg-white/90 px-1.5 py-0.5 flex items-center gap-1 text-[0.625rem] text-gray-600">
+              <div className="absolute inset-x-0 bottom-0 bg-white/90 px-1.5 py-0.5 flex items-center gap-1 text-xs text-slate-700">
                 <span className="truncate flex-1">{a.uploader?.name ?? ''} · {fmtBytes(a.size_bytes)}</span>
-                <button type="button" onClick={() => download(a)} className="hover:text-gray-900 underline">받기</button>
+                <button type="button" onClick={() => download(a)} className="hover:text-slate-900 underline">받기</button>
                 {a.can_delete && <button type="button" onClick={() => remove(a)} className="text-red-600 hover:underline">삭제</button>}
               </div>
             </div>
@@ -146,12 +146,12 @@ export default function AttachmentBox({ ownerType, ownerId, draftKey, title = '�
       )}
 
       {files.length > 0 && (
-        <ul className="mt-2 divide-y divide-gray-100 border border-gray-200 rounded-lg">
+        <ul className="mt-2 divide-y divide-slate-200 border border-slate-300 rounded-lg">
           {files.map(a => (
             <li key={a.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
-              <span className="text-[0.625rem] font-semibold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 shrink-0">{extOf(a.file_name) || '파일'}</span>
-              <button type="button" onClick={() => download(a)} className="truncate text-left text-gray-800 hover:underline flex-1" title="내려받기">{a.file_name}</button>
-              <span className="text-xs text-gray-400 whitespace-nowrap">{fmtBytes(a.size_bytes)}{a.uploader ? ` · ${a.uploader.name}` : ''}</span>
+              <span className="text-xs font-semibold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 shrink-0">{extOf(a.file_name) || '파일'}</span>
+              <button type="button" onClick={() => download(a)} className="truncate text-left text-slate-900 hover:underline flex-1" title="내려받기">{a.file_name}</button>
+              <span className="text-xs text-slate-500 whitespace-nowrap">{fmtBytes(a.size_bytes)}{a.uploader ? ` · ${a.uploader.name}` : ''}</span>
               {a.can_delete && <button type="button" onClick={() => remove(a)} className="text-xs text-red-600 hover:underline">삭제</button>}
             </li>
           ))}
@@ -159,14 +159,14 @@ export default function AttachmentBox({ ownerType, ownerId, draftKey, title = '�
       )}
 
       {canAdd && (
-        <div className={`mt-2 border border-dashed rounded-lg px-3 py-3 text-center text-xs ${drag ? 'border-slate-900 bg-slate-50' : 'border-gray-300'}`}>
+        <div className={`mt-2 border border-dashed rounded-lg px-3 py-3 text-center text-xs ${drag ? 'border-slate-900 bg-slate-50' : 'border-slate-400'}`}>
           <input ref={inputRef} type="file" multiple accept={ATTACH_ACCEPT} className="hidden"
             onChange={e => { const f = Array.from(e.target.files ?? []); e.target.value = ''; addFiles(f) }} />
           {busy ? (
-            <span className="text-gray-600">올리는 중… {uploading[0]}{uploading.length > 1 ? ` 외 ${uploading.length - 1}개` : ''}</span>
+            <span className="text-slate-700">올리는 중… {uploading[0]}{uploading.length > 1 ? ` 외 ${uploading.length - 1}개` : ''}</span>
           ) : (
-            <span className="text-gray-500">
-              <button type="button" onClick={() => inputRef.current?.click()} className="px-2.5 py-1 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 mr-2">파일 선택</button>
+            <span className="text-slate-600">
+              <button type="button" onClick={() => inputRef.current?.click()} className="px-2.5 py-1 border border-slate-400 rounded-lg text-slate-800 hover:bg-slate-50 mr-2">파일 선택</button>
               여기로 끌어놓거나{pasteAnywhere ? ' 화면 캡처를 Ctrl+V 로 붙여넣으세요' : ' 파일을 선택하세요'}
             </span>
           )}

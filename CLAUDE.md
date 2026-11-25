@@ -90,7 +90,7 @@
   **`600번대` 매입처 허브 트랙(인수인계: docs/purchase-hub-track.md)** /
   `700번대` 상담·영업·업무일지 트랙(인수인계: docs/consultation-journal-track.md) /
   **`800번대` 요아럽 샘플 재고 트랙(인수인계: docs/sample-stock-track.md)** /
-  **UI 디자인 트랙(마이그레이션 없음, 인수인계: docs/ui-design-track.md — 엑셀형 셀 표 · 묶음 색 · 전체 색감(선명도), 2026-11-25 개설. 색감 선택 대기)** /
+  **UI 디자인 트랙(마이그레이션 없음, 인수인계: docs/ui-design-track.md — 엑셀형 셀 표 · 묶음 색 · 전체 색감(선명도), 2026-11-25 개설. 통일 기준 확정 · 1단계(색 · 글자) 적용 2026-11-25)** /
   **도움말 트랙(마이그레이션 없음, 인수인계: docs/help-track.md — 화면별 도움말 `lib/help-registry.ts` 단일 원천, 질문하기 = 업무 요청,
   2026-11-03 1차 배포)** /
   `900번대` 업무요청 트랙(인수인계: docs/work-request-track.md — 900 적용 2026-10-16, 901 비공개 열 적용 2026-11-02,
@@ -212,8 +212,14 @@
 - **직원별 화면 설정(2026-11-05, 113)**: 글자 크기 3단계 · 색 테마 4종만(사용자 결정 — 그 외 개인 UI 설정은 두지 않는다). `<html>` font-size ·
   `data-theme`(루트 레이아웃이 쿠키 사본 `daol-ui`로 그림, 원본 `employees.ui_prefs`, 설정 화면 내 정보 › 화면 설정, `lib/ui-prefs.ts`).
   Tailwind `slate`는 테마 변수(`tailwind.config.ts` · `app/globals.css`). **새 코드 규칙**: 글자 크기는 rem/Tailwind 크기만(`text-[11px]` 금지 →
-  `text-[0.6875rem]`), 기본 회색은 slate · gray만, 클래스에 색 코드(`bg-[#…]`) 금지, 의미 색(red · amber · green …)은 테마 대상 아님.
+  `text-[0.6875rem]`), 기본 회색은 slate만(2026-11-25 gray 폐지), 클래스에 색 코드(`bg-[#…]`) 금지, 의미 색(red · amber · green …)은 테마 대상 아님.
   `npm run build` 앞단 `check-ui`가 어기면 실패시킨다. 새 표는 "크게"에서 한 번 확인(고정 폭 칸 줄바꿈). OS 다크 모드 자동 전환은 제거됨(흐린 글자 원인).
+- **UI 통일 기준(2026-11-25 사용자 확정 — UI 디자인 트랙, docs/ui-design-track.md · 시안 docs/mockups/UI_통일기준_시안.html)**:
+  회색은 **slate 한 계열만**(gray 쓰지 말 것 — 테마를 안 따라간다). 글자 진하기: 본문 `text-slate-900` · 보조(라벨 · 설명) `text-slate-700`/`600` ·
+  가장 옅은 글자 `text-slate-500`(이보다 옅은 글자 금지, 자리 표시 `-` 만 400). 테두리: 입력 칸 · 버튼 `border-slate-400`, 카드 · 줄 구분 `border-slate-300`/`200`.
+  글자 크기는 `text-xs`(12px) 아래로 내리지 않는다. **표 머리줄은 `globals.css` 의 `thead th` 공통 규칙**(회색 바탕 + 진한 굵은 글자)이 그린다 —
+  화면에서 머리줄 색을 따로 주지 말 것. 화면 순서: 제목 줄(주 버튼 오른쪽 위) → 탭 → 기간 → 요약 카드 → 검색 · 칩 → 표. 상단 흰 띠(Header)는 제거됨.
+  옛 표기가 섞인 브랜치는 `node scripts/ui-codemod.mjs`(여러 번 돌려도 같음)로 맞춘다 — main 병합 충돌 시 자기 쪽 내용을 고른 뒤 실행. `check-ui` 가 gray · 작은 글자를 경고한다.
 - **기간 필터 표준(2026-09-30 확정)**: 기간이 있는 목록·분석 화면은 `components/ui/PeriodPresets.tsx`
   한 줄(최근 7일·최근 30일·당월·전월·1~4분기·상반기·하반기·당년·전년·전체 기간)을 필터 바 위에
   두고 날짜 from~to는 필터 바에 둔다. "전체 기간"은 `DATA_START`(lib/period-presets.ts)부터 —

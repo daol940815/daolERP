@@ -83,7 +83,7 @@ const won = (n: number) => n.toLocaleString('ko-KR')
 // ── 상태 배지 ────────────────────────────────────────────────
 function StatusBadge({ item }: { item: QueueItem }) {
   switch (item.status) {
-    case 'parsing':    return <span className="text-xs text-slate-400 whitespace-nowrap">분석 중…</span>
+    case 'parsing':    return <span className="text-xs text-slate-500 whitespace-nowrap">분석 중…</span>
     case 'uploading':  return <span className="text-xs text-blue-500 whitespace-nowrap">업로드 중…</span>
     case 'need_input': return <span className="px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded-full whitespace-nowrap">{item.source ? '은행명 필요' : '종류 선택 필요'}</span>
     case 'duplicate':  return <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded-full whitespace-nowrap">중복 파일</span>
@@ -96,7 +96,7 @@ function StatusBadge({ item }: { item: QueueItem }) {
         )}
       </span>
     )
-    case 'ready':      return <span className="px-2 py-0.5 text-xs bg-slate-100 text-slate-500 rounded-full whitespace-nowrap">대기</span>
+    case 'ready':      return <span className="px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded-full whitespace-nowrap">대기</span>
   }
 }
 
@@ -364,8 +364,8 @@ export default function UploadPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">파일 업로드</h1>
-      <p className="text-gray-500 text-sm mb-5">
+      <h1 className="text-2xl font-bold text-slate-900 mb-1">파일 업로드</h1>
+      <p className="text-slate-600 text-sm mb-5">
         업로드할 데이터 종류를 선택한 뒤, 파일을 여러 개 선택하거나 드래그해서 일괄 업로드하세요.
       </p>
 
@@ -376,14 +376,14 @@ export default function UploadPage() {
             className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
               tab === t
                 ? 'bg-slate-900 text-white border-slate-900'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-slate-500'
+                : 'bg-white text-slate-700 border-slate-400 hover:border-slate-500'
             }`}
           >
             {t === 'auto' ? '자동 판별' : SOURCE_META[t].label}
           </button>
         ))}
       </div>
-      <p className="text-xs text-gray-400 mb-4">{tabHint}</p>
+      <p className="text-xs text-slate-500 mb-4">{tabHint}</p>
 
       {/* 드롭존 */}
       <div
@@ -393,15 +393,15 @@ export default function UploadPage() {
           isDragging
             ? 'border-slate-700 bg-slate-50 py-12'
             : queue.length === 0
-              ? 'py-20 border-gray-300 hover:border-slate-400 hover:bg-gray-50'
-              : 'py-5 border-gray-200 hover:border-slate-400 hover:bg-gray-50'
+              ? 'py-20 border-slate-400 hover:border-slate-400 hover:bg-slate-50'
+              : 'py-5 border-slate-300 hover:border-slate-400 hover:bg-slate-50'
         }`}
       >
         <div className={`${queue.length > 0 ? 'text-xl' : 'text-4xl'} mb-1.5`}></div>
-        <p className="text-gray-700 font-medium text-sm">
+        <p className="text-slate-800 font-medium text-sm">
           {queue.length === 0 ? '파일을 드래그하거나 클릭해서 선택하세요' : '파일 추가 (드래그 또는 클릭)'}
         </p>
-        <p className="text-gray-400 text-xs mt-0.5">
+        <p className="text-slate-500 text-xs mt-0.5">
           {tab === 'auto' ? '원본데이터 파일' : SOURCE_META[tab].label} · CSV · XLSX · XLS · 다중 선택 가능
         </p>
       </div>
@@ -411,18 +411,18 @@ export default function UploadPage() {
       {queue.length > 0 && (
         <div className="mb-5">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium text-slate-700">
+            <p className="text-sm font-medium text-slate-800">
               파일 {queue.length}개
-              {parsingCount > 0 && <span className="ml-2 text-slate-400 font-normal text-xs">{parsingCount}개 분석 중…</span>}
+              {parsingCount > 0 && <span className="ml-2 text-slate-500 font-normal text-xs">{parsingCount}개 분석 중…</span>}
             </p>
             {!isUploading && !allDone && (
-              <button onClick={() => setQueue([])} className="text-xs text-slate-400 hover:text-slate-700 transition-colors">
+              <button onClick={() => setQueue([])} className="text-xs text-slate-500 hover:text-slate-800 transition-colors">
                 전체 삭제
               </button>
             )}
           </div>
 
-          <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+          <div className="border border-slate-300 rounded-xl overflow-hidden divide-y divide-slate-200">
             {queue.map(item => (
               <div key={item.id} className={`px-4 py-3 ${
                 item.status === 'error'     ? 'bg-red-50' :
@@ -433,12 +433,12 @@ export default function UploadPage() {
 
                 {/* 파일명 + 건수 + 종류 */}
                 <div className="min-w-0 sm:w-56 shrink-0">
-                  <p className="text-sm font-medium text-gray-800 truncate" title={item.file.name}>
+                  <p className="text-sm font-medium text-slate-900 truncate" title={item.file.name}>
                     {item.file.name}
                   </p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-slate-500">
                     {item.source
-                      ? <span className="text-slate-500">
+                      ? <span className="text-slate-600">
                           {SOURCE_META[item.source].label}
                           {item.detected && <span className="ml-1 text-emerald-600" title="파일 헤더로 판별">자동</span>}
                         </span>
@@ -472,7 +472,7 @@ export default function UploadPage() {
                         <option key={k} value={k}>{UPLOAD_KIND_LABEL[k]}</option>
                       ))}
                     </select>
-                    <span className="text-xs text-gray-400">헤더로 종류를 판별하지 못했습니다</span>
+                    <span className="text-xs text-slate-500">헤더로 종류를 판별하지 못했습니다</span>
                   </div>
                 )}
 
@@ -488,8 +488,8 @@ export default function UploadPage() {
                       })}
                       placeholder="은행명 *"
                       disabled={item.status === 'uploading' || isUploading}
-                      className={`w-28 text-sm border rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:bg-gray-50 disabled:text-gray-400 ${
-                        !item.bankName.trim() ? 'border-orange-300 bg-orange-50' : 'border-gray-300'
+                      className={`w-28 text-sm border rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:bg-slate-50 disabled:text-slate-500 ${
+                        !item.bankName.trim() ? 'border-orange-300 bg-orange-50' : 'border-slate-400'
                       }`}
                     />
                     <input
@@ -498,7 +498,7 @@ export default function UploadPage() {
                       onChange={e => patchItem(item.id, { accountNumber: e.target.value })}
                       placeholder="계좌번호 (선택)"
                       disabled={item.status === 'uploading' || isUploading}
-                      className="w-36 text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:bg-gray-50 disabled:text-gray-400"
+                      className="w-36 text-sm border border-slate-400 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:bg-slate-50 disabled:text-slate-500"
                     />
                   </div>
                 )}
@@ -509,7 +509,7 @@ export default function UploadPage() {
                     <span className="px-2 py-0.5 text-xs bg-sky-50 text-sky-700 rounded-full whitespace-nowrap">
                       통합계좌 {item.parseResult!.accounts.length}개
                     </span>
-                    <span className="text-xs text-gray-400 truncate">
+                    <span className="text-xs text-slate-500 truncate">
                       계좌별로 나눠 올립니다 — 아래에서 확인
                     </span>
                   </div>
@@ -521,7 +521,7 @@ export default function UploadPage() {
                   {!isUploading && !['uploading', 'success'].includes(item.status) && (
                     <button
                       onClick={() => setQueue(q => q.filter(i => i.id !== item.id))}
-                      className="w-5 h-5 flex items-center justify-center text-gray-300 hover:text-gray-500 transition-colors text-xs"
+                      className="w-5 h-5 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors text-xs"
                       title="삭제"
                     >
                       ✕
@@ -532,8 +532,8 @@ export default function UploadPage() {
 
                 {/* ── 법인카드: 통합양식 컷오프 옵션 ── */}
                 {item.source === 'card_expenses' && item.status !== 'success' && (
-                  <div className="w-full mt-1 border-t border-gray-100 pt-2 flex flex-wrap items-center gap-3">
-                    <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                  <div className="w-full mt-1 border-t border-slate-200 pt-2 flex flex-wrap items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-xs text-slate-700">
                       <input
                         type="checkbox"
                         checked={item.skipExisting}
@@ -542,7 +542,7 @@ export default function UploadPage() {
                       />
                       카드사별 이미 올라온 마지막 이용일 이후만 올리기
                     </label>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-slate-500">
                       통합양식(전 카드사 한 파일)에만 적용 — 카드사별 파일은 같은 행을 자동으로 건너뜁니다
                     </span>
                   </div>
@@ -550,13 +550,13 @@ export default function UploadPage() {
 
                 {/* ── 통합계좌: 계좌별 업로드 확인 표 ── */}
                 {item.source === 'bank' && isMultiAccount(item) && item.status !== 'success' && (
-                  <div className="w-full mt-1 border-t border-gray-100 pt-3">
+                  <div className="w-full mt-1 border-t border-slate-200 pt-3">
                     {!item.previews ? (
-                      <p className="text-xs text-gray-400">계좌 확인 중…</p>
+                      <p className="text-xs text-slate-500">계좌 확인 중…</p>
                     ) : (
                       <>
                         <div className="flex flex-wrap items-center gap-3 mb-2">
-                          <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                          <label className="flex items-center gap-1.5 text-xs text-slate-700">
                             <input
                               type="checkbox"
                               checked={item.skipExisting}
@@ -565,13 +565,13 @@ export default function UploadPage() {
                             />
                             이미 올라온 마지막 거래일 이후만 올리기
                           </label>
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs text-slate-500">
                             체크를 끄면 파일 전체를 올립니다 (중복 키가 같은 행은 자동으로 건너뜁니다)
                           </span>
                         </div>
                         <div className="overflow-x-auto">
                           <table className="w-full text-xs">
-                            <thead className="text-gray-400 border-b border-gray-200">
+                            <thead className="text-slate-500 border-b border-slate-300">
                               <tr>
                                 <th className="py-1.5 px-2 text-left font-medium">올림</th>
                                 <th className="py-1.5 px-2 text-left font-medium">은행</th>
@@ -588,7 +588,7 @@ export default function UploadPage() {
                                 const off = item.excluded.includes(a.digits)
                                 const cnt = off ? 0 : accountRowCount(item, a.digits)
                                 return (
-                                  <tr key={a.digits} className={`border-b border-gray-50 ${off ? 'opacity-40' : ''}`}>
+                                  <tr key={a.digits} className={`border-b border-slate-200 ${off ? 'opacity-40' : ''}`}>
                                     <td className="py-1.5 px-2">
                                       <input
                                         type="checkbox"
@@ -610,14 +610,14 @@ export default function UploadPage() {
                                         <span className="ml-1 px-1 py-0.5 bg-violet-50 text-violet-600 rounded">한도</span>
                                       )}
                                     </td>
-                                    <td className="py-1.5 px-2 font-mono whitespace-nowrap text-gray-500">{a.account_number}</td>
-                                    <td className="py-1.5 px-2 text-right text-gray-500">{won(a.rows)}</td>
-                                    <td className="py-1.5 px-2 whitespace-nowrap text-gray-400">{a.first_date} ~ {a.last_date}</td>
-                                    <td className="py-1.5 px-2 whitespace-nowrap text-gray-400">
+                                    <td className="py-1.5 px-2 font-mono whitespace-nowrap text-slate-600">{a.account_number}</td>
+                                    <td className="py-1.5 px-2 text-right text-slate-600">{won(a.rows)}</td>
+                                    <td className="py-1.5 px-2 whitespace-nowrap text-slate-500">{a.first_date} ~ {a.last_date}</td>
+                                    <td className="py-1.5 px-2 whitespace-nowrap text-slate-500">
                                       {pv?.last_tx_date ?? '-'}
-                                      {pv?.tx_count ? <span className="ml-1 text-gray-300">({won(pv.tx_count)}건)</span> : null}
+                                      {pv?.tx_count ? <span className="ml-1 text-slate-400">({won(pv.tx_count)}건)</span> : null}
                                     </td>
-                                    <td className={`py-1.5 px-2 text-right font-medium ${cnt > 0 ? 'text-slate-900' : 'text-gray-300'}`}>
+                                    <td className={`py-1.5 px-2 text-right font-medium ${cnt > 0 ? 'text-slate-900' : 'text-slate-400'}`}>
                                       {won(cnt)}
                                     </td>
                                   </tr>
@@ -625,8 +625,8 @@ export default function UploadPage() {
                               })}
                             </tbody>
                             <tfoot>
-                              <tr className="border-t border-gray-200">
-                                <td colSpan={6} className="py-1.5 px-2 text-right text-gray-500">올릴 거래 합계</td>
+                              <tr className="border-t border-slate-300">
+                                <td colSpan={6} className="py-1.5 px-2 text-right text-slate-600">올릴 거래 합계</td>
                                 <td className="py-1.5 px-2 text-right font-bold text-slate-900">
                                   {won(selectedRows(item).length)}
                                 </td>
@@ -641,12 +641,12 @@ export default function UploadPage() {
 
                 {/* 통합계좌 업로드 결과 — 계좌별 */}
                 {item.status === 'success' && item.uploadResult?.accountResults?.length ? (
-                  <div className="w-full mt-1 border-t border-gray-100 pt-2">
-                    <p className="text-xs text-gray-400 mb-1">계좌별 전송 건수</p>
+                  <div className="w-full mt-1 border-t border-slate-200 pt-2">
+                    <p className="text-xs text-slate-500 mb-1">계좌별 전송 건수</p>
                     <div className="flex flex-wrap gap-x-4 gap-y-1">
                       {item.uploadResult.accountResults.map(r => (
-                        <span key={r.account_number} className="text-xs text-gray-600">
-                          {r.bank_name} <span className="font-mono text-gray-400">{r.account_number}</span>
+                        <span key={r.account_number} className="text-xs text-slate-700">
+                          {r.bank_name} <span className="font-mono text-slate-500">{r.account_number}</span>
                           {' '}{won(r.inserted)}건
                           {r.created && <span className="ml-1 text-orange-600">신규 계좌</span>}
                           {r.skipped > 0 && <span className="ml-1 text-red-500">미매칭 {won(r.skipped)}건</span>}
@@ -681,7 +681,7 @@ export default function UploadPage() {
               <>
                 <button
                   onClick={() => setQueue([])}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+                  className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50"
                 >
                   초기화
                 </button>
@@ -697,7 +697,7 @@ export default function UploadPage() {
                 {!isUploading && (
                   <button
                     onClick={() => setQueue([])}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+                    className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50"
                   >
                     초기화
                   </button>

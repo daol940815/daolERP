@@ -26,7 +26,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   const unclassified = await countUnclassified()
   return (
     <div className="flex flex-col h-full">
-      <h1 className="text-2xl font-bold text-gray-900">통장 내역</h1>
+      <h1 className="text-2xl font-bold text-slate-900">통장 내역</h1>
       <PageTabs className="mt-3 mb-3" active={tab} tabs={[
         { key: 'list', label: '거래 내역', href: `/transactions${bankQ ? `?${bankQ}` : ''}` },
         { key: 'classify', label: unclassified === null ? '분류 작업' : `분류 작업 (미분류 ${unclassified.toLocaleString('ko-KR')})`, href: `/transactions?tab=classify${bankQ ? `&${bankQ}` : ''}` },

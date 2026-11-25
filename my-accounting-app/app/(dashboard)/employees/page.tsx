@@ -143,12 +143,12 @@ export default function EmployeesPage() {
     load()
   }
 
-  const inp = 'w-full border border-gray-300 rounded px-2 py-1 text-xs'
+  const inp = 'w-full border border-slate-400 rounded px-2 py-1 text-xs'
 
   return (
     <div className="w-full">
-      <h1 className="text-2xl font-bold text-gray-900">직원 · 계정 · 권한</h1>
-      <p className="text-sm mt-1 text-gray-500">
+      <h1 className="text-2xl font-bold text-slate-900">직원 · 계정 · 권한</h1>
+      <p className="text-sm mt-1 text-slate-600">
         직원 등록 시 로그인 계정(ID 방식)이 함께 발급됩니다. 권한은 마스터 계정이 직원별로
         영역(그룹)마다 없음 / 조회 / 수정을 지정합니다 — 권한 버튼.
       </p>
@@ -178,7 +178,7 @@ export default function EmployeesPage() {
       </div>
 
       {showForm && (
-        <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
+        <div className="bg-white border border-slate-300 rounded-xl p-4 mb-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {([
               ['name', '이름 *', 'text'], ['team', '팀', 'text'], ['position', '직급', 'text'],
@@ -187,16 +187,16 @@ export default function EmployeesPage() {
               ['login_id', '로그인 ID (영문·숫자)', 'text'], ['password', '초기 비밀번호', 'text'],
             ] as const).map(([k, label, type]) => (
               <div key={k}>
-                <label className="block text-[0.6875rem] text-gray-500 font-semibold mb-1">{label}</label>
+                <label className="block text-xs text-slate-600 font-semibold mb-1">{label}</label>
                 <input type={type} value={form[k]} list={k === 'team' ? 'team-list' : undefined}
                   onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
               </div>
             ))}
             <datalist id="team-list">{TEAMS.map(t => <option key={t} value={t} />)}</datalist>
           </div>
           <div className="flex justify-between items-center mt-3">
-            <p className="text-[0.6875rem] text-gray-400">
+            <p className="text-xs text-slate-500">
               ID를 비우면 담당 배정용 직원으로만 등록됩니다(로그인 불가, 나중에 발급 가능).
               비밀번호는 인증 서버 최소 기준(6자)만 넘으면 됩니다. 권한은 등록 후 권한 버튼에서 지정합니다(기본 없음).
             </p>
@@ -208,17 +208,17 @@ export default function EmployeesPage() {
         </div>
       )}
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-        {loading ? <div className="text-center py-16 text-gray-400">로딩 중...</div> : (
+      <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
+        {loading ? <div className="text-center py-16 text-slate-500">로딩 중...</div> : (
           <table className="w-full text-sm min-w-[960px]">
             <thead>
-              <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+              <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-300">
                 <th className="py-2 px-3 w-8">
                   <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
                 </th>
                 <th className="py-2 px-3 text-left font-medium">이름</th>
                 <th className="py-2 px-3 text-left font-medium">팀/직급</th>
-                <th className="py-2 px-3 text-left font-medium">연락처 <span className="font-normal text-gray-400">업무 · 개인</span></th>
+                <th className="py-2 px-3 text-left font-medium">연락처 <span className="font-normal text-slate-500">업무 · 개인</span></th>
                 <th className="py-2 px-3 text-left font-medium">로그인 ID</th>
                 <th className="py-2 px-3 text-left font-medium">권한</th>
                 <th className="py-2 px-3 text-left font-medium">입사일</th>
@@ -229,7 +229,7 @@ export default function EmployeesPage() {
             </thead>
             <tbody>
               {rows.map(r => editId === r.id ? (
-                <tr key={r.id} className="border-b border-gray-50 bg-blue-50/40">
+                <tr key={r.id} className="border-b border-slate-200 bg-blue-50/40">
                   <td className="py-2 px-3"></td>
                   <td className="py-2 px-3"><input value={edit.name} onChange={e => setEdit(s => ({ ...s, name: e.target.value }))} className={inp} /></td>
                   <td className="py-2 px-3">
@@ -246,57 +246,57 @@ export default function EmployeesPage() {
                     </div>
                   </td>
                   <td className="py-2 px-3"><input value={edit.login_id} onChange={e => setEdit(s => ({ ...s, login_id: e.target.value }))} className={inp} /></td>
-                  <td className="py-2 px-3 text-xs text-gray-400">{permSummary(r)}</td>
+                  <td className="py-2 px-3 text-xs text-slate-500">{permSummary(r)}</td>
                   <td className="py-2 px-3"><input type="date" value={edit.hire_date} onChange={e => setEdit(s => ({ ...s, hire_date: e.target.value }))} className={inp} /></td>
                   <td className="py-2 px-3"><input type="date" value={edit.birth_date} disabled={!birthdayReady} title={birthdayReady ? '' : '203 마이그레이션 실행 후 입력 가능'} onChange={e => setEdit(s => ({ ...s, birth_date: e.target.value }))} className={inp} /></td>
                   <td className="py-2 px-3"></td>
                   <td className="py-2 px-3 text-right whitespace-nowrap">
                     <button onClick={saveEdit} disabled={busy} className="text-xs px-2 py-1 bg-slate-900 text-white rounded mr-1">저장</button>
-                    <button onClick={() => setEditId(null)} className="text-xs px-2 py-1 border border-gray-300 rounded">취소</button>
+                    <button onClick={() => setEditId(null)} className="text-xs px-2 py-1 border border-slate-400 rounded">취소</button>
                   </td>
                 </tr>
               ) : (
-                <tr key={r.id} className={`border-b border-gray-50 ${r.is_active ? '' : 'opacity-45'} ${selected.has(r.id) ? 'bg-red-50/40' : ''}`}>
+                <tr key={r.id} className={`border-b border-slate-200 ${r.is_active ? '' : 'opacity-45'} ${selected.has(r.id) ? 'bg-red-50/40' : ''}`}>
                   <td className="py-2 px-3">
                     <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} />
                   </td>
                   <td className="py-2 px-3 font-semibold">{r.name}</td>
-                  <td className="py-2 px-3 text-gray-600">{[r.team, r.position].filter(Boolean).join(' · ') || '-'}</td>
-                  <td className="py-2 px-3 text-gray-600 text-xs leading-5 whitespace-nowrap">
-                    <div><span className="text-[0.625rem] text-violet-600 font-semibold mr-1">업무</span>{r.work_phone ?? <span className="text-gray-300">-</span>}</div>
-                    <div><span className="text-[0.625rem] text-gray-400 font-semibold mr-1">개인</span>{r.phone ?? <span className="text-gray-300">-</span>}</div>
+                  <td className="py-2 px-3 text-slate-700">{[r.team, r.position].filter(Boolean).join(' · ') || '-'}</td>
+                  <td className="py-2 px-3 text-slate-700 text-xs leading-5 whitespace-nowrap">
+                    <div><span className="text-xs text-violet-600 font-semibold mr-1">업무</span>{r.work_phone ?? <span className="text-slate-400">-</span>}</div>
+                    <div><span className="text-xs text-slate-500 font-semibold mr-1">개인</span>{r.phone ?? <span className="text-slate-400">-</span>}</div>
                   </td>
                   <td className="py-2 px-3">
                     {r.login_id
                       ? <>
-                          <span className="text-gray-800 font-mono text-xs">{r.login_id}</span>
+                          <span className="text-slate-900 font-mono text-xs">{r.login_id}</span>
                           {!r.auth_user_id && (
-                            <span className="ml-1 px-1.5 py-0.5 rounded text-[0.625rem] bg-amber-50 text-amber-700">계정 미발급</span>
+                            <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-amber-50 text-amber-700">계정 미발급</span>
                           )}
                         </>
-                      : <span className="text-gray-300 text-xs">미발급</span>}
+                      : <span className="text-slate-400 text-xs">미발급</span>}
                   </td>
                   <td className="py-2 px-3 whitespace-nowrap">
                     <button onClick={() => setPermTarget(r)} disabled={!permReady}
-                      className={`text-xs px-2 py-1 rounded border ${r.is_master ? 'border-slate-900 bg-slate-900 text-white' : 'border-gray-300 hover:bg-gray-50'}`}>
+                      className={`text-xs px-2 py-1 rounded border ${r.is_master ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-400 hover:bg-slate-50'}`}>
                       {permSummary(r)}
                     </button>
-                    {r.can_approve && !r.is_master && <span className="ml-1 px-1.5 py-0.5 rounded text-[0.625rem] bg-blue-50 text-blue-700">승인</span>}
-                    {r.leave_approve_level && <span className="ml-1 px-1.5 py-0.5 rounded text-[0.625rem] bg-violet-50 text-violet-700">휴가 {r.leave_approve_level}차</span>}
-                    {r.employment_type === 'parttime' && <span className="ml-1 px-1.5 py-0.5 rounded text-[0.625rem] bg-amber-50 text-amber-700">아르바이트{r.work_end ? ` ~${r.work_end}` : ''}</span>}
+                    {r.can_approve && !r.is_master && <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-blue-50 text-blue-700">승인</span>}
+                    {r.leave_approve_level && <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-violet-50 text-violet-700">휴가 {r.leave_approve_level}차</span>}
+                    {r.employment_type === 'parttime' && <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-amber-50 text-amber-700">아르바이트{r.work_end ? ` ~${r.work_end}` : ''}</span>}
                   </td>
-                  <td className="py-2 px-3 tabular-nums text-gray-500 text-xs">{r.hire_date ?? '-'}</td>
-                  <td className="py-2 px-3 tabular-nums text-gray-500 text-xs">{r.birth_date ?? '-'}</td>
+                  <td className="py-2 px-3 tabular-nums text-slate-600 text-xs">{r.hire_date ?? '-'}</td>
+                  <td className="py-2 px-3 tabular-nums text-slate-600 text-xs">{r.birth_date ?? '-'}</td>
                   <td className="py-2 px-3">
-                    <span className={`px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${r.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${r.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
                       {r.is_active ? '재직' : '비활성'}
                     </span>
                   </td>
                   <td className="py-2 px-3 text-right whitespace-nowrap">
-                    <button onClick={() => startEdit(r)} className="text-xs px-2 py-1 border border-gray-300 rounded mr-1 hover:bg-gray-50">수정</button>
+                    <button onClick={() => startEdit(r)} className="text-xs px-2 py-1 border border-slate-400 rounded mr-1 hover:bg-slate-50">수정</button>
                     {r.auth_user_id ? (
                       <button onClick={() => resetPassword(r)} disabled={busy}
-                        className="text-xs px-2 py-1 border border-gray-300 rounded mr-1 hover:bg-gray-50">비번</button>
+                        className="text-xs px-2 py-1 border border-slate-400 rounded mr-1 hover:bg-slate-50">비번</button>
                     ) : r.login_id ? (
                       <button onClick={() => resetPassword(r)} disabled={busy}
                         title="ID는 있으나 로그인 계정이 아직 발급되지 않았습니다"
@@ -308,7 +308,7 @@ export default function EmployeesPage() {
                         if (r.is_active && !window.confirm(`${r.name} 님을 비활성화할까요? 로그인이 차단됩니다 (이력 유지).`)) return
                         if (await post({ action: act, id: r.id })) { flash(r.is_active ? '비활성화됨' : '재활성화됨'); load() }
                       }}
-                      className="text-xs px-2 py-1 border border-gray-300 rounded mr-1 hover:bg-gray-50">
+                      className="text-xs px-2 py-1 border border-slate-400 rounded mr-1 hover:bg-slate-50">
                       {r.is_active ? '비활성화' : '재활성화'}
                     </button>
                     <button onClick={() => remove(r)} disabled={busy}
@@ -316,7 +316,7 @@ export default function EmployeesPage() {
                   </td>
                 </tr>
               ))}
-              {!rows.length && <tr><td colSpan={10} className="text-center py-12 text-gray-400 text-sm">등록된 직원이 없습니다.</td></tr>}
+              {!rows.length && <tr><td colSpan={10} className="text-center py-12 text-slate-500 text-sm">등록된 직원이 없습니다.</td></tr>}
             </tbody>
           </table>
         )}
@@ -343,15 +343,15 @@ function LeaveApprovalLine({ rows }: { rows: Emp[] }) {
   const missing = [1, 2, 3].filter(l => !at(l).length)
   const tone: Record<number, string> = { 1: 'bg-sky-50 text-sky-800', 2: 'bg-violet-50 text-violet-800', 3: 'bg-pink-50 text-pink-800' }
   return (
-    <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 mt-4">
+    <div className="bg-white border border-slate-300 rounded-xl px-4 py-3 mt-4">
       <div className="flex items-center gap-x-5 gap-y-1.5 flex-wrap text-sm">
-        <span className="font-bold text-gray-900">휴가 결재선</span>
+        <span className="font-bold text-slate-900">휴가 결재선</span>
         {[3, 2, 1].map(l => (
           <span key={l} className="flex items-center gap-1.5">
-            <b className="text-xs text-gray-500">{l}차</b>
+            <b className="text-xs text-slate-600">{l}차</b>
             {at(l).length
               ? at(l).map(r => <span key={r.id} className={`px-2 py-0.5 rounded-full text-xs ${tone[l]}`}>{r.name}{r.position ? ` ${r.position}` : ''}</span>)
-              : <span className="text-xs text-gray-300">없음</span>}
+              : <span className="text-xs text-slate-400">없음</span>}
           </span>
         ))}
       </div>

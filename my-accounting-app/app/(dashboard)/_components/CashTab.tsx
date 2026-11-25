@@ -19,15 +19,15 @@ function SummaryCard({
   label: string; value: string; sub: string; icon: string; color: string; bg: string
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+    <div className="bg-white rounded-xl border border-slate-300 p-5 shadow-sm">
       <div className="flex items-center gap-2 mb-3">
         <span className={`w-8 h-8 rounded-lg ${bg} ${color} flex items-center justify-center text-sm font-bold`}>
           {icon}
         </span>
-        <span className="text-xs font-medium text-slate-500">{label}</span>
+        <span className="text-xs font-medium text-slate-600">{label}</span>
       </div>
       <p className={`text-xl font-bold ${color}`}>{value}</p>
-      <p className="text-xs text-slate-400 mt-1">{sub}</p>
+      <p className="text-xs text-slate-500 mt-1">{sub}</p>
     </div>
   )
 }
@@ -57,15 +57,15 @@ function OverdraftAccountCard({
   const available = Math.max(limitAbs - used, 0)
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col">
-      <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-2">
+    <div className="bg-white rounded-xl border border-slate-300 shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+      <div className="px-5 py-4 border-b border-slate-200 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-semibold text-slate-800 text-sm truncate flex items-center gap-1.5">
+          <p className="font-semibold text-slate-900 text-sm truncate flex items-center gap-1.5">
             {displayName}
-            <span className="shrink-0 px-1.5 py-0.5 text-[0.625rem] leading-none rounded bg-amber-100 text-amber-700">마이너스통장</span>
+            <span className="shrink-0 px-1.5 py-0.5 text-xs leading-none rounded bg-amber-100 text-amber-700">마이너스통장</span>
           </p>
           {accountNumber && (
-            <p className="text-xs text-slate-400 mt-0.5 truncate">{accountNumber}</p>
+            <p className="text-xs text-slate-500 mt-0.5 truncate">{accountNumber}</p>
           )}
         </div>
         {unclassifiedCount > 0 && (
@@ -76,41 +76,41 @@ function OverdraftAccountCard({
       </div>
 
       {/* 한도/현재잔액/사용액/미사용한도 */}
-      <div className="px-5 py-4 border-b border-slate-100 grid grid-cols-2 gap-3">
+      <div className="px-5 py-4 border-b border-slate-200 grid grid-cols-2 gap-3">
         <div>
-          <p className="text-xs text-slate-400 mb-1">한도</p>
-          <p className="text-sm font-semibold text-slate-700">{fmt(limitAbs)}</p>
+          <p className="text-xs text-slate-500 mb-1">한도</p>
+          <p className="text-sm font-semibold text-slate-800">{fmt(limitAbs)}</p>
         </div>
         <div>
-          <p className="text-xs text-slate-400 mb-1">현재 잔액</p>
+          <p className="text-xs text-slate-500 mb-1">현재 잔액</p>
           {balance !== null ? (
             <>
-              <p className={`text-sm font-semibold ${balance < 0 ? 'text-red-500' : 'text-slate-800'}`}>{fmt(balance)}</p>
-              {balanceDate && <p className="text-xs text-slate-400 mt-0.5">{balanceDate} 기준</p>}
+              <p className={`text-sm font-semibold ${balance < 0 ? 'text-red-500' : 'text-slate-900'}`}>{fmt(balance)}</p>
+              {balanceDate && <p className="text-xs text-slate-500 mt-0.5">{balanceDate} 기준</p>}
             </>
-          ) : <p className="text-sm text-slate-300">-</p>}
+          ) : <p className="text-sm text-slate-400">-</p>}
         </div>
         <div>
-          <p className="text-xs text-slate-400 mb-1">현재 사용액</p>
+          <p className="text-xs text-slate-500 mb-1">현재 사용액</p>
           <p className="text-sm font-semibold text-red-500">{fmt(used)}</p>
         </div>
         <div>
-          <p className="text-xs text-slate-400 mb-1">미사용 한도</p>
+          <p className="text-xs text-slate-500 mb-1">미사용 한도</p>
           <p className="text-sm font-semibold text-emerald-600">{fmt(available)}</p>
         </div>
       </div>
 
       {/* 기간 입금/출금 */}
-      <div className="px-5 py-3 grid grid-cols-2 gap-3 border-b border-slate-100">
+      <div className="px-5 py-3 grid grid-cols-2 gap-3 border-b border-slate-200">
         <div>
-          <p className="text-xs text-slate-400 mb-0.5">입금 ({periodLabel})</p>
-          <p className={`text-sm font-semibold ${monthlyIn > 0 ? 'text-blue-600' : 'text-slate-300'}`}>
+          <p className="text-xs text-slate-500 mb-0.5">입금 ({periodLabel})</p>
+          <p className={`text-sm font-semibold ${monthlyIn > 0 ? 'text-blue-600' : 'text-slate-400'}`}>
             {monthlyIn > 0 ? fmt(monthlyIn) : '-'}
           </p>
         </div>
         <div>
-          <p className="text-xs text-slate-400 mb-0.5">출금 ({periodLabel})</p>
-          <p className={`text-sm font-semibold ${monthlyOut > 0 ? 'text-red-500' : 'text-slate-300'}`}>
+          <p className="text-xs text-slate-500 mb-0.5">출금 ({periodLabel})</p>
+          <p className={`text-sm font-semibold ${monthlyOut > 0 ? 'text-red-500' : 'text-slate-400'}`}>
             {monthlyOut > 0 ? fmt(monthlyOut) : '-'}
           </p>
         </div>
@@ -118,7 +118,7 @@ function OverdraftAccountCard({
 
       {/* 푸터: 확정 건수 + 바로가기 */}
       <div className="px-5 py-3 flex items-center justify-between mt-auto">
-        <span className="text-xs text-slate-400">{periodLabel} 확정 {confirmedCount}건</span>
+        <span className="text-xs text-slate-500">{periodLabel} 확정 {confirmedCount}건</span>
         <Link
           href={`/transactions?bankAccountId=${id}`}
           className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
@@ -152,13 +152,13 @@ function AccountCard({
   const isNegative = (balance ?? 0) < 0
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+    <div className="bg-white rounded-xl border border-slate-300 shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col">
       {/* 헤더: 계좌명 + 미분류 배지 */}
-      <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-2">
+      <div className="px-5 py-4 border-b border-slate-200 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-semibold text-slate-800 text-sm truncate">{displayName}</p>
+          <p className="font-semibold text-slate-900 text-sm truncate">{displayName}</p>
           {accountNumber && (
-            <p className="text-xs text-slate-400 mt-0.5 truncate">{accountNumber}</p>
+            <p className="text-xs text-slate-500 mt-0.5 truncate">{accountNumber}</p>
           )}
         </div>
         {unclassifiedCount > 0 && (
@@ -169,33 +169,33 @@ function AccountCard({
       </div>
 
       {/* 현재 잔액 */}
-      <div className="px-5 py-4 border-b border-slate-100">
-        <p className="text-xs text-slate-400 mb-1">현재 잔액</p>
+      <div className="px-5 py-4 border-b border-slate-200">
+        <p className="text-xs text-slate-500 mb-1">현재 잔액</p>
         {balance !== null ? (
           <>
-            <p className={`text-xl font-bold ${isNegative ? 'text-red-500' : 'text-slate-800'}`}>
+            <p className={`text-xl font-bold ${isNegative ? 'text-red-500' : 'text-slate-900'}`}>
               {fmt(balance)}
             </p>
             {balanceDate && (
-              <p className="text-xs text-slate-400 mt-0.5">{balanceDate} 기준</p>
+              <p className="text-xs text-slate-500 mt-0.5">{balanceDate} 기준</p>
             )}
           </>
         ) : (
-          <p className="text-sm text-slate-300">-</p>
+          <p className="text-sm text-slate-400">-</p>
         )}
       </div>
 
       {/* 기간 입금/출금 */}
-      <div className="px-5 py-3 grid grid-cols-2 gap-3 border-b border-slate-100">
+      <div className="px-5 py-3 grid grid-cols-2 gap-3 border-b border-slate-200">
         <div>
-          <p className="text-xs text-slate-400 mb-0.5">입금 ({periodLabel})</p>
-          <p className={`text-sm font-semibold ${monthlyIn > 0 ? 'text-blue-600' : 'text-slate-300'}`}>
+          <p className="text-xs text-slate-500 mb-0.5">입금 ({periodLabel})</p>
+          <p className={`text-sm font-semibold ${monthlyIn > 0 ? 'text-blue-600' : 'text-slate-400'}`}>
             {monthlyIn > 0 ? fmt(monthlyIn) : '-'}
           </p>
         </div>
         <div>
-          <p className="text-xs text-slate-400 mb-0.5">출금 ({periodLabel})</p>
-          <p className={`text-sm font-semibold ${monthlyOut > 0 ? 'text-red-500' : 'text-slate-300'}`}>
+          <p className="text-xs text-slate-500 mb-0.5">출금 ({periodLabel})</p>
+          <p className={`text-sm font-semibold ${monthlyOut > 0 ? 'text-red-500' : 'text-slate-400'}`}>
             {monthlyOut > 0 ? fmt(monthlyOut) : '-'}
           </p>
         </div>
@@ -203,7 +203,7 @@ function AccountCard({
 
       {/* 푸터: 확정 건수 + 바로가기 */}
       <div className="px-5 py-3 flex items-center justify-between mt-auto">
-        <span className="text-xs text-slate-400">{periodLabel} 확정 {confirmedCount}건</span>
+        <span className="text-xs text-slate-500">{periodLabel} 확정 {confirmedCount}건</span>
         <Link
           href={`/transactions?bankAccountId=${id}`}
           className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
@@ -397,11 +397,11 @@ export default async function CashTab({ searchParams }: {
     <div className="max-w-6xl mx-auto">
       {/* 헤더 — 기간 선택은 대시보드 공통 기간 줄(page.tsx)로 옮김 (2026-11-11) */}
       <div className="mb-6">
-        <p className="text-slate-500 mt-0.5 text-sm">
+        <p className="text-slate-600 mt-0.5 text-sm">
           {todayStr}
           {hasPeriod
             ? <span className="ml-2 text-blue-600 font-medium">— {periodLabel} 조회 중 (잔액은 {pTo} 기준)</span>
-            : <span className="ml-2 text-slate-400">— 현재 기준 잔액 · 입출금은 {cur.label}</span>}
+            : <span className="ml-2 text-slate-500">— 현재 기준 잔액 · 입출금은 {cur.label}</span>}
         </p>
       </div>
 
@@ -428,26 +428,26 @@ export default async function CashTab({ searchParams }: {
       {/* 전체 자금 요약 */}
       {(accounts ?? []).length > 0 && (
         <>
-          <h2 className="text-sm font-semibold text-slate-700 mb-3">전체 자금 요약{hasPeriod ? ` (${pTo} 기준)` : ''}</h2>
+          <h2 className="text-sm font-semibold text-slate-800 mb-3">전체 자금 요약{hasPeriod ? ` (${pTo} 기준)` : ''}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-8">
-            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow">
-              <p className="text-xs text-slate-400 mb-1">보유 현금</p>
+            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-300 p-4 hover:shadow-md transition-shadow">
+              <p className="text-xs text-slate-500 mb-1">보유 현금</p>
               <p className="text-lg font-bold text-slate-900">{fmt(heldCash)}</p>
             </Link>
-            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow">
-              <p className="text-xs text-slate-400 mb-1">마이너스통장 사용액</p>
+            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-300 p-4 hover:shadow-md transition-shadow">
+              <p className="text-xs text-slate-500 mb-1">마이너스통장 사용액</p>
               <p className="text-lg font-bold text-red-500">{fmt(overdraftUsedTotal)}</p>
             </Link>
-            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow">
-              <p className="text-xs text-slate-400 mb-1">마이너스통장 미사용한도</p>
+            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-300 p-4 hover:shadow-md transition-shadow">
+              <p className="text-xs text-slate-500 mb-1">마이너스통장 미사용한도</p>
               <p className="text-lg font-bold text-emerald-600">{fmt(overdraftAvailableTotal)}</p>
             </Link>
-            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow">
-              <p className="text-xs text-slate-400 mb-1">순현금/순차입 포지션</p>
+            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-300 p-4 hover:shadow-md transition-shadow">
+              <p className="text-xs text-slate-500 mb-1">순현금/순차입 포지션</p>
               <p className={`text-lg font-bold ${netCash < 0 ? 'text-red-500' : 'text-slate-900'}`}>{fmt(netCash)}</p>
             </Link>
-            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow">
-              <p className="text-xs text-slate-400 mb-1">가용 자금</p>
+            <Link href="/reports/cash" className="bg-white rounded-xl border border-slate-300 p-4 hover:shadow-md transition-shadow">
+              <p className="text-xs text-slate-500 mb-1">가용 자금</p>
               <p className="text-lg font-bold text-blue-600">{fmt(availableFunds)}</p>
             </Link>
           </div>
@@ -455,10 +455,10 @@ export default async function CashTab({ searchParams }: {
       )}
 
       {/* 계좌별 현황 */}
-      <h2 className="text-sm font-semibold text-slate-700 mb-3">계좌별 현황{hasPeriod ? ` — ${periodLabel} 입출금 · 잔액 ${pTo} 기준` : ''}</h2>
+      <h2 className="text-sm font-semibold text-slate-800 mb-3">계좌별 현황{hasPeriod ? ` — ${periodLabel} 입출금 · 잔액 ${pTo} 기준` : ''}</h2>
 
       {(accounts ?? []).length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-sm">
+        <div className="bg-white rounded-xl border border-slate-300 p-8 text-center text-slate-500 text-sm">
           등록된 계좌가 없습니다.{' '}
           <Link href="/upload" className="text-blue-500 hover:underline">
             파일 업로드
@@ -468,9 +468,9 @@ export default async function CashTab({ searchParams }: {
       ) : (
         <>
           {/* 일반 입출금 계좌 */}
-          <h3 className="text-xs font-medium text-slate-400 mb-2">일반 입출금 계좌</h3>
+          <h3 className="text-xs font-medium text-slate-500 mb-2">일반 입출금 계좌</h3>
           {normalAccounts.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-400 text-sm mb-6">등록된 일반 계좌가 없습니다.</div>
+            <div className="bg-white rounded-xl border border-slate-300 p-6 text-center text-slate-500 text-sm mb-6">등록된 일반 계좌가 없습니다.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
               {normalAccounts.map(acc => {
@@ -499,7 +499,7 @@ export default async function CashTab({ searchParams }: {
           {/* 마이너스통장 계좌 */}
           {overdraftAccounts.length > 0 && (
             <>
-              <h3 className="text-xs font-medium text-slate-400 mb-2">마이너스통장 계좌</h3>
+              <h3 className="text-xs font-medium text-slate-500 mb-2">마이너스통장 계좌</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
                 {overdraftAccounts.map(acc => {
                   const stats = monthlyStats[acc.id] ?? { in: 0, out: 0, confirmed: 0 }
@@ -534,34 +534,34 @@ export default async function CashTab({ searchParams }: {
       {/* 거래처 연동 현황 (재정비 4단계) — 미연동이 다시 쌓이면 여기서 드러난다 */}
       {linkStatus && !('error' in linkStatus) && (
         <div className="mt-8">
-          <h2 className="text-sm font-semibold text-slate-600 mb-3">거래처 연동 현황</h2>
+          <h2 className="text-sm font-semibold text-slate-700 mb-3">거래처 연동 현황</h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-              <p className="text-xs font-medium text-slate-500">ERP 주문 거래처 연동률</p>
+            <div className="bg-white rounded-xl border border-slate-300 p-5 shadow-sm">
+              <p className="text-xs font-medium text-slate-600">ERP 주문 거래처 연동률</p>
               <p className="text-xl font-bold text-slate-900 mt-2">{Math.round(linkStatus.erp.ratio * 100)}%</p>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-slate-500 mt-1">
                 {fmt(linkStatus.erp.amount_linked)} / {fmt(linkStatus.erp.amount_total)}
               </p>
               <div className="h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden">
                 <div className="h-full bg-indigo-600" style={{ width: `${Math.round(linkStatus.erp.ratio * 100)}%` }} />
               </div>
             </div>
-            <Link href="/erp-aliases/pending" className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:border-indigo-300 transition-colors">
-              <p className="text-xs font-medium text-slate-500">ERP 거래처 등록 대기</p>
+            <Link href="/erp-aliases/pending" className="bg-white rounded-xl border border-slate-300 p-5 shadow-sm hover:border-indigo-300 transition-colors">
+              <p className="text-xs font-medium text-slate-600">ERP 거래처 등록 대기</p>
               <p className={`text-xl font-bold mt-2 ${linkStatus.alias_pending > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
                 {linkStatus.alias_pending.toLocaleString()}건
               </p>
-              <p className="text-xs text-slate-400 mt-1">정리하기 →</p>
+              <p className="text-xs text-slate-500 mt-1">정리하기 →</p>
             </Link>
-            <Link href="/transactions" className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:border-indigo-300 transition-colors">
-              <p className="text-xs font-medium text-slate-500">통장 거래처 미태깅</p>
+            <Link href="/transactions" className="bg-white rounded-xl border border-slate-300 p-5 shadow-sm hover:border-indigo-300 transition-colors">
+              <p className="text-xs font-medium text-slate-600">통장 거래처 미태깅</p>
               <p className="text-xl font-bold text-slate-900 mt-2">{linkStatus.untagged_transactions.toLocaleString()}건</p>
-              <p className="text-xs text-slate-400 mt-1">자사 이체·정산 포함 · 자동매칭 실행 →</p>
+              <p className="text-xs text-slate-500 mt-1">자사 이체·정산 포함 · 자동매칭 실행 →</p>
             </Link>
-            <Link href="/card-sales/customer-links" className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:border-indigo-300 transition-colors">
-              <p className="text-xs font-medium text-slate-500">카드매출 미태깅</p>
+            <Link href="/card-sales/customer-links" className="bg-white rounded-xl border border-slate-300 p-5 shadow-sm hover:border-indigo-300 transition-colors">
+              <p className="text-xs font-medium text-slate-600">카드매출 미태깅</p>
               <p className="text-xl font-bold text-slate-900 mt-2">{linkStatus.untagged_card_sales.toLocaleString()}건</p>
-              <p className="text-xs text-slate-400 mt-1">카드번호 연결하기 →</p>
+              <p className="text-xs text-slate-500 mt-1">카드번호 연결하기 →</p>
             </Link>
           </div>
         </div>

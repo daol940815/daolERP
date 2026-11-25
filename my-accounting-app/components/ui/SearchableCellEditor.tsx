@@ -46,25 +46,25 @@ export default function SearchableCellEditor(props: Props) {
   }
 
   return (
-    <div className="bg-white border border-gray-300 rounded-lg shadow-lg w-56">
+    <div className="bg-white border border-slate-400 rounded-lg shadow-lg w-56">
       <input
         ref={inputRef}
         value={query}
         onChange={e => { setQuery(e.target.value); setHighlight(0) }}
         onKeyDown={handleKeyDown}
         placeholder="검색..."
-        className="w-full px-2.5 py-1.5 text-xs border-b border-gray-200 focus:outline-none rounded-t-lg"
+        className="w-full px-2.5 py-1.5 text-xs border-b border-slate-300 focus:outline-none rounded-t-lg"
       />
       <div ref={listRef} className="max-h-60 overflow-y-auto py-1">
         {filtered.length === 0 ? (
-          <p className="px-2.5 py-2 text-xs text-gray-400">검색 결과 없음</p>
+          <p className="px-2.5 py-2 text-xs text-slate-500">검색 결과 없음</p>
         ) : filtered.map((v, i) => (
           <button
             key={v}
             type="button"
             data-hl={i === highlight ? '1' : undefined}
             onClick={() => handlePick(v)}
-            className={`w-full text-left px-2.5 py-1.5 text-xs truncate ${i === highlight ? 'bg-slate-100' : 'hover:bg-gray-50'} ${v === props.value ? 'font-medium text-slate-900' : 'text-gray-700'}`}
+            className={`w-full text-left px-2.5 py-1.5 text-xs truncate ${i === highlight ? 'bg-slate-100' : 'hover:bg-slate-50'} ${v === props.value ? 'font-medium text-slate-900' : 'text-slate-800'}`}
           >
             {v}
           </button>

@@ -17,7 +17,7 @@ const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
 type Vat = 'taxable' | 'exempt'
 const VAT_LABEL: Record<string, string> = { taxable: '과세', exempt: '면세', mixed: '과세 · 면세' }
 const VatBadge = ({ v, muted }: { v?: string | null; muted?: boolean }) => v ? (
-  <span className={`shrink-0 px-1.5 py-px rounded-full border text-[0.625rem] whitespace-nowrap ${muted ? 'border-gray-200 text-gray-400' : v === 'exempt' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>{VAT_LABEL[v] ?? v}</span>
+  <span className={`shrink-0 px-1.5 py-px rounded-full border text-xs whitespace-nowrap ${muted ? 'border-slate-300 text-slate-500' : v === 'exempt' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>{VAT_LABEL[v] ?? v}</span>
 ) : null
 
 interface Group {
@@ -265,9 +265,9 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
   const shownOrders = showOtherOrd ? filteredOrders : filteredOrders.filter(o => !hiddenOrd.includes(o))
   const focusVat = focusOrderId ? orders.find(o => o.id === focusOrderId)?.vat : undefined
   const hiddenBar = (count: number, what: string, why: string, open: boolean, toggle: () => void) => count > 0 && (
-    <div className="flex items-center gap-2 flex-wrap px-3 py-1.5 border-t border-dashed border-gray-300 bg-gray-50 text-[0.6875rem] text-gray-600">
-      <b>{what} {count}건은 {open ? '연결 불가' : '숨김'}</b><span className="text-gray-400">{why}</span>
-      <button type="button" onClick={toggle} className="ml-auto px-2 py-0.5 border border-gray-300 rounded bg-white text-gray-600 hover:bg-gray-50">{open ? '숨기기' : '보기'}</button>
+    <div className="flex items-center gap-2 flex-wrap px-3 py-1.5 border-t border-dashed border-slate-400 bg-slate-50 text-xs text-slate-700">
+      <b>{what} {count}건은 {open ? '연결 불가' : '숨김'}</b><span className="text-slate-500">{why}</span>
+      <button type="button" onClick={toggle} className="ml-auto px-2 py-0.5 border border-slate-400 rounded bg-white text-slate-700 hover:bg-slate-50">{open ? '숨기기' : '보기'}</button>
     </div>
   )
 
@@ -275,19 +275,19 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[88vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-3">
-          <h3 className="text-lg font-bold text-gray-900">{vendorName} — 주문·계산서 연결</h3>
-          {focusVat && focusVat !== 'mixed' && <span className="px-2 py-0.5 rounded-full border border-blue-200 bg-blue-50 text-blue-700 text-[0.6875rem] whitespace-nowrap">결제 기록: {VAT_LABEL[focusVat]} — {VAT_LABEL[focusVat]} 계산서만 표시</span>}
-          {focusVat === 'mixed' && <span className="px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-gray-600 text-[0.6875rem] whitespace-nowrap">과세 · 면세 기록 모두 있음</span>}
+          <h3 className="text-lg font-bold text-slate-900">{vendorName} — 주문·계산서 연결</h3>
+          {focusVat && focusVat !== 'mixed' && <span className="px-2 py-0.5 rounded-full border border-blue-200 bg-blue-50 text-blue-700 text-xs whitespace-nowrap">결제 기록: {VAT_LABEL[focusVat]} — {VAT_LABEL[focusVat]} 계산서만 표시</span>}
+          {focusVat === 'mixed' && <span className="px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-slate-700 text-xs whitespace-nowrap">과세 · 면세 기록 모두 있음</span>}
           <div className="flex gap-1 ml-auto">
             {([['auto', '추천 조합'], ['manual', '직접 연결']] as const).map(([k, label]) => (
               <button key={k} onClick={() => setMode(k)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium ${mode === k ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium ${mode === k ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
                 {label}
               </button>
             ))}
           </div>
         </div>
-        <p className="text-xs text-gray-500 mt-1 mb-3">
+        <p className="text-xs text-slate-600 mt-1 mb-3">
           {mode === 'auto'
             ? '금액이 정확히 맞는 조합만 제시합니다. 같은 금액 주문이 여러 건이면 짝이 섞일 수 있으니 확인 후 확정하세요.'
             : '주문 1건 + 계산서 여러 장, 또는 계산서 1장 + 주문 여러 건을 직접 골라 연결합니다. 금액이 달라도(부분 발행) 배분됩니다.'}
@@ -312,23 +312,23 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
         {notice && <div className="mb-3 px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-lg">{notice}</div>}
 
         {!groups ? (
-          <p className="text-gray-400 text-sm py-8 text-center">불러오는 중...</p>
+          <p className="text-slate-500 text-sm py-8 text-center">불러오는 중...</p>
         ) : mode === 'auto' ? (
           <>
             {groups.length === 0 ? (
-              <p className="text-gray-400 text-sm py-8 text-center">
+              <p className="text-slate-500 text-sm py-8 text-center">
                 {focusOrderId ? '이 주문과 금액이 맞는 조합이 없습니다.' : focusInvoiceId ? '이 계산서와 금액이 맞는 조합이 없습니다.' : '금액이 맞는 조합이 없습니다.'} [직접 연결] 탭에서 수동으로 연결해주세요.
               </p>
             ) : (
               <div className="space-y-2.5">
                 {groups.map((g, i) => (
-                  <label key={i} className={`block border rounded-lg p-3 cursor-pointer transition-colors ${checked.has(i) ? 'border-slate-500 bg-slate-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <label key={i} className={`block border rounded-lg p-3 cursor-pointer transition-colors ${checked.has(i) ? 'border-slate-500 bg-slate-50' : 'border-slate-300 hover:border-slate-400'}`}>
                     <div className="flex items-center gap-2 mb-1.5">
                       <input type="checkbox" checked={checked.has(i)} onChange={() => toggle(i)} />
-                      <span className="text-sm font-semibold text-gray-900">{g.label}</span>
-                      <span className="ml-auto text-sm font-bold text-gray-900">{won(g.amount)}</span>
+                      <span className="text-sm font-semibold text-slate-900">{g.label}</span>
+                      <span className="ml-auto text-sm font-bold text-slate-900">{won(g.amount)}</span>
                     </div>
-                    <div className="pl-6 text-xs text-gray-600 space-y-0.5">
+                    <div className="pl-6 text-xs text-slate-700 space-y-0.5">
                       {g.orders.map(o => (
                         <p key={o.id}>주문 {o.order_date.slice(0, 10)} · {o.vendor_name ? `${o.vendor_name} · ` : ''}{o.order_no} · {won(o.remaining)} <VatBadge v={(o as OpenOrder).vat} /></p>
                       ))}
@@ -347,59 +347,59 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
                 className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
                 {applying ? '확정 중...' : `선택 ${checked.size}개 조합 확정`}
               </button>
-              <button onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">닫기</button>
+              <button onClick={onClose} className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
             </div>
           </>
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="border border-gray-200 rounded-lg">
-                <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2">
-                  <p className="text-xs font-semibold text-gray-700">미연결 주문 ({shownOrders.length})</p>
+              <div className="border border-slate-300 rounded-lg">
+                <div className="px-3 py-2 border-b border-slate-200 flex items-center gap-2">
+                  <p className="text-xs font-semibold text-slate-800">미연결 주문 ({shownOrders.length})</p>
                   <input value={orderQuery} onChange={e => setOrderQuery(e.target.value)} placeholder="주문번호·금액 검색"
-                    className="ml-auto border border-gray-200 rounded px-2 py-1 text-xs w-32" />
+                    className="ml-auto border border-slate-300 rounded px-2 py-1 text-xs w-32" />
                 </div>
-                <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+                <div className="max-h-72 overflow-y-auto divide-y divide-slate-200">
                   {shownOrders.map(o => {
                     const off = hiddenOrd.includes(o)
                     return (
-                    <label key={o.id} className={`flex items-center gap-2 px-3 py-1.5 text-xs ${off ? 'bg-gray-50 text-gray-400' : `cursor-pointer ${selOrders.has(o.id) ? 'bg-slate-50' : 'hover:bg-gray-50'}`}`}>
+                    <label key={o.id} className={`flex items-center gap-2 px-3 py-1.5 text-xs ${off ? 'bg-slate-50 text-slate-500' : `cursor-pointer ${selOrders.has(o.id) ? 'bg-slate-50' : 'hover:bg-slate-50'}`}`}>
                       <input type="checkbox" checked={selOrders.has(o.id)} disabled={off} onChange={() => toggleId(selOrders, setSelOrders, o.id)} />
-                      <span className="text-gray-500 whitespace-nowrap">{o.order_date.slice(0, 10)}</span>
-                      <span className={`truncate ${off ? '' : 'text-gray-900'}`}>{o.vendor_name ? <span className="text-blue-700">{o.vendor_name} · </span> : null}{o.order_no}</span>
+                      <span className="text-slate-600 whitespace-nowrap">{o.order_date.slice(0, 10)}</span>
+                      <span className={`truncate ${off ? '' : 'text-slate-900'}`}>{o.vendor_name ? <span className="text-blue-700">{o.vendor_name} · </span> : null}{o.order_no}</span>
                       <VatBadge v={o.vat} muted={off} />
-                      {off && <span className="shrink-0 px-1 py-px rounded bg-red-100 text-red-700 text-[0.625rem] font-semibold whitespace-nowrap">구분 다름</span>}
+                      {off && <span className="shrink-0 px-1 py-px rounded bg-red-100 text-red-700 text-xs font-semibold whitespace-nowrap">구분 다름</span>}
                       <span className="ml-auto tabular-nums font-medium whitespace-nowrap">{won(o.remaining)}</span>
                     </label>
                     )
                   })}
-                  {shownOrders.length === 0 && <p className="text-xs text-gray-400 text-center py-6">{hiddenOrd.length ? '같은 구분의 미연결 주문이 없습니다.' : '미연결 주문이 없습니다.'}</p>}
+                  {shownOrders.length === 0 && <p className="text-xs text-slate-500 text-center py-6">{hiddenOrd.length ? '같은 구분의 미연결 주문이 없습니다.' : '미연결 주문이 없습니다.'}</p>}
                 </div>
                 {hiddenBar(hiddenOrd.length, `${wantVat === 'taxable' ? '면세' : '과세'}로 기록한 주문`, `(고른 계산서는 ${wantVat ? VAT_LABEL[wantVat] : ''})`, showOtherOrd, () => setShowOtherOrd(v => !v))}
               </div>
-              <div className="border border-gray-200 rounded-lg">
-                <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2 flex-wrap">
+              <div className="border border-slate-300 rounded-lg">
+                <div className="px-3 py-2 border-b border-slate-200 flex items-center gap-2 flex-wrap">
                   <p className="text-xs font-semibold text-indigo-800">미배분 계산서 ({shownInvoices.length})</p>
                   <button onClick={() => (findOpen ? setFindOpen(false) : openFind())}
                     title="계산서가 다른 거래처(지점 · 본점 등) 명의로 발행된 경우, 전체 매출 계산서에서 금액 · 발행일 · 상호로 찾습니다"
-                    className="px-2 py-1 rounded border border-blue-300 bg-blue-50 text-blue-700 text-[0.6875rem] font-medium hover:bg-blue-100">
+                    className="px-2 py-1 rounded border border-blue-300 bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100">
                     {findOpen ? '찾기 닫기' : '다른 거래처 계산서에서 찾기'}
                   </button>
                   <input value={invoiceQuery} onChange={e => setInvoiceQuery(e.target.value)} placeholder="품목·금액 검색"
-                    className="ml-auto border border-gray-200 rounded px-2 py-1 text-xs w-28" />
+                    className="ml-auto border border-slate-300 rounded px-2 py-1 text-xs w-28" />
                 </div>
-                <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+                <div className="max-h-72 overflow-y-auto divide-y divide-slate-200">
                   {shownInvoices.map(v => {
                     const off = hiddenInv.includes(v)
                     return (
-                    <label key={v.id} className={`flex items-center gap-2 px-3 py-1.5 text-xs ${off ? 'bg-gray-50 text-gray-400' : `cursor-pointer ${v.foreign ? 'bg-amber-50' : selInvoices.has(v.id) ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}`}>
+                    <label key={v.id} className={`flex items-center gap-2 px-3 py-1.5 text-xs ${off ? 'bg-slate-50 text-slate-500' : `cursor-pointer ${v.foreign ? 'bg-amber-50' : selInvoices.has(v.id) ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}`}>
                       <input type="checkbox" checked={selInvoices.has(v.id)} disabled={off} onChange={() => toggleId(selInvoices, setSelInvoices, v.id)} />
-                      <span className="text-gray-500 whitespace-nowrap">{v.issue_date.slice(0, 10)}</span>
+                      <span className="text-slate-600 whitespace-nowrap">{v.issue_date.slice(0, 10)}</span>
                       <VatBadge v={v.tax_type} muted={off} />
-                      {off && <span className="shrink-0 px-1 py-px rounded bg-red-100 text-red-700 text-[0.625rem] font-semibold whitespace-nowrap">구분 다름</span>}
-                      <span className={`truncate ${off ? '' : 'text-gray-900'}`}>
+                      {off && <span className="shrink-0 px-1 py-px rounded bg-red-100 text-red-700 text-xs font-semibold whitespace-nowrap">구분 다름</span>}
+                      <span className={`truncate ${off ? '' : 'text-slate-900'}`}>
                         {v.foreign
-                          ? <span className="inline-block px-1 py-px rounded bg-amber-100 text-amber-800 text-[0.625rem] font-semibold mr-1">다른 거래처 · {v.vendor_name}</span>
+                          ? <span className="inline-block px-1 py-px rounded bg-amber-100 text-amber-800 text-xs font-semibold mr-1">다른 거래처 · {v.vendor_name}</span>
                           : v.vendor_name ? <span className="text-blue-700">{v.vendor_name} · </span> : null}
                         {v.item_name ?? '(품목 미상)'}
                       </span>
@@ -407,7 +407,7 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
                     </label>
                     )
                   })}
-                  {shownInvoices.length === 0 && <p className="text-xs text-gray-400 text-center py-6">{hiddenInv.length ? '같은 구분의 미배분 계산서가 없습니다.' : '미배분 계산서가 없습니다.'}</p>}
+                  {shownInvoices.length === 0 && <p className="text-xs text-slate-500 text-center py-6">{hiddenInv.length ? '같은 구분의 미배분 계산서가 없습니다.' : '미배분 계산서가 없습니다.'}</p>}
                 </div>
                 {hiddenBar(hiddenInv.length, `${wantTax === 'taxable' ? '면세' : '과세'} 계산서`, `(고른 주문의 결제 기록은 ${wantTax ? VAT_LABEL[wantTax] : ''})`, showOtherInv, () => setShowOtherInv(v => !v))}
               </div>
@@ -415,37 +415,37 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
 
             {findOpen && (
               <div className="mt-3 p-3 rounded-lg border border-dashed border-blue-300 bg-blue-50/40">
-                <div className="flex items-center gap-2 flex-wrap text-xs text-gray-600 mb-2">
+                <div className="flex items-center gap-2 flex-wrap text-xs text-slate-700 mb-2">
                   <b className="text-blue-700">다른 거래처 계산서에서 찾기</b>
                   <span>금액</span>
                   <input value={findAmount ? Number(findAmount.replace(/[^0-9]/g, '') || 0).toLocaleString('ko-KR') : ''} onChange={e => setFindAmount(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="전체" inputMode="numeric" className="border border-gray-300 rounded px-2 py-1 w-28 text-right bg-white tabular-nums" />
+                    placeholder="전체" inputMode="numeric" className="border border-slate-400 rounded px-2 py-1 w-28 text-right bg-white tabular-nums" />
                   <span>발행일</span>
-                  <input type="date" value={findFrom} onChange={e => setFindFrom(e.target.value)} className="border border-gray-300 rounded px-1.5 py-1 bg-white" />
+                  <input type="date" value={findFrom} onChange={e => setFindFrom(e.target.value)} className="border border-slate-400 rounded px-1.5 py-1 bg-white" />
                   <span>~</span>
-                  <input type="date" value={findTo} onChange={e => setFindTo(e.target.value)} className="border border-gray-300 rounded px-1.5 py-1 bg-white" />
+                  <input type="date" value={findTo} onChange={e => setFindTo(e.target.value)} className="border border-slate-400 rounded px-1.5 py-1 bg-white" />
                   <input value={findQ} onChange={e => setFindQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') runFind() }}
-                    placeholder="상호 (예: 석계역)" className="border border-gray-300 rounded px-2 py-1 w-36 bg-white" />
+                    placeholder="상호 (예: 석계역)" className="border border-slate-400 rounded px-2 py-1 w-36 bg-white" />
                   <button onClick={runFind} disabled={finding} className="px-2.5 py-1 rounded bg-slate-900 text-white font-medium disabled:opacity-50">{finding ? '찾는 중...' : '찾기'}</button>
                 </div>
                 {found === null ? (
-                  <p className="text-xs text-gray-400">금액은 계산서의 남은 금액과 같은 것만 찾습니다. 금액을 비우면 상호로 찾습니다. 이미 다른 주문에 다 연결된 계산서와 취소쌍은 나오지 않습니다.</p>
+                  <p className="text-xs text-slate-500">금액은 계산서의 남은 금액과 같은 것만 찾습니다. 금액을 비우면 상호로 찾습니다. 이미 다른 주문에 다 연결된 계산서와 취소쌍은 나오지 않습니다.</p>
                 ) : found.length === 0 ? (
-                  <p className="text-xs text-gray-500">조건에 맞는 계산서가 없습니다. 계산서 파일이 아직 올라오지 않았거나, 금액 · 기간이 다를 수 있습니다.</p>
+                  <p className="text-xs text-slate-600">조건에 맞는 계산서가 없습니다. 계산서 파일이 아직 올라오지 않았거나, 금액 · 기간이 다를 수 있습니다.</p>
                 ) : (
-                  <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                  <div className="bg-white border border-slate-300 rounded-lg divide-y divide-slate-200 max-h-48 overflow-y-auto">
                     {found.map(v => {
                       const added = invoices.some(x => x.id === v.id)
                       return (
                         <div key={v.id} className="flex items-center gap-2 px-2.5 py-1.5 text-xs flex-wrap">
-                          <span className="text-gray-500 tabular-nums">{v.issue_date.slice(0, 10)}</span>
+                          <span className="text-slate-600 tabular-nums">{v.issue_date.slice(0, 10)}</span>
                           <VatBadge v={v.tax_type} />
-                          <span className="text-gray-900">{v.counterparty_name ?? '(상호 없음)'}</span>
-                          <span className="text-gray-400">거래처 {v.vendor_name}</span>
-                          <span className="ml-auto tabular-nums">남은 금액 <b>{won(v.remaining)}</b>{v.remaining !== v.total_amount && <span className="text-gray-400"> / {won(v.total_amount)}</span>}</span>
+                          <span className="text-slate-900">{v.counterparty_name ?? '(상호 없음)'}</span>
+                          <span className="text-slate-500">거래처 {v.vendor_name}</span>
+                          <span className="ml-auto tabular-nums">남은 금액 <b>{won(v.remaining)}</b>{v.remaining !== v.total_amount && <span className="text-slate-500"> / {won(v.total_amount)}</span>}</span>
                           <button onClick={() => addFound(v)} disabled={added || invBlocked(v)}
                             title={invBlocked(v) ? '고른 주문의 결제 기록과 과세 구분이 달라 연결할 수 없습니다' : undefined}
-                            className="px-2 py-0.5 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 disabled:opacity-40">{added ? '추가됨' : invBlocked(v) ? '구분 다름' : '목록에 추가'}</button>
+                            className="px-2 py-0.5 border border-slate-400 rounded text-slate-800 hover:bg-slate-50 disabled:opacity-40">{added ? '추가됨' : invBlocked(v) ? '구분 다름' : '목록에 추가'}</button>
                         </div>
                       )
                     })}
@@ -455,7 +455,7 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
             )}
 
             {manualPlan && (
-              <div className={`mt-3 px-3 py-2.5 rounded-lg text-xs border ${manualPlan.valid ? 'bg-slate-50 border-slate-200 text-gray-700' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+              <div className={`mt-3 px-3 py-2.5 rounded-lg text-xs border ${manualPlan.valid ? 'bg-slate-50 border-slate-300 text-slate-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
                 {!manualPlan.valid ? (
                   manualPlan.message
                 ) : (
@@ -475,9 +475,9 @@ export default function InvoiceLinkModal({ vendorId, vendorName, from, focusOrde
                 {applying ? '확정 중...' : '선택 연결 확정'}
               </button>
               <button onClick={() => { setSelOrders(new Set()); setSelInvoices(new Set()) }}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">선택 해제</button>
-              <button onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">닫기</button>
-              <span className="text-xs text-gray-400">확정 후에도 모달이 열려 있어 이어서 연결할 수 있습니다.</span>
+                className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-700 hover:bg-slate-50">선택 해제</button>
+              <button onClick={onClose} className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
+              <span className="text-xs text-slate-500">확정 후에도 모달이 열려 있어 이어서 연결할 수 있습니다.</span>
             </div>
           </>
         )}

@@ -260,13 +260,13 @@ function ErpMatchingContent() {
     <div className="w-full">
       {reasonDlg.node}
       <div className="mb-2 flex items-start justify-between gap-3 flex-wrap">
-        <p className="text-sm text-gray-500">
-          결제 기록 없이 들어온 통장 입금 · 카드결제를 주문에 붙입니다. 같은 거래처 · 금액 같음 · 날짜 가까움 · 후보가 하나뿐이면 <b className="text-gray-700">추천</b>으로 표시하고, 확정은 직접 누릅니다.
+        <p className="text-sm text-slate-600">
+          결제 기록 없이 들어온 통장 입금 · 카드결제를 주문에 붙입니다. 같은 거래처 · 금액 같음 · 날짜 가까움 · 후보가 하나뿐이면 <b className="text-slate-800">추천</b>으로 표시하고, 확정은 직접 누릅니다.
         </p>
         <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-500">추천 기준</label>
+          <label className="text-xs text-slate-600">추천 기준</label>
           <select value={days} onChange={e => setDays(Number(e.target.value))}
-            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-gray-600" title="추천할 때 입금일과 주문일 차이 허용 범위">
+            className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm text-slate-700" title="추천할 때 입금일과 주문일 차이 허용 범위">
             {[3, 7, 15, 30, 60].map(d => <option key={d} value={d}>±{d}일</option>)}
           </select>
         </div>
@@ -280,15 +280,15 @@ function ErpMatchingContent() {
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-        <span className="text-gray-400 text-sm">~</span>
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="거래처·입금자·주문번호 검색"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
       </div>
 
@@ -296,20 +296,20 @@ function ErpMatchingContent() {
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           {recCount > 0 && (<>
             <button onClick={() => { setRecOnly(v => !v); setShowSettled(false) }}
-              className={`px-3 py-1 rounded-full text-xs border ${recOnly && !showSettled ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+              className={`px-3 py-1 rounded-full text-xs border ${recOnly && !showSettled ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50'}`}>
               추천 있음 {recCount}
             </button>
-            <button onClick={() => setRecSel(new Set(pending.filter(d => d.recommend).map(d => d.id)))} className="text-xs text-gray-500 underline">추천 모두 체크</button>
+            <button onClick={() => setRecSel(new Set(pending.filter(d => d.recommend).map(d => d.id)))} className="text-xs text-slate-600 underline">추천 모두 체크</button>
           </>)}
           {settledOk && (
             <button onClick={() => setShowSettled(v => !v)}
-              className={`px-3 py-1 rounded-full text-xs border ${showSettled ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+              className={`px-3 py-1 rounded-full text-xs border ${showSettled ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50'}`}>
               이전 처리분 보기 {settled.length}
             </button>
           )}
           <span className="ml-auto flex items-center gap-2 flex-wrap">
             {!showSettled && recSel.size > 0 && (<>
-              <span className="text-xs text-gray-600">체크 {recSel.size}건</span>
+              <span className="text-xs text-slate-700">체크 {recSel.size}건</span>
               {recChecked.length > 0 && (
                 <button onClick={() => confirmRecommended(recChecked)} disabled={working}
                   className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-40">체크한 추천 확정 ({recChecked.length}건)</button>
@@ -318,7 +318,7 @@ function ErpMatchingContent() {
                 <button onClick={settleChecked} disabled={working}
                   className="px-3 py-1.5 border border-indigo-200 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-100 disabled:opacity-40">이전 처리분 확정 ({recSel.size}건)</button>
               )}
-              <button onClick={() => setRecSel(new Set())} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">체크 해제</button>
+              <button onClick={() => setRecSel(new Set())} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700 hover:bg-slate-50">체크 해제</button>
             </>)}
             {showSettled && setSel.size > 0 && (
               <button onClick={releaseChecked} disabled={working}
@@ -329,12 +329,12 @@ function ErpMatchingContent() {
       )}
 
       {tab === 'pending' && showSettled && (
-        <div className="mb-4 bg-white border border-gray-200 rounded-xl overflow-x-auto">
-          <div className="px-3 py-2 border-b border-gray-100 text-sm"><b className="text-gray-800">이전 처리분 {settled.length}건</b>
-            <span className="text-xs text-gray-400"> · 주문 없이 처리 완료로 표시한 입금 · 카드 결제 (기간 필터와 무관)</span></div>
-          {settled.length === 0 ? <div className="py-8 text-center text-sm text-gray-400">이전 처리분이 없습니다.</div> : (
+        <div className="mb-4 bg-white border border-slate-300 rounded-xl overflow-x-auto">
+          <div className="px-3 py-2 border-b border-slate-200 text-sm"><b className="text-slate-900">이전 처리분 {settled.length}건</b>
+            <span className="text-xs text-slate-500"> · 주문 없이 처리 완료로 표시한 입금 · 카드 결제 (기간 필터와 무관)</span></div>
+          {settled.length === 0 ? <div className="py-8 text-center text-sm text-slate-500">이전 처리분이 없습니다.</div> : (
             <table className="w-full text-sm">
-              <thead><tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+              <thead><tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                 <th className="py-2 px-3"><input type="checkbox" checked={setSel.size === settled.length && settled.length > 0}
                   onChange={e => setSetSel(e.target.checked ? new Set(settled.map(x => x.id)) : new Set())} aria-label="모두 체크" /></th>
                 <th className="py-2 px-3 font-medium">구분</th><th className="py-2 px-3 font-medium">입금일</th><th className="py-2 px-3 font-medium">거래처</th>
@@ -343,15 +343,15 @@ function ErpMatchingContent() {
               </tr></thead>
               <tbody>
                 {settled.map(x => (
-                  <tr key={x.id} className="border-b border-gray-100">
+                  <tr key={x.id} className="border-b border-slate-200">
                     <td className="py-2 px-3"><input type="checkbox" checked={setSel.has(x.id)} onChange={e => setSetSel(p => { const n = new Set(p); if (e.target.checked) n.add(x.id); else n.delete(x.id); return n })} /></td>
-                    <td className="py-2 px-3"><span className={`px-1.5 py-0.5 text-[0.6875rem] rounded ${x.source_type === 'card' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>{x.source_type === 'card' ? '카드' : '계좌'}</span></td>
-                    <td className="py-2 px-3 whitespace-nowrap text-gray-600">{x.tx_date ?? '-'}</td>
+                    <td className="py-2 px-3"><span className={`px-1.5 py-0.5 text-xs rounded ${x.source_type === 'card' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>{x.source_type === 'card' ? '카드' : '계좌'}</span></td>
+                    <td className="py-2 px-3 whitespace-nowrap text-slate-700">{x.tx_date ?? '-'}</td>
                     <td className="py-2 px-3"><p className="truncate max-w-[180px]">{x.vendor_name ?? '-'}</p></td>
-                    <td className="py-2 px-3"><p className="truncate max-w-[180px] text-gray-600">{x.label ?? '-'}</p></td>
+                    <td className="py-2 px-3"><p className="truncate max-w-[180px] text-slate-700">{x.label ?? '-'}</p></td>
                     <td className="py-2 px-3 text-right whitespace-nowrap">{won(x.amount)}</td>
-                    <td className="py-2 px-3 text-xs text-gray-700">{x.reason_text}{x.memo && <div className="text-[0.6875rem] text-gray-400">{x.memo}</div>}</td>
-                    <td className="py-2 px-3 text-xs whitespace-nowrap">{x.created_by_name ?? '-'}<div className="text-[0.6875rem] text-gray-400">{stamp(x.created_at)}</div></td>
+                    <td className="py-2 px-3 text-xs text-slate-800">{x.reason_text}{x.memo && <div className="text-xs text-slate-500">{x.memo}</div>}</td>
+                    <td className="py-2 px-3 text-xs whitespace-nowrap">{x.created_by_name ?? '-'}<div className="text-xs text-slate-500">{stamp(x.created_at)}</div></td>
                   </tr>
                 ))}
               </tbody>
@@ -362,22 +362,22 @@ function ErpMatchingContent() {
 
       {/* 입금대장 (2026-11-18): 하위 탭 없이 '주문에 붙일 입금'만 보여 준다. 매칭된 입금의 내역 · 해제 · 해제 이력은 전체 현황 탭으로 옮겼다
           (아래 matched 분기는 tab 이 항상 'pending' 이라 그려지지 않는다) */}
-      <div className="mb-3 text-sm text-gray-700">주문에 붙일 입금 <b>{filteredPending.length}건</b> <span className="text-gray-500">({won(pendingTotal)})</span>
-        <span className="text-xs text-gray-400"> · 붙인 뒤의 내역과 매칭 해제는 전체 현황 탭에서 주문을 펼쳐 봅니다</span></div>
+      <div className="mb-3 text-sm text-slate-800">주문에 붙일 입금 <b>{filteredPending.length}건</b> <span className="text-slate-600">({won(pendingTotal)})</span>
+        <span className="text-xs text-slate-500"> · 붙인 뒤의 내역과 매칭 해제는 전체 현황 탭에서 주문을 펼쳐 봅니다</span></div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : tab === 'pending' ? (
         filteredPending.length === 0 ? (
-          <div className="text-center py-20 text-gray-400 text-sm">
+          <div className="text-center py-20 text-slate-500 text-sm">
             미배분 입금이 없습니다. 거래처가 연결된 입금만 대상이 되므로,
             거래내역 화면에서 거래처 자동매칭을 먼저 실행해주세요.
           </div>
         ) : (
-          <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+          <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                   <th className="py-2.5 px-3"><input type="checkbox" aria-label="보이는 줄 모두 체크"
                     checked={filteredPending.length > 0 && filteredPending.every(d => recSel.has(d.id))}
                     onChange={e => setRecSel(e.target.checked ? new Set(filteredPending.map(d => d.id)) : new Set())} /></th>
@@ -400,20 +400,20 @@ function ErpMatchingContent() {
                     .reduce((s, n) => s + n, 0)
                   return (
                     <Fragment key={d.id}>
-                      <tr className={`border-b border-gray-100 ${expanded ? 'bg-slate-50' : 'hover:bg-gray-50'}`}>
+                      <tr className={`border-b border-slate-200 ${expanded ? 'bg-slate-50' : 'hover:bg-slate-50'}`}>
                         <td className="py-2 px-3"><input type="checkbox" checked={recSel.has(d.id)} aria-label="체크"
                           onChange={e => setRecSel(prev => { const n = new Set(prev); if (e.target.checked) n.add(d.id); else n.delete(d.id); return n })} /></td>
                         <td className="py-2 px-3">
-                          <span className={`px-1.5 py-0.5 text-[0.6875rem] rounded ${
+                          <span className={`px-1.5 py-0.5 text-xs rounded ${
                             d.source_type === 'card' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'
                           }`}>
                             {d.source_type === 'card' ? '카드' : '계좌'}
                           </span>
                         </td>
-                        <td className="py-2 px-3 whitespace-nowrap text-gray-600">{d.tx_date}{d.tx_time ? ` ${d.tx_time.slice(0, 8)}` : ''}</td>
+                        <td className="py-2 px-3 whitespace-nowrap text-slate-700">{d.tx_date}{d.tx_time ? ` ${d.tx_time.slice(0, 8)}` : ''}</td>
                         <td className="py-2 px-3"><p className="truncate max-w-[160px]">{d.vendor_name}</p></td>
                         <td className="py-2 px-3">
-                          <p className="truncate max-w-[200px] text-gray-600">{d.counterparty_name || d.description || '-'}</p>
+                          <p className="truncate max-w-[200px] text-slate-700">{d.counterparty_name || d.description || '-'}</p>
                         </td>
                         <td className="py-2 px-3 text-right whitespace-nowrap">{won(d.amount)}</td>
                         <td className="py-2 px-3 text-right whitespace-nowrap font-medium text-red-600">{won(d.remaining)}</td>
@@ -421,13 +421,13 @@ function ErpMatchingContent() {
                           {d.recommend ? (
                             <label className="flex items-start gap-1.5">
                               <span>
-                                <span className="inline-block px-1.5 py-0.5 rounded-full text-[0.625rem] font-semibold bg-green-100 text-green-800 mr-1">추천</span>
+                                <span className="inline-block px-1.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 mr-1">추천</span>
                                 <OrderNoLink id={d.recommend.id} no={d.recommend.order_no} />
-                                <span className="text-gray-700"> · {d.recommend.customer_name ?? ''}{d.recommend.manager ? ` · ${d.recommend.manager}` : ''}</span>
-                                <span className="text-gray-400"> · {d.recommend.order_date} · 미수 {won(d.recommend.remaining)}</span>
+                                <span className="text-slate-800"> · {d.recommend.customer_name ?? ''}{d.recommend.manager ? ` · ${d.recommend.manager}` : ''}</span>
+                                <span className="text-slate-500"> · {d.recommend.order_date} · 미수 {won(d.recommend.remaining)}</span>
                               </span>
                             </label>
-                          ) : <span className="text-gray-500">{d.candidates.length ? `후보 ${d.candidates.length}건` : '후보 없음'}</span>}
+                          ) : <span className="text-slate-600">{d.candidates.length ? `후보 ${d.candidates.length}건` : '후보 없음'}</span>}
                         </td>
                         <td className="py-2 px-3 text-right whitespace-nowrap">
                           {d.recommend && (
@@ -438,7 +438,7 @@ function ErpMatchingContent() {
                             onClick={() => toggleExpand(d)}
                             disabled={working}
                             className={`px-2 py-1 text-xs border rounded disabled:opacity-40 ${
-                              expanded ? 'border-slate-400 bg-slate-100 text-slate-700' : 'border-blue-300 text-blue-700 hover:bg-blue-50'
+                              expanded ? 'border-slate-400 bg-slate-100 text-slate-800' : 'border-blue-300 text-blue-700 hover:bg-blue-50'
                             }`}
                           >
                             {expanded ? '▲ 닫기' : d.candidates.length === 0 ? '주문 찾기' : d.recommend ? '다른 주문' : '배분하기'}
@@ -446,11 +446,11 @@ function ErpMatchingContent() {
                         </td>
                       </tr>
                       {expanded && (
-                        <tr className="border-b border-gray-200 bg-slate-50">
+                        <tr className="border-b border-slate-300 bg-slate-50">
                           <td colSpan={9} className="px-5 py-3">
                             <table className="w-full text-xs mb-3">
                               <thead>
-                                <tr className="text-left text-gray-400">
+                                <tr className="text-left text-slate-500">
                                   <th className="py-1 pr-3 font-medium">주문번호</th>
                                   <th className="py-1 pr-3 font-medium">주문일</th>
                                   <th className="py-1 pr-3 font-medium">은행 · 지점</th>
@@ -463,24 +463,24 @@ function ErpMatchingContent() {
                               </thead>
                               <tbody>
                                 {[...d.candidates, ...(extraCands[d.id] ?? []).filter(x => !d.candidates.some(c => c.id === x.id))].map(c => (
-                                  <tr key={c.id} className="border-t border-gray-200 text-gray-700">
+                                  <tr key={c.id} className="border-t border-slate-300 text-slate-800">
                                     <td className="py-1.5 pr-3 whitespace-nowrap"><OrderNoLink id={c.id} no={c.order_no} /></td>
                                     <td className="py-1.5 pr-3 whitespace-nowrap">{c.order_date}</td>
                                     <td className="py-1.5 pr-3 whitespace-nowrap">{c.customer_name}</td>
-                                    <td className="py-1.5 pr-3 whitespace-nowrap text-gray-600">{c.manager ?? ''}</td>
+                                    <td className="py-1.5 pr-3 whitespace-nowrap text-slate-700">{c.manager ?? ''}</td>
                                     <td className="py-1.5 pr-3 text-right whitespace-nowrap">{won(c.net_amount)}</td>
-                                    <td className="py-1.5 pr-3 text-right whitespace-nowrap text-gray-400">{won(c.allocated)}</td>
+                                    <td className="py-1.5 pr-3 text-right whitespace-nowrap text-slate-500">{won(c.allocated)}</td>
                                     <td className="py-1.5 pr-3 text-right whitespace-nowrap font-medium">{won(c.remaining)}</td>
                                     <td className="py-1.5 text-right">
                                       <input
                                         value={alloc[c.id] ?? ''}
                                         onChange={e => setAlloc(prev => ({ ...prev, [c.id]: e.target.value }))}
                                         placeholder="0"
-                                        className="border border-gray-300 rounded px-2 py-1 text-xs w-28 text-right focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                                        className="border border-slate-400 rounded px-2 py-1 text-xs w-28 text-right focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
                                       />
                                       <button
                                         onClick={() => setAlloc(prev => ({ ...prev, [c.id]: String(Math.min(c.remaining, d.remaining)) }))}
-                                        className="ml-1 px-1.5 py-1 text-[0.6875rem] border border-gray-300 rounded text-gray-500 hover:bg-gray-100"
+                                        className="ml-1 px-1.5 py-1 text-xs border border-slate-400 rounded text-slate-600 hover:bg-slate-100"
                                         title="주문 잔액(또는 입금 잔액)만큼 채우기"
                                       >채움</button>
                                     </td>
@@ -492,8 +492,8 @@ function ErpMatchingContent() {
                               <input value={orderQ} onChange={e => setOrderQ(e.target.value)}
                                 onKeyDown={e => { if (e.key === 'Enter') searchOrder(d.id) }}
                                 placeholder="주문번호로 찾기 (기간 밖·다른 거래처 주문도)"
-                                className="border border-gray-300 rounded px-2 py-1 w-64 bg-white" />
-                              <button onClick={() => searchOrder(d.id)} className="px-2 py-1 border border-gray-300 rounded text-gray-600 hover:bg-gray-100">추가</button>
+                                className="border border-slate-400 rounded px-2 py-1 w-64 bg-white" />
+                              <button onClick={() => searchOrder(d.id)} className="px-2 py-1 border border-slate-400 rounded text-slate-700 hover:bg-slate-100">추가</button>
                             </div>
                             <div className="flex items-center gap-3">
                               <button
@@ -503,7 +503,7 @@ function ErpMatchingContent() {
                               >
                                 {working ? '저장 중...' : `배분 저장 (${won(allocSum)})`}
                               </button>
-                              <span className={`text-xs ${allocSum > d.remaining ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+                              <span className={`text-xs ${allocSum > d.remaining ? 'text-red-600 font-medium' : 'text-slate-500'}`}>
                                 입금 잔액 {won(d.remaining)} 중 {won(allocSum)} 배분
                                 {allocSum > d.remaining && ' — 잔액 초과!'}
                               </span>
@@ -520,12 +520,12 @@ function ErpMatchingContent() {
         )
       ) : (
         filteredMatched.length === 0 ? (
-          <div className="text-center py-20 text-gray-400 text-sm">기간 내 매칭된 건이 없습니다.</div>
+          <div className="text-center py-20 text-slate-500 text-sm">기간 내 매칭된 건이 없습니다.</div>
         ) : (
-          <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+          <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+                <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                   <th className="py-2.5 px-3 font-medium">결제일</th>
                   <th className="py-2.5 px-3 font-medium">주문번호</th>
                   <th className="py-2.5 px-3 font-medium">매출처</th>
@@ -539,27 +539,27 @@ function ErpMatchingContent() {
               <tbody>
                 {filteredMatched.map(m => (
                   <Fragment key={m.id}>
-                  <tr className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-2 px-3 whitespace-nowrap text-gray-600">{m.paid_date}</td>
+                  <tr className="border-b border-slate-200 hover:bg-slate-50">
+                    <td className="py-2 px-3 whitespace-nowrap text-slate-700">{m.paid_date}</td>
                     <td className="py-2 px-3 whitespace-nowrap">{m.order_no}</td>
                     <td className="py-2 px-3"><p className="truncate max-w-[180px]">{m.customer_name}</p></td>
-                    <td className="py-2 px-3"><p className="truncate max-w-[140px] text-gray-600">{m.counterparty_name ?? '-'}</p></td>
+                    <td className="py-2 px-3"><p className="truncate max-w-[140px] text-slate-700">{m.counterparty_name ?? '-'}</p></td>
                     <td className="py-2 px-3 text-right whitespace-nowrap font-medium">{won(m.amount)}</td>
                     <td className="py-2 px-3">
-                      <span className={`mr-1 px-1.5 py-0.5 text-[0.6875rem] rounded ${
+                      <span className={`mr-1 px-1.5 py-0.5 text-xs rounded ${
                         m.source_type === 'card' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'
                       }`}>
                         {m.source_type === 'card' ? '카드' : '계좌'}
                       </span>
-                      <span className={`px-1.5 py-0.5 text-[0.6875rem] rounded ${
+                      <span className={`px-1.5 py-0.5 text-xs rounded ${
                         m.matched_by === 'auto' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'
                       }`}>
                         {m.matched_by === 'auto' ? '자동' : '수동'}
                       </span>
                     </td>
-                    <td className="py-2 px-3 text-xs text-gray-600 whitespace-nowrap">
-                      {m.matched_by_name ?? (m.matched_by === 'auto' ? '자동' : <span className="text-gray-400">기록 없음</span>)}
-                      <span className="text-gray-400 tabular-nums"> · {when(m.created_at)}</span>
+                    <td className="py-2 px-3 text-xs text-slate-700 whitespace-nowrap">
+                      {m.matched_by_name ?? (m.matched_by === 'auto' ? '자동' : <span className="text-slate-500">기록 없음</span>)}
+                      <span className="text-slate-500 tabular-nums"> · {when(m.created_at)}</span>
                     </td>
                     <td className="py-2 px-3 text-right">
                       <button
@@ -572,12 +572,12 @@ function ErpMatchingContent() {
                     </td>
                   </tr>
                   {relId === m.id && (
-                    <tr className="border-b border-gray-100 bg-orange-50">
+                    <tr className="border-b border-slate-200 bg-orange-50">
                       <td colSpan={8} className="px-3 py-3">
-                        <div className="text-xs text-gray-700 mb-2"><b>매칭 해제</b> — 주문 {m.order_no}의 매칭 {won(m.amount)}({m.paid_date})을 풉니다. 사유 · 해제한 사람 · 시각이 남습니다.</div>
+                        <div className="text-xs text-slate-800 mb-2"><b>매칭 해제</b> — 주문 {m.order_no}의 매칭 {won(m.amount)}({m.paid_date})을 풉니다. 사유 · 해제한 사람 · 시각이 남습니다.</div>
                         <ReasonPicker kind="release" value={relReason} onChange={setRelReason} label="매칭 해제 사유" />
                         <div className="flex justify-end gap-2 mt-2">
-                          <button onClick={() => setRelId(null)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">닫기</button>
+                          <button onClick={() => setRelId(null)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs bg-white">닫기</button>
                           <button onClick={() => handleUnmatch(m)} disabled={working || !reasonReady(relReason)}
                             className="px-3 py-1.5 rounded-lg text-xs bg-slate-900 text-white font-semibold disabled:opacity-40">매칭 해제</button>
                         </div>
@@ -592,11 +592,11 @@ function ErpMatchingContent() {
         )
       )}
       {tab === 'matched' && released.length > 0 && (
-        <div className="mt-4 bg-white border border-gray-200 rounded-xl overflow-x-auto">
-          <div className="px-3 py-2 border-b border-gray-100 text-sm"><b className="text-gray-800">최근 매칭 해제 이력</b> <span className="text-xs text-gray-400">최근 {released.length}건 · 기간 필터와 무관</span></div>
+        <div className="mt-4 bg-white border border-slate-300 rounded-xl overflow-x-auto">
+          <div className="px-3 py-2 border-b border-slate-200 text-sm"><b className="text-slate-900">최근 매칭 해제 이력</b> <span className="text-xs text-slate-500">최근 {released.length}건 · 기간 필터와 무관</span></div>
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+              <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                 <th className="py-2 px-3 font-medium">해제 시각</th>
                 <th className="py-2 px-3 font-medium">해제한 사람</th>
                 <th className="py-2 px-3 font-medium">주문번호</th>
@@ -607,13 +607,13 @@ function ErpMatchingContent() {
             </thead>
             <tbody>
               {released.map(l => (
-                <tr key={l.id} className="border-b border-gray-100">
-                  <td className="py-2 px-3 whitespace-nowrap tabular-nums text-gray-600">{when(l.created_at)}</td>
+                <tr key={l.id} className="border-b border-slate-200">
+                  <td className="py-2 px-3 whitespace-nowrap tabular-nums text-slate-700">{when(l.created_at)}</td>
                   <td className="py-2 px-3 whitespace-nowrap">{l.employee_name ?? '-'}</td>
                   <td className="py-2 px-3 whitespace-nowrap">{l.order_no ?? '-'}</td>
-                  <td className="py-2 px-3 whitespace-nowrap text-gray-600">{l.paid_date ?? '-'}</td>
+                  <td className="py-2 px-3 whitespace-nowrap text-slate-700">{l.paid_date ?? '-'}</td>
                   <td className="py-2 px-3 text-right whitespace-nowrap">{won(l.amount)}</td>
-                  <td className="py-2 px-3 text-gray-700">{l.reason_text ?? <span className="text-gray-400">사유 없음</span>}</td>
+                  <td className="py-2 px-3 text-slate-800">{l.reason_text ?? <span className="text-slate-500">사유 없음</span>}</td>
                 </tr>
               ))}
             </tbody>
@@ -627,7 +627,7 @@ function ErpMatchingContent() {
 // 결제 확인 › 기록 없는 입금 탭 (전 입금 매칭 화면 /erp-matching — 2026-11-16 통합)
 export default function DepositsTab() {
   return (
-    <Suspense fallback={<div className="text-center py-20 text-gray-400">로딩 중...</div>}>
+    <Suspense fallback={<div className="text-center py-20 text-slate-500">로딩 중...</div>}>
       <ErpMatchingContent />
     </Suspense>
   )

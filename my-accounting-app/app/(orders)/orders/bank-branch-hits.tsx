@@ -44,17 +44,17 @@ export function BankBranchHits({ q, groupName, parttime, onRegistered, onError }
     onRegistered(j as RegisteredBranch)
   }
   return (
-    <div className="border-t border-gray-100 bg-blue-50/40">
-      <div className="px-3 pt-1.5 pb-0.5 text-[0.6875rem] text-gray-500">
+    <div className="border-t border-slate-200 bg-blue-50/40">
+      <div className="px-3 pt-1.5 pb-0.5 text-xs text-slate-600">
         미등록 점포(은행연합회) — {parttime ? '등록은 담당 직원에게 요청하세요' : '고르면 매출처로 등록하고 이 지점으로 씁니다'}
       </div>
       {items.map(h => (
         <button type="button" key={h.id} disabled={parttime || !!busy}
           onMouseDown={e => e.preventDefault()}
           onClick={() => pick(h)}
-          className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-blue-50 disabled:hover:bg-transparent disabled:cursor-default flex items-baseline justify-between gap-2">
+          className="w-full text-left px-3 py-1.5 text-sm text-slate-800 hover:bg-blue-50 disabled:hover:bg-transparent disabled:cursor-default flex items-baseline justify-between gap-2">
           <span>{busy === h.id ? '등록 중…' : h.full_name}</span>
-          <span className="text-[0.6875rem] text-gray-400 truncate">{[h.address, h.phone].filter(Boolean).join(' · ')}</span>
+          <span className="text-xs text-slate-500 truncate">{[h.address, h.phone].filter(Boolean).join(' · ')}</span>
         </button>
       ))}
     </div>

@@ -51,24 +51,24 @@ export default function YearEndTab() {
   }
   const set = (id: string, patch: Partial<Edit>) => setEdits(s => ({ ...s, [id]: { ...s[id], ...patch } }))
   const rows = (data?.recommend ?? []).filter((x: RecommendRow) => !onlyManaged || x.managed)
-  const inp = 'w-16 border border-gray-300 rounded px-1.5 py-0.5 text-sm text-right tabular-nums'
+  const inp = 'w-16 border border-slate-400 rounded px-1.5 py-0.5 text-sm text-right tabular-nums'
 
   return (
     <div>
       {msg && <div className="mb-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
       {error && <div className="mb-3 px-4 py-2.5 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg">{error}</div>}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mb-3 text-sm text-gray-600 leading-relaxed">
+      <div className="bg-white border border-slate-300 rounded-xl p-4 mb-3 text-sm text-slate-700 leading-relaxed">
         연초(1월 1일 무렵)에 한 번 합니다. &ldquo;추천 만들기&rdquo;를 누르면 재직 직원별로 그해 기본 연차(근속 규칙)와 지난해 남은 보상 연차(이월)가 채워집니다.
         숫자를 고칠 수 있고, 체크한 행만 &ldquo;확정&rdquo;으로 부여 내역에 들어갑니다. 지난해 남은 기본 연차는 소멸하므로 표에만 보입니다.
         <div className="flex items-center gap-2 mt-3">
-          <select value={year} onChange={e => { setYear(Number(e.target.value)); setData(null) }} className="border border-gray-300 rounded-lg px-2 py-1 text-sm font-semibold">
+          <select value={year} onChange={e => { setYear(Number(e.target.value)); setData(null) }} className="border border-slate-400 rounded-lg px-2 py-1 text-sm font-semibold">
             {[thisYear, thisYear + 1].map(y => <option key={y} value={y}>{y}년 연차</option>)}
           </select>
           <button onClick={make} disabled={busy} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
             {data ? '추천 다시 만들기' : '추천 만들기'}
           </button>
           {data && (
-            <label className="text-xs text-gray-500 flex items-center gap-1.5 ml-2">
+            <label className="text-xs text-slate-600 flex items-center gap-1.5 ml-2">
               <input type="checkbox" checked={onlyManaged} onChange={e => setOnlyManaged(e.target.checked)} /> 연차 대상(지난해 · 올해 부여 있음)만 보기
             </label>
           )}
@@ -79,10 +79,10 @@ export default function YearEndTab() {
       </div>
 
       {data && (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
           <table className="w-full text-sm min-w-[980px]">
             <thead>
-              <tr className="text-xs text-gray-500 bg-gray-50 border-b border-gray-200">
+              <tr className="text-xs text-slate-600 bg-slate-50 border-b border-slate-300">
                 <th className="py-2 px-3 w-8"></th>
                 <th className="py-2 px-3 text-left font-medium">직원</th>
                 <th className="py-2 px-3 font-medium">입사일</th>
@@ -97,30 +97,30 @@ export default function YearEndTab() {
               {rows.map(x => {
                 const e = edits[x.employee_id] ?? { checked: false, base: '', carry: '' }
                 return (
-                  <tr key={x.employee_id} className={`border-b border-gray-50 ${e.checked ? '' : 'text-gray-400'}`}>
+                  <tr key={x.employee_id} className={`border-b border-slate-200 ${e.checked ? '' : 'text-slate-500'}`}>
                     <td className="py-1.5 px-3 text-center"><input type="checkbox" checked={e.checked} onChange={ev => set(x.employee_id, { checked: ev.target.checked })} /></td>
                     <td className="py-1.5 px-3 font-semibold whitespace-nowrap">{x.name}
-                      {!x.has_login && <span className="ml-1 text-[0.625rem] px-1.5 rounded-full bg-slate-100 text-slate-500 font-normal">계정 없음</span>}
+                      {!x.has_login && <span className="ml-1 text-xs px-1.5 rounded-full bg-slate-100 text-slate-600 font-normal">계정 없음</span>}
                     </td>
                     <td className="py-1.5 px-3 text-center tabular-nums text-xs">{x.hire_date ?? '-'}</td>
                     <td className="py-1.5 px-3 text-xs">{x.rule}</td>
                     <td className="py-1.5 px-3 text-center">
-                      {x.base_exists ? <span className="text-xs text-gray-400">이미 부여됨</span>
+                      {x.base_exists ? <span className="text-xs text-slate-500">이미 부여됨</span>
                         : <input value={e.base} onChange={ev => set(x.employee_id, { base: ev.target.value })} className={inp} />}
                     </td>
                     <td className="py-1.5 px-3 text-center">
-                      {x.carry_exists ? <span className="text-xs text-gray-400">이미 이월됨</span>
+                      {x.carry_exists ? <span className="text-xs text-slate-500">이미 이월됨</span>
                         : <input value={e.carry} onChange={ev => set(x.employee_id, { carry: ev.target.value })} className={inp} />}
                     </td>
                     <td className="py-1.5 px-3 text-center tabular-nums">{fmt(x.expire_days)}</td>
                     <td className="py-1.5 px-3 text-xs">
                       {x.prev_over > 0 && <span className="text-red-600">{year - 1}년 초과 {fmt(x.prev_over)}일 (넘기지 않음) </span>}
-                      {x.years === 0 && x.hire_date && <span className="text-gray-500">입사 1년이 되는 날 이후 몫은 부여 내역에서 조정으로 넣으세요</span>}
+                      {x.years === 0 && x.hire_date && <span className="text-slate-600">입사 1년이 되는 날 이후 몫은 부여 내역에서 조정으로 넣으세요</span>}
                     </td>
                   </tr>
                 )
               })}
-              {!rows.length && <tr><td colSpan={8} className="py-10 text-center text-gray-400 text-sm">대상 직원이 없습니다.</td></tr>}
+              {!rows.length && <tr><td colSpan={8} className="py-10 text-center text-slate-500 text-sm">대상 직원이 없습니다.</td></tr>}
             </tbody>
           </table>
         </div>

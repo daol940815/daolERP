@@ -10,15 +10,15 @@ export function TagChip({ tag, selected, recommended, count, onClick, size = 'sm
   tag: Pick<WrTag, 'label' | 'color'> & { active?: boolean }
   selected?: boolean; recommended?: boolean; count?: number; onClick?: () => void; size?: 'sm' | 'md'; title?: string
 }) {
-  const cls = `inline-flex items-center gap-1 rounded-full border font-semibold whitespace-nowrap leading-relaxed ${size === 'md' ? 'text-xs px-2.5 py-1' : 'text-[0.6875rem] px-2 py-px'} ${
-    selected ? 'border-slate-900 bg-slate-900 text-white' : recommended ? 'border-dashed border-slate-500 bg-white text-slate-700' : 'border-gray-300 bg-white text-slate-700'
+  const cls = `inline-flex items-center gap-1 rounded-full border font-semibold whitespace-nowrap leading-relaxed ${size === 'md' ? 'text-xs px-2.5 py-1' : 'text-xs px-2 py-px'} ${
+    selected ? 'border-slate-900 bg-slate-900 text-white' : recommended ? 'border-dashed border-slate-500 bg-white text-slate-800' : 'border-slate-400 bg-white text-slate-800'
   } ${tag.active === false && !selected ? 'opacity-60' : ''} ${onClick ? 'cursor-pointer hover:border-slate-500' : ''}`
   const inner = (
     <>
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${tagDotCls(tag.color)} ${selected ? 'ring-1 ring-white' : ''}`} />
       {tag.label}
-      {recommended && !selected && <span className="font-normal text-gray-400">추천</span>}
-      {count !== undefined && <span className={`font-normal tabular-nums ${selected ? 'text-slate-300' : 'text-gray-400'}`}>{count}</span>}
+      {recommended && !selected && <span className="font-normal text-slate-500">추천</span>}
+      {count !== undefined && <span className={`font-normal tabular-nums ${selected ? 'text-slate-400' : 'text-slate-500'}`}>{count}</span>}
     </>
   )
   return onClick
@@ -28,9 +28,9 @@ export function TagChip({ tag, selected, recommended, count, onClick, size = 'sm
 
 // 미분류 — 태그가 없는 기존 요청 (화면 표시 · 필터 전용)
 export function NoTagChip({ selected, count, onClick }: { selected?: boolean; count?: number; onClick?: () => void }) {
-  const cls = `inline-flex items-center gap-1 rounded-full border border-dashed font-semibold whitespace-nowrap leading-relaxed text-[0.6875rem] px-2 py-px ${
-    selected ? 'border-slate-900 bg-slate-900 text-white' : 'border-gray-300 bg-white text-gray-400'} ${onClick ? 'cursor-pointer hover:border-slate-500' : ''}`
-  const inner = <>미분류{count !== undefined && <span className={`font-normal tabular-nums ${selected ? 'text-slate-300' : 'text-gray-400'}`}>{count}</span>}</>
+  const cls = `inline-flex items-center gap-1 rounded-full border border-dashed font-semibold whitespace-nowrap leading-relaxed text-xs px-2 py-px ${
+    selected ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-400 bg-white text-slate-500'} ${onClick ? 'cursor-pointer hover:border-slate-500' : ''}`
+  const inner = <>미분류{count !== undefined && <span className={`font-normal tabular-nums ${selected ? 'text-slate-400' : 'text-slate-500'}`}>{count}</span>}</>
   return onClick ? <button type="button" onClick={onClick} className={cls} aria-pressed={!!selected}>{inner}</button> : <span className={cls}>{inner}</span>
 }
 

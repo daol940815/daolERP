@@ -34,7 +34,7 @@ const STATUS_BADGE: Record<string, string> = {
 const SEV_BADGE: Record<Severity, string> = {
   '확인 필요': 'bg-red-600 text-white',
   '주의': 'bg-orange-400 text-white',
-  '정상 대기': 'bg-gray-200 text-gray-600',
+  '정상 대기': 'bg-slate-200 text-slate-700',
 }
 
 const monthStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -134,7 +134,7 @@ export default function ExceptionsTab({ vendorId, basePath, canEdit = true }: { 
     <div>
       <div className="flex items-start justify-between mb-1">
         <div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-slate-600">
             ERP 주문 → 세금계산서 → 지급 흐름에서 확인이 필요한 건을 먼저 보여줍니다.
             상태는 저장되지 않고 조회 시점에 계산됩니다 (거래처 × 월 단위). 거래처명을 누르면 진행상태 화면으로 이동합니다.
           </p>
@@ -149,27 +149,27 @@ export default function ExceptionsTab({ vendorId, basePath, canEdit = true }: { 
       {error && <div className="mb-3 mt-2 px-4 py-2.5 bg-red-600 text-white text-sm rounded-lg">{error}</div>}
 
       {vendorId && (
-        <div className="flex items-center gap-3 mt-2 px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm text-slate-700">
+        <div className="flex items-center gap-3 mt-2 px-4 py-2 bg-slate-100 border border-slate-300 rounded-lg text-sm text-slate-800">
           <span>매입처 1곳의 예외만 표시하고 있습니다{filtered[0] ? `: ${filtered[0].vendor_name}` : ''}.</span>
-          <Link href={`${basePath}?tab=exceptions`} className="ml-auto px-2.5 py-1 border border-slate-300 rounded-md text-xs hover:bg-white whitespace-nowrap">전체 보기</Link>
+          <Link href={`${basePath}?tab=exceptions`} className="ml-auto px-2.5 py-1 border border-slate-400 rounded-md text-xs hover:bg-white whitespace-nowrap">전체 보기</Link>
         </div>
       )}
 
       {/* 기간 + 필터 */}
       <div className="flex items-center gap-2 my-3 flex-wrap">
         <input type="month" value={monthFrom} onChange={e => setMonthFrom(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-        <span className="text-gray-400 text-sm">~</span>
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
+        <span className="text-slate-500 text-sm">~</span>
         <input type="month" value={monthTo} onChange={e => setMonthTo(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
         <select value={minSeverity} onChange={e => setMinSeverity(e.target.value as typeof minSeverity)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm">
           <option>주의 이상</option>
           <option>확인 필요만</option>
           <option>전체</option>
         </select>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="거래처 검색"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-44" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-44" />
       </div>
 
       {/* 유형 칩 (클릭 = 필터) */}
@@ -193,16 +193,16 @@ export default function ExceptionsTab({ vendorId, basePath, canEdit = true }: { 
       )}
 
       {loading ? (
-        <p className="text-gray-400 text-sm py-10 text-center">상태 계산 중...</p>
+        <p className="text-slate-500 text-sm py-10 text-center">상태 계산 중...</p>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 border border-green-200 bg-green-50 rounded-xl">
           <p className="text-green-700 font-medium">표시할 예외가 없습니다</p>
           <p className="text-xs text-green-600 mt-1">필터를 &lsquo;전체&rsquo;로 바꾸면 정상 대기 건까지 볼 수 있습니다.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto border border-gray-200 rounded-lg">
+        <div className="overflow-x-auto border border-slate-300 rounded-lg">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 text-xs">
+            <thead className="bg-slate-50 text-slate-600 text-xs">
               <tr>
                 <th className="px-3 py-2 text-left w-24">유형</th>
                 <th className="px-3 py-2 text-left w-20">심각도</th>
@@ -217,40 +217,40 @@ export default function ExceptionsTab({ vendorId, basePath, canEdit = true }: { 
                 <th className="px-3 py-2 w-40"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-200">
               {filtered.map((r, i) => (
-                <tr key={i} className="hover:bg-gray-50">
+                <tr key={i} className="hover:bg-slate-50">
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${STATUS_BADGE[r.status] ?? 'bg-gray-100'}`}>{r.status}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[r.status] ?? 'bg-slate-100'}`}>{r.status}</span>
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <span className={`px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${SEV_BADGE[r.severity]}`}>{r.severity}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${SEV_BADGE[r.severity]}`}>{r.severity}</span>
                   </td>
                   <td className="px-3 py-2 font-medium">
                     <Link href={`/purchase-cycle/${r.vendor_id}?from=${monthFrom}&to=${monthTo}`}
                       className="text-blue-700 hover:underline">{r.vendor_name}</Link>
                   </td>
-                  <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{r.month}</td>
+                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{r.month}</td>
                   {/* 거래처 누계 행(지급 대기·과다 지급)은 월 단위 발주액이 없어 '-' */}
-                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-gray-700">{r.month === '누계' || r.status === '지급 대기' ? <span className="text-gray-300">-</span> : won(r.erp_amount)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-gray-700">{r.invoice_supply ? won(r.invoice_supply) : <span className="text-gray-300">-</span>}</td>
-                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-gray-700">{r.paid_amount ? won(r.paid_amount) : <span className="text-gray-300">-</span>}</td>
+                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-slate-800">{r.month === '누계' || r.status === '지급 대기' ? <span className="text-slate-400">-</span> : won(r.erp_amount)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-slate-800">{r.invoice_supply ? won(r.invoice_supply) : <span className="text-slate-400">-</span>}</td>
+                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-slate-800">{r.paid_amount ? won(r.paid_amount) : <span className="text-slate-400">-</span>}</td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">
                     {(() => { const g = signedGap(r); return (
                       <span className="inline-flex items-center gap-1.5 justify-end">
-                        <span className={`tabular-nums font-medium ${g < 0 ? 'text-red-600' : g > 0 ? 'text-blue-700' : 'text-gray-400'}`}>{wonSigned(g)}</span>
-                        {GAP_LABEL[r.status] && <span className="text-[0.625rem] px-1 py-0.5 rounded bg-gray-100 text-gray-500">{GAP_LABEL[r.status]}</span>}
+                        <span className={`tabular-nums font-medium ${g < 0 ? 'text-red-600' : g > 0 ? 'text-blue-700' : 'text-slate-500'}`}>{wonSigned(g)}</span>
+                        {GAP_LABEL[r.status] && <span className="text-xs px-1 py-0.5 rounded bg-slate-100 text-slate-600">{GAP_LABEL[r.status]}</span>}
                       </span>
                     ) })()}
                   </td>
-                  <td className="px-3 py-2 text-gray-500 text-xs">{noteOf(r)}</td>
-                  <td className="px-3 py-2 text-xs text-gray-500">{r.cause ?? ''}</td>
+                  <td className="px-3 py-2 text-slate-600 text-xs">{noteOf(r)}</td>
+                  <td className="px-3 py-2 text-xs text-slate-600">{r.cause ?? ''}</td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5">
                       <ReviewBadge review={r.review} />
                       {canEdit && reviewsAvailable && (!r.review || r.review.stale) && (
                         <button onClick={() => review(r)} disabled={reviewing === `${r.vendor_id}|${r.month}|${r.status}`}
-                          className="px-2 py-1 border border-gray-300 text-gray-600 rounded text-xs hover:bg-gray-100 disabled:opacity-50"
+                          className="px-2 py-1 border border-slate-400 text-slate-700 rounded text-xs hover:bg-slate-100 disabled:opacity-50"
                           title="현재 금액을 스냅샷으로 기록합니다. 이후 금액이 바뀌면 자동으로 재검토 필요로 표시됩니다.">
                           확인
                         </button>
@@ -270,7 +270,7 @@ export default function ExceptionsTab({ vendorId, basePath, canEdit = true }: { 
         </div>
       )}
 
-      <p className="text-xs text-gray-400 mt-3">
+      <p className="text-xs text-slate-500 mt-3">
         판정 기준(조정 가능): 금액차이 허용 ±5% · 지급완료 95% / 과다지급 105% — 모든 금액은 부가세 포함 총액 기준(ERP 매입가도 부가세 포함) ·
         경과 0~1개월 정상대기 / 2개월 주의 / 3개월↑ 확인필요. 지급은 계산서 결제연결 + 미지급금(2001) 확정 출금 기준.
         &lsquo;확인&rsquo;은 잠금이 아니라 기록입니다 — 이후 금액이 바뀌면 자동으로 재검토 필요로 표시됩니다.

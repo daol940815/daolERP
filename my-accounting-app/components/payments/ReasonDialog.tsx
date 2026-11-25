@@ -17,12 +17,12 @@ export function useReasonDialog() {
   const node = st ? (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4" onClick={() => close(null)}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-5" onClick={e => e.stopPropagation()}>
-        <h3 className="text-base font-bold text-gray-900">{st.title}</h3>
-        {st.desc && <p className="text-xs text-gray-600 mt-1 whitespace-pre-line">{st.desc}</p>}
-        <p className="text-[0.6875rem] text-gray-400 mt-1 mb-3">사유 · 처리한 사람 · 시각이 이력에 남습니다.</p>
+        <h3 className="text-base font-bold text-slate-900">{st.title}</h3>
+        {st.desc && <p className="text-xs text-slate-700 mt-1 whitespace-pre-line">{st.desc}</p>}
+        <p className="text-xs text-slate-500 mt-1 mb-3">사유 · 처리한 사람 · 시각이 이력에 남습니다.</p>
         <ReasonPicker kind={st.kind} value={value} onChange={setValue} label="사유" />
         <div className="flex justify-end gap-2 mt-4">
-          <button onClick={() => close(null)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white">닫기</button>
+          <button onClick={() => close(null)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm bg-white">닫기</button>
           <button onClick={() => close(value)} disabled={!reasonReady(value)}
             className="px-3 py-1.5 rounded-lg text-sm bg-slate-900 text-white font-semibold disabled:opacity-40">확인</button>
         </div>

@@ -35,7 +35,7 @@ export default function ContactChip({ label, contactId, orderId }: { label: stri
     return (
       <span>
         {label || '-'}
-        {label && <span className="ml-1.5 px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[0.625rem] align-middle" title="이 주문은 담당자 인물과 연결되어 있지 않습니다 (예전 업로드 주문)">인물 연결 없음</span>}
+        {label && <span className="ml-1.5 px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-xs align-middle" title="이 주문은 담당자 인물과 연결되어 있지 않습니다 (예전 업로드 주문)">인물 연결 없음</span>}
       </span>
     )
   }
@@ -43,18 +43,18 @@ export default function ContactChip({ label, contactId, orderId }: { label: stri
   return (
     <div ref={box} className="relative inline-block">
       <button type="button" onClick={() => setOpen(o => !o)} className="text-blue-700 hover:underline text-left">{label || '-'}</button>
-      {card?.code && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[0.625rem] font-mono align-middle" title="고객코드 — 같으면 같은 사람">{card.code}</span>}
+      {card?.code && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-mono align-middle" title="고객코드 — 같으면 같은 사람">{card.code}</span>}
       {open && card && (
-        <div className="absolute z-20 left-0 top-full mt-1.5 w-80 bg-white border border-gray-300 rounded-xl shadow-xl p-3 text-xs">
+        <div className="absolute z-20 left-0 top-full mt-1.5 w-80 bg-white border border-slate-400 rounded-xl shadow-xl p-3 text-xs">
           <div className="flex items-center justify-between mb-1.5">
-            <b className="text-sm text-gray-900">{card.name}</b>
-            {card.code && <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[0.625rem] font-mono">{card.code}</span>}
+            <b className="text-sm text-slate-900">{card.name}</b>
+            {card.code && <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-mono">{card.code}</span>}
           </div>
           <Row k="이 주문 당시" v={card.title_at_order ?? '(직함 없음)'} />
           {card.current.length ? card.current.map(c => (
             <Row key={c.vendor_id} k="현재" v={<>
               {c.vendor_name} · <b>{c.title ?? '(직함 없음)'}</b>
-              {c.title_changed_at && <span className="ml-1 px-1 rounded bg-amber-100 text-amber-800 text-[0.625rem] font-semibold">{c.title_changed_at.slice(5)} 변경</span>}
+              {c.title_changed_at && <span className="ml-1 px-1 rounded bg-amber-100 text-amber-800 text-xs font-semibold">{c.title_changed_at.slice(5)} 변경</span>}
             </>} />
           )) : <Row k="현재" v={<span className="text-red-600">소속 없음</span>} />}
           <Row k="핸드폰 · 유선" v={[card.phone, card.tel].filter(Boolean).join(' · ') || '-'} />
@@ -73,8 +73,8 @@ export default function ContactChip({ label, contactId, orderId }: { label: stri
 function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-3 py-0.5">
-      <span className="text-gray-400 shrink-0">{k}</span>
-      <span className="text-right text-gray-800">{v}</span>
+      <span className="text-slate-500 shrink-0">{k}</span>
+      <span className="text-right text-slate-900">{v}</span>
     </div>
   )
 }

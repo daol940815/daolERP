@@ -54,7 +54,7 @@ const EMPLOYMENT_LABEL: Record<string, { label: string; cls: string }> = {
 }
 const LEAVE_STATUS_CLS: Record<string, string> = {
   requested: 'bg-amber-100 text-amber-700', approved: 'bg-green-100 text-green-700',
-  rejected: 'bg-red-100 text-red-700', canceled: 'bg-gray-100 text-gray-500',
+  rejected: 'bg-red-100 text-red-700', canceled: 'bg-slate-100 text-slate-600',
 }
 
 const tenure = (hire: string | null, today: string) => {
@@ -68,33 +68,33 @@ const tenure = (hire: string | null, today: string) => {
 const fmtDT = (iso: string | null) => iso ? new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false }).replace(/\. /g, '-').replace('.', '') : '-'
 
 const Card = ({ title, right, children }: { title: string; right?: React.ReactNode; children: React.ReactNode }) => (
-  <div className="bg-white border border-gray-200 rounded-xl p-5">
+  <div className="bg-white border border-slate-300 rounded-xl p-5">
     <div className="flex items-center justify-between mb-3">
-      <h2 className="text-sm font-bold text-gray-900">{title}</h2>
-      {right && <div className="text-xs text-gray-500">{right}</div>}
+      <h2 className="text-sm font-bold text-slate-900">{title}</h2>
+      {right && <div className="text-xs text-slate-600">{right}</div>}
     </div>
     {children}
   </div>
 )
 const Row = ({ k, children }: { k: string; children: React.ReactNode }) => (
-  <div className="grid grid-cols-[110px_1fr] gap-y-2 text-sm py-1"><dt className="text-gray-500">{k}</dt><dd className="text-gray-900">{children}</dd></div>
+  <div className="grid grid-cols-[110px_1fr] gap-y-2 text-sm py-1"><dt className="text-slate-600">{k}</dt><dd className="text-slate-900">{children}</dd></div>
 )
 
 // 읽기 전용 인사 정보 카드 — 인사 · 총무 직원 상세에서도 그대로 쓴다 (급여·편집은 그 트랙이 탭으로 추가)
 export function EmployeeBasicCard({ emp, today, right }: { emp: EmployeeRow; today: string; right?: React.ReactNode }) {
-  const et = EMPLOYMENT_LABEL[emp.employment_type] ?? { label: emp.employment_type, cls: 'bg-gray-100 text-gray-600' }
+  const et = EMPLOYMENT_LABEL[emp.employment_type] ?? { label: emp.employment_type, cls: 'bg-slate-100 text-slate-700' }
   const showTerm = emp.employment_type !== 'regular' || emp.work_start || emp.work_end
   return (
     <Card title="인사 정보" right={right}>
       <dl>
         <Row k="이름">{emp.name}</Row>
-        <Row k="팀">{emp.team ?? <span className="text-gray-300">-</span>}</Row>
-        <Row k="직위">{emp.position ?? <span className="text-gray-300">-</span>}</Row>
-        <Row k="고용 형태"><span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${et.cls}`}>{et.label}</span></Row>
-        <Row k="입사일">{emp.hire_date ?? <span className="text-gray-300">-</span>}{emp.hire_date && tenure(emp.hire_date, today) && <span className="text-xs text-gray-400 ml-2">({tenure(emp.hire_date, today)})</span>}</Row>
-        <Row k="생일">{emp.birth_date ?? <span className="text-gray-300">-</span>}</Row>
+        <Row k="팀">{emp.team ?? <span className="text-slate-400">-</span>}</Row>
+        <Row k="직위">{emp.position ?? <span className="text-slate-400">-</span>}</Row>
+        <Row k="고용 형태"><span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${et.cls}`}>{et.label}</span></Row>
+        <Row k="입사일">{emp.hire_date ?? <span className="text-slate-400">-</span>}{emp.hire_date && tenure(emp.hire_date, today) && <span className="text-xs text-slate-500 ml-2">({tenure(emp.hire_date, today)})</span>}</Row>
+        <Row k="생일">{emp.birth_date ?? <span className="text-slate-400">-</span>}</Row>
         {showTerm && <Row k="근무 기간">{emp.work_start ?? '?'} ~ {emp.work_end ?? '진행 중'}</Row>}
-        <Row k="상태"><span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${emp.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{emp.is_active ? '재직' : '비활성'}</span></Row>
+        <Row k="상태"><span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${emp.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{emp.is_active ? '재직' : '비활성'}</span></Row>
       </dl>
     </Card>
   )
@@ -112,10 +112,10 @@ export default function ProfileClient({ tab }: { tab: ProfileTab }) {
   useEffect(() => { load() }, [load])
 
   if (err) return <div className="px-4 py-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{err}</div>
-  if (!p) return <div className="text-center py-20 text-gray-400">로딩 중...</div>
+  if (!p) return <div className="text-center py-20 text-slate-500">로딩 중...</div>
   if (!p.linked || !p.employee) {
     return (
-      <div className="bg-white border border-gray-200 rounded-xl p-6 text-sm text-gray-600">
+      <div className="bg-white border border-slate-300 rounded-xl p-6 text-sm text-slate-700">
         이 로그인 계정은 직원 정보와 연결되어 있지 않습니다. 인사 · 총무 담당자에게 직원 · 계정 · 권한 화면에서 연결을 요청하세요.
         {tab === 'account' && <div className="mt-6"><PasswordForm /></div>}
       </div>
@@ -148,7 +148,7 @@ function BasicTab({ p, onSaved }: { p: Profile; onSaved: () => void }) {
     if (!res.ok) { setMsg(json.error ?? '저장 실패'); return }
     setMsg('연락처가 저장되었습니다.'); onSaved()
   }
-  const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
+  const inputCls = 'w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <EmployeeBasicCard emp={emp} today={p.today} />
@@ -156,22 +156,22 @@ function BasicTab({ p, onSaved }: { p: Profile; onSaved: () => void }) {
         {msg && <div className={`mb-3 px-3 py-2 text-sm rounded-lg ${msg.includes('저장되었') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg}</div>}
         {workReady && (
           <label className="block mb-3">
-            <span className="text-xs font-medium text-gray-600">업무용 핸드폰</span>
+            <span className="text-xs font-medium text-slate-700">업무용 핸드폰</span>
             <input value={workPhone} onChange={e => setWorkPhone(e.target.value)} placeholder="010-0000-0000" className={`${inputCls} mt-1`} />
-            <span className="block text-[0.6875rem] text-gray-400 mt-1">발주서의 발주자 연락처에 들어갑니다. 비워 두면 아래 개인 휴대전화가 들어갑니다.</span>
+            <span className="block text-xs text-slate-500 mt-1">발주서의 발주자 연락처에 들어갑니다. 비워 두면 아래 개인 휴대전화가 들어갑니다.</span>
           </label>
         )}
         <label className="block mb-3">
-          <span className="text-xs font-medium text-gray-600">휴대전화 (개인)</span>
+          <span className="text-xs font-medium text-slate-700">휴대전화 (개인)</span>
           <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="010-0000-0000" className={`${inputCls} mt-1`} />
         </label>
         <label className="block mb-4">
-          <span className="text-xs font-medium text-gray-600">이메일</span>
+          <span className="text-xs font-medium text-slate-700">이메일</span>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" className={`${inputCls} mt-1`} />
         </label>
         <div className="flex gap-2">
           <button onClick={save} disabled={busy || !dirty} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-40">{busy ? '저장 중...' : '저장'}</button>
-          <button onClick={() => { setPhone(emp.phone ?? ''); setWorkPhone(emp.work_phone ?? ''); setEmail(emp.email ?? ''); setMsg(null) }} disabled={!dirty} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">취소</button>
+          <button onClick={() => { setPhone(emp.phone ?? ''); setWorkPhone(emp.work_phone ?? ''); setEmail(emp.email ?? ''); setMsg(null) }} disabled={!dirty} className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-40">취소</button>
         </div>
       </Card>
     </div>
@@ -184,8 +184,8 @@ function AccountTab({ p }: { p: Profile }) {
     <div className="grid gap-4 lg:grid-cols-2">
       <Card title="로그인 계정">
         <dl>
-          <Row k="로그인 ID">{p.account.login_id ?? <span className="text-gray-400">{p.account.email ?? '-'}</span>}</Row>
-          <Row k="계정 상태"><span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${p.employee?.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{p.employee?.is_active ? '정상' : '비활성'}</span></Row>
+          <Row k="로그인 ID">{p.account.login_id ?? <span className="text-slate-500">{p.account.email ?? '-'}</span>}</Row>
+          <Row k="계정 상태"><span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${p.employee?.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{p.employee?.is_active ? '정상' : '비활성'}</span></Row>
           <Row k="마지막 로그인">{fmtDT(p.account.last_sign_in_at)}</Row>
         </dl>
       </Card>
@@ -226,24 +226,24 @@ export function PasswordForm() {
     if (updErr) { setError(/password/i.test(updErr.message) ? `비밀번호 규칙에 맞지 않습니다 (${MIN_LEN}자 이상). ${updErr.message}` : `변경 실패: ${updErr.message}`); return }
     setDone(true); setCurrent(''); setNext(''); setConfirm('')
   }
-  const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
+  const inputCls = 'w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
   if (done) {
     return (
       <div>
         <p className="text-sm text-green-700 font-medium">비밀번호가 변경되었습니다.</p>
-        <p className="text-xs text-gray-500 mt-1">다음 로그인부터 새 비밀번호를 사용하세요. 지금 세션은 그대로 유지됩니다.</p>
-        <button onClick={() => setDone(false)} className="mt-3 px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">다시 변경</button>
+        <p className="text-xs text-slate-600 mt-1">다음 로그인부터 새 비밀번호를 사용하세요. 지금 세션은 그대로 유지됩니다.</p>
+        <button onClick={() => setDone(false)} className="mt-3 px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">다시 변경</button>
       </div>
     )
   }
   return (
     <form onSubmit={submit} className="space-y-3">
       {error && <div className="px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
-      <label className="block"><span className="text-xs font-medium text-gray-600">현재 비밀번호</span>
+      <label className="block"><span className="text-xs font-medium text-slate-700">현재 비밀번호</span>
         <input type="password" autoComplete="current-password" value={current} onChange={e => setCurrent(e.target.value)} required className={`${inputCls} mt-1`} /></label>
-      <label className="block"><span className="text-xs font-medium text-gray-600">새 비밀번호 ({MIN_LEN}자 이상)</span>
+      <label className="block"><span className="text-xs font-medium text-slate-700">새 비밀번호 ({MIN_LEN}자 이상)</span>
         <input type="password" autoComplete="new-password" value={next} onChange={e => setNext(e.target.value)} required minLength={MIN_LEN} className={`${inputCls} mt-1`} /></label>
-      <label className="block"><span className="text-xs font-medium text-gray-600">새 비밀번호 확인</span>
+      <label className="block"><span className="text-xs font-medium text-slate-700">새 비밀번호 확인</span>
         <input type="password" autoComplete="new-password" value={confirm} onChange={e => setConfirm(e.target.value)} required minLength={MIN_LEN} className={`${inputCls} mt-1`} /></label>
       <button type="submit" disabled={busy} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">{busy ? '변경 중...' : '비밀번호 변경'}</button>
     </form>
@@ -256,9 +256,9 @@ function WorkTab({ p }: { p: Profile }) {
   const outT = kstTime(p.attendance?.check_out_at ?? null)
   const pending = p.leaves.filter(l => l.status === 'requested').length
   const kpi = (k: string, v: React.ReactNode, s?: string) => (
-    <div className="bg-white border border-gray-200 rounded-xl px-4 py-3"><p className="text-xs text-gray-500">{k}</p><p className="text-lg font-bold mt-0.5">{v}</p>{s && <p className="text-[0.6875rem] text-gray-400 mt-0.5">{s}</p>}</div>
+    <div className="bg-white border border-slate-300 rounded-xl px-4 py-3"><p className="text-xs text-slate-600">{k}</p><p className="text-lg font-bold mt-0.5">{v}</p>{s && <p className="text-xs text-slate-500 mt-0.5">{s}</p>}</div>
   )
-  const Empty = ({ t }: { t: string }) => <p className="text-xs text-gray-400 py-3">{t}</p>
+  const Empty = ({ t }: { t: string }) => <p className="text-xs text-slate-500 py-3">{t}</p>
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -270,62 +270,62 @@ function WorkTab({ p }: { p: Profile }) {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card title="근태 · 휴가" right={<Link href="/hr/attendance" className="text-blue-600 hover:underline">근태 · 휴가 화면 →</Link>}>
           {p.leaves.length === 0 ? <Empty t="휴가 신청 기록이 없습니다." /> : (
-            <table className="w-full text-sm"><thead><tr className="text-left text-xs text-gray-400 border-b border-gray-100"><th className="py-1.5 font-medium">구분</th><th className="py-1.5 font-medium">기간</th><th className="py-1.5 font-medium">상태</th></tr></thead>
+            <table className="w-full text-sm"><thead><tr className="text-left text-xs text-slate-500 border-b border-slate-200"><th className="py-1.5 font-medium">구분</th><th className="py-1.5 font-medium">기간</th><th className="py-1.5 font-medium">상태</th></tr></thead>
               <tbody>{p.leaves.map(l => (
-                <tr key={l.id} className="border-b border-gray-50 last:border-0"><td className="py-1.5">{LEAVE_TYPE_LABEL[l.leave_type] ?? l.leave_type}</td>
-                  <td className="py-1.5 text-gray-600 tabular-nums">{l.start_date}{l.end_date !== l.start_date ? ` ~ ${l.end_date}` : ''}</td>
-                  <td className="py-1.5"><span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${LEAVE_STATUS_CLS[l.status] ?? 'bg-gray-100 text-gray-600'}`}>{LEAVE_STATUS_LABEL[l.status] ?? l.status}</span></td></tr>
+                <tr key={l.id} className="border-b border-slate-200 last:border-0"><td className="py-1.5">{LEAVE_TYPE_LABEL[l.leave_type] ?? l.leave_type}</td>
+                  <td className="py-1.5 text-slate-700 tabular-nums">{l.start_date}{l.end_date !== l.start_date ? ` ~ ${l.end_date}` : ''}</td>
+                  <td className="py-1.5"><span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${LEAVE_STATUS_CLS[l.status] ?? 'bg-slate-100 text-slate-700'}`}>{LEAVE_STATUS_LABEL[l.status] ?? l.status}</span></td></tr>
               ))}</tbody></table>
           )}
         </Card>
         <Card title="담당 거래처" right={<Link href="/sales-hub?mine=1" className="text-blue-600 hover:underline">내 고객 →</Link>}>
           {p.vendors.length === 0 ? <Empty t="현재 담당으로 배정된 거래처가 없습니다." /> : (
-            <ul className="text-sm divide-y divide-gray-50">
+            <ul className="text-sm divide-y divide-slate-200">
               {p.vendors.slice(0, 8).map(v => (
                 <li key={v.vendor_id} className="py-1.5 flex items-center gap-2">
-                  <Link href={`/sales-hub/${v.vendor_id}`} className="text-gray-900 hover:underline truncate">{v.name}</Link>
-                  <span className={`text-[0.625rem] px-1.5 py-0.5 rounded ${v.is_primary ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-500'}`}>{v.is_primary ? '주담당' : '부담당'}</span>
+                  <Link href={`/sales-hub/${v.vendor_id}`} className="text-slate-900 hover:underline truncate">{v.name}</Link>
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${v.is_primary ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>{v.is_primary ? '주담당' : '부담당'}</span>
                 </li>
               ))}
-              {p.vendors.length > 8 && <li className="py-1.5 text-xs text-gray-400">외 {p.vendors.length - 8}곳</li>}
+              {p.vendors.length > 8 && <li className="py-1.5 text-xs text-slate-500">외 {p.vendors.length - 8}곳</li>}
             </ul>
           )}
         </Card>
         <Card title="담당 고객" right={<Link href="/sales-hub/contacts" className="text-blue-600 hover:underline">고객 관리 →</Link>}>
           {p.contacts.length === 0 ? <Empty t="담당 거래처에 등록된 거래처 담당자가 없습니다." /> : (
-            <ul className="text-sm divide-y divide-gray-50">
+            <ul className="text-sm divide-y divide-slate-200">
               {p.contacts.slice(0, 8).map(c => (
                 <li key={`${c.contact_id}-${c.vendor_id}`} className="py-1.5 flex items-center gap-2">
-                  <Link href={`/sales-hub/contacts/${c.contact_id}`} className="text-gray-900 hover:underline">{contactLabel(c.name, c.title)}</Link>
-                  <span className="text-xs text-gray-400 truncate">{c.vendor_name}</span>
-                  {c.is_representative && <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">대표</span>}
+                  <Link href={`/sales-hub/contacts/${c.contact_id}`} className="text-slate-900 hover:underline">{contactLabel(c.name, c.title)}</Link>
+                  <span className="text-xs text-slate-500 truncate">{c.vendor_name}</span>
+                  {c.is_representative && <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">대표</span>}
                 </li>
               ))}
-              {p.contacts.length > 8 && <li className="py-1.5 text-xs text-gray-400">외 {p.contacts.length - 8}명</li>}
+              {p.contacts.length > 8 && <li className="py-1.5 text-xs text-slate-500">외 {p.contacts.length - 8}명</li>}
             </ul>
           )}
         </Card>
         <Card title="최근 업무일지" right={<Link href="/me/worklog" className="text-blue-600 hover:underline">업무일지 →</Link>}>
           {p.worklogCount === null ? <Empty t="업무일지 기능 준비 전입니다." /> : p.worklogs.length === 0 ? <Empty t="이번 달 업무일지가 없습니다." /> : (
-            <ul className="text-sm divide-y divide-gray-50">
+            <ul className="text-sm divide-y divide-slate-200">
               {p.worklogs.map(w => (
-                <li key={w.id} className="py-1.5 flex gap-3"><span className="text-xs text-gray-400 tabular-nums shrink-0 pt-0.5">{w.work_date.slice(5)}</span><span className="text-gray-800 truncate">{w.content}</span></li>
+                <li key={w.id} className="py-1.5 flex gap-3"><span className="text-xs text-slate-500 tabular-nums shrink-0 pt-0.5">{w.work_date.slice(5)}</span><span className="text-slate-900 truncate">{w.content}</span></li>
               ))}
             </ul>
           )}
         </Card>
         {p.journal.length > 0 && (
           <Card title="최근 영업일지" right={<Link href="/me/journal" className="text-blue-600 hover:underline">영업일지 →</Link>}>
-            <ul className="text-sm divide-y divide-gray-50">
+            <ul className="text-sm divide-y divide-slate-200">
               {p.journal.map(j => (
-                <li key={j.id} className="py-1.5 flex gap-3"><span className="text-xs text-gray-400 tabular-nums shrink-0 pt-0.5">{j.activity_date.slice(5)}</span>
-                  <span className="text-gray-800 truncate">{[j.vendor_name, j.contact_name ? contactLabel(j.contact_name) : null].filter(Boolean).join(' · ')}{j.vendor_name || j.contact_name ? ' — ' : ''}{j.content}</span></li>
+                <li key={j.id} className="py-1.5 flex gap-3"><span className="text-xs text-slate-500 tabular-nums shrink-0 pt-0.5">{j.activity_date.slice(5)}</span>
+                  <span className="text-slate-900 truncate">{[j.vendor_name, j.contact_name ? contactLabel(j.contact_name) : null].filter(Boolean).join(' · ')}{j.vendor_name || j.contact_name ? ' — ' : ''}{j.content}</span></li>
               ))}
             </ul>
           </Card>
         )}
       </div>
-      <p className="text-xs text-gray-400">각 카드의 숫자는 해당 화면과 같은 원본(근태 기록 · 담당 배정 · 업무일지)을 쓰므로 어긋나지 않습니다. 담당 고객은 내 담당 거래처에 현재 배정된 거래처 담당자입니다.</p>
+      <p className="text-xs text-slate-500">각 카드의 숫자는 해당 화면과 같은 원본(근태 기록 · 담당 배정 · 업무일지)을 쓰므로 어긋나지 않습니다. 담당 고객은 내 담당 거래처에 현재 배정된 거래처 담당자입니다.</p>
     </div>
   )
 }

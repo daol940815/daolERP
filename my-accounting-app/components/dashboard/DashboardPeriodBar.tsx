@@ -40,25 +40,25 @@ export default function DashboardPeriodBar({ tab, from, to }: { tab: string; fro
             <button key={c.label} type="button" onClick={() => pick(c.from, c.to)}
               className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
                 on ? 'bg-slate-900 text-white border-slate-900'
-                   : 'border-gray-300 text-gray-600 hover:bg-slate-100 hover:border-slate-400'}`}>
+                   : 'border-slate-400 text-slate-700 hover:bg-slate-100 hover:border-slate-400'}`}>
               {c.label}
             </button>
           )
         })}
       </div>
-      <span className="text-gray-300 text-sm">|</span>
+      <span className="text-slate-400 text-sm">|</span>
       <input type="date" value={f} onChange={e => setF(e.target.value)}
-        className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-slate-900" />
-      <span className="text-gray-400 text-xs">~</span>
+        className="border border-slate-400 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-slate-900" />
+      <span className="text-slate-500 text-xs">~</span>
       <input type="date" value={t} onChange={e => setT(e.target.value)}
-        className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        className="border border-slate-400 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-slate-900" />
       <button type="button" onClick={() => { if (f && t) go(f <= t ? f : t, f <= t ? t : f) }} disabled={!f || !t}
         className="px-3 py-1 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-700 disabled:opacity-40">
         적용
       </button>
       {(from || to) && (
         <button type="button" onClick={() => { setF(''); setT(''); go(null, null) }}
-          className="px-2 py-1 text-xs text-gray-400 hover:text-gray-600"
+          className="px-2 py-1 text-xs text-slate-500 hover:text-slate-700"
           title="기간을 지우면 경영 탭은 당월, 자금 탭은 현재 기준 잔액으로 돌아갑니다">
           ✕ 기간 해제
         </button>

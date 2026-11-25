@@ -21,7 +21,7 @@ const DOT: Record<string, string> = { red: 'bg-red-500', amber: 'bg-amber-400', 
 const FLAG_CLS: Record<string, string> = { '마감 지남': 'bg-red-100 text-red-700', '오늘 마감': 'bg-amber-100 text-amber-800', '완료 확정 대기': 'bg-amber-100 text-amber-800' }
 function Flags({ item, dark }: { item: NotifItem; dark?: boolean }) {
   if (!item.flags?.length) return null
-  return <>{item.flags.map(f => <span key={f} className={`inline-block text-[0.625rem] font-semibold rounded px-1 py-px ml-1 align-[1px] whitespace-nowrap ${FLAG_CLS[f] ?? (dark ? 'bg-white/15 text-slate-200' : 'bg-gray-100 text-gray-600')}`}>{f}</span>)}</>
+  return <>{item.flags.map(f => <span key={f} className={`inline-block text-[0.625rem] font-semibold rounded px-1 py-px ml-1 align-[1px] whitespace-nowrap ${FLAG_CLS[f] ?? (dark ? 'bg-white/15 text-slate-200' : 'bg-slate-100 text-slate-600')}`}>{f}</span>)}</>
 }
 // 칸마다 업무 요청 줄은 NOTIF_WR_PANEL_MAX 건까지 — 넘친 건수는 칸별로 돌려준다 (목록 링크용)
 function capWr(list: NotifItem[]): { shown: NotifItem[]; over: Partial<Record<NotifBucket, number>> } {
@@ -115,45 +115,45 @@ export function NotificationBell({ data, seenAt, onSeen, live }: { data: NotifDa
       {tab !== null && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setTab(null)} />
-          <div className="fixed left-[17rem] top-20 w-[380px] max-h-[75vh] overflow-y-auto bg-white border border-gray-300 rounded-xl shadow-2xl z-50 text-slate-900">
-            <div className="sticky top-0 bg-white border-b border-gray-200">
+          <div className="fixed left-[17rem] top-20 w-[380px] max-h-[75vh] overflow-y-auto bg-white border border-slate-300 rounded-xl shadow-2xl z-50 text-slate-900">
+            <div className="sticky top-0 bg-white border-b border-slate-200">
               <div className="flex items-center px-4 pt-2.5 text-sm font-bold">
-                알림 <span className="ml-auto text-[0.6875rem] font-normal text-gray-500">{seenAt ? `마지막 확인 ${timeLabel(seenAt)}` : ''}</span>
+                알림 <span className="ml-auto text-[0.6875rem] font-normal text-slate-500">{seenAt ? `마지막 확인 ${timeLabel(seenAt)}` : ''}</span>
               </div>
               <div className="flex gap-1 px-3 pt-2 pb-2 overflow-x-auto">
                 {tabs.map(t => (
                   <button key={t} onClick={() => setTab(t)}
-                    className={`px-2.5 py-1 rounded-full text-xs whitespace-nowrap border ${tab === t ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
-                    {tabLabel(t)} <span className={`tabular-nums ${tab === t ? 'text-slate-300' : tabCount(t) > 0 ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>{tabCount(t)}</span>
+                    className={`px-2.5 py-1 rounded-full text-xs whitespace-nowrap border ${tab === t ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}>
+                    {tabLabel(t)} <span className={`tabular-nums ${tab === t ? 'text-slate-300' : tabCount(t) > 0 ? 'text-red-600 font-semibold' : 'text-slate-400'}`}>{tabCount(t)}</span>
                   </button>
                 ))}
               </div>
             </div>
             {list.length === 0 ? (
-              <p className="px-4 py-8 text-sm text-gray-400 text-center">{tab === 'all' ? '확인할 알림이 없습니다.' : `${tabLabel(tab)} 알림이 없습니다.`}</p>
+              <p className="px-4 py-8 text-sm text-slate-400 text-center">{tab === 'all' ? '확인할 알림이 없습니다.' : `${tabLabel(tab)} 알림이 없습니다.`}</p>
             ) : groups.map(g => {
               const sub = list.filter(i => i.group === g)
               if (!sub.length) return null
               return (
                 <div key={g}>
-                  <p className="px-4 pt-2.5 pb-1 text-[0.65625rem] text-gray-400 uppercase tracking-wide">{NOTIF_GROUP_LABEL[g]}</p>
+                  <p className="px-4 pt-2.5 pb-1 text-[0.65625rem] text-slate-400 uppercase tracking-wide">{NOTIF_GROUP_LABEL[g]}</p>
                   {sub.map(i => {
                     const seen = !!seenAt && !!i.at && i.at <= seenAt
                     const readable = canMarkRead(i)
                     return (
-                      <div key={i.key} className="relative border-b border-gray-50">
+                      <div key={i.key} className="relative border-b border-slate-50">
                         <Link href={i.href} onClick={() => { if (readable) rd.mark([i]); setTab(null) }}
-                          className="grid grid-cols-[8px_1fr_auto] gap-2.5 px-4 py-2 hover:bg-gray-50 items-start">
+                          className="grid grid-cols-[8px_1fr_auto] gap-2.5 px-4 py-2 hover:bg-slate-50 items-start">
                           <span className={`w-2 h-2 rounded-full mt-1.5 ${DOT[i.tone]}`} />
                           <span className="min-w-0">
-                            <span className={`block text-[0.8125rem] ${seen ? 'text-gray-600' : 'font-semibold text-gray-900'}`}><SourceTag item={i} />{i.title}<Flags item={i} /></span>
-                            {i.detail && <span className={`block text-[0.6875rem] text-gray-500 truncate ${readable ? 'pr-8' : ''}`}>{i.detail}</span>}
+                            <span className={`block text-[0.8125rem] ${seen ? 'text-slate-600' : 'font-semibold text-slate-900'}`}><SourceTag item={i} />{i.title}<Flags item={i} /></span>
+                            {i.detail && <span className={`block text-[0.6875rem] text-slate-500 truncate ${readable ? 'pr-8' : ''}`}>{i.detail}</span>}
                           </span>
-                          <span className="text-[0.65625rem] text-gray-400 whitespace-nowrap pt-0.5">{timeLabel(i.at)}</span>
+                          <span className="text-[0.65625rem] text-slate-400 whitespace-nowrap pt-0.5">{timeLabel(i.at)}</span>
                         </Link>
                         {readable && (
                           <button onClick={() => rd.mark([i])} title="확인 — 다시 나오지 않습니다"
-                            className="absolute right-3 bottom-1.5 px-1.5 py-0.5 rounded border border-gray-200 bg-white text-[0.625rem] text-gray-500 hover:text-gray-900 hover:border-gray-400">확인</button>
+                            className="absolute right-3 bottom-1.5 px-1.5 py-0.5 rounded border border-slate-200 bg-white text-[0.625rem] text-slate-500 hover:text-slate-900 hover:border-slate-400">확인</button>
                         )}
                       </div>
                     )
@@ -162,12 +162,12 @@ export function NotificationBell({ data, seenAt, onSeen, live }: { data: NotifDa
               )
             })}
             {overflow.map(([b, n]) => (
-              <Link key={b} href={NOTIF_WR_LIST_HREF[b] ?? '/me/requests'} onClick={() => setTab(null)} className="block px-4 py-2 text-[0.75rem] text-gray-600 hover:bg-gray-50 border-b border-gray-50">
+              <Link key={b} href={NOTIF_WR_LIST_HREF[b] ?? '/me/requests'} onClick={() => setTab(null)} className="block px-4 py-2 text-[0.75rem] text-slate-600 hover:bg-slate-50 border-b border-slate-50">
                 {NOTIF_BUCKET_LABEL[b]} 업무 요청 외 {n}건 — 목록에서 전체 보기 →
               </Link>
             ))}
-            <div className="flex items-center px-4 py-2 bg-gray-50 text-[0.6875rem] text-gray-500">
-              <button onClick={() => { rd.mark(items, true); onSeen(); setTab(null) }} title={READ_ALL_HINT} className="hover:text-gray-800 underline">모두 확인</button>
+            <div className="flex items-center px-4 py-2 bg-slate-50 text-[0.6875rem] text-slate-500">
+              <button onClick={() => { rd.mark(items, true); onSeen(); setTab(null) }} title={READ_ALL_HINT} className="hover:text-slate-800 underline">모두 확인</button>
               {rd.error && <span className="ml-2 text-red-600">{rd.error}</span>}
               <span className="ml-auto" title={live ? '업무 요청 변경은 즉시 반영됩니다. 폴링은 안전망.' : '실시간 신호 연결 전 — 폴링으로 갱신'}>{live ? '즉시 갱신 연결됨 · ' : ''}{Math.round(NOTIF_POLL_MS / 1000)}초마다 갱신</span>
             </div>
@@ -231,13 +231,13 @@ export function TodoPanel({ variant, data }: { variant: 'dark' | 'light'; data: 
   })
   const dark = variant === 'dark'
   const infoCount = items.filter(canMarkRead).length
-  const btn = dark ? 'border-slate-600 text-slate-300 hover:text-white hover:border-slate-400' : 'border-gray-300 text-gray-600 hover:text-gray-900 hover:border-gray-500'
+  const btn = dark ? 'border-slate-600 text-slate-300 hover:text-white hover:border-slate-400' : 'border-slate-300 text-slate-600 hover:text-slate-900 hover:border-slate-500'
   const pill = (i: NotifItem) => i.tone === 'red' ? 'bg-red-500 text-white' : i.tone === 'amber' ? 'bg-amber-400 text-slate-900' : i.tone === 'blue' ? 'bg-blue-500 text-white' : 'bg-slate-300 text-slate-800'
   return (
-    <div className={`${dark ? 'bg-white/5 border border-slate-700 text-slate-100' : 'bg-white border border-gray-200 text-gray-900'} rounded-xl px-4 py-3 text-left`}>
+    <div className={`${dark ? 'bg-white/5 border border-slate-700 text-slate-100' : 'bg-white border border-slate-200 text-slate-900'} rounded-xl px-4 py-3 text-left`}>
       <div className="flex items-center text-sm font-bold">
         확인할 것
-        <span className={`ml-auto flex items-center gap-2 text-[0.6875rem] font-normal ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+        <span className={`ml-auto flex items-center gap-2 text-[0.6875rem] font-normal ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
           {data.count > 0 && <BucketPills data={data} tone={dark ? 'dark' : 'light'} />}{timeLabel(data.at)} 기준
           {infoCount > 0 && <button onClick={() => rd.mark(items, true)} title={READ_ALL_HINT} className={`px-2 py-0.5 rounded border font-medium ${btn}`}>모두 확인 {infoCount}</button>}
         </span>
@@ -245,7 +245,7 @@ export function TodoPanel({ variant, data }: { variant: 'dark' | 'light'; data: 
       {rd.error && <p className="mt-1 text-[0.6875rem] text-red-500">{rd.error}</p>}
       <ul className="mt-2">
         {view.map(({ key, item: i, members }) => (
-          <li key={key} className={`flex items-center gap-2.5 py-1.5 text-[0.8125rem] border-t ${dark ? 'border-slate-800' : 'border-gray-100'}`}>
+          <li key={key} className={`flex items-center gap-2.5 py-1.5 text-[0.8125rem] border-t ${dark ? 'border-slate-800' : 'border-slate-100'}`}>
             <span className={`text-[0.625rem] font-bold rounded-full px-1.5 py-0.5 leading-none ${pill(i)}`}>{i.count}</span>
             <span className="truncate"><SourceTag item={i} dark={dark} />{i.title.replace(/\s\d+건$/, '')}</span>
             {canMarkRead(i) && <button onClick={() => rd.mark(members)} title="확인 — 다시 나오지 않습니다" className={`ml-auto px-1.5 py-0.5 rounded border text-[0.625rem] whitespace-nowrap ${btn}`}>확인</button>}

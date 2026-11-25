@@ -59,25 +59,25 @@ const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
 const REQ_BADGE: Record<string, string> = {
   requested: 'bg-blue-50 text-blue-700 border border-blue-200',
   waiting: 'bg-orange-50 text-orange-700 border border-orange-200',
-  converted: 'bg-gray-100 text-gray-600 border border-gray-200',
+  converted: 'bg-slate-100 text-slate-700 border border-slate-300',
   done: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
   changed: 'bg-amber-50 text-amber-700 border border-amber-200',
   unable: 'bg-red-50 text-red-700 border border-red-200',
   returned: 'bg-red-50 text-red-700 border border-red-200',
 }
 const TYPE_BADGE: Record<string, string> = {
-  '주문': 'bg-blue-100 text-blue-700', '문의': 'bg-gray-100 text-gray-600',
+  '주문': 'bg-blue-100 text-blue-700', '문의': 'bg-slate-100 text-slate-700',
   '요청': 'bg-amber-100 text-amber-800', '결제': 'bg-violet-100 text-violet-700',
-  '기타': 'bg-gray-100 text-gray-500',
+  '기타': 'bg-slate-100 text-slate-600',
 }
 const STATUS_BADGE: Record<string, string> = {
   '진행중': 'bg-amber-100 text-amber-800',
   '주문전환': 'bg-emerald-100 text-emerald-700',
-  '종결': 'bg-gray-100 text-gray-500',
+  '종결': 'bg-slate-100 text-slate-600',
 }
 const chip = (on: boolean) =>
   `px-3 py-1 rounded-full text-xs border whitespace-nowrap ${
-    on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-gray-300 text-gray-500 hover:border-gray-400'
+    on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-400 text-slate-600 hover:border-slate-400'
   }`
 
 export default function ConsultationsPage() {
@@ -187,8 +187,8 @@ export default function ConsultationsPage() {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-900">상담일지</h1>
-        <span className="text-xs text-gray-400">상담 기록 → 주문 확정 시 주문서로 전환 · 품목별 1줄 표시 (같은 상담은 하나의 일지)</span>
+        <h1 className="text-xl font-bold text-slate-900">상담일지</h1>
+        <span className="text-xs text-slate-500">상담 기록 → 주문 확정 시 주문서로 전환 · 품목별 1줄 표시 (같은 상담은 하나의 일지)</span>
         <span className="ml-auto flex items-center gap-2">
           {checked.size > 0 && (
             <button onClick={copySelected}
@@ -205,27 +205,27 @@ export default function ConsultationsPage() {
       {reqKpi && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 max-w-4xl">
           {([
-            ['mine', '내 상담 (요청받은 것 포함)', reqKpi.mine, 'text-gray-900'],
-            ['assigned', '나에게 요청됨 (진행 대기)', reqKpi.assigned, reqKpi.assigned ? 'text-orange-700' : 'text-gray-400'],
-            ['requested', '내가 요청함 (진행 대기 · 처리 불가)', reqKpi.requested, 'text-gray-900'],
+            ['mine', '내 상담 (요청받은 것 포함)', reqKpi.mine, 'text-slate-900'],
+            ['assigned', '나에게 요청됨 (진행 대기)', reqKpi.assigned, reqKpi.assigned ? 'text-orange-700' : 'text-slate-500'],
+            ['requested', '내가 요청함 (진행 대기 · 처리 불가)', reqKpi.requested, 'text-slate-900'],
             ['done', '주문 입력됨 (이번 달 요청 · 회신 포함)', reqKpi.done, 'text-emerald-700'],
           ] as const).map(([key, title, val, cls]) => (
             <button key={key} onClick={() => setScope(key)}
-              className={`bg-white border rounded-xl px-4 py-3 text-left ${scope === key ? 'border-slate-800' : 'border-gray-200'}`}>
-              <div className="text-[0.6875rem] text-gray-400">{title}</div>
+              className={`bg-white border rounded-xl px-4 py-3 text-left ${scope === key ? 'border-slate-800' : 'border-slate-300'}`}>
+              <div className="text-xs text-slate-500">{title}</div>
               <div className={`text-lg font-bold tabular-nums ${cls}`}>{val}</div>
             </button>
           ))}
         </div>
       )}
 
-      <div className="bg-white border border-gray-200 rounded-xl p-3 mt-4">
+      <div className="bg-white border border-slate-300 rounded-xl p-3 mt-4">
         <div className="flex items-center gap-2 flex-wrap">
           <input value={qInput} onChange={e => setQInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') setQ(qInput.trim()) }}
             placeholder="검색 — 업체 · 지점 · 담당자 · 보내는분 · 상품명 · 메모 (띄어쓰기로 다중 조건, Enter)"
-            className="flex-1 min-w-[260px] border border-gray-300 rounded-lg px-3.5 py-2 text-sm" />
-          {q && <button onClick={() => { setQ(''); setQInput('') }} className="text-xs text-gray-400">해제 ✕</button>}
+            className="flex-1 min-w-[260px] border border-slate-400 rounded-lg px-3.5 py-2 text-sm" />
+          {q && <button onClick={() => { setQ(''); setQInput('') }} className="text-xs text-slate-500">해제 ✕</button>}
         </div>
         <div className="flex items-center gap-1.5 flex-wrap mt-2">
           {(['all', '진행중', '주문전환', '종결'] as const).map(s => (
@@ -248,11 +248,11 @@ export default function ConsultationsPage() {
 
       {error && <div className="mt-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg whitespace-pre-line">{error}</div>}
 
-      <div className="bg-white border border-gray-200 rounded-xl mt-3 overflow-x-auto">
-        {loading ? <div className="text-center py-16 text-gray-400">로딩 중...</div> : (
+      <div className="bg-white border border-slate-300 rounded-xl mt-3 overflow-x-auto">
+        {loading ? <div className="text-center py-16 text-slate-500">로딩 중...</div> : (
           <table className="w-full text-sm min-w-[1020px]">
             <thead>
-              <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+              <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-300">
                 <th className="py-2 pl-3 pr-1 w-8" title="선택 복사 — 같은 상담의 품목만 함께" />
                 <th className="py-2 px-3 text-left font-medium">상담일</th>
                 <th className="py-2 px-3 text-left font-medium">구분</th>
@@ -282,7 +282,7 @@ export default function ConsultationsPage() {
                     }
                     router.push(`/orders/consultations/${r.id}`)
                   }}
-                  className={`border-b border-gray-50 cursor-pointer hover:bg-blue-50/40 ${r.deleted_at ? 'opacity-60' : ''}`}>
+                  className={`border-b border-slate-200 cursor-pointer hover:bg-blue-50/40 ${r.deleted_at ? 'opacity-60' : ''}`}>
                   <td className="py-2 pl-3 pr-1" onClick={e => e.stopPropagation()}>
                     {r.line_no != null && (
                       <input type="checkbox" checked={checked.has(key)} onChange={() => toggleCheck(key)} />
@@ -290,50 +290,50 @@ export default function ConsultationsPage() {
                   </td>
                   <td className="py-2 px-3 tabular-nums text-xs font-semibold">{r.consult_date}</td>
                   <td className="py-2 px-3">
-                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${TYPE_BADGE[r.consult_type] ?? 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${TYPE_BADGE[r.consult_type] ?? 'bg-slate-100 text-slate-600'}`}>
                       {r.consult_type}
                     </span>
                   </td>
                   <td className="py-2 px-3 font-semibold">{r.bank_name ?? '-'}</td>
-                  <td className="py-2 px-3">{r.branch_name ?? <span className="text-gray-300">-</span>}</td>
+                  <td className="py-2 px-3">{r.branch_name ?? <span className="text-slate-400">-</span>}</td>
                   <td className="py-2 px-3">
                     {honorify(r.manager_name) || '-'}
                     {/* 담당자 연락처 (2026-11-09 문의) — 핸드폰 · 유선 */}
                     {(r.phone || r.tel) && (
-                      <div className="text-[0.6875rem] text-gray-400 tabular-nums whitespace-nowrap">{[r.phone, r.tel].filter(Boolean).join(' · ')}</div>
+                      <div className="text-xs text-slate-500 tabular-nums whitespace-nowrap">{[r.phone, r.tel].filter(Boolean).join(' · ')}</div>
                     )}
                   </td>
                   {all && <td className="py-2 px-3 text-xs">{r.writer ?? '-'}</td>}
                   <td className="py-2 px-3 text-xs">
-                    {r.item_name ?? <span className="text-gray-300">품목 없음</span>}
+                    {r.item_name ?? <span className="text-slate-400">품목 없음</span>}
                     {/* 할인·단가변경은 품목 줄에서 바로 보이게 (실무자 피드백 2) */}
                     {r.has_discount && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-red-50 text-red-600">할인</span>
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-red-50 text-red-600">할인</span>
                     )}
                     {r.item_status && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-amber-100 text-amber-800">{r.item_status}</span>
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">{r.item_status}</span>
                     )}
                   </td>
-                  <td className="py-2 px-3 text-right tabular-nums text-xs">{r.quantity || <span className="text-gray-300">-</span>}</td>
+                  <td className="py-2 px-3 text-right tabular-nums text-xs">{r.quantity || <span className="text-slate-400">-</span>}</td>
                   <td className="py-2 px-3 text-right tabular-nums"
                     title={r.line_count > 1 ? `상담 전체 ${won(r.consult_total)}원 (품목 ${r.line_count}개)` : undefined}>
-                    {r.line_total ? won(r.line_total) : <span className="text-gray-300">-</span>}
+                    {r.line_total ? won(r.line_total) : <span className="text-slate-400">-</span>}
                   </td>
-                  <td className="py-2 px-3 text-xs">{r.sender_name ?? <span className="text-gray-300">-</span>}</td>
+                  <td className="py-2 px-3 text-xs">{r.sender_name ?? <span className="text-slate-400">-</span>}</td>
                   <td className="py-2 px-3 text-xs whitespace-nowrap" title={r.order_request_memo ?? undefined}>
                     {/* 상태 배지 (515 완료 회신) + 담당 · 요청자 */}
                     {r.req_state && r.req_label && (
-                      <span className={`inline-block px-1.5 py-0.5 rounded text-[0.625rem] font-semibold mr-1 ${REQ_BADGE[r.req_state] ?? REQ_BADGE.converted}`}>
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-semibold mr-1 ${REQ_BADGE[r.req_state] ?? REQ_BADGE.converted}`}>
                         {r.assigned_to_me && r.req_state === 'requested' ? '나에게 요청' : r.req_label}
                       </span>
                     )}
                     {r.assigned_to_me ? (
-                      <span className="text-gray-500">{r.requester_name ?? ''} 요청</span>
+                      <span className="text-slate-600">{r.requester_name ?? ''} 요청</span>
                     ) : r.assignee_name ? (
-                      <span className="text-gray-600">{r.assignee_name}</span>
+                      <span className="text-slate-700">{r.assignee_name}</span>
                     ) : r.req_state === 'returned' ? (
                       <span className="text-red-600">{r.req_reply_by ?? ''} — 재요청 필요</span>
-                    ) : !r.req_state ? <span className="text-gray-300">-</span> : null}
+                    ) : !r.req_state ? <span className="text-slate-400">-</span> : null}
                   </td>
                   <td className="py-2 px-3">
                     {r.deleted_at ? (
@@ -343,13 +343,13 @@ export default function ConsultationsPage() {
                       <ReasonBadge label="종결" cls={STATUS_BADGE['종결']} title="종결 사유"
                         reason={r.close_reason} by={r.closed_by_name} at={r.closed_at} />
                     ) : (
-                      <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${STATUS_BADGE[r.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                      <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[r.status] ?? 'bg-slate-100 text-slate-600'}`}>
                         {r.status}
                       </span>
                     )}
                     {/* (b) 정책: 지점·담당자 마스터 연결이 끝나야 주문 전환 가능 */}
                     {!r.master_linked && (
-                      <span className="ml-1 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-orange-50 text-orange-600 border border-orange-200"
+                      <span className="ml-1 inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-orange-50 text-orange-600 border border-orange-200"
                         title="자유 입력된 업체·지점·담당자가 매출처 마스터에 연결되지 않았습니다 — 상담일지를 열어 마스터 등록/선택 후 전환할 수 있습니다">
                         마스터 미연결
                       </span>
@@ -359,7 +359,7 @@ export default function ConsultationsPage() {
                     {/* 행 "요청" — 작성자 · 관리자급 (요청받은 직원에게는 안 보임) */}
                     {r.status === '진행중' && !r.deleted_at && (r.is_owner || manager) && !r.assigned_to_me && (
                       <button onClick={e => { e.stopPropagation(); openRequest(r) }}
-                        className="text-xs text-gray-600 hover:underline mr-2" title="다른 직원에게 주문 진행을 요청">
+                        className="text-xs text-slate-700 hover:underline mr-2" title="다른 직원에게 주문 진행을 요청">
                         {r.assignee_name ? '요청 변경' : '요청'}
                       </button>
                     )}
@@ -369,7 +369,7 @@ export default function ConsultationsPage() {
                           className="text-xs text-blue-700 hover:underline"
                           title="상담 단위 전환 — 이 상담의 전체 품목이 주문서로 넘어갑니다">주문서로 전환</button>
                       ) : (
-                        <span className="text-xs text-gray-300 cursor-not-allowed"
+                        <span className="text-xs text-slate-400 cursor-not-allowed"
                           title="마스터 미연결 상담은 전환할 수 없습니다 — 상담일지에서 매출처 마스터 등록/선택 후 전환해주세요">주문서로 전환</span>
                       )
                     )}
@@ -378,21 +378,21 @@ export default function ConsultationsPage() {
                 )
               })}
               {!rows.length && (
-                <tr><td colSpan={all ? 14 : 13} className="text-center py-12 text-gray-400 text-sm">
+                <tr><td colSpan={all ? 14 : 13} className="text-center py-12 text-slate-500 text-sm">
                   상담 기록이 없습니다. 상단의 상담 기록 버튼으로 시작하세요.
                 </td></tr>
               )}
             </tbody>
           </table>
         )}
-        <div className="flex items-center px-4 py-2.5 text-xs text-gray-400 border-t border-gray-100">
+        <div className="flex items-center px-4 py-2.5 text-xs text-slate-500 border-t border-slate-200">
           <span>{won(total)}줄 (품목 단위)</span>
           <span className="ml-auto flex items-center gap-1.5">
             <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
-              className="px-2.5 py-1 border border-gray-200 rounded disabled:opacity-40">이전</button>
+              className="px-2.5 py-1 border border-slate-300 rounded disabled:opacity-40">이전</button>
             <span className="tabular-nums">{page} / {totalPages}</span>
             <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
-              className="px-2.5 py-1 border border-gray-200 rounded disabled:opacity-40">다음</button>
+              className="px-2.5 py-1 border border-slate-300 rounded disabled:opacity-40">다음</button>
           </span>
         </div>
       </div>
@@ -400,20 +400,20 @@ export default function ConsultationsPage() {
       {reqFor && (
         <div className="fixed inset-0 z-40 bg-black/30 flex items-center justify-center p-4" onClick={() => setReqFor(null)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-4" onClick={e => e.stopPropagation()}>
-            <div className="text-sm font-bold text-gray-900">주문 진행 요청 — {[reqFor.bank_name, reqFor.branch_name].filter(Boolean).join(' ') || '상담일지'}</div>
-            <div className="text-[0.6875rem] text-gray-500 mt-0.5">요청받은 직원은 이 상담을 열람 · 주문 전환만 할 수 있습니다. 비우면 요청 취소.</div>
-            <label className="block text-[0.6875rem] text-gray-500 mt-3 mb-0.5">주문 진행 담당</label>
+            <div className="text-sm font-bold text-slate-900">주문 진행 요청 — {[reqFor.bank_name, reqFor.branch_name].filter(Boolean).join(' ') || '상담일지'}</div>
+            <div className="text-xs text-slate-600 mt-0.5">요청받은 직원은 이 상담을 열람 · 주문 전환만 할 수 있습니다. 비우면 요청 취소.</div>
+            <label className="block text-xs text-slate-600 mt-3 mb-0.5">주문 진행 담당</label>
             <select value={reqAssignee} onChange={e => setReqAssignee(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm bg-white">
+              className="w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm bg-white">
               <option value="">요청 안 함 (내가 진행)</option>
               {emps.map(e => (
                 <option key={e.id} value={e.id}>{e.name}{e.team || e.position ? ` (${[e.team, e.employment_type === 'parttime' ? '아르바이트' : e.position].filter(Boolean).join(' · ')})` : ''}</option>
               ))}
             </select>
-            <label className="block text-[0.6875rem] text-gray-500 mt-2 mb-0.5">요청 메모 (선택)</label>
+            <label className="block text-xs text-slate-600 mt-2 mb-0.5">요청 메모 (선택)</label>
             <input value={reqMemo} onChange={e => setReqMemo(e.target.value)} disabled={!reqAssignee}
               placeholder="예: 11/10 출고 맞춰서 발주까지 부탁해요"
-              className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm disabled:bg-gray-50" />
+              className="w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm disabled:bg-slate-50" />
             {!!reqAssignee && !reqFor.master_linked && (
               <div className="mt-2 text-xs px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
                 마스터 미연결 상담은 요청할 수 없습니다 — 요청받은 직원은 상담을 고칠 수 없어 주문서로 전환하지 못합니다.
@@ -422,7 +422,7 @@ export default function ConsultationsPage() {
             )}
             {reqErr && <div className="mt-2 text-xs text-red-600">{reqErr}</div>}
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setReqFor(null)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">닫기</button>
+              <button onClick={() => setReqFor(null)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm">닫기</button>
               <button onClick={submitRequest} disabled={reqBusy || (!!reqAssignee && !reqFor.master_linked)}
                 className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">
                 {reqBusy ? '저장 중...' : reqAssignee ? '요청 보내기' : '요청 취소'}
@@ -432,7 +432,7 @@ export default function ConsultationsPage() {
         </div>
       )}
 
-      <p className="text-xs text-gray-400 mt-2">
+      <p className="text-xs text-slate-500 mt-2">
         저장 시 업무일지에 자동 기재됩니다 · 주문 전환된 상담은 수정 잠금(이력 보존) ·
         체크박스로 품목을 선택해 이전 상담을 복사할 수 있습니다 (같은 상담의 품목만 함께)
       </p>

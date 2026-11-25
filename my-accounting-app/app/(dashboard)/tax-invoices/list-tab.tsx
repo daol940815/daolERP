@@ -67,7 +67,7 @@ function PreIssueBadge({ txDate, issueDate }: { txDate: string; issueDate: strin
   const lag = lagDays(txDate, issueDate)
   if (lag >= 0) return null
   return (
-    <span className="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[0.6875rem] font-medium shrink-0">
+    <span className="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-xs font-medium shrink-0">
       발행 전 {-lag}일
     </span>
   )
@@ -255,24 +255,24 @@ function MatchPickerModal({
     return (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
         <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
-          <h2 className="text-lg font-bold text-gray-900 mb-1">연결할 금액 확인</h2>
-          <p className="text-sm text-gray-500 mb-4">{confirmTarget.label}</p>
-          <label className="block text-xs text-gray-500 mb-1">이 계산서에 연결할 금액</label>
+          <h2 className="text-lg font-bold text-slate-900 mb-1">연결할 금액 확인</h2>
+          <p className="text-sm text-slate-600 mb-4">{confirmTarget.label}</p>
+          <label className="block text-xs text-slate-600 mb-1">이 계산서에 연결할 금액</label>
           <input
             type="number"
             autoFocus
             value={confirmAmount}
             onChange={e => setConfirmAmount(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+            className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
           />
-          <p className="text-xs text-gray-400 mt-1.5">
+          <p className="text-xs text-slate-500 mt-1.5">
             합계금액 {won(currentInvoice.total_amount)} · 남은 금액 {won(remaining)}
           </p>
           {linkError && <p className="text-xs text-red-500 mt-1.5">{linkError}</p>}
           <div className="flex gap-2 mt-5">
             <button
               onClick={() => { setConfirmTarget(null); setLinkError(null) }}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+              className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50"
             >
               취소
             </button>
@@ -293,8 +293,8 @@ function MatchPickerModal({
     return (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
         <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
-          <h2 className="text-lg font-bold text-gray-900 mb-1">매칭 별칭으로 저장할까요?</h2>
-          <p className="text-sm text-gray-500 mb-4">
+          <h2 className="text-lg font-bold text-slate-900 mb-1">매칭 별칭으로 저장할까요?</h2>
+          <p className="text-sm text-slate-600 mb-4">
             거래내역의 표현을 거래처 별칭으로 저장하면, 다음부터 이 거래처의 세금계산서를 자동으로 더 정확하게 매칭할 수 있습니다.
           </p>
           <input
@@ -302,10 +302,10 @@ function MatchPickerModal({
             value={aliasInput}
             onChange={e => setAliasInput(e.target.value)}
             placeholder="예: 입금자명 또는 적요 표현"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+            className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
           />
           <div className="flex gap-2 mt-5">
-            <button onClick={handleSkipAlias} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">건너뛰기</button>
+            <button onClick={handleSkipAlias} className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">건너뛰기</button>
             <button
               onClick={handleSaveAlias}
               disabled={savingAlias || !aliasInput.trim()}
@@ -323,26 +323,26 @@ function MatchPickerModal({
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
       <div onClick={e => e.stopPropagation()}>{reasonDlg.node}</div>
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <h2 className="text-lg font-bold text-gray-900 mb-1">거래내역 매칭</h2>
-        <p className="text-sm text-gray-500 mb-4">
+        <h2 className="text-lg font-bold text-slate-900 mb-1">거래내역 매칭</h2>
+        <p className="text-sm text-slate-600 mb-4">
           {invoice.counterparty_name ?? '거래처 미상'} · {won(currentInvoice.total_amount)} · {invoice.issue_date}
         </p>
 
         {payments.length > 0 && (
-          <div className="mb-4 border border-gray-200 rounded-lg p-3 bg-gray-50">
-            <p className="text-xs text-gray-500 mb-2">
+          <div className="mb-4 border border-slate-300 rounded-lg p-3 bg-slate-50">
+            <p className="text-xs text-slate-600 mb-2">
               연결된 결제 내역 · {won(paidTotal)} / {won(currentInvoice.total_amount)}
             </p>
             <div className="space-y-1">
               {payments.map(p => (
-                <div key={p.id} className="flex items-center justify-between text-xs bg-white border border-gray-200 rounded px-2 py-1.5 gap-2">
-                  <span className="truncate text-gray-700">
+                <div key={p.id} className="flex items-center justify-between text-xs bg-white border border-slate-300 rounded px-2 py-1.5 gap-2">
+                  <span className="truncate text-slate-800">
                     {txDT(p.transaction?.tx_date, (p.transaction as { tx_time?: string | null } | null)?.tx_time)} · {p.transaction?.description ?? '-'}
                   </span>
                   <span className="flex items-center gap-2 shrink-0">
-                    <span className="font-medium text-gray-900">{won(p.amount)}</span>
+                    <span className="font-medium text-slate-900">{won(p.amount)}</span>
                     {p.from_order_sync ? (
-                      <span className="px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 text-[0.625rem] whitespace-nowrap"
+                      <span className="px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 text-xs whitespace-nowrap"
                         title="주문에 붙인 수금에서 자동으로 넘어온 입금입니다. 결제 확인 또는 주문 쪽에서 그 수금을 풀면 함께 풀립니다.">
                         주문 수금에서 넘어옴
                       </span>
@@ -350,7 +350,7 @@ function MatchPickerModal({
                       <button
                         onClick={() => handleRemovePayment(p.id)}
                         disabled={removingId !== null}
-                        className="text-gray-400 hover:text-red-600 underline disabled:opacity-50"
+                        className="text-slate-500 hover:text-red-600 underline disabled:opacity-50"
                       >
                         {removingId === p.id ? '해제 중...' : '해제'}
                       </button>
@@ -365,7 +365,7 @@ function MatchPickerModal({
           </div>
         )}
 
-        <p className="text-xs text-gray-400 mb-3">
+        <p className="text-xs text-slate-500 mb-3">
           금액이 일치하는 거래내역 중 사업자번호·거래처명이 일치하는 항목을 우선 표시합니다.
           발행일 이후 거래가 위로 정렬되며, 발행 전 거래는 배지로 구분됩니다.
         </p>
@@ -375,50 +375,50 @@ function MatchPickerModal({
           </p>
         )}
         {candidates === null ? (
-          <div className="py-10 text-center text-gray-400 text-sm">후보 검색 중...</div>
+          <div className="py-10 text-center text-slate-500 text-sm">후보 검색 중...</div>
         ) : candidates.length === 0 ? (
-          <div className="py-10 text-center text-gray-400 text-sm">금액이 일치하는 거래내역을 찾지 못했습니다.</div>
+          <div className="py-10 text-center text-slate-500 text-sm">금액이 일치하는 거래내역을 찾지 못했습니다.</div>
         ) : (
           <div className="space-y-1.5">
             {candidates.map(c => (
               <button
                 key={c.id}
                 onClick={() => openConfirm(c)}
-                className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3"
+                className="w-full text-left px-3 py-2 border border-slate-300 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3"
               >
                 <div className="min-w-0">
-                  <p className="text-gray-900 truncate flex items-center gap-1.5">
+                  <p className="text-slate-900 truncate flex items-center gap-1.5">
                     <span className="truncate">{c.description}</span>
                     <PreIssueBadge txDate={c.tx_date} issueDate={invoice.issue_date} />
                   </p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-slate-500">
                     {txDT(c.tx_date, c.tx_time)} · {c.account_alias ?? '-'}
                     {c.counterparty_name ? ` · 보낸분/받는분: ${c.counterparty_name}` : ''}
                   </p>
                 </div>
-                <span className="font-medium text-gray-900 shrink-0">{won(c.amount_in || c.amount_out)}</span>
+                <span className="font-medium text-slate-900 shrink-0">{won(c.amount_in || c.amount_out)}</span>
               </button>
             ))}
           </div>
         )}
 
-        <div className="mt-4 pt-3 border-t border-gray-100">
-          <button onClick={() => setManualOpen(v => !v)} className="text-xs text-slate-500 hover:text-slate-900 underline">
+        <div className="mt-4 pt-3 border-t border-slate-200">
+          <button onClick={() => setManualOpen(v => !v)} className="text-xs text-slate-600 hover:text-slate-900 underline">
             {manualOpen ? '직접 찾기 닫기' : '금액이 일치하는 후보가 없나요? 직접 찾기 (합계 입금, 수수료 차감 등)'}
           </button>
           {manualOpen && (
             <div className="mt-3">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <input type="date" value={manualFrom} onChange={e => setManualFrom(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-                <span className="text-gray-400 text-sm">~</span>
+                  className="border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                <span className="text-slate-500 text-sm">~</span>
                 <input type="date" value={manualTo} onChange={e => setManualTo(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  className="border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
                 <input
                   value={manualQuery}
                   onChange={e => setManualQuery(e.target.value)}
                   placeholder="적요·보낸분 검색"
-                  className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm flex-1 min-w-[120px] focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  className="border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm flex-1 min-w-[120px] focus:outline-none focus:ring-2 focus:ring-slate-900"
                 />
                 <button
                   onClick={handleManualSearch}
@@ -430,7 +430,7 @@ function MatchPickerModal({
               </div>
               {manualResults !== null && (
                 manualResults.length === 0 ? (
-                  <div className="py-6 text-center text-gray-400 text-sm">조건에 맞는 거래내역이 없습니다.</div>
+                  <div className="py-6 text-center text-slate-500 text-sm">조건에 맞는 거래내역이 없습니다.</div>
                 ) : (
                   <div className="space-y-1.5">
                     {manualResults.map(c => {
@@ -441,22 +441,22 @@ function MatchPickerModal({
                         <button
                           key={c.id}
                           onClick={() => openConfirm(c)}
-                          className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3"
+                          className="w-full text-left px-3 py-2 border border-slate-300 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3"
                         >
                           <div className="min-w-0">
-                            <p className="text-gray-900 truncate flex items-center gap-1.5">
+                            <p className="text-slate-900 truncate flex items-center gap-1.5">
                               <span className="truncate">{c.description}</span>
                               <PreIssueBadge txDate={c.tx_date} issueDate={invoice.issue_date} />
                             </p>
-                            <p className="text-xs text-gray-400">
+                            <p className="text-xs text-slate-500">
                               {txDT(c.tx_date, c.tx_time)} · {c.account_alias ?? '-'}
                               {c.counterparty_name ? ` · 보낸분/받는분: ${c.counterparty_name}` : ''}
                             </p>
                           </div>
-                          <span className="font-medium text-gray-900 shrink-0 text-right">
+                          <span className="font-medium text-slate-900 shrink-0 text-right">
                             {won(full)}
                             {remain < full && (
-                              <span className="block text-[0.6875rem] font-normal text-sky-600">잔여 {won(remain)}</span>
+                              <span className="block text-xs font-normal text-sky-600">잔여 {won(remain)}</span>
                             )}
                           </span>
                         </button>
@@ -470,7 +470,7 @@ function MatchPickerModal({
         </div>
 
         <div className="flex justify-end mt-4">
-          <button onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">닫기</button>
+          <button onClick={onClose} className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
         </div>
       </div>
     </div>
@@ -529,11 +529,11 @@ function SumMatchPickerModal({
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <h2 className="text-lg font-bold text-gray-900 mb-1">선택한 계산서 {invoiceIds.length}건 합계로 매칭</h2>
-        <p className="text-sm text-gray-500 mb-4">
+        <h2 className="text-lg font-bold text-slate-900 mb-1">선택한 계산서 {invoiceIds.length}건 합계로 매칭</h2>
+        <p className="text-sm text-slate-600 mb-4">
           {sumAmount != null ? `합계 ${won(sumAmount)}` : '합계 계산 중...'}
         </p>
-        <p className="text-xs text-gray-400 mb-3">
+        <p className="text-xs text-slate-500 mb-3">
           선택한 계산서들의 합계금액과 정확히 일치하는 거래내역을 보여줍니다. 고르면 선택한 계산서 전부가 해당 거래 1건에 연결됩니다.
           발행일(가장 늦은 계산서 기준) 이후 거래가 위로 정렬됩니다.
         </p>
@@ -545,9 +545,9 @@ function SumMatchPickerModal({
         {error ? (
           <div className="py-10 text-center text-red-500 text-sm">{error}</div>
         ) : candidates === null ? (
-          <div className="py-10 text-center text-gray-400 text-sm">후보 검색 중...</div>
+          <div className="py-10 text-center text-slate-500 text-sm">후보 검색 중...</div>
         ) : candidates.length === 0 ? (
-          <div className="py-10 text-center text-gray-400 text-sm">합계금액이 일치하는 거래내역을 찾지 못했습니다.</div>
+          <div className="py-10 text-center text-slate-500 text-sm">합계금액이 일치하는 거래내역을 찾지 못했습니다.</div>
         ) : (
           <div className="space-y-1.5">
             {candidates.map(c => (
@@ -555,19 +555,19 @@ function SumMatchPickerModal({
                 key={c.id}
                 onClick={() => handlePick(c.id)}
                 disabled={picking !== null}
-                className="w-full text-left px-3 py-2 border border-gray-200 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3 disabled:opacity-50"
+                className="w-full text-left px-3 py-2 border border-slate-300 rounded-lg hover:border-slate-400 hover:bg-slate-50 text-sm flex items-center justify-between gap-3 disabled:opacity-50"
               >
                 <div className="min-w-0">
-                  <p className="text-gray-900 truncate flex items-center gap-1.5">
+                  <p className="text-slate-900 truncate flex items-center gap-1.5">
                     <span className="truncate">{c.description}</span>
                     {latestIssueDate && <PreIssueBadge txDate={c.tx_date} issueDate={latestIssueDate} />}
                   </p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-slate-500">
                     {txDT(c.tx_date, c.tx_time)} · {c.account_alias ?? '-'}
                     {c.counterparty_name ? ` · 보낸분/받는분: ${c.counterparty_name}` : ''}
                   </p>
                 </div>
-                <span className="font-medium text-gray-900 shrink-0">
+                <span className="font-medium text-slate-900 shrink-0">
                   {picking === c.id ? '연결 중...' : won(c.amount_in || c.amount_out)}
                 </span>
               </button>
@@ -575,7 +575,7 @@ function SumMatchPickerModal({
           </div>
         )}
         <div className="flex justify-end mt-4">
-          <button onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">닫기</button>
+          <button onClick={onClose} className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
         </div>
       </div>
     </div>
@@ -593,7 +593,7 @@ const TAX_CHIPS: { key: Tax; label: string }[] = [{ key: 'taxable', label: '과�
 
 export default function ListTab(props: ListTabProps) {
   return (
-    <Suspense fallback={<div className="p-6 text-gray-400 text-sm">로딩 중...</div>}>
+    <Suspense fallback={<div className="p-6 text-slate-500 text-sm">로딩 중...</div>}>
       <TaxInvoiceListContent {...props} />
     </Suspense>
   )
@@ -650,7 +650,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
     router.replace(`/tax-invoices?dir=${d}&tax=${t}`, { scroll: false })
   }
   const chipCls = (on: boolean) =>
-    `px-3 py-1 rounded-full text-sm border transition-colors ${on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`
+    `px-3 py-1 rounded-full text-sm border transition-colors ${on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-400 hover:bg-slate-50'}`
   const [sumMatching, setSumMatching] = useState(false)
   const [bulkBusy, setBulkBusy]       = useState(false)
   const [deleting, setDeleting]       = useState(false)
@@ -744,7 +744,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
   }, [invoices, selected])
 
   if (!valid) {
-    return <div className="text-center py-20 text-gray-400 text-sm">잘못된 경로입니다.</div>
+    return <div className="text-center py-20 text-slate-500 text-sm">잘못된 경로입니다.</div>
   }
 
   const meta    = DIRECTION_META[direction]
@@ -921,10 +921,10 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
     <div>
       {unlinkDlg.node}
       <div className="flex items-center gap-2 flex-wrap mb-3">
-        <span className="text-xs text-gray-400">구분</span>
+        <span className="text-xs text-slate-500">구분</span>
         {DIR_CHIPS.map(d => <button key={d.key} onClick={() => switchKind(d.key, taxType)} className={chipCls(d.key === direction)}>{d.label}</button>)}
-        <span className="w-px h-5 bg-gray-200 mx-1" />
-        <span className="text-xs text-gray-400">종류</span>
+        <span className="w-px h-5 bg-slate-200 mx-1" />
+        <span className="text-xs text-slate-500">종류</span>
         {TAX_CHIPS.map(t => <button key={t.key} onClick={() => switchKind(direction, t.key)} className={chipCls(t.key === taxType)}>{t.label}</button>)}
         {vendorIdFilter && (
           <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm bg-indigo-50 text-indigo-700 border border-indigo-200">
@@ -948,7 +948,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
           <button
             onClick={() => handleAutoMatch()}
             disabled={matching || invoices.length === 0}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 flex items-center gap-1.5"
+            className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1.5"
           >
             {matching ? '매칭 중...' : '자동 매칭'}
           </button>
@@ -964,14 +964,14 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
           {/* 원본 업로드는 파일 업로드 단일 창구에서 (2026-10-12) */}
           <Link
             href="/upload?source=tax_invoices"
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1.5"
+            className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 flex items-center gap-1.5"
           >
             ↑ 파일 업로드 →
           </Link>
         </div>
       </div>
 
-      <div className="mt-3 mb-5 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500">
+      <div className="mt-3 mb-5 px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-600">
         홈택스 &gt; 조회/발급 &gt; 목록조회 파일은 파일 업로드 화면에서 올립니다. 매출/매입·과세/면세는
         파일에서 자동 판별되고, 승인번호 기준으로 중복 없이 저장되며 사업자번호·상호로 거래처가 자동 등록/매칭됩니다.
       </div>
@@ -994,20 +994,20 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
 
       {/* 요약 카드 */}
       <div className="flex gap-3 flex-wrap mb-5">
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">발행 합계</p>
-          <p className="text-lg font-bold text-gray-900">{won(totalAmt)}</p>
-          <p className="text-xs text-gray-400">{filtered.length}건</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">발행 합계</p>
+          <p className="text-lg font-bold text-slate-900">{won(totalAmt)}</p>
+          <p className="text-xs text-slate-500">{filtered.length}건</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">{direction === 'sales' ? '입금 확인' : '출금 확인'}</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">{direction === 'sales' ? '입금 확인' : '출금 확인'}</p>
           <p className="text-lg font-bold text-green-600">{won(matchedAmt)}</p>
-          <p className="text-xs text-gray-400">{matchedList.length}건</p>
+          <p className="text-xs text-slate-500">{matchedList.length}건</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">{direction === 'sales' ? '미수 잔액' : '미지급 잔액'}</p>
-          <p className={`text-lg font-bold ${remaining > 0 ? 'text-red-600' : 'text-gray-400'}`}>{won(remaining)}</p>
-          <p className="text-xs text-gray-400">{filtered.length - matchedList.length}건</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">{direction === 'sales' ? '미수 잔액' : '미지급 잔액'}</p>
+          <p className={`text-lg font-bold ${remaining > 0 ? 'text-red-600' : 'text-slate-500'}`}>{won(remaining)}</p>
+          <p className="text-xs text-slate-500">{filtered.length - matchedList.length}건</p>
         </div>
       </div>
 
@@ -1017,13 +1017,13 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
       {/* 필터: 기간 · 검색 · 확인 상태 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-        <span className="text-gray-400 text-sm">~</span>
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
         <div className="flex items-center">
           <select value={searchField} onChange={e => setSearchField(e.target.value as typeof searchField)}
-            className="border border-gray-300 rounded-l-lg border-r-0 px-2 py-1.5 text-sm bg-gray-50 text-gray-600 focus:outline-none">
+            className="border border-slate-400 rounded-l-lg border-r-0 px-2 py-1.5 text-sm bg-slate-50 text-slate-700 focus:outline-none">
             <option value="all">전체 항목</option>
             <option value="counterparty">거래처명</option>
             <option value="item">품목</option>
@@ -1037,7 +1037,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder={searchField === 'amount' ? '예: 364000' : '검색어 입력'}
-            className="border border-gray-300 rounded-r-lg px-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-slate-900"
+            className="border border-slate-400 rounded-r-lg px-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-slate-900"
           />
         </div>
         {/* 계정과목 필터 — 확정 계정 기준, 미분류 선택 가능 (검색형) */}
@@ -1047,7 +1047,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
           options={[{ id: 'none', label: '(미분류만)' }, ...accounts.map(a => ({ id: a.id, label: a.name }))]}
           emptyLabel="계정과목: 전체"
           className={`border rounded-lg px-3 py-1.5 text-sm bg-white min-w-[9rem] focus:outline-none focus:ring-2 focus:ring-slate-900 ${
-            accountFilter ? 'border-slate-900 text-slate-900 font-medium' : 'border-gray-300 text-gray-600'}`}
+            accountFilter ? 'border-slate-900 text-slate-900 font-medium' : 'border-slate-400 text-slate-700'}`}
         />
         {direction === 'sales' && (
           <button onClick={handleBulkClassifySales} disabled={bulkBusy}
@@ -1067,7 +1067,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
               key={tab.key}
               onClick={() => setStatusFilter(tab.key as typeof statusFilter)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                statusFilter === tab.key ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                statusFilter === tab.key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               {tab.label}
@@ -1076,7 +1076,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
           <button onClick={() => setUnlinkedOnly(v => !v)}
             title="거래처 마스터에 연결되지 않은 계산서 — 집계·허브·미지급에서 빠진다"
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              unlinkedOnly ? 'bg-orange-600 text-white' : unlinkedCount ? 'bg-orange-50 text-orange-700 hover:bg-orange-100' : 'bg-gray-100 text-gray-400'}`}>
+              unlinkedOnly ? 'bg-orange-600 text-white' : unlinkedCount ? 'bg-orange-50 text-orange-700 hover:bg-orange-100' : 'bg-slate-100 text-slate-500'}`}>
             거래처 미연결 {unlinkedCount}
           </button>
           {/* 주문 미연결 (2026-11-17) — 주문이 하나도 연결되지 않은 매출 계산서. 매출 탭만 */}
@@ -1084,7 +1084,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
             <button onClick={() => setNoOrderOnly(v => !v)}
               title="주문이 하나도 연결되지 않은 매출 계산서 — 계산서에 입금을 붙여도 주문 미수가 줄지 않는다"
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                noOrderOnly ? 'bg-indigo-600 text-white' : noOrderCount ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100' : 'bg-gray-100 text-gray-400'}`}>
+                noOrderOnly ? 'bg-indigo-600 text-white' : noOrderCount ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100' : 'bg-slate-100 text-slate-500'}`}>
               주문 미연결 {noOrderCount}
             </button>
           )}
@@ -1118,7 +1118,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
         )}
         {selectableIds.length > 0 && (
           <button onClick={() => setSelected(new Set(selectableIds))}
-            className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
+            className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-400 text-slate-700 hover:bg-slate-50">
             전체 선택 ({selectableIds.length})
           </button>
         )}
@@ -1129,23 +1129,23 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
           </button>
         )}
         {selected.size > 0 && (
-          <button onClick={() => setSelected(new Set())} className="text-xs text-gray-400 hover:text-gray-600">
+          <button onClick={() => setSelected(new Set())} className="text-xs text-slate-500 hover:text-slate-700">
             선택 해제
           </button>
         )}
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : invoices.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 text-sm">등록된 세금계산서가 없습니다. 홈택스 파일을 업로드해주세요.</div>
+        <div className="text-center py-20 text-slate-500 text-sm">등록된 세금계산서가 없습니다. 홈택스 파일을 업로드해주세요.</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 text-sm">검색 결과가 없습니다.</div>
+        <div className="text-center py-20 text-slate-500 text-sm">검색 결과가 없습니다.</div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+              <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                 <th className="py-2.5 px-3 font-medium w-8">
                   <input
                     type="checkbox"
@@ -1173,7 +1173,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
             </thead>
             <tbody>
               {filtered.map(inv => (
-                <tr key={inv.id} className="border-b border-gray-100 hover:bg-gray-50 align-top">
+                <tr key={inv.id} className="border-b border-slate-200 hover:bg-slate-50 align-top">
                   <td className="py-2.5 px-3">
                     {!inv.matched_transaction_id && (
                       <input
@@ -1184,33 +1184,33 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
                       />
                     )}
                   </td>
-                  <td className="py-2.5 px-3 whitespace-nowrap text-gray-600">{inv.issue_date}</td>
+                  <td className="py-2.5 px-3 whitespace-nowrap text-slate-700">{inv.issue_date}</td>
                   <td className="py-2.5 px-3 min-w-0">
-                    <p className="text-gray-900 truncate max-w-[280px]">{inv.counterparty_name ?? '-'}</p>
-                    <p className="text-xs text-gray-400">{inv.counterparty_biz_number ?? ''}</p>
+                    <p className="text-slate-900 truncate max-w-[280px]">{inv.counterparty_name ?? '-'}</p>
+                    <p className="text-xs text-slate-500">{inv.counterparty_biz_number ?? ''}</p>
                     {/* 연결된 거래처(마스터) — 상호와 별개. 비어 있으면 집계에서 빠지므로 여기서 바로 붙인다 */}
                     {linkingId === inv.id ? (
                       <div className="mt-0.5" onClick={e => e.stopPropagation()}>
                         <SearchableSelect value={inv.vendor_id ?? ''} onChange={id => linkVendor(inv, id)} options={vendorOptions}
                           emptyLabel="(연결 안 함)" className="text-xs border border-orange-300 rounded px-1.5 py-0.5 bg-white min-w-[160px]" />
-                        <button onClick={() => setLinkingId(null)} className="ml-1 text-xs text-gray-400 hover:underline">취소</button>
+                        <button onClick={() => setLinkingId(null)} className="ml-1 text-xs text-slate-500 hover:underline">취소</button>
                       </div>
                     ) : inv.vendor_id ? (
                       <button onClick={e => { e.stopPropagation(); setLinkingId(inv.id) }} title="연결된 거래처 — 클릭해 바꾸기"
-                        className="text-[0.6875rem] text-blue-700 hover:underline truncate max-w-[280px] block text-left">
+                        className="text-xs text-blue-700 hover:underline truncate max-w-[280px] block text-left">
                         연결: {vendorNameOf.get(inv.vendor_id) ?? '(알 수 없는 거래처)'}
                       </button>
                     ) : (
                       <button onClick={e => { e.stopPropagation(); setLinkingId(inv.id) }} title="거래처 마스터에 연결되지 않음 — 클릭해 연결"
-                        className="mt-0.5 px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-orange-100 text-orange-700 hover:bg-orange-200">
+                        className="mt-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700 hover:bg-orange-200">
                         거래처 미연결 — 연결하기
                       </button>
                     )}
                   </td>
-                  <td className="py-2.5 px-3 text-gray-500 max-w-[360px] truncate">{inv.item_name ?? '-'}</td>
-                  <td className="py-2.5 px-3 text-right text-gray-600 whitespace-nowrap">{won(inv.supply_amount)}</td>
-                  <td className="py-2.5 px-3 text-right text-gray-600 whitespace-nowrap">{won(inv.tax_amount)}</td>
-                  <td className="py-2.5 px-3 text-right font-medium text-gray-900 whitespace-nowrap">{won(inv.total_amount)}</td>
+                  <td className="py-2.5 px-3 text-slate-600 max-w-[360px] truncate">{inv.item_name ?? '-'}</td>
+                  <td className="py-2.5 px-3 text-right text-slate-700 whitespace-nowrap">{won(inv.supply_amount)}</td>
+                  <td className="py-2.5 px-3 text-right text-slate-700 whitespace-nowrap">{won(inv.tax_amount)}</td>
+                  <td className="py-2.5 px-3 text-right font-medium text-slate-900 whitespace-nowrap">{won(inv.total_amount)}</td>
                   <td className="px-3 py-2">
                     <SearchableSelect
                       value={inv.confirmed_account_id ?? ''}
@@ -1219,12 +1219,12 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
                       emptyLabel="(미분류)"
                       className={`min-w-[100px] text-xs border rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-slate-900 ${
                         inv.confirmed_account_id
-                          ? 'border-gray-200 bg-white text-gray-700'
-                          : 'border-dashed border-gray-300 bg-gray-50 text-gray-400'
+                          ? 'border-slate-300 bg-white text-slate-800'
+                          : 'border-dashed border-slate-400 bg-slate-50 text-slate-500'
                       }`}
                     />
                     {inv.confirmed_account_id && typeof inv.classified_by === 'string' && inv.classified_by.startsWith('auto:') && (
-                      <span className="ml-1 text-[0.625rem] px-1 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 align-middle"
+                      <span className="ml-1 text-xs px-1 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 align-middle"
                         title={`업로드 때 자동 분류 (${inv.classified_by === 'auto:history' ? '거래처 확정 이력' : inv.classified_by === 'auto:default' ? '거래처 기본계정' : '품목 키워드'}) — 검토 후 틀리면 바꾸세요`}>자동</span>
                     )}
                   </td>
@@ -1236,7 +1236,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
                           ? 'bg-green-100 text-green-700 hover:bg-green-200'
                           : inv.payment_status === 'partial'
                             ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
-                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                       title={inv.payment_status === 'partial'
                         ? '입금이 일부만 붙어 있습니다. 클릭하면 수동으로 확인됨 처리합니다(입금을 더 붙여도 유지).'
@@ -1247,7 +1247,7 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
                     {inv.payment_status !== 'matched' && cancelPairIds.has(inv.id) && (
                       <button
                         onClick={() => setShowCancelPairs(true)}
-                        className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[0.6875rem] hover:bg-amber-200"
+                        className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-xs hover:bg-amber-200"
                         title="취소발행 상계 대상 — 클릭하면 취소쌍 목록을 엽니다"
                       >
                         취소쌍
@@ -1257,14 +1257,14 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
                   <td className="py-2.5 px-3 whitespace-nowrap">
                     {inv.matched_transaction_id ? (
                       <div>
-                        <p className="text-xs text-slate-700">{formatMatchedAccount(inv)}</p>
+                        <p className="text-xs text-slate-800">{formatMatchedAccount(inv)}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <button onClick={() => setMatchingInvoice(inv)} className="text-xs text-slate-500 hover:text-slate-900 underline">변경</button>
-                          <button onClick={() => handleUnlink(inv)} className="text-xs text-gray-400 hover:text-red-600 underline">해제</button>
+                          <button onClick={() => setMatchingInvoice(inv)} className="text-xs text-slate-600 hover:text-slate-900 underline">변경</button>
+                          <button onClick={() => handleUnlink(inv)} className="text-xs text-slate-500 hover:text-red-600 underline">해제</button>
                         </div>
                       </div>
                     ) : (
-                      <button onClick={() => setMatchingInvoice(inv)} className="text-xs text-slate-600 hover:text-slate-900 underline">매칭하기</button>
+                      <button onClick={() => setMatchingInvoice(inv)} className="text-xs text-slate-700 hover:text-slate-900 underline">매칭하기</button>
                     )}
                   </td>
                   {/* 주문 연결 — 매출 탭만. 연결된 주문번호 · 금액, 남은 금액이 있으면 '주문 연결' (수금 · 정산 작업 수정 권한자) */}
@@ -1274,20 +1274,20 @@ function TaxInvoiceListContent({ direction: initialDir, taxType: initialTax }: L
                     const left = inv.total_amount - linked
                     return (
                       <td className="py-2.5 px-3 text-xs whitespace-nowrap">
-                        {inv.total_amount <= 0 ? <span className="text-gray-300">—</span> : (<>
+                        {inv.total_amount <= 0 ? <span className="text-slate-400">—</span> : (<>
                           {ls.length === 0 ? <span className="text-amber-700">주문 미연결</span> : ls.map(l => (
                             <div key={l.order_id}>
-                              <Link href={`/orders/${l.order_id}`} className="text-slate-800 hover:underline tabular-nums">{l.order_no ?? '-'}</Link>
-                              <span className="text-gray-500 tabular-nums"> {l.amount.toLocaleString('ko-KR')}</span>
+                              <Link href={`/orders/${l.order_id}`} className="text-slate-900 hover:underline tabular-nums">{l.order_no ?? '-'}</Link>
+                              <span className="text-slate-600 tabular-nums"> {l.amount.toLocaleString('ko-KR')}</span>
                             </div>
                           ))}
                           {ls.length > 0 && (left > 0
-                            ? <div className="text-[0.6875rem] text-amber-700 tabular-nums">{left.toLocaleString('ko-KR')} 남음</div>
-                            : <div className="text-[0.6875rem] text-gray-400">전액 연결{ls.length > 1 ? ` · 주문 ${ls.length}건` : ''}</div>)}
+                            ? <div className="text-xs text-amber-700 tabular-nums">{left.toLocaleString('ko-KR')} 남음</div>
+                            : <div className="text-xs text-slate-500">전액 연결{ls.length > 1 ? ` · 주문 ${ls.length}건` : ''}</div>)}
                           {canLinkOrder && left > 0 && (
                             <button onClick={() => setOrderLinkFor(inv)} disabled={!inv.vendor_id}
                               title={inv.vendor_id ? '이 계산서를 주문과 연결합니다 (결제 확인 › 계산서 확인과 같은 창)' : '거래처가 연결되지 않은 계산서입니다. 거래처를 먼저 연결하세요.'}
-                              className="mt-0.5 px-2 py-0.5 rounded border border-indigo-200 bg-indigo-50 text-indigo-700 text-[0.6875rem] font-semibold hover:bg-indigo-100 disabled:opacity-40">
+                              className="mt-0.5 px-2 py-0.5 rounded border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-semibold hover:bg-indigo-100 disabled:opacity-40">
                               주문 연결
                             </button>
                           )}

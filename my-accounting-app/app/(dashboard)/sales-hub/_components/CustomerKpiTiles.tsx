@@ -42,7 +42,7 @@ export const OTYPE_META: Record<string, { label: string; cls: string; hint: stri
   both:         { label: '명절+상시', cls: 'bg-violet-100 text-violet-700', hint: '핵심 단골' },
   regular_only: { label: '상시만',   cls: 'bg-blue-100 text-blue-700',     hint: '명절 공략 대상' },
   season_only:  { label: '명절만',   cls: 'bg-amber-100 text-amber-700',   hint: '상시 전환 대상' },
-  none:         { label: '주문없음', cls: 'bg-gray-100 text-gray-500',     hint: '인맥 관리' },
+  none:         { label: '주문없음', cls: 'bg-slate-100 text-slate-600',     hint: '인맥 관리' },
 }
 
 const TIERS: { key: KpiCategory; label: string; bar: string }[] = [
@@ -80,52 +80,52 @@ export default function CustomerKpiTiles({ mode, flags, filter, onFilter }: {
   const tierSum = TIERS.reduce((a, t) => a + c.m[t.key], 0) || 1
   const click = (cat: KpiCategory) => onFilter(filter === cat ? null : cat)
   const cellCls = (cat: KpiCategory) =>
-    `text-left border rounded-lg px-2.5 py-2 hover:border-slate-400 ${filter === cat ? 'border-slate-900 ring-1 ring-slate-900' : 'border-gray-200'}`
+    `text-left border rounded-lg px-2.5 py-2 hover:border-slate-400 ${filter === cat ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300'}`
 
   return (
     <div className="mt-4">
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs font-bold text-gray-700">고객관리 집계</span>
-        <span className="inline-flex border border-gray-300 rounded-lg overflow-hidden">
+        <span className="text-xs font-bold text-slate-800">고객관리 집계</span>
+        <span className="inline-flex border border-slate-400 rounded-lg overflow-hidden">
           <Link href="/sales-hub"
-            className={`px-3 py-1 text-xs ${mode === 'vendor' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+            className={`px-3 py-1 text-xs ${mode === 'vendor' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-slate-700 hover:bg-slate-50'}`}>
             지점 기준
           </Link>
           <Link href="/sales-hub/contacts"
-            className={`px-3 py-1 text-xs ${mode === 'contact' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+            className={`px-3 py-1 text-xs ${mode === 'contact' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-slate-700 hover:bg-slate-50'}`}>
             고객 기준
           </Link>
         </span>
-        <span className="text-[0.6875rem] text-gray-400">
+        <span className="text-xs text-slate-500">
           기준연도 {flags.y0} 자동 · 타일 클릭 = 목록 필터 · 매출은 최근 2개년 순매출
         </span>
       </div>
 
       <div className="grid lg:grid-cols-[1.05fr_1.5fr_1.5fr] gap-3">
         {/* 신규 / 이탈 */}
-        <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <p className="text-xs text-gray-500">신규 · 이탈</p>
+        <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
+          <p className="text-xs text-slate-600">신규 · 이탈</p>
           <div className="grid grid-cols-2 gap-2 mt-2">
             <button onClick={() => click('new')} className={cellCls('new')}>
-              <span className="text-[0.6875rem] text-gray-500 flex items-center gap-1.5">
+              <span className="text-xs text-slate-600 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />신규
               </span>
               <span className="block text-lg font-bold tabular-nums">{c.m['new'].toLocaleString()}{unit}</span>
-              <span className="text-[0.625rem] text-gray-400">최초 주문이 올해</span>
+              <span className="text-xs text-slate-500">최초 주문이 올해</span>
             </button>
             <button onClick={() => click('churn')} className={cellCls('churn')}>
-              <span className="text-[0.6875rem] text-gray-500 flex items-center gap-1.5">
+              <span className="text-xs text-slate-600 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500" />이탈
               </span>
               <span className="block text-lg font-bold tabular-nums">{c.m['churn'].toLocaleString()}{unit}</span>
-              <span className="text-[0.625rem] text-gray-400">올해 주문 없음</span>
+              <span className="text-xs text-slate-500">올해 주문 없음</span>
             </button>
           </div>
         </div>
 
         {/* 주문 금액대 */}
-        <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <p className="text-xs text-gray-500">주문 금액대 <span className="text-gray-400">(최근 2개년 누적 · 주문 있는 {mode === 'vendor' ? '곳' : '고객'}만)</span></p>
+        <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
+          <p className="text-xs text-slate-600">주문 금액대 <span className="text-slate-500">(최근 2개년 누적 · 주문 있는 {mode === 'vendor' ? '곳' : '고객'}만)</span></p>
           <div className="flex h-2 rounded-full overflow-hidden mt-2.5">
             {TIERS.map(t => (
               <div key={t.key} className={t.bar} style={{ width: `${(c.m[t.key] / tierSum) * 100}%` }} />
@@ -134,12 +134,12 @@ export default function CustomerKpiTiles({ mode, flags, filter, onFilter }: {
           <div className="grid grid-cols-2 gap-1.5 mt-2">
             {TIERS.map(t => (
               <button key={t.key} onClick={() => click(t.key)}
-                className={`flex items-center gap-1.5 text-[0.6875rem] text-gray-600 ${cellCls(t.key)} py-1.5`}>
+                className={`flex items-center gap-1.5 text-xs text-slate-700 ${cellCls(t.key)} py-1.5`}>
                 <span className={`w-2 h-2 rounded-full shrink-0 ${t.bar}`} />
                 <span className="truncate">{t.label}</span>
-                <span className="ml-auto font-bold text-gray-900 tabular-nums">
+                <span className="ml-auto font-bold text-slate-900 tabular-nums">
                   {c.m[t.key].toLocaleString()}
-                  <span className="font-normal text-gray-400 text-[0.625rem]">{unit}</span>
+                  <span className="font-normal text-slate-500 text-xs">{unit}</span>
                 </span>
               </button>
             ))}
@@ -147,16 +147,16 @@ export default function CustomerKpiTiles({ mode, flags, filter, onFilter }: {
         </div>
 
         {/* 주문 유형 */}
-        <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <p className="text-xs text-gray-500">주문 유형 <span className="text-gray-400">(명절·상시 조합)</span></p>
+        <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
+          <p className="text-xs text-slate-600">주문 유형 <span className="text-slate-500">(명절·상시 조합)</span></p>
           <div className="grid grid-cols-2 gap-1.5 mt-2">
             {(['both', 'regular_only', 'season_only', 'none'] as KpiCategory[]).map(k => (
               <button key={k} onClick={() => click(k)} className={cellCls(k)}>
-                <span className={`inline-block px-1.5 py-0.5 rounded text-[0.625rem] font-semibold ${OTYPE_META[k].cls}`}>
+                <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-semibold ${OTYPE_META[k].cls}`}>
                   {OTYPE_META[k].label}
                 </span>
                 <span className="block text-base font-bold tabular-nums mt-0.5">{c.m[k].toLocaleString()}{unit}</span>
-                <span className="text-[0.625rem] text-gray-400">{OTYPE_META[k].hint}</span>
+                <span className="text-xs text-slate-500">{OTYPE_META[k].hint}</span>
               </button>
             ))}
           </div>

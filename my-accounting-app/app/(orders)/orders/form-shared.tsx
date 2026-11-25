@@ -228,7 +228,7 @@ export function CustomerShipInput({ it, disabled, onChange, className }: {
   if (!customerShipApplies(it)) {
     // 지점 품목만 입력 — 개별 · 샘플은 비활성. 옛 값이 남아 있으면 그대로 보여준다(합계 불변)
     return (
-      <div className="text-xs text-gray-400 text-right tabular-nums py-1" title="택배비(판매)는 지점 품목만 입력합니다">
+      <div className="text-xs text-slate-500 text-right tabular-nums py-1" title="택배비(판매)는 지점 품목만 입력합니다">
         {it.shipping_fee ? won(it.shipping_fee) : '—'}
       </div>
     )
@@ -247,7 +247,7 @@ export function CustomerShipInput({ it, disabled, onChange, className }: {
             ? `받는 금액(합계)을 입력 — 직접 고친 매입배송비 ${won(it.purchase_shipping)}가 박스당 택배비${boxFeeOf(it) ? ` ${won(boxFeeOf(it))}` : '(품목 관리 값 없음)'}로 나누어떨어지지 않아 박스 수를 셀 수 없습니다`
             : '받는 금액(합계)을 그대로 입력 — 매입배송비가 없어 박스 계산이 없습니다'}
         className={className} placeholder="0" />
-      <div className={`text-[0.625rem] mt-0.5 tabular-nums whitespace-nowrap ${needCheck ? 'text-amber-600' : 'text-gray-400'}`}>
+      <div className={`text-xs mt-0.5 tabular-nums whitespace-nowrap ${needCheck ? 'text-amber-600' : 'text-slate-500'}`}>
         {needCheck
           ? `박스당 단가 확인 (${boxes}박스)`
           : boxes
@@ -321,7 +321,7 @@ export function NumInput({ value, onChange, onBlur, decimals = 0, ...rest }: Rea
         }}
         onBlur={e => { setRaw(null); onBlur?.(e) }} />
       {showTip && (
-        <span className="absolute right-0 top-full z-10 mt-0.5 whitespace-nowrap rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[0.625rem] text-amber-700 shadow-sm">
+        <span className="absolute right-0 top-full z-10 mt-0.5 whitespace-nowrap rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700 shadow-sm">
           {decimals > 0 ? `소수 ${decimals}째 자리까지 — ${fmtPurchasePrice(rounded)}` : `원 단위로 반올림해 ${won(rounded)}`}(으)로 저장됩니다
         </span>
       )}
@@ -500,7 +500,7 @@ function FloatingList({ pos, listRef, children }: {
   return createPortal(
     <div ref={listRef} role="listbox"
       style={{ position: 'fixed', left: pos.left, top: pos.top, bottom: pos.bottom, minWidth: pos.minWidth, maxWidth: pos.maxWidth, maxHeight: pos.maxHeight }}
-      className="z-50 bg-white border border-gray-300 rounded-lg shadow-lg overflow-y-auto text-sm w-max">
+      className="z-50 bg-white border border-slate-400 rounded-lg shadow-lg overflow-y-auto text-sm w-max">
       {children}
     </div>,
     document.body,
@@ -578,20 +578,20 @@ export function Combo({ value, display, options, onSelect, placeholder, required
               onMouseDown={e => e.preventDefault()}
               onMouseMove={() => { if (keys.active !== idx) keys.setActive(idx) }}
               onClick={() => pick(o)}
-              className={`w-full text-left px-3 py-2 border-b border-gray-50 whitespace-normal leading-snug ${
+              className={`w-full text-left px-3 py-2 border-b border-slate-200 whitespace-normal leading-snug ${
                 idx === keys.active ? 'bg-blue-100' : 'hover:bg-blue-50'
               }`}>
               {o.label}
               {o.soldout && (
-                <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-[0.625rem] font-medium bg-red-50 text-red-600 align-middle">품절</span>
+                <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-xs font-medium bg-red-50 text-red-600 align-middle">품절</span>
               )}
               {/* 원가표 상태 메모 (512) — '블랙 품절'·'단가인상' 등 실무 참고 */}
-              {o.note && <span className="text-[0.625rem] text-amber-600 ml-1.5">{o.note}</span>}
-              {o.sub && <span className="text-xs text-gray-400 ml-1.5">{o.sub}</span>}
+              {o.note && <span className="text-xs text-amber-600 ml-1.5">{o.note}</span>}
+              {o.sub && <span className="text-xs text-slate-500 ml-1.5">{o.sub}</span>}
             </button>
           ))}
           {/* 고를 목록 자체가 비어 있으면(지점 미선택 담당자 칸 등) 안내 없이 아래 구역만 */}
-          {!filtered.length && options.length > 0 && <div className="px-3 py-2 text-xs text-gray-400">일치하는 항목이 없습니다</div>}
+          {!filtered.length && options.length > 0 && <div className="px-3 py-2 text-xs text-slate-500">일치하는 항목이 없습니다</div>}
           {footerNode}
         </FloatingList>
       )}
@@ -648,11 +648,11 @@ export function ComboFree({ text, selectedId, options, onChange, placeholder, fo
               onMouseDown={e => e.preventDefault()}
               onMouseMove={() => { if (keys.active !== idx) keys.setActive(idx) }}
               onClick={() => pick(o)}
-              className={`w-full text-left px-3 py-1.5 border-b border-gray-50 ${
+              className={`w-full text-left px-3 py-1.5 border-b border-slate-200 ${
                 idx === keys.active ? 'bg-blue-100' : 'hover:bg-blue-50'
               }`}>
               {o.label}
-              {o.sub && <span className="text-xs text-gray-400 ml-1.5">{o.sub}</span>}
+              {o.sub && <span className="text-xs text-slate-500 ml-1.5">{o.sub}</span>}
             </button>
           ))}
           {footerNode}
@@ -676,7 +676,7 @@ export function DiscountInput({ mode, unit, amount, quantity, disabled, onChange
           const m = e.target.value as '정액' | '단가'
           onChange(m === '단가' ? { mode: m, unit, amount: (unit || 0) * quantity } : { mode: m, unit: 0, amount })
         }}
-        className="w-full border border-blue-200 bg-blue-50/40 rounded px-1 py-0.5 text-[0.625rem] mb-0.5 disabled:opacity-60">
+        className="w-full border border-blue-200 bg-blue-50/40 rounded px-1 py-0.5 text-xs mb-0.5 disabled:opacity-60">
         <option value="정액">정액</option>
         <option value="단가">개당</option>
       </select>
@@ -691,7 +691,7 @@ export function DiscountInput({ mode, unit, amount, quantity, disabled, onChange
         className={`${className} ${amount > 0 ? 'text-red-600 font-semibold border-red-200 bg-red-50/40' : ''}`}
         placeholder="0" />
       {mode === '단가' && amount > 0 && (
-        <div className="text-[0.625rem] text-red-500 mt-0.5 tabular-nums">-{won(amount)}</div>
+        <div className="text-xs text-red-500 mt-0.5 tabular-nums">-{won(amount)}</div>
       )}
     </>
   )

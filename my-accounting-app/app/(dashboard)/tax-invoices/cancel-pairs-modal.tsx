@@ -78,9 +78,9 @@ export default function CancelPairsModal({ direction, onClose, onApplied }: {
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-bold text-gray-900">취소발행 상계 확인</h2>
-          <p className="text-xs text-gray-500 mt-1">
+        <div className="px-5 py-4 border-b border-slate-300">
+          <h2 className="text-lg font-bold text-slate-900">취소발행 상계 확인</h2>
+          <p className="text-xs text-slate-600 mt-1">
             같은 거래처의 원 계산서와 취소(음수) 계산서가 합계 0으로 남은 쌍입니다.
             확인하면 두 건 모두 거래 연결 없이 확인됨으로 처리됩니다. (부분취소·재발행 건은 목록에서 함께 선택해 합산 매칭을 사용하세요)
           </p>
@@ -90,12 +90,12 @@ export default function CancelPairsModal({ direction, onClose, onApplied }: {
           {error ? (
             <p className="text-sm text-red-600 py-8 text-center">{error}</p>
           ) : pairs === null ? (
-            <p className="text-sm text-gray-400 py-8 text-center">탐색 중...</p>
+            <p className="text-sm text-slate-500 py-8 text-center">탐색 중...</p>
           ) : pairs.length === 0 ? (
-            <p className="text-sm text-gray-400 py-8 text-center">상계할 취소쌍이 없습니다.</p>
+            <p className="text-sm text-slate-500 py-8 text-center">상계할 취소쌍이 없습니다.</p>
           ) : (
             <table className="w-full text-sm">
-              <thead className="text-xs text-gray-400 border-b border-gray-200">
+              <thead className="text-xs text-slate-500 border-b border-slate-300">
                 <tr>
                   <th className="py-2 px-2 w-8 text-left">
                     <input type="checkbox" checked={allChecked}
@@ -108,20 +108,20 @@ export default function CancelPairsModal({ direction, onClose, onApplied }: {
                   <th className="py-2 px-2 text-right">간격</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-200">
                 {pairs.map(p => (
                   <tr key={key(p)} className={checked.has(key(p)) ? 'bg-amber-50/60' : ''}>
                     <td className="py-2 px-2">
                       <input type="checkbox" checked={checked.has(key(p))} onChange={() => toggle(p)} />
                     </td>
                     <td className="py-2 px-2">
-                      <p className="text-gray-900 truncate max-w-[180px]">{p.counterparty}</p>
-                      {p.item_name && <p className="text-xs text-gray-400 truncate max-w-[180px]">{p.item_name}</p>}
+                      <p className="text-slate-900 truncate max-w-[180px]">{p.counterparty}</p>
+                      {p.item_name && <p className="text-xs text-slate-500 truncate max-w-[180px]">{p.item_name}</p>}
                     </td>
-                    <td className="py-2 px-2 whitespace-nowrap text-gray-600">{p.pos_date}</td>
+                    <td className="py-2 px-2 whitespace-nowrap text-slate-700">{p.pos_date}</td>
                     <td className="py-2 px-2 whitespace-nowrap text-red-600">{p.neg_date}</td>
                     <td className="py-2 px-2 text-right whitespace-nowrap tabular-nums">{won(p.amount)}</td>
-                    <td className="py-2 px-2 text-right whitespace-nowrap text-xs text-gray-400">{p.gap_days}일</td>
+                    <td className="py-2 px-2 text-right whitespace-nowrap text-xs text-slate-500">{p.gap_days}일</td>
                   </tr>
                 ))}
               </tbody>
@@ -129,13 +129,13 @@ export default function CancelPairsModal({ direction, onClose, onApplied }: {
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-gray-200 flex items-center gap-3">
+        <div className="px-5 py-3 border-t border-slate-300 flex items-center gap-3">
           {pairs && pairs.length > 0 && (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-slate-700">
               <b>{checked.size}</b>쌍 선택 · 상계 금액 {won(selectedAmount)}
             </p>
           )}
-          <button onClick={onClose} className="ml-auto px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+          <button onClick={onClose} className="ml-auto px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700 hover:bg-slate-50">
             닫기
           </button>
           <button onClick={apply} disabled={busy || !pairs || checked.size === 0}

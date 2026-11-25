@@ -41,12 +41,12 @@ export default function AddBankModal({ onClose, onSaved }: { onClose: () => void
         className="bg-white rounded-xl shadow-2xl p-6 w-80 mx-4"
         onClick={e => e.stopPropagation()}
       >
-        <h3 className="text-base font-bold text-gray-900 mb-1">계좌 직접 등록</h3>
-        <p className="text-xs text-gray-400 mb-4">파일 업로드 없이 계좌를 먼저 등록합니다.</p>
+        <h3 className="text-base font-bold text-slate-900 mb-1">계좌 직접 등록</h3>
+        <p className="text-xs text-slate-500 mb-4">파일 업로드 없이 계좌를 먼저 등록합니다.</p>
         {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
+            <label className="block text-xs font-medium text-slate-800 mb-1">
               은행명 <span className="text-red-500">*</span>
             </label>
             <input
@@ -55,36 +55,36 @@ export default function AddBankModal({ onClose, onSaved }: { onClose: () => void
               onChange={e => setForm(f => ({ ...f, bank_name: e.target.value }))}
               onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
               placeholder="예: 우리은행"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              계좌번호 <span className="text-gray-400">(선택)</span>
+            <label className="block text-xs font-medium text-slate-800 mb-1">
+              계좌번호 <span className="text-slate-500">(선택)</span>
             </label>
             <input
               value={form.account_number}
               onChange={e => setForm(f => ({ ...f, account_number: e.target.value }))}
               placeholder="예: 1005-804-575410"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              별칭 <span className="text-gray-400">(선택)</span>
+            <label className="block text-xs font-medium text-slate-800 mb-1">
+              별칭 <span className="text-slate-500">(선택)</span>
             </label>
             <input
               value={form.alias}
               onChange={e => setForm(f => ({ ...f, alias: e.target.value }))}
               placeholder="예: 법인 운영계좌"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             />
           </div>
         </div>
         <div className="flex gap-2 mt-5">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+            className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50"
           >
             취소
           </button>

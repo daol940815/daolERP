@@ -74,8 +74,8 @@ export default function CollectionModal({ vendorId, vendorName, from, onClose, o
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-bold text-gray-900">{vendorName} — 수금 연결 후보</h3>
-        <p className="text-xs text-gray-500 mt-1 mb-3">
+        <h3 className="text-lg font-bold text-slate-900">{vendorName} — 수금 연결 후보</h3>
+        <p className="text-xs text-slate-600 mt-1 mb-3">
           금액이 정확히 맞는 조합만 제시합니다. 확인 후 확정하세요.
           {summary && ` · 미수 주문 ${summary.open_orders}건 · 미배분 입금 ${summary.available_deposits}건`}
         </p>
@@ -87,22 +87,22 @@ export default function CollectionModal({ vendorId, vendorName, from, onClose, o
         {error && <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
 
         {!groups ? (
-          <p className="text-gray-400 text-sm py-8 text-center">후보 계산 중...</p>
+          <p className="text-slate-500 text-sm py-8 text-center">후보 계산 중...</p>
         ) : groups.length === 0 ? (
-          <p className="text-gray-400 text-sm py-8 text-center">
+          <p className="text-slate-500 text-sm py-8 text-center">
             금액이 맞는 조합이 없습니다.<br />
             <span className="text-xs">부분 입금·수수료 차감 건은 ERP 매칭 화면에서 직접 배분해주세요.</span>
           </p>
         ) : (
           <div className="space-y-2.5">
             {groups.map((g, i) => (
-              <label key={i} className={`block border rounded-lg p-3 cursor-pointer transition-colors ${checked.has(i) ? 'border-slate-500 bg-slate-50' : 'border-gray-200 hover:border-gray-300'}`}>
+              <label key={i} className={`block border rounded-lg p-3 cursor-pointer transition-colors ${checked.has(i) ? 'border-slate-500 bg-slate-50' : 'border-slate-300 hover:border-slate-400'}`}>
                 <div className="flex items-center gap-2 mb-1.5">
                   <input type="checkbox" checked={checked.has(i)} onChange={() => toggle(i)} />
-                  <span className="text-sm font-semibold text-gray-900">{g.label}</span>
-                  <span className="ml-auto text-sm font-bold text-gray-900">{won(g.amount)}</span>
+                  <span className="text-sm font-semibold text-slate-900">{g.label}</span>
+                  <span className="ml-auto text-sm font-bold text-slate-900">{won(g.amount)}</span>
                 </div>
-                <div className="pl-6 text-xs text-gray-600 space-y-0.5">
+                <div className="pl-6 text-xs text-slate-700 space-y-0.5">
                   {g.orders.map(o => (
                     <p key={o.id}>주문 {o.order_date.slice(0, 10)} · {o.order_no} · {won(o.remaining)}</p>
                   ))}
@@ -122,8 +122,8 @@ export default function CollectionModal({ vendorId, vendorName, from, onClose, o
             className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
             {applying ? '확정 중...' : `선택 ${checked.size}개 조합 확정`}
           </button>
-          <button onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">닫기</button>
-          <span className="text-xs text-gray-400">확정 시 ERP 수금 대사에 기록되며 언제든 해제할 수 있습니다.</span>
+          <button onClick={onClose} className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">닫기</button>
+          <span className="text-xs text-slate-500">확정 시 ERP 수금 대사에 기록되며 언제든 해제할 수 있습니다.</span>
         </div>
       </div>
     </div>

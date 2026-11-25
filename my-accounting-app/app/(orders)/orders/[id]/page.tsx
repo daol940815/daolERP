@@ -67,7 +67,7 @@ const REQ_STATUS: Record<string, { label: string; cls: string }> = {
   pending:   { label: '승인 대기', cls: 'bg-amber-100 text-amber-800' },
   approved:  { label: '승인됨',   cls: 'bg-emerald-100 text-emerald-700' },
   rejected:  { label: '반려됨',   cls: 'bg-red-100 text-red-700' },
-  withdrawn: { label: '철회됨',   cls: 'bg-gray-100 text-gray-500' },
+  withdrawn: { label: '철회됨',   cls: 'bg-slate-100 text-slate-600' },
 }
 
 export default function OrderDetailPage() {
@@ -188,7 +188,7 @@ export default function OrderDetailPage() {
     load()
   }
 
-  if (loading) return <div className="text-center py-16 text-gray-400">로딩 중...</div>
+  if (loading) return <div className="text-center py-16 text-slate-500">로딩 중...</div>
   if (error && !order) return <div className="px-4 py-3 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>
   if (!order) return null
 
@@ -215,14 +215,14 @@ export default function OrderDetailPage() {
     <div>
       {reasonDlg.node}
       <div className="flex items-center gap-3 flex-wrap">
-        <Link href={listHref} className="text-sm text-gray-400 hover:text-gray-600">← 주문내역</Link>
-        <h1 className="text-xl font-bold text-gray-900">주문 상세</h1>
-        <span className="text-sm text-gray-400 tabular-nums">{String(order.order_no ?? '')}</span>
-        <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${isDirect ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+        <Link href={listHref} className="text-sm text-slate-500 hover:text-slate-700">← 주문내역</Link>
+        <h1 className="text-xl font-bold text-slate-900">주문 상세</h1>
+        <span className="text-sm text-slate-500 tabular-nums">{String(order.order_no ?? '')}</span>
+        <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${isDirect ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
           {isDirect ? '직접입력' : '업로드'}
         </span>
         {canceled && (
-          <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-red-100 text-red-700">취소됨</span>
+          <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">취소됨</span>
         )}
         <span className="ml-auto flex gap-2">
           {/* 거래명세서 — 판매가(할인 반영) 기준, 실무자 양식 그대로 출력 */}
@@ -271,14 +271,14 @@ export default function OrderDetailPage() {
 
       {askingCancel && (
         <div className="mt-3 p-3 bg-red-50/60 border border-red-200 rounded-lg space-y-2">
-          <div className="text-sm font-bold text-gray-900">주문 취소 사유</div>
+          <div className="text-sm font-bold text-slate-900">주문 취소 사유</div>
           <ReasonPicker options={ORDER_CANCEL_REASONS} picked={cancelPick} onPick={setCancelPick}
             text={cancelReason} onText={setCancelReason} />
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={cancelOrder} disabled={!cancelText}
               className="px-3.5 py-1.5 bg-red-600 text-white rounded-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed">주문 취소 확정</button>
-            <button onClick={() => setAskingCancel(false)} className="px-3.5 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-sm bg-white">닫기</button>
-            <span className="text-[0.6875rem] text-gray-500">
+            <button onClick={() => setAskingCancel(false)} className="px-3.5 py-1.5 border border-slate-400 text-slate-700 rounded-lg text-sm bg-white">닫기</button>
+            <span className="text-xs text-slate-600">
               사유를 고르거나 적어야 취소됩니다. 삭제 대신 취소로 처리되어 원본은 보존되고 집계에서만 빠집니다 (되돌리려면 재등록)
             </span>
           </div>
@@ -286,7 +286,7 @@ export default function OrderDetailPage() {
       )}
 
       {/* 주문 정보 */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-4">
+      <div className="bg-white border border-slate-300 rounded-xl p-4 mt-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm">
           {[
             ['주문일', String(order.order_date ?? '-')],
@@ -310,8 +310,8 @@ export default function OrderDetailPage() {
             ['메모', String(order.memo ?? '-')],
           ].map(([k, v]) => (
             <div key={String(k)}>
-              <div className="text-[0.6875rem] text-gray-400">{k}</div>
-              <div className="text-gray-800">{v}</div>
+              <div className="text-xs text-slate-500">{k}</div>
+              <div className="text-slate-900">{v}</div>
             </div>
           ))}
         </div>
@@ -323,10 +323,10 @@ export default function OrderDetailPage() {
           if (!filled && !missing) return null
           return (
             <div className={`mt-3 rounded-lg px-3 py-2 text-sm ${missing ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50'}`}>
-              <div className="text-[0.6875rem] text-gray-400">배송지 (지점 · 샘플 배송)</div>
+              <div className="text-xs text-slate-500">배송지 (지점 · 샘플 배송)</div>
               {missing
                 ? <div className="text-amber-800 text-xs mt-0.5">배송지 미입력 — 발주서 배송명단에 주소가 비어서 나갑니다. 당일은 수정, 익일 이후는 취소 · 재등록으로 입력하세요.</div>
-                : <div className="text-gray-800">{shipText(order as Record<string, unknown>)}</div>}
+                : <div className="text-slate-900">{shipText(order as Record<string, unknown>)}</div>}
             </div>
           )
         })()}
@@ -353,10 +353,10 @@ export default function OrderDetailPage() {
       )}
 
       {/* 품목 */}
-      <div className="bg-white border border-gray-200 rounded-xl mt-3 overflow-x-auto">
+      <div className="bg-white border border-slate-300 rounded-xl mt-3 overflow-x-auto">
         <table className="w-full text-xs min-w-[900px]">
           <thead>
-            <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
+            <tr className="bg-slate-50 text-slate-600 border-b border-slate-300">
               <th className="py-2 px-2.5 text-left font-medium">#</th>
               <th className="py-2 px-2.5 text-left font-medium">품번</th>
               <th className="py-2 px-2.5 text-left font-medium">품명</th>
@@ -379,17 +379,17 @@ export default function OrderDetailPage() {
           </thead>
           <tbody>
             {items.map(it => (
-              <tr key={it.id} className={`border-b border-gray-50 ${it.is_canceled ? 'text-gray-300 line-through' : ''}`}>
+              <tr key={it.id} className={`border-b border-slate-200 ${it.is_canceled ? 'text-slate-400 line-through' : ''}`}>
                 <td className="py-1.5 px-2.5 tabular-nums">{it.line_no}</td>
                 <td className="py-1.5 px-2.5">{it.item_code ?? '-'}</td>
                 <td className={`py-1.5 px-2.5 font-medium ${it.parent_line_no ? 'pl-6' : ''}`}>
-                  {it.parent_line_no && <span className="text-gray-400 mr-1 font-normal" title={`${it.parent_line_no}번 행의 옵션`}>└</span>}
+                  {it.parent_line_no && <span className="text-slate-500 mr-1 font-normal" title={`${it.parent_line_no}번 행의 옵션`}>└</span>}
                   {it.item_name}
-                  {it.is_canceled && <span className="ml-1.5 no-underline text-[0.625rem] text-red-400">취소</span>}
-                  {it.is_prepayment && <span className="ml-1.5 text-[0.625rem] text-violet-500">선결제</span>}
-                  {it.is_vip && <span className="ml-1.5 text-[0.625rem] text-rose-500" title="품명 'VIP' — 매출 · 미수 집계에서 빠짐">VIP</span>}
-                  {it.stock_role === 'in' && <span className="ml-1.5 text-[0.625rem] text-violet-600" title="선매입 입고 — 판매가 0, 재고에 쌓임, 마진 집계 제외">{STOCK_ROLE_LABEL.in}</span>}
-                  {it.stock_role === 'out' && <span className="ml-1.5 text-[0.625rem] text-teal-700" title="재고 출고 — 발주 제외, 원가는 재고 원가">{STOCK_ROLE_LABEL.out}</span>}
+                  {it.is_canceled && <span className="ml-1.5 no-underline text-xs text-red-400">취소</span>}
+                  {it.is_prepayment && <span className="ml-1.5 text-xs text-violet-500">선결제</span>}
+                  {it.is_vip && <span className="ml-1.5 text-xs text-rose-500" title="품명 'VIP' — 매출 · 미수 집계에서 빠짐">VIP</span>}
+                  {it.stock_role === 'in' && <span className="ml-1.5 text-xs text-violet-600" title="선매입 입고 — 판매가 0, 재고에 쌓임, 마진 집계 제외">{STOCK_ROLE_LABEL.in}</span>}
+                  {it.stock_role === 'out' && <span className="ml-1.5 text-xs text-teal-700" title="재고 출고 — 발주 제외, 원가는 재고 원가">{STOCK_ROLE_LABEL.out}</span>}
                 </td>
                 <td className="py-1.5 px-2.5">{it.order_kind ?? '-'}</td>
                 <td className="py-1.5 px-2.5 whitespace-nowrap">{it.order_season || '-'}</td>
@@ -401,7 +401,7 @@ export default function OrderDetailPage() {
                   {won(it.discount_amount)}
                   {/* 할인 종류 구분 표기 (704) — 단가 할인은 개당 금액 병기 */}
                   {it.discount_mode === '단가' && (it.discount_unit ?? 0) > 0 && (
-                    <div className="text-[0.625rem] text-gray-400">{won(it.discount_unit!)} /개</div>
+                    <div className="text-xs text-slate-500">{won(it.discount_unit!)} /개</div>
                   )}
                 </td>
                 <td className="py-1.5 px-2.5 text-right tabular-nums font-semibold">{won(it.line_total)}</td>
@@ -410,7 +410,7 @@ export default function OrderDetailPage() {
                   <td className="py-1.5 px-2.5 text-right tabular-nums">
                     {won(it.purchase_discount ?? 0)}
                     {it.purchase_discount_mode === '단가' && (it.purchase_discount_unit ?? 0) > 0 && (
-                      <div className="text-[0.625rem] text-gray-400">{won(it.purchase_discount_unit!)} /개</div>
+                      <div className="text-xs text-slate-500">{won(it.purchase_discount_unit!)} /개</div>
                     )}
                   </td>
                 )}
@@ -420,7 +420,7 @@ export default function OrderDetailPage() {
                   <td className="py-1.5 px-2.5 text-right tabular-nums">
                     {it.stock_role === 'out'
                       ? (stockCostPending(it) && !it.is_canceled
-                        ? <span className="text-red-600 text-[0.6875rem]" title="재고가 모자라 아직 배정되지 않았습니다 — 재고 관리에서 확인">미배정</span>
+                        ? <span className="text-red-600 text-xs" title="재고가 모자라 아직 배정되지 않았습니다 — 재고 관리에서 확인">미배정</span>
                         : won(Number(it.stock_cost) || 0))
                       : '-'}
                   </td>
@@ -433,13 +433,13 @@ export default function OrderDetailPage() {
             ))}
           </tbody>
         </table>
-        <div className="flex gap-6 px-4 py-2.5 text-sm border-t border-gray-100">
+        <div className="flex gap-6 px-4 py-2.5 text-sm border-t border-slate-200">
           <span>총금액 <b className="tabular-nums">{won(total)}원</b></span>
           {showCost && (
-            <span className="text-gray-500">
+            <span className="text-slate-600">
               매입 합계 <span className="tabular-nums">{won(cost)}원</span>
-              {costShipping > 0 && <span className="text-gray-400"> (매입배송비 <span className="tabular-nums">{won(costShipping)}원</span> 포함)</span>}
-              {costDiscount > 0 && <span className="text-gray-400"> (매입할인 <span className="tabular-nums">-{won(costDiscount)}원</span> 반영)</span>}
+              {costShipping > 0 && <span className="text-slate-500"> (매입배송비 <span className="tabular-nums">{won(costShipping)}원</span> 포함)</span>}
+              {costDiscount > 0 && <span className="text-slate-500"> (매입할인 <span className="tabular-nums">-{won(costDiscount)}원</span> 반영)</span>}
             </span>
           )}
           {showCost && stockCost > 0 && <span className="text-teal-700">재고 원가 <b className="tabular-nums">{won(stockCost)}원</b></span>}
@@ -450,18 +450,18 @@ export default function OrderDetailPage() {
 
       {/* 결제 내역 (2026-11-04 사용자 확정 — 1단계): 수금 매칭·계산서 연결 표기 전용.
           회계 화면으로의 링크·조작은 두지 않는다 (주문 화면에서 회계 영역 이동 불가 결정) */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
+      <div className="bg-white border border-slate-300 rounded-xl p-4 mt-3">
         <div className="flex items-center gap-3 flex-wrap mb-2">
-          <div className="text-sm font-bold text-gray-900">결제 내역</div>
-          <span className="text-[0.6875rem] text-gray-400">수금 · 계산서 연결이 자동으로 표시됩니다 · 선결제 사용은 여기서 처리</span>
-          <span className="ml-auto text-sm text-gray-700">
+          <div className="text-sm font-bold text-slate-900">결제 내역</div>
+          <span className="text-xs text-slate-500">수금 · 계산서 연결이 자동으로 표시됩니다 · 선결제 사용은 여기서 처리</span>
+          <span className="ml-auto text-sm text-slate-800">
             <span title="받을 돈 = 순매출(취소 · VIP · 선결제 제외) + 선결제 품목. 선결제는 매출이 아니지만 고객이 내야 할 돈이라 미수에 포함됩니다">{receivable ? '청구 금액' : '총금액'}</span>{' '}
             <b className="tabular-nums">{won(salesBase)}원</b>
-            {prepayInBill > 0 && <span className="text-[0.6875rem] text-violet-700"> (순매출 {won(receivable?.net_sales ?? 0)} + 선결제 {won(prepayInBill)})</span>}
-            <span className="mx-1 text-gray-300">·</span>
+            {prepayInBill > 0 && <span className="text-xs text-violet-700"> (순매출 {won(receivable?.net_sales ?? 0)} + 선결제 {won(prepayInBill)})</span>}
+            <span className="mx-1 text-slate-400">·</span>
             수금 <b className="tabular-nums text-emerald-700">{won(collectedAmt)}원</b>
-            <span className="mx-1 text-gray-300">·</span>
-            미수 <b className={`tabular-nums ${outstanding > 0 ? 'text-red-600' : 'text-gray-400'}`}>
+            <span className="mx-1 text-slate-400">·</span>
+            미수 <b className={`tabular-nums ${outstanding > 0 ? 'text-red-600' : 'text-slate-500'}`}>
               {won(outstanding)}원</b>
           </span>
           {/* 계산서 연결 — 수금 · 정산 작업 수정 권한자만. 매출처가 연결 안 된 주문은 이유를 보여 주고 끈다 */}
@@ -489,36 +489,36 @@ export default function OrderDetailPage() {
         </div>
         {prepayOpen && prepay && (
           <div className="mb-3 p-3 border border-violet-200 bg-violet-50/40 rounded-lg">
-            <div className="text-sm font-semibold text-gray-900 mb-2">
+            <div className="text-sm font-semibold text-slate-900 mb-2">
               선결제 사용 — {[order.bank_name, order.branch_name].filter(Boolean).join(' ')}
             </div>
-            <div className="flex gap-4 flex-wrap text-xs text-gray-600 mb-2">
-              <span>선결제 잔액 <b className="tabular-nums text-gray-900">{won(prepay.balance)}원</b>
-                <span className="text-gray-400"> (입금 {won(prepay.deposit)} · 사용 {won(prepay.deduction)})</span></span>
+            <div className="flex gap-4 flex-wrap text-xs text-slate-700 mb-2">
+              <span>선결제 잔액 <b className="tabular-nums text-slate-900">{won(prepay.balance)}원</b>
+                <span className="text-slate-500"> (입금 {won(prepay.deposit)} · 사용 {won(prepay.deduction)})</span></span>
               <span>이 주문 미수 <b className="tabular-nums text-red-600">{won(outstanding)}원</b></span>
             </div>
             <div className="flex items-end gap-2 flex-wrap">
               <div>
-                <label className="block text-[0.6875rem] text-gray-500 mb-0.5">사용 금액</label>
+                <label className="block text-xs text-slate-600 mb-0.5">사용 금액</label>
                 <div className="flex gap-1">
                   <input value={prepayAmt} onChange={e => setPrepayAmt(e.target.value.replace(/[^\d,]/g, ''))}
                     className="w-36 border border-amber-300 bg-amber-50 rounded-lg px-2.5 py-1.5 text-sm text-right font-semibold tabular-nums" />
                   <button type="button" onClick={() => setPrepayAmt(String(Math.min(prepay.balance, outstanding)))}
-                    className="px-2 py-1 text-xs border border-gray-300 rounded-lg text-gray-600 bg-white">전액</button>
+                    className="px-2 py-1 text-xs border border-slate-400 rounded-lg text-slate-700 bg-white">전액</button>
                 </div>
               </div>
               <div className="flex-1 min-w-[12rem]">
-                <label className="block text-[0.6875rem] text-gray-500 mb-0.5">메모 (선택)</label>
+                <label className="block text-xs text-slate-600 mb-0.5">메모 (선택)</label>
                 <input value={prepayMemo} onChange={e => setPrepayMemo(e.target.value)} placeholder="예: 11/1 선결제분에서 차감"
-                  className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm bg-white" />
+                  className="w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm bg-white" />
               </div>
-              <button onClick={() => setPrepayOpen(false)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white">취소</button>
+              <button onClick={() => setPrepayOpen(false)} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm bg-white">취소</button>
               <button onClick={submitPrepay} disabled={prepayBusy}
                 className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">
                 {prepayBusy ? '처리 중...' : `사용 (${won(Number(prepayAmt.replace(/,/g, '')) || 0)}원)`}
               </button>
             </div>
-            <div className="mt-1.5 text-[0.6875rem] text-gray-400">최대 {won(Math.min(prepay.balance, outstanding))}원 (잔액과 미수 중 작은 값). 사용분은 수금으로 계산되고 매출처 선결제 원장에 &lsquo;사용&rsquo;으로 남습니다.</div>
+            <div className="mt-1.5 text-xs text-slate-500">최대 {won(Math.min(prepay.balance, outstanding))}원 (잔액과 미수 중 작은 값). 사용분은 수금으로 계산되고 매출처 선결제 원장에 &lsquo;사용&rsquo;으로 남습니다.</div>
             {prepayErr && <div className="mt-1.5 text-xs text-red-600">{prepayErr}</div>}
           </div>
         )}
@@ -526,29 +526,29 @@ export default function OrderDetailPage() {
         {!canceled && <PayRecords orderId={String(id)} data={payRecords} outstanding={outstanding} onChanged={load} />}
         {/* 결제 안내 연락 기록 (1301) — 표시만. 입력은 결제 확인 › 결제 안내 대상 */}
         {payContacts.length > 0 && (
-          <div className="mb-3 pb-3 border-b border-gray-100">
-            <div className="text-xs font-semibold text-gray-700 mb-1">결제 안내 연락 기록</div>
-            <div className="text-xs text-gray-600 leading-relaxed">
+          <div className="mb-3 pb-3 border-b border-slate-200">
+            <div className="text-xs font-semibold text-slate-800 mb-1">결제 안내 연락 기록</div>
+            <div className="text-xs text-slate-700 leading-relaxed">
               {payContacts.slice(0, 5).map(c => (
                 <div key={c.id}>
-                  <span className="tabular-nums text-gray-400">{c.contact_date}</span>{' '}
+                  <span className="tabular-nums text-slate-500">{c.contact_date}</span>{' '}
                   {({ phone: '전화', sms: '문자', email: '메일', visit: '방문', etc: '기타' } as Record<string, string>)[c.method] ?? c.method} · {c.created_by_name ?? ''}
                   {c.memo ? ` — ${c.memo}` : ''}{c.promise_date ? <span className="text-amber-700"> (입금 약속 {c.promise_date})</span> : null}
                 </div>
               ))}
-              {payContacts.length > 5 && <div className="text-gray-400">외 {payContacts.length - 5}건</div>}
+              {payContacts.length > 5 && <div className="text-slate-500">외 {payContacts.length - 5}건</div>}
             </div>
           </div>
         )}
-        {payRecords.available && <div className="text-xs font-semibold text-gray-700 mb-1.5">실제 수금 · 계산서</div>}
+        {payRecords.available && <div className="text-xs font-semibold text-slate-800 mb-1.5">실제 수금 · 계산서</div>}
         {payments.matches.length === 0 && payments.invoices.length === 0 ? (
-          <div className="text-xs text-gray-400 py-1.5">연결된 결제 내역이 아직 없습니다.</div>
+          <div className="text-xs text-slate-500 py-1.5">연결된 결제 내역이 아직 없습니다.</div>
         ) : (
           <div className="space-y-1.5 text-sm">
             {payments.matches.map(m => (
               <div key={m.id} className="flex items-center gap-2.5 flex-wrap">
-                <span className="text-[0.6875rem] text-gray-400 tabular-nums w-20">{m.paid_date}</span>
-                <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${
+                <span className="text-xs text-slate-500 tabular-nums w-20">{m.paid_date}</span>
+                <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${
                   m.source_type === 'bank' ? 'bg-blue-50 text-blue-700'
                     : m.source_type === 'card' ? 'bg-violet-50 text-violet-700'
                       : m.source_type === 'prepay' ? 'bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200'
@@ -557,39 +557,39 @@ export default function OrderDetailPage() {
                 </span>
                 <b className="tabular-nums">{won(m.amount)}원</b>
                 {m.source && (
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-slate-600">
                     {m.source.label}
                     {m.source.total > 0 && m.source.total !== m.amount && (
-                      <span className="text-gray-400"> — 원거래 {won(m.source.total)}원 중 이 주문 분배분</span>
+                      <span className="text-slate-500"> — 원거래 {won(m.source.total)}원 중 이 주문 분배분</span>
                     )}
                   </span>
                 )}
-                {m.matched_by === 'auto' && <span className="text-[0.625rem] text-gray-400">자동 매칭</span>}
-                {m.record_id && <span className="text-[0.625rem] px-1 py-0.5 rounded bg-green-50 text-green-700">결제 기록 매칭분</span>}
+                {m.matched_by === 'auto' && <span className="text-xs text-slate-500">자동 매칭</span>}
+                {m.record_id && <span className="text-xs px-1 py-0.5 rounded bg-green-50 text-green-700">결제 기록 매칭분</span>}
                 {m.from_invoice && (
-                  <span className="text-[0.625rem] px-1 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200"
+                  <span className="text-xs px-1 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200"
                     title="연결된 계산서에 회계가 붙인 입금이 이 주문 수금으로 자동으로 넘어온 것입니다. 계산서 쪽에서 입금 연결을 풀거나 아래 계산서 연결을 해제하면 함께 풀립니다.">
                     계산서 입금에서 넘어옴
                   </span>
                 )}
-                {m.memo && <span className="text-xs text-gray-400">{m.memo}</span>}
+                {m.memo && <span className="text-xs text-slate-500">{m.memo}</span>}
                 {m.source_type === 'prepay' && prepay?.can_use && (
                   <button onClick={() => releasePrepay(m.id, m.amount)}
-                    className="ml-auto text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">해제</button>
+                    className="ml-auto text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">해제</button>
                 )}
               </div>
             ))}
             {payments.invoices.map(v => (
               <div key={v.id} className="flex items-center gap-2.5 flex-wrap">
-                <span className="text-[0.6875rem] text-gray-400 tabular-nums w-20">{v.issue_date}</span>
-                <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-amber-50 text-amber-700">계산서</span>
+                <span className="text-xs text-slate-500 tabular-nums w-20">{v.issue_date}</span>
+                <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">계산서</span>
                 <b className="tabular-nums">{won(v.amount)}원</b>
                 {v.invoice_total != null && v.invoice_total !== v.amount && (
-                  <span className="text-xs text-gray-400">발행 {won(v.invoice_total)}원 중 이 주문 분배분</span>
+                  <span className="text-xs text-slate-500">발행 {won(v.invoice_total)}원 중 이 주문 분배분</span>
                 )}
                 <span className={`text-xs ${
                   v.invoice_total != null && v.paid_sum >= v.invoice_total ? 'text-emerald-700'
-                    : v.paid_sum > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                    : v.paid_sum > 0 ? 'text-amber-600' : 'text-slate-500'}`}>
                   {/* 계산서 자체의 입금 상태 — 주문의 결제 상태(위 머리)와 다른 것임이 드러나게 '계산서'를 붙인다 (2026-11-17) */}
                   {v.invoice_total != null && v.paid_sum >= v.invoice_total
                     ? `계산서 입금 완료${v.paid_last_date ? ` (${v.paid_last_date})` : ''}`
@@ -598,7 +598,7 @@ export default function OrderDetailPage() {
                 {invoiceLink?.can_link && (
                   <button onClick={() => unlinkInvoice(v.id, v.amount)}
                     title="이 주문과 계산서의 연결을 풉니다. 이 연결로 계산서 입금에서 넘어온 수금도 함께 풀리고, 직접 붙인 수금은 그대로 남습니다."
-                    className="ml-auto text-[0.6875rem] px-2 py-0.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">연결 해제</button>
+                    className="ml-auto text-xs px-2 py-0.5 border border-slate-400 rounded text-slate-700 hover:bg-slate-50">연결 해제</button>
                 )}
               </div>
             ))}
@@ -623,16 +623,16 @@ export default function OrderDetailPage() {
 
       {/* 변경 이력 (511) — 접이식: 누가·언제·무엇을 어떻게 바꿨는지 */}
       {editLogs.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
+        <div className="bg-white border border-slate-300 rounded-xl p-4 mt-3">
           <button onClick={() => setShowLogs(v => !v)}
-            className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
-            변경 이력 <span className="text-[0.6875rem] font-normal text-gray-400">{editLogs.length}건</span>
-            <span className="text-gray-400 text-xs">{showLogs ? '▾' : '▸'}</span>
+            className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+            변경 이력 <span className="text-xs font-normal text-slate-500">{editLogs.length}건</span>
+            <span className="text-slate-500 text-xs">{showLogs ? '▾' : '▸'}</span>
           </button>
           {showLogs && (
             <table className="w-full text-xs mt-2.5">
               <thead>
-                <tr className="text-gray-400 border-b border-gray-100">
+                <tr className="text-slate-500 border-b border-slate-200">
                   <th className="py-1.5 pr-3 text-left font-medium whitespace-nowrap">일시</th>
                   <th className="py-1.5 pr-3 text-left font-medium whitespace-nowrap">직원</th>
                   <th className="py-1.5 pr-3 text-left font-medium whitespace-nowrap">항목</th>
@@ -641,15 +641,15 @@ export default function OrderDetailPage() {
               </thead>
               <tbody>
                 {editLogs.map(l => (
-                  <tr key={l.id} className="border-b border-gray-50 align-top">
-                    <td className="py-1.5 pr-3 tabular-nums text-gray-400 whitespace-nowrap">
+                  <tr key={l.id} className="border-b border-slate-200 align-top">
+                    <td className="py-1.5 pr-3 tabular-nums text-slate-500 whitespace-nowrap">
                       {l.created_at.slice(0, 16).replace('T', ' ')}
                     </td>
                     <td className="py-1.5 pr-3 whitespace-nowrap">{l.employee_name ?? '-'}</td>
-                    <td className="py-1.5 pr-3 whitespace-nowrap font-medium text-gray-700">{l.field_label}</td>
-                    <td className="py-1.5 text-gray-600">
+                    <td className="py-1.5 pr-3 whitespace-nowrap font-medium text-slate-800">{l.field_label}</td>
+                    <td className="py-1.5 text-slate-700">
                       {l.before_text && l.after_text
-                        ? <>{l.before_text} <span className="text-gray-300">→</span> {l.after_text}</>
+                        ? <>{l.before_text} <span className="text-slate-400">→</span> {l.after_text}</>
                         : l.after_text ?? l.before_text ?? '-'}
                     </td>
                   </tr>
@@ -662,20 +662,20 @@ export default function OrderDetailPage() {
 
       {/* 수정 요청 이력 */}
       {requests.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
-          <div className="text-sm font-bold text-gray-900 mb-2">
-            수정·취소 요청 이력 <span className="text-[0.6875rem] font-normal text-gray-400">과거 승인 제도 기록 — 현재는 취소·재등록 방식</span>
+        <div className="bg-white border border-slate-300 rounded-xl p-4 mt-3">
+          <div className="text-sm font-bold text-slate-900 mb-2">
+            수정·취소 요청 이력 <span className="text-xs font-normal text-slate-500">과거 승인 제도 기록 — 현재는 취소·재등록 방식</span>
           </div>
           <div className="space-y-1.5">
             {requests.map(r => {
-              const s = REQ_STATUS[r.status] ?? { label: r.status, cls: 'bg-gray-100 text-gray-500' }
+              const s = REQ_STATUS[r.status] ?? { label: r.status, cls: 'bg-slate-100 text-slate-600' }
               return (
                 <div key={r.id} className="flex items-center gap-2.5 text-sm flex-wrap">
-                  <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${s.cls}`}>{s.label}</span>
-                  <span className="text-[0.6875rem] text-gray-400">{r.request_type === 'cancel' ? '취소' : '수정'}</span>
-                  <span className="text-gray-700">{r.reason}</span>
-                  {r.decision_memo && <span className="text-xs text-gray-400">→ {r.decision_memo}</span>}
-                  <span className="text-[0.6875rem] text-gray-300 tabular-nums ml-auto">{r.created_at.slice(0, 10)}</span>
+                  <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${s.cls}`}>{s.label}</span>
+                  <span className="text-xs text-slate-500">{r.request_type === 'cancel' ? '취소' : '수정'}</span>
+                  <span className="text-slate-800">{r.reason}</span>
+                  {r.decision_memo && <span className="text-xs text-slate-500">→ {r.decision_memo}</span>}
+                  <span className="text-xs text-slate-400 tabular-nums ml-auto">{r.created_at.slice(0, 10)}</span>
                 </div>
               )
             })}

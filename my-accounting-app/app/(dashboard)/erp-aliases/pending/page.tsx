@@ -85,16 +85,16 @@ export default function ErpAliasPendingPage() {
   return (
     <div className="p-6 max-w-5xl">
       <div className="flex items-center justify-between mb-1">
-        <h1 className="text-xl font-bold text-gray-900">ERP 거래처 등록 대기</h1>
-        <Link href="/erp-aliases" className="text-sm text-slate-500 hover:text-slate-900 underline">별칭 관리로</Link>
+        <h1 className="text-xl font-bold text-slate-900">ERP 거래처 등록 대기</h1>
+        <Link href="/erp-aliases" className="text-sm text-slate-600 hover:text-slate-900 underline">별칭 관리로</Link>
       </div>
-      <p className="text-sm text-gray-500 mb-4">
+      <p className="text-sm text-slate-600 mb-4">
         ERP 업로드에서 발견됐지만 거래처 마스터에 없는 상대입니다. 자동 판정을 확인하고 일괄 처리하세요.
         생성 시 ERP 표기 그대로 등록되며, 이후 세금계산서가 올라오면 사업자번호가 자동 보완됩니다.
       </p>
 
       {stats && (
-        <p className="text-sm text-gray-600 mb-3">
+        <p className="text-sm text-slate-700 mb-3">
           대기 <b>{stats.total.toLocaleString()}</b>건 (매출처 {stats.customer} · 매입처 {stats.total - stats.customer})
           · 걸린 주문 금액 <b>{won(stats.amount)}</b>
         </p>
@@ -106,26 +106,26 @@ export default function ErpAliasPendingPage() {
           {busy ? '처리 중...' : `선택 ${checked.size}건 자동 판정대로 생성·연결`}
         </button>
         <button onClick={() => run('exclude')} disabled={busy || !rows?.length}
-          className="px-3 py-2 rounded-lg text-sm border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+          className="px-3 py-2 rounded-lg text-sm border border-slate-400 text-slate-700 hover:bg-slate-50 disabled:opacity-50">
           선택 제외 (거래처 관리 안 함)
         </button>
         {rows && rows.length > 0 && (
           <button onClick={() => setChecked(checked.size === rows.length ? new Set() : new Set(rows.map(r => r.id)))}
-            className="text-xs text-gray-400 hover:text-gray-600 underline">
+            className="text-xs text-slate-500 hover:text-slate-700 underline">
             전체 선택/해제
           </button>
         )}
       </div>
 
       {rows === null ? (
-        <div className="py-16 text-center text-gray-400 text-sm">불러오는 중...</div>
+        <div className="py-16 text-center text-slate-500 text-sm">불러오는 중...</div>
       ) : rows.length === 0 ? (
-        <div className="py-16 text-center text-gray-400 text-sm">등록 대기 항목이 없습니다 — 모든 ERP 상대가 거래처와 연동되어 있습니다.</div>
+        <div className="py-16 text-center text-slate-500 text-sm">등록 대기 항목이 없습니다 — 모든 ERP 상대가 거래처와 연동되어 있습니다.</div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="bg-white border border-slate-300 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 text-xs text-gray-500">
+              <tr className="bg-slate-50 text-xs text-slate-600">
                 <th className="px-3 py-2 w-8"></th>
                 <th className="px-3 py-2 text-left">구분</th>
                 <th className="px-3 py-2 text-left">ERP 표기</th>
@@ -136,17 +136,17 @@ export default function ErpAliasPendingPage() {
             </thead>
             <tbody>
               {rows.map(r => (
-                <tr key={r.id} className="border-t border-gray-100 hover:bg-slate-50">
+                <tr key={r.id} className="border-t border-slate-200 hover:bg-slate-50">
                   <td className="px-3 py-2"><input type="checkbox" checked={checked.has(r.id)} onChange={() => toggle(r.id)} /></td>
-                  <td className="px-3 py-2 text-gray-500">{r.alias_type === 'customer' ? '매출처' : '매입처'}</td>
-                  <td className="px-3 py-2 text-gray-900">{r.erp_name}</td>
-                  <td className="px-3 py-2 text-right text-gray-600">{r.order_count ? `${r.order_count}건` : '-'}</td>
-                  <td className="px-3 py-2 text-right text-gray-600">{r.order_total ? won(r.order_total) : '-'}</td>
+                  <td className="px-3 py-2 text-slate-600">{r.alias_type === 'customer' ? '매출처' : '매입처'}</td>
+                  <td className="px-3 py-2 text-slate-900">{r.erp_name}</td>
+                  <td className="px-3 py-2 text-right text-slate-700">{r.order_count ? `${r.order_count}건` : '-'}</td>
+                  <td className="px-3 py-2 text-right text-slate-700">{r.order_total ? won(r.order_total) : '-'}</td>
                   <td className="px-3 py-2">
                     {r.suggestion.action === 'create' && <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-xs mr-1.5">신규 생성</span>}
                     {r.suggestion.action === 'link' && <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-xs mr-1.5">기존 연결</span>}
-                    {r.suggestion.action === 'exclude' && <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-xs mr-1.5">제외 권장</span>}
-                    <span className="text-xs text-gray-400">{r.suggestion.reason}</span>
+                    {r.suggestion.action === 'exclude' && <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-xs mr-1.5">제외 권장</span>}
+                    <span className="text-xs text-slate-500">{r.suggestion.reason}</span>
                   </td>
                 </tr>
               ))}

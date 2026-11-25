@@ -58,29 +58,29 @@ export function CustomerHitList({ hits, loading, heading, staffName, onPick, exc
     return { h, pickable, past }
   }).filter(r => r.pickable.length)
   return (
-    <div className="border-t border-gray-100">
-      <div className="px-3 py-1.5 text-[0.65625rem] text-gray-400 bg-gray-50">{heading}</div>
-      {loading && !rows.length && <div className="px-3 py-2 text-xs text-gray-400">찾는 중...</div>}
-      {!loading && !rows.length && <div className="px-3 py-2 text-xs text-gray-400">{emptyText ?? '찾은 담당자가 없습니다'}</div>}
+    <div className="border-t border-slate-200">
+      <div className="px-3 py-1.5 text-xs text-slate-500 bg-slate-50">{heading}</div>
+      {loading && !rows.length && <div className="px-3 py-2 text-xs text-slate-500">찾는 중...</div>}
+      {!loading && !rows.length && <div className="px-3 py-2 text-xs text-slate-500">{emptyText ?? '찾은 담당자가 없습니다'}</div>}
       {rows.map(({ h, pickable, past }) => (
-        <div key={h.contact_id} className="border-b border-gray-50">
+        <div key={h.contact_id} className="border-b border-slate-200">
           {pickable.map(a => {
             const staff = staffName(a.staff_employee_id)
             return (
               <button key={a.vendor_id} type="button" tabIndex={-1}
                 onMouseDown={e => e.preventDefault()} onClick={() => onPick(h, a)}
                 className={`w-full text-left px-3 py-1.5 hover:bg-blue-50 flex gap-2 items-baseline flex-wrap ${h.exact ? 'bg-blue-50/60' : ''}`}>
-                <b className="text-gray-900 text-sm">{contactLabel(h.name, a.title)}</b>
-                <span className="text-gray-700 text-xs">{asgPlace(a)}</span>
-                {h.assignments.some(x => !x.current) && <span className="px-1.5 rounded-full text-[0.625rem] font-semibold bg-blue-100 text-blue-700">현재 소속</span>}
-                <span className="ml-auto text-[0.6875rem] text-gray-400 whitespace-nowrap">
+                <b className="text-slate-900 text-sm">{contactLabel(h.name, a.title)}</b>
+                <span className="text-slate-800 text-xs">{asgPlace(a)}</span>
+                {h.assignments.some(x => !x.current) && <span className="px-1.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">현재 소속</span>}
+                <span className="ml-auto text-xs text-slate-500 whitespace-nowrap">
                   {[tail4(h.phone) || '번호 없음', staff ? `다올 ${staff}` : '', h.last_order ? `최근 주문 ${h.last_order.slice(5)}` : '주문 없음'].filter(Boolean).join(' · ')}
                 </span>
               </button>
             )
           })}
           {past.map(a => (
-            <div key={`p-${a.vendor_id}`} className="px-3 pb-1.5 -mt-0.5 text-[0.6875rem] text-gray-400">
+            <div key={`p-${a.vendor_id}`} className="px-3 pb-1.5 -mt-0.5 text-xs text-slate-500">
               이전 소속 {asgPlace(a)}{a.ended_at ? ` (~${a.ended_at.slice(0, 7)})` : ''}
             </div>
           ))}
@@ -111,7 +111,7 @@ export function PhoneSearchInput({ value, onChange, disabled, className, placeho
         onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
         className={className} placeholder={placeholder} />
       {show && (
-        <div className="absolute z-30 right-0 mt-1 w-[34rem] max-w-[90vw] bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden">
+        <div className="absolute z-30 right-0 mt-1 w-[34rem] max-w-[90vw] bg-white border border-slate-400 rounded-lg shadow-lg overflow-hidden">
           <CustomerHitList hits={hits} loading={loading} staffName={staffName} onPick={onPick}
             heading={`번호 "${value.trim()}" 담당자 — 고르면 업체 · 지점 · 담당자가 함께 채워집니다`}
             emptyText="이 번호의 담당자가 마스터에 없습니다" />
@@ -136,8 +136,8 @@ export function FillBanner({ kind, children, actions }: {
     </div>
   )
 }
-export const bannerBtn = 'px-2 py-0.5 text-[0.6875rem] border border-gray-300 bg-white rounded-md hover:bg-gray-50 whitespace-nowrap'
-export const bannerBtnPri = 'px-2 py-0.5 text-[0.6875rem] bg-slate-900 text-white rounded-md hover:bg-slate-800 whitespace-nowrap'
+export const bannerBtn = 'px-2 py-0.5 text-xs border border-slate-400 bg-white rounded-md hover:bg-slate-50 whitespace-nowrap'
+export const bannerBtnPri = 'px-2 py-0.5 text-xs bg-slate-900 text-white rounded-md hover:bg-slate-800 whitespace-nowrap'
 
 // 비슷한 업체 · 지점 안내 (장면 4) — 같은 곳이면 고르게 하고, 막지는 않는다
 export function SimilarHint<T>({ input, items, nameOf, labelOf, onPick, what }: {
@@ -152,7 +152,7 @@ export function SimilarHint<T>({ input, items, nameOf, labelOf, onPick, what }: 
   const hits = similarItems(input, items, nameOf)
   if (!hits.length) return null
   return (
-    <div className="mt-1 text-[0.6875rem] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 flex flex-wrap gap-1 items-center">
+    <div className="mt-1 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 flex flex-wrap gap-1 items-center">
       <span>비슷한 {what}가 있습니다 — 같은 곳이면 고르세요:</span>
       {hits.map((t, i) => (
         <button key={i} type="button" onClick={() => onPick(t)}

@@ -106,12 +106,12 @@ export type StepTone = 'ok' | 'up' | 'auto' | 'skip' | 'proxy' | 'rej' | 'now' |
 export const STEP_TONE_CLASS: Record<StepTone, string> = {
   ok: 'bg-green-100 text-green-800 border-transparent',
   up: 'bg-emerald-100 text-emerald-800 border-transparent',
-  auto: 'bg-slate-100 text-slate-600 border-transparent',
+  auto: 'bg-slate-100 text-slate-700 border-transparent',
   skip: 'bg-violet-100 text-violet-800 border-transparent',
   proxy: 'bg-violet-100 text-violet-800 border-violet-400',
   rej: 'bg-red-100 text-red-800 border-transparent',
   now: 'bg-white text-amber-700 border-amber-400 border-dashed font-semibold',
-  wait: 'bg-white text-gray-300 border-gray-200 border-dashed',
+  wait: 'bg-white text-slate-400 border-slate-300 border-dashed',
 }
 export const STEP_ACTION_LABEL: Record<StepAction, string> = {
   approve: '승인', reject: '반려', auto: '자동 통과', skip: '신청자 전결', proxy: '전결',

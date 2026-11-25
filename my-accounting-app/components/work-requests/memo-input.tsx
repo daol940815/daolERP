@@ -31,7 +31,7 @@ export function MemoTextarea({ value, onChange, onSubmit, placeholder, disabled,
     <textarea ref={ref} value={value} rows={minRows} disabled={disabled} autoFocus={autoFocus} placeholder={placeholder}
       onChange={e => onChange(e.target.value)}
       onKeyDown={e => { if (isSubmitKey(e)) { e.preventDefault(); if (value.trim()) onSubmit() } }}
-      className={`w-full resize-none border border-gray-300 rounded-lg px-3 py-1.5 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-slate-900 disabled:bg-gray-50 ${className}`} />
+      className={`w-full resize-none border border-slate-400 rounded-lg px-3 py-1.5 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-slate-900 disabled:bg-slate-50 ${className}`} />
   )
 }
 
@@ -54,14 +54,14 @@ export function useMemoPrompt() {
   const element = ask ? (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4" onClick={() => close(null)}>
       <div className="w-full max-w-lg bg-white rounded-xl shadow-2xl p-5" onClick={e => e.stopPropagation()}>
-        <p className="text-sm font-bold text-gray-900">{ask.title}{ask.required ? <span className="text-red-500"> *</span> : <span className="text-xs text-gray-400 font-normal"> (선택)</span>}</p>
-        {ask.detail && <p className="text-xs text-gray-500 mt-0.5 truncate">{ask.detail}</p>}
+        <p className="text-sm font-bold text-slate-900">{ask.title}{ask.required ? <span className="text-red-500"> *</span> : <span className="text-xs text-slate-500 font-normal"> (선택)</span>}</p>
+        {ask.detail && <p className="text-xs text-slate-600 mt-0.5 truncate">{ask.detail}</p>}
         <div className="mt-3">
           <MemoTextarea value={text} onChange={setText} onSubmit={ok} autoFocus minRows={4} placeholder={ask.placeholder} />
         </div>
         <div className="flex items-center gap-2 mt-3">
-          <span className="text-[0.6875rem] text-gray-400">{MEMO_KEY_HINT}</span>
-          <button onClick={() => close(null)} className="ml-auto px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">취소</button>
+          <span className="text-xs text-slate-500">{MEMO_KEY_HINT}</span>
+          <button onClick={() => close(null)} className="ml-auto px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">취소</button>
           <button onClick={ok} disabled={!!ask.required && !text.trim()}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium text-white disabled:opacity-40 ${ask.danger ? 'bg-red-600 hover:bg-red-700' : 'bg-slate-900 hover:bg-slate-700'}`}>{ask.confirmLabel ?? '확인'}</button>
         </div>

@@ -207,7 +207,7 @@ export default function ErpPayablesPage() {
     <div className="w-full">
       <div className="mb-1 flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">ERP 매입처별 결제현황</h1>
+          <h1 className="text-2xl font-bold text-slate-900">ERP 매입처별 결제현황</h1>
           <p className="text-sm mt-1 text-orange-700 font-medium">매입처 × 정산월 단위 미결제 관리 · 취소/VIP/선결제 제외 · 정산월 이월 가능</p>
         </div>
         <button
@@ -224,12 +224,12 @@ export default function ErpPayablesPage() {
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 mt-3 flex-wrap">
         <input type="month" value={monthFrom} onChange={e => setMonthFrom(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-        <span className="text-gray-400 text-sm">~</span>
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        <span className="text-slate-500 text-sm">~</span>
         <input type="month" value={monthTo} onChange={e => setMonthTo(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
           <option value="all">전체</option>
           <option value="unpaid">미결제</option>
           <option value="paid">결제완료</option>
@@ -238,32 +238,32 @@ export default function ErpPayablesPage() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="매입처명 검색"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
       </div>
 
       {/* 요약 카드 */}
       <div className="flex gap-3 flex-wrap mb-5">
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">매입액 합계</p>
-          <p className="text-lg font-bold text-gray-900">{won(totalPurchase)}</p>
-          <p className="text-xs text-gray-400">{filtered.length}개 정산 그룹</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">매입액 합계</p>
+          <p className="text-lg font-bold text-slate-900">{won(totalPurchase)}</p>
+          <p className="text-xs text-slate-500">{filtered.length}개 정산 그룹</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
-          <p className="text-xs text-gray-400 mb-1">미결제 합계</p>
-          <p className={`text-lg font-bold ${totalUnpaid > 0 ? 'text-red-600' : 'text-gray-400'}`}>{won(totalUnpaid)}</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[160px]">
+          <p className="text-xs text-slate-500 mb-1">미결제 합계</p>
+          <p className={`text-lg font-bold ${totalUnpaid > 0 ? 'text-red-600' : 'text-slate-500'}`}>{won(totalUnpaid)}</p>
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 text-sm">표시할 데이터가 없습니다.</div>
+        <div className="text-center py-20 text-slate-500 text-sm">표시할 데이터가 없습니다.</div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+              <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                 <th className="py-2.5 px-3 font-medium">정산월</th>
                 <th className="py-2.5 px-3 font-medium">매입처 (ERP)</th>
                 <th className="py-2.5 px-3 font-medium">연결 거래처</th>
@@ -280,13 +280,13 @@ export default function ErpPayablesPage() {
                 const key  = `${r.alias_id}|${r.settlement_month}`
                 const diff = r.paid_amount != null ? r.paid_amount - r.purchase_total : null
                 return [
-                  <tr key={key} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-2 px-3 whitespace-nowrap text-gray-600 font-mono text-xs">{r.settlement_month}</td>
+                  <tr key={key} className="border-b border-slate-200 hover:bg-slate-50">
+                    <td className="py-2 px-3 whitespace-nowrap text-slate-700 font-mono text-xs">{r.settlement_month}</td>
                     <td className="py-2 px-3 min-w-0">
-                      <button onClick={() => loadGroupItems(r)} className="truncate max-w-[180px] text-gray-900 hover:underline text-left">
+                      <button onClick={() => loadGroupItems(r)} className="truncate max-w-[180px] text-slate-900 hover:underline text-left">
                         {expanded === key ? '▾' : '▸'} {r.erp_name}
                       </button>
-                      <span className="text-xs text-gray-400 ml-1">({r.item_count})</span>
+                      <span className="text-xs text-slate-500 ml-1">({r.item_count})</span>
                     </td>
                     <td className="py-2 px-3">
                       <SearchableSelect
@@ -294,14 +294,14 @@ export default function ErpPayablesPage() {
                         onChange={id => handleLinkVendor(r, id)}
                         options={vendors.map(v => ({ id: v.id, label: v.name }))}
                         emptyLabel="미연결"
-                        className={`border rounded px-2 py-1 text-xs w-40 ${r.vendor_id ? 'border-gray-200 text-gray-700' : 'border-amber-300 text-amber-600 bg-amber-50'}`}
+                        className={`border rounded px-2 py-1 text-xs w-40 ${r.vendor_id ? 'border-slate-300 text-slate-800' : 'border-amber-300 text-amber-600 bg-amber-50'}`}
                       />
                     </td>
                     <td className="py-2 px-3">
                       <select
                         value={r.payment_term}
                         onChange={e => handleTermChange(r, e.target.value)}
-                        className="border border-gray-200 rounded px-2 py-1 text-xs"
+                        className="border border-slate-300 rounded px-2 py-1 text-xs"
                       >
                         <option value="monthly">월말정산</option>
                         <option value="advance">선입금</option>
@@ -320,7 +320,7 @@ export default function ErpPayablesPage() {
                         </>
                       ) : '-'}
                     </td>
-                    <td className={`py-2 px-3 text-right whitespace-nowrap ${r.prepay_balance > 0 ? 'text-sky-600' : 'text-gray-400'}`}>
+                    <td className={`py-2 px-3 text-right whitespace-nowrap ${r.prepay_balance > 0 ? 'text-sky-600' : 'text-slate-500'}`}>
                       {won(r.prepay_balance)}
                     </td>
                     <td className="py-2 px-3 whitespace-nowrap">
@@ -340,21 +340,21 @@ export default function ErpPayablesPage() {
                         </button>
                       ) : (
                         <button onClick={() => handleUnpay(r)}
-                          className="px-2 py-1 text-xs border border-gray-300 text-gray-500 rounded hover:bg-gray-50">
+                          className="px-2 py-1 text-xs border border-slate-400 text-slate-600 rounded hover:bg-slate-50">
                           되돌리기
                         </button>
                       )}
                     </td>
                   </tr>,
                   expanded === key && (
-                    <tr key={`${key}-items`} className="bg-slate-50 border-b border-gray-100">
+                    <tr key={`${key}-items`} className="bg-slate-50 border-b border-slate-200">
                       <td colSpan={9} className="py-2 px-6">
                         {groupItems.length === 0 ? (
-                          <p className="text-xs text-gray-400 py-2">품목 로딩 중...</p>
+                          <p className="text-xs text-slate-500 py-2">품목 로딩 중...</p>
                         ) : (
                           <table className="w-full text-xs">
                             <thead>
-                              <tr className="text-left text-gray-400">
+                              <tr className="text-left text-slate-500">
                                 <th className="py-1 pr-3 font-medium">품명</th>
                                 <th className="py-1 pr-3 font-medium text-right">수량</th>
                                 <th className="py-1 pr-3 font-medium text-right">매입액</th>
@@ -364,14 +364,14 @@ export default function ErpPayablesPage() {
                             </thead>
                             <tbody>
                               {groupItems.map(it => (
-                                <tr key={it.id} className="border-t border-gray-200 text-gray-700">
+                                <tr key={it.id} className="border-t border-slate-300 text-slate-800">
                                   <td className="py-1 pr-3 max-w-[300px] truncate">{it.item_name ?? '-'}</td>
                                   <td className="py-1 pr-3 text-right">{it.quantity}</td>
                                   <td className="py-1 pr-3 text-right whitespace-nowrap">{won(it.purchase_total)}</td>
                                   <td className="py-1 pr-3 whitespace-nowrap">{it.settlement_month}</td>
                                   <td className="py-1 text-right">
                                     <button onClick={() => handleMoveItem(it)}
-                                      className="px-1.5 py-0.5 border border-gray-300 rounded text-gray-500 hover:bg-gray-100">
+                                      className="px-1.5 py-0.5 border border-slate-400 rounded text-slate-600 hover:bg-slate-100">
                                       이월 →
                                     </button>
                                   </td>

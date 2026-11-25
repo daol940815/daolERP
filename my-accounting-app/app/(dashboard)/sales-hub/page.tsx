@@ -55,8 +55,8 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
   outstanding: { label: '미수',     cls: 'bg-amber-100 text-amber-700' },
   late:        { label: '수금지연', cls: 'bg-orange-100 text-orange-700' },
   over90:      { label: '미수 90일 초과', cls: 'bg-red-100 text-red-700' },
-  dormant:     { label: '휴면 전환', cls: 'bg-gray-100 text-gray-500' },
-  no_orders:   { label: '주문 없음', cls: 'bg-slate-100 text-slate-500' },
+  dormant:     { label: '휴면 전환', cls: 'bg-slate-100 text-slate-600' },
+  no_orders:   { label: '주문 없음', cls: 'bg-slate-100 text-slate-600' },
 }
 
 export default function SalesHubPage() {
@@ -223,8 +223,8 @@ export default function SalesHubPage() {
     <div>
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{mine ? '내 고객' : '매출처 관리 (지점)'}</h1>
-          <p className="text-sm mt-1 text-gray-500">
+          <h1 className="text-2xl font-bold text-slate-900">{mine ? '내 고객' : '매출처 관리 (지점)'}</h1>
+          <p className="text-sm mt-1 text-slate-600">
             {mine
               ? '내가 현재 담당인 매출처만 봅니다. 행 클릭 시 거래처 360° 상세로 이동합니다.'
               : 'ERP 주문 기준 매출·수금·미수와 담당을 매출처 단위로 봅니다. 행 클릭 시 거래처 360° 상세로 이동합니다.'}
@@ -244,18 +244,18 @@ export default function SalesHubPage() {
             if (catFilter) p.set('cat', catFilter)
             const a = document.createElement('a'); a.href = `/api/vendor-hub/export?${p}`; a.click()
           }}
-            className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
+            className="px-3 py-2 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap">
             ↓ 엑셀
           </button>
           {!mine && (
             <Link href="/sales-hub/bank-branches" title="은행연합회 점포 전체 — 거래 없는 점포를 찾아 매출처로 등록"
-              className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
+              className="px-3 py-2 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap">
               은행 점포
             </Link>
           )}
           {canEdit && !mine && (
             <Link href="/sales-hub/billing"
-              className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">
+              className="px-3 py-2 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap">
               청구처 지정
             </Link>
           )}
@@ -271,22 +271,22 @@ export default function SalesHubPage() {
       {addForm.open && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setAddForm(f => ({ ...f, open: false }))}>
           <div className="bg-white rounded-xl shadow-2xl p-6 w-96 mx-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-gray-900 mb-1">신규 매출처 등록</h3>
-            <p className="text-xs text-gray-400 mb-4">업체명은 은행·회사·기관 이름, 지점명은 그 아래 지점·부서입니다. 지점이 없는 단독 업체는 지점명을 비웁니다.</p>
+            <h3 className="text-base font-bold text-slate-900 mb-1">신규 매출처 등록</h3>
+            <p className="text-xs text-slate-500 mb-4">업체명은 은행·회사·기관 이름, 지점명은 그 아래 지점·부서입니다. 지점이 없는 단독 업체는 지점명을 비웁니다.</p>
             {addForm.msg && <p className="text-red-500 text-xs mb-3">{addForm.msg}</p>}
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">업체명 <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-medium text-slate-800 mb-1">업체명 <span className="text-red-500">*</span></label>
                 <input autoFocus list="vendor-group-names" value={addForm.group} onChange={e => setAddForm(f => ({ ...f, group: e.target.value }))}
                   placeholder="예: 하나은행 · 서울대학교 · 육군본부"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
                 <datalist id="vendor-group-names">
                   {groupNames.map(n => <option key={n} value={n} />)}
                 </datalist>
                 {nameCheck.input.group.changed || nameCheck.input.hint
                   ? <GroupStdHint c={nameCheck} onSuggest={n => setAddForm(f => ({ ...f, group: n }))} />
                   : (
-                    <p className="text-[0.6875rem] text-gray-400 mt-1">
+                    <p className="text-xs text-slate-500 mt-1">
                       {!addForm.group.trim() ? '목록에 있는 업체를 고르면 그 업체에 연결됩니다.'
                         : groupNames.some(n => n.replace(/\s+/g, '') === addForm.group.trim().replace(/\s+/g, ''))
                           ? '기존 업체에 연결됩니다.' : '새 업체로 등록됩니다 — 오타가 아닌지 확인하세요.'}
@@ -294,10 +294,10 @@ export default function SalesHubPage() {
                   )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">지점명 <span className="text-gray-400">(선택 — 단독 업체는 비움)</span></label>
+                <label className="block text-xs font-medium text-slate-800 mb-1">지점명 <span className="text-slate-500">(선택 — 단독 업체는 비움)</span></label>
                 <input value={addForm.branch} onChange={e => setAddForm(f => ({ ...f, branch: e.target.value }))}
                   placeholder="예: 계동지점 · 에너지자원공학과 동창회"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
                 <BranchStdHint c={nameCheck} />
                 <BankBranchSuggest group={addForm.group} branch={addForm.branch}
                   onError={m => setAddForm(f => ({ ...f, msg: m }))}
@@ -306,14 +306,14 @@ export default function SalesHubPage() {
               {addForm.group.trim() && <NamePreview c={nameCheck} />}
               <ExistingVendorNote c={nameCheck} />
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">사업자번호 <span className="text-gray-400">(선택)</span></label>
+                <label className="block text-xs font-medium text-slate-800 mb-1">사업자번호 <span className="text-slate-500">(선택)</span></label>
                 <input value={addForm.biz} onChange={e => setAddForm(f => ({ ...f, biz: e.target.value }))}
                   placeholder="000-00-00000"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">계산서 발행처</label>
-                <div className="flex gap-3 text-sm text-gray-700">
+                <label className="block text-xs font-medium text-slate-800 mb-1">계산서 발행처</label>
+                <div className="flex gap-3 text-sm text-slate-800">
                   <label className="flex items-center gap-1.5">
                     <input type="radio" checked={addForm.billMode === 'self'} onChange={() => setAddForm(f => ({ ...f, billMode: 'self' }))} />
                     이 매출처
@@ -334,32 +334,32 @@ export default function SalesHubPage() {
                       <>
                         <input value={addForm.billQ} onChange={e => setAddForm(f => ({ ...f, billQ: e.target.value }))}
                           placeholder="법인명 검색 (사업자번호 있는 거래처)"
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-                        <div className="max-h-36 overflow-y-auto mt-1 border border-gray-100 rounded-lg">
-                          {billOpts.length === 0 && <p className="text-xs text-gray-400 px-3 py-2">검색 결과 없음</p>}
+                          className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                        <div className="max-h-36 overflow-y-auto mt-1 border border-slate-200 rounded-lg">
+                          {billOpts.length === 0 && <p className="text-xs text-slate-500 px-3 py-2">검색 결과 없음</p>}
                           {billOpts.map(o => (
                             <button key={o.id} onClick={() => setAddForm(f => ({ ...f, billId: o.id, billName: o.name }))}
-                              className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex justify-between gap-2">
-                              <span className="text-gray-800">{o.name}</span>
-                              <span className="text-gray-400 tabular-nums">{o.biz_number}</span>
+                              className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 flex justify-between gap-2">
+                              <span className="text-slate-900">{o.name}</span>
+                              <span className="text-slate-500 tabular-nums">{o.biz_number}</span>
                             </button>
                           ))}
                         </div>
                       </>
                     )}
-                    <p className="text-[0.6875rem] text-gray-400 mt-1">계산서가 본점 법인 이름으로 발행되는 부서라면 그 법인을 고릅니다. 사업자번호는 비워 둡니다.</p>
+                    <p className="text-xs text-slate-500 mt-1">계산서가 본점 법인 이름으로 발행되는 부서라면 그 법인을 고릅니다. 사업자번호는 비워 둡니다.</p>
                   </div>
                 )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">메모 <span className="text-gray-400">(선택)</span></label>
+                <label className="block text-xs font-medium text-slate-800 mb-1">메모 <span className="text-slate-500">(선택)</span></label>
                 <input value={addForm.note} onChange={e => setAddForm(f => ({ ...f, note: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+                  className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
               </div>
             </div>
             <div className="flex gap-2 mt-5">
               <button onClick={() => setAddForm(f => ({ ...f, open: false }))}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">취소</button>
+                className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">취소</button>
               {nameCheck.existing ? (
                 <button onClick={() => { const id = nameCheck.existing!.id; setAddForm(ADD_EMPTY); router.push(`/sales-hub/${id}`) }}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">기존 매출처 사용</button>
@@ -398,12 +398,12 @@ export default function SalesHubPage() {
       )}
 
       {mine && !loading && !error && rows.length === 0 && (
-        <div className="mt-6 bg-white border border-gray-200 rounded-xl px-6 py-10 text-center">
-          <p className="text-base font-semibold text-gray-800">담당 고객 없음</p>
-          <p className="text-sm text-gray-500 mt-1">내 이름으로 지정된 담당 거래처가 없습니다. 담당 지정은 매출처 관리의 거래처 상세에서 합니다.</p>
+        <div className="mt-6 bg-white border border-slate-300 rounded-xl px-6 py-10 text-center">
+          <p className="text-base font-semibold text-slate-900">담당 고객 없음</p>
+          <p className="text-sm text-slate-600 mt-1">내 이름으로 지정된 담당 거래처가 없습니다. 담당 지정은 매출처 관리의 거래처 상세에서 합니다.</p>
           <div className="flex justify-center gap-2 mt-5">
             <Link href="/sales-hub" className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700">매출처 관리 (지점)</Link>
-            <Link href="/sales-hub/contacts" className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50">매출처 관리 (고객)</Link>
+            <Link href="/sales-hub/contacts" className="px-4 py-2 border border-slate-400 rounded-lg text-sm font-medium hover:bg-slate-50">매출처 관리 (고객)</Link>
           </div>
         </div>
       )}
@@ -414,40 +414,40 @@ export default function SalesHubPage() {
       {/* 필터 — 검색창이 맨 앞 */}
       <div className="flex items-center gap-1.5 flex-wrap">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="매출처명 · ERP 별칭 · 사업자번호 검색"
-          className="border border-gray-300 rounded-lg px-3 py-1 text-xs w-72" />
+          className="border border-slate-400 rounded-lg px-3 py-1 text-xs w-72" />
         <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-          className="border border-gray-300 rounded px-2 py-1 text-xs" />
-        <span className="text-gray-400 text-xs">~</span>
+          className="border border-slate-400 rounded px-2 py-1 text-xs" />
+        <span className="text-slate-500 text-xs">~</span>
         <input type="date" value={to} onChange={e => setTo(e.target.value)}
-          className="border border-gray-300 rounded px-2 py-1 text-xs" />
+          className="border border-slate-400 rounded px-2 py-1 text-xs" />
         <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)}
-          className="border border-gray-300 rounded px-2 py-1 text-xs">
+          className="border border-slate-400 rounded px-2 py-1 text-xs">
           <option value="">담당직원: 전체</option>
           {staffNames.map(n => <option key={n} value={n}>{n}</option>)}
         </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          className="border border-gray-300 rounded px-2 py-1 text-xs">
+          className="border border-slate-400 rounded px-2 py-1 text-xs">
           <option value="">상태: 전체</option>
           {Object.entries(STATUS_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        <label className="text-xs text-gray-600 flex items-center gap-1">
+        <label className="text-xs text-slate-700 flex items-center gap-1">
           <input type="checkbox" checked={vipOnly} onChange={e => setVipOnly(e.target.checked)} /> VIP 매출 있는 곳
         </label>
-        <label className="text-xs text-gray-600 flex items-center gap-1">
+        <label className="text-xs text-slate-700 flex items-center gap-1">
           <input type="checkbox" checked={outstandingOnly} onChange={e => setOutstandingOnly(e.target.checked)} /> 미수 있는 곳만
         </label>
-        <label className="text-xs text-gray-600 flex items-center gap-1">
+        <label className="text-xs text-slate-700 flex items-center gap-1">
           <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} /> 비활성 포함
         </label>
         {hasOrg && (
-          <span className="inline-flex border border-gray-300 rounded-lg overflow-hidden" title="하위 조직(팀 · 부서)을 상위 조직 아래로 묶어 봅니다">
-            <button onClick={() => setView('list')} className={`px-2.5 py-1 text-xs ${view === 'list' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-gray-600'}`}>목록</button>
-            <button onClick={() => setView('tree')} className={`px-2.5 py-1 text-xs ${view === 'tree' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-gray-600'}`}>조직도</button>
+          <span className="inline-flex border border-slate-400 rounded-lg overflow-hidden" title="하위 조직(팀 · 부서)을 상위 조직 아래로 묶어 봅니다">
+            <button onClick={() => setView('list')} className={`px-2.5 py-1 text-xs ${view === 'list' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-slate-700'}`}>목록</button>
+            <button onClick={() => setView('tree')} className={`px-2.5 py-1 text-xs ${view === 'tree' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-slate-700'}`}>조직도</button>
           </span>
         )}
         {individualCount > 0 && (
           <select value={indFilter} onChange={e => setIndFilter(e.target.value as '' | 'only' | 'exclude')}
-            className="border border-gray-300 rounded px-2 py-1 text-xs">
+            className="border border-slate-400 rounded px-2 py-1 text-xs">
             <option value="">개인 고객: 포함</option>
             <option value="only">개인 고객만 ({individualCount})</option>
             <option value="exclude">개인 고객 제외</option>
@@ -458,29 +458,29 @@ export default function SalesHubPage() {
       {/* KPI — 필터 적용된 목록 기준으로 집계 */}
       {summary && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
-          <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-            <div className="text-xs text-gray-500">활성 매출처{filterActive && <span className="ml-1 text-blue-600 font-semibold">(필터 적용)</span>}</div>
+          <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
+            <div className="text-xs text-slate-600">활성 매출처{filterActive && <span className="ml-1 text-blue-600 font-semibold">(필터 적용)</span>}</div>
             <div className="text-xl font-bold mt-0.5">{kpi.active_vendors.toLocaleString()}곳</div>
-            <div className="text-[0.6875rem] text-gray-400 mt-0.5">
+            <div className="text-xs text-slate-500 mt-0.5">
               {filterActive ? `전체 ${summary.active_vendors.toLocaleString()}곳 중` : '기간 내 주문 발생 기준'}
             </div>
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-            <div className="text-xs text-gray-500">기간 매출 (ERP 순매출)</div>
+          <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
+            <div className="text-xs text-slate-600">기간 매출 (ERP 순매출)</div>
             <div className="text-xl font-bold mt-0.5 tabular-nums">{eok(kpi.net_total)}</div>
-            <div className="text-[0.6875rem] text-gray-400 mt-0.5">
+            <div className="text-xs text-slate-500 mt-0.5">
               {filterActive ? `전체 ${eok(summary.net_total)} 중` : '취소·VIP·선결제 품목 제외'}
             </div>
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-            <div className="text-xs text-gray-500">수금율 (ERP 기준)</div>
+          <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
+            <div className="text-xs text-slate-600">수금율 (ERP 기준)</div>
             <div className="text-xl font-bold mt-0.5 tabular-nums">{(kpi.collect_ratio * 100).toFixed(1)}%</div>
-            <div className="text-[0.6875rem] text-gray-400 mt-0.5">수금 {eok(kpi.collected_total)}</div>
+            <div className="text-xs text-slate-500 mt-0.5">수금 {eok(kpi.collected_total)}</div>
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-            <div className="text-xs text-gray-500">미수 잔액</div>
+          <div className="bg-white border border-slate-300 rounded-xl px-4 py-3">
+            <div className="text-xs text-slate-600">미수 잔액</div>
             <div className="text-xl font-bold mt-0.5 tabular-nums text-red-600">{eok(kpi.outstanding_total)}</div>
-            <div className="text-[0.6875rem] text-gray-400 mt-0.5">90일 초과 {eok(kpi.over90_total)} 포함</div>
+            <div className="text-xs text-slate-500 mt-0.5">90일 초과 {eok(kpi.over90_total)} 포함</div>
           </div>
         </div>
       )}
@@ -491,13 +491,13 @@ export default function SalesHubPage() {
       {error && <div className="mt-4 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
 
       {/* 목록 */}
-      <div className="bg-white border border-gray-200 rounded-xl mt-4 overflow-x-auto">
+      <div className="bg-white border border-slate-300 rounded-xl mt-4 overflow-x-auto">
         {loading ? (
-          <div className="text-center py-20 text-gray-400">집계 중...</div>
+          <div className="text-center py-20 text-slate-500">집계 중...</div>
         ) : (
           <table className="w-full text-sm min-w-[980px]">
             <thead>
-              <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+              <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-300">
                 <th className="py-2 px-3 text-left font-medium">매출처</th>
                 <th className="py-2 px-3 text-left font-medium">담당직원</th>
                 <th className="py-2 px-3 text-left font-medium">거래처 담당자</th>
@@ -517,62 +517,62 @@ export default function SalesHubPage() {
                 const parentName = r.parent_vendor_id ? rowById.get(r.parent_vendor_id)?.vendor_name ?? null : null
                 const meta = STATUS_META[r.status] ?? STATUS_META.normal
                 return (
-                  <tr key={r.vendor_id} className={`border-b border-gray-50 hover:bg-blue-50/40 ${context ? 'opacity-60' : ''}`}>
+                  <tr key={r.vendor_id} className={`border-b border-slate-200 hover:bg-blue-50/40 ${context ? 'opacity-60' : ''}`}>
                     <td className="py-2 px-3">
                       <Link href={`/sales-hub/${r.vendor_id}?from=${from}&to=${to}`} className="block" style={depth ? { paddingLeft: `${depth * 1.1}rem` } : undefined}>
-                        <div className="font-semibold text-gray-900">
-                          {depth > 0 && <span className="text-gray-300 font-normal mr-1">└</span>}
+                        <div className="font-semibold text-slate-900">
+                          {depth > 0 && <span className="text-slate-400 font-normal mr-1">└</span>}
                           {r.vendor_name}
-                          {kids > 0 && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-gray-100 text-gray-500 align-middle">하위 {kids}</span>}
-                          {r.individual && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-violet-100 text-violet-700 align-middle">개인 고객</span>}
-                          {r.is_active === false && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-gray-200 text-gray-600 align-middle">비활성</span>}
+                          {kids > 0 && <span className="ml-1.5 px-1.5 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-600 align-middle">하위 {kids}</span>}
+                          {r.individual && <span className="ml-1.5 px-1.5 py-0.5 rounded text-xs font-semibold bg-violet-100 text-violet-700 align-middle">개인 고객</span>}
+                          {r.is_active === false && <span className="ml-1.5 px-1.5 py-0.5 rounded text-xs font-semibold bg-slate-200 text-slate-700 align-middle">비활성</span>}
                         </div>
-                        <div className="text-[0.6875rem] text-gray-400">
-                          {view === 'list' && parentName && <span className="text-gray-500">상위: {parentName} · </span>}
+                        <div className="text-xs text-slate-500">
+                          {view === 'list' && parentName && <span className="text-slate-600">상위: {parentName} · </span>}
                           별칭 {r.alias_count} · 카드 {r.card_count || '-'}{r.vip_total > 0 ? ` · VIP 누적 ${eok(r.vip_total)}` : ''}
                         </div>
                       </Link>
                     </td>
                     <td className="py-2 px-3 whitespace-nowrap">
-                      {r.staff_primary ?? <span className="text-gray-300">-</span>}
-                      {r.staff_extra > 0 && <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[0.625rem] font-bold">+{r.staff_extra}</span>}
+                      {r.staff_primary ?? <span className="text-slate-400">-</span>}
+                      {r.staff_extra > 0 && <span className="ml-1 px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-xs font-bold">+{r.staff_extra}</span>}
                     </td>
                     <td className="py-2 px-3 whitespace-nowrap">
-                      {r.contact_rep ?? <span className="text-gray-300">-</span>}
-                      {r.contact_extra > 0 && <span className="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full text-[0.625rem] font-bold">+{r.contact_extra}</span>}
+                      {r.contact_rep ?? <span className="text-slate-400">-</span>}
+                      {r.contact_extra > 0 && <span className="ml-1 px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-xs font-bold">+{r.contact_extra}</span>}
                     </td>
                     {kpiFlags && (() => {
                       const f = vendorFlagMap.get(r.vendor_id)
                       const ot = f ? OTYPE_META[f.otype] : null
                       return (
                         <td className="py-2 px-3 whitespace-nowrap">
-                          {ot && <span className={`inline-block px-1.5 py-0.5 rounded text-[0.625rem] font-semibold ${ot.cls}`}>{ot.label}</span>}
-                          {f?.is_new && <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-emerald-100 text-emerald-700">신규</span>}
-                          {f?.is_churn && <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-red-100 text-red-700">이탈</span>}
-                          {!f && <span className="text-gray-300">-</span>}
+                          {ot && <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-semibold ${ot.cls}`}>{ot.label}</span>}
+                          {f?.is_new && <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-700">신규</span>}
+                          {f?.is_churn && <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700">이탈</span>}
+                          {!f && <span className="text-slate-400">-</span>}
                         </td>
                       )
                     })()}
                     <td className="py-2 px-3 text-right tabular-nums">
                       {won(r.net)}
-                      {kids > 0 && subNet !== r.net && <div className="text-[0.625rem] text-gray-400">하위 포함 {won(subNet)}</div>}
-                      {kids > 0 && subOut > 0 && <div className="text-[0.625rem] text-red-500">하위 포함 미수 {won(subOut)}</div>}
+                      {kids > 0 && subNet !== r.net && <div className="text-xs text-slate-500">하위 포함 {won(subNet)}</div>}
+                      {kids > 0 && subOut > 0 && <div className="text-xs text-red-500">하위 포함 미수 {won(subOut)}</div>}
                     </td>
                     <td className="py-2 px-3 text-right tabular-nums">{won(r.collected)}</td>
                     <td className="py-2 px-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-16 h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
                           <div className="h-full bg-blue-600 rounded-full" style={{ width: `${Math.min(100, ratio * 100)}%` }} />
                         </div>
                         <span className="tabular-nums text-xs">{(ratio * 100).toFixed(0)}%</span>
                       </div>
                     </td>
-                    <td className={`py-2 px-3 text-right tabular-nums ${r.outstanding > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+                    <td className={`py-2 px-3 text-right tabular-nums ${r.outstanding > 0 ? 'text-red-600 font-medium' : 'text-slate-500'}`}>
                       {won(r.outstanding)}
                     </td>
-                    <td className="py-2 px-3 tabular-nums text-gray-500 text-xs">{r.last_order_date ?? '-'}</td>
+                    <td className="py-2 px-3 tabular-nums text-slate-600 text-xs">{r.last_order_date ?? '-'}</td>
                     <td className="py-2 px-3">
-                      <span className={`inline-block px-2 py-0.5 rounded text-[0.6875rem] font-semibold ${meta.cls}`}>{meta.label}</span>
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${meta.cls}`}>{meta.label}</span>
                     </td>
                     {canEdit && (
                       <td className="py-2 px-3 whitespace-nowrap">
@@ -584,7 +584,7 @@ export default function SalesHubPage() {
                             })
                             if (res.ok) load(from, to)
                           }}
-                            className="px-2 py-0.5 border border-emerald-200 text-emerald-700 rounded text-[0.6875rem] hover:bg-emerald-50">재활성</button>
+                            className="px-2 py-0.5 border border-emerald-200 text-emerald-700 rounded text-xs hover:bg-emerald-50">재활성</button>
                         ) : (
                           <button onClick={async () => {
                             if (!confirm(`'${r.vendor_name}' 매출처를 삭제할까요?\n연결된 데이터가 있으면 삭제 대신 비활성 처리를 안내합니다.`)) return
@@ -602,7 +602,7 @@ export default function SalesHubPage() {
                               }
                             } else alert(json.error ?? '삭제 실패')
                           }}
-                            className="px-2 py-0.5 border border-red-200 text-red-600 rounded text-[0.6875rem] hover:bg-red-50">삭제</button>
+                            className="px-2 py-0.5 border border-red-200 text-red-600 rounded text-xs hover:bg-red-50">삭제</button>
                         )}
                       </td>
                     )}
@@ -610,13 +610,13 @@ export default function SalesHubPage() {
                 )
               })}
               {!visible.length && (
-                <tr><td colSpan={(kpiFlags ? 10 : 9) + (canEdit ? 1 : 0)} className="text-center py-14 text-gray-400 text-sm">조건에 맞는 매출처가 없습니다.</td></tr>
+                <tr><td colSpan={(kpiFlags ? 10 : 9) + (canEdit ? 1 : 0)} className="text-center py-14 text-slate-500 text-sm">조건에 맞는 매출처가 없습니다.</td></tr>
               )}
             </tbody>
           </table>
         )}
       </div>
-      <p className="text-xs text-gray-400 mt-2">
+      <p className="text-xs text-slate-500 mt-2">
         {display.length > 300 ? `상위 300곳만 표시 중 (전체 ${display.length.toLocaleString()}곳 — 검색·필터로 좁혀주세요) · ` : `${visible.length.toLocaleString()}곳 · `}
         매출·미수는 ERP 원본(주문·미수금) 기준 · 휴면 = 최근 6개월 주문 없음
       </p>

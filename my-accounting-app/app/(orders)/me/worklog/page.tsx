@@ -40,7 +40,7 @@ const ACTION_STYLE: Record<string, string> = {
   주문작성: 'bg-emerald-50 text-emerald-700',
   주문수정: 'bg-teal-50 text-teal-700',
   영업일지: 'bg-amber-50 text-amber-700',
-  직접기재: 'bg-slate-100 text-slate-700',
+  직접기재: 'bg-slate-100 text-slate-800',
 }
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토']
@@ -164,19 +164,19 @@ export default function MyWorklogPage() {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-900">업무일지</h1>
-        <span className="text-xs text-gray-400">
+        <h1 className="text-xl font-bold text-slate-900">업무일지</h1>
+        <span className="text-xs text-slate-500">
           ERP에서 한 업무는 자동으로 기록됩니다. ERP 밖 업무만 직접 기재하세요.
         </span>
         {isManager && (
           <div className="ml-auto flex items-center gap-2">
             <select value={employee} onChange={e => setEmployee(e.target.value)}
-              className="border border-blue-200 bg-blue-50 rounded-lg px-2.5 py-1.5 text-sm text-slate-700">
+              className="border border-blue-200 bg-blue-50 rounded-lg px-2.5 py-1.5 text-sm text-slate-800">
               <option value="">내 업무일지</option>
               {(data?.employees ?? []).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
             <Link href="/me/team-worklog"
-              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+              className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50">
               팀 업무 현황
             </Link>
           </div>
@@ -198,10 +198,10 @@ export default function MyWorklogPage() {
           return (
             <button key={k.key} onClick={() => setAction(k.key)}
               className={`text-left bg-white border rounded-xl px-3.5 py-3 transition-colors ${
-                on ? 'border-slate-900 ring-1 ring-slate-900' : 'border-gray-200 hover:border-gray-300'}`}>
-              <div className="text-xs text-gray-500">{k.label}</div>
-              <div className="text-xl font-bold text-gray-900 mt-0.5 tabular-nums">{k.value}</div>
-              <div className="text-[0.65625rem] text-gray-400 mt-0.5">{k.sub}</div>
+                on ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:border-slate-400'}`}>
+              <div className="text-xs text-slate-600">{k.label}</div>
+              <div className="text-xl font-bold text-slate-900 mt-0.5 tabular-nums">{k.value}</div>
+              <div className="text-xs text-slate-500 mt-0.5">{k.sub}</div>
             </button>
           )
         })}
@@ -210,13 +210,13 @@ export default function MyWorklogPage() {
       {/* 필터 */}
       <div className="flex items-center gap-2 flex-wrap mt-4">
         <select value={month} onChange={e => setMonth(e.target.value)}
-          className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-700">
+          className="border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm text-slate-800">
           {monthOptions().map(m => <option key={m} value={m}>{m.replace('-', '년 ')}월</option>)}
         </select>
         {['all', ...(data?.actions ?? [])].map(a => (
           <button key={a} onClick={() => setAction(a)}
             className={`px-3 py-1 rounded-full text-xs border transition-colors ${
-              action === a ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
+              action === a ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}>
             {a === 'all' ? '전체' : a}
           </button>
         ))}
@@ -224,17 +224,17 @@ export default function MyWorklogPage() {
 
       {/* 직접 기재 — 본인 화면에서만 */}
       {!readOnly && (
-        <div className="bg-white border border-gray-200 rounded-xl p-3 mt-4 flex gap-2 flex-wrap items-center">
+        <div className="bg-white border border-slate-300 rounded-xl p-3 mt-4 flex gap-2 flex-wrap items-center">
           <select value={category} onChange={e => setCategory(e.target.value)}
-            className="border border-gray-200 rounded-lg px-2.5 py-2 text-sm text-slate-700">
+            className="border border-slate-300 rounded-lg px-2.5 py-2 text-sm text-slate-800">
             {(data?.categories ?? ['기타']).map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           <input value={workDate} onChange={e => setWorkDate(e.target.value)} type="date"
-            className="border border-gray-200 rounded-lg px-2.5 py-2 text-sm text-slate-700" />
+            className="border border-slate-300 rounded-lg px-2.5 py-2 text-sm text-slate-800" />
           <input value={content} onChange={e => setContent(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !saving) submit() }}
             placeholder="ERP 밖에서 한 업무를 한 줄로 적어주세요 (예: 배송 포장 40건, 거래처 방문 회의)"
-            className="flex-1 min-w-[240px] border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+            className="flex-1 min-w-[240px] border border-slate-300 rounded-lg px-3 py-2 text-sm" />
           <button onClick={submit} disabled={saving}
             className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
             {saving ? '저장 중' : '기재'}
@@ -244,45 +244,45 @@ export default function MyWorklogPage() {
 
       {/* 목록 */}
       {loading ? (
-        <div className="text-center py-16 text-gray-400">로딩 중...</div>
+        <div className="text-center py-16 text-slate-500">로딩 중...</div>
       ) : groups.length === 0 ? (
-        <div className="text-center py-16 text-gray-400 text-sm">이 기간에 기록된 업무가 없습니다.</div>
+        <div className="text-center py-16 text-slate-500 text-sm">이 기간에 기록된 업무가 없습니다.</div>
       ) : groups.map(([date, rows]) => (
         <div key={date} className="mt-5">
           <div className="flex items-center gap-2 mb-1.5">
-            <b className="text-sm text-gray-900">{dayLabel(date)}</b>
-            <span className="text-xs text-gray-400">{rows.length}건</span>
+            <b className="text-sm text-slate-900">{dayLabel(date)}</b>
+            <span className="text-xs text-slate-500">{rows.length}건</span>
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="bg-white border border-slate-300 rounded-xl overflow-hidden">
             {rows.map(r => {
               const link = drilldown(r)
               return (
-                <div key={r.id} className="flex items-center gap-3 px-3.5 py-2.5 border-b border-gray-50 last:border-b-0 hover:bg-slate-50">
-                  <span className="text-[0.6875rem] text-gray-400 w-10 shrink-0 tabular-nums">{timeLabel(r.logged_at)}</span>
-                  <span className={`text-[0.65625rem] font-semibold px-2 py-0.5 rounded-full w-16 text-center shrink-0 ${ACTION_STYLE[r.action] ?? 'bg-gray-100 text-gray-600'}`}>
+                <div key={r.id} className="flex items-center gap-3 px-3.5 py-2.5 border-b border-slate-200 last:border-b-0 hover:bg-slate-50">
+                  <span className="text-xs text-slate-500 w-10 shrink-0 tabular-nums">{timeLabel(r.logged_at)}</span>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full w-16 text-center shrink-0 ${ACTION_STYLE[r.action] ?? 'bg-slate-100 text-slate-700'}`}>
                     {r.action}
                   </span>
                   {editing === r.id ? (
                     <>
                       <input value={editContent} onChange={e => setEditContent(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') saveEdit(r.id) }}
-                        className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm" autoFocus />
+                        className="flex-1 border border-slate-400 rounded px-2 py-1 text-sm" autoFocus />
                       <button onClick={() => saveEdit(r.id)} className="text-xs text-blue-600">저장</button>
-                      <button onClick={() => setEditing(null)} className="text-xs text-gray-400">취소</button>
+                      <button onClick={() => setEditing(null)} className="text-xs text-slate-500">취소</button>
                     </>
                   ) : (
                     <>
-                      <span className="flex-1 text-[0.78125rem] text-gray-800">
-                        {r.category && <span className="text-gray-400">[{r.category}] </span>}
+                      <span className="flex-1 text-[0.78125rem] text-slate-900">
+                        {r.category && <span className="text-slate-500">[{r.category}] </span>}
                         {r.content}
                       </span>
-                      {link && <Link href={link.href} className="text-[0.6875rem] text-blue-600 hover:underline whitespace-nowrap">{link.label}</Link>}
+                      {link && <Link href={link.href} className="text-xs text-blue-600 hover:underline whitespace-nowrap">{link.label}</Link>}
                       {r.source === 'manual' && !readOnly && (
                         <>
                           <button onClick={() => { setEditing(r.id); setEditContent(r.content); setEditCategory(r.category) }}
-                            className="text-[0.6875rem] text-gray-400 hover:text-gray-600">수정</button>
+                            className="text-xs text-slate-500 hover:text-slate-700">수정</button>
                           <button onClick={() => remove(r.id)}
-                            className="text-[0.6875rem] text-gray-400 hover:text-red-600">삭제</button>
+                            className="text-xs text-slate-500 hover:text-red-600">삭제</button>
                         </>
                       )}
                     </>

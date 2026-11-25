@@ -726,22 +726,22 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
     router.push('/orders/consultations')
   }
 
-  if (loading) return <div className="text-center py-16 text-gray-400">로딩 중...</div>
+  if (loading) return <div className="text-center py-16 text-slate-500">로딩 중...</div>
 
-  const label = 'block text-[0.6875rem] text-gray-500 mb-0.5'
+  const label = 'block text-xs text-slate-600 mb-0.5'
   const free = 'w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-60'
   const numCell = 'w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs text-right tabular-nums'
-  const autoCell = 'w-full border border-gray-200 bg-gray-50 rounded px-1.5 py-1 text-xs text-right tabular-nums text-gray-500'
+  const autoCell = 'w-full border border-slate-300 bg-slate-50 rounded px-1.5 py-1 text-xs text-right tabular-nums text-slate-600'
 
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-900">{isEdit ? '상담일지' : '상담 기록'}</h1>
+        <h1 className="text-xl font-bold text-slate-900">{isEdit ? '상담일지' : '상담 기록'}</h1>
         {isEdit && (
-          <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${
+          <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${
             deleted ? 'bg-red-100 text-red-700'
               : status === '주문전환' ? 'bg-emerald-100 text-emerald-700'
-              : status === '종결' ? 'bg-gray-100 text-gray-500' : 'bg-amber-100 text-amber-800'}`}>
+              : status === '종결' ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-800'}`}>
             {deleted ? '삭제됨' : status}
           </span>
         )}
@@ -755,7 +755,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           {isEdit && !deleted && (
             <>
               {paymentMasked && !paymentLocked && (
-                <label className="flex items-center gap-1 text-[0.6875rem] text-gray-500 whitespace-nowrap" title="결제정보 열람 권한자만 — 켜고 받으면 누가 받았는지 기록됩니다">
+                <label className="flex items-center gap-1 text-xs text-slate-600 whitespace-nowrap" title="결제정보 열람 권한자만 — 켜고 받으면 누가 받았는지 기록됩니다">
                   <input type="checkbox" checked={sheetPlain} onChange={e => setSheetPlain(e.target.checked)} /> 결제정보 평문 포함
                 </label>
               )}
@@ -766,22 +766,22 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           )}
           {isEdit && !locked && status === '진행중' && (
             <>
-              <button onClick={() => openEnd('close')} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">종결</button>
+              <button onClick={() => openEnd('close')} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">종결</button>
               <button onClick={() => openEnd('delete')} className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm">삭제</button>
             </>
           )}
           {isEdit && canEdit && closed && !deleted && (
             <button onClick={() => act('reopen')} disabled={endBusy}
               title="다시 진행중으로 돌립니다 — 종결 기록은 업무일지에 남습니다"
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 disabled:opacity-50">재개</button>
+              className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700 disabled:opacity-50">재개</button>
           )}
         </span>
       </div>
 
       {/* 종결 · 삭제 사유 (709, 2026-11-10 — 사유 필수) */}
       {endMode && (
-        <div className={`mt-3 p-3 rounded-lg border space-y-2 ${endMode === 'delete' ? 'bg-red-50/60 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
-          <div className="text-sm font-bold text-gray-900">{endMode === 'close' ? '종결 사유' : '상담일지 삭제 사유'}</div>
+        <div className={`mt-3 p-3 rounded-lg border space-y-2 ${endMode === 'delete' ? 'bg-red-50/60 border-red-200' : 'bg-slate-50 border-slate-300'}`}>
+          <div className="text-sm font-bold text-slate-900">{endMode === 'close' ? '종결 사유' : '상담일지 삭제 사유'}</div>
           {orderRequest && (
             <div className="text-[0.8125rem] px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
               이 상담은 <b>{orderRequest.assignee_name ?? ''}</b>에게 주문 진행을 요청해 둔 상태입니다. {endMode === 'close' ? '종결' : '삭제'}하면 요청이 끝나고, {orderRequest.assignee_name ?? '요청받은 직원'}에게 사유와 함께 알림이 갑니다.
@@ -795,8 +795,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               className={`px-3.5 py-1.5 text-white rounded-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed ${endMode === 'delete' ? 'bg-red-600' : 'bg-slate-900'}`}>
               {endBusy ? '처리 중...' : endMode === 'close' ? '종결하기' : '삭제하기'}
             </button>
-            <button onClick={() => setEndMode(null)} className="px-3.5 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-sm bg-white">닫기</button>
-            <span className="text-[0.6875rem] text-gray-500">
+            <button onClick={() => setEndMode(null)} className="px-3.5 py-1.5 border border-slate-400 text-slate-700 rounded-lg text-sm bg-white">닫기</button>
+            <span className="text-xs text-slate-600">
               {endMode === 'close'
                 ? '종결하면 주문 전환 · 삭제 · 주문 진행 요청이 막히고 내용 수정이 잠깁니다. "재개"로 되돌릴 수 있습니다.'
                 : '실제로 지우지 않고 "삭제됨"으로 숨깁니다. 목록에서 안 보이고, 관리자는 "삭제된 것 보기"로 확인할 수 있습니다.'}
@@ -805,9 +805,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         </div>
       )}
       {closed && !deleted && (
-        <div className="mt-3 px-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg">
+        <div className="mt-3 px-4 py-2.5 bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg">
           종결된 상담입니다{closeInfo?.reason ? <> — <b>{closeInfo.reason}</b></> : ' (사유 기록 없음)'}
-          <div className="text-xs text-slate-500 mt-0.5 tabular-nums">
+          <div className="text-xs text-slate-600 mt-0.5 tabular-nums">
             {[closeInfo?.by, closeInfo?.at ? fmtWhen(closeInfo.at) : null].filter(Boolean).join(' · ')}{closeInfo?.at ? ' 종결 · ' : ''}내용을 고치려면 &ldquo;재개&rdquo;를 누르세요.
           </div>
         </div>
@@ -828,13 +828,13 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           {/* 완료 회신 상태 (515) — 회신 대기 / 완료 / 변경 있음 / 처리 불가 */}
           {requestStatus && requestStatus.state !== 'converted' && (
             <div className="mt-1 text-[0.8125rem]">
-              <span className={`inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-medium mr-1.5 ${
+              <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium mr-1.5 ${
                 requestStatus.state === 'waiting' ? 'bg-orange-100 text-orange-700'
                   : requestStatus.state === 'unable' ? 'bg-red-100 text-red-700'
                   : requestStatus.state === 'changed' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-700'}`}>{requestStatus.label}</span>
               {requestStatus.state === 'waiting'
-                ? <span className="text-gray-600">주문 입력됨 — 완료 회신을 기다리는 중</span>
-                : <span className="text-gray-700">{requestStatus.by ?? ''} 회신{requestStatus.memo ? `: “${requestStatus.memo}”` : ''}</span>}
+                ? <span className="text-slate-700">주문 입력됨 — 완료 회신을 기다리는 중</span>
+                : <span className="text-slate-800">{requestStatus.by ?? ''} 회신{requestStatus.memo ? `: “${requestStatus.memo}”` : ''}</span>}
               {orders[0] && <a href={`/orders/${orders[0].id}`} className="ml-1.5 text-blue-700 hover:underline">주문 보기</a>}
             </div>
           )}
@@ -843,9 +843,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
       {/* 처리 불가로 되돌아온 요청 (515) — 요청자 화면 */}
       {!converted && !closed && !deleted && !orderRequest && requestStatus?.state === 'returned' && (
         <div className="mt-3 px-4 py-2.5 bg-red-50 border border-red-200 text-red-900 text-sm rounded-lg">
-          <span className="inline-block px-1.5 py-0.5 rounded text-[0.6875rem] font-medium mr-1.5 bg-red-100 text-red-700">처리 불가</span>
+          <span className="inline-block px-1.5 py-0.5 rounded text-xs font-medium mr-1.5 bg-red-100 text-red-700">처리 불가</span>
           <b>{requestStatus.by ?? ''}</b> 회신{requestStatus.memo ? `: “${requestStatus.memo}”` : ''}
-          <div className="mt-1 text-[0.75rem] text-red-700">아래 &lsquo;주문 진행 요청&rsquo; 칸에서 다른 직원에게 다시 요청하거나 직접 주문서로 전환하세요.</div>
+          <div className="mt-1 text-xs text-red-700">아래 &lsquo;주문 진행 요청&rsquo; 칸에서 다른 직원에게 다시 요청하거나 직접 주문서로 전환하세요.</div>
         </div>
       )}
       {/* 주문 진행 요청 (705) — 요청받은 직원에게는 요청 내용, 작성자에게는 진행 상태 */}
@@ -854,16 +854,16 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           <b>{orderRequest.requested_by_name ?? ''}</b>님이 주문 진행을 요청했습니다
           {orderRequest.requested_at && <span className="text-blue-700"> · {new Date(orderRequest.requested_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
           {orderRequest.memo && <div className="mt-0.5 text-blue-800">&ldquo;{orderRequest.memo}&rdquo;</div>}
-          {!canEdit && <div className="mt-1 text-[0.6875rem] text-blue-700">상담 내용은 수정할 수 없고, 아래 &lsquo;주문서로 전환&rsquo;으로 주문을 입력합니다. 고칠 부분은 주문서에서 바꾸세요. 주문 입력 후 주문 상세에서 &lsquo;완료 회신&rsquo;을 보내야 요청이 완료됩니다.</div>}
+          {!canEdit && <div className="mt-1 text-xs text-blue-700">상담 내용은 수정할 수 없고, 아래 &lsquo;주문서로 전환&rsquo;으로 주문을 입력합니다. 고칠 부분은 주문서에서 바꾸세요. 주문 입력 후 주문 상세에서 &lsquo;완료 회신&rsquo;을 보내야 요청이 완료됩니다.</div>}
           {canUnable && (unableOpen ? (
             <div className="mt-2">
               <textarea value={unableMemo} onChange={e => setUnableMemo(e.target.value)} rows={2}
                 placeholder="처리 불가 사유 (필수) — 예: 요청 품목 전부 품절, 대체 상품 고객 확인 필요"
-                className="w-full border border-red-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900" />
+                className="w-full border border-red-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-900" />
               <div className="mt-1 flex items-center gap-2">
-                <span className="text-[0.6875rem] text-blue-700">보내면 요청이 {orderRequest.requested_by_name ?? '요청자'}에게 되돌아가고, 내 목록에서 빠집니다.</span>
+                <span className="text-xs text-blue-700">보내면 요청이 {orderRequest.requested_by_name ?? '요청자'}에게 되돌아가고, 내 목록에서 빠집니다.</span>
                 <span className="flex-1" />
-                <button type="button" onClick={() => setUnableOpen(false)} className="px-2.5 py-1 text-xs text-gray-500">취소</button>
+                <button type="button" onClick={() => setUnableOpen(false)} className="px-2.5 py-1 text-xs text-slate-600">취소</button>
                 <button type="button" onClick={submitUnable} disabled={unableBusy}
                   className="px-3 py-1 text-xs rounded-lg bg-red-600 text-white disabled:opacity-50">{unableBusy ? '보내는 중...' : '처리 불가 회신 보내기'}</button>
               </div>
@@ -885,9 +885,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
       {notice && <div className="mt-3 px-4 py-2.5 bg-emerald-50 text-emerald-700 text-sm rounded-lg">{notice}</div>}
 
       {/* 상담 정보 — 실물 컬럼 순서 */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-4">
-        <div className="text-sm font-bold text-gray-900 mb-3">
-          상담 정보 <span className="text-[0.6875rem] font-normal text-gray-400 ml-1">필수는 상담일·구분뿐 — 아는 만큼만</span>
+      <div className="bg-white border border-slate-300 rounded-xl p-4 mt-4">
+        <div className="text-sm font-bold text-slate-900 mb-3">
+          상담 정보 <span className="text-xs font-normal text-slate-500 ml-1">필수는 상담일·구분뿐 — 아는 만큼만</span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-6 gap-x-3 gap-y-2.5">
           <div>
@@ -1039,7 +1039,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   if (vendorId && localNameMatch && !globalOpen) {
                     return (
                       <button type="button" tabIndex={-1} onMouseDown={e => e.preventDefault()} onClick={() => setGlobalOpen(true)}
-                        className="w-full text-left px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-50 border-t border-gray-100">
+                        className="w-full text-left px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-50 border-t border-slate-200">
                         다른 지점에서 &ldquo;{nameKey}&rdquo; 찾기
                       </button>
                     )
@@ -1063,8 +1063,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               if (!c) return null
               const staff = c.staff_employee_id ? employees.find(e => e.id === c.staff_employee_id)?.name ?? '등록됨' : null
               return staff
-                ? <div className="text-[0.625rem] text-gray-500 mt-0.5">이 고객의 다올 담당: <b>{staff}</b> (주문 시 상담자)</div>
-                : <div className="text-[0.625rem] text-amber-700 mt-0.5">이 고객의 다올 담당 미기입 — 주문 입력 때 고른 상담자가 다올 담당으로 저장됩니다</div>
+                ? <div className="text-xs text-slate-600 mt-0.5">이 고객의 다올 담당: <b>{staff}</b> (주문 시 상담자)</div>
+                : <div className="text-xs text-amber-700 mt-0.5">이 고객의 다올 담당 미기입 — 주문 입력 때 고른 상담자가 다올 담당으로 저장됩니다</div>
             })()}
           </div>
           {/* 연락처 → 마스터 반영 (116): 마스터가 비어 있으면 저장 때 채워지고, 다르면 안내만 (덮어쓰지 않음) */}
@@ -1073,8 +1073,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             const hint = (mine: string, master: string | null | undefined) => {
               if (!c) return null
               if (!mine.trim()) return null
-              if (!master?.trim()) return <div className="text-[0.625rem] text-gray-400 mt-0.5">저장하면 담당자 마스터에도 기록됩니다</div>
-              if (normTel(master) !== normTel(mine)) return <div className="text-[0.625rem] text-amber-700 mt-0.5">마스터 번호와 다름 ({master}) — 이 상담에만 기록</div>
+              if (!master?.trim()) return <div className="text-xs text-slate-500 mt-0.5">저장하면 담당자 마스터에도 기록됩니다</div>
+              if (normTel(master) !== normTel(mine)) return <div className="text-xs text-amber-700 mt-0.5">마스터 번호와 다름 ({master}) — 이 상담에만 기록</div>
               return null
             }
             return (
@@ -1127,7 +1127,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           })()}
           {/* 상태·기타사항은 품목별 입력으로 이동 (509, 실무자 요청) — 이전 기록만 표시 */}
           {(productStatus || optionNote) && (
-            <div className="col-span-2 md:col-span-6 text-xs text-gray-400">
+            <div className="col-span-2 md:col-span-6 text-xs text-slate-500">
               이전 기록(상담 단위): {[productStatus && `상태 ${productStatus}`, optionNote && `기타 ${optionNote}`].filter(Boolean).join(' · ')}
               <span className="ml-1.5">— 이제 상담 품목의 행별 상태·기타사항 칸에 입력합니다</span>
             </div>
@@ -1181,9 +1181,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           </div>
         )}
         {!locked && !isParttime && regOpen && (
-          <div className="mt-3 p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
-            <div className="text-xs font-bold text-gray-700 mb-2">
-              신규 매출처 등록 <span className="font-normal text-gray-400 ml-1">이름이 같은 기존 지점·담당자가 있으면 새로 만들지 않고 연결됩니다</span>
+          <div className="mt-3 p-3.5 bg-slate-50 border border-slate-300 rounded-lg">
+            <div className="text-xs font-bold text-slate-800 mb-2">
+              신규 매출처 등록 <span className="font-normal text-slate-500 ml-1">이름이 같은 기존 지점·담당자가 있으면 새로 만들지 않고 연결됩니다</span>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-x-3 gap-y-2">
               <div>
@@ -1197,7 +1197,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 )}
               </div>
               <div>
-                <label className={label}>지점명 <span className="text-gray-400">(없으면 단일 업체)</span></label>
+                <label className={label}>지점명 <span className="text-slate-500">(없으면 단일 업체)</span></label>
                 <input value={regBranch} disabled={regBusy || !!vendorId}
                   onChange={e => setRegBranch(e.target.value)}
                   className={free} placeholder="예: 오류동지점" />
@@ -1209,7 +1209,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 )}
               </div>
               <div>
-                <label className={label}>담당자 이름 <span className="text-gray-400">(직함 제외)</span></label>
+                <label className={label}>담당자 이름 <span className="text-slate-500">(직함 제외)</span></label>
                 <input value={regContactName} disabled={regBusy}
                   onChange={e => setRegContactName(e.target.value)}
                   className={free} placeholder="예: 권오병" />
@@ -1244,12 +1244,12 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               </div>
             )}
             <div className="flex items-center gap-2 mt-2.5">
-              <span className="text-[0.6875rem] text-gray-400">
+              <span className="text-xs text-slate-500">
                 인물 마스터에는 이름만 저장됩니다 — 직함은 배정 정보로, 존칭은 표시에서 붙습니다.
               </span>
               <span className="ml-auto flex gap-2">
                 <button type="button" disabled={regBusy} onClick={() => setRegOpen(false)}
-                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600">닫기</button>
+                  className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700">닫기</button>
                 <button type="button" disabled={regBusy} onClick={registerVendor}
                   className={`px-3.5 py-1.5 text-white rounded-lg text-xs font-medium disabled:opacity-50 ${!vendorId && regCheck.existing ? 'bg-blue-600' : 'bg-slate-900'}`}>
                   {regBusy ? '등록 중...' : !vendorId && regCheck.existing
@@ -1262,9 +1262,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
       </div>
 
       {/* 상담 품목 — 주문 입력과 동일 규칙 */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3 overflow-x-auto">
-        <div className="text-sm font-bold text-gray-900 mb-3">
-          상담 품목 <span className="text-[0.6875rem] font-normal text-gray-400 ml-1">품번 검색 시 원가표 기준 자동 — 수정 가능</span>
+      <div className="bg-white border border-slate-300 rounded-xl p-4 mt-3 overflow-x-auto">
+        <div className="text-sm font-bold text-slate-900 mb-3">
+          상담 품목 <span className="text-xs font-normal text-slate-500 ml-1">품번 검색 시 원가표 기준 자동 — 수정 가능</span>
         </div>
         <SeasonDatalist id="consult-season-options" options={seasonOptions(consultDate, [...usedSeasons, ...items.map(x => x.order_season)])} />
         <table className="w-full text-xs min-w-[1774px] table-fixed">
@@ -1279,7 +1279,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             <col className="w-[5.5rem]" /><col className="w-[5.5rem]" /><col className="w-[6.75rem]" /><col className="w-[5.5rem]" /><col className="w-[5.5rem]" /><col className="w-8" />
           </colgroup>
           <thead>
-            <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
+            <tr className="bg-slate-50 text-slate-600 border-b border-slate-300">
               <th className="py-1.5 px-1.5 text-left font-medium">품번 검색</th>
               <th className="py-1.5 px-1.5 text-left font-medium">상품명</th>
               <th className="py-1.5 px-1.5 text-left font-medium" title="지점 배송 · 개별 배송 · 샘플 — 가격 규칙과 배송지 · 배송명단 적용이 달라집니다">배송종류</th>
@@ -1312,36 +1312,36 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               // 702 의사 행(품목 미연결 배송비)만 특수 렌더 — 703 배송비 품목은 일반 행
               if (it.is_shipping && !it.product_id) {
                 return (
-                <tr key={it.uid} className="border-b border-gray-50 align-top bg-amber-50/40">
+                <tr key={it.uid} className="border-b border-slate-200 align-top bg-amber-50/40">
                   <td className="py-1 px-1.5">
-                    <div className="flex items-center gap-1 text-xs text-gray-600 px-1.5 py-1">
-                      <span className="text-gray-400 shrink-0">└</span>
+                    <div className="flex items-center gap-1 text-xs text-slate-700 px-1.5 py-1">
+                      <span className="text-slate-500 shrink-0">└</span>
                       <span className="font-medium">{it.item_name}</span>
                     </div>
                   </td>
                   <td className="py-1 px-1.5">
-                    <div className="text-[0.6875rem] text-gray-400 px-1.5 py-1">
+                    <div className="text-xs text-slate-500 px-1.5 py-1">
                       {it.item_name === '배송비(카톤단위)' ? '카톤 수 × 카톤택배비 (수정 가능)' : '낱개·택배 등 (금액 직접 입력)'}
                     </div>
                   </td>
-                  <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
-                  <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
+                  <td className="py-1 px-1.5 text-center text-slate-400 text-xs">-</td>
+                  <td className="py-1 px-1.5 text-center text-slate-400 text-xs">-</td>
                   <td className="py-1 px-1.5 text-right">
                     <NumInput value={it.quantity || ''} disabled={locked} onChange={e => setQuantity(i, toInt(e.target.value))}
                       className={numCell} placeholder="1" />
                   </td>
-                  <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
+                  <td className="py-1 px-1.5 text-center text-slate-400 text-xs">-</td>
                   <td className="py-1 px-1.5 text-right">
                     <NumInput value={it.sale_price ? won(it.sale_price) : ''} disabled={locked}
                       onChange={e => setItem(i, { sale_price: toInt(e.target.value) })} className={numCell} placeholder="0" />
                   </td>
-                  <td className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
+                  <td className="py-1 px-1.5 text-center text-slate-400 text-xs">-</td>
                   <td className="py-1 px-1.5 text-right">
-                    <div className={autoCell + ' font-semibold text-gray-700'}>{won(lineTotal(it))}</div>
+                    <div className={autoCell + ' font-semibold text-slate-800'}>{won(lineTotal(it))}</div>
                   </td>
                   {/* 매입처 · 매입가 · 매입할인 · 매입배송비 · 매입합계 · 마진 */}
                   {Array.from({ length: 6 }, (_, k) => (
-                    <td key={k} className="py-1 px-1.5 text-center text-gray-300 text-xs">-</td>
+                    <td key={k} className="py-1 px-1.5 text-center text-slate-400 text-xs">-</td>
                   ))}
                   <td className="py-1 px-1 text-center">
                     {!locked && (
@@ -1355,10 +1355,10 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
 
               return (
               <Fragment key={it.uid}>
-              <tr className={`border-b border-gray-50 align-top ${it.parent_uid ? 'bg-slate-50/60' : ''}`}>
+              <tr className={`border-b border-slate-200 align-top ${it.parent_uid ? 'bg-slate-50/60' : ''}`}>
                 <td className="py-1 px-1.5">
                   <div className="flex items-center gap-1">
-                    {it.parent_uid != null && <span className="text-gray-400 text-xs shrink-0" title="옵션 (부가상품)">└</span>}
+                    {it.parent_uid != null && <span className="text-slate-500 text-xs shrink-0" title="옵션 (부가상품)">└</span>}
                     <div className="flex-1">
                       <Combo value={it.product_id}
                         display={it.item_code || (it.product_id ? it.item_name : '')}
@@ -1418,7 +1418,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                         ? { discount_mode: mode, discount_amount: (it.discount_unit || 0) * it.quantity }
                         : { discount_mode: mode, discount_unit: 0 })
                     }}
-                    className="w-full border border-blue-200 bg-blue-50/40 rounded px-1 py-0.5 text-[0.625rem] mb-0.5 disabled:opacity-60">
+                    className="w-full border border-blue-200 bg-blue-50/40 rounded px-1 py-0.5 text-xs mb-0.5 disabled:opacity-60">
                     <option value="정액">정액</option>
                     <option value="단가">개당</option>
                   </select>
@@ -1440,14 +1440,14 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 <td className="py-1 px-1.5 text-right">
                   {/* 택배비(판매) — 매입배송비 있으면 박스당 단가, 0이면 합계 (2026-11-12) */}
                   {it.is_shipping
-                    ? <div className="text-xs text-gray-300 text-right">—</div>
+                    ? <div className="text-xs text-slate-400 text-right">—</div>
                     : <CustomerShipInput it={it} disabled={locked} className={numCell} onChange={patch => setItem(i, patch)} />}
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  <div className={autoCell + ' font-semibold text-gray-700'}>
+                  <div className={autoCell + ' font-semibold text-slate-800'}>
                     {won(lineTotal(it))}
                     {it.discount_amount > 0 && (
-                      <div className="text-[0.625rem] text-red-500 font-normal">
+                      <div className="text-xs text-red-500 font-normal">
                         판매할인 -{won(it.discount_amount)}{it.discount_mode === '단가' ? ` (${won(it.discount_unit)}/개)` : ''}
                       </div>
                     )}
@@ -1457,14 +1457,14 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   <input value={it.purchase_vendor_name} disabled={locked}
                     onChange={e => setItem(i, { purchase_vendor_name: e.target.value })}
                     title={it.purchase_vendor_name}
-                    className="w-full border border-gray-200 bg-gray-50 rounded px-1.5 py-1 text-xs disabled:opacity-60" />
+                    className="w-full border border-slate-300 bg-slate-50 rounded px-1.5 py-1 text-xs disabled:opacity-60" />
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   <NumInput decimals={2} value={it.purchase_price ? fmtPurchasePrice(it.purchase_price) : ''} disabled={locked}
                     onChange={e => setItem(i, { purchase_price: toPurchasePrice(e.target.value) })} className={numCell} placeholder="0" />
                   {/* 품목별 매입가 합계 = 매입가 × 수량 (사용자 확정 2026-10-16) */}
                   {it.purchase_price > 0 && it.quantity > 0 && (
-                    <div className="text-[0.625rem] text-gray-400 mt-0.5 tabular-nums">합계 {won(purchaseAmount(it.purchase_price, it.quantity))}</div>
+                    <div className="text-xs text-slate-500 mt-0.5 tabular-nums">합계 {won(purchaseAmount(it.purchase_price, it.quantity))}</div>
                   )}
                 </td>
                 <td className="py-1 px-1.5 text-right">
@@ -1480,11 +1480,11 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     title={purchaseShippingHint(it) ?? '카톤 정보가 없는 품목 — 직접 입력'}
                     className={numCell} placeholder="0" />
                   {purchaseShippingHint(it) && (
-                    <div className="text-[0.625rem] text-gray-400 mt-0.5">{purchaseShippingHint(it)!.replace('자동 계산: ', '').replace(' (수정 가능)', '')}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">{purchaseShippingHint(it)!.replace('자동 계산: ', '').replace(' (수정 가능)', '')}</div>
                   )}
                 </td>
                 <td className="py-1 px-1.5 text-right">
-                  <div className={autoCell + ' font-semibold text-gray-700'}>{won(lineCost(it))}</div>
+                  <div className={autoCell + ' font-semibold text-slate-800'}>{won(lineCost(it))}</div>
                 </td>
                 <td className="py-1 px-1.5 text-right">
                   {(() => {
@@ -1495,7 +1495,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                       <div className={`${autoCell} ${margin >= 0 ? 'text-emerald-700' : 'text-red-500'}`}>
                         {won(margin)}
                         {/* 마진율(%) 표기 — 실무자 요청 */}
-                        {pct !== null && <div className="text-[0.625rem] font-normal">{pct}%</div>}
+                        {pct !== null && <div className="text-xs font-normal">{pct}%</div>}
                       </div>
                     )
                   })()}
@@ -1509,41 +1509,41 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 </td>
               </tr>
               {/* 품목별 상태·기타사항 (509 — 상담정보에서 이동) */}
-              <tr className={`border-b border-gray-50 ${it.parent_uid ? 'bg-slate-50/60' : ''}`}>
+              <tr className={`border-b border-slate-200 ${it.parent_uid ? 'bg-slate-50/60' : ''}`}>
                 <td colSpan={17} className="pb-1.5 pt-0 px-1.5">
                   <div className="flex items-center gap-2 pl-4 flex-wrap">
-                    <span className="text-[0.625rem] text-gray-400 shrink-0">상태</span>
+                    <span className="text-xs text-slate-500 shrink-0">상태</span>
                     <input value={it.status} disabled={locked}
                       onChange={e => setItem(i, { status: e.target.value })}
                       placeholder="품절·단가변경 등 (품절 상품 선택 시 자동)"
-                      className={`w-56 border rounded px-1.5 py-0.5 text-[0.6875rem] disabled:opacity-60 ${
-                        it.status ? 'border-red-200 bg-red-50/40 text-red-700' : 'border-gray-200 bg-gray-50'}`} />
+                      className={`w-56 border rounded px-1.5 py-0.5 text-xs disabled:opacity-60 ${
+                        it.status ? 'border-red-200 bg-red-50/40 text-red-700' : 'border-slate-300 bg-slate-50'}`} />
                     {priceChanged(it) && (
-                      <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium bg-amber-100 text-amber-800"
+                      <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800"
                         title="입력 판매가가 원가표 자동가와 다릅니다 — 저장 시 상태에 병기">단가변경</span>
                     )}
-                    <span className="text-[0.625rem] text-gray-400 shrink-0 ml-2">색상·옵션 등 기타</span>
+                    <span className="text-xs text-slate-500 shrink-0 ml-2">색상·옵션 등 기타</span>
                     <input value={it.option_note} disabled={locked}
                       onChange={e => setItem(i, { option_note: e.target.value })}
                       placeholder="색상, 각인 문구 등"
-                      className="flex-1 min-w-48 border border-gray-200 bg-gray-50 rounded px-1.5 py-0.5 text-[0.6875rem] disabled:opacity-60" />
-                    <span className="text-[0.625rem] text-gray-400 shrink-0 ml-2">비고</span>
+                      className="flex-1 min-w-48 border border-slate-300 bg-slate-50 rounded px-1.5 py-0.5 text-xs disabled:opacity-60" />
+                    <span className="text-xs text-slate-500 shrink-0 ml-2">비고</span>
                     <input value={it.memo} disabled={locked}
                       onChange={e => setItem(i, { memo: e.target.value })}
-                      className="flex-1 min-w-40 border border-gray-200 bg-gray-50 rounded px-1.5 py-0.5 text-[0.6875rem] disabled:opacity-60" />
+                      className="flex-1 min-w-40 border border-slate-300 bg-slate-50 rounded px-1.5 py-0.5 text-xs disabled:opacity-60" />
                   </div>
                 </td>
               </tr>
               {addonCands.length > 0 && (
-                <tr className="border-b border-gray-50">
+                <tr className="border-b border-slate-200">
                   <td colSpan={17} className="pb-1.5 pt-0 px-1.5">
                     <div className="flex items-center gap-1.5 flex-wrap pl-4">
-                      <span className="text-[0.625rem] text-gray-400">옵션 추가 ({it.purchase_vendor_name})</span>
+                      <span className="text-xs text-slate-500">옵션 추가 ({it.purchase_vendor_name})</span>
                       {addonCands.map(p => (
                         <button key={p.id} type="button" onClick={() => addAddon(i, p)}
                           className={p.is_shipping
-                            ? 'px-2 py-0.5 border border-amber-300 bg-amber-50 text-amber-800 rounded-full text-[0.6875rem] hover:bg-amber-100'
-                            : 'px-2 py-0.5 border border-violet-200 bg-violet-50/60 text-violet-700 rounded-full text-[0.6875rem] hover:bg-violet-100'}>
+                            ? 'px-2 py-0.5 border border-amber-300 bg-amber-50 text-amber-800 rounded-full text-xs hover:bg-amber-100'
+                            : 'px-2 py-0.5 border border-violet-200 bg-violet-50/60 text-violet-700 rounded-full text-xs hover:bg-violet-100'}>
                           + {p.item_name}
                           {p.is_shipping
                             ? (p.purchase_price > 0 ? ` (매입 ${won(p.purchase_price)})` : '')
@@ -1562,7 +1562,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         {!locked && (
           <button type="button"
             onClick={() => setItems(prev => [...prev, { ...emptyItem(nextUid()), order_season: [...prev].reverse().find(x => x.order_season)?.order_season ?? '' }])}
-            className="mt-2 px-3.5 py-1.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:border-gray-400">
+            className="mt-2 px-3.5 py-1.5 border border-dashed border-slate-400 rounded-lg text-xs text-slate-600 hover:border-slate-400">
             + 품목 행 추가
           </button>
         )}
@@ -1572,8 +1572,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             <span className="text-red-600">판매할인 합계 <b className="tabular-nums">-{won(totals.discount)}원</b></span>
           )}
           {/* 매입 합계 = 매입가×수량 + 매입배송비 − 매입할인 (마진 공식과 동일 기준 — 합계 − 매입 = 마진) */}
-          <span className="text-gray-600">매입 합계 <b className="tabular-nums">{won(totals.cost)}원</b>
-            <span className="text-[0.6875rem] text-gray-400 ml-1">배송비 포함{totals.purchaseDiscount > 0 ? ` · 매입할인 -${won(totals.purchaseDiscount)}원 반영` : ''}</span>
+          <span className="text-slate-700">매입 합계 <b className="tabular-nums">{won(totals.cost)}원</b>
+            <span className="text-xs text-slate-500 ml-1">배송비 포함{totals.purchaseDiscount > 0 ? ` · 매입할인 -${won(totals.purchaseDiscount)}원 반영` : ''}</span>
           </span>
           <span>예상 마진 <b className="tabular-nums text-emerald-700">{won(totals.margin)}원</b>
             {totals.total > 0 && (
@@ -1584,21 +1584,21 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
       </div>
 
       {/* 결제 정보 — 발송 정보와 분리 (사용자 피드백 1) */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
-        <div className="text-sm font-bold text-gray-900 mb-3">
-          결제 정보 <span className="text-[0.6875rem] font-normal text-gray-400 ml-1">결제정보는 암호화 저장 · 계산서 발행용 포함</span>
+      <div className="bg-white border border-slate-300 rounded-xl p-4 mt-3">
+        <div className="text-sm font-bold text-slate-900 mb-3">
+          결제 정보 <span className="text-xs font-normal text-slate-500 ml-1">결제정보는 암호화 저장 · 계산서 발행용 포함</span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-6 gap-x-3 gap-y-2.5">
           <div className="col-span-2">
             <label className={label}>결제정보 <span className="text-blue-600">(암호화 저장)</span></label>
             {/* (b) 정책: 열람은 본인 작성분 또는 결제정보 열람 권한 계정만 */}
             {paymentLocked && (
-              <div className="text-xs text-gray-400 mb-1">
+              <div className="text-xs text-slate-500 mb-1">
                 저장됨 — 열람 권한이 없습니다 (본인 작성분 또는 결제정보 열람 권한 계정만)
               </div>
             )}
             {paymentMasked && !payment && (
-              <div className="text-xs text-gray-500 mb-1 tabular-nums">
+              <div className="text-xs text-slate-600 mb-1 tabular-nums">
                 저장됨: {paymentRevealed ?? paymentMasked}
                 {!paymentRevealed && (
                   <button type="button" onClick={revealPayment} className="ml-1.5 text-blue-600 hover:underline">[열람]</button>
@@ -1630,9 +1630,9 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
       </div>
 
       {/* 발송 정보 */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-3">
-        <div className="text-sm font-bold text-gray-900 mb-3">
-          발송 정보 <span className="text-[0.6875rem] font-normal text-gray-400 ml-1">발주서·배송 관리(3단계)로 흘러감</span>
+      <div className="bg-white border border-slate-300 rounded-xl p-4 mt-3">
+        <div className="text-sm font-bold text-slate-900 mb-3">
+          발송 정보 <span className="text-xs font-normal text-slate-500 ml-1">발주서·배송 관리(3단계)로 흘러감</span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-6 gap-x-3 gap-y-2.5">
           {/* 보내는분 명의 — 결제에서 발송으로 이동 (실무자 피드백 3, 선물대행배송 다수) */}
@@ -1698,14 +1698,14 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
           const ptBlock = !!reqAssignee && (!vendorId || !contactId)   // 마스터 미연결이면 누구에게도 요청 불가 (2026-11-19, 서버 lib/order-request.ts와 같은 규칙)
           return (
             <div className="mt-4 p-3 rounded-lg border border-blue-200 bg-blue-50/40">
-              <div className="text-sm font-bold text-gray-900 mb-2">
-                주문 진행 요청 <span className="text-[0.6875rem] font-normal text-gray-500 ml-1">상담만 하고 주문 입력은 다른 직원에게 맡길 때 · 비워두면 내가 직접 진행</span>
+              <div className="text-sm font-bold text-slate-900 mb-2">
+                주문 진행 요청 <span className="text-xs font-normal text-slate-600 ml-1">상담만 하고 주문 입력은 다른 직원에게 맡길 때 · 비워두면 내가 직접 진행</span>
               </div>
               <div className="flex gap-3 flex-wrap items-start">
                 <div className="w-64">
                   <label className={label}>주문 진행 담당</label>
                   <select value={reqAssignee} onChange={e => setReqAssignee(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm bg-white">
+                    className="w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm bg-white">
                     <option value="">요청 안 함 (내가 진행)</option>
                     {employees.map(e => (
                       <option key={e.id} value={e.id}>
@@ -1718,7 +1718,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   <label className={label}>요청 메모 (선택)</label>
                   <input value={reqMemo} onChange={e => setReqMemo(e.target.value)} disabled={!reqAssignee}
                     placeholder="예: 11/10 출고 맞춰서 발주까지 부탁해요"
-                    className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm bg-white disabled:bg-gray-50" />
+                    className="w-full border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm bg-white disabled:bg-slate-50" />
                 </div>
               </div>
               {ptBlock && (
@@ -1728,20 +1728,20 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 </div>
               )}
               {reqAssignee && !ptBlock && (
-                <div className="mt-1.5 text-[0.6875rem] text-gray-500">저장하면 {picked?.name ?? ''}님에게 알림(PC 알림 포함)이 갑니다. 그 직원은 이 상담을 열람 · 주문 전환만 할 수 있습니다.</div>
+                <div className="mt-1.5 text-xs text-slate-600">저장하면 {picked?.name ?? ''}님에게 알림(PC 알림 포함)이 갑니다. 그 직원은 이 상담을 열람 · 주문 전환만 할 수 있습니다.</div>
               )}
             </div>
           )
         })()}
 
         <div className="flex items-center justify-between mt-4 flex-wrap gap-3">
-          <span className="text-[0.6875rem] text-gray-400">
+          <span className="text-xs text-slate-500">
             저장 시 업무일지에 자동 기재됩니다
           </span>
           {!locked && (
             <span className="flex gap-2">
               <button disabled={saving} onClick={() => save(false)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 disabled:opacity-50">저장</button>
+                className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-700 disabled:opacity-50">저장</button>
               {/* (b) 정책: 지점·담당자 마스터 연결이 끝난 상담만 주문 전환 */}
               <button disabled={saving || !vendorId || !contactId} onClick={() => save(true)}
                 title={!vendorId || !contactId
@@ -1761,7 +1761,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                   className="px-5 py-2 bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">주문서로 전환</button>
               )}
               <button onClick={() => router.push('/orders/consultations')}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600">목록으로</button>
+                className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-700">목록으로</button>
             </span>
           )}
           {converted && (
@@ -1769,7 +1769,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               <button onClick={() => router.push(`/orders/new?consult=${consultId}`)}
                 className="px-4 py-2 border border-blue-200 text-blue-700 rounded-lg text-sm">주문서로 추가 전환 (분할 주문)</button>
               <button onClick={() => router.push('/orders/consultations')}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600">목록으로</button>
+                className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-700">목록으로</button>
             </span>
           )}
         </div>

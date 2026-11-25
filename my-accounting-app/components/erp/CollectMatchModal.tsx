@@ -113,16 +113,16 @@ export default function CollectMatchModal({ orderId, onClose, onSaved, hideAccou
       <div className="bg-white rounded-2xl shadow-2xl w-[900px] max-w-full max-h-[92vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between">
           <div>
-            <h3 className="text-base font-bold text-gray-900">수금 매칭{order ? ` — 주문 ${order.order_no ?? ''}` : ''}</h3>
+            <h3 className="text-base font-bold text-slate-900">수금 매칭{order ? ` — 주문 ${order.order_no ?? ''}` : ''}</h3>
             {order && (
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-slate-600 mt-0.5">
                 {order.customer_name || order.vendor_name || '(거래처 없음)'} · {order.order_date} · 순매출 <b>{won(order.net_amount)}</b> · 기배분 {won(order.allocated)} ·
                 <span className={`ml-1 font-medium ${order.remaining > 0 ? 'text-red-600' : 'text-emerald-700'}`}>미수 {won(order.remaining)}</span>
                 {!order.vendor_id && <span className="ml-2 text-amber-600">거래처 미연결 주문 — 전체에서 찾기만 가능</span>}
               </p>
             )}
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-700 text-sm">✕</button>
         </div>
 
         {msg && <div className="mt-3 px-3 py-2 bg-slate-900 text-white text-xs rounded-lg">{msg}</div>}
@@ -130,22 +130,22 @@ export default function CollectMatchModal({ orderId, onClose, onSaved, hideAccou
         {/* 기매칭 */}
         {order && order.matches.length > 0 && (
           <div className="mt-3 text-xs">
-            <div className="text-gray-500 mb-1">이미 매칭된 결제 {order.matches.length}건</div>
+            <div className="text-slate-600 mb-1">이미 매칭된 결제 {order.matches.length}건</div>
             <div className="flex flex-wrap gap-1.5">
               {order.matches.map(m => (
-                <span key={m.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-gray-50">
+                <span key={m.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-300 bg-slate-50">
                   <span className={`px-1 rounded ${m.source_type === 'card' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>{m.source_type === 'card' ? '카드' : '계좌'}</span>
-                  {m.paid_date} · {won(m.amount)} <span className="text-gray-400">{m.label}</span>
+                  {m.paid_date} · {won(m.amount)} <span className="text-slate-500">{m.label}</span>
                   <button onClick={() => { setRelId(relId === m.id ? null : m.id); setRelReason(null) }} disabled={unmatching === m.id} className="text-red-500 hover:underline ml-1">{relId === m.id ? '닫기' : '해제'}</button>
                 </span>
               ))}
             </div>
             {order.matches.filter(m => m.id === relId).map(m => (
               <div key={m.id} className="mt-2 p-2.5 rounded-lg border border-orange-200 bg-orange-50">
-                <div className="text-gray-700 mb-2"><b>매칭 해제</b> — {m.paid_date} · {won(m.amount)} {m.label}. 사유 · 해제한 사람 · 시각이 남습니다.</div>
+                <div className="text-slate-800 mb-2"><b>매칭 해제</b> — {m.paid_date} · {won(m.amount)} {m.label}. 사유 · 해제한 사람 · 시각이 남습니다.</div>
                 <ReasonPicker kind="release" value={relReason} onChange={setRelReason} label="매칭 해제 사유" />
                 <div className="flex justify-end gap-2 mt-2">
-                  <button onClick={() => setRelId(null)} className="px-3 py-1.5 border border-gray-300 rounded-lg bg-white">닫기</button>
+                  <button onClick={() => setRelId(null)} className="px-3 py-1.5 border border-slate-400 rounded-lg bg-white">닫기</button>
                   <button onClick={() => unmatch(m)} disabled={unmatching === m.id || !reasonReady(relReason)} className="px-3 py-1.5 rounded-lg bg-slate-900 text-white font-semibold disabled:opacity-40">매칭 해제</button>
                 </div>
               </div>
@@ -155,42 +155,42 @@ export default function CollectMatchModal({ orderId, onClose, onSaved, hideAccou
 
         {/* 후보 범위·검색 */}
         <div className="flex flex-wrap items-center gap-2 mt-4 text-xs">
-          <span className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+          <span className="inline-flex rounded-lg border border-slate-400 overflow-hidden">
             <button onClick={() => setScope('vendor')} disabled={!order?.vendor_id}
-              className={`px-2.5 py-1.5 font-medium ${scope === 'vendor' ? 'bg-slate-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'} disabled:opacity-40`}>이 거래처 결제</button>
+              className={`px-2.5 py-1.5 font-medium ${scope === 'vendor' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'} disabled:opacity-40`}>이 거래처 결제</button>
             <button onClick={() => setScope('all')}
-              className={`px-2.5 py-1.5 font-medium ${scope === 'all' ? 'bg-slate-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>전체에서 찾기</button>
+              className={`px-2.5 py-1.5 font-medium ${scope === 'all' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'}`}>전체에서 찾기</button>
           </span>
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="border border-gray-300 rounded px-2 py-1" />
-          <span className="text-gray-400">~</span>
-          <input type="date" value={to} onChange={e => setTo(e.target.value)} className="border border-gray-300 rounded px-2 py-1" />
-          <input value={amount} onChange={e => setAmount(e.target.value)} placeholder="금액" className="border border-gray-300 rounded px-2 py-1 w-24" />
-          <input value={card4} onChange={e => setCard4(e.target.value)} placeholder="카드 끝4자리" className="border border-gray-300 rounded px-2 py-1 w-24" />
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="입금자·적요·매입사" className="border border-gray-300 rounded px-2 py-1 w-36" disabled={scope !== 'all'} />
-          <span className="text-gray-400">{scope === 'all' ? '거래처 없는 카드결제·다른 거래처 입금까지 (기본 기간: 주문일 30일 전 ~ 오늘)' : '이 거래처로 들어온 미배분 결제'}</span>
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="border border-slate-400 rounded px-2 py-1" />
+          <span className="text-slate-500">~</span>
+          <input type="date" value={to} onChange={e => setTo(e.target.value)} className="border border-slate-400 rounded px-2 py-1" />
+          <input value={amount} onChange={e => setAmount(e.target.value)} placeholder="금액" className="border border-slate-400 rounded px-2 py-1 w-24" />
+          <input value={card4} onChange={e => setCard4(e.target.value)} placeholder="카드 끝4자리" className="border border-slate-400 rounded px-2 py-1 w-24" />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="입금자·적요·매입사" className="border border-slate-400 rounded px-2 py-1 w-36" disabled={scope !== 'all'} />
+          <span className="text-slate-500">{scope === 'all' ? '거래처 없는 카드결제·다른 거래처 입금까지 (기본 기간: 주문일 30일 전 ~ 오늘)' : '이 거래처로 들어온 미배분 결제'}</span>
         </div>
 
         {/* 후보 목록 */}
-        <div className="mt-3 border border-gray-200 rounded-lg overflow-hidden">
+        <div className="mt-3 border border-slate-300 rounded-lg overflow-hidden">
           <table className="w-full text-xs">
-            <thead className="bg-gray-50 text-gray-400">
+            <thead className="bg-slate-50 text-slate-500">
               <tr>
                 <th className="py-1.5 px-2 text-left">원천</th><th className="py-1.5 px-2 text-left">일자</th>
                 <th className="py-1.5 px-2 text-left">입금자 / 카드번호 · 매입사</th><th className="py-1.5 px-2 text-left">거래처</th>
                 <th className="py-1.5 px-2 text-right">결제액</th><th className="py-1.5 px-2 text-right">미배분</th><th className="py-1.5 px-2 text-right w-36">이 주문에 배분</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-200">
               {loading ? (
-                <tr><td colSpan={7} className="py-6 text-center text-gray-400">불러오는 중...</td></tr>
+                <tr><td colSpan={7} className="py-6 text-center text-slate-500">불러오는 중...</td></tr>
               ) : cands.length === 0 ? (
-                <tr><td colSpan={7} className="py-6 text-center text-gray-400">미배분 결제가 없습니다. {scope === 'vendor' ? '전체에서 찾기로 넓혀 보세요.' : '기간·조건을 바꿔 보세요.'}</td></tr>
+                <tr><td colSpan={7} className="py-6 text-center text-slate-500">미배분 결제가 없습니다. {scope === 'vendor' ? '전체에서 찾기로 넓혀 보세요.' : '기간·조건을 바꿔 보세요.'}</td></tr>
               ) : cands.map(c => {
                 const key = `${c.source_type}:${c.id}`
                 const v = alloc[key] ?? ''
                 const on = toNum(v) > 0
                 return (
-                  <tr key={key} className={on ? 'bg-sky-50' : 'hover:bg-gray-50'}>
+                  <tr key={key} className={on ? 'bg-sky-50' : 'hover:bg-slate-50'}>
                     <td className="px-2 py-1.5"><span className={`px-1.5 py-0.5 rounded ${c.source_type === 'card' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>{c.source_type === 'card' ? '카드' : '계좌'}</span></td>
                     <td className="px-2 py-1.5 whitespace-nowrap">{c.tx_date}{c.tx_time ? ` ${c.tx_time.slice(0, 5)}` : ''}</td>
                     <td className="px-2 py-1.5">{c.label || '-'}</td>
@@ -200,7 +200,7 @@ export default function CollectMatchModal({ orderId, onClose, onSaved, hideAccou
                     <td className="px-2 py-1.5 text-right">
                       <input value={v} onChange={e => setOne(c, e.target.value)} placeholder="0"
                         onFocus={() => { if (!v && order) setOne(c, String(Math.min(c.remaining, order.remaining))) }}
-                        className={`border rounded px-2 py-1 w-32 text-right ${on ? 'border-sky-400' : 'border-gray-300'}`} />
+                        className={`border rounded px-2 py-1 w-32 text-right ${on ? 'border-sky-400' : 'border-slate-400'}`} />
                     </td>
                   </tr>
                 )
@@ -219,11 +219,11 @@ export default function CollectMatchModal({ orderId, onClose, onSaved, hideAccou
         )}
 
         <div className="flex items-center justify-between mt-4 gap-3 flex-wrap">
-          <div className="text-xs text-gray-500">
-            배분 합계 <b className="text-gray-900">{won(allocSum)}</b> / 미수 {won(order?.remaining)}
+          <div className="text-xs text-slate-600">
+            배분 합계 <b className="text-slate-900">{won(allocSum)}</b> / 미수 {won(order?.remaining)}
             {order && <> → 저장 후 미수 <b className={order.remaining - allocSum <= 0 ? 'text-emerald-700' : 'text-red-600'}>{won(Math.max(0, order.remaining - allocSum))}</b></>}
             {firstSelected && firstSelected.remaining - toNum(alloc[`${firstSelected.source_type}:${firstSelected.id}`] ?? '') > 0 && (
-              <span className="ml-2 text-gray-400">결제 미배분 잔액 {won(firstSelected.remaining - toNum(alloc[`${firstSelected.source_type}:${firstSelected.id}`] ?? ''))} 남음</span>
+              <span className="ml-2 text-slate-500">결제 미배분 잔액 {won(firstSelected.remaining - toNum(alloc[`${firstSelected.source_type}:${firstSelected.id}`] ?? ''))} 남음</span>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -233,7 +233,7 @@ export default function CollectMatchModal({ orderId, onClose, onSaved, hideAccou
                 이 결제건을 다른 주문에도 배분 →
               </Link>
             )}
-            <button onClick={onClose} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">닫기</button>
+            <button onClick={onClose} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm">닫기</button>
             <button onClick={save} disabled={saving || !order || allocSum <= 0}
               className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium disabled:opacity-50">
               {saving ? '저장 중...' : `저장 (${won(allocSum)})`}

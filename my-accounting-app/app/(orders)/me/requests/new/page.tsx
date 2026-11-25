@@ -29,7 +29,7 @@ interface Load { id: string; items: LoadItem[]; total: number; hidden: number; o
 const SHOW_PER_PERSON = 3
 
 export default function NewRequestPage() {
-  return <Suspense fallback={<div className="text-gray-400 text-sm p-6">로딩 중...</div>}><NewRequestForm /></Suspense>
+  return <Suspense fallback={<div className="text-slate-500 text-sm p-6">로딩 중...</div>}><NewRequestForm /></Suspense>
 }
 
 function NewRequestForm() {
@@ -146,37 +146,37 @@ function NewRequestForm() {
     router.push(`/me/requests/${json.id}`)
   }
 
-  const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
-  const quickBtn = 'px-2.5 py-1 text-xs border border-slate-300 rounded-full text-slate-700 hover:bg-slate-100 disabled:opacity-40'
+  const inputCls = 'w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900'
+  const quickBtn = 'px-2.5 py-1 text-xs border border-slate-400 rounded-full text-slate-800 hover:bg-slate-100 disabled:opacity-40'
   const now = new Date()
   const todayKst = kstParts(now).date
   const totalOpen = assignees.reduce((s, id) => s + (loads[id]?.total ?? 0), 0)
 
   return (
     <div className="max-w-6xl mx-auto">
-      <Link href="/me/requests" className="text-sm text-gray-500 hover:text-gray-900">← 업무 요청</Link>
-      <h1 className="text-2xl font-bold text-gray-900 mt-1">{sp.get('question') ? (sp.get('perm') ? '권한 요청' : '질문하기') : '새 요청'}</h1>
-      {sp.get('question') && <p className="text-sm text-gray-500 mt-1">업무 요청으로 보내집니다. 담당자가 진행 메모로 답하고 처리 보고하면 완료 확정해 주세요. 같은 질문이 반복되면 도움말에 반영됩니다.</p>}
+      <Link href="/me/requests" className="text-sm text-slate-600 hover:text-slate-900">← 업무 요청</Link>
+      <h1 className="text-2xl font-bold text-slate-900 mt-1">{sp.get('question') ? (sp.get('perm') ? '권한 요청' : '질문하기') : '새 요청'}</h1>
+      {sp.get('question') && <p className="text-sm text-slate-600 mt-1">업무 요청으로 보내집니다. 담당자가 진행 메모로 답하고 처리 보고하면 완료 확정해 주세요. 같은 질문이 반복되면 도움말에 반영됩니다.</p>}
       <div className="grid gap-4 lg:grid-cols-[3fr_2fr] mt-4">
-        <form onSubmit={submit} className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+        <form onSubmit={submit} className="bg-white border border-slate-300 rounded-xl p-5 space-y-4">
           {error && <div className="px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
 
           {/* 담당자 — 검색 + 칩 + 팀 버튼 */}
           <div>
             <div className="flex items-baseline gap-2">
-              <span className="text-xs font-medium text-gray-600">담당자 <span className="text-red-500">*</span></span>
-              <span className="text-[0.6875rem] text-gray-400">이름을 입력해 추가하거나 팀 버튼으로 한 번에</span>
+              <span className="text-xs font-medium text-slate-700">담당자 <span className="text-red-500">*</span></span>
+              <span className="text-xs text-slate-500">이름을 입력해 추가하거나 팀 버튼으로 한 번에</span>
             </div>
             <div className="relative mt-1">
               <input ref={searchRef} value={query} onChange={e => setQuery(e.target.value)} placeholder="이름 · 팀 검색 (예: 김주, 영업지원)"
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (candidates[0]) { toggle(candidates[0].id); setQuery('') } } if (e.key === 'Escape') setQuery('') }}
                 className={`${inputCls} bg-white`} />
               {candidates.length > 0 && (
-                <ul className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-auto text-sm">
+                <ul className="absolute z-10 left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-64 overflow-auto text-sm">
                   {candidates.map(e => (
                     <li key={e.id}><button type="button" onClick={() => { toggle(e.id); setQuery(''); searchRef.current?.focus() }} className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-2">
-                      <span className="font-medium text-gray-900">{e.name}</span>
-                      <span className="text-xs text-gray-500">{e.team ?? '-'}{e.position ? ` · ${e.position}` : ''}{e.employment_type === 'parttime' ? ' · 아르바이트' : ''}{e.id === meId ? ' · 나' : ''}</span>
+                      <span className="font-medium text-slate-900">{e.name}</span>
+                      <span className="text-xs text-slate-600">{e.team ?? '-'}{e.position ? ` · ${e.position}` : ''}{e.employment_type === 'parttime' ? ' · 아르바이트' : ''}{e.id === meId ? ' · 나' : ''}</span>
                     </button></li>
                   ))}
                 </ul>
@@ -186,17 +186,17 @@ function NewRequestForm() {
               {teams.map(([team, list]) => <button key={team} type="button" onClick={() => addMany(list.map(e => e.id))} disabled={list.every(e => assignees.includes(e.id))} className={quickBtn}>+ {team} ({list.length})</button>)}
               {parttime.length > 0 && <button type="button" onClick={() => addMany(parttime.map(e => e.id))} disabled={parttime.every(e => assignees.includes(e.id))} className={quickBtn}>+ 아르바이트 ({parttime.length})</button>}
               <button type="button" onClick={() => addMany(emps.map(e => e.id))} disabled={allSelected} className={quickBtn}>+ 전 직원 ({emps.length})</button>
-              {assignees.length > 0 && <button type="button" onClick={() => setAssignees([])} className="px-2.5 py-1 text-xs text-gray-500 underline">모두 지우기</button>}
+              {assignees.length > 0 && <button type="button" onClick={() => setAssignees([])} className="px-2.5 py-1 text-xs text-slate-600 underline">모두 지우기</button>}
             </div>
             {assignees.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {assignees.map(id => { const e = empById.get(id); return (
                   <span key={id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-900 text-white text-xs">
-                    {e?.name ?? '직원'}{e?.team && <span className="text-slate-300">· {e.team}</span>}{id === meId && <span className="text-slate-300">(나)</span>}
-                    <button type="button" onClick={() => toggle(id)} className="ml-0.5 text-slate-300 hover:text-white" aria-label="제거">✕</button>
+                    {e?.name ?? '직원'}{e?.team && <span className="text-slate-400">· {e.team}</span>}{id === meId && <span className="text-slate-400">(나)</span>}
+                    <button type="button" onClick={() => toggle(id)} className="ml-0.5 text-slate-400 hover:text-white" aria-label="제거">✕</button>
                   </span>
                 ) })}
-                <span className="text-xs text-gray-500 self-center">{assignees.length}명</span>
+                <span className="text-xs text-slate-600 self-center">{assignees.length}명</span>
               </div>
             )}
           </div>
@@ -204,15 +204,15 @@ function NewRequestForm() {
           {/* 진행 방식 — 2명 이상일 때만 */}
           {assignees.length > 1 && (
             <div>
-              <span className="text-xs font-medium text-gray-600">진행 방식 <span className="text-red-500">*</span> <span className="text-[0.6875rem] text-gray-400 font-normal">담당자 2명 이상</span></span>
+              <span className="text-xs font-medium text-slate-700">진행 방식 <span className="text-red-500">*</span> <span className="text-xs text-slate-500 font-normal">담당자 2명 이상</span></span>
               <div className="grid sm:grid-cols-2 gap-2 mt-1">
                 {(['first', 'all'] as WrMode[]).map(m => (
-                  <label key={m} className={`border rounded-lg px-3 py-2.5 cursor-pointer ${mode === m ? 'border-slate-900 ring-1 ring-slate-900 bg-slate-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                  <label key={m} className={`border rounded-lg px-3 py-2.5 cursor-pointer ${mode === m ? 'border-slate-900 ring-1 ring-slate-900 bg-slate-50' : 'border-slate-300 hover:bg-slate-50'}`}>
                     <div className="flex items-center gap-2">
                       <input type="radio" name="mode" checked={mode === m} onChange={() => setMode(m)} />
-                      <span className="text-sm font-semibold text-gray-900">{m === 'first' ? '선착 — 한 명이 수락하면 그 사람이 진행' : '공동 — 전원이 각자 진행'}</span>
+                      <span className="text-sm font-semibold text-slate-900">{m === 'first' ? '선착 — 한 명이 수락하면 그 사람이 진행' : '공동 — 전원이 각자 진행'}</span>
                     </div>
-                    <p className="text-[0.6875rem] text-gray-500 mt-1 leading-relaxed">{WR_MODE_DESC[m]} {m === 'first' ? '예: "이 전화 누가 좀 해줘".' : '예: "각자 담당 거래처 수금 확인".'}</p>
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">{WR_MODE_DESC[m]} {m === 'first' ? '예: "이 전화 누가 좀 해줘".' : '예: "각자 담당 거래처 수금 확인".'}</p>
                   </label>
                 ))}
               </div>
@@ -220,70 +220,70 @@ function NewRequestForm() {
           )}
 
           <label className="block">
-            <span className="text-xs font-medium text-gray-600">제목 <span className="text-red-500">*</span></span>
+            <span className="text-xs font-medium text-slate-700">제목 <span className="text-red-500">*</span></span>
             <input value={title} onChange={e => setTitle(e.target.value)} required maxLength={120} placeholder="예: 이편한 김포 수금 독촉 통화" className={`${inputCls} mt-1`} />
           </label>
           {hasTags && (
             <div>
               <div className="flex items-baseline gap-2">
-                <span className="text-xs font-medium text-gray-600">업무 계열 <span className="text-red-500">*</span></span>
-                <span className="text-[0.6875rem] text-gray-400">1개 이상, 최대 {WR_TAG_MAX}개</span>
+                <span className="text-xs font-medium text-slate-700">업무 계열 <span className="text-red-500">*</span></span>
+                <span className="text-xs text-slate-500">1개 이상, 최대 {WR_TAG_MAX}개</span>
               </div>
               <div className="mt-1.5">
                 <TagPicker tags={tags} value={tagIds} onChange={ids => { setTagIds(ids); setTagHint(null) }} recommended={recommended} max={WR_TAG_MAX} onLimit={() => setTagHint(`최대 ${WR_TAG_MAX}개까지 고를 수 있습니다.`)} />
               </div>
-              <p className={`text-[0.6875rem] mt-1.5 ${tagHint ? 'text-amber-700' : 'text-gray-400'}`}>
+              <p className={`text-xs mt-1.5 ${tagHint ? 'text-amber-700' : 'text-slate-500'}`}>
                 {tagHint ?? (tagIds.length ? `${tagIds.length}개 선택` : recommended.length ? '점선 = 제목 · 내용의 단어로 추천한 계열입니다. 눌러서 확정하세요.' : '이 요청이 어떤 계열의 일인지 고르세요.')}
               </p>
             </div>
           )}
           <label className="block">
-            <span className="text-xs font-medium text-gray-600">내용</span>
+            <span className="text-xs font-medium text-slate-700">내용</span>
             <textarea value={content} onChange={e => setContent(e.target.value)} rows={5} placeholder="무엇을 · 어디까지 · 결과를 어떻게 남길지" className={`${inputCls} mt-1`} />
           </label>
           <div className="flex gap-4 flex-wrap items-end">
             <label className="block">
-              <span className="text-xs font-medium text-gray-600">마감 일시 <span className="text-red-500">*</span></span>
+              <span className="text-xs font-medium text-slate-700">마감 일시 <span className="text-red-500">*</span></span>
               <input type="datetime-local" value={due} onChange={e => setDue(e.target.value)} required className={`${inputCls} mt-1 w-auto`} />
             </label>
             <label className="flex items-center gap-2 text-sm pb-2">
               <input type="checkbox" checked={urgent} onChange={e => setUrgent(e.target.checked)} />
-              <span className={urgent ? 'text-red-600 font-semibold' : 'text-gray-700'}>긴급</span>
+              <span className={urgent ? 'text-red-600 font-semibold' : 'text-slate-800'}>긴급</span>
             </label>
             <label className="flex items-center gap-2 text-sm pb-2" title="요청자 · 담당자 · 승인권자만 볼 수 있습니다. 전체(공용) 목록에 나오지 않습니다.">
               <input type="checkbox" checked={isPrivate} onChange={e => setIsPrivate(e.target.checked)} />
-              <span className={isPrivate ? 'text-slate-900 font-semibold' : 'text-gray-700'}>비공개</span>
+              <span className={isPrivate ? 'text-slate-900 font-semibold' : 'text-slate-800'}>비공개</span>
             </label>
-            <span className="text-xs text-gray-400 pb-2">기본값 당일 18:00 · 비공개는 당사자와 승인권자만 조회</span>
+            <span className="text-xs text-slate-500 pb-2">기본값 당일 18:00 · 비공개는 당사자와 승인권자만 조회</span>
           </div>
           <label className="block">
-            <span className="text-xs font-medium text-gray-600">관련 링크 · 서버 경로 (선택)</span>
+            <span className="text-xs font-medium text-slate-700">관련 링크 · 서버 경로 (선택)</span>
             <input value={link} onChange={e => setLink(e.target.value)} placeholder="ERP 화면 주소, 회사 서버 경로, 문서 주소" className={`${inputCls} mt-1`} />
           </label>
           <AttachmentBox ownerType="work_request" draftKey={draftKey} pasteAnywhere />
           <div className="flex gap-2 pt-1">
             <button type="submit" disabled={busy} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">{busy ? '보내는 중...' : assignees.length > 1 ? `요청 보내기 (${assignees.length}명 · ${mode === 'first' ? '선착' : '공동'})` : '요청 보내기'}</button>
-            <Link href="/me/requests" className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">취소</Link>
+            <Link href="/me/requests" className="px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">취소</Link>
           </div>
         </form>
 
         {/* 선택한 담당자가 맡고 있는 업무 */}
-        <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-5 text-sm self-start">
+        <div className="bg-slate-50 border border-dashed border-slate-400 rounded-xl p-5 text-sm self-start">
           {assignees.length === 0 ? (
-            <p className="text-gray-400">담당자를 선택하면 그 사람이 지금 맡고 있는 업무가 여기에 보입니다.</p>
+            <p className="text-slate-500">담당자를 선택하면 그 사람이 지금 맡고 있는 업무가 여기에 보입니다.</p>
           ) : (
             <>
-              <p className="font-bold text-gray-900">선택한 담당자가 맡고 있는 업무 <span className="text-xs text-gray-500 font-normal">({assignees.length}명 · 열린 요청 {totalOpen}건{loading ? ' · 불러오는 중' : ''})</span></p>
-              <div className="mt-3 divide-y divide-slate-200">
+              <p className="font-bold text-slate-900">선택한 담당자가 맡고 있는 업무 <span className="text-xs text-slate-600 font-normal">({assignees.length}명 · 열린 요청 {totalOpen}건{loading ? ' · 불러오는 중' : ''})</span></p>
+              <div className="mt-3 divide-y divide-slate-300">
                 {assignees.map(id => {
                   const e = empById.get(id); const l = loads[id]
                   const items = l?.items ?? []
                   return (
                     <div key={id} className="py-2.5 first:pt-0 last:pb-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Link href={`/me/requests?tab=all&employee=${id}`} className="font-semibold text-gray-900 hover:underline">{e?.name ?? '직원'}</Link>
-                        {e?.team && <span className="text-xs text-gray-400">{e.team}</span>}
-                        {l && <span className="text-xs text-gray-500 ml-auto">{l.total ? `${l.total}건` : '맡은 업무 없음'}{l.overdue ? <span className="text-red-600 font-medium"> · 지남 {l.overdue}</span> : ''}{l.due_today ? <span className="text-amber-600 font-medium"> · 오늘 {l.due_today}</span> : ''}</span>}
+                        <Link href={`/me/requests?tab=all&employee=${id}`} className="font-semibold text-slate-900 hover:underline">{e?.name ?? '직원'}</Link>
+                        {e?.team && <span className="text-xs text-slate-500">{e.team}</span>}
+                        {l && <span className="text-xs text-slate-600 ml-auto">{l.total ? `${l.total}건` : '맡은 업무 없음'}{l.overdue ? <span className="text-red-600 font-medium"> · 지남 {l.overdue}</span> : ''}{l.due_today ? <span className="text-amber-600 font-medium"> · 오늘 {l.due_today}</span> : ''}</span>}
                       </div>
                       {items.length > 0 && (
                         <ul className="mt-1.5 space-y-1">
@@ -293,18 +293,18 @@ function NewRequestForm() {
                             const over = tracked && dueT < now, today = tracked && !over && kstParts(dueT).date === todayKst
                             return (
                               <li key={it.id} className="grid grid-cols-[1fr_auto_auto] gap-2 items-center text-xs">
-                                <span className={`truncate ${it.hidden ? 'text-gray-400' : 'text-gray-800'}`}>
-                                  {it.is_urgent && <span className="text-[0.625rem] px-1 rounded bg-red-600 text-white mr-1">긴급</span>}
+                                <span className={`truncate ${it.hidden ? 'text-slate-500' : 'text-slate-900'}`}>
+                                  {it.is_urgent && <span className="text-xs px-1 rounded bg-red-600 text-white mr-1">긴급</span>}
                                   {it.hidden ? it.title : <Link href={`/me/requests/${it.id}`} className="hover:underline">{it.title}</Link>}
-                                  {it.requester && <span className="text-gray-400"> · {it.requester}</span>}
+                                  {it.requester && <span className="text-slate-500"> · {it.requester}</span>}
                                 </span>
-                                <span className={`tabular-nums whitespace-nowrap ${over ? 'text-red-600 font-medium' : today ? 'text-amber-600 font-medium' : 'text-gray-500'}`}>{fmtDue(it.due_at)}{over ? ' 지남' : today ? ' 오늘' : ''}</span>
-                                <span className={`px-1.5 py-0.5 rounded text-[0.625rem] font-semibold whitespace-nowrap ${WR_ASG_CLS[it.my_status]}`}>{WR_ASG_LABEL[it.my_status]}</span>
+                                <span className={`tabular-nums whitespace-nowrap ${over ? 'text-red-600 font-medium' : today ? 'text-amber-600 font-medium' : 'text-slate-600'}`}>{fmtDue(it.due_at)}{over ? ' 지남' : today ? ' 오늘' : ''}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-xs font-semibold whitespace-nowrap ${WR_ASG_CLS[it.my_status]}`}>{WR_ASG_LABEL[it.my_status]}</span>
                               </li>
                             )
                           })}
                           {items.length > SHOW_PER_PERSON && (
-                            <li className="text-xs text-gray-400">그 외 {items.length - SHOW_PER_PERSON}건{l!.hidden ? ` (비공개 ${l!.hidden}건 포함)` : ''} — <Link href={`/me/requests?tab=all&employee=${id}`} className="underline">전체 목록</Link></li>
+                            <li className="text-xs text-slate-500">그 외 {items.length - SHOW_PER_PERSON}건{l!.hidden ? ` (비공개 ${l!.hidden}건 포함)` : ''} — <Link href={`/me/requests?tab=all&employee=${id}`} className="underline">전체 목록</Link></li>
                           )}
                         </ul>
                       )}
@@ -312,7 +312,7 @@ function NewRequestForm() {
                   )
                 })}
               </div>
-              <p className="text-xs text-gray-400 mt-4">열린 요청(미확인 · 수락 · 진행 중 · 처리 보고)만, 마감 순. 비공개 요청은 당사자와 승인권자가 아니면 제목이 가려집니다. 여유 판단은 요청자가 합니다.</p>
+              <p className="text-xs text-slate-500 mt-4">열린 요청(미확인 · 수락 · 진행 중 · 처리 보고)만, 마감 순. 비공개 요청은 당사자와 승인권자가 아니면 제목이 가려집니다. 여유 판단은 요청자가 합니다.</p>
             </>
           )}
         </div>

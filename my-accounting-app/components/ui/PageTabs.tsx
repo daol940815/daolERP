@@ -10,13 +10,13 @@ export interface PageTab {
 
 export default function PageTabs({ tabs, active, className = '' }: { tabs: PageTab[]; active: string; className?: string }) {
   return (
-    <div className={`flex gap-1 border-b border-gray-200 ${className}`}>
+    <div className={`flex gap-1 border-b border-slate-300 ${className}`}>
       {tabs.map(t => {
         const on = t.key === active
         return (
           <Link key={t.key} href={t.href}
             className={`px-4 py-2 -mb-px text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-              on ? 'border-slate-900 text-slate-900' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
+              on ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-600 hover:text-slate-900'}`}>
             {t.label}
           </Link>
         )

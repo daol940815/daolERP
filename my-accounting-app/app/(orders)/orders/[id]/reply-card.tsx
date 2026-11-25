@@ -74,26 +74,26 @@ export default function ReplyCard({ orderId, reply, summary, onSaved }: {
   }
 
   return (
-    <div className={`bg-white rounded-xl p-4 mt-3 border ${reply.state === 'waiting' ? 'border-orange-300' : 'border-gray-200'}`}>
+    <div className={`bg-white rounded-xl p-4 mt-3 border ${reply.state === 'waiting' ? 'border-orange-300' : 'border-slate-300'}`}>
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="text-sm font-bold text-gray-900">완료 회신</div>
-        <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${badge.cls}`}>{badge.label}</span>
-        <span className="ml-auto text-xs text-gray-400">
-          받는 사람: <span className="text-gray-700">{reply.recipients.map(r => r.name).join(' · ') || '-'}</span>
+        <div className="text-sm font-bold text-slate-900">완료 회신</div>
+        <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${badge.cls}`}>{badge.label}</span>
+        <span className="ml-auto text-xs text-slate-500">
+          받는 사람: <span className="text-slate-800">{reply.recipients.map(r => r.name).join(' · ') || '-'}</span>
           {reply.entrant_name && <span> · 입력 {reply.entrant_name}</span>}
         </span>
       </div>
 
       {/* 처리 결과 (자동) */}
-      <div className="mt-2.5 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs leading-relaxed text-gray-700">
-        <div><b className="text-gray-900">처리 결과 (자동)</b> <span className="text-gray-400">— 주문 · 발주서에서 계산</span></div>
+      <div className="mt-2.5 bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs leading-relaxed text-slate-800">
+        <div><b className="text-slate-900">처리 결과 (자동)</b> <span className="text-slate-500">— 주문 · 발주서에서 계산</span></div>
         <div>주문 {summary.orderNo} · {summary.where}{summary.customer ? ` · ${summary.customer}` : ''} · <b className="tabular-nums">{won(summary.total)}원</b></div>
         <div className="flex flex-wrap items-center gap-1">
           <span>발주:</span>
-          {!reply.pos.length ? <span className="text-gray-400">발주서 없음</span> : reply.pos.map(p => (
+          {!reply.pos.length ? <span className="text-slate-500">발주서 없음</span> : reply.pos.map(p => (
             <span key={p.po_no} className="inline-flex items-center gap-1 mr-1.5">
               {p.vendor_name}
-              <span className={`px-1.5 py-0.5 rounded text-[0.625rem] font-medium ${p.sent_at ? 'bg-emerald-50 text-emerald-700' : 'bg-orange-50 text-orange-700'}`}>
+              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${p.sent_at ? 'bg-emerald-50 text-emerald-700' : 'bg-orange-50 text-orange-700'}`}>
                 {p.sent_at ? `발송 ${when(p.sent_at)}` : '미발송'}
               </span>
             </span>
@@ -109,22 +109,22 @@ export default function ReplyCard({ orderId, reply, summary, onSaved }: {
             {RESULTS.map(([k, l]) => (
               <button key={k} type="button" onClick={() => setResult(k)}
                 className={`px-3 py-1.5 rounded-lg text-xs border ${result === k
-                  ? (k === 'unable' ? 'border-red-500 bg-red-50 text-red-700 font-semibold' : 'border-slate-900 bg-slate-50 text-gray-900 font-semibold')
-                  : 'border-gray-300 text-gray-600 hover:border-gray-400'}`}>
+                  ? (k === 'unable' ? 'border-red-500 bg-red-50 text-red-700 font-semibold' : 'border-slate-900 bg-slate-50 text-slate-900 font-semibold')
+                  : 'border-slate-400 text-slate-700 hover:border-slate-400'}`}>
                 {l}
               </button>
             ))}
           </div>
           <textarea value={memo} onChange={e => setMemo(e.target.value)} rows={3}
             placeholder={result === 'done' ? '회신 메모 (선택) — 예: 발주 완료, 11/7 도착 예정' : result === 'changed' ? '무엇이 바뀌었는지 (필수) — 예: A품목 품절로 B로 대체, 고객 확인 완료' : '처리 불가 사유 (필수)'}
-            className="mt-2 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            className="mt-2 w-full border border-slate-400 rounded-lg px-3 py-2 text-sm" />
           {result === 'unable' && (
-            <div className="mt-1 text-[0.6875rem] text-red-600">처리 불가 회신은 주문을 자동으로 취소하지 않습니다. 취소가 필요하면 위의 주문 취소로 따로 처리하세요.</div>
+            <div className="mt-1 text-xs text-red-600">처리 불가 회신은 주문을 자동으로 취소하지 않습니다. 취소가 필요하면 위의 주문 취소로 따로 처리하세요.</div>
           )}
           {err && <div className="mt-1.5 text-xs text-red-600">{err}</div>}
           <div className="mt-2 flex justify-end gap-2">
             {reply.replies.length > 0 && (
-              <button type="button" onClick={() => { setOpen(false); setErr(null) }} className="px-3 py-1.5 text-xs text-gray-500">닫기</button>
+              <button type="button" onClick={() => { setOpen(false); setErr(null) }} className="px-3 py-1.5 text-xs text-slate-600">닫기</button>
             )}
             <button type="button" onClick={submit} disabled={busy}
               className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">
@@ -135,7 +135,7 @@ export default function ReplyCard({ orderId, reply, summary, onSaved }: {
       ) : (
         <div className="mt-2.5">
           <button type="button" onClick={() => setOpen(true)}
-            className="px-3 py-1 text-xs rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
+            className="px-3 py-1 text-xs rounded-lg border border-slate-400 text-slate-700 hover:bg-slate-50">
             {reply.replies.length ? '추가 회신' : '회신 쓰기'}
           </button>
         </div>
@@ -143,14 +143,14 @@ export default function ReplyCard({ orderId, reply, summary, onSaved }: {
 
       {/* 회신 이력 — 지우거나 덮어쓰지 않음 */}
       {reply.replies.length > 0 && (
-        <div className="mt-3 border-l-2 border-gray-200 ml-1.5 pl-3.5 space-y-2.5">
+        <div className="mt-3 border-l-2 border-slate-300 ml-1.5 pl-3.5 space-y-2.5">
           {reply.replies.map(r => (
             <div key={r.id} className="relative text-xs leading-relaxed">
               <span className={`absolute -left-[1.3rem] top-1 w-2.5 h-2.5 rounded-full ${DOT[r.result]}`} />
-              <b className="text-gray-900">{STATE_BADGE[r.result].label}</b>
-              <span className="text-gray-500"> · {r.employee_name ?? ''}</span>
-              <span className="text-gray-400 ml-1">{when(r.created_at)}</span>
-              {r.memo && <div className="text-gray-700 whitespace-pre-wrap">{r.memo}</div>}
+              <b className="text-slate-900">{STATE_BADGE[r.result].label}</b>
+              <span className="text-slate-600"> · {r.employee_name ?? ''}</span>
+              <span className="text-slate-500 ml-1">{when(r.created_at)}</span>
+              {r.memo && <div className="text-slate-800 whitespace-pre-wrap">{r.memo}</div>}
             </div>
           ))}
         </div>

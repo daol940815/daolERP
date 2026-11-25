@@ -33,7 +33,7 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   pending:   { label: '대기', cls: 'bg-amber-100 text-amber-800' },
   approved:  { label: '승인', cls: 'bg-emerald-100 text-emerald-700' },
   rejected:  { label: '반려', cls: 'bg-red-100 text-red-700' },
-  withdrawn: { label: '철회', cls: 'bg-gray-100 text-gray-500' },
+  withdrawn: { label: '철회', cls: 'bg-slate-100 text-slate-600' },
 }
 
 export default function ApprovalsPage() {
@@ -73,14 +73,14 @@ export default function ApprovalsPage() {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-900">주문 수정 승인</h1>
+        <h1 className="text-xl font-bold text-slate-900">주문 수정 승인</h1>
         <span className="text-xs text-amber-600">
           제도 폐지(2026-08-25) — 신규 요청은 취소·재등록 방식으로 대체. 이 화면은 남은 대기 건 처리·과거 이력 열람용
         </span>
         <span className="ml-auto flex gap-1.5">
           {(['pending', 'all'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-3 py-1 rounded-full text-xs border ${tab === t ? 'bg-slate-900 text-white border-slate-900' : 'border-gray-300 text-gray-500'}`}>
+              className={`px-3 py-1 rounded-full text-xs border ${tab === t ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-400 text-slate-600'}`}>
               {t === 'pending' ? '대기 중' : '전체 이력'}
             </button>
           ))}
@@ -90,39 +90,39 @@ export default function ApprovalsPage() {
       {error && <div className="mt-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
 
       <div className="mt-4 space-y-3">
-        {loading ? <div className="text-center py-16 text-gray-400">로딩 중...</div> : requests.map(r => {
-          const badge = STATUS_BADGE[r.status] ?? { label: r.status, cls: 'bg-gray-100 text-gray-500' }
+        {loading ? <div className="text-center py-16 text-slate-500">로딩 중...</div> : requests.map(r => {
+          const badge = STATUS_BADGE[r.status] ?? { label: r.status, cls: 'bg-slate-100 text-slate-600' }
           const customer = [r.order?.bank_name, r.order?.branch_name].filter(Boolean).join(' ') || '(주문처 미상)'
           const beforeItems = (r.before_snapshot?.items ?? []).filter(it => !it.is_canceled)
           const afterItems = r.payload?.items ?? []
           const beforeTotal = Number(r.before_snapshot?.order?.total_amount ?? 0)
           const afterTotal = afterItems.reduce((s, it) => s + lineOf(it), 0)
           return (
-            <div key={r.id} className="bg-white border border-gray-200 rounded-xl p-4">
+            <div key={r.id} className="bg-white border border-slate-300 rounded-xl p-4">
               <div className="flex items-center gap-2.5 flex-wrap text-sm">
-                <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${badge.cls}`}>{badge.label}</span>
-                <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium ${r.request_type === 'cancel' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-700'}`}>
+                <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${badge.cls}`}>{badge.label}</span>
+                <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${r.request_type === 'cancel' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-700'}`}>
                   {r.request_type === 'cancel' ? '취소 요청' : '수정 요청'}
                 </span>
                 <Link href={`/orders/${r.order_id}`} className="font-semibold hover:underline">
                   {customer}
                 </Link>
-                <span className="text-xs text-gray-400 tabular-nums">
+                <span className="text-xs text-slate-500 tabular-nums">
                   {r.order?.order_no} · 주문일 {r.order?.order_date}
                 </span>
-                <span className="text-xs text-gray-400 ml-auto tabular-nums">
+                <span className="text-xs text-slate-500 ml-auto tabular-nums">
                   {r.requester?.name ?? '?'} 요청 · {r.created_at.slice(0, 16).replace('T', ' ')}
                 </span>
               </div>
 
-              <div className="mt-2 text-sm text-gray-700">
+              <div className="mt-2 text-sm text-slate-800">
                 사유: <span className="font-medium">{r.reason}</span>
               </div>
 
               {r.request_type === 'edit' && (
                 <div className="mt-2.5 grid md:grid-cols-2 gap-2.5 text-xs">
-                  <div className="bg-gray-50 rounded-lg p-2.5">
-                    <div className="text-[0.6875rem] text-gray-400 mb-1">현재 (변경 전) — 총 {won(beforeTotal)}원</div>
+                  <div className="bg-slate-50 rounded-lg p-2.5">
+                    <div className="text-xs text-slate-500 mb-1">현재 (변경 전) — 총 {won(beforeTotal)}원</div>
                     {beforeItems.map((it, i) => (
                       <div key={i} className="flex justify-between py-0.5">
                         <span>{it.item_name} × {it.quantity}</span>
@@ -131,7 +131,7 @@ export default function ApprovalsPage() {
                     ))}
                   </div>
                   <div className="bg-blue-50/50 rounded-lg p-2.5 border border-blue-100">
-                    <div className="text-[0.6875rem] text-blue-600 mb-1">
+                    <div className="text-xs text-blue-600 mb-1">
                       제안 (변경 후) — 총 {won(afterTotal)}원
                       {afterTotal !== beforeTotal && (
                         <span className={`ml-1.5 font-semibold ${afterTotal > beforeTotal ? 'text-emerald-600' : 'text-red-500'}`}>
@@ -146,7 +146,7 @@ export default function ApprovalsPage() {
                       </div>
                     ))}
                     {r.payload?.order_date && r.payload.order_date !== r.order?.order_date && (
-                      <div className="mt-1 text-[0.6875rem] text-blue-700">주문일 변경: {r.order?.order_date} → {r.payload.order_date}</div>
+                      <div className="mt-1 text-xs text-blue-700">주문일 변경: {r.order?.order_date} → {r.payload.order_date}</div>
                     )}
                   </div>
                 </div>
@@ -161,14 +161,14 @@ export default function ApprovalsPage() {
                 <div className="mt-3 flex items-center gap-2 flex-wrap">
                   <input value={memos[r.id] ?? ''} onChange={e => setMemos(m => ({ ...m, [r.id]: e.target.value }))}
                     placeholder="처리 메모 (반려 시 필수)"
-                    className="flex-1 min-w-56 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    className="flex-1 min-w-56 border border-slate-400 rounded-lg px-3 py-1.5 text-sm" />
                   <button disabled={busy === r.id} onClick={() => decide(r.id, 'approve')}
                     className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">승인·반영</button>
                   <button disabled={busy === r.id} onClick={() => decide(r.id, 'reject')}
                     className="px-4 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm disabled:opacity-50">반려</button>
                 </div>
               ) : (
-                <div className="mt-2 text-xs text-gray-400">
+                <div className="mt-2 text-xs text-slate-500">
                   {r.decider?.name && `${r.decider.name} 처리`}
                   {r.decided_at && ` · ${r.decided_at.slice(0, 16).replace('T', ' ')}`}
                   {r.decision_memo && ` · ${r.decision_memo}`}
@@ -178,7 +178,7 @@ export default function ApprovalsPage() {
           )
         })}
         {!loading && !requests.length && (
-          <div className="text-center py-16 text-gray-400 text-sm bg-white border border-gray-200 rounded-xl">
+          <div className="text-center py-16 text-slate-500 text-sm bg-white border border-slate-300 rounded-xl">
             {tab === 'pending' ? '대기 중인 요청이 없습니다.' : '요청 이력이 없습니다.'}
           </div>
         )}

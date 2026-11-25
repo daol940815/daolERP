@@ -60,12 +60,12 @@ function ChipInput({
       {items.map(v => (
         <span
           key={v}
-          className={`group inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-700 hover:bg-gray-200 ${mono ? 'font-mono' : ''}`}
+          className={`group inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 rounded text-xs text-slate-800 hover:bg-slate-200 ${mono ? 'font-mono' : ''}`}
         >
           {v}
           <button
             onClick={() => onRemove(v)}
-            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 leading-none transition-opacity"
+            className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-500 leading-none transition-opacity"
           >✕</button>
         </span>
       ))}
@@ -75,7 +75,7 @@ function ChipInput({
         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd() } }}
         onBlur={handleAdd}
         placeholder={placeholder}
-        className={`text-xs px-2 py-0.5 border border-dashed border-gray-300 rounded w-32 focus:outline-none focus:border-slate-500 text-gray-500 placeholder-gray-400 ${mono ? 'font-mono' : ''}`}
+        className={`text-xs px-2 py-0.5 border border-dashed border-slate-400 rounded w-32 focus:outline-none focus:border-slate-500 text-slate-600 placeholder-slate-400 ${mono ? 'font-mono' : ''}`}
       />
     </div>
   )
@@ -132,37 +132,37 @@ function VendorModal({
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">{vendor ? '거래처 수정' : '기타 거래처 추가'}</h2>
+        <h2 className="text-lg font-bold text-slate-900 mb-4">{vendor ? '거래처 수정' : '기타 거래처 추가'}</h2>
         {!vendor && (
-          <p className="text-xs text-gray-400 mb-3">ERP 주문에 아직 등장하지 않는 거래처를 미리 등록합니다.</p>
+          <p className="text-xs text-slate-500 mb-3">ERP 주문에 아직 등장하지 않는 거래처를 미리 등록합니다.</p>
         )}
         {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
         <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">거래처명 <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-slate-800 mb-1">거래처명 <span className="text-red-500">*</span></label>
             <input
               autoFocus
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">사업자등록번호</label>
+              <label className="block text-sm font-medium text-slate-800 mb-1">사업자등록번호</label>
               <input
                 value={form.biz_number}
                 onChange={e => setForm(f => ({ ...f, biz_number: e.target.value }))}
                 placeholder="000-00-00000"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+                className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">유형</label>
+              <label className="block text-sm font-medium text-slate-800 mb-1">유형</label>
               <select
                 value={form.type}
                 onChange={e => setForm(f => ({ ...f, type: e.target.value as 'vendor' | 'customer' | 'both' }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+                className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
               >
                 <option value="vendor">매입처</option>
                 <option value="customer">매출처</option>
@@ -172,42 +172,42 @@ function VendorModal({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">담당자</label>
+              <label className="block text-sm font-medium text-slate-800 mb-1">담당자</label>
               <input
                 value={form.contact_name}
                 onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+                className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">연락처</label>
+              <label className="block text-sm font-medium text-slate-800 mb-1">연락처</label>
               <input
                 value={form.contact_phone}
                 onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+                className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
               />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">이메일</label>
+            <label className="block text-sm font-medium text-slate-800 mb-1">이메일</label>
             <input
               value={form.email}
               onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">메모</label>
+            <label className="block text-sm font-medium text-slate-800 mb-1">메모</label>
             <textarea
               value={form.note}
               onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
               rows={2}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">입금/출금계좌명</label>
-            <p className="text-xs text-gray-400 mb-1.5">은행 거래내역 매칭에 사용됩니다.</p>
+            <label className="block text-sm font-medium text-slate-800 mb-1">입금/출금계좌명</label>
+            <p className="text-xs text-slate-500 mb-1.5">은행 거래내역 매칭에 사용됩니다.</p>
             <ChipInput
               items={form.match_aliases}
               placeholder="+ 별칭"
@@ -217,8 +217,8 @@ function VendorModal({
           </div>
           {vendor && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">거래처원장 잔액</label>
-              <p className="text-xs text-gray-400 mb-1.5">
+              <label className="block text-sm font-medium text-slate-800 mb-1">거래처원장 잔액</label>
+              <p className="text-xs text-slate-500 mb-1.5">
                 거래처가 통보한 원장 기준 잔액 (대사용 참고값, 수기 입력)
                 {vendor.ledger_balance_updated_at && ` · 마지막 갱신 ${vendor.ledger_balance_updated_at}`}
               </p>
@@ -227,13 +227,13 @@ function VendorModal({
                 value={form.ledger_balance}
                 onChange={e => setForm(f => ({ ...f, ledger_balance: e.target.value }))}
                 placeholder="예: 2919000"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+                className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
               />
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">카드번호</label>
-            <p className="text-xs text-gray-400 mb-1.5">카드매출 자동 매칭에 사용됩니다.</p>
+            <label className="block text-sm font-medium text-slate-800 mb-1">카드번호</label>
+            <p className="text-xs text-slate-500 mb-1.5">카드매출 자동 매칭에 사용됩니다.</p>
             <ChipInput
               items={form.card_numbers}
               placeholder="1234-56**-****-7890"
@@ -244,7 +244,7 @@ function VendorModal({
           </div>
         </div>
         <div className="flex gap-2 mt-5">
-          <button onClick={onClose} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">취소</button>
+          <button onClick={onClose} className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50">취소</button>
           <button
             onClick={handleSave}
             disabled={saving}
@@ -540,13 +540,13 @@ function ErpAliasesContent() {
 
   const chipList = (items: string[] | null | undefined, emptyText: string) => {
     const list = (items ?? []).filter(Boolean)
-    if (!list.length) return <span className="text-xs text-gray-300">{emptyText}</span>
+    if (!list.length) return <span className="text-xs text-slate-400">{emptyText}</span>
     return (
       <div className="flex flex-wrap gap-1 max-w-[200px]">
         {list.slice(0, 3).map(s => (
-          <span key={s} className="px-1.5 py-0.5 text-[0.6875rem] bg-gray-100 text-gray-600 rounded truncate max-w-[90px]">{s}</span>
+          <span key={s} className="px-1.5 py-0.5 text-xs bg-slate-100 text-slate-700 rounded truncate max-w-[90px]">{s}</span>
         ))}
-        {list.length > 3 && <span className="text-[0.6875rem] text-gray-400">+{list.length - 3}</span>}
+        {list.length > 3 && <span className="text-xs text-slate-500">+{list.length - 3}</span>}
       </div>
     )
   }
@@ -555,13 +555,13 @@ function ErpAliasesContent() {
     <div className="max-w-6xl mx-auto">
       <div className="mb-1">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">{tabLabel} 관리</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{tabLabel} 관리</h1>
           <a href="/erp-aliases/pending"
             className="px-3 py-1.5 rounded-lg text-sm border border-indigo-300 text-indigo-700 hover:bg-indigo-50">
             거래처 등록 대기
           </a>
         </div>
-        <p className="text-sm mt-1 text-gray-500">
+        <p className="text-sm mt-1 text-slate-600">
           ERP에 입력된 {tabLabel}명 기준으로 거래처 연결과 거래처 정보(사업자번호·{isCustomer ? '입금계좌명·카드번호' : '출금계좌명'}·담당자 등)를 한곳에서 관리합니다.
           여러 ERP명(부서·지점)을 같은 거래처에 연결할 수 있습니다.
         </p>
@@ -570,13 +570,13 @@ function ErpAliasesContent() {
       {msg && <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
 
       {/* 탭 */}
-      <div className="flex items-center gap-1 mb-3 mt-3 border-b border-gray-200">
+      <div className="flex items-center gap-1 mb-3 mt-3 border-b border-slate-300">
         {([['customer', '매출처'], ['purchase', '매입처']] as [Tab, string][]).map(([t, label]) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors ${
-              tab === t ? 'border-slate-900 text-slate-900 font-medium' : 'border-transparent text-gray-400 hover:text-gray-600'
+              tab === t ? 'border-slate-900 text-slate-900 font-medium' : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
             {label}
@@ -586,7 +586,7 @@ function ErpAliasesContent() {
 
       {/* 필터 + 일괄 작업 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <label className="flex items-center gap-1.5 text-sm text-gray-600">
+        <label className="flex items-center gap-1.5 text-sm text-slate-700">
           <input type="checkbox" checked={onlyUnmatched} onChange={e => setOnlyUnmatched(e.target.checked)} />
           미연결만 보기
         </label>
@@ -594,14 +594,14 @@ function ErpAliasesContent() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder={`ERP ${tabLabel}명/거래처명 검색`}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
-        <span className="text-xs text-gray-400">미연결 {unmatchedCount} / 전체 {aliases.length}</span>
+        <span className="text-xs text-slate-500">미연결 {unmatchedCount} / 전체 {aliases.length}</span>
         <div className="flex-1" />
         <button
           onClick={handleExport}
           disabled={loading || working || importing}
-          className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+          className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-40"
         >
           엑셀 다운로드
         </button>
@@ -619,14 +619,14 @@ function ErpAliasesContent() {
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={loading || working || importing}
-          className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+          className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-40"
         >
           {importing ? '업로드 중...' : '엑셀 업로드'}
         </button>
         <button
           onClick={selectHighConfidence}
           disabled={loading || working}
-          className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+          className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-40"
         >
           유사도 90%↑ 전체선택
         </button>
@@ -640,16 +640,16 @@ function ErpAliasesContent() {
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 text-sm">
+        <div className="text-center py-20 text-slate-500 text-sm">
           {onlyUnmatched ? '미연결 항목이 없습니다. 모든 매칭이 완료되었습니다. ' : '표시할 항목이 없습니다. ERP 주문 파일을 먼저 업로드해주세요.'}
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+              <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                 <th className="py-2.5 px-3 w-8"></th>
                 <th className="py-2.5 px-3 font-medium">ERP {tabLabel}명</th>
                 <th className="py-2.5 px-3 font-medium">연결 거래처</th>
@@ -666,7 +666,7 @@ function ErpAliasesContent() {
                 const expanded = expandedId === a.id
                 return (
                   <Fragment key={a.id}>
-                    <tr className={`border-b border-gray-100 ${expanded ? 'bg-slate-50' : 'hover:bg-gray-50'} ${a.vendors && !a.vendors.is_active ? 'opacity-50' : ''}`}>
+                    <tr className={`border-b border-slate-200 ${expanded ? 'bg-slate-50' : 'hover:bg-slate-50'} ${a.vendors && !a.vendors.is_active ? 'opacity-50' : ''}`}>
                       <td className="py-2 px-3">
                         {!a.vendor_id && (
                           <input type="checkbox" checked={selected.has(a.id)} onChange={() => toggleSelect(a.id)} disabled={!sug} />
@@ -674,14 +674,14 @@ function ErpAliasesContent() {
                       </td>
                       <td className="py-2 px-3">
                         <div className="flex items-center gap-1.5">
-                          <p className="truncate max-w-[200px] text-gray-900">{a.erp_name}</p>
+                          <p className="truncate max-w-[200px] text-slate-900">{a.erp_name}</p>
                           {sharedCount > 1 && (
-                            <span className="px-1.5 py-0.5 text-[0.625rem] bg-indigo-50 text-indigo-600 border border-indigo-200 rounded shrink-0" title="여러 ERP명이 같은 거래처에 연결됨">
+                            <span className="px-1.5 py-0.5 text-xs bg-indigo-50 text-indigo-600 border border-indigo-200 rounded shrink-0" title="여러 ERP명이 같은 거래처에 연결됨">
                               공유 {sharedCount}
                             </span>
                           )}
                           {a.vendors && !a.vendors.is_active && (
-                            <span className="px-1.5 py-0.5 text-[0.625rem] bg-gray-100 text-gray-500 rounded shrink-0">비활성</span>
+                            <span className="px-1.5 py-0.5 text-xs bg-slate-100 text-slate-600 rounded shrink-0">비활성</span>
                           )}
                         </div>
                       </td>
@@ -692,12 +692,12 @@ function ErpAliasesContent() {
                           options={vendors.map(v => ({ id: v.id, label: v.name }))}
                           emptyLabel="미연결"
                           disabled={working}
-                          className={`border rounded px-2 py-1 text-xs w-44 ${a.vendor_id ? 'border-green-200 text-green-700 bg-green-50' : 'border-gray-200 text-gray-500'}`}
+                          className={`border rounded px-2 py-1 text-xs w-44 ${a.vendor_id ? 'border-green-200 text-green-700 bg-green-50' : 'border-slate-300 text-slate-600'}`}
                         />
                         {!a.vendor_id && sug && (
-                          <p className="text-[0.6875rem] mt-0.5 text-blue-700 truncate max-w-[180px]">
+                          <p className="text-xs mt-0.5 text-blue-700 truncate max-w-[180px]">
                             추천: {sug.name}{' '}
-                            <span className={sug.score >= 0.9 ? 'text-green-600' : sug.score >= 0.7 ? 'text-amber-600' : 'text-gray-400'}>
+                            <span className={sug.score >= 0.9 ? 'text-green-600' : sug.score >= 0.7 ? 'text-amber-600' : 'text-slate-500'}>
                               ({pct(sug.score)})
                             </span>
                           </p>
@@ -705,15 +705,15 @@ function ErpAliasesContent() {
                       </td>
                       <td className="py-2 px-3 whitespace-nowrap">
                         {a.vendors?.biz_number
-                          ? <span className="text-xs text-gray-600">{a.vendors.biz_number}</span>
-                          : <span className="text-xs text-gray-300">{a.vendor_id ? '미등록' : '-'}</span>}
+                          ? <span className="text-xs text-slate-700">{a.vendors.biz_number}</span>
+                          : <span className="text-xs text-slate-400">{a.vendor_id ? '미등록' : '-'}</span>}
                       </td>
                       <td className="py-2 px-3">
-                        {a.vendor_id ? chipList(a.vendors?.match_aliases, '미등록') : <span className="text-xs text-gray-300">-</span>}
+                        {a.vendor_id ? chipList(a.vendors?.match_aliases, '미등록') : <span className="text-xs text-slate-400">-</span>}
                       </td>
                       {isCustomer && (
                         <td className="py-2 px-3">
-                          {a.vendor_id ? chipList(a.vendors?.card_numbers, '미등록') : <span className="text-xs text-gray-300">-</span>}
+                          {a.vendor_id ? chipList(a.vendors?.card_numbers, '미등록') : <span className="text-xs text-slate-400">-</span>}
                         </td>
                       )}
                       <td className="py-2 px-3 text-right whitespace-nowrap">
@@ -722,7 +722,7 @@ function ErpAliasesContent() {
                             onClick={() => toggleExpand(a)}
                             disabled={working}
                             className={`px-2 py-1 text-xs border rounded disabled:opacity-40 ${
-                              expanded ? 'border-slate-400 bg-slate-100 text-slate-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                              expanded ? 'border-slate-400 bg-slate-100 text-slate-800' : 'border-slate-400 text-slate-700 hover:bg-slate-50'
                             }`}
                           >
                             {expanded ? '▲ 닫기' : '✎ 거래처 정보'}
@@ -741,7 +741,7 @@ function ErpAliasesContent() {
                             <button
                               onClick={() => handleCreateVendor(a)}
                               disabled={working}
-                              className="px-2 py-1 text-xs border border-gray-300 text-gray-600 rounded hover:bg-gray-50 disabled:opacity-40"
+                              className="px-2 py-1 text-xs border border-slate-400 text-slate-700 rounded hover:bg-slate-50 disabled:opacity-40"
                             >
                               + 신규 생성
                             </button>
@@ -752,56 +752,56 @@ function ErpAliasesContent() {
 
                     {/* 거래처 정보 편집 패널 */}
                     {expanded && draft && a.vendor_id && (
-                      <tr className="border-b border-gray-200 bg-slate-50">
+                      <tr className="border-b border-slate-300 bg-slate-50">
                         <td colSpan={colCount} className="px-5 py-4">
                           <div className="flex flex-wrap gap-6">
                             {/* 사업자번호 */}
                             <div>
-                              <p className="text-xs font-medium text-gray-500 mb-1.5">사업자번호 <span className="font-normal text-gray-400">(세금계산서 매칭)</span></p>
+                              <p className="text-xs font-medium text-slate-600 mb-1.5">사업자번호 <span className="font-normal text-slate-500">(세금계산서 매칭)</span></p>
                               <input
                                 value={draft.biz}
                                 onChange={e => setDraft(d => d ? { ...d, biz: e.target.value } : d)}
                                 placeholder="123-45-67890"
-                                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                                className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
                               />
                             </div>
 
                             {/* 담당자 / 연락처 */}
                             <div className="flex gap-3">
                               <div>
-                                <p className="text-xs font-medium text-gray-500 mb-1.5">담당자</p>
+                                <p className="text-xs font-medium text-slate-600 mb-1.5">담당자</p>
                                 <input
                                   value={draft.contactName}
                                   onChange={e => setDraft(d => d ? { ...d, contactName: e.target.value } : d)}
-                                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                                  className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
                                 />
                               </div>
                               <div>
-                                <p className="text-xs font-medium text-gray-500 mb-1.5">연락처</p>
+                                <p className="text-xs font-medium text-slate-600 mb-1.5">연락처</p>
                                 <input
                                   value={draft.contactPhone}
                                   onChange={e => setDraft(d => d ? { ...d, contactPhone: e.target.value } : d)}
-                                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                                  className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
                                 />
                               </div>
                             </div>
 
                             {/* 입금/출금계좌명 별칭 */}
                             <div className="min-w-[260px]">
-                              <p className="text-xs font-medium text-gray-500 mb-1.5">
-                                {isCustomer ? '입금계좌명' : '출금계좌명'} <span className="font-normal text-gray-400">(은행 거래내역 매칭 — 입금자명·적요 표기)</span>
+                              <p className="text-xs font-medium text-slate-600 mb-1.5">
+                                {isCustomer ? '입금계좌명' : '출금계좌명'} <span className="font-normal text-slate-500">(은행 거래내역 매칭 — 입금자명·적요 표기)</span>
                               </p>
                               <div className="flex flex-wrap gap-1.5 mb-1.5">
                                 {draft.aliases.map(s => (
-                                  <span key={s} className="flex items-center gap-1 px-2 py-0.5 text-xs bg-white border border-gray-300 rounded-full text-gray-700">
+                                  <span key={s} className="flex items-center gap-1 px-2 py-0.5 text-xs bg-white border border-slate-400 rounded-full text-slate-800">
                                     {s}
                                     <button
                                       onClick={() => setDraft(d => d ? { ...d, aliases: d.aliases.filter(x => x !== s) } : d)}
-                                      className="text-gray-400 hover:text-red-500"
+                                      className="text-slate-500 hover:text-red-500"
                                     >✕</button>
                                   </span>
                                 ))}
-                                {!draft.aliases.length && <span className="text-xs text-gray-400">등록된 계좌명 없음</span>}
+                                {!draft.aliases.length && <span className="text-xs text-slate-500">등록된 계좌명 없음</span>}
                               </div>
                               <div className="flex gap-1.5">
                                 <input
@@ -813,11 +813,11 @@ function ErpAliasesContent() {
                                     }
                                   }}
                                   placeholder="예: 하나은행본점, (주)다올"
-                                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                                  className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
                                 />
                                 <button
                                   onClick={() => draft.newAlias.trim() && setDraft(d => d ? { ...d, aliases: [...d.aliases, d.newAlias.trim()], newAlias: '' } : d)}
-                                  className="px-2.5 py-1 text-xs border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-100"
+                                  className="px-2.5 py-1 text-xs border border-slate-400 rounded-lg text-slate-700 hover:bg-slate-100"
                                 >추가</button>
                               </div>
                             </div>
@@ -825,18 +825,18 @@ function ErpAliasesContent() {
                             {/* 카드번호 (매출처만) */}
                             {isCustomer && (
                               <div className="min-w-[260px]">
-                                <p className="text-xs font-medium text-gray-500 mb-1.5">카드번호 <span className="font-normal text-gray-400">(카드매출 매칭)</span></p>
+                                <p className="text-xs font-medium text-slate-600 mb-1.5">카드번호 <span className="font-normal text-slate-500">(카드매출 매칭)</span></p>
                                 <div className="flex flex-wrap gap-1.5 mb-1.5">
                                   {draft.cards.map(s => (
-                                    <span key={s} className="flex items-center gap-1 px-2 py-0.5 text-xs bg-white border border-gray-300 rounded-full text-gray-700">
+                                    <span key={s} className="flex items-center gap-1 px-2 py-0.5 text-xs bg-white border border-slate-400 rounded-full text-slate-800">
                                       {s}
                                       <button
                                         onClick={() => setDraft(d => d ? { ...d, cards: d.cards.filter(x => x !== s) } : d)}
-                                        className="text-gray-400 hover:text-red-500"
+                                        className="text-slate-500 hover:text-red-500"
                                       >✕</button>
                                     </span>
                                   ))}
-                                  {!draft.cards.length && <span className="text-xs text-gray-400">등록된 카드번호 없음</span>}
+                                  {!draft.cards.length && <span className="text-xs text-slate-500">등록된 카드번호 없음</span>}
                                 </div>
                                 <div className="flex gap-1.5">
                                   <input
@@ -848,11 +848,11 @@ function ErpAliasesContent() {
                                       }
                                     }}
                                     placeholder="1234-56**-****-7890"
-                                    className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                                    className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
                                   />
                                   <button
                                     onClick={() => draft.newCard.trim() && setDraft(d => d ? { ...d, cards: [...d.cards, d.newCard.trim()], newCard: '' } : d)}
-                                    className="px-2.5 py-1 text-xs border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-100"
+                                    className="px-2.5 py-1 text-xs border border-slate-400 rounded-lg text-slate-700 hover:bg-slate-100"
                                   >추가</button>
                                 </div>
                               </div>
@@ -860,19 +860,19 @@ function ErpAliasesContent() {
 
                             {/* 메모 */}
                             <div className="min-w-[200px] flex-1">
-                              <p className="text-xs font-medium text-gray-500 mb-1.5">메모</p>
+                              <p className="text-xs font-medium text-slate-600 mb-1.5">메모</p>
                               <textarea
                                 value={draft.note}
                                 onChange={e => setDraft(d => d ? { ...d, note: e.target.value } : d)}
                                 rows={2}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                                className="w-full border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
                               />
                             </div>
                           </div>
 
                           {/* 발주 설정 (매입처 전용) — 발주서 화면 배지·금액 기재 방식에 반영 */}
                           {a.alias_type === 'purchase' && (
-                            <div className="flex items-center gap-5 mt-3 flex-wrap text-xs text-gray-600">
+                            <div className="flex items-center gap-5 mt-3 flex-wrap text-xs text-slate-700">
                               <label className="flex items-center gap-1.5 cursor-pointer"
                                 title="이 매입처가 자기 발주서 양식을 요구하는 경우 — 발주 화면에 '자체 양식' 표시, 수동 발송 기록 권장">
                                 <input type="checkbox" checked={draft.usesCustomPo}
@@ -899,16 +899,16 @@ function ErpAliasesContent() {
                             <button
                               onClick={() => { setExpandedId(null); setDraft(null) }}
                               disabled={working}
-                              className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-40"
+                              className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-40"
                             >취소</button>
                             <Link
                               href={a.alias_type === 'purchase' ? `/purchase-hub/${a.vendor_id}` : `/sales-hub/${a.vendor_id}`}
-                              className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-100"
+                              className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700 hover:bg-slate-100"
                             >거래처 상세 →</Link>
                             <button
                               onClick={() => handleToggleActive(a)}
                               disabled={working}
-                              className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-40"
+                              className="px-3 py-1.5 border border-slate-400 rounded-lg text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-40"
                             >{a.vendors?.is_active ? '비활성화' : '활성화'}</button>
                             <button
                               onClick={() => handleDeleteVendor(a)}
@@ -935,8 +935,8 @@ function ErpAliasesContent() {
       {/* ── 기타 거래처 (ERP명 미연동) ── */}
       <div className="mt-8 mb-2 flex items-center justify-between">
         <div>
-          <h2 className="text-base font-bold text-gray-900">기타 {tabLabel} ({otherVendors.length})</h2>
-          <p className="text-xs text-gray-400 mt-0.5">ERP 주문에 아직 등장하지 않았지만 미리 등록해둔 거래처입니다.</p>
+          <h2 className="text-base font-bold text-slate-900">기타 {tabLabel} ({otherVendors.length})</h2>
+          <p className="text-xs text-slate-500 mt-0.5">ERP 주문에 아직 등장하지 않았지만 미리 등록해둔 거래처입니다.</p>
         </div>
         <button
           onClick={() => setShowAddVendor(true)}
@@ -947,23 +947,23 @@ function ErpAliasesContent() {
       </div>
 
       {otherVendors.length === 0 ? (
-        <div className="text-center py-10 text-gray-400 text-sm border border-gray-200 rounded-xl">등록된 기타 거래처가 없습니다.</div>
+        <div className="text-center py-10 text-slate-500 text-sm border border-slate-300 rounded-xl">등록된 기타 거래처가 없습니다.</div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="bg-white border border-slate-300 rounded-xl overflow-hidden">
           {otherVendors.map(v => {
-            const tmeta = TYPE_META[v.type] ?? { label: v.type, cls: 'bg-gray-100 text-gray-600' }
+            const tmeta = TYPE_META[v.type] ?? { label: v.type, cls: 'bg-slate-100 text-slate-700' }
             return (
-              <div key={v.id} className={`flex items-center gap-3 px-4 py-3 border-b border-gray-100 last:border-b-0 ${!v.is_active ? 'opacity-50' : ''}`}>
+              <div key={v.id} className={`flex items-center gap-3 px-4 py-3 border-b border-slate-200 last:border-b-0 ${!v.is_active ? 'opacity-50' : ''}`}>
                 <span className={`px-2 py-0.5 rounded text-xs font-semibold shrink-0 ${tmeta.cls}`}>{tmeta.label}</span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-900 truncate">{v.name}</p>
-                  <p className="text-xs text-gray-400 truncate">
+                  <p className="text-sm font-medium text-slate-900 truncate">{v.name}</p>
+                  <p className="text-xs text-slate-500 truncate">
                     {v.biz_number ?? '사업자번호 미등록'}
                     {v.contact_name && ` · ${v.contact_name}`}
                     {v.contact_phone && ` · ${v.contact_phone}`}
                   </p>
                 </div>
-                <Link href={isCustomer ? `/sales-hub/${v.id}` : `/purchase-hub/${v.id}`} className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">상세</Link>
+                <Link href={isCustomer ? `/sales-hub/${v.id}` : `/purchase-hub/${v.id}`} className="px-2 py-1 text-xs text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded">상세</Link>
                 <button
                   onClick={async () => {
                     setWorking(true)
@@ -977,13 +977,13 @@ function ErpAliasesContent() {
                     if (res.ok) { setVendors(prev => prev.map(x => x.id === v.id ? json.data : x)); showMsg(v.is_active ? '비활성화됨' : '활성화됨') }
                   }}
                   disabled={working}
-                  className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded disabled:opacity-40"
+                  className="px-2 py-1 text-xs text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded disabled:opacity-40"
                 >
                   {v.is_active ? '활성' : '비활성'}
                 </button>
                 <button
                   onClick={() => setEditingVendor(v)}
-                  className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+                  className="px-2 py-1 text-xs text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded"
                 >수정</button>
                 <button
                   onClick={async () => {
@@ -994,7 +994,7 @@ function ErpAliasesContent() {
                     if (res.ok) { setVendors(prev => prev.filter(x => x.id !== v.id)); showMsg(`'${v.name}' 삭제됨`) }
                   }}
                   disabled={working}
-                  className="px-2 py-1 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-40"
+                  className="px-2 py-1 text-xs text-slate-600 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-40"
                 >삭제</button>
               </div>
             )
@@ -1024,7 +1024,7 @@ function ErpAliasesContent() {
 
 export default function ErpAliasesPage() {
   return (
-    <Suspense fallback={<div className="text-center py-20 text-gray-400">로딩 중...</div>}>
+    <Suspense fallback={<div className="text-center py-20 text-slate-500">로딩 중...</div>}>
       <ErpAliasesContent />
     </Suspense>
   )

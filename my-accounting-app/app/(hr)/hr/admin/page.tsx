@@ -43,8 +43,8 @@ type Filter = 'all' | 'late' | 'absent' | 'missing'
 const STATUS_COLOR: Record<DayStatusKind, string> = {
   present: 'bg-green-100 text-green-700', late: 'bg-amber-100 text-amber-700',
   leave: 'bg-blue-100 text-blue-700', missing_out: 'bg-orange-100 text-orange-700',
-  absent: 'bg-red-100 text-red-700', weekend: 'bg-gray-100 text-gray-400',
-  holiday: 'bg-rose-100 text-rose-600', none: 'bg-gray-50 text-gray-300',
+  absent: 'bg-red-100 text-red-700', weekend: 'bg-slate-100 text-slate-500',
+  holiday: 'bg-rose-100 text-rose-600', none: 'bg-slate-50 text-slate-400',
 }
 
 export default function AttendanceAdminPage() {
@@ -189,25 +189,25 @@ export default function AttendanceAdminPage() {
   // 휴가 결재는 휴가 목록에서 한다 (2026-11-04 3단계 결재) — 여기서는 진행 중 · 내 차례 건수만
   const myTurn = pending.filter(l => l.actions?.myTurn)
 
-  const kpiCard = (label: string, value: string | number, f: Filter, tone = 'text-gray-900') => (
+  const kpiCard = (label: string, value: string | number, f: Filter, tone = 'text-slate-900') => (
     <button onClick={() => setFilter(filter === f ? 'all' : f)}
       className={`bg-white border rounded-xl p-4 text-left transition-colors ${
-        filter === f && f !== 'all' ? 'border-slate-900 ring-1 ring-slate-900' : 'border-gray-200 hover:border-gray-300'}`}>
-      <p className="text-xs text-gray-500">{label}</p>
+        filter === f && f !== 'all' ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:border-slate-400'}`}>
+      <p className="text-xs text-slate-600">{label}</p>
       <p className={`text-2xl font-bold mt-1 tabular-nums ${tone}`}>{value}</p>
     </button>
   )
 
   const sumCell = (n: number, tone: string) =>
-    <td className={`py-2 px-3 text-center tabular-nums ${n > 0 ? tone + ' font-semibold' : 'text-gray-300'}`}>{n}</td>
+    <td className={`py-2 px-3 text-center tabular-nums ${n > 0 ? tone + ' font-semibold' : 'text-slate-400'}`}>{n}</td>
 
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-900">근태 현황</h1>
+        <h1 className="text-xl font-bold text-slate-900">근태 현황</h1>
         <input type="month" value={month} onChange={e => setMonth(e.target.value)}
-          className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-        <div className="ml-auto flex items-center gap-2 text-xs text-gray-500">
+          className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm" />
+        <div className="ml-auto flex items-center gap-2 text-xs text-slate-600">
           {data && !policyEdit && (
             <span>근무 {data.policy.work_start.slice(0, 5)}~{data.policy.work_end.slice(0, 5)}
               {data.policy.late_grace_min > 0 ? ` · 지각 유예 ${data.policy.late_grace_min}분` : ''}</span>
@@ -215,33 +215,33 @@ export default function AttendanceAdminPage() {
           {policyEdit ? (
             <span className="flex items-center gap-1">
               <input value={policyEdit.start} onChange={e => setPolicyEdit(p => p && { ...p, start: e.target.value })}
-                placeholder="09:00" className="border border-gray-300 rounded px-1.5 py-1 w-16 text-xs" />
+                placeholder="09:00" className="border border-slate-400 rounded px-1.5 py-1 w-16 text-xs" />
               ~
               <input value={policyEdit.end} onChange={e => setPolicyEdit(p => p && { ...p, end: e.target.value })}
-                placeholder="18:00" className="border border-gray-300 rounded px-1.5 py-1 w-16 text-xs" />
+                placeholder="18:00" className="border border-slate-400 rounded px-1.5 py-1 w-16 text-xs" />
               유예
               <input value={policyEdit.grace} onChange={e => setPolicyEdit(p => p && { ...p, grace: e.target.value })}
-                className="border border-gray-300 rounded px-1.5 py-1 w-12 text-xs" />분
+                className="border border-slate-400 rounded px-1.5 py-1 w-12 text-xs" />분
               <button onClick={savePolicy} disabled={busy} className="px-2 py-1 bg-slate-900 text-white rounded text-xs ml-1">저장</button>
-              <button onClick={() => setPolicyEdit(null)} className="px-2 py-1 border border-gray-300 rounded text-xs">취소</button>
+              <button onClick={() => setPolicyEdit(null)} className="px-2 py-1 border border-slate-400 rounded text-xs">취소</button>
             </span>
           ) : (
             <button onClick={() => data && setPolicyEdit({
               start: data.policy.work_start.slice(0, 5), end: data.policy.work_end.slice(0, 5),
               grace: String(data.policy.late_grace_min),
-            })} className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">정책 수정</button>
+            })} className="px-2 py-1 border border-slate-400 rounded text-xs hover:bg-slate-50">정책 수정</button>
           )}
           <button onClick={() => setShowTargets(s => !s)}
-            className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">
+            className="px-2 py-1 border border-slate-400 rounded text-xs hover:bg-slate-50">
             {showTargets ? '대상 관리 닫기' : '근태 대상 관리'}
           </button>
           <button onClick={() => setShowHolidays(s => !s)}
-            className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">
+            className="px-2 py-1 border border-slate-400 rounded text-xs hover:bg-slate-50">
             {showHolidays ? '공휴일 관리 닫기' : '공휴일 관리'}
           </button>
         </div>
       </div>
-      <p className="text-sm mt-1 text-gray-500">
+      <p className="text-sm mt-1 text-slate-600">
         지각·미기록은 정책과 출퇴근 기록·승인 휴가로 자동 판정합니다. 주말과 공휴일은 근무일에서
         제외됩니다. 카드를 누르면 해당 직원만 필터됩니다.
       </p>
@@ -265,27 +265,27 @@ export default function AttendanceAdminPage() {
 
       {/* 공휴일 관리 */}
       {showHolidays && (
-        <div className="bg-white border border-gray-200 rounded-xl p-4 my-4">
+        <div className="bg-white border border-slate-300 rounded-xl p-4 my-4">
           <div className="flex items-center gap-2 flex-wrap mb-2">
             <select value={holidayYear} onChange={e => setHolidayYear(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2 py-1 text-sm">
+              className="border border-slate-400 rounded-lg px-2 py-1 text-sm">
               {Array.from({ length: 5 }, (_, i) => String(Number(kstMonthNow().slice(0, 4)) - 1 + i)).map(y => (
                 <option key={y} value={y}>{y}년</option>
               ))}
             </select>
-            <span className="text-xs text-gray-400">{holidayRows.length}건 등록됨</span>
+            <span className="text-xs text-slate-500">{holidayRows.length}건 등록됨</span>
             {canSync ? (
               <button onClick={syncHolidays} disabled={syncing || busy}
                 className="ml-auto px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
                 {syncing ? '불러오는 중...' : `${holidayYear}년 공휴일 불러오기`}
               </button>
             ) : (
-              <span className="ml-auto text-[0.6875rem] text-gray-400">
+              <span className="ml-auto text-xs text-slate-500">
                 공휴일 API 키 미설정 — 아래에서 직접 등록
               </span>
             )}
           </div>
-          <p className="text-xs text-gray-500 mb-2">
+          <p className="text-xs text-slate-600 mb-2">
             여기 있는 날짜는 근무일에서 제외되어 결근·지각으로 판정되지 않습니다.
             불러오기는 공공데이터포털(한국천문연구원) 공식 데이터로 법정공휴일을 교체하며,
             직접 등록한 회사 휴무는 유지됩니다.
@@ -293,10 +293,10 @@ export default function AttendanceAdminPage() {
           <div className="flex flex-wrap items-end gap-2 mb-3">
             <input type="date" value={holidayForm.date}
               onChange={e => setHolidayForm(f => ({ ...f, date: e.target.value }))}
-              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+              className="border border-slate-400 rounded-lg px-2 py-1.5 text-sm" />
             <input value={holidayForm.name} placeholder="휴일명 (예: 창립기념일)"
               onChange={e => setHolidayForm(f => ({ ...f, name: e.target.value }))}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-52" />
+              className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-52" />
             <button onClick={addHoliday} disabled={busy}
               className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">
               추가
@@ -304,20 +304,20 @@ export default function AttendanceAdminPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-1.5">
             {holidayRows.map(h => (
-              <div key={h.holiday_date} className="flex items-center gap-2 text-sm border border-gray-100 rounded-lg px-2.5 py-1.5">
-                <span className="tabular-nums text-gray-500 text-xs">
+              <div key={h.holiday_date} className="flex items-center gap-2 text-sm border border-slate-200 rounded-lg px-2.5 py-1.5">
+                <span className="tabular-nums text-slate-600 text-xs">
                   {h.holiday_date.slice(5)} ({DOW_LABEL[dayOfWeek(h.holiday_date)]})
                 </span>
                 <span className="font-medium">{h.name}</span>
                 {h.source === 'company' && (
-                  <span className="text-[0.625rem] px-1 py-0.5 rounded bg-slate-100 text-slate-500">회사 휴무</span>
+                  <span className="text-xs px-1 py-0.5 rounded bg-slate-100 text-slate-600">회사 휴무</span>
                 )}
                 <button onClick={() => deleteHoliday(h.holiday_date, h.name)} disabled={busy}
-                  className="ml-auto text-xs text-gray-400 hover:text-red-600">삭제</button>
+                  className="ml-auto text-xs text-slate-500 hover:text-red-600">삭제</button>
               </div>
             ))}
             {!holidayRows.length && (
-              <p className="text-sm text-gray-400 py-4">
+              <p className="text-sm text-slate-500 py-4">
                 {holidayYear}년에 등록된 휴일이 없습니다.
                 {canSync ? ' 위의 불러오기 버튼을 누르세요.' : ' 아래에서 직접 등록하세요.'}
               </p>
@@ -328,18 +328,18 @@ export default function AttendanceAdminPage() {
 
       {/* 근태 대상 관리 */}
       {showTargets && data && (
-        <div className="bg-white border border-gray-200 rounded-xl p-4 my-4">
-          <p className="text-xs text-gray-500 mb-2">
+        <div className="bg-white border border-slate-300 rounded-xl p-4 my-4">
+          <p className="text-xs text-slate-600 mb-2">
             근태 대상 여부를 직원별로 지정합니다. 로그인 계정이 없는 직원(거래처 엑셀로 등록된 상담자 등)은
             기본으로 제외되어 있습니다 — 필요 시 여기서 포함하세요.
           </p>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5">
             {data.employees.filter(e => e.is_active).map(e => (
-              <label key={e.id} className="flex items-center gap-2 text-sm px-2 py-1 rounded hover:bg-gray-50 cursor-pointer">
+              <label key={e.id} className="flex items-center gap-2 text-sm px-2 py-1 rounded hover:bg-slate-50 cursor-pointer">
                 <input type="checkbox" checked={e.attendance_target} disabled={busy} onChange={() => toggleTarget(e)} />
-                <span className={e.attendance_target ? '' : 'text-gray-400'}>
+                <span className={e.attendance_target ? '' : 'text-slate-500'}>
                   {e.name}
-                  <span className="text-[0.6875rem] text-gray-400 ml-1">
+                  <span className="text-xs text-slate-500 ml-1">
                     {e.team ?? ''}{!e.auth_user_id ? ' · 계정없음' : ''}
                   </span>
                 </span>
@@ -360,9 +360,9 @@ export default function AttendanceAdminPage() {
       {/* 휴가 결재 — 처리는 휴가 목록에서 */}
       {pending.length > 0 && (
         <div className="bg-white border border-amber-200 rounded-xl px-4 py-3 mb-4 flex items-center gap-3 flex-wrap text-sm">
-          <span className="font-bold text-gray-900">휴가 결재</span>
+          <span className="font-bold text-slate-900">휴가 결재</span>
           {myTurn.length > 0 && <span className="text-amber-700 font-semibold">내 차례 {myTurn.length}건</span>}
-          <span className="text-gray-500">진행 중 {pending.length}건
+          <span className="text-slate-600">진행 중 {pending.length}건
             {myTurn[0] && ` · ${myTurn[0].employee?.name ?? ''} ${LEAVE_TYPE_LABEL[myTurn[0].leave_type]} ${leavePeriodText(myTurn[0], myTurn[0].days)}${myTurn.length > 1 ? ` 외 ${myTurn.length - 1}` : ''}`}
           </span>
           <Link href="/hr/leaves" className="ml-auto text-xs px-3 py-1.5 bg-slate-900 text-white rounded-lg hover:bg-slate-700">휴가 목록에서 처리</Link>
@@ -370,11 +370,11 @@ export default function AttendanceAdminPage() {
       )}
 
       {/* 직원별 월 요약 (행 클릭 = 일별 드릴다운) */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-        {loading ? <div className="text-center py-16 text-gray-400">로딩 중...</div> : (
+      <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
+        {loading ? <div className="text-center py-16 text-slate-500">로딩 중...</div> : (
           <table className="w-full text-sm min-w-[760px]">
             <thead>
-              <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+              <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-300">
                 <th className="py-2 px-3 text-left font-medium">직원</th>
                 <th className="py-2 px-3 text-center font-medium">근무일</th>
                 <th className="py-2 px-3 text-center font-medium">출근</th>
@@ -393,7 +393,7 @@ export default function AttendanceAdminPage() {
                   sumCell={sumCell} />
               ))}
               {!filtered.length && (
-                <tr><td colSpan={7} className="text-center py-12 text-gray-400 text-sm">
+                <tr><td colSpan={7} className="text-center py-12 text-slate-500 text-sm">
                   {summaries.length ? '필터에 해당하는 직원이 없습니다.' : '근태 대상 직원이 없습니다. 근태 대상 관리에서 지정하세요.'}
                 </td></tr>
               )}
@@ -419,22 +419,22 @@ function FragmentRow({ emp, sum, records, leaves, data, open, onToggle, adjust, 
   busy: boolean
   sumCell: (n: number, tone: string) => React.ReactNode
 }) {
-  const inp = 'border border-gray-300 rounded px-1.5 py-1 text-xs'
+  const inp = 'border border-slate-400 rounded px-1.5 py-1 text-xs'
   return (<>
-    <tr onClick={onToggle} className={`border-b border-gray-50 cursor-pointer hover:bg-gray-50 ${open ? 'bg-slate-50' : ''}`}>
+    <tr onClick={onToggle} className={`border-b border-slate-200 cursor-pointer hover:bg-slate-50 ${open ? 'bg-slate-50' : ''}`}>
       <td className="py-2 px-3">
         <span className="font-semibold">{emp.name}</span>
-        <span className="text-xs text-gray-400 ml-2">{[emp.team, emp.position].filter(Boolean).join(' · ')}</span>
+        <span className="text-xs text-slate-500 ml-2">{[emp.team, emp.position].filter(Boolean).join(' · ')}</span>
       </td>
-      <td className="py-2 px-3 text-center tabular-nums text-gray-500">{sum.workDays}</td>
+      <td className="py-2 px-3 text-center tabular-nums text-slate-600">{sum.workDays}</td>
       <td className="py-2 px-3 text-center tabular-nums">{sum.present}</td>
       {sumCell(sum.late, 'text-amber-600')}
       {sumCell(sum.absent, 'text-red-600')}
       {sumCell(sum.missingOut, 'text-orange-600')}
-      <td className="py-2 px-3 text-center tabular-nums">{sum.leaveDays > 0 ? sum.leaveDays : <span className="text-gray-300">0</span>}</td>
+      <td className="py-2 px-3 text-center tabular-nums">{sum.leaveDays > 0 ? sum.leaveDays : <span className="text-slate-400">0</span>}</td>
     </tr>
     {open && (
-      <tr className="border-b border-gray-100 bg-slate-50/60">
+      <tr className="border-b border-slate-200 bg-slate-50/60">
         <td colSpan={7} className="px-4 py-3">
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-1.5">
             {/* 지난 날짜 + 기록·승인 휴가가 있는 미래 날짜 (예정 휴가가 보이도록) */}
@@ -451,17 +451,17 @@ function FragmentRow({ emp, sum, records, leaves, data, open, onToggle, adjust, 
               if (isOffKind(st.kind) && !record) return null
               const editing = adjust && adjust.empId === emp.id && adjust.date === date
               return (
-                <div key={date} className="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs">
+                <div key={date} className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs">
                   <div className="flex items-center gap-1.5">
-                    <span className="tabular-nums text-gray-500">{date.slice(5)} ({DOW_LABEL[dayOfWeek(date)]})</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[0.625rem] font-semibold ${STATUS_COLOR[st.kind]}`}>
+                    <span className="tabular-nums text-slate-600">{date.slice(5)} ({DOW_LABEL[dayOfWeek(date)]})</span>
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${STATUS_COLOR[st.kind]}`}>
                       {st.holidayName ?? (st.leave ? LEAVE_TYPE_LABEL[st.leave.leave_type] : DAY_STATUS_LABEL[st.kind])}
                     </span>
                     <button onClick={() => setAdjust(editing ? null : {
                       empId: emp.id, date,
                       in: kstTime(record?.check_in_at ?? null) ?? '',
                       out: kstTime(record?.check_out_at ?? null) ?? '', note: '',
-                    })} className="ml-auto text-[0.625rem] text-gray-400 hover:text-gray-700">보정</button>
+                    })} className="ml-auto text-xs text-slate-500 hover:text-slate-800">보정</button>
                   </div>
                   {editing ? (
                     <div className="flex items-center gap-1 mt-1.5 flex-wrap">
@@ -473,12 +473,12 @@ function FragmentRow({ emp, sum, records, leaves, data, open, onToggle, adjust, 
                       <input value={adjust.note} placeholder="사유 (필수)" className={`${inp} flex-1 min-w-[90px]`}
                         onChange={e => setAdjust({ ...adjust, note: e.target.value })} />
                       <button onClick={saveAdjust} disabled={busy}
-                        className="px-2 py-1 bg-slate-900 text-white rounded text-[0.625rem]">저장</button>
+                        className="px-2 py-1 bg-slate-900 text-white rounded text-xs">저장</button>
                     </div>
                   ) : (
-                    <p className="mt-1 tabular-nums text-gray-700">
+                    <p className="mt-1 tabular-nums text-slate-800">
                       {kstTime(record?.check_in_at ?? null) ?? '-'} ~ {kstTime(record?.check_out_at ?? null) ?? '-'}
-                      {record?.edit_note && <span className="text-gray-400 ml-1.5">보정: {record.edit_note}</span>}
+                      {record?.edit_note && <span className="text-slate-500 ml-1.5">보정: {record.edit_note}</span>}
                     </p>
                   )}
                 </div>

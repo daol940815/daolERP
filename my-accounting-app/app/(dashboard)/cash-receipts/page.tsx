@@ -172,8 +172,8 @@ export default function CashReceiptsPage() {
       {/* 헤더 */}
       <div className="flex items-start justify-between mb-1 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">현금영수증</h1>
-          <p className="text-sm mt-1 text-gray-500">홈택스 현금영수증 발행(매출) · 수취(매입) 내역</p>
+          <h1 className="text-2xl font-bold text-slate-900">현금영수증</h1>
+          <p className="text-sm mt-1 text-slate-600">홈택스 현금영수증 발행(매출) · 수취(매입) 내역</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <button
@@ -184,13 +184,13 @@ export default function CashReceiptsPage() {
             ↓ {exporting ? '다운로드 중...' : '엑셀 다운로드'}
           </button>
           {/* 원본 업로드는 파일 업로드 단일 창구에서 (2026-10-12) */}
-          <Link href="/upload?source=cash_receipts" className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1.5">
+          <Link href="/upload?source=cash_receipts" className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 flex items-center gap-1.5">
             ↑ 파일 업로드 →
           </Link>
         </div>
       </div>
 
-      <div className="mt-3 mb-5 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500">
+      <div className="mt-3 mb-5 px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-600">
         홈택스 &gt; 조회/발급 &gt; 현금영수증 &gt; 사용내역(소비자)/매출내역(사업자) 조회 파일은 파일 업로드 화면에서 올립니다.
         파일 형식에 따라 발행(매출) / 수취(매입)가 자동으로 구분됩니다.
       </div>
@@ -207,7 +207,7 @@ export default function CashReceiptsPage() {
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               direction === tab.key
                 ? 'bg-slate-900 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
             {tab.label}
@@ -217,35 +217,35 @@ export default function CashReceiptsPage() {
 
       {/* 요약 카드 */}
       <div className="flex gap-3 flex-wrap mb-5">
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-          <p className="text-xs text-gray-400 mb-1">{direction === 'sales' ? '발행 합계' : '수취 합계'} (취소 반영)</p>
-          <p className="text-lg font-bold text-gray-900">{won(totalAmount)}</p>
-          <p className="text-xs text-gray-400">{visible.length}건{q && ` / 기간 내 ${receipts.length}건`} ({cancelList.length > 0 ? `취소 ${cancelList.length}건` : '취소 없음'})</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
+          <p className="text-xs text-slate-500 mb-1">{direction === 'sales' ? '발행 합계' : '수취 합계'} (취소 반영)</p>
+          <p className="text-lg font-bold text-slate-900">{won(totalAmount)}</p>
+          <p className="text-xs text-slate-500">{visible.length}건{q && ` / 기간 내 ${receipts.length}건`} ({cancelList.length > 0 ? `취소 ${cancelList.length}건` : '취소 없음'})</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-          <p className="text-xs text-gray-400 mb-1">공급가액</p>
-          <p className="text-lg font-bold text-gray-900">{won(totalSupply)}</p>
-          <p className="text-xs text-gray-400">부가세 {won(totalTax)}</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
+          <p className="text-xs text-slate-500 mb-1">공급가액</p>
+          <p className="text-lg font-bold text-slate-900">{won(totalSupply)}</p>
+          <p className="text-xs text-slate-500">부가세 {won(totalTax)}</p>
         </div>
         {direction === 'sales' && (<>
-          <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-            <p className="text-xs text-gray-400 mb-1">입금 확인됨</p>
+          <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
+            <p className="text-xs text-slate-500 mb-1">입금 확인됨</p>
             <p className="text-lg font-bold text-emerald-700">{won(confirmedAmt)}</p>
-            <p className="text-xs text-gray-400">{salesApprovals.length - unconfirmedCnt}건 · 자동 {autoCnt}건</p>
+            <p className="text-xs text-slate-500">{salesApprovals.length - unconfirmedCnt}건 · 자동 {autoCnt}건</p>
           </div>
           <button onClick={() => setPayFilter(f => f === 'unmatched' ? 'all' : 'unmatched')}
-            className={`border rounded-lg px-4 py-3 flex-1 min-w-[150px] text-left ${payFilter === 'unmatched' ? 'border-amber-400 bg-amber-50' : 'border-gray-200 hover:bg-gray-50'}`}
+            className={`border rounded-lg px-4 py-3 flex-1 min-w-[150px] text-left ${payFilter === 'unmatched' ? 'border-amber-400 bg-amber-50' : 'border-slate-300 hover:bg-slate-50'}`}
             title="클릭 = 미확인(부분 포함)만 보기">
             <p className="text-xs text-amber-700 mb-1">입금 미확인</p>
             <p className="text-lg font-bold text-amber-700">{won(unconfirmedAmt)}</p>
-            <p className="text-xs text-gray-400">{unconfirmedCnt}건 — 입금이 없거나 아직 연결 안 됨</p>
+            <p className="text-xs text-slate-500">{unconfirmedCnt}건 — 입금이 없거나 아직 연결 안 됨</p>
           </button>
         </>)}
         {direction === 'purchase' && (
-          <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-            <p className="text-xs text-gray-400 mb-1">공제 가능 세액</p>
+          <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
+            <p className="text-xs text-slate-500 mb-1">공제 가능 세액</p>
             <p className="text-lg font-bold text-green-600">{won(deductibleTax)}</p>
-            <p className="text-xs text-gray-400">공제 {deductible.length}건 · 불공제 {visible.length - deductible.length}건</p>
+            <p className="text-xs text-slate-500">공제 {deductible.length}건 · 불공제 {visible.length - deductible.length}건</p>
           </div>
         )}
       </div>
@@ -253,7 +253,7 @@ export default function CashReceiptsPage() {
       {focusId && (
         <div className="mb-2 flex items-center gap-2 text-xs">
           <span className="px-2 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800">통장 내역에서 연결된 현금영수증 1건만 표시 중</span>
-          <button onClick={() => { setFocusId(null); const r = getPeriodRange('당월'); setDateFrom(r.from); setDateTo(r.to); window.history.replaceState(null, '', '/cash-receipts') }} className="text-gray-500 hover:underline">✕ 전체 보기</button>
+          <button onClick={() => { setFocusId(null); const r = getPeriodRange('당월'); setDateFrom(r.from); setDateTo(r.to); window.history.replaceState(null, '', '/cash-receipts') }} className="text-slate-600 hover:underline">✕ 전체 보기</button>
         </div>
       )}
       {/* 기간 빠른 선택 */}
@@ -263,18 +263,18 @@ export default function CashReceiptsPage() {
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <input
           type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
-        <span className="text-gray-400 text-sm">~</span>
+        <span className="text-slate-500 text-sm">~</span>
         <input
           type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
         <div className="relative flex-1 min-w-[220px] max-w-md">
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="검색 — 승인번호 · 발행구분 · 용도 · 가맹점명 · 사업자번호 · 금액(숫자만)"
-            className="w-full border border-gray-300 rounded-lg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-          <span className="absolute left-2.5 top-1.5 text-gray-400 text-sm">⌕</span>
+            className="w-full border border-slate-400 rounded-lg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          <span className="absolute left-2.5 top-1.5 text-slate-500 text-sm">⌕</span>
         </div>
         <div className="flex gap-1">
           {([
@@ -286,7 +286,7 @@ export default function CashReceiptsPage() {
               key={tab.key}
               onClick={() => setTypeFilter(tab.key)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                typeFilter === tab.key ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                typeFilter === tab.key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               {tab.label}
@@ -297,7 +297,7 @@ export default function CashReceiptsPage() {
           <div className="flex gap-1">
             {([['all', '입금 전체'], ['unmatched', `미확인 ${unconfirmedCnt}`], ['matched', `확인됨 ${salesApprovals.length - unconfirmedCnt}`]] as const).map(([k, l]) => (
               <button key={k} onClick={() => setPayFilter(k)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${payFilter === k ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{l}</button>
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${payFilter === k ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{l}</button>
             ))}
           </div>
           {selected.size > 0 && (
@@ -322,22 +322,22 @@ export default function CashReceiptsPage() {
 
       {/* 테이블 */}
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : visible.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 text-sm">
+        <div className="text-center py-20 text-slate-500 text-sm">
           {q ? `불러온 ${receipts.length}건 안에 "${search.trim()}"에 맞는 현금영수증이 없습니다. 다른 기간이면 위 기간을 바꾸세요.` : '등록된 현금영수증이 없습니다. 홈택스에서 다운로드한 파일을 업로드해주세요.'}
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+              <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                 <th className="py-2.5 px-3 font-medium w-8">
                   <input
                     type="checkbox"
                     checked={selected.size > 0 && selected.size === visible.length}
                     onChange={toggleSelectAll}
-                    className="rounded border-gray-300"
+                    className="rounded border-slate-400"
                   />
                 </th>
                 <th className="py-2.5 px-3 font-medium whitespace-nowrap">거래일시</th>
@@ -376,44 +376,44 @@ export default function CashReceiptsPage() {
               {visible.map(row => {
                 const meta = TYPE_META[row.transaction_type]
                 return (
-                  <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50 align-middle">
+                  <tr key={row.id} className="border-b border-slate-200 hover:bg-slate-50 align-middle">
                     <td className="py-2.5 px-3">
                       <input
                         type="checkbox"
                         checked={selected.has(row.id)}
                         onChange={() => toggleSelect(row.id)}
-                        className="rounded border-gray-300"
+                        className="rounded border-slate-400"
                       />
                     </td>
-                    <td className="py-2.5 px-3 whitespace-nowrap text-gray-600">
+                    <td className="py-2.5 px-3 whitespace-nowrap text-slate-700">
                       <p>{row.tx_date}</p>
-                      {row.tx_time && <p className="text-xs text-gray-400">{row.tx_time}</p>}
+                      {row.tx_time && <p className="text-xs text-slate-500">{row.tx_time}</p>}
                     </td>
                     <td className="py-2.5 px-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${meta.cls}`}>{meta.label}</span>
                     </td>
                     {direction === 'sales' ? (
                       <>
-                        <td className="py-2.5 px-3 text-xs text-gray-500 whitespace-nowrap">{row.issue_type ?? '-'}</td>
-                        <td className="py-2.5 px-3 text-xs text-gray-500 whitespace-nowrap">{row.purpose_type ?? '-'}</td>
+                        <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{row.issue_type ?? '-'}</td>
+                        <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">{row.purpose_type ?? '-'}</td>
                       </>
                     ) : (
                       <>
-                        <td className="py-2.5 px-3 text-gray-700 whitespace-nowrap">{row.counterparty_name ?? '-'}</td>
-                        <td className="py-2.5 px-3 text-xs text-gray-400 whitespace-nowrap font-mono">{row.counterparty_biz_number ?? '-'}</td>
+                        <td className="py-2.5 px-3 text-slate-800 whitespace-nowrap">{row.counterparty_name ?? '-'}</td>
+                        <td className="py-2.5 px-3 text-xs text-slate-500 whitespace-nowrap font-mono">{row.counterparty_biz_number ?? '-'}</td>
                       </>
                     )}
-                    <td className="py-2.5 px-3 text-right text-gray-600 whitespace-nowrap">{won(row.supply_amount)}</td>
-                    <td className="py-2.5 px-3 text-right text-gray-600 whitespace-nowrap">{won(row.tax_amount)}</td>
+                    <td className="py-2.5 px-3 text-right text-slate-700 whitespace-nowrap">{won(row.supply_amount)}</td>
+                    <td className="py-2.5 px-3 text-right text-slate-700 whitespace-nowrap">{won(row.tax_amount)}</td>
                     <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                      <span className={`font-medium ${row.amount < 0 ? 'text-red-600' : 'text-gray-900'}`}>{won(row.amount)}</span>
+                      <span className={`font-medium ${row.amount < 0 ? 'text-red-600' : 'text-slate-900'}`}>{won(row.amount)}</span>
                     </td>
                     {direction === 'purchase' && (
                       <>
                         <td className="py-2.5 px-3">
                           {row.deductible === true  && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">공제</span>}
-                          {row.deductible === false && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">불공제</span>}
-                          {row.deductible === null  && <span className="text-xs text-gray-300">-</span>}
+                          {row.deductible === false && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">불공제</span>}
+                          {row.deductible === null  && <span className="text-xs text-slate-400">-</span>}
                         </td>
                         <td className="py-2.5 px-3">
                           <SearchableSelect
@@ -422,7 +422,7 @@ export default function CashReceiptsPage() {
                             options={vendors.map(v => ({ id: v.id, label: v.name }))}
                             emptyLabel="미매칭"
                             className={`text-xs border rounded px-1.5 py-1 max-w-[140px] focus:outline-none focus:ring-1 focus:ring-slate-900 ${
-                              row.vendor_id ? 'border-gray-200 bg-white text-gray-700' : 'border-dashed border-gray-300 bg-gray-50 text-gray-400'
+                              row.vendor_id ? 'border-slate-300 bg-white text-slate-800' : 'border-dashed border-slate-400 bg-slate-50 text-slate-500'
                             }`}
                           />
                         </td>
@@ -432,13 +432,13 @@ export default function CashReceiptsPage() {
                       <>
                         <td className="py-2.5 px-3 whitespace-nowrap">
                           {row.transaction_type === 'cancel'
-                            ? <span className="text-xs text-gray-400">취소 건</span>
+                            ? <span className="text-xs text-slate-500">취소 건</span>
                             : (<>
                               <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${(PAY_META[row.payment_status ?? 'unmatched'] ?? PAY_META.unmatched).cls}`}>
                                 {(PAY_META[row.payment_status ?? 'unmatched'] ?? PAY_META.unmatched).label}
                                 {row.payment_status === 'partial' && ` ${(row.payments ?? []).reduce((a, p) => a + p.amount, 0).toLocaleString('ko-KR')}`}
                               </span>
-                              {(row.payments ?? []).some(p => p.matched_by === 'auto') && <span className="ml-1 text-[0.6875rem] text-gray-400">자동</span>}
+                              {(row.payments ?? []).some(p => p.matched_by === 'auto') && <span className="ml-1 text-xs text-slate-500">자동</span>}
                               {row.payment_status !== 'matched' && (
                                 <button onClick={() => setMatching(row)} className="ml-1.5 text-xs text-blue-600 hover:underline">매칭</button>
                               )}
@@ -455,9 +455,9 @@ export default function CashReceiptsPage() {
                                 const json = await res.json().catch(() => ({}))
                                 if (!res.ok) { showMsg(json.error ?? '해제 실패'); return }
                                 onPaymentsChanged(row.id, json.data ?? [])
-                              }} className="text-gray-400 hover:text-red-600" title="연결 해제">✕</button>
+                              }} className="text-slate-500 hover:text-red-600" title="연결 해제">✕</button>
                             </span>
-                          )) : <span className="text-gray-300">—</span>}
+                          )) : <span className="text-slate-400">—</span>}
                         </td>
                       </>
                     )}

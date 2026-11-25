@@ -22,8 +22,8 @@ export default function IndividualRegister({ groupId, employees, initial, onDone
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [dups, setDups] = useState<IndividualCustomerOpt[]>([])
-  const label = 'block text-[0.6875rem] font-medium text-gray-500 mb-0.5'
-  const inp = 'border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm'
+  const label = 'block text-xs font-medium text-slate-600 mb-0.5'
+  const inp = 'border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm'
 
   const submit = async (forceNew: boolean) => {
     if (!name.trim() || !staff) return
@@ -42,7 +42,7 @@ export default function IndividualRegister({ groupId, employees, initial, onDone
   return (
     <div className="mt-3 p-3 bg-blue-50/50 border border-blue-200 rounded-lg">
       <div className="text-xs font-semibold text-blue-800 mb-2">
-        신규 개인 고객 등록 <span className="font-normal text-gray-500 ml-1">등록하면 고객 전용 매출처(개인 {name.trim() || '이름'})가 자동으로 생깁니다</span>
+        신규 개인 고객 등록 <span className="font-normal text-slate-600 ml-1">등록하면 고객 전용 매출처(개인 {name.trim() || '이름'})가 자동으로 생깁니다</span>
       </div>
       <div className="flex items-end gap-2 flex-wrap">
         <div>
@@ -71,7 +71,7 @@ export default function IndividualRegister({ groupId, employees, initial, onDone
           <button type="button" disabled={busy || !phone.trim() || !staff} onClick={() => submit(true)}
             className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm disabled:opacity-50">다른 분 — 새로 등록</button>
         )}
-        <button type="button" onClick={onCancel} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600">취소</button>
+        <button type="button" onClick={onCancel} className="px-3 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700">취소</button>
       </div>
       {dups.length > 0 && (
         <div className="mt-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-800">

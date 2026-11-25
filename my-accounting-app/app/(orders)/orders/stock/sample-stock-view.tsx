@@ -65,11 +65,11 @@ const chipCls = (on: boolean, tone?: 'warn' | 'danger') =>
         ? 'bg-white text-amber-700 border-amber-400 hover:bg-amber-50'
         : tone === 'danger'
           ? 'bg-white text-red-700 border-red-400 hover:bg-red-50'
-          : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+          : 'bg-white text-slate-700 border-slate-400 hover:bg-slate-50'
   }`
 
 const badge = (cls: string, label: string) => (
-  <span className={`inline-block rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold ${cls}`}>{label}</span>
+  <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{label}</span>
 )
 
 export default function SampleStockView() {
@@ -221,13 +221,13 @@ export default function SampleStockView() {
     setTab('ledger')
   }
 
-  if (loading) return <div className="p-8 text-sm text-slate-500">불러오는 중...</div>
+  if (loading) return <div className="p-8 text-sm text-slate-600">불러오는 중...</div>
   if (!migrationOk || errMsg) {
     return <div className="p-8"><div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">{errMsg}</div></div>
   }
 
   const tabCls = (on: boolean) =>
-    `rounded-t-lg px-4 py-2 text-[0.84375rem] font-semibold cursor-pointer ${on ? 'bg-white text-slate-900 border border-b-0 border-slate-200' : 'bg-slate-200 text-slate-500'}`
+    `rounded-t-lg px-4 py-2 text-[0.84375rem] font-semibold cursor-pointer ${on ? 'bg-white text-slate-900 border border-b-0 border-slate-300' : 'bg-slate-200 text-slate-600'}`
 
   return (
     <div className="mx-auto max-w-[1280px]">
@@ -235,15 +235,15 @@ export default function SampleStockView() {
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-base font-bold text-slate-900">
-            샘플 재고 <span className="text-[0.8125rem] font-medium text-slate-500">요아럽 · 사무실 재고</span>
+            샘플 재고 <span className="text-[0.8125rem] font-medium text-slate-600">요아럽 · 사무실 재고</span>
           </h2>
-          <p className="mt-1 text-[0.78125rem] text-slate-500">
+          <p className="mt-1 text-[0.78125rem] text-slate-600">
             사무실 입출고 원장 기준 전산재고와 창고·사무실 통합 소진 비용. 재고는 입고 누계 − 출고 누계로 자동 계산됩니다.
           </p>
         </div>
         <div className="flex gap-1.5">
-          <button onClick={() => setModal('take')} className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-[0.8125rem] font-semibold text-slate-700 hover:bg-slate-50">실사 입력</button>
-          <button onClick={() => setModal('in')} className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-[0.8125rem] font-semibold text-slate-700 hover:bg-slate-50">입고 입력</button>
+          <button onClick={() => setModal('take')} className="rounded-lg border border-slate-400 bg-white px-3.5 py-2 text-[0.8125rem] font-semibold text-slate-800 hover:bg-slate-50">실사 입력</button>
+          <button onClick={() => setModal('in')} className="rounded-lg border border-slate-400 bg-white px-3.5 py-2 text-[0.8125rem] font-semibold text-slate-800 hover:bg-slate-50">입고 입력</button>
           <button onClick={() => setModal('out')} className="rounded-lg bg-slate-900 px-3.5 py-2 text-[0.8125rem] font-semibold text-white hover:bg-slate-800">출고 입력</button>
         </div>
       </div>
@@ -252,30 +252,30 @@ export default function SampleStockView() {
 
       {/* KPI */}
       <div className="mb-4 grid grid-cols-2 gap-2.5 md:grid-cols-5">
-        <button onClick={() => { setTab('stock'); setStockChip('all') }} className="rounded-xl border border-slate-200 bg-white p-3.5 text-left hover:border-slate-400">
-          <div className="text-xs text-slate-500">재고 품목</div>
+        <button onClick={() => { setTab('stock'); setStockChip('all') }} className="rounded-xl border border-slate-300 bg-white p-3.5 text-left hover:border-slate-400">
+          <div className="text-xs text-slate-600">재고 품목</div>
           <div className="mt-1 text-xl font-bold text-slate-900">{kpi.items}<span className="text-[0.8125rem] font-medium">종</span></div>
-          <div className="mt-0.5 text-[0.71875rem] text-slate-400">재고 관리 대상 품목</div>
+          <div className="mt-0.5 text-xs text-slate-500">재고 관리 대상 품목</div>
         </button>
-        <button onClick={() => setTab('stock')} className="rounded-xl border border-slate-200 bg-white p-3.5 text-left hover:border-slate-400">
-          <div className="text-xs text-slate-500">전산재고 수량</div>
+        <button onClick={() => setTab('stock')} className="rounded-xl border border-slate-300 bg-white p-3.5 text-left hover:border-slate-400">
+          <div className="text-xs text-slate-600">전산재고 수량</div>
           <div className="mt-1 text-xl font-bold text-slate-900">{won(kpi.totalQty)}<span className="text-[0.8125rem] font-medium">개</span></div>
-          <div className="mt-0.5 text-[0.71875rem] text-slate-400">입고 {won(kpi.totalIn)} − 출고 {won(kpi.totalOut)}</div>
+          <div className="mt-0.5 text-xs text-slate-500">입고 {won(kpi.totalIn)} − 출고 {won(kpi.totalOut)}</div>
         </button>
-        <button onClick={() => setTab('stock')} className="rounded-xl border border-slate-200 bg-white p-3.5 text-left hover:border-slate-400">
-          <div className="text-xs text-slate-500">재고 금액 (매입가)</div>
+        <button onClick={() => setTab('stock')} className="rounded-xl border border-slate-300 bg-white p-3.5 text-left hover:border-slate-400">
+          <div className="text-xs text-slate-600">재고 금액 (매입가)</div>
           <div className="mt-1 text-xl font-bold text-slate-900">{won(kpi.totalValue)}<span className="text-[0.8125rem] font-medium">원</span></div>
-          <div className="mt-0.5 text-[0.71875rem] text-slate-400">전산재고 × 매입가</div>
+          <div className="mt-0.5 text-xs text-slate-500">전산재고 × 매입가</div>
         </button>
-        <button onClick={() => setTab('cost')} className="rounded-xl border border-slate-200 bg-white p-3.5 text-left hover:border-slate-400">
-          <div className="text-xs text-slate-500">당월 소진 비용 (통합)</div>
+        <button onClick={() => setTab('cost')} className="rounded-xl border border-slate-300 bg-white p-3.5 text-left hover:border-slate-400">
+          <div className="text-xs text-slate-600">당월 소진 비용 (통합)</div>
           <div className="mt-1 text-xl font-bold text-slate-900">{won(kpi.monthOffice + kpi.monthWh)}<span className="text-[0.8125rem] font-medium">원</span></div>
-          <div className="mt-0.5 text-[0.71875rem] text-slate-400">사무실 {won(kpi.monthOffice)} + 창고 {won(kpi.monthWh)}</div>
+          <div className="mt-0.5 text-xs text-slate-500">사무실 {won(kpi.monthOffice)} + 창고 {won(kpi.monthWh)}</div>
         </button>
-        <button onClick={() => { setTab('stock'); setStockChip('diff') }} className="rounded-xl border border-slate-200 bg-white p-3.5 text-left hover:border-slate-400">
-          <div className="text-xs text-slate-500">실사 오차</div>
+        <button onClick={() => { setTab('stock'); setStockChip('diff') }} className="rounded-xl border border-slate-300 bg-white p-3.5 text-left hover:border-slate-400">
+          <div className="text-xs text-slate-600">실사 오차</div>
           <div className={`mt-1 text-xl font-bold ${kpi.diffItems ? 'text-amber-700' : 'text-slate-900'}`}>{kpi.diffItems}<span className="text-[0.8125rem] font-medium">품목</span></div>
-          <div className="mt-0.5 text-[0.71875rem] text-slate-400">{kpi.lastTake ? `최근 실사 ${kpi.lastTake}` : '실사 기록 없음'}</div>
+          <div className="mt-0.5 text-xs text-slate-500">{kpi.lastTake ? `최근 실사 ${kpi.lastTake}` : '실사 기록 없음'}</div>
         </button>
       </div>
 
@@ -286,7 +286,7 @@ export default function SampleStockView() {
         <div className={tabCls(tab === 'ledger')} onClick={() => setTab('ledger')}>입출고 원장</div>
       </div>
 
-      <div className="rounded-b-xl rounded-tr-xl border border-slate-200 bg-white p-4">
+      <div className="rounded-b-xl rounded-tr-xl border border-slate-300 bg-white p-4">
         {/* ── 탭 1: 재고 현황 ── */}
         {tab === 'stock' && (
           <>
@@ -295,7 +295,7 @@ export default function SampleStockView() {
                 value={stockSearch}
                 onChange={(e) => setStockSearch(e.target.value)}
                 placeholder="품명 검색..."
-                className="w-64 rounded-lg border border-slate-300 px-3 py-1.5 text-[0.8125rem] outline-none focus:border-slate-500"
+                className="w-64 rounded-lg border border-slate-400 px-3 py-1.5 text-[0.8125rem] outline-none focus:border-slate-500"
               />
               {['all', '세트', '핸드크림', '디퓨저', '부자재', '기타'].map((c) => (
                 <button key={c} className={chipCls(stockChip === c)} onClick={() => setStockChip(c)}>
@@ -308,62 +308,62 @@ export default function SampleStockView() {
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-[0.8125rem]">
                 <thead>
-                  <tr className="bg-slate-50 text-xs text-slate-500">
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold whitespace-nowrap">품명</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-right font-semibold">매입가</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-right font-semibold">입고 누계</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-right font-semibold">출고 누계</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-right font-semibold">조정</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-right font-semibold">전산재고</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-right font-semibold">실재고 (최근 실사)</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-right font-semibold">오차</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-right font-semibold">재고 금액</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-right font-semibold">최근 출고</th>
+                  <tr className="bg-slate-50 text-xs text-slate-600">
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-left font-semibold whitespace-nowrap">품명</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-right font-semibold">매입가</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-right font-semibold">입고 누계</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-right font-semibold">출고 누계</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-right font-semibold">조정</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-right font-semibold">전산재고</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-right font-semibold">실재고 (최근 실사)</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-right font-semibold">오차</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-right font-semibold">재고 금액</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-right font-semibold">최근 출고</th>
                   </tr>
                 </thead>
                 <tbody>
                   {stockFiltered.map((r) => (
                     <tr key={r.key} className="hover:bg-slate-50">
-                      <td className="border-b border-slate-100 px-2.5 py-2 whitespace-nowrap">
-                        <button className="font-semibold text-slate-800 hover:underline" onClick={() => drillToItem(r.name)}>{r.name}</button>
+                      <td className="border-b border-slate-200 px-2.5 py-2 whitespace-nowrap">
+                        <button className="font-semibold text-slate-900 hover:underline" onClick={() => drillToItem(r.name)}>{r.name}</button>
                         {r.unlinked && <span className="ml-1.5">{badge('bg-red-50 text-red-700', '품목 미연결')}</span>}
                       </td>
-                      <td className="border-b border-slate-100 px-2.5 py-2 text-right tabular-nums">{won(r.purchasePrice)}</td>
-                      <td className="border-b border-slate-100 px-2.5 py-2 text-right tabular-nums">{won(r.inQty)}</td>
-                      <td className="border-b border-slate-100 px-2.5 py-2 text-right tabular-nums">{won(r.outQty)}</td>
-                      <td className="border-b border-slate-100 px-2.5 py-2 text-right tabular-nums text-slate-400">{r.adjQty ? (r.adjQty > 0 ? `+${r.adjQty}` : r.adjQty) : '-'}</td>
-                      <td className={`border-b border-slate-100 px-2.5 py-2 text-right font-bold tabular-nums ${r.computedQty < 0 ? 'text-red-600' : ''}`}>{won(r.computedQty)}</td>
-                      <td className="border-b border-slate-100 px-2.5 py-2 text-right tabular-nums text-slate-500">
+                      <td className="border-b border-slate-200 px-2.5 py-2 text-right tabular-nums">{won(r.purchasePrice)}</td>
+                      <td className="border-b border-slate-200 px-2.5 py-2 text-right tabular-nums">{won(r.inQty)}</td>
+                      <td className="border-b border-slate-200 px-2.5 py-2 text-right tabular-nums">{won(r.outQty)}</td>
+                      <td className="border-b border-slate-200 px-2.5 py-2 text-right tabular-nums text-slate-500">{r.adjQty ? (r.adjQty > 0 ? `+${r.adjQty}` : r.adjQty) : '-'}</td>
+                      <td className={`border-b border-slate-200 px-2.5 py-2 text-right font-bold tabular-nums ${r.computedQty < 0 ? 'text-red-600' : ''}`}>{won(r.computedQty)}</td>
+                      <td className="border-b border-slate-200 px-2.5 py-2 text-right tabular-nums text-slate-600">
                         {r.countedQty != null ? `${won(r.countedQty)} (${r.takeDate?.slice(5)})` : '-'}
                       </td>
-                      <td className={`border-b border-slate-100 px-2.5 py-2 text-right tabular-nums ${r.takeDiff ? 'font-bold text-red-600' : 'text-slate-400'}`}>
+                      <td className={`border-b border-slate-200 px-2.5 py-2 text-right tabular-nums ${r.takeDiff ? 'font-bold text-red-600' : 'text-slate-500'}`}>
                         {r.takeDiff != null ? (r.takeDiff > 0 ? `+${r.takeDiff}` : r.takeDiff) : '-'}
                       </td>
-                      <td className={`border-b border-slate-100 px-2.5 py-2 text-right tabular-nums ${r.stockValue < 0 ? 'text-red-600' : ''}`}>{won(r.stockValue)}</td>
-                      <td className="border-b border-slate-100 px-2.5 py-2 text-right text-slate-400">{r.lastOutDate?.slice(5) ?? '-'}</td>
+                      <td className={`border-b border-slate-200 px-2.5 py-2 text-right tabular-nums ${r.stockValue < 0 ? 'text-red-600' : ''}`}>{won(r.stockValue)}</td>
+                      <td className="border-b border-slate-200 px-2.5 py-2 text-right text-slate-500">{r.lastOutDate?.slice(5) ?? '-'}</td>
                     </tr>
                   ))}
                   {!stockFiltered.length && (
-                    <tr><td colSpan={10} className="px-2.5 py-8 text-center text-slate-400">조건에 맞는 품목이 없습니다.</td></tr>
+                    <tr><td colSpan={10} className="px-2.5 py-8 text-center text-slate-500">조건에 맞는 품목이 없습니다.</td></tr>
                   )}
                 </tbody>
                 <tfoot>
                   <tr className="bg-slate-50 font-bold">
-                    <td className="border-t-2 border-slate-200 px-2.5 py-2">합계 ({stockFiltered.length}품목)</td>
-                    <td className="border-t-2 border-slate-200"></td>
-                    <td className="border-t-2 border-slate-200 px-2.5 py-2 text-right tabular-nums">{won(stockFiltered.reduce((s, r) => s + r.inQty, 0))}</td>
-                    <td className="border-t-2 border-slate-200 px-2.5 py-2 text-right tabular-nums">{won(stockFiltered.reduce((s, r) => s + r.outQty, 0))}</td>
-                    <td className="border-t-2 border-slate-200 px-2.5 py-2 text-right tabular-nums">{won(stockFiltered.reduce((s, r) => s + r.adjQty, 0))}</td>
-                    <td className="border-t-2 border-slate-200 px-2.5 py-2 text-right tabular-nums">{won(stockFiltered.reduce((s, r) => s + r.computedQty, 0))}</td>
-                    <td className="border-t-2 border-slate-200"></td>
-                    <td className="border-t-2 border-slate-200"></td>
-                    <td className="border-t-2 border-slate-200 px-2.5 py-2 text-right tabular-nums">{won(stockFiltered.reduce((s, r) => s + r.stockValue, 0))}</td>
-                    <td className="border-t-2 border-slate-200"></td>
+                    <td className="border-t-2 border-slate-300 px-2.5 py-2">합계 ({stockFiltered.length}품목)</td>
+                    <td className="border-t-2 border-slate-300"></td>
+                    <td className="border-t-2 border-slate-300 px-2.5 py-2 text-right tabular-nums">{won(stockFiltered.reduce((s, r) => s + r.inQty, 0))}</td>
+                    <td className="border-t-2 border-slate-300 px-2.5 py-2 text-right tabular-nums">{won(stockFiltered.reduce((s, r) => s + r.outQty, 0))}</td>
+                    <td className="border-t-2 border-slate-300 px-2.5 py-2 text-right tabular-nums">{won(stockFiltered.reduce((s, r) => s + r.adjQty, 0))}</td>
+                    <td className="border-t-2 border-slate-300 px-2.5 py-2 text-right tabular-nums">{won(stockFiltered.reduce((s, r) => s + r.computedQty, 0))}</td>
+                    <td className="border-t-2 border-slate-300"></td>
+                    <td className="border-t-2 border-slate-300"></td>
+                    <td className="border-t-2 border-slate-300 px-2.5 py-2 text-right tabular-nums">{won(stockFiltered.reduce((s, r) => s + r.stockValue, 0))}</td>
+                    <td className="border-t-2 border-slate-300"></td>
                   </tr>
                 </tfoot>
               </table>
             </div>
-            <p className="mt-2.5 text-xs leading-relaxed text-slate-400">
+            <p className="mt-2.5 text-xs leading-relaxed text-slate-500">
               · 전산재고는 저장값이 아니라 원장 합계에서 실시간 계산 — 품명을 클릭하면 해당 품목 원장으로 드릴다운.<br />
               · 오차가 있으면 실사 기록을 고치지 말고 &quot;조정&quot; 원장 행을 추가해 해소 (원본 무수정).<br />
               · 품목 미연결은 품목 마스터 미등록 품명 — 실무자가 품목 관리에서 등록하면 소급 연결 예정. 미연결 품목은 실사 대상에서 제외됩니다.
@@ -375,64 +375,64 @@ export default function SampleStockView() {
         {tab === 'cost' && (
           <>
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-400">기간</span>
+              <span className="text-xs text-slate-500">기간</span>
               {costYears.map((y) => (
                 <button key={y} className={chipCls(costYear === y)} onClick={() => setCostYear(y)}>{y}</button>
               ))}
-              <span className="ml-2 text-xs text-slate-400">출처</span>
+              <span className="ml-2 text-xs text-slate-500">출처</span>
               <button className={chipCls(costSource === 'all')} onClick={() => setCostSource('all')}>통합</button>
               <button className={chipCls(costSource === 'office')} onClick={() => setCostSource('office')}>사무실</button>
               <button className={chipCls(costSource === 'warehouse')} onClick={() => setCostSource('warehouse')}>요아럽 창고</button>
-              <span className="ml-2 text-xs text-slate-400">용도</span>
+              <span className="ml-2 text-xs text-slate-500">용도</span>
               <button className={chipCls(costPurpose === 'all')} onClick={() => setCostPurpose('all')}>전체</button>
               <button className={chipCls(costPurpose === 'sales')} onClick={() => setCostPurpose('sales')}>영업샘플</button>
               <button className={chipCls(costPurpose === 'gift')} onClick={() => setCostPurpose('gift')}>선물증정</button>
               <button className={chipCls(costPurpose === 'none')} onClick={() => setCostPurpose('none')}>용도 미지정</button>
             </div>
-            <p className="mb-2.5 text-sm font-bold text-slate-800">담당자별 월별 소진 비용 (매입가 기준, {costYear}년)</p>
+            <p className="mb-2.5 text-sm font-bold text-slate-900">담당자별 월별 소진 비용 (매입가 기준, {costYear}년)</p>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-[0.8125rem]">
                 <thead>
-                  <tr className="bg-slate-50 text-xs text-slate-500">
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold">담당자</th>
+                  <tr className="bg-slate-50 text-xs text-slate-600">
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-left font-semibold">담당자</th>
                     {Array.from({ length: 12 }, (_, i) => (
-                      <th key={i} className="border-b border-slate-200 px-2.5 py-2 text-right font-semibold">{i + 1}월</th>
+                      <th key={i} className="border-b border-slate-300 px-2.5 py-2 text-right font-semibold">{i + 1}월</th>
                     ))}
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-right font-semibold">연간 계</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-right font-semibold">연간 계</th>
                   </tr>
                 </thead>
                 <tbody>
                   {costMatrix.staffRows.map(([staff, arr]) => (
                     <tr key={staff} className="hover:bg-slate-50">
-                      <td className="border-b border-slate-100 px-2.5 py-2 font-semibold whitespace-nowrap">{staff}</td>
+                      <td className="border-b border-slate-200 px-2.5 py-2 font-semibold whitespace-nowrap">{staff}</td>
                       {arr.slice(0, 12).map((v, i) => (
-                        <td key={i} className="border-b border-slate-100 px-2.5 py-2 text-right tabular-nums">
+                        <td key={i} className="border-b border-slate-200 px-2.5 py-2 text-right tabular-nums">
                           {v ? (
                             <button className="hover:underline" onClick={() => drillToStaffMonth(staff, i + 1)}>{won(v)}</button>
                           ) : (
-                            <span className="text-slate-300">-</span>
+                            <span className="text-slate-400">-</span>
                           )}
                         </td>
                       ))}
-                      <td className="border-b border-slate-100 px-2.5 py-2 text-right font-bold tabular-nums">{won(arr[12])}</td>
+                      <td className="border-b border-slate-200 px-2.5 py-2 text-right font-bold tabular-nums">{won(arr[12])}</td>
                     </tr>
                   ))}
                   {!costMatrix.staffRows.length && (
-                    <tr><td colSpan={14} className="px-2.5 py-8 text-center text-slate-400">해당 조건의 소진 내역이 없습니다.</td></tr>
+                    <tr><td colSpan={14} className="px-2.5 py-8 text-center text-slate-500">해당 조건의 소진 내역이 없습니다.</td></tr>
                   )}
                 </tbody>
                 <tfoot>
                   <tr className="bg-slate-50 font-bold">
-                    <td className="border-t-2 border-slate-200 px-2.5 py-2">월 계</td>
+                    <td className="border-t-2 border-slate-300 px-2.5 py-2">월 계</td>
                     {costMatrix.totals.slice(0, 12).map((v, i) => (
-                      <td key={i} className="border-t-2 border-slate-200 px-2.5 py-2 text-right tabular-nums">{v ? won(v) : '-'}</td>
+                      <td key={i} className="border-t-2 border-slate-300 px-2.5 py-2 text-right tabular-nums">{v ? won(v) : '-'}</td>
                     ))}
-                    <td className="border-t-2 border-slate-200 px-2.5 py-2 text-right tabular-nums">{won(costMatrix.totals[12])}</td>
+                    <td className="border-t-2 border-slate-300 px-2.5 py-2 text-right tabular-nums">{won(costMatrix.totals[12])}</td>
                   </tr>
                 </tfoot>
               </table>
             </div>
-            <p className="mt-2.5 text-xs leading-relaxed text-slate-400">
+            <p className="mt-2.5 text-xs leading-relaxed text-slate-500">
               · 통합 = 사무실 원장 출고 + 기존 ERP 주문내역 샘플 행(요아럽 창고, 기록된 매입합계액 사용).<br />
               · 담당자는 직원 마스터 연결 시 마스터 이름, 미연결(퇴사자 등)은 원본 표기 그대로 집계.<br />
               · 셀 클릭 시 해당 담당자·월의 사무실 출고 원장으로 드릴다운 (창고 행은 ERP 주문내역 화면에서 확인).<br />
@@ -449,7 +449,7 @@ export default function SampleStockView() {
                 value={ledgerSearch}
                 onChange={(e) => { setLedgerSearch(e.target.value); setLedgerPage(1) }}
                 placeholder="품명 · 출고처 · 담당자 검색..."
-                className="w-72 rounded-lg border border-slate-300 px-3 py-1.5 text-[0.8125rem] outline-none focus:border-slate-500"
+                className="w-72 rounded-lg border border-slate-400 px-3 py-1.5 text-[0.8125rem] outline-none focus:border-slate-500"
               />
               {[['all', '전체'], ['in', '입고'], ['out', '출고'], ['adjust', '실사 조정'], ['gift', '선물증정만'], ['unlinked', '직원 미연결'], ['manual', '직접 입력분']].map(([k, label]) => (
                 <button key={k} className={chipCls(ledgerChip === k)} onClick={() => { setLedgerChip(k); setLedgerPage(1) }}>{label}</button>
@@ -463,70 +463,70 @@ export default function SampleStockView() {
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-[0.8125rem]">
                 <thead>
-                  <tr className="bg-slate-50 text-xs text-slate-500">
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold">날짜</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold">구분</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold">품명</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-right font-semibold">수량</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-right font-semibold">매입가</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-right font-semibold">합계액</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold">용도</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold">출고처</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold">담당자</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold">비고</th>
-                    <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold">입력 계정</th>
+                  <tr className="bg-slate-50 text-xs text-slate-600">
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-left font-semibold">날짜</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-left font-semibold">구분</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-left font-semibold">품명</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-right font-semibold">수량</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-right font-semibold">매입가</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-right font-semibold">합계액</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-left font-semibold">용도</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-left font-semibold">출고처</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-left font-semibold">담당자</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-left font-semibold">비고</th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-left font-semibold">입력 계정</th>
                   </tr>
                 </thead>
                 <tbody>
                   {movesLoading && (
-                    <tr><td colSpan={11} className="px-2.5 py-8 text-center text-slate-400">원장 불러오는 중...</td></tr>
+                    <tr><td colSpan={11} className="px-2.5 py-8 text-center text-slate-500">원장 불러오는 중...</td></tr>
                   )}
                   {!movesLoading && ledgerPageRows.map((m) => (
                     <tr key={m.id} className="hover:bg-slate-50">
-                      <td className="border-b border-slate-100 px-2.5 py-2 whitespace-nowrap">{m.move_date}</td>
-                      <td className="border-b border-slate-100 px-2.5 py-2">
+                      <td className="border-b border-slate-200 px-2.5 py-2 whitespace-nowrap">{m.move_date}</td>
+                      <td className="border-b border-slate-200 px-2.5 py-2">
                         {m.move_type === 'in' && badge('bg-emerald-50 text-emerald-700', '입고')}
                         {m.move_type === 'out' && badge('bg-blue-50 text-blue-700', '출고')}
                         {m.move_type === 'adjust' && badge('bg-yellow-50 text-yellow-700', '조정')}
                       </td>
-                      <td className="border-b border-slate-100 px-2.5 py-2 font-semibold whitespace-nowrap">
+                      <td className="border-b border-slate-200 px-2.5 py-2 font-semibold whitespace-nowrap">
                         {m.display_name}
                         {!m.product_id && <span className="ml-1.5">{badge('bg-red-50 text-red-700', '미연결')}</span>}
                       </td>
-                      <td className="border-b border-slate-100 px-2.5 py-2 text-right tabular-nums">
+                      <td className="border-b border-slate-200 px-2.5 py-2 text-right tabular-nums">
                         {m.move_type === 'adjust' && m.quantity > 0 ? `+${m.quantity}` : won(m.quantity)}
                       </td>
-                      <td className="border-b border-slate-100 px-2.5 py-2 text-right tabular-nums text-slate-500">{m.unit_cost != null ? won(m.unit_cost) : '-'}</td>
-                      <td className="border-b border-slate-100 px-2.5 py-2 text-right tabular-nums">{m.total_cost != null ? won(m.total_cost) : '-'}</td>
-                      <td className="border-b border-slate-100 px-2.5 py-2">
-                        {m.purpose === 'sales' && badge('bg-slate-100 text-slate-600', '영업샘플')}
+                      <td className="border-b border-slate-200 px-2.5 py-2 text-right tabular-nums text-slate-600">{m.unit_cost != null ? won(m.unit_cost) : '-'}</td>
+                      <td className="border-b border-slate-200 px-2.5 py-2 text-right tabular-nums">{m.total_cost != null ? won(m.total_cost) : '-'}</td>
+                      <td className="border-b border-slate-200 px-2.5 py-2">
+                        {m.purpose === 'sales' && badge('bg-slate-100 text-slate-700', '영업샘플')}
                         {m.purpose === 'gift' && badge('bg-pink-50 text-pink-700', '선물증정')}
-                        {!m.purpose && m.move_type === 'out' && <span className="text-slate-300">미지정</span>}
-                        {!m.purpose && m.move_type !== 'out' && <span className="text-slate-300">-</span>}
+                        {!m.purpose && m.move_type === 'out' && <span className="text-slate-400">미지정</span>}
+                        {!m.purpose && m.move_type !== 'out' && <span className="text-slate-400">-</span>}
                       </td>
-                      <td className="border-b border-slate-100 px-2.5 py-2 max-w-[220px] truncate" title={m.dest_name ?? ''}>{m.dest_name ?? <span className="text-slate-300">-</span>}</td>
-                      <td className="border-b border-slate-100 px-2.5 py-2 whitespace-nowrap">
-                        {m.staff_name ?? <span className="text-slate-300">-</span>}
+                      <td className="border-b border-slate-200 px-2.5 py-2 max-w-[220px] truncate" title={m.dest_name ?? ''}>{m.dest_name ?? <span className="text-slate-400">-</span>}</td>
+                      <td className="border-b border-slate-200 px-2.5 py-2 whitespace-nowrap">
+                        {m.staff_name ?? <span className="text-slate-400">-</span>}
                         {m.staff_name && !m.employee_id && <span className="ml-1">{badge('bg-red-50 text-red-700', '미연결')}</span>}
                       </td>
-                      <td className="border-b border-slate-100 px-2.5 py-2 max-w-[180px] truncate text-slate-500" title={m.note ?? ''}>{m.note ?? ''}</td>
-                      <td className="border-b border-slate-100 px-2.5 py-2 whitespace-nowrap text-slate-500">
-                        {m.source === 'excel' ? <span className="text-slate-300">이관분</span> : m.created_by_name ?? <span className="text-slate-300">-</span>}
+                      <td className="border-b border-slate-200 px-2.5 py-2 max-w-[180px] truncate text-slate-600" title={m.note ?? ''}>{m.note ?? ''}</td>
+                      <td className="border-b border-slate-200 px-2.5 py-2 whitespace-nowrap text-slate-600">
+                        {m.source === 'excel' ? <span className="text-slate-400">이관분</span> : m.created_by_name ?? <span className="text-slate-400">-</span>}
                       </td>
                     </tr>
                   ))}
                   {!movesLoading && !ledgerPageRows.length && (
-                    <tr><td colSpan={11} className="px-2.5 py-8 text-center text-slate-400">조건에 맞는 원장 행이 없습니다.</td></tr>
+                    <tr><td colSpan={11} className="px-2.5 py-8 text-center text-slate-500">조건에 맞는 원장 행이 없습니다.</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
-            <div className="mt-3 flex items-center justify-between text-[0.78125rem] text-slate-500">
+            <div className="mt-3 flex items-center justify-between text-[0.78125rem] text-slate-600">
               <span>총 {won(ledgerFiltered.length)}행 · 이관분은 원본 표기 그대로 보존 (source=excel)</span>
               <span className="flex items-center gap-2">
-                <button disabled={ledgerPage <= 1} onClick={() => setLedgerPage((p) => p - 1)} className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40">이전</button>
+                <button disabled={ledgerPage <= 1} onClick={() => setLedgerPage((p) => p - 1)} className="rounded border border-slate-400 px-2 py-1 disabled:opacity-40">이전</button>
                 {ledgerPage} / {ledgerPages}
-                <button disabled={ledgerPage >= ledgerPages} onClick={() => setLedgerPage((p) => p + 1)} className="rounded border border-slate-300 px-2 py-1 disabled:opacity-40">다음</button>
+                <button disabled={ledgerPage >= ledgerPages} onClick={() => setLedgerPage((p) => p + 1)} className="rounded border border-slate-400 px-2 py-1 disabled:opacity-40">다음</button>
               </span>
             </div>
           </>
@@ -606,15 +606,15 @@ function MoveModal({ initialType, stock, employees, onClose, onSaved }: {
     onSaved(`${TYPE_LABEL[moveType]} 1건이 원장에 기록되었습니다.`)
   }
 
-  const label = 'block text-xs font-semibold text-slate-500 mb-1'
-  const input = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-[0.8125rem] outline-none focus:border-slate-500'
+  const label = 'block text-xs font-semibold text-slate-600 mb-1'
+  const input = 'w-full rounded-lg border border-slate-400 px-3 py-2 text-[0.8125rem] outline-none focus:border-slate-500'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-bold text-slate-900">{TYPE_LABEL[moveType]} 입력</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">닫기</button>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-700">닫기</button>
         </div>
         <div className="space-y-3">
           <div>
@@ -625,7 +625,7 @@ function MoveModal({ initialType, stock, employees, onClose, onSaved }: {
               ))}
             </div>
             {moveType === 'adjust' && (
-              <p className="mt-1 text-[0.71875rem] text-slate-400">조정은 실사 오차 해소용 — 수량에 부호를 포함해 입력 (+ 재고 증가 / − 재고 감소)</p>
+              <p className="mt-1 text-xs text-slate-500">조정은 실사 오차 해소용 — 수량에 부호를 포함해 입력 (+ 재고 증가 / − 재고 감소)</p>
             )}
           </div>
           <div>
@@ -692,7 +692,7 @@ function MoveModal({ initialType, stock, employees, onClose, onSaved }: {
           </div>
           {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[0.78125rem] text-red-700">{err}</div>}
           <div className="flex justify-end gap-2 pt-1">
-            <button onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-[0.8125rem] text-slate-600">취소</button>
+            <button onClick={onClose} className="rounded-lg border border-slate-400 px-4 py-2 text-[0.8125rem] text-slate-700">취소</button>
             <button onClick={save} disabled={saving} className="rounded-lg bg-slate-900 px-4 py-2 text-[0.8125rem] font-semibold text-white disabled:opacity-50">
               {saving ? '저장 중...' : '원장에 기록'}
             </button>
@@ -738,54 +738,54 @@ function StocktakeModal({ stock, employees, onClose, onSaved }: {
     onSaved(`실사 ${json.saved}품목 기록 완료${diffCount ? ` — 오차 ${diffCount}품목 (조정 행으로 해소하세요)` : ' — 오차 없음'}`)
   }
 
-  const input = 'rounded-lg border border-slate-300 px-3 py-2 text-[0.8125rem] outline-none focus:border-slate-500'
+  const input = 'rounded-lg border border-slate-400 px-3 py-2 text-[0.8125rem] outline-none focus:border-slate-500'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-bold text-slate-900">실사 입력</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">닫기</button>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-700">닫기</button>
         </div>
         <div className="mb-3 flex flex-wrap items-end gap-3">
           <div>
-            <span className="mb-1 block text-xs font-semibold text-slate-500">실사 날짜</span>
+            <span className="mb-1 block text-xs font-semibold text-slate-600">실사 날짜</span>
             <input type="date" className={input} value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
           <div>
-            <span className="mb-1 block text-xs font-semibold text-slate-500">실사 직원</span>
+            <span className="mb-1 block text-xs font-semibold text-slate-600">실사 직원</span>
             <select className={input} value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}>
               <option value="">선택 안 함</option>
               {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
           </div>
           <div>
-            <span className="mb-1 block text-xs font-semibold text-slate-500">실사자 표기</span>
+            <span className="mb-1 block text-xs font-semibold text-slate-600">실사자 표기</span>
             <input className={input} value={staffName} onChange={(e) => setStaffName(e.target.value)} placeholder="비우면 선택 직원 이름" />
           </div>
         </div>
-        <p className="mb-2 text-[0.71875rem] text-slate-400">
+        <p className="mb-2 text-xs text-slate-500">
           실재고를 입력한 품목만 저장됩니다. 전산재고는 저장 시점 원장 기준으로 스냅샷됩니다. 미연결 품목은 마스터 등록 후 실사 가능합니다.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-[0.8125rem]">
             <thead>
-              <tr className="bg-slate-50 text-xs text-slate-500">
-                <th className="border-b border-slate-200 px-2.5 py-2 text-left font-semibold">품명</th>
-                <th className="border-b border-slate-200 px-2.5 py-2 text-right font-semibold">전산재고</th>
-                <th className="border-b border-slate-200 px-2.5 py-2 text-right font-semibold">실재고 입력</th>
+              <tr className="bg-slate-50 text-xs text-slate-600">
+                <th className="border-b border-slate-300 px-2.5 py-2 text-left font-semibold">품명</th>
+                <th className="border-b border-slate-300 px-2.5 py-2 text-right font-semibold">전산재고</th>
+                <th className="border-b border-slate-300 px-2.5 py-2 text-right font-semibold">실재고 입력</th>
               </tr>
             </thead>
             <tbody>
               {linkedStock.map((s) => (
                 <tr key={s.key}>
-                  <td className="border-b border-slate-100 px-2.5 py-1.5">{s.name}</td>
-                  <td className="border-b border-slate-100 px-2.5 py-1.5 text-right tabular-nums">{won(s.computedQty)}</td>
-                  <td className="border-b border-slate-100 px-2.5 py-1.5 text-right">
+                  <td className="border-b border-slate-200 px-2.5 py-1.5">{s.name}</td>
+                  <td className="border-b border-slate-200 px-2.5 py-1.5 text-right tabular-nums">{won(s.computedQty)}</td>
+                  <td className="border-b border-slate-200 px-2.5 py-1.5 text-right">
                     <input
                       type="number"
                       min={0}
-                      className="w-24 rounded border border-slate-300 px-2 py-1 text-right text-[0.8125rem] outline-none focus:border-slate-500"
+                      className="w-24 rounded border border-slate-400 px-2 py-1 text-right text-[0.8125rem] outline-none focus:border-slate-500"
                       value={counts[s.productId!] ?? ''}
                       onChange={(e) => setCounts((c) => ({ ...c, [s.productId!]: e.target.value }))}
                     />
@@ -797,7 +797,7 @@ function StocktakeModal({ stock, employees, onClose, onSaved }: {
         </div>
         {err && <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[0.78125rem] text-red-700">{err}</div>}
         <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-[0.8125rem] text-slate-600">취소</button>
+          <button onClick={onClose} className="rounded-lg border border-slate-400 px-4 py-2 text-[0.8125rem] text-slate-700">취소</button>
           <button onClick={save} disabled={saving} className="rounded-lg bg-slate-900 px-4 py-2 text-[0.8125rem] font-semibold text-white disabled:opacity-50">
             {saving ? '저장 중...' : '실사 기록'}
           </button>

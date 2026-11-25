@@ -35,14 +35,14 @@ export default function ReasonBadge({ label, cls, title, reason, by, at }: {
     <span ref={ref} className="relative inline-block" onClick={e => e.stopPropagation()}>
       <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open}
         title="눌러서 사유 보기"
-        className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.625rem] font-medium underline decoration-dotted underline-offset-2 ${cls}`}>
+        className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium underline decoration-dotted underline-offset-2 ${cls}`}>
         {label}
       </button>
       {open && (
-        <span className="absolute z-20 left-0 top-full mt-1 w-64 max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-left whitespace-normal cursor-default">
-          <span className="block text-[0.6875rem] text-gray-400">{title}</span>
-          <span className="block text-xs font-semibold text-gray-800 break-words">{reason || '사유 기록 없음'}</span>
-          {meta && <span className="block mt-0.5 text-[0.6875rem] text-gray-500 tabular-nums">{meta}</span>}
+        <span className="absolute z-20 left-0 top-full mt-1 w-64 max-w-[80vw] bg-white border border-slate-300 rounded-lg shadow-lg px-3 py-2 text-left whitespace-normal cursor-default">
+          <span className="block text-xs text-slate-500">{title}</span>
+          <span className="block text-xs font-semibold text-slate-900 break-words">{reason || '사유 기록 없음'}</span>
+          {meta && <span className="block mt-0.5 text-xs text-slate-600 tabular-nums">{meta}</span>}
         </span>
       )}
     </span>

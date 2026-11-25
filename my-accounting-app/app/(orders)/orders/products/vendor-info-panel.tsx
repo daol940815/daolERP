@@ -74,38 +74,38 @@ export default function VendorInfoPanel({ info, draft, setDraft, loading, inputC
   loading: boolean
   inputCls: string
 }) {
-  const box = 'basis-full mt-1 pt-2.5 border-t border-slate-200'
+  const box = 'basis-full mt-1 pt-2.5 border-t border-slate-300'
   if (!info) {
-    return <div className={`${box} text-xs text-gray-400`}>{loading ? '매입처 정보 불러오는 중...' : ''}</div>
+    return <div className={`${box} text-xs text-slate-500`}>{loading ? '매입처 정보 불러오는 중...' : ''}</div>
   }
   if (info.reason === 'no_name') {
-    return <div className={`${box} text-xs text-gray-400`}>매입처를 입력하면 매입처 담당자 · 연락처 · 이메일이 표시됩니다.</div>
+    return <div className={`${box} text-xs text-slate-500`}>매입처를 입력하면 매입처 담당자 · 연락처 · 이메일이 표시됩니다.</div>
   }
 
   const editable = info.linked && info.can_edit_vendor
   return (
     <div className={box}>
       <div className="flex items-baseline gap-2 flex-wrap mb-1.5">
-        <span className="text-xs font-semibold text-gray-700">
+        <span className="text-xs font-semibold text-slate-800">
           매입처 정보{info.vendor ? ` — ${info.vendor.name}` : ''}
         </span>
         {info.linked && editable && (
-          <span className="text-[0.6875rem] text-amber-700">
+          <span className="text-xs text-amber-700">
             이 매입처의 모든 품목에 적용됩니다 (이메일은 발주서 발송 주소로도 쓰입니다)
           </span>
         )}
         {info.linked && !info.can_edit_vendor && (
-          <span className="text-[0.6875rem] text-gray-400">읽기 전용 — 수정은 거래처 관리(매입처 관리) 수정 권한이 필요합니다</span>
+          <span className="text-xs text-slate-500">읽기 전용 — 수정은 거래처 관리(매입처 관리) 수정 권한이 필요합니다</span>
         )}
-        {loading && <span className="text-[0.6875rem] text-gray-400">불러오는 중...</span>}
+        {loading && <span className="text-xs text-slate-500">불러오는 중...</span>}
       </div>
 
       {!info.linked ? (
         <div className="flex items-end gap-2.5 flex-wrap">
           {KEYS.map(([k, label, w]) => (
             <div key={k}>
-              <label className="block text-[0.6875rem] text-gray-400 mb-0.5">{label}</label>
-              <input disabled value="" className={`${inputCls} ${w} bg-gray-50 text-gray-400 cursor-not-allowed`} />
+              <label className="block text-xs text-slate-500 mb-0.5">{label}</label>
+              <input disabled value="" className={`${inputCls} ${w} bg-slate-50 text-slate-500 cursor-not-allowed`} />
             </div>
           ))}
           <div className="text-xs text-orange-700 pb-2">
@@ -128,19 +128,19 @@ export default function VendorInfoPanel({ info, draft, setDraft, loading, inputC
               : draft[k]
             return (
               <div key={k}>
-                <label className="block text-[0.6875rem] text-gray-500 mb-0.5">{label}</label>
+                <label className="block text-xs text-slate-600 mb-0.5">{label}</label>
                 {editable ? (
                   <input value={draft[k]} onChange={e => setDraft(d => ({ ...d, [k]: e.target.value }))}
                     className={`${inputCls} ${w} ${fromContact && !changed ? 'border-sky-300 bg-sky-50' : ''}`}
                     placeholder="미입력" />
                 ) : (
-                  <div className={`${w} px-2.5 py-1.5 text-sm rounded-lg border ${fromContact ? 'border-sky-200 bg-sky-50' : 'border-gray-200 bg-gray-50'} truncate`}
+                  <div className={`${w} px-2.5 py-1.5 text-sm rounded-lg border ${fromContact ? 'border-sky-200 bg-sky-50' : 'border-slate-300 bg-slate-50'} truncate`}
                     title={shown}>
-                    {shown || <span className="text-gray-400">미입력</span>}
+                    {shown || <span className="text-slate-500">미입력</span>}
                   </div>
                 )}
                 {fromContact && !changed && (
-                  <div className={`${w} text-[0.625rem] text-sky-700 mt-0.5`}
+                  <div className={`${w} text-xs text-sky-700 mt-0.5`}
                     title={editable ? '매입처 정보가 비어 있어 거래처 담당자의 대표 담당자 값을 보여 줍니다. 그대로 두면 저장하지 않고, 고치면 매입처 정보로 저장합니다.' : '매입처 정보가 비어 있어 거래처 담당자의 대표 담당자 값을 보여 줍니다.'}>
                     거래처 담당자(대표)에서 가져옴
                   </div>

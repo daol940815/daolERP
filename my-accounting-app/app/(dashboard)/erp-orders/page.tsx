@@ -220,8 +220,8 @@ export default function ErpOrdersPage() {
     <div className="w-full">
       <div className="flex items-start justify-between mb-1 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">ERP 주문내역</h1>
-          <p className="text-sm mt-1 text-gray-500">ERP에서 다운로드한 주문/품목 데이터 (매출처 수금 · 매입처 정산 기준 데이터)</p>
+          <h1 className="text-2xl font-bold text-slate-900">ERP 주문내역</h1>
+          <p className="text-sm mt-1 text-slate-600">ERP에서 다운로드한 주문/품목 데이터 (매출처 수금 · 매입처 정산 기준 데이터)</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           {selected.size > 0 && (
@@ -236,7 +236,7 @@ export default function ErpOrdersPage() {
           <button
             onClick={handleExport}
             disabled={loading || total === 0}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+            className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
           >
             ↓ 엑셀 다운로드
           </button>
@@ -254,18 +254,18 @@ export default function ErpOrdersPage() {
         <div className="mb-3 mt-2 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>
       )}
 
-      <p className="text-xs text-gray-400 mb-3 mt-1">
+      <p className="text-xs text-slate-500 mb-3 mt-1">
         ERP 주문 다운로드 파일(.xls)은 파일 업로드 화면에서 올립니다. 같은 주문번호는 자동으로 갱신됩니다.
       </p>
 
       {/* 보기 탭 */}
-      <div className="flex items-center gap-1 mb-3 border-b border-gray-200">
+      <div className="flex items-center gap-1 mb-3 border-b border-slate-300">
         {([['all', '전체'], ['vip', 'VIP'], ['prepayment', '선결제']] as [View, string][]).map(([v, label]) => (
           <button
             key={v}
             onClick={() => setView(v)}
             className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors ${
-              view === v ? 'border-slate-900 text-slate-900 font-medium' : 'border-transparent text-gray-400 hover:text-gray-600'
+              view === v ? 'border-slate-900 text-slate-900 font-medium' : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
             {label}
@@ -279,12 +279,12 @@ export default function ErpOrdersPage() {
       {/* 필터 */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
-        <span className="text-gray-400 text-sm">~</span>
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        <span className="text-slate-500 text-sm">~</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
           <option value="all">전체 상태</option>
           <option value="collected">수금완료</option>
           <option value="outstanding">미수금</option>
@@ -294,15 +294,15 @@ export default function ErpOrdersPage() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="주문번호/은행/지점 검색"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
         <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
           <option value="all">직원 전체</option>
           {options.staff.map(n => <option key={n} value={n}>{n}</option>)}
         </select>
         <select value={channelFilter} onChange={e => setChannelFilter(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
           <option value="all">상담자 전체</option>
           {options.channels.map(n => <option key={n} value={n}>{n}</option>)}
         </select>
@@ -310,17 +310,17 @@ export default function ErpOrdersPage() {
           value={managerFilter}
           onChange={e => setManagerFilter(e.target.value)}
           placeholder="담당자 검색"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
         <input
           value={itemFilter}
           onChange={e => setItemFilter(e.target.value)}
           placeholder="품목(품명·품번) 검색"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-slate-900"
         />
         {(staffFilter !== 'all' || channelFilter !== 'all' || managerFilter || itemFilter) && (
           <button onClick={() => { setStaffFilter('all'); setChannelFilter('all'); setManagerFilter(''); setItemFilter('') }}
-            className="px-2 py-1 text-xs text-gray-400 hover:text-gray-600">
+            className="px-2 py-1 text-xs text-slate-500 hover:text-slate-700">
             ✕ 필터 해제
           </button>
         )}
@@ -328,31 +328,31 @@ export default function ErpOrdersPage() {
 
       {/* 요약 카드 (필터 전체 범위 기준) */}
       <div className="flex gap-3 flex-wrap mb-5">
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-          <p className="text-xs text-gray-400 mb-1">주문 수</p>
-          <p className="text-lg font-bold text-gray-900">{total.toLocaleString()}건</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
+          <p className="text-xs text-slate-500 mb-1">주문 수</p>
+          <p className="text-lg font-bold text-slate-900">{total.toLocaleString()}건</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-          <p className="text-xs text-gray-400 mb-1">순매출 (취소·VIP·선결제 제외)</p>
-          <p className="text-lg font-bold text-gray-900">{won(summary.net_sales)}</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
+          <p className="text-xs text-slate-500 mb-1">순매출 (취소·VIP·선결제 제외)</p>
+          <p className="text-lg font-bold text-slate-900">{won(summary.net_sales)}</p>
         </div>
-        <div className="border border-gray-200 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
-          <p className="text-xs text-gray-400 mb-1">미수금</p>
-          <p className={`text-lg font-bold ${summary.outstanding > 0 ? 'text-red-600' : 'text-gray-400'}`}>{won(summary.outstanding)}</p>
+        <div className="border border-slate-300 rounded-lg px-4 py-3 flex-1 min-w-[150px]">
+          <p className="text-xs text-slate-500 mb-1">미수금</p>
+          <p className={`text-lg font-bold ${summary.outstanding > 0 ? 'text-red-600' : 'text-slate-500'}`}>{won(summary.outstanding)}</p>
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : orders.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 text-sm">
+        <div className="text-center py-20 text-slate-500 text-sm">
           데이터가 없습니다. ERP 다운로드 파일을 업로드해주세요.
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-gray-400 border-b border-gray-200">
+              <tr className="text-left text-xs text-slate-500 border-b border-slate-300">
                 <th className="py-2.5 px-3 w-8">
                   <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
                 </th>
@@ -397,40 +397,40 @@ export default function ErpOrdersPage() {
                 // 상담자(채널)는 품목 라인에 저장되므로 주문 단위 고유값을 모아 표시
                 const channels = Array.from(new Set(oItems.map(it => it.channel?.trim()).filter(Boolean))) as string[]
                 return [
-                  <tr key={o.id} className="border-b border-gray-100 hover:bg-gray-50">
+                  <tr key={o.id} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="py-2 px-3">
                       <input type="checkbox" checked={selected.has(o.id)} onChange={() => toggleSelect(o.id)} />
                     </td>
-                    <td className="py-2 px-3 whitespace-nowrap text-gray-600">{o.order_date}</td>
+                    <td className="py-2 px-3 whitespace-nowrap text-slate-700">{o.order_date}</td>
                     <td className="py-2 px-3 whitespace-nowrap">
                       <button onClick={() => toggleExpand(o.id)} className="text-slate-900 hover:underline font-mono text-xs">
                         {expanded.has(o.id) ? '▾' : '▸'} {o.order_no}
                       </button>
-                      <span className="ml-1.5 text-xs text-gray-400">({oItems.length})</span>
+                      <span className="ml-1.5 text-xs text-slate-500">({oItems.length})</span>
                     </td>
                     <td className="py-2 px-3 min-w-0">
-                      <p className="truncate max-w-[200px] text-gray-900">
+                      <p className="truncate max-w-[200px] text-slate-900">
                         {[o.bank_name, o.branch_name].filter(Boolean).join(' ') || '-'}
                       </p>
                     </td>
-                    <td className="py-2 px-3 text-gray-500 whitespace-nowrap text-xs">{o.manager_name ?? '-'}</td>
-                    <td className="py-2 px-3 text-gray-500 whitespace-nowrap text-xs max-w-[120px] truncate" title={channels.join(' · ')}>
+                    <td className="py-2 px-3 text-slate-600 whitespace-nowrap text-xs">{o.manager_name ?? '-'}</td>
+                    <td className="py-2 px-3 text-slate-600 whitespace-nowrap text-xs max-w-[120px] truncate" title={channels.join(' · ')}>
                       {channels.length ? channels.join(' · ') : '-'}
                     </td>
                     <td className="py-2 px-3 text-right whitespace-nowrap">{won(o.total_amount)}</td>
-                    <td className={`py-2 px-3 text-right whitespace-nowrap ${remaining > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+                    <td className={`py-2 px-3 text-right whitespace-nowrap ${remaining > 0 ? 'text-red-600 font-medium' : 'text-slate-500'}`}>
                       {won(remaining)}
                       {allocated > 0 && remaining !== o.outstanding_amount && (
-                        <span className="block text-[0.6875rem] text-emerald-600 font-normal">매칭 {won(allocated)} 차감</span>
+                        <span className="block text-xs text-emerald-600 font-normal">매칭 {won(allocated)} 차감</span>
                       )}
                       {preUpload > 0 && (
-                        <span className="block text-[0.6875rem] text-gray-400 font-normal"
+                        <span className="block text-xs text-slate-500 font-normal"
                           title="업로드 이전 입금 매칭 — ERP 미수금 값에 이미 반영된 것으로 간주해 중복 차감하지 않음">
                           업로드 반영분 {won(preUpload)} 제외
                         </span>
                       )}
                       {cappedByNet && (
-                        <span className="block text-[0.6875rem] text-gray-400 font-normal"
+                        <span className="block text-xs text-slate-500 font-normal"
                           title="ERP 미수금이 순매출(비제외 품목 합)보다 커서 순매출로 제한함">
                           순매출 상한 적용
                         </span>
@@ -438,7 +438,7 @@ export default function ErpOrdersPage() {
                     </td>
                     <td className="py-2 px-3 whitespace-nowrap">
                       {status && <span className={`px-1.5 py-0.5 rounded text-xs ${status.cls}`}>{status.text}</span>}
-                      {hasCancel && <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-500">취소포함</span>}
+                      {hasCancel && <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-slate-100 text-slate-600">취소포함</span>}
                       {hasVip    && <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-violet-50 text-violet-600">VIP</span>}
                       {hasPre    && <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-sky-50 text-sky-600">선결제</span>}
                     </td>
@@ -447,12 +447,12 @@ export default function ErpOrdersPage() {
                         ? <span className={`px-1.5 py-0.5 rounded text-xs ${ORDER_DELIVERY_STATUS_LABEL[deliveryStatus].cls}`}>
                             {ORDER_DELIVERY_STATUS_LABEL[deliveryStatus].text}
                           </span>
-                        : <span className="text-gray-300">-</span>}
+                        : <span className="text-slate-400">-</span>}
                     </td>
                     <td className="py-2 px-3 text-right whitespace-nowrap">
                       <button
                         onClick={() => setCollectFor(o.id)}
-                        className={`px-2 py-1 text-xs rounded mr-1 ${remaining > 0 ? 'bg-slate-900 text-white hover:bg-slate-700' : 'border border-gray-300 text-gray-500 hover:bg-gray-50'}`}
+                        className={`px-2 py-1 text-xs rounded mr-1 ${remaining > 0 ? 'bg-slate-900 text-white hover:bg-slate-700' : 'border border-slate-400 text-slate-600 hover:bg-slate-50'}`}
                         title="이 주문에 입금·카드결제를 매칭 (주문 쪽 수금 매칭)"
                       >
                         {orderMatches.length > 0 ? `매칭 ${orderMatches.length}건` : '수금 매칭'}
@@ -467,11 +467,11 @@ export default function ErpOrdersPage() {
                     </td>
                   </tr>,
                   expanded.has(o.id) && (
-                    <tr key={`${o.id}-items`} className="bg-slate-50 border-b border-gray-100">
+                    <tr key={`${o.id}-items`} className="bg-slate-50 border-b border-slate-200">
                       <td colSpan={11} className="py-2 px-6">
                         <table className="w-full text-xs">
                           <thead>
-                            <tr className="text-left text-gray-400">
+                            <tr className="text-left text-slate-500">
                               <th className="py-1 pr-3 font-medium">품명</th>
                               <th className="py-1 pr-3 font-medium">매입처</th>
                               <th className="py-1 pr-3 font-medium text-right">수량</th>
@@ -492,7 +492,7 @@ export default function ErpOrdersPage() {
                               const margin = it.line_total > 0 ? ((it.line_total - marginCostOf(it)) / it.line_total) * 100 : null   // 원가 = 매입합계 + 재고 원가 (1400)
                               const payDate = payDates[itemIdx]
                               return (
-                              <tr key={it.id} className={`border-t border-gray-200 ${it.is_canceled ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                              <tr key={it.id} className={`border-t border-slate-300 ${it.is_canceled ? 'text-slate-500 line-through' : 'text-slate-800'}`}>
                                 <td className="py-1 pr-3 max-w-[260px] truncate">{it.item_name ?? '-'}</td>
                                 <td className="py-1 pr-3 max-w-[140px] truncate">{it.purchase_vendor_name ?? '-'}</td>
                                 <td className="py-1 pr-3 text-right">{it.quantity}</td>
@@ -509,24 +509,24 @@ export default function ErpOrdersPage() {
                                 <td className="py-1 pr-3 whitespace-nowrap">
                                   {payDate
                                     ? <span className={payDate.endsWith('부분') ? 'text-amber-600' : 'text-emerald-700'}>{payDate}</span>
-                                    : <span className="text-gray-300">-</span>}
+                                    : <span className="text-slate-400">-</span>}
                                 </td>
-                                <td className="py-1 pr-3 whitespace-nowrap font-mono text-[0.6875rem]">
-                                  {it.tracking_number ?? <span className="text-gray-300">-</span>}
+                                <td className="py-1 pr-3 whitespace-nowrap font-mono text-xs">
+                                  {it.tracking_number ?? <span className="text-slate-400">-</span>}
                                 </td>
                                 <td className="py-1 pr-3 whitespace-nowrap">
                                   {it.delivery_status
                                     ? <span className={`px-1.5 py-0.5 rounded text-xs ${ITEM_DELIVERY_STATUS_LABEL[it.delivery_status].cls}`}>
                                         {ITEM_DELIVERY_STATUS_LABEL[it.delivery_status].text}
                                       </span>
-                                    : <span className="text-gray-300">-</span>}
+                                    : <span className="text-slate-400">-</span>}
                                 </td>
                                 <td className="py-1 pr-3 whitespace-nowrap no-underline">
-                                  {it.is_canceled   && <span className="px-1 py-0.5 rounded bg-gray-200 text-gray-500 mr-1">취소</span>}
+                                  {it.is_canceled   && <span className="px-1 py-0.5 rounded bg-slate-200 text-slate-600 mr-1">취소</span>}
                                   {it.is_vip        && <span className="px-1 py-0.5 rounded bg-violet-100 text-violet-600 mr-1">VIP</span>}
                                   {it.is_prepayment && <span className="px-1 py-0.5 rounded bg-sky-100 text-sky-600">선결제</span>}
                                 </td>
-                                <td className="py-1 max-w-[160px] truncate text-gray-500">{it.memo ?? '-'}</td>
+                                <td className="py-1 max-w-[160px] truncate text-slate-600">{it.memo ?? '-'}</td>
                               </tr>
                             )})}
                           </tbody>
@@ -544,22 +544,22 @@ export default function ErpOrdersPage() {
       {/* 페이지네이션 */}
       {!loading && total > 0 && (
         <div className="flex items-center justify-between mt-4 text-sm">
-          <p className="text-gray-400 text-xs">
+          <p className="text-slate-500 text-xs">
             {((page - 1) * PAGE_SIZE + 1).toLocaleString()}–{Math.min(page * PAGE_SIZE, total).toLocaleString()} / {total.toLocaleString()}건
           </p>
           <div className="flex items-center gap-1">
             <button
               onClick={() => setPage(p => Math.max(p - 1, 1))}
               disabled={page <= 1}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-30"
+              className="px-3 py-1.5 border border-slate-400 rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-30"
             >
               ← 이전
             </button>
-            <span className="px-3 text-gray-500 text-xs">{page} / {totalPages}</span>
+            <span className="px-3 text-slate-600 text-xs">{page} / {totalPages}</span>
             <button
               onClick={() => setPage(p => Math.min(p + 1, totalPages))}
               disabled={page >= totalPages}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-30"
+              className="px-3 py-1.5 border border-slate-400 rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-30"
             >
               다음 →
             </button>

@@ -65,9 +65,9 @@ export default function PayFilterBar({ filter, update, scope, noneCount }: {
   const meId = scope?.me.id ?? null
   const chip = (on: boolean, label: string, onClick: () => void) => (
     <button type="button" onClick={onClick}
-      className={`px-3 py-1 rounded-full text-xs border whitespace-nowrap ${on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>{label}</button>
+      className={`px-3 py-1 rounded-full text-xs border whitespace-nowrap ${on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-400 text-slate-700 hover:bg-slate-50'}`}>{label}</button>
   )
-  const inputCls = 'border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900'
+  const inputCls = 'border border-slate-400 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900'
   return (
     <div className="mb-3">
       <PeriodPresets from={filter.from} to={filter.to} onChange={(from, to) => update({ from, to })} className="mb-2" />
@@ -77,11 +77,11 @@ export default function PayFilterBar({ filter, update, scope, noneCount }: {
         </select>
         <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') update({ q: text }) }} onBlur={() => { if (text !== filter.q) update({ q: text }) }}
           placeholder="검색어 입력 후 Enter" className={`${inputCls} w-56 max-w-full`} />
-        {filter.q && <button type="button" onClick={() => update({ q: '' })} className="text-xs text-gray-500 underline">검색 지우기</button>}
+        {filter.q && <button type="button" onClick={() => update({ q: '' })} className="text-xs text-slate-600 underline">검색 지우기</button>}
         <input type="date" value={filter.from} onChange={e => update({ from: e.target.value })} className={inputCls} aria-label="시작일" />
-        <span className="text-gray-400">~</span>
+        <span className="text-slate-500">~</span>
         <input type="date" value={filter.to} onChange={e => update({ to: e.target.value })} className={inputCls} aria-label="종료일" />
-        <span className="w-px h-5 bg-gray-200 mx-1" />
+        <span className="w-px h-5 bg-slate-200 mx-1" />
         <select value={filter.staff || 'all'} onChange={e => update({ staff: e.target.value })} className={inputCls} aria-label="지점 담당">
           <option value="all">지점 담당: 전체</option>
           <option value="none">지점 담당: 담당 미지정</option>

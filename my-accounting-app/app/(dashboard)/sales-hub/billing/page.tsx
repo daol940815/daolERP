@@ -82,15 +82,15 @@ export default function BillingAssignPage() {
     setBusy(false); flash(ok ? '해제했습니다.' : (json.error ?? '실패')); if (ok) load()
   }
 
-  const tile = (on: boolean) => `text-left border rounded-xl px-4 py-3 bg-white transition-colors ${on ? 'border-slate-900 ring-1 ring-slate-900' : 'border-gray-200 hover:bg-gray-50'}`
+  const tile = (on: boolean) => `text-left border rounded-xl px-4 py-3 bg-white transition-colors ${on ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-300 hover:bg-slate-50'}`
 
   return (
     <div>
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <div className="text-xs text-gray-400"><Link href="/sales-hub" className="hover:underline">매출처 관리 (지점)</Link> › 청구처 지정</div>
-          <h1 className="text-2xl font-bold text-gray-900 mt-1">청구처 지정 — 추천 확인</h1>
-          <p className="text-sm mt-1 text-gray-500">
+          <div className="text-xs text-slate-500"><Link href="/sales-hub" className="hover:underline">매출처 관리 (지점)</Link> › 청구처 지정</div>
+          <h1 className="text-2xl font-bold text-slate-900 mt-1">청구처 지정 — 추천 확인</h1>
+          <p className="text-sm mt-1 text-slate-600">
             본점 법인 이름으로 계산서가 나가는 부서를 찾아 청구처로 연결합니다. 시스템은 추천만 합니다 — 맞는 것만 골라 확정하세요.
             부서는 매출처(고객)로 그대로 남고, 계산서 연결 · 미수금 대사만 청구처 기준으로 묶입니다.
           </p>
@@ -105,8 +105,8 @@ export default function BillingAssignPage() {
 
       {msg && <div className="mt-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
 
-      {loading ? <div className="text-center py-20 text-gray-400">로딩 중...</div>
-        : !b ? <div className="text-center py-20 text-gray-400 text-sm">데이터를 불러오지 못했습니다.</div>
+      {loading ? <div className="text-center py-20 text-slate-500">로딩 중...</div>
+        : !b ? <div className="text-center py-20 text-slate-500 text-sm">데이터를 불러오지 못했습니다.</div>
         : !b.available ? (
           <div className="mt-4 px-4 py-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg">
             마이그레이션 114(청구처)가 아직 실행되지 않았습니다. SQL 편집기에서 <b>114_vendor_billing_entity.sql</b>을 실행하면 이 화면이 열립니다.
@@ -115,20 +115,20 @@ export default function BillingAssignPage() {
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 mb-4">
             <button onClick={() => setView('suggest')} className={tile(view === 'suggest')}>
-              <p className="text-xs text-gray-400">추천 대기</p><p className="text-xl font-bold text-gray-900">{b.suggestions.length}</p>
-              <p className="text-[0.6875rem] text-gray-400">기본 선택 {b.suggestions.filter(s => !s.caution).length} · 주의 {b.suggestions.filter(s => s.caution).length}</p>
+              <p className="text-xs text-slate-500">추천 대기</p><p className="text-xl font-bold text-slate-900">{b.suggestions.length}</p>
+              <p className="text-xs text-slate-500">기본 선택 {b.suggestions.filter(s => !s.caution).length} · 주의 {b.suggestions.filter(s => s.caution).length}</p>
             </button>
             <button onClick={() => setView('linked')} className={tile(view === 'linked')}>
-              <p className="text-xs text-gray-400">청구처 지정됨</p><p className="text-xl font-bold text-gray-900">{b.linked.length}</p>
-              <p className="text-[0.6875rem] text-gray-400">해제 가능</p>
+              <p className="text-xs text-slate-500">청구처 지정됨</p><p className="text-xl font-bold text-slate-900">{b.linked.length}</p>
+              <p className="text-xs text-slate-500">해제 가능</p>
             </button>
             <div className={tile(false)}>
-              <p className="text-xs text-gray-400">자체 발행 확정</p><p className="text-xl font-bold text-gray-900">{b.self_count}</p>
-              <p className="text-[0.6875rem] text-gray-400">다시 추천하지 않음</p>
+              <p className="text-xs text-slate-500">자체 발행 확정</p><p className="text-xl font-bold text-slate-900">{b.self_count}</p>
+              <p className="text-xs text-slate-500">다시 추천하지 않음</p>
             </div>
             <div className={tile(false)}>
-              <p className="text-xs text-gray-400">청구처 법인</p><p className="text-xl font-bold text-gray-900">{new Set(b.linked.map(l => l.entity_id)).size}</p>
-              <p className="text-[0.6875rem] text-gray-400">소속이 있는 법인</p>
+              <p className="text-xs text-slate-500">청구처 법인</p><p className="text-xl font-bold text-slate-900">{new Set(b.linked.map(l => l.entity_id)).size}</p>
+              <p className="text-xs text-slate-500">소속이 있는 법인</p>
             </div>
           </div>
 
@@ -136,20 +136,20 @@ export default function BillingAssignPage() {
             <>
               <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                 <button onClick={() => setEntity('')}
-                  className={`px-2.5 py-1 text-xs rounded-full border ${!entity ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-300'}`}>
+                  className={`px-2.5 py-1 text-xs rounded-full border ${!entity ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-400'}`}>
                   전체 {b.suggestions.length}
                 </button>
                 {entities.map(e => (
                   <button key={e.id} onClick={() => setEntity(entity === e.id ? '' : e.id)}
-                    className={`px-2.5 py-1 text-xs rounded-full border ${entity === e.id ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-300'}`}>
+                    className={`px-2.5 py-1 text-xs rounded-full border ${entity === e.id ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-400'}`}>
                     {e.name} {e.n}
                   </button>
                 ))}
               </div>
-              <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+              <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
                 <table className="w-full text-sm min-w-[860px]">
                   <thead>
-                    <tr className="text-left text-xs text-gray-400 border-b border-gray-200 bg-gray-50">
+                    <tr className="text-left text-xs text-slate-500 border-b border-slate-300 bg-slate-50">
                       <th className="py-2.5 px-3 w-8">
                         <input type="checkbox" disabled={!canEdit}
                           checked={rows.length > 0 && rows.every(r => picked.has(r.vendor_id))}
@@ -164,40 +164,40 @@ export default function BillingAssignPage() {
                   </thead>
                   <tbody>
                     {rows.map(s => (
-                      <tr key={s.vendor_id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <tr key={s.vendor_id} className="border-b border-slate-200 hover:bg-slate-50">
                         <td className="py-2 px-3">
                           <input type="checkbox" disabled={!canEdit} checked={picked.has(s.vendor_id)}
                             onChange={e => setPicked(p => { const n = new Set(p); if (e.target.checked) n.add(s.vendor_id); else n.delete(s.vendor_id); return n })} />
                         </td>
                         <td className="py-2 px-3"><Link href={`/sales-hub/${s.vendor_id}`} className="text-blue-700 hover:underline">{s.vendor_name}</Link></td>
-                        <td className="py-2 px-3">{s.entity_name} <span className="text-[0.6875rem] text-gray-400">{s.entity_biz ?? ''}</span></td>
+                        <td className="py-2 px-3">{s.entity_name} <span className="text-xs text-slate-500">{s.entity_biz ?? ''}</span></td>
                         <td className="py-2 px-3">
                           <div className="flex flex-wrap gap-1">
-                            {s.reasons.map(r => <span key={r} className="px-1.5 py-0.5 rounded text-[0.6875rem] bg-slate-100 text-slate-600">{r}</span>)}
-                            {s.caution && <span className="px-1.5 py-0.5 rounded text-[0.6875rem] bg-amber-100 text-amber-700">{s.caution}</span>}
+                            {s.reasons.map(r => <span key={r} className="px-1.5 py-0.5 rounded text-xs bg-slate-100 text-slate-700">{r}</span>)}
+                            {s.caution && <span className="px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-700">{s.caution}</span>}
                           </div>
                         </td>
-                        <td className="py-2 px-3 text-xs text-gray-600">{s.staff ?? '-'}</td>
+                        <td className="py-2 px-3 text-xs text-slate-700">{s.staff ?? '-'}</td>
                         <td className="py-2 px-3 text-right">
                           {canEdit && <button disabled={busy} onClick={() => markSelf(s)}
-                            className="px-2 py-1 text-xs border border-gray-300 text-gray-600 rounded hover:bg-gray-50">아니다(자체 발행)</button>}
+                            className="px-2 py-1 text-xs border border-slate-400 text-slate-700 rounded hover:bg-slate-50">아니다(자체 발행)</button>}
                         </td>
                       </tr>
                     ))}
-                    {!rows.length && <tr><td colSpan={6} className="py-14 text-center text-gray-400 text-sm">추천할 매출처가 없습니다.</td></tr>}
+                    {!rows.length && <tr><td colSpan={6} className="py-14 text-center text-slate-500 text-sm">추천할 매출처가 없습니다.</td></tr>}
                   </tbody>
                 </table>
               </div>
-              <p className="text-xs text-gray-400 mt-2">
+              <p className="text-xs text-slate-500 mt-2">
                 추천 기준: 업체명과 같은 이름의 법인(사업자번호 · 매출 계산서 있음)이 있고, 그 업체 소속 매출처 중 자체 사업자번호와 자체 계산서가 모두 없는 곳.
                 이름이 지점 · 출장소 · 센터면 자체 발행일 수 있어 기본 선택하지 않습니다. 목록에 없는 매출처는 그 매출처 상세에서 직접 지정할 수 있습니다.
               </p>
             </>
           ) : (
-            <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+            <div className="bg-white border border-slate-300 rounded-xl overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs text-gray-400 border-b border-gray-200 bg-gray-50">
+                  <tr className="text-left text-xs text-slate-500 border-b border-slate-300 bg-slate-50">
                     <th className="py-2.5 px-3 font-medium">청구처 법인</th>
                     <th className="py-2.5 px-3 font-medium">매출처(부서)</th>
                     <th className="py-2.5 px-3 font-medium text-right">처리</th>
@@ -205,16 +205,16 @@ export default function BillingAssignPage() {
                 </thead>
                 <tbody>
                   {b.linked.map(l => (
-                    <tr key={l.vendor_id} className="border-b border-gray-100">
+                    <tr key={l.vendor_id} className="border-b border-slate-200">
                       <td className="py-2 px-3"><Link href={`/sales-hub/${l.entity_id}`} className="text-blue-700 hover:underline">{l.entity_name}</Link></td>
                       <td className="py-2 px-3"><Link href={`/sales-hub/${l.vendor_id}`} className="text-blue-700 hover:underline">{l.vendor_name}</Link></td>
                       <td className="py-2 px-3 text-right">
                         {canEdit && <button disabled={busy} onClick={() => clearLink(l)}
-                          className="px-2 py-1 text-xs border border-gray-300 text-gray-600 rounded hover:bg-gray-50">해제</button>}
+                          className="px-2 py-1 text-xs border border-slate-400 text-slate-700 rounded hover:bg-slate-50">해제</button>}
                       </td>
                     </tr>
                   ))}
-                  {!b.linked.length && <tr><td colSpan={3} className="py-14 text-center text-gray-400 text-sm">아직 청구처가 지정된 매출처가 없습니다.</td></tr>}
+                  {!b.linked.length && <tr><td colSpan={3} className="py-14 text-center text-slate-500 text-sm">아직 청구처가 지정된 매출처가 없습니다.</td></tr>}
                 </tbody>
               </table>
             </div>

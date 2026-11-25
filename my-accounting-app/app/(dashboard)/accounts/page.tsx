@@ -58,12 +58,12 @@ function KeywordChips({
       {keywords.map(kw => (
         <span
           key={kw}
-          className="group inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-700 hover:bg-gray-200"
+          className="group inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 rounded text-xs text-slate-800 hover:bg-slate-200"
         >
           {kw}
           <button
             onClick={() => onRemove(kw)}
-            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 leading-none transition-opacity"
+            className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-500 leading-none transition-opacity"
           >
             ✕
           </button>
@@ -76,7 +76,7 @@ function KeywordChips({
         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd() } }}
         onBlur={handleAdd}
         placeholder="+ 키워드"
-        className="text-xs px-2 py-0.5 border border-dashed border-gray-300 rounded w-20 focus:outline-none focus:border-slate-500 text-gray-500 placeholder-gray-400"
+        className="text-xs px-2 py-0.5 border border-dashed border-slate-400 rounded w-20 focus:outline-none focus:border-slate-500 text-slate-600 placeholder-slate-400"
       />
     </div>
   )
@@ -109,33 +109,33 @@ function AddAccountModal({ onClose, onSave }: { onClose: () => void; onSave: (a:
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
-        <h2 className="text-lg font-bold text-gray-900 mb-4">계정과목 추가</h2>
+        <h2 className="text-lg font-bold text-slate-900 mb-4">계정과목 추가</h2>
         {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
         <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">코드</label>
+            <label className="block text-sm font-medium text-slate-800 mb-1">코드</label>
             <input
               value={form.code}
               onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
               placeholder="예: 5114"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">이름</label>
+            <label className="block text-sm font-medium text-slate-800 mb-1">이름</label>
             <input
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder="예: 도서인쇄비"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">유형</label>
+            <label className="block text-sm font-medium text-slate-800 mb-1">유형</label>
             <select
               value={form.type}
               onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className="w-full border border-slate-400 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
             >
               {TYPE_ORDER.map(t => (
                 <option key={t} value={t}>{TYPE_META[t]?.label ?? t}</option>
@@ -146,7 +146,7 @@ function AddAccountModal({ onClose, onSave }: { onClose: () => void; onSave: (a:
         <div className="flex gap-2 mt-5">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+            className="flex-1 px-4 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50"
           >
             취소
           </button>
@@ -362,29 +362,29 @@ export default function AccountsPage() {
       {/* 헤더 */}
       <div className="flex items-start justify-between mb-1">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">계정과목 관리</h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <h1 className="text-2xl font-bold text-slate-900">계정과목 관리</h1>
+          <p className="text-slate-600 text-sm mt-1">
             키워드를 기반으로 거래가 자동 분류됩니다.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <button
             onClick={handleTemplate}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1.5"
+            className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 flex items-center gap-1.5"
           >
             업로드 양식
           </button>
           <button
             onClick={handleDownload}
             disabled={accounts.length === 0}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 flex items-center gap-1.5"
+            className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1.5"
           >
             엑셀 다운로드
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 flex items-center gap-1.5"
+            className="px-3 py-2 border border-slate-400 rounded-lg text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1.5"
           >
             {uploading ? '업로드 중...' : '엑셀 업로드'}
           </button>
@@ -408,8 +408,8 @@ export default function AccountsPage() {
       </div>
 
       {/* 엑셀 형식 안내 */}
-      <div className="mt-3 mb-5 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500">
-        엑셀 형식: <span className="font-mono text-gray-700">코드 | 계정명 | 유형(수익/비용/자산/부채/자본) | 키워드(쉼표 구분) | 활성(Y/N) | 입금시(차변/대변) | 출금시(차변/대변)</span>
+      <div className="mt-3 mb-5 px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-600">
+        엑셀 형식: <span className="font-mono text-slate-800">코드 | 계정명 | 유형(수익/비용/자산/부채/자본) | 키워드(쉼표 구분) | 활성(Y/N) | 입금시(차변/대변) | 출금시(차변/대변)</span>
         &nbsp;— 코드 기준으로 기존 항목은 수정, 없으면 신규 추가됩니다.
       </div>
 
@@ -422,7 +422,7 @@ export default function AccountsPage() {
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               filter === tab.key
                 ? 'bg-slate-900 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
             {tab.label}
@@ -436,41 +436,41 @@ export default function AccountsPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : (
         <div className="space-y-6">
           {Object.entries(grouped).map(([type, items]) => {
-            const meta = TYPE_META[type] ?? { label: type, cls: 'bg-gray-100 text-gray-600' }
+            const meta = TYPE_META[type] ?? { label: type, cls: 'bg-slate-100 text-slate-700' }
             return (
               <div key={type}>
                 <div className="flex items-center gap-2 mb-2">
                   <span className={`px-2 py-0.5 rounded text-xs font-semibold ${meta.cls}`}>
                     {meta.label}
                   </span>
-                  <div className="flex-1 border-t border-gray-200" />
+                  <div className="flex-1 border-t border-slate-300" />
                 </div>
 
-                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                <div className="bg-white border border-slate-300 rounded-xl overflow-hidden">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200">
-                        <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-20">코드</th>
-                        <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-36">계정명</th>
-                        <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">자동 분류 키워드</th>
-                        <th className="text-center px-4 py-2.5 text-xs font-medium text-gray-500 w-16">입금시</th>
-                        <th className="text-center px-4 py-2.5 text-xs font-medium text-gray-500 w-16">출금시</th>
-                        <th className="text-center px-4 py-2.5 text-xs font-medium text-gray-500 w-20">활성</th>
+                      <tr className="bg-slate-50 border-b border-slate-300">
+                        <th className="text-left px-4 py-2.5 text-xs font-medium text-slate-600 w-20">코드</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-medium text-slate-600 w-36">계정명</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-medium text-slate-600">자동 분류 키워드</th>
+                        <th className="text-center px-4 py-2.5 text-xs font-medium text-slate-600 w-16">입금시</th>
+                        <th className="text-center px-4 py-2.5 text-xs font-medium text-slate-600 w-16">출금시</th>
+                        <th className="text-center px-4 py-2.5 text-xs font-medium text-slate-600 w-20">활성</th>
                         <th className="w-10" />
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-slate-200">
                       {items.map(account => (
                         <tr
                           key={account.id}
-                          className={`transition-colors ${account.is_active ? '' : 'bg-gray-50 opacity-60'}`}
+                          className={`transition-colors ${account.is_active ? '' : 'bg-slate-50 opacity-60'}`}
                         >
-                          <td className="px-4 py-3 font-mono text-gray-500 text-xs">{account.code}</td>
-                          <td className="px-4 py-3 font-medium text-gray-800">{account.name}</td>
+                          <td className="px-4 py-3 font-mono text-slate-600 text-xs">{account.code}</td>
+                          <td className="px-4 py-3 font-medium text-slate-900">{account.name}</td>
                           <td className="px-4 py-3">
                             <KeywordChips
                               keywords={account.keywords ?? []}
@@ -510,7 +510,7 @@ export default function AccountsPage() {
                             <button
                               onClick={() => handleToggleActive(account)}
                               className={`relative inline-flex h-5 w-9 rounded-full transition-colors ${
-                                account.is_active ? 'bg-green-500' : 'bg-gray-300'
+                                account.is_active ? 'bg-green-500' : 'bg-slate-300'
                               }`}
                             >
                               <span
@@ -523,7 +523,7 @@ export default function AccountsPage() {
                           <td className="px-2 py-3">
                             <button
                               onClick={() => handleDelete(account)}
-                              className="text-gray-300 hover:text-red-400 transition-colors text-sm"
+                              className="text-slate-400 hover:text-red-400 transition-colors text-sm"
                               title="삭제"
                             >
                               ✕
@@ -539,7 +539,7 @@ export default function AccountsPage() {
           })}
 
           {Object.keys(grouped).length === 0 && (
-            <div className="text-center py-16 text-gray-400">
+            <div className="text-center py-16 text-slate-500">
               해당 유형의 계정과목이 없습니다.
             </div>
           )}

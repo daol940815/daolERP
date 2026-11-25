@@ -35,7 +35,7 @@ interface Kpi { count: number; total: number; unsent_cnt: number; sent_cnt: numb
 const won = (n: number) => (n ?? 0).toLocaleString('ko-KR')
 const chip = (on: boolean) =>
   `px-3 py-1 rounded-full text-xs border whitespace-nowrap ${
-    on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-gray-300 text-gray-500 hover:border-gray-400'
+    on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-400 text-slate-600 hover:border-slate-400'
   }`
 
 export default function PurchaseHistoryPage() {
@@ -68,14 +68,14 @@ export default function PurchaseHistoryPage() {
 
   const sendBadge = (r: Row) => {
     if (r.status === 'canceled')
-      return <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-gray-100 text-gray-400">취소됨</span>
+      return <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-500">취소됨</span>
     if (r.sent_at)
       return (
-        <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-emerald-100 text-emerald-700">
+        <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700">
           {r.send_method === 'email' ? '메일 발송' : '수동 발송'}
         </span>
       )
-    return <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-[0.6875rem] font-medium bg-amber-100 text-amber-800">미발송</span>
+    return <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">미발송</span>
   }
 
   const kpiCard = 'text-left bg-white border rounded-xl px-4 py-3 transition-colors'
@@ -83,47 +83,47 @@ export default function PurchaseHistoryPage() {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-900">발주서</h1>
-        <span className="text-xs text-gray-400">작성은 주문 상세의 발주 섹션에서 · 행 클릭 = 발송 페이지 (다운로드·첨부·메일 발송)</span>
+        <h1 className="text-xl font-bold text-slate-900">발주서</h1>
+        <span className="text-xs text-slate-500">작성은 주문 상세의 발주 섹션에서 · 행 클릭 = 발송 페이지 (다운로드·첨부·메일 발송)</span>
       </div>
 
       {/* KPI — 클릭=필터 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mt-4">
         <button onClick={() => setStatus('all')}
-          className={`${kpiCard} ${status === 'all' ? 'border-slate-800' : 'border-gray-200'}`}>
-          <div className="text-[0.6875rem] text-gray-400">기간 발주</div>
+          className={`${kpiCard} ${status === 'all' ? 'border-slate-800' : 'border-slate-300'}`}>
+          <div className="text-xs text-slate-500">기간 발주</div>
           <div className="text-lg font-extrabold tabular-nums">{kpi ? `${won(kpi.count)}건` : '-'}</div>
-          {kpi && <div className="text-[0.625rem] text-gray-400">유효 발주 합계 {won(kpi.total)}원</div>}
+          {kpi && <div className="text-xs text-slate-500">유효 발주 합계 {won(kpi.total)}원</div>}
         </button>
         <button onClick={() => setStatus(status === 'unsent' ? 'all' : 'unsent')}
-          className={`${kpiCard} ${status === 'unsent' ? 'border-slate-800' : 'border-gray-200'}`}>
-          <div className="text-[0.6875rem] text-gray-400">미발송 (클릭=필터)</div>
+          className={`${kpiCard} ${status === 'unsent' ? 'border-slate-800' : 'border-slate-300'}`}>
+          <div className="text-xs text-slate-500">미발송 (클릭=필터)</div>
           <div className="text-lg font-extrabold tabular-nums text-amber-600">{kpi ? `${won(kpi.unsent_cnt)}건` : '-'}</div>
         </button>
         <button onClick={() => setStatus(status === 'sent' ? 'all' : 'sent')}
-          className={`${kpiCard} ${status === 'sent' ? 'border-slate-800' : 'border-gray-200'}`}>
-          <div className="text-[0.6875rem] text-gray-400">발송 완료</div>
+          className={`${kpiCard} ${status === 'sent' ? 'border-slate-800' : 'border-slate-300'}`}>
+          <div className="text-xs text-slate-500">발송 완료</div>
           <div className="text-lg font-extrabold tabular-nums text-emerald-700">{kpi ? `${won(kpi.sent_cnt)}건` : '-'}</div>
         </button>
         <button onClick={() => setStatus(status === 'canceled' ? 'all' : 'canceled')}
-          className={`${kpiCard} ${status === 'canceled' ? 'border-slate-800' : 'border-gray-200'}`}>
-          <div className="text-[0.6875rem] text-gray-400">취소</div>
-          <div className="text-lg font-extrabold tabular-nums text-gray-500">{kpi ? `${won(kpi.canceled_cnt)}건` : '-'}</div>
+          className={`${kpiCard} ${status === 'canceled' ? 'border-slate-800' : 'border-slate-300'}`}>
+          <div className="text-xs text-slate-500">취소</div>
+          <div className="text-lg font-extrabold tabular-nums text-slate-600">{kpi ? `${won(kpi.canceled_cnt)}건` : '-'}</div>
         </button>
       </div>
 
       {/* 필터 — 두 줄 배치 (2026-09-29 사용자 요청, 다른 목록 화면과 동일):
           1행 기간 빠른 선택 + 날짜, 2행 나머지 조건(상태·검색) */}
-      <div className="bg-white border border-gray-200 rounded-xl p-3 mt-3">
+      <div className="bg-white border border-slate-300 rounded-xl p-3 mt-3">
         <div className="flex items-center gap-1.5 flex-wrap">
           <PeriodPresets from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
           <span className="w-1.5" />
-          <span className="text-[0.6875rem] text-gray-400">발주일</span>
+          <span className="text-xs text-slate-500">발주일</span>
           <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-            className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm tabular-nums" />
-          <span className="text-xs text-gray-400">~</span>
+            className="border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm tabular-nums" />
+          <span className="text-xs text-slate-500">~</span>
           <input type="date" value={to} onChange={e => setTo(e.target.value)}
-            className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm tabular-nums" />
+            className="border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm tabular-nums" />
         </div>
         <div className="flex items-center gap-2 flex-wrap mt-2">
           {([['all', '전체'], ['unsent', '미발송'], ['sent', '발송완료'], ['canceled', '취소']] as const).map(([k, l]) => (
@@ -132,10 +132,10 @@ export default function PurchaseHistoryPage() {
           <input value={qInput} onChange={e => setQInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') setQ(qInput.trim()) }}
             placeholder="매입처·발주번호·주문번호·주문처 검색 Enter"
-            className="flex-1 min-w-[240px] border border-gray-300 rounded-lg px-3.5 py-1.5 text-sm ml-auto" />
+            className="flex-1 min-w-[240px] border border-slate-400 rounded-lg px-3.5 py-1.5 text-sm ml-auto" />
           {q && (
             <button onClick={() => { setQ(''); setQInput('') }}
-              className="text-xs text-gray-400 hover:text-gray-600">검색 해제</button>
+              className="text-xs text-slate-500 hover:text-slate-700">검색 해제</button>
           )}
         </div>
       </div>
@@ -143,11 +143,11 @@ export default function PurchaseHistoryPage() {
       {error && <div className="mt-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
 
       {/* 목록 */}
-      <div className="bg-white border border-gray-200 rounded-xl mt-3 overflow-x-auto">
-        {loading ? <div className="text-center py-16 text-gray-400">로딩 중...</div> : (
+      <div className="bg-white border border-slate-300 rounded-xl mt-3 overflow-x-auto">
+        {loading ? <div className="text-center py-16 text-slate-500">로딩 중...</div> : (
           <table className="w-full text-sm min-w-[960px]">
             <thead>
-              <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+              <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-300">
                 <th className="py-2 px-3 text-left font-medium">발주일 / 번호</th>
                 <th className="py-2 px-3 text-left font-medium">매입처</th>
                 <th className="py-2 px-3 text-left font-medium">주문번호 / 주문처</th>
@@ -161,23 +161,23 @@ export default function PurchaseHistoryPage() {
             <tbody>
               {rows.map(r => (
                 <Fragment key={r.id}>
-                <tr className={`border-b border-gray-50 ${r.status === 'canceled' ? 'text-gray-400' : ''}`}>
+                <tr className={`border-b border-slate-200 ${r.status === 'canceled' ? 'text-slate-500' : ''}`}>
                   <td className="py-2 px-3">
                     {/* 발주일·번호 클릭 = 발송 페이지 (작성 확인·첨부·메일·발송 이력) */}
                     <Link href={`/orders/purchase/${r.id}`} className="block hover:opacity-70"
                       title="발송 페이지로 이동">
                       <div className="tabular-nums text-xs font-semibold text-blue-700">{r.po_date}</div>
-                      <div className="tabular-nums text-[0.6875rem] text-gray-400">{r.po_no}</div>
+                      <div className="tabular-nums text-xs text-slate-500">{r.po_no}</div>
                     </Link>
                   </td>
                   <td className="py-2 px-3 font-medium">
                     {r.vendor_name}
                     {r.uses_custom_po && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-[0.625rem] font-medium bg-violet-50 text-violet-600"
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-xs font-medium bg-violet-50 text-violet-600"
                         title="자체 발주서 양식을 쓰는 매입처">자체 양식</span>
                     )}
                     {r.po_use_sale_price && (
-                      <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-[0.625rem] font-medium bg-blue-50 text-blue-600"
+                      <span className="ml-1.5 inline-block whitespace-nowrap px-1 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-600"
                         title="발주서 금액이 판매가로 기재되는 매입처">판매가</span>
                     )}
                   </td>
@@ -185,46 +185,46 @@ export default function PurchaseHistoryPage() {
                     <Link href={`/orders/${r.order_id}`} className="text-blue-700 hover:underline tabular-nums text-xs">
                       {r.order_no ?? '(주문으로 이동)'}
                     </Link>
-                    <div className="text-[0.6875rem] text-gray-400">{r.customer ?? '-'}{r.staff_name ? ` · ${r.staff_name}` : ''}</div>
+                    <div className="text-xs text-slate-500">{r.customer ?? '-'}{r.staff_name ? ` · ${r.staff_name}` : ''}</div>
                   </td>
                   <td className="py-2 px-3 text-right tabular-nums">{won(r.total_amount)}</td>
                   <td className="py-2 px-3">
                     {sendBadge(r)}
                     {r.sent_at && (
-                      <div className="text-[0.625rem] text-gray-400 tabular-nums mt-0.5">
+                      <div className="text-xs text-slate-500 tabular-nums mt-0.5">
                         {r.sent_at.slice(0, 16).replace('T', ' ')}{r.sender_name ? ` · ${r.sender_name}` : ''}
                       </div>
                     )}
                     {r.status === 'active' && !r.sent_at && r.send_error && (
-                      <div className="text-[0.625rem] text-red-500 mt-0.5">실패: {r.send_error}</div>
+                      <div className="text-xs text-red-500 mt-0.5">실패: {r.send_error}</div>
                     )}
                   </td>
-                  <td className="py-2 px-3 text-xs text-gray-500">{r.email_to ?? '-'}</td>
-                  <td className="py-2 px-3 text-xs text-gray-500">{r.payment_term ?? '-'}</td>
+                  <td className="py-2 px-3 text-xs text-slate-600">{r.email_to ?? '-'}</td>
+                  <td className="py-2 px-3 text-xs text-slate-600">{r.payment_term ?? '-'}</td>
                   <td className="py-2 px-3 text-right whitespace-nowrap">
                     <button onClick={() => setOpenPo(v => v === r.id ? null : r.id)}
-                      className="px-2.5 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:border-gray-400 mr-1.5">
+                      className="px-2.5 py-1 border border-slate-400 rounded text-xs text-slate-700 hover:border-slate-400 mr-1.5">
                       {openPo === r.id ? '접기' : '내용'}
                     </button>
                     <a href={`/api/orders-portal/purchase-orders/${r.id}?excel=1`}
-                      className="px-2.5 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:border-gray-400">엑셀</a>
+                      className="px-2.5 py-1 border border-slate-400 rounded text-xs text-slate-700 hover:border-slate-400">엑셀</a>
                   </td>
                 </tr>
                 {openPo === r.id && (
-                  <tr className="border-b border-gray-50">
+                  <tr className="border-b border-slate-200">
                     <td colSpan={8} className="bg-slate-50/40 px-4 py-3"><PoDetail poId={r.id} /></td>
                   </tr>
                 )}
                 </Fragment>
               ))}
               {!rows.length && (
-                <tr><td colSpan={8} className="text-center py-12 text-gray-400 text-sm">조건에 맞는 발주서가 없습니다.</td></tr>
+                <tr><td colSpan={8} className="text-center py-12 text-slate-500 text-sm">조건에 맞는 발주서가 없습니다.</td></tr>
               )}
             </tbody>
           </table>
         )}
       </div>
-      <p className="text-xs text-gray-400 mt-2">
+      <p className="text-xs text-slate-500 mt-2">
         발주일·번호 클릭 = 발송 페이지 (다운로드·첨부·메일 작성·발송 이력·취소) · 주문번호 클릭 = 주문 상세
       </p>
     </div>

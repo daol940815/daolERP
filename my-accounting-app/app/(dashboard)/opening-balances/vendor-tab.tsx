@@ -75,7 +75,7 @@ export default function VendorTab() {
 
   return (
     <div>
-      <p className="text-sm text-gray-500">도입 이전 미수금/미지급금을 거래처별로 입력합니다. 거래처원장의 전월이월 시작점이 됩니다.</p>
+      <p className="text-sm text-slate-600">도입 이전 미수금/미지급금을 거래처별로 입력합니다. 거래처원장의 전월이월 시작점이 됩니다.</p>
 
       {msg && <div className="mb-3 mt-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
 
@@ -83,24 +83,24 @@ export default function VendorTab() {
         <input value={search} onChange={e => setSearch(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') load(search) }}
           placeholder="거래처명 검색 후 Enter (미입력 시 기초잔액 등록된 거래처만 표시)"
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm flex-1" />
+          className="border border-slate-400 rounded-lg px-3 py-1.5 text-sm flex-1" />
         <button onClick={() => load(search)} disabled={busy}
           className="px-3.5 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50">검색</button>
         <button onClick={() => { const a = document.createElement('a'); a.href = '/api/vendor-opening-balances/export'; a.click() }}
-          className="px-3.5 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 whitespace-nowrap">↓ 엑셀</button>
+          className="px-3.5 py-2 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50 whitespace-nowrap">↓ 엑셀</button>
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : rows.length === 0 ? (
-        <div className="text-center py-16 text-gray-400 text-sm">
+        <div className="text-center py-16 text-slate-500 text-sm">
           {search ? '검색 결과가 없습니다.' : '등록된 거래처 기초잔액이 없습니다. 거래처명을 검색해 입력하세요.'}
         </div>
       ) : (
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="border border-slate-300 rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
+              <tr className="bg-slate-50 text-slate-600 text-xs border-b border-slate-300">
                 <th className="py-2 px-3 text-left font-medium">거래처</th>
                 <th className="py-2 px-3 text-left font-medium w-28">구분</th>
                 <th className="py-2 px-3 text-right font-medium w-36">기초잔액</th>
@@ -113,12 +113,12 @@ export default function VendorTab() {
               {rows.map(r => {
                 const ed = edit[r.vendor_id]
                 return (
-                  <tr key={r.vendor_id} className="border-b border-gray-50 last:border-0">
-                    <td className="py-1.5 px-3 text-gray-800">{r.name}</td>
+                  <tr key={r.vendor_id} className="border-b border-slate-200 last:border-0">
+                    <td className="py-1.5 px-3 text-slate-900">{r.name}</td>
                     <td className="py-1.5 px-3">
                       {ed ? (
                         <select value={ed.sign} onChange={e => setEdit(s => ({ ...s, [r.vendor_id]: { ...ed, sign: e.target.value as '미수' | '미지급' } }))}
-                          className="border border-gray-300 rounded px-2 py-1 text-xs">
+                          className="border border-slate-400 rounded px-2 py-1 text-xs">
                           <option value="미수">미수(채권)</option>
                           <option value="미지급">미지급(채무)</option>
                         </select>
@@ -126,7 +126,7 @@ export default function VendorTab() {
                         <span className={`text-xs px-1.5 py-0.5 rounded ${r.amount < 0 ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
                           {r.amount < 0 ? '미지급' : '미수'}
                         </span>
-                      ) : <span className="text-gray-300 text-xs">미설정</span>}
+                      ) : <span className="text-slate-400 text-xs">미설정</span>}
                     </td>
                     <td className="py-1.5 px-3 text-right">
                       {ed ? (
@@ -135,7 +135,7 @@ export default function VendorTab() {
                           onKeyDown={e => { if (e.key === 'Enter') save(r.vendor_id) }}
                           placeholder="0" className="w-28 text-right border border-slate-400 rounded px-2 py-1 text-sm" />
                       ) : (
-                        <button onClick={() => startEdit(r)} className={`tabular-nums ${r.amount < 0 ? 'text-red-600' : r.amount > 0 ? 'text-blue-700' : 'text-gray-400'}`}>
+                        <button onClick={() => startEdit(r)} className={`tabular-nums ${r.amount < 0 ? 'text-red-600' : r.amount > 0 ? 'text-blue-700' : 'text-slate-500'}`}>
                           {r.has_value ? won(r.amount) : '입력'}
                         </button>
                       )}
@@ -148,13 +148,13 @@ export default function VendorTab() {
                           placeholder="0" title="기초분 회수/지급 누계 (절대값)"
                           className="w-28 text-right border border-slate-400 rounded px-2 py-1 text-sm" />
                       ) : (
-                        <span className={`tabular-nums ${r.collected_amount > 0 ? 'text-emerald-700' : 'text-gray-300'}`}>
+                        <span className={`tabular-nums ${r.collected_amount > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>
                           {r.has_value ? won(r.collected_amount) : '-'}
                         </span>
                       )}
                     </td>
                     <td className="py-1.5 px-3 text-right">
-                      <span className="tabular-nums text-gray-700">
+                      <span className="tabular-nums text-slate-800">
                         {r.has_value ? won(Math.abs(r.amount) - r.collected_amount) : '-'}
                       </span>
                     </td>
@@ -172,7 +172,7 @@ export default function VendorTab() {
         </div>
       )}
 
-      <p className="text-xs text-gray-400 mt-4">
+      <p className="text-xs text-slate-500 mt-4">
         · <b>미수(채권)</b>는 받을 돈(매출처), <b>미지급(채무)</b>은 줄 돈(매입처)입니다. 금액은 양수로 입력하고 구분으로 부호를 정합니다.<br />
         · 기초잔액을 0으로 저장하면 삭제됩니다. 거래처원장 잔액/내용 탭의 전월이월에 반영됩니다.<br />
         · <b>회수 누계</b>: 기초분이 실제로 회수/지급되면 여기에 누계로 기록하세요(기초잔액은 깎지 않습니다).

@@ -15,13 +15,13 @@ export default function ReasonPicker({ options, picked, onPick, text, onText, pl
   multiline?: boolean
 }) {
   const needText = picked === REASON_OTHER && !text.trim()
-  const field = `w-full border rounded-lg px-3 py-1.5 text-sm bg-white ${needText ? 'border-red-400' : 'border-gray-300'}`
+  const field = `w-full border rounded-lg px-3 py-1.5 text-sm bg-white ${needText ? 'border-red-400' : 'border-slate-400'}`
   return (
     <div className="space-y-2">
       <div className="flex gap-1.5 flex-wrap">
         {options.map(o => (
           <button key={o} type="button" onClick={() => onPick(picked === o ? null : o)} aria-pressed={picked === o}
-            className={`px-2.5 py-1 rounded-full text-xs border ${picked === o ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'}`}>
+            className={`px-2.5 py-1 rounded-full text-xs border ${picked === o ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-800 border-slate-400 hover:border-slate-400'}`}>
             {o}
           </button>
         ))}
@@ -33,7 +33,7 @@ export default function ReasonPicker({ options, picked, onPick, text, onText, pl
         <input value={text} onChange={e => onText(e.target.value)} maxLength={300}
           placeholder={placeholder ?? '자세한 사유 (기타를 고르면 필수)'} className={field} />
       )}
-      {needText && <div className="text-[0.6875rem] text-red-600">기타를 고르셨으면 사유를 적어 주세요.</div>}
+      {needText && <div className="text-xs text-red-600">기타를 고르셨으면 사유를 적어 주세요.</div>}
     </div>
   )
 }

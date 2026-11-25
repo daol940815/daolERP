@@ -88,35 +88,35 @@ export default function AccountTab() {
 
   return (
     <div>
-      <p className="text-sm text-gray-500">시스템 도입 이전부터 넘어온 잔액입니다. 자산·부채·자본만 대상이며, 원장의 전월이월 시작점이 됩니다.</p>
+      <p className="text-sm text-slate-600">시스템 도입 이전부터 넘어온 잔액입니다. 자산·부채·자본만 대상이며, 원장의 전월이월 시작점이 됩니다.</p>
 
       {msg && <div className="mb-3 mt-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
 
       <div className="flex items-center gap-2 my-4">
         <button onClick={loadSuggestions} disabled={busy}
-          className="px-3.5 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-100 disabled:opacity-50">
+          className="px-3.5 py-2 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-100 disabled:opacity-50">
           은행 추정값 불러오기
         </button>
         <button onClick={() => { const a = document.createElement('a'); a.href = '/api/opening-balances/export'; a.click() }}
-          className="px-3.5 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
+          className="px-3.5 py-2 border border-slate-400 text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-50">
           ↓ 엑셀
         </button>
         <span className="text-xs text-amber-600">거래 순서 정보(시각)가 없어 추정값은 부정확할 수 있습니다. 도입시점 실제 잔액을 확인해 수기 확정하세요.</span>
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-slate-500">로딩 중...</div>
       ) : (
         <div className="space-y-5">
           {grouped.map(g => (
-            <div key={g.type} className="border border-gray-200 rounded-lg overflow-hidden">
-              <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-100">
-                <span className="text-sm font-semibold text-gray-700">{TYPE_LABEL[g.type]}</span>
-                <span className="text-sm text-gray-500">소계 <b className="text-gray-800">{won(totals[g.type])}</b>원</span>
+            <div key={g.type} className="border border-slate-300 rounded-lg overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200">
+                <span className="text-sm font-semibold text-slate-800">{TYPE_LABEL[g.type]}</span>
+                <span className="text-sm text-slate-600">소계 <b className="text-slate-900">{won(totals[g.type])}</b>원</span>
               </div>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-gray-400 text-xs border-b border-gray-100">
+                  <tr className="text-slate-500 text-xs border-b border-slate-200">
                     <th className="py-1.5 px-3 text-left font-medium w-20">코드</th>
                     <th className="py-1.5 px-2 text-left font-medium">계정과목</th>
                     <th className="py-1.5 px-3 text-right font-medium w-44">기초잔액</th>
@@ -128,24 +128,24 @@ export default function AccountTab() {
                   {g.items.map(r => {
                     const editing = r.id in edit
                     return (
-                      <tr key={r.id} className="border-b border-gray-50 last:border-0">
-                        <td className="py-1.5 px-3 text-gray-400 font-mono text-xs">{r.code}</td>
-                        <td className="py-1.5 px-2 text-gray-800">{r.name}</td>
+                      <tr key={r.id} className="border-b border-slate-200 last:border-0">
+                        <td className="py-1.5 px-3 text-slate-500 font-mono text-xs">{r.code}</td>
+                        <td className="py-1.5 px-2 text-slate-900">{r.name}</td>
                         <td className="py-1.5 px-3 text-right">
                           <input
                             value={editing ? edit[r.id] : (r.amount ? won(r.amount) : '')}
                             onChange={e => setEdit(s => ({ ...s, [r.id]: e.target.value }))}
                             onFocus={() => setEdit(s => ({ ...s, [r.id]: String(r.amount || '') }))}
                             placeholder="0"
-                            className={`w-40 text-right border rounded px-2 py-1 text-sm ${editing ? 'border-slate-400 bg-white' : 'border-transparent hover:border-gray-200'}`}
+                            className={`w-40 text-right border rounded px-2 py-1 text-sm ${editing ? 'border-slate-400 bg-white' : 'border-transparent hover:border-slate-300'}`}
                           />
                         </td>
                         <td className="py-1.5 px-3">
                           {r.source === 'auto_bank'
                             ? <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">자동</span>
                             : r.source === 'manual'
-                            ? <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">수기</span>
-                            : <span className="text-xs text-gray-300">-</span>}
+                            ? <span className="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">수기</span>
+                            : <span className="text-xs text-slate-400">-</span>}
                         </td>
                         <td className="py-1.5 px-3 text-right whitespace-nowrap">
                           {editing ? (
@@ -173,7 +173,7 @@ export default function AccountTab() {
         </div>
       )}
 
-      <p className="text-xs text-gray-400 mt-4">
+      <p className="text-xs text-slate-500 mt-4">
         · 자산·비용은 차변(+), 부채·자본은 대변(+) 기준으로 입력합니다. (예: 단기차입금 기초 = 갚을 차입액을 양수로)<br />
         · 칸을 클릭해 숫자를 입력하고 저장하면 수기로 저장됩니다. 0으로 저장하면 삭제됩니다.<br />
         · &lsquo;은행 추정값 불러오기&rsquo;는 통장 거래후잔액에서 역산한 <b>참고용 추정치</b>일 뿐 자동 저장하지 않습니다. [적용]하면 수기값으로 확정됩니다.
