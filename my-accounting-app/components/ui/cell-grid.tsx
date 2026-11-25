@@ -18,8 +18,10 @@ const EDGE: Record<CellGroup, string> = { item: 'border-slate-500', sale: 'borde
 const WARN: Record<CellWarn, string> = { red: 'bg-red-100 border-red-600 text-red-700', amber: 'bg-amber-100 border-amber-600 text-amber-900' }
 const WARN_FILL: Record<CellWarn, string> = { red: 'bg-red-600', amber: 'bg-amber-600' }
 
-/** 표 클래스 — 칸 사이 간격 4px. table-fixed · min-w 는 화면에서 덧붙인다. */
-export const cellTableCls = 'border-separate border-spacing-1 text-[0.8125rem]'
+/** 표 클래스 — 칸 사이 간격 4px. 글자 크기(text-xs · text-[0.8125rem]) · table-fixed · min-w 는 화면에서 덧붙인다. */
+export const cellTableCls = 'border-separate border-spacing-1'
+/** 빈 머리 칸(삭제 버튼 열 등) — thead th 공통 규칙의 회색 바탕 · 밑줄을 지운다 */
+export const cellBlankTh = 'bg-transparent border-0'
 
 // thead th 공통 규칙(globals.css)보다 여기 클래스가 이긴다 — 묶음 색 머리줄
 const TH = 'px-1.5 py-1 rounded-md text-xs font-bold !text-white !border-0 whitespace-nowrap'
@@ -32,11 +34,26 @@ export function CellHead({ group, className, ...rest }: ThHTMLAttributes<HTMLTab
   return <th className={cx(TH, HEAD[group], className)} {...rest} />
 }
 
-const CELL = 'block w-full h-8 rounded-md border-[1.5px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-slate-900 disabled:bg-slate-100 disabled:text-slate-600'
-// 바탕 · 글자색 · 좌우 여백은 겹치지 않게 한 가지씩만 붙인다(같은 속성의 Tailwind 클래스 둘은 어느 쪽이 이길지 보장되지 않는다)
+const CELL = 'block rounded-md border-[1.5px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-slate-900 disabled:opacity-60'
+// 바탕 · 글자색 · 높이 · 너비 · 좌우 여백은 겹치지 않게 한 가지씩만 붙인다(같은 속성의 Tailwind 클래스 둘은 어느 쪽이 이길지 보장되지 않는다)
+export interface CellOpts {
+  num?: boolean                 // 숫자 칸 — 오른쪽 정렬
+  warn?: CellWarn | null        // 경고 칸
+  tight?: boolean               // 좌우 여백 좁게(select)
+  short?: boolean               // 낮은 칸(칸 안의 작은 선택 · 둘째 줄 입력)
+  auto?: boolean                // 높이를 내용에 맞춤(textarea)
+  noWidth?: boolean             // 너비를 화면이 직접 줌(w-56 · flex-1 등을 extra 로)
+  extra?: string
+}
 /** 입력 칸 클래스 — 자체 입력 부품(품번 검색 콤보 등)에 같은 모양을 줄 때 */
-export const cellCls = (group: CellGroup, opts?: { num?: boolean; warn?: CellWarn | null; tight?: boolean; extra?: string }) =>
-  cx(CELL, opts?.warn ? WARN[opts.warn] : `bg-white text-slate-900 ${EDGE[group]}`, opts?.tight ? 'px-1' : 'px-2', opts?.num && 'text-right tabular-nums', opts?.extra)
+export const cellCls = (group: CellGroup, o: CellOpts = {}) => cx(CELL,
+  o.warn ? WARN[o.warn] : `bg-white text-slate-900 ${EDGE[group]}`,
+  o.auto ? 'min-h-8 py-1.5' : o.short ? 'h-6 text-xs' : 'h-8', !o.noWidth && 'w-full', o.tight ? 'px-1' : 'px-2',
+  o.num && 'text-right tabular-nums', o.extra)
+/** 자동 계산 칸 클래스 — tall = 안에 둘째 줄(할인 · 마진율)이 있는 칸 */
+export const calcCls = (group: CellGroup, o: { warn?: CellWarn | null; tall?: boolean; extra?: string } = {}) => cx(
+  'flex rounded-md px-2 font-extrabold tabular-nums text-white', o.warn ? WARN_FILL[o.warn] : HEAD[group],
+  o.tall ? 'min-h-8 py-0.5 flex-col items-end justify-center leading-tight' : 'h-8 items-center justify-end', o.extra)
 
 type CellOwn = { group: CellGroup; num?: boolean; warn?: CellWarn | null }
 export function CellInput({ group, num, warn, className, ...rest }: InputHTMLAttributes<HTMLInputElement> & CellOwn) {
@@ -46,12 +63,8 @@ export function CellSelect({ group, warn, className, ...rest }: SelectHTMLAttrib
   return <select className={cellCls(group, { warn, tight: true, extra: className })} {...rest} />
 }
 /** 자동 계산 칸(못 고침) — 묶음 색으로 칠한다 */
-export function CellCalc({ group, warn, children, className, title }: { group: CellGroup; warn?: CellWarn | null; children: ReactNode; className?: string; title?: string }) {
-  return (
-    <div title={title} className={cx('flex items-center justify-end h-8 px-2 rounded-md font-extrabold tabular-nums text-white', warn ? WARN_FILL[warn] : HEAD[group], className)}>
-      {children}
-    </div>
-  )
+export function CellCalc({ group, warn, tall, children, className, title }: { group: CellGroup; warn?: CellWarn | null; tall?: boolean; children: ReactNode; className?: string; title?: string }) {
+  return <div title={title} className={calcCls(group, { warn, tall, extra: className })}>{children}</div>
 }
 
 /** 표 위 요약 알약 — 판매합계 · 매입합계 · 마진 */
