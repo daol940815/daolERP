@@ -114,3 +114,19 @@
 - **병행 세션 주의**: 거의 모든 화면 파일의 className 이 바뀌었다. 작업 중인 브랜치를 main 에 합칠 때 충돌이 나면 자기 쪽 내용을 고르고 `node scripts/ui-codemod.mjs` 실행.
 - **남은 단계**: 2단계 공용 부품(화면 제목 줄 · 표 · 입력 칸 · 버튼 · 배지 · 요약 카드 · 셀 입력 표) → 3단계 화면 이전(상담일지 · 신규 주문 · 주문내역 · 결제 확인부터,
   좁은 표 화면 전체 폭 · 블록 순서 · 입력 칸 종류 바탕색 포함) → 4단계 check-ui 경고를 실패로.
+
+## 2단계 — 공용 부품 (2026-11-25)
+
+- 1단계 배포 후 사용자 "2단계 진행" 지시.
+- 부품 3개 파일(모양만, 동작 · 데이터 없음):
+  - `components/ui/kit.tsx` — Page(narrow) · PageHeader · SectionTitle · Card · FilterRow · Button(primary · secondary · danger · link × md · sm, `btnCls`) ·
+    Input · Select · Textarea · Field(`fieldCls` — kind free 흰 · pick 옅은 노랑 · auto 회색) · Badge(red · amber · green · blue · gray) · Chip · KpiGrid · KpiCard ·
+    TableCard · `tbl`(th · thNum · tr · td · tdNum · name · sub · foot · neg · empty). 훅이 없어 서버 · 클라이언트 양쪽에서 사용.
+  - `components/ui/modal.tsx` — Modal(클라이언트). 배경 slate-900/40 · rounded-xl · shadow-xl 한 가지.
+  - `components/ui/cell-grid.tsx` — 엑셀형 입력 표: `cellTableCls` · CellBand · CellHead · CellInput · CellSelect · CellCalc · SummaryPill · `cellCls`(자체 입력 부품용).
+    묶음 색 item slate · sale blue · buy orange · result emerald, 경고 warn red(할인 · 품절) · amber(단가 변경).
+- 견본 화면 `/me/ui-kit`(`app/(orders)/me/ui-kit/page.tsx`, 메뉴 없음 · 내 업무 소속이라 전원 열람) — 부품을 고치면 여기서 먼저 확인.
+- 주의(구현 중 발견): 같은 속성의 Tailwind 클래스 둘(`bg-white` + `bg-red-100`)을 함께 주면 어느 쪽이 이길지 보장되지 않는다 — 부품은 경우마다 한 가지만 붙이게 짰다.
+  클래스 문자열은 `components/` 아래에 둘 것(`lib/` 는 Tailwind content 에 없음).
+- 기존 화면은 아직 부품을 쓰지 않는다(3단계에서 화면별 이전). 이전 순서: 상담일지 품목 표 → 신규 주문 · 주문 상세 → 주문내역 → 결제 확인 → 거래처 관리 → 회계 원본 목록 → 결산 · 도구 → 인사.
+  이전할 때 함께: 좁은 표 화면 전체 폭(`Page` narrow 제거) · 블록 순서 · 입력 칸 종류 바탕(지금의 노랑 · 분홍 테두리 → kind) · 줄 안 버튼 통일.
