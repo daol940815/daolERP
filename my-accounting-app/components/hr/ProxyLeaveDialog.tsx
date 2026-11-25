@@ -34,7 +34,7 @@ export default function ProxyLeaveDialog({ employees, onClose, onDone }: {
   }
   const inp = 'w-full border border-slate-400 rounded-lg px-2 py-1.5 text-sm'
   return (
-    <div className="fixed inset-0 bg-black/40 z-40 flex items-start justify-center pt-24" onClick={onClose}>
+    <div className="fixed inset-0 bg-slate-900/40 z-40 flex items-start justify-center pt-24" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-[560px] max-w-[95vw] p-5" onClick={e => e.stopPropagation()}>
         <h2 className="text-base font-bold text-slate-900">휴가 대리 등록</h2>
         <p className="text-xs text-slate-600 mt-1">로그인 계정이 없는 직원의 휴가를 인사 · 총무가 대신 넣습니다. 결재 없이 바로 승인되고, 등록한 사람이 기록됩니다.</p>

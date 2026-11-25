@@ -154,7 +154,7 @@ export default function MyDashboardPage() {
   return (
     <div>
       <div className="flex items-baseline gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-slate-900">대시보드</h1>
+        <h1 className="text-2xl font-bold text-slate-900">대시보드</h1>
         <span className="text-sm text-slate-600">{data.me.name ?? ''} · {data.month}</span>
       </div>
 

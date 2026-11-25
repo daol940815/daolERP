@@ -21,7 +21,7 @@ export default function StockPage({ searchParams }: { searchParams: { tab?: stri
   return (
     <div>
       <div className="mb-3">
-        <h1 className="text-xl font-bold text-slate-900">재고 관리</h1>
+        <h1 className="text-2xl font-bold text-slate-900">재고 관리</h1>
         <p className="mt-1 text-[0.8125rem] text-slate-600">사무실에 있는 물건의 입고 · 출고 · 실사. 재고 수량은 원장에서 자동으로 계산합니다.</p>
       </div>
       <PageTabs tabs={tabs} active={tab} className="mb-4" />

@@ -40,7 +40,7 @@ function OrderPreviewModal({ id, onClose }: { id: string; onClose: () => void })
     return () => { alive = false; document.removeEventListener('keydown', onKey) }
   }, [id, onClose])
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 text-left font-normal" onClick={e => { e.stopPropagation(); onClose() }}>
+    <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-[60] p-4 text-left font-normal" onClick={e => { e.stopPropagation(); onClose() }}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[88vh] overflow-y-auto p-5 text-sm text-slate-900 whitespace-normal" onClick={e => e.stopPropagation()}>
         {err ? <p className="text-red-600">{err}</p> : !data ? <p className="text-slate-500 py-8 text-center">불러오는 중...</p> : (<>
           <div className="flex items-center gap-2 flex-wrap">

@@ -9,7 +9,7 @@ export default function LeaveBalancePage({ searchParams }: { searchParams: { tab
   const tab = searchParams.tab === 'grants' ? 'grants' : searchParams.tab === 'yearend' ? 'yearend' : 'status'
   return (
     <div>
-      <h1 className="text-xl font-bold text-slate-900">연차 관리</h1>
+      <h1 className="text-2xl font-bold text-slate-900">연차 관리</h1>
       <p className="text-sm mt-1 text-slate-600">
         직원별 연차 부여 · 사용 · 잔여입니다. 사용은 승인된 연차 · 반차 · 병가에서 자동으로 계산되고(공가 · 무급휴가 · 기타는 제외),
         기본 연차를 먼저 쓰고 넘치면 보상 연차에서 뺍니다. 남은 기본 연차는 연말에 소멸하고 보상 연차만 다음 해로 넘어갑니다.

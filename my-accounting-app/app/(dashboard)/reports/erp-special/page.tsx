@@ -50,7 +50,7 @@ export default function ErpSpecialPage() {
   const balanceTotal  = data.balances.reduce((s, r) => s + r.balance, 0)
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div>
       <div className="mb-1 flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">ERP VIP·선결제 내역</h1>

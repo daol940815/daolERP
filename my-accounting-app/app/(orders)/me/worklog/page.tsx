@@ -164,7 +164,7 @@ export default function MyWorklogPage() {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-slate-900">업무일지</h1>
+        <h1 className="text-2xl font-bold text-slate-900">업무일지</h1>
         <span className="text-xs text-slate-500">
           ERP에서 한 업무는 자동으로 기록됩니다. ERP 밖 업무만 직접 기재하세요.
         </span>

@@ -269,7 +269,7 @@ export default function SalesHubPage() {
       </div>
 
       {addForm.open && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setAddForm(f => ({ ...f, open: false }))}>
+        <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50" onClick={() => setAddForm(f => ({ ...f, open: false }))}>
           <div className="bg-white rounded-xl shadow-2xl p-6 w-96 mx-4" onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-bold text-slate-900 mb-1">신규 매출처 등록</h3>
             <p className="text-xs text-slate-500 mb-4">업체명은 은행·회사·기관 이름, 지점명은 그 아래 지점·부서입니다. 지점이 없는 단독 업체는 지점명을 비웁니다.</p>

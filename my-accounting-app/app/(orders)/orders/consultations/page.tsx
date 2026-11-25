@@ -187,7 +187,7 @@ export default function ConsultationsPage() {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-slate-900">상담일지</h1>
+        <h1 className="text-2xl font-bold text-slate-900">상담일지</h1>
         <span className="text-xs text-slate-500">상담 기록 → 주문 확정 시 주문서로 전환 · 품목별 1줄 표시 (같은 상담은 하나의 일지)</span>
         <span className="ml-auto flex items-center gap-2">
           {checked.size > 0 && (
@@ -398,7 +398,7 @@ export default function ConsultationsPage() {
       </div>
       {/* 행 "요청" 창 (705) */}
       {reqFor && (
-        <div className="fixed inset-0 z-40 bg-black/30 flex items-center justify-center p-4" onClick={() => setReqFor(null)}>
+        <div className="fixed inset-0 z-40 bg-slate-900/40 flex items-center justify-center p-4" onClick={() => setReqFor(null)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-4" onClick={e => e.stopPropagation()}>
             <div className="text-sm font-bold text-slate-900">주문 진행 요청 — {[reqFor.bank_name, reqFor.branch_name].filter(Boolean).join(' ') || '상담일지'}</div>
             <div className="text-xs text-slate-600 mt-0.5">요청받은 직원은 이 상담을 열람 · 주문 전환만 할 수 있습니다. 비우면 요청 취소.</div>

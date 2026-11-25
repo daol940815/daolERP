@@ -115,7 +115,7 @@ export default function ProductRegisterDialog({ seed, products, onClose, onDone 
   const req = <span className="text-red-600">*</span>
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full p-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="text-sm font-bold text-slate-900">품목 관리에 등록</div>
         <div className="text-xs text-slate-600 mt-0.5">

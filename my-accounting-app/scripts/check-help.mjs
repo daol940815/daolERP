@@ -39,8 +39,9 @@ function walk(dir, out = []) {
 }
 const routeOf = file => '/' + relative(join(root, 'app'), file).replace(/\\/g, '/').split('/').slice(0, -1).filter(seg => !/^\(.*\)$/.test(seg)).join('/')
 let gitOk = true
-// 제목에 [ui-일괄] 이 든 커밋(전 화면 모양 일괄 변환 — 도움말 내용과 무관)은 신선도 검사에서 뺀다 (UI 디자인 트랙, 2026-11-25)
-const lastCommit = file => { try { return execSync(`git log -1 --format=%cs --invert-grep --grep="\\[ui-일괄\\]" -- "${file}"`, { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() } catch { gitOk = false; return '' } }
+// 제목에 [ui-일괄] 이 들었거나 'UI 통일'로 시작하는 커밋(UI 디자인 트랙의 모양 변환 — 도움말 내용과 무관)은 신선도 검사에서 뺀다 (2026-11-25).
+// 그 커밋에서 쓰는 법이 달라진 화면은 UI 트랙이 도움말을 직접 갱신한다.
+const lastCommit = file => { try { return execSync(`git log -1 --format=%cs --invert-grep --grep="\\[ui-일괄\\]" --grep="^UI 통일" -- "${file}"`, { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() } catch { gitOk = false; return '' } }
 const pages = new Map(walk(join(root, 'app')).map(f => [routeOf(f) || '/', f]))
 for (const e of entries) {
   const file = pages.get(base(e.href))

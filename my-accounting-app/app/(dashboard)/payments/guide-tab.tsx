@@ -226,7 +226,7 @@ export default function GuideTab() {
         )}
 
       {target && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setTarget(null)}>
+        <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 p-4" onClick={() => setTarget(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="px-5 py-3.5 border-b border-slate-300 font-semibold text-slate-900">
               연락 기록 — {target.order_no ?? ''} {target.customer_name}

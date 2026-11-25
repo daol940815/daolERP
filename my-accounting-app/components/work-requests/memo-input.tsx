@@ -52,7 +52,7 @@ export function useMemoPrompt() {
     return () => window.removeEventListener('keydown', onEsc)
   }, [ask, close])
   const element = ask ? (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4" onClick={() => close(null)}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4" onClick={() => close(null)}>
       <div className="w-full max-w-lg bg-white rounded-xl shadow-2xl p-5" onClick={e => e.stopPropagation()}>
         <p className="text-sm font-bold text-slate-900">{ask.title}{ask.required ? <span className="text-red-500"> *</span> : <span className="text-xs text-slate-500 font-normal"> (선택)</span>}</p>
         {ask.detail && <p className="text-xs text-slate-600 mt-0.5 truncate">{ask.detail}</p>}

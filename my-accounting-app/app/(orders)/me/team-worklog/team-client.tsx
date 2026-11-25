@@ -66,7 +66,7 @@ export default function TeamWorklogClient() {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-slate-900">팀 업무 현황</h1>
+        <h1 className="text-2xl font-bold text-slate-900">팀 업무 현황</h1>
         <span className="text-xs text-slate-500">직원별 업무 건수 집계 · 이름을 누르면 해당 직원 업무일지로 이동합니다.</span>
         <Link href="/me/worklog"
           className="ml-auto px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50">

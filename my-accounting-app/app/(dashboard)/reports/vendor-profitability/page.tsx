@@ -45,7 +45,7 @@ export default function VendorProfitabilityPage() {
   const totalRate     = totalSales > 0 ? (totalProfit / totalSales) * 100 : 0
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div>
       <div className="mb-1">
         <h1 className="text-2xl font-bold text-slate-900">거래처별 수익성 분석</h1>
         <p className="text-sm mt-1 text-slate-600">매출처(은행·지점)별 기간 내 매출·매입원가 대비 매출이익/이익률을 확인합니다. (취소/VIP/선결제 제외)</p>

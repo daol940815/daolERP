@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import CollectMatchModal from '@/components/erp/CollectMatchModal'
 import ReasonBadge from '@/components/ui/ReasonBadge'
+import { PageHeader, FilterRow, KpiGrid, KpiCard, Button, btnCls, fieldBox } from '@/components/ui/kit'
 import { FIELD_SHORT, MINE_FILTERS, ORDERS_LIST_URL_KEY, SEARCH_FIELDS, decodeCond, encodeCond, parseFreeText, parseMine, type MineFilter, type SearchCond, type SearchField } from '@/lib/order-search-fields'
 import { INVOICE_FLAG_LABEL, PAY_METHOD_TAG_CLS, PAY_METHOD_TAG_LABEL, PAY_STAGE_CHIPS, PAY_STAGE_CLS, PAY_STAGE_HINT, PAY_STAGE_LABEL, showMethodTag, type PayState } from '@/lib/pay-state'
 import { STOCK_ROLE_LABEL, marginCostOf } from '@/lib/stock-cost'
@@ -284,68 +285,43 @@ export default function OrdersHomePage() {
   }
 
   const showCost = true   // 매입가·마진 전 직원 공개 (2026-08-13 사용자 결정)
-  const kpiCard = 'text-left bg-white border rounded-xl px-4 py-3 transition-colors'
 
   return (
     <div>
-      <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-slate-900">주문내역</h1>
-        <span className="ml-auto flex gap-2">
-          <button onClick={exportExcel} disabled={exporting}
-            className="px-3.5 py-1.5 border border-slate-400 rounded-lg text-sm text-slate-700 disabled:opacity-50">
-            {exporting ? '내보내는 중...' : '엑셀 다운로드'}
-          </button>
-          <Link href="/orders/new"
-            className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-sm">+ 주문 추가</Link>
-        </span>
-      </div>
+      <PageHeader title="주문내역" actions={<>
+        <Button onClick={exportExcel} disabled={exporting}>{exporting ? '내보내는 중...' : '엑셀 다운로드'}</Button>
+        <Link href="/orders/new" className={btnCls('primary')}>+ 주문 추가</Link>
+      </>} />
+
+      {/* 화면 순서(UI 통일 기준): 제목 줄 → 기간 → 요약 카드 → 검색 · 칩 → 표 */}
+      <FilterRow>
+        <span className="text-xs font-bold text-slate-700">주문일</span>
+        <input type="date" value={from} onChange={e => setFrom(e.target.value)} className={fieldBox({ size: 'sm', noWidth: true, extra: 'tabular-nums' })} />
+        <span className="text-xs text-slate-600">~</span>
+        <input type="date" value={to} onChange={e => setTo(e.target.value)} className={fieldBox({ size: 'sm', noWidth: true, extra: 'tabular-nums' })} />
+        <span className="w-1.5" />
+        <PeriodPresets from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
+      </FilterRow>
 
       {/* KPI — 클릭=필터 */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 mt-4">
-        <button onClick={() => { setCollect('all'); setSource('all') }}
-          className={`${kpiCard} ${collect === 'all' && source === 'all' ? 'border-slate-800' : 'border-slate-300'}`}>
-          <div className="text-xs text-slate-500">기간 주문</div>
-          <div className="text-lg font-extrabold tabular-nums">{kpi ? `${won(kpi.count)}건` : '-'}</div>
-        </button>
-        <div className={`${kpiCard} border-slate-300`}>
-          <div className="text-xs text-slate-500">총 금액</div>
-          <div className="text-lg font-extrabold tabular-nums">{kpi ? `${won(kpi.total)}원` : '-'}</div>
-        </div>
-        <button onClick={() => setCollect(collect === 'outstanding' ? 'all' : 'outstanding')}
-          className={`${kpiCard} ${collect === 'outstanding' ? 'border-slate-800' : 'border-slate-300'}`}>
-          <div className="text-xs text-slate-500">미수금 (클릭=미수만)</div>
-          <div className="text-lg font-extrabold tabular-nums text-red-600">{kpi ? `${won(kpi.outstanding)}원` : '-'}</div>
-          {kpi && <div className="text-xs text-slate-500">완료 전 {kpi.open_cnt}건 · 그중 매칭 대기 {kpi.match_wait_cnt}건</div>}
-        </button>
-        <button onClick={() => setSource(source === 'direct' ? 'all' : 'direct')}
-          className={`${kpiCard} ${source === 'direct' ? 'border-slate-800' : 'border-slate-300'}`}>
-          <div className="text-xs text-slate-500">직접입력 (클릭=직접만)</div>
-          <div className="text-lg font-extrabold tabular-nums text-blue-700">{kpi ? `${won(kpi.direct_cnt)}건` : '-'}</div>
-        </button>
+      <KpiGrid cols={5}>
+        <KpiCard label="기간 주문" value={kpi ? `${won(kpi.count)}건` : '-'}
+          active={collect === 'all' && source === 'all'} onClick={() => { setCollect('all'); setSource('all') }} />
+        <KpiCard label="총 금액" value={kpi ? `${won(kpi.total)}원` : '-'} />
+        <KpiCard label="미수금 (클릭=미수만)" tone="red" value={kpi ? `${won(kpi.outstanding)}원` : '-'}
+          sub={kpi ? `완료 전 ${kpi.open_cnt}건 · 그중 매칭 대기 ${kpi.match_wait_cnt}건` : undefined}
+          active={collect === 'outstanding'} onClick={() => setCollect(collect === 'outstanding' ? 'all' : 'outstanding')} />
+        <KpiCard label="직접입력 (클릭=직접만)" tone="blue" value={kpi ? `${won(kpi.direct_cnt)}건` : '-'}
+          active={source === 'direct'} onClick={() => setSource(source === 'direct' ? 'all' : 'direct')} />
         {/* 완료 회신 (515) — 내가 입력했고 아직 회신 안 한 주문 */}
-        <button onClick={() => setReply(reply === 'my_wait' ? 'all' : 'my_wait')}
-          className={`${kpiCard} ${reply === 'my_wait' ? 'border-slate-800' : 'border-slate-300'}`}>
-          <div className="text-xs text-slate-500">내가 회신할 것 (클릭=필터)</div>
-          <div className={`text-lg font-extrabold tabular-nums ${kpi?.reply?.my_wait ? 'text-orange-600' : 'text-slate-500'}`}>{kpi?.reply ? `${won(kpi.reply.my_wait)}건` : '-'}</div>
-          {kpi?.reply && <div className="text-xs text-slate-500">내 상담 회신 대기 {kpi.reply.my_req_wait}건 · 나에게 온 회신 {kpi.reply.to_me}건</div>}
-        </button>
-      </div>
+        <KpiCard label="내가 회신할 것 (클릭=필터)" tone={kpi?.reply?.my_wait ? 'amber' : 'gray'} value={kpi?.reply ? `${won(kpi.reply.my_wait)}건` : '-'}
+          sub={kpi?.reply ? `내 상담 회신 대기 ${kpi.reply.my_req_wait}건 · 나에게 온 회신 ${kpi.reply.to_me}건` : undefined}
+          active={reply === 'my_wait'} onClick={() => setReply(reply === 'my_wait' ? 'all' : 'my_wait')} />
+      </KpiGrid>
 
-      {/* 필터 바 — 1줄: 기간(날짜 직접설정 좌측 + 프리셋) / 2줄: 통합 검색 / 3줄: 상태 칩 */}
-      <div className="bg-white border border-slate-300 rounded-xl p-3 mt-3">
+      {/* 필터 바 — 1줄: 통합 검색 / 2줄: 상태 칩 */}
+      <div className="bg-white border border-slate-300 rounded-xl p-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-slate-500">주문일</span>
-          <input type="date" value={from}
-            onChange={e => setFrom(e.target.value)}
-            className="border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm tabular-nums" />
-          <span className="text-xs text-slate-500">~</span>
-          <input type="date" value={to}
-            onChange={e => setTo(e.target.value)}
-            className="border border-slate-400 rounded-lg px-2.5 py-1.5 text-sm tabular-nums" />
-          <span className="w-1.5" />
-          <PeriodPresets from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
-        </div>
-        <div className="flex items-center gap-2 flex-wrap mt-2">
           <select value={field} onChange={e => setField(e.target.value as SearchField | 'all')}
             className="border border-slate-400 rounded-lg px-2.5 py-2 text-sm bg-white" title="찾을 항목">
             <option value="all">전체 항목</option>

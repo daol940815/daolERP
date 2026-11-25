@@ -225,7 +225,7 @@ export default function SalesHubDetailPage() {
         <div>
           {org && <OrgHeader part="crumb" org={org} vendorName={data.vendor.name} onEdit={setOrgMode} scope={orgScope} setScope={setOrgScope} />}
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-slate-900">{data.vendor.name}</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{data.vendor.name}</h1>
             {individual && <span className="px-2 py-0.5 rounded text-xs font-semibold bg-violet-100 text-violet-700">개인 고객</span>}
             <span className={`px-2 py-0.5 rounded text-xs font-semibold ${meta.cls}`}>{meta.label}</span>
             {!data.vendor.is_active && (

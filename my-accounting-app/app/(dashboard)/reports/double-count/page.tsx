@@ -40,7 +40,7 @@ export default function DoubleCountPage() {
   useEffect(() => { load() }, [load])
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div>
       <div className="flex items-start justify-between mb-1">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">이중계상 검사</h1>

@@ -73,7 +73,7 @@ export default function ApprovalsPage() {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-slate-900">주문 수정 승인</h1>
+        <h1 className="text-2xl font-bold text-slate-900">주문 수정 승인</h1>
         <span className="text-xs text-amber-600">
           제도 폐지(2026-08-25) — 신규 요청은 취소·재등록 방식으로 대체. 이 화면은 남은 대기 건 처리·과거 이력 열람용
         </span>

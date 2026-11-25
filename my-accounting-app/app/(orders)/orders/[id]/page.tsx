@@ -216,7 +216,7 @@ export default function OrderDetailPage() {
       {reasonDlg.node}
       <div className="flex items-center gap-3 flex-wrap">
         <Link href={listHref} className="text-sm text-slate-500 hover:text-slate-700">← 주문내역</Link>
-        <h1 className="text-xl font-bold text-slate-900">주문 상세</h1>
+        <h1 className="text-2xl font-bold text-slate-900">주문 상세</h1>
         <span className="text-sm text-slate-500 tabular-nums">{String(order.order_no ?? '')}</span>
         <span className={`inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium ${isDirect ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
           {isDirect ? '직접입력' : '업로드'}

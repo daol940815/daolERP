@@ -175,7 +175,7 @@ export default function MyAttendancePage() {
 
   return (
     <div>
-      <h1 className="text-xl font-bold text-slate-900">내 근태</h1>
+      <h1 className="text-2xl font-bold text-slate-900">내 근태</h1>
       {msg && <div className="my-3 px-4 py-2.5 bg-slate-900 text-white text-sm rounded-lg">{msg}</div>}
       {error && <div className="my-3 px-4 py-2.5 bg-red-50 text-red-700 text-sm rounded-lg">{error}</div>}
 

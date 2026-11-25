@@ -425,7 +425,7 @@ export default function ProductsPage() {
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-slate-900">품목 관리</h1>
+        <h1 className="text-2xl font-bold text-slate-900">품목 관리</h1>
         <span className="text-xs text-slate-500">주문 입력의 품번 검색 원천 — 품번 선택 시 품명·매입처·가격 자동</span>
         <span className="ml-auto flex gap-2">
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
@@ -896,7 +896,7 @@ export default function ProductsPage() {
 
       {/* 업로드 확인 팝업 — 검사 결과(반영 없음)를 보여주고 확인 후 실제 업로드 */}
       {pending && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4"
+        <div className="fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center p-4"
           onClick={() => setPending(null)}>
           <div className="bg-white rounded-xl shadow-xl border border-slate-300 p-5 w-full max-w-md"
             onClick={e => e.stopPropagation()}>

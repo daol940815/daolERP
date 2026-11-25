@@ -107,7 +107,7 @@ function AddAccountModal({ onClose, onSave }: { onClose: () => void; onSave: (a:
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
         <h2 className="text-lg font-bold text-slate-900 mb-4">계정과목 추가</h2>
         {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
@@ -358,7 +358,7 @@ export default function AccountsPage() {
   }, {})
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div>
       {/* 헤더 */}
       <div className="flex items-start justify-between mb-1">
         <div>

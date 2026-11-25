@@ -15,7 +15,7 @@ export function useReasonDialog() {
     new Promise<ReasonValue | null>(resolve => { setValue(null); setSt({ kind, title, desc, resolve }) }), [])
   const close = (v: ReasonValue | null) => { st?.resolve(v); setSt(null) }
   const node = st ? (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4" onClick={() => close(null)}>
+    <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-[70] p-4" onClick={() => close(null)}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-5" onClick={e => e.stopPropagation()}>
         <h3 className="text-base font-bold text-slate-900">{st.title}</h3>
         {st.desc && <p className="text-xs text-slate-700 mt-1 whitespace-pre-line">{st.desc}</p>}

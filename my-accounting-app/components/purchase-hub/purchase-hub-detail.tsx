@@ -282,7 +282,7 @@ export default function PurchaseHubDetailView({ basePath, perms }: {
       <div className="flex items-start justify-between gap-4 flex-wrap mt-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-slate-900">{data.vendor.name}</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{data.vendor.name}</h1>
             {!data.vendor.is_active && (
               <span className="px-2 py-0.5 rounded text-xs font-semibold bg-slate-200 text-slate-700">비활성</span>
             )}

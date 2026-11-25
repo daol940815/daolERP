@@ -113,7 +113,7 @@ function NewVendorModal({ onClose, onCreated, showKind }: {
   const label = 'block text-xs font-medium text-slate-800 mb-1'
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl p-6 w-[26rem] max-h-full overflow-y-auto" onClick={e => e.stopPropagation()}>
         <h3 className="text-base font-bold text-slate-900 mb-1">신규 매입처 등록</h3>
         <p className="text-xs text-slate-500 mb-4">업체명만 있으면 등록됩니다. 등록 즉시 사용할 수 있습니다.</p>

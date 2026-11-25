@@ -253,7 +253,7 @@ function MatchPickerModal({
 
   if (confirmTarget) {
     return (
-      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50" onClick={onClose}>
         <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
           <h2 className="text-lg font-bold text-slate-900 mb-1">연결할 금액 확인</h2>
           <p className="text-sm text-slate-600 mb-4">{confirmTarget.label}</p>
@@ -291,7 +291,7 @@ function MatchPickerModal({
 
   if (aliasPrompt) {
     return (
-      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50" onClick={onClose}>
         <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
           <h2 className="text-lg font-bold text-slate-900 mb-1">매칭 별칭으로 저장할까요?</h2>
           <p className="text-sm text-slate-600 mb-4">
@@ -320,7 +320,7 @@ function MatchPickerModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50" onClick={onClose}>
       <div onClick={e => e.stopPropagation()}>{reasonDlg.node}</div>
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <h2 className="text-lg font-bold text-slate-900 mb-1">거래내역 매칭</h2>
@@ -527,7 +527,7 @@ function SumMatchPickerModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <h2 className="text-lg font-bold text-slate-900 mb-1">선택한 계산서 {invoiceIds.length}건 합계로 매칭</h2>
         <p className="text-sm text-slate-600 mb-4">

@@ -85,7 +85,7 @@ export default function ErpAliasPendingPage() {
   return (
     <div className="p-6 max-w-5xl">
       <div className="flex items-center justify-between mb-1">
-        <h1 className="text-xl font-bold text-slate-900">ERP 거래처 등록 대기</h1>
+        <h1 className="text-2xl font-bold text-slate-900">ERP 거래처 등록 대기</h1>
         <Link href="/erp-aliases" className="text-sm text-slate-600 hover:text-slate-900 underline">별칭 관리로</Link>
       </div>
       <p className="text-sm text-slate-600 mb-4">

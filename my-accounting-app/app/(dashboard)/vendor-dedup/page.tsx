@@ -77,7 +77,7 @@ export default function VendorDedupPage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold text-slate-900 mb-1">거래처 중복 정리</h1>
       <p className="text-slate-600 text-sm mb-1">
         이름이 미세하게 다른 같은 거래처 후보를 제시합니다. 대표를 선택하고 병합하면, 흡수된 이름은 별칭으로 저장되어 이후 자동 인식됩니다.

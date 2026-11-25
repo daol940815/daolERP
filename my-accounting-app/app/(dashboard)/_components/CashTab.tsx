@@ -394,7 +394,7 @@ export default async function CashTab({ searchParams }: {
   const availableFunds = heldCash + overdraftAvailableTotal
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div>
       {/* 헤더 — 기간 선택은 대시보드 공통 기간 줄(page.tsx)로 옮김 (2026-11-11) */}
       <div className="mb-6">
         <p className="text-slate-600 mt-0.5 text-sm">

@@ -229,7 +229,7 @@ export default function PoSendPage() {
         {fromOrder
           ? <Link href={`/orders/${po.order_id}`} className="text-sm text-slate-500 hover:text-slate-700">← 주문 상세{order?.order_no ? ` (${order.order_no})` : ''}</Link>
           : <Link href="/orders/purchase" className="text-sm text-slate-500 hover:text-slate-700">← 발주서 이력</Link>}
-        <h1 className="text-xl font-bold text-slate-900">발주서 {po.po_no}</h1>
+        <h1 className="text-2xl font-bold text-slate-900">발주서 {po.po_no}</h1>
         <span className="text-slate-700 text-sm">{po.vendor_name}</span>
         {output?.kind === 'vendor' && output.vendor_form
           ? badge('bg-violet-100 text-violet-700', `업체 양식 v${output.vendor_form.version}`, `매입처 상세 › 발주서 양식에서 사용 중인 업체 양식(${output.vendor_form.file_name})으로 다운로드 · 메일 첨부됩니다`)

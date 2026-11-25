@@ -335,7 +335,7 @@ function StocktakeDialog({ rows, today, onClose, onDone }: { rows: Row[]; today:
   }
   const field = 'w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm'
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-[70] p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-5" onClick={e => e.stopPropagation()}>
         <h3 className="text-base font-bold text-slate-900">선매입 재고 실사 입력</h3>
         <p className="text-xs text-slate-600 mt-1 mb-3">실제로 센 수량을 넣습니다. 전산 재고는 그날 말 기준으로 자동 계산해 함께 남깁니다. 차이는 실사 기록을 고치지 않고 확인 필요 탭에서 조정 기록으로 해소합니다.</p>

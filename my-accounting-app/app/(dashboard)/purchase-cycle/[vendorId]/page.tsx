@@ -145,7 +145,7 @@ function VendorCycleInner() {
   )
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div>
       <Link href={`/orders/purchase-hub?tab=exceptions&vendor=${vendorId}`} className="text-sm text-slate-600 hover:text-slate-900">← 매입처 관리 · 결제 예외</Link>
 
       <div className="flex items-start justify-between mt-2 mb-1">
