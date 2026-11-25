@@ -207,6 +207,7 @@
 
 - 2026-11-03 사용자 확인: 알림 패널 "즉시 갱신 연결됨 · 20초마다 갱신" 표시 — ⑥ 2단계 정상.
 - 2026-11-16: Vercel 무료 한도 초과(일시 중지) 뒤 숨은 탭(다른 탭 · 최소화)은 폴링 중지, 복귀 시 즉시 1회. 주기 20초 유지(Pro 전환 결정). docs/hosting-track.md.
+- 2026-11-25 사용자 결정: 주기 20초 → **60초**. Supabase 무료 한도 초과(11/11~11/25 Log Ingestion 4.82GB / 1GB) 원인 조사 결과 알림 확인이 데이터 요청의 70~80%(추정). 조사 내용 docs/hosting-track.md.
 
 ### ⑦ PC 알림(Web Push) 구현 (2026-11-03 배포 — **903 실행 + Vercel 환경변수 4개 대기**)
 - **903** `supabase/migrations/903_push_subscriptions.sql`: `push_subscriptions`(employee_id · endpoint UNIQUE · p256dh · auth · device_label ·
