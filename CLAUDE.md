@@ -199,7 +199,7 @@
   업무 계열 태그(904, 2026-11-10): 요청 1건에 1~3개, 마스터 `work_request_tags`(마스터 계정이 `/me/requests/tags`에서 추가 · 숨김, 삭제 없음).
   태그 칩은 `components/work-requests/tag-chip.tsx`(테두리 알약 + 색 점 — 칠한 상태 배지와 구분), 규칙 · 색은 `lib/work-requests.ts`.
   알림 센터(2026-10-16): `/api/notifications`가 원본 상태에서 '확인할 것'을 계산(저장 없음), 사이드바 종·패널·토스트는
-  `components/layout/NotificationCenter.tsx`, 폴링은 AreaSidebar의 `useNotifications` 1곳(20초, 2026-11-02). 새 알림 원천은 API에 블록 추가.
+  `components/layout/NotificationCenter.tsx`, 폴링은 AreaSidebar의 `useNotifications` 1곳(60초, 2026-11-25 — 20초에서 Supabase 사용량 초과로 되돌림). 새 알림 원천은 API에 블록 추가.
   화면 자동 갱신: 알림 결과가 바뀌면 `daol:notif-changed` 이벤트 → `useNotifRefresh(load)`(lib/use-notif-refresh.ts)로 구독한 화면이 재조회,
   조작 뒤 `requestNotifRefresh()`로 즉시 폴링. 자동 갱신이 필요한 새 화면은 이 훅을 쓸 것(자체 폴링 금지).
   **도움말(2026-11-03)**: 사이드바 하단 고정 영역의 "이 화면 도움말"(F1) 버튼은 `components/help/HelpLauncher.tsx`를 AreaSidebar가 렌더 — 화면마다

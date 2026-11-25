@@ -1,7 +1,7 @@
 // 즉시 갱신 신호 (업무요청 트랙 ⑥ 2단계, 2026-11-02) — 서버 전용
 // 업무 요청 API가 생성·수락·보고 등을 처리한 직후 Supabase Realtime 채널 'wr' 에 'changed' 신호를 보낸다.
 // 신호에는 데이터가 없다(요청 id · 관련 직원 id만). 브라우저는 신호를 받으면 기존 알림 API·목록 API를 다시 조회한다
-// (권한 검사는 그 API가 한다). 20초 폴링은 안전망으로 그대로 둔다. 실패해도 본 작업에는 영향 없음.
+// (권한 검사는 그 API가 한다). 60초 폴링은 안전망으로 그대로 둔다. 실패해도 본 작업에는 영향 없음.
 // Realtime HTTP Broadcast: POST {SUPABASE_URL}/realtime/v1/api/broadcast (서비스 키)
 
 import { WR_CHANNEL, WR_EVENT } from '@/lib/notifications'

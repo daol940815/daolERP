@@ -53,7 +53,7 @@ export interface NotifData {
 }
 
 export const NOTIF_GROUP_LABEL: Record<NotifGroup, string> = { todo: '지금 해야 할 것', waiting: '기다리는 것', info: '결과 통지' }
-export const NOTIF_POLL_MS = 20_000   // 2026-11-02: 60초 → 20초 (⑥ 1단계). 탭 복귀·화면 조작 시에는 즉시 조회.
+export const NOTIF_POLL_MS = 60_000   // 2026-11-02: 60초 → 20초 (⑥ 1단계). 2026-11-25: 20초 → 60초 (Supabase 사용량 초과 — docs/hosting-track.md). 탭 복귀·화면 조작 시에는 즉시 조회.
                                       //  2026-11-16: 숨은 탭(다른 탭 · 최소화)은 폴링을 쉰다(use-notifications.ts) — 서버 사용량 절감, docs/hosting-track.md.
 export const NOTIF_SEEN_KEY = 'notif-seen-at'
 // 즉시 갱신 신호(⑥ 2단계, 2026-11-02) — 서버가 Realtime Broadcast 로 보내는 채널·이벤트 이름. 신호에는 데이터가 없다(id만).

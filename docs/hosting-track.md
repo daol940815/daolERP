@@ -45,3 +45,19 @@
   크론은 서버 cron으로.
 - C. Cloudflare Workers(OpenNext) — 무료 플랜은 요청당 CPU 10ms라 이 앱에 부족, 유료 월 5달러면 충분. 이식 작업 필요.
 - D. Render · Koyeb 등 무료 — 15분 무사용 시 잠들고 첫 접속 수십 초, 서울 리전 없음. ERP 용도로 비권장.
+
+## 2026-11-25 Supabase 무료 한도 초과 — 원인 조사와 1차 조치
+
+### 상황 (11/11~11/25, 사용자 확인)
+- Log Ingestion: 조직 5.09GB 중 이 프로젝트 4.82GB (무료 1GB). Egress 조직 5.67GB (무료 5GB). DB 0.12GB, 사용자 10명 내외.
+
+### 실측 (사용자 실행 — SQL Editor `extensions.pg_stat_statements`, 통계 시작 2026-05-25)
+- PostgREST 요청 전체(`set_config`) 약 320만 회. 로그인 확인(`getUser` → auth.sessions · users 등 5개 조회) 약 42만 회.
+- 알림 확인(`/api/notifications`) 약 7.9만 회(기준: `work_request_assignees` 조회). 그중 주문 회신 블록(11-05 추가)이 약 7만 회 → 대부분 최근 20일.
+- 알림 1회당 데이터 요청 약 40개. 알림 전용 조회만 약 180만 회 — 공통(로그인 · 직원 조회) 몫 포함 전체의 70~80%(추정).
+- 무거운 부분: `loadReplyMap`(lib/order-reply.ts) 알림 1회에 3번(주문 500행 재조회), 결재자 명단 `loadApprovalCtx` 매번 조회,
+  미들웨어 + 라우트에서 로그인 확인 · 직원 조회 각 2번.
+
+### 결정 (2026-11-25 사용자): 1단계만 — 알림 폴링 20초 → 60초, 사용량 추이 관찰
+- 남은 후보(보류): ② 주문 회신 계산 축소 ③ 미들웨어 로그인 확인 경량화(getClaims) ④ 결재자 명단 캐시 · Realtime 신호 대상자만 반응 · 사이드바 링크 prefetch 끔.
+- 효과 측정: 배포 직후 SQL Editor에서 `select extensions.pg_stat_statements_reset();` → 며칠 뒤 상위 30개 조회 다시 확인.
