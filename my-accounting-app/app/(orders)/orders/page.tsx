@@ -420,8 +420,10 @@ export default function OrdersHomePage() {
                 return (
                   <Fragment key={r.id}>
                     <tr onClick={() => openOrder(r.id)}
-                      className={`border-b border-slate-200 cursor-pointer hover:bg-blue-50/40 ${r.canceled_at ? 'opacity-60 line-through decoration-red-600 decoration-2' : ''}`}>
+                      className={`border-b border-slate-200 cursor-pointer hover:bg-blue-50/40 ${r.canceled_at ? 'relative opacity-60' : ''}`}>
                       <td className="py-2 px-3">
+                        {/* 취소 주문 — 줄 전체를 가로지르는 빨간 직선 하나 (2026-11-25 사용자 요청). 줄(tr)이 기준이라 칸마다 끊기지 않고, 눌러지지 않게 pointer-events-none */}
+                        {r.canceled_at && <span aria-hidden className="pointer-events-none absolute left-2 right-2 top-1/2 h-0.5 -translate-y-1/2 bg-red-600" />}
                         <div className="tabular-nums text-xs font-semibold">{r.order_date}</div>
                         <div className="tabular-nums text-xs text-slate-500">{r.order_no ?? '-'}</div>
                       </td>
