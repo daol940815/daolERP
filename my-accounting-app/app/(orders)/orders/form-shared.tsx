@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { fmtPurchasePrice, purchaseAmount, toPurchasePrice } from '@/lib/purchase-price'
 import { shipBoxes } from '@/lib/ship-boxes'
 import { isLegalTail } from '@/lib/vendor-group-names'
+import { cellCls, type CellGroup } from '@/components/ui/cell-grid'
 
 // 주문 입력·상담일지 폼 공용 부품 — 마스터 타입, 품목 행 모델, 가격 규칙, 자동완성 콤보.
 // 가격 규칙(구분별 자동)은 두 화면이 반드시 같아야 하므로 여기 한 곳에만 둔다.
@@ -527,7 +528,7 @@ export type ComboFooter = React.ReactNode | ((ctx: { q: string; close: () => voi
 const comboMatch = (o: { label: string; sub?: string; keywords?: string }, q: string, searchSub: boolean) =>
   o.label.toLowerCase().includes(q) || (o.keywords ?? '').toLowerCase().includes(q) || (searchSub && (o.sub ?? '').toLowerCase().includes(q))
 
-export function Combo({ value, display, options, onSelect, placeholder, required, footer, onQuery, searchSub = false }: {
+export function Combo({ value, display, options, onSelect, placeholder, required, footer, onQuery, searchSub = false, inputClassName }: {
   value: string | null
   display: string
   options: { id: string; label: string; sub?: string; soldout?: boolean; note?: string; keywords?: string }[]
@@ -537,6 +538,8 @@ export function Combo({ value, display, options, onSelect, placeholder, required
   footer?: ComboFooter
   onQuery?: (q: string) => void
   searchSub?: boolean
+  /** 입력 칸 모양을 통째로 바꿀 때(엑셀형 입력 표의 셀) — 주면 기본 모양 대신 쓴다 */
+  inputClassName?: string
 }) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
@@ -566,7 +569,7 @@ export function Combo({ value, display, options, onSelect, placeholder, required
         onChange={e => { setText(e.target.value); setOpen(true); keys.resetActive(); onQuery?.(e.target.value) }}
         onKeyDown={keys.onKeyDown}
         placeholder={placeholder}
-        className={`w-full border rounded-lg px-2.5 py-1.5 text-sm bg-blue-50/40 ${
+        className={inputClassName ?? `w-full border rounded-lg px-2.5 py-1.5 text-sm bg-blue-50/40 ${
           required && !value ? 'border-red-300' : 'border-blue-200'
         }`}
       />
@@ -664,10 +667,12 @@ export function ComboFree({ text, selectedId, options, onChange, placeholder, fo
 
 // ── 할인 입력 칸 (정액 / 개당) — 매입할인(708)용. 판매할인과 같은 모양 ──
 // amount는 항상 최종 할인액. 개당이면 unit × 수량으로 자동 계산
-export function DiscountInput({ mode, unit, amount, quantity, disabled, onChange, className, title }: {
+export function DiscountInput({ mode, unit, amount, quantity, disabled, onChange, className, title, cell }: {
   mode: '정액' | '단가'; unit: number; amount: number; quantity: number; disabled?: boolean
   onChange: (patch: { mode: '정액' | '단가'; unit: number; amount: number }) => void
   className: string; title?: string
+  /** 엑셀형 입력 표의 묶음 — 주면 셀 모양(할인이 있으면 빨간 칸)으로 그린다 */
+  cell?: CellGroup
 }) {
   return (
     <>
@@ -676,7 +681,7 @@ export function DiscountInput({ mode, unit, amount, quantity, disabled, onChange
           const m = e.target.value as '정액' | '단가'
           onChange(m === '단가' ? { mode: m, unit, amount: (unit || 0) * quantity } : { mode: m, unit: 0, amount })
         }}
-        className="w-full border border-blue-200 bg-blue-50/40 rounded px-1 py-0.5 text-xs mb-0.5 disabled:opacity-60">
+        className={cell ? cellCls(cell, { tight: true, short: true, extra: 'mb-1' }) : 'w-full border border-blue-200 bg-blue-50/40 rounded px-1 py-0.5 text-xs mb-0.5 disabled:opacity-60'}>
         <option value="정액">정액</option>
         <option value="단가">개당</option>
       </select>
@@ -688,7 +693,8 @@ export function DiscountInput({ mode, unit, amount, quantity, disabled, onChange
           onChange(mode === '단가' ? { mode, unit: v, amount: v * quantity } : { mode, unit: 0, amount: v })
         }}
         title={title ?? (mode === '단가' ? `개당 할인 — 할인액 ${won(amount)}원 자동 계산` : '행당 할인 금액')}
-        className={`${className} ${amount > 0 ? 'text-red-600 font-semibold border-red-200 bg-red-50/40' : ''}`}
+        className={cell ? cellCls(cell, { num: true, warn: amount > 0 ? 'red' : null, extra: amount > 0 ? 'font-semibold' : '' })
+          : `${className} ${amount > 0 ? 'text-red-600 font-semibold border-red-200 bg-red-50/40' : ''}`}
         placeholder="0" />
       {mode === '단가' && amount > 0 && (
         <div className="text-xs text-red-500 mt-0.5 tabular-nums">-{won(amount)}</div>
@@ -698,9 +704,10 @@ export function DiscountInput({ mode, unit, amount, quantity, disabled, onChange
 }
 
 // ── 주문시기 입력 (708) — 글자 입력 + 드롭다운 제안. 칸을 벗어나면 표기 통일(26 추석 → 26추석) ──
-export function SeasonInput({ value, onChange, disabled, listId, normalize }: {
+export function SeasonInput({ value, onChange, disabled, listId, normalize, className }: {
   value: string; onChange: (v: string) => void; disabled?: boolean; listId: string
   normalize: (v: string) => string
+  className?: string
 }) {
   return (
     <input value={value} disabled={disabled} list={listId}
@@ -708,7 +715,7 @@ export function SeasonInput({ value, onChange, disabled, listId, normalize }: {
       onBlur={e => { const n = normalize(e.target.value); if (n !== e.target.value) onChange(n) }}
       placeholder="선택·입력"
       title="주문시기 — 목록에서 고르거나 직접 입력 (예: 상시, 26추석)"
-      className="w-full border border-blue-200 bg-blue-50/40 rounded px-1.5 py-1 text-xs disabled:opacity-60" />
+      className={className ?? 'w-full border border-blue-200 bg-blue-50/40 rounded px-1.5 py-1 text-xs disabled:opacity-60'} />
   )
 }
 export function SeasonDatalist({ id, options }: { id: string; options: string[] }) {

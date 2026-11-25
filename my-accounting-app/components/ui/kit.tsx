@@ -68,14 +68,15 @@ export function Button({ variant = 'secondary', size = 'md', className, type = '
 }
 
 // ───────── 입력 칸 ─────────
-// 테두리는 한 가지. 종류는 바탕으로: free 흰 = 직접 입력 · pick 옅은 노랑 = 목록에서 선택 · auto 회색 = 자동(못 고침)
+// 테두리는 한 가지. 종류는 바탕으로: free 흰 = 직접 입력 · pick 옅은 파랑 = 목록(마스터)에서 선택 · auto 회색 = 자동(못 고침)
+// (pick 은 시안의 옅은 노랑에서 파랑으로 바꿈 — 기존 화면에서 파랑 = 마스터 선택, 노랑 = 자유 입력이었기 때문. 뜻이 뒤집히지 않게)
 export type FieldKind = 'free' | 'pick' | 'auto'
 export type FieldSize = 'md' | 'sm'
 const FIELD_BASE = 'w-full border rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-slate-900 disabled:bg-slate-100 disabled:text-slate-600'
 const FIELD_SIZE: Record<FieldSize, string> = { md: 'h-9 px-2.5 text-sm', sm: 'h-8 px-2 text-xs' }
 const FIELD_KIND: Record<FieldKind, string> = {
   free: 'bg-white border-slate-400',
-  pick: 'bg-amber-50 border-slate-400',
+  pick: 'bg-blue-50 border-slate-400',
   auto: 'bg-slate-100 border-slate-300 text-slate-700',
 }
 /** 입력 칸 클래스 — 자체 입력 부품(SearchableSelect 등)에 같은 모양을 줄 때 */

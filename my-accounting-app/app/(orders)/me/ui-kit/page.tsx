@@ -85,7 +85,7 @@ export default function UiKitPage() {
           <SummaryPill group="result" warn={sum.margin < 0 ? 'red' : null} label="마진">{won(sum.margin)}{sum.sale > 0 && ` (${(sum.margin / sum.sale * 100).toFixed(1)}%)`}</SummaryPill>
         </div>
         <div className="overflow-x-auto">
-          <table className={`${cellTableCls} w-full min-w-[980px]`}>
+          <table className={`${cellTableCls} text-[0.8125rem] w-full min-w-[980px]`}>
             <thead>
               <tr><CellBand group="item" colSpan={4} /><CellBand group="sale" colSpan={3} /><CellBand group="buy" colSpan={2} /><CellBand group="result" /></tr>
               <tr>
@@ -125,7 +125,7 @@ export default function UiKitPage() {
           <Field label="구분"><Select defaultValue="문의"><option>문의</option><option>견적</option><option>주문</option></Select></Field>
           <Field label="메모" className="md:col-span-3"><Textarea rows={2} placeholder="직접 입력" /></Field>
         </div>
-        <p className="mt-3 text-xs text-slate-600">흰 = 직접 입력 · 옅은 노랑 = 목록에서 선택 · 회색 = 자동(못 고침) · 필수는 라벨의 빨간 별</p>
+        <p className="mt-3 text-xs text-slate-600">흰 = 직접 입력 · 옅은 파랑 = 목록에서 선택 · 회색 = 자동(못 고침) · 필수는 라벨의 빨간 별</p>
       </Card>
 
       <SectionTitle className="mt-8">4. 버튼 · 배지 · 창</SectionTitle>

@@ -17,6 +17,7 @@ import {
 } from './form-shared'
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
 import type { ContactOpt, Employee, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from './form-shared'
+import { cellTableCls, cellBlankTh, cellCls, calcCls, CellBand, CellHead, SummaryPill } from '@/components/ui/cell-grid'
 import { isMoimVendor, orgSubLabel } from './form-shared'
 import ProductRegisterDialog, { UnregisteredTag, isUnregisteredRow, linkPatch } from './product-register-dialog'
 import IndividualRegister from './individual-register'
@@ -733,8 +734,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
   const free = 'w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2.5 py-1.5 text-sm'
   const auto = 'w-full border border-slate-300 bg-slate-50 rounded-lg px-2.5 py-1.5 text-sm text-slate-600'
   // 금액 칸은 colgroup으로 전부 동일 폭 — 칸 안 요소는 폭을 채운다
-  const numCell = 'w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs text-right tabular-nums'
-  const autoCell = 'w-full border border-slate-300 bg-slate-50 rounded px-1.5 py-1 text-xs text-right tabular-nums text-slate-600'
+  // 주문 상품 표 숫자 칸 — 묶음(판매 · 매입)별 셀 모양 (components/ui/cell-grid.tsx)
+  const nSale = cellCls('sale', { num: true }), nBuy = cellCls('buy', { num: true })
 
   return (
     <div>
@@ -1159,8 +1160,20 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
         <div className="text-sm font-bold text-slate-900 mb-3">
           주문 상품 <span className="text-xs font-normal text-slate-500 ml-1">품번·품명 검색 시 매입처·가격 자동</span>
         </div>
+        {/* 요약 알약 — 표 위 (UI 통일 기준). 마진 = 합계 − 매입합계(선매입 입고 제외) − 재고 원가 */}
+        <div className="flex gap-2 flex-wrap items-center mb-2">
+          <SummaryPill group="sale" label="총금액">{won(totals.total)}원</SummaryPill>
+          <span title="매입처에 줄 돈 (선매입 입고 포함)"><SummaryPill group="buy" label="매입합계">{won(totals.cost)}원</SummaryPill></span>
+          {totals.stockCost > 0 && (
+            <span className="inline-flex items-baseline gap-1.5 px-3.5 py-1 rounded-full text-sm font-bold tabular-nums text-white bg-teal-700" title="재고 출고 행의 예상 재고 원가 — 저장할 때 확정">
+              <span className="font-normal opacity-90">재고 원가</span>{won(totals.stockCost)}원
+            </span>
+          )}
+          <span title="합계 − 매입합계(선매입 입고 제외) − 재고 원가"><SummaryPill group="result" warn={totals.margin < 0 ? 'red' : null} label="예상 마진">{won(totals.margin)}원</SummaryPill></span>
+          {totals.stockIn > 0 && <span className="text-violet-700 text-xs">선매입 입고 {won(totals.stockIn)}원은 재고로 보관 (마진 제외)</span>}
+        </div>
         <SeasonDatalist id="order-season-options" options={seasonOptions(orderDate, [...usedSeasons, ...items.map(x => x.order_season)])} />
-        <table className="w-full text-xs min-w-[1600px] table-fixed">
+        <table className={`${cellTableCls} text-xs w-full min-w-[1600px] table-fixed`}>
           {/* 그룹별 동일 폭: 금액 칸 6개는 같은 폭으로 세로 정렬을 맞춘다. 품명이 남는 폭 전부 차지 */}
           <colgroup>
             <col className="w-[8.5rem]" />{/* 검색 */}
@@ -1182,24 +1195,26 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
             <col className="w-8" />
           </colgroup>
           <thead>
-            <tr className="bg-slate-50 text-slate-600 border-b border-slate-300">
-              <th className="py-1.5 px-1.5 text-left font-medium">품번 · 품명 검색</th>
-              <th className="py-1.5 px-1.5 text-left font-medium">품명</th>
-              <th className="py-1.5 px-1.5 text-left font-medium">배송종류</th>
-              <th className="py-1.5 px-1.5 text-left font-medium" title="없음(기본) / 선매입 입고: 판매가 0, 재고에 쌓임, 발주서 포함 / 재고 출고: 매입가 0, 발주 제외, 재고 원가 자동">재고</th>
-              <th className="py-1.5 px-1.5 text-left font-medium" title="상시 · 26설 · 26추석 등 — 목록에서 고르거나 직접 입력">주문시기</th>
-              <th className="py-1.5 px-1.5 text-left font-medium">매입처</th>
-              <th className="py-1.5 px-1.5 text-right font-medium">판매가</th>
-              <th className="py-1.5 px-1.5 text-right font-medium">갯수</th>
-              <th className="py-1.5 px-1.5 text-right font-medium" title="고객에게 받는 택배비 (지점 품목만). 매입배송비가 있으면 박스당 단가, 0이면 받는 금액(합계)을 입력">택배비(판매)</th>
-              <th className="py-1.5 px-1.5 text-right font-medium">판매할인</th>
-              <th className="py-1.5 px-1.5 text-right font-medium">합계금액</th>
-              <th className="py-1.5 px-1.5 text-right font-medium">매입가</th>
-              <th className="py-1.5 px-1.5 text-right font-medium" title="정액(행당 금액) 또는 개당 할인 — 매입합계 · 발주서 금액에 반영">매입할인</th>
-              <th className="py-1.5 px-1.5 text-right font-medium">매입배송비</th>
-              <th className="py-1.5 px-1.5 text-right font-medium" title="매입가 × 갯수 + 매입배송비 − 매입할인">매입합계</th>
-              <th className="py-1.5 px-1.5 text-left font-medium">메모</th>
-              <th />
+            {/* 묶음 띠 + 묶음 색 머리줄 (UI 통일 기준 — 엑셀형 입력 표, 2026-11-25). 열 순서는 그대로 — 매입처 칸만 앞쪽에 떨어져 있다. 열을 더하면 colSpan 도 함께 고칠 것 */}
+            <tr><CellBand group="item" colSpan={5} /><CellBand group="buy" /><CellBand group="sale" colSpan={5} /><CellBand group="buy" colSpan={4} /><CellBand group="item">메모</CellBand><th className={cellBlankTh} /></tr>
+            <tr>
+              <CellHead group="item">품번 · 품명 검색</CellHead>
+              <CellHead group="item">품명</CellHead>
+              <CellHead group="item">배송종류</CellHead>
+              <CellHead group="item" title="없음(기본) / 선매입 입고: 판매가 0, 재고에 쌓임, 발주서 포함 / 재고 출고: 매입가 0, 발주 제외, 재고 원가 자동">재고</CellHead>
+              <CellHead group="item" title="상시 · 26설 · 26추석 등 — 목록에서 고르거나 직접 입력">주문시기</CellHead>
+              <CellHead group="buy">매입처</CellHead>
+              <CellHead group="sale">판매가</CellHead>
+              <CellHead group="sale">갯수</CellHead>
+              <CellHead group="sale" title="고객에게 받는 택배비 (지점 품목만). 매입배송비가 있으면 박스당 단가, 0이면 받는 금액(합계)을 입력">택배비(판매)</CellHead>
+              <CellHead group="sale">판매할인</CellHead>
+              <CellHead group="sale">합계금액</CellHead>
+              <CellHead group="buy">매입가</CellHead>
+              <CellHead group="buy" title="정액(행당 금액) 또는 개당 할인 — 매입합계 · 발주서 금액에 반영">매입할인</CellHead>
+              <CellHead group="buy">매입배송비</CellHead>
+              <CellHead group="buy" title="매입가 × 갯수 + 매입배송비 − 매입할인">매입합계</CellHead>
+              <CellHead group="item">메모</CellHead>
+              <th className={cellBlankTh} />
             </tr>
           </thead>
           <tbody>
@@ -1210,8 +1225,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                 : []
               return (
               <Fragment key={it.uid}>
-              <tr className={`border-b border-slate-200 align-top ${it.parent_uid ? 'bg-slate-50/60' : ''}`}>
-                <td className="py-1 px-1.5">
+              <tr className="align-top">
+                <td className="p-0">
                   <div className="flex items-center gap-1">
                     {it.parent_uid != null && <span className="text-slate-500 text-xs shrink-0" title="옵션 (부가상품)">└</span>}
                     <div className="flex-1">
@@ -1227,37 +1242,37 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                         }))}
                         onSelect={id => pickProduct(i, id)}
                         placeholder="품번·품명 검색"
+                        inputClassName={cellCls('item')}
                       />
                     </div>
                   </div>
                 </td>
-                <td className="py-1 px-1.5">
+                <td className="p-0">
                   {/* key에 product_id 포함 — 품번 선택으로 품명이 바뀌면 리마운트되어 높이 재계산 */}
                   <textarea key={`${it.uid}:${it.product_id ?? ''}`} value={it.item_name} rows={1} ref={autoGrow}
                     onChange={e => { setItem(i, { item_name: e.target.value, product_id: null }); autoGrow(e.target) }}
                     placeholder="마스터에 없으면 직접 입력"
-                    className="w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs
-                               resize-none overflow-hidden leading-relaxed block" />
+                    className={cellCls('item', { auto: true, extra: 'resize-none overflow-hidden leading-snug' })} />
                   {isUnregisteredRow(it) && !(isEdit && !canEdit) && (
                     <UnregisteredTag canRegister={canRegisterProduct} onRegister={() => setRegisterUid(it.uid)} />
                   )}
                 </td>
-                <td className="py-1 px-1.5">
+                <td className="p-0">
                   <select value={it.order_kind} onChange={e => setKind(i, e.target.value)}
                     title="지점: 지점판매가+카톤 배송비 자동 / 개별: 개별판매가(배송비 포함) / 샘플: 판매가·배송비 0, 매입가만 발생"
-                    className="border border-blue-200 bg-blue-50/40 rounded px-1 py-1 text-xs">
+                    className={cellCls('item', { tight: true })}>
                     <option>지점</option><option>개별</option><option>샘플</option>
                   </select>
                 </td>
-                <td className="py-1 px-1.5">
+                <td className="p-0">
                   {/* 재고 칸 (1400) — 한 칸에서 고른다(입고 · 출고를 함께 고르는 실수 방지) */}
                   <select value={it.stock_role ?? ''} disabled={!it.product_id}
                     onChange={e => setStockRole(i, (e.target.value || null) as 'in' | 'out' | null)}
                     title={it.product_id ? '없음 / 선매입 입고 / 재고 출고' : '품번(품목 관리)을 고르면 쓸 수 있습니다'}
-                    className={`w-full border rounded px-1 py-1 text-xs disabled:opacity-50 ${
-                      it.stock_role === 'in' ? 'border-violet-300 bg-violet-50 text-violet-800'
-                      : it.stock_role === 'out' ? 'border-teal-300 bg-teal-50 text-teal-800'
-                      : 'border-blue-200 bg-blue-50/40'}`}>
+                    className={it.stock_role
+                      ? `block w-full h-8 px-1 rounded-md border-[1.5px] focus:outline-none focus:ring-2 focus:ring-slate-900 ${
+                        it.stock_role === 'in' ? 'border-violet-500 bg-violet-50 text-violet-800' : 'border-teal-600 bg-teal-50 text-teal-800'}`
+                      : cellCls('item', { tight: true })}>
                     <option value="">없음</option>
                     <option value="in">{STOCK_ROLE_LABEL.in}</option>
                     <option value="out">{STOCK_ROLE_LABEL.out}</option>
@@ -1268,30 +1283,30 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                     <div className="text-xs text-amber-700 mt-0.5" title="재고가 있는데 새로 매입 — 매입가가 두 번 잡히지 않았는지 확인">재고 있음 · 새로 매입</div>
                   )}
                 </td>
-                <td className="py-1 px-1.5">
+                <td className="p-0">
                   <SeasonInput value={it.order_season} listId="order-season-options"
-                    normalize={normalizeSeason} onChange={v => setItem(i, { order_season: v })} />
+                    normalize={normalizeSeason} onChange={v => setItem(i, { order_season: v })} className={cellCls('item')} />
                 </td>
-                <td className="py-1 px-1.5">
+                <td className="p-0">
                   <input value={it.purchase_vendor_name} onChange={e => setItem(i, { purchase_vendor_name: e.target.value })}
                     placeholder="품번 선택 시 자동" title={it.purchase_vendor_name}
-                    className="w-full border border-slate-300 bg-slate-50 rounded px-1.5 py-1 text-xs" />
+                    className={cellCls('buy')} />
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="p-0">
                   <NumInput value={it.sale_price ? won(it.sale_price) : ''} onChange={e => setItem(i, { sale_price: toInt(e.target.value) })}
                     disabled={it.stock_role === 'in'} title={it.stock_role === 'in' ? '선매입 입고 — 판매가 0 고정' : undefined}
-                    className={`${numCell} disabled:opacity-50`} placeholder="0" />
+                    className={nSale} placeholder="0" />
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="p-0">
                   <NumInput value={it.quantity || ''} onChange={e => setQuantity(i, toInt(e.target.value))}
-                    className="w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs text-right tabular-nums" placeholder="1" />
+                    className={nSale} placeholder="1" />
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="p-0">
                   {it.is_shipping && !it.shipping_fee
                     ? <div className="text-xs text-slate-400 text-right">—</div>
-                    : <CustomerShipInput it={it} className={numCell} disabled={it.stock_role === 'in'} onChange={patch => setItem(i, patch)} />}
+                    : <CustomerShipInput it={it} className={nSale} disabled={it.stock_role === 'in'} onChange={patch => setItem(i, patch)} />}
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="p-0">
                   {/* 할인 — 정액 / 개당(× 수량 자동) 구분 (704, 상담일지와 동일) */}
                   <select value={it.discount_mode} disabled={it.stock_role === 'in'}
                     onChange={e => {
@@ -1300,7 +1315,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                         ? { discount_mode: mode, discount_amount: (it.discount_unit || 0) * it.quantity }
                         : { discount_mode: mode, discount_unit: 0 })
                     }}
-                    className="w-full border border-blue-200 bg-blue-50/40 rounded px-1 py-0.5 text-xs mb-0.5">
+                    className={cellCls('sale', { tight: true, short: true, extra: 'mb-1' })}>
                     <option value="정액">정액</option>
                     <option value="단가">개당</option>
                   </select>
@@ -1316,43 +1331,43 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                     }}
                     disabled={it.stock_role === 'in'}
                     title={it.discount_mode === '단가' ? `개당 할인 — 할인액 ${won(it.discount_amount)}원 자동 계산` : '행당 할인 금액'}
-                    className={`${numCell} ${it.discount_amount > 0 ? 'text-red-600 font-semibold border-red-200 bg-red-50/40' : ''}`}
+                    className={cellCls('sale', { num: true, warn: it.discount_amount > 0 ? 'red' : null, extra: it.discount_amount > 0 ? 'font-semibold' : '' })}
                     placeholder="0" />
                 </td>
-                <td className="py-1 px-1.5 text-right">
-                  <div className={autoCell + ' font-semibold text-slate-800'}>
+                <td className="p-0">
+                  <div className={calcCls('sale', { tall: true })}>
                     {won(lineTotal(it))}
                     {it.discount_amount > 0 && (
-                      <div className="text-xs text-red-500 font-normal">
+                      <div className="text-xs font-normal">
                         판매할인 -{won(it.discount_amount)}{it.discount_mode === '단가' ? ` (${won(it.discount_unit)}/개)` : ''}
                       </div>
                     )}
                   </div>
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="p-0">
                   <NumInput decimals={2} value={it.purchase_price ? fmtPurchasePrice(it.purchase_price) : ''} onChange={e => setItem(i, { purchase_price: toPurchasePrice(e.target.value) })}
                     disabled={it.stock_role === 'out'} title={it.stock_role === 'out' ? '재고 출고 — 매입처에 줄 돈이 없어 매입가 0 고정(원가는 재고 원가로)' : undefined}
-                    className={`${numCell} disabled:opacity-50`} placeholder="0" />
+                    className={nBuy} placeholder="0" />
                   {/* 품목별 매입가 합계 = 매입가 × 수량 (704 확정) */}
                   {it.purchase_price > 0 && it.quantity > 0 && (
                     <div className="text-xs text-slate-500 mt-0.5 tabular-nums">합계 {won(purchaseAmount(it.purchase_price, it.quantity))}</div>
                   )}
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="p-0">
                   {/* 매입할인 (708) — 정액(행당) / 개당. 매입합계 · 발주서 금액에 반영 */}
                   <DiscountInput mode={it.purchase_discount_mode} unit={it.purchase_discount_unit} amount={it.purchase_discount}
-                    quantity={it.quantity} className={numCell} disabled={it.stock_role === 'out'}
+                    quantity={it.quantity} className={nBuy} cell="buy" disabled={it.stock_role === 'out'}
                     onChange={d => setItem(i, { purchase_discount_mode: d.mode, purchase_discount_unit: d.unit, purchase_discount: d.amount })} />
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="p-0">
                   <NumInput value={it.purchase_shipping ? won(it.purchase_shipping) : ''}
                     onChange={e => { const v = toInt(e.target.value); setItem(i, { purchase_shipping: v, ...reshipPatch({ ...it, purchase_shipping: v }) }) }}
                     title={it.stock_role === 'out' ? '재고 출고 — 매입배송비 0 고정' : (purchaseShippingHint(it) ?? '카톤 정보가 없는 품목 — 직접 입력')}
                     disabled={it.stock_role === 'out'}
-                    className={`${numCell} disabled:opacity-50`} placeholder="0" />
+                    className={nBuy} placeholder="0" />
                 </td>
-                <td className="py-1 px-1.5 text-right">
-                  <div className={autoCell + ' font-semibold text-slate-800'}>{won(lineCost(it))}</div>
+                <td className="p-0">
+                  <div className={calcCls('buy')}>{won(lineCost(it))}</div>
                   {it.stock_role === 'out' && (() => {
                     const pv = stockPreview.get(it.uid)
                     if (!pv) return null
@@ -1366,11 +1381,11 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                   })()}
                   {it.stock_role === 'in' && <div className="text-xs text-violet-600 mt-0.5">재고로 보관 · 마진 제외</div>}
                 </td>
-                <td className="py-1 px-1.5">
+                <td className="p-0">
                   <input value={it.memo} onChange={e => setItem(i, { memo: e.target.value })} title={it.memo}
-                    className="w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs" />
+                    className={cellCls('item')} />
                 </td>
-                <td className="py-1 px-1 text-center">
+                <td className="p-0 text-center align-middle">
                   {items.length > 1 && (
                     <button type="button" onClick={() => removeRow(it.uid)}
                       className="text-red-400 hover:text-red-600 text-sm"
@@ -1381,8 +1396,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
               {!it.stock_role && !it.stock_dismissed && it.product_id && (stockAvail[it.product_id]?.qty ?? 0) > 0 && (() => {
                 const av = stockAvail[it.product_id!]
                 return (
-                  <tr className="border-b border-slate-200">
-                    <td colSpan={17} className="pb-1.5 pt-0 px-1.5">
+                  <tr>
+                    <td colSpan={17} className="pb-2 pt-0 px-0">
                       <div className="flex items-center gap-2 flex-wrap ml-4 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900">
                         <span>
                           이 품목은 선매입 재고가 <b className="tabular-nums">{won(av.qty)}개</b> 있습니다
@@ -1398,8 +1413,8 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
                 )
               })()}
               {addonCands.length > 0 && (
-                <tr className="border-b border-slate-200">
-                  <td colSpan={17} className="pb-1.5 pt-0 px-1.5">
+                <tr>
+                  <td colSpan={17} className="pb-2 pt-0 px-0">
                     <div className="flex items-center gap-1.5 flex-wrap pl-4">
                       <span className="text-xs text-slate-500">옵션 추가 ({it.purchase_vendor_name})</span>
                       {addonCands.map(p => (
@@ -1424,14 +1439,7 @@ export default function OrderForm({ orderId, consultId, reissueId }: {
         </button>
 
         <div className="flex items-center justify-between mt-4 flex-wrap gap-3">
-          <div className="flex gap-5 text-sm">
-            <span>총금액 <b className="tabular-nums">{won(totals.total)}원</b>
-              <span className="text-xs text-slate-500 ml-1">자동 합산</span></span>
-            <span className="text-slate-700" title="매입처에 줄 돈 (선매입 입고 포함)">매입 합계 <b className="tabular-nums">{won(totals.cost)}원</b></span>
-            {totals.stockCost > 0 && <span className="text-teal-700" title="재고 출고 행의 예상 재고 원가 — 저장할 때 확정">재고 원가 <b className="tabular-nums">{won(totals.stockCost)}원</b></span>}
-            <span title="합계 − 매입합계(선매입 입고 제외) − 재고 원가">예상 마진 <b className="tabular-nums text-emerald-700">{won(totals.margin)}원</b></span>
-            {totals.stockIn > 0 && <span className="text-violet-700 text-xs self-center">선매입 입고 {won(totals.stockIn)}원은 재고로 보관 (마진 제외)</span>}
-          </div>
+          <span />
           <div className="flex gap-2">
             {!isEdit && !reissueFromNo && (
               <button type="button" disabled={saving} onClick={() => submit(true)}

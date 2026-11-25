@@ -8,6 +8,7 @@ import {
 } from '../form-shared'
 import { normalizeSeason, seasonOptions, suggestSeason } from '@/lib/order-season'
 import type { ContactOpt, IndividualCustomerOpt, ItemDraft, Product, Vendor, VendorGroup } from '../form-shared'
+import { cellTableCls, cellBlankTh, cellCls, calcCls, CellBand, CellHead, SummaryPill } from '@/components/ui/cell-grid'
 import { isMoimVendor, orgSubLabel } from '../form-shared'
 import ProductRegisterDialog, { UnregisteredTag, isUnregisteredRow, linkPatch } from '../product-register-dialog'
 import IndividualRegister from '../individual-register'
@@ -730,8 +731,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
 
   const label = 'block text-xs text-slate-600 mb-0.5'
   const free = 'w-full border border-amber-200 bg-amber-50/30 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-60'
-  const numCell = 'w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs text-right tabular-nums'
-  const autoCell = 'w-full border border-slate-300 bg-slate-50 rounded px-1.5 py-1 text-xs text-right tabular-nums text-slate-600'
+  // 품목 표 숫자 칸 — 묶음(품목 · 판매 · 매입)별 셀 모양 (components/ui/cell-grid.tsx)
+  const nItem = cellCls('item', { num: true }), nSale = cellCls('sale', { num: true }), nBuy = cellCls('buy', { num: true })
 
   return (
     <div>
@@ -1266,8 +1267,18 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
         <div className="text-sm font-bold text-slate-900 mb-3">
           상담 품목 <span className="text-xs font-normal text-slate-500 ml-1">품번 검색 시 원가표 기준 자동 — 수정 가능</span>
         </div>
+        {/* 요약 알약 — 표 위 (UI 통일 기준). 매입 합계 = 매입가×수량 + 매입배송비 − 매입할인 (합계 − 매입 = 마진) */}
+        <div className="flex gap-2 flex-wrap items-center mb-2">
+          <SummaryPill group="sale" label="판매합계">{won(totals.total)}원</SummaryPill>
+          {totals.discount > 0 && <SummaryPill group="sale" warn="red" label="판매할인">-{won(totals.discount)}원</SummaryPill>}
+          <SummaryPill group="buy" label="매입합계">{won(totals.cost)}원</SummaryPill>
+          <SummaryPill group="result" warn={totals.margin < 0 ? 'red' : null} label="마진">
+            {won(totals.margin)}원{totals.total > 0 && ` (${Math.round((totals.margin / totals.total) * 1000) / 10}%)`}
+          </SummaryPill>
+          <span className="text-xs text-slate-600">매입합계는 배송비 포함{totals.purchaseDiscount > 0 ? ` · 매입할인 -${won(totals.purchaseDiscount)}원 반영` : ''}</span>
+        </div>
         <SeasonDatalist id="consult-season-options" options={seasonOptions(consultDate, [...usedSeasons, ...items.map(x => x.order_season)])} />
-        <table className="w-full text-xs min-w-[1774px] table-fixed">
+        <table className={`${cellTableCls} text-xs w-full min-w-[1774px] table-fixed`}>
           <colgroup>
             {/* 품번 폭을 상품명과 비슷하게 — 드롭다운 가독 (사용자 피드백 6) */}
             <col className="w-[13.26%]" /><col className="w-[13.26%]" /><col className="w-16" /><col className="w-[5rem]" /><col className="w-12" />
@@ -1279,24 +1290,26 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             <col className="w-[5.5rem]" /><col className="w-[5.5rem]" /><col className="w-[6.75rem]" /><col className="w-[5.5rem]" /><col className="w-[5.5rem]" /><col className="w-8" />
           </colgroup>
           <thead>
-            <tr className="bg-slate-50 text-slate-600 border-b border-slate-300">
-              <th className="py-1.5 px-1.5 text-left font-medium">품번 검색</th>
-              <th className="py-1.5 px-1.5 text-left font-medium">상품명</th>
-              <th className="py-1.5 px-1.5 text-left font-medium" title="지점 배송 · 개별 배송 · 샘플 — 가격 규칙과 배송지 · 배송명단 적용이 달라집니다">배송종류</th>
-              <th className="py-1.5 px-1.5 text-left font-medium" title="상시 · 26설 · 26추석 등 — 목록에서 고르거나 직접 입력">주문시기</th>
-              <th className="py-1.5 px-1.5 text-right font-medium">수량</th>
-              <th className="py-1.5 px-1.5 text-right font-medium" title="원가표 카톤단위 — 자동 표기">카톤</th>
-              <th className="py-1.5 px-1.5 text-right font-medium">판매가</th>
-              <th className="py-1.5 px-1.5 text-right font-medium" title="정액(행당 금액) 또는 개당 할인">판매할인</th>
-              <th className="py-1.5 px-1.5 text-right font-medium" title="고객에게 받는 택배비 (지점 품목만). 매입배송비가 있으면 박스당 단가, 0이면 받는 금액(합계)을 입력">택배비(판매)</th>
-              <th className="py-1.5 px-1.5 text-right font-medium">판매합계</th>
-              <th className="py-1.5 px-1.5 text-left font-medium">매입처</th>
-              <th className="py-1.5 px-1.5 text-right font-medium">매입가</th>
-              <th className="py-1.5 px-1.5 text-right font-medium" title="정액(행당 금액) 또는 개당 할인 — 매입합계 · 발주서 금액에 반영">매입할인</th>
-              <th className="py-1.5 px-1.5 text-left font-medium" title="수량 기준 카톤단위/카톤외 자동 구분 — 수정 가능">매입배송비</th>
-              <th className="py-1.5 px-1.5 text-right font-medium" title="매입가 × 수량 + 매입배송비 − 매입할인">매입합계</th>
-              <th className="py-1.5 px-1.5 text-right font-medium">마진</th>
-              <th />
+            {/* 묶음 띠 + 묶음 색 머리줄 (UI 통일 기준 — 엑셀형 입력 표, 2026-11-25). 열을 더하면 colSpan 도 함께 고칠 것 */}
+            <tr><CellBand group="item" colSpan={6} /><CellBand group="sale" colSpan={4} /><CellBand group="buy" colSpan={5} /><CellBand group="result" /><th className={cellBlankTh} /></tr>
+            <tr>
+              <CellHead group="item">품번 검색</CellHead>
+              <CellHead group="item">상품명</CellHead>
+              <CellHead group="item" title="지점 배송 · 개별 배송 · 샘플 — 가격 규칙과 배송지 · 배송명단 적용이 달라집니다">배송종류</CellHead>
+              <CellHead group="item" title="상시 · 26설 · 26추석 등 — 목록에서 고르거나 직접 입력">주문시기</CellHead>
+              <CellHead group="item">수량</CellHead>
+              <CellHead group="item" title="원가표 카톤단위 — 자동 표기">카톤</CellHead>
+              <CellHead group="sale">판매가</CellHead>
+              <CellHead group="sale" title="정액(행당 금액) 또는 개당 할인">판매할인</CellHead>
+              <CellHead group="sale" title="고객에게 받는 택배비 (지점 품목만). 매입배송비가 있으면 박스당 단가, 0이면 받는 금액(합계)을 입력">택배비(판매)</CellHead>
+              <CellHead group="sale">판매합계</CellHead>
+              <CellHead group="buy">매입처</CellHead>
+              <CellHead group="buy">매입가</CellHead>
+              <CellHead group="buy" title="정액(행당 금액) 또는 개당 할인 — 매입합계 · 발주서 금액에 반영">매입할인</CellHead>
+              <CellHead group="buy" title="수량 기준 카톤단위/카톤외 자동 구분 — 수정 가능">매입배송비</CellHead>
+              <CellHead group="buy" title="매입가 × 수량 + 매입배송비 − 매입할인">매입합계</CellHead>
+              <CellHead group="result">마진</CellHead>
+              <th className={cellBlankTh} />
             </tr>
           </thead>
           <tbody>
@@ -1312,38 +1325,38 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
               // 702 의사 행(품목 미연결 배송비)만 특수 렌더 — 703 배송비 품목은 일반 행
               if (it.is_shipping && !it.product_id) {
                 return (
-                <tr key={it.uid} className="border-b border-slate-200 align-top bg-amber-50/40">
-                  <td className="py-1 px-1.5">
+                <tr key={it.uid} className="align-top">
+                  <td className="p-0">
                     <div className="flex items-center gap-1 text-xs text-slate-700 px-1.5 py-1">
                       <span className="text-slate-500 shrink-0">└</span>
                       <span className="font-medium">{it.item_name}</span>
                     </div>
                   </td>
-                  <td className="py-1 px-1.5">
+                  <td className="p-0">
                     <div className="text-xs text-slate-500 px-1.5 py-1">
                       {it.item_name === '배송비(카톤단위)' ? '카톤 수 × 카톤택배비 (수정 가능)' : '낱개·택배 등 (금액 직접 입력)'}
                     </div>
                   </td>
-                  <td className="py-1 px-1.5 text-center text-slate-400 text-xs">-</td>
-                  <td className="py-1 px-1.5 text-center text-slate-400 text-xs">-</td>
-                  <td className="py-1 px-1.5 text-right">
+                  <td className="p-0 text-center text-slate-400 text-xs align-middle">-</td>
+                  <td className="p-0 text-center text-slate-400 text-xs align-middle">-</td>
+                  <td className="p-0">
                     <NumInput value={it.quantity || ''} disabled={locked} onChange={e => setQuantity(i, toInt(e.target.value))}
-                      className={numCell} placeholder="1" />
+                      className={nItem} placeholder="1" />
                   </td>
-                  <td className="py-1 px-1.5 text-center text-slate-400 text-xs">-</td>
-                  <td className="py-1 px-1.5 text-right">
+                  <td className="p-0 text-center text-slate-400 text-xs align-middle">-</td>
+                  <td className="p-0">
                     <NumInput value={it.sale_price ? won(it.sale_price) : ''} disabled={locked}
-                      onChange={e => setItem(i, { sale_price: toInt(e.target.value) })} className={numCell} placeholder="0" />
+                      onChange={e => setItem(i, { sale_price: toInt(e.target.value) })} className={nSale} placeholder="0" />
                   </td>
-                  <td className="py-1 px-1.5 text-center text-slate-400 text-xs">-</td>
-                  <td className="py-1 px-1.5 text-right">
-                    <div className={autoCell + ' font-semibold text-slate-800'}>{won(lineTotal(it))}</div>
+                  <td className="p-0 text-center text-slate-400 text-xs align-middle">-</td>
+                  <td className="p-0">
+                    <div className={calcCls('sale')}>{won(lineTotal(it))}</div>
                   </td>
                   {/* 매입처 · 매입가 · 매입할인 · 매입배송비 · 매입합계 · 마진 */}
                   {Array.from({ length: 6 }, (_, k) => (
-                    <td key={k} className="py-1 px-1.5 text-center text-slate-400 text-xs">-</td>
+                    <td key={k} className="p-0 text-center text-slate-400 text-xs align-middle">-</td>
                   ))}
-                  <td className="py-1 px-1 text-center">
+                  <td className="p-0 text-center align-middle">
                     {!locked && (
                       <button type="button" onClick={() => removeRow(it.uid)}
                         className="text-red-400 hover:text-red-600 text-sm" title="배송비 행 삭제">✕</button>
@@ -1355,8 +1368,8 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
 
               return (
               <Fragment key={it.uid}>
-              <tr className={`border-b border-slate-200 align-top ${it.parent_uid ? 'bg-slate-50/60' : ''}`}>
-                <td className="py-1 px-1.5">
+              <tr className="align-top">
+                <td className="p-0">
                   <div className="flex items-center gap-1">
                     {it.parent_uid != null && <span className="text-slate-500 text-xs shrink-0" title="옵션 (부가상품)">└</span>}
                     <div className="flex-1">
@@ -1370,46 +1383,46 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                           note: p.status_note ?? undefined,
                         }))}
                         onSelect={id => pickProduct(i, id)}
-                        placeholder="품번·품명 검색" />
+                        placeholder="품번·품명 검색" inputClassName={cellCls('item')} />
                     </div>
                   </div>
                 </td>
-                <td className="py-1 px-1.5">
+                <td className="p-0">
                   <textarea key={`${it.uid}:${it.product_id ?? ''}`} value={it.item_name} rows={1} ref={autoGrow}
                     disabled={locked}
                     onChange={e => { setItem(i, { item_name: e.target.value, product_id: null }); autoGrow(e.target) }}
                     placeholder="마스터에 없으면 직접 입력"
-                    className="w-full border border-amber-200 bg-amber-50/30 rounded px-1.5 py-1 text-xs resize-none overflow-hidden leading-relaxed block disabled:opacity-60" />
+                    className={cellCls('item', { auto: true, extra: 'resize-none overflow-hidden leading-snug' })} />
                   {isUnregisteredRow(it) && !locked && (
                     <UnregisteredTag canRegister={canRegisterProduct} onRegister={() => setRegisterUid(it.uid)} />
                   )}
                 </td>
-                <td className="py-1 px-1.5">
+                <td className="p-0">
                   <select value={it.order_kind} disabled={locked} onChange={e => setKind(i, e.target.value)}
-                    className="border border-blue-200 bg-blue-50/40 rounded px-1 py-1 text-xs disabled:opacity-60">
+                    className={cellCls('item', { tight: true })}>
                     <option>지점</option><option>개별</option><option>샘플</option>
                   </select>
                 </td>
-                <td className="py-1 px-1.5">
+                <td className="p-0">
                   <SeasonInput value={it.order_season} disabled={locked} listId="consult-season-options"
-                    normalize={normalizeSeason} onChange={v => setItem(i, { order_season: v })} />
+                    normalize={normalizeSeason} onChange={v => setItem(i, { order_season: v })} className={cellCls('item')} />
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="p-0">
                   <NumInput value={it.quantity || ''} disabled={locked} onChange={e => setQuantity(i, toInt(e.target.value))}
-                    className={numCell} placeholder="1" />
+                    className={nItem} placeholder="1" />
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="p-0">
                   {/* 카톤단위 자동 표기 (원가표) */}
-                  <div className={autoCell}
+                  <div className={calcCls('item', { extra: 'font-semibold' })}
                     title={it.carton_unit > 0 ? `1카톤 ${it.carton_unit}개 — 지점 배송비 자동 계산에 사용` : '카톤단위 미지정'}>
                     {it.carton_unit > 0 ? `${it.carton_unit}개` : '-'}
                   </div>
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="p-0">
                   <NumInput value={it.sale_price ? won(it.sale_price) : ''} disabled={locked}
-                    onChange={e => setItem(i, { sale_price: toInt(e.target.value) })} className={numCell} placeholder="0" />
+                    onChange={e => setItem(i, { sale_price: toInt(e.target.value) })} className={nSale} placeholder="0" />
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="p-0">
                   {/* 할인 — 정액(행당 금액) / 단가(개당 원 × 수량 자동) 구분 (704) */}
                   <select value={it.discount_mode} disabled={locked}
                     onChange={e => {
@@ -1418,7 +1431,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                         ? { discount_mode: mode, discount_amount: (it.discount_unit || 0) * it.quantity }
                         : { discount_mode: mode, discount_unit: 0 })
                     }}
-                    className="w-full border border-blue-200 bg-blue-50/40 rounded px-1 py-0.5 text-xs mb-0.5 disabled:opacity-60">
+                    className={cellCls('sale', { tight: true, short: true, extra: 'mb-1' })}>
                     <option value="정액">정액</option>
                     <option value="단가">개당</option>
                   </select>
@@ -1434,65 +1447,65 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                         : { discount_amount: v })
                     }}
                     title={it.discount_mode === '단가' ? `개당 할인 — 할인액 ${won(it.discount_amount)}원 자동 계산` : '행당 할인 금액'}
-                    className={`${numCell} ${it.discount_amount > 0 ? 'text-red-600 font-semibold border-red-200 bg-red-50/40' : ''}`}
+                    className={cellCls('sale', { num: true, warn: it.discount_amount > 0 ? 'red' : null, extra: it.discount_amount > 0 ? 'font-semibold' : '' })}
                     placeholder="0" />
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="p-0">
                   {/* 택배비(판매) — 매입배송비 있으면 박스당 단가, 0이면 합계 (2026-11-12) */}
                   {it.is_shipping
                     ? <div className="text-xs text-slate-400 text-right">—</div>
-                    : <CustomerShipInput it={it} disabled={locked} className={numCell} onChange={patch => setItem(i, patch)} />}
+                    : <CustomerShipInput it={it} disabled={locked} className={nSale} onChange={patch => setItem(i, patch)} />}
                 </td>
-                <td className="py-1 px-1.5 text-right">
-                  <div className={autoCell + ' font-semibold text-slate-800'}>
+                <td className="p-0">
+                  <div className={calcCls('sale', { tall: true })}>
                     {won(lineTotal(it))}
                     {it.discount_amount > 0 && (
-                      <div className="text-xs text-red-500 font-normal">
+                      <div className="text-xs font-normal">
                         판매할인 -{won(it.discount_amount)}{it.discount_mode === '단가' ? ` (${won(it.discount_unit)}/개)` : ''}
                       </div>
                     )}
                   </div>
                 </td>
-                <td className="py-1 px-1.5">
+                <td className="p-0">
                   <input value={it.purchase_vendor_name} disabled={locked}
                     onChange={e => setItem(i, { purchase_vendor_name: e.target.value })}
                     title={it.purchase_vendor_name}
-                    className="w-full border border-slate-300 bg-slate-50 rounded px-1.5 py-1 text-xs disabled:opacity-60" />
+                    className={cellCls('buy')} />
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="p-0">
                   <NumInput decimals={2} value={it.purchase_price ? fmtPurchasePrice(it.purchase_price) : ''} disabled={locked}
-                    onChange={e => setItem(i, { purchase_price: toPurchasePrice(e.target.value) })} className={numCell} placeholder="0" />
+                    onChange={e => setItem(i, { purchase_price: toPurchasePrice(e.target.value) })} className={nBuy} placeholder="0" />
                   {/* 품목별 매입가 합계 = 매입가 × 수량 (사용자 확정 2026-10-16) */}
                   {it.purchase_price > 0 && it.quantity > 0 && (
                     <div className="text-xs text-slate-500 mt-0.5 tabular-nums">합계 {won(purchaseAmount(it.purchase_price, it.quantity))}</div>
                   )}
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="p-0">
                   {/* 매입할인 (708) — 정액(행당) / 개당. 매입합계 · 발주서 금액에 반영 */}
                   <DiscountInput mode={it.purchase_discount_mode} unit={it.purchase_discount_unit} amount={it.purchase_discount}
-                    quantity={it.quantity} disabled={locked} className={numCell}
+                    quantity={it.quantity} disabled={locked} className={nBuy} cell="buy"
                     onChange={d => setItem(i, { purchase_discount_mode: d.mode, purchase_discount_unit: d.unit, purchase_discount: d.amount })} />
                 </td>
-                <td className="py-1 px-1.5">
+                <td className="p-0">
                   {/* 매입배송비 — 수량 기준 카톤단위/카톤외 자동 구분 (수정 가능, 704 확정) */}
                   <NumInput value={it.purchase_shipping ? won(it.purchase_shipping) : ''} disabled={locked}
                     onChange={e => { const v = toInt(e.target.value); setItem(i, { purchase_shipping: v, ...reshipPatch({ ...it, purchase_shipping: v }) }) }}
                     title={purchaseShippingHint(it) ?? '카톤 정보가 없는 품목 — 직접 입력'}
-                    className={numCell} placeholder="0" />
+                    className={nBuy} placeholder="0" />
                   {purchaseShippingHint(it) && (
                     <div className="text-xs text-slate-500 mt-0.5">{purchaseShippingHint(it)!.replace('자동 계산: ', '').replace(' (수정 가능)', '')}</div>
                   )}
                 </td>
-                <td className="py-1 px-1.5 text-right">
-                  <div className={autoCell + ' font-semibold text-slate-800'}>{won(lineCost(it))}</div>
+                <td className="p-0">
+                  <div className={calcCls('buy')}>{won(lineCost(it))}</div>
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="p-0">
                   {(() => {
                     const total = lineTotal(it)
                     const margin = total - lineCost(it)
                     const pct = total > 0 ? Math.round((margin / total) * 1000) / 10 : null
                     return (
-                      <div className={`${autoCell} ${margin >= 0 ? 'text-emerald-700' : 'text-red-500'}`}>
+                      <div className={calcCls('result', { tall: true, warn: margin < 0 ? 'red' : null })}>
                         {won(margin)}
                         {/* 마진율(%) 표기 — 실무자 요청 */}
                         {pct !== null && <div className="text-xs font-normal">{pct}%</div>}
@@ -1500,7 +1513,7 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     )
                   })()}
                 </td>
-                <td className="py-1 px-1 text-center">
+                <td className="p-0 text-center align-middle">
                   {!locked && items.length > 1 && (
                     <button type="button" onClick={() => removeRow(it.uid)}
                       className="text-red-400 hover:text-red-600 text-sm"
@@ -1509,15 +1522,14 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                 </td>
               </tr>
               {/* 품목별 상태·기타사항 (509 — 상담정보에서 이동) */}
-              <tr className={`border-b border-slate-200 ${it.parent_uid ? 'bg-slate-50/60' : ''}`}>
-                <td colSpan={17} className="pb-1.5 pt-0 px-1.5">
+              <tr>
+                <td colSpan={17} className="pb-2 pt-0 px-0">
                   <div className="flex items-center gap-2 pl-4 flex-wrap">
-                    <span className="text-xs text-slate-500 shrink-0">상태</span>
+                    <span className="text-xs text-slate-600 shrink-0">상태</span>
                     <input value={it.status} disabled={locked}
                       onChange={e => setItem(i, { status: e.target.value })}
                       placeholder="품절·단가변경 등 (품절 상품 선택 시 자동)"
-                      className={`w-56 border rounded px-1.5 py-0.5 text-xs disabled:opacity-60 ${
-                        it.status ? 'border-red-200 bg-red-50/40 text-red-700' : 'border-slate-300 bg-slate-50'}`} />
+                      className={cellCls('item', { short: true, noWidth: true, warn: it.status ? 'red' : null, extra: 'w-56' })} />
                     {priceChanged(it) && (
                       <span className="inline-block whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800"
                         title="입력 판매가가 원가표 자동가와 다릅니다 — 저장 시 상태에 병기">단가변경</span>
@@ -1526,17 +1538,17 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
                     <input value={it.option_note} disabled={locked}
                       onChange={e => setItem(i, { option_note: e.target.value })}
                       placeholder="색상, 각인 문구 등"
-                      className="flex-1 min-w-48 border border-slate-300 bg-slate-50 rounded px-1.5 py-0.5 text-xs disabled:opacity-60" />
+                      className={cellCls('item', { short: true, noWidth: true, extra: 'flex-1 min-w-48' })} />
                     <span className="text-xs text-slate-500 shrink-0 ml-2">비고</span>
                     <input value={it.memo} disabled={locked}
                       onChange={e => setItem(i, { memo: e.target.value })}
-                      className="flex-1 min-w-40 border border-slate-300 bg-slate-50 rounded px-1.5 py-0.5 text-xs disabled:opacity-60" />
+                      className={cellCls('item', { short: true, noWidth: true, extra: 'flex-1 min-w-40' })} />
                   </div>
                 </td>
               </tr>
               {addonCands.length > 0 && (
-                <tr className="border-b border-slate-200">
-                  <td colSpan={17} className="pb-1.5 pt-0 px-1.5">
+                <tr>
+                  <td colSpan={17} className="pb-2 pt-0 px-0">
                     <div className="flex items-center gap-1.5 flex-wrap pl-4">
                       <span className="text-xs text-slate-500">옵션 추가 ({it.purchase_vendor_name})</span>
                       {addonCands.map(p => (
@@ -1566,21 +1578,6 @@ export default function ConsultForm({ consultId, copyId, copyLines }: {
             + 품목 행 추가
           </button>
         )}
-        <div className="flex gap-5 text-sm mt-3 flex-wrap">
-          <span>예상 합계 <b className="tabular-nums">{won(totals.total)}원</b></span>
-          {totals.discount > 0 && (
-            <span className="text-red-600">판매할인 합계 <b className="tabular-nums">-{won(totals.discount)}원</b></span>
-          )}
-          {/* 매입 합계 = 매입가×수량 + 매입배송비 − 매입할인 (마진 공식과 동일 기준 — 합계 − 매입 = 마진) */}
-          <span className="text-slate-700">매입 합계 <b className="tabular-nums">{won(totals.cost)}원</b>
-            <span className="text-xs text-slate-500 ml-1">배송비 포함{totals.purchaseDiscount > 0 ? ` · 매입할인 -${won(totals.purchaseDiscount)}원 반영` : ''}</span>
-          </span>
-          <span>예상 마진 <b className="tabular-nums text-emerald-700">{won(totals.margin)}원</b>
-            {totals.total > 0 && (
-              <span className="text-xs text-emerald-700 ml-1">({Math.round((totals.margin / totals.total) * 1000) / 10}%)</span>
-            )}
-          </span>
-        </div>
       </div>
 
       {/* 결제 정보 — 발송 정보와 분리 (사용자 피드백 1) */}
